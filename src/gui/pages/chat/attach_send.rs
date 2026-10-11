@@ -16,11 +16,14 @@
 //! the next kind of private conversation has to say which it is.
 //!
 //! The upload itself always runs on a worker thread; `run` takes the uploader as an argument so
-//! the tests can see exactly what would be posted without a network.
+//! the tests can see exactly what would be posted without a network. A picked file is read there
+//! too, never on the frame, and kept to one copy in memory (chat/attach_body.rs, round 3 of
+//! docs/design/media-showcase.md).
 //!
 //! Takes `use super::*` like the page's other children.
 
 use super::*;
+use super::attach_body::{self, Body};
 
 /// Where a file is going, which decides whether the file itself is encrypted.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -72,7 +75,8 @@ pub(crate) struct AttachJob {
     pub token: String,
     pub filename: String,
     pub mime: String,
-    pub bytes: Vec<u8>,
+    /// The file: its bytes (a paste), or its path, read by the worker.
+    pub body: Body,
     /// 3D model files also go to the server's public Shared Files library (`?share=1`), but
     /// only from a public channel: sharing a private file publicly would undo the encryption.
     pub share: bool,
@@ -100,9 +104,35 @@ pub(crate) struct Limits {
 }
 
 impl Limits {
+    /// This person's limits on the server they are on now: what that server told this identity,
+    /// nothing (the fallback) when it told them to someone else or about another server.
     pub(crate) fn of(state: &GuiState) -> Self {
-        Limits { room: state.upload_limit_bytes, private: state.private_limit_bytes }
+        let l = &state.upload_limits;
+        if l.server != super::norm_server_url(&state.server_url) || l.key != state.profile_public_key {
+            return Limits::default();
+        }
+        Limits { room: l.room, private: l.private }
     }
+}
+
+/// The upload limits a server told this person (`GuiState::upload_limits`), with the server and
+/// the identity they were told to, so they never outlive either (round 3 of
+/// docs/design/media-showcase.md, the review's finding 10: the private-file limit of one server
+/// was kept after a switch to another, or after a restore from a recovery phrase).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct UploadLimits {
+    /// The server (normalised) and the identity (public key) they were told to.
+    pub server: String,
+    pub key: String,
+    /// A file in a server's room (`upload_limit_mb`), in bytes.
+    pub room: Option<u64>,
+    /// A file in a private conversation (`private_limit_mb`), in bytes.
+    pub private: Option<u64>,
+}
+
+/// This person's own limit for one file in a room of the server they are on, if it has said.
+pub(crate) fn room_limit_here(state: &GuiState) -> Option<u64> {
+    Limits::of(state).room
 }
 
 /// The most a file sent to `to` may be: in a private conversation the person's own private-file
@@ -117,20 +147,25 @@ pub(crate) fn limit_for(limits: Limits, to: Destination) -> u64 {
 }
 
 /// Keep this person's own upload limits from their entry of the server's `peer_list`
-/// (`upload_limit_mb`, 2026-10-10; `private_limit_mb`, 2026-10-11). Another entry, or none,
-/// changes nothing.
+/// (`upload_limit_mb`, 2026-10-10; `private_limit_mb`, 2026-10-11), with the server and identity
+/// they are for: limits told to another server or identity before are dropped first. Another
+/// entry, or none, changes nothing.
 pub(crate) fn note_upload_limit(state: &mut GuiState, peer_list: &serde_json::Value) {
     let me = state.profile_public_key.clone();
+    let here = super::norm_server_url(&state.server_url);
+    if state.upload_limits.server != here || state.upload_limits.key != me {
+        state.upload_limits = UploadLimits { server: here, key: me.clone(), room: None, private: None };
+    }
     let mine = peer_list
         .get("peers")
         .and_then(|p| p.as_array())
         .and_then(|peers| peers.iter().find(|p| p.get("public_key").and_then(|k| k.as_str()) == Some(me.as_str())));
     let mb_at = |field: &str| mine.and_then(|p| p.get(field)).and_then(|v| v.as_u64()).map(|mb| mb.saturating_mul(1024 * 1024));
     if let Some(bytes) = mb_at("upload_limit_mb") {
-        state.upload_limit_bytes = Some(bytes);
+        state.upload_limits.room = Some(bytes);
     }
     if let Some(bytes) = mb_at("private_limit_mb") {
-        state.private_limit_bytes = Some(bytes);
+        state.upload_limits.private = Some(bytes);
     }
     // And this connection's upload token, kept with the server it is for.
     if let Some(token) = mine.and_then(|p| p.get("upload_token")).and_then(|v| v.as_str()).filter(|t| !t.is_empty()) {
@@ -176,15 +211,35 @@ pub(crate) struct Upload {
 /// phrase (step F's guard: the name travels inside the marker, where the guard on the message
 /// text cannot read it, so it is checked here).
 pub(crate) fn attach_job(state: &mut GuiState, filename: &str, bytes: Vec<u8>) -> Option<AttachJob> {
+    job_for(state, filename, Body::Bytes(bytes))
+}
+
+/// The job for the file at `path`, picked with Attach: its size is read now (the cap is checked
+/// before anything is sent), its bytes only by the worker (round 3, the review's finding 8: a
+/// gigabyte read on the frame stopped the app drawing until it was read).
+pub(crate) fn attach_file_job(state: &mut GuiState, path: &std::path::Path) -> Option<AttachJob> {
+    let filename = path.file_name().and_then(|n| n.to_str()).unwrap_or("file").to_string();
+    match std::fs::metadata(path) {
+        Ok(m) => job_for(state, &filename, Body::File { path: path.to_path_buf(), len: m.len() }),
+        Err(e) => {
+            log::warn!("Attach read failed for {filename}: {e}");
+            state.pending_notices.push(format!("The file was not sent: {filename} could not be read ({e})."));
+            None
+        }
+    }
+}
+
+/// [`attach_job`] for any `body`.
+fn job_for(state: &mut GuiState, filename: &str, body: Body) -> Option<AttachJob> {
     let to = Destination::of(&state.chat_active_channel);
     let Some(token) = upload_token_here(state) else {
         state.ws_status = NOT_SIGNED_IN_YET.to_string();
         return None;
     };
     let limit = limit_for(Limits::of(state), to);
-    if bytes.len() as u64 > limit {
-        log::warn!("Attach rejected: {filename} is {} bytes (max {limit})", bytes.len());
-        state.ws_status = too_large_line(filename, bytes.len() as u64, limit, to);
+    if body.len() > limit {
+        log::warn!("Attach rejected: {filename} is {} bytes (max {limit})", body.len());
+        state.ws_status = too_large_line(filename, body.len(), limit, to);
         return None;
     }
     if crate::engine::warnings::guard_stops(state, &[filename]) {
@@ -197,7 +252,7 @@ pub(crate) fn attach_job(state: &mut GuiState, filename: &str, bytes: Vec<u8>) -
         token,
         filename: filename.to_string(),
         mime: mime_for_filename(filename).to_string(),
-        bytes,
+        body,
         share,
         to,
         limit,
@@ -220,7 +275,7 @@ pub(crate) fn paste_job(state: &GuiState, png: Vec<u8>) -> Option<AttachJob> {
         token,
         filename: "pasted-image.png".to_string(),
         mime: "image/png".to_string(),
-        bytes: png,
+        body: Body::Bytes(png),
         share: false,
         to,
         limit,
@@ -230,7 +285,8 @@ pub(crate) fn paste_job(state: &GuiState, png: Vec<u8>) -> Option<AttachJob> {
 /// Upload `job` with `upload(server, public_key, what)` and return the message text to send:
 /// the `[[hum:file:v1]]` marker for a private conversation, the file's URL for a public one.
 /// For a private one the uploader only ever sees ciphertext under a neutral name and type; the
-/// real name and type ride inside the marker with the key. Runs on the upload worker.
+/// real name and type ride inside the marker with the key. Runs on the upload worker, which reads
+/// a picked file here and encrypts it in its own buffer: one copy of the file in memory.
 pub(crate) fn run<U>(job: AttachJob, upload: U) -> Result<String, String>
 where
     U: FnOnce(&str, &str, Upload) -> Result<String, String>,
@@ -238,19 +294,20 @@ where
     // Checked again here, so no path can reach an upload past the cap (a private conversation's
     // never past `private_ceiling`, what the receiving side opens, whatever the job says).
     let limit = if job.to.encrypts_file() { job.limit.min(private_ceiling()) } else { job.limit };
-    if job.bytes.len() as u64 > limit {
-        return Err(format!("the file is {} bytes, over the {limit} limit", job.bytes.len()));
+    if job.body.len() > limit {
+        return Err(format!("the file is {} bytes, over the {limit} limit", job.body.len()));
     }
+    let mut bytes = attach_body::read(job.body, limit)?;
     if !job.to.encrypts_file() {
-        let plain = Upload { filename: job.filename, mime: job.mime, bytes: job.bytes, share: job.share, encrypted: false };
+        let plain = Upload { filename: job.filename, mime: job.mime, bytes, share: job.share, encrypted: false };
         return upload(&job.server, &job.token, plain);
     }
-    let size = job.bytes.len() as u64;
-    let (ciphertext, k, n) = crate::net::dm_pq::encrypt_attachment(&job.bytes)?;
+    let size = bytes.len() as u64;
+    let (k, n) = crate::net::dm_pq::encrypt_attachment_in_place(&mut bytes)?;
     let sealed = Upload {
         filename: "attachment.enc".to_string(),
         mime: "application/octet-stream".to_string(),
-        bytes: ciphertext,
+        bytes, // now the ciphertext, in the same buffer
         share: false,
         encrypted: true,
     };
@@ -277,16 +334,10 @@ fn start(state: &mut GuiState, job: AttachJob) {
     state.clipboard_upload = Some((state.chat_active_channel.clone(), rx));
 }
 
-/// The Attach picker chose `path`: read it and start sending it.
+/// The Attach picker chose `path`: start sending it (the worker reads it).
 pub(super) fn start_attach(state: &mut GuiState, path: &std::path::Path) {
-    let filename = path.file_name().and_then(|n| n.to_str()).unwrap_or("file").to_string();
-    match std::fs::read(path) {
-        Ok(bytes) => {
-            if let Some(job) = attach_job(state, &filename, bytes) {
-                start(state, job);
-            }
-        }
-        Err(e) => log::warn!("Attach read failed for {filename}: {e}"),
+    if let Some(job) = attach_file_job(state, path) {
+        start(state, job);
     }
 }
 
@@ -391,35 +442,17 @@ pub(crate) fn upload_query(token: &str, flags: UploadFlags) -> String {
     q
 }
 
-/// The one multipart upload every kind of file goes through, with `flags` in its query.
+/// The one multipart upload every kind of file goes through, with `flags` in its query. The body
+/// is streamed around the file's own buffer (attach_body.rs `Multipart`), its length set so it is
+/// sent as it is: the file is never copied into a second buffer with its framing.
 fn upload_flagged(server_url: &str, token: &str, filename: &str, mime: &str, bytes: Vec<u8>, flags: UploadFlags) -> Result<String, String> {
     let base = server_url.trim_end_matches('/');
     let upload_url = format!("{base}/api/upload?{}", upload_query(token, flags));
-    let boundary = format!("HumanityOSBoundary{}",
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_millis()
-    );
-    // Sanitize the filename for the multipart header (quotes/CRLF would
-    // corrupt the form-data framing).
-    let safe_name: String = filename
-        .chars()
-        .map(|c| if c == '"' || c == '\r' || c == '\n' { '_' } else { c })
-        .collect();
-    let preamble = format!(
-        "--{b}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{f}\"\r\nContent-Type: {m}\r\n\r\n",
-        b = boundary, f = safe_name, m = mime,
-    );
-    let epilogue = format!("\r\n--{b}--\r\n", b = boundary);
-    let mut body: Vec<u8> = Vec::with_capacity(preamble.len() + bytes.len() + epilogue.len());
-    body.extend_from_slice(preamble.as_bytes());
-    body.extend_from_slice(&bytes);
-    body.extend_from_slice(epilogue.as_bytes());
-
+    let body = attach_body::Multipart::new(filename, mime, bytes);
     let resp = ureq::post(&upload_url)
-        .set("Content-Type", &format!("multipart/form-data; boundary={}", boundary))
-        .send_bytes(&body)
+        .set("Content-Type", &format!("multipart/form-data; boundary={}", body.boundary))
+        .set("Content-Length", &body.len().to_string())
+        .send(body.reader())
         .map_err(upload_error_words)?;
     let body_str = resp.into_string()
         .map_err(|e| format!("read response: {e}"))?;

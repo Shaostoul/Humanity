@@ -74,9 +74,11 @@ mod voice_room;
 pub(crate) use voice_room::set_voice_room;
 /// Sending a file (10k): encrypted for a DM or a group, plain for a public channel. See `chat/attach_send.rs`.
 mod attach_send;
+/// A sent file's bytes kept to one copy: read on the worker, encrypted in place, streamed (round 3).
+mod attach_body;
 pub(crate) use attach_send::upload_file_blocking;
 pub(crate) use attach_send::note_upload_limit; // the server tells each person their own upload limit (2026-10-10)
-pub(crate) use attach_send::{upload_token_here, NOT_SIGNED_IN_YET};
+pub(crate) use attach_send::{room_limit_here, upload_token_here, UploadLimits, NOT_SIGNED_IN_YET};
 /// Showing a private file (10k): the picture inline, or a card with Save. See `chat/attach_view.rs`.
 mod attach_view;
 #[cfg(test)]
@@ -2955,7 +2957,7 @@ pub(crate) const ATTACH_EXTS: &[&str] = &[
 const SHARE_EXTS: &[&str] = &["blend", "stl", "obj", "gltf", "glb"];
 
 /// The limit on a file, private or public, until the server says the person's own
-/// (`GuiState::upload_limit_bytes` and `private_limit_bytes`, from its peer list; the relay's
+/// (`GuiState::upload_limits`, from its peer list, for that server and identity; the relay's
 /// default private limit is this same 6 MB). chat/attach_send.rs `limit_for`.
 pub(crate) const ATTACH_MAX_BYTES: u64 = 6 * 1024 * 1024;
 

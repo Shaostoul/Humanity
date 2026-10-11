@@ -31,7 +31,9 @@ pub(crate) fn save_before_exit(state: &mut EngineState) {
         !state.gui_state.settings.fresh_world_each_launch,
         state.gui_state.own_home.as_ref(),
     );
-    // The Media page's "Play here" copies (members-only videos among them) do not outlive the run.
+    // The Media page's "Play here" copies (members-only videos among them) do not outlive the run,
+    // and neither do the part files of downloads and private-file Saves the exit cut off (round 3
+    // of docs/design/media-showcase.md: nothing is left under a final name, or as a hidden part).
     crate::gui::pages::media::open::forget_temp_files(&mut state.gui_state);
 }
 

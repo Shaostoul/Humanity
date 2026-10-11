@@ -10,16 +10,24 @@
 //! takes whatever its size.
 //!
 //! FETCHES AND DOWNLOADS run on worker threads and stream to disk, so a large file never sits in
-//! memory whole. A members-only item's file comes through the members' file route with this
-//! session's upload token in a header ([`api::TOKEN_HEADER`]), never in an address. There is no
-//! limit on a whole transfer's time, only on a connection that will not open or goes quiet
-//! ([`transfer_agent`]): a 2 GB video takes longer than any fixed limit on a slow line. A failed
-//! or stopped fetch leaves no partial file.
+//! memory whole. A members-only item's file is fetched with a ticket (ticket.rs, the relay's R3-8,
+//! round 3): the session's upload token goes once, in a header, to ask for it, and the transfer
+//! itself carries no token at all. There is no limit on a whole transfer's time, only on a
+//! connection that will not open or goes quiet ([`transfer_agent`]): a 2 GB video takes longer
+//! than any fixed limit on a slow line.
+//!
+//! NOTHING HAS ITS REAL NAME UNTIL IT IS COMPLETE (round 3, the review's findings 6 and 7): a
+//! transfer is written to a hidden part file (widgets/part_file.rs) and named only when the last
+//! byte is in, by claiming a free name, never by checking one and then creating it. A failed or
+//! stopped transfer leaves nothing; one the app's exit cuts off is deleted at the exit, or at the
+//! next start.
 //!
 //! TEMPORARY FILES: Play here's copy lives in the system's temporary folder
-//! (`HumanityOS-media`) and is deleted when its card closes (`Drop for Opened`), when the app
-//! exits (engine/quit.rs calls [`forget_temp_files`]), and, for whatever a run that did not close
-//! cleanly left, once at the start of the next ([`sweep_temp_once`]).
+//! (`HumanityOS-media`) under a name of its own for each fetch ([`play_name`]), and is deleted when
+//! its card closes (`Drop for Opened`), when the app exits (engine/quit.rs calls
+//! [`forget_temp_files`]), and, for whatever a run that did not close cleanly left, once at the
+//! start of the next ([`sweep_temp_once`]). The app's player opens a file, so Play here fetches the
+//! whole video before it plays.
 
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
@@ -28,8 +36,9 @@ use std::time::Duration;
 
 use egui::RichText;
 
-use super::api::{self, Item};
+use super::api::{self, Item, ItemRef};
 use super::kinds;
+use crate::gui::widgets::part_file::Part;
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use crate::gui::GuiState;
@@ -98,11 +107,47 @@ pub(crate) fn sweep(dir: &Path) {
     }
 }
 
-/// The app is exiting (engine/quit.rs): close the card, whose copy goes with it, and clear the
-/// folder.
+/// The app is exiting (engine/quit.rs): close the card, whose copy goes with it, clear the folder,
+/// and delete every part file still being written (a download or a Save cut off by the exit).
 pub(crate) fn forget_temp_files(state: &mut GuiState) {
     state.media.open = None;
     sweep(&temp_dir());
+    crate::gui::widgets::part_file::sweep_own();
+}
+
+/// The name of one Play here copy: the server and item it is from, then this process and a number
+/// no other fetch in this run has had (the review's finding 7: one name per item let two fetches
+/// of it write into the same file).
+pub(crate) fn play_name(server: &str, id: i64) -> String {
+    let h = blake3::hash(format!("{server}\n{id}").as_bytes());
+    format!("{}-{}-{}.video", &h.to_hex()[..16], std::process::id(), super::next_id())
+}
+
+/// Where a transfer of an item's file comes from: a public address, or, for a members-only item,
+/// a ticket asked for on the worker (ticket.rs).
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) enum Origin {
+    Address(String),
+    Ticket { base: String, token: String, item: ItemRef },
+}
+
+impl Origin {
+    /// The address to fetch, asking for a ticket first when it needs one. Blocking.
+    pub(crate) fn address(&self) -> Result<String, String> {
+        match self {
+            Origin::Address(url) => Ok(url.clone()),
+            Origin::Ticket { base, token, item } => super::ticket::ask(base, token, item),
+        }
+    }
+}
+
+/// Where `item`'s file comes from on the server at `base`, with this session's upload `token`.
+pub(crate) fn origin_of(base: &str, item: &Item, token: Option<&str>) -> Result<Origin, String> {
+    if !item.members_only() {
+        return Ok(Origin::Address(api::file_url(base, item)));
+    }
+    let token = token.ok_or_else(|| super::SIGN_IN_LINE.to_string())?;
+    Ok(Origin::Ticket { base: base.to_string(), token: token.to_string(), item: item.reference()? })
 }
 
 /// A tile was clicked: a public picture the image cache can show opens in the image viewer;
@@ -130,13 +175,15 @@ pub(crate) fn transfer_agent(idle: Duration) -> ureq::Agent {
     ureq::AgentBuilder::new().timeout_connect(Duration::from_secs(30)).timeout_read(idle).timeout_write(idle).build()
 }
 
-/// Write what `url` serves into `dest`, streamed, refusing more than `max` bytes, with `header`
-/// on the request (a members-only file's token). Any failure, once `dest` was made, removes it:
-/// no partial file is left. The words never hold a token.
-pub(crate) fn fetch_to(agent: &ureq::Agent, url: &str, header: Option<(&str, &str)>, dest: &Path, max: u64) -> Result<PathBuf, String> {
+/// Write what `url` serves into a file named `name` in `dir`, streamed, refusing more than `max`
+/// bytes, with `header` on the request when one is given. It is written to a hidden part file and
+/// gets its name (`name`, or "name (2)" and so on when that is taken, claimed, never checked and
+/// then made) only when the last byte is in: a failure leaves nothing, and nothing ever has the
+/// real name while it is incomplete. Returns where it is. The words never hold a token or ticket.
+pub(crate) fn fetch_to(agent: &ureq::Agent, url: &str, header: Option<(&str, &str)>, dir: &Path, name: &str, max: u64) -> Result<PathBuf, String> {
     let mut req = agent.get(url);
-    if let Some((name, value)) = header {
-        req = req.set(name, value);
+    if let Some((h, value)) = header {
+        req = req.set(h, value);
     }
     let resp = req.call().map_err(|e| {
         let words = match e {
@@ -148,23 +195,14 @@ pub(crate) fn fetch_to(agent: &ureq::Agent, url: &str, header: Option<(&str, &st
         };
         crate::gui::widgets::image_cache::hide_token(&words)
     })?;
-    if let Some(parent) = dest.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| format!("The folder could not be made ({e})."))?;
+    let mut part = Part::create(dir)?;
+    let mut reader = resp.into_reader().take(max + 1);
+    let n = std::io::copy(&mut reader, part.file()).map_err(|e| crate::gui::widgets::image_cache::hide_token(&format!("The download stopped ({e}).")))?;
+    part.file().flush().map_err(|e| format!("The file could not be written ({e})."))?;
+    if n > max {
+        return Err("The file is larger than this app fetches.".to_string());
     }
-    let result = (|| {
-        let mut file = std::fs::File::create(dest).map_err(|e| format!("The file could not be written ({e})."))?;
-        let mut reader = resp.into_reader().take(max + 1);
-        let n = std::io::copy(&mut reader, &mut file).map_err(|e| format!("The download stopped ({e})."))?;
-        file.flush().map_err(|e| format!("The file could not be written ({e})."))?;
-        if n > max {
-            return Err("The file is larger than this app fetches.".to_string());
-        }
-        Ok(dest.to_path_buf())
-    })();
-    if result.is_err() {
-        let _ = std::fs::remove_file(dest);
-    }
-    result.map_err(|e| crate::gui::widgets::image_cache::hide_token(&e))
+    part.finish(dir, name)
 }
 
 /// A file name safe to write: letters, digits, spaces, dots, dashes and underscores, at most 80
@@ -178,18 +216,6 @@ pub(crate) fn safe_name(name: &str) -> String {
     } else {
         cleaned
     }
-}
-
-/// A path in `dir` for `name` that does not exist yet: "x.png", "x (2).png" and so on.
-pub(crate) fn free_path(dir: &Path, name: &str) -> PathBuf {
-    let (stem, ext) = match name.rfind('.') {
-        Some(i) if i > 0 => (&name[..i], &name[i..]),
-        _ => (name, ""),
-    };
-    (1..=999)
-        .map(|n| dir.join(if n == 1 { name.to_string() } else { format!("{stem} ({n}){ext}") }))
-        .find(|p| !p.exists())
-        .unwrap_or_else(|| dir.join(format!("{stem}-{}{ext}", api::next_timestamp())))
 }
 
 /// The name Download saves `item` under: the uploader's own name for the file (the relay's A1,
@@ -215,13 +241,15 @@ pub(crate) fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     let Some(mut opened) = state.media.open.take() else { return };
     let base = super::base_of(state);
     let token = crate::gui::pages::chat::upload_token_here(state);
-    let url = api::file_url(&base, &opened.item);
-    let header = api::token_header(&opened.item, token.as_deref());
+    let origin = origin_of(&base, &opened.item, token.as_deref());
 
     // Finished fetches and downloads.
     if let Some(rx) = opened.fetch_rx.as_ref() {
         if let Ok(result) = rx.try_recv() {
             opened.fetch_rx = None;
+            if let Ok(path) = &result {
+                opened.temp = Some(path.clone()); // deleted with the card from here on
+            }
             match result.and_then(|path| crate::media::VideoPlayer::open(&path).map_err(|e| format!("This video cannot play in the app: {e}. Download it to watch it in another player."))) {
                 Ok(mut player) => {
                     player.play();
@@ -339,33 +367,37 @@ pub(crate) fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         }
     });
 
-    let owned_header = header.clone();
     if fetch {
-        let h = blake3::hash(format!("{}\n{}", state.media.server, item.id).as_bytes());
-        let dest = temp_dir().join(format!("{}.video", &h.to_hex()[..24]));
-        opened.temp = Some(dest.clone());
-        let (tx, rx) = std::sync::mpsc::channel();
-        let (url, header) = (url.clone(), owned_header.clone());
-        std::thread::spawn(move || {
-            let header = header.as_ref().map(|(n, v)| (*n, v.as_str()));
-            let fetched = fetch_to(&transfer_agent(Duration::from_secs(60)), &url, header, &dest, MAX_FETCH);
-            // The card closed while it was fetching: nobody will play it, so it goes now.
-            if let Err(std::sync::mpsc::SendError(Ok(path))) = tx.send(fetched) {
-                let _ = std::fs::remove_file(path);
+        match origin.clone() {
+            Ok(origin) => {
+                let name = play_name(&state.media.server, item.id);
+                let (tx, rx) = std::sync::mpsc::channel();
+                std::thread::spawn(move || {
+                    let fetched = origin.address().and_then(|url| fetch_to(&transfer_agent(Duration::from_secs(60)), &url, None, &temp_dir(), &name, MAX_FETCH));
+                    // The card closed while it was fetching: nobody will play it, so it goes now.
+                    if let Err(std::sync::mpsc::SendError(Ok(path))) = tx.send(fetched) {
+                        let _ = std::fs::remove_file(path);
+                    }
+                });
+                opened.fetch_rx = Some(rx);
+                opened.problem.clear();
             }
-        });
-        opened.fetch_rx = Some(rx);
-        opened.problem.clear();
+            Err(words) => opened.problem = words,
+        }
     }
     if save {
-        let dest = free_path(&crate::gui::widgets::image_cache::default_downloads_dir(), &download_name(&item));
-        let (tx, rx) = std::sync::mpsc::channel();
-        std::thread::spawn(move || {
-            let header = owned_header.as_ref().map(|(n, v)| (*n, v.as_str()));
-            let _ = tx.send(fetch_to(&transfer_agent(Duration::from_secs(60)), &url, header, &dest, MAX_FETCH));
-        });
-        opened.save_rx = Some(rx);
-        opened.saved.clear();
+        match origin {
+            Ok(origin) => {
+                let (dir, name) = (crate::gui::widgets::image_cache::default_downloads_dir(), download_name(&item));
+                let (tx, rx) = std::sync::mpsc::channel();
+                std::thread::spawn(move || {
+                    let _ = tx.send(origin.address().and_then(|url| fetch_to(&transfer_agent(Duration::from_secs(60)), &url, None, &dir, &name, MAX_FETCH)));
+                });
+                opened.save_rx = Some(rx);
+                opened.saved.clear();
+            }
+            Err(words) => opened.saved = format!("Not saved: {words}"),
+        }
     }
     if view {
         state.image_viewer_url = Some(picture_key);

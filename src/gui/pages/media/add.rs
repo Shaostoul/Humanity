@@ -1,9 +1,11 @@
 //! Putting something on the Media page, and asking for a category.
 //!
 //! ADD TO MEDIA: the file picker, then a short form (title, category, description, labels,
-//! visibility). The file goes up in pieces (media/resumable.rs, with a progress bar, Pause,
-//! Resume and Cancel; the page's side is media/uploading.rs) and is then published with
-//! `POST /api/media`, signed then. Above the form is what is left of the person's share of the
+//! visibility). Sending it closes the form: the file joins the uploads in progress on the page
+//! (media/uploading.rs, each with its bar, Pause, Resume and Cancel), goes up in pieces
+//! (media/resumable.rs) and is then published with `POST /api/media`, signed then, with what this
+//! form said (round 3: no form is held open for an upload, so opening another never touches it).
+//! Above the form is what is left of the person's share of the
 //! Media space, as the server counts it (`/api/media/mine`: "You have 412 MB of your 512 MB
 //! left"), and a file over it, over the largest Media file their role may send, or over what is
 //! left of the whole space is stopped before a byte is sent.
@@ -28,7 +30,7 @@ use std::path::PathBuf;
 use egui::RichText;
 
 use super::api::{self, Category, PublishFields};
-use super::{signer_here, spawn, uploading, Job};
+use super::{publishing, signer_here, spawn, uploading, Job};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use crate::gui::{GuiPage, GuiState};
@@ -58,6 +60,8 @@ pub(crate) enum Of {
 /// The Add to Media or Put on Media form.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Form {
+    /// Its own number (`media::next_id`): its publish's answer lands on this form only.
+    pub id: u64,
     pub source: Source,
     pub title: String,
     pub description: String,
@@ -69,13 +73,13 @@ pub(crate) struct Form {
     pub members_only: bool,
     /// Why the last press did not go.
     pub problem: String,
-    /// The upload or publish is under way.
+    /// The publish of a file already on the server is under way (an upload's never holds a form).
     pub sending: bool,
 }
 
 impl Form {
     pub(crate) fn new(source: Source) -> Self {
-        Form { source, title: String::new(), description: String::new(), category: None, labels: BTreeSet::new(), members_only: false, problem: String::new(), sending: false }
+        Form { id: super::next_id(), source, title: String::new(), description: String::new(), category: None, labels: BTreeSet::new(), members_only: false, problem: String::new(), sending: false }
     }
 
     /// A file picked on this computer (not one already on the server).
@@ -163,7 +167,9 @@ pub(crate) fn picked(state: &mut GuiState, path: &std::path::Path) {
 }
 
 /// Put a file already on the server (a Shared Files row of the Files page) on the Media page:
-/// the form opens on the Media page, public only.
+/// the form opens on the Media page, public only. It replaces whatever form was open; an upload
+/// in progress holds none (round 3), so none is touched, and a publish already on its way answers
+/// to its own form's number, so it never lands on this one.
 pub(crate) fn put_on_media(state: &mut GuiState, filename: &str, name: &str, len: u64) {
     super::sync_server(state);
     let source = Source::Existing { filename: api::bare_name(filename).to_string(), name: name.to_string(), len };
@@ -259,10 +265,6 @@ pub(crate) fn draw_form(ctx: &egui::Context, theme: &Theme, state: &mut GuiState
         if !form.problem.is_empty() {
             ui.label(RichText::new(&form.problem).size(theme.font_size_small).color(theme.danger()));
         }
-        if form.sending && form.is_picked() {
-            ui.add_space(theme.spacing_xs);
-            uploading::draw_progress(ui, theme, state);
-        }
         ui.add_space(theme.spacing_sm);
         ui.horizontal(|ui| {
             let waiting = mine.is_none() && !mine_failed && form.is_picked();
@@ -270,20 +272,21 @@ pub(crate) fn draw_form(ctx: &egui::Context, theme: &Theme, state: &mut GuiState
             ui.add_enabled_ui(ready, |ui| {
                 submit = widgets::Button::primary(submit_words(&form)).show(ui, theme);
             });
-            if form.sending && !form.is_picked() {
+            if form.sending {
                 ui.label(RichText::new("Publishing...").size(theme.font_size_small).color(theme.text_muted()));
             }
-            let tip = if form.sending { "Stop the upload and the publish: nothing of it stays on the server." } else { "Close this without putting anything on Media." };
+            let tip = if form.sending { "Stop the publish: it is taken off again as soon as it lands." } else { "Close this without putting anything on Media." };
             cancel = widgets::Button::secondary("Cancel").tooltip(tip).show(ui, theme);
         });
     });
-    if submit && problem.is_none() && !form.sending {
-        send_form(state, &mut form, members_server);
+    if submit && problem.is_none() && !form.sending && send_form(state, &mut form, members_server) {
+        return; // an upload started: it is in the list on the page now, and the form is done
     }
     if cancel {
-        // A Cancel while sending stops the upload, and the publish when it is already on its way.
+        // A Cancel while its publish is on its way undoes the publish when it lands.
         if form.sending {
-            uploading::cancel(state, &form);
+            publishing::cancel(state, form.id, form.stored().unwrap_or(""));
+            state.media.status = "Cancelling...".to_string();
         }
         return;
     }
@@ -316,18 +319,19 @@ pub(crate) fn fields_of(form: &Form, filename: &str, categories: &[Category], me
     }
 }
 
-/// Send the form: a picked file starts its upload (published when it is up); a file already on
-/// the server is published now.
-fn send_form(state: &mut GuiState, form: &mut Form, members_server: bool) {
+/// Send the form: a picked file starts its upload, which joins the list on the page and is
+/// published when it is up with what this form says (true: the form is done and closes); a file
+/// already on the server is published now, the form waiting for the answer.
+fn send_form(state: &mut GuiState, form: &mut Form, members_server: bool) -> bool {
     let (name, _) = form.file();
     let name = name.to_string();
     // The recovery phrase guard (step F): nothing published may carry it.
     if crate::engine::warnings::guard_stops(state, &[&form.title, &form.description, &name]) {
-        return;
+        return false;
     }
     let Some(signer) = signer_here(state) else {
         form.problem = "Sign in to this server first.".to_string();
-        return;
+        return false;
     };
     form.problem.clear();
     match form.stored().map(str::to_string) {
@@ -335,11 +339,18 @@ fn send_form(state: &mut GuiState, form: &mut Form, members_server: bool) {
             form.sending = true;
             let of = if matches!(form.source, Source::Waiting { .. }) { Of::Waiting } else { Of::Shared };
             let fields = fields_of(form, &filename, &state.media.list.categories, members_server);
-            spawn(state, Job::Publish { of, filename }, api::publish_request(&signer, &fields));
+            publishing::publish(state, of, form.id, &signer, &fields);
+            false
         }
         None => match uploading::start(state, form) {
-            Ok(()) => form.sending = true,
-            Err(words) => form.problem = words,
+            Ok(()) => {
+                state.media.status = format!("Uploading {name}: it is in the list on this page, and goes on the Media page when it is up.");
+                true
+            }
+            Err(words) => {
+                form.problem = words;
+                false
+            }
         },
     }
 }

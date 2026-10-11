@@ -434,14 +434,16 @@ pub(crate) fn download_to(url: &str, max_bytes: u64, out: &mut dyn std::io::Writ
 /// space, quote or bracket) becomes "(hidden)". The second guard behind sending the token in a
 /// header (the 2026-10-11 review of the Media page): an upload still carries it in its address
 /// (`/api/upload?token=`), and ureq writes the whole address into its error words, which reach
-/// the screen and run.log. A token is this session's key to upload as this person.
+/// the screen and run.log. A token is this session's key to upload as this person. A Media
+/// ticket (`ticket=`, round 3's R3-8: ten minutes' access to one members-only file) is hidden the
+/// same way, since its address is all anyone needs to fetch that file.
 pub(crate) fn hide_token(text: &str) -> String {
-    const MARK: &str = "token=";
+    const MARKS: [&str; 2] = ["token=", "ticket="];
     let mut out = String::with_capacity(text.len());
     let mut rest = text;
-    while let Some(i) = rest.find(MARK) {
-        out.push_str(&rest[..i + MARK.len()]);
-        let after = &rest[i + MARK.len()..];
+    while let Some((i, mark)) = MARKS.iter().filter_map(|m| rest.find(m).map(|i| (i, *m))).min_by_key(|(i, _)| *i) {
+        out.push_str(&rest[..i + mark.len()]);
+        let after = &rest[i + mark.len()..];
         let end = after
             .find(|c: char| c == '&' || c.is_whitespace() || matches!(c, '"' | '\'' | ')' | ']' | '>' | ',' | ';' | '#'))
             .unwrap_or(after.len());

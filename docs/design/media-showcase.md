@@ -1297,3 +1297,116 @@ tripped noted above each test).
   open: a closed tab's upload is listed under the unfinished ones on the next visit. The web Roles
   editor still does not exist (see round 2). Members-only pictures are not ticketed, as the spec
   says.
+
+**As built (desktop, round 3; 2026-10-11).** The desktop's half of round 3: the "Both apps" and
+"Desktop only" items, built against the shapes R3-6 to R3-9 first and tested against stand-in
+answers in them, then run against the relay's round 3 once it landed (relay_round3_tests.rs below
+serves the relay's own route functions on a loopback port and talks to them with the app's own
+clients). Code: gui/pages/media/ `uploading.rs` (the uploads list and the records),
+`publishing.rs` (new), `waiting.rs` (new), `upload_waits.rs` (new), `upload_run.rs` (new, the page's
+handle on a running upload, moved out of resumable.rs), `ticket.rs` (new), `resumable.rs`,
+`open.rs`, `add.rs`, `api.rs`, media.rs; gui/widgets/`part_file.rs` (new); gui/pages/chat/
+`attach_body.rs` (new), `attach_send.rs`, `attach_view.rs`; net/dm_pq.rs
+(`encrypt_attachment_in_place`); gui/mod.rs (`upload_limits`); config.rs
+(`media_unfinished_uploads`, a list now); engine/quit.rs. Every test named below was seen failing
+once against a deliberate break, recorded at the test.
+
+- **Review 1, uploads are a list of their own.** Sending the Add to Media form closes it: the
+  upload is a row under "Uploads in progress", carrying what its form said (title, description,
+  category, labels, visibility), with its bar, its words, Pause or Resume (Retry when the server
+  has no room or keeps refusing), and Cancel. Once up, it is published from that, by itself; a
+  publish that does not go stays in the list with its words, Put it on Media and Cancel. Several
+  run at once (the relay allows three per person; a fourth waits with the relay's words). Every
+  publish answers to the number of the upload or form that asked (`Job::Publish { who }`), so Put
+  on Media from the Files page, or a late answer, never lands on another form.
+  (uploads_tests.rs `put_on_media_during_an_upload_never_touches_it`,
+  `a_late_publish_answer_never_lands_on_another_form`.)
+- **Review 2, Pause.** Every request (start, status, piece) waits behind `upload_waits::hold`,
+  and hashing too: while paused nothing is sent, in any phase. (resumable_tests.rs
+  `pause_stops_every_request_in_every_phase`, which counts the starts the server saw in half a
+  second: 41,315 with round 2's loop.)
+- **Review 3, the allowance's wait.** The server's own `resets_in_s` (whole seconds, R3-6), else
+  `resets_at` less this PC's clock, never less than 5 seconds, never more than 25 hours.
+  (`an_allowance_already_past_by_this_clock_still_waits`: 5,561 pieces in half a second with
+  round 2's; upload_waits.rs `an_allowance_waits_the_servers_own_number`.)
+- **Review 5.** A refused piece larger than `left_bytes` is cut to it and sent at once; the rest
+  waits for the reset (`an_allowance_smaller_than_a_piece_still_moves`, and against the real relay
+  `the_whole_upload_against_the_real_relay_with_its_allowance`, whose relay clock reads 2001, so
+  its `resets_at` is long past by this PC's). A 5xx waits a little longer each time, said as a
+  server problem, never as a dropped connection; the tenth of the same status and words in a row
+  stops it with the server's own words and Retry, sending nothing meanwhile
+  (`a_server_error_that_never_clears_waits_for_retry`). A 429 without the allowance's JSON (nginx's
+  rate limit, the relay's "You have 3 uploads in progress") is waited out the same way, with the
+  relay's words or, for nginx's page, a line of our own (`a_429_without_an_allowance_is_waited_out`).
+  A 507 at the start is shown with Retry, as at the finish. A file that can no longer be read ends
+  the upload with words saying so, and the server is told.
+- **Review 4, private pictures over 16 MB.** Routed by the marker's size: a picture type over the
+  image cache's 16 MB is a card with Save, never fetched into memory
+  (attach_view_tests.rs `a_private_picture_over_16_mb_is_a_card_with_save`).
+- **Reviews 6 and 7, part files.** Download, Play here and a private file's Save write to a hidden
+  `.humanityos-<process>-<n>-<nanos>.part` in the folder the file goes to and take their name only
+  when the last byte is in. The name is claimed, not checked and then made: a hard link that fails
+  when the name exists, or on a file system without them an empty file made with `create_new` and
+  the part moved over it; "x (2)" and on when taken. A part not finished is deleted when dropped;
+  the exit deletes every part this run is still writing (engine/quit.rs); the first frame of the
+  next run deletes this app's parts in the downloads folder that nobody has written to for ten
+  minutes. Save decrypts into a second part, so the decryption never writes under the final name.
+  Play here's copy is named per fetch (the item's hash, the process, a number). (part_file_tests.rs
+  three tests; open_tests.rs `a_download_has_its_name_only_when_complete`,
+  `play_heres_copy_has_a_name_of_its_own_for_each_fetch`; attach_view_tests.rs
+  `save_writes_through_part_files_the_exit_deletes`.)
+- **Review 8, sending a private file.** The picker hands the worker a path and size
+  (`attach_body::Body::File`); the worker reads it (at most its limit), encrypts it in its own
+  buffer (`dm_pq::encrypt_attachment_in_place`, the same bytes `encrypt_attachment` makes, which now
+  calls it), and the upload streams its multipart framing around that buffer with its
+  Content-Length set (`attach_body::Multipart`). One copy of the file in memory, never three.
+  (attach_send_tests.rs `a_picked_file_is_read_by_the_worker_and_kept_to_one_copy`: red for each
+  of the three.)
+- **Review 9.** `chunk_max` is held to 64 MiB (`upload_waits::piece_size`).
+- **Review 10.** The two limits became `GuiState::upload_limits`, which carries the server and
+  identity they were told to; anywhere else they read as not said (6 MB), and a peer list from
+  another server or person starts them again (`the_limits_belong_to_one_server_and_one_identity`).
+  The Files page reads its room limit the same way (`chat::room_limit_here`).
+- **Review 11.** A publish answered 409 ("That upload is already on the Media page", the relay's
+  owner check comes first, so it is one's own) counts as done, on the page and in the publish's
+  worker (`a_publish_already_on_media_counts_as_done`). The worker that sends a publish holds the
+  server's address and the signer, and a fate it shares with the page: when Cancel came first it
+  takes the item off itself once the publish is answered, so a switch in between does not leave
+  it on Media; when the answer came first the page takes it off at the press
+  (`cancel_during_a_publish_then_a_switch_still_takes_it_off`, against a loopback server). The
+  record of an upload goes at the Cancel.
+- **R3-7.** `parse_mine` reads `uploads_in_progress`; those this app neither runs nor has a record
+  of are listed under "Your unfinished uploads on this server" with how much arrived and Cancel,
+  which tells the relay (`DELETE`, the token in the header). One with a record is offered with
+  Carry on instead, not listed twice. (uploads_tests.rs
+  `the_servers_unfinished_uploads_are_shown_with_cancel`; against the real relay
+  `the_servers_unfinished_upload_is_listed_and_cancelled_on_the_real_relay`.)
+- **R3-8.** A members-only item's Play here and Download ask `POST /api/media/ticket` (the token in
+  `X-Upload-Token`, body `{id, filename}`) on their worker and fetch the answer's address with no
+  token at all; the address is used only when it is that item's `/api/media/file/<id>?ticket=` on
+  this server. `hide_token` hides `ticket=` as it hides `token=`. (ticket.rs two tests; open_tests.rs
+  `a_members_only_file_is_fetched_with_a_ticket`; against the real relay
+  `a_members_only_file_comes_through_a_ticket_from_the_real_relay`.)
+- **R3-9.** The four resumable requests send the token in `X-Upload-Token` only
+  (`the_token_rides_in_a_header_on_the_resumable_routes`); the real relay's routes take it there
+  (the real-relay upload test sends nothing else).
+
+**Not done, and honest limits.**
+- Members-only pictures are still fetched whole with the token in the header (at most 16 MB, 20
+  seconds) and are NOT stopped when no longer shown: the image cache's fetch is a blocking ureq
+  request on its own thread, which nothing can interrupt. The web stops them (AbortController).
+- Play here fetches the whole video, through its ticket, to its temporary file before it plays: the
+  app's player (src/media) opens a file, not a stream. A ticket outliving a slow fetch is not a
+  problem (it is checked when the transfer starts).
+- A Cancel during a publish followed by the app quitting before the publish is answered: the
+  worker ends with the app, the item may stay on Media, and its record is already gone, so nothing
+  offers it; Remove on its tile takes it off.
+- The image viewer's own Download (image_cache.rs `download`, a picture already shown, at most 16
+  MB, one write) still writes straight to its name.
+- The private file sent is still read whole into memory (one copy, plus the 16-byte tag): the
+  relay's `/api/upload` takes one request, so the file is not streamed from disk.
+- The upload token is still kept by server only, not by server and identity as the limits now
+  are (not part of this round's findings).
+- Only the header carries the token on the resumable routes: a relay from before round 3 refuses
+  them (no compatibility before launch).
+- No snapshot was taken this round (the page's new rows are checked by the headless tests above).

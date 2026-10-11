@@ -1,10 +1,13 @@
-//! Tests of Add to Media's upload in pieces (resumable.rs), against a server simulated in memory
-//! that answers the way src/relay/resumable.rs does: the same routes' shapes, statuses and
-//! refusals. Each was seen to fail once before it passed; what it saw red is in its comment.
+//! Tests of Add to Media's upload in pieces (resumable.rs and upload_waits.rs), against a server
+//! simulated in memory that answers the way src/relay/resumable.rs does: the same routes' shapes,
+//! statuses and refusals. Each was seen to fail once before it passed; what it saw red is in its
+//! comment. The loop tests (round 3's findings 2, 3 and 5) drive `work` and count the requests the
+//! server saw in a window of time: a loop with no wait shows as hundreds of thousands.
 
 use super::*;
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 
 /// The token the simulated server takes.
 pub(crate) const TOKEN: &str = "tok-now";
@@ -14,8 +17,9 @@ pub(crate) const TOKEN: &str = "tok-now";
 enum Trick {
     /// Write the piece, then lose its answer (the connection dropped after the server took it).
     LoseAnswer,
-    /// Refuse the piece for the day's allowance, resetting at this time (Unix ms).
-    Allowance(i64),
+    /// Refuse the piece for the day's allowance, resetting at this time (Unix ms), with this many
+    /// seconds to wait by the server's clock (None: the round 2 relay, which sent none).
+    Allowance(i64, Option<f64>),
     /// Refuse the finish for room (507), keeping the whole file.
     NoRoom,
     /// Finish, then lose the answer.
@@ -35,6 +39,18 @@ pub(crate) struct Server {
     /// Tricks for the non-empty pieces in order (None: answer normally), and for the finish.
     tricks: VecDeque<Option<Trick>>,
     finish_trick: Option<Trick>,
+    /// Answers the start gives first, in order, before answering normally; and one it gives every
+    /// time, forever (a server error that never clears).
+    start_answers: VecDeque<Reply>,
+    start_forever: Option<Reply>,
+    /// The day's allowance, in bytes, as the relay of round 3 counts it: a piece larger than what
+    /// is left is refused with `left_bytes` (R3-6). With `reset_at_zero` the window passes while
+    /// the app waits after a refusal with nothing left.
+    allowance_left: Option<u64>,
+    reset_at_zero: bool,
+    /// Every non-empty piece refused for the day's allowance, forever: its `resets_at` and
+    /// `resets_in_s`, as [`Trick::Allowance`].
+    pub(crate) allowance_forever: Option<(i64, Option<f64>)>,
     pub(crate) log: Vec<String>,
     pub(crate) cancelled: bool,
     start_body: Value,
@@ -49,6 +65,10 @@ impl Fake {
     }
     pub(crate) fn s(&self) -> std::sync::MutexGuard<'_, Server> {
         self.0.lock().unwrap()
+    }
+    /// How many requests of `kind` ("start", "status", "piece", "cancel") the server has seen.
+    pub(crate) fn count(&self, kind: &str) -> usize {
+        self.s().log.iter().filter(|l| l.starts_with(kind)).count()
     }
 }
 
@@ -66,6 +86,9 @@ impl Transport for Fake {
         s.log.push("start".into());
         if token != s.token {
             return refuse(403, "Invalid upload token.");
+        }
+        if let Some(r) = s.start_answers.pop_front().or_else(|| s.start_forever.clone()) {
+            return Ok(r);
         }
         // The relay's own StartBody reads what is sent.
         let b: crate::relay::resumable::StartBody = serde_json::from_value(body.clone()).expect("the relay reads the start");
@@ -110,11 +133,25 @@ impl Transport for Fake {
             return refuse(409, json!({ "error": "wrong place", "offset": at, "size": s.size }).to_string());
         }
         assert!(bytes.len() as u64 <= s.chunk_max, "no piece over the server's chunk_max");
-        if !bytes.is_empty() {
-            let trick = s.tricks.pop_front().flatten();
-            if let Some(Trick::Allowance(resets_at)) = trick {
+        if let Some(left) = s.allowance_left {
+            if bytes.len() as u64 > left {
                 let (at, size) = (s.data.len(), s.size);
-                return refuse(429, json!({ "error": "Your role may upload 100 MB a day on this server.", "allowance": "day", "resets_at": resets_at, "offset": at, "size": size }).to_string());
+                if left == 0 && s.reset_at_zero {
+                    s.allowance_left = None; // the window passes while the app waits
+                }
+                return refuse(429, json!({ "error": "Your role may upload 1 MB a day on this server.", "allowance": "day", "resets_at": 0, "resets_in_s": 0, "left_bytes": left, "offset": at, "size": size }).to_string());
+            }
+            s.allowance_left = Some(left - bytes.len() as u64);
+        }
+        if !bytes.is_empty() {
+            let trick = s.tricks.pop_front().flatten().or_else(|| s.allowance_forever.map(|(at, secs)| Trick::Allowance(at, secs)));
+            if let Some(Trick::Allowance(resets_at, resets_in_s)) = trick {
+                let (at, size) = (s.data.len(), s.size);
+                let mut v = json!({ "error": "Your role may upload 100 MB a day on this server.", "allowance": "day", "resets_at": resets_at, "offset": at, "size": size });
+                if let Some(secs) = resets_in_s {
+                    v["resets_in_s"] = json!(secs);
+                }
+                return refuse(429, v.to_string());
             }
             s.data.extend_from_slice(bytes);
             if (s.data.len() as u64) < s.size {
@@ -168,10 +205,9 @@ fn file(len: usize) -> (crate::test_temp::TempPath, Plan, Vec<u8>) {
     (path, plan, bytes)
 }
 
-/// Run the upload on a worker thread, with `before` given the control and the events as they come
-/// (to press Pause, Resume, Retry or Cancel), until it ends. Returns every event.
-fn run_with(fake: Arc<Fake>, plan: Plan, token: &str, mut before: impl FnMut(&Control, &Event)) -> Vec<Event> {
-    let ctl = Arc::new(Control::with_pace(Some(token.to_string()), Duration::from_millis(1)));
+/// Run the upload on a worker thread with `ctl`, with `before` given the control and the events
+/// as they come (to press Pause, Resume, Retry or Cancel), until it ends. Returns every event.
+fn run_on(fake: Arc<Fake>, plan: Plan, ctl: Arc<Control>, mut before: impl FnMut(&Control, &Event)) -> Vec<Event> {
     let (tx, rx) = std::sync::mpsc::channel();
     let worker_ctl = ctl.clone();
     let t: Arc<dyn Transport> = fake;
@@ -189,6 +225,49 @@ fn run_with(fake: Arc<Fake>, plan: Plan, token: &str, mut before: impl FnMut(&Co
     handle.join().unwrap();
     events
 }
+
+/// [`run_on`] with a control whose waits after a failure start at a millisecond.
+fn run_with(fake: Arc<Fake>, plan: Plan, token: &str, before: impl FnMut(&Control, &Event)) -> Vec<Event> {
+    run_on(fake, plan, Arc::new(Control::with_pace(Some(token.to_string()), Duration::from_millis(1))), before)
+}
+
+/// Start the upload on a worker thread and hand back its control, its events and the thread,
+/// for the tests that look at the server between events.
+fn spawn_work(fake: &Arc<Fake>, plan: Plan, ctl: Control) -> (Arc<Control>, std::sync::mpsc::Receiver<Event>, std::thread::JoinHandle<()>) {
+    let ctl = Arc::new(ctl);
+    let (tx, rx) = std::sync::mpsc::channel();
+    let (worker_ctl, t): (Arc<Control>, Arc<dyn Transport>) = (ctl.clone(), fake.clone());
+    let handle = std::thread::spawn(move || work(t.as_ref(), &worker_ctl, &plan, &tx));
+    (ctl, rx, handle)
+}
+
+/// Wait for the first event `want` matches (at most ten seconds), and return it.
+fn wait_for(rx: &std::sync::mpsc::Receiver<Event>, want: impl Fn(&Event) -> bool) -> Event {
+    until(rx, want).pop().expect("the matching event")
+}
+
+/// Every event up to and including the first `want` matches (at most ten seconds).
+fn until(rx: &std::sync::mpsc::Receiver<Event>, want: impl Fn(&Event) -> bool) -> Vec<Event> {
+    let deadline = std::time::Instant::now() + Duration::from_secs(10);
+    let mut seen = Vec::new();
+    loop {
+        let left = deadline.saturating_duration_since(std::time::Instant::now());
+        match rx.recv_timeout(left) {
+            Ok(e) => {
+                let found = want(&e);
+                seen.push(e);
+                if found {
+                    return seen;
+                }
+            }
+            Err(_) => panic!("the event never came; events so far: {} of them", seen.len()),
+        }
+    }
+}
+
+/// The window the loop tests count requests in: long enough that a loop with no wait sends
+/// hundreds of thousands, short enough to keep the run quick.
+const WINDOW: Duration = Duration::from_millis(500);
 
 fn done_answer(events: &[Event]) -> Option<Value> {
     events.iter().find_map(|e| if let Event::Done { answer } = e { Some(answer.clone()) } else { None })
@@ -239,21 +318,22 @@ fn a_dropped_connection_carries_on_from_where_the_server_got() {
     assert!(events.iter().any(|e| matches!(e, Event::Reconnecting { .. })), "the person is told the connection dropped");
 }
 
-/// THE DAY'S ALLOWANCE IS SAID IN ITS OWN WORDS, WITH WHEN IT RESETS, AND THE UPLOAD CARRIES ON
-/// THEN: a piece refused 429 shows the server's words and its `resets_at`, nothing of it is
-/// written, and once that time has passed the upload carries on by itself from where it was.
+/// THE DAY'S ALLOWANCE IS SAID IN ITS OWN WORDS, AND THE UPLOAD CARRIES ON BY ITSELF AFTER THE
+/// SERVER'S OWN WAIT: a piece refused 429 shows the server's words, nothing of it is written, and
+/// once the wait has passed the upload carries on from where it was.
 ///
-/// Seen red 2026-10-11 with the 429 handled as any other refusal: "its own words and when it
-/// resets" (left: None; the run ended Failed with the server's words).
+/// Seen red 2026-10-11 with the 429 handled as any other refusal: "its own words" (left: None; the
+/// run ended Failed with the server's words).
 #[test]
 fn an_allowance_is_waited_out_in_its_own_words() {
     let fake = Fake::new(8192);
-    let soon = now_ms() + 300;
-    fake.s().tricks = VecDeque::from([None, Some(Trick::Allowance(soon))]);
+    fake.s().tricks = VecDeque::from([None, Some(Trick::Allowance(waits::now_ms() + 300, Some(0.3)))]);
     let (_f, plan, bytes) = file(20_000);
-    let events = run_with(fake.clone(), plan, TOKEN, |_, _| {});
-    let waiting = events.iter().find_map(|e| if let Event::Waiting { words, resets_at } = e { Some((words.clone(), *resets_at)) } else { None });
-    assert_eq!(waiting, Some(("Your role may upload 100 MB a day on this server.".to_string(), soon)), "its own words and when it resets: {events:?}");
+    // The least wait made short, so the test waits the server's 0.3 s and not 5 s.
+    let ctl = Arc::new(Control::with_waits(Some(TOKEN.into()), Duration::from_millis(1), Duration::from_millis(1)));
+    let events = run_on(fake.clone(), plan, ctl, |_, _| {});
+    let waiting = events.iter().find_map(|e| if let Event::Waiting { words, .. } = e { Some(words.clone()) } else { None });
+    assert_eq!(waiting.as_deref(), Some("Your role may upload 100 MB a day on this server."), "its own words: {events:?}");
     assert!(done_answer(&events).is_some(), "the allowance is waited out: {events:?}");
     assert_eq!(fake.s().data, bytes);
 }
@@ -320,6 +400,161 @@ fn pause_resume_and_cancel() {
     assert!(fake.s().cancelled && fake.s().log.contains(&"cancel".to_string()), "the server was told");
 }
 
+/// PAUSE STOPS EVERY REQUEST IN EVERY PHASE (round 3, finding 2): paused before anything is sent,
+/// the server sees nothing, not even the start; paused while the start is refused (an allowance, a
+/// server error), the start is not asked again until Resume. The review measured 1,008,232 starts
+/// in half a second here: every wait returned at once while paused, and the start's loop never
+/// looked at Pause.
+///
+/// Seen red 2026-10-11 with the `hold` calls in the start's loop replaced by round 2's cancelled
+/// check: "no start while paused after a 429 (left: 41315 starts in the window / right: at most
+/// 1)".
+#[test]
+fn pause_stops_every_request_in_every_phase() {
+    // Paused from the first moment: nothing reaches the server.
+    let fake = Fake::new(8192);
+    let (_f, plan, _) = file(20_000);
+    let ctl = Control::with_pace(Some(TOKEN.into()), Duration::from_millis(1));
+    ctl.pause(true);
+    let (ctl, rx, handle) = spawn_work(&fake, plan, ctl);
+    std::thread::sleep(WINDOW);
+    assert_eq!(fake.s().log.len(), 0, "nothing is sent while paused before the start: {:?}", fake.s().log);
+    ctl.cancel();
+    handle.join().unwrap();
+    assert!(rx.try_iter().any(|e| e == Event::Cancelled));
+
+    // Paused while the start is refused, by an allowance and by a server error.
+    let refusals = [
+        Reply { status: 429, body: json!({ "error": "Your role may start 5 uploads an hour.", "allowance": "hour", "resets_at": 0, "resets_in_s": 0 }).to_string() },
+        Reply { status: 500, body: "storage: disk full".into() },
+    ];
+    for refusal in refusals {
+        let fake = Fake::new(8192);
+        fake.s().start_forever = Some(refusal.clone());
+        let (_g, plan, _) = file(20_000);
+        // The least allowance wait made a millisecond, so the old loop would spin at once.
+        let (ctl, rx, handle) = spawn_work(&fake, plan, Control::with_waits(Some(TOKEN.into()), Duration::from_millis(1), Duration::from_millis(1)));
+        wait_for(&rx, |e| matches!(e, Event::Waiting { .. } | Event::Reconnecting { .. }));
+        ctl.pause(true);
+        std::thread::sleep(Duration::from_millis(50)); // what was under way when Pause came
+        let before = fake.count("start");
+        std::thread::sleep(WINDOW);
+        let during = fake.count("start") - before;
+        assert!(during <= 1, "no start while paused after a {} (left: {during} starts in the window / right: at most 1)", refusal.status);
+        ctl.pause(false);
+        std::thread::sleep(Duration::from_millis(50));
+        assert!(fake.count("start") > before, "Resume asks again");
+        ctl.cancel();
+        handle.join().unwrap();
+    }
+}
+
+/// AN ALLOWANCE WAITS THE SERVER'S OWN NUMBER, AT LEAST FIVE SECONDS (round 3, finding 3): a 429
+/// whose `resets_at` is not ahead of this PC's clock (a clock a little fast, or the round 2 relay
+/// with no `resets_in_s`) was retried at once, in a loop with no wait.
+///
+/// Seen red 2026-10-11 with the wait taken from `resets_at` alone and no least wait (as in round
+/// 2): "no piece in the window after the refusal (resets_in_s None ...)" (left: 5561 / right: 0).
+#[test]
+fn an_allowance_already_past_by_this_clock_still_waits() {
+    for resets_in_s in [None, Some(0.0)] {
+        let fake = Fake::new(8192);
+        // Every piece refused the same way, with a reset a minute in the past by this clock.
+        fake.s().allowance_forever = Some((waits::now_ms() - 60_000, resets_in_s));
+        let (_f, plan, _) = file(20_000);
+        let (ctl, rx, handle) = spawn_work(&fake, plan, Control::with_pace(Some(TOKEN.into()), Duration::from_millis(1)));
+        let waiting = wait_for(&rx, |e| matches!(e, Event::Waiting { .. }));
+        let before = fake.count("piece");
+        std::thread::sleep(WINDOW);
+        let during = fake.count("piece") - before;
+        assert_eq!(during, 0, "no piece in the window after the refusal (resets_in_s {resets_in_s:?}; left: pieces sent / right: none)");
+        let Event::Waiting { resets_at, .. } = waiting else { unreachable!() };
+        assert!(resets_at >= waits::now_ms() + 4_000, "the page is told it waits at least five seconds");
+        ctl.cancel();
+        handle.join().unwrap();
+    }
+}
+
+/// AN ALLOWANCE SMALLER THAN A PIECE STILL MOVES (round 3, finding 5): the app sent whole
+/// `chunk_max` pieces, so a day with 3,000 bytes left refused every one and the upload never
+/// moved. Now a refused piece is cut to the server's `left_bytes` (R3-6), and the rest follows
+/// once the window resets.
+///
+/// Seen red 2026-10-11 with the piece never cut (as in round 2): "a piece cut to what is left" (the
+/// log was ["start", "piece 0+8192", "piece 0+8192", ... 52 of them, "cancel"]: the test cancelled
+/// it after 50 waits).
+#[test]
+fn an_allowance_smaller_than_a_piece_still_moves() {
+    let fake = Fake::new(8192);
+    fake.s().allowance_left = Some(3000);
+    fake.s().reset_at_zero = true;
+    let (_f, plan, bytes) = file(20_000);
+    let ctl = Arc::new(Control::with_waits(Some(TOKEN.into()), Duration::from_millis(1), Duration::from_millis(1)));
+    let mut waits_seen = 0;
+    let events = run_on(fake.clone(), plan, ctl, |ctl, e| {
+        if matches!(e, Event::Waiting { .. }) {
+            waits_seen += 1;
+            if waits_seen > 50 {
+                ctl.cancel(); // never moving: stop, and let the assertions say why
+            }
+        }
+    });
+    let log = fake.s().log.clone();
+    assert!(log.contains(&"piece 0+3000".to_string()), "a piece cut to what is left: {log:?}");
+    assert!(done_answer(&events).is_some(), "and the rest after the reset: {events:?}");
+    assert_eq!(fake.s().data, bytes);
+}
+
+/// A SERVER ERROR THAT NEVER CLEARS STOPS AFTER TEN, WITH ITS OWN WORDS AND RETRY (round 3,
+/// finding 5): a full disk's 500 was resent forever and shown as a dropped connection. Now each
+/// is waited out a little longer, said as a server problem, and the tenth of the same in a row
+/// shows the server's words and waits for Retry, sending nothing meanwhile.
+///
+/// Seen red 2026-10-11 with the count of the same error switched off (as in round 2): "the event
+/// never came; events so far: 321 of them" (ten seconds of starts, never stopping).
+#[test]
+fn a_server_error_that_never_clears_waits_for_retry() {
+    let fake = Fake::new(8192);
+    fake.s().start_forever = Some(Reply { status: 500, body: "storage: disk full".into() });
+    let (_f, plan, _) = file(20_000);
+    let (ctl, rx, handle) = spawn_work(&fake, plan, Control::with_pace(Some(TOKEN.into()), Duration::from_millis(1)));
+    let said = until(&rx, |e| matches!(e, Event::Stuck { .. }));
+    assert_eq!(said.last(), Some(&Event::Stuck { words: "storage: disk full".into() }), "the server's own words");
+    assert!(!said.iter().any(|e| matches!(e, Event::Reconnecting { words } if words == RECONNECTING)), "never called a dropped connection: {said:?}");
+    assert!(said.contains(&Event::Reconnecting { words: waits::SERVER_TROUBLE.into() }), "a server problem, said as one");
+    assert_eq!(fake.count("start"), waits::STUCK_AFTER as usize, "ten of the same, then it stops");
+    std::thread::sleep(WINDOW);
+    assert_eq!(fake.count("start"), waits::STUCK_AFTER as usize, "nothing is sent while it waits for Retry");
+    ctl.retry();
+    wait_for(&rx, |e| matches!(e, Event::Stuck { .. }));
+    assert_eq!(fake.count("start"), 2 * waits::STUCK_AFTER as usize, "Retry tries again");
+    ctl.cancel();
+    handle.join().unwrap();
+}
+
+/// A 429 WITHOUT THE ALLOWANCE'S JSON, OR A 5XX, IS WAITED OUT, NEVER THE END OF THE UPLOAD
+/// (round 3, both apps): nginx's rate limit (an HTML page) and the relay's "You have 3 uploads in
+/// progress" are waited out with back-off, saying so, and the upload goes on.
+///
+/// Seen red 2026-10-11 with a 429 at the start that had no `resets_at` ending the upload (as in
+/// round 2): "it carried on after the 429s: [Hashing { done: 10000 }, Failed { words: \"The server
+/// refused it (429).\", gone: true }]".
+#[test]
+fn a_429_without_an_allowance_is_waited_out() {
+    let fake = Fake::new(8192);
+    fake.s().start_answers = VecDeque::from([
+        Reply { status: 429, body: "<html><body>429 Too Many Requests</body></html>".into() },
+        Reply { status: 429, body: "You have 3 uploads in progress on this server, the most at once. Finish or cancel one first.".into() },
+        Reply { status: 503, body: String::new() },
+    ]);
+    let (_f, plan, bytes) = file(10_000);
+    let events = run_with(fake.clone(), plan, TOKEN, |_, _| {});
+    assert!(done_answer(&events).is_some(), "it carried on after the 429s: {events:?}");
+    assert!(events.contains(&Event::Reconnecting { words: waits::SERVER_BUSY.into() }), "nginx's page is not shown: {events:?}");
+    assert!(events.iter().any(|e| matches!(e, Event::Reconnecting { words } if words.starts_with("You have 3 uploads"))), "the relay's own words are");
+    assert_eq!(fake.s().data, bytes);
+}
+
 /// A REPLACED TOKEN WAITS FOR THE NEW ONE: after a reconnect the server refuses the old token;
 /// the upload waits, says so, and carries on with the page's new one.
 ///
@@ -375,20 +610,73 @@ fn a_resume_after_a_restart_sends_only_the_rest() {
     assert!(!kept.file_unchanged(), "a file rewritten to the same size is not resumed");
 }
 
-/// THE UNFINISHED UPLOAD SURVIVES A RESTART: kept in the app's config, read back the same.
+/// A FILE THAT CAN NO LONGER BE READ ENDS THE UPLOAD, SAYING SO, and the server is told.
 ///
-/// Seen red 2026-10-11 with `apply_to_gui_state` not reading it back: "the unfinished upload
-/// survives a restart" (left: None).
+/// Seen red 2026-10-11 with round 2's words put back: "the words say the file could not be read:
+/// The file could not be read: it may have changed (failed to fill whole buffer)." (they did not
+/// say the upload stopped).
 #[test]
-fn the_unfinished_upload_survives_a_restart() {
+fn a_file_that_can_no_longer_be_read_ends_the_upload() {
+    let fake = Fake::new(8192);
+    let (f, plan, _) = file(20_000);
+    let events = run_with(fake.clone(), plan, TOKEN, |_, e| {
+        if matches!(e, Event::Started { .. }) {
+            std::fs::write(&f, b"cut short").unwrap();
+        }
+    });
+    let failed = events.iter().find_map(|e| if let Event::Failed { words, gone } = e { Some((words.clone(), *gone)) } else { None });
+    let (words, gone) = failed.unwrap_or_else(|| panic!("it ended: {events:?}"));
+    assert!(words.contains("could not be read any more"), "the words say the file could not be read: {words}");
+    assert!(gone && fake.s().log.contains(&"cancel".to_string()), "and the server is told");
+}
+
+/// THE TOKEN RIDES IN A HEADER ON THE RESUMABLE ROUTES (R3-9), never in an address, which ends up
+/// in error words, logs and lists.
+///
+/// Seen red 2026-10-11 with the status request putting `token=` in its address as in round 2: "no
+/// token in the address: get /api/upload/resumable/abc?token=secret-r39 http/1.1".
+#[test]
+fn the_token_rides_in_a_header_on_the_resumable_routes() {
+    use std::io::{Read as _, Write as _};
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind loopback");
+    let port = listener.local_addr().unwrap().port();
+    let server = std::thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        let mut got = Vec::new();
+        let mut buf = [0u8; 4096];
+        while !got.windows(4).any(|w| w == b"\r\n\r\n") {
+            let n = stream.read(&mut buf).unwrap();
+            if n == 0 {
+                break;
+            }
+            got.extend_from_slice(&buf[..n]);
+        }
+        let body = r#"{"offset":0,"size":1,"chunk_max":8}"#;
+        let _ = stream.write_all(format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len()).as_bytes());
+        String::from_utf8_lossy(&got).to_ascii_lowercase()
+    });
+    let r = Http::new(&format!("http://127.0.0.1:{port}")).status("SECRET-R39", "abc").expect("answered");
+    assert_eq!(r.status, 200);
+    let head = server.join().unwrap();
+    assert!(head.starts_with("get /api/upload/resumable/abc http/1.1"), "no token in the address: {head}");
+    assert!(head.contains("x-upload-token: secret-r39"), "it rides in the header: {head}");
+}
+
+/// THE UNFINISHED UPLOADS SURVIVE A RESTART: kept in the app's config, read back the same.
+///
+/// Seen red 2026-10-11 with `apply_to_gui_state` not reading them back: "the unfinished uploads
+/// survive a restart" (left: []).
+#[test]
+fn the_unfinished_uploads_survive_a_restart() {
     let mut state = crate::gui::GuiState::default();
     let kept = Unfinished { server: "https://h".into(), key: "me".into(), id: "abc".into(), path: "C:/x/clip.webm".into(), name: "clip.webm".into(), size: 9, modified_ms: 5, title: "Dusk".into(), ..Default::default() };
-    state.media.unfinished = Some(kept.clone());
+    let other = Unfinished { id: "def".into(), name: "b.webm".into(), ..kept.clone() };
+    state.media.unfinished = vec![kept.clone(), other.clone()];
     let json = serde_json::to_string(&crate::config::AppConfig::from_gui_state(&state)).expect("config serializes");
     let back: crate::config::AppConfig = serde_json::from_str(&json).expect("and reads back");
     let mut fresh = crate::gui::GuiState::default();
     back.apply_to_gui_state(&mut fresh);
-    assert_eq!(fresh.media.unfinished, Some(kept), "the unfinished upload survives a restart");
+    assert_eq!(fresh.media.unfinished, vec![kept, other], "the unfinished uploads survive a restart");
     let old: crate::config::AppConfig = serde_json::from_str("{}").unwrap();
-    assert_eq!(old.media_unfinished_upload, None, "an older config has none");
+    assert!(old.media_unfinished_uploads.is_empty(), "an older config has none");
 }

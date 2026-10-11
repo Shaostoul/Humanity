@@ -288,7 +288,7 @@ fn draw_shared_files_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSt
     let upload_token = crate::gui::pages::chat::upload_token_here(state);
     let seed = state.private_key_bytes.clone();
     // My own upload limit on this server (its peer list says; 2026-10-10), the chat's fallback until then.
-    let upload_limit = state.upload_limit_bytes.unwrap_or(crate::gui::pages::chat::ATTACH_MAX_BYTES);
+    let upload_limit = crate::gui::pages::chat::room_limit_here(state).unwrap_or(crate::gui::pages::chat::ATTACH_MAX_BYTES);
     // Admin = server-known role for my key (from the chat user list). Admins can
     // remove any file; everyone can remove their own. The server enforces this
     // regardless of what the button shows.

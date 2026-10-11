@@ -379,6 +379,8 @@ pub struct Mine {
     pub file_limit_bytes: i64,
     /// Their uploads waiting to be published.
     pub waiting: Vec<Waiting>,
+    /// Their resumable uploads not finished yet (`uploads_in_progress`, R3-7).
+    pub in_progress: Vec<super::waiting::InProgress>,
 }
 
 impl Mine {
@@ -398,6 +400,7 @@ pub fn parse_mine(v: &Value) -> Mine {
         in_progress_bytes: i(v, "in_progress_bytes"),
         file_limit_bytes: i(v, "file_limit_bytes"),
         waiting: parse_waiting(v.get("waiting")),
+        in_progress: super::waiting::parse_in_progress(v.get("uploads_in_progress")),
     }
 }
 
