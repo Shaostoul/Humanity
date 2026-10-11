@@ -48,3 +48,26 @@ fn a_long_post_grows_the_composer_upward_and_stays_on_screen() {
     assert!(long.bottom() <= SCREEN.y + 0.5, "two hundred lines stay on screen: {long:?}");
     assert!(long.height() <= SCREEN.y * 0.5, "the box is held near 45% of the chat area, scrolling inside: {long:?}");
 }
+
+/// ONE LONG LINE THAT WRAPS GROWS IT THE SAME WAY (the operator's screenshot, 2026-10-10: one
+/// paragraph with no line breaks, wrapped to three rows, of which the third was below the window).
+/// The box counts its wrapped rows, not its line breaks.
+#[test]
+fn one_long_wrapping_line_grows_the_composer_upward_too() {
+    let ctx = egui::Context::default();
+    let theme = crate::gui::theme::load_theme();
+    let mut state = GuiState::default();
+    state.chat_active_channel = "general".into();
+    for _ in 0..3 {
+        frame(&ctx, &theme, &mut state);
+    }
+    let one = composer(&ctx);
+    state.chat_input = "This is the typing bar going beyond its limit. You can see row 1 and 2 but, row 3 is hidden on the desktop app. ".repeat(6);
+    assert!(!state.chat_input.contains('\n'), "one line, no breaks");
+    for _ in 0..4 {
+        frame(&ctx, &theme, &mut state);
+    }
+    let wrapped = composer(&ctx);
+    assert!(wrapped.bottom() <= SCREEN.y + 0.5, "the wrapped paragraph stays on screen: {wrapped:?}");
+    assert!(wrapped.top() < one.top() - 30.0, "and the box grew upward to show its rows: {one:?} then {wrapped:?}");
+}
