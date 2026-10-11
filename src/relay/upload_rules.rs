@@ -79,7 +79,8 @@ pub(crate) const BLOCKED_EXTENSIONS: &[&str] = &[
 /// Tokens change on every reconnect; the key they name does not.
 pub(crate) async fn token_key(state: &RelayState, token: Option<&str>) -> Result<String, Refused> {
     let Some(token) = token else {
-        return Err((StatusCode::BAD_REQUEST, "Missing required 'token' query parameter.".into()));
+        // Said for both ways a token comes: the plain upload's `?token=` and the resumable routes' `X-Upload-Token` header.
+        return Err((StatusCode::BAD_REQUEST, "Missing upload token: this session gets one when it signs in to the chat.".into()));
     };
     if token.is_empty() {
         return Err((StatusCode::BAD_REQUEST, "Empty upload token.".into()));

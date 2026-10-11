@@ -4833,7 +4833,7 @@ mod tests {
         let form = format!("--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"a.txt\"\r\nContent-Type: text/plain\r\n\r\nhello\r\n--{boundary}--\r\n").into_bytes();
         let up = ask("POST", format!("/api/upload?key={admin_key}"), form, "multipart/form-data; boundary=bareKeyBoundary").await;
         assert!(up.starts_with("HTTP/1.1 400"), "an upload with only a key is refused: {up}");
-        assert!(up.contains("Missing required 'token'"), "{up}");
+        assert!(up.contains("Missing upload token"), "{up}");
 
         let del = ask("DELETE", format!("/api/assets/whatever?key={admin_key}"), Vec::new(), "text/plain").await;
         assert!(del.starts_with("HTTP/1.1 400"), "an asset delete with only a key is refused: {del}");
