@@ -178,6 +178,11 @@ pub struct ServerSettings {
     /// (default on). Stored and editable now; increment 2 of the Media design makes the previews.
     #[serde(default = "default_media_public_previews_only")]
     pub media_public_previews_only: bool,
+    /// The line Server Settings shows under the Media page's public/members switch
+    /// ([`MEDIA_MEMBERS_NOTE`]): sent with the settings so both apps show the relay's words, never
+    /// stored, and never read from a client.
+    #[serde(skip_deserializing, default = "media_members_note")]
+    pub media_members_note: String,
     /// Last update unix-millis. 0 = never updated since creation.
     pub updated_at: i64,
     /// Public key of the admin who last touched it. Empty = never.
@@ -206,13 +211,21 @@ fn default_media_visibility() -> String { "public".to_string() }
 fn default_media_budget_mb() -> i64 { 2048 }
 fn default_media_per_person_mb() -> i64 { 512 }
 fn default_media_public_previews_only() -> bool { true }
+fn media_members_note() -> String { MEDIA_MEMBERS_NOTE.to_string() }
+
+/// What "members" means on the Media page, for the line under its public/members switch in
+/// Server Settings (the Media review's F3, 2026-10-11): a member is anyone signed in to this
+/// server, as everywhere else on the relay, so on an open server anyone can become one.
+pub const MEDIA_MEMBERS_NOTE: &str =
+    "Members are everyone signed in to this server. To keep it to people you let in, turn on lockdown.";
 
 /// The range the two Media sizes are held to, in MB (the relay clamps an update to it): at least
 /// 1 MB, at most a million (about a terabyte).
 pub const MEDIA_MB_RANGE: (i64, i64) = (1, 1_000_000);
 
 /// A Media page visibility as it is stored: "public" or "members", whatever the case or spacing
-/// it came in, or None for anything else (a bad message changes nothing).
+/// it came in, or None for anything else (a bad message changes nothing). A stored word that is
+/// neither reads, and is written, as "members": the page fails closed (the review's F7).
 pub fn media_visibility_of(v: &str) -> Option<&'static str> {
     match v.trim().to_ascii_lowercase().as_str() {
         "public" => Some("public"),
@@ -306,6 +319,7 @@ impl Default for ServerSettings {
             media_budget_mb: default_media_budget_mb(),
             media_per_person_mb: default_media_per_person_mb(),
             media_public_previews_only: default_media_public_previews_only(),
+            media_members_note: media_members_note(),
             updated_at: 0,
             updated_by: String::new(),
         }
@@ -421,11 +435,12 @@ impl Storage {
                             .unwrap_or(DEFAULT_FLEET_SUPPLY_MODE)
                             .to_string(),
                         media_visibility: media_visibility_of(&row.get::<_, String>(33)?)
-                            .unwrap_or("public")
+                            .unwrap_or("members")
                             .to_string(),
                         media_budget_mb: row.get::<_, i64>(34)?.clamp(MEDIA_MB_RANGE.0, MEDIA_MB_RANGE.1),
                         media_per_person_mb: row.get::<_, i64>(35)?.clamp(MEDIA_MB_RANGE.0, MEDIA_MB_RANGE.1),
                         media_public_previews_only: row.get::<_, i64>(36)? != 0,
+                        media_members_note: media_members_note(),
                     })
                 },
             ) {
@@ -527,7 +542,7 @@ impl Storage {
                     s.erased_accounts_cap.max(1),
                     clamp_world_time_scale(s.world_time_scale).unwrap_or_else(default_world_time_scale),
                     fleet_supply_mode_of(&s.fleet_supply_mode).unwrap_or(DEFAULT_FLEET_SUPPLY_MODE),
-                    media_visibility_of(&s.media_visibility).unwrap_or("public"),
+                    media_visibility_of(&s.media_visibility).unwrap_or("members"),
                     s.media_budget_mb.clamp(MEDIA_MB_RANGE.0, MEDIA_MB_RANGE.1),
                     s.media_per_person_mb.clamp(MEDIA_MB_RANGE.0, MEDIA_MB_RANGE.1),
                     s.media_public_previews_only as i32,
@@ -823,7 +838,7 @@ mod tests {
         assert!(!got.media_public_previews_only);
         assert_eq!(got.fleet_supply_mode, "unlimited", "no positional-index bleed into the neighbour");
         db.with_conn(|c| c.execute("UPDATE server_settings SET media_visibility = 'friends'", [])).unwrap();
-        assert_eq!(db.get_server_settings().unwrap().media_visibility, "public", "a stored value that is no visibility reads as public");
+        assert_eq!(db.get_server_settings().unwrap().media_visibility, "members", "a stored value that is no visibility reads as members only (F7)");
         let mut v = serde_json::to_value(&got).unwrap();
         for f in ["media_visibility", "media_budget_mb", "media_per_person_mb", "media_public_previews_only"] {
             v.as_object_mut().unwrap().remove(f);
