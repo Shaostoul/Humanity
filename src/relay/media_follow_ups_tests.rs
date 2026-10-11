@@ -108,8 +108,8 @@ fn every_item_says_what_remove_does_and_its_own_name() {
 /// A2. THE FEATURED FILTER: `featured=1` lists only featured items, through the GET and the signed
 /// POST alike, so the strip shows every featured item and not just those on the pages loaded.
 ///
-/// Seen red 2026-10-11 with the filter's SQL clause taken out of `list_media`: "only the featured
-/// item / left: [3, 2, 1] / right: [1]".
+/// Seen red 2026-10-11 with the filter's SQL clause made always true in `list_media`: "only the
+/// featured item / left: [2, 1] / right: [1]".
 #[tokio::test]
 async fn the_featured_filter_lists_only_featured_items() {
     let state = relay("mfu_a2");
@@ -136,7 +136,7 @@ async fn the_featured_filter_lists_only_featured_items() {
 /// `of` it is refused.
 ///
 /// Seen red 2026-10-11 with `picked_by_me` taken from the first item for all: "picked_by_me per
-/// item / left: [Bool(true), Bool(true)] / right: [true, false]".
+/// item / left: [Bool(true), Bool(true)] / right: [Bool(true), Bool(false)]".
 #[tokio::test]
 async fn picks_by_a_signed_post_and_picked_by_me() {
     let state = relay("mfu_a3");
@@ -167,8 +167,8 @@ async fn picks_by_a_signed_post_and_picked_by_me() {
 /// the budget left, their uploads in progress and their role's Media file limit come with it. Not a
 /// member: refused.
 ///
-/// Seen red 2026-10-11 with `used_bytes` counting published items only: "the room check's own
-/// number / left: 3145728 / right: 5242880".
+/// Seen red 2026-10-11 with `used_bytes` counting everyone's bytes (`media_bytes(None)`): "the
+/// room check's own number / left: Number(6291456) / right: 5242880".
 #[test]
 fn a_members_own_use_is_the_room_checks_number() {
     let state = relay("mfu_a4");
@@ -252,7 +252,7 @@ fn a_kept_item_leaves_its_uploaders_share() {
 ///
 /// Seen red 2026-10-11 with `media_items.id` without AUTOINCREMENT: "a removed item's number is
 /// never given again / left: 2 / right: 3"; and with the check taken out of `feature`: "another
-/// item's file is refused / left: Ok(..)".
+/// item's file is refused / left: Ok(()) / right: Err(409)".
 #[tokio::test]
 async fn a_stale_tile_never_acts_on_another_item() {
     let state = relay("mfu_w5");
@@ -338,8 +338,8 @@ async fn the_members_file_opens_with_the_token_in_a_header() {
 /// nothing behind and no row. The start-up sweep clears hidden leftovers, and /uploads never
 /// serves a dot name, written plainly or as `%2e`.
 ///
-/// Seen red 2026-10-11 with the room lock held across `put` (as merged): "the room lock is free
-/// while the file is copied".
+/// Seen red 2026-10-11 with the room lock held across `put` (as it was before R5): "the room lock
+/// is free while the file is copied".
 #[test]
 fn an_upload_is_copied_into_place_outside_the_room_lock() {
     let state = relay("mfu_r5");
@@ -452,8 +452,8 @@ fn a_media_upload_waits_where_nothing_serves_it() {
 /// out of the keep-N FIFO, so they never push out the person's room posts (nor the reverse).
 ///
 /// Seen red 2026-10-11 with the private room check taken out of `room_for`: "the person's own room
-/// for private files is full: Ok([])"; and with the `.enc` clause taken out of `record_upload`'s
-/// count: "private files never push out room posts / left: [\"1_room.png\"]".
+/// for private files is full"; and with the `.enc` clause taken out of `record_upload`'s FIFO:
+/// "private files never push out room posts (file 0): [\"1_room.png\"]".
 #[test]
 fn private_files_have_their_own_room_and_lifetime() {
     let state = relay("mfu_b5");

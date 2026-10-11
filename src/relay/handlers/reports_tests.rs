@@ -702,9 +702,8 @@ fn a_report_about_a_staff_member_never_reaches_them() {
 /// someone else's item, and one that does not exist, are kept unchecked with only the number. A
 /// moderator is sent the same evidence as an admin (nothing in it names the reporter).
 ///
-/// Seen red 2026-10-11 with `media_evidence` checking the uploader against the reporter instead
-/// of the reported person: "the reported person's own item is checked / left: Some(false) /
-/// right: Some(true)".
+/// Seen red 2026-10-11 with the uploader test in `media_evidence` turned around (`!=`): "the
+/// reported person's own item is checked / left: Some(false) / right: Some(true)".
 #[test]
 fn a_media_item_is_reported_as_a_pointer() {
     use crate::relay::storage::media::{Publish, MEDIA_SHELF};

@@ -96,8 +96,8 @@ async fn a_lost_finish_answer_is_found_again() {
 /// the file is stored once.
 ///
 /// Seen red 2026-10-11 with the marker held by the request alone (`writing.clone()` not moved
-/// into the blocking work): "a second request while the finish runs is told it is busy: Err(Elapsed(()))"
-/// (it started a second finish, which waited behind the first).
+/// into the finish): "a second request while the finish runs is told it is busy:
+/// Err(Elapsed(()))" (it started a second finish, which waited behind the first).
 #[tokio::test]
 async fn a_dropped_request_keeps_its_finish_to_itself() {
     let r = rig("resume_r2b");
@@ -140,7 +140,8 @@ async fn a_dropped_request_keeps_its_finish_to_itself() {
 /// removes the session: a_videos_location_is_removed_at_finish.)
 ///
 /// Seen red 2026-10-11 with every error of the strip removing the session (as merged): "a write
-/// failure keeps the session".
+/// failure keeps the session: 500 Internal Server Error Failed to check the file's hidden
+/// information: Access is denied. (os error 5)".
 #[tokio::test]
 async fn a_write_failure_at_the_finish_keeps_the_upload() {
     let r = rig("resume_r3");
@@ -160,9 +161,12 @@ async fn a_write_failure_at_the_finish_keeps_the_upload() {
     };
     set_read_only(true);
     let failed = r.send(&id, "tok_ann", size, &[]).await.expect_err("the strip cannot open a read-only file");
-    set_read_only(false);
+    let kept = r.session(&id).is_some() && r.part(&id).is_file();
+    if r.part(&id).is_file() {
+        set_read_only(false);
+    }
+    assert!(kept, "a write failure keeps the session: {} {}", failed.status(), failed.words());
     assert_eq!(failed.status(), StatusCode::INTERNAL_SERVER_ERROR, "{}", failed.words());
-    assert!(r.session(&id).is_some() && r.part(&id).is_file(), "a write failure keeps the session");
 
     let done = r.send(&id, "tok_ann", size, &[]).await.expect("made writable, it is stored");
     assert!(r.waiting.join(done["filename"].as_str().unwrap()).is_file());
@@ -172,8 +176,8 @@ async fn a_write_failure_at_the_finish_keeps_the_upload() {
 /// refused with words naming the limit before anything is written; a smaller one starts; 0 (every
 /// role's default) leaves it to the share.
 ///
-/// Seen red 2026-10-11 with the check taken out of `start_core`: "a 2 MB file over the role's
-/// 1 MB Media limit is refused: \"<a session id>\"".
+/// Seen red 2026-10-11 with the check turned off in `start_core`: "a 2 MB file over the role's
+/// 1 MB Media limit is refused".
 #[tokio::test]
 async fn a_roles_media_file_limit_holds_at_the_start() {
     let r = rig("resume_b1");
@@ -193,8 +197,8 @@ async fn a_roles_media_file_limit_holds_at_the_start() {
 /// back a day here) the same piece goes and the file is stored. A role allowed two uploads an hour
 /// cannot start a third, told when the hour turns.
 ///
-/// Seen red 2026-10-11 with the piece check taken out of `piece_core`: "the piece past the day's
-/// allowance is refused: Object {\"offset\": Number(1258291), \"size\": Number(1258291)}".
+/// Seen red 2026-10-11 with the piece check in `piece_core` told the piece was empty: "the piece
+/// past the day's allowance is refused".
 #[tokio::test]
 async fn the_days_allowance_stops_a_piece_and_the_rest_comes_after_the_reset() {
     let r = rig("resume_b3");
@@ -246,9 +250,10 @@ fn heic_photo() -> Vec<u8> {
 /// and so are a phone video and a phone JPEG, with their locations, by the person's own choice;
 /// a picture that is not what it says is refused either way.
 ///
-/// Seen red 2026-10-11 with the no-movie check taken out of `finish_file_as`: "a HEIC photo is
-/// refused: Object {\"filename\": ...}". Seen red again with `keep_metadata` not passed on to the
-/// finish: "kept by choice, the video keeps where it was filmed".
+/// Seen red 2026-10-11 with the no-movie check turned off in `finish_file_as`: "a HEIC photo is
+/// refused". Seen red again with `keep_metadata` not stored on the session at the start: "kept by
+/// choice, the HEIC is stored: Words(422, \"HEIC and AVIF photos cannot be cleaned of where they
+/// were taken yet. ...\")".
 #[tokio::test]
 async fn a_heic_photo_is_refused_unless_the_person_keeps_everything() {
     let r = rig("resume_b4");
