@@ -493,3 +493,58 @@ Stale metadata an earlier editing tool left inside an existing `free` box is not
 broken box size, the boxes behind it at that level cannot be found, so a report with
 `stopped_early` entries means "better, not proven clean"; the wiring should decide what that means
 for the upload (keeping such a video private is one option).
+
+## Increment 2 follow-ups, exact (relay first, then both apps; 2026-10-11)
+
+What both apps' builders found missing from the server, and the operator's answer on file sizes.
+
+**A. What the apps need from the Media routes.**
+1. **Every item says what Remove does to its file and what it is called.** Items carry
+   `keeps_file` (true when the upload came from chat or Shared Files, `from_shelf` 0 or 1, so
+   removing the item gives it back; false for an upload made for Media, whose file is deleted)
+   and `original_name` (the uploader's own file name, from `user_uploads`, so Download names a
+   members-only file properly). The apps then use the spec's exact Remove words for every item.
+2. **A featured filter:** `featured=1` on the list (both the GET and the signed POST form), so
+   the strip shows every featured item, not just those on the pages loaded.
+3. **Picks by a signed POST:** `POST /api/media/picks` with the signed list body plus `of: <key>`
+   (purpose `media_list`, as the list), answering like the list, members-only items included for
+   a member. The GET form stays for public picks. In the members' view every item also carries
+   `picked_by_me`.
+4. **A member's own use:** `GET` and `POST /api/media/mine`, signed (purpose `media_mine`),
+   answering `{used_bytes, share_bytes, budget_left_bytes, waiting: [{filename, original_name,
+   size_bytes, uploaded_at}]}`: the same counting as the room check (`media_bytes_on`), so
+   "You have X of your Y left" is the relay's own number, waiting uploads included.
+5. **Reporting a Media item:** the reports `CONTEXTS` gain `media`, with an evidence item
+   `{kind: "media", id}`. The relay looks the item up as it does a public post: `checked: true`
+   when the item exists and its uploader is the reported person, and the evidence it keeps names
+   the item's title, kind, labels and visibility, never the file itself (a report hands the admin
+   a pointer, not a copy). A members-only item is reportable by members. Both apps' report dialogs
+   offer it on a tile; the admins' Reports page shows the item with a link that opens it.
+6. **The kinds are one data file for both apps:** `data/media/kinds.json` (added by the desktop
+   build) is read by the web page too, and a pair in `tests/page_parity_lint.rs` holds both to it.
+
+**B. File sizes per role, set in Server Settings > Roles (operator, 2026-10-11).** "I figure make
+it configurable in the server menu? Like the file size limits?" Two new limits on each role,
+editable beside the per-file upload limit in both apps' Roles editors:
+1. `max_media_file_mb`: the largest single Media file this role may send (resumable or not). 0
+   means "up to the person's Media share", which is today's behaviour and the default for every
+   role, so nothing changes until an admin sets it. Checked at the resumable start and at the
+   single request with `media=1`, with words naming the limit.
+2. `max_private_file_mb`: the largest file this role may send in a DM or a P2P group (an
+   encrypted upload). Default 6 for every role, which is what both apps enforce today with a
+   built-in number; the server now enforces it on `encrypted=1` uploads (still under the 1 GB
+   ceiling of one request), and each person's own peer-list entry carries `private_limit_mb`
+   beside `upload_limit_mb`, so the apps use the server's number instead of their own.
+   Both are ALTER-added columns on the roles table, with the pre-migration-shape open test
+   (CLAUDE.md BUG-046 rule). The type of a private file cannot be limited by the server: it is
+   encrypted on the sender's device and the server receives a sealed blob, so the Roles editor
+   says so in one line under the field rather than offering a switch that could not work.
+
+**C. Upload tokens end with their connection.** A person with two connections (the chat and a
+standalone page such as Media, Trade or Tasks) had the first connection's token replaced in the
+peer entry while it stayed valid in `upload_tokens` until the relay restarted (the teardown
+returned early while another connection of the same key was open). Each connection's token is
+removed when that connection closes, whatever else is open, and a test holds it.
+
+**Proof.** Relay tests for each of A1 to A5, B1, B2 and C, each seen failing once; then the apps'
+own tests for what they draw from them.
