@@ -29,3 +29,7 @@ pub mod pq_crypto;
 pub mod signing;
 pub mod solana_rpc;
 pub mod strip_metadata;
+/// Video (MP4, MOV, 3GP) metadata removal in place: renames the boxes that
+/// carry where a video was filmed to `free` and zeroes them, so the file
+/// keeps its exact size and nothing it plays from moves.
+pub mod strip_video_metadata;
