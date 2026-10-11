@@ -295,7 +295,7 @@ changes nothing. Set a feature to `false` and restart the relay to switch it off
 | `game` | Running the shared game world (a 20-per-second simulation that runs whether or not anyone is playing) | Every `game_*` and `trade_*` socket message. The simulation, world save, ambient chatter and time-sync loops never start at all |
 | `market` | The market: offerings, listings, reviews, seller ratings and the order book | `/api/listings*`, `/api/sellers/*`, `/api/trade/*` |
 | `vault_backup` | Letting other people store their encrypted backups on your disk | `/api/vault/sync` (read, write and delete) and the `sync_save` / `sync_load` socket messages |
-| `uploads` | Being a file host: uploads, the shared-file library, the asset library | `/api/upload`, `/api/uploads*`, `/api/assets*`, and serving `/uploads/*` |
+| `uploads` | Being a file host: uploads, the shared-file library, the asset library, the Media page | `/api/upload` (resumable uploads included), `/api/uploads*`, `/api/assets*`, `/api/media*`, and serving `/uploads/*` |
 | `tasks` | The task board and projects | `/api/tasks*`, `/api/projects*`, and the `task_*` socket messages |
 | `voice` | Voice channels | `/api/turn-credentials` and the `voice_*` / `webrtc_signal` socket messages |
 | `live_video` | Live video fanout | `/api/live` and `/ws/live/*` |
@@ -549,9 +549,12 @@ server {
 
     # Upload proxy. The size limit is the relay's: each role's limit in Server Settings > Roles,
     # at most 1 GB per file. nginx only stops anything past that, and passes the body through as
-    # it arrives (no buffering) so the relay can refuse an oversize upload at once.
+    # it arrives (no buffering) so the relay can refuse an oversize upload at once. A request
+    # over the rate is answered 429 (Too Many Requests) rather than nginx's default 503, which
+    # the apps would take for the server being down: on a 429 they wait and try again.
     location /api/upload {
         limit_req zone=upload burst=5 nodelay;
+        limit_req_status 429;
         client_max_body_size 1025m;
         proxy_request_buffering off;
         client_body_timeout 300s;
@@ -566,6 +569,7 @@ server {
     # the longest matching prefix, so this block takes /api/upload/resumable.
     location /api/upload/resumable {
         limit_req zone=resumable burst=20 nodelay;
+        limit_req_status 429;
         client_max_body_size 9m;
         proxy_request_buffering off;
         client_body_timeout 300s;
@@ -726,6 +730,10 @@ Clients auto-detect the server update and reload automatically.
 - Check the role's upload limit and the server-wide upload storage cap in Server Settings
 - Check data/uploads/ directory permissions
 - Users must be verified to upload
+- A big Media upload that stalls with 503 errors from nginx (not the relay's own words): the
+  `/api/upload/resumable` location is missing `limit_req_status 429;`, so a refused rate looks like
+  a server that is down. With it, the apps see 429 and wait before trying again. The relay's own
+  429s (a role's day or hour allowance) carry when the allowance resets.
 
 ---
 

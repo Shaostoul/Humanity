@@ -22,11 +22,18 @@
 //!   nothing.
 //! - `DELETE /api/upload/resumable/{id}?token=` cancels: `{ok: true}`.
 //!
+//! Every route takes the session's upload token in the `X-Upload-Token` header as well as in
+//! `?token=` (R3-9, 2026-10-11; [`session_token`]): the apps send the header.
+//!
 //! THE ALLOWANCES (B3, 2026-10-11): a start is refused when the person's role has used its hour's
-//! uploads or its day's bytes (429 JSON `{error, allowance: "hour"|"day", resets_at}`); a piece
-//! that would pass the day's bytes is refused (429 JSON, the same plus `offset` and `size`),
-//! nothing of it written and the session kept, so the rest comes after the reset. Each piece's
-//! bytes count when they arrive. A role's largest Media file (B1) holds at the start.
+//! uploads or its day's bytes (429 JSON `{error, allowance: "hour"|"day", resets_at, resets_in_s,
+//! left_bytes}`); a piece that would pass the day's bytes is refused (429 JSON, the same plus
+//! `offset` and `size`), nothing of it written and the session kept, so the rest comes after the
+//! reset. `resets_in_s` is the seconds until the reset by the relay's own clock, and `left_bytes`
+//! what the day still allows (0 for the hour's, and for a day used up): a piece of that size, or
+//! any piece smaller than `chunk_max`, is taken (R3-6). Each piece's bytes are checked and counted
+//! together under the room lock when they arrive, and the start's upload likewise (R3-1). A role's
+//! largest Media file (B1) holds at the start.
 //!
 //! WHAT IS CHECKED, AND WHEN. At the start, before anything is written: the token names a person;
 //! their role may upload; the same type rules and sharing switches as the single request
@@ -55,23 +62,23 @@
 use axum::{
     body::Bytes,
     extract::{Path, Query, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
     Json,
 };
 use serde::Deserialize;
 use serde_json::{json, Value};
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::relay::media::{self, Folders, NewUpload, Reserved};
 use crate::relay::relay::RelayState;
-use crate::relay::storage::media::MEDIA_SHELF;
-use crate::relay::storage::upload_sessions::{part_path, valid_id, UploadSession};
+use crate::relay::storage::media::{OwnedFolders, MEDIA_SHELF};
+use crate::relay::storage::upload_sessions::{part_path, restore_staged_part, valid_id, UploadSession};
+use crate::relay::storage::RoleDef;
 use crate::relay::upload_limits::{picture_too_large, UploadBody, PICTURE_MAX_BYTES};
 use crate::relay::upload_rules::{
     allowance_at_start, allowance_for_piece, check_type, count_upload, file_type, finish_file_as, finish_picture_as, media_file_limit,
-    media_file_too_large, sharing_check, stored_name, token_key, upload_answer, uploader_role,
+    media_file_too_large, sharing_check, stored_name, take_back_upload, token_key, upload_answer, uploader_role,
 };
 
 /// The largest piece the server takes, stated in its answers so neither app hardcodes it.
@@ -182,31 +189,6 @@ fn busy() -> Refused {
     )
 }
 
-// ── The folders, owned, for work off the executor ──
-
-/// [`Folders`] with its paths owned, so they can move into `spawn_blocking`.
-#[derive(Debug, Clone)]
-struct OwnedFolders {
-    uploads: PathBuf,
-    members: PathBuf,
-    resume: PathBuf,
-    waiting: PathBuf,
-}
-
-impl OwnedFolders {
-    fn of(f: Folders) -> Self {
-        OwnedFolders {
-            uploads: f.uploads.to_path_buf(),
-            members: f.members.to_path_buf(),
-            resume: f.resume.to_path_buf(),
-            waiting: f.waiting.to_path_buf(),
-        }
-    }
-    fn get(&self) -> Folders<'_> {
-        Folders { uploads: &self.uploads, members: &self.members, resume: &self.resume, waiting: &self.waiting }
-    }
-}
-
 // ── POST /api/upload/resumable ──
 
 /// `?token=` (every route) and `?offset=` (a piece).
@@ -214,6 +196,13 @@ impl OwnedFolders {
 pub struct SessionQuery {
     pub token: Option<String>,
     pub offset: Option<u64>,
+}
+
+/// The session's upload token: from the `X-Upload-Token` header when the request has one, else
+/// from `?token=` (R3-9, 2026-10-11: an app sends it in the header, so it is never in an address
+/// a proxy or a log keeps; the query still works).
+pub fn session_token(headers: &HeaderMap, q: &SessionQuery) -> Option<String> {
+    media::header_token(headers).or_else(|| q.token.clone())
 }
 
 /// What the app says about the file it is about to send.
@@ -284,12 +273,6 @@ pub async fn start_core(state: &Arc<RelayState>, folders: Folders<'_>, token: Op
     if media_file_limit(&role).is_some_and(|max| b.size > max) {
         return Err(media_file_too_large(&role).into());
     }
-    // The hour's count of uploads, and a day's allowance already used up (B3): answered in JSON
-    // with when it resets, so an app can wait and start then. A file bigger than what is left of
-    // today starts: it is stopped at the piece that would pass the allowance, and carries on
-    // after the reset.
-    let now = now_ms();
-    allowance_at_start(&state.db, &key, &role, now).map_err(|over| Refused::Json(StatusCode::TOO_MANY_REQUESTS, over.json()))?;
     let blake3 = match b.blake3.as_deref().map(|h| h.trim().to_lowercase()) {
         None => String::new(),
         Some(h) if h.is_empty() => String::new(),
@@ -307,6 +290,13 @@ pub async fn start_core(state: &Arc<RelayState>, folders: Folders<'_>, token: Op
         // The room check and the new row under the room lock (media.rs), so two starts (or a
         // start and a single request's store) cannot both pass on the same room.
         let _room = media::room_lock();
+        // The hour's count of uploads, and a day's allowance already used up (B3), checked and
+        // counted under the same lock at this time (R3-1), so starts sent at once cannot all pass:
+        // answered in JSON with when it resets, so an app can wait and start then. A file bigger
+        // than what is left of today starts: it is stopped at the piece that would pass the
+        // allowance, and carries on after the reset.
+        let now = state.upload_now_ms();
+        allowance_at_start(db, &key, &role, now).map_err(|over| Refused::Json(StatusCode::TOO_MANY_REQUESTS, over.json()))?;
         // Finished sessions only keep their answer (R2): their files are stored and counted.
         let all: Vec<UploadSession> = db.all_upload_sessions().map_err(db_err)?.into_iter().filter(|s| !s.finished()).collect();
         let mine: Vec<&UploadSession> = all.iter().filter(|s| s.public_key == key).collect();
@@ -354,8 +344,8 @@ pub async fn start_core(state: &Arc<RelayState>, folders: Folders<'_>, token: Op
     Ok((StatusCode::CREATED, Json(json!({ "id": id, "offset": 0, "size": size, "chunk_max": CHUNK_MAX }))))
 }
 
-pub async fn start(State(state): State<Arc<RelayState>>, Query(q): Query<SessionQuery>, Json(b): Json<StartBody>) -> Response {
-    match start_core(&state, Folders::live(), q.token.as_deref(), b).await {
+pub async fn start(State(state): State<Arc<RelayState>>, Query(q): Query<SessionQuery>, headers: HeaderMap, Json(b): Json<StartBody>) -> Response {
+    match start_core(&state, Folders::live(), session_token(&headers, &q).as_deref(), b).await {
         Ok(answer) => answer.into_response(),
         Err(e) => e.into_response(),
     }
@@ -395,8 +385,9 @@ fn done_answer(s: &UploadSession) -> Option<Value> {
     s.finished().then(|| serde_json::from_str(&s.done_answer).unwrap_or(Value::Null))
 }
 
-pub async fn status(State(state): State<Arc<RelayState>>, Path(id): Path<String>, Query(q): Query<SessionQuery>) -> Response {
-    status_core(&state, &id, q.token.as_deref()).await.map(IntoResponse::into_response).unwrap_or_else(IntoResponse::into_response)
+pub async fn status(State(state): State<Arc<RelayState>>, Path(id): Path<String>, Query(q): Query<SessionQuery>, headers: HeaderMap) -> Response {
+    let token = session_token(&headers, &q);
+    status_core(&state, &id, token.as_deref()).await.map(IntoResponse::into_response).unwrap_or_else(IntoResponse::into_response)
 }
 
 // ── DELETE /api/upload/resumable/{id} ──
@@ -410,12 +401,17 @@ pub async fn cancel_core(state: &RelayState, folders: Folders<'_>, id: &str, tok
     state.db.delete_upload_session(id).map_err(db_err)?;
     if let Some(path) = part_path(folders.resume, id) {
         let _ = std::fs::remove_file(path);
+        // And its pieces file where a finish that could not move it back left it (R3-5).
+        let staged = crate::relay::storage::upload_sessions::staged_part_name(id);
+        let _ = std::fs::remove_file(folders.waiting.join(&staged));
+        let _ = std::fs::remove_file(folders.uploads.join(&staged));
     }
     Ok(Json(json!({ "ok": true })))
 }
 
-pub async fn cancel(State(state): State<Arc<RelayState>>, Path(id): Path<String>, Query(q): Query<SessionQuery>) -> Response {
-    cancel_core(&state, Folders::live(), &id, q.token.as_deref()).await.map(IntoResponse::into_response).unwrap_or_else(IntoResponse::into_response)
+pub async fn cancel(State(state): State<Arc<RelayState>>, Path(id): Path<String>, Query(q): Query<SessionQuery>, headers: HeaderMap) -> Response {
+    let token = session_token(&headers, &q);
+    cancel_core(&state, Folders::live(), &id, token.as_deref()).await.map(IntoResponse::into_response).unwrap_or_else(IntoResponse::into_response)
 }
 
 // ── PATCH /api/upload/resumable/{id} ──
@@ -433,6 +429,61 @@ fn write_piece(path: &std::path::Path, offset: u64, piece: &[u8]) -> std::io::Re
         let _ = f.set_len(offset);
     }
     wrote
+}
+
+/// One piece of session `s` (whose owner's role is `role`) written at the session's offset in its
+/// pieces file at `path`, and the offset stored. BLOCKING, and run whole once started, even if
+/// the app's connection drops (R3-1, 2026-10-11):
+///
+/// 1. Under the room lock, at the time the piece arrives: the day's allowance checked (B3) and the
+///    piece's bytes counted, together, so pieces of several uploads sent at once cannot all pass on
+///    the same allowance (the single request's store does the same, media.rs `store_upload`). A
+///    piece that would pass it is refused (429 JSON: which allowance, when it resets, in seconds
+///    too, what is left of it, where the upload is; R3-6), nothing of it written, and the session
+///    kept so the rest can come after the reset, or a piece cut to `left_bytes` now.
+/// 2. The piece written and synced, then the offset stored. A write that fails, or a session
+///    cancelled or expired meanwhile, takes the piece's bytes back off the count.
+fn write_counted(state: &RelayState, path: &std::path::Path, s: &UploadSession, role: &RoleDef, piece: &[u8]) -> Result<(), Refused> {
+    let (db, id, key, at) = (&state.db, s.id.as_str(), s.public_key.as_str(), s.offset);
+    let len = piece.len() as u64;
+    let now = {
+        let _room = media::room_lock();
+        let now = state.upload_now_ms();
+        if let Err(over) = allowance_for_piece(db, key, role, now, len) {
+            let mut body = over.json();
+            body["offset"] = json!(at);
+            body["size"] = json!(s.size);
+            return Err(Refused::Json(StatusCode::TOO_MANY_REQUESTS, body));
+        }
+        count_upload(db, key, now, len, false);
+        now
+    };
+    // A test can hold a piece here, its allowance decided and not yet written (R3-1), by the
+    // name `piece:<file name>`, apart from the store's hold on the file name itself.
+    #[cfg(test)]
+    media::hold::wait_at(&format!("piece:{}", s.filename));
+    if let Err(e) = write_piece(path, at as u64, piece) {
+        take_back_upload(db, key, now, len);
+        if e.kind() == std::io::ErrorKind::NotFound {
+            // The pieces' file is gone (removed by hand): nothing can be resumed.
+            let _ = db.delete_upload_session(id);
+            return Err(words(StatusCode::GONE, "This upload's pieces were lost on the server. Start it again."));
+        }
+        return Err(words(StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to write the piece: {e}")));
+    }
+    match db.set_upload_session_offset(id, at + len as i64, now) {
+        Ok(true) => Ok(()),
+        Ok(false) => {
+            // Cancelled or expired while the piece was written.
+            take_back_upload(db, key, now, len);
+            let _ = std::fs::remove_file(path);
+            Err(not_found())
+        }
+        Err(e) => {
+            take_back_upload(db, key, now, len);
+            Err(db_err(e))
+        }
+    }
 }
 
 /// The next piece. `offset` must be the server's offset (409 with the right one otherwise), the
@@ -476,44 +527,19 @@ pub async fn piece_core(state: &Arc<RelayState>, folders: Folders<'_>, id: &str,
     }
     // The session is in use: the expiry pass leaves it alone while the piece is written (and, for
     // a piece past the day's allowance, for a day from now, which is past the reset).
-    let now = now_ms();
-    state.db.touch_upload_session(id, now).map_err(db_err)?;
-    // The day's allowance (B3): a piece that would pass it is refused, nothing of it written, and
-    // the session kept so the rest can come after the reset. JSON, with where the upload is.
-    if !piece.is_empty() {
-        let role = state.db.role_def(&state.db.get_role(&s.public_key).unwrap_or_default());
-        if let Err(over) = allowance_for_piece(&state.db, &s.public_key, &role, now, piece.len() as u64) {
-            let mut body = over.json();
-            body["offset"] = json!(s.offset);
-            body["size"] = json!(s.size);
-            return Err(Refused::Json(StatusCode::TOO_MANY_REQUESTS, body));
-        }
-    }
+    state.db.touch_upload_session(id, state.upload_now_ms()).map_err(db_err)?;
     let path = part_path(folders.resume, id).ok_or_else(not_found)?;
     if !piece.is_empty() {
-        let (to, at, len) = (path.clone(), s.offset as u64, piece.len() as u64);
-        let held = writing.clone();
-        let wrote = tokio::task::spawn_blocking(move || {
+        // The allowance, the write and the offset, off the executor and whole even if the app's
+        // connection drops now (R3-1): see `write_counted`.
+        let role = state.db.role_def(&state.db.get_role(&s.public_key).unwrap_or_default());
+        let (st, session, held) = (state.clone(), s.clone(), writing.clone());
+        tokio::task::spawn_blocking(move || {
             let _held = held;
-            write_piece(&to, at, &piece)
+            write_counted(&st, &path, &session, &role, &piece)
         })
         .await
-        .map_err(task_err)?;
-        if let Err(e) = wrote {
-            if e.kind() == std::io::ErrorKind::NotFound {
-                // The pieces' file is gone (removed by hand): nothing can be resumed.
-                let _ = state.db.delete_upload_session(id);
-                return Err(words(StatusCode::GONE, "This upload's pieces were lost on the server. Start it again."));
-            }
-            return Err(words(StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to write the piece: {e}")));
-        }
-        if !state.db.set_upload_session_offset(id, end, now_ms()).map_err(db_err)? {
-            // Cancelled or expired while the piece was written.
-            let _ = std::fs::remove_file(&path);
-            return Err(not_found());
-        }
-        // The bytes that arrived count against the day's allowance (B3).
-        count_upload(&state.db, &s.public_key, now, len, false);
+        .map_err(task_err)??;
     }
     if end < s.size {
         return Ok(Json(json!({ "offset": end, "size": s.size })));
@@ -531,8 +557,9 @@ pub async fn piece_core(state: &Arc<RelayState>, folders: Folders<'_>, id: &str,
     .map(Json)
 }
 
-pub async fn piece(State(state): State<Arc<RelayState>>, Path(id): Path<String>, Query(q): Query<SessionQuery>, body: Bytes) -> Response {
-    piece_core(&state, Folders::live(), &id, q.token.as_deref(), q.offset, body).await.map(IntoResponse::into_response).unwrap_or_else(IntoResponse::into_response)
+pub async fn piece(State(state): State<Arc<RelayState>>, Path(id): Path<String>, Query(q): Query<SessionQuery>, headers: HeaderMap, body: Bytes) -> Response {
+    let token = session_token(&headers, &q);
+    piece_core(&state, Folders::live(), &id, token.as_deref(), q.offset, body).await.map(IntoResponse::into_response).unwrap_or_else(IntoResponse::into_response)
 }
 
 // ── The finish ──
@@ -574,7 +601,14 @@ fn finish(state: &RelayState, folders: Folders, s: &UploadSession) -> Result<Val
     // A test can hold one named finish at its start (relay/resumable_tests.rs, R2).
     #[cfg(test)]
     let _held = (s.filename == tests::HELD_FINISH_NAME).then(|| tests::FINISH_HOLD.lock().unwrap_or_else(|p| p.into_inner()));
-    if !part.is_file() {
+    // A finish that could not move the pieces file back after a refusal left it staged under its
+    // session's name (R3-5): it comes back first. Only a file that is nowhere is lost.
+    if !part.is_file() && !restore_staged_part(folders, &s.id) {
+        let staged = crate::relay::storage::upload_sessions::staged_part_name(&s.id);
+        if folders.waiting.join(&staged).is_file() || folders.uploads.join(&staged).is_file() {
+            // Staged, and it cannot come back yet: kept, for another try.
+            return Err(words(StatusCode::INTERNAL_SERVER_ERROR, "This upload's file could not be put back in place on the server yet. Try again in a moment."));
+        }
         // The pieces' file is gone (removed by hand): nothing can be finished.
         return Err(drop_session(words(StatusCode::GONE, "This upload's pieces were lost on the server. Start it again.")));
     }
@@ -628,7 +662,19 @@ fn finish(state: &RelayState, folders: Folders, s: &UploadSession) -> Result<Val
     let kind_word = file_type(&s.content_type, &ext, false);
     let name = stored_name(&s.filename, &ext);
 
-    let new = NewUpload { key: &s.public_key, shelf: s.shelf, name: &name, original_name: &s.filename, len, keep: role.max_uploads_kept.max(1), private_held_limit: None };
+    // No allowance at the store: the pieces' bytes were counted as they arrived, the upload at its
+    // start (R3-1). The pieces file waits for the room lock under its session's name (R3-5).
+    let new = NewUpload {
+        key: &s.public_key,
+        shelf: s.shelf,
+        name: &name,
+        original_name: &s.filename,
+        len,
+        keep: role.max_uploads_kept.max(1),
+        private_held_limit: None,
+        allowance: None,
+        session: Some(&s.id),
+    };
     match media::store_upload(db, &settings, folders, &new, |path| body.put(path), |path| body.unstage(path)) {
         Ok(old_files) => {
             media::delete_pruned(folders, &old_files);
@@ -645,8 +691,9 @@ fn finish(state: &RelayState, folders: Folders, s: &UploadSession) -> Result<Val
         }
         // No room: nothing was moved, so the session and its file stay for another try.
         Err((StatusCode::INSUFFICIENT_STORAGE, room)) => Err(words(StatusCode::INSUFFICIENT_STORAGE, room + KEPT_WORDS)),
-        // A failure to put the file in place: store_upload undid it (the pieces' file is back), so
-        // the session stays for another try (R5).
+        // A failure to put the file in place: store_upload undid it (the pieces' file is back, or
+        // kept staged under its session's name when it could not go back: the next try or the
+        // next start brings it back, R3-5), so the session stays for another try (R5).
         Err(e) => Err(e.into()),
     }
 }

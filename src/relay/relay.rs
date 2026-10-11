@@ -202,6 +202,13 @@ pub struct RelayState {
     pub typing_timestamps: RwLock<HashMap<String, Instant>>,
     /// Upload token → public key mapping (M-4: per-session upload tokens).
     pub upload_tokens: RwLock<HashMap<String, String>>,
+    /// Ten-minute tickets that each open one members-only Media file (R3-8, media_ticket.rs).
+    /// In memory only.
+    pub media_tickets: crate::relay::media_ticket::Tickets,
+    /// Tests only (R3-1): the Unix-ms clock the upload allowances read instead of the wall
+    /// (`upload_now_ms`), so a test can carry an upload across midnight UTC. Never set in the product.
+    #[cfg(test)]
+    pub(crate) upload_clock: std::sync::OnceLock<Box<dyn Fn() -> i64 + Send + Sync>>,
     /// Every signed-in socket per identity (2026-10-02). One person can hold
     /// several at once: the desktop app and a web tab, or Chat and the Tasks
     /// board. `peers` keeps ONE registration per identity, owned by the newest
@@ -317,6 +324,16 @@ impl RelayState {
             return clock.now();
         }
         Instant::now()
+    }
+
+    /// The time the upload allowances are read and counted at, Unix ms (R3-1): the wall clock,
+    /// or in a test the clock it set.
+    pub(crate) fn upload_now_ms(&self) -> i64 {
+        #[cfg(test)]
+        if let Some(clock) = self.upload_clock.get() {
+            return clock();
+        }
+        crate::relay::storage::now_millis() as i64
     }
 
     /// Anti-replay gate for signed REST auth requests (audit 2026-06-12).
@@ -470,6 +487,9 @@ impl RelayState {
             connection_count: AtomicUsize::new(0),
             typing_timestamps: RwLock::new(HashMap::new()),
             upload_tokens: RwLock::new(HashMap::new()),
+            media_tickets: Default::default(),
+            #[cfg(test)]
+            upload_clock: std::sync::OnceLock::new(),
             voice_rooms: RwLock::new(HashMap::new()),
             user_statuses: RwLock::new(HashMap::new()),
             last_search_times: std::sync::Mutex::new(HashMap::new()),
@@ -3119,51 +3139,9 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                     let _ = ws_tx.send(Message::Text(serde_json::to_string(&notice).unwrap().into())).await;
                 }
 
-                // Send current peer list to the new peer (with their upload_token).
-                // Presence-hidden members are excluded from the LIVE peer
-                // list (it is pure presence); they still appear masked in
-                // the full user list below. You always see yourself.
-                let hidden_peers = state.db.hidden_presence_keys();
-                let peers_raw: Vec<Peer> = state
-                    .peers
-                    .read()
-                    .await
-                    .values()
-                    .filter(|p| p.public_key_hex == public_key || !hidden_peers.contains(&p.public_key_hex))
-                    .cloned()
-                    .collect::<Vec<_>>();
-                let statuses_snap = state.user_statuses.read().await;
-                let peers: Vec<PeerInfo> = peers_raw.into_iter()
-                    .map(|p| {
-                        let role = state.db.get_role(&p.public_key_hex).unwrap_or_default();
-                        let token = if p.public_key_hex == public_key {
-                            p.upload_token.clone()
-                        } else {
-                            None
-                        };
-                        let own_role = (p.public_key_hex == public_key).then(|| state.db.role_def(&role));
-                        let upload_limit_mb = own_role.as_ref().map(|d| crate::relay::upload_limits::role_upload_limit(d) / (1024 * 1024));
-                        let private_limit_mb = own_role.as_ref().map(crate::relay::upload_rules::private_limit_mb);
-                        let private_held_limit_mb = own_role.as_ref().map(|d| d.max_private_held_mb.max(0) as u64);
-                        let name_lower = p.display_name.as_ref().map(|n| n.to_lowercase()).unwrap_or_default();
-                        let (user_status, user_status_text) = statuses_snap.get(&name_lower).cloned().unwrap_or(("online".to_string(), String::new()));
-                        // Kyber DM key: from the in-memory peer (if online) or DB.
-                        let kyber_pub = p.kyber_public.clone().or_else(|| state.db.get_kyber_public(&p.public_key_hex).ok().flatten());
-                        PeerInfo {
-                            public_key: p.public_key_hex.clone(),
-                            display_name: p.display_name.clone(),
-                            role,
-                            upload_token: token,
-                            status: user_status,
-                            status_text: user_status_text,
-                            kyber_public: kyber_pub,
-                            upload_limit_mb,
-                            private_limit_mb,
-                            private_held_limit_mb,
-                        }
-                    })
-                    .collect();
-                drop(statuses_snap);
+                // Send current peer list to the new peer, with THIS socket's own upload token
+                // on its own entry (R3-2: handlers/live_conns.rs `peer_list_for`).
+                let peers = crate::relay::handlers::live_conns::peer_list_for(&state, &public_key, &upload_token).await;
 
                 let list_msg = serde_json::to_string(&RelayMessage::PeerList {
                     peers,
