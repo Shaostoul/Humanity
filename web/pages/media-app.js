@@ -35,7 +35,9 @@
 //   header answers an address that opens that one file for ten minutes, so the
 //   browser streams the video (range requests) and saves a download itself,
 //   never holding the whole file in the page, and no token is in any address.
-//   A video that outlives its ticket gets a new one where it stopped.
+//   A video that outlives its ticket gets a new one where it stopped; a new
+//   one refused (a ban, the item gone, too many open) puts the relay's words
+//   where the video was (round 4, W4-2), and opening it again asks afresh.
 // - The viewer is drawn again only when what it shows changes, so a playing
 //   video keeps playing through a sign-in, a reconnect or a list reload.
 // - A labelled item (spoiler, flashing lights, graphic) shows its label
@@ -44,7 +46,10 @@
 // - Uploads in progress are a list of their own (each with its bar, Pause,
 //   Resume and Cancel), each published by its own form, so opening another
 //   form never leaves one behind (round 3, review 2). Uploads the server still
-//   holds part of (`uploads_in_progress`, R3-7) are listed with Cancel.
+//   holds part of (`uploads_in_progress`, R3-7) are listed with Cancel. A
+//   cancel is asked again while the server is busy, and the server deletes a
+//   file the finish had stored with it, so nothing is removed by hand; the
+//   page says what the server answered (round 4, W4-3).
 // - Every write is signed (Dilithium over "purpose\ntimestamp", getPqSignedAuth
 //   in /shared/pq-relay-auth.js, which never signs two requests with the same
 //   timestamp) with a purpose that names its target: media_publish:<file name>,
@@ -138,6 +143,9 @@
     unfinishedCancelled: 'Cancelled, and what arrived was deleted.',
     notSignedInCancel: 'This page is not signed in to this server yet, so nothing was cancelled. Try again in a moment.',
     cancelledStored: 'Cancelled. The file had already been stored, so it was deleted too.',
+    cancelledPublished: 'Cancelled, but the file was already on the Media page, so it stays there. Remove on its tile takes it off.',
+    cancelUnconfirmed: 'The cancel could not reach the server, so what arrived may still be there. It is listed on this page with Cancel or Remove once the server answers again, and the server deletes it by itself within a day.',
+    cancellingUnfinished: 'Cancelling...',
     ticketOdd: 'The server did not give this page an address for the file.',
     reportLeadTail: ' is not told who reported them.',
     reportWhat: 'The report names this item. The server keeps a note of it (its title, kind, labels and who can see it), never the file.',
@@ -412,7 +420,7 @@
 
   // The resumable upload and the uploads remembered in this browser: /pages/media-upload.js.
   const U = typeof module === 'object' && module && module.exports ? require('./media-upload.js') : root.MediaUpload;
-  const { RESUME_KEY, rememberUpload, findUpload, forgetUpload, createUploader, fingerprint } = U || {};
+  const { RESUME_KEY, rememberUpload, findUpload, forgetUpload, createUploader, fingerprint, cancelSession } = U || {};
 
   // ── DOM ──
 
@@ -858,7 +866,10 @@
     }
     /**
      * A playing video whose ticket has run out: a new ticket, the same video element, from where
-     * it stopped. Not for a ticket younger than a minute (then it is the file that fails).
+     * it stopped. Not for a ticket younger than a minute (then it is the file that fails). A new
+     * ticket refused (a ban 403, the item gone 404 or changed 409, too many open 429, or no answer)
+     * leaves nothing to play, so the ticket becomes an error with the relay's words and the viewer
+     * shows them where the video was (round 4, W4-2: it used to stay a dead video with no words).
      */
     function renewTicket(item, video) {
       const e = tickets.get(item.id);
@@ -878,7 +889,14 @@
         video.src = got.path;
         try { video.currentTime = pos; } catch (err) { /* the browser seeks once it can */ }
         if (playing && typeof video.play === 'function') { try { Promise.resolve(video.play()).catch(() => {}); } catch (err) { /* it waits for a press */ } }
-      }, () => { e.renewing = false; });
+      }, (err) => {
+        e.renewing = false;
+        if (tickets.get(item.id) !== e) return;
+        e.state = 'error';
+        e.token = t;
+        e.why = MEDIA_WORDS.fileFailed + (err && err.message ? err.message : String(err));
+        ticketChanged(item.id);
+      });
     }
     function saveFile(url, name) {
       if (typeof env.save === 'function') { env.save(url, name); return; }
@@ -1018,6 +1036,11 @@
 
     // ── The viewer: drawn again only when what it shows changes ──
     function openViewer(item) {
+      // A ticket refused earlier is asked for afresh when the person opens the item again (the
+      // relay's words for too many open say to do just that); while it stays open it is not asked
+      // again, so a refusal never becomes a loop of requests.
+      const was = item && tickets.get(item.id);
+      if (was && was.state === 'error') tickets.delete(item.id);
       st.viewer = item;
       renderViewerIfChanged();
     }
@@ -1355,6 +1378,7 @@
     }
 
     // ── The person's uploads waiting to be published ──
+    const cancellingUnfinished = new Set(); // ids of the unfinished uploads whose cancel is on its way
     function renderWaiting() {
       els.waiting.replaceChildren();
       // What this page's own uploads list shows already is not listed twice.
@@ -1380,7 +1404,11 @@
         // on this page is carrying: one left by a closed tab, another browser or a failure.
         const rows = unfinished.map((p) => h('div', { className: 'media-admin-row', dataset: { unfinished: p.id } }, [
           h('div', { className: 'media-admin-row-text', text: String(p.filename || '') + ' · ' + sizeWords(p.offset) + ' of ' + sizeWords(p.size) + ' sent' }),
-          h('button', { type: 'button', className: 'media-btn media-btn-small media-btn-danger', dataset: { unfinishedCancel: p.id }, text: 'Cancel', on: { click: () => cancelUnfinished(p) } }),
+          h('button', {
+            type: 'button', className: 'media-btn media-btn-small media-btn-danger', dataset: { unfinishedCancel: p.id },
+            text: cancellingUnfinished.has(p.id) ? MEDIA_WORDS.cancellingUnfinished : 'Cancel', disabled: cancellingUnfinished.has(p.id),
+            on: { click: () => cancelUnfinished(p) },
+          }),
         ]));
         els.waiting.appendChild(h('div', { className: 'media-panel', id: 'media-unfinished-list' }, [
           h('h2', { text: MEDIA_WORDS.unfinishedTitle }),
@@ -1390,22 +1418,41 @@
       }
     }
 
-    /** Cancel an unfinished upload the server holds: DELETE, with the token in the header. */
+    /**
+     * What a cancel the server answered means, said on the page (round 4's cancel answer,
+     * media-upload.js `cancelSession`): nothing for a plain cancel, which the list shows.
+     */
+    function sayCancelled(answer, words) {
+      if (answer === 'removed_stored') say(MEDIA_WORDS.cancelledStored);
+      else if (answer === 'published') say(MEDIA_WORDS.cancelledPublished);
+      else if (answer === 'unconfirmed') say(MEDIA_WORDS.cancelUnconfirmed + (words ? ' ' + words : ''), true);
+      else if (answer === 'refused') say(words, true);
+    }
+
+    /**
+     * Cancel an unfinished upload the server holds: DELETE with the token in the header, asked
+     * again while the server is busy with it (`cancelSession`). Its row says so meanwhile.
+     */
     async function cancelUnfinished(p) {
+      if (cancellingUnfinished.has(p.id)) return;
       if (!await env.confirm('"' + String(p.filename || '') + '"\n\n' + MEDIA_WORDS.unfinishedCancel)) return;
-      const t = token();
-      if (!t) { say(MEDIA_WORDS.notSignedInCancel, true); return; }
+      if (!token()) { say(MEDIA_WORDS.notSignedInCancel, true); return; }
+      cancellingUnfinished.add(p.id);
+      renderWaiting();
+      let told;
       try {
-        const res = await env.fetch('/api/upload/resumable/' + encodeURIComponent(p.id), { method: 'DELETE', headers: { 'X-Upload-Token': t } });
-        if (res.ok || res.status === 404) {
-          if (forgetUpload) forgetUpload(env.storage, p.id);
-          say(MEDIA_WORDS.unfinishedCancelled);
-        } else {
-          say(await refusalWords(res), true);
-        }
-      } catch (e) {
-        say('The server could not be reached: ' + (e && e.message ? e.message : String(e)), true);
+        told = await cancelSession({ fetch: env.fetch, token, sleep: env.sleep }, p.id);
+      } finally {
+        cancellingUnfinished.delete(p.id);
       }
+      if (told.answer === 'unconfirmed' || told.answer === 'refused') {
+        sayCancelled(told.answer, told.words);
+      } else {
+        if (forgetUpload) forgetUpload(env.storage, p.id);
+        if (told.answer === 'published') sayCancelled(told.answer, '');
+        else say(MEDIA_WORDS.unfinishedCancelled);
+      }
+      renderWaiting();
       loadMine();
     }
 
@@ -1688,24 +1735,6 @@
       renderWaiting();
     }
 
-    /**
-     * The file was cancelled while the server was storing it, and the store finished first: the
-     * stored file waits for a publish that will never come, so it is removed now (by its name,
-     * signed media_remove:<name>) rather than holding part of the share for a day.
-     */
-    async function removeStored(answer) {
-      const filename = storedName((answer && (answer.filename || answer.url)) || '');
-      if (!filename || !/^[^/\\]+$/.test(filename)) return;
-      const auth = await signed(purposes.remove(filename));
-      if (!auth) return;
-      try {
-        await answerOf(await env.fetch('/api/media/remove', jsonPost(Object.assign({ filename }, auth))));
-        say(MEDIA_WORDS.cancelledStored);
-      } catch (e) {
-        say(e.message, true);
-      }
-    }
-
     /** Send the file in pieces (src/relay/resumable.rs), then publish it with its own form. */
     function startUpload(f) {
       if (!token()) {
@@ -1728,8 +1757,11 @@
         sleep: env.sleep, now, digest: env.digest, AbortController: Abort,
         onChange: (s) => {
           if (s.phase === 'cancelled') {
-            // Deleted on the server now (Cancel, or Close on a failed one): the share is asked again.
+            // Deleted on the server now (Cancel, or Close on a failed one), a file its finish had
+            // stored with it (round 4's cancel answer): the page says what the server answered,
+            // and the share is asked again.
             if (st.uploads.includes(f)) dropUpload(f);
+            sayCancelled(s.cancelAnswer, s.error);
             loadMine();
             return;
           }
@@ -1740,7 +1772,6 @@
           loadMine();
           publish(f);
         },
-        onStored: (answer) => removeStored(answer),
       });
       renderFormActions(f);
       f.up.start();

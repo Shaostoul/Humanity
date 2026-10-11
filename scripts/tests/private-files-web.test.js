@@ -1554,3 +1554,45 @@ test("review 7: the sender lets the plain bytes go before the upload, and the ci
   await settle();
   assert.equal(page.sock.sent.filter((m) => m.type === "dm_put").length, 2, "and it is sent as ever");
 });
+
+// ── Round 4, W4-4: the opened-picture cache keeps its bound (docs/design/media-showcase.md) ──
+//
+// An opened picture is kept for the page, at most 128 MB of them, the oldest let go first. Its
+// place in the cache was set when it was ASKED for (a placeholder while it opens), so a picture that
+// finished opening after later ones sat before them, the sweep stopped at it, and nothing was let
+// go: the review's 20 pictures finishing in reverse kept 320 MB. On finishing, an entry is now
+// taken out and put back, so it is the newest.
+
+// Seen red 2026-10-11 with the `privateFilesOpened.delete(key);` before the set taken out (round
+// 3's): "held to 128 MB however they finish / 335544320 bytes kept".
+test("W4-4: pictures that finish opening out of order are still let go oldest first, so the cache keeps its 128 MB bound", async () => {
+  const fx = await fixture();
+  const page = await loadChat(fx.ann);
+  const MB = 1024 * 1024;
+  // The fetch and the opening stood in for: each picture is 16 MB and finishes when the test says.
+  const finish = new Map();
+  let opens = 0;
+  page.ctx.openPrivateFile = (meta) => { opens++; return new Promise((r) => finish.set(meta.url, () => r({ size: 16 * MB }))); };
+  const metas = Array.from({ length: 20 }, (_, i) => ({ url: "/uploads/p" + i + ".enc", k: "k" + i, n: "n", name: "p" + i + ".png", mime: "image/png", size: 16 * MB }));
+  const open = page.fn("openPrivatePicture");
+  const shown = metas.map((m) => open(m));
+  await settle();
+  assert.equal(opens, 20, "all twenty asked for");
+  // They finish in reverse: the last asked for first.
+  for (const m of metas.slice().reverse()) {
+    finish.get(m.url)();
+    await settle();
+  }
+  const urls = await Promise.all(shown);
+  assert.ok(urls.every((u) => typeof u === "string" && u.startsWith("blob:")), "each one shown");
+  const bytes = page.fn("privateOpenedBytes");
+  assert.ok(bytes <= 128 * MB, "held to 128 MB however they finish / " + bytes + " bytes kept");
+  const kept = Array.from(page.fn("privateFilesOpened").keys());
+  assert.equal(kept.length, 8, "eight 16 MB pictures");
+  const keyOf = (m) => m.url + "\n" + m.k;
+  assert.deepEqual(kept, metas.slice(0, 8).reverse().map(keyOf), "the last eight to finish, oldest first");
+  // One shown again is not opened again.
+  const again = await open(metas[0]);
+  assert.equal(again, urls[0], "the newest is kept");
+  assert.equal(opens, 20, "and not opened again");
+});

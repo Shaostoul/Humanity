@@ -5,7 +5,8 @@
 //
 // Run: node --test scripts/tests/media-web-round3.test.js   (in `just rig-tests` with the others)
 //
-// Against the stand-ins in scripts/tests/media-web-harness.js; the server here is a stand-in for
+// Against the stand-ins in scripts/tests/media-web-harness.js (this file's own moved there in
+// round 4, the stand-in relay as `resumableRelay`); the server here is a stand-in for
 // src/relay/resumable.rs that keeps several uploads at once and logs every request it gets, so a
 // test can say exactly which requests were made after a press. Every wait the upload makes goes
 // through a stand-in sleep that records how long it was asked for and ends only when the test
@@ -19,7 +20,8 @@
 //     409 busy is asked again after a growing wait, never once a second.
 //  2. Opening another form while an upload runs leaves it running: uploads are a list, each with
 //     its own bar, Pause and Cancel, each published by its own form with what was typed in it.
-//     Cancel while the server is storing the file removes the stored file too.
+//     Cancel while the server is storing the file leaves nothing: since round 4 the server deletes
+//     the stored file with the cancel and the page removes nothing by hand (2b, changed in round 4).
 //  3. The record of an upload to resume is dated by its last progress (the relay expires a session
 //     a day after its last piece) and forgotten when it fails; Close on a failed upload cancels it
 //     on the server; the server's `uploads_in_progress` are listed with Cancel.
@@ -44,136 +46,16 @@ const assert = require("node:assert");
 
 const H = require("./media-web-harness.js");
 const {
-  media, upload, ME, MIB, byId, text, respond, path0, at, queryOf, fakeFetch, fakeStorage, settle, item,
-  listAnswer, mineAnswer, listRoutes, openPage, SHA256, fingerprintOf, bodyLen,
+  media, upload, ME, MIB, byId, text, respond, path0, at, fakeStorage, settle, item,
+  listAnswer, mineAnswer, listRoutes, openPage, SHA256, fingerprintOf,
 } = H;
 
-const T0 = 1760000000000;
-
-// ── Stand-ins ─────────────────────────────────────────────────────────────
-
-/**
- * A file the upload reads: `fill` is its every byte (so two files of one name, size and date can
- * differ), and `gone` (set by a test) makes every read fail as a browser's does once the file was
- * moved or its drive unplugged.
- */
-function aFile(name, size, opts) {
-  const o = opts || {};
-  const f = {
-    name, size, type: o.type || "video/mp4", lastModified: o.lastModified || 1700000000000, gone: false,
-    slice(a, b) {
-      const len = Math.max(0, Math.min(size, b) - a);
-      return {
-        size: len,
-        arrayBuffer: async () => {
-          if (f.gone) { const e = new Error("A requested file or directory could not be found."); e.name = "NotFoundError"; throw e; }
-          return new Uint8Array(len).fill(o.fill || 0).buffer;
-        },
-      };
-    },
-  };
-  return f;
-}
-
-/** Waits that end only when the test wakes them; each asked-for length is kept. */
-function sleeper() {
-  const s = { waits: [], wakes: [] };
-  s.sleep = (ms) => { s.waits.push(ms); return new Promise((r) => s.wakes.push(r)); };
-  s.wakeAll = () => { while (s.wakes.length) s.wakes.shift()(); };
-  return s;
-}
-
-/** Wake every wait and let the page run, until `until()` holds or `turns` rounds have passed. */
-async function drive(sl, until, turns) {
-  for (let i = 0; i < (turns || 40); i++) {
-    await settle();
-    if (until && until()) return;
-    sl.wakeAll();
-  }
-  await settle();
-}
-
-/**
- * A stand-in for src/relay/resumable.rs keeping several uploads at once, by id. `hooks.start(c)`,
- * `hooks.piece(c, sess, offset, len)`, `hooks.status(c, sess)`, `hooks.del(c, sess)` and
- * `hooks.finish(sess)` may answer a request themselves (or throw: a dropped connection). `log`
- * holds every request it got, in order.
- */
-function relay3(hooks) {
-  const r = { next: 0, sessions: new Map(), log: [], pieces: [], hooks: hooks || {}, chunk: 8 * MIB };
-  const doneOf = (sess) => ({ url: "/uploads/" + sess.stored, filename: sess.stored, size: sess.size, type: sess.type });
-  r.doneOf = doneOf;
-  r.routes = [
-    [at("/api/upload/resumable", "POST"), async (c) => {
-      r.log.push({ kind: "start", c });
-      if (r.hooks.start) { const a = await r.hooks.start(c); if (a) return a; }
-      const id = String.fromCharCode(97 + r.next++).repeat(32);
-      r.sessions.set(id, { id, offset: 0, size: c.body.size, stored: "1760_" + c.body.filename, type: c.body.content_type, done: null, deleted: false });
-      return respond(201, { id, offset: 0, size: c.body.size, chunk_max: r.chunk });
-    }],
-    [(c) => /^\/api\/upload\/resumable\/[a-z]{32}$/.test(path0(c.url)), async (c) => {
-      const id = path0(c.url).split("/").pop();
-      const method = c.init.method || "GET";
-      r.log.push({ kind: method, id, c });
-      const sess = r.sessions.get(id);
-      if (!sess || sess.deleted) return respond(404, "There is no upload with that id.");
-      if (method === "GET") {
-        if (r.hooks.status) { const a = await r.hooks.status(c, sess); if (a) return a; }
-        return respond(200, Object.assign({ offset: sess.offset, size: sess.size, chunk_max: r.chunk }, sess.done ? { done: sess.done } : {}));
-      }
-      // While the last piece is being stored, a cancel or another piece is answered busy (R2).
-      const busy = () => respond(409, { error: "This upload is busy with an earlier piece. Try again in a moment.", busy: true });
-      if (method === "DELETE") {
-        if (r.hooks.del) { const a = await r.hooks.del(c, sess); if (a) return a; }
-        if (sess.busy) return busy();
-        sess.deleted = true;
-        return respond(200, { ok: true });
-      }
-      const off = Number(queryOf(c.url).get("offset"));
-      const len = bodyLen(c.init.body);
-      r.pieces.push({ id, offset: off, len, c });
-      if (r.hooks.piece) { const a = await r.hooks.piece(c, sess, off, len); if (a) return a; }
-      if (sess.busy) return busy();
-      if (sess.done) return respond(200, sess.done);
-      if (off !== sess.offset) return respond(409, { error: "This piece starts at byte " + off + ", but the server has " + sess.offset + ".", offset: sess.offset, size: sess.size });
-      sess.offset += len;
-      if (sess.offset >= sess.size) {
-        sess.busy = true;
-        try {
-          if (r.hooks.finish) { const a = await r.hooks.finish(sess); if (a) return a; }
-        } finally {
-          sess.busy = false;
-        }
-        sess.done = doneOf(sess);
-        return respond(200, sess.done);
-      }
-      return respond(200, { offset: sess.offset, size: sess.size });
-    }],
-  ];
-  return r;
-}
-
-/** One uploader against a stand-in relay, with a stand-in sleep. */
-function uploader(relay, file, o) {
-  const opts = o || {};
-  const net = fakeFetch(relay.routes);
-  const sl = opts.sleeper || sleeper();
-  const phases = [];
-  const result = { done: null, stored: [] };
-  const storage = opts.storage || fakeStorage();
-  let clock = opts.now || T0;
-  const u = upload.createUploader({
-    fetch: net.fetch, token: opts.token || (() => "tok-1"), file, owner: ME, storage, digest: SHA256,
-    sleep: sl.sleep, now: () => (typeof clock === "function" ? clock() : clock),
-    onChange: (s) => phases.push(s.phase), onDone: (a) => { result.done = a; },
-    onStored: (a) => { result.stored.push(a); },
-  });
-  return { u, net, sl, phases, result, storage, setNow: (t) => { clock = t; } };
-}
-
-// nginx's own refusal pages: HTML, no JSON.
-const NGINX_503 = "<html>\r\n<head><title>503 Service Temporarily Unavailable</title></head>\r\n<body><center><h1>503 Service Temporarily Unavailable</h1></center><hr><center>nginx</center></body></html>";
-const NGINX_429 = "<html><head><title>429 Too Many Requests</title></head><body><center><h1>429 Too Many Requests</h1></center></body></html>";
+// The resumable upload's stand-ins (aFile, sleeper, drive, the stand-in relay and one uploader on
+// it) moved to media-web-harness.js in round 4, so round 4's tests run against the same ones. The
+// stand-in relay answers a cancel as round 4's does now (see the harness).
+const { T0, aFile, sleeper, drive, NGINX_503, NGINX_429 } = H;
+const relay3 = H.resumableRelay;
+const uploader = H.uploaderOn;
 
 // The page's upload list.
 const uploadsBox = (doc) => byId(doc, "media-uploads");
@@ -321,11 +203,15 @@ test("2a. another form opened while an upload runs leaves it running; each uploa
 
 // Seen red 2026-10-11 with onStored left out of the uploader options (removeStored never called):
 // "the stored file is removed too".
-test("2b. Cancel while the server is storing the file deletes the upload and removes the stored file too", async () => {
+// Changed in round 4 (W4-3, the cancel answer): the server deletes the stored file with the cancel
+// and says so (`removed_stored`), so the page removes nothing by hand (no POST /api/media/remove)
+// and asks no GET first. Seen red 2026-10-11 against round 3's web/ (git show 3077155ed:web/):
+// "nothing is removed by hand" (round 3 still sent its own /api/media/remove).
+test("2b. Cancel while the server is storing the file deletes the upload, and the server deletes the stored file with it", async () => {
   let finishing;
   const sl = sleeper();
   const relay = relay3({ finish: async () => { await new Promise((r) => { finishing = r; }); return null; } });
-  const { doc, net, signer } = await openPage({ sleep: sl.sleep, routes: listRoutes(listAnswer([]), [
+  const { doc, net } = await openPage({ sleep: sl.sleep, routes: listRoutes(listAnswer([]), [
     ...relay.routes,
     [at("/api/media/remove", "POST"), (c) => respond(200, { ok: true, removed_upload: c.body.filename, file_removed: true, file_kept: false })],
   ]) });
@@ -339,15 +225,14 @@ test("2b. Cancel while the server is storing the file deletes the upload and rem
   const busyDeletes = relay.log.filter((e) => e.kind === "DELETE").length;
   assert.equal(busyDeletes, 1, "the cancel is asked once while the server is busy");
   assert.equal(sl.waits.at(-1), 2000, "then waits");
-  // The store finishes meanwhile: the server says the file is stored.
+  // The store finishes meanwhile; the next cancel finds the file stored and deletes it too.
   finishing();
   await drive(sl, () => entries(doc).length === 0, 10);
   const del = relay.log.filter((e) => e.kind === "DELETE");
   assert.equal(del.length, 2, "the upload is deleted on the server");
-  const rm = net.calls.find((c) => c.url === "/api/media/remove");
-  assert.ok(rm, "the stored file is removed too");
-  assert.deepEqual([rm.body.filename, rm.body.sig], ["1760_clip.mp4", "sig:media_remove:1760_clip.mp4"]);
-  assert.ok(signer.signed.includes("media_remove:1760_clip.mp4"));
+  assert.ok(relay.sessions.get(del[0].id).storedRemoved, "and the stored file with it, by the server");
+  assert.equal(net.calls.filter((c) => c.url === "/api/media/remove").length, 0, "nothing is removed by hand");
+  assert.equal(relay.log.filter((e) => e.kind === "GET").length, 0, "nor asked about first");
   assert.equal(net.calls.filter((c) => c.url === "/api/media" && c.init.method === "POST").length, 0, "and it is not published");
   assert.equal(notice(doc), media.MEDIA_WORDS.cancelledStored);
   assert.equal(entries(doc).length, 0);

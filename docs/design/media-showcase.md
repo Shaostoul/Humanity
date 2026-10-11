@@ -1456,3 +1456,61 @@ until it is not busy.
   uploads.
 - D4-4 (review 4): Resume clears its retry flag when it is used, so a stale one never skips the
   ten-in-a-row stop or a wait.
+
+**As built (web, round 4; 2026-10-11).** The web's half of round 4: W4-1 to W4-4 and the cancel
+decision at the top of this section, written before the relay's round 4 landed, against the shapes
+stated above (`{ok: true, removed_stored: true}`, `{ok: true, published: true}`, 409 `{busy:
+true}`) and tested against stand-in answers in them. Code: web/pages/media-upload.js (`nap`,
+`cancelSession` new, `readAnswer` moved out of the uploader), web/pages/media-app.js (the ticket
+renewal, `openViewer`, `sayCancelled`, the unfinished uploads' Cancel; `removeStored` and the
+uploader's `onStored` deleted) and web/chat/chat-dms.js (`openPrivatePicture`). Tests:
+scripts/tests/media-web-round4.test.js (new, 8 tests), one "W4-4" test at the end of
+scripts/tests/private-files-web.test.js, and round 3's 2b in media-web-round3.test.js, whose
+expectation round 4 changes (it now proves nothing is removed by hand, and says so). The resumable
+upload's stand-ins moved from media-web-round3.test.js into media-web-harness.js
+(`resumableRelay`, `uploaderOn`, `aFile`, `sleeper`, `drive`), the stand-in relay answering a
+cancel as round 4's does. Each test was seen failing once against one break in a copy of web/
+(nine breaks), and every round 4 test fails against round 3's web/ (3077155ed); the break and the
+words it tripped are noted above each test.
+
+- **W4-1.** `nap(ms, phase, extra)` is every wait the upload makes, and it returns at once when
+  Pause or Cancel has been pressed, BEFORE it shows its phase: a wait that would begin after the
+  press never begins, so nothing sleeps and its words never show. Each wait that used to set its
+  phase and then nap (a server error's, a dropped connection's, the busy answer's, the allowance's,
+  the wait for a token) hands its phase to `nap` instead. That covers the start, which is not
+  stopped because its answer names the session, and a piece whose answer was already coming when
+  Pause was pressed. A press during a wait still cuts it short (`wake`).
+- **W4-2.** A ticket renewal the relay refuses, or that gets no answer, turns the viewer's ticket
+  into an error carrying the relay's words, and the viewer is drawn again with "This file could not
+  be loaded: " and those words where the video was, instead of a dead video. It is not asked again
+  while the item stays open (no loop of requests). Opening the item again asks afresh
+  (`openViewer` drops a refused ticket), which is what the relay's words for too many open tickets
+  tell the person to do; that holds for a first ticket refused as well.
+- **W4-3.** `cancelSession` (media-upload.js) is the one cancel, used by an upload in the list and
+  by a row of "Unfinished uploads on the server": `DELETE` with the token in the header, no status
+  asked first. 409 `{busy: true}` is asked again after 2 s doubling to 30 s for as long as it lasts,
+  never counted as a try. `removed_stored` means the server deleted the file the finish had stored,
+  so the page removes nothing by hand and says "Cancelled. The file had already been stored, so it
+  was deleted too."; `published` says "Cancelled, but the file was already on the Media page, so it
+  stays there. Remove on its tile takes it off."; a 404 is a cancel already done. A dropped
+  connection, a 5xx, a 429, a token from before the page signed in again, or no token yet is tried
+  again, ten times in all, and then the page says "The cancel could not reach the server, so what
+  arrived may still be there. It is listed on this page with Cancel or Remove once the server
+  answers again, and the server deletes it by itself within a day." (with the server's last words,
+  if it gave any) instead of taking it for done. Any other refusal is shown in the server's words.
+  An unfinished row's Cancel reads "Cancelling..." and is disabled while it goes; a second press
+  sends nothing more.
+- **W4-4.** `openPrivatePicture` takes an entry out of the Map and puts it back when its picture
+  finishes opening, so it is the newest, and the sweep that lets the oldest go reaches the pictures
+  that finished before it. Twenty 16 MB pictures finishing in reverse now keep 128 MB (the last
+  eight to finish), not 320 MB.
+
+**Honest limits.** Not yet run against the relay's round 4, which was being built at the same
+time: the shapes are the spec's. An upload in the list whose cancel could not be confirmed is
+forgotten by this browser at once (as before), so it is offered again only through the server's
+own lists once the server answers (the unfinished uploads with Cancel, or a stored file among the
+uploads waiting with Remove); a row of the unfinished list is forgotten only when its cancel is
+confirmed. While the server stays busy, a cancel keeps asking (once every 30 seconds at most) for as
+long as the page is open; a page closed meanwhile leaves the session to the server's lists and its
+expiry. A renewal that failed only because the connection dropped also shows its words, and waits
+for the item to be opened again.
