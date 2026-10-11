@@ -106,7 +106,77 @@ function buildProfileUpdate(local) {
     // privacy: per-field locks ({pronouns|location|website: "private"}) plus the
     // member-directory opt-out ({directory: "unlisted"} hides you from /api/members).
     privacy:    JSON.stringify(local.privacy || {}),
+    // Files in messages (2026-10-11, /shared/files-in-messages.js): who I accept files from,
+    // "nobody", "friends" or "anyone", so a sender's app can say so before they send one. Sent
+    // only while a choice made on this device has not gone yet; left out, the server keeps the
+    // word it has (see filesAcceptUnsent below).
+    accepts_files: filesAcceptUnsent() ? profileAcceptsFiles() : undefined,
   };
+}
+
+// ── "Accept files from" in the profile (2026-10-11) ──
+// The relay saves a profile_update WHOLE: every field left out is saved empty. So accepts_files
+// only ever rides with the full local profile, and only while a choice made on this device has
+// not been sent yet (`hos_files_accept_unsent`, kept in this browser so a choice made offline
+// still goes): otherwise it is left out and the server keeps its word, so a newer choice made
+// on another device is not undone. A choice made while the local profile is empty waits until
+// this connection has heard the server's copy of my profile, or heard there is none (the relay
+// sends it before the channel list): an empty local copy then never overwrites a profile written
+// on another device, because app.js has copied the server's into it first. My own profile
+// coming back with another word while nothing waits here is a choice made on another device:
+// this device takes it (never one more open than now while the protected setup is on).
+const FILES_ACCEPT_UNSENT_KEY = 'hos_files_accept_unsent';
+let ownProfileHeard = false;
+
+function filesAcceptUnsent() {
+  try { return window.localStorage.getItem(FILES_ACCEPT_UNSENT_KEY) === '1'; } catch (e) { return false; }
+}
+
+function setFilesAcceptUnsent(on) {
+  try {
+    if (on) window.localStorage.setItem(FILES_ACCEPT_UNSENT_KEY, '1');
+    else window.localStorage.removeItem(FILES_ACCEPT_UNSENT_KEY);
+  } catch (e) { /* this browser keeps nothing: it goes with this page's next push or not at all */ }
+}
+
+/** "Accept files from" was changed here (chat-privacy.js): send it with the profile. */
+function filesAcceptChanged() {
+  setFilesAcceptUnsent(true);
+  pushProfileToRelay();
+}
+
+/** The server has said what it holds of my profile, or that it holds none (app.js, channel_list). */
+function ownProfileSettled() {
+  if (ownProfileHeard) return;
+  ownProfileHeard = true;
+  if (filesAcceptUnsent()) pushProfileToRelay();
+}
+
+/** My own profile from the server (app.js profile_data, after the local copy is filled in). */
+function ownProfileArrived(msg) {
+  ownProfileHeard = true;
+  const F = window.HosFilesInMessages;
+  if (!F) return;
+  // A choice made here that has not gone yet goes with the next push, whatever the server says.
+  if (filesAcceptUnsent()) { pushProfileToRelay(); return; }
+  const word = F.acceptsFilesOf(msg && msg.accepts_files);
+  if (!word) return;
+  let storage = null;
+  try { storage = window.localStorage; } catch (e) { storage = null; }
+  const mine = F.readSettings(storage);
+  if (word === mine.accept) return;
+  if (typeof protectedIsOn === 'function' && protectedIsOn() && F.acceptLooser(mine.accept, word)) return;
+  F.writeSettings(storage, Object.assign({}, mine, { accept: word }));
+  if (typeof renderSafetyPanel === 'function') renderSafetyPanel();
+}
+
+/** This device's "Accept files from" as the profile publishes it; left out without the module. */
+function profileAcceptsFiles() {
+  const F = window.HosFilesInMessages;
+  if (!F) return undefined;
+  let storage = null;
+  try { storage = window.localStorage; } catch (e) { storage = null; }
+  return F.profileValue(F.readSettings(storage));
 }
 
 /** Every field of the stored profile a person writes (for the recovery-phrase guard). */
@@ -130,7 +200,9 @@ let profilePushTimer = null;
 async function pushProfileToRelay() {
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
   const local = loadProfileLocal();
-  if (!hasProfileData(local)) return;
+  // With nothing in the local profile, only a waiting "Accept files from" goes, and only once the
+  // server's copy of my profile has been heard (the whole profile is saved: see above).
+  if (!hasProfileData(local) && !(filesAcceptUnsent() && ownProfileHeard)) return;
   // Never my recovery phrase in a profile field (step F, chat-warnings.js).
   // Checked before the throttle below, which then runs without a pause, so
   // two pushes at once still send once. Said here, in the chat, because the
@@ -146,7 +218,11 @@ async function pushProfileToRelay() {
     return;
   }
   lastProfileUpdateSent = Date.now();
-  ws.send(JSON.stringify(buildProfileUpdate(local)));
+  const update = buildProfileUpdate(local);
+  ws.send(JSON.stringify(update));
+  // Sent: the server now holds this device's choice (it refuses a whole update only for a word
+  // that is not one of the three, which this never sends).
+  if (update.accepts_files !== undefined) setFilesAcceptUnsent(false);
 }
 
 /**

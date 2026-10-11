@@ -1069,6 +1069,8 @@
       try { input.focus(); } catch {}
     }
     if (sendBtn) sendBtn.disabled = false;
+    // The attach button follows Files in messages (chat-messages.js).
+    if (typeof updateAttachButton === 'function') updateAttachButton();
 
     // (g) Reset dedup so the first refresh paints.
     _p2pRenderedKey = '';

@@ -1857,3 +1857,136 @@ The relay half of part 3, built 2026-10-11. What the two apps build against:
   unsent word to the default), and `the_member_and_profile_lookups_carry_it` (red without the
   lookup in `/api/profile/{key}`). The frames in these tests are the JSON an app writes, parsed
   as the relay parses it.
+
+## As built (web, files)
+
+The website's half of parts 1 to 4 above, built 2026-10-11 against the relay's `accepts_files`
+(the section before this one). Three new shared scripts, each a classic script in the browser and a
+CommonJS module under Node: `web/shared/upload-clean.js` (`HosUploadClean`, the cleaning around
+`HosStrip`), `web/shared/files-in-messages.js` (`HosFilesInMessages`, the settings, their rules and
+words) and `web/shared/kept-files.js` (`HosKeptFiles`, the kept copies and the Settings controls).
+The chat page loads all three and `strip-metadata.js` after `admin-erase.js` and before `crypto.js`
+(the list of the chat's script order in CLAUDE.md does not name them yet); the Media page loads
+`strip-metadata.js` and `upload-clean.js` before `media-upload.js`; the Settings page loads
+`kept-files.js` before `settings-app.js`.
+
+**Part 1, cleaned on this device.**
+- Every upload path the website has runs it: the chat's attach button, paste and drop, in a room
+  (`chat-messages.js uploadImage`) and in a DM, a group or the scratch pad
+  (`sendEncryptedAttachment`, before the file is encrypted), and Add to Media (`media-app.js
+  openAddForm`, before the fingerprint, so a resumed upload matches the cleaned file). The web's
+  Shared Files page lists files and has no upload of its own; the Dev page's asset drop zone
+  uploads without this session's token, which the relay already refuses, and was left alone.
+- `cleanFile` reads a picture whole (up to the relay's 64 MB picture cap; larger is "could not be
+  checked") and a video in the MP4 family whole up to 64 MB. Above that it reads only the top-level
+  box headers and the boxes the relay's walk looks into (`ftyp`, `moov`, a top-level `meta`, `uuid`,
+  each up to 256 MB), builds a small stand-in in which every other box is an empty box of the same
+  name, strips that, and puts the file back together from the cleaned boxes and slices of the
+  original (a `File` of parts: nothing near its size is held in memory). A header whose size makes
+  no sense ends the stand-in with its own first bytes, so the walk stops where the whole file's
+  does. The result is byte for byte the whole-file strip's, for every layout the strip's tests use
+  and every cut of two movies (test below).
+- **The attach step is shown only when there is something to say or decide**: hidden details found
+  (the describe's sentence, its details in plain words, and the switch), a file that could not be
+  checked, or a line about the recipient. A file with nothing hidden in it (a screenshot, a PDF)
+  goes at once as before; the switch's remembered choice applies to it. Built with createElement
+  and textContent, Send and Cancel. On the Media page the same words and switch are part of the Add
+  form, for any picture or video.
+- The switch: "Remove location and camera details", on by default, remembered on this device
+  (`hos_remove_file_details`, in try/catch) when a file is sent. With the protected setup on
+  (read under protected.js's own key and rule; the Media page does not load protected.js) it is
+  not shown, a line says the setup removes them, and they are removed whatever was last chosen.
+- Kept by choice: the file goes exactly as picked, with `keep_metadata=1` on the single upload and
+  `keep_metadata: 1` in the resumable start.
+
+**Part 2, a file that could not be checked.** `unchecked` is the strip's own `unfinished` (it
+stopped early, a picture it could not walk, a file whose bytes are not what its name or type says,
+no movie index), plus every HEIC or AVIF photo (by its bytes or its name), which the web cannot
+clean yet.
+- A room or the Media page: not sent; Send (Upload) is off and the words say why, and that turning
+  the switch off sends it with everything in it. A HEIC gets the relay's own words ("HEIC and AVIF
+  photos cannot be cleaned of where they were taken yet. Save it as a JPEG and send that."). Honest
+  note: the relay now cleans a well-formed HEIC itself, so a public HEIC refused here would have been
+  accepted and cleaned there; the spec's rule was kept, and letting a public HEIC go to the relay's
+  strip is a small later change.
+- A DM, a group or the scratch pad: "This file could not be read all the way through, so where it
+  was taken may still be in it. Send it anyway?" (a HEIC: "This app cannot clean HEIC and AVIF
+  photos of where they were taken yet, ..."), the button "Send anyway". What goes is what the strip
+  could clean before it stopped (for a cut video, the XMP box before the cut is cleared). The
+  marker's meta then ends `"unchecked":true`, after the desktop app's fields in their order (url,
+  k, n, name, mime, size); a checked file's marker has no such field. The shared fixture is
+  `scripts/tests/fixtures/file-marker-unchecked.json` (`built`: meta, JSON text and marker text;
+  `read`: texts and whether each says unchecked), for the desktop's tests too.
+- **Decision, not in the spec:** with the protected setup on, a file that could not be checked is
+  not sent anywhere, a DM included (the setup's promise is that location is always removed).
+- The recipient: a card whose marker says unchecked carries "The sender's app could not check this
+  file for hidden location." under its name, written with textContent (`chat-dms.js`).
+
+**Part 3, Files in messages.** In the chat's Safety page, after "Who can reach me" and "People I
+choose": Accept files from (Nobody / Friends / Anyone I talk to), Show pictures without asking from
+(Friends / Nobody), Show the attach button in private conversations. Kept on this device
+(`hos_files_in_messages`).
+- Receiving (`chat-dms.js`): a file "Accept files from" does not allow is never fetched; its card
+  says "Ann sent a file. You accept files only from friends. Accept this one?" ("You do not accept
+  files in messages." under Nobody, a friend's file included). Accept lets that one file through
+  for this page: a picture is fetched and shown at once (Accept is the click), any other file gets
+  its Save, which fetches it. "Friends" is the click-to-load rule's friend (a mutual follow I gave a
+  pass); "Anyone I talk to" is everyone whose message reached me (who may message me at all is
+  "Who can reach me", which the server enforces). My own files always open. "Show pictures without
+  asking" replaces the friend exception of the click-to-load rule for private files; the protected
+  setup is always Nobody (a friend's picture waits for the click too), and its own rule still hides
+  a non-friend's file entirely. Public rooms' picture links are click-to-load for everyone, as
+  before.
+- The attach button setting hides the button in a DM or a group and stops a paste or a drop there,
+  with words saying where it is turned off. The scratch pad keeps it (it stays on this device).
+- With the protected setup on, making "Accept files from" more open needs the PIN (the same gate
+  as a "Who can reach me" row); closing it never does; the pictures row is a line.
+- **Publishing.** The relay saves a `profile_update` whole, so `accepts_files` only ever goes with
+  the full local profile, and only while a choice made on this device has not been sent yet
+  (`hos_files_accept_unsent`, so a choice made offline still goes); otherwise it is left out and the
+  server keeps its word, and a newer choice made on another device is not undone. With an empty
+  local profile the choice waits until this connection has heard the server's copy of my profile
+  (copied into the local one first, as app.js always did) or heard there is none (the relay sends it
+  before the channel list), so an empty local copy never wipes a profile written elsewhere. My own
+  profile coming back with a different word while nothing waits here is another device's choice:
+  this device takes it (never a more open one while the protected setup is on).
+- The sender's line: opening a DM asks the server once for that person's profile (`profile_request`,
+  with my pass when I hold one) and keeps `accepts_files` from the answer. In the attach step: "Ann
+  accepts files only from friends. Their app will ask them before it downloads this one." when I am
+  not their friend (we do not follow each other, or they gave me no pass), or "Ann does not accept
+  files in messages. ..." under Nobody. The file still goes; their app asks.
+- **P2P groups:** the group object (`group_v1`) carries only its name and `share_history`, set when
+  it is made, and nothing can change it, so the owner's "Files allowed" and "Largest file (MB)" wait
+  for a group-settings increment (a signed settings object the owner can replace). Each member's own
+  Files in messages settings already apply to every file in a group.
+
+**Part 4, a copy of each private file opened.** `chat-dms.js openPrivateFile` looks for a kept copy
+first and opens it without asking the server; a file fetched and opened (a picture shown, a file
+saved) is kept, without waiting. The copies live in their own IndexedDB database,
+`humanity_kept_files` (a new store inside `humanity_dms` would need a version change that an open
+chat tab from before would block), encrypted with the DM store's own key (AES-256-GCM, the record's
+id bound in as additional data) through `hosDmStore.keptFileGet` and `keptFilePut`. A record's id is
+the SHA-256 of the store's scope, the file's address and its key, so neither appears in the
+database; beside each copy only its size and an opening order are kept. A copy that does not open
+is removed. Settings > Storage, "Files kept from messages": how much is kept, "Keep at most"
+(Nothing, 50 MB, 100 MB, 200 MB by default, 500 MB, 1 GB), the oldest opened going first and a new
+cap applied at once, and "Clear kept files", which asks first. A file larger than the cap is not
+kept.
+
+**Tests** (each seen failing once against a single break in a copy of web/, the note at each test
+file's end names the break and what it saw): `scripts/tests/upload-clean-web.test.js` (the words,
+the switch, the strip's bytes, the box-header path against the whole-file path for seven layouts
+and every cut of two movies, the could-not-be-checked rules, the protected setup),
+`files-in-messages-web.test.js` (the labels, choices and defaults against this spec, the accept and
+pictures rules, the words), `kept-files-web.test.js` (the round trip and nothing named in the
+database, the cap and its order, the Settings controls), `media-web-files.test.js` (Add to Media:
+the cleaned photo goes up, keep_metadata, refusals, the protected setup, a 70 MB video read by its
+headers and sent byte for byte as the whole-file strip makes it), and a section at the end of
+`private-files-web.test.js` (the chat: the attach step in a room and a DM, keep_metadata, the
+question and the unchecked marker read by the recipient's page, the HEIC words, the protected
+setup, the shared fixture, Accept, Nobody, the Safety section and the profile frames, the PIN gate,
+the sender's line, a kept copy opening after a reload with the server's copy gone). Builders for the
+test files are `scripts/tests/file-bytes.js`, copied from strip-metadata.test.js. The older tests
+that changed with the behaviour are named at the end of private-files-web.test.js; the older Media
+tests run without the cleaning (`clean: null` in media-web-harness.js), because their stand-in
+files are zeros named as videos. The four new test files are not in `just rig-tests` yet.
