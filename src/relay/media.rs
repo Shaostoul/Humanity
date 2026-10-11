@@ -269,6 +269,12 @@ pub fn item_json(i: &MediaItem) -> Value {
         "original_name": i.original_name,
         "keeps_file": i.keeps_file,
         "kept": i.kept,
+        // The stored upload name, which every write names beside the id (W5), so a page that is
+        // out of date never acts on another item. A members-only item's `url` is
+        // /api/media/file/<id> with no name in it, so without this the apps could not act on one
+        // (found by the web round 2, 2026-10-11). Safe to send: the members' folder is served by
+        // nothing, and members-only items go only to members.
+        "filename": i.upload_filename,
     })
 }
 

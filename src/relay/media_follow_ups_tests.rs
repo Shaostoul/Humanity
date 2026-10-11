@@ -487,3 +487,29 @@ fn private_files_have_their_own_room_and_lifetime() {
     assert!(d.uploads.join("3_b.enc").exists() && d.uploads.join("1_room.png").exists(), "a newer one stays, and room posts are not touched");
     assert_eq!(db.private_files_held("ann").unwrap().0, 2 * MIB);
 }
+
+/// EVERY ITEM NAMES ITS STORED FILE, members-only ones too: a members-only item's `url` carries no
+/// name (/api/media/file/<id>), and every write now requires `filename` (W5), so without the field
+/// neither app could pick, remove, feature or keep one. Read from the members' list as the apps
+/// read it, the name is there and a remove with it goes through.
+///
+/// Seen red 2026-10-11 with the field left out of `item_json`: "a members-only item names its
+/// stored file / left: Null".
+#[test]
+fn a_members_only_item_names_its_stored_file() {
+    let state = relay("mfu_filename");
+    let db = &state.db;
+    let d = dirs("mfu_filename");
+    let ann = person(41);
+    db.join_server(&ann.key, "Ann").unwrap();
+    published(db, &d, &ann.key, "1_inner.png", "members");
+    let s = db.get_server_settings().unwrap();
+    let list = list_core(db, &s, &ListParams::default(), Some(&ann.key), None).unwrap().0;
+    let item = list["items"].as_array().unwrap().first().expect("the members' list shows it").clone();
+    assert!(item["url"].as_str().unwrap().starts_with("/api/media/file/"), "test setup: a members-only address");
+    assert_eq!(item["filename"], "1_inner.png", "a members-only item names its stored file");
+    let id = item["id"].as_i64().unwrap();
+    let name = item["filename"].as_str().unwrap().to_string();
+    same_item(db, id, &name).expect("the name it gives is the name a write must send");
+    remove_core(db, d.folders(), &RemoveTarget::Item(id), &ann.key).expect("and the remove goes through");
+}
