@@ -146,7 +146,9 @@ server's bandwidth. The cost is privacy: in a swarm every downloader sees every 
 address, the very thing the call forwarder keeps private. So peer-to-peer distribution is a later,
 opt-in layer for big public files (the uploader and each downloader choose it), never the default;
 the server always serves the file itself too. The project already distributes releases by torrent
-(`docs/admin/`), which that layer can learn from.
+(`docs/admin/`), which that layer can learn from. The whole direction, pieces, group
+swarms, public seeding and fair shares at a million people, is
+[file-transfer-at-scale.md](file-transfer-at-scale.md) (2026-10-11).
 
 ## Increment 1, exact (relay; 2026-10-11)
 

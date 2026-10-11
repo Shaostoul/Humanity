@@ -456,8 +456,9 @@ Every operator gets the same sovereignty tools, not just the original.
   watchdog with self-heal, and multi-channel alerting.
 - `[done]` Abuse resistance: fail2ban, per-key rate limits, signed-request anti-replay,
   and per-author submission quotas (the security sprint, v0.420 to v0.422).
-- `[done]` Distribution: GitHub plus a self-hosted Forgejo mirror plus a BitTorrent
-  seeder.
+- `[done]` Distribution: GitHub plus a self-hosted Forgejo mirror. A BitTorrent seeder
+  for release downloads is built but not serving today: the release manifest carries no
+  magnet links (checked 2026-09-14, `docs/admin/torrent-infrastructure.md`).
 - `[done]` Release-signing pipeline verified end to end (a release dual-signed
   Ed25519 + Dilithium3, the fail-closed updater offering it) plus a `check-signing`
   health gate so an unsigned latest release can never again silently freeze auto-update
@@ -477,9 +478,13 @@ Every operator gets the same sovereignty tools, not just the original.
   (candidates floated 2026-06-30: public.guide, shaostoul.com, project.universe,
   our.universe) off the same relay/exe rather than standing up separate
   infrastructure per site.
-- `[future]` Relay-hosted file sharing as torrents: beyond seeding release binaries
-  (the `[done]` BitTorrent seeder above), let the operator share arbitrary files from
-  their relay as torrents for the community to pull.
+- `[planned]` Files at scale (`docs/design/file-transfer-at-scale.md`, 2026-10-11):
+  files as pieces under one BLAKE3 fingerprint (resume from anyone, identical files stored
+  once), big private files sent device to device with the receiver accepting, groups
+  sharing a file among their members instead of each downloading it from the server,
+  public Media seeded by the people watching it (opt-in), shares of the server's disk and
+  bandwidth that shrink fairly as it fills, and a ledger of what each person used and
+  contributed. The server is a mailbox, not an archive; many servers, not one big one.
 - `[planned]` Device mesh: a "My Devices" dashboard, backup designation, restore flow,
   and direct LAN sync, so your own devices back each other up.
 - `[planned]` Litestream continuous replication (roughly 1-minute recovery point) and
