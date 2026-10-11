@@ -319,13 +319,25 @@ pub struct Removed {
 impl Removed {
     /// Whether the file stays (the upload went back to chat or Shared Files).
     pub fn keeps_file(&self) -> bool {
-        self.from_shelf == 0 || self.from_shelf == 1
+        was_public(self.from_shelf)
     }
 }
 
+/// Whether an upload from `shelf` was public before it went on the Media page: a chat upload
+/// (shelf 0) is at its `/uploads/` address in the messages that carry it, and a Shared Files one
+/// (1) is in that list. Such a file goes on Media as public only: making it members only would
+/// take it from under the messages and the list that already show it, and could not take back
+/// the copies anyone already saved (decided 2026-10-11, the review's question after F3).
+pub fn was_public(shelf: i64) -> bool {
+    shelf == 0 || shelf == 1
+}
+
+/// What is said when a file that is already public is asked to be members only.
+pub const ALREADY_PUBLIC: &str = "That file is already public where it was shared (in a chat or the Shared Files list), so it can only go on the Media page as public. To share something with members only, upload it on the Media page itself.";
+
 /// The shelf an upload from `from_shelf` sits on while it is published with `visibility`: a
-/// Shared Files file stays listed there while it is public and leaves the list while it is
-/// members only (F3); everything else is on the Media shelf, out of the keep-N FIFO.
+/// Shared Files file stays listed there (it is always public: [`was_public`]); everything else is
+/// on the Media shelf, out of the keep-N FIFO.
 fn published_shelf(from_shelf: i64, visibility: &str) -> i64 {
     if from_shelf == 1 && visibility == "public" {
         1
@@ -503,6 +515,10 @@ impl Storage {
             if already {
                 return refused(Refusal::Conflict, "That upload is already on the Media page.");
             }
+            let visibility = stored_visibility(p.visibility);
+            if visibility == "members" && was_public(shelf) {
+                return refused(Refusal::Bad, ALREADY_PUBLIC);
+            }
             let category = p.category_id.unwrap_or(GENERAL_CATEGORY_ID);
             let category_exists: bool =
                 tx.query_row("SELECT EXISTS(SELECT 1 FROM media_categories WHERE id = ?1)", params![category], |r| r.get(0))?;
@@ -518,7 +534,6 @@ impl Storage {
             if mine + size > share {
                 return refused(Refusal::Full, share_full_words(mine, share, size));
             }
-            let visibility = stored_visibility(p.visibility);
             tx.execute(
                 "INSERT INTO media_items (upload_filename, uploader_key, title, description, category_id, kind, labels, visibility, featured, size_bytes, views, created_at, from_shelf)
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 0, ?9, 0, ?10, ?11)",
@@ -551,8 +566,8 @@ impl Storage {
         })
     }
 
-    /// Make item `id` public or members only (`visibility`): its uploader, or an admin. A Shared
-    /// Files upload leaves that list while members only and comes back when public again; `place`
+    /// Make item `id` public or members only (`visibility`): its uploader, or an admin. An item
+    /// whose file was already public (chat or Shared Files, [`was_public`]) stays public; `place`
     /// runs before the change is committed, told whether the item is now members only, so the
     /// route moves the file with it and nothing changes when the move fails (F3). Returns the
     /// item as it now is.
@@ -580,6 +595,9 @@ impl Storage {
                 return refused(Refusal::NotAllowed, "Only the person who put it there, or an admin, can change who sees a Media item.");
             }
             let to = stored_visibility(visibility);
+            if to == "members" && was_public(from_shelf) {
+                return refused(Refusal::Bad, ALREADY_PUBLIC);
+            }
             if now != to {
                 tx.execute("UPDATE media_items SET visibility = ?1 WHERE id = ?2", params![to, id])?;
                 tx.execute(

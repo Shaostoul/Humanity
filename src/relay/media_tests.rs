@@ -53,9 +53,9 @@ fn shared_list(db: &Storage) -> Vec<String> {
     db.list_shared_uploads(50, None).unwrap().into_iter().map(|u| u.filename).collect()
 }
 
-/// `key` uploads `file` as chat media and publishes it with `visibility`.
+/// `key` uploads `file` for Media and publishes it with `visibility`.
 fn published(db: &Storage, key: &str, file: &str, visibility: &str) -> MediaItem {
-    db.record_upload(key, file, 100, 0i64, file, 10).unwrap();
+    db.record_upload(key, file, 100, MEDIA_SHELF, file, 10).unwrap();
     db.publish_media(key, &Publish { filename: file, visibility, ..Default::default() }, 1 << 40, 1 << 40, None).unwrap()
 }
 
@@ -149,7 +149,7 @@ fn publishing_needs_a_member_known_labels_and_a_visibility() {
     let uploads = Folders { uploads: &uploads, members: &members };
     let (ann, out) = (person(6), person(7));
     db.join_server(&ann.key, "Ann").unwrap();
-    db.record_upload(&ann.key, "1_a.png", 100, 0i64, "a.png", 10).unwrap();
+    db.record_upload(&ann.key, "1_a.png", 100, MEDIA_SHELF, "a.png", 10).unwrap();
     let body = |labels: &[&str], visibility: Option<&str>| PublishBody {
         key: ann.key.clone(),
         filename: "/uploads/1_a.png".into(),
@@ -495,10 +495,8 @@ fn file_request(id: i64) -> axum::extract::Request {
 /// F3. MEMBERS ONLY MEANS MEMBERS ONLY: a members-only item's file is not at its `/uploads/`
 /// address but in the members-only folder, served by `GET /api/media/file/{id}?token=` to a
 /// member with the session's upload token, refused without one, with a token that is not a
-/// session, to a banned key and to someone who is not a member. A Shared Files file published
-/// as members only leaves that list; made public again it is back at its address and in the
-/// list, and members only again it leaves both; removed from Media it rejoins them. The line
-/// under the switch says what a member is.
+/// session, to a banned key and to someone who is not a member. Made public it is back at its
+/// address, members only again it leaves it. The line under the switch says what a member is.
 ///
 /// Seen red 2026-10-11 with `publish_core`'s placing closure not moving the file: "a members-only
 /// file is still at its /uploads/ address".
@@ -515,8 +513,7 @@ async fn a_members_only_file_is_only_for_members() {
     }
     db.ban_user(&bo.key, "Bo").unwrap();
     std::fs::write(uploads.join("1_case.glb"), b"model bytes").unwrap();
-    db.record_upload(&ann.key, "1_case.glb", 100, 1i64, "case.glb", 11).unwrap();
-    assert_eq!(shared_list(db), vec!["1_case.glb".to_string()]);
+    db.record_upload(&ann.key, "1_case.glb", 100, MEDIA_SHELF, "case.glb", 11).unwrap();
 
     let body = PublishBody { key: ann.key.clone(), filename: "1_case.glb".into(), visibility: Some("members".into()), ..Default::default() };
     let item = publish_core(db, &s, &[], folders, &body).unwrap().0;
@@ -524,7 +521,6 @@ async fn a_members_only_file_is_only_for_members() {
     assert!(!uploads.join("1_case.glb").exists(), "a members-only file is still at its /uploads/ address");
     assert!(members.join("1_case.glb").exists(), "it is in the members-only folder");
     assert_eq!(item["item"]["url"], format!("/api/media/file/{id}"));
-    assert!(shared_list(db).is_empty(), "a Shared Files file published as members only leaves that list");
 
     for (token, key) in [("tok_bea", &bea.key), ("tok_bo", &bo.key), ("tok_out", &out.key)] {
         state.upload_tokens.write().await.insert(token.to_string(), key.clone());
@@ -547,13 +543,8 @@ async fn a_members_only_file_is_only_for_members() {
     let public = visibility_core(db, folders, id, &ann.key, "public").unwrap().0;
     assert_eq!(public["item"]["url"], "/uploads/1_case.glb");
     assert!(uploads.join("1_case.glb").exists() && !members.join("1_case.glb").exists(), "made public, the file is back at its address");
-    assert_eq!(shared_list(db), vec!["1_case.glb".to_string()], "and back in the Shared Files list");
     visibility_core(db, folders, id, &ann.key, "members").unwrap();
-    assert!(!uploads.join("1_case.glb").exists() && shared_list(db).is_empty(), "members only again, it leaves both");
-
-    remove_core(db, folders, &RemoveTarget::Item(id), &ann.key).unwrap();
-    assert!(uploads.join("1_case.glb").exists(), "removed from Media, the file is back at its address");
-    assert_eq!(shared_list(db), vec!["1_case.glb".to_string()], "and it rejoins the Shared Files list");
+    assert!(!uploads.join("1_case.glb").exists() && members.join("1_case.glb").exists(), "members only again, it leaves it");
 
     assert!(s.media_members_note.contains("everyone signed in") && s.media_members_note.contains("lockdown"), "{}", s.media_members_note);
     let sent = serde_json::to_value(&s).unwrap();
@@ -712,4 +703,60 @@ async fn the_media_page_fails_closed() {
     let unsigned = list(State(state.clone()), Query(ListParams::default())).await.unwrap().0;
     assert_eq!(ids(&unsigned), Vec::<i64>::new(), "a failed settings read served the public");
     assert_eq!(unsigned["members_only_for_you"], true);
+}
+
+/// A FILE ALREADY PUBLIC STAYS PUBLIC: a chat upload is at its `/uploads/` address in the
+/// messages that carry it, and a Shared Files one is in that list, so either goes on the Media
+/// page as public only. Asking for members only is refused with words that say why and what to do
+/// instead, at publishing and at the switch, and the file stays where it was: still at its
+/// address, still in the Shared Files list. Removed from Media, each goes back to its shelf.
+///
+/// Seen red 2026-10-11 with `was_public` answering false: "a chat file was published as members
+/// only".
+#[test]
+fn a_file_already_public_goes_on_media_as_public_only() {
+    let state = relay("media_already_public");
+    let db = &state.db;
+    let s = db.get_server_settings().unwrap();
+    let (uploads, members) = temp_folders("media_already_public");
+    let folders = Folders { uploads: &uploads, members: &members };
+    let ann = person(31);
+    db.join_server(&ann.key, "Ann").unwrap();
+    for (file, shelf) in [("1_chat.png", 0i64), ("2_shared.glb", 1)] {
+        std::fs::write(uploads.join(file), b"bytes").unwrap();
+        db.record_upload(&ann.key, file, 100, shelf, file, 5).unwrap();
+    }
+    let body = |file: &str, visibility: &str| PublishBody {
+        key: ann.key.clone(),
+        filename: file.into(),
+        visibility: Some(visibility.into()),
+        ..Default::default()
+    };
+
+    for file in ["1_chat.png", "2_shared.glb"] {
+        let refused = publish_core(db, &s, &[], folders, &body(file, "members"));
+        let (code, words) = refused.err().unwrap_or_else(|| panic!("a chat file was published as members only: {file}"));
+        assert_eq!(code, StatusCode::BAD_REQUEST, "{file}");
+        assert!(words.contains("already public") && words.contains("upload it on the Media page"), "{words}");
+        assert!(uploads.join(file).exists() && !members.join(file).exists(), "the refusal moved {file}");
+    }
+    assert_eq!(shared_list(db), vec!["2_shared.glb".to_string()], "the Shared Files file is still listed");
+    assert!(db.list_media(&MediaQuery { members: true, ..Default::default() }).unwrap().is_empty(), "nothing was published");
+
+    let chat = publish_core(db, &s, &[], folders, &body("1_chat.png", "public")).unwrap().0;
+    let shared = publish_core(db, &s, &[], folders, &body("2_shared.glb", "public")).unwrap().0;
+    for item in [&chat, &shared] {
+        let id = item["item"]["id"].as_i64().unwrap();
+        let file = item["item"]["url"].as_str().unwrap().trim_start_matches("/uploads/").to_string();
+        let (code, words) = visibility_core(db, folders, id, &ann.key, "members").unwrap_err();
+        assert!(code == StatusCode::BAD_REQUEST && words.contains("already public"), "{words}");
+        assert!(uploads.join(&file).exists() && !members.join(&file).exists(), "the switch moved {file}");
+        assert_eq!(db.media_item(id).unwrap().unwrap().visibility, "public");
+    }
+    assert_eq!(shared_list(db), vec!["2_shared.glb".to_string()], "a public Shared Files file stays in that list");
+
+    for item in [&chat, &shared] {
+        remove_core(db, folders, &RemoveTarget::Item(item["item"]["id"].as_i64().unwrap()), &ann.key).unwrap();
+    }
+    assert_eq!((shelf_of(db, "1_chat.png"), shelf_of(db, "2_shared.glb")), (Some(0), Some(1)), "removed, each is back on its shelf");
 }

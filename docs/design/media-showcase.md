@@ -221,8 +221,16 @@ A read-only review of the merged relay half found these; each is fixed before in
     served only by `GET /api/media/file/{id}?token=<the session's upload token>`, to a member who is
     not banned; public items stay at their `/uploads/` address. Making an item public again moves
     it back.
-  - A Shared Files file published as members only leaves the public Shared Files list while it is
-    published (it returns when it is removed from Media).
+  - **A file that is already public stays public (decided 2026-10-11, after the fix review).** A
+    chat upload is at its `/uploads/` address inside the messages that carry it, and a Shared Files
+    upload is in that list, so either goes on Media as public only. Moving one into the members'
+    folder would break the chat message and empty the list entry while it was published, and it
+    could not take back the copies anyone had already saved, so "members only" would promise
+    something it cannot keep. Asking for it is refused at publishing and at the switch, with the
+    words "That file is already public where it was shared ... To share something with members
+    only, upload it on the Media page itself." (`storage::media::was_public`, `ALREADY_PUBLIC`;
+    test `a_file_already_public_goes_on_media_as_public_only`). Only a file uploaded for Media
+    (`from_shelf` 2) can be members only.
   - On a members-only server the categories list and the labels are members only too.
   - "Member" is anyone signed in to the server, as everywhere else on the relay. On an open server
     anyone can become one by signing in, so the Settings line under the switch says so plainly:
@@ -272,6 +280,9 @@ the nav, the page-parity lint satisfied). Shared Files stays as it is; the Media
   is members only, Members only and the choice hidden). The file uploads with `?media=1`, then
   publishes with `POST /api/media`. The person's own share is shown above the form ("You have
   412 MB of your 512 MB left"), and an upload over it is stopped before it starts.
+- **Put on Media** from a chat picture or a Shared Files row (the same form without the picker):
+  Public only, the visibility choice not offered and a line saying why ("This file is already
+  public where it was shared."), because the relay refuses members only for it (`was_public`).
 - **Suggest a category** for members: a name and a note; the answer comes as a notice.
 - Members-only items are fetched through the token route; a person who is not signed in to the
   server sees only public items and a line "Sign in to this server to see its members' media."
