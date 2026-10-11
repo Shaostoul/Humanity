@@ -14,9 +14,10 @@
 //! - [`finish_file_as`]: where a video was filmed removed from it, in place (BUG-190), and a
 //!   HEIC or AVIF photo's Exif and XMP zeroed in place (2026-10-11; refused only when it cannot
 //!   be read through, R7), unless the person chose to keep everything (B4);
-//! - [`FileLimit`], [`allowance_at_start`], [`allowance_for_piece`] and [`count_upload`]: the
-//!   size limits (the role's, a private file's, a Media file's) and the day's and the hour's
-//!   allowances (B1 to B3, 2026-10-11);
+//! - [`FileLimit`], [`allowance_at_start`], [`allowance_at_store`], [`allowance_for_piece`] and
+//!   [`count_upload`]: the size limits (the role's, a private file's, a Media file's) and the
+//!   day's and the hour's allowances (B1 to B3, 2026-10-11), checked and counted together under
+//!   the room lock at the time a file is stored or a piece arrives (R3-1);
 //! - [`FileKind::stored_ext`], [`file_type`] and [`stored_name`]: the name it is kept under and
 //!   the kind the answer reports;
 //! - [`upload_answer`]: the answer itself, the same JSON from both routes.
@@ -435,9 +436,15 @@ pub(crate) fn media_file_limit(role: &RoleDef) -> Option<u64> {
     (role.max_media_file_mb > 0).then(|| role.max_media_file_mb as u64 * MIB)
 }
 
+/// The words for a Media file over a role's own limit of `mb` MB (B1), the same at an upload and at
+/// a publish (R3-3).
+pub(crate) fn media_file_limit_words(mb: i64) -> String {
+    format!("Media files are limited to {mb} MB for your role on this server.")
+}
+
 /// The refusal for a Media file over the role's own limit (B1).
 pub(crate) fn media_file_too_large(role: &RoleDef) -> Refused {
-    (StatusCode::PAYLOAD_TOO_LARGE, format!("Media files are limited to {} MB for your role on this server.", role.max_media_file_mb))
+    (StatusCode::PAYLOAD_TOO_LARGE, media_file_limit_words(role.max_media_file_mb))
 }
 
 /// The most one file may be in a single request, and what is said when it is over.
@@ -518,13 +525,21 @@ pub(crate) fn in_words(now_ms: i64, then_ms: i64) -> String {
     }
 }
 
-/// An upload refused for the day's or the hour's allowance: the words, which allowance, and when
-/// it resets (Unix ms), so an app can wait and carry on (a resumable upload answers these in JSON).
+/// An upload refused for the day's or the hour's allowance: the words, which allowance, when it
+/// resets (Unix ms, and in seconds from now by the server's own clock), and what is left of it,
+/// so an app can send what still fits and wait the server's own number of seconds for the rest (a
+/// resumable upload answers these in JSON; R3-6, 2026-10-11).
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct OverAllowance {
     pub words: String,
     pub span: crate::relay::storage::upload_counts::Span,
     pub resets_at: i64,
+    /// Whole seconds until `resets_at`, rounded up, by the relay's clock: an app waits this long
+    /// rather than reckoning from its own clock, which may be wrong.
+    pub resets_in_s: i64,
+    /// Bytes still allowed today: for the day's allowance, the piece of that size that would still
+    /// be taken. 0 for the hour's (no upload can start until it resets) and for a day used up.
+    pub left_bytes: u64,
 }
 
 impl OverAllowance {
@@ -533,10 +548,21 @@ impl OverAllowance {
         (StatusCode::TOO_MANY_REQUESTS, self.words.clone())
     }
 
-    /// As JSON: `{error, allowance: "day"|"hour", resets_at}`.
+    /// As JSON: `{error, allowance: "day"|"hour", resets_at, resets_in_s, left_bytes}`.
     pub(crate) fn json(&self) -> serde_json::Value {
-        serde_json::json!({ "error": self.words, "allowance": self.span.word(), "resets_at": self.resets_at })
+        serde_json::json!({
+            "error": self.words,
+            "allowance": self.span.word(),
+            "resets_at": self.resets_at,
+            "resets_in_s": self.resets_in_s,
+            "left_bytes": self.left_bytes,
+        })
     }
+}
+
+/// Whole seconds from `now_ms` until `then_ms`, rounded up (R3-6).
+fn seconds_until(now_ms: i64, then_ms: i64) -> i64 {
+    ((then_ms - now_ms).max(0) + 999) / 1000
 }
 
 /// What a role allows a day in bytes, None for no limit (0).
@@ -557,35 +583,64 @@ fn over_the_day(role: &RoleDef, used: i64, now_ms: i64, adding: &str) -> OverAll
         ),
         span: Span::Day,
         resets_at,
+        resets_in_s: seconds_until(now_ms, resets_at),
+        left_bytes: day_allowance(role).unwrap_or(0).saturating_sub(used.max(0) as u64),
     }
+}
+
+/// The hour's allowance of uploads started, when it is used up: refused with when it resets.
+fn hour_used_up(db: &Storage, key: &str, role: &RoleDef, now_ms: i64) -> Result<(), OverAllowance> {
+    use crate::relay::storage::upload_counts::Span;
+    if role.max_uploads_per_hour <= 0 {
+        return Ok(());
+    }
+    let started = db.upload_count(key, Span::Hour, now_ms);
+    if started < role.max_uploads_per_hour {
+        return Ok(());
+    }
+    let resets_at = Span::Hour.resets_at(now_ms);
+    Err(OverAllowance {
+        words: format!(
+            "Your role may start {} uploads an hour on this server, and you have started {started} this hour. More can start at the top of the hour, {}.",
+            role.max_uploads_per_hour,
+            in_words(now_ms, resets_at)
+        ),
+        span: Span::Hour,
+        resets_at,
+        resets_in_s: seconds_until(now_ms, resets_at),
+        left_bytes: 0,
+    })
 }
 
 /// Before an upload starts: refused when the role's hour allowance of uploads is used up, or its
 /// day allowance of bytes is (nothing left today). Otherwise, how many bytes are left today (None:
-/// no limit). Both upload routes call it first, before a byte is read.
+/// no limit). Both upload routes call it first, before a byte is read; the single request looks
+/// again, and counts, when its file is stored ([`allowance_at_store`]), and the resumable start
+/// checks and counts under the room lock (R3-1).
 pub(crate) fn allowance_at_start(db: &Storage, key: &str, role: &RoleDef, now_ms: i64) -> Result<Option<u64>, OverAllowance> {
     use crate::relay::storage::upload_counts::Span;
-    if role.max_uploads_per_hour > 0 {
-        let started = db.upload_count(key, Span::Hour, now_ms);
-        if started >= role.max_uploads_per_hour {
-            let resets_at = Span::Hour.resets_at(now_ms);
-            return Err(OverAllowance {
-                words: format!(
-                    "Your role may start {} uploads an hour on this server, and you have started {started} this hour. More can start at the top of the hour, {}.",
-                    role.max_uploads_per_hour,
-                    in_words(now_ms, resets_at)
-                ),
-                span: Span::Hour,
-                resets_at,
-            });
-        }
-    }
+    hour_used_up(db, key, role, now_ms)?;
     let Some(allowed) = day_allowance(role) else { return Ok(None) };
     let used = db.upload_count(key, Span::Day, now_ms);
     if used as u64 >= allowed {
         return Err(over_the_day(role, used, now_ms, ""));
     }
     Ok(Some(allowed - used as u64))
+}
+
+/// When a single request's file of `bytes` is stored (R3-1, 2026-10-11): the hour's uploads and the
+/// day's bytes read at the store time, under the room lock (media.rs `store_upload`), and refused
+/// when this upload would pass either. The check at the start only refuses early; this one is the
+/// one that counts, so several requests sent at once cannot all pass on the same allowance, and
+/// an upload that crosses midnight UTC is held to (and counted in) the day it is stored.
+pub(crate) fn allowance_at_store(db: &Storage, key: &str, role: &RoleDef, now_ms: i64, bytes: u64) -> Result<(), OverAllowance> {
+    hour_used_up(db, key, role, now_ms)?;
+    let Some(allowed) = day_allowance(role) else { return Ok(()) };
+    let used = db.upload_count(key, crate::relay::storage::upload_counts::Span::Day, now_ms);
+    if used.max(0) as u64 + bytes > allowed {
+        return Err(over_the_day(role, used, now_ms, ", and this file would pass that"));
+    }
+    Ok(())
 }
 
 /// A single request's limit from what is left of the day's allowance (`left`, None for no limit):
@@ -601,7 +656,9 @@ pub(crate) fn day_limit(db: &Storage, key: &str, role: &RoleDef, now_ms: i64, le
 }
 
 /// A resumable upload's next piece of `len` bytes: refused when it would take the person past the
-/// day's allowance (what has arrived is kept, and the rest can come after the reset).
+/// day's allowance (what has arrived is kept, and the rest can come after the reset). The refusal
+/// says how much would still be taken (`left_bytes`, R3-6): a piece cut to that is. The caller
+/// checks and counts under the room lock (relay/resumable.rs `write_counted`, R3-1).
 pub(crate) fn allowance_for_piece(db: &Storage, key: &str, role: &RoleDef, now_ms: i64, len: u64) -> Result<(), OverAllowance> {
     let Some(allowed) = day_allowance(role) else { return Ok(()) };
     let used = db.upload_count(key, crate::relay::storage::upload_counts::Span::Day, now_ms);
@@ -611,9 +668,18 @@ pub(crate) fn allowance_for_piece(db: &Storage, key: &str, role: &RoleDef, now_m
     Ok(())
 }
 
+/// Take `bytes` counted at `now_ms` back off the day's count: a resumable piece counted before it
+/// was written whose write then failed (R3-1).
+pub(crate) fn take_back_upload(db: &Storage, key: &str, now_ms: i64, bytes: u64) {
+    if let Err(e) = db.take_back_upload_count(key, crate::relay::storage::upload_counts::Span::Day, now_ms, bytes as i64) {
+        tracing::error!("Upload allowance: could not take back {bytes} bytes ({e})");
+    }
+}
+
 /// Count an upload against the allowances: `bytes` against the day, and one upload started
 /// against the hour when `started`. A count that cannot be written is logged: the upload itself
-/// already happened.
+/// already happened. Every caller counts under the room lock, with the check that went before
+/// it (R3-1).
 pub(crate) fn count_upload(db: &Storage, key: &str, now_ms: i64, bytes: u64, started: bool) {
     use crate::relay::storage::upload_counts::Span;
     if let Err(e) = db.add_upload_count(key, Span::Day, now_ms, bytes as i64) {
@@ -629,3 +695,8 @@ pub(crate) fn count_upload(db: &Storage, key: &str, now_ms: i64, bytes: u64, sta
 #[cfg(test)]
 #[path = "upload_rules_tests.rs"]
 mod tests;
+
+// Round 3 (2026-10-11): a single request's allowances checked and counted when it is stored (R3-1).
+#[cfg(test)]
+#[path = "upload_round3_tests.rs"]
+mod round3_tests;

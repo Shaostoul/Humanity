@@ -1439,3 +1439,118 @@ test("no upload goes without this session's token, and every one carries it", as
   assert.equal(page.uploads.length, 1);
   assert.ok(/(^|&)token=tok-later(&|$)/.test(page.uploads[0].query) && !/(^|&)key=/.test(page.uploads[0].query), "carrying the token, never the key: " + page.uploads[0].query);
 });
+
+// ── Round 3, review 7: what a browser can hold (docs/design/media-showcase.md) ──
+//
+// A private file is fetched whole and opened at once (WebCrypto's AES-GCM), so a browser holds it
+// about twice while it opens. Pictures are shown in place up to 16 MB, any file is saved up to
+// 512 MB, and a larger one is a card saying to open it in the desktop app; an opened picture is
+// not downloaded again when its conversation is drawn again; and the sender lets each copy go as
+// soon as the next exists.
+
+// Seen red 2026-10-11 with privateFileWay ignoring the size (any picture shown in place, any file
+// offered Save): "a friend's 20 MB picture is not fetched by itself" (it was, at once); with the
+// server's length check taken out of openPrivateFile: "a marker that says less than its file
+// is not opened" (the 17 MB picture was shown).
+test("review 7: a picture over 16 MB is a Save card, over 512 MB a card naming the desktop app, and the server's length is held to the marker's", async () => {
+  const fx = await fixture();
+  const page = await loadChat(fx.ann);
+  befriend(page, fx.ben.key);
+  const MB = 1024 * 1024;
+  const big = await fileInGroup(page, fx.ben, { name: "big.png", mime: "image/png", bytes: PNG, at: T0 + 300, meta: { size: 20 * MB } });
+  const huge = await fileInGroup(page, fx.ben, { name: "huge.mov", mime: "video/quicktime", bytes: PDF, at: T0 + 310, meta: { size: 600 * MB } });
+  const small = await fileInGroup(page, fx.ben, { name: "dog.png", mime: "image/png", bytes: PNG, at: T0 + 320 });
+  // A marker that says less than its file: a real 17 MB picture on the server, sealed with the
+  // marker's key, "45 bytes" in the marker.
+  const seventeen = new Uint8Array(17 * MB);
+  seventeen.set(PNG, 0);
+  const lying = await fileInGroup(page, fx.ben, { name: "tiny.png", mime: "image/png", bytes: seventeen, at: T0 + 330, meta: { size: PNG.length } });
+  page.relay.log = [fx.hello, big.msg, huge.msg, small.msg, lying.msg];
+  await openGroup(page);
+  const [, bigRow, hugeRow, smallRow, lyingRow] = rowsFrom(page, fx.ben);
+
+  // A friend's picture over 16 MB: a Save card with its note, nothing fetched by itself.
+  assert.equal(gets(page, big.meta.url), 0, "a friend's 20 MB picture is not fetched by itself");
+  assert.ok(bigRow.innerHTML.includes(">Save<") && bigRow.innerHTML.includes("enc-attach-note"), "a card with Save and a note");
+  assert.equal(cardBody(bigRow).querySelector(".enc-attach-note").textContent, "This picture is 20.0 MB, larger than is shown here (up to 16 MB). Save it to see it.");
+  assert.equal(await shownPicture(page, cardBody(bigRow)), null, "not shown in place");
+  await cardBody(bigRow).querySelector(".enc-attach-dl").onclick({ stopPropagation() {} });
+  await settle();
+  assert.equal(gets(page, big.meta.url), 1, "Save fetches it");
+  assert.ok(page.el("__body").children.find((c) => c.tag === "a" && c.download === "big.png"), "and saves it");
+
+  // Over 512 MB: the desktop app's card; nothing to press, nothing fetched.
+  assert.ok(!hugeRow.innerHTML.includes(">Save<") && !hugeRow.innerHTML.includes("click to load"), "nothing to press over 512 MB");
+  assert.equal(cardBody(hugeRow).querySelector(".enc-attach-note").textContent, "This file is 600.0 MB, more than a browser can open (up to 512 MB). Open it in the HumanityOS desktop app.");
+  assert.equal(gets(page, huge.meta.url), 0, "never fetched");
+
+  // Within 16 MB, a friend's picture still shows at once.
+  const shown = await shownPicture(page, cardBody(smallRow));
+  assert.ok(shown && sameBytes(shown.bytes, PNG), "a friend's small picture shows at once");
+
+  // The server's length is held to the marker's limit: not opened, and nothing shown.
+  assert.equal(cardBody(lyingRow).innerHTML, `<div class="enc-attach-failed">${FAILED}</div>`, "a marker that says less than its file is not opened");
+  assert.equal(await shownPicture(page, cardBody(lyingRow)), null);
+});
+
+// Seen red 2026-10-11 with show() calling openPrivateFile again instead of openPrivatePicture (no
+// cache): "the same opened picture / 'blob:test/2' !== 'blob:test/1'" (it was downloaded and
+// opened again).
+test("review 7: a picture opened once is not downloaded again when its conversation is drawn again", async () => {
+  const fx = await fixture();
+  const page = await loadChat(fx.ann);
+  befriend(page, fx.ben.key);
+  const s = await seal(PNG);
+  page.files.set("/uploads/dm-ben.enc", s.ct);
+  const meta = { url: "/uploads/dm-ben.enc", k: s.k, n: s.n, name: "dog.png", mime: "image/png", size: PNG.length };
+  page.fn("addDmMessage")("Ben", markerText(meta), T0 + 600, fx.ben.key, fx.ann.key, true);
+  await settle();
+  const first = await shownPicture(page, cardBody(page.state.appended[0]));
+  assert.ok(first && sameBytes(first.bytes, PNG), "shown");
+  // The conversation drawn again: the same message, a new row.
+  page.fn("addDmMessage")("Ben", markerText(meta), T0 + 600, fx.ben.key, fx.ann.key, true);
+  await settle();
+  const again = await shownPicture(page, cardBody(page.state.appended[1]));
+  assert.ok(again, "shown again");
+  assert.equal(again.img.src, first.img.src, "the same opened picture");
+  assert.equal(gets(page, meta.url), 1, "downloaded once");
+});
+
+// Seen red 2026-10-11 with `bytes = null;` taken out of sendEncryptedAttachment: "the plain
+// bytes are let go before the upload"; and with `enc.cipherBytes = null;` taken out: "and the
+// ciphertext once the upload's Blob holds it".
+test("review 7: the sender lets the plain bytes go before the upload, and the ciphertext once the upload holds its own copy", async () => {
+  require("node:v8").setFlagsFromString("--expose-gc");
+  const gc = require("node:vm").runInNewContext("gc");
+  const fx = await fixture();
+  const page = await loadChat(fx.ann);
+  page.fn("openDmConversation")(fx.ben.key, "Ben");
+  await settle();
+  // What the page encrypts and what encrypting gives back, watched without being held.
+  const refs = {};
+  const encrypt = page.ctx.pqEncryptFile;
+  page.ctx.pqEncryptFile = async (b) => {
+    refs.plain = new WeakRef(b.buffer);
+    const out = await encrypt(b);
+    refs.cipher = new WeakRef(out.cipherBytes.buffer);
+    return out;
+  };
+  const release = page.holdUploads();
+  const listeners = page.el("msg-input").listeners.paste || [];
+  const big = new Uint8Array(2 * 1024 * 1024);
+  big.set(PNG, 0);
+  const file = picture("photo.png", big);
+  const sending = listeners[0]({ clipboardData: { items: [{ type: file.type, getAsFile: () => file }] }, preventDefault() {} });
+  await waitFor(() => page.uploads.length === 1, "the upload is on its way");
+  // A WeakRef keeps its target until the turn that made or read it ends; then a full collection.
+  await new Promise((r) => setImmediate(r));
+  gc();
+  await new Promise((r) => setImmediate(r));
+  gc();
+  assert.equal(refs.plain.deref(), undefined, "the plain bytes are let go before the upload");
+  assert.equal(refs.cipher.deref(), undefined, "and the ciphertext once the upload's Blob holds it");
+  release();
+  await sending;
+  await settle();
+  assert.equal(page.sock.sent.filter((m) => m.type === "dm_put").length, 2, "and it is sent as ever");
+});

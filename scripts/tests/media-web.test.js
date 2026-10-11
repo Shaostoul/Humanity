@@ -270,7 +270,9 @@ test("6. Add to Media shows the share, stops an upload over it before it starts,
   byId(doc, "media-form-go").click();
   await settle();
   const start = net.calls.find((c) => path0(c.url) === "/api/upload/resumable");
-  assert.equal(start.url, "/api/upload/resumable?token=tok-1", "started with the session token");
+  // Round 3 (R3-9): the token in the X-Upload-Token header, never in the address.
+  assert.equal(start.url, "/api/upload/resumable", "no token in the address");
+  assert.equal(start.headers["X-Upload-Token"], "tok-1", "started with the session token");
   assert.deepEqual(start.body, { filename: "staff.png", size: 10 * MIB, content_type: "image/png", media: 1 }, "as a Media upload, no hash");
   const pub = net.calls.find((c) => c.url === "/api/media" && c.init.method === "POST");
   assert.equal(pub.body.filename, "1760_new.png");

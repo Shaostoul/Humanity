@@ -22,16 +22,29 @@
 // - A picture or video loads only from this server's own addresses: its
 //   /uploads/ folder and the members' file route /api/media/file/{id}
 //   (`ownFilePath`). Anything else is not loaded and says so.
-// - A members-only item's file is fetched from /api/media/file/{id} with the
+// - A members-only PICTURE is fetched from /api/media/file/{id} with the
 //   session's upload token in the X-Upload-Token HEADER (the relay's W3b) and
 //   shown through an address of the page's own (URL.createObjectURL), so the
-//   token is never in an <img src>, a <video src>, a Download link, a
-//   browser's downloads list or a server's log. Each object URL is kept while
-//   its item is shown and revoked when it is not (`sweepBlobs`).
+//   token is never in an <img src>, a Download link, a browser's downloads
+//   list or a server's log. Each fetch can be stopped (an AbortController):
+//   it is stopped, and its object URL revoked, once its item is no longer
+//   shown (`sweepBlobs`); a list loaded again keeps the pictures it still
+//   shows (round 3, review 5).
+// - A members-only VIDEO, and every members-only Download, go through a
+//   ticket (the relay's R3-8): POST /api/media/ticket with the token in the
+//   header answers an address that opens that one file for ten minutes, so the
+//   browser streams the video (range requests) and saves a download itself,
+//   never holding the whole file in the page, and no token is in any address.
+//   A video that outlives its ticket gets a new one where it stopped.
 // - The viewer is drawn again only when what it shows changes, so a playing
 //   video keeps playing through a sign-in, a reconnect or a list reload.
 // - A labelled item (spoiler, flashing lights, graphic) shows its label
-//   instead of its picture until clicked: its picture is not even requested.
+//   instead of its picture until clicked, on its tile and in the viewer
+//   (/media?id=<n> included): its file is not even requested before then.
+// - Uploads in progress are a list of their own (each with its bar, Pause,
+//   Resume and Cancel), each published by its own form, so opening another
+//   form never leaves one behind (round 3, review 2). Uploads the server still
+//   holds part of (`uploads_in_progress`, R3-7) are listed with Cancel.
 // - Every write is signed (Dilithium over "purpose\ntimestamp", getPqSignedAuth
 //   in /shared/pq-relay-auth.js, which never signs two requests with the same
 //   timestamp) with a purpose that names its target: media_publish:<file name>,
@@ -57,8 +70,13 @@
   const FEATURED_LIMIT = 100;
   // The kinds of item (data, read by both apps: the desktop's src/gui/pages/media/kinds.rs).
   const KINDS_URL = '/data/media/kinds.json';
-  // Members-only files fetched at once, so a page of tiles does not ask for all at the same time.
+  // Members-only pictures fetched at once, so a page of tiles does not ask for all at the same time.
   const BLOB_FETCHES_AT_ONCE = 4;
+  // A ticket is not used for a new request this close to its end (the relay's are ten minutes).
+  const TICKET_MARGIN_MS = 30000;
+  // A playing video whose ticket fails gets a new one, but not for a ticket younger than this
+  // (a fresh ticket failing is the file's own problem, not its age).
+  const TICKET_RENEW_AFTER_MS = 60000;
   // How long a report waits for the server's answer before saying it did not come.
   const ANSWER_WAIT_MS = 15000;
 
@@ -110,6 +128,17 @@
     uploadFinishing: 'All sent. The server is storing it...',
     uploadPublishing: 'Uploaded. Putting it on the Media page...',
     uploadWaits: ' The file is uploaded and waits a day for you to try again; after that it is deleted.',
+    uploadCancelling: 'Cancelling...',
+    uploadAllowanceThen: 'It carries on by itself then.',
+    uploadServerErrorTail: ' The server gave this answer ten times running, so the upload waits for you: Retry carries on from where it stopped.',
+    alreadyUploading: ' is uploading already: its progress is below.',
+    unfinishedTitle: 'Unfinished uploads on the server',
+    unfinishedHint: 'These stopped part way. Add to Media with the same file carries one on from where it stopped; Cancel deletes what arrived. Each is deleted a day after its last piece arrived.',
+    unfinishedCancel: 'Cancel this upload and delete what arrived.',
+    unfinishedCancelled: 'Cancelled, and what arrived was deleted.',
+    notSignedInCancel: 'This page is not signed in to this server yet, so nothing was cancelled. Try again in a moment.',
+    cancelledStored: 'Cancelled. The file had already been stored, so it was deleted too.',
+    ticketOdd: 'The server did not give this page an address for the file.',
     reportLeadTail: ' is not told who reported them.',
     reportWhat: 'The report names this item. The server keeps a note of it (its title, kind, labels and who can see it), never the file.',
     reportNotSignedIn: 'This page is not signed in to this server yet, so the report was not sent. Try again in a moment.',
@@ -383,7 +412,7 @@
 
   // The resumable upload and the uploads remembered in this browser: /pages/media-upload.js.
   const U = typeof module === 'object' && module && module.exports ? require('./media-upload.js') : root.MediaUpload;
-  const { RESUME_KEY, rememberUpload, findUpload, forgetUpload, createUploader } = U || {};
+  const { RESUME_KEY, rememberUpload, findUpload, forgetUpload, createUploader, fingerprint } = U || {};
 
   // ── DOM ──
 
@@ -417,6 +446,7 @@
    *   session (a /shared/relay-session.js session, or null),
    *   confirm(words) -> Promise<boolean>,
    *   URL (createObjectURL, revokeObjectURL), storage (localStorage), sleep(ms), now(),
+   *   AbortController and digest(bytes) (SHA-256), the browser's own when not given,
    *   save(url, name) (saves a file; optional: a hidden link is clicked otherwise),
    *   report (/shared/report.js's names), language (navigator.language),
    *   put ({filename, name} to open Put on Media for a Shared Files upload, or null),
@@ -433,6 +463,7 @@
     const later = env.setTimeout || ((fn, ms) => setTimeout(fn, ms));
     const cancelLater = env.clearTimeout || ((t) => clearTimeout(t));
     const now = () => (typeof env.now === 'function' ? env.now() : Date.now());
+    const Abort = env.AbortController || (typeof AbortController !== 'undefined' ? AbortController : null);
 
     const st = {
       items: [],
@@ -455,8 +486,10 @@
       noticeWarn: false,
       viewer: null,
       viewerKey: '',
-      saveWanted: null,         // an item whose file is saved once it has loaded
-      form: null,
+      saveWanted: null,         // the item whose Download is asking for its ticket
+      reloadKeep: null,         // the items shown before a list loaded afresh: their pictures stay until it answers
+      form: null,               // the form not yet uploading (Add to Media, Put on Media, Publish an upload)
+      uploads: [],              // forms whose file is uploading or publishing, each with its own `up`
       suggest: null,
       report: null,
       mine: null,               // the person's own use: POST /api/media/mine
@@ -467,6 +500,7 @@
     let loadSeq = 0;
     let featuredSeq = 0;
     let mineSeq = 0;
+    let uploadSeq = 0;
 
     // ── The page's fixed parts ──
     const els = {};
@@ -486,6 +520,7 @@
       els.members = h('div', { id: 'media-members', className: 'media-members' });
       els.actions = h('div', { id: 'media-actions', className: 'media-actions' });
       els.form = h('div', { id: 'media-form', className: 'media-form-wrap' });
+      els.uploads = h('div', { id: 'media-uploads', className: 'media-form-wrap' });
       els.waiting = h('div', { id: 'media-waiting', className: 'media-form-wrap' });
       els.suggest = h('div', { id: 'media-suggest', className: 'media-form-wrap' });
       els.featured = h('section', { id: 'media-featured', className: 'media-featured' });
@@ -504,7 +539,7 @@
             '.',
           ]),
         ]),
-        els.status, els.notice, els.members, els.actions, els.form, els.waiting, els.suggest,
+        els.status, els.notice, els.members, els.actions, els.form, els.uploads, els.waiting, els.suggest,
         els.featured, els.filters, els.grid, els.more, els.viewer, els.report, els.admin, fileInput
       );
     }
@@ -664,19 +699,19 @@
       load(true);
     }
 
-    // ── Members-only files: fetched with the token in a header, shown through object URLs ──
-    const blobs = new Map();   // item id -> {path, state: 'waiting'|'loading'|'ready'|'error', url, why}
+    // ── Members-only pictures: fetched with the token in a header, shown through object URLs ──
+    const blobs = new Map();   // item id -> {path, state: 'waiting'|'loading'|'ready'|'error', url, why, ctl}
     const blobQueue = [];
     let blobsActive = 0;
 
-    /** The cache entry for a members-only item's file, asked for when it is first needed; null for any other. */
+    /** The cache entry for a members-only picture, asked for when it is first needed; null for anything else. */
     function blobFor(item) {
       const route = fileRoute(item, env.origin);
-      if (!route.members) return null;
+      if (!route.members || item.kind !== 'picture') return null;
       let e = blobs.get(item.id);
       if (e && e.path === route.members) return e;
       if (e) dropBlob(item.id);
-      e = { path: route.members, state: 'waiting', url: '', why: '' };
+      e = { path: route.members, state: 'waiting', url: '', why: '', ctl: null };
       blobs.set(item.id, e);
       blobQueue.push({ id: item.id, e });
       pumpBlobs();
@@ -695,11 +730,13 @@
     }
     async function fetchBlob(id, e, t) {
       let res = null;
+      e.ctl = Abort ? new Abort() : null;
       try {
-        res = await env.fetch(e.path, { headers: { 'X-Upload-Token': t } });
+        res = await env.fetch(e.path, Object.assign({ headers: { 'X-Upload-Token': t } }, e.ctl ? { signal: e.ctl.signal } : {}));
+        if (blobs.get(id) !== e) return; // no longer shown (and stopped)
         if (!res || !res.ok) {
           // A token from before the page signed in again: wait for the new one.
-          if (res && res.status === 403 && token() !== t) { e.state = 'waiting'; blobQueue.push({ id, e }); return; }
+          if (res && res.status === 403 && token() !== t) { e.state = 'waiting'; e.ctl = null; blobQueue.push({ id, e }); return; }
           throw new Error(res ? await refusalWords(res) : 'The server could not be reached.');
         }
         const blob = await res.blob();
@@ -710,34 +747,138 @@
         if (blobs.get(id) !== e) return;
         e.state = 'error';
         e.why = MEDIA_WORDS.fileFailed + (err && err.message ? err.message : String(err));
+      } finally {
+        e.ctl = null;
       }
       blobChanged(id);
     }
+    /** Forget a picture: stop its fetch if it is on its way, and revoke its object URL. */
     function dropBlob(id) {
       const e = blobs.get(id);
       if (!e) return;
       blobs.delete(id);
+      if (e.ctl) { try { e.ctl.abort(); } catch (err) { /* already ended */ } }
       if (e.url && URLs) { try { URLs.revokeObjectURL(e.url); } catch (err) { /* already gone */ } }
     }
-    /** Revoke every object URL whose item is no longer shown (the grid, the strip and the viewer). */
+    /**
+     * Stop and revoke every picture whose item is no longer shown (the grid, the strip and the
+     * viewer). While a list loads afresh, what it showed before counts as shown until it answers,
+     * so a reload does not throw away and fetch again the pictures it still shows.
+     */
     function sweepBlobs() {
-      const shown = new Set();
+      const shown = new Set(st.reloadKeep || []);
       for (const i of st.items) shown.add(i.id);
       for (const i of st.featured) shown.add(i.id);
       if (st.viewer) shown.add(st.viewer.id);
       for (const id of Array.from(blobs.keys())) if (!shown.has(id)) dropBlob(id);
     }
-    function blobChanged(id) {
+    function blobChanged() {
       renderGrid();
       renderFeatured();
       renderViewerIfChanged();
-      const e = blobs.get(id);
-      if (st.saveWanted && st.saveWanted.id === id && e && e.state === 'ready') {
-        const item = st.saveWanted;
-        st.saveWanted = null;
-        saveFile(e.url, downloadName(item, st.kinds));
-        renderViewerIfChanged();
+    }
+
+    // ── Tickets (the relay's R3-8): a members-only video or Download, streamed by the browser ──
+    const tickets = new Map(); // item id -> {state: 'loading'|'ready'|'error', url, why, token, at, expiresAt, renewing}
+
+    /** A ticket's address, when it is this server's members' file route for this item with a ticket. */
+    function ticketPath(url, id) {
+      if (typeof url !== 'string' || !url) return null;
+      let u;
+      try { u = new URL(url, env.origin); } catch (e) { return null; }
+      if (u.origin !== new URL(env.origin).origin) return null;
+      if (u.pathname !== '/api/media/file/' + id || !u.searchParams.get('ticket')) return null;
+      return u.pathname + u.search;
+    }
+    /** Ask for a ticket: {path, expiresIn} (seconds), or throws Error(the relay's words). */
+    async function fetchTicket(item, t) {
+      const filename = itemFileName(item);
+      if (!filename) throw new Error(MEDIA_WORDS.noFileName);
+      const a = await answerOf(await env.fetch('/api/media/ticket', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Upload-Token': t },
+        body: JSON.stringify({ id: item.id, filename }),
+      }));
+      const path = ticketPath(a && a.url, item.id);
+      if (!path) throw new Error(MEDIA_WORDS.ticketOdd);
+      return { path, expiresIn: num(a.expires_in_s) || 600 };
+    }
+    /**
+     * The viewer's ticket for a members-only video, asked for when there is none that can still
+     * be used (one ending within half a minute is not). Null while the page is not signed in.
+     */
+    function ticketFor(item) {
+      let e = tickets.get(item.id);
+      const t = token();
+      if (e && e.state === 'loading') return e;
+      if (e && e.state === 'ready' && (e.renewing || e.expiresAt - TICKET_MARGIN_MS > now())) return e;
+      if (e && e.state === 'error' && e.token === t) return e;
+      if (!t) return e || null;
+      e = { state: 'loading', url: '', why: '', token: t, at: now(), expiresAt: 0, renewing: false };
+      tickets.set(item.id, e);
+      fetchTicket(item, t).then((got) => {
+        if (tickets.get(item.id) !== e) return;
+        e.url = got.path;
+        e.at = now();
+        e.expiresAt = e.at + got.expiresIn * 1000;
+        e.state = 'ready';
+        ticketChanged(item.id);
+      }, (err) => {
+        if (tickets.get(item.id) !== e) return;
+        e.state = 'error';
+        e.why = MEDIA_WORDS.fileFailed + (err && err.message ? err.message : String(err));
+        ticketChanged(item.id);
+      });
+      return e;
+    }
+    function ticketChanged() {
+      renderViewerIfChanged();
+    }
+    /**
+     * Download a members-only file through a ticket of its own (not the viewer's, so a video
+     * playing beside it is never drawn again): the browser saves it from the ticket's address.
+     */
+    const downloadErrors = new Map(); // item id -> the words of a Download that could not start
+    async function downloadMembers(item) {
+      const t = token();
+      if (!t || (st.saveWanted && st.saveWanted.id === item.id)) return;
+      st.saveWanted = item;
+      downloadErrors.delete(item.id);
+      renderDownloadBox(item, '');
+      let got = null;
+      try {
+        got = await fetchTicket(item, t);
+      } catch (err) {
+        downloadErrors.set(item.id, MEDIA_WORDS.fileFailed + (err && err.message ? err.message : String(err)));
       }
+      // The viewer closed (or another item opened) meanwhile: nothing is saved.
+      if (st.saveWanted !== item) return;
+      st.saveWanted = null;
+      if (got) saveFile(got.path, downloadName(item, st.kinds));
+      renderDownloadBox(item, '');
+    }
+    /**
+     * A playing video whose ticket has run out: a new ticket, the same video element, from where
+     * it stopped. Not for a ticket younger than a minute (then it is the file that fails).
+     */
+    function renewTicket(item, video) {
+      const e = tickets.get(item.id);
+      const t = token();
+      if (!e || e.state !== 'ready' || e.renewing || !t || now() - e.at < TICKET_RENEW_AFTER_MS) return;
+      e.renewing = true;
+      let pos = 0;
+      let playing = false;
+      try { pos = Number(video.currentTime) || 0; playing = video.paused === false; } catch (err) { pos = 0; }
+      fetchTicket(item, t).then((got) => {
+        e.renewing = false;
+        if (tickets.get(item.id) !== e) return;
+        e.url = got.path;
+        e.at = now();
+        e.expiresAt = e.at + got.expiresIn * 1000;
+        e.token = t;
+        video.src = got.path;
+        try { video.currentTime = pos; } catch (err) { /* the browser seeks once it can */ }
+        if (playing && typeof video.play === 'function') { try { Promise.resolve(video.play()).catch(() => {}); } catch (err) { /* it waits for a press */ } }
+      }, () => { e.renewing = false; });
     }
     function saveFile(url, name) {
       if (typeof env.save === 'function') { env.save(url, name); return; }
@@ -886,26 +1027,40 @@
       renderViewerIfChanged();
       sweepBlobs();
     }
-    /** What the viewer shows, as a key: the item, and for a members-only file where its loading is. */
+    /** A labelled item not yet clicked: its label instead of its file, nothing fetched. */
+    function veiled(item) {
+      return labelsOf(item, st.labels).length > 0 && !st.revealed.has(item.id);
+    }
+    /** What the viewer shows, as a key: the item, whether it is veiled, and for a members-only file where its loading is. */
     function viewerKey() {
       const item = st.viewer;
       if (!item) return '';
       const route = fileRoute(item, env.origin);
       let file = route.why ? 'missing' : route.public || '';
       if (route.members) {
-        const e = blobs.get(item.id);
-        file = e ? e.state + ':' + e.url : token() ? 'members' : 'no-token';
+        // A picture's object URL, or a ticket's state (not its address: a ticket renewed under a
+        // playing video does not draw the video again).
+        // A ticket refused under an earlier sign-in is asked for again under the new one.
+        const e = item.kind === 'picture' ? blobs.get(item.id) : tickets.get(item.id);
+        const stale = e && item.kind !== 'picture' && e.state === 'error' && e.token !== token();
+        file = e ? (stale ? 'stale' : e.state) + ':' + (item.kind === 'picture' ? e.url : '') : token() ? 'members' : 'no-token';
       }
-      const saving = st.saveWanted && st.saveWanted.id === item.id ? 'saving' : '';
-      return [item.id, itemFileName(item), file, saving].join('|');
+      // A Download on its way is not part of it: its box is drawn on its own (renderDownloadBox),
+      // so pressing Download beside a playing video never starts the video again.
+      return [item.id, itemFileName(item), veiled(item) ? 'veiled' : 'shown', file].join('|');
     }
     function renderViewerIfChanged() {
       const key = viewerKey();
       if (key === st.viewerKey) return;
-      st.viewerKey = key;
       renderViewer();
+      // Drawing it may have asked for its file (its state is then part of the key).
+      st.viewerKey = viewerKey();
     }
-    /** The Download for an item in the viewer: a link for a public file, a save from the fetched file for a members-only one. */
+    /**
+     * The Download for an item in the viewer: a link for a public file; for a members-only one,
+     * the fetched picture when it is here, else a ticket asked for on the press, which the browser
+     * then saves itself (never through the page's memory).
+     */
     function downloadControl(item, ready) {
       const route = fileRoute(item, env.origin);
       const name = downloadName(item, st.kinds);
@@ -915,7 +1070,7 @@
       const saving = st.saveWanted && st.saveWanted.id === item.id;
       return h('button', {
         type: 'button', className: 'media-btn media-btn-primary', id: 'media-download', text: saving ? MEDIA_WORDS.loadingFile : 'Download', disabled: !!saving || !token(),
-        on: { click: () => { st.saveWanted = item; blobFor(item); renderViewerIfChanged(); } },
+        on: { click: () => downloadMembers(item) },
       });
     }
     function renderViewer() {
@@ -924,29 +1079,47 @@
       if (!item) return;
       const name = itemName(item, st.kinds);
       const route = fileRoute(item, env.origin);
+      const covered = veiled(item);
       let body;
       let ready = '';
       if (route.why) {
         body = h('p', { className: 'media-warn', text: route.why });
+      } else if (covered) {
+        // The label cover, as on its tile (/media?id=<n> opens the viewer directly): nothing is
+        // fetched until it is clicked.
+        body = h('button', {
+          type: 'button', id: 'media-viewer-veil', className: 'media-thumb media-veil media-viewer-veil', dataset: { veil: item.id },
+          on: { click: () => { st.revealed.add(item.id); renderViewerIfChanged(); renderGrid(); renderFeatured(); } },
+        }, [
+          h('span', { className: 'media-veil-labels', text: labelsOf(item, st.labels).map((l) => l.label).join(', ') }),
+          h('span', { className: 'media-veil-show', text: MEDIA_WORDS.clickToShow }),
+        ]);
       } else if (item.kind === 'picture' || item.kind === 'video') {
         let src = route.public || '';
         let why = '';
+        let ticketed = false;
         if (route.members) {
-          const e = blobs.get(item.id) || (token() ? blobFor(item) : null);
-          if (e && e.state === 'ready') src = ready = e.url;
-          else if (e && e.state === 'error') why = e.why;
+          // A picture through its object URL; a video through a ticket, streamed by the browser.
+          const e = item.kind === 'picture'
+            ? blobs.get(item.id) || (token() ? blobFor(item) : null)
+            : ticketFor(item);
+          if (e && e.state === 'ready') {
+            src = e.url;
+            if (item.kind === 'picture') ready = e.url;
+            else ticketed = true;
+          } else if (e && e.state === 'error') why = e.why;
           else why = token() ? MEDIA_WORDS.loadingFile + ' ' + sizeWords(item.size_bytes) : MEDIA_WORDS.waitingToken;
         }
         if (!src) body = h('p', { className: 'media-viewer-wait', id: 'media-viewer-wait', text: why });
         else if (item.kind === 'picture') body = h('img', { className: 'media-viewer-img', src, alt: name });
-        else body = h('video', { className: 'media-viewer-video', src, controls: true, preload: 'metadata' });
+        else {
+          body = h('video', { className: 'media-viewer-video', src, controls: true, preload: 'metadata' });
+          if (ticketed) body.addEventListener('error', () => renewTicket(item, body));
+        }
       } else {
-        const e = route.members ? blobs.get(item.id) : null;
-        if (e && e.state === 'ready') ready = e.url;
         body = h('div', { className: 'media-viewer-file' }, [
           h('div', { className: 'media-viewer-name', text: name }),
           h('div', { className: 'media-viewer-size', text: sizeWords(item.size_bytes) }),
-          e && e.state === 'error' ? h('p', { className: 'media-warn', text: e.why }) : null,
         ]);
       }
       const labels = labelsOf(item, st.labels).map((l) => l.label);
@@ -964,11 +1137,19 @@
             labels.length ? labels.join(', ') : '',
             item.kept ? MEDIA_WORDS.keptBadge : '',
           ].filter(Boolean).join(' · ') }),
-          route.why ? null : h('div', { className: 'media-form-buttons' }, [downloadControl(item, ready)]),
+          route.why || covered ? null : (els.downloadBox = h('div', { id: 'media-download-box' })),
         ]),
       ]);
       overlay.addEventListener('click', (e) => { if (e.target === overlay) closeViewer(); });
       els.viewer.appendChild(overlay);
+      if (!route.why && !covered) renderDownloadBox(item, ready);
+    }
+    /** The viewer's Download and what it says when it could not start: drawn without the rest of the viewer. */
+    function renderDownloadBox(item, ready) {
+      const box = els.downloadBox;
+      if (!box || !st.viewer || st.viewer.id !== item.id) return;
+      box.replaceChildren(h('div', { className: 'media-form-buttons' }, [downloadControl(item, ready)]));
+      if (downloadErrors.has(item.id)) box.appendChild(h('p', { className: 'media-warn', id: 'media-download-error', text: downloadErrors.get(item.id) }));
     }
 
     // ── Loading ──
@@ -1012,6 +1193,9 @@
     async function load(reset) {
       const seq = ++loadSeq;
       if (reset) {
+        // The pictures shown until now stay until this answers (sweepBlobs), so a reload keeps
+        // the ones it still shows instead of fetching each again.
+        st.reloadKeep = new Set(Array.from(st.reloadKeep || []).concat(st.items.map((i) => i.id)));
         st.items = [];
         st.nextBefore = null;
       }
@@ -1030,6 +1214,7 @@
         st.listError = 'The Media list could not be loaded: ' + (e && e.message ? e.message : String(e));
       }
       st.loading = false;
+      st.reloadKeep = null;
       renderAll();
     }
 
@@ -1172,18 +1357,56 @@
     // ── The person's uploads waiting to be published ──
     function renderWaiting() {
       els.waiting.replaceChildren();
-      const waiting = st.mine && Array.isArray(st.mine.waiting) ? st.mine.waiting : [];
-      if (!waiting.length) return;
-      const rows = waiting.map((w) => h('div', { className: 'media-admin-row', dataset: { waiting: w.filename } }, [
-        h('div', { className: 'media-admin-row-text', text: (w.original_name || w.filename) + ' · ' + sizeWords(w.size_bytes) }),
-        h('button', { type: 'button', className: 'media-btn media-btn-small', dataset: { waitingPublish: w.filename }, text: 'Publish', on: { click: () => openWaitingForm(w) } }),
-        h('button', { type: 'button', className: 'media-btn media-btn-small media-btn-danger', dataset: { waitingRemove: w.filename }, text: 'Remove', on: { click: () => removeWaiting(w) } }),
-      ]));
-      els.waiting.appendChild(h('div', { className: 'media-panel', id: 'media-waiting-list' }, [
-        h('h2', { text: MEDIA_WORDS.waitingTitle }),
-        h('p', { className: 'media-hint', text: MEDIA_WORDS.waitingHint }),
-        h('div', { className: 'media-admin-rows' }, rows),
-      ]));
+      // What this page's own uploads list shows already is not listed twice.
+      const publishing = new Set(st.uploads.map((u) => u.uploadedName).filter(Boolean));
+      const tracked = new Set(st.uploads.map((u) => u.up && u.up.state.id).filter(Boolean));
+      const waiting = (st.mine && Array.isArray(st.mine.waiting) ? st.mine.waiting : []).filter((w) => !publishing.has(w.filename));
+      const unfinished = (st.mine && Array.isArray(st.mine.uploads_in_progress) ? st.mine.uploads_in_progress : [])
+        .filter((p) => p && typeof p.id === 'string' && p.id && !tracked.has(p.id));
+      if (waiting.length) {
+        const rows = waiting.map((w) => h('div', { className: 'media-admin-row', dataset: { waiting: w.filename } }, [
+          h('div', { className: 'media-admin-row-text', text: (w.original_name || w.filename) + ' · ' + sizeWords(w.size_bytes) }),
+          h('button', { type: 'button', className: 'media-btn media-btn-small', dataset: { waitingPublish: w.filename }, text: 'Publish', on: { click: () => openWaitingForm(w) } }),
+          h('button', { type: 'button', className: 'media-btn media-btn-small media-btn-danger', dataset: { waitingRemove: w.filename }, text: 'Remove', on: { click: () => removeWaiting(w) } }),
+        ]));
+        els.waiting.appendChild(h('div', { className: 'media-panel', id: 'media-waiting-list' }, [
+          h('h2', { text: MEDIA_WORDS.waitingTitle }),
+          h('p', { className: 'media-hint', text: MEDIA_WORDS.waitingHint }),
+          h('div', { className: 'media-admin-rows' }, rows),
+        ]));
+      }
+      if (unfinished.length) {
+        // The person's own resumable sessions the server holds (the relay's R3-7) that no upload
+        // on this page is carrying: one left by a closed tab, another browser or a failure.
+        const rows = unfinished.map((p) => h('div', { className: 'media-admin-row', dataset: { unfinished: p.id } }, [
+          h('div', { className: 'media-admin-row-text', text: String(p.filename || '') + ' · ' + sizeWords(p.offset) + ' of ' + sizeWords(p.size) + ' sent' }),
+          h('button', { type: 'button', className: 'media-btn media-btn-small media-btn-danger', dataset: { unfinishedCancel: p.id }, text: 'Cancel', on: { click: () => cancelUnfinished(p) } }),
+        ]));
+        els.waiting.appendChild(h('div', { className: 'media-panel', id: 'media-unfinished-list' }, [
+          h('h2', { text: MEDIA_WORDS.unfinishedTitle }),
+          h('p', { className: 'media-hint', text: MEDIA_WORDS.unfinishedHint }),
+          h('div', { className: 'media-admin-rows' }, rows),
+        ]));
+      }
+    }
+
+    /** Cancel an unfinished upload the server holds: DELETE, with the token in the header. */
+    async function cancelUnfinished(p) {
+      if (!await env.confirm('"' + String(p.filename || '') + '"\n\n' + MEDIA_WORDS.unfinishedCancel)) return;
+      const t = token();
+      if (!t) { say(MEDIA_WORDS.notSignedInCancel, true); return; }
+      try {
+        const res = await env.fetch('/api/upload/resumable/' + encodeURIComponent(p.id), { method: 'DELETE', headers: { 'X-Upload-Token': t } });
+        if (res.ok || res.status === 404) {
+          if (forgetUpload) forgetUpload(env.storage, p.id);
+          say(MEDIA_WORDS.unfinishedCancelled);
+        } else {
+          say(await refusalWords(res), true);
+        }
+      } catch (e) {
+        say('The server could not be reached: ' + (e && e.message ? e.message : String(e)), true);
+      }
+      loadMine();
     }
 
     async function removeWaiting(w) {
@@ -1201,8 +1424,22 @@
     }
 
     // ── Add to Media, Put on Media, and publishing an upload that waits ──
+    //
+    // `st.form` is the one form not yet uploading. Pressing "Upload and add" moves that form,
+    // fields and all, into the uploads list (`st.uploads`, drawn in #media-uploads): there it
+    // shows its own bar, words, Pause, Resume and Cancel, and publishes ITSELF once its file is
+    // up, with what was typed in it (round 3, review 2). So the form area is free again at once,
+    // and opening another form never leaves an upload without the form that publishes it.
+
+    /** Phases in which an upload is still under way (not ended, not being cancelled). */
+    function uploadLive(f) {
+      const p = f && f.up ? f.up.state.phase : '';
+      return !!p && p !== 'failed' && p !== 'cancelling' && p !== 'cancelled' && p !== 'done';
+    }
+    const sameFile = (a, b) => !!(a && b && a.name === b.name && a.size === b.size && a.lastModified === b.lastModified);
+
     async function openAddForm(file) {
-      const f = { mode: 'add', file, name: file.name, stop: null, shareLine: '', checking: true, busy: false, error: '', uploadedName: '', up: null };
+      const f = { mode: 'add', file, name: file.name, stop: null, shareLine: '', checking: true, busy: false, error: '', uploadedName: '', up: null, fp: '' };
       st.form = f;
       renderForm();
       if (!canUpload()) {
@@ -1211,6 +1448,16 @@
         renderForm();
         return;
       }
+      // The same file already going up on this page: never two uploads of it at once.
+      if (st.uploads.some((u) => sameFile(u.file, file) && uploadLive(u))) {
+        f.checking = false;
+        f.stop = '"' + file.name + '"' + MEDIA_WORDS.alreadyUploading;
+        renderForm();
+        return;
+      }
+      // Its fingerprint (the first and last megabyte), which a resume is matched by.
+      try { f.fp = fingerprint ? await fingerprint(file, env.digest) : ''; } catch (e) { f.fp = ''; }
+      if (st.form !== f) return;
       // Until the relay has said what is left, nothing can be uploaded, so an upload over it never starts.
       const mine = await loadMine();
       if (st.form !== f) return;
@@ -1218,7 +1465,7 @@
       if (mine) {
         // An upload of this same file already part way up is counted by the relay as in progress
         // already; its own bytes are not "more" on top of that.
-        const known = findUpload(env.storage, myKey, file, now());
+        const known = f.fp ? findUpload(env.storage, myKey, file, f.fp, now()) : null;
         const inProgress = Math.max(0, num(mine.in_progress_bytes) - (known ? file.size : 0));
         const used = num(mine.used_bytes) + inProgress;
         const share = num(mine.share_bytes);
@@ -1239,9 +1486,8 @@
       renderForm();
     }
 
+    /** Close the form not yet uploading (an upload in the list goes by its own Cancel or Close). */
     function closeForm() {
-      const f = st.form;
-      if (f && f.up && f.up.state.phase !== 'done' && f.up.state.phase !== 'failed') f.up.cancel();
       st.form = null;
       renderForm();
     }
@@ -1251,11 +1497,13 @@
       return JSON.stringify([st.categories.map((c) => [c.id, c.name]), st.labels.map((l) => l.id), membersOnlyServer()]);
     }
 
+    let formSeq = 0;
     function renderForm() {
       els.form.replaceChildren();
       const f = st.form;
       if (!f) return;
       f.key = formKey();
+      f.formId = f.formId || ++formSeq;
       const put = f.mode === 'put';
       const kids = [h('h2', { text: put ? 'Put on Media' : f.mode === 'waiting' ? 'Publish an upload' : 'Add to Media' })];
       const size = f.file ? f.file.size : f.size;
@@ -1265,7 +1513,8 @@
       if (f.stop) {
         kids.push(h('p', { id: 'media-form-stop', className: 'media-warn', text: f.stop }));
         kids.push(f.actionsEl);
-        els.form.appendChild(h('div', { className: 'media-panel media-form' }, kids));
+        f.panel = h('div', { className: 'media-panel media-form' }, kids);
+        els.form.appendChild(f.panel);
         renderFormActions(f);
         return;
       }
@@ -1273,7 +1522,8 @@
       const category = h('select', { id: 'media-form-category', className: 'media-select' },
         st.categories.map((c) => h('option', { value: String(c.id), text: c.name, selected: String(f.category || '') === String(c.id) })));
       const description = h('textarea', { id: 'media-form-description', className: 'media-input', maxLength: 2000, rows: 3, value: f.description || '' });
-      // What is typed is kept as it is typed, so drawing the form again loses nothing.
+      // What is typed is kept as it is typed, so drawing the form again loses nothing, and an
+      // upload publishes with what its form says when its file is up.
       title.addEventListener('input', () => { f.title = title.value; });
       category.addEventListener('change', () => { f.category = category.value; });
       description.addEventListener('input', () => { f.description = description.value; });
@@ -1293,15 +1543,17 @@
         kids.push(box);
       }
       // Who sees it: a file already public goes on Media as public only (the relay's
-      // `was_public`), and a members-only server takes members only.
+      // `was_public`), and a members-only server takes members only. Each form's choice is its
+      // own group (its own name), so another form open beside an upload never changes it.
       f.visibilityEls = null;
       if (put) {
         kids.push(h('p', { id: 'media-form-public-only', className: 'media-hint', text: MEDIA_WORDS.alreadyPublic }));
       } else if (membersOnlyServer()) {
         kids.push(h('p', { id: 'media-form-members-only', className: 'media-hint', text: MEDIA_WORDS.serverMembersOnly }));
       } else {
-        const pub = h('input', { type: 'radio', name: 'media-form-visibility', value: 'public', id: 'media-form-vis-public', checked: f.visibility !== 'members' });
-        const mem = h('input', { type: 'radio', name: 'media-form-visibility', value: 'members', id: 'media-form-vis-members', checked: f.visibility === 'members' });
+        const group = 'media-form-visibility-' + f.formId;
+        const pub = h('input', { type: 'radio', name: group, value: 'public', id: 'media-form-vis-public', checked: f.visibility !== 'members' });
+        const mem = h('input', { type: 'radio', name: group, value: 'members', id: 'media-form-vis-members', checked: f.visibility === 'members' });
         f.visibilityEls = { pub, mem };
         pub.addEventListener('change', () => { if (pub.checked) f.visibility = 'public'; });
         mem.addEventListener('change', () => { if (mem.checked) f.visibility = 'members'; });
@@ -1313,14 +1565,24 @@
       }
       f.inputs = { title, category, description };
       kids.push(f.actionsEl);
-      els.form.appendChild(h('div', { className: 'media-panel media-form' }, kids));
+      f.panel = h('div', { className: 'media-panel media-form' }, kids);
+      els.form.appendChild(f.panel);
       renderFormActions(f);
+    }
+
+    /** Give every id inside a moved form a suffix of its own, so the next form's ids stay unique. */
+    function suffixIds(el, suffix) {
+      for (const c of Array.from(el.children || [])) {
+        if (c.id) c.id = c.id + suffix;
+        suffixIds(c, suffix);
+      }
     }
 
     /** The upload's words for where it is. */
     function uploadWords(u) {
       const s = u.state;
       const sent = sizeWords(s.offset) + ' of ' + sizeWords(s.size) + ' sent';
+      const seconds = (n) => (n || 1) + (n === 1 ? ' second.' : ' seconds.');
       switch (s.phase) {
         case 'idle':
         case 'starting': return MEDIA_WORDS.uploadStarting;
@@ -1328,51 +1590,71 @@
         case 'finishing': return MEDIA_WORDS.uploadFinishing;
         case 'pausing': return sent + '. ' + MEDIA_WORDS.uploadPausing;
         case 'paused': return sent + '. ' + MEDIA_WORDS.uploadPaused;
-        case 'reconnecting': return sent + '. The connection dropped. Trying again in ' + (s.retryIn || 1) + (s.retryIn === 1 ? ' second.' : ' seconds.');
+        case 'reconnecting': return sent + '. The connection dropped. Trying again in ' + seconds(s.retryIn);
+        case 'server_wait': return sent + '. ' + (s.error ? s.error + ' ' : '') + 'Trying again in ' + seconds(s.retryIn);
         case 'waiting_connection': return sent + '. ' + MEDIA_WORDS.uploadWaitingConnection;
-        case 'allowance': return [s.error, resetsWords(s.resetsAt)].filter(Boolean).join(' ');
+        case 'allowance': return [s.error, resetsWords(s.resetsAt), MEDIA_WORDS.uploadAllowanceThen].filter(Boolean).join(' ');
+        case 'server_error': return s.error + MEDIA_WORDS.uploadServerErrorTail;
         case 'no_room': return s.error;
         case 'failed': return s.error;
+        case 'cancelling': return MEDIA_WORDS.uploadCancelling;
+        case 'cancelled': return MEDIA_WORDS.uploadCancelling;
         case 'done': return MEDIA_WORDS.uploadPublishing;
         default: return sent + '.';
       }
     }
 
-    /** The form's progress, words and buttons: drawn again on every change without touching the fields. */
+    /**
+     * The form's progress, words and buttons: drawn again on every change without touching the
+     * fields. A form in the uploads list names its controls by `data-upload-*` (there may be
+     * several); the form not yet uploading keeps its ids.
+     */
     function renderFormActions(f) {
       const box = f.actionsEl;
       if (!box) return;
       box.replaceChildren();
-      const button = (id, text, onClick, cls) => h('button', { type: 'button', id, className: 'media-btn' + (cls ? ' ' + cls : ''), text, on: { click: onClick } });
+      const listed = !!f.n;
+      const button = (action, text, onClick, cls) => h('button', {
+        type: 'button', id: listed ? undefined : 'media-form-' + action, dataset: listed ? { uploadAction: action } : undefined,
+        className: 'media-btn' + (cls ? ' ' + cls : ''), text, on: { click: onClick },
+      });
       if (f.stop) {
-        box.appendChild(h('div', { className: 'media-form-buttons' }, [button('media-form-cancel', 'Close', closeForm)]));
+        box.appendChild(h('div', { className: 'media-form-buttons' }, [button('cancel', 'Close', closeForm)]));
         return;
       }
-      if (f.error) box.appendChild(h('p', { id: 'media-form-error', className: 'media-warn', text: f.error }));
+      if (f.error) box.appendChild(h('p', { id: listed ? undefined : 'media-form-error', dataset: listed ? { uploadError: f.n } : undefined, className: 'media-warn', text: f.error }));
       const u = f.up;
       if (u) {
         const s = u.state;
         const pct = s.size > 0 ? Math.min(100, Math.round((s.offset / s.size) * 1000) / 10) : 0;
         const fill = h('div', { className: 'media-meter-fill' });
         fill.style.width = pct + '%';
-        box.appendChild(h('div', { className: 'media-meter', id: 'media-upload-bar', attrs: { role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': pct, 'aria-label': 'Upload' } }, [fill]));
-        const warn = s.phase === 'allowance' || s.phase === 'no_room' || s.phase === 'failed';
-        box.appendChild(h('p', { id: 'media-upload-words', className: warn ? 'media-warn' : 'media-hint', text: uploadWords(u) }));
+        box.appendChild(h('div', { className: 'media-meter', dataset: { uploadBar: f.n }, attrs: { role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': pct, 'aria-label': 'Upload of ' + f.name } }, [fill]));
+        const warn = s.phase === 'allowance' || s.phase === 'no_room' || s.phase === 'failed' || s.phase === 'server_error';
+        box.appendChild(h('p', { dataset: { uploadWords: f.n }, className: warn ? 'media-warn' : 'media-hint', text: uploadWords(u) }));
         const buttons = [];
-        if (s.phase === 'sending' || s.phase === 'reconnecting' || s.phase === 'waiting_connection' || s.phase === 'starting') {
-          buttons.push(button('media-upload-pause', 'Pause', () => u.pause()));
-        } else if (s.phase === 'paused' || s.phase === 'allowance') {
-          buttons.push(button('media-upload-resume', 'Resume', () => u.resume(), 'media-btn-primary'));
-        } else if (s.phase === 'no_room') {
-          buttons.push(button('media-upload-retry', 'Retry', () => u.resume(), 'media-btn-primary'));
+        const p = s.phase;
+        if (p === 'starting' || p === 'sending' || p === 'finishing' || p === 'reconnecting' || p === 'server_wait' || p === 'waiting_connection' || p === 'allowance') {
+          // Pause stops it in every phase: the request on its way and every wait.
+          buttons.push(button('pause', 'Pause', () => u.pause()));
+        } else if (p === 'paused') {
+          buttons.push(button('resume', 'Resume', () => u.resume(), 'media-btn-primary'));
+        } else if (p === 'no_room' || p === 'server_error') {
+          buttons.push(button('retry', 'Retry', () => u.resume(), 'media-btn-primary'));
         }
-        if (s.phase !== 'done') buttons.push(button('media-form-cancel', s.phase === 'failed' ? 'Close' : 'Cancel', closeForm));
+        if (p === 'failed') {
+          // Close ends it on the server too: nothing is left holding part of the person's share.
+          buttons.push(button('close', 'Close', () => { u.cancel(); dropUpload(f); }));
+        } else if (p !== 'done' && p !== 'cancelling' && p !== 'cancelled') {
+          buttons.push(button('cancel', 'Cancel', () => u.cancel()));
+        }
         box.appendChild(h('div', { className: 'media-form-buttons' }, buttons));
         return;
       }
       const put = f.mode === 'put';
       const go = h('button', {
-        type: 'button', id: 'media-form-go', className: 'media-btn media-btn-primary', disabled: f.busy || !!f.checking,
+        type: 'button', id: listed ? undefined : 'media-form-go', dataset: listed ? { uploadAction: 'go' } : undefined,
+        className: 'media-btn media-btn-primary', disabled: f.busy || !!f.checking,
         text: f.checking ? 'Working out your share...' : f.busy ? 'Working...' : put || f.uploadedName ? 'Put on Media' : 'Upload and add',
       });
       go.addEventListener('click', () => {
@@ -1384,36 +1666,81 @@
         }
         if (f.ticks) f.labels = f.ticks.filter((t) => t.checked).map((t) => t.value);
         f.visibility = put ? 'public' : membersOnlyServer() ? 'members' : f.visibilityEls && f.visibilityEls.mem.checked ? 'members' : 'public';
-        submitForm();
+        submitForm(f);
       });
-      box.appendChild(h('div', { className: 'media-form-buttons' }, [go, button('media-form-cancel', 'Cancel', closeForm)]));
+      // A form in the list whose publish failed: Close leaves its upload waiting (listed below with
+      // Publish and Remove); the form not yet uploading just closes.
+      const close = listed ? button('close', 'Close', () => dropUpload(f)) : button('cancel', 'Cancel', closeForm);
+      box.appendChild(h('div', { className: 'media-form-buttons' }, [go, close]));
     }
 
-    function submitForm() {
-      const f = st.form;
+    function submitForm(f) {
       if (!f || f.busy || f.stop || f.checking || f.up) return;
       f.error = '';
       if (f.mode === 'add' && !f.uploadedName) { startUpload(f); return; }
       publish(f);
     }
 
-    /** Send the file in pieces (src/relay/resumable.rs), then publish it. */
+    /** Take a form out of the uploads list (its upload ended, or it was published or closed). */
+    function dropUpload(f) {
+      st.uploads = st.uploads.filter((u) => u !== f);
+      if (f.panel) f.panel.remove();
+      renderWaiting();
+    }
+
+    /**
+     * The file was cancelled while the server was storing it, and the store finished first: the
+     * stored file waits for a publish that will never come, so it is removed now (by its name,
+     * signed media_remove:<name>) rather than holding part of the share for a day.
+     */
+    async function removeStored(answer) {
+      const filename = storedName((answer && (answer.filename || answer.url)) || '');
+      if (!filename || !/^[^/\\]+$/.test(filename)) return;
+      const auth = await signed(purposes.remove(filename));
+      if (!auth) return;
+      try {
+        await answerOf(await env.fetch('/api/media/remove', jsonPost(Object.assign({ filename }, auth))));
+        say(MEDIA_WORDS.cancelledStored);
+      } catch (e) {
+        say(e.message, true);
+      }
+    }
+
+    /** Send the file in pieces (src/relay/resumable.rs), then publish it with its own form. */
     function startUpload(f) {
       if (!token()) {
         f.error = MEDIA_WORDS.notSignedInUpload;
         renderFormActions(f);
         return;
       }
+      // The form moves into the uploads list; the form area is free for another at once.
+      f.n = ++uploadSeq;
+      if (st.form === f) st.form = null;
+      st.uploads.push(f);
+      if (f.panel) {
+        suffixIds(f.panel, '-' + f.n);
+        f.panel.dataset.upload = String(f.n);
+        els.uploads.appendChild(f.panel);
+      }
+      renderForm();
       f.up = createUploader({
-        fetch: env.fetch, token, file: f.file, owner: myKey, storage: env.storage,
-        sleep: env.sleep, now,
-        onChange: () => { if (st.form === f) renderFormActions(f); },
+        fetch: env.fetch, token, file: f.file, owner: myKey, storage: env.storage, fp: f.fp,
+        sleep: env.sleep, now, digest: env.digest, AbortController: Abort,
+        onChange: (s) => {
+          if (s.phase === 'cancelled') {
+            // Deleted on the server now (Cancel, or Close on a failed one): the share is asked again.
+            if (st.uploads.includes(f)) dropUpload(f);
+            loadMine();
+            return;
+          }
+          if (st.uploads.includes(f)) renderFormActions(f);
+        },
         onDone: (answer) => {
-          if (st.form !== f) return;
           f.uploadedName = storedName((answer && (answer.filename || answer.url)) || '');
           loadMine();
           publish(f);
         },
+        onStored: (answer) => removeStored(answer),
       });
       renderFormActions(f);
       f.up.start();
@@ -1435,8 +1762,8 @@
           visibility: f.visibility || 'public',
         }, f.category ? { category_id: Number(f.category) } : {}, auth);
         await answerOf(await env.fetch('/api/media', jsonPost(body)));
-        if (st.form === f) st.form = null;
-        renderForm();
+        if (st.form === f) closeForm();
+        if (st.uploads.includes(f)) dropUpload(f);
         say(MEDIA_WORDS.published);
         load(true);
         loadMine();
@@ -1447,7 +1774,7 @@
         loadMine();
       }
       f.busy = false;
-      if (st.form === f) renderFormActions(f);
+      if (st.form === f || st.uploads.includes(f)) renderFormActions(f);
     }
 
     // ── Report a Media item (context `media`, evidence {kind: "media", id}; /shared/report.js) ──
@@ -1771,11 +2098,12 @@
     /** Revoke every object URL (the page is going away). */
     function dispose() {
       for (const id of Array.from(blobs.keys())) dropBlob(id);
+      tickets.clear();
     }
 
     return {
       start, state: st, load, loadFeatured, loadMine, openAddForm, openPutForm, removeItem: remove, pickItem: pick,
-      featureItem: feature, keepItem: keep, openReport, openViewer, closeViewer, dispose, blobs,
+      featureItem: feature, keepItem: keep, openReport, openViewer, closeViewer, dispose, blobs, tickets,
     };
   }
 
@@ -1847,7 +2175,7 @@
     shareStop, limitStop, budgetStop, meterWords, keptMeterWords, removeWords, removedWords, resetsWords, ownFilePath,
     fileRoute, storedName, itemFileName, itemName, downloadName, labelsOf, listParams, publicListUrl, purposes, jsonPost,
     refusalOf, refusalWords, answerOf, makeH, isAdminRole, isStaffRole, rememberUpload, findUpload, forgetUpload,
-    createUploader, createMediaPage,
+    createUploader, fingerprint, createMediaPage,
   };
   if (typeof module === 'object' && module && module.exports) module.exports = api;
   else {

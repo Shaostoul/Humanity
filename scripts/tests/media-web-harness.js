@@ -179,15 +179,34 @@ function respond(status, body, bytes) {
   };
 }
 
-/** A fetch that answers from `routes` (in order: [test(call), answer(call)]) and records. */
+/**
+ * A fetch that answers from `routes` (in order: [test(call), answer(call)]) and records. A request
+ * made with a `signal` is rejected with an AbortError the moment that signal is aborted, as a
+ * browser's is, and its call is marked `aborted`.
+ */
 function fakeFetch(routes) {
   const calls = [];
-  const fetch = async (url, init) => {
-    const call = { url: String(url), init: init || {}, body: null, headers: (init && init.headers) || {} };
+  const fetch = (url, init) => {
+    const call = { url: String(url), init: init || {}, body: null, headers: (init && init.headers) || {}, aborted: false };
     if (init && typeof init.body === "string") { try { call.body = JSON.parse(init.body); } catch (e) { call.body = init.body; } }
     calls.push(call);
-    for (const [when, answer] of routes) if (when(call)) return answer(call);
-    return respond(404, "no route in the test for " + url);
+    const answered = (async () => {
+      for (const [when, answer] of routes) if (when(call)) return answer(call);
+      return respond(404, "no route in the test for " + url);
+    })();
+    const signal = init && init.signal;
+    if (!signal) return answered;
+    return new Promise((resolve, reject) => {
+      const abort = () => {
+        call.aborted = true;
+        const err = new Error("The operation was aborted.");
+        err.name = "AbortError";
+        reject(err);
+      };
+      if (signal.aborted) { abort(); return; }
+      signal.addEventListener("abort", abort, { once: true });
+      answered.then(resolve, reject);
+    });
   };
   return { fetch, calls };
 }
@@ -351,6 +370,9 @@ async function openPage(opts) {
     mountAdmin: o.mountAdmin ? (c) => o.mountAdmin(c, ctx) : null,
     URL: urls, storage, save: (url, name) => saved.push({ url, name }),
     sleep: o.sleep || (() => Promise.resolve()), now: o.now || (() => 1760000000000),
+    // The fingerprint's SHA-256 (WebCrypto's takes a few hundred event-loop turns in Node, longer
+    // than settle() waits; this one is the same hash, at once).
+    digest: o.digest || SHA256,
     setTimeout: (fn, ms) => { timers.push({ fn, ms }); return timers.length; }, clearTimeout: () => {},
     report, language: "en-GB",
   });
@@ -363,6 +385,25 @@ async function openPage(opts) {
 // ── The admins' section ──────────────────────────────────────────────────
 
 const BLAKE = async (bytes) => new Uint8Array(require("node:crypto").createHash("sha256").update(Buffer.from(bytes)).digest());
+/** SHA-256, as WebCrypto's digest answers it (an ArrayBuffer), but at once. */
+const SHA256 = async (bytes) => {
+  const d = require("node:crypto").createHash("sha256").update(Buffer.from(bytes)).digest();
+  return d.buffer.slice(d.byteOffset, d.byteOffset + d.byteLength);
+};
+/** The fingerprint media-upload.js works out for a file whose bytes are `bytes` (its first and last MiB). */
+function fingerprintOf(bytes) {
+  const b = Buffer.from(bytes);
+  const head = b.subarray(0, Math.min(b.length, MIB));
+  const tail = b.subarray(Math.max(0, b.length - MIB));
+  return require("node:crypto").createHash("sha256").update(Buffer.concat([head, tail])).digest("hex");
+}
+/** The bytes a piece's request carries, however it was sent (a Uint8Array, an ArrayBuffer or a Blob). */
+function bodyLen(body) {
+  if (body == null) return 0;
+  if (typeof body.byteLength === "number") return body.byteLength;
+  if (typeof body.size === "number") return body.size;
+  return String(body).length;
+}
 
 function usageAnswer(over) {
   return Object.assign({
@@ -414,5 +455,6 @@ module.exports = {
   ROOT, WEB, media, upload, admin, relaySession, report, KINDS, ORIGIN, ME, ANN, MIB,
   FakeText, FakeElement, fakeDocument, byId, text, everyElement,
   respond, fakeFetch, path0, at, queryOf, fakeSigner, ROLES, fakeSession, FakeFormData, fakeURLs, fakeStorage, settle,
-  LABELS, CATEGORIES, item, listAnswer, mineAnswer, isFeatured, listRoutes, openPage, BLAKE, usageAnswer, openAdmin,
+  LABELS, CATEGORIES, item, listAnswer, mineAnswer, isFeatured, listRoutes, openPage, BLAKE, SHA256, fingerprintOf,
+  bodyLen, usageAnswer, openAdmin,
 };

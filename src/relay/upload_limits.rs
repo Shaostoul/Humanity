@@ -48,13 +48,18 @@ impl UploadBody {
         }
     }
     /// Undo [`UploadBody::put`] when the upload was refused after it: a part file that was moved
-    /// goes back where it was; a copy, or written bytes, are deleted.
+    /// goes back where it was ([`move_file`]: a rename, else a copy that is whole before it takes
+    /// the name); a copy, or written bytes, are deleted.
+    ///
+    /// A part file that cannot go back is KEPT where it is, under its hidden name, never deleted
+    /// (R3-5, 2026-10-11): for a resumable upload it is the only copy of what was sent, and its
+    /// name says whose it is (storage/upload_sessions.rs `staged_part_name`), so the next finish
+    /// or the next start puts it back with its session. A single request's is cleared at start.
     pub(crate) fn unstage(&self, path: &std::path::Path) {
         match self {
             UploadBody::Part(p) if !p.exists() => {
-                if let Err(e) = std::fs::rename(path, p) {
-                    tracing::error!("An upload refused after it was put in place could not go back ({e}); removing it");
-                    let _ = std::fs::remove_file(path);
+                if let Err(e) = move_file(path, p) {
+                    tracing::error!("An upload refused after it was put in place could not go back yet ({e}); it is kept under its hidden name");
                 }
             }
             _ => {
@@ -68,6 +73,26 @@ impl UploadBody {
             let _ = std::fs::remove_file(p);
         }
     }
+}
+
+/// Move the file at `from` to `to`, losing nothing on the way (R3-5, 2026-10-11): a rename when
+/// it can; otherwise (another disk) a copy to a name beside `to` that is renamed onto `to` only
+/// once it is whole, and only then is `from` removed. A failure part way leaves `from` as it was,
+/// and no half copy under `to`'s name.
+pub(crate) fn move_file(from: &std::path::Path, to: &std::path::Path) -> std::io::Result<()> {
+    if std::fs::rename(from, to).is_ok() {
+        return Ok(());
+    }
+    let mut beside = to.as_os_str().to_owned();
+    beside.push(".moving");
+    let beside = std::path::PathBuf::from(beside);
+    let copied = std::fs::copy(from, &beside).and_then(|_| std::fs::rename(&beside, to));
+    if let Err(e) = copied {
+        let _ = std::fs::remove_file(&beside);
+        return Err(e);
+    }
+    let _ = std::fs::remove_file(from);
+    Ok(())
 }
 
 /// A file streamed to `UPLOAD_PART_DIR`, and its length.
@@ -159,13 +184,14 @@ pub(crate) fn upload_role_check(role_def: &crate::relay::storage::RoleDef) -> Re
     }
 }
 
-/// Remove every part file left in `dir` (an upload cut off by a restart or a crash): called at
-/// start, when no upload can be in progress. Returns how many were removed.
+/// Remove every part file left in `dir` (an upload cut off by a restart or a crash), and any half
+/// copy [`move_file`] left beside one: called at start, when no upload can be in progress. Returns
+/// how many were removed.
 pub fn clear_part_files(dir: &std::path::Path) -> usize {
     let Ok(entries) = std::fs::read_dir(dir) else { return 0 };
     entries
         .filter_map(|e| e.ok())
-        .filter(|e| e.path().extension().and_then(|x| x.to_str()) == Some("part"))
+        .filter(|e| matches!(e.path().extension().and_then(|x| x.to_str()), Some("part" | "moving")))
         .filter(|e| std::fs::remove_file(e.path()).is_ok())
         .count()
 }
