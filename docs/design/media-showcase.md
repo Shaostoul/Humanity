@@ -146,3 +146,58 @@ address, the very thing the call forwarder keeps private. So peer-to-peer distri
 opt-in layer for big public files (the uploader and each downloader choose it), never the default;
 the server always serves the file itself too. The project already distributes releases by torrent
 (`docs/admin/`), which that layer can learn from.
+
+## Increment 1, exact (relay; 2026-10-11)
+
+New tables (a fresh table each, so no column is ALTER-added to an existing one; still, any index
+over a later-added column goes after the ALTER block, CLAUDE.md BUG-046):
+
+- `media_items (id INTEGER PRIMARY KEY, upload_filename TEXT NOT NULL UNIQUE, uploader_key TEXT NOT
+  NULL, title TEXT NOT NULL DEFAULT '', description TEXT NOT NULL DEFAULT '', category_id INTEGER
+  NOT NULL, kind TEXT NOT NULL, labels TEXT NOT NULL DEFAULT '', visibility TEXT NOT NULL DEFAULT
+  'public', featured INTEGER NOT NULL DEFAULT 0, size_bytes INTEGER NOT NULL, views INTEGER NOT NULL
+  DEFAULT 0, created_at INTEGER NOT NULL)`. `kind` is `picture`, `video`, `model` or `file`, from
+  the file's type; `labels` the comma-joined subset of `spoiler`, `flashing`, `graphic` (the list
+  lives in one place: data, not code); `visibility` `public` or `members`.
+- `media_categories (id INTEGER PRIMARY KEY, name TEXT NOT NULL, description TEXT NOT NULL DEFAULT
+  '', position INTEGER NOT NULL DEFAULT 0)`, seeded with "General" when empty.
+- `media_category_suggestions (id INTEGER PRIMARY KEY, suggester_key TEXT NOT NULL, name TEXT NOT
+  NULL, note TEXT NOT NULL DEFAULT '', created_at INTEGER NOT NULL, state TEXT NOT NULL DEFAULT
+  'open')`, `state` `open`, `accepted` or `declined`.
+- `media_picks (picker_key TEXT NOT NULL, item_id INTEGER NOT NULL, picked_at INTEGER NOT NULL,
+  PRIMARY KEY (picker_key, item_id))`.
+
+Server settings (the existing settings row and its update frame, both apps' Server Settings
+editors): `media_visibility` (`public` or `members`, default `public`), `media_budget_mb` (default
+2048), `media_per_person_mb` (default 512), `media_public_previews_only` (default true: the public
+gets thumbnails and previews, members the originals; increment 2 makes the previews).
+
+Upload: `POST /api/upload?media=1` stores like a shared file (exempt from the keep-N FIFO, never
+from the size limits), but does not enter the Shared Files list until it is published as Media.
+
+Routes. Every write is signed like `delete_shared_upload` (Dilithium over `purpose\ntimestamp`,
+five minutes, a fresh nonce), with the purpose named per route:
+
+- `GET /api/media?category=&kind=&by=&q=&before=&limit=` (newest first, paged by `before` id,
+  `limit` at most 100): public items to anyone when `media_visibility` is `public`; members-only
+  items, and everything on a members-only server, only to a signed request from a member
+  (`media_list`). Each item: id, url, title, description, category, kind, labels, visibility,
+  featured, size, views, uploaded time, uploader key and name, and how many picks it has.
+- `GET /api/media/categories`: the list, in position order.
+- `POST /api/media` (`media_publish`): publish one of the signer's own uploads (never an encrypted
+  one) with title, description, category, labels and visibility. Refused over the Media budget or
+  the person's share of it, with both numbers in the words.
+- `POST /api/media/remove` (`media_remove`): the uploader, or an admin; removes the item, its
+  picks, and the file.
+- `POST /api/media/pick` and `/unpick` (`media_pick`); `GET /api/media/picks/{key}`.
+- `POST /api/media/feature` (`media_feature`, admins).
+- `POST /api/media/suggest` (`media_suggest`, members): a category suggestion; `GET
+  /api/media/suggestions` and `POST /api/media/suggestions/decide` (`media_suggestions`, admins;
+  accept adds the category).
+- `POST /api/media/categories` (`media_categories`, admins): the whole list at once (add, rename,
+  remove, reorder; removing a category moves its items to General).
+- `GET /api/media/usage` (`media_usage`, admins): used of budget, each person's use, and the
+  largest, oldest and least-viewed items for pruning.
+
+Account export includes a person's Media items, picks and suggestions; erasing an account removes
+their items (and files), their picks and suggestions.
