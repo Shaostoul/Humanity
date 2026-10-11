@@ -492,6 +492,7 @@ pub async fn handle_profile_update(
                     location: None,
                     website: None,
                     accepts_files: Some(accepts_files_stored.clone()),
+                    privacy: None,
                     target: None,
                 });
 
@@ -505,6 +506,7 @@ pub async fn handle_profile_update(
                     location: if loc.is_empty() { None } else { Some(loc.clone()) },
                     website: if w_site.is_empty() { None } else { Some(w_site.clone()) },
                     accepts_files: Some(accepts_files_stored),
+                    privacy: Some(priv_map.clone()),
                     target: Some(my_key.to_string()),
                 });
 
@@ -596,6 +598,7 @@ pub async fn handle_profile_request(
                 location:   get("location"),
                 website:    get("website"),
                 accepts_files: get("accepts_files"),
+                privacy: None,
                 target: Some(my_key.to_string()),
             });
         }
@@ -611,6 +614,7 @@ pub async fn handle_profile_request(
                 location:   None,
                 website:    None,
                 accepts_files: Some(crate::relay::storage::profile::ACCEPTS_FILES_DEFAULT.to_string()),
+                privacy: None,
                 target: Some(my_key.to_string()),
             });
         }

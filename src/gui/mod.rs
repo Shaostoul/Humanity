@@ -884,8 +884,8 @@ pub struct GuiState {
     pub profile_network_avatar: String,
     /// Whether to appear in the server's public member directory (audit 2026-06-12
     /// opt-out). On = listed; off sends profile privacy `directory:"unlisted"`.
-    /// Defaults to listed; native does not fetch server privacy, so it reflects the
-    /// session's intent rather than the stored server state.
+    /// Defaults to listed; since 2026-10-11 the server's own copy sets it on connect
+    /// (pages/own_profile.rs `take_in`) unless the person changed it since.
     pub profile_directory_listed: bool,
     /// Floating machine labels in the 3D home (v0.428), populated by load_world.
     pub machine_labels: Vec<MachineLabel>,
@@ -2166,6 +2166,10 @@ pub struct GuiState {
     pub clipboard_upload: Option<(String, std::sync::mpsc::Receiver<Result<String, String>>)>,
     /// A file's attach step, people's `accepts_files`, kept files (pages/chat/attach_step.rs).
     pub files_flow: crate::gui::pages::chat::FilesFlow,
+    /// This person's own profile as the server they are on holds it, and that server's address:
+    /// from the own copy the server sends on connect and after each save (pages/own_profile.rs).
+    /// Every save sends the whole profile from it, so nothing set elsewhere is wiped (BUG-194).
+    pub own_server_profile: Option<(String, crate::gui::pages::files_settings::ServerProfile)>,
     /// PIN entry buffer (active digit-only field on the PinSetup /
     /// PinUnlock / PinChange modal forms).
     pub pin_input: String,
@@ -3953,6 +3957,7 @@ impl Default for GuiState {
             #[cfg(feature = "native")]
             clipboard_upload: None,
             files_flow: Default::default(),
+            own_server_profile: None,
             pin_input: String::new(),
             pin_confirm: String::new(),
             pin_old_input: String::new(),

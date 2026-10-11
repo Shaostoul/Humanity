@@ -191,3 +191,34 @@ fn the_member_and_profile_lookups_carry_it() {
     assert_eq!(far["bio"], "from a peer server");
     assert!(far.get("accepts_files").is_none(), "a gossiped profile is answered without it: {far}");
 }
+
+/// The person's privacy map rides THEIR OWN copy (the echo of their save, `target` = their key),
+/// so their other apps can send the whole profile back (a profile update is saved whole,
+/// BUG-194); the public copy and an answer to anyone else, themselves included, never carry it.
+///
+/// Seen red 2026-10-11 with the own copy's `privacy` put back to `None` in
+/// `handle_profile_update`: "the own copy carries the privacy map: [(None, None), (Some(\"ann_key\"),
+/// None)]".
+#[test]
+fn only_the_persons_own_copy_carries_their_privacy_map() {
+    let st = fresh_state();
+    sign_in(&st, "ann_key", "Ann");
+    sign_in(&st, "bob_key", "Bob");
+    let privacy = r#"{"directory":"unlisted","location":"friends"}"#;
+    let sent = send(&st, "ann_key", serde_json::json!({ "type": "profile_update", "bio": "hi", "socials": "{}", "location": "Lisbon", "privacy": privacy }));
+    let wires: Vec<(Option<String>, Option<String>)> = sent
+        .iter()
+        .filter(|m| matches!(m, RelayMessage::ProfileData { .. }))
+        .map(|m| {
+            let w = serde_json::to_value(m).unwrap();
+            (w["target"].as_str().map(str::to_string), w["privacy"].as_str().map(str::to_string))
+        })
+        .collect();
+    assert_eq!(wires, vec![(None, None), (some("ann_key"), some(privacy))], "the own copy carries the privacy map: {wires:?}");
+
+    for asker in ["bob_key", "ann_key"] {
+        let answer = send(&st, asker, serde_json::json!({ "type": "profile_request", "name": "Ann" }));
+        let w = serde_json::to_value(&answer[0]).unwrap();
+        assert!(w.get("privacy").is_none(), "an answer to {asker} never carries it: {w}");
+    }
+}

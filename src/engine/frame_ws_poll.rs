@@ -57,6 +57,9 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
     let mut ws_dropped = false;
     if let Some(ref mut ws) = state.gui_state.ws_client {
         let messages = ws.poll_messages();
+        // The name this socket signed in with: a profile_data about this person carries it
+        // (gui/pages/own_profile.rs, BUG-193).
+        let socket_name = ws.user_name().to_string();
         // is_dropped, NOT !is_connected: a fresh spawn is
         // CONNECTING (neither), and tearing it down here used
         // to be impossible only because is_connected lied
@@ -716,17 +719,25 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                         }
                     }
                     Some("profile_data") => {
-                        // Our own profile data from the server
-                        if let Some(name) = val.get("name").and_then(|v| v.as_str()) {
-                            state.gui_state.profile_name = name.to_string();
+                        // The server sends everyone's profile this way: our own and anyone
+                        // else's, and `target` cannot tell them apart. Only one naming this
+                        // socket's person fills in their profile (BUG-193: every profile anyone
+                        // saved used to), and only their own complete copy becomes the server's
+                        // copy every save is built from (BUG-194, gui/pages/own_profile.rs).
+                        use crate::gui::pages::own_profile;
+                        if own_profile::names_socket(&val, &socket_name) {
+                            if let Some(name) = val.get("name").and_then(|v| v.as_str()) {
+                                state.gui_state.profile_name = name.to_string();
+                            }
+                            if let Some(bio) = val.get("bio").and_then(|v| v.as_str()) {
+                                state.gui_state.profile_bio = bio.to_string();
+                            }
+                            if let Some(copy) = own_profile::own_copy(&val, &socket_name) {
+                                let server = state.gui_state.server_url.clone();
+                                own_profile::take_in(&mut state.gui_state, &server, copy);
+                                log::info!("Received own profile from server");
+                            }
                         }
-                        if let Some(bio) = val.get("bio").and_then(|v| v.as_str()) {
-                            state.gui_state.profile_bio = bio.to_string();
-                        }
-                        if let Some(avatar) = val.get("avatar_url").and_then(|v| v.as_str()) {
-                            state.gui_state.profile_network_avatar = avatar.to_string();
-                        }
-                        log::info!("Received profile data from server");
                     }
                     Some("sync_data") | Some("sync_ack") | Some("vault_sync") => {
                         // Vault sync messages - handle silently, don't display in chat

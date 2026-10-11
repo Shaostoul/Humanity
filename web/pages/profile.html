@@ -1240,6 +1240,9 @@
 
       // Persist the full page state too, so nothing typed is lost on reload.
       saveAll();
+      // Marked unsent BEFORE the profile is written, so the Chat tab the write wakes (storage
+      // event) sends it; Chat sends only a change made in this browser (BUG-195).
+      localStorage.setItem('humanity_profile_unsent', '1');
       localStorage.setItem('humanity_profile', JSON.stringify(profile));
 
       var status = document.getElementById('sync-status');
@@ -1315,6 +1318,13 @@
         });
       }
     }
+
+    // Chat updates this page's stores when my own profile changes on another device (BUG-195,
+    // chat-profile.js followOnProfilePage): show it here at once, as it would show on a reload.
+    window.addEventListener('storage', function(e) {
+      if (e.key === STORE_KEY) { loadProfile(); updateBioCount(); }
+      if (e.key === PRIVACY_KEY) loadPrivacy();
+    });
 
     // ── Init ──
     loadProfile();

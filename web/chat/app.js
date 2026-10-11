@@ -1460,26 +1460,12 @@ async function handleMessage(msg) {
           showViewProfileCard(pendingProfileView.name, pendingProfileView.publicKey, c);
           pendingProfileView = null;
         }
-        // If this is our own full profile echoed back on connect, sync to local storage
-        // only when local storage has no data yet (avoids overwriting unsaved edits).
+        // My own profile. My own complete copy (on connect, and the echo of a save from any of
+        // my devices) is taken into the stored profile while no change of mine waits here
+        // (chat-profile.js adoptOwnProfile, BUG-195; it used to fill only an empty store, and
+        // every connect pushed the store back over a newer change made elsewhere).
         if (msg.name.toLowerCase() === myName.toLowerCase()) {
-          try {
-            const local = loadProfileLocal();
-            const localIsEmpty = !local.bio && !local.avatar_url && !local.pronouns &&
-                                 Object.keys(local.socials || {}).length === 0;
-            if (localIsEmpty) {
-              saveProfileLocal({
-                bio:        msg.bio        || '',
-                socials:    JSON.parse(msg.socials || '{}'),
-                avatar_url: msg.avatar_url || '',
-                banner_url: msg.banner_url || '',
-                pronouns:   msg.pronouns   || '',
-                location:   msg.location   || '',
-                website:    msg.website    || '',
-                privacy:    JSON.parse(msg.privacy || '{}'),
-              });
-            }
-          } catch {}
+          if (typeof adoptOwnProfile === 'function') adoptOwnProfile(msg);
           // "Accept files from" (Files in messages): sent if a choice here is waiting, taken if
           // another device chose (chat-profile.js).
           if (typeof ownProfileArrived === 'function') ownProfileArrived(msg);

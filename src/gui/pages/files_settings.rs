@@ -46,6 +46,9 @@ pub(crate) struct ServerProfile {
     pub socials: String,
     /// The word the server holds for them.
     pub accepts_files: Option<String>,
+    /// Their privacy map (JSON text), from the own copy the server sends over the chat socket
+    /// (pages/own_profile.rs); empty when it came from the HTTP lookups, which do not carry it.
+    pub privacy: String,
 }
 
 /// Keeping this person's own choice in step with their server (`FilesFlow::own`).
@@ -85,22 +88,21 @@ pub(crate) fn server_profile_from(member: &serde_json::Value, profile: Option<&s
 }
 
 /// The profile update that publishes `accepts_files`: the whole profile (a profile update saves
-/// every field), this device's bio and picture where it has them, the server's copy for the rest.
+/// every field, pages/own_profile.rs), this device's bio and picture where it has them, the
+/// server's copy for the rest: the own copy from the chat socket when it has come (it carries the
+/// privacy map too), else `server`, the HTTP lookups' copy.
 pub(crate) fn profile_update_with_accepts(state: &GuiState, server: &ServerProfile) -> serde_json::Value {
+    let socket_copy = crate::gui::pages::own_profile::server_copy(state);
+    let server = if state.own_server_profile.as_ref().is_some_and(|(s, _)| s == &state.server_url) { &socket_copy } else { server };
     let mine_or = |mine: &str, theirs: &str| if mine.trim().is_empty() { theirs.to_string() } else { mine.trim().to_string() };
-    let privacy = if state.profile_directory_listed { "{}" } else { "{\"directory\":\"unlisted\"}" };
-    serde_json::json!({
-        "type": "profile_update",
-        "bio": mine_or(&state.profile_network_bio, &server.bio),
-        "socials": server.socials,
-        "avatar_url": mine_or(&state.profile_network_avatar, &server.avatar_url),
-        "banner_url": server.banner_url,
-        "pronouns": server.pronouns,
-        "location": server.location,
-        "website": server.website,
-        "privacy": privacy,
-        "accepts_files": state.settings.files_in_messages.accept_from.word(),
-    })
+    let mut f = crate::gui::pages::own_profile::whole_update(
+        server,
+        &mine_or(&state.profile_network_bio, &server.bio),
+        &mine_or(&state.profile_network_avatar, &server.avatar_url),
+        state.profile_directory_listed,
+    );
+    f["accepts_files"] = state.settings.files_in_messages.accept_from.word().into();
+    f
 }
 
 /// Ask the server for this person's own profile, on a worker thread.

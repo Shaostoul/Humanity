@@ -245,9 +245,10 @@ fn draw_network_profile(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
 
         // Save to server. Sends a `profile_update` over the chat WS (same shape the web
         // client sends + the relay's RelayMessage::ProfileUpdate). Gated on being
-        // connected. Native only edits bio/avatar + the directory flag, so it sends an
-        // empty socials map and a directory-only privacy map; per-field privacy parity
-        // with web is a future enhancement (this would overwrite web-set privacy fields).
+        // connected. This page edits the bio, picture and directory choice; the server
+        // saves a profile update whole, so the rest (links, banner, pronouns, location,
+        // website, the website's per-field privacy) goes as the server holds it
+        // (own_profile.rs, BUG-194: it used to be sent empty).
         ui.add_space(theme.spacing_md);
         ui.horizontal(|ui| {
             let can_save = state.server_connected && state.ws_client.is_some();
@@ -266,22 +267,7 @@ fn draw_network_profile(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
             };
             if saved {
                 if let Some(ref client) = state.ws_client {
-                    let privacy = if state.profile_directory_listed {
-                        "{}".to_string()
-                    } else {
-                        "{\"directory\":\"unlisted\"}".to_string()
-                    };
-                    let mut msg = serde_json::json!({
-                        "type": "profile_update",
-                        "bio": state.profile_network_bio.trim(),
-                        "socials": "{}",
-                        "privacy": privacy,
-                    });
-                    let avatar = state.profile_network_avatar.trim();
-                    if !avatar.is_empty() {
-                        msg["avatar_url"] = serde_json::Value::String(avatar.to_string());
-                    }
-                    client.send(&msg.to_string());
+                    client.send(&crate::gui::pages::own_profile::save_frame(state).to_string());
                     state.profile_network_saved_note = "Saved to server.".to_string();
                 }
             }

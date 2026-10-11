@@ -106,25 +106,11 @@ pub fn apply_tier(state: &mut GuiState, tier_id: &str) {
                 &serde_json::json!({ "type": "privacy_update", "hide_presence": tier.hide_presence })
                     .to_string(),
             );
-            // 2) Directory listing rides the profile privacy JSON (the
-            // same shape the Profile page's Save sends).
-            let privacy = if tier.directory_unlisted {
-                "{\"directory\":\"unlisted\"}".to_string()
-            } else {
-                "{}".to_string()
-            };
-            let mut msg = serde_json::json!({
-                "type": "profile_update",
-                "bio": state.profile_network_bio.trim(),
-                "socials": "{}",
-                "privacy": privacy,
-            });
-            let avatar = state.profile_network_avatar.trim();
-            if !avatar.is_empty() {
-                msg["avatar_url"] = serde_json::Value::String(avatar.to_string());
-            }
+            // 2) Directory listing rides the profile privacy JSON, sent as the
+            // whole profile the Profile page's Save sends (own_profile.rs, BUG-194).
             if profile_ok {
-                client.send(&msg.to_string());
+                let frame = crate::gui::pages::own_profile::save_frame_listed(state, !tier.directory_unlisted);
+                client.send(&frame.to_string());
             }
         }
     }
@@ -285,22 +271,14 @@ pub(crate) fn draw_privacy_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
         )
         .changed()
     {
-        // Step F's recovery-phrase guard on the bio this re-sends: holding the phrase, nothing is sent.
-        let bio = state.profile_network_bio.clone();
-        let profile_ok = !crate::engine::warnings::guard_stops(state, &[&bio]);
+        // Step F's recovery-phrase guard on the bio and picture this re-sends: holding the
+        // phrase, nothing is sent. The whole profile goes (own_profile.rs, BUG-194: this sent the
+        // bio alone, and so wiped the picture and everything else).
+        let fields = [state.profile_network_bio.clone(), state.profile_network_avatar.clone()];
+        let profile_ok = !crate::engine::warnings::guard_stops(state, &[&fields[0], &fields[1]]);
         if let (Some(client), true) = (state.ws_client.as_ref(), profile_ok) {
             if client.is_connected() {
-                let privacy = if state.profile_directory_listed {
-                    "{}".to_string()
-                } else {
-                    "{\"directory\":\"unlisted\"}".to_string()
-                };
-                client.send(&serde_json::json!({
-                    "type": "profile_update",
-                    "bio": state.profile_network_bio.trim(),
-                    "socials": "{}",
-                    "privacy": privacy,
-                }).to_string());
+                client.send(&crate::gui::pages::own_profile::save_frame(state).to_string());
             }
         }
     }

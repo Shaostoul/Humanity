@@ -22,8 +22,11 @@
 //
 // The /profile page writes the SAME localStorage object this file reads
 // (`humanity_profile`), and this file owns the only push path to the relay
-// (WS `profile_update`): on connect, and immediately via the cross-tab `storage`
-// event when the page saves while chat is open.
+// (WS `profile_update`): immediately via the cross-tab `storage` event when the
+// page saves while chat is open, else on the next connect. Only a change made in
+// this browser goes (BUG-195, 2026-10-11): the page marks its save unsent, and
+// with nothing waiting my own copy from the server is taken in instead
+// (adoptOwnProfile), so a change made on another device is never pushed back over.
 //
 // Depends on (from app.js): ws, myKey, myName, esc, generateIdenticon,
 //   roleBadge, peerData, isFriend, isFollowing, myFollowing, myFollowers,
@@ -139,6 +142,98 @@ function setFilesAcceptUnsent(on) {
   } catch (e) { /* this browser keeps nothing: it goes with this page's next push or not at all */ }
 }
 
+// ── A profile change made in this browser (2026-10-11, BUG-195) ──
+// The /profile page sets PROFILE_UNSENT_KEY when it saves the network profile, before it writes
+// `humanity_profile`, and it stays set until that profile has gone to the server. Before this,
+// every connect pushed the stored profile, so a change made on another device (or the desktop
+// app) was undone the next time this browser connected. With nothing waiting here, my own copy
+// from the server (the server puts my privacy map on my own copies only, which is how they are
+// told from the public copy of my save) replaces the network fields of the stored profile.
+const PROFILE_UNSENT_KEY = 'humanity_profile_unsent';
+
+function profileUnsent() {
+  try { return window.localStorage.getItem(PROFILE_UNSENT_KEY) === '1'; } catch (e) { return false; }
+}
+
+function setProfileUnsent(on) {
+  try {
+    if (on) window.localStorage.setItem(PROFILE_UNSENT_KEY, '1');
+    else window.localStorage.removeItem(PROFILE_UNSENT_KEY);
+  } catch (e) { /* this browser keeps nothing */ }
+}
+
+/** My own complete copy from the server (app.js profile_data): taken in while nothing waits here. */
+function adoptOwnProfile(msg) {
+  if (!msg || typeof msg.privacy !== 'string') return; // not my own complete copy
+  if (profileUnsent()) return; // a change of mine waits: it goes, and its echo comes back
+  const parse = (text) => {
+    try { const v = JSON.parse(text || '{}'); return v && typeof v === 'object' ? v : {}; } catch (e) { return {}; }
+  };
+  const before = loadProfileLocal();
+  const after = Object.assign({}, before, {
+    bio:        msg.bio        || '',
+    socials:    parse(msg.socials),
+    avatar_url: msg.avatar_url || '',
+    banner_url: msg.banner_url || '',
+    pronouns:   msg.pronouns   || '',
+    location:   msg.location   || '',
+    website:    msg.website    || '',
+    privacy:    parse(msg.privacy),
+  });
+  followOnProfilePage(before, after);
+  saveProfileLocal(after);
+}
+
+// The /profile page keeps its own drafts (every field as typed, saved as you type) and its own
+// per-field privacy locks. A page field follows the server's copy where it still holds what the
+// stored profile held, which is what last went to the server or came from it; a field typed there
+// and not saved yet stays. The desktop's rule (src/gui/pages/own_profile.rs, take_in).
+const PROFILE_PAGE_KEY = 'humanity_profile_full_v1';
+const PROFILE_PAGE_PRIVACY_KEY = 'humanity_profile_privacy';
+const PROFILE_PAGE_FIELDS = [['bio', 'bio'], ['pronouns', 'pronouns'], ['location', 'location'],
+  ['website', 'website'], ['avatar-url', 'avatar_url'], ['banner-url', 'banner_url']];
+// The page's link fields and the key each is stored under; x and GitHub are stored as bare handles.
+const PROFILE_PAGE_LINKS = [['portfolio', 'website', false], ['discord', 'discord', false],
+  ['twitter', 'twitter', true], ['youtube', 'youtube', false], ['github', 'github', true]];
+const PROFILE_PAGE_LOCKS = ['pronouns', 'location', 'website'];
+
+/** A handle from a link or a handle (the /profile page's bareHandle). */
+function profileBareHandle(v) {
+  if (!v) return '';
+  return String(v).trim().replace(/^https?:\/\//i, '').replace(/^(www\.)?[^\/]+\//, '').replace(/^@/, '').replace(/\/+$/, '');
+}
+
+function followOnProfilePage(before, after) {
+  const read = (key) => {
+    try { const v = JSON.parse(window.localStorage.getItem(key) || 'null'); return v && typeof v === 'object' ? v : null; } catch (e) { return null; }
+  };
+  const same = (a, b) => String(a == null ? '' : a).trim() === String(b == null ? '' : b).trim();
+  const page = read(PROFILE_PAGE_KEY);
+  if (page) {
+    for (const [id, key] of PROFILE_PAGE_FIELDS) {
+      if (same(page[id], before[key])) page[id] = after[key] || '';
+    }
+    const was = before.socials || {};
+    const now = after.socials || {};
+    for (const [id, key, bare] of PROFILE_PAGE_LINKS) {
+      const typed = bare ? profileBareHandle(page[id]) : page[id];
+      if (same(typed, was[key])) page[id] = now[key] || '';
+    }
+    const listed = (p) => !(p && p.directory === 'unlisted');
+    const pageListed = page['directory-listed'] === undefined ? true : !!page['directory-listed'];
+    if (pageListed === listed(before.privacy)) page['directory-listed'] = listed(after.privacy);
+    try { window.localStorage.setItem(PROFILE_PAGE_KEY, JSON.stringify(page)); } catch (e) { /* keeps nothing */ }
+  }
+  const locks = read(PROFILE_PAGE_PRIVACY_KEY);
+  if (locks) {
+    const locked = (p, f) => !!(p && p[f] === 'private');
+    for (const f of PROFILE_PAGE_LOCKS) {
+      if ((locks[f] === 'private') === locked(before.privacy, f)) locks[f] = locked(after.privacy, f) ? 'private' : 'public';
+    }
+    try { window.localStorage.setItem(PROFILE_PAGE_PRIVACY_KEY, JSON.stringify(locks)); } catch (e) { /* keeps nothing */ }
+  }
+}
+
 /** "Accept files from" was changed here (chat-privacy.js): send it with the profile. */
 function filesAcceptChanged() {
   setFilesAcceptUnsent(true);
@@ -200,9 +295,11 @@ let profilePushTimer = null;
 async function pushProfileToRelay() {
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
   const local = loadProfileLocal();
-  // With nothing in the local profile, only a waiting "Accept files from" goes, and only once the
-  // server's copy of my profile has been heard (the whole profile is saved: see above).
-  if (!hasProfileData(local) && !(filesAcceptUnsent() && ownProfileHeard)) return;
+  // Only a change made here goes (BUG-195). A waiting "Accept files from" goes with the whole
+  // profile, and only once the server's copy of my profile has been heard and taken in (the whole
+  // profile is saved: see above), so it never carries a stale copy over a newer one.
+  const changedHere = profileUnsent();
+  if (!changedHere && !(filesAcceptUnsent() && ownProfileHeard)) return;
   // Never my recovery phrase in a profile field (step F, chat-warnings.js).
   // Checked before the throttle below, which then runs without a pause, so
   // two pushes at once still send once. Said here, in the chat, because the
@@ -220,15 +317,17 @@ async function pushProfileToRelay() {
   lastProfileUpdateSent = Date.now();
   const update = buildProfileUpdate(local);
   ws.send(JSON.stringify(update));
+  // Sent: nothing of mine waits, unless the page saved again while this was on its way (that save
+  // has its own push coming, held back by the 30-second limit above).
+  if (changedHere && JSON.stringify(loadProfileLocal()) === JSON.stringify(local)) setProfileUnsent(false);
   // Sent: the server now holds this device's choice (it refuses a whole update only for a word
   // that is not one of the three, which this never sends).
   if (update.accepts_files !== undefined) setFilesAcceptUnsent(false);
 }
 
 /**
- * Push locally cached profile data to the server on connect so the server has the
- * latest version after a page reload, a new device login, or edits made on
- * /profile while chat was closed. Called from app.js once the socket is open.
+ * On connect, push a profile change made here while chat was closed (the page's save waits as
+ * unsent until it goes). Called from app.js once the socket is open.
  */
 function syncProfileOnConnect() {
   pushProfileToRelay();

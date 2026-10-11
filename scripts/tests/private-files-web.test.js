@@ -1946,6 +1946,61 @@ test("files: Accept files from Nobody asks even for a friend's; Show pictures fr
   assert.equal(gets(page, benPic.meta.url), 0, "nothing fetched before it");
 });
 
+// ── The profile: only a change made in this browser goes (BUG-195, 2026-10-11) ──
+// Every connect used to push the stored profile, so a change made on another device (or the desktop
+// app) was undone the next time this browser connected; and the stored profile took the server's
+// copy only when it was empty.
+
+test("profile: a connect sends nothing unless it changed here; my own copy from the server is taken in, the public copy of my save is not", async () => {
+  const fx = await fixture();
+  const page = await loadChat(fx.ann);
+  const ls = page.ctx.localStorage;
+  const updates = () => page.sock.sent.filter((m) => m.type === "profile_update");
+  const stored = () => JSON.parse(ls.getItem("humanity_profile") || "{}");
+  ls.setItem("humanity_profile", JSON.stringify({ bio: "Old bio", socials: { twitter: "old" }, location: "Lisbon", privacy: {} }));
+  // The /profile page's drafts: the bio and the x link as last saved, the location being typed.
+  ls.setItem("humanity_profile_full_v1", JSON.stringify({ bio: "Old bio", location: "Lisboa (typing)", twitter: "https://x.com/old", "directory-listed": true, "first-name": "Ann" }));
+  ls.setItem("humanity_profile_privacy", JSON.stringify({ location: "public" }));
+  const page_ = () => JSON.parse(ls.getItem("humanity_profile_full_v1"));
+  page.sock.sent.length = 0;
+  await page.fn("syncProfileOnConnect")();
+  await settle();
+  assert.equal(updates().length, 0, "a connect does not push a profile that did not change here");
+
+  // My own copy, changed on another device: taken in, keeping the stored profile's other keys.
+  ls.setItem("humanity_profile", JSON.stringify(Object.assign(stored(), { draft_note: "mine" })));
+  await page.handle({ type: "profile_data", name: "Ann", bio: "New bio from my phone", socials: '{"discord":"ann","twitter":"annie"}', location: "Porto", privacy: '{"directory":"unlisted","location":"private"}', accepts_files: "friends" });
+  assert.deepEqual(
+    [stored().bio, stored().location, stored().socials, stored().privacy, stored().draft_note],
+    ["New bio from my phone", "Porto", { discord: "ann", twitter: "annie" }, { directory: "unlisted", location: "private" }, "mine"],
+    "my own copy is taken in",
+  );
+  // The /profile page follows it where its fields still hold what was last synced.
+  assert.deepEqual(
+    [page_().bio, page_().location, page_().twitter, page_().discord, page_()["directory-listed"], page_()["first-name"]],
+    ["New bio from my phone", "Lisboa (typing)", "annie", "ann", false, "Ann"],
+    "the page follows, keeping what is being typed there and its private fields",
+  );
+  assert.equal(JSON.parse(ls.getItem("humanity_profile_privacy")).location, "private", "and its privacy lock");
+  // The public copy of my save names me too but carries no privacy map (and leaves fields out).
+  await page.handle({ type: "profile_data", name: "Ann", bio: "New bio from my phone", socials: "{}", accepts_files: "friends" });
+  assert.equal(stored().location, "Porto", "the public copy of my save changes nothing here");
+  assert.equal(updates().length, 0, "and nothing went back");
+
+  // A change saved on the /profile page: marked unsent, it goes, and is no longer waiting.
+  ls.setItem("humanity_profile_unsent", "1");
+  ls.setItem("humanity_profile", JSON.stringify(Object.assign(stored(), { bio: "Typed here" })));
+  await page.fn("pushProfileToRelay")();
+  assert.deepEqual(updates().map((u) => [u.bio, u.location]), [["Typed here", "Porto"]], "a change made here goes, whole");
+  assert.equal(ls.getItem("humanity_profile_unsent"), null, "and no longer waits");
+
+  // A copy from the server while a change of mine waits is not taken in (mine goes first).
+  ls.setItem("humanity_profile_unsent", "1");
+  ls.setItem("humanity_profile", JSON.stringify(Object.assign(stored(), { bio: "Typed again" })));
+  await page.handle({ type: "profile_data", name: "Ann", bio: "Typed here", socials: "{}", location: "Porto", privacy: "{}" });
+  assert.equal(stored().bio, "Typed again", "a waiting change of mine is not overwritten");
+});
+
 /** Open Safety and find the Files in messages section's controls (the newest drawn). */
 function filesSection(page) {
   page.fn("openSafetyPanel")();
@@ -1974,15 +2029,16 @@ test("files: Safety shows the three settings; a change is kept, published as acc
   // the local profile, nothing goes until the server's copy of mine has been heard.
   const updates = () => page.sock.sent.filter((m) => m.type === "profile_update");
   assert.equal(updates().length, 0, "an empty local profile sends nothing before the server's copy is heard");
-  // The server's copy of my profile, as it sends it on connect (written on another device).
-  await page.handle({ type: "profile_data", name: "Ann", bio: "I grow tomatoes", socials: "{}", pronouns: "she/her", accepts_files: "friends" });
+  // The server's copy of my profile, as it sends it on connect (written on another device): my own
+  // copy carries my privacy map.
+  await page.handle({ type: "profile_data", name: "Ann", bio: "I grow tomatoes", socials: "{}", pronouns: "she/her", accepts_files: "friends", privacy: "{}" });
   const update = updates().pop();
   assert.ok(update, "then the profile goes to the server");
   assert.equal(update.accepts_files, "nobody", "with accepts_files");
   assert.deepEqual([update.bio, update.pronouns], ["I grow tomatoes", "she/her"], "and the whole profile (the server's copy, filled in here first)");
   assert.equal(page.fn("buildProfileUpdate")(page.fn("loadProfileLocal")()).accepts_files, undefined, "once sent, an update leaves it out (the server keeps its word)");
   // Another device chose Anyone: my own profile comes back with it, and this device takes it.
-  await page.handle({ type: "profile_data", name: "Ann", bio: "I grow tomatoes", socials: "{}", accepts_files: "anyone" });
+  await page.handle({ type: "profile_data", name: "Ann", bio: "I grow tomatoes", socials: "{}", accepts_files: "anyone", privacy: "{}" });
   assert.equal(FIM.readSettings(page.ctx.localStorage).accept, "anyone", "a choice made on another device is taken here");
 
   s = filesSection(page);
@@ -2129,6 +2185,15 @@ test("files: a private file opened is kept here, encrypted, and opens after a re
 //     kept on this device".
 //  P14 chat-profile.js, ownProfileArrived not taking another device's choice: "files: Safety shows
 //     ... a choice made on another device is taken here".
+//  P15 chat-profile.js, pushProfileToRelay without the unsent check (the push on every connect, as
+//     before BUG-195): "profile: a connect sends nothing ... a connect does not push a profile that
+//     did not change here".
+//  P16 chat-profile.js, adoptOwnProfile not asking for the privacy map: "profile: ... the public
+//     copy of my save changes nothing here".
+//  P17 chat-profile.js, adoptOwnProfile not checking for a waiting change: "profile: ... a waiting
+//     change of mine is not overwritten".
+//  P18 chat-profile.js, followOnProfilePage replacing every page field (no untouched check): "the
+//     page follows, keeping what is being typed there and its private fields".
 // And the tests above this section that this increment changed: "a marker in a group message",
 // "a non-friend's DM picture waits for the click" and "a picture from a mutual follow" failed on
 // "Image (click to load)" once a non-friend's file waited for Accept, so they now keep "Accept

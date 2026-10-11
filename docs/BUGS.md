@@ -5595,3 +5595,53 @@ So it cannot happen again by drift: public.guide now runs `scripts/relay-follow-
 database backup, a checksum check, a health check and a full roll-back; documented for any
 self-hosted node in docs/admin/SELF-HOSTING.md, "Staying current by itself". Its update path is
 first exercised by the next release.
+
+## BUG-193: the desktop app took everyone's profile as the person's own (FIXED v0.1486.0, found 2026-10-11)
+
+Found by the desktop agent building Files in messages. The server sends every profile as
+`profile_data`: the person's own copy, and anyone else's (to everyone when someone saves theirs,
+and as the answer to a profile request, which is addressed to the asker). The desktop applied every
+one to the person's own profile (`src/engine/frame_ws_poll.rs`), so whenever anyone on the server
+saved their profile, the desktop showed that person's name, bio and picture as its own; and a Save
+on the Profile page then sent the other person's picture as the person's own. `target` cannot tell
+them apart (an answer about someone else is addressed to you too). Fixed: only a profile naming the
+person this socket signed in as is theirs (`src/gui/pages/own_profile.rs` `names_socket`). The
+website already compared the name.
+
+## BUG-194: saving the profile on the desktop wiped the fields it does not edit (FIXED v0.1486.0, found 2026-10-11)
+
+The relay saves a profile update WHOLE: a field left out is saved empty. The desktop's Profile page
+Save sent only the bio, the picture, empty links and a directory-only privacy map; the privacy tier
+choice sent the same; the directory checkbox in Privacy sent the bio alone. So any of them wiped the
+banner, pronouns, location, website and links set on the website, its per-field privacy choices,
+and (the checkbox) the picture. And the bio box was never filled from the server (the own copy went
+into a different field), so a Save from a fresh start wiped the bio too.
+
+Fixed: the relay now puts the person's privacy map on THEIR OWN copies (the one sent on connect and
+the echo of each save; never the public copy or an answer to anyone else, `RelayMessage::ProfileData`
+`privacy`), which is also how an app tells its own complete copy from the public copy of its save.
+The desktop keeps that copy per server and every save sends the whole profile from it
+(`own_profile.rs` `whole_update`, used by the Profile page, both privacy senders and Files in
+messages): this device's bio and picture, the server's copy for the rest, and the server's privacy
+map with only the directory choice changed. A copy coming in fills the Profile page's bio, picture
+and directory choice where the person has not changed them since (`take_in`), so an unsaved edit
+stays. A server older than v0.1486.0 sends no privacy map, and there the desktop saves as before.
+
+## BUG-195: the website pushed its stored profile on every connect, undoing changes made elsewhere (FIXED v0.1486.0, found 2026-10-11)
+
+Found checking the website's side of BUG-194. Chat pushed the profile stored in the browser on every
+connect, and took the server's copy only when its store was empty, so a change made on the desktop
+or another browser was undone the next time this browser connected.
+
+Fixed in Chat: only a change made in this browser goes (the /profile page marks its save unsent,
+`humanity_profile_unsent`, cleared once it has gone), and with nothing waiting, the person's own
+complete copy from the server replaces the network fields of the stored profile (`adoptOwnProfile`
+in `web/chat/chat-profile.js`; the public copy of their save, which carries no privacy map, is not
+taken). A waiting "Accept files from" goes only after the server's copy has been taken in.
+
+The /profile page keeps its own drafts (`humanity_profile_full_v1`, saved as you type) and privacy
+locks (`humanity_profile_privacy`), and filled a field from the stored profile only when it was
+blank, so it would have shown, and on save sent back, the older text. Now a page field follows the
+server's copy where it still holds what the stored profile held, which is what last went to the
+server or came from it (`followOnProfilePage`, the desktop's `take_in` rule), so a field being
+typed there stays; an open /profile tab shows the change at once (its `storage` listener).

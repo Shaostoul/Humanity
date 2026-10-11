@@ -1249,6 +1249,13 @@ pub enum RelayMessage {
         /// public: every ProfileData this relay sends carries it.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         accepts_files: Option<String>,
+        /// The person's own privacy map (JSON text), on THEIR OWN copies only: the one sent on
+        /// connect and the echo of their save, never the public copy or an answer to anyone
+        /// else. A profile update is saved whole, so their apps need it to send the whole
+        /// profile back without wiping a choice made on another device (BUG-194, 2026-10-11).
+        /// Its presence is also how an app tells its own complete copy from the public one.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        privacy: Option<String>,
         /// When Some(key): deliver only to that client. When None: broadcast to all.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         target: Option<String>,
@@ -3186,7 +3193,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
 
                 // Send the user's own full profile on connect so the client can pre-fill the edit modal.
                 if let Some(ref name) = final_name {
-                    if let Ok(Some((bio, socials, avatar_url, banner_url, pronouns, location, website, _privacy))) =
+                    if let Ok(Some((bio, socials, avatar_url, banner_url, pronouns, location, website, privacy))) =
                         state.db.get_profile_extended(name)
                     {
                         let opt = |s: String| if s.is_empty() { None } else { Some(s) };
@@ -3200,6 +3207,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                             location:   opt(location),
                             website:    opt(website),
                             accepts_files: Some(state.db.accepts_files_of(name)),
+                            privacy: Some(if privacy.is_empty() { "{}".to_string() } else { privacy }),
                             target: None, // Direct send to this socket — no routing needed
                         }).unwrap();
                         let _ = ws_tx.send(Message::Text(profile_msg.into())).await;

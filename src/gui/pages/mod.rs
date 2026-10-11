@@ -20,6 +20,9 @@ pub mod tasks;
 pub mod privacy;
 /// Settings > Privacy, Files in messages, and Settings > Data, Kept files (2026-10-11).
 pub mod files_settings;
+/// This person's own profile on their server: which copy is theirs, and the whole profile every
+/// save sends (2026-10-11, BUG-193 and BUG-194).
+pub mod own_profile;
 /// The Files page's upload to Shared Files, cleaned on this device first (2026-10-11).
 pub mod files_upload_step;
 /// Settings > Safety: who can reach me, People I choose, contact requests (step B, 2026-10-09).
