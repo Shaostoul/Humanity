@@ -446,9 +446,10 @@ pub async fn upload_file(
             .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Upload task failed: {e}")))??;
             axum::body::Bytes::from(stripped)
         } else {
-            // Anything else: a video's hidden location removed in place (BUG-190), a HEIC or AVIF
-            // photo refused (R7), unless the person keeps it all (upload_rules.rs
-            // `finish_file_as`). An encrypted file is opaque and never opened.
+            // Anything else: a video's or a HEIC or AVIF photo's hidden location removed in place
+            // (BUG-190; the HEIF strip since 2026-10-11), and one that cannot be read through
+            // refused, unless the person keeps it all (upload_rules.rs `finish_file_as`). An
+            // encrypted file is opaque and never opened.
             if !is_encrypted {
                 let path = part.path.clone();
                 let checked = tokio::task::spawn_blocking(move || finish_file_as(&path, keep_metadata))

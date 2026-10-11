@@ -244,9 +244,10 @@ fn heic_photo() -> Vec<u8> {
     [mp4_box(b"ftyp", b"heic\0\0\0\0mif1heic"), meta, mp4_box(b"mdat", &bytes(400))].concat()
 }
 
-/// R7 and B4. A HEIC PHOTO IS REFUSED, unless the person keeps its hidden information: the strip
-/// cannot clean one (its location sits in the box that holds the picture), so it is refused with
-/// words that say what to do, and its session goes. With `keep_metadata: 1` it is stored as sent,
+/// R7 and B4. A HEIC PHOTO WHOSE ITEM TABLES CANNOT BE READ IS REFUSED, unless the person keeps
+/// its hidden information. (Since the HEIF strip, 2026-10-11, a well-formed HEIC is cleaned and
+/// stored instead: upload_rules_tests.rs. This test's synthetic photo has no item tables the strip
+/// can read, so it is still refused with words that say what to do, and its session goes.) With `keep_metadata: 1` it is stored as sent,
 /// and so are a phone video and a phone JPEG, with their locations, by the person's own choice;
 /// a picture that is not what it says is refused either way.
 ///
