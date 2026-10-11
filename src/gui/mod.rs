@@ -2771,6 +2771,9 @@ pub struct GuiState {
     /// Library tag vocabulary (`data/library/tags.json`, carried through
     /// index.json). Drives the filter chips on the Library page.
     pub library_tags: Vec<LibraryTagGroup>,
+    /// Library rail order: false = A to Z (the default), true = the catalog's
+    /// suggested reading order. Kept as `AppConfig::library_suggested_order`.
+    pub library_suggested_order: bool,
     /// The syllabus (`data/curriculum/syllabus.json`): every subject a person
     /// needs, with the state of each topic's four layers. The Library renders
     /// it as a third view beside Documents and Dictionary.
@@ -4146,6 +4149,7 @@ impl Default for GuiState {
             market_categories: Vec::new(),
             library: Vec::new(),
             library_tags: Vec::new(),
+            library_suggested_order: false,
             curriculum: CurriculumData { subjects: Vec::new(), topics: Vec::new() },
             studio_scene_presets: Vec::new(),
             studio_source_presets: Vec::new(),

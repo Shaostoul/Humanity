@@ -170,6 +170,9 @@
     .lib-tag.active { background:var(--accent); color:var(--bg); border-color:var(--accent); font-weight:600; }
     .lib-tag:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
     .lib-doc-tags { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:var(--space-md); }
+    /* The rail's order choice, A to Z or Suggested: the same chips at the top of
+       the tree, mirroring the native rail (library-order.js has the rule). */
+    .lib-order { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-bottom:var(--space-sm); }
 
     /* Document search. The Library had none: both clients searched only the
        Dictionary. Browsing a 17-category rail works at 83 docs and not at 500. */
@@ -230,6 +233,7 @@
   </div>
 </div>
 
+<script src="/pages/library-order.js"></script>
 <script src="/pages/library-app.js"></script>
 </body>
 </html>

@@ -995,6 +995,14 @@ pub struct AppConfig {
     #[serde(default)]
     pub chat_studio_collapsed: bool,
 
+    /// The Library rail's order (2026-10-10, operator: "it's hard to search through while
+    /// not alphabetical"). false = A to Z, the default; true = Suggested, the catalog's own
+    /// reading order (the learning path). Set by the two chips at the top of the rail
+    /// (src/gui/pages/library.rs); the web Library keeps the same choice in localStorage
+    /// `hos_library_order`.
+    #[serde(default)]
+    pub library_suggested_order: bool,
+
     // In-world chat panel (unified-chat increment 1c): the passive
     // bottom-left feed toggle + the interactive panel's message-list height.
     // Both are set from the panel's Options tab (GUI-first configurability).
@@ -1625,6 +1633,7 @@ impl AppConfig {
             chat_friends_collapsed: state.chat_friends_collapsed,
             chat_members_collapsed: state.chat_members_collapsed,
             chat_studio_collapsed: state.chat_studio_collapsed,
+            library_suggested_order: state.library_suggested_order,
             hud_chat_feed_visible: state.hud_chat_feed_visible,
             ingame_chat_panel_height: state.ingame_chat_panel_height,
             chat_left_panel_locked: state.chat_left_panel_locked,
@@ -1915,6 +1924,7 @@ impl AppConfig {
         state.chat_friends_collapsed = self.chat_friends_collapsed;
         state.chat_members_collapsed = self.chat_members_collapsed;
         state.chat_studio_collapsed = self.chat_studio_collapsed;
+        state.library_suggested_order = self.library_suggested_order;
         state.hud_chat_feed_visible = self.hud_chat_feed_visible;
         // Guard a corrupted saved value: a tiny/zero height would collapse the
         // in-world panel's message list into an unusable sliver.
