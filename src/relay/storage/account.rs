@@ -127,6 +127,10 @@ impl Storage {
             grab("media_items", "SELECT id, upload_filename, title, description, category_id, kind, labels, visibility, featured, size_bytes, views, created_at, from_shelf FROM media_items WHERE uploader_key = ?1 ORDER BY id ASC", &[&key]);
             grab("media_picks", "SELECT item_id, picked_at FROM media_picks WHERE picker_key = ?1 ORDER BY picked_at ASC", &[&key]);
             grab("media_category_suggestions", "SELECT id, name, note, created_at, state FROM media_category_suggestions WHERE suggester_key = ?1 ORDER BY id ASC", &[&key]);
+            // Their uploads still in progress (2026-10-11, storage/upload_sessions.rs): the file's
+            // name, its size, and how much of it has arrived. Not the session id, which with any
+            // of their upload tokens carries the upload on.
+            grab("upload_sessions", "SELECT filename, size, offset, created_at, touched_at FROM upload_sessions WHERE public_key = ?1 ORDER BY created_at ASC", &[&key]);
             // That this key erased its account here earlier, while this server still
             // remembers it (BUG-135, 2026-10-04): only the day and the window it is kept for,
             // under a one-way fingerprint of the key. It is listed because it is held about
@@ -231,8 +235,13 @@ impl Storage {
             }
         }
 
+        // The pieces of their uploads still in progress (storage/upload_sessions.rs), from the
+        // resumable uploads' folder; the rows go below with the rest.
+        let session_files_removed = self.delete_upload_session_files_in(key, folders.resume);
+
         let mut receipt: Vec<(String, usize)> = Vec::new();
         receipt.push(("upload_files_removed".to_string(), files_removed));
+        receipt.push(("upload_session_files_removed".to_string(), session_files_removed));
         let plot_owner = super::plot_owner_id(key);
         self.with_conn(|conn| {
             // True when the statement ran (whatever it deleted), false when it failed.
@@ -307,6 +316,8 @@ impl Storage {
             del("media_items", "DELETE FROM media_items WHERE uploader_key = ?1", &[&key]);
             del("media_picks", "DELETE FROM media_picks WHERE picker_key = ?1", &[&key]);
             del("media_category_suggestions", "DELETE FROM media_category_suggestions WHERE suggester_key = ?1", &[&key]);
+            // Their uploads still in progress (2026-10-11); the files went before the rows.
+            del("upload_sessions", "DELETE FROM upload_sessions WHERE public_key = ?1", &[&key]);
             // The reports they filed stay for the admins, with the reporter taken out of each
             // (2026-10-09, storage/reports.rs `forget_reporter`; blocking-and-safe-mode.md 10e).
             match super::reports::forget_reporter(conn, key) {
@@ -380,6 +391,7 @@ impl Storage {
             OR EXISTS(SELECT 1 FROM media_items WHERE uploader_key = ?1)
             OR EXISTS(SELECT 1 FROM media_picks WHERE picker_key = ?1)
             OR EXISTS(SELECT 1 FROM media_category_suggestions WHERE suggester_key = ?1)
+            OR EXISTS(SELECT 1 FROM upload_sessions WHERE public_key = ?1)
             OR EXISTS(SELECT 1 FROM reports_v2 WHERE reporter_key = ?1)";
         self.with_read_conn(|conn| conn.query_row(q, params![key, plot_owner], |r| r.get::<_, bool>(0)))
             .unwrap_or_else(|e| {
@@ -769,7 +781,8 @@ mod tests {
         let db = test_storage();
         let uploads = crate::test_temp::dir("account_media_uploads");
         let members = crate::test_temp::dir("account_media_members");
-        let folders = Folders { uploads: &uploads, members: &members };
+        let resume = crate::test_temp::dir("account_media_resume");
+        let folders = Folders { uploads: &uploads, members: &members, resume: &resume };
         db.join_server("ann_key", "Ann").unwrap();
         db.join_server("bea_key", "Bea").unwrap();
         let publish = |key: &str, file: &str, visibility: &str| {
