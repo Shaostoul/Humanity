@@ -5539,3 +5539,22 @@ recording's location into an MP4's metadata (Apple's `com.apple.quicktime.locati
 where it was filmed. Found while writing the resumable-upload spec (docs/design/media-showcase.md).
 Being fixed: an in-place strip that turns those boxes into zeroed `free` boxes of the same size (no
 re-encode, nothing moves, so the sample offsets stay right), wired into both upload paths.
+
+## BUG-191: profiles never replicate between servers, because nothing signs them (OPEN, found 2026-10-11)
+
+Found while checking how profile timestamps are set (docs/design/interplanetary.md, rule 3). When a
+person saves their profile, the relay stores it in `signed_profiles` with an EMPTY signature and
+gossips it to its federated peers with an empty signature (src/relay/handlers/msg_handlers.rs, the
+profile save; its comment still says peers "accept empty-sig gossip under the trust-by-source
+model"). Since 2026-08-13 a receiving server refuses any profile gossip without a signature
+(`should_accept_profile_gossip`, src/relay/handlers/federation.rs), and no app signs a profile, so
+every gossiped profile is refused and profiles do not replicate today. Nothing is exposed (an
+unsigned profile is refused, which is the safe direction), and nobody runs a second server yet, but
+the docs described replication as shipped (CLAUDE.md's Cryptography table, ROADMAP `[done]`,
+docs/network/server_federation.md), now corrected.
+
+Second part: the timestamp is the ORIGIN SERVER's clock (`now_millis` at save), and "latest
+timestamp wins" between servers with up to 24 hours ahead accepted, so a server whose clock runs
+fast would win every conflict. The fix, with federation activation: the apps sign `profile_v1`
+themselves (Dilithium3, the preimage `verify_profile_signature` already checks) and date each edit
+after the newest one they have seen (`max(now, last + 1)`, as the friendship choice notes do).

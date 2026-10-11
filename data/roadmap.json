@@ -245,9 +245,9 @@
           "text": "Peer-to-peer groups: signed objects, end-to-end encryption, and a group that behaves like a channel, on both web and native (Phases 1 and 2)."
         },
         {
-          "status": "done",
+          "status": "building",
           "version": null,
-          "text": "Signed profile replication: your profile gossips between servers, so there is no single home server to lose."
+          "text": "Signed profile replication: your profile gossips between servers, so there is no single home server to lose. The servers' half is built (gossip, and a signature check that refuses an unsigned profile); the apps do not sign profiles yet, so today every gossiped profile is refused (BUG-191, found 2026-10-11)."
         },
         {
           "status": "building",
@@ -300,7 +300,7 @@
           "text": "Mobile clients for Android and iOS."
         }
       ],
-      "done": 6,
+      "done": 5,
       "total": 17
     },
     {
@@ -999,7 +999,7 @@
     }
   ],
   "summary": {
-    "done": 51,
+    "done": 50,
     "total": 115
   }
 }

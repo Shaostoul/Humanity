@@ -509,9 +509,11 @@ pub async fn handle_profile_update(
                     let _ = state.db.delete_signed_profile(my_key);
                 } else {
                     // Cache as a signed profile (key-based, for federation
-                    // replication). Signature empty until clients sign
-                    // client-side; peers accept empty-sig gossip under the
-                    // trust-by-source model.
+                    // replication). The signature is empty because no app
+                    // signs a profile yet, and since 2026-08-13 peers REFUSE
+                    // gossip without one (federation.rs
+                    // should_accept_profile_gossip), so profiles do not
+                    // replicate today: BUG-191, fixed when the apps sign.
                     let _ = state.db.store_signed_profile(
                         my_key, name, &clean_bio, &avatar, &banner, &socials,
                         &pronoun, &loc, &w_site, ts, "",

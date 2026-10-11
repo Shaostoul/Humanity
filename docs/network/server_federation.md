@@ -132,9 +132,15 @@ Unverified servers are stored locally in the client's IndexedDB.
 
 ---
 
-## Signed Profile Replication (shipped)
+## Signed Profile Replication (servers' half shipped; the apps do not sign yet)
 
 Profiles are NOT owned by any server. They are signed objects that replicate to every server the user connects to.
+
+> **As of 2026-10-11 this does not work end to end (BUG-191).** Step 1 below never happens: no app
+> signs a profile. The relay stores and gossips the profile with an empty signature, and every
+> receiving server refuses it (an unsigned profile is refused since 2026-08-13). The timestamp is
+> the origin server's clock, not the person's. Both are fixed by the apps signing `profile_v1` and
+> dating each edit after the newest one seen.
 
 ### Protocol
 
@@ -249,7 +255,7 @@ accord_url = ""
 - Server list with trust tiers.
 
 ### Phase 2: Profile Gossip + Message Persistence (current)
-- Signed profile replication across federated servers.
+- Signed profile replication across federated servers (the apps do not sign yet: BUG-191).
 - Federated messages persisted in storage.
 - Profile lookup from any server that has cached it.
 

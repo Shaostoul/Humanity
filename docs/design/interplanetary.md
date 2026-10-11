@@ -50,8 +50,9 @@ Each one is required between planets, and each one already pays off on Earth.
    after the newest one the device has seen for that friend, even when its own clock is behind
    (`DmStore::choose` in src/net/dm_store.rs, and the web's chat-dm-store.js). Signed profiles do
    not: the relay keeps the one with the latest timestamp and accepts timestamps up to 24 hours
-   ahead (src/relay/storage/signed_profiles.rs), so a device whose clock runs two hours fast
-   publishes a profile that silently beats every edit from a correct device for those two hours.
+   ahead (src/relay/storage/signed_profiles.rs), and the timestamp is the origin SERVER's clock,
+   so between servers whichever clock runs fast wins every conflict (BUG-191, which also found
+   that no app signs a profile yet, so they do not replicate at all today).
 4. **Read near you, sync across the gap.** Each planet (on Earth: each region, each community)
    keeps its own servers with copies of what its people read, and syncs with the others by
    exchanging bundles. Nobody on Mars waits 44 minutes for a page that is already on Mars. *On
@@ -87,8 +88,8 @@ Each one is required between planets, and each one already pays off on Earth.
 1. Keep every new protocol in the signed-bundle shape (rule 1) and one-way where it can be
    (rule 2). This is already the house pattern; it becomes a written rule here.
 2. Date every "latest wins" record after the newest one already seen (rule 3), as the choice
-   notes do: first signed profiles (the app reads its own current profile's timestamp before
-   signing an edit), then anything else a person edits from more than one device.
+   notes do: first signed profiles (the apps sign them, which they do not yet, BUG-191, and date
+   each edit after the newest one seen), then anything else a person edits from more than one device.
 3. Show delivery honestly (rule 6), starting with DMs and file transfers.
 4. Build sync as "compare fingerprints, send what is missing" (rule 5) when cross-server mailboxes
    and file pieces are built (eight-billion.md and file-transfer-at-scale.md).
