@@ -360,7 +360,7 @@ pub async fn upload_file(
     headers: axum::http::HeaderMap,
     mut multipart: axum::extract::Multipart,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    use super::upload_rules::{check_type, file_type, finish_picture, sharing_check, stored_name, token_key, uploader_role};
+    use super::upload_rules::{check_type, file_type, finish_picture, finish_video, sharing_check, stored_name, token_key, uploader_role};
     // Server settings drive the upload limits (v0.237; per-role FIFO
     // v0.238). The total disk cap is server-wide (read now). The per-user
     // FIFO retention is per-role, so it's resolved AFTER the uploader's
@@ -433,6 +433,18 @@ pub async fn upload_file(
             .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Upload task failed: {e}")))??;
             axum::body::Bytes::from(stripped)
         } else {
+            // Anything else: a video's hidden location removed in place (BUG-190; upload_rules.rs
+            // `finish_video`). An encrypted file is opaque and never opened.
+            if !is_encrypted {
+                let path = part.path.clone();
+                let checked = tokio::task::spawn_blocking(move || finish_video(&path))
+                    .await
+                    .unwrap_or_else(|e| Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Upload task failed: {e}"))));
+                if let Err(refused) = checked {
+                    let _ = tokio::fs::remove_file(&part.path).await;
+                    return Err(refused);
+                }
+            }
             axum::body::Bytes::new()
         };
 

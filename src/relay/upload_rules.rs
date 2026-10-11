@@ -10,6 +10,7 @@
 //! - [`check_type`]: the file's name and declared type against the blocked and allowed lists;
 //! - [`sharing_check`]: the server's picture and file sharing switches, with the role's own;
 //! - [`finish_picture`]: a picture's magic bytes checked and its hidden metadata stripped;
+//! - [`finish_video`]: where a video was filmed removed from it, in place (BUG-190);
 //! - [`FileKind::stored_ext`], [`file_type`] and [`stored_name`]: the name it is kept under and
 //!   the kind the answer reports;
 //! - [`upload_answer`]: the answer itself, the same JSON from both routes.
@@ -261,6 +262,39 @@ pub(crate) fn finish_picture(picture: &str, data: Vec<u8>) -> Result<Vec<u8>, Re
         );
     }
     Ok(stripped)
+}
+
+/// What is said when a video's boxes could not be read all the way through, so the place where
+/// it was filmed could not be removed from it with certainty.
+pub(crate) const VIDEO_UNREADABLE: &str = "This video could not be read all the way through, so where it was filmed could not be removed from it, and it was not stored. Save it again from your phone or video editor and send that copy.";
+
+/// A video's hidden metadata removed before it is stored (BUG-190, 2026-10-11): phone cameras
+/// write where a recording was made into an MP4's metadata (Apple's location key, the `©xyz`
+/// atom, the 3GPP `loci` box, XMP), so a phone video published as it arrived told everyone where
+/// it was filmed. The strip (relay/core/strip_video_metadata.rs) turns those boxes into zeroed
+/// `free` boxes of the same size, in place: no re-encode, nothing moves, so the video plays as
+/// before and a file of many GB costs only a walk over its box headers.
+///
+/// Every upload that is not encrypted comes here (a picture goes to [`finish_picture`]); a file
+/// whose first bytes are not an MP4-family file is only looked at, never opened for writing.
+/// Refused, and not stored, when the walk had to stop early on a box size that made no sense:
+/// the boxes behind it could still hold the location, so storing it would publish a file we
+/// could not clean (safe by default; a damaged file is rarely a playable one). Not caught: a
+/// location recorded inside the video stream itself (GoPro, DJI, some dashcams), which only a
+/// re-encode or dropping that track removes; see the module's notes.
+///
+/// BLOCKING (file reads and writes), so a route calls it in `spawn_blocking`.
+pub(crate) fn finish_video(path: &std::path::Path) -> Result<(), Refused> {
+    let report = crate::relay::core::strip_video_metadata::strip_video_metadata_in_place(path)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to check the video's hidden information: {e}")))?;
+    if !report.stopped_early.is_empty() {
+        tracing::info!("Upload video strip: refused a file whose boxes stop early ({})", report.stopped_early.join("; "));
+        return Err((StatusCode::UNPROCESSABLE_ENTITY, VIDEO_UNREADABLE.to_string()));
+    }
+    if report.changed() {
+        tracing::info!("Upload video strip: cleared {} ({} bytes)", report.paths().join(", "), report.bytes_zeroed);
+    }
+    Ok(())
 }
 
 /// The answer to a stored upload, from either route: `{url, filename, size, type}`. The apps

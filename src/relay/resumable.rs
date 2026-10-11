@@ -58,7 +58,7 @@ use crate::relay::relay::RelayState;
 use crate::relay::storage::media::MEDIA_SHELF;
 use crate::relay::storage::upload_sessions::{part_path, valid_id, UploadSession};
 use crate::relay::upload_limits::{picture_too_large, UploadBody, PICTURE_MAX_BYTES};
-use crate::relay::upload_rules::{check_type, file_type, finish_picture, sharing_check, stored_name, token_key, upload_answer, uploader_role};
+use crate::relay::upload_rules::{check_type, file_type, finish_picture, finish_video, sharing_check, stored_name, token_key, upload_answer, uploader_role};
 
 /// The largest piece the server takes, stated in its answers so neither app hardcodes it.
 pub const CHUNK_MAX: usize = 8 * 1024 * 1024;
@@ -506,7 +506,13 @@ fn finish(state: &RelayState, folders: Folders, s: &UploadSession) -> Result<Val
             let bytes = std::fs::read(&part).map_err(|e| words(StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to read the upload back: {e}")))?;
             UploadBody::Bytes(finish_picture(p, bytes).map_err(|e| drop_session(e.into()))?.into())
         }
-        None => UploadBody::Part(part.clone()),
+        None => {
+            // A video's hidden location removed in place, as in the single request (BUG-190). A
+            // file that cannot be read through is refused and its session removed: sending it
+            // again would not change it.
+            finish_video(&part).map_err(|e| drop_session(e.into()))?;
+            UploadBody::Part(part.clone())
+        }
     };
     let len = match &body {
         UploadBody::Bytes(b) => b.len() as u64,

@@ -616,3 +616,74 @@ fn the_relay_wires_the_routes_the_start_up_check_and_the_piece_limit() {
     assert_eq!(route_feature("/api/upload/resumable"), Some(Feature::Uploads));
     assert_eq!(route_feature("/api/upload/resumable/0123456789abcdef0123456789abcdef"), Some(Feature::Uploads));
 }
+
+/// One MP4 box (size, type, contents), for the video tests below.
+fn mp4_box(name: &[u8; 4], payload: &[u8]) -> Vec<u8> {
+    let mut v = ((payload.len() + 8) as u32).to_be_bytes().to_vec();
+    v.extend_from_slice(name);
+    v.extend_from_slice(payload);
+    v
+}
+
+/// A phone-style video: `ftyp`, then a `moov` holding the movie header and a `udta` with the
+/// `©xyz` place it was filmed (as Android and others write it), then the picture data.
+fn phone_video() -> Vec<u8> {
+    let mut xyz = vec![0x00, 0x12, 0x15, 0xC7]; // text length, language
+    xyz.extend_from_slice(b"+47.6553-122.6870/");
+    let udta = mp4_box(b"udta", &mp4_box(b"\xA9xyz", &xyz));
+    let moov = mp4_box(b"moov", &[mp4_box(b"mvhd", &[0u8; 100]), udta].concat());
+    [mp4_box(b"ftyp", b"isom\0\0\x02\0isomiso2mp41"), moov, mp4_box(b"mdat", &bytes(3000))].concat()
+}
+
+/// A PHONE VIDEO LOSES WHERE IT WAS FILMED (BUG-190): sent in pieces, the stored file no longer
+/// holds the place, is the same size, and its picture data is byte for byte what was sent. A
+/// video whose boxes cannot be read through (a box claiming to run past the movie that holds it)
+/// is refused with words that say why, and its session and file go.
+///
+/// Seen red 2026-10-11 with `finish_video` not called at the finish: "the place it was filmed is
+/// gone from the stored video".
+#[tokio::test]
+async fn a_videos_location_is_removed_at_finish() {
+    let r = rig("resume_video");
+    r.person("ann", "tok_ann").await;
+    let video = phone_video();
+    assert!(contains(&video, b"+47.6553-122.6870"), "test setup: the place is in the video");
+    let id = r.start("tok_ann", file("walk.mp4", video.len() as u64, "video/mp4")).await.unwrap();
+    r.send(&id, "tok_ann", 0, &video[..100]).await.unwrap();
+    let done = r.send(&id, "tok_ann", 100, &video[100..]).await.unwrap();
+    let stored = std::fs::read(r.uploads.join(done["filename"].as_str().unwrap())).unwrap();
+    assert!(!contains(&stored, b"+47.6553-122.6870"), "the place it was filmed is gone from the stored video");
+    assert_eq!(stored.len(), video.len(), "nothing moved: the same size");
+    assert_eq!(&stored[stored.len() - 3000..], &video[video.len() - 3000..], "the picture data is untouched");
+    assert_eq!(done["type"], "video");
+
+    // A box inside `moov` that claims to run past it: the walk stops early there.
+    let mut broken = video.clone();
+    let mvhd_at = broken.windows(4).position(|w| w == b"mvhd").unwrap() - 4;
+    broken[mvhd_at..mvhd_at + 4].copy_from_slice(&5000u32.to_be_bytes());
+    let bad = r.start("tok_ann", file("broken.mp4", broken.len() as u64, "video/mp4")).await.unwrap();
+    let refused = r.send(&bad, "tok_ann", 0, &broken).await.expect_err("a video that cannot be read through");
+    assert_eq!(refused.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(refused.words(), crate::relay::upload_rules::VIDEO_UNREADABLE);
+    assert!(r.session(&bad).is_none() && !r.part(&bad).exists(), "nothing of it is kept");
+}
+
+/// THE SINGLE REQUEST STRIPS VIDEOS TOO: `upload_file` sends every file that is neither a picture
+/// nor encrypted through `finish_video` before it is moved into place, and removes the part file
+/// when it is refused. (A source check: the single request stores into the live data/uploads
+/// folder, which a test must not write to; `finish_video` itself is proven by the test above.)
+///
+/// Seen red 2026-10-11 with the call taken out of `upload_file`: "the single request strips a
+/// video's location".
+#[test]
+fn the_single_request_strips_videos_too() {
+    // Line endings normalised: a Windows checkout has CRLF.
+    let api = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/relay/api.rs")).unwrap().replace("\r\n", "\n");
+    let start = api.find("pub async fn upload_file(").expect("upload_file");
+    let body = &api[start..start + api[start..].find("\n}\n").unwrap()];
+    let non_picture = &body[body.find("axum::body::Bytes::from(stripped)").expect("the picture branch")..];
+    let call = non_picture.find("finish_video(&path)").expect("the single request strips a video's location");
+    let guard = non_picture.find("if !is_encrypted").expect("only files that are not encrypted");
+    assert!(guard < call, "an encrypted file is never opened");
+    assert!(non_picture[call..].contains("remove_file(&part.path)"), "a refused video's part file is removed");
+}
