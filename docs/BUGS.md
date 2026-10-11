@@ -5528,3 +5528,14 @@ the metadata strip and kept their GPS position) and is held to 64 MB and process
 executor; part files are removed on every error path and at start; the desktop shows the server's
 refusal to the person instead of only logging it; a private conversation's limit is never over the
 person's own.
+
+## BUG-190: a phone video keeps where it was filmed (OPEN, found 2026-10-11)
+
+The relay strips location and camera data from pictures before they are stored
+(`src/relay/core/strip_metadata.rs`), but videos are stored as they arrive. Phone cameras write the
+recording's location into an MP4's metadata (Apple's `com.apple.quicktime.location.ISO6709` key in
+`moov/meta`, the `©xyz` atom in `moov/udta` on Android and others, the 3GPP `loci` box, XMP in a
+`uuid` box), so a phone video sent to a public channel, Shared Files or the Media page publishes
+where it was filmed. Found while writing the resumable-upload spec (docs/design/media-showcase.md).
+Being fixed: an in-place strip that turns those boxes into zeroed `free` boxes of the same size (no
+re-encode, nothing moves, so the sample offsets stay right), wired into both upload paths.

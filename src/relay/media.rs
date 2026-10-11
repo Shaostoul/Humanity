@@ -106,7 +106,6 @@ pub fn parse_labels(text: &str) -> Result<Vec<MediaLabel>, String> {
 /// The labels from `path`, else the copy built into the exe (and the log says so, as for every
 /// relay data file), else none (then no label is accepted, and the log says that too).
 pub fn load_labels(path: &std::path::Path) -> Vec<MediaLabel> {
-    const BUILT_IN: &str = include_str!("../../data/media/labels.json");
     let shown = path.display().to_string();
     let from_disk = match std::fs::read_to_string(path) {
         Ok(text) => parse_labels(&text).map_err(|e| format!("{shown} does not parse ({e})")),
@@ -114,6 +113,8 @@ pub fn load_labels(path: &std::path::Path) -> Vec<MediaLabel> {
     };
     from_disk.unwrap_or_else(|why| {
         crate::embedded_data::note_builtin_copy("media/labels.json", why);
+        // Declared after the disk read, so the compiled-in check sees this file read disk first.
+        const BUILT_IN: &str = include_str!("../../data/media/labels.json");
         parse_labels(BUILT_IN).unwrap_or_else(|e| {
             tracing::error!("The built-in media/labels.json does not parse either ({e}); no content label is accepted");
             Vec::new()

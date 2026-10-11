@@ -788,7 +788,10 @@ mod tests {
         let publish = |key: &str, file: &str, visibility: &str| {
             let folder = if visibility == "public" { &uploads } else { &members };
             std::fs::write(folder.join(file), b"picture").unwrap();
-            db.record_upload(key, file, 100, false, file, 7).unwrap();
+            // A members-only item has to be uploaded for Media (shelf 2): a chat upload is already
+            // public, so it can go on Media as public only (storage::media::was_public).
+            let shelf = if visibility == "public" { 0i64 } else { crate::relay::storage::media::MEDIA_SHELF };
+            db.record_upload(key, file, 100, shelf, file, 7).unwrap();
             db.publish_media(key, &Publish { filename: file, visibility, ..Default::default() }, 1 << 40, 1 << 40, None).unwrap()
         };
         let ann_item = publish("ann_key", "1_ann.png", "public");
