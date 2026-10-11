@@ -794,6 +794,9 @@ function safetyPanelHtml(model) {
   } else {
     html += `<p style="${SAFETY_NOTE}">Friends appear here once you have some.</p>`;
   }
+  // Files in messages (2026-10-11), beside "Who can reach me": drawn into this
+  // place with createElement by drawFilesInMessages (renderSafetyPanel).
+  if (window.HosFilesInMessages) html += '<div class="safety-files" data-files-in-messages></div>';
   html += `<h3 style="${SAFETY_H3}">Requests</h3>`
     + `<p style="${SAFETY_NOTE}">People who asked to reach you. You see only their name. Accept makes you friends; Ignore tells no one.</p>`
     + contactRequestsHtml(model.requests);
@@ -914,7 +917,115 @@ function renderSafetyPanel() {
   if (warningsSwitch && typeof setMessageWarningsOn === 'function') {
     warningsSwitch.onchange = () => setMessageWarningsOn(warningsSwitch.checked);
   }
+  const filesBox = window.HosFilesInMessages ? card.querySelector('[data-files-in-messages]') : null;
+  if (filesBox) drawFilesInMessages(filesBox);
   if (typeof wireProtectedSafety === 'function') wireProtectedSafety(card);
+}
+
+// ── Files in messages (2026-10-11) ───────────────────────────────────────
+// docs/design/media-showcase.md, "Files on the sender's device and in
+// messages, exact", part 3: three settings for files sent in DMs and groups,
+// kept on this device (/shared/files-in-messages.js holds them, their words
+// and the rules; chat-dms.js applies them to every file received; the attach
+// button follows the third, chat-messages.js updateAttachButton). "Accept
+// files from" is also published in my profile (`accepts_files`,
+// chat-profile.js), so the other person's app can tell them before they send.
+// With the protected setup on, making "Accept files from" more open needs the
+// PIN (the same gate as a "Who can reach me" row), and pictures always wait
+// for a click, so that row is a line instead of a choice.
+
+/** This device's storage, or null. */
+function filesSettingsStorage() {
+  try { return window.localStorage; } catch (e) { return null; }
+}
+
+/** Keep a changed Files in messages setting, and follow it: the profile and the attach button. */
+function chooseFilesSetting(change) {
+  const F = window.HosFilesInMessages;
+  if (!F) return false;
+  const storage = filesSettingsStorage();
+  const before = F.readSettings(storage);
+  const next = Object.assign({}, before, change);
+  // A more open "Accept files from" needs the PIN while the protected setup is on.
+  if (change.accept && F.acceptLooser(before.accept, next.accept)
+      && typeof protectedTake === 'function' && !protectedTake('reach_row')) {
+    protectedAskThen('reach_row', () => chooseFilesSetting(change));
+    renderSafetyPanel();
+    return false;
+  }
+  if (!F.writeSettings(storage, next)) {
+    reachSay('This browser could not keep that setting.');
+    renderSafetyPanel();
+    return false;
+  }
+  // Published in my profile, with the whole of it (chat-profile.js).
+  if (change.accept && change.accept !== before.accept && typeof filesAcceptChanged === 'function') filesAcceptChanged();
+  if (typeof updateAttachButton === 'function') updateAttachButton();
+  renderSafetyPanel();
+  return true;
+}
+
+/** Draw the Files in messages settings into `box` (createElement and textContent only). */
+function drawFilesInMessages(box) {
+  const F = window.HosFilesInMessages;
+  const W = F.WORDS;
+  const s = F.readSettings(filesSettingsStorage());
+  const prot = typeof protectedIsOn === 'function' && protectedIsOn();
+  const mk = (tag, css, text) => {
+    const el = document.createElement(tag);
+    if (css) el.style.cssText = css;
+    if (text != null) el.textContent = text;
+    return el;
+  };
+  const select = (name, label, choices, words, value) => {
+    const sel = document.createElement('select');
+    sel.dataset.filesSetting = name;
+    sel.setAttribute('aria-label', label);
+    sel.style.cssText = 'background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-sm);padding:var(--space-xs);';
+    for (const c of choices) {
+      const opt = document.createElement('option');
+      opt.value = c;
+      opt.textContent = words[c];
+      if (c === value) opt.selected = true;
+      sel.appendChild(opt);
+    }
+    sel.value = value;
+    return sel;
+  };
+  const row = (label, control, explain) => {
+    const r = mk('div', 'padding:var(--space-sm) 0;border-top:1px solid var(--border);');
+    r.className = 'safety-files-row';
+    const top = mk('div', 'display:flex;align-items:center;justify-content:space-between;gap:var(--space-sm);');
+    top.appendChild(mk('span', 'font-weight:600;color:var(--text);', label));
+    if (control) top.appendChild(control);
+    r.appendChild(top);
+    if (explain) r.appendChild(mk('div', SAFETY_NOTE + 'margin-top:var(--space-xs);', explain));
+    return r;
+  };
+  if (typeof box.replaceChildren === 'function') box.replaceChildren();
+  box.appendChild(mk('h3', SAFETY_H3, W.group));
+  box.appendChild(mk('p', SAFETY_NOTE, W.intro));
+
+  const accept = select('accept', W.accept, F.ACCEPT_CHOICES, W.acceptChoices, s.accept);
+  accept.onchange = () => chooseFilesSetting({ accept: accept.value });
+  box.appendChild(row(W.accept, accept, W.acceptExplain[s.accept]));
+  box.appendChild(mk('p', SAFETY_NOTE, W.published));
+
+  if (prot) {
+    box.appendChild(row(W.pictures, null, W.picturesProtected));
+  } else {
+    const pictures = select('pictures', W.pictures, F.PICTURE_CHOICES, W.pictureChoices, s.pictures);
+    pictures.onchange = () => chooseFilesSetting({ pictures: pictures.value });
+    box.appendChild(row(W.pictures, pictures, W.picturesExplain[s.pictures]));
+  }
+
+  const attach = document.createElement('input');
+  attach.type = 'checkbox';
+  attach.checked = s.attach !== false;
+  attach.dataset.filesSetting = 'attach';
+  attach.setAttribute('aria-label', W.attach);
+  attach.onchange = () => chooseFilesSetting({ attach: !!attach.checked });
+  box.appendChild(row(W.attach, attach, s.attach === false ? W.attachOffExplain : null));
 }
 
 // ── Block (step C, 2026-10-09) ───────────────────────────────────────────

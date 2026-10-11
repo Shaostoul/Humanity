@@ -85,6 +85,10 @@ const SERVER = "did:hum:4dQe1bVHyiHm1Vh8rWbx2F";
 const T0 = 1760000000000;
 const SEED = Uint8Array.from({ length: 32 }, (_, i) => (i * 7 + 3) & 0xff);
 const PIN = "90817263";
+// Files in messages (2026-10-11): "Accept files from: Anyone I talk to" kept in this browser. The
+// click-to-load tests below are about the pictures rule, which a non-friend's file reaches only when
+// it is accepted: under the default (Friends) it first waits for Accept (the tests at the end).
+const ACCEPT_ANYONE = { hos_files_in_messages: JSON.stringify({ accept: "anyone" }) };
 const MAY = "invite,message,trade,voice_message";
 const CHANNELS = [
   { id: "general", name: "general", read_only: false },
@@ -92,7 +96,27 @@ const CHANNELS = [
 ];
 
 // Some bytes that are plainly a PNG, and some that are plainly a PDF.
-const PNG = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, ...Buffer.from("a picture of a dog on a beach, pixel by pixel")]);
+// Since 2026-10-11 every file is cleaned on the device before it goes (/shared/upload-clean.js), and a
+// picture the cleaning cannot walk is one that "could not be checked": so this PNG is a real one
+// (signature, IHDR, an IDAT holding the words, IEND, with real CRCs), with nothing hidden in it, so
+// the cleaning reads it through and sends it exactly as it is.
+function pngCrc(b) {
+  let c = 0xffffffff;
+  for (const x of b) { c ^= x; for (let k = 0; k < 8; k++) c = c & 1 ? (c >>> 1) ^ 0xedb88320 : c >>> 1; }
+  return (~c) >>> 0;
+}
+function pngChunk(name, data) {
+  const body = Buffer.concat([Buffer.from(name, "latin1"), Buffer.from(data)]);
+  const len = Buffer.alloc(4); len.writeUInt32BE(data.length);
+  const crc = Buffer.alloc(4); crc.writeUInt32BE(pngCrc(body));
+  return Buffer.concat([len, body, crc]);
+}
+const PNG = Uint8Array.from(Buffer.concat([
+  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+  pngChunk("IHDR", [0, 0, 0, 4, 0, 0, 0, 4, 8, 6, 0, 0, 0]),
+  pngChunk("IDAT", Buffer.from("a picture of a dog on a beach, pixel by pixel")),
+  pngChunk("IEND", []),
+]));
 const PDF = Uint8Array.from(Buffer.from("%PDF-1.7 the meeting notes for Saturday, page one"));
 const picture = (name = "image.png", bytes = PNG) => new File([bytes], name, { type: "image/png" });
 const pdf = (name = "notes.pdf", bytes = PDF) => new File([bytes], name, { type: "application/pdf" });
@@ -293,16 +317,21 @@ function fakeStorage() {
 
 function fakeIndexedDB() {
   const stores = { msgs: new Map(), meta: new Map() };
+  // Any other store is made when it is first asked for (kept-files.js keeps `files` and `index`).
+  const of = (name) => (stores[name] = stores[name] || new Map());
   const req = (result) => {
     const r = { result: undefined, onsuccess: null, onerror: null };
     setImmediate(() => { r.result = result; if (r.onsuccess) r.onsuccess(); });
     return r;
   };
   const objectStore = (name) => ({
-    get: (k) => req(stores[name].get(k)),
-    put: (v) => { stores[name].set(v.k ?? v.scope, v); return req(undefined); },
-    delete: (k) => { stores[name].delete(k); return req(undefined); },
-    index: () => ({ getAll: (scope) => req([...stores[name].values()].filter((v) => v.scope === scope)) }),
+    get: (k) => req(of(name).get(k)),
+    put: (v) => { of(name).set(v.k ?? v.scope, v); return req(undefined); },
+    delete: (k) => { of(name).delete(k); return req(undefined); },
+    clear: () => { of(name).clear(); return req(undefined); },
+    getAll: () => req([...of(name).values()]),
+    getAllKeys: () => req([...of(name).keys()]),
+    index: () => ({ getAll: (scope) => req([...of(name).values()].filter((v) => v.scope === scope)) }),
   });
   const db = { objectStoreNames: { contains: () => true }, transaction: (name) => ({ objectStore: () => objectStore(name) }) };
   return { open: () => req(db), stores };
@@ -439,7 +468,7 @@ async function loadChat(me, opts = {}) {
     location: { hash: "", host: "localhost", protocol: "https:", pathname: "/chat", search: "", origin: "https://localhost", reload() {} },
     localStorage: local,
     sessionStorage: fakeStorage(),
-    indexedDB: fakeIndexedDB(),
+    indexedDB: opts.indexedDB || fakeIndexedDB(),
     fetch: (url, init) => {
       const u = String(url);
       const method = (init && init.method) || "GET";
@@ -510,6 +539,10 @@ async function loadChat(me, opts = {}) {
   run("shared/group-report.js");
   run("shared/warnings.js");
   run("shared/protected.js");
+  run("shared/strip-metadata.js");
+  run("shared/upload-clean.js");
+  run("shared/files-in-messages.js");
+  run("shared/kept-files.js");
   run("chat/crypto.js");
   run("chat/chat-dm-store.js");
   run("chat/view/timestampPill.js");
@@ -539,7 +572,7 @@ async function loadChat(me, opts = {}) {
   ctx.sendSWNotification = () => {};
   ctx.addNotice = (text) => { notices.push(String(text)); };
   ctx.addSystemMessage = (text) => { systemLines.push(String(text)); };
-  const storeKey = await globalThis.crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+  const storeKey = opts.storeKey || await globalThis.crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
   ctx.getDmStoreKey = async () => storeKey;
   const { noble } = fx.m;
   ctx.pqSignMessage = async (secret, bytes) => (isWords(bytes) ? new Uint8Array(bytes) : noble.ml_dsa65.sign(bytes, secret));
@@ -795,7 +828,7 @@ async function fileInGroup(page, who, { name, mime, bytes, at, meta: change }) {
 
 test("a marker in a group message: a friend's picture shows inline, a non-friend's waits for a click, a file has Save", async () => {
   const fx = await fixture();
-  const page = await loadChat(fx.ann);
+  const page = await loadChat(fx.ann, { stored: ACCEPT_ANYONE });
   befriend(page, fx.ben.key);
   const benPic = await fileInGroup(page, fx.ben, { name: "dog.png", mime: "image/png", bytes: PNG, at: T0 + 300 });
   const cyPic = await fileInGroup(page, fx.cy, { name: "cat.png", mime: "image/png", bytes: PNG, at: T0 + 400 });
@@ -843,7 +876,7 @@ test("a marker in a group message: a friend's picture shows inline, a non-friend
 
 test("a non-friend's DM picture waits for the click (the same rule as a group's)", async () => {
   const fx = await fixture();
-  const page = await loadChat(fx.ann);
+  const page = await loadChat(fx.ann, { stored: ACCEPT_ANYONE });
   const s = await seal(PNG);
   page.files.set("/uploads/dm-cy.enc", s.ct);
   const meta = { url: "/uploads/dm-cy.enc", k: s.k, n: s.n, name: "cat.png", mime: "image/png", size: PNG.length };
@@ -907,6 +940,8 @@ async function turnOn(page) {
   await settle();
 }
 
+// Since 2026-10-11 (Files in messages): with the setup on, "Show pictures without asking" is always
+// Nobody, so a friend's picture, never hidden, waits for the click too.
 test("with the protected setup on, a group file from someone who is not a friend is not shown or fetched; a friend's is", async () => {
   const fx = await fixture();
   const page = await loadChat(fx.ann);
@@ -928,8 +963,12 @@ test("with the protected setup on, a group file from someone who is not a friend
   assert.equal(gets(page, cyPic.meta.url) + gets(page, cyPdf.meta.url), 0, "never fetched");
   const [, benRow] = rowsFrom(page, fx.ben);
   assert.ok(!benRow.innerHTML.includes(line), "a friend's is not hidden");
+  assert.ok(benRow.innerHTML.includes("Image (click to load)"), "a friend's picture waits for the click (the setup is always Nobody)");
+  assert.equal(gets(page, benPic.meta.url), 0, "and is not fetched before it");
+  await cardBody(benRow).querySelector(".enc-attach-load").onclick({ stopPropagation() {} });
+  await settle();
   const pic = await shownPicture(page, cardBody(benRow));
-  assert.ok(pic && sameBytes(pic.bytes, PNG), "a friend's picture still shows");
+  assert.ok(pic && sameBytes(pic.bytes, PNG), "after the click, a friend's picture shows");
 });
 
 // ── 8. The guards on every encrypted path ───────────────────────────────
@@ -1073,7 +1112,7 @@ test("a group's row offers no server reaction, edit, pin or delete, and none is 
 // as at a3ca8f167 (HOS_WEB_DIR): "a mutual follow holding no pass from me: Image (click to load)".
 test("a picture from a mutual follow who holds no pass from me waits for the click; with the pass it shows at once", async () => {
   const fx = await fixture();
-  const page = await loadChat(fx.ann);
+  const page = await loadChat(fx.ann, { stored: ACCEPT_ANYONE });
   // Ben: a mutual follow, but no pass from me yet.
   page.store.setFollowing(fx.ben.key, true);
   page.store.setFollower(fx.ben.key, true);
@@ -1596,3 +1635,504 @@ test("W4-4: pictures that finish opening out of order are still let go oldest fi
   assert.equal(again, urls[0], "the newest is kept");
   assert.equal(opens, 20, "and not opened again");
 });
+
+// ══ Files on the sender's device and in messages (2026-10-11) ══════════════════════════════
+// docs/design/media-showcase.md, "Files on the sender's device and in messages, exact", parts 1
+// to 4, the chat page's side: every file is cleaned on this device before it is uploaded or
+// encrypted, with the attach step and its switch (part 1); a file that could not be checked
+// (part 2); Files in messages (part 3); a copy of each private file opened, kept here (part 4).
+// The cleaning, the rules and the kept-file store are tested on their own in
+// upload-clean-web.test.js, files-in-messages-web.test.js and kept-files-web.test.js; these hold
+// the chat page to them. The red runs are listed at the end of this section.
+
+const S = require(path.join(WEB, "shared", "strip-metadata.js"));
+const UC = require(path.join(WEB, "shared", "upload-clean.js"));
+const FIM = require(path.join(WEB, "shared", "files-in-messages.js"));
+const B = require("./file-bytes.js");
+const MARKER_FIXTURE = JSON.parse(fs.readFileSync(path.join(__dirname, "fixtures", "file-marker-unchecked.json"), "utf8"));
+
+const PHOTO = B.phoneJpeg();
+const PHOTO_CLEAN = S.stripFile(PHOTO, "IMG_0001.jpg").bytes;
+const photo = (name = "IMG_0001.jpg") => new File([PHOTO], name, { type: "image/jpeg" });
+// A video cut before its movie index: where it was filmed cannot be checked.
+const CUT_VIDEO = B.movie("mdatFirst", B.ftypMp4(), B.everything()).subarray(0, 300);
+const cutVideo = () => new File([CUT_VIDEO], "clip.mp4", { type: "video/mp4" });
+const heicPhoto = () => new File([B.heic()], "IMG_0002.HEIC", { type: "image/heic" });
+
+/** Every element under `el` (the stand-in keeps children in `children`). */
+function everyUnder(el, out = []) {
+  for (const c of (el && el.children) || []) { out.push(c); everyUnder(c, out); }
+  return out;
+}
+/** The attach step on screen now (the newest one put on the page and not taken off), or null. */
+function attachStep(page) {
+  const all = page.el("__body").children.filter((c) => c && c.id === "attach-step-overlay" && !c.removed);
+  return all.length ? all[all.length - 1] : null;
+}
+/** The step's parts, by what they are. */
+function stepParts(step) {
+  const els = everyUnder(step);
+  const byClass = (cls) => els.find((e) => String(e.className).split(/\s+/).includes(cls)) || null;
+  const byStep = (what) => els.find((e) => e.dataset && e.dataset.attachStep === what) || null;
+  return {
+    summary: byClass("attach-step-summary"), said: byClass("attach-step-said"), off: byClass("attach-step-off"),
+    recipient: byClass("attach-step-recipient"), protectedLine: byClass("attach-step-protected"),
+    details: els.filter((e) => e.tag === "li").map((e) => e.textContent),
+    remove: byStep("remove"), send: byStep("send"), cancel: byStep("cancel"),
+    switchLabel: (byClass("attach-step-switch") ? everyUnder(byClass("attach-step-switch")).map((e) => e.textContent).join("") : ""),
+  };
+}
+/**
+ * Start sending `file` through the composer's paste (not awaited), and wait for its attach step.
+ * The send's promise comes back inside an object ({going}): handed back bare, awaiting this would
+ * wait for the whole send, which waits for a button on the step.
+ */
+async function pasteToStep(page, file) {
+  const listeners = page.el("msg-input").listeners.paste || [];
+  const ev = { clipboardData: { items: [{ type: file.type, getAsFile: () => file }] }, preventDefault() {} };
+  const going = (async () => { for (const fn of listeners) await fn(ev); })();
+  await waitFor(() => attachStep(page), "the attach step is shown");
+  return { going };
+}
+/** The same through the attach button. */
+async function pickToStep(page, file) {
+  const going = page.fn("handleFileAttachment")({ target: { files: [file], value: "x" } });
+  await waitFor(() => attachStep(page), "the attach step is shown");
+  return { going };
+}
+/** Press one of the step's buttons, then let the send finish. */
+async function press(page, going, which) {
+  const p = stepParts(attachStep(page));
+  p[which].onclick();
+  await going;
+  await settle();
+}
+const hasQuery = (up, k) => new RegExp("(^|&)" + k + "(&|$)").test(up.query);
+
+// ── Part 1: cleaned on this device ──────────────────────────────────────
+
+test("files: a phone photo pasted in a room shows the attach step, switch on; Send uploads the cleaned photo, no keep_metadata", async () => {
+  const fx = await fixture();
+  const page = await loadChat(fx.ann);
+  const { going } = await pasteToStep(page, photo());
+  const p = stepParts(attachStep(page));
+  assert.equal(p.summary.textContent, "This photo says where it was taken and which camera took it.", "what it holds");
+  assert.ok(p.details.includes("Where it was taken"), "with the details in plain words");
+  assert.ok(p.remove && p.remove.checked === true, "the switch, on by default");
+  assert.ok(p.switchLabel.includes("Remove location and camera details"), "with its label");
+  assert.equal(page.uploads.length, 0, "nothing uploaded while the step is open");
+  await press(page, going, "send");
+  assert.equal(page.uploads.length, 1, "one upload");
+  const up = page.uploads[0];
+  assert.ok(sameBytes(up.bytes, PHOTO_CLEAN), "the cleaned photo, the strip's own bytes");
+  assert.ok(!B.contains(up.bytes, "SN-0042-SECRET"), "the camera's serial number gone");
+  assert.ok(!hasQuery(up, "keep_metadata=1"), "no keep_metadata");
+  assert.equal(up.name, "IMG_0001.jpg", "under its own name");
+  assert.equal(page.ctx.localStorage.getItem(UC.REMOVE_DETAILS_KEY), "1", "the switch remembered as the last choice");
+  assert.equal(page.sock.sent.filter((m) => m.type === "chat").pop().content, up.url, "and its address posted");
+});
+
+test("files: with the switch off the photo goes as it was with keep_metadata=1, and the next step starts off", async () => {
+  const fx = await fixture();
+  const page = await loadChat(fx.ann);
+  let { going } = await pasteToStep(page, photo());
+  let p = stepParts(attachStep(page));
+  p.remove.checked = false;
+  p.remove.onchange();
+  assert.equal(p.off.textContent, UC.WORDS.switchOffLine, "it says everything goes");
+  await press(page, going, "send");
+  const up = page.uploads[0];
+  assert.ok(sameBytes(up.bytes, PHOTO), "the photo exactly as picked");
+  assert.ok(hasQuery(up, "keep_metadata=1"), "with keep_metadata=1, so the server keeps it too");
+  assert.equal(page.ctx.localStorage.getItem(UC.REMOVE_DETAILS_KEY), "0", "remembered");
+  ({ going } = await pasteToStep(page, photo("IMG_0003.jpg")));
+  p = stepParts(attachStep(page));
+  assert.equal(p.remove.checked, false, "the next attach step starts as last chosen");
+  await press(page, going, "cancel");
+  assert.equal(page.uploads.length, 1, "Cancel sends nothing");
+});
+
+test("files: in a DM the photo is cleaned before it is encrypted; the sealed upload opens to the cleaned bytes", async () => {
+  const fx = await fixture();
+  const page = await loadChat(fx.ann);
+  page.fn("openDmConversation")(fx.ben.key, "Ben");
+  await settle();
+  page.sock.sent.length = 0;
+  const { going } = await pasteToStep(page, photo());
+  await press(page, going, "send");
+  const up = oneEncryptedUpload(page, PHOTO);
+  const toBen = page.sock.sent.filter((m) => m.type === "dm_put").find((x) => opened(x).sealedTo === kyberOf(fx.ben.key));
+  const meta = markerMeta(opened(toBen).inner.text);
+  assert.ok(sameBytes(await unseal(up.bytes, meta.k, meta.n), PHOTO_CLEAN), "opens to the cleaned photo");
+  assert.equal(meta.size, PHOTO_CLEAN.length, "its size is the cleaned photo's");
+  assert.ok(!("unchecked" in meta), "a file that was checked says nothing about it");
+});
+
+// ── Part 2: a file that could not be checked ────────────────────────────
+
+test("files: a video cut before its movie is not sent to a room (Send off, the words), and goes with keep_metadata=1 once kept by choice", async () => {
+  const fx = await fixture();
+  const page = await loadChat(fx.ann);
+  let { going } = await pickToStep(page, cutVideo());
+  let p = stepParts(attachStep(page));
+  assert.equal(p.send.disabled, true, "Send is off");
+  assert.ok(p.said.textContent.includes(UC.WORDS.publicRefused) && p.said.textContent.includes(UC.WORDS.publicKeepHint), "and the words say why and how: " + p.said.textContent);
+  p.send.onclick();
+  await settle();
+  assert.equal(page.uploads.length, 0, "pressing it does nothing");
+  await press(page, going, "cancel");
+  assert.equal(page.uploads.length, 0, "nothing uploaded");
+
+  ({ going } = await pickToStep(page, cutVideo()));
+  p = stepParts(attachStep(page));
+  p.remove.checked = false;
+  p.remove.onchange();
+  assert.equal(p.send.disabled, false, "kept by choice, it may go");
+  await press(page, going, "send");
+  assert.equal(page.uploads.length, 1);
+  assert.ok(sameBytes(page.uploads[0].bytes, CUT_VIDEO) && hasQuery(page.uploads[0], "keep_metadata=1"), "as picked, with keep_metadata=1");
+});
+
+test("files: in a DM it asks; Send anyway marks the marker unchecked, and the recipient's card says so", async () => {
+  const fx = await fixture();
+  const page = await loadChat(fx.ann);
+  page.fn("openDmConversation")(fx.ben.key, "Ben");
+  await settle();
+  page.sock.sent.length = 0;
+  let { going } = await pickToStep(page, cutVideo());
+  let p = stepParts(attachStep(page));
+  assert.equal(p.said.textContent, UC.WORDS.askPrivate, "the spec's question");
+  assert.equal(p.send.textContent, "Send anyway");
+  await press(page, going, "cancel");
+  assert.equal(page.uploads.length, 0, "Cancel: nothing uploaded");
+
+  ({ going } = await pickToStep(page, cutVideo()));
+  await press(page, going, "send");
+  const up = oneEncryptedUpload(page, CUT_VIDEO);
+  const toBen = page.sock.sent.filter((m) => m.type === "dm_put").find((x) => opened(x).sealedTo === kyberOf(fx.ben.key));
+  const text = opened(toBen).inner.text;
+  const meta = markerMeta(text);
+  assert.equal(meta.unchecked, true, "the marker says unchecked");
+  assert.deepEqual(Object.keys(meta), Object.keys(MARKER_FIXTURE.built[0].meta), "its fields in the shared fixture's order (the desktop app's)");
+  // What could be cleaned before the walk stopped was (the XMP box at the top of the file), the rest
+  // goes as it is: the strip's own bytes for the cut file.
+  const partly = S.stripFile(CUT_VIDEO, "clip.mp4");
+  assert.ok(partly.unfinished && partly.changed, "test setup: the strip cleans part of it and stops");
+  assert.ok(sameBytes(await unseal(up.bytes, meta.k, meta.n), partly.bytes), "the file as far as it could be cleaned");
+
+  // Ben's page draws it with the line under its name.
+  const ben = await loadChat(fx.ben);
+  ben.files.set(meta.url, up.bytes);
+  ben.fn("addDmMessage")("Ann", text, T0 + 900, fx.ann.key, fx.ben.key, true);
+  await settle();
+  const row = ben.state.appended[0];
+  assert.ok(row.innerHTML.includes("enc-attach-unchecked"), "the card has the line");
+  assert.equal(row.querySelector(".enc-attach").querySelector(".enc-attach-unchecked").textContent, UC.WORDS.recipientLine, "in the spec's words");
+});
+
+test("files: a HEIC photo, which the website cannot clean yet: the relay's words in a room, the HEIC question in a DM", async () => {
+  const fx = await fixture();
+  const page = await loadChat(fx.ann);
+  let { going } = await pickToStep(page, heicPhoto());
+  let p = stepParts(attachStep(page));
+  assert.equal(p.send.disabled, true, "not sent to a room");
+  assert.ok(p.said.textContent.startsWith(S.SAY.heif), "with the relay's own words");
+  await press(page, going, "cancel");
+  page.fn("openDmConversation")(fx.ben.key, "Ben");
+  await settle();
+  ({ going } = await pickToStep(page, heicPhoto()));
+  p = stepParts(attachStep(page));
+  assert.equal(p.said.textContent, UC.WORDS.askPrivateHeif, "in a DM, asked");
+  await press(page, going, "cancel");
+  assert.equal(page.uploads.length, 0);
+});
+
+test("files: with the protected setup on, no switch, a photo is always cleaned, and an unchecked file goes nowhere, a DM included", async () => {
+  const fx = await fixture();
+  const page = await loadChat(fx.ann, { stored: { [UC.REMOVE_DETAILS_KEY]: "0" } });
+  await page.fn("loadProtectedPreset")();
+  await turnOn(page);
+  // Nothing to decide: cleaned and sent at once, the switch's "keep" ignored.
+  await paste(page, photo());
+  assert.equal(page.uploads.length, 1, "sent with no step");
+  assert.ok(sameBytes(page.uploads[0].bytes, PHOTO_CLEAN) && !hasQuery(page.uploads[0], "keep_metadata=1"), "cleaned, whatever the switch last said");
+
+  page.fn("openDmConversation")(fx.ben.key, "Ben");
+  await settle();
+  const { going } = await pickToStep(page, cutVideo());
+  const p = stepParts(attachStep(page));
+  assert.equal(p.remove, null, "no switch");
+  assert.equal(p.protectedLine.textContent, UC.WORDS.protectedLine, "the protected setup's line instead");
+  assert.equal(p.send.disabled, true, "and it cannot go");
+  assert.ok(p.said.textContent.includes(UC.WORDS.protectedRefused), "saying why");
+  await press(page, going, "cancel");
+  assert.equal(page.uploads.length, 1, "nothing more uploaded");
+});
+
+// ── The shared marker fixture (with the desktop app) ────────────────────
+
+test("files: the unchecked marker is built and read exactly as the shared fixture says", async () => {
+  const fx = await fixture();
+  const page = await loadChat(fx.ben);
+  assert.equal(page.fn("FILE_MARKER"), MARKER_FIXTURE.marker);
+  for (const b of MARKER_FIXTURE.built) {
+    assert.equal(page.fn("pqBuildFileMarker")(b.meta), b.text, `${b.name}: built byte for byte`);
+    assert.equal(JSON.stringify(b.meta), b.json, `${b.name}: its JSON`);
+  }
+  for (const r of MARKER_FIXTURE.read) {
+    const meta = page.fn("pqParseFileMarker")(r.text);
+    assert.ok(meta, `${r.name}: read`);
+    assert.equal(meta.unchecked === true, r.unchecked, `${r.name}: unchecked ${r.unchecked}`);
+  }
+  // A received fixture marker is drawn with the line; a checked one without it.
+  page.fn("addDmMessage")("Ann", MARKER_FIXTURE.built[0].text, T0 + 1, fx.ann.key, fx.ben.key, true);
+  page.fn("addDmMessage")("Ann", MARKER_FIXTURE.built[1].text, T0 + 2, fx.ann.key, fx.ben.key, true);
+  await settle();
+  const [unchecked, checked] = page.state.appended;
+  assert.ok(unchecked.innerHTML.includes("enc-attach-unchecked"), "the unchecked one has the line");
+  assert.ok(!checked.innerHTML.includes("enc-attach-unchecked"), "the checked one has none");
+});
+
+// ── Part 3: Files in messages ───────────────────────────────────────────
+
+test("files: by default a non-friend's file waits for Accept, nothing fetched; Accept opens that picture; a document's Accept offers Save", async () => {
+  const fx = await fixture();
+  const page = await loadChat(fx.ann);
+  befriend(page, fx.ben.key);
+  const benPic = await fileInGroup(page, fx.ben, { name: "dog.png", mime: "image/png", bytes: PNG, at: T0 + 300 });
+  const cyPic = await fileInGroup(page, fx.cy, { name: "cat.png", mime: "image/png", bytes: PNG, at: T0 + 400 });
+  const cyPdf = await fileInGroup(page, fx.cy, { name: "notes.pdf", mime: "application/pdf", bytes: PDF, at: T0 + 500 });
+  page.relay.log = [fx.hello, benPic.msg, cyPic.msg, cyPdf.msg];
+  await openGroup(page);
+  const [, benRow] = rowsFrom(page, fx.ben);
+  const [cyPicRow, cyPdfRow] = rowsFrom(page, fx.cy);
+  assert.ok(await shownPicture(page, cardBody(benRow)), "a friend's picture shows at once");
+
+  for (const [row, f] of [[cyPicRow, cyPic], [cyPdfRow, cyPdf]]) {
+    assert.ok(row.innerHTML.includes("enc-attach-accept") && !row.innerHTML.includes("click to load") && !row.innerHTML.includes(">Save<"), `${f.meta.name}: only Accept`);
+    assert.equal(cardBody(row).querySelector(".enc-attach-ask").textContent, "Cy sent a file. You accept files only from friends. Accept this one?", `${f.meta.name}: the spec's words`);
+    assert.equal(gets(page, f.meta.url), 0, `${f.meta.name}: nothing fetched`);
+  }
+  await cardBody(cyPicRow).querySelector(".enc-attach-accept").onclick({ stopPropagation() {} });
+  await settle();
+  const shown = await shownPicture(page, cardBody(cyPicRow));
+  assert.ok(shown && sameBytes(shown.bytes, PNG), "Accept: that picture fetched and shown");
+  assert.equal(gets(page, cyPic.meta.url), 1);
+
+  await cardBody(cyPdfRow).querySelector(".enc-attach-accept").onclick({ stopPropagation() {} });
+  await settle();
+  assert.ok(cardBody(cyPdfRow).innerHTML.includes(">Save<"), "Accept on a document: its Save");
+  assert.equal(gets(page, cyPdf.meta.url), 0, "fetched only when Save is pressed");
+});
+
+test("files: Accept files from Nobody asks even for a friend's; Show pictures from Nobody makes a friend's picture wait for the click", async () => {
+  const fx = await fixture();
+  let page = await loadChat(fx.ann, { stored: { [FIM.FILES_SETTINGS_KEY]: JSON.stringify({ accept: "nobody" }) } });
+  befriend(page, fx.ben.key);
+  let benPic = await fileInGroup(page, fx.ben, { name: "dog.png", mime: "image/png", bytes: PNG, at: T0 + 300 });
+  page.relay.log = [fx.hello, benPic.msg];
+  await openGroup(page);
+  let [, benRow] = rowsFrom(page, fx.ben);
+  assert.equal(cardBody(benRow).querySelector(".enc-attach-ask").textContent, "Ben sent a file. You do not accept files in messages. Accept this one?", "Nobody: a friend's file asks too");
+  assert.equal(gets(page, benPic.meta.url), 0);
+
+  page = await loadChat(fx.ann, { stored: { [FIM.FILES_SETTINGS_KEY]: JSON.stringify({ pictures: "nobody" }) } });
+  befriend(page, fx.ben.key);
+  benPic = await fileInGroup(page, fx.ben, { name: "dog.png", mime: "image/png", bytes: PNG, at: T0 + 300 });
+  page.relay.log = [fx.hello, benPic.msg];
+  await openGroup(page);
+  [, benRow] = rowsFrom(page, fx.ben);
+  assert.ok(benRow.innerHTML.includes("Image (click to load)") && !benRow.innerHTML.includes("enc-attach-accept"), "accepted, but the picture waits for the click");
+  assert.equal(gets(page, benPic.meta.url), 0, "nothing fetched before it");
+});
+
+/** Open Safety and find the Files in messages section's controls (the newest drawn). */
+function filesSection(page) {
+  page.fn("openSafetyPanel")();
+  const box = page.el("safety-card").querySelector("[data-files-in-messages]");
+  const els = everyUnder(box);
+  const last = (what) => els.filter((e) => e.dataset && e.dataset.filesSetting === what).pop() || null;
+  return { box, els, accept: last("accept"), pictures: last("pictures"), attach: last("attach"), text: els.map((e) => e.textContent).join(" | ") };
+}
+
+test("files: Safety shows the three settings; a change is kept, published as accepts_files, and the attach button follows it", async () => {
+  const fx = await fixture();
+  const page = await loadChat(fx.ann);
+  let s = filesSection(page);
+  assert.ok(s.text.includes(FIM.WORDS.group), "the group, in Safety");
+  assert.equal(s.accept.value, "friends", "Accept files from: Friends");
+  assert.deepEqual(s.accept.children.map((o) => o.textContent), ["Nobody", "Friends", "Anyone I talk to"]);
+  assert.equal(s.pictures.value, "friends", "Show pictures without asking from: Friends");
+  assert.equal(s.attach.checked, true, "the attach button: on");
+
+  page.sock.sent.length = 0;
+  s.accept.value = "nobody";
+  s.accept.onchange();
+  await settle();
+  assert.equal(FIM.readSettings(page.ctx.localStorage).accept, "nobody", "kept on this device");
+  // The relay saves a profile_update whole (every field left out is saved empty): with nothing in
+  // the local profile, nothing goes until the server's copy of mine has been heard.
+  const updates = () => page.sock.sent.filter((m) => m.type === "profile_update");
+  assert.equal(updates().length, 0, "an empty local profile sends nothing before the server's copy is heard");
+  // The server's copy of my profile, as it sends it on connect (written on another device).
+  await page.handle({ type: "profile_data", name: "Ann", bio: "I grow tomatoes", socials: "{}", pronouns: "she/her", accepts_files: "friends" });
+  const update = updates().pop();
+  assert.ok(update, "then the profile goes to the server");
+  assert.equal(update.accepts_files, "nobody", "with accepts_files");
+  assert.deepEqual([update.bio, update.pronouns], ["I grow tomatoes", "she/her"], "and the whole profile (the server's copy, filled in here first)");
+  assert.equal(page.fn("buildProfileUpdate")(page.fn("loadProfileLocal")()).accepts_files, undefined, "once sent, an update leaves it out (the server keeps its word)");
+  // Another device chose Anyone: my own profile comes back with it, and this device takes it.
+  await page.handle({ type: "profile_data", name: "Ann", bio: "I grow tomatoes", socials: "{}", accepts_files: "anyone" });
+  assert.equal(FIM.readSettings(page.ctx.localStorage).accept, "anyone", "a choice made on another device is taken here");
+
+  s = filesSection(page);
+  s.attach.checked = false;
+  s.attach.onchange();
+  assert.equal(FIM.readSettings(page.ctx.localStorage).attach, false);
+  page.fn("openDmConversation")(fx.ben.key, "Ben");
+  await settle();
+  assert.equal(page.el("attach-btn").style.display, "none", "no attach button in a DM");
+  page.uploads.length = 0;
+  await paste(page, picture("image.png"));
+  assert.equal(page.uploads.length, 0, "and a paste there sends nothing");
+  assert.ok(page.systemLines.includes(FIM.WORDS.attachOff), "saying where it is turned off");
+  page.fn("switchChannel")("general");
+  await settle();
+  assert.equal(page.el("attach-btn").style.display, "", "the button is back in a room");
+  await paste(page, picture("image.png"));
+  assert.equal(page.uploads.length, 1, "where a file still goes");
+});
+
+test("files: with the protected setup on, opening Accept files from up needs the PIN, closing it never does; pictures are a line", async () => {
+  const fx = await fixture();
+  const page = await loadChat(fx.ann);
+  await page.fn("loadProtectedPreset")();
+  await turnOn(page);
+  let s = filesSection(page);
+  assert.equal(s.pictures, null, "no pictures choice");
+  assert.ok(s.text.includes(FIM.WORDS.picturesProtected), "a line instead");
+  s.accept.value = "anyone";
+  s.accept.onchange();
+  await settle();
+  assert.equal(FIM.readSettings(page.ctx.localStorage).accept, "friends", "not changed before the PIN");
+  assert.equal(await page.fn("protectedPinSubmit")(PIN), true, "the PIN");
+  await settle();
+  assert.equal(FIM.readSettings(page.ctx.localStorage).accept, "anyone", "then changed");
+  s = filesSection(page);
+  s.accept.value = "nobody";
+  s.accept.onchange();
+  await settle();
+  assert.equal(FIM.readSettings(page.ctx.localStorage).accept, "nobody", "closing needs no PIN");
+});
+
+test("files: a DM to someone who accepts files only from friends says so in the attach step; their profile is asked for once", async () => {
+  const fx = await fixture();
+  const page = await loadChat(fx.ann);
+  page.sock.sent.length = 0;
+  page.fn("openDmConversation")(fx.ben.key, "Ben");
+  await settle();
+  const asks = () => page.sock.sent.filter((m) => m.type === "profile_request");
+  assert.deepEqual(asks().map((m) => m.name), ["Ben"], "Ben's profile asked for");
+  page.fn("openDmConversation")(fx.ben.key, "Ben");
+  await settle();
+  assert.equal(asks().length, 1, "once");
+  await page.handle({ type: "profile_data", name: "Ben", bio: "", socials: "{}", accepts_files: "friends" });
+
+  // A screenshot with nothing hidden: the step only for the line.
+  const { going } = await pasteToStep(page, picture("image.png"));
+  const p = stepParts(attachStep(page));
+  assert.ok(p.recipient.textContent.startsWith("Ben accepts files only from friends."), "the spec's words: " + p.recipient.textContent);
+  assert.equal(p.summary, null, "and nothing about hidden details");
+  await press(page, going, "send");
+  assert.equal(page.uploads.length, 1, "it still goes");
+
+  // Once Ben counts me a friend (we follow each other and Ben gave me a pass), nothing is said.
+  page.store.setFollowing(fx.ben.key, true);
+  page.store.setFollower(fx.ben.key, true);
+  page.store.storeCertFrom(fx.ben.key, { v: 2, serial: "22".repeat(16), may: MAY, sig: "c2ln" });
+  await paste(page, picture("image.png"));
+  assert.equal(attachStep(page), null, "no step");
+  assert.equal(page.uploads.length, 2, "sent at once");
+});
+
+// ── Part 4: a copy of each private file opened ──────────────────────────
+
+test("files: a private file opened is kept here, encrypted, and opens after a reload with the server's copy gone", async () => {
+  const fx = await fixture();
+  const idb = fakeIndexedDB();
+  const storeKey = await globalThis.crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+  const s = await seal(PNG);
+  const meta = { url: "/uploads/dm-ben.enc", k: s.k, n: s.n, name: "dog.png", mime: "image/png", size: PNG.length };
+
+  let page = await loadChat(fx.ann, { indexedDB: idb, storeKey });
+  befriend(page, fx.ben.key);
+  page.files.set(meta.url, s.ct);
+  page.fn("addDmMessage")("Ben", markerText(meta), T0 + 700, fx.ben.key, fx.ann.key, true);
+  await settle();
+  assert.ok(await shownPicture(page, cardBody(page.state.appended[0])), "shown");
+  assert.equal(gets(page, meta.url), 1, "fetched once");
+  const kept = [...(idb.stores.files || new Map()).values()];
+  assert.equal(kept.length, 1, "one copy kept on this device");
+  assert.ok(!Buffer.from(kept[0].ct).includes(Buffer.from("a picture of a dog")), "encrypted");
+
+  // A reload: the same browser storage and identity, and the server no longer has the file.
+  page = await loadChat(fx.ann, { indexedDB: idb, storeKey });
+  befriend(page, fx.ben.key);
+  page.fn("addDmMessage")("Ben", markerText(meta), T0 + 700, fx.ben.key, fx.ann.key, true);
+  await settle();
+  const pic = await shownPicture(page, cardBody(page.state.appended[0]));
+  assert.ok(pic && sameBytes(pic.bytes, PNG), "it still opens");
+  assert.equal(gets(page, meta.url), 0, "from the copy here, without asking the server");
+
+  // With the cap at nothing, nothing is kept.
+  const idb2 = fakeIndexedDB();
+  page = await loadChat(fx.ann, { indexedDB: idb2, storeKey, stored: { hos_kept_files_cap_mb: "0" } });
+  befriend(page, fx.ben.key);
+  page.files.set(meta.url, s.ct);
+  page.fn("addDmMessage")("Ben", markerText(meta), T0 + 700, fx.ben.key, fx.ann.key, true);
+  await settle();
+  assert.ok(await shownPicture(page, cardBody(page.state.appended[0])), "shown");
+  assert.equal((idb2.stores.files || new Map()).size, 0, "a cap of nothing keeps nothing");
+});
+
+// ── Red first (this section) ─────────────────────────────────────────────
+// 2026-10-11: each break made in a copy of web/ and this file run against it with HOS_WEB_DIR,
+// seen failing with the assertion named; every other test passed.
+//  P1 chat-messages.js, uploadImage appending the file as picked (`file`) instead of `ready.file`:
+//     "files: a phone photo pasted in a room ... the cleaned photo, the strip's own bytes".
+//  P2 chat-messages.js, uploadImage without the keep_metadata query: "files: with the switch off
+//     ... with keep_metadata=1, so the server keeps it too".
+//  P3 chat-messages.js, sendEncryptedAttachment encrypting `file` instead of the cleaned one:
+//     "files: in a DM ... opens to the cleaned photo".
+//  P4 chat-messages.js, the marker built without `unchecked`: "files: in a DM it asks ... the
+//     marker says unchecked".
+//  P5 chat-dms.js, the unchecked line left out of privateFileHtml: "files: in a DM it asks ... the
+//     card has the line", and the fixture test "the unchecked one has the line".
+//  P6 chat-dms.js, privateFileAccepted always true: "files: by default a non-friend's file ...
+//     cat.png: only Accept".
+//  P7 chat-dms.js, privateFilePictureNow ignoring the pictures setting (friends shown at once):
+//     "files: Accept files from Nobody ... accepted, but the picture waits for the click".
+//  P8 chat-profile.js, buildProfileUpdate without accepts_files: "files: Safety shows ... with
+//     accepts_files".
+//  P8b chat-profile.js, an empty local profile pushed for a waiting choice before the server's copy
+//     of mine was heard (the guard against a whole-profile save wiping it): "files: Safety shows
+//     ... an empty local profile sends nothing before the server's copy is heard".
+//  P9 chat-messages.js, sendAttachment not checking the attach setting: "files: Safety shows ...
+//     and a paste there sends nothing".
+//  P10 chat-privacy.js, chooseFilesSetting without the PIN gate: "files: with the protected setup
+//     on ... not changed before the PIN".
+//  P11 chat-messages.js, acceptsFilesLine always null: "files: a DM to someone who accepts files
+//     only from friends ... the attach step is shown" (never happened).
+//  P12 chat-dms.js, openPrivateFile not looking at the kept copy first: "files: a private file
+//     opened is kept here ... it still opens".
+//  P13 chat-dm-store.js, keptFilePut doing nothing: "files: a private file opened ... one copy
+//     kept on this device".
+//  P14 chat-profile.js, ownProfileArrived not taking another device's choice: "files: Safety shows
+//     ... a choice made on another device is taken here".
+// And the tests above this section that this increment changed: "a marker in a group message",
+// "a non-friend's DM picture waits for the click" and "a picture from a mutual follow" failed on
+// "Image (click to load)" once a non-friend's file waited for Accept, so they now keep "Accept
+// files from: Anyone I talk to" (ACCEPT_ANYONE), which is what they test; the protected setup's
+// test failed on "a friend's picture still shows" (the setup is always Nobody now) and says so;
+// every test that pastes PNG failed on the attach step once the cleaning could not walk the old
+// stand-in PNG, so PNG is a real one now.

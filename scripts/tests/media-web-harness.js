@@ -376,6 +376,11 @@ async function openPage(opts) {
     digest: o.digest || SHA256,
     setTimeout: (fn, ms) => { timers.push({ fn, ms }); return timers.length; }, clearTimeout: () => {},
     report, language: "en-GB",
+    // The cleaning on this device before a file goes up (2026-10-11, /shared/upload-clean.js):
+    // none by default here, because these tests' files (aFile) are zeros named as videos, which the
+    // cleaning rightly refuses as "not what it says". scripts/tests/media-web-files.test.js passes
+    // the real module and real files.
+    clean: o.clean === undefined ? null : o.clean,
   });
   ctx.page = page;
   await page.start();

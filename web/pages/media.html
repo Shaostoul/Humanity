@@ -33,9 +33,14 @@
 <script src="/shared/relay-session.js?v=2"></script>
 <!-- Report on a Media tile: the words a report signs and the reasons' help (context `media`). -->
 <script src="/shared/report.js?v=3"></script>
+<!-- Every file is cleaned on this device before it goes up (2026-10-11, docs/design/media-showcase.md,
+     part 1): where it was taken and which camera took it are removed, unless the person turns off
+     "Remove location and camera details". upload-clean.js after strip-metadata.js. -->
+<script src="/shared/strip-metadata.js?v=1"></script>
+<script src="/shared/upload-clean.js?v=1"></script>
 <!-- Add to Media's resumable upload (pieces, Pause and Resume, carrying on after a drop). -->
-<script src="/pages/media-upload.js?v=2"></script>
-<script src="/pages/media-app.js?v=3"></script>
+<script src="/pages/media-upload.js?v=3"></script>
+<script src="/pages/media-app.js?v=4"></script>
 <!-- The admins' Media section, shown on this page to admins (also on /admin). -->
 <script src="/pages/media-admin.js?v=2"></script>
 </body>

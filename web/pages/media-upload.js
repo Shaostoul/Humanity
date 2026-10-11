@@ -241,7 +241,8 @@
    * (localStorage), sleep(ms), now(), fp (the file's fingerprint when the page
    * has worked it out already), digest(bytes) (SHA-256, WebCrypto's by
    * default), AbortController (the browser's by default), onChange(state),
-   * onDone(answer).
+   * onDone(answer), keepMetadata (the person chose to keep the file's hidden
+   * details: the start says keep_metadata: 1).
    * Its `state`: phase ('idle', 'starting', 'sending', 'finishing',
    * 'pausing', 'paused', 'reconnecting', 'server_wait', 'waiting_connection',
    * 'allowance', 'no_room', 'server_error', 'failed', 'cancelling',
@@ -438,7 +439,9 @@
             // Not stopped by Pause or Cancel: its answer names the session, which Cancel then deletes.
             res = await o.fetch(at(''), {
               method: 'POST', headers: headers({ 'Content-Type': 'application/json' }),
-              body: JSON.stringify({ filename: o.file.name, size: o.file.size, content_type: o.file.type || 'application/octet-stream', media: 1 }),
+              // keep_metadata: 1 only when the person chose to keep the file's hidden details (the
+              // switch on the form, B4): the server then skips its own strip too.
+              body: JSON.stringify(Object.assign({ filename: o.file.name, size: o.file.size, content_type: o.file.type || 'application/octet-stream', media: 1 }, o.keepMetadata ? { keep_metadata: 1 } : {})),
             });
           } catch (e) {
             if (!await dropWait()) return stopped();
