@@ -244,7 +244,7 @@ fn each_refusal_says_why_and_keeps_nothing() {
         }, "longer than 500 characters"),
         ("21 pieces of evidence", frame(&rae, &tom.key, "spam", "dm", Value::Array(vec![serde_json::json!({ "kind": "group_text", "from": "x", "ts": 1, "text": "x" }); 21])), "more than 20 pieces"),
         ("more than 64 KB", frame(&rae, &tom.key, "spam", "dm", serde_json::json!([{ "kind": "group_text", "from": "x", "ts": 1, "text": "y".repeat(EVIDENCE_MAX_BYTES) }])), "more than 64 KB"),
-        ("an unknown kind", frame(&rae, &tom.key, "spam", "dm", serde_json::json!([{ "kind": "photo", "from": "x" }])), "is not a direct message, a post or a group message"),
+        ("an unknown kind", frame(&rae, &tom.key, "spam", "dm", serde_json::json!([{ "kind": "photo", "from": "x" }])), "is not a direct message, a post, a group message or a Media item"),
         ("a field missing", frame(&rae, &tom.key, "spam", "dm", serde_json::json!([{ "kind": "dm", "from": "x" }])), "missing a field"),
         ("no target", frame(&rae, "", "spam", "dm", one()), "does not say who"),
         ("a target that is no key", frame(&rae, "a\u{e9}\u{e9}\u{e9}\u{e9}", "spam", "dm", one()), "does not say who"),
@@ -693,4 +693,65 @@ fn a_report_about_a_staff_member_never_reaches_them() {
     assert!(open(about_ada) && open(about_ola), "both stay open");
     decide(&abe, about_ada);
     assert!(!open(about_ada), "another admin decides it");
+}
+
+/// A5 (2026-10-11). A MEDIA ITEM IS REPORTED AS A POINTER: `media` is a context, and the evidence
+/// `{kind: "media", id}` is looked up as a public post is. The reported person's own item is kept
+/// `checked` with its number, its uploader, its title (a link in it replaced by a note), its kind,
+/// labels and visibility, and never its file or its address; a members-only item is reportable;
+/// someone else's item, and one that does not exist, are kept unchecked with only the number. A
+/// moderator is sent the same evidence as an admin (nothing in it names the reporter).
+///
+/// Seen red 2026-10-11 with `media_evidence` checking the uploader against the reporter instead
+/// of the reported person: "the reported person's own item is checked / left: Some(false) /
+/// right: Some(true)".
+#[test]
+fn a_media_item_is_reported_as_a_pointer() {
+    use crate::relay::storage::media::{Publish, MEDIA_SHELF};
+    let st = fresh_state("media");
+    let (rae, tom, xan, mo) = (person(1), person(2), person(3), person(4));
+    st.db.set_role(&mo.key, "mod").unwrap();
+    let publish = |key: &str, file: &str, title: &str, visibility: &str| {
+        st.db.record_upload(key, file, 100, MEDIA_SHELF, file, 10).unwrap();
+        st.db
+            .publish_media(key, &Publish { filename: file, title, labels: "flashing", visibility, ..Default::default() }, 1 << 40, 1 << 40, None)
+            .unwrap()
+            .id
+    };
+    let link = ["https", "://bad.example/x"].concat();
+    let his = publish(&tom.key, "1_his.mp4", &format!("Look {link}"), "members");
+    let theirs = publish(&xan.key, "2_theirs.png", "Not his", "public");
+    let evidence = serde_json::json!([
+        { "kind": "media", "id": his },
+        { "kind": "media", "id": theirs },
+        { "kind": "media", "id": 999 },
+    ]);
+    let all = send(&st, &rae, frame(&rae, &tom.key, "hate", "media", evidence));
+    let id = received(&all, &rae.key).unwrap_or_else(|| panic!("a Media report is received: {:?}", heard(&all, &rae.key)));
+    let items = kept_items(&st, id);
+    assert_eq!(items[0]["checked"].as_bool(), Some(true), "the reported person's own item is checked");
+    assert_eq!(
+        (items[0]["id"].as_i64(), items[0]["uploader"].as_str(), items[0]["media_kind"].as_str(), items[0]["visibility"].as_str()),
+        (Some(his), Some(tom.key.as_str()), Some("video"), Some("members"))
+    );
+    assert_eq!(items[0]["labels"], serde_json::json!(["flashing"]));
+    assert_eq!(items[0]["title"], "Look [a link to bad.example, not shown]");
+    let kept = serde_json::to_string(&items[0]).unwrap();
+    assert!(!kept.contains("1_his.mp4") && !kept.contains("/uploads/") && !kept.contains("/api/media/file"), "never the file nor its address: {kept}");
+    for (n, item) in items.iter().enumerate().skip(1) {
+        assert_eq!(item["checked"].as_bool(), Some(false), "item {n}");
+        assert!(item.get("title").is_none() && item.get("uploader").is_none(), "nothing about it: {item}");
+    }
+
+    let mut rx = st.broadcast_tx.subscribe();
+    block(handle(&st, &mo.key, "reports_list", &serde_json::json!({ "type": "reports_list", "state": "open" }), ""));
+    let mod_items = drain(&mut rx)
+        .into_iter()
+        .find_map(|m| match m {
+            RelayMessage::Reports { to, items, .. } if to == mo.key => Some(items),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(mod_items[0]["evidence"], serde_json::json!(items), "a moderator is sent the same evidence");
+    assert_eq!(mod_items[0]["context"], "media");
 }

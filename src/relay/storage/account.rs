@@ -131,6 +131,11 @@ impl Storage {
             // name, its size, and how much of it has arrived. Not the session id, which with any
             // of their upload tokens carries the upload on.
             grab("upload_sessions", "SELECT filename, size, offset, created_at, touched_at FROM upload_sessions WHERE public_key = ?1 ORDER BY created_at ASC", &[&key]);
+            // What they used of their upload allowance today and this hour (B3, 2026-10-11,
+            // storage/upload_counts.rs), and the Media items they keep on the server as an admin
+            // or a moderator (A7): someone else's item, but the keeping is theirs.
+            grab("upload_counts", "SELECT span, starts_at, amount FROM upload_counts WHERE public_key = ?1 ORDER BY span ASC", &[&key]);
+            grab("media_items_kept", "SELECT id, kept_at FROM media_items WHERE kept_by = ?1 ORDER BY id ASC", &[&key]);
             // That this key erased its account here earlier, while this server still
             // remembers it (BUG-135, 2026-10-04): only the day and the window it is kept for,
             // under a one-way fingerprint of the key. It is listed because it is held about
@@ -318,6 +323,17 @@ impl Storage {
             del("media_category_suggestions", "DELETE FROM media_category_suggestions WHERE suggester_key = ?1", &[&key]);
             // Their uploads still in progress (2026-10-11); the files went before the rows.
             del("upload_sessions", "DELETE FROM upload_sessions WHERE public_key = ?1", &[&key]);
+            // Their upload allowance counts (B3, 2026-10-11).
+            del("upload_counts", "DELETE FROM upload_counts WHERE public_key = ?1", &[&key]);
+            // The items they kept on the server stay kept, with their key taken out (A7): the
+            // keeping is the server's decision, which outlives the person who made it.
+            match conn.execute("UPDATE media_items SET kept_by = '' WHERE kept_by = ?1", params![key]) {
+                Ok(n) => receipt.push(("media_items_kept_unnamed".to_string(), n)),
+                Err(e) => {
+                    tracing::error!("account erase FAILED for media_items_kept_unnamed: {e}");
+                    receipt.push(("media_items_kept_unnamed_FAILED".to_string(), 1));
+                }
+            }
             // The reports they filed stay for the admins, with the reporter taken out of each
             // (2026-10-09, storage/reports.rs `forget_reporter`; blocking-and-safe-mode.md 10e).
             match super::reports::forget_reporter(conn, key) {
@@ -392,6 +408,8 @@ impl Storage {
             OR EXISTS(SELECT 1 FROM media_picks WHERE picker_key = ?1)
             OR EXISTS(SELECT 1 FROM media_category_suggestions WHERE suggester_key = ?1)
             OR EXISTS(SELECT 1 FROM upload_sessions WHERE public_key = ?1)
+            OR EXISTS(SELECT 1 FROM upload_counts WHERE public_key = ?1)
+            OR EXISTS(SELECT 1 FROM media_items WHERE kept_by = ?1)
             OR EXISTS(SELECT 1 FROM reports_v2 WHERE reporter_key = ?1)";
         self.with_read_conn(|conn| conn.query_row(q, params![key, plot_owner], |r| r.get::<_, bool>(0)))
             .unwrap_or_else(|e| {
@@ -782,7 +800,8 @@ mod tests {
         let uploads = crate::test_temp::dir("account_media_uploads");
         let members = crate::test_temp::dir("account_media_members");
         let resume = crate::test_temp::dir("account_media_resume");
-        let folders = Folders { uploads: &uploads, members: &members, resume: &resume };
+        let waiting = crate::test_temp::dir("account_media_waiting");
+        let folders = Folders { uploads: &uploads, members: &members, resume: &resume, waiting: &waiting };
         db.join_server("ann_key", "Ann").unwrap();
         db.join_server("bea_key", "Bea").unwrap();
         let publish = |key: &str, file: &str, visibility: &str| {

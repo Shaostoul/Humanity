@@ -13,12 +13,14 @@ use crate::test_temp::TempPath;
 
 const MIB: u64 = 1024 * 1024;
 
-/// A relay over a temporary database, and its three folders (deleted when the rig drops).
+/// A relay over a temporary database, and its four folders (deleted when the rig drops). A Media
+/// upload is stored in `waiting` until it is published (R6).
 struct Rig {
     state: Arc<RelayState>,
     uploads: TempPath,
     members: TempPath,
     resume: TempPath,
+    waiting: TempPath,
 }
 
 fn rig(tag: &str) -> Rig {
@@ -27,12 +29,13 @@ fn rig(tag: &str) -> Rig {
         uploads: crate::test_temp::dir(&format!("{tag}_uploads")),
         members: crate::test_temp::dir(&format!("{tag}_members")),
         resume: crate::test_temp::dir(&format!("{tag}_resume")),
+        waiting: crate::test_temp::dir(&format!("{tag}_waiting")),
     }
 }
 
 /// What a start asks for: a Media file of `size` bytes named `name`, of type `ct`.
 fn file(name: &str, size: u64, ct: &str) -> StartBody {
-    StartBody { filename: name.into(), size, content_type: Some(ct.into()), media: Some(1), blake3: None }
+    StartBody { filename: name.into(), size, content_type: Some(ct.into()), media: Some(1), blake3: None, keep_metadata: None }
 }
 
 impl Rig {
@@ -40,7 +43,7 @@ impl Rig {
         &self.state.db
     }
     fn folders(&self) -> Folders<'_> {
-        Folders { uploads: &self.uploads, members: &self.members, resume: &self.resume }
+        Folders { uploads: &self.uploads, members: &self.members, resume: &self.resume, waiting: &self.waiting }
     }
     /// `key` is signed in with `token` (an upload token, as a socket's identify hands out).
     async fn sign_in(&self, key: &str, token: &str) {
@@ -108,7 +111,7 @@ fn contains(hay: &[u8], needle: &[u8]) -> bool {
 /// A FILE SENT IN THREE PIECES IS STORED ON THE MEDIA SHELF, with its size, and the answer is the
 /// single request's (`upload_rules::upload_answer`, which both routes call): each piece answers
 /// how far the server got, the status says the same, and the last piece answers with the stored
-/// upload. The pieces' file and the session row are gone after.
+/// upload. The pieces' file is gone after; the session row stays, finished, with that answer (R2).
 ///
 /// Seen red 2026-10-11 with the finish storing the file on shelf 0 (chat) instead of the
 /// session's: "the file is on the Media shelf with its size / left: (0, 2500, \"clip.mp4\") /
@@ -135,16 +138,17 @@ async fn a_file_sent_in_three_pieces_is_stored_on_the_media_shelf() {
     let name = done["filename"].as_str().unwrap().to_string();
     assert_eq!(done, crate::relay::upload_rules::upload_answer(&name, 2500, "video"), "the single request's answer");
     assert!(name.ends_with("_clipmp4.mp4"), "the single request's naming rule: {name}");
-    assert_eq!(std::fs::read(r.uploads.join(&name)).unwrap(), data, "the stored file is the file that was sent");
+    assert_eq!(std::fs::read(r.waiting.join(&name)).unwrap(), data, "the stored file is the file that was sent");
+    assert!(Rig::files_in(&r.uploads).is_empty(), "a Media upload is at no public address until it is published (R6)");
     let (shelf, size, original): (i64, i64, String) = r
         .db()
         .with_conn(|c| c.query_row("SELECT shared, size_bytes, original_name FROM user_uploads WHERE filename = ?1", [&name], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?))))
         .unwrap();
     assert_eq!((shelf, size, original.as_str()), (MEDIA_SHELF, 2500, "clip.mp4"), "the file is on the Media shelf with its size");
     assert_eq!(r.db().media_bytes(Some("ann")), 2500, "the Media budget counts it");
-    assert!(r.session(&id).is_none(), "the session is gone");
-    assert!(Rig::files_in(&r.resume).is_empty(), "and its pieces' file");
-    assert_eq!(status_core(&r.state, &id, Some("tok_ann")).await.unwrap_err().status(), StatusCode::NOT_FOUND);
+    assert!(r.session(&id).is_some_and(|s| s.finished()), "the session stays, finished, until the idle expiry (R2)");
+    assert!(Rig::files_in(&r.resume).is_empty(), "its pieces' file is gone");
+    assert_eq!(status_core(&r.state, &id, Some("tok_ann")).await.unwrap().0["done"], done, "and the status says it is done");
 }
 
 /// A PIECE SENT AT THE WRONG PLACE GETS 409 WITH THE RIGHT OFFSET (a piece sent twice, or one
@@ -390,12 +394,12 @@ async fn a_blake3_mismatch_is_refused_and_cleaned_up() {
     assert!(refused.words().contains("does not match"), "{}", refused.words());
     assert!(r.session(&id).is_none(), "the session is gone");
     assert!(Rig::files_in(&r.resume).is_empty(), "the pieces' file is gone");
-    assert!(Rig::files_in(&r.uploads).is_empty(), "nothing was stored");
+    assert!(Rig::files_in(&r.uploads).is_empty() && Rig::files_in(&r.waiting).is_empty(), "nothing was stored");
 
     let right = StartBody { blake3: Some(blake3::hash(&data).to_hex().to_string().to_uppercase()), ..file("clip.mp4", 1500, "video/mp4") };
     let id = r.start("tok_ann", right).await.unwrap();
     let done = r.send(&id, "tok_ann", 0, &data).await.unwrap();
-    assert_eq!(std::fs::read(r.uploads.join(done["filename"].as_str().unwrap())).unwrap(), data, "a matching file is stored");
+    assert_eq!(std::fs::read(r.waiting.join(done["filename"].as_str().unwrap())).unwrap(), data, "a matching file is stored");
 }
 
 /// A PICTURE'S LOCATION IS STRIPPED AT THE FINISH, as in the single request: a phone JPEG's EXIF
@@ -414,7 +418,7 @@ async fn a_pictures_location_is_stripped_at_finish() {
     let id = r.start("tok_ann", file("garden.jpg", photo.len() as u64, "image/jpeg")).await.unwrap();
     r.send(&id, "tok_ann", 0, &photo[..20]).await.unwrap();
     let done = r.send(&id, "tok_ann", 20, &photo[20..]).await.unwrap();
-    let stored = std::fs::read(r.uploads.join(done["filename"].as_str().unwrap())).unwrap();
+    let stored = std::fs::read(r.waiting.join(done["filename"].as_str().unwrap())).unwrap();
     assert!(!contains(&stored, b"GPS-LATITUDE"), "the location is gone from the stored picture");
     assert_eq!(&stored[..3], b"\xFF\xD8\xFF", "it is still a JPEG");
     assert_eq!((done["type"].as_str(), done["size"].as_u64()), (Some("image"), Some(stored.len() as u64)));
@@ -522,7 +526,7 @@ async fn the_start_up_check_cuts_a_long_file_back_and_removes_orphans() {
     assert!(left.is_empty(), "files with no session are gone: {left:?}");
 
     let finished = r.send(&long, "tok_ann", 1000, &data[1000..]).await.unwrap();
-    assert_eq!(std::fs::read(r.uploads.join(finished["filename"].as_str().unwrap())).unwrap(), data, "it carried on and finished whole");
+    assert_eq!(std::fs::read(r.waiting.join(finished["filename"].as_str().unwrap())).unwrap(), data, "it carried on and finished whole");
 }
 
 /// AN ACCOUNT ERASE REMOVES THE PERSON'S SESSIONS, rows and files, and says so in its receipt;
@@ -584,6 +588,9 @@ fn an_older_database_gains_the_sessions_table() {
         blake3: String::new(),
         created_at: 1,
         touched_at: 1,
+        keep_metadata: false,
+        hash_checked: false,
+        done_answer: String::new(),
     };
     db.insert_upload_session(&s).expect("the new table is there");
     assert_eq!(db.upload_session(&s.id).unwrap(), Some(s));
@@ -651,7 +658,7 @@ async fn a_videos_location_is_removed_at_finish() {
     let id = r.start("tok_ann", file("walk.mp4", video.len() as u64, "video/mp4")).await.unwrap();
     r.send(&id, "tok_ann", 0, &video[..100]).await.unwrap();
     let done = r.send(&id, "tok_ann", 100, &video[100..]).await.unwrap();
-    let stored = std::fs::read(r.uploads.join(done["filename"].as_str().unwrap())).unwrap();
+    let stored = std::fs::read(r.waiting.join(done["filename"].as_str().unwrap())).unwrap();
     assert!(!contains(&stored, b"+47.6553-122.6870"), "the place it was filmed is gone from the stored video");
     assert_eq!(stored.len(), video.len(), "nothing moved: the same size");
     assert_eq!(&stored[stored.len() - 3000..], &video[video.len() - 3000..], "the picture data is untouched");
@@ -669,9 +676,9 @@ async fn a_videos_location_is_removed_at_finish() {
 }
 
 /// THE SINGLE REQUEST STRIPS VIDEOS TOO: `upload_file` sends every file that is neither a picture
-/// nor encrypted through `finish_video` before it is moved into place, and removes the part file
+/// nor encrypted through `finish_file_as` (once called `finish_video`) before it is moved into place, and removes the part file
 /// when it is refused. (A source check: the single request stores into the live data/uploads
-/// folder, which a test must not write to; `finish_video` itself is proven by the test above.)
+/// folder, which a test must not write to; `finish_file_as` itself is proven by the test above.)
 ///
 /// Seen red 2026-10-11 with the call taken out of `upload_file`: "the single request strips a
 /// video's location".
@@ -682,8 +689,18 @@ fn the_single_request_strips_videos_too() {
     let start = api.find("pub async fn upload_file(").expect("upload_file");
     let body = &api[start..start + api[start..].find("\n}\n").unwrap()];
     let non_picture = &body[body.find("axum::body::Bytes::from(stripped)").expect("the picture branch")..];
-    let call = non_picture.find("finish_video(&path)").expect("the single request strips a video's location");
+    let call = non_picture.find("finish_file_as(&path, keep_metadata)").expect("the single request strips a video's location");
     let guard = non_picture.find("if !is_encrypted").expect("only files that are not encrypted");
     assert!(guard < call, "an encrypted file is never opened");
     assert!(non_picture[call..].contains("remove_file(&part.path)"), "a refused video's part file is removed");
 }
+
+/// A finish of an upload with this file name waits for [`FINISH_HOLD`] at its start
+/// (resumable.rs `finish`, test builds only), so a test can hold one finish while it is running
+/// (R2, in resumable_follow_ups_tests.rs).
+pub(super) const HELD_FINISH_NAME: &str = "held-finish.mp4";
+pub(super) static FINISH_HOLD: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+// The increment 2 follow-ups and the review's fixes (2026-10-11): R1, R2, R3, B1, B3, B4, R7.
+#[path = "resumable_follow_ups_tests.rs"]
+mod follow_ups;

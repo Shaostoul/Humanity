@@ -35,12 +35,16 @@ fn relay(tag: &str) -> Arc<RelayState> {
 }
 
 /// A public uploads folder and a members-only one of the test's own (deleted when they drop).
-/// The third is the folder resumable uploads gather their pieces in (relay/resumable.rs).
-fn temp_folders(tag: &str) -> (crate::test_temp::TempPath, crate::test_temp::TempPath, crate::test_temp::TempPath) {
+/// The third is the folder resumable uploads gather their pieces in (relay/resumable.rs), the
+/// fourth the one a Media upload waits in until it is published (R6).
+pub(super) fn temp_folders(
+    tag: &str,
+) -> (crate::test_temp::TempPath, crate::test_temp::TempPath, crate::test_temp::TempPath, crate::test_temp::TempPath) {
     (
         crate::test_temp::dir(&format!("{tag}_uploads")),
         crate::test_temp::dir(&format!("{tag}_members")),
         crate::test_temp::dir(&format!("{tag}_resume")),
+        crate::test_temp::dir(&format!("{tag}_waiting")),
     )
 }
 
@@ -150,8 +154,8 @@ fn publishing_needs_a_member_known_labels_and_a_visibility() {
     let db = &state.db;
     let s = db.get_server_settings().unwrap();
     let known = load_labels(std::path::Path::new("data/media/labels.json"));
-    let (uploads, members, resume) = temp_folders("media_publish");
-    let uploads = Folders { uploads: &uploads, members: &members, resume: &resume };
+    let (uploads, members, resume, waiting) = temp_folders("media_publish");
+    let uploads = Folders { uploads: &uploads, members: &members, resume: &resume, waiting: &waiting };
     let (ann, out) = (person(6), person(7));
     db.join_server(&ann.key, "Ann").unwrap();
     db.record_upload(&ann.key, "1_a.png", 100, MEDIA_SHELF, "a.png", 10).unwrap();
@@ -190,8 +194,8 @@ fn publishing_needs_a_member_known_labels_and_a_visibility() {
 fn removing_an_item_deletes_its_file() {
     let state = relay("media_remove_route");
     let db = &state.db;
-    let (uploads, members, resume) = temp_folders("media_remove");
-    let folders = Folders { uploads: &uploads, members: &members, resume: &resume };
+    let (uploads, members, resume, waiting) = temp_folders("media_remove");
+    let folders = Folders { uploads: &uploads, members: &members, resume: &resume, waiting: &waiting };
     let (ann, cal, op) = (person(8), person(9), person(10));
     for (p, n) in [(&ann, "Ann"), (&cal, "Cal"), (&op, "Op")] {
         db.join_server(&p.key, n).unwrap();
@@ -355,7 +359,14 @@ async fn a_media_write_needs_a_fresh_signature() {
     let item = published(&state.db, &ann.key, "1_a.png", "public");
     let now = now_ms();
     let purpose = format!("media_feature:{}", item.id);
-    let body = |ts: u64, signer: &Person| FeatureBody { key: op.key.clone(), timestamp: ts, sig: signer.sign(&purpose, ts), id: item.id, featured: true };
+    let body = |ts: u64, signer: &Person| FeatureBody {
+        key: op.key.clone(),
+        timestamp: ts,
+        sig: signer.sign(&purpose, ts),
+        id: item.id,
+        featured: true,
+        filename: "1_a.png".into(),
+    };
 
     let forged = feature(State(state.clone()), Json(body(now, &ann))).await.unwrap_err();
     assert_eq!(forged.0, StatusCode::UNAUTHORIZED, "someone else's signature");
@@ -408,8 +419,8 @@ fn an_unpublished_media_upload_expires_and_can_be_removed_by_name() {
     let state = relay("media_f1");
     let db = &state.db;
     let s = db.get_server_settings().unwrap();
-    let (uploads, members, resume) = temp_folders("media_f1");
-    let folders = Folders { uploads: &uploads, members: &members, resume: &resume };
+    let (uploads, members, resume, waiting) = temp_folders("media_f1");
+    let folders = Folders { uploads: &uploads, members: &members, resume: &resume, waiting: &waiting };
     let (ann, cal, op) = (person(20), person(21), person(22));
     for (p, n) in [(&ann, "Ann"), (&cal, "Cal"), (&op, "Op")] {
         db.join_server(&p.key, n).unwrap();
@@ -461,8 +472,8 @@ fn an_unpublished_media_upload_expires_and_can_be_removed_by_name() {
 fn removing_an_item_gives_its_upload_back_and_keeps_a_file_in_use() {
     let state = relay("media_f2");
     let db = &state.db;
-    let (uploads, members, resume) = temp_folders("media_f2");
-    let folders = Folders { uploads: &uploads, members: &members, resume: &resume };
+    let (uploads, members, resume, waiting) = temp_folders("media_f2");
+    let folders = Folders { uploads: &uploads, members: &members, resume: &resume, waiting: &waiting };
     let (ann, op) = (person(23), person(24));
     db.join_server(&ann.key, "Ann").unwrap();
     db.join_server(&op.key, "Op").unwrap();
@@ -510,8 +521,8 @@ async fn a_members_only_file_is_only_for_members() {
     let state = relay("media_f3");
     let db = &state.db;
     let s = db.get_server_settings().unwrap();
-    let (uploads, members, resume) = temp_folders("media_f3");
-    let folders = Folders { uploads: &uploads, members: &members, resume: &resume };
+    let (uploads, members, resume, waiting) = temp_folders("media_f3");
+    let folders = Folders { uploads: &uploads, members: &members, resume: &resume, waiting: &waiting };
     let (ann, bea, bo, out) = (person(25), person(26), person(27), person(28));
     for (p, n) in [(&ann, "Ann"), (&bea, "Bea"), (&bo, "Bo")] {
         db.join_server(&p.key, n).unwrap();
@@ -571,8 +582,8 @@ fn two_uploads_finishing_together_cannot_both_pass_the_room_check() {
     let db = &state.db;
     let mut s = db.get_server_settings().unwrap();
     s.media_per_person_mb = 1;
-    let (uploads, members, resume) = temp_folders("media_f4");
-    let folders = Folders { uploads: &uploads, members: &members, resume: &resume };
+    let (uploads, members, resume, waiting) = temp_folders("media_f4");
+    let folders = Folders { uploads: &uploads, members: &members, resume: &resume, waiting: &waiting };
     let arrived = AtomicUsize::new(0);
     let results: Vec<Result<Vec<String>, Refused>> = std::thread::scope(|scope| {
         let runs: Vec<_> = ["1_a.mp4", "2_b.mp4"]
@@ -580,15 +591,24 @@ fn two_uploads_finishing_together_cannot_both_pass_the_room_check() {
             .map(|name| {
                 let (s, arrived) = (&s, &arrived);
                 scope.spawn(move || {
-                    let u = NewUpload { key: "ann", shelf: MEDIA_SHELF, name, original_name: name, len: 600 * 1024, keep: 4 };
-                    store_upload(db, s, folders, &u, |path| {
-                        arrived.fetch_add(1, Ordering::SeqCst);
-                        let start = std::time::Instant::now();
-                        while arrived.load(Ordering::SeqCst) < 2 && start.elapsed() < std::time::Duration::from_millis(500) {
-                            std::thread::sleep(std::time::Duration::from_millis(5));
-                        }
-                        std::fs::write(path, b"video")
-                    })
+                    let u = NewUpload { key: "ann", shelf: MEDIA_SHELF, name, original_name: name, len: 600 * 1024, keep: 4, private_held_limit: None };
+                    store_upload(
+                        db,
+                        s,
+                        folders,
+                        &u,
+                        |path| {
+                            arrived.fetch_add(1, Ordering::SeqCst);
+                            let start = std::time::Instant::now();
+                            while arrived.load(Ordering::SeqCst) < 2 && start.elapsed() < std::time::Duration::from_millis(500) {
+                                std::thread::sleep(std::time::Duration::from_millis(5));
+                            }
+                            std::fs::write(path, b"video")
+                        },
+                        |path| {
+                            let _ = std::fs::remove_file(path);
+                        },
+                    )
                 })
             })
             .collect();
@@ -625,6 +645,7 @@ async fn a_signature_names_its_target_and_is_never_far_ahead() {
         sig: op.sign(&format!("media_feature:{signed_for}"), ts),
         id,
         featured: true,
+        filename: if id == a.id { "1_a.png" } else { "2_b.png" }.into(),
     };
 
     let ahead = feature(State(state.clone()), Json(feature_body(a.id, a.id, now + 31_000))).await;
@@ -636,7 +657,7 @@ async fn a_signature_names_its_target_and_is_never_far_ahead() {
     assert_eq!(moved.map(|_| ()).map_err(|(code, _)| code), Err(StatusCode::UNAUTHORIZED), "a signature for one item was taken for another");
     assert!(!db.media_item(b.id).unwrap().unwrap().featured);
 
-    let pick_b = ItemBody { key: op.key.clone(), timestamp: now, sig: op.sign(&format!("media_pick:{}", a.id), now), id: b.id };
+    let pick_b = ItemBody { key: op.key.clone(), timestamp: now, sig: op.sign(&format!("media_pick:{}", a.id), now), id: b.id, filename: "2_b.png".into() };
     assert_eq!(pick(State(state.clone()), Json(pick_b)).await.unwrap_err().0, StatusCode::UNAUTHORIZED, "a pick");
     let remove_b = RemoveBody { key: op.key.clone(), timestamp: now, sig: op.sign("media_remove:1_a.png", now), filename: Some("2_b.png".into()), id: None };
     assert_eq!(remove(State(state.clone()), Json(remove_b)).await.unwrap_err().0, StatusCode::UNAUTHORIZED, "a removal by name");
@@ -664,8 +685,8 @@ fn a_zero_size_upload_is_counted_by_its_size_on_disk() {
     let state = relay("media_f6");
     let db = &state.db;
     let s = db.get_server_settings().unwrap();
-    let (uploads, members, resume) = temp_folders("media_f6");
-    let folders = Folders { uploads: &uploads, members: &members, resume: &resume };
+    let (uploads, members, resume, waiting) = temp_folders("media_f6");
+    let folders = Folders { uploads: &uploads, members: &members, resume: &resume, waiting: &waiting };
     let ann = person(31);
     db.join_server(&ann.key, "Ann").unwrap();
     std::fs::write(uploads.join("1_old.png"), vec![7u8; 2048]).unwrap();
@@ -723,8 +744,8 @@ fn a_file_already_public_goes_on_media_as_public_only() {
     let state = relay("media_already_public");
     let db = &state.db;
     let s = db.get_server_settings().unwrap();
-    let (uploads, members, resume) = temp_folders("media_already_public");
-    let folders = Folders { uploads: &uploads, members: &members, resume: &resume };
+    let (uploads, members, resume, waiting) = temp_folders("media_already_public");
+    let folders = Folders { uploads: &uploads, members: &members, resume: &resume, waiting: &waiting };
     let ann = person(31);
     db.join_server(&ann.key, "Ann").unwrap();
     for (file, shelf) in [("1_chat.png", 0i64), ("2_shared.glb", 1)] {

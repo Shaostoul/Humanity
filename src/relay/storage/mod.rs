@@ -1405,10 +1405,15 @@ impl Storage {
         // the erase takes a person's items, their picks and the picks of their items, and their
         // suggestions (storage/account.rs). `from_shelf` is where an item's upload was before it
         // was published (0 chat, 1 Shared Files, 2 uploaded for Media), so removing the item gives
-        // it back there (the review's F2, 2026-10-11); no index reads it.
+        // it back there (the review's F2, 2026-10-11); no index reads it. `id` is AUTOINCREMENT so
+        // a removed item's number is never given to the next one: an admin acting on a stale tile
+        // must never reach someone else's item (W5, 2026-10-11). `kept_by` and `kept_at`: an admin
+        // or a moderator who keeps the item on the server (A7, the operator's answers of
+        // 2026-10-11, number 1), NULL when nobody does; '' once that person erased their account.
+        // The table is new in this unreleased version, so these are in its CREATE TABLE.
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS media_items (
-                id              INTEGER PRIMARY KEY,
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
                 upload_filename TEXT    NOT NULL UNIQUE,
                 uploader_key    TEXT    NOT NULL,
                 title           TEXT    NOT NULL DEFAULT '',
@@ -1421,7 +1426,9 @@ impl Storage {
                 size_bytes      INTEGER NOT NULL,
                 views           INTEGER NOT NULL DEFAULT 0,
                 created_at      INTEGER NOT NULL,
-                from_shelf      INTEGER NOT NULL
+                from_shelf      INTEGER NOT NULL,
+                kept_by         TEXT,
+                kept_at         INTEGER
             );
             CREATE INDEX IF NOT EXISTS idx_media_items_uploader ON media_items(uploader_key, id);
             CREATE INDEX IF NOT EXISTS idx_media_items_category ON media_items(category_id, id);
@@ -1472,9 +1479,35 @@ impl Storage {
                 shelf        INTEGER NOT NULL,
                 blake3       TEXT    NOT NULL DEFAULT '',
                 created_at   INTEGER NOT NULL,
-                touched_at   INTEGER NOT NULL
+                touched_at   INTEGER NOT NULL,
+                keep_metadata INTEGER NOT NULL DEFAULT 0,
+                hash_checked  INTEGER NOT NULL DEFAULT 0,
+                done_answer   TEXT    NOT NULL DEFAULT ''
             ) WITHOUT ROWID;
             CREATE INDEX IF NOT EXISTS idx_upload_sessions_key ON upload_sessions(public_key);"
+        )?;
+        // The last three columns (2026-10-11, new in this unreleased version, so in the CREATE
+        // TABLE): `keep_metadata` is the person's choice to keep the file's hidden information
+        // (B4); `hash_checked` says the BLAKE3 hash matched once, before anything changed the file
+        // (the location strip changes it, so it is never hashed again: R1); `done_answer` is the
+        // finished upload's answer, kept until the idle expiry so an app that lost its connection
+        // during the finish still learns the stored name (R2).
+
+        // Upload allowances (B3, 2026-10-11, storage/upload_counts.rs; the operator's answers of
+        // 2026-10-11, number 3): how much each person uploaded in the current UTC day (`span`
+        // 'day', `amount` in bytes) and how many uploads they started in the current clock hour
+        // ('hour', a count), over every upload route. A row's window ends a day or an hour after
+        // `starts_at`; ended windows are deleted when a new amount is added. A new table in a
+        // batch of its own, its key over its own columns (BUG-046 concerns ALTER-added columns).
+        // In the account export and erased with the account (storage/account.rs).
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS upload_counts (
+                public_key TEXT    NOT NULL,
+                span       TEXT    NOT NULL,
+                starts_at  INTEGER NOT NULL,
+                amount     INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (public_key, span, starts_at)
+            ) WITHOUT ROWID;"
         )?;
 
 
@@ -1551,7 +1584,12 @@ impl Storage {
                 max_chars        INTEGER NOT NULL DEFAULT 280,
                 max_upload_mb    INTEGER NOT NULL DEFAULT 5,
                 max_uploads_kept INTEGER NOT NULL DEFAULT 4,
-                can_edit_ship    INTEGER NOT NULL DEFAULT 0
+                can_edit_ship    INTEGER NOT NULL DEFAULT 0,
+                max_media_file_mb     INTEGER NOT NULL DEFAULT 0,
+                max_private_file_mb   INTEGER NOT NULL DEFAULT 6,
+                max_upload_mb_per_day INTEGER NOT NULL DEFAULT 100,
+                max_uploads_per_hour  INTEGER NOT NULL DEFAULT 20,
+                max_private_held_mb   INTEGER NOT NULL DEFAULT 30
              );",
         )?;
         // CRITICAL ORDERING (fixed v0.262.2 — production incident
@@ -1646,6 +1684,35 @@ impl Storage {
             info!("Migration: added can_edit_ship (roles); the built-in Admin role has it");
         }
 
+        // ── 2026-10-11: four upload limits per role (docs/design/media-showcase.md, follow-ups
+        // B1 to B3; storage/roles.rs) ──
+        // `max_media_file_mb` (the largest Media file, 0 = up to the person's Media share),
+        // `max_private_file_mb` (the largest file in a DM or a group, 6 as both apps used),
+        // `max_upload_mb_per_day` and `max_uploads_per_hour` (0 = no limit), and
+        // `max_private_held_mb` (B5: private files one person holds at once, 0 = no limit). The
+        // allowances are given by tier once, with the columns, in one transaction: Admin none,
+        // Moderator 4096 MB, 200 an hour and 120 MB held, Verified (and Donor, and any custom role
+        // on that tier) 1024 MB, 60 and 60 MB, anything else 100 MB, 20 and 30 MB; an admin's
+        // later change survives a restart. After
+        // the ALTERs above, before the seed below (the v0.262.2 ordering), no index over them
+        // (BUG-046). `an_existing_roles_table_gains_the_upload_limits` opens a table from before.
+        if conn.prepare("SELECT max_upload_mb_per_day FROM roles LIMIT 0").is_err() {
+            conn.execute_batch(
+                "BEGIN;
+                 ALTER TABLE roles ADD COLUMN max_media_file_mb     INTEGER NOT NULL DEFAULT 0;
+                 ALTER TABLE roles ADD COLUMN max_private_file_mb   INTEGER NOT NULL DEFAULT 6;
+                 ALTER TABLE roles ADD COLUMN max_upload_mb_per_day INTEGER NOT NULL DEFAULT 100;
+                 ALTER TABLE roles ADD COLUMN max_uploads_per_hour  INTEGER NOT NULL DEFAULT 20;
+                 ALTER TABLE roles ADD COLUMN max_private_held_mb   INTEGER NOT NULL DEFAULT 30;
+                 UPDATE roles SET
+                   max_upload_mb_per_day = CASE base_tier WHEN 'admin' THEN 0 WHEN 'mod' THEN 4096 WHEN 'verified' THEN 1024 ELSE 100 END,
+                   max_uploads_per_hour  = CASE base_tier WHEN 'admin' THEN 0 WHEN 'mod' THEN 200  WHEN 'verified' THEN 60   ELSE 20  END,
+                   max_private_held_mb   = CASE base_tier WHEN 'admin' THEN 0 WHEN 'mod' THEN 120  WHEN 'verified' THEN 60   ELSE 30  END;
+                 COMMIT;"
+            )?;
+            info!("Migration: added the Media file, private file, day, hour and private-held upload limits (roles)");
+        }
+
         // Seed the 5 built-ins. Runs AFTER the ALTERs above so every
         // column exists on both fresh and upgraded DBs. INSERT OR IGNORE
         // → existing built-ins (already backfilled above on an upgrade)
@@ -1657,20 +1724,22 @@ impl Storage {
             // v0.262). Fresh DBs seed these directly; upgrades keep the
             // backfilled values (rows already exist → IGNORE). The last
             // number (ship) is `can_edit_ship`: only Admin has it (ship
-            // homes increment 5).
-            let seeds: &[(&str, &str, &str, i64, i64, i64, i64, &str, i64, i64, i64, i64, i64)] = &[
-                ("unverified", "Unverified", "#9E9E9E", 0, 0, 0, 0, "unverified", 0,   280,   5,   4, 0),
-                ("verified",   "Verified",   "#4FC3F7", 1, 0, 1, 1, "verified",   1,  1000,  25,  20, 0),
-                ("donor",      "Donor",      "#FFD54F", 2, 0, 1, 1, "verified",   2,  1000,  25,  20, 0),
-                ("mod",        "Moderator",  "#81C784", 3, 1, 1, 1, "mod",        3,  4000, 100, 100, 0),
-                ("admin",      "Admin",      "#E57373", 4, 1, 1, 1, "admin",      4, 10000, 500, 500, 1),
+            // homes increment 5). The two after it are the day's upload allowance in MB and the
+            // hour's in uploads (B3, 2026-10-11; 0 = none, Admin's), then the MB of private files
+            // one person may hold (B5): the same numbers the upgrade above gives by tier.
+            let seeds: &[(&str, &str, &str, i64, i64, i64, i64, &str, i64, i64, i64, i64, i64, i64, i64, i64)] = &[
+                ("unverified", "Unverified", "#9E9E9E", 0, 0, 0, 0, "unverified", 0,   280,   5,   4, 0,  100,  20,  30),
+                ("verified",   "Verified",   "#4FC3F7", 1, 0, 1, 1, "verified",   1,  1000,  25,  20, 0, 1024,  60,  60),
+                ("donor",      "Donor",      "#FFD54F", 2, 0, 1, 1, "verified",   2,  1000,  25,  20, 0, 1024,  60,  60),
+                ("mod",        "Moderator",  "#81C784", 3, 1, 1, 1, "mod",        3,  4000, 100, 100, 0, 4096, 200, 120),
+                ("admin",      "Admin",      "#E57373", 4, 1, 1, 1, "admin",      4, 10000, 500, 500, 1,    0,   0,   0),
             ];
-            for (id, label, color, trust, stream, upload, voice, tier, sort, mc, mu, mk, ship) in seeds {
+            for (id, label, color, trust, stream, upload, voice, tier, sort, mc, mu, mk, ship, per_day, per_hour, held) in seeds {
                 conn.execute(
                     "INSERT OR IGNORE INTO roles
-                       (id,label,color,trust_level,built_in,can_stream,can_upload,can_voice,base_tier,sort_order,can_image_share,can_file_share,max_chars,max_upload_mb,max_uploads_kept,can_edit_ship)
-                     VALUES (?1,?2,?3,?4,1,?5,?6,?7,?8,?9,1,1,?10,?11,?12,?13)",
-                    rusqlite::params![id, label, color, trust, stream, upload, voice, tier, sort, mc, mu, mk, ship],
+                       (id,label,color,trust_level,built_in,can_stream,can_upload,can_voice,base_tier,sort_order,can_image_share,can_file_share,max_chars,max_upload_mb,max_uploads_kept,can_edit_ship,max_upload_mb_per_day,max_uploads_per_hour,max_private_held_mb)
+                     VALUES (?1,?2,?3,?4,1,?5,?6,?7,?8,?9,1,1,?10,?11,?12,?13,?14,?15,?16)",
+                    rusqlite::params![id, label, color, trust, stream, upload, voice, tier, sort, mc, mu, mk, ship, per_day, per_hour, held],
                 )?;
             }
             info!("Migration: roles built-ins seeded (post-ALTER ordering)");
@@ -2725,6 +2794,10 @@ pub mod reports;
 pub mod media;
 /// Resumable uploads' sessions (2026-10-11): a big Media file sent in pieces. Routes in relay/resumable.rs.
 pub mod upload_sessions;
+/// Each person's upload allowance used in the current day and hour (B3, 2026-10-11).
+pub mod upload_counts;
+/// Files from private conversations: how long they stay and how much one person holds (B5).
+pub mod private_files;
 pub mod docs_accord;
 
 pub use civilization::CivilizationStats;

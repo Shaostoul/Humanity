@@ -68,6 +68,60 @@ pub struct RoleDef {
     /// a payload without it (default-deny).
     #[serde(default)]
     pub can_edit_ship: bool,
+    /// The largest single Media file this role may send, in MB, whichever way it is sent (one
+    /// request or a resumable upload; docs/design/media-showcase.md, follow-up B1, 2026-10-11).
+    /// 0 means "up to the person's Media share", the default for every role. Kept between 0 and
+    /// [`MEDIA_FILE_MB_MAX`] when saved.
+    #[serde(default)]
+    pub max_media_file_mb: i64,
+    /// The largest file this role may send in a private conversation (a DM or a P2P group: an
+    /// encrypted upload), in MB (follow-up B2). Default 6, the number both apps used before the
+    /// server said. Kept between 1 and [`PRIVATE_FILE_MB_MAX`] when saved.
+    #[serde(default = "default_max_private_file_mb")]
+    pub max_private_file_mb: i64,
+    /// How much this role may upload in a day, in MB, over every upload route, counted by the
+    /// relay (follow-up B3; the operator's answers of 2026-10-11, number 3). 0 means no limit,
+    /// the built-in Admin role's default. The day is the UTC calendar day.
+    #[serde(default = "default_max_upload_mb_per_day")]
+    pub max_upload_mb_per_day: i64,
+    /// How many uploads this role may start in an hour (the clock hour, UTC), over every upload
+    /// route (B3). 0 means no limit, the built-in Admin role's default.
+    #[serde(default = "default_max_uploads_per_hour")]
+    pub max_uploads_per_hour: i64,
+    /// The most this role's holder may keep on the server in files from private conversations at
+    /// once, in MB (follow-up B5, 2026-10-11): each leaves after the DM mailbox lifetime, and a
+    /// new one past this is refused until the oldest leaves or the person removes some. 0 means
+    /// no limit, the built-in Admin role's default.
+    #[serde(default = "default_max_private_held_mb")]
+    pub max_private_held_mb: i64,
+}
+
+/// The most `max_media_file_mb` can be: 64 GiB, the resumable upload's sanity ceiling
+/// (relay/resumable.rs `SIZE_CEILING`).
+pub const MEDIA_FILE_MB_MAX: i64 = 64 * 1024;
+/// The most `max_private_file_mb` can be: one request's 1 GB ceiling (upload_limits.rs).
+pub const PRIVATE_FILE_MB_MAX: i64 = 1024;
+/// The most `max_upload_mb_per_day` can be (a million MB, about a terabyte).
+pub const UPLOAD_MB_PER_DAY_MAX: i64 = 1_000_000;
+/// The most `max_uploads_per_hour` can be.
+pub const UPLOADS_PER_HOUR_MAX: i64 = 100_000;
+/// The most `max_private_held_mb` can be (a million MB, about a terabyte).
+pub const PRIVATE_HELD_MB_MAX: i64 = 1_000_000;
+
+impl RoleDef {
+    /// The role with its upload limits held to their ranges, as it is saved: the Media file limit
+    /// 0 (none) to [`MEDIA_FILE_MB_MAX`], the private file limit 1 to [`PRIVATE_FILE_MB_MAX`]
+    /// (never below 1 MB, as `max_upload_mb` is where it is used), and the day's and the hour's
+    /// allowances 0 (none) up to their maximums.
+    pub fn with_limits_in_range(&self) -> RoleDef {
+        let mut r = self.clone();
+        r.max_media_file_mb = r.max_media_file_mb.clamp(0, MEDIA_FILE_MB_MAX);
+        r.max_private_file_mb = r.max_private_file_mb.clamp(1, PRIVATE_FILE_MB_MAX);
+        r.max_upload_mb_per_day = r.max_upload_mb_per_day.clamp(0, UPLOAD_MB_PER_DAY_MAX);
+        r.max_uploads_per_hour = r.max_uploads_per_hour.clamp(0, UPLOADS_PER_HOUR_MAX);
+        r.max_private_held_mb = r.max_private_held_mb.clamp(0, PRIVATE_HELD_MB_MAX);
+        r
+    }
 }
 
 // Conservative serde/struct defaults = the historical `unverified`
@@ -77,6 +131,13 @@ pub struct RoleDef {
 fn default_max_chars() -> i64 { 280 }
 fn default_max_upload_mb() -> i64 { 5 }
 fn default_max_uploads_kept() -> i64 { 4 }
+// B2 and B3 (2026-10-11): the private file limit both apps used before the server said, and the
+// Unverified tier's day and hour allowances (storage/mod.rs seeds the other built-ins).
+fn default_max_private_file_mb() -> i64 { 6 }
+fn default_max_upload_mb_per_day() -> i64 { 100 }
+fn default_max_uploads_per_hour() -> i64 { 20 }
+// B5: what the Unverified tier may hold in private files at once (five files at the 6 MB limit).
+fn default_max_private_held_mb() -> i64 { 30 }
 
 impl Default for RoleDef {
     /// The safe default-deny role (matches the `unverified` seed). Used
@@ -104,6 +165,11 @@ impl Default for RoleDef {
             base_tier: "unverified".into(),
             sort_order: 0,
             can_edit_ship: false,
+            max_media_file_mb: 0,
+            max_private_file_mb: default_max_private_file_mb(),
+            max_upload_mb_per_day: default_max_upload_mb_per_day(),
+            max_uploads_per_hour: default_max_uploads_per_hour(),
+            max_private_held_mb: default_max_private_held_mb(),
         }
     }
 }
@@ -119,7 +185,8 @@ impl Storage {
         // Read-only: SELECT + query_map (role list broadcast). Read pool.
         self.with_read_conn(|conn| {
             let mut stmt = conn.prepare(
-                "SELECT id,label,color,trust_level,built_in,can_stream,can_upload,can_voice,base_tier,sort_order,can_image_share,can_file_share,max_chars,max_upload_mb,max_uploads_kept,can_edit_ship
+                "SELECT id,label,color,trust_level,built_in,can_stream,can_upload,can_voice,base_tier,sort_order,can_image_share,can_file_share,max_chars,max_upload_mb,max_uploads_kept,can_edit_ship,
+                        max_media_file_mb,max_private_file_mb,max_upload_mb_per_day,max_uploads_per_hour,max_private_held_mb
                  FROM roles ORDER BY sort_order ASC, trust_level ASC",
             )?;
             let rows = stmt.query_map([], |r| {
@@ -140,6 +207,11 @@ impl Storage {
                     base_tier: r.get(8)?,
                     sort_order: r.get(9)?,
                     can_edit_ship: r.get::<_, i64>(15)? != 0,
+                    max_media_file_mb: r.get(16)?,
+                    max_private_file_mb: r.get(17)?,
+                    max_upload_mb_per_day: r.get(18)?,
+                    max_uploads_per_hour: r.get(19)?,
+                    max_private_held_mb: r.get(20)?,
                 })
             })?;
             Ok(rows.filter_map(|x| x.ok()).collect())
@@ -153,7 +225,8 @@ impl Storage {
         let lookup_id = if role_id.is_empty() { "unverified" } else { role_id };
         let res = self.with_conn(|conn| {
             conn.query_row(
-                "SELECT id,label,color,trust_level,built_in,can_stream,can_upload,can_voice,base_tier,sort_order,can_image_share,can_file_share,max_chars,max_upload_mb,max_uploads_kept,can_edit_ship
+                "SELECT id,label,color,trust_level,built_in,can_stream,can_upload,can_voice,base_tier,sort_order,can_image_share,can_file_share,max_chars,max_upload_mb,max_uploads_kept,can_edit_ship,
+                        max_media_file_mb,max_private_file_mb,max_upload_mb_per_day,max_uploads_per_hour,max_private_held_mb
                  FROM roles WHERE id = ?1",
                 params![lookup_id],
                 |r| {
@@ -174,6 +247,11 @@ impl Storage {
                         base_tier: r.get(8)?,
                         sort_order: r.get(9)?,
                         can_edit_ship: r.get::<_, i64>(15)? != 0,
+                        max_media_file_mb: r.get(16)?,
+                        max_private_file_mb: r.get(17)?,
+                        max_upload_mb_per_day: r.get(18)?,
+                        max_uploads_per_hour: r.get(19)?,
+                        max_private_held_mb: r.get(20)?,
                     })
                 },
             )
@@ -205,6 +283,8 @@ impl Storage {
     /// label, color, sort_order are mutable. Custom roles: fully mutable.
     /// Returns Err for an attempt to change a built-in's locked fields.
     pub fn upsert_role(&self, r: &RoleDef) -> Result<(), rusqlite::Error> {
+        // The upload limits held to their ranges (B1 to B3, 2026-10-11), whatever was sent.
+        let r = &r.with_limits_in_range();
         self.with_conn(|conn| {
             // Is this id already a built-in?
             let existing_built_in: Option<i64> = conn.query_row(
@@ -226,15 +306,19 @@ impl Storage {
             };
             conn.execute(
                 "INSERT INTO roles
-                   (id,label,color,trust_level,built_in,can_stream,can_upload,can_voice,base_tier,sort_order,can_image_share,can_file_share,max_chars,max_upload_mb,max_uploads_kept,can_edit_ship)
-                 VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16)
+                   (id,label,color,trust_level,built_in,can_stream,can_upload,can_voice,base_tier,sort_order,can_image_share,can_file_share,max_chars,max_upload_mb,max_uploads_kept,can_edit_ship,
+                    max_media_file_mb,max_private_file_mb,max_upload_mb_per_day,max_uploads_per_hour,max_private_held_mb)
+                 VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21)
                  ON CONFLICT(id) DO UPDATE SET
                    label=?2, color=?3, trust_level=?4, built_in=?5,
                    can_stream=?6, can_upload=?7, can_voice=?8,
                    base_tier=?9, sort_order=?10,
                    can_image_share=?11, can_file_share=?12,
                    max_chars=?13, max_upload_mb=?14, max_uploads_kept=?15,
-                   can_edit_ship=?16",
+                   can_edit_ship=?16,
+                   max_media_file_mb=?17, max_private_file_mb=?18,
+                   max_upload_mb_per_day=?19, max_uploads_per_hour=?20,
+                   max_private_held_mb=?21",
                 params![
                     r.id, r.label, r.color, trust, built_in,
                     r.can_stream as i64, r.can_upload as i64, r.can_voice as i64,
@@ -242,6 +326,9 @@ impl Storage {
                     r.can_image_share as i64, r.can_file_share as i64,
                     r.max_chars, r.max_upload_mb, r.max_uploads_kept,
                     r.can_edit_ship as i64,
+                    r.max_media_file_mb, r.max_private_file_mb,
+                    r.max_upload_mb_per_day, r.max_uploads_per_hour,
+                    r.max_private_held_mb,
                 ],
             )?;
             Ok(())
@@ -553,6 +640,103 @@ mod tests {
         assert!(!db.has_ship_rank("0e"), "nor has a member with no role");
         db.delete_role("shipwright").unwrap();
         assert!(!db.has_ship_rank("0d"), "a role that was deleted gives nothing");
+    }
+
+    /// B1, B2, B3 and B5 (2026-10-11), the upgrade path (BUG-046): a `roles` table from before the
+    /// upload limits (the sixteen columns up to `can_edit_ship`) with its rows, reopened by this
+    /// code, gains `max_media_file_mb` (0), `max_private_file_mb` (6), and the day's, the hour's
+    /// and the private-held allowances by tier: Admin none, Moderator 4096 MB / 200 / 120 MB,
+    /// Verified and anything on its tier 1024 MB / 60 / 60 MB, the rest 100 MB / 20 / 30 MB. An
+    /// admin's later change survives a restart. A fresh database seeds the same numbers. The
+    /// limits round-trip through upsert, and a number out of range is held to it when saved.
+    ///
+    /// Seen red 2026-10-11 with the guarded ALTER removed: "the upgrade opens:
+    /// SqliteFailure(Error { code: Unknown, extended_code: 1 }, Some(\"table roles has no column
+    /// named max_upload_mb_per_day\"))" (the seed names the column).
+    #[test]
+    fn an_existing_roles_table_gains_the_upload_limits() {
+        use rusqlite::Connection;
+        let path = crate::test_temp::db("roles_upload_limits");
+        drop(Storage::open(&path).expect("fresh open"));
+        let fresh = Storage::open(&path).unwrap();
+        let tiers = |db: &Storage| -> Vec<(String, i64, i64, i64, i64, i64)> {
+            db.list_roles()
+                .unwrap()
+                .into_iter()
+                .map(|r| (r.id, r.max_media_file_mb, r.max_private_file_mb, r.max_upload_mb_per_day, r.max_uploads_per_hour, r.max_private_held_mb))
+                .collect()
+        };
+        let expected = |custom: bool| {
+            let mut v = vec![
+                ("unverified".to_string(), 0, 6, 100, 20, 30),
+                ("verified".to_string(), 0, 6, 1024, 60, 60),
+                ("donor".to_string(), 0, 6, 1024, 60, 60),
+                ("mod".to_string(), 0, 6, 4096, 200, 120),
+                ("admin".to_string(), 0, 6, 0, 0, 0),
+            ];
+            if custom {
+                v.push(("family".to_string(), 0, 6, 1024, 60, 60));
+            }
+            v
+        };
+        assert_eq!(tiers(&fresh), expected(false), "a fresh database seeds the numbers");
+        drop(fresh);
+        {
+            let c = Connection::open(&path).expect("raw open");
+            c.execute_batch(
+                "DROP TABLE roles;
+                 CREATE TABLE roles (
+                    id TEXT PRIMARY KEY, label TEXT NOT NULL, color TEXT NOT NULL,
+                    trust_level INTEGER NOT NULL, built_in INTEGER NOT NULL,
+                    can_stream INTEGER NOT NULL, can_upload INTEGER NOT NULL,
+                    can_voice INTEGER NOT NULL, base_tier TEXT NOT NULL,
+                    sort_order INTEGER NOT NULL DEFAULT 0,
+                    can_image_share INTEGER NOT NULL DEFAULT 1,
+                    can_file_share  INTEGER NOT NULL DEFAULT 1,
+                    max_chars        INTEGER NOT NULL DEFAULT 280,
+                    max_upload_mb    INTEGER NOT NULL DEFAULT 5,
+                    max_uploads_kept INTEGER NOT NULL DEFAULT 4,
+                    can_edit_ship    INTEGER NOT NULL DEFAULT 0);
+                 INSERT INTO roles VALUES
+                    ('unverified','Unverified','#9E9E9E',0,1,0,0,0,'unverified',0,1,1,280,5,4,0),
+                    ('verified','Verified','#4FC3F7',1,1,0,1,1,'verified',1,1,1,1000,25,20,0),
+                    ('donor','Donor','#FFD54F',2,1,0,1,1,'verified',2,1,1,1000,25,20,0),
+                    ('mod','Moderator','#81C784',3,1,1,1,1,'mod',3,1,1,4000,100,100,0),
+                    ('admin','Admin','#E57373',4,1,1,1,1,'admin',4,1,1,10000,500,500,1),
+                    ('family','Family','#7E57C2',1,0,1,1,1,'verified',50,1,1,1000,25,20,0);",
+            )
+            .expect("rewind to the shape before the upload limits");
+        }
+        let db = Storage::open(&path).expect("the upgrade opens");
+        assert_eq!(tiers(&db), expected(true), "every role gains its tier's limits");
+
+        let mut verified = db.role_def("verified");
+        verified.max_upload_mb_per_day = 5;
+        verified.max_media_file_mb = 2;
+        db.upsert_role(&verified).unwrap();
+        drop(db);
+        let db = Storage::open(&path).expect("restart");
+        let v = db.role_def("verified");
+        assert_eq!((v.max_upload_mb_per_day, v.max_media_file_mb), (5, 2), "an admin's change survives a restart");
+
+        let mut wild = v.clone();
+        wild.max_media_file_mb = -3;
+        wild.max_private_file_mb = 0;
+        wild.max_upload_mb_per_day = i64::MAX;
+        wild.max_uploads_per_hour = -1;
+        wild.max_private_held_mb = -9;
+        db.upsert_role(&wild).unwrap();
+        let held = db.role_def("verified");
+        assert_eq!(
+            (held.max_media_file_mb, held.max_private_file_mb, held.max_upload_mb_per_day, held.max_uploads_per_hour, held.max_private_held_mb),
+            (0, 1, UPLOAD_MB_PER_DAY_MAX, 0, 0),
+            "out of range, held to the range"
+        );
+        let old: RoleDef = serde_json::from_str(
+            r##"{"id":"x","label":"X","color":"#000000","trust_level":1,"built_in":false,"can_stream":false,"can_upload":true,"can_voice":false,"base_tier":"verified","sort_order":1}"##,
+        )
+        .unwrap();
+        assert_eq!((old.max_private_file_mb, old.max_upload_mb_per_day, old.max_uploads_per_hour, old.max_private_held_mb), (6, 100, 20, 30), "a role sent without them gets the careful defaults");
     }
 
     /// Unknown / deleted role must default-DENY sharing (consistent

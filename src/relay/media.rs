@@ -14,8 +14,10 @@
 //! "MEMBER" is anyone signed in to this server who is not banned, as everywhere else on the
 //! relay; on an open server anyone can become one, which Server Settings says under the switch
 //! (`storage::MEDIA_MEMBERS_NOTE`). A members-only item's file is not in the public uploads
-//! folder: it is in `data/media-members/`, served only by `GET /api/media/file/{id}?token=<the
-//! session's upload token>` to a member (F3).
+//! folder: it is in `data/media-members/`, served only by `GET /api/media/file/{id}` to a member
+//! with the session's upload token, in the `X-Upload-Token` header (W3b, 2026-10-11) or, for
+//! now, `?token=` (F3). A Media upload not yet published waits in `data/media-waiting/`, which
+//! nothing serves (R6).
 //!
 //! EVERY WRITE IS SIGNED: Dilithium over `purpose\ntimestamp`, as `delete_shared_upload` is,
 //! plus what that route does not have: a timestamp at most five minutes old and at most 30
@@ -24,10 +26,14 @@
 //! names its target, so a signature is good for one thing (F5): `media_publish:<file name>`,
 //! `media_remove:<item id or file name>`, `media_pick:<item id>` (pick and unpick),
 //! `media_feature:<item id>`, `media_visibility:<item id>:<public|members>`,
-//! `media_suggestions:<suggestion id>:<accept|decline>` and `media_categories:<BLAKE3 hex of the
-//! request's category list as sent>`. A new category suggestion keeps plain `media_suggest`
-//! (the design names no target for it), and the reads keep `media_list`, `media_usage` and
-//! `media_suggestions`. The role checks happen after the signature, on the proven key.
+//! `media_suggestions:<suggestion id>:<accept|decline>`, `media_categories:<BLAKE3 hex of the
+//! request's category list as sent>` and `media_keep:<item id>:<on|off>` (A7, 2026-10-11). A new
+//! category suggestion keeps plain `media_suggest` (the design names no target for it), and the
+//! reads keep `media_list` (the list, and one person's picks by POST, A3), `media_usage`,
+//! `media_suggestions` and `media_mine` (A4). The role checks happen after the signature, on the
+//! proven key. A write that names an item by number also names its file (`filename`), and is
+//! refused when that is not the item's file, so a page that is out of date never acts on another
+//! item (W5, [`same_item`]); item numbers are never reused.
 //!
 //! Each route's work after the signature is a plain function over the storage (`*_core`), which
 //! is what the tests call: no relay, no socket, and no file written outside a temp folder (the
@@ -50,7 +56,7 @@ use std::sync::Arc;
 use crate::relay::relay::{RelayMessage, RelayState};
 pub use crate::relay::storage::media::{Folders, MEMBERS_DIR, UPLOADS_DIR};
 use crate::relay::storage::media::{
-    self as store, bare_name, CategoryEdit, MediaError, MediaItem, MediaQuery, Publish, Refusal, KINDS, MEDIA_SHELF,
+    self as store, bare_name, CategoryEdit, MediaError, MediaItem, MediaQuery, Publish, Refusal, Spot, KINDS, MEDIA_SHELF,
 };
 use crate::relay::storage::{media_visibility_of, ServerSettings, Storage};
 
@@ -257,6 +263,12 @@ pub fn item_json(i: &MediaItem) -> Value {
         "uploader_key": i.uploader_key,
         "uploader_name": i.uploader_name,
         "picks": i.picks,
+        // A1 and A7 (2026-10-11): the uploader's own name for the file, whether Remove keeps the
+        // file (an upload from chat or Shared Files) or deletes it (one made for Media), and
+        // whether the server keeps the item.
+        "original_name": i.original_name,
+        "keeps_file": i.keeps_file,
+        "kept": i.kept,
     })
 }
 
@@ -293,13 +305,19 @@ pub(crate) fn room_lock() -> std::sync::MutexGuard<'static, ()> {
     ROOM.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
-/// The total size of the files in `dir` (not its folders); 0 when it cannot be read.
-pub fn dir_total_size(dir: &std::path::Path) -> u64 {
-    std::fs::read_dir(dir)
-        .map(|entries| {
-            entries.filter_map(|e| e.ok()).filter_map(|e| e.metadata().ok()).filter(|m| m.is_file()).map(|m| m.len()).sum()
-        })
-        .unwrap_or(0)
+/// What the stored files take on disk: the public folder, the members-only one and the Media
+/// waiting folder, leaving out copies still arriving (storage/media.rs `folder_bytes`).
+pub fn stored_bytes(folders: Folders) -> u64 {
+    store::folder_bytes(folders.uploads) + store::folder_bytes(folders.members) + store::folder_bytes(folders.waiting)
+}
+
+/// A fresh name for a file being copied into a folder (R5): [`store::STAGED_PREFIX`], 16 random
+/// hex characters and a number this relay never repeats, so two copies never share a name.
+fn staged_name() -> String {
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let mut raw = [0u8; 8];
+    let _ = getrandom::getrandom(&mut raw);
+    format!("{}{}-{}", store::STAGED_PREFIX, hex::encode(raw), NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed))
 }
 
 /// An upload the route has received, to be stored by [`store_upload`].
@@ -313,23 +331,96 @@ pub struct NewUpload<'a> {
     pub len: u64,
     /// The keep-N FIFO's count for the uploader's role.
     pub keep: i64,
+    /// For a file from a private conversation, the most its uploader may hold in such files at
+    /// once (their role's `max_private_held_mb`, B5, 2026-10-11), checked with the room; None for
+    /// any other file, or a role with no limit.
+    pub private_held_limit: Option<u64>,
 }
 
-/// Store an upload under one lock (F4): the room check ([`upload_room`], over both upload
-/// folders), `put` moving the file into the public folder, and its row. Returns the files the
-/// keep-N FIFO let go, for the caller to delete. On a refusal nothing was put: the caller
-/// discards what it received. A row that cannot be written is logged, as before.
+/// "10 November 2026": a Unix-ms time as a date people read (UTC).
+fn date_words(ms: i64) -> String {
+    const MONTHS: [&str; 12] =
+        ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    let (y, m, d) = crate::relay::epoch_days_to_ymd(ms.div_euclid(24 * 60 * 60 * 1000));
+    format!("{d} {} {y}", MONTHS[(m as usize).clamp(1, 12) - 1])
+}
+
+/// Whether `key` may hold a `len`-byte private file more (B5): what they hold of files from
+/// private conversations plus this one, against their role's `limit`. The words say it is the
+/// person's OWN room that is full, not the server's, and when their oldest leaves.
+pub fn private_room(db: &Storage, s: &ServerSettings, key: &str, limit: u64, len: u64) -> Result<(), Refused> {
+    let (held, oldest) = db.private_files_held(key).map_err(db_err)?;
+    if held.max(0) as u64 + len <= limit {
+        return Ok(());
+    }
+    let words = match oldest {
+        Some(t) => format!(
+            "Your private files on this server are full ({} of {}). The oldest leaves on {}, or remove some from Settings > Data.",
+            store::mb(held),
+            store::mb(limit as i64),
+            date_words(crate::relay::storage::private_files::leaves_at(t, s.dm_mailbox_ttl_days))
+        ),
+        None => format!(
+            "Your private files on this server can be {} in all, and this file is {}.",
+            store::mb(limit as i64),
+            store::mb(len as i64)
+        ),
+    };
+    Err((StatusCode::INSUFFICIENT_STORAGE, words))
+}
+
+/// The room checks an upload is held to, in one place for [`store_upload`]'s two looks: the
+/// shelf's room ([`upload_room`]) and, for a private file, the person's own ([`private_room`]).
+fn room_for(db: &Storage, s: &ServerSettings, folders: Folders, u: &NewUpload) -> Result<(), Refused> {
+    upload_room(db, s, u.key, u.shelf, stored_bytes(folders), u.len)?;
+    match u.private_held_limit {
+        Some(limit) => private_room(db, s, u.key, limit, u.len),
+        None => Ok(()),
+    }
+}
+
+/// Store an upload: a chat or Shared Files file in the public folder, a Media upload in the
+/// waiting folder that nothing serves until it is published (R6, 2026-10-11). Returns the files
+/// the keep-N FIFO let go, for the caller to delete. A row that cannot be written is logged, as
+/// before.
+///
+/// THE ORDER (R5, 2026-10-11). A quick room check first, under the room lock, so a file that
+/// cannot fit is never copied. Then, OUTSIDE the lock, `put` brings the file into the destination
+/// folder under a hidden name ([`store::STAGED_PREFIX`]: never served, never counted, cleared at
+/// start): a rename when it can, a copy of up to 64 GiB when the file is on another disk, which
+/// must not hold every other upload waiting. Then under the lock (F4) the room check that counts,
+/// a rename within the folder, and the row. On any refusal or failure after `put`, `unstage` is
+/// handed the hidden file to undo it (move it back where it came from, or delete the copy), so
+/// nothing half-stored is ever left at a public address; a failed `put` has its partial copy
+/// removed here.
 pub fn store_upload(
     db: &Storage,
     s: &ServerSettings,
     folders: Folders,
     u: &NewUpload,
     put: impl FnOnce(&std::path::Path) -> std::io::Result<()>,
+    unstage: impl FnOnce(&std::path::Path),
 ) -> Result<Vec<String>, Refused> {
+    {
+        let _room = room_lock();
+        room_for(db, s, folders, u)?;
+    }
+    let dest = if u.shelf == MEDIA_SHELF { folders.waiting } else { folders.uploads };
+    std::fs::create_dir_all(dest).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to create upload dir: {e}")))?;
+    let staged = dest.join(staged_name());
+    if let Err(e) = put(&staged) {
+        let _ = std::fs::remove_file(&staged);
+        return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to write file: {e}")));
+    }
     let _room = room_lock();
-    let on_disk = dir_total_size(folders.uploads) + dir_total_size(folders.members);
-    upload_room(db, s, u.key, u.shelf, on_disk, u.len)?;
-    put(&folders.uploads.join(u.name)).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to write file: {e}")))?;
+    if let Err(refused) = room_for(db, s, folders, u) {
+        unstage(&staged);
+        return Err(refused);
+    }
+    if let Err(e) = std::fs::rename(&staged, dest.join(u.name)) {
+        unstage(&staged);
+        return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to write file: {e}")));
+    }
     match db.record_upload(u.key, u.name, u.keep, u.shelf, u.original_name, u.len as i64) {
         Ok(old) => Ok(old),
         Err(e) => {
@@ -425,24 +516,34 @@ pub struct ListParams {
     pub key: Option<String>,
     pub timestamp: Option<u64>,
     pub sig: Option<String>,
+    /// `featured=1`: featured items only, so the strip shows every one (A2, 2026-10-11).
+    pub featured: Option<u8>,
+    /// One item by its number, if the viewer may see it (the admins' Reports page opens a
+    /// reported item this way, A5).
+    pub id: Option<i64>,
+    /// Whose picks, for `POST /api/media/picks` (A3); the GET form names them in its path.
+    pub of: Option<String>,
 }
 
-/// Whether the request gets the members' view: no signature, no; a signature from a member, yes;
-/// a bad or partial signature is refused rather than quietly served the public view.
-async fn members_view(state: &RelayState, p: &ListParams) -> Result<bool, Refused> {
+/// Whether the request gets the members' view, as the member's key: no signature, no; a signature
+/// from a member, yes; a bad or partial signature is refused rather than quietly served the
+/// public view.
+async fn members_view(state: &RelayState, p: &ListParams) -> Result<Option<String>, Refused> {
     match (p.key.as_deref().filter(|k| !k.is_empty()), p.timestamp, p.sig.as_deref().filter(|s| !s.is_empty())) {
-        (None, None, None) => Ok(false),
+        (None, None, None) => Ok(None),
         (Some(key), Some(ts), Some(sig)) => {
             check_signed(state, key, ts, sig, "media_list").await?;
-            Ok(is_member(&state.db, key))
+            Ok(is_member(&state.db, key).then(|| key.to_string()))
         }
         _ => Err((StatusCode::BAD_REQUEST, "A signed request needs key, timestamp and sig together.".into())),
     }
 }
 
-/// The list for a viewer with or without the members' view (`members`), optionally one person's
-/// picks. On a members-only server the public gets no items, and is told so.
-pub fn list_core(db: &Storage, s: &ServerSettings, p: &ListParams, members: bool, picked_by: Option<String>) -> Answer {
+/// The list for a viewer with the members' view (`member`, their key) or without it, optionally
+/// one person's picks. On a members-only server the public gets no items, and is told so. In the
+/// members' view every item also says whether that member picked it (`picked_by_me`, A3).
+pub fn list_core(db: &Storage, s: &ServerSettings, p: &ListParams, member: Option<&str>, picked_by: Option<String>) -> Answer {
+    let members = member.is_some();
     if let Some(kind) = p.kind.as_deref() {
         if !KINDS.contains(&kind) {
             return Err((StatusCode::BAD_REQUEST, format!("\"{kind}\" is not a kind. The kinds are: {}.", KINDS.join(", "))));
@@ -462,14 +563,24 @@ pub fn list_core(db: &Storage, s: &ServerSettings, p: &ListParams, members: bool
             limit: p.limit,
             members,
             picked_by,
+            featured: p.featured == Some(1),
+            id: p.id,
         })
         .map_err(db_err)?
     };
     let limit = p.limit.unwrap_or(store::MEDIA_LIST_DEFAULT).clamp(1, store::MEDIA_LIST_MAX) as usize;
     let next_before = if items.len() == limit { items.last().map(|i| i.id) } else { None };
     let (categories, labels) = categories_and_labels(db, s, members)?;
+    let mut shown = items_json(&items);
+    if let Some(me) = member {
+        let ids: Vec<i64> = items.iter().map(|i| i.id).collect();
+        let picked = db.picked_among(me, &ids).map_err(db_err)?;
+        for (v, i) in shown.iter_mut().zip(&items) {
+            v["picked_by_me"] = Value::Bool(picked.contains(&i.id));
+        }
+    }
     Ok(Json(json!({
-        "items": items_json(&items),
+        "items": shown,
         "next_before": next_before,
         "members_view": members,
         "media_visibility": s.media_visibility,
@@ -489,19 +600,32 @@ fn categories_and_labels(db: &Storage, s: &ServerSettings, members: bool) -> Res
 }
 
 pub async fn list(State(state): State<Arc<RelayState>>, Query(p): Query<ListParams>) -> Answer {
-    let members = members_view(&state, &p).await?;
-    list_core(&state.db, &media_settings(&state.db), &p, members, None)
+    let member = members_view(&state, &p).await?;
+    list_core(&state.db, &media_settings(&state.db), &p, member.as_deref(), None)
 }
 
 pub async fn list_post(State(state): State<Arc<RelayState>>, Json(p): Json<ListParams>) -> Answer {
-    let members = members_view(&state, &p).await?;
-    list_core(&state.db, &media_settings(&state.db), &p, members, None)
+    let member = members_view(&state, &p).await?;
+    list_core(&state.db, &media_settings(&state.db), &p, member.as_deref(), None)
 }
 
 /// One person's picks, as the list (the same filters and the same rule about who sees what).
 pub async fn picks_of(State(state): State<Arc<RelayState>>, Path(key): Path<String>, Query(p): Query<ListParams>) -> Answer {
-    let members = members_view(&state, &p).await?;
-    list_core(&state.db, &media_settings(&state.db), &p, members, Some(key))
+    let member = members_view(&state, &p).await?;
+    list_core(&state.db, &media_settings(&state.db), &p, member.as_deref(), Some(key))
+}
+
+/// `POST /api/media/picks` (A3, 2026-10-11): one person's picks (`of`) with the list's signed body
+/// (purpose `media_list`), so a member's view, members-only items included, never needs the
+/// signature in a URL (the 414 lesson above). Answered like the list.
+pub async fn picks_post(State(state): State<Arc<RelayState>>, Json(p): Json<ListParams>) -> Answer {
+    let of = p
+        .of
+        .clone()
+        .filter(|k| !k.trim().is_empty())
+        .ok_or_else(|| (StatusCode::BAD_REQUEST, "Say whose picks: `of`, their key.".to_string()))?;
+    let member = members_view(&state, &p).await?;
+    list_core(&state.db, &media_settings(&state.db), &p, member.as_deref(), Some(of))
 }
 
 // ── GET /api/media/categories ──
@@ -510,8 +634,8 @@ pub async fn picks_of(State(state): State<Arc<RelayState>>, Path(key): Path<Stri
 /// gets them (the list's signature, `media_list`, in the query; the list's answer carries them
 /// too, for the POST form).
 pub async fn categories(State(state): State<Arc<RelayState>>, Query(p): Query<ListParams>) -> Answer {
-    let members = members_view(&state, &p).await?;
-    category_list_core(&state.db, &media_settings(&state.db), members)
+    let member = members_view(&state, &p).await?;
+    category_list_core(&state.db, &media_settings(&state.db), member.is_some())
 }
 
 /// [`categories`] for a viewer with or without the members' view.
@@ -584,7 +708,10 @@ pub fn publish_core(db: &Storage, s: &ServerSettings, known: &[MediaLabel], fold
     let labels = normalize_labels(&b.labels, known).map_err(|e| (StatusCode::BAD_REQUEST, e))?;
     let _room = room_lock();
     let disk_size = folders.find(filename).and_then(|p| std::fs::metadata(p).ok()).map(|m| m.len() as i64);
-    let moved = std::cell::Cell::new(false);
+    // Where the file was before this publish moved it (R6: a Media upload waits in a folder
+    // nothing serves and moves to the public folder or the members-only one now), so a refused
+    // publish puts it back exactly there.
+    let moved: std::cell::Cell<Option<Spot>> = std::cell::Cell::new(None);
     let published = db.publish_media_placing(
         &b.key,
         &Publish {
@@ -599,17 +726,17 @@ pub fn publish_core(db: &Storage, s: &ServerSettings, known: &[MediaLabel], fold
         s.media_per_person_mb.max(1) * MIB,
         disk_size,
         |members| {
-            let m = members && folders.place(filename, true)?;
-            moved.set(m);
-            Ok(m)
+            let from = folders.move_to(filename, if members { Spot::Members } else { Spot::Public })?;
+            moved.set(from);
+            Ok(from.is_some())
         },
     );
     match published {
         Ok(item) => Ok(Json(json!({ "ok": true, "item": item_json(&item) }))),
         Err(e) => {
             // Nothing was committed: a file this publish moved goes back where it was.
-            if moved.get() {
-                if let Err(err) = folders.place(filename, false) {
+            if let Some(from) = moved.get() {
+                if let Err(err) = folders.move_to(filename, from) {
                     tracing::error!("Media: a refused publish could not put its file back ({err})");
                 }
             }
@@ -618,7 +745,29 @@ pub fn publish_core(db: &Storage, s: &ServerSettings, known: &[MediaLabel], fold
     }
 }
 
-// ── POST /api/media/remove, /pick, /unpick, /feature ──
+// ── POST /api/media/remove, /pick, /unpick, /feature, /keep ──
+
+/// What a request that names an item by number must also say, and is refused without (W5).
+pub const NAME_THE_FILE: &str = "Name the item's file too (`filename`), so a page that is out of date never acts on another item.";
+
+/// W5 (2026-10-11): the item `id` names must be the one whose file `filename` names, so a tile
+/// left on a page that is out of date never acts on another item. Item numbers are never reused
+/// (`media_items.id` is AUTOINCREMENT), and the file name says which item the person saw. Refused:
+/// no file name (400), no such item (404), another item's file (409).
+pub fn same_item(db: &Storage, id: i64, filename: &str) -> Result<(), Refused> {
+    if filename.trim().is_empty() {
+        return Err((StatusCode::BAD_REQUEST, NAME_THE_FILE.to_string()));
+    }
+    let name = stored_name(filename)?;
+    match db.media_item(id).map_err(db_err)? {
+        None => Err((StatusCode::NOT_FOUND, "There is no Media item with that number.".to_string())),
+        Some(item) if item.upload_filename != name => Err((
+            StatusCode::CONFLICT,
+            "That is not the Media item you were looking at: the page is out of date. Load it again.".to_string(),
+        )),
+        Some(_) => Ok(()),
+    }
+}
 
 #[derive(Debug, Default, Deserialize)]
 pub struct ItemBody {
@@ -626,6 +775,10 @@ pub struct ItemBody {
     pub timestamp: u64,
     pub sig: String,
     pub id: i64,
+    /// The item's file name, as the list gave it (`url` without `/uploads/`, or the item's own),
+    /// required (W5): [`same_item`].
+    #[serde(default)]
+    pub filename: String,
 }
 
 /// What `POST /api/media/remove` takes down: an item by its `id`, or by its upload's file name;
@@ -650,14 +803,17 @@ pub enum RemoveTarget {
 
 impl RemoveBody {
     /// The target, and the purpose its signature is over: `media_remove:<item id or file name>`.
+    /// An item named by its id must carry its file name too (W5, checked by [`same_item`]); an
+    /// upload not yet published is named by its file name alone.
     pub fn target(&self) -> Result<(RemoveTarget, String), Refused> {
         match (self.id, self.filename.as_deref()) {
-            (Some(id), None) => Ok((RemoveTarget::Item(id), format!("media_remove:{id}"))),
+            (Some(id), Some(_)) => Ok((RemoveTarget::Item(id), format!("media_remove:{id}"))),
+            (Some(_), None) => Err((StatusCode::BAD_REQUEST, NAME_THE_FILE.to_string())),
             (None, Some(name)) => {
                 let name = stored_name(name)?;
                 Ok((RemoveTarget::Upload(name.to_string()), format!("media_remove:{name}")))
             }
-            _ => Err((StatusCode::BAD_REQUEST, "Name the item by its id, or the upload by its file name: one of the two.".into())),
+            (None, None) => Err((StatusCode::BAD_REQUEST, "Name the item by its id and file name, or the upload by its file name.".into())),
         }
     }
 }
@@ -665,6 +821,9 @@ impl RemoveBody {
 pub async fn remove(State(state): State<Arc<RelayState>>, Json(b): Json<RemoveBody>) -> Answer {
     let (target, purpose) = b.target()?;
     check_signed(&state, &b.key, b.timestamp, &b.sig, &purpose).await?;
+    if let RemoveTarget::Item(id) = target {
+        same_item(&state.db, id, b.filename.as_deref().unwrap_or(""))?;
+    }
     remove_core(&state.db, Folders::live(), &target, &b.key)
 }
 
@@ -704,11 +863,13 @@ pub fn remove_core(db: &Storage, folders: Folders, target: &RemoveTarget, reques
 
 pub async fn pick(State(state): State<Arc<RelayState>>, Json(b): Json<ItemBody>) -> Answer {
     check_signed(&state, &b.key, b.timestamp, &b.sig, &format!("media_pick:{}", b.id)).await?;
+    same_item(&state.db, b.id, &b.filename)?;
     pick_core(&state.db, &b.key, b.id, true)
 }
 
 pub async fn unpick(State(state): State<Arc<RelayState>>, Json(b): Json<ItemBody>) -> Answer {
     check_signed(&state, &b.key, b.timestamp, &b.sig, &format!("media_pick:{}", b.id)).await?;
+    same_item(&state.db, b.id, &b.filename)?;
     pick_core(&state.db, &b.key, b.id, false)
 }
 
@@ -734,11 +895,54 @@ pub struct FeatureBody {
     /// True to feature it (the default), false to take it off the featured row.
     #[serde(default = "yes")]
     pub featured: bool,
+    /// The item's file name, required (W5): [`same_item`].
+    #[serde(default)]
+    pub filename: String,
 }
 
 pub async fn feature(State(state): State<Arc<RelayState>>, Json(b): Json<FeatureBody>) -> Answer {
     check_signed(&state, &b.key, b.timestamp, &b.sig, &format!("media_feature:{}", b.id)).await?;
+    same_item(&state.db, b.id, &b.filename)?;
     feature_core(&state.db, &b.key, b.id, b.featured)
+}
+
+/// `POST /api/media/keep` (A7, 2026-10-11; the operator's answers, number 1): an admin or a
+/// moderator keeps an item on the server, or stops keeping it.
+#[derive(Debug, Default, Deserialize)]
+pub struct KeepBody {
+    pub key: String,
+    pub timestamp: u64,
+    pub sig: String,
+    pub id: i64,
+    /// True to keep it (the default), false to stop keeping it.
+    #[serde(default = "yes")]
+    pub kept: bool,
+    /// The item's file name, required (W5): [`same_item`].
+    #[serde(default)]
+    pub filename: String,
+}
+
+/// The purpose a keep is signed over: `media_keep:<item id>:<on|off>`.
+pub fn keep_purpose(id: i64, kept: bool) -> String {
+    format!("media_keep:{id}:{}", if kept { "on" } else { "off" })
+}
+
+pub async fn keep(State(state): State<Arc<RelayState>>, Json(b): Json<KeepBody>) -> Answer {
+    check_signed(&state, &b.key, b.timestamp, &b.sig, &keep_purpose(b.id, b.kept)).await?;
+    same_item(&state.db, b.id, &b.filename)?;
+    keep_core(&state.db, &b.key, b.id, b.kept)
+}
+
+/// Admins and moderators only. A kept item counts against the Media budget but not against its
+/// uploader's share, and is in no prune list; stopping puts it back in the uploader's share even
+/// past it (never deleted for that: the share stops only new uploads). Its uploader can still
+/// remove it.
+pub fn keep_core(db: &Storage, key: &str, id: i64, kept: bool) -> Answer {
+    if !matches!(db.get_role(key).unwrap_or_default().as_str(), "admin" | "owner" | "mod" | "moderator") {
+        return Err(forbidden("Only an admin or a moderator can keep Media items on the server."));
+    }
+    db.set_media_kept(id, kept.then_some(key), now_ms() as i64).map_err(refusal)?;
+    Ok(Json(json!({ "ok": true, "id": id, "kept": kept })))
 }
 
 /// Admins only.
@@ -760,12 +964,16 @@ pub struct VisibilityBody {
     pub id: i64,
     /// "public" or "members".
     pub visibility: String,
+    /// The item's file name, required (W5): [`same_item`].
+    #[serde(default)]
+    pub filename: String,
 }
 
 pub async fn visibility(State(state): State<Arc<RelayState>>, Json(b): Json<VisibilityBody>) -> Answer {
     let to = media_visibility_of(&b.visibility)
         .ok_or_else(|| (StatusCode::BAD_REQUEST, "Visibility is \"public\" or \"members\".".to_string()))?;
     check_signed(&state, &b.key, b.timestamp, &b.sig, &format!("media_visibility:{}:{to}", b.id)).await?;
+    same_item(&state.db, b.id, &b.filename)?;
     visibility_core(&state.db, Folders::live(), b.id, &b.key, to)
 }
 
@@ -959,6 +1167,45 @@ pub fn usage_core(db: &Storage, s: &ServerSettings, key: &str) -> Answer {
         "oldest": items_json(&u.oldest),
         "least_viewed": items_json(&u.least_viewed),
         "waiting": u.waiting,
+        // A7: the items the server keeps, inside used_bytes, in nobody's share.
+        "kept_bytes": u.kept_bytes,
+    })))
+}
+
+// ── GET or POST /api/media/mine ──
+
+pub async fn mine(State(state): State<Arc<RelayState>>, Query(b): Query<SignedOnly>) -> Answer {
+    check_signed(&state, &b.key, b.timestamp, &b.sig, "media_mine").await?;
+    mine_core(&state.db, &media_settings(&state.db), &b.key)
+}
+
+pub async fn mine_post(State(state): State<Arc<RelayState>>, Json(b): Json<SignedOnly>) -> Answer {
+    check_signed(&state, &b.key, b.timestamp, &b.sig, "media_mine").await?;
+    mine_core(&state.db, &media_settings(&state.db), &b.key)
+}
+
+/// A member's own use of the Media space (A4, 2026-10-11), counted exactly as the room check
+/// counts it ([`media_room`]: `media_bytes`), so "You have X of your Y left" is the relay's own
+/// number: `used_bytes` (their items and their uploads waiting to be published; items the server
+/// keeps are not in it), `share_bytes`, `budget_left_bytes` (what the whole Media budget has
+/// left), `in_progress_bytes` (their resumable uploads still arriving, which a new resumable
+/// upload's start counts as used), `file_limit_bytes` (their role's largest Media file, B1; 0 is
+/// none: up to the share) and `waiting` (their uploads not yet published, with the names they had
+/// on their device).
+pub fn mine_core(db: &Storage, s: &ServerSettings, key: &str) -> Answer {
+    if !is_member(db, key) {
+        return Err(forbidden("Only members of this server have a share of its Media space."));
+    }
+    let budget = s.media_budget_mb.max(1) * MIB;
+    let in_progress: i64 = db.upload_sessions_of(key).map_err(db_err)?.iter().filter(|s| !s.finished()).map(|s| s.size).sum();
+    let role = db.role_def(&db.get_role(key).unwrap_or_default());
+    Ok(Json(json!({
+        "used_bytes": db.media_bytes(Some(key)),
+        "share_bytes": s.media_per_person_mb.max(1) * MIB,
+        "budget_left_bytes": (budget - db.media_bytes(None)).max(0),
+        "in_progress_bytes": in_progress,
+        "file_limit_bytes": crate::relay::upload_rules::media_file_limit(&role).unwrap_or(0),
+        "waiting": db.media_waiting_of(key).map_err(db_err)?,
     })))
 }
 
@@ -970,13 +1217,27 @@ pub struct TokenQuery {
     pub token: Option<String>,
 }
 
+/// The header the members' file route also takes the session's upload token in (W3b,
+/// 2026-10-11): an app fetches with it and shows the file through an address of its own, so the
+/// token is never in an `<img src>`, a Download link, a browser's downloads list or a server log.
+/// `?token=` still works for now; the apps move to the header.
+pub const UPLOAD_TOKEN_HEADER: &str = "x-upload-token";
+
 pub async fn file(
     State(state): State<Arc<RelayState>>,
     Path(id): Path<i64>,
     Query(q): Query<TokenQuery>,
     req: axum::extract::Request,
 ) -> Response {
-    file_core(&state, Folders::live(), id, q.token.as_deref(), req).await.unwrap_or_else(IntoResponse::into_response)
+    file_from(&state, Folders::live(), id, q, req).await
+}
+
+/// [`file`] with the folders named: the token from the [`UPLOAD_TOKEN_HEADER`] header when the
+/// request has one, else from `?token=`.
+pub async fn file_from(state: &RelayState, folders: Folders<'_>, id: i64, q: TokenQuery, req: axum::extract::Request) -> Response {
+    let from_header = req.headers().get(UPLOAD_TOKEN_HEADER).and_then(|v| v.to_str().ok()).map(str::trim).filter(|t| !t.is_empty()).map(str::to_string);
+    let token = from_header.or(q.token);
+    file_core(state, folders, id, token.as_deref(), req).await.unwrap_or_else(IntoResponse::into_response)
 }
 
 /// A Media item's file, to a member of this server who is not banned, proven by the session's
@@ -1014,3 +1275,8 @@ pub async fn file_core(state: &RelayState, folders: Folders<'_>, id: i64, token:
 #[cfg(test)]
 #[path = "media_tests.rs"]
 mod tests;
+
+// The increment 2 follow-ups' tests (2026-10-11): A1 to A7, W3b, W5, R5, R6.
+#[cfg(test)]
+#[path = "media_follow_ups_tests.rs"]
+mod follow_ups_tests;
