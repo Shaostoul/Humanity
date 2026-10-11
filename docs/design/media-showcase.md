@@ -1749,3 +1749,58 @@ files" button.
 **Proof.** Each part with tests seen failing once, in each app and the relay; the two describes
 agree on shared fixtures; a marker with `unchecked` built by one app is read by the other (a
 shared fixture string in both test suites).
+
+## As built (relay, files in messages)
+
+The relay half of part 3, built 2026-10-11. What the two apps build against:
+
+- **The field.** `profiles.accepts_files`, `TEXT NOT NULL DEFAULT 'friends'`, ALTER-added in the
+  profiles ALTER loop in `src/relay/storage/mod.rs` and never named in a main schema batch
+  (BUG-046). The words are `nobody`, `friends` and `anyone`, exactly, lower case, nothing trimmed
+  (`src/relay/storage/profile.rs`: `ACCEPTS_FILES_WORDS`, `ACCEPTS_FILES_DEFAULT`,
+  `accepts_files_word`, `accepts_files_of`).
+- **In: `profile_update`** gains an optional `accepts_files` string.
+  - Not sent (an app from before the field): the stored word is KEPT, and a person's first profile
+    row takes `friends`. The same not-sent rule as the role limits (`LIMIT_NOT_SENT`), done here as
+    an `Option` and a `COALESCE` in the upsert.
+  - One of the three words: stored.
+  - Anything else: the WHOLE update is refused and nothing is saved. The person gets a `private`
+    notice: `Your profile was not saved: "<word>" is not one of nobody, friends, anyone (who you
+    accept files from).` No `profile_data` goes out, and the 30-second profile limit is not spent,
+    so a corrected update goes through at once. Refused rather than ignored for the reason an
+    unknown audience refuses a whole `reach_set` (handlers/reach.rs): saving the rest would leave
+    the person believing their choice was kept, and dropping the word quietly would hide a broken
+    app. The storage refuses the word too, as a floor under the handler. A value that is not a
+    string fails the frame's parse, as any mistyped field does.
+  - A `profile_update` is still a whole-profile save: every other field the app leaves out is
+    saved empty, as before. Only `accepts_files` is kept when absent. Send the full profile.
+- **Out: every `profile_data` this relay sends carries `accepts_files`**, public and outside the
+  privacy map (its point is that a stranger's app can say "Ann accepts files only from friends."
+  before sending): both answers to an update (the public broadcast and the person's own copy), the
+  answer to a `profile_request` (no friendship pass needed; a name with no profile row answers
+  `friends`), and the person's own profile sent on connect. An absent field means a relay from
+  before this change.
+- **HTTP.** `GET /api/members/{key}` carries `accepts_files` (`friends` when the member has no
+  profile row). `GET /api/profile/{key}` carries it only when the key has an account on THIS
+  server (found by its current name): the field is this server's setting and not part of the
+  signed profile, so a profile gossiped from another server is answered without it, meaning this
+  server does not know. The member list (`/api/members`) carries no profile fields and is
+  unchanged, and federation gossip is unchanged (the signed profile's words are not touched).
+- **Export and erase.** The export's `profile` entry is the whole profile row (`SELECT *`), so it
+  lists `accepts_files`; the erase deletes the row, so the word goes with it and the name reads as
+  the default afterwards. Nothing in `account.rs` needed changing, and `tests/account_sql_lint.rs`
+  checks table names only, so it needed nothing either.
+- **Tests**, each seen red once (the doc comment on each says what it saw):
+  `relay::storage::profile::tests::an_older_database_gains_accepts_files_with_the_default` (a
+  profiles table as v0.1485.1 left it, with a row, gains the column and the row reads `friends`;
+  red without the ALTER), `..::only_the_three_words_are_stored_and_not_sending_one_keeps_it`
+  (red without the storage's word check), `..::the_export_lists_accepts_files_and_the_erase_clears_it`
+  (red with the export narrowed to three columns, and with the erase's profiles delete matching no
+  row), and in `src/relay/handlers/msg_handlers_profile_tests.rs`:
+  `a_profile_update_sets_it_and_every_profile_answer_carries_it` (red with the word not passed to
+  the save), `a_word_that_is_not_one_of_the_three_refuses_the_whole_update` (red without the
+  handler's check: the notice was the storage's general "Failed to save profile."),
+  `an_older_apps_update_without_the_field_keeps_the_stored_word` (red with the upsert resetting an
+  unsent word to the default), and `the_member_and_profile_lookups_carry_it` (red without the
+  lookup in `/api/profile/{key}`). The frames in these tests are the JSON an app writes, parsed
+  as the relay parses it.

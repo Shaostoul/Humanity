@@ -321,6 +321,7 @@ pub async fn handle_profile_update(
     location: Option<String>,
     website: Option<String>,
     privacy: Option<String>,
+    accepts_files: Option<String>,
 ) {
     let peer = state.peers.read().await.get(my_key).cloned();
     let display = peer.as_ref().and_then(|p| p.display_name.clone());
@@ -456,10 +457,29 @@ pub async fn handle_profile_update(
             return;
         }
 
+        // Who they accept files in messages from (media-showcase.md, 2026-10-11): a word that is
+        // not one of the three REFUSES the whole update, as an unknown audience refuses a whole
+        // `reach_set` (handlers/reach.rs): saving the rest would leave the person believing their
+        // choice was kept, and dropping the word quietly would hide a broken app. Not sent at all
+        // (an older app) keeps the stored word (storage/profile.rs `save_profile_extended`).
+        if let Some(word) = accepts_files.as_deref() {
+            if crate::relay::storage::profile::accepts_files_word(word).is_none() {
+                let shown: String = word.chars().take(40).collect();
+                let _ = state.broadcast_tx.send(RelayMessage::Private {
+                    to: my_key.to_string(),
+                    message: format!(
+                        "Your profile was not saved: \"{shown}\" is not one of nobody, friends, anyone (who you accept files from)."
+                    ),
+                });
+                return;
+            }
+        }
+
         match state.db.save_profile_extended(
             name, &clean_bio, &socials, &avatar, &banner, &pronoun, &loc, &w_site, &priv_map,
+            accepts_files.as_deref(),
         ) {
-            Ok(()) => {
+            Ok(accepts_files_stored) => {
                 *last_profile_update = Some(now);
 
                 let _ = state.broadcast_tx.send(RelayMessage::ProfileData {
@@ -471,6 +491,7 @@ pub async fn handle_profile_update(
                     pronouns: None,
                     location: None,
                     website: None,
+                    accepts_files: Some(accepts_files_stored.clone()),
                     target: None,
                 });
 
@@ -483,6 +504,7 @@ pub async fn handle_profile_update(
                     pronouns: if pronoun.is_empty() { None } else { Some(pronoun.clone()) },
                     location: if loc.is_empty() { None } else { Some(loc.clone()) },
                     website: if w_site.is_empty() { None } else { Some(w_site.clone()) },
+                    accepts_files: Some(accepts_files_stored),
                     target: Some(my_key.to_string()),
                 });
 
@@ -573,10 +595,12 @@ pub async fn handle_profile_request(
                 pronouns:   get("pronouns"),
                 location:   get("location"),
                 website:    get("website"),
+                accepts_files: get("accepts_files"),
                 target: Some(my_key.to_string()),
             });
         }
         Ok(None) => {
+            // No profile row: they never chose, so the default is what their app enforces.
             let _ = state.broadcast_tx.send(RelayMessage::ProfileData {
                 name: name.clone(),
                 bio: String::new(),
@@ -586,6 +610,7 @@ pub async fn handle_profile_request(
                 pronouns:   None,
                 location:   None,
                 website:    None,
+                accepts_files: Some(crate::relay::storage::profile::ACCEPTS_FILES_DEFAULT.to_string()),
                 target: Some(my_key.to_string()),
             });
         }
@@ -4447,6 +4472,11 @@ mod reach_tests;
 #[cfg(test)]
 #[path = "msg_handlers_pass_tests.rs"]
 mod pass_tests;
+
+/// The profile field `accepts_files` (2026-10-11, docs/design/media-showcase.md).
+#[cfg(test)]
+#[path = "msg_handlers_profile_tests.rs"]
+mod profile_tests;
 
 #[cfg(test)]
 mod reconnect_grace_tests {
