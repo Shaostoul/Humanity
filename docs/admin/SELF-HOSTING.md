@@ -742,16 +742,24 @@ The script runs from `/usr/local/lib/humanity/`, outside the checkout, because a
 older release would delete a copy inside it. After each successful update it installs the
 release's copy there itself, so fixes to it arrive with the releases.
 
+Install it from `main`, not from your checkout: the checkout is at the release you run, which
+may carry an older copy (or none).
+
 ```bash
-sudo install -D -m 755 /opt/Humanity/scripts/relay-follow-releases.sh /usr/local/lib/humanity/relay-follow-releases.sh
-sudo cp /opt/Humanity/scripts/systemd/humanity-relay-follow.service /opt/Humanity/scripts/systemd/humanity-relay-follow.timer /etc/systemd/system/
+sudo git -C /opt/Humanity fetch -q origin main
+sudo install -d -m 755 /usr/local/lib/humanity
+sudo git -C /opt/Humanity show origin/main:scripts/relay-follow-releases.sh | sudo tee /usr/local/lib/humanity/relay-follow-releases.sh >/dev/null
+sudo chmod 755 /usr/local/lib/humanity/relay-follow-releases.sh
+sudo git -C /opt/Humanity show origin/main:scripts/systemd/humanity-relay-follow.service | sudo tee /etc/systemd/system/humanity-relay-follow.service >/dev/null
+sudo git -C /opt/Humanity show origin/main:scripts/systemd/humanity-relay-follow.timer | sudo tee /etc/systemd/system/humanity-relay-follow.timer >/dev/null
 sudo systemctl daemon-reload
 sudo systemctl enable --now humanity-relay-follow.timer
 journalctl -u humanity-relay-follow   # what it did, run by run
 ```
 
-If an older copy of the unit pointed into `/opt/Humanity/scripts/`, run the first four lines
-again: the unit now runs the copy in `/usr/local/lib/humanity/`. Do not install it on a server that a deploy
+If an older copy of the unit pointed into `/opt/Humanity/scripts/`, run these lines again: the
+unit now runs the copy in `/usr/local/lib/humanity/`. While it rolls back it pauses the watchdog's
+timer (`humanity-relay-watchdog.timer`, set another with `WATCHDOG_TIMER`). Do not install it on a server that a deploy
 pipeline updates from `main` (the pipeline owns that checkout). It needs `curl`, `git` (2.32 or
 newer), `sqlite3` and `flock`, all packaged in Debian and Ubuntu.
 

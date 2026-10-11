@@ -79,6 +79,10 @@ LATEST_API="${LATEST_API:-https://api.github.com/repos/Shaostoul/Humanity/releas
 DOWNLOAD_BASE="${DOWNLOAD_BASE:-https://github.com/Shaostoul/Humanity/releases/download}"
 HEALTH_TRIES="${HEALTH_TRIES:-30}"
 HEALTH_PAUSE="${HEALTH_PAUSE:-2}"
+# The watchdog's timer, paused while a roll back swaps the program and the database, so it cannot
+# restart the relay in the middle of that (a restart between the -wal removal and the database
+# swap would leave the relay writing to a deleted file).
+WATCHDOG_TIMER="${WATCHDOG_TIMER:-humanity-relay-watchdog.timer}"
 
 BIN="$REPO/target/release/HumanityOS"
 DB="$REPO/data/relay.db"
@@ -130,11 +134,15 @@ recorded() { sed -n "s/^$1=//p" "$PENDING" 2>/dev/null | tail -n 1; }
 # and clear the record. A roll back that cannot finish leaves the record as pending.failed, and
 # every later run stops at that until a person has looked.
 roll_back() {
-  local tag from prev_ref db_backup db_owner db_mode edits files restarted ok=1
+  local tag from prev_ref db_backup db_owner db_mode edits files restarted ok=1 watchdog_was=0
   tag="$(recorded tag)"; from="$(recorded from)"; prev_ref="$(recorded prev_ref)"
   db_backup="$(recorded db_backup)"; db_owner="$(recorded db_owner)"; db_mode="$(recorded db_mode)"
   edits="$(recorded local_edits)"; files="$(recorded local_files)"; restarted="$(recorded restarted)"
 
+  if systemctl is-active --quiet "$WATCHDOG_TIMER" 2>/dev/null; then
+    watchdog_was=1
+    systemctl stop "$WATCHDOG_TIMER" || true
+  fi
   systemctl stop "$SERVICE" || say "could not stop $SERVICE; going on with the roll back"
   if [ -f "$PREV_BIN" ] && install -m 755 "$PREV_BIN" "$BIN"; then
     say "put the previous relay program back"
@@ -153,7 +161,15 @@ roll_back() {
   fi
   if g checkout -q -f "$prev_ref"; then
     if [ -n "$files" ] && [ -d "$files" ]; then
-      cp -a "$files/." "$REPO/" || { say "could not put the local files back from $files"; ok=0; }
+      # File by file: copying the folder ("$files/.") would also give $REPO and its folders the
+      # backup folder's mode, 700 under this script's umask, and the relay (another user) could
+      # then not even enter /opt/Humanity.
+      local f
+      while IFS= read -r -d '' f; do
+        f="${f#./}"
+        ( umask 022; mkdir -p "$REPO/$(dirname "$f")" ) && cp -a "$files/$f" "$REPO/$f" \
+          || { say "could not put $f back from $files"; ok=0; }
+      done < <(cd "$files" && find . -type f -print0)
     fi
     if [ -n "$edits" ] && [ -s "$edits" ]; then
       g apply "$edits" || { say "could not put the local edits back; they are saved in $edits"; ok=0; }
@@ -167,7 +183,12 @@ roll_back() {
   if healthy; then
     say "the relay is healthy on ${from:-the previous version}"
   else
-    say "the relay is NOT healthy after the roll back either; see journalctl -u $SERVICE"
+    # Not a finished roll back: kept as stuck, so every later run says so and fails, rather than
+    # waiting quietly for a newer release while the relay is down.
+    say "the relay is NOT healthy after the roll back either; see journalctl -u $SERVICE"; ok=0
+  fi
+  if [ "$watchdog_was" = 1 ]; then
+    systemctl start "$WATCHDOG_TIMER" || say "could not start $WATCHDOG_TIMER again"
   fi
   echo "$tag" > "$SKIPPED"
   if [ "$ok" = 1 ]; then
@@ -336,7 +357,8 @@ fi
 files=""
 while IFS= read -r f; do
   if [ -z "$f" ] || [ ! -e "$REPO/$f" ]; then continue; fi
-  if [ "$(g hash-object -- "$f" 2>/dev/null)" = "$(g rev-parse -q --verify "$latest:$f" 2>/dev/null)" ]; then continue; fi
+  # Kept even when it already matches the release's copy: a roll back checks out a commit that
+  # does not track it, which removes it.
   files="$STATE_DIR/local-files.before-$latest-$stamp"
   mkdir -p "$files/$(dirname "$f")" && cp -a "$REPO/$f" "$files/$f"
   say "$f exists here and $latest adds its own; keeping this node's copy in $files/$f"

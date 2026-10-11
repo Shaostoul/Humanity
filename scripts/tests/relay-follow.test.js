@@ -285,6 +285,8 @@ test("a newer release is installed, recorded, and brings its own copy of the fol
 // log); with watchdog_runnable taken out of the roll back ("the watchdog is made executable after
 // the update AND after the roll back"); and with the roll back taking the follower from the
 // checkout, as the old layout did (the installed copy was gone: ENOENT, v0.1.0 carries none).
+// The watchdog pause: seen red 2026-10-11 with the timer stop taken out of roll_back (the Linux
+// review): "the watchdog's timer is paused around the swap".
 test("a release that fails its health check is rolled back: program, checkout, database (with the relay user's owner), follower and watchdog", () => {
   const w = makeWorld();
   fs.writeFileSync(path.join(w.gh, "unhealthy"), "relay-v0.2.0\n");
@@ -310,6 +312,14 @@ test("a release that fails its health check is rolled back: program, checkout, d
   assert.strictEqual(read(w.installed), followerBefore, "the installed follower is untouched by a roll back");
   assert.ok(watchdogChmods(w).length >= 2, "the watchdog is made executable after the update AND after the roll back");
   if (!WINDOWS) assert.ok(fs.statSync(w.watchdog).mode & 0o100, "the watchdog script is executable at v0.1.0 too");
+  // The watchdog's timer is paused across the swap (it could restart the relay between the -wal
+  // removal and the database going back), and started again after.
+  const lines = logLines(w);
+  const at = (re) => lines.findIndex((l) => re.test(l));
+  const paused = at(/^systemctl stop humanity-relay-watchdog\.timer$/);
+  const swapped = at(/^install -o .*\/data\/relay\.db$/);
+  const resumed = at(/^systemctl start humanity-relay-watchdog\.timer$/);
+  assert.ok(paused >= 0 && paused < swapped && swapped < resumed, `the watchdog's timer is paused around the swap (log: ${lines.join(" | ")})`);
 
   // The next hour: that release is skipped, nothing is touched.
   fs.writeFileSync(w.log, "");
@@ -317,6 +327,22 @@ test("a release that fails its health check is rolled back: program, checkout, d
   assert.strictEqual(again.status, 0, again.out);
   assert.match(again.out, /v0\.2\.0 was rolled back here before; waiting for a newer release/);
   assert.ok(!logLines(w).some((l) => l.startsWith("systemctl")));
+  cleanup(w);
+});
+
+// Seen red 2026-10-11 with `ok=0` taken off the unhealthy-after-roll-back branch (the Linux
+// review): "a roll back that leaves the relay unhealthy is not finished" (the record was cleared
+// and the next run exited 0, "waiting for a newer release", with the relay down).
+test("a roll back that leaves the relay unhealthy is kept as stuck, and every later run says so", () => {
+  const w = makeWorld();
+  fs.writeFileSync(path.join(w.gh, "unhealthy"), "relay-v0.2.0\nrelay-v0.1.0\n");
+  const r = follow(w);
+  assert.strictEqual(r.status, 1, r.out);
+  assert.match(r.out, /NOT healthy after the roll back either/);
+  assert.ok(exists(state(w, "pending.failed")), "a roll back that leaves the relay unhealthy is not finished");
+  const again = follow(w);
+  assert.strictEqual(again.status, 1, again.out);
+  assert.match(again.out, /a roll back here did not finish/);
   cleanup(w);
 });
 
@@ -400,7 +426,23 @@ test("a node's own edit to a tracked file is carried onto the release", () => {
 // v0.2.0 is the first release to carry it. The checkout would overwrite that copy and a roll back
 // would delete it, so it is copied aside first and put back by a roll back. Seen red with the
 // roll back's copy-back line taken out: the file was gone (ENOENT on scripts/relay-follow-releases.sh).
+// The file-by-file put back: the folder form (`cp -a "$files/." "$REPO/"`) gave $REPO the backup
+// folder's mode, 700, on Linux (the Linux review of 2026-10-11; Windows cannot show a mode, so
+// that half is read off the script). And a copy that already matches the release's is kept too:
+// a roll back's checkout of the older release removes it. Seen red 2026-10-11 with the "same as
+// the release's copy" skip put back: "a copy matching the release's is back after the roll back".
 test("a local file at a path the release starts carrying is kept aside, and put back by a roll back", () => {
+  const script = read(path.join(__dirname, "..", "relay-follow-releases.sh"));
+  assert.ok(!script.includes('cp -a "$files/." "$REPO/"'), "the put back goes file by file, never the folder onto $REPO");
+  const same = makeWorld();
+  const sameOwn = path.join(same.repo, "scripts", "relay-follow-releases.sh");
+  fs.writeFileSync(sameOwn, gitRaw(same.repo, "show", "v0.2.0:scripts/relay-follow-releases.sh"));
+  fs.writeFileSync(path.join(same.gh, "unhealthy"), "relay-v0.2.0\n");
+  const rs = follow(same);
+  assert.strictEqual(rs.status, 1, rs.out);
+  assert.ok(exists(sameOwn), "a copy matching the release's is back after the roll back");
+  cleanup(same);
+
   const w = makeWorld();
   const own = path.join(w.repo, "scripts", "relay-follow-releases.sh");
   fs.writeFileSync(own, "#!/bin/bash\n# the copy put here by hand\n");

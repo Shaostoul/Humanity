@@ -4,9 +4,10 @@
 # deploy owns. See scripts/relay-follow-releases.sh for what it does and why.
 #
 # The script runs from /usr/local/lib/humanity/, OUTSIDE the checkout: a roll
-# back to a release that did not carry it would otherwise delete it. Install:
-#   sudo install -D -m 755 /opt/Humanity/scripts/relay-follow-releases.sh /usr/local/lib/humanity/relay-follow-releases.sh
-# After each successful update it installs the release's copy there itself.
+# back to a release that did not carry it would otherwise delete it. Install it from main,
+# not from the checkout (which may be at an older release): the steps are in
+# docs/admin/SELF-HOSTING.md, "Staying current by itself". After each successful update it
+# installs the release's copy there itself.
 [Unit]
 Description=Update the HumanityOS relay to the latest release (backup, verify, health check, roll back)
 After=network-online.target
