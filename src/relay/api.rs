@@ -1385,6 +1385,8 @@ pub async fn get_member_by_key(
     ).ok().flatten();
     let (bio, _socials, avatar_url, _banner_url, _pronouns, location, _website, _privacy) =
         profile.unwrap_or_default();
+    // Who they accept files in messages from (public; the default when they have no profile).
+    let accepts_files = state.db.accepts_files_of(member.name.as_deref().unwrap_or(""));
     Ok(Json(serde_json::json!({
         "public_key": member.public_key,
         "name": member.name,
@@ -1397,6 +1399,7 @@ pub async fn get_member_by_key(
         "bio": bio,
         "avatar_url": avatar_url,
         "location": location,
+        "accepts_files": accepts_files,
     })))
 }
 
@@ -2375,7 +2378,7 @@ pub async fn get_signed_profile(
 ) -> impl IntoResponse {
     match state.db.get_signed_profile(&key) {
         Ok(Some(profile)) => {
-            let body = serde_json::json!({
+            let mut body = serde_json::json!({
                 "public_key": profile.public_key,
                 "name": profile.name,
                 "bio": profile.bio,
@@ -2388,6 +2391,12 @@ pub async fn get_signed_profile(
                 "timestamp": profile.timestamp,
                 "signature": profile.signature,
             });
+            // Who they accept files in messages from, only when the key has an account HERE: it
+            // is this server's setting, not part of the signed profile, so a profile gossiped from
+            // another server is answered without it (absent = this server does not know).
+            if let Ok(Some(local_name)) = state.db.current_name_for_key(&key) {
+                body["accepts_files"] = serde_json::json!(state.db.accepts_files_of(&local_name));
+            }
             (StatusCode::OK, Json(body)).into_response()
         }
         Ok(None) => {

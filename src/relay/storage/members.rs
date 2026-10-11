@@ -430,7 +430,7 @@ mod directory_optout_tests {
         db.join_server("KEY_BOB", "bob").unwrap();
         // alice has no profile row at all (NULL privacy) -> stays listed (default).
         // bob opts out via profile privacy.
-        db.save_profile_extended("bob", "", "{}", "", "", "", "", "", "{\"directory\":\"unlisted\"}")
+        db.save_profile_extended("bob", "", "{}", "", "", "", "", "", "{\"directory\":\"unlisted\"}", None)
             .unwrap();
 
         let listed = db.get_members(100, 0, None).unwrap();
@@ -443,7 +443,7 @@ mod directory_optout_tests {
 
         // A member who sets privacy WITHOUT the directory key stays listed.
         db.join_server("KEY_CAROL", "carol").unwrap();
-        db.save_profile_extended("carol", "", "{}", "", "", "", "", "", "{\"location\":\"private\"}")
+        db.save_profile_extended("carol", "", "{}", "", "", "", "", "", "{\"location\":\"private\"}", None)
             .unwrap();
         assert_eq!(db.get_member_count(None).unwrap(), 2, "carol (privacy, no directory key) listed");
 

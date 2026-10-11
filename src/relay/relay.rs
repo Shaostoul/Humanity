@@ -1219,6 +1219,11 @@ pub enum RelayMessage {
         /// JSON map of field → "private" / "public" visibility overrides.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         privacy: Option<String>,
+        /// Who the person accepts files in messages from: "nobody", "friends" or "anyone"
+        /// (storage/profile.rs `ACCEPTS_FILES_WORDS`). Absent (an older app) keeps the stored
+        /// word; any other word refuses the whole update with a notice.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        accepts_files: Option<String>,
     },
 
     /// Server sends profile data for a specific user.
@@ -1240,6 +1245,10 @@ pub enum RelayMessage {
         location: Option<String>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         website: Option<String>,
+        /// Who the person accepts files in messages from ("nobody", "friends" or "anyone"),
+        /// public: every ProfileData this relay sends carries it.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        accepts_files: Option<String>,
         /// When Some(key): deliver only to that client. When None: broadcast to all.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         target: Option<String>,
@@ -3190,6 +3199,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                             pronouns:   opt(pronouns),
                             location:   opt(location),
                             website:    opt(website),
+                            accepts_files: Some(state.db.accepts_files_of(name)),
                             target: None, // Direct send to this socket — no routing needed
                         }).unwrap();
                         let _ = ws_tx.send(Message::Text(profile_msg.into())).await;
@@ -5801,8 +5811,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                 }
                             }
                             // Profile update — validate, save, and broadcast.
-                            RelayMessage::ProfileUpdate { bio, socials, avatar_url, banner_url, pronouns, location, website, privacy } => {
-                                handle_profile_update(&state_clone, &my_key_for_recv, &mut last_profile_update, bio, socials, avatar_url, banner_url, pronouns, location, website, privacy).await;
+                            RelayMessage::ProfileUpdate { bio, socials, avatar_url, banner_url, pronouns, location, website, privacy, accepts_files } => {
+                                handle_profile_update(&state_clone, &my_key_for_recv, &mut last_profile_update, bio, socials, avatar_url, banner_url, pronouns, location, website, privacy, accepts_files).await;
                             }
                             // Profile request — look up the profile, apply privacy filter, and unicast to requester.
                             RelayMessage::ProfileRequest { name, friend_cert } => {
