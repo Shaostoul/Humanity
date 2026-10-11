@@ -684,6 +684,91 @@ upgrade test in storage/roles.rs; each seen failing once.
   that."), unless `keep_metadata=1`. Honest limit: a video cut off before its movie box reads the
   same way and gets the same words.
 
+**As built (web, round 2, 2026-10-11).** The web Media page against the relay above, and the fixes
+the review of the round 1 page asked for. Code: web/pages/media-app.js (the page),
+web/pages/media-upload.js (new: the resumable upload and the uploads remembered in the browser),
+web/pages/media-admin.js (the admins' section), web/shared/relay-session.js (now keeps the role
+list), web/shared/pq-relay-auth.js, web/shared/report.js, web/chat/chat-reports.js,
+web/chat/chat-messages.js and app.js (the private limit). Tests: scripts/tests/media-web.test.js
+(round 1, moved onto a shared harness, scripts/tests/media-web-harness.js) and
+scripts/tests/media-web-round2.test.js, one test in private-files-web.test.js, the contexts check
+in report-web.test.js, and a `Media (kinds)` pair in tests/page_parity_lint.rs; each seen failing
+once against a single break in a copy of web/.
+
+- **No two signed requests share a timestamp.** getPqSignedAuth takes the next millisecond after the
+  last one it signed (`_nextTimestamp`, like the desktop's `next_timestamp`), so Accept on a
+  suggestion, which reads the list twice at once, is never refused as a replay.
+- **W5.** Pick, Unpick, Remove by number, Feature and Keep send `filename`: the item's `filename`
+  when the answer carries one, else the name in its `/uploads/` address. A 409 "not the Media item
+  you were looking at" loads the list and the strip again and says so ("the page was out of date,
+  so it has been loaded again. Nothing was changed."). **Gap found, relay side:** `item_json` gives
+  a members-only item's address as `/api/media/file/<id>` and carries no stored file name, so
+  neither app can name such an item's file; the web page then sends nothing and says why. The fix
+  is one field, `"filename": i.upload_filename`, in `item_json` (the name is not a way in: the
+  members' folder is served by nothing, and only members are sent members-only items); the page
+  already reads it.
+- **A4.** "You have X of your Y left" is `share_bytes - used_bytes - in_progress_bytes` from
+  `POST /api/media/mine` (an upload of the same file already part way up is not counted twice),
+  with the role's largest Media file (`file_limit_bytes`) and what the whole space has left
+  (`budget_left_bytes`) as stops too; asked again after every upload, publish and removal. The
+  person's uploads waiting to be published are listed with Publish (the form, with the visibility
+  choice) and Remove (by file name).
+- **W3b.** Members-only files are fetched with the token in `X-Upload-Token` and shown through
+  object URLs, at most four fetched at once; no token is in any address on the page. An object URL
+  lives while its item is shown (the grid, the strip or the viewer) and is revoked when it is not,
+  and all of them when the page goes. Download saves the fetched file under `original_name`; a
+  model or file is fetched only when Download is pressed.
+- **The viewer** is drawn again only when what it shows changes (its item, or a members-only file
+  arriving), so a playing video keeps playing through a reconnect, a new token or a list reload.
+- **A2 and A6.** The strip asks for `featured=1` (up to 100); the kind filter and each kind's name
+  and mark come from data/media/kinds.json, which the desktop reads too.
+- **Settings Save** ends at the relay's answer to it: a `server_settings_state` with no `target`
+  (an admin's save) carrying what was sent, as the relay stores it; any other notice than another
+  admin's save, the game clock or a suggestion's answer (so "Only admins can update server
+  settings.", "Update failed: ..." and "Server settings row missing ..." all end it); a dropped
+  connection; or 15 seconds with no answer. The answer to the page's own settings request never
+  counts.
+- **Add to Media** only when the person's role may upload: no role, a role with `can_upload` off,
+  or the role list not here yet (it comes with the settings) means no button; a role known not to
+  upload gets one line saying why.
+- **A7.** Keep on the server and Stop keeping on tiles for admins and moderators (signed
+  `media_keep:<id>:<on|off>`), a "Kept by the server" badge for everyone, Keep in the admins' prune
+  lists, and `kept_bytes` on its own line under the meter.
+- **A3.** My picks is `POST /api/media/picks` (the list's signed body plus `of`), members-only
+  picks included; Pick and Unpick follow each item's `picked_by_me`.
+- **A1.** Remove's confirmation from `keeps_file`: "Remove from Media. The file stays where it came
+  from." or "Remove from Media and delete the file." (the either-way words only when it is absent).
+- **A5.** Report on a tile: the reasons from data/safety/report_reasons.json with their help, the
+  help outside this server for the two danger reasons (the chat dialog's rules, report.js), a note,
+  and `report_v2` with context `media` and evidence `[{kind: "media", id}]`, signed by the reporter
+  over the relay's words and sent on the page's own socket; `report_received` closes it with the
+  chat's line, a refusal shows in the dialog. report.js gained the context, `mediaEvidenceItem` and
+  the Media fields in `reportItemView`; the chat's Reports view shows such evidence by title, kind,
+  labels and visibility (names from the two data files) with an Open to `/media?id=<n>`, which the
+  page loads with `id=<n>` on the list route and opens in the viewer. Not on the web report: "Also
+  block them" (the Media page has no block list) and the recovery-phrase check on the note (it
+  lives in the chat's warnings script).
+- **B2.** The chat's private-file limit is the person's own peer-list `private_limit_mb`
+  (`window.myPrivateLimitBytes`), 6 MB only until the server has said it; the room limit no longer
+  caps it.
+- **Resumable uploads.** Every Add to Media file goes this way (no `blake3`): pieces of the server's
+  `chunk_max`, a progress bar, Pause (after the piece on its way) and Resume, Cancel (DELETE), a
+  dropped connection waited out (2 s doubling to 30 s) then `GET` for where the server got, a token
+  that changed (the page signed in again) waited for, a piece at the wrong place taken from the
+  409's `offset`, a busy 409 answered by asking again, the 429 allowance in the relay's words plus
+  when it resets on this device's clock with Resume, a 507 at the finish in its words with Retry
+  sending the empty piece, and `done` taken from `GET` when an answer was lost. The upload is
+  remembered in localStorage (`humanity_media_uploads`: whose, the session id, the file's name, size
+  and last change; every read and write wrapped) and picking the same file after a reload carries
+  on. The publish is signed after the upload.
+- **Phones.** `.media-select` is held to the width it has, so a long category or person name no
+  longer widens the filters past 375 px.
+- **Not done here.** The Roles editor fields (follow-up B and answers 2 and 3): the web has no
+  Roles editor (Settings shows a fixed description of the roles), so the five limits are edited in
+  the desktop app only. The sender-side metadata strip and its switch (answer 4), the
+  can-not-be-read-through question in DMs (answer 5), Files in messages (answer 6) and the local
+  copy of opened private files (answer 9) are their own increments.
+
 ## The operator's answers (2026-10-11) and what they mean for the build
 
 Verbatim where it matters, then the decision. Parts marked (relay) are added to the follow-ups
@@ -726,6 +811,20 @@ above; parts marked (apps) are the next app increment.
    the flag. (apps) both apps strip pictures and videos before upload with the same rules as the
    relay's strip (the desktop app uses the same Rust code; the web gets a JavaScript port held to
    the same test files), plus the switch.
+   **As built (the web's strip, 2026-10-11), not yet wired into any page.** `web/shared/strip-metadata.js`
+   puts `HosStrip` on `window` (and is a CommonJS module under Node). `stripFile(bytes, nameOrType)`
+   is a port of `strip_metadata.rs` and `strip_video_metadata.rs` with their rules: JPEG, PNG and
+   WebP lose whole segments or chunks, GIF passes through untouched as on the relay, and MP4, MOV
+   and 3GP boxes are zeroed and renamed `free` in a copy of the same length (the caller's bytes
+   are never written). A picture that cannot be walked comes back unchanged and a video that stops
+   early says where; both are marked `unfinished`, which is answer 5's "Send anyway?" case. HEIC
+   and AVIF are not cleaned (no HEIF strip on main yet) and the report says so. The bytes decide
+   the kind; the name or type is reported beside it. `describe(bytes, nameOrType)` gives the attach
+   step its sentence ("This photo says where it was taken and which camera took it.") and plain-word
+   details, only for what the strip removes, with coordinates only when asked for.
+   `scripts/tests/strip-metadata.test.js` mirrors the Rust tests, and where rustc is installed it
+   compiles a small program around the relay's two real source files and requires the same bytes
+   and the same reports on about 9,500 inputs; it is not yet in `just rig-tests`.
 5. **Files that cannot be fully cleaned.** "Refusal makes sense from a safety standpoint. But
    maybe there might be a reason to keep it? Maybe someone is trying to help someone else fix the
    file?" Public shelves keep refusing them: the server cannot ask every future viewer, and public
@@ -890,3 +989,86 @@ why). One upload at a time: starting a new one cancels an older unfinished one.
 hidden information with its switch, the "could not be checked" prompt for DMs, the Files in
 messages settings, the local copies of opened private files, and device-to-device transfer. They
 are their own increments.
+
+## HEIC and AVIF photos cleaned in place (relay, 2026-10-11)
+
+**As built.** The R7 refusal above is replaced for every HEIC or AVIF photo the relay can read
+through: its location is removed and the photo is stored. Code: `src/relay/core/strip_heif_metadata.rs`,
+called from upload_rules.rs `finish_file_as`, so both upload routes use it. Tests: the module's
+own twelve, and four in relay/upload_rules_tests.rs; each seen failing once against a deliberate
+break, the doc comments say how.
+
+- **What is removed.** A HEIF still keeps its picture as numbered items in the top-level `meta`
+  box, found through two tables there: `iinf` (each item's number and type) and `iloc` (where each
+  item's bytes are). The strip reads both and overwrites with zeros, where they stand, every byte
+  of every `Exif` item (on a phone: the GPS position, the time, make, model, lens, Apple's maker
+  notes) and of every `mime` item of type `application/rdf+xml` (XMP). The file keeps its exact
+  size and nothing moves, so the picture, its thumbnail, its tiles, the item properties (`iprp`),
+  the references (`iref`) and the tables are byte-identical. The video strip runs first and clears
+  an XMP box at the top level, if there is one.
+- **What it reads.** An `ftyp` naming `heic`, `heix`, `heim`, `heis`, `mif1`, `msf1`, `avif` or
+  `avis` (as the major brand or a compatible one) and no `moov`; one top-level `meta` (version 0);
+  `iinf` versions 0 and 1 with `infe` entries of versions 2 and 3; `iloc` versions 0, 1 and 2 with
+  offset, length, base offset and index sizes of 0, 4 or 8 bytes; construction method 0 (file
+  offsets) and 1 (offsets inside `meta/idat`).
+- **API.** `strip_heif_metadata_in_place(path) -> io::Result<HeifStrip>`, the same on bytes in
+  memory (`strip_heif_metadata_in_buffer`), and `is_heif_still(first_bytes)`. `HeifStrip` reports
+  the kind (`Still`, `WithMovie`, `NotHeif`), each item zeroed (item number, item type, bytes),
+  the byte ranges written, and a plain sentence for anything not done (`stopped_early`);
+  `complete()` is true only for a still whose tables were read through and whose every Exif and
+  XMP item was zeroed.
+- **Safety.** An extent is zeroed only when it lies wholly inside an `mdat` box's body (method 0)
+  or the `idat` box's body (method 1) and touches no byte of any other item; otherwise that whole
+  item is left as it is, and said. When the tables themselves cannot be read with certainty (a
+  size that makes no sense, a version not listed above, two `iinf`, `iloc`, `idat` or `meta`
+  boxes, an item number listed twice, a table cut short), nothing is written at all. The file is
+  read through a read-only handle and opened for writing only when there is something to zero, so
+  a video, a JPEG or a HEIC with nothing in it is never opened for writing; the zeros are synced
+  before the upload is stored. All arithmetic is checked, and 4,000 fixed-seed random inputs (and
+  every cut of a whole picture) run without a panic, a size change, or a byte changed outside a
+  reported range.
+- **In the upload rules.** `.heic`, `.heif` and `.avif`, and the declared types `image/heic`,
+  `image/heif` and `image/avif`, are allowed. Such a file never takes the picture path (no PNG or
+  JPEG magic check, no 64 MB picture cap; the role's own file limit holds): it is a plain file,
+  stored under `.heic`, `.heif` or `.avif`, the upload's answer says `"type": "document"`, and on
+  the Media page it is a "file" (`kind_of`), because neither app shows HEIC or AVIF inline. A
+  `.heic` DECLARED as `image/jpeg` is judged as a JPEG and refused when it is not one. A still that
+  is not `complete()` is refused with the R7 words as they were ("HEIC and AVIF photos cannot be
+  cleaned of where they were taken yet. Save it as a JPEG and send that."), unless the person
+  chose `keep_metadata=1` (B4), which takes it as sent. A file in the MP4 family with no movie and
+  no HEIF brand, a video cut off before its movie box, is now told so (`VIDEO_UNREADABLE`) instead
+  of being called a photo: that was R7's honest limit.
+
+**What it does not cover (honest limits).**
+- Only `Exif` items and XMP `mime` items are cleaned. Left as they are: item names, `uri ` items,
+  `mime` items of any other type, the colour profile and other item properties, the pixels
+  themselves (a street sign or a landmark in the picture still says where it is), and auxiliary
+  pictures (depth map, Portrait matte, HDR gain map) as pictures. A preview kept as a JPEG item
+  (item type `jpeg`) could carry an EXIF block inside its own bytes, which is not looked for
+  (iPhones keep HEVC thumbnails, which cannot). XMP attached to an auxiliary picture is zeroed
+  with the rest, so an iPhone HDR photo may lose its HDR look on Apple devices (not checked
+  against a real file).
+- The zeroed items stay listed in the tables: a viewer finds an Exif item full of zeros. Readers
+  are expected to skip an Exif block they cannot parse, but no real viewer was tried (the tests
+  build files byte by byte and the relay has no HEIF decoder); the picture's own items are
+  untouched either way.
+- Refused rather than cleaned: an Exif or XMP item built from other items (construction method
+  2), kept through a data reference, given an extent of length 0 ("to the end"), lying outside
+  `mdat` and `idat`, or overlapping another item; the table shapes listed under Safety; a file
+  cut short. `infe` versions 0 and 1 (allowed by the base format, not by HEIF) are refused too.
+- A HEIF file with a movie in it (an image sequence or burst, `msf1`, `heis` or `avis` with a
+  `moov`) is left to the video strip, which neutralises a top-level `meta` in a file with a movie,
+  cover picture and Exif together; it is not cleaned item by item.
+- Not scrubbed, as with the video strip: stale bytes inside `free` boxes, data after the last box,
+  and a `udta` box at the top level of a still (not a HEIF structure, but nothing stops a tool
+  writing one).
+- A file NAMED `.heic` whose bytes are not a HEIF file (a JPEG renamed) is stored as a plain
+  `.heic` with its EXIF: only what the bytes are is cleaned. The same was already true of a
+  picture renamed to any other allowed extension (`.pdf`, `.zip`); only pictures are checked to be
+  what they say. A HEIC named `.mp4` is cleaned and stored as `.mp4`.
+- The apps' attach pickers still list only PNG, JPEG, GIF and WebP among pictures; a HEIC reaches
+  the relay from the web as whatever the browser declares, and from a file sent as
+  `application/octet-stream` by its extension. Comments in api.rs `upload_file` and resumable.rs
+  `finish` still say a HEIC is refused; they call `finish_file_as` and are out of date until those
+  files are next edited. resumable_follow_ups_tests.rs keeps its HEIC refusal test: its synthetic
+  photo has an item list that cannot be read, so it is still refused, for the right reason now.

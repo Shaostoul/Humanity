@@ -12,14 +12,24 @@
 //   previews only". These four are server settings: they are read from
 //   `server_settings_state` and saved with `server_settings_update` over the
 //   page's signed-in socket (/shared/relay-session.js), the frame the relay's
-//   handlers/server_settings_update.rs takes from admins.
+//   handlers/server_settings_update.rs takes from admins. A save ends at the
+//   relay's answer: the settings it broadcasts after an admin's save (no
+//   `target`) carrying what was sent, or any refusal it sends as a notice
+//   ("Only admins can update server settings.", "Update failed: ...", "Server
+//   settings row missing ..."), a dropped connection, or no answer in 15
+//   seconds. The answer to this page's own settings request (`target` set) is
+//   never taken as the answer to a save.
 // - The categories: add, rename, reorder, remove (General stays). Saved whole
 //   with POST /api/media/categories, signed over
 //   media_categories:<BLAKE3 hex of the category list's JSON text as sent>, so
 //   the request carries exactly that text (`categoriesBody`).
 // - Suggestions waiting: Accept or Decline, the suggester named.
-// - The meter ("12.4 GB of 50 GB used") with a bar, and the prune lists
-//   (largest, oldest, least viewed, waiting to be published), each with Remove.
+// - The meter ("12.4 GB of 50 GB used") with a bar and, on its own line, what
+//   the server keeps (`kept_bytes`), and the prune lists (largest, oldest,
+//   least viewed, waiting to be published), each with Remove, the items also
+//   with Keep on the server (kept items are in no prune list). A removal or a
+//   keep names the item's file as well as its number (the relay's W5); a list
+//   out of date is answered 409 and loaded again.
 //
 // Built with createElement and textContent only. A classic script in the
 // browser (after /pages/media-app.js, whose helpers it uses), a CommonJS module
@@ -34,11 +44,17 @@
   // cannot be removed", storage/media.rs GENERAL_CATEGORY_ID); it can be renamed.
   const GENERAL_ID = 1;
 
+  // How long a settings save waits for the relay's answer before saying none came.
+  const SAVE_WAIT_MS = 15000;
+
   const ADMIN_WORDS = Object.freeze({
     noSession: 'This page is not signed in to this server yet, so these settings cannot be read or saved here.',
     waitingSettings: "Waiting for this server's settings...",
     saved: 'Saved.',
     notSaved: 'This page is not signed in to this server, so nothing was saved.',
+    noAnswer: 'The server did not answer, so the settings may not have been saved. Refresh to see what it holds now, then try again.',
+    lostConnection: 'The connection to the server dropped before it answered, so the settings may not have been saved. Check them once this page is signed in again.',
+    outOfDate: 'That was not the item you were looking at: the list was out of date, so it has been loaded again. Nothing was changed.',
     generalStays: 'General stays: it holds the items of removed categories.',
     noSuggestions: 'No suggestions are waiting.',
     removeWaiting: 'Remove this upload and delete the file.',
@@ -83,17 +99,48 @@
   }
 
   /**
+   * The settings a save sent as the relay stores them (handlers/server_settings_update.rs:
+   * the sizes held to 1 MB .. a million MB), to recognise its answer.
+   */
+  function storedAs(frame) {
+    const mb = (v) => Math.min(1000000, Math.max(1, Math.round(Number(v) || 1)));
+    return {
+      media_visibility: frame.media_visibility,
+      media_budget_mb: mb(frame.media_budget_mb),
+      media_per_person_mb: mb(frame.media_per_person_mb),
+      media_public_previews_only: !!frame.media_public_previews_only,
+    };
+  }
+
+  /** Whether a server_settings_state is the answer to this save: an admin's save (no target) holding what was sent. */
+  function answersSave(msg, sent) {
+    if (!msg || msg.type !== 'server_settings_state' || !msg.settings || !sent) return false;
+    if (msg.target) return false;
+    const want = storedAs(sent);
+    return Object.keys(want).every((k) => msg.settings[k] === want[k]);
+  }
+
+  /** Notices that are not an answer to a settings save (another admin's, a game clock, a suggestion's answer). */
+  function otherNotice(text) {
+    return /updated by admin/i.test(text) || text.startsWith('__game__:') || text.startsWith('Your category suggestion');
+  }
+
+  /**
    * Mount the section in `container`. `env`: document, fetch, sign(purpose),
    * blake3(bytes), session (a relay-session), confirm(words), onChange() (the
-   * Media page reloads its list after a change here; optional).
+   * Media page reloads its list after a change here; optional), setTimeout and
+   * clearTimeout (optional).
    */
   function mountMediaAdmin(container, env) {
     const h = M.makeH(env.document);
     const session = env.session || null;
+    const later = env.setTimeout || ((fn, ms) => setTimeout(fn, ms));
+    const cancelLater = env.clearTimeout || ((t) => clearTimeout(t));
     const st = {
       settingsDraft: null,
       settingsDirty: false,
-      saving: false,
+      saving: null,             // the frame being saved, until the relay answers it
+      saveTimer: null,
       settingsMsg: '',
       settingsWarn: false,
       categories: null,
@@ -164,7 +211,7 @@
       share.addEventListener('input', () => { d.media_per_person_mb = Math.round(Number(share.value)); dirty(); });
       const previews = h('input', { type: 'checkbox', id: 'media-admin-previews', checked: !!d.media_public_previews_only });
       previews.addEventListener('change', () => { d.media_public_previews_only = !!previews.checked; dirty(); });
-      const save = h('button', { type: 'button', id: 'media-admin-save', className: 'media-btn media-btn-primary', text: st.saving ? 'Saving...' : 'Save', disabled: st.saving });
+      const save = h('button', { type: 'button', id: 'media-admin-save', className: 'media-btn media-btn-primary', text: st.saving ? 'Saving...' : 'Save', disabled: !!st.saving });
       save.addEventListener('click', saveSettings);
       // (A missing line is left out: append() would write a null as the word "null".)
       els.settings.append(...[
@@ -185,7 +232,7 @@
     }
     function saveSettings() {
       const d = st.settingsDraft;
-      if (!d) return;
+      if (!d || st.saving) return;
       const frame = {
         type: 'server_settings_update',
         media_visibility: d.media_visibility,
@@ -197,32 +244,41 @@
         st.settingsMsg = ADMIN_WORDS.notSaved;
         st.settingsWarn = true;
       } else {
-        st.saving = true;
+        st.saving = frame;
         st.settingsMsg = '';
         st.settingsWarn = false;
+        st.saveTimer = later(() => { if (st.saving === frame) endSave(ADMIN_WORDS.noAnswer, true); }, SAVE_WAIT_MS);
       }
       renderSettings();
     }
+    /** The save is over: saved (`words` Saved.) or not (the relay's words, or why no answer came). */
+    function endSave(words, warn) {
+      if (st.saveTimer) cancelLater(st.saveTimer);
+      st.saveTimer = null;
+      st.saving = null;
+      st.settingsMsg = words;
+      st.settingsWarn = !!warn;
+      if (!warn) st.settingsDirty = false;
+      renderSettings();
+    }
     function onSession(ev) {
-      if (ev.type === 'frame' && ev.msg && ev.msg.type === 'server_settings_state') {
-        if (st.saving) {
-          st.saving = false;
-          st.settingsDirty = false;
-          st.settingsMsg = ADMIN_WORDS.saved;
-          st.settingsWarn = false;
+      const m = ev.type === 'frame' ? ev.msg : null;
+      if (m && m.type === 'server_settings_state') {
+        if (st.saving && answersSave(m, st.saving)) {
+          endSave(ADMIN_WORDS.saved, false);
           changed();
+          return;
         }
         renderSettings();
-      } else if (ev.type === 'frame' && ev.msg && ev.msg.type === 'system' && st.saving) {
-        const text = String(ev.msg.message || '');
-        if (/server settings/i.test(text) && !/updated by admin/i.test(text)) {
-          st.saving = false;
-          st.settingsMsg = text;
-          st.settingsWarn = true;
-          renderSettings();
-        }
+      } else if (m && m.type === 'system' && st.saving) {
+        // Any refusal ends the save: the relay answers a save it does not make with a notice
+        // to this socket alone ("Only admins can update server settings.", "Update failed: ...",
+        // "Server settings row missing ..."), and the other notices are not about it.
+        const text = String(m.message || '');
+        if (text && !otherNotice(text)) endSave(text, true);
       } else if (ev.type === 'state') {
-        renderSettings();
+        if (st.saving && session && session.state && session.state.status !== 'bound') endSave(ADMIN_WORDS.lostConnection, true);
+        else renderSettings();
       }
     }
 
@@ -366,15 +422,37 @@
       }
       renderUsage();
     }
+    /** A write on an item named by its number and its file (W5); a list out of date is loaded again. */
+    async function itemWrite(url, purpose, item, body) {
+      const filename = M.itemFileName(item);
+      if (!filename) throw new Error(M.MEDIA_WORDS.noFileName);
+      try {
+        return await signedPost(url, purpose, Object.assign({ id: item.id, filename }, body || {}));
+      } catch (e) {
+        if (e && e.status === 409 && /not the Media item you were looking at/i.test(e.message)) throw new Error(ADMIN_WORDS.outOfDate);
+        throw e;
+      }
+    }
     async function removeFromPrune(target) {
       const words = target.item ? M.removeWords(target.item) : ADMIN_WORDS.removeWaiting;
       const name = target.item ? M.itemName(target.item) : target.waiting.filename;
       if (!await env.confirm('"' + name + '"\n\n' + words)) return;
       try {
         const a = target.item
-          ? await signedPost('/api/media/remove', M.purposes.remove(target.item.id), { id: target.item.id })
+          ? await itemWrite('/api/media/remove', M.purposes.remove(target.item.id), target.item)
           : await signedPost('/api/media/remove', M.purposes.remove(target.waiting.filename), { filename: target.waiting.filename });
         st.usageMsg = target.item ? M.removedWords(a) : 'Removed, and the file was deleted.';
+        changed();
+      } catch (e) {
+        st.usageMsg = e.message;
+      }
+      loadUsage();
+    }
+    /** Keep an item on the server (admins and moderators, the relay's A7): out of its uploader's share and the prune lists. */
+    async function keepFromPrune(item) {
+      try {
+        await itemWrite('/api/media/keep', M.purposes.keep(item.id, true), item, { kept: true });
+        st.usageMsg = M.MEDIA_WORDS.keptNow;
         changed();
       } catch (e) {
         st.usageMsg = e.message;
@@ -399,13 +477,17 @@
       const pct = Math.min(100, Math.round((used / budget) * 1000) / 10);
       const fill = h('div', { className: 'media-meter-fill' });
       fill.style.width = pct + '%';
-      els.usage.append(
+      const kept = Math.max(0, Number(u.kept_bytes) || 0);
+      els.usage.append(...[
         h('p', { id: 'media-admin-meter', className: 'media-meter-words', text: M.meterWords(used, budget) }),
         h('div', { className: 'media-meter', id: 'media-admin-meter-bar', attrs: { role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': pct } }, [fill]),
-      );
+        // What the server keeps (A7): inside "used", in nobody's share, its own line.
+        kept ? h('p', { id: 'media-admin-kept', className: 'media-hint', text: M.keptMeterWords(kept) }) : null,
+      ].filter(Boolean));
       const itemRow = (it) => h('div', { className: 'media-admin-row', dataset: { pruneItem: it.id } }, [
         h('div', { className: 'media-admin-row-text', text: M.itemName(it) + ' · ' + M.sizeWords(it.size_bytes) + ' · by ' + (it.uploader_name || 'someone') }),
-        h('button', { type: 'button', className: 'media-btn media-btn-small media-btn-danger', text: 'Remove', on: { click: () => removeFromPrune({ item: it }) } }),
+        h('button', { type: 'button', className: 'media-btn media-btn-small', dataset: { pruneKeep: it.id }, text: M.MEDIA_WORDS.keep, on: { click: () => keepFromPrune(it) } }),
+        h('button', { type: 'button', className: 'media-btn media-btn-small media-btn-danger', dataset: { pruneRemove: it.id }, text: 'Remove', on: { click: () => removeFromPrune({ item: it }) } }),
       ]);
       const waitingRow = (w) => h('div', { className: 'media-admin-row', dataset: { pruneWaiting: w.filename } }, [
         h('div', { className: 'media-admin-row-text', text: [w.filename, M.sizeWords(w.size_bytes), 'by ' + (w.uploader_name || 'someone'), expiresWords(w.expires_at)].filter(Boolean).join(' · ') }),
@@ -465,7 +547,7 @@
     });
   }
 
-  const api = { GENERAL_ID, ADMIN_WORDS, categoriesListText, categoriesBody, categoriesPurpose, expiresWords, mountMediaAdmin, startMediaAdmin };
+  const api = { GENERAL_ID, ADMIN_WORDS, SAVE_WAIT_MS, categoriesListText, categoriesBody, categoriesPurpose, expiresWords, storedAs, answersSave, mountMediaAdmin, startMediaAdmin };
   if (typeof module === 'object' && module && module.exports) module.exports = api;
   else Object.assign(root, { mountMediaAdmin, startMediaAdmin, MediaAdmin: api });
 })(typeof globalThis !== 'undefined' ? globalThis : this);

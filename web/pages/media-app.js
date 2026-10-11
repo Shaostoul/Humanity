@@ -1,14 +1,20 @@
 // ── media-app.js ──────────────────────────────────────────────────────────
 // The Media page on the website (2026-10-11; docs/design/media-showcase.md,
-// "Increment 2, exact"). The desktop app's Media page is the original
-// (src/gui/pages/media.rs); this page mirrors its layout and words.
+// "Increment 2, exact", then round 2 against the relay's follow-ups: "Increment
+// 2 follow-ups, exact", its As built note, and "Resumable uploads, exact"). The
+// desktop app's Media page is the original (src/gui/pages/media.rs); this page
+// mirrors its layout and words.
 //
-// What it shows: a strip of featured items, filters (category, kind, person,
-// My picks, a search over titles), a grid of tiles newest first with More, and
-// a viewer. What it does: Pick and Unpick, Remove (with the words naming what
-// happens), Feature and Unfeature for admins, Add to Media (the file picker,
-// then a short form), Put on Media for a Shared Files row (public only), and
-// Suggest a category. The relay half is src/relay/media.rs.
+// What it shows: a strip of featured items (every featured item, asked for with
+// `featured=1`), filters (category, kind, person, My picks, a search over
+// titles), a grid of tiles newest first with More, a viewer, and the person's
+// own uploads waiting to be published. What it does: Pick and Unpick, Remove
+// (with the words naming what happens to the file), Feature and Unfeature for
+// admins, Keep on the server and Stop keeping for admins and moderators, Report,
+// Add to Media (the file picker, a short form, then a resumable upload with a
+// progress bar, Pause and Resume), Put on Media for a Shared Files row (public
+// only), and Suggest a category. The relay half is src/relay/media.rs and
+// src/relay/resumable.rs.
 //
 // RULES THIS FILE KEEPS
 // - Every element is built with createElement and textContent: nothing the
@@ -16,33 +22,45 @@
 // - A picture or video loads only from this server's own addresses: its
 //   /uploads/ folder and the members' file route /api/media/file/{id}
 //   (`ownFilePath`). Anything else is not loaded and says so.
-// - A members-only item's file is fetched through /api/media/file/{id} with
-//   this page's session upload token (`?token=`), which the relay gives only
-//   to a socket it has signed in (/shared/relay-session.js).
+// - A members-only item's file is fetched from /api/media/file/{id} with the
+//   session's upload token in the X-Upload-Token HEADER (the relay's W3b) and
+//   shown through an address of the page's own (URL.createObjectURL), so the
+//   token is never in an <img src>, a <video src>, a Download link, a
+//   browser's downloads list or a server's log. Each object URL is kept while
+//   its item is shown and revoked when it is not (`sweepBlobs`).
+// - The viewer is drawn again only when what it shows changes, so a playing
+//   video keeps playing through a sign-in, a reconnect or a list reload.
 // - A labelled item (spoiler, flashing lights, graphic) shows its label
 //   instead of its picture until clicked: its picture is not even requested.
 // - Every write is signed (Dilithium over "purpose\ntimestamp", getPqSignedAuth
-//   in /shared/pq-relay-auth.js) with a purpose that names its target:
-//   media_publish:<file name>, media_remove:<item id>, media_pick:<item id>,
-//   media_feature:<item id> (the relay's F5). The members' list read signs
-//   plain media_list; a category suggestion plain media_suggest.
-// - The kinds and labels come from the server's answers: the label list is
-//   the list answer's `labels`, and the kind filter offers the kinds the
-//   server's items carry. KIND_WORDS below only says each kind in words.
+//   in /shared/pq-relay-auth.js, which never signs two requests with the same
+//   timestamp) with a purpose that names its target: media_publish:<file name>,
+//   media_remove:<item id or file name>, media_pick:<item id>,
+//   media_feature:<item id>, media_keep:<item id>:<on|off>. A write on an item
+//   also names the item's file (`filename`, the relay's W5), so a tile left on
+//   a page that is out of date never acts on another item: the relay answers
+//   409 and the page loads the list again.
+// - The kinds are data: /data/media/kinds.json, the same file the desktop app
+//   reads (tests/page_parity_lint.rs holds both to it). The labels come from
+//   the server's answers.
 //
 // A classic script in the browser, a CommonJS module under Node, where
-// scripts/tests/media-web.test.js runs the page against a stand-in document
-// that has only what this file built in it.
+// scripts/tests/media-web.test.js and media-web-round2.test.js run the page
+// against a stand-in document that has only what this file built in it.
 // ──────────────────────────────────────────────────────────────────────────
 (function (root) {
   'use strict';
 
   const MIB = 1024 * 1024;
   const PAGE_SIZE = 48;
-  // The most own items read to add up how much of the share is used (100 a page).
-  const MY_USE_PAGES = 50;
-  // The most pages of the person's picks read to know which tiles they picked.
-  const MY_PICKS_PAGES = 10;
+  // The featured strip asks for every featured item, up to this many.
+  const FEATURED_LIMIT = 100;
+  // The kinds of item (data, read by both apps: the desktop's src/gui/pages/media/kinds.rs).
+  const KINDS_URL = '/data/media/kinds.json';
+  // Members-only files fetched at once, so a page of tiles does not ask for all at the same time.
+  const BLOB_FETCHES_AT_ONCE = 4;
+  // How long a report waits for the server's answer before saying it did not come.
+  const ANSWER_WAIT_MS = 15000;
 
   // ── Words (the design's own, shared with the desktop page) ──
   const MEDIA_WORDS = Object.freeze({
@@ -57,39 +75,73 @@
     removedKept: 'Removed from Media. The file stays where it came from.',
     removedDeleted: 'Removed from Media, and the file was deleted.',
     removed: 'Removed from Media.',
+    removeWaiting: 'Remove this upload and delete the file.',
+    removedWaiting: 'Removed, and the file was deleted.',
     empty: 'Nothing is on the Media page yet.',
     emptyFiltered: 'Nothing here matches these filters.',
     notThisServer: 'Not shown: this file is not on this server.',
     waitingToken: 'This members-only file shows once this page is signed in to the server.',
+    loadingFile: 'Loading...',
+    fileFailed: 'This file could not be loaded: ',
     noIdentity: 'Not signed in on this page. Open Chat in this browser first (it keeps your identity here), then press Try again. A passphrase-protected identity cannot be read by this page yet.',
     signingIn: 'Signing in to this server...',
     cannotSign: 'This page could not sign the request with your identity. Open Chat in this browser first, then try again.',
     notSignedInUpload: 'This page is not signed in to this server yet, so nothing was uploaded. Try again in a moment.',
-    picksPublicOnly: 'Only public items show under My picks on the website for now.',
+    cannotUpload: 'Your role on this server cannot upload files, so Add to Media is not offered. An admin can change that in Server Settings > Roles.',
     published: 'It is on the Media page now.',
     suggestSent: 'Suggestion sent. You are told here, and in Chat, when an admin decides.',
     clickToShow: 'Click to show',
     loading: 'Loading...',
+    keep: 'Keep on the server',
+    stopKeeping: 'Stop keeping',
+    keptBadge: 'Kept by the server',
+    keptNow: "Kept on the server: it no longer counts against its uploader's share.",
+    keptStopped: "No longer kept by the server: it counts against its uploader's share again.",
+    reloaded: 'That was not the Media item you were looking at: the page was out of date, so it has been loaded again. Nothing was changed.',
+    noFileName: "The server's answer does not name this item's file, so this page will not act on it. Load the page again later.",
+    notFound: 'That Media item is not there, or this page cannot show it to you.',
+    waitingTitle: 'Your uploads waiting to be published',
+    waitingHint: 'Uploaded, but not on the Media page yet. Publish one, or remove it: an upload nobody publishes is deleted a day after it was uploaded.',
+    uploadStarting: 'Starting the upload...',
+    uploadPausing: 'Pausing once this piece has arrived...',
+    uploadPaused: 'Paused. Resume carries on from here.',
+    uploadWaitingConnection: 'Waiting for this page to be signed in to the server again...',
+    uploadResumed: 'This file was part way up already, so it carries on from where it stopped.',
+    uploadFinishing: 'All sent. The server is storing it...',
+    uploadPublishing: 'Uploaded. Putting it on the Media page...',
+    uploadWaits: ' The file is uploaded and waits a day for you to try again; after that it is deleted.',
+    reportLeadTail: ' is not told who reported them.',
+    reportWhat: 'The report names this item. The server keeps a note of it (its title, kind, labels and who can see it), never the file.',
+    reportNotSignedIn: 'This page is not signed in to this server yet, so the report was not sent. Try again in a moment.',
+    reportNoAnswer: 'The server did not answer, so it is not known whether the report arrived. Try again in a moment.',
+    reportReasonsFailed: 'The list of reasons could not be loaded from this server, so a report cannot be sent yet. Close this and try again in a moment.',
   });
 
-  // Each kind in words: the relay's kind ids (storage/media.rs `kind_of`) as one and as many.
-  const KIND_WORDS = Object.freeze({
-    picture: Object.freeze({ one: 'Picture', many: 'Pictures' }),
-    video: Object.freeze({ one: 'Video', many: 'Videos' }),
-    model: Object.freeze({ one: '3D model', many: 'Models' }),
-    file: Object.freeze({ one: 'File', many: 'Files' }),
-  });
-
-  /** A kind in words; a kind this page has no words for is shown as the server named it. */
-  function kindWords(kind) {
-    return KIND_WORDS[kind] || { one: String(kind || ''), many: String(kind || '') };
+  function num(x) {
+    const n = Number(x);
+    return Number.isFinite(n) && n > 0 ? n : 0;
   }
 
-  /** The kinds in the order the filter offers them: the ones with words first, in that order. */
-  function sortKinds(kinds) {
-    const known = Object.keys(KIND_WORDS);
-    const rank = (k) => (known.indexOf(k) === -1 ? known.length : known.indexOf(k));
-    return Array.from(new Set(kinds)).sort((a, b) => rank(a) - rank(b) || String(a).localeCompare(String(b)));
+  // ── The kinds (data/media/kinds.json) ──
+
+  /** The kinds file read into [{id, label, one, mark}]; an empty list when it is not one. */
+  function parseKinds(data) {
+    const list = data && Array.isArray(data.kinds) ? data.kinds : [];
+    return list
+      .filter((k) => k && typeof k.id === 'string' && k.id.trim() && typeof k.label === 'string' && k.label.trim())
+      .map((k) => ({
+        id: k.id,
+        label: k.label,
+        one: typeof k.one === 'string' && k.one ? k.one : k.label,
+        mark: typeof k.mark === 'string' && k.mark ? k.mark : 'page',
+      }));
+  }
+
+  /** A kind in words, from the kinds file: as one, as many, and its mark. A kind it does not list reads as the server named it. */
+  function kindWords(kind, kinds) {
+    const k = (Array.isArray(kinds) ? kinds : []).find((x) => x.id === kind);
+    if (k) return { one: k.one, many: k.label, mark: k.mark };
+    return { one: String(kind || ''), many: String(kind || ''), mark: 'page' };
   }
 
   function oneDecimal(x) {
@@ -120,11 +172,18 @@
       ' you have left of your ' + sizeWords(shareBytes) + ' share, so it was not uploaded. Remove one of your items, or ask an admin to raise each person\'s share.';
   }
 
-  /** The stop when a file is over the person's upload limit on this server, else null. */
+  /** The stop when a file is over the role's largest Media file on this server (0: none), else null. */
   function limitStop(file, limitBytes) {
     if (!file || !Number.isFinite(limitBytes) || limitBytes <= 0 || file.size <= limitBytes) return null;
-    return '"' + file.name + '" is ' + sizeWords(file.size) + ', over your ' + sizeWords(limitBytes) +
-      ' limit for one file on this server, so it was not uploaded. An admin can raise it in Server Settings > Roles.';
+    return '"' + file.name + '" is ' + sizeWords(file.size) + ', over your role\'s ' + sizeWords(limitBytes) +
+      ' limit for one Media file on this server, so it was not uploaded. An admin can raise it in Server Settings > Roles.';
+  }
+
+  /** The stop when a file is bigger than what is left of the whole Media space, else null. */
+  function budgetStop(file, leftBytes) {
+    if (!file || !Number.isFinite(leftBytes) || leftBytes < 0 || file.size <= leftBytes) return null;
+    return '"' + file.name + '" is ' + sizeWords(file.size) + ', more than the ' + sizeWords(leftBytes) +
+      ' left in this server\'s Media space, so it was not uploaded. An admin can make room, or raise the Media budget.';
   }
 
   /** The admins' meter: "12.4 GB of 50 GB used". */
@@ -132,14 +191,19 @@
     return sizeWords(usedBytes) + ' of ' + sizeWords(budgetBytes) + ' used';
   }
 
+  /** The meter's own line for what the server keeps (inside "used", in nobody's share). */
+  function keptMeterWords(keptBytes) {
+    return 'Kept by the server: ' + sizeWords(keptBytes) + ' of that, counted in the budget and in nobody\'s share';
+  }
+
   /**
-   * The confirmation for Remove, naming what happens to the file. Only a file
-   * uploaded for Media can be members only (the relay's `was_public`), so a
-   * members-only item's file is deleted. A public item's answer does not say
-   * where its file came from, so its words cover both.
+   * The confirmation for Remove, naming what happens to the file: each item
+   * says whether Remove gives its file back to chat or Shared Files
+   * (`keeps_file`, the relay's A1) or deletes it.
    */
   function removeWords(item) {
-    if (item && item.visibility === 'members') return MEDIA_WORDS.removeDeletes;
+    if (item && item.keeps_file === true) return MEDIA_WORDS.removeKeeps;
+    if (item && item.keeps_file === false) return MEDIA_WORDS.removeDeletes;
     return MEDIA_WORDS.removeEither;
   }
 
@@ -148,6 +212,16 @@
     if (answer && answer.file_kept === true) return MEDIA_WORDS.removedKept;
     if (answer && answer.file_removed === true) return MEDIA_WORDS.removedDeleted;
     return MEDIA_WORDS.removed;
+  }
+
+  /** When an upload allowance resets, in this device's own time, or ''. */
+  function resetsWords(ms) {
+    const n = Number(ms);
+    if (!Number.isFinite(n) || n <= 0) return '';
+    let when = '';
+    try { when = new Date(n).toLocaleString(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' }); } catch (e) { when = ''; }
+    if (!when) { try { when = new Date(n).toISOString().slice(0, 16).replace('T', ' ') + ' UTC'; } catch (e) { when = ''; } }
+    return when ? 'That is ' + when + ' here.' : '';
   }
 
   // ── Addresses ──
@@ -168,17 +242,16 @@
   }
 
   /**
-   * Where the page fetches an item's file: `{src}`, or `{why}` when it cannot.
-   * A members-only item's file needs the session's upload token.
+   * Where the page gets an item's file: `{public: path}` (its /uploads/ address,
+   * used as it is), `{members: path}` (the members' file route, fetched with the
+   * token in a header and shown through an object URL), or `{why}` when it is not
+   * on this server.
    */
-  function fileAddress(item, token, origin) {
+  function fileRoute(item, origin) {
     const path = ownFilePath(item && item.url, origin);
     if (!path) return { why: MEDIA_WORDS.notThisServer };
-    if (path.startsWith('/api/media/file/')) {
-      if (!token) return { why: MEDIA_WORDS.waitingToken };
-      return { src: path + '?token=' + encodeURIComponent(token) };
-    }
-    return { src: path };
+    if (path.startsWith('/api/media/file/')) return { members: path };
+    return { public: path };
   }
 
   /** The stored file name from an upload's address ("/uploads/x.png" is "x.png"). */
@@ -187,12 +260,32 @@
     return s.startsWith('/uploads/') ? s.slice('/uploads/'.length) : s;
   }
 
+  /**
+   * The item's stored file name, which every write on an item names (the
+   * relay's W5): the item's `filename` when the server's answer carries one,
+   * else the name in its /uploads/ address. '' when neither says it (a
+   * members-only item's address is its number, not its file).
+   */
+  function itemFileName(item) {
+    const bare = (s) => (/^[^/\\]+$/.test(s) && s !== '.' && s !== '..' ? s : '');
+    if (item && typeof item.filename === 'string' && item.filename) return bare(storedName(item.filename.trim()));
+    const url = String((item && item.url) || '');
+    return url.startsWith('/uploads/') ? bare(storedName(url)) : '';
+  }
+
   /** What an item is called: its title, else its file's name, else its kind. */
-  function itemName(item) {
+  function itemName(item, kinds) {
     if (item && typeof item.title === 'string' && item.title.trim()) return item.title.trim();
+    if (item && typeof item.original_name === 'string' && item.original_name.trim()) return item.original_name.trim();
     const url = String((item && item.url) || '');
     if (url.startsWith('/uploads/')) return storedName(url);
-    return kindWords(item && item.kind).one || 'This item';
+    return kindWords(item && item.kind, kinds).one || 'This item';
+  }
+
+  /** The name a downloaded file is saved under: the uploader's own name for it, else its stored name. */
+  function downloadName(item, kinds) {
+    if (item && typeof item.original_name === 'string' && item.original_name.trim()) return item.original_name.trim();
+    return itemFileName(item) || itemName(item, kinds);
   }
 
   /** An item's labels as the server describes them, in its order; an unknown id as itself. */
@@ -200,6 +293,15 @@
     const ids = Array.isArray(item && item.labels) ? item.labels : [];
     const known = Array.isArray(labels) ? labels : [];
     return ids.map((id) => known.find((l) => l && l.id === id) || { id, label: id, desc: '' });
+  }
+
+  function isAdminRole(role) {
+    return role === 'admin' || role === 'owner';
+  }
+
+  /** Admins and moderators: the people who may keep an item on the server (media.rs keep_core). */
+  function isStaffRole(role) {
+    return isAdminRole(role) || role === 'mod' || role === 'moderator';
   }
 
   // ── Requests ──
@@ -212,6 +314,8 @@
     if (f.kind) p.kind = f.kind;
     if (f.by) p.by = f.by;
     if (f.q && f.q.trim()) p.q = f.q.trim();
+    if (f.featured) p.featured = 1;
+    if (f.id) p.id = Number(f.id);
     if (before != null) p.before = Number(before);
     p.limit = limit || PAGE_SIZE;
     return p;
@@ -228,17 +332,14 @@
     return '/api/media?' + query(params);
   }
 
-  /** One person's picks (unsigned: a signed GET is a URL a proxy refuses). */
-  function picksUrl(key, params) {
-    return '/api/media/picks/' + encodeURIComponent(key) + '?' + query(params);
-  }
-
   const purposes = Object.freeze({
     list: () => 'media_list',
+    mine: () => 'media_mine',
     publish: (filename) => 'media_publish:' + filename,
     remove: (target) => 'media_remove:' + target,
     pick: (id) => 'media_pick:' + id,
     feature: (id) => 'media_feature:' + id,
+    keep: (id, on) => 'media_keep:' + id + ':' + (on ? 'on' : 'off'),
     suggest: () => 'media_suggest',
     suggestions: () => 'media_suggestions',
     decide: (id, accept) => 'media_suggestions:' + id + ':' + (accept ? 'accept' : 'decline'),
@@ -250,19 +351,39 @@
     return { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: typeof body === 'string' ? body : JSON.stringify(body) };
   }
 
-  /** The relay's words for a refusal, or plain words when something in front of it answered. */
-  async function refusalWords(res) {
+  /**
+   * What a refusal says: `{words, json}`. The relay answers most refusals in
+   * plain words and some (a resumable upload's) as JSON with `error`; something
+   * in front of it (a proxy's HTML page) gets plain words naming the status.
+   */
+  async function refusalOf(res) {
     let text = '';
     try { text = String(await res.text()).trim(); } catch (e) { text = ''; }
-    if (!text || text.startsWith('<')) return 'The server answered ' + res.status + '.';
-    return text;
+    let json = null;
+    if (text.startsWith('{')) { try { json = JSON.parse(text); } catch (e) { json = null; } }
+    if (json && typeof json.error === 'string' && json.error) return { words: json.error, json };
+    if (!text || text.startsWith('<') || json) return { words: 'The server answered ' + res.status + '.', json };
+    return { words: text, json: null };
   }
 
-  /** A JSON answer, or throws Error(the relay's words). */
+  /** The relay's words for a refusal. */
+  async function refusalWords(res) {
+    return (await refusalOf(res)).words;
+  }
+
+  /** A JSON answer, or throws Error(the relay's words) with `status` on it. */
   async function answerOf(res) {
-    if (!res || !res.ok) throw new Error(res ? await refusalWords(res) : 'The server could not be reached.');
+    if (!res || !res.ok) {
+      const err = new Error(res ? await refusalWords(res) : 'The server could not be reached.');
+      err.status = res ? res.status : 0;
+      throw err;
+    }
     return res.json();
   }
+
+  // The resumable upload and the uploads remembered in this browser: /pages/media-upload.js.
+  const U = typeof module === 'object' && module && module.exports ? require('./media-upload.js') : root.MediaUpload;
+  const { RESUME_KEY, rememberUpload, findUpload, forgetUpload, createUploader } = U || {};
 
   // ── DOM ──
 
@@ -287,18 +408,19 @@
     };
   }
 
-  function isAdminRole(role) {
-    return role === 'admin' || role === 'owner';
-  }
-
   /**
    * The page. `env`:
    *   document, root (the element the page is built in), fetch, origin,
    *   myKey (the person's Dilithium3 key hex, '' without an identity here),
    *   sign(purpose) -> Promise<{key, timestamp, sig}|null>,
+   *   signBytes(bytes) -> Promise<Uint8Array|null> and blake3(bytes) (a report's signature),
    *   session (a /shared/relay-session.js session, or null),
-   *   confirm(words) -> Promise<boolean>, FormData,
+   *   confirm(words) -> Promise<boolean>,
+   *   URL (createObjectURL, revokeObjectURL), storage (localStorage), sleep(ms), now(),
+   *   save(url, name) (saves a file; optional: a hidden link is clicked otherwise),
+   *   report (/shared/report.js's names), language (navigator.language),
    *   put ({filename, name} to open Put on Media for a Shared Files upload, or null),
+   *   openId (an item's number to open, from /media?id=<n>, or null),
    *   mountAdmin(container) (the admins' Media section, /pages/media-admin.js), optional.
    */
   function createMediaPage(env) {
@@ -306,33 +428,45 @@
     const h = makeH(doc);
     const myKey = env.myKey || '';
     const session = env.session || null;
+    const URLs = env.URL || (typeof URL !== 'undefined' ? URL : null);
+    const R = env.report || null;
+    const later = env.setTimeout || ((fn, ms) => setTimeout(fn, ms));
+    const cancelLater = env.clearTimeout || ((t) => clearTimeout(t));
+    const now = () => (typeof env.now === 'function' ? env.now() : Date.now());
 
     const st = {
       items: [],
+      featured: [],
       nextBefore: null,
-      answered: false,          // a non-picks list answer has come back
+      answered: false,          // a list answer has come back
       membersView: false,
       membersOnlyForYou: false,
       mediaVisibility: 'public',
       categories: [],
       labels: [],
-      kinds: [],
+      kinds: [],                // data/media/kinds.json
+      seenKinds: [],            // the kinds the items carry, used when the kinds file could not be read
       people: new Map(),        // uploader key -> name, from the answers
       filters: { category: '', kind: '', by: '', q: '', picks: false },
       revealed: new Set(),      // labelled items the person clicked to show
-      picked: new Set(),        // items the person picked (public ones: the picks route is unsigned)
       loading: false,
       listError: '',
       notice: '',
       noticeWarn: false,
       viewer: null,
+      viewerKey: '',
+      saveWanted: null,         // an item whose file is saved once it has loaded
       form: null,
       suggest: null,
+      report: null,
+      mine: null,               // the person's own use: POST /api/media/mine
       adminMounted: false,
       filtersKey: '',
       lastStatus: '',
     };
     let loadSeq = 0;
+    let featuredSeq = 0;
+    let mineSeq = 0;
 
     // ── The page's fixed parts ──
     const els = {};
@@ -344,20 +478,22 @@
     });
     function build() {
       doc.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && st.viewer) { st.viewer = null; renderViewer(); }
+        if (e.key === 'Escape' && st.report) { closeReport(); return; }
+        if (e.key === 'Escape' && st.viewer) closeViewer();
       });
       els.status = h('div', { id: 'media-status', className: 'media-status' });
       els.notice = h('div', { id: 'media-notice', className: 'media-notice' });
       els.members = h('div', { id: 'media-members', className: 'media-members' });
       els.actions = h('div', { id: 'media-actions', className: 'media-actions' });
       els.form = h('div', { id: 'media-form', className: 'media-form-wrap' });
+      els.waiting = h('div', { id: 'media-waiting', className: 'media-form-wrap' });
       els.suggest = h('div', { id: 'media-suggest', className: 'media-form-wrap' });
       els.featured = h('section', { id: 'media-featured', className: 'media-featured' });
       els.filters = h('div', { id: 'media-filters', className: 'media-filters' });
-      els.picksNote = h('div', { id: 'media-picks-note', className: 'media-picks-note' });
       els.grid = h('div', { id: 'media-grid', className: 'media-grid' });
       els.more = h('div', { id: 'media-more-wrap', className: 'media-more-wrap' });
       els.viewer = h('div', { id: 'media-viewer', className: 'media-viewer-wrap' });
+      els.report = h('div', { id: 'media-report', className: 'media-viewer-wrap' });
       els.admin = h('div', { id: 'media-admin-wrap', className: 'media-admin-wrap' });
       env.root.replaceChildren(
         h('div', { className: 'media-head' }, [
@@ -368,8 +504,8 @@
             '.',
           ]),
         ]),
-        els.status, els.notice, els.members, els.actions, els.form, els.suggest,
-        els.featured, els.filters, els.picksNote, els.grid, els.more, els.viewer, els.admin, fileInput
+        els.status, els.notice, els.members, els.actions, els.form, els.waiting, els.suggest,
+        els.featured, els.filters, els.grid, els.more, els.viewer, els.report, els.admin, fileInput
       );
     }
 
@@ -379,11 +515,17 @@
     }
     function token() {
       const s = sessionState();
-      return s && s.status === 'bound' ? s.uploadToken : '';
+      return s && s.status === 'bound' ? s.uploadToken || '' : '';
+    }
+    function role() {
+      const s = sessionState();
+      return s && s.status === 'bound' ? s.role || '' : '';
     }
     function isAdmin() {
-      const s = sessionState();
-      return !!(s && s.status === 'bound' && isAdminRole(s.role));
+      return isAdminRole(role());
+    }
+    function isStaff() {
+      return isStaffRole(role());
     }
     function settings() {
       const s = sessionState();
@@ -398,6 +540,30 @@
     function bound() {
       const s = sessionState();
       return !!(s && s.status === 'bound');
+    }
+    /** The person's role as the server's role list describes it, or null until that list has come. */
+    function roleDef() {
+      const s = sessionState();
+      if (!s || !Array.isArray(s.roles)) return null;
+      return s.roles.find((r) => r && r.id === s.role) || null;
+    }
+    /**
+     * Whether the person may upload at all: the relay refuses anyone with no
+     * role ("only verified users can upload files") and any role whose upload
+     * right is off (upload_limits.rs upload_role_check). Unknown (the role
+     * list not here yet) counts as no, so nothing is offered that would fail.
+     */
+    function canUpload() {
+      if (!bound() || !role()) return false;
+      const def = roleDef();
+      return !!(def && def.can_upload === true);
+    }
+    /** Known not to upload: signed in, the role list here, and the role cannot. */
+    function knownCannotUpload() {
+      if (!bound()) return false;
+      if (!role()) return true;
+      const def = roleDef();
+      return !!(def && def.can_upload !== true);
     }
 
     // ── Status and notices ──
@@ -443,7 +609,7 @@
     function renderActions() {
       els.actions.replaceChildren();
       if (!myKey) return;
-      if (bound() && st.membersView) {
+      if (st.membersView && canUpload()) {
         els.actions.appendChild(h('button', {
           type: 'button', id: 'media-add-btn', className: 'media-btn media-btn-primary', text: 'Add to Media',
           on: { click: () => fileInput.click() },
@@ -455,12 +621,19 @@
           on: { click: openSuggest },
         }));
       }
+      if (st.membersView && knownCannotUpload()) {
+        els.actions.appendChild(h('p', { id: 'media-cannot-upload', className: 'media-hint media-actions-line', text: MEDIA_WORDS.cannotUpload }));
+      }
     }
 
     // ── Filters ──
+    function kindsOffered() {
+      if (st.kinds.length) return st.kinds.map((k) => k.id);
+      return st.seenKinds;
+    }
     function renderFilters() {
       const peopleList = Array.from(st.people.entries()).sort((a, b) => String(a[1] || '').localeCompare(String(b[1] || '')));
-      const key = JSON.stringify([st.categories.map((c) => [c.id, c.name]), st.kinds, peopleList, !!myKey, st.filters]);
+      const key = JSON.stringify([st.categories.map((c) => [c.id, c.name]), kindsOffered(), st.kinds.map((k) => k.label), peopleList, !!myKey, st.filters]);
       if (key === st.filtersKey) return;
       st.filtersKey = key;
       const keepQ = els.search ? els.search.value : st.filters.q;
@@ -469,7 +642,7 @@
         [option('', 'All categories', st.filters.category)].concat(st.categories.map((c) => option(c.id, c.name, st.filters.category))));
       category.addEventListener('change', () => setFilter('category', category.value));
       const kind = h('select', { id: 'media-filter-kind', className: 'media-select', attrs: { 'aria-label': 'Kind' } },
-        [option('', 'All kinds', st.filters.kind)].concat(st.kinds.map((k) => option(k, kindWords(k).many, st.filters.kind))));
+        [option('', 'All kinds', st.filters.kind)].concat(kindsOffered().map((k) => option(k, kindWords(k, st.kinds).many, st.filters.kind))));
       kind.addEventListener('change', () => setFilter('kind', kind.value));
       const person = h('select', { id: 'media-filter-person', className: 'media-select', attrs: { 'aria-label': 'Person' } },
         [option('', 'Everyone', st.filters.by)].concat(peopleList.map(([k, name]) => option(k, name || 'Someone without a name', st.filters.by))));
@@ -490,17 +663,111 @@
       st.filters[name] = value;
       load(true);
     }
-    function renderPicksNote() {
-      els.picksNote.replaceChildren();
-      if (st.filters.picks && st.membersView) els.picksNote.appendChild(h('p', { className: 'media-picks-note-text', text: MEDIA_WORDS.picksPublicOnly }));
+
+    // ── Members-only files: fetched with the token in a header, shown through object URLs ──
+    const blobs = new Map();   // item id -> {path, state: 'waiting'|'loading'|'ready'|'error', url, why}
+    const blobQueue = [];
+    let blobsActive = 0;
+
+    /** The cache entry for a members-only item's file, asked for when it is first needed; null for any other. */
+    function blobFor(item) {
+      const route = fileRoute(item, env.origin);
+      if (!route.members) return null;
+      let e = blobs.get(item.id);
+      if (e && e.path === route.members) return e;
+      if (e) dropBlob(item.id);
+      e = { path: route.members, state: 'waiting', url: '', why: '' };
+      blobs.set(item.id, e);
+      blobQueue.push({ id: item.id, e });
+      pumpBlobs();
+      return e;
+    }
+    function pumpBlobs() {
+      while (blobsActive < BLOB_FETCHES_AT_ONCE && blobQueue.length) {
+        const t = token();
+        if (!t) return; // signed in again later: renderAll pumps again
+        const { id, e } = blobQueue.shift();
+        if (blobs.get(id) !== e || e.state !== 'waiting') continue;
+        blobsActive++;
+        e.state = 'loading';
+        fetchBlob(id, e, t).then(() => { blobsActive--; pumpBlobs(); }, () => { blobsActive--; pumpBlobs(); });
+      }
+    }
+    async function fetchBlob(id, e, t) {
+      let res = null;
+      try {
+        res = await env.fetch(e.path, { headers: { 'X-Upload-Token': t } });
+        if (!res || !res.ok) {
+          // A token from before the page signed in again: wait for the new one.
+          if (res && res.status === 403 && token() !== t) { e.state = 'waiting'; blobQueue.push({ id, e }); return; }
+          throw new Error(res ? await refusalWords(res) : 'The server could not be reached.');
+        }
+        const blob = await res.blob();
+        if (blobs.get(id) !== e) return; // no longer shown
+        e.url = URLs.createObjectURL(blob);
+        e.state = 'ready';
+      } catch (err) {
+        if (blobs.get(id) !== e) return;
+        e.state = 'error';
+        e.why = MEDIA_WORDS.fileFailed + (err && err.message ? err.message : String(err));
+      }
+      blobChanged(id);
+    }
+    function dropBlob(id) {
+      const e = blobs.get(id);
+      if (!e) return;
+      blobs.delete(id);
+      if (e.url && URLs) { try { URLs.revokeObjectURL(e.url); } catch (err) { /* already gone */ } }
+    }
+    /** Revoke every object URL whose item is no longer shown (the grid, the strip and the viewer). */
+    function sweepBlobs() {
+      const shown = new Set();
+      for (const i of st.items) shown.add(i.id);
+      for (const i of st.featured) shown.add(i.id);
+      if (st.viewer) shown.add(st.viewer.id);
+      for (const id of Array.from(blobs.keys())) if (!shown.has(id)) dropBlob(id);
+    }
+    function blobChanged(id) {
+      renderGrid();
+      renderFeatured();
+      renderViewerIfChanged();
+      const e = blobs.get(id);
+      if (st.saveWanted && st.saveWanted.id === id && e && e.state === 'ready') {
+        const item = st.saveWanted;
+        st.saveWanted = null;
+        saveFile(e.url, downloadName(item, st.kinds));
+        renderViewerIfChanged();
+      }
+    }
+    function saveFile(url, name) {
+      if (typeof env.save === 'function') { env.save(url, name); return; }
+      const a = h('a', { href: url, hidden: true, attrs: { download: name } });
+      (doc.body || env.root).appendChild(a);
+      a.click();
+      a.remove();
+    }
+
+    /** Where a picture is drawn from now: {src} or {why} (or {wait} while it loads). */
+    function pictureSource(item) {
+      const route = fileRoute(item, env.origin);
+      if (route.why) return { why: route.why };
+      if (route.public) return { src: route.public };
+      if (!token() && !(blobs.get(item.id) && blobs.get(item.id).state === 'ready')) return { why: MEDIA_WORDS.waitingToken };
+      const e = blobFor(item);
+      if (e.state === 'ready') return { src: e.url };
+      if (e.state === 'error') return { why: e.why };
+      return { wait: MEDIA_WORDS.loadingFile };
     }
 
     // ── Tiles ──
+    function copiesOf(id) {
+      return st.items.filter((i) => i.id === id).concat(st.featured.filter((i) => i.id === id));
+    }
     function tileActions(item) {
       const row = h('div', { className: 'media-tile-actions' });
       const mine = !!myKey && item.uploader_key === myKey;
       if (myKey && st.membersView && !mine) {
-        const on = st.picked.has(item.id);
+        const on = item.picked_by_me === true;
         row.appendChild(h('button', {
           type: 'button', className: 'media-btn media-btn-small', dataset: { action: on ? 'unpick' : 'pick' },
           text: on ? 'Unpick' : 'Pick', on: { click: () => pick(item, !on) },
@@ -516,6 +783,18 @@
         row.appendChild(h('button', {
           type: 'button', className: 'media-btn media-btn-small', dataset: { action: item.featured ? 'unfeature' : 'feature' },
           text: item.featured ? 'Unfeature' : 'Feature', on: { click: () => feature(item, !item.featured) },
+        }));
+      }
+      if (isStaff()) {
+        row.appendChild(h('button', {
+          type: 'button', className: 'media-btn media-btn-small', dataset: { action: item.kept ? 'unkeep' : 'keep' },
+          text: item.kept ? MEDIA_WORDS.stopKeeping : MEDIA_WORDS.keep, on: { click: () => keep(item, !item.kept) },
+        }));
+      }
+      if (myKey && !mine && R && typeof item.uploader_key === 'string' && item.uploader_key) {
+        row.appendChild(h('button', {
+          type: 'button', className: 'media-btn media-btn-small', dataset: { action: 'report' },
+          text: 'Report', on: { click: () => openReport(item) },
         }));
       }
       return row.childNodes.length ? row : null;
@@ -535,15 +814,16 @@
       }
       const open = () => openViewer(item);
       if (item.kind === 'picture') {
-        const where = fileAddress(item, token(), env.origin);
-        if (!where.src) return h('div', { className: 'media-thumb media-thumb-missing', text: where.why });
+        const where = pictureSource(item);
+        if (where.why) return h('div', { className: 'media-thumb media-thumb-missing', text: where.why });
+        if (where.wait) return h('button', { type: 'button', className: 'media-thumb media-thumb-loading', text: where.wait, on: { click: open } });
         return h('button', { type: 'button', className: 'media-thumb', on: { click: open } }, [
-          h('img', { className: 'media-img', src: where.src, alt: itemName(item), loading: 'lazy' }),
+          h('img', { className: 'media-img', src: where.src, alt: itemName(item, st.kinds), loading: 'lazy' }),
         ]);
       }
-      const mark = item.kind === 'video' ? 'media-mark-video' : item.kind === 'model' ? 'media-mark-model' : 'media-mark-file';
-      return h('button', { type: 'button', className: 'media-thumb media-mark ' + mark, on: { click: open } }, [
-        h('span', { className: 'media-mark-word', text: kindWords(item.kind).one }),
+      const words = kindWords(item.kind, st.kinds);
+      return h('button', { type: 'button', className: 'media-thumb media-mark media-mark-' + words.mark, on: { click: open } }, [
+        h('span', { className: 'media-mark-word', text: words.one }),
         h('span', { className: 'media-mark-size', text: sizeWords(item.size_bytes) }),
       ]);
     }
@@ -554,11 +834,12 @@
         badges.appendChild(h('span', { className: 'media-badge media-badge-label', text: l.label, title: l.desc || l.label }));
       }
       if (item.visibility === 'members') badges.appendChild(h('span', { className: 'media-badge', text: 'Members only' }));
+      if (item.kept) badges.appendChild(h('span', { className: 'media-badge media-badge-kept', dataset: { kept: item.id }, text: MEDIA_WORDS.keptBadge }));
       const picks = Number(item.picks) || 0;
       return h('div', { className: 'media-tile', dataset: { id: item.id } }, [
         thumb(item),
         badges.childNodes.length ? badges : null,
-        h('div', { className: 'media-tile-title', text: itemName(item) }),
+        h('div', { className: 'media-tile-title', text: itemName(item, st.kinds) }),
         h('div', { className: 'media-tile-meta', text: 'by ' + (item.uploader_name || 'someone') + ' · ' + picks + (picks === 1 ? ' pick' : ' picks') }),
         tileActions(item),
       ]);
@@ -566,10 +847,9 @@
 
     function renderFeatured() {
       els.featured.replaceChildren();
-      const featured = st.items.filter((i) => i.featured);
-      if (!featured.length) return;
+      if (!st.featured.length) return;
       els.featured.appendChild(h('h2', { text: 'Featured' }));
-      els.featured.appendChild(h('div', { id: 'media-featured-row', className: 'media-featured-row' }, featured.map(tile)));
+      els.featured.appendChild(h('div', { id: 'media-featured-row', className: 'media-featured-row' }, st.featured.map(tile)));
     }
 
     function renderGrid() {
@@ -580,7 +860,7 @@
         let words = MEDIA_WORDS.loading;
         if (!st.loading) {
           const filtered = !!(st.filters.category || st.filters.kind || st.filters.by || st.filters.q || st.filters.picks);
-          words = st.membersOnlyForYou && !st.filters.picks ? MEDIA_WORDS.membersOnlyServer : filtered ? MEDIA_WORDS.emptyFiltered : MEDIA_WORDS.empty;
+          words = st.membersOnlyForYou ? MEDIA_WORDS.membersOnlyServer : filtered ? MEDIA_WORDS.emptyFiltered : MEDIA_WORDS.empty;
         }
         els.grid.appendChild(h('p', { className: 'media-empty', text: words }));
       } else {
@@ -595,67 +875,122 @@
       }
     }
 
-    // ── The viewer ──
+    // ── The viewer: drawn again only when what it shows changes ──
     function openViewer(item) {
       st.viewer = item;
+      renderViewerIfChanged();
+    }
+    function closeViewer() {
+      st.viewer = null;
+      st.saveWanted = null;
+      renderViewerIfChanged();
+      sweepBlobs();
+    }
+    /** What the viewer shows, as a key: the item, and for a members-only file where its loading is. */
+    function viewerKey() {
+      const item = st.viewer;
+      if (!item) return '';
+      const route = fileRoute(item, env.origin);
+      let file = route.why ? 'missing' : route.public || '';
+      if (route.members) {
+        const e = blobs.get(item.id);
+        file = e ? e.state + ':' + e.url : token() ? 'members' : 'no-token';
+      }
+      const saving = st.saveWanted && st.saveWanted.id === item.id ? 'saving' : '';
+      return [item.id, itemFileName(item), file, saving].join('|');
+    }
+    function renderViewerIfChanged() {
+      const key = viewerKey();
+      if (key === st.viewerKey) return;
+      st.viewerKey = key;
       renderViewer();
+    }
+    /** The Download for an item in the viewer: a link for a public file, a save from the fetched file for a members-only one. */
+    function downloadControl(item, ready) {
+      const route = fileRoute(item, env.origin);
+      const name = downloadName(item, st.kinds);
+      if (route.public) return h('a', { className: 'media-btn media-btn-primary', id: 'media-download', href: route.public, text: 'Download', attrs: { download: name } });
+      if (!route.members) return null;
+      if (ready) return h('a', { className: 'media-btn media-btn-primary', id: 'media-download', href: ready, text: 'Download', attrs: { download: name } });
+      const saving = st.saveWanted && st.saveWanted.id === item.id;
+      return h('button', {
+        type: 'button', className: 'media-btn media-btn-primary', id: 'media-download', text: saving ? MEDIA_WORDS.loadingFile : 'Download', disabled: !!saving || !token(),
+        on: { click: () => { st.saveWanted = item; blobFor(item); renderViewerIfChanged(); } },
+      });
     }
     function renderViewer() {
       els.viewer.replaceChildren();
       const item = st.viewer;
       if (!item) return;
-      const where = fileAddress(item, token(), env.origin);
+      const name = itemName(item, st.kinds);
+      const route = fileRoute(item, env.origin);
       let body;
-      if (!where.src) body = h('p', { className: 'media-warn', text: where.why });
-      else if (item.kind === 'picture') body = h('img', { className: 'media-viewer-img', src: where.src, alt: itemName(item) });
-      else if (item.kind === 'video') body = h('video', { className: 'media-viewer-video', src: where.src, controls: true, preload: 'metadata' });
-      else {
+      let ready = '';
+      if (route.why) {
+        body = h('p', { className: 'media-warn', text: route.why });
+      } else if (item.kind === 'picture' || item.kind === 'video') {
+        let src = route.public || '';
+        let why = '';
+        if (route.members) {
+          const e = blobs.get(item.id) || (token() ? blobFor(item) : null);
+          if (e && e.state === 'ready') src = ready = e.url;
+          else if (e && e.state === 'error') why = e.why;
+          else why = token() ? MEDIA_WORDS.loadingFile + ' ' + sizeWords(item.size_bytes) : MEDIA_WORDS.waitingToken;
+        }
+        if (!src) body = h('p', { className: 'media-viewer-wait', id: 'media-viewer-wait', text: why });
+        else if (item.kind === 'picture') body = h('img', { className: 'media-viewer-img', src, alt: name });
+        else body = h('video', { className: 'media-viewer-video', src, controls: true, preload: 'metadata' });
+      } else {
+        const e = route.members ? blobs.get(item.id) : null;
+        if (e && e.state === 'ready') ready = e.url;
         body = h('div', { className: 'media-viewer-file' }, [
-          h('div', { className: 'media-viewer-name', text: itemName(item) }),
+          h('div', { className: 'media-viewer-name', text: name }),
           h('div', { className: 'media-viewer-size', text: sizeWords(item.size_bytes) }),
-          h('a', { className: 'media-btn media-btn-primary', href: where.src, text: 'Download', attrs: { download: '' } }),
+          e && e.state === 'error' ? h('p', { className: 'media-warn', text: e.why }) : null,
         ]);
       }
       const labels = labelsOf(item, st.labels).map((l) => l.label);
-      const close = () => { st.viewer = null; renderViewer(); };
-      const overlay = h('div', { id: 'media-viewer-open', className: 'media-viewer', attrs: { role: 'dialog', 'aria-label': itemName(item) } }, [
+      const overlay = h('div', { id: 'media-viewer-open', className: 'media-viewer', attrs: { role: 'dialog', 'aria-label': name } }, [
         h('div', { className: 'media-viewer-box' }, [
-          h('button', { type: 'button', id: 'media-viewer-close', className: 'media-btn media-viewer-close', text: 'Close', on: { click: close } }),
+          h('button', { type: 'button', id: 'media-viewer-close', className: 'media-btn media-viewer-close', text: 'Close', on: { click: closeViewer } }),
           body,
-          h('h2', { className: 'media-viewer-title', text: itemName(item) }),
+          h('h2', { className: 'media-viewer-title', text: name }),
           item.description ? h('p', { className: 'media-viewer-desc', text: item.description }) : null,
           h('p', { className: 'media-viewer-meta', text: [
             'by ' + (item.uploader_name || 'someone'),
             item.category && item.category.name ? item.category.name : '',
-            kindWords(item.kind).one,
+            kindWords(item.kind, st.kinds).one,
             sizeWords(item.size_bytes),
             labels.length ? labels.join(', ') : '',
+            item.kept ? MEDIA_WORDS.keptBadge : '',
           ].filter(Boolean).join(' · ') }),
+          route.why ? null : h('div', { className: 'media-form-buttons' }, [downloadControl(item, ready)]),
         ]),
       ]);
-      overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) closeViewer(); });
       els.viewer.appendChild(overlay);
     }
 
     // ── Loading ──
-    function takeAnswer(a, fromPicks) {
+    function takeAnswer(a) {
       const items = Array.isArray(a && a.items) ? a.items : [];
       st.items = st.items.concat(items);
       st.nextBefore = a && a.next_before != null ? a.next_before : null;
-      if (!fromPicks) {
-        st.answered = true;
-        st.membersView = !!(a && a.members_view);
-        st.membersOnlyForYou = !!(a && a.members_only_for_you);
-        if (a && typeof a.media_visibility === 'string') st.mediaVisibility = a.media_visibility;
-        if (Array.isArray(a && a.categories) && (a.categories.length || !st.membersView)) st.categories = a.categories;
-        if (Array.isArray(a && a.labels) && (a.labels.length || !st.membersView)) st.labels = a.labels;
-      }
-      const kinds = st.kinds.slice();
+      st.answered = true;
+      st.membersView = !!(a && a.members_view);
+      st.membersOnlyForYou = !!(a && a.members_only_for_you);
+      if (a && typeof a.media_visibility === 'string') st.mediaVisibility = a.media_visibility;
+      if (Array.isArray(a && a.categories) && (a.categories.length || !st.membersView)) st.categories = a.categories;
+      if (Array.isArray(a && a.labels) && (a.labels.length || !st.membersView)) st.labels = a.labels;
+      takePeople(items);
+    }
+    function takePeople(items) {
+      const kinds = st.seenKinds.slice();
       for (const i of items) {
-        if (typeof i.kind === 'string' && i.kind) kinds.push(i.kind);
+        if (typeof i.kind === 'string' && i.kind && !kinds.includes(i.kind)) kinds.push(i.kind);
         if (typeof i.uploader_key === 'string' && i.uploader_key && !st.people.has(i.uploader_key)) st.people.set(i.uploader_key, i.uploader_name || '');
       }
-      st.kinds = sortKinds(kinds);
+      st.seenKinds = kinds;
     }
 
     /** The members' list, signed, when the person has an identity here; else the public one. */
@@ -665,6 +1000,13 @@
         if (auth) return env.fetch('/api/media/list', jsonPost(Object.assign({}, params, auth)));
       }
       return env.fetch(publicListUrl(params));
+    }
+
+    /** The person's own picks, signed like the list (the relay's A3), members-only items included. */
+    async function fetchPicks(params) {
+      const auth = await env.sign(purposes.list());
+      if (!auth) throw new Error(MEDIA_WORDS.cannotSign);
+      return env.fetch('/api/media/picks', jsonPost(Object.assign({}, params, { of: myKey }, auth)));
     }
 
     async function load(reset) {
@@ -679,10 +1021,10 @@
       const params = listParams(st.filters, reset ? null : st.nextBefore);
       const fromPicks = !!(st.filters.picks && myKey);
       try {
-        const res = fromPicks ? await env.fetch(picksUrl(myKey, params)) : await fetchList(params);
+        const res = fromPicks ? await fetchPicks(params) : await fetchList(params);
         const a = await answerOf(res);
         if (seq !== loadSeq) return;
-        takeAnswer(a, fromPicks);
+        takeAnswer(a);
       } catch (e) {
         if (seq !== loadSeq) return;
         st.listError = 'The Media list could not be loaded: ' + (e && e.message ? e.message : String(e));
@@ -691,105 +1033,198 @@
       renderAll();
     }
 
-    /** Which items the person picked: their picks list, public items only (it is read unsigned). */
-    async function loadMyPicks() {
-      if (!myKey) return;
-      const picked = new Set();
-      let before = null;
-      for (let page = 0; page < MY_PICKS_PAGES; page++) {
-        let a;
-        try { a = await answerOf(await env.fetch(picksUrl(myKey, listParams({}, before, 100)))); } catch (e) { return; }
-        for (const i of a.items || []) picked.add(i.id);
-        if (a.next_before == null) break;
-        before = a.next_before;
+    /** Every featured item (`featured=1`), not only those on the pages loaded. */
+    async function loadFeatured() {
+      const seq = ++featuredSeq;
+      let featured = [];
+      try {
+        const a = await answerOf(await fetchList(listParams({ featured: 1 }, null, FEATURED_LIMIT)));
+        featured = Array.isArray(a.items) ? a.items : [];
+      } catch (e) {
+        featured = [];
       }
-      st.picked = picked;
-      renderGrid();
+      if (seq !== featuredSeq) return;
+      st.featured = featured;
+      takePeople(featured);
       renderFeatured();
+      sweepBlobs();
     }
 
-    /** How much of the Media space the person's own items use (their published items). */
-    async function myUse() {
-      let used = 0;
-      let before = null;
-      for (let page = 0; page < MY_USE_PAGES; page++) {
-        const a = await answerOf(await fetchList(listParams({ by: myKey }, before, 100)));
-        for (const i of a.items || []) used += Math.max(0, Number(i.size_bytes) || 0);
-        if (a.next_before == null) return used;
-        before = a.next_before;
+    /** The kinds file: the filter's choices and each kind's name (data/media/kinds.json). */
+    async function loadKinds() {
+      try {
+        const res = await env.fetch(KINDS_URL);
+        if (res && res.ok) st.kinds = parseKinds(await res.json());
+      } catch (e) {
+        st.kinds = [];
       }
-      return used;
     }
 
-    // ── Pick, remove, feature ──
+    /**
+     * The person's own use of the Media space, counted by the relay exactly as
+     * its room check counts it (A4): used, the share, what the budget has left,
+     * uploads still arriving, the role's largest Media file, and the uploads
+     * waiting to be published.
+     */
+    async function loadMine() {
+      if (!myKey || !st.membersView) return null;
+      const seq = ++mineSeq;
+      try {
+        const auth = await env.sign(purposes.mine());
+        if (!auth) return null;
+        const a = await answerOf(await env.fetch('/api/media/mine', jsonPost(auth)));
+        if (seq === mineSeq) st.mine = a;
+      } catch (e) {
+        if (seq === mineSeq && e && e.status === 403) st.mine = null;
+      }
+      renderWaiting();
+      return st.mine;
+    }
+
+    // ── Pick, remove, feature, keep ──
     async function signed(purpose) {
       const auth = await env.sign(purpose);
       if (!auth) say(MEDIA_WORDS.cannotSign, true);
       return auth;
     }
 
-    async function pick(item, on) {
-      const auth = await signed(purposes.pick(item.id));
-      if (!auth) return;
+    /**
+     * A write on an item, naming its number and its file (W5). A tile left on a
+     * page that is out of date is answered 409, and the page loads again.
+     * Resolves to the relay's answer, or null.
+     */
+    async function act(path, purpose, item, body) {
+      const filename = itemFileName(item);
+      if (!filename) { say(MEDIA_WORDS.noFileName, true); return null; }
+      const auth = await signed(purpose);
+      if (!auth) return null;
+      let res;
       try {
-        const a = await answerOf(await env.fetch(on ? '/api/media/pick' : '/api/media/unpick', jsonPost(Object.assign({ id: item.id }, auth))));
-        item.picks = Number(a.picks) || 0;
-        if (on) st.picked.add(item.id); else st.picked.delete(item.id);
-        say(on ? 'Picked. It is on your Picks now.' : 'Unpicked.');
+        res = await env.fetch(path, jsonPost(Object.assign({ id: item.id, filename }, body || {}, auth)));
+      } catch (e) {
+        say('The server could not be reached: ' + (e && e.message ? e.message : String(e)), true);
+        return null;
+      }
+      if (res && res.status === 409) {
+        const words = await refusalWords(res);
+        if (/not the Media item you were looking at/i.test(words)) {
+          say(MEDIA_WORDS.reloaded, true);
+          if (st.viewer && st.viewer.id === item.id) closeViewer();
+          load(true);
+          loadFeatured();
+          return null;
+        }
+        say(words, true);
+        return null;
+      }
+      try {
+        return await answerOf(res);
       } catch (e) {
         say(e.message, true);
+        return null;
+      }
+    }
+
+    async function pick(item, on) {
+      const a = await act(on ? '/api/media/pick' : '/api/media/unpick', purposes.pick(item.id), item);
+      if (a) {
+        for (const c of copiesOf(item.id)) { c.picks = Number(a.picks) || 0; c.picked_by_me = on; }
+        say(on ? 'Picked. It is on your Picks now.' : 'Unpicked.');
       }
       renderGrid();
       renderFeatured();
     }
 
     async function remove(item) {
-      const ok = await env.confirm('"' + itemName(item) + '"\n\n' + removeWords(item));
+      const ok = await env.confirm('"' + itemName(item, st.kinds) + '"\n\n' + removeWords(item));
       if (!ok) return;
-      const auth = await signed(purposes.remove(item.id));
-      if (!auth) return;
-      try {
-        const a = await answerOf(await env.fetch('/api/media/remove', jsonPost(Object.assign({ id: item.id }, auth))));
-        st.items = st.items.filter((i) => i.id !== item.id);
-        if (st.viewer && st.viewer.id === item.id) st.viewer = null;
-        say(removedWords(a));
-      } catch (e) {
-        say(e.message, true);
-      }
+      const a = await act('/api/media/remove', purposes.remove(item.id), item);
+      if (!a) return;
+      st.items = st.items.filter((i) => i.id !== item.id);
+      st.featured = st.featured.filter((i) => i.id !== item.id);
+      if (st.viewer && st.viewer.id === item.id) st.viewer = null;
+      say(removedWords(a));
       renderAll();
+      loadMine();
     }
 
     async function feature(item, on) {
-      const auth = await signed(purposes.feature(item.id));
-      if (!auth) return;
-      try {
-        await answerOf(await env.fetch('/api/media/feature', jsonPost(Object.assign({ id: item.id, featured: on }, auth))));
-        item.featured = on;
+      const a = await act('/api/media/feature', purposes.feature(item.id), item, { featured: on });
+      if (a) {
+        for (const c of copiesOf(item.id)) c.featured = on;
         say(on ? 'Featured: it leads the Media page now.' : 'Taken off the featured row.');
-      } catch (e) {
-        say(e.message, true);
+        loadFeatured();
       }
       renderGrid();
       renderFeatured();
     }
 
-    // ── Add to Media and Put on Media ──
+    async function keep(item, on) {
+      const a = await act('/api/media/keep', purposes.keep(item.id, on), item, { kept: on });
+      if (a) {
+        for (const c of copiesOf(item.id)) c.kept = on;
+        say(on ? MEDIA_WORDS.keptNow : MEDIA_WORDS.keptStopped);
+      }
+      renderGrid();
+      renderFeatured();
+    }
+
+    // ── The person's uploads waiting to be published ──
+    function renderWaiting() {
+      els.waiting.replaceChildren();
+      const waiting = st.mine && Array.isArray(st.mine.waiting) ? st.mine.waiting : [];
+      if (!waiting.length) return;
+      const rows = waiting.map((w) => h('div', { className: 'media-admin-row', dataset: { waiting: w.filename } }, [
+        h('div', { className: 'media-admin-row-text', text: (w.original_name || w.filename) + ' · ' + sizeWords(w.size_bytes) }),
+        h('button', { type: 'button', className: 'media-btn media-btn-small', dataset: { waitingPublish: w.filename }, text: 'Publish', on: { click: () => openWaitingForm(w) } }),
+        h('button', { type: 'button', className: 'media-btn media-btn-small media-btn-danger', dataset: { waitingRemove: w.filename }, text: 'Remove', on: { click: () => removeWaiting(w) } }),
+      ]));
+      els.waiting.appendChild(h('div', { className: 'media-panel', id: 'media-waiting-list' }, [
+        h('h2', { text: MEDIA_WORDS.waitingTitle }),
+        h('p', { className: 'media-hint', text: MEDIA_WORDS.waitingHint }),
+        h('div', { className: 'media-admin-rows' }, rows),
+      ]));
+    }
+
+    async function removeWaiting(w) {
+      if (!await env.confirm('"' + (w.original_name || w.filename) + '"\n\n' + MEDIA_WORDS.removeWaiting)) return;
+      const auth = await signed(purposes.remove(w.filename));
+      if (!auth) return;
+      try {
+        await answerOf(await env.fetch('/api/media/remove', jsonPost(Object.assign({ filename: w.filename }, auth))));
+        say(MEDIA_WORDS.removedWaiting);
+        if (st.form && st.form.mode === 'waiting' && st.form.filename === w.filename) closeForm();
+      } catch (e) {
+        say(e.message, true);
+      }
+      loadMine();
+    }
+
+    // ── Add to Media, Put on Media, and publishing an upload that waits ──
     async function openAddForm(file) {
-      const s = settings();
-      const knowShare = !!(s && Number.isFinite(s.media_per_person_mb) && s.media_per_person_mb > 0);
-      // Until the share is worked out nothing can be uploaded, so an upload over it never starts.
-      st.form = { mode: 'add', file, name: file.name, stop: limitStop(file, sessionState() ? sessionState().uploadLimitBytes : 0), shareLine: '', checking: knowShare, busy: false, error: '', uploadedName: '' };
+      const f = { mode: 'add', file, name: file.name, stop: null, shareLine: '', checking: true, busy: false, error: '', uploadedName: '', up: null };
+      st.form = f;
       renderForm();
-      if (knowShare) {
-        const share = s.media_per_person_mb * MIB;
-        let used = null;
-        try { used = await myUse(); } catch (e) { used = null; }
-        if (!st.form || st.form.file !== file) return;
-        st.form.checking = false;
-        if (used != null) {
-          st.form.shareLine = shareLeftWords(used, share);
-          st.form.stop = st.form.stop || shareStop(file, used, share);
-        }
+      if (!canUpload()) {
+        f.checking = false;
+        f.stop = bound() ? MEDIA_WORDS.cannotUpload : MEDIA_WORDS.notSignedInUpload;
+        renderForm();
+        return;
+      }
+      // Until the relay has said what is left, nothing can be uploaded, so an upload over it never starts.
+      const mine = await loadMine();
+      if (st.form !== f) return;
+      f.checking = false;
+      if (mine) {
+        // An upload of this same file already part way up is counted by the relay as in progress
+        // already; its own bytes are not "more" on top of that.
+        const known = findUpload(env.storage, myKey, file, now());
+        const inProgress = Math.max(0, num(mine.in_progress_bytes) - (known ? file.size : 0));
+        const used = num(mine.used_bytes) + inProgress;
+        const share = num(mine.share_bytes);
+        if (share) f.shareLine = shareLeftWords(used, share);
+        f.stop = limitStop(file, num(mine.file_limit_bytes)) || shareStop(file, used, share) ||
+          (Number.isFinite(Number(mine.budget_left_bytes)) ? budgetStop(file, Number(mine.budget_left_bytes)) : null);
       }
       renderForm();
     }
@@ -799,7 +1234,14 @@
       renderForm();
     }
 
+    function openWaitingForm(w) {
+      st.form = { mode: 'waiting', filename: w.filename, name: w.original_name || w.filename, size: w.size_bytes, stop: null, shareLine: '', busy: false, error: '', uploadedName: w.filename };
+      renderForm();
+    }
+
     function closeForm() {
+      const f = st.form;
+      if (f && f.up && f.up.state.phase !== 'done' && f.up.state.phase !== 'failed') f.up.cancel();
       st.form = null;
       renderForm();
     }
@@ -815,15 +1257,16 @@
       if (!f) return;
       f.key = formKey();
       const put = f.mode === 'put';
-      const kids = [h('h2', { text: put ? 'Put on Media' : 'Add to Media' })];
-      kids.push(h('p', { className: 'media-form-file', text: put ? f.name : f.name + ' (' + sizeWords(f.file.size) + ')' }));
+      const kids = [h('h2', { text: put ? 'Put on Media' : f.mode === 'waiting' ? 'Publish an upload' : 'Add to Media' })];
+      const size = f.file ? f.file.size : f.size;
+      kids.push(h('p', { className: 'media-form-file', text: size != null ? f.name + ' (' + sizeWords(size) + ')' : f.name }));
       if (f.shareLine) kids.push(h('p', { id: 'media-share-line', className: 'media-share-line', text: f.shareLine }));
+      f.actionsEl = h('div', { id: 'media-form-actions', className: 'media-form-actions' });
       if (f.stop) {
         kids.push(h('p', { id: 'media-form-stop', className: 'media-warn', text: f.stop }));
-        kids.push(h('div', { className: 'media-form-buttons' }, [
-          h('button', { type: 'button', className: 'media-btn', id: 'media-form-cancel', text: 'Close', on: { click: closeForm } }),
-        ]));
+        kids.push(f.actionsEl);
         els.form.appendChild(h('div', { className: 'media-panel media-form' }, kids));
+        renderFormActions(f);
         return;
       }
       const title = h('input', { type: 'text', id: 'media-form-title', className: 'media-input', maxLength: 120, value: f.title || '' });
@@ -837,13 +1280,13 @@
       kids.push(h('label', { className: 'media-field' }, ['Title (optional)', title]));
       if (st.categories.length) kids.push(h('label', { className: 'media-field' }, ['Category', category]));
       kids.push(h('label', { className: 'media-field' }, ['Description (optional)', description]));
-      const ticks = [];
+      f.ticks = [];
       if (st.labels.length) {
         const box = h('fieldset', { className: 'media-field media-labels', id: 'media-form-labels' }, [h('legend', { text: 'Labels (the picture stays hidden until someone clicks it)' })]);
         for (const l of st.labels) {
           const tick = h('input', { type: 'checkbox', value: l.id, dataset: { label: l.id }, checked: !!(f.labels && f.labels.includes(l.id)) });
-          tick.addEventListener('change', () => { f.labels = ticks.filter((t) => t.checked).map((t) => t.value); });
-          ticks.push(tick);
+          tick.addEventListener('change', () => { f.labels = f.ticks.filter((t) => t.checked).map((t) => t.value); });
+          f.ticks.push(tick);
           box.appendChild(h('label', { className: 'media-check', title: l.desc || '' }, [tick, ' ' + l.label]));
           if (l.desc) box.appendChild(h('div', { className: 'media-hint', text: l.desc }));
         }
@@ -851,7 +1294,7 @@
       }
       // Who sees it: a file already public goes on Media as public only (the relay's
       // `was_public`), and a members-only server takes members only.
-      let visibility = null;
+      f.visibilityEls = null;
       if (put) {
         kids.push(h('p', { id: 'media-form-public-only', className: 'media-hint', text: MEDIA_WORDS.alreadyPublic }));
       } else if (membersOnlyServer()) {
@@ -859,7 +1302,7 @@
       } else {
         const pub = h('input', { type: 'radio', name: 'media-form-visibility', value: 'public', id: 'media-form-vis-public', checked: f.visibility !== 'members' });
         const mem = h('input', { type: 'radio', name: 'media-form-visibility', value: 'members', id: 'media-form-vis-members', checked: f.visibility === 'members' });
-        visibility = { pub, mem };
+        f.visibilityEls = { pub, mem };
         pub.addEventListener('change', () => { if (pub.checked) f.visibility = 'public'; });
         mem.addEventListener('change', () => { if (mem.checked) f.visibility = 'members'; });
         kids.push(h('fieldset', { className: 'media-field', id: 'media-form-visibility' }, [
@@ -868,44 +1311,120 @@
           h('label', { className: 'media-check' }, [mem, ' Members only']),
         ]));
       }
-      if (f.error) kids.push(h('p', { id: 'media-form-error', className: 'media-warn', text: f.error }));
+      f.inputs = { title, category, description };
+      kids.push(f.actionsEl);
+      els.form.appendChild(h('div', { className: 'media-panel media-form' }, kids));
+      renderFormActions(f);
+    }
+
+    /** The upload's words for where it is. */
+    function uploadWords(u) {
+      const s = u.state;
+      const sent = sizeWords(s.offset) + ' of ' + sizeWords(s.size) + ' sent';
+      switch (s.phase) {
+        case 'idle':
+        case 'starting': return MEDIA_WORDS.uploadStarting;
+        case 'sending': return (s.resumed ? MEDIA_WORDS.uploadResumed + ' ' : '') + sent + '.';
+        case 'finishing': return MEDIA_WORDS.uploadFinishing;
+        case 'pausing': return sent + '. ' + MEDIA_WORDS.uploadPausing;
+        case 'paused': return sent + '. ' + MEDIA_WORDS.uploadPaused;
+        case 'reconnecting': return sent + '. The connection dropped. Trying again in ' + (s.retryIn || 1) + (s.retryIn === 1 ? ' second.' : ' seconds.');
+        case 'waiting_connection': return sent + '. ' + MEDIA_WORDS.uploadWaitingConnection;
+        case 'allowance': return [s.error, resetsWords(s.resetsAt)].filter(Boolean).join(' ');
+        case 'no_room': return s.error;
+        case 'failed': return s.error;
+        case 'done': return MEDIA_WORDS.uploadPublishing;
+        default: return sent + '.';
+      }
+    }
+
+    /** The form's progress, words and buttons: drawn again on every change without touching the fields. */
+    function renderFormActions(f) {
+      const box = f.actionsEl;
+      if (!box) return;
+      box.replaceChildren();
+      const button = (id, text, onClick, cls) => h('button', { type: 'button', id, className: 'media-btn' + (cls ? ' ' + cls : ''), text, on: { click: onClick } });
+      if (f.stop) {
+        box.appendChild(h('div', { className: 'media-form-buttons' }, [button('media-form-cancel', 'Close', closeForm)]));
+        return;
+      }
+      if (f.error) box.appendChild(h('p', { id: 'media-form-error', className: 'media-warn', text: f.error }));
+      const u = f.up;
+      if (u) {
+        const s = u.state;
+        const pct = s.size > 0 ? Math.min(100, Math.round((s.offset / s.size) * 1000) / 10) : 0;
+        const fill = h('div', { className: 'media-meter-fill' });
+        fill.style.width = pct + '%';
+        box.appendChild(h('div', { className: 'media-meter', id: 'media-upload-bar', attrs: { role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': pct, 'aria-label': 'Upload' } }, [fill]));
+        const warn = s.phase === 'allowance' || s.phase === 'no_room' || s.phase === 'failed';
+        box.appendChild(h('p', { id: 'media-upload-words', className: warn ? 'media-warn' : 'media-hint', text: uploadWords(u) }));
+        const buttons = [];
+        if (s.phase === 'sending' || s.phase === 'reconnecting' || s.phase === 'waiting_connection' || s.phase === 'starting') {
+          buttons.push(button('media-upload-pause', 'Pause', () => u.pause()));
+        } else if (s.phase === 'paused' || s.phase === 'allowance') {
+          buttons.push(button('media-upload-resume', 'Resume', () => u.resume(), 'media-btn-primary'));
+        } else if (s.phase === 'no_room') {
+          buttons.push(button('media-upload-retry', 'Retry', () => u.resume(), 'media-btn-primary'));
+        }
+        if (s.phase !== 'done') buttons.push(button('media-form-cancel', s.phase === 'failed' ? 'Close' : 'Cancel', closeForm));
+        box.appendChild(h('div', { className: 'media-form-buttons' }, buttons));
+        return;
+      }
+      const put = f.mode === 'put';
       const go = h('button', {
         type: 'button', id: 'media-form-go', className: 'media-btn media-btn-primary', disabled: f.busy || !!f.checking,
         text: f.checking ? 'Working out your share...' : f.busy ? 'Working...' : put || f.uploadedName ? 'Put on Media' : 'Upload and add',
       });
       go.addEventListener('click', () => {
         // Keep what was typed for a second try.
-        f.title = title.value;
-        f.category = category.value;
-        f.description = description.value;
-        f.labels = ticks.filter((t) => t.checked).map((t) => t.value);
-        f.visibility = put ? 'public' : membersOnlyServer() ? 'members' : visibility && visibility.mem.checked ? 'members' : 'public';
+        if (f.inputs) {
+          f.title = f.inputs.title.value;
+          f.category = f.inputs.category.value;
+          f.description = f.inputs.description.value;
+        }
+        if (f.ticks) f.labels = f.ticks.filter((t) => t.checked).map((t) => t.value);
+        f.visibility = put ? 'public' : membersOnlyServer() ? 'members' : f.visibilityEls && f.visibilityEls.mem.checked ? 'members' : 'public';
         submitForm();
       });
-      kids.push(h('div', { className: 'media-form-buttons' }, [
-        go,
-        h('button', { type: 'button', className: 'media-btn', id: 'media-form-cancel', text: 'Cancel', on: { click: closeForm } }),
-      ]));
-      els.form.appendChild(h('div', { className: 'media-panel media-form' }, kids));
+      box.appendChild(h('div', { className: 'media-form-buttons' }, [go, button('media-form-cancel', 'Cancel', closeForm)]));
     }
 
-    async function submitForm() {
+    function submitForm() {
       const f = st.form;
-      if (!f || f.busy || f.stop || f.checking) return;
-      f.busy = true;
+      if (!f || f.busy || f.stop || f.checking || f.up) return;
       f.error = '';
-      renderForm();
+      if (f.mode === 'add' && !f.uploadedName) { startUpload(f); return; }
+      publish(f);
+    }
+
+    /** Send the file in pieces (src/relay/resumable.rs), then publish it. */
+    function startUpload(f) {
+      if (!token()) {
+        f.error = MEDIA_WORDS.notSignedInUpload;
+        renderFormActions(f);
+        return;
+      }
+      f.up = createUploader({
+        fetch: env.fetch, token, file: f.file, owner: myKey, storage: env.storage,
+        sleep: env.sleep, now,
+        onChange: () => { if (st.form === f) renderFormActions(f); },
+        onDone: (answer) => {
+          if (st.form !== f) return;
+          f.uploadedName = storedName((answer && (answer.filename || answer.url)) || '');
+          loadMine();
+          publish(f);
+        },
+      });
+      renderFormActions(f);
+      f.up.start();
+    }
+
+    async function publish(f) {
+      if (f.busy) return;
+      f.busy = true;
+      renderFormActions(f);
       try {
-        let filename = f.mode === 'put' ? f.filename : f.uploadedName;
-        if (!filename) {
-          const t = token();
-          if (!t) throw new Error(MEDIA_WORDS.notSignedInUpload);
-          const form = new env.FormData();
-          form.append('file', f.file);
-          const up = await answerOf(await env.fetch('/api/upload?token=' + encodeURIComponent(t) + '&media=1', { method: 'POST', body: form }));
-          filename = storedName(up.filename || up.url);
-          f.uploadedName = filename;
-        }
+        const filename = f.mode === 'put' ? f.filename : f.uploadedName;
         const auth = await env.sign(purposes.publish(filename));
         if (!auth) throw new Error(MEDIA_WORDS.cannotSign);
         const body = Object.assign({
@@ -916,18 +1435,189 @@
           visibility: f.visibility || 'public',
         }, f.category ? { category_id: Number(f.category) } : {}, auth);
         await answerOf(await env.fetch('/api/media', jsonPost(body)));
-        st.form = null;
+        if (st.form === f) st.form = null;
         renderForm();
         say(MEDIA_WORDS.published);
         load(true);
+        loadMine();
         return;
       } catch (e) {
-        f.error = (e && e.message ? e.message : String(e)) + (f.uploadedName && f.mode === 'add'
-          ? ' The file is uploaded and waits 24 hours for you to try again; after that it is deleted.'
-          : '');
+        f.error = (e && e.message ? e.message : String(e)) + (f.uploadedName && f.mode !== 'put' ? MEDIA_WORDS.uploadWaits : '');
+        f.up = null;
+        loadMine();
       }
       f.busy = false;
-      renderForm();
+      if (st.form === f) renderFormActions(f);
+    }
+
+    // ── Report a Media item (context `media`, evidence {kind: "media", id}; /shared/report.js) ──
+    let reasonsCache = null;
+    let helpCache = null;
+    async function loadReasons() {
+      if (reasonsCache && reasonsCache.length) return reasonsCache;
+      try {
+        const res = await env.fetch(R.REPORT_REASONS_URL, { cache: 'no-cache' });
+        const list = res && res.ok ? R.reportReasonsFrom(await res.json()) : [];
+        if (list.length) reasonsCache = list;
+        return list;
+      } catch (e) {
+        return [];
+      }
+    }
+    async function loadOutsideHelp() {
+      if (helpCache) return helpCache;
+      try {
+        const res = await env.fetch(R.OUTSIDE_HELP_URL, { cache: 'no-cache' });
+        helpCache = res && res.ok ? R.outsideHelpFrom(await res.json()) : null;
+      } catch (e) {
+        helpCache = null;
+      }
+      return helpCache;
+    }
+    function savedCountry() {
+      try { return env.storage ? env.storage.getItem(R.OUTSIDE_HELP_SAVED_KEY) : null; } catch (e) { return null; }
+    }
+    function saveCountry(code) {
+      try { if (env.storage) env.storage.setItem(R.OUTSIDE_HELP_SAVED_KEY, code); } catch (e) { /* storage refused: the pick lasts this dialog */ }
+    }
+
+    function openReport(item) {
+      if (!R || !myKey) return;
+      const r = { item, reason: '', note: '', reasons: null, help: null, country: null, sending: false, error: '', timer: null };
+      st.report = r;
+      renderReport();
+      loadOutsideHelp().then((help) => {
+        if (st.report !== r || !help) return;
+        r.help = help;
+        r.country = R.outsideHelpFirstCountry(help, savedCountry(), env.language || '');
+        renderReport();
+      });
+      loadReasons().then((list) => {
+        if (st.report !== r) return;
+        r.reasons = list;
+        renderReport();
+      });
+    }
+    function closeReport() {
+      const r = st.report;
+      if (r && r.timer) cancelLater(r.timer);
+      st.report = null;
+      renderReport();
+    }
+    /** The outside help block (10e-ii) for the danger reasons, built with createElement. */
+    function outsideHelpBlock(r) {
+      const v = R.outsideHelpView(r.help, r.reason, r.country);
+      if (!v) return null;
+      const select = h('select', { className: 'media-select', id: 'media-report-country', attrs: { 'aria-label': 'Country' } },
+        v.choices.map((c) => h('option', { value: c.code, text: c.name, selected: c.code === v.code })));
+      select.addEventListener('change', () => { r.country = select.value; saveCountry(select.value); renderReport(); });
+      const kids = [
+        h('strong', { text: v.title }),
+        h('label', { className: 'media-field' }, ['Country', select]),
+        v.emergency ? h('p', { className: 'media-report-emergency', text: 'Emergency: ' + v.emergency }) : h('p', { className: 'media-report-emergency', text: v.emergencyText }),
+      ];
+      for (const a of v.also) kids.push(h('p', { className: 'media-hint', text: a.number + (a.for ? ': ' + a.for : '') }));
+      if (v.child) {
+        kids.push(h('p', { className: v.childSmall ? 'media-hint' : 'media-report-child' }, [
+          v.childLead + ' ',
+          h('a', { href: v.child.url, text: v.child.name, target: '_blank', rel: 'noopener noreferrer', title: v.child.title || undefined }),
+        ]));
+      }
+      if (v.note) kids.push(h('p', { className: 'media-hint', text: v.note }));
+      if (v.dateLine) kids.push(h('p', { className: 'media-hint', text: v.dateLine }));
+      return h('div', { className: 'media-report-help', id: 'media-report-outside-help' }, kids);
+    }
+    function renderReport() {
+      els.report.replaceChildren();
+      const r = st.report;
+      if (!r) return;
+      const name = r.item.uploader_name || 'The person who put it there';
+      const kids = [
+        h('button', { type: 'button', id: 'media-report-close', className: 'media-btn media-viewer-close', text: 'Close', on: { click: closeReport } }),
+        h('h2', { className: 'media-viewer-title', text: 'Report "' + itemName(r.item, st.kinds) + '"' }),
+        h('p', { className: 'media-hint', id: 'media-report-lead', text: "This goes to this server's admins and moderators. " + name + MEDIA_WORDS.reportLeadTail }),
+        h('p', { className: 'media-hint', text: MEDIA_WORDS.reportWhat }),
+        h('h3', { text: 'What happened' }),
+      ];
+      if (r.reasons === null) {
+        kids.push(h('p', { className: 'media-hint', text: 'Loading the reasons...' }));
+      } else if (!r.reasons.length) {
+        kids.push(h('p', { className: 'media-warn', id: 'media-report-no-reasons', text: MEDIA_WORDS.reportReasonsFailed }));
+      } else {
+        const box = h('div', { className: 'media-field', id: 'media-report-reasons', attrs: { role: 'radiogroup', 'aria-label': 'What happened' } });
+        for (const reason of r.reasons) {
+          const radio = h('input', { type: 'radio', name: 'media-report-reason', value: reason.id, dataset: { reportReason: reason.id }, checked: reason.id === r.reason });
+          radio.addEventListener('change', () => { if (radio.checked) { r.reason = reason.id; r.error = ''; renderReport(); } });
+          box.appendChild(h('label', { className: 'media-check' }, [radio, ' ' + reason.label]));
+        }
+        kids.push(box);
+        const chosen = r.reasons.find((x) => x.id === r.reason);
+        if (chosen && chosen.help) kids.push(h('p', { className: 'media-report-reason-help', id: 'media-report-reason-help', text: chosen.help }));
+        if (chosen && r.help) {
+          const block = outsideHelpBlock(r);
+          if (block) kids.push(block);
+        }
+      }
+      const note = h('textarea', { id: 'media-report-note', className: 'media-input', maxLength: R.REPORT_NOTE_MAX, rows: 3, value: r.note, placeholder: 'What the admins should know', attrs: { 'aria-label': 'A note for the admins' } });
+      note.addEventListener('input', () => { r.note = note.value; });
+      kids.push(h('label', { className: 'media-field' }, ['Anything to add (optional)', note]));
+      if (r.error) kids.push(h('p', { className: 'media-warn', id: 'media-report-error', attrs: { role: 'alert' }, text: r.error }));
+      const send = h('button', {
+        type: 'button', id: 'media-report-send', className: 'media-btn media-btn-danger', text: r.sending ? 'Sending...' : 'Send report',
+        disabled: r.sending || !r.reason || !(r.reasons && r.reasons.length),
+      });
+      send.addEventListener('click', sendReport);
+      kids.push(h('div', { className: 'media-form-buttons' }, [
+        send,
+        h('button', { type: 'button', id: 'media-report-cancel', className: 'media-btn', text: 'Cancel', on: { click: closeReport } }),
+      ]));
+      const overlay = h('div', { id: 'media-report-open', className: 'media-viewer', attrs: { role: 'dialog', 'aria-label': 'Report' } }, [
+        h('div', { className: 'media-viewer-box media-report-box' }, kids),
+      ]);
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) closeReport(); });
+      els.report.appendChild(overlay);
+    }
+    async function sendReport() {
+      const r = st.report;
+      if (!r || r.sending) return;
+      const failWith = (words) => { r.sending = false; r.error = words; if (st.report === r) renderReport(); };
+      if (!r.reason) return failWith('Choose a reason first.');
+      if (!bound() || !session) return failWith(MEDIA_WORDS.reportNotSignedIn);
+      r.sending = true;
+      r.error = '';
+      renderReport();
+      const evidence = R.mediaEvidenceItem(r.item.id);
+      const built = await R.buildReportFrame({
+        reporter: myKey, target: r.item.uploader_key, context: 'media', reason: r.reason, note: r.note,
+        evidence: evidence ? [evidence] : [], ts: now(),
+      }, { blake3: env.blake3, sign: env.signBytes });
+      if (st.report !== r) return;
+      if (!built || !built.frame) return failWith((built && built.error) || 'Your report could not be built.');
+      if (!session.send(built.frame)) return failWith(MEDIA_WORDS.reportNotSignedIn);
+      r.timer = later(() => { if (st.report === r && r.sending) failWith(MEDIA_WORDS.reportNoAnswer); }, ANSWER_WAIT_MS);
+    }
+    /** The relay's answer to a report: `report_received`, or a refusal as a notice. True when it was one. */
+    function reportAnswer(m) {
+      const r = st.report;
+      if (!r || !r.sending || !m) return false;
+      if (m.type === 'report_received') {
+        closeReport();
+        say(R.REPORT_RECEIVED_LINE);
+        return true;
+      }
+      if (m.type === 'system' && typeof m.message === 'string' && !isOtherNotice(m.message)) {
+        if (r.timer) cancelLater(r.timer);
+        r.timer = null;
+        r.sending = false;
+        r.error = m.message;
+        renderReport();
+        return true;
+      }
+      return false;
+    }
+    /** Notices the server sends for other things: never read as the answer to a report. */
+    function isOtherNotice(text) {
+      return text.startsWith('Your category suggestion') || text.startsWith('Server settings updated') || text.startsWith('__game__:');
     }
 
     // ── Suggest a category ──
@@ -1014,12 +1704,14 @@
       renderMembers();
       renderActions();
       renderFilters();
-      renderPicksNote();
       renderFeatured();
       renderGrid();
-      renderViewer();
-      if (st.form && !st.form.busy && st.form.key !== formKey()) renderForm();
+      renderViewerIfChanged();
+      renderWaiting();
+      if (st.form && !st.form.busy && !st.form.up && st.form.key !== formKey()) renderForm();
       renderAdmin();
+      sweepBlobs();
+      pumpBlobs();
     }
 
     // ── The session's news ──
@@ -1029,15 +1721,34 @@
         st.lastStatus = session.state.status;
         // Signed in now: signing in makes the person a member of this server, so a list
         // read before that (or still on its way) may have missed the members' items.
-        if (session.state.status === 'bound' && was !== 'bound' && (!st.answered || !st.membersView)) load(true);
-        else renderAll();
+        if (session.state.status === 'bound' && was !== 'bound' && (!st.answered || !st.membersView)) {
+          load(true).then(() => loadMine());
+          loadFeatured();
+        } else {
+          renderAll();
+        }
         return;
       }
       const m = ev.msg;
+      if (reportAnswer(m)) return;
       // The answer to a category suggestion comes as a notice (the relay's words).
       if (m && m.type === 'system' && typeof m.message === 'string' && m.message.startsWith('Your category suggestion')) {
         say(m.message);
         if (st.suggest) loadMySuggestions();
+      }
+    }
+
+    /** /media?id=<n>: the item by its number (the admins' Reports view opens one this way). */
+    async function openById(id) {
+      try {
+        const a = await answerOf(await fetchList(listParams({ id }, null, 1)));
+        const item = Array.isArray(a.items) ? a.items.find((i) => String(i.id) === String(id)) : null;
+        if (!item) { say(MEDIA_WORDS.notFound, true); return; }
+        takePeople([item]);
+        if (Array.isArray(a.labels) && a.labels.length) st.labels = a.labels;
+        openViewer(item);
+      } catch (e) {
+        say(MEDIA_WORDS.notFound + ' ' + (e && e.message ? e.message : ''), true);
       }
     }
 
@@ -1048,13 +1759,24 @@
         if (myKey) session.start();
       }
       renderAll();
-      loadMyPicks();
+      await loadKinds();
+      loadFeatured();
       await load(true);
+      loadMine();
       // Put on Media (a Shared Files row's link) once the categories and labels are known.
       if (env.put && myKey) openPutForm(env.put);
+      if (env.openId) await openById(env.openId);
     }
 
-    return { start, state: st, load, openAddForm, openPutForm, removeItem: remove, pickItem: pick, featureItem: feature };
+    /** Revoke every object URL (the page is going away). */
+    function dispose() {
+      for (const id of Array.from(blobs.keys())) dropBlob(id);
+    }
+
+    return {
+      start, state: st, load, loadFeatured, loadMine, openAddForm, openPutForm, removeItem: remove, pickItem: pick,
+      featureItem: feature, keepItem: keep, openReport, openViewer, closeViewer, dispose, blobs,
+    };
   }
 
   // ── In the browser ──
@@ -1064,6 +1786,7 @@
     if (!rootEl) return;
     const params = new URLSearchParams(root.location.search || '');
     const put = params.get('put') ? { filename: params.get('put'), name: params.get('name') || '' } : null;
+    const openId = /^\d+$/.test(params.get('id') || '') ? Number(params.get('id')) : null;
     const go = async () => {
       let identity = null;
       try { identity = typeof root.getPqIdentity === 'function' ? await root.getPqIdentity() : null; } catch (e) { identity = null; }
@@ -1080,6 +1803,8 @@
       const confirm = (words) => (typeof root.holdConfirm === 'function'
         ? root.holdConfirm(words, { seconds: 2, confirmLabel: 'Hold to remove' })
         : Promise.resolve(root.confirm(words)));
+      let storage = null;
+      try { storage = root.localStorage; } catch (e) { storage = null; }
       let page = null;
       page = createMediaPage({
         document: doc,
@@ -1088,10 +1813,17 @@
         origin: root.location.origin,
         myKey: identity ? identity.dilithiumPublicHex : '',
         sign,
+        signBytes: (bytes) => (identity && typeof root.pqSignMessage === 'function' ? root.pqSignMessage(identity.dilithiumSecret, bytes) : Promise.resolve(null)),
+        blake3: (bytes) => root.pqBlake3(bytes),
         session,
         confirm,
-        FormData: root.FormData,
+        URL: root.URL,
+        storage,
+        sleep: (ms) => new Promise((r) => root.setTimeout(r, ms)),
+        report: typeof root.buildReportFrame === 'function' ? root : null,
+        language: (root.navigator && root.navigator.language) || '',
         put,
+        openId,
         retryIdentity: () => root.location.reload(),
         // The admins' section (/pages/media-admin.js, loaded after this file).
         mountAdmin: (container) => {
@@ -1099,10 +1831,11 @@
           root.mountMediaAdmin(container, {
             document: doc, fetch: (u, i) => root.fetch(u, i), sign, confirm, session,
             blake3: (bytes) => root.pqBlake3(bytes),
-            onChange: () => { if (page) page.load(true); },
+            onChange: () => { if (page) { page.load(true); page.loadFeatured(); } },
           });
         },
       });
+      root.addEventListener('pagehide', () => page.dispose());
       page.start();
     };
     if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', go);
@@ -1110,10 +1843,11 @@
   }
 
   const api = {
-    MEDIA_WORDS, KIND_WORDS, PAGE_SIZE, kindWords, sortKinds, sizeWords, shareLeftWords, shareStop, limitStop,
-    meterWords, removeWords, removedWords, ownFilePath, fileAddress, storedName, itemName, labelsOf,
-    listParams, publicListUrl, picksUrl, purposes, jsonPost, refusalWords, answerOf, makeH, isAdminRole,
-    createMediaPage,
+    MEDIA_WORDS, PAGE_SIZE, FEATURED_LIMIT, KINDS_URL, RESUME_KEY, parseKinds, kindWords, sizeWords, shareLeftWords,
+    shareStop, limitStop, budgetStop, meterWords, keptMeterWords, removeWords, removedWords, resetsWords, ownFilePath,
+    fileRoute, storedName, itemFileName, itemName, downloadName, labelsOf, listParams, publicListUrl, purposes, jsonPost,
+    refusalOf, refusalWords, answerOf, makeH, isAdminRole, isStaffRole, rememberUpload, findUpload, forgetUpload,
+    createUploader, createMediaPage,
   };
   if (typeof module === 'object' && module && module.exports) module.exports = api;
   else {

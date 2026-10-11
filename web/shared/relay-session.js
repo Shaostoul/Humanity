@@ -56,7 +56,9 @@
    *   setTimeout, clearTimeout
    * Its `state`: status ('idle', 'no_identity', 'connecting', 'bound',
    * 'refused', 'closed'), key, role, uploadToken, uploadLimitBytes, settings
-   * (the last server_settings_state's settings, or null), refusal (the
+   * (the last server_settings_state's settings, or null), roles (the last
+   * role_list's roles, or null: the relay sends it with the settings, so a
+   * page can tell whether the person's role may upload at all), refusal (the
    * relay's words when it refused the sign-in) and retryInSeconds (after a
    * drop, when the next try is). Listeners get
    * `{type: 'state'}` on any change and `{type: 'frame', msg}` for every frame
@@ -72,6 +74,7 @@
       uploadToken: '',
       uploadLimitBytes: 0,
       settings: null,
+      roles: null,
       refusal: '',
       retryInSeconds: 0,
     };
@@ -159,6 +162,11 @@
       } else if (m.type === 'server_settings_state' && m.settings && typeof m.settings === 'object') {
         state.settings = m.settings;
         changed();
+      } else if (m.type === 'role_list' && Array.isArray(m.roles)) {
+        // Every role's rights and limits (Server Settings > Roles): what the person's own role
+        // allows, such as whether it may upload (roleDef below).
+        state.roles = m.roles.filter((r) => r && typeof r === 'object' && typeof r.id === 'string');
+        changed();
       }
       emit({ type: 'frame', msg: m });
     }
@@ -231,6 +239,8 @@
       send,
       /** Ask for the server's settings again (answered with server_settings_state). */
       requestSettings: () => send({ type: 'server_settings_request' }),
+      /** The person's own role as the relay's role list describes it, or null until it has come. */
+      roleDef: () => (Array.isArray(state.roles) ? state.roles.find((r) => r.id === state.role) || null : null),
       subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); },
     };
   }

@@ -1,9 +1,11 @@
 //! The upload rules both routes share (upload_rules.rs), the increment 2 follow-ups (2026-10-11):
 //! a private file's own limit (B2), a Media file's (B1), the day's and the hour's allowance (B3),
-//! and `application/octet-stream` judged by its extension (R7). The single request is driven
-//! through the real `upload_file` with a request that says its size up front, so every refusal
-//! here comes before a byte is read and nothing is written anywhere. Each test names the break it
-//! was seen failing against ("Seen red").
+//! `application/octet-stream` judged by its extension (R7), and HEIC and AVIF photos cleaned in
+//! place and kept as plain files (the HEIF strip, 2026-10-11; the tests at the end). The single
+//! request is driven through the real `upload_file` with a request that says its size up front,
+//! so every refusal here comes before a byte is read and nothing is written anywhere; a HEIC that
+//! is stored goes through the resumable route, which takes folders of the test's own. Each test
+//! names the break it was seen failing against ("Seen red").
 
 use super::*;
 use crate::relay::api::{upload_file, UploadQuery};
@@ -140,18 +142,197 @@ async fn the_days_and_the_hours_allowance_hold_in_one_request() {
     assert_eq!(in_words(0, 0), "in less than a minute");
 }
 
-/// R7 (a). `application/octet-stream` IS JUDGED BY ITS EXTENSION ALONE: an iPhone's `.heic` sent
-/// that way is refused (it used to pass with any extension that was not blocked, and skip every
-/// strip); a `.jpg` or a `.blend` sent that way still goes.
+/// R7 (a). `application/octet-stream` IS JUDGED BY ITS EXTENSION ALONE: a camera's `.tiff` (which
+/// carries GPS in its EXIF, and which nothing here can clean) sent that way is refused (it used to
+/// pass with any extension that was not blocked, and skip every strip); a `.jpg`, a `.blend`, and
+/// since the HEIF strip (2026-10-11) an iPhone's `.heic`, sent that way still go.
 ///
 /// Seen red 2026-10-11 with the type check back as merged (`octet-stream` an allowed type on its
-/// own): "a .heic sent as octet-stream is refused".
+/// own): "a .heic sent as octet-stream is refused". Seen red again, as rewritten for the HEIF
+/// strip, with the same break: "a .tiff sent as octet-stream is refused".
 #[test]
 fn octet_stream_is_judged_by_its_extension() {
-    let heic = check_type("IMG_0001.heic", "application/octet-stream", false);
-    assert!(heic.is_err(), "a .heic sent as octet-stream is refused");
-    assert!(heic.unwrap_err().1.starts_with("Unsupported file type"));
+    let tiff = check_type("DSC_0001.tiff", "application/octet-stream", false);
+    assert!(tiff.is_err(), "a .tiff sent as octet-stream is refused");
+    assert!(tiff.unwrap_err().1.starts_with("Unsupported file type"));
     assert!(check_type("photo.jpg", "application/octet-stream", false).is_ok());
     assert!(check_type("case.blend", "application/octet-stream", false).is_ok());
+    assert!(check_type("IMG_0001.heic", "application/octet-stream", false).is_ok(), "a .heic goes, to the HEIF strip");
     assert!(check_type("blob.enc", "application/octet-stream", true).is_ok(), "an encrypted file is never judged");
+}
+
+// ── HEIC and AVIF photos (2026-10-11): cleaned in place, kept as plain files ──
+
+use crate::relay::core::strip_heif_metadata::build::{
+    bx, exif_bytes, filler, ftyp_avif, ftyp_heic, heif, iphone_heic, Built, Item, Kind, Place, Tables, PLACE,
+};
+
+fn contains(hay: &[u8], needle: &[u8]) -> bool {
+    hay.windows(needle.len()).any(|w| w == needle)
+}
+
+/// `bytes` with exactly `ranges` zeroed.
+fn zeroed(bytes: &[u8], ranges: &[std::ops::Range<usize>]) -> Vec<u8> {
+    let mut want = bytes.to_vec();
+    for r in ranges {
+        want[r.clone()].fill(0);
+    }
+    want
+}
+
+/// A HEIC whose Exif item's location in the table points 10,000 bytes past the end of the file,
+/// so the strip cannot find the Exif with certainty.
+fn unreadable_heic() -> Built {
+    let items = [
+        Item { id: 1, kind: Kind::Picture(b"hvc1"), data: filler(200, 1), place: Place::Mdat },
+        Item { id: 3, kind: Kind::Exif, data: exif_bytes(), place: Place::Mdat },
+    ];
+    heif(ftyp_heic(), &Tables { skew: 10_000, ..Tables::default() }, &items)
+}
+
+/// A HEIC OR AVIF PHOTO IS A PLAIN FILE, NEVER A PICTURE: by its declared type (`image/heic`,
+/// `image/heif`, `image/avif`) or, when the declared type says nothing else, its extension, it is
+/// not sent to the picture path (whose magic check would refuse it, and whose strip cannot read
+/// it), it is stored as `.heic`, `.heif` or `.avif`, and the answer calls it a "document". A
+/// `.heic` declared as a JPEG is judged as a JPEG.
+///
+/// Seen red 2026-10-11 with `picture` not asking `heif_photo` first: "IMG_0001.heic as image/heic
+/// is not a picture / left: Some(\"image/unknown\") / right: None".
+#[test]
+fn a_heic_or_avif_photo_is_a_plain_file_never_a_picture() {
+    for (name, ct, ext) in [
+        ("IMG_0001.heic", "image/heic", "heic"),
+        ("IMG_0002.HEIC", "application/octet-stream", "heic"),
+        ("IMG_0003.heif", "image/heif", "heif"),
+        ("pic.avif", "image/avif", "avif"),
+        ("pic.avif", "image/x-unknown", "avif"),
+        ("photo.jpg", "image/heic", "heic"),
+    ] {
+        let kind = check_type(name, ct, false).unwrap_or_else(|e| panic!("{name} as {ct} is allowed: {e:?}"));
+        assert_eq!(kind.picture(ct, false), None, "{name} as {ct} is not a picture");
+        assert_eq!(kind.stored_ext(ct, false), ext, "{name} as {ct}");
+        assert_eq!(file_type(ct, ext, false), "document", "{name} as {ct}");
+    }
+    let jpeg_named_heic = check_type("IMG_0004.heic", "image/jpeg", false).unwrap();
+    assert_eq!(jpeg_named_heic.picture("image/jpeg", false), Some("image/jpeg"), "a .heic declared as a JPEG is judged as one");
+    assert!(picture_is_what_it_says("image/jpeg", &iphone_heic().bytes).is_err(), "and refused, since it is not");
+}
+
+/// THE STRIP BOTH ROUTES CALL (`finish_file_as`) CLEANS A HEIC IN PLACE: its Exif item zeroed,
+/// every other byte as it was, the size unchanged. A HEIC whose Exif cannot be found with
+/// certainty is refused with the words that predate the strip, and taken as sent with
+/// `keep_metadata`. A file in the MP4 family with no movie and no HEIF brand is a video cut off
+/// before its movie box, and is now told so (`VIDEO_UNREADABLE`) instead of being called a photo.
+///
+/// Seen red 2026-10-11 against `finish_file_as` as it was before the HEIF strip (a file with no
+/// movie refused at once): "a well-formed HEIC is cleaned and kept: Err((422, \"HEIC and AVIF
+/// photos cannot be cleaned of where they were taken yet. Save it as a JPEG and send that.\"))".
+/// Seen red again with only the no-HEIF-brand branch answering `HEIF_REFUSED` as before: "a video
+/// cut off before its movie box is told so / left: Err(\"HEIC and AVIF photos cannot be cleaned
+/// ...\")".
+#[test]
+fn finish_file_as_cleans_a_heic_and_refuses_what_it_cannot_read() {
+    let photo = iphone_heic();
+    let path = crate::test_temp::file("rules_heic_finish", "heic");
+    std::fs::write(&path, &photo.bytes).unwrap();
+    let cleaned = finish_file_as(&path, false);
+    assert!(cleaned.is_ok(), "a well-formed HEIC is cleaned and kept: {cleaned:?}");
+    let after = std::fs::read(&path).unwrap();
+    assert!(!contains(&after, PLACE), "where it was taken is gone");
+    assert_eq!(after, zeroed(&photo.bytes, photo.ranges_of(3)), "only the Exif item's bytes changed");
+
+    let broken = unreadable_heic().bytes;
+    std::fs::write(&path, &broken).unwrap();
+    assert_eq!(finish_file_as(&path, false), Err((StatusCode::UNPROCESSABLE_ENTITY, HEIF_REFUSED.to_string())));
+    assert_eq!(std::fs::read(&path).unwrap(), broken, "nothing written to a photo it could not read");
+    assert_eq!(finish_file_as(&path, true), Ok(()), "kept by choice");
+
+    let cut_video = [bx(b"ftyp", b"isom\0\0\x02\0isomiso2mp41"), bx(b"mdat", &filler(300, 4))].concat();
+    std::fs::write(&path, &cut_video).unwrap();
+    assert_eq!(
+        finish_file_as(&path, false).map_err(|e| e.1),
+        Err(VIDEO_UNREADABLE.to_string()),
+        "a video cut off before its movie box is told so"
+    );
+}
+
+/// A HEIC UPLOAD IS STORED WITHOUT WHERE IT WAS TAKEN, instead of refused: sent through the
+/// resumable upload route (`start_core` and `piece_core`, with folders of the test's own) as
+/// `image/heic`, as `application/octet-stream`, and as an AVIF, each photo is stored as a plain
+/// file (`.heic`, `.avif`; the answer's type "document") of the same size, its Exif zeroed and
+/// every other byte, the picture's included, as it arrived. A HEIC whose Exif cannot be found
+/// with certainty is still refused with the old words (its session goes), and stored as sent with
+/// `keep_metadata`.
+///
+/// The single request (`upload_file`) runs the same steps (`check_type`, `picture`,
+/// `finish_file_as`, `stored_ext`, `file_type`, each proven above), but it writes into the relay's
+/// live data folder, which a test must not write to; the resumable route takes the test's own
+/// folders, so the whole way from the request to the stored file is driven here.
+///
+/// Seen red 2026-10-11 against `finish_file_as` as it was before the HEIF strip (a file with no
+/// movie refused at once): "IMG_0001.heic as image/heic is stored: Words(422, \"HEIC and AVIF
+/// photos cannot be cleaned of where they were taken yet. Save it as a JPEG and send that.\")".
+#[tokio::test]
+async fn a_heic_upload_is_stored_without_where_it_was_taken() {
+    use crate::relay::resumable::{piece_core, start_core, StartBody};
+    use crate::relay::storage::media::Folders;
+    let state = relay("rules_heic_upload");
+    uploader(&state, "ann", "tok", |_| {}).await;
+    let (uploads, members, resume, waiting) = (
+        crate::test_temp::dir("rules_heic_uploads"),
+        crate::test_temp::dir("rules_heic_members"),
+        crate::test_temp::dir("rules_heic_resume"),
+        crate::test_temp::dir("rules_heic_waiting"),
+    );
+    let folders = || Folders { uploads: &uploads, members: &members, resume: &resume, waiting: &waiting };
+    let send = |name: &str, ct: &str, bytes: &[u8], keep: bool| {
+        let body = StartBody {
+            filename: name.into(),
+            size: bytes.len() as u64,
+            content_type: Some(ct.into()),
+            media: Some(1),
+            blake3: None,
+            keep_metadata: keep.then_some(1),
+        };
+        let (state, bytes) = (state.clone(), axum::body::Bytes::copy_from_slice(bytes));
+        async move {
+            let (_, started) = start_core(&state, folders(), Some("tok"), body).await?;
+            let id = started.0["id"].as_str().unwrap().to_string();
+            piece_core(&state, folders(), &id, Some("tok"), Some(0), bytes).await.map(|j| j.0)
+        }
+    };
+
+    let heic = iphone_heic();
+    let avif = heif(
+        ftyp_avif(),
+        &Tables::default(),
+        &[
+            Item { id: 1, kind: Kind::Picture(b"av01"), data: filler(250, 5), place: Place::Mdat },
+            Item { id: 2, kind: Kind::Exif, data: exif_bytes(), place: Place::Mdat },
+        ],
+    );
+    for (name, ct, photo, exif_id, ext) in [
+        ("IMG_0001.heic", "image/heic", &heic, 3, ".heic"),
+        ("IMG_0002.HEIC", "application/octet-stream", &heic, 3, ".heic"),
+        ("PXL_0003.avif", "image/avif", &avif, 2, ".avif"),
+    ] {
+        let done = send(name, ct, &photo.bytes, false).await.unwrap_or_else(|e| panic!("{name} as {ct} is stored: {e:?}"));
+        let stored_name = done["filename"].as_str().unwrap();
+        assert!(stored_name.ends_with(ext), "{name}: kept as a plain {ext} file: {stored_name}");
+        assert_eq!(done["type"], "document", "{name}");
+        assert_eq!(done["size"].as_u64(), Some(photo.bytes.len() as u64), "{name}: the same size");
+        let stored = std::fs::read(waiting.join(stored_name)).unwrap();
+        assert!(!contains(&stored, PLACE), "{name}: where it was taken is gone");
+        assert_eq!(stored, zeroed(&photo.bytes, photo.ranges_of(exif_id)), "{name}: every other byte as it arrived");
+        assert_eq!(stored[photo.ranges_of(1)[0].clone()], photo.bytes[photo.ranges_of(1)[0].clone()], "{name}: the picture itself untouched");
+    }
+
+    let broken = unreadable_heic().bytes;
+    match send("IMG_0004.heic", "image/heic", &broken, false).await {
+        Err(refused) => assert_eq!((refused.status(), refused.words()), (StatusCode::UNPROCESSABLE_ENTITY, HEIF_REFUSED.to_string())),
+        Ok(done) => panic!("a HEIC whose Exif cannot be found is refused: stored as {done}"),
+    }
+    assert!(state.db.all_upload_sessions().unwrap().iter().all(|s| s.finished()), "its session goes");
+    let done = send("IMG_0004.heic", "image/heic", &broken, true).await.expect("kept by choice, it is stored as sent");
+    assert_eq!(std::fs::read(waiting.join(done["filename"].as_str().unwrap())).unwrap(), broken);
 }

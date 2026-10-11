@@ -558,7 +558,7 @@ fn hash_file(path: &std::path::Path) -> std::io::Result<String> {
 ///
 /// Refused and the session removed (the file is not one that can ever be stored): the role or the
 /// sharing switches no longer allow it, a hash that does not match, a picture that is not what it
-/// says, a video that cannot be read through or a HEIC photo (422). Refused and the session KEPT:
+/// says, a video or a HEIC or AVIF photo that cannot be read through (422). Refused and the session KEPT:
 /// no room (507; an empty piece at its end tries again), and a failure to read, write or move the
 /// file, which may pass (R3, R5). Stored: the session's row stays, holding the answer (the single
 /// request's JSON), until the idle expiry (R2); the caller holds the one-piece-at-a-time marker
@@ -610,9 +610,9 @@ fn finish(state: &RelayState, folders: Folders, s: &UploadSession) -> Result<Val
             UploadBody::Bytes(finish_picture_as(p, bytes, s.keep_metadata).map_err(|e| drop_session(e.into()))?.into())
         }
         None => {
-            // A video's hidden location removed in place, as in the single request (BUG-190), and a
-            // HEIC or AVIF photo refused (R7). Only a file that can never be stored removes the
-            // session (422: it cannot be read through, or it is a photo the strip cannot clean);
+            // A video's or a HEIC or AVIF photo's hidden location removed in place, as in the
+            // single request (BUG-190, the HEIF strip). Only a file that can never be stored removes
+            // the session (422: it cannot be read through, so it cannot be cleaned with certainty);
             // a failure to read or write the file may pass, so the session is kept for another
             // try (R3, 2026-10-11).
             finish_file_as(&part, s.keep_metadata)

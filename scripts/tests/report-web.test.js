@@ -475,7 +475,14 @@ test("the words the reporter signs are the relay's, and the frame is 10e's", asy
   assert.deepEqual(specKeys, ["type", "target", "context", "reason", "note", "evidence", "ts", "sig"]);
   // The lists 10e names.
   const words = (re) => { const mm = TEN_E.match(re); assert.ok(mm, String(re)); return [...mm[1].matchAll(/`(\w+)`/g)].map((x) => x[1]); };
-  assert.deepEqual(report.REPORT_CONTEXTS, words(/`context` one of ((?:`\w+`(?:, |,? or )?)+)/), "the contexts are 10e's");
+  // The contexts: 10e's four, then the Media page's (2026-10-11, docs/design/media-showcase.md A5),
+  // held to the relay's own list in src/relay/handlers/reports.rs, which refuses any other. Seen red
+  // 2026-10-11 with 'media' left out of report.js: "the contexts are the relay's, media included".
+  const tenE = words(/`context` one of ((?:`\w+`(?:, |,? or )?)+)/);
+  assert.deepEqual(report.REPORT_CONTEXTS.slice(0, tenE.length), tenE, "the contexts start with 10e's");
+  const relayContexts = fs.readFileSync(path.join(ROOT, "src", "relay", "handlers", "reports.rs"), "utf8").match(/pub const CONTEXTS: \[&str; \d+\] = \[([^\]]*)\]/);
+  assert.ok(relayContexts, "the relay names its contexts");
+  assert.deepEqual(report.REPORT_CONTEXTS, [...relayContexts[1].matchAll(/"(\w+)"/g)].map((x) => x[1]), "the contexts are the relay's, media included");
   assert.deepEqual(report.REPORT_DECISIONS, words(/`decision` one of ((?:`\w+`(?:, |,? or )?)+)/), "the decisions are 10e's");
   assert.deepEqual(SPEC_REASON_IDS, words(/with ids ((?:`\w+`(?:,\s*|,?\s*and\s*)?)+)/), "the stub's reason ids are 10e's");
   assert.equal(report.REPORT_MAX_ITEMS, 20);

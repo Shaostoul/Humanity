@@ -1394,6 +1394,35 @@ test("a room takes a file up to my own limit on the server; with no limit said, 
   assert.ok(!/encrypted=1/.test(page.uploads[0].query), "as a room's plain upload");
 });
 
+// The largest file in a private conversation is my role's, as my own peer-list entry says
+// (`private_limit_mb`, docs/design/media-showcase.md follow-up B2, 2026-10-11): 6 MB only until
+// the server has said it, and my room limit never applies to it, since the server holds an
+// encrypted upload to the private limit instead. Seen red 2026-10-11 with attachmentLimit's
+// private branch capping the server's limit at 6 MB again, and (alone) with app.js not keeping
+// `private_limit_mb`: both "a 7 MB picture goes into a DM within my 10 MB private limit".
+test("a private conversation takes a file up to my role's private limit once the server says it", async () => {
+  const fx = await fixture();
+  const page = await loadChat(fx.ann);
+  const MB = 1024 * 1024;
+  const seven = new Uint8Array(7 * MB);
+  seven.set(PNG, 0);
+  page.fn("openDmConversation")(fx.ben.key, "Ben");
+  await settle();
+  await paste(page, picture("big.png", seven));
+  assert.equal(page.uploads.length, 0, "with no private limit said, 6 MB holds");
+  assert.ok(page.systemLines.some((l) => l.includes("a private conversation can be up to 6 MB for your role on this server")), "and says so");
+  // My peer-list entry: a 10 MB private limit, and a room limit of 1 MB that does not apply here.
+  page.fn("updatePeerList")([{ public_key: fx.ann.key, private_limit_mb: 10, upload_limit_mb: 1 }]);
+  await paste(page, picture("big.png", seven));
+  assert.equal(page.uploads.length, 1, "a 7 MB picture goes into a DM within my 10 MB private limit");
+  assert.ok(/(^|&)encrypted=1(&|$)/.test(page.uploads[0].query), "encrypted, as every private file is");
+  const eleven = new Uint8Array(11 * MB);
+  eleven.set(PNG, 0);
+  await paste(page, picture("bigger.png", eleven));
+  assert.equal(page.uploads.length, 1, "over it, nothing is uploaded");
+  assert.ok(page.systemLines.some((l) => l.includes("a private conversation can be up to 10 MB for your role on this server")), "and the words name my limit");
+});
+
 // Every upload carries this session's token; before the server has sent one nothing is uploaded
 // and the person is told why (the upload review, 2026-10-11: a bare key proved nothing about the
 // sender and the server no longer takes it). Seen red 2026-10-11 against the web before this: "no

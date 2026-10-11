@@ -93,6 +93,21 @@
     }
   }
 
+  // The last timestamp this page signed with. The relay refuses a second
+  // request with the same key, purpose and timestamp as a replay (media.rs
+  // check_signed, auth_nonce_fresh), and two requests started in the same
+  // millisecond read the same Date.now(): Accept on a category suggestion
+  // sent two signed `media_list` reads at once and the relay refused one
+  // (the Media page review, 2026-10-11). So every signature from this page
+  // takes the next millisecond after the last one, like the desktop app's
+  // `next_timestamp`: no two signed requests from one page ever share one.
+  let _lastTimestamp = 0;
+  function _nextTimestamp() {
+    const now = Date.now();
+    _lastTimestamp = now > _lastTimestamp ? now : _lastTimestamp + 1;
+    return _lastTimestamp;
+  }
+
   /**
    * Build a Dilithium3-signed relay auth payload.
    *
@@ -126,7 +141,9 @@
       return null;
     }
 
-    const ts = Date.now();
+    // Taken after the identity is derived, the moment before signing: the
+    // next one after the last this page signed (see _nextTimestamp).
+    const ts = _nextTimestamp();
     const preimage = new TextEncoder().encode(purpose + '\n' + ts);
     const sigBytes = await window.pqSignMessage(id.dilithiumSecret, preimage);
     if (!sigBytes) {
