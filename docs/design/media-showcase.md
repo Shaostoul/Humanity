@@ -1684,3 +1684,68 @@ cuts the file while the upload waits for an allowance).
 - Against a relay from before R4-2, a cancel of a finished upload answers a plain `{ok: true}` and
   leaves its stored file in the waiting folder for a day, while the app says "Cancelled" (no
   compatibility before launch: the live relay runs R4-2 once this round is deployed).
+
+## Files on the sender's device and in messages, exact (answers 4, 5, 6 and 9; 2026-10-11)
+
+The operator's "Let's proceed" (2026-10-11) on four of the answers above. Answer 10 (device to
+device big files) has its own section after this one. One agent per app does all of this in one
+worktree (the same files are touched by each part), and a small relay change carries the profile
+field.
+
+**1. Cleaning a file on the sender's device (answer 4).** Every upload path in both apps (chat
+attach, paste and drop, public rooms and private conversations, the Files page, Add to Media) runs
+the strip on the file before it leaves the device: pictures (JPEG, PNG, WebP; GIF passes as the
+relay passes it), videos (the MP4 family), and on the desktop HEIC and AVIF too (the relay's own
+Rust strips, `strip_metadata`, `strip_video_metadata_in_buffer` or a temp copy for big files,
+`strip_heif_metadata`); the web uses `web/shared/strip-metadata.js` (`HosStrip.stripFile`), which
+has no HEIF yet, so a HEIC on the web counts as "could not be checked" (part 2).
+- **The attach step shows what is in the file** before sending: `HosStrip.describe` on the web, and
+  a Rust `describe` the desktop gains (in src/relay/core/, beside the strips, so the relay and the
+  desktop share it), with the same words: "This photo says where it was taken and which camera took
+  it.", "This video says where it was filmed.", or nothing when there is nothing. The two describes
+  agree on the same test files (the web test compiles the Rust, as the strip test does).
+- **One switch:** "Remove location and camera details", on by default, remembered as the last
+  choice on this device (desktop config, web localStorage in try/catch). The protected setup always
+  removes and shows no switch.
+- **Kept by choice:** the upload says `keep_metadata=1` (the relay then skips its own strip on a
+  public shelf); removed: the app strips, and the relay strips again on a public shelf (the same
+  rules, so a second pass changes nothing).
+
+**2. A file that could not be checked (answer 5).** When the strip reports it stopped early (or
+failed open on a picture, or it is a HEIC on the web): on a public shelf the app says so and does
+not send it (the relay would refuse it too, unless kept by choice); in a DM or group it asks "This
+file could not be read all the way through, so where it was taken may still be in it. Send it
+anyway?" On yes, the file's marker carries `"unchecked": true` in its meta (both apps write and
+read the same field; `build_file_marker` and its web twin), and the recipient sees one line under
+the file: "The sender's app could not check this file for hidden location."
+
+**3. Files in messages (answer 6).** Settings > Privacy, beside "who can reach me", a group
+"Files in messages":
+- **Accept files from:** Nobody / Friends / Anyone I talk to. Default Friends.
+- **Show pictures without asking from:** Friends / Nobody (today's click-to-load rule, made a
+  setting; the protected setup is always Nobody).
+- **Show the attach button in private conversations:** on or off.
+The RECEIVING app enforces it: a file marker from someone the setting does not allow is not
+fetched; its card says "Ann sent a file. You accept files only from friends. Accept this one?",
+and Accept fetches that one file. The setting is published so a sender's app can say so first:
+the person's profile gains `accepts_files` ("nobody", "friends" or "anyone"; relay change below),
+and a sender's attach step in a DM says "Ann accepts files only from friends." when it applies.
+P2P groups: if the group object already carries settings, its owner gets "Files allowed" and
+"Largest file (MB)"; if it does not, this waits for a group-settings increment and the As built
+note says so.
+
+**4. Keeping a copy of opened private files (answer 9).** A private file (DM or group) that the
+person opened or saved is kept on the device, encrypted at rest with a key derived from their
+identity as their DM history is (desktop: a folder in the app's data directory, AES-256-GCM;
+web: IndexedDB through the existing encrypted DM store), so it still opens after the server's copy
+leaves (30 days). Opening a file looks there first. A size cap per device (Settings > Data,
+default 1 GB on the desktop and 200 MB on the web), oldest opened first out, and a "Clear kept
+files" button.
+
+**Relay.** `profiles` gains `accepts_files` (ALTER-added, with the pre-migration open test; default
+"friends"), accepted on a profile update (only the three words), sent in profile answers and
+`ProfileData`, in the person's export, cleared by their erase.
+
+**Proof.** Each part with tests seen failing once, in each app and the relay; the two describes
+agree on shared fixtures; a marker with `unchecked` built by one app is read by the other (a
+shared fixture string in both test suites).
