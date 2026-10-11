@@ -385,6 +385,18 @@ impl GuiState {
         (!address.trim().is_empty()).then_some(address)
     }
 
+    /// The server the person is on, normalised: the one the active connection was dialled for
+    /// (`connected_server_url`), which is the one it signs in to, and never an address being
+    /// typed into a Server field (the Chat page's connect form and the main menu edit
+    /// `server_url` letter by letter). With no connection this session, what the app would dial
+    /// by itself (`dial_address`), which is never a draft either. Empty when there is none. The
+    /// Media page follows this (round 4 of docs/design/media-showcase.md, D4-3: one letter typed
+    /// while uploads waited for sign-in took the page to "another server", abandoning them all).
+    pub fn active_server(&self) -> String {
+        let address = if self.connected_server_url.trim().is_empty() { self.dial_address().unwrap_or("") } else { self.connected_server_url.as_str() };
+        pages::chat::norm_server_url(address)
+    }
+
     /// Whether the app may dial the active server by itself this frame: at boot, after an
     /// unlock (which clears `ws_manually_disconnected`), or after a server switch (lib.rs, the
     /// auto-connect, which dials `dial_address`). Never with nothing to dial (no server set,

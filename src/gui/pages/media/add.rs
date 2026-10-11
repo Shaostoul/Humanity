@@ -285,8 +285,9 @@ pub(crate) fn draw_form(ctx: &egui::Context, theme: &Theme, state: &mut GuiState
     if cancel {
         // A Cancel while its publish is on its way undoes the publish when it lands.
         if form.sending {
-            publishing::cancel(state, form.id, form.stored().unwrap_or(""));
+            // Said first: when the answer is already in, the cancel itself says how it went.
             state.media.status = "Cancelling...".to_string();
+            publishing::cancel(state, form.id, form.stored().unwrap_or(""));
         }
         return;
     }

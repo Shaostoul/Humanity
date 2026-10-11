@@ -36,7 +36,7 @@ const PRUNE_TABS: [&str; 4] = ["Largest", "Oldest", "Least viewed", "Waiting to 
 pub(crate) fn draw_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     page::sync_server(state);
     page::poll(ui.ctx(), state);
-    if !state.media.admin.requested && !state.server_url.trim().is_empty() && page::signed_in_here(state) {
+    if !state.media.admin.requested && !page::server_here(state).is_empty() && page::signed_in_here(state) {
         page::refresh_admin(state);
     }
     widgets::subsection_label(ui, theme, "Media");

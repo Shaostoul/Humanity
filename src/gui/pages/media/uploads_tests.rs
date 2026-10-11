@@ -13,7 +13,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 /// A file of `len` bytes to upload, and the form that picked it.
-fn picked(tag: &str, len: usize, title: &str) -> (crate::test_temp::TempPath, add::Form) {
+pub(crate) fn picked(tag: &str, len: usize, title: &str) -> (crate::test_temp::TempPath, add::Form) {
     let file = crate::test_temp::file(tag, "webm");
     std::fs::write(&file, (0..len).map(|i| (i % 251) as u8).collect::<Vec<u8>>()).unwrap();
     let form = add::Form { title: title.into(), ..add::Form::new(add::Source::Picked { path: file.to_path_buf(), name: format!("{tag}.webm"), len: len as u64 }) };
@@ -21,7 +21,7 @@ fn picked(tag: &str, len: usize, title: &str) -> (crate::test_temp::TempPath, ad
 }
 
 /// Poll the uploads until `done` says so (ten seconds at most).
-fn until(ctx: &egui::Context, state: &mut GuiState, what: &str, done: impl Fn(&GuiState) -> bool) {
+pub(crate) fn until(ctx: &egui::Context, state: &mut GuiState, what: &str, done: impl Fn(&GuiState) -> bool) {
     let deadline = Instant::now() + Duration::from_secs(10);
     while !done(state) {
         uploading::poll(ctx, state);
@@ -30,7 +30,7 @@ fn until(ctx: &egui::Context, state: &mut GuiState, what: &str, done: impl Fn(&G
     }
 }
 
-fn publishing(state: &GuiState) -> bool {
+pub(crate) fn publishing(state: &GuiState) -> bool {
     assert!(!state.media.uploads.is_empty(), "an upload ended early: {}", state.media.status);
     state.media.uploads.iter().all(|e| matches!(e.after, uploading::After::Publishing { .. }))
 }
@@ -38,7 +38,7 @@ fn publishing(state: &GuiState) -> bool {
 /// A server on this machine's loopback address answering each request in turn with `answers` (a
 /// wait, then its status and JSON body), closing the connection after each. Every request is
 /// kept as "METHOD /path BODY". Returns its address.
-fn http_server(answers: Vec<(Duration, u16, &'static str)>) -> (String, Arc<Mutex<Vec<String>>>) {
+pub(crate) fn http_server(answers: Vec<(Duration, u16, &'static str)>) -> (String, Arc<Mutex<Vec<String>>>) {
     let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind loopback");
     let port = listener.local_addr().unwrap().port();
     let seen = Arc::new(Mutex::new(Vec::new()));
@@ -245,6 +245,10 @@ fn the_servers_unfinished_uploads_are_shown_with_cancel() {
     for events in [vec![egui::Event::PointerMoved(pos)], vec![egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: true, modifiers: m }], vec![egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: false, modifiers: m }]] {
         let _ = ctx.run(input(events), |ctx| draw(ctx, &theme, &mut state));
     }
-    assert!(state.media.jobs.iter().any(|(j, _)| *j == Job::Discard), "Cancel tells the server");
-    assert!(!shows(&settled(&ctx, &theme, &mut state), "Holiday.mp4"), "and the row goes");
+    assert!(state.media.jobs.iter().any(|(j, _)| *j == Job::Discard { id: "s1".into() }), "Cancel tells the server");
+    // Round 4 (D4-2) changed this test's last line, which was "and the row goes" at the press:
+    // the row now stays, saying it is being cancelled, until the server confirms (round4_tests.rs
+    // `an_unfinished_upload_stays_listed_until_the_server_confirms_its_cancel`).
+    let out = settled(&ctx, &theme, &mut state);
+    assert!(shows(&out, "Holiday.mp4") && shows(&out, "Cancelling..."), "and the row stays until the server confirms");
 }

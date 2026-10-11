@@ -22,7 +22,9 @@
 //!    carries on by itself after the server's own `resets_in_s` (or at Resume). A 429 without it
 //!    is waited out like a server error. A 507 is no room: the file is kept on the server for a
 //!    day, and Retry sends the empty piece at the end, which tries the finish again. A finish whose
-//!    answer was lost is found in the status answer's `done`.
+//!    answer was lost is found in the status answer's `done`. The empty piece never reads the
+//!    file on this computer (round 4, D4-1): once every piece is on the server, the server's copy
+//!    is finished whatever happened to the local file since.
 //! 4. The finished upload's answer (`{url, filename, size, type}`) goes back to the page, which
 //!    publishes it then (signed then: a signature is good for five minutes, and an upload can take
 //!    hours).
@@ -34,7 +36,9 @@
 //! (`hide_token`).
 //!
 //! Pause, Resume, Retry and Cancel reach the worker through [`Control`]; it never touches the
-//! page's state. Every request waits while paused (upload_waits.rs `hold`). The network is behind
+//! page's state. Every request waits while paused (upload_waits.rs `hold`). A Cancel is asked of
+//! the server again while it is busy writing, and what it said comes back with the end
+//! (upload_cancel.rs, round 4's D4-2). The network is behind
 //! [`Transport`], so the tests run the whole flow against a server simulated in memory
 //! (resumable_tests.rs).
 
@@ -47,6 +51,7 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
+use super::upload_cancel::{self, Told};
 use super::upload_waits::{self as waits, Backoff, Streak};
 use crate::gui::widgets::image_cache::hide_token;
 
@@ -94,8 +99,16 @@ impl Unfinished {
     }
 }
 
-/// What is said when an unfinished upload's file changed since it started.
-pub const FILE_CHANGED: &str = "The file changed since its upload started, so the rest cannot follow what was sent. That upload was cancelled; add the file again.";
+/// What is said when an unfinished upload's file changed since it started and the server does not
+/// have every piece yet (with every piece there, the server's copy is finished instead: D4-1).
+pub const FILE_CHANGED: &str = "The file changed since its upload started, so the rest cannot follow what was sent. Add the file again.";
+/// Said after an upload that could not go on, once the server confirmed it dropped what arrived.
+pub const NOTHING_STAYS: &str = "Nothing of it stays on the server.";
+/// Why a cancel was not confirmed when the server's answer to the start never came: it may hold
+/// the start, and then lists it with the person's unfinished uploads.
+pub const START_UNANSWERED: &str = "the connection dropped while the server was starting it, so the server may hold the start; it is then listed below with your unfinished uploads on this server.";
+/// Why a cancel was not asked: the upload was left on the server to be carried on.
+const KEPT_FOR_LATER: &str = "it was left on the server to be carried on.";
 /// What is said when the server no longer has the upload (one left alone for a day is removed).
 pub const UPLOAD_GONE: &str = "This upload is no longer on the server: an upload left alone for a day is removed. Add the file again.";
 /// What is said while the connection is down.
@@ -130,8 +143,9 @@ pub enum Event {
     /// Stopped for good: the words, and whether the upload is gone from the server (so there is
     /// nothing left to carry on, and the kept record goes too).
     Failed { words: String, gone: bool },
-    /// Cancelled at the person's word, and the server told.
-    Cancelled,
+    /// Cancelled at the person's word, and what the server said to it (round 4, D4-2: the page
+    /// says "Cancelled" only for [`Told::Gone`]).
+    Cancelled { told: Told },
 }
 
 // ── Pause, Resume, Retry, Cancel and the token ──────────────────────────────────────────────
@@ -144,9 +158,20 @@ pub(crate) struct Flags {
     /// server keeps the upload a day, and the kept record offers it again there.
     pub abandoned: bool,
     /// Retry pressed (after no room, or a server error that would not clear) or Resume pressed
-    /// while waiting for an allowance.
+    /// while waiting for an allowance. Set only while the worker is in such a wait (`held`), and
+    /// cleared when that wait ends (round 4, D4-4).
     pub retry: bool,
+    /// The wait the worker is in that Retry or Resume ends, if any (upload_waits.rs).
+    pub held: Option<Held>,
     pub token: Option<String>,
+}
+
+/// A wait of the worker's that a press ends: an allowance's (Resume or Retry), or one for Retry
+/// (no room, or a server error that would not clear).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Held {
+    Allowance,
+    Retry,
 }
 
 /// How the page steers the worker. Every change wakes it.
@@ -184,8 +209,11 @@ impl Control {
     pub fn pause(&self, on: bool) {
         self.change(|f| {
             f.paused = on;
-            if !on {
-                f.retry = true; // Resume also ends a wait for an allowance
+            // Resume also ends a wait for an allowance, but only while the worker is in one: round
+            // 3 set the flag at every Resume, and one pressed at any other moment stayed set until
+            // it cut short the next stop for Retry or wait for an allowance (the review's D4-4).
+            if !on && f.held == Some(Held::Allowance) {
+                f.retry = true;
             }
         });
     }
@@ -203,9 +231,13 @@ impl Control {
     }
 
     /// Try again now (after no room or a server error that would not clear), or carry on now
-    /// (while waiting for an allowance).
+    /// (while waiting for an allowance). Nothing while the worker is in neither wait (D4-4).
     pub fn retry(&self) {
-        self.change(|f| f.retry = true);
+        self.change(|f| {
+            if f.held.is_some() {
+                f.retry = true;
+            }
+        });
     }
 
     /// The page's current upload token for this server (None while it is signing in again).
@@ -248,9 +280,20 @@ impl Control {
         flags.clone()
     }
 
-    pub(crate) fn take_retry(&self) -> bool {
+    /// The worker enters a wait a press ends (upload_waits.rs), before the page is told of it, so
+    /// a press that follows what the page shows always finds it.
+    pub(crate) fn hold_in(&self, held: Held) {
+        self.change(|f| {
+            f.held = Some(held);
+            f.retry = false;
+        });
+    }
+
+    /// That wait is over: neither the wait nor a press made during it outlives it.
+    pub(crate) fn release(&self) {
         let mut flags = self.flags.lock().unwrap_or_else(|p| p.into_inner());
-        std::mem::replace(&mut flags.retry, false)
+        flags.held = None;
+        flags.retry = false;
     }
 }
 
@@ -281,7 +324,7 @@ impl Reply {
 
     /// A refusal of the token itself: it is not a session signed in to this server (a reconnect
     /// replaced it). The upload waits for the new one.
-    fn token_refused(&self) -> bool {
+    pub(crate) fn token_refused(&self) -> bool {
         self.status == 403 && (self.body.contains("Invalid upload token") || self.body.contains("not a session"))
     }
 }
@@ -364,6 +407,10 @@ pub struct Plan {
     pub content_type: String,
     /// Carry on with this upload (after a restart) instead of starting one.
     pub resume: Option<String>,
+    /// The file on this computer is no longer the one being uploaded (changed, moved or gone since
+    /// the upload started): it is carried on only when the server has every piece, and then
+    /// finished from the server's copy; otherwise it is cancelled (round 4, D4-1).
+    pub file_changed: bool,
 }
 
 /// The start's body (the relay's `StartBody`).
@@ -417,17 +464,28 @@ fn token_for(ctl: &Control, refused: &Option<String>, tx: &Sender<Event>) -> Opt
     flags.token
 }
 
-/// Tell the server to drop the upload, as best it can be told (it expires in a day anyway), unless
-/// it was abandoned rather than cancelled.
-fn cancel_on_server(t: &dyn Transport, ctl: &Control, id: &str) {
+/// Tell the server to drop the upload, unless it was abandoned rather than cancelled: asked again
+/// while the server is busy writing, and what it said comes back (round 4, D4-2: round 3 sent one
+/// request and took any answer, a 409 busy included, as done).
+fn cancel_on_server(t: &dyn Transport, ctl: &Control, id: &str) -> Told {
     let flags = ctl.flags();
     if flags.abandoned {
-        return;
+        return Told::NotConfirmed(KEPT_FOR_LATER.to_string());
     }
-    if let Some(token) = flags.token {
-        if let Err(e) = t.cancel(&token, id) {
-            log::warn!("Media upload: the server could not be told of the cancel ({e}); it removes the upload after a day.");
-        }
+    let Some(token) = flags.token else { return Told::NotConfirmed(upload_cancel::NOT_SIGNED_IN.to_string()) };
+    let told = upload_cancel::tell(t, &token, id, ctl.pace);
+    if let Told::NotConfirmed(why) = &told {
+        log::warn!("Media upload: the server did not confirm the cancel ({why}); it drops the upload a day after its last piece.");
+    }
+    told
+}
+
+/// The upload cannot go on (`words`): the server is told to drop what arrived, and the record is
+/// forgotten only when it confirmed (otherwise it stays, offered with Cancel it).
+fn stop_with(t: &dyn Transport, ctl: &Control, id: &str, words: String) -> Event {
+    match cancel_on_server(t, ctl, id) {
+        Told::NotConfirmed(why) => Event::Failed { words: format!("{words} {}", upload_cancel::not_cancelled_words(&why)), gone: false },
+        Told::Gone | Told::Published => Event::Failed { words: format!("{words} {NOTHING_STAYS}"), gone: true },
     }
 }
 
@@ -491,8 +549,7 @@ impl Waits<'_> {
     /// False when cancelled meanwhile.
     fn after_server_error(&mut self, r: &Reply) -> bool {
         if self.streak.note(r) >= waits::STUCK_AFTER {
-            self.send(Event::Stuck { words: r.words() });
-            let flags = waits::wait_for_retry(self.ctl);
+            let flags = waits::wait_for_retry(self.ctl, self.tx, Event::Stuck { words: r.words() });
             self.streak.clear();
             self.backoff.reset();
             if flags.cancelled {
@@ -509,8 +566,7 @@ impl Waits<'_> {
     /// An allowance used up: say so and wait the server's own number, or Resume.
     fn after_allowance(&mut self, a: &waits::Allowance) {
         self.streak.clear();
-        self.send(Event::Waiting { words: a.words.clone(), resets_at: a.resets_at() });
-        let flags = waits::wait_for_allowance(self.ctl, a);
+        let flags = waits::wait_for_allowance(self.ctl, a, self.tx, Event::Waiting { words: a.words.clone(), resets_at: a.resets_at() });
         if !flags.cancelled && !flags.paused {
             self.send(Event::Sending);
         }
@@ -519,8 +575,7 @@ impl Waits<'_> {
     /// No room: show the words and wait for Retry. False when cancelled meanwhile.
     fn after_no_room(&mut self, words: String) -> bool {
         self.streak.clear();
-        self.send(Event::NoRoom { words });
-        let flags = waits::wait_for_retry(self.ctl);
+        let flags = waits::wait_for_retry(self.ctl, self.tx, Event::NoRoom { words });
         if flags.cancelled {
             return false;
         }
@@ -541,23 +596,27 @@ pub fn work(t: &dyn Transport, ctl: &Control, plan: &Plan, tx: &Sender<Event>) {
     let mut refused: Option<String> = None;
     let mut chunk = waits::DEFAULT_CHUNK;
 
-    // 1 and 2: the hash and the start, unless carrying on with an upload already started.
+    // 1 and 2: the hash and the start, unless carrying on with an upload already started. A
+    // cancel before the server named the upload has nothing to tell it, unless a start's answer
+    // was lost: then the server may hold it, and the person is told so, not "Cancelled".
+    let mut start_unanswered = false;
+    let cancelled = |unanswered: bool| Event::Cancelled { told: if unanswered { Told::NotConfirmed(START_UNANSWERED.to_string()) } else { Told::Gone } };
     let id = match plan.resume.clone() {
         Some(id) => id,
         None => {
             let hash = match hash_file(&plan.path, ctl, tx) {
                 Ok(Some(h)) => h,
-                Ok(None) => return w.send(Event::Cancelled),
+                Ok(None) => return w.send(cancelled(false)),
                 Err(words) => return w.send(Event::Failed { words, gone: true }),
             };
             let body = start_body(plan, &hash);
             loop {
                 if !waits::hold(ctl, tx) {
-                    return w.send(Event::Cancelled);
+                    return w.send(cancelled(start_unanswered));
                 }
-                let Some(token) = token_for(ctl, &refused, tx) else { return w.send(Event::Cancelled) };
+                let Some(token) = token_for(ctl, &refused, tx) else { return w.send(cancelled(start_unanswered)) };
                 if !waits::hold(ctl, tx) {
-                    return w.send(Event::Cancelled);
+                    return w.send(cancelled(start_unanswered));
                 }
                 match answer_of(t.start(&token, &body), ctl) {
                     Answer::Ok(v) => {
@@ -574,15 +633,18 @@ pub fn work(t: &dyn Transport, ctl: &Control, plan: &Plan, tx: &Sender<Event>) {
                     Answer::Busy(words) => w.after_trouble(&words),
                     Answer::NoRoom(words) => {
                         if !w.after_no_room(words) {
-                            return w.send(Event::Cancelled);
+                            return w.send(cancelled(start_unanswered));
                         }
                     }
                     Answer::ServerError(r) => {
                         if !w.after_server_error(&r) {
-                            return w.send(Event::Cancelled);
+                            return w.send(cancelled(start_unanswered));
                         }
                     }
-                    Answer::Lost => w.after_trouble(RECONNECTING),
+                    Answer::Lost => {
+                        start_unanswered = true;
+                        w.after_trouble(RECONNECTING);
+                    }
                     Answer::Other(r) => return w.send(Event::Failed { words: r.words(), gone: true }),
                 }
             }
@@ -596,8 +658,8 @@ pub fn work(t: &dyn Transport, ctl: &Control, plan: &Plan, tx: &Sender<Event>) {
     let mut cap: Option<u64> = None;
     loop {
         if !waits::hold(ctl, tx) {
-            cancel_on_server(t, ctl, &id);
-            return w.send(Event::Cancelled);
+            let told = cancel_on_server(t, ctl, &id);
+            return w.send(Event::Cancelled { told });
         }
         let Some(token) = token_for(ctl, &refused, tx) else { continue };
         if !waits::hold(ctl, tx) {
@@ -648,13 +710,20 @@ pub fn work(t: &dyn Transport, ctl: &Control, plan: &Plan, tx: &Sender<Event>) {
             continue; // paused between the status and the piece, then cancelled
         }
         // The next piece (at most what is left of an allowance's window); at the end, the empty
-        // piece that (tries the) finish.
+        // piece that (tries the) finish. The empty piece never touches the file on this computer
+        // (round 4, D4-1): every piece is on the server then, so a file moved, changed or gone
+        // since cannot stop the finish, and above all never cancels the server's whole copy (a
+        // 507's Retry, or Carry on after a restart, finishes from it).
         let len = chunk.min(cap.unwrap_or(u64::MAX)).min(plan.size.saturating_sub(at));
-        let bytes = match read_piece(&plan.path, at, len) {
-            Ok(b) => b,
-            Err(words) => {
-                cancel_on_server(t, ctl, &id);
-                return w.send(Event::Failed { words, gone: true });
+        let bytes = if len == 0 {
+            Vec::new()
+        } else if plan.file_changed {
+            // Pieces are still to come, and the file they would come from is not the one sent.
+            return w.send(stop_with(t, ctl, &id, FILE_CHANGED.to_string()));
+        } else {
+            match read_piece(&plan.path, at, len) {
+                Ok(b) => b,
+                Err(words) => return w.send(stop_with(t, ctl, &id, words)),
             }
         };
         match answer_of(t.piece(&token, &id, at, &bytes), ctl) {
@@ -720,8 +789,7 @@ pub fn work(t: &dyn Transport, ctl: &Control, plan: &Plan, tx: &Sender<Event>) {
             Answer::Other(r) => {
                 // Anything else (a piece the server will not take, a role that may no longer
                 // upload) cannot be carried on: the server is told, and the person why.
-                cancel_on_server(t, ctl, &id);
-                return w.send(Event::Failed { words: r.words(), gone: true });
+                return w.send(stop_with(t, ctl, &id, r.words()));
             }
         }
     }

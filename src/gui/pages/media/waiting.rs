@@ -3,7 +3,7 @@
 //! uploads the SERVER lists that this app has no record of (`uploads_in_progress`, the relay's
 //! R3-7, round 3 of docs/design/media-showcase.md), with Cancel: one started on another device,
 //! or one whose record was lost, which would otherwise hold part of the person's share for a day
-//! with no way to see it.
+//! with no way to see it. A row stays until the server confirmed its cancel (round 4, D4-2).
 
 use egui::RichText;
 use serde_json::Value;
@@ -72,11 +72,12 @@ pub(crate) fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             ui.horizontal_wrapped(|ui| {
                 let shown = if p.filename.trim().is_empty() { "A file" } else { p.filename.trim() };
                 ui.label(RichText::new(format!("{shown}: {} of {} arrived", api::size_words(p.offset), api::size_words(p.size))).size(theme.font_size_small).color(theme.text_primary()));
-                if widgets::Button::secondary("Cancel").size(small).tooltip("The server drops what arrived.").show(ui, theme) {
+                // The row stays until the server confirmed the cancel (round 4, D4-2: round 3 took it
+                // off at the press, even when the server answered 409 busy).
+                if state.media.cancelling.contains(&p.id) {
+                    ui.label(RichText::new("Cancelling...").size(theme.font_size_small).color(theme.text_muted()));
+                } else if widgets::Button::secondary("Cancel").size(small).tooltip("The server drops what arrived.").show(ui, theme) {
                     uploading::cancel_on_server(state, &p.id);
-                    if let Some(m) = state.media.mine.as_mut() {
-                        m.in_progress.retain(|x| x.id != p.id);
-                    }
                 }
             });
         }

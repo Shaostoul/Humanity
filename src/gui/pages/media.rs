@@ -50,6 +50,8 @@ pub(crate) mod kinds;
 pub(crate) mod resumable;
 /// How the upload waits: Pause, allowances, back-off, a server error that will not clear.
 pub(crate) mod upload_waits;
+/// Cancelling an upload on the server: asked again while busy, "Cancelled" only when confirmed.
+pub(crate) mod upload_cancel;
 /// The page's handle on one running upload: its phase, bar and words.
 pub(crate) mod upload_run;
 /// The grid's tiles: what each shows, and its actions.
@@ -89,8 +91,10 @@ pub(crate) enum Job {
     Feature { id: i64, on: bool },
     Keep { id: i64, on: bool, from_admin: bool },
     Suggest,
-    /// An unfinished upload (a record's, or one the server listed), cancelled on the server.
-    Discard,
+    /// The server's upload `id` cancelled (an upload in the list whose file is up, a record's, or
+    /// one the server listed): the answer says whether the server confirmed (uploading.rs
+    /// `cancel_answered`).
+    Discard { id: String },
     /// The admins' section: the categories (a signed list read), saving them, the suggestions,
     /// a decision, and the usage.
     AdminCategories,
@@ -185,20 +189,38 @@ pub struct MediaState {
     /// The publishes on their way, by the number of the upload or form that asked: Cancel reaches
     /// them through this (publishing.rs).
     pub publishes: Vec<(u64, publishing::Fate)>,
+    /// The server's uploads (by id) whose cancel is on its way: each is shown "Cancelling..." and
+    /// stays listed until the server confirmed (round 4, D4-2).
+    pub cancelling: Vec<String>,
     /// A fingerprint of the upload token members-only pictures were last asked for with: when it
     /// changes (a reconnect), a refusal under the old one is forgotten.
     pub token_mark: String,
 }
 
+/// The server this page is for: the one the connection was dialled for and signs in to, never an
+/// address being typed into a Server field (round 4 of docs/design/media-showcase.md, D4-3: the
+/// Chat page's connect form and the main menu edit `server_url` letter by letter, and one letter
+/// typed while uploads waited for sign-in took the page to "another server" and abandoned them
+/// all). Normalised; empty when there is none.
+pub(crate) fn server_here(state: &GuiState) -> String {
+    state.active_server()
+}
+
 /// The server's web address for requests (`https://host`, from whatever form the app holds).
 pub(crate) fn base_of(state: &GuiState) -> String {
-    crate::gui::widgets::image_cache::http_base(&state.server_url)
+    crate::gui::widgets::image_cache::http_base(&server_here(state))
+}
+
+/// This connection's upload token, when it is for the server this page is for ([`server_here`]).
+pub(crate) fn token_here(state: &GuiState) -> Option<String> {
+    let here = server_here(state);
+    state.upload_token.as_ref().filter(|(server, _)| !here.is_empty() && *server == here).map(|(_, t)| t.clone())
 }
 
 /// Whether this server has signed this person in on this connection (it sent an upload token):
 /// only then are reads signed and writes offered.
 pub(crate) fn signed_in_here(state: &GuiState) -> bool {
-    crate::gui::pages::chat::upload_token_here(state).is_some()
+    token_here(state).is_some()
 }
 
 /// The signer, when this person is signed in to this server and their identity is unlocked.
@@ -244,9 +266,10 @@ pub(crate) fn may_keep(state: &GuiState) -> bool {
 
 /// Forget everything when the server or the person changed; returns true when either did. An
 /// upload under way is stopped where it is (the server keeps it a day), and the record of it is
-/// kept, so it is offered again on the same server to the same person.
+/// kept, so it is offered again on the same server to the same person. The server is the
+/// connected one ([`server_here`]), never an address being typed.
 pub(crate) fn sync_server(state: &mut GuiState) -> bool {
-    let here = crate::gui::pages::chat::norm_server_url(&state.server_url);
+    let here = server_here(state);
     if state.media.server == here && state.media.key == state.profile_public_key {
         return false;
     }
@@ -319,7 +342,7 @@ pub(crate) fn poll(ctx: &egui::Context, state: &mut GuiState) {
 /// When this session's upload token changes (a reconnect), members-only pictures refused under
 /// the old one are asked for again: a refusal is never kept past the token it was given to.
 fn note_token(state: &mut GuiState) {
-    let token = crate::gui::pages::chat::upload_token_here(state);
+    let token = token_here(state);
     let mark = token.as_deref().map(|t| blake3::hash(t.as_bytes()).to_hex()[..16].to_string()).unwrap_or_default();
     if mark != state.media.token_mark {
         state.media.token_mark = mark;
@@ -443,11 +466,7 @@ pub(crate) fn on_done(state: &mut GuiState, job: Job, result: Result<Value, Refu
             state.media.status = SUGGESTION_SENT.to_string();
         }
         (Job::Suggest, Err(e)) => state.media.status = e.words,
-        (Job::Discard, Ok(_)) => {
-            state.media.status = "The unfinished upload was cancelled.".to_string();
-            refresh_mine(state);
-        }
-        (Job::Discard, Err(e)) => log::warn!("Media: the unfinished upload could not be cancelled on the server ({e}); it goes after a day."),
+        (Job::Discard { id }, result) => uploading::cancel_answered(state, &id, result),
         (Job::AdminCategories, Ok(v)) => {
             let answer = api::parse_list(&v);
             // An admin's unsaved edits are never thrown away by an answer: Save or Discard decides.
@@ -522,7 +541,7 @@ pub(crate) fn reload(state: &mut GuiState) {
 
 /// Ask for the first page again (the filters changed).
 pub(crate) fn reload_list(state: &mut GuiState) {
-    if state.server_url.trim().is_empty() {
+    if server_here(state).is_empty() {
         return;
     }
     state.media.generation += 1;
@@ -534,7 +553,7 @@ pub(crate) fn reload_list(state: &mut GuiState) {
 
 /// Ask for every featured item again, for the strip.
 pub(crate) fn reload_featured(state: &mut GuiState) {
-    if state.server_url.trim().is_empty() {
+    if server_here(state).is_empty() {
         return;
     }
     state.media.featured_generation += 1;
@@ -612,7 +631,7 @@ pub(crate) const EMPTY_LINE: &str = "Nothing is on this server's Media page yet.
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     poll_upload(ctx, state);
-    if !state.media.requested && !state.server_url.trim().is_empty() {
+    if !state.media.requested && !server_here(state).is_empty() {
         reload(state);
     }
     if crate::engine::protected::is_on(state) {
@@ -670,7 +689,7 @@ pub(crate) fn draw_body(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
     }
     ui.add_space(theme.spacing_sm);
 
-    if state.server_url.trim().is_empty() {
+    if server_here(state).is_empty() {
         ui.label(RichText::new("Connect to a server first (Chat page) to see its Media page.").size(theme.font_size_small).color(theme.warning()));
         return;
     }
@@ -746,3 +765,7 @@ mod uploads_tests;
 #[cfg(test)]
 #[path = "media/relay_round3_tests.rs"]
 mod relay_round3_tests;
+
+#[cfg(test)]
+#[path = "media/round4_tests.rs"]
+mod round4_tests;
