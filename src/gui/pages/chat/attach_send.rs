@@ -339,10 +339,47 @@ pub(crate) fn upload_file_blocking_ext(
     share: bool,
     encrypted: bool,
 ) -> Result<String, String> {
+    upload_flagged(server_url, token, filename, mime, bytes, UploadFlags { share, encrypted, media: false })
+}
+
+/// Which shelf an upload goes on, as `/api/upload`'s query names it (relay/media.rs
+/// `upload_shelf`): `share` the public Shared Files list, `encrypted` an opaque private file,
+/// `media` the Media page's own space (docs/design/media-showcase.md), where it waits to be
+/// published with `POST /api/media`. None of them: a chat file.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct UploadFlags {
+    pub share: bool,
+    pub encrypted: bool,
+    pub media: bool,
+}
+
+/// The query of one upload: this connection's token, then each flag that is set. A Media file
+/// is never sent encrypted (the relay refuses that pair: a private file can never be shown).
+pub(crate) fn upload_query(token: &str, flags: UploadFlags) -> String {
+    let mut q = format!("token={token}");
+    if flags.share {
+        q.push_str("&share=1");
+    }
+    if flags.encrypted && !flags.media {
+        q.push_str("&encrypted=1");
+    }
+    if flags.media {
+        q.push_str("&media=1");
+    }
+    q
+}
+
+/// Upload a file for the Media page (`?media=1`): it counts against the Media space and the
+/// person's share of it from the moment it is stored, and is deleted after a day unless it is
+/// published (the relay's F1). Returns its `/uploads/...` address. Runs on a worker thread.
+pub(crate) fn upload_media_file_blocking(server_url: &str, token: &str, filename: &str, mime: &str, bytes: Vec<u8>) -> Result<String, String> {
+    upload_flagged(server_url, token, filename, mime, bytes, UploadFlags { media: true, ..Default::default() })
+}
+
+/// The one multipart upload every kind of file goes through, with `flags` in its query.
+fn upload_flagged(server_url: &str, token: &str, filename: &str, mime: &str, bytes: Vec<u8>, flags: UploadFlags) -> Result<String, String> {
     let base = server_url.trim_end_matches('/');
-    let share_q = if share { "&share=1" } else { "" };
-    let enc_q = if encrypted { "&encrypted=1" } else { "" };
-    let upload_url = format!("{base}/api/upload?token={token}{share_q}{enc_q}", base = base, token = token);
+    let upload_url = format!("{base}/api/upload?{}", upload_query(token, flags));
     let boundary = format!("HumanityOSBoundary{}",
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)

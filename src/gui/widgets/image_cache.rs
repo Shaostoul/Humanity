@@ -659,7 +659,7 @@ pub fn route_image(raw: &str, server_url: &str) -> ImageRoute {
 /// becomes `https://host`, `ws://` becomes `http://`, a bare `host:port`
 /// becomes `https://host:port`, the same way the WebRTC manager's
 /// `relay_base` is derived from the socket address in src/lib.rs.
-fn http_base(server_url: &str) -> String {
+pub(crate) fn http_base(server_url: &str) -> String {
     let s = server_url.trim().trim_end_matches('/');
     let s = s.strip_suffix("/ws").unwrap_or(s);
     if let Some(rest) = s.strip_prefix("wss://") {

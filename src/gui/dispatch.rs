@@ -22,8 +22,8 @@
 use super::pages::{
     browser, bugs, calculator, calendar, chat, cosmos, crafting, donate, files, governance, guilds,
     homes, humanity, identity, inventory, laws, library, market, notes, platform, profile, quests,
-    real, recovery, relay_control, server_settings, settings, studio, tasks, testing, tools, trade,
-    wallet, watch,
+    media, real, recovery, relay_control, server_settings, settings, studio, tasks, testing, tools,
+    trade, wallet, watch,
 };
 use super::theme::Theme;
 use super::{GuiPage, GuiState};
@@ -62,6 +62,7 @@ pub fn draw_tool_page(ctx: &egui::Context, page: GuiPage, theme: &mut Theme, sta
         GuiPage::Tools => tools::draw(ctx, theme, state),
         GuiPage::Studio => studio::draw(ctx, theme, state),
         GuiPage::Watch => watch::draw(ctx, theme, state),
+        GuiPage::Media => media::draw(ctx, theme, state),
         GuiPage::Quests => quests::draw(ctx, theme, state),
         GuiPage::Homes => homes::draw(ctx, theme, state),
         GuiPage::ServerSettings => server_settings::draw(ctx, theme, state),
@@ -116,6 +117,7 @@ pub fn page_id(page: GuiPage) -> &'static str {
         GuiPage::Tools => "tools",
         GuiPage::Studio => "studio",
         GuiPage::Watch => "watch",
+        GuiPage::Media => "media",
         GuiPage::Quests => "quests",
         GuiPage::Homes => "homes",
         GuiPage::ServerSettings => "server_settings",
@@ -169,6 +171,7 @@ pub const ALL_PAGES: &[GuiPage] = &[
     GuiPage::Tools,
     GuiPage::Studio,
     GuiPage::Watch,
+    GuiPage::Media,
     GuiPage::Quests,
     GuiPage::Homes,
     GuiPage::ServerSettings,

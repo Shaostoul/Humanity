@@ -1668,6 +1668,54 @@ fn snapshot_watch() {
     });
 }
 
+/// A small made-up picture for the Media snapshot (a gradient; nothing recorded or downloaded).
+fn media_snapshot_png() -> Vec<u8> {
+    let img = image::RgbaImage::from_fn(320, 200, |x, y| image::Rgba([(x * 255 / 320) as u8, (y * 255 / 200) as u8, 160, 255]));
+    let mut out = Vec::new();
+    image::DynamicImage::ImageRgba8(img).write_to(&mut std::io::Cursor::new(&mut out), image::ImageFormat::Png).expect("encode");
+    out
+}
+
+/// The Media page (2026-10-11, pages/media.rs), signed in as a member: the featured strip, the
+/// filters, and four tiles: a video, a model, a picture labelled Spoiler (its label instead of its
+/// picture) and a picture of your own; a stranger's picture asks first.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_media() {
+    use crate::gui::pages::media::{self as media, tests as fixture};
+    render_page_png("media", 1280, 900, |ctx, theme, state| {
+        if state.media.server.is_empty() {
+            *state = fixture::page_state(fixture::demo_answer(), true);
+            let own = media::api::Item { uploader_key: "me".into(), uploader_name: "You".into(), ..fixture::item(5, "Seedlings, day 12", "picture", ("me", "You")) };
+            state.media.list.items.insert(0, own);
+        }
+        let key = format!("{}/uploads/5_file", "http://127.0.0.1:9");
+        if state.image_cache.get_texture(&key).is_none() {
+            state.image_cache.insert_for_test(ctx, &key, &media_snapshot_png()).expect("the picture decodes");
+        }
+        media::draw(ctx, theme, state);
+    });
+}
+
+/// Server Settings > ADMIN > Media (2026-10-11, pages/server_settings/media.rs): who sees the
+/// page with the relay's line under it, the space and the share, the categories (General stays),
+/// a suggestion, and the meter with its prune lists.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_media_settings() {
+    use crate::gui::pages::server_settings::media::{self as admin, tests as fixture};
+    render_page_png("media_settings", 1100, 1000, |ctx, theme, state| {
+        if state.media.server.is_empty() {
+            *state = fixture::admin_state();
+        }
+        egui::CentralPanel::default()
+            .frame(egui::Frame::none().fill(theme.bg_panel()).inner_margin(theme.card_padding))
+            .show(ctx, |ui| {
+                egui::ScrollArea::vertical().show(ui, |ui| admin::draw_admin(ui, theme, state));
+            });
+    });
+}
+
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
 fn snapshot_nav_bar_wrapped() {

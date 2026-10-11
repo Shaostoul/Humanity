@@ -378,6 +378,9 @@ fn draw_shared_files_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSt
     // The file list.
     let rows = with_state(|fs| fs.shared_files.clone());
     let mut remove_filename: Option<String> = None;
+    // A row of your own pressed "Put on Media": the Media page's form opens for it, public only
+    // (it is already public here; docs/design/media-showcase.md, increment 2).
+    let mut put_on_media: Option<SharedFileRow> = None;
     egui::ScrollArea::vertical()
         .id_salt("shared_files_list")
         .max_height(220.0)
@@ -409,9 +412,20 @@ fn draw_shared_files_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSt
                     if can_remove && widgets::Button::danger("Remove").show(ui, theme) {
                         remove_filename = Some(filename_from_url(&row.url).to_string());
                     }
+                    if !my_key.is_empty()
+                        && row.uploader_key == my_key
+                        && widgets::Button::secondary("Put on Media")
+                            .tooltip("Show this file on the server's Media page too.")
+                            .show(ui, theme)
+                    {
+                        put_on_media = Some(row.clone());
+                    }
                 });
             }
         });
+    if let Some(row) = put_on_media {
+        crate::gui::pages::media::put_on_media(state, filename_from_url(&row.url), &row.name, row.size_bytes.max(0) as u64);
+    }
 
     if let Some(filename) = remove_filename {
         if let Some(seed) = seed.clone() {

@@ -74,7 +74,7 @@ mod voice_room;
 pub(crate) use voice_room::set_voice_room;
 /// Sending a file (10k): encrypted for a DM or a group, plain for a public channel. See `chat/attach_send.rs`.
 mod attach_send;
-pub(crate) use attach_send::upload_file_blocking;
+pub(crate) use attach_send::{upload_file_blocking, upload_media_file_blocking, upload_query, UploadFlags};
 pub(crate) use attach_send::note_upload_limit; // the server tells each person their own upload limit (2026-10-10)
 pub(crate) use attach_send::{upload_token_here, NOT_SIGNED_IN_YET};
 /// Showing a private file (10k): the picture inline, or a card with Save. See `chat/attach_view.rs`.
