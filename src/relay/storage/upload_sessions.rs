@@ -42,6 +42,24 @@ pub struct UploadSession {
     pub created_at: i64,
     /// When the last piece arrived (or the session started): the expiry pass reads it.
     pub touched_at: i64,
+    /// The person chose to keep the file's hidden information (`keep_metadata: 1` at the start,
+    /// B4, 2026-10-11): the finish skips the picture and video strip, never the picture's own
+    /// check that it is what it says.
+    pub keep_metadata: bool,
+    /// The BLAKE3 hash given at the start matched the whole file, checked once before the strip
+    /// changed it (R1, 2026-10-11): a retried finish never hashes again.
+    pub hash_checked: bool,
+    /// The finished upload's answer (the single request's JSON), '' until the file is stored. A
+    /// finished session stays until the idle expiry so an app that lost its connection during the
+    /// finish still gets the answer (R2, 2026-10-11); its pieces' file is gone by then.
+    pub done_answer: String,
+}
+
+impl UploadSession {
+    /// Whether the file is stored and this row only keeps its answer.
+    pub fn finished(&self) -> bool {
+        !self.done_answer.is_empty()
+    }
 }
 
 /// Whether `id` is a session id: exactly 32 lowercase hex characters. Anything else is never
@@ -69,7 +87,7 @@ pub struct Reconciled {
     pub offset_lowered: usize,
 }
 
-const COLUMNS: &str = "id, public_key, filename, content_type, size, offset, shelf, blake3, created_at, touched_at";
+const COLUMNS: &str = "id, public_key, filename, content_type, size, offset, shelf, blake3, created_at, touched_at, keep_metadata, hash_checked, done_answer";
 
 fn from_row(r: &rusqlite::Row) -> Result<UploadSession, rusqlite::Error> {
     Ok(UploadSession {
@@ -83,6 +101,9 @@ fn from_row(r: &rusqlite::Row) -> Result<UploadSession, rusqlite::Error> {
         blake3: r.get(7)?,
         created_at: r.get(8)?,
         touched_at: r.get(9)?,
+        keep_metadata: r.get::<_, i64>(10)? != 0,
+        hash_checked: r.get::<_, i64>(11)? != 0,
+        done_answer: r.get(12)?,
     })
 }
 
@@ -97,8 +118,11 @@ impl Storage {
     pub fn insert_upload_session(&self, s: &UploadSession) -> Result<(), rusqlite::Error> {
         self.with_conn(|conn| {
             conn.execute(
-                &format!("INSERT INTO upload_sessions ({COLUMNS}) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)"),
-                params![s.id, s.public_key, s.filename, s.content_type, s.size, s.offset, s.shelf, s.blake3, s.created_at, s.touched_at],
+                &format!("INSERT INTO upload_sessions ({COLUMNS}) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)"),
+                params![
+                    s.id, s.public_key, s.filename, s.content_type, s.size, s.offset, s.shelf, s.blake3, s.created_at, s.touched_at,
+                    s.keep_metadata as i64, s.hash_checked as i64, s.done_answer
+                ],
             )
             .map(|_| ())
         })
@@ -114,9 +138,28 @@ impl Storage {
         self.with_conn(|conn| sessions_where(conn, "WHERE public_key = ?1", &[&key]))
     }
 
-    /// Every open session, everyone's, oldest first.
+    /// Every open session, everyone's, oldest first (finished ones included: see
+    /// [`UploadSession::finished`]).
     pub fn all_upload_sessions(&self) -> Result<Vec<UploadSession>, rusqlite::Error> {
         self.with_conn(|conn| sessions_where(conn, "", &[]))
+    }
+
+    /// The hash given at the start of session `id` matched the whole file (R1): never hashed
+    /// again. Whether the session is still there.
+    pub fn mark_upload_hash_checked(&self, id: &str) -> Result<bool, rusqlite::Error> {
+        self.with_conn(|conn| conn.execute("UPDATE upload_sessions SET hash_checked = 1 WHERE id = ?1", params![id]).map(|n| n > 0))
+    }
+
+    /// Session `id`'s file is stored and `answer` is what the finish answered (R2): the row stays,
+    /// with that answer, until the idle expiry. Whether the session was still there.
+    pub fn finish_upload_session(&self, id: &str, answer: &str, now_ms: i64) -> Result<bool, rusqlite::Error> {
+        self.with_conn(|conn| {
+            conn.execute(
+                "UPDATE upload_sessions SET done_answer = ?2, offset = size, touched_at = ?3 WHERE id = ?1",
+                params![id, answer, now_ms],
+            )
+            .map(|n| n > 0)
+        })
     }
 
     /// A piece of session `id` arrived (or is arriving) at `now_ms`: the expiry pass leaves it
@@ -183,13 +226,18 @@ impl Storage {
                     continue;
                 }
                 let name = entry.file_name().to_string_lossy().into_owned();
-                let ours = name.strip_suffix(".part").is_some_and(|id| sessions.iter().any(|s| s.id == id));
+                let ours = name.strip_suffix(".part").is_some_and(|id| sessions.iter().any(|s| s.id == id && !s.finished()));
                 if !ours && std::fs::remove_file(&path).is_ok() {
                     done.files_removed += 1;
                 }
             }
         }
         for s in &sessions {
+            if s.finished() {
+                // A finished session has no pieces' file by design: its row keeps the answer for
+                // the app until the idle expiry (R2).
+                continue;
+            }
             let Some(path) = part_path(dir, &s.id) else {
                 // A row whose id could never name a file (written by hand): it goes.
                 self.delete_upload_session(&s.id)?;

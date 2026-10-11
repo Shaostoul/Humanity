@@ -1,0 +1,157 @@
+//! The upload rules both routes share (upload_rules.rs), the increment 2 follow-ups (2026-10-11):
+//! a private file's own limit (B2), a Media file's (B1), the day's and the hour's allowance (B3),
+//! and `application/octet-stream` judged by its extension (R7). The single request is driven
+//! through the real `upload_file` with a request that says its size up front, so every refusal
+//! here comes before a byte is read and nothing is written anywhere. Each test names the break it
+//! was seen failing against ("Seen red").
+
+use super::*;
+use crate::relay::api::{upload_file, UploadQuery};
+use crate::relay::storage::upload_counts::Span;
+use axum::extract::{FromRequest, Query, State};
+use std::sync::Arc;
+
+const MIB: u64 = 1024 * 1024;
+
+fn relay(tag: &str) -> Arc<RelayState> {
+    Arc::new(RelayState::new(Storage::open_temp(tag)))
+}
+
+/// `key` is a verified member signed in with `token`, their role changed by `change`.
+async fn uploader(state: &RelayState, key: &str, token: &str, change: impl FnOnce(&mut RoleDef)) {
+    state.db.set_role(key, "verified").unwrap();
+    let mut role = state.db.role_def("verified");
+    change(&mut role);
+    state.db.upsert_role(&role).unwrap();
+    state.upload_tokens.write().await.insert(token.into(), key.into());
+}
+
+/// `POST /api/upload` with `query`, saying up front that it carries `declared` bytes.
+async fn upload(state: &Arc<RelayState>, query: UploadQuery, declared: u64) -> Result<axum::Json<serde_json::Value>, Refused> {
+    let req = axum::http::Request::builder()
+        .method("POST")
+        .uri("/api/upload")
+        .header(axum::http::header::CONTENT_TYPE, "multipart/form-data; boundary=X")
+        .header(axum::http::header::CONTENT_LENGTH, declared.to_string())
+        .body(axum::body::Body::from("--X--\r\n"))
+        .unwrap();
+    let headers = req.headers().clone();
+    let multipart = axum::extract::Multipart::from_request(req, &()).await.expect("a multipart request");
+    upload_file(State(state.clone()), Query(query), headers, multipart).await
+}
+
+/// B2. A FILE IN A PRIVATE CONVERSATION IS HELD TO THE ROLE'S PRIVATE LIMIT, not `max_upload_mb`:
+/// with 500 MB for room files and 6 MB for private ones, a 10 MB encrypted upload is refused up
+/// front with words naming the private limit, and the encryption's few bytes on top of 6 MB are
+/// allowed. The peer list's number is the role's.
+///
+/// Seen red 2026-10-11 with `for_request` ignoring `encrypted` (the role's limit for every file):
+/// "a 10 MB private file is refused up front: Err((400, \"No file provided.\"))".
+#[tokio::test]
+async fn a_private_file_is_held_to_the_roles_private_limit() {
+    let state = relay("rules_b2");
+    uploader(&state, "ann", "tok", |r| {
+        r.max_upload_mb = 500;
+        r.max_private_file_mb = 6;
+    })
+    .await;
+    let private = || UploadQuery { token: Some("tok".into()), encrypted: Some(1), ..Default::default() };
+    let refused = upload(&state, private(), 10 * MIB).await;
+    match refused {
+        Err((code, words)) if code == StatusCode::PAYLOAD_TOO_LARGE => {
+            assert_eq!(words, "Files in private conversations are limited to 6 MB for your role on this server.");
+        }
+        other => panic!("a 10 MB private file is refused up front: {other:?}"),
+    }
+    let role = state.db.role_def("verified");
+    let limit = FileLimit::for_request(&role, 0, true);
+    assert_eq!(limit.bytes, 6 * MIB + PRIVATE_ENVELOPE_SLACK, "the encryption's few bytes are allowed on top");
+    assert_eq!(private_limit_mb(&role), 6, "what the peer list says");
+    let room = FileLimit::for_request(&role, 0, false);
+    assert_eq!(room.bytes, 500 * MIB, "a room file keeps the role's own limit");
+}
+
+/// B1. A MEDIA FILE IN ONE REQUEST IS HELD TO THE ROLE'S MEDIA LIMIT TOO, when it has one: with
+/// `max_media_file_mb` 2, a 3 MB `media=1` request is refused up front with the Media words; a
+/// chat file of the same size is not held to it; 0 leaves the role's own limit.
+///
+/// Seen red 2026-10-11 with the Media branch taken out of `for_request`: "a 3 MB Media file over
+/// the role's 2 MB Media limit is refused: Err((400, \"No file provided.\"))".
+#[tokio::test]
+async fn a_media_file_in_one_request_is_held_to_the_roles_media_limit() {
+    let state = relay("rules_b1");
+    uploader(&state, "ann", "tok", |r| {
+        r.max_upload_mb = 25;
+        r.max_media_file_mb = 2;
+    })
+    .await;
+    let media = UploadQuery { token: Some("tok".into()), media: Some(1), ..Default::default() };
+    match upload(&state, media, 3 * MIB).await {
+        Err((code, words)) if code == StatusCode::PAYLOAD_TOO_LARGE => assert_eq!(words, "Media files are limited to 2 MB for your role on this server."),
+        other => panic!("a 3 MB Media file over the role's 2 MB Media limit is refused: {other:?}"),
+    }
+    let role = state.db.role_def("verified");
+    assert_eq!(FileLimit::for_request(&role, 0, false).bytes, 25 * MIB, "a chat file is not held to it");
+    let mut none = role.clone();
+    none.max_media_file_mb = 0;
+    assert_eq!(FileLimit::for_request(&none, crate::relay::storage::media::MEDIA_SHELF, false).bytes, 25 * MIB, "0: the role's own limit");
+}
+
+/// B3. THE DAY'S AND THE HOUR'S ALLOWANCE IN ONE REQUEST: with 10 MB a day and 3 MB uploaded today,
+/// an 8 MB request is refused up front (429) with words naming the limit and the reset; with the
+/// hour's two uploads used, any request is refused until the hour turns; Admin's 0 is no limit.
+/// The counts are fixed windows: midnight UTC and the top of the hour.
+///
+/// Seen red 2026-10-11 with `day_limit` giving no limit: "an 8 MB request past the day's allowance
+/// is refused: Err((400, \"No file provided.\"))".
+#[tokio::test]
+async fn the_days_and_the_hours_allowance_hold_in_one_request() {
+    let state = relay("rules_b3");
+    uploader(&state, "ann", "tok", |r| {
+        r.max_upload_mb = 25;
+        r.max_upload_mb_per_day = 10;
+        r.max_uploads_per_hour = 2;
+    })
+    .await;
+    let now = crate::relay::storage::now_millis() as i64;
+    count_upload(&state.db, "ann", now, 3 * MIB, true);
+    let room = || UploadQuery { token: Some("tok".into()), ..Default::default() };
+    match upload(&state, room(), 8 * MIB).await {
+        Err((code, words)) if code == StatusCode::TOO_MANY_REQUESTS => {
+            assert!(words.starts_with("Your role may upload 10 MB a day on this server, and you have uploaded 3.0 MB today, and this file would pass that."), "{words}");
+            assert!(words.contains("The allowance resets at midnight UTC, in "), "{words}");
+        }
+        other => panic!("an 8 MB request past the day's allowance is refused: {other:?}"),
+    }
+    count_upload(&state.db, "ann", now, 0, true);
+    match upload(&state, room(), MIB).await {
+        Err((code, words)) if code == StatusCode::TOO_MANY_REQUESTS => {
+            assert!(words.contains("2 uploads an hour") && words.contains("at the top of the hour"), "{words}");
+        }
+        other => panic!("a third upload in the hour is refused: {other:?}"),
+    }
+    let admin = state.db.role_def("admin");
+    assert_eq!((admin.max_upload_mb_per_day, admin.max_uploads_per_hour, admin.max_private_held_mb), (0, 0, 0), "Admin: no limits");
+    assert_eq!(allowance_at_start(&state.db, "ann", &admin, now), Ok(None));
+    assert_eq!(Span::Day.starts_at(now) % (24 * 3_600_000), 0);
+    assert_eq!(Span::Hour.resets_at(now) - Span::Hour.starts_at(now), 3_600_000);
+    assert_eq!(in_words(0, 5 * 3_600_000 + 12 * 60_000), "in 5 hours 12 minutes");
+    assert_eq!(in_words(0, 60_000), "in 1 minute");
+    assert_eq!(in_words(0, 0), "in less than a minute");
+}
+
+/// R7 (a). `application/octet-stream` IS JUDGED BY ITS EXTENSION ALONE: an iPhone's `.heic` sent
+/// that way is refused (it used to pass with any extension that was not blocked, and skip every
+/// strip); a `.jpg` or a `.blend` sent that way still goes.
+///
+/// Seen red 2026-10-11 with the type check back as merged (`octet-stream` an allowed type on its
+/// own): "a .heic sent as octet-stream is refused".
+#[test]
+fn octet_stream_is_judged_by_its_extension() {
+    let heic = check_type("IMG_0001.heic", "application/octet-stream", false);
+    assert!(heic.is_err(), "a .heic sent as octet-stream is refused");
+    assert!(heic.unwrap_err().1.starts_with("Unsupported file type"));
+    assert!(check_type("photo.jpg", "application/octet-stream", false).is_ok());
+    assert!(check_type("case.blend", "application/octet-stream", false).is_ok());
+    assert!(check_type("blob.enc", "application/octet-stream", true).is_ok(), "an encrypted file is never judged");
+}

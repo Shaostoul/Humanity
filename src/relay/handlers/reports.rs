@@ -10,7 +10,7 @@
 //! THE MESSAGES (exact names; the clients build against these):
 //! - client to relay, from the signed-in socket: `{"type":"report_v2","target","context",
 //!   "reason","note","evidence":[...],"ts","sig"}` ([`handle_report`]). `context` is one of
-//!   `dm`, `post`, `group`, `profile`; `note` at most [`NOTE_MAX_CHARS`] characters; `sig` the
+//!   `dm`, `post`, `group`, `profile`, `media`; `note` at most [`NOTE_MAX_CHARS`] characters; `sig` the
 //!   reporter's Dilithium3 signature over `"hum/report/v1\n{reporter}\n{target}\n{reason}\n
 //!   {evidence_hash}\n{ts}"` (pq_crypto `report_preimage`), where `evidence_hash` is the
 //!   lowercase hex BLAKE3 of the `evidence` value's JSON text exactly as it arrived (clients send
@@ -36,6 +36,10 @@
 //!   not have, or someone else's, is kept with `checked: false` and no text.
 //! - `{"kind":"group_text","from","ts","text"}`: from a P2P group, whose signature covers the
 //!   encrypted group object, so it cannot be proved here: kept with `checked: false`.
+//! - `{"kind":"media","id"}`: an item on the Media page (2026-10-11, A5). Kept as a pointer, never
+//!   the file: `checked: true` with `uploader`, `title`, `media_kind`, `labels` and `visibility`
+//!   when the item exists and the reported person put it there; else `checked: false` and only
+//!   the number ([`media_evidence`]).
 //! An item of any other kind, or with a field missing, refuses the report. So does an item (or
 //! the note) whose text holds an encrypted file's marker, any version of it, anywhere
 //! ([`DM_FILE_MARKER_PREFIX`], the same rule as the web's `reportTextHasFile`): that marker
@@ -85,8 +89,8 @@ pub const EVIDENCE_MAX_BYTES: usize = 64 * 1024;
 pub const REPORTS_PER_HOUR: usize = 3;
 /// How long before the same reporter may report the same person again, ms (24 hours).
 pub const SAME_TARGET_COOLDOWN_MS: i64 = 24 * 3_600_000;
-/// Where a report was made.
-pub const CONTEXTS: [&str; 4] = ["dm", "post", "group", "profile"];
+/// Where a report was made. `media` (2026-10-11): an item on the Media page (A5).
+pub const CONTEXTS: [&str; 5] = ["dm", "post", "group", "profile", "media"];
 /// What an admin or moderator may decide.
 pub const DECISIONS: [&str; 6] = ["dismiss", "warn", "mute", "kick", "ban", "delete_post"];
 /// The longest `target` read, characters (a Dilithium3 key is 3,904 hex characters).
@@ -330,6 +334,8 @@ enum Item {
     Dm { from: String, to: String, ts: u64, text: String, sig: String },
     Post { from: String, timestamp: u64 },
     GroupText { from: String, ts: u64, text: String },
+    /// An item on the Media page, by its number (A5, 2026-10-11).
+    Media { id: i64 },
 }
 
 impl Item {
@@ -352,7 +358,8 @@ impl Item {
                 ts: num("ts").ok_or_else(missing)?,
                 text: s("text").ok_or_else(missing)?,
             }),
-            _ => Err(format!("evidence item {n} is not a direct message, a post or a group message.")),
+            Some("media") => Ok(Item::Media { id: v.get("id").and_then(Value::as_i64).ok_or_else(missing)? }),
+            _ => Err(format!("evidence item {n} is not a direct message, a post, a group message or a Media item.")),
         }
     }
 
@@ -362,7 +369,7 @@ impl Item {
     fn carries_file(&self) -> bool {
         match self {
             Item::Dm { text, .. } | Item::GroupText { text, .. } => text.contains(DM_FILE_MARKER_PREFIX),
-            Item::Post { .. } => false,
+            Item::Post { .. } | Item::Media { .. } => false,
         }
     }
 
@@ -386,7 +393,28 @@ impl Item {
             Item::GroupText { from, ts, text } => {
                 serde_json::json!({ "kind": "group_text", "from": from, "ts": ts, "text": text, "checked": false })
             }
+            Item::Media { id } => media_evidence(state, id, target),
         }
+    }
+}
+
+/// A Media item as a report keeps it (A5, 2026-10-11): looked up as a public post is. When the
+/// item exists and the reported person put it there, `checked: true` with a POINTER to it, never
+/// the file nor its address: the item's number, its uploader, its title (links and file
+/// addresses in it replaced by a note, as a post's text is), its kind (`media_kind`: picture,
+/// video, model or file), its labels and its visibility. A report hands the admins a pointer, not
+/// a copy; the Reports page opens the item by its number (`GET /api/media?id=`, the members' view
+/// for a members-only one). An item that does not exist, or someone else's, is kept with
+/// `checked: false` and nothing about it. Nothing here names the reporter, so moderators are sent
+/// it as admins are. A members-only item is reportable by members, and every reporter is one:
+/// a report comes from a signed-in socket.
+fn media_evidence(state: &RelayState, id: i64, target: &str) -> Value {
+    match state.db.media_item(id).unwrap_or(None) {
+        Some(item) if item.uploader_key == target => serde_json::json!({
+            "kind": "media", "id": id, "uploader": item.uploader_key, "title": without_files_or_links(&item.title),
+            "media_kind": item.kind, "labels": item.labels, "visibility": item.visibility, "checked": true
+        }),
+        _ => serde_json::json!({ "kind": "media", "id": id, "checked": false }),
     }
 }
 
@@ -464,7 +492,7 @@ fn check_report(state: &RelayState, reporter: &str, raw: &Value, text: &str, now
     }
     let context = field("context").unwrap_or("");
     if !CONTEXTS.contains(&context) {
-        return Err("it does not say where it happened (a direct message, a post, a group or a profile).".to_string());
+        return Err("it does not say where it happened (a direct message, a post, a group, a profile or the Media page).".to_string());
     }
     let note = match raw.get("note") {
         None | Some(Value::Null) => "",

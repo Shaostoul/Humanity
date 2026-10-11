@@ -234,6 +234,12 @@ async fn security_headers(
     // Defense-in-depth with the upload-side extension blocklist. (Audit
     // 2026-06-12.)
     let is_upload = req.uri().path().starts_with("/uploads");
+    // A name that starts with a dot under /uploads is never served (R5, 2026-10-11): an upload
+    // being copied into place has one (storage/media.rs `STAGED_PREFIX`) until it is whole and
+    // counted. Matched before the path is decoded too (`%2e` is a dot).
+    if is_upload && hidden_upload_path(req.uri().path()) {
+        return (axum::http::StatusCode::NOT_FOUND, "Not found").into_response();
+    }
     let mut res = next.run(req).await;
     let h = res.headers_mut();
     if is_upload {
@@ -255,8 +261,15 @@ async fn security_headers(
     res
 }
 
+/// Whether a path names something whose name starts with a dot, written as a dot or as `%2e`:
+/// never served from /uploads (R5).
+pub fn hidden_upload_path(path: &str) -> bool {
+    let lower = path.to_ascii_lowercase();
+    lower.contains("/.") || lower.contains("/%2e")
+}
+
 /// Convert epoch days (since 1970-01-01) to (year, month, day).
-fn epoch_days_to_ymd(days: i64) -> (i64, u32, u32) {
+pub(crate) fn epoch_days_to_ymd(days: i64) -> (i64, u32, u32) {
     // Algorithm from http://howardhinnant.github.io/date_algorithms.html
     let z = days + 719468;
     let era = if z >= 0 { z } else { z - 146096 } / 146097;
@@ -662,6 +675,13 @@ pub async fn run_relay() {
     let parts = upload_limits::clear_part_files(std::path::Path::new(upload_limits::UPLOAD_PART_DIR));
     if parts > 0 {
         tracing::info!("Removed {parts} unfinished upload part file(s)");
+    }
+    // Copies cut off part way into the uploads or the Media waiting folder (R5; storage/media.rs
+    // `STAGED_PREFIX`): hidden, never served or counted, and removed here.
+    let staged = storage::media::clear_staged_files(std::path::Path::new(storage::media::UPLOADS_DIR))
+        + storage::media::clear_staged_files(std::path::Path::new(storage::media::WAITING_DIR));
+    if staged > 0 {
+        tracing::info!("Removed {staged} upload(s) left half copied into place");
     }
     // Resumable uploads (resumable.rs) live on across a restart, so their folder is not cleared:
     // its files and the sessions' rows are made to agree instead (storage/upload_sessions.rs).
@@ -1231,6 +1251,12 @@ pub fn build_router(state: Arc<RelayState>) -> Router {
         .route("/api/media/pick", post(media::pick))
         .route("/api/media/unpick", post(media::unpick))
         .route("/api/media/picks/{key}", get(media::picks_of))
+        // The increment 2 follow-ups (2026-10-11): one person's picks with the list's signed
+        // body (A3), a member's own use of the Media space (A4), and keeping an item on the
+        // server (A7).
+        .route("/api/media/picks", post(media::picks_post))
+        .route("/api/media/mine", get(media::mine).post(media::mine_post))
+        .route("/api/media/keep", post(media::keep))
         .route("/api/media/feature", post(media::feature))
         .route("/api/media/suggest", post(media::suggest))
         .route("/api/media/suggestions", get(media::suggestions).post(media::suggestions_post))

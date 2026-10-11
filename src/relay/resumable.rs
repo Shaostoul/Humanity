@@ -9,13 +9,24 @@
 //! THE ROUTES (registered in relay/mod.rs; all under `/api/upload`, so the Uploads switch in
 //! relay/features.rs covers them):
 //! - `POST /api/upload/resumable?token=` with JSON `{filename, size, content_type, media: 1,
-//!   blake3?}` starts one: 201 `{id, offset: 0, size, chunk_max}`.
-//! - `GET /api/upload/resumable/{id}?token=`: `{offset, size, chunk_max}`, how far it got.
+//!   blake3?, keep_metadata?}` starts one: 201 `{id, offset: 0, size, chunk_max}`.
+//!   `keep_metadata: 1` (B4, 2026-10-11) is the person's choice to keep the file's hidden
+//!   information: the finish skips the picture and video strip.
+//! - `GET /api/upload/resumable/{id}?token=`: `{offset, size, chunk_max}`, how far it got, and once
+//!   the file is stored `done`: the finished upload's answer (R2: an app whose connection dropped
+//!   during the finish finds the stored name here; the row stays until the idle expiry).
 //! - `PATCH /api/upload/resumable/{id}?token=&offset=<n>` with the next piece as the body:
 //!   `{offset, size}`, or for the last piece the finished upload, the same JSON as
 //!   `POST /api/upload` (`{url, filename, size, type}`), which the app then publishes with
-//!   `POST /api/media` as before.
+//!   `POST /api/media` as before. A PATCH on a finished upload answers that same JSON and does
+//!   nothing.
 //! - `DELETE /api/upload/resumable/{id}?token=` cancels: `{ok: true}`.
+//!
+//! THE ALLOWANCES (B3, 2026-10-11): a start is refused when the person's role has used its hour's
+//! uploads or its day's bytes (429 JSON `{error, allowance: "hour"|"day", resets_at}`); a piece
+//! that would pass the day's bytes is refused (429 JSON, the same plus `offset` and `size`),
+//! nothing of it written and the session kept, so the rest comes after the reset. Each piece's
+//! bytes count when they arrive. A role's largest Media file (B1) holds at the start.
 //!
 //! WHAT IS CHECKED, AND WHEN. At the start, before anything is written: the token names a person;
 //! their role may upload; the same type rules and sharing switches as the single request
@@ -58,7 +69,10 @@ use crate::relay::relay::RelayState;
 use crate::relay::storage::media::MEDIA_SHELF;
 use crate::relay::storage::upload_sessions::{part_path, valid_id, UploadSession};
 use crate::relay::upload_limits::{picture_too_large, UploadBody, PICTURE_MAX_BYTES};
-use crate::relay::upload_rules::{check_type, file_type, finish_picture, finish_video, sharing_check, stored_name, token_key, upload_answer, uploader_role};
+use crate::relay::upload_rules::{
+    allowance_at_start, allowance_for_piece, check_type, count_upload, file_type, finish_file_as, finish_picture_as, media_file_limit,
+    media_file_too_large, sharing_check, stored_name, token_key, upload_answer, uploader_role,
+};
 
 /// The largest piece the server takes, stated in its answers so neither app hardcodes it.
 pub const CHUNK_MAX: usize = 8 * 1024 * 1024;
@@ -176,14 +190,20 @@ struct OwnedFolders {
     uploads: PathBuf,
     members: PathBuf,
     resume: PathBuf,
+    waiting: PathBuf,
 }
 
 impl OwnedFolders {
     fn of(f: Folders) -> Self {
-        OwnedFolders { uploads: f.uploads.to_path_buf(), members: f.members.to_path_buf(), resume: f.resume.to_path_buf() }
+        OwnedFolders {
+            uploads: f.uploads.to_path_buf(),
+            members: f.members.to_path_buf(),
+            resume: f.resume.to_path_buf(),
+            waiting: f.waiting.to_path_buf(),
+        }
     }
     fn get(&self) -> Folders<'_> {
-        Folders { uploads: &self.uploads, members: &self.members, resume: &self.resume }
+        Folders { uploads: &self.uploads, members: &self.members, resume: &self.resume, waiting: &self.waiting }
     }
 }
 
@@ -210,6 +230,10 @@ pub struct StartBody {
     /// The BLAKE3 hash of the whole file in hex, if the app has it: the finished file must match.
     #[serde(default)]
     pub blake3: Option<String>,
+    /// 1: the person chose to keep the file's hidden information (B4, 2026-10-11): the finish
+    /// skips the picture and video strip (a picture is still checked to be what it says).
+    #[serde(default)]
+    pub keep_metadata: Option<u8>,
 }
 
 /// `text` trimmed and held to `max` characters.
@@ -256,6 +280,16 @@ pub async fn start_core(state: &Arc<RelayState>, folders: Folders<'_>, token: Op
     if kind.picture(&content_type, false).is_some() && b.size > PICTURE_MAX_BYTES as u64 {
         return Err(picture_too_large(b.size).into());
     }
+    // The role's own largest Media file, when it has one (B1, 2026-10-11; 0 is up to the share).
+    if media_file_limit(&role).is_some_and(|max| b.size > max) {
+        return Err(media_file_too_large(&role).into());
+    }
+    // The hour's count of uploads, and a day's allowance already used up (B3): answered in JSON
+    // with when it resets, so an app can wait and start then. A file bigger than what is left of
+    // today starts: it is stopped at the piece that would pass the allowance, and carries on
+    // after the reset.
+    let now = now_ms();
+    allowance_at_start(&state.db, &key, &role, now).map_err(|over| Refused::Json(StatusCode::TOO_MANY_REQUESTS, over.json()))?;
     let blake3 = match b.blake3.as_deref().map(|h| h.trim().to_lowercase()) {
         None => String::new(),
         Some(h) if h.is_empty() => String::new(),
@@ -264,6 +298,7 @@ pub async fn start_core(state: &Arc<RelayState>, folders: Folders<'_>, token: Op
     };
 
     let size = b.size;
+    let keep_metadata = b.keep_metadata == Some(1);
     let state = state.clone();
     let owned = OwnedFolders::of(folders);
     let id = tokio::task::spawn_blocking(move || -> Result<String, Refused> {
@@ -272,7 +307,8 @@ pub async fn start_core(state: &Arc<RelayState>, folders: Folders<'_>, token: Op
         // The room check and the new row under the room lock (media.rs), so two starts (or a
         // start and a single request's store) cannot both pass on the same room.
         let _room = media::room_lock();
-        let all = db.all_upload_sessions().map_err(db_err)?;
+        // Finished sessions only keep their answer (R2): their files are stored and counted.
+        let all: Vec<UploadSession> = db.all_upload_sessions().map_err(db_err)?.into_iter().filter(|s| !s.finished()).collect();
         let mine: Vec<&UploadSession> = all.iter().filter(|s| s.public_key == key).collect();
         if mine.len() >= OPEN_SESSIONS_MAX {
             return Err(words(
@@ -290,10 +326,9 @@ pub async fn start_core(state: &Arc<RelayState>, folders: Folders<'_>, token: Op
         std::fs::create_dir_all(folders.resume)
             .and_then(|_| std::fs::File::create(&path))
             .map_err(|e| words(StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to start the upload: {e}")))?;
-        let now = now_ms();
         let session = UploadSession {
             id: id.clone(),
-            public_key: key,
+            public_key: key.clone(),
             filename,
             content_type,
             size: size as i64,
@@ -302,11 +337,16 @@ pub async fn start_core(state: &Arc<RelayState>, folders: Folders<'_>, token: Op
             blake3,
             created_at: now,
             touched_at: now,
+            keep_metadata,
+            hash_checked: false,
+            done_answer: String::new(),
         };
         if let Err(e) = db.insert_upload_session(&session) {
             let _ = std::fs::remove_file(&path);
             return Err(db_err(e));
         }
+        // One upload started, against the hour's allowance (B3); its bytes count as they arrive.
+        count_upload(db, &key, now, 0, true);
         Ok(id)
     })
     .await
@@ -338,10 +378,21 @@ async fn own_session(state: &RelayState, token: Option<&str>, id: &str) -> Resul
 
 // ── GET /api/upload/resumable/{id} ──
 
-/// How far the server got: `{offset, size, chunk_max}`.
+/// How far the server got: `{offset, size, chunk_max}`, and once the file is stored `done`, the
+/// finished upload's answer (R2: an app that lost its connection during the finish learns the
+/// stored name here).
 pub async fn status_core(state: &RelayState, id: &str, token: Option<&str>) -> Result<Json<Value>, Refused> {
     let s = own_session(state, token, id).await?;
-    Ok(Json(json!({ "offset": s.offset, "size": s.size, "chunk_max": CHUNK_MAX })))
+    let mut answer = json!({ "offset": s.offset, "size": s.size, "chunk_max": CHUNK_MAX });
+    if let Some(done) = done_answer(&s) {
+        answer["done"] = done;
+    }
+    Ok(Json(answer))
+}
+
+/// A finished session's answer (R2), or None while the file is not stored yet.
+fn done_answer(s: &UploadSession) -> Option<Value> {
+    s.finished().then(|| serde_json::from_str(&s.done_answer).unwrap_or(Value::Null))
 }
 
 pub async fn status(State(state): State<Arc<RelayState>>, Path(id): Path<String>, Query(q): Query<SessionQuery>) -> Response {
@@ -350,7 +401,9 @@ pub async fn status(State(state): State<Arc<RelayState>>, Path(id): Path<String>
 
 // ── DELETE /api/upload/resumable/{id} ──
 
-/// Cancel: the row and the file go. Not while a piece is being written (409).
+/// Cancel: the row and the file go. Not while a piece is being written (409). A finished
+/// session's row goes and its stored upload stays (it is removed through `POST /api/media/remove`
+/// by its file name, like any Media upload not yet published).
 pub async fn cancel_core(state: &RelayState, folders: Folders<'_>, id: &str, token: Option<&str>) -> Result<Json<Value>, Refused> {
     own_session(state, token, id).await?;
     let _writing = Writing::begin(id).ok_or_else(busy)?;
@@ -389,10 +442,18 @@ fn write_piece(path: &std::path::Path, offset: u64, piece: &[u8]) -> std::io::Re
 pub async fn piece_core(state: &Arc<RelayState>, folders: Folders<'_>, id: &str, token: Option<&str>, offset: Option<u64>, piece: Bytes) -> Result<Json<Value>, Refused> {
     own_session(state, token, id).await?;
     let offset = offset.ok_or_else(|| words(StatusCode::BAD_REQUEST, "Say where this piece starts: ?offset=<bytes already sent>."))?;
-    let _writing = Writing::begin(id).ok_or_else(busy)?;
+    // The marker is shared with the blocking work below (R2, 2026-10-11): if the app's connection
+    // drops while a piece is written or the file is finished, this request's future is dropped
+    // but the work goes on, and the marker stays until it is done, so no second request can
+    // write beside it or start a second finish.
+    let writing = Arc::new(Writing::begin(id).ok_or_else(busy)?);
     // Read again now that this request holds the session: a piece that finished a moment ago
     // moved the offset.
     let s = own_session(state, token, id).await?;
+    // Already stored (R2): the same answer again, and nothing done.
+    if let Some(done) = done_answer(&s) {
+        return Ok(Json(done));
+    }
     if offset != s.offset as u64 {
         return Err(Refused::Json(
             StatusCode::CONFLICT,
@@ -413,12 +474,31 @@ pub async fn piece_core(state: &Arc<RelayState>, folders: Folders<'_>, id: &str,
             format!("This piece goes past the end of the file: the file is {} bytes and the piece would end at byte {end}.", s.size),
         ));
     }
-    // The session is in use: the expiry pass leaves it alone while the piece is written.
-    state.db.touch_upload_session(id, now_ms()).map_err(db_err)?;
+    // The session is in use: the expiry pass leaves it alone while the piece is written (and, for
+    // a piece past the day's allowance, for a day from now, which is past the reset).
+    let now = now_ms();
+    state.db.touch_upload_session(id, now).map_err(db_err)?;
+    // The day's allowance (B3): a piece that would pass it is refused, nothing of it written, and
+    // the session kept so the rest can come after the reset. JSON, with where the upload is.
+    if !piece.is_empty() {
+        let role = state.db.role_def(&state.db.get_role(&s.public_key).unwrap_or_default());
+        if let Err(over) = allowance_for_piece(&state.db, &s.public_key, &role, now, piece.len() as u64) {
+            let mut body = over.json();
+            body["offset"] = json!(s.offset);
+            body["size"] = json!(s.size);
+            return Err(Refused::Json(StatusCode::TOO_MANY_REQUESTS, body));
+        }
+    }
     let path = part_path(folders.resume, id).ok_or_else(not_found)?;
     if !piece.is_empty() {
-        let (to, at) = (path.clone(), s.offset as u64);
-        let wrote = tokio::task::spawn_blocking(move || write_piece(&to, at, &piece)).await.map_err(task_err)?;
+        let (to, at, len) = (path.clone(), s.offset as u64, piece.len() as u64);
+        let held = writing.clone();
+        let wrote = tokio::task::spawn_blocking(move || {
+            let _held = held;
+            write_piece(&to, at, &piece)
+        })
+        .await
+        .map_err(task_err)?;
         if let Err(e) = wrote {
             if e.kind() == std::io::ErrorKind::NotFound {
                 // The pieces' file is gone (removed by hand): nothing can be resumed.
@@ -432,6 +512,8 @@ pub async fn piece_core(state: &Arc<RelayState>, folders: Folders<'_>, id: &str,
             let _ = std::fs::remove_file(&path);
             return Err(not_found());
         }
+        // The bytes that arrived count against the day's allowance (B3).
+        count_upload(&state.db, &s.public_key, now, len, false);
     }
     if end < s.size {
         return Ok(Json(json!({ "offset": end, "size": s.size })));
@@ -439,7 +521,14 @@ pub async fn piece_core(state: &Arc<RelayState>, folders: Folders<'_>, id: &str,
     let done = UploadSession { offset: end, ..s };
     let state = state.clone();
     let owned = OwnedFolders::of(folders);
-    tokio::task::spawn_blocking(move || finish(&state, owned.get(), &done)).await.map_err(task_err)?.map(Json)
+    let held = writing.clone();
+    tokio::task::spawn_blocking(move || {
+        let _held = held;
+        finish(&state, owned.get(), &done)
+    })
+    .await
+    .map_err(task_err)?
+    .map(Json)
 }
 
 pub async fn piece(State(state): State<Arc<RelayState>>, Path(id): Path<String>, Query(q): Query<SessionQuery>, body: Bytes) -> Response {
@@ -469,9 +558,11 @@ fn hash_file(path: &std::path::Path) -> std::io::Result<String> {
 ///
 /// Refused and the session removed (the file is not one that can ever be stored): the role or the
 /// sharing switches no longer allow it, a hash that does not match, a picture that is not what it
-/// says. Refused and the session KEPT: no room (507; an empty piece at its end tries again), and a
-/// failure to read or make a folder, which may pass. Stored: the session goes and the answer is
-/// the single request's JSON.
+/// says, a video that cannot be read through or a HEIC photo (422). Refused and the session KEPT:
+/// no room (507; an empty piece at its end tries again), and a failure to read, write or move the
+/// file, which may pass (R3, R5). Stored: the session's row stays, holding the answer (the single
+/// request's JSON), until the idle expiry (R2); the caller holds the one-piece-at-a-time marker
+/// for the whole of it.
 fn finish(state: &RelayState, folders: Folders, s: &UploadSession) -> Result<Value, Refused> {
     let db = &state.db;
     let part = part_path(folders.resume, &s.id).ok_or_else(not_found)?;
@@ -480,6 +571,13 @@ fn finish(state: &RelayState, folders: Folders, s: &UploadSession) -> Result<Val
         let _ = std::fs::remove_file(&part);
         why
     };
+    // A test can hold one named finish at its start (relay/resumable_tests.rs, R2).
+    #[cfg(test)]
+    let _held = (s.filename == tests::HELD_FINISH_NAME).then(|| tests::FINISH_HOLD.lock().unwrap_or_else(|p| p.into_inner()));
+    if !part.is_file() {
+        // The pieces' file is gone (removed by hand): nothing can be finished.
+        return Err(drop_session(words(StatusCode::GONE, "This upload's pieces were lost on the server. Start it again.")));
+    }
 
     // The rules again: a long upload can outlive a change to the role or the switches.
     let settings = db.get_server_settings().unwrap_or_default();
@@ -488,8 +586,11 @@ fn finish(state: &RelayState, folders: Folders, s: &UploadSession) -> Result<Val
     sharing_check(&settings, &role, &s.content_type, false).map_err(|e| drop_session(e.into()))?;
 
     // The hash the app gave at the start: if the file does not match, a resume went wrong and the
-    // file is not the one the app has.
-    if !s.blake3.is_empty() {
+    // file is not the one the app has. Checked ONCE, before anything below changes the file, and
+    // the check is recorded on the row (R1, 2026-10-11): the location strip rewrites boxes in
+    // place, so a finish tried again after a 507 or a crash would hash the stripped file, find it
+    // different, and delete a good upload.
+    if !s.blake3.is_empty() && !s.hash_checked {
         let got = hash_file(&part).map_err(|e| words(StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to read the upload back: {e}")))?;
         if got != s.blake3 {
             return Err(drop_session(words(
@@ -497,20 +598,25 @@ fn finish(state: &RelayState, folders: Folders, s: &UploadSession) -> Result<Val
                 "The file that arrived does not match the file you sent (its BLAKE3 hash differs), so nothing was kept. Send it again from the start.",
             )));
         }
+        db.mark_upload_hash_checked(&s.id).map_err(db_err)?;
     }
 
-    // A picture: its magic bytes and the metadata strip, as in the single request.
+    // A picture: its magic bytes and the metadata strip, as in the single request (the strip
+    // skipped when the person keeps the picture's hidden information, B4).
     let picture = kind.picture(&s.content_type, false);
     let body = match picture {
         Some(p) => {
             let bytes = std::fs::read(&part).map_err(|e| words(StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to read the upload back: {e}")))?;
-            UploadBody::Bytes(finish_picture(p, bytes).map_err(|e| drop_session(e.into()))?.into())
+            UploadBody::Bytes(finish_picture_as(p, bytes, s.keep_metadata).map_err(|e| drop_session(e.into()))?.into())
         }
         None => {
-            // A video's hidden location removed in place, as in the single request (BUG-190). A
-            // file that cannot be read through is refused and its session removed: sending it
-            // again would not change it.
-            finish_video(&part).map_err(|e| drop_session(e.into()))?;
+            // A video's hidden location removed in place, as in the single request (BUG-190), and a
+            // HEIC or AVIF photo refused (R7). Only a file that can never be stored removes the
+            // session (422: it cannot be read through, or it is a photo the strip cannot clean);
+            // a failure to read or write the file may pass, so the session is kept for another
+            // try (R3, 2026-10-11).
+            finish_file_as(&part, s.keep_metadata)
+                .map_err(|e| if e.0 == StatusCode::UNPROCESSABLE_ENTITY { drop_session(e.into()) } else { e.into() })?;
             UploadBody::Part(part.clone())
         }
     };
@@ -522,19 +628,26 @@ fn finish(state: &RelayState, folders: Folders, s: &UploadSession) -> Result<Val
     let kind_word = file_type(&s.content_type, &ext, false);
     let name = stored_name(&s.filename, &ext);
 
-    std::fs::create_dir_all(folders.uploads).map_err(|e| words(StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to create upload dir: {e}")))?;
-    let new = NewUpload { key: &s.public_key, shelf: s.shelf, name: &name, original_name: &s.filename, len, keep: role.max_uploads_kept.max(1) };
-    match media::store_upload(db, &settings, folders, &new, |path| body.put(path)) {
+    let new = NewUpload { key: &s.public_key, shelf: s.shelf, name: &name, original_name: &s.filename, len, keep: role.max_uploads_kept.max(1), private_held_limit: None };
+    match media::store_upload(db, &settings, folders, &new, |path| body.put(path), |path| body.unstage(path)) {
         Ok(old_files) => {
             media::delete_pruned(folders, &old_files);
-            let _ = db.delete_upload_session(&s.id);
-            // A picture was stored from its stripped bytes; the pieces' file is done with.
+            // A picture was stored from its stripped bytes, a copy from another disk left the
+            // pieces' file behind: either way it is done with.
             let _ = std::fs::remove_file(&part);
-            Ok(upload_answer(&name, len, kind_word))
+            let answer = upload_answer(&name, len, kind_word);
+            // The row stays with the answer until the idle expiry (R2): an app whose connection
+            // dropped during this finish asks (GET) and is told the stored name.
+            if let Err(e) = db.finish_upload_session(&s.id, &answer.to_string(), now_ms()) {
+                tracing::error!("Resumable upload {}: stored, but its answer could not be kept ({e})", s.id);
+            }
+            Ok(answer)
         }
         // No room: nothing was moved, so the session and its file stay for another try.
         Err((StatusCode::INSUFFICIENT_STORAGE, room)) => Err(words(StatusCode::INSUFFICIENT_STORAGE, room + KEPT_WORDS)),
-        Err(e) => Err(drop_session(e.into())),
+        // A failure to put the file in place: store_upload undid it (the pieces' file is back), so
+        // the session stays for another try (R5).
+        Err(e) => Err(e.into()),
     }
 }
 

@@ -36,20 +36,33 @@ impl UploadBody {
             UploadBody::Part(p) => std::fs::metadata(p).map(|m| m.len() as usize).unwrap_or(0),
         }
     }
-    /// Put it at `path`: write the bytes, or move the part file there.
+    /// Put it at `path` (media.rs `store_upload` hands a hidden name in the destination folder):
+    /// write the bytes, or move the part file there; a part file on another disk is COPIED and
+    /// kept (R5, 2026-10-11): a copy that fails part way never loses the file it came from, which
+    /// for a resumable upload is the only copy of what was sent. [`UploadBody::discard`] removes
+    /// the part once the upload is stored (or refused).
     pub(crate) fn put(&self, path: &std::path::Path) -> std::io::Result<()> {
         match self {
             UploadBody::Bytes(b) => std::fs::write(path, b),
-            UploadBody::Part(p) => std::fs::rename(p, path).or_else(|_| {
-                // A part directory on another disk: copy, then remove the part (whether the copy
-                // worked or not: a part file is never left behind).
-                let copied = std::fs::copy(p, path);
-                let _ = std::fs::remove_file(p);
-                copied.map(|_| ())
-            }),
+            UploadBody::Part(p) => std::fs::rename(p, path).or_else(|_| std::fs::copy(p, path).map(|_| ())),
         }
     }
-    /// Not stored after all: a part file is removed.
+    /// Undo [`UploadBody::put`] when the upload was refused after it: a part file that was moved
+    /// goes back where it was; a copy, or written bytes, are deleted.
+    pub(crate) fn unstage(&self, path: &std::path::Path) {
+        match self {
+            UploadBody::Part(p) if !p.exists() => {
+                if let Err(e) = std::fs::rename(path, p) {
+                    tracing::error!("An upload refused after it was put in place could not go back ({e}); removing it");
+                    let _ = std::fs::remove_file(path);
+                }
+            }
+            _ => {
+                let _ = std::fs::remove_file(path);
+            }
+        }
+    }
+    /// Not stored after all, or stored from a copy: a part file is removed.
     pub(crate) fn discard(&self) {
         if let UploadBody::Part(p) = self {
             let _ = std::fs::remove_file(p);

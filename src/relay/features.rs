@@ -919,6 +919,82 @@ mod tests {
         assert_eq!(live_count(&state, &key).await, 0);
     }
 
+    /// C (2026-10-11). EACH SOCKET'S UPLOAD TOKEN ENDS WITH THAT SOCKET: one person signs in twice
+    /// (the chat and a standalone page such as Media); the registration shows the newest socket's
+    /// token. Closing the OLDER socket ends its own token while the newer one stays good; closing
+    /// the newer then ends that one; no token of theirs is left.
+    ///
+    /// Seen red 2026-10-11 with the teardown's `forget_upload_token` call taken out (as merged:
+    /// only the registration's token went, and only with the last socket): "the closed socket's
+    /// token stops working".
+    #[tokio::test]
+    async fn each_sockets_upload_token_ends_with_that_socket() {
+        let (state, port) = spawn_relay("upload_tokens_end", Features::all_enabled()).await;
+        let seed = [53u8; 32];
+        let tokens_of = |key: String| {
+            let state = state.clone();
+            async move {
+                let tokens = state.upload_tokens.read().await;
+                let mut mine: Vec<String> = tokens.iter().filter(|(_, k)| **k == key).map(|(t, _)| t.clone()).collect();
+                mine.sort();
+                mine
+            }
+        };
+        let (mut older, key) = bind_socket(&state, port, seed, Some("TwoPages"), 1).await;
+        let older_token = state.peers.read().await[&key].upload_token.clone().expect("a token");
+        let (mut newer, _) = bind_socket(&state, port, seed, Some("TwoPages"), 2).await;
+        let newer_token = state.peers.read().await[&key].upload_token.clone().expect("a token");
+        assert_ne!(older_token, newer_token, "each socket has its own");
+        assert_eq!(tokens_of(key.clone()).await.len(), 2, "both are good while both are open");
+
+        use futures::SinkExt;
+        older.close(None).await.ok();
+        assert!(wait_until(|| async { live_count(&state, &key).await == 1 }).await);
+        let gone = wait_until(|| async { !state.upload_tokens.read().await.contains_key(&older_token) }).await;
+        assert!(gone, "the closed socket's token stops working");
+        assert!(state.upload_tokens.read().await.contains_key(&newer_token), "the open socket's token stays good");
+        assert_eq!(state.peers.read().await[&key].upload_token.as_deref(), Some(newer_token.as_str()), "the registration shows the newest");
+
+        newer.close(None).await.ok();
+        assert!(wait_until(|| async { !state.peers.read().await.contains_key(&key) }).await);
+        assert!(tokens_of(key.clone()).await.is_empty(), "no token of theirs is left");
+    }
+
+    /// W9 (2026-10-11). THE "NO ADMIN YET" NOTICE GOES TO THE SOCKET THAT SIGNED IN, ONLY: on a
+    /// server nobody has claimed, a second socket of the same person (a standalone page, or a
+    /// reconnect) is told, and the first socket is not told again.
+    ///
+    /// Seen red 2026-10-11 with the notice sent as a Private to the key again (as merged): "the
+    /// first socket is not told again: [\"This server has no admin yet. ...\"]".
+    #[tokio::test]
+    async fn the_unclaimed_notice_goes_to_the_signing_in_socket_only() {
+        let (state, port) = spawn_relay("unclaimed_once", Features::all_enabled()).await;
+        *state.claim_code.write().await = Some("claim-test".into());
+        let seed = [54u8; 32];
+        /// The notices a socket is sent within 0.8 s.
+        async fn notices(sock: &mut TestSocket) -> Vec<String> {
+            use futures::StreamExt;
+            let mut heard = Vec::new();
+            let _ = tokio::time::timeout(std::time::Duration::from_millis(800), async {
+                while let Some(Ok(msg)) = sock.next().await {
+                    if let Ok(text) = msg.into_text() {
+                        if text.contains("has no admin yet") {
+                            heard.push(text.to_string());
+                        }
+                    }
+                }
+            })
+            .await;
+            heard
+        }
+        let (mut first, _) = bind_socket(&state, port, seed, Some("Unclaimed"), 1).await;
+        assert_eq!(notices(&mut first).await.len(), 1, "the first socket is told");
+        let (mut second, _) = bind_socket(&state, port, seed, Some("Unclaimed"), 2).await;
+        assert_eq!(notices(&mut second).await.len(), 1, "the second socket is told");
+        let again = notices(&mut first).await;
+        assert!(again.is_empty(), "the first socket is not told again: {again:?}");
+    }
+
     type TestSocket =
         tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
 

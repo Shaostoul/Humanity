@@ -55,9 +55,12 @@ impl Storage {
                 params![public_key, filename, now, shared, original_name, size_bytes],
             )?;
 
-            // Count this key's NON-shared uploads (the media-FIFO population).
+            // Count this key's NON-shared uploads (the media-FIFO population). Files from private
+            // conversations (`.enc`, storage/private_files.rs) are not in it (B5, 2026-10-11): they
+            // would push out the person's own room posts, and the room posts would delete the
+            // files their DMs point at. Their lifetime and the role's held limit bound them.
             let count: i64 = conn.query_row(
-                "SELECT COUNT(*) FROM user_uploads WHERE public_key = ?1 AND shared = 0",
+                "SELECT COUNT(*) FROM user_uploads WHERE public_key = ?1 AND shared = 0 AND LOWER(filename) NOT LIKE '%.enc'",
                 params![public_key],
                 |row| row.get(0),
             )?;
@@ -68,7 +71,7 @@ impl Storage {
                 // Find the oldest NON-shared uploads to delete.
                 let mut stmt = conn.prepare(
                     "SELECT id, filename FROM user_uploads
-                     WHERE public_key = ?1 AND shared = 0 ORDER BY id ASC LIMIT ?2",
+                     WHERE public_key = ?1 AND shared = 0 AND LOWER(filename) NOT LIKE '%.enc' ORDER BY id ASC LIMIT ?2",
                 )?;
                 let rows: Vec<(i64, String)> = stmt.query_map(params![public_key, excess], |row| {
                     Ok((row.get(0)?, row.get(1)?))

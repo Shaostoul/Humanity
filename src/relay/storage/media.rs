@@ -34,27 +34,84 @@ pub const MEMBERS_DIR: &str = "data/media-members";
 /// (relay/resumable.rs, storage/upload_sessions.rs). Nothing serves it, and `clear_part_files`
 /// never touches it: a session survives a restart, which is the point of it.
 pub const RESUME_DIR: &str = "data/uploads-resume";
+/// Where a Media upload waits until it is published (R6, 2026-10-11): nothing serves it, so an
+/// upload meant for members only, or any upload on a members-only server, is never at a public
+/// address before it is published. Publishing moves the file to the public folder or the
+/// members-only one; the unpublished expiry and a removal by name delete it from here.
+pub const WAITING_DIR: &str = "data/media-waiting";
 /// How long a Media upload waits to be published before the expiry pass deletes it, file and
 /// row (storage/expiry.rs; the review's F1).
 pub const UNPUBLISHED_KEEP_MS: i64 = 24 * 60 * 60 * 1000;
 
-/// Where the Media page's files are: the public uploads folder, the members-only one, and the
-/// folder where resumable uploads gather their pieces (2026-10-11). The relay's own are
-/// [`Folders::live`]; a test names folders of its own, so nothing it does lands in the
-/// checkout's data folder. [`Folders::find`], [`Folders::delete`] and [`Folders::place`] work on
-/// the first two only: a piece of an unfinished upload is never a published file.
+/// Where the Media page's files are: the public uploads folder, the members-only one, the folder
+/// where resumable uploads gather their pieces (2026-10-11), and the folder where a Media upload
+/// waits to be published (R6). The relay's own are [`Folders::live`]; a test names folders of its
+/// own, so nothing it does lands in the checkout's data folder. [`Folders::find`],
+/// [`Folders::delete`] and [`Folders::place`] work on the public, members-only and waiting
+/// folders: a piece of an unfinished upload is never a stored file.
 #[derive(Debug, Clone, Copy)]
 pub struct Folders<'a> {
     pub uploads: &'a Path,
     pub members: &'a Path,
     pub resume: &'a Path,
+    pub waiting: &'a Path,
 }
 
 impl Folders<'static> {
-    /// The relay's own folders, `data/uploads`, `data/media-members` and `data/uploads-resume`.
+    /// The relay's own folders, `data/uploads`, `data/media-members`, `data/uploads-resume` and
+    /// `data/media-waiting`.
     pub fn live() -> Self {
-        Folders { uploads: Path::new(UPLOADS_DIR), members: Path::new(MEMBERS_DIR), resume: Path::new(RESUME_DIR) }
+        Folders {
+            uploads: Path::new(UPLOADS_DIR),
+            members: Path::new(MEMBERS_DIR),
+            resume: Path::new(RESUME_DIR),
+            waiting: Path::new(WAITING_DIR),
+        }
     }
+}
+
+/// Which of the three folders a stored file is in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Spot {
+    /// The public uploads folder, served at `/uploads`.
+    Public,
+    /// The members-only folder, served only by the members' file route.
+    Members,
+    /// The Media waiting folder, which nothing serves (R6).
+    Waiting,
+}
+
+/// The start of every name a file is given while it is copied into a folder (R5, 2026-10-11):
+/// a file whose name starts with a dot is never served at `/uploads` (relay/mod.rs
+/// `security_headers`), never counted in a folder's size ([`folder_bytes`]), and removed at
+/// start ([`clear_staged_files`]), so a copy that fails part way never becomes a public orphan.
+pub const STAGED_PREFIX: &str = ".incoming-";
+
+/// The total size of the files in `dir` (not its folders), leaving out names that start with a
+/// dot (a copy still arriving, [`STAGED_PREFIX`]); 0 when it cannot be read.
+pub fn folder_bytes(dir: &Path) -> u64 {
+    std::fs::read_dir(dir)
+        .map(|entries| {
+            entries
+                .filter_map(|e| e.ok())
+                .filter(|e| !e.file_name().to_string_lossy().starts_with('.'))
+                .filter_map(|e| e.metadata().ok())
+                .filter(|m| m.is_file())
+                .map(|m| m.len())
+                .sum()
+        })
+        .unwrap_or(0)
+}
+
+/// Remove every file left half copied in `dir` ([`STAGED_PREFIX`]): called at start, when no
+/// upload can be arriving. How many were removed.
+pub fn clear_staged_files(dir: &Path) -> usize {
+    let Ok(entries) = std::fs::read_dir(dir) else { return 0 };
+    entries
+        .filter_map(|e| e.ok())
+        .filter(|e| e.file_name().to_string_lossy().starts_with(STAGED_PREFIX))
+        .filter(|e| std::fs::remove_file(e.path()).is_ok())
+        .count()
 }
 
 /// A stored file name that is safe to join to a folder: not empty, no separator, no "..".
@@ -63,38 +120,65 @@ pub fn bare_name(name: &str) -> bool {
 }
 
 impl Folders<'_> {
-    /// Where `name` is now: the members-only folder first, then the public one.
+    /// The folder of `spot`.
+    pub fn dir(&self, spot: Spot) -> &Path {
+        match spot {
+            Spot::Public => self.uploads,
+            Spot::Members => self.members,
+            Spot::Waiting => self.waiting,
+        }
+    }
+
+    /// Where `name` is now: the members-only folder first, then the public one, then the Media
+    /// waiting folder.
     pub fn find(&self, name: &str) -> Option<PathBuf> {
+        self.spot_of(name).map(|s| self.dir(s).join(name))
+    }
+
+    /// Which folder `name` is in, if any.
+    pub fn spot_of(&self, name: &str) -> Option<Spot> {
         if !bare_name(name) {
             return None;
         }
-        [self.members, self.uploads].into_iter().map(|d| d.join(name)).find(|p| p.is_file())
+        [Spot::Members, Spot::Public, Spot::Waiting].into_iter().find(|s| self.dir(*s).join(name).is_file())
     }
 
-    /// Delete `name` from both folders; whether a file was deleted.
+    /// Delete `name` from all three folders; whether a file was deleted.
     pub fn delete(&self, name: &str) -> bool {
         if !bare_name(name) {
             return false;
         }
         let members = std::fs::remove_file(self.members.join(name)).is_ok();
         let public = std::fs::remove_file(self.uploads.join(name)).is_ok();
-        members || public
+        let waiting = std::fs::remove_file(self.waiting.join(name)).is_ok();
+        members || public || waiting
     }
 
-    /// Move `name` into the members-only folder (`members`) or back to the public one; whether
-    /// it moved. A file already there, or in neither, is left alone. A copy (another disk) that
-    /// cannot remove its source removes the copy and fails, so a file is never in both.
+    /// Move `name` into the members-only folder (`members`) or the public one, from wherever it is;
+    /// whether it moved ([`Folders::move_to`]).
     pub fn place(&self, name: &str, members: bool) -> std::io::Result<bool> {
+        Ok(self.move_to(name, if members { Spot::Members } else { Spot::Public })?.is_some())
+    }
+
+    /// Move `name` into `to` from whichever other folder holds it (a Media upload waiting to be
+    /// published is in the waiting folder, R6), and say where it was: None when it is already
+    /// there or in none. A copy (another disk) that cannot remove its source removes the copy and
+    /// fails, so a file is never in two folders.
+    pub fn move_to(&self, name: &str, to: Spot) -> std::io::Result<Option<Spot>> {
         if !bare_name(name) {
             return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "not a bare file name"));
         }
-        let (from, to) = if members { (self.uploads, self.members) } else { (self.members, self.uploads) };
-        let src = from.join(name);
-        if !src.is_file() {
-            return Ok(false);
+        let dst_dir = self.dir(to);
+        if dst_dir.join(name).is_file() {
+            return Ok(None);
         }
-        std::fs::create_dir_all(to)?;
-        let dst = to.join(name);
+        let Some(from) = [Spot::Waiting, Spot::Public, Spot::Members].into_iter().filter(|s| *s != to).find(|s| self.dir(*s).join(name).is_file())
+        else {
+            return Ok(None);
+        };
+        let src = self.dir(from).join(name);
+        std::fs::create_dir_all(dst_dir)?;
+        let dst = dst_dir.join(name);
         if std::fs::rename(&src, &dst).is_err() {
             std::fs::copy(&src, &dst)?;
             if let Err(e) = std::fs::remove_file(&src) {
@@ -102,7 +186,7 @@ impl Folders<'_> {
                 return Err(e);
             }
         }
-        Ok(true)
+        Ok(Some(from))
     }
 }
 
@@ -217,6 +301,16 @@ pub struct MediaItem {
     pub published_at: i64,
     /// How many people picked it.
     pub picks: i64,
+    /// The uploader's own name for the file (`user_uploads.original_name`; '' when unknown), so a
+    /// download of a members-only file is named properly (A1, 2026-10-11).
+    pub original_name: String,
+    /// Whether removing the item keeps its file: true when its upload came from chat or Shared
+    /// Files (`from_shelf` 0 or 1, [`was_public`]), which gets it back; false for an upload made
+    /// for Media, whose file is deleted (A1).
+    pub keeps_file: bool,
+    /// Whether an admin or a moderator keeps it on the server (A7): it then counts against the
+    /// Media budget but not its uploader's share, and is in no prune list.
+    pub kept: bool,
 }
 
 /// One category, in the order the page shows them.
@@ -276,6 +370,10 @@ pub struct MediaQuery {
     pub limit: Option<i64>,
     pub members: bool,
     pub picked_by: Option<String>,
+    /// Featured items only (A2, 2026-10-11).
+    pub featured: bool,
+    /// One item by its number (the admins' Reports page opens a reported item by it, A5).
+    pub id: Option<i64>,
 }
 
 /// One person's use of the Media space.
@@ -312,6 +410,8 @@ pub struct MediaUsage {
     pub least_viewed: Vec<MediaItem>,
     /// Media uploads waiting to be published, oldest first.
     pub waiting: Vec<WaitingUpload>,
+    /// Bytes of the items the server keeps (A7): inside `used_bytes`, in nobody's share.
+    pub kept_bytes: i64,
 }
 
 /// What removing an item left for the route to do with its file: give it back to the public
@@ -382,23 +482,30 @@ pub const KINDS: [&str; 4] = ["picture", "video", "model", "file"];
 /// The bytes counted against the Media space: every upload on the Media shelf and every upload
 /// published as an item (an upload from the Shared Files library counts once published), for
 /// `key` alone or for everyone, leaving out `except` (an upload being published, already counted
-/// if it was a Media upload).
+/// if it was a Media upload). For one person, an item the server keeps (A7) is left out: it
+/// counts against the Media budget, not against its uploader's share.
 fn media_bytes_on(conn: &Connection, key: Option<&str>, except: Option<&str>) -> Result<i64, rusqlite::Error> {
     conn.query_row(
         "SELECT COALESCE(SUM(size_bytes), 0) FROM user_uploads
          WHERE (shared = ?1 OR filename IN (SELECT upload_filename FROM media_items))
            AND (?2 IS NULL OR public_key = ?2)
+           AND (?2 IS NULL OR filename NOT IN (SELECT upload_filename FROM media_items WHERE kept_by IS NOT NULL))
            AND (?3 IS NULL OR filename != ?3)",
         params![MEDIA_SHELF, key, except],
         |r| r.get(0),
     )
 }
 
-/// The columns of [`MediaItem`] in [`item_from_row`]'s order, over `media_items m`.
+/// The columns of [`MediaItem`] in [`item_from_row`]'s order, over `media_items m`. The last
+/// three (2026-10-11): the item's `from_shelf` (A1, `keeps_file`), the uploader's own name for
+/// the file, and whether the server keeps it (A7).
 const ITEM_COLUMNS: &str = "m.id, m.upload_filename, m.uploader_key, COALESCE(sm.name, ''), m.title, m.description,
     m.category_id, COALESCE(c.name, ''), m.kind, m.labels, m.visibility, m.featured, m.size_bytes, m.views,
     COALESCE((SELECT MIN(u.uploaded_at) FROM user_uploads u WHERE u.filename = m.upload_filename), m.created_at),
-    m.created_at, (SELECT COUNT(*) FROM media_picks p WHERE p.item_id = m.id)";
+    m.created_at, (SELECT COUNT(*) FROM media_picks p WHERE p.item_id = m.id),
+    m.from_shelf,
+    COALESCE((SELECT u.original_name FROM user_uploads u WHERE u.filename = m.upload_filename ORDER BY u.id LIMIT 1), ''),
+    m.kept_by IS NOT NULL";
 const ITEM_JOINS: &str = "FROM media_items m
     LEFT JOIN server_members sm ON sm.public_key = m.uploader_key
     LEFT JOIN media_categories c ON c.id = m.category_id";
@@ -423,6 +530,9 @@ fn item_from_row(r: &rusqlite::Row) -> Result<MediaItem, rusqlite::Error> {
         uploaded_at: r.get(14)?,
         published_at: r.get(15)?,
         picks: r.get(16)?,
+        keeps_file: was_public(r.get(17)?),
+        original_name: r.get(18)?,
+        kept: r.get(19)?,
     })
 }
 
@@ -431,9 +541,10 @@ fn item_by_id(conn: &Connection, id: i64) -> Result<Option<MediaItem>, rusqlite:
         .optional()
 }
 
-/// Items by an ORDER BY over `media_items m`, `limit` of them, for the prune lists.
+/// Items by an ORDER BY over `media_items m`, `limit` of them, for the prune lists: never an item
+/// the server keeps (A7), which is not for pruning.
 fn items_ordered(conn: &Connection, order: &str, limit: i64) -> Result<Vec<MediaItem>, rusqlite::Error> {
-    let mut stmt = conn.prepare(&format!("SELECT {ITEM_COLUMNS} {ITEM_JOINS} ORDER BY {order} LIMIT ?1"))?;
+    let mut stmt = conn.prepare(&format!("SELECT {ITEM_COLUMNS} {ITEM_JOINS} WHERE m.kept_by IS NULL ORDER BY {order} LIMIT ?1"))?;
     let rows = stmt.query_map(params![limit], item_from_row)?.collect::<Result<Vec<_>, _>>()?;
     Ok(rows)
 }
@@ -634,11 +745,13 @@ impl Storage {
                    AND (?5 IS NULL OR m.id < ?5)
                    AND (?6 = 1 OR m.visibility = 'public')
                    AND (?7 IS NULL OR m.id IN (SELECT item_id FROM media_picks WHERE picker_key = ?7))
+                   AND (?9 = 0 OR m.featured = 1)
+                   AND (?10 IS NULL OR m.id = ?10)
                  ORDER BY m.id DESC LIMIT ?8"
             ))?;
             let rows = stmt
                 .query_map(
-                    params![q.category, q.kind, q.by, search, q.before, q.members as i64, q.picked_by, limit],
+                    params![q.category, q.kind, q.by, search, q.before, q.members as i64, q.picked_by, limit, q.featured as i64, q.id],
                     item_from_row,
                 )?
                 .collect::<Result<Vec<_>, _>>()?;
@@ -1013,7 +1126,8 @@ impl Storage {
                         (SELECT COUNT(*) FROM media_items m WHERE m.uploader_key = u.public_key)
                  FROM user_uploads u
                  LEFT JOIN server_members sm ON sm.public_key = u.public_key
-                 WHERE u.shared = ?1 OR u.filename IN (SELECT upload_filename FROM media_items)
+                 WHERE (u.shared = ?1 OR u.filename IN (SELECT upload_filename FROM media_items))
+                   AND u.filename NOT IN (SELECT upload_filename FROM media_items WHERE kept_by IS NOT NULL)
                  GROUP BY u.public_key ORDER BY SUM(u.size_bytes) DESC, u.public_key ASC",
             )?;
             let people = stmt
@@ -1048,10 +1162,22 @@ impl Storage {
                 oldest: items_ordered(conn, "m.created_at ASC, m.id ASC", USAGE_LIST_LEN)?,
                 least_viewed: items_ordered(conn, "m.views ASC, m.created_at ASC, m.id ASC", USAGE_LIST_LEN)?,
                 waiting,
+                kept_bytes: conn.query_row(
+                    "SELECT COALESCE(SUM(size_bytes), 0) FROM user_uploads
+                     WHERE filename IN (SELECT upload_filename FROM media_items WHERE kept_by IS NOT NULL)",
+                    [],
+                    |r| r.get(0),
+                )?,
             })
         })
     }
 }
+
+// The increment 2 follow-ups' storage (2026-10-11): keeping an item, picks among a list, a
+// person's own waiting uploads.
+#[path = "media_extra.rs"]
+mod extra;
+pub use extra::MyWaitingUpload;
 
 #[cfg(test)]
 #[path = "media_tests.rs"]

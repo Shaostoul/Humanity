@@ -496,6 +496,15 @@ broken box size, the boxes behind it at that level cannot be found, so a report 
 `stopped_early` entries means "better, not proven clean"; the wiring should decide what that means
 for the upload (keeping such a video private is one option).
 
+**HEIC and AVIF photos (R7, 2026-10-11).** An iPhone photo saved as HEIC, or an AVIF, is in the
+same box family as an MP4 but has no movie in it: its location sits in the top-level `meta` box,
+which also holds the picture, so this strip leaves it alone, and nothing else here can clean one
+yet. Such a file is refused on every shelf that is not encrypted ("HEIC and AVIF photos cannot be
+cleaned of where they were taken yet. Save it as a JPEG and send that."), unless the person chose
+to keep its hidden information (`keep_metadata=1`). A video cut off before its movie box looks the
+same and gets the same words. A file sent as `application/octet-stream` is now judged by its
+extension alone, so a `.heic` cannot slip in that way either.
+
 ## Increment 2 follow-ups, exact (relay first, then both apps; 2026-10-11)
 
 What both apps' builders found missing from the server, and the operator's answer on file sizes.
@@ -550,6 +559,130 @@ removed when that connection closes, whatever else is open, and a test holds it.
 
 **Proof.** Relay tests for each of A1 to A5, B1, B2 and C, each seen failing once; then the apps'
 own tests for what they draw from them.
+
+**As built (relay, 2026-10-11).** The relay half of A1 to A5 and A7, B1 to B5, C, and the
+reviews' W3b, W5, W9 and R1 to R7. The apps are written against this. Code: relay/media.rs (routes),
+storage/media.rs and its child storage/media_extra.rs, relay/upload_rules.rs (the size limits and
+allowances both upload routes share), storage/upload_counts.rs, storage/private_files.rs,
+relay/resumable.rs, handlers/reports.rs, storage/roles.rs, relay.rs. Tests:
+relay/media_follow_ups_tests.rs, relay/resumable_follow_ups_tests.rs, relay/upload_rules_tests.rs,
+the A5 test in handlers/reports_tests.rs, the C and W9 tests in relay/features.rs, the roles
+upgrade test in storage/roles.rs; each seen failing once.
+
+- **A1.** Every item carries `original_name` (the uploader's own name for the file, '' when
+  unknown), `keeps_file` (true: Remove gives the file back to chat or Shared Files; false: Remove
+  deletes it) and `kept` (A7).
+- **A2.** `featured=1` on `GET /api/media`, `POST /api/media/list` and both picks routes. Added
+  beside it: `id=<n>`, one item by its number when the viewer may see it, which is how the
+  Reports page opens a reported item (A5).
+- **A3.** `POST /api/media/picks`: the list's signed body (`key, timestamp, sig`, purpose
+  `media_list`) plus `of` (whose picks; 400 without it), answered like the list. In the members'
+  view every item of every list answer carries `picked_by_me`; the public view has no such field.
+- **A4.** `GET /api/media/mine?key=&timestamp=&sig=` and `POST /api/media/mine` with
+  `{key, timestamp, sig}`, purpose `media_mine`, members only (403 "Only members of this server
+  have a share of its Media space."). Answer: `{used_bytes, share_bytes, budget_left_bytes,
+  in_progress_bytes, file_limit_bytes, waiting: [{filename, original_name, size_bytes,
+  uploaded_at}]}`. `used_bytes` is the room check's own count (items and uploads waiting to be
+  published; kept items left out). Two fields added to the spec: `in_progress_bytes`, the person's
+  resumable uploads still arriving (a new resumable start counts them as used, so "left" for a
+  resumable upload is `share_bytes - used_bytes - in_progress_bytes`), and `file_limit_bytes`,
+  the role's largest Media file (B1; 0 means none, up to the share).
+- **A5.** Report context `media`, evidence `{kind: "media", id}`. Kept as a pointer, never the file
+  or an address: `{kind: "media", id, uploader, title, media_kind, labels, visibility, checked:
+  true}` when the item exists and its uploader is the reported person (the title's links and file
+  addresses replaced by a note, as a post's text is); `{kind: "media", id, checked: false}`
+  otherwise. Nothing in it names the reporter, so moderators are sent it whole, like admins.
+- **A7.** `POST /api/media/keep` `{key, timestamp, sig, id, filename, kept}` (`kept` defaults to
+  true), purpose `media_keep:<id>:<on|off>`, for admins, the owner and moderators (403 "Only an
+  admin or a moderator can keep Media items on the server."); answer `{ok, id, kept}`.
+  `media_items.kept_by` and `kept_at` are in the table's CREATE TABLE. A kept item counts against
+  the Media budget and not its uploader's share (`media_bytes_on`), is in no prune list and in no
+  person's line of the usage, and the usage answer gains `kept_bytes`. Un-keeping counts it against
+  the share again, past it if so: nothing is deleted for that. The uploader can still remove it.
+  An admin's or moderator's account erase blanks `kept_by` to '' (the item stays kept); the
+  export lists `media_items_kept`.
+- **W5.** `media_items.id` is AUTOINCREMENT, so a removed item's number is never reused. Remove
+  by number, Feature, Keep, Visibility, Pick and Unpick all require `filename` (the item's stored
+  file name, or its `/uploads/` address): none is 400 "Name the item's file too (`filename`), so a
+  page that is out of date never acts on another item."; another item's file is 409 "That is not
+  the Media item you were looking at: the page is out of date. Load it again."; no such item 404.
+  The signed purposes are unchanged.
+- **W3b.** `GET /api/media/file/{id}` takes the session's upload token in the `X-Upload-Token`
+  header as well as `?token=`. The apps move to the header and show the file through an address of
+  their own; `?token=` keeps working for now.
+- **W9.** The "no admin yet" notice goes to the socket that signed in, only.
+- **B1.** Role field `max_media_file_mb` (0, every role's default: up to the share). Checked at the
+  resumable start and on `media=1` single requests: 413 "Media files are limited to N MB for your
+  role on this server." A single request keeps `max_upload_mb` too: the tighter of the two holds.
+- **B2.** Role field `max_private_file_mb` (default 6, kept 1 to 1024 when saved). An `encrypted=1`
+  upload is held to it instead of `max_upload_mb`, with 4 KiB allowed on top for the encryption's
+  own bytes, under the 1 GB ceiling: 413 "Files in private conversations are limited to N MB for
+  your role on this server." The person's own peer-list entry carries `private_limit_mb`.
+- **B3.** Role fields `max_upload_mb_per_day` and `max_uploads_per_hour`, 0 meaning no limit.
+  Defaults by tier (new roles and the upgrade alike): Admin 0 and 0; Moderator 4096 MB and 200;
+  Verified, Donor and any role on the verified tier 1024 MB and 60; Unverified and anything else
+  100 MB and 20. Why: a day's 1024 MB lets a Verified person send a whole default Media share (512
+  MB) and about twenty phone videos in a day; 60 uploads an hour lets a burst of phone photos
+  through and stops a script; a moderator gets four times that; Unverified cannot upload until an
+  admin allows it, and then gets a tenth. The windows are FIXED, the UTC day and the clock hour, so
+  the words can say exactly when they reset. Counted by the relay (table `upload_counts`; export
+  and erase include it) over every route: a single request (chat, Shared Files, Media, private)
+  counts its bytes and one upload when stored, and is refused up front when the hour's uploads
+  are used or the file would pass what is left of the day (429, plain words: "Your role may
+  upload N MB a day on this server, and you have uploaded X today, and this file would pass that.
+  The allowance resets at midnight UTC, in 5 hours 12 minutes." / "Your role may start N uploads
+  an hour on this server, and you have started N this hour. More can start at the top of the hour,
+  in 12 minutes."). A resumable start counts one upload and is refused when the hour's are used or
+  the day's bytes are all used; each piece's bytes count when they arrive, and a piece that would
+  pass the day is refused with nothing of it written and the session kept (touched, so it outlives
+  the reset). Resumable refusals are JSON: 429 `{error, allowance: "hour"|"day", resets_at}` (Unix
+  ms), a piece's adding `offset` and `size`.
+- **B4.** `keep_metadata=1` on the single request's query and in the resumable start's JSON
+  (stored on the session). The picture strip and the video strip are skipped; a picture is still
+  checked to be what it says; an encrypted upload is never opened either way. **Decision:** with
+  `keep_metadata` a video the strip could not read through is ACCEPTED, and so is a HEIC or AVIF
+  photo (R7): the person chose to keep everything, so there is nothing to check, and the refusal
+  existed only because the relay could not clean such a file.
+- **B5.** A private file (stored as `.enc`, only an encrypted upload is) leaves after
+  `dm_mailbox_ttl_days` counted from its upload, row and file, in the expiry pass. Role field
+  `max_private_held_mb`, 0 meaning no limit: Admin 0, Moderator 120, Verified and its tier 60,
+  the rest 30, about ten files at the default 6 MB private limit for Verified (a month of a few
+  photos a week) and half that for Unverified. Checked with the room under the same lock: 507 "Your
+  private files on this server are full (X of N MB). The oldest leaves on 10 November 2026, or
+  remove some from Settings > Data." Private files are OUT of the keep-N FIFO: in it, a person's
+  DM files pushed out their own room posts, and their room posts deleted the files their DMs
+  point at. The peer-list entry carries `private_held_limit_mb` (0 = no limit).
+- **The Roles frames.** `role_list` and `role_upsert` carry the five new `RoleDef` fields; a save
+  holds each to its range. A role sent WITHOUT them gets the careful defaults (Media 0, private 6,
+  100 MB a day, 20 an hour, 30 MB held), so both apps' Roles editors must send all five, or a save
+  from an editor that does not know them resets them.
+- **C.** Each socket's own upload token is removed when that socket closes, first thing in the
+  teardown, whatever else stays open; the registration shows the newest socket's token.
+- **R1.** The hash is checked once, before the strip changes the file, and recorded on the session
+  (`hash_checked`); a retried finish never hashes again.
+- **R2.** A finished session's row stays until the idle expiry with its answer (`done_answer`).
+  GET answers `{offset, size, chunk_max, done: <the single request's answer>}`; a PATCH on it
+  answers that same JSON and does nothing; a cancel of it removes only the row. The one-piece
+  marker is shared with the blocking work (written piece and finish alike), so a dropped request
+  keeps it until the work is done and a second request gets 409 busy.
+- **R3.** Only a 422 from the strip (a file that cannot be read through, or a HEIC photo) removes
+  the session; a read or write failure keeps it.
+- **R5.** `store_upload` takes a quick room look, then copies (or renames) the file into the
+  destination folder under a hidden `.incoming-` name OUTSIDE the room lock, then under the lock
+  does the room check that counts, a rename within the folder and the row. A failure removes the
+  partial copy (a resumable upload's pieces' file is renamed back, or kept when it was copied);
+  hidden names are never counted, never served at `/uploads` (a dot or `%2e` after a slash is 404)
+  and cleared at start.
+- **R6.** A Media upload (single request or resumable) is stored in `data/media-waiting/`, which
+  nothing serves; publishing moves it to `data/uploads` or `data/media-members` under the room
+  lock; the room checks, the usage, the unpublished expiry and a removal by name all reach it
+  there. The upload's answer keeps `url: /uploads/<name>` (where it will be once published as
+  public), which serves nothing until then.
+- **R7.** `application/octet-stream` must have an allowed extension. A file in the MP4 family
+  with no movie in it (a HEIC or AVIF photo) is refused on every shelf that is not encrypted (422
+  "HEIC and AVIF photos cannot be cleaned of where they were taken yet. Save it as a JPEG and send
+  that."), unless `keep_metadata=1`. Honest limit: a video cut off before its movie box reads the
+  same way and gets the same words.
 
 ## The operator's answers (2026-10-11) and what they mean for the build
 

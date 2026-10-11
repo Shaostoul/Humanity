@@ -67,6 +67,13 @@ impl Storage {
             Ok(n) => tracing::info!("Resumable uploads: removed {n} with no piece for a day"),
             Err(e) => tracing::error!("Resumable upload sweep failed: {e}"),
         }
+        // Files from private conversations leave after the DM mailbox lifetime (B5, 2026-10-11,
+        // storage/private_files.rs).
+        match self.expire_private_files_in(folders, s.dm_mailbox_ttl_days, super::now_millis() as i64) {
+            Ok(0) => {}
+            Ok(n) => tracing::info!("Private files: removed {n} older than the {}-day DM lifetime", s.dm_mailbox_ttl_days),
+            Err(e) => tracing::error!("Private file sweep failed: {e}"),
+        }
     }
 }
 

@@ -89,6 +89,17 @@ pub async fn release_closed(state: &RelayState, key: &str, conn_id: u64) -> Opti
     Some(still_open)
 }
 
+/// A closing socket's own upload token stops working (C, 2026-10-11), whatever other sockets of
+/// the identity stay open. Each socket gets a token of its own at sign-in; the registration in
+/// `peers` shows only the newest, and the teardown used to remove only that one, and only when
+/// the last socket closed, so an older socket's token stayed valid until the relay restarted.
+/// Call it first in the teardown, before anything that can return early.
+pub async fn forget_upload_token(state: &RelayState, token: Option<&str>) {
+    if let Some(token) = token {
+        state.upload_tokens.write().await.remove(token);
+    }
+}
+
 /// This socket joined the game world: its close is now the identity's game
 /// departure. A later join from another socket (the game reconnecting on a
 /// fresh socket) takes the seat over, so a dying old socket leaves it alone.

@@ -93,6 +93,9 @@ fn registration_default_open() -> bool {
 /// Flat rate limit for new accounts (seconds).
 pub const NEW_ACCOUNT_DELAY_SECS: u64 = 5;
 
+/// What a socket that signs in to a server with no admin yet is told (v0.936), on that socket only.
+pub const UNCLAIMED_NOTICE: &str = "This server has no admin yet. If this is YOUR server, read the claim code from the server console (or data/owner-claim-code.txt on the host) and type: /claim <code>";
+
 /// A connected peer, identified by their public key hex.
 #[derive(Debug, Clone)]
 pub struct Peer {
@@ -2584,6 +2587,16 @@ pub struct PeerInfo {
     /// instead of a fixed 6 MB (2026-10-10).
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub upload_limit_mb: Option<u64>,
+    /// The most this person may send in one file in a private conversation (a DM or a P2P group,
+    /// an encrypted upload), in MB: their role's `max_private_file_mb` (follow-up B2,
+    /// 2026-10-11). Only on the recipient's own entry, like `upload_limit_mb`.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub private_limit_mb: Option<u64>,
+    /// The most this person may hold on the server in files from private conversations at once,
+    /// in MB: their role's `max_private_held_mb` (B5, 2026-10-11); 0 means no limit. Only on the
+    /// recipient's own entry.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub private_held_limit_mb: Option<u64>,
 }
 
 fn default_true() -> bool { true }
@@ -2711,6 +2724,9 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
     let (mut ws_tx, mut ws_rx) = socket.split();
     let mut broadcast_rx = state.broadcast_tx.subscribe();
     let mut peer_key: Option<String> = None;
+    // This socket's own upload token, removed when this socket closes whatever else stays open (C,
+    // 2026-10-11): the registration in `peers` shows only the newest socket's token.
+    let mut my_upload_token: Option<String> = None;
 
     // Inc3b — identify proof-of-possession. After receiving `Identify`
     // from a human (non-bot) client, we stash the unverified fields here
@@ -3080,6 +3096,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                 // Register peer and upload token mapping.
                 state.peers.write().await.insert(public_key.clone(), peer);
                 state.upload_tokens.write().await.insert(upload_token.clone(), public_key.clone());
+                my_upload_token = Some(upload_token.clone());
                 peer_key = Some(public_key.clone());
 
                 // Load persisted user status.
@@ -3094,13 +3111,12 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                 // Unclaimed-server notice (v0.936): while no admin exists, tell
                 // each connecting (non-bot) user how the owner claims it. Tells
                 // a stranger nothing useful - the code itself only exists on
-                // the host's console/disk.
+                // the host's console/disk. Said on THIS socket only (W9, 2026-10-11): a Private
+                // reaches every socket of the key, so the Chat tab repeated it each time a
+                // standalone page signed in or a socket reconnected.
                 if !public_key.starts_with("bot_") && state.claim_code.read().await.is_some() {
-                    let notice = RelayMessage::Private {
-                        to: public_key.clone(),
-                        message: "This server has no admin yet. If this is YOUR server, read the claim code from the server console (or data/owner-claim-code.txt on the host) and type: /claim <code>".to_string(),
-                    };
-                    let _ = state.broadcast_tx.send(notice);
+                    let notice = RelayMessage::System { message: UNCLAIMED_NOTICE.to_string() };
+                    let _ = ws_tx.send(Message::Text(serde_json::to_string(&notice).unwrap().into())).await;
                 }
 
                 // Send current peer list to the new peer (with their upload_token).
@@ -3125,8 +3141,10 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                         } else {
                             None
                         };
-                        let upload_limit_mb = (p.public_key_hex == public_key)
-                            .then(|| crate::relay::upload_limits::role_upload_limit(&state.db.role_def(&role)) / (1024 * 1024));
+                        let own_role = (p.public_key_hex == public_key).then(|| state.db.role_def(&role));
+                        let upload_limit_mb = own_role.as_ref().map(|d| crate::relay::upload_limits::role_upload_limit(d) / (1024 * 1024));
+                        let private_limit_mb = own_role.as_ref().map(crate::relay::upload_rules::private_limit_mb);
+                        let private_held_limit_mb = own_role.as_ref().map(|d| d.max_private_held_mb.max(0) as u64);
                         let name_lower = p.display_name.as_ref().map(|n| n.to_lowercase()).unwrap_or_default();
                         let (user_status, user_status_text) = statuses_snap.get(&name_lower).cloned().unwrap_or(("online".to_string(), String::new()));
                         // Kyber DM key: from the in-memory peer (if online) or DB.
@@ -3140,6 +3158,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                             status_text: user_status_text,
                             kyber_public: kyber_pub,
                             upload_limit_mb,
+                            private_limit_mb,
+                            private_held_limit_mb,
                         }
                     })
                     .collect();
@@ -6148,7 +6168,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
     // this relay remembers erasing (the erasing client closes its socket right after the
     // erase, and the erase's own log line names no key: handlers/sign_ups.rs).
     let who = crate::relay::handlers::sign_ups::log_name_for(&state, &my_key);
-    let seats_left = crate::relay::handlers::live_conns::depart_owned_seats(&state, &my_key, my_conn_id).await;
+    crate::relay::handlers::live_conns::forget_upload_token(&state, my_upload_token.as_deref()).await;
+    let seats_left =crate::relay::handlers::live_conns::depart_owned_seats(&state, &my_key, my_conn_id).await;
     if let Some(other) = crate::relay::handlers::live_conns::release_closed(&state, &my_key, my_conn_id).await {
         tracing::debug!("socket {my_conn_id} for {who} closed; socket {other} is still open");
         return;

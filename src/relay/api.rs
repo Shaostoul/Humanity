@@ -8,7 +8,7 @@
 //! - GET  /api/messages — poll recent message history
 //! - GET  /api/peers   — list connected peers
 
-use super::upload_limits::{declared_too_large, picture_too_large, role_upload_limit, stream_to_part, UploadBody, PICTURE_MAX_BYTES, UPLOAD_PART_DIR};
+use super::upload_limits::{picture_too_large, stream_to_part, UploadBody, PICTURE_MAX_BYTES, UPLOAD_PART_DIR};
 pub use super::upload_limits::{UPLOAD_BODY_LIMIT, UPLOAD_HARD_CEILING};
 use axum::{
     Json,
@@ -222,7 +222,7 @@ pub async fn get_stats(
 }
 
 /// Query params for POST /api/upload.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 pub struct UploadQuery {
     /// Per-session upload token (M-4: required for uploads; the old `?key=` is gone, 2026-10-11).
     pub token: Option<String>,
@@ -242,6 +242,10 @@ pub struct UploadQuery {
     /// A Media upload (2026-10-11, media.rs `upload_shelf`): out of the FIFO, held to the Media
     /// budget, and in no list until it is published with POST /api/media. Never with `encrypted`.
     pub media: Option<u8>,
+    /// `?keep_metadata=1` (B4, 2026-10-11): the person chose to keep the file's hidden
+    /// information, so the picture and video strip is skipped (upload_rules.rs
+    /// `finish_picture_as`, `finish_file_as`); a picture is still checked to be what it says.
+    pub keep_metadata: Option<u8>,
 }
 
 /// Query params for GET /api/uploads (the shared-file library listing).
@@ -360,7 +364,7 @@ pub async fn upload_file(
     headers: axum::http::HeaderMap,
     mut multipart: axum::extract::Multipart,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    use super::upload_rules::{check_type, file_type, finish_picture, finish_video, sharing_check, stored_name, token_key, uploader_role};
+    use super::upload_rules::{check_type, file_type, finish_file_as, finish_picture_as, sharing_check, stored_name, token_key, uploader_role};
     // Server settings drive the upload limits (v0.237; per-role FIFO
     // v0.238). The total disk cap is server-wide (read now). The per-user
     // FIFO retention is per-role, so it's resolved AFTER the uploader's
@@ -379,14 +383,21 @@ pub async fn upload_file(
     // here + the per-role upload-size cap inside the field loop.
     let uploader_rdef = uploader_role(&state.db, &public_key)?;
     let max_uploads_per_user = uploader_rdef.max_uploads_kept.max(1);
-    // Max size for ONE upload = the uploader's per-role max_upload_mb, bounded only by the 1 GB
-    // ceiling (`role_upload_limit`). A request that says up front it is bigger is refused before a
-    // byte of it is read, so nobody can push a large file at the server only to have it refused at
-    // the end (a stranger's role allows a few MB).
-    let max_size = role_upload_limit(&uploader_rdef);
-    if let Some(refusal) = declared_too_large(&headers, max_size) {
+    // Max size for ONE upload: the uploader's per-role max_upload_mb, or for a private file the
+    // role's private limit instead, or for a Media file also its Media limit, all within the 1 GB
+    // ceiling; and no more than is left of the day's allowance, after the hour's count of uploads
+    // (upload_rules.rs `FileLimit`, `allowance_at_start`; B1 to B3, 2026-10-11). A request that
+    // says up front it is bigger is refused before a byte of it is read, so nobody can push a
+    // large file at the server only to have it refused at the end.
+    let now = crate::relay::storage::now_millis() as i64;
+    let day_left = super::upload_rules::allowance_at_start(&state.db, &public_key, &uploader_rdef, now).map_err(|over| over.refused())?;
+    let limit = super::upload_rules::FileLimit::for_request(&uploader_rdef, shelf, query.encrypted == Some(1))
+        .tighter(super::upload_rules::day_limit(&state.db, &public_key, &uploader_rdef, now, day_left));
+    let max_size = limit.bytes;
+    if let Some(refusal) = limit.declared_too_large(&headers) {
         return Err(refusal);
     }
+    let keep_metadata = query.keep_metadata == Some(1);
 
     while let Some(mut field) = multipart.next_field().await.map_err(|e| {
         (StatusCode::BAD_REQUEST, format!("Multipart error: {e}"))
@@ -407,7 +418,9 @@ pub async fn upload_file(
         // The file arrives into a part file, never into memory whole (a video can be a GB), and is
         // refused the moment it passes the role's limit (a client that did not say its size up
         // front, or said it wrongly).
-        let part = stream_to_part(&mut field, max_size as usize, std::path::Path::new(UPLOAD_PART_DIR)).await?;
+        let part = stream_to_part(&mut field, max_size.min(usize::MAX as u64) as usize, std::path::Path::new(UPLOAD_PART_DIR))
+            .await
+            .map_err(|e| limit.reword(e))?;
 
         // A picture is read back for the magic check and the metadata strip (upload_rules.rs
         // `finish_picture`); anything else is moved into place as it arrived. A picture is known
@@ -427,17 +440,18 @@ pub async fn upload_file(
                 let read = std::fs::read(&path);
                 let _ = std::fs::remove_file(&path);
                 let bytes = read.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to read the upload back: {e}")))?;
-                finish_picture(picture, bytes)
+                finish_picture_as(picture, bytes, keep_metadata)
             })
             .await
             .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Upload task failed: {e}")))??;
             axum::body::Bytes::from(stripped)
         } else {
-            // Anything else: a video's hidden location removed in place (BUG-190; upload_rules.rs
-            // `finish_video`). An encrypted file is opaque and never opened.
+            // Anything else: a video's hidden location removed in place (BUG-190), a HEIC or AVIF
+            // photo refused (R7), unless the person keeps it all (upload_rules.rs
+            // `finish_file_as`). An encrypted file is opaque and never opened.
             if !is_encrypted {
                 let path = part.path.clone();
-                let checked = tokio::task::spawn_blocking(move || finish_video(&path))
+                let checked = tokio::task::spawn_blocking(move || finish_file_as(&path, keep_metadata))
                     .await
                     .unwrap_or_else(|e| Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Upload task failed: {e}"))));
                 if let Err(refused) = checked {
@@ -480,6 +494,7 @@ pub async fn upload_file(
         // instead of the timestamp-mangled stored one.
         let (shelf_fs, settings_fs) = (shelf, server_settings.clone()); // the shelf: media.rs `upload_shelf`
         let original_name_fs = filename.clone();
+        let private_held_fs = if is_encrypted { super::upload_rules::private_held_limit(&uploader_rdef) } else { None };
         let fs_result = tokio::task::spawn_blocking(move || -> Result<(), (StatusCode, String)> {
             // Store in data/uploads/.
             let folders = super::media::Folders::live();
@@ -492,8 +507,19 @@ pub async fn upload_file(
             // upload against the Media budget and the person's share), the move into place and
             // the row (FIFO retention from the role; shared files exempt), under one lock so two
             // uploads finishing together cannot both pass (media.rs `store_upload`, F4).
-            let new = super::media::NewUpload { key: &public_key_fs, shelf: shelf_fs, name: &unique_name_fs, original_name: &original_name_fs, len: data_len as u64, keep: max_uploads_per_user };
-            let old_files = super::media::store_upload(&state_fs.db, &settings_fs, folders, &new, |path| body.put(path)).inspect_err(|_| body.discard())?;
+            // A private file is also held to its uploader's own room for such files (B5).
+            let new = super::media::NewUpload {
+                key: &public_key_fs,
+                shelf: shelf_fs,
+                name: &unique_name_fs,
+                original_name: &original_name_fs,
+                len: data_len as u64,
+                keep: max_uploads_per_user,
+                private_held_limit: private_held_fs,
+            };
+            let old_files = super::media::store_upload(&state_fs.db, &settings_fs, folders, &new, |path| body.put(path), |path| body.unstage(path))
+                .inspect_err(|_| body.discard())?;
+            body.discard(); // a part file that was copied rather than moved (R5)
             // Delete the files the FIFO let go.
             super::media::delete_pruned(folders, &old_files);
             Ok(())
@@ -506,6 +532,9 @@ pub async fn upload_file(
         })?;
         // Propagate the fs section's own error → HTTP status (unchanged mapping).
         fs_result?;
+        // Stored: the bytes that arrived count against the day's allowance, the upload against
+        // the hour's (B3).
+        super::upload_rules::count_upload(&state.db, &public_key, now, part.len as u64, true);
 
         return Ok(Json(super::upload_rules::upload_answer(&unique_name, data_len as u64, file_type)));
     }
@@ -1262,6 +1291,8 @@ pub async fn get_peers(
                 status_text: String::new(),
                 kyber_public: p.kyber_public.clone(),
                 upload_limit_mb: None,
+                private_limit_mb: None,
+                private_held_limit_mb: None,
             }
         })
         .collect();
