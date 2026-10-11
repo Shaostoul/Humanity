@@ -75,3 +75,25 @@ fn clear_empties_the_folder() {
     assert_eq!(used(&dir), 0);
     assert!(!kept.has("/a", "k", "n"));
 }
+
+/// An unfinished write (the app closed mid-write) leaves a `.tmp` outside the cap: making room
+/// removes one older than an hour and leaves a fresh one (a write in progress), and "Clear kept
+/// files" removes them all (BUG-196's review, 2026-10-11).
+///
+/// Seen red 2026-10-11 with `leftovers` answering no files: "an old unfinished write is removed".
+#[test]
+fn unfinished_writes_are_removed() {
+    let dir = crate::test_temp::dir("kept_leftovers");
+    std::fs::create_dir_all(&*dir).unwrap();
+    let old = dir.join("aaaa.tmp");
+    let fresh = dir.join("bbbb.tmp");
+    std::fs::write(&old, vec![1u8; 4096]).unwrap();
+    std::fs::write(&fresh, vec![2u8; 4096]).unwrap();
+    let two_hours_ago = std::time::SystemTime::now() - std::time::Duration::from_secs(7200);
+    File::options().write(true).open(&old).unwrap().set_modified(two_hours_ago).unwrap();
+    evict(&dir, 1 << 20);
+    assert!(!old.exists(), "an old unfinished write is removed");
+    assert!(fresh.exists(), "a write that may still be going is left");
+    clear(&dir);
+    assert!(!fresh.exists(), "Clear kept files removes it too");
+}

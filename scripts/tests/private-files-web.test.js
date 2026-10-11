@@ -543,6 +543,7 @@ async function loadChat(me, opts = {}) {
   run("shared/upload-clean.js");
   run("shared/files-in-messages.js");
   run("shared/kept-files.js");
+  run("shared/profile-changes.js");
   run("chat/crypto.js");
   run("chat/chat-dm-store.js");
   run("chat/view/timestampPill.js");
@@ -1987,18 +1988,40 @@ test("profile: a connect sends nothing unless it changed here; my own copy from 
   assert.equal(stored().location, "Porto", "the public copy of my save changes nothing here");
   assert.equal(updates().length, 0, "and nothing went back");
 
-  // A change saved on the /profile page: marked unsent, it goes, and is no longer waiting.
-  ls.setItem("humanity_profile_unsent", "1");
+  // A change saved on the /profile page: recorded as changed here, it goes on top of the server's
+  // copy, and waits until the server's copy carries it.
+  ls.setItem("humanity_profile_changes", JSON.stringify(["bio"]));
   ls.setItem("humanity_profile", JSON.stringify(Object.assign(stored(), { bio: "Typed here" })));
   await page.fn("pushProfileToRelay")();
   assert.deepEqual(updates().map((u) => [u.bio, u.location]), [["Typed here", "Porto"]], "a change made here goes, whole");
-  assert.equal(ls.getItem("humanity_profile_unsent"), null, "and no longer waits");
+  assert.deepEqual(JSON.parse(ls.getItem("humanity_profile_changes")), ["bio"], "still waiting until the server's copy carries it");
 
-  // A copy from the server while a change of mine waits is not taken in (mine goes first).
-  ls.setItem("humanity_profile_unsent", "1");
-  ls.setItem("humanity_profile", JSON.stringify(Object.assign(stored(), { bio: "Typed again" })));
-  await page.handle({ type: "profile_data", name: "Ann", bio: "Typed here", socials: "{}", location: "Porto", privacy: "{}" });
-  assert.equal(stored().bio, "Typed again", "a waiting change of mine is not overwritten");
+  // The server turned it down (no echo); another device's copy comes: the waiting bio stays, the
+  // rest follows the server.
+  await page.handle({ type: "profile_data", name: "Ann", bio: "Older bio", socials: "{}", location: "Faro", privacy: "{}" });
+  assert.deepEqual([stored().bio, stored().location], ["Typed here", "Faro"], "a waiting change of mine is not overwritten; the rest follows");
+  // The echo of a save that carries it: done.
+  await page.handle({ type: "profile_data", name: "Ann", bio: "Typed here", socials: "{}", location: "Faro", privacy: "{}" });
+  assert.equal(ls.getItem("humanity_profile_changes"), null, "done once the server's copy carries it");
+});
+
+test("profile: a privacy level's directory choice goes to the server, on top of the server's copy (BUG-195's review)", async () => {
+  const fx = await fixture();
+  const page = await loadChat(fx.ann);
+  const ls = page.ctx.localStorage;
+  const updates = () => page.sock.sent.filter((m) => m.type === "profile_update");
+  await page.handle({ type: "profile_data", name: "Ann", bio: "Gardener", socials: "{}", location: "Lisbon", privacy: "{}", accepts_files: "friends" });
+  page.sock.sent.length = 0;
+  await page.fn("applyPrivacyTier")("private");
+  await settle();
+  const sent = updates();
+  assert.equal(sent.length, 1, "the level's profile change goes");
+  assert.deepEqual(JSON.parse(sent[0].privacy), { directory: "unlisted" }, "unlisted");
+  assert.deepEqual([sent[0].bio, sent[0].location], ["Gardener", "Lisbon"], "on top of the server's copy");
+  // Its echo, then a copy from before it: the choice is not undone.
+  await page.handle({ type: "profile_data", name: "Ann", bio: "Gardener", socials: "{}", location: "Lisbon", privacy: "{\"directory\":\"unlisted\"}" });
+  assert.equal(ls.getItem("humanity_profile_changes"), null, "done once the server's copy carries it");
+  assert.equal(JSON.parse(ls.getItem("humanity_profile")).privacy.directory, "unlisted");
 });
 
 /** Open Safety and find the Files in messages section's controls (the newest drawn). */
@@ -2036,7 +2059,10 @@ test("files: Safety shows the three settings; a change is kept, published as acc
   assert.ok(update, "then the profile goes to the server");
   assert.equal(update.accepts_files, "nobody", "with accepts_files");
   assert.deepEqual([update.bio, update.pronouns], ["I grow tomatoes", "she/her"], "and the whole profile (the server's copy, filled in here first)");
-  assert.equal(page.fn("buildProfileUpdate")(page.fn("loadProfileLocal")()).accepts_files, undefined, "once sent, an update leaves it out (the server keeps its word)");
+  assert.equal(page.fn("buildProfileUpdate")(page.fn("loadProfileLocal")()).accepts_files, "nobody", "sent, it still waits until the server's copy carries it");
+  // The echo of that save carries it: done, and an update leaves it out (the server keeps its word).
+  await page.handle({ type: "profile_data", name: "Ann", bio: "I grow tomatoes", socials: "{}", pronouns: "she/her", accepts_files: "nobody", privacy: "{}" });
+  assert.equal(page.fn("buildProfileUpdate")(page.fn("loadProfileLocal")()).accepts_files, undefined, "once the server's copy carries it, an update leaves it out");
   // Another device chose Anyone: my own profile comes back with it, and this device takes it.
   await page.handle({ type: "profile_data", name: "Ann", bio: "I grow tomatoes", socials: "{}", accepts_files: "anyone", privacy: "{}" });
   assert.equal(FIM.readSettings(page.ctx.localStorage).accept, "anyone", "a choice made on another device is taken here");
@@ -2194,6 +2220,13 @@ test("files: a private file opened is kept here, encrypted, and opens after a re
 //     change of mine is not overwritten".
 //  P18 chat-profile.js, followOnProfilePage replacing every page field (no untouched check): "the
 //     page follows, keeping what is being typed there and its private fields".
+//  P19 chat-profile.js, pushProfileToRelay clearing the waiting changes when it sends (the first
+//     BUG-195 fix): "profile: a connect sends nothing ... still waiting until the server's copy
+//     carries it".
+//  P20 chat-privacy.js, applyPrivacyTier not recording its change (as first shipped): "profile: a
+//     privacy level's directory choice ... the level's profile change goes".
+//  P21 chat-profile.js, pushProfileToRelay counting "Accept files from" as saved when it sends: "files:
+//     Safety shows ... sent, it still waits until the server's copy carries it".
 // And the tests above this section that this increment changed: "a marker in a group message",
 // "a non-friend's DM picture waits for the click" and "a picture from a mutual follow" failed on
 // "Image (click to load)" once a non-friend's file waited for Accept, so they now keep "Accept

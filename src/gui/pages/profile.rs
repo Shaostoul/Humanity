@@ -260,16 +260,16 @@ fn draw_network_profile(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                         .size(theme.font_size_small),
                 );
             }
-            // Step F's recovery-phrase guard on the fields this sends: nothing leaves, the text stays.
-            let saved = saved && {
-                let fields = [state.profile_network_bio.clone(), state.profile_network_avatar.clone()];
-                !crate::engine::warnings::guard_stops(state, &[&fields[0], &fields[1]])
-            };
+            // The whole profile goes once this server's own copy is here and its limit of one
+            // update per 30 seconds allows (own_profile.rs `pump`, which also holds Step F's
+            // recovery-phrase guard: holding the phrase, nothing leaves and the text stays).
             if saved {
-                if let Some(ref client) = state.ws_client {
-                    client.send(&crate::gui::pages::own_profile::save_frame(state).to_string());
-                    state.profile_network_saved_note = "Saved to server.".to_string();
-                }
+                crate::gui::pages::own_profile::want_save(state);
+                state.profile_network_saved_note = if crate::gui::pages::own_profile::current_copy(state).is_some() {
+                    "Saving to the server...".to_string()
+                } else {
+                    "Getting your profile from this server first...".to_string()
+                };
             }
         });
         if !state.profile_network_saved_note.is_empty() {

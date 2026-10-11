@@ -496,19 +496,28 @@ pub async fn handle_profile_update(
                     target: None,
                 });
 
-                let _ = state.broadcast_tx.send(RelayMessage::ProfileData {
-                    name: name.clone(),
-                    bio: clean_bio.clone(),
-                    socials: socials.clone(),
-                    avatar_url: if avatar.is_empty() { None } else { Some(avatar.clone()) },
-                    banner_url: if banner.is_empty() { None } else { Some(banner.clone()) },
-                    pronouns: if pronoun.is_empty() { None } else { Some(pronoun.clone()) },
-                    location: if loc.is_empty() { None } else { Some(loc.clone()) },
-                    website: if w_site.is_empty() { None } else { Some(w_site.clone()) },
-                    accepts_files: Some(accepts_files_stored),
-                    privacy: Some(priv_map.clone()),
-                    target: Some(my_key.to_string()),
-                });
+                // The person's own copy goes to every device signed in under this name: a linked
+                // device has a key of its own (a link code adds one under the name), and each needs
+                // the privacy map to send the whole profile back without undoing this save.
+                let mut own_keys = state.db.keys_for_name(name).unwrap_or_default();
+                if !own_keys.iter().any(|k| k == my_key) {
+                    own_keys.push(my_key.to_string());
+                }
+                for key in own_keys {
+                    let _ = state.broadcast_tx.send(RelayMessage::ProfileData {
+                        name: name.clone(),
+                        bio: clean_bio.clone(),
+                        socials: socials.clone(),
+                        avatar_url: if avatar.is_empty() { None } else { Some(avatar.clone()) },
+                        banner_url: if banner.is_empty() { None } else { Some(banner.clone()) },
+                        pronouns: if pronoun.is_empty() { None } else { Some(pronoun.clone()) },
+                        location: if loc.is_empty() { None } else { Some(loc.clone()) },
+                        website: if w_site.is_empty() { None } else { Some(w_site.clone()) },
+                        accepts_files: Some(accepts_files_stored.clone()),
+                        privacy: Some(priv_map.clone()),
+                        target: Some(key),
+                    });
+                }
 
                 // Privacy (2026-08-24): a user who opts OUT of the public
                 // directory (privacy.directory = "unlisted", set by the
@@ -525,6 +534,12 @@ pub async fn handle_profile_update(
                     .and_then(|v| v.get("directory").and_then(|d| d.as_str()).map(|s| s == "unlisted"))
                     .unwrap_or(false);
 
+                // What the copy kept for other servers (and served at /api/profile/{key}) may hold:
+                // a field the person keeps for friends ("private" in the privacy map) is left out.
+                // It went in whole until 2026-10-11, so /api/profile/{key} showed it to anyone.
+                let pub_pronoun = crate::relay::storage::profile::public_field(&priv_map, "pronouns", &pronoun);
+                let pub_loc = crate::relay::storage::profile::public_field(&priv_map, "location", &loc);
+                let pub_site = crate::relay::storage::profile::public_field(&priv_map, "website", &w_site);
                 let ts = crate::relay::storage::now_millis();
                 if unlisted {
                     // Don't cache-for-replication and don't gossip. Remove any
@@ -540,11 +555,11 @@ pub async fn handle_profile_update(
                     // replicate today: BUG-191, fixed when the apps sign.
                     let _ = state.db.store_signed_profile(
                         my_key, name, &clean_bio, &avatar, &banner, &socials,
-                        &pronoun, &loc, &w_site, ts, "",
+                        &pub_pronoun, &pub_loc, &pub_site, ts, "",
                     );
                     crate::relay::handlers::federation::gossip_profile(
                         state, my_key, name, &clean_bio, &avatar, &banner,
-                        &socials, &pronoun, &loc, &w_site, ts, "",
+                        &socials, &pub_pronoun, &pub_loc, &pub_site, ts, "",
                     ).await;
                 }
             }
@@ -584,6 +599,29 @@ pub async fn handle_profile_request(
             .unwrap_or_default()
     };
     let is_friend = !owner_key.is_empty() && friend_pass(state, &owner_key, my_key, friend_cert.as_deref()).is_some();
+
+    // The person asking for their OWN profile (an app that has not had its own copy from this
+    // server, such as one switched to without a fresh connect) gets their complete copy, privacy
+    // map included, as on connect; an empty one when they have no profile here yet.
+    if state.db.keys_for_name(&name).map(|keys| keys.iter().any(|k| k == my_key)).unwrap_or(false) {
+        let (bio, socials, avatar_url, banner_url, pronouns, location, website, privacy) =
+            state.db.get_profile_extended(&name).ok().flatten().unwrap_or_default();
+        let opt = |s: String| if s.is_empty() { None } else { Some(s) };
+        let _ = state.broadcast_tx.send(RelayMessage::ProfileData {
+            name: name.clone(),
+            bio,
+            socials: if socials.trim().is_empty() { "{}".to_string() } else { socials },
+            avatar_url: opt(avatar_url),
+            banner_url: opt(banner_url),
+            pronouns: opt(pronouns),
+            location: opt(location),
+            website: opt(website),
+            accepts_files: Some(state.db.accepts_files_of(&name)),
+            privacy: Some(if privacy.trim().is_empty() { "{}".to_string() } else { privacy }),
+            target: Some(my_key.to_string()),
+        });
+        return;
+    }
 
     match state.db.get_public_profile(&name, is_friend) {
         Ok(Some(fields)) => {

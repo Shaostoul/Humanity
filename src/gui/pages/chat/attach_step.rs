@@ -192,8 +192,6 @@ pub struct FilesFlow {
     asked: std::collections::HashSet<(String, String)>,
     /// The lookup on its way: (server, key) and the answer.
     asking: Option<((String, String), Receiver<Option<(String, String)>>)>,
-    /// This person's own profile on the server they are on (files_settings.rs `sync_accepts`).
-    pub(crate) own: crate::gui::pages::files_settings::OwnSync,
     /// The Settings > Data line after "Clear kept files".
     pub(crate) kept_note: String,
 }
@@ -293,7 +291,6 @@ pub(super) fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     if let Some(peer) = state.chat_active_channel.strip_prefix("dm:").map(str::to_string) {
         ask_accepts(state, &peer);
     }
-    crate::gui::pages::files_settings::sync_accepts(state);
     let Some(mut step) = state.files_flow.step.take() else { return };
     if step.channel != state.chat_active_channel {
         return; // the person left the conversation it was for: nothing is sent

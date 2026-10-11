@@ -1379,12 +1379,11 @@ pub async fn get_member_by_key(
         .ok_or(StatusCode::NOT_FOUND)?;
     let listing_count = state.db.get_seller_listing_count(&key).unwrap_or(0);
     let (avg_rating, review_count) = state.db.get_seller_rating(&key);
-    // Get profile data if available.
-    let profile = state.db.get_profile_extended(
-        member.name.as_deref().unwrap_or("")
-    ).ok().flatten();
-    let (bio, _socials, avatar_url, _banner_url, _pronouns, location, _website, _privacy) =
-        profile.unwrap_or_default();
+    // Profile data if available, as anyone may see it: a location the person keeps for friends
+    // is left out (it was served whatever the privacy map said until 2026-10-11).
+    let public = state.db.get_public_profile(member.name.as_deref().unwrap_or(""), false).ok().flatten().unwrap_or_default();
+    let field = |k: &str| public.get(k).cloned().unwrap_or_default();
+    let (bio, avatar_url, location) = (field("bio"), field("avatar_url"), field("location"));
     // Who they accept files in messages from (public; the default when they have no profile).
     let accepts_files = state.db.accepts_files_of(member.name.as_deref().unwrap_or(""));
     Ok(Json(serde_json::json!({
@@ -2396,6 +2395,15 @@ pub async fn get_signed_profile(
             // another server is answered without it (absent = this server does not know).
             if let Ok(Some(local_name)) = state.db.current_name_for_key(&key) {
                 body["accepts_files"] = serde_json::json!(state.db.accepts_files_of(&local_name));
+                // A field the person keeps for friends is left out, by their privacy map as it is
+                // now (a copy cached before 2026-10-11 still holds it).
+                if let Ok(Some(row)) = state.db.get_profile_extended(&local_name) {
+                    let privacy = row.7;
+                    for field in ["pronouns", "location", "website"] {
+                        let shown = body[field].as_str().unwrap_or("").to_string();
+                        body[field] = serde_json::json!(crate::relay::storage::profile::public_field(&privacy, field, &shown));
+                    }
+                }
             }
             (StatusCode::OK, Json(body)).into_response()
         }

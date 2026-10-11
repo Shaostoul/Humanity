@@ -5645,3 +5645,62 @@ blank, so it would have shown, and on save sent back, the older text. Now a page
 server's copy where it still holds what the stored profile held, which is what last went to the
 server or came from it (`followOnProfilePage`, the desktop's `take_in` rule), so a field being
 typed there stays; an open /profile tab shows the change at once (its `storage` listener).
+
+## BUG-196: profile saves built on the wrong copy, or counted done before the server took them (FIXED v0.1486.0, found 2026-10-11)
+
+Found by the batch review of the BUG-193 to BUG-195 fixes (four critics, 2026-10-11), before any
+of them shipped. The first fixes made every save send the whole profile from the server's own copy,
+but the copy was not always the right one, and a save could count as done when the server had
+turned it down:
+- **Desktop, after a server switch.** The own copy came only from the active socket's connect and
+  save echo, and a switch to a server kept open in the background unparks a live socket with no
+  fresh connect, so no copy for it ever came; a save there went out with banner, pronouns,
+  location, website, links and the website's privacy choices empty, and the bio and picture of the
+  server switched from. Fixed in `src/gui/pages/own_profile.rs`: one copy per server, filed by every
+  socket including the background ones (`src/engine/bg_connections.rs`), asked for with a
+  `profile_request` for the person's own name when a server has sent none (the relay now answers
+  that with the complete own copy, privacy map included), and every save (`want_save`) is sent by
+  `pump` once that server's copy is here and its limit of one update per 30 seconds allows. A
+  switch shows that server's profile on the Profile page.
+- **Desktop, "Accept files from".** It counted as saved when sent, so an update the relay turned
+  down (its 30-second limit after a privacy tier change, a link that is not https) was lost, and
+  the server's old word was then taken back as another device's choice. Now it waits until the
+  server's copy carries it, and goes once per choice and server in a run of the app.
+- **Relay, linked devices.** The echo with the privacy map went only to the key that saved, but one
+  name can hold several keys (a link code adds one), so a linked device kept an older map and its
+  next save undid the first. The own copy now goes to every key under the name.
+- **Website.** A privacy level's directory choice was never sent once only changes made here went
+  (it did not mark itself as a change), and a save the relay turned down counted as sent, so the
+  server's older copy then replaced it in the browser and on the /profile page. The website now
+  records WHICH fields were changed here (`web/shared/profile-changes.js`), sends them on top of the
+  server's copy once that has been heard, and forgets a change only once the server's copy carries
+  it; "Accept files from" likewise counts as saved only on that copy.
+
+## BUG-197: fields kept for friends were shown to anyone by two HTTP lookups (FIXED v0.1486.0, found 2026-10-11)
+
+Older than the profile work; found by the same review. A person can keep pronouns, location and
+website for friends ("private" in their privacy map), and the chat's profile request respects it.
+But `GET /api/members/{key}` returned the location whatever the map said, and the copy of the
+profile kept for other servers (`signed_profiles`, served by `GET /api/profile/{key}` and gossiped)
+was stored whole. Fixed: the member lookup takes the public view of the profile; the copy for other
+servers leaves out every field kept for friends (`storage::profile::public_field`); and
+`/api/profile/{key}` applies the person's privacy map as it is now to a local account's copy, so a
+copy cached before the fix is answered correctly too.
+
+## BUG-198: removing a federated server did not close a link that was already up (FIXED v0.1486.0, found 2026-10-11)
+
+Older than BUG-192's fix; found by the same review. The connection loop checked the registry only
+between connections, and a healthy link (pinged every 30 seconds) may never drop, so after an admin
+removed a peer ("This server no longer federates with that peer") chat kept flowing to it. Both
+directions now watch the registry while the link is up and close within 15 seconds of a removal
+(`until_removed`, `REGISTRY_CHECK_SECS`), and a registry that cannot be read is no longer taken as
+a removal that stops the loop for good.
+
+## BUG-199: kept copies of private files: leftovers and a lost copy (FIXED v0.1486.0, found 2026-10-11)
+
+Found by the same review, both small. Desktop: a write cut off mid-file (the app closed) left a
+`.tmp` outside the cap that "Clear kept files" did not remove; now making room removes one over an
+hour old and Clear removes them all (`src/net/kept_files.rs` `leftovers`). Website: two files
+opened at once (a DM's pictures open together) could interleave, and the first one's trim took the
+second's fresh copy for a leftover; keeping, trimming and clearing now wait for each other on the
+page (`web/shared/kept-files.js`).

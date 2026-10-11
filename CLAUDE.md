@@ -645,7 +645,7 @@ which was split into five files, and omitted nine that exist). As of 2026-10-11 
 `/shared/group-report.js` →
 `/shared/warnings.js` → `/shared/protected.js` → `/shared/admin-erase.js` →
 `/shared/strip-metadata.js` → `/shared/upload-clean.js` → `/shared/files-in-messages.js` →
-`/shared/kept-files.js` → `crypto.js` →
+`/shared/kept-files.js` → `/shared/profile-changes.js` → `crypto.js` →
 `pq.js` → `chat-dm-store.js` → `view/timestampPill.js` → `view/messageRow.js` → `app.js` →
 `chat-messages.js` → `chat-dms.js` → `chat-social.js` → `chat-groups-p2p.js` → `chat-ui.js` →
 `chat-voice-rooms.js` → `chat-voice-calls.js` → `chat-voice-webrtc.js` →

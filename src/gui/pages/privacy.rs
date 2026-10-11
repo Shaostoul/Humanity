@@ -95,10 +95,6 @@ pub fn apply_tier(state: &mut GuiState, tier_id: &str) {
     let Some(tier) = state.privacy_tiers_cache.iter().find(|t| t.id == tier_id).cloned() else {
         return;
     };
-    // Step F's recovery-phrase guard on the profile text step 2 re-sends: holding the phrase, the
-    // profile update is not sent (the presence flag still is) and the sentence says why.
-    let fields = [state.profile_network_bio.clone(), state.profile_network_avatar.clone()];
-    let profile_ok = !crate::engine::warnings::guard_stops(state, &[&fields[0], &fields[1]]);
     // 1) Presence (server-enforced).
     if let Some(ref client) = state.ws_client {
         if client.is_connected() {
@@ -106,15 +102,13 @@ pub fn apply_tier(state: &mut GuiState, tier_id: &str) {
                 &serde_json::json!({ "type": "privacy_update", "hide_presence": tier.hide_presence })
                     .to_string(),
             );
-            // 2) Directory listing rides the profile privacy JSON, sent as the
-            // whole profile the Profile page's Save sends (own_profile.rs, BUG-194).
-            if profile_ok {
-                let frame = crate::gui::pages::own_profile::save_frame_listed(state, !tier.directory_unlisted);
-                client.send(&frame.to_string());
-            }
         }
     }
+    // 2) Directory listing rides the profile privacy JSON, in the whole profile every save sends
+    // (own_profile.rs `pump`, BUG-194 and BUG-196; it holds Step F's recovery-phrase guard, so
+    // holding the phrase the profile is not sent while the presence flag still is).
     state.profile_directory_listed = !tier.directory_unlisted;
+    crate::gui::pages::own_profile::want_save(state);
     state.settings.online_status_visible = !tier.hide_presence;
     // 3) Persist the choice so the first-connect prompt never re-asks.
     state.settings.privacy_tier = tier.id.clone();
@@ -271,16 +265,9 @@ pub(crate) fn draw_privacy_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
         )
         .changed()
     {
-        // Step F's recovery-phrase guard on the bio and picture this re-sends: holding the
-        // phrase, nothing is sent. The whole profile goes (own_profile.rs, BUG-194: this sent the
-        // bio alone, and so wiped the picture and everything else).
-        let fields = [state.profile_network_bio.clone(), state.profile_network_avatar.clone()];
-        let profile_ok = !crate::engine::warnings::guard_stops(state, &[&fields[0], &fields[1]]);
-        if let (Some(client), true) = (state.ws_client.as_ref(), profile_ok) {
-            if client.is_connected() {
-                client.send(&crate::gui::pages::own_profile::save_frame(state).to_string());
-            }
-        }
+        // The whole profile goes (own_profile.rs `pump`, with Step F's recovery-phrase guard;
+        // BUG-194: this sent the bio alone, and so wiped the picture and everything else).
+        crate::gui::pages::own_profile::want_save(state);
     }
     // Presence: the SAME persisted switch the old Settings toggle showed,
     // now actually ENFORCED server-side via privacy_update (before

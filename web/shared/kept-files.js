@@ -185,13 +185,28 @@
     try { await req(store(db, INDEX, 'readwrite').delete(id)); } catch (e) { /* already gone */ }
   }
 
+  // One change at a time on this page: put, trim and clear wait for each other. Two files opened at
+  // once (a DM's pictures open together) used to interleave, and the first put's trim, having read
+  // the sizes before the second wrote its own, took the second's copy for a leftover and removed it
+  // while that put still answered true (the web review of 2026-10-11).
+  let queue = Promise.resolve();
+  function queued(fn) {
+    const run = queue.then(fn, fn);
+    queue = run.then(() => undefined, () => undefined);
+    return run;
+  }
+
   /**
    * Keep an opened file, encrypted with `key`, then hold the whole to `cap` bytes (the oldest
    * opened first out). Returns true when it was kept. A file larger than the cap, or a cap of 0,
    * keeps nothing.
    * o: {indexedDB, key, scope, meta, bytes, cap, crypto?}
    */
-  async function put(o) {
+  function put(o) {
+    return queued(() => putNow(o));
+  }
+
+  async function putNow(o) {
     try {
       if (!o || !o.key || !o.scope || !o.meta || !o.bytes) return false;
       const cap = Number(o.cap);
@@ -205,7 +220,7 @@
       const seq = await nextSeq(db);
       await req(store(db, FILES, 'readwrite').put({ k: id, iv, ct }));
       await req(store(db, INDEX, 'readwrite').put({ k: id, seq, size: ct.byteLength }));
-      await trim({ indexedDB: o.indexedDB, cap });
+      await trimNow({ indexedDB: o.indexedDB, cap });
       return true;
     } catch (e) {
       return false;
@@ -217,7 +232,11 @@
    * (left by a write that did not finish) goes too. Returns {count, bytes} kept after.
    * o: {indexedDB, cap}
    */
-  async function trim(o) {
+  function trim(o) {
+    return queued(() => trimNow(o));
+  }
+
+  async function trimNow(o) {
     const db = await openDb(o.indexedDB);
     const cap = Math.max(0, Number(o.cap) || 0);
     const rows = ((await req(store(db, INDEX, 'readonly').getAll())) || []).slice();
@@ -243,7 +262,11 @@
   }
 
   /** Remove every kept file on this device. */
-  async function clear(o) {
+  function clear(o) {
+    return queued(() => clearNow(o));
+  }
+
+  async function clearNow(o) {
     const db = await openDb(o.indexedDB);
     await req(store(db, FILES, 'readwrite').clear());
     await req(store(db, INDEX, 'readwrite').clear());

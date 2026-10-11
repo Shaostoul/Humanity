@@ -2,7 +2,7 @@
 //! Handles outbound WebSocket connections to peer servers and message forwarding.
 
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use base64::{Engine, engine::general_purpose::STANDARD as B64};
 use futures::{SinkExt, StreamExt};
@@ -169,6 +169,27 @@ pub async fn forward_to_federation(state: &Arc<RelayState>, channel: &str, from_
     }
 }
 
+/// How often a live federation link checks that its peer is still in the registry.
+pub(crate) const REGISTRY_CHECK_SECS: u64 = 15;
+
+/// Whether the federation registry still lists `id` (as its row id, its URL or its pinned key).
+/// None when the registry could not be read: that is not a removal.
+pub(crate) fn registry_lists(state: &RelayState, id: &str) -> Option<bool> {
+    let rows = state.db.list_federated_servers().ok()?;
+    Some(rows.iter().any(|s| s.server_id == id || s.url == id || s.public_key.as_deref() == Some(id)))
+}
+
+/// Resolves once the registry no longer lists `id`, checked every `every`, so a live link to a peer
+/// an admin removed closes (2026-10-11; before, removal only stopped the next reconnect).
+pub(crate) async fn until_removed(state: Arc<RelayState>, id: String, every: Duration) {
+    loop {
+        tokio::time::sleep(every).await;
+        if registry_lists(&state, &id) == Some(false) {
+            return;
+        }
+    }
+}
+
 /// Start outbound WebSocket connections to all verified federated servers.
 /// Returns the number of connection attempts initiated.
 pub async fn start_federation_connections(state: &Arc<RelayState>) -> usize {
@@ -237,12 +258,16 @@ pub async fn federation_connect_loop(
     let mut backoff_secs = 5u64;
     let mut quick_drops = 0u32;
     loop {
-        let Some(row) = state
-            .db
-            .list_federated_servers()
-            .ok()
-            .and_then(|rows| rows.into_iter().find(|s| s.server_id == server_id))
-        else {
+        let rows = match state.db.list_federated_servers() {
+            Ok(rows) => rows,
+            Err(e) => {
+                // Not a removal: the registry could not be read. Try again shortly.
+                tracing::warn!("Federation: could not read the registry for {} ({e}); trying again", server_name);
+                tokio::time::sleep(tokio::time::Duration::from_secs(backoff_secs)).await;
+                continue;
+            }
+        };
+        let Some(row) = rows.into_iter().find(|s| s.server_id == server_id) else {
             tracing::info!("Federation: {} is no longer in the registry, so its connection stops", server_name);
             return;
         };
@@ -375,10 +400,20 @@ pub async fn federation_connect_loop(
                     }
                 });
 
-                // Wait for either to finish (connection dropped).
-                tokio::select! {
-                    _ = write_task => {}
-                    _ = read_task => {}
+                // Wait for either to finish (connection dropped), or for an admin to remove this
+                // peer, which closes a live link within REGISTRY_CHECK_SECS (until 2026-10-11 it
+                // lived on until it dropped by itself, still carrying chat). Both pumps stop.
+                let mut write_task = write_task;
+                let mut read_task = read_task;
+                let removed = tokio::select! {
+                    _ = &mut write_task => false,
+                    _ = &mut read_task => false,
+                    _ = until_removed(state.clone(), server_id.clone(), Duration::from_secs(REGISTRY_CHECK_SECS)) => true,
+                };
+                write_task.abort();
+                read_task.abort();
+                if removed {
+                    tracing::info!("Federation: {} was removed from the registry, so its link closes", server_name);
                 }
                 lasted = Some(linked_at.elapsed().as_secs());
 
@@ -630,9 +665,19 @@ pub async fn run_inbound_peer(
             }
         }
     });
-    tokio::select! {
-        _ = write_task => {}
-        _ = read_task => {}
+    // Until either pump ends or an admin removes this peer (the link then closes within
+    // REGISTRY_CHECK_SECS instead of living on, 2026-10-11).
+    let mut write_task = write_task;
+    let mut read_task = read_task;
+    let removed = tokio::select! {
+        _ = &mut write_task => false,
+        _ = &mut read_task => false,
+        _ = until_removed(state.clone(), server_id.clone(), Duration::from_secs(REGISTRY_CHECK_SECS)) => true,
+    };
+    write_task.abort();
+    read_task.abort();
+    if removed {
+        tracing::info!("Federation: inbound peer {} was removed from the registry, so its link closes", server_id);
     }
     {
         let mut conns = state.federation_connections.write().await;
@@ -1194,6 +1239,27 @@ mod recheck_tests {
         assert_eq!(next_backoff(160, Some(0)), 300, "up to 5 minutes");
         assert_eq!(next_backoff(300, None), 300, "a connect that failed waits the most too");
         assert_eq!(next_backoff(300, Some(STABLE_LINK_SECS)), 5, "a link that held a minute starts again from 5 s");
+    }
+
+    /// A LINK TO A REMOVED PEER CLOSES: `until_removed` waits while the registry lists the peer (by
+    /// row id, address or pinned key) and resolves once an admin removes it; a registry that cannot
+    /// be read is not a removal. (Until 2026-10-11 removal only stopped the next reconnect, and a
+    /// healthy link kept carrying chat.)
+    ///
+    /// Seen red 2026-10-11 with `registry_lists` answering true whatever the registry held: the
+    /// check that an address it does not list is not listed failed (Some(true)).
+    #[tokio::test]
+    async fn a_link_to_a_removed_peer_closes() {
+        let state = Arc::new(RelayState::new(Storage::open_temp("fed_until_removed")));
+        state.db.add_federated_server("peer-row", "Peer", "https://peer.example").unwrap();
+        assert_eq!(registry_lists(&state, "peer-row"), Some(true));
+        assert_eq!(registry_lists(&state, "https://peer.example"), Some(true), "by its address");
+        assert_eq!(registry_lists(&state, "someone-else"), Some(false));
+        let wait = tokio::spawn(until_removed(state.clone(), "peer-row".to_string(), Duration::from_millis(10)));
+        tokio::time::sleep(Duration::from_millis(80)).await;
+        assert!(!wait.is_finished(), "a listed peer's link stays");
+        state.db.remove_federated_server("peer-row").unwrap();
+        tokio::time::timeout(Duration::from_secs(2), wait).await.expect("the wait ends once it is removed").unwrap();
     }
 
     /// A SERVER KEY IS TODAY'S KEY: 3,904 lower-case hex characters (Dilithium3). A 64-hex Ed25519

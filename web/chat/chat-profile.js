@@ -23,10 +23,12 @@
 // The /profile page writes the SAME localStorage object this file reads
 // (`humanity_profile`), and this file owns the only push path to the relay
 // (WS `profile_update`): immediately via the cross-tab `storage` event when the
-// page saves while chat is open, else on the next connect. Only a change made in
-// this browser goes (BUG-195, 2026-10-11): the page marks its save unsent, and
-// with nothing waiting my own copy from the server is taken in instead
-// (adoptOwnProfile), so a change made on another device is never pushed back over.
+// page saves while chat is open, else once the server's copy has been heard on
+// the next connect. Only fields changed in this browser are sent, on top of the
+// server's own copy, and a change is forgotten only once the server's copy
+// carries it (BUG-195, 2026-10-11; /shared/profile-changes.js), so a change made
+// on another device is never pushed back over and a save the server turns down
+// is not lost.
 //
 // Depends on (from app.js): ws, myKey, myName, esc, generateIdenticon,
 //   roleBadge, peerData, isFriend, isFollowing, myFollowing, myFollowers,
@@ -142,35 +144,32 @@ function setFilesAcceptUnsent(on) {
   } catch (e) { /* this browser keeps nothing: it goes with this page's next push or not at all */ }
 }
 
-// ── A profile change made in this browser (2026-10-11, BUG-195) ──
-// The /profile page sets PROFILE_UNSENT_KEY when it saves the network profile, before it writes
-// `humanity_profile`, and it stays set until that profile has gone to the server. Before this,
-// every connect pushed the stored profile, so a change made on another device (or the desktop
-// app) was undone the next time this browser connected. With nothing waiting here, my own copy
-// from the server (the server puts my privacy map on my own copies only, which is how they are
-// told from the public copy of my save) replaces the network fields of the stored profile.
-const PROFILE_UNSENT_KEY = 'humanity_profile_unsent';
+// ── Profile changes made in this browser (2026-10-11, BUG-195 and its review) ──
+// The /profile page and a privacy level record WHICH fields they changed
+// (/shared/profile-changes.js). My own copy from the server (the server puts my privacy map on my
+// own copies only, which is how they are told from the public copy of my save) becomes the stored
+// profile, with each field still waiting taken from here; a change the server's copy carries is
+// done. So nothing changed elsewhere is put back, and a save the server turned down stays waiting.
 
-function profileUnsent() {
-  try { return window.localStorage.getItem(PROFILE_UNSENT_KEY) === '1'; } catch (e) { return false; }
+function profileStorage() {
+  try { return window.localStorage; } catch (e) { return null; }
 }
 
-function setProfileUnsent(on) {
-  try {
-    if (on) window.localStorage.setItem(PROFILE_UNSENT_KEY, '1');
-    else window.localStorage.removeItem(PROFILE_UNSENT_KEY);
-  } catch (e) { /* this browser keeps nothing */ }
+/** The fields changed here that the server's copy does not carry yet. */
+function profileChangesWaiting() {
+  const P = window.HosProfileChanges;
+  return P ? P.read(profileStorage()) : [];
 }
 
-/** My own complete copy from the server (app.js profile_data): taken in while nothing waits here. */
+/** My own complete copy from the server (app.js profile_data). */
 function adoptOwnProfile(msg) {
   if (!msg || typeof msg.privacy !== 'string') return; // not my own complete copy
-  if (profileUnsent()) return; // a change of mine waits: it goes, and its echo comes back
+  const P = window.HosProfileChanges;
+  if (!P) return;
   const parse = (text) => {
     try { const v = JSON.parse(text || '{}'); return v && typeof v === 'object' ? v : {}; } catch (e) { return {}; }
   };
-  const before = loadProfileLocal();
-  const after = Object.assign({}, before, {
+  const server = {
     bio:        msg.bio        || '',
     socials:    parse(msg.socials),
     avatar_url: msg.avatar_url || '',
@@ -179,9 +178,14 @@ function adoptOwnProfile(msg) {
     location:   msg.location   || '',
     website:    msg.website    || '',
     privacy:    parse(msg.privacy),
-  });
+  };
+  const storage = profileStorage();
+  const changes = P.read(storage);
+  const before = loadProfileLocal();
+  const after = P.merge(server, before, changes);
   followOnProfilePage(before, after);
   saveProfileLocal(after);
+  P.write(storage, P.stillWaiting(server, before, changes));
 }
 
 // The /profile page keeps its own drafts (every field as typed, saved as you type) and its own
@@ -244,20 +248,32 @@ function filesAcceptChanged() {
 function ownProfileSettled() {
   if (ownProfileHeard) return;
   ownProfileHeard = true;
-  if (filesAcceptUnsent()) pushProfileToRelay();
+  pushWaitingOnce();
+}
+
+// Changes waiting from before this connection go once the server's copy has been heard, once per
+// page: not again on every copy that comes back (a bio the server tidies, its HTML taken out, never
+// matches exactly, and would otherwise go every 30 seconds).
+let waitingPushedOnce = false;
+function pushWaitingOnce() {
+  if (waitingPushedOnce) return;
+  waitingPushedOnce = true;
+  if (profileChangesWaiting().length || filesAcceptUnsent()) pushProfileToRelay();
 }
 
 /** My own profile from the server (app.js profile_data, after the local copy is filled in). */
 function ownProfileArrived(msg) {
   ownProfileHeard = true;
   const F = window.HosFilesInMessages;
-  if (!F) return;
-  // A choice made here that has not gone yet goes with the next push, whatever the server says.
-  if (filesAcceptUnsent()) { pushProfileToRelay(); return; }
-  const word = F.acceptsFilesOf(msg && msg.accepts_files);
-  if (!word) return;
   let storage = null;
   try { storage = window.localStorage; } catch (e) { storage = null; }
+  const word = F ? F.acceptsFilesOf(msg && msg.accepts_files) : null;
+  // A choice made here counts as saved once the server's copy carries it (an update the server
+  // turned down leaves it waiting).
+  if (F && word && filesAcceptUnsent() && word === F.readSettings(storage).accept) setFilesAcceptUnsent(false);
+  pushWaitingOnce();
+  if (!F || filesAcceptUnsent()) return;
+  if (!word) return;
   const mine = F.readSettings(storage);
   if (word === mine.accept) return;
   if (typeof protectedIsOn === 'function' && protectedIsOn() && F.acceptLooser(mine.accept, word)) return;
@@ -295,11 +311,11 @@ let profilePushTimer = null;
 async function pushProfileToRelay() {
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
   const local = loadProfileLocal();
-  // Only a change made here goes (BUG-195). A waiting "Accept files from" goes with the whole
-  // profile, and only once the server's copy of my profile has been heard and taken in (the whole
-  // profile is saved: see above), so it never carries a stale copy over a newer one.
-  const changedHere = profileUnsent();
-  if (!changedHere && !(filesAcceptUnsent() && ownProfileHeard)) return;
+  // Only a change made here goes (BUG-195), and only once the server's copy of my profile has been
+  // heard and taken in (the whole profile is saved: see above), so the fields not changed here are
+  // the server's and never a stale copy over a newer one.
+  if (!profileChangesWaiting().length && !filesAcceptUnsent()) return;
+  if (!ownProfileHeard) return;
   // Never my recovery phrase in a profile field (step F, chat-warnings.js).
   // Checked before the throttle below, which then runs without a pause, so
   // two pushes at once still send once. Said here, in the chat, because the
@@ -317,17 +333,14 @@ async function pushProfileToRelay() {
   lastProfileUpdateSent = Date.now();
   const update = buildProfileUpdate(local);
   ws.send(JSON.stringify(update));
-  // Sent: nothing of mine waits, unless the page saved again while this was on its way (that save
-  // has its own push coming, held back by the 30-second limit above).
-  if (changedHere && JSON.stringify(loadProfileLocal()) === JSON.stringify(local)) setProfileUnsent(false);
-  // Sent: the server now holds this device's choice (it refuses a whole update only for a word
-  // that is not one of the three, which this never sends).
-  if (update.accepts_files !== undefined) setFilesAcceptUnsent(false);
+  // Nothing is counted as saved here: the changes and a waiting "Accept files from" are done when
+  // the server's copy comes back carrying them (adoptOwnProfile, ownProfileArrived). The server
+  // turns a whole update down for a link that is not https or a handle it refuses.
 }
 
 /**
- * On connect, push a profile change made here while chat was closed (the page's save waits as
- * unsent until it goes). Called from app.js once the socket is open.
+ * On connect: a profile change made here while chat was closed goes once the server's copy has
+ * been heard (pushProfileToRelay waits for it). Called from app.js once the socket is open.
  */
 function syncProfileOnConnect() {
   pushProfileToRelay();

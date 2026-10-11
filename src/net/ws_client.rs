@@ -126,6 +126,14 @@ impl WsClient {
         (client, sent)
     }
 
+    /// Test-only: `recording`, signed in as `name` (what `user_name` answers).
+    #[cfg(test)]
+    pub fn recording_as(name: &str) -> (Self, mpsc::Receiver<String>) {
+        let (mut client, sent) = Self::recording();
+        client.user_name = name.to_string();
+        (client, sent)
+    }
+
     /// Send a raw JSON message string to the server.
     pub fn send(&self, msg: &str) {
         if let Some(ref tx) = self.sender {

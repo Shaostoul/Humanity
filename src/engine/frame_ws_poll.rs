@@ -52,6 +52,8 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
     // The server's settings, asked for once on every socket whose sign-in has completed
     // (gui/connections.rs `socket_signed_in`, `ask_server_settings_once`).
     state.gui_state.ask_server_settings_once();
+    // This person's own profile: show the server's copy, ask for it, send a wanted save (BUG-196).
+    crate::gui::pages::own_profile::pump(&mut state.gui_state);
     crate::engine::dm::pace_owed_passes(&mut state.gui_state, std::time::Instant::now()); // passes the sweep held back, at the server's pace
     // ── Poll WebSocket messages from relay server ──
     let mut ws_dropped = false;
@@ -734,7 +736,7 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                             }
                             if let Some(copy) = own_profile::own_copy(&val, &socket_name) {
                                 let server = state.gui_state.server_url.clone();
-                                own_profile::take_in(&mut state.gui_state, &server, copy);
+                                own_profile::keep_copy(&mut state.gui_state, &server, copy);
                                 log::info!("Received own profile from server");
                             }
                         }

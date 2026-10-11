@@ -194,7 +194,8 @@ fn the_member_and_profile_lookups_carry_it() {
 
 /// The person's privacy map rides THEIR OWN copy (the echo of their save, `target` = their key),
 /// so their other apps can send the whole profile back (a profile update is saved whole,
-/// BUG-194); the public copy and an answer to anyone else, themselves included, never carry it.
+/// BUG-194); the public copy and an answer to anyone else never carry it (their own request is
+/// answered with it: `asking_for_your_own_profile_gets_your_complete_copy`).
 ///
 /// Seen red 2026-10-11 with the own copy's `privacy` put back to `None` in
 /// `handle_profile_update`: "the own copy carries the privacy map: [(None, None), (Some(\"ann_key\"),
@@ -216,9 +217,91 @@ fn only_the_persons_own_copy_carries_their_privacy_map() {
         .collect();
     assert_eq!(wires, vec![(None, None), (some("ann_key"), some(privacy))], "the own copy carries the privacy map: {wires:?}");
 
-    for asker in ["bob_key", "ann_key"] {
-        let answer = send(&st, asker, serde_json::json!({ "type": "profile_request", "name": "Ann" }));
-        let w = serde_json::to_value(&answer[0]).unwrap();
-        assert!(w.get("privacy").is_none(), "an answer to {asker} never carries it: {w}");
-    }
+    let answer = send(&st, "bob_key", serde_json::json!({ "type": "profile_request", "name": "Ann" }));
+    let w = serde_json::to_value(&answer[0]).unwrap();
+    assert_eq!(w["type"], "profile_data");
+    assert!(w.get("privacy").is_none(), "an answer to someone else never carries it: {w}");
+}
+
+/// The own copy reaches every device signed in under the name, a linked one with its own key
+/// included, so its next save does not undo this one (the relay review of 2026-10-11).
+///
+/// Seen red 2026-10-11 with the echo sent to the saving key alone: "the linked phone gets the own
+/// copy" failed.
+#[test]
+fn the_persons_own_copy_reaches_each_of_their_devices() {
+    let st = fresh_state();
+    sign_in(&st, "ann_key", "Ann");
+    let code = st.db.create_link_code("Ann", "ann_key").unwrap();
+    assert_eq!(st.db.redeem_link_code(&code, "ann_phone").unwrap().as_deref(), Some("Ann"), "test setup: the phone is linked");
+    let sent = send(&st, "ann_key", serde_json::json!({ "type": "profile_update", "bio": "hi", "socials": "{}", "privacy": "{\"directory\":\"unlisted\"}" }));
+    let own: Vec<String> = sent
+        .iter()
+        .map(|m| serde_json::to_value(m).unwrap())
+        .filter(|w| w["type"] == "profile_data" && w.get("privacy").is_some())
+        .filter_map(|w| w["target"].as_str().map(str::to_string))
+        .collect();
+    assert!(own.contains(&"ann_key".to_string()), "the saving device gets it: {own:?}");
+    assert!(own.contains(&"ann_phone".to_string()), "the linked phone gets the own copy: {own:?}");
+}
+
+/// Asking for your OWN profile (an app that switched to this server without a fresh connect has had
+/// no own copy from it) gets the complete copy, privacy map and private fields included; someone
+/// else asking gets neither; a person with no profile here gets an empty one with an empty map.
+///
+/// Seen red 2026-10-11 without the own-profile answer in `handle_profile_request`: "her own
+/// request is answered with her privacy map" failed.
+#[test]
+fn asking_for_your_own_profile_gets_your_complete_copy() {
+    let st = fresh_state();
+    sign_in(&st, "ann_key", "Ann");
+    sign_in(&st, "bob_key", "Bob");
+    let privacy = r#"{"location":"private"}"#;
+    send(&st, "ann_key", serde_json::json!({ "type": "profile_update", "bio": "hi", "socials": "{}", "location": "Lisbon", "privacy": privacy }));
+
+    let answer = send(&st, "ann_key", serde_json::json!({ "type": "profile_request", "name": "Ann" }));
+    let w = serde_json::to_value(&answer[0]).unwrap();
+    assert_eq!(w["privacy"], privacy, "her own request is answered with her privacy map: {w}");
+    assert_eq!(w["location"], "Lisbon", "and the field she keeps for friends");
+    assert_eq!(w["target"], "ann_key");
+
+    let answer = send(&st, "bob_key", serde_json::json!({ "type": "profile_request", "name": "Ann" }));
+    let w = serde_json::to_value(&answer[0]).unwrap();
+    assert!(w.get("privacy").is_none() && w.get("location").is_none(), "Bob gets neither: {w}");
+
+    let answer = send(&st, "bob_key", serde_json::json!({ "type": "profile_request", "name": "Bob" }));
+    let w = serde_json::to_value(&answer[0]).unwrap();
+    assert_eq!((w["privacy"].as_str(), w["bio"].as_str()), (Some("{}"), Some("")), "no profile yet: an empty copy: {w}");
+}
+
+/// A field the person keeps for friends stays out of the HTTP lookups anyone can call
+/// (`/api/members/{key}` and `/api/profile/{key}`) and out of the copy kept for other servers;
+/// a public one is shown. Also a copy cached before this rule is answered by the privacy map as
+/// it is now.
+///
+/// Seen red 2026-10-11 with the lookups as they were (the relay review of that day): "the member
+/// lookup leaves out a private location" failed with "Lisbon".
+#[test]
+fn private_fields_stay_out_of_the_lookups() {
+    use axum::extract::{Path, State};
+    use axum::response::IntoResponse;
+    let st = fresh_state();
+    sign_in(&st, "ann_key", "Ann");
+    send(&st, "ann_key", serde_json::json!({ "type": "profile_update", "bio": "hi", "socials": "{}", "location": "Lisbon", "pronouns": "she", "privacy": "{\"location\":\"private\"}" }));
+    let body = |resp: axum::response::Response| -> serde_json::Value {
+        let bytes = block(axum::body::to_bytes(resp.into_body(), usize::MAX)).unwrap();
+        serde_json::from_slice(&bytes).unwrap()
+    };
+    let member = block(crate::relay::api::get_member_by_key(State(st.clone()), Path("ann_key".to_string()))).expect("a member");
+    assert_eq!(member.0["location"], "", "the member lookup leaves out a private location: {}", member.0);
+    let signed = body(block(crate::relay::api::get_signed_profile(State(st.clone()), Path("ann_key".to_string()))).into_response());
+    assert_eq!(signed["location"], "", "the profile lookup too: {signed}");
+    assert_eq!(signed["pronouns"], "she", "a public field is shown");
+    let kept = st.db.get_signed_profile("ann_key").unwrap().expect("the copy for other servers");
+    assert_eq!(kept.location, "", "the copy for other servers leaves it out");
+
+    // A copy cached before the rule, still holding the location.
+    st.db.store_signed_profile("ann_key", "Ann", "hi", "", "", "{}", "she", "Lisbon", "", crate::relay::storage::now_millis(), "").unwrap();
+    let signed = body(block(crate::relay::api::get_signed_profile(State(st.clone()), Path("ann_key".to_string()))).into_response());
+    assert_eq!(signed["location"], "", "an older cached copy is answered by the map as it is now");
 }

@@ -78,6 +78,28 @@ fn listing(dir: &Path) -> Vec<(PathBuf, u64, std::time::SystemTime)> {
         .collect()
 }
 
+/// The pieces of writes that never finished in `dir` (the app was closed mid-write): `.tmp` files
+/// last written to longer than `older_than` ago. A write in progress adds to its file every piece,
+/// so it is never one of them. They sit outside the cap, so `evict` and `clear` remove them.
+fn leftovers(dir: &Path, older_than: std::time::Duration) -> Vec<PathBuf> {
+    let Ok(entries) = std::fs::read_dir(dir) else { return Vec::new() };
+    entries
+        .flatten()
+        .filter(|e| e.path().extension().and_then(|x| x.to_str()) == Some("tmp"))
+        .filter(|e| {
+            e.metadata()
+                .ok()
+                .and_then(|m| m.modified().ok())
+                .and_then(|t| t.elapsed().ok())
+                .is_some_and(|age| age >= older_than)
+        })
+        .map(|e| e.path())
+        .collect()
+}
+
+/// How long an unfinished write's `.tmp` waits before `evict` takes it for a leftover.
+const LEFTOVER_AGE: std::time::Duration = std::time::Duration::from_secs(3600);
+
 /// How many bytes the kept files in `dir` take.
 pub fn used(dir: &Path) -> u64 {
     listing(dir).iter().map(|(_, n, _)| n).sum()
@@ -85,6 +107,9 @@ pub fn used(dir: &Path) -> u64 {
 
 /// Remove every kept file in `dir` ("Clear kept files"): how many, and how many bytes.
 pub fn clear(dir: &Path) -> (usize, u64) {
+    for p in leftovers(dir, std::time::Duration::ZERO) {
+        let _ = std::fs::remove_file(p);
+    }
     let mut gone = (0usize, 0u64);
     for (p, n, _) in listing(dir) {
         if std::fs::remove_file(&p).is_ok() {
@@ -97,6 +122,9 @@ pub fn clear(dir: &Path) -> (usize, u64) {
 
 /// Remove the files opened longest ago until `dir` holds at most `cap` bytes.
 pub fn evict(dir: &Path, cap: u64) {
+    for p in leftovers(dir, LEFTOVER_AGE) {
+        let _ = std::fs::remove_file(p);
+    }
     let mut files = listing(dir);
     let mut total: u64 = files.iter().map(|(_, n, _)| n).sum();
     files.sort_by_key(|(_, _, t)| *t);

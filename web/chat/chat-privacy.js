@@ -53,10 +53,16 @@ async function applyPrivacyTier(tierId) {
   // 2) Directory listing: merge into the local profile store so the push
   // path carries every other profile field unchanged.
   try {
-    const local = loadProfileLocal();
+    const before = loadProfileLocal();
+    const local = JSON.parse(JSON.stringify(before));
     local.privacy = local.privacy || {};
     if (tier.directory_unlisted) local.privacy.directory = 'unlisted';
     else delete local.privacy.directory;
+    // Recorded as changed here, so it goes on top of the server's copy and waits until that copy
+    // carries it (BUG-195's review: it was never sent once only changes made here went).
+    if (window.HosProfileChanges) {
+      window.HosProfileChanges.add(window.localStorage, window.HosProfileChanges.changedFields(before, local));
+    }
     saveProfileLocal(local);
     if (typeof pushProfileToRelay === 'function') pushProfileToRelay();
   } catch (e) {

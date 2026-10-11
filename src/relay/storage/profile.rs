@@ -14,6 +14,16 @@ pub const ACCEPTS_FILES_DEFAULT: &str = "friends";
 
 /// `word` if it is one of [`ACCEPTS_FILES_WORDS`], exactly as written (no trimming or case
 /// folding: these are protocol words an app sends, not something a person types).
+/// `value` as a copy anyone may see carries it: empty when the privacy map `privacy_json` keeps
+/// `field` for friends ("private"). An unreadable map leaves it public, as everywhere else.
+pub fn public_field(privacy_json: &str, field: &str, value: &str) -> String {
+    let private = serde_json::from_str::<std::collections::HashMap<String, String>>(privacy_json)
+        .ok()
+        .and_then(|m| m.get(field).cloned())
+        .is_some_and(|v| v == "private");
+    if private { String::new() } else { value.to_string() }
+}
+
 pub fn accepts_files_word(word: &str) -> Option<&'static str> {
     ACCEPTS_FILES_WORDS.iter().copied().find(|w| *w == word)
 }

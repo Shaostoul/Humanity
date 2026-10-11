@@ -366,6 +366,7 @@ async function loadChat(opts = {}) {
   run("shared/reach.js");
   run("shared/block.js");
   run("shared/warnings.js");
+  run("shared/profile-changes.js");
   run("chat/crypto.js");
   run("chat/chat-dm-store.js");
   run("chat/view/timestampPill.js");
@@ -835,7 +836,8 @@ test("the recovery-phrase guard: 4 words in a row stop every kind of send; 3, or
 
   // A profile field.
   reset();
-  chat.ctx.localStorage.setItem("humanity_profile_unsent", "1"); // saved on the /profile page (BUG-195)
+  chat.ctx.localStorage.setItem("humanity_profile_changes", JSON.stringify(["bio", "socials"])); // saved on the /profile page (BUG-195)
+  chat.set("() => { ownProfileHeard = true; }"); // the server's copy of my profile was heard
   chat.ctx.localStorage.setItem("humanity_profile", JSON.stringify({ bio: "gardener", socials: { discord: four } }));
   await chat.fn("pushProfileToRelay")();
   assert.deepEqual(sent("profile_update"), [], "a profile field with 4 words is not sent");

@@ -1942,14 +1942,16 @@ choose": Accept files from (Nobody / Friends / Anyone I talk to), Show pictures 
 - With the protected setup on, making "Accept files from" more open needs the PIN (the same gate
   as a "Who can reach me" row); closing it never does; the pictures row is a line.
 - **Publishing.** The relay saves a `profile_update` whole, so `accepts_files` only ever goes with
-  the full local profile, and only while a choice made on this device has not been sent yet
+  the full profile, and only while a choice made on this device waits
   (`hos_files_accept_unsent`, so a choice made offline still goes); otherwise it is left out and the
-  server keeps its word, and a newer choice made on another device is not undone. With an empty
-  local profile the choice waits until this connection has heard the server's copy of my profile
-  (copied into the local one first, as app.js always did) or heard there is none (the relay sends it
-  before the channel list), so an empty local copy never wipes a profile written elsewhere. My own
-  profile coming back with a different word while nothing waits here is another device's choice:
-  this device takes it (never a more open one while the protected setup is on).
+  server keeps its word, and a newer choice made on another device is not undone. Nothing goes
+  before this connection has heard the server's own copy of my profile, or heard there is none, and
+  the profile sent is that copy with only the fields changed in this browser on top
+  (`/shared/profile-changes.js`, BUG-195), so it never wipes a profile written elsewhere. The choice
+  counts as saved only when my own copy comes back carrying it (an update the server turns down
+  leaves it waiting; until the review of 2026-10-11 it counted as saved when sent). My own profile
+  coming back with a different word while nothing waits here is another device's choice: this
+  device takes it (never a more open one while the protected setup is on).
 - The sender's line: opening a DM asks the server once for that person's profile (`profile_request`,
   with my pass when I hold one) and keeps `accepts_files` from the answer. In the attach step: "Ann
   accepts files only from friends. Their app will ask them before it downloads this one." when I am
@@ -2080,26 +2082,24 @@ with its save leg removed).
   (`GET /api/members/{key}`, which also gives their name), and the attach step says "Ann accepts
   files only from friends. They will be asked whether to accept this one." when it applies.
 - Publishing, by the web's rules: `accepts_files` goes only while a choice made on this device waits
-  (`accept_unsent`, kept in the config, so a choice made offline still goes), at most once every 31
-  seconds (the relay's limit is one profile update per 30). Because the relay saves a profile update
-  whole, the update carries the whole profile: this device's bio and picture where it has them, the
-  server's copy for the rest (`/api/members/{key}` for bio, picture and place, `/api/profile/{key}`
-  for banner, pronouns, website and socials), so it never wipes a profile written elsewhere. While
-  nothing waits, a different word in the server's copy is another device's newer choice and is
-  taken (`files_policy::adopt_from_server`), never a more open one under the protected setup.
-- Differences from the web, each for a reason. The desktop reads its own profile from the server by
-  REST, refreshed every ten minutes while the chat page or Settings > Privacy is open, instead of
-  from its own `profile_data`: that frame is handled in `src/engine/frame_ws_poll.rs`, outside this
-  increment's files (and that handler takes every `profile_data` for the person's own, which a
-  later change should fix). Under the protected setup "Accept files from" can be closed but not
-  opened here (the more open choices are greyed out); the web asks for the PIN instead, which on
-  the desktop needs an arm in `engine::protected::perform`.
+  (`accept_unsent`, kept in the config, so a choice made offline still goes), once per choice and
+  server in a run of the app, and counts as saved only when that server's own copy comes back
+  carrying it. It goes in the whole profile every save sends (`src/gui/pages/own_profile.rs`,
+  BUG-194 and BUG-196): each server's own copy is kept from its socket (the active one and those
+  open in the background), asked for with a `profile_request` for the person's own name when a
+  server has sent none, and a save waits for it and for the relay's one-update-per-30-seconds
+  limit. While nothing waits, a different word in the server's copy is another device's newer
+  choice and is taken (`files_policy::adopt_from_server`), never a more open one under the
+  protected setup.
+- Differences from the web, each for a reason. Under the protected setup "Accept files from" can
+  be closed but not opened here (the more open choices are greyed out); the web asks for the PIN
+  instead, which on the desktop needs an arm in `engine::protected::perform`.
 - P2P groups: the group object carries only its name and roster (`P2pGroupInfo`), so the owner's
   "Files allowed" and "Largest file (MB)" wait for a group-settings increment; each member's own
   settings apply in groups already.
-- Unchanged and worth knowing: the Profile page's Save and the privacy tier chooser still send the
-  profile from this device's own fields (an empty local bio is saved empty, banner, pronouns and
-  website are left out and saved empty). They leave `accepts_files` out, which the relay keeps.
+- The Profile page's Save, the privacy tier chooser and the directory checkbox send the whole
+  profile the same way (they sent this device's own fields alone, wiping the rest, until
+  2026-10-11: BUG-194).
 
 **Part 4, a copy of each private file opened.** `src/net/kept_files.rs`. What is kept is the
 server's ciphertext of the file (sealed with the file's own key, which lives only in the marker

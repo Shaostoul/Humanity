@@ -470,6 +470,7 @@ async function loadChat(opts = {}) {
   run("shared/report.js");
   run("shared/warnings.js");
   run("shared/protected.js");
+  run("shared/profile-changes.js");
   run("chat/crypto.js");
   run("chat/chat-dm-store.js");
   run("chat/view/timestampPill.js");

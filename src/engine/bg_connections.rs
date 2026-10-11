@@ -758,6 +758,16 @@ fn handle_bg_message(state: &mut EngineState, ci: usize, raw: &str) {
                 conn.reconnect_delay = 65.0;
             }
         }
+        // This person's own profile on this server, filed under its address so a switch to it has
+        // it at once (gui/pages/own_profile.rs, BUG-196). Anyone else's is dropped.
+        Some("profile_data") => {
+            let conn = &state.gui_state.connections[ci];
+            let name = conn.ws.as_ref().map(|w| w.user_name().to_string()).unwrap_or_default();
+            if let Some(copy) = crate::gui::pages::own_profile::own_copy(&val, &name) {
+                let url = conn.url.clone();
+                crate::gui::pages::own_profile::keep_copy(&mut state.gui_state, &url, copy);
+            }
+        }
         // Admin, tasks, listings, voice, trades, game: active-server
         // concerns; their pages refetch after a switch. Dropped by design.
         _ => {}

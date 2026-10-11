@@ -206,6 +206,24 @@ test("Settings: 200 MB unless chosen, what is kept, a new cap trims at once, Cle
   assert.equal(usage.textContent, K.WORDS.nothing, "and it says so");
 });
 
+// ── 4. Opened together ───────────────────────────────────────────────────
+
+test("files opened at the same time are all kept (one's trim never takes another's copy)", async () => {
+  const idb = fakeIndexedDB();
+  const mine = await key();
+  const tick = () => new Promise((r) => setImmediate(r));
+  for (let gap = 0; gap <= 6; gap++) {
+    const a = meta(10 + gap * 2);
+    const b = meta(11 + gap * 2);
+    const first = K.put({ indexedDB: idb, key: mine, scope: SCOPE, meta: a, bytes: fill(1000, 1), cap: MIB });
+    for (let i = 0; i < gap; i++) await tick();
+    const second = K.put({ indexedDB: idb, key: mine, scope: SCOPE, meta: b, bytes: fill(1000, 2), cap: MIB });
+    assert.deepEqual(await Promise.all([first, second]), [true, true]);
+    assert.ok(await K.get({ indexedDB: idb, key: mine, scope: SCOPE, meta: a }), `the first is kept (second started ${gap} ticks later)`);
+    assert.ok(await K.get({ indexedDB: idb, key: mine, scope: SCOPE, meta: b }), `the second is kept (started ${gap} ticks later)`);
+  }
+});
+
 // ── Red first ────────────────────────────────────────────────────────────
 // 2026-10-11: each break made in a copy of web/ and this file run against it with HOS_WEB_DIR,
 // seen failing with the assertion named; every other test passed.
@@ -217,3 +235,5 @@ test("Settings: 200 MB unless chosen, what is kept, a new cap trims at once, Cle
 //     not kept".
 //  K4 kept-files.js, mountControls' Clear not asking first: test 3 "it asked".
 //  K5 kept-files.js, the default cap 1000 MB: test 3 "200 MB on the web".
+//  K6 kept-files.js, put() not queued (each change running at once, as first shipped): test 4
+//     "the second is kept".
