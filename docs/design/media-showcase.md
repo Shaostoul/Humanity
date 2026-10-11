@@ -548,3 +548,74 @@ removed when that connection closes, whatever else is open, and a test holds it.
 
 **Proof.** Relay tests for each of A1 to A5, B1, B2 and C, each seen failing once; then the apps'
 own tests for what they draw from them.
+
+## The operator's answers (2026-10-11) and what they mean for the build
+
+Verbatim where it matters, then the decision. Parts marked (relay) are added to the follow-ups
+above; parts marked (apps) are the next app increment.
+
+1. **Kept by the server.** "What if the files on media are ones added by admin/mod and remove
+   itself from the user max limit. So, if a particular piece of art is great, the admin could be
+   like, I love that, continue sharing it forever. Then the user gets a chance to upload a new
+   picture." An admin or moderator action, **Keep on the server**, separate from Featured
+   (Featured is where an item is shown; Kept is who carries its storage). A kept item stops
+   counting against its uploader's share, still counts against the Media budget (the meter shows
+   "kept by the server" as its own line), and is left out of the prune lists. The uploader can
+   still take it down, since it is theirs; an admin can stop keeping it, and it then counts against
+   the uploader's share again (allowed past the share, shown as over it, never deleted for it).
+   (relay) `media_items.kept_by` and `kept_at` (the table is new in this release, so they go in
+   its CREATE TABLE), `POST /api/media/keep` signed `media_keep:<id>:<on|off>`, `kept` on items,
+   the counting in `media_bytes_on` and the usage answer. (apps) the action on a tile and in the
+   prune lists, a "kept" badge.
+2. **Limits per role, in Server Settings > Roles.** "Make it configurable in the server menu?
+   Like the file size limits?" Follow-ups B1 and B2: the largest Media file and the largest
+   private file, per role.
+3. **How much and how often.** "Should we introduce like limit of number of uploads per user and
+   a max upload bandwidth per tier of user with admin using as much as possible?" Two more per-role
+   limits beside them: **uploads a day (MB)** and **uploads an hour (count)**, counted by the
+   relay over every upload route (chat, Shared Files, Media, private files, resumable pieces as
+   they arrive), 0 meaning no limit, which is the Admin role's default. A daily allowance is the
+   control that matters for a server's disk and bill; throttling the speed of one connection
+   would only make honest uploads slow. Downloads: public visitors get previews and members the
+   originals (increment 4); nginx's per-address limits stay the backstop. (relay) B3.
+4. **Choosing what hidden information to keep.** "What do you think about adding a step that
+   allows for choosing what metadata to exclude/include? ... save last chosen config to the
+   attach popup." Yes, and it moves the strip to where it can cover everything: the **sender's
+   own app** strips before the file leaves the device, so it covers DMs and groups too, which
+   the server can never clean because it only ever receives a sealed blob (until now a photo
+   sent in a DM kept where it was taken). The attach step shows what it found ("This photo says
+   where it was taken and which camera took it") with one switch, **Remove location and camera
+   details**, on by default and remembered as the last choice. The protected setup always strips
+   and shows no switch. The server keeps stripping public uploads as a backstop, skipping it only
+   when the upload says `keep_metadata=1`, which the apps send only from that switch. (relay) B4:
+   the flag. (apps) both apps strip pictures and videos before upload with the same rules as the
+   relay's strip (the desktop app uses the same Rust code; the web gets a JavaScript port held to
+   the same test files), plus the switch.
+5. **Files that cannot be fully cleaned.** "Refusal makes sense from a safety standpoint. But
+   maybe there might be a reason to keep it? Maybe someone is trying to help someone else fix the
+   file?" Public shelves keep refusing them: the server cannot ask every future viewer, and public
+   is public. In a DM or a group, the sender's app asks instead: "This video could not be read all
+   the way through, so where it was filmed may still be in it. Send it anyway?" The sender decides,
+   and the file carries a note the recipient sees ("The sender's app could not check this file for
+   hidden location"). That covers helping someone with a broken file without a special pass or
+   command, because a DM already is the private channel between the two people. (apps)
+6. **Settings for files in DMs and groups.** "Maybe someone wants no files sent to them. Maybe
+   they want to be able to send but, not receive. Maybe someone only wants to receive." A
+   **Files in messages** group in Settings > Privacy, beside "who can reach me":
+   - **Accept files from:** Nobody / Friends / Anyone I talk to (default: Friends, the same line
+     the click-to-load rule already draws). "Send but not receive" is Nobody here.
+   - **Show pictures without asking from:** Friends / Nobody.
+   - **Show the attach button in private conversations:** on or off ("receive only" is off).
+   The RECEIVING app enforces it: it never downloads a file from someone the setting does not
+   allow, and shows "Ann sent a file. You accept files only from friends. Accept this one?" The
+   relay cannot enforce it and must not try: with sealed sender it cannot tell which DM carries a
+   file, and making it able to would tell it who sends files to whom. The setting rides in the
+   person's signed profile (`accepts_files`), so a sender's app can say so before anything is
+   sent. For a P2P group, its owner sets "Files allowed" and "Largest file" in the signed group
+   object; each member's own setting still applies on top. (apps)
+7. **The nginx change.** "Yes, do whatever you believe is best for this system long term. No
+   bandaids, the real solution." Applied on the server with this release.
+8. **The attach tooltip over the chat bar.** "We could just force it to be above the text box
+   instead of overlaying the text input area that way people still see it?" Both apps: the hints
+   of the composer's buttons open above the whole composer, never over the text being typed
+   (done with this release).
