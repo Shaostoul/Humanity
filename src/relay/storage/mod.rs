@@ -1450,6 +1450,33 @@ impl Storage {
             CREATE INDEX IF NOT EXISTS idx_media_picks_item ON media_picks(item_id);"
         )?;
 
+        // Resumable uploads (2026-10-11, storage/upload_sessions.rs and relay/resumable.rs; docs/
+        // design/media-showcase.md "Resumable uploads, exact"): one row per big Media file being
+        // sent in pieces, until it is whole and stored (or cancelled, or idle for a day). `id` is
+        // 32 random hex characters and names the pieces' file, `data/uploads-resume/<id>.part`;
+        // `offset` is how many bytes of it are safely on disk; `size` what the file will be;
+        // `shelf` where it goes when whole (2, Media); `blake3` the hash the app gave at start
+        // ('' when none). A new table in a batch of its own, its index over its own CREATE TABLE
+        // columns, so a live database from before it simply gains it (BUG-046 concerns
+        // ALTER-added columns only; `an_older_database_gains_the_sessions_table` opens one). In
+        // the account export (file name, size, offset) and the erase, which deletes the pieces
+        // too (storage/account.rs).
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS upload_sessions (
+                id           TEXT    PRIMARY KEY,
+                public_key   TEXT    NOT NULL,
+                filename     TEXT    NOT NULL,
+                content_type TEXT    NOT NULL,
+                size         INTEGER NOT NULL,
+                offset       INTEGER NOT NULL DEFAULT 0,
+                shelf        INTEGER NOT NULL,
+                blake3       TEXT    NOT NULL DEFAULT '',
+                created_at   INTEGER NOT NULL,
+                touched_at   INTEGER NOT NULL
+            ) WITHOUT ROWID;
+            CREATE INDEX IF NOT EXISTS idx_upload_sessions_key ON upload_sessions(public_key);"
+        )?;
+
 
         // ── v0.1132 — guaranteed local-only room toggle. Default ON: every
         // server keeps a #local channel that refuses federation, so members
@@ -2696,6 +2723,8 @@ mod reach;
 pub mod reports;
 // The Media page (2026-10-11, docs/design/media-showcase.md): items, categories, suggestions, picks.
 pub mod media;
+/// Resumable uploads' sessions (2026-10-11): a big Media file sent in pieces. Routes in relay/resumable.rs.
+pub mod upload_sessions;
 pub mod docs_accord;
 
 pub use civilization::CivilizationStats;

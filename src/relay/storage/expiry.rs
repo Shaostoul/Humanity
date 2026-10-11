@@ -9,7 +9,9 @@
 //!   - reports decided more than 90 days ago (storage/reports.rs; open reports are kept);
 //!   - Media uploads not published within a day, row and file (storage/media.rs; the Media
 //!     review's F1, 2026-10-11). Their files are in the relay's uploads folder, so this pass
-//!     takes the folders (`run_expiry_sweeps_in` names a test's own).
+//!     takes the folders (`run_expiry_sweeps_in` names a test's own);
+//!   - resumable uploads with no piece for a day, row and pieces' file (storage/
+//!     upload_sessions.rs, 2026-10-11), from the folders' `resume`.
 //!
 //! Callers (relay/mod.rs, handlers/server_settings_update.rs): relay start, the six-hour
 //! maintenance pass (before its backup, so nothing expired rides into the backup), and every
@@ -59,6 +61,11 @@ impl Storage {
             Ok(0) => {}
             Ok(n) => tracing::info!("Media: deleted {n} upload(s) not published within a day"),
             Err(e) => tracing::error!("Unpublished Media sweep failed: {e}"),
+        }
+        match self.expire_upload_sessions_in(folders.resume, super::now_millis() as i64) {
+            Ok(0) => {}
+            Ok(n) => tracing::info!("Resumable uploads: removed {n} with no piece for a day"),
+            Err(e) => tracing::error!("Resumable upload sweep failed: {e}"),
         }
     }
 }

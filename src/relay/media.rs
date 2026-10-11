@@ -263,7 +263,7 @@ fn items_json(items: &[MediaItem]) -> Vec<Value> {
     items.iter().map(item_json).collect()
 }
 
-// ── Uploads: the shelf and the room (called by api.rs `upload_file`) ──
+// ── Uploads: the shelf and the room (called by api.rs `upload_file` and resumable.rs) ──
 
 /// Which shelf an upload goes on from its query: 2 for `?media=1` (the Media budget, out of the
 /// keep-N FIFO and the Shared Files list until it is published), 1 for `?share=1`, 0 for chat
@@ -286,7 +286,9 @@ pub fn upload_shelf(share: Option<u8>, media: Option<u8>, encrypted: Option<u8>)
 /// passed the check before either was counted. Process-wide, because the folders are.
 static ROOM: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
-fn room_lock() -> std::sync::MutexGuard<'static, ()> {
+/// The room lock, also taken by a resumable upload's start (relay/resumable.rs), so its room
+/// check and its session row go in together and two starts cannot both pass.
+pub(crate) fn room_lock() -> std::sync::MutexGuard<'static, ()> {
     ROOM.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
@@ -336,26 +338,29 @@ pub fn store_upload(
     }
 }
 
+/// Delete the files the keep-N FIFO let go ([`store_upload`]'s answer) from the public folder,
+/// logging each. Blocking: called on a worker thread.
+pub fn delete_pruned(folders: Folders, old_files: &[String]) {
+    for old_file in old_files {
+        if let Err(e) = std::fs::remove_file(folders.uploads.join(old_file)) {
+            tracing::warn!("Failed to delete old upload {}: {e}", old_file);
+        } else {
+            tracing::info!("FIFO cleanup: deleted old upload {}", old_file);
+        }
+    }
+}
+
 /// Whether there is room for a `len`-byte upload on `shelf` by `key`, with `dir_total` bytes in
 /// the upload folders now (the public one and the members-only one). A Media upload is held to
-/// the Media budget and the person's share of it, with both numbers in the words; anything else
-/// to the general cap, `max_total_upload_mb`, counting what is in the folders apart from Media's
-/// own bytes (the cap stays for chat files).
+/// the Media budget and the person's share of it, with both numbers in the words ([`media_room`]);
+/// anything else to the general cap, `max_total_upload_mb`, counting what is in the folders apart
+/// from Media's own bytes (the cap stays for chat files).
 pub fn upload_room(db: &Storage, s: &ServerSettings, key: &str, shelf: i64, dir_total: u64, len: u64) -> Result<(), Refused> {
+    if shelf == MEDIA_SHELF {
+        return media_room(db, s, key, len, Reserved::default());
+    }
     let len = len as i64;
     let media_used = db.media_bytes(None);
-    if shelf == MEDIA_SHELF {
-        let budget = s.media_budget_mb.max(1) * MIB;
-        if media_used + len > budget {
-            return Err((StatusCode::INSUFFICIENT_STORAGE, store::budget_full_words(media_used, budget, len)));
-        }
-        let mine = db.media_bytes(Some(key));
-        let share = s.media_per_person_mb.max(1) * MIB;
-        if mine + len > share {
-            return Err((StatusCode::INSUFFICIENT_STORAGE, store::share_full_words(mine, share, len)));
-        }
-        return Ok(());
-    }
     let cap = s.max_total_upload_mb.max(1) * MIB;
     let chat = (dir_total as i64 - media_used).max(0);
     if chat + len > cap {
@@ -367,6 +372,40 @@ pub fn upload_room(db: &Storage, s: &ServerSettings, key: &str, shelf: i64, dir_
                 cap as f64 / MIB as f64
             ),
         ));
+    }
+    Ok(())
+}
+
+/// Bytes promised to Media uploads still arriving in pieces (resumable sessions,
+/// relay/resumable.rs), which [`media_room`] counts as already used when a new one starts, so two
+/// uploads that fit alone but not together cannot both start (and both send gigabytes, only for
+/// one to be refused at the end). Nothing is promised to a single request, and the check when a
+/// file is stored ([`store_upload`]) counts only what is stored: that one is the one that counts.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct Reserved {
+    /// Every open session's full size, everyone's: held against the Media budget.
+    pub all: i64,
+    /// The person's own open sessions: held against their share.
+    pub mine: i64,
+}
+
+/// Whether the Media space has room for a `len`-byte file by `key`: the Media budget, then the
+/// person's share of it, counting what is stored there and what is `reserved` for uploads in
+/// progress, with both numbers in the words (and the part that is still arriving, when there is
+/// one). With nothing reserved this is exactly the Media half of [`upload_room`].
+pub fn media_room(db: &Storage, s: &ServerSettings, key: &str, len: u64, reserved: Reserved) -> Result<(), Refused> {
+    let len = len as i64;
+    // What the words add when part of "used" is uploads still arriving, so the number makes sense.
+    let in_progress = |n: i64| if n > 0 { format!(" That counts {} of uploads still in progress.", store::mb(n)) } else { String::new() };
+    let used = db.media_bytes(None) + reserved.all;
+    let budget = s.media_budget_mb.max(1) * MIB;
+    if used + len > budget {
+        return Err((StatusCode::INSUFFICIENT_STORAGE, store::budget_full_words(used, budget, len) + &in_progress(reserved.all)));
+    }
+    let mine = db.media_bytes(Some(key)) + reserved.mine;
+    let share = s.media_per_person_mb.max(1) * MIB;
+    if mine + len > share {
+        return Err((StatusCode::INSUFFICIENT_STORAGE, store::share_full_words(mine, share, len) + &in_progress(reserved.mine)));
     }
     Ok(())
 }

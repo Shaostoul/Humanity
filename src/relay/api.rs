@@ -8,7 +8,7 @@
 //! - GET  /api/messages — poll recent message history
 //! - GET  /api/peers   — list connected peers
 
-use super::upload_limits::{declared_too_large, picture_too_large, picture_type, role_upload_limit, stream_to_part, upload_role_check, UploadBody, PICTURE_MAX_BYTES, UPLOAD_PART_DIR};
+use super::upload_limits::{declared_too_large, picture_too_large, role_upload_limit, stream_to_part, UploadBody, PICTURE_MAX_BYTES, UPLOAD_PART_DIR};
 pub use super::upload_limits::{UPLOAD_BODY_LIMIT, UPLOAD_HARD_CEILING};
 use axum::{
     Json,
@@ -349,44 +349,18 @@ pub async fn list_shared_uploads(
 
 /// POST /api/upload — upload a file (images, audio, video, documents, archives).
 /// Returns a JSON object with the file URL, filename, size, and type.
-/// Requires `?token=<upload_token>` or `?key=<public_key>`.
+/// Requires `?token=<upload_token>` (the session's upload token).
 /// Enforces a per-user 4-file FIFO for images, separate limits for other types.
+/// The rules it holds a file to (the token, the role, the type lists, the sharing switches, a
+/// picture's magic bytes and metadata strip, the stored name) are upload_rules.rs, shared with
+/// the resumable upload (resumable.rs), so they exist once.
 pub async fn upload_file(
     State(state): State<Arc<RelayState>>,
     Query(query): Query<UploadQuery>,
     headers: axum::http::HeaderMap,
     mut multipart: axum::extract::Multipart,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    const ALLOWED_TYPES: &[&str] = &[
-        "image/png", "image/jpeg", "image/gif", "image/webp",
-        "audio/mpeg", "audio/ogg", "audio/wav", "audio/webm", "audio/mp4",
-        "video/mp4", "video/webm", "video/ogg",
-        "application/pdf", "text/plain", "text/markdown",
-        "application/json", "application/zip",
-        "application/gzip", "application/x-tar",
-        "application/x-gzip", "application/x-compressed-tar",
-        "application/octet-stream", // fallback, validated by extension
-    ];
-    const ALLOWED_EXTENSIONS: &[&str] = &[
-        "png", "jpg", "jpeg", "gif", "webp",
-        "mp3", "ogg", "wav", "mp4", "webm",
-        "pdf", "txt", "md", "json", "zip", "tar.gz", "gz",
-        "blend", "stl", "obj", "gltf", "glb",
-        // NOTE: "svg" is deliberately NOT allowed. SVG is an active-content
-        // format (can carry <script>/event handlers) and our /uploads is
-        // served same-origin, so an uploaded SVG opened directly executes in
-        // our origin = stored XSS -> localStorage seed theft. 3D models use
-        // stl/obj/gltf/glb, so nothing legitimate needs SVG upload. (Audit
-        // 2026-06-12; defense-in-depth with the Content-Disposition header on
-        // the /uploads service + svg in BLOCKED_EXTENSIONS below.)
-    ];
-    const BLOCKED_EXTENSIONS: &[&str] = &[
-        "exe", "sh", "bat", "cmd", "msi", "dmg", "app", "com", "scr", "pif",
-        "html", "htm", "xhtml", "xml", "js", "mjs",
-        // Active-content image/markup formats — same stored-XSS class as the
-        // markup types above (audit 2026-06-12).
-        "svg", "svgz",
-    ];
+    use super::upload_rules::{check_type, file_type, finish_picture, sharing_check, stored_name, token_key, uploader_role};
     // Server settings drive the upload limits (v0.237; per-role FIFO
     // v0.238). The total disk cap is server-wide (read now). The per-user
     // FIFO retention is per-role, so it's resolved AFTER the uploader's
@@ -395,34 +369,15 @@ pub async fn upload_file(
     let server_settings = state.db.get_server_settings().unwrap_or_default();
     let shelf = super::media::upload_shelf(query.share, query.media, query.encrypted)?;
 
-    // M-4: Resolve upload token to public key.
-    let public_key = if let Some(ref token) = query.token {
-        if token.is_empty() {
-            return Err((StatusCode::BAD_REQUEST, "Empty upload token.".into()));
-        }
-        let tokens = state.upload_tokens.read().await;
-        match tokens.get(token) {
-            Some(key) => key.clone(),
-            None => return Err((StatusCode::FORBIDDEN, "Invalid upload token.".into())),
-        }
-    } else {
-        // The per-session token only (2026-10-11): a bare `?key=` proved nothing about who was
-        // asking, since anyone can list the connected keys (GET /api/peers), so anyone could upload
-        // as anyone connected, with their role's limit and under their name.
-        return Err((StatusCode::BAD_REQUEST, "Missing required 'token' query parameter.".into()));
-    };
+    // M-4: Resolve upload token to public key (the per-session token only, 2026-10-11).
+    let public_key = token_key(&state, query.token.as_deref()).await?;
 
     // Only verified/mod/admin/donor may upload files. The role also
     // determines this user's FIFO retention count (v0.238 per-role).
-    let uploader_role = state.db.get_role(&public_key).unwrap_or_default();
-    if uploader_role.is_empty() {
-        return Err((StatusCode::FORBIDDEN, "Upload denied: only verified users can upload files. Ask an admin to verify you.".into()));
-    }
     // v0.262 (R4): numeric limits are OWNED by the role now (no
     // server_settings tier hop). Resolve once; reuse for FIFO retention
     // here + the per-role upload-size cap inside the field loop.
-    let uploader_rdef = state.db.role_def(&uploader_role);
-    upload_role_check(&uploader_rdef)?;
+    let uploader_rdef = uploader_role(&state.db, &public_key)?;
     let max_uploads_per_user = uploader_rdef.max_uploads_kept.max(1);
     // Max size for ONE upload = the uploader's per-role max_upload_mb, bounded only by the 1 GB
     // ceiling (`role_upload_limit`). A request that says up front it is bigger is refused before a
@@ -444,166 +399,47 @@ pub async fn upload_file(
         // not apply. Size, disk, role, and FIFO limits still do.
         let is_encrypted = query.encrypted.unwrap_or(0) == 1;
 
-        // Get file extension from filename.
-        let file_ext = filename.rsplit('.').next().unwrap_or("").to_lowercase();
-        let is_tar_gz = filename.to_lowercase().ends_with(".tar.gz");
-
-        // Block dangerous executable extensions (skipped for ciphertext: it is
-        // stored as an inert .enc blob that is never sniffed or executed).
-        if !is_encrypted && BLOCKED_EXTENSIONS.contains(&file_ext.as_str()) {
-            return Err((StatusCode::BAD_REQUEST, format!("File type .{} is not allowed.", file_ext)));
-        }
-
-        // Validate by either content type or extension (ciphertext matches no
-        // format, so this is skipped for encrypted uploads).
-        let type_ok = ALLOWED_TYPES.contains(&content_type.as_str());
-        let ext_ok = ALLOWED_EXTENSIONS.contains(&file_ext.as_str()) || is_tar_gz;
-        if !is_encrypted && !type_ok && !ext_ok {
-            return Err((StatusCode::BAD_REQUEST, format!("Unsupported file type: {} (.{})", content_type, file_ext)));
-        }
-
-        // v0.261: image/file sharing gate. Effective permission =
-        // server-wide master toggle AND the uploader's per-role
-        // capability (same master∧capability model as streaming). NOTE:
-        // this also closes a pre-existing gap — image_sharing_enabled /
-        // file_sharing_enabled were settable but NEVER enforced
-        // server-side before now (only the chat UI hid the button).
-        // Reject before reading the body. Encrypted attachments use the
-        // file-sharing capability (the server can't tell it's an image).
-        {
-            let is_img = content_type.starts_with("image/") && !is_encrypted;
-            if is_img {
-                if !(server_settings.image_sharing_enabled && uploader_rdef.can_image_share) {
-                    return Err((StatusCode::FORBIDDEN,
-                        if !server_settings.image_sharing_enabled {
-                            "Image sharing is disabled on this server.".into()
-                        } else {
-                            "Your role isn't allowed to share images here. Ask an admin.".into()
-                        }));
-                }
-            } else if !(server_settings.file_sharing_enabled && uploader_rdef.can_file_share) {
-                return Err((StatusCode::FORBIDDEN,
-                    if !server_settings.file_sharing_enabled {
-                        "File sharing is disabled on this server.".into()
-                    } else {
-                        "Your role isn't allowed to share files here. Ask an admin.".into()
-                    }));
-            }
-        }
+        // The type rules (blocked extensions, then the allowed types or extensions) and the
+        // picture and file sharing switches, both before the body is read.
+        let kind = check_type(&filename, &content_type, is_encrypted)?;
+        sharing_check(&server_settings, &uploader_rdef, &content_type, is_encrypted)?;
 
         // The file arrives into a part file, never into memory whole (a video can be a GB), and is
         // refused the moment it passes the role's limit (a client that did not say its size up
         // front, or said it wrongly).
         let part = stream_to_part(&mut field, max_size as usize, std::path::Path::new(UPLOAD_PART_DIR)).await?;
 
-        // A picture is read back for the magic check and the metadata strip below; anything else
-        // is moved into place as it arrived. A picture is known by its type OR its extension (the
-        // desktop's Files page used to send every file as application/octet-stream, so a photo
-        // skipped the strip and kept its GPS position), and is held to PICTURE_MAX_BYTES, since it
-        // is read into memory (twice, with the strip) on a worker thread.
-        let image_type = if is_encrypted { None } else { picture_type(&content_type, &file_ext) };
+        // A picture is read back for the magic check and the metadata strip (upload_rules.rs
+        // `finish_picture`); anything else is moved into place as it arrived. A picture is known
+        // by its type OR its extension (the desktop's Files page used to send every file as
+        // application/octet-stream, so a photo skipped the strip and kept its GPS position), and
+        // is held to PICTURE_MAX_BYTES, since it is read into memory (twice, with the strip) on a
+        // worker thread.
+        let image_type = kind.picture(&content_type, is_encrypted);
         let is_image = image_type.is_some();
-        let data = if is_image {
+        let data = if let Some(picture) = image_type {
             if part.len > PICTURE_MAX_BYTES {
                 let _ = tokio::fs::remove_file(&part.path).await;
                 return Err(picture_too_large(part.len as u64));
             }
             let path = part.path.clone();
-            let bytes = tokio::task::spawn_blocking(move || {
+            let stripped = tokio::task::spawn_blocking(move || {
                 let read = std::fs::read(&path);
                 let _ = std::fs::remove_file(&path);
-                read
+                let bytes = read.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to read the upload back: {e}")))?;
+                finish_picture(picture, bytes)
             })
             .await
-            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Upload task failed: {e}")))?;
-            axum::body::Bytes::from(bytes.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to read the upload back: {e}")))?)
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Upload task failed: {e}")))??;
+            axum::body::Bytes::from(stripped)
         } else {
             axum::body::Bytes::new()
         };
-        let image_type = image_type.unwrap_or("");
 
-        // Validate magic bytes for images (strict). Encrypted blobs match no
-        // magic and are exempt (they are opaque ciphertext by design).
-        if is_image {
-            let magic_ok = match image_type {
-                "image/png"  => data.len() >= 4 && &data[..4] == b"\x89PNG",
-                "image/jpeg" => data.len() >= 3 && &data[..3] == b"\xFF\xD8\xFF",
-                "image/gif"  => data.len() >= 6 && (&data[..6] == b"GIF87a" || &data[..6] == b"GIF89a"),
-                "image/webp" => data.len() >= 12 && &data[..4] == b"RIFF" && &data[8..12] == b"WEBP",
-                _ => false,
-            };
-            if !magic_ok {
-                return Err((StatusCode::BAD_REQUEST, "File content does not match claimed image type.".to_string()));
-            }
-        }
-
-        // Privacy: strip EXIF/XMP/IPTC/text metadata from images BEFORE the
-        // bytes ever touch disk. A phone photo carries GPS coordinates and
-        // a camera serial; nobody consents to publishing their home
-        // address with a garden picture. Lossless (whole-segment removal,
-        // no re-encode); fails open to the original bytes on any parse
-        // trouble. See relay/core/strip_metadata.rs.
-        let data = if is_image {
-            let original = data.len();
-            let kind = image_type.to_string();
-            let stripped: Vec<u8> = tokio::task::spawn_blocking(move || crate::relay::core::strip_metadata::strip_image_metadata(&kind, &data).into())
-                .await
-                .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Upload task failed: {e}")))?;
-            if stripped.len() != original {
-                tracing::info!(
-                    "Upload metadata strip: {} shed {} bytes of embedded metadata",
-                    image_type,
-                    original.saturating_sub(stripped.len())
-                );
-            }
-            axum::body::Bytes::from(stripped)
-        } else {
-            data
-        };
-
-        // Determine the file extension for storage.
-        let ext = if is_encrypted {
-            // Opaque ciphertext: inert extension, never sniffed/executed.
-            "enc"
-        } else if is_tar_gz {
-            "tar.gz"
-        } else {
-            match content_type.as_str() {
-                "image/png" => "png",
-                "image/jpeg" => "jpg",
-                "image/gif" => "gif",
-                "image/webp" => "webp",
-                "audio/mpeg" => "mp3",
-                "audio/ogg" => "ogg",
-                "audio/wav" => "wav",
-                "video/mp4" => "mp4",
-                "video/webm" => "webm",
-                "application/pdf" => "pdf",
-                "application/json" => "json",
-                "application/zip" => "zip",
-                "text/plain" => "txt",
-                "text/markdown" => "md",
-                _ => if ext_ok { &file_ext } else { "bin" },
-            }
-        };
-
-        // Determine file type category for the response.
-        let file_type = if is_encrypted { "encrypted" }
-            else if content_type.starts_with("image/") { "image" }
-            else if content_type.starts_with("audio/") || ["mp3", "ogg", "wav"].contains(&ext) { "audio" }
-            else if content_type.starts_with("video/") || ["mp4", "webm"].contains(&ext) { "video" }
-            else if ["blend", "stl", "obj", "gltf", "glb"].contains(&ext) { "3d_model" }
-            else if ["zip", "tar.gz", "gz"].contains(&ext) { "archive" }
-            else { "document" };
-        let ts = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_millis();
-        let safe_name: String = filename.chars()
-            .filter(|c: &char| c.is_ascii_alphanumeric() || *c == '-' || *c == '_')
-            .take(32)
-            .collect();
-        let unique_name = format!("{}_{}.{}", ts, if safe_name.is_empty() { "file" } else { &safe_name }, ext);
+        // The stored name and the kind the answer reports.
+        let ext = kind.stored_ext(&content_type, is_encrypted);
+        let file_type = file_type(&content_type, &ext, is_encrypted);
+        let unique_name = stored_name(&filename, &ext);
 
         // R4 (concurrency): all of the filesystem work below — create the
         // uploads dir, scan its total size, write the (up to tens-of-MB) body,
@@ -647,13 +483,7 @@ pub async fn upload_file(
             let new = super::media::NewUpload { key: &public_key_fs, shelf: shelf_fs, name: &unique_name_fs, original_name: &original_name_fs, len: data_len as u64, keep: max_uploads_per_user };
             let old_files = super::media::store_upload(&state_fs.db, &settings_fs, folders, &new, |path| body.put(path)).inspect_err(|_| body.discard())?;
             // Delete the files the FIFO let go.
-            for old_file in &old_files {
-                if let Err(e) = std::fs::remove_file(folders.uploads.join(old_file)) {
-                    tracing::warn!("Failed to delete old upload {}: {e}", old_file);
-                } else {
-                    tracing::info!("FIFO cleanup: deleted old upload {}", old_file);
-                }
-            }
+            super::media::delete_pruned(folders, &old_files);
             Ok(())
         })
         .await
@@ -665,8 +495,7 @@ pub async fn upload_file(
         // Propagate the fs section's own error → HTTP status (unchanged mapping).
         fs_result?;
 
-        let url = format!("/uploads/{}", unique_name);
-        return Ok(Json(serde_json::json!({ "url": url, "filename": unique_name, "size": data_len, "type": file_type })));
+        return Ok(Json(super::upload_rules::upload_answer(&unique_name, data_len as u64, file_type)));
     }
 
     Err((StatusCode::BAD_REQUEST, "No file provided.".to_string()))

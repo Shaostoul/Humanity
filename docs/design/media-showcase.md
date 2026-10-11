@@ -313,8 +313,38 @@ needs a library for it.
 **Scope.** Media uploads only (`media: 1`): chat and Shared Files keep the single request and its
 limits. Large files in private conversations wait for the operator's answer on that question.
 
-**Routes** (all under the existing nginx `/api/upload` location, so no nginx change: a piece is far
-under its 1025m body limit):
+**Routes** (all under `/api/upload`, so the relay's Uploads switch covers them. **Corrected
+2026-10-11, while building: they DO need an nginx change.** The `/api/upload` location limits
+each address to 2 requests a minute (`limit_req_zone ... zone=upload_limit rate=2r/m`, burst 2 on
+the live server, burst 5 in docs/admin/SELF-HOSTING.md), which would hold an upload to two 8 MiB
+pieces a minute, about 16 MiB a minute, and answer 503 to the rest; and the general `/api/`
+location keeps nginx's default 1 MB body limit, so pieces cannot simply go there instead. The
+relay half is built as written; nginx needs its own location for the pieces, more specific than
+`/api/upload`, so it wins:
+
+```nginx
+# in conf.d/humanity-limits.conf:
+limit_req_zone $binary_remote_addr zone=resumable_limit:10m rate=120r/m;
+# in the server block, beside location /api/upload:
+location /api/upload/resumable {
+    limit_req zone=resumable_limit burst=20 nodelay;
+    client_max_body_size 9m;        # one piece (8 MiB) plus a little
+    proxy_request_buffering off;
+    client_body_timeout 300s;
+    proxy_send_timeout 300s;
+    proxy_read_timeout 900s;        # the last piece hashes and stores the whole file
+    proxy_pass http://127.0.0.1:3210;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+```
+
+Two pieces a second is 16 MiB a second, above most home upload speeds; the relay's own limits
+(three uploads at once, the Media budget and each person's share) bound what one address can do.
+The same block belongs in docs/admin/SELF-HOSTING.md.)
 
 - `POST /api/upload/resumable?token=<session upload token>`, JSON
   `{filename, size, content_type, media: 1, blake3?}`. Answers 201
@@ -364,6 +394,46 @@ together, the second refused; a piece past `size` refused; a blocked extension r
 cleans up; an idle session expires (row and file); the start-up reconciliation cuts a long file back
 to its offset and removes orphans; an account erase removes sessions. The `upload_sessions` table
 added with a pre-existing-database open test (CLAUDE.md BUG-046 rule).
+
+**As built (relay, 2026-10-11).** `src/relay/resumable.rs` (routes), `src/relay/upload_rules.rs`
+(the rules both upload routes share: token, role, type lists, sharing switches, the picture
+finish, the stored name, the answer), `src/relay/storage/upload_sessions.rs` (the table, the
+expiry share, the start-up reconciliation); tests in `src/relay/resumable_tests.rs`. Where it
+differs from or adds to the text above:
+
+- **Reservations count everyone's uploads in progress against the Media budget** (each person's
+  own against their share), not only the person's own: otherwise two people could each start an
+  upload that fits alone, send gigabytes, and one be refused at the end. Only the start counts
+  them; a single request's room check, and the check when a finished file is stored, count what
+  is stored (that last check is the one that counts). The refusal words add "That counts N MB of
+  uploads still in progress." when part of "used" is still arriving.
+- **No room at the finish keeps the upload.** If the room has gone by the end (an admin lowered
+  the budget, or a single request took the space), the finish is refused with the room words
+  (507) and the session is KEPT, file and all, until the day's idle expiry; an empty piece at
+  `offset = size` tries the finish again, so nobody sends gigabytes twice. A hash mismatch, a
+  picture that is not what it says, or a role or sharing switch that no longer allows it removes
+  the session (those files can never be stored). The role and the switches are checked again at
+  the finish, since a long upload can outlive a change.
+- **What each answer is.** Start: 201 `{id, offset: 0, size, chunk_max}`. GET: `{offset, size,
+  chunk_max}` (chunk_max added, for an app resuming after a restart). PATCH: `{offset, size}`, or
+  the finished upload `{url, filename, size, type}` (made by one function, `upload_answer`, for
+  both routes). DELETE: `{ok: true}`. A piece at the wrong offset: 409 JSON `{error, offset,
+  size}`; a piece while another is being written (and a cancel then): 409 JSON `{error, busy:
+  true}`. Every other refusal is plain words, as `POST /api/upload`'s are: 400 (not Media, an
+  empty file, a malformed hash, no `offset`), 403 (no role, uploads off, a sharing switch off, a
+  token that is not a session), 404 (no such upload, or someone else's), 410 (its pieces' file
+  was deleted by hand), 413 (over 64 GiB, a picture over 64 MB, a piece over `chunk_max` or past
+  the end), 422 (hash mismatch), 429 (a fourth upload at once), 507 (no room).
+- **The limit is the Media room, not the role's `max_upload_mb`**, as written above: a Verified
+  person (25 MB per file in one request) can send a file up to their Media share this way. The
+  role must still allow uploads at all, and the sharing switches still apply.
+- **`touched_at`** moves with every piece (at its start, so the expiry pass never takes a session
+  mid-piece); a status read does not keep an upload alive.
+- The start-up reconciliation also lowers an offset to the file's length when the file is
+  SHORTER (a disk that lost a write), so the app sends the rest again.
+- Account export lists `filename, size, offset, created_at, touched_at` (not the id, which with
+  any of the person's tokens carries the upload on); the erase receipt adds
+  `upload_session_files_removed`.
 
 **The apps** (a follow-up to increment 2, once this is live): Add to Media sends every Media file
 this way, with a progress bar, a Pause and Resume, and a resume after a dropped connection; the

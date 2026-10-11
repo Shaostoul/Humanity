@@ -30,23 +30,30 @@ use std::path::{Path, PathBuf};
 pub const UPLOADS_DIR: &str = "data/uploads";
 /// The members-only Media folder: nothing serves it but `GET /api/media/file/{id}` (relay/media.rs).
 pub const MEMBERS_DIR: &str = "data/media-members";
+/// Where a resumable upload's pieces gather (`<session id>.part`) until the file is whole
+/// (relay/resumable.rs, storage/upload_sessions.rs). Nothing serves it, and `clear_part_files`
+/// never touches it: a session survives a restart, which is the point of it.
+pub const RESUME_DIR: &str = "data/uploads-resume";
 /// How long a Media upload waits to be published before the expiry pass deletes it, file and
 /// row (storage/expiry.rs; the review's F1).
 pub const UNPUBLISHED_KEEP_MS: i64 = 24 * 60 * 60 * 1000;
 
-/// Where the Media page's files are: the public uploads folder and the members-only one. The
-/// relay's own are [`Folders::live`]; a test names folders of its own, so nothing it does lands in
-/// the checkout's data folder.
+/// Where the Media page's files are: the public uploads folder, the members-only one, and the
+/// folder where resumable uploads gather their pieces (2026-10-11). The relay's own are
+/// [`Folders::live`]; a test names folders of its own, so nothing it does lands in the
+/// checkout's data folder. [`Folders::find`], [`Folders::delete`] and [`Folders::place`] work on
+/// the first two only: a piece of an unfinished upload is never a published file.
 #[derive(Debug, Clone, Copy)]
 pub struct Folders<'a> {
     pub uploads: &'a Path,
     pub members: &'a Path,
+    pub resume: &'a Path,
 }
 
 impl Folders<'static> {
-    /// The relay's own folders, `data/uploads` and `data/media-members`.
+    /// The relay's own folders, `data/uploads`, `data/media-members` and `data/uploads-resume`.
     pub fn live() -> Self {
-        Folders { uploads: Path::new(UPLOADS_DIR), members: Path::new(MEMBERS_DIR) }
+        Folders { uploads: Path::new(UPLOADS_DIR), members: Path::new(MEMBERS_DIR), resume: Path::new(RESUME_DIR) }
     }
 }
 

@@ -7,6 +7,12 @@
 pub mod relay;
 pub mod api;
 pub mod upload_limits;
+/// The rules every upload is held to (type lists, sharing switches, the picture strip, the
+/// stored name), shared by the single request and the resumable upload (2026-10-11).
+pub mod upload_rules;
+/// Resumable uploads: a big Media file sent in pieces (2026-10-11, docs/design/media-showcase.md
+/// "Resumable uploads, exact"); storage in storage/upload_sessions.rs.
+pub mod resumable;
 /// The Media page's routes (2026-10-11, docs/design/media-showcase.md); storage in storage/media.rs.
 pub mod media;
 pub mod api_v2_agents;
@@ -657,6 +663,18 @@ pub async fn run_relay() {
     if parts > 0 {
         tracing::info!("Removed {parts} unfinished upload part file(s)");
     }
+    // Resumable uploads (resumable.rs) live on across a restart, so their folder is not cleared:
+    // its files and the sessions' rows are made to agree instead (storage/upload_sessions.rs).
+    // A file with no session goes, a session with no file goes, and a file longer than its
+    // stored offset (the relay stopped between writing a piece and counting it) is cut back.
+    match db.reconcile_upload_sessions_in(std::path::Path::new(storage::media::RESUME_DIR)) {
+        Ok(r) if r == storage::upload_sessions::Reconciled::default() => {}
+        Ok(r) => tracing::info!(
+            "Resumable uploads: removed {} stray file(s) and {} session(s) with no file, cut {} file(s) back to their offset, lowered {} offset(s)",
+            r.files_removed, r.rows_removed, r.cut_back, r.offset_lowered
+        ),
+        Err(e) => tracing::error!("Resumable uploads: the start-up check failed: {e}"),
+    }
 
     // Generate or load server Ed25519 keypair for federation.
     match db.get_or_create_server_keypair() {
@@ -1190,6 +1208,10 @@ pub fn build_router(state: Arc<RelayState>) -> Router {
         // video into "Error parsing multipart/form-data request" whatever the role allowed); the
         // handler refuses anything over the uploader's own role limit as soon as it sees the size.
         .route("/api/upload", post(api::upload_file).layer(axum::extract::DefaultBodyLimit::max(api::UPLOAD_BODY_LIMIT)))
+        // Resumable uploads (2026-10-11, resumable.rs): a big Media file in pieces. The piece
+        // route's body limit is one piece plus a little, so nothing bigger is ever read.
+        .route("/api/upload/resumable", post(resumable::start))
+        .route("/api/upload/resumable/{id}", get(resumable::status).patch(resumable::piece).delete(resumable::cancel).layer(axum::extract::DefaultBodyLimit::max(resumable::PIECE_BODY_LIMIT)))
         // Shared-file library (v0.675): public listing of ?share=1 uploads.
         .route("/api/uploads", get(api::list_shared_uploads))
         // Remove a shared file (owner or admin), v0.709.
