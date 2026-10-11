@@ -3,20 +3,101 @@
 //!
 //! Four tables, each created in storage/mod.rs:
 //! - `media_items`: what people published from their OWN uploads, one row per upload. The file
-//!   itself stays a `user_uploads` row; a Media upload (`POST /api/upload?media=1`) and any upload
-//!   once published sit on shelf 2 (`user_uploads.shared = 2`): out of the per-person keep-N FIFO
-//!   (which prunes shelf 0 only) and out of the Shared Files list (which lists shelf 1 only).
+//!   itself stays a `user_uploads` row. A Media upload (`POST /api/upload?media=1`) sits on shelf
+//!   2 (`user_uploads.shared = 2`): out of the per-person keep-N FIFO (which prunes shelf 0 only)
+//!   and out of the Shared Files list (which lists shelf 1 only). Publishing moves a chat file
+//!   (shelf 0) to shelf 2 too, and a Shared Files file (shelf 1) to shelf 2 while it is members
+//!   only; the item remembers where its upload was (`from_shelf`), and removing the item gives
+//!   the upload back there and keeps its file (the review's F2, 2026-10-11).
 //! - `media_categories`: the server's own, in position order. Row 1 is General: it cannot be
 //!   removed, because a removed category's items move to it.
 //! - `media_category_suggestions`: categories members asked for, open until an admin decides.
 //! - `media_picks`: each person's picks of other people's items. A pick is a reference, so it
 //!   goes when the item goes.
 //!
+//! THE FILES live in two folders ([`Folders`]): the public one, served at `/uploads`, and
+//! `data/media-members/`, which nothing serves but `GET /api/media/file/{id}` to a member. A
+//! members-only item's file is in the second (F3).
+//!
 //! Every refusal says what to do in words a person can act on ([`MediaError::Refused`]); the
 //! routes turn its [`Refusal`] into the HTTP status.
 
 use super::Storage;
 use rusqlite::{params, Connection, OptionalExtension};
+use std::path::{Path, PathBuf};
+
+/// The public uploads folder, served at `/uploads` (relay/mod.rs).
+pub const UPLOADS_DIR: &str = "data/uploads";
+/// The members-only Media folder: nothing serves it but `GET /api/media/file/{id}` (relay/media.rs).
+pub const MEMBERS_DIR: &str = "data/media-members";
+/// How long a Media upload waits to be published before the expiry pass deletes it, file and
+/// row (storage/expiry.rs; the review's F1).
+pub const UNPUBLISHED_KEEP_MS: i64 = 24 * 60 * 60 * 1000;
+
+/// Where the Media page's files are: the public uploads folder and the members-only one. The
+/// relay's own are [`Folders::live`]; a test names folders of its own, so nothing it does lands in
+/// the checkout's data folder.
+#[derive(Debug, Clone, Copy)]
+pub struct Folders<'a> {
+    pub uploads: &'a Path,
+    pub members: &'a Path,
+}
+
+impl Folders<'static> {
+    /// The relay's own folders, `data/uploads` and `data/media-members`.
+    pub fn live() -> Self {
+        Folders { uploads: Path::new(UPLOADS_DIR), members: Path::new(MEMBERS_DIR) }
+    }
+}
+
+/// A stored file name that is safe to join to a folder: not empty, no separator, no "..".
+pub fn bare_name(name: &str) -> bool {
+    !name.is_empty() && !name.contains('/') && !name.contains('\\') && !name.contains("..")
+}
+
+impl Folders<'_> {
+    /// Where `name` is now: the members-only folder first, then the public one.
+    pub fn find(&self, name: &str) -> Option<PathBuf> {
+        if !bare_name(name) {
+            return None;
+        }
+        [self.members, self.uploads].into_iter().map(|d| d.join(name)).find(|p| p.is_file())
+    }
+
+    /// Delete `name` from both folders; whether a file was deleted.
+    pub fn delete(&self, name: &str) -> bool {
+        if !bare_name(name) {
+            return false;
+        }
+        let members = std::fs::remove_file(self.members.join(name)).is_ok();
+        let public = std::fs::remove_file(self.uploads.join(name)).is_ok();
+        members || public
+    }
+
+    /// Move `name` into the members-only folder (`members`) or back to the public one; whether
+    /// it moved. A file already there, or in neither, is left alone. A copy (another disk) that
+    /// cannot remove its source removes the copy and fails, so a file is never in both.
+    pub fn place(&self, name: &str, members: bool) -> std::io::Result<bool> {
+        if !bare_name(name) {
+            return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "not a bare file name"));
+        }
+        let (from, to) = if members { (self.uploads, self.members) } else { (self.members, self.uploads) };
+        let src = from.join(name);
+        if !src.is_file() {
+            return Ok(false);
+        }
+        std::fs::create_dir_all(to)?;
+        let dst = to.join(name);
+        if std::fs::rename(&src, &dst).is_err() {
+            std::fs::copy(&src, &dst)?;
+            if let Err(e) = std::fs::remove_file(&src) {
+                let _ = std::fs::remove_file(&dst);
+                return Err(e);
+            }
+        }
+        Ok(true)
+    }
+}
 
 /// The category every server has and nobody can remove: row 1, "General" until an admin renames
 /// it. A removed category's items move here.
@@ -57,11 +138,13 @@ pub enum Refusal {
     Full,
 }
 
-/// A refused Media request (with its words), or the database failing underneath.
+/// A refused Media request (with its words), the database failing underneath, or a file that
+/// could not be moved (nothing was committed then).
 #[derive(Debug)]
 pub enum MediaError {
     Refused(Refusal, String),
     Db(rusqlite::Error),
+    Files(String),
 }
 
 impl From<rusqlite::Error> for MediaError {
@@ -119,6 +202,8 @@ pub struct MediaItem {
     pub visibility: String,
     pub featured: bool,
     pub size_bytes: i64,
+    /// Nothing counts views yet: that waits for increment 2's viewer (the review's F7), so until
+    /// then every item reads 0 and the least-viewed prune list is oldest first.
     pub views: i64,
     /// When the file was uploaded, and when it was put on the Media page (Unix ms).
     pub uploaded_at: i64,
@@ -195,6 +280,19 @@ pub struct PersonUse {
     pub items: i64,
 }
 
+/// A Media upload not yet published: it counts against the Media space, and the expiry pass
+/// deletes it at `expires_at` unless it is published first (the review's F1).
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct WaitingUpload {
+    pub filename: String,
+    pub uploader_key: String,
+    pub uploader_name: String,
+    pub size_bytes: i64,
+    /// Unix ms.
+    pub uploaded_at: i64,
+    pub expires_at: i64,
+}
+
 /// The numbers an admin prunes by.
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct MediaUsage {
@@ -205,6 +303,45 @@ pub struct MediaUsage {
     pub largest: Vec<MediaItem>,
     pub oldest: Vec<MediaItem>,
     pub least_viewed: Vec<MediaItem>,
+    /// Media uploads waiting to be published, oldest first.
+    pub waiting: Vec<WaitingUpload>,
+}
+
+/// What removing an item left for the route to do with its file: give it back to the public
+/// folder (an upload from chat or Shared Files, `from_shelf` 0 or 1, kept) or delete it (one
+/// uploaded for Media, 2).
+#[derive(Debug, Clone, PartialEq)]
+pub struct Removed {
+    pub filename: String,
+    pub from_shelf: i64,
+}
+
+impl Removed {
+    /// Whether the file stays (the upload went back to chat or Shared Files).
+    pub fn keeps_file(&self) -> bool {
+        self.from_shelf == 0 || self.from_shelf == 1
+    }
+}
+
+/// The shelf an upload from `from_shelf` sits on while it is published with `visibility`: a
+/// Shared Files file stays listed there while it is public and leaves the list while it is
+/// members only (F3); everything else is on the Media shelf, out of the keep-N FIFO.
+fn published_shelf(from_shelf: i64, visibility: &str) -> i64 {
+    if from_shelf == 1 && visibility == "public" {
+        1
+    } else {
+        MEDIA_SHELF
+    }
+}
+
+/// An item's visibility as it is stored: "public" only when it says so; anything else is
+/// members only (fail closed, the review's F7).
+fn stored_visibility(v: &str) -> &'static str {
+    if v == "public" {
+        "public"
+    } else {
+        "members"
+    }
 }
 
 /// An item's kind from its stored file name, which the upload route gave the extension of what
@@ -317,9 +454,26 @@ impl Storage {
     /// published, a category that does not exist, and a file the Media space (`budget` bytes) or
     /// the person's share of it (`share` bytes) has no room for, with both numbers in the words.
     /// `disk_size` is the file's size on disk, used when the upload row has none (a row from
-    /// before sizes were kept). A chat upload moves to the Media shelf, so the keep-N FIFO never
-    /// takes a published file.
+    /// before sizes were kept); the row then takes that size, so the budget counts it (F6). A
+    /// chat upload moves to the Media shelf, so the keep-N FIFO never takes a published file; a
+    /// Shared Files upload published as members only leaves that list while it is published.
     pub fn publish_media(&self, signer: &str, p: &Publish, budget: i64, share: i64, disk_size: Option<i64>) -> Result<MediaItem, MediaError> {
+        self.publish_media_placing(signer, p, budget, share, disk_size, |_| Ok(false))
+    }
+
+    /// [`Self::publish_media`], with `place` run once everything is checked and before the item
+    /// is committed, told whether the item is members only. The route moves a members-only
+    /// item's file out of the public folder there, so an item is never committed with its file
+    /// still public, and nothing is committed when the move fails (F3).
+    pub fn publish_media_placing(
+        &self,
+        signer: &str,
+        p: &Publish,
+        budget: i64,
+        share: i64,
+        disk_size: Option<i64>,
+        place: impl FnOnce(bool) -> std::io::Result<bool>,
+    ) -> Result<MediaItem, MediaError> {
         self.with_conn_mut(|conn| {
             let tx = conn.transaction()?;
             let upload: Option<(String, i64, i64)> = tx
@@ -329,7 +483,7 @@ impl Storage {
                     |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
                 )
                 .optional()?;
-            let Some((owner, _shelf, row_size)) = upload else {
+            let Some((owner, shelf, row_size)) = upload else {
                 return refused(Refusal::NotFound, "There is no upload with that name on this server.");
             };
             if owner != signer {
@@ -364,10 +518,10 @@ impl Storage {
             if mine + size > share {
                 return refused(Refusal::Full, share_full_words(mine, share, size));
             }
-            let visibility = if p.visibility == "members" { "members" } else { "public" };
+            let visibility = stored_visibility(p.visibility);
             tx.execute(
-                "INSERT INTO media_items (upload_filename, uploader_key, title, description, category_id, kind, labels, visibility, featured, size_bytes, views, created_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 0, ?9, 0, ?10)",
+                "INSERT INTO media_items (upload_filename, uploader_key, title, description, category_id, kind, labels, visibility, featured, size_bytes, views, created_at, from_shelf)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 0, ?9, 0, ?10, ?11)",
                 params![
                     p.filename,
                     signer,
@@ -378,12 +532,62 @@ impl Storage {
                     p.labels,
                     visibility,
                     size,
-                    now_ms()
+                    now_ms(),
+                    shelf
                 ],
             )?;
             let id = tx.last_insert_rowid();
-            // Off the keep-N FIFO (shelf 0); a Shared Files upload (shelf 1) stays listed there.
-            tx.execute("UPDATE user_uploads SET shared = ?1 WHERE filename = ?2 AND shared = 0", params![MEDIA_SHELF, p.filename])?;
+            // Off the keep-N FIFO; a Shared Files upload stays listed there only while it is
+            // public (F3). A row with no size takes the size found on disk (F6).
+            tx.execute(
+                "UPDATE user_uploads SET shared = ?1, size_bytes = CASE WHEN size_bytes > 0 THEN size_bytes ELSE ?2 END
+                 WHERE filename = ?3",
+                params![published_shelf(shelf, visibility), size, p.filename],
+            )?;
+            let item = item_by_id(&tx, id)?.ok_or(MediaError::Db(rusqlite::Error::QueryReturnedNoRows))?;
+            place(visibility == "members").map_err(|e| MediaError::Files(format!("The file could not be moved into place: {e}")))?;
+            tx.commit()?;
+            Ok(item)
+        })
+    }
+
+    /// Make item `id` public or members only (`visibility`): its uploader, or an admin. A Shared
+    /// Files upload leaves that list while members only and comes back when public again; `place`
+    /// runs before the change is committed, told whether the item is now members only, so the
+    /// route moves the file with it and nothing changes when the move fails (F3). Returns the
+    /// item as it now is.
+    pub fn set_media_visibility(
+        &self,
+        id: i64,
+        requester: &str,
+        is_admin: bool,
+        visibility: &str,
+        place: impl FnOnce(&str, bool) -> std::io::Result<bool>,
+    ) -> Result<MediaItem, MediaError> {
+        self.with_conn_mut(|conn| {
+            let tx = conn.transaction()?;
+            let found: Option<(String, String, i64, String)> = tx
+                .query_row(
+                    "SELECT uploader_key, upload_filename, from_shelf, visibility FROM media_items WHERE id = ?1",
+                    params![id],
+                    |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+                )
+                .optional()?;
+            let Some((uploader, filename, from_shelf, now)) = found else {
+                return refused(Refusal::NotFound, "There is no Media item with that number.");
+            };
+            if uploader != requester && !is_admin {
+                return refused(Refusal::NotAllowed, "Only the person who put it there, or an admin, can change who sees a Media item.");
+            }
+            let to = stored_visibility(visibility);
+            if now != to {
+                tx.execute("UPDATE media_items SET visibility = ?1 WHERE id = ?2", params![to, id])?;
+                tx.execute(
+                    "UPDATE user_uploads SET shared = ?1 WHERE filename = ?2",
+                    params![published_shelf(from_shelf, to), filename],
+                )?;
+            }
+            place(&filename, to == "members").map_err(|e| MediaError::Files(format!("The file could not be moved: {e}")))?;
             let item = item_by_id(&tx, id)?.ok_or(MediaError::Db(rusqlite::Error::QueryReturnedNoRows))?;
             tx.commit()?;
             Ok(item)
@@ -422,18 +626,21 @@ impl Storage {
         self.with_conn(|conn| item_by_id(conn, id))
     }
 
-    /// Take an item off the Media page: its uploader, or an admin (`is_admin`). The item, every
-    /// pick of it and its upload row go; returns the stored file name, for the caller to delete
-    /// the file.
-    pub fn remove_media(&self, id: i64, requester: &str, is_admin: bool) -> Result<String, MediaError> {
+    /// Take an item off the Media page: its uploader, or an admin (`is_admin`). The item and
+    /// every pick of it go. Its upload goes back where it was before it was published (a chat
+    /// file to chat, a Shared Files file to that list) and keeps its file, so an admin taking
+    /// someone's chat photo off the Media page never breaks the chat message; only an upload
+    /// made for Media loses its row, and the route its file (F2). Returns what the route does
+    /// with the file.
+    pub fn remove_media(&self, id: i64, requester: &str, is_admin: bool) -> Result<Removed, MediaError> {
         self.with_conn_mut(|conn| {
             let tx = conn.transaction()?;
-            let found: Option<(String, String)> = tx
-                .query_row("SELECT uploader_key, upload_filename FROM media_items WHERE id = ?1", params![id], |r| {
-                    Ok((r.get(0)?, r.get(1)?))
+            let found: Option<(String, String, i64)> = tx
+                .query_row("SELECT uploader_key, upload_filename, from_shelf FROM media_items WHERE id = ?1", params![id], |r| {
+                    Ok((r.get(0)?, r.get(1)?, r.get(2)?))
                 })
                 .optional()?;
-            let Some((uploader, filename)) = found else {
+            let Some((uploader, filename, from_shelf)) = found else {
                 return refused(Refusal::NotFound, "There is no Media item with that number.");
             };
             if uploader != requester && !is_admin {
@@ -441,10 +648,72 @@ impl Storage {
             }
             tx.execute("DELETE FROM media_picks WHERE item_id = ?1", params![id])?;
             tx.execute("DELETE FROM media_items WHERE id = ?1", params![id])?;
-            tx.execute("DELETE FROM user_uploads WHERE filename = ?1", params![filename])?;
+            let removed = Removed { filename, from_shelf };
+            if removed.keeps_file() {
+                tx.execute("UPDATE user_uploads SET shared = ?1 WHERE filename = ?2", params![from_shelf, removed.filename])?;
+            } else {
+                tx.execute("DELETE FROM user_uploads WHERE filename = ?1", params![removed.filename])?;
+            }
             tx.commit()?;
-            Ok(filename)
+            Ok(removed)
         })
+    }
+
+    /// The item made from upload `filename`, if it is published.
+    pub fn media_item_for_upload(&self, filename: &str) -> Result<Option<i64>, rusqlite::Error> {
+        self.with_conn(|conn| {
+            conn.query_row("SELECT id FROM media_items WHERE upload_filename = ?1", params![filename], |r| r.get(0)).optional()
+        })
+    }
+
+    /// Remove a Media upload not yet published (`POST /api/media/remove` with its file name):
+    /// its owner, or an admin. The row goes; the route deletes the file (F1). Refused: no such
+    /// upload waiting, or someone else's.
+    pub fn remove_unpublished_media(&self, filename: &str, requester: &str, is_admin: bool) -> Result<(), MediaError> {
+        self.with_conn(|conn| {
+            let owner: Option<String> = conn
+                .query_row(
+                    "SELECT public_key FROM user_uploads
+                     WHERE filename = ?1 AND shared = ?2 AND filename NOT IN (SELECT upload_filename FROM media_items)
+                     ORDER BY id LIMIT 1",
+                    params![filename, MEDIA_SHELF],
+                    |r| r.get(0),
+                )
+                .optional()?;
+            let Some(owner) = owner else {
+                return refused(Refusal::NotFound, "There is no Media upload waiting to be published with that name.");
+            };
+            if owner != requester && !is_admin {
+                return refused(Refusal::NotAllowed, "Only the person who uploaded it, or an admin, can remove a Media upload.");
+            }
+            conn.execute("DELETE FROM user_uploads WHERE filename = ?1 AND shared = ?2", params![filename, MEDIA_SHELF])?;
+            Ok(())
+        })
+    }
+
+    /// The expiry pass's share (storage/expiry.rs): every Media upload not published within
+    /// [`UNPUBLISHED_KEEP_MS`] of `now_ms` is deleted, row and file, from `folders`. A Media
+    /// upload is a Media file, so this is the only thing that takes one before it is published:
+    /// nothing prunes it to make room for a chat file (F1). Returns how many went.
+    pub fn expire_unpublished_media_in(&self, folders: Folders, now_ms: i64) -> Result<usize, rusqlite::Error> {
+        let names: Vec<String> = self.with_conn(|conn| {
+            let names: Vec<String> = {
+                let mut stmt = conn.prepare(
+                    "SELECT filename FROM user_uploads
+                     WHERE shared = ?1 AND uploaded_at < ?2 AND filename NOT IN (SELECT upload_filename FROM media_items)",
+                )?;
+                let names = stmt.query_map(params![MEDIA_SHELF, now_ms - UNPUBLISHED_KEEP_MS], |r| r.get(0))?.collect::<Result<Vec<String>, _>>()?;
+                names
+            };
+            for name in &names {
+                conn.execute("DELETE FROM user_uploads WHERE filename = ?1 AND shared = ?2", params![name, MEDIA_SHELF])?;
+            }
+            Ok::<_, rusqlite::Error>(names)
+        })?;
+        for name in &names {
+            folders.delete(name);
+        }
+        Ok(names.len())
     }
 
     /// `picker` picks item `id`; returns how many picks it has now. Picking twice is one pick.
@@ -725,6 +994,27 @@ impl Storage {
             let people = stmt
                 .query_map(params![MEDIA_SHELF], |r| Ok(PersonUse { key: r.get(0)?, name: r.get(1)?, bytes: r.get(2)?, items: r.get(3)? }))?
                 .collect::<Result<Vec<_>, _>>()?;
+            // Waiting to be published (F1): on the Media shelf, no item, oldest first.
+            let mut stmt = conn.prepare(
+                "SELECT u.filename, u.public_key, COALESCE(sm.name, ''), u.size_bytes, u.uploaded_at
+                 FROM user_uploads u
+                 LEFT JOIN server_members sm ON sm.public_key = u.public_key
+                 WHERE u.shared = ?1 AND u.filename NOT IN (SELECT upload_filename FROM media_items)
+                 ORDER BY u.uploaded_at ASC, u.id ASC LIMIT 500",
+            )?;
+            let waiting = stmt
+                .query_map(params![MEDIA_SHELF], |r| {
+                    let uploaded_at: i64 = r.get(4)?;
+                    Ok(WaitingUpload {
+                        filename: r.get(0)?,
+                        uploader_key: r.get(1)?,
+                        uploader_name: r.get(2)?,
+                        size_bytes: r.get(3)?,
+                        uploaded_at,
+                        expires_at: uploaded_at + UNPUBLISHED_KEEP_MS,
+                    })
+                })?
+                .collect::<Result<Vec<_>, _>>()?;
             Ok(MediaUsage {
                 used_bytes,
                 items,
@@ -732,6 +1022,7 @@ impl Storage {
                 largest: items_ordered(conn, "m.size_bytes DESC, m.id ASC", USAGE_LIST_LEN)?,
                 oldest: items_ordered(conn, "m.created_at ASC, m.id ASC", USAGE_LIST_LEN)?,
                 least_viewed: items_ordered(conn, "m.views ASC, m.created_at ASC, m.id ASC", USAGE_LIST_LEN)?,
+                waiting,
             })
         })
     }

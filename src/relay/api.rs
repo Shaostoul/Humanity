@@ -347,20 +347,6 @@ pub async fn list_shared_uploads(
     Ok(Json(serde_json::json!({ "files": files })))
 }
 
-/// Calculate total size of all files in a directory (non-recursive).
-fn dir_total_size(dir: &std::path::Path) -> u64 {
-    std::fs::read_dir(dir)
-        .map(|entries| {
-            entries
-                .filter_map(|e| e.ok())
-                .filter_map(|e| e.metadata().ok())
-                .filter(|m| m.is_file())
-                .map(|m| m.len())
-                .sum()
-        })
-        .unwrap_or(0)
-}
-
 /// POST /api/upload — upload a file (images, audio, video, documents, archives).
 /// Returns a JSON object with the file URL, filename, size, and type.
 /// Requires `?token=<upload_token>` or `?key=<public_key>`.
@@ -648,49 +634,24 @@ pub async fn upload_file(
         let original_name_fs = filename.clone();
         let fs_result = tokio::task::spawn_blocking(move || -> Result<(), (StatusCode, String)> {
             // Store in data/uploads/.
-            let upload_dir = std::path::Path::new("data/uploads");
-            std::fs::create_dir_all(upload_dir).map_err(|e| {
+            let folders = super::media::Folders::live();
+            std::fs::create_dir_all(folders.uploads).map_err(|e| {
                 body.discard(); // a part file is never left behind
                 (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to create upload dir: {e}"))
             })?;
 
-            // Room before writing: chat files against the general cap (Media's bytes apart), a
-            // Media upload against the Media budget and the person's share of it (media.rs).
-            let room = super::media::upload_room(&state_fs.db, &settings_fs, &public_key_fs, shelf_fs, dir_total_size(upload_dir), data_len as u64);
-            if let Err(refusal) = room {
-                body.discard();
-                return Err(refusal);
-            }
-
-            let file_path = upload_dir.join(&unique_name_fs);
-            body.put(&file_path).map_err(|e| {
-                (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to write file: {e}"))
-            })?;
-
-            // Track upload per user (FIFO — retention count from server
-            // settings, was a hardcoded 4 before v0.237; shared files are
-            // exempt and enter the public library instead, v0.675).
-            match state_fs.db.record_upload(
-                &public_key_fs,
-                &unique_name_fs,
-                max_uploads_per_user,
-                shelf_fs,
-                &original_name_fs,
-                data_len as i64,
-            ) {
-                Ok(old_files) => {
-                    // Delete old files from disk.
-                    for old_file in &old_files {
-                        let old_path = upload_dir.join(old_file);
-                        if let Err(e) = std::fs::remove_file(&old_path) {
-                            tracing::warn!("Failed to delete old upload {}: {e}", old_file);
-                        } else {
-                            tracing::info!("FIFO cleanup: deleted old upload {}", old_file);
-                        }
-                    }
-                }
-                Err(e) => {
-                    tracing::error!("Failed to record upload: {e}");
+            // The room check (chat files against the general cap, Media's bytes apart; a Media
+            // upload against the Media budget and the person's share), the move into place and
+            // the row (FIFO retention from the role; shared files exempt), under one lock so two
+            // uploads finishing together cannot both pass (media.rs `store_upload`, F4).
+            let new = super::media::NewUpload { key: &public_key_fs, shelf: shelf_fs, name: &unique_name_fs, original_name: &original_name_fs, len: data_len as u64, keep: max_uploads_per_user };
+            let old_files = super::media::store_upload(&state_fs.db, &settings_fs, folders, &new, |path| body.put(path)).inspect_err(|_| body.discard())?;
+            // Delete the files the FIFO let go.
+            for old_file in &old_files {
+                if let Err(e) = std::fs::remove_file(folders.uploads.join(old_file)) {
+                    tracing::warn!("Failed to delete old upload {}: {e}", old_file);
+                } else {
+                    tracing::info!("FIFO cleanup: deleted old upload {}", old_file);
                 }
             }
             Ok(())

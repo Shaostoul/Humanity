@@ -586,8 +586,9 @@ pub async fn run_relay() {
     }
 
     // Boot-time expiry (storage/expiry.rs: the DM mailbox, public messages past the
-    // retention window, erased accounts past their window or over the cap), so a relay
-    // that was down for a while doesn't wait 6 hours for the periodic pass.
+    // retention window, erased accounts past their window or over the cap, Media uploads
+    // not published within a day, row and file), so a relay that was down for a while
+    // doesn't wait 6 hours for the periodic pass.
     db.run_expiry_sweeps();
 
     // The Media page's content labels (data/media/labels.json), read now rather than at the
@@ -1201,6 +1202,10 @@ pub fn build_router(state: Arc<RelayState>) -> Router {
         .route("/api/media/list", post(media::list_post))
         .route("/api/media/categories", get(media::categories).post(media::set_categories))
         .route("/api/media/remove", post(media::remove))
+        // A members-only item's file, to a member with the session's upload token (F3): it is
+        // not in data/uploads, so the /uploads service below never has it.
+        .route("/api/media/file/{id}", get(media::file))
+        .route("/api/media/visibility", post(media::visibility))
         .route("/api/media/pick", post(media::pick))
         .route("/api/media/unpick", post(media::unpick))
         .route("/api/media/picks/{key}", get(media::picks_of))

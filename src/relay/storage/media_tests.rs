@@ -112,9 +112,9 @@ fn the_budget_and_the_share_refuse_with_both_numbers() {
     assert_eq!(db.media_bytes(None), 5 * MIB / 2);
 }
 
-/// TAKING AN ITEM DOWN: someone else is refused; the uploader takes their own (the item, every
-/// pick of it and the upload row go, and the file name comes back for the route to delete); an
-/// admin takes anyone's.
+/// TAKING AN ITEM DOWN: someone else is refused; the uploader takes their own (the item and every
+/// pick of it go; a chat upload goes back to chat, and the file name and where it came from come
+/// back for the route); an admin takes anyone's, and an item uploaded for Media loses its row.
 ///
 /// Seen red 2026-10-11 with the uploader-or-admin check taken out of `remove_media`: "expected a
 /// refusal, got Ok(\"1_a.png\")".
@@ -122,7 +122,7 @@ fn the_budget_and_the_share_refuse_with_both_numbers() {
 fn remove_is_the_uploaders_or_an_admins_and_takes_its_picks() {
     let db = db();
     upload(&db, "ann", "1_a.png", 0, 10);
-    upload(&db, "bea", "2_b.png", 0, 10);
+    upload(&db, "bea", "2_b.png", MEDIA_SHELF, 10);
     let a = publish(&db, "ann", "1_a.png").unwrap();
     let b = publish(&db, "bea", "2_b.png").unwrap();
     db.pick_media("bea", a.id).unwrap();
@@ -130,13 +130,15 @@ fn remove_is_the_uploaders_or_an_admins_and_takes_its_picks() {
 
     let (w, _) = why(db.remove_media(a.id, "cal", false));
     assert_eq!(w, Refusal::NotAllowed, "cal is neither the uploader nor an admin");
-    assert_eq!(db.remove_media(a.id, "ann", false).unwrap(), "1_a.png");
+    assert_eq!(db.remove_media(a.id, "ann", false).unwrap(), Removed { filename: "1_a.png".into(), from_shelf: 0 });
     assert!(db.media_item(a.id).unwrap().is_none(), "the item is gone");
     assert_eq!(count(&db, "SELECT COUNT(*) FROM media_picks"), 0, "its picks went with it");
-    assert_eq!(count(&db, "SELECT COUNT(*) FROM user_uploads WHERE filename = '1_a.png'"), 0, "its upload row went with it");
+    assert_eq!(shelf_of(&db, "1_a.png"), 0, "its chat upload went back to chat");
     assert_eq!(why(db.remove_media(a.id, "ann", false)).0, Refusal::NotFound);
 
-    assert_eq!(db.remove_media(b.id, "admin", true).unwrap(), "2_b.png", "an admin takes anyone's down");
+    let gone = db.remove_media(b.id, "admin", true).unwrap();
+    assert_eq!((gone.filename.as_str(), gone.keeps_file()), ("2_b.png", false), "an admin takes anyone's down");
+    assert_eq!(count(&db, "SELECT COUNT(*) FROM user_uploads WHERE filename = '2_b.png'"), 0, "an upload made for Media loses its row");
 }
 
 /// PICKS: a pick counts once however often it is sent, picks are for other people's items, a

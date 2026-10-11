@@ -34,6 +34,25 @@ fn relay(tag: &str) -> Arc<RelayState> {
     Arc::new(RelayState::new(Storage::open_temp(tag)))
 }
 
+/// A public uploads folder and a members-only one of the test's own (deleted when they drop).
+fn temp_folders(tag: &str) -> (crate::test_temp::TempPath, crate::test_temp::TempPath) {
+    (crate::test_temp::dir(&format!("{tag}_uploads")), crate::test_temp::dir(&format!("{tag}_members")))
+}
+
+/// Which shelf an upload is on (0 chat, 1 Shared Files, 2 Media), or None when its row is gone.
+fn shelf_of(db: &Storage, file: &str) -> Option<i64> {
+    db.with_conn(|c| {
+        use rusqlite::OptionalExtension;
+        c.query_row("SELECT shared FROM user_uploads WHERE filename = ?1", [file], |r| r.get(0)).optional()
+    })
+    .unwrap()
+}
+
+/// The Shared Files list's file names.
+fn shared_list(db: &Storage) -> Vec<String> {
+    db.list_shared_uploads(50, None).unwrap().into_iter().map(|u| u.filename).collect()
+}
+
 /// `key` uploads `file` as chat media and publishes it with `visibility`.
 fn published(db: &Storage, key: &str, file: &str, visibility: &str) -> MediaItem {
     db.record_upload(key, file, 100, 0i64, file, 10).unwrap();
@@ -126,7 +145,8 @@ fn publishing_needs_a_member_known_labels_and_a_visibility() {
     let db = &state.db;
     let s = db.get_server_settings().unwrap();
     let known = load_labels(std::path::Path::new("data/media/labels.json"));
-    let uploads = crate::test_temp::dir("media_publish_uploads");
+    let (uploads, members) = temp_folders("media_publish");
+    let uploads = Folders { uploads: &uploads, members: &members };
     let (ann, out) = (person(6), person(7));
     db.join_server(&ann.key, "Ann").unwrap();
     db.record_upload(&ann.key, "1_a.png", 100, 0i64, "a.png", 10).unwrap();
@@ -141,41 +161,44 @@ fn publishing_needs_a_member_known_labels_and_a_visibility() {
 
     let mut outsider = body(&[], None);
     outsider.key = out.key.clone();
-    assert_eq!(publish_core(db, &s, &known, &uploads, &outsider).unwrap_err().0, StatusCode::FORBIDDEN, "a non-member");
-    let (code, words) = publish_core(db, &s, &known, &uploads, &body(&["gore"], None)).unwrap_err();
+    assert_eq!(publish_core(db, &s, &known, uploads, &outsider).unwrap_err().0, StatusCode::FORBIDDEN, "a non-member");
+    let (code, words) = publish_core(db, &s, &known, uploads, &body(&["gore"], None)).unwrap_err();
     assert!(code == StatusCode::BAD_REQUEST && words.contains("Flashing lights (flashing)"), "{words}");
-    let (_, words) = publish_core(db, &s, &known, &uploads, &body(&["NSFW"], None)).unwrap_err();
+    let (_, words) = publish_core(db, &s, &known, uploads, &body(&["NSFW"], None)).unwrap_err();
     assert!(words.contains("Adult content is not allowed"), "{words}");
-    assert_eq!(publish_core(db, &s, &known, &uploads, &body(&[], Some("friends"))).unwrap_err().0, StatusCode::BAD_REQUEST);
+    assert_eq!(publish_core(db, &s, &known, uploads, &body(&[], Some("friends"))).unwrap_err().0, StatusCode::BAD_REQUEST);
 
-    let ok = publish_core(db, &s, &known, &uploads, &body(&["Graphic", "spoiler", "graphic"], Some("Members"))).unwrap().0;
+    let ok = publish_core(db, &s, &known, uploads, &body(&["Graphic", "spoiler", "graphic"], Some("Members"))).unwrap().0;
     let labels: Vec<&str> = ok["item"]["labels"].as_array().unwrap().iter().map(|l| l.as_str().unwrap()).collect();
     assert_eq!(labels, vec!["spoiler", "graphic"], "labels are stored in the labels file's order");
     assert_eq!(ok["item"]["visibility"], "members");
-    assert_eq!(ok["item"]["url"], "/uploads/1_a.png");
+    let id = ok["item"]["id"].as_i64().unwrap();
+    assert_eq!(ok["item"]["url"], format!("/api/media/file/{id}"), "a members-only item is fetched through the members' route");
     assert_eq!(ok["item"]["category"]["id"], GENERAL_CATEGORY_ID);
 }
 
-/// TAKING AN ITEM DOWN THROUGH THE ROUTE deletes its file: a member who is not the uploader is
-/// refused and the file stays; an admin's removal deletes it.
+/// TAKING AN ITEM DOWN THROUGH THE ROUTE: a member who is not the uploader is refused and the
+/// file stays; an admin's removal of an item uploaded for Media deletes its file.
 ///
 /// Seen red 2026-10-11 with the file delete taken out of `remove_core`: "the file is gone".
 #[test]
 fn removing_an_item_deletes_its_file() {
     let state = relay("media_remove_route");
     let db = &state.db;
-    let uploads = crate::test_temp::dir("media_remove_uploads");
+    let (uploads, members) = temp_folders("media_remove");
+    let folders = Folders { uploads: &uploads, members: &members };
     let (ann, cal, op) = (person(8), person(9), person(10));
     for (p, n) in [(&ann, "Ann"), (&cal, "Cal"), (&op, "Op")] {
         db.join_server(&p.key, n).unwrap();
     }
     db.set_role(&op.key, "admin").unwrap();
     std::fs::write(uploads.join("1_a.png"), b"picture").unwrap();
-    let item = published(db, &ann.key, "1_a.png", "public");
+    db.record_upload(&ann.key, "1_a.png", 100, MEDIA_SHELF, "a.png", 7).unwrap();
+    let item = db.publish_media(&ann.key, &Publish { filename: "1_a.png", visibility: "public", ..Default::default() }, 1 << 40, 1 << 40, None).unwrap();
 
-    assert_eq!(remove_core(db, &uploads, item.id, &cal.key).unwrap_err().0, StatusCode::FORBIDDEN);
+    assert_eq!(remove_core(db, folders, &RemoveTarget::Item(item.id), &cal.key).unwrap_err().0, StatusCode::FORBIDDEN);
     assert!(uploads.join("1_a.png").exists(), "a refused removal left the file");
-    let done = remove_core(db, &uploads, item.id, &op.key).unwrap().0;
+    let done = remove_core(db, folders, &RemoveTarget::Item(item.id), &op.key).unwrap().0;
     assert_eq!(done["file_removed"], true);
     assert!(!uploads.join("1_a.png").exists(), "the file is gone");
     assert!(db.media_item(item.id).unwrap().is_none());
@@ -238,7 +261,7 @@ async fn a_suggester_is_told_when_an_admin_decides() {
     let mut told = state.broadcast_tx.subscribe();
     let ts = now_ms();
     let id = fire["suggestion"]["id"].as_i64().unwrap();
-    let body = DecideBody { key: op.key.clone(), timestamp: ts, sig: op.sign("media_suggestions", ts), id, accept: true };
+    let body = DecideBody { key: op.key.clone(), timestamp: ts, sig: op.sign(&decide_purpose(id, true), ts), id, accept: true };
     let answer = decide(State(state.clone()), Json(body)).await.unwrap().0;
     assert_eq!(answer["category"]["name"], "Fire flow arts");
     match told.try_recv() {
@@ -326,7 +349,8 @@ async fn a_media_write_needs_a_fresh_signature() {
     state.db.set_role(&op.key, "admin").unwrap();
     let item = published(&state.db, &ann.key, "1_a.png", "public");
     let now = now_ms();
-    let body = |ts: u64, signer: &Person| FeatureBody { key: op.key.clone(), timestamp: ts, sig: signer.sign("media_feature", ts), id: item.id, featured: true };
+    let purpose = format!("media_feature:{}", item.id);
+    let body = |ts: u64, signer: &Person| FeatureBody { key: op.key.clone(), timestamp: ts, sig: signer.sign(&purpose, ts), id: item.id, featured: true };
 
     let forged = feature(State(state.clone()), Json(body(now, &ann))).await.unwrap_err();
     assert_eq!(forged.0, StatusCode::UNAUTHORIZED, "someone else's signature");
@@ -363,4 +387,329 @@ fn the_shipped_labels_file_parses() {
     assert!(parse_labels(r#"{"labels":[{"id":"spoiler","label":"A"},{"id":"spoiler","label":"B"}]}"#).unwrap_err().contains("twice"));
     assert!(parse_labels(r#"{"labels":[{"id":"a,b","label":"A"}]}"#).is_err());
     assert!(parse_labels(r#"{"labels":[]}"#).is_err());
+}
+
+// ── The review's fixes (docs/design/media-showcase.md, "Increment 1 fixes", 2026-10-11) ──
+
+/// F1. A MEDIA UPLOAD NOT PUBLISHED WITHIN A DAY EXPIRES, row and file, in the expiry pass (which
+/// runs at start, every six hours and after a settings change); until then the admin's usage
+/// lists it under waiting with its size, and its owner or an admin can remove it by its file
+/// name (someone else cannot).
+///
+/// Seen red 2026-10-11 with the unpublished sweep taken out of `run_expiry_sweeps_in`: "the
+/// expiry pass deleted the day-old upload's file".
+#[test]
+fn an_unpublished_media_upload_expires_and_can_be_removed_by_name() {
+    let state = relay("media_f1");
+    let db = &state.db;
+    let s = db.get_server_settings().unwrap();
+    let (uploads, members) = temp_folders("media_f1");
+    let folders = Folders { uploads: &uploads, members: &members };
+    let (ann, cal, op) = (person(20), person(21), person(22));
+    for (p, n) in [(&ann, "Ann"), (&cal, "Cal"), (&op, "Op")] {
+        db.join_server(&p.key, n).unwrap();
+    }
+    db.set_role(&op.key, "admin").unwrap();
+    for (file, size) in [("1_old.mp4", 5 * MIB), ("2_new.mp4", 3 * MIB), ("3_also.png", MIB)] {
+        std::fs::write(uploads.join(file), b"video").unwrap();
+        db.record_upload(&ann.key, file, 100, MEDIA_SHELF, file, size).unwrap();
+    }
+    let day_and_an_hour = 25 * 60 * 60 * 1000i64;
+    db.with_conn(|c| c.execute("UPDATE user_uploads SET uploaded_at = uploaded_at - ?1 WHERE filename = '1_old.mp4'", [day_and_an_hour])).unwrap();
+
+    let u = usage_core(db, &s, &op.key).unwrap().0;
+    let waiting: Vec<(String, i64)> =
+        u["waiting"].as_array().unwrap().iter().map(|w| (w["filename"].as_str().unwrap().to_string(), w["size_bytes"].as_i64().unwrap())).collect();
+    let expect = |l: &[(&str, i64)]| l.iter().map(|(f, n)| (f.to_string(), *n)).collect::<Vec<_>>();
+    assert_eq!(waiting, expect(&[("1_old.mp4", 5 * MIB), ("2_new.mp4", 3 * MIB), ("3_also.png", MIB)]), "the usage lists what waits, oldest first");
+    assert_eq!(u["used_bytes"], 9 * MIB);
+
+    db.run_expiry_sweeps_in(folders);
+    assert!(!uploads.join("1_old.mp4").exists(), "the expiry pass deleted the day-old upload's file");
+    assert_eq!(shelf_of(db, "1_old.mp4"), None, "and its row");
+    assert!(uploads.join("2_new.mp4").exists(), "a newer upload waits on");
+    assert_eq!(db.media_bytes(None), 4 * MIB);
+
+    let by_name = |n: &str| RemoveTarget::Upload(n.to_string());
+    assert_eq!(remove_core(db, folders, &by_name("2_new.mp4"), &cal.key).unwrap_err().0, StatusCode::FORBIDDEN, "someone else's");
+    assert!(uploads.join("2_new.mp4").exists(), "a refused removal left the file");
+    let done = remove_core(db, folders, &by_name("2_new.mp4"), &ann.key).unwrap().0;
+    assert_eq!(done["file_removed"], true);
+    assert!(!uploads.join("2_new.mp4").exists(), "the owner removed it, file and all");
+    remove_core(db, folders, &by_name("/uploads/3_also.png"), &op.key).expect("an admin removes anyone's, by its address too");
+    assert_eq!(db.media_bytes(None), 0, "nothing waits now");
+    assert_eq!(remove_core(db, folders, &by_name("2_new.mp4"), &ann.key).unwrap_err().0, StatusCode::NOT_FOUND);
+    assert!(usage_core(db, &s, &op.key).unwrap().0["waiting"].as_array().unwrap().is_empty());
+    let b = RemoveBody { filename: Some("/uploads/2_new.mp4".into()), ..Default::default() };
+    assert_eq!(b.target().unwrap(), (by_name("2_new.mp4"), "media_remove:2_new.mp4".to_string()), "a removal by name is signed over the name");
+}
+
+/// F2. REMOVING AN ITEM NEVER TAKES A FILE SOMETHING ELSE USES: an item made from a chat file
+/// and one made from a Shared Files file keep their files, at their `/uploads/` addresses, and
+/// their uploads go back (to chat's keep-N shelf, to the Shared Files list); only an item
+/// uploaded for Media loses its file and its row. An admin removing someone's chat photo from
+/// Media therefore never breaks the chat message.
+///
+/// Seen red 2026-10-11 with `Removed::keeps_file` answering false for every shelf (the merged
+/// behaviour): "an admin's removal kept the chat photo's file".
+#[test]
+fn removing_an_item_gives_its_upload_back_and_keeps_a_file_in_use() {
+    let state = relay("media_f2");
+    let db = &state.db;
+    let (uploads, members) = temp_folders("media_f2");
+    let folders = Folders { uploads: &uploads, members: &members };
+    let (ann, op) = (person(23), person(24));
+    db.join_server(&ann.key, "Ann").unwrap();
+    db.join_server(&op.key, "Op").unwrap();
+    db.set_role(&op.key, "admin").unwrap();
+    let mut ids = Vec::new();
+    for (file, shelf) in [("1_chat.png", 0), ("2_shared.glb", 1), ("3_made.mp4", MEDIA_SHELF)] {
+        std::fs::write(uploads.join(file), b"bytes").unwrap();
+        db.record_upload(&ann.key, file, 100, shelf, file, 5).unwrap();
+        ids.push(db.publish_media(&ann.key, &Publish { filename: file, visibility: "public", ..Default::default() }, 1 << 40, 1 << 40, None).unwrap().id);
+    }
+    assert_eq!(shelf_of(db, "1_chat.png"), Some(MEDIA_SHELF), "published, the chat file is off the keep-N shelf");
+
+    let done = remove_core(db, folders, &RemoveTarget::Item(ids[0]), &op.key).unwrap().0;
+    assert!(uploads.join("1_chat.png").exists(), "an admin's removal kept the chat photo's file");
+    assert_eq!((done["file_kept"].as_bool(), done["file_removed"].as_bool()), (Some(true), Some(false)));
+    assert_eq!(shelf_of(db, "1_chat.png"), Some(0), "the chat file is a chat file again");
+
+    remove_core(db, folders, &RemoveTarget::Item(ids[1]), &ann.key).unwrap();
+    assert!(uploads.join("2_shared.glb").exists(), "the Shared Files file stays");
+    assert_eq!(shelf_of(db, "2_shared.glb"), Some(1));
+    assert_eq!(shared_list(db), vec!["2_shared.glb".to_string()], "and stays in its list");
+
+    let done = remove_core(db, folders, &RemoveTarget::Item(ids[2]), &ann.key).unwrap().0;
+    assert_eq!(done["file_removed"], true);
+    assert!(!uploads.join("3_made.mp4").exists(), "an item uploaded for Media loses its file");
+    assert_eq!(shelf_of(db, "3_made.mp4"), None, "and its row");
+    assert!(ids.iter().all(|id| db.media_item(*id).unwrap().is_none()), "every item is off the page");
+}
+
+/// A request for the members' file route, as a browser sends it.
+fn file_request(id: i64) -> axum::extract::Request {
+    axum::http::Request::builder().uri(format!("/api/media/file/{id}")).body(axum::body::Body::empty()).unwrap()
+}
+
+/// F3. MEMBERS ONLY MEANS MEMBERS ONLY: a members-only item's file is not at its `/uploads/`
+/// address but in the members-only folder, served by `GET /api/media/file/{id}?token=` to a
+/// member with the session's upload token, refused without one, with a token that is not a
+/// session, to a banned key and to someone who is not a member. A Shared Files file published
+/// as members only leaves that list; made public again it is back at its address and in the
+/// list, and members only again it leaves both; removed from Media it rejoins them. The line
+/// under the switch says what a member is.
+///
+/// Seen red 2026-10-11 with `publish_core`'s placing closure not moving the file: "a members-only
+/// file is still at its /uploads/ address".
+#[tokio::test]
+async fn a_members_only_file_is_only_for_members() {
+    let state = relay("media_f3");
+    let db = &state.db;
+    let s = db.get_server_settings().unwrap();
+    let (uploads, members) = temp_folders("media_f3");
+    let folders = Folders { uploads: &uploads, members: &members };
+    let (ann, bea, bo, out) = (person(25), person(26), person(27), person(28));
+    for (p, n) in [(&ann, "Ann"), (&bea, "Bea"), (&bo, "Bo")] {
+        db.join_server(&p.key, n).unwrap();
+    }
+    db.ban_user(&bo.key, "Bo").unwrap();
+    std::fs::write(uploads.join("1_case.glb"), b"model bytes").unwrap();
+    db.record_upload(&ann.key, "1_case.glb", 100, 1i64, "case.glb", 11).unwrap();
+    assert_eq!(shared_list(db), vec!["1_case.glb".to_string()]);
+
+    let body = PublishBody { key: ann.key.clone(), filename: "1_case.glb".into(), visibility: Some("members".into()), ..Default::default() };
+    let item = publish_core(db, &s, &[], folders, &body).unwrap().0;
+    let id = item["item"]["id"].as_i64().unwrap();
+    assert!(!uploads.join("1_case.glb").exists(), "a members-only file is still at its /uploads/ address");
+    assert!(members.join("1_case.glb").exists(), "it is in the members-only folder");
+    assert_eq!(item["item"]["url"], format!("/api/media/file/{id}"));
+    assert!(shared_list(db).is_empty(), "a Shared Files file published as members only leaves that list");
+
+    for (token, key) in [("tok_bea", &bea.key), ("tok_bo", &bo.key), ("tok_out", &out.key)] {
+        state.upload_tokens.write().await.insert(token.to_string(), key.clone());
+    }
+    let res = file_core(&state, folders, id, Some("tok_bea"), file_request(id)).await.expect("a member with a token");
+    assert_eq!(res.status(), StatusCode::OK);
+    assert_eq!(res.headers()[axum::http::header::CONTENT_DISPOSITION], "attachment");
+    let bytes = axum::body::to_bytes(res.into_body(), 1 << 20).await.unwrap();
+    assert_eq!(&bytes[..], b"model bytes");
+    for (token, code, who) in [
+        (None, StatusCode::UNAUTHORIZED, "no token"),
+        (Some("forged"), StatusCode::FORBIDDEN, "a token that is not a session"),
+        (Some("tok_bo"), StatusCode::FORBIDDEN, "a banned key"),
+        (Some("tok_out"), StatusCode::FORBIDDEN, "not a member"),
+    ] {
+        let refused = file_core(&state, folders, id, token, file_request(id)).await.map(|r| r.status());
+        assert_eq!(refused.err().map(|(c, _)| c), Some(code), "{who}");
+    }
+
+    let public = visibility_core(db, folders, id, &ann.key, "public").unwrap().0;
+    assert_eq!(public["item"]["url"], "/uploads/1_case.glb");
+    assert!(uploads.join("1_case.glb").exists() && !members.join("1_case.glb").exists(), "made public, the file is back at its address");
+    assert_eq!(shared_list(db), vec!["1_case.glb".to_string()], "and back in the Shared Files list");
+    visibility_core(db, folders, id, &ann.key, "members").unwrap();
+    assert!(!uploads.join("1_case.glb").exists() && shared_list(db).is_empty(), "members only again, it leaves both");
+
+    remove_core(db, folders, &RemoveTarget::Item(id), &ann.key).unwrap();
+    assert!(uploads.join("1_case.glb").exists(), "removed from Media, the file is back at its address");
+    assert_eq!(shared_list(db), vec!["1_case.glb".to_string()], "and it rejoins the Shared Files list");
+
+    assert!(s.media_members_note.contains("everyone signed in") && s.media_members_note.contains("lockdown"), "{}", s.media_members_note);
+    let sent = serde_json::to_value(&s).unwrap();
+    assert_eq!(sent["media_members_note"], crate::relay::storage::MEDIA_MEMBERS_NOTE, "the settings answer carries the line");
+}
+
+/// F4. BUDGETS HOLD WHEN UPLOADS FINISH TOGETHER: two Media uploads that each fit a 1 MB share
+/// alone, but not both, run the room check, the move into place and the row from two threads at
+/// once. Each waits in its move (up to half a second) for the other to arrive: without the lock
+/// both have passed the check by then; with it the second waits for the first's row and is
+/// refused.
+///
+/// Seen red 2026-10-11 with the room lock taken out of `store_upload`: "two uploads finishing
+/// together both passed the room check".
+#[test]
+fn two_uploads_finishing_together_cannot_both_pass_the_room_check() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let state = relay("media_f4");
+    let db = &state.db;
+    let mut s = db.get_server_settings().unwrap();
+    s.media_per_person_mb = 1;
+    let (uploads, members) = temp_folders("media_f4");
+    let folders = Folders { uploads: &uploads, members: &members };
+    let arrived = AtomicUsize::new(0);
+    let results: Vec<Result<Vec<String>, Refused>> = std::thread::scope(|scope| {
+        let runs: Vec<_> = ["1_a.mp4", "2_b.mp4"]
+            .into_iter()
+            .map(|name| {
+                let (s, arrived) = (&s, &arrived);
+                scope.spawn(move || {
+                    let u = NewUpload { key: "ann", shelf: MEDIA_SHELF, name, original_name: name, len: 600 * 1024, keep: 4 };
+                    store_upload(db, s, folders, &u, |path| {
+                        arrived.fetch_add(1, Ordering::SeqCst);
+                        let start = std::time::Instant::now();
+                        while arrived.load(Ordering::SeqCst) < 2 && start.elapsed() < std::time::Duration::from_millis(500) {
+                            std::thread::sleep(std::time::Duration::from_millis(5));
+                        }
+                        std::fs::write(path, b"video")
+                    })
+                })
+            })
+            .collect();
+        runs.into_iter().map(|r| r.join().expect("an upload thread")).collect()
+    });
+    let passed = results.iter().filter(|r| r.is_ok()).count();
+    assert_eq!(passed, 1, "two uploads finishing together both passed the room check: {results:?}");
+    let refused = results.iter().find_map(|r| r.as_ref().err()).unwrap();
+    assert_eq!(refused.0, StatusCode::INSUFFICIENT_STORAGE, "{}", refused.1);
+    assert_eq!(db.media_bytes(Some("ann")), 600 * 1024, "the share held");
+}
+
+/// F5. A SIGNATURE IS GOOD FOR ONE THING, ONCE: a timestamp 31 seconds ahead is refused (five
+/// minutes ahead used to pass, outliving the replay memory); and each write's signature names
+/// its target, so one made for one item, file, decision or category list is refused for another.
+///
+/// Seen red 2026-10-11 with the ahead limit back at five minutes: "a timestamp 31 seconds ahead
+/// was taken". Seen red again with `feature`'s purpose without its item id, plain
+/// `"media_feature"` on both sides as merged: "a signature for one item was taken for another /
+/// left: Ok(()) / right: Err(401)".
+#[tokio::test]
+async fn a_signature_names_its_target_and_is_never_far_ahead() {
+    let state = relay("media_f5");
+    let db = &state.db;
+    let (op, ann) = (person(29), person(30));
+    db.join_server(&op.key, "Op").unwrap();
+    db.join_server(&ann.key, "Ann").unwrap();
+    db.set_role(&op.key, "admin").unwrap();
+    let (a, b) = (published(db, &ann.key, "1_a.png", "public"), published(db, &ann.key, "2_b.png", "public"));
+    let now = now_ms();
+    let feature_body = |id: i64, signed_for: i64, ts: u64| FeatureBody {
+        key: op.key.clone(),
+        timestamp: ts,
+        sig: op.sign(&format!("media_feature:{signed_for}"), ts),
+        id,
+        featured: true,
+    };
+
+    let ahead = feature(State(state.clone()), Json(feature_body(a.id, a.id, now + 31_000))).await;
+    assert!(ahead.is_err(), "a timestamp 31 seconds ahead was taken");
+    assert_eq!(ahead.unwrap_err().0, StatusCode::BAD_REQUEST);
+    feature(State(state.clone()), Json(feature_body(a.id, a.id, now + 20_000))).await.expect("20 seconds ahead is a clock a little fast");
+
+    let moved = feature(State(state.clone()), Json(feature_body(b.id, a.id, now))).await;
+    assert_eq!(moved.map(|_| ()).map_err(|(code, _)| code), Err(StatusCode::UNAUTHORIZED), "a signature for one item was taken for another");
+    assert!(!db.media_item(b.id).unwrap().unwrap().featured);
+
+    let pick_b = ItemBody { key: op.key.clone(), timestamp: now, sig: op.sign(&format!("media_pick:{}", a.id), now), id: b.id };
+    assert_eq!(pick(State(state.clone()), Json(pick_b)).await.unwrap_err().0, StatusCode::UNAUTHORIZED, "a pick");
+    let remove_b = RemoveBody { key: op.key.clone(), timestamp: now, sig: op.sign("media_remove:1_a.png", now), filename: Some("2_b.png".into()), id: None };
+    assert_eq!(remove(State(state.clone()), Json(remove_b)).await.unwrap_err().0, StatusCode::UNAUTHORIZED, "a removal by name");
+    let suggestion = db.suggest_media_category(&ann.key, "Builds", "").unwrap();
+    let decline = DecideBody { key: op.key.clone(), timestamp: now, sig: op.sign(&decide_purpose(suggestion.id, true), now), id: suggestion.id, accept: false };
+    assert_eq!(decide(State(state.clone()), Json(decline)).await.unwrap_err().0, StatusCode::UNAUTHORIZED, "an accept sent as a decline");
+
+    let list = r#"[{"id":1,"name":"General"},{"name":"Builds"}]"#;
+    let hash = blake3::hash(list.as_bytes()).to_hex();
+    let sig = op.sign(&format!("media_categories:{hash}"), now);
+    let other = format!(r#"{{"key":"{}","timestamp":{now},"sig":"{sig}","categories":[{{"id":1,"name":"General"}},{{"name":"Ghosts"}}]}}"#, op.key);
+    assert_eq!(set_categories(State(state.clone()), other).await.unwrap_err().0, StatusCode::UNAUTHORIZED, "another category list");
+    let sent = format!(r#"{{"key":"{}","timestamp":{now},"sig":"{sig}","categories":{list}}}"#, op.key);
+    let done = set_categories(State(state.clone()), sent).await.expect("the list signed as sent").0;
+    assert_eq!(done["categories"][1]["name"], "Builds");
+}
+
+/// F6. SIZES COME FROM THE FILE: publishing an upload whose row says 0 bytes (a row from before
+/// sizes were kept) records its size on disk, so the budget and the person's share count it.
+///
+/// Seen red 2026-10-11 with the size update taken out of `publish_media_placing`: "a zero-size
+/// upload was counted as nothing / left: 0 / right: 2048".
+#[test]
+fn a_zero_size_upload_is_counted_by_its_size_on_disk() {
+    let state = relay("media_f6");
+    let db = &state.db;
+    let s = db.get_server_settings().unwrap();
+    let (uploads, members) = temp_folders("media_f6");
+    let folders = Folders { uploads: &uploads, members: &members };
+    let ann = person(31);
+    db.join_server(&ann.key, "Ann").unwrap();
+    std::fs::write(uploads.join("1_old.png"), vec![7u8; 2048]).unwrap();
+    db.record_upload(&ann.key, "1_old.png", 100, 0i64, "old.png", 0).unwrap();
+    let body = PublishBody { key: ann.key.clone(), filename: "1_old.png".into(), ..Default::default() };
+    let item = publish_core(db, &s, &[], folders, &body).unwrap().0;
+    assert_eq!(item["item"]["size_bytes"], 2048);
+    assert_eq!(db.media_bytes(None), 2048, "a zero-size upload was counted as nothing");
+    assert_eq!(db.media_bytes(Some(&ann.key)), 2048, "in the person's share too");
+}
+
+/// F7. FAIL CLOSED: a visibility word the relay does not know, and a settings read that fails,
+/// count as members only, so the public gets no items (and, on a members-only page, no
+/// categories or labels either) while a member still gets everything.
+///
+/// Seen red 2026-10-11 with `media_settings` reading `unwrap_or_default()` (a public page): "a
+/// failed settings read served the public / left: [1] / right: []".
+#[tokio::test]
+async fn the_media_page_fails_closed() {
+    let state = relay("media_f7");
+    let db = &state.db;
+    let ann = person(32);
+    db.join_server(&ann.key, "Ann").unwrap();
+    let open = published(db, &ann.key, "1_open.png", "public");
+    db.with_conn(|c| c.execute("UPDATE server_settings SET media_visibility = 'everyone'", [])).unwrap();
+
+    let unsigned = list(State(state.clone()), Query(ListParams::default())).await.unwrap().0;
+    assert_eq!(ids(&unsigned), Vec::<i64>::new(), "an unknown visibility word served the public");
+    assert_eq!((unsigned["categories"].clone(), unsigned["labels"].clone()), (json!([]), json!([])), "nor its categories and labels");
+    let cats = categories(State(state.clone()), Query(ListParams::default())).await.unwrap().0;
+    assert_eq!((cats["categories"].clone(), cats["members_only_for_you"].clone()), (json!([]), json!(true)));
+    let member = list_post(State(state.clone()), Json(signed_list(&ann, now_ms()))).await.unwrap().0;
+    assert_eq!(ids(&member), vec![open.id], "a member still sees the page");
+    assert_eq!(member["categories"][0]["name"], "General", "and its categories");
+    let cats = categories(State(state.clone()), Query(signed_list(&ann, now_ms() + 1))).await.unwrap().0;
+    assert_eq!(cats["labels"].as_array().map(|l| l.len()), Some(labels().len()), "and its labels");
+
+    db.with_conn(|c| c.execute_batch("ALTER TABLE server_settings RENAME TO server_settings_unreadable")).unwrap();
+    assert!(db.get_server_settings().is_err(), "the settings cannot be read now");
+    let unsigned = list(State(state.clone()), Query(ListParams::default())).await.unwrap().0;
+    assert_eq!(ids(&unsigned), Vec::<i64>::new(), "a failed settings read served the public");
+    assert_eq!(unsigned["members_only_for_you"], true);
 }

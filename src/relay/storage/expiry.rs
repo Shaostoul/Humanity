@@ -6,7 +6,10 @@
 //!   - public messages past `message_retention_days` (0 = keep forever; pins always kept;
 //!     storage/channels.rs);
 //!   - erased accounts past their window or over the cap (storage/erased_accounts.rs);
-//!   - reports decided more than 90 days ago (storage/reports.rs; open reports are kept).
+//!   - reports decided more than 90 days ago (storage/reports.rs; open reports are kept);
+//!   - Media uploads not published within a day, row and file (storage/media.rs; the Media
+//!     review's F1, 2026-10-11). Their files are in the relay's uploads folder, so this pass
+//!     takes the folders (`run_expiry_sweeps_in` names a test's own).
 //!
 //! Callers (relay/mod.rs, handlers/server_settings_update.rs): relay start, the six-hour
 //! maintenance pass (before its backup, so nothing expired rides into the backup), and every
@@ -19,6 +22,12 @@ impl Storage {
     /// Run every expiry with this server's current settings. Errors are logged, never fatal:
     /// one failing sweep must not stop the others.
     pub fn run_expiry_sweeps(&self) {
+        self.run_expiry_sweeps_in(super::media::Folders::live())
+    }
+
+    /// [`Self::run_expiry_sweeps`] with the Media folders named, so a test deletes files in
+    /// folders of its own rather than in the checkout's data folder.
+    pub fn run_expiry_sweeps_in(&self, folders: super::media::Folders) {
         let s = self.get_server_settings().unwrap_or_default();
         match self.mailbox_expire(s.dm_mailbox_ttl_days) {
             Ok(0) => {}
@@ -45,6 +54,11 @@ impl Storage {
                 super::reports::REPORT_KEEP_DAYS_AFTER_DECISION
             ),
             Err(e) => tracing::error!("Reports sweep failed: {e}"),
+        }
+        match self.expire_unpublished_media_in(folders, super::now_millis() as i64) {
+            Ok(0) => {}
+            Ok(n) => tracing::info!("Media: deleted {n} upload(s) not published within a day"),
+            Err(e) => tracing::error!("Unpublished Media sweep failed: {e}"),
         }
     }
 }

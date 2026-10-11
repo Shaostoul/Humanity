@@ -1403,7 +1403,9 @@ impl Storage {
         // own, every index over its own CREATE TABLE columns, so a live database from before them
         // simply gains them (BUG-046 concerns ALTER-added columns only). In the account export;
         // the erase takes a person's items, their picks and the picks of their items, and their
-        // suggestions (storage/account.rs).
+        // suggestions (storage/account.rs). `from_shelf` is where an item's upload was before it
+        // was published (0 chat, 1 Shared Files, 2 uploaded for Media), so removing the item gives
+        // it back there (the review's F2, 2026-10-11); no index reads it.
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS media_items (
                 id              INTEGER PRIMARY KEY,
@@ -1418,7 +1420,8 @@ impl Storage {
                 featured        INTEGER NOT NULL DEFAULT 0,
                 size_bytes      INTEGER NOT NULL,
                 views           INTEGER NOT NULL DEFAULT 0,
-                created_at      INTEGER NOT NULL
+                created_at      INTEGER NOT NULL,
+                from_shelf      INTEGER NOT NULL
             );
             CREATE INDEX IF NOT EXISTS idx_media_items_uploader ON media_items(uploader_key, id);
             CREATE INDEX IF NOT EXISTS idx_media_items_category ON media_items(category_id, id);
@@ -2650,7 +2653,7 @@ mod members;
 mod server_settings;
 pub use server_settings::{
     clamp_world_time_scale, default_world_time_scale, fleet_supply_mode_of, media_visibility_of, ServerSettings,
-    DEFAULT_FLEET_SUPPLY_MODE, MEDIA_MB_RANGE,
+    DEFAULT_FLEET_SUPPLY_MODE, MEDIA_MB_RANGE, MEDIA_MEMBERS_NOTE,
     ERASED_ACCOUNTS_CAP_RANGE, ERASED_ACCOUNTS_TTL_DAYS_RANGE,
 };
 mod roles;
