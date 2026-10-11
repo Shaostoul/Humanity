@@ -33,6 +33,23 @@
   // its own (see pinRail).
   var openCats = {};
   var openSecs = {};
+  // The rail's order: A to Z (false, the default) or Suggested, the catalog's
+  // own reading order (true). The rule lives in library-order.js, the twin of
+  // rail_order() in src/gui/pages/library.rs. Remembered in this browser only;
+  // storage can be missing or refused (a private window), and then the page
+  // simply starts at A to Z.
+  var LibOrder = window.hosLibraryOrder;
+  var suggestedOrder = false;
+  try {
+    suggestedOrder = localStorage.getItem(LibOrder.ORDER_STORAGE_KEY) === 'suggested';
+  } catch (e) { /* no storage: A to Z */ }
+  function setSuggestedOrder(on) {
+    suggestedOrder = !!on;
+    try {
+      localStorage.setItem(LibOrder.ORDER_STORAGE_KEY, suggestedOrder ? 'suggested' : 'az');
+    } catch (e) { /* not kept, still applied for this visit */ }
+    renderRail();
+  }
   function currentCat() {
     return (current && typeof current === 'object' && manifest)
       ? (manifest.categories || [])[current.ci] : null;
@@ -372,29 +389,20 @@
 
     // Three tiers: section > category > document. Group the categories by the
     // section the manifest assigned, in the manifest's declared order, so web
-    // and native present the same shape.
-    var order = (manifest.sections || []).slice();
-    cats.forEach(function(c) {
-      if (c.section && order.indexOf(c.section) < 0) order.push(c.section);
-    });
-    if (!order.length) order = [null];   // older manifest: one unnamed group
-
+    // and native present the same shape; within each section, shelves and
+    // documents come A to Z or in the suggested order (library-order.js).
     var html = '';
     var shown = 0;
-    order.forEach(function(sectionName, si) {
-      var inSection = cats
-        .map(function(cat, ci) { return { cat: cat, ci: ci }; })
-        .filter(function(x) {
-          return sectionName === null ? true : x.cat.section === sectionName;
-        });
-      if (!inSection.length) return;
+    LibOrder.railOrder(manifest, suggestedOrder).forEach(function(group, si) {
+      var sectionName = group.section;
+      if (!group.cats.length) return;
 
       // Only draw the section header once we know it has a visible document
       // under it, which an active tag filter can easily make false.
       var sectionHtml = '';
       var sectionShown = 0;
-      inSection.forEach(function(x) {
-        var r = renderCategory(x.cat, x.ci);
+      group.cats.forEach(function(x) {
+        var r = renderCategory(cats[x.ci], x.ci, x.dis);
         sectionHtml += r.html;
         sectionShown += r.count;
       });
@@ -419,12 +427,12 @@
     // Returns its own markup and count rather than mutating the outer state,
     // so the section pass above can decide whether a section has anything
     // visible in it BEFORE drawing that section's header.
-    function renderCategory(cat, ci) {
+    function renderCategory(cat, ci, dis) {
       var docs = cat.docs || [];
       // Keep each doc's real index so openDoc(ci, di) still addresses the
-      // unfiltered manifest; filtering must not renumber anything.
-      var visible = docs.map(function(d, di) { return { d: d, di: di }; })
-                        .filter(function(x) { return docHasTag(x.d, tagFilter); });
+      // unfiltered manifest; neither sorting nor filtering renumbers anything.
+      var visible = dis.map(function(di) { return { d: docs[di], di: di }; })
+                       .filter(function(x) { return docHasTag(x.d, tagFilter); });
       if (!visible.length) return { html: '', count: 0 };
       var open = catIsOpen(ci);
       return {
@@ -456,6 +464,20 @@
       '" data-curriculum="1" style="padding-left:0;font-weight:600;">What there is to learn</button>' +
     '</div>';
 
+    // The order choice sits at the top of the tree, so it goes wherever the tree
+    // goes: search results replace both and keep their relevance order. Mirrors
+    // the two chips at the top of the native rail.
+    var orderChip = function(value, label, tip) {
+      var on = (value === 'suggested') === suggestedOrder;
+      return '<button type="button" class="lib-tag' + (on ? ' active' : '') + '" data-order="' + value +
+        '" aria-pressed="' + on + '" title="' + esc(tip) + '">' + label + '</button>';
+    };
+    html = '<div class="lib-order" role="group" aria-label="Order">' +
+        '<span class="lib-tag-label">Order</span>' +
+        orderChip('az', 'A to Z', LibOrder.ORDER_TIP_AZ) +
+        orderChip('suggested', 'Suggested', LibOrder.ORDER_TIP_SUGGESTED) +
+      '</div>' + html;
+
     // With a tag filter on, say so INSIDE the rail: the rail is sticky, the tag
     // bar scrolls away with the page, and a filtered tree with no sign of the
     // filter reads as missing documents.
@@ -467,7 +489,16 @@
     // keyboard focus to the page. If focus was in the rail, put it back on the
     // open entry so the next Tab continues from there.
     var railHadFocus = rail.contains(document.activeElement);
+    // An order chip keeps the focus itself, so a keyboard reader can flip back.
+    var focusOrder = railHadFocus && document.activeElement.getAttribute
+      ? document.activeElement.getAttribute('data-order') : null;
     rail.innerHTML = html;
+    rail.querySelectorAll('[data-order]').forEach(function(b) {
+      b.addEventListener('click', function() {
+        var want = b.getAttribute('data-order') === 'suggested';
+        if (want !== suggestedOrder) setSuggestedOrder(want);
+      });
+    });
     var clearBtn = rail.querySelector('[data-clear-filter]');
     if (clearBtn) clearBtn.addEventListener('click', function() { tagFilter = null; renderTagBar(); renderRail(); });
 
@@ -509,7 +540,9 @@
     var curBtn = rail.querySelector('[data-curriculum]');
     if (curBtn) curBtn.addEventListener('click', function() { openCurriculum(); });
     if (railHadFocus) {
-      var focusTo = rail.querySelector('.lib-doc.active');
+      var focusTo = focusOrder
+        ? rail.querySelector('[data-order="' + focusOrder + '"]')
+        : rail.querySelector('.lib-doc.active');
       if (focusTo) focusTo.focus({ preventScroll: true });
     }
     pinRail();
@@ -743,8 +776,10 @@
   /** Where to go next. A document used to end at its last full stop and offer
       nothing. The categories in Learn are ORDERED ladders, so the next rung is a
       real answer and not a guess: finish Your First Tomato and the thing to read
-      is Starting Seeds, not whatever happens to share a tag. Mirrors the native
-      footer in src/gui/pages/library.rs. */
+      is Starting Seeds, not whatever happens to share a tag. So this follows the
+      SUGGESTED order even when the rail shows A to Z: the next rung of the
+      ladder is still the next thing to read. Mirrors the native footer in
+      src/gui/pages/library.rs. */
   function nextPrevHtml(ci, di) {
     var cat = (manifest.categories || [])[ci];
     var docs = (cat && cat.docs) || [];

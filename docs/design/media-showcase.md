@@ -1,6 +1,6 @@
 # Media showcase (design, 2026-10-10)
 
-**Status: proposed.** The operator asked for "a media page" that "can showcase all the images,
+**Status: proposed; the operator answered the open questions 2026-10-10 (below).** The operator asked for "a media page" that "can showcase all the images,
 screenshots, videos, 3D models we upload with HumanityOS", with categories ("I have pictures of me
 spinning a fire flow art contact staff AND we have the pictures/videos of the game we're
 developing. I also have personal pictures/videos I'd like to share on my relay"), and "a section
@@ -93,11 +93,56 @@ Two separate things, both recommended:
 3. "Add to Media" on your own room posts; Picks on profiles; Featured.
 4. Game screenshot and Studio "Share to Media"; 3D preview renders; video length and poster.
 
-## Open questions for the operator
+## The operator's answers (2026-10-10)
 
-1. Categories: the server's (admins set them; recommended) or anyone may add one?
-2. Should Media items be visible to people who are not signed in to the server (the public website
-   showcase), or only to its members? **Recommended:** visible to anyone, since the point is to
-   show the work; the uploader chooses per item, with "members only" available.
-3. Big files: videos follow the uploader's role limit (Server Settings > Roles). Should Media have
-   its own, higher limit for trusted roles, and a total size per person?
+Verbatim, then what it means for the build.
+
+- **Categories:** "Seeing as the server is my relay I'd prefer only I choose the categories. I
+  don't mind people suggesting them... when the server is large enough then I guess there may be a
+  point where we want members suggesting categories? Maybe we could use the governance voting
+  system for it?" So: admins set the categories; members can **suggest** one (a short form; admins
+  approve or decline, and the suggester is told); a later server setting, "Who decides categories:
+  admins / admins with suggestions / a member vote", hands it to the existing governance proposals
+  on a big server. Built in that order; the vote is a later increment.
+- **Public or members only:** "it should be configurable between public/private." A server setting
+  (the whole Media page public or members only) and a per-item choice (an item can be members only
+  on a public page).
+- **Bandwidth:** "maybe we should gate limits between open public and members only for bandwidth
+  purposes?" **Recommended:** public visitors get thumbnails and lighter previews (pictures resized,
+  videos at a lower rate or as a poster frame with a short preview); members get the originals and
+  downloads. Both are server settings, with a per-visitor rate limit for the public.
+- **Labels:** "We should also consider a NSFW or similar tag. Maybe others?" Content labels hide an
+  item until clicked: **Spoiler**, **Flashing lights** (photosensitivity), **Graphic**. The protected
+  setup always hides labelled items, and they are never shown to the public without the click.
+  **Adult (NSFW) content is held back**: several US states and the UK require age verification for
+  services carrying adult material, so it stays OFF until it is researched into a dated findings
+  document (CLAUDE.md, "Research a legal question") and the operator decides; until then the
+  server's rules do not allow it on the Media page.
+- **Size and a meter:** "maybe media should have its own size limit but, maybe it should also have a
+  progress bar showcasing how full it is? That way I can prune stuff." Media gets its own storage
+  budget (a server setting), a per-person share of it, and a meter, "12.4 of 50 GB used", in Server
+  Settings and on the Media page for admins, with a prune view sorted largest first, oldest first or
+  least viewed. The general upload cap (`max_total_upload_mb`, 500 MB on united-humanity.us today)
+  stays for chat files.
+- **Big files:** "What if I want to upload a multi-GB file?" One file in one request is held to the
+  1 GB ceiling: a dropped connection loses the whole upload. Media uploads use **resumable
+  uploads** instead (the file sent in pieces, an interrupted one picking up where it stopped; the
+  tus protocol's approach), and with them the per-file ceiling becomes the Media budget and the
+  role's limit. Built with increment 2.
+
+## Questions still open
+
+1. Adult content: research and a decision later (above).
+2. The public preview sizes and rates: defaults to be measured on the VPS once the page exists.
+
+## Sharing big files peer to peer (the operator, 2026-10-10)
+
+"Is this chunked system essentially like torrenting from my PC to the server and then the server
+acts like a seed? My PC could act like a seed too, right?" Resumable upload is one-to-one (a PC to
+the server, in checked pieces, resuming after a drop); torrenting is many-to-many (everyone holding
+pieces passes them on). Both the server and the uploader's PC can seed, which takes load off the
+server's bandwidth. The cost is privacy: in a swarm every downloader sees every other one's network
+address, the very thing the call forwarder keeps private. So peer-to-peer distribution is a later,
+opt-in layer for big public files (the uploader and each downloader choose it), never the default;
+the server always serves the file itself too. The project already distributes releases by torrent
+(`docs/admin/`), which that layer can learn from.
