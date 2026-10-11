@@ -36,8 +36,15 @@
 //   upload with words saying so, instead of looking like a dropped connection
 //   for ever.
 // - Cancel at any point, the finish included: the session is deleted on the
-//   server, and when the finish had already stored the file, `onStored` is
-//   told so that the page removes the stored file too.
+//   server (`cancelSession`). Round 4's cancel answer: a cancel means nothing
+//   stays, so when the finish had already stored the file the server deletes
+//   that too (`removed_stored`) and nothing is removed by hand; a file already
+//   published stays (`published`); while a piece or the finish is being
+//   written the server says busy and is asked again until it is not.
+// - Every wait (`nap`) returns at once when Pause or Cancel has been pressed,
+//   even one that would begin after the press (round 4, W4-1: a Cancel during
+//   the start, answered with the allowance, used to sleep out the server's
+//   hour).
 //
 // An upload in progress is remembered in this browser's localStorage under
 // its session id with the file's name, size, last change and a fingerprint
@@ -49,7 +56,7 @@
 // is cancelled. Used by /pages/media-app.js. A classic script in the browser
 // (loaded before media-app.js), a CommonJS module under Node, where
 // scripts/tests/media-web-round2.test.js and media-web-round3.test.js drive
-// it against a stand-in server.
+// it against a stand-in server, and media-web-round4.test.js holds round 4.
 // ──────────────────────────────────────────────────────────────────────────
 (function (root) {
   'use strict';
@@ -73,7 +80,9 @@
   const ALLOWANCE_MIN_MS = 5000;
   // A token the server no longer knows (the page signed in again meanwhile): tries before giving up.
   const STALE_TOKEN_TRIES = 10;
-  // Tries at deleting a cancelled upload while the server is still busy with it.
+  // Tries at telling the server about a cancel when it cannot be reached (a dropped connection, a
+  // server error, no token yet). A server busy writing a piece or the finish is not counted: it is
+  // asked again until it is not.
   const CANCEL_TRIES = 10;
   // How much of each end of a file its fingerprint covers.
   const FINGERPRINT_BYTES = MIB;
@@ -162,6 +171,67 @@
     return !!(json && (typeof json.allowance === 'string' || Number.isFinite(json.resets_in_s)));
   }
 
+  /**
+   * An answer read: {json, words}. The relay's `error` when it gave one; a proxy's HTML page, an
+   * empty body or JSON without words is "The server answered <status>."; else its plain words.
+   */
+  async function readAnswer(res) {
+    let text = '';
+    try { text = String(await res.text()); } catch (e) { text = ''; }
+    let json = null;
+    try { json = text ? JSON.parse(text) : null; } catch (e) { json = null; }
+    const words = json && typeof json.error === 'string' && json.error ? json.error
+      : (!text.trim() || text.trim().startsWith('<') || json ? 'The server answered ' + res.status + '.' : text.trim());
+    return { json: json && typeof json === 'object' ? json : null, words };
+  }
+
+  /**
+   * Cancel a resumable upload on the server: DELETE /api/upload/resumable/<id>, the token in
+   * X-Upload-Token. Round 4's cancel answer (a cancel means nothing stays): `{ok: true}`, with
+   * `removed_stored: true` when the finish had stored the file already (the server deleted that
+   * too, so nothing is removed by hand) or `published: true` when the file was already on the
+   * Media page (the person's own choice, which a cancel leaves). While a piece or the finish is
+   * being written the server answers 409 `{busy: true}`, and it is asked again after a growing
+   * wait (2 s doubling to 30 s) for as long as it says so. A dropped connection, a server error,
+   * no token yet, or a token from before the page signed in again is tried again, CANCEL_TRIES
+   * times in all. `o`: fetch, token() and sleep(ms). Answers {answer, words}: answer is
+   * 'removed_stored', 'published', 'deleted', 'gone' (the server has no such upload: it ended
+   * already), 'unconfirmed' (the server could not be told; `words` are its last answer, if any)
+   * or 'refused' (`words` are the server's).
+   */
+  async function cancelSession(o, id) {
+    const sleep = (ms) => Promise.resolve(o.sleep ? o.sleep(ms) : new Promise((r) => setTimeout(r, ms)));
+    const url = '/api/upload/resumable/' + encodeURIComponent(id);
+    let wait = RETRY_FIRST_MS;
+    const later = async () => {
+      await sleep(wait);
+      wait = Math.min(wait * 2, RETRY_MAX_MS);
+    };
+    let tries = 0;
+    let words = '';
+    for (;;) {
+      const t = o.token();
+      let res = null;
+      if (t) {
+        try { res = await o.fetch(url, { method: 'DELETE', headers: { 'X-Upload-Token': t } }); } catch (e) { res = null; }
+      }
+      if (res) {
+        const b = await readAnswer(res);
+        const j = b.json || {};
+        if (res.ok) return { answer: j.removed_stored ? 'removed_stored' : j.published ? 'published' : 'deleted', words: '' };
+        if (res.status === 404 || res.status === 410) return { answer: 'gone', words: '' };
+        // Busy with a piece or the finish: asked again until it is not, never counted as a try.
+        if (res.status === 409 && j.busy) { await later(); continue; }
+        const again = res.status >= 500 || res.status === 429 || (res.status === 403 && /token/i.test(b.words));
+        if (!again) return { answer: 'refused', words: b.words };
+        words = b.words;
+      }
+      if (++tries >= CANCEL_TRIES) return { answer: 'unconfirmed', words };
+      if (t) await later();
+      else await sleep(1000); // the page signing in again: its new token comes in a moment
+    }
+  }
+
   // ── The resumable upload (src/relay/resumable.rs) ──
 
   /**
@@ -171,16 +241,17 @@
    * (localStorage), sleep(ms), now(), fp (the file's fingerprint when the page
    * has worked it out already), digest(bytes) (SHA-256, WebCrypto's by
    * default), AbortController (the browser's by default), onChange(state),
-   * onDone(answer), onStored(answer) (a cancelled upload whose finish had
-   * already stored the file: the page removes that file).
+   * onDone(answer).
    * Its `state`: phase ('idle', 'starting', 'sending', 'finishing',
    * 'pausing', 'paused', 'reconnecting', 'server_wait', 'waiting_connection',
    * 'allowance', 'no_room', 'server_error', 'failed', 'cancelling',
    * 'cancelled', 'done'), id, offset, size, error, resetsAt (this device's
-   * time when an allowance wait ends), retryIn (seconds), resumed, unreadable.
+   * time when an allowance wait ends), retryIn (seconds), resumed, unreadable,
+   * and once cancelled `cancelAnswer` (`cancelSession`'s answer, '' when the
+   * server never had a session) with `error` its words.
    */
   function createUploader(o) {
-    const s = { phase: 'idle', id: '', offset: 0, size: o.file.size, chunkMax: 0, error: '', resetsAt: 0, retryIn: 0, resumed: false, unreadable: false, answer: null };
+    const s = { phase: 'idle', id: '', offset: 0, size: o.file.size, chunkMax: 0, error: '', resetsAt: 0, retryIn: 0, resumed: false, unreadable: false, answer: null, cancelAnswer: '' };
     const Abort = o.AbortController || root.AbortController || null;
     let running = false;
     let pauseWanted = false;
@@ -192,7 +263,6 @@
     let needStatus = false;    // ask the server where it got before the next piece
     let pieceCap = 0;          // what is left of the role's allowance, when a piece is cut to it
     let fp = typeof o.fp === 'string' ? o.fp : ''; // the file's fingerprint, worked out here when not given
-    let stored = null;        // the finished upload's answer, when it came after Cancel
     const now = () => (typeof o.now === 'function' ? o.now() : Date.now());
     const changed = () => { try { if (o.onChange) o.onChange(s); } catch (e) { /* a drawing failure never stops the upload */ } };
     const set = (phase, extra) => { s.phase = phase; Object.assign(s, extra || {}); changed(); };
@@ -212,12 +282,21 @@
       sameError = { status: 0, count: 0 };
     }
 
-    /** A wait that Pause and Cancel cut short. */
-    function nap(ms) {
+    /**
+     * Every wait, said on the page as `phase` when one is given. Pause and Cancel end it at once:
+     * pressed during it, they cut it short (`wake`); pressed BEFORE it began (while the start was
+     * on its way, which is not stopped, or a piece whose answer was already coming), it never
+     * begins, so its phase is never shown and nothing sleeps. Round 4, W4-1: a Cancel during the
+     * start, answered with the hour's allowance, used to sleep the server's whole `resets_in_s`.
+     */
+    function nap(ms, phase, extra) {
+      if (stopping()) return Promise.resolve();
       return new Promise((resolve) => {
         let done = false;
-        const fin = () => { if (!done) { done = true; wake = null; resolve(); } };
+        const fin = () => { if (!done) { done = true; if (wake === fin) wake = null; resolve(); } };
         wake = fin;
+        if (phase) set(phase, extra);
+        if (done) return;
         Promise.resolve(o.sleep ? o.sleep(ms) : new Promise((r) => setTimeout(r, ms))).then(fin, fin);
       });
     }
@@ -237,15 +316,7 @@
       return '/api/upload/resumable' + (id ? '/' + encodeURIComponent(id) : '') + (query || '');
     }
 
-    async function read(res) {
-      let text = '';
-      try { text = String(await res.text()); } catch (e) { text = ''; }
-      let json = null;
-      try { json = text ? JSON.parse(text) : null; } catch (e) { json = null; }
-      const words = json && typeof json.error === 'string' && json.error ? json.error
-        : (!text.trim() || text.trim().startsWith('<') || json ? 'The server answered ' + res.status + '.' : text.trim());
-      return { json: json && typeof json === 'object' ? json : null, words };
-    }
+    const read = readAnswer;
 
     function fail(words, extra) {
       if (s.id) forgetUpload(o.storage, s.id);
@@ -279,17 +350,15 @@
         return false;
       }
       const wait = nextWait();
-      set('server_wait', { error: words, retryIn: Math.round(wait / 1000) });
-      await nap(wait);
+      await nap(wait, 'server_wait', { error: words, retryIn: Math.round(wait / 1000) });
       return !stopping();
     }
 
     /** A dropped connection: wait, then ask where the server got. False when Pause or Cancel came. */
     async function dropWait() {
       const wait = nextWait();
-      set('reconnecting', { retryIn: Math.round(wait / 1000) });
-      await nap(wait);
       needStatus = true;
+      await nap(wait, 'reconnecting', { retryIn: Math.round(wait / 1000) });
       return !stopping();
     }
 
@@ -304,8 +373,7 @@
     /** The allowance is used: wait the server's time. False when Pause or Cancel came during it. */
     async function allowanceStop(b) {
       const ms = allowanceWait(b.json);
-      set('allowance', { error: b.words, resetsAt: now() + ms, retryIn: Math.round(ms / 1000) });
-      await nap(ms);
+      await nap(ms, 'allowance', { error: b.words, resetsAt: now() + ms, retryIn: Math.round(ms / 1000) });
       return !stopping();
     }
 
@@ -327,10 +395,7 @@
 
     /** Wait until the page is signed in again (the token changes on every sign-in). */
     async function waitForToken() {
-      while (!o.token() && !stopping()) {
-        set('waiting_connection');
-        await nap(1000);
-      }
+      while (!o.token() && !stopping()) await nap(1000, 'waiting_connection');
     }
 
     async function begin() {
@@ -449,10 +514,9 @@
         piece = null;
         const b = await read(res);
         const j = b.json || {};
-        if (cancelled) {
-          if (res.ok && isFinished(j)) stored = j;
-          return undefined;
-        }
+        // Cancelled while this piece was on its way: the cancel's DELETE ends it, and when this
+        // was the finish and the file is stored, the server deletes that too (round 4).
+        if (cancelled) return undefined;
         if (res.ok) {
           steady();
           pieceCap = 0;
@@ -467,8 +531,7 @@
           // The server is still writing an earlier piece (an answer that was lost): wait, growing
           // each time, then ask where it got.
           const wait = nextWait();
-          set('server_wait', { error: b.words, retryIn: Math.round(wait / 1000) });
-          await nap(wait);
+          await nap(wait, 'server_wait', { error: b.words, retryIn: Math.round(wait / 1000) });
           needStatus = true;
           continue;
         }
@@ -506,9 +569,10 @@
     }
 
     /**
-     * After a run: a cancelled upload is deleted on the server. If its finish had stored the file
-     * already (its answer came, or the server says `done`), `onStored` is told, so the page removes
-     * that file too; a server still busy with it is asked again after a growing wait.
+     * After a run: a cancelled upload is deleted on the server (`cancelSession`: asked again while
+     * the server is busy with a piece or the finish; a file the finish had stored is deleted by the
+     * server with it, round 4). The state's `cancelAnswer` and `error` say what the server
+     * answered, for the page to say.
      */
     async function afterRun() {
       if (resumeWanted && !cancelled) {
@@ -521,31 +585,9 @@
       cleaning = true;
       const id = s.id;
       if (id) forgetUpload(o.storage, id);
-      let wait = RETRY_FIRST_MS;
-      for (let i = 0; id && i < CANCEL_TRIES; i++) {
-        if (!o.token()) { await (o.sleep ? o.sleep(1000) : new Promise((r) => setTimeout(r, 1000))); continue; }
-        try {
-          if (!stored) {
-            const res = await o.fetch(at(id), { method: 'GET', headers: headers() });
-            if (res.status === 404 || res.status === 410) break;
-            const b = await read(res);
-            if (res.ok && b.json && b.json.done && typeof b.json.done === 'object') stored = b.json.done;
-          }
-          const res = await o.fetch(at(id), { method: 'DELETE', headers: headers() });
-          if (res.status === 409) {
-            await (o.sleep ? o.sleep(wait) : new Promise((r) => setTimeout(r, wait)));
-            wait = Math.min(wait * 2, RETRY_MAX_MS);
-            continue;
-          }
-          break;
-        } catch (e) {
-          await (o.sleep ? o.sleep(wait) : new Promise((r) => setTimeout(r, wait)));
-          wait = Math.min(wait * 2, RETRY_MAX_MS);
-        }
-      }
-      if (stored && o.onStored) { try { await o.onStored(stored); } catch (e) { /* the page says what happened */ } }
+      const told = id ? await cancelSession(o, id) : { answer: '', words: '' };
       s.id = '';
-      set('cancelled');
+      set('cancelled', { cancelAnswer: told.answer, error: told.words });
     }
 
     return {
@@ -585,7 +627,8 @@
 
   const api = {
     RESUME_KEY, RESUME_MAX_AGE_MS, DEFAULT_CHUNK, RETRY_FIRST_MS, RETRY_MAX_MS, SAME_ERROR_TRIES, ALLOWANCE_MIN_MS,
-    FINGERPRINT_BYTES, fingerprint, rememberUpload, touchUpload, findUpload, forgetUpload, isAllowance, createUploader,
+    CANCEL_TRIES, FINGERPRINT_BYTES, fingerprint, rememberUpload, touchUpload, findUpload, forgetUpload, isAllowance,
+    readAnswer, cancelSession, createUploader,
   };
   if (typeof module === 'object' && module && module.exports) module.exports = api;
   else Object.assign(root, { MediaUpload: api });

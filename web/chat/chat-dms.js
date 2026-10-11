@@ -443,6 +443,11 @@ async function openPrivatePicture(meta) {
     const blob = await openPrivateFile(meta, PRIVATE_PICTURE_INLINE_MAX);
     if (!blob) { privateFilesOpened.delete(key); return null; }
     const url = URL.createObjectURL(blob);
+    // Taken out and put back, so it is the newest: a Map keeps a key where it was first set, and
+    // its placeholder was set when it was asked for. Left there, a picture that finished after
+    // later ones sat before them, the sweep below stopped at it, and nothing was let go (round 4,
+    // W4-4: 20 pictures finishing in reverse kept 320 MB against the 128 MB bound).
+    privateFilesOpened.delete(key);
     privateFilesOpened.set(key, { url, size: blob.size });
     privateOpenedBytes += blob.size;
     for (const [k, v] of privateFilesOpened) {

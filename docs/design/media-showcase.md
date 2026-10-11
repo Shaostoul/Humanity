@@ -1525,3 +1525,69 @@ lookup trusts a member row number while the membership lasts: `server_members` r
 an `INSERT` (never a `REPLACE`, which would give a new number), and nothing runs a plain `VACUUM`
 (which may renumber rows),
 so it lasts; if it ever changed, the fingerprint check refuses the ticket and the app asks again.
+
+**As built (web, round 4; 2026-10-11).** The web's half of round 4: W4-1 to W4-4 and the cancel
+decision at the top of this section, written before the relay's round 4 landed, against the shapes
+stated above (`{ok: true, removed_stored: true}`, `{ok: true, published: true}`, 409 `{busy:
+true}`) and tested against stand-in answers in them, then checked against the relay's note just
+above once it landed (a18ff7d63): the answers match, and its one addition, a 500 in plain words
+with every row kept when the stored file cannot be deleted, is asked again and then said in the
+server's own words (W4-3 below, test W4-3f). Code: web/pages/media-upload.js (`nap`,
+`cancelSession` new, `readAnswer` moved out of the uploader), web/pages/media-app.js (the ticket
+renewal, `openViewer`, `sayCancelled`, the unfinished uploads' Cancel; `removeStored` and the
+uploader's `onStored` deleted) and web/chat/chat-dms.js (`openPrivatePicture`). Tests:
+scripts/tests/media-web-round4.test.js (new, 9 tests), one "W4-4" test at the end of
+scripts/tests/private-files-web.test.js, and round 3's 2b in media-web-round3.test.js, whose
+expectation round 4 changes (it now proves nothing is removed by hand, and says so). The resumable
+upload's stand-ins moved from media-web-round3.test.js into media-web-harness.js
+(`resumableRelay`, `uploaderOn`, `aFile`, `sleeper`, `drive`), the stand-in relay answering a
+cancel as round 4's relay does. Each test was seen failing once against one break in a copy of
+web/ (ten breaks), and every round 4 test fails against round 3's web/ (3077155ed); the break and
+the words it tripped are noted above each test.
+
+- **W4-1.** `nap(ms, phase, extra)` is every wait the upload makes, and it returns at once when
+  Pause or Cancel has been pressed, BEFORE it shows its phase: a wait that would begin after the
+  press never begins, so nothing sleeps and its words never show. Each wait that used to set its
+  phase and then nap (a server error's, a dropped connection's, the busy answer's, the allowance's,
+  the wait for a token) hands its phase to `nap` instead. That covers the start, which is not
+  stopped because its answer names the session, and a piece whose answer was already coming when
+  Pause was pressed. A press during a wait still cuts it short (`wake`).
+- **W4-2.** A ticket renewal the relay refuses, or that gets no answer, turns the viewer's ticket
+  into an error carrying the relay's words, and the viewer is drawn again with "This file could not
+  be loaded: " and those words where the video was, instead of a dead video. It is not asked again
+  while the item stays open (no loop of requests). Opening the item again asks afresh
+  (`openViewer` drops a refused ticket), which is what the relay's words for too many open tickets
+  tell the person to do; that holds for a first ticket refused as well.
+- **W4-3.** `cancelSession` (media-upload.js) is the one cancel, used by an upload in the list and
+  by a row of "Unfinished uploads on the server": `DELETE` with the token in the header, no status
+  asked first. 409 `{busy: true}` is asked again after 2 s doubling to 30 s for as long as it lasts,
+  never counted as a try. `removed_stored` means the server deleted the file the finish had stored,
+  so the page removes nothing by hand and says "Cancelled. The file had already been stored, so it
+  was deleted too."; `published` says "Cancelled, but the file was already on the Media page, so it
+  stays there. Remove on its tile takes it off."; a 404 is a cancel already done. A dropped
+  connection, a 5xx, a 429, a token from before the page signed in again, or no token yet is tried
+  again, ten times in all, and then the page says "The cancel could not reach the server, so what
+  arrived may still be there. It is listed on this page with Cancel or Remove once the server
+  answers again, and the server deletes it by itself within a day." instead of taking it for done.
+  When the server did answer every time, with an error (the relay's 500 when the stored file
+  cannot be deleted, which keeps every row), the page says "The server could not finish the
+  cancel, so what arrived may still be there. It is listed on this page with Cancel or Remove, to
+  try again. The server said: " and the server's words. Any other refusal is shown in the server's
+  words.
+  An unfinished row's Cancel reads "Cancelling..." and is disabled while it goes; a second press
+  sends nothing more.
+- **W4-4.** `openPrivatePicture` takes an entry out of the Map and puts it back when its picture
+  finishes opening, so it is the newest, and the sweep that lets the oldest go reaches the pictures
+  that finished before it. Twenty 16 MB pictures finishing in reverse now keep 128 MB (the last
+  eight to finish), not 320 MB.
+
+**Honest limits.** The web tests run against stand-ins in the relay's shapes, not against the
+relay itself (there is no web rig for the relay); the shapes were checked against the relay's note
+and code (resumable.rs `cancel_core`) once it landed. An upload in the list whose cancel could not be confirmed is
+forgotten by this browser at once (as before), so it is offered again only through the server's
+own lists once the server answers (the unfinished uploads with Cancel, or a stored file among the
+uploads waiting with Remove); a row of the unfinished list is forgotten only when its cancel is
+confirmed. While the server stays busy, a cancel keeps asking (once every 30 seconds at most) for as
+long as the page is open; a page closed meanwhile leaves the session to the server's lists and its
+expiry. A renewal that failed only because the connection dropped also shows its words, and waits
+for the item to be opened again.

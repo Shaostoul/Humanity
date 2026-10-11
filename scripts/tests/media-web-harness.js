@@ -1,5 +1,6 @@
 // The stand-ins the Media page's web tests run against (2026-10-11): shared by
-// scripts/tests/media-web.test.js and scripts/tests/media-web-round2.test.js. Not a test itself
+// scripts/tests/media-web.test.js, media-web-round2.test.js, media-web-round3.test.js and
+// media-web-round4.test.js. Not a test itself
 // (its name does not end in .test.js, so `node --test "scripts/tests/*.test.js"` does not run it).
 //
 // The page's own files run as they do in the browser: web/pages/media-app.js (the page),
@@ -405,6 +406,148 @@ function bodyLen(body) {
   return String(body).length;
 }
 
+// ── The resumable upload's stand-ins (rounds 3 and 4) ───────────────────
+//
+// Moved here from media-web-round3.test.js in round 4, so media-web-round4.test.js runs against
+// the same ones. The stand-in relay answers a cancel the way round 4's does.
+
+const T0 = 1760000000000;
+
+/**
+ * A file the upload reads: `fill` is its every byte (so two files of one name, size and date can
+ * differ), and `gone` (set by a test) makes every read fail as a browser's does once the file was
+ * moved or its drive unplugged.
+ */
+function aFile(name, size, opts) {
+  const o = opts || {};
+  const f = {
+    name, size, type: o.type || "video/mp4", lastModified: o.lastModified || 1700000000000, gone: false,
+    slice(a, b) {
+      const len = Math.max(0, Math.min(size, b) - a);
+      return {
+        size: len,
+        arrayBuffer: async () => {
+          if (f.gone) { const e = new Error("A requested file or directory could not be found."); e.name = "NotFoundError"; throw e; }
+          return new Uint8Array(len).fill(o.fill || 0).buffer;
+        },
+      };
+    },
+  };
+  return f;
+}
+
+/** Waits that end only when the test wakes them; each asked-for length is kept. */
+function sleeper() {
+  const s = { waits: [], wakes: [] };
+  s.sleep = (ms) => { s.waits.push(ms); return new Promise((r) => s.wakes.push(r)); };
+  s.wakeAll = () => { while (s.wakes.length) s.wakes.shift()(); };
+  return s;
+}
+
+/** Wake every wait and let the page run, until `until()` holds or `turns` rounds have passed. */
+async function drive(sl, until, turns) {
+  for (let i = 0; i < (turns || 40); i++) {
+    await settle();
+    if (until && until()) return;
+    sl.wakeAll();
+  }
+  await settle();
+}
+
+/**
+ * A stand-in for src/relay/resumable.rs keeping several uploads at once, by id. `hooks.start(c)`,
+ * `hooks.piece(c, sess, offset, len)`, `hooks.status(c, sess)`, `hooks.del(c, sess)` and
+ * `hooks.finish(sess)` may answer a request themselves (or throw: a dropped connection). `log`
+ * holds every request it got, in order.
+ *
+ * A cancel (DELETE) answers as round 4's relay does (docs/design/media-showcase.md "Round 4", a
+ * cancel means nothing stays, and its "As built (relay, round 4)"): 409 `{error, busy: true}`
+ * while a piece or the finish is being written, nothing done; `{ok: true, removed_stored: true}`
+ * on a finished upload not yet published, whose stored file it deletes too
+ * (`sess.storedRemoved`); `{ok: true, published: true}` on one already published
+ * (`sess.published`, set by a test), whose item it leaves; else `{ok: true}`. After it, the
+ * session is gone (404). A finished one whose stored file cannot be deleted (`sess.cannotDelete`,
+ * set by a test) is answered 500 in plain words, and everything stays, to be asked again.
+ */
+function resumableRelay(hooks) {
+  const r = { next: 0, sessions: new Map(), log: [], pieces: [], hooks: hooks || {}, chunk: 8 * MIB };
+  const doneOf = (sess) => ({ url: "/uploads/" + sess.stored, filename: sess.stored, size: sess.size, type: sess.type });
+  r.doneOf = doneOf;
+  r.routes = [
+    [at("/api/upload/resumable", "POST"), async (c) => {
+      r.log.push({ kind: "start", c });
+      if (r.hooks.start) { const a = await r.hooks.start(c); if (a) return a; }
+      const id = String.fromCharCode(97 + r.next++).repeat(32);
+      r.sessions.set(id, { id, offset: 0, size: c.body.size, stored: "1760_" + c.body.filename, type: c.body.content_type, done: null, deleted: false });
+      return respond(201, { id, offset: 0, size: c.body.size, chunk_max: r.chunk });
+    }],
+    [(c) => /^\/api\/upload\/resumable\/[a-z]{32}$/.test(path0(c.url)), async (c) => {
+      const id = path0(c.url).split("/").pop();
+      const method = c.init.method || "GET";
+      r.log.push({ kind: method, id, c });
+      const sess = r.sessions.get(id);
+      if (!sess || sess.deleted) return respond(404, "There is no upload with that id.");
+      if (method === "GET") {
+        if (r.hooks.status) { const a = await r.hooks.status(c, sess); if (a) return a; }
+        return respond(200, Object.assign({ offset: sess.offset, size: sess.size, chunk_max: r.chunk }, sess.done ? { done: sess.done } : {}));
+      }
+      // While the last piece is being stored, a cancel or another piece is answered busy (R2).
+      const busy = () => respond(409, { error: "Another piece of this upload is being written. Wait for its answer, then ask where the upload is (GET) and carry on from there.", busy: true });
+      if (method === "DELETE") {
+        if (r.hooks.del) { const a = await r.hooks.del(c, sess); if (a) return a; }
+        if (sess.busy) return busy();
+        if (sess.done && !sess.published && sess.cannotDelete) return respond(500, "The uploaded file could not be removed from the server (Access is denied. (os error 5)). Try again in a moment.");
+        sess.deleted = true;
+        if (sess.done && sess.published) return respond(200, { ok: true, published: true });
+        if (sess.done) { sess.storedRemoved = true; return respond(200, { ok: true, removed_stored: true }); }
+        return respond(200, { ok: true });
+      }
+      const off = Number(queryOf(c.url).get("offset"));
+      const len = bodyLen(c.init.body);
+      r.pieces.push({ id, offset: off, len, c });
+      if (r.hooks.piece) { const a = await r.hooks.piece(c, sess, off, len); if (a) return a; }
+      if (sess.busy) return busy();
+      if (sess.done) return respond(200, sess.done);
+      if (off !== sess.offset) return respond(409, { error: "This piece starts at byte " + off + ", but the server has " + sess.offset + ".", offset: sess.offset, size: sess.size });
+      sess.offset += len;
+      if (sess.offset >= sess.size) {
+        sess.busy = true;
+        try {
+          if (r.hooks.finish) { const a = await r.hooks.finish(sess); if (a) return a; }
+        } finally {
+          sess.busy = false;
+        }
+        sess.done = doneOf(sess);
+        return respond(200, sess.done);
+      }
+      return respond(200, { offset: sess.offset, size: sess.size });
+    }],
+  ];
+  return r;
+}
+
+/** One uploader against a stand-in relay, with a stand-in sleep. */
+function uploaderOn(relay, file, o) {
+  const opts = o || {};
+  const net = fakeFetch(relay.routes);
+  const sl = opts.sleeper || sleeper();
+  const phases = [];
+  const result = { done: null };
+  const storage = opts.storage || fakeStorage();
+  let clock = opts.now || T0;
+  const u = upload.createUploader({
+    fetch: net.fetch, token: opts.token || (() => "tok-1"), file, owner: ME, storage, digest: SHA256,
+    sleep: sl.sleep, now: () => (typeof clock === "function" ? clock() : clock),
+    onChange: (s) => phases.push(s.phase), onDone: (a) => { result.done = a; },
+    AbortController: opts.AbortController,
+  });
+  return { u, net, sl, phases, result, storage, setNow: (t) => { clock = t; } };
+}
+
+// nginx's own refusal pages: HTML, no JSON.
+const NGINX_503 = "<html>\r\n<head><title>503 Service Temporarily Unavailable</title></head>\r\n<body><center><h1>503 Service Temporarily Unavailable</h1></center><hr><center>nginx</center></body></html>";
+const NGINX_429 = "<html><head><title>429 Too Many Requests</title></head><body><center><h1>429 Too Many Requests</h1></center></body></html>";
+
 function usageAnswer(over) {
   return Object.assign({
     used_bytes: Math.round(12.4 * 1024 * MIB), budget_bytes: 50 * 1024 * MIB, per_person_bytes: 512 * MIB,
@@ -457,4 +600,5 @@ module.exports = {
   respond, fakeFetch, path0, at, queryOf, fakeSigner, ROLES, fakeSession, FakeFormData, fakeURLs, fakeStorage, settle,
   LABELS, CATEGORIES, item, listAnswer, mineAnswer, isFeatured, listRoutes, openPage, BLAKE, SHA256, fingerprintOf,
   bodyLen, usageAnswer, openAdmin,
+  T0, aFile, sleeper, drive, resumableRelay, uploaderOn, NGINX_503, NGINX_429,
 };
