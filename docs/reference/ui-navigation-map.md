@@ -78,7 +78,7 @@ united-humanity.us / public.guide (web)
 |   | Tools | Library | Settings          (*see OPEN items)
 |- mobile drawer
 |   |- Main (mirrors the app): the header list + Humanity Accord
-|   |- Community and trade: Watch | Wallet | Market | Trade | Guilds
+|   |- Community and trade: Watch | Media | Wallet | Market | Trade | Guilds
 |   |   | Donate | Civilization | Governance | Laws | Shared Files
 |   |   | Identity | Recovery | Roadmap
 |   |- Tools, system and dev: Calculator | Calendar | Notes | Bookmarks

@@ -301,6 +301,8 @@
     // exact mirror of the app header. Web-only pages still light up where sensible.
     if (p === '/') active = 'humanity';
     else if (p.startsWith('/chat'))      active = 'chat';
+    // Media sits beside Watch, and Watch lights the Chat tab (watch.html).
+    else if (p.startsWith('/media'))     active = 'chat';
     else if (p.startsWith('/studio'))    active = 'studio';
     else if (p.startsWith('/profile'))   active = 'profile';
     else if (p.startsWith('/identity'))   active = 'identity';
@@ -1083,6 +1085,9 @@
       // Live streams broadcast from the desktop app's Studio page, fanned out by our
       // own relay. No third-party platform, and no sign-up needed to watch. (v0.855)
       mobileLink('/watch',   'Watch') +
+      // The Media page (2026-10-11): pictures, videos, 3D models and files people
+      // on this server chose to share; beside Watch, as on the desktop app.
+      mobileLink('/media',   'Media') +
       mobileLink('/wallet',    'Wallet') +
       mobileLink('/market',    'Market') +
       mobileLink('/trade',     'Trade') +

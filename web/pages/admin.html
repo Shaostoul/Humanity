@@ -5,6 +5,7 @@
   <meta name=viewport content="width=device-width, initial-scale=1.0">
   <title>Admin, HumanityOS</title>
   <link rel="stylesheet" href="/shared/theme.css">
+  <link rel="stylesheet" href="/shared/media.css?v=1">
   <style>
     :root {
       --bg: #0d0d0d;
@@ -283,6 +284,17 @@
         <code>/reports</code>.
       </p>
     </div>
+
+    <!-- Media (docs/design/media-showcase.md, increment 2): who sees the Media page, the
+         budget and each person's share, the categories, the suggestions waiting, and the
+         space used with the prune lists. Built by /pages/media-admin.js once this
+         dashboard shows (admin-app.js calls startMediaAdmin). The desktop app keeps the
+         same section in Server Settings. -->
+    <div class="panel" id="media-admin-panel">
+      <h2>Media</h2>
+      <p>Settings for this server's <a href="/media">Media page</a>.</p>
+      <div id="media-admin-root"></div>
+    </div>
   </div>
 </div>
 
@@ -291,6 +303,12 @@
 <!-- `pq-relay-auth.js` installs window.getPqSignedAuth which the page uses. -->
 <script src="/chat/pq.js?v=1"></script>
 <script src="/shared/pq-relay-auth.js?v=2"></script>
+<!-- The Media section: a press-and-hold Remove, the page's own signed-in connection
+     (the Media settings are saved over it), the Media page's helpers, the section. -->
+<script src="/shared/hold-confirm.js?v=1"></script>
+<script src="/shared/relay-session.js?v=1"></script>
+<script src="/pages/media-app.js?v=1"></script>
+<script src="/pages/media-admin.js?v=1"></script>
 <script src="/pages/admin-app.js"></script>
 </body>
 </html>
