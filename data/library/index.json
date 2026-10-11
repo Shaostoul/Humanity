@@ -1807,6 +1807,28 @@
       "section": "About HumanityOS"
     },
     {
+      "name": "Big Ideas",
+      "docs": [
+        {
+          "title": "Built for Everyone on Earth",
+          "file": "built_for_everyone_on_earth.md",
+          "tags": [
+            "mission",
+            "real"
+          ]
+        },
+        {
+          "title": "Talking Across Space",
+          "file": "talking_across_space.md",
+          "tags": [
+            "mission",
+            "real"
+          ]
+        }
+      ],
+      "section": "About HumanityOS"
+    },
+    {
       "name": "How It Helps",
       "docs": [
         {
@@ -2187,6 +2209,33 @@
         {
           "title": "The Cosmos",
           "file": "cosmos-architecture.md",
+          "tags": [
+            "contributor",
+            "technical",
+            "reference"
+          ]
+        },
+        {
+          "title": "Eight Billion People",
+          "file": "eight-billion.md",
+          "tags": [
+            "contributor",
+            "technical",
+            "reference"
+          ]
+        },
+        {
+          "title": "Between Planets",
+          "file": "interplanetary.md",
+          "tags": [
+            "contributor",
+            "technical",
+            "reference"
+          ]
+        },
+        {
+          "title": "Files at Scale",
+          "file": "file-transfer-at-scale.md",
           "tags": [
             "contributor",
             "technical",
