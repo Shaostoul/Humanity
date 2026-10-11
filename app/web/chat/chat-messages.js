@@ -447,9 +447,21 @@ const MAX_ATTACHMENT_BYTES = 6 * 1024 * 1024;
 
 /** The most a file may be for where it is going now: the desktop app's attach_send.rs limit_for. */
 function attachmentLimit() {
-  if (privateConversationNow()) return MAX_ATTACHMENT_BYTES;
   const mine = Number(window.myUploadLimitBytes);
-  return Number.isFinite(mine) && mine > 0 ? mine : MAX_ATTACHMENT_BYTES;
+  const known = Number.isFinite(mine) && mine > 0;
+  // A private conversation: never over 6 MB, and never over my own limit either.
+  if (privateConversationNow()) return known ? Math.min(mine, MAX_ATTACHMENT_BYTES) : MAX_ATTACHMENT_BYTES;
+  return known ? mine : MAX_ATTACHMENT_BYTES;
+}
+
+/** The upload address with this session's token, or null before the server has sent one: a bare
+ *  key proves nothing about the sender and the server no longer takes it (2026-10-11). */
+function uploadBaseUrl() {
+  if (!myUploadToken) {
+    addSystemMessage('The file was not sent: this server has not finished signing you in yet. Try again in a moment.');
+    return null;
+  }
+  return `/api/upload?token=${encodeURIComponent(myUploadToken)}`;
 }
 
 function attachmentTooLarge(file) {
@@ -486,7 +498,8 @@ async function uploadImage(file) {
     const SHARE_EXTENSIONS = ['blend', 'stl', 'obj', 'gltf', 'glb'];
     const ext = (file.name.split('.').pop() || '').toLowerCase();
     const shareParam = SHARE_EXTENSIONS.includes(ext) ? '&share=1' : '';
-    const uploadBase = myUploadToken ? `/api/upload?token=${encodeURIComponent(myUploadToken)}` : (myKey ? `/api/upload?key=${encodeURIComponent(myKey)}` : '/api/upload?_=1');
+    const uploadBase = uploadBaseUrl();
+    if (!uploadBase) return null;
     const resp = await fetch(uploadBase + shareParam, { method: 'POST', body: formData });
     if (!resp.ok) {
       const text = await resp.text();
@@ -575,15 +588,16 @@ async function sendEncryptedAttachment(file) {
     if (typeof SCRATCH_PAD_LOADING === 'string') addSystemMessage(SCRATCH_PAD_LOADING);
     return;
   }
+  // This session's token: checked before anything is encrypted or uploaded.
+  const uploadBase0 = uploadBaseUrl();
+  if (!uploadBase0) return;
   const indicator = document.getElementById('upload-indicator');
   try {
     if (indicator) { indicator.textContent = `Encrypting ${file.name}…`; indicator.style.display = 'block'; }
     const bytes = new Uint8Array(await file.arrayBuffer());
     const enc = await pqEncryptFile(bytes);
     if (indicator) indicator.textContent = `Uploading ${file.name}…`;
-    const uploadBase = myUploadToken
-      ? `/api/upload?token=${encodeURIComponent(myUploadToken)}&encrypted=1`
-      : (myKey ? `/api/upload?key=${encodeURIComponent(myKey)}&encrypted=1` : '/api/upload?encrypted=1');
+    const uploadBase = `${uploadBase0}&encrypted=1`;
     const fd = new FormData();
     fd.append('file', new Blob([enc.cipherBytes], { type: 'application/octet-stream' }), 'attachment.enc');
     const resp = await fetch(uploadBase, { method: 'POST', body: fd });
