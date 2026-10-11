@@ -270,6 +270,27 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     });
                     ui.add_space(theme.spacing_xs);
 
+                    // ── Order: A to Z, or the suggested reading order ──
+                    // A to Z by default (operator, 2026-10-10: "it's hard to
+                    // search through while not alphabetical"); Suggested is the
+                    // catalog's own order, the learning path, for someone walking
+                    // it rung by rung. Only with the tree: search results keep
+                    // their relevance order. Kept in AppConfig, so it survives a
+                    // restart. Mirrors the .lib-order chips in library-app.js.
+                    if lib_state(|s| s.search.trim().is_empty()) {
+                        ui.horizontal_wrapped(|ui| {
+                            ui.label(RichText::new("Order").size(theme.font_size_small).color(theme.text_muted()));
+                            for (label, suggested, tip) in [("A to Z", false, ORDER_TIP_AZ), ("Suggested", true, ORDER_TIP_SUGGESTED)] {
+                                let on = state.library_suggested_order == suggested;
+                                if tag_chip_resp(ui, theme, label, on).on_hover_text(tip).clicked() && !on {
+                                    state.library_suggested_order = suggested;
+                                    crate::config::AppConfig::from_gui_state(state).save();
+                                }
+                            }
+                        });
+                        ui.add_space(theme.spacing_xs);
+                    }
+
                     ScrollArea::vertical().id_salt("library_rail").auto_shrink([false, false]).show(ui, |ui| {
                         // Results REPLACE the tree while searching, so the rail
                         // shows one thing at a time rather than two competing
@@ -343,6 +364,10 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             return;
                         }
 
+                        // The shelves in the order the reader chose. Indices into
+                        // the unsorted library, so Sel::Doc, the folds and the
+                        // Next footer keep addressing the catalog as loaded.
+                        let shelves = rail_order(&state.library, state.library_suggested_order);
                         lib_state(|s| {
                             // A newly opened document unfolds its own path, even
                             // through a branch the reader folded by hand. Once per
@@ -384,11 +409,13 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                 .id_salt(("libsec", si))
                                 .open(Some(sec_open))
                                 .show(ui, |ui| {
-                                    for (ci, cat) in section.categories.iter().enumerate() {
-                                        let docs: Vec<(usize, &str)> = cat
-                                            .entries
+                                    for shelf in shelves[si].iter() {
+                                        let ci = shelf.ci;
+                                        let cat = &section.categories[ci];
+                                        let docs: Vec<(usize, &str)> = shelf
+                                            .docs
                                             .iter()
-                                            .enumerate()
+                                            .map(|&ei| (ei, &cat.entries[ei]))
                                             .filter(|(_, e)| {
                                                 s.tag_filter
                                                     .as_ref()
@@ -685,6 +712,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                     // is a real answer and not a guess: finish
                                     // Your First Tomato and the thing to read is
                                     // Starting Seeds, not whatever shares a tag.
+                                    // So this follows the SUGGESTED order even
+                                    // when the rail shows A to Z: the next rung of
+                                    // the ladder is still the next thing to read.
                                     if let Sel::Doc(si, ci, di) = s.sel.clone() {
                                         let entries = state
                                             .library
@@ -1160,23 +1190,204 @@ fn mix(a: egui::Color32, b: egui::Color32, t: f32) -> egui::Color32 {
 }
 
 fn tag_chip(ui: &mut egui::Ui, theme: &Theme, label: &str, active: bool) -> bool {
+    tag_chip_resp(ui, theme, label, active).clicked()
+}
+
+/// The chip itself, returning its response so a caller can add a hover note
+/// (the order chips explain what Suggested means).
+fn tag_chip_resp(ui: &mut egui::Ui, theme: &Theme, label: &str, active: bool) -> egui::Response {
     let (fill, text) = if active {
         (theme.accent(), theme.bg_primary())
     } else {
         (theme.bg_card(), theme.text_secondary())
     };
-    let mut clicked = false;
-    Frame::none()
+    let resp = Frame::none()
         .fill(fill)
         .rounding(egui::Rounding::same(10))
         .inner_margin(egui::Margin::symmetric(10, 3))
         .stroke(Stroke::new(1.0, theme.border()))
         .show(ui, |ui| {
-            let resp = ui.add(Label::new(RichText::new(label).size(theme.font_size_small).color(text)).sense(Sense::click()));
-            if resp.on_hover_cursor(CursorIcon::PointingHand).clicked() {
-                clicked = true;
-            }
-        });
+            ui.add(Label::new(RichText::new(label).size(theme.font_size_small).color(text)).sense(Sense::click()))
+                .on_hover_cursor(CursorIcon::PointingHand)
+        })
+        .inner;
     ui.add_space(4.0);
-    clicked
+    resp
+}
+
+/// Hover notes on the rail's two order chips. The web page carries the same
+/// words as the chips' titles (web/pages/library-order.js).
+const ORDER_TIP_AZ: &str = "Every shelf and every document by title, ignoring a leading The, A or An.";
+const ORDER_TIP_SUGGESTED: &str =
+    "The order the guides are meant to be read in, each one building on the one before.";
+
+/// One shelf as the rail draws it: the category's index within its section and
+/// its documents' indices, both into the library AS LOADED. Sorting never
+/// renumbers anything, so `Sel::Doc`, the folds and the Next footer keep
+/// addressing the catalog.
+#[derive(Debug, PartialEq)]
+struct Shelf {
+    ci: usize,
+    docs: Vec<usize>,
+}
+
+/// The rail's order, one list of shelves per section. Sections keep the
+/// manifest's order either way. A to Z (`suggested == false`, the default)
+/// sorts the shelves within each section by name and the documents on each
+/// shelf by title, using `title_sort_key`; Suggested keeps the catalog's own
+/// order, which is the learning path. Mirrors `railOrder` in
+/// web/pages/library-order.js, which must order the same manifest identically.
+fn rail_order(library: &[crate::gui::LibrarySection], suggested: bool) -> Vec<Vec<Shelf>> {
+    library
+        .iter()
+        .map(|sec| {
+            let names: Vec<&str> = sec.categories.iter().map(|c| c.name.as_str()).collect();
+            order_by_title(&names, suggested)
+                .into_iter()
+                .map(|ci| {
+                    let titles: Vec<&str> = sec.categories[ci].entries.iter().map(|e| e.title.as_str()).collect();
+                    Shelf { ci, docs: order_by_title(&titles, suggested) }
+                })
+                .collect()
+        })
+        .collect()
+}
+
+/// Indices of `titles` in display order: as given when `suggested`, else A to
+/// Z by `title_sort_key`, ties broken by the whole title lowercased and then by
+/// position, so the order never depends on the sort algorithm.
+fn order_by_title(titles: &[&str], suggested: bool) -> Vec<usize> {
+    let mut idx: Vec<usize> = (0..titles.len()).collect();
+    if !suggested {
+        idx.sort_by_cached_key(|&i| (title_sort_key(titles[i]), titles[i].trim().to_lowercase(), i));
+    }
+    idx
+}
+
+/// The key a title sorts by: lowercased, with a leading "The ", "A " or "An "
+/// set aside, so "The Climate Where You Live" files under C. Only for sorting:
+/// titles are shown as written. Compared as plain strings (code point order),
+/// never by locale, so both clients agree.
+fn title_sort_key(title: &str) -> String {
+    let t = title.trim().to_lowercase();
+    for article in ["the ", "a ", "an "] {
+        if let Some(rest) = t.strip_prefix(article) {
+            return rest.trim_start().to_string();
+        }
+    }
+    t
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::gui::{LibraryCategory, LibraryEntry, LibrarySection};
+
+    fn sec(name: &str, cats: &[(&str, &[&str])]) -> LibrarySection {
+        LibrarySection {
+            name: name.to_string(),
+            categories: cats
+                .iter()
+                .map(|(n, docs)| LibraryCategory {
+                    name: n.to_string(),
+                    entries: docs
+                        .iter()
+                        .map(|t| LibraryEntry {
+                            title: t.to_string(),
+                            slug: t.to_lowercase().replace(' ', "-"),
+                            body: String::new(),
+                            tags: Vec::new(),
+                        })
+                        .collect(),
+                })
+                .collect(),
+        }
+    }
+
+    /// The titles in the order the rail would draw them, section by section.
+    fn drawn(lib: &[LibrarySection], suggested: bool) -> Vec<(String, Vec<(String, Vec<String>)>)> {
+        rail_order(lib, suggested)
+            .into_iter()
+            .enumerate()
+            .map(|(si, shelves)| {
+                let s = &lib[si];
+                let shelves = shelves
+                    .into_iter()
+                    .map(|sh| {
+                        let c = &s.categories[sh.ci];
+                        (c.name.clone(), sh.docs.iter().map(|&d| c.entries[d].title.clone()).collect())
+                    })
+                    .collect();
+                (s.name.clone(), shelves)
+            })
+            .collect()
+    }
+
+    fn sample() -> Vec<LibrarySection> {
+        vec![
+            sec(
+                "Learn",
+                &[
+                    ("Where You Are", &["Why Seasons Happen", "The Climate Where You Live", "an Ecosystem", "Reading the Tide"]),
+                    ("Grow Food", &["Your First Tomato", "Starting Seeds", "A Bed of Soil", "apples"]),
+                    ("The Accord", &["Preamble"]),
+                ],
+            ),
+            sec("Build", &[("Zebra Shelf", &["only"]), ("Alpha Shelf", &["Theory", "Then", "Anchors", "The"])]),
+        ]
+    }
+
+    #[test]
+    fn title_key_sets_aside_a_leading_article_and_ignores_case() {
+        assert_eq!(title_sort_key("The Climate Where You Live"), "climate where you live");
+        assert_eq!(title_sort_key("A Bed of Soil"), "bed of soil");
+        assert_eq!(title_sort_key("an Ecosystem"), "ecosystem");
+        assert_eq!(title_sort_key("  THE   Accord "), "accord");
+        // Only a whole word: these keep their first letters.
+        assert_eq!(title_sort_key("Theory"), "theory");
+        assert_eq!(title_sort_key("Anchors"), "anchors");
+        assert_eq!(title_sort_key("The"), "the");
+    }
+
+    #[test]
+    fn a_to_z_sorts_shelves_and_documents_and_keeps_sections_in_place() {
+        let got = drawn(&sample(), false);
+        let names: Vec<&str> = got.iter().map(|(n, _)| n.as_str()).collect();
+        assert_eq!(names, ["Learn", "Build"], "sections keep the manifest's order");
+
+        let learn: Vec<&str> = got[0].1.iter().map(|(n, _)| n.as_str()).collect();
+        // "The Accord" files under A.
+        assert_eq!(learn, ["The Accord", "Grow Food", "Where You Are"]);
+        assert_eq!(got[0].1[1].1, ["apples", "A Bed of Soil", "Starting Seeds", "Your First Tomato"]);
+        assert_eq!(
+            got[0].1[2].1,
+            ["The Climate Where You Live", "an Ecosystem", "Reading the Tide", "Why Seasons Happen"]
+        );
+
+        let build: Vec<&str> = got[1].1.iter().map(|(n, _)| n.as_str()).collect();
+        assert_eq!(build, ["Alpha Shelf", "Zebra Shelf"]);
+        assert_eq!(got[1].1[0].1, ["Anchors", "The", "Then", "Theory"]);
+    }
+
+    #[test]
+    fn suggested_is_the_catalog_order() {
+        let lib = sample();
+        let got = rail_order(&lib, true);
+        for (si, shelves) in got.iter().enumerate() {
+            let want: Vec<Shelf> = (0..lib[si].categories.len())
+                .map(|ci| Shelf { ci, docs: (0..lib[si].categories[ci].entries.len()).collect() })
+                .collect();
+            assert_eq!(shelves, &want);
+        }
+    }
+
+    #[test]
+    fn sorting_keeps_the_original_indices() {
+        // A to Z draws "Grow Food" (catalog index 1) before "Where You Are"
+        // (index 0), and must still say so, or a click would open the wrong
+        // document.
+        let got = rail_order(&sample(), false);
+        assert_eq!(got[0][1].ci, 1);
+        assert_eq!(got[0][1].docs, [3, 2, 1, 0]);
+    }
 }

@@ -677,6 +677,19 @@ siblings.
 - Native: `src/gui/pages/library.rs`, loader in `src/gui/mod.rs` (`load_library`)
 - Web: `web/pages/library-app.js`, `web/pages/library.html`
 
+### Library Order: A to Z or Suggested (2026-10-10)
+The Library rail lists every shelf and every document A to Z by default
+(operator: "it's hard to search through while not alphabetical"): by title,
+ignoring case and a leading "The", "A" or "An" (titles are shown as written).
+Sections keep their order. Two chips at the top of the tree switch to
+Suggested, the catalog's own order, the learning path. The choice is kept
+(native `AppConfig::library_suggested_order`, web localStorage
+`hos_library_order`). Search results keep their relevance order, and the
+reader's Next footer always follows the suggested order (the next rung).
+- Native: `rail_order` / `title_sort_key` in `src/gui/pages/library.rs` (unit tests there)
+- Web: `web/pages/library-order.js` (the same rule), used by `library-app.js`;
+  `scripts/tests/library-order-web.test.js`
+
 ### Markdown Tables and Line Joining (v0.1305)
 Both markdown renderers gained pipe tables, and both now JOIN wrapped source
 lines the way markdown requires. Before this a paragraph rendered as one ragged
