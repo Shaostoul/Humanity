@@ -881,3 +881,86 @@ above; parts marked (apps) are the next app increment.
      the other's network address, so between people who are not friends it goes through the call
      forwarder (the server's bandwidth, never its disk, and capped per transfer like a call).
    (relay) B5 (the per-person cap). (apps) the device-to-device transfer is its own increment.
+
+## HEIC and AVIF photos cleaned in place (relay, 2026-10-11)
+
+**As built.** The R7 refusal above is replaced for every HEIC or AVIF photo the relay can read
+through: its location is removed and the photo is stored. Code: `src/relay/core/strip_heif_metadata.rs`,
+called from upload_rules.rs `finish_file_as`, so both upload routes use it. Tests: the module's
+own twelve, and four in relay/upload_rules_tests.rs; each seen failing once against a deliberate
+break, the doc comments say how.
+
+- **What is removed.** A HEIF still keeps its picture as numbered items in the top-level `meta`
+  box, found through two tables there: `iinf` (each item's number and type) and `iloc` (where each
+  item's bytes are). The strip reads both and overwrites with zeros, where they stand, every byte
+  of every `Exif` item (on a phone: the GPS position, the time, make, model, lens, Apple's maker
+  notes) and of every `mime` item of type `application/rdf+xml` (XMP). The file keeps its exact
+  size and nothing moves, so the picture, its thumbnail, its tiles, the item properties (`iprp`),
+  the references (`iref`) and the tables are byte-identical. The video strip runs first and clears
+  an XMP box at the top level, if there is one.
+- **What it reads.** An `ftyp` naming `heic`, `heix`, `heim`, `heis`, `mif1`, `msf1`, `avif` or
+  `avis` (as the major brand or a compatible one) and no `moov`; one top-level `meta` (version 0);
+  `iinf` versions 0 and 1 with `infe` entries of versions 2 and 3; `iloc` versions 0, 1 and 2 with
+  offset, length, base offset and index sizes of 0, 4 or 8 bytes; construction method 0 (file
+  offsets) and 1 (offsets inside `meta/idat`).
+- **API.** `strip_heif_metadata_in_place(path) -> io::Result<HeifStrip>`, the same on bytes in
+  memory (`strip_heif_metadata_in_buffer`), and `is_heif_still(first_bytes)`. `HeifStrip` reports
+  the kind (`Still`, `WithMovie`, `NotHeif`), each item zeroed (item number, item type, bytes),
+  the byte ranges written, and a plain sentence for anything not done (`stopped_early`);
+  `complete()` is true only for a still whose tables were read through and whose every Exif and
+  XMP item was zeroed.
+- **Safety.** An extent is zeroed only when it lies wholly inside an `mdat` box's body (method 0)
+  or the `idat` box's body (method 1) and touches no byte of any other item; otherwise that whole
+  item is left as it is, and said. When the tables themselves cannot be read with certainty (a
+  size that makes no sense, a version not listed above, two `iinf`, `iloc`, `idat` or `meta`
+  boxes, an item number listed twice, a table cut short), nothing is written at all. The file is
+  read through a read-only handle and opened for writing only when there is something to zero, so
+  a video, a JPEG or a HEIC with nothing in it is never opened for writing; the zeros are synced
+  before the upload is stored. All arithmetic is checked, and 4,000 fixed-seed random inputs (and
+  every cut of a whole picture) run without a panic, a size change, or a byte changed outside a
+  reported range.
+- **In the upload rules.** `.heic`, `.heif` and `.avif`, and the declared types `image/heic`,
+  `image/heif` and `image/avif`, are allowed. Such a file never takes the picture path (no PNG or
+  JPEG magic check, no 64 MB picture cap; the role's own file limit holds): it is a plain file,
+  stored under `.heic`, `.heif` or `.avif`, the upload's answer says `"type": "document"`, and on
+  the Media page it is a "file" (`kind_of`), because neither app shows HEIC or AVIF inline. A
+  `.heic` DECLARED as `image/jpeg` is judged as a JPEG and refused when it is not one. A still that
+  is not `complete()` is refused with the R7 words as they were ("HEIC and AVIF photos cannot be
+  cleaned of where they were taken yet. Save it as a JPEG and send that."), unless the person
+  chose `keep_metadata=1` (B4), which takes it as sent. A file in the MP4 family with no movie and
+  no HEIF brand, a video cut off before its movie box, is now told so (`VIDEO_UNREADABLE`) instead
+  of being called a photo: that was R7's honest limit.
+
+**What it does not cover (honest limits).**
+- Only `Exif` items and XMP `mime` items are cleaned. Left as they are: item names, `uri ` items,
+  `mime` items of any other type, the colour profile and other item properties, the pixels
+  themselves (a street sign or a landmark in the picture still says where it is), and auxiliary
+  pictures (depth map, Portrait matte, HDR gain map) as pictures. A preview kept as a JPEG item
+  (item type `jpeg`) could carry an EXIF block inside its own bytes, which is not looked for
+  (iPhones keep HEVC thumbnails, which cannot). XMP attached to an auxiliary picture is zeroed
+  with the rest, so an iPhone HDR photo may lose its HDR look on Apple devices (not checked
+  against a real file).
+- The zeroed items stay listed in the tables: a viewer finds an Exif item full of zeros. Readers
+  are expected to skip an Exif block they cannot parse, but no real viewer was tried (the tests
+  build files byte by byte and the relay has no HEIF decoder); the picture's own items are
+  untouched either way.
+- Refused rather than cleaned: an Exif or XMP item built from other items (construction method
+  2), kept through a data reference, given an extent of length 0 ("to the end"), lying outside
+  `mdat` and `idat`, or overlapping another item; the table shapes listed under Safety; a file
+  cut short. `infe` versions 0 and 1 (allowed by the base format, not by HEIF) are refused too.
+- A HEIF file with a movie in it (an image sequence or burst, `msf1`, `heis` or `avis` with a
+  `moov`) is left to the video strip, which neutralises a top-level `meta` in a file with a movie,
+  cover picture and Exif together; it is not cleaned item by item.
+- Not scrubbed, as with the video strip: stale bytes inside `free` boxes, data after the last box,
+  and a `udta` box at the top level of a still (not a HEIF structure, but nothing stops a tool
+  writing one).
+- A file NAMED `.heic` whose bytes are not a HEIF file (a JPEG renamed) is stored as a plain
+  `.heic` with its EXIF: only what the bytes are is cleaned. The same was already true of a
+  picture renamed to any other allowed extension (`.pdf`, `.zip`); only pictures are checked to be
+  what they say. A HEIC named `.mp4` is cleaned and stored as `.mp4`.
+- The apps' attach pickers still list only PNG, JPEG, GIF and WebP among pictures; a HEIC reaches
+  the relay from the web as whatever the browser declares, and from a file sent as
+  `application/octet-stream` by its extension. Comments in api.rs `upload_file` and resumable.rs
+  `finish` still say a HEIC is refused; they call `finish_file_as` and are out of date until those
+  files are next edited. resumable_follow_ups_tests.rs keeps its HEIC refusal test: its synthetic
+  photo has an item list that cannot be read, so it is still refused, for the right reason now.

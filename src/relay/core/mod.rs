@@ -28,6 +28,10 @@ pub mod object;
 pub mod pq_crypto;
 pub mod signing;
 pub mod solana_rpc;
+/// HEIF still picture (HEIC, AVIF) metadata removal in place: the Exif and
+/// XMP items are overwritten with zeros where they stand, so the file keeps
+/// its exact size and the picture's own items never move.
+pub mod strip_heif_metadata;
 pub mod strip_metadata;
 /// Video (MP4, MOV, 3GP) metadata removal in place: renames the boxes that
 /// carry where a video was filmed to `free` and zeroes them, so the file
