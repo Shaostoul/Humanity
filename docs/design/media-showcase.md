@@ -1456,3 +1456,72 @@ until it is not busy.
   uploads.
 - D4-4 (review 4): Resume clears its retry flag when it is used, so a stale one never skips the
   ten-in-a-row stop or a wait.
+
+**As built (relay, round 4; 2026-10-11).** The cancel decision and R4-1 to R4-5, as written above.
+Code: relay/resumable.rs (`cancel_core`, `cancel_session`, `write_counted`, `take_back_piece`),
+relay/media_ticket.rs (the pool), relay/upload_limits.rs (`unstage`), relay/media.rs (the tests'
+`hold::stop_at`), storage/upload_sessions.rs (`remove_session_files`, `count_upload_piece`,
+`take_back_upload_piece`, `give_back_unstored_pieces`, `Reconciled::given_back`, the expiry and the
+erase's file removal), storage/upload_counts.rs (`add_count_on`, `take_back_on`), storage/members.rs
+(`member_row`, `member_key_at_row`), storage/mod.rs (two columns), storage/expiry.rs,
+storage/account.rs and relay/mod.rs (the start-up log line). Tests: relay/resumable_round4_tests.rs
+(R4-2 to R4-5) and relay/media_round4_tests.rs (R4-1), each seen failing once against a deliberate
+break, named at the test.
+
+- **The cancel (R4-2).** `DELETE /api/upload/resumable/<id>`, by what the session is when the
+  cancel holds it (it is read again after the one-at-a-time marker is taken, so a finish that ended
+  a moment before counts as finished):
+  - a piece or the finish being written: 409 `{error, busy: true}`, nothing done;
+  - still arriving: its row and its pieces file go (wherever the file is, R4-5): `{ok: true}`;
+  - finished, not published: the stored file is removed from the waiting folder, then its
+    `user_uploads` row, then the session's row: `{ok: true, removed_stored: true}`. Also when the
+    file was already gone (its own Remove, or the day's expiry of unpublished uploads): nothing
+    stays either way;
+  - finished and published: the item and its file stay; the session's row goes:
+    `{ok: true, published: true}`.
+
+  The finished cases run under the room lock, as a publish does, so a publish of the same file
+  either came first (the answer is `published`) or finds nothing left to publish. A stored file
+  that cannot be deleted is answered 500 with plain words and keeps every row, so nothing is left
+  that no row knows of, and the app may ask again. The cancel's work runs off the async executor
+  and holds the marker to its end, as a piece does.
+- **R4-1, tickets.** At most 16 live per person (`TICKETS_PER_PERSON`); the 17th is still refused
+  with 429 and the same words as before, so one person's burst never touches anyone else. The pool
+  is 500,000 (`TICKETS_MAX`) and, full, drops its OLDEST ticket to make room: a new person always
+  gets one. A ticket keeps no key: the item, a 16-byte BLAKE3 fingerprint of the item's file name,
+  the member's row number in `server_members` and a 16-byte fingerprint of their key, and the time
+  it runs out, 64 bytes with nothing on the heap (the record is `Copy`, checked when the relay
+  compiles), 128 bytes a ticket with its place in the map and in the oldest-first queue
+  (`BYTES_PER_TICKET`). A full pool is about 140 MB at most with the tables' spare room (round 3's
+  pool of 50,000 was about 200 MB). Each request finds the person by their row number and checks
+  the key there against the fingerprint, then that they are a member and not banned, so a row
+  number given to someone else after the member left never inherits a ticket.
+- **R4-3, a piece counted and never stored.** A piece's count and a note of it on its session
+  (`counted_bytes`, `counted_at`) are written in one transaction under the room lock; storing the
+  offset clears the note in the same statement; a failed write takes the count back and clears it.
+  At start, before anything is cut back or removed, every session still carrying a note gives
+  those bytes back to the day window holding `counted_at` (the day it was counted in, not the day
+  of the restart) and clears it; the file is cut back to the offset as before. The piece sent
+  again is counted once. The start-up log line says how many were given back.
+- **R4-4, no copy under the room lock.** `unstage` moves a pieces file back by a rename only. A file
+  `put` moved there was renamed, so it is on the same disk; one that still cannot be renamed back
+  (a folder gone, another program holding it) stays staged under its session's name, and the next
+  finish or the next start brings it back (`restore_staged_part`, which may copy, and runs with no
+  lock held).
+- **R4-5, staged files go with their sessions.** The expiry pass and the account erase remove a
+  session's pieces file from the resume folder and its staged name from the waiting and the public
+  folders (`remove_session_files`, which the cancel uses too); the erase's
+  `upload_session_files_removed` counts the sessions that had a file removed.
+
+**Honest limits.** The R4-4 test runs on Windows only: a file held open without delete sharing is
+how a rename fails there while a copy still works, and no portable way was found to make that
+happen. The schema's two new columns are in the `CREATE TABLE` (like the round's three before
+them, this version is unreleased): the live server had no `upload_sessions` table on 2026-10-11
+(read-only check), so nothing there needs a migration. A finish that stored its file but could not
+write its answer on the session (a database error, logged) looks unfinished to a cancel, which then
+removes only the session: that file waits until the day's expiry of unpublished uploads, as round
+3's limit already says of a relay that stops between the last rename and the row. The tickets'
+lookup trusts a member row number while the membership lasts: `server_members` rows are made by
+an `INSERT` (never a `REPLACE`, which would give a new number), and nothing runs a plain `VACUUM`
+(which may renumber rows),
+so it lasts; if it ever changed, the fingerprint check refuses the ticket and the app asks again.

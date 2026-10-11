@@ -278,6 +278,21 @@ impl Storage {
         })
     }
 
+    /// The row number of `public_key`'s member row, if they are a member (R4-1, 2026-10-11): a
+    /// ticket for a members-only Media file keeps this and a short fingerprint of the key, not the
+    /// key itself (relay/media_ticket.rs). The row is made once, by `INSERT OR IGNORE`, so its
+    /// number lasts as long as the membership.
+    pub fn member_row(&self, public_key: &str) -> Option<i64> {
+        self.with_conn(|conn| {
+            conn.query_row("SELECT rowid FROM server_members WHERE public_key = ?1", params![public_key], |r| r.get(0)).ok()
+        })
+    }
+
+    /// The key of the member whose row is number `row` ([`Storage::member_row`]), if there is one.
+    pub fn member_key_at_row(&self, row: i64) -> Option<String> {
+        self.with_conn(|conn| conn.query_row("SELECT public_key FROM server_members WHERE rowid = ?1", params![row], |r| r.get(0)).ok())
+    }
+
     /// The name this key goes by NOW (2026-10-02). `name_for_key` returns any
     /// one of the names the key ever registered, and `registered_names` keeps
     /// them all, so after a rename it usually gave back the OLD one; the

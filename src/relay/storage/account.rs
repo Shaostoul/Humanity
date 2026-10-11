@@ -241,8 +241,9 @@ impl Storage {
         }
 
         // The pieces of their uploads still in progress (storage/upload_sessions.rs), from the
-        // resumable uploads' folder; the rows go below with the rest.
-        let session_files_removed = self.delete_upload_session_files_in(key, folders.resume);
+        // resumable uploads' folder, or staged by a finish that could not move them back (R4-5);
+        // the rows go below with the rest.
+        let session_files_removed = self.delete_upload_session_files_in(key, folders);
 
         let mut receipt: Vec<(String, usize)> = Vec::new();
         receipt.push(("upload_files_removed".to_string(), files_removed));

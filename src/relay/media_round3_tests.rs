@@ -226,3 +226,7 @@ async fn a_ticket_runs_out_and_is_only_for_members() {
     assert_eq!(media_ticket::ticket_core(&state, "ann", item.id, &name, Instant::now()).unwrap_err().0, StatusCode::FORBIDDEN);
     assert_eq!(state.media_tickets.len(), 1, "in memory, and the expired one is dropped when the next is given");
 }
+
+// Round 4, the fixes from the round 3 review (2026-10-11): R4-1, the ticket pool.
+#[path = "media_round4_tests.rs"]
+mod round4;

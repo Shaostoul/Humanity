@@ -20,7 +20,11 @@
 //!   `POST /api/upload` (`{url, filename, size, type}`), which the app then publishes with
 //!   `POST /api/media` as before. A PATCH on a finished upload answers that same JSON and does
 //!   nothing.
-//! - `DELETE /api/upload/resumable/{id}?token=` cancels: `{ok: true}`.
+//! - `DELETE /api/upload/resumable/{id}?token=` cancels, and nothing stays (R4-2): `{ok: true}`
+//!   for a session still arriving; `{ok: true, removed_stored: true}` for a finished one whose
+//!   file was not published (that file is removed too); `{ok: true, published: true}` for one
+//!   whose file was published (the item stays); 409 `{busy: true}` while a piece or the finish is
+//!   being written ([`cancel_core`]).
 //!
 //! Every route takes the session's upload token in the `X-Upload-Token` header as well as in
 //! `?token=` (R3-9, 2026-10-11; [`session_token`]): the apps send the header.
@@ -73,12 +77,13 @@ use std::sync::Arc;
 use crate::relay::media::{self, Folders, NewUpload, Reserved};
 use crate::relay::relay::RelayState;
 use crate::relay::storage::media::{OwnedFolders, MEDIA_SHELF};
-use crate::relay::storage::upload_sessions::{part_path, restore_staged_part, valid_id, UploadSession};
-use crate::relay::storage::RoleDef;
+use crate::relay::storage::media::{MediaError, Refusal};
+use crate::relay::storage::upload_sessions::{part_path, remove_session_files, restore_staged_part, valid_id, UploadSession};
+use crate::relay::storage::{RoleDef, Storage};
 use crate::relay::upload_limits::{picture_too_large, UploadBody, PICTURE_MAX_BYTES};
 use crate::relay::upload_rules::{
     allowance_at_start, allowance_for_piece, check_type, count_upload, file_type, finish_file_as, finish_picture_as, media_file_limit,
-    media_file_too_large, sharing_check, stored_name, take_back_upload, token_key, upload_answer, uploader_role,
+    media_file_too_large, sharing_check, stored_name, token_key, upload_answer, uploader_role,
 };
 
 /// The largest piece the server takes, stated in its answers so neither app hardcodes it.
@@ -392,21 +397,79 @@ pub async fn status(State(state): State<Arc<RelayState>>, Path(id): Path<String>
 
 // ── DELETE /api/upload/resumable/{id} ──
 
-/// Cancel: the row and the file go. Not while a piece is being written (409). A finished
-/// session's row goes and its stored upload stays (it is removed through `POST /api/media/remove`
-/// by its file name, like any Media upload not yet published).
-pub async fn cancel_core(state: &RelayState, folders: Folders<'_>, id: &str, token: Option<&str>) -> Result<Json<Value>, Refused> {
+/// Cancel. A cancel means nothing stays (R4-2, 2026-10-11, the decision at the top of the design's
+/// round 4):
+/// - while a piece or the finish is being written: 409 `{busy: true}`, nothing done; the app asks
+///   again until it is not busy;
+/// - a session still arriving: its row and its pieces file go, wherever the file is (the resume
+///   folder, or staged by a finish that could not move it back, R3-5): `{ok: true}`;
+/// - a finished session whose file is not published: that stored file goes from the Media waiting
+///   folder with its upload row, and the session's row: `{ok: true, removed_stored: true}` (also
+///   when the file was already gone, by its own Remove or the day's expiry: nothing stays either
+///   way);
+/// - a finished session whose file was already published: the item stays, since publishing it
+///   was the person's own choice; the session's row goes: `{ok: true, published: true}`.
+///
+/// Round 3 removed only a finished session's row and answered `{ok: true}`, so a cancel that
+/// raced the finish (asked again after the busy answer, the finish done meanwhile) left the stored
+/// file waiting with nothing to say so.
+pub async fn cancel_core(state: &Arc<RelayState>, folders: Folders<'_>, id: &str, token: Option<&str>) -> Result<Json<Value>, Refused> {
     own_session(state, token, id).await?;
-    let _writing = Writing::begin(id).ok_or_else(busy)?;
-    state.db.delete_upload_session(id).map_err(db_err)?;
-    if let Some(path) = part_path(folders.resume, id) {
-        let _ = std::fs::remove_file(path);
-        // And its pieces file where a finish that could not move it back left it (R3-5).
-        let staged = crate::relay::storage::upload_sessions::staged_part_name(id);
-        let _ = std::fs::remove_file(folders.waiting.join(&staged));
-        let _ = std::fs::remove_file(folders.uploads.join(&staged));
+    let writing = Writing::begin(id).ok_or_else(busy)?;
+    // Read again now that this request holds the session: a finish that ended a moment ago made
+    // it a finished one.
+    let s = own_session(state, token, id).await?;
+    let state = state.clone();
+    let owned = OwnedFolders::of(folders);
+    tokio::task::spawn_blocking(move || {
+        let _writing = writing;
+        cancel_session(&state.db, owned.get(), &s)
+    })
+    .await
+    .map_err(task_err)?
+    .map(Json)
+}
+
+/// [`cancel_core`]'s work on session `s`, which the caller holds as being written. BLOCKING: a
+/// finished session's part runs under the room lock, as a publish does, so a publish of its file
+/// either came first (the item stays) or finds nothing left to publish.
+fn cancel_session(db: &Storage, folders: Folders, s: &UploadSession) -> Result<Value, Refused> {
+    if !s.finished() {
+        db.delete_upload_session(&s.id).map_err(db_err)?;
+        remove_session_files(folders, &s.id);
+        return Ok(json!({ "ok": true }));
     }
-    Ok(Json(json!({ "ok": true })))
+    let answer: Value = serde_json::from_str(&s.done_answer).unwrap_or(Value::Null);
+    let name = answer["filename"].as_str().and_then(|n| media::stored_name(n).ok()).map(str::to_string);
+    let _room = media::room_lock();
+    let Some(name) = name else {
+        // A finished row whose answer names no file (only a row written by hand): it goes.
+        db.delete_upload_session(&s.id).map_err(db_err)?;
+        return Ok(json!({ "ok": true, "removed_stored": true }));
+    };
+    if db.media_item_for_upload(&name).map_err(db_err)?.is_some() {
+        db.delete_upload_session(&s.id).map_err(db_err)?;
+        return Ok(json!({ "ok": true, "published": true }));
+    }
+    // The file first: one that cannot be removed keeps its rows, so no file is left that no row
+    // knows of (the day's expiry of unpublished uploads works from the rows), and the app is told.
+    match std::fs::remove_file(folders.waiting.join(&name)) {
+        Ok(()) => {}
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+        Err(e) => {
+            return Err(words(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("The uploaded file could not be removed from the server ({e}). Try again in a moment."),
+            ))
+        }
+    }
+    match db.remove_unpublished_media(&name, &s.public_key, false) {
+        Ok(()) | Err(MediaError::Refused(Refusal::NotFound, _)) => {}
+        Err(MediaError::Db(e)) => return Err(db_err(e)),
+        Err(MediaError::Refused(_, w) | MediaError::Files(w)) => return Err(words(StatusCode::INTERNAL_SERVER_ERROR, w)),
+    }
+    db.delete_upload_session(&s.id).map_err(db_err)?;
+    Ok(json!({ "ok": true, "removed_stored": true }))
 }
 
 pub async fn cancel(State(state): State<Arc<RelayState>>, Path(id): Path<String>, Query(q): Query<SessionQuery>, headers: HeaderMap) -> Response {
@@ -440,13 +503,18 @@ fn write_piece(path: &std::path::Path, offset: u64, piece: &[u8]) -> std::io::Re
 ///    the same allowance (the single request's store does the same, media.rs `store_upload`). A
 ///    piece that would pass it is refused (429 JSON: which allowance, when it resets, in seconds
 ///    too, what is left of it, where the upload is; R3-6), nothing of it written, and the session
-///    kept so the rest can come after the reset, or a piece cut to `left_bytes` now.
-/// 2. The piece written and synced, then the offset stored. A write that fails, or a session
-///    cancelled or expired meanwhile, takes the piece's bytes back off the count.
+///    kept so the rest can come after the reset, or a piece cut to `left_bytes` now. The count is
+///    written on the session too, in the same transaction (R4-3, storage/upload_sessions.rs
+///    `count_upload_piece`).
+/// 2. The piece written and synced, then the offset stored, which clears the session's count. A
+///    write that fails, or a session cancelled or expired meanwhile, takes the piece's bytes back
+///    off the count. A relay that stops before the offset is stored leaves the count on the
+///    session, and its next start gives the bytes back to the day they were counted in (R4-3), as
+///    it cuts the piece off the file: the piece sent again is counted once, not twice.
 fn write_counted(state: &RelayState, path: &std::path::Path, s: &UploadSession, role: &RoleDef, piece: &[u8]) -> Result<(), Refused> {
     let (db, id, key, at) = (&state.db, s.id.as_str(), s.public_key.as_str(), s.offset);
     let len = piece.len() as u64;
-    let now = {
+    let (now, counted) = {
         let _room = media::room_lock();
         let now = state.upload_now_ms();
         if let Err(over) = allowance_for_piece(db, key, role, now, len) {
@@ -455,15 +523,31 @@ fn write_counted(state: &RelayState, path: &std::path::Path, s: &UploadSession, 
             body["size"] = json!(s.size);
             return Err(Refused::Json(StatusCode::TOO_MANY_REQUESTS, body));
         }
-        count_upload(db, key, now, len, false);
-        now
+        let counted = match db.count_upload_piece(id, key, now, len as i64) {
+            Ok(true) => true,
+            // Cancelled or expired before it was counted: nothing counted, nothing written.
+            Ok(false) => return Err(not_found()),
+            // A count that cannot be written is logged: the upload is not stopped for the relay's
+            // own fault (upload_rules.rs `count_upload`). Nothing was counted, so nothing is
+            // taken back below.
+            Err(e) => {
+                tracing::error!("Upload allowance: could not count {len} bytes of upload {id} ({e})");
+                false
+            }
+        };
+        (now, counted)
+    };
+    let take_back = || {
+        if counted {
+            take_back_piece(db, id, key, now, len);
+        }
     };
     // A test can hold a piece here, its allowance decided and not yet written (R3-1), by the
     // name `piece:<file name>`, apart from the store's hold on the file name itself.
     #[cfg(test)]
     media::hold::wait_at(&format!("piece:{}", s.filename));
     if let Err(e) = write_piece(path, at as u64, piece) {
-        take_back_upload(db, key, now, len);
+        take_back();
         if e.kind() == std::io::ErrorKind::NotFound {
             // The pieces' file is gone (removed by hand): nothing can be resumed.
             let _ = db.delete_upload_session(id);
@@ -471,18 +555,33 @@ fn write_counted(state: &RelayState, path: &std::path::Path, s: &UploadSession, 
         }
         return Err(words(StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to write the piece: {e}")));
     }
+    // A test can stop here, as a relay that stops between the write and the offset does (R4-3),
+    // by the name `written:<file name>`: nothing after this line runs.
+    #[cfg(test)]
+    if media::hold::stops_at(&format!("written:{}", s.filename)) {
+        return Err(words(StatusCode::INTERNAL_SERVER_ERROR, "A test stopped the relay here."));
+    }
     match db.set_upload_session_offset(id, at + len as i64, now) {
         Ok(true) => Ok(()),
         Ok(false) => {
             // Cancelled or expired while the piece was written.
-            take_back_upload(db, key, now, len);
+            take_back();
             let _ = std::fs::remove_file(path);
             Err(not_found())
         }
         Err(e) => {
-            take_back_upload(db, key, now, len);
+            take_back();
             Err(db_err(e))
         }
+    }
+}
+
+/// A piece of session `id` counted at `counted_at` and not stored: its bytes go back off `key`'s
+/// day and the session holds no count (R4-3). A failure is logged; a session that is still there
+/// keeps its count, which the next start gives back.
+fn take_back_piece(db: &Storage, id: &str, key: &str, counted_at: i64, len: u64) {
+    if let Err(e) = db.take_back_upload_piece(id, key, counted_at, len as i64) {
+        tracing::error!("Upload allowance: could not take back {len} bytes of upload {id} ({e})");
     }
 }
 
