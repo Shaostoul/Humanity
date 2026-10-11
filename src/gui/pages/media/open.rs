@@ -240,7 +240,7 @@ fn clock(seconds: f64) -> String {
 pub(crate) fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     let Some(mut opened) = state.media.open.take() else { return };
     let base = super::base_of(state);
-    let token = crate::gui::pages::chat::upload_token_here(state);
+    let token = super::token_here(state);
     let origin = origin_of(&base, &opened.item, token.as_deref());
 
     // Finished fetches and downloads.

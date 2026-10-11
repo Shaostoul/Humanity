@@ -624,9 +624,27 @@ fn an_upload_a_restart_cut_off_is_offered_again() {
     uploading::abandon_all(&state.media.uploads);
     state.media.uploads.clear();
 
-    // A file changed since is not carried on: the record goes, and the person is told.
+    // A file changed since is not carried on while the server lacks pieces of it: the server is
+    // told to drop what arrived, the record goes, and the person is told. Round 4 (D4-1) changed
+    // how: round 3 dropped it here at once, before asking the server anything; now the upload
+    // asks where the server got first, since with every piece there it finishes from the server's
+    // copy (round4_tests.rs `carry_on_finishes_from_the_servers_copy_whatever_the_local_file`).
     std::fs::write(&file, b"something else").unwrap();
-    uploading::resume_with(&mut state, &record.id, fake);
-    assert!(state.media.uploads.is_empty() && state.media.unfinished.is_empty(), "a changed file is not carried on");
-    assert_eq!(state.media.status, resumable::FILE_CHANGED);
+    let fresh = resumable::tests::Fake::new(8192);
+    {
+        let mut s = fresh.s();
+        s.id = Some(record.id.clone());
+        s.size = 20_000;
+        s.data = bytes[..8192].to_vec();
+    }
+    uploading::resume_with(&mut state, &record.id, fresh.clone());
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    while !state.media.uploads.is_empty() {
+        uploading::poll(&ctx, &mut state);
+        assert!(std::time::Instant::now() < deadline, "the upload ends");
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    assert!(state.media.unfinished.is_empty(), "a changed file is not carried on");
+    assert!(fresh.s().cancelled, "and the server is told to drop what arrived");
+    assert_eq!(state.media.status, format!("clip.webm: {} {}", resumable::FILE_CHANGED, resumable::NOTHING_STAYS));
 }

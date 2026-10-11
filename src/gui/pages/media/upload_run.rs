@@ -93,7 +93,7 @@ impl Run {
                     self.phase = Phase::Failed { words: words.clone() };
                     out.push(e.clone());
                 }
-                Event::Cancelled => {
+                Event::Cancelled { .. } => {
                     self.phase = Phase::Cancelled;
                     out.push(e.clone());
                 }

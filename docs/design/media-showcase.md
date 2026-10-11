@@ -1456,3 +1456,89 @@ until it is not busy.
   uploads.
 - D4-4 (review 4): Resume clears its retry flag when it is used, so a stale one never skips the
   ten-in-a-row stop or a wait.
+
+**As built (desktop, round 4; 2026-10-11).** D4-1 to D4-4 and the cancel decision, built against
+the cancel answer exactly as stated at the top of this round before the relay's R4-2 landed, and
+tested against stand-in answers in those shapes (the server simulated in resumable_tests.rs now
+answers a cancel as R4-2 says: `{ok: true}`, `{ok: true, removed_stored: true}` for a finished
+upload, removing its stored file, `{ok: true, published: true}`, and 409 `{busy: true}` when a test
+scripts it). Code: gui/pages/media/ `upload_cancel.rs` (new), `resumable.rs`, `upload_waits.rs`,
+`uploading.rs`, `publishing.rs`, `waiting.rs`, `upload_run.rs`, `add.rs`, `open.rs`, `tiles.rs`,
+media.rs; gui/pages/server_settings/media.rs; gui/connections.rs (`GuiState::active_server`).
+Tests: gui/pages/media/`round4_tests.rs` (new, 11 tests) and one in `upload_cancel.rs`, each seen
+failing once against a deliberate break of the code it guards (the break and what it saw red are
+written at the test); and the round 3 tests whose expectations this round changes, each saying how
+(page_tests.rs `an_upload_a_restart_cut_off_is_offered_again`, uploads_tests.rs
+`the_servers_unfinished_uploads_are_shown_with_cancel`, and resumable_tests.rs
+`a_file_that_can_no_longer_be_read_ends_the_upload`, which cut the file at `Started` and was seen
+to finish instead once, when the simulated server took every piece before the file was cut; it now
+cuts the file while the upload waits for an allowance).
+
+- **D4-1, the empty piece.** The piece of length 0 at the end, which only asks the server to
+  finish, never opens the file on this computer (`resumable::work`). A 507's Retry, and Carry on
+  after a restart, finish from the server's copy whatever happened to the local file since.
+  `resume_with` no longer cancels a record whose file changed: it starts the upload with
+  `Plan::file_changed`, which asks the server where it got first. With every piece there it sends
+  only the empty piece; with pieces still to come it tells the server to drop what arrived and
+  ends with `FILE_CHANGED`, now "The file changed since its upload started, so the rest cannot
+  follow what was sent. Add the file again.", followed by "Nothing of it stays on the server." once
+  the server confirmed. (`the_empty_piece_never_reads_the_file`,
+  `carry_on_finishes_from_the_servers_copy_whatever_the_local_file`.)
+- **D4-2, the cancel.** One routine, `upload_cancel::tell`, sends `DELETE` and reads what comes
+  back: 2xx is done, `published: true` meaning the item is on Media and stays; 404 is done (there
+  is nothing of it there); 409, 429 and 5xx are asked again, waiting 1 s doubling to 30 s, at most
+  35 times (about fifteen minutes, what nginx allows a finish); no answer at all is asked three
+  times; a token the server no longer takes, or any other refusal, is not asked again. The worker
+  uses it for Cancel and for an upload that cannot go on, and its `Event::Cancelled` now carries
+  what the server said (`Told`); the page uses it on a worker for everything else (`Job::Discard {
+  id }`, answered in `uploading::cancel_answered`). "Cancelled: nothing of it stays on the server."
+  is said only for a confirmed cancel. Anything else is said as "Not cancelled on the server yet:",
+  the reason, then "What arrived stays there until a cancel reaches it, or for a day after its last
+  piece. Press Cancel again to try.", and whatever listed the upload keeps it, with its Cancel: an upload
+  in the list goes back to its row, a record stays offered with Carry on and Cancel it, a row of
+  "Your unfinished uploads on this server" stays, each saying "Cancelling..." while the cancel is
+  on its way. An upload whose file is up but not on Media (the publish refused, no signature to
+  publish with, or Cancel just after the last piece) is cancelled with that same `DELETE`, which
+  needs the upload token only, so it goes with the identity locked; round 3's signed take-off sent
+  nothing then and still said "Cancelled". A Cancel during a lost finish's back-off asks the server
+  at once, and the relay's `removed_stored` takes the stored file with the session, so the status
+  that would have carried `done` is not needed. A publish cancelled while on its way: its worker's
+  take-off answer is what the page hears, and "Cancelled" is said only when it went; when the
+  publish's answer was in first, the page's own take-off says it could not go when there is no
+  signature (`publishing::NO_SIGNATURE_TO_TAKE_OFF`). A cancel before the server named the upload
+  says "Cancelled" unless a start's answer was lost, when the server may hold it: then the person
+  is told to look under their unfinished uploads. (`a_cancel_while_the_server_stores_the_finish_is_asked_again`,
+  `a_cancel_the_server_did_not_confirm_is_said_and_kept`,
+  `cancelling_an_upload_that_is_up_needs_no_signature`,
+  `an_unfinished_upload_stays_listed_until_the_server_confirms_its_cancel`,
+  `a_cancelled_publish_is_said_cancelled_only_when_taken_off`,
+  `a_publish_with_no_signature_to_take_it_off_says_so`, upload_cancel.rs
+  `the_cancel_answer_is_read_and_busy_is_asked_again`.)
+- **D4-3, the connected server.** `GuiState::active_server` is the server the active connection
+  was dialled for (`connected_server_url`), which is the one it signs in to; with no connection
+  this session, what the app dials by itself (`dial_address`), which is never a draft either. The
+  Media page follows it everywhere: `media::server_here` for forgetting another server's state
+  (`sync_server`), the requests' address (`base_of`) and the token (`token_here`, the upload token
+  only when it is that server's). Typing into the Chat page's Server field or the main menu's
+  leaves uploads, their token and the page as they were. (`typing_a_server_address_never_abandons_uploads`.)
+- **D4-4, Resume and Retry.** The worker holds each wait a press ends (`Held::Allowance`,
+  `Held::Retry`), set before the page is told of it, so a press that follows what the page shows
+  always finds it; Resume sets the retry flag only during an allowance's wait, Retry only during
+  either, and the wait starts and ends with the flag clear (`Control::hold_in`, `release`). No
+  flag outlives its wait. (`a_stale_resume_never_skips_the_stop_for_retry`,
+  `a_stale_resume_never_cuts_an_allowances_wait_short`.)
+
+**Honest limits.**
+- The chat's attach and the Files page still read the Server field. They never send a token to an
+  address being typed (their token counts only when the field names the server it came from), so a
+  draft only stops them with "not signed in yet"; they do not follow the connected server as the
+  Media page now does.
+- After a Disconnect, with the Server field cleared, the Media page still shows the last server it
+  was connected to: that is still the connected server by this rule.
+- A cancel the server keeps answering busy is asked for about fifteen minutes on a background
+  thread; the row says "Cancelling..." all that time.
+- The record of an upload whose publish was cancelled while on its way goes at the press (as in
+  round 3). When its worker's take-off is then refused, the page says so and points to Remove, but
+  the uploads list no longer offers it.
+- Against a relay from before R4-2, a cancel of a finished upload answers a plain `{ok: true}` and
+  leaves its stored file in the waiting folder for a day, while the app says "Cancelled".

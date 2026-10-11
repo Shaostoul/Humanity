@@ -10,7 +10,12 @@
 //! - once it is up and its publish is on its way, the publish is undone when it lands, even after
 //!   a switch to another server or person (publishing.rs);
 //! - a publish that did not go (refused, or no signature to send it with) stays in the list with
-//!   its words, Put it on Media and Cancel.
+//!   its words, Put it on Media and Cancel, which is the same `DELETE`: the relay removes a
+//!   finished upload's stored file with its session (round 4), so no signature is needed.
+//!
+//! "Cancelled" is said only when the server confirmed it (round 4 of the design, D4-2): every
+//! cancel is asked again while the server is busy writing (upload_cancel.rs), and one the server
+//! did not confirm is said plainly, the upload staying listed with its Cancel until it is.
 //!
 //! THE RECORDS (`MediaState::unfinished`, kept in the app's config) are each upload the server has
 //! named, so one a restart or a switch cut off can be carried on: on the same server, by the same
@@ -19,20 +24,22 @@
 //! fourth waits, saying so, until one ends.
 
 use std::sync::Arc;
+use std::time::Duration;
 
 use egui::RichText;
-use serde_json::Value;
+use serde_json::{json, Value};
 
 use super::add::{self, Form, Of, Source};
 use super::api::{self, Refusal};
-use super::publishing;
+use super::publishing::{self, Undo};
 use super::resumable::{self, Control, Event, Phase, Plan, Run, Transport, Unfinished};
+use super::upload_cancel::{self, Told};
 use super::{signer_here, spawn_with, Job};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use crate::gui::GuiState;
 
-/// What is said when an upload, or its publish, was cancelled.
+/// What is said when an upload, or its publish, was cancelled, once the server confirmed it.
 pub(crate) const CANCELLED_LINE: &str = "Cancelled: nothing of it stays on the server.";
 /// What an upload that is up says when there is no signature to publish it with.
 pub(crate) const UNLOCK_TO_PUBLISH: &str = "Uploaded, but not on the Media page yet: unlock your identity, then press Put it on Media. It waits a day.";
@@ -57,8 +64,11 @@ pub(crate) struct Entry {
     /// config's records.
     pub record: Unfinished,
     pub after: After,
-    /// Cancel was pressed: waiting for the worker or the publish to say it stopped.
+    /// Cancel was pressed: waiting for the worker, the publish or the server to say it stopped.
     pub cancelling: bool,
+    /// The server's resumable routes it goes through, which its Cancel asks too once the file is
+    /// up (a simulated server in the tests).
+    pub transport: Arc<dyn Transport>,
 }
 
 fn save_config(state: &GuiState) {
@@ -108,7 +118,7 @@ pub(crate) fn start_with(state: &mut GuiState, form: &Form, t: Arc<dyn Transport
     let Source::Picked { path, name, len } = &form.source else {
         return Err("Only a file on this computer is uploaded.".to_string());
     };
-    let Some(token) = crate::gui::pages::chat::upload_token_here(state) else {
+    let Some(token) = super::token_here(state) else {
         return Err(crate::gui::pages::chat::NOT_SIGNED_IN_YET.to_string());
     };
     let fields = add::fields_of(form, "", &state.media.list.categories, super::members_only_server(state));
@@ -126,9 +136,9 @@ pub(crate) fn start_with(state: &mut GuiState, form: &Form, t: Arc<dyn Transport
         labels: fields.labels,
         members_only: form.members_only,
     };
-    let plan = Plan { path: path.clone(), name: name.clone(), size: *len, content_type: crate::gui::pages::chat::mime_for_filename(name).to_string(), resume: None };
-    let run = Run::start(t, plan, Arc::new(Control::new(Some(token))));
-    state.media.uploads.push(Entry { local: super::next_id(), run, record, after: After::Uploading, cancelling: false });
+    let plan = Plan { path: path.clone(), name: name.clone(), size: *len, content_type: crate::gui::pages::chat::mime_for_filename(name).to_string(), resume: None, file_changed: false };
+    let run = Run::start(t.clone(), plan, Arc::new(Control::new(Some(token))));
+    state.media.uploads.push(Entry { local: super::next_id(), run, record, after: After::Uploading, cancelling: false, transport: t });
     Ok(())
 }
 
@@ -162,12 +172,12 @@ pub(crate) fn on_event(state: &mut GuiState, local: u64, e: Event) {
             let filename = resumable::stored_name_of(&answer);
             let Some(entry) = entry(state, local) else { return };
             if entry.cancelling || entry.run.ctl.is_cancelled() {
-                // Cancel came after the last piece went: off again at once.
-                let id = entry.record.id.clone();
-                drop_entry(state, local);
-                forget_record(state, &id);
-                publishing::take_off_now(state, &filename);
-                state.media.status = CANCELLED_LINE.to_string();
+                // Cancel came after the last piece went: the file is up but not on Media, and the
+                // server removes it with its session (round 4), asked with the upload token, so it
+                // goes whether or not the identity is unlocked. Round 3 sent a signed remove here,
+                // which with no signature sent nothing and still said "Cancelled".
+                entry.after = After::NotPublished { filename, words: String::new() };
+                cancel_entry(state, local);
                 return;
             }
             publish_entry(state, local, filename);
@@ -180,11 +190,16 @@ pub(crate) fn on_event(state: &mut GuiState, local: u64, e: Event) {
             state.media.status = format!("{}: {words}", gone_entry.record.name);
             super::refresh_mine(state);
         }
-        Event::Cancelled => {
-            if let Some(gone_entry) = drop_entry(state, local) {
-                forget_record(state, &gone_entry.record.id);
+        Event::Cancelled { told } => {
+            let Some(gone_entry) = drop_entry(state, local) else { return };
+            match told {
+                Told::Gone | Told::Published => {
+                    forget_record(state, &gone_entry.record.id);
+                    state.media.status = if told == Told::Gone { CANCELLED_LINE } else { upload_cancel::ALREADY_ON_MEDIA }.to_string();
+                }
+                // Not confirmed: its record stays, offered below with Cancel it (D4-2).
+                Told::NotConfirmed(why) => state.media.status = upload_cancel::not_cancelled_words(&why),
             }
-            state.media.status = CANCELLED_LINE.to_string();
             super::refresh_mine(state);
         }
         _ => {}
@@ -222,13 +237,26 @@ pub(crate) fn fields_of_record(r: &Unfinished, filename: &str, members_server: b
     }
 }
 
-/// Upload `local`'s publish is answered (publishing.rs `published`).
-pub(crate) fn published(state: &mut GuiState, local: u64, filename: &str, result: Result<Value, Refusal>, cancelled: bool) {
-    if cancelled {
-        drop_entry(state, local);
-        state.media.status = CANCELLED_LINE.to_string();
-        super::refresh_mine(state);
-        return;
+/// Upload `local`'s publish is answered (publishing.rs `published`). After a Cancel, `result` is
+/// what undoing it got when the publish's own worker undid it (`Undo::Worker`); when the page
+/// did (`Undo::Page`), that undoing's own answer says how it went.
+pub(crate) fn published(state: &mut GuiState, local: u64, filename: &str, result: Result<Value, Refusal>, undo: Undo) {
+    match undo {
+        Undo::Worker => {
+            drop_entry(state, local);
+            state.media.status = match result {
+                Ok(_) => CANCELLED_LINE.to_string(),
+                Err(e) => publishing::not_taken_off_words(&e.words),
+            };
+            super::refresh_mine(state);
+            return;
+        }
+        Undo::Page => {
+            drop_entry(state, local);
+            super::refresh_mine(state);
+            return;
+        }
+        Undo::None => {}
     }
     match result {
         Ok(v) => {
@@ -254,7 +282,7 @@ pub(crate) fn published(state: &mut GuiState, local: u64, filename: &str, result
 }
 
 /// A row's Cancel: the upload stops (and the server drops what arrived); a publish on its way is
-/// undone when it lands; an upload that is up but not published is taken off now.
+/// undone when it lands; an upload that is up but not published is removed from the server now.
 pub(crate) fn cancel(state: &mut GuiState, local: u64) {
     let Some(e) = entry(state, local) else { return };
     let (after, id) = (e.after.clone(), e.record.id.clone());
@@ -268,11 +296,24 @@ pub(crate) fn cancel(state: &mut GuiState, local: u64) {
             forget_record(state, &id);
             publishing::cancel(state, local, &filename);
         }
-        After::NotPublished { filename, .. } => {
-            drop_entry(state, local);
-            forget_record(state, &id);
-            publishing::take_off_now(state, &filename);
-            state.media.status = CANCELLED_LINE.to_string();
+        After::NotPublished { .. } => cancel_entry(state, local),
+    }
+}
+
+/// Ask the server to drop upload `local`'s session and the file stored from it (its file is up
+/// but not on Media), through the upload's own routes; the row shows "Cancelling..." until the
+/// server answers (`cancel_answered`), and gets its Cancel back when it cannot be asked.
+fn cancel_entry(state: &mut GuiState, local: u64) {
+    let Some(e) = entry(state, local) else { return };
+    e.cancelling = true;
+    let (id, t, pace) = (e.record.id.clone(), e.transport.clone(), e.run.ctl.pace);
+    if !cancel_on_server_with(state, &id, t, pace) {
+        let words = state.media.status.clone();
+        if let Some(e) = entry(state, local) {
+            e.cancelling = false;
+            if let After::NotPublished { words: w, .. } = &mut e.after {
+                *w = words;
+            }
         }
     }
 }
@@ -285,25 +326,74 @@ pub(crate) fn abandon_all(uploads: &[Entry]) {
     }
 }
 
-/// Cancel the upload the record `id` names, on the server too (it would go after a day anyway).
+/// Cancel the upload the record `id` names, on the server too; the record goes once the server
+/// confirmed (`cancel_answered`).
 pub(crate) fn discard(state: &mut GuiState, id: &str) {
     cancel_on_server(state, id);
-    forget_record(state, id);
 }
 
-/// Tell the server to drop its upload `id` (a record's, or one of the person's unfinished
-/// uploads the server listed).
-pub(crate) fn cancel_on_server(state: &mut GuiState, id: &str) {
-    let Some(token) = crate::gui::pages::chat::upload_token_here(state) else { return };
-    if id.is_empty() {
-        return;
+/// Ask the server to drop its upload `id` (a record's, or one of the person's unfinished uploads
+/// the server listed) on a worker. See [`cancel_on_server_with`].
+pub(crate) fn cancel_on_server(state: &mut GuiState, id: &str) -> bool {
+    let t = transport(state);
+    cancel_on_server_with(state, id, t, upload_cancel::CANCEL_PACE)
+}
+
+/// Ask the server at `t` to drop its upload `id` on a worker, again while it is busy writing
+/// (`pace` the first wait between asks; upload_cancel.rs); the answer comes back as
+/// `Job::Discard` (`cancel_answered`), and until then `id` is in `MediaState::cancelling`. False,
+/// with the reason said on the page, when it cannot be asked: no id, or no upload token for this
+/// server. A cancel already on its way is not asked twice.
+pub(crate) fn cancel_on_server_with(state: &mut GuiState, id: &str, t: Arc<dyn Transport>, pace: Duration) -> bool {
+    if state.media.cancelling.iter().any(|c| c == id) {
+        return true;
     }
-    let (t, id) = (transport(state), id.to_string());
-    spawn_with(state, Job::Discard, move || match t.cancel(&token, &id) {
-        Ok(r) if r.status < 300 => Ok(r.json()),
-        Ok(r) => Err(Refusal::new(r.status, r.words())),
-        Err(words) => Err(Refusal::new(0, words)),
+    let token = super::token_here(state);
+    let (Some(token), false) = (token, id.is_empty()) else {
+        state.media.status = upload_cancel::not_cancelled_words(upload_cancel::NOT_SIGNED_IN);
+        return false;
+    };
+    state.media.cancelling.push(id.to_string());
+    let id = id.to_string();
+    spawn_with(state, Job::Discard { id: id.clone() }, move || match upload_cancel::tell(t.as_ref(), &token, &id, pace) {
+        Told::Gone => Ok(json!({ "ok": true })),
+        Told::Published => Ok(json!({ "ok": true, "published": true })),
+        Told::NotConfirmed(why) => Err(Refusal::new(0, why)),
     });
+    true
+}
+
+/// The server answered the cancel of its upload `id` (`Job::Discard`). Confirmed: it goes from
+/// every list here (the uploads in progress, the records, the server's unfinished uploads) and
+/// "Cancelled" is said, or that it is on Media and stays there. Not confirmed: it stays where it
+/// was listed, with its Cancel, and the person is told why (round 4, D4-2: round 3 took the row
+/// off at the press, even when the server answered 409 busy).
+pub(crate) fn cancel_answered(state: &mut GuiState, id: &str, result: Result<Value, Refusal>) {
+    state.media.cancelling.retain(|c| c != id);
+    match result {
+        Ok(v) => {
+            if let Some(local) = state.media.uploads.iter().find(|e| e.record.id == id).map(|e| e.local) {
+                drop_entry(state, local);
+            }
+            forget_record(state, id);
+            if let Some(m) = state.media.mine.as_mut() {
+                m.in_progress.retain(|p| p.id != id);
+            }
+            let published = v.get("published").and_then(Value::as_bool) == Some(true);
+            state.media.status = if published { upload_cancel::ALREADY_ON_MEDIA } else { CANCELLED_LINE }.to_string();
+            super::refresh_mine(state);
+        }
+        Err(e) => {
+            let words = upload_cancel::not_cancelled_words(&e.words);
+            for entry in state.media.uploads.iter_mut().filter(|e| e.record.id == id) {
+                entry.cancelling = false;
+                if let After::NotPublished { words: w, .. } = &mut entry.after {
+                    *w = words.clone();
+                }
+            }
+            state.media.status = words;
+        }
+    }
 }
 
 /// The records offered here: this server's and person's, the server named, none of them running.
@@ -318,8 +408,12 @@ pub(crate) fn offered(state: &GuiState) -> Vec<Unfinished> {
         .collect()
 }
 
-/// Carry on the upload the record `id` names: only from the same file, unchanged. It joins the
-/// list with what its form said, and only what the server does not have yet is sent.
+/// Carry on the upload the record `id` names. It joins the list with what its form said, and only
+/// what the server does not have yet is sent, from the same file unchanged. A file changed, moved
+/// or gone since is carried on too when the server already has every piece (a 507 kept them, or
+/// the finish's answer was lost): it is finished from the server's copy and never needs the file.
+/// With pieces still to come from it, the server is told to drop what arrived (round 4, D4-1:
+/// round 3 cancelled the server's whole copy here whenever the local file had changed).
 pub(crate) fn resume(state: &mut GuiState, id: &str) {
     let t = transport(state);
     resume_with(state, id, t);
@@ -328,18 +422,14 @@ pub(crate) fn resume(state: &mut GuiState, id: &str) {
 /// [`resume`] through `t`.
 pub(crate) fn resume_with(state: &mut GuiState, id: &str, t: Arc<dyn Transport>) {
     let Some(u) = offered(state).into_iter().find(|u| u.id == id) else { return };
-    if !u.file_unchanged() {
-        discard(state, &u.id);
-        state.media.status = resumable::FILE_CHANGED.to_string();
-        return;
-    }
-    let Some(token) = crate::gui::pages::chat::upload_token_here(state) else {
+    let Some(token) = super::token_here(state) else {
         state.media.status = crate::gui::pages::chat::NOT_SIGNED_IN_YET.to_string();
         return;
     };
-    let plan = Plan { path: u.path.clone(), name: u.name.clone(), size: u.size, content_type: crate::gui::pages::chat::mime_for_filename(&u.name).to_string(), resume: Some(u.id.clone()) };
-    let run = Run::start(t, plan, Arc::new(Control::new(Some(token))));
-    state.media.uploads.push(Entry { local: super::next_id(), run, record: u, after: After::Uploading, cancelling: false });
+    let content_type = crate::gui::pages::chat::mime_for_filename(&u.name).to_string();
+    let plan = Plan { path: u.path.clone(), name: u.name.clone(), size: u.size, content_type, resume: Some(u.id.clone()), file_changed: !u.file_unchanged() };
+    let run = Run::start(t.clone(), plan, Arc::new(Control::new(Some(token))));
+    state.media.uploads.push(Entry { local: super::next_id(), run, record: u, after: After::Uploading, cancelling: false, transport: t });
     super::refresh_mine(state);
 }
 
@@ -365,9 +455,15 @@ pub(crate) fn draw_list(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
     for u in offered(state) {
         let mut carry_on = false;
         let mut drop_it = false;
+        let cancelling = state.media.cancelling.contains(&u.id);
         widgets::card(ui, theme, |ui| {
             ui.label(RichText::new(format!("An upload did not finish: {} ({}).", u.name, api::size_words(u.size as i64))).color(theme.text_primary()).strong());
             widgets::body_hint(ui, theme, "The server keeps what arrived for a day after the last piece. Carry on sends only the rest, from the same file.");
+            if cancelling {
+                // Listed until the server confirmed the cancel (round 4, D4-2).
+                ui.label(RichText::new("Cancelling...").size(theme.font_size_small).color(theme.text_muted()));
+                return;
+            }
             ui.horizontal(|ui| {
                 carry_on = widgets::Button::primary("Carry on").show(ui, theme);
                 drop_it = widgets::Button::secondary("Cancel it").tooltip("The server drops what arrived.").show(ui, theme);

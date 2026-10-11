@@ -15,6 +15,12 @@
 //!   ([`Backoff`]), says the server had a problem, and after [`STUCK_AFTER`] of the same one in a
 //!   row ([`Streak`]) the upload stops and shows the server's own words with Retry.
 //!
+//! - ROUND 4's D4-4, Resume set the Retry flag every time it was pressed, and only a wait while
+//!   paused cleared it, so one pressed at any other moment stayed set and cut short the next stop
+//!   for Retry or wait for an allowance. Now the worker HOLDS each such wait ([`Held`], set before
+//!   the page is told of it), a press sets the flag only while one is held, and the end of the
+//!   wait clears both.
+//!
 //! A 5xx, or a 429 WITHOUT the allowance's JSON (nginx's rate limit, or the relay's "You have 3
 //! uploads in progress"), is never the end of an upload: it waits and tries again.
 
@@ -23,7 +29,7 @@ use std::time::Duration;
 
 use serde_json::Value;
 
-use super::resumable::{Control, Event, Flags, Reply};
+use super::resumable::{Control, Event, Flags, Held, Reply};
 
 /// The least an allowance wait lasts, whatever the numbers say (finding 3).
 pub const ALLOWANCE_WAIT_MIN: Duration = Duration::from_secs(5);
@@ -162,7 +168,6 @@ pub fn hold(ctl: &Control, tx: &Sender<Event>) -> bool {
     }
     let _ = tx.send(Event::Paused);
     let flags = ctl.wait(None, |f| f.paused && !f.cancelled);
-    ctl.take_retry();
     if flags.cancelled {
         return false;
     }
@@ -170,17 +175,24 @@ pub fn hold(ctl: &Control, tx: &Sender<Event>) -> bool {
     true
 }
 
-/// Wait while an allowance is used up: its whole wait, or until Resume, Pause or Cancel.
-pub fn wait_for_allowance(ctl: &Control, a: &Allowance) -> Flags {
+/// Wait while an allowance is used up: its whole wait, or until Resume, Retry, Pause or Cancel.
+/// The page is told (`say`) once the wait is held, so its Resume ends this wait and no other
+/// (round 4, D4-4).
+pub fn wait_for_allowance(ctl: &Control, a: &Allowance, tx: &Sender<Event>, say: Event) -> Flags {
+    ctl.hold_in(Held::Allowance);
+    let _ = tx.send(say);
     let flags = ctl.wait(Some(a.wait), |f| !f.cancelled && !f.retry && !f.paused);
-    ctl.take_retry();
+    ctl.release();
     flags
 }
 
-/// Wait for Retry (or Cancel): no room at the finish, or a server error that will not clear.
-pub fn wait_for_retry(ctl: &Control) -> Flags {
+/// Wait for Retry (or Cancel): no room at the finish, or a server error that will not clear. The
+/// page is told (`say`) once the wait is held, as above.
+pub fn wait_for_retry(ctl: &Control, tx: &Sender<Event>, say: Event) -> Flags {
+    ctl.hold_in(Held::Retry);
+    let _ = tx.send(say);
     let flags = ctl.wait(None, |f| !f.cancelled && !f.retry);
-    ctl.take_retry();
+    ctl.release();
     flags
 }
 

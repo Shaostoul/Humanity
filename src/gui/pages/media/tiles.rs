@@ -126,7 +126,7 @@ pub(crate) fn request_picture(state: &mut GuiState, item: &Item) {
         return;
     }
     if item.members_only() {
-        let token = crate::gui::pages::chat::upload_token_here(state);
+        let token = super::token_here(state);
         let url = api::file_url(&super::base_of(state), item);
         let header = api::token_header(item, token.as_deref());
         state.image_cache.request_bytes(&key, move || {

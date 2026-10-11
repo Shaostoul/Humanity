@@ -120,7 +120,7 @@ fn clip(tag: &str, n: usize) -> (crate::test_temp::TempPath, resumable::Plan, Ve
     let path = crate::test_temp::file(tag, "mp4");
     let data = bytes(n);
     std::fs::write(&path, &data).unwrap();
-    let plan = resumable::Plan { path: path.to_path_buf(), name: "clip.mp4".into(), size: n as u64, content_type: "video/mp4".into(), resume: None };
+    let plan = resumable::Plan { path: path.to_path_buf(), name: "clip.mp4".into(), size: n as u64, content_type: "video/mp4".into(), resume: None, file_changed: false };
     (path, plan, data)
 }
 
@@ -163,7 +163,7 @@ fn the_whole_upload_against_the_real_relay_with_its_allowance() {
                 ctl.cancel(); // a second day's wait: stop, and let the assertions say why
             }
         }
-        let last = matches!(e, resumable::Event::Done { .. } | resumable::Event::Failed { .. } | resumable::Event::Cancelled);
+        let last = matches!(e, resumable::Event::Done { .. } | resumable::Event::Failed { .. } | resumable::Event::Cancelled { .. });
         events.push(e);
         if last {
             break;

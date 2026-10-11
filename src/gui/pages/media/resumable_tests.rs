@@ -5,6 +5,7 @@
 //! server saw in a window of time: a loop with no wait shows as hundreds of thousands.
 
 use super::*;
+use crate::gui::pages::media::upload_cancel::Told;
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -14,7 +15,7 @@ pub(crate) const TOKEN: &str = "tok-now";
 
 /// What the simulated server does to a request, scripted by a test.
 #[derive(Debug, Clone, PartialEq)]
-enum Trick {
+pub(crate) enum Trick {
     /// Write the piece, then lose its answer (the connection dropped after the server took it).
     LoseAnswer,
     /// Refuse the piece for the day's allowance, resetting at this time (Unix ms), with this many
@@ -34,15 +35,15 @@ pub(crate) struct Server {
     pub(crate) size: u64,
     pub(crate) blake3: String,
     pub(crate) data: Vec<u8>,
-    done: Option<Value>,
+    pub(crate) done: Option<Value>,
     chunk_max: u64,
     /// Tricks for the non-empty pieces in order (None: answer normally), and for the finish.
-    tricks: VecDeque<Option<Trick>>,
-    finish_trick: Option<Trick>,
+    pub(crate) tricks: VecDeque<Option<Trick>>,
+    pub(crate) finish_trick: Option<Trick>,
     /// Answers the start gives first, in order, before answering normally; and one it gives every
     /// time, forever (a server error that never clears).
-    start_answers: VecDeque<Reply>,
-    start_forever: Option<Reply>,
+    pub(crate) start_answers: VecDeque<Reply>,
+    pub(crate) start_forever: Option<Reply>,
     /// The day's allowance, in bytes, as the relay of round 3 counts it: a piece larger than what
     /// is left is refused with `left_bytes` (R3-6). With `reset_at_zero` the window passes while
     /// the app waits after a refusal with nothing left.
@@ -54,6 +55,17 @@ pub(crate) struct Server {
     pub(crate) log: Vec<String>,
     pub(crate) cancelled: bool,
     start_body: Value,
+    /// Answers a cancel gives first, in order (409 busy while the finish is written, round 4),
+    /// and one it gives every time, forever.
+    pub(crate) cancel_answers: VecDeque<Reply>,
+    pub(crate) cancel_forever: Option<Reply>,
+    /// The finished file was put on the Media page: a cancel leaves it (`published: true`).
+    pub(crate) published: bool,
+    /// A cancel removed the finished file stored from the upload (`removed_stored`, round 4).
+    pub(crate) stored_removed: bool,
+    /// Status requests whose answer is lost, from the next one on (a connection that keeps
+    /// dropping), counted down.
+    pub(crate) status_lost: usize,
 }
 
 /// A server simulated in memory, answering as src/relay/resumable.rs does.
@@ -105,6 +117,10 @@ impl Transport for Fake {
         s.log.push("status".into());
         if token != s.token {
             return refuse(403, "Invalid upload token.");
+        }
+        if s.status_lost > 0 {
+            s.status_lost -= 1;
+            return Err("The server could not be reached (connection reset).".into());
         }
         if s.id.as_deref() != Some(id) {
             return refuse(404, "There is no upload in progress with that id.");
@@ -181,14 +197,30 @@ impl Transport for Fake {
         ok(answer)
     }
 
-    fn cancel(&self, token: &str, _id: &str) -> Result<Reply, String> {
+    /// The relay's cancel as round 4 states it: an unfinished upload `{ok: true}`; a finished one
+    /// not on Media `{ok: true, removed_stored: true}`, its stored file removed; a published one
+    /// `{ok: true, published: true}`, left as it is; 409 `{busy: true}` while busy (scripted).
+    fn cancel(&self, token: &str, id: &str) -> Result<Reply, String> {
         let mut s = self.s();
         s.log.push("cancel".into());
         if token != s.token {
             return refuse(403, "Invalid upload token.");
         }
+        if let Some(r) = s.cancel_answers.pop_front().or_else(|| s.cancel_forever.clone()) {
+            return Ok(r);
+        }
+        if s.id.as_deref() != Some(id) {
+            return refuse(404, "There is no upload in progress with that id.");
+        }
+        if s.published {
+            return ok(json!({ "ok": true, "published": true }));
+        }
         s.cancelled = true;
         s.id = None;
+        if s.done.is_some() {
+            s.stored_removed = true;
+            return ok(json!({ "ok": true, "removed_stored": true }));
+        }
         ok(json!({ "ok": true }))
     }
 }
@@ -196,18 +228,18 @@ impl Transport for Fake {
 static FILES: AtomicUsize = AtomicUsize::new(0);
 
 /// A file of `len` patterned bytes, and the plan to upload it.
-fn file(len: usize) -> (crate::test_temp::TempPath, Plan, Vec<u8>) {
+pub(crate) fn file(len: usize) -> (crate::test_temp::TempPath, Plan, Vec<u8>) {
     let n = FILES.fetch_add(1, Ordering::SeqCst);
     let path = crate::test_temp::file(&format!("media_resumable_{n}"), "webm");
     let bytes: Vec<u8> = (0..len).map(|i| (i * 7 % 251) as u8).collect();
     std::fs::write(&path, &bytes).unwrap();
-    let plan = Plan { path: path.to_path_buf(), name: "clip.webm".into(), size: len as u64, content_type: "video/webm".into(), resume: None };
+    let plan = Plan { path: path.to_path_buf(), name: "clip.webm".into(), size: len as u64, content_type: "video/webm".into(), resume: None, file_changed: false };
     (path, plan, bytes)
 }
 
 /// Run the upload on a worker thread with `ctl`, with `before` given the control and the events
 /// as they come (to press Pause, Resume, Retry or Cancel), until it ends. Returns every event.
-fn run_on(fake: Arc<Fake>, plan: Plan, ctl: Arc<Control>, mut before: impl FnMut(&Control, &Event)) -> Vec<Event> {
+pub(crate) fn run_on(fake: Arc<Fake>, plan: Plan, ctl: Arc<Control>, mut before: impl FnMut(&Control, &Event)) -> Vec<Event> {
     let (tx, rx) = std::sync::mpsc::channel();
     let worker_ctl = ctl.clone();
     let t: Arc<dyn Transport> = fake;
@@ -216,7 +248,7 @@ fn run_on(fake: Arc<Fake>, plan: Plan, ctl: Arc<Control>, mut before: impl FnMut
     loop {
         let e = rx.recv_timeout(Duration::from_secs(20)).unwrap_or_else(|_| panic!("the upload stalled; events so far: {events:?}"));
         before(&ctl, &e);
-        let last = matches!(e, Event::Done { .. } | Event::Failed { .. } | Event::Cancelled);
+        let last = matches!(e, Event::Done { .. } | Event::Failed { .. } | Event::Cancelled { .. });
         events.push(e);
         if last {
             break;
@@ -227,13 +259,13 @@ fn run_on(fake: Arc<Fake>, plan: Plan, ctl: Arc<Control>, mut before: impl FnMut
 }
 
 /// [`run_on`] with a control whose waits after a failure start at a millisecond.
-fn run_with(fake: Arc<Fake>, plan: Plan, token: &str, before: impl FnMut(&Control, &Event)) -> Vec<Event> {
+pub(crate) fn run_with(fake: Arc<Fake>, plan: Plan, token: &str, before: impl FnMut(&Control, &Event)) -> Vec<Event> {
     run_on(fake, plan, Arc::new(Control::with_pace(Some(token.to_string()), Duration::from_millis(1))), before)
 }
 
 /// Start the upload on a worker thread and hand back its control, its events and the thread,
 /// for the tests that look at the server between events.
-fn spawn_work(fake: &Arc<Fake>, plan: Plan, ctl: Control) -> (Arc<Control>, std::sync::mpsc::Receiver<Event>, std::thread::JoinHandle<()>) {
+pub(crate) fn spawn_work(fake: &Arc<Fake>, plan: Plan, ctl: Control) -> (Arc<Control>, std::sync::mpsc::Receiver<Event>, std::thread::JoinHandle<()>) {
     let ctl = Arc::new(ctl);
     let (tx, rx) = std::sync::mpsc::channel();
     let (worker_ctl, t): (Arc<Control>, Arc<dyn Transport>) = (ctl.clone(), fake.clone());
@@ -242,12 +274,12 @@ fn spawn_work(fake: &Arc<Fake>, plan: Plan, ctl: Control) -> (Arc<Control>, std:
 }
 
 /// Wait for the first event `want` matches (at most ten seconds), and return it.
-fn wait_for(rx: &std::sync::mpsc::Receiver<Event>, want: impl Fn(&Event) -> bool) -> Event {
+pub(crate) fn wait_for(rx: &std::sync::mpsc::Receiver<Event>, want: impl Fn(&Event) -> bool) -> Event {
     until(rx, want).pop().expect("the matching event")
 }
 
 /// Every event up to and including the first `want` matches (at most ten seconds).
-fn until(rx: &std::sync::mpsc::Receiver<Event>, want: impl Fn(&Event) -> bool) -> Vec<Event> {
+pub(crate) fn until(rx: &std::sync::mpsc::Receiver<Event>, want: impl Fn(&Event) -> bool) -> Vec<Event> {
     let deadline = std::time::Instant::now() + Duration::from_secs(10);
     let mut seen = Vec::new();
     loop {
@@ -267,9 +299,9 @@ fn until(rx: &std::sync::mpsc::Receiver<Event>, want: impl Fn(&Event) -> bool) -
 
 /// The window the loop tests count requests in: long enough that a loop with no wait sends
 /// hundreds of thousands, short enough to keep the run quick.
-const WINDOW: Duration = Duration::from_millis(500);
+pub(crate) const WINDOW: Duration = Duration::from_millis(500);
 
-fn done_answer(events: &[Event]) -> Option<Value> {
+pub(crate) fn done_answer(events: &[Event]) -> Option<Value> {
     events.iter().find_map(|e| if let Event::Done { answer } = e { Some(answer.clone()) } else { None })
 }
 
@@ -395,7 +427,7 @@ fn pause_resume_and_cancel() {
         Event::Paused => ctl.cancel(),
         _ => {}
     });
-    assert_eq!(events.last(), Some(&Event::Cancelled));
+    assert_eq!(events.last(), Some(&Event::Cancelled { told: Told::Gone }));
     assert!(done_answer(&events).is_none(), "nothing finishes");
     assert!(fake.s().cancelled && fake.s().log.contains(&"cancel".to_string()), "the server was told");
 }
@@ -421,7 +453,7 @@ fn pause_stops_every_request_in_every_phase() {
     assert_eq!(fake.s().log.len(), 0, "nothing is sent while paused before the start: {:?}", fake.s().log);
     ctl.cancel();
     handle.join().unwrap();
-    assert!(rx.try_iter().any(|e| e == Event::Cancelled));
+    assert!(rx.try_iter().any(|e| matches!(e, Event::Cancelled { .. })));
 
     // Paused while the start is refused, by an allowance and by a server error.
     let refusals = [
@@ -615,13 +647,19 @@ fn a_resume_after_a_restart_sends_only_the_rest() {
 /// Seen red 2026-10-11 with round 2's words put back: "the words say the file could not be read:
 /// The file could not be read: it may have changed (failed to fill whole buffer)." (they did not
 /// say the upload stopped).
+///
+/// Round 4 holds the upload in an allowance's wait while the file is cut short: cut at `Started`,
+/// the simulated server could take every piece before the test wrote the file, and the upload
+/// then finished (seen once, 2026-10-11, "it ended: [..., Done { .. }]").
 #[test]
 fn a_file_that_can_no_longer_be_read_ends_the_upload() {
     let fake = Fake::new(8192);
+    fake.s().tricks = VecDeque::from([Some(Trick::Allowance(waits::now_ms() + 3_600_000, Some(3600.0)))]);
     let (f, plan, _) = file(20_000);
-    let events = run_with(fake.clone(), plan, TOKEN, |_, e| {
-        if matches!(e, Event::Started { .. }) {
+    let events = run_with(fake.clone(), plan, TOKEN, |ctl, e| {
+        if matches!(e, Event::Waiting { .. }) {
             std::fs::write(&f, b"cut short").unwrap();
+            ctl.retry();
         }
     });
     let failed = events.iter().find_map(|e| if let Event::Failed { words, gone } = e { Some((words.clone(), *gone)) } else { None });
