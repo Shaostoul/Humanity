@@ -1830,21 +1830,21 @@ test("files: in a DM it asks; Send anyway marks the marker unchecked, and the re
   assert.equal(row.querySelector(".enc-attach").querySelector(".enc-attach-unchecked").textContent, UC.WORDS.recipientLine, "in the spec's words");
 });
 
-test("files: a HEIC photo, which the website cannot clean yet: the relay's words in a room, the HEIC question in a DM", async () => {
+test("files: a HEIC photo, which the website cannot clean yet: to a room it goes to the server, which cleans it; in a DM the HEIC question", async () => {
   const fx = await fixture();
   const page = await loadChat(fx.ann);
-  let { going } = await pickToStep(page, heicPhoto());
-  let p = stepParts(attachStep(page));
-  assert.equal(p.send.disabled, true, "not sent to a room");
-  assert.ok(p.said.textContent.startsWith(S.SAY.heif), "with the relay's own words");
-  await press(page, going, "cancel");
+  await page.fn("handleFileAttachment")({ target: { files: [heicPhoto()], value: "x" } });
+  await settle();
+  assert.equal(attachStep(page), null, "no step in a room");
+  assert.equal(page.uploads.length, 1, "sent to the room's server, which cleans HEIC photos itself");
+  assert.ok(!hasQuery(page.uploads[0], "keep_metadata=1"), "without keep_metadata, so the server strips it");
   page.fn("openDmConversation")(fx.ben.key, "Ben");
   await settle();
-  ({ going } = await pickToStep(page, heicPhoto()));
-  p = stepParts(attachStep(page));
-  assert.equal(p.said.textContent, UC.WORDS.askPrivateHeif, "in a DM, asked");
+  const { going } = await pickToStep(page, heicPhoto());
+  const p = stepParts(attachStep(page));
+  assert.equal(p.said.textContent, UC.WORDS.askPrivateHeif, "in a DM, asked: the server never opens a private file");
   await press(page, going, "cancel");
-  assert.equal(page.uploads.length, 0);
+  assert.equal(page.uploads.length, 1, "nothing more sent");
 });
 
 test("files: with the protected setup on, no switch, a photo is always cleaned, and an unchecked file goes nowhere, a DM included", async () => {

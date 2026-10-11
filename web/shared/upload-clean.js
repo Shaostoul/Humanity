@@ -380,6 +380,11 @@
     const remove = protectedOn || x.remove !== false;
     if (!remove) return { action: 'send', file: c.original, keepMetadata: true, unchecked: false, words: null, canKeep: false };
     if (!c.unchecked) return { action: 'send', file: c.cleaned, keepMetadata: false, unchecked: false, words: null, canKeep: false };
+    // A HEIC or AVIF photo going to a PUBLIC shelf goes to the server as it is: the relay cleans
+    // HEIF stills itself since 2026-10-11 (strip_heif_metadata.rs), and refuses one it cannot read
+    // through, with its own words. Only a private file, which the server never opens, has to be
+    // asked about here.
+    if (c.heif && x.where !== 'private') return { action: 'send', file: c.original, keepMetadata: false, unchecked: false, words: null, canKeep: false };
     const why = c.reason || WORDS.unreadable;
     if (protectedOn) return { action: 'refuse', file: null, keepMetadata: false, unchecked: false, words: why + ' ' + WORDS.protectedRefused, canKeep: false };
     if (x.where !== 'private') {
@@ -403,6 +408,7 @@
   function stepNeeded(c, ctx, extraLine) {
     const x = ctx || {};
     if (extraLine) return true;
+    if (c.unchecked && c.heif && x.where !== 'private') return false; // the server cleans it (decide)
     if (c.unchecked && (x.protectedOn || x.remove !== false)) return true;
     if (c.summary && !x.protectedOn) return true;
     return false;

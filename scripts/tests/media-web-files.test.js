@@ -112,11 +112,10 @@ test("2. with the switch off the photo goes as picked, the start says keep_metad
 
 // ── 3. Could not be checked ──────────────────────────────────────────────
 
-test("3. a video cut before its movie and a HEIC photo are never added unchecked; kept by choice they go as picked", async () => {
+test("3. a video cut before its movie is never added unchecked; kept by choice it goes as picked; a HEIC goes to the server, which cleans it", async () => {
   const cut = B.movie("mdatFirst", B.ftypMp4(), B.everything()).subarray(0, 300);
   for (const [name, file, first] of [
     ["a cut video", fileOf(cut, "clip.mp4", "video/mp4"), null],
-    ["a HEIC photo", fileOf(B.heic(), "IMG_0003.HEIC", "image/heic"), S.SAY.heif],
   ]) {
     const { doc, relay } = await page();
     await pickFile(doc, file);
@@ -135,6 +134,15 @@ test("3. a video cut before its movie and a HEIC photo are never added unchecked
     assert.equal(startBody(relay).keep_metadata, 1, `${name}: keep_metadata: 1`);
     assert.ok(same(sent(relay), new Uint8Array(await file.arrayBuffer())), `${name}: as picked`);
   }
+  // A HEIC photo goes up as picked, without keep_metadata, so the relay cleans it (2026-10-11).
+  const heic = fileOf(B.heic(), "IMG_0003.HEIC", "image/heic");
+  const { doc, relay } = await page();
+  await pickFile(doc, heic);
+  assert.equal(text(byId(doc, "media-form-unchecked")), "", "a HEIC: nothing in the way");
+  assert.equal(byId(doc, "media-form-go").disabled, false, "a HEIC: Upload on");
+  await upload(doc);
+  assert.ok(!("keep_metadata" in startBody(relay)), "a HEIC: no keep_metadata, so the server cleans it");
+  assert.ok(same(sent(relay), new Uint8Array(await heic.arrayBuffer())), "a HEIC: as picked");
 });
 
 // ── 4. The protected setup ───────────────────────────────────────────────
@@ -151,11 +159,18 @@ test("4. with the protected setup on: no switch, a photo always cleaned, an unch
   assert.ok(same(sent(p.relay), S.stripFile(PHOTO, "x.jpg").bytes), "cleaned, whatever the switch last said");
   assert.ok(!("keep_metadata" in startBody(p.relay)), "never keep_metadata");
 
+  const cut = B.movie("mdatFirst", B.ftypMp4(), B.everything()).subarray(0, 300);
   p = await page({ storage });
-  await pickFile(p.doc, fileOf(B.heic(), "IMG_0003.HEIC", "image/heic"));
+  await pickFile(p.doc, fileOf(cut, "clip.mp4", "video/mp4"));
   assert.equal(byId(p.doc, "media-form-go").disabled, true, "an unchecked file: Upload off");
   assert.ok(text(byId(p.doc, "media-form-unchecked")).includes(UC.WORDS.protectedRefused), "saying why");
   assert.equal(byId(p.doc, "media-form-remove-details"), null, "and no way round it");
+
+  // A HEIC goes to the server, which cleans it, under the protected setup too.
+  p = await page({ storage });
+  await pickFile(p.doc, fileOf(B.heic(), "IMG_0003.HEIC", "image/heic"));
+  await upload(p.doc);
+  assert.ok(!("keep_metadata" in startBody(p.relay)), "a HEIC under the protected setup: never keep_metadata");
 });
 
 // ── 5. A big video ───────────────────────────────────────────────────────

@@ -178,10 +178,17 @@ test("a file that could not be checked: said so, never to a public shelf, never 
     assert.ok(same(await bytesOf(c.cleaned), await bytesOf(f)) || !heif, `${name}: a HEIC is sent as it is`);
 
     const pub = C.decide(c, { where: "public", remove: true });
-    assert.equal(pub.action, "refuse", `${name}: never to a public shelf`);
-    assert.equal(pub.canKeep, true, "unless its details are kept by choice");
-    assert.ok(pub.words.includes(C.WORDS.publicKeepHint), "and the words say how");
-    if (heif) assert.ok(pub.words.startsWith(S.SAY.heif), "a HEIC: the relay's own words");
+    if (heif) {
+      // A HEIC to a public shelf goes to the server as picked: the relay cleans HEIF stills itself
+      // since 2026-10-11 and refuses one it cannot read through (seen red with the HEIC rule taken
+      // out of decide: "a HEIC goes to the server, which cleans it" got "refuse").
+      assert.deepEqual([pub.action, pub.keepMetadata, pub.file], ["send", false, f], `${name}: a HEIC goes to the server, which cleans it`);
+      assert.equal(C.stepNeeded(c, { where: "public", remove: true }), false, "with no step in the way");
+    } else {
+      assert.equal(pub.action, "refuse", `${name}: never to a public shelf`);
+      assert.equal(pub.canKeep, true, "unless its details are kept by choice");
+      assert.ok(pub.words.includes(C.WORDS.publicKeepHint), "and the words say how");
+    }
     const kept = C.decide(c, { where: "public", remove: false });
     assert.deepEqual([kept.action, kept.keepMetadata, kept.file], ["send", true, f], `${name}: kept by choice, it goes as picked with keep_metadata`);
 
@@ -192,6 +199,11 @@ test("a file that could not be checked: said so, never to a public shelf, never 
 
     for (const where of ["public", "private"]) {
       const prot = C.decide(c, { where, remove: false, protectedOn: true });
+      if (heif && where === "public") {
+        assert.equal(prot.action, "send", `${name}: a public HEIC goes to the server, which cleans it, even under the protected setup`);
+        assert.equal(prot.keepMetadata, false, "never keep_metadata under the protected setup");
+        continue;
+      }
       assert.equal(prot.action, "refuse", `${name}: the protected setup sends only files it could check (${where})`);
       assert.equal(prot.canKeep, false, "with no way round it");
       assert.ok(C.stepNeeded(c, { where, remove: false, protectedOn: true }), "and the step says so");
