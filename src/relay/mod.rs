@@ -7,6 +7,8 @@
 pub mod relay;
 pub mod api;
 pub mod upload_limits;
+/// The Media page's routes (2026-10-11, docs/design/media-showcase.md); storage in storage/media.rs.
+pub mod media;
 pub mod api_v2_agents;
 pub mod api_v2_ai;
 pub mod api_v2_announce;
@@ -587,6 +589,10 @@ pub async fn run_relay() {
     // retention window, erased accounts past their window or over the cap), so a relay
     // that was down for a while doesn't wait 6 hours for the periodic pass.
     db.run_expiry_sweeps();
+
+    // The Media page's content labels (data/media/labels.json), read now rather than at the
+    // first publish, so a broken file is in the log from the start (media.rs `labels`).
+    tracing::info!("Media content labels: {}", media::labels().iter().map(|l| l.id.as_str()).collect::<Vec<_>>().join(", "));
 
     // Owner-is-admin (v0.1134): a self-hosted node grants its OWNER the
     // admin role at startup. The in-app Host Node page sets this env var to
@@ -1187,6 +1193,22 @@ pub fn build_router(state: Arc<RelayState>) -> Router {
         .route("/api/uploads", get(api::list_shared_uploads))
         // Remove a shared file (owner or admin), v0.709.
         .route("/api/uploads/delete", post(api::delete_shared_upload))
+        // The Media page (2026-10-11, media.rs; docs/design/media-showcase.md "Increment 1,
+        // exact"). A signed READ also has a POST form (`/list`, and POST on `/suggestions` and
+        // `/usage`): a Dilithium key and signature make a URL of about 10 KB, which a proxy
+        // refuses with 414 (the admin-stats lesson, v0.851).
+        .route("/api/media", get(media::list).post(media::publish))
+        .route("/api/media/list", post(media::list_post))
+        .route("/api/media/categories", get(media::categories).post(media::set_categories))
+        .route("/api/media/remove", post(media::remove))
+        .route("/api/media/pick", post(media::pick))
+        .route("/api/media/unpick", post(media::unpick))
+        .route("/api/media/picks/{key}", get(media::picks_of))
+        .route("/api/media/feature", post(media::feature))
+        .route("/api/media/suggest", post(media::suggest))
+        .route("/api/media/suggestions", get(media::suggestions).post(media::suggestions_post))
+        .route("/api/media/suggestions/decide", post(media::decide))
+        .route("/api/media/usage", get(media::usage).post(media::usage_post))
         .route("/api/github-webhook", post(api::github_webhook))
         .route("/api/tasks", get(api::get_tasks).post(api::create_task))
         .route("/api/tasks/{id}", patch(api::update_task).delete(api::delete_task))

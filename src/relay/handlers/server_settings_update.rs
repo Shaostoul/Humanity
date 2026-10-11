@@ -56,6 +56,7 @@ pub async fn handle(state: &Arc<RelayState>, my_key: &str, upd: RelayMessage) {
         erased_accounts_ttl_days, erased_accounts_cap,
         world_time_scale,
         fleet_supply_mode,
+        media_visibility, media_budget_mb, media_per_person_mb, media_public_previews_only,
     } = upd else { return };
     let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
     if role != "admin" && role != "owner" {
@@ -177,6 +178,15 @@ pub async fn handle(state: &Arc<RelayState>, my_key: &str, upd: RelayMessage) {
         if let Some(v) = fleet_supply_mode.as_deref().and_then(crate::relay::storage::fleet_supply_mode_of) {
             current.fleet_supply_mode = v.to_string();
         }
+        // The Media page (2026-10-11, relay/media.rs): "public" or "members" (anything else
+        // changes nothing), and its two sizes held to 1 MB .. a million MB.
+        if let Some(v) = media_visibility.as_deref().and_then(crate::relay::storage::media_visibility_of) {
+            current.media_visibility = v.to_string();
+        }
+        use crate::relay::storage::MEDIA_MB_RANGE as MB;
+        if let Some(v) = media_budget_mb { current.media_budget_mb = v.clamp(MB.0, MB.1); }
+        if let Some(v) = media_per_person_mb { current.media_per_person_mb = v.clamp(MB.0, MB.1); }
+        if let Some(v) = media_public_previews_only { current.media_public_previews_only = v; }
         match state_clone.db.set_server_settings(&current, &my_key_for_recv) {
             Ok(true) => {
                 state_clone.db.run_expiry_sweeps(); // a lowered window or cap holds at once (storage/expiry.rs)
@@ -240,5 +250,34 @@ mod tests {
         let state = RelayState::new(Storage::open(&path).expect("reopen test db"));
         let scale = state.game_world.try_read().expect("nothing else holds the world").time_scale;
         assert_eq!(scale, 24.0, "after a restart the world runs at the saved 24x");
+    }
+
+    /// THE MEDIA SETTINGS THROUGH THE UPDATE FRAME (2026-10-11): an admin's
+    /// `server_settings_update` sets the page's visibility, budget, share and previews, the sizes
+    /// held to 1 MB and up, a visibility that is no visibility changing nothing; a member who is
+    /// not an admin changes nothing at all.
+    ///
+    /// Seen red 2026-10-11 with the `media_budget_mb` line taken out of `handle`: "the admin set
+    /// the budget / left: 2048 / right: 4096".
+    #[tokio::test]
+    async fn an_admins_update_sets_the_media_settings() {
+        let state = std::sync::Arc::new(RelayState::new(Storage::open_temp("media_settings_update")));
+        state.db.set_role("op", "admin").unwrap();
+        let frame = |v: serde_json::Value| serde_json::from_value::<crate::relay::relay::RelayMessage>(v).expect("the frame parses");
+        let update = serde_json::json!({ "type": "server_settings_update", "media_visibility": "members", "media_budget_mb": 4096, "media_per_person_mb": 0, "media_public_previews_only": false });
+
+        super::handle(&state, "member", frame(update.clone())).await;
+        let s = state.db.get_server_settings().unwrap();
+        assert_eq!((s.media_visibility.as_str(), s.media_budget_mb), ("public", 2048), "a member who is not an admin changed the Media settings");
+
+        super::handle(&state, "op", frame(update)).await;
+        let s = state.db.get_server_settings().unwrap();
+        assert_eq!(s.media_visibility, "members");
+        assert_eq!(s.media_budget_mb, 4096, "the admin set the budget");
+        assert_eq!(s.media_per_person_mb, 1, "a share below 1 MB is held to 1 MB");
+        assert!(!s.media_public_previews_only);
+
+        super::handle(&state, "op", frame(serde_json::json!({ "type": "server_settings_update", "media_visibility": "everyone" }))).await;
+        assert_eq!(state.db.get_server_settings().unwrap().media_visibility, "members", "not a visibility: nothing changed");
     }
 }

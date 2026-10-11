@@ -122,6 +122,11 @@ impl Storage {
             // Who can reach them (2026-10-09, storage/reach.rs): the audience they chose for each
             // kind of contact. A kind with no row is at its default, which is not stored.
             grab("reach_settings", "SELECT kind, audience FROM reach_settings WHERE public_key = ?1 ORDER BY kind ASC", &[&key]);
+            // Their Media page items, their picks of other people's items, and the categories they
+            // suggested (2026-10-11, storage/media.rs). The files are in `uploads` above.
+            grab("media_items", "SELECT id, upload_filename, title, description, category_id, kind, labels, visibility, featured, size_bytes, views, created_at FROM media_items WHERE uploader_key = ?1 ORDER BY id ASC", &[&key]);
+            grab("media_picks", "SELECT item_id, picked_at FROM media_picks WHERE picker_key = ?1 ORDER BY picked_at ASC", &[&key]);
+            grab("media_category_suggestions", "SELECT id, name, note, created_at, state FROM media_category_suggestions WHERE suggester_key = ?1 ORDER BY id ASC", &[&key]);
             // That this key erased its account here earlier, while this server still
             // remembers it (BUG-135, 2026-10-04): only the day and the window it is kept for,
             // under a one-way fingerprint of the key. It is listed because it is held about
@@ -190,6 +195,12 @@ impl Storage {
     /// leaves is cut off from the key (`erase_left_rows`). The caller
     /// broadcasts roster updates + closes the socket afterwards.
     pub fn delete_account(&self, key: &str, name: &str) -> Vec<(String, usize)> {
+        self.delete_account_in(key, name, std::path::Path::new("data/uploads"))
+    }
+
+    /// [`Self::delete_account`] with the uploads folder named, so a test can erase files in a
+    /// folder of its own (2026-10-11) rather than in the checkout's data/uploads.
+    pub fn delete_account_in(&self, key: &str, name: &str, uploads: &std::path::Path) -> Vec<(String, usize)> {
         // Upload files first (need the rows to find the paths).
         let upload_files: Vec<String> = self
             .with_read_conn(|conn| {
@@ -212,7 +223,7 @@ impl Storage {
             // data/uploads/. The rsplit is kept so a stored value that happens
             // to carry a path prefix still resolves to its basename.
             if let Some(fname) = url.rsplit('/').next() {
-                let path = std::path::Path::new("data/uploads").join(fname);
+                let path = uploads.join(fname);
                 if std::fs::remove_file(&path).is_ok() {
                     files_removed += 1;
                 }
@@ -288,6 +299,13 @@ impl Storage {
             del("fleet_ledger", "DELETE FROM fleet_ledger WHERE public_key = ?1", &[&key]);
             // Who can reach them (2026-10-09, storage/reach.rs).
             del("reach_settings", "DELETE FROM reach_settings WHERE public_key = ?1", &[&key]);
+            // Their Media page items (2026-10-11, storage/media.rs): every pick of them first
+            // (a pick is a reference, so it goes with the item), then the items, their own picks
+            // and their suggestions. The items' files went with `uploads` above.
+            del("media_picks_of_their_items", "DELETE FROM media_picks WHERE item_id IN (SELECT id FROM media_items WHERE uploader_key = ?1)", &[&key]);
+            del("media_items", "DELETE FROM media_items WHERE uploader_key = ?1", &[&key]);
+            del("media_picks", "DELETE FROM media_picks WHERE picker_key = ?1", &[&key]);
+            del("media_category_suggestions", "DELETE FROM media_category_suggestions WHERE suggester_key = ?1", &[&key]);
             // The reports they filed stay for the admins, with the reporter taken out of each
             // (2026-10-09, storage/reports.rs `forget_reporter`; blocking-and-safe-mode.md 10e).
             match super::reports::forget_reporter(conn, key) {
@@ -358,6 +376,9 @@ impl Storage {
             OR EXISTS(SELECT 1 FROM player_progress WHERE public_key = ?1)
             OR EXISTS(SELECT 1 FROM fleet_ledger WHERE public_key = ?1)
             OR EXISTS(SELECT 1 FROM reach_settings WHERE public_key = ?1)
+            OR EXISTS(SELECT 1 FROM media_items WHERE uploader_key = ?1)
+            OR EXISTS(SELECT 1 FROM media_picks WHERE picker_key = ?1)
+            OR EXISTS(SELECT 1 FROM media_category_suggestions WHERE suggester_key = ?1)
             OR EXISTS(SELECT 1 FROM reports_v2 WHERE reporter_key = ?1)";
         self.with_read_conn(|conn| conn.query_row(q, params![key, plot_owner], |r| r.get::<_, bool>(0)))
             .unwrap_or_else(|e| {
@@ -732,6 +753,51 @@ mod tests {
     /// so it normalised nothing and, on a CRLF checkout (the operator's), panicked at its find of
     /// the closing brace: "called `Option::unwrap()` on a `None` value" (run 2026-10-04 on a CRLF
     /// copy of this file); this test passes on a CRLF copy.
+    /// THE MEDIA PAGE IN THE EXPORT AND THE ERASE (2026-10-11, storage/media.rs): the export
+    /// lists a person's items, their picks and their category suggestions; the erase takes them
+    /// all, the items' files, and other people's picks of their items (a pick is a reference),
+    /// and leaves other people's items and picks alone.
+    ///
+    /// Seen red 2026-10-11 with the delete of other people's picks of the items taken out of
+    /// `delete_account_in`: "the picks of an erased person's items went with them / left: 1 /
+    /// right: 0".
+    #[test]
+    fn the_media_page_is_exported_and_erased_with_its_files() {
+        use crate::relay::storage::media::Publish;
+        let db = test_storage();
+        let uploads = crate::test_temp::dir("account_media_uploads");
+        db.join_server("ann_key", "Ann").unwrap();
+        db.join_server("bea_key", "Bea").unwrap();
+        let publish = |key: &str, file: &str| {
+            std::fs::write(uploads.join(file), b"picture").unwrap();
+            db.record_upload(key, file, 100, false, file, 7).unwrap();
+            db.publish_media(key, &Publish { filename: file, visibility: "public", ..Default::default() }, 1 << 40, 1 << 40, None).unwrap()
+        };
+        let ann_item = publish("ann_key", "1_ann.png");
+        let bea_item = publish("bea_key", "2_bea.png");
+        db.pick_media("bea_key", ann_item.id).unwrap();
+        db.pick_media("ann_key", bea_item.id).unwrap();
+        db.suggest_media_category("ann_key", "Fire flow arts", "").unwrap();
+
+        let export = db.export_account("ann_key", "Ann");
+        for (table, n) in [("media_items", 1), ("media_picks", 1), ("media_category_suggestions", 1)] {
+            assert_eq!(export[table].as_array().map(|a| a.len()), Some(n), "the export lists {table}");
+        }
+        assert_eq!(export["media_items"][0]["upload_filename"], "1_ann.png");
+
+        let receipt = db.delete_account_in("ann_key", "Ann", &uploads);
+        assert!(!receipt.iter().any(|(l, _)| l.ends_with("_FAILED")), "{receipt:?}");
+        let rows = |sql: &str| db.with_conn(|c| c.query_row(sql, [], |r| r.get::<_, i64>(0))).unwrap();
+        assert_eq!(rows("SELECT COUNT(*) FROM media_items WHERE uploader_key = 'ann_key'"), 0, "the items went");
+        assert_eq!(rows(format!("SELECT COUNT(*) FROM media_picks WHERE item_id = {}", ann_item.id).as_str()), 0, "the picks of an erased person's items went with them");
+        assert_eq!(rows("SELECT COUNT(*) FROM media_picks WHERE picker_key = 'ann_key'"), 0, "their own picks went");
+        assert_eq!(rows("SELECT COUNT(*) FROM media_category_suggestions"), 0, "their suggestion went");
+        assert!(!uploads.join("1_ann.png").exists(), "the item's file went");
+        assert!(uploads.join("2_bea.png").exists(), "the other person's file stays");
+        assert!(db.media_item(bea_item.id).unwrap().is_some(), "the other person's item stays");
+        assert!(!db.erase_left_rows("ann_key"), "nothing of the account is left");
+    }
+
     #[test]
     fn the_left_rows_check_reads_every_table_the_erase_answers_for() {
         // Not read, with the reason: mail other people send keeps arriving after an erase; a

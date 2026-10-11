@@ -24,3 +24,8 @@ in `src/engine/screens/video.rs` open THIS copy, so the two must stay
 identical. That is enforced: the test
 `the_demo_clip_is_the_test_fixture_byte_for_byte` (same file) reads both and
 fails, naming the script, if they differ.
+
+## Other files
+
+- `ingest.json`: the rules the in-app Open picker and the ffmpeg search follow (`src/media/transcode.rs`).
+- `labels.json`: the content labels the Media page accepts (Spoiler, Flashing lights, Graphic), read by the relay at start (`src/relay/media.rs`, design: `docs/design/media-showcase.md`). A labelled item stays hidden until it is clicked.

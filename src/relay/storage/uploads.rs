@@ -27,17 +27,21 @@ impl Storage {
     /// `shared` (v0.675): shared files enter the public library (GET
     /// /api/uploads) and are EXEMPT from this FIFO -- a shared .blend must not
     /// vanish because its uploader posted four chat photos. The server-wide
-    /// disk cap (checked at upload time) still bounds total storage.
+    /// disk cap (checked at upload time) still bounds total storage. It is the
+    /// shelf: false/0 chat media (this FIFO), true/1 the Shared Files library,
+    /// 2 a Media upload (`storage::media::MEDIA_SHELF`, 2026-10-11: out of this
+    /// FIFO and out of the Shared Files list, held to the Media budget instead).
     pub fn record_upload(
         &self,
         public_key: &str,
         filename: &str,
         max_per_user: i64,
-        shared: bool,
+        shared: impl Into<i64>,
         original_name: &str,
         size_bytes: i64,
     ) -> Result<Vec<String>, rusqlite::Error> {
         let max_per_user = max_per_user.max(1);
+        let shared: i64 = shared.into();
         self.with_conn(|conn| {
             let now = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -48,7 +52,7 @@ impl Storage {
             conn.execute(
                 "INSERT INTO user_uploads (public_key, filename, uploaded_at, shared, original_name, size_bytes)
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-                params![public_key, filename, now, shared as i64, original_name, size_bytes],
+                params![public_key, filename, now, shared, original_name, size_bytes],
             )?;
 
             // Count this key's NON-shared uploads (the media-FIFO population).
@@ -130,6 +134,13 @@ impl Storage {
                 "DELETE FROM user_uploads WHERE filename = ?1",
                 params![filename],
             )?;
+            // A shared file published on the Media page leaves it too, picks and all: the file
+            // is gone, so the item would point at nothing (2026-10-11, storage/media.rs).
+            conn.execute(
+                "DELETE FROM media_picks WHERE item_id IN (SELECT id FROM media_items WHERE upload_filename = ?1)",
+                params![filename],
+            )?;
+            conn.execute("DELETE FROM media_items WHERE upload_filename = ?1", params![filename])?;
             Ok(Some(filename.to_string()))
         })
     }

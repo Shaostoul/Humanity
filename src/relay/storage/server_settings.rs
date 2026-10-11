@@ -161,6 +161,23 @@ pub struct ServerSettings {
     /// Settings > ADMIN > Fleet supply, live, no restart; a change never touches a ledger.
     #[serde(default = "default_fleet_supply_mode")]
     pub fleet_supply_mode: String,
+    /// Who sees the Media page (docs/design/media-showcase.md, 2026-10-11): "public", the
+    /// default, anyone (an item marked members-only still goes to members only); "members",
+    /// nothing to anyone but a signed request from a member of this server (relay/media.rs).
+    #[serde(default = "default_media_visibility")]
+    pub media_visibility: String,
+    /// The Media page's own storage budget in MB (default 2,048), apart from
+    /// `max_total_upload_mb`, which stays for chat files. Every published item and every Media
+    /// upload not yet published counts (storage/media.rs).
+    #[serde(default = "default_media_budget_mb")]
+    pub media_budget_mb: i64,
+    /// Each person's share of the Media budget in MB (default 512).
+    #[serde(default = "default_media_per_person_mb")]
+    pub media_per_person_mb: i64,
+    /// The public gets thumbnails and lighter previews, members the originals and downloads
+    /// (default on). Stored and editable now; increment 2 of the Media design makes the previews.
+    #[serde(default = "default_media_public_previews_only")]
+    pub media_public_previews_only: bool,
     /// Last update unix-millis. 0 = never updated since creation.
     pub updated_at: i64,
     /// Public key of the admin who last touched it. Empty = never.
@@ -185,6 +202,24 @@ fn default_local_channel_enabled() -> bool { true }
 fn default_dm_mailbox_ttl_days() -> i64 { 30 }
 fn default_erased_accounts_ttl_days() -> i64 { 30 }
 fn default_erased_accounts_cap() -> i64 { 100_000 }
+fn default_media_visibility() -> String { "public".to_string() }
+fn default_media_budget_mb() -> i64 { 2048 }
+fn default_media_per_person_mb() -> i64 { 512 }
+fn default_media_public_previews_only() -> bool { true }
+
+/// The range the two Media sizes are held to, in MB (the relay clamps an update to it): at least
+/// 1 MB, at most a million (about a terabyte).
+pub const MEDIA_MB_RANGE: (i64, i64) = (1, 1_000_000);
+
+/// A Media page visibility as it is stored: "public" or "members", whatever the case or spacing
+/// it came in, or None for anything else (a bad message changes nothing).
+pub fn media_visibility_of(v: &str) -> Option<&'static str> {
+    match v.trim().to_ascii_lowercase().as_str() {
+        "public" => Some("public"),
+        "members" => Some("members"),
+        _ => None,
+    }
+}
 
 /// The ranges the two erased-accounts settings are held to (the relay clamps an update to
 /// them, the Server Settings page offers exactly them): at least a day and one entry; at most
@@ -267,6 +302,10 @@ impl Default for ServerSettings {
             erased_accounts_cap: default_erased_accounts_cap(),
             world_time_scale: default_world_time_scale(),
             fleet_supply_mode: default_fleet_supply_mode(),
+            media_visibility: default_media_visibility(),
+            media_budget_mb: default_media_budget_mb(),
+            media_per_person_mb: default_media_per_person_mb(),
+            media_public_previews_only: default_media_public_previews_only(),
             updated_at: 0,
             updated_by: String::new(),
         }
@@ -332,7 +371,8 @@ impl Storage {
                         COALESCE(erased_accounts_ttl_days, 30),
                         COALESCE(erased_accounts_cap, 100000),
                         world_time_scale,
-                        fleet_supply_mode
+                        fleet_supply_mode,
+                        media_visibility, media_budget_mb, media_per_person_mb, media_public_previews_only
                  FROM server_settings WHERE id = 1",
                 [],
                 |row| {
@@ -380,6 +420,12 @@ impl Storage {
                         fleet_supply_mode: fleet_supply_mode_of(&row.get::<_, String>(32)?)
                             .unwrap_or(DEFAULT_FLEET_SUPPLY_MODE)
                             .to_string(),
+                        media_visibility: media_visibility_of(&row.get::<_, String>(33)?)
+                            .unwrap_or("public")
+                            .to_string(),
+                        media_budget_mb: row.get::<_, i64>(34)?.clamp(MEDIA_MB_RANGE.0, MEDIA_MB_RANGE.1),
+                        media_per_person_mb: row.get::<_, i64>(35)?.clamp(MEDIA_MB_RANGE.0, MEDIA_MB_RANGE.1),
+                        media_public_previews_only: row.get::<_, i64>(36)? != 0,
                     })
                 },
             ) {
@@ -438,6 +484,10 @@ impl Storage {
                     erased_accounts_cap             = ?31,
                     world_time_scale                = ?32,
                     fleet_supply_mode               = ?33,
+                    media_visibility                = ?34,
+                    media_budget_mb                 = ?35,
+                    media_per_person_mb             = ?36,
+                    media_public_previews_only      = ?37,
                     updated_at               = ?15,
                     updated_by               = ?16
                  WHERE id = 1",
@@ -477,6 +527,10 @@ impl Storage {
                     s.erased_accounts_cap.max(1),
                     clamp_world_time_scale(s.world_time_scale).unwrap_or_else(default_world_time_scale),
                     fleet_supply_mode_of(&s.fleet_supply_mode).unwrap_or(DEFAULT_FLEET_SUPPLY_MODE),
+                    media_visibility_of(&s.media_visibility).unwrap_or("public"),
+                    s.media_budget_mb.clamp(MEDIA_MB_RANGE.0, MEDIA_MB_RANGE.1),
+                    s.media_per_person_mb.clamp(MEDIA_MB_RANGE.0, MEDIA_MB_RANGE.1),
+                    s.media_public_previews_only as i32,
                 ],
             )?;
             Ok(rows > 0)
@@ -736,6 +790,83 @@ mod tests {
         v.as_object_mut().unwrap().remove("erased_accounts_cap");
         let back: ServerSettings = serde_json::from_value(v).expect("reads without the two fields");
         assert_eq!((back.erased_accounts_ttl_days, back.erased_accounts_cap), (30, 100_000));
+    }
+
+    /// The four Media page settings (2026-10-11, docs/design/media-showcase.md) default to a
+    /// public page, a 2,048 MB budget, a 512 MB share each and previews only for the public, the
+    /// same in the schema and in `ServerSettings::default()`; they round-trip through the
+    /// positional set/get SQL without bleeding into each other; a visibility that is neither
+    /// "public" nor "members" reads as public; and an older relay's settings without them read
+    /// with the defaults.
+    ///
+    /// Seen red 2026-10-11 with ?35 and ?36 swapped in the UPDATE: "assertion `left == right`
+    /// failed: the budget round-trips / left: 300 / right: 4096".
+    #[test]
+    fn media_settings_default_and_round_trip() {
+        let db = fresh_db();
+        let s = db.get_server_settings().expect("get");
+        let d = ServerSettings::default();
+        for (stored, coded) in [(&s, "the schema"), (&d, "ServerSettings::default()")] {
+            let got = (stored.media_visibility.as_str(), stored.media_budget_mb, stored.media_per_person_mb, stored.media_public_previews_only);
+            assert_eq!(got, ("public", 2048, 512, true), "the Media defaults in {coded}");
+        }
+        let mut updated = s.clone();
+        updated.media_visibility = "members".into();
+        updated.media_budget_mb = 4096;
+        updated.media_per_person_mb = 300;
+        updated.media_public_previews_only = false;
+        assert!(db.set_server_settings(&updated, "admin_key").expect("set"));
+        let got = db.get_server_settings().expect("get2");
+        assert_eq!(got.media_visibility, "members");
+        assert_eq!(got.media_budget_mb, 4096, "the budget round-trips");
+        assert_eq!(got.media_per_person_mb, 300, "the share round-trips");
+        assert!(!got.media_public_previews_only);
+        assert_eq!(got.fleet_supply_mode, "unlimited", "no positional-index bleed into the neighbour");
+        db.with_conn(|c| c.execute("UPDATE server_settings SET media_visibility = 'friends'", [])).unwrap();
+        assert_eq!(db.get_server_settings().unwrap().media_visibility, "public", "a stored value that is no visibility reads as public");
+        let mut v = serde_json::to_value(&got).unwrap();
+        for f in ["media_visibility", "media_budget_mb", "media_per_person_mb", "media_public_previews_only"] {
+            v.as_object_mut().unwrap().remove(f);
+        }
+        let back: ServerSettings = serde_json::from_value(v).expect("reads without the four fields");
+        assert_eq!((back.media_visibility.as_str(), back.media_budget_mb, back.media_public_previews_only), ("public", 2048, true));
+        assert_eq!(media_visibility_of(" Members "), Some("members"));
+        assert_eq!(media_visibility_of("friends"), None);
+    }
+
+    /// A server whose database predates the Media page (the live table without the four columns,
+    /// the BUG-046 shape) opens, gains them at their defaults, and keeps what its owner had set.
+    ///
+    /// Seen red 2026-10-11 with the Media ALTER loop in storage/mod.rs switched off:
+    /// "get_server_settings after the upgrade: SqlInputError { error: Error { code: Unknown,
+    /// extended_code: 1 }, msg: \"no such column: media_visibility\", ...".
+    #[test]
+    fn a_server_from_before_the_media_page_gains_its_settings() {
+        let path = crate::test_temp::db("srvset_media");
+        {
+            let db = Storage::open(&path).expect("open");
+            let mut s = db.get_server_settings().expect("get");
+            s.max_total_upload_mb = 777;
+            assert!(db.set_server_settings(&s, "op_key").expect("set"));
+        }
+        {
+            let conn = rusqlite::Connection::open(&path).expect("raw open");
+            conn.execute_batch(
+                "ALTER TABLE server_settings DROP COLUMN media_visibility;
+                 ALTER TABLE server_settings DROP COLUMN media_budget_mb;
+                 ALTER TABLE server_settings DROP COLUMN media_per_person_mb;
+                 ALTER TABLE server_settings DROP COLUMN media_public_previews_only;
+                 DROP TABLE media_picks; DROP TABLE media_items;
+                 DROP TABLE media_categories; DROP TABLE media_category_suggestions;",
+            )
+            .expect("drop columns (SQLite >= 3.35)");
+        }
+        let db = Storage::open(&path).expect("reopen must not fail");
+        let got = db.get_server_settings().expect("get_server_settings after the upgrade");
+        assert_eq!((got.media_visibility.as_str(), got.media_budget_mb, got.media_per_person_mb, got.media_public_previews_only), ("public", 2048, 512, true));
+        assert_eq!(got.max_total_upload_mb, 777, "the owner's settings are kept");
+        let names: Vec<String> = db.media_categories().expect("the Media tables are made").into_iter().map(|c| c.name).collect();
+        assert_eq!(names, vec!["General".to_string()], "an older server starts its Media page with General");
     }
 
     /// Incident-class regression (2026-05-17 lesson): a relay whose DB
