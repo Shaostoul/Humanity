@@ -1457,21 +1457,93 @@ until it is not busy.
 - D4-4 (review 4): Resume clears its retry flag when it is used, so a stale one never skips the
   ten-in-a-row stop or a wait.
 
+**As built (relay, round 4; 2026-10-11).** The cancel decision and R4-1 to R4-5, as written above.
+Code: relay/resumable.rs (`cancel_core`, `cancel_session`, `write_counted`, `take_back_piece`),
+relay/media_ticket.rs (the pool), relay/upload_limits.rs (`unstage`), relay/media.rs (the tests'
+`hold::stop_at`), storage/upload_sessions.rs (`remove_session_files`, `count_upload_piece`,
+`take_back_upload_piece`, `give_back_unstored_pieces`, `Reconciled::given_back`, the expiry and the
+erase's file removal), storage/upload_counts.rs (`add_count_on`, `take_back_on`), storage/members.rs
+(`member_row`, `member_key_at_row`), storage/mod.rs (two columns), storage/expiry.rs,
+storage/account.rs and relay/mod.rs (the start-up log line). Tests: relay/resumable_round4_tests.rs
+(R4-2 to R4-5) and relay/media_round4_tests.rs (R4-1), each seen failing once against a deliberate
+break, named at the test.
+
+- **The cancel (R4-2).** `DELETE /api/upload/resumable/<id>`, by what the session is when the
+  cancel holds it (it is read again after the one-at-a-time marker is taken, so a finish that ended
+  a moment before counts as finished):
+  - a piece or the finish being written: 409 `{error, busy: true}`, nothing done;
+  - still arriving: its row and its pieces file go (wherever the file is, R4-5): `{ok: true}`;
+  - finished, not published: the stored file is removed from the waiting folder, then its
+    `user_uploads` row, then the session's row: `{ok: true, removed_stored: true}`. Also when the
+    file was already gone (its own Remove, or the day's expiry of unpublished uploads): nothing
+    stays either way;
+  - finished and published: the item and its file stay; the session's row goes:
+    `{ok: true, published: true}`.
+
+  The finished cases run under the room lock, as a publish does, so a publish of the same file
+  either came first (the answer is `published`) or finds nothing left to publish. A stored file
+  that cannot be deleted is answered 500 with plain words and keeps every row, so nothing is left
+  that no row knows of, and the app may ask again. The cancel's work runs off the async executor
+  and holds the marker to its end, as a piece does.
+- **R4-1, tickets.** At most 16 live per person (`TICKETS_PER_PERSON`); the 17th is still refused
+  with 429 and the same words as before, so one person's burst never touches anyone else. The pool
+  is 500,000 (`TICKETS_MAX`) and, full, drops its OLDEST ticket to make room: a new person always
+  gets one. A ticket keeps no key: the item, a 16-byte BLAKE3 fingerprint of the item's file name,
+  the member's row number in `server_members` and a 16-byte fingerprint of their key, and the time
+  it runs out, 64 bytes with nothing on the heap (the record is `Copy`, checked when the relay
+  compiles), 128 bytes a ticket with its place in the map and in the oldest-first queue
+  (`BYTES_PER_TICKET`). A full pool is about 140 MB at most with the tables' spare room (round 3's
+  pool of 50,000 was about 200 MB). Each request finds the person by their row number and checks
+  the key there against the fingerprint, then that they are a member and not banned, so a row
+  number given to someone else after the member left never inherits a ticket.
+- **R4-3, a piece counted and never stored.** A piece's count and a note of it on its session
+  (`counted_bytes`, `counted_at`) are written in one transaction under the room lock; storing the
+  offset clears the note in the same statement; a failed write takes the count back and clears it.
+  At start, before anything is cut back or removed, every session still carrying a note gives
+  those bytes back to the day window holding `counted_at` (the day it was counted in, not the day
+  of the restart) and clears it; the file is cut back to the offset as before. The piece sent
+  again is counted once. The start-up log line says how many were given back.
+- **R4-4, no copy under the room lock.** `unstage` moves a pieces file back by a rename only. A file
+  `put` moved there was renamed, so it is on the same disk; one that still cannot be renamed back
+  (a folder gone, another program holding it) stays staged under its session's name, and the next
+  finish or the next start brings it back (`restore_staged_part`, which may copy, and runs with no
+  lock held).
+- **R4-5, staged files go with their sessions.** The expiry pass and the account erase remove a
+  session's pieces file from the resume folder and its staged name from the waiting and the public
+  folders (`remove_session_files`, which the cancel uses too); the erase's
+  `upload_session_files_removed` counts the sessions that had a file removed.
+
+**Honest limits.** The R4-4 test runs on Windows only: a file held open without delete sharing is
+how a rename fails there while a copy still works, and no portable way was found to make that
+happen. The schema's two new columns are in the `CREATE TABLE` (like the round's three before
+them, this version is unreleased): the live server had no `upload_sessions` table on 2026-10-11
+(read-only check), so nothing there needs a migration. A finish that stored its file but could not
+write its answer on the session (a database error, logged) looks unfinished to a cancel, which then
+removes only the session: that file waits until the day's expiry of unpublished uploads, as round
+3's limit already says of a relay that stops between the last rename and the row. The tickets'
+lookup trusts a member row number while the membership lasts: `server_members` rows are made by
+an `INSERT` (never a `REPLACE`, which would give a new number), and nothing runs a plain `VACUUM`
+(which may renumber rows),
+so it lasts; if it ever changed, the fingerprint check refuses the ticket and the app asks again.
+
 **As built (web, round 4; 2026-10-11).** The web's half of round 4: W4-1 to W4-4 and the cancel
 decision at the top of this section, written before the relay's round 4 landed, against the shapes
 stated above (`{ok: true, removed_stored: true}`, `{ok: true, published: true}`, 409 `{busy:
-true}`) and tested against stand-in answers in them. Code: web/pages/media-upload.js (`nap`,
+true}`) and tested against stand-in answers in them, then checked against the relay's note just
+above once it landed (a18ff7d63): the answers match, and its one addition, a 500 in plain words
+with every row kept when the stored file cannot be deleted, is asked again and then said in the
+server's own words (W4-3 below, test W4-3f). Code: web/pages/media-upload.js (`nap`,
 `cancelSession` new, `readAnswer` moved out of the uploader), web/pages/media-app.js (the ticket
 renewal, `openViewer`, `sayCancelled`, the unfinished uploads' Cancel; `removeStored` and the
 uploader's `onStored` deleted) and web/chat/chat-dms.js (`openPrivatePicture`). Tests:
-scripts/tests/media-web-round4.test.js (new, 8 tests), one "W4-4" test at the end of
+scripts/tests/media-web-round4.test.js (new, 9 tests), one "W4-4" test at the end of
 scripts/tests/private-files-web.test.js, and round 3's 2b in media-web-round3.test.js, whose
 expectation round 4 changes (it now proves nothing is removed by hand, and says so). The resumable
 upload's stand-ins moved from media-web-round3.test.js into media-web-harness.js
 (`resumableRelay`, `uploaderOn`, `aFile`, `sleeper`, `drive`), the stand-in relay answering a
-cancel as round 4's does. Each test was seen failing once against one break in a copy of web/
-(nine breaks), and every round 4 test fails against round 3's web/ (3077155ed); the break and the
-words it tripped are noted above each test.
+cancel as round 4's relay does. Each test was seen failing once against one break in a copy of
+web/ (ten breaks), and every round 4 test fails against round 3's web/ (3077155ed); the break and
+the words it tripped are noted above each test.
 
 - **W4-1.** `nap(ms, phase, extra)` is every wait the upload makes, and it returns at once when
   Pause or Cancel has been pressed, BEFORE it shows its phase: a wait that would begin after the
@@ -1496,8 +1568,12 @@ words it tripped are noted above each test.
   connection, a 5xx, a 429, a token from before the page signed in again, or no token yet is tried
   again, ten times in all, and then the page says "The cancel could not reach the server, so what
   arrived may still be there. It is listed on this page with Cancel or Remove once the server
-  answers again, and the server deletes it by itself within a day." (with the server's last words,
-  if it gave any) instead of taking it for done. Any other refusal is shown in the server's words.
+  answers again, and the server deletes it by itself within a day." instead of taking it for done.
+  When the server did answer every time, with an error (the relay's 500 when the stored file
+  cannot be deleted, which keeps every row), the page says "The server could not finish the
+  cancel, so what arrived may still be there. It is listed on this page with Cancel or Remove, to
+  try again. The server said: " and the server's words. Any other refusal is shown in the server's
+  words.
   An unfinished row's Cancel reads "Cancelling..." and is disabled while it goes; a second press
   sends nothing more.
 - **W4-4.** `openPrivatePicture` takes an entry out of the Map and puts it back when its picture
@@ -1505,8 +1581,9 @@ words it tripped are noted above each test.
   that finished before it. Twenty 16 MB pictures finishing in reverse now keep 128 MB (the last
   eight to finish), not 320 MB.
 
-**Honest limits.** Not yet run against the relay's round 4, which was being built at the same
-time: the shapes are the spec's. An upload in the list whose cancel could not be confirmed is
+**Honest limits.** The web tests run against stand-ins in the relay's shapes, not against the
+relay itself (there is no web rig for the relay); the shapes were checked against the relay's note
+and code (resumable.rs `cancel_core`) once it landed. An upload in the list whose cancel could not be confirmed is
 forgotten by this browser at once (as before), so it is offered again only through the server's
 own lists once the server answers (the unfinished uploads with Cancel, or a stored file among the
 uploads waiting with Remove); a row of the unfinished list is forgotten only when its cancel is

@@ -10,7 +10,9 @@
 // `{busy: true}` while a piece or the finish is being written, `{ok: true, removed_stored: true}`
 // on a finished upload not yet published (its stored file deleted with it), `{ok: true,
 // published: true}` on one already published (its item left), else `{ok: true}`. Written before the
-// relay's round 4 landed, against those shapes. Every wait goes through a stand-in sleep that
+// relay's round 4 landed, against those shapes, then checked against it as built (a18ff7d63): the
+// same, plus a 500 in plain words, everything kept, when the stored file cannot be deleted (W4-3f).
+// Every wait goes through a stand-in sleep that
 // records how long it was asked for and ends only when the test wakes it. HOS_WEB_DIR points the
 // test at another copy of web/ (used to see each test red).
 //
@@ -27,7 +29,9 @@
 //        it says busy, for as long as it does; `removed_stored` means the server deleted the file
 //        the finish had stored, so nothing is removed by hand and the page says so; `published`
 //        says the file stays on the Media page; a cancel the server never heard is said, not taken
-//        for done. The unfinished uploads' Cancel uses the same answer.
+//        for done, and one it answered with an error every time (its 500 when the stored file
+//        cannot be deleted) is said in its words. The unfinished uploads' Cancel uses the same
+//        answer.
 //
 // Seen red 2026-10-11: each with one break made in a copy of web/ under HOS_WEB_DIR, then green
 // again on the real web/: see the note above each test.
@@ -306,6 +310,11 @@ test("W4-3c. the cancel answer one by one: busy is asked again for as long as it
   assert.deepEqual(never.waits, [2000, 4000, 8000, 16000, 30000, 30000, 30000, 30000, 30000]);
   const failing = await cancelWith([respond(503, NGINX_503)]);
   assert.deepEqual(failing.told, { answer: "unconfirmed", words: "The server answered 503." });
+  // The relay's 500 when the stored file could not be deleted keeps everything: asked again.
+  const CANNOT = "The uploaded file could not be removed from the server (Access is denied. (os error 5)). Try again in a moment.";
+  const once = await cancelWith([respond(500, CANNOT), respond(200, { ok: true, removed_stored: true })]);
+  assert.deepEqual(once.told, { answer: "removed_stored", words: "" }, "a 500 is asked again");
+  assert.deepEqual(once.waits, [2000]);
 });
 
 // Seen red 2026-10-11 with the page's onChange for 'cancelled' not saying the answer (the
@@ -325,6 +334,39 @@ test("W4-3d. Cancel on the page: a cancel the server never heard is said, not ta
   await drive(sl, () => entries(doc).length === 0, 30);
   assert.equal(relay.log.filter((e) => e.kind === "DELETE").length, upload.CANCEL_TRIES, "tried that many times");
   assert.equal(notice(doc), W.cancelUnconfirmed, "a cancel the server never heard is said");
+  assert.ok(byId(doc, "media-notice").className.includes("media-warn"), "as a warning");
+});
+
+// The relay as built (a18ff7d63): a finished upload whose stored file cannot be deleted is answered
+// 500 in plain words, and every row is kept so the app may ask again.
+// Seen red 2026-10-11 with sayCancelled saying round 4's first words for every unconfirmed cancel
+// (`say(MEDIA_WORDS.cancelUnconfirmed, true)`, "could not reach the server" for a server that
+// answered): "the server's own words, not 'could not reach' / actual 'The cancel could not reach
+// the server, ...'".
+test("W4-3f. a stored file the server cannot delete: the cancel is asked again, then said in the server's words, never taken for done", async () => {
+  const CANNOT = "The uploaded file could not be removed from the server (Access is denied. (os error 5)). Try again in a moment.";
+  let finishing = null;
+  const relay = resumableRelay({
+    finish: async () => { await new Promise((r) => { finishing = r; }); return null; },
+    // The cancel arrives just after the finish stored the file, which the server cannot delete.
+    del: async (_c, sess) => {
+      if (finishing) { const f = finishing; finishing = null; f(); await settle(); sess.cannotDelete = true; }
+      return null;
+    },
+  });
+  const sl = sleeper();
+  const { doc } = await openPage({ sleep: sl.sleep, routes: listRoutes(listAnswer([]), relay.routes) });
+  await pickFile(doc, aFile("clip.mp4", 10 * MIB));
+  byId(doc, "media-form-go").click();
+  await settle();
+  assert.equal(typeof finishing, "function", "the server is storing the last piece");
+  entryButton(entries(doc)[0], "cancel").click();
+  await drive(sl, () => entries(doc).length === 0, 30);
+  const del = relay.log.filter((e) => e.kind === "DELETE");
+  assert.equal(del.length, upload.CANCEL_TRIES, "asked again, that many times");
+  const sess = relay.sessions.get(del[0].id);
+  assert.ok(sess.done && !sess.deleted && !sess.storedRemoved, "everything stays on the server, to try again");
+  assert.equal(notice(doc), W.cancelNotFinished + CANNOT, "the server's own words, not 'could not reach'");
   assert.ok(byId(doc, "media-notice").className.includes("media-warn"), "as a warning");
 });
 

@@ -145,6 +145,7 @@
     cancelledStored: 'Cancelled. The file had already been stored, so it was deleted too.',
     cancelledPublished: 'Cancelled, but the file was already on the Media page, so it stays there. Remove on its tile takes it off.',
     cancelUnconfirmed: 'The cancel could not reach the server, so what arrived may still be there. It is listed on this page with Cancel or Remove once the server answers again, and the server deletes it by itself within a day.',
+    cancelNotFinished: 'The server could not finish the cancel, so what arrived may still be there. It is listed on this page with Cancel or Remove, to try again. The server said: ',
     cancellingUnfinished: 'Cancelling...',
     ticketOdd: 'The server did not give this page an address for the file.',
     reportLeadTail: ' is not told who reported them.',
@@ -1420,12 +1421,15 @@
 
     /**
      * What a cancel the server answered means, said on the page (round 4's cancel answer,
-     * media-upload.js `cancelSession`): nothing for a plain cancel, which the list shows.
+     * media-upload.js `cancelSession`): nothing for a plain cancel, which the list shows. A cancel
+     * never confirmed is one the server never heard, or one it answered with an error every time
+     * (its 500 when the stored file could not be deleted keeps everything, to ask again): its
+     * last words are said then.
      */
     function sayCancelled(answer, words) {
       if (answer === 'removed_stored') say(MEDIA_WORDS.cancelledStored);
       else if (answer === 'published') say(MEDIA_WORDS.cancelledPublished);
-      else if (answer === 'unconfirmed') say(MEDIA_WORDS.cancelUnconfirmed + (words ? ' ' + words : ''), true);
+      else if (answer === 'unconfirmed') say(words ? MEDIA_WORDS.cancelNotFinished + words : MEDIA_WORDS.cancelUnconfirmed, true);
       else if (answer === 'refused') say(words, true);
     }
 

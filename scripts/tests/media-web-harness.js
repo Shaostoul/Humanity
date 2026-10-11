@@ -461,11 +461,13 @@ async function drive(sl, until, turns) {
  * holds every request it got, in order.
  *
  * A cancel (DELETE) answers as round 4's relay does (docs/design/media-showcase.md "Round 4", a
- * cancel means nothing stays): 409 `{busy: true}` while a piece or the finish is being written;
- * `{ok: true, removed_stored: true}` on a finished upload not yet published, whose stored file it
- * deletes too (`sess.storedRemoved`); `{ok: true, published: true}` on one already published
+ * cancel means nothing stays, and its "As built (relay, round 4)"): 409 `{error, busy: true}`
+ * while a piece or the finish is being written, nothing done; `{ok: true, removed_stored: true}`
+ * on a finished upload not yet published, whose stored file it deletes too
+ * (`sess.storedRemoved`); `{ok: true, published: true}` on one already published
  * (`sess.published`, set by a test), whose item it leaves; else `{ok: true}`. After it, the
- * session is gone (404).
+ * session is gone (404). A finished one whose stored file cannot be deleted (`sess.cannotDelete`,
+ * set by a test) is answered 500 in plain words, and everything stays, to be asked again.
  */
 function resumableRelay(hooks) {
   const r = { next: 0, sessions: new Map(), log: [], pieces: [], hooks: hooks || {}, chunk: 8 * MIB };
@@ -494,6 +496,7 @@ function resumableRelay(hooks) {
       if (method === "DELETE") {
         if (r.hooks.del) { const a = await r.hooks.del(c, sess); if (a) return a; }
         if (sess.busy) return busy();
+        if (sess.done && !sess.published && sess.cannotDelete) return respond(500, "The uploaded file could not be removed from the server (Access is denied. (os error 5)). Try again in a moment.");
         sess.deleted = true;
         if (sess.done && sess.published) return respond(200, { ok: true, published: true });
         if (sess.done) { sess.storedRemoved = true; return respond(200, { ok: true, removed_stored: true }); }

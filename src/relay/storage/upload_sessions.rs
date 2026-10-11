@@ -119,6 +119,21 @@ pub fn restore_staged_part(folders: super::media::Folders, id: &str) -> bool {
     false
 }
 
+/// Remove session `id`'s pieces file wherever it is (R4-5, 2026-10-11): in the resume folder, or
+/// staged under its session's name ([`staged_part_name`]) in the Media waiting folder or the public
+/// one, where a finish that could not move it back keeps it (R3-5). The cancel, the expiry pass and
+/// the account erase all remove a session this way, so a staged file never outlives its session
+/// until the next restart. Whether any file was removed.
+pub fn remove_session_files(folders: super::media::Folders, id: &str) -> bool {
+    let Some(part) = part_path(folders.resume, id) else { return false };
+    let staged = staged_part_name(id);
+    let mut removed = std::fs::remove_file(part).is_ok();
+    for dir in [folders.waiting, folders.uploads] {
+        removed |= std::fs::remove_file(dir.join(&staged)).is_ok();
+    }
+    removed
+}
+
 /// What the start-up settling of the upload folders did ([`Storage::settle_uploads_at_start`]).
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct Settled {
@@ -141,6 +156,9 @@ pub struct Reconciled {
     /// Files SHORTER than their stored offset (should never happen; a disk that lost a write):
     /// the offset is lowered to what is there, so the app sends the rest again.
     pub offset_lowered: usize,
+    /// Pieces counted against the day's allowance whose offset was never stored: their bytes
+    /// given back to the day they were counted in (R4-3).
+    pub given_back: usize,
 }
 
 const COLUMNS: &str = "id, public_key, filename, content_type, size, offset, shelf, blake3, created_at, touched_at, keep_metadata, hash_checked, done_answer";
@@ -225,10 +243,68 @@ impl Storage {
     }
 
     /// `offset` bytes of session `id` are safely on disk. Whether the session is still there (an
-    /// expiry or a cancel may have taken it while the piece was written).
+    /// expiry or a cancel may have taken it while the piece was written). The piece counted on the
+    /// session ([`Storage::count_upload_piece`]) is stored with it, so the session holds no count
+    /// after (R4-3).
     pub fn set_upload_session_offset(&self, id: &str, offset: i64, now_ms: i64) -> Result<bool, rusqlite::Error> {
         self.with_conn(|conn| {
-            conn.execute("UPDATE upload_sessions SET offset = ?2, touched_at = ?3 WHERE id = ?1", params![id, offset, now_ms]).map(|n| n > 0)
+            conn.execute(
+                "UPDATE upload_sessions SET offset = ?2, touched_at = ?3, counted_bytes = 0, counted_at = 0 WHERE id = ?1",
+                params![id, offset, now_ms],
+            )
+            .map(|n| n > 0)
+        })
+    }
+
+    /// A piece of session `id`, `bytes` long, counted against `key`'s day's allowance at `now_ms`
+    /// (R3-1), and the count written on the session until the piece's offset is stored (R4-3), in
+    /// one transaction: a relay that stops between counting a piece and storing its offset gives
+    /// the bytes back at its next start ([`Storage::give_back_unstored_pieces`]), to the day they
+    /// were counted in. Whether the session is still there (nothing is counted when it is not).
+    pub fn count_upload_piece(&self, id: &str, key: &str, now_ms: i64, bytes: i64) -> Result<bool, rusqlite::Error> {
+        self.with_conn_mut(|conn| {
+            let tx = conn.transaction()?;
+            let there = tx.execute("UPDATE upload_sessions SET counted_bytes = ?2, counted_at = ?3 WHERE id = ?1", params![id, bytes, now_ms])? > 0;
+            if there {
+                super::upload_counts::add_count_on(&tx, key, super::upload_counts::Span::Day, now_ms, bytes)?;
+            }
+            tx.commit()?;
+            Ok(there)
+        })
+    }
+
+    /// The piece counted on session `id` at `counted_at` ([`Storage::count_upload_piece`]) was not
+    /// stored after all (its write failed, or the session went meanwhile): its `bytes` go back off
+    /// `key`'s day they were counted in, and the session holds no count (R4-3).
+    pub fn take_back_upload_piece(&self, id: &str, key: &str, counted_at: i64, bytes: i64) -> Result<(), rusqlite::Error> {
+        self.with_conn_mut(|conn| {
+            let tx = conn.transaction()?;
+            super::upload_counts::take_back_on(&tx, key, super::upload_counts::Span::Day, counted_at, bytes)?;
+            tx.execute("UPDATE upload_sessions SET counted_bytes = 0, counted_at = 0 WHERE id = ?1", params![id])?;
+            tx.commit()
+        })
+    }
+
+    /// At relay start, when no piece can be arriving (R4-3, 2026-10-11): every piece counted
+    /// against the day's allowance whose offset was never stored (the relay stopped between
+    /// counting it and storing its offset) gives its bytes back to the day it was counted in, and
+    /// its session holds no count after. The start-up check cuts such a piece off the file with
+    /// anything else past the offset, so the app sends it again and it is counted then: without
+    /// this it was counted twice. How many sessions gave bytes back.
+    pub fn give_back_unstored_pieces(&self) -> Result<usize, rusqlite::Error> {
+        self.with_conn_mut(|conn| {
+            let tx = conn.transaction()?;
+            let counted: Vec<(String, String, i64, i64)> = {
+                let mut stmt = tx.prepare("SELECT id, public_key, counted_bytes, counted_at FROM upload_sessions WHERE counted_bytes > 0")?;
+                let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))?.collect::<Result<Vec<_>, _>>()?;
+                rows
+            };
+            for (id, key, bytes, at) in &counted {
+                super::upload_counts::take_back_on(&tx, key, super::upload_counts::Span::Day, *at, *bytes)?;
+                tx.execute("UPDATE upload_sessions SET counted_bytes = 0, counted_at = 0 WHERE id = ?1", params![id])?;
+            }
+            tx.commit()?;
+            Ok(counted.len())
         })
     }
 
@@ -238,8 +314,10 @@ impl Storage {
     }
 
     /// The expiry pass's share (storage/expiry.rs): every session with no piece for
-    /// [`SESSION_IDLE_MS`] before `now_ms` goes, row and file (in `dir`). How many went.
-    pub fn expire_upload_sessions_in(&self, dir: &Path, now_ms: i64) -> Result<usize, rusqlite::Error> {
+    /// [`SESSION_IDLE_MS`] before `now_ms` goes, row and pieces file, wherever that file is: the
+    /// resume folder, or staged by a finish that could not move it back (R4-5,
+    /// [`remove_session_files`]). How many went.
+    pub fn expire_upload_sessions_in(&self, folders: super::media::Folders, now_ms: i64) -> Result<usize, rusqlite::Error> {
         let ids: Vec<String> = self.with_conn(|conn| {
             let ids: Vec<String> = {
                 let mut stmt = conn.prepare("SELECT id FROM upload_sessions WHERE touched_at < ?1")?;
@@ -252,18 +330,17 @@ impl Storage {
             Ok::<_, rusqlite::Error>(ids)
         })?;
         for id in &ids {
-            if let Some(path) = part_path(dir, id) {
-                let _ = std::fs::remove_file(path);
-            }
+            remove_session_files(folders, id);
         }
         Ok(ids.len())
     }
 
-    /// Delete the pieces' files of every session of `key` from `dir` (the account erase, before
-    /// it deletes the rows: storage/account.rs). How many files were deleted.
-    pub fn delete_upload_session_files_in(&self, key: &str, dir: &Path) -> usize {
+    /// Delete the pieces' files of every session of `key` (the account erase, before it deletes
+    /// the rows: storage/account.rs), wherever each is: the resume folder, or staged by a finish
+    /// (R4-5, [`remove_session_files`]). How many sessions had a file deleted.
+    pub fn delete_upload_session_files_in(&self, key: &str, folders: super::media::Folders) -> usize {
         let ids: Vec<String> = self.upload_sessions_of(key).map(|v| v.into_iter().map(|s| s.id).collect()).unwrap_or_default();
-        ids.iter().filter_map(|id| part_path(dir, id)).filter(|p| std::fs::remove_file(p).is_ok()).count()
+        ids.iter().filter(|id| remove_session_files(folders, id)).count()
     }
 
     /// At relay start, when no upload can be arriving (relay/mod.rs `run_relay`), in the order
@@ -319,7 +396,9 @@ impl Storage {
     /// with no session is deleted (so is anything else in the folder: it is the relay's own); a
     /// session with no file is deleted; a file longer than its stored offset (the relay stopped
     /// between writing a piece and storing the offset) is cut back to the offset, so the app sends
-    /// that piece again; a file shorter than its offset lowers the offset to what is there.
+    /// that piece again; a file shorter than its offset lowers the offset to what is there. Before
+    /// any of that, a piece counted and never stored gives its bytes back to the day it was counted
+    /// in (R4-3, [`Storage::give_back_unstored_pieces`]), so the piece sent again counts once.
     pub fn reconcile_upload_sessions_in(&self, dir: &Path) -> Result<Reconciled, rusqlite::Error> {
         self.reconcile_upload_sessions_keeping(dir, &std::collections::HashSet::new())
     }
@@ -328,6 +407,9 @@ impl Storage {
     /// file in `dir`: their pieces file is staged elsewhere and could not be moved back yet (R3-5).
     pub fn reconcile_upload_sessions_keeping(&self, dir: &Path, staged: &std::collections::HashSet<String>) -> Result<Reconciled, rusqlite::Error> {
         let mut done = Reconciled::default();
+        // First, before any file is cut back or any row goes: a piece counted and never stored
+        // gives its bytes back (R4-3).
+        done.given_back = self.give_back_unstored_pieces()?;
         let sessions = self.all_upload_sessions()?;
         // The files first: anything that is not a live session's file goes.
         if let Ok(entries) = std::fs::read_dir(dir) {
