@@ -599,12 +599,19 @@ async function sendEncryptedAttachment(file) {
   const indicator = document.getElementById('upload-indicator');
   try {
     if (indicator) { indicator.textContent = `Encrypting ${file.name}…`; indicator.style.display = 'block'; }
-    const bytes = new Uint8Array(await file.arrayBuffer());
+    // WebCrypto's AES-GCM takes the whole file and gives the whole ciphertext, so while it
+    // encrypts the page holds both. After that only one copy is kept at a time (round 3,
+    // review 7): the plain bytes are let go before the upload, and the ciphertext once the
+    // upload's Blob holds its own copy of it.
+    let bytes = new Uint8Array(await file.arrayBuffer());
     const enc = await pqEncryptFile(bytes);
+    bytes = null;
     if (indicator) indicator.textContent = `Uploading ${file.name}…`;
     const uploadBase = `${uploadBase0}&encrypted=1`;
+    const sealed = new Blob([enc.cipherBytes], { type: 'application/octet-stream' });
+    enc.cipherBytes = null;
     const fd = new FormData();
-    fd.append('file', new Blob([enc.cipherBytes], { type: 'application/octet-stream' }), 'attachment.enc');
+    fd.append('file', sealed, 'attachment.enc');
     const resp = await fetch(uploadBase, { method: 'POST', body: fd });
     if (!resp.ok) { addSystemMessage(`Upload failed: ${await resp.text()}`); return; }
     const data = await resp.json();

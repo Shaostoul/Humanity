@@ -58,6 +58,8 @@
   font-family: inherit; font-size: var(--text-sm);
 }
 .media-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* A labelled item's cover in the viewer (/media?id=<n> included), until it is clicked. */
+.media-viewer-veil { clear: both; max-width: min(640px, 100%); margin: 0 auto var(--space-md); }
 .media-thumb-missing { cursor: default; padding: var(--space-md); text-align: center; font-size: var(--text-xs); }
 .media-veil { border-color: var(--warning); }
 .media-veil-labels { color: var(--warning); font-weight: 700; }

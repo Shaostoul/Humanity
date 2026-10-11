@@ -1214,3 +1214,86 @@ again. The staged name keeps the pieces file, which is the risk this round was a
 `resets_in_s` is the relay's own count and does not know the app's clock; an app that waits it out
 and finds the allowance still used (a second upload of the same person counted meanwhile) is
 refused again with a new number.
+
+**As built (web, round 3, 2026-10-11).** The web's half of round 3: the "Both apps" and "Web only"
+items, written against the relay shapes R3-6 to R3-9 above before they landed and tested against
+stand-in answers in those shapes, then checked against the relay's note just above once it landed
+(the 429 allowance JSON, `uploads_in_progress`, the ticket's request, answer and refusals, the
+header on the four resumable routes): they match, and nothing on the web changed for it. Code: web/pages/media-upload.js (the resumable upload),
+web/pages/media-app.js (the page), web/chat/chat-dms.js and chat-messages.js (private files),
+web/shared/media.css and web/chat/messages.css. Tests: scripts/tests/media-web-round3.test.js (new,
+17 tests), three "review 7" tests at the end of scripts/tests/private-files-web.test.js, and the
+round 2 tests whose expectations round 3 changes (D, E, N3, N4 and N8 in media-web-round2.test.js,
+the start's header in media-web.test.js test 6), each changed test saying how. Every one was seen
+failing once against a single break in a copy of web/ (34 breaks in all, the break and the words it
+tripped noted above each test).
+
+- **Review 1, server errors.** A 5xx (any but 507) or a 429 without the allowance's JSON (nginx's
+  own page) is "wait and try again", at the start and on a piece: 2 s doubling to 30 s, then the
+  upload asks where the server got and carries on. The same status ten times running stops in
+  `server_error` with the server's words and Retry (which starts a fresh count) and Cancel. A
+  proxy's HTML is never shown: such an answer reads "The server answered 503.". A 409 busy is asked
+  again after the same growing wait (it used to fire about once a second).
+- **Both apps, Pause.** Pause stops the request on its way (an AbortController on every request but
+  the start, whose answer names the session that a Cancel then deletes) and cuts short every wait:
+  a dropped connection's, a server error's, the busy wait and an allowance's. No request is made
+  after it, and Resume first asks the server where it got, since a stopped piece may have arrived.
+- **Both apps, the allowance.** A 429 with `allowance` (or `resets_in_s`): when `left_bytes` is
+  smaller than the piece, the piece is cut to it and sent at once; otherwise the upload waits the
+  server's `resets_in_s`, at least 5 seconds, says when that is on this device's clock ("It carries
+  on by itself then."), and carries on by itself, with Pause and Cancel while it waits. Before
+  R3-6, `resets_at` against this device's clock is the fallback.
+- **Both apps, R3-9.** Every resumable request (start, status, piece, cancel) carries the token in
+  `X-Upload-Token`; none has it in its address.
+- **Review 4, a file that can no longer be read.** Each piece is read into memory before it is sent
+  (8 MiB at most), so a read that fails (the file moved, changed or its drive unplugged) ends the
+  upload: `"clip.mp4" can no longer be read on this device (it was moved, changed, or the drive it
+  is on was unplugged), so the upload stopped.` It is never taken for a dropped connection.
+- **Review 2, uploads are a list.** Pressing "Upload and add" moves the form, fields and all, into
+  #media-uploads, where it shows its own bar, words, Pause, Resume or Retry, and Cancel (its parts
+  named by `data-upload-*`, its ids given the upload's number); the form area is free at once, so
+  Add to Media, Put on Media or Publish opened meanwhile never touches it. Each upload publishes
+  itself with what its own form says when its file is up; a publish that fails leaves it in the
+  list with its words, "Put on Media" again and Close. The same file cannot be started twice while
+  it goes. Cancel while the server is storing the last piece is asked again while the server says
+  busy, and when the store finished first (the piece's answer, or `done` on the status) the stored
+  file is removed too (`POST /api/media/remove` by its name, signed `media_remove:<name>`).
+- **Review 3, abandoned sessions.** The record in this browser is dated by its last accepted piece
+  (the relay's day runs from the last piece) and forgotten when the upload finishes, fails or is
+  cancelled. Close on a failed upload cancels it on the server. The server's
+  `uploads_in_progress` (R3-7) that no upload on this page carries are listed under "Unfinished
+  uploads on the server" (name, how much of it was sent) with Cancel: `DELETE` with the token in
+  the header, then this browser forgets it and the share is asked again.
+- **Review 8, the fingerprint.** A record carries `fp`, SHA-256 (WebCrypto) of the file's first and
+  last megabyte, and a resume needs it to match as well as the name, size and date; a record
+  without one is not resumed. The page works it out once when the file is picked and hands it to
+  the upload.
+- **Review 5, members-only files.** Pictures stay fetched with the header, at most four at once,
+  each with an AbortController: a picture no longer shown has its fetch stopped (its slot frees)
+  and its object URL revoked; a list loaded afresh keeps the pictures it showed until it answers,
+  so they are neither revoked nor fetched again. A members-only video plays from a ticket
+  (`POST /api/media/ticket`, the token in the header, body `{id, filename}`), so the browser streams
+  it; when the video errors on a ticket over a minute old, a new ticket is put under the same
+  element where it stopped, playing on. Every members-only Download (but a picture already here)
+  asks for a ticket of its own and lets the browser save from it, drawn without redrawing the
+  viewer, so Download beside a playing video never restarts it. A ticket's address must be this
+  server's `/api/media/file/<that id>?ticket=`.
+- **Review 6, `/media?id=`.** The viewer keeps the label cover: a labelled item opened by its number
+  (or any way) shows its labels and "Click to show", with no Download and nothing fetched until the
+  click.
+- **Review 7, private files in the chat.** By the marker's size: a picture is shown in place only up
+  to 16 MB (a friend's larger "picture" is a Save card saying it is larger than is shown here),
+  Save opens any file up to 512 MB, and a larger file is a card saying to open it in the HumanityOS
+  desktop app, with nothing to press and nothing fetched. The server's own length is held to the
+  same limits (its Content-Length when it gives one, else the bytes received), so a marker that
+  says less than its file cannot make a browser open more. An opened picture is kept for the page
+  (its object URL, by address and key, at most 128 MB of them, oldest let go first), so a
+  conversation drawn again does not download it again. The sender lets the plain bytes go as soon
+  as they are encrypted and the ciphertext once the upload's Blob holds its own copy; while
+  WebCrypto's AES-GCM runs, both copies exist, since it takes and gives the whole file.
+- **Honest limits.** The video's new ticket depends on the browser firing `error` when a range
+  request is refused (all current ones do); a ticket younger than a minute is not renewed, so a
+  file that fails at once fails once. The allowance and back-off waits run only while the page is
+  open: a closed tab's upload is listed under the unfinished ones on the next visit. The web Roles
+  editor still does not exist (see round 2). Members-only pictures are not ticketed, as the spec
+  says.
