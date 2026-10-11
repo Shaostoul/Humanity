@@ -309,6 +309,9 @@ pub async fn handle_raw_task_create(
 // ── Profile handlers ──
 
 /// Returns true if processing should continue to next message (i.e., caller should `continue`).
+/// The longest bio, in characters (after the HTML clean-up), the same on both apps.
+pub const BIO_MAX_CHARS: usize = 280;
+
 pub async fn handle_profile_update(
     state: &Arc<RelayState>,
     my_key: &str,
@@ -354,7 +357,9 @@ pub async fn handle_profile_update(
             result
         };
 
-        if clean_bio.len() > 280 {
+        // Counted in characters, as the words say: counted in bytes until 2026-10-11, which
+        // refused a bio in Greek, Hindi or Japanese, or with emoji, well under 280 characters.
+        if clean_bio.chars().count() > BIO_MAX_CHARS {
             let private = RelayMessage::Private {
                 to: my_key.to_string(),
                 message: "Bio too long (max 280 characters).".to_string(),
@@ -604,8 +609,16 @@ pub async fn handle_profile_request(
     // server, such as one switched to without a fresh connect) gets their complete copy, privacy
     // map included, as on connect; an empty one when they have no profile here yet.
     if state.db.keys_for_name(&name).map(|keys| keys.iter().any(|k| k == my_key)).unwrap_or(false) {
+        // A profile that could not be read is not answered: an empty copy would be taken as the
+        // server's, and the app's next save would wipe the profile (no row is an empty profile).
         let (bio, socials, avatar_url, banner_url, pronouns, location, website, privacy) =
-            state.db.get_profile_extended(&name).ok().flatten().unwrap_or_default();
+            match state.db.get_profile_extended(&name) {
+                Ok(row) => row.unwrap_or_default(),
+                Err(e) => {
+                    tracing::error!("Failed to read own profile: {e}");
+                    return;
+                }
+            };
         let opt = |s: String| if s.is_empty() { None } else { Some(s) };
         let _ = state.broadcast_tx.send(RelayMessage::ProfileData {
             name: name.clone(),

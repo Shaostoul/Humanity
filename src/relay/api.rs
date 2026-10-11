@@ -2393,7 +2393,16 @@ pub async fn get_signed_profile(
             // Who they accept files in messages from, only when the key has an account HERE: it
             // is this server's setting, not part of the signed profile, so a profile gossiped from
             // another server is answered without it (absent = this server does not know).
-            if let Ok(Some(local_name)) = state.db.current_name_for_key(&key) {
+            let local_name = state.db.current_name_for_key(&key).ok().flatten();
+            if local_name.is_none() && profile.signature.is_empty() {
+                // This server's own copy of someone no longer here (kicked, banned, name released):
+                // their privacy map went with the account, so the fields people may keep for
+                // friends are left out (a copy from another server carries a signature).
+                for field in ["pronouns", "location", "website"] {
+                    body[field] = serde_json::json!("");
+                }
+            }
+            if let Some(local_name) = local_name {
                 body["accepts_files"] = serde_json::json!(state.db.accepts_files_of(&local_name));
                 // A field the person keeps for friends is left out, by their privacy map as it is
                 // now (a copy cached before 2026-10-11 still holds it).

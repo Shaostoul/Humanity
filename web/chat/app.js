@@ -976,6 +976,7 @@ function openSocket(opts) {
   // Fresh socket: re-arm the one-time DM mailbox fetch (sealed-sender), and
   // hold the pass sweep until that fetch is read (10n N7).
   dmFetchSent = false;
+  if (typeof profileSocketOpened === 'function') profileSocketOpened(); // chat-profile.js
   dmMailboxUnread = true;
   dmFetchRef = null;
 

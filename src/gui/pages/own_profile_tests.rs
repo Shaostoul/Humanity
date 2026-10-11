@@ -179,3 +179,47 @@ fn saves_close_together_go_as_one_within_the_servers_limit() {
     assert_eq!(sent_now.len(), 1, "then one update");
     assert_eq!(sent_now[0]["bio"], "Third", "with the latest");
 }
+
+/// A new socket's sign-in drops that server's copy (another device may have saved while the socket
+/// was down), so a waiting save waits for the fresh one; a new identity drops every copy (a save
+/// under the new key must never carry the old one's fields). The second review of 2026-10-11.
+///
+/// Seen red 2026-10-11 with `socket_signed_in` keeping the copy: "a waiting save does not go on
+/// the copy from before the drop" failed.
+#[test]
+fn a_new_socket_or_identity_drops_the_old_copy() {
+    let (mut gs, sent) = ann_on(ONE);
+    keep_copy(&mut gs, ONE, own_copy(&anns_own_copy(), "Ann").unwrap());
+    pump(&mut gs);
+    gs.ws_identified = false; // the socket dropped and a new one signs in
+    gs.socket_signed_in();
+    want_save(&mut gs);
+    pump(&mut gs);
+    assert!(updates(&sent).is_empty(), "a waiting save does not go on the copy from before the drop");
+    keep_copy(&mut gs, ONE, own_copy(&anns_own_copy(), "Ann").unwrap());
+    pump(&mut gs);
+    assert_eq!(updates(&sent).len(), 1, "it goes on the new socket's copy");
+
+    let mut gs = GuiState::default();
+    gs.private_key_bytes = Some(vec![7u8; 32]);
+    keep_copy(&mut gs, ONE, own_copy(&anns_own_copy(), "Ann").unwrap());
+    gs.apply_pq_identity();
+    assert!(gs.own_profile.copies.is_empty(), "a new identity starts with no copy");
+}
+
+/// The Profile page's note: a save the server never answers says so, instead of "Saved" when some
+/// later copy comes. Seen red 2026-10-11 with the echo wait taken out of `pump`: "not taken"
+/// failed (the note stayed "Saving to the server...").
+#[test]
+fn a_save_the_server_does_not_take_says_so() {
+    let (mut gs, _sent) = ann_on(ONE);
+    keep_copy(&mut gs, ONE, own_copy(&anns_own_copy(), "Ann").unwrap());
+    want_save(&mut gs);
+    pump(&mut gs);
+    assert_eq!(gs.profile_network_saved_note, "Saving to the server...");
+    gs.own_profile.awaiting_echo = Some((current_server(&gs), Instant::now() - Duration::from_secs(20)));
+    pump(&mut gs);
+    assert_eq!(gs.profile_network_saved_note, NOT_TAKEN, "not taken");
+    keep_copy(&mut gs, ONE, own_copy(&anns_own_copy(), "Ann").unwrap()); // a later copy
+    assert_eq!(gs.profile_network_saved_note, NOT_TAKEN, "a later copy does not say Saved");
+}

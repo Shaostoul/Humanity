@@ -2024,6 +2024,58 @@ test("profile: a privacy level's directory choice goes to the server, on top of 
   assert.equal(JSON.parse(ls.getItem("humanity_profile")).privacy.directory, "unlisted");
 });
 
+test("profile: a change made while the socket was down goes on the next socket, once it has the server's copy; Accept files from too", async () => {
+  const fx = await fixture();
+  const page = await loadChat(fx.ann);
+  const ls = page.ctx.localStorage;
+  const P = page.ctx.HosProfileChanges;
+  const F = page.ctx.HosFilesInMessages;
+  await page.handle({ type: "profile_data", name: "Ann", bio: "Gardener", socials: "{}", location: "Lisbon", privacy: "{}", accepts_files: "friends" });
+  await page.handle({ type: "channel_list", channels: [] });
+  page.sock.readyState = 3; // the socket dropped (a relay restart, a laptop asleep)
+  const before = JSON.parse(ls.getItem("humanity_profile"));
+  const after = Object.assign({}, before, { bio: "Typed while it was down" });
+  P.add(ls, P.changedFields(before, after));
+  ls.setItem("humanity_profile", JSON.stringify(after));
+  await page.fn("pushProfileToRelay")();
+  F.writeSettings(ls, Object.assign({}, F.readSettings(ls), { accept: "nobody" }));
+  page.fn("filesAcceptChanged")();
+  await settle();
+  page.fn("openSocket")(); // the reconnect, as app.js makes it
+  const sock2 = page.fn("ws");
+  assert.notEqual(sock2, page.sock, "test setup: a new socket");
+  const sent = () => sock2.sent.filter((m) => m.type === "profile_update");
+  await page.handle({ type: "peer_list", peers: [] });
+  await page.fn("pushProfileToRelay")();
+  assert.equal(sent().length, 0, "nothing before this socket has the server's copy");
+  await page.handle({ type: "profile_data", name: "Ann", bio: "Gardener", socials: "{}", location: "Faro", privacy: "{}", accepts_files: "friends" });
+  await page.handle({ type: "channel_list", channels: [] });
+  const u = sent();
+  assert.equal(u.length, 1, "then the waiting change goes, once");
+  assert.deepEqual([u[0].bio, u[0].location, u[0].accepts_files], ["Typed while it was down", "Faro", "nobody"], "on top of the server's newer copy, with the waiting choice");
+});
+
+test("profile: a bio the server tidies counts as saved, so a later bio from another device is taken, not sent over", async () => {
+  const fx = await fixture();
+  const page = await loadChat(fx.ann);
+  const ls = page.ctx.localStorage;
+  const P = page.ctx.HosProfileChanges;
+  await page.handle({ type: "profile_data", name: "Ann", bio: "Gardener", socials: "{}", privacy: "{}", accepts_files: "friends" });
+  await page.handle({ type: "channel_list", channels: [] });
+  page.sock.sent.length = 0;
+  const before = JSON.parse(ls.getItem("humanity_profile"));
+  const after = Object.assign({}, before, { bio: "Rust > Go, I <3 cats" });
+  P.add(ls, P.changedFields(before, after));
+  ls.setItem("humanity_profile", JSON.stringify(after));
+  await page.fn("pushProfileToRelay")();
+  const sentBio = page.sock.sent.filter((m) => m.type === "profile_update")[0].bio;
+  // The relay takes out "<" up to ">" and every ">" (handle_profile_update), and echoes that.
+  await page.handle({ type: "profile_data", name: "Ann", bio: P.tidyBio(sentBio), socials: "{}", privacy: "{}", accepts_files: "friends" });
+  assert.equal(ls.getItem("humanity_profile_changes"), null, "the tidied echo counts as saved");
+  await page.handle({ type: "profile_data", name: "Ann", bio: "Hello from the desktop", socials: "{}", privacy: "{}", accepts_files: "friends" });
+  assert.equal(JSON.parse(ls.getItem("humanity_profile")).bio, "Hello from the desktop", "a later bio from another device is taken");
+});
+
 /** Open Safety and find the Files in messages section's controls (the newest drawn). */
 function filesSection(page) {
   page.fn("openSafetyPanel")();
@@ -2227,6 +2279,11 @@ test("files: a private file opened is kept here, encrypted, and opens after a re
 //     privacy level's directory choice ... the level's profile change goes".
 //  P21 chat-profile.js, pushProfileToRelay counting "Accept files from" as saved when it sends: "files:
 //     Safety shows ... sent, it still waits until the server's copy carries it".
+//  P22 app.js, openSocket without profileSocketOpened (as first shipped): "profile: a change made
+//     while the socket was down ... nothing before this socket has the server's copy" (the old
+//     socket's copy counted, so it went at once).
+//  P23 profile-changes.js, valueOf comparing the bio untidied: "profile: a bio the server tidies ...
+//     the tidied echo counts as saved".
 // And the tests above this section that this increment changed: "a marker in a group message",
 // "a non-friend's DM picture waits for the click" and "a picture from a mutual follow" failed on
 // "Image (click to load)" once a non-friend's file waited for Accept, so they now keep "Accept

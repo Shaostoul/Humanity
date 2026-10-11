@@ -93,3 +93,28 @@ fn another_devices_choice_is_taken_and_nothing_is_sent() {
     own_profile::pump(&mut gs);
     assert_eq!(gs.settings.files_in_messages.accept_from, AcceptFrom::Friends, "never more open under the protected setup");
 }
+
+/// A choice made again after another device's was taken goes again (the second review of
+/// 2026-10-11: the record of what was sent was never cleared, so the same word was never sent
+/// twice in a run, and the device kept "Nobody" while the server told senders "Anyone").
+///
+/// Seen red 2026-10-11 with `accept_sent` not cleared on the server's confirmation: "made again,
+/// it goes again" failed.
+#[test]
+fn a_choice_made_again_goes_again() {
+    let (mut gs, sent) = app("friends");
+    gs.settings.files_in_messages = FilesInMessages { accept_from: AcceptFrom::Nobody, accept_unsent: true, ..Default::default() };
+    own_profile::pump(&mut gs);
+    assert_eq!(updates(&sent).len(), 1);
+    own_profile::keep_copy(&mut gs, SERVER, server_copy("nobody")); // confirmed
+    own_profile::pump(&mut gs);
+    own_profile::keep_copy(&mut gs, SERVER, server_copy("anyone")); // another device chose Anyone
+    own_profile::pump(&mut gs);
+    assert_eq!(gs.settings.files_in_messages.accept_from, AcceptFrom::Anyone, "taken here");
+    gs.settings.files_in_messages.accept_from = AcceptFrom::Nobody; // and Nobody again, here
+    gs.settings.files_in_messages.accept_unsent = true;
+    gs.own_profile.last_sent.insert(own_profile::current_server(&gs), Instant::now() - Duration::from_secs(40));
+    own_profile::pump(&mut gs);
+    let f = updates(&sent).pop().expect("made again, it goes again");
+    assert_eq!(f["accepts_files"], "nobody");
+}

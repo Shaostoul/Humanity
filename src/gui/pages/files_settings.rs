@@ -65,6 +65,7 @@ pub(crate) fn sync_accepts(state: &mut GuiState) {
         if word == mine {
             state.settings.files_in_messages.accept_unsent = false;
             state.settings_dirty = true;
+            state.own_profile.accept_sent = None;
         } else if state.own_profile.accept_sent.as_ref() != Some(&(server.clone(), mine.to_string())) {
             state.own_profile.accept_sent = Some((server, mine.to_string()));
             crate::gui::pages::own_profile::want_save(state);
@@ -107,6 +108,7 @@ pub(crate) fn draw_files_in_messages(ui: &mut egui::Ui, theme: &Theme, state: &m
         state.settings.files_in_messages.accept_from = accept;
         state.settings.files_in_messages.accept_unsent = true;
         state.settings_dirty = true;
+        state.own_profile.accept_sent = None; // a new choice goes, even one made before this run
     }
     widgets::setting_hint(
         ui,

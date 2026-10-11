@@ -216,6 +216,7 @@ fn draw_network_profile(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
         ui.add_space(theme.spacing_xs);
         ui.label(RichText::new("Bio:").color(theme.text_secondary()));
         ui.add(egui::TextEdit::multiline(&mut state.profile_network_bio)
+            .char_limit(crate::relay::handlers::msg_handlers::BIO_MAX_CHARS)
             .desired_width(ui.available_width().min(400.0))
             .desired_rows(3)
             .hint_text("Public bio..."));

@@ -3090,6 +3090,9 @@ impl GuiState {
                 // reconnect fresh when visited or, later, by the
                 // connect-to-all pass.
                 self.connections.clear();
+                // The own profile copies were the previous identity's: a save under the new key
+                // must never carry them (their links, places and privacy choices).
+                self.own_profile = Default::default();
                 // Governance vote tracking is PER IDENTITY (adversarial review
                 // 2026-07-01): a different seed is a different voter DID, so the
                 // previous identity's session votes must not label rows or

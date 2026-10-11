@@ -582,6 +582,11 @@ impl GuiState {
         self.ws_identified = true;
         if first_on_socket {
             self.server_settings_requested = false;
+            // The person's own copy from before this socket may be stale (another device saved
+            // while it was down): this socket's copy follows its sign-in, and a save waits for it
+            // (pages/own_profile.rs).
+            let server = crate::gui::pages::own_profile::current_server(self);
+            self.own_profile.copies.remove(&server);
         }
         first_on_socket
     }

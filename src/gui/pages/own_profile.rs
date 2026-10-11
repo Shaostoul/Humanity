@@ -40,6 +40,10 @@ use crate::gui::GuiState;
 pub(crate) const SEND_GAP: Duration = Duration::from_secs(31);
 /// How long to wait before asking a server for the person's own copy again.
 const ASK_AGAIN: Duration = Duration::from_secs(30);
+/// How long a sent save waits for its echo before the Profile page says it was not taken.
+const ECHO_WAIT: Duration = Duration::from_secs(15);
+/// The Profile page's note for a save the server did not take.
+pub(crate) const NOT_TAKEN: &str = "Not saved: the server turned it down (the chat says why).";
 
 /// Everything this app keeps about the person's own profile (`GuiState::own_profile`).
 #[derive(Default)]
@@ -55,8 +59,9 @@ pub struct OwnProfile {
     pub(crate) last_sent: HashMap<String, Instant>,
     /// When the app last asked each server for the person's own copy.
     pub(crate) asked: HashMap<String, Instant>,
-    /// A save sent to this server whose echo has not come back yet (the Profile page's note).
-    pub(crate) awaiting_echo: Option<String>,
+    /// A save sent to this server, and when, whose echo has not come back yet (the Profile page's
+    /// note). Unanswered after ECHO_WAIT, the server turned it down (it says why in the chat).
+    pub(crate) awaiting_echo: Option<(String, Instant)>,
     /// The "Accept files from" word last asked to go to a server, so a choice is sent once per
     /// server in a run of the app (files_settings.rs `sync_accepts`).
     pub(crate) accept_sent: Option<(String, String)>,
@@ -100,7 +105,7 @@ pub(crate) fn own_copy(val: &serde_json::Value, socket_name: &str) -> Option<Ser
 /// File a server's own copy (from any socket, active or in the background).
 pub(crate) fn keep_copy(state: &mut GuiState, server: &str, copy: ServerProfile) {
     let server = crate::gui::pages::chat::norm_server_url(server);
-    if state.own_profile.awaiting_echo.as_deref() == Some(server.as_str()) {
+    if state.own_profile.awaiting_echo.as_ref().is_some_and(|(s, at)| *s == server && at.elapsed() < ECHO_WAIT) {
         state.own_profile.awaiting_echo = None;
         if server == current_server(state) {
             state.profile_network_saved_note = "Saved to server.".to_string();
@@ -202,6 +207,11 @@ pub(crate) fn pump(state: &mut GuiState) {
     if server.is_empty() {
         return;
     }
+    // A sent save never answered: the server turned it down.
+    if state.own_profile.awaiting_echo.as_ref().is_some_and(|(_, at)| at.elapsed() >= ECHO_WAIT) {
+        state.own_profile.awaiting_echo = None;
+        state.profile_network_saved_note = NOT_TAKEN.to_string();
+    }
     // A wanted save for a server the app has left is dropped (the person was looking at that one).
     if state.own_profile.wanted.as_ref().is_some_and(|w| *w != server) {
         state.own_profile.wanted = None;
@@ -233,6 +243,7 @@ pub(crate) fn pump(state: &mut GuiState) {
     let fields = [state.profile_network_bio.clone(), state.profile_network_avatar.clone()];
     if crate::engine::warnings::guard_stops(state, &[&fields[0], &fields[1]]) {
         state.own_profile.wanted = None;
+        state.profile_network_saved_note = "Not saved: a profile field holds your recovery phrase.".to_string();
         return;
     }
     let frame = save_frame(state, &copy).to_string();
@@ -241,7 +252,7 @@ pub(crate) fn pump(state: &mut GuiState) {
     }
     state.own_profile.wanted = None;
     state.own_profile.last_sent.insert(server.clone(), Instant::now());
-    state.own_profile.awaiting_echo = Some(server);
+    state.own_profile.awaiting_echo = Some((server, Instant::now()));
     state.profile_network_saved_note = "Saving to the server...".to_string();
 }
 

@@ -223,6 +223,23 @@ fn only_the_persons_own_copy_carries_their_privacy_map() {
     assert!(w.get("privacy").is_none(), "an answer to someone else never carries it: {w}");
 }
 
+/// The bio limit is 280 CHARACTERS, as the refusal says: a bio in Greek (two bytes a letter) of 200
+/// letters saves; 281 characters do not.
+///
+/// Seen red 2026-10-11 with the limit counted in bytes (as it was): "200 Greek letters save" failed.
+#[test]
+fn the_bio_limit_counts_characters() {
+    let st = fresh_state();
+    sign_in(&st, "ann_key", "Ann");
+    let greek: String = std::iter::repeat('α').take(200).collect();
+    let sent = send(&st, "ann_key", serde_json::json!({ "type": "profile_update", "bio": greek, "socials": "{}" }));
+    assert!(notices(&sent, "ann_key").is_empty(), "200 Greek letters save: {:?}", notices(&sent, "ann_key"));
+    assert_eq!(st.db.get_profile("Ann").unwrap().map(|p| p.0).as_deref(), Some(greek.as_str()));
+    let long: String = std::iter::repeat('a').take(281).collect();
+    let sent = send(&st, "ann_key", serde_json::json!({ "type": "profile_update", "bio": long, "socials": "{}" }));
+    assert!(notices(&sent, "ann_key").iter().any(|n| n.contains("Bio too long")), "281 characters do not");
+}
+
 /// The own copy reaches every device signed in under the name, a linked one with its own key
 /// included, so its next save does not undo this one (the relay review of 2026-10-11).
 ///
@@ -304,4 +321,30 @@ fn private_fields_stay_out_of_the_lookups() {
     st.db.store_signed_profile("ann_key", "Ann", "hi", "", "", "{}", "she", "Lisbon", "", crate::relay::storage::now_millis(), "").unwrap();
     let signed = body(block(crate::relay::api::get_signed_profile(State(st.clone()), Path("ann_key".to_string()))).into_response());
     assert_eq!(signed["location"], "", "an older cached copy is answered by the map as it is now");
+}
+
+/// This server's own copy of someone no longer here (no account: kicked, banned, name released; no
+/// signature, which every copy from another server carries) is answered at /api/profile/{key}
+/// without the fields people keep for friends: their privacy map went with the account. The second
+/// review of 2026-10-11.
+///
+/// Seen red 2026-10-11 without that branch in `api::get_signed_profile`: "a copy for someone no
+/// longer here leaves out the location" failed with "Lisbon".
+#[test]
+fn a_copy_for_someone_no_longer_here_leaves_out_the_private_fields() {
+    use axum::extract::{Path, State};
+    use axum::response::IntoResponse;
+    let st = fresh_state();
+    let now = crate::relay::storage::now_millis();
+    st.db.store_signed_profile("gone_key", "Gone", "bio", "", "", "{}", "she", "Lisbon", "https://g.example", now, "").unwrap();
+    st.db.store_signed_profile("far_key", "Far", "bio", "", "", "{}", "they", "Porto", "", now, "sig").unwrap();
+    let body = |key: &str| -> serde_json::Value {
+        let resp = block(crate::relay::api::get_signed_profile(State(st.clone()), Path(key.to_string()))).into_response();
+        let bytes = block(axum::body::to_bytes(resp.into_body(), usize::MAX)).unwrap();
+        serde_json::from_slice(&bytes).unwrap()
+    };
+    let gone = body("gone_key");
+    assert_eq!(gone["location"], "", "a copy for someone no longer here leaves out the location: {gone}");
+    assert_eq!((gone["pronouns"].as_str(), gone["website"].as_str()), (Some(""), Some("")));
+    assert_eq!(body("far_key")["location"], "Porto", "a signed copy from another server is served as it came");
 }

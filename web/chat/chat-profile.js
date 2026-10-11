@@ -252,9 +252,18 @@ function ownProfileSettled() {
 }
 
 // Changes waiting from before this connection go once the server's copy has been heard, once per
-// page: not again on every copy that comes back (a bio the server tidies, its HTML taken out, never
+// socket: not again on every copy that comes back (a bio the server tidies, its HTML taken out, never
 // matches exactly, and would otherwise go every 30 seconds).
 let waitingPushedOnce = false;
+
+/** A new socket (app.js openSocket): nothing goes until this one has heard the server's copy, and
+ *  what waits then goes once on it (a change made while the socket was down, or a relay restart,
+ *  was otherwise never sent until the page was reloaded: the web review of 2026-10-11). */
+function profileSocketOpened() {
+  ownProfileHeard = false;
+  waitingPushedOnce = false;
+}
+
 function pushWaitingOnce() {
   if (waitingPushedOnce) return;
   waitingPushedOnce = true;

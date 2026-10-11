@@ -5676,6 +5676,24 @@ turned it down:
   server's copy once that has been heard, and forgets a change only once the server's copy carries
   it; "Accept files from" likewise counts as saved only on that copy.
 
+A second review of these fixes (same day) found more, all fixed in the same release:
+- **Desktop:** a socket's new sign-in now drops that server's copy (another device may have saved
+  while it was down) and waits for the fresh one; a new identity (Settings, or a recovery phrase)
+  drops every copy, so a save under the new key never carries the old one's fields; a choice of
+  "Accept files from" made again after another device's was taken goes again (what had been sent
+  was never forgotten); the Profile page says "Not saved" when the server never answers a save
+  (and when the recovery-phrase guard stops one) instead of a later "Saved"; the bio box holds 280
+  characters.
+- **Relay:** a person's own profile request that cannot be read sends nothing (an empty copy would
+  be taken as the server's); the bio, pronouns and location limits count characters, as the words
+  always said (bytes refused a bio in Greek, Hindi or Japanese well under 280 characters); this
+  server's own copy of someone no longer here leaves out the fields kept for friends.
+- **Website:** a bio the server tidies (it takes out "<" up to ">" and every ">") is compared the
+  way the server keeps it, so it no longer stays waiting for good and goes back over bios saved
+  elsewhere; a new socket hears the server's copy again before anything goes, and what waits then
+  goes on it (a change made while the socket was down, including "Accept files from", was not sent
+  until the page was reloaded).
+
 ## BUG-197: fields kept for friends were shown to anyone by two HTTP lookups (FIXED v0.1486.0, found 2026-10-11)
 
 Older than the profile work; found by the same review. A person can keep pronouns, location and
@@ -5704,3 +5722,15 @@ hour old and Clear removes them all (`src/net/kept_files.rs` `leftovers`). Websi
 opened at once (a DM's pictures open together) could interleave, and the first one's trim took the
 second's fresh copy for a leftover; keeping, trimming and clearing now wait for each other on the
 page (`web/shared/kept-files.js`).
+
+## BUG-200: "Accept files from" can flip when one person uses two servers (OPEN, found 2026-10-11)
+
+Older than the profile fixes (the HTTP version did the same); found by the second review of
+BUG-196. The choice is one setting per device but is published in the person's profile on each
+server separately, and only to the server the app is on. A server that was never sent the latest
+choice still holds the old word, and while nothing waits the app takes a different word on a server
+as another device's newer choice, so switching to that server can turn the setting back. The fix:
+publish a choice to every server the device is signed in to (each background socket holds its
+server's own copy, which is what a whole-profile update needs), and take another device's choice
+only when a server's word has changed since this device last saw it (a device that has never made
+a choice itself takes the server's word on first sight). Both apps.

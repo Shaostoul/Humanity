@@ -12,8 +12,6 @@ pub const ACCEPTS_FILES_WORDS: [&str; 3] = ["nobody", "friends", "anyone"];
 /// answer for someone with no profile row at all.
 pub const ACCEPTS_FILES_DEFAULT: &str = "friends";
 
-/// `word` if it is one of [`ACCEPTS_FILES_WORDS`], exactly as written (no trimming or case
-/// folding: these are protocol words an app sends, not something a person types).
 /// `value` as a copy anyone may see carries it: empty when the privacy map `privacy_json` keeps
 /// `field` for friends ("private"). An unreadable map leaves it public, as everywhere else.
 pub fn public_field(privacy_json: &str, field: &str, value: &str) -> String {
@@ -24,6 +22,8 @@ pub fn public_field(privacy_json: &str, field: &str, value: &str) -> String {
     if private { String::new() } else { value.to_string() }
 }
 
+/// `word` if it is one of [`ACCEPTS_FILES_WORDS`], exactly as written (no trimming or case
+/// folding: these are protocol words an app sends, not something a person types).
 pub fn accepts_files_word(word: &str) -> Option<&'static str> {
     ACCEPTS_FILES_WORDS.iter().copied().find(|w| *w == word)
 }
@@ -34,8 +34,8 @@ impl Storage {
     /// Upsert a user profile (bio + socials JSON).
     /// Validates: bio max 280 chars, socials must be valid JSON and max 1024 chars.
     pub fn save_profile(&self, name: &str, bio: &str, socials: &str) -> Result<(), rusqlite::Error> {
-        // Validate bio length.
-        if bio.len() > 280 {
+        // Validate bio length, in characters (2026-10-11: it counted bytes).
+        if bio.chars().count() > 280 {
             return Err(rusqlite::Error::QueryReturnedNoRows); // abuse as validation error
         }
         // Validate socials is valid JSON and within size limit.
@@ -113,14 +113,16 @@ impl Storage {
         if accepts_files.is_some_and(|w| accepts_files_word(w).is_none()) {
             return Err(rusqlite::Error::QueryReturnedNoRows);
         }
-        if bio.len() > 280 { return Err(rusqlite::Error::QueryReturnedNoRows); }
+        // Text a person writes is limited in characters (bytes until 2026-10-11, which refused
+        // Greek, Hindi or Japanese, or emoji, well under the limit); links and maps stay in bytes.
+        if bio.chars().count() > 280 { return Err(rusqlite::Error::QueryReturnedNoRows); }
         if socials.len() > 1024 || serde_json::from_str::<serde_json::Value>(socials).is_err() {
             return Err(rusqlite::Error::QueryReturnedNoRows);
         }
         if avatar_url.len() > 512 { return Err(rusqlite::Error::QueryReturnedNoRows); }
         if banner_url.len() > 512 { return Err(rusqlite::Error::QueryReturnedNoRows); }
-        if pronouns.len() > 64 { return Err(rusqlite::Error::QueryReturnedNoRows); }
-        if location.len() > 128 { return Err(rusqlite::Error::QueryReturnedNoRows); }
+        if pronouns.chars().count() > 64 { return Err(rusqlite::Error::QueryReturnedNoRows); }
+        if location.chars().count() > 128 { return Err(rusqlite::Error::QueryReturnedNoRows); }
         if website.len() > 256 { return Err(rusqlite::Error::QueryReturnedNoRows); }
         if privacy.len() > 512 || serde_json::from_str::<serde_json::Value>(privacy).is_err() {
             return Err(rusqlite::Error::QueryReturnedNoRows);

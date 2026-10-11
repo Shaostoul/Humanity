@@ -554,6 +554,11 @@ fn handle_bg_message(state: &mut EngineState, ci: usize, raw: &str) {
         Some("peer_list") => {
             // First post-bind message: the handshake is complete.
             let users = parse_users(val.get("peers"), "display_name", None, state);
+            // A new sign-in: this server's own copy from before may be stale; the fresh one follows.
+            if !state.gui_state.connections[ci].identified {
+                let url = state.gui_state.connections[ci].url.clone();
+                state.gui_state.own_profile.copies.remove(&url);
+            }
             let conn = &mut state.gui_state.connections[ci];
             conn.identified = true;
             conn.status = "Connected".to_string();

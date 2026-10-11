@@ -70,10 +70,26 @@
     write(storage, read(storage).concat(fields || []));
   }
 
-  /** The value of one field id in a stored profile. */
+  /** A bio as the server keeps it: everything from a "<" to the next ">" taken out, and every ">"
+   *  (src/relay/handlers/msg_handlers.rs, the profile save's clean-up). Without this a bio holding
+   *  "<3" or ">" never matched the server's copy and stayed waiting for good, going back over
+   *  bios saved on other devices (the web review of 2026-10-11). */
+  function tidyBio(text) {
+    let out = '';
+    let inTag = false;
+    for (const ch of String(text == null ? '' : text)) {
+      if (ch === '<') inTag = true;
+      else if (ch === '>') inTag = false;
+      else if (!inTag) out += ch;
+    }
+    return out;
+  }
+
+  /** The value of one field id in a stored profile, as the server would keep it. */
   function valueOf(p, field) {
     if (field.startsWith('privacy:')) return str(obj(obj(p).privacy)[field.slice(8)]);
     if (field === 'socials') return obj(obj(p).socials);
+    if (field === 'bio') return str(tidyBio(obj(p).bio));
     return str(obj(p)[field]);
   }
 
@@ -108,7 +124,7 @@
     return (fields || []).filter((f) => !sameValue(f, valueOf(server, f), valueOf(local, f)));
   }
 
-  const api = { KEY, TEXT_FIELDS, changedFields, read, write, add, merge, stillWaiting };
+  const api = { KEY, TEXT_FIELDS, changedFields, read, write, add, merge, stillWaiting, tidyBio };
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.HosProfileChanges = api;
 })(typeof window !== 'undefined' ? window : null);
