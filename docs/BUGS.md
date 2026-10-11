@@ -5590,5 +5590,8 @@ Fixed on 2026-10-11, with backups of both databases first:
   the admin API's `recheck`); and adding a server by key accepts today's 3,904-character keys (it
   still asked for 64, the old Ed25519 length, and refused every current key).
 
-Still open: public.guide is updated by hand. The deploy workflow updates united-humanity.us only, so
-public.guide falls behind again with the next release unless it is updated too (PRIORITIES).
+So it cannot happen again by drift: public.guide now runs `scripts/relay-follow-releases.sh` hourly
+(systemd `humanity-relay-follow.timer`, installed 2026-10-11), which takes each new release with a
+database backup, a checksum check, a health check and a full roll-back; documented for any
+self-hosted node in docs/admin/SELF-HOSTING.md, "Staying current by itself". Its update path is
+first exercised by the next release.

@@ -707,6 +707,26 @@ sudo systemctl restart humanity-relay
 
 Clients auto-detect the server update and reload automatically.
 
+### Staying current by itself (recommended for any node besides the main one)
+
+A relay that nobody updates falls behind, and when the protocol changes it can stop talking to the
+others: public.guide sat on a two-month-old version and was cut off from united-humanity.us for five
+weeks that way (BUG-192). `scripts/relay-follow-releases.sh` keeps a node on the latest release by
+itself, every hour: it downloads the release's relay and checks its sha256, backs up the database
+and the running program, checks the repo out at the release, restarts, and waits for `/health`.
+If the relay does not come back healthy within a minute it puts everything back (program, files,
+database) and waits for a newer release.
+
+```bash
+sudo cp /opt/Humanity/scripts/systemd/humanity-relay-follow.service /opt/Humanity/scripts/systemd/humanity-relay-follow.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now humanity-relay-follow.timer
+journalctl -u humanity-relay-follow   # what it did, run by run
+```
+
+Do not install it on a server that a deploy pipeline updates from `main` (the pipeline owns that
+checkout). It needs `curl`, `git` and `sqlite3`.
+
 ---
 
 ## Troubleshooting
