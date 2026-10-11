@@ -619,3 +619,31 @@ above; parts marked (apps) are the next app increment.
    instead of overlaying the text input area that way people still see it?" Both apps: the hints
    of the composer's buttons open above the whole composer, never over the text being typed
    (done with this release).
+9. **How long the server keeps files sent in DMs and groups.** "Yes. Seems to make sense to link
+   the file sharing to the DM messages life." A private file (an encrypted upload) is removed
+   from the server after the DM mailbox's own lifetime (`dm_mailbox_ttl_days`, 30 by default, the
+   same server setting, so the two can never disagree), by the expiry pass, row and file. The apps
+   keep their own copy of any private file the person has opened (encrypted at rest with the same
+   seed-derived key as their DM history), so nothing already looked at disappears. (relay) B5.
+   (apps) the local copy.
+10. **One person flooding the server.** "If someone wants to flood our server with files to a DMd
+   user, then couldn't they mess things up? Say we have 1TB or storage for files and someone sends
+   a 1TB file to a user that's not online. Does that prevent everyone else from sending files in
+   DMs? Should we require the users to ... have had an active message within some limit ... and
+   then send them P2P instead of through our server?" As built until now, yes in part: chat and
+   private files share one pool (`max_total_upload_mb`), and whoever fills it blocks everyone's
+   files until something expires. What stops it, layer by layer:
+   - only a role with upload rights can upload at all (someone who just arrived cannot until an
+     admin verifies them), and each role has a largest private file (B2), a daily allowance and an
+     hourly count (B3);
+   - **new:** each person may hold at most `max_private_held_mb` of private files on the server at
+     once (per role, like the Media share), so one person can never take the whole pool, and the
+     words when it is full say it is THEIR room that is full, not the server's;
+   - private files leave after the mailbox lifetime (answer 9), so the pool drains by itself;
+   - **files bigger than the server's private limit never touch its disk: they go device to
+     device**, only while both people are online and only once the receiver accepts that transfer
+     ("Ann wants to send you clip.mp4, 2.3 GB. Accept?"). The receiver's yes is the consent the
+     operator asked for, stronger than "they messaged recently". Device to device shows each side
+     the other's network address, so between people who are not friends it goes through the call
+     forwarder (the server's bandwidth, never its disk, and capped per transfer like a call).
+   (relay) B5 (the per-person cap). (apps) the device-to-device transfer is its own increment.
