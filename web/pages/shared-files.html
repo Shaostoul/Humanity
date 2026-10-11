@@ -53,6 +53,13 @@
       text-decoration: none; transition: all 0.15s;
     }
     .sf-dl:hover { background: var(--accent-hover); }
+    /* Put on Media: only on the person's own rows (2026-10-11, docs/design/media-showcase.md). */
+    .sf-put {
+      flex-shrink: 0; background: transparent; color: var(--accent); font-weight: 700;
+      font-size: 0.8rem; padding: 7px 14px; border-radius: var(--radius);
+      border: 1px solid var(--accent); text-decoration: none;
+    }
+    .sf-put:hover { border-color: var(--accent-hover); color: var(--accent-hover); }
 
     .sf-empty {
       text-align: center; color: var(--text-muted); padding: 40px 0;
@@ -60,7 +67,7 @@
     }
     @media (max-width: 560px) {
       .sf-row { flex-wrap: wrap; }
-      .sf-dl { width: 100%; text-align: center; }
+      .sf-dl, .sf-put { width: 100%; text-align: center; }
     }
   </style>
 </head>
@@ -75,7 +82,7 @@
     </div>
 
     <div class="sf-how">
-      <strong>How to share your own:</strong> open the <a href="/chat">chat</a>, click the attach button, and pick your file. 3D and model files (<code>.blend</code>, <code>.stl</code>, <code>.obj</code>, <code>.gltf</code>, <code>.glb</code>) are listed here automatically; photos and other chat attachments stay private to the people you send them to. Sharing requires a verified account (ask an admin in chat).
+      <strong>How to share your own:</strong> open the <a href="/chat">chat</a>, click the attach button, and pick your file. 3D and model files (<code>.blend</code>, <code>.stl</code>, <code>.obj</code>, <code>.gltf</code>, <code>.glb</code>) are listed here automatically; photos and other chat attachments stay private to the people you send them to. Sharing requires a verified account (ask an admin in chat). A file of yours here can also go on the <a href="/media">Media page</a>: press Put on Media on its row.
     </div>
 
     <div class="sf-search">
@@ -87,11 +94,17 @@
     </div>
   </div>
 
+  <!-- The identity Chat keeps in this browser, for Put on Media on your own rows. -->
+  <script src="/chat/pq.js?v=2"></script>
+  <script src="/shared/pq-relay-auth.js?v=2"></script>
   <script>
     (function () {
       var listEl = document.getElementById('sf-list');
       var qEl = document.getElementById('sf-q');
       var allFiles = [];
+      // The person's own key on this server (Dilithium3, from the identity Chat keeps in
+      // this browser), to offer Put on Media on their own rows only. Empty without one.
+      var myKey = '';
 
       function escapeHtml(s) {
         return String(s).replace(/[&<>"']/g, function (c) {
@@ -139,6 +152,22 @@
             '<a class="sf-dl" href="' + escapeHtml(f.url) + '" download>Download</a>' +
           '</div>';
         }).join('');
+        addPutLinks(files);
+      }
+
+      // Put on Media on the person's own rows: the Media page's form without the file
+      // picker, public only (the file is already public here). Built with createElement.
+      function addPutLinks(files) {
+        if (!myKey) return;
+        var rows = listEl.querySelectorAll('.sf-row');
+        files.forEach(function (f, i) {
+          if (!rows[i] || f.uploader_key !== myKey || typeof f.url !== 'string' || f.url.indexOf('/uploads/') !== 0) return;
+          var a = document.createElement('a');
+          a.className = 'sf-put';
+          a.href = '/media?put=' + encodeURIComponent(f.url.slice('/uploads/'.length)) + '&name=' + encodeURIComponent(f.name || '');
+          a.textContent = 'Put on Media';
+          rows[i].insertBefore(a, rows[i].querySelector('.sf-dl'));
+        });
       }
 
       function applyFilter() {
@@ -166,6 +195,14 @@
         });
 
       qEl.addEventListener('input', applyFilter);
+
+      if (typeof window.getPqIdentity === 'function') {
+        window.getPqIdentity().then(function (id) {
+          if (!id || !id.dilithiumPublicHex) return;
+          myKey = id.dilithiumPublicHex;
+          applyFilter();
+        }).catch(function () {});
+      }
     })();
   </script>
 </body>
