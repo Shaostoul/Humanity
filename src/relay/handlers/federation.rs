@@ -230,13 +230,29 @@ pub async fn federation_connect_loop(
     // to the row id when no key is pinned yet (discovery unreachable): the
     // peer's messages then fail the source check until a key is pinned,
     // which is the correct fail-closed behavior for an unverified peer.
-    let peer_id = peer_key.unwrap_or_else(|| server_id.clone());
+    // The pin is read fresh on every attempt below (2026-10-11), so a key re-checked with
+    // `recheck_peer_key` is used from the next connection on, without a restart; the one passed in
+    // only names the peer until then.
+    let _ = peer_key;
     let mut backoff_secs = 5u64;
+    let mut quick_drops = 0u32;
     loop {
+        let Some(row) = state
+            .db
+            .list_federated_servers()
+            .ok()
+            .and_then(|rows| rows.into_iter().find(|s| s.server_id == server_id))
+        else {
+            tracing::info!("Federation: {} is no longer in the registry, so its connection stops", server_name);
+            return;
+        };
+        let peer_id = row.public_key.clone().unwrap_or_else(|| server_id.clone());
+        // How long the link held, for the wait before the next try (None: it never connected).
+        let mut lasted: Option<u64> = None;
         tracing::info!("Federation: connecting to {} ({})", server_name, ws_url);
         match tokio_tungstenite::connect_async(&ws_url).await {
             Ok((ws_stream, _)) => {
-                backoff_secs = 5; // Reset on successful connect.
+                let linked_at = Instant::now();
                 tracing::info!("Federation: connected to {}", server_name);
 
                 let (mut write, mut read) = ws_stream.split();
@@ -364,6 +380,7 @@ pub async fn federation_connect_loop(
                     _ = write_task => {}
                     _ = read_task => {}
                 }
+                lasted = Some(linked_at.elapsed().as_secs());
 
                 // Clean up. The conn map is keyed by peer IDENTITY; the DB
                 // status row keeps its own id (typically the URL).
@@ -381,9 +398,127 @@ pub async fn federation_connect_loop(
             }
         }
 
-        // Exponential backoff (cap at 5 minutes).
+        // A link closed within a minute of the hello counts as refused. Said once per streak, in
+        // the words that fix it: the usual cause is a peer that does not trust this server's
+        // current key (public.guide refused every hello from 2026-09-06, when server keys moved
+        // to Dilithium3, until 2026-10-11, and was dialled every 6 s the whole time).
+        match lasted {
+            Some(s) if s < STABLE_LINK_SECS => {
+                quick_drops += 1;
+                if quick_drops == QUICK_DROPS_TO_SAY {
+                    tracing::warn!(
+                        "Federation: {} has closed the link {} times within a minute of our hello. It may not trust this server's current key: on {}, re-check this server's key (Server Settings > Federation, Re-check key, or /server-recheck). Waiting longer between tries until a link holds.",
+                        server_name,
+                        quick_drops,
+                        server_name
+                    );
+                }
+            }
+            Some(_) => quick_drops = 0,
+            None => {}
+        }
+        backoff_secs = next_backoff(backoff_secs, lasted);
         tokio::time::sleep(tokio::time::Duration::from_secs(backoff_secs)).await;
-        backoff_secs = (backoff_secs * 2).min(300);
+    }
+}
+
+/// A link that held this long counts as working, and the waits between tries start again from
+/// 5 seconds.
+pub const STABLE_LINK_SECS: u64 = 60;
+/// After this many links in a row closed within a minute, the log says why it may be happening.
+pub const QUICK_DROPS_TO_SAY: u32 = 3;
+
+/// The wait before the next connection attempt, in seconds, after a link that held for
+/// `lasted_secs` (None when it never connected). A link that held a minute starts the waits again
+/// from 5 s; one that never connected or closed sooner waits twice as long as the last time, up
+/// to 5 minutes. Before 2026-10-11 any connect reset the wait to 5 s, so a peer that closed every
+/// link right after the hello was dialled every 6 s forever (about 14,000 log lines a day).
+pub fn next_backoff(prev_secs: u64, lasted_secs: Option<u64>) -> u64 {
+    match lasted_secs {
+        Some(s) if s >= STABLE_LINK_SECS => 5,
+        _ => (prev_secs.max(5) * 2).min(300),
+    }
+}
+
+/// The length of a server key in hex: a Dilithium3 (ML-DSA-65) public key is 1,952 bytes. Server
+/// identity moved to it on 2026-09-06; a 64-hex Ed25519 key is no longer a server key.
+pub const SERVER_KEY_HEX_LEN: usize = 3904;
+
+/// Whether `key` is a server key in the form this relay pins: lower-case hex of
+/// [`SERVER_KEY_HEX_LEN`] characters.
+pub fn is_server_key(key: &str) -> bool {
+    key.len() == SERVER_KEY_HEX_LEN && key.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+}
+
+/// What re-checking a peer's key found.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Rechecked {
+    /// The peer's name, as its server-info gives it.
+    pub name: String,
+    /// Whether the pinned key changed.
+    pub changed: bool,
+}
+
+/// Re-read a peer's key from its own `/api/server-info`, at the address the operator added it by,
+/// and pin it: the same discovery an add does, for when a peer's key has changed (as every
+/// server's did on 2026-09-06). The connection loop reads the pin fresh on its next try. A peer
+/// added by key alone has no address to ask, and an answer that is not a current server key (an
+/// old version still on Ed25519) changes nothing. Its words say what to do.
+pub async fn recheck_peer_key(state: &Arc<RelayState>, server_id: &str) -> Result<Rechecked, String> {
+    let row = state
+        .db
+        .list_federated_servers()
+        .map_err(|e| format!("Database error: {e}"))?
+        .into_iter()
+        .find(|s| s.server_id == server_id)
+        .ok_or_else(|| "No such server in the registry.".to_string())?;
+    if !(row.url.starts_with("https://") || row.url.starts_with("http://")) {
+        return Err(format!(
+            "{} was added by its key, not by a web address, so there is nowhere to fetch a new key from. Remove it and add it again with its new key (from its Host Node page).",
+            row.name
+        ));
+    }
+    let info_url = format!("{}/api/server-info", row.url.trim_end_matches('/'));
+    let resp = state
+        .http_client
+        .get(&info_url)
+        .timeout(std::time::Duration::from_secs(10))
+        .send()
+        .await
+        .map_err(|e| format!("Could not reach {}: {e}", row.name))?;
+    if !resp.status().is_success() {
+        return Err(format!("{} answered {} for its server information.", row.name, resp.status()));
+    }
+    let info: serde_json::Value =
+        resp.json().await.map_err(|e| format!("{} sent server information that could not be read: {e}", row.name))?;
+    let key = info["public_key"].as_str().unwrap_or("").to_ascii_lowercase();
+    if !is_server_key(&key) {
+        return Err(format!(
+            "{} did not give a current server key ({} hex characters, post-quantum). It may run a version from before 2026-09-06: update it first.",
+            row.name, SERVER_KEY_HEX_LEN
+        ));
+    }
+    let changed = row.public_key.as_deref() != Some(key.as_str());
+    let name = info["name"].as_str().filter(|n| !n.trim().is_empty()).unwrap_or(&row.name).to_string();
+    let accord = info["accord_compliant"].as_bool().unwrap_or(row.accord_compliant);
+    state
+        .db
+        .update_federated_server_info(server_id, &name, Some(&key), accord)
+        .map_err(|e| format!("Database error: {e}"))?;
+    if changed {
+        tracing::info!("Federation: re-pinned {} ({}) to the key it gives now", name, server_id);
+    }
+    Ok(Rechecked { name, changed })
+}
+
+/// The words a re-check answers with, for the chat command and the admin API alike.
+pub fn recheck_words(r: &Result<Rechecked, String>) -> String {
+    match r {
+        Ok(Rechecked { name, changed: true }) => {
+            format!("Re-checked {name}: its key had changed and is pinned now. The next connection uses it.")
+        }
+        Ok(Rechecked { name, changed: false }) => format!("Re-checked {name}: its key is the one already pinned."),
+        Err(words) => words.clone(),
     }
 }
 
@@ -1037,5 +1172,92 @@ mod server_identity_tests {
         // And it is the SAME derivation a person's DID uses.
         let pk = hex::decode(&pk1).unwrap();
         assert_eq!(did, crate::relay::core::did::did_for_pubkey(&pk));
+    }
+}
+
+#[cfg(test)]
+mod recheck_tests {
+    use super::*;
+    use crate::relay::relay::RelayState;
+    use crate::relay::storage::Storage;
+
+    /// THE WAIT BETWEEN TRIES BACKS OFF WHEN A PEER KEEPS CLOSING THE LINK: a link that held a
+    /// minute starts the waits again from 5 s; one closed sooner, or never made, waits twice as long
+    /// as the last time, up to 5 minutes. (public.guide closed every link within a second from
+    /// 2026-09-06 to 2026-10-11 and was dialled every 6 s, about 14,000 log lines a day.)
+    ///
+    /// Seen red 2026-10-11 with a quick drop answered like a held link (the old reset on connect):
+    /// "a link closed after 1 s waits longer / left: 5 / right: 20".
+    #[test]
+    fn the_wait_backs_off_when_a_peer_keeps_closing_the_link() {
+        assert_eq!(next_backoff(10, Some(1)), 20, "a link closed after 1 s waits longer");
+        assert_eq!(next_backoff(160, Some(0)), 300, "up to 5 minutes");
+        assert_eq!(next_backoff(300, None), 300, "a connect that failed waits the most too");
+        assert_eq!(next_backoff(300, Some(STABLE_LINK_SECS)), 5, "a link that held a minute starts again from 5 s");
+    }
+
+    /// A SERVER KEY IS TODAY'S KEY: 3,904 lower-case hex characters (Dilithium3). A 64-hex Ed25519
+    /// key, the only length /server-add-key and the admin add_key accepted until 2026-10-11, is not.
+    ///
+    /// Seen red 2026-10-11 with the length check at 64: "today's key is a server key".
+    #[test]
+    fn a_server_key_is_todays_key() {
+        assert!(is_server_key(&"a1".repeat(1952)), "today's key is a server key");
+        assert!(!is_server_key(&"ab".repeat(32)), "an Ed25519 key is not");
+        assert!(!is_server_key(&"A1".repeat(1952)), "upper case is not the pinned form");
+    }
+
+    /// A stand-in peer on this machine only, answering /api/server-info with `key`.
+    async fn peer_giving(key: String) -> (String, tokio::task::JoinHandle<()>) {
+        let app = axum::Router::new().route(
+            "/api/server-info",
+            axum::routing::get(move || {
+                let key = key.clone();
+                async move { axum::Json(serde_json::json!({ "name": "Peer", "public_key": key, "accord_compliant": false })) }
+            }),
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let task = tokio::spawn(async move {
+            let _ = axum::serve(listener, app).await;
+        });
+        (format!("http://{addr}"), task)
+    }
+
+    /// RE-CHECKING A PEER'S KEY PINS THE ONE IT GIVES NOW: a peer whose key changed is re-pinned
+    /// from its own server-info (and a second re-check says it is unchanged); a peer still giving
+    /// an old 64-hex key is refused with words that say to update it; a peer added by key alone
+    /// has no address to ask.
+    ///
+    /// Seen red 2026-10-11 with the pin update left out of `recheck_peer_key`: "the new key is
+    /// pinned" (the old key was still pinned).
+    #[tokio::test]
+    async fn rechecking_a_peer_pins_the_key_it_gives_now() {
+        let state = Arc::new(RelayState::new(Storage::open_temp("fed_recheck")));
+        let new_key = "b2".repeat(1952);
+        let (url, server) = peer_giving(new_key.clone()).await;
+        state.db.add_federated_server(&url, "Peer", &url).unwrap();
+        state.db.update_federated_server_info(&url, "Peer", Some(&"a1".repeat(1952)), false).unwrap();
+
+        let first = recheck_peer_key(&state, &url).await;
+        assert_eq!(first, Ok(Rechecked { name: "Peer".into(), changed: true }), "{}", recheck_words(&first));
+        let pinned = state.db.list_federated_servers().unwrap().into_iter().find(|s| s.server_id == url).unwrap().public_key;
+        assert!(pinned.as_deref() == Some(new_key.as_str()), "the new key is pinned");
+        let again = recheck_peer_key(&state, &url).await;
+        assert_eq!(again, Ok(Rechecked { name: "Peer".into(), changed: false }));
+        assert!(recheck_words(&again).contains("already pinned"));
+        server.abort();
+
+        let (old_url, old_server) = peer_giving("ab".repeat(32)).await;
+        state.db.add_federated_server(&old_url, "Old", &old_url).unwrap();
+        let old = recheck_peer_key(&state, &old_url).await.unwrap_err();
+        assert!(old.contains("before 2026-09-06"), "{old}");
+        old_server.abort();
+
+        let key = "c3".repeat(1952);
+        state.db.add_federated_server(&key, "Home node", "outbound-only").unwrap();
+        let by_key = recheck_peer_key(&state, &key).await.unwrap_err();
+        assert!(by_key.contains("added by its key"), "{by_key}");
+        assert_eq!(recheck_peer_key(&state, "nobody").await.unwrap_err(), "No such server in the registry.");
     }
 }

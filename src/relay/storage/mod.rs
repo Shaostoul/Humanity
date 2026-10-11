@@ -842,6 +842,11 @@ impl Storage {
             "ALTER TABLE profiles ADD COLUMN website     TEXT NOT NULL DEFAULT ''",
             // privacy is a JSON map: {"location":"private", ...}  — default = all public.
             "ALTER TABLE profiles ADD COLUMN privacy     TEXT NOT NULL DEFAULT '{}'",
+            // Who the person accepts files in messages from (2026-10-11, media-showcase.md
+            // "Files on the sender's device and in messages"): "nobody", "friends" or "anyone",
+            // published so a sender's app can say so first. Only ever ALTER-added (BUG-046);
+            // storage/profile.rs `ACCEPTS_FILES_WORDS`.
+            "ALTER TABLE profiles ADD COLUMN accepts_files TEXT NOT NULL DEFAULT 'friends'",
             // Shared-file library columns (v0.675) for DBs created before them.
             "ALTER TABLE user_uploads ADD COLUMN shared        INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE user_uploads ADD COLUMN original_name TEXT NOT NULL DEFAULT ''",
@@ -2741,7 +2746,8 @@ mod messages;
 pub mod moderation;
 mod misc;
 mod pins;
-mod profile;
+/// Public for its `accepts_files` words (handlers/msg_handlers.rs checks a profile update by them).
+pub mod profile;
 mod projects;
 mod push;
 mod reactions;

@@ -1,0 +1,17 @@
+# Keeps a self-hosted relay on the latest release (BUG-192, 2026-10-11). For a
+# relay the deploy workflow does NOT update (public.guide, a self-hoster's node);
+# never install it on the server the deploy workflow updates, whose checkout the
+# deploy owns. See scripts/relay-follow-releases.sh for what it does and why.
+[Unit]
+Description=Update the HumanityOS relay to the latest release (backup, verify, health check, roll back)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# Run through bash, so it works whether or not the checkout kept the script's executable bit.
+ExecStart=/bin/bash /opt/Humanity/scripts/relay-follow-releases.sh
+Nice=10
+IOSchedulingClass=idle
+# Download, backup, restart and the one-minute health check.
+TimeoutStartSec=15min

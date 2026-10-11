@@ -293,3 +293,16 @@ accord_url = ""
 - **File Sharing** (`file_sharing.md`): P2P file transfer works across servers since it's direct between clients.
 - **Realtime Protocol** (`realtime_relay_protocol.md`): Each server runs the same protocol independently.
 - **Wallet** (`design/wallet.md`): Identity key (Dilithium3) is decoupled from the optional Solana wallet (Ed25519, derived from the same BIP39 seed via path `hum/solana/v1`).
+
+## When a peer's key changes (2026-10-11)
+
+A server's key is its identity, pinned by its peers at first contact. If it changes (as every
+server's did on 2026-09-06, when server identity moved from Ed25519 to Dilithium3), its peers
+refuse its hello until they pin the new key, and the link drops within a second of each try. The
+log then says, once, that the peer may not trust this server's current key. To fix it, on EACH
+server, re-check the other's key: Server Settings > Federation > Re-check key (desktop), the Re-check
+key button in the Admin page's federation list (web), `/server-recheck <server_id>` in chat, or
+the admin API's `recheck` action. It re-reads the key from the peer's own /api/server-info over
+HTTPS and pins it; the next connection uses it. Both servers must run a version from after
+2026-09-06. A peer added by key alone (no web address) is removed and added again with its new key.
+(BUG-192: the united-humanity.us and public.guide link was down for five weeks this way.)

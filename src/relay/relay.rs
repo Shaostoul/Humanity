@@ -1219,6 +1219,11 @@ pub enum RelayMessage {
         /// JSON map of field → "private" / "public" visibility overrides.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         privacy: Option<String>,
+        /// Who the person accepts files in messages from: "nobody", "friends" or "anyone"
+        /// (storage/profile.rs `ACCEPTS_FILES_WORDS`). Absent (an older app) keeps the stored
+        /// word; any other word refuses the whole update with a notice.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        accepts_files: Option<String>,
     },
 
     /// Server sends profile data for a specific user.
@@ -1240,6 +1245,10 @@ pub enum RelayMessage {
         location: Option<String>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         website: Option<String>,
+        /// Who the person accepts files in messages from ("nobody", "friends" or "anyone"),
+        /// public: every ProfileData this relay sends carries it.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        accepts_files: Option<String>,
         /// When Some(key): deliver only to that client. When None: broadcast to all.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         target: Option<String>,
@@ -3190,6 +3199,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                             pronouns:   opt(pronouns),
                             location:   opt(location),
                             website:    opt(website),
+                            accepts_files: Some(state.db.accepts_files_of(name)),
                             target: None, // Direct send to this socket — no routing needed
                         }).unwrap();
                         let _ = ws_tx.send(Message::Text(profile_msg.into())).await;
@@ -4797,9 +4807,10 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                                 let parts: Vec<&str> = trimmed.splitn(3, char::is_whitespace).collect();
                                                 let key = parts.get(1).unwrap_or(&"").trim().to_lowercase();
                                                 let name = parts.get(2).map(|s| s.trim().to_string()).filter(|s| !s.is_empty());
-                                                let key_ok = key.len() == 64 && key.chars().all(|c| c.is_ascii_hexdigit());
+                                                // Dilithium3 since 2026-09-06; 64 (Ed25519) refused every current key.
+                                                let key_ok = crate::relay::handlers::federation::is_server_key(&key);
                                                 if !key_ok {
-                                                    let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Usage: /server-add-key <64-hex-key> [name]\nGet the key from the other node's Host Node page (Federation key, Copy).".to_string() };
+                                                    let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Usage: /server-add-key <server-key> [name]\nA server key is 3,904 hex characters: copy it from the other node's Host Node page (Federation key, Copy).".to_string() };
                                                     let _ = state_clone.broadcast_tx.send(private);
                                                 } else {
                                                     let display_name = name.unwrap_or_else(|| format!("node-{}", &key[..8]));
@@ -4883,6 +4894,21 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                                     tracing::error!("Failed to list servers: {e}");
                                                 }
                                             }
+                                        }
+                                        // Re-read a peer's key from its server-info and pin it (2026-10-11).
+                                        "/server-recheck" => {
+                                            let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                            let message = if role != "admin" {
+                                                "Only admins can re-check a server's key.".to_string()
+                                            } else {
+                                                match trimmed.split_whitespace().nth(1) {
+                                                    None => "Usage: /server-recheck <server_id>".to_string(),
+                                                    Some(id) => crate::relay::handlers::federation::recheck_words(
+                                                        &crate::relay::handlers::federation::recheck_peer_key(&state_clone, id).await,
+                                                    ),
+                                                }
+                                            };
+                                            let _ = state_clone.broadcast_tx.send(RelayMessage::Private { to: my_key_for_recv.clone(), message });
                                         }
                                         "/server-trust" => {
                                             let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
@@ -5785,8 +5811,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                 }
                             }
                             // Profile update — validate, save, and broadcast.
-                            RelayMessage::ProfileUpdate { bio, socials, avatar_url, banner_url, pronouns, location, website, privacy } => {
-                                handle_profile_update(&state_clone, &my_key_for_recv, &mut last_profile_update, bio, socials, avatar_url, banner_url, pronouns, location, website, privacy).await;
+                            RelayMessage::ProfileUpdate { bio, socials, avatar_url, banner_url, pronouns, location, website, privacy, accepts_files } => {
+                                handle_profile_update(&state_clone, &my_key_for_recv, &mut last_profile_update, bio, socials, avatar_url, banner_url, pronouns, location, website, privacy, accepts_files).await;
                             }
                             // Profile request — look up the profile, apply privacy filter, and unicast to requester.
                             RelayMessage::ProfileRequest { name, friend_cert } => {

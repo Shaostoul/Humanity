@@ -1385,6 +1385,8 @@ pub async fn get_member_by_key(
     ).ok().flatten();
     let (bio, _socials, avatar_url, _banner_url, _pronouns, location, _website, _privacy) =
         profile.unwrap_or_default();
+    // Who they accept files in messages from (public; the default when they have no profile).
+    let accepts_files = state.db.accepts_files_of(member.name.as_deref().unwrap_or(""));
     Ok(Json(serde_json::json!({
         "public_key": member.public_key,
         "name": member.name,
@@ -1397,6 +1399,7 @@ pub async fn get_member_by_key(
         "bio": bio,
         "avatar_url": avatar_url,
         "location": location,
+        "accepts_files": accepts_files,
     })))
 }
 
@@ -2375,7 +2378,7 @@ pub async fn get_signed_profile(
 ) -> impl IntoResponse {
     match state.db.get_signed_profile(&key) {
         Ok(Some(profile)) => {
-            let body = serde_json::json!({
+            let mut body = serde_json::json!({
                 "public_key": profile.public_key,
                 "name": profile.name,
                 "bio": profile.bio,
@@ -2388,6 +2391,12 @@ pub async fn get_signed_profile(
                 "timestamp": profile.timestamp,
                 "signature": profile.signature,
             });
+            // Who they accept files in messages from, only when the key has an account HERE: it
+            // is this server's setting, not part of the signed profile, so a profile gossiped from
+            // another server is answered without it (absent = this server does not know).
+            if let Ok(Some(local_name)) = state.db.current_name_for_key(&key) {
+                body["accepts_files"] = serde_json::json!(state.db.accepts_files_of(&local_name));
+            }
             (StatusCode::OK, Json(body)).into_response()
         }
         Ok(None) => {
@@ -2814,10 +2823,15 @@ pub async fn post_admin_federation(
         // outbound dialer skips the row.
         "add_key" => {
             let key = req.public_key.clone().unwrap_or_default().trim().to_lowercase();
-            if key.len() != 64 || !key.chars().all(|c| c.is_ascii_hexdigit()) {
+            // Server keys are Dilithium3 since 2026-09-06 (3,904 hex characters); this check still
+            // asked for 64, the old Ed25519 length, and refused every current key until 2026-10-11.
+            if !crate::relay::handlers::federation::is_server_key(&key) {
                 return Err((
                     StatusCode::BAD_REQUEST,
-                    "Public key must be 64 hex characters (copy it from the other node's Host Node page).".into(),
+                    format!(
+                        "A server key is {} hex characters (copy it from the other node's Host Node page).",
+                        crate::relay::handlers::federation::SERVER_KEY_HEX_LEN
+                    ),
                 ));
             }
             let display_name = req
@@ -2864,6 +2878,19 @@ pub async fn post_admin_federation(
             }
         }
 
+        // Re-read a peer's key from its own server-info and pin it (2026-10-11): for a peer whose
+        // key changed, as every server's did on 2026-09-06.
+        "recheck" => {
+            let server_id = req.server_id.clone().unwrap_or_default();
+            let found = crate::relay::handlers::federation::recheck_peer_key(&state, &server_id).await;
+            if let Err(words) = &found {
+                if words == "No such server in the registry." {
+                    return Err((StatusCode::NOT_FOUND, words.clone()));
+                }
+            }
+            crate::relay::handlers::federation::recheck_words(&found)
+        }
+
         "remove" => {
             let server_id = req.server_id.clone().unwrap_or_default();
             match state.db.remove_federated_server(&server_id) {
@@ -2876,7 +2903,7 @@ pub async fn post_admin_federation(
         other => {
             return Err((
                 StatusCode::BAD_REQUEST,
-                format!("Unknown action '{other}'. Expected list, add, add_key, trust or remove."),
+                format!("Unknown action '{other}'. Expected list, add, add_key, trust, recheck or remove."),
             ))
         }
     };
