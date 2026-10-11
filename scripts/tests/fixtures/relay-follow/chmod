@@ -1,0 +1,6 @@
+#!/bin/bash
+# Stand-in for chmod, for scripts/tests/relay-follow.test.js: logged, then run for real. On
+# Windows the executable bit cannot be read back, so the log is how the test sees it was set.
+echo "chmod $*" >> "$STUB_LOG"
+real="$(type -P -a chmod | grep -vF "$STUB_DIR/" | head -n 1)"
+exec "$real" "$@"

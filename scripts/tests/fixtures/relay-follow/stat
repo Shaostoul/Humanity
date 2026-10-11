@@ -1,0 +1,16 @@
+#!/bin/bash
+# Stand-in for stat, for scripts/tests/relay-follow.test.js: the live database answers with the
+# owner and mode of the relay's own user ($FAKE_DB_OWNER, $FAKE_DB_MODE), which differ from the
+# user running the test; anything else goes to the real stat.
+last="${!#}"
+case "$last" in
+  */data/relay.db)
+    if [ "$1" = -c ] && [ -n "${FAKE_DB_OWNER:-}" ]; then
+      case "$2" in
+        '%u:%g') echo "$FAKE_DB_OWNER"; exit 0 ;;
+        '%a') echo "$FAKE_DB_MODE"; exit 0 ;;
+      esac
+    fi ;;
+esac
+real="$(type -P -a stat | grep -vF "$STUB_DIR/" | head -n 1)"
+exec "$real" "$@"

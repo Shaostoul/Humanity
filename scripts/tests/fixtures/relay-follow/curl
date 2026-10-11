@@ -1,0 +1,29 @@
+#!/bin/bash
+# Stand-in for curl, for scripts/tests/relay-follow.test.js: a fake GitHub (the latest release's
+# JSON and the release files, from $FAKE_GH) and a fake /health that fails while the installed
+# relay program is one listed in $FAKE_GH/unhealthy. Every call is logged with its arguments.
+echo "curl $*" >> "$STUB_LOG"
+out=""
+url=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -o) out="$2"; shift 2 ;;
+    -H|--max-time) shift 2 ;;
+    -*) shift ;;
+    *) url="$1"; shift ;;
+  esac
+done
+case "$url" in
+  "$LATEST_API")
+    cat "$FAKE_GH/latest.json" ;;
+  "$DOWNLOAD_BASE"/*)
+    f="$FAKE_GH/download/${url#"$DOWNLOAD_BASE"/}"
+    [ -f "$f" ] || exit 22
+    cp "$f" "$out" ;;
+  */health)
+    running="$(cat "$REPO/target/release/HumanityOS" 2>/dev/null)"
+    if [ -f "$FAKE_GH/unhealthy" ] && grep -qxF "$running" "$FAKE_GH/unhealthy"; then exit 7; fi
+    echo '{"status":"ok"}' ;;
+  *)
+    exit 6 ;;
+esac

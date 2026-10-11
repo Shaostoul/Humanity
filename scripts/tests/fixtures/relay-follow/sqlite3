@@ -1,0 +1,20 @@
+#!/bin/bash
+# Stand-in for sqlite3, for scripts/tests/relay-follow.test.js: `.backup 'file'` copies the
+# database file (a plain text file in the test). The log line carries the umask the backup was
+# made under, which is what keeps it root-only.
+echo "sqlite3 (umask $(umask)) $*" >> "$STUB_LOG"
+db=""
+cmd=""
+for a in "$@"; do
+  case "$a" in
+    -*) ;;
+    *) if [ -z "$db" ]; then db="$a"; else cmd="$a"; fi ;;
+  esac
+done
+case "$cmd" in
+  ".backup '"*"'")
+    dest="${cmd#".backup '"}"
+    dest="${dest%"'"}"
+    cp "$db" "$dest" ;;
+  *) exit 1 ;;
+esac

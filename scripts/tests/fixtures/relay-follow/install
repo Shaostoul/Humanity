@@ -1,0 +1,23 @@
+#!/bin/bash
+# Stand-in for install, for scripts/tests/relay-follow.test.js: logs the call (so the owner a
+# file was given can be read from the log), then runs the real install without -o and -g, which
+# only root may use.
+echo "install $*" >> "$STUB_LOG"
+# FAKE_KILL_ON_INSTALL: the old relay writes once more after the backup, then the follower is
+# killed as it installs the new program, before the new release ever ran.
+case "${!#}" in
+  */target/release/HumanityOS)
+    if [ -n "${FAKE_KILL_ON_INSTALL:-}" ]; then
+      echo "written by the old relay after the backup" >> "$REPO/data/relay.db"
+      kill -9 "$PPID"
+    fi ;;
+esac
+args=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -o|-g) shift 2 ;;
+    *) args+=("$1"); shift ;;
+  esac
+done
+real="$(type -P -a install | grep -vF "$STUB_DIR/" | head -n 1)"
+exec "$real" "${args[@]}"

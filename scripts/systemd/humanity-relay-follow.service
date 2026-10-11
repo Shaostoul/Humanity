@@ -2,6 +2,11 @@
 # relay the deploy workflow does NOT update (public.guide, a self-hoster's node);
 # never install it on the server the deploy workflow updates, whose checkout the
 # deploy owns. See scripts/relay-follow-releases.sh for what it does and why.
+#
+# The script runs from /usr/local/lib/humanity/, OUTSIDE the checkout: a roll
+# back to a release that did not carry it would otherwise delete it. Install:
+#   sudo install -D -m 755 /opt/Humanity/scripts/relay-follow-releases.sh /usr/local/lib/humanity/relay-follow-releases.sh
+# After each successful update it installs the release's copy there itself.
 [Unit]
 Description=Update the HumanityOS relay to the latest release (backup, verify, health check, roll back)
 After=network-online.target
@@ -9,9 +14,17 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
-# Run through bash, so it works whether or not the checkout kept the script's executable bit.
-ExecStart=/bin/bash /opt/Humanity/scripts/relay-follow-releases.sh
+ExecStart=/bin/bash /usr/local/lib/humanity/relay-follow-releases.sh
 Nice=10
 IOSchedulingClass=idle
-# Download, backup, restart and the one-minute health check.
-TimeoutStartSec=15min
+# Its own /tmp, removed when the run ends: a run killed partway would otherwise leave the
+# downloaded relay behind in /tmp.
+PrivateTmp=true
+# The longest a run can take, with every limit the script sets used up: the
+# GitHub query 30 s, git fetch 5 min, the download 10 min and its .sha256 30 s,
+# the database backup (a few minutes on a big database), the restart (systemd
+# may wait 90 s to stop the relay and 90 s to start it), the health check
+# (30 tries of at most 5 s plus 2 s apart, 3.5 min), and on a roll back a stop,
+# a start and the same health check again (6.5 min): about 35 minutes. If it is
+# killed anyway, the next run finds the pending record and rolls back.
+TimeoutStartSec=45min

@@ -1,0 +1,12 @@
+#!/bin/bash
+# Stand-in for systemctl, for scripts/tests/relay-follow.test.js. A restart is when the new
+# release starts on the database: it writes to it and opens a WAL, so a roll back has something
+# to undo. FAKE_KILL_ON_RESTART kills the follower right there, as the unit's time limit or a
+# reboot would.
+echo "systemctl $*" >> "$STUB_LOG"
+if [ "$1" = restart ]; then
+  echo "written by the new release" >> "$REPO/data/relay.db"
+  echo "wal of the new release" > "$REPO/data/relay.db-wal"
+  if [ -n "${FAKE_KILL_ON_RESTART:-}" ]; then kill -9 "$PPID"; fi
+fi
+exit 0

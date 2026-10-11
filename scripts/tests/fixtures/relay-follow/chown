@@ -1,0 +1,4 @@
+#!/bin/bash
+# Stand-in for chown, for scripts/tests/relay-follow.test.js: logged, never run (only root may).
+echo "chown $*" >> "$STUB_LOG"
+exit 0

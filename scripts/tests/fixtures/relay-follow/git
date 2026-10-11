@@ -1,0 +1,15 @@
+#!/bin/bash
+# Stand-in for git, for scripts/tests/relay-follow.test.js: behaves like git run as root on a
+# checkout another user owns, which refuses the repo ("dubious ownership") unless the call says
+# safe.directory=<that repo>. Then it runs the real git, logging the umask it runs under (files it
+# writes into the checkout must stay readable by the relay's user).
+for a in "$@"; do
+  if [ "$a" = "safe.directory=$REPO" ]; then
+    echo "git (umask $(umask)) $*" >> "$STUB_LOG"
+    real="$(type -P -a git | grep -vF "$STUB_DIR/" | head -n 1)"
+    exec "$real" "$@"
+  fi
+done
+echo "git (refused) $*" >> "$STUB_LOG"
+echo "fatal: detected dubious ownership in repository at '$REPO'" >&2
+exit 128

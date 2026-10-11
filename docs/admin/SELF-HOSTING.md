@@ -714,18 +714,46 @@ others: public.guide sat on a two-month-old version and was cut off from united-
 weeks that way (BUG-192). `scripts/relay-follow-releases.sh` keeps a node on the latest release by
 itself, every hour: it downloads the release's relay and checks its sha256, backs up the database
 and the running program, checks the repo out at the release, restarts, and waits for `/health`.
-If the relay does not come back healthy within a minute it puts everything back (program, files,
-database) and waits for a newer release.
+If the relay does not come back healthy within about a minute it puts everything back (program,
+files, database) and waits for a newer release.
+
+What it takes care of, so you do not have to:
+
+- **It only goes forward.** It installs a release only when it is newer than the one running, so a
+  "Latest" release on GitHub that is older (it has happened) is ignored.
+- **Your edits to tracked files stay.** If you changed `data/server-config.json` (or any other file
+  the repo carries), the edits are carried onto each release. If a release changed the same lines,
+  it does not update at all: nothing is touched, the journal names the files, and that release is
+  skipped. Merge by hand, then delete `/var/lib/humanity-follow/skipped_tag` to let it try again.
+  A changed executable bit is not counted as an edit. A file of your own at a path a release
+  starts carrying is copied to `/var/lib/humanity-follow/local-files.before-*` first, and the
+  journal says so.
+- **A roll back leaves the relay able to run.** The database goes back with the owner and mode the
+  live file had (the relay's own user must be able to write it), and the watchdog script stays
+  executable.
+- **An interrupted update is undone.** If a run is stopped partway (its time limit, a reboot), the
+  next run finds the record it left in `/var/lib/humanity-follow/pending`, rolls that update back
+  and skips the release. If even a roll back cannot finish, the record becomes `pending.failed`
+  and nothing more happens until you have looked at it and deleted it.
+- **Backups are root-only.** `/var/lib/humanity-follow` (the database backups, the previous
+  program, your saved edits) is readable by root alone. It keeps the newest three of each.
+
+The script runs from `/usr/local/lib/humanity/`, outside the checkout, because a roll back to an
+older release would delete a copy inside it. After each successful update it installs the
+release's copy there itself, so fixes to it arrive with the releases.
 
 ```bash
+sudo install -D -m 755 /opt/Humanity/scripts/relay-follow-releases.sh /usr/local/lib/humanity/relay-follow-releases.sh
 sudo cp /opt/Humanity/scripts/systemd/humanity-relay-follow.service /opt/Humanity/scripts/systemd/humanity-relay-follow.timer /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now humanity-relay-follow.timer
 journalctl -u humanity-relay-follow   # what it did, run by run
 ```
 
-Do not install it on a server that a deploy pipeline updates from `main` (the pipeline owns that
-checkout). It needs `curl`, `git` and `sqlite3`.
+If an older copy of the unit pointed into `/opt/Humanity/scripts/`, run the first four lines
+again: the unit now runs the copy in `/usr/local/lib/humanity/`. Do not install it on a server that a deploy
+pipeline updates from `main` (the pipeline owns that checkout). It needs `curl`, `git` (2.32 or
+newer), `sqlite3` and `flock`, all packaged in Debian and Ubuntu.
 
 ---
 
