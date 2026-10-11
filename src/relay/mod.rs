@@ -15,6 +15,9 @@ pub mod upload_rules;
 pub mod resumable;
 /// The Media page's routes (2026-10-11, docs/design/media-showcase.md); storage in storage/media.rs.
 pub mod media;
+/// Ten-minute tickets that open one members-only Media file without the session's token in the
+/// address (R3-8, 2026-10-11).
+pub mod media_ticket;
 pub mod api_v2_agents;
 pub mod api_v2_ai;
 pub mod api_v2_announce;
@@ -676,24 +679,19 @@ pub async fn run_relay() {
     if parts > 0 {
         tracing::info!("Removed {parts} unfinished upload part file(s)");
     }
-    // Copies cut off part way into the uploads or the Media waiting folder (R5; storage/media.rs
-    // `STAGED_PREFIX`): hidden, never served or counted, and removed here.
-    let staged = storage::media::clear_staged_files(std::path::Path::new(storage::media::UPLOADS_DIR))
-        + storage::media::clear_staged_files(std::path::Path::new(storage::media::WAITING_DIR));
-    if staged > 0 {
-        tracing::info!("Removed {staged} upload(s) left half copied into place");
-    }
-    // Resumable uploads (resumable.rs) live on across a restart, so their folder is not cleared:
-    // its files and the sessions' rows are made to agree instead (storage/upload_sessions.rs).
-    // A file with no session goes, a session with no file goes, and a file longer than its
-    // stored offset (the relay stopped between writing a piece and counting it) is cut back.
-    match db.reconcile_upload_sessions_in(std::path::Path::new(storage::media::RESUME_DIR)) {
-        Ok(r) if r == storage::upload_sessions::Reconciled::default() => {}
-        Ok(r) => tracing::info!(
-            "Resumable uploads: removed {} stray file(s) and {} session(s) with no file, cut {} file(s) back to their offset, lowered {} offset(s)",
+    // Resumable uploads (resumable.rs) live on across a restart, so their folder is not cleared;
+    // in an order that loses nothing (storage/upload_sessions.rs `settle_uploads_at_start`): a
+    // pieces file a finish had staged goes back with its session (R3-5: it is the only copy),
+    // copies cut off part way into the uploads or the Media waiting folder are removed (R5), and
+    // the resume folder's files and the sessions' rows are made to agree (a file with no session
+    // goes, a session with no file goes, a file longer than its stored offset is cut back).
+    match db.settle_uploads_at_start(storage::media::Folders::live()) {
+        Ok(s) if s == storage::upload_sessions::Settled::default() => {}
+        Ok(storage::upload_sessions::Settled { restored, staged_cleared, reconciled: r }) => tracing::info!(
+            "Uploads at start: put {restored} pieces file(s) back with their sessions, removed {staged_cleared} half-copied file(s); resumable uploads: removed {} stray file(s) and {} session(s) with no file, cut {} file(s) back to their offset, lowered {} offset(s)",
             r.files_removed, r.rows_removed, r.cut_back, r.offset_lowered
         ),
-        Err(e) => tracing::error!("Resumable uploads: the start-up check failed: {e}"),
+        Err(e) => tracing::error!("Uploads at start: the check failed: {e}"),
     }
 
     // Generate or load server Ed25519 keypair for federation.
@@ -1245,8 +1243,10 @@ pub fn build_router(state: Arc<RelayState>) -> Router {
         .route("/api/media/categories", get(media::categories).post(media::set_categories))
         .route("/api/media/remove", post(media::remove))
         // A members-only item's file, to a member with the session's upload token (F3): it is
-        // not in data/uploads, so the /uploads service below never has it.
+        // not in data/uploads, so the /uploads service below never has it. Or with a ticket for
+        // that one file (R3-8), which the ticket route gives a member for ten minutes.
         .route("/api/media/file/{id}", get(media::file))
+        .route("/api/media/ticket", post(media_ticket::ticket))
         .route("/api/media/visibility", post(media::visibility))
         .route("/api/media/pick", post(media::pick))
         .route("/api/media/unpick", post(media::unpick))

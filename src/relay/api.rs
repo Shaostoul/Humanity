@@ -362,6 +362,20 @@ pub async fn upload_file(
     State(state): State<Arc<RelayState>>,
     Query(query): Query<UploadQuery>,
     headers: axum::http::HeaderMap,
+    multipart: axum::extract::Multipart,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let folders = super::media::Folders::live();
+    upload_file_in(&state, folders, std::path::Path::new(UPLOAD_PART_DIR), query, headers, multipart).await
+}
+
+/// [`upload_file`] with its folders named: the relay's own, or a test's (R3-1's tests store real
+/// files in folders of their own). `part_dir` is where the file streams to as it arrives.
+pub(crate) async fn upload_file_in(
+    state: &Arc<RelayState>,
+    folders: super::media::Folders<'_>,
+    part_dir: &std::path::Path,
+    query: UploadQuery,
+    headers: axum::http::HeaderMap,
     mut multipart: axum::extract::Multipart,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     use super::upload_rules::{check_type, file_type, finish_file_as, finish_picture_as, sharing_check, stored_name, token_key, uploader_role};
@@ -374,7 +388,7 @@ pub async fn upload_file(
     let shelf = super::media::upload_shelf(query.share, query.media, query.encrypted)?;
 
     // M-4: Resolve upload token to public key (the per-session token only, 2026-10-11).
-    let public_key = token_key(&state, query.token.as_deref()).await?;
+    let public_key = token_key(state, query.token.as_deref()).await?;
 
     // Only verified/mod/admin/donor may upload files. The role also
     // determines this user's FIFO retention count (v0.238 per-role).
@@ -388,8 +402,10 @@ pub async fn upload_file(
     // ceiling; and no more than is left of the day's allowance, after the hour's count of uploads
     // (upload_rules.rs `FileLimit`, `allowance_at_start`; B1 to B3, 2026-10-11). A request that
     // says up front it is bigger is refused before a byte of it is read, so nobody can push a
-    // large file at the server only to have it refused at the end.
-    let now = crate::relay::storage::now_millis() as i64;
+    // large file at the server only to have it refused at the end. This look only refuses early:
+    // the allowances are checked again and counted when the file is stored, at that time, under
+    // the room lock (R3-1, media.rs `store_upload`).
+    let now = state.upload_now_ms();
     let day_left = super::upload_rules::allowance_at_start(&state.db, &public_key, &uploader_rdef, now).map_err(|over| over.refused())?;
     let limit = super::upload_rules::FileLimit::for_request(&uploader_rdef, shelf, query.encrypted == Some(1))
         .tighter(super::upload_rules::day_limit(&state.db, &public_key, &uploader_rdef, now, day_left));
@@ -418,7 +434,7 @@ pub async fn upload_file(
         // The file arrives into a part file, never into memory whole (a video can be a GB), and is
         // refused the moment it passes the role's limit (a client that did not say its size up
         // front, or said it wrongly).
-        let part = stream_to_part(&mut field, max_size.min(usize::MAX as u64) as usize, std::path::Path::new(UPLOAD_PART_DIR))
+        let part = stream_to_part(&mut field, max_size.min(usize::MAX as u64) as usize, part_dir)
             .await
             .map_err(|e| limit.reword(e))?;
 
@@ -496,9 +512,11 @@ pub async fn upload_file(
         let (shelf_fs, settings_fs) = (shelf, server_settings.clone()); // the shelf: media.rs `upload_shelf`
         let original_name_fs = filename.clone();
         let private_held_fs = if is_encrypted { super::upload_rules::private_held_limit(&uploader_rdef) } else { None };
+        let (role_fs, arrived) = (uploader_rdef.clone(), part.len as u64);
+        let owned = crate::relay::storage::media::OwnedFolders::of(folders);
         let fs_result = tokio::task::spawn_blocking(move || -> Result<(), (StatusCode, String)> {
             // Store in data/uploads/.
-            let folders = super::media::Folders::live();
+            let folders = owned.get();
             std::fs::create_dir_all(folders.uploads).map_err(|e| {
                 body.discard(); // a part file is never left behind
                 (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to create upload dir: {e}"))
@@ -508,7 +526,11 @@ pub async fn upload_file(
             // upload against the Media budget and the person's share), the move into place and
             // the row (FIFO retention from the role; shared files exempt), under one lock so two
             // uploads finishing together cannot both pass (media.rs `store_upload`, F4).
-            // A private file is also held to its uploader's own room for such files (B5).
+            // A private file is also held to its uploader's own room for such files (B5). The
+            // day's and the hour's allowances are checked and counted there too, at the store
+            // time, here in the blocking work, which runs whole even if the connection closes
+            // (R3-1): the bytes that arrived against the day, the upload against the hour.
+            let clock = || state_fs.upload_now_ms();
             let new = super::media::NewUpload {
                 key: &public_key_fs,
                 shelf: shelf_fs,
@@ -517,6 +539,8 @@ pub async fn upload_file(
                 len: data_len as u64,
                 keep: max_uploads_per_user,
                 private_held_limit: private_held_fs,
+                allowance: Some(super::media::Allowance { role: &role_fs, bytes: arrived, clock: &clock }),
+                session: None,
             };
             let old_files = super::media::store_upload(&state_fs.db, &settings_fs, folders, &new, |path| body.put(path), |path| body.unstage(path))
                 .inspect_err(|_| body.discard())?;
@@ -531,11 +555,9 @@ pub async fn upload_file(
             let _ = std::fs::remove_file(&part_path_after);
             (StatusCode::INTERNAL_SERVER_ERROR, format!("Upload task failed: {e}"))
         })?;
-        // Propagate the fs section's own error → HTTP status (unchanged mapping).
+        // Propagate the fs section's own error → HTTP status (unchanged mapping). Stored, it was
+        // counted against the allowances in the store (R3-1).
         fs_result?;
-        // Stored: the bytes that arrived count against the day's allowance, the upload against
-        // the hour's (B3).
-        super::upload_rules::count_upload(&state.db, &public_key, now, part.len as u64, true);
 
         return Ok(Json(super::upload_rules::upload_answer(&unique_name, data_len as u64, file_type)));
     }

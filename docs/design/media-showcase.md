@@ -1135,3 +1135,82 @@ pictures are fetched with an AbortController and are not re-fetched by a reload;
 browser cannot hold are a Save card, not an inline picture (pictures inline up to 16 MB, Save up to
 512 MB, above that "open it in the desktop app"), and an opened private file is not downloaded
 again on every redraw.
+
+**As built (relay, round 3; 2026-10-11).** R3-1 to R3-9 as written above; the apps build against
+the shapes below. Code: relay/media.rs (`store_upload`, `Allowance`, the file route, `mine_core`,
+`publish_core`), relay/media_ticket.rs (new), relay/resumable.rs (`write_counted`,
+`session_token`, the finish), relay/upload_rules.rs, relay/upload_limits.rs (`move_file`,
+`unstage`), relay/api.rs (`upload_file_in`), relay/handlers/live_conns.rs (`peer_list_for`),
+storage/upload_sessions.rs (`staged_part_name`, `restore_staged_part`, `settle_uploads_at_start`),
+storage/upload_counts.rs, storage/media.rs, core/strip_heif_metadata.rs, relay/mod.rs (the route
+and the start-up order), scripts/nginx/humanity.conf and docs/admin/SELF-HOSTING.md. Tests:
+relay/upload_round3_tests.rs (R3-1, the single request), relay/resumable_round3_tests.rs (R3-1
+for pieces, R3-5, R3-6, R3-9), relay/media_round3_tests.rs (R3-3, R3-7, R3-8), and one each in
+handlers/live_conns.rs (R3-2) and core/strip_heif_metadata.rs (R3-4); each seen failing once
+against a deliberate break, named at the test.
+
+- **R3-1.** The day's and the hour's allowances are checked and counted together under the room
+  lock, at that moment's time, inside the blocking work, on every route. A single request: the
+  check at its start stays, only as an early refusal (a file that cannot fit is never read); the
+  store looks again before the file is put in place, then checks and counts with the room check
+  that counts (`allowance_at_store`: the hour's uploads, and this file's bytes against what is
+  left of the day; 429, the same plain words as before). A resumable start checks and counts its
+  upload under the lock. A piece's bytes are checked and counted under the lock when it arrives,
+  then the piece is written and the offset stored, all in the blocking work; a write that fails,
+  or a session cancelled meanwhile, takes the bytes back off the count
+  (`Storage::take_back_upload_count`). The relay reads the time for this from
+  `RelayState::upload_now_ms` (the wall clock; a test sets its own).
+- **R3-2.** The identify peer list is built by `live_conns::peer_list_for`, which puts THIS
+  socket's own token on the person's own entry.
+- **R3-3.** `publish_core` reads the publisher's role and `publish_media_placing` refuses a file
+  bigger than its `max_media_file_mb` (0: none): 413 with the upload's own words, "Media files are
+  limited to N MB for your role on this server." (`Refusal::TooLarge`, new).
+- **R3-4.** Every item that is not Exif or XMP is protected, whatever its data reference. The
+  `dref` table is not read, so an item really kept in another file guards bytes it does not have:
+  that can only refuse a photo, never damage one.
+- **R3-5.** A finish stages the pieces file in the Media waiting folder as
+  `.incoming-resume-<session id>` (`staged_part_name`). A refusal after that moves it back
+  (`move_file`: a rename, else a copy that takes the name only when whole); if it cannot go back
+  it is KEPT there under that name, never deleted, and the next finish brings it back first (an
+  error 500 "could not be put back in place on the server yet" while it cannot). At start,
+  `settle_uploads_at_start` runs in this order: a staged pieces file of a session still in
+  progress goes back to the resume folder; one whose session is gone, finished, or already has
+  its pieces file is deleted; then the plain half copies are cleared (`clear_staged_files` never
+  touches the session names, so a database that cannot be read deletes nothing); then the
+  reconciliation. A cancel removes a staged pieces file too.
+- **R3-6.** A 429 allowance answer from the resumable routes is `{error, allowance: "day"|"hour",
+  resets_at, resets_in_s, left_bytes}` (a piece's adds `offset` and `size`). `resets_in_s` is whole
+  seconds to `resets_at` by the relay's clock, rounded up. `left_bytes` is what the day still
+  allows (the day's allowance less what is counted); 0 when the HOUR's allowance refused (no
+  upload can start until it resets) and for a day used up. Any piece up to `chunk_max` was and is
+  taken, a piece of exactly `left_bytes` included. The single request's 429s stay plain words.
+- **R3-7.** `GET` and `POST /api/media/mine` add `uploads_in_progress: [{id, filename, size,
+  offset, touched_at}]`: the member's own resumable sessions still arriving, oldest first
+  (`touched_at` in Unix ms). A finished one is not in it (its file is in `waiting`).
+- **R3-8.** `POST /api/media/ticket`, the upload token in `X-Upload-Token` ONLY (no `?token=`
+  here), body `{id, filename}`, answers `{url: "/api/media/file/<id>?ticket=<64 hex characters>",
+  expires_in_s: 600}`. Refusals: 401 no header, 403 a token that is not a session, someone who is
+  not a member or is banned, 400 or 404 or 409 as every write that names an item (W5), 429 when
+  the person already holds 256 live tickets (or the relay 50,000). `GET
+  /api/media/file/<id>?ticket=` serves the file as the token does (ranges, 206, attachment,
+  `private, no-store`) while the ticket is live (ten minutes), was given for that item, the item's
+  file is still the one it was given for, and the person it was given to is still a member and
+  not banned (checked at every request, so a ban ends their tickets). Anything else is 403 with
+  one sentence for every case: "That link to a members-only file has run out (links last ten
+  minutes) or is not for this file. Open the file again from the Media page." A refused ticket
+  falls back to a token when the request also carries one. Tickets are 256 random bits from the
+  operating system, kept in memory only (`RelayState::media_tickets`; a restart ends them).
+- **R3-9.** All four resumable routes read the token through `session_token`: the
+  `X-Upload-Token` header, else `?token=`; the header wins when both are sent. Both upload
+  locations, in scripts/nginx/humanity.conf and in the guide, carry `limit_req_status 429;`.
+  **The live server's nginx still needs the same line** in its two upload locations (and
+  `nginx -t` then a reload); this round changed only the repo's copy.
+
+**Honest limits.** A relay that stops in the moment between a finish's last rename and its
+`user_uploads` row (one rename and one insert, under the lock) leaves the file stored in the
+waiting folder with no row, and the next start drops its session as one with no pieces file: the
+file is not lost, but nothing lists it, the expiry pass does not know it, and the person sends it
+again. The staged name keeps the pieces file, which is the risk this round was about.
+`resets_in_s` is the relay's own count and does not know the app's clock; an app that waits it out
+and finds the allowance still used (a second upload of the same person counted meanwhile) is
+refused again with a new number.

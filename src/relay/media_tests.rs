@@ -591,7 +591,7 @@ fn two_uploads_finishing_together_cannot_both_pass_the_room_check() {
             .map(|name| {
                 let (s, arrived) = (&s, &arrived);
                 scope.spawn(move || {
-                    let u = NewUpload { key: "ann", shelf: MEDIA_SHELF, name, original_name: name, len: 600 * 1024, keep: 4, private_held_limit: None };
+                    let u = NewUpload { key: "ann", shelf: MEDIA_SHELF, name, original_name: name, len: 600 * 1024, keep: 4, private_held_limit: None, allowance: None, session: None };
                     store_upload(
                         db,
                         s,

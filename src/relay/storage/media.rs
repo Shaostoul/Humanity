@@ -70,6 +70,25 @@ impl Folders<'static> {
     }
 }
 
+/// [`Folders`] with its paths owned, so they can move into `spawn_blocking` (the single request,
+/// api.rs `upload_file_in`, and the resumable upload, relay/resumable.rs).
+#[derive(Debug, Clone)]
+pub struct OwnedFolders {
+    uploads: PathBuf,
+    members: PathBuf,
+    resume: PathBuf,
+    waiting: PathBuf,
+}
+
+impl OwnedFolders {
+    pub fn of(f: Folders) -> Self {
+        OwnedFolders { uploads: f.uploads.to_path_buf(), members: f.members.to_path_buf(), resume: f.resume.to_path_buf(), waiting: f.waiting.to_path_buf() }
+    }
+    pub fn get(&self) -> Folders<'_> {
+        Folders { uploads: &self.uploads, members: &self.members, resume: &self.resume, waiting: &self.waiting }
+    }
+}
+
 /// Which of the three folders a stored file is in.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Spot {
@@ -104,12 +123,17 @@ pub fn folder_bytes(dir: &Path) -> u64 {
 }
 
 /// Remove every file left half copied in `dir` ([`STAGED_PREFIX`]): called at start, when no
-/// upload can be arriving. How many were removed.
+/// upload can be arriving. How many were removed. Never a resumable upload's staged pieces file
+/// (storage/upload_sessions.rs `staged_part_name`): it may be the only copy of what was sent, and
+/// `Storage::restore_staged_upload_parts` puts it back with its session or removes it (R3-5).
 pub fn clear_staged_files(dir: &Path) -> usize {
     let Ok(entries) = std::fs::read_dir(dir) else { return 0 };
     entries
         .filter_map(|e| e.ok())
-        .filter(|e| e.file_name().to_string_lossy().starts_with(STAGED_PREFIX))
+        .filter(|e| {
+            let name = e.file_name().to_string_lossy().into_owned();
+            name.starts_with(STAGED_PREFIX) && super::upload_sessions::staged_part_id(&name).is_none()
+        })
         .filter(|e| std::fs::remove_file(e.path()).is_ok())
         .count()
 }
@@ -227,6 +251,8 @@ pub enum Refusal {
     Conflict,
     /// The Media space, or the person's share of it, has no room for this.
     Full,
+    /// The file is bigger than the person's role allows one Media file to be (R3-3).
+    TooLarge,
 }
 
 /// A refused Media request (with its words), the database failing underneath, or a file that
@@ -356,6 +382,10 @@ pub struct Publish<'a> {
     pub category_id: Option<i64>,
     pub labels: &'a str,
     pub visibility: &'a str,
+    /// The publisher's role's largest Media file in MB (`max_media_file_mb`), or 0 for none (up
+    /// to the share). Checked here too (R3-3, 2026-10-11): a file uploaded to chat or Shared
+    /// Files was only held to the role's per-file limit, and could be published past this one.
+    pub max_file_mb: i64,
 }
 
 /// The list's filters. `members` is whether the viewer gets the members' view (members-only
@@ -644,6 +674,9 @@ impl Storage {
                 return refused(Refusal::Bad, format!("There is no category number {category} on this server."));
             }
             let size = if row_size > 0 { row_size } else { disk_size.unwrap_or(0).max(0) };
+            if p.max_file_mb > 0 && size > p.max_file_mb.saturating_mul(1024 * 1024) {
+                return refused(Refusal::TooLarge, crate::relay::upload_rules::media_file_limit_words(p.max_file_mb));
+            }
             let used = media_bytes_on(&tx, None, Some(p.filename))?;
             if used + size > budget {
                 return refused(Refusal::Full, budget_full_words(used, budget, size));

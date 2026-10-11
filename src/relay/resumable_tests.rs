@@ -10,6 +10,7 @@ use super::*;
 use crate::relay::storage::media::MEDIA_SHELF;
 use crate::relay::storage::{ServerSettings, Storage};
 use crate::test_temp::TempPath;
+use std::path::PathBuf;
 
 const MIB: u64 = 1024 * 1024;
 
@@ -615,7 +616,9 @@ fn the_relay_wires_the_routes_the_start_up_check_and_the_piece_limit() {
     let start = mod_rs.find("pub async fn run_relay()").expect("run_relay");
     let run = &mod_rs[start..];
     let clear = run.find("clear_part_files(").expect("the part files are cleared at start");
-    let check = run.find("reconcile_upload_sessions_in(").expect("the start-up check runs in run_relay");
+    // Since R3-5 the reconciliation runs inside `settle_uploads_at_start`, after the staged pieces
+    // files are put back (storage/upload_sessions.rs).
+    let check = run.find("settle_uploads_at_start(").expect("the start-up check runs in run_relay");
     assert!(check > clear && check - clear < 1500, "the start-up check runs where the part files are cleared");
     assert_ne!(crate::relay::upload_limits::UPLOAD_PART_DIR, crate::relay::storage::media::RESUME_DIR, "clearing the part files never touches the sessions' pieces");
     assert!(PIECE_BODY_LIMIT > CHUNK_MAX && PIECE_BODY_LIMIT < 2 * CHUNK_MAX);
@@ -686,7 +689,8 @@ async fn a_videos_location_is_removed_at_finish() {
 fn the_single_request_strips_videos_too() {
     // Line endings normalised: a Windows checkout has CRLF.
     let api = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/relay/api.rs")).unwrap().replace("\r\n", "\n");
-    let start = api.find("pub async fn upload_file(").expect("upload_file");
+    // The handler's work is `upload_file_in` (R3-1: with folders a test can name).
+    let start = api.find("pub(crate) async fn upload_file_in(").expect("upload_file_in");
     let body = &api[start..start + api[start..].find("\n}\n").unwrap()];
     let non_picture = &body[body.find("axum::body::Bytes::from(stripped)").expect("the picture branch")..];
     let call = non_picture.find("finish_file_as(&path, keep_metadata)").expect("the single request strips a video's location");
@@ -704,3 +708,7 @@ pub(super) static FINISH_HOLD: std::sync::Mutex<()> = std::sync::Mutex::new(());
 // The increment 2 follow-ups and the review's fixes (2026-10-11): R1, R2, R3, B1, B3, B4, R7.
 #[path = "resumable_follow_ups_tests.rs"]
 mod follow_ups;
+
+// Round 3, the fixes from the round 2 review (2026-10-11): R3-1 (pieces), R3-5, R3-6, R3-9.
+#[path = "resumable_round3_tests.rs"]
+mod round3;

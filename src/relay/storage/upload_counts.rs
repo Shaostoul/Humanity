@@ -87,4 +87,19 @@ impl Storage {
             Ok(())
         })
     }
+
+    /// Take `amount` back off `key`'s count of `span` in the window holding `now_ms`, never below 0:
+    /// a resumable piece counted before it was written, whose write failed (R3-1, 2026-10-11).
+    pub fn take_back_upload_count(&self, key: &str, span: Span, now_ms: i64, amount: i64) -> Result<(), rusqlite::Error> {
+        if amount <= 0 {
+            return Ok(());
+        }
+        self.with_conn(|conn| {
+            conn.execute(
+                "UPDATE upload_counts SET amount = MAX(amount - ?4, 0) WHERE public_key = ?1 AND span = ?2 AND starts_at = ?3",
+                params![key, span.word(), span.starts_at(now_ms), amount],
+            )
+            .map(|_| ())
+        })
+    }
 }

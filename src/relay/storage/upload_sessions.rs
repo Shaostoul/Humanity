@@ -73,6 +73,62 @@ pub fn part_path(dir: &Path, id: &str) -> Option<PathBuf> {
     valid_id(id).then(|| dir.join(format!("{id}.part")))
 }
 
+/// The hidden name session `id`'s pieces file has while it moves into place (R3-5, 2026-10-11):
+/// storage/media.rs `STAGED_PREFIX`, `resume-` and the id. The finish moves the pieces file from
+/// the resume folder into the folder it is stored in under this name (relay/media.rs
+/// `store_upload`), then waits for the room lock before the last rename. It is the ONLY copy of
+/// what was sent, so the name says whose it is: a relay that stops in between, or a move back
+/// that fails, leaves a file that is put back with its session ([`restore_staged_part`]) instead
+/// of being cleared at start as a half-copied file.
+pub fn staged_part_name(id: &str) -> String {
+    format!("{}resume-{id}", super::media::STAGED_PREFIX)
+}
+
+/// The session id a [`staged_part_name`] carries, or None for any other name.
+pub fn staged_part_id(name: &str) -> Option<&str> {
+    name.strip_prefix(super::media::STAGED_PREFIX)?.strip_prefix("resume-").filter(|id| valid_id(id))
+}
+
+/// Put session `id`'s pieces file back into the resume folder from where a finish staged it (the
+/// Media waiting folder, or the public one), when it is not in the resume folder already (R3-5).
+/// Whether the pieces file is in the resume folder now. Never deletes the staged file unless it
+/// is safely back.
+pub fn restore_staged_part(folders: super::media::Folders, id: &str) -> bool {
+    let Some(part) = part_path(folders.resume, id) else { return false };
+    if part.is_file() {
+        return true;
+    }
+    let name = staged_part_name(id);
+    for dir in [folders.waiting, folders.uploads] {
+        let staged = dir.join(&name);
+        if !staged.is_file() {
+            continue;
+        }
+        let back = std::fs::create_dir_all(folders.resume).and_then(|_| crate::relay::upload_limits::move_file(&staged, &part));
+        return match back {
+            Ok(()) => {
+                tracing::info!("Resumable upload {id}: its pieces' file was put back with its session");
+                true
+            }
+            Err(e) => {
+                tracing::error!("Resumable upload {id}: its pieces' file could not be put back yet ({e}); it is kept where it is");
+                false
+            }
+        };
+    }
+    false
+}
+
+/// What the start-up settling of the upload folders did ([`Storage::settle_uploads_at_start`]).
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct Settled {
+    /// Staged pieces files put back with their sessions (R3-5).
+    pub restored: usize,
+    /// Copies cut off part way into the public or the Media waiting folder, removed (R5).
+    pub staged_cleared: usize,
+    pub reconciled: Reconciled,
+}
+
 /// What the start-up reconciliation did.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct Reconciled {
@@ -210,12 +266,67 @@ impl Storage {
         ids.iter().filter_map(|id| part_path(dir, id)).filter(|p| std::fs::remove_file(p).is_ok()).count()
     }
 
+    /// At relay start, when no upload can be arriving (relay/mod.rs `run_relay`), in the order
+    /// that loses nothing (R3-5, 2026-10-11): a resumable upload's pieces file that a finish had
+    /// staged goes back with its session ([`Storage::restore_staged_upload_parts`]); then copies
+    /// cut off part way into the public or the Media waiting folder are removed (storage/media.rs
+    /// `clear_staged_files`, R5), never a staged pieces file; then the resume folder and the
+    /// sessions are made to agree ([`Storage::reconcile_upload_sessions_in`]).
+    pub fn settle_uploads_at_start(&self, folders: super::media::Folders) -> Result<Settled, rusqlite::Error> {
+        let restored = self.restore_staged_upload_parts(folders);
+        let staged_cleared = super::media::clear_staged_files(folders.uploads) + super::media::clear_staged_files(folders.waiting);
+        let restored = restored?;
+        // A staged pieces file still there could not be moved back just now: its session is kept
+        // (with no pieces file in the resume folder) so the next finish tries again.
+        let mut still_staged = std::collections::HashSet::new();
+        for dir in [folders.waiting, folders.uploads] {
+            if let Ok(entries) = std::fs::read_dir(dir) {
+                let names = entries.filter_map(|e| e.ok()).map(|e| e.file_name().to_string_lossy().into_owned());
+                still_staged.extend(names.filter_map(|n| staged_part_id(&n).map(str::to_string)));
+            }
+        }
+        let reconciled = self.reconcile_upload_sessions_keeping(folders.resume, &still_staged)?;
+        Ok(Settled { restored, staged_cleared, reconciled })
+    }
+
+    /// At relay start, BEFORE the folder is reconciled ([`Storage::settle_uploads_at_start`]): every pieces
+    /// file a finish had staged ([`staged_part_name`]) and the relay stopped with is settled (R3-5,
+    /// 2026-10-11). One whose session is still in progress and has no pieces file goes back to the
+    /// resume folder, so the reconciliation keeps the session. One whose session's pieces file is
+    /// there was a copy, and one whose session is gone or finished is left over: both are deleted.
+    /// (storage/media.rs `clear_staged_files` never touches these names, so a database that cannot
+    /// be read here deletes nothing.) How many were put back.
+    pub fn restore_staged_upload_parts(&self, folders: super::media::Folders) -> Result<usize, rusqlite::Error> {
+        let sessions = self.all_upload_sessions()?;
+        let live: std::collections::HashSet<&str> = sessions.iter().filter(|s| !s.finished()).map(|s| s.id.as_str()).collect();
+        let mut restored = 0;
+        for dir in [folders.waiting, folders.uploads] {
+            let Ok(entries) = std::fs::read_dir(dir) else { continue };
+            for entry in entries.filter_map(|e| e.ok()) {
+                let name = entry.file_name().to_string_lossy().into_owned();
+                let Some(id) = staged_part_id(&name) else { continue };
+                if live.contains(id) && part_path(folders.resume, id).is_some_and(|p| !p.is_file()) {
+                    restored += usize::from(restore_staged_part(folders, id));
+                } else {
+                    let _ = std::fs::remove_file(entry.path());
+                }
+            }
+        }
+        Ok(restored)
+    }
+
     /// At relay start, when no piece can be arriving: make the folder and the rows agree. A file
     /// with no session is deleted (so is anything else in the folder: it is the relay's own); a
     /// session with no file is deleted; a file longer than its stored offset (the relay stopped
     /// between writing a piece and storing the offset) is cut back to the offset, so the app sends
     /// that piece again; a file shorter than its offset lowers the offset to what is there.
     pub fn reconcile_upload_sessions_in(&self, dir: &Path) -> Result<Reconciled, rusqlite::Error> {
+        self.reconcile_upload_sessions_keeping(dir, &std::collections::HashSet::new())
+    }
+
+    /// [`Storage::reconcile_upload_sessions_in`], keeping the sessions in `staged` even with no
+    /// file in `dir`: their pieces file is staged elsewhere and could not be moved back yet (R3-5).
+    pub fn reconcile_upload_sessions_keeping(&self, dir: &Path, staged: &std::collections::HashSet<String>) -> Result<Reconciled, rusqlite::Error> {
         let mut done = Reconciled::default();
         let sessions = self.all_upload_sessions()?;
         // The files first: anything that is not a live session's file goes.
@@ -246,6 +357,7 @@ impl Storage {
             };
             let len = match std::fs::metadata(&path) {
                 Ok(m) if m.is_file() => m.len() as i64,
+                _ if staged.contains(&s.id) => continue,
                 _ => {
                     self.delete_upload_session(&s.id)?;
                     done.rows_removed += 1;
