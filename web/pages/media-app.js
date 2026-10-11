@@ -153,6 +153,7 @@
     reportNotSignedIn: 'This page is not signed in to this server yet, so the report was not sent. Try again in a moment.',
     reportNoAnswer: 'The server did not answer, so it is not known whether the report arrived. Try again in a moment.',
     reportReasonsFailed: 'The list of reasons could not be loaded from this server, so a report cannot be sent yet. Close this and try again in a moment.',
+    checkerMissing: 'This page could not load its file checker, so nothing can be added. Reload the page and try again.',
   });
 
   function num(x) {
@@ -423,6 +424,10 @@
   const U = typeof module === 'object' && module && module.exports ? require('./media-upload.js') : root.MediaUpload;
   const { RESUME_KEY, rememberUpload, findUpload, forgetUpload, createUploader, fingerprint, cancelSession } = U || {};
 
+  // Every file cleaned on this device before it goes up (2026-10-11, docs/design/media-showcase.md,
+  // "Files on the sender's device and in messages, exact", parts 1 and 2): /shared/upload-clean.js.
+  const C = typeof module === 'object' && module && module.exports ? require('../shared/upload-clean.js') : root.HosUploadClean;
+
   // ── DOM ──
 
   function makeH(doc) {
@@ -460,7 +465,10 @@
    *   report (/shared/report.js's names), language (navigator.language),
    *   put ({filename, name} to open Put on Media for a Shared Files upload, or null),
    *   openId (an item's number to open, from /media?id=<n>, or null),
-   *   mountAdmin(container) (the admins' Media section, /pages/media-admin.js), optional.
+   *   mountAdmin(container) (the admins' Media section, /pages/media-admin.js), optional,
+   *   clean (/shared/upload-clean.js, which cleans each file before it goes up; that module when
+   *   not given, and null for no cleaning at all: the older tests' stand-in files are zeros named
+   *   as videos, which the cleaning would rightly refuse).
    */
   function createMediaPage(env) {
     const doc = env.document;
@@ -473,6 +481,8 @@
     const cancelLater = env.clearTimeout || ((t) => clearTimeout(t));
     const now = () => (typeof env.now === 'function' ? env.now() : Date.now());
     const Abort = env.AbortController || (typeof AbortController !== 'undefined' ? AbortController : null);
+    // The cleaning (part 1): false when the page could not load it, so nothing goes up unchecked.
+    const cleaner = env.clean !== undefined ? env.clean : (C || false);
 
     const st = {
       items: [],
@@ -1489,6 +1499,60 @@
     }
     const sameFile = (a, b) => !!(a && b && a.name === b.name && a.size === b.size && a.lastModified === b.lastModified);
 
+    /**
+     * What goes up for an Add to Media form, as its switch stands (part 1): {file, keepMetadata,
+     * refused}. The Media page is public, so a file that could not be checked is never added unless
+     * the person keeps its details by choice; `refused` holds the words saying so.
+     */
+    function sendingOf(f) {
+      if (!f || !f.clean || !cleaner) return { file: f ? f.file : null, keepMetadata: false, refused: null };
+      const d = cleaner.decide(f.clean, { where: 'public', remove: f.remove !== false, protectedOn: !!f.protectedOn });
+      if (d.action === 'send') return { file: d.file, keepMetadata: d.keepMetadata, refused: null };
+      return { file: null, keepMetadata: false, refused: d.words };
+    }
+
+    /** Does the form show what the file holds and the switch: a picture or a video, or a file that could not be checked. */
+    function detailsShown(f) {
+      const c = f && f.clean;
+      return !!(c && cleaner && f.mode === 'add' && (c.unchecked || c.summary || ['jpeg', 'png', 'webp', 'mp4', 'heif'].includes(c.kind)));
+    }
+
+    /** The form's part on what the file holds: its hidden details, the switch, and why it cannot go. */
+    function detailsBox(f) {
+      const W = cleaner.WORDS;
+      const c = f.clean;
+      const kids = [];
+      if (c.summary) {
+        kids.push(h('p', { id: 'media-form-hidden', className: 'media-hint', text: c.summary }));
+        kids.push(h('ul', { className: 'media-hidden-details' }, (c.details || []).map((d) => h('li', { text: d.words }))));
+      }
+      f.detailsSwitch = null;
+      if (f.protectedOn) {
+        kids.push(h('p', { id: 'media-form-protected', className: 'media-hint', text: W.protectedLine }));
+      } else {
+        const box = h('input', { type: 'checkbox', id: 'media-form-remove-details', checked: f.remove !== false, disabled: !!f.up });
+        box.addEventListener('change', () => {
+          if (f.up) return;
+          f.remove = !!box.checked;
+          drawDetailsWords(f);
+          renderFormActions(f);
+        });
+        f.detailsSwitch = box;
+        kids.push(h('label', { className: 'media-check' }, [box, ' ' + W.switchLabel]));
+      }
+      f.offEl = h('p', { id: 'media-form-details-off', className: 'media-hint' });
+      f.refusedEl = h('p', { id: 'media-form-unchecked', className: 'media-warn' });
+      kids.push(f.offEl, f.refusedEl);
+      drawDetailsWords(f);
+      return h('div', { id: 'media-form-details', className: 'media-field media-details' }, kids);
+    }
+
+    function drawDetailsWords(f) {
+      if (!f.offEl || !cleaner) return;
+      f.offEl.textContent = !f.protectedOn && f.remove === false ? cleaner.WORDS.switchOffLine : '';
+      f.refusedEl.textContent = sendingOf(f).refused || '';
+    }
+
     async function openAddForm(file) {
       const f = { mode: 'add', file, name: file.name, stop: null, shareLine: '', checking: true, busy: false, error: '', uploadedName: '', up: null, fp: '' };
       st.form = f;
@@ -1506,8 +1570,23 @@
         renderForm();
         return;
       }
-      // Its fingerprint (the first and last megabyte), which a resume is matched by.
-      try { f.fp = fingerprint ? await fingerprint(file, env.digest) : ''; } catch (e) { f.fp = ''; }
+      // Cleaned on this device first (part 1): what it holds, for the form's words and switch.
+      if (cleaner === false) {
+        f.checking = false;
+        f.stop = MEDIA_WORDS.checkerMissing;
+        renderForm();
+        return;
+      }
+      if (cleaner) {
+        f.protectedOn = cleaner.protectedSetupOn(env.storage);
+        f.remove = cleaner.removeDetailsChosen(env.storage);
+        f.clean = await cleaner.cleanFile(file);
+        if (st.form !== f) return;
+      }
+      // Its fingerprint (the first and last megabyte), which a resume is matched by: of the file that
+      // goes up (the cleaned one, unless the details are kept).
+      f.fpFile = sendingOf(f).file || file;
+      try { f.fp = fingerprint ? await fingerprint(f.fpFile, env.digest) : ''; } catch (e) { f.fp = ''; }
       if (st.form !== f) return;
       // Until the relay has said what is left, nothing can be uploaded, so an upload over it never starts.
       const mine = await loadMine();
@@ -1516,7 +1595,7 @@
       if (mine) {
         // An upload of this same file already part way up is counted by the relay as in progress
         // already; its own bytes are not "more" on top of that.
-        const known = f.fp ? findUpload(env.storage, myKey, file, f.fp, now()) : null;
+        const known = f.fp ? findUpload(env.storage, myKey, f.fpFile, f.fp, now()) : null;
         const inProgress = Math.max(0, num(mine.in_progress_bytes) - (known ? file.size : 0));
         const used = num(mine.used_bytes) + inProgress;
         const share = num(mine.share_bytes);
@@ -1569,6 +1648,8 @@
         renderFormActions(f);
         return;
       }
+      // What the file holds and the switch (part 1), before anything else is asked.
+      if (detailsShown(f)) kids.push(detailsBox(f));
       const title = h('input', { type: 'text', id: 'media-form-title', className: 'media-input', maxLength: 120, value: f.title || '' });
       const category = h('select', { id: 'media-form-category', className: 'media-select' },
         st.categories.map((c) => h('option', { value: String(c.id), text: c.name, selected: String(f.category || '') === String(c.id) })));
@@ -1705,7 +1786,7 @@
       const put = f.mode === 'put';
       const go = h('button', {
         type: 'button', id: listed ? undefined : 'media-form-go', dataset: listed ? { uploadAction: 'go' } : undefined,
-        className: 'media-btn media-btn-primary', disabled: f.busy || !!f.checking,
+        className: 'media-btn media-btn-primary', disabled: f.busy || !!f.checking || !!(f.mode === 'add' && !f.uploadedName && sendingOf(f).refused),
         text: f.checking ? 'Working out your share...' : f.busy ? 'Working...' : put || f.uploadedName ? 'Put on Media' : 'Upload and add',
       });
       go.addEventListener('click', () => {
@@ -1746,6 +1827,16 @@
         renderFormActions(f);
         return;
       }
+      // The cleaned file, or the file as picked when its details are kept by choice (keep_metadata).
+      const sending = sendingOf(f);
+      if (!sending.file) {
+        f.error = sending.refused || '';
+        renderFormActions(f);
+        return;
+      }
+      // The switch as it was sent is the last choice on this device.
+      if (cleaner && f.clean && !f.protectedOn) cleaner.rememberRemoveDetails(env.storage, f.remove !== false);
+      if (f.detailsSwitch) f.detailsSwitch.disabled = true;
       // The form moves into the uploads list; the form area is free for another at once.
       f.n = ++uploadSeq;
       if (st.form === f) st.form = null;
@@ -1757,7 +1848,8 @@
       }
       renderForm();
       f.up = createUploader({
-        fetch: env.fetch, token, file: f.file, owner: myKey, storage: env.storage, fp: f.fp,
+        fetch: env.fetch, token, file: sending.file, owner: myKey, storage: env.storage,
+        fp: sending.file === f.fpFile ? f.fp : '', keepMetadata: sending.keepMetadata,
         sleep: env.sleep, now, digest: env.digest, AbortController: Abort,
         onChange: (s) => {
           if (s.phase === 'cancelled') {

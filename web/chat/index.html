@@ -705,6 +705,17 @@
        it, the name check, the frame, the receipt and the erased person's words, shared with Node
        tests. Before app.js (account_erased) and chat-ui.js (the member menu and its confirm). -->
   <script src="/shared/admin-erase.js?v=2"></script>
+  <!-- Files on the sender's device and in messages (2026-10-11, docs/design/media-showcase.md,
+       parts 1 to 4), shared with Node tests. strip-metadata.js removes where a picture or a video
+       was taken (the relay's Rust strips, ported); upload-clean.js runs it on every file before it
+       is uploaded or encrypted, with the switch and the could-not-be-checked rules (after
+       strip-metadata.js); files-in-messages.js holds the Files in messages settings and their
+       rules; kept-files.js keeps an encrypted copy of each private file opened. All before
+       chat-dm-store.js, chat-messages.js, chat-dms.js and chat-privacy.js, which use them. -->
+  <script src="/shared/strip-metadata.js?v=1"></script>
+  <script src="/shared/upload-clean.js?v=1"></script>
+  <script src="/shared/files-in-messages.js?v=1"></script>
+  <script src="/shared/kept-files.js?v=1"></script>
   <script src="/chat/crypto.js?v=13"></script>
   <!-- pq.js: post-quantum (Dilithium3) identity, derived from the same
        BIP39 seed as the Ed25519 key. Must load before app.js calls
@@ -714,16 +725,16 @@
        2026-08-23). The relay no longer stores readable DM history; this
        IndexedDB store, keyed from the seed, is the archive. Load before
        app.js so the dm_new/dm_batch handlers can use it. -->
-  <script src="/chat/chat-dm-store.js?v=10"></script>
+  <script src="/chat/chat-dm-store.js?v=11"></script>
   <!-- Clean view modules (docs/design/chat-layout.md), one per native draw_*.
        Load before app.js so its renderers can call them. -->
   <script src="/chat/view/timestampPill.js?v=1"></script>
   <script src="/chat/view/messageRow.js?v=1"></script>
-  <script src="/chat/app.js?v=25"></script>
-  <script src="/chat/chat-messages.js?v=13"></script>
-  <script src="/chat/chat-dms.js?v=14"></script>
+  <script src="/chat/app.js?v=26"></script>
+  <script src="/chat/chat-messages.js?v=14"></script>
+  <script src="/chat/chat-dms.js?v=15"></script>
   <script src="/chat/chat-social.js?v=17"></script>
-  <script src="/chat/chat-groups-p2p.js?v=16"></script>
+  <script src="/chat/chat-groups-p2p.js?v=17"></script>
   <script src="/chat/chat-ui.js?v=14"></script>
   <script src="/chat/chat-voice-rooms.js?v=6"></script>
   <script src="/chat/chat-voice-calls.js?v=5"></script>
@@ -733,11 +744,11 @@
   <script src="/chat/chat-live.js?v=1"></script>
   <!-- Per-user voice control modal: volume/mute/squelch + role-tiered actions -->
   <script src="/chat/chat-voice-modal.js?v=4"></script>
-  <script src="/chat/chat-profile.js?v=8"></script>
+  <script src="/chat/chat-profile.js?v=9"></script>
   <!-- chat-privacy.js: privacy tiers (2026-08-23) — first-connect chooser
        (default: maximum privacy) + tier application. Needs chat-profile.js
        (profile privacy merge) loaded first. -->
-  <script src="/chat/chat-privacy.js?v=12"></script>
+  <script src="/chat/chat-privacy.js?v=13"></script>
   <!-- Game Admin: game-world bans (separate from chat moderation), admin-only -->
   <script src="/chat/chat-game-admin.js?v=3"></script>
   <!-- Reports (step D, 2026-10-09): the Report dialog and the Reports view for admins

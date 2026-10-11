@@ -1,0 +1,50 @@
+{
+  "about": "A [[hum:file:v1]] marker whose meta says \"unchecked\": true (2026-10-11, docs/design/media-showcase.md, \"Files on the sender's device and in messages, exact\", part 2): its sender's app could not check the file for hidden location and the person sent it anyway, and the recipient sees one line under it. `built`: the meta (fields in src/net/dm_pq.rs DmAttachment's order, `unchecked` last and only when true), its JSON text and the marker text both apps must build from it (the marker, then standard base64 with padding of the JSON's UTF-8). `read`: marker texts and whether each says unchecked (only JSON true does; no field and false read as checked). Generated 2026-10-11 the way web/chat/crypto.js pqBuildFileMarker builds; read by scripts/tests/private-files-web.test.js (the web) and meant for the desktop app's tests too (src/net/dm_pq.rs build_file_marker and parse_file_marker).",
+  "marker": "[[hum:file:v1]]",
+  "built": [
+    {
+      "name": "a file its sender's app could not check, sent anyway",
+      "meta": {
+        "url": "/uploads/1760000000000_attachment.enc",
+        "k": "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA=",
+        "n": "oKGio6Slpqeoqaqr",
+        "name": "Gärtner \"broken\" clip.mp4",
+        "mime": "video/mp4",
+        "size": 3145728,
+        "unchecked": true
+      },
+      "json": "{\"url\":\"/uploads/1760000000000_attachment.enc\",\"k\":\"AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA=\",\"n\":\"oKGio6Slpqeoqaqr\",\"name\":\"Gärtner \\\"broken\\\" clip.mp4\",\"mime\":\"video/mp4\",\"size\":3145728,\"unchecked\":true}",
+      "text": "[[hum:file:v1]]eyJ1cmwiOiIvdXBsb2Fkcy8xNzYwMDAwMDAwMDAwX2F0dGFjaG1lbnQuZW5jIiwiayI6IkFRSURCQVVHQndnSkNnc01EUTRQRUJFU0V4UVZGaGNZR1JvYkhCMGVIeUE9IiwibiI6Im9LR2lvNlNscHFlb3FhcXIiLCJuYW1lIjoiR8OkcnRuZXIgXCJicm9rZW5cIiBjbGlwLm1wNCIsIm1pbWUiOiJ2aWRlby9tcDQiLCJzaXplIjozMTQ1NzI4LCJ1bmNoZWNrZWQiOnRydWV9"
+    },
+    {
+      "name": "a file it checked: no `unchecked` field at all",
+      "meta": {
+        "url": "/uploads/1760000000001_attachment.enc",
+        "k": "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA=",
+        "n": "oKGio6Slpqeoqaqr",
+        "name": "garden.jpg",
+        "mime": "image/jpeg",
+        "size": 51234
+      },
+      "json": "{\"url\":\"/uploads/1760000000001_attachment.enc\",\"k\":\"AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA=\",\"n\":\"oKGio6Slpqeoqaqr\",\"name\":\"garden.jpg\",\"mime\":\"image/jpeg\",\"size\":51234}",
+      "text": "[[hum:file:v1]]eyJ1cmwiOiIvdXBsb2Fkcy8xNzYwMDAwMDAwMDAxX2F0dGFjaG1lbnQuZW5jIiwiayI6IkFRSURCQVVHQndnSkNnc01EUTRQRUJFU0V4UVZGaGNZR1JvYkhCMGVIeUE9IiwibiI6Im9LR2lvNlNscHFlb3FhcXIiLCJuYW1lIjoiZ2FyZGVuLmpwZyIsIm1pbWUiOiJpbWFnZS9qcGVnIiwic2l6ZSI6NTEyMzR9"
+    }
+  ],
+  "read": [
+    {
+      "name": "unchecked: true",
+      "text": "[[hum:file:v1]]eyJ1cmwiOiIvdXBsb2Fkcy8xNzYwMDAwMDAwMDAwX2F0dGFjaG1lbnQuZW5jIiwiayI6IkFRSURCQVVHQndnSkNnc01EUTRQRUJFU0V4UVZGaGNZR1JvYkhCMGVIeUE9IiwibiI6Im9LR2lvNlNscHFlb3FhcXIiLCJuYW1lIjoiR8OkcnRuZXIgXCJicm9rZW5cIiBjbGlwLm1wNCIsIm1pbWUiOiJ2aWRlby9tcDQiLCJzaXplIjozMTQ1NzI4LCJ1bmNoZWNrZWQiOnRydWV9",
+      "unchecked": true
+    },
+    {
+      "name": "no field",
+      "text": "[[hum:file:v1]]eyJ1cmwiOiIvdXBsb2Fkcy8xNzYwMDAwMDAwMDAxX2F0dGFjaG1lbnQuZW5jIiwiayI6IkFRSURCQVVHQndnSkNnc01EUTRQRUJFU0V4UVZGaGNZR1JvYkhCMGVIeUE9IiwibiI6Im9LR2lvNlNscHFlb3FhcXIiLCJuYW1lIjoiZ2FyZGVuLmpwZyIsIm1pbWUiOiJpbWFnZS9qcGVnIiwic2l6ZSI6NTEyMzR9",
+      "unchecked": false
+    },
+    {
+      "name": "unchecked: false (never written, read as checked)",
+      "text": "[[hum:file:v1]]eyJ1cmwiOiIvdXBsb2Fkcy8xNzYwMDAwMDAwMDAxX2F0dGFjaG1lbnQuZW5jIiwiayI6IkFRSURCQVVHQndnSkNnc01EUTRQRUJFU0V4UVZGaGNZR1JvYkhCMGVIeUE9IiwibiI6Im9LR2lvNlNscHFlb3FhcXIiLCJuYW1lIjoiZ2FyZGVuLmpwZyIsIm1pbWUiOiJpbWFnZS9qcGVnIiwic2l6ZSI6NTEyMzQsInVuY2hlY2tlZCI6ZmFsc2V9",
+      "unchecked": false
+    }
+  ]
+}

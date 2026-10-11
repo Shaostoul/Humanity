@@ -482,19 +482,225 @@ function attachmentTooLarge(file) {
   return false;
 }
 
+// ── Files leave cleaned (2026-10-11) ──
+// docs/design/media-showcase.md, "Files on the sender's device and in
+// messages, exact", parts 1 to 3. Every file picked, pasted or dropped here,
+// in a public room or a private conversation, is cleaned on this device before
+// it is uploaded or encrypted (/shared/upload-clean.js over
+// /shared/strip-metadata.js): where it was taken and which camera took it are
+// removed, unless the person turns off "Remove location and camera details"
+// (on by default, remembered on this device; with the protected setup on, it
+// is always on and not shown). The attach step (showAttachStep) appears only
+// when there is something to say or decide: hidden details found, a file that
+// could not be checked (in public it is not sent; in a DM or a group the
+// person is asked "Send it anyway?" and its marker says "unchecked": true),
+// or, in a DM, that the other person accepts files only from friends (their
+// profile's `accepts_files`). A file with nothing hidden in it goes at once.
+// "Show the attach button in private conversations" (Files in messages,
+// /shared/files-in-messages.js) hides the button in DMs and groups and stops
+// a paste or a drop there too.
+
+/** This device's storage, or null. */
+function attachStorage() {
+  try { return window.localStorage; } catch (e) { return null; }
+}
+
+/** Is the protected setup on, on this device? */
+function attachProtectedOn() {
+  if (typeof protectedIsOn === 'function') return !!protectedIsOn();
+  return !!(window.HosUploadClean && HosUploadClean.protectedSetupOn(attachStorage()));
+}
+
+/** Does "Show the attach button in private conversations" let a file go in a DM or a group? */
+function attachInPrivateAllowed() {
+  const F = window.HosFilesInMessages;
+  return !F || F.readSettings(attachStorage()).attach !== false;
+}
+
+/** Show or hide the attach button for the conversation on screen (Files in messages). */
+function updateAttachButton() {
+  const btn = document.getElementById('attach-btn');
+  if (!btn || !btn.style) return;
+  const where = privateConversationNow();
+  const inPrivate = where.startsWith('dm:') || where.startsWith('group:');
+  btn.style.display = inPrivate && !attachInPrivateAllowed() ? 'none' : '';
+  if (where.startsWith('dm:')) askAcceptsFiles(where.slice(3));
+}
+window.updateAttachButton = updateAttachButton;
+
+// The people whose profile was asked for here, so their `accepts_files` is known when a file is
+// sent to them (one ask per person per page).
+const acceptsFilesAsked = new Set();
+
+/** The name a profile is asked for and kept under (the member list's name). */
+function attachProfileName(key) {
+  const p = (typeof peerData !== 'undefined' && peerData) ? peerData[key] : null;
+  if (p && p.display_name) return p.display_name;
+  return (typeof activeDmPartner !== 'undefined' && activeDmPartner === key && activeDmPartnerName) ? activeDmPartnerName : '';
+}
+
+/** Ask the server for this person's profile once, for its `accepts_files` (only with Files in messages loaded). */
+function askAcceptsFiles(key) {
+  if (!window.HosFilesInMessages || !key || acceptsFilesAsked.has(key)) return;
+  const name = attachProfileName(key);
+  if (!name) return;
+  if (typeof profileCache !== 'undefined' && profileCache && profileCache[name.toLowerCase()]) return;
+  if (typeof ws === 'undefined' || !ws || ws.readyState !== 1) return;
+  acceptsFilesAsked.add(key);
+  const req = { type: 'profile_request', name };
+  const pass = typeof friendPassFor === 'function' ? friendPassFor(key) : null;
+  if (pass) req.friend_cert = pass;
+  ws.send(JSON.stringify(req));
+}
+
+/**
+ * The attach step's line about the person a DM goes to, from their published `accepts_files`:
+ * "Ann accepts files only from friends. ..." when their app will ask them first; null when it
+ * opens for them as usual, or their choice is not known yet (it is asked for then).
+ */
+function acceptsFilesLine(key) {
+  const F = window.HosFilesInMessages;
+  if (!F || !key) return null;
+  const name = attachProfileName(key);
+  const known = name && typeof profileCache !== 'undefined' && profileCache ? profileCache[name.toLowerCase()] : null;
+  if (!known || !F.acceptsFilesOf(known.accepts_files)) {
+    askAcceptsFiles(key);
+    return null;
+  }
+  const store = (window.hosDmStore && hosDmStore.ready) ? hosDmStore : null;
+  // They count me a friend when we follow each other and they gave me a pass.
+  const iAmTheirFriend = !!(store && store.isFriendPeer(key) && store.certFor(key));
+  const shown = typeof reachDisplayName === 'function' ? reachDisplayName(key) : name;
+  return F.senderLine(shown, known.accepts_files, iAmTheirFriend);
+}
+
+/**
+ * The attach step: the file, what is hidden in it, the switch, and the question or the refusal.
+ * Built with createElement and textContent. Resolves {send, remove}: send false when Cancel was
+ * pressed or the file cannot go.
+ */
+function showAttachStep(o) {
+  const C = window.HosUploadClean;
+  const W = C.WORDS;
+  return new Promise((resolve) => {
+    const old = document.getElementById('attach-step-overlay');
+    if (old && typeof old.remove === 'function') old.remove();
+    const mk = (tag, cls, text) => {
+      const el = document.createElement(tag);
+      if (cls) el.className = cls;
+      if (text != null) el.textContent = text;
+      return el;
+    };
+    const overlay = mk('div', 'profile-modal-overlay open');
+    overlay.id = 'attach-step-overlay';
+    overlay.style.zIndex = '10000';
+    const card = mk('div', 'profile-modal attach-step');
+    card.setAttribute('role', 'dialog');
+    card.setAttribute('aria-label', 'Before the file is sent');
+    const sizeMB = (Number(o.file.size) || 0) / 1024 / 1024;
+    card.appendChild(mk('h3', 'attach-step-title', o.file.name));
+    card.appendChild(mk('p', 'attach-step-size', sizeMB >= 0.1 ? sizeMB.toFixed(1) + ' MB' : Math.max(1, Math.round((Number(o.file.size) || 0) / 1024)) + ' KB'));
+    if (o.clean.summary) {
+      card.appendChild(mk('p', 'attach-step-summary', o.clean.summary));
+      const list = mk('ul', 'attach-step-details');
+      for (const d of o.clean.details || []) list.appendChild(mk('li', null, d.words));
+      card.appendChild(list);
+    }
+    let box = null;
+    if (o.ctx.protectedOn) {
+      card.appendChild(mk('p', 'attach-step-protected', W.protectedLine));
+    } else {
+      const label = mk('label', 'attach-step-switch');
+      box = document.createElement('input');
+      box.type = 'checkbox';
+      box.checked = o.ctx.remove !== false;
+      box.dataset.attachStep = 'remove';
+      label.appendChild(box);
+      label.appendChild(mk('span', null, W.switchLabel));
+      card.appendChild(label);
+    }
+    const offLine = mk('p', 'attach-step-off', '');
+    const said = mk('p', 'attach-step-said', '');
+    card.appendChild(offLine);
+    card.appendChild(said);
+    if (o.extraLine) card.appendChild(mk('p', 'attach-step-recipient', o.extraLine));
+    const buttons = mk('div', 'attach-step-buttons');
+    const send = mk('button', 'vr-btn attach-step-send', W.send);
+    send.type = 'button';
+    send.dataset.attachStep = 'send';
+    const cancel = mk('button', 'vr-btn attach-step-cancel', W.cancel);
+    cancel.type = 'button';
+    cancel.dataset.attachStep = 'cancel';
+    buttons.appendChild(send);
+    buttons.appendChild(cancel);
+    card.appendChild(buttons);
+    overlay.appendChild(card);
+
+    const remove = () => (box ? !!box.checked : true);
+    const draw = () => {
+      const d = C.decide(o.clean, Object.assign({}, o.ctx, { remove: remove() }));
+      offLine.textContent = !o.ctx.protectedOn && !remove() ? W.switchOffLine : '';
+      said.textContent = d.words || '';
+      send.textContent = d.action === 'ask' ? W.sendAnyway : W.send;
+      send.disabled = d.action === 'refuse';
+    };
+    const done = (yes) => {
+      if (typeof overlay.remove === 'function') overlay.remove();
+      resolve({ send: !!yes, remove: remove() });
+    };
+    if (box) box.onchange = draw;
+    send.onclick = () => { if (!send.disabled) done(true); };
+    cancel.onclick = () => done(false);
+    overlay.onclick = (e) => { if (e && e.target === overlay) done(false); };
+    draw();
+    document.body.appendChild(overlay);
+  });
+}
+
+/**
+ * Clean a file before it leaves and ask what needs asking. `where` is privateConversationNow()'s
+ * answer ('' for a public room). Resolves null when the file is not to be sent, else
+ * {file, keepMetadata, unchecked}: the file to send (cleaned, or as picked when the person kept
+ * the details), whether the upload says keep_metadata=1, and whether its marker says it could not
+ * be checked.
+ */
+async function prepareAttachment(file, where) {
+  const C = window.HosUploadClean;
+  if (!C) {
+    addSystemMessage('The file was not sent: this page could not load its file checker. Reload the page and try again.');
+    return null;
+  }
+  const storage = attachStorage();
+  const ctx = { where: where ? 'private' : 'public', remove: C.removeDetailsChosen(storage), protectedOn: attachProtectedOn() };
+  const clean = await C.cleanFile(file);
+  const extraLine = where && where.startsWith('dm:') ? acceptsFilesLine(where.slice(3)) : null;
+  if (!C.stepNeeded(clean, ctx, extraLine)) {
+    const d = C.decide(clean, ctx);
+    return d.action === 'send' ? d : null;
+  }
+  const choice = await showAttachStep({ file, clean, ctx, extraLine });
+  if (!choice || !choice.send) return null;
+  if (!ctx.protectedOn) C.rememberRemoveDetails(storage, choice.remove);
+  const d = C.decide(clean, Object.assign({}, ctx, { remove: choice.remove }));
+  return d.action === 'refuse' ? null : d;
+}
+
 async function uploadImage(file) {
   // Client-side size guard: abort before uploading anything over my limit here (attachmentLimit).
   if (attachmentTooLarge(file)) return null;
   // The file's name goes to the server with it: never my recovery phrase
   // (step F, chat-warnings.js).
   if (typeof recoveryPhraseGuardStops === 'function' && await recoveryPhraseGuardStops(file && file.name, 'The file was not sent.')) return null;
+  // Cleaned on this device first (part 1); a file that could not be checked never goes to a room.
+  const ready = await prepareAttachment(file, '');
+  if (!ready) return null;
   const indicator = document.getElementById('upload-indicator');
   indicator.textContent = `Uploading ${file.name}…`;
   indicator.style.display = 'block';
 
   try {
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append('file', ready.file, file.name);
 
     // Shared-file library (v0.675): attaching a 3D/model file in chat is an
     // act of publishing (you are handing people a printable/openable design),
@@ -503,9 +709,11 @@ async function uploadImage(file) {
     const SHARE_EXTENSIONS = ['blend', 'stl', 'obj', 'gltf', 'glb'];
     const ext = (file.name.split('.').pop() || '').toLowerCase();
     const shareParam = SHARE_EXTENSIONS.includes(ext) ? '&share=1' : '';
+    // The person chose to keep the file's hidden details: the server then keeps them too (B4).
+    const keepParam = ready.keepMetadata ? '&keep_metadata=1' : '';
     const uploadBase = uploadBaseUrl();
     if (!uploadBase) return null;
-    const resp = await fetch(uploadBase + shareParam, { method: 'POST', body: formData });
+    const resp = await fetch(uploadBase + shareParam + keepParam, { method: 'POST', body: formData });
     if (!resp.ok) {
       const text = await resp.text();
       // Make error messages more user-friendly
@@ -565,7 +773,14 @@ function privateConversationNow() {
  */
 async function sendAttachment(file) {
   if (!file) return;
-  if (privateConversationNow()) {
+  const where = privateConversationNow();
+  if (where) {
+    // "Show the attach button in private conversations" turned off: no file goes in a DM or a
+    // group, picked, pasted or dropped (the scratch pad stays on this device and keeps it).
+    if ((where.startsWith('dm:') || where.startsWith('group:')) && !attachInPrivateAllowed()) {
+      addSystemMessage(window.HosFilesInMessages.WORDS.attachOff);
+      return;
+    }
     await sendEncryptedAttachment(file);
     return;
   }
@@ -596,6 +811,16 @@ async function sendEncryptedAttachment(file) {
   // This session's token: checked before anything is encrypted or uploaded.
   const uploadBase0 = uploadBaseUrl();
   if (!uploadBase0) return;
+  // Cleaned on this device first (part 1): the server only ever receives a sealed blob here, so
+  // this is the only place the location can come out. A file that could not be checked goes only
+  // on the person's yes, and its marker says so (part 2).
+  const ready = await prepareAttachment(file, target);
+  if (!ready) return;
+  if (privateConversationNow() !== target) {
+    addSystemMessage('The file was not sent because another conversation was opened while it was being prepared.');
+    return;
+  }
+  const sending = ready.file;
   const indicator = document.getElementById('upload-indicator');
   try {
     if (indicator) { indicator.textContent = `Encrypting ${file.name}…`; indicator.style.display = 'block'; }
@@ -603,7 +828,7 @@ async function sendEncryptedAttachment(file) {
     // encrypts the page holds both. After that only one copy is kept at a time (round 3,
     // review 7): the plain bytes are let go before the upload, and the ciphertext once the
     // upload's Blob holds its own copy of it.
-    let bytes = new Uint8Array(await file.arrayBuffer());
+    let bytes = new Uint8Array(await sending.arrayBuffer());
     const enc = await pqEncryptFile(bytes);
     bytes = null;
     if (indicator) indicator.textContent = `Uploading ${file.name}…`;
@@ -615,14 +840,19 @@ async function sendEncryptedAttachment(file) {
     const resp = await fetch(uploadBase, { method: 'POST', body: fd });
     if (!resp.ok) { addSystemMessage(`Upload failed: ${await resp.text()}`); return; }
     const data = await resp.json();
-    const marker = pqBuildFileMarker({
+    // The fields in the desktop app's order (src/net/dm_pq.rs DmAttachment), so both apps build
+    // the same marker; `unchecked` only when its sender's app could not check it and the person
+    // sent it anyway (scripts/tests/fixtures/file-marker-unchecked.json holds both to it).
+    const meta = {
       url: data.url,
       k: enc.keyB64,
       n: enc.nonceB64,
       name: file.name,
       mime: file.type || 'application/octet-stream',
-      size: file.size,
-    });
+      size: sending.size,
+    };
+    if (ready.unchecked) meta.unchecked = true;
+    const marker = pqBuildFileMarker(meta);
     // Another conversation opened while it uploaded: it is not sent there.
     if (privateConversationNow() !== target) {
       addSystemMessage('The file was not sent because another conversation was opened while it uploaded.');
