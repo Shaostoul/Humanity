@@ -1,0 +1,169 @@
+//! Files in messages: who a person takes files from, whose pictures show by themselves, whether
+//! the attach button shows in private conversations, the remembered "Remove location and camera
+//! details" switch and how much of opened private files this device keeps (docs/design/
+//! media-showcase.md, "Files on the sender's device and in messages, exact", parts 1, 3 and 4;
+//! the operator's answers 4, 6 and 9 of 2026-10-11).
+//!
+//! THE RECEIVING APP ENFORCES IT. The relay cannot and must not: with sealed sender it cannot tell
+//! which direct message carries a file, and making it able to would tell it who sends files to
+//! whom. So a file marker from someone this setting does not allow is simply not fetched; its card
+//! asks, and Accept fetches that one file. The setting is also published in the person's profile
+//! (`accepts_files`: "nobody", "friends" or "anyone"), so a sender's app can say so before
+//! anything is sent.
+//!
+//! No socket and no GUI here, so every rule is unit tested (files_policy_tests.rs).
+
+use serde::{Deserialize, Serialize};
+
+/// Accept files from: Nobody / Friends / Anyone I talk to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum AcceptFrom {
+    /// "Send but not receive": every file asks first.
+    Nobody,
+    /// Friends' files are fetched by themselves; anyone else's asks first. The default: the same
+    /// line the click-to-load rule for pictures already draws.
+    #[default]
+    Friends,
+    /// Anyone whose message reaches this person (who can reach them is Settings > Safety's job).
+    Anyone,
+}
+
+impl AcceptFrom {
+    /// Every choice, in the order the setting lists them.
+    pub const ALL: [AcceptFrom; 3] = [AcceptFrom::Nobody, AcceptFrom::Friends, AcceptFrom::Anyone];
+
+    /// The word the profile carries (`accepts_files`), the relay's own three.
+    pub fn word(self) -> &'static str {
+        match self {
+            AcceptFrom::Nobody => "nobody",
+            AcceptFrom::Friends => "friends",
+            AcceptFrom::Anyone => "anyone",
+        }
+    }
+
+    /// The choice a profile's word names; None for anything else.
+    pub fn from_word(word: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|a| a.word() == word)
+    }
+
+    /// What the setting shows.
+    pub fn label(self) -> &'static str {
+        match self {
+            AcceptFrom::Nobody => "Nobody",
+            AcceptFrom::Friends => "Friends",
+            AcceptFrom::Anyone => "Anyone I talk to",
+        }
+    }
+}
+
+/// Show pictures without asking from: Friends / Nobody.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ShowPictures {
+    /// Friends' pictures show by themselves; anyone else's wait for a click (the rule before this
+    /// setting existed).
+    #[default]
+    Friends,
+    /// Every picture waits for a click, friends' too.
+    Nobody,
+}
+
+/// The default size cap of kept private files on this device: 1 GB.
+pub const KEPT_CAP_DEFAULT_MB: u64 = 1024;
+/// The range the Settings > Data slider offers, in MB.
+pub const KEPT_CAP_RANGE_MB: (u64, u64) = (0, 64 * 1024);
+
+/// The person's choices for files in messages, kept in the app's config (`AppConfig::
+/// files_in_messages`). A config written before these existed reads as the defaults.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct FilesInMessages {
+    pub accept_from: AcceptFrom,
+    pub show_pictures_from: ShowPictures,
+    /// Show the attach button in private conversations ("receive only" is off).
+    pub attach_button: bool,
+    /// The attach step's switch, "Remove location and camera details", as last chosen on this
+    /// device (on by default). The protected setup always removes and shows no switch.
+    pub remove_details: bool,
+    /// How much of the private files the person opened this device keeps, in MB (0 keeps none).
+    pub kept_cap_mb: u64,
+}
+
+impl Default for FilesInMessages {
+    fn default() -> Self {
+        FilesInMessages {
+            accept_from: AcceptFrom::default(),
+            show_pictures_from: ShowPictures::default(),
+            attach_button: true,
+            remove_details: true,
+            kept_cap_mb: KEPT_CAP_DEFAULT_MB,
+        }
+    }
+}
+
+/// Whether a file from someone is fetched without asking: always our own; otherwise as the
+/// setting says, `friend` being whether they are a friend (the pictures rule's own test).
+pub fn accepts(from: AcceptFrom, own: bool, friend: bool) -> bool {
+    own || match from {
+        AcceptFrom::Nobody => false,
+        AcceptFrom::Friends => friend,
+        AcceptFrom::Anyone => true,
+    }
+}
+
+/// Whether a picture (one already accepted) shows without a click: always our own; otherwise only
+/// a friend's, only when the setting says friends, and never while the protected setup is on (its
+/// pictures rule is always Nobody).
+pub fn shows_picture(show: ShowPictures, protected: bool, own: bool, friend: bool) -> bool {
+    own || (!protected && show == ShowPictures::Friends && friend)
+}
+
+/// The card for a file this setting did not accept, word for word as the design gives it.
+pub fn not_accepted_line(sender: &str, from: AcceptFrom) -> String {
+    match from {
+        AcceptFrom::Friends => format!("{sender} sent a file. You accept files only from friends. Accept this one?"),
+        AcceptFrom::Nobody | AcceptFrom::Anyone => format!("{sender} sent a file. You do not accept files from anyone. Accept this one?"),
+    }
+}
+
+/// What a sender's attach step says about the person a DM is going to, from the word their
+/// profile publishes, when it applies to this sender: None when the file will be taken (or the
+/// word is not one of the three). `friend` is whether the sender is their friend.
+pub fn sender_line(name: &str, word: &str, friend: bool) -> Option<String> {
+    match AcceptFrom::from_word(word)? {
+        AcceptFrom::Anyone => None,
+        AcceptFrom::Friends if friend => None,
+        AcceptFrom::Friends => Some(format!("{name} accepts files only from friends. They will be asked whether to accept this one.")),
+        AcceptFrom::Nobody => Some(format!("{name} does not accept files from anyone. They will be asked whether to accept this one.")),
+    }
+}
+
+/// The line a recipient sees under a file whose sender sent it unchecked (answer 5).
+pub const UNCHECKED_LINE: &str = "The sender's app could not check this file for hidden location.";
+
+/// The question in a private conversation when a file could not be checked (answer 5).
+pub const SEND_ANYWAY: &str = "This file could not be read all the way through, so where it was taken may still be in it. Send it anyway?";
+
+/// Why such a file is not sent to a public place: the server would refuse it too, and only keeping
+/// everything by choice sends it.
+pub const NOT_SENT_PUBLIC: &str = "This file could not be read all the way through, so where it was taken may still be in it. It is not sent to a public place: the server would refuse it too. To send it exactly as it is, turn off \"Remove location and camera details\".";
+
+/// The switch's words.
+pub const SWITCH_LABEL: &str = "Remove location and camera details";
+
+/// What the attach step says under the switch while the protected setup is on.
+pub const PROTECTED_ALWAYS: &str = "The protected setup always removes location and camera details.";
+
+/// While the file is being looked at.
+pub const CHECKING: &str = "Checking the file for hidden details...";
+
+/// When the person keeps everything and something was found.
+pub const KEPT_AS_IS: &str = "It goes exactly as it is, with these details in it.";
+
+/// What a paste says while sending files is off in private conversations.
+pub const ATTACH_OFF: &str = "Sending files is off in private conversations (Settings > Privacy > Files in messages).";
+
+#[cfg(test)]
+#[path = "files_policy_tests.rs"]
+mod tests;
