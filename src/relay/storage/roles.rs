@@ -72,27 +72,27 @@ pub struct RoleDef {
     /// request or a resumable upload; docs/design/media-showcase.md, follow-up B1, 2026-10-11).
     /// 0 means "up to the person's Media share", the default for every role. Kept between 0 and
     /// [`MEDIA_FILE_MB_MAX`] when saved.
-    #[serde(default)]
+    #[serde(default = "limit_not_sent")]
     pub max_media_file_mb: i64,
     /// The largest file this role may send in a private conversation (a DM or a P2P group: an
     /// encrypted upload), in MB (follow-up B2). Default 6, the number both apps used before the
     /// server said. Kept between 1 and [`PRIVATE_FILE_MB_MAX`] when saved.
-    #[serde(default = "default_max_private_file_mb")]
+    #[serde(default = "limit_not_sent")]
     pub max_private_file_mb: i64,
     /// How much this role may upload in a day, in MB, over every upload route, counted by the
     /// relay (follow-up B3; the operator's answers of 2026-10-11, number 3). 0 means no limit,
     /// the built-in Admin role's default. The day is the UTC calendar day.
-    #[serde(default = "default_max_upload_mb_per_day")]
+    #[serde(default = "limit_not_sent")]
     pub max_upload_mb_per_day: i64,
     /// How many uploads this role may start in an hour (the clock hour, UTC), over every upload
     /// route (B3). 0 means no limit, the built-in Admin role's default.
-    #[serde(default = "default_max_uploads_per_hour")]
+    #[serde(default = "limit_not_sent")]
     pub max_uploads_per_hour: i64,
     /// The most this role's holder may keep on the server in files from private conversations at
     /// once, in MB (follow-up B5, 2026-10-11): each leaves after the DM mailbox lifetime, and a
     /// new one past this is refused until the oldest leaves or the person removes some. 0 means
     /// no limit, the built-in Admin role's default.
-    #[serde(default = "default_max_private_held_mb")]
+    #[serde(default = "limit_not_sent")]
     pub max_private_held_mb: i64,
 }
 
@@ -122,6 +122,17 @@ impl RoleDef {
         r.max_private_held_mb = r.max_private_held_mb.clamp(0, PRIVATE_HELD_MB_MAX);
         r
     }
+}
+
+/// What a role save carries for an upload limit its sender did not send: an app from before
+/// these five limits (v0.1484.0 and older) saves a role without them, and a serde default there
+/// would reset each to a default on every save (Admin's "no limit" to 100 MB a day). The save
+/// keeps the stored value instead (`Storage::upsert_role`); a new role gets the default.
+/// (Persisted-format review before the v0.1485.0 deploy, 2026-10-11.) The smallest i64, a value no
+/// app sends: a -1 a client did send is out of range and held to the range like any other.
+pub const LIMIT_NOT_SENT: i64 = i64::MIN;
+fn limit_not_sent() -> i64 {
+    LIMIT_NOT_SENT
 }
 
 // Conservative serde/struct defaults = the historical `unverified`
@@ -282,9 +293,45 @@ impl Storage {
     /// values; we re-assert them defensively here); only capabilities,
     /// label, color, sort_order are mutable. Custom roles: fully mutable.
     /// Returns Err for an attempt to change a built-in's locked fields.
+    /// `r` with every upload limit its sender did not send ([`LIMIT_NOT_SENT`]) filled in: the
+    /// stored role's value when the role exists, else the default a new role gets.
+    fn unsent_limits_kept(&self, r: &RoleDef) -> Result<RoleDef, rusqlite::Error> {
+        let mut out = r.clone();
+        let stored: Option<(i64, i64, i64, i64, i64)> = self.with_conn(|conn| {
+            use rusqlite::OptionalExtension;
+            conn.query_row(
+                "SELECT max_media_file_mb, max_private_file_mb, max_upload_mb_per_day, max_uploads_per_hour, max_private_held_mb
+                 FROM roles WHERE id = ?1",
+                params![r.id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)),
+            )
+            .optional()
+        })?;
+        let fresh = RoleDef::default();
+        let (media, private, day, hour, held) = stored.unwrap_or((
+            fresh.max_media_file_mb,
+            fresh.max_private_file_mb,
+            fresh.max_upload_mb_per_day,
+            fresh.max_uploads_per_hour,
+            fresh.max_private_held_mb,
+        ));
+        let keep = |sent: &mut i64, kept: i64| {
+            if *sent == LIMIT_NOT_SENT {
+                *sent = kept;
+            }
+        };
+        keep(&mut out.max_media_file_mb, media);
+        keep(&mut out.max_private_file_mb, private);
+        keep(&mut out.max_upload_mb_per_day, day);
+        keep(&mut out.max_uploads_per_hour, hour);
+        keep(&mut out.max_private_held_mb, held);
+        Ok(out)
+    }
+
     pub fn upsert_role(&self, r: &RoleDef) -> Result<(), rusqlite::Error> {
-        // The upload limits held to their ranges (B1 to B3, 2026-10-11), whatever was sent.
-        let r = &r.with_limits_in_range();
+        // A limit the sender did not send keeps its stored value (a new role takes the default),
+        // then every limit is held to its range (B1 to B3, 2026-10-11).
+        let r = &self.unsent_limits_kept(r)?.with_limits_in_range();
         self.with_conn(|conn| {
             // Is this id already a built-in?
             let existing_built_in: Option<i64> = conn.query_row(
@@ -736,7 +783,11 @@ mod tests {
             r##"{"id":"x","label":"X","color":"#000000","trust_level":1,"built_in":false,"can_stream":false,"can_upload":true,"can_voice":false,"base_tier":"verified","sort_order":1}"##,
         )
         .unwrap();
-        assert_eq!((old.max_private_file_mb, old.max_upload_mb_per_day, old.max_uploads_per_hour, old.max_private_held_mb), (6, 100, 20, 30), "a role sent without them gets the careful defaults");
+        // The frame itself carries "not sent"; the save gives a new role the careful defaults
+        // (`unsent_limits_kept`, 2026-10-11).
+        db.upsert_role(&old).unwrap();
+        let saved = db.role_def("x");
+        assert_eq!((saved.max_private_file_mb, saved.max_upload_mb_per_day, saved.max_uploads_per_hour, saved.max_private_held_mb), (6, 100, 20, 30), "a role sent without them gets the careful defaults");
     }
 
     /// Unknown / deleted role must default-DENY sharing (consistent
@@ -748,4 +799,40 @@ mod tests {
         assert!(!rd.can_image_share && !rd.can_file_share);
         assert_eq!(rd.id, "unverified", "falls back to safe default-deny");
     }
+
+    /// A ROLE SAVED BY AN OLDER APP KEEPS ITS UPLOAD LIMITS: a v0.1484.0 app saves a role without
+    /// the five limits it does not know, and the save keeps the stored values instead of resetting
+    /// them to defaults (Verified's 1024 MB a day would have become 0, "no limit", after the
+    /// range clamp). A new role saved the same way gets the defaults. (Persisted-format review,
+    /// 2026-10-11.)
+    ///
+    /// Seen red 2026-10-11 with the keep step left out of `upsert_role`: "an older app's save
+    /// keeps Verified's limits / left: (0, 1, 0, 0, 0) / right: (0, 6, 1024, 60, 60)".
+    #[test]
+    fn a_role_saved_by_an_older_app_keeps_its_upload_limits() {
+        let db = fresh_db();
+        let verified = db.list_roles().unwrap().into_iter().find(|r| r.id == "verified").expect("seeded");
+        let limits = |r: &RoleDef| (r.max_media_file_mb, r.max_private_file_mb, r.max_upload_mb_per_day, r.max_uploads_per_hour, r.max_private_held_mb);
+        let before = limits(&verified);
+        assert_eq!(before, (0, 6, 1024, 60, 60), "test setup: the seeded Verified limits");
+
+        // The frame an older app sends: the role as it knows it, without the five fields.
+        let mut old = serde_json::to_value(&verified).unwrap();
+        for k in ["max_media_file_mb", "max_private_file_mb", "max_upload_mb_per_day", "max_uploads_per_hour", "max_private_held_mb"] {
+            old.as_object_mut().unwrap().remove(k);
+        }
+        old["label"] = serde_json::json!("Verified (renamed)");
+        let sent: RoleDef = serde_json::from_value(old.clone()).unwrap();
+        db.upsert_role(&sent).unwrap();
+        let after = db.list_roles().unwrap().into_iter().find(|r| r.id == "verified").unwrap();
+        assert_eq!(after.label, "Verified (renamed)", "the save itself went through");
+        assert_eq!(limits(&after), before, "an older app's save keeps Verified's limits");
+
+        old["id"] = serde_json::json!("helper");
+        let fresh: RoleDef = serde_json::from_value(old).unwrap();
+        db.upsert_role(&fresh).unwrap();
+        let helper = db.list_roles().unwrap().into_iter().find(|r| r.id == "helper").expect("the new role");
+        assert_eq!(limits(&helper), limits(&RoleDef::default()), "a new role saved that way gets the defaults");
+    }
+
 }

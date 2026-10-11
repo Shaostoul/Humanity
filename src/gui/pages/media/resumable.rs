@@ -61,6 +61,7 @@ pub(crate) use super::upload_run::{stored_name_of, Phase, Run};
 /// so it can be carried on after the app restarts. It is carried on only on the same server, by
 /// the same person, from the same file unchanged (its size and modification time).
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default)]
 pub struct Unfinished {
     /// The server (its normalised address) and the identity the upload belongs to.
     pub server: String,

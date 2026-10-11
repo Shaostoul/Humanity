@@ -513,3 +513,33 @@ fn a_members_only_item_names_its_stored_file() {
     same_item(db, id, &name).expect("the name it gives is the name a write must send");
     remove_core(db, d.folders(), &RemoveTarget::Item(id), &ann.key).expect("and the remove goes through");
 }
+
+/// A PRIVATE FILE NEVER LEAVES BEFORE ITS DM: the mailbox keeps what arrived on day D until day
+/// D + the lifetime has ended (dms.rs `mailbox_expire`), so a file uploaded late on day D stays
+/// past the lifetime counted in milliseconds and leaves when the day after D + the lifetime begins,
+/// which is also what `leaves_at` tells the person. (Persisted-format review, 2026-10-11.)
+///
+/// Seen red 2026-10-11 with the millisecond cutoff put back: "a file uploaded late on its day is
+/// still there on its last day".
+#[test]
+fn a_private_file_never_leaves_before_its_dm() {
+    const DAY: i64 = 24 * 60 * 60 * 1000;
+    const HOUR: i64 = 60 * 60 * 1000;
+    let state = relay("mfu_day_rule");
+    let db = &state.db;
+    let d = dirs("mfu_day_rule");
+    let day0: i64 = 20_000; // a day number well after 1970
+    let uploaded = day0 * DAY + 23 * HOUR;
+    std::fs::write(d.uploads.join("1_late.enc"), b"sealed").unwrap();
+    db.record_upload("ann", "1_late.enc", 100, 0i64, "late.png", 6).unwrap();
+    db.with_conn(|c| c.execute("UPDATE user_uploads SET uploaded_at = ?1 WHERE filename = '1_late.enc'", [uploaded])).unwrap();
+
+    let leaves = crate::relay::storage::private_files::leaves_at(uploaded, 30);
+    assert_eq!(leaves, (day0 + 31) * DAY, "it leaves when the day after its day plus 30 begins");
+    // Thirty days and thirty minutes after the upload: past the lifetime in milliseconds, but
+    // still the DM's last day.
+    db.expire_private_files_in(d.folders(), 30, (day0 + 30) * DAY + 23 * HOUR + HOUR / 2).unwrap();
+    assert!(d.uploads.join("1_late.enc").exists(), "a file uploaded late on its day is still there on its last day");
+    db.expire_private_files_in(d.folders(), 30, leaves + 60_000).unwrap();
+    assert!(!d.uploads.join("1_late.enc").exists(), "and it goes once that day has ended");
+}

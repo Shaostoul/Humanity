@@ -44,7 +44,10 @@ impl Storage {
     /// The expiry pass's share (storage/expiry.rs): every private file uploaded more than
     /// `ttl_days` days before `now_ms` is deleted, row and file, from `folders`. How many went.
     pub fn expire_private_files_in(&self, folders: super::media::Folders, ttl_days: i64, now_ms: i64) -> Result<usize, rusqlite::Error> {
-        let cutoff = now_ms - ttl_days.max(1) * DAY_MS;
+        // The DM mailbox's own rule (dms.rs `mailbox_expire`): what arrived on day D stays until
+        // day D + ttl has ended. Counted to the millisecond, a file could leave up to a day before
+        // the DM that points to it (persisted-format review, 2026-10-11).
+        let cutoff = (now_ms.div_euclid(DAY_MS) - ttl_days.max(1)) * DAY_MS;
         let names: Vec<String> = self.with_conn(|conn| {
             let names: Vec<String> = {
                 let mut stmt = conn.prepare("SELECT filename FROM user_uploads WHERE LOWER(filename) LIKE '%.enc' AND uploaded_at < ?1")?;
@@ -63,7 +66,8 @@ impl Storage {
     }
 }
 
-/// When a private file uploaded at `uploaded_at` leaves, on a server keeping them `ttl_days`.
+/// When a private file uploaded at `uploaded_at` leaves, on a server keeping them `ttl_days`: the
+/// start of the day after its upload day plus the lifetime, the moment its DM leaves too.
 pub fn leaves_at(uploaded_at: i64, ttl_days: i64) -> i64 {
-    uploaded_at + ttl_days.max(1) * DAY_MS
+    (uploaded_at.div_euclid(DAY_MS) + ttl_days.max(1) + 1) * DAY_MS
 }
