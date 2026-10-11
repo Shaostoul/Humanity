@@ -861,6 +861,11 @@
       "date": "2026-10-11",
       "decision": "v0.1484.0 (BUG-189): the upload review. Bare ?key= removed from /api/upload, DELETE /api/assets/{id} and the listing-image routes (token only); desktop keeps (server, token) from its own peer-list entry and sends ?token=; web never falls back to the key; Roles can_upload enforced; picture_type by type or extension, 64 MB picture cap, read and strip in spawn_blocking; part files removed on all error paths and at start (clear_part_files); desktop shows the server refusal (upload_error_words); private limit min(6 MB, own). The live nginx upload cap was restored to 6 MB at once (backup of the 1025m version at /root/humanity.nginx.1025m-2026-10-11) and is re-raised after the v0.1484.0 deploy.",
       "why": "The critic found the old bare-key hole made large by the new limits: anyone could upload as the admin (500 MB) or delete any asset. Restoring the previous cap was the immediate, reversible mitigation, within the change the operator had approved; the server log showed only the review probes, so nothing was abused."
+    },
+    {
+      "date": "2026-10-11",
+      "decision": "After v0.1484.0 went live (a bare-key upload now 400 on the live server), the nginx /api/upload block was set back to 1025m with request buffering off (from /root/humanity.nginx.1025m-2026-10-11; the 6m version kept at /root/humanity.nginx.6m-2026-10-11). nginx -t passed; an 8 MB probe reaches the relay (403 bad token). Media increment 1 merged locally (680d2587d), reviewed, and its fixes (F1 to F7 in docs/design/media-showcase.md) are with an agent; not pushed.",
+      "why": "The operator approved the 1 GB edge limit; it was paused only while the bare-key hole was open."
     }
   ],
   "active_scopes_to_avoid": [
