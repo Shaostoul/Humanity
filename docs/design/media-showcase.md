@@ -376,3 +376,50 @@ only. Phone cameras write the recording's location into an MP4's metadata (Apple
 uploaded to chat or Media today publishes where it was filmed. A video metadata strip (the same
 whole-box removal approach, no re-encode) is its own increment, ahead of the Media page going
 public.
+
+**As built (2026-10-11): the video strip exists, not yet wired into the uploads.** It lives in
+`src/relay/core/strip_video_metadata.rs`. One change from the plan above: boxes are not removed,
+they are neutralised in place. Removing a box shifts every byte after it, and when the movie's
+index (`moov`) comes before the frames (`mdat`), the index's chunk offsets (`stco`/`co64`) would
+then point at the wrong bytes. So each metadata box keeps its size, its name is changed to `free`
+(the standard "empty space, skip me" box every player already skips) and everything inside it is
+overwritten with zeros. The file keeps its exact size and nothing moves.
+
+- **API.** `strip_video_metadata_in_place(path) -> io::Result<VideoStrip>` works on a file on disk
+  (the resumable uploads); `strip_video_metadata_in_buffer(&mut [u8])` does the same on bytes in
+  memory (the single-request upload holds the file in memory before writing it). `is_mp4_family`
+  answers from the first 8 bytes. `VideoStrip` reports the kind of file, whether a `moov` was
+  found, each neutralised box (its path, offset and size), the bytes zeroed, and a plain sentence
+  for each place the walk had to stop early; `complete()` is true only for a movie whose whole
+  structure walked cleanly.
+- **Neutralised:** every `udta` and `meta` directly inside `moov` and directly inside each `trak`
+  (Apple's location key, make, model and software; Android's `©xyz`; 3GPP's `loci`; Adobe's
+  `udta/XMP_`; iTunes-style titles and cover art); every XMP `uuid` box at the top level, in `moov`
+  and in each `trak`; a top-level `meta`, but only in a file that also has a `moov` (a HEIF or AVIF
+  still picture keeps the picture itself in its top-level `meta`, so it is never touched there).
+- **Never touched:** `mdat`, `mvhd`, a track's `tkhd`, `mdia` and `edts`, other `uuid` boxes (360
+  degree video settings), and everything else. Only box headers are read; `mdat` is stepped over
+  by its size, so the work grows with the metadata, not the file.
+- **Broken files:** a size under 8, or one running past its parent or the file, stops that level
+  only; what was already neutralised stays neutralised, and the report says where it stopped. It
+  never writes outside the file and never panics. Not an MP4 (WebM, Matroska, anything without
+  `ftyp` first): never even opened for writing.
+- **Proof:** 15 tests, files built byte by byte, each seen failing once against a deliberate break:
+  Apple `moov/meta`, Android `moov/udta/©xyz`, `trak/udta` with `loci`, XMP `uuid` zeroed while a
+  360 video `uuid` stays, `ftyp`/`mvhd`/`tkhd`/`edts`/`mdia`/`stco`/`mdat` byte-identical with
+  `moov` before `mdat` and after it, a 64-bit `mdat`, size-0 last boxes, every truncation of two
+  movies, a box running past its parent, WebM (a read-only file, proving no write handle), a HEIF
+  still, a second run changing nothing, and 4,000 fixed-seed random files (no panic, no size
+  change, no byte changed outside a reported box).
+
+**What it does not cover (honest limits).** The capture time stays: it is in `mvhd`, `tkhd` and
+`mdhd`, which playback reads. Location written as a timed metadata track lives inside `mdat`
+(GoPro's GPMF `gpmd` track, DJI drones, some dashcams and action cameras), and so does anything a
+camera puts inside the video stream itself (H.264/HEVC SEI messages): removing those means removing
+the track or re-encoding. Not walked: `moof`/`traf` in fragmented files, `mdia/udta`, `meco`,
+compressed `cmov` movies (old QuickTime), and data after the last box (Samsung's trailer); a
+QuickTime file old enough to have no `ftyp` first is reported as not an MP4 and left alone.
+Stale metadata an earlier editing tool left inside an existing `free` box is not scrubbed. After a
+broken box size, the boxes behind it at that level cannot be found, so a report with
+`stopped_early` entries means "better, not proven clean"; the wiring should decide what that means
+for the upload (keeping such a video private is one option).
