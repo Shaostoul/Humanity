@@ -1072,3 +1072,66 @@ break, the doc comments say how.
   `finish` still say a HEIC is refused; they call `finish_file_as` and are out of date until those
   files are next edited. resumable_follow_ups_tests.rs keeps its HEIC refusal test: its synthetic
   photo has an item list that cannot be read, so it is still refused, for the right reason now.
+
+## Round 3: fixes from the round 2 review (2026-10-11)
+
+Three critics read everything merged since the first review (relay fc091c413..22bc6a6b5, desktop
+6c39a4403, web aeca812d3) and found 24 defects. The fixes, by owner. Relay first; the apps build
+the parts that need the relay against the shapes below.
+
+**Relay.**
+- R3-1 (review 1): the day and hour allowances are counted INSIDE the store, under the room lock,
+  dated by the store time, on every route: concurrent single requests can no longer all pass, a
+  connection closed during the store cannot leave an uncounted file, and an upload crossing
+  midnight UTC counts in the day it was stored.
+- R3-2 (review 2): the identify peer list sends the socket's OWN token, never the registration
+  snapshot's (two sockets of one person reconnecting together could both get one token, and
+  closing one then broke the other).
+- R3-3 (review 3): the role's largest Media file is checked when publishing too.
+- R3-4 (review 4): the HEIF strip protects every item whose bytes are in this file, a
+  self-contained data reference included.
+- R3-5 (review 5): a resumable upload's only copy is never lost moving into place: a failed or
+  interrupted move puts the pieces file back with its session, and start-up restores a staged
+  file to its session rather than deleting it.
+- R3-6 (for the apps): a 429 allowance answer carries `resets_in_s` (seconds, by the server's own
+  clock) and `left_bytes` (what is left of the window), and a piece smaller than `chunk_max` is
+  accepted, so an app can send what still fits and then wait the server's own number of seconds.
+- R3-7 (for the apps): `/api/media/mine` lists `uploads_in_progress: [{id, filename, size,
+  offset, touched_at}]`, the person's own resumable sessions, so an app can show and cancel one
+  it lost track of.
+- R3-8 (for the apps): watching or downloading a members-only file without a token in any
+  address: `POST /api/media/ticket` (token in `X-Upload-Token`, body `{id, filename}`) answers
+  `{url: "/api/media/file/<id>?ticket=<random>", expires_in_s: 600}`. A ticket opens that one file
+  for ten minutes (range requests included, so a video streams), reveals nothing about the
+  session, and a copied link stops working. Kept in memory only.
+- R3-9: the resumable routes take the token from `X-Upload-Token` too (it is in their query
+  today), and nginx answers a refused rate with 429, not 503 (`limit_req_status 429`), in the
+  repo config and the guide.
+
+**Both apps.** A 5xx or a 429 without the allowance's JSON is "wait and try again" with back-off,
+never the end of an upload; the same server error ten times running shows the server's own words
+with Retry. Pause stops every request in every phase. An allowance wait is the server's
+`resets_in_s` (at least 5 seconds), and a piece is cut to `left_bytes` when that is smaller. A
+file that can no longer be read ends the upload with words saying so. Uploads in progress are a
+list on the page (each with its own bar, Pause and Cancel); opening another form never orphans
+one, and an upload is published by its own form. Unfinished server sessions from
+`uploads_in_progress` are shown with Cancel. Members-only video and big downloads use tickets
+(R3-8); pictures stay fetched with the header and are cancelled when no longer shown. The
+resumable routes send the token in the header (R3-9).
+
+**Desktop only** (review 1 to 11): Put on Media from Files never replaces an upload's form;
+private pictures over 16 MB get Save; downloads and Save write to a hidden part file and rename
+when complete, and leftovers are swept at start and exit; Play here's temporary name is unique per
+fetch; sending a private file reads it off the UI thread and never holds three copies;
+`chunk_max` is held to at most 64 MiB; `private_limit_bytes` resets with the server and identity;
+a publish answered after a quit or switch is recognised (the relay's "already on the Media page"
+for one's own item counts as done).
+
+**Web only** (review 1 to 8): the record of an upload to resume is dated by its last progress and
+forgotten when its session is cancelled or fails; Close on a failed upload cancels it on the
+server; resuming checks a fingerprint of the file's first and last megabyte, not only its name,
+size and date; `/media?id=` keeps the label cover and the click-to-load rule; members-only
+pictures are fetched with an AbortController and are not re-fetched by a reload; private files a
+browser cannot hold are a Save card, not an inline picture (pictures inline up to 16 MB, Save up to
+512 MB, above that "open it in the desktop app"), and an opened private file is not downloaded
+again on every redraw.
