@@ -3116,7 +3116,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                             None
                         };
                         let upload_limit_mb = (p.public_key_hex == public_key)
-                            .then(|| crate::relay::api::role_upload_limit(&state.db.role_def(&role)) / (1024 * 1024));
+                            .then(|| crate::relay::upload_limits::role_upload_limit(&state.db.role_def(&role)) / (1024 * 1024));
                         let name_lower = p.display_name.as_ref().map(|n| n.to_lowercase()).unwrap_or_default();
                         let (user_status, user_status_text) = statuses_snap.get(&name_lower).cloned().unwrap_or(("online".to_string(), String::new()));
                         // Kyber DM key: from the in-memory peer (if online) or DB.

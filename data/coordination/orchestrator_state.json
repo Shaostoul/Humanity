@@ -846,6 +846,11 @@
       "date": "2026-10-10",
       "decision": "v0.1483.0 (BUG-187): spec 10n merged from both halves. The web settled the open details (Unfollow clears as of its signed time, Block regardless; choices survive a server identity change; sweep targets mutual follows and existing pass holders; a tick always succeeds once the store is loaded; contact-request echo under the pass echo rule; 128-bit applied-note hashes) and the desktop matched them. A narrow parity critic ran on the merge.",
       "why": "One spec, two builders, the web going first on details; the parity critic is the last check that both apps reach the same state for the same events."
+    },
+    {
+      "date": "2026-10-10",
+      "decision": "v0.1483.0 carries 10n + 10o (relay dm_fetch ref echoed on dm_batch; parity fixes) and the operator's evening chat report: image viewer kept above its backdrop (move_to_top), composer grows upward to 45% then scrolls, uploads stream to a part file under a 1 GB route limit with an up-front Content-Length refusal and each person's upload_limit_mb on their own peer-list entry (private conversations stay 6 MB: the receiving side decrypts in memory). nginx change prepared in scripts/nginx/humanity.conf, NOT applied: outward-facing server config, asked the operator. Library A to Z (default) with a Suggested toggle given to an agent. Media showcase drafted as docs/design/media-showcase.md with three open questions.",
+      "why": "The operator tested the desktop chat and reported each issue; every fix has a test that reproduced his symptom first (the viewer test found the backdrop layer at screen centre; the upload test reproduced the 400 multipart error with the route layer off). The nginx edge change affects what the public can send to the server, so it waits for his yes even though the relay now refuses oversize uploads itself."
     }
   ],
   "active_scopes_to_avoid": [

@@ -2133,6 +2133,18 @@ text for a clear.
 Unblock a redelivered note could still apply; the desktop's order); the echo of my own contact
 request sets following only if its pass is not being withdrawn (10m R5, the desktop's order).
 
+**As built (v0.1483.0, with 10n; the relay half first, then desktop and web in parallel).** Relay:
+`DmFetch.fetch_ref` / `DmBatch.fetch_ref` (`src/relay/relay.rs`), echoed by `handle_dm_fetch` when
+valid. Desktop: `src/net/mailbox_fetch.rs` (each connection's own fetch: its ref and its paging
+position) and `src/engine/mailbox.rs` (`begin_fetch`, `on_batch`, `on_new`), the parked servers in
+`engine/bg_connections.rs`, one `MailboxFetch` per connection that survives park and unpark and is
+reset by every new socket. Web: `sendDmFetch` and the ref check in `handleDmBatch` (`app.js`).
+Both: a page with no ref is not this device's either (the relay ships in the same release, so
+there is no fallback); "read" is set only after its own last page's rows were applied; a page
+from an old socket, read after a new one opened, neither pages on nor counts; a non-final page
+that does not advance stops the fetch rather than asking again forever. O3: Block drops a queued
+Unfollow at once on both.
+
 ## 11. Docs to update as each piece ships
 
 - `docs/accord/conformance_gaps.md` ("Contact consent cannot be withdrawn")

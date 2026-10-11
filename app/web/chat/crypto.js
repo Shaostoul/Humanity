@@ -909,7 +909,9 @@ const CTL_FRIEND_CERT = '[[hum:friend-cert]]';
 // Block's notes to myself, [[hum:block:v1]]<key> and [[hum:unblock:v1]]<key>
 // (step C, 2026-10-09), are CTL_BLOCK and CTL_UNBLOCK in /shared/block.js,
 // pinned to native by scripts/tests/block-web.test.js; pqBuildSelfNote below
-// seals one.
+// seals one. The note carrying the choice for each friend between my devices,
+// [[hum:choice:v1]]<friend key>/<may> (10n, 2026-10-10), is CTL_CHOICE in
+// /shared/friend-pass.js (with its builder and reader), sealed the same way.
 
 // Friendship passes v2 (2026-10-09, docs/design/blocking-and-safe-mode.md 10b).
 // The issuer gives the grantee a pass naming this server's did:hum, a random

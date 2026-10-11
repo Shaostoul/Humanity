@@ -5481,3 +5481,29 @@ file's key) in plain browser storage shared by every identity. All came from one
 were rebuilt from echoes of passes, which arrive late, out of order or not at all. Spec 10n makes
 the choice its own signed note to the person's own mailbox, the block list's pattern, with passes
 following it on every device. Each two-device sequence is a test on both clients.
+
+## BUG-188: the 10n parity review, and the operator's chat and upload report (FIXED v0.1483.0, found 2026-10-10)
+
+**Parity (spec 10o).** A read-only review of the two 10n halves side by side found: the web sent an
+ordinary friendship pass to someone whose contact request had timed out (it owed one to anyone
+with an unanswered pass); a queued offline Unfollow on the web was sent after a newer Follow or a
+Block, undoing the newest Follow; the desktop sent a queued choice note after a Block it learned
+later, so two devices fought over passes; withdrawals could go before queued notes on the desktop;
+and on both, every device of a person receives every mailbox page, so one device's fetch could
+start another's sweep before it had read its own mail, and a live DM moved the read position past
+rows never read. The relay now echoes a `ref` on each fetch's pages, and each device counts only
+its own.
+
+**The operator's report, desktop app.** (1) The image viewer: after a picture was closed by clicking
+the dimmed screen, the next one opened BEHIND it, and its Download closed it instead (the backdrop
+and the window shared a layer and egui raises whichever was clicked last; the shared dialog widget
+had the same fix in v0.849, the viewer never got it). (2) A long post grew the composer DOWN past
+the window's edge (the bar was a fixed 52 px); it now grows upward to 45% of the chat area, then
+scrolls. (3) A video upload failed with "Error parsing multipart/form-data request": the relay read
+uploads whole into memory under axum's default 2 MB body limit, below every role's limit; both apps
+refused anything over a fixed 6 MB; nginx capped the route at 6 MB. Now the route's limit is the
+1 GB ceiling, a request declaring more than the uploader's role allows is refused before it is read,
+the file streams to a part file outside the served folder, each person's peer-list entry carries
+their own `upload_limit_mb`, and both apps check against it in a server's room (6 MB stays for
+private conversations, whose files are decrypted in memory on the receiving side). The nginx cap
+(`scripts/nginx/humanity.conf`) changes on the server only with the operator's approval.

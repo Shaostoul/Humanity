@@ -6,6 +6,7 @@
 
 pub mod relay;
 pub mod api;
+pub mod upload_limits;
 pub mod api_v2_agents;
 pub mod api_v2_ai;
 pub mod api_v2_announce;

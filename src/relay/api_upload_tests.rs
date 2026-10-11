@@ -5,6 +5,7 @@
 //! a part file, refused the moment it passes the limit, never held in memory whole.
 
 use super::*;
+use axum::extract::Query;
 
 /// A multipart request carrying one file field of `len` bytes, as a browser builds it.
 fn form(len: usize) -> axum::http::Request<axum::body::Body> {
