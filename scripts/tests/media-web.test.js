@@ -2,30 +2,29 @@
 //
 // Run: node --test scripts/tests/media-web.test.js   (in `just rig-tests`)
 //
-// The page's own files run as they do in the browser, against stand-ins: web/pages/media-app.js
-// (the page), web/pages/media-admin.js (the admins' section) and web/shared/relay-session.js (the
-// page's own signed-in connection). The document is a small stand-in that holds ONLY what the page
-// built in it: getElementById answers null for anything that is not there, and reading or setting
-// innerHTML throws, so a test that finds a button proves the page made it, and the page cannot
-// slip server text in as HTML. The network is a stand-in that records every request and answers
-// like src/relay/media.rs; signing is a stand-in that returns "sig:" plus the words it signed, so
-// each request shows exactly which purpose its signature covers. The session's sign-in check is
-// real ML-DSA-65 from the vendored noble bundle, verified the way the relay verifies it.
-// HOS_WEB_DIR points the test at another copy of web/ (used to see each test red).
+// The page's own files run as they do in the browser, against the stand-ins in
+// scripts/tests/media-web-harness.js (shared with media-web-round2.test.js, which holds round 2:
+// the relay's follow-ups and the review's fixes): a document that holds ONLY what the page built
+// in it (innerHTML throws), a network that records every request and answers like
+// src/relay/media.rs, and signing that returns "sig:" plus the words it signed. The session's
+// sign-in check is real ML-DSA-65 from the vendored noble bundle, verified the way the relay
+// verifies it. HOS_WEB_DIR points the test at another copy of web/ (used to see each test red).
 //
 // What it proves (the design's web Proof list):
 //  1. Empty: the empty words, no tile, no featured strip, no More.
-//  2. Items: tiles with titles, uploader names and pick counts; the featured strip; More pages
-//     with `before`; the category, kind and person filters come from the server's answers.
+//  2. Items: tiles with titles, uploader names and pick counts; the featured strip (asked for
+//     with featured=1); More pages with `before`; the category and person filters come from the
+//     server's answers and the kinds from data/media/kinds.json.
 //  3. A labelled tile shows its label instead of its picture, and no picture is even requested
 //     until it is clicked.
 //  4. The members-only line for someone not signed in, the unsigned public list then; a signed
-//     list (media_list) for someone signed in, no line, and a members-only file fetched through
-//     /api/media/file/{id} with the session's upload token.
+//     list (media_list) for someone signed in, no line, and a members-only file fetched from
+//     /api/media/file/{id} with the session's upload token in a header, shown through an object
+//     URL.
 //  5. Pictures load only from this server's own addresses.
-//  6. Add to Media: the share shown ("You have 412 MB of your 512 MB left"), an upload over the
-//     share stopped before it starts (no upload request at all), one within it uploaded with
-//     ?media=1 and the session token, then published.
+//  6. Add to Media: the share shown from the relay's own count ("You have 412 MB of your 512 MB
+//     left"), an upload over the share stopped before it starts (no upload request at all), one
+//     within it sent as a resumable upload with the session token, then published.
 //  7. Put on Media (a Shared Files row): public only, the visibility choice not offered and the
 //     line saying why; no upload. On a members-only server Add to Media offers no choice either.
 //  8. Each signed purpose names its target: publish, pick, unpick, remove (with the words naming
@@ -36,7 +35,7 @@
 //     its bar, the prune lists and the suggestions waiting with the suggester named.
 // 10. The session signs in with a real Dilithium3 signature over the relay's exact words, sends
 //     nothing else first, takes the upload token, role and limit from its own peer_list entry,
-//     asks for the settings, and with no identity opens no socket.
+//     asks for the settings, keeps the role list, and with no identity opens no socket.
 //
 // Seen red, 2026-10-11 (each with the code it guards broken in a copy of web/ under HOS_WEB_DIR,
 // then green again on the real web/): see the note above each test.
@@ -46,262 +45,11 @@ const assert = require("node:assert");
 const fs = require("node:fs");
 const path = require("node:path");
 
-const WEB = process.env.HOS_WEB_DIR || path.join(__dirname, "..", "..", "web");
-const media = require(path.join(WEB, "pages", "media-app.js"));
-const admin = require(path.join(WEB, "pages", "media-admin.js"));
-const relaySession = require(path.join(WEB, "shared", "relay-session.js"));
-
-const ORIGIN = "https://united-humanity.us";
-const ME = "a1".repeat(32);
-const ANN = "b2".repeat(32);
-const MIB = 1024 * 1024;
-
-// ── A document that holds only what was built in it ─────────────────────
-
-const camel = (s) => s.replace(/-([a-z])/g, (_m, c) => c.toUpperCase());
-
-class FakeText {
-  constructor(t) { this.nodeType = 3; this._t = String(t); this.parentNode = null; }
-  get textContent() { return this._t; }
-  set textContent(v) { this._t = String(v); }
-  remove() { if (this.parentNode) this.parentNode.removeChild(this); }
-}
-
-class FakeElement {
-  constructor(doc, tag) {
-    this.ownerDocument = doc;
-    this.nodeType = 1;
-    this.tagName = String(tag).toUpperCase();
-    this.childNodes = [];
-    this.parentNode = null;
-    this.attributes = new Map();
-    this.dataset = {};
-    this.style = {};
-    this.listeners = {};
-    this.className = "";
-    this.id = "";
-    this._value = "";
-    this.checked = false;
-    this.disabled = false;
-    this.hidden = false;
-    this.selected = false;
-    this.files = null;
-  }
-  get children() { return this.childNodes.filter((c) => c.nodeType === 1); }
-  get textContent() { return this.childNodes.map((c) => c.textContent).join(""); }
-  set textContent(v) { this.replaceChildren(); if (String(v)) this.appendChild(new FakeText(v)); }
-  get innerHTML() { throw new Error("the page read innerHTML"); }
-  set innerHTML(v) { throw new Error("the page set innerHTML: " + String(v).slice(0, 80)); }
-  get value() {
-    if (this.tagName === "SELECT") {
-      const opts = this.children.filter((c) => c.tagName === "OPTION");
-      const chosen = opts.find((o) => o.selected) || opts[0];
-      return chosen ? chosen.value : "";
-    }
-    return this._value;
-  }
-  set value(v) {
-    if (this.tagName === "SELECT") {
-      for (const o of this.children) o.selected = o.value === String(v);
-      return;
-    }
-    this._value = String(v);
-  }
-  appendChild(c) {
-    if (c.parentNode) c.parentNode.removeChild(c);
-    c.parentNode = this;
-    this.childNodes.push(c);
-    return c;
-  }
-  // As a browser does: anything that is not a node is written as text (a null as "null").
-  append(...cs) { for (const c of cs) this.appendChild(c && typeof c === "object" && c.nodeType ? c : new FakeText(String(c))); }
-  insertBefore(c, ref) {
-    if (!ref) return this.appendChild(c);
-    if (c.parentNode) c.parentNode.removeChild(c);
-    c.parentNode = this;
-    this.childNodes.splice(this.childNodes.indexOf(ref), 0, c);
-    return c;
-  }
-  removeChild(c) {
-    const i = this.childNodes.indexOf(c);
-    if (i >= 0) this.childNodes.splice(i, 1);
-    c.parentNode = null;
-    return c;
-  }
-  remove() { if (this.parentNode) this.parentNode.removeChild(this); }
-  replaceChildren(...cs) {
-    for (const c of this.childNodes.slice()) this.removeChild(c);
-    this.append(...cs);
-  }
-  setAttribute(k, v) { this.attributes.set(k, String(v)); if (k === "id") this.id = String(v); }
-  getAttribute(k) { return this.attributes.has(k) ? this.attributes.get(k) : null; }
-  removeAttribute(k) { this.attributes.delete(k); }
-  addEventListener(t, f) { (this.listeners[t] = this.listeners[t] || []).push(f); }
-  removeEventListener(t, f) { this.listeners[t] = (this.listeners[t] || []).filter((x) => x !== f); }
-  dispatch(type, extra) {
-    const ev = Object.assign({ type, target: this, preventDefault() {}, stopPropagation() {} }, extra || {});
-    for (const f of (this.listeners[type] || []).slice()) f(ev);
-  }
-  click() { if (!this.disabled) this.dispatch("click"); }
-  focus() {}
-  matches(sel) {
-    let m;
-    if ((m = /^#([\w-]+)$/.exec(sel))) return this.id === m[1];
-    if ((m = /^\.([\w-]+)$/.exec(sel))) return this.className.split(/\s+/).includes(m[1]);
-    if ((m = /^\[data-([\w-]+)(?:="([^"]*)")?\]$/.exec(sel))) {
-      const v = this.dataset[camel(m[1])];
-      return m[2] === undefined ? v !== undefined : v === m[2];
-    }
-    if (/^[a-z][a-z0-9]*$/i.test(sel)) return this.tagName === sel.toUpperCase();
-    throw new Error("the stand-in document does not know the selector " + sel);
-  }
-  querySelectorAll(sel) {
-    const out = [];
-    const walk = (n) => { for (const c of n.children) { if (c.matches(sel)) out.push(c); walk(c); } };
-    walk(this);
-    return out;
-  }
-  querySelector(sel) { return this.querySelectorAll(sel)[0] || null; }
-}
-
-function fakeDocument() {
-  const doc = {
-    readyState: "complete",
-    createElement: (tag) => new FakeElement(doc, tag),
-    createTextNode: (t) => new FakeText(t),
-    addEventListener() {},
-    removeEventListener() {},
-  };
-  doc.body = new FakeElement(doc, "body");
-  doc.getElementById = (id) => (doc.body.id === id ? doc.body : doc.body.querySelector("#" + id));
-  return doc;
-}
-
-const byId = (doc, id) => doc.getElementById(id);
-const text = (el) => (el ? el.textContent : null);
-
-// ── The network, signing and the session ─────────────────────────────────
-
-function respond(status, body) {
-  const json = typeof body === "string" ? null : body;
-  return {
-    ok: status >= 200 && status < 300,
-    status,
-    json: async () => json,
-    text: async () => (typeof body === "string" ? body : JSON.stringify(body)),
-  };
-}
-
-/** A fetch that answers from `routes` (in order: [test(url, init), answer(url, init)]) and records. */
-function fakeFetch(routes) {
-  const calls = [];
-  const fetch = async (url, init) => {
-    const call = { url: String(url), init: init || {}, body: null };
-    if (init && typeof init.body === "string") call.body = JSON.parse(init.body);
-    calls.push(call);
-    for (const [when, answer] of routes) if (when(call)) return answer(call);
-    return respond(404, "no route in the test for " + url);
-  };
-  return { fetch, calls };
-}
-
-const path0 = (u) => u.split("?")[0];
-const at = (p, method) => (c) => path0(c.url) === p && (!method || (c.init.method || "GET") === method);
-
-/** Signing as a stand-in: the "signature" is the words signed, so a request shows its purpose. */
-function fakeSigner(key) {
-  const signed = [];
-  let ts = 1760000000000;
-  return {
-    signed,
-    sign: async (purpose) => {
-      signed.push(purpose);
-      return { key, timestamp: ++ts, sig: "sig:" + purpose };
-    },
-  };
-}
-
-function fakeSession(over) {
-  const sent = [];
-  const listeners = [];
-  const s = {
-    sent,
-    state: Object.assign({
-      status: "bound", key: ME, role: "verified", uploadToken: "tok-1", uploadLimitBytes: 1024 * MIB,
-      settings: { media_visibility: "public", media_budget_mb: 2048, media_per_person_mb: 512, media_public_previews_only: true, media_members_note: "Members are everyone signed in to this server. To keep it to people you let in, turn on lockdown." },
-      refusal: "", retryInSeconds: 0,
-    }, over || {}),
-    subscribe(fn) { listeners.push(fn); return () => {}; },
-    start() {},
-    retry() {},
-    send(frame) { sent.push(frame); return s.state.status === "bound"; },
-    emit(ev) { for (const fn of listeners) fn(ev, s.state); },
-  };
-  return s;
-}
-
-class FakeFormData {
-  constructor() { this.parts = []; }
-  append(k, v) { this.parts.push([k, v]); }
-}
-
-async function settle() {
-  for (let i = 0; i < 40; i++) await new Promise((r) => setImmediate(r));
-}
-
-const LABELS = [
-  { id: "spoiler", label: "Spoiler", desc: "Shows something people may want to find out for themselves" },
-  { id: "flashing", label: "Flashing lights", desc: "Rapid flashes or strobing" },
-  { id: "graphic", label: "Graphic", desc: "Injury or blood" },
-];
-const CATEGORIES = [{ id: 1, name: "General", description: "", position: 0 }, { id: 2, name: "Fire flow arts", description: "", position: 1 }];
-
-function item(over) {
-  return Object.assign({
-    id: 1, url: "/uploads/1_a.png", title: "Contact staff", description: "", category: { id: 2, name: "Fire flow arts" },
-    kind: "picture", labels: [], visibility: "public", featured: false, size_bytes: 2 * MIB, views: 0,
-    uploaded_at: 1, published_at: 1, uploader_key: ANN, uploader_name: "Ann", picks: 0,
-  }, over || {});
-}
-
-function listAnswer(items, over) {
-  return Object.assign({
-    items, next_before: null, members_view: true, media_visibility: "public", members_only_for_you: false,
-    categories: CATEGORIES, labels: LABELS,
-  }, over || {});
-}
-
-/** The page, started, with a document, a network and (signed in) a session. */
-async function openPage(opts) {
-  const o = opts || {};
-  const doc = fakeDocument();
-  const root = doc.createElement("div");
-  root.id = "media-root";
-  doc.body.appendChild(root);
-  const signer = fakeSigner(o.myKey === undefined ? ME : o.myKey);
-  const net = fakeFetch(o.routes || []);
-  const confirms = [];
-  const session = o.session === undefined ? fakeSession() : o.session;
-  const page = media.createMediaPage({
-    document: doc, root, fetch: net.fetch, origin: ORIGIN,
-    myKey: o.myKey === undefined ? ME : o.myKey,
-    sign: signer.sign, session,
-    confirm: async (words) => { confirms.push(words); return o.confirm !== false; },
-    FormData: FakeFormData, put: o.put || null, mountAdmin: o.mountAdmin || null,
-  });
-  await page.start();
-  await settle();
-  return { doc, root, page, net, signer, session, confirms };
-}
-
-/** Routes for a list that answers `answer`, and an empty picks list. */
-function listRoutes(answer, more) {
-  return [
-    [at("/api/media/picks/" + ME), () => respond(200, listAnswer([], { members_view: false }))],
-    [at("/api/media/list", "POST"), () => respond(200, answer)],
-    [at("/api/media", "GET"), () => respond(200, answer)],
-  ].concat(more || []);
-}
+const H = require("./media-web-harness.js");
+const {
+  WEB, media, admin, relaySession, ORIGIN, ME, ANN, MIB, byId, text, respond, path0, at, fakeSession,
+  settle, item, listAnswer, mineAnswer, listRoutes, openPage, BLAKE, openAdmin,
+} = H;
 
 // ── 1. Empty ─────────────────────────────────────────────────────────────
 
@@ -318,7 +66,9 @@ test("1. an empty Media page says so and draws no tile, strip or More", async ()
 // ── 2. Items ─────────────────────────────────────────────────────────────
 
 // Seen red with takeAnswer's `next_before` read as `nextBefore`: "More is there when the server
-// says there is more / actual: null".
+// says there is more / actual: null". Round 2 (2026-10-11): seen red with the kind filter built
+// from the items' kinds again instead of the kinds file: "the kinds come from
+// data/media/kinds.json".
 test("2. items show as tiles with names and picks, the featured strip leads, More pages on", async () => {
   const first = listAnswer([
     item({ id: 9, title: "Contact staff", featured: true, picks: 3 }),
@@ -326,8 +76,8 @@ test("2. items show as tiles with names and picks, the featured strip leads, Mor
   ], { next_before: 8 });
   const second = listAnswer([item({ id: 7, title: "Older", kind: "model", url: "/uploads/7_part.stl", uploader_key: "c3".repeat(32), uploader_name: "Cy" })]);
   let page = 0;
-  const { doc, net } = await openPage({ routes: listRoutes(null, []).slice(0, 1).concat([
-    [at("/api/media/list", "POST"), () => respond(200, page++ === 0 ? first : second)],
+  const { doc, net } = await openPage({ routes: listRoutes(first, [
+    [(c) => c.url === "/api/media/list" && c.body && c.body.featured !== 1, () => respond(200, page++ === 0 ? first : second)],
   ]) });
   const tiles = byId(doc, "media-grid").querySelectorAll(".media-tile");
   assert.equal(tiles.length, 2);
@@ -336,24 +86,25 @@ test("2. items show as tiles with names and picks, the featured strip leads, Mor
   assert.equal(tiles[0].querySelector("img").src, "/uploads/1_a.png", "a picture tile shows the picture from /uploads/");
   assert.equal(text(tiles[1].querySelector(".media-tile-title")), "8_clip.mp4", "an untitled item is called by its file name");
   assert.equal(text(tiles[1].querySelector(".media-tile-meta")), "by Me · 1 pick");
+  assert.equal(text(tiles[1].querySelector(".media-mark-word")), "Video", "a kind's name for one, from the kinds file");
+  assert.ok(tiles[1].querySelector(".media-mark-play"), "and its mark");
   const strip = byId(doc, "media-featured-row");
   assert.ok(strip, "the featured strip is there");
   assert.equal(strip.querySelectorAll(".media-tile").length, 1);
   assert.equal(text(strip.querySelector(".media-tile-title")), "Contact staff");
-  // The filters come from the answers: the server's categories, the kinds its items carry, its people.
+  // The filters: the server's categories and people, the kinds from the kinds file.
   const options = (id) => byId(doc, id).children.map((o) => o.textContent);
   assert.deepEqual(options("media-filter-category"), ["All categories", "General", "Fire flow arts"]);
-  assert.deepEqual(options("media-filter-kind"), ["All kinds", "Pictures", "Videos"]);
+  assert.deepEqual(options("media-filter-kind"), ["All kinds", "Pictures", "Videos", "Models", "Files"], "the kinds come from data/media/kinds.json");
   assert.deepEqual(options("media-filter-person"), ["Everyone", "Ann", "Me"]);
   const more = byId(doc, "media-more");
   assert.ok(more, "More is there when the server says there is more");
   more.click();
   await settle();
-  const lists = net.calls.filter((c) => c.url === "/api/media/list");
+  const lists = net.calls.filter((c) => c.url === "/api/media/list" && c.body.featured !== 1);
   assert.equal(lists.at(-1).body.before, 8, "More asks for the items before the last one shown");
   assert.equal(byId(doc, "media-grid").querySelectorAll(".media-tile").length, 3, "the next page is added below");
   assert.equal(byId(doc, "media-more"), null, "no More after the last page");
-  assert.deepEqual(options("media-filter-kind"), ["All kinds", "Pictures", "Videos", "Models"], "a kind seen later joins the filter");
   // A filter asks the server again with it.
   const kind = byId(doc, "media-filter-kind");
   kind.value = "video";
@@ -385,28 +136,35 @@ test("3. a labelled tile shows its label instead of its picture until clicked", 
 
 // Seen red with renderMembers drawing nothing: "someone not signed in is told / actual: null";
 // and with fetchList never signing: "a signed-in person's list is signed / actual: undefined".
+// Round 2: seen red with the members' file asked for as /api/media/file/7?token=tok-1 again (no
+// header): "the members' file route, with nothing after it".
 test("4. the members-only line, the public list unsigned, the members' list signed, files by token", async () => {
   const publicAnswer = listAnswer([item({ id: 3 })], { members_view: false, categories: [], labels: [] });
-  const out = await openPage({ myKey: "", session: null, routes: [[at("/api/media", "GET"), () => respond(200, publicAnswer)]] });
+  const out = await openPage({ myKey: "", session: null, routes: listRoutes(publicAnswer) });
   assert.equal(text(byId(out.doc, "media-members-line")), "Sign in to this server to see its members' media.", "someone not signed in is told");
-  assert.equal(out.net.calls.length, 1);
-  assert.equal(out.net.calls[0].init.method, undefined, "the public list is a plain GET");
-  assert.ok(out.net.calls[0].url.startsWith("/api/media?"), out.net.calls[0].url);
+  const lists = out.net.calls.filter((c) => path0(c.url) === "/api/media");
+  assert.equal(lists.length, 2, "the list and the featured strip");
+  for (const l of lists) assert.equal(l.init.method, undefined, "the public list is a plain GET");
   assert.equal(out.signer.signed.length, 0, "nothing is signed without an identity");
   assert.equal(byId(out.doc, "media-add-btn"), null, "no Add to Media");
   assert.equal(byId(out.doc, "media-filter-picks"), null, "no My picks");
-  assert.equal(out.doc.body.querySelectorAll("[data-action]").length, 0, "no Pick, Remove or Feature");
+  assert.equal(out.doc.body.querySelectorAll("[data-action]").length, 0, "no Pick, Remove, Feature or Report");
   assert.equal(text(byId(out.doc, "media-status").querySelector(".media-status-text")).startsWith("Not signed in on this page."), true);
 
   const membersAnswer = listAnswer([item({ id: 7, url: "/api/media/file/7", visibility: "members" }), item({ id: 6 })]);
-  const inside = await openPage({ routes: listRoutes(membersAnswer) });
+  const inside = await openPage({ routes: listRoutes(membersAnswer, [
+    [at("/api/media/file/7"), () => respond(200, "", new Uint8Array([9, 9]))],
+  ]) });
   const list = inside.net.calls.find((c) => c.url === "/api/media/list");
   assert.ok(list, "a signed-in person's list is signed (POST /api/media/list)");
   assert.equal(list.body.sig, "sig:media_list", "the list read is signed as media_list");
   assert.equal(list.body.key, ME);
   assert.equal(byId(inside.doc, "media-members-line"), null, "no line for a member");
+  const file = inside.net.calls.find((c) => path0(c.url) === "/api/media/file/7");
+  assert.equal(file.url, "/api/media/file/7", "the members' file route, with nothing after it");
+  assert.equal(file.init.headers["X-Upload-Token"], "tok-1", "the token goes in a header");
   const img = byId(inside.doc, "media-grid").querySelector(".media-tile").querySelector("img");
-  assert.equal(img.src, "/api/media/file/7?token=tok-1", "a members-only file comes through the token route");
+  assert.equal(img.src, "blob:test/1", "a members-only file is shown through the page's own address");
   assert.ok(byId(inside.doc, "media-add-btn"), "Add to Media for a signed-in member");
 
   // Without the session's token yet, the members-only file is not requested at all.
@@ -414,6 +172,7 @@ test("4. the members-only line, the public list unsigned, the members' list sign
   const first = byId(early.doc, "media-grid").querySelector(".media-tile");
   assert.equal(first.querySelectorAll("img").length, 0);
   assert.equal(text(first.querySelector(".media-thumb-missing")), media.MEDIA_WORDS.waitingToken);
+  assert.equal(early.net.calls.filter((c) => c.url.startsWith("/api/media/file/")).length, 0, "nothing asked for without a token");
 });
 
 // ── 5. Only this server's addresses ──────────────────────────────────────
@@ -442,13 +201,13 @@ test("5. a picture loads only from this server's own addresses", async () => {
 
 // ── 6. Add to Media ──────────────────────────────────────────────────────
 
-const mine = (n, size) => item({ id: 100 + n, uploader_key: ME, uploader_name: "Me", size_bytes: size });
-
-function addRoutes(extra, gate) {
-  const answer = listAnswer([mine(1, 60 * MIB), mine(2, 40 * MIB)]);
-  // The person's own items (the share's use) can be held back until `gate` opens.
-  const own = [(c) => c.url === "/api/media/list" && c.body && c.body.by === ME, async () => { if (gate) await gate; return respond(200, answer); }];
-  return [own].concat(listRoutes(answer)).concat(extra || []);
+/** The relay's resumable routes, answering a whole file in one piece. */
+function resumableRoutes(name) {
+  return [
+    [at("/api/upload/resumable", "POST"), (c) => respond(201, { id: "a".repeat(32), offset: 0, size: c.body.size, chunk_max: 8 * MIB })],
+    [(c) => path0(c.url) === "/api/upload/resumable/" + "a".repeat(32) && c.init.method === "PATCH",
+      () => respond(200, { url: "/uploads/" + name, filename: name, size: 10 * MIB, type: "image/png" })],
+  ];
 }
 
 async function pickFile(doc, file) {
@@ -458,25 +217,32 @@ async function pickFile(doc, file) {
   await settle();
 }
 
+function aFile(name, size, type) {
+  return { name, size, type: type || "image/png", lastModified: 1700000000000, slice: (a, b) => new Blob([new Uint8Array(Math.max(0, Math.min(size, b) - a))]) };
+}
+
 // Seen red with openAddForm leaving out shareStop: "an upload over the share is stopped /
 // actual: null"; with the form not waiting for the share (`checking` always false): "no upload
-// while the share is being worked out / actual: false"; and with shareLeftWords showing the whole share as left: "'You have 512 MB of
-// your 512 MB left' == 'You have 412 MB of your 512 MB left'".
+// while the share is being worked out / actual: false"; and with shareLeftWords showing the whole
+// share as left: "'You have 512 MB of your 512 MB left' == 'You have 412 MB of your 512 MB left'".
+// Round 2: the share now comes from POST /api/media/mine (seen red in media-web-round2.test.js).
 test("6. Add to Media shows the share, stops an upload over it before it starts, uploads one within it", async () => {
   let open;
   const gate = new Promise((r) => { open = r; });
-  const { doc, net, signer } = await openPage({ routes: addRoutes([
-    [at("/api/upload", "POST"), () => respond(200, { url: "/uploads/1760_new.png", filename: "1760_new.png", size: 10 * MIB, type: "image/png" })],
+  const { doc, net, signer } = await openPage({ routes: listRoutes(listAnswer([]), [
+    // The person's own use is held back until `gate` opens (the first answer, at the page's start, is not).
+    [at("/api/media/mine", "POST"), (() => { let n = 0; return async () => { if (n++ > 0) await gate; return respond(200, mineAnswer()); }; })()],
+    ...resumableRoutes("1760_new.png"),
     [at("/api/media", "POST"), (c) => respond(200, { ok: true, item: item({ id: 200, url: "/uploads/" + c.body.filename }) })],
-  ], gate) });
+  ]) });
   // Over the share: 100 MB used of 512 MB, a 413 MB file. While the share is being worked out,
   // nothing can be uploaded.
-  await pickFile(doc, { name: "big.mp4", size: 413 * MIB });
+  await pickFile(doc, aFile("big.mp4", 413 * MIB, "video/mp4"));
   assert.equal(byId(doc, "media-form-go").disabled, true, "no upload while the share is being worked out");
   byId(doc, "media-form-go").disabled = false; // a determined click on a button that should not go
   byId(doc, "media-form-go").click();
   await settle();
-  assert.equal(net.calls.filter((c) => path0(c.url) === "/api/upload").length, 0, "no upload while the share is being worked out");
+  assert.equal(net.calls.filter((c) => path0(c.url).startsWith("/api/upload")).length, 0, "no upload while the share is being worked out");
   open();
   await settle();
   assert.equal(text(byId(doc, "media-share-line")), "You have 412 MB of your 512 MB left");
@@ -484,12 +250,12 @@ test("6. Add to Media shows the share, stops an upload over it before it starts,
   assert.ok(stop, "an upload over the share is stopped");
   assert.match(text(stop), /^"big\.mp4" is 413 MB, more than the 412 MB you have left of your 512 MB share, so it was not uploaded\./);
   assert.equal(byId(doc, "media-form-go"), null, "nothing to press that would upload it");
-  assert.equal(net.calls.filter((c) => path0(c.url) === "/api/upload").length, 0, "no upload request at all");
+  assert.equal(net.calls.filter((c) => path0(c.url).startsWith("/api/upload")).length, 0, "no upload request at all");
   byId(doc, "media-form-cancel").click();
   assert.equal(byId(doc, "media-form-stop"), null);
 
   // Within the share.
-  await pickFile(doc, { name: "staff.png", size: 10 * MIB });
+  await pickFile(doc, aFile("staff.png", 10 * MIB));
   assert.equal(byId(doc, "media-form-stop"), null);
   byId(doc, "media-form-title").value = "Spinning at dusk";
   byId(doc, "media-form-title").dispatch("input");
@@ -503,9 +269,9 @@ test("6. Add to Media shows the share, stops an upload over it before it starts,
   byId(doc, "media-form-vis-members").dispatch("change");
   byId(doc, "media-form-go").click();
   await settle();
-  const up = net.calls.find((c) => path0(c.url) === "/api/upload");
-  assert.equal(up.url, "/api/upload?token=tok-1&media=1", "uploaded with the session token as a Media upload");
-  assert.deepEqual(up.init.body.parts.map((p) => p[0]), ["file"]);
+  const start = net.calls.find((c) => path0(c.url) === "/api/upload/resumable");
+  assert.equal(start.url, "/api/upload/resumable?token=tok-1", "started with the session token");
+  assert.deepEqual(start.body, { filename: "staff.png", size: 10 * MIB, content_type: "image/png", media: 1 }, "as a Media upload, no hash");
   const pub = net.calls.find((c) => c.url === "/api/media" && c.init.method === "POST");
   assert.equal(pub.body.filename, "1760_new.png");
   assert.equal(pub.body.sig, "sig:media_publish:1760_new.png", "the publish is signed over its file name");
@@ -526,7 +292,7 @@ test("6. Add to Media shows the share, stops an upload over it before it starts,
 test("7. Put on Media from a Shared Files row offers public only and says why; a members-only server offers no choice", async () => {
   const { doc, net } = await openPage({
     put: { filename: "1700_part.stl", name: "bushing.stl" },
-    routes: listRoutes(listAnswer([])).concat([[at("/api/media", "POST"), () => respond(200, { ok: true, item: item() })]]),
+    routes: listRoutes(listAnswer([]), [[at("/api/media", "POST"), () => respond(200, { ok: true, item: item() })]]),
   });
   assert.equal(text(byId(doc, "media-form").querySelector("h2")), "Put on Media");
   assert.equal(text(byId(doc, "media-form-public-only")), "This file is already public where it was shared.");
@@ -534,7 +300,7 @@ test("7. Put on Media from a Shared Files row offers public only and says why; a
   assert.equal(byId(doc, "media-form-vis-members"), null);
   byId(doc, "media-form-go").click();
   await settle();
-  assert.equal(net.calls.filter((c) => path0(c.url) === "/api/upload").length, 0, "no upload: the file is on the server already");
+  assert.equal(net.calls.filter((c) => path0(c.url).startsWith("/api/upload")).length, 0, "no upload: the file is on the server already");
   const pub = net.calls.find((c) => c.url === "/api/media" && c.init.method === "POST");
   assert.equal(pub.body.visibility, "public");
   assert.equal(pub.body.filename, "1700_part.stl");
@@ -542,11 +308,11 @@ test("7. Put on Media from a Shared Files row offers public only and says why; a
 
   // A members-only server: Add to Media puts it on as members only, with no choice offered.
   const settings = Object.assign({}, fakeSession().state.settings, { media_visibility: "members" });
-  const m = await openPage({ session: fakeSession({ settings }), routes: addRoutes([
-    [at("/api/upload", "POST"), () => respond(200, { url: "/uploads/9_m.png", filename: "9_m.png" })],
+  const m = await openPage({ session: fakeSession({ settings }), routes: listRoutes(listAnswer([]), [
+    ...resumableRoutes("9_m.png"),
     [at("/api/media", "POST"), () => respond(200, { ok: true, item: item() })],
   ]) });
-  await pickFile(m.doc, { name: "m.png", size: MIB });
+  await pickFile(m.doc, aFile("m.png", MIB));
   assert.equal(byId(m.doc, "media-form-visibility"), null);
   assert.equal(text(byId(m.doc, "media-form-members-only")), media.MEDIA_WORDS.serverMembersOnly);
   byId(m.doc, "media-form-go").click();
@@ -558,10 +324,11 @@ test("7. Put on Media from a Shared Files row offers public only and says why; a
 
 // Seen red with purposes.pick dropping the id ("media_pick"): "pick is signed over its item /
 // 'sig:media_pick' !== 'sig:media_pick:5'"; and with removeWords always saying the file stays:
-// "a members-only item's file goes with it / ...Remove from Media. The file stays where it came
-// from."
-test("8. pick, unpick, remove and feature are each signed over their own item", async () => {
-  const answer = listAnswer([item({ id: 5, picks: 0 }), item({ id: 6, uploader_key: ME, uploader_name: "Me", visibility: "members", url: "/api/media/file/6" })]);
+// "a file uploaded for Media goes with it / ...Remove from Media. The file stays where it came
+// from." Round 2: seen red with act() leaving out `filename`: "every write names the item's file
+// too".
+test("8. pick, unpick, remove and feature are each signed over their own item, naming its file", async () => {
+  const answer = listAnswer([item({ id: 5, picks: 0 }), item({ id: 6, uploader_key: ME, uploader_name: "Me", url: "/uploads/6_mine.png", keeps_file: false })]);
   const routes = listRoutes(answer, [
     [at("/api/media/pick", "POST"), () => respond(200, { ok: true, id: 5, picked: true, picks: 1 })],
     [at("/api/media/unpick", "POST"), () => respond(200, { ok: true, id: 5, picked: false, picks: 0 })],
@@ -573,31 +340,33 @@ test("8. pick, unpick, remove and feature are each signed over their own item", 
   assert.equal(tileOf(6).querySelector('[data-action="pick"]'), null, "no Pick on your own item");
   tileOf(5).querySelector('[data-action="pick"]').click();
   await settle();
-  const last = () => net.calls.at(-1);
+  const last = () => net.calls.filter((c) => !c.url.startsWith("/api/media/list") && c.url !== "/api/media/mine").at(-1);
   assert.equal(last().url, "/api/media/pick");
   assert.equal(last().body.sig, "sig:media_pick:5", "pick is signed over its item");
   assert.equal(last().body.id, 5);
+  assert.equal(last().body.filename, "1_a.png", "every write names the item's file too");
   assert.equal(text(tileOf(5).querySelector(".media-tile-meta")), "by Ann · 1 pick");
   tileOf(5).querySelector('[data-action="unpick"]').click();
   await settle();
   assert.equal(last().url, "/api/media/unpick");
   assert.equal(last().body.sig, "sig:media_pick:5", "unpick is signed over its item");
+  assert.equal(last().body.filename, "1_a.png");
   tileOf(5).querySelector('[data-action="feature"]').click();
   await settle();
-  assert.equal(last().url, "/api/media/feature");
-  assert.equal(last().body.sig, "sig:media_feature:5");
-  assert.equal(last().body.featured, true);
-  assert.equal(text(byId(doc, "media-featured-row").querySelector(".media-tile-title")), "Contact staff", "a featured item joins the strip");
+  const feature = net.calls.find((c) => c.url === "/api/media/feature");
+  assert.equal(feature.body.sig, "sig:media_feature:5");
+  assert.equal(feature.body.featured, true);
+  assert.equal(feature.body.filename, "1_a.png");
+  assert.ok(net.calls.filter((c) => c.url === "/api/media/list" && c.body.featured === 1).length >= 2, "the strip is asked for again");
   tileOf(6).querySelector('[data-action="remove"]').click();
   await settle();
-  assert.equal(confirms.at(-1), '"Contact staff"\n\n' + media.MEDIA_WORDS.removeDeletes, "a members-only item's file goes with it");
-  assert.equal(last().url, "/api/media/remove");
-  assert.equal(last().body.sig, "sig:media_remove:6");
-  assert.equal(last().body.id, 6);
+  assert.equal(confirms.at(-1), '"Contact staff"\n\n' + media.MEDIA_WORDS.removeDeletes, "a file uploaded for Media goes with it");
+  const rm = net.calls.find((c) => c.url === "/api/media/remove");
+  assert.equal(rm.body.sig, "sig:media_remove:6");
+  assert.equal(rm.body.id, 6);
+  assert.equal(rm.body.filename, "6_mine.png");
   assert.equal(tileOf(6), undefined, "the tile is gone");
   assert.equal(text(byId(doc, "media-notice").querySelector(".media-notice-text")), media.MEDIA_WORDS.removedDeleted);
-  // A public item's answer does not say where its file came from, so the words cover both.
-  assert.equal(media.removeWords(item()), media.MEDIA_WORDS.removeEither);
   assert.equal(media.removedWords({ file_kept: true }), "Removed from Media. The file stays where it came from.");
 });
 
@@ -612,45 +381,6 @@ test("8b. a cancelled Remove sends nothing", async () => {
 });
 
 // ── 9. The admins' section ───────────────────────────────────────────────
-
-const BLAKE = async (bytes) => new Uint8Array(require("node:crypto").createHash("sha256").update(Buffer.from(bytes)).digest());
-
-async function openAdmin(opts) {
-  const o = opts || {};
-  const doc = fakeDocument();
-  const box = doc.createElement("div");
-  box.id = "media-admin-root";
-  doc.body.appendChild(box);
-  const signer = fakeSigner(ME);
-  const usage = {
-    used_bytes: Math.round(12.4 * 1024 * MIB), budget_bytes: 50 * 1024 * MIB, per_person_bytes: 512 * MIB,
-    items: 3, people: [],
-    largest: [item({ id: 11, title: "Big video", kind: "video", size_bytes: 3 * 1024 * MIB, uploader_name: "Ann" })],
-    oldest: [item({ id: 12, title: "First" })],
-    least_viewed: [],
-    waiting: [{ filename: "1760_wait.mp4", uploader_key: ANN, uploader_name: "Ann", size_bytes: 40 * MIB, uploaded_at: 1, expires_at: 86400001 }],
-  };
-  const net = fakeFetch([
-    [at("/api/media/list", "POST"), () => respond(200, listAnswer([], { categories: CATEGORIES }))],
-    [at("/api/media/suggestions", "POST"), () => respond(200, { all: true, suggestions: [
-      { id: 3, suggester_key: ANN, suggester_name: "Ann", name: "Builds", note: "Ship builds", created_at: 1, state: "open" },
-      { id: 2, suggester_key: ANN, suggester_name: "Ann", name: "Old", note: "", created_at: 1, state: "declined" },
-    ] })],
-    [at("/api/media/suggestions/decide", "POST"), () => respond(200, { ok: true })],
-    [at("/api/media/usage", "POST"), () => respond(200, usage)],
-    [at("/api/media/remove", "POST"), () => respond(200, { ok: true, removed_upload: "1760_wait.mp4", file_removed: true, file_kept: false })],
-    [at("/api/media/categories", "POST"), (c) => respond(200, { ok: true, categories: c.body.categories.map((x, i) => ({ id: x.id || 10 + i, name: x.name, description: x.description, position: i })) })],
-  ]);
-  const confirms = [];
-  const session = o.session || fakeSession({ role: "admin" });
-  const ctl = admin.mountMediaAdmin(box, {
-    document: doc, fetch: net.fetch, sign: signer.sign, blake3: BLAKE, session,
-    confirm: async (w) => { confirms.push(w); return true; },
-  });
-  await ctl.ready;
-  await settle();
-  return { doc, net, signer, session, confirms };
-}
 
 // Seen red with meterWords reading the budget as the used bytes: "the meter / '50 GB of 50 GB
 // used'"; and with the members note left out of renderSettings: "the relay's sentence under the
@@ -776,7 +506,8 @@ function fakeWebSocketClass(sockets) {
 
 // Seen red with identifyPreimage leaving out the nonce: "the relay accepts the sign-in / actual:
 // false"; and with takePeerList reading `token`: "the upload token from the person's own entry
-// / '' !== 'tok-9'".
+// / '' !== 'tok-9'". Round 2: seen red with the role_list branch taken out of onFrame: "the role
+// list is kept".
 test("10. the session signs in with a real Dilithium3 signature and takes its own token, role and settings", async () => {
   const n = await noble();
   const seed = new Uint8Array(32).fill(7);
@@ -818,6 +549,11 @@ test("10. the session signs in with a real Dilithium3 signature and takes its ow
   assert.deepEqual(ws.sent[2], { type: "server_settings_request" }, "it asks for the server's settings");
   ws.receive({ type: "server_settings_state", settings: { media_visibility: "members", media_per_person_mb: 64 } });
   assert.equal(s.state.settings.media_per_person_mb, 64);
+  // The role list comes with the settings: what the person's role allows (can it upload).
+  assert.equal(s.roleDef(), null, "nothing known before the role list");
+  ws.receive({ type: "role_list", roles: [{ id: "verified", can_upload: true }, { id: "admin", can_upload: false }] });
+  assert.ok(Array.isArray(s.state.roles), "the role list is kept");
+  assert.deepEqual(s.roleDef(), { id: "admin", can_upload: false }, "the person's own role");
   // A later peer list (someone joining) without a token keeps the token.
   ws.receive({ type: "peer_list", peers: [{ public_key: identity.dilithiumPublicHex, role: "admin" }] });
   assert.equal(s.state.uploadToken, "tok-9");
@@ -845,7 +581,8 @@ test("11. sizes, the share and the meter read as the design writes them", () => 
   assert.equal(media.sizeWords(1.5 * MIB), "1.5 MB");
   assert.equal(media.sizeWords(900 * 1024), "900 KB");
   assert.equal(media.shareStop({ name: "a", size: 10 }, 0, 512 * MIB), null);
-  assert.equal(media.limitStop({ name: "a", size: 2 * MIB }, MIB).startsWith('"a" is 2 MB, over your 1 MB limit'), true);
+  assert.equal(media.limitStop({ name: "a", size: 2 * MIB }, MIB).startsWith('"a" is 2 MB, over your role\'s 1 MB limit for one Media file'), true);
+  assert.equal(media.limitStop({ name: "a", size: 2 * MIB }, 0), null, "0 is no limit: up to the share");
   // No em dash in anything the page or the section says.
   for (const w of Object.values(media.MEDIA_WORDS).concat(Object.values(admin.ADMIN_WORDS))) assert.ok(!w.includes("—"), w);
 });
@@ -857,11 +594,16 @@ test("12. the page is in the nav beside Watch and loads its scripts in order", (
   assert.ok(/mobileLink\('\/watch',\s*'Watch'\)\s*\+[\s\S]{0,300}?mobileLink\('\/media',\s*'Media'\)/.test(shell), "the nav links the page");
   assert.ok(/p\.startsWith\('\/media'\)/.test(shell), "the page lights its tab");
   const html = fs.readFileSync(path.join(WEB, "pages", "media.html"), "utf8");
-  const order = ["/shared/hold-confirm.js", "/chat/pq.js", "/shared/pq-relay-auth.js", "/shared/relay-session.js", "/pages/media-app.js", "/pages/media-admin.js"];
+  const order = ["/shared/hold-confirm.js", "/chat/pq.js", "/shared/pq-relay-auth.js", "/shared/relay-session.js", "/shared/report.js", "/pages/media-upload.js", "/pages/media-app.js", "/pages/media-admin.js"];
   const at2 = order.map((s) => html.indexOf('src="' + s));
   assert.ok(at2.every((i) => i > 0), "every script is loaded: " + at2);
   assert.deepEqual(at2.slice().sort((a, b) => a - b), at2, "in order");
   assert.ok(html.includes('id="media-root"'));
+  // The Admin page mounts the same section, so it loads the upload helper before the page's helpers.
+  const adminHtml = fs.readFileSync(path.join(WEB, "pages", "admin.html"), "utf8");
+  const order2 = ["/shared/relay-session.js", "/pages/media-upload.js", "/pages/media-app.js", "/pages/media-admin.js"].map((s) => adminHtml.indexOf('src="' + s));
+  assert.ok(order2.every((i) => i > 0), "the Admin page loads the section's scripts: " + order2);
+  assert.deepEqual(order2.slice().sort((a, b) => a - b), order2, "in order");
   const shared = fs.readFileSync(path.join(WEB, "pages", "shared-files.html"), "utf8");
   assert.ok(shared.includes("'/media?put=' + encodeURIComponent("), "a Shared Files row links to Put on Media");
   assert.ok(/f\.uploader_key !== myKey/.test(shared), "on the person's own rows only");

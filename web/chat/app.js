@@ -2334,6 +2334,13 @@ function updatePeerList(peers) {
     if (p.public_key === myKey && Number.isFinite(p.upload_limit_mb) && p.upload_limit_mb > 0) {
       window.myUploadLimitBytes = p.upload_limit_mb * 1024 * 1024;
     }
+    // And the largest file my role may send in a private conversation (a DM or
+    // a group: an encrypted upload), which the server holds encrypted uploads
+    // to (its role field max_private_file_mb, 2026-10-11): chat-messages.js
+    // attachmentLimit uses it instead of the built-in 6 MB once it is said.
+    if (p.public_key === myKey && Number.isFinite(p.private_limit_mb) && p.private_limit_mb > 0) {
+      window.myPrivateLimitBytes = p.private_limit_mb * 1024 * 1024;
+    }
     // Track our role for UI rendering (federation admin buttons, etc.).
     if (p.public_key === myKey && p.role) {
       window.myPeerRole = p.role;

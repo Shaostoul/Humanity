@@ -684,6 +684,91 @@ upgrade test in storage/roles.rs; each seen failing once.
   that."), unless `keep_metadata=1`. Honest limit: a video cut off before its movie box reads the
   same way and gets the same words.
 
+**As built (web, round 2, 2026-10-11).** The web Media page against the relay above, and the fixes
+the review of the round 1 page asked for. Code: web/pages/media-app.js (the page),
+web/pages/media-upload.js (new: the resumable upload and the uploads remembered in the browser),
+web/pages/media-admin.js (the admins' section), web/shared/relay-session.js (now keeps the role
+list), web/shared/pq-relay-auth.js, web/shared/report.js, web/chat/chat-reports.js,
+web/chat/chat-messages.js and app.js (the private limit). Tests: scripts/tests/media-web.test.js
+(round 1, moved onto a shared harness, scripts/tests/media-web-harness.js) and
+scripts/tests/media-web-round2.test.js, one test in private-files-web.test.js, the contexts check
+in report-web.test.js, and a `Media (kinds)` pair in tests/page_parity_lint.rs; each seen failing
+once against a single break in a copy of web/.
+
+- **No two signed requests share a timestamp.** getPqSignedAuth takes the next millisecond after the
+  last one it signed (`_nextTimestamp`, like the desktop's `next_timestamp`), so Accept on a
+  suggestion, which reads the list twice at once, is never refused as a replay.
+- **W5.** Pick, Unpick, Remove by number, Feature and Keep send `filename`: the item's `filename`
+  when the answer carries one, else the name in its `/uploads/` address. A 409 "not the Media item
+  you were looking at" loads the list and the strip again and says so ("the page was out of date,
+  so it has been loaded again. Nothing was changed."). **Gap found, relay side:** `item_json` gives
+  a members-only item's address as `/api/media/file/<id>` and carries no stored file name, so
+  neither app can name such an item's file; the web page then sends nothing and says why. The fix
+  is one field, `"filename": i.upload_filename`, in `item_json` (the name is not a way in: the
+  members' folder is served by nothing, and only members are sent members-only items); the page
+  already reads it.
+- **A4.** "You have X of your Y left" is `share_bytes - used_bytes - in_progress_bytes` from
+  `POST /api/media/mine` (an upload of the same file already part way up is not counted twice),
+  with the role's largest Media file (`file_limit_bytes`) and what the whole space has left
+  (`budget_left_bytes`) as stops too; asked again after every upload, publish and removal. The
+  person's uploads waiting to be published are listed with Publish (the form, with the visibility
+  choice) and Remove (by file name).
+- **W3b.** Members-only files are fetched with the token in `X-Upload-Token` and shown through
+  object URLs, at most four fetched at once; no token is in any address on the page. An object URL
+  lives while its item is shown (the grid, the strip or the viewer) and is revoked when it is not,
+  and all of them when the page goes. Download saves the fetched file under `original_name`; a
+  model or file is fetched only when Download is pressed.
+- **The viewer** is drawn again only when what it shows changes (its item, or a members-only file
+  arriving), so a playing video keeps playing through a reconnect, a new token or a list reload.
+- **A2 and A6.** The strip asks for `featured=1` (up to 100); the kind filter and each kind's name
+  and mark come from data/media/kinds.json, which the desktop reads too.
+- **Settings Save** ends at the relay's answer to it: a `server_settings_state` with no `target`
+  (an admin's save) carrying what was sent, as the relay stores it; any other notice than another
+  admin's save, the game clock or a suggestion's answer (so "Only admins can update server
+  settings.", "Update failed: ..." and "Server settings row missing ..." all end it); a dropped
+  connection; or 15 seconds with no answer. The answer to the page's own settings request never
+  counts.
+- **Add to Media** only when the person's role may upload: no role, a role with `can_upload` off,
+  or the role list not here yet (it comes with the settings) means no button; a role known not to
+  upload gets one line saying why.
+- **A7.** Keep on the server and Stop keeping on tiles for admins and moderators (signed
+  `media_keep:<id>:<on|off>`), a "Kept by the server" badge for everyone, Keep in the admins' prune
+  lists, and `kept_bytes` on its own line under the meter.
+- **A3.** My picks is `POST /api/media/picks` (the list's signed body plus `of`), members-only
+  picks included; Pick and Unpick follow each item's `picked_by_me`.
+- **A1.** Remove's confirmation from `keeps_file`: "Remove from Media. The file stays where it came
+  from." or "Remove from Media and delete the file." (the either-way words only when it is absent).
+- **A5.** Report on a tile: the reasons from data/safety/report_reasons.json with their help, the
+  help outside this server for the two danger reasons (the chat dialog's rules, report.js), a note,
+  and `report_v2` with context `media` and evidence `[{kind: "media", id}]`, signed by the reporter
+  over the relay's words and sent on the page's own socket; `report_received` closes it with the
+  chat's line, a refusal shows in the dialog. report.js gained the context, `mediaEvidenceItem` and
+  the Media fields in `reportItemView`; the chat's Reports view shows such evidence by title, kind,
+  labels and visibility (names from the two data files) with an Open to `/media?id=<n>`, which the
+  page loads with `id=<n>` on the list route and opens in the viewer. Not on the web report: "Also
+  block them" (the Media page has no block list) and the recovery-phrase check on the note (it
+  lives in the chat's warnings script).
+- **B2.** The chat's private-file limit is the person's own peer-list `private_limit_mb`
+  (`window.myPrivateLimitBytes`), 6 MB only until the server has said it; the room limit no longer
+  caps it.
+- **Resumable uploads.** Every Add to Media file goes this way (no `blake3`): pieces of the server's
+  `chunk_max`, a progress bar, Pause (after the piece on its way) and Resume, Cancel (DELETE), a
+  dropped connection waited out (2 s doubling to 30 s) then `GET` for where the server got, a token
+  that changed (the page signed in again) waited for, a piece at the wrong place taken from the
+  409's `offset`, a busy 409 answered by asking again, the 429 allowance in the relay's words plus
+  when it resets on this device's clock with Resume, a 507 at the finish in its words with Retry
+  sending the empty piece, and `done` taken from `GET` when an answer was lost. The upload is
+  remembered in localStorage (`humanity_media_uploads`: whose, the session id, the file's name, size
+  and last change; every read and write wrapped) and picking the same file after a reload carries
+  on. The publish is signed after the upload.
+- **Phones.** `.media-select` is held to the width it has, so a long category or person name no
+  longer widens the filters past 375 px.
+- **Not done here.** The Roles editor fields (follow-up B and answers 2 and 3): the web has no
+  Roles editor (Settings shows a fixed description of the roles), so the five limits are edited in
+  the desktop app only. The sender-side metadata strip and its switch (answer 4), the
+  can-not-be-read-through question in DMs (answer 5), Files in messages (answer 6) and the local
+  copy of opened private files (answer 9) are their own increments.
+
 ## The operator's answers (2026-10-11) and what they mean for the build
 
 Verbatim where it matters, then the decision. Parts marked (relay) are added to the follow-ups

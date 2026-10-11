@@ -41,7 +41,10 @@
 // (`reports_list` -> `reports`), each piece of evidence with "Signature
 // checked: sent by <name> to the reporter" or "Not proven", what a checked
 // signature does not prove, and the decisions (`report_decide`), which the
-// relay carries out through its moderation path and its rules. It lives here,
+// relay carries out through its moderation path and its rules. A reported Media
+// item (context `media`, 2026-10-11) shows its title, kind, labels and
+// visibility with an Open that loads it on the Media page by its number
+// (/media?id=<n>, which asks the list route for `id=<n>`). It lives here,
 // in the chat app, and not on the Admin page (web/pages/admin.html): the Admin
 // page is open to admins only and signs its requests over HTTP, while the
 // report frames go over the signed-in chat socket, and moderators review
@@ -756,10 +759,56 @@ function reportsViewModel() {
         decisions: REPORT_DECISIONS.filter((d) => d !== 'delete_post' || v.context === 'post'),
         evidence: v.evidence.map((ev) => {
           const fromLabel = repSameKey(ev.from, v.target) ? targetLabel : (ev.from ? repName(ev.from) : targetLabel);
-          return { ...ev, fromLabel, badge: reportEvidenceBadge(ev, fromLabel), timeLabel: repWhen(ev.ts), textLabel: repTextLabel(ev.text) };
+          const shown = { ...ev, fromLabel, badge: reportEvidenceBadge(ev, fromLabel), timeLabel: repWhen(ev.ts), textLabel: repTextLabel(ev.text) };
+          if (ev.kind === 'media') Object.assign(shown, reportMediaEvidenceView(ev));
+          return shown;
         }),
       };
     }),
+  };
+}
+
+// A Media item reported (2026-10-11, docs/design/media-showcase.md A5): the relay keeps a pointer
+// to it, its title, kind, labels and visibility, never the file. The kinds' and labels' names
+// are the Media page's data files' (data/media/kinds.json, data/media/labels.json), loaded when
+// the Reports view first shows such an item; until then, and for a word they do not list, the
+// relay's own word is shown.
+let reportMediaWords = null;          // {kinds: {id: name}, labels: {id: name}} once loaded
+let reportMediaWordsLoading = null;
+function loadReportMediaWords() {
+  if (reportMediaWords || reportMediaWordsLoading) return reportMediaWordsLoading || Promise.resolve(reportMediaWords);
+  const read = (url, list, name) => Promise.resolve()
+    .then(() => fetch(url, { cache: 'no-cache' }))
+    .then((r) => (r && r.ok ? r.json() : null))
+    .then((j) => {
+      const out = {};
+      for (const x of (j && Array.isArray(j[list]) ? j[list] : [])) if (x && typeof x.id === 'string') out[x.id] = String(x[name] || x.id);
+      return out;
+    })
+    .catch(() => ({}));
+  reportMediaWordsLoading = Promise.all([read('/data/media/kinds.json', 'kinds', 'one'), read('/data/media/labels.json', 'labels', 'label')])
+    .then(([kinds, labels]) => {
+      reportMediaWordsLoading = null;
+      reportMediaWords = { kinds, labels };
+      if (reportsView.open) renderReportsView();
+      return reportMediaWords;
+    });
+  return reportMediaWordsLoading;
+}
+
+/** What the Reports view shows for one Media item of evidence (pure apart from the loaded names). */
+function reportMediaEvidenceView(ev) {
+  if (!reportMediaWords) loadReportMediaWords();
+  const w = reportMediaWords || { kinds: {}, labels: {} };
+  const visibility = ev.visibility === 'members' ? 'Members only' : ev.visibility === 'public' ? 'Public' : '';
+  return {
+    mediaTitle: ev.title || (ev.checked ? 'Untitled' : 'Media item ' + (ev.mediaId == null ? '' : ev.mediaId)),
+    mediaFacts: [
+      ev.mediaKind ? (w.kinds[ev.mediaKind] || ev.mediaKind) : '',
+      ev.labels.length ? 'Labels: ' + ev.labels.map((l) => w.labels[l] || l).join(', ') : '',
+      visibility,
+    ].filter(Boolean).join(' · '),
+    mediaHref: ev.mediaId == null ? '' : reportMediaHref(ev.mediaId),
   };
 }
 
@@ -788,7 +837,14 @@ function reportsViewHtml(model) {
         `<div class="report-evidence-item" data-checked="${ev.badge.checked}" style="border-top:1px solid var(--border);padding:var(--space-xs) 0;">`
         + `<span class="report-badge ${ev.badge.checked ? 'report-badge-checked' : 'report-badge-unproven'}" style="display:inline-block;font-size:var(--text-xs);padding:1px var(--space-sm);border-radius:var(--radius-sm);border:1px solid ${ev.badge.checked ? 'var(--success)' : 'var(--warning)'};color:${ev.badge.checked ? 'var(--success)' : 'var(--warning)'};">${repEsc(ev.badge.text)}</span>`
         + (ev.timeLabel ? ` <span style="color:var(--text-muted);font-size:var(--text-xs);">${repEsc(ev.timeLabel)}</span>` : '')
-        + `<div style="color:var(--text);white-space:pre-wrap;overflow-wrap:anywhere;margin-top:2px;">${repEsc(ev.textLabel)}</div></div>`).join('');
+        + (ev.kind === 'media'
+          // A Media item: its title, kind, labels and visibility, and Open, which loads it by its
+          // number on the Media page (in a new tab, so this view stays as it is).
+          ? `<div class="report-media" style="margin-top:2px;"><div class="report-media-title" style="color:var(--text);font-weight:600;overflow-wrap:anywhere;">${repEsc(ev.mediaTitle)}</div>`
+            + (ev.mediaFacts ? `<div class="report-media-facts" style="color:var(--text-muted);font-size:var(--text-xs);">${repEsc(ev.mediaFacts)}</div>` : '')
+            + (ev.mediaHref ? `<a class="vr-btn report-media-open" data-report-media-open="${repEsc(String(ev.mediaId))}" href="${repEsc(ev.mediaHref)}" target="_blank" rel="noopener noreferrer" style="display:inline-block;margin-top:var(--space-xs);font-size:0.75rem;text-decoration:none;">Open</a>` : '')
+            + '</div></div>'
+          : `<div style="color:var(--text);white-space:pre-wrap;overflow-wrap:anywhere;margin-top:2px;">${repEsc(ev.textLabel)}</div></div>`)).join('');
     } else {
       html += `<div style="${muted}">No messages were included.</div>`;
     }
