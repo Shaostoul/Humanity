@@ -2166,9 +2166,7 @@ pub struct GuiState {
     pub clipboard_upload: Option<(String, std::sync::mpsc::Receiver<Result<String, String>>)>,
     /// A file's attach step, people's `accepts_files`, kept files (pages/chat/attach_step.rs).
     pub files_flow: crate::gui::pages::chat::FilesFlow,
-    /// This person's own profile on each server they use, and the saves waiting to go to it
-    /// (pages/own_profile.rs; BUG-194, BUG-196): every save sends the whole profile from that
-    /// server's own copy, so nothing set elsewhere is wiped.
+    /// The person's own profile copy per server and the saves waiting (pages/own_profile.rs).
     pub own_profile: crate::gui::pages::own_profile::OwnProfile,
     /// PIN entry buffer (active digit-only field on the PinSetup /
     /// PinUnlock / PinChange modal forms).
@@ -3090,9 +3088,7 @@ impl GuiState {
                 // reconnect fresh when visited or, later, by the
                 // connect-to-all pass.
                 self.connections.clear();
-                // The own profile copies were the previous identity's: a save under the new key
-                // must never carry them (their links, places and privacy choices).
-                self.own_profile = Default::default();
+                self.own_profile = Default::default(); // the old identity's copies never go under the new key
                 // Governance vote tracking is PER IDENTITY (adversarial review
                 // 2026-07-01): a different seed is a different voter DID, so the
                 // previous identity's session votes must not label rows or
