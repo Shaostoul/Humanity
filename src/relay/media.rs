@@ -527,6 +527,22 @@ pub(crate) mod hold {
         gate
     }
 
+    static STOPS: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
+    /// The next work to reach the point named `name` stops there, once, as a relay that stops at
+    /// that moment would: nothing after it runs (R4-3: a piece written and its offset not stored,
+    /// by the name `written:<file name>`, relay/resumable.rs `write_counted`).
+    pub(crate) fn stop_at(name: &str) {
+        STOPS.lock().unwrap_or_else(|p| p.into_inner()).push(name.to_string());
+    }
+
+    /// Whether the work at `name` stops here ([`stop_at`]); the stop is used up by saying so.
+    pub(crate) fn stops_at(name: &str) -> bool {
+        let mut stops = STOPS.lock().unwrap_or_else(|p| p.into_inner());
+        let at = stops.iter().position(|n| n == name);
+        at.map(|i| stops.remove(i)).is_some()
+    }
+
     pub(crate) fn wait_at(name: &str) {
         let found = GATES.lock().unwrap_or_else(|p| p.into_inner()).iter().find(|(n, _)| n == name).map(|(_, g)| g.clone());
         let Some(gate) = found else { return };

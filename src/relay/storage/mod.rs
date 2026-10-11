@@ -1482,16 +1482,22 @@ impl Storage {
                 touched_at   INTEGER NOT NULL,
                 keep_metadata INTEGER NOT NULL DEFAULT 0,
                 hash_checked  INTEGER NOT NULL DEFAULT 0,
-                done_answer   TEXT    NOT NULL DEFAULT ''
+                done_answer   TEXT    NOT NULL DEFAULT '',
+                counted_bytes INTEGER NOT NULL DEFAULT 0,
+                counted_at    INTEGER NOT NULL DEFAULT 0
             ) WITHOUT ROWID;
             CREATE INDEX IF NOT EXISTS idx_upload_sessions_key ON upload_sessions(public_key);"
         )?;
-        // The last three columns (2026-10-11, new in this unreleased version, so in the CREATE
-        // TABLE): `keep_metadata` is the person's choice to keep the file's hidden information
+        // The last five columns (2026-10-11, new in this unreleased version, so in the CREATE
+        // TABLE; the live database had no upload_sessions table when this was written, checked
+        // 2026-10-11): `keep_metadata` is the person's choice to keep the file's hidden information
         // (B4); `hash_checked` says the BLAKE3 hash matched once, before anything changed the file
         // (the location strip changes it, so it is never hashed again: R1); `done_answer` is the
         // finished upload's answer, kept until the idle expiry so an app that lost its connection
-        // during the finish still learns the stored name (R2).
+        // during the finish still learns the stored name (R2). `counted_bytes` and `counted_at`
+        // (R4-3) are a piece counted against the day's allowance whose offset is not stored yet,
+        // and when it was counted: a relay that stops before the offset is stored gives those
+        // bytes back, at the next start, to the day they were counted in.
 
         // Upload allowances (B3, 2026-10-11, storage/upload_counts.rs; the operator's answers of
         // 2026-10-11, number 3): how much each person uploaded in the current UTC day (`span`

@@ -518,7 +518,7 @@ async fn the_start_up_check_cuts_a_long_file_back_and_removes_orphans() {
     std::fs::write(r.resume.join("stray.tmp"), b"not ours").unwrap();
 
     let done = r.db().reconcile_upload_sessions_in(&r.resume).unwrap();
-    assert_eq!(done, crate::relay::storage::upload_sessions::Reconciled { files_removed: 2, rows_removed: 1, cut_back: 1, offset_lowered: 1 });
+    assert_eq!(done, crate::relay::storage::upload_sessions::Reconciled { files_removed: 2, rows_removed: 1, cut_back: 1, offset_lowered: 1, given_back: 0 });
     assert_eq!(std::fs::metadata(r.part(&long)).unwrap().len(), 1000, "the long file is cut back to its offset");
     assert!(r.session(&lost).is_none(), "the session with no file is gone");
     assert_eq!(r.session(&short).unwrap().offset, 1000, "the short file's offset is what is there");
@@ -712,3 +712,7 @@ mod follow_ups;
 // Round 3, the fixes from the round 2 review (2026-10-11): R3-1 (pieces), R3-5, R3-6, R3-9.
 #[path = "resumable_round3_tests.rs"]
 mod round3;
+
+// Round 4, the fixes from the round 3 review (2026-10-11): R4-2 to R4-5.
+#[path = "resumable_round4_tests.rs"]
+mod round4;
