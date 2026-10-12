@@ -345,6 +345,7 @@ function ownProfileArrived(msg) {
   if (!msg || typeof msg.privacy !== 'string') return;
   // The server asks this device to sign the copy of my profile that other servers keep (BUG-191).
   signProfileCopy(msg);
+  noteProfileCopyHeld(msg); // an erase's withdrawal is dated after it
   ownProfileHeard = true;
   const pushedAlready = waitingPushedOnce;
   const publish = filesAcceptHeard(msg.accepts_files, msg.stored !== false);
@@ -404,10 +405,67 @@ async function signProfileCopy(msg) {
   }
   // The socket it was asked on, still open: a new socket has not asked (and may be another server).
   if (ws !== sock || !ws || ws.readyState !== WebSocket.OPEN) return false;
+  ws.send(JSON.stringify({ type: 'profile_sign', at, signature: profileCopyHex(sig) }));
+  return true;
+}
+
+/** A signature's bytes as lowercase hex. */
+function profileCopyHex(sig) {
   let hex = '';
   for (let i = 0; i < sig.length; i++) hex += sig[i].toString(16).padStart(2, '0');
-  ws.send(JSON.stringify({ type: 'profile_sign', at, signature: hex }));
-  return true;
+  return hex;
+}
+
+// ── Erasing my account takes my profile off the linked servers too (BUG-191 Wave 2B) ──
+// When I erase my account on this server (chat-privacy.js deleteMyAccount), the erase carries the
+// WITHDRAWAL of the copy of my profile that other servers keep (every field blank), signed here
+// with my key. The server keeps it over the copy it holds and passes it on to the servers it is
+// linked with BEFORE it erases, so they stop holding my profile. Only my key can sign it, which is
+// why an admin's erase of my account cannot take my profile off those servers. It is dated after
+// the copy the server holds, as my last own copy from it said (`signed_at`), and after the last one
+// this page signed there.
+
+/** Server (its did:hum, else its address) to the time of the copy it holds for my key, as my last own copy from it said. */
+const profileCopyHeldAt = {};
+
+/** Note the time of the copy the server holds for my key (`signed_at`) from my own copy `msg`. */
+function noteProfileCopyHeld(msg) {
+  if (!msg || typeof msg.signed_at !== 'number') return;
+  if (typeof msg.target === 'string' && msg.target.toLowerCase() !== String(myKey).toLowerCase()) return;
+  profileCopyHeldAt[filesAcceptServer()] = msg.signed_at;
+}
+
+/**
+ * The withdrawal an erase carries, {at, signature}, signed with my key for the server this page is
+ * signed in to; null when it cannot be made (no identity, no builder, the signing failed).
+ */
+async function signProfileWithdrawal() {
+  const C = window.HosProfileCopy;
+  if (!C || typeof window.pqSignMessage !== 'function') return null;
+  if (typeof myDilithiumSecret === 'undefined' || !myDilithiumSecret || !myKey) return null;
+  const server = filesAcceptServer();
+  const at = C.nextCopyTime(Date.now(), profileCopyHeldAt[server], profileCopyLastAt[server]);
+  profileCopyLastAt[server] = at;
+  let sig = null;
+  try {
+    sig = await window.pqSignMessage(myDilithiumSecret, new TextEncoder().encode(C.copyText(myKey, C.withdrawal(), at)));
+  } catch (e) {
+    sig = null;
+  }
+  return sig ? { at, signature: profileCopyHex(sig) } : null;
+}
+
+/**
+ * The erase frame for my account on this server: the name I typed and, when it can be made, the
+ * signed withdrawal of my profile's copy on the linked servers. Without it the erase still goes,
+ * and the copy stays on those servers.
+ */
+async function accountDeleteFrame(confirmName) {
+  const frame = { type: 'account_delete', confirm_name: confirmName };
+  const withdrawal = await signProfileWithdrawal();
+  if (withdrawal) frame.withdrawal = withdrawal;
+  else console.warn('Erase sent without taking the profile off linked servers: the withdrawal could not be signed.');
+  return frame;
 }
 
 /** This device's "Accept files from" as the profile publishes it; left out without the module. */

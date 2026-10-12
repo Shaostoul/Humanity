@@ -704,7 +704,7 @@
   <!-- admin-erase.js: an admin erases another person's data (10i, 2026-10-10): who is offered
        it, the name check, the frame, the receipt and the erased person's words, shared with Node
        tests. Before app.js (account_erased) and chat-ui.js (the member menu and its confirm). -->
-  <script src="/shared/admin-erase.js?v=2"></script>
+  <script src="/shared/admin-erase.js?v=3"></script>
   <!-- Files on the sender's device and in messages (2026-10-11, docs/design/media-showcase.md,
        parts 1 to 4), shared with Node tests. strip-metadata.js removes where a picture or a video
        was taken (the relay's Rust strips, ported); upload-clean.js runs it on every file before it
@@ -757,11 +757,11 @@
   <script src="/chat/chat-live.js?v=1"></script>
   <!-- Per-user voice control modal: volume/mute/squelch + role-tiered actions -->
   <script src="/chat/chat-voice-modal.js?v=4"></script>
-  <script src="/chat/chat-profile.js?v=11"></script>
+  <script src="/chat/chat-profile.js?v=12"></script>
   <!-- chat-privacy.js: privacy tiers (2026-08-23) — first-connect chooser
        (default: maximum privacy) + tier application. Needs chat-profile.js
        (profile privacy merge) loaded first. -->
-  <script src="/chat/chat-privacy.js?v=15"></script>
+  <script src="/chat/chat-privacy.js?v=16"></script>
   <!-- Game Admin: game-world bans (separate from chat moderation), admin-only -->
   <script src="/chat/chat-game-admin.js?v=3"></script>
   <!-- Reports (step D, 2026-10-09): the Report dialog and the Reports view for admins

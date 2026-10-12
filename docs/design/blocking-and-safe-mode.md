@@ -1695,16 +1695,26 @@ cannot: erasing is not undoable, and it is the admins who answer for the server.
 - The server log line names no key and no name, as the self-erase's does: "An admin erased an
   account (<counts>)". The account's withdrawn passes and its erased-account fingerprint follow
   the self-erase's rules (kept, keyed, naming nobody).
+- The person's profile stays on the servers this one is linked with (added 2026-10-12, BUG-191
+  Wave 2B). Their own erase carries a withdrawal of that copy, signed by their own app, which the
+  relay passes on to the linked servers before it erases (`handle_account_delete`, then
+  handlers/profile.rs `withdraw_on_erase`). Only the person's own key can sign a withdrawal, so an
+  admin's erase cannot carry one: the copy on the linked servers stays until the person withdraws
+  it (going unlisted, or erasing their own account, on a server where they still have one). The
+  confirm says so.
 
 **Clients (native first, web mirrors):** where an admin already manages a member (native Server
 Settings' member list; web, the admin's member menu or admin page, whichever already holds kick
 and ban), an "Erase their data" action, shown only to admins and the owner, opening a confirm
 that says what it does and does not do: "This deletes everything this server stores about
 <name>: their messages, profile, uploads, membership and settings. Reports, bans and mutes about
-them are kept, as when someone erases their own account. It cannot be undone. It does not touch
-anything on their own devices, and it does not stop them joining again (ban them too for that)."
+them are kept, as when someone erases their own account. It cannot be undone. Their profile stays
+on the servers this one is linked with, because only their own app can take it off there. It does
+not touch anything on their own devices, and it does not stop them joining again (ban them too for
+that)."
 (Corrected 2026-10-10 after the batch review: the first wording said "everything", but the erase
-keeps moderation records about the person, as the self-erase does and says.) with a field to type their name and an "Erase" button that is enabled only when the
+keeps moderation records about the person, as the self-erase does and says. The sentence about
+the linked servers was added 2026-10-12, BUG-191 Wave 2B.) with a field to type their name and an "Erase" button that is enabled only when the
 typed name matches. Show the receipt when `admin_erase_done` arrives.
 
 **Proof:** relay tests: every refusal (not an admin, a moderator, self, an admin target, an
