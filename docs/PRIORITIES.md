@@ -268,9 +268,16 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
   only on your own plot; BUG-165 and BUG-166, the walking-backwards fixes; two new clips),
   all delivered to the taskbar exe.
 - **NEXT in TIER 0:** increment 5b (the household page: give a friend a permit to build on
-  your plot, and walking into a permitted plot), then increment 6 (the starts as data, the
-  Cabin, the mess hall; fold in a second mess hall along First Street). Day 5 (a real
-  two-person session on the VPS) is unblocked whenever the operator has a partner.
+  your plot, and walking into a permitted plot): ALL LANES MERGED 2026-10-12 (relay v0.1488.0;
+  the Household card, the game glue and `just verify-household` on main). What remains: the
+  release build, `just verify-household` on the one GPU, fixing what it finds, release. Then
+  increment 6 (the starts as data, the Cabin, the mess hall; fold in a second mess hall along
+  First Street; plan `docs/design/ship-homes-increment-6-plan.md`, Wave 0 in progress), and
+  BUG-191 (profile copies signed by the person's own apps; plan
+  `docs/design/bug-191-profile-copies-plan.md`, Wave 0 in progress). Also in progress
+  2026-10-12, from the first-hour audit's open items: wounds and natural healing (S8), animal
+  feed and water (S6), crops planted from the backpack (F11), the drone's running costs (S5).
+  Day 5 (a real two-person session on the VPS) is unblocked whenever the operator has a partner.
 - **Follow-ups found today (not started):** BUG-161 (the copresence rig's steady-speed
   judges fail a starved machine); BUG-163 part 2 (refresh a stale data folder on update:
   docs/design/data-folder-updates.md, waits on the operator below); no gasoline or diesel
@@ -282,9 +289,7 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
   src/systems/fire.rs takes fire damage per frame in f32 (BUG-164's note); every drink
   gives 30 points whatever its volume; nothing applies Bleeding or infections yet; a
   second mess hall along First Street (fold into increment 6); the backpack-overflow toast
-  shows an item id and says it "stayed in Home" for things that were never there ("Backpack
-  full: 8 x wood_plank_0 stayed in Home", lib.rs and gui/organize.rs `return_to_storage`):
-  name the item and say it went to home storage.
+  (DONE 2026-10-12: it names the item and says it went to home storage).
 - **A gap the Normal-mode default exposes (found 2026-10-05 by the Library sweep):** in
   Normal mode NOBODY CAN LEAVE THE SHIP. The Dev page's travel and Land buttons and F9 flight are
   the only ways off it, all Dev-only, and no vehicle or route goes down. So by default a
