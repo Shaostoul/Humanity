@@ -1065,15 +1065,21 @@
     },
     {
       "path": "/chat/chat-dm-store.js",
-      "hash": "sha256:020e6a0c626771f9713e3ac57a254318ffe838dfc7d4b5eb4b71b93f4894634e",
-      "size": 50506,
-      "modified": 1791749571
+      "hash": "sha256:77a79eefbf77d30c80408cb071ae37653dd387c41cb5dcd762478640467bf833",
+      "size": 51001,
+      "modified": 1791768050
     },
     {
       "path": "/chat/chat-dms.js",
-      "hash": "sha256:79d7daa7561ab618ffdeb344bed6190439594548d66803f72bd597c050ccb757",
-      "size": 37848,
-      "modified": 1791749571
+      "hash": "sha256:7b7481b1f152c17f66e0041d473df346eaf6ee75a293d14de434f0d783e21bd4",
+      "size": 38160,
+      "modified": 1791768050
+    },
+    {
+      "path": "/chat/chat-file-transfer.js",
+      "hash": "sha256:615ae9d0c4706c0c7733458c9593bc7ff33e0f9de95fcf23aa62320d011d0d83",
+      "size": 74691,
+      "modified": 1791783721
     },
     {
       "path": "/chat/chat-fleet.js",
@@ -1101,9 +1107,9 @@
     },
     {
       "path": "/chat/chat-messages.js",
-      "hash": "sha256:0088e9e9cddbef883989cb3453368fb138587fc150b87363a633c58661bccd06",
-      "size": 47299,
-      "modified": 1791749571
+      "hash": "sha256:7980df49382cec0b7bf99d97db26f220a6d5ad6f8e9e34e5bdfb6a8a1d5445c5",
+      "size": 48953,
+      "modified": 1791768050
     },
     {
       "path": "/chat/chat-onboarding.js",
@@ -1113,21 +1119,21 @@
     },
     {
       "path": "/chat/chat-p2p.js",
-      "hash": "sha256:97aec7b6a6c59b71c3251a9bcdd38caf18923519279c57ae5a8ab34eab8123c9",
-      "size": 37826,
-      "modified": 1791670642
+      "hash": "sha256:84984817eaa77792bd20c1a5e4b48031538547d97359abcae6a03fb5b3db98db",
+      "size": 38077,
+      "modified": 1791768050
     },
     {
       "path": "/chat/chat-privacy.js",
-      "hash": "sha256:c484eda7a600c8b3c17cf50abb2869da75a025e45f8a1c1d0c522e6a30ea2d99",
-      "size": 69710,
-      "modified": 1791758912
+      "hash": "sha256:0d9425d40d0fd9a3882ace972785b182fbca3ea5356aa587f770f0d51db513f5",
+      "size": 70161,
+      "modified": 1791776289
     },
     {
       "path": "/chat/chat-profile.js",
-      "hash": "sha256:0374d7a5c16d38ebfe40add616655e27e07a0180ba936dc3f40d65bf0553694d",
-      "size": 87004,
-      "modified": 1791759885
+      "hash": "sha256:8b8aeb5a42d64d8fa8af4ae53450762dabc0e113c48633e1ed9cefa29467f894",
+      "size": 90020,
+      "modified": 1791781298
     },
     {
       "path": "/chat/chat-protected.js",
@@ -1143,9 +1149,9 @@
     },
     {
       "path": "/chat/chat-social.js",
-      "hash": "sha256:f229d980fbc4ca0c648ec135b98b4d6cb2c347d514f8ee49f06589f60c6ad02a",
-      "size": 57001,
-      "modified": 1791674010
+      "hash": "sha256:93b99ed58a204c7c9dbaa1de03072f871be0e1a80026187e0a7dc2259fc9f2c5",
+      "size": 57382,
+      "modified": 1791768050
     },
     {
       "path": "/chat/chat-ui.js",
@@ -1155,9 +1161,9 @@
     },
     {
       "path": "/chat/chat-voice-calls.js",
-      "hash": "sha256:b34cf0e2a4e928f33c6d83ab65ae1be0a018b1edead85fe805b0eda30c5d8387",
-      "size": 18606,
-      "modified": 1791659251
+      "hash": "sha256:243a5ea96161002e8bbada61378095b077e11b665c3063a1884c19c6e581d029",
+      "size": 18891,
+      "modified": 1791768050
     },
     {
       "path": "/chat/chat-voice-modal.js",
@@ -1167,9 +1173,9 @@
     },
     {
       "path": "/chat/chat-voice-rooms.js",
-      "hash": "sha256:4dca39f2cc32d52c3936ad45e21f435061832203d5c63bb332b5dfc88b41b4ad",
-      "size": 56808,
-      "modified": 1791627535
+      "hash": "sha256:c2d25f6db800b11d4752f2fc89de45e50a59b271e51a24b08fbc275ca3d51567",
+      "size": 57490,
+      "modified": 1791768050
     },
     {
       "path": "/chat/chat-voice-streaming.js",
@@ -1215,9 +1221,9 @@
     },
     {
       "path": "/chat/index.html",
-      "hash": "sha256:6970d67b1117b6488d59e56f1bfce6b93017835e390baacd124bd88903a76823",
-      "size": 55677,
-      "modified": 1791758925
+      "hash": "sha256:4286bfdaf7e1d9907ffbfae08e15443b290d3e0b59e63ed37a283548a7f2cac1",
+      "size": 56535,
+      "modified": 1791779550
     },
     {
       "path": "/chat/inputs.css",
@@ -1233,9 +1239,9 @@
     },
     {
       "path": "/chat/messages.css",
-      "hash": "sha256:658b166ae61d836f8f488fd17a8a88001c2f6cf3baf729336d98950390631262",
-      "size": 21101,
-      "modified": 1791723460
+      "hash": "sha256:681fe5bfbd566b5189acc7c49906c3210170c28da55383eebf83e69895993156",
+      "size": 21995,
+      "modified": 1791768050
     },
     {
       "path": "/chat/modals.css",
@@ -1299,9 +1305,9 @@
     },
     {
       "path": "/download.html",
-      "hash": "sha256:22aba9398aca682233f19faa7110482a4dfeac96bbe2fad738c7ed6b6f63ff88",
+      "hash": "sha256:ceba30e0eb8c8241e1bf7eefb19754d4dac6b826c4446d5def146f30dccccebb",
       "size": 47278,
-      "modified": 1791762613
+      "modified": 1791786929
     },
     {
       "path": "/files.html",
@@ -1347,9 +1353,9 @@
     },
     {
       "path": "/index.html",
-      "hash": "sha256:5a5adafb4cae3c7375b2cfdb15e9f8135b7da01c768af7cb1e650428abfed506",
+      "hash": "sha256:6e36c45ae7e547694b229dd258a21d49213d53701e3520f0f32146ab5d59caf0",
       "size": 40209,
-      "modified": 1791762613
+      "modified": 1791786929
     },
     {
       "path": "/inventory.html",
@@ -1407,9 +1413,9 @@
     },
     {
       "path": "/ops.html",
-      "hash": "sha256:fe8d5d7cf6eaae69d37472515071f77004625adb1afcbc4e718776c9a1767e58",
+      "hash": "sha256:263467fc00463ddf20146232a8e2838a8a887df765e2211618c6038b4780df04",
       "size": 21939,
-      "modified": 1791762613
+      "modified": 1791786929
     },
     {
       "path": "/pages/accord-app.js",
@@ -1509,9 +1515,9 @@
     },
     {
       "path": "/pages/settings-app.js",
-      "hash": "sha256:667d1ed371dab29c71e71dc13a10bda10b0b01a0ea4f4b28690bf4f45fb412ed",
+      "hash": "sha256:f931084a37e9c37e82aaefb0a252302246608b0529a15a1c1dc16c42e69521d8",
       "size": 104530,
-      "modified": 1791762613
+      "modified": 1791786929
     },
     {
       "path": "/pages/tasks-app.js",
@@ -1598,6 +1604,12 @@
       "modified": 1791648907
     },
     {
+      "path": "/shared/blake3.js",
+      "hash": "sha256:8767cf0195d62688015b128f5fc2bb3b1be90bead040ffe0adf9c5976efe44dd",
+      "size": 12440,
+      "modified": 1791768050
+    },
+    {
       "path": "/shared/block.js",
       "hash": "sha256:a5fd1a67bdc5c4974b2682cb599d3f198654ebf42245356c98dab4864196b301",
       "size": 4681,
@@ -1628,10 +1640,16 @@
       "modified": 1780697921
     },
     {
+      "path": "/shared/file-transfer.js",
+      "hash": "sha256:4c3e2acc344e4c862a7b4517607d897f083298bc255dd457d32a5a8221de7077",
+      "size": 43937,
+      "modified": 1791779550
+    },
+    {
       "path": "/shared/files-in-messages.js",
-      "hash": "sha256:f612d6a55cfd721ba25614eb0c1f114a3b0c6e223c9ff53aeee7b9cad8270d9d",
-      "size": 8768,
-      "modified": 1791749571
+      "hash": "sha256:1b8bbba8b31c88f6130b23b9a9f8c394a4669b4681c5f5881e95f51b24b66214",
+      "size": 15030,
+      "modified": 1791781298
     },
     {
       "path": "/shared/friend-pass.js",
@@ -1827,9 +1845,9 @@
     },
     {
       "path": "/shared/shell.js",
-      "hash": "sha256:f7a485e07d2caee6e8e4bd8172f11d1eae098cf218d464be195c8adaf58e1388",
+      "hash": "sha256:73e349d23e907fbebe052dacd94070fcb4ead24c0702485cd6a7a41420f71cf8",
       "size": 98223,
-      "modified": 1791762613
+      "modified": 1791786929
     },
     {
       "path": "/shared/strip-metadata.js",
@@ -1839,9 +1857,9 @@
     },
     {
       "path": "/shared/sw.js",
-      "hash": "sha256:686219402f645c020218ca6f600561c62631cd4a2a50cf96935019e7d1de08ae",
+      "hash": "sha256:214dad81c6fee4257d51e73ac181d25dabee2069d614417314efebea1d42fd0e",
       "size": 5824,
-      "modified": 1791762613
+      "modified": 1791786929
     },
     {
       "path": "/shared/theme.css",
@@ -1919,9 +1937,9 @@
       "path": "/index.html",
       "hash": "sha256:807ef9ccfde6574793792f240c8ca2fbab9472f7b7c766a7804bff183fa12a23",
       "size": 208,
-      "modified": 1791762618
+      "modified": 1791787018
     }
   ],
-  "total_size": 15953515,
-  "file_count": 320
+  "total_size": 16100124,
+  "file_count": 323
 }

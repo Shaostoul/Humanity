@@ -22,6 +22,16 @@
 // "Accept files from" is published in the person's profile (`accepts_files`:
 // "nobody", "friends" or "anyone"), so a sender's app can say so first.
 //
+// One choice per device, but a word in the profile on each server, and the
+// server's word is what senders' apps go by (BUG-200, 2026-10-11). So this
+// device keeps, for each server, the word it last saw that server hold
+// (`hos_files_accept_seen`), and whether the person has ever chosen here
+// (`hos_files_accept_chosen`). acceptServerStep says what a server's word
+// means: a server whose word changed since this device last saw it was
+// changed by another device (taken); a server still holding what this device
+// last saw, or one this device never saw, gets this device's own choice if
+// it ever made one, and otherwise its word is taken.
+//
 // "Friends" is the click-to-load rule's friend (chat-dms.js
 // privateFileFromFriend): a mutual follow I gave a pass. "Anyone I talk to" is
 // everyone whose message reached me: who may message me at all is "Who can
@@ -142,6 +152,108 @@
     return ACCEPT_CHOICES.includes(value) ? value : null;
   }
 
+  // ── The server's word and this device's choice (BUG-200) ──
+  const ACCEPT_SEEN_KEY = 'hos_files_accept_seen';
+  const ACCEPT_CHOSEN_KEY = 'hos_files_accept_chosen';
+  // Servers remembered at most (a test relay restarted with a fresh database is a new server each time).
+  const ACCEPT_SEEN_MAX = 64;
+
+  /** {server: word} as kept, only the entries that hold one of the three words. */
+  function acceptSeenMap(storage) {
+    let v = null;
+    try { v = JSON.parse((storage && storage.getItem(ACCEPT_SEEN_KEY)) || '{}'); } catch (e) { v = null; }
+    const out = {};
+    if (!v || typeof v !== 'object' || Array.isArray(v)) return out;
+    for (const [server, word] of Object.entries(v)) {
+      if (acceptsFilesOf(word)) out[server] = word;
+    }
+    return out;
+  }
+
+  /**
+   * The key a word is remembered under: the server and whose profile there (the start of the
+   * person's public key), so after a restore from a different recovery phrase no word counts as
+   * seen for the new person, and the first one's stay for a switch back. '' when either is
+   * missing (nothing is remembered then).
+   */
+  function acceptSeenKey(server, personKey) {
+    const who = String(personKey || '').slice(0, 16);
+    return server && who ? String(server) + ' ' + who : '';
+  }
+
+  /** The word this device last saw `server` (an acceptSeenKey) hold, or null when it never saw one there. */
+  function acceptSeen(storage, server) {
+    if (!server) return null;
+    const map = acceptSeenMap(storage);
+    return Object.prototype.hasOwnProperty.call(map, server) ? map[server] : null;
+  }
+
+  /** Remember that `server` holds `word` (newest last, the oldest dropped past the cap). False when not kept. */
+  function recordAcceptSeen(storage, server, word) {
+    if (!server || !acceptsFilesOf(word) || !storage) return false;
+    const map = acceptSeenMap(storage);
+    delete map[server];
+    map[server] = word;
+    const servers = Object.keys(map);
+    for (let i = 0; i < servers.length - ACCEPT_SEEN_MAX; i++) delete map[servers[i]];
+    try {
+      storage.setItem(ACCEPT_SEEN_KEY, JSON.stringify(map));
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /** Has the person ever changed "Accept files from" on this device (not only taken a server's word)? */
+  function acceptChosen(storage) {
+    try { return !!storage && storage.getItem(ACCEPT_CHOSEN_KEY) === '1'; } catch (e) { return false; }
+  }
+
+  /** The person changed "Accept files from" here. */
+  function markAcceptChosen(storage) {
+    try { if (storage) storage.setItem(ACCEPT_CHOSEN_KEY, '1'); } catch (e) { /* this browser keeps nothing */ }
+  }
+
+  /**
+   * What this device does with a server's word for its "Accept files from" (BUG-200). `o`:
+   *   word        the server's word (its own complete copy of my profile, or "friends" when it
+   *               holds no profile for me)
+   *   mine        this device's setting
+   *   waiting     a choice made here is waiting to go (hos_files_accept_unsent)
+   *   chosen      the person has changed the setting on this device (acceptChosen)
+   *   seen        the word this device last saw this server hold, or null
+   *   stored      the server holds a profile for me (false: none yet, so its word is the default,
+   *               never a choice made elsewhere; undefined counts as true)
+   *   protectedOn the protected setup is on (never a word more open than mine)
+   * One of:
+   *   'none'      the server said nothing usable (a relay from before the field)
+   *   'saved'     the waiting choice is what the server holds now: it counts as saved (remember it)
+   *   'waits'     the waiting choice goes, as before; nothing else changes
+   *   'same'      the server holds what this device has (remember it)
+   *   'take'      take the server's word (remember it): another device changed it there since this
+   *               device last saw it, or this device has never chosen, or (a server never seen
+   *               that holds a profile for me) the server's word is the tighter one
+   *   'publish'   send this device's choice to this server: it never got it (remembered once the
+   *               server's copy carries it). On a server never seen that holds a profile for me,
+   *               only when this device's word is the tighter: the server's may be my newer choice
+   *               from another device, and nothing tells which (the review of 2026-10-12)
+   *   'keep'      the protected setup does not take a more open word (nothing remembered, so the
+   *               next copy is the same question again, never a reason to publish over it)
+   */
+  function acceptServerStep(o) {
+    const word = acceptsFilesOf(o && o.word);
+    if (!word) return 'none';
+    const mine = settingsFrom({ accept: o.mine }).accept;
+    if (o.waiting) return word === mine ? 'saved' : 'waits';
+    if (word === mine) return 'same';
+    const take = o.protectedOn && acceptLooser(mine, word) ? 'keep' : 'take';
+    const seen = acceptsFilesOf(o.seen);
+    if (seen && seen !== word) return take; // changed there since this device last looked
+    if (!o.chosen) return take;
+    if (seen || o.stored === false) return 'publish'; // still what I saw there, or no profile there
+    return acceptLooser(mine, word) ? 'publish' : take; // never seen there: the tighter word wins
+  }
+
   /**
    * The sender's line in a DM's attach step, from the other person's published `accepts_files`
    * and whether they count me a friend (they gave me a pass, and we follow each other): "Ann
@@ -160,6 +272,8 @@
     FILES_SETTINGS_KEY, ACCEPT_CHOICES, PICTURE_CHOICES, DEFAULTS, WORDS,
     settingsFrom, readSettings, settingsChosen, writeSettings, acceptLooser, acceptsFrom,
     picturesWithoutAsking, askWords, profileValue, acceptsFilesOf, senderLine,
+    ACCEPT_SEEN_KEY, ACCEPT_CHOSEN_KEY, ACCEPT_SEEN_MAX, acceptSeenKey, acceptSeen, recordAcceptSeen, acceptChosen,
+    markAcceptChosen, acceptServerStep,
   };
   if (typeof module === 'object' && module && module.exports) module.exports = api;
   else root.HosFilesInMessages = api;

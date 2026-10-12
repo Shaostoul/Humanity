@@ -1025,6 +1025,13 @@ async function ingestDmControl(inner) {
     await ingestChoiceNote(inner);
     return true;
   }
+  // Device-to-device big files (2026-10-11): an offer, its answer or a cancel
+  // ([[hum:offer:v1]] and the two after it) is never shown either; it is a
+  // transfer's row (chat-file-transfer.js).
+  if (window.HosFileTransfer && HosFileTransfer.isFileNoteText(inner.text)) {
+    if (typeof ingestFileNote === 'function') await ingestFileNote(inner);
+    return true;
+  }
   if (![CTL_FOLLOW, CTL_UNFOLLOW, CTL_FRIEND_CERT].includes(inner.text)) return false;
   const fromMe = inner.from === myKey;
   const peer = fromMe ? inner.to : inner.from;

@@ -173,6 +173,20 @@ const hosDmStore = {
     } catch { return null; } // wrong seed / corrupt record → skip
   },
 
+  /**
+   * Seal a small record with this store's key, and open one (device-to-device
+   * big files keep each transfer's record this way, chat-file-transfer.js):
+   * null when the store is not ready or the box does not open.
+   */
+  async sealBox(obj) {
+    if (!this.ready || this.readOnly) return null;
+    try { return await this._encrypt(obj); } catch { return null; }
+  },
+  async openBox(box) {
+    if (!this.ready || !box) return null;
+    return this._decrypt(box);
+  },
+
   _tx(store, mode) {
     return this._db.transaction(store, mode).objectStore(store);
   },

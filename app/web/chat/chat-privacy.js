@@ -964,7 +964,9 @@ function chooseFilesSetting(change) {
     renderSafetyPanel();
     return false;
   }
-  // Published in my profile, with the whole of it (chat-profile.js).
+  // Published in my profile, with the whole of it, and marked as chosen on this device, so a server
+  // that never got it is sent it rather than this device taking that server's word (chat-profile.js
+  // filesAcceptChanged, BUG-200).
   if (change.accept && change.accept !== before.accept && typeof filesAcceptChanged === 'function') filesAcceptChanged();
   if (typeof updateAttachButton === 'function') updateAttachButton();
   renderSafetyPanel();
@@ -1032,6 +1034,10 @@ function drawFilesInMessages(box) {
   attach.setAttribute('aria-label', W.attach);
   attach.onchange = () => chooseFilesSetting({ attach: !!attach.checked });
   box.appendChild(row(W.attach, attach, s.attach === false ? W.attachOffExplain : null));
+
+  // Device-to-device big files (2026-10-11): whether a file with a friend may go straight between
+  // our devices rather than through the server's call relay (chat-file-transfer.js; off by default).
+  if (typeof drawFileDirectRow === 'function') drawFileDirectRow(box, row);
 }
 
 // ── Block (step C, 2026-10-09) ───────────────────────────────────────────

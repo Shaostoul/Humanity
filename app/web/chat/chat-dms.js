@@ -143,7 +143,10 @@ function renderDmConversationFromStore(partnerKey) {
   banner.style.cssText = 'text-align:center;font-size:0.7rem;padding:var(--space-sm);color:var(--text-muted);';
   banner.innerHTML = hosIcon('lock', 14) + ' End-to-end encrypted, sender sealed inside (post-quantum). History lives on your devices; the server keeps no readable copy.';
   msgsEl.appendChild(banner);
-  if (!(window.hosDmStore && hosDmStore.ready)) return;
+  if (!(window.hosDmStore && hosDmStore.ready)) {
+    if (typeof renderFileTransferRows === 'function') renderFileTransferRows(partnerKey);
+    return;
+  }
   const msgs = hosDmStore.conversation(partnerKey);
   if (msgs.length > 0) {
     const notice = document.createElement('div');
@@ -160,6 +163,9 @@ function renderDmConversationFromStore(partnerKey) {
   }
   const last = msgs[msgs.length - 1];
   if (last) hosDmStore.markRead(partnerKey, last.ts);
+  // Device-to-device big files between us (2026-10-11): a row each, after the messages
+  // (chat-file-transfer.js).
+  if (typeof renderFileTransferRows === 'function') renderFileTransferRows(partnerKey);
 }
 
 /** Rebuild the sidebar conversation list from the local store. */

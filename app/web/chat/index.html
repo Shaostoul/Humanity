@@ -714,8 +714,14 @@
        chat-dm-store.js, chat-messages.js, chat-dms.js and chat-privacy.js, which use them. -->
   <script src="/shared/strip-metadata.js?v=1"></script>
   <script src="/shared/upload-clean.js?v=1"></script>
-  <script src="/shared/files-in-messages.js?v=1"></script>
+  <script src="/shared/files-in-messages.js?v=2"></script>
   <script src="/shared/kept-files.js?v=1"></script>
+  <!-- Device-to-device big files (2026-10-11, docs/design/media-showcase.md, "Device-to-device big
+       files: the shapes, exact"), shared with Node tests: blake3.js hashes a file a piece at a time
+       (fast enough for gigabytes, which the noble bundle's is not); file-transfer.js holds the
+       file pass, the offer notes and the channel protocol. Before chat-file-transfer.js. -->
+  <script src="/shared/blake3.js?v=2"></script>
+  <script src="/shared/file-transfer.js?v=3"></script>
   <!-- profile-changes.js: which profile fields were changed in this browser and not yet on the
        server (BUG-195), before chat-profile.js and chat-privacy.js, which use it. -->
   <script src="/shared/profile-changes.js?v=1"></script>
@@ -728,30 +734,30 @@
        2026-08-23). The relay no longer stores readable DM history; this
        IndexedDB store, keyed from the seed, is the archive. Load before
        app.js so the dm_new/dm_batch handlers can use it. -->
-  <script src="/chat/chat-dm-store.js?v=11"></script>
+  <script src="/chat/chat-dm-store.js?v=13"></script>
   <!-- Clean view modules (docs/design/chat-layout.md), one per native draw_*.
        Load before app.js so its renderers can call them. -->
   <script src="/chat/view/timestampPill.js?v=1"></script>
   <script src="/chat/view/messageRow.js?v=1"></script>
   <script src="/chat/app.js?v=26"></script>
-  <script src="/chat/chat-messages.js?v=14"></script>
-  <script src="/chat/chat-dms.js?v=15"></script>
-  <script src="/chat/chat-social.js?v=17"></script>
+  <script src="/chat/chat-messages.js?v=16"></script>
+  <script src="/chat/chat-dms.js?v=17"></script>
+  <script src="/chat/chat-social.js?v=19"></script>
   <script src="/chat/chat-groups-p2p.js?v=17"></script>
   <script src="/chat/chat-ui.js?v=14"></script>
-  <script src="/chat/chat-voice-rooms.js?v=6"></script>
-  <script src="/chat/chat-voice-calls.js?v=5"></script>
+  <script src="/chat/chat-voice-rooms.js?v=8"></script>
+  <script src="/chat/chat-voice-calls.js?v=7"></script>
   <script src="/chat/chat-voice-webrtc.js?v=1"></script>
   <script src="/chat/chat-voice-streaming.js?v=1"></script>
   <!-- Live-now mirror of the native Chat live strip: /api/live directory, links to /watch (v0.1151) -->
   <script src="/chat/chat-live.js?v=1"></script>
   <!-- Per-user voice control modal: volume/mute/squelch + role-tiered actions -->
   <script src="/chat/chat-voice-modal.js?v=4"></script>
-  <script src="/chat/chat-profile.js?v=9"></script>
+  <script src="/chat/chat-profile.js?v=10"></script>
   <!-- chat-privacy.js: privacy tiers (2026-08-23) — first-connect chooser
        (default: maximum privacy) + tier application. Needs chat-profile.js
        (profile privacy merge) loaded first. -->
-  <script src="/chat/chat-privacy.js?v=13"></script>
+  <script src="/chat/chat-privacy.js?v=15"></script>
   <!-- Game Admin: game-world bans (separate from chat moderation), admin-only -->
   <script src="/chat/chat-game-admin.js?v=3"></script>
   <!-- Reports (step D, 2026-10-09): the Report dialog and the Reports view for admins
@@ -761,6 +767,10 @@
        received DMs and group messages, the stranger link line, the Safety switch, and the check
        every send path runs before anything I wrote leaves. -->
   <script src="/chat/chat-warnings.js?v=3"></script>
+  <!-- Device-to-device big files (2026-10-11): a file over my private limit in a DM goes straight to
+       the other person's device once they say yes; the offer, the question, the rows and the
+       connection. Wraps the frame handler, so before chat-protected.js, which stays the last. -->
+  <script src="/chat/chat-file-transfer.js?v=3"></script>
   <!-- The protected setup (step G, 2026-10-10): the Safety section, its steps, the PIN prompt, the
        always-visible line, public rooms hidden and pictures from non-friends not shown. After
        chat-privacy.js (the Safety page it draws into) and chat-warnings.js (the recovery phrase
@@ -773,7 +783,7 @@
   <script src="/chat/chat-onboarding.js?v=2"></script>
   <!-- qrcode-generator (public domain, ~18 KB), used by chat-p2p.js for contact card QR codes -->
   <script src="/shared/qrcode.js?v=4" onerror="console.warn('qrcode.js not found, QR codes will be unavailable')"></script>
-  <script src="/chat/chat-p2p.js?v=14"></script>
+  <script src="/chat/chat-p2p.js?v=16"></script>
 
   <!-- Populate pg-ico spans once icons.js is loaded (shell.js loads it dynamically) -->
   <script>

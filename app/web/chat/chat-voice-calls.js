@@ -408,6 +408,9 @@ function handleVoiceCallMessage(msg) {
 }
 
 function handleWebrtcSignalMessage(msg) {
+  // Device-to-device big files (2026-10-11, chat-file-transfer.js): the connection for a file I
+  // offered someone, or accepted from them, is handled there; it answers only for a transfer it has.
+  if (typeof fileTransferSignal === 'function' && fileTransferSignal(msg)) return;
   // DataChannel P2P signals are handled by chat-p2p.js; route them there first.
   // handleDCOffer answers only your own devices (mayAnswerDirectOffer): a direct
   // link to anyone else would show them your address (step E).
