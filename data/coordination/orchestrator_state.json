@@ -246,6 +246,11 @@
       "date": "2026-10-12",
       "decision": "Overnight (operator asleep ~04:00 to ~12:00 Pacific; asked to keep developing the website and app and to bring public.guide's homepage up to date). public.guide's front door was a frozen August 15 COPY of web/home/technical.html in /var/www/humanity-site/ (deploys never touch it), still saying seed phrase / no accounts. Replacing it with a symlink to /var/www/humanity/home/technical.html (follows every release) was DENIED by the tool permissions (remote shell writes); the operator runs it: ln -sfn /var/www/humanity/home/technical.html /var/www/humanity-site/index.html. SELF-HOSTING.md and in-app-ops.md now say link, not copy. In flight: 5b 2A (glue, incl. protected setup refusing Give), 2B (Household card with Take back), 3A (the household rig, judged without booting), a technical.html rewrite, a BUG-191 plan (profiles signed by the apps, privacy-safe public view), an increment 6 plan. Relay: a stranger's expired permit is a bad signature (signature checked first); join/leave/connect/release log lines show keys by 16 characters.",
       "why": "Keep public.guide current without remote writes the tools refuse; queue the next game increments so building never waits on planning."
+    },
+    {
+      "date": "2026-10-12",
+      "decision": "Released v0.1488.0 (verify 4109, rig-tests 710, boot clean, delivery OK): 5b Wave 0 and 1 (not switched on in the game yet), 32 KB DM padding, permit signature checked before its date, key log lines shortened, the technical page rewritten, self-hosting docs corrected (link a stock front page; what the relay and nginx log). BUG-191 plan written (docs/design/bug-191-profile-copies-plan.md; erase withdrawal included) and its Wave 0 dispatched. Still running: 5b 2A and 2B, 3A rig, increment 6 plan.",
+      "why": "Ship what is verified so the servers carry the relay side of 5b before the game side lands; keep local and GitHub in step."
     }
   ],
   "active_scopes_to_avoid": [
