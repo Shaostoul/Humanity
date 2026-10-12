@@ -415,7 +415,7 @@ These keep "it makes logistical sense" true as the ship grows. They are also wha
 - the server-granted rank: all three.
 
 *Contradictions resolved:*
-- **Proposal 2's household certificate versus Proposal 3's build permit.** These become one certificate. The owner signs `hum/permit/v1\n{server}\n{plot}\n{grantee}\n{expiry}` with their Dilithium3 key (`{server}` is the relay's own `did:hum:`, so a permit works only on the server it was given on; 2026-10-05), and the grantee holds it. A household member is simply a permit with no expiry.
+- **Proposal 2's household certificate versus Proposal 3's build permit.** These become one certificate. The owner signs `hum/permit/v2\n{server}\n{plot}\n{grantee}\n{serial}\n{expiry}` with their Dilithium3 key (`{server}` is the relay's own `did:hum:`, so a permit works only on the server it was given on; 2026-10-05; the `serial` since 2026-10-12, so the owner can take a permit back through the relay's withdrawal list), and the grantee holds it. Every permit ends, 90 days at most, renewable (decision 3 of 2026-10-05): a household member holds a renewed permit, not an endless one (docs/design/ship-homes-increment-5b-plan.md).
 - **Who may take pieces down.** Proposal 1 said the owner alone; Proposal 3 said owner and permit holders. Resolved:
   - the owner may remove any piece on their plot;
   - a permit holder may remove only pieces they placed (shared-building.md's stored `owner` field already supports this);

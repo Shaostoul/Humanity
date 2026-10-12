@@ -168,7 +168,7 @@ Date: 2026-10-12. Read against main at 401d21114 (v0.1487.1). Sources: docs/desi
 - **Marker:** `pub const CTL_PERMIT: &str = "[[hum:permit:v1]]";` in src/net/dm_pq.rs beside `CTL_CHOICE`, mirrored in web/chat/crypto.js.
 - **Text:** `[[hum:permit:v1]]` then, with nothing between, the contract's `Permit` serialized by serde_json in field order:
   ```
-  [[hum:permit:v1]]{"issuer":"<giver's Dilithium3 key, hex>","server":"did:hum:<relay>","plot":"p2","grantee":"did:hum:<friend>","expiry":1765400000,"sig":"<base64 over hum/permit/v1\n{server}\n{plot}\n{grantee}\n{expiry}>"}
+  [[hum:permit:v1]]{"issuer":"<giver's Dilithium3 key, hex>","server":"did:hum:<relay>","plot":"p2","grantee":"did:hum:<friend>","serial":"<32 hex>","expiry":1765400000,"sig":"<base64 over hum/permit/v2\n{server}\n{plot}\n{grantee}\n{serial}\n{expiry}>"}
   ```
   About 8.4 KB, so the inner pads to the 16,384 bucket. The relay's envelope limit is 131,072 (msg_handlers.rs:703).
 - **Why the text and not `DmInner.cert`:** the text is covered by the DM's own signature, the way every note since 10j is.

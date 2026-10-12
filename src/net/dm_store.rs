@@ -172,6 +172,15 @@ struct StoreBody {
     /// so this is the only copy: a transfer survives the app being closed as this record.
     #[serde(default)]
     file_offers: Vec<super::file_offer::OfferRecord>,
+    // ── Household permits (ship homes 5b, 2026-10-12, net/household.rs) ──
+    /// Permits friends gave me on this server, each checked when it arrived: one per (giver,
+    /// plot), the one given later winning. The relay keeps none, so this is the only copy.
+    #[serde(default)]
+    permits_held: Vec<super::household::HeldPermit>,
+    /// Permits I gave on this server, one row per serial: what the Household card lists, and the
+    /// serial taking one back names.
+    #[serde(default)]
+    permits_given: Vec<super::household::GivenPermit>,
 }
 
 /// Scratch pad notes kept, newest first to stay (10m R10, the web's number).
@@ -475,6 +484,9 @@ impl DmStore {
             self.body.passes_unanswered.clear();
             self.body.withdrawals_pending.clear();
             self.body.changed_elsewhere.clear();
+            // Household permits name the server too (ship homes 5b): void with the passes.
+            self.body.permits_held.clear();
+            self.body.permits_given.clear();
         }
         self.body.pass_server = did.to_string();
         true
@@ -591,6 +603,10 @@ impl DmStore {
     /// to what the person's settings allow strangers until a pass from the device that knows
     /// arrives. Returns the friend marked.
     pub fn withdrawal_confirmed(&mut self, serial: &str) -> Option<String> {
+        // A household permit's serial (ship homes 5b, amendment A1) is on the same list: taken
+        // back here or on another of my devices, its given row says so on this one too. It names
+        // no pass, so the pass rules below find nothing for it.
+        super::household::set_given_state(&mut self.body.permits_given, serial, super::household::GivenState::TakenBack);
         if self.body.withdrawals_pending.iter().any(|s| s == serial) {
             self.body.withdrawals_pending.retain(|s| s != serial);
             return None;
@@ -942,6 +958,57 @@ impl DmStore {
         &self.body.scratchpad
     }
 
+    // ── Household permits (ship homes 5b, 2026-10-12) ──
+
+    /// The permits friends gave me on this server.
+    pub fn permits_held(&self) -> &[super::household::HeldPermit] {
+        &self.body.permits_held
+    }
+    /// Keep a permit that arrived and checked out (`household::judge_arrival`): one per (giver,
+    /// plot), the one given later winning (`household::keep_held`). The caller saves.
+    pub fn keep_permit(&mut self, h: super::household::HeldPermit) -> super::household::Kept {
+        super::household::keep_held(&mut self.body.permits_held, h)
+    }
+    /// Forget the permits `from` gave me (they unfollowed or took them back); returns how many.
+    pub fn forget_permits_from(&mut self, from: &str) -> usize {
+        let before = self.body.permits_held.len();
+        self.body.permits_held.retain(|h| !h.from.eq_ignore_ascii_case(from));
+        before - self.body.permits_held.len()
+    }
+    /// The permits I gave on this server.
+    pub fn permits_given(&self) -> &[super::household::GivenPermit] {
+        &self.body.permits_given
+    }
+    /// Record a permit I gave (or its echo from my other device), one row per serial
+    /// (`household::record_given`); one dropped past the cap that may still stand joins the
+    /// withdrawals waiting for the relay. True when the row is new. The caller saves.
+    pub fn record_given(&mut self, g: super::household::GivenPermit, now_s: u64) -> bool {
+        let (new, gone) = super::household::record_given(&mut self.body.permits_given, g, now_s);
+        self.queue_withdrawals(gone);
+        new
+    }
+    /// Set the given row with `serial` to `state` (`household::set_given_state`: a permit taken
+    /// back stays taken back). The caller saves.
+    pub fn set_given_state(&mut self, serial: &str, state: super::household::GivenState) -> bool {
+        super::household::set_given_state(&mut self.body.permits_given, serial, state)
+    }
+    /// Take back every permit given to `to` that might stand and that `keep` does not keep
+    /// (`household::take_back`): each row says taken back, and each serial joins the withdrawals
+    /// waiting for the relay (`cert_revoke`, resent until `cert_revoked`, as for passes). Returns
+    /// the serials. The caller saves and sends.
+    pub fn take_back_permits(&mut self, to: &str, keep: impl Fn(&super::household::GivenPermit) -> bool) -> Vec<String> {
+        let serials = super::household::take_back(&mut self.body.permits_given, to, keep);
+        self.queue_withdrawals(serials.clone());
+        serials
+    }
+    /// Drop permits, held and given, that ended more than `ended_kept_days` days before `now_s`
+    /// (`household::prune`). True when any went. The caller saves.
+    pub fn prune_permits(&mut self, now_s: u64, ended_kept_days: u64) -> bool {
+        let before = self.body.permits_held.len() + self.body.permits_given.len();
+        super::household::prune(&mut self.body.permits_held, &mut self.body.permits_given, now_s, ended_kept_days);
+        self.body.permits_held.len() + self.body.permits_given.len() != before
+    }
+
     /// For tests elsewhere in the crate: remove this store's file from disk.
     #[cfg(test)]
     pub(crate) fn remove_file_for_test(&self) {
@@ -1079,6 +1146,82 @@ mod tests {
         assert!(store.passes_sent_to("ben").is_empty() && store.cert_for("ann").is_none() && store.pending_withdrawals().is_empty(), "voids every pass");
         assert_eq!(store.friends_without_pass(), vec!["ann".to_string(), "ben".to_string()]);
         let _ = std::fs::remove_file(&store.path);
+    }
+
+    /// A given permit row, for the household tests below.
+    fn given_row(to: &str, serial: &str, state: crate::net::household::GivenState) -> crate::net::household::GivenPermit {
+        crate::net::household::GivenPermit { to: to.into(), plot: "p2".into(), serial: serial.into(), expiry: 1_900_000_000, at: 7, state }
+    }
+
+    /// HOUSEHOLD PERMITS ARE KEPT PER SERVER (ship homes 5b, plan section 3.2). A permit Ada gave
+    /// me and one I gave Bo are kept in this server's store across a restart, the given row's
+    /// state included; another server's store holds neither; the same server identity again
+    /// changes nothing; and a new server identity drops both, as it drops the passes, because
+    /// each names the old identity.
+    /// Seen red 2026-10-12 with `set_pass_server` not clearing them: "a new server identity
+    /// drops the permits held" failed, left 1, right 0.
+    #[test]
+    fn permits_are_kept_per_server_and_a_new_server_identity_drops_them() {
+        use crate::net::household::{GivenState, HeldPermit, Kept};
+        let (seed, me) = identity(71);
+        let server = temp_server();
+        let mut store = DmStore::load(&seed, &me, &server);
+        assert!(store.set_pass_server("did:hum:one"));
+        let permit = crate::systems::construction::shared::Permit {
+            issuer: "ada".into(),
+            server: "did:hum:one".into(),
+            plot: "p1".into(),
+            grantee: "did:hum:me".into(),
+            serial: "00112233445566778899aabbccddeeff".into(),
+            expiry: 1_900_000_000,
+            sig: "c2ln".into(),
+        };
+        let held = HeldPermit { from: "ada".into(), permit, at: 5 };
+        assert_eq!(store.keep_permit(held.clone()), Kept::New);
+        assert!(store.record_given(given_row("bo", "ffeeddccbbaa99887766554433221100", GivenState::Taken), 1_800_000_000));
+        store.save();
+
+        let mut store = DmStore::load(&seed, &me, &server);
+        assert_eq!(store.permits_held(), [held.clone()], "kept across a restart");
+        assert_eq!(store.permits_given(), [given_row("bo", "ffeeddccbbaa99887766554433221100", GivenState::Taken)], "with its state");
+        let elsewhere = DmStore::load(&seed, &me, &temp_server());
+        assert!(elsewhere.permits_held().is_empty() && elsewhere.permits_given().is_empty(), "another server's store holds none");
+        assert!(!store.set_pass_server("did:hum:one"));
+        assert_eq!(store.permits_held().len(), 1, "the same server identity again changes nothing");
+        assert!(store.set_pass_server("did:hum:two"));
+        assert_eq!(store.permits_held().len(), 0, "a new server identity drops the permits held");
+        assert_eq!(store.permits_given().len(), 0, "and the permits given");
+        let _ = std::fs::remove_file(&store.path);
+    }
+
+    /// TAKING A PERMIT BACK WAITS FOR THE RELAY, AS A PASS'S WITHDRAWAL DOES (amendment A1). Taking
+    /// back the permits I gave Bo marks both rows taken back (the one still on its way too: it
+    /// may reach him) and puts both serials among the withdrawals resent until the relay confirms
+    /// each (`cert_revoked`). A confirmation stops one. The relay's confirmation of a permit
+    /// another of my devices took back (its serial not waiting here) marks that row taken back
+    /// here too, and marks nobody "changed on my other device" (that is for passes).
+    /// Seen red 2026-10-12 with `take_back_permits` not queueing the serials: "both wait for the
+    /// relay", left `[]`, right `["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    /// "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"]`.
+    #[test]
+    fn taking_a_permit_back_waits_for_the_relay_like_a_pass() {
+        use crate::net::household::GivenState;
+        let (seed, me) = identity(72);
+        let mut store = DmStore::load(&seed, &me, &temp_server());
+        let (a, b, c) = ("aa".repeat(16), "bb".repeat(16), "cc".repeat(16));
+        store.record_given(given_row("bo", &a, GivenState::Taken), 1_800_000_000);
+        store.record_given(given_row("bo", &b, GivenState::OnItsWay { reference: "r".into() }), 1_800_000_000);
+        store.record_given(given_row("cy", &c, GivenState::Taken), 1_800_000_000);
+        assert_eq!(store.take_back_permits("bo", |_| false), vec![a.clone(), b.clone()]);
+        assert_eq!(store.pending_withdrawals(), [a.clone(), b.clone()], "both wait for the relay");
+        let state = |s: &DmStore, serial: &str| s.permits_given().iter().find(|g| g.serial == serial).map(|g| g.state.clone());
+        assert_eq!((state(&store, &a), state(&store, &b)), (Some(GivenState::TakenBack), Some(GivenState::TakenBack)));
+        assert_eq!(store.withdrawal_confirmed(&a), None);
+        assert_eq!(store.pending_withdrawals(), [b.clone()], "a confirmed one stops");
+        assert_eq!(store.withdrawal_confirmed(&c), None, "taken back on my other device: no pass is involved");
+        assert_eq!(state(&store, &c), Some(GivenState::TakenBack), "and it says so here");
+        assert!(!store.changed_elsewhere("cy"));
+        store.remove_file_for_test();
     }
 
     /// "People I choose" (10c-ii) with the choice of 10n: a friend's choice is kept with its time

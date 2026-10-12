@@ -532,6 +532,27 @@ pub struct ShipStructure {
     /// Which plot and design the `home` zone came from (None for a ship file on its own).
     #[serde(skip)]
     pub home: Option<HomeAssembly>,
+    /// Plots this game may walk into besides its own, and the one it lights (ship homes 5b,
+    /// engine/household.rs): never saved, never in the hash, and not in the neighbours' cache key,
+    /// so opening one rebakes nothing.
+    #[serde(skip)]
+    pub open: OpenPlots,
+}
+
+/// The neighbours' plots this game may walk into (ship homes 5b): those it holds a household
+/// permit for that the server says works this session, and one it still stands in after its
+/// permit stopped working, so nobody is walled in. The game's own business: no other player is
+/// told, and it is never written to a file (`ShipStructure::open` is `serde(skip)`). The
+/// derives exist only so the field can sit on a serialisable struct.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OpenPlots {
+    /// The plots by their ship-file id (`p3`), each walkable: its street or Commons wall open at
+    /// its corridor, its corridor and home walls solid to walk against, its doors opening for
+    /// this player.
+    pub plots: std::collections::BTreeSet<String>,
+    /// The one open plot whose shipped design's lights are on: the one this player stands on or
+    /// in the corridor of. Charged to nobody's meter.
+    pub lit: Option<String>,
 }
 
 /// Eye height over the floor, metres: where a player's camera stands, and so where a spawn
@@ -3698,5 +3719,25 @@ mod plot_handout_tests {
         let mut moved = file.clone();
         moved.plots[1].origin.2 += 1.0;
         assert_ne!(moved.ship_hash(), h);
+    }
+
+    /// THE OPEN PLOTS ARE NEVER PART OF THE SHIP (ship homes 5b, plan section 3.7). Which
+    /// neighbours' plots this game may walk into, and which one it lights, is its own business:
+    /// with p1 open and lit on a ship assembled on p2, the hash a relay compares and the ship file
+    /// an editor writes are exactly those of the same ship with nothing open, and the assembled
+    /// ship's own text never mentions them either.
+    /// Seen red 2026-10-12 with `#[serde(skip)]` on `open` replaced by `#[serde(default)]`:
+    /// "opening p1 changed the ship's hash", left "d7af1b57e32972e2", right "a0ef8a6b2a12dd81" (the
+    /// hashes of that run).
+    #[test]
+    fn the_open_plots_are_never_part_of_the_ship() {
+        let closed = ShipStructure::load_and_assemble_shipped(&data_dir(), Some("p2")).unwrap();
+        let mut open = closed.clone();
+        open.open = OpenPlots { plots: ["p1".to_string()].into_iter().collect(), lit: Some("p1".into()) };
+        assert_ne!(open.open, closed.open, "p1 really is open on one of them");
+        assert_eq!(open.ship_hash(), closed.ship_hash(), "opening p1 changed the ship's hash");
+        let text = |s: &ShipStructure| ron::ser::to_string_pretty(s, ron::ser::PrettyConfig::default()).unwrap();
+        assert_eq!(text(&open.ship_file()), text(&closed.ship_file()), "the ship file is the same");
+        assert_eq!(text(&open), text(&closed), "the assembled ship's own text is the same");
     }
 }

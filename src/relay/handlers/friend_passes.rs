@@ -62,7 +62,7 @@ pub async fn handle_cert_revoke(state: &Arc<RelayState>, my_key: &str, raw: &ser
     };
     let serial = raw.get("serial").and_then(|v| v.as_str()).unwrap_or("");
     if !friend_cert_serial_ok(serial) {
-        tell("Withdrawal refused: that is not a friendship pass serial.");
+        tell("Withdrawal refused: that is not a pass or permit serial.");
         return;
     }
     // A bot has no seed, so it never gave anyone a pass.
@@ -74,7 +74,7 @@ pub async fn handle_cert_revoke(state: &Arc<RelayState>, my_key: &str, raw: &ser
             let _ = state.broadcast_tx.send(RelayMessage::CertRevoked { to: my_key.to_string(), serial: serial.to_string() });
         }
         Ok(FriendCertWithdrawal::TooMany) => {
-            tell("Withdrawal refused: this server already keeps the most friendship withdrawals it holds for one account.");
+            tell("Withdrawal refused: this server already keeps the most pass and permit withdrawals it holds for one account.");
         }
         // Not confirmed, so the issuer's client keeps resending until a run can keep it. Every
         // pass counts as withdrawn meanwhile (storage/friend_passes.rs), so nothing is lost by

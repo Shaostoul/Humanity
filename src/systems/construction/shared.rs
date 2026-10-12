@@ -15,8 +15,8 @@
 //! asks the same questions first only so a player is told before anything is spent.
 //! - On your own plot you build, and you may take down anything that stands on it.
 //! - On someone else's plot, only with a household permit its holder signed for you on that
-//!   server (`relay::core::pq_crypto::verify_plot_permit`, at most [`PERMIT_MAX_DAYS`] days),
-//!   and you take down only what you put up there.
+//!   server (`relay::core::pq_crypto::verify_plot_permit`, at most [`PERMIT_MAX_DAYS`] days,
+//!   and the holder can take it back sooner), and you take down only what you put up there.
 //! - In the ship's shared spaces, only people the server gave the `can_edit_ship` rank.
 //! - The server's admins and owners take down anything.
 //! - A guest (no plot on this ship) builds nowhere without a permit.
@@ -300,6 +300,9 @@ pub enum Why {
     PermitBad,
     /// The permit runs out more than [`PERMIT_MAX_DAYS`] days ahead.
     PermitTooLong,
+    /// The plot's holder took this permit back (ship homes 5b, amendment A1): its serial is on the
+    /// relay's withdrawal list, the one friendship passes use (`friend_cert_revocations`).
+    PermitWithdrawn,
     /// A shared space (`zone:*`), and the sender lacks the `can_edit_ship` rank.
     ShipRank,
     /// A code this game does not know (a newer server). Never sent.
@@ -309,7 +312,7 @@ pub enum Why {
 
 impl Why {
     /// Every code the relay sends.
-    pub const ALL: [Why; 8] = [
+    pub const ALL: [Why; 9] = [
         Why::NotYourPlot,
         Why::NotYourPiece,
         Why::Guest,
@@ -317,6 +320,7 @@ impl Why {
         Why::PermitNotFromHolder,
         Why::PermitBad,
         Why::PermitTooLong,
+        Why::PermitWithdrawn,
         Why::ShipRank,
     ];
 
@@ -330,6 +334,7 @@ impl Why {
             Why::PermitNotFromHolder => "permit_not_from_holder",
             Why::PermitBad => "permit_bad",
             Why::PermitTooLong => "permit_too_long",
+            Why::PermitWithdrawn => "permit_withdrawn",
             Why::ShipRank => "ship_rank",
             Why::Unknown => "unknown",
         }
@@ -350,6 +355,7 @@ impl Why {
             Why::PermitTooLong => format!(
                 "a household permit lasts at most {PERMIT_MAX_DAYS} days, and this one runs longer; ask the plot's holder for a new one"
             ),
+            Why::PermitWithdrawn => "the plot's holder took this permit back".into(),
             Why::ShipRank => "the ship's shared spaces are built by people this server has given that rank".into(),
             Why::Unknown => DISAGREE.into(),
         }
@@ -462,6 +468,11 @@ pub mod msg {
     /// Relay to one game, every [`super::CHECK_INTERVAL_S`] seconds: the frames in its view with
     /// each one's `seq`, and what this player may do now (review of increment 5, findings 1 and 5).
     pub const PIECES_CHECK: &str = "game_pieces_check";
+    /// Game to relay: does this household permit of mine work now (ship homes 5b)? Asked after
+    /// each welcome and every few minutes, so a door opens only on the relay's word.
+    pub const PERMIT_CHECK: &str = "game_permit_check";
+    /// Relay to one game: the answer to its `game_permit_check`, about its own permit only.
+    pub const PERMIT_STATUS: &str = "game_permit_status";
 }
 
 /// A household permit (ship homes section 4): a plot's holder lets one person build on that
@@ -471,6 +482,12 @@ pub mod msg {
 /// relay rebuilds the signed words from what it knows (its own server id, the frame's plot, the
 /// sender's own id), so `server`, `plot` and `grantee` here only say what the permit claims to be
 /// for: the grantee's game files it by them and shows them.
+///
+/// v2 (ship homes 5b, amendment A1, 2026-10-12): a permit names a `serial` its giver chose, so
+/// the giver can take it back before its end date: `cert_revoke {serial}` on their own signed-in
+/// socket puts it on the relay's withdrawal list (the one friendship passes use), and the relay
+/// refuses it from then on as [`Why::PermitWithdrawn`]. The fields are in the order the words are
+/// signed in, which is also the order a permit note's JSON is written in (net/household.rs).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Permit {
     /// The plot holder's Dilithium3 public key, hex: whose signature this is.
@@ -483,10 +500,13 @@ pub struct Permit {
     /// Who it lets build: the grantee's id as a relay holds plots under it (`did:hum:...`,
     /// `relay::storage::plots::plot_owner_id`).
     pub grantee: String,
+    /// The name its giver chose for it: 16 random bytes in lowercase hex, the friendship pass's
+    /// serial shape (`relay::core::pq_crypto::friend_cert_serial_ok`). What a withdrawal names.
+    pub serial: String,
     /// When it runs out, Unix seconds; never more than [`PERMIT_MAX_DAYS`] days ahead.
     pub expiry: u64,
     /// The issuer's Dilithium3 signature over
-    /// `hum/permit/v1\n{server}\n{plot}\n{grantee}\n{expiry}`, base64.
+    /// `hum/permit/v2\n{server}\n{plot}\n{grantee}\n{serial}\n{expiry}`, base64.
     pub sig: String,
 }
 
@@ -591,6 +611,11 @@ pub enum ToRelay {
     /// view or not (one out of view comes followed by `game_frame_out_of_view`).
     #[serde(rename = "game_pieces_request")]
     PiecesRequest { frame: String },
+    /// Does this household permit of mine work now (ship homes 5b)? Asked after each welcome and
+    /// every few minutes; answered with a [`FromRelay::PermitStatus`] to the asker alone, about
+    /// the asker's own permit only. The relay stores nothing.
+    #[serde(rename = "game_permit_check")]
+    PermitCheck { req_id: u32, permit: Permit },
 }
 
 /// A message from the relay to a game. JSON with its `type` ([`msg`]). `seq` counts each frame's
@@ -654,6 +679,23 @@ pub enum FromRelay {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         why: Option<Why>,
         /// [`refusal_message`]'s sentence.
+        message: String,
+    },
+    /// The answer to a [`ToRelay::PermitCheck`], to the asker alone. `ok` true: the permit lets
+    /// them build on `plot` now. False: `why` says why (a `permit_*` code, the same a build would
+    /// be refused with). `again`: the relay could not judge it this time (too soon after the
+    /// last, not in the shared world, its database busy), so ask again later. `message` is the
+    /// sentence for `why`. It never names who holds a plot.
+    #[serde(rename = "game_permit_status")]
+    PermitStatus {
+        req_id: u32,
+        plot: String,
+        ok: bool,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        why: Option<Why>,
+        #[serde(default, skip_serializing_if = "is_false")]
+        again: bool,
+        #[serde(default, skip_serializing_if = "String::is_empty")]
         message: String,
     },
 }
@@ -1254,9 +1296,9 @@ mod tests {
         assert_eq!(keys(&serde_json::to_value(&mine).unwrap()), sorted(&with_mine), "the builder's own copy says mine");
         assert_eq!(mine.marker("plot:p2"), SharedPiece { piece_id: 42, frame: "plot:p2".into(), mine: true });
 
-        let permit = r#"{"issuer":"aabb","server":"did:hum:srv","plot":"p3","grantee":"did:hum:abc","expiry":1767225600,"sig":"c2ln"}"#;
+        let permit = r#"{"issuer":"aabb","server":"did:hum:srv","plot":"p3","grantee":"did:hum:abc","serial":"00112233445566778899aabbccddeeff","expiry":1767225600,"sig":"c2ln"}"#;
         let p: Permit = serde_json::from_str(permit).expect("the plan's permit parses");
-        assert_eq!(keys(&serde_json::to_value(&p).unwrap()), sorted(&["issuer", "server", "plot", "grantee", "expiry", "sig"]));
+        assert_eq!(keys(&serde_json::to_value(&p).unwrap()), sorted(&["issuer", "server", "plot", "grantee", "serial", "expiry", "sig"]));
         // (json text, the variant's type constant, the fields it writes back with)
         let to_relay: Vec<(String, &str, Vec<&str>)> = vec![
             (
@@ -1356,6 +1398,73 @@ mod tests {
         assert!(matches!(newer, FromRelay::Refused { req_id: Some(3), reason: Reason::Unknown, why: Some(Why::Unknown), .. }));
     }
 
+    /// THE PERMIT CHECK AND ITS ANSWER (ship homes 5b, plan section 3.5), written exactly as the
+    /// wire carries them: the check is the game's number for it and the whole v2 permit (its
+    /// serial included, in the order its words are signed); the answer is that number, the plot
+    /// and `ok`, with `why`, `again` and `message` written only when they say something. Each
+    /// text reads back as the message it came from, a text with those three left out reads as
+    /// "no why, not again, no message", the type strings are the `msg` constants, and a `why`
+    /// from a newer server reads as `unknown` instead of losing the answer.
+    /// Seen red 2026-10-12 with `req_id` renamed `request_id` in `PermitStatus`: "a permit that
+    /// works: req_id, plot and ok only" failed, left
+    /// `"{\"type\":\"game_permit_status\",\"request_id\":4,\"plot\":\"p1\",\"ok\":true}"`, right
+    /// `"{\"type\":\"game_permit_status\",\"req_id\":4,\"plot\":\"p1\",\"ok\":true}"`.
+    #[test]
+    fn the_permit_check_and_its_answer_read_as_the_wire_says() {
+        let permit = Permit {
+            issuer: "aabb".into(),
+            server: "did:hum:srv".into(),
+            plot: "p1".into(),
+            grantee: "did:hum:abc".into(),
+            serial: "00112233445566778899aabbccddeeff".into(),
+            expiry: 1_767_225_600,
+            sig: "c2ln".into(),
+        };
+        let check = ToRelay::PermitCheck { req_id: 4, permit };
+        let check_text = r#"{"type":"game_permit_check","req_id":4,"permit":{"issuer":"aabb","server":"did:hum:srv","plot":"p1","grantee":"did:hum:abc","serial":"00112233445566778899aabbccddeeff","expiry":1767225600,"sig":"c2ln"}}"#;
+        assert_eq!(serde_json::to_string(&check).unwrap(), check_text, "the check, exactly");
+        assert_eq!(serde_json::from_str::<ToRelay>(check_text).unwrap(), check, "and back");
+        assert_eq!(serde_json::to_value(&check).unwrap()["type"], msg::PERMIT_CHECK);
+
+        let status = |req_id: u32, ok: bool, why: Option<Why>, again: bool, message: &str| FromRelay::PermitStatus {
+            req_id,
+            plot: "p1".into(),
+            ok,
+            why,
+            again,
+            message: message.into(),
+        };
+        let withdrawn = "the plot's holder took this permit back";
+        let rows: Vec<(&str, FromRelay, String)> = vec![
+            (
+                "a permit that works: req_id, plot and ok only",
+                status(4, true, None, false, ""),
+                r#"{"type":"game_permit_status","req_id":4,"plot":"p1","ok":true}"#.into(),
+            ),
+            (
+                "a permit taken back: its why and its words",
+                status(5, false, Some(Why::PermitWithdrawn), false, withdrawn),
+                format!(r#"{{"type":"game_permit_status","req_id":5,"plot":"p1","ok":false,"why":"permit_withdrawn","message":"{withdrawn}"}}"#),
+            ),
+            (
+                "ask again later: no why, no words",
+                status(6, false, None, true, ""),
+                r#"{"type":"game_permit_status","req_id":6,"plot":"p1","ok":false,"again":true}"#.into(),
+            ),
+        ];
+        for (what, m, text) in &rows {
+            assert_eq!(serde_json::to_string(m).unwrap(), *text, "{what}");
+            assert_eq!(serde_json::from_str::<FromRelay>(text).unwrap(), *m, "{what}: read back");
+            assert_eq!(serde_json::to_value(m).unwrap()["type"], msg::PERMIT_STATUS, "{what}");
+            for builder in ["owner", "did:hum", "builder", "holder\""] {
+                assert!(!text.contains(builder), "{what}: nothing about who holds the plot, found {builder:?}");
+            }
+        }
+        let newer: FromRelay =
+            serde_json::from_str(r#"{"type":"game_permit_status","req_id":7,"plot":"p2","ok":false,"why":"too_hot"}"#).expect("a newer why still parses");
+        assert_eq!(newer, FromRelay::PermitStatus { req_id: 7, plot: "p2".into(), ok: false, why: Some(Why::Unknown), again: false, message: String::new() });
+    }
+
     /// EVERY REFUSAL SAYS WHY IN PLAIN WORDS, ONE SENTENCE PER CASE. Each code the relay sends is
     /// written on the wire as its `as_str`, each has its words, and no words are empty, carry an
     /// em dash or end in a full stop (the sentence adds it). The sentences read as the plan
@@ -1409,6 +1518,10 @@ mod tests {
             "your household permit for this plot has run out; ask its holder for a new one"
         );
         assert!(why_words(Action::Build, Reason::NotAllowed, Some(Why::PermitTooLong)).contains("at most 90 days"));
+        assert_eq!(
+            refusal_message(Action::Build, wall, Reason::NotAllowed, Some(Why::PermitWithdrawn)),
+            "Wood Wall not built: the plot's holder took this permit back."
+        );
         assert!(why_words(Action::Build, Reason::FrameFull, None).ends_with("(512)"));
         assert!(why_words(Action::Build, Reason::OwnerFull, None).ends_with("(512)"));
         assert!(why_words(Action::Build, Reason::WorldFull, None).ends_with("(4,096)"));

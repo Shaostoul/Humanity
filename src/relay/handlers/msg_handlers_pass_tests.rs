@@ -286,7 +286,7 @@ fn a_withdrawal_must_name_a_serial() {
     for bad in ["", "not-a-serial", "00112233445566778899AABBCCDDEEFF", "0011"] {
         let (acks, told) = revoke(&st, "ada_key", bad);
         assert!(acks.is_empty(), "{bad:?} is not acknowledged");
-        assert!(told.iter().any(|m| m.contains("not a friendship pass serial")), "{bad:?}: the sender is told: {told:?}");
+        assert!(told.iter().any(|m| m.contains("not a pass or permit serial")), "{bad:?}: the sender is told: {told:?}");
     }
     assert_eq!(st.db.friend_cert_withdrawals_of("ada_key"), 0, "a word that is not a serial");
 }

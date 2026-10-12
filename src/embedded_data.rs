@@ -207,6 +207,11 @@ pub const OUTSIDE_HELP_JSON: &str = include_str!("../data/safety/outside_help.js
 /// word it shows. Built in so the desktop app still has them when the data folder lacks the file
 /// (net/protected.rs `load_preset`); the web client reads the same file.
 pub const SAFETY_PRESETS_JSON: &str = include_str!("../data/gui/safety_presets.json");
+/// How long a household permit is given for (ship homes 5b): the lengths the Household card
+/// offers, the one picked first, and how long an ended permit stays listed. Built in so the
+/// desktop app still offers them when the data folder lacks the file (net/household.rs
+/// `load_lengths`).
+pub const SHIP_HOUSEHOLD_RON: &str = include_str!("../data/ship/household.ron");
 
 // ── Lookup helper ───────────────────────────────────────────────────
 
@@ -414,6 +419,7 @@ pub fn get_embedded(path: &str) -> Option<&'static str> {
         "safety/warnings.json" => Some(WARNINGS_JSON),
         "safety/outside_help.json" => Some(OUTSIDE_HELP_JSON),
         "gui/safety_presets.json" => Some(SAFETY_PRESETS_JSON),
+        "ship/household.ron" => Some(SHIP_HOUSEHOLD_RON),
 
         _ => None,
     }
@@ -652,6 +658,7 @@ pub const EMBEDDED_KEYS: &[&str] = &[
     "manufacturing.ron",
     "abilities.csv",
     "governance/proposal_types.ron",
+    "ship/household.ron",
 ];
 
 #[cfg(test)]
