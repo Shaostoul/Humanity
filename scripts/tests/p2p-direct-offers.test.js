@@ -132,6 +132,8 @@ function loadChat() {
   const run = (rel) => vm.runInContext(fs.readFileSync(path.join(WEB, rel), "utf8"), ctx, { filename: rel });
   // In index.html order: app.js, then the group, voice and P2P scripts.
   run("shared/events.js");
+  run("shared/blake3.js");
+  run("shared/file-transfer.js");
   run("chat/app.js");
   for (const name of ["updateUserList", "updateStats", "renderServerList", "renderGroupList", "addSystemMessage", "hosIcon", "shortKey", "esc", "playNotificationChime"]) {
     if (typeof ctx[name] !== "function") ctx[name] = () => "";
@@ -139,6 +141,9 @@ function loadChat() {
   run("chat/chat-groups-p2p.js");
   run("chat/chat-voice-rooms.js");
   run("chat/chat-voice-calls.js");
+  // Device-to-device big files (2026-10-11) answer a dc_offer only for a transfer of theirs: loaded
+  // so this test holds them to that (the offers here are no file's).
+  run("chat/chat-file-transfer.js");
   run("chat/chat-p2p.js");
   const sock = fakeSocket();
   vm.runInContext("(s, me) => { ws = s; myKey = me; }", ctx)(sock, ME);

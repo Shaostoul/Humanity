@@ -1032,6 +1032,10 @@ function drawFilesInMessages(box) {
   attach.setAttribute('aria-label', W.attach);
   attach.onchange = () => chooseFilesSetting({ attach: !!attach.checked });
   box.appendChild(row(W.attach, attach, s.attach === false ? W.attachOffExplain : null));
+
+  // Device-to-device big files (2026-10-11): whether a file with a friend may go straight between
+  // our devices rather than through the server's call relay (chat-file-transfer.js; off by default).
+  if (typeof drawFileDirectRow === 'function') drawFileDirectRow(box, row);
 }
 
 // ── Block (step C, 2026-10-09) ───────────────────────────────────────────

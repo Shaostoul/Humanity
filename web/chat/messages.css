@@ -687,3 +687,15 @@
 }
 .enc-attach-load:hover { background: var(--bg-hover); }
 .enc-attach-failed { font-size: var(--text-xs); color: var(--text-muted); }
+/* Device-to-device big files (2026-10-11, chat-file-transfer.js): a row per transfer in the
+   conversation, the file card with a progress bar, the state in words, and its buttons. */
+.ft-row .enc-attach { max-width: 420px; }
+.ft-bar { height: 6px; border-radius: 3px; background: var(--bg); border: 1px solid var(--border); overflow: hidden; margin-bottom: 6px; }
+.ft-bar-fill { height: 100%; background: var(--accent); width: 0; transition: width 0.2s linear; }
+.ft-state { font-size: var(--text-sm); color: var(--text); }
+.ft-note { margin-top: 4px; margin-bottom: 0; }
+.ft-buttons { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.ft-buttons:empty { display: none; }
+.ft-btn { text-decoration: none; }
+/* The attach step's lines for a file that goes device to device. */
+.attach-step-direct { font-size: var(--text-sm); color: var(--text-muted); margin: 4px 0; }

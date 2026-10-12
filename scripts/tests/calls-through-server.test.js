@@ -257,6 +257,8 @@ function loadChat() {
   run("shared/friend-pass.js");
   run("shared/reach.js");
   run("shared/block.js");
+  run("shared/blake3.js");
+  run("shared/file-transfer.js");
   run("chat/app.js");
   // Page pieces from scripts this test does not load (chat-ui.js, icons.js, hold-confirm.js).
   for (const name of ["updateUserList", "updateStats", "renderServerList", "renderGroupList", "hosIcon", "shortKey", "holdConfirm", "playNotificationChime"]) {
@@ -268,6 +270,9 @@ function loadChat() {
   run("chat/chat-voice-webrtc.js");
   run("chat/chat-voice-streaming.js");
   run("chat/chat-privacy.js");
+  // Device-to-device big files (2026-10-11) answer a dc_offer only for a transfer of theirs: loaded
+  // so this test holds them to that (the offers here are no file's).
+  run("chat/chat-file-transfer.js");
   run("chat/chat-p2p.js");
   // What is written into the message area (system lines).
   ctx.appendMessage = (el) => { appended.push(el); };
