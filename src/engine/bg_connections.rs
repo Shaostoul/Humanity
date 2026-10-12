@@ -348,6 +348,11 @@ fn bg_screen(gs: &mut GuiState, store: &mut crate::net::dm_store::DmStore, inner
     if crate::engine::choice::screens_dm_parked(gs, store, inner) {
         return true;
     }
+    // Ship homes 5b: a household permit note is kept in, or listed as given in, that server's
+    // store (engine/household.rs), never stored or shown as a message.
+    if crate::engine::household::screens_dm_parked(gs, store, inner) {
+        return true;
+    }
     if inner.text.starts_with(crate::net::reach::CONTACT_REQUEST_MARKER) {
         // The protected setup is the device's, so it holds on a parked server too (10h).
         let may_complete = gs.protected.setup.pass_allowed(&inner.from);
