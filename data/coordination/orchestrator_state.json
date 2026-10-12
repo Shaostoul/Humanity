@@ -236,6 +236,11 @@
       "date": "2026-10-12",
       "decision": "Operator APPROVED amendment A1 of the 5b plan, verbatim: \"Makes sense to be able to revoke permits at any time. I like that blocking revokes permits, great choice. If we remove that upgrade then people could harass those that blocked them after being blocked.\" He will test a desktop-to-web DM file transfer after he wakes (later 2026-10-12); finding a partner for the two-person session has been difficult and he keeps trying.",
       "why": "Recorded the moment it was given (cross-session persistence rule)."
+    },
+    {
+      "date": "2026-10-12",
+      "decision": "Ship homes 5b Wave 1 all merged on main (local, not pushed): 1A permits travel (engine/household.rs give/renew/take back/Block, ingest, parked-server wiring), 1B walking into an open plot (collision, doors swapped in place, lights on nobody's meter), 1C the relay permit check (game_permit_check), 1D the website swallows permit notes (also over direct channels), 1E the walker takes part in sealed DMs (befriend, give-permit). DM padding gained a 32,768 bucket (a permit note was past 16,384 and its size told it apart). NEXT: Wave 2: 2A the game glue (session_began sets my_plot, permit checks, apply_open calling home_meshes::open_plots_changed and deleting its expect(dead_code), gate rows, permit attached in send_next, probe, connections reset; gate Give under the protected setup) and 2B the Household card on the Home page (Give/Renew/Take back with confirm). Then 3A the rig (narrow the no-key log check to the permit lines). Follow-ups: four relay log lines print a full key (msg_handlers.rs:3708 and :3640, home_plots.rs:242 and :261); verify_plot_permit checks the end date before the signature, so a stranger shown someone else's expired permit hears permit_expired (reorder: signature first).",
+      "why": "Recorded before the operator restarts his PC, so a fresh session resumes from disk."
     }
   ],
   "active_scopes_to_avoid": [
