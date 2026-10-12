@@ -242,6 +242,11 @@ pub(crate) fn ingest_dm(gui_state: &mut GuiState, inner: &DmInner) -> bool {
         ingest_control(gui_state, inner);
         return false; // acted on; nothing to render
     }
+    // Ship homes 5b: a household permit note (a friend's permit, my own echoed from my other
+    // device, or a note to myself saying what I took back) is acted on, never stored or shown.
+    if crate::engine::household::ingest(gui_state, inner) {
+        return false;
+    }
     // Step B (2026-10-09, blocking-and-safe-mode.md 10c): a contact request is a control message
     // too (its pass checked, its sender listed under Requests); and a DM from someone our own
     // message setting would refuse is listed the same way, name only, its text never stored.
@@ -664,7 +669,12 @@ pub(crate) fn withdraw_passes(gui_state: &mut GuiState, peer: &str) {
 /// Block, a re-issue taken, the sweep), so my other devices hear the new choice before they hear
 /// that an old pass was withdrawn. The withdrawals go even when a note cannot go yet: taking
 /// consent back is never held up.
+///
+/// Ship homes 5b (amendment A1): first, every household permit given to someone blocked is taken
+/// back beside their passes (engine/household.rs `take_back_from_blocked`), connected or not, so
+/// every Block path, which calls this right after it withdraws the passes, takes them back too.
 pub(crate) fn send_pending_withdrawals(gui_state: &mut GuiState) {
+    crate::engine::household::take_back_from_blocked(gui_state);
     if !gui_state.ws_client.as_ref().is_some_and(|c| c.is_connected()) {
         return;
     }

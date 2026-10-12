@@ -11,6 +11,10 @@ pub mod dm;
 /// The server's answers to the `dm_put`s that change friendship state (10l, 2026-10-10): a pass
 /// counts as given only once the server took it.
 pub mod put_answer;
+/// Household permits travel between devices (ship homes increment 5b, 2026-10-12): giving,
+/// renewing and taking back a permit for my plot, a friend's permit arriving, and the server's
+/// answers to those sends. The rules without a socket are src/net/household.rs.
+pub mod household;
 /// "Who can reach me" (step B of docs/design/blocking-and-safe-mode.md, 2026-10-09): the
 /// relay's reach frames, contact requests sent and received, and the "People I choose" ticks.
 pub mod reach;

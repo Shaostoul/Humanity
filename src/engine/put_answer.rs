@@ -38,6 +38,10 @@ pub(crate) const REQUEST_NOT_CONFIRMED: &str = "The server did not confirm the r
 /// here, even when its send was already settled), so the pump logs nothing for it.
 pub(crate) fn on_frame(gs: &mut GuiState, frame: &serde_json::Value) -> bool {
     let Some(answer) = Answer::read(frame) else { return false };
+    // A household permit's send (ship homes 5b) is held apart from the passes' and settled there.
+    if crate::engine::household::on_answer(gs, &answer) {
+        return true;
+    }
     // An answer after the 30 seconds finds nothing: that send already counts as not taken, and
     // the pass it carried stays among the unanswered, to be withdrawn with the others.
     let Some(put) = gs.pending_puts.take(answer.reference()) else { return true };
@@ -49,7 +53,9 @@ pub(crate) fn on_frame(gs: &mut GuiState, frame: &serde_json::Value) -> bool {
 }
 
 /// Sends that have waited 30 seconds: not taken (engine/dm.rs `pace_owed_passes`, every frame).
+/// A household permit's too (ship homes 5b): its row says unconfirmed.
 pub(crate) fn expire(gs: &mut GuiState, now: std::time::Instant) {
+    crate::engine::household::expire(gs, now);
     for put in gs.pending_puts.expired(now) {
         not_taken(gs, put, None);
     }
