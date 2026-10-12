@@ -5,11 +5,14 @@
 # column it does not declare, so a new column needs a field there first; BUG-162, 2026-10-05):
 #   id                - Unique effect identifier
 #   name              - Display name
-#   type              - buff, debuff, condition, environmental, disease, poison. A disease is an
-#                       illness: it runs on the game clock (src/systems/illness.rs), and what it
-#                       does to the body is in data/medical/illnesses.ron
-#   duration_s        - Duration in seconds (0 = permanent until removed); a disease's is its
-#                       Realistic course in game seconds
+#   type              - buff, debuff, condition, environmental, disease, wound, poison. A disease
+#                       is an illness: it runs on the game clock (src/systems/illness.rs), and what
+#                       it does to the body is in data/medical/illnesses.ron. A wound (a bite, a
+#                       burn, bleeding, an infected wound) runs on the game clock too, and what it
+#                       does is in data/medical/wounds.ron (src/systems/wounds.rs); its own
+#                       damage and healing columns stay 0
+#   duration_s        - Duration in seconds (0 = permanent until removed); a disease's or a
+#                       wound's is its Realistic course in game seconds
 #   stackable         - true/false. Read but not acted on yet: no effect stacks, and applying
 #                       one again refreshes its timer
 #   max_stacks        - Maximum stack count (1 if not stackable). Read but not acted on yet
@@ -22,7 +25,9 @@
 #   tags              - Pipe-separated tags. A medical item ends the effects that carry a tag it
 #                       names (data/medical/treatments.ron): bleeding (dressings and medkits),
 #                       bacterial (antibiotics: an infection caused by bacteria), toxin (the
-#                       antidote). Food Poisoning carries none of them: no medicine ends it.
+#                       antidote). Food Poisoning carries none of them: no medicine ends it. A
+#                       Bandage, a Medkit or Antiseptic also cleans and covers the wounds that
+#                       can go bad (wound_care), which ends none of them
 #                       (A dispel_type column named how each effect could be removed until
 #                       2026-10-05, and nothing read it.)
 #   description       - Short description
@@ -40,7 +45,7 @@ stone_skin,Stone Skin,buff,180,false,1,0,armor:30:add,0,none,0,defense|physical,
 berserk,Berserk,buff,30,false,1,0,damage:1.5:multiply,0,none,0,combat|risky,Increases damage dealt by 50% but reduces armor by 25%
 focused_mind,Focused Mind,buff,300,true,3,0,accuracy:1.2:multiply,0,none,0,mental|precision,Improves accuracy and crafting quality by 20% per stack
 lucky,Lucky,buff,600,false,1,0,crit_chance:1.5:multiply,0,none,0,fortune|rare,Increases critical hit and rare drop chance by 50%
-well_fed,Well Fed,buff,1800,false,1,0,stamina_regen:1.5:multiply,0,none,1,food|sustain,Increases stamina regeneration by 50% and slowly heals
+well_fed,Well Fed,buff,1800,false,1,0,stamina_regen:1.5:multiply,0,none,0,food|sustain,Increases stamina regeneration by 50%. A fed body heals by itself (data/medical/wounds.ron)
 well_nourished,Well Nourished,buff,1800,false,1,0,speed:1.1:multiply,0,none,0,food|sustain,A balanced full belly quickens your step (+10% movement speed)
 rested,Rested,buff,3600,false,1,0,xp_gain:1.25:multiply,0,none,0,rest|experience,Increases experience gained by 25% after sleeping
 refreshed,Refreshed,buff,9300,false,1,0,none:0:none,0,none,0,rest|fatigue,A ten-minute nap: the fatigue slowdown lifts for about two and a half hours unless you are exhausted. Only a night in a bed restores energy
@@ -56,7 +61,12 @@ frightened,Frightened,debuff,45,false,1,0,damage:0.7:multiply,0,none,0,mental|fe
 frozen,Frozen,debuff,15,false,1,0,speed:0:multiply,0,none,0,elemental|immobilizing,Completely immobilizes the target in ice
 burning,Burning,debuff,30,false,1,2,none:0:none,8,fire,0,elemental|damage,Deals 8 fire damage every 2 seconds
 poisoned,Poisoned,debuff,60,true,5,3,none:0:none,4,poison,0,toxic|damage|toxin,Deals 4 poison damage every 3 seconds per stack
-bleeding,Bleeding,debuff,45,true,3,2,none:0:none,6,physical,0,physical|damage|bleeding,Deals 6 physical damage every 2 seconds per stack
+bleeding,Bleeding,wound,600,true,3,0,none:0:none,0,none,0,physical|bleeding,An open wound is bleeding. A Bandage or Medkit stops it and an ordinary bleed stops itself within about ten minutes. You do not heal while it bleeds
+bite_wound,Bite Wound,wound,864000,false,1,0,none:0:none,0,none,0,physical|wound,A wound from a bite. It heals in about ten days. Cleaned and covered it is unlikely to go bad
+burn_superficial,Burn (red skin),wound,518400,false,1,0,none:0:none,0,none,0,burn|wound,A first-degree burn: red skin and no blisters. It heals by itself in about six days
+burn_partial,Burn (blistered),wound,1209600,false,1,0,none:0:none,0,none,0,burn|wound,A second-degree burn that has blistered. It heals in about two weeks. Cleaned and covered it is unlikely to go bad
+burn_full,Deep Burn,wound,3628800,false,1,0,none:0:none,0,none,0,burn|wound,A burn through the whole skin. It heals only from its edges over about six weeks and goes bad easily unless cleaned and covered
+wound_care,Wounds Cared For,condition,0,false,1,0,none:0:none,0,none,0,care|wound,Your wounds are cleaned and covered so they are unlikely to go bad. A new wound needs the same
 stunned,Stunned,debuff,5,false,1,0,speed:0:multiply,0,none,0,control|disabling,Completely prevents all actions for a short time
 disarmed,Disarmed,debuff,10,false,1,0,damage:0.3:multiply,0,none,0,combat|disabling,Forces weapon drop reducing damage to 30%
 vulnerable,Vulnerable,debuff,90,false,1,0,armor:-20:add,0,none,0,defense|weakening,Reduces armor by 20 making target take more damage
@@ -68,7 +78,7 @@ oxygen_depleted,Oxygen Depleted,condition,0,false,1,5,none:0:none,15,suffocation
 radiation_exposure,Radiation Exposure,condition,0,true,10,10,max_hp:-5:add,3,radiation,0,radiation|hazard,Reduces max HP by 5 per stack and deals radiation damage
 broken_bone,Broken Bone,condition,0,false,1,0,speed:0.4:multiply,0,none,0,injury|severe,Reduces speed by 60% and prevents sprinting until healed
 concussion,Concussion,condition,0,false,1,0,accuracy:0.6:multiply,0,none,0,injury|head,Reduces accuracy by 40% and causes periodic blurred vision
-infected_wound,Infected Wound,condition,0,false,1,20,none:0:none,3,infection,0,injury|infection|bacterial,Deals ongoing damage that worsens over time if untreated
+infected_wound,Infected Wound,wound,864000,false,1,0,none:0:none,0,none,0,injury|infection|bacterial,A wound that has gone bad. It takes your health slowly and stops you healing until Antibiotics end it
 sleep_deprived,Sleep Deprived,condition,0,false,1,0,xp_gain:0.5:multiply,0,none,0,survival|fatigue,Halves experience gain and reduces accuracy by 20%
 fatigued,Fatigued,condition,0,false,1,0,speed:0.85:multiply,0,physical,0,survival|fatigue,Low energy slows your movement by 15% until you rest
 hypoxia,Hypoxia,condition,0,false,1,0,speed:0.7:multiply,0,none,0,survival|oxygen,Low blood oxygen; movement slowed 30% until you reach breathable air

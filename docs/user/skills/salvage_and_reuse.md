@@ -487,9 +487,8 @@ The game has a little of this, mostly in what crafting leaves behind.
   `data/garden/weeds.ron`, `data/garden/soil_ph.ron`).
 - **Scrap Metal has no use yet.** The item list has a salvage category
   (Scrap Metal, Lens, Crude Weapon and others). Some have a use: a Lens,
-  for instance, goes into the prosthetic and cybernetic eyes in
-  `data/medical.ron`, eye surgery needs one, and vendors sell it. But
-  no recipe uses Scrap Metal, and the creatures whose loot includes it
+  for instance, is sold by vendors. But no recipe uses Scrap Metal, and
+  the creatures whose loot includes it
   (the robots, and the goblin, in `data/creatures.csv`) never appear in
   the world by themselves; only the Dev page's spawn tool, in the Dev
   play mode, can place one.
@@ -687,8 +686,8 @@ is updated in place. Other pages and documents were read on 4 October
   items); mulches in `data/garden/weeds.ron`; wood ash in
   `data/garden/soil_ph.ron`. The salvage items and the creatures that
   drop them: `data/items.csv`, `data/creatures.csv`; what spawns by
-  itself: `data/entities/wild_spawns.ron`; the Lens in
-  `data/medical.ron` and `data/npcs.ron`. The vendor's refusal of
+  itself: `data/entities/wild_spawns.ron`; the Lens in `data/npcs.ron`.
+  The vendor's refusal of
   defective goods: `src/systems/economy/mod.rs`.
 - Play mode and free materials: `PlayMode` and `play_mode_allows` in
   `src/config.rs`, and the creative checks in

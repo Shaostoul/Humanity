@@ -147,6 +147,18 @@ impl System for CombatSystem {
                 .clamp(0.0, 1.0);
             let mitigated = event.amount * (1.0 - resistance);
 
+            // A creature's bite on a body (the player: anything the food
+            // system keeps, with status effects) leaves a wound as well as
+            // the health it takes now: bleeding and a bite wound
+            // (first-hour audit S8, systems::wounds, data/medical/wounds.ron).
+            let bite = !event.source_is_player
+                && event.damage_type == DamageType::Kinetic
+                && mitigated > 0.0
+                && world.get::<&crate::ecs::components::StatusEffects>(entity).is_ok();
+            if bite {
+                crate::systems::wounds::injure(world, entity, crate::systems::wounds::Injury::Bite);
+            }
+
             if let Ok(mut health) = world.get::<&mut Health>(entity) {
                 health.current = (health.current - mitigated).max(0.0);
                 if health.current <= 0.0 {

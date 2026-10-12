@@ -1385,6 +1385,9 @@ const BODY_TEMP_DANGER: (f32, f32) =
 /// unbreathable world), because then it only goes down. Standing in
 /// breathable open air (Earth's ground) is not a warning (2026-09-28: it
 /// used to show a yellow Air bar there, keyed on being outside).
+/// Each wound and illness gets a row in both non-Off modes, naming it and
+/// what helps in a few words ("Wound  Bleeding: a Bandage stops it",
+/// 2026-10-12, `systems::wounds::CareLine`): each one needs attention.
 pub(crate) fn vital_rows(v: &crate::gui::GuiVitals, mode: crate::config::HudVitals) -> Vec<VitalRow> {
     use crate::config::HudVitals;
     let mut rows = Vec::new();
@@ -1424,6 +1427,10 @@ pub(crate) fn vital_rows(v: &crate::gui::GuiVitals, mode: crate::config::HudVita
     if always || waste > 0.5 {
         // Shown as how full it is; the colour runs the other way.
         rows.push(VitalRow { label: "Waste", frac: Some(waste), text: String::new(), severity: sev(1.0 - waste) });
+    }
+    for c in &v.care {
+        let text = if c.short.is_empty() { c.name.clone() } else { format!("{}: {}", c.name, c.short) };
+        rows.push(VitalRow { label: c.kind, frac: None, text, severity: c.severity.min(2) });
     }
     rows
 }
@@ -2079,11 +2086,46 @@ mod crew_label_tests {
             sheltered: false,
             shelter_note: String::new(),
             effects: Vec::new(),
+            care: Vec::new(),
         }
     }
 
     fn labels(rows: &[VitalRow]) -> Vec<&'static str> {
         rows.iter().map(|r| r.label).collect()
+    }
+
+    /// WOUNDS AND ILLNESS ON THE HUD (2026-10-12, first-hour audit S8). A wound or an
+    /// illness gets its own row in both non-Off modes, even on an otherwise healthy body,
+    /// naming it and what helps in the data's few words, at its severity; Off, the simple
+    /// mode, shows none. The rows come from the real effects through
+    /// `wounds::care_lines`, so the shipped data's words are what the HUD says.
+    ///
+    /// Seen red with the care loop left out of `vital_rows`: "a bleeding player sees it
+    /// on the HUD / left: [] / right: [\"Wound\"]".
+    #[test]
+    fn wounds_and_illness_get_a_row_naming_what_helps() {
+        use crate::config::HudVitals;
+        use crate::ecs::components::StatusEffects;
+        let reg = crate::systems::status_effects::StatusEffectRegistry::from_csv(include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/data/status_effects.csv"
+        )))
+        .expect("status_effects.csv");
+        let mut fine = vitals(90.0, 90.0, 90.0, 100.0, true, 36.8, 10.0);
+        let mut fx = StatusEffects::default();
+        fx.apply("bleeding", 300.0);
+        fine.care = crate::systems::wounds::care_lines(&fx, Some(&reg));
+        let rows = vital_rows(&fine, HudVitals::WhenLow);
+        assert_eq!(labels(&rows), vec!["Wound"], "a bleeding player sees it on the HUD");
+        assert_eq!(rows[0].text, "Bleeding: a Bandage stops it");
+        assert_eq!(rows[0].severity, 2, "bleeding is danger");
+        assert!(vital_rows(&fine, HudVitals::Off).is_empty(), "Off is health only");
+
+        fx.remove("bleeding");
+        fx.apply("food_poisoning", 7_200.0);
+        fine.care = crate::systems::wounds::care_lines(&fx, Some(&reg));
+        let rows = vital_rows(&fine, HudVitals::WhenLow);
+        assert_eq!((labels(&rows), rows[0].text.as_str()), (vec!["Ill"], "Food Poisoning: drink while it lasts"));
     }
 
     /// The survival rows (2026-09-25). Always shows everything; When low

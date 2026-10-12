@@ -6,14 +6,19 @@
 //!   3. Each fire rolls a spread check against nearby `Flammable` entities
 //!      within `Flammable.ignition_dist`. Hotter fires spread faster.
 //!   4. `FireSuppressor` entities reduce intensity of fires within range.
-//!   5. Fires damage `Health` of co-located entities (1.0 hp/sec at full intensity).
+//!   5. Fires hurt co-located entities. A body (anything with `StatusEffects`: the player) is
+//!      burned: the fire pushes the heat onto it as an injury, and the food system, which owns
+//!      the body, takes the health and gives the burn its depth (first-hour audit S8,
+//!      `systems::wounds`, data/medical/wounds.ron). Anything else with `Health` loses
+//!      `DAMAGE_PER_SEC` at full intensity, worked out in f64 with a carry so no frame's share
+//!      is lost to f32 rounding (BUG-164's note on this file).
 
 use std::path::Path;
 
 use rand::Rng;
 use serde::Deserialize;
 
-use crate::ecs::components::{Fire, FireSuppressor, Flammable, Health, Transform};
+use crate::ecs::components::{Fire, FireSuppressor, Flammable, Health, StatusEffects, Transform};
 use crate::ecs::systems::System;
 use crate::hot_reload::data_store::DataStore;
 
@@ -21,7 +26,8 @@ use crate::hot_reload::data_store::DataStore;
 const FUEL_BURN_RATE: f32 = 1.0;
 /// Spread chance per second per nearby flammable, scaled by intensity.
 const SPREAD_CHANCE_PER_SEC: f32 = 0.05;
-/// Damage per second to entities at the same position as a Fire (at intensity = 1.0).
+/// Damage per second to an entity that is not a body at the same position as a Fire (at
+/// intensity = 1.0). A body's is data/medical/wounds.ron's `burns.health_per_s`.
 const DAMAGE_PER_SEC: f32 = 1.0;
 /// Distance threshold for "co-located" damage (meters).
 const DAMAGE_DIST: f32 = 1.5;
@@ -40,6 +46,9 @@ pub struct FireSystem {
     pub data: FireData,
     /// Entities scheduled for new Fire components on next tick (queued from spread checks).
     pending_ignitions: Vec<(hecs::Entity, f32)>,
+    /// What f32 rounding has held back from each burning non-body's Health (BUG-164,
+    /// `food::change_exactly`).
+    carry: std::collections::HashMap<hecs::Entity, f64>,
 }
 
 impl FireSystem {
@@ -62,7 +71,7 @@ impl FireSystem {
             "Loaded fire data: {} ignition sources, {} behaviors",
             data.ignition_sources.len(), data.fire_behaviors.len()
         );
-        Self { data, pending_ignitions: Vec::new() }
+        Self { data, pending_ignitions: Vec::new(), carry: std::collections::HashMap::new() }
     }
 }
 
@@ -136,14 +145,24 @@ impl System for FireSystem {
                 }
             }
 
-            // Damage co-located health-bearers.
+            // Hurt co-located health-bearers: a body is burned (its owner, the
+            // food system, takes the health and gives the burn), anything else
+            // loses its share exactly.
             for (target, t_pos) in &damageables {
                 if fire_pos.distance(*t_pos) > DAMAGE_DIST { continue; }
-                if let Ok(mut h) = world.get::<&mut Health>(*target) {
-                    h.current = (h.current - DAMAGE_PER_SEC * intensity * dt).max(0.0);
+                let dose_s = f64::from(*intensity) * f64::from(dt);
+                if world.get::<&StatusEffects>(*target).is_ok() {
+                    crate::systems::wounds::injure(world, *target, crate::systems::wounds::Injury::Heat { dose_s });
+                } else if let Ok(mut h) = world.get::<&mut Health>(*target) {
+                    let carry = self.carry.entry(*target).or_default();
+                    let max = h.max;
+                    crate::systems::food::change_exactly(&mut h.current, carry, -dose_s * f64::from(DAMAGE_PER_SEC), 0.0, max);
                 }
             }
         }
+
+        // Forget the carry of anything that no longer has health.
+        self.carry.retain(|e, _| damageables.iter().any(|(d, _)| d == e));
 
         // Apply intensity changes + fuel consumption + collect deaths.
         for (entity, delta) in intensity_updates {

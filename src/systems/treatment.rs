@@ -2,7 +2,8 @@
 //!
 //! Until 2026-10-05 the Use button discarded its click, so a Bandage, a Medkit or Antibiotics
 //! did nothing. Now each medical item's effect is DATA, a row of data/medical/treatments.ron:
-//! the Health it restores, the status effects it ends, and what the player is told. An effect
+//! the Health it restores, the status effects it ends, whether it cleans and covers wounds
+//! (`cares`, 2026-10-12, `systems::wounds`), and what the player is told. An effect
 //! is ended by a TAG on it in data/status_effects.csv, so Antibiotics end only effects tagged
 //! `bacterial`, and Food Poisoning is not one. An item that would do nothing for the player
 //! (nothing hurt, nothing it ends, or a use the game does not model yet) is kept, not used up,
@@ -40,6 +41,9 @@ pub struct Treatment {
     /// Tags of the status effects it ends (data/status_effects.csv `tags`).
     #[serde(default)]
     pub ends: Vec<String>,
+    /// It cleans and covers the wounds that can go bad (2026-10-12, `wounds::Wounds::care_for`).
+    #[serde(default)]
+    pub cares: bool,
     /// What the player is told when it is used.
     #[serde(default)]
     pub used: String,
@@ -113,19 +117,22 @@ pub fn carries_any(registry: Option<&StatusEffectRegistry>, effect_id: &str, tag
     registry.and_then(|r| r.get(effect_id)).is_some_and(|d| tags.iter().any(|t| d.has_tag(t)))
 }
 
-/// Apply `t` to a body: restore its Health, up to full, and end every effect carrying a tag it
-/// names. When it would do neither, nothing changes and the outcome says why (`no_help`); the
-/// caller removes one of the item only when `used`.
+/// Apply `t` to a body: restore its Health, up to full, end every effect carrying a tag it
+/// names, and, when it `cares`, clean and cover the wounds that can go bad and have not been
+/// (`wounds::Wounds::care_for`, 2026-10-12). When it would do none of these, nothing changes
+/// and the outcome says why (`no_help`); the caller removes one of the item only when `used`.
 pub fn apply(
     t: &Treatment,
     health: &mut Health,
     effects: &mut StatusEffects,
     registry: Option<&StatusEffectRegistry>,
+    wounds: &crate::systems::wounds::Wounds,
 ) -> Outcome {
     let ended: Vec<String> =
         effects.active.iter().filter(|e| carries_any(registry, &e.id, &t.ends)).map(|e| e.id.clone()).collect();
     let heal = t.heals.max(0.0).min((health.max - health.current).max(0.0));
-    if heal <= 0.0 && ended.is_empty() {
+    let cares = t.cares && wounds.needs_care(effects);
+    if heal <= 0.0 && ended.is_empty() && !cares {
         return Outcome { used: false, message: t.no_help.clone() };
     }
     let before = health.current;
@@ -133,7 +140,14 @@ pub fn apply(
     for id in &ended {
         effects.remove(id);
     }
+    if cares {
+        wounds.care_for(effects);
+    }
     let mut message = t.used.clone();
+    if cares {
+        message.push(' ');
+        message.push_str(&wounds.care.given);
+    }
     if heal > 0.0 {
         message.push_str(&format!(" Health {before:.0} to {:.0}.", health.current));
     }
@@ -181,12 +195,13 @@ mod tests {
         let mut h = Health { current: 40.0, max: 100.0 };
         let mut fx = StatusEffects::default();
         fx.apply("bleeding", 30.0);
-        let out = apply(kit, &mut h, &mut fx, Some(&reg));
+        let wounds = crate::systems::wounds::Wounds::load(&crate::data_dir());
+        let out = apply(kit, &mut h, &mut fx, Some(&reg), &wounds);
         assert!(out.used && !fx.has("bleeding"));
         assert_eq!(h.current, 40.0 + kit.heals);
         assert!(out.message.contains("Bleeding"), "{}", out.message);
         let mut well = Health::default();
-        let out = apply(kit, &mut well, &mut StatusEffects::default(), Some(&reg));
+        let out = apply(kit, &mut well, &mut StatusEffects::default(), Some(&reg), &wounds);
         assert_eq!(out, Outcome { used: false, message: kit.no_help.clone() });
     }
 }

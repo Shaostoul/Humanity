@@ -151,6 +151,9 @@ pub const FOOD_ITEM_PROFILES_RON: &str = include_str!("../data/food/item_profile
 /// (BUG-162, 2026-10-05: systems::illness and systems::treatment).
 pub const MEDICAL_ILLNESSES_RON: &str = include_str!("../data/medical/illnesses.ron");
 pub const MEDICAL_TREATMENTS_RON: &str = include_str!("../data/medical/treatments.ron");
+/// What a bite or a burn leaves and how a body heals (first-hour audit S8, 2026-10-12:
+/// systems::wounds).
+pub const MEDICAL_WOUNDS_RON: &str = include_str!("../data/medical/wounds.ron");
 pub const MACHINES_HOME_RON: &str = include_str!("../data/machines/home.ron");
 pub const MACHINES_HOME_SOLO_RON: &str = include_str!("../data/machines/home_solo.ron");
 /// The ship's own machines (the Commons), merged into a home file that names them (increment 1a).
@@ -410,6 +413,7 @@ pub fn get_embedded(path: &str) -> Option<&'static str> {
         "food/item_profiles.ron" => Some(FOOD_ITEM_PROFILES_RON),
         "medical/illnesses.ron" => Some(MEDICAL_ILLNESSES_RON),
         "medical/treatments.ron" => Some(MEDICAL_TREATMENTS_RON),
+        "medical/wounds.ron" => Some(MEDICAL_WOUNDS_RON),
         "machines/home.ron" => Some(MACHINES_HOME_RON),
         "machines/home_solo.ron" => Some(MACHINES_HOME_SOLO_RON),
         "machines/ship.ron" => Some(MACHINES_SHIP_RON),
@@ -650,6 +654,7 @@ pub const EMBEDDED_KEYS: &[&str] = &[
     "food/item_profiles.ron",
     "medical/illnesses.ron",
     "medical/treatments.ron",
+    "medical/wounds.ron",
     "machines/home.ron",
     "machines/home_solo.ron",
     "machines/ship.ron",

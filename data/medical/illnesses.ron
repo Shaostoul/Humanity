@@ -91,6 +91,8 @@
             // What the player is told then. The game adds how long it still
             // lasts ("It still passes on its own in about 2 hours.").
             again: "You are already ill with Food Poisoning, so this does not start it over.",
+            // A few words for the HUD row after the illness's name (2026-10-12).
+            hud: "drink while it lasts",
         ),
     ],
 

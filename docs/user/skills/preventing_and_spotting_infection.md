@@ -475,29 +475,27 @@ looking every day, and acting early.
 
 ## How the game models it
 
-The game has no infections. Its data describes them, but nothing in the
-game gives one to you.
+The game has one infection: a wound gone bad. Since 12 October 2026 it
+happens to you.
 
-- **A catalogue that is not in play.** The game's medical data describes
-  a Deep Laceration that becomes an infected wound if it is not treated,
-  a Puncture Wound that leads to a Bacterial Infection, and a Bacterial
-  Infection that leads to Sepsis, with treatments such as bandaging and
-  a course of medicine (`data/medical.ron`). The system that would apply
-  it (`src/systems/medical.rs`) is not registered with the game, and the
-  Infected Wound, Infection and Plague conditions in
-  `data/status_effects.csv` are not applied by anything either.
-- **Medical items treat little yet.** The item list includes Bandage,
-  Antiseptic, Painkillers, Antibiotics and Medkit (`data/items.csv`), and
-  each has a Use button in the Inventory. Antibiotics end every condition
-  the game marks as caused by bacteria (the `bacterial` tag in
-  `data/status_effects.csv`), which is three of them: Infected Wound,
-  Infection and Plague. They end nothing else. Since nothing gives you
-  any of the three, using them keeps them in your pack and says why, and
-  they do not touch the game's Food Poisoning, which carries no such tag.
-  A Bandage or a Medkit puts back health and would stop Bleeding, which
-  nothing gives you either, and Antiseptic does nothing on its own: it
-  goes into a Medkit (`data/medical/treatments.ron`,
-  `src/systems/treatment.rs`, `src/gui/pages/inventory.rs`).
+- **A wound can go bad.** A creature's bite leaves a Bite Wound, and a
+  fire a blistered or deep burn, and each of those can turn into an
+  Infected Wound a day or two in. Left uncleaned and uncovered it is
+  more likely: about 1 in 6 for a bite, the rate a review of dog and cat
+  bites gives for bites not treated, against about 1 in 16 cleaned and
+  cared for. A Bandage, a Medkit or Antiseptic cleans and covers your
+  wounds; a wound you get afterwards needs the same, and the game says so
+  (`data/medical/wounds.ron`, `src/systems/wounds.rs`). The Infection and
+  Plague conditions in `data/status_effects.csv` are given to nobody yet.
+- **An Infected Wound** takes your health slowly over days and stops you
+  healing until Antibiotics end it; in the Realistic mode, left alone, it
+  can kill. Antibiotics end every condition the game marks as caused by
+  bacteria (the `bacterial` tag in `data/status_effects.csv`): Infected
+  Wound, Infection and Plague, and nothing else, so they do not touch the
+  game's Food Poisoning, which carries no such tag. Used with nothing to
+  treat, they stay in your pack and the game says why
+  (`data/medical/treatments.ron`, `src/systems/treatment.rs`,
+  `src/gui/pages/inventory.rs`).
 - **Antibiotics are bought, not brewed.** No recipe makes them: the
   trading post sells them (`data/trade_goods.ron`), and the Full Medkit
   recipe, which packs three, takes bought ones (`data/recipes.csv`). Until
@@ -506,10 +504,12 @@ game gives one to you.
   because nothing made that way is an antibiotic. Real antibiotics come
   from a pharmacy, on a prescription, and the CDC's rule is to take them
   only when needed and exactly as prescribed.
-- **Healing is instant.** The First Aid ability puts 35 health back at
-  once ([First Aid Until Help Arrives](first_aid_until_help_arrives.md)
-  has the detail), and the one illness you can catch is Food Poisoning,
-  from food ([The Germs That Matter](the_germs_that_matter.md)).
+- **Healing.** A body that is fed, watered and not being hurt heals by
+  itself, and not at all while a wound is infected. The First Aid
+  ability still puts 35 health back at once ([First Aid Until Help
+  Arrives](first_aid_until_help_arrives.md) has the detail), and the one
+  illness you can catch is Food Poisoning, from food ([The Germs That
+  Matter](the_germs_that_matter.md)).
 - **The Medicine skill rises by crafting.** Crafting a recipe trains the
   skill that recipe names, and the medical recipes name Medicine
   (`src/systems/crafting/mod.rs`). The Profile page's "Dev: max skills"
@@ -517,19 +517,19 @@ game gives one to you.
   play mode (Settings > Gameplay > Play mode), not in Normal, where the
   game starts (`src/gui/pages/profile.rs`).
 
-**The default settings.** No play mode turns infections on: the medical
-system is not running in any of them. Your health and the conditions on
-you are saved with your game, and "Start every session from the default
-home" is off by default, so the next launch brings them back as you left
-them (`src/save_load.rs`).
+**The default settings.** Every play mode has wounds that can go bad.
+Settings > Gameplay > Illness and injury decides how often: Forgiving,
+the default, a quarter as often as Realistic. Your health and the
+conditions on you, wounds and their care included, are saved with your
+game, and "Start every session from the default home" is off by default,
+so the next launch brings them back as you left them (`src/save_load.rs`).
 
-What the game leaves out, so you do not learn it from the game: a wound
-that turns bad over two or three days; the redness, the warmth and the
-fever that tell you; a flu that comes back worse; sepsis; the decision
-to see a doctor, and the one to call 911; and the fact that an antibiotic
-is a prescription: the trading post sells them to anyone. In the game,
-health comes back with a button. In a real body, it comes back because
-someone noticed in time.
+What the game leaves out, so you do not learn it from the game: the
+redness, the warmth and the fever that tell you a wound is turning bad
+(the game simply names it); a flu that comes back worse; sepsis; the
+decision to see a doctor, and the one to call 911; and the fact that an
+antibiotic is a prescription: the trading post sells them to anyone. In a
+real body, an infection is beaten because someone noticed in time.
 
 ## You own this when
 
@@ -692,10 +692,22 @@ were read on 5 October 2026.
   sewage spill advisories, and signing up for them by email or text).
   https://www.kitsappublichealth.org/pic/shellfishsafety
 
+### Peer-reviewed literature (cited, restated in our own words)
+
+- Ellis, R., and Ellis, C. Dog and Cat Bites. *American Family
+  Physician*, volume 90, issue 4, 15 August 2014, pages 239 to 243, read
+  12 October 2026 (an infection rate of 16 percent in untreated patients
+  in a meta-analysis of antibiotic prophylaxis; 5.5 to 7.8 percent for
+  bites whose wounds were cleaned and cared for), the rates the game's
+  bite wound uses.
+  https://www.aafp.org/pubs/afp/issues/2014/0815/p239.html
+
 ### Inside this project
 
-- The medical catalogue and the system that is not registered:
-  `data/medical.ron` and `src/systems/medical.rs`. The Infected Wound,
+- Wounds going bad, cleaning and covering, and healing by itself:
+  `data/medical/wounds.ron`, applied by `src/systems/food.rs` through
+  `src/systems/wounds.rs` (the old catalogue `data/medical.ron` and its
+  never-run system were deleted on 12 October 2026). The Infected Wound,
   Infection and Plague conditions, and the tag that marks them as caused
   by bacteria: `data/status_effects.csv`. The medical items and the Use button:
   `data/items.csv` and `src/gui/pages/inventory.rs`; what each item does:

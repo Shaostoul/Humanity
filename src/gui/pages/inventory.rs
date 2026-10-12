@@ -1674,6 +1674,16 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     }
                 });
             }
+            // Each wound and illness in plain words: how it passes and what
+            // helps (2026-10-12, first-hour audit S8, systems::wounds).
+            for c in &state.vitals.care {
+                let color = match c.severity {
+                    0 => theme.text_secondary(),
+                    1 => theme.warning(),
+                    _ => theme.danger(),
+                };
+                ui.label(RichText::new(format!("{}: {}", c.name, c.line)).size(theme.font_size_small).color(color));
+            }
 
             } // ── end Status ──
 
