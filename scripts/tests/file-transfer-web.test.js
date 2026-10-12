@@ -305,20 +305,37 @@ test("2. the pass's words and JSON and the three notes are the spec's, byte for 
   assert.equal(FT.channelLabelId("file:" + id), id);
   assert.equal(FT.channelLabelId("dm"), null);
 
-  // The shared fixture, when this tree has it (the desktop app's tests read the same one).
-  if (fs.existsSync(FIXTURE)) {
-    const fx = JSON.parse(fs.readFileSync(FIXTURE, "utf8"));
-    const text = fx.text || fx.offer_text || fx.note || fx.offer;
-    if (typeof text === "string") {
-      const parsed = FT.offerNoteParse(text);
-      assert.ok(parsed, "the fixture's offer reads");
-      assert.equal(FT.offerNoteText(parsed), text, "and is written back byte for byte");
-    }
-    const pre = fx.preimage || fx.pass_preimage;
-    if (pre && typeof pre === "object" && pre.words) {
-      assert.equal(FT.filePassPreimage(pre.server, pre.issuer, pre.grantee, pre.id, pre.expiry), pre.words, "the fixture's pass words");
-    }
-  }
+  // The shared fixture, minted by the relay's Rust (scripts/tests/fixtures/file-offer-v1.json; the
+  // desktop app's tests read the same one): the website must agree with it byte for byte, the
+  // pass's words, its signature, the notes and the file's hashes. Until 2026-10-12 this block
+  // looked for field names the fixture does not have, and checked nothing.
+  const fx = JSON.parse(fs.readFileSync(FIXTURE, "utf8"));
+  assert.equal(FT.filePassPreimage(fx.server, fx.issuer, fx.grantee, fx.id, fx.expiry), fx.preimage, "the pass's words, as the relay writes them");
+  const nm = await noble();
+  assert.ok(
+    nm.ml_dsa65.verify(Buffer.from(fx.sig, "base64"), new TextEncoder().encode(fx.preimage), Buffer.from(fx.issuer, "hex")),
+    "the relay's signature verifies here",
+  );
+  assert.deepEqual(FT.filePassParse(fx.pass), FT.filePassParse(JSON.parse(fx.pass_text)), "the pass object and its text agree");
+  const parsedOffer = FT.offerNoteParse(fx.offer_note);
+  assert.ok(parsedOffer, "the fixture's offer reads");
+  assert.equal(FT.offerNoteText(parsedOffer), fx.offer_note, "and is written back byte for byte");
+  assert.equal(FT.answerNoteText(fx.id, true), fx.accept_note, "the yes");
+  assert.equal(FT.answerNoteText(fx.id, false), fx.decline_note, "the no");
+  assert.equal(FT.cancelNoteText(fx.id), fx.cancel_note, "the cancel");
+  // The fixture's file is defined by a rule (byte i is i mod 251); its hashes, as the web makes them.
+  const fileU8 = new Uint8Array(fx.file.size);
+  for (let i = 0; i < fileU8.length; i++) fileU8[i] = i % 251;
+  const B3 = require(path.join(WEB, "shared", "blake3.js"));
+  const got = await FT.hashFile(new Blob([fileU8]), { blake3: B3 });
+  assert.equal(got.pieces, fx.file.pieces, "the piece count");
+  assert.deepEqual(
+    Array.from({ length: got.pieces }, (_, i) => hex(got.pieceHashes.subarray(i * 32, i * 32 + 32))),
+    fx.file.piece_hashes,
+    "each piece's hash",
+  );
+  assert.equal(got.hashes, fx.file.hashes, "the hash of the piece hashes");
+  assert.equal(got.blake3, parsedOffer.blake3, "the whole file's hash, as in the offer");
 
   // A real signature over the words: it verifies for this transfer and these two, and nothing else.
   const m = await noble();
