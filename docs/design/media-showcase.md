@@ -2426,7 +2426,15 @@ never takes a button from under the pointer), and each button's hint says what i
   cannot tell them apart.
 - The browser's own storage limit is the only size limit (Firefox and Safari allow less than
   Chromium). Since 2026-10-12 a piece the storage refuses ends the transfer with words and tells the
-  sender (rule 8).
+  sender (rule 8), and a piece counts as kept only once the browser has COMMITTED its write
+  (`ftIdb` waits for the transaction's complete event): a full disk is often reported at the
+  commit, after the request itself succeeded, and such a transfer used to run to the end and fail
+  as "does not match its description" (the review of 2026-10-12; test 21).
+- A dial for an offer this page already ended (cancelled here, or failed) is not answered, but its
+  cancel note is said again, once in the page's life: a receiver who never got the first one would
+  otherwise keep dialling for that transfer, and its other files with this sender would wait
+  behind the dial (the review of 2026-10-12; test 20). A note that could not go is saved with the
+  record, so it survives the page closing and goes when the socket is back.
 - Rule 8's judging of a closed sending channel rests on two things a real browser does that only
   the stand-ins have shown here: a closing page's connection stops reading connected within the
   15-second wait (its ICE checks go unanswered; how fast a browser says "disconnected" was not
