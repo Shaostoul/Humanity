@@ -2730,12 +2730,12 @@ pub async fn handle_game_join(
                     "chat_unaffected": true,
                     "message": "You are banned from the game world. Chat is unaffected.",
                 })).await;
-                tracing::info!("Game-join denied for banned key {} (chat unaffected)", my_key);
+                tracing::info!("Game-join denied for banned key {} (chat unaffected)", crate::relay::handlers::federation::key_in_log(my_key));
                 return;
             }
             Ok(None) => {}
             Err(e) => {
-                tracing::error!("is_game_banned failed for {}: {} -- denying join (fail closed)", my_key, e);
+                tracing::error!("is_game_banned failed for {}: {} -- denying join (fail closed)", crate::relay::handlers::federation::key_in_log(my_key), e);
                 send_game_private(state, my_key, &serde_json::json!({
                     "type": "game_join_denied",
                     "reason": "server error",
@@ -2782,7 +2782,7 @@ pub async fn handle_game_join(
                     my_key
                 );
             }
-            tracing::info!("Game: rejoin for {} -- resyncing entity {}", my_key, id);
+            tracing::info!("Game: rejoin for {} -- resyncing entity {}", crate::relay::handlers::federation::key_in_log(my_key), id);
             (id, true)
         }
         None => {
@@ -3015,7 +3015,7 @@ pub async fn handle_game_ban(state: &Arc<RelayState>, my_key: &str, raw: &serde_
         })).await;
         return;
     }
-    tracing::info!("Game-ban issued by {} against {} (reason: {})", my_key, target, reason);
+    tracing::info!("Game-ban issued by {} against {} (reason: {})", crate::relay::handlers::federation::key_in_log(my_key), crate::relay::handlers::federation::key_in_log(&target), reason);
     // Evict from the live world only: despawn now and broadcast
     // game_player_left, and do NOT close the chat socket. Not
     // handle_game_disconnect (2026-10-03): with a reconnect grace above zero
@@ -3043,7 +3043,7 @@ pub async fn handle_game_unban(state: &Arc<RelayState>, my_key: &str, raw: &serd
     if let Err(e) = state.db.game_unban(&target, None) {
         tracing::error!("game_unban({}) failed: {}", target, e);
     } else {
-        tracing::info!("Game-unban issued by {} for {}", my_key, target);
+        tracing::info!("Game-unban issued by {} for {}", crate::relay::handlers::federation::key_in_log(my_key), crate::relay::handlers::federation::key_in_log(&target));
     }
     handle_game_banned_list(state, my_key).await;
 }

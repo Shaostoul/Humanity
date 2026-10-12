@@ -1166,7 +1166,7 @@ impl GameWorld {
                 }
                 Ok(id) => id,
                 Err(e) => {
-                    tracing::warn!("Game: could not claim a plot for {owner_key}: {e}; joining as a guest");
+                    tracing::warn!("Game: could not claim a plot for {}: {e}; joining as a guest", crate::relay::handlers::federation::key_in_log(&owner_key));
                     None
                 }
             }
@@ -1722,7 +1722,7 @@ impl GameWorld {
                                 xp,
                                 rep,
                             ) {
-                                tracing::warn!("Could not persist ghost progress for {owner}: {e}");
+                                tracing::warn!("Could not persist ghost progress for {}: {e}", crate::relay::handlers::federation::key_in_log(&owner));
                             }
                         }
                     }

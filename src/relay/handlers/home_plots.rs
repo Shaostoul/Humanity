@@ -59,7 +59,7 @@ pub async fn refused_join(state: &Arc<RelayState>, my_key: &str, join: &JoinHome
         JoinRefusal::NoShip => ("no_ship", crate::ship::ship_structure::NO_SHIP_SENTENCE),
         JoinRefusal::NoShipNamed => ("no_ship_named", crate::ship::ship_structure::OWN_SHIP_SENTENCE),
     };
-    tracing::info!("Game: {} join refused ({reason}, theirs {:?}); nothing spawned", my_key, join.ship_hash);
+    tracing::info!("Game: {} join refused ({reason}, theirs {:?}); nothing spawned", crate::relay::handlers::federation::key_in_log(my_key), join.ship_hash);
     if present {
         despawn_player_now(state, my_key).await;
     }
@@ -179,10 +179,11 @@ pub async fn give_up_plot_if_asked(state: &Arc<RelayState>, player_key: &str, ra
     match world.release_home(&state.db, player_key) {
         Ok(Some(plot)) => {
             take_down_plot(state, &mut world, &state.db, &plot);
-            tracing::info!("Game: {} gave up plot {} (their home does not fit it)", player_key, plot);
+            // No key beside a plot id: the log would say who lives where (increment 6 plan 3.11).
+            tracing::info!("Game: a player gave up plot {} (their home does not fit it)", plot);
         }
         Ok(None) => {}
-        Err(e) => tracing::warn!("Game: could not give back {}'s plot: {e}", player_key),
+        Err(e) => tracing::warn!("Game: could not give back {}'s plot: {e}", crate::relay::handlers::federation::key_in_log(player_key)),
     }
 }
 
