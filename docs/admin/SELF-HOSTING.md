@@ -248,12 +248,21 @@ ship in the repo under `web/home/`:
   two front doors, one platform.
 
 ```bash
-# pick a flavor
-sudo cp /var/www/humanity/home/technical.html /var/www/humanity-site/index.html
-# or write your own; /shared/theme.css and /shared/shell.js keep working,
-# so a custom page inherits the site nav and theme. Extra assets go in
-# /var/www/humanity-site/site/ and are served under /site/.
+# pick a flavor, LINKED so it follows every update (the release refreshes
+# /var/www/humanity/home/, and the link always shows the current page):
+sudo ln -sfn /var/www/humanity/home/technical.html /var/www/humanity-site/index.html
+# or write your own page as a plain file there; /shared/theme.css and
+# /shared/shell.js keep working, so a custom page inherits the site nav and
+# theme. Extra assets go in /var/www/humanity-site/site/ and are served under /site/.
 ```
+
+**Link, do not copy, a stock flavor.** A copy is frozen at the day it was made:
+deploys never touch `/var/www/humanity-site/`, which is what keeps a custom page
+safe, so a copied flavor never gets the release's fixes. public.guide ran an
+August 15 copy of `technical.html` until 2026-10-12, still saying "seed phrase"
+and "no accounts" two months after the page itself was corrected. nginx follows
+the link by default. There is no in-app control for the front page yet: it is
+logged in `docs/design/in-app-ops.md`.
 
 Nodes provisioned before this seam existed need the updated nginx config once:
 copy `scripts/nginx/humanity.conf` over `/etc/nginx/sites-available/humanity`,
