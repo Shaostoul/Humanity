@@ -207,7 +207,14 @@ itself, so shaping the starting home keeps working. Revisit at launch.
   in the air when the time runs out is left in the air. The asteroids, the
   drone with its cargo, and the standing order are saved now: all three were
   rebuilt fresh at every launch, which refilled every asteroid and lost the
-  ore in a flying drone's hold.
+  ore in a flying drone's hold. Since 2026-10-12 (first-hour audit S5) the
+  drone has running costs, and the time away pays them too: each trip needs
+  a full charge of its battery (4.3 kWh, data/mining/drone.ron), which its
+  dock charges at its 3 kW but no faster than the power the home could spare
+  (the ship's reactor where the home is tied to it, else the home's own day
+  surplus); what the dock took is taken off the spare power the machines get
+  afterwards. Each trip wears it, and one due for its service stays docked.
+  Its charge and wear are saved (`WorldSave::mining_drone`).
 - **Livestock** (`livestock::timers_after_away`). Each homestead animal's
   yield timer (egg, milk, wool) is saved by its herd slot ("chicken#0") and
   moves on by the time away, to ONE yield waiting: the same cap as a player
