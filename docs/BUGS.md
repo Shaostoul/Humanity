@@ -5723,7 +5723,7 @@ opened at once (a DM's pictures open together) could interleave, and the first o
 second's fresh copy for a leftover; keeping, trimming and clearing now wait for each other on the
 page (`web/shared/kept-files.js`).
 
-## BUG-200: "Accept files from" can flip when one person uses two servers (OPEN, found 2026-10-11)
+## BUG-200: "Accept files from" can flip when one person uses two servers (website FIXED, desktop OPEN; found 2026-10-11)
 
 Older than the profile fixes (the HTTP version did the same); found by the second review of
 BUG-196. The choice is one setting per device but is published in the person's profile on each
@@ -5740,3 +5740,28 @@ said "anyone" while the server held the default "friends" (no profile row there 
 waited and nothing was sent), and the sender's app, going by the server, refused to offer a
 device-to-device file. Choosing the setting again published it. The fix above covers it: a
 server with no profile for the person, or a different word, gets the device's own choice.
+
+**Website, fixed 2026-10-11.** The browser now keeps, for each server, the word it last saw that
+server hold (`hos_files_accept_seen`, a map keyed by the server's did:hum, or its address when the
+server gives none) and whether the person has ever changed the setting in this browser
+(`hos_files_accept_chosen`; a browser that only took a server's word, or never touched it, has no
+mark). When the server's word arrives (my own complete copy of my profile, the one carrying my
+privacy map; or, when the server holds no profile for me, the channel list with no copy before it,
+which means "friends"): a choice waiting here goes as before and counts as saved on the echo; a
+word changed since this browser last saw that server is another device's choice and is taken
+(never one more open than now while the protected setup is on); otherwise, if the word differs,
+a browser where the person chose sends its own choice there (marked waiting, so it rides the whole
+profile and is confirmed by the echo) and one where they never chose takes the server's word. The
+word is remembered once settled (the echo, a take, or already the same); one the protected setup
+refuses is not remembered, so it never becomes a reason to send over it. The rule is
+`acceptServerStep` in `web/shared/files-in-messages.js`; `web/chat/chat-profile.js`
+(`filesAcceptHeard`, `ownProfileSettled`, `ownProfileArrived`, `filesAcceptChanged`) applies it.
+The public copy of a save of mine (no privacy map) no longer counts as hearing my profile. A web
+page talks only to the relay at its own address, and a browser keeps a separate store for each
+address, so on the website a second server is mostly the same address with a new database (a new
+did:hum) or a test relay; keying by did:hum covers both. Tests:
+the BUG-200 section of `scripts/tests/private-files-web.test.js`, each seen red against a break
+(listed at the file's end). A browser that chose before this change carries no mark, so it counts
+as never having chosen until the setting is changed once (no compatibility shim, by the
+pre-launch rule). The desktop app's half is still open: `src/net/files_policy.rs` (the rule) and
+`src/gui/pages/files_settings.rs` (applying it) follow the old one.

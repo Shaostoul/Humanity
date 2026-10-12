@@ -49,6 +49,10 @@
 //     /command's rows are private rows; a Pin, reaction, edit or delete there never reaches the
 //     socket; a reply made there is kept on the note as a quote and the reply bar clears; its
 //     header, channel description and row tooltip say where a note and a file are kept.
+// 11. BUG-200, "Accept files from" on more than one server: a choice made here goes to a server
+//     that never got it (one holding no profile for me included); a word changed on a server since
+//     this device last saw it is taken; a device that never chose takes each server's word; two
+//     servers holding different words never flip it; the protected setup never takes a more open one.
 //
 // Red first: see the end of this file for each deliberate break and the assertion it tripped.
 
@@ -2317,3 +2321,246 @@ test("files: a private file opened is kept here, encrypted, and opens after a re
 // both hung on the step before they were changed. A group still refuses the file with the limit's
 // words. Seen red 2026-10-11 with chat-messages.js showAttachStep not drawing the direct lines: both
 // tests, "offered device to device" and "with no private limit said, 6 MB holds".
+
+// ── "Accept files from" on more than one server (BUG-200, 2026-10-11) ──
+// The choice is one per device, the word is in my profile on each server, and senders' apps go by
+// the server's word. A server that never got this device's choice (a new one, or one holding no
+// profile for me, whose word is "friends") used to turn the setting back, and two servers holding
+// different words flipped it at every switch. Now this device remembers the word it last saw each
+// server hold, and whether the person chose here: a word changed since then is another device's
+// choice (taken); otherwise a device that chose sends its choice there, and one that never did takes
+// the server's word. Each server here is a fresh socket and that server's identify_challenge.
+
+const SERVER_A = "did:hum:7aQf2RtsServerAlpha";
+const SERVER_B = "did:hum:9bWx4KmpServerBravo";
+const SERVER_C = "did:hum:3cZr8LqnServerCharlie";
+/** The word this device last saw each server hold. */
+const seenWords = (page) => JSON.parse(page.ctx.localStorage.getItem(FIM.ACCEPT_SEEN_KEY) || "{}");
+/** This device's "Accept files from". */
+const acceptHere = (page) => FIM.readSettings(page.ctx.localStorage).accept;
+/** My own complete copy of my profile, as the relay sends it (on connect, and the echo of any save of mine). */
+const ownCopy = (word) => ({ type: "profile_data", name: "Ann", bio: "Gardener", socials: "{}", privacy: "{}", accepts_files: word });
+
+/**
+ * Connect again, to the server whose did:hum is `did` (null: one that gives none), on a new socket
+ * as app.js makes one. `word`: the accepts_files on my own copy there, which the relay sends before
+ * the channel list; null for a server holding no profile for me (no copy, only the channel list).
+ * The page's 30-second profile limit is taken as over (time passes between servers). Returns that
+ * socket's profile updates.
+ */
+async function connectTo(page, did, word) {
+  page.fn("ws").readyState = 3;
+  page.set("() => { lastProfileUpdateSent = 0; }");
+  page.fn("openSocket")();
+  const sock = page.fn("ws");
+  assert.notEqual(sock, page.sock, "test setup: a new socket");
+  await page.handle(did ? { type: "identify_challenge", nonce: "cd", server_did: did } : { type: "identify_challenge", nonce: "cd" });
+  if (word !== null) await page.handle(ownCopy(word));
+  await page.handle({ type: "channel_list", channels: [] });
+  return () => sock.sent.filter((m) => m.type === "profile_update");
+}
+
+/** Choose "Accept files from" in Safety, as the person does. */
+async function chooseAccept(page, word) {
+  const s = filesSection(page);
+  s.accept.value = word;
+  s.accept.onchange();
+  await settle();
+}
+
+test("BUG-200: what a server's word means, step by step (acceptServerStep)", () => {
+  const step = (o) => FIM.acceptServerStep(Object.assign({ mine: "anyone", waiting: false, chosen: false, seen: null, protectedOn: false }, o));
+  // A choice waiting here goes, and counts as saved once the server's copy carries it.
+  assert.equal(step({ word: "friends", waiting: true, chosen: true }), "waits");
+  assert.equal(step({ word: "anyone", waiting: true, chosen: true }), "saved");
+  // The server holds what this device has.
+  assert.equal(step({ word: "anyone", chosen: true, seen: "friends" }), "same");
+  // Changed there since this device last saw it: another device's choice, taken by a device that chose too.
+  assert.equal(step({ word: "nobody", seen: "friends", chosen: true }), "take");
+  // Never seen there, or still what this device last saw: a device that chose sends its choice...
+  assert.equal(step({ word: "friends", chosen: true }), "publish");
+  assert.equal(step({ word: "friends", seen: "friends", chosen: true }), "publish");
+  // ...and one that never chose takes the server's word.
+  assert.equal(step({ word: "friends" }), "take");
+  assert.equal(step({ word: "friends", seen: "friends" }), "take");
+  // The protected setup never takes a word more open than this device's; a closed one it takes.
+  assert.equal(step({ mine: "friends", word: "anyone", protectedOn: true }), "keep");
+  assert.equal(step({ mine: "friends", word: "anyone", seen: "friends", chosen: true, protectedOn: true }), "keep");
+  assert.equal(step({ mine: "friends", word: "nobody", seen: "friends", chosen: true, protectedOn: true }), "take");
+  assert.equal(step({ mine: "friends", word: "anyone", chosen: true, protectedOn: true }), "publish", "sending its own choice is not taking one");
+  // A relay from before the field, or a word that is not one of the three: nothing.
+  assert.equal(step({ word: undefined }), "none");
+  assert.equal(step({ word: "everyone", chosen: true }), "none");
+});
+
+test("BUG-200: a device that chose Anyone sends it to a server holding no profile for me, and to one holding a word it never saw", async () => {
+  const fx = await fixture();
+  const page = await loadChat(fx.ann);
+  await page.handle(ownCopy("friends"));
+  await page.handle({ type: "channel_list", channels: [] });
+  await chooseAccept(page, "anyone");
+  await page.handle(ownCopy("anyone"));
+  assert.equal(acceptHere(page), "anyone", "test setup: chosen here");
+
+  // A new server with no profile for me: the relay sends no copy, only the channel list, and a
+  // sender there is told "friends" (BUG-200's second sighting).
+  let sent = await connectTo(page, SERVER_A, null);
+  assert.equal(acceptHere(page), "anyone", "the choice made here stands");
+  assert.deepEqual(sent().map((u) => u.accepts_files), ["anyone"], "and is sent to the server holding no profile for me");
+  assert.equal(sent()[0].bio, "Gardener", "with the stored profile, as any choice waiting here goes");
+  assert.equal(seenWords(page)[SERVER_A], undefined, "not remembered before the server's copy carries it");
+  await page.handle(ownCopy("anyone"));
+  assert.equal(seenWords(page)[SERVER_A], "anyone", "remembered once it does");
+  sent = await connectTo(page, SERVER_A, "anyone");
+  assert.equal(sent().length, 0, "and nothing goes there again");
+
+  // A server holding another word, never seen by this device: it never got the choice either.
+  sent = await connectTo(page, SERVER_B, "nobody");
+  assert.equal(acceptHere(page), "anyone", "that server's word does not turn the choice back");
+  assert.deepEqual(sent().map((u) => u.accepts_files), ["anyone"], "the choice is sent there");
+});
+
+test("BUG-200: a device that never chose takes each server's word; changing only Show pictures is not a choice", async () => {
+  const fx = await fixture();
+  const page = await loadChat(fx.ann);
+  const s = filesSection(page);
+  s.pictures.value = "nobody";
+  s.pictures.onchange();
+  await settle();
+
+  let sent = await connectTo(page, SERVER_A, "nobody");
+  assert.equal(acceptHere(page), "nobody", "the server's word is taken");
+  assert.equal(sent().length, 0, "nothing is sent over it");
+  assert.equal(FIM.readSettings(page.ctx.localStorage).pictures, "nobody", "the other settings stay");
+
+  // A server holding no profile for me: its word is the default, taken too.
+  sent = await connectTo(page, SERVER_B, null);
+  assert.equal(acceptHere(page), "friends", "a server with no profile for me: its default is taken");
+  assert.equal(sent().length, 0, "nothing sent");
+
+  // A server that gives no did:hum is remembered by its address.
+  sent = await connectTo(page, null, "anyone");
+  assert.equal(acceptHere(page), "anyone");
+  // Each word taken is remembered for its server; one that gives no did:hum, by its address.
+  assert.deepEqual(seenWords(page), { [SERVER_A]: "nobody", [SERVER_B]: "friends", localhost: "anyone" }, "one entry a server");
+});
+
+test("BUG-200: on a server where this device last saw Friends, Nobody there now is another device's choice: taken, not sent over", async () => {
+  const fx = await fixture();
+  const page = await loadChat(fx.ann);
+  await page.handle(ownCopy("anyone"));
+  await page.handle({ type: "channel_list", channels: [] });
+  await chooseAccept(page, "friends");
+  const updates = () => page.sock.sent.filter((m) => m.type === "profile_update");
+  assert.deepEqual(updates().map((u) => u.accepts_files), ["friends"], "test setup: the choice made here goes");
+  await page.handle(ownCopy("friends"));
+
+  // Another device of mine chose Nobody on this server: my own copy of its save comes.
+  await page.handle(ownCopy("nobody"));
+  assert.equal(acceptHere(page), "nobody", "another device's choice is taken");
+  assert.equal(updates().length, 1, "and this device's older choice is not sent over it");
+
+  // Changed again there while this device was away: taken on the next connect.
+  const sent = await connectTo(page, SERVER, "anyone");
+  assert.equal(acceptHere(page), "anyone", "taken on the next connect too");
+  assert.equal(sent().length, 0, "nothing sent");
+  assert.equal(seenWords(page)[SERVER], "anyone", "and remembered");
+});
+
+test("BUG-200: two servers holding different words, each seen before: switching never flips this device's choice, and neither server's word reaches the other", async () => {
+  const fx = await fixture();
+  const page = await loadChat(fx.ann);
+  // Before any choice here: A held Friends and B Nobody, each seen (and taken) by this device.
+  await connectTo(page, SERVER_A, "friends");
+  await connectTo(page, SERVER_B, "nobody");
+  assert.equal(acceptHere(page), "nobody", "test setup: B's word taken");
+  // Then the person chose Anyone here, on a third server, which confirmed it.
+  let sent = await connectTo(page, SERVER_C, "nobody");
+  await chooseAccept(page, "anyone");
+  assert.deepEqual(sent().map((u) => u.accepts_files), ["anyone"], "test setup: the choice goes");
+  await page.handle(ownCopy("anyone"));
+
+  // A still holds what this device last saw there: it never got the choice, so the choice goes to it.
+  sent = await connectTo(page, SERVER_A, "friends");
+  assert.equal(acceptHere(page), "anyone", "A's Friends does not turn this device's choice back");
+  assert.deepEqual(sent().map((u) => u.accepts_files), ["anyone"], "this device's choice goes to A");
+  await page.handle(ownCopy("anyone"));
+  sent = await connectTo(page, SERVER_B, "nobody");
+  assert.equal(acceptHere(page), "anyone", "nor does B's Nobody");
+  assert.deepEqual(sent().map((u) => u.accepts_files), ["anyone"], "this device's choice goes to B, never A's word");
+  await page.handle(ownCopy("anyone"));
+
+  // Back and forth again: nothing changes and nothing is sent.
+  for (const did of [SERVER_A, SERVER_B, SERVER_A, SERVER_B]) {
+    sent = await connectTo(page, did, "anyone");
+    assert.equal(acceptHere(page), "anyone", "no flip on " + did);
+    assert.equal(sent().length, 0, "nothing sent on " + did);
+  }
+  // One remembered word a server, each its own.
+  assert.deepEqual([seenWords(page)[SERVER_A], seenWords(page)[SERVER_B], seenWords(page)[SERVER_C]], ["anyone", "anyone", "anyone"], "each server's word remembered");
+});
+
+test("BUG-200: with the protected setup on, a more open word from a server is never taken, on first sight or from another device", async () => {
+  const fx = await fixture();
+  // Never chosen here: a server never seen, saying Anyone.
+  let page = await loadChat(fx.ann);
+  await page.fn("loadProtectedPreset")();
+  await turnOn(page);
+  let sent = await connectTo(page, SERVER_A, "anyone");
+  assert.equal(acceptHere(page), "friends", "a more open word is not taken on first sight");
+  assert.equal(sent().length, 0, "nothing sent");
+  assert.equal(seenWords(page)[SERVER_A], undefined, "nor remembered, so the next copy asks the same question");
+  sent = await connectTo(page, SERVER_A, "anyone");
+  assert.equal(acceptHere(page), "friends", "still not");
+  assert.equal(sent().length, 0, "still nothing sent");
+  sent = await connectTo(page, SERVER_A, "nobody");
+  assert.equal(acceptHere(page), "nobody", "a closed word is taken");
+
+  // Chosen here (Friends, kept), on a server this device last saw at Friends: another device's
+  // Anyone is not taken, and its Nobody is.
+  page = await loadChat(fx.ann, { stored: { [FIM.FILES_SETTINGS_KEY]: JSON.stringify({ accept: "friends" }), [FIM.ACCEPT_CHOSEN_KEY]: "1" } });
+  await page.fn("loadProtectedPreset")();
+  await turnOn(page);
+  sent = await connectTo(page, SERVER_B, "friends");
+  await page.handle(ownCopy("anyone"));
+  assert.equal(acceptHere(page), "friends", "another device's more open choice is not taken");
+  assert.equal(sent().length, 0, "nor is this device's sent over it");
+  await page.handle(ownCopy("nobody"));
+  assert.equal(acceptHere(page), "nobody", "a closed one is");
+});
+
+// ── Red first (BUG-200) ──────────────────────────────────────────────────
+// 2026-10-11: each break made in a copy of web/ and this file run against it with HOS_WEB_DIR,
+// seen failing with the assertion named; every other test in this file passed.
+//  A0 web/ as at ee281056f (the three files before this fix): "a device that chose Anyone ... and is
+//     sent to the server holding no profile for me" (BUG-200's second sighting: nothing went),
+//     "a device that never chose ... a server with no profile for me: its default is taken",
+//     "two servers ... A's Friends does not turn this device's choice back" (the flip), "on a server
+//     where this device last saw Friends ... and remembered" (that case it already got right; it
+//     kept no record), and the step table (no acceptServerStep). The protected setup's test passed:
+//     that rule is older than this fix.
+//  A1 chat-profile.js, ownProfileSettled without the server's default word: "a device that chose
+//     Anyone ... and is sent to the server holding no profile for me", "a device that never chose
+//     ... a server with no profile for me: its default is taken".
+//  A2 files-in-messages.js, acceptServerStep taking the word for a device that chose too: the step
+//     table ('take' for 'publish'), "a device that chose Anyone ... the choice made here stands",
+//     "two servers ... A's Friends does not turn this device's choice back".
+//  A3 files-in-messages.js, acceptServerStep not consulting the word seen: the step table, "on a
+//     server where this device last saw Friends ... another device's choice is taken", the protected
+//     setup's "nor is this device's sent over it", and the older "files: Safety shows ... a choice
+//     made on another device is taken here".
+//  A4 chat-profile.js, filesAcceptChanged not marking the choice as made here: "a device that chose
+//     Anyone ... the choice made here stands", "two servers ... A's Friends does not turn this
+//     device's choice back".
+//  A5 files-in-messages.js, acceptChosen true whenever any Files in messages setting is kept: "a
+//     device that never chose ... the server's word is taken" (a Show pictures change counted).
+//  A6 files-in-messages.js, no protected setup check: the step table ('take' for 'keep'), "with the
+//     protected setup on ... a more open word is not taken on first sight".
+//  A7 files-in-messages.js, acceptSeen ignoring which server (one word for all): "a device that
+//     chose Anyone ... the choice made here stands", "two servers ... A's Friends does not turn this
+//     device's choice back".
+//  A8 chat-profile.js, the word remembered as soon as a publish is decided: "a device that chose
+//     Anyone ... not remembered before the server's copy carries it".
+// Not covered by a test: ownProfileArrived's direct push for a choice that starts waiting after the
+// socket's one push has gone (only reachable when a copy repeats a word this device already saw
+// there after one it would not take, under the protected setup).
