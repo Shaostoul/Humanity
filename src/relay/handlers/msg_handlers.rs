@@ -985,10 +985,12 @@ pub async fn handle_webrtc_signal(
     signal_type: String,
     data: serde_json::Value,
     friend_cert: Option<String>,
+    file_pass: Option<serde_json::Value>,
 ) {
     // Who can reach me (handlers/reach.rs): a direct-connection offer only from someone the target
-    // knows, and a call's signals only within a call that was let through. Refusals are silent.
-    if !reach::signal_may_pass(state, my_key, &to, &signal_type, friend_cert.as_deref()).await {
+    // knows (or holding their file pass for one transfer), and a call's signals only within a
+    // call that was let through. Refusals are silent.
+    if !reach::signal_may_pass(state, my_key, &to, &signal_type, friend_cert.as_deref(), file_pass.as_ref()).await {
         return;
     }
     let target_connected = state.peers.read().await.contains_key(&to);
@@ -1003,12 +1005,14 @@ pub async fn handle_webrtc_signal(
             let _ = state.broadcast_tx.send(private);
         }
     } else {
+        // Neither pass is forwarded: the target issued both and has no use for their echo.
         let msg = RelayMessage::WebrtcSignal {
             from: my_key.to_string(),
             to,
             signal_type,
             data,
             friend_cert: None,
+            file_pass: None,
         };
         let _ = state.broadcast_tx.send(msg);
     }

@@ -21,7 +21,9 @@
 //! - `dc_offer` (a direct connection, which hands over a network address): only from someone
 //!   holding a valid pass from the target, sharing a P2P group with them or in the same voice
 //!   room, or from the target's own key (their other devices) ([`dc_offer_may_pass`]). This
-//!   backs up the clients' own gate (BUG-171, BUG-173).
+//!   backs up the clients' own gate (BUG-171, BUG-173). For one big file sent device to device,
+//!   also from someone holding the target's FILE PASS for it (pq_crypto `verify_file_pass`,
+//!   [`file_pass_of`]; docs/design/media-showcase.md, device-to-device big files).
 //!
 //! What a refused sender learns: a refused message or trade request gets
 //! `{"type":"reach_refused","kind":"message"|"trade","to":"<target key>"}`, the same for
@@ -69,7 +71,7 @@ use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
 
-use crate::relay::core::pq_crypto::FriendPass;
+use crate::relay::core::pq_crypto::{verify_file_pass, FilePass, FriendPass};
 use crate::relay::handlers::friend_passes::friend_pass;
 use crate::relay::relay::{RelayMessage, RelayState};
 
@@ -549,14 +551,22 @@ pub fn call_is_open(state: &RelayState, a: &str, b: &str) -> bool {
 }
 
 /// May this `webrtc_signal` from `sender` to `to` go on? A `dc_offer` meets
-/// [`dc_offer_may_pass`]. Its answer and candidates (`dc_answer`, `dc_ice`) go through as they
-/// always have: they answer an offer, and one to an offer that was never let through finds no
-/// connection to join. Every other kind is a call's (`offer`, `answer`, `ice`) and goes through
-/// within an open call, or else when the recipient's `call` audience lets the sender in.
-/// Refusals are silent.
-pub async fn signal_may_pass(state: &Arc<RelayState>, sender: &str, to: &str, signal_type: &str, cert: Option<&str>) -> bool {
+/// [`dc_offer_may_pass`], with the friendship pass `cert` and the file pass `file_pass` it
+/// carries. Its answer and candidates (`dc_answer`, `dc_ice`) go through as they always have:
+/// they answer an offer, and one to an offer that was never let through finds no connection to
+/// join. Every other kind is a call's (`offer`, `answer`, `ice`) and goes through within an open
+/// call, or else when the recipient's `call` audience lets the sender in (a file pass opens no
+/// call). Refusals are silent.
+pub async fn signal_may_pass(
+    state: &Arc<RelayState>,
+    sender: &str,
+    to: &str,
+    signal_type: &str,
+    cert: Option<&str>,
+    file_pass: Option<&serde_json::Value>,
+) -> bool {
     match signal_type {
-        "dc_offer" => dc_offer_may_pass(state, sender, to, cert).await,
+        "dc_offer" => dc_offer_may_pass(state, sender, to, cert, file_pass).await,
         "dc_answer" | "dc_ice" => true,
         _ => state.reach.in_call(sender, to) || allowed(state, to, sender, Kind::Call, friend_pass(state, to, sender, cert).as_ref()),
     }
@@ -564,12 +574,37 @@ pub async fn signal_may_pass(state: &Arc<RelayState>, sender: &str, to: &str, si
 
 /// May `sender` offer `to` a direct connection (which hands over a network address)? Only from
 /// `to`'s own key (their other devices), a holder of a valid pass from `to`, someone sharing a
-/// P2P group with them, or someone in the same voice room (10c).
-pub async fn dc_offer_may_pass(state: &Arc<RelayState>, sender: &str, to: &str, cert: Option<&str>) -> bool {
+/// P2P group with them, or someone in the same voice room (10c); or, for one file, someone `to`
+/// gave a file pass (device-to-device big files, docs/design/media-showcase.md, the shapes part
+/// 2): the pass must check with `to` as its issuer and `sender` as its grantee, so the receiver
+/// of a file dials its sender, the way round in which the relay can check it. The file pass is
+/// not forwarded (handle_webrtc_signal sends the offer on without it).
+pub async fn dc_offer_may_pass(
+    state: &Arc<RelayState>,
+    sender: &str,
+    to: &str,
+    cert: Option<&str>,
+    file_pass: Option<&serde_json::Value>,
+) -> bool {
     sender == to
         || friend_pass(state, to, sender, cert).is_some()
+        || file_pass_of(state, to, sender, file_pass).is_some()
         || share_a_group(state, sender, to)
         || in_same_voice_room(state, sender, to).await
+}
+
+/// The file pass `pass` that `issuer` gave `grantee` on THIS relay, if it checks out now
+/// (pq_crypto `verify_file_pass`): the relay's own server DID and the two keys the caller passes,
+/// its own facts, never the pass's claims. None for no pass, a forged one, one given to or by
+/// someone else or on another server, one run out, and one longer than a week (plus a day of
+/// clock slack). Which transfer it is for is the caller's question (`call_credentials` checks the
+/// id against the file asked about; a `dc_offer` carries no id the relay can see). Stateless:
+/// nothing is stored or withdrawn.
+pub fn file_pass_of(state: &RelayState, issuer: &str, grantee: &str, pass: Option<&serde_json::Value>) -> Option<FilePass> {
+    let pass = pass.filter(|p| !p.is_null())?;
+    let server = state.db.server_did().ok()?;
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs();
+    verify_file_pass(&server, issuer, grantee, pass, now).ok()
 }
 
 /// The longest piece of a refused word repeated back in a notice.

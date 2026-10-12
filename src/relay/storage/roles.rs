@@ -94,6 +94,13 @@ pub struct RoleDef {
     /// no limit, the built-in Admin role's default.
     #[serde(default = "limit_not_sent")]
     pub max_private_held_mb: i64,
+    /// How much this role's holder may send through the server's call forwarder in a day, in MB,
+    /// when a big file goes from one device to another (docs/design/media-showcase.md,
+    /// "Device-to-device big files: the shapes, exact", part 2): counted by the forwarder over the
+    /// UTC day, never stored. 0 means no limit, the built-in Admin role's default; every other
+    /// built-in role starts at 2048. Kept between 0 and [`FORWARDED_MB_PER_DAY_MAX`] when saved.
+    #[serde(default = "limit_not_sent")]
+    pub max_forwarded_mb_per_day: i64,
 }
 
 /// The most `max_media_file_mb` can be: 64 GiB, the resumable upload's sanity ceiling
@@ -107,12 +114,14 @@ pub const UPLOAD_MB_PER_DAY_MAX: i64 = 1_000_000;
 pub const UPLOADS_PER_HOUR_MAX: i64 = 100_000;
 /// The most `max_private_held_mb` can be (a million MB, about a terabyte).
 pub const PRIVATE_HELD_MB_MAX: i64 = 1_000_000;
+/// The most `max_forwarded_mb_per_day` can be (a million MB, about a terabyte).
+pub const FORWARDED_MB_PER_DAY_MAX: i64 = 1_000_000;
 
 impl RoleDef {
     /// The role with its upload limits held to their ranges, as it is saved: the Media file limit
     /// 0 (none) to [`MEDIA_FILE_MB_MAX`], the private file limit 1 to [`PRIVATE_FILE_MB_MAX`]
     /// (never below 1 MB, as `max_upload_mb` is where it is used), and the day's and the hour's
-    /// allowances 0 (none) up to their maximums.
+    /// allowances (the forwarded day's too) 0 (none) up to their maximums.
     pub fn with_limits_in_range(&self) -> RoleDef {
         let mut r = self.clone();
         r.max_media_file_mb = r.max_media_file_mb.clamp(0, MEDIA_FILE_MB_MAX);
@@ -120,12 +129,14 @@ impl RoleDef {
         r.max_upload_mb_per_day = r.max_upload_mb_per_day.clamp(0, UPLOAD_MB_PER_DAY_MAX);
         r.max_uploads_per_hour = r.max_uploads_per_hour.clamp(0, UPLOADS_PER_HOUR_MAX);
         r.max_private_held_mb = r.max_private_held_mb.clamp(0, PRIVATE_HELD_MB_MAX);
+        r.max_forwarded_mb_per_day = r.max_forwarded_mb_per_day.clamp(0, FORWARDED_MB_PER_DAY_MAX);
         r
     }
 }
 
-/// What a role save carries for an upload limit its sender did not send: an app from before
-/// these five limits (v0.1484.0 and older) saves a role without them, and a serde default there
+/// What a role save carries for a limit its sender did not send: an app from before these five
+/// upload limits (v0.1484.0 and older), or from before the forwarded day's
+/// (`max_forwarded_mb_per_day`, v0.1486.0 and older), saves a role without them, and a serde default there
 /// would reset each to a default on every save (Admin's "no limit" to 100 MB a day). The save
 /// keeps the stored value instead (`Storage::upsert_role`); a new role gets the default.
 /// (Persisted-format review before the v0.1485.0 deploy, 2026-10-11.) The smallest i64, a value no
@@ -149,6 +160,9 @@ fn default_max_upload_mb_per_day() -> i64 { 100 }
 fn default_max_uploads_per_hour() -> i64 { 20 }
 // B5: what the Unverified tier may hold in private files at once (five files at the 6 MB limit).
 fn default_max_private_held_mb() -> i64 { 30 }
+// Device-to-device big files: what every built-in role but Admin may send through the call
+// forwarder a day (the shapes, part 2).
+fn default_max_forwarded_mb_per_day() -> i64 { 2048 }
 
 impl Default for RoleDef {
     /// The safe default-deny role (matches the `unverified` seed). Used
@@ -181,6 +195,7 @@ impl Default for RoleDef {
             max_upload_mb_per_day: default_max_upload_mb_per_day(),
             max_uploads_per_hour: default_max_uploads_per_hour(),
             max_private_held_mb: default_max_private_held_mb(),
+            max_forwarded_mb_per_day: default_max_forwarded_mb_per_day(),
         }
     }
 }
@@ -197,7 +212,7 @@ impl Storage {
         self.with_read_conn(|conn| {
             let mut stmt = conn.prepare(
                 "SELECT id,label,color,trust_level,built_in,can_stream,can_upload,can_voice,base_tier,sort_order,can_image_share,can_file_share,max_chars,max_upload_mb,max_uploads_kept,can_edit_ship,
-                        max_media_file_mb,max_private_file_mb,max_upload_mb_per_day,max_uploads_per_hour,max_private_held_mb
+                        max_media_file_mb,max_private_file_mb,max_upload_mb_per_day,max_uploads_per_hour,max_private_held_mb,max_forwarded_mb_per_day
                  FROM roles ORDER BY sort_order ASC, trust_level ASC",
             )?;
             let rows = stmt.query_map([], |r| {
@@ -223,6 +238,7 @@ impl Storage {
                     max_upload_mb_per_day: r.get(18)?,
                     max_uploads_per_hour: r.get(19)?,
                     max_private_held_mb: r.get(20)?,
+                    max_forwarded_mb_per_day: r.get(21)?,
                 })
             })?;
             Ok(rows.filter_map(|x| x.ok()).collect())
@@ -237,7 +253,7 @@ impl Storage {
         let res = self.with_conn(|conn| {
             conn.query_row(
                 "SELECT id,label,color,trust_level,built_in,can_stream,can_upload,can_voice,base_tier,sort_order,can_image_share,can_file_share,max_chars,max_upload_mb,max_uploads_kept,can_edit_ship,
-                        max_media_file_mb,max_private_file_mb,max_upload_mb_per_day,max_uploads_per_hour,max_private_held_mb
+                        max_media_file_mb,max_private_file_mb,max_upload_mb_per_day,max_uploads_per_hour,max_private_held_mb,max_forwarded_mb_per_day
                  FROM roles WHERE id = ?1",
                 params![lookup_id],
                 |r| {
@@ -263,6 +279,7 @@ impl Storage {
                         max_upload_mb_per_day: r.get(18)?,
                         max_uploads_per_hour: r.get(19)?,
                         max_private_held_mb: r.get(20)?,
+                        max_forwarded_mb_per_day: r.get(21)?,
                     })
                 },
             )
@@ -297,23 +314,24 @@ impl Storage {
     /// stored role's value when the role exists, else the default a new role gets.
     fn unsent_limits_kept(&self, r: &RoleDef) -> Result<RoleDef, rusqlite::Error> {
         let mut out = r.clone();
-        let stored: Option<(i64, i64, i64, i64, i64)> = self.with_conn(|conn| {
+        let stored: Option<(i64, i64, i64, i64, i64, i64)> = self.with_conn(|conn| {
             use rusqlite::OptionalExtension;
             conn.query_row(
-                "SELECT max_media_file_mb, max_private_file_mb, max_upload_mb_per_day, max_uploads_per_hour, max_private_held_mb
+                "SELECT max_media_file_mb, max_private_file_mb, max_upload_mb_per_day, max_uploads_per_hour, max_private_held_mb, max_forwarded_mb_per_day
                  FROM roles WHERE id = ?1",
                 params![r.id],
-                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)),
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?)),
             )
             .optional()
         })?;
         let fresh = RoleDef::default();
-        let (media, private, day, hour, held) = stored.unwrap_or((
+        let (media, private, day, hour, held, forwarded) = stored.unwrap_or((
             fresh.max_media_file_mb,
             fresh.max_private_file_mb,
             fresh.max_upload_mb_per_day,
             fresh.max_uploads_per_hour,
             fresh.max_private_held_mb,
+            fresh.max_forwarded_mb_per_day,
         ));
         let keep = |sent: &mut i64, kept: i64| {
             if *sent == LIMIT_NOT_SENT {
@@ -325,6 +343,7 @@ impl Storage {
         keep(&mut out.max_upload_mb_per_day, day);
         keep(&mut out.max_uploads_per_hour, hour);
         keep(&mut out.max_private_held_mb, held);
+        keep(&mut out.max_forwarded_mb_per_day, forwarded);
         Ok(out)
     }
 
@@ -354,8 +373,8 @@ impl Storage {
             conn.execute(
                 "INSERT INTO roles
                    (id,label,color,trust_level,built_in,can_stream,can_upload,can_voice,base_tier,sort_order,can_image_share,can_file_share,max_chars,max_upload_mb,max_uploads_kept,can_edit_ship,
-                    max_media_file_mb,max_private_file_mb,max_upload_mb_per_day,max_uploads_per_hour,max_private_held_mb)
-                 VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21)
+                    max_media_file_mb,max_private_file_mb,max_upload_mb_per_day,max_uploads_per_hour,max_private_held_mb,max_forwarded_mb_per_day)
+                 VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22)
                  ON CONFLICT(id) DO UPDATE SET
                    label=?2, color=?3, trust_level=?4, built_in=?5,
                    can_stream=?6, can_upload=?7, can_voice=?8,
@@ -365,7 +384,8 @@ impl Storage {
                    can_edit_ship=?16,
                    max_media_file_mb=?17, max_private_file_mb=?18,
                    max_upload_mb_per_day=?19, max_uploads_per_hour=?20,
-                   max_private_held_mb=?21",
+                   max_private_held_mb=?21,
+                   max_forwarded_mb_per_day=?22",
                 params![
                     r.id, r.label, r.color, trust, built_in,
                     r.can_stream as i64, r.can_upload as i64, r.can_voice as i64,
@@ -376,6 +396,7 @@ impl Storage {
                     r.max_media_file_mb, r.max_private_file_mb,
                     r.max_upload_mb_per_day, r.max_uploads_per_hour,
                     r.max_private_held_mb,
+                    r.max_forwarded_mb_per_day,
                 ],
             )?;
             Ok(())
@@ -833,6 +854,114 @@ mod tests {
         db.upsert_role(&fresh).unwrap();
         let helper = db.list_roles().unwrap().into_iter().find(|r| r.id == "helper").expect("the new role");
         assert_eq!(limits(&helper), limits(&RoleDef::default()), "a new role saved that way gets the defaults");
+    }
+
+    /// THE FORWARDED DAY ROUND-TRIPS, IS HELD TO ITS RANGE, AND SURVIVES AN OLDER APP'S SAVE
+    /// (device-to-device big files, docs/design/media-showcase.md, the shapes part 2). A fresh
+    /// server seeds Admin 0 (no limit) and every other built-in 2048. A custom role's value is
+    /// read back by `role_def` and `list_roles` (the appended ?22 and get(21)), and changed on the
+    /// ON CONFLICT path; below 0 is held to 0, past the ceiling to the ceiling. An app from before
+    /// the field (v0.1486.0 and older) saves a role without it, and the save keeps the stored
+    /// value (not the serde default, which the range would turn into 0, "no limit"); a new role
+    /// saved that way gets 2048.
+    ///
+    /// Seen red 2026-10-11 with the forwarded day's `keep` left out of `unsent_limits_kept`: "an
+    /// older app's save keeps Verified's forwarded day" (left: 0, right: 300).
+    #[test]
+    fn the_forwarded_day_round_trips_is_held_to_its_range_and_survives_an_older_apps_save() {
+        let db = fresh_db();
+        for r in db.list_roles().unwrap() {
+            assert_eq!(r.max_forwarded_mb_per_day, if r.id == "admin" { 0 } else { 2048 }, "a fresh server's {}", r.id);
+        }
+        let mut r = RoleDef { id: "courier".into(), label: "Courier".into(), built_in: false, base_tier: "verified".into(), ..Default::default() };
+        r.max_forwarded_mb_per_day = 777;
+        db.upsert_role(&r).unwrap();
+        assert_eq!(db.role_def("courier").max_forwarded_mb_per_day, 777, "role_def reads it");
+        assert_eq!(db.list_roles().unwrap().iter().find(|x| x.id == "courier").unwrap().max_forwarded_mb_per_day, 777, "list_roles reads it");
+        r.max_forwarded_mb_per_day = 5;
+        db.upsert_role(&r).unwrap();
+        assert_eq!(db.role_def("courier").max_forwarded_mb_per_day, 5, "changed on the ON CONFLICT path");
+        r.max_forwarded_mb_per_day = -3;
+        db.upsert_role(&r).unwrap();
+        assert_eq!(db.role_def("courier").max_forwarded_mb_per_day, 0, "below the range, held to 0");
+        r.max_forwarded_mb_per_day = i64::MAX;
+        db.upsert_role(&r).unwrap();
+        assert_eq!(db.role_def("courier").max_forwarded_mb_per_day, FORWARDED_MB_PER_DAY_MAX, "past it, held to the ceiling");
+
+        let mut verified = db.role_def("verified");
+        verified.max_forwarded_mb_per_day = 300;
+        db.upsert_role(&verified).unwrap();
+        let mut old = serde_json::to_value(db.role_def("verified")).unwrap();
+        old.as_object_mut().unwrap().remove("max_forwarded_mb_per_day");
+        old["label"] = serde_json::json!("Verified (renamed)");
+        db.upsert_role(&serde_json::from_value(old.clone()).unwrap()).unwrap();
+        let after = db.role_def("verified");
+        assert_eq!(after.label, "Verified (renamed)", "the save itself went through");
+        assert_eq!(after.max_forwarded_mb_per_day, 300, "an older app's save keeps Verified's forwarded day");
+        old["id"] = serde_json::json!("helper");
+        db.upsert_role(&serde_json::from_value(old).unwrap()).unwrap();
+        assert_eq!(db.role_def("helper").max_forwarded_mb_per_day, 2048, "a new role saved that way gets 2048");
+    }
+
+    /// THE FORWARDED DAY, THE UPGRADE PATH (BUG-046): a `roles` table from before it (the
+    /// twenty-one columns up to `max_private_held_mb`) with its rows, reopened by this code, gains
+    /// `max_forwarded_mb_per_day`: Admin 0 (no limit), every other role 2048, a custom role on
+    /// the Verified tier included. An admin's later change survives a restart.
+    ///
+    /// Seen red 2026-10-11 with the guarded ALTER removed: "the upgrade opens:
+    /// SqliteFailure(Error { code: Unknown, extended_code: 1 }, Some(\"table roles has no column
+    /// named max_forwarded_mb_per_day\"))" (the seed names the column).
+    #[test]
+    fn an_existing_roles_table_gains_the_forwarded_limit() {
+        use rusqlite::Connection;
+        let path = crate::test_temp::db("roles_forwarded_limit");
+        drop(Storage::open(&path).expect("fresh open"));
+        {
+            let c = Connection::open(&path).expect("raw open");
+            c.execute_batch(
+                "DROP TABLE roles;
+                 CREATE TABLE roles (
+                    id TEXT PRIMARY KEY, label TEXT NOT NULL, color TEXT NOT NULL,
+                    trust_level INTEGER NOT NULL, built_in INTEGER NOT NULL,
+                    can_stream INTEGER NOT NULL, can_upload INTEGER NOT NULL,
+                    can_voice INTEGER NOT NULL, base_tier TEXT NOT NULL,
+                    sort_order INTEGER NOT NULL DEFAULT 0,
+                    can_image_share INTEGER NOT NULL DEFAULT 1,
+                    can_file_share  INTEGER NOT NULL DEFAULT 1,
+                    max_chars        INTEGER NOT NULL DEFAULT 280,
+                    max_upload_mb    INTEGER NOT NULL DEFAULT 5,
+                    max_uploads_kept INTEGER NOT NULL DEFAULT 4,
+                    can_edit_ship    INTEGER NOT NULL DEFAULT 0,
+                    max_media_file_mb     INTEGER NOT NULL DEFAULT 0,
+                    max_private_file_mb   INTEGER NOT NULL DEFAULT 6,
+                    max_upload_mb_per_day INTEGER NOT NULL DEFAULT 100,
+                    max_uploads_per_hour  INTEGER NOT NULL DEFAULT 20,
+                    max_private_held_mb   INTEGER NOT NULL DEFAULT 30);
+                 INSERT INTO roles VALUES
+                    ('unverified','Unverified','#9E9E9E',0,1,0,0,0,'unverified',0,1,1,280,5,4,0,0,6,100,20,30),
+                    ('verified','Verified','#4FC3F7',1,1,0,1,1,'verified',1,1,1,1000,25,20,0,0,6,1024,60,60),
+                    ('donor','Donor','#FFD54F',2,1,0,1,1,'verified',2,1,1,1000,25,20,0,0,6,1024,60,60),
+                    ('mod','Moderator','#81C784',3,1,1,1,1,'mod',3,1,1,4000,100,100,0,0,6,4096,200,120),
+                    ('admin','Admin','#E57373',4,1,1,1,1,'admin',4,1,1,10000,500,500,1,0,6,0,0,0),
+                    ('family','Family','#7E57C2',1,0,1,1,1,'verified',50,1,1,1000,25,20,0,0,6,1024,60,60);",
+            )
+            .expect("rewind to the shape before the forwarded day");
+        }
+        let db = Storage::open(&path).expect("the upgrade opens");
+        let got: Vec<(String, i64)> = db.list_roles().unwrap().into_iter().map(|r| (r.id, r.max_forwarded_mb_per_day)).collect();
+        let want: Vec<(String, i64)> = [("unverified", 2048), ("verified", 2048), ("donor", 2048), ("mod", 2048), ("admin", 0), ("family", 2048)]
+            .into_iter()
+            .map(|(id, n)| (id.to_string(), n))
+            .collect();
+        assert_eq!(got, want, "every role gains its forwarded day");
+        assert_eq!(db.role_def("verified").max_upload_mb_per_day, 1024, "the other limits are kept");
+
+        let mut admin = db.role_def("admin");
+        admin.max_forwarded_mb_per_day = 4096;
+        db.upsert_role(&admin).unwrap();
+        drop(db);
+        let db = Storage::open(&path).expect("restart");
+        assert_eq!(db.role_def("admin").max_forwarded_mb_per_day, 4096, "an admin's change survives a restart");
     }
 
 }

@@ -1600,7 +1600,8 @@ impl Storage {
                 max_private_file_mb   INTEGER NOT NULL DEFAULT 6,
                 max_upload_mb_per_day INTEGER NOT NULL DEFAULT 100,
                 max_uploads_per_hour  INTEGER NOT NULL DEFAULT 20,
-                max_private_held_mb   INTEGER NOT NULL DEFAULT 30
+                max_private_held_mb   INTEGER NOT NULL DEFAULT 30,
+                max_forwarded_mb_per_day INTEGER NOT NULL DEFAULT 2048
              );",
         )?;
         // CRITICAL ORDERING (fixed v0.262.2 — production incident
@@ -1724,6 +1725,25 @@ impl Storage {
             info!("Migration: added the Media file, private file, day, hour and private-held upload limits (roles)");
         }
 
+        // ── 2026-10-11: what each role may send through the call forwarder a day ──
+        // `max_forwarded_mb_per_day` (docs/design/media-showcase.md, "Device-to-device big files:
+        // the shapes, exact", part 2; storage/roles.rs): MB a day one person's big files sent
+        // device to device may pass through the server's call forwarder, counted there in memory.
+        // 0 = no limit. Given by tier once, with the column, in one transaction: Admin (and any
+        // custom role on its tier) none, everything else 2048, as the upload limits above are; an
+        // admin's later change survives a restart. After the ALTERs above, before the seed below
+        // (the v0.262.2 ordering), no index over it (BUG-046).
+        // `an_existing_roles_table_gains_the_forwarded_limit` opens a table from before.
+        if conn.prepare("SELECT max_forwarded_mb_per_day FROM roles LIMIT 0").is_err() {
+            conn.execute_batch(
+                "BEGIN;
+                 ALTER TABLE roles ADD COLUMN max_forwarded_mb_per_day INTEGER NOT NULL DEFAULT 2048;
+                 UPDATE roles SET max_forwarded_mb_per_day = CASE base_tier WHEN 'admin' THEN 0 ELSE 2048 END;
+                 COMMIT;"
+            )?;
+            info!("Migration: added the forwarded MB a day limit (roles)");
+        }
+
         // Seed the 5 built-ins. Runs AFTER the ALTERs above so every
         // column exists on both fresh and upgraded DBs. INSERT OR IGNORE
         // → existing built-ins (already backfilled above on an upgrade)
@@ -1737,20 +1757,22 @@ impl Storage {
             // number (ship) is `can_edit_ship`: only Admin has it (ship
             // homes increment 5). The two after it are the day's upload allowance in MB and the
             // hour's in uploads (B3, 2026-10-11; 0 = none, Admin's), then the MB of private files
-            // one person may hold (B5): the same numbers the upgrade above gives by tier.
-            let seeds: &[(&str, &str, &str, i64, i64, i64, i64, &str, i64, i64, i64, i64, i64, i64, i64, i64)] = &[
-                ("unverified", "Unverified", "#9E9E9E", 0, 0, 0, 0, "unverified", 0,   280,   5,   4, 0,  100,  20,  30),
-                ("verified",   "Verified",   "#4FC3F7", 1, 0, 1, 1, "verified",   1,  1000,  25,  20, 0, 1024,  60,  60),
-                ("donor",      "Donor",      "#FFD54F", 2, 0, 1, 1, "verified",   2,  1000,  25,  20, 0, 1024,  60,  60),
-                ("mod",        "Moderator",  "#81C784", 3, 1, 1, 1, "mod",        3,  4000, 100, 100, 0, 4096, 200, 120),
-                ("admin",      "Admin",      "#E57373", 4, 1, 1, 1, "admin",      4, 10000, 500, 500, 1,    0,   0,   0),
+            // one person may hold (B5): the same numbers the upgrade above gives by tier. The last
+            // is the MB a day one person may send through the call forwarder (device-to-device big
+            // files; 0 = none, Admin's).
+            let seeds: &[(&str, &str, &str, i64, i64, i64, i64, &str, i64, i64, i64, i64, i64, i64, i64, i64, i64)] = &[
+                ("unverified", "Unverified", "#9E9E9E", 0, 0, 0, 0, "unverified", 0,   280,   5,   4, 0,  100,  20,  30, 2048),
+                ("verified",   "Verified",   "#4FC3F7", 1, 0, 1, 1, "verified",   1,  1000,  25,  20, 0, 1024,  60,  60, 2048),
+                ("donor",      "Donor",      "#FFD54F", 2, 0, 1, 1, "verified",   2,  1000,  25,  20, 0, 1024,  60,  60, 2048),
+                ("mod",        "Moderator",  "#81C784", 3, 1, 1, 1, "mod",        3,  4000, 100, 100, 0, 4096, 200, 120, 2048),
+                ("admin",      "Admin",      "#E57373", 4, 1, 1, 1, "admin",      4, 10000, 500, 500, 1,    0,   0,   0,    0),
             ];
-            for (id, label, color, trust, stream, upload, voice, tier, sort, mc, mu, mk, ship, per_day, per_hour, held) in seeds {
+            for (id, label, color, trust, stream, upload, voice, tier, sort, mc, mu, mk, ship, per_day, per_hour, held, forwarded) in seeds {
                 conn.execute(
                     "INSERT OR IGNORE INTO roles
-                       (id,label,color,trust_level,built_in,can_stream,can_upload,can_voice,base_tier,sort_order,can_image_share,can_file_share,max_chars,max_upload_mb,max_uploads_kept,can_edit_ship,max_upload_mb_per_day,max_uploads_per_hour,max_private_held_mb)
-                     VALUES (?1,?2,?3,?4,1,?5,?6,?7,?8,?9,1,1,?10,?11,?12,?13,?14,?15,?16)",
-                    rusqlite::params![id, label, color, trust, stream, upload, voice, tier, sort, mc, mu, mk, ship, per_day, per_hour, held],
+                       (id,label,color,trust_level,built_in,can_stream,can_upload,can_voice,base_tier,sort_order,can_image_share,can_file_share,max_chars,max_upload_mb,max_uploads_kept,can_edit_ship,max_upload_mb_per_day,max_uploads_per_hour,max_private_held_mb,max_forwarded_mb_per_day)
+                     VALUES (?1,?2,?3,?4,1,?5,?6,?7,?8,?9,1,1,?10,?11,?12,?13,?14,?15,?16,?17)",
+                    rusqlite::params![id, label, color, trust, stream, upload, voice, tier, sort, mc, mu, mk, ship, per_day, per_hour, held, forwarded],
                 )?;
             }
             info!("Migration: roles built-ins seeded (post-ALTER ordering)");
