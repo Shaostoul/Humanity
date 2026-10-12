@@ -221,6 +221,11 @@
       "date": "2026-10-12",
       "decision": "Released v0.1487.0: device-to-device big files (answer 10) on relay, desktop and web, after three review rounds (rules 1 to 9 in media-showcase.md) and a real two-browser run (20 MB; 120 MB with the receiver reloaded mid-transfer, resumed). BUG-200 fixed in both apps: seen word per server and person; relay marks own copies with stored; on a never-seen server with a profile the tighter word wins. Last review round fixed: notes that cannot go are kept and sent when signed in again (desktop) or saved with the record (web); a dial or a channel for an ended offer gets cancel again once a run; web piece writes count only on commit; desktop link waits up to 15 s for done to be acknowledged; voice-off refusal names files. Full verify (4066 lib tests) and rig tests (695) green; boot-checked; archived (delivery OK).",
       "why": "The operator directed the four increments and answer 10; each review found seam disagreements the per-app stand-ins could not, so the rules were written as numbered sentences both apps test against. The tighter-word rule is safety over convenience, per the protect-users directive."
+    },
+    {
+      "date": "2026-10-12",
+      "decision": "public.guide updated itself to v0.1487.0 (07:22Z). Phone check of web chat at 375 px done and released as v0.1487.1 (web only): header fits (count hidden, connection as its dot with a tooltip, room left for the site help button that covered the account button), text box fits its placeholder, composer bottom padding restored so the footer tab no longer covers the text box, chat uploads show a percentage via XMLHttpRequest upload progress (fetch where none). Resumable uploads in the apps were already done (Media page, both apps), so the approved plan moves to the game: the two-person session needs the operator; the household page (plot permits, increment 5b) is next for an agent.",
+      "why": "The approved plan after Media: resumable in the apps, a phone check, then the game. A real browser at phone width found the sideways scroll, a covered button and a covered text box that no desktop-width test could."
     }
   ],
   "active_scopes_to_avoid": [
