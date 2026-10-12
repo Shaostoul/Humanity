@@ -1260,6 +1260,7 @@ function ftStateWords(t) {
   const online = ftOnline.has(ftLower(t.peer));
   if (t.reason === 'wrongFile') return W.wrongFile;
   if (t.reason === 'checkingAgain') return W.checking;
+  if (t.reason === 'notSaved') return W.notSaved;
   if (t.role === 'send') {
     switch (t.state) {
       case 'preparing': return W.preparing;
@@ -1361,7 +1362,10 @@ function ftButtonsFor(t) {
     if (canPause && !t.pausedHere && !t.noServer) show.add('pause');
     if (canPause && (t.pausedHere || t.noServer)) show.add('resume');
     if (t.role === 'send' && !t.file && t.state !== 'preparing') show.add('choose');
-    if (t.state !== 'checking') show.add('cancel');
+    // A file that arrived whole but could not be saved: try again, or give it up (it used to sit
+    // at "Checking the file" with no buttons at all).
+    if (t.role === 'receive' && t.reason === 'notSaved') show.add('try-save');
+    if (t.state !== 'checking' || t.reason === 'notSaved') show.add('cancel');
   }
   // Saved through the browser's download: the same file once more, while the browser still holds it.
   if (t.role === 'receive' && t.state === 'saved' && t.savedUrl) show.add('save-again');
@@ -1430,6 +1434,15 @@ function ftFill(el, t) {
       p.row.appendChild(pick);
       t.choosePicker = pick;
       button(W.chooseAgain, 'choose', W.tipChoose, () => { if (typeof pick.click === 'function') pick.click(); });
+    }
+    if (t.role === 'receive') {
+      button(W.trySaveAgain, 'try-save', W.tipTrySaveAgain, () => {
+        // Again through the browser's own download (a chosen place may be what failed).
+        t.reason = null;
+        t.saveHandle = null;
+        ftDraw(t);
+        ftSaveFile(t);
+      });
     }
     button(W.cancel, 'cancel', W.tipCancel(name), () => ftCancel(t));
     if (t.role === 'receive') {

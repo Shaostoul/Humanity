@@ -1359,6 +1359,27 @@ test("15. one click on Accept moves the row on at once and starts the transfer, 
   assert.equal(accept.attrs["data-tip-desc"], "Say yes. The file comes straight from Ann's device, and you can choose where to save it.", "Accept's hint");
 });
 
+
+test("16. a file that arrived whole but could not be saved says so, and can be saved again or given up", async () => {
+  // Seen red 2026-10-12 with the try-save button left out of ftButtonsFor (the row had no buttons
+  // at all, as before): "try again or give it up".
+  const s = await pair();
+  let choose = null;
+  s.ben.ctx.showSaveFilePicker = () => new Promise((r) => { choose = r; });
+  const bytes = zipBytes(7 * MB + 5, 64);
+  const t = await offer(s, bytes);
+  await waitFor(() => transfers(s.ben).length === 1 && only(s.ben).state === "asked", "asked");
+  rowParts(rowOf(s.ben, t.id)).button("accept").onclick();
+  await waitFor(() => only(s.ben).awaitingPlace === true, "every piece in, waiting for the place");
+  choose({ name: "x.zip", async createWritable() { throw new Error("the disk is full"); } });
+  await waitFor(() => wordsOf(s.ben, t.id) === "It arrived whole, but this browser could not save it", "the row says it could not be saved");
+  assert.deepEqual(rowParts(rowOf(s.ben, t.id)).buttons, ["try-save", "cancel"], "try again or give it up");
+  rowParts(rowOf(s.ben, t.id)).button("try-save").onclick();
+  await waitFor(() => only(s.ben).state === "saved", "saved on the second try");
+  assert.equal(s.ben.blobs.size, 1, "through the browser's own download");
+  assert.ok(sameBytes((await savedFiles(s.ben))[0], bytes), "exactly its bytes");
+});
+
 // ── Red first ────────────────────────────────────────────────────────────
 // 2026-10-11: each break made in a copy of web/ and this file run against it with HOS_WEB_DIR,
 // seen failing with the assertion named; every other test passed unless named.
