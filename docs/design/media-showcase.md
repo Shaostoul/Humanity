@@ -2434,7 +2434,11 @@ never takes a button from under the pointer), and each button's hint says what i
   cancel note is said again, once in the page's life: a receiver who never got the first one would
   otherwise keep dialling for that transfer, and its other files with this sender would wait
   behind the dial (the review of 2026-10-12; test 20). A note that could not go is saved with the
-  record, so it survives the page closing and goes when the socket is back.
+  record, so it survives the page closing and goes when the socket is back. The same goes for a
+  CHANNEL the receiver opens for such a transfer on a live connection (the dial was for another
+  file): `{"t":"cancel"}` is said on it before it closes, and the cancel note goes again under the
+  same once-a-page rule; before, it was closed without a word and the receiver reopened it every
+  minute (the desktop review of 2026-10-12; test 22).
 - Rule 8's judging of a closed sending channel rests on two things a real browser does that only
   the stand-ins have shown here: a closing page's connection stops reading connected within the
   15-second wait (its ICE checks go unanswered; how fast a browser says "disconnected" was not
