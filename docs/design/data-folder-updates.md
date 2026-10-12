@@ -1,10 +1,13 @@
 # The data folder after an update (BUG-163)
 
-> **Status (2026-10-05):** part 1 is built: a data file this version cannot
-> read in full is never used, the copy built into the game is used instead and
-> the log says why in one line. Part 2, keeping an installed game's data folder
-> current, is this design, not yet built. It waits on a decision that is the
-> operator's, below.
+> **Status (2026-10-12):** both parts are built. Part 1 (2026-10-05): a data
+> file this version cannot read in full is never used, the copy built into the
+> game is used instead and the log says why in one line. Part 2 (2026-10-12):
+> every start brings each data file nobody edited up to the running game's copy
+> and keeps each edited one, and Settings > Data shows what it did. The decision
+> below was taken on 2026-10-12 (A, and unedited homes and machine layouts
+> follow the new default): see "Part 2, as built" at the end, which also lists
+> where the build differs from the design text above it.
 
 ## The decision the operator is asked for
 
@@ -207,6 +210,116 @@ behaviour: the rows this version can read are used (`environment/region_kinds.ro
 and `manufacturing.ron` gained a built-in copy with it, so every registry the
 game loads at startup has one). What it covers, and what it does not, is listed
 in BUG-163 in `docs/BUGS.md`.
+
+## Part 2, as built (2026-10-12)
+
+**The decision.** Taken on 2026-10-12 by the orchestrator while the operator
+was away (`docs/design/ship-homes-increment-6-plan.md` section 8, item 6,
+adopted as recommended; he can overrule it): option A. A data file is refreshed
+only when it still equals the copy the game last wrote there, and an edited
+file is kept. The same item answers the second question (section 5) for now:
+the ship file, the home designs (`homes/<kind>.ron`), `homes/starts.ron` and the
+machine layouts follow the rule like every other file, so one nobody edited
+follows the new default and one the player saved from the editor is kept.
+Increment 6 changes the ship file, and an install that kept its old one would be
+refused by an updated server as "a different ship". The code has one rule for
+every file; carving the homes out again would be a filter in `refresh`.
+
+Where it lives:
+- `src/storage/refresh.rs`: the stamp (`Stamp`, `data/.shipped.json`),
+  `refresh`, `write_fresh` (the first run), `why_left_alone`,
+  `first_run_files`, `use_games_copy_in`, and for the running game
+  `refresh_on_start`, `view` and `use_the_games_copy`.
+- `src/storage.rs` `extract_data_if_needed`, already called at start (the
+  `extract_data` boot phase in lib.rs, which needed no change): it writes a
+  folder that does not exist (`extract_embedded_to`, now through `write_fresh`,
+  which stamps it) or refreshes one that does (`refresh_on_start`).
+- `src/gui/pages/settings/data_folder.rs`: the Settings > Data block (one call
+  in settings.rs).
+- `src/embedded_data.rs` `note_builtin_copy` remembers each file a run served
+  from the built-in copy (`builtin_copies_this_run`), which the block lists.
+- `scripts/lib/compiled-in.js`: `refresh_on_start` and `use_the_games_copy`
+  are reviewed `FALLBACK_SITES` (they write built-in copies out, and note it).
+
+**The stamp** holds the version, a fingerprint of everything that version
+ships (`shipped`: each path and the hash of its bytes), per file the BLAKE3
+hash of the bytes the game last wrote there, and the last refresh's report
+(`last_update`: from, to, when, updated, added, kept, failed).
+
+**When it runs:** every start of an installed or portable game, before
+anything reads the folder. A folder whose stamp names this version AND this
+build's fingerprint is current, and nothing but the stamp is read. Otherwise
+each file the exe ships is judged: it holds this exe's copy (recorded, nothing
+written); it holds what the stamp says the game last wrote (replaced: written
+beside it as `.<name>.<pid>.tmp`, then renamed over it); it is absent
+(written); anything else was edited (kept, and named). Logged as one line,
+"data folder <dir> refreshed from 0.1440.0 to 0.1463.0: 61 files updated, 2
+added, 2 kept because they were edited", plus one `[built-in data copy]
+data/*` note when anything was written (the rigs' marker: a rig's folder is a
+link, never refreshed, so a rig run carrying it went wrong).
+
+**Where the build differs from the design text above**, each a choice made
+while building it:
+1. **The trigger is the data, not only the version number.** Two builds of one
+   version that ship different data (an agent's build of an unbumped tree) are
+   told apart by the fingerprint, so the folder follows the exe it runs with,
+   an older one included.
+2. **A pass that could not write every file** (section 7's "dies part-way")
+   keeps the stamp's OLD version, so the next start runs it again, but it does
+   record the files it wrote. A stamp left exactly as it was would make those
+   files look edited to any later version (the test was seen red against that).
+   A crash between two files leaves the old stamp; the files already written
+   equal the new copy, which always counts as current.
+3. **The first run's moment (section 3)** is not "within a few seconds of the
+   folder's oldest file": that takes a single file copied in from a backup with
+   an older time for the first run, and overwrites it (seen red). It is the
+   earliest 30-second stretch holding at least half of the shipped files present
+   and at least 10. A file written outside it is kept, and a folder with no such
+   stretch keeps every file that differs from the exe's copy.
+4. **The folder-aside fallback is not built.** A file whose time cannot be read
+   is kept rather than the whole folder being set aside, which would have taken
+   the player's own home out of the game's sight. A stamp that cannot be read
+   counts as no stamp (the time rule), with a warning in the log.
+5. **Left alone (section 4)** also covers a real data folder with a link on the
+   way to any shipped file (probe-sweep's `--shipped-assets` rig links data/'s
+   entries one by one) and a folder whose real location is a source tree's
+   data/. The first run and "Use the game's copy" refuse such a folder too.
+6. **The Settings > Data block (section 6)** shows the version the folder holds
+   (or that it was written before stamps, or that the last update could not
+   finish), the last update (from, to, when, how many brought up to date and
+   added), each file not written and why, each kept file with "Use the game's
+   copy" and "Show the file", and each file this run did not use with why. "Use
+   the game's copy" renames the player's file to `<name>.yours-<version>` (then
+   `-2`, `-3`), writes this version's copy and updates the stamp; it never starts
+   a stamp in a folder that has none.
+
+Known limits:
+- An editor save rewrites a home, the ship or a machine layout in its own
+  format, so a file saved with no real change counts as edited and is kept.
+  Before v0.1459.0 (BUG-151) merely opening and shutting the editor did that, so
+  an install from then keeps those files until "Use the game's copy".
+- Things a player placed live in the save, not in these files, so a home or
+  machine layout that follows a new default can move rooms under them (section
+  5's concern). That is why the operator may still want the homes carved out.
+- The sentence a server running another ship gets (`engine/home_plot.rs`
+  `other_ship_sentence`) still says updating the app does not replace the ship
+  file. It is now reached only when the ship file was kept (edited) or the
+  folder is left alone; pointing it at Settings > Data is in-app-ops debt.
+
+Tests, each seen red against a deliberate break of the code it guards (the break
+and the failure text are in each doc comment): in `src/storage/refresh_tests.rs`,
+`a_stamped_folder_gets_the_new_copy_of_an_unedited_file_and_keeps_an_edited_one`,
+`a_build_of_the_same_version_with_different_data_refreshes_the_folder`,
+`an_unstamped_folder_written_at_one_time_is_refreshed_whole_and_a_later_edit_kept`,
+`an_unstamped_folder_with_no_first_run_moment_keeps_every_file`,
+`a_source_tree_and_a_linked_folder_are_left_alone_byte_for_byte` (real junctions
+made with `mklink /J`),
+`a_refresh_that_dies_part_way_leaves_every_file_whole_and_the_next_start_finishes_it`,
+`the_first_run_stamps_every_file_it_wrote` and
+`use_the_games_copy_moves_the_players_file_aside_and_never_deletes_it`; the
+block's
+`gui::pages::settings::data_folder::tests::the_block_names_each_kept_file_with_its_two_buttons_and_each_file_not_used`;
+and `embedded_data::tests::a_file_served_from_the_built_in_copy_is_listed_once_for_settings`.
 
 ## The mod overlay (for option C)
 
