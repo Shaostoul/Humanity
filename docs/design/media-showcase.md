@@ -2097,9 +2097,12 @@ choose": Accept files from (Nobody / Friends / Anyone I talk to), Show pictures 
   the profile sent is that copy with only the fields changed in this browser on top
   (`/shared/profile-changes.js`, BUG-195), so it never wipes a profile written elsewhere. The choice
   counts as saved only when my own copy comes back carrying it (an update the server turns down
-  leaves it waiting; until the review of 2026-10-11 it counted as saved when sent). My own profile
-  coming back with a different word while nothing waits here is another device's choice: this
-  device takes it (never a more open one while the protected setup is on).
+  leaves it waiting; until the review of 2026-10-11 it counted as saved when sent). Which word wins
+  when nothing waits follows BUG-200: a server's word that changed since this browser last saw it
+  (`hos_files_accept_seen`, per did:hum) is another device's choice and is taken (never more open
+  under the protected setup); otherwise a browser where the person chose
+  (`hos_files_accept_chosen`) sends its choice to a server holding another word or no profile,
+  and one that never chose takes the server's word.
 - The sender's line: opening a DM asks the server once for that person's profile (`profile_request`,
   with my pass when I hold one) and keeps `accepts_files` from the answer. In the attach step: "Ann
   accepts files only from friends. Their app will ask them before it downloads this one." when I am
