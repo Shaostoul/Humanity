@@ -363,7 +363,7 @@ fn the_household_card_in_words() {
     let out = body_frame(&ctx, &theme, &mut gs);
     let want: Vec<String> = vec![
         "Step into this server's shared world to give permits: the server says which plot is yours when you arrive.".into(),
-        "It works in this server's shared world.".into(),
+        "The server checks it when you step into its shared world.".into(),
         "Take back".into(),
     ];
     let gone = missing(&out, &want);
@@ -614,4 +614,33 @@ fn the_card_heads_the_home_page_with_or_without_a_design() {
     let card = find_text_in_shapes(&out.shapes, "Household").expect("with a design loaded the card is drawn");
     let title = find_text_in_shapes(&out.shapes, "Your Home").expect("the design's title");
     assert!(card.rect.top() < title.rect.top(), "above the design");
+}
+
+/// TWO LINES FROM THE 2026-10-12 REVIEW. A permit held for the plot that is now my own here is
+/// never asked about (engine/household.rs `tick` skips my own plot), so it read "Checking it with
+/// the server..." for ever: it says it is my own plot now. And under the protected setup the card
+/// offers no Give at all (it offered Give and refused only after the press): it says why instead,
+/// and Take back stays.
+/// Seen red 2026-10-12 with the own-plot arm taken out of `held_line`: "own plot; missing: [That
+/// plot is your own on this ship now, so you need no permit for it.]"; and with `giving` ignoring
+/// the setup: "protected: Give a permit is offered".
+#[test]
+fn a_permit_for_my_own_plot_and_the_protected_setup_in_words() {
+    let (ctx, theme) = ctx_and_theme();
+    let (mut gs, _sent) = on_p2(&[234; 32], "me-key", "own-and-protected");
+    held(&mut gs, "k-ada", "p2", 4_000_000_000, None);
+    named(&mut gs, "k-ada", "Ada");
+    let out = body_frame(&ctx, &theme, &mut gs);
+    let gone = missing(&out, &[YOUR_OWN_PLOT.into()]);
+    assert!(gone.is_empty(), "own plot; missing: {gone:?}");
+    assert!(!texts(&out).iter().any(|t| t == CHECKING), "no Checking line for my own plot");
+
+    friend(&mut gs, "k-lee", "Lee", true);
+    assert!(texts(&body_frame(&ctx, &theme, &mut gs)).iter().any(|t| t == "Give a permit"), "Give is offered before the setup");
+    gs.protected.setup.on = true;
+    let out = body_frame(&ctx, &theme, &mut gs);
+    let drawn = texts(&out);
+    assert!(!drawn.iter().any(|t| t == "Give a permit"), "protected: Give a permit is offered");
+    assert!(missing(&out, &[crate::engine::household::PROTECTED.into()]).is_empty(), "protected: the reason is on the card");
+    tidy(&gs);
 }

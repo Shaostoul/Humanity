@@ -392,7 +392,16 @@ pub fn renew(gs: &mut GuiState, peer: &str) -> Result<(), String> {
         return Err(PROTECTED.into());
     }
     let name = crate::engine::dm::dm_display_name(gs, peer);
-    let Some(row) = gs.dm_store.as_ref().and_then(|s| s.permits_given().iter().filter(|g| g.to == peer).max_by_key(|g| g.at).cloned()) else {
+    // In a session, the latest given for THIS plot: a later row for another plot (the plot changed
+    // and came back) used to make Renew refuse with nothing else offered (2026-10-12 review).
+    let mine_now = gs.household.my_plot.clone();
+    let for_mine = |g: &&hh::GivenPermit| mine_now.as_deref().is_none_or(|m| g.plot == m);
+    // Else the latest for another plot, so the refusal below can name it.
+    let given = |s: &crate::net::dm_store::DmStore| -> Option<hh::GivenPermit> {
+        let to_peer = || s.permits_given().iter().filter(|g| g.to == peer);
+        to_peer().filter(for_mine).max_by_key(|g| g.at).or_else(|| to_peer().max_by_key(|g| g.at)).cloned()
+    };
+    let Some(row) = gs.dm_store.as_ref().and_then(given) else {
         return Err(format!("You have not given {name} a permit here yet."));
     };
     if let Some(mine) = gs.household.my_plot.as_deref() {
@@ -732,8 +741,10 @@ fn held_for_at<'a>(gs: &'a GuiState, plot: &str, now_s: u64) -> Option<&'a HeldP
 // corridor of, while it was walkable the frame before, so nobody is ever walled in when a permit
 // stops working or the session ends. The walkable plot the player stands in is lit.
 
-/// After its last answer, a permit is asked about again this many seconds later (plan 3.4).
-pub const RECHECK_S: f64 = 300.0;
+/// After its last answer, a permit is asked about again this many seconds later (plan 3.4). 30 s,
+/// not the plan's 300 (2026-10-12 review): a permit taken back, or Block, refuses builds at once,
+/// but the plot's door stayed open to walk into until the next check, up to five minutes.
+pub const RECHECK_S: f64 = 30.0;
 /// A check with no answer this long is asked again, seconds (plan 3.5).
 pub const UNANSWERED_S: f64 = 10.0;
 /// A check the relay could not judge (`again`) is asked again this many seconds later (plan 3.5).
@@ -864,15 +875,21 @@ pub(crate) fn on_status(gs: &mut GuiState, req_id: u32, plot: &str, ok: bool, wh
     if key.plot != plot {
         log::warn!("Household: the server answered check {req_id} about plot {plot}, asked about {}", key.plot);
     }
-    let verdict = if ok {
-        Verdict::Works
+    let held_works = gs.household.verdicts.get(&key).is_some_and(|j| j.verdict == Verdict::Works);
+    // `again` (the relay could not judge it yet) on a permit that works keeps it working, asked
+    // again in AGAIN_S: dated so its RECHECK_S comes due then (2026-10-12 review: it used to turn
+    // to Later, shutting an open door for at least 5 s).
+    let (verdict, at) = if ok {
+        (Verdict::Works, now)
+    } else if again && held_works {
+        (Verdict::Works, now - RECHECK_S + AGAIN_S)
     } else if again {
-        Verdict::Later
+        (Verdict::Later, now)
     } else {
-        Verdict::Refused(why.unwrap_or(Why::Unknown))
+        (Verdict::Refused(why.unwrap_or(Why::Unknown)), now)
     };
     log::info!("Household: the server says the permit for {} is {verdict:?}", key.plot);
-    let was = gs.household.verdicts.insert(key.clone(), hh::Judged { verdict, at: now }).map(|j| j.verdict);
+    let was = gs.household.verdicts.insert(key.clone(), hh::Judged { verdict, at }).map(|j| j.verdict);
     gs.household.next_check_at = 0.0;
     if let (Some(Verdict::Works), Verdict::Refused(w)) = (was, verdict) {
         let notice = no_longer_works(gs, &key, w);
@@ -948,7 +965,9 @@ pub(crate) fn plot_permit(household: &hh::Household, held: &[HeldPermit], plot: 
 /// from the permits `held` (works this session, not run out at `now_s`, a neighbour's plot of
 /// `ship`), then `walkable` = usable, plus the plot the player stands in or in the corridor of
 /// (`standing`, ship metres; None while not aboard) when it was walkable already, and `lit` = that
-/// plot when walkable. Returns what `ship.open` should be.
+/// plot when walkable. Standing somewhere never opens a plot that was shut, so nobody opens a home
+/// by pressing into its corridor; a game restarted inside one is put at its own door on arrival
+/// instead (engine/home_plot.rs `plan_welcome`). Returns what `ship.open` should be.
 pub(crate) fn open_for(
     household: &mut hh::Household,
     held: &[HeldPermit],
@@ -956,8 +975,13 @@ pub(crate) fn open_for(
     standing: Option<glam::Vec3>,
     now_s: u64,
 ) -> crate::ship::ship_structure::OpenPlots {
-    let neighbours: BTreeSet<&str> = ship.neighbour_plots().map(|p| p.id.as_str()).collect();
-    household.usable = household.usable_plots(held, |p| neighbours.contains(p), now_s);
+    // Nothing held: nothing usable, and no set of the ship's plots built every frame for it.
+    household.usable = if held.is_empty() {
+        BTreeSet::new()
+    } else {
+        let neighbours: BTreeSet<&str> = ship.neighbour_plots().map(|p| p.id.as_str()).collect();
+        household.usable_plots(held, |p| neighbours.contains(p), now_s)
+    };
     // Where the player stands matters only when something is or was open.
     let here: Option<String> = if household.usable.is_empty() && household.walkable.is_empty() {
         None
