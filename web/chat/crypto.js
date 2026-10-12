@@ -974,7 +974,7 @@ function _dmSigPreimage(from, to, ts, text) {
 // Sealed plaintext size buckets (bytes). Must match native
 // net::dm_pq::DM_PAD_BUCKETS; scripts/tests/reach-web.test.js holds the two
 // to each other.
-const DM_PAD_BUCKETS = [256, 1024, 4096, 16384];
+const DM_PAD_BUCKETS = [256, 1024, 4096, 16384, 32768]; // 32,768 since 2026-10-12: a permit note is about 20.8 KB
 
 // ── Contact requests ("who can reach me", step B, 2026-10-09, 10c as
 // amended in review) ──────────────────────────────────────────────────────

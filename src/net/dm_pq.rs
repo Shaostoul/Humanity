@@ -389,8 +389,10 @@ pub fn build_signed_inner_ext(
     Ok(v.to_string())
 }
 
-/// Plaintext size buckets (bytes) for DM padding. Must match web.
-pub const DM_PAD_BUCKETS: [usize; 4] = [256, 1024, 4096, 16384];
+/// Plaintext size buckets (bytes) for DM padding. Must match web. The 32,768 bucket (2026-10-12):
+/// a household permit note (two Dilithium3 keys and two signatures, about 20.8 KB) was past the
+/// largest bucket and went unpadded, so its size alone told it apart from every other DM.
+pub const DM_PAD_BUCKETS: [usize; 5] = [256, 1024, 4096, 16384, 32768];
 
 /// Seal an inner payload (or any plaintext) into a v2 wire envelope for
 /// the holder of `recipient_pub_b64`.
@@ -582,6 +584,26 @@ mod tests {
         assert_eq!(env_a.len(), env_b.len(), "ciphertext lengths must match");
         // And they still parse + verify.
         assert_eq!(parse_verify_inner(&open_v2(&bob_kp, &env_a).unwrap()).unwrap().text, "ok");
+    }
+
+    /// A DM past the 16,384 bucket (a household permit note is about 20.8 KB) pads to the next one,
+    /// so two such notes of different lengths seal to the same size, and a long message looks
+    /// like a permit and the other way round.
+    ///
+    /// Seen red 2026-10-12 with the buckets ending at 16,384: "a long note pads to 32,768" failed.
+    #[test]
+    fn a_dm_past_the_16k_bucket_pads_to_32k() {
+        let (alice_seed, alice_hex, _) = party(11);
+        let (_b, bob_hex, bob_kp) = party(22);
+        let long_a = build_signed_inner(&alice_seed, &alice_hex, &bob_hex, 1, &"a".repeat(9000)).unwrap();
+        let long_b = build_signed_inner(&alice_seed, &alice_hex, &bob_hex, 2, &"b".repeat(12000)).unwrap();
+        // Just under the bucket, as every padded inner is (the pad field's few bytes of overhead).
+        assert!(long_a.len() <= 32_768 && long_a.len() > 32_768 - 12, "a long note pads to 32,768: {}", long_a.len());
+        assert_eq!(long_a.len(), long_b.len(), "and a longer one to the same size");
+        let env_a = seal_v2(&bob_kp.public_base64(), &long_a).unwrap();
+        let env_b = seal_v2(&bob_kp.public_base64(), &long_b).unwrap();
+        assert_eq!(env_a.len(), env_b.len(), "their envelopes are the same size");
+        assert_eq!(parse_verify_inner(&open_v2(&bob_kp, &env_b).unwrap()).unwrap().text, "b".repeat(12000));
     }
 
     /// Encrypted attachment: roundtrip, wrong key fails, marker survives.
