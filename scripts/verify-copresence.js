@@ -3867,10 +3867,11 @@ const HOUSE_GAME_NAME = "CopresenceHouse";
  *  common room (data/homes/shipped/homestead.ron room-common, x 42..52, z 43..51), in its open
  *  east half, clear of the couch, side table and dining set (data/machines/home.ron). They first
  *  stood in the wet room, behind the hall's wall from the game's spot, and the picture showed
- *  only that wall (verify-household, 2026-10-12: 0% wood where hers was drawn). */
+ *  only that wall (verify-household, 2026-10-12: 0% wood where hers was drawn). Whole metres:
+ *  the relay refuses a piece off the metre grid (`off_grid`; shared.rs `pose_in_frame`). */
 const HOUSE_HER_PIECES = [
-  { blueprint: "wood_foundation", local: [49.5, 0, 48.5], turns: 0 },
-  { blueprint: "wood_wall", local: [49.5, 0.2, 50.5], turns: 2 },
+  { blueprint: "wood_foundation", local: [49, 0, 48], turns: 0 },
+  { blueprint: "wood_wall", local: [49, 0.2, 50], turns: 2 },
 ];
 /** Step 6: the game's own foundation on its plot (what Ada's permit may not take down). */
 const HOUSE_OURS = { blueprint: "wood_foundation", local: [48, 0, 36], turns: 0 };
@@ -3879,10 +3880,10 @@ const HOUSE_HERS_THERE = { blueprint: "wood_foundation", local: [20, 0, 20], tur
 /** Step 11: where the game builds on her plot with hers. */
 const HOUSE_OURS_THERE = { blueprint: "wood_foundation", local: [20, 0, 20], turns: 0 };
 /** Step 9: where the game walks to inside her home (metres from her plot's corner, at eye height),
- *  and its facing there: south, across the common room's open floor to her wall 6.5 m off
+ *  and its facing there: south, across the common room's open floor to her wall 6 m off
  *  (yaw 0 looks along -Z, so pi looks along +Z). Just inside the room from the hall, where the
  *  walk in already ended before (it was (48, 1.7, 44) facing north). */
-const HOUSE_INSIDE = { local: [49.5, 1.7, 44], yaw: Math.PI, pitch: -0.05 };
+const HOUSE_INSIDE = { local: [49, 1.7, 44], yaw: Math.PI, pitch: -0.05 };
 /** The length the page gives and renews, days (one of data/ship/household.ron's lengths). */
 const HOUSE_DAYS = 30;
 /** The pace of the walks against and through her corridor, m/s (see above: a walking pace). */
