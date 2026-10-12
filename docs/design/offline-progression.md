@@ -207,16 +207,32 @@ itself, so shaping the starting home keeps working. Revisit at launch.
   in the air when the time runs out is left in the air. The asteroids, the
   drone with its cargo, and the standing order are saved now: all three were
   rebuilt fresh at every launch, which refilled every asteroid and lost the
-  ore in a flying drone's hold.
+  ore in a flying drone's hold. Since 2026-10-12 (first-hour audit S5) the
+  drone has running costs, and the time away pays them too: each trip needs
+  a full charge of its battery (4.3 kWh, data/mining/drone.ron), which its
+  dock charges at its 3 kW but no faster than the power the home could spare
+  (the ship's reactor where the home is tied to it, else the home's own day
+  surplus); what the dock took is taken off the spare power the machines get
+  afterwards. Each trip wears it, and one due for its service stays docked.
+  Its charge and wear are saved (`WorldSave::mining_drone`).
 - **Livestock** (`livestock::timers_after_away`). Each homestead animal's
   yield timer (egg, milk, wool) is saved by its herd slot ("chicken#0") and
   moves on by the time away, to ONE yield waiting: the same cap as a player
   at home who never collects, so the away time cannot give more than the
   hours at home would. Before this the herd respawned ready at every launch.
-  The livestock system has no hunger, illness or growth yet, so nothing else
-  is advanced, and when it gets them they belong to "What must NOT advance
-  offline": the character feeds the animals. Nothing dies because the player
-  was away.
+  **Since 2026-10-12 the animals eat and drink** (`systems::animal_care`,
+  first-hour audit S6), and the character feeds them while away: the first
+  livestock tick after the save comes back takes the time away's feed out of
+  home storage at each species' daily rate (data/livestock/care.ron). Water
+  is taken as given, because the tanks do not refill offline (below) and
+  drawing from them would empty the home's water for want of a plumbing
+  simulation that was not running. An animal that was short of feed or water
+  at the save makes only its share while away (`animal_care::away_shares`,
+  so a hen that had stopped laying lays nothing). If storage runs out while
+  away, the animals come back hungry, never past the point where they stop
+  producing: nothing sickens or dies because the player was away, in either
+  mode. One notice says what they ate ("While you were away your animals ate
+  1 Hay from home storage").
 - **Power offline.** An electric automated machine may draw only power the
   home could have spared: the Usage meter's day balance, what the home makes
   on its own (each panel's yield at the site, a turbine's site average, no
@@ -271,7 +287,9 @@ itself, so shaping the starting home keeps working. Revisit at launch.
   (`save_load::after_resume`); it used to keep the previous state, which let
   a rewound backpack and a kept Barn both hold the same goods.
 - **Not yet:** the server clock for multiplayer and MMO saves (none exist
-  yet). A dead animal is not saved and comes back alive and ready.
+  yet). (A dead animal used to come back alive and ready at every launch;
+  since 2026-10-12 its herd slot is kept in the save, `WorldSave::herd_lost`,
+  and world entry does not spawn it again.)
 
 ## Open questions
 

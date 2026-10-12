@@ -205,6 +205,41 @@ pub fn land_held(world: &mut hecs::World) {
     }
 }
 
+/// Put every machine back to the level it spawns with, and forget anything held for world entry
+/// (ship homes increment 6): each bank at half charge and each tank at half, as
+/// `home_spawn::spawn_home_machine_entity` makes them, and each vessel empty and clean, its type
+/// and size kept. `apply_save_to_world` runs it before it restores a save's levels, because a save
+/// lists only the machines it knew: an empty list used to leave every live level as it was, so a
+/// server save made fresh, applied over your own home, kept your home's charged banks, full tanks
+/// and stocked drums. The WorldSave field already promised this ("a machine missing from it keeps
+/// its spawn level"); the running-world loads (the character picker, a snapshot restore, a change
+/// of save slot) did not keep that promise until now.
+///
+/// The recipe an automatic machine runs is left as it is: it is a setting the player chose on the
+/// machine's card rather than something the machine holds, and the entity does not carry the
+/// catalog's default to go back to.
+pub fn reset_all(world: &mut hecs::World) {
+    drop_held(world);
+    // The home machines only (an instance id, as `live` reads them), never another store.
+    for (_e, (_id, b, t, c)) in
+        world.query_mut::<(&MachineInstanceId, Option<&mut Battery>, Option<&mut WaterTank>, Option<&mut Container>)>()
+    {
+        if let Some(b) = b {
+            b.charge_wh = b.capacity_wh * SPAWN_SHARE;
+        }
+        if let Some(t) = t {
+            t.liters = t.capacity_l * SPAWN_SHARE;
+        }
+        if let Some(c) = c {
+            *c = Container::new(c.container_type_id.clone(), c.capacity_liters);
+        }
+    }
+}
+
+/// The share of a bank's capacity and a tank's that a machine spawns with
+/// (`home_spawn::spawn_home_machine_entity`: half, so a new home can both store and draw).
+pub const SPAWN_SHARE: f32 = 0.5;
+
 /// Every level to carry onto the machines world entry is about to respawn:
 /// the live machines' and the held ones, which it takes (`load_world`, before
 /// it despawns the old machine entities; `apply` puts them back after).

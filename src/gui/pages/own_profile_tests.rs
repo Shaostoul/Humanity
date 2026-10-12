@@ -223,3 +223,210 @@ fn a_save_the_server_does_not_take_says_so() {
     keep_copy(&mut gs, ONE, own_copy(&anns_own_copy(), "Ann").unwrap()); // a later copy
     assert_eq!(gs.profile_network_saved_note, NOT_TAKEN, "a later copy does not say Saved");
 }
+
+// ── The copy other servers keep (BUG-191, 2026-10-12, plan 3.10) ──
+
+use crate::relay::core::profile_copy::{self, PublicCopy};
+
+/// The shared fixture both apps read, written by the relay's own builder.
+const COPY_FIXTURE: &str = "scripts/tests/fixtures/profile-copy-v1.json";
+/// A clock for the tests that date copies, in Unix milliseconds.
+const NOW_MS: u64 = 1_760_000_000_000;
+
+/// The 32-byte seed `[7; 32]` every Rust fixture signs with, and its Dilithium3 key in hex.
+fn seed_and_key() -> (Vec<u8>, String) {
+    let seed = vec![7u8; 32];
+    let key = hex::encode(crate::net::identity::pq_object_keypair(&seed).public_key());
+    (seed, key)
+}
+
+/// Ann signed in on `server` with her identity unlocked, her socket recording what it sends.
+fn ann_unlocked_on(server: &str) -> (GuiState, std::sync::mpsc::Receiver<String>, String) {
+    let (mut gs, sent) = ann_on(server);
+    let (seed, key) = seed_and_key();
+    gs.private_key_bytes = Some(seed);
+    gs.profile_public_key = key.clone();
+    (gs, sent, key)
+}
+
+/// Ann's own copy as the echo of her save sends it to her key, asking her device to sign the copy
+/// for other servers: she keeps her location for friends, and the server holds a copy dated
+/// `signed_at` (0: none).
+fn anns_copy_asking(key: &str, signed_at: u64) -> serde_json::Value {
+    let mut f = anns_own_copy();
+    f["privacy"] = r#"{"location":"private"}"#.into();
+    f["target"] = key.into();
+    f["signed_at"] = signed_at.into();
+    f["sign_now"] = true.into();
+    f
+}
+
+/// The public copy of a frame's fields, built straight from the frame (an absent field is blank),
+/// not through the app's own filing: what the server rebuilds and checks the signature against.
+fn public_copy_of(frame: &serde_json::Value) -> PublicCopy {
+    let s = |k: &str| frame[k].as_str().unwrap_or("").to_string();
+    profile_copy::public_copy(
+        &s("name"), &s("bio"), &s("avatar_url"), &s("banner_url"), &s("socials"),
+        &s("pronouns"), &s("location"), &s("website"), &s("privacy"),
+    )
+}
+
+fn at_of(signed: Option<String>) -> u64 {
+    let f: serde_json::Value = serde_json::from_str(&signed.expect("asked, so signed")).unwrap();
+    f["at"].as_u64().expect("a time")
+}
+
+/// A copy that asks (`sign_now: true`) is signed once, as one `profile_sign` frame carrying only
+/// the time and the signature, and the signature verifies over the public copy of exactly the
+/// fields the frame carries (her location, kept for friends, left out). Without `sign_now` (absent
+/// or false), on the public copy of her save (no privacy map), or on a copy addressed to another
+/// of her keys, nothing is signed; the copy is filed all the same. A copy from a socket kept open
+/// in the background is dated and recorded under THAT server, not the one the app is on.
+///
+/// Seen red 2026-10-12 with the `sign_now` check taken out of `take_own_copy_at` (every own copy
+/// signed): "no sign_now, nothing signed" failed.
+#[test]
+fn a_copy_that_asks_is_signed_once_for_its_own_server() {
+    let (mut gs, sent, key) = ann_unlocked_on(ONE);
+    let asking = anns_copy_asking(&key, 0);
+    let signed = take_own_copy(&mut gs, ONE, &asking, "Ann").expect("asked, so signed");
+    gs.ws_client.as_ref().unwrap().send(&signed); // what the arrival site does with it
+    pump(&mut gs);
+    let out = frames(&sent);
+    let signs: Vec<&serde_json::Value> = out.iter().filter(|f| f["type"] == "profile_sign").collect();
+    assert_eq!(signs.len(), 1, "one profile_sign, and pump sends no other");
+    let f = signs[0];
+    assert_eq!(f.as_object().unwrap().len(), 3, "type, at and signature only: the server rebuilds the copy itself");
+    let at = f["at"].as_u64().expect("a time");
+    let sig = f["signature"].as_str().expect("a signature");
+    assert!(profile_copy::is_signature_text(sig), "6,618 lowercase hex characters");
+    let public = public_copy_of(&asking);
+    assert_eq!((public.name.as_str(), public.location.as_str()), ("Ann", ""), "her location, kept for friends, is not in it");
+    assert_eq!(public.pronouns, "she/her");
+    assert!(profile_copy::verify_copy(&key, &public, at, sig), "it signs the public copy of what the server stored");
+    let with_location = PublicCopy { location: "Lisbon".into(), ..public.clone() };
+    assert!(!profile_copy::verify_copy(&key, &with_location, at, sig), "and not one with her location in it");
+    assert!(current_copy(&gs).is_some_and(|c| c.location == "Lisbon"), "the copy is filed as ever, every field in it");
+
+    let mut not_asked = asking.clone();
+    not_asked.as_object_mut().unwrap().remove("sign_now");
+    assert!(take_own_copy(&mut gs, ONE, &not_asked, "Ann").is_none(), "no sign_now, nothing signed");
+    not_asked["sign_now"] = false.into();
+    assert!(take_own_copy(&mut gs, ONE, &not_asked, "Ann").is_none(), "sign_now false, nothing signed");
+    let mut public_frame = asking.clone();
+    public_frame.as_object_mut().unwrap().remove("privacy");
+    assert!(take_own_copy(&mut gs, ONE, &public_frame, "Ann").is_none(), "the public copy of her save is not hers to sign");
+    let mut phones = asking.clone();
+    phones["target"] = "ab".repeat(profile_copy::KEY_HEX_LEN / 2).into();
+    assert!(take_own_copy(&mut gs, ONE, &phones, "Ann").is_none(), "her linked phone's copy: the phone signs its own");
+    let mut bobs = asking.clone();
+    bobs["name"] = "Bob".into();
+    assert!(take_own_copy(&mut gs, ONE, &bobs, "Ann").is_none(), "someone else's profile");
+    assert!(frames(&sent).is_empty(), "take_own_copy sends nothing itself");
+
+    // The background socket of the second server: its own copy, its own time.
+    let one = crate::gui::pages::chat::norm_server_url(ONE);
+    let two = crate::gui::pages::chat::norm_server_url(TWO);
+    let ahead = at + 90_000;
+    let at_two = at_of(take_own_copy(&mut gs, TWO, &anns_copy_asking(&key, ahead), "Ann"));
+    assert_eq!(at_two, ahead + 1, "dated after the copy the second server holds");
+    assert_eq!(gs.own_profile.signed_here.get(&two), Some(&at_two), "recorded under the server it came from");
+    assert_eq!(gs.own_profile.signed_here.get(&one), Some(&at), "the first server's time untouched");
+    assert!(gs.own_profile.copies.contains_key(&two), "filed under the second server");
+}
+
+/// The desktop signs each of the shared fixture's own copies to the fixture's time and signature
+/// byte for byte (ML-DSA signing in RustCrypto is deterministic), through the arrival path with
+/// the fixture's clock and through the pure signer, and the signature verifies over the fixture's
+/// copy. The socket here signed in as "ann" while the server's copy names her "Ann" (a server keeps
+/// its own spelling of a name; a link code replaces it): the app signs the name the COPY carries,
+/// because that is the name the server rebuilds the copy under.
+///
+/// Seen red 2026-10-12 with the name taken from the socket instead of the copy (`let name =
+/// socket_name;` in `take_own_copy_at`): "case 0: the signature, byte for byte" failed.
+#[test]
+fn the_desktop_signs_the_fixtures_copies_byte_for_byte() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(COPY_FIXTURE);
+    let fx: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&path).expect("the fixture is there")).expect("JSON");
+    let seed = vec![fx["signer_master_byte"].as_u64().expect("the seed byte") as u8; 32];
+    let key = fx["public_key"].as_str().expect("the key").to_string();
+    assert_eq!(key, hex::encode(crate::net::identity::pq_object_keypair(&seed).public_key()), "the fixture's key is its seed's");
+    let cases = fx["cases"].as_array().expect("cases");
+    assert_eq!(cases.len(), 4, "four cases");
+    for (i, case) in cases.iter().enumerate() {
+        let frame = &case["frame"];
+        let now_ms = case["now_ms"].as_u64().expect("the clock");
+        let mut gs = GuiState::default();
+        gs.server_url = ONE.to_string();
+        gs.private_key_bytes = Some(seed.clone());
+        gs.profile_public_key = key.clone();
+        let signed = take_own_copy_at(&mut gs, ONE, frame, "ann", now_ms).unwrap_or_else(|| panic!("case {i}: asked, so signed"));
+        let f: serde_json::Value = serde_json::from_str(&signed).unwrap();
+        assert_eq!(f["type"], "profile_sign", "case {i}");
+        assert_eq!(f["at"], case["at"], "case {i}: the time");
+        assert_eq!(f["signature"], case["signature"], "case {i}: the signature, byte for byte");
+
+        let copy = current_copy(&gs).unwrap_or_else(|| panic!("case {i}: filed")).clone();
+        let name = frame["name"].as_str().unwrap();
+        let signed_at = frame["signed_at"].as_u64().unwrap();
+        let pure = sign_frame(&seed, &key, name, &copy, signed_at, 0, now_ms).unwrap_or_else(|| panic!("case {i}: within the limits"));
+        assert_eq!(pure, f, "case {i}: the pure signer makes the same frame");
+
+        let fixed: PublicCopy = serde_json::from_value(case["copy"].clone()).expect("a copy");
+        assert_eq!(public_copy_of(frame), fixed, "case {i}: the fixture's copy is the frame's");
+        assert!(
+            profile_copy::verify_copy(&key, &fixed, f["at"].as_u64().unwrap(), f["signature"].as_str().unwrap()),
+            "case {i}: it verifies over the fixture's copy"
+        );
+    }
+}
+
+/// Each copy this app signs for a server is dated after the clock, after the copy that server
+/// holds (`signed_at`), and after the last one this app signed for it, so two saves in the same
+/// millisecond, or a server whose word lags behind a copy signed here, never give two copies the
+/// same time or an older one. Another server's times are its own.
+///
+/// Seen red 2026-10-12 with `signed_here` not recorded in `take_own_copy_at`: "dated after the
+/// last one signed here" failed.
+#[test]
+fn each_edit_is_dated_after_the_newest_seen_on_that_server() {
+    let (mut gs, _sent, key) = ann_unlocked_on(ONE);
+    let first = at_of(take_own_copy_at(&mut gs, ONE, &anns_copy_asking(&key, 0), "Ann", NOW_MS));
+    assert_eq!(first, NOW_MS, "nothing newer seen: the clock");
+    let second = at_of(take_own_copy_at(&mut gs, ONE, &anns_copy_asking(&key, 0), "Ann", NOW_MS));
+    assert_eq!(second, NOW_MS + 1, "dated after the last one signed here");
+    let ahead = NOW_MS + 90_000; // a copy from a device whose clock runs fast
+    let third = at_of(take_own_copy_at(&mut gs, ONE, &anns_copy_asking(&key, ahead), "Ann", NOW_MS));
+    assert_eq!(third, ahead + 1, "dated after the copy the server holds");
+    let fourth = at_of(take_own_copy_at(&mut gs, ONE, &anns_copy_asking(&key, 0), "Ann", NOW_MS + 1_000));
+    assert_eq!(fourth, ahead + 2, "and after it still, while the server's word lags");
+    let on_two = at_of(take_own_copy_at(&mut gs, TWO, &anns_copy_asking(&key, 0), "Ann", NOW_MS));
+    assert_eq!(on_two, NOW_MS, "a server's times are its own");
+}
+
+/// With the identity locked (the seed not in memory), a seed that is not 32 bytes, or no key,
+/// nothing is signed and nothing is sent; the copy is filed all the same. Unlocked, the same ask
+/// is signed.
+///
+/// Seen red 2026-10-12 with the lock check taken out of `take_own_copy_at` (the seed read as
+/// `private_key_bytes.clone().unwrap_or_default()`, the key check kept): "locked: nothing signed"
+/// failed.
+#[test]
+fn a_locked_identity_signs_nothing() {
+    let (mut gs, sent) = ann_on(ONE);
+    let (seed, key) = seed_and_key();
+    gs.profile_public_key = key.clone(); // the app knows who she is; the seed stays locked away
+    let asking = anns_copy_asking(&key, 0);
+    assert!(take_own_copy(&mut gs, ONE, &asking, "Ann").is_none(), "locked: nothing signed");
+    assert!(current_copy(&gs).is_some(), "the copy is filed all the same");
+    gs.private_key_bytes = Some(seed[..16].to_vec());
+    assert!(take_own_copy(&mut gs, ONE, &asking, "Ann").is_none(), "a seed that is not 32 bytes signs nothing");
+    gs.private_key_bytes = Some(seed.clone());
+    gs.profile_public_key = String::new();
+    assert!(take_own_copy(&mut gs, ONE, &asking, "Ann").is_none(), "no key, nothing signed");
+    pump(&mut gs);
+    assert!(frames(&sent).iter().all(|f| f["type"] != "profile_sign"), "nothing sent");
+    assert!(gs.own_profile.signed_here.is_empty(), "no time recorded");
+    gs.profile_public_key = key;
+    assert!(take_own_copy(&mut gs, ONE, &asking, "Ann").is_some(), "unlocked, the same ask is signed");
+}

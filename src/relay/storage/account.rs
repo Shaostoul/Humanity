@@ -574,8 +574,8 @@ mod tests {
         let (cara, dev) = ("c0ffee01", "c0ffee02"); // hex keys, held under their DIDs
         db.register_name("Cara", cara).unwrap();
         let plots = ["p1", "p2"];
-        assert_eq!(db.claim_plot("mothership-1", &plot_owner_id(cara), &plots).unwrap().as_deref(), Some("p1"));
-        assert_eq!(db.claim_plot("mothership-1", &plot_owner_id(dev), &plots).unwrap().as_deref(), Some("p2"));
+        assert_eq!(db.claim_plot("mothership-1", &plot_owner_id(cara), &plots, &plots).unwrap().as_deref(), Some("p1"));
+        assert_eq!(db.claim_plot("mothership-1", &plot_owner_id(dev), &plots, &plots).unwrap().as_deref(), Some("p2"));
 
         let export = db.export_account(cara, "Cara");
         let listed = export["ship_plots"].as_array().cloned().unwrap_or_default();
@@ -589,7 +589,7 @@ mod tests {
         assert_eq!(db.plot_holder("mothership-1", "p1").unwrap(), None, "p1 is free");
         assert_eq!(db.plot_holder("mothership-1", "p2").unwrap(), Some(plot_owner_id(dev)), "the other player keeps theirs");
         // The next player gets the freed plot.
-        assert_eq!(db.claim_plot("mothership-1", &plot_owner_id("c0ffee03"), &plots).unwrap().as_deref(), Some("p1"));
+        assert_eq!(db.claim_plot("mothership-1", &plot_owner_id("c0ffee03"), &plots, &plots).unwrap().as_deref(), Some("p1"));
     }
 
     /// Ship homes increment 5: the pieces an account built in the shared world (held under its

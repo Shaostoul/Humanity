@@ -141,6 +141,16 @@ pub struct WorldSave {
     /// without this every restart made every animal ready to collect again.
     #[serde(default)]
     pub herd: Vec<(String, f32)>,
+    /// What each living homestead animal has been given and how long it has gone
+    /// short of feed and water (2026-10-12, first-hour audit S6), by herd slot
+    /// (`systems::animal_care`).
+    #[serde(default)]
+    pub herd_care: Vec<crate::systems::animal_care::CareSave>,
+    /// The homestead animals that died, by herd slot, with what they died of: world
+    /// entry does not spawn them again (2026-10-12; before this every restart brought
+    /// them back).
+    #[serde(default)]
+    pub herd_lost: Vec<crate::systems::animal_care::LostAnimal>,
     /// The asteroids as they stood (2026-09-27), mined-down ore and all.
     /// None = not recorded, keep the fresh set; Some = authoritative, and an
     /// asteroid missing from it was mined out.
@@ -153,6 +163,12 @@ pub struct WorldSave {
     /// The drone's standing order ("Keep mining"), (asteroid id, manifest).
     #[serde(default)]
     pub mining_order: Option<(String, Vec<(String, u32)>)>,
+    /// The drone itself between trips (first-hour audit S5, 2026-10-12,
+    /// systems::mining::DroneUnit): its battery's charge, its wear since its
+    /// last service and a launch waiting for the battery. None (a save from
+    /// before) is a new drone, full and unworn.
+    #[serde(default)]
+    pub mining_drone: Option<crate::systems::mining::DroneUnit>,
     /// What each home machine holds, by instance id (2026-09-27): a battery
     /// bank's charge, a water tank's litres, a vessel's contents. Before it
     /// every launch reset each bank and tank to half and emptied every
@@ -410,9 +426,12 @@ impl WorldSave {
             credits: -1,
             quests: None,
             herd: Vec::new(),
+            herd_care: Vec::new(),
+            herd_lost: Vec::new(),
             asteroids: None,
             drone: None,
             mining_order: None,
+            mining_drone: None,
             machine_levels: Vec::new(),
             heater_draw_w: Default::default(),
             ship_supply: Default::default(),
@@ -620,10 +639,34 @@ pub fn backups_dir() -> PathBuf {
 /// `backups_dir()/saves`. Deriving it from the save's own path (rather than
 /// always from `saves_dir()`) keeps a test's throwaway save beside its own
 /// throwaway backups, never in the player's real backups folder.
+///
+/// A server save (saves/servers/<name>.json, ship homes increment 6) keeps its snapshots with all
+/// the others, in `backups/saves/<name>/`: its folder is the one under the saves folder, so the
+/// saves folder is one up. Without that its snapshots went into saves/backups/saves/, where
+/// Settings > Data never lists them.
 pub fn snapshots_root_for(save_path: &Path) -> PathBuf {
-    match save_path.parent().and_then(|saves| saves.parent()) {
+    let mut saves = save_path.parent();
+    if saves.and_then(|dir| dir.file_name()).is_some_and(|name| name == SERVER_SAVES_DIR) {
+        saves = saves.and_then(|dir| dir.parent());
+    }
+    match saves.and_then(|saves| saves.parent()) {
         Some(root) if !root.as_os_str().is_empty() => root.join("backups").join("saves"),
         _ => PathBuf::from("backups").join("saves"),
+    }
+}
+
+/// The save a snapshot slot belongs to, under `saves_dir`: the slot is the save file's name
+/// (`backups/saves/<slot>/`), and the save is saves/<slot>.json, or for a server save
+/// saves/servers/<slot>.json (ship homes increment 6). The server folder is chosen when a save of
+/// that name is there and none is at the top, so a restore puts a server save's snapshot back
+/// where the game reads it, never beside your own home as a new character.
+pub fn snapshot_slot_save(saves_dir: &Path, slot: &str) -> PathBuf {
+    let top = saves_dir.join(format!("{slot}.json"));
+    let server = saves_dir.join(SERVER_SAVES_DIR).join(format!("{slot}.json"));
+    if !top.exists() && server.exists() {
+        server
+    } else {
+        top
     }
 }
 
@@ -1100,9 +1143,12 @@ mod tests {
             credits: -1,
             quests: None,
             herd: Vec::new(),
+            herd_care: Vec::new(),
+            herd_lost: Vec::new(),
             asteroids: None,
             drone: None,
             mining_order: None,
+            mining_drone: None,
             machine_levels: Vec::new(),
             heater_draw_w: Default::default(),
             ship_supply: Default::default(),

@@ -24,6 +24,9 @@ pub const TOXINS_CSV: &str = include_str!("../data/chemistry/toxins.csv");
 
 // ── Asteroids ───────────────────────────────────────────────────────
 pub const ASTEROID_TYPES_CSV: &str = include_str!("../data/asteroids/types.csv");
+/// The asteroids a new world starts with (ship homes increment 6: moved out of lib.rs's startup so
+/// a server save made fresh starts with the same belt; src/save_load.rs `fresh_asteroids`).
+pub const ASTEROID_BELT_RON: &str = include_str!("../data/asteroids/belt.ron");
 
 // ── JSON data ───────────────────────────────────────────────────────
 pub const GLOSSARY_JSON: &str = include_str!("../data/glossary.json");
@@ -180,6 +183,9 @@ pub const HOME_CABIN_RON: &str = include_str!("../data/homes/shipped/cabin.ron")
 pub const STARTS_RON: &str = include_str!("../data/homes/starts.ron");
 pub const GROW_MEDIA_RON: &str = include_str!("../data/garden/grow_media.ron");
 pub const VEHICLE_KITS_RON: &str = include_str!("../data/vehicles/kits.ron");
+/// The mining drone's running costs: its energy a trip, its dock's charger and its service
+/// (first-hour audit S5, 2026-10-12: systems::mining::DroneSpec).
+pub const MINING_DRONE_RON: &str = include_str!("../data/mining/drone.ron");
 pub const AEROPONIC_CONFIGS_RON: &str = include_str!("../data/towers/aeroponic_configs.ron");
 pub const PLACES_SEED_JSON: &str = include_str!("../data/places/seed.json");
 /// The cabin's storage at the start (the Cabin start's `storage`, ship homes increment 6).
@@ -191,6 +197,8 @@ pub const ECONOMY_RON: &str = include_str!("../data/economy.ron");
 pub const EQUIPMENT_CSV: &str = include_str!("../data/equipment.csv");
 pub const CREATURES_CSV: &str = include_str!("../data/creatures.csv");
 pub const LIVESTOCK_RON: &str = include_str!("../data/entities/livestock.ron");
+/// What each kept animal eats and drinks (2026-10-12, systems::animal_care).
+pub const LIVESTOCK_CARE_RON: &str = include_str!("../data/livestock/care.ron");
 pub const WILD_SPAWNS_RON: &str = include_str!("../data/entities/wild_spawns.ron");
 pub const WEATHER_EVENTS_RON: &str = include_str!("../data/weather/events.ron");
 /// Environment Layer 1, each world's climate (systems::env_layer1, 2026-09-27).
@@ -296,8 +304,10 @@ pub fn get_embedded(path: &str) -> Option<&'static str> {
         "chemistry/gases.csv" => Some(GASES_CSV),
         "chemistry/toxins.csv" => Some(TOXINS_CSV),
         "asteroids/types.csv" => Some(ASTEROID_TYPES_CSV),
+        "asteroids/belt.ron" => Some(ASTEROID_BELT_RON),
         "creatures.csv" => Some(CREATURES_CSV),
         "entities/livestock.ron" => Some(LIVESTOCK_RON),
+        "livestock/care.ron" => Some(LIVESTOCK_CARE_RON),
         "entities/wild_spawns.ron" => Some(WILD_SPAWNS_RON),
         "weather/events.ron" => Some(WEATHER_EVENTS_RON),
         "environment/climate.ron" => Some(CLIMATE_RON),
@@ -426,6 +436,7 @@ pub fn get_embedded(path: &str) -> Option<&'static str> {
         "homes/starts.ron" => Some(STARTS_RON),
         "garden/grow_media.ron" => Some(GROW_MEDIA_RON),
         "vehicles/kits.ron" => Some(VEHICLE_KITS_RON),
+        "mining/drone.ron" => Some(MINING_DRONE_RON),
         "towers/aeroponic_configs.ron" => Some(AEROPONIC_CONFIGS_RON),
         "places/seed.json" => Some(PLACES_SEED_JSON),
         "places/cabin_seed.json" => Some(PLACES_CABIN_SEED_JSON),
@@ -603,6 +614,7 @@ pub const EMBEDDED_KEYS: &[&str] = &[
     "chemistry/gases.csv",
     "chemistry/toxins.csv",
     "asteroids/types.csv",
+    "asteroids/belt.ron",
     // JSON
     "glossary.json",
     "star_systems/sol.json",
@@ -691,6 +703,7 @@ pub const EMBEDDED_KEYS: &[&str] = &[
     "homes/starts.ron",
     "garden/grow_media.ron",
     "vehicles/kits.ron",
+    "mining/drone.ron",
     "towers/aeroponic_configs.ron",
     "places/seed.json",
     "places/cabin_seed.json",
@@ -701,6 +714,7 @@ pub const EMBEDDED_KEYS: &[&str] = &[
     "equipment.csv",
     "creatures.csv",
     "entities/livestock.ron",
+    "livestock/care.ron",
     "entities/wild_spawns.ron",
     "weather/events.ron",
     "environment/climate.ron",

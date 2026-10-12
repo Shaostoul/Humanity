@@ -834,6 +834,12 @@ pub struct GuiState {
     /// Crosshair prompt for the farm animal the player faces (v0.751):
     /// "[E] collect Egg (Chicken)" when ready, the regrow countdown otherwise.
     pub livestock_prompt: String,
+    /// How the faced farm animal is and what it needs, under the prompt (2026-10-12,
+    /// `animal_care::walk_up_lines`): "Hungry (no feed in home storage). Eats about ...".
+    pub livestock_care: String,
+    /// Every cared-for animal and every herd animal that died, for Home > Animals
+    /// (`animal_care::herd_rows`, refreshed each frame by lib.rs).
+    pub herd: Vec<crate::systems::animal_care::HerdRow>,
     /// Transient collect feedback ("+1 Egg from Chicken" / "Your pack is full").
     pub livestock_notice: String,
     /// game_time when livestock_notice was set; lib.rs clears it after 3 s.
@@ -1334,6 +1340,13 @@ pub struct GuiState {
     pub asteroids: Vec<GuiAsteroid>,
     /// Active mining drones (ore / phase / cargo), synced from the ECS.
     pub drones: Vec<GuiDrone>,
+    /// The drone's running costs as the drone system last showed them (first-hour audit
+    /// S5, 2026-10-12): its battery, its wear and what its service takes. None with no
+    /// drone data, when it flies free. Synced by engine::drone::bridge.
+    pub drone_readout: Option<crate::systems::mining::DroneReadout>,
+    /// The Mining panel's Repair or Cancel this frame, handed to the drone system by
+    /// engine::drone::bridge.
+    pub pending_drone_request: Option<crate::systems::mining::DroneRequest>,
     /// World vehicles (Stage 3, v0.680), synced from the ECS each frame for the
     /// Inventory page's Vehicles section.
     pub vehicles: Vec<GuiVehicle>,
@@ -3334,6 +3347,8 @@ impl Default for GuiState {
             targeted_machine: None,
             vehicle_prompt: String::new(),
             livestock_prompt: String::new(),
+            livestock_care: String::new(),
+            herd: Vec::new(),
             livestock_notice: String::new(),
             livestock_notice_at: 0.0,
             targeted_control_panel: None,
@@ -3547,6 +3562,8 @@ impl Default for GuiState {
             drone_active: false,
             asteroids: Vec::new(),
             drones: Vec::new(),
+            drone_readout: None,
+            pending_drone_request: None,
             vehicles: Vec::new(),
             pending_summon_vehicle: None,
             pending_open_mining_modal: None,
@@ -4533,6 +4550,10 @@ pub struct SettingsState {
     /// default: a shorter course taking half the water), true is Realistic.
     /// Saved as AppConfig::illness_realistic; published by engine::survival_env.
     pub illness_realistic: bool,
+    /// Farm animals mode (2026-10-12, systems::animal_care): false is Forgiving (the default:
+    /// neglect only stops what they make), true is Realistic (they fall sick and die).
+    /// Saved as AppConfig::animal_care_realistic; published by engine::survival_env.
+    pub animal_care_realistic: bool,
     /// Carrying weight mode (BUG-136, systems::encumbrance): false is
     /// Forgiving (the default: the same limit, a warning only), true is
     /// Realistic (an overload slows walking and stops jumps, and a load's
@@ -4546,6 +4567,12 @@ pub struct SettingsState {
     /// lost), true is Realistic (the backpack's contents stay where you fell, in a pack to go
     /// back for). Saved as AppConfig::death_realistic.
     pub death_realistic: bool,
+    /// Mining drone (first-hour audit S5, 2026-10-12, systems::mining): false is Simplified
+    /// (the default: its dock charges it even when the home has no power to spare, so a flat
+    /// home only delays a trip, and it wears half as fast), true is Realistic (a trip needs a
+    /// charge the home really gave). Saved as AppConfig::drone_realistic; published by
+    /// engine::drone::bridge.
+    pub drone_realistic: bool,
     /// Which survival bars the HUD draws (2026-09-25). See HudVitals.
     pub hud_vitals: crate::config::HudVitals,
     /// Play mode (task #50): Normal | Creative | Dev -- one ladder for every
@@ -4667,9 +4694,11 @@ impl Default for SettingsState {
             vitals_drain: 1.0,
             body_heat_realistic: false,
             illness_realistic: false,
+            animal_care_realistic: false,
             carry_realistic: false,
             pipe_marking_full: false,
             death_realistic: false,
+            drone_realistic: false,
             hud_vitals: crate::config::HudVitals::default(),
             play_mode: crate::config::PlayMode::default(),
             profile_visible: true,

@@ -1,0 +1,69 @@
+// The mining drone's running costs (first-hour audit S5, 2026-10-12): the
+// electricity each trip takes from the home, how fast its dock charges it, and
+// how many trips it flies before it needs a service. Read by
+// src/systems/mining.rs (`DroneSpec`); edit here, no code.
+//
+// WHICH REAL MACHINE. No drone flies to asteroids today, so the game's drone is
+// sized as the real cargo drone that carries its hold: 10 units of ore, 45 kg of
+// iron ore and at most 80 kg (platinum ore, 8.0 kg a unit in data/items.csv).
+// That rules out the DJI FlyCart 30 ("5-30 kg (dual battery)", "5-40 kg (single
+// battery)", https://www.dji.com/flycart-30/specs, read 2026-10-12) and points
+// at the DJI FlyCart 100 (https://www.dji.com/flycart-100/specs, read 2026-10-12):
+//   - "Max Takeoff Weight: 170kg";
+//   - "Weight (without payload): 55.2kg (with Lifting system)", which "Excludes
+//     the weight of the battery";
+//   - two DB2160 batteries, each "41 Ah" at "52 V", "14.7 ± 0.3 kg";
+//   - its range and flight time are quoted "Under 149.9kg takeoff weight: dual
+//     battery 12 km" and "dual battery 14 minutes".
+// So it lifts 170 - 55.2 - 2 x 14.7 = 85.4 kg at its most (payload_kg, rounded
+// down): every hold fits, which a test holds to the ore data. Up to 65 kg it
+// flies within the quoted figures; a heavier hold (platinum, gold, silver) flies
+// above 149.9 kg, where DJI quotes no range, and a trip is still one full charge.
+// A drone in vacuum would fly on thrusters, not rotors; when the game's drone
+// gets its own design these numbers change with it.
+//
+// ENERGY. DJI gives the batteries in amp-hours and volts only; 2 x 41 Ah x 52 V
+// = 4,264 Wh is our multiplication. One trip is one full charge: its rated range
+// is flown on a full pack. The dock charges it from the home's power at the
+// C12000 charger's single-phase rating, "3,000 W (single-phase 220 V input)"
+// (its three-phase rating is 12,000 W, more than a household line), so a trip's
+// charge takes 4,264 / 3,000 = 1.4 hours of game time. Charger losses are not
+// counted: DJI publishes no efficiency figure for the C12000.
+//
+// The dock is an optional load on the home's grid (priority 5, the first shed
+// when the home is short). In Realistic a dock the home cannot power does not
+// charge the drone, and without a charged battery it cannot take off. In
+// Simplified the dock charges it anyway, so a flat home only delays the trip.
+//
+// WEAR. A service every 100 trips, from a maintenance schedule for the DJI Agras
+// T40, a heavy agricultural drone of the same build: "20 hours or 100 flights",
+// at which propellers are replaced when worn or warped and plastic or rubber
+// parts are checked for aging (Ference Agronomy's maintenance outline in a
+// grant application to the Nebraska Public Service Commission, PDF dated
+// 2024-02-22, read 2026-10-12:
+// https://psc.nebraska.gov/sites/default/files/doc/AgAbove_DroneService_AttachmentC.pdf).
+// That is a farm's own schedule, not DJI's; a DJI dealer's guide for the Agras
+// T50 says "DJI recommends replacing props every 700 flight hours" and the same
+// for motors (https://knowledgebase.agrispraydrones.com/propeller-inspection-for-the-dji-agras-t50-drone,
+// read 2026-10-12). 700 hours at 14 minutes a trip is about 3,000 trips; that
+// motor overhaul is not modelled.
+//
+// The service replaces the propeller blades (carbon fibre composite, as the
+// FlyCart's are) and the rubber parts. Both can be made: Carbon Fiber Sheet at
+// a chemistry set (data/recipes.csv, craft_graphene from coal and a copper
+// ingot), Rubber Sheet at a forge (vulcanize_rubber), and the trading post
+// sells Rubber Sheet. Simplified wears at half the rate: 200 trips a service.
+(
+    model: "DJI FlyCart 100, dual battery",
+    payload_kg: 85.0,
+    trip_wh: 4264.0,
+    pack_wh: 4264.0,
+    charger_w: 3000.0,
+    charger_priority: 5,
+    service_trips: 100.0,
+    simplified_wear_share: 0.5,
+    service_parts: [
+        ("carbon_fiber_sheet_0", 2),
+        ("rubber_sheet_0", 1),
+    ],
+)

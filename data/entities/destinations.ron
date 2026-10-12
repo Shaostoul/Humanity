@@ -14,6 +14,17 @@
 //                            on the street for a First Street plot, whichever
 //                            plot the player was given. A guest (no plot, the
 //                            home put away) has none, so it never resolves.
+//   NearestVolume(zone_type: t)
+//                            the floor of the ship's labelled volume of zone
+//                            type t (data/blueprints/zone_types.ron; a row of a
+//                            zone body's `zones` in the ship file, like the
+//                            Commons' "mess-hall") NEAREST the player's own front
+//                            door, so each home is sent to the one that serves
+//                            it; for a guest, the one nearest where they stand.
+//                            Never a room of the player's own home. `radius` is
+//                            then how far past the edge of that floor still
+//                            counts: anywhere on it does (2026-10-12, ship homes
+//                            increment 6, the Cabin's opening).
 //
 // Adding a landmark = adding a row here; reference it from any quest file
 // as Travel(destination: "<id>").
@@ -25,6 +36,14 @@
         // inside the door (data/homes/homestead.ron, 1.5 m in) is 3 m from
         // its centre, so waking up there is not "stepping out".
         (id: "front_door", label: "your front door", at: Some(OwnFrontDoor(out_m: 1.5)), radius: 1.5),
+        // The mess hall that serves the player's home, and the recreation room
+        // (the Cabin's opening, data/quests/getting_started.ron): the Commons'
+        // for the cabin row, the South Commons' for a homestead far down First
+        // Street. On the floor or within a metre of its edge: the mess hall is
+        // a 30 m strip whose stores stand at one end, so no circle round its
+        // middle would do.
+        (id: "mess_hall", label: "the mess hall", at: Some(NearestVolume(zone_type: "mess_hall")), radius: 1.0),
+        (id: "recreation", label: "the recreation room", at: Some(NearestVolume(zone_type: "recreation")), radius: 1.0),
         // The outdoor crop fields just south of the house.
         (id: "outdoor_fields", label: "the outdoor fields", pos: (29.0, 63.0), radius: 10.0),
         // The berry thicket northeast of the fields (wild_spawns berry_bush cluster).

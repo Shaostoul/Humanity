@@ -1184,6 +1184,7 @@ mod native_app {
             crate::systems::farming::picking::register(&mut data_store); // harvest windows, Settings picking mode, Clear
             crate::systems::farming::humidity::register(&mut data_store); // greenhouse air: its data and the home's room boxes
             crate::systems::life_support::register(&mut data_store); // ship life support: the home's air and water loops
+            crate::systems::mining::register(&mut data_store); // the mining drone's running costs: its data, its state, the Mining panel's requests (first-hour audit S5)
             crate::systems::farming::weeds::register(&mut data_store); // weeds: their data and the Hoe / Mulch request
             // Backpack <-> container transfers (organize-layer inventory): the GUI pushes
             // (item_id, qty, is_add) ops; InventorySystem applies them to the player's
@@ -1729,6 +1730,10 @@ mod native_app {
                         save.inventory.len(),
                         save.skills.len()
                     );
+                    // The player's modes before the time-away catch-up below, which charges the drone
+                    // (and decides whether the ship powers it) by them (first-hour audit S5).
+                    crate::systems::mining::publish_mode(&data_store, gui_state.settings.drone_realistic);
+                    crate::systems::life_support::publish(&data_store, gui_state.garden_pests.life_support_realistic);
                     let resumed = crate::save_load::resume_home(
                         &mut game_world.world,
                         &data_store,
@@ -5574,35 +5579,14 @@ mod native_app {
                             }
                         }
                         state.targeted_livestock = best.map(|b| b.0);
-                        state.gui_state.livestock_prompt = match best {
-                            Some((e, _)) => {
-                                let world = &state.game_world.world;
-                                let name = world
-                                    .get::<&Name>(e)
-                                    .map(|n| n.0.clone())
-                                    .unwrap_or_else(|_| "animal".to_string());
-                                match world.get::<&crate::ecs::components::Harvestable>(e) {
-                                    Ok(h) => {
-                                        let item_name = state
-                                            .data_store
-                                            .get::<ItemRegistry>("item_registry")
-                                            .and_then(|items| items.items.get(&h.resource))
-                                            .map(|d| d.name.clone())
-                                            .unwrap_or_else(|| h.resource.clone());
-                                        if h.time_since_harvest + f32::EPSILON >= h.regrow_time {
-                                            format!("[E] collect {item_name} ({name})")
-                                        } else {
-                                            let wait = (h.regrow_time - h.time_since_harvest).ceil();
-                                            format!("{name} ({item_name} in {wait:.0}s)")
-                                        }
-                                    }
-                                    // No renewable product = a wild creature:
-                                    // abilities or a swing attack it. (v0.765)
-                                    Err(_) => format!("{name} - 1-9 casts, F swings"),
-                                }
-                            }
-                            None => String::new(),
+                        // The prompt and, for a cared-for animal, how it is and what it
+                        // needs (2026-10-12, first-hour S6, systems::animal_care::walk_up_lines).
+                        let (prompt, care) = match best {
+                            Some((e, _)) => crate::systems::animal_care::walk_up_lines(&state.game_world.world, e, &state.data_store),
+                            None => (String::new(), String::new()),
                         };
+                        state.gui_state.livestock_prompt = prompt;
+                        state.gui_state.livestock_care = care;
                     }
 
                     // Walk-up to a CREW NPC (v0.797, operator: "I can't interact
@@ -5650,6 +5634,7 @@ mod native_app {
                         if best.is_some() {
                             state.targeted_livestock = None;
                             state.gui_state.livestock_prompt.clear();
+                            state.gui_state.livestock_care.clear();
                         }
                         state.gui_state.npc_prompt = if state.gui_state.npc_talk_target.is_some() {
                             // Card already open: no crosshair prompt under a modal.
@@ -5748,6 +5733,7 @@ mod native_app {
                     // Survival environment context (sealed home or the weather) and the
                     // body heat mode: engine::survival_env (moved out of lib.rs 2026-09-27).
                     crate::engine::survival_env::publish(state);
+                    crate::engine::drone::bridge(state); // the mining drone: its Settings mode, the Mining panel's Repair/Cancel, its battery and wear on the panel (first-hour audit S5)
 
                     // Bridge GUI craft/dev commands into the DataStore so the ECS
                     // CraftingSystem (which only gets &DataStore in tick) acts on them
@@ -6659,6 +6645,8 @@ mod native_app {
                     // What the systems used FROM home storage this tick comes out
                     // of the placed containers (v0.737; planet chests excluded).
                     crate::engine::stock_piles::take_consumed_home_stock(state, &home_stock_before);
+                    // Home > Animals: each farm animal, how it is and what it needs (first-hour S6).
+                    state.gui_state.herd = crate::systems::animal_care::herd_rows(&state.game_world.world, &state.data_store);
                     crate::engine::stock_piles::receive_machine_outputs(state);
                     crate::engine::stock_piles::age_home_storage(state); // stored food spoils too (S6)
                     // A death the tick recorded, and the packs Realistic deaths leave (before the

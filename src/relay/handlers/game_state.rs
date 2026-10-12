@@ -400,29 +400,74 @@ pub struct GameWorld {
     /// The building pieces kept in the shared world, and which frames each player has in view
     /// (ship homes increment 5, shared_build.rs). Each piece is its own database row.
     pub pieces: super::shared_build::PieceBook,
+    /// The kinds of home a player can start in (ship homes increment 6, data/homes/starts.ron,
+    /// src/ship/starts.rs): which kind of plot a join's `start` asks for, and the words a
+    /// `game_home` answer offers each kind in. The same file the game reads.
+    pub starts: crate::ship::starts::Starts,
 }
 
 /// Where a joining player lives and arrives (increment 1b): their plot (None for a guest,
-/// when every plot is held) and the spawn point, in ship metres at eye height.
+/// when no plot of the kind they asked for is free) and the spawn point, in ship metres at eye
+/// height. Increment 6 adds which start the plot held is, and for a guest, which kind was full
+/// and how many of each kind are free (`add_to_welcome`).
 #[derive(Debug, Clone, PartialEq)]
 pub struct HomeAssignment {
     pub plot: Option<crate::ship::ship_structure::PlotArrival>,
     pub spawn: [f32; 3],
+    /// The start the plot held is (`start_of_kind`), "" for a guest.
+    pub start: String,
+    /// The start asked for when no plot of its kind was free and the player held none: why they
+    /// are a guest. None for a player with a plot, and for a guest whose join named no ship.
+    pub full: Option<String>,
+    /// For a guest: every offered start with how many plots of its kind nobody holds, in the
+    /// starts file's order. Empty for a player with a plot. Counts only: never who holds the
+    /// others (plan 3.11).
+    pub free: Vec<(String, u32)>,
 }
 
 impl HomeAssignment {
-    /// The welcome's `home_plot`: {id, kind, origin, size}, or null for a guest.
+    /// The welcome's `home_plot`: {id, kind, start, origin, size}, or null for a guest.
     pub fn home_plot_json(&self) -> serde_json::Value {
         match &self.plot {
             Some(p) => serde_json::json!({
                 "id": p.id,
                 "kind": p.kind,
+                "start": self.start,
                 "origin": [p.origin.0, p.origin.1, p.origin.2],
                 "size": [p.size.0, p.size.1, p.size.2],
             }),
             None => serde_json::Value::Null,
         }
     }
+
+    /// For a guest only (ship homes increment 6, plan 3.5): `"home_full"`, the start they asked
+    /// for when none of its kind was free, and `"home_free"`, {start id: how many free} for every
+    /// offered start, so their game can say which homes they could choose instead (plan 3.7).
+    /// A player with a plot gets neither. Counts, never who lives where (plan 3.11).
+    pub fn add_to_welcome(&self, welcome: &mut serde_json::Value) {
+        if self.plot.is_some() {
+            return;
+        }
+        let Some(w) = welcome.as_object_mut() else { return };
+        if let Some(full) = &self.full {
+            w.insert("home_full".into(), serde_json::json!(full));
+        }
+        if !self.free.is_empty() {
+            let free: serde_json::Map<String, serde_json::Value> = self.free.iter().map(|(id, n)| (id.clone(), serde_json::json!(n))).collect();
+            w.insert("home_free".into(), serde_json::Value::Object(free));
+        }
+    }
+}
+
+/// The start a plot of `kind` holds: the first offered start of that kind (`Starts::for_plot_kind`),
+/// else the first start of that kind at all, else the kind itself (a plot kind no start names yet,
+/// which nobody can ask for).
+pub fn start_of_kind(starts: &crate::ship::starts::Starts, kind: &str) -> String {
+    starts
+        .for_plot_kind(kind)
+        .or_else(|| starts.starts.iter().find(|s| s.plot_kind == kind))
+        .map(|s| s.id.clone())
+        .unwrap_or_else(|| kind.to_string())
 }
 
 /// What a `game_join` says about the joiner's own home (increment 1b), both from the game
@@ -440,10 +485,15 @@ impl HomeAssignment {
 ///   `home_spawn` [x, z], the player's own home's door, plot-local metres: they arrive there
 ///                on whichever plot they get, kept inside it (`PlotArrival::arrival`). None:
 ///                the middle of the plot.
+///   `start`      the kind of home they ask for (ship homes increment 6, a row of
+///                data/homes/starts.ron: "cabin", "homestead"). Only for a plot they do not hold
+///                yet: a plot they hold is kept whatever they ask (`assign_home`). Unknown, not
+///                offered or absent: the default start (`Starts::resolve`).
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct JoinHome {
     pub ship_hash: Option<String>,
     pub door: Option<(f32, f32)>,
+    pub start: Option<String>,
 }
 
 /// Why a `game_join` is refused before anything is spawned (home_plots.rs `refused_join`).
@@ -488,13 +538,16 @@ impl crate::ship::ship_structure::ShipPlots {
 impl JoinHome {
     /// Read from the raw `game_join`. A field of the wrong shape counts as absent, except a
     /// `ship_hash` that is not a string, which is read as empty and refused (`NoShipNamed`).
+    /// A `start` is read only when it is a start id (1 to 32 of a-z, 0-9, - and _,
+    /// `starts::is_start_id`); anything else asks for the default.
     pub fn from_join(raw: &serde_json::Value) -> Self {
         let ship_hash = raw.get("ship_hash").filter(|v| !v.is_null()).map(|v| v.as_str().unwrap_or("").to_string());
         let door = raw.get("home_spawn").and_then(|v| v.as_array()).and_then(|a| match a.as_slice() {
             [x, z] => Some((x.as_f64()? as f32, z.as_f64()? as f32)),
             _ => None,
         });
-        JoinHome { ship_hash, door }
+        let start = raw.get("start").and_then(|v| v.as_str()).filter(|s| crate::ship::starts::is_start_id(s)).map(str::to_string);
+        JoinHome { ship_hash, door, start }
     }
 }
 
@@ -529,6 +582,8 @@ impl GameWorld {
             vehicle_speeds: super::move_check::vehicle_speeds(std::path::Path::new("data")),
             interest: Default::default(),
             pieces: Default::default(),
+            // Before the ship, whose load counts each start's plots (increment 6).
+            starts: crate::ship::starts::Starts::load(std::path::Path::new("data")),
         };
         world.load_ship();
         world.load_chores();
@@ -587,6 +642,14 @@ impl GameWorld {
             Ok(ship) => {
                 let p = crate::ship::ship_structure::ShipPlots::of_ship(&ship);
                 tracing::info!("Game: ship {} ({}) has {} plot(s)", p.ship_id, p.ship_hash, p.plots.len());
+                // Each start a player may ask for, and how many plots of its kind the ship has
+                // (increment 6): a start whose kind has no plot here can never be given.
+                for s in self.starts.offered() {
+                    match p.plots.iter().filter(|q| q.kind == s.plot_kind).count() {
+                        0 => tracing::warn!("Game: the {} start lives on {} plots and this ship has none: nobody can be given one", s.id, s.plot_kind),
+                        n => tracing::info!("Game: the {} start has {n} {} plot(s)", s.id, s.plot_kind),
+                    }
+                }
                 self.ship_plots = p;
                 self.load_ship_rooms(&ship);
                 // Its transit links, by id (increment 4): a declared jump in a shared zone must be one.
@@ -1074,25 +1137,36 @@ impl GameWorld {
     }
 
     /// Where a joining player lives and arrives (increment 1b): for a join naming this ship
-    /// (`JoinHome`), the plot they hold on it, else the first free one, claimed now
-    /// (`Storage::claim_plot`, one plot per player and one player per plot, enforced by the
-    /// table), arriving at their own home's door on it, else in its middle. With every plot
-    /// held, or for a join naming no ship, they are a guest in the Commons. A join naming
-    /// ANOTHER ship never gets here (refused at the join). A storage error makes them a guest
-    /// too (logged): a join is never refused over a plot.
+    /// (`JoinHome`), the plot they hold on it, whatever its kind, else the first free plot of the
+    /// kind their `start` asks for (increment 6: a cabin for "cabin", a homestead for nothing or
+    /// for a start nobody may choose, `Starts::resolve`), claimed now (`Storage::claim_plot`,
+    /// one plot per player and one player per plot, enforced by the table), arriving at their
+    /// own home's door on it, else in its middle. With no plot of that kind free, or for a join
+    /// naming no ship, they are a guest in the Commons, and a guest's welcome says which kinds
+    /// are free (`add_to_welcome`). A join naming ANOTHER ship never gets here (refused at the
+    /// join). A storage error makes them a guest too (logged): a join is never refused over a
+    /// plot.
     pub fn assign_home(&self, db: &crate::relay::storage::Storage, owner_key: &str, join: &JoinHome) -> HomeAssignment {
         let sp = &self.ship_plots;
-        let ids: Vec<&str> = sp.plots.iter().map(|p| p.id.as_str()).collect();
-        let held = if ids.is_empty() {
+        let asked = self.starts.resolve(join.start.as_deref());
+        let all: Vec<&str> = sp.plots.iter().map(|p| p.id.as_str()).collect();
+        let of_kind = self.plot_ids_of_kind(&asked.plot_kind);
+        let owner = plot_owner_id(owner_key);
+        let mut full = None;
+        let held = if all.is_empty() {
             None
         } else if !sp.is_this_ship(join) {
             tracing::info!("Game: {} names no ship (or not ours, {}); a guest, no plot claimed", crate::relay::handlers::federation::key_in_log(&owner_key), sp.ship_hash);
             None
         } else {
-            match db.claim_plot(&sp.ship_id, &plot_owner_id(owner_key), &ids) {
+            match db.claim_plot(&sp.ship_id, &owner, &all, &of_kind) {
+                Ok(None) => {
+                    full = Some(asked.id.clone());
+                    None
+                }
                 Ok(id) => id,
                 Err(e) => {
-                    tracing::warn!("Game: could not claim a plot for {owner_key}: {e}; joining as a guest");
+                    tracing::warn!("Game: could not claim a plot for {}: {e}; joining as a guest", crate::relay::handlers::federation::key_in_log(&owner_key));
                     None
                 }
             }
@@ -1106,7 +1180,30 @@ impl GameWorld {
                 glam::Vec3::new(d[0], d[1], d[2])
             }
         };
-        HomeAssignment { plot, spawn: [spawn.x, spawn.y, spawn.z] }
+        let start = plot.as_ref().map(|p| start_of_kind(&self.starts, &p.kind)).unwrap_or_default();
+        let free = if plot.is_none() && !all.is_empty() { self.free_by_start(db) } else { Vec::new() };
+        HomeAssignment { plot, spawn: [spawn.x, spawn.y, spawn.z], start, full, free }
+    }
+
+    /// The ids of this ship's plots of `kind`, in the ship file's order: where a start of that
+    /// kind is claimed from.
+    pub fn plot_ids_of_kind(&self, kind: &str) -> Vec<&str> {
+        self.ship_plots.plots.iter().filter(|p| p.kind == kind).map(|p| p.id.as_str()).collect()
+    }
+
+    /// Every OFFERED start with how many plots of its kind nobody holds on this ship, in the
+    /// starts file's order (a guest's welcome, `add_to_welcome`). A storage error counts none
+    /// free (logged): it never names who holds anything.
+    pub fn free_by_start(&self, db: &crate::relay::storage::Storage) -> Vec<(String, u32)> {
+        self.starts.offered().map(|s| (s.id.clone(), self.free_of_kind(db, &s.plot_kind))).collect()
+    }
+
+    /// How many of this ship's plots of `kind` nobody holds (0 on a storage error, logged).
+    pub fn free_of_kind(&self, db: &crate::relay::storage::Storage, kind: &str) -> u32 {
+        db.free_of(&self.ship_plots.ship_id, &self.plot_ids_of_kind(kind)).unwrap_or_else(|e| {
+            tracing::warn!("Game: could not count the free {kind} plots: {e}");
+            0
+        })
     }
 
     /// Give back the plot the player with `owner_key` holds on this ship (the record only;
@@ -1625,7 +1722,7 @@ impl GameWorld {
                                 xp,
                                 rep,
                             ) {
-                                tracing::warn!("Could not persist ghost progress for {owner}: {e}");
+                                tracing::warn!("Could not persist ghost progress for {}: {e}", crate::relay::handlers::federation::key_in_log(&owner));
                             }
                         }
                     }
@@ -1761,9 +1858,139 @@ impl GameWorld {
     }
 }
 
+/// TESTS: the cabin row ship homes increment 6's lane 1A adds to the ship file (plan 3.3: sixteen
+/// cabin plots c1..c16, 3.0 x 3.0 x 2.5 m at (80.5, 0, 88 + 2.5(i-1)), east of First Street), in
+/// `world`'s plots, when the ship file does not hold cabin plots yet. A ship file that has them
+/// (lane 1A merged) is left as it is, so these tests read the real row from then on. The ship's
+/// hash is unchanged: a test's game names the ship the relay loaded.
+#[cfg(test)]
+pub(crate) fn with_cabin_plots(world: &mut GameWorld) {
+    if world.ship_plots.plots.iter().any(|p| p.kind == "cabin") {
+        return;
+    }
+    for i in 0..16 {
+        world.ship_plots.plots.push(crate::ship::ship_structure::PlotArrival {
+            id: format!("c{}", i + 1),
+            kind: "cabin".into(),
+            origin: (80.5, 0.0, 88.0 + 2.5 * i as f32),
+            size: (3.0, 3.0, 2.5),
+        });
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The world and a fresh plot table of the tests below: the shipped ship with its cabins
+    /// (`with_cabin_plots`).
+    fn world_with_cabins(tag: &str) -> (GameWorld, crate::relay::storage::Storage) {
+        let mut world = GameWorld::new();
+        with_cabin_plots(&mut world);
+        (world, crate::relay::storage::Storage::open_temp(&format!("gs_{tag}")))
+    }
+
+    /// A game's join asking for `start` (None: no `start` field), naming this world's ship.
+    fn join_asking(world: &GameWorld, start: Option<&str>) -> JoinHome {
+        let mut raw = serde_json::json!({ "type": "game_join", "ship_hash": world.ship_plots.ship_hash });
+        if let Some(s) = start {
+            raw["start"] = serde_json::json!(s);
+        }
+        JoinHome::from_join(&raw)
+    }
+
+    /// A JOIN ASKING FOR A CABIN GETS A CABIN, AND ONE ASKING FOR A START NOBODY MAY CHOOSE GETS
+    /// THE DEFAULT (ship homes increment 6, plan 3.5): Ann asks for a cabin and is given the first
+    /// cabin, its welcome's `home_plot` naming kind and start "cabin"; Bo asks for nothing and is
+    /// given the first homestead; Cy asks for a "palace" (no such row) and Dee for the Apartment
+    /// (not offered yet): each the next homestead. Asked again, Ann asking for a homestead keeps
+    /// her cabin. A `start` is read only when it is a start id.
+    ///
+    /// Seen red 2026-10-12 with `start` ignored (`self.starts.resolve(None)` in `assign_home`):
+    /// "assertion `left == right` failed: Ann asked for a cabin and was given p1, a homestead /
+    /// left: Some(\"homestead\") / right: Some(\"cabin\")".
+    #[test]
+    fn a_join_asking_for_a_cabin_gets_a_cabin_and_an_unknown_start_the_default() {
+        let (world, db) = world_with_cabins("join_start");
+        let cabins = world.plot_ids_of_kind("cabin").iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        let homesteads = world.plot_ids_of_kind("homestead").iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        assert!(cabins.len() >= 1 && homesteads.len() >= 3, "{cabins:?} {homesteads:?}");
+
+        let ann = world.assign_home(&db, "a11ce0", &join_asking(&world, Some("cabin")));
+        let got = ann.plot.as_ref().map(|p| (p.id.clone(), p.kind.clone()));
+        assert_eq!(
+            got.as_ref().map(|(_, k)| k.as_str()),
+            Some("cabin"),
+            "Ann asked for a cabin and was given {}",
+            got.as_ref().map(|(id, k)| format!("{id}, a {k}")).unwrap_or("nothing".into())
+        );
+        assert_eq!(got.unwrap().0, cabins[0], "the first cabin");
+        assert_eq!((ann.start.as_str(), ann.full.as_ref(), ann.free.len()), ("cabin", None, 0), "a player with a plot: no full, no counts");
+        let hp = ann.home_plot_json();
+        assert_eq!((hp["id"].as_str(), hp["kind"].as_str(), hp["start"].as_str()), (Some(cabins[0].as_str()), Some("cabin"), Some("cabin")));
+        let spawn = ann.plot.as_ref().unwrap();
+        assert!(spawn.origin.0 <= ann.spawn[0] && ann.spawn[0] <= spawn.origin.0 + spawn.size.0, "she arrives on her cabin: {:?}", ann.spawn);
+
+        for (key, start, want) in [("b0b0b0", None, &homesteads[0]), ("c1c1c1", Some("palace"), &homesteads[1]), ("deedee", Some("apartment"), &homesteads[2])] {
+            let got = world.assign_home(&db, key, &join_asking(&world, start));
+            let p = got.plot.as_ref().unwrap_or_else(|| panic!("asking for {start:?} gave no plot"));
+            assert_eq!((&p.id, p.kind.as_str(), got.start.as_str()), (want, "homestead", "homestead"), "asking for {start:?}: the default, a homestead");
+        }
+        // Ann's next join asks for a homestead: she keeps her cabin.
+        let again = world.assign_home(&db, "a11ce0", &join_asking(&world, Some("homestead")));
+        assert_eq!(again.plot.map(|p| p.id), Some(cabins[0].clone()), "a held cabin is kept whatever is asked");
+
+        // A `start` is read only when it is a start id.
+        let j = |v: serde_json::Value| JoinHome::from_join(&v).start;
+        assert_eq!(j(serde_json::json!({ "start": "cabin" })).as_deref(), Some("cabin"));
+        for bad in [serde_json::json!("Cabin"), serde_json::json!(""), serde_json::json!("x".repeat(33)), serde_json::json!(3), serde_json::json!(null), serde_json::json!("cab in")] {
+            assert_eq!(j(serde_json::json!({ "start": bad.clone() })), None, "{bad} asks for the default");
+        }
+    }
+
+    /// A FULL KIND MAKES A GUEST, AND THE WELCOME SAYS WHAT IS FREE (plan 3.5 and 3.7): with every
+    /// cabin held, Eve asking for a cabin is a guest (no homestead is handed to her instead: she
+    /// chooses), and her welcome carries `home_full: "cabin"` and `home_free` with every offered
+    /// start's count. A player with a plot gets neither, and neither does a guest whose join named
+    /// no ship (`home_full` absent; only the counts).
+    ///
+    /// Seen red 2026-10-12 with `add_to_welcome` adding nothing (returning first for everyone):
+    /// "assertion `left == right` failed: a guest's welcome says which kind was full:
+    /// {\"home_plot\":null,\"type\":\"game_welcome\"} / left: Null / right: \"cabin\"".
+    #[test]
+    fn a_full_kind_makes_a_guest_and_says_what_is_free() {
+        let (world, db) = world_with_cabins("full_kind");
+        let cabins = world.plot_ids_of_kind("cabin").len() as u64;
+        let homesteads = world.plot_ids_of_kind("homestead").len() as u64;
+        for n in 0..cabins {
+            let got = world.assign_home(&db, &format!("ca{n:04x}"), &join_asking(&world, Some("cabin")));
+            assert_eq!(got.plot.map(|p| p.kind), Some("cabin".into()), "cabin holder {n}");
+        }
+        let welcome_of = |a: &HomeAssignment| {
+            let mut w = serde_json::json!({ "type": "game_welcome", "home_plot": a.home_plot_json() });
+            a.add_to_welcome(&mut w);
+            w
+        };
+
+        let eve = world.assign_home(&db, "e7e7e7", &join_asking(&world, Some("cabin")));
+        assert_eq!(eve.plot, None, "no cabin free: a guest, not a homestead in its place");
+        assert_eq!(eve.spawn, { let g = world.ship_plots.guest_spawn.unwrap(); [g.x, g.y, g.z] }, "in the Commons");
+        let w = welcome_of(&eve);
+        assert_eq!(w["home_full"], "cabin", "a guest's welcome says which kind was full: {w}");
+        assert_eq!(w["home_free"], serde_json::json!({ "cabin": 0, "homestead": homesteads }), "and how many of each offered kind are free: {w}");
+        assert!(w["home_free"].get("apartment").is_none(), "a start not offered is not counted");
+
+        // A homestead holder: none of it.
+        let bo = world.assign_home(&db, "b0b0b0", &join_asking(&world, None));
+        let w = welcome_of(&bo);
+        assert!(w.get("home_full").is_none() && w.get("home_free").is_none(), "a player with a plot: {w}");
+        let w = welcome_of(&world.assign_home(&db, "b0b0b0", &join_asking(&world, Some("cabin"))));
+        assert!(w.get("home_full").is_none(), "Bo asking for a cabin keeps his homestead and is not told one was full: {w}");
+        // A guest whose join named no ship (a scripted player): the counts, no full kind.
+        let w = welcome_of(&world.assign_home(&db, "f00f00", &JoinHome::from_join(&serde_json::json!({ "start": "cabin" }))));
+        assert!(w.get("home_full").is_none(), "{w}");
+        assert_eq!(w["home_free"]["homestead"], homesteads - 1, "Bo's homestead counted as held: {w}");
+    }
 
     /// What a `game_join` says about the joiner's home (increment 1b): a ship hash that is
     /// not a string can never match (so it claims nothing), a missing or null one is absent

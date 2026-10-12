@@ -2371,12 +2371,36 @@ pub async fn get_web_manifest() -> Json<WebManifest> {
 /// GET /api/profile/{key} — Look up a signed profile by public key.
 /// Returns the cached signed profile if available. Any server that has
 /// seen the user can serve their profile — no home server needed.
+///
+/// Not found (BUG-191, plan 3.9), with the same answer as for a key never seen, so it says
+/// nothing about why: when the copy held is a withdrawal (the person went unlisted), and when the
+/// key has an account HERE that is unlisted here, at once, before any device has signed the
+/// withdrawal. Every copy held is one its owner signed, so there is no unsigned copy to tidy.
 pub async fn get_signed_profile(
     State(state): State<Arc<RelayState>>,
     Path(key): Path<String>,
 ) -> impl IntoResponse {
+    use crate::relay::core::profile_copy::{is_withdrawal, unlisted, FIELDS_FOR_FRIENDS};
+    let not_found = || (StatusCode::NOT_FOUND, Json(serde_json::json!({ "error": "Profile not found" }))).into_response();
+    let failed = |e: rusqlite::Error| {
+        (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": format!("Database error: {}", e) }))).into_response()
+    };
     match state.db.get_signed_profile(&key) {
+        Ok(Some(profile)) if is_withdrawal(&profile.copy()) => not_found(),
         Ok(Some(profile)) => {
+            // The person's account here, if they have one: its privacy map as it is NOW (read
+            // before anything is answered, so a map that cannot be read answers nothing).
+            let local_name = state.db.current_name_for_key(&key).ok().flatten();
+            let local_privacy = match &local_name {
+                Some(name) => match state.db.get_profile_extended(name) {
+                    Ok(row) => row.map(|r| r.7),
+                    Err(e) => return failed(e),
+                },
+                None => None,
+            };
+            if local_privacy.as_deref().is_some_and(unlisted) {
+                return not_found();
+            }
             let mut body = serde_json::json!({
                 "public_key": profile.public_key,
                 "name": profile.name,
@@ -2393,39 +2417,22 @@ pub async fn get_signed_profile(
             // Who they accept files in messages from, only when the key has an account HERE: it
             // is this server's setting, not part of the signed profile, so a profile gossiped from
             // another server is answered without it (absent = this server does not know).
-            let local_name = state.db.current_name_for_key(&key).ok().flatten();
-            if local_name.is_none() && profile.signature.is_empty() {
-                // This server's own copy of someone no longer here (kicked, banned, name released):
-                // their privacy map went with the account, so the fields people may keep for
-                // friends are left out (a copy from another server carries a signature).
-                for field in ["pronouns", "location", "website"] {
-                    body[field] = serde_json::json!("");
-                }
-            }
             if let Some(local_name) = local_name {
                 body["accepts_files"] = serde_json::json!(state.db.accepts_files_of(&local_name));
-                // A field the person keeps for friends is left out, by their privacy map as it is
-                // now (a copy cached before 2026-10-11 still holds it).
-                if let Ok(Some(row)) = state.db.get_profile_extended(&local_name) {
-                    let privacy = row.7;
-                    for field in ["pronouns", "location", "website"] {
-                        let shown = body[field].as_str().unwrap_or("").to_string();
-                        body[field] = serde_json::json!(crate::relay::storage::profile::public_field(&privacy, field, &shown));
-                    }
+            }
+            // A field the person keeps for friends here is left out, by their privacy map as it
+            // is now: that covers the seconds between a save and its signature, and a signature
+            // that failed (the copy held is the one before).
+            if let Some(privacy) = local_privacy {
+                for field in FIELDS_FOR_FRIENDS {
+                    let shown = body[field].as_str().unwrap_or("").to_string();
+                    body[field] = serde_json::json!(crate::relay::storage::profile::public_field(&privacy, field, &shown));
                 }
             }
             (StatusCode::OK, Json(body)).into_response()
         }
-        Ok(None) => {
-            (StatusCode::NOT_FOUND, Json(serde_json::json!({
-                "error": "Profile not found"
-            }))).into_response()
-        }
-        Err(e) => {
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({
-                "error": format!("Database error: {}", e)
-            }))).into_response()
-        }
+        Ok(None) => not_found(),
+        Err(e) => failed(e),
     }
 }
 

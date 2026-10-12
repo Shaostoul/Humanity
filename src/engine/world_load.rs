@@ -466,6 +466,10 @@ pub(crate) fn load_world(state: &mut EngineState) {
             {
                 let saved_timers = crate::systems::livestock::take_pending_herd(&state.data_store)
                     .unwrap_or_else(|| crate::systems::livestock::herd_timers(&state.game_world.world));
+                // How each is kept (fed, watered, how long short) goes to the
+                // new herd the same way: the save's, else the previous herd's
+                // (systems::animal_care, 2026-10-12).
+                crate::systems::animal_care::hold_current(&state.game_world.world, &state.data_store);
                 let old: Vec<hecs::Entity> = state
                     .game_world
                     .world
@@ -508,6 +512,10 @@ pub(crate) fn load_world(state: &mut EngineState) {
                             let n = per_species.entry(def.id.as_str()).or_insert(0);
                             let slot = crate::systems::livestock::herd_slot(&def.id, *n);
                             *n += 1;
+                            // An animal that died stays dead (2026-10-12).
+                            if crate::systems::animal_care::is_lost(&state.data_store, &slot) {
+                                continue;
+                            }
                             let since = saved_timers
                                 .iter()
                                 .find(|(s, _)| *s == slot)

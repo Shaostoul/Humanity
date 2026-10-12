@@ -127,6 +127,9 @@ fn a_new_account_refills_one_per_five_seconds_unless_trusted() {
 #[test]
 fn quick_dm_puts_land_until_the_bucket_is_empty() {
     let st = fresh_state("dmrate_burst");
+    // "In the same instant" for real: a loaded machine took over a second for these nine sends
+    // and a refill landed between them (2026-10-12).
+    st.dm_rate.freeze();
     let (sender, inbox) = pair(&st);
     for i in 0..2 {
         assert_eq!(put(&st, sender, inbox), (true, vec![]), "quick pair, send {}", i + 1);
@@ -145,6 +148,7 @@ fn quick_dm_puts_land_until_the_bucket_is_empty() {
 #[test]
 fn the_bucket_refills_at_one_a_second() {
     let st = fresh_state("dmrate_refill");
+    st.dm_rate.freeze(); // only `rewind` moves time on, however slow the machine
     let (sender, inbox) = pair(&st);
     st.dm_rate.drain(sender);
     assert!(!put(&st, sender, inbox).0, "precondition: an empty bucket refuses");

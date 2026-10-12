@@ -1,0 +1,184 @@
+// What each kept animal eats and drinks a day, and what going without does
+// (2026-10-12, first-hour audit S6). Read by src/systems/animal_care.rs; the
+// livestock system feeds and waters every animal of a species listed here,
+// every tick, on the game clock (1x is real time, so the amounts are per real
+// day). A species not listed here needs nothing. Disk first, with a copy
+// built into the game as the fallback.
+//
+// WHERE FEED AND WATER COME FROM. Feed comes out of home storage (the Barn and
+// the home's other places), one whole item at a time, the way the automated
+// machines take their inputs (src/engine/stock_piles.rs). Water comes out of
+// the home's water tanks (the plumbing), the way a machine draws tap water,
+// and when the tanks are dry, out of stored tap water (the `tap` list in
+// data/containers/fluids.ron). An animal eats the first item in its `eats`
+// list that home storage has, so the order is the order it is fed.
+//
+// THE AMOUNTS are dry matter, the measure animal nutrition uses: the part of
+// a feed that is not water. A feed item's `feeds` value is the share of its
+// mass that is dry matter, so 1 kg of hay at 0.86 feeds 0.86 kg.
+//
+// GOING WITHOUT. Each animal counts the hours it has been short of feed and,
+// separately, of water. `slows_h`: it makes less from here on, falling in a
+// straight line to nothing at `stops_h`. In Realistic mode it falls sick at
+// `sick_h` (and makes nothing) and dies at `dies_h`. In Forgiving mode the
+// count stops at `stops_h`: neglect stops what it makes, and it never falls
+// sick or dies of it. Fed and watered again, the count comes down by
+// `recovery` hours for every hour it is cared for (Forgiving uses
+// `forgiving_recovery`), so a hen that went without for days takes weeks to
+// lay again, as real hens do.
+//
+// HOW SURE THESE ARE. The daily amounts come from the sources below. No source
+// gives a single number of hours to sickness or death: welfare authorities
+// judge animals by their condition, not by a count of days, and it depends on
+// heat, age, body condition and whether the animal is in milk. The `*_h`
+// figures are the game's own, chosen inside what the sources describe, and
+// marked as such where they appear.
+//
+// Sources, each read on 2026-10-12:
+//   FEED DRY MATTER
+//   Hays and concentrates (grain) are 86 to 92% dry matter (Manitoba Goat
+//     Association, "Nutrient Requirements of Mature Does", below). Hay here is
+//     0.86 and grain 0.87, the moist end, as stored feed often is.
+//   LAYING HENS
+//   Feed: laying hens ate 105.1 g a day at 19 weeks and 122.0 g at 55 weeks
+//     (Choi et al., "Research on Quantity and Characteristics of Excreta
+//     Produced by Laying Hen", Journal of Animal Environmental Science 7(1),
+//     39-44, 2001, koreascience.kr JAKO200111920727100). 110 g of grain a day
+//     is 0.096 kg of dry matter.
+//   Water: "A laying hen consumed 193.1~222.5 ml of water per day" (the same
+//     paper). 0.25 L a day; the extra a hen drinks in heat is not modelled.
+//   Going without feed: the old forced moult took feed away for about a week
+//     and a half: "Egg production ceases after 5 days, from 25 to 30% of body
+//     weight is lost, and after approximately 5 weeks the flock returns to
+//     production" (N. M. Dale, University of Georgia, Commercial Egg Tip "Full
+//     Feed Molting of Laying Hens", September 2004). So laying slows after a
+//     day without feed and stops at 4 days, and recovery is 0.35 (about 12
+//     days short, back in about 35). Sick at 10 days and dead at 21 are the
+//     game's figures.
+//   Going without water: Virginia Tech's "Why Have My Hens Stopped Laying?"
+//     (L. Jacobs and P. J. Clauer, APSC-180) names "failing to provide a
+//     constant source of fresh water" as a common problem. The hours (slows at
+//     8, stops at a day, sick at 2 days, dead at 3) are the game's, inside
+//     "only a few days without water can become life threatening with
+//     livestock" (a large-animal veterinarian in Grainews, "Especially during
+//     periods of hot weather make sure livestock have water").
+//   Not modelled yet: both extension papers say a hen on grain alone lays
+//     less, because she needs a balanced layer ration with protein and
+//     calcium ("The shell of each egg contains roughly 2 grams of calcium",
+//     A. B. Webster, UGA Backyard Flock Tip, September 2005), and that hens
+//     need about 14 hours of light a day to keep laying (APSC-180). The game
+//     has no layer ration or oyster shell item and no day length for the
+//     coop yet, so a hen fed grain lays at the full rate.
+//   LAYING DUCKS
+//   Feed: "Laying ducks typically consume 120 grams (0.25 lb.) of feed each
+//     per day" (Jacquie Jacob, University of Kentucky, "Feeding Ducks",
+//     poultry.extension.org). 0.104 kg of dry matter.
+//   Water: Pekin ducks drank about 3.0 times their feed by weight at 6 weeks
+//     (EAAP 2015 abstract S15_06, water to feed ratio 3.010 on wood shavings);
+//     no source gives an adult laying duck's daily water, so 3 x 120 g =
+//     0.36 L. Going without: the hen's figures (no duck-specific source).
+//   DAIRY GOATS (60 kg, in milk)
+//   Feed: lactating does eat 2.8 to 4.6% of their body weight in dry matter
+//     (Manitoba Goat Association, "Nutrient Requirements of Mature Does",
+//     adapted from NRC 2007, Nutrient Requirements of Small Ruminants; at
+//     oc4h.ucanr.edu/sites/default/files/2020-12/341659.pdf, which also gives
+//     86 to 92% dry matter for hays and concentrates). 3.5% of 60 kg = 2.1 kg.
+//   Water: "daily water intake should be 2-3 times dry matter intake", and
+//     "Lactation greatly increases the requirement to 4-5 times dry matter
+//     intake" (R. J. Van Saun, Merck Veterinary Manual, "Nutritional
+//     Requirements of Goats", reviewed July 2025). 4 x 2.1 kg = 8.4 L.
+//   Going without: lactating Nubian goats "survived 4 days of deprivation of
+//     either food or both food and water, but these treatments resulted in
+//     about 10 per cent loss in body weight, 85 per cent drop in urine volume,
+//     and cessation of milk production", and "the initial milk yield was not
+//     resumed during the 2 weeks immediately following restoration of food and
+//     water" (K. E. Ali and T. Mirghani, Journal of Arid Environments 6(2),
+//     189-194, 1983). So milk stops at 4 days without feed, and recovery is 0.3
+//     (4 days short, not back in 14). "Insufficient water intake will depress
+//     a goat's performance earlier, and more severely, than any other dietary
+//     insufficiency" (the Manitoba sheet), so without water milk slows at 12
+//     hours and stops at 2 days. Sick and dead are the game's figures.
+//   SHEEP (80 kg ewe, not in milk; she gives wool)
+//   Feed: "With ewes, maintenance about 2%" of body weight in dry matter,
+//     "3.5% plus" in milk (Oregon State University, ANS 312, sheep nutrition,
+//     courses.ecampus.oregonstate.edu/ans312/nine/sheep_11_trans.htm). 2% of
+//     80 kg = 1.6 kg.
+//   Water: J. Whaley, SDSU Extension, "Sheep Water Requirements and Quality
+//     Testing" (updated 9 February 2024), Table 1: a 160 lb ewe at maintenance
+//     0.70 to 0.96 gallons a day, a 200 lb ewe 0.83 to 1.13. An 80 kg (176 lb)
+//     ewe is about 3.5 L.
+//   Going without: sheep do with less water than goats and cattle, so their
+//     figures are longer (the game's).
+//   DAIRY COWS (700 kg, in milk)
+//   Feed and water: New Mexico State University Guide D-107, "Water for Dairy
+//     Cattle" (Looper and Waldner, 2002), Table 1, a 1,500 lb cow giving 40 lb
+//     of milk a day eats 42 lb of dry matter (19.1 kg) and drinks 22.0
+//     gallons (83.3 L) at a 60 F mean minimum temperature. Going without: the
+//     game's figures; water short shows in a cow's milk within a day.
+(
+    // Feed items: the share of each item's mass that is dry matter.
+    feeds: {
+        "hay_0": 0.86,
+        "grain_corn_0": 0.87,
+        "grain_wheat_0": 0.87,
+        "grain_oat_0": 0.87,
+        "grain_barley_0": 0.87,
+        "grain_sorghum_0": 0.87,
+        "grain_millet_0": 0.87,
+        "grain_rice_0": 0.87,
+    },
+    // Forgiving mode: hours of shortfall made up for every hour cared for.
+    forgiving_recovery: 1.0,
+    species: {
+        "chicken": (
+            plural: "chickens",
+            dry_matter_kg_day: 0.096,
+            water_l_day: 0.25,
+            // Scratch grain. A real laying ration adds protein and calcium,
+            // which the game does not model yet.
+            eats: ["grain_corn_0", "grain_wheat_0", "grain_barley_0", "grain_oat_0", "grain_sorghum_0", "grain_millet_0"],
+            feed: (slows_h: 24.0, stops_h: 96.0, sick_h: 240.0, dies_h: 504.0),
+            water: (slows_h: 8.0, stops_h: 24.0, sick_h: 48.0, dies_h: 72.0),
+            recovery: 0.35,
+        ),
+        "duck": (
+            plural: "ducks",
+            dry_matter_kg_day: 0.104,
+            water_l_day: 0.36,
+            eats: ["grain_corn_0", "grain_wheat_0", "grain_rice_0", "grain_barley_0", "grain_oat_0", "grain_sorghum_0", "grain_millet_0"],
+            feed: (slows_h: 24.0, stops_h: 96.0, sick_h: 240.0, dies_h: 504.0),
+            water: (slows_h: 8.0, stops_h: 24.0, sick_h: 48.0, dies_h: 72.0),
+            recovery: 0.35,
+        ),
+        "goat": (
+            plural: "goats",
+            dry_matter_kg_day: 2.1,
+            water_l_day: 8.4,
+            // Hay first: forage is the bulk of a ruminant's diet. Grain is what
+            // it gets when there is no hay (too much grain upsets a ruminant's
+            // stomach in real life, which the game does not model yet).
+            eats: ["hay_0", "grain_oat_0", "grain_barley_0", "grain_corn_0", "grain_wheat_0"],
+            feed: (slows_h: 12.0, stops_h: 96.0, sick_h: 336.0, dies_h: 720.0),
+            water: (slows_h: 12.0, stops_h: 48.0, sick_h: 96.0, dies_h: 144.0),
+            recovery: 0.3,
+        ),
+        "sheep": (
+            plural: "sheep",
+            dry_matter_kg_day: 1.6,
+            water_l_day: 3.5,
+            eats: ["hay_0", "grain_oat_0", "grain_barley_0", "grain_corn_0", "grain_wheat_0"],
+            feed: (slows_h: 48.0, stops_h: 168.0, sick_h: 336.0, dies_h: 720.0),
+            water: (slows_h: 24.0, stops_h: 72.0, sick_h: 120.0, dies_h: 168.0),
+            recovery: 0.3,
+        ),
+        "cow": (
+            plural: "cows",
+            dry_matter_kg_day: 19.1,
+            water_l_day: 83.3,
+            eats: ["hay_0", "grain_corn_0", "grain_barley_0", "grain_oat_0", "grain_wheat_0"],
+            feed: (slows_h: 12.0, stops_h: 96.0, sick_h: 336.0, dies_h: 720.0),
+            water: (slows_h: 6.0, stops_h: 24.0, sick_h: 72.0, dies_h: 120.0),
+            recovery: 0.3,
+        ),
+    },
+)
