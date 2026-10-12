@@ -1270,3 +1270,148 @@ test("the walker's public key line is read whole, and never from the shortened o
   assert.equal(ada.publicKeyHex.length, 3904, "a Dilithium3 key, whole");
   assert.ok(sp.MEMBER_KEY_RULE.test(ada.publicKeyHex), "and a befriend or give-permit command takes it");
 });
+
+// ── Where it lives, and a meal (ship homes increment 6, 2026-10-12) ─────────────────────────────
+// verify-copresence --starts has a walker join as a Cabin, ask where it lives, and eat at the mess
+// hall (docs/design/ship-homes-increment-6-plan.md section 6, steps 3 and 7). Its messages are the
+// contract's: the game_home wire of src/ship/starts.rs, and the relay's take_meal
+// (src/relay/handlers/ship_stores.rs, fleet_ledger.rs).
+
+const STARTS_RS = fs.readFileSync(path.join(REPO, "src", "ship", "starts.rs"), "utf8");
+const SHIP_STORES_RS = fs.readFileSync(path.join(REPO, "src", "relay", "handlers", "ship_stores.rs"), "utf8");
+const FLEET_LEDGER_RS = fs.readFileSync(path.join(REPO, "src", "relay", "handlers", "fleet_ledger.rs"), "utf8");
+/** A `pub const NAME: &str = "..."` of starts.rs. */
+const startsConst = (name) => {
+  const m = STARTS_RS.match(new RegExp(`pub const ${name}: &str = "([^"]+)";`));
+  assert.ok(m, `starts.rs defines ${name}`);
+  return m[1];
+};
+
+// The option, the three commands and the join's start. Red check run 2026-10-12, restored
+// afterwards: the three tests below against second-player.js as it was before increment 6 (the
+// tree's HEAD copy put in place). FAILED here at the first line: "Error: unknown option \"--start\"
+// (try --help)"; the next test at "TypeError: sp.homeAnswerLines is not a function"; the meal test
+// at "the walker's reach is the relay's" (actual: undefined, expected: 5).
+test("--start, home, choose-home and take-meal parse, and the join carries the start", () => {
+  assert.equal(sp.parseOptions(["--start", "cabin"]).start, "cabin");
+  assert.equal(sp.parseOptions(["--start", " homestead "]).start, "homestead");
+  assert.equal(sp.parseOptions([]).start, null, "none given: the relay's default");
+  for (const bad of ["Cabin", "", "x".repeat(33), "cab in", "cabin;homestead"]) {
+    assert.throws(() => sp.parseOptions(["--start", bad]), /--start must be a start id/, JSON.stringify(bad));
+  }
+  // The rule is the relay's (starts.rs `is_start_id`: 1 to 32 of a-z, 0-9, - and _).
+  assert.match(STARTS_RS, /s\.len\(\) <= 32 && s\.bytes\(\)\.all\(\|b\| b\.is_ascii_lowercase\(\) \|\| b\.is_ascii_digit\(\) \|\| b == b'-' \|\| b == b'_'\)/);
+  assert.ok(sp.START_ID_RULE.test("a-b_9") && !sp.START_ID_RULE.test("A") && !sp.START_ID_RULE.test("x".repeat(33)));
+
+  // The join names the start as the game's does, and only when one was asked for.
+  const ship = { id: "mothership-1", hash: "0123456789abcdef" };
+  assert.equal(sp.joinMessage("TestBotWalker", {}, ship, null, "cabin").start, "cabin", "the join carries the start");
+  assert.equal(sp.joinMessage("TestBotWalker", {}, ship, [53.5, 40.5], "cabin").home_spawn.length, 2, "beside its door");
+  assert.equal("start" in sp.joinMessage("TestBotWalker", {}, ship, null), false, "none asked: no start field");
+  assert.equal("start" in sp.joinMessage("TestBotWalker", {}, ship, null, ""), false);
+
+  // The commands.
+  assert.deepEqual(sp.parseCommand("home"), { kind: "home" });
+  assert.deepEqual(sp.parseCommand("  choose-home cabin  "), { kind: "choose-home", start: "cabin" });
+  assert.deepEqual(sp.parseCommand("take-meal"), { kind: "take-meal" });
+  for (const [bad, why] of [
+    ["home now", /home takes nothing/],
+    ["choose-home", /choose-home wants/],
+    ["choose-home Cabin", /choose-home wants/],
+    ["choose-home cabin homestead", /choose-home wants/],
+    ["take-meal 2", /take-meal takes nothing/],
+    ["eat", /unknown command .*home, choose-home, take-meal or stop/],
+  ]) {
+    assert.throws(() => sp.parseCommand(bad), why, bad);
+  }
+
+  // The messages are the contract's (starts.rs HOME_REQUEST, CHOOSE_HOME; the answer HOME_ANSWER).
+  assert.deepEqual(sp.homeRequestMessage(), { type: startsConst("HOME_REQUEST") });
+  assert.deepEqual(sp.chooseHomeMessage("cabin"), { type: startsConst("CHOOSE_HOME"), start: "cabin" });
+  assert.equal(sp.HOME_ANSWER, startsConst("HOME_ANSWER"));
+  assert.match(sp.HELP, /--start ID[\s\S]*\n  home {2,}[\s\S]*choose-home <start>[\s\S]*take-meal/, "--help names the option and the three commands");
+});
+
+// Each answer one line a rig can read. Red check run 2026-10-12, restored afterwards: freeList
+// leaving out a start with none free (`&& s.free > 0`). FAILED at the full refusal's lines: actual
+// [..., 'home: none; free homestead 4'], expected [..., 'home: none; free cabin 0, homestead 4'].
+test("a game_home answer is logged in the lines a rig reads", () => {
+  const offer = (id, offered, free) => ({ id, name: id[0].toUpperCase() + id.slice(1), sentence: `The ${id}.`, offered, ...(offered ? {} : { why_not: "Later." }), free });
+  const offers = (cabin, homestead) => [offer("cabin", true, cabin), offer("apartment", false, 0), offer("homestead", true, homestead)];
+  const answer = (fields) => ({ type: "game_home", plot: null, starts: [], ...fields });
+
+  // Where it lives: the plan's own line (section 6, step 3).
+  const held = sp.homeAnswerLines(answer({ plot: { id: "c1", kind: "cabin", start: "cabin" }, starts: offers(15, 12) }));
+  assert.deepEqual(held, ["home: c1 cabin; free cabin 15, homestead 12"]);
+  assert.deepEqual(held[0].match(sp.HOME_RE).slice(1), ["c1", "cabin", "cabin 15, homestead 12"]);
+  const none = sp.homeAnswerLines(answer({ starts: offers(16, 12) }));
+  assert.deepEqual(none, ["home: none; free cabin 16, homestead 12"]);
+  assert.deepEqual(none[0].match(sp.HOME_RE).slice(1, 2), ["none"]);
+
+  // A choice made, and each kind of refusal.
+  const chose = sp.homeAnswerLines(answer({ plot: { id: "c2", kind: "cabin", start: "cabin" }, starts: offers(14, 12), chose: true }));
+  assert.deepEqual(chose, ["home chosen: c2 cabin", "home: c2 cabin; free cabin 14, homestead 12"]);
+  assert.deepEqual(chose[0].match(sp.HOME_CHOSEN_RE).slice(1), ["c2", "cabin"]);
+  const full = sp.homeAnswerLines(answer({ starts: offers(0, 4), refused: "full", message: "No cabin is free on this ship right now. You can have a homestead instead." }));
+  assert.deepEqual(full, ["home refused: full: No cabin is free on this ship right now. You can have a homestead instead.", "home: none; free cabin 0, homestead 4"]);
+  assert.deepEqual(full[0].match(sp.HOME_REFUSED_RE).slice(1), ["full", "No cabin is free on this ship right now. You can have a homestead instead."]);
+  assert.deepEqual(sp.homeAnswerLines(answer({ refused: "again", message: "The server is busy; try again in a moment." })), [
+    "home refused: again: The server is busy; try again in a moment.",
+  ]);
+  assert.deepEqual(sp.homeAnswerLines({ type: "game_welcome", home_plot: null }), [], "another message is not an answer");
+  assert.equal(sp.homeAnswerLines(answer({ starts: offers(1, 1) })).filter((l) => sp.HOME_CHOSEN_RE.test(l) || sp.HOME_REFUSED_RE.test(l)).length, 0, "a plain answer is neither chosen nor refused");
+
+  // A guest's welcome: why it is a guest, and what is free.
+  const guest = { type: "game_welcome", home_plot: null, home_full: "homestead", home_free: { cabin: 16, homestead: 0 } };
+  assert.equal(sp.homePlotLine(guest), "home_plot null (no homestead is free on the ship: a guest in the Commons)");
+  assert.match(sp.homePlotLine(guest), /^home_plot null /, "the line the rigs read for a guest");
+  assert.equal(sp.homeFreeLine(guest), "home free: cabin 16, homestead 0");
+  assert.equal(sp.homeFreeLine(guest).match(sp.HOME_FREE_RE)[1], "cabin 16, homestead 0");
+  assert.equal(sp.homeFreeLine({ type: "game_welcome", home_plot: { id: "p1" }, home_free: { cabin: 1 } }), null, "a player with a home: no list");
+  assert.equal(sp.homeFreeLine({ type: "game_welcome", home_plot: null }), null, "a relay from before increment 6");
+  assert.equal(sp.homePlotLine({ type: "game_welcome", home_plot: null }), "home_plot null (the ship is full: a guest in the Commons)");
+});
+
+// The nearest store in the relay's reach. Red check run 2026-10-12, restored afterwards:
+// nearestStore taking the first store in reach (`if (d <= reach && !best)`). FAILED at "the nearer
+// of the two": actual [11, 4], expected [12, 3].
+test("take-meal goes to the nearest food store in reach, and its answer is logged", () => {
+  const reach = SHIP_STORES_RS.match(/pub const STORE_REACH_M: f32 = ([0-9.]+);/);
+  assert.ok(reach, "ship_stores.rs defines STORE_REACH_M");
+  assert.equal(sp.STORE_REACH_M, Number(reach[1]), "the walker's reach is the relay's");
+
+  const welcome = {
+    type: "game_welcome",
+    player_id: 1,
+    world_snapshot: [
+      { entity_id: 1, entity_type: "player", position: [0, 1.7, 0] },
+      { entity_id: 11, entity_type: "food_store", position: [4, 1.7, 0] },
+      { entity_id: 12, entity_type: "food_store", position: [0, 1.7, 3] },
+      { entity_id: 13, entity_type: "npc", position: [1, 1.7, 0] },
+      { entity_id: 14, entity_type: "food_store" },
+    ],
+  };
+  const stores = sp.foodStoresIn(welcome);
+  assert.deepEqual(stores.map((s) => s.id), [11, 12], "the stores with a place, and nothing else");
+  const near = sp.nearestStore(stores, [0, 1.7, 0]);
+  assert.deepEqual([near.id, near.distance], [12, 3], "the nearer of the two");
+  assert.equal(sp.nearestStore(stores, [0, 1.7, -6]), null, "none within 5 m: nothing is sent");
+  assert.equal(sp.nearestStore(stores, [9, 1.7, 0]).id, 11, "exactly 5 m is in reach");
+  assert.ok(sp.isFoodStore({ entity_id: 15, entity_type: "food_store", position: [1, 2, 3] }), "a store coming into view counts");
+
+  // The message the relay's interact handler takes a meal by.
+  assert.deepEqual(sp.takeMealMessage(12), { type: "game_interact", entity_id: 12, action: "take_meal" });
+  assert.match(SHIP_STORES_RS, /"action": "take_meal", "success": true/, "the relay answers a take_meal by its action");
+  assert.match(FLEET_LEDGER_RS, /reply\["meal_item"\] = serde_json::json!\(item\)/, "and names the meal's item");
+
+  // Its answers.
+  const taken = sp.mealLine({ type: "game_interact_result", entity_id: 12, action: "take_meal", success: true, meals_left: null, supply: "unlimited", meal_item: "ration_basic_0" });
+  assert.equal(taken, "meal taken: ration_basic_0");
+  assert.equal(taken.match(sp.MEAL_TAKEN_RE)[1], "ration_basic_0");
+  const notYet = sp.mealLine({ type: "game_interact_result", entity_id: 12, action: "take_meal", success: false, error: "not_yet", next_meal_in_s: 28799.2 });
+  assert.equal(notYet, "meal refused: not_yet (the next in 28800 game s)");
+  assert.equal(notYet.match(sp.MEAL_REFUSED_RE)[1], "not_yet");
+  assert.equal(sp.mealLine({ type: "game_interact_result", action: "take_meal", success: false, error: "too_far", distance: 7 }), "meal refused: too_far");
+  assert.equal(sp.mealLine({ type: "game_interact_result", action: "inspect", success: true }), null, "another interaction is not a meal");
+  assert.equal("meal refused: none_in_reach (no food store within 5 m)".match(sp.MEAL_REFUSED_RE)[1], "none_in_reach");
+});

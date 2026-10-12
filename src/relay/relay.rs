@@ -3833,6 +3833,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                 super::handlers::shared_build::handle(&state_clone, &my_key_for_recv, kind, &raw).await;
                                 continue;
                             }
+                            // Where you live on the ship, and choosing a home while you hold none (ship homes increment 6, home_plots.rs).
+                            Some(kind @ ("game_home_request" | "game_choose_home")) => { super::handlers::home_plots::handle_home(&state_clone, &my_key_for_recv, kind, &raw).await; continue; }
                             _ => {} // Fall through to normal RelayMessage handling
                         }
                     }

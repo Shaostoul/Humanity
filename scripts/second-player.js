@@ -105,6 +105,14 @@
 // permit "permit received: {json}" then "permit checks out: ..." once its own
 // checks pass (the game's net/household.rs `judge_arrival`, the same order).
 //
+// WHERE IT LIVES, AND A MEAL (ship homes increment 6, 2026-10-12). `--start cabin` asks for a
+// cabin in its join, as a game names its save's start (the relay gives the kind asked for, and
+// keeps a plot already held whatever is asked). On its input, `home` asks the relay where it
+// lives and what is free (`game_home_request`), `choose-home <start>` chooses a home while it holds
+// none (`game_choose_home`), and `take-meal` takes a crew meal from the nearest food store within
+// 5 m. Each answer is one line, in the patterns this module exports (HOME_RE, MEAL_TAKEN_RE, ...),
+// which scripts/verify-copresence.js --starts reads.
+//
 // Usage:
 //   node scripts/second-player.js                      walk a circle on ws://localhost:3210/ws
 //   node scripts/second-player.js --path line --radius 6 --axis z
@@ -179,6 +187,16 @@ const SEED_CONTEXT = "hum/second-player/seed/v1";
 // height. Fixed, so a person learns to recognise it.
 const LOOK = { skin: [0.72, 0.53, 0.42], hair: [0.12, 0.08, 0.05], height: 1.0 };
 const CHAT_CHANNEL = "general";
+// A start id the relay reads from a join or a choice (src/ship/starts.rs `is_start_id`): 1 to 32
+// of a-z, 0-9, - and _. A row of data/homes/starts.ron: "cabin", "homestead".
+const START_ID_RULE = /^[a-z0-9_-]{1,32}$/;
+// How near a player stands to take a meal from a food store, metres (src/relay/handlers/
+// ship_stores.rs STORE_REACH_M; a test holds the two equal).
+const STORE_REACH_M = 5;
+// The game_home wire (src/ship/starts.rs HOME_REQUEST, CHOOSE_HOME, HOME_ANSWER; a test reads them).
+const HOME_REQUEST = "game_home_request";
+const CHOOSE_HOME = "game_choose_home";
+const HOME_ANSWER = "game_home";
 
 // ── Options ──────────────────────────────────────────────────────────────────
 
@@ -225,6 +243,10 @@ second-player: a scripted second player that walks around the shared world.
   --chat TEXT       say one line in #${CHAT_CHANNEL} after joining (signed like a
                     person's message). A brand-new name has to wait a minute
                     before posting in public; it waits and tries again.
+  --start ID        the kind of home to ask for in the join (ship homes increment
+                    6): a row of data/homes/starts.ron, such as cabin or homestead.
+                    Without it the relay gives the default (a homestead). A plot
+                    this identity already holds is kept whatever is asked.
   --forwarded-for IP  the address this connection says it comes from, in the
                     X-Forwarded-For header nginx writes in front of a live
                     relay. A relay signs up at most five NEW accounts an hour
@@ -256,6 +278,16 @@ And in private messages (ship homes 5b), sealed and signed as the apps do:
                     walker's plot (90 days at most), as a sealed note carrying the pass
                     they gave this walker
 What arrives is logged: a friend pass, a follow, a permit and whether it checks out.
+
+And where it lives on the ship, and a meal (ship homes increment 6):
+  home                  ask the relay where this walker lives and how many homes of
+                        each kind are free; logged "home: <plot> <kind>; free <id> <n>, ..."
+                        or "home: none; free ..."
+  choose-home <start>   choose a home of that kind while holding none (cabin, homestead);
+                        logged "home chosen: <plot> <kind>" or "home refused: <why>: <words>"
+  take-meal             take a free crew meal from the nearest food store within
+                        ${STORE_REACH_M} m that this walker knows of; logged "meal taken: <item>"
+                        or "meal refused: <why>"
 `;
 
 /** Read the command line into a plain options object. Throws an Error with a
@@ -264,7 +296,7 @@ function parseOptions(argv) {
   const known = new Set([
     "--server", "--name", "--seed", "--path", "--axis", "--center", "--radius",
     "--speed", "--seconds", "--chat", "--route", "--route-speed", "--home-spawn",
-    "--forwarded-for",
+    "--forwarded-for", "--start",
   ]);
   const flags = new Set(["--allow-remote", "--help", "-h"]);
   const raw = {};
@@ -327,6 +359,13 @@ function parseOptions(argv) {
     // An IPv4 or IPv6 address and nothing else: it goes into a header as it stands.
     if (!/^[0-9A-Fa-f.:]{2,45}$/.test(forwardedFor)) throw new Error("--forwarded-for must be an address like 10.77.0.3");
   }
+  // The kind of home the join asks for (ship homes increment 6). Checked as the relay reads it, so
+  // a misspelt one fails here instead of quietly asking for the default.
+  let start = null;
+  if (raw["--start"] !== undefined) {
+    start = String(raw["--start"]).trim();
+    if (!START_ID_RULE.test(start)) throw new Error("--start must be a start id like cabin or homestead (a-z, 0-9, - and _, at most 32)");
+  }
 
   return {
     help: false,
@@ -344,6 +383,7 @@ function parseOptions(argv) {
     routeSpeed: num("--route-speed", null, (v) => v > 0 && v <= 100, "a number of metres per second above 0 and at most 100"),
     homeSpawn,
     forwardedFor,
+    start,
     chat: raw["--chat"] === undefined ? null : String(raw["--chat"]),
     allowRemote: !!raw["--allow-remote"],
   };
@@ -632,18 +672,23 @@ function signIn(serverUrl, identity, name, { timeoutMs = 20000, forwardedFor = n
  *  home, so by default it names no door and arrives in the middle of its plot;
  *  `homeSpawn` ([x, z], plot-local metres, `--home-spawn`) names one, as a
  *  desktop player with that home does, and the relay spawns it at that door
- *  (increment 2: the walker then walks out through its own corridor). Pure. */
-function joinMessage(name, look, ship, homeSpawn = null) {
+ *  (increment 2: the walker then walks out through its own corridor). `start`
+ *  (`--start`, ship homes increment 6) is the kind of home it asks for, as the
+ *  game's join names its save's start (engine/home_plot.rs `add_join_fields`);
+ *  none asks for the default. Pure. */
+function joinMessage(name, look, ship, homeSpawn = null, start = null) {
   const msg = { type: "game_join", player_name: name, character_mode: "local", appearance: look };
   if (ship && ship.hash) msg.ship_hash = ship.hash;
   if (ship && ship.hash && Array.isArray(homeSpawn)) msg.home_spawn = [homeSpawn[0], homeSpawn[1]];
+  if (typeof start === "string" && start) msg.start = start;
   return msg;
 }
 
 /** Step into the shared world. Resolves with the relay's `game_welcome`
  *  (our entity id, and everyone already there). `ship`: the relay's ship
- *  (`fetchShip`), named in the join so it holds a plot. */
-function joinWorld(client, name, { look = LOOK, timeoutMs = 15000, ship = null, homeSpawn = null } = {}) {
+ *  (`fetchShip`), named in the join so it holds a plot; `start`: the kind of
+ *  home asked for (`joinMessage`). */
+function joinWorld(client, name, { look = LOOK, timeoutMs = 15000, ship = null, homeSpawn = null, start = null } = {}) {
   return new Promise((resolve, reject) => {
     let off = () => {};
     const timer = setTimeout(() => {
@@ -661,7 +706,7 @@ function joinWorld(client, name, { look = LOOK, timeoutMs = 15000, ship = null, 
       else if (game && game.type === "game_join_denied") done(new Error(`the relay refused to let us into the world: ${game.message || game.reason}`));
       else if (msg.type === "system" && /has 'game' disabled/.test(msg.message || "")) done(new Error(msg.message));
     });
-    client.send(joinMessage(name, look, ship, homeSpawn));
+    client.send(joinMessage(name, look, ship, homeSpawn, start));
   });
 }
 
@@ -785,13 +830,116 @@ function onCorrection(g, walk, log) {
 
 /** The plot the relay gave us, as the one line the log carries (and
  *  scripts/verify-copresence.js reads): "home_plot {json}" with the welcome's
- *  {id, kind, origin, size}, or "home_plot null" for a guest (the ship is
- *  full), or "home_plot missing" when the welcome has no such field (a relay
- *  from before increment 1b). */
+ *  {id, kind, start, origin, size} (`start` since ship homes increment 6), or
+ *  "home_plot null" for a guest (no plot of the kind asked for is free, which
+ *  it names when the welcome does, `home_full`), or "home_plot missing" when
+ *  the welcome has no such field (a relay from before increment 1b). */
 function homePlotLine(welcome) {
   if (!welcome || !("home_plot" in welcome)) return "home_plot missing (this relay hands out no plots)";
-  if (welcome.home_plot === null) return "home_plot null (the ship is full: a guest in the Commons)";
+  if (welcome.home_plot === null) {
+    const full = typeof welcome.home_full === "string" && START_ID_RULE.test(welcome.home_full) ? welcome.home_full : null;
+    return full ? `home_plot null (no ${full} is free on the ship: a guest in the Commons)` : "home_plot null (the ship is full: a guest in the Commons)";
+  }
   return `home_plot ${JSON.stringify(welcome.home_plot)}`;
+}
+
+// ── Where it lives, and a meal (ship homes increment 6, 2026-10-12) ──────────
+//
+// A rig asks the walker where it lives (`home`), has it choose a home (`choose-home cabin`) and
+// take a crew meal at the mess hall (`take-meal`); the relay's answers are logged one line each, in
+// the patterns below, which scripts/verify-copresence.js --starts reads.
+
+/** "home: c1 cabin; free cabin 15, homestead 12" or "home: none; free ...": a `game_home` answer
+ *  (src/ship/starts.rs HomeAnswer). Groups: the plot ("none" for none), its kind, the free list. */
+const HOME_RE = /\bhome: (\S+?)(?: (\S+))?; free (.*)$/;
+/** "home chosen: c2 cabin". Groups: the plot, its kind. */
+const HOME_CHOSEN_RE = /\bhome chosen: (\S+) (\S+)$/;
+/** "home refused: full: No cabin is free ...". Groups: the refusal (starts.rs HomeRefusal), its words. */
+const HOME_REFUSED_RE = /\bhome refused: ([a-z_]+): (.*)$/;
+/** A welcome's free homes, for a guest: "home free: cabin 16, homestead 0". Group: the list. */
+const HOME_FREE_RE = /\bhome free: (.*)$/;
+/** "meal taken: ration_basic_0". Group: the item. */
+const MEAL_TAKEN_RE = /\bmeal taken: (\S+)$/;
+/** "meal refused: not_yet" (and anything after). Group: why. */
+const MEAL_REFUSED_RE = /\bmeal refused: ([a-z_]+)/;
+
+/** The `game_home_request` the `home` command sends: where do I live, and what is free? Pure. */
+function homeRequestMessage() {
+  return { type: HOME_REQUEST };
+}
+
+/** The `game_choose_home` the `choose-home` command sends. Pure. */
+function chooseHomeMessage(start) {
+  return { type: CHOOSE_HOME, start };
+}
+
+/** "cabin 15, homestead 12": each OFFERED start of an answer with how many are free (a start not
+ *  offered cannot be chosen, so it is left out). Pure. */
+function freeList(starts) {
+  const list = (Array.isArray(starts) ? starts : []).filter((s) => s && s.offered === true && typeof s.id === "string");
+  return list.map((s) => `${s.id} ${Number.isFinite(Number(s.free)) ? Number(s.free) : 0}`).join(", ") || "nothing";
+}
+
+/** The lines a `game_home` answer is logged as: "home chosen: ..." for a choice made, "home
+ *  refused: <why>: <words>" for a refusal, and "home: ...; free ..." whenever it says where we live
+ *  or what is free (a refusal that says neither, `again` or `no_ship`, is only its own line). [] for
+ *  any other message. Pure. */
+function homeAnswerLines(g) {
+  if (!g || g.type !== HOME_ANSWER) return [];
+  const lines = [];
+  const plot = g.plot && typeof g.plot === "object" && typeof g.plot.id === "string" ? g.plot : null;
+  if (g.chose === true && plot) lines.push(`home chosen: ${plot.id} ${plot.kind}`);
+  if (typeof g.refused === "string" && g.refused) lines.push(`home refused: ${g.refused}: ${typeof g.message === "string" ? g.message : ""}`);
+  const starts = Array.isArray(g.starts) ? g.starts : [];
+  if (plot || starts.length) lines.push(`home: ${plot ? `${plot.id} ${plot.kind}` : "none"}; free ${freeList(starts)}`);
+  return lines;
+}
+
+/** For a guest's welcome that lists the free homes (`home_free`, ship homes increment 6): "home
+ *  free: cabin 16, homestead 0"; null for anyone else. Pure. */
+function homeFreeLine(welcome) {
+  const free = welcome && welcome.home_plot === null && welcome.home_free;
+  if (!free || typeof free !== "object") return null;
+  const parts = Object.entries(free).filter(([id, n]) => START_ID_RULE.test(id) && Number.isFinite(Number(n))).map(([id, n]) => `${id} ${Number(n)}`);
+  return parts.length ? `home free: ${parts.join(", ")}` : null;
+}
+
+/** The food stores a welcome's snapshot lists (entity_type "food_store"), as { id, position }.
+ *  Stores never move, and every one is in every welcome (game_interest.rs `snapshot_for`). Pure. */
+function foodStoresIn(welcome) {
+  const snap = Array.isArray(welcome && welcome.world_snapshot) ? welcome.world_snapshot : [];
+  return snap.filter(isFoodStore).map((e) => ({ id: e.entity_id, position: e.position.slice(0, 3).map(Number) }));
+}
+
+/** True for a snapshot entry (or a `game_in_view` entity) that is a food store with a place. */
+function isFoodStore(e) {
+  return !!e && e.entity_type === "food_store" && Number.isSafeInteger(e.entity_id) && Array.isArray(e.position) && e.position.length >= 3;
+}
+
+/** The nearest of `stores` within `reach` metres of `pos`, or null. Pure. */
+function nearestStore(stores, pos, reach = STORE_REACH_M) {
+  let best = null;
+  for (const s of stores) {
+    const d = Math.hypot(s.position[0] - pos[0], s.position[1] - pos[1], s.position[2] - pos[2]);
+    if (d <= reach && (!best || d < best.distance)) best = { ...s, distance: d };
+  }
+  return best;
+}
+
+/** The `game_interact` a `take-meal` sends to a store (msg_handlers.rs `handle_game_interact`,
+ *  ship_stores.rs `take_meal`). Pure. */
+function takeMealMessage(entityId) {
+  return { type: "game_interact", entity_id: entityId, action: "take_meal" };
+}
+
+/** The line a meal's answer is logged as: "meal taken: <item>" (the relay names the meal's item,
+ *  fleet_ledger.rs `take_meal_and_record`) or "meal refused: <why>" (ship_stores.rs `take_meal`'s
+ *  errors: too_far, not_yet, empty, ...); null for any other message. Pure. */
+function mealLine(g) {
+  if (!g || g.type !== "game_interact_result" || g.action !== "take_meal") return null;
+  if (g.success === true) return `meal taken: ${typeof g.meal_item === "string" && g.meal_item ? g.meal_item : "a_meal"}`;
+  const why = typeof g.error === "string" && /^[a-z_]+$/.test(g.error) ? g.error : "unknown";
+  return `meal refused: ${why}${g.error === "not_yet" && Number.isFinite(Number(g.next_meal_in_s)) ? ` (the next in ${Math.ceil(Number(g.next_meal_in_s))} game s)` : ""}`;
 }
 
 /** The OTHER players already in the world when we joined, as the welcome's
@@ -1168,7 +1316,8 @@ function parsePermitJson(text) {
 /** One line of the walker's input, as a command: { kind: "build", blueprint, frame, local:
  *  [x, y, z], turns, permit }, { kind: "unbuild", pieceId, permit }, { kind: "permit", plot,
  *  grantee, days }, { kind: "befriend", key }, { kind: "give-permit", key, plot, days }, { kind:
- *  "stop" }, or null for an empty line. Throws, saying what it wants, for anything else (see the
+ *  "home" }, { kind: "choose-home", start }, { kind: "take-meal" }, { kind: "stop" }, or null for
+ *  an empty line. Throws, saying what it wants, for anything else (see the
  *  HELP text). Pure. */
 function parseCommand(line) {
   const text = String(line ?? "").trim();
@@ -1228,7 +1377,22 @@ function parseCommand(line) {
     if (!(days > 0 && days <= PERMIT_MAX_DAYS)) throw new Error(`a household permit lasts at most ${PERMIT_MAX_DAYS} days (and more than none), got ${daysText}`);
     return { kind: "give-permit", key: key.toLowerCase(), plot, days };
   }
-  throw new Error(`unknown command "${head.slice(0, 80)}" (build, unbuild, permit, befriend, give-permit or stop)`);
+  // Where it lives, and a meal (ship homes increment 6).
+  if (verb === "home" && !permit) {
+    if (words.length !== 1) throw new Error(`home takes nothing after it, got "${head}"`);
+    return { kind: "home" };
+  }
+  if (verb === "choose-home" && !permit) {
+    if (words.length !== 2 || !START_ID_RULE.test(words[1])) {
+      throw new Error(`choose-home wants "choose-home <start id>" (a row of data/homes/starts.ron, such as cabin or homestead), got "${head.slice(0, 80)}"`);
+    }
+    return { kind: "choose-home", start: words[1] };
+  }
+  if (verb === "take-meal" && !permit) {
+    if (words.length !== 1) throw new Error(`take-meal takes nothing after it, got "${head}"`);
+    return { kind: "take-meal" };
+  }
+  throw new Error(`unknown command "${head.slice(0, 80)}" (build, unbuild, permit, befriend, give-permit, home, choose-home, take-meal or stop)`);
 }
 
 /** The `game_build` a build command sends (shared.rs `ToRelay::Build`): the pose as given, the
@@ -1908,14 +2072,26 @@ async function main() {
 
   let welcome;
   try {
-    welcome = await joinWorld(client, opts.name, { ship, homeSpawn: opts.homeSpawn });
+    welcome = await joinWorld(client, opts.name, { ship, homeSpawn: opts.homeSpawn, start: opts.start });
   } catch (e) {
     client.close();
     return fail(2, e.message);
   }
   const { center, start, why } = chooseCenter(opts, welcome);
-  log(`in the world as entity ${welcome.player_id}, starting at ${fmt(start)}`);
+  log(`in the world as entity ${welcome.player_id}${opts.start ? ` (asked for a ${opts.start})` : ""}, starting at ${fmt(start)}`);
   log(homePlotLine(welcome));
+  const freeLine = homeFreeLine(welcome);
+  if (freeLine) log(freeLine);
+  // The food stores (ship homes increment 6, `take-meal`): every one is in the welcome; one that
+  // comes into view later (a second mess hall) is added as it does.
+  const stores = new Map(foodStoresIn(welcome).map((s) => [s.id, s]));
+  // Where we live and what is free (`home`, `choose-home`), and a meal's answer, one line each.
+  const stopHomes = client.onGame((g) => {
+    for (const line of homeAnswerLines(g)) log(line);
+    const meal = mealLine(g);
+    if (meal) log(meal);
+    if (g.type === "game_in_view" && isFoodStore(g.entity)) stores.set(g.entity.entity_id, { id: g.entity.entity_id, position: g.entity.position.slice(0, 3).map(Number) });
+  });
   // What this player may do beyond its own plot (ship homes increment 5), as the welcome says.
   log(ranksLine(welcome));
   for (const line of presentLines(welcome)) log(line);
@@ -1952,6 +2128,7 @@ async function main() {
     stopLogging();
     stopBuilds();
     stopDms();
+    stopHomes();
     requests.stop();
     stopCorrections();
     walker.stop();
@@ -2006,6 +2183,19 @@ async function main() {
         dms.befriend(cmd.key);
       } else if (cmd.kind === "give-permit") {
         dms.givePermit(cmd.key, cmd.plot, cmd.days);
+      } else if (cmd.kind === "home") {
+        client.send(homeRequestMessage());
+      } else if (cmd.kind === "choose-home") {
+        client.send(chooseHomeMessage(cmd.start));
+      } else if (cmd.kind === "take-meal") {
+        const here = walker.position();
+        const store = nearestStore([...stores.values()], here);
+        if (!store) {
+          log(`meal refused: none_in_reach (no food store within ${STORE_REACH_M} m of ${fmt(here)} that this walker knows of)`);
+        } else {
+          log(`sent take-meal: store ${store.id}, ${store.distance.toFixed(2)} m away`);
+          client.send(takeMealMessage(store.id));
+        }
       }
     } catch (e) {
       log(`command refused: ${e.message}`);
@@ -2034,6 +2224,7 @@ async function main() {
     stopChat();
     stopBuilds();
     stopDms();
+    stopHomes();
     requests.stop();
     fail(2, `the relay closed the connection after ${walker.sent()} updates`);
     setTimeout(() => process.exit(2), 1000).unref();
@@ -2129,6 +2320,28 @@ module.exports = {
   PERMIT_SENT_RE,
   DM_PUT_OK_RE,
   DM_PUT_REFUSED_RE,
+  // Where it lives, and a meal (ship homes increment 6).
+  START_ID_RULE,
+  STORE_REACH_M,
+  HOME_REQUEST,
+  CHOOSE_HOME,
+  HOME_ANSWER,
+  HOME_RE,
+  HOME_CHOSEN_RE,
+  HOME_REFUSED_RE,
+  HOME_FREE_RE,
+  MEAL_TAKEN_RE,
+  MEAL_REFUSED_RE,
+  homeRequestMessage,
+  chooseHomeMessage,
+  freeList,
+  homeAnswerLines,
+  homeFreeLine,
+  foodStoresIn,
+  isFoodStore,
+  nearestStore,
+  takeMealMessage,
+  mealLine,
 };
 
 if (require.main === module) main();

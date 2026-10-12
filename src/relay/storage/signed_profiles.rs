@@ -67,19 +67,6 @@ fn record_of(row: &rusqlite::Row<'_>) -> rusqlite::Result<SignedProfileRecord> {
 }
 
 impl Storage {
-    /// Remove this server's copy of a person's profile (privacy, 2026-08-24): when a person goes
-    /// unlisted, until the relay keeps their signed withdrawal instead (BUG-191, Wave 1A). Returns
-    /// rows removed. Linked servers keep their copy until a withdrawal replaces it: nothing ages
-    /// a copy out on its own.
-    pub fn delete_signed_profile(&self, public_key: &str) -> Result<usize, rusqlite::Error> {
-        self.with_conn(|conn| {
-            conn.execute(
-                "DELETE FROM signed_profiles WHERE public_key = ?1",
-                rusqlite::params![public_key],
-            )
-        })
-    }
-
     /// Keep a signed copy of `public_key`'s profile dated `timestamp`, replacing the whole row
     /// held for that key. Returns whether it was kept. Refused (Ok(false), nothing changed):
     /// - an empty signature: a copy that cannot prove itself is never kept;
