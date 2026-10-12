@@ -5734,3 +5734,9 @@ publish a choice to every server the device is signed in to (each background soc
 server's own copy, which is what a whole-profile update needs), and take another device's choice
 only when a server's word has changed since this device last saw it (a device that has never made
 a choice itself takes the server's word on first sight). Both apps.
+
+Seen again in a real two-browser run (2026-10-12): on a fresh server the receiver's browser still
+said "anyone" while the server held the default "friends" (no profile row there yet, so nothing
+waited and nothing was sent), and the sender's app, going by the server, refused to offer a
+device-to-device file. Choosing the setting again published it. The fix above covers it: a
+server with no profile for the person, or a different word, gets the device's own choice.
