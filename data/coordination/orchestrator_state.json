@@ -231,6 +231,11 @@
       "date": "2026-10-12",
       "decision": "Ship homes increment 5b planned (docs/design/ship-homes-increment-5b-plan.md): the Household card on the Home page gives a friend a household permit for your plot (7, 30 or 90 days), sent as a sealed DM note; the grantee keeps it, the relay checks it each session (game_permit_check, stores nothing), the door to that plot opens for them, they can walk in, see the start design plus server-kept pieces, and build there. AMENDED by the orchestrator: permits become v2 with a serial and can be taken back through the relay withdrawal list (friend_cert_revocations), and Block takes back every permit given to that person; renew withdraws the old serial once the new one is taken. Questions 2 and 3 accepted as recommended. Wave 0 dispatched to one worktree builder.",
       "why": "Decision 3 of 2026-10-05 (no take-back) rested on a server that stored nothing; the withdrawal list exists since 2026-10-09, and a permit a blocked person keeps for up to 90 days (walking into the home, building there) is the gap the protect-users rule says to close now. The operator can overrule; the change is confined to the permit words, one relay check and the page."
+    },
+    {
+      "date": "2026-10-12",
+      "decision": "Operator APPROVED amendment A1 of the 5b plan, verbatim: \"Makes sense to be able to revoke permits at any time. I like that blocking revokes permits, great choice. If we remove that upgrade then people could harass those that blocked them after being blocked.\" He will test a desktop-to-web DM file transfer after he wakes (later 2026-10-12); finding a partner for the two-person session has been difficult and he keeps trying.",
+      "why": "Recorded the moment it was given (cross-session persistence rule)."
     }
   ],
   "active_scopes_to_avoid": [
