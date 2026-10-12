@@ -2933,6 +2933,40 @@ half of rule 7 (commit 397ff2750: a `dc_offer` let in by a file pass reaches its
   still Offered (`pump_link`, `TransferOpen`; it comes before any `hashes` or `get` on that
   channel), and `done` is Done from Offered too (`advance`), so "Sent".
 
+**Fixed after a review of the merged code (2026-10-12).** Three ways an end could still go unsaid.
+- A cancel or failure note that could not go was lost. `cancel` and `on_end` sent it and ignored
+  the answer, and with the chat not connected nothing kept it; a receiver who never heard a cancel
+  then dialled for that transfer until its pass ran out, up to 7 days, and the sender's other
+  files to them waited behind it (a receiver dials with its oldest accepted transfer). Now a note
+  that cannot go (the chat not connected, or not yet signed in with its mailbox read, or the note
+  not yet sealable) is kept with the transfer's record (`OfferRecord::unsaid`, saved with the DM
+  store, at most 8 a transfer, the website's `pendingNotes` and its number) and sent, in order and
+  carrying what it would have carried, once the server is connected and signed in again
+  (`flush_notes`, every frame; one that still cannot go is tried again every 30 seconds). A note
+  to someone since blocked is dropped. Remove leaves a row whose note has not gone on the list,
+  saying "clip.mp4 stays on the list until this server is connected again, so Ann hears that it
+  ended.", since the record is what keeps the note. The backstop, the same as the website's: a dial
+  naming an offer of this device's to the dialler that ended here as cancelled or failed (not
+  done, declined or expired: no cancel note went for those) is still not answered, but the cancel
+  note goes again, once in this run of the app for that transfer (`say_cancel_again`,
+  `Transfers::said_again`).
+- A channel the other side opened, on a connection that stands, for a transfer that had already
+  ended here before the connection was given it was never answered. The connection holds only live
+  transfers, so the channel waited for the engine (`LinkEvent::Wanted`), which ignored an ended
+  record; the receiver had asked for `hashes` and its row read "Receiving" at 0 beside the
+  transfer that was running. Now the engine answers such a `Wanted` (any end but done) with
+  `Cmd::AddEnded`: the connection holds the transfer as a leg already ended (no file opened,
+  nothing served), so `bind` writes `cancel` on that channel and on any opened for it again; and
+  the cancel note goes again under the same once-a-run rule. A second channel opened for a
+  transfer the connection is still asking about now closes the first (it was kept open and
+  forgotten), and a channel closed while waiting is forgotten too.
+- A receiver's `done` could be lost. When its last channel ended the connection waited at most 2
+  seconds for what it wrote to be acknowledged, but SCTP waits a second before sending a lost
+  message again and doubles that each time, so a `done` lost twice was never sent again before the
+  connection closed, and a website sender then waited until the pass ran out and ended "expired"
+  with the file delivered. Now it waits up to 15 seconds (`LINGER`, `may_close`), which ends at
+  once in the usual case, when everything is acknowledged.
+
 **The screens.** The attach step (`attach_step.rs` `route_pick`, `open_direct`) offers a DM file over
 the person's private file limit instead of refusing it: the look and the switch as for any file, the
 line "Files over 6 MB go straight to Ann's device instead of through the server.", that both apps
@@ -2956,7 +2990,7 @@ gets the whole file across with no stall, each piece asked once plus once per ba
 the sender sends a piece re-asked mid-send again, whole, after it; a stand-in receiver with the
 website's pattern, `get(next, 16)` after a bad piece, gets it again without a stall; pieces not
 asked for are ignored and reserve nothing; only 30 seconds with nothing asked for arriving asks
-again), `net::file_link::tests` (7: three files, two one way and one the other, on one connection
+again), `net::file_link::tests` (9: three files, two one way and one the other, on one connection
 between two apps through the test forwarder, one relayed candidate each side, nothing sent around
 the forwarder; the channel label; from the first review, the connection closing when its last
 channel ends, an offer nobody opened not keeping it up; and from the second: through the test
@@ -2968,8 +3002,13 @@ over and Rae heard since; drop: nothing heard since, nothing ends; opened again 
 served; not yet: the wait not over); and the wait, the stop proof and the reopen wait's doubling
 as rules. str0m's own close tells the other side nothing, so the network tests close a channel on
 one side with `Cmd::CloseChannel` and report it on the other with `Cmd::TheyClosed`, both
-test-only), and
-`engine::file_transfer::tests` (11, two apps with recording sockets: the offer as a sealed note
+test-only; and from the review of the merged code: on a connection with no thread, a channel
+opened for a transfer that ended here before the connection had it answered `cancel` once the
+engine hands it over, again when opened again, never served, and a second channel opened while
+the engine is asked closing the first (seen in a test-only list of the channels this side
+closed, since str0m's close tells the other side nothing); and the connection staying, once its
+last channel ended, until what it wrote is acknowledged or 15 seconds), and
+`engine::file_transfer::tests` (13, two apps with recording sockets: the offer as a sealed note
 with its self-copy, listed and never shown; decline, and the other device's "Answered on your other
 device"; an unanswered offer runs out with nothing sent; cancel from either side; dialling only
 while the sender is online and not paused, with "not set up" and Pause; the larger key winning
@@ -2984,7 +3023,13 @@ with a closed channel, and "Rae's side stopped it" sending the cancel note; and 
 the test forwarder, five live offers, two accepted and one of those answers lost, a dial whose
 candidate comes as a `dc_ice` after its offer and before the answering side's credentials, one
 credential and one relayed candidate each side, and both files whole on the one connection, the
-lost answer's transfer Sent).
+lost answer's transfer Sent; and from the review of the merged code: cancel and failure notes made
+offline, from either side, kept with their records, still there in the DM store read back from
+disk, sent once each when the chat is connected and its mailbox read and not before, carrying what
+they would have carried, Remove keeping a row whose note waits; a dial naming an offer cancelled
+here sending the cancel note again exactly once, a second dial nothing, one naming a sent offer
+nothing; and, through a stand-in connection, a channel opened for a cancelled transfer handed to
+the connection as ended and the note said again once, nothing for one that ended done).
 
 **Not built yet.** Groups (file-transfer-at-scale.md, layer 3). The direct connection between
 friends. Showing the forwarder's day amount (the relay counts it; the app shows only "not set up").

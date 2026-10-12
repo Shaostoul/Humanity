@@ -498,7 +498,18 @@ pub struct OfferRecord {
     pub paused: bool,
     /// When it was offered (the note's signed time, ms).
     pub at: u64,
+    /// The notes about this transfer that could not go when they were made (the chat was not
+    /// connected, or not yet signed in), the texts in the order made: sent once the server is
+    /// connected again and its mailbox read (engine/file_transfer.rs `flush_notes`), and kept here
+    /// so a restart keeps them too. At most [`NOTES_KEPT`]. A cancel made offline was lost before
+    /// 2026-10-12, and the other side then waited for the file until its pass ran out, up to 7
+    /// days, the sender's other files with them waiting behind it.
+    #[serde(default)]
+    pub unsaid: Vec<String>,
 }
+
+/// The most notes one transfer keeps to send later (the website's number).
+pub const NOTES_KEPT: usize = 8;
 
 /// What [`apply_note`] did with a note.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -551,6 +562,7 @@ pub fn apply_note(records: &mut Vec<OfferRecord>, me: &str, from: &str, to: &str
                 let_in: false,
                 paused: false,
                 at: ts,
+                unsaid: Vec::new(),
             });
             Applied::Listed(id)
         }
