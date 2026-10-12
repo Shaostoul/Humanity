@@ -12643,6 +12643,9 @@ mod native_app {
                         let picking = crate::systems::farming::picking::GuiView::new(&state.game_world.world, &state.data_store);
                         let air_view = crate::systems::farming::humidity::GuiView::new(&state.game_world.world, &state.data_store); // humidity rows
                         let weed_view = crate::systems::farming::weeds::GuiView::new(&state.game_world.world, &state.data_store); // weed rows
+                        // Each crop's wait and water, for the Garden card (first-hour F11, systems/farming/outlook.rs).
+                        let outlook_view = crate::systems::farming::outlook::OutlookView::new(&state.game_world.world, &state.data_store);
+                        state.gui_state.garden_pests.outlook.clear();
                         for (entity, (crop, soil)) in state
                             .game_world
                             .world
@@ -12712,6 +12715,7 @@ mod native_app {
                                 humidity: air_view.crop_row(crop, def),
                                 weeds: weed_view.crop_row(crop, def),
                             });
+                            state.gui_state.garden_pests.outlook.insert(entity.to_bits().into(), outlook_view.row(crop, def));
                         }
                         state.gui_state.garden_pests.weeds = weed_view.areas;
                         state.gui_state.garden_pests.pollinate_areas = pollination.areas;
