@@ -199,12 +199,16 @@
   #msg-input { font-size: 16px; }
 
   /* Comfortable input area on mobile */
+  /* Five controls share 375 px; the text box gets what is left, enough for its whole
+     placeholder on one line (it wrapped onto two in the phone check of 2026-10-12). */
   #input-area {
-    padding: var(--space-md);
-    gap: var(--space-md);
+    /* The bottom keeps the site footer's tab clear of the text box (it took the box's bottom 12 px). */
+    padding: var(--space-md) var(--space-md) var(--space-3xl);
+    gap: var(--space-sm);
   }
+  #attach-btn { padding: var(--space-md); }
   #send-btn {
-    padding: var(--space-lg) var(--space-xl);
+    padding: var(--space-lg) var(--space-md);
     font-size: var(--text-base);
     min-width: 52px;
     min-height: 44px;
@@ -215,8 +219,9 @@
     font-size: var(--text-base);
   }
   #msg-input {
-    padding: var(--space-lg) var(--space-lg);
+    padding: var(--space-lg) var(--space-md);
     min-height: 44px;
+    min-width: 0;
   }
 
   #cmd-palette { width: calc(100vw - 1rem); left: var(--space-md); right: var(--space-md); max-height: 55vh; }

@@ -459,6 +459,36 @@ function attachmentLimit() {
   return known(mine) ? mine : MAX_ATTACHMENT_BYTES;
 }
 
+/**
+ * POST an upload, saying how much of it has gone (`onProgress(fraction)`, 0 to 1), so a slow phone
+ * connection shows it moving rather than one unchanging line (the phone check of 2026-10-12).
+ * Answers the way fetch's Response does: ok, status, text(), json(). Without XMLHttpRequest it is
+ * plain fetch, with no progress.
+ */
+function uploadPost(url, body, onProgress) {
+  if (typeof XMLHttpRequest !== 'function') return fetch(url, { method: 'POST', body });
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', url);
+    if (xhr.upload && onProgress) {
+      xhr.upload.onprogress = (e) => { if (e && e.lengthComputable && e.total > 0) onProgress(e.loaded / e.total); };
+    }
+    xhr.onload = () => {
+      const text = xhr.responseText || '';
+      resolve({ ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status, text: async () => text, json: async () => JSON.parse(text) });
+    };
+    xhr.onerror = () => reject(new Error('the connection was lost'));
+    xhr.onabort = () => reject(new Error('the upload was stopped'));
+    xhr.send(body);
+  });
+}
+
+/** The upload line's words with how much has gone: "Uploading clip.mp4… 42%". */
+function uploadingWords(name, fraction) {
+  const pct = Math.max(0, Math.min(100, Math.floor((fraction || 0) * 100)));
+  return `Uploading ${name}… ${pct}%`;
+}
+
 /** The upload address with this session's token, or null before the server has sent one: a bare
  *  key proves nothing about the sender and the server no longer takes it (2026-10-11). */
 function uploadBaseUrl() {
@@ -732,7 +762,7 @@ async function uploadImage(file) {
     const keepParam = ready.keepMetadata ? '&keep_metadata=1' : '';
     const uploadBase = uploadBaseUrl();
     if (!uploadBase) return null;
-    const resp = await fetch(uploadBase + shareParam + keepParam, { method: 'POST', body: formData });
+    const resp = await uploadPost(uploadBase + shareParam + keepParam, formData, (f) => { indicator.textContent = uploadingWords(file.name, f); });
     if (!resp.ok) {
       const text = await resp.text();
       // Make error messages more user-friendly
@@ -862,7 +892,7 @@ async function sendEncryptedAttachment(file) {
     enc.cipherBytes = null;
     const fd = new FormData();
     fd.append('file', sealed, 'attachment.enc');
-    const resp = await fetch(uploadBase, { method: 'POST', body: fd });
+    const resp = await uploadPost(uploadBase, fd, (f) => { if (indicator) indicator.textContent = uploadingWords(file.name, f); });
     if (!resp.ok) { addSystemMessage(`Upload failed: ${await resp.text()}`); return; }
     const data = await resp.json();
     // The fields in the desktop app's order (src/net/dm_pq.rs DmAttachment), so both apps build

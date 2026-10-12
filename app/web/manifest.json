@@ -1047,9 +1047,9 @@
     },
     {
       "path": "/chat/app.js",
-      "hash": "sha256:c2ae8756263b6c9a6a03b74263948167792b70e4af45b1c0faae6c3a4a87381e",
-      "size": 129842,
-      "modified": 1791759885
+      "hash": "sha256:fa93cb2a21611933521b0f07c6835f18ce1b5ee1535561aa2c1a8e86fbf69f2b",
+      "size": 129914,
+      "modified": 1791789247
     },
     {
       "path": "/chat/base.css",
@@ -1107,9 +1107,9 @@
     },
     {
       "path": "/chat/chat-messages.js",
-      "hash": "sha256:7980df49382cec0b7bf99d97db26f220a6d5ad6f8e9e34e5bdfb6a8a1d5445c5",
-      "size": 48953,
-      "modified": 1791768050
+      "hash": "sha256:91af6c224bbf8f4b9f4d4d00efd20343ea93b291b1123d4d45f6aa2537d73d4e",
+      "size": 50459,
+      "modified": 1791789535
     },
     {
       "path": "/chat/chat-onboarding.js",
@@ -1221,21 +1221,21 @@
     },
     {
       "path": "/chat/index.html",
-      "hash": "sha256:4286bfdaf7e1d9907ffbfae08e15443b290d3e0b59e63ed37a283548a7f2cac1",
-      "size": 56535,
-      "modified": 1791779550
+      "hash": "sha256:d3d5d896e9358f30e3b6c24a51d67de2be0d0635be41292e5e740dec8c1405e8",
+      "size": 55736,
+      "modified": 1791789561
     },
     {
       "path": "/chat/inputs.css",
-      "hash": "sha256:b7537314009119942386973af35edea05d5a0a378ecc1414fd34fdde1eee8f9b",
-      "size": 5690,
-      "modified": 1787605020
+      "hash": "sha256:450cd8b276cd1a7a5cb952a1c514547a42f2cbc68441d39c3201baeeedb6c5fe",
+      "size": 6064,
+      "modified": 1791789356
     },
     {
       "path": "/chat/layout.css",
-      "hash": "sha256:0b11998e77e554b0cea9d1e11e6d016f060241fc559dfed0b98bb052535c4e15",
-      "size": 4361,
-      "modified": 1780697921
+      "hash": "sha256:56db14b9f297aa53e57dabf81e82a0f210831fe48a7aff283323ac6f06fbe7fa",
+      "size": 5269,
+      "modified": 1791789356
     },
     {
       "path": "/chat/messages.css",
@@ -1305,9 +1305,9 @@
     },
     {
       "path": "/download.html",
-      "hash": "sha256:ceba30e0eb8c8241e1bf7eefb19754d4dac6b826c4446d5def146f30dccccebb",
+      "hash": "sha256:a36030feb13a20b7ae2d0595d2823b528fb3f35699afa836582de2608ebbcfd7",
       "size": 47278,
-      "modified": 1791786929
+      "modified": 1791789747
     },
     {
       "path": "/files.html",
@@ -1413,9 +1413,9 @@
     },
     {
       "path": "/ops.html",
-      "hash": "sha256:263467fc00463ddf20146232a8e2838a8a887df765e2211618c6038b4780df04",
+      "hash": "sha256:5ec35f9aa5f9044d54be7a95576281f10079b560a04dbc2554ffc65034f2aec3",
       "size": 21939,
-      "modified": 1791786929
+      "modified": 1791789747
     },
     {
       "path": "/pages/accord-app.js",
@@ -1515,9 +1515,9 @@
     },
     {
       "path": "/pages/settings-app.js",
-      "hash": "sha256:f931084a37e9c37e82aaefb0a252302246608b0529a15a1c1dc16c42e69521d8",
+      "hash": "sha256:63c77c588a53d9fadbdd61eedb69ee0cfe98b5c846d18285ef53a0cbb334b657",
       "size": 104530,
-      "modified": 1791786929
+      "modified": 1791789747
     },
     {
       "path": "/pages/tasks-app.js",
@@ -1845,9 +1845,9 @@
     },
     {
       "path": "/shared/shell.js",
-      "hash": "sha256:73e349d23e907fbebe052dacd94070fcb4ead24c0702485cd6a7a41420f71cf8",
+      "hash": "sha256:bdd9845e54b351a0e39c8267ad9c79b7ce31873093169675d3bcd4ac21d37397",
       "size": 98223,
-      "modified": 1791786929
+      "modified": 1791789747
     },
     {
       "path": "/shared/strip-metadata.js",
@@ -1857,9 +1857,9 @@
     },
     {
       "path": "/shared/sw.js",
-      "hash": "sha256:214dad81c6fee4257d51e73ac181d25dabee2069d614417314efebea1d42fd0e",
+      "hash": "sha256:0ffbfcc18135777c70d16b45f199695c6effb671324afbca77c8c2c7fb350333",
       "size": 5824,
-      "modified": 1791786929
+      "modified": 1791789747
     },
     {
       "path": "/shared/theme.css",
@@ -1937,9 +1937,9 @@
       "path": "/index.html",
       "hash": "sha256:807ef9ccfde6574793792f240c8ca2fbab9472f7b7c766a7804bff183fa12a23",
       "size": 208,
-      "modified": 1791787018
+      "modified": 1791789845
     }
   ],
-  "total_size": 16100124,
+  "total_size": 16102185,
   "file_count": 323
 }
