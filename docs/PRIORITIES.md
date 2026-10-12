@@ -272,11 +272,13 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
   the Household card, the game glue and `just verify-household` on main). What remains: the
   release build, `just verify-household` on the one GPU, fixing what it finds, release. Then
   increment 6 (the starts as data, the Cabin, the mess hall; fold in a second mess hall along
-  First Street; plan `docs/design/ship-homes-increment-6-plan.md`, Wave 0 in progress), and
-  BUG-191 (profile copies signed by the person's own apps; plan
-  `docs/design/bug-191-profile-copies-plan.md`, Wave 0 in progress). Also in progress
-  2026-10-12, from the first-hour audit's open items: wounds and natural healing (S8), animal
-  feed and water (S6), crops planted from the backpack (F11), the drone's running costs (S5).
+  First Street; plan `docs/design/ship-homes-increment-6-plan.md`, Wave 0 MERGED 2026-10-12,
+  Wave 1 next), and BUG-191 (profile copies signed by the person's own apps; plan
+  `docs/design/bug-191-profile-copies-plan.md`, Wave 0 and lane 1D MERGED 2026-10-12, 1A, 1B
+  and 1C next). From the first-hour audit's open items, MERGED 2026-10-12: wounds and natural
+  healing (S8, `src/systems/wounds.rs`, `data/medical/wounds.ron`) and crops planted from the
+  backpack (F11, `src/systems/farming/sowing.rs`); in progress: animal feed and water (S6) and
+  the drone's running costs (S5).
   Day 5 (a real two-person session on the VPS) is unblocked whenever the operator has a partner.
 - **Follow-ups found today (not started):** BUG-161 (the copresence rig's steady-speed
   judges fail a starved machine); BUG-163 part 2 (refresh a stale data folder on update:
@@ -287,7 +289,8 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
   terrain tiles the ground draws at 54 m triangles while buildings stand on the finest
   ground (BUG-156's note); far trees should re-ground on the patch drawn under them;
   src/systems/fire.rs takes fire damage per frame in f32 (BUG-164's note); every drink
-  gives 30 points whatever its volume; nothing applies Bleeding or infections yet; a
+  gives 30 points whatever its volume; (Bleeding, bites and burns are wounds since S8,
+  2026-10-12; falls hurt nobody yet, and nothing spawns fires); a
   second mess hall along First Street (fold into increment 6); the backpack-overflow toast
   (DONE 2026-10-12: it names the item and says it went to home storage).
 - **A gap the Normal-mode default exposes (found 2026-10-05 by the Library sweep):** in
@@ -363,7 +366,8 @@ several things break. Ranked:
   death costs nothing; the B editor places any machine for free even in
   Normal, and writes it into the data files rather than the save; S4 the free showcase garden replants itself in every
   mode; S6 stored food never spoils; S7 animals have no needs; S8 the medical
-  system is never registered.
+  system is never registered (FIXED 2026-10-12: wounds and healing by itself, one owner in
+  FoodSystem's body pass; the unregistered MedicalSystem and data/medical.ron deleted).
 - **Operator decisions, ANSWERED 2026-10-04 (late evening):** "I like your
   suggestions. For normal mode, especially for my MMO server, let's have
   everything be real time, not the 72x. That way anyone joining isn't dealing
@@ -438,8 +442,8 @@ by data but are not items.
 
 **Game gaps the Library fact checks found (2026-10-04),** each verified in
 the code by the guide writers under the default settings: health and vitals
-are never saved; `data/medical.ron` is never applied (its system is not
-registered with the game); `data/species.json` and `data/geology.ron` are not
+are never saved; `data/medical.ron` is never applied (FIXED 2026-10-12: deleted with its
+system; wounds live in data/medical/wounds.ron); `data/species.json` and `data/geology.ron` are not
 read by anything; farm animals have no illness, feed or water needs and do not
 breed; nothing in the game makes Scrap Metal unless the Dev page spawns its
 robots; the water pump card said 12 L/min (fixed v0.1452.1). Also: the
