@@ -1951,6 +1951,24 @@ These rules are now part of the shapes above; both apps follow them exactly.
    are not counted (they are held to their rate and their allocation's 12-hour life), so the
    amount limits file transfers, not everything a modified app could push through.
 
+**Settled by the second review (2026-10-12):**
+
+7. **A dial names its transfer.** The relay passes a `dc_offer` let in by a file pass to its target
+   with the pass's id as `file`. The answering side (the file's sender) asks the forwarder for that
+   one transfer's credentials and makes ONE allocation for the connection; every other transfer
+   with that person rides the same connection as its own channel and needs no allocation of its
+   own. One person holds at most 16 live file allocations. A peer counts as known to the forwarder
+   when they hold a name on the server or are signed in now.
+8. **An end is always said.** A side whose transfer ends for any reason other than done (a bad
+   piece three times, a file that does not match, storage that refuses a piece, the person's
+   cancel) sends `{"t":"cancel"}` on the channel and the cancel note, so the other side's row ends
+   too. A channel closed by the other side before `done` ends a sending transfer ("Ann's side
+   stopped it"); a receiving transfer that is still live opens its channel again on the
+   connection (or dials again) after a short wait, and a pause the other side held is cleared.
+9. **A dial is an answer.** A sender whose record still waits for the answer note treats its
+   transfer's channel opening (or its first `hashes` or `get`) as Accept, and `done` as Sent, so a
+   lost answer note never leaves the row waiting.
+
 ## As built (relay, files in messages)
 
 The relay half of part 3, built 2026-10-11. What the two apps build against:
