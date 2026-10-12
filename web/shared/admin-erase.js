@@ -71,12 +71,16 @@
    * The confirm's sentence for this person, 10i's words exactly. Corrected
    * 2026-10-10 after the batch review: the erase keeps the reports, bans and
    * mutes about them (as the self-erase does), so it does not delete
-   * "everything" without saying so.
+   * "everything" without saying so. And since 2026-10-12 (BUG-191 Wave 2B) it
+   * says their profile stays on the linked servers: only their own key can
+   * sign the withdrawal their own erase carries.
    */
   function adminEraseConfirmText(name) {
     return 'This deletes everything this server stores about ' + String(name == null ? '' : name)
       + ': their messages, profile, uploads, membership and settings. Reports, bans and mutes about'
-      + ' them are kept, as when someone erases their own account. It cannot be undone. It does'
+      + ' them are kept, as when someone erases their own account. It cannot be undone. Their profile'
+      + ' stays on the servers this one is linked with, because only their own app can take it off'
+      + ' there. It does'
       + ' not touch anything on their own devices, and it does not stop them joining again (ban them'
       + ' too for that).';
   }

@@ -430,3 +430,54 @@ fn a_locked_identity_signs_nothing() {
     gs.profile_public_key = key;
     assert!(take_own_copy(&mut gs, ONE, &asking, "Ann").is_some(), "unlocked, the same ask is signed");
 }
+
+/// AN ERASE CARRIES HER WITHDRAWAL (BUG-191 Wave 2B): Settings > Account's erase sends the typed
+/// name and the withdrawal of the copy of her profile that other servers keep, signed with her key
+/// and dated after the copy the server she is on holds (its last own copy said a minute ahead,
+/// without asking her to sign anything), so the server keeps it and passes it on before it erases.
+/// The relay reads the frame as an erase with that withdrawal. A copy addressed to another of her
+/// keys, and another server's copy, do not move the time; a second press is dated after the
+/// first. Locked, the erase goes without one.
+///
+/// Seen red 2026-10-12 with `held_at` not recorded in `take_own_copy_at`: "dated after the copy
+/// the server holds" (left 1760000000000, right 1760000060001); and with the withdrawal left out
+/// of `erase_frame_at`: "the erase carries the withdrawal".
+#[test]
+fn an_erase_carries_her_withdrawal_dated_after_the_copy_held() {
+    let (mut gs, _sent, key) = ann_unlocked_on(ONE);
+    let ahead = NOW_MS + 60_000;
+    let mut quiet = anns_copy_asking(&key, ahead);
+    quiet["sign_now"] = false.into();
+    assert!(take_own_copy_at(&mut gs, ONE, &quiet, "Ann", NOW_MS).is_none(), "test setup: nothing asked, nothing signed");
+    let mut phones = quiet.clone();
+    phones["target"] = "ab".repeat(profile_copy::KEY_HEX_LEN / 2).into();
+    phones["signed_at"] = (ahead + 900_000).into();
+    take_own_copy_at(&mut gs, ONE, &phones, "Ann", NOW_MS);
+    let mut on_two = quiet.clone();
+    on_two["signed_at"] = (ahead + 500_000).into();
+    take_own_copy_at(&mut gs, TWO, &on_two, "Ann", NOW_MS);
+
+    let f = erase_frame_at(&mut gs, "Ann", NOW_MS);
+    assert_eq!((f["type"].as_str(), f["confirm_name"].as_str()), (Some("account_delete"), Some("Ann")));
+    let w = &f["withdrawal"];
+    assert!(w.is_object(), "the erase carries the withdrawal: {f}");
+    assert_eq!(w.as_object().unwrap().len(), 2, "the time and the signature only: {w}");
+    let at = w["at"].as_u64().expect("a time");
+    assert_eq!(at, ahead + 1, "dated after the copy the server holds");
+    let sig = w["signature"].as_str().expect("a signature");
+    assert!(profile_copy::verify_copy(&key, &profile_copy::withdrawal(), at, sig), "her signature over the withdrawal");
+    assert!(!profile_copy::verify_copy(&key, &public_copy_of(&quiet), at, sig), "and over nothing else");
+    match serde_json::from_value::<crate::relay::relay::RelayMessage>(f.clone()) {
+        Ok(crate::relay::relay::RelayMessage::AccountDelete { confirm_name, withdrawal: Some(w) }) => {
+            assert_eq!((confirm_name.as_str(), w.at, w.signature.as_str()), ("Ann", at, sig), "the relay reads what was sent");
+        }
+        other => panic!("the relay reads it as an erase with its withdrawal: {other:?}"),
+    }
+
+    let again = erase_frame_at(&mut gs, "Ann", NOW_MS);
+    assert_eq!(again["withdrawal"]["at"].as_u64(), Some(at + 1), "a second press is dated after the first");
+
+    gs.private_key_bytes = None;
+    let locked = erase_frame_at(&mut gs, "Ann", NOW_MS);
+    assert_eq!(locked, serde_json::json!({ "type": "account_delete", "confirm_name": "Ann" }), "locked: the erase goes without one");
+}

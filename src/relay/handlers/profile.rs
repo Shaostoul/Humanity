@@ -549,6 +549,70 @@ pub async fn handle_profile_sign(state: &Arc<RelayState>, my_key: &str, at: u64,
     }
 }
 
+// ── An erase takes the copy off the linked servers (BUG-191 Wave 2B) ──
+
+/// A person's signed withdrawal of the copy of their profile that other servers keep, sent with
+/// their own erase (`account_delete`): the signature over `profile_copy::copy_text(key,
+/// &withdrawal(), at)`, made by their own app (an erase leaves nothing to rebuild a copy from, and
+/// the withdrawal is the same words for everyone, so the frame carries just these two). Only the
+/// person's key can make one, so an admin's erase of someone else (`admin_erase`) has none: their
+/// copy stays on the linked servers until they withdraw it themselves.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct Withdrawal {
+    /// Unix milliseconds, after the copy this server holds (`profile_copy::next_copy_time`).
+    pub at: u64,
+    /// Dilithium3 over the withdrawal's words, 6,618 lowercase hex characters.
+    pub signature: String,
+}
+
+/// Before the person's own erase (msg_handlers.rs `handle_account_delete`, once its checks have
+/// passed and BEFORE the account's rows go): keep their signed withdrawal over the copy held here
+/// and pass it on to every linked server, which replaces the copy it holds, so erasing an account
+/// also takes its profile off the servers this one is linked with (plan section 9, decision 2).
+/// After the erase it would be too late: the copy held here is gone with the account, and a
+/// withdrawal over nothing held is kept nowhere and goes nowhere.
+///
+/// The erase is the ask, so no `sign_now` is needed. Passed on only when it is the person's own
+/// signature over the withdrawal and `store_signed_profile` keeps it: a copy is held here, the
+/// withdrawal is newer than it and at most a day ahead. Nothing held here means nothing was passed
+/// on from here. Anything else (none sent, an older app; one that does not check) passes nothing
+/// on and never stops the erase. Returns whether it was passed on.
+///
+/// Its log lines name no key, as the erase's own do (sign_ups.rs `sign_up_logs_never_name_the_key`
+/// reads this function): the log outlives what the person was promised.
+pub async fn withdraw_on_erase(state: &Arc<RelayState>, my_key: &str, withdrawal: Option<Withdrawal>) -> bool {
+    let Some(Withdrawal { at, signature }) = withdrawal else {
+        return false;
+    };
+    if !profile_copy::is_key_text(my_key) || !profile_copy::is_signature_text(&signature) {
+        return false;
+    }
+    let (key, sig) = (my_key.to_string(), signature.clone());
+    let good = tokio::task::spawn_blocking(move || profile_copy::verify_copy(&key, &profile_copy::withdrawal(), at, &sig))
+        .await
+        .unwrap_or(false);
+    if !good {
+        tracing::info!("Profile: an erase came with a withdrawal that is not the person's signature over one; nothing passed on");
+        return false;
+    }
+    let copy = profile_copy::withdrawal();
+    match state.db.store_signed_profile(my_key, &copy, at, &signature) {
+        Ok(true) => {
+            gossip_profile(state, my_key, &copy, at, &signature, None).await;
+            tracing::info!("Profile: an erase passed on its withdrawal of the copy for other servers");
+            true
+        }
+        Ok(false) => {
+            tracing::debug!("Profile: an erase's withdrawal was not passed on: no copy held here, or not newer than it");
+            false
+        }
+        Err(e) => {
+            tracing::error!("Profile: could not keep an erase's withdrawal: {e}");
+            false
+        }
+    }
+}
+
 /// The profile handlers' tests: the field `accepts_files` (2026-10-11, docs/design/media-showcase.md),
 /// the person's own copy, and what the lookups show.
 #[cfg(test)]

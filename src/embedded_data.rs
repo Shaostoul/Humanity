@@ -477,9 +477,11 @@ pub fn read_data_or_embedded(data_dir: &std::path::Path, rel: &str) -> Option<St
 /// READ ALL OF IT, otherwise the copy built into this exe (BUG-163). THE loader
 /// for a data file that is parsed; every registry goes through it.
 ///
-/// Why: an installed game writes its data folder once, on its first run, and an
-/// update replaces only the exe, so the folder can hold files older than the
-/// game reading them (docs/design/data-folder-updates.md). A folder written
+/// Why: the data folder can hold files older than the game reading them
+/// (docs/design/data-folder-updates.md). Until 2026-10-12 an update replaced only
+/// the exe and nothing rewrote the folder; since then a start brings every file
+/// nobody edited up to date (storage/refresh.rs), but an edited file is kept as
+/// it is, and may be one this version cannot read. A folder written
 /// before 2026-10-05 still had status_effects.csv's `dispel_type` column; the
 /// status effect rows now refuse a column they do not declare, the CSV parser
 /// skipped each refused row and went on, and the registry loaded EMPTY (no
@@ -559,10 +561,36 @@ pub const BUILTIN_COPY_MARKER: &str = "[built-in data copy]";
 
 /// Log that `rel` (a path under data/) was served from the copy built into
 /// this exe, and why. See BUILTIN_COPY_MARKER.
+///
+/// Each file is also remembered for this run (`builtin_copies_this_run`), so
+/// Settings > Data can list the files of the data folder this run did not use
+/// and why, and a player never needs the log to learn why their edit did
+/// nothing (BUG-163 part 2). `*` (the whole folder written out or refreshed) is
+/// not a file and is not listed.
 pub fn note_builtin_copy(rel: &str, why: impl std::fmt::Display) {
+    let why = why.to_string();
     log::warn!(
         "{BUILTIN_COPY_MARKER} data/{rel}: {why}; this run uses the copy compiled into the exe, not the file on disk"
     );
+    if rel != "*" {
+        if let Ok(mut noted) = NOTED.lock() {
+            if noted.len() < NOTED_MAX && !noted.iter().any(|(r, _)| r == rel) {
+                noted.push((rel.to_string(), why));
+            }
+        }
+    }
+}
+
+/// The files this run served from the built-in copy, first reason each (`note_builtin_copy`).
+static NOTED: std::sync::Mutex<Vec<(String, String)>> = std::sync::Mutex::new(Vec::new());
+
+/// More files than the game ships cannot be noted; the cap only bounds a loader gone wrong.
+const NOTED_MAX: usize = 256;
+
+/// Every data file this run used the built-in copy of instead of the one in the data folder,
+/// with the first reason given (path under data/, why). For Settings > Data.
+pub fn builtin_copies_this_run() -> Vec<(String, String)> {
+    NOTED.lock().map(|n| n.clone()).unwrap_or_default()
 }
 
 /// Every embedded key, for ENUMERATION (first-run data extraction in
@@ -778,6 +806,27 @@ mod tests {
         let dir = folder(&[("vehicles/kits.ron", "not ron")]);
         let kits = load_text_or_embedded(&dir, "vehicles/kits.ron", |t| ron::from_str::<ron::Value>(t).map_err(|e| e.to_string()));
         assert_eq!(kits.expect("loads"), any_ron(VEHICLE_KITS_RON.as_bytes()).expect("the built-in copy parses"));
+    }
+
+    /// Settings > Data lists each data file a run did not use, once, with the first reason, and
+    /// never the `*` a first run or a refresh notes for the whole folder (BUG-163 part 2). The
+    /// list is the whole test binary's, so this test reads only its own paths.
+    ///
+    /// Seen red 2026-10-12 with every note listed as it came: "one line per file, the first
+    /// reason, and no `*`: left: [(\"*\", \"the whole folder\"), (\"zz_noted_test/one.ron\",
+    /// \"first reason\"), (\"zz_noted_test/one.ron\", \"second reason\")]".
+    #[test]
+    fn a_file_served_from_the_built_in_copy_is_listed_once_for_settings() {
+        note_builtin_copy("*", "the whole folder");
+        note_builtin_copy("zz_noted_test/one.ron", "first reason");
+        note_builtin_copy("zz_noted_test/one.ron", "second reason");
+        let listed: Vec<(String, String)> =
+            builtin_copies_this_run().into_iter().filter(|(rel, _)| rel.starts_with("zz_noted_test/") || rel == "*").collect();
+        assert_eq!(
+            listed,
+            vec![("zz_noted_test/one.ron".to_string(), "first reason".to_string())],
+            "one line per file, the first reason, and no `*`"
+        );
     }
 
     /// EMBEDDED_KEYS and the get_embedded match must never drift: every

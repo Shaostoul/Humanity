@@ -232,8 +232,11 @@ test("each copy is dated after the clock, the copy held and the last one signed 
 
 // ── The chat page (node:vm) ──
 
-/** A chat page with the three scripts, signed in as the fixture's person on an open socket. */
-async function page() {
+/**
+ * A chat page with the three scripts, signed in as the fixture's person on an open socket.
+ * `extra`: more globals the page is given; `more`: more scripts (under web/) run after the three.
+ */
+async function page(extra = {}, more = []) {
   const m = await noble();
   const me = await signer();
   const sent = [];
@@ -252,11 +255,12 @@ async function page() {
     myName: "Ann",
     myDilithiumSecret: me.secret,
     pqSignMessage: async (secret, bytes) => m.ml_dsa65.sign(bytes, secret),
+    ...extra,
   };
   ctx.window = ctx;
   ctx.ws = { readyState: 1, send: (s) => sent.push(JSON.parse(s)) };
   vm.createContext(ctx);
-  for (const rel of ["shared/profile-changes.js", "shared/profile-copy.js", "chat/chat-profile.js"]) {
+  for (const rel of ["shared/profile-changes.js", "shared/profile-copy.js", "chat/chat-profile.js", ...more]) {
     vm.runInContext(fs.readFileSync(path.join(WEB, rel), "utf8"), ctx, { filename: rel });
   }
   return { ctx, sent, warned, me };
@@ -411,4 +415,80 @@ test("the chat page loads the builder before chat-profile.js, and keeps no copy 
   assert.ok(chat.includes("C.publicCopy(") && chat.includes("C.copyText(") && chat.includes("C.nextCopyTime("), "it uses the shared builder");
   assert.ok(/function ownProfileArrived\(msg\) \{\s*if \(!msg \|\| typeof msg\.privacy !== 'string'\) return;[\s\S]{0,200}signProfileCopy\(msg\)/.test(chat),
     "ownProfileArrived asks signProfileCopy right after its own-copy check");
+});
+
+// ── Erasing my account takes my profile off the linked servers (BUG-191 Wave 2B) ──
+
+// Seen red with noteProfileCopyHeld's call taken out of ownProfileArrived: "dated after the copy
+// the server holds" failed (the clock's time against signed_at + 1). With the withdrawal left out
+// of accountDeleteFrame: "the erase carries the withdrawal" failed.
+test("an erase carries my withdrawal, signed by my key and dated after the copy the server holds", async () => {
+  const { ctx, sent, me } = await page();
+  ctx.hosServerDid = "did:hum:serverA";
+  const quiet = frameOf(0, 60_000); // the server holds a copy a minute ahead, and asks nothing
+  quiet.sign_now = false;
+  ctx.ownProfileArrived(quiet);
+  const phones = clone(quiet); // a copy routed to another of my keys: its time is not mine
+  phones.target = "ab".repeat(PC.KEY_HEX_LEN / 2);
+  phones.signed_at = quiet.signed_at + 900_000;
+  ctx.ownProfileArrived(phones);
+  await settle();
+  assert.deepEqual(sent, [], "test setup: nothing asked, nothing sent");
+
+  const frame = await ctx.accountDeleteFrame("Ann");
+  assert.deepEqual(Object.keys(frame).sort(), ["confirm_name", "type", "withdrawal"], "the erase carries the withdrawal");
+  assert.deepEqual([frame.type, frame.confirm_name], ["account_delete", "Ann"]);
+  const w = frame.withdrawal;
+  assert.deepEqual(Object.keys(w).sort(), ["at", "signature"], "the time and the signature only");
+  assert.equal(w.at, quiet.signed_at + 1, "dated after the copy the server holds");
+  assert.ok(PC.isSignatureText(w.signature), "6,618 lowercase hex characters");
+  assert.ok(await verifies(me.key, PC.copyText(me.key, PC.withdrawal(), w.at), w.signature), "my signature over the withdrawal");
+  assert.ok(!(await verifies(me.key, PC.copyText(me.key, FX.cases[0].copy, w.at), w.signature)), "and over nothing else");
+
+  const again = await ctx.accountDeleteFrame("Ann");
+  assert.equal(again.withdrawal.at, w.at + 1, "a second press is dated after the first");
+  ctx.hosServerDid = "did:hum:serverB";
+  const before = Date.now();
+  const elsewhere = await ctx.accountDeleteFrame("Ann");
+  assert.ok(elsewhere.withdrawal.at >= before && elsewhere.withdrawal.at < w.at, "another server: dated by the clock, not by server A's copy");
+
+  ctx.myDilithiumSecret = null;
+  assert.deepEqual(await ctx.accountDeleteFrame("Ann"), { type: "account_delete", confirm_name: "Ann" }, "no identity: the erase goes without one");
+});
+
+// The page's own erase (chat-privacy.js deleteMyAccount), run as the page runs it.
+// Seen red with deleteMyAccount sending its old frame ({type, confirm_name} only): "the erase that
+// goes carries the withdrawal" failed. With the socket check after the signing taken out: "a
+// reconnect while signing: nothing sent anywhere" failed (the erase went on the new socket).
+test("the page's erase sends the withdrawal with it, on the socket it was confirmed on", async () => {
+  const notes = [];
+  const extra = {
+    handleMessage: () => {},
+    holdConfirm: async () => true,
+    prompt: () => "  Ann ",
+    fetch: async () => ({ ok: false }),
+    addSystemMessage: (m) => notes.push(m),
+    setTimeout: () => 0,
+  };
+  {
+    const { ctx, sent, me } = await page(extra, ["chat/chat-privacy.js"]);
+    await ctx.deleteMyAccount();
+    assert.equal(sent.length, 1, "one frame went");
+    assert.equal(sent[0].type, "account_delete");
+    assert.equal(sent[0].confirm_name, "Ann", "the typed name, trimmed");
+    assert.ok(sent[0].withdrawal, "the erase that goes carries the withdrawal");
+    assert.ok(await verifies(me.key, PC.copyText(me.key, PC.withdrawal(), sent[0].withdrawal.at), sent[0].withdrawal.signature), "signed by my key");
+  }
+  {
+    const { ctx, sent } = await page(extra, ["chat/chat-privacy.js"]);
+    const sign = ctx.pqSignMessage;
+    const later = [];
+    ctx.pqSignMessage = async (secret, bytes) => {
+      ctx.ws = { readyState: 1, send: (s) => later.push(JSON.parse(s)) }; // a reconnect while signing
+      return sign(secret, bytes);
+    };
+    await ctx.deleteMyAccount();
+    assert.deepEqual([sent, later], [[], []], "a reconnect while signing: nothing sent anywhere");
+    assert.ok(notes.some((n) => /nothing was erased/.test(n)), "and the person is told");
+  }
 });

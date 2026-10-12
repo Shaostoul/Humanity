@@ -90,6 +90,10 @@ pub struct OwnProfile {
     /// address), in Unix milliseconds: the next one is dated after it (`next_copy_time`). In
     /// memory, this run only; the server's `signed_at` covers the rest.
     pub(crate) signed_here: HashMap<String, u64>,
+    /// The time of the copy for other servers each server holds for this key, as its last own copy
+    /// said (`signed_at`, by normalised address): an erase's withdrawal is dated after it
+    /// (`erase_frame`), since an erase brings no own copy of its own.
+    pub(crate) held_at: HashMap<String, u64>,
 }
 
 /// The normalised address of the server the app is on.
@@ -158,6 +162,10 @@ pub(crate) fn take_own_copy_at(state: &mut GuiState, server: &str, val: &Value, 
     let copy = own_copy(val, socket_name)?;
     keep_copy(state, server, copy.clone());
     log::info!("Received own profile from server");
+    let for_this_key = val.get("target").and_then(Value::as_str).is_none_or(|t| t.eq_ignore_ascii_case(&state.profile_public_key));
+    if let Some(held) = val.get("signed_at").and_then(Value::as_u64).filter(|_| for_this_key) {
+        state.own_profile.held_at.insert(crate::gui::pages::chat::norm_server_url(server), held);
+    }
     if val.get("sign_now").and_then(Value::as_bool) != Some(true) {
         return None; // the server did not ask
     }
@@ -199,6 +207,45 @@ pub(crate) fn sign_frame(seed: &[u8], key: &str, name: &str, copy: &ServerProfil
     let at = profile_copy::next_copy_time(now_ms, signed_at, last_here);
     let signature = profile_copy::sign_copy(seed, key, &public, at);
     Some(serde_json::json!({ "type": "profile_sign", "at": at, "signature": signature }))
+}
+
+/// The erase of this person's account on the server the app is on (Settings > Account), as the
+/// `account_delete` frame: the name they typed and, with the identity unlocked, the withdrawal of
+/// the copy of their profile that other servers keep, which that server passes on to the servers
+/// it is linked with before it erases (BUG-191 Wave 2B; the relay's handlers/profile.rs
+/// `withdraw_on_erase`). Locked, the erase goes without it, and the copy stays out there.
+pub(crate) fn erase_frame(state: &mut GuiState, confirm_name: &str) -> Value {
+    let now_ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_millis() as u64);
+    erase_frame_at(state, confirm_name, now_ms)
+}
+
+/// `erase_frame` with the clock given (Unix milliseconds), for the tests.
+pub(crate) fn erase_frame_at(state: &mut GuiState, confirm_name: &str, now_ms: u64) -> Value {
+    let mut frame = serde_json::json!({ "type": "account_delete", "confirm_name": confirm_name });
+    let seed = state.private_key_bytes.as_deref().filter(|s| s.len() == 32).map(<[u8]>::to_vec);
+    let key = state.profile_public_key.clone();
+    let Some(seed) = seed.filter(|_| !key.is_empty()) else {
+        log::warn!("Profile: your erase goes without taking your profile off linked servers; the identity is locked");
+        return frame;
+    };
+    let server = current_server(state);
+    let signed_at = state.own_profile.held_at.get(&server).copied().unwrap_or(0);
+    let last_here = state.own_profile.signed_here.get(&server).copied().unwrap_or(0);
+    let withdrawal = withdrawal_frame(&seed, &key, signed_at, last_here, now_ms);
+    if let Some(at) = withdrawal["at"].as_u64() {
+        state.own_profile.signed_here.insert(server, at);
+    }
+    frame["withdrawal"] = withdrawal;
+    frame
+}
+
+/// The signed withdrawal an erase carries, `{"at","signature"}`: the withdrawal
+/// (`profile_copy::withdrawal`, every field blank) dated `next_copy_time(now_ms, signed_at,
+/// last_here)`, signed with the Dilithium3 key of `seed` (`key` its public key in hex).
+pub(crate) fn withdrawal_frame(seed: &[u8], key: &str, signed_at: u64, last_here: u64, now_ms: u64) -> Value {
+    let at = profile_copy::next_copy_time(now_ms, signed_at, last_here);
+    let signature = profile_copy::sign_copy(seed, key, &profile_copy::withdrawal(), at);
+    serde_json::json!({ "at": at, "signature": signature })
 }
 
 /// The copy of the server the app is on, when it has come.

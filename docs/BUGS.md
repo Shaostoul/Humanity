@@ -4505,7 +4505,7 @@ Bad, Helping Your Neighbours After a Disaster).
   bottle; at 20 points a litre it would be 20. A drink-volume fix changes the whole thirst
   economy and is its own change.
 
-## BUG-163: a data folder older than the game loads no status effects at all, and any registry could do the same (part 1 FIXED, next release; part 2 designed; found 2026-10-05)
+## BUG-163: a data folder older than the game loads no status effects at all, and any registry could do the same (part 1 FIXED v0.1463.0; part 2 FIXED next release, 2026-10-12; found 2026-10-05)
 
 **Seen (the second seam review of the 2026-10-05 merges, item 2; confirmed on the operator's
 machine):** BUG-162 removed the `dispel_type` column from `data/status_effects.csv` and made a
@@ -4594,18 +4594,61 @@ disk-first-and-say-so rule, not only `read_data_or_embedded`.
   (built in, as his folder has none) names, so 90 foods and drinks are not edible, the water
   bottle, purified water, milk and oral rehydration solution among them.
 
-**Part 2, designed, not built:** `docs/design/data-folder-updates.md`: stamp the folder with
-the version that wrote it and the hash of every file written; on a newer exe, refresh each file
-whose hash still matches and keep each one that was edited; never touch a folder that is a
-source tree or reached through a junction (every rig's is). It waits on the operator's answer
-to: when an update changes a file a player edited, keep the edit (recommended for now), replace
-it and keep the edit beside it, or move it into a local mod? (And a smaller one: should a home
-and machine layout nobody edited follow a new default?) Until it is built, an install is brought
-up to date by renaming its data folder so the next start writes a fresh one. The operator's has
-no edits (all 90 files carry the 2026-07-11 02:19:55 extraction time), so renaming it loses
-nothing. In-app debt: `docs/design/in-app-ops.md`, "A data folder older than the app".
+**Part 2, FIXED 2026-10-12 (next release): the data folder follows the game, and an edit is
+never overwritten.** The decision (`docs/design/ship-homes-increment-6-plan.md` section 8, item
+6, adopted as recommended while the operator was away): refresh a data file only when it still
+equals the copy the game last wrote there; keep an edited one, and say so in Settings > Data.
+Increment 6 changes the ship file, and an install that kept its old one would be refused by an
+updated server as "a different ship". Built in `src/storage/refresh.rs`
+(`docs/design/data-folder-updates.md`, "Part 2, as built", has the detail and where the build
+differs from the design):
+- every write of a shipped file into the data folder (the first run, a refresh, "Use the game's
+  copy") is recorded in `data/.shipped.json`: the version, a fingerprint of everything it ships,
+  and per file the BLAKE3 hash of exactly the bytes written;
+- every start (`storage::extract_data_if_needed`, already called at boot, so lib.rs is
+  unchanged) compares the stamp with the exe. Same version and same data: nothing else is read.
+  Otherwise each shipped file is judged: this exe's copy already (recorded); what the game last
+  wrote (replaced whole, written beside it and renamed over it); absent (written); anything else
+  (kept, and named). The home designs, the ship file, starts.ron and the machine layouts follow
+  the same rule, so the ship an updated server expects reaches every install whose ship file
+  nobody edited;
+- a folder written before the stamp (the operator's, 2026-07-11) is judged by when its files
+  were written: the earliest 30-second stretch holding at least half of them (and at least 10)
+  is the first run, a file written then is unedited, one written before or after is kept. On a
+  copy shaped like his (this exe's own files in older forms, all one second, one edited an hour
+  later, one copied in with an older time, one missing) the refresh replaces all but the two and
+  writes the missing one;
+- never a source tree's data/ (the folder above holds Cargo.toml, or the folder it really is
+  does), never a folder that is a link or has a link on the way to a shipped file (every rig's),
+  and no stamp there; the first run and "Use the game's copy" refuse it too;
+- a pass that cannot write a file (one open in a spreadsheet, say) leaves every file whole,
+  keeps the stamp's old version so the next start finishes it, and records what it did write;
+- Settings > Data > "Data folder" (`src/gui/pages/settings/data_folder.rs`) shows the version
+  the folder holds, what the last update brought up to date, what it could not write, each kept
+  file with "Use the game's copy" (moves yours aside as `<name>.yours-<version>`, never deletes)
+  and "Show the file", and each file this run did not use because this version cannot read it,
+  with why (`embedded_data::builtin_copies_this_run`, fed by `note_builtin_copy`). In-app debt
+  closed: `docs/design/in-app-ops.md`, "A data folder older than the app".
 
-Tests, each seen failing first:
+Left as they are: an editor save rewrites a home, the ship or a machine layout in its own format,
+so one saved without a real change counts as edited and is kept (before v0.1459.0, BUG-151,
+merely opening the editor did that); things a player placed live in the save, so a home that
+follows a new default can move rooms under them; and the "other ship" sentence in
+`engine/home_plot.rs` still says an update does not replace the ship file (now true only for a
+kept or left-alone one).
+
+Part 2's tests, each seen red against a deliberate break (break and failure text in each doc
+comment): the eight in `src/storage/refresh_tests.rs` (a stamped folder keeps an edit and takes
+the rest; a build of the same version with other data refreshes; an unstamped folder of one
+moment is refreshed whole and a later edit and an older copied-in file are kept; one with no
+first-run moment keeps everything; a source tree, a rig's junction, a junction to a plain folder
+and a data/ with a junctioned subfolder are left byte for byte alone with no stamp; a pass with a
+refused write keeps every file whole and the old version, and the next start finishes it; the
+first run stamps every file; "Use the game's copy" moves the file aside), the Settings block's
+`the_block_names_each_kept_file_with_its_two_buttons_and_each_file_not_used`, and
+`embedded_data::tests::a_file_served_from_the_built_in_copy_is_listed_once_for_settings`.
+
+Part 1's tests, each seen failing first:
 - `engine::registries::tests::a_status_effects_file_with_an_old_column_loads_the_built_in_copy`, red on
   main at 347c8f77b: "a status_effects.csv with an old column loaded 0 status effects, not the 70
   built in"; and `a_status_effects_file_with_one_bad_row_loads_the_built_in_copy`, red on main: "a

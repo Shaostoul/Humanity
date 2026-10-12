@@ -2045,6 +2045,9 @@ pub enum RelayMessage {
     #[serde(rename = "account_delete")]
     AccountDelete {
         confirm_name: String,
+        /// Their signed withdrawal of their profile's copy on linked servers (BUG-191, profile.rs `withdraw_on_erase`).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        withdrawal: Option<crate::relay::handlers::profile::Withdrawal>,
     },
     /// Server to the erasing client, after the erase's receipt (BUG-135): disconnect from this
     /// server and never redial it by itself. `partial`: part of the erase failed, so the client
@@ -6122,8 +6125,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                             // (Legacy group system removed 2026-08-23:
                             // groups are the E2EE P2P signed-object system.)
                             // ── Account sovereignty (2026-08-23) ──
-                            RelayMessage::AccountDelete { confirm_name } => {
-                                handle_account_delete(&state_clone, &my_key_for_recv, confirm_name).await;
+                            RelayMessage::AccountDelete { confirm_name, withdrawal } => {
+                                handle_account_delete(&state_clone, &my_key_for_recv, confirm_name, withdrawal).await;
                             }
                             RelayMessage::AdminErase { target, confirm_name } => {
                                 crate::relay::handlers::account_erase::handle_admin_erase(&state_clone, &my_key_for_recv, target, confirm_name).await;
