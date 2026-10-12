@@ -245,13 +245,6 @@ pub struct BodyTick {
     pub notices: Vec<String>,
 }
 
-impl BodyTick {
-    /// All the health taken.
-    pub fn harm_total(&self) -> f64 {
-        self.harm.iter().map(|(_, h)| h).sum()
-    }
-}
-
 impl Wounds {
     /// Path of the file, relative to the data directory.
     pub const FILE: &'static str = "medical/wounds.ron";
@@ -551,11 +544,6 @@ impl Wounds {
             .map(|e| e.remaining)
             .filter(|r| *r > 0.0)
             .reduce(f64::max)
-    }
-
-    /// The death screen's words for the wound that took the most health, if a wound did.
-    pub fn worst(out: &BodyTick) -> Option<(&str, f64)> {
-        out.harm.iter().filter(|(_, h)| *h > 0.0).max_by(|a, b| a.1.total_cmp(&b.1)).map(|(c, h)| (c.as_str(), *h))
     }
 
     /// Each wound on a body, for the HUD and the Inventory page: what it is, how long it still
