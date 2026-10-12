@@ -87,6 +87,24 @@
 // kept. What the relay answers is logged one line each (`logBuilds`), in the
 // patterns this module exports, which scripts/verify-copresence.js --build reads.
 //
+// HOW IT TAKES PART IN PRIVATE MESSAGES (ship homes 5b, 2026-10-12: a household
+// permit travels as a sealed DM). It opens the sealed-sender DMs the relay
+// delivers to it (`dm_new`) and checks each sender's signature, exactly as the
+// desktop app (src/net/dm_pq.rs) and the website (web/chat/crypto.js) do, with
+// scripts/lib/sealed-dm.js, that module's twin. It keeps each member's DM key
+// from the member list (`peer_list`, `peer_joined`), so it can seal to them:
+//   befriend <key>                         a contact request, built as the
+//                                          website builds one (/shared/reach.js,
+//                                          with its pass from /shared/friend-pass.js)
+//   give-permit <key> <plot> <days>        mint a household permit for that
+//                                          person and send it as a sealed note,
+//                                          [[hum:permit:v1]] then its JSON, carrying
+//                                          the pass they gave this walker
+// and logs what arrives, in the patterns this module exports (`makeDms`):
+// "dm: friend pass from <first 12 of key>", "dm: follow from <12>", and for a
+// permit "permit received: {json}" then "permit checks out: ..." once its own
+// checks pass (the game's net/household.rs `judge_arrival`, the same order).
+//
 // Usage:
 //   node scripts/second-player.js                      walk a circle on ws://localhost:3210/ws
 //   node scripts/second-player.js --path line --radius 6 --axis z
@@ -112,6 +130,11 @@ const { performance } = require("perf_hooks");
 
 const REPO = path.resolve(__dirname, "..");
 const BUNDLE = path.join(REPO, "web", "shared", "vendor", "noble-pq.bundle.js");
+// The sealed-sender DM, byte for byte the desktop app's (src/net/dm_pq.rs), and the website's own
+// words for a friendship pass and a contact request (classic scripts that are CommonJS under Node).
+const DM = require("./lib/sealed-dm.js");
+const FRIEND_PASS = require("../web/shared/friend-pass.js");
+const REACH = require("../web/shared/reach.js");
 
 // ── Constants, each one copied from the place that decides it ───────────────
 
@@ -224,6 +247,15 @@ Lines on its input also build in the shared world (ship homes increment 5):
                     good on this relay only: it names the relay's own did:hum
 and a build or an unbuild may end with "permit <the JSON a permit line logged>".
 What the relay answers is logged, one line each.
+
+And in private messages (ship homes 5b), sealed and signed as the apps do:
+  befriend <key>                    send that member a contact request (their identity
+                    key in hex, as the member list names them), with this walker's pass for
+                    them: once they accept, they send their pass and a follow back
+  give-permit <key> <plot id> <days>  give that member a household permit for this
+                    walker's plot (90 days at most), as a sealed note carrying the pass
+                    they gave this walker
+What arrives is logged: a friend pass, a follow, a permit and whether it checks out.
 `;
 
 /** Read the command line into a plain options object. Throws an Error with a
@@ -417,6 +449,8 @@ function deriveIdentity(noble, master) {
   return {
     publicKeyHex: Buffer.from(dil.publicKey).toString("hex"),
     kyberPublicB64: Buffer.from(kyber.publicKey).toString("base64"),
+    // What opens the DMs sealed to kyberPublicB64 (scripts/lib/sealed-dm.js `openV2`).
+    kyberSecretKey: kyber.secretKey,
     // noble's argument order is sign(message, secretKey).
     sign: (bytes) => noble.ml_dsa65.sign(bytes, dil.secretKey),
   };
@@ -465,13 +499,33 @@ function buildChatMessage(identity, name, content, timestamp, channel = CHAT_CHA
 
 // ── The connection ───────────────────────────────────────────────────────────
 
+/** Each member's DM key (base64 ML-KEM-768) as the relay's member lists carry it, by identity
+ *  key: `peer_list` (everyone online when we signed in), `peer_joined` (each one who signs in
+ *  after) and `full_user_list` (members, online or not, whose key the relay keeps). The desktop app
+ *  fills its `peer_kyber_keys` the same way (frame_ws_poll.rs); without a member's key nothing can
+ *  be sealed to them. A message that names no key changes nothing (a key once seen is kept). */
+function noteKyberKeys(book, msg) {
+  const keep = (who, kyber) => {
+    if (typeof who === "string" && who && typeof kyber === "string" && kyber) book.set(who, kyber);
+  };
+  if (!msg || typeof msg !== "object") return;
+  if (msg.type === "peer_list" && Array.isArray(msg.peers)) for (const p of msg.peers) keep(p && p.public_key, p && p.kyber_public);
+  else if (msg.type === "peer_joined") keep(msg.public_key, msg.kyber_public);
+  else if (msg.type === "full_user_list" && Array.isArray(msg.users)) for (const u of msg.users) keep(u && u.public_key, u && u.kyber_public);
+}
+
 /** Wrap a WebSocket: JSON in and out, and game messages unwrapped. The relay
  *  delivers game messages as {"type":"system","message":"__game__:{...}"}
- *  (a private one is turned into the same shape before it is sent). */
+ *  (a private one is turned into the same shape before it is sent). The
+ *  client's `kyber` map is every member's DM key seen so far (`noteKyberKeys`),
+ *  kept from the first message on, so the `peer_list` that ends the sign-in
+ *  is in it too. */
 function wrapSocket(ws) {
   const listeners = new Set();
   const client = {
     ws,
+    /** Each member's DM key, by identity key (`noteKyberKeys`). */
+    kyber: new Map(),
     /** Send one JSON message (dropped quietly if the socket has closed). */
     send(obj) {
       if (ws.readyState === 1) ws.send(JSON.stringify(obj));
@@ -499,6 +553,7 @@ function wrapSocket(ws) {
     } catch {
       return;
     }
+    noteKyberKeys(client.kyber, msg);
     let game = null;
     if (msg && msg.type === "system" && typeof msg.message === "string" && msg.message.startsWith("__game__:")) {
       try {
@@ -963,6 +1018,10 @@ const BLUEPRINT_ID_RULE = /^[a-z0-9_]{1,64}$/;
 const FRAME_RULE = /^(plot|zone):[A-Za-z0-9_-]{1,59}$/;
 /** A plot's own id, as a permit names it (`p3`, never `plot:p3`; shared.rs `Permit::plot`). */
 const PLOT_ID_RULE = /^[A-Za-z0-9_-]{1,64}$/;
+/** A member's identity key on a command line: hex, an even number of digits, at most the
+ *  longest issuer a permit note may carry (net/household.rs ISSUER_MAX_LEN, 8,192). A Dilithium3
+ *  key is 3,904; the lower bound only keeps a typing slip from passing for one. */
+const MEMBER_KEY_RULE = /^(?:[0-9a-fA-F]{2}){32,4096}$/;
 /** The longest a household permit may run, days: shared.rs PERMIT_MAX_DAYS, the relay's
  *  pq_crypto.rs PLOT_PERMIT_MAX_DAYS (the operator, 2026-10-05: no endless permits). */
 const PERMIT_MAX_DAYS = 90;
@@ -1108,8 +1167,9 @@ function parsePermitJson(text) {
 
 /** One line of the walker's input, as a command: { kind: "build", blueprint, frame, local:
  *  [x, y, z], turns, permit }, { kind: "unbuild", pieceId, permit }, { kind: "permit", plot,
- *  grantee, days }, { kind: "stop" }, or null for an empty line. Throws, saying what it wants, for
- *  anything else (see the HELP text). Pure. */
+ *  grantee, days }, { kind: "befriend", key }, { kind: "give-permit", key, plot, days }, { kind:
+ *  "stop" }, or null for an empty line. Throws, saying what it wants, for anything else (see the
+ *  HELP text). Pure. */
 function parseCommand(line) {
   const text = String(line ?? "").trim();
   if (!text) return null;
@@ -1151,7 +1211,24 @@ function parseCommand(line) {
     if (!(days > 0 && days <= PERMIT_MAX_DAYS)) throw new Error(`a household permit lasts at most ${PERMIT_MAX_DAYS} days (and more than none), got ${daysText}`);
     return { kind: "permit", plot, grantee, days };
   }
-  throw new Error(`unknown command "${head}" (build, unbuild, permit or stop)`);
+  // Private messages (ship homes 5b): a member is named by their identity key in hex, as the
+  // relay's member list names them; it is kept in lowercase, the way every app writes it.
+  if (verb === "befriend" && !permit) {
+    if (words.length !== 2 || !MEMBER_KEY_RULE.test(words[1])) {
+      throw new Error(`befriend wants "befriend <their identity key in hex>", got "${head.slice(0, 80)}${head.length > 80 ? "..." : ""}"`);
+    }
+    return { kind: "befriend", key: words[1].toLowerCase() };
+  }
+  if (verb === "give-permit" && !permit) {
+    const [, key, plot, daysText] = words;
+    const days = Number(daysText);
+    if (words.length !== 4 || !MEMBER_KEY_RULE.test(key || "") || !PLOT_ID_RULE.test(plot || "") || !Number.isFinite(days)) {
+      throw new Error(`give-permit wants "give-permit <their identity key in hex> <plot id> <days>" (the plot's own id, p1, not plot:p1), got "${head.slice(0, 80)}${head.length > 80 ? "..." : ""}"`);
+    }
+    if (!(days > 0 && days <= PERMIT_MAX_DAYS)) throw new Error(`a household permit lasts at most ${PERMIT_MAX_DAYS} days (and more than none), got ${daysText}`);
+    return { kind: "give-permit", key: key.toLowerCase(), plot, days };
+  }
+  throw new Error(`unknown command "${head.slice(0, 80)}" (build, unbuild, permit, befriend, give-permit or stop)`);
 }
 
 /** The `game_build` a build command sends (shared.rs `ToRelay::Build`): the pose as given, the
@@ -1439,6 +1516,322 @@ function logBuilds(client, log, requests = null) {
   });
 }
 
+// ── Private messages (ship homes 5b, 2026-10-12) ─────────────────────────────
+//
+// A household permit travels as a sealed DM, and only between friends (docs/design/
+// ship-homes-increment-5b-plan.md 3.1). So this walker takes part in DMs the way a person's app
+// does: it seals and opens them with scripts/lib/sealed-dm.js (src/net/dm_pq.rs's twin), befriends
+// with a contact request built from the website's own words (/shared/reach.js, its pass from
+// /shared/friend-pass.js), keeps the pass a friend gives it, and checks a permit that arrives the
+// way the game does (net/household.rs `parse_note`, `judge_arrival`). It keeps nothing on disk: a
+// walker's friends last as long as it runs. scripts/tests/second-player.test.js plays both sides of
+// a whole exchange with it, and scripts/tests/sealed-dm.test.js holds the sealing to the Rust code.
+
+/** The longest permit JSON a note may carry after its marker, bytes (net/household.rs NOTE_BODY_MAX_LEN). */
+const PERMIT_NOTE_BODY_MAX = 16384;
+/** The longest issuer and signature a permit note may carry, characters (household.rs ISSUER_MAX_LEN, SIG_MAX_LEN). */
+const PERMIT_ISSUER_MAX = 8192;
+const PERMIT_SIG_MAX = 8192;
+/** The longest server, plot or grantee id a permit may name (pq_crypto.rs PLOT_PERMIT_FIELD_MAX_LEN). */
+const PERMIT_FIELD_MAX = 128;
+/** How far past PERMIT_MAX_DAYS the check lets an end date run, seconds (pq_crypto.rs
+ *  PLOT_PERMIT_CLOCK_SLACK_SECS): the giver's clock may be ahead of the receiver's. */
+const PERMIT_CLOCK_SLACK_S = 86400;
+
+/** The text of the DM that gives `permit`: the marker, then its JSON in the contract's field order
+ *  (issuer, server, plot, grantee, serial, expiry, sig), nothing between. The game's
+ *  net/household.rs `note_text` writes the same bytes (serde_json of shared.rs `Permit`). Pure. */
+function permitNoteText(permit) {
+  const p = permit || {};
+  const ordered = { issuer: p.issuer, server: p.server, plot: p.plot, grantee: p.grantee, serial: p.serial, expiry: p.expiry, sig: p.sig };
+  return `${DM.CTL_PERMIT}${JSON.stringify(ordered)}`;
+}
+
+/** Is `text` a permit note? "Starts with the marker", as the game reads it (household.rs
+ *  `is_note`): one that does not read is still a note, and never shown as a message. Pure. */
+function isPermitNote(text) {
+  return typeof text === "string" && text.startsWith(DM.CTL_PERMIT);
+}
+
+/** The permit a note carries, or null when it does not read as one (household.rs `parse_note`):
+ *  not a permit's JSON, a body over PERMIT_NOTE_BODY_MAX bytes, an issuer that is not hex or over
+ *  PERMIT_ISSUER_MAX, a signature empty or over PERMIT_SIG_MAX, a server, plot or grantee id
+ *  empty, over PERMIT_FIELD_MAX or holding a line break, or a serial that is not 16 bytes of
+ *  lowercase hex. Whether it checks out is `judgePermit`'s question. Pure. */
+function parsePermitNote(text) {
+  if (!isPermitNote(text)) return null;
+  const body = text.slice(DM.CTL_PERMIT.length);
+  if (Buffer.byteLength(body, "utf8") > PERMIT_NOTE_BODY_MAX) return null;
+  let p;
+  try {
+    p = parsePermitJson(body);
+  } catch {
+    return null;
+  }
+  const idOk = (s) => s.length > 0 && Buffer.byteLength(s, "utf8") <= PERMIT_FIELD_MAX && !/[\r\n]/.test(s);
+  const fits =
+    p.issuer.length > 0 &&
+    p.issuer.length <= PERMIT_ISSUER_MAX &&
+    /^[0-9a-fA-F]+$/.test(p.issuer) &&
+    p.sig.length > 0 &&
+    p.sig.length <= PERMIT_SIG_MAX &&
+    [p.server, p.plot, p.grantee].every(idOk) &&
+    PERMIT_SERIAL_RULE.test(p.serial) &&
+    Number.isSafeInteger(p.expiry);
+  return fits ? p : null;
+}
+
+/**
+ * Keep `permit`, which arrived in a DM from `sender` (the DM's checked sender, a Dilithium3 key in
+ * hex)? The game's rules in the game's order (net/household.rs `judge_arrival`, then pq_crypto.rs
+ * `verify_plot_permit`): the issuer is the sender, the server is known and is this one, I am the
+ * grantee (`myDid`), the ids and the serial are well formed, it has not run out and runs at most
+ * PERMIT_MAX_DAYS (plus a day's slack) ahead by `nowS`, and the sender's signature covers the
+ * permit's words with these facts. Returns null when it checks out, else the game's reason as a
+ * word: not_from_its_issuer, no_server_yet, other_server, not_for_me, ran_out, too_long or
+ * does_not_check_out.
+ */
+function judgePermit(noble, permit, { sender, serverDid, myDid, nowS }) {
+  if (String(permit.issuer).toLowerCase() !== String(sender).toLowerCase()) return "not_from_its_issuer";
+  if (!serverDid) return "no_server_yet";
+  if (permit.server !== serverDid) return "other_server";
+  if (permit.grantee !== myDid) return "not_for_me";
+  const idOk = (s) => typeof s === "string" && s.length > 0 && Buffer.byteLength(s, "utf8") <= PERMIT_FIELD_MAX && !/[\r\n]/.test(s);
+  if (![serverDid, permit.plot, myDid].every(idOk) || !PERMIT_SERIAL_RULE.test(permit.serial)) return "does_not_check_out";
+  if (permit.expiry <= nowS) return "ran_out";
+  if (permit.expiry - nowS > PERMIT_MAX_DAYS * 86400 + PERMIT_CLOCK_SLACK_S) return "too_long";
+  try {
+    const pk = new Uint8Array(Buffer.from(sender, "hex"));
+    const sig = new Uint8Array(Buffer.from(permit.sig, "base64"));
+    const words = new TextEncoder().encode(permitPreimage(serverDid, permit.plot, myDid, permit.serial, permit.expiry));
+    return noble.ml_dsa65.verify(sig, words, pk) ? null : "does_not_check_out";
+  } catch {
+    return "does_not_check_out";
+  }
+}
+
+/** Check a friendship pass `issuer` gave `grantee` on the server `serverDid` (the website's
+ *  `pqVerifyFriendCert`, the relay's `verify_friend_cert`): { serial, may } when its signature
+ *  covers the pass's words with these facts, else null. */
+function checkFriendPass(noble, { issuer, grantee, serverDid, cert }) {
+  const pass = FRIEND_PASS.friendPassParse(cert);
+  if (!pass || ![serverDid, issuer, grantee].every(FRIEND_PASS.friendPassFieldOk)) return null;
+  try {
+    const words = new TextEncoder().encode(FRIEND_PASS.friendPassPreimage(serverDid, issuer, grantee, pass.serial, pass.may));
+    const ok = noble.ml_dsa65.verify(new Uint8Array(Buffer.from(pass.sig, "base64")), words, new Uint8Array(Buffer.from(issuer, "hex")));
+    return ok ? { serial: pass.serial, may: pass.may } : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The lines `makeDms` writes, and the patterns a rig finds them by (scripts/verify-copresence.js
+ *  --household), one place for both, as BUILT_RE is. A member is named by the first 12 characters
+ *  of their identity key. */
+// This walker's own identity key, whole (what the game's accept_request names).
+const PUBLIC_KEY_RE = /public key: ([0-9a-f]{64,})$/;
+// A friendship pass from a member, checked: their key's first 12, what it allows.
+const DM_PASS_RE = /dm: friend pass from ([0-9a-f]{12}) \(may ([a-z_,]+)\)/;
+// A follow from a member: their key's first 12.
+const DM_FOLLOW_RE = /dm: follow from ([0-9a-f]{12})\b/;
+// An unfollow from a member: their key's first 12.
+const DM_UNFOLLOW_RE = /dm: unfollow from ([0-9a-f]{12})\b/;
+// A contact request from a member (logged, never acted on): their key's first 12.
+const DM_REQUEST_RE = /dm: contact request from ([0-9a-f]{12})\b/;
+// A permit that arrived, as the JSON a build or an unbuild carries (`parsePermitJson`).
+const PERMIT_RECEIVED_RE = /permit received: (\{.*\})$/;
+// That permit checked out: plot, serial, expiry, the giver's key's first 12.
+const PERMIT_OK_RE = /permit checks out: plot (\S+) serial ([0-9a-f]{32}) expiry (\d+) from ([0-9a-f]{12})/;
+// A permit not kept: the reason (`judgePermit`'s words, not_a_friend or unreadable).
+const PERMIT_REFUSED_RE = /permit refused: ([a-z_]+)/;
+// A contact request sent: their key's first 12, the put's ref.
+const REQUEST_SENT_RE = /sent contact request to ([0-9a-f]{12}) \(ref ([0-9a-f]+)\)/;
+// A permit sent: their key's first 12, the plot, the put's ref, the permit's JSON.
+const PERMIT_SENT_RE = /sent permit to ([0-9a-f]{12}) for (\S+) \(ref ([0-9a-f]+)[^)]*\): (\{.*\})$/;
+// The relay stored a put of ours (`dm_put_ok`): its ref.
+const DM_PUT_OK_RE = /dm put ok: ref ([0-9a-f]+)/;
+// The relay did not store a put of ours (`dm_put_refused`): its ref, the relay's reason.
+const DM_PUT_REFUSED_RE = /dm put refused: ref ([0-9a-f]+) \(([a-z_]+)\)/;
+
+/**
+ * This walker's part in private messages. `identity` is `deriveIdentity`'s, `name` the name it
+ * signed in under (a contact request carries it), `serverDid` the relay's own did:hum (null when it
+ * names none: nothing can be given then), `kyberOf(key)` a member's DM key or null (the socket's
+ * `kyber` map), `send(frame)` puts a frame on the socket, `log(line)` writes a line; `now` (ms) and
+ * `newRef` are the clock and the put ids (a test passes its own). Returns:
+ *  - received(msg): every relay message; opens a `dm_new` and acts on what it carries, and settles
+ *    a put on its `dm_put_ok` or `dm_put_refused`. True when the message was one of those.
+ *  - befriend(key) and givePermit(key, plot, days): build, seal and send, as the apps do: the
+ *    copy for them goes at once with a `ref`, and my own copy (for my other devices) only once the
+ *    server took theirs (the apps' rule since 10l). Each throws, sending nothing, with a sentence
+ *    saying why it cannot go.
+ *  - passFrom(key): the pass that member gave me, or null; and a few readers for tests.
+ */
+function makeDms({ noble, identity, name, serverDid, kyberOf, send, log, now = () => Date.now(), newRef = () => require("crypto").randomBytes(16).toString("hex") }) {
+  const me = identity.publicKeyHex;
+  const myDid = didFor(noble, me);
+  const k12 = (k) => String(k).slice(0, 12);
+  // The pass each member gave me, checked: key -> { cert, serial, may }.
+  const passesFrom = new Map();
+  // The pass I gave each member, once the server took it: key -> { cert, serial, may }.
+  const passesGiven = new Map();
+  const following = new Set();
+  const followers = new Set();
+  // Permits held (checked) and given (taken by the server), in the order they came.
+  const held = [];
+  const given = [];
+  // Puts waiting for the server's answer: ref -> { what, ours, onOk }.
+  const waiting = new Map();
+
+  const passFrom = (key) => (passesFrom.has(key) ? passesFrom.get(key).cert : null);
+  const sealable = (key) => {
+    const kyber = kyberOf(key);
+    if (!kyber) throw new Error(`no DM key for ${k12(key)} yet: the relay's member list carries it once they have been online here`);
+    return kyber;
+  };
+  const hold = (puts, what, onOk) => {
+    send(puts.theirs);
+    waiting.set(puts.theirs.ref, { what, ours: puts.ours, onOk });
+  };
+
+  /** One sealed DM from my mailbox. */
+  function openOne(content) {
+    let inner;
+    try {
+      inner = DM.verifyInner(noble, DM.openV2(noble, identity.kyberSecretKey, content));
+    } catch (e) {
+      log(`dm: one did not open or check out (${e.message})`);
+      return;
+    }
+    const from = inner.from.toLowerCase();
+    if (from === me) return; // my own copy of what I sent
+    if (inner.to.toLowerCase() !== me) {
+      log(`dm: one from ${k12(from)} names someone else, ignored`);
+      return;
+    }
+    const text = inner.text;
+    if (text === DM.CTL_FRIEND_CERT) {
+      const pass = inner.cert ? checkFriendPass(noble, { issuer: from, grantee: me, serverDid, cert: inner.cert }) : null;
+      if (!pass) {
+        log(`dm: a friend pass from ${k12(from)} did not check out (${inner.cert ? "its signature or this server's did:hum" : "it carries none"})`);
+        return;
+      }
+      passesFrom.set(from, { cert: inner.cert, serial: pass.serial, may: pass.may });
+      log(`dm: friend pass from ${k12(from)} (may ${pass.may})`);
+    } else if (text === DM.CTL_FOLLOW) {
+      followers.add(from);
+      log(`dm: follow from ${k12(from)}`);
+    } else if (text === DM.CTL_UNFOLLOW) {
+      // They unfollowed: the pass they gave me goes with it (they withdrew it).
+      followers.delete(from);
+      passesFrom.delete(from);
+      log(`dm: unfollow from ${k12(from)}`);
+    } else if (REACH.isContactRequestText(text)) {
+      log(`dm: contact request from ${k12(from)} (not answered: a walker accepts no one)`);
+    } else if (isPermitNote(text)) {
+      const permit = parsePermitNote(text);
+      if (!permit) {
+        log(`permit refused: unreadable (a permit note from ${k12(from)} that does not read as one)`);
+        return;
+      }
+      log(`permit received: ${JSON.stringify(permit)}`);
+      // The game keeps a permit only from a friend (household.rs; plan 3.1); here a friend is
+      // someone whose pass this walker holds.
+      if (!passesFrom.has(from)) {
+        log(`permit refused: not_a_friend (plot ${permit.plot} from ${k12(from)}: no friend pass from them)`);
+        return;
+      }
+      const why = judgePermit(noble, permit, { sender: from, serverDid, myDid, nowS: Math.floor(now() / 1000) });
+      if (why) {
+        log(`permit refused: ${why} (plot ${permit.plot} from ${k12(from)})`);
+        return;
+      }
+      held.push({ from, permit });
+      log(`permit checks out: plot ${permit.plot} serial ${permit.serial} expiry ${permit.expiry} from ${k12(from)}`);
+    } else {
+      log(`dm: message from ${k12(from)}: ${JSON.stringify(text.length > 120 ? `${text.slice(0, 120)}...` : text)}`);
+    }
+  }
+
+  function received(msg) {
+    if (!msg || typeof msg !== "object") return false;
+    if (msg.type === "dm_new" && typeof msg.content === "string") {
+      openOne(msg.content);
+      return true;
+    }
+    if ((msg.type === "dm_put_ok" || msg.type === "dm_put_refused") && waiting.has(msg.ref)) {
+      const w = waiting.get(msg.ref);
+      waiting.delete(msg.ref);
+      if (msg.type === "dm_put_ok") {
+        log(`dm put ok: ref ${msg.ref} (${w.what})`);
+        // Now my other devices may hear of it (the apps' rule since 10l).
+        send(w.ours);
+        if (w.onOk) w.onOk();
+      } else {
+        log(`dm put refused: ref ${msg.ref} (${/^[a-z_]+$/.test(String(msg.reason)) ? msg.reason : "other"}) (${w.what})`);
+      }
+      return true;
+    }
+    return false;
+  }
+
+  /** A contact request to `key`, as the website sends one (crypto.js pqBuildContactRequest): my
+   *  pass for them with the default `may`, in the text /shared/reach.js writes, flagged
+   *  `contact_request`. Once the server took it I follow them and count the pass as given. */
+  function befriend(key) {
+    if (key === me) throw new Error("a walker cannot befriend itself");
+    if (!serverDid) throw new Error("the relay named no did:hum at /api/server-info, so no pass can name the server it is good on");
+    const toKyber = sealable(key);
+    if (![serverDid, me, key].every(FRIEND_PASS.friendPassFieldOk)) throw new Error("a pass cannot name these ids");
+    const may = FRIEND_PASS.friendPassMay(FRIEND_PASS.FRIEND_PASS_DEFAULT_MAY);
+    const serial = require("crypto").randomBytes(FRIEND_PASS.FRIEND_PASS_SERIAL_BYTES).toString("hex");
+    const sig = identity.sign(new TextEncoder().encode(FRIEND_PASS.friendPassPreimage(serverDid, me, key, serial, may)));
+    const cert = FRIEND_PASS.friendPassJson(serial, may, Buffer.from(sig).toString("base64"));
+    const text = REACH.contactRequestText(name, cert);
+    if (!text) throw new Error(`"${name}" is not a name a contact request can carry`);
+    const ref = newRef();
+    const puts = DM.dmPuts(noble, identity, { to: key, toKyberB64: toKyber, text, ts: now(), friendCert: passFrom(key), ref, contactRequest: true });
+    hold(puts, `contact request to ${k12(key)}`, () => {
+      following.add(key);
+      passesGiven.set(key, { cert, serial, may });
+    });
+    log(`sent contact request to ${k12(key)} (ref ${ref})`);
+    return { ref, cert, serial, may, puts };
+  }
+
+  /** A household permit for `key` on my plot `plot` of this server, `days` long, as a sealed note
+   *  ([[hum:permit:v1]] then its JSON), carrying the pass they gave me so it gets past their own
+   *  "who can reach me" gate. Without one it still goes, and their server may refuse it. */
+  function givePermit(key, plot, days) {
+    if (key === me) throw new Error("a walker gives itself no permit");
+    if (!serverDid) throw new Error("the relay named no did:hum at /api/server-info, so no permit can name the server it is good on");
+    const toKyber = sealable(key);
+    const expiry = Math.floor(now() / 1000) + Math.round(days * 86400);
+    const permit = mintPermit(identity, { server: serverDid, plot, grantee: didFor(noble, key), expiry });
+    const friendCert = passFrom(key);
+    const ref = newRef();
+    const puts = DM.dmPuts(noble, identity, { to: key, toKyberB64: toKyber, text: permitNoteText(permit), ts: now(), friendCert, ref });
+    hold(puts, `permit for ${plot} to ${k12(key)}`, () => given.push({ to: key, permit }));
+    log(`sent permit to ${k12(key)} for ${plot} (ref ${ref}${friendCert ? "" : ", with no friend pass from them: their server may refuse it"}): ${JSON.stringify(permit)}`);
+    return { ref, permit, puts };
+  }
+
+  return {
+    me,
+    myDid,
+    received,
+    befriend,
+    givePermit,
+    passFrom,
+    passGivenTo: (key) => (passesGiven.has(key) ? passesGiven.get(key).cert : null),
+    isFollowing: (key) => following.has(key),
+    isFollower: (key) => followers.has(key),
+    held: () => held.slice(),
+    given: () => given.slice(),
+    waiting: () => waiting.size,
+  };
+}
+
 // ── The program ──────────────────────────────────────────────────────────────
 
 async function main() {
@@ -1474,6 +1867,8 @@ async function main() {
   log(`connecting to ${opts.server} as "${opts.name}" (key ${identity.publicKeyHex.slice(0, 16)}...)`);
   // Who a household permit names, for a rig that has one walker give another a permit (DID_RE).
   log(`identity: ${didFor(noble, identity.publicKeyHex)}`);
+  // The whole key, which a game names this walker by (its contact requests, PUBLIC_KEY_RE).
+  log(`public key: ${identity.publicKeyHex}`);
   if (!opts.name.startsWith(TEST_BOT_PREFIX)) {
     log(`note: "${opts.name}" does not start with ${TEST_BOT_PREFIX}, so the relay adds it to its member list for good`);
   }
@@ -1504,6 +1899,12 @@ async function main() {
   } catch (e) {
     log(`could not ask the relay for its did:hum (${e.message}): no household permit can be minted for it`);
   }
+  // Private messages (ship homes 5b, `makeDms`): every DM the relay delivers is opened and acted
+  // on from here on, and `befriend` and `give-permit` on our input send them.
+  const dms = makeDms({ noble, identity, name: opts.name, serverDid, kyberOf: (key) => client.kyber.get(key) || null, send: (m) => client.send(m), log });
+  const stopDms = client.on((msg) => {
+    dms.received(msg);
+  });
 
   let welcome;
   try {
@@ -1550,6 +1951,7 @@ async function main() {
     stopChat();
     stopLogging();
     stopBuilds();
+    stopDms();
     requests.stop();
     stopCorrections();
     walker.stop();
@@ -1600,6 +2002,10 @@ async function main() {
         if (!serverDid) throw new Error("the relay named no did:hum at /api/server-info, so no permit can name the server it is good on");
         const expiry = Math.floor(Date.now() / 1000) + Math.round(cmd.days * 86400);
         log(`permit: ${JSON.stringify(mintPermit(identity, { server: serverDid, plot: cmd.plot, grantee: cmd.grantee, expiry }))}`);
+      } else if (cmd.kind === "befriend") {
+        dms.befriend(cmd.key);
+      } else if (cmd.kind === "give-permit") {
+        dms.givePermit(cmd.key, cmd.plot, cmd.days);
       }
     } catch (e) {
       log(`command refused: ${e.message}`);
@@ -1627,6 +2033,7 @@ async function main() {
     clearTimeout(limitTimer);
     stopChat();
     stopBuilds();
+    stopDms();
     requests.stop();
     fail(2, `the relay closed the connection after ${walker.sent()} updates`);
     setTimeout(() => process.exit(2), 1000).unref();
@@ -1698,6 +2105,30 @@ module.exports = {
   DID_RE,
   SERVER_DID_RE,
   PERMIT_RE,
+  HELP,
+  // Private messages (ship homes 5b).
+  parsePermitJson,
+  wrapSocket,
+  noteKyberKeys,
+  MEMBER_KEY_RULE,
+  permitNoteText,
+  isPermitNote,
+  parsePermitNote,
+  judgePermit,
+  checkFriendPass,
+  makeDms,
+  PUBLIC_KEY_RE,
+  DM_PASS_RE,
+  DM_FOLLOW_RE,
+  DM_UNFOLLOW_RE,
+  DM_REQUEST_RE,
+  PERMIT_RECEIVED_RE,
+  PERMIT_OK_RE,
+  PERMIT_REFUSED_RE,
+  REQUEST_SENT_RE,
+  PERMIT_SENT_RE,
+  DM_PUT_OK_RE,
+  DM_PUT_REFUSED_RE,
 };
 
 if (require.main === module) main();

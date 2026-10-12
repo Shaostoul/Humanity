@@ -926,3 +926,347 @@ test("--path still stands where the relay put it", () => {
     assert.deepEqual(msg.velocity, [0, 0, 0]);
   }
 });
+
+// ── Private messages (ship homes 5b, 2026-10-12) ───────────────────────────────────────────────
+// verify-copresence --household (lane 3A) drives the scripted friend Ada through DMs: she befriends
+// the game, the game accepts, she gets its pass and its follow, and permits go both ways as sealed
+// notes. The sealing itself is scripts/lib/sealed-dm.js, held to src/net/dm_pq.rs by
+// scripts/tests/sealed-dm.test.js; here it is the walker's commands, the notes it writes and reads,
+// and the lines a rig finds.
+
+const DM = require("../lib/sealed-dm.js");
+const FRIEND_PASS = require("../../web/shared/friend-pass.js");
+const REACH = require("../../web/shared/reach.js");
+const DM_PQ_RS = fs.readFileSync(path.join(REPO, "src", "net", "dm_pq.rs"), "utf8");
+const HOUSEHOLD_RS = fs.readFileSync(path.join(REPO, "src", "net", "household.rs"), "utf8");
+// The game's own sealed permit note (lane 1A of ship homes 5b; absent until it merges).
+const PERMIT_NOTE_FIXTURE = process.env.SEALED_DM_FIXTURE || path.join(__dirname, "fixtures", "permit-note-v1.json");
+const SERVER_DID = "did:hum:EyQ6f83mX2rGSTAXfKF6AN";
+const seeded = (b) => new Uint8Array(32).fill(b);
+
+// Red check run 2026-10-12, restored afterwards: both verbs renamed in parseCommand, as before they
+// existed. FAILED at the first befriend line:
+//   Error: unknown command "befriend 0123456789abcdef0123456789abcdef..." (build, unbuild, permit,
+//   befriend, give-permit or stop)
+test("befriend and give-permit parse", () => {
+  const key = "0123456789abcdef".repeat(244); // 3,904 hex characters, a Dilithium3 key's length
+  assert.deepEqual(sp.parseCommand(`befriend ${key}`), { kind: "befriend", key });
+  assert.deepEqual(sp.parseCommand(`  befriend ${key.toUpperCase()}  `), { kind: "befriend", key }, "kept in lowercase, as every app writes keys");
+  assert.deepEqual(sp.parseCommand(`give-permit ${key} p1 30`), { kind: "give-permit", key, plot: "p1", days: 30 });
+  assert.deepEqual(sp.parseCommand(`give-permit ${key} p12 0.5`), { kind: "give-permit", key, plot: "p12", days: 0.5 });
+  for (const bad of ["befriend", "befriend abc", `befriend ${key}0`, `befriend ${key} ${key}`, `befriend did:hum:EyQ6f83mX2rGSTAXfKF6AN`, `befriend ${key.slice(0, 62)}`]) {
+    assert.throws(() => sp.parseCommand(bad), /befriend wants/, bad.slice(0, 40));
+  }
+  for (const bad of [`give-permit ${key} plot:p1 30`, `give-permit ${key} p1`, `give-permit ${key} p1 thirty`, `give-permit p1 30`, `give-permit ${key.slice(1)} p1 30`]) {
+    assert.throws(() => sp.parseCommand(bad), /give-permit wants/, bad.slice(0, 40));
+  }
+  for (const days of ["0", "91", "-3"]) {
+    assert.throws(() => sp.parseCommand(`give-permit ${key} p1 ${days}`), /at most 90 days/, `${days} days`);
+  }
+  assert.throws(() => sp.parseCommand(`befriend ${key} permit {"issuer":"x"}`), /permit must be the JSON|befriend wants|unknown command/, "a permit never rides a befriend");
+  assert.match(sp.HELP,/befriend <key>[\s\S]*give-permit <key> <plot id> <days>/, "--help names both");
+});
+
+// THE WALKER'S PERMIT NOTE IS THE GAME'S. The marker is dm_pq.rs's CTL_PERMIT, the body the
+// contract's Permit in its field order (net/household.rs `note_text`: serde_json of shared.rs
+// `Permit`), and a note is read by household.rs `parse_note`'s rules. Red check run 2026-10-12,
+// restored afterwards: sealed-dm.js's CTL_PERMIT spelt "[[hum:permit]]". FAILED at "the marker is
+// dm_pq.rs's CTL_PERMIT": actual: '[[hum:permit]]', expected: '[[hum:permit:v1]]'. Its subtest was
+// seen red the same day, before lane 1A's fixture existed, against a stand-in note sealed by a
+// scratch copy of dm_pq.rs (SEALED_DM_FIXTURE; see sealed-dm.test.js), with permitNoteText escaping
+// every "/" as "\/" (some JSON writers do; serde_json does not): every check above still passed,
+// and the subtest FAILED at "the walker writes the game's note byte for byte".
+test("the walker's permit note is the game's", async (t) => {
+  const rustMarker = DM_PQ_RS.match(/pub const CTL_PERMIT: &str = "([^"]*)";/);
+  assert.ok(rustMarker, "dm_pq.rs declares CTL_PERMIT");
+  assert.equal(DM.CTL_PERMIT, rustMarker[1], "the marker is dm_pq.rs's CTL_PERMIT");
+  assert.match(HOUSEHOLD_RS, /pub fn note_text\(p: &Permit\) -> String \{\s*format!\("\{CTL_PERMIT\}\{\}", serde_json::to_string\(p\)/, "household.rs writes the marker, then serde_json of the Permit, nothing between");
+  const noble = await sp.loadNoble();
+  const game = sp.deriveIdentity(noble, seeded(11));
+  const ada = sp.deriveIdentity(noble, seeded(22));
+  const permit = sp.mintPermit(game, { server: SERVER_DID, plot: "p2", grantee: sp.didFor(noble, ada.publicKeyHex), expiry: 1900000000 });
+  const note = sp.permitNoteText(permit);
+  const at = SHARED_RS.indexOf("pub struct Permit {");
+  const fields = [...SHARED_RS.slice(at, SHARED_RS.indexOf("\n}", at)).matchAll(/^\s*pub ([a-z_]+):/gm)].map((m) => m[1]);
+  assert.ok(note.startsWith(DM.CTL_PERMIT) && note[DM.CTL_PERMIT.length] === "{", "the JSON follows the marker directly");
+  assert.deepEqual(Object.keys(JSON.parse(note.slice(DM.CTL_PERMIT.length))), fields, "in the contract's field order");
+  const shuffled = Object.fromEntries(Object.entries(permit).reverse());
+  assert.equal(sp.permitNoteText(shuffled), note, "whatever order the permit object holds its fields in");
+  assert.deepEqual(sp.parsePermitNote(note), permit, "it reads back");
+  assert.ok(sp.isPermitNote(note));
+  // household.rs parse_note's refusals; every one is still a note (never shown as a message).
+  const body = JSON.parse(note.slice(DM.CTL_PERMIT.length));
+  const variant = (f) => {
+    const v = { ...body };
+    f(v);
+    return `${DM.CTL_PERMIT}${JSON.stringify(v)}`;
+  };
+  const bad = {
+    "the marker alone": DM.CTL_PERMIT,
+    "a body that is not JSON": `${DM.CTL_PERMIT}{not json`,
+    "a serial in capitals": variant((v) => (v.serial = v.serial.toUpperCase())),
+    "a plot with a line break": variant((v) => (v.plot = "p2\nx")),
+    "an issuer that is not hex": variant((v) => (v.issuer = `zz${v.issuer.slice(2)}`)),
+    "an empty signature": variant((v) => (v.sig = "")),
+    "a server id over 128 bytes": variant((v) => (v.server = `did:hum:${"A".repeat(130)}`)),
+    "a body over 16,384 bytes": variant((v) => (v.sig = "A".repeat(16400))),
+    "no expiry": variant((v) => delete v.expiry),
+  };
+  for (const [what, text] of Object.entries(bad)) {
+    assert.equal(sp.parsePermitNote(text), null, what);
+    assert.ok(sp.isPermitNote(text), `${what} is still a note`);
+  }
+  assert.ok(!sp.isPermitNote(`hello ${note}`), "a text that does not START with the marker is not one");
+  await t.test("the game's own note (lane 1A's fixture) is the walker's", (st) => {
+    if (!fs.existsSync(PERMIT_NOTE_FIXTURE)) {
+      st.skip(`${path.relative(REPO, PERMIT_NOTE_FIXTURE)} is not here yet: lane 1A of ship homes 5b writes it. Until it merges, the walker's note is held to the game's by the Rust source above, not by a note the game wrote.`);
+      return;
+    }
+    const fx = JSON.parse(fs.readFileSync(PERMIT_NOTE_FIXTURE, "utf8"));
+    const fxNote = [fx.note, fx.note_text, fx.text].find((v) => typeof v === "string");
+    const fxPermit = typeof fx.permit === "string" ? JSON.parse(fx.permit) : fx.permit || (fxNote ? sp.parsePermitNote(fxNote) : null);
+    assert.ok(typeof fxNote === "string", `the fixture holds the note text (note); it holds: ${Object.keys(fx).join(", ")}`);
+    assert.ok(fxPermit, "the fixture holds the permit, or a note that reads as one");
+    assert.equal(sp.permitNoteText(fxPermit), fxNote, "the walker writes the game's note byte for byte");
+    assert.deepEqual(sp.parsePermitNote(fxNote), sp.parsePermitJson(JSON.stringify(fxPermit)), "and reads it back as the same permit");
+  });
+});
+
+// The member list carries each member's DM key; without it nothing can be sealed to them. Red
+// check run 2026-10-12, restored afterwards: the `noteKyberKeys(client.kyber, msg)` call taken out
+// of wrapSocket. FAILED at "the peer_list's keys are kept (it ends the sign-in, before anyone
+// else listens)": actual: undefined, expected: 'KYB-game'.
+test("each member's DM key is kept from the member list", () => {
+  const handlers = [];
+  const fakeWs = { readyState: 1, sent: [], send(s) { this.sent.push(s); }, addEventListener: (ev, fn) => ev === "message" && handlers.push(fn), close() {} };
+  const client = sp.wrapSocket(fakeWs);
+  const deliver = (m) => handlers.forEach((fn) => fn({ data: JSON.stringify(m) }));
+  deliver({ type: "peer_list", peers: [{ public_key: "game", display_name: "Game", kyber_public: "KYB-game" }, { public_key: "old", display_name: "Old" }] });
+  assert.equal(client.kyber.get("game"), "KYB-game", "the peer_list's keys are kept (it ends the sign-in, before anyone else listens)");
+  assert.equal(client.kyber.has("old"), false, "a member who sent none has none");
+  deliver({ type: "peer_joined", public_key: "cy", display_name: "Cy", kyber_public: "KYB-cy" });
+  assert.equal(client.kyber.get("cy"), "KYB-cy", "and each peer_joined's");
+  deliver({ type: "full_user_list", users: [{ public_key: "away", name: "Away", kyber_public: "KYB-away", online: false }] });
+  assert.equal(client.kyber.get("away"), "KYB-away", "and the full member list's");
+  deliver({ type: "peer_joined", public_key: "game", display_name: "Game" });
+  assert.equal(client.kyber.get("game"), "KYB-game", "a later message naming none forgets nothing");
+});
+
+/** A whole cast for the DM tests: the walker Ada (makeDms, as main() makes her), and the game and
+ *  a stranger Cy, built straight from sealed-dm.js and the website's words, the way the desktop app
+ *  builds its notes (dm.rs `control_puts`; sealed-dm.test.js holds the two to the same bytes). */
+async function dmCast({ nowMs = Date.UTC(2026, 9, 12, 12) } = {}) {
+  const noble = await sp.loadNoble();
+  const ada = sp.deriveIdentity(noble, sp.masterSeedFrom(noble, "household ada", "TestBotAda"));
+  const game = sp.deriveIdentity(noble, sp.masterSeedFrom(noble, "household game", "Game"));
+  const cy = sp.deriveIdentity(noble, sp.masterSeedFrom(noble, "household cy", "TestBotCy"));
+  const kyber = new Map([[game.publicKeyHex, game.kyberPublicB64], [cy.publicKeyHex, cy.kyberPublicB64]]);
+  const sent = [];
+  const lines = [];
+  let refs = 0;
+  const dms = sp.makeDms({
+    noble, identity: ada, name: "TestBotAda", serverDid: SERVER_DID,
+    kyberOf: (k) => kyber.get(k) || null, send: (m) => sent.push(m), log: (s) => lines.push(`second-player: ${s}`),
+    now: () => nowMs, newRef: () => `${(++refs).toString(16).padStart(32, "0")}`,
+  });
+  // What one of the others sends Ada: a signed, sealed DM, as the desktop app makes it.
+  const dmFrom = (who, text, cert = null, ts = nowMs) => ({ type: "dm_new", id: 1, content: DM.sealV2(noble, ada.kyberPublicB64, DM.signedInner(who, { to: ada.publicKeyHex, ts, text, cert })) });
+  // A friendship pass `who` gives Ada on `server` (the relay's own words, /shared/friend-pass.js).
+  const passFrom = (who, server = SERVER_DID, serial = "0123456789abcdef0123456789abcdef") => {
+    const may = FRIEND_PASS.friendPassMay(FRIEND_PASS.FRIEND_PASS_DEFAULT_MAY);
+    const sig = who.sign(new TextEncoder().encode(FRIEND_PASS.friendPassPreimage(server, who.publicKeyHex, ada.publicKeyHex, serial, may)));
+    return FRIEND_PASS.friendPassJson(serial, may, Buffer.from(sig).toString("base64"));
+  };
+  const open = (who, put) => DM.verifyInner(noble, DM.openV2(noble, who.kyberSecretKey, put.content));
+  return { noble, ada, game, cy, dms, sent, lines, dmFrom, passFrom, open, nowMs, nowS: Math.floor(nowMs / 1000) };
+}
+
+// THE WHOLE EXCHANGE, as lane 3A's rig will drive it (plan section 6, steps 3, 5 and 8): Ada asks,
+// the game accepts (its pass and its follow arrive), each gives the other a permit. Red check run
+// 2026-10-12, restored afterwards: givePermit sealing its note with `friendCert: null`. FAILED at
+// "friend_cert = the pass the game gave her, so it gets past the game's gate": actual: undefined
+// (the game takes messages from friends by default, so the relay would have refused that note).
+test("befriended, a pass and a follow arrive, and permits go both ways as the apps send them", async () => {
+  const c = await dmCast();
+  const k12 = (id) => id.publicKeyHex.slice(0, 12);
+  // 1. Ada asks the game: a contact request as the website builds one.
+  const asked = c.dms.befriend(c.game.publicKeyHex);
+  assert.equal(c.sent.length, 1, "only the copy for the game goes before the server answers");
+  const theirs = c.sent[0];
+  assert.equal(theirs.type, "dm_put");
+  assert.equal(theirs.to, c.game.publicKeyHex);
+  assert.equal(theirs.contact_request, true, "flagged as a contact request, which the relay lets through to someone who takes messages from friends");
+  assert.equal(theirs.ref, asked.ref);
+  assert.equal(theirs.friend_cert, undefined, "no pass from the game yet, so none rides it");
+  const req = c.open(c.game, theirs);
+  assert.equal(req.from, c.ada.publicKeyHex);
+  assert.equal(req.text, REACH.contactRequestText("TestBotAda", asked.cert), "the text /shared/reach.js writes");
+  const parsed = REACH.contactRequestParse(req.text);
+  const pass = FRIEND_PASS.friendPassParse(parsed.pass);
+  assert.equal(pass.may, "invite,message,trade,voice_message", "the default pass: everything but calls");
+  const words = new TextEncoder().encode(FRIEND_PASS.friendPassPreimage(SERVER_DID, c.ada.publicKeyHex, c.game.publicKeyHex, pass.serial, pass.may));
+  assert.ok(c.noble.ml_dsa65.verify(new Uint8Array(Buffer.from(pass.sig, "base64")), words, new Uint8Array(Buffer.from(c.ada.publicKeyHex, "hex"))), "her pass for the game checks out on this server");
+  assert.ok(!c.dms.isFollowing(c.game.publicKeyHex), "not counted as sent before the server took it");
+  assert.equal(c.dms.received({ type: "dm_put_ok", ref: asked.ref }), true);
+  assert.equal(c.sent.length, 2, "then her own copy goes");
+  assert.equal(c.sent[1].to, c.ada.publicKeyHex);
+  assert.equal(c.open(c.ada, c.sent[1]).text, req.text, "the same message, sealed to herself");
+  assert.ok(c.dms.isFollowing(c.game.publicKeyHex));
+  assert.equal(c.dms.passGivenTo(c.game.publicKeyHex), asked.cert);
+  const sentLine = c.lines.find((l) => sp.REQUEST_SENT_RE.test(l));
+  assert.deepEqual(sentLine.match(sp.REQUEST_SENT_RE).slice(1), [k12(c.game), asked.ref]);
+  assert.deepEqual(c.lines.find((l) => sp.DM_PUT_OK_RE.test(l)).match(sp.DM_PUT_OK_RE)[1], asked.ref);
+
+  // 2. The game accepts: its pass (dm.rs send_friend_cert) and its follow (CTL_FOLLOW).
+  const gamePass = c.passFrom(c.game);
+  c.dms.received(c.dmFrom(c.game, DM.CTL_FRIEND_CERT, gamePass));
+  c.dms.received(c.dmFrom(c.game, DM.CTL_FOLLOW));
+  const passLine = c.lines.find((l) => sp.DM_PASS_RE.test(l));
+  assert.ok(passLine, "dm: friend pass from <key12> is logged");
+  assert.deepEqual(passLine.match(sp.DM_PASS_RE).slice(1), [k12(c.game), "invite,message,trade,voice_message"]);
+  assert.equal(c.lines.find((l) => sp.DM_FOLLOW_RE.test(l)).match(sp.DM_FOLLOW_RE)[1], k12(c.game), "dm: follow from <key12> is logged");
+  assert.equal(c.dms.passFrom(c.game.publicKeyHex), gamePass, "the game's pass is kept");
+  assert.ok(c.dms.isFollower(c.game.publicKeyHex));
+
+  // 3. Ada gives the game a permit for her plot: a sealed note carrying the game's pass.
+  const gave = c.dms.givePermit(c.game.publicKeyHex, "p1", 30);
+  const put = c.sent[c.sent.length - 1];
+  assert.equal(put.to, c.game.publicKeyHex);
+  assert.equal(put.friend_cert, gamePass, "friend_cert = the pass the game gave her, so it gets past the game's gate");
+  assert.equal(put.ref, gave.ref);
+  assert.equal(put.contact_request, undefined);
+  const note = c.open(c.game, put);
+  assert.equal(note.text, sp.permitNoteText(gave.permit), "[[hum:permit:v1]] then the permit's JSON");
+  const p = sp.parsePermitNote(note.text);
+  assert.deepEqual([p.issuer, p.server, p.plot, p.grantee, p.expiry], [c.ada.publicKeyHex, SERVER_DID, "p1", sp.didFor(c.noble, c.game.publicKeyHex), c.nowS + 30 * 86400]);
+  assert.equal(sp.judgePermit(c.noble, p, { sender: note.from, serverDid: SERVER_DID, myDid: sp.didFor(c.noble, c.game.publicKeyHex), nowS: c.nowS }), null, "it checks out as the game will check it");
+  const sentPermit = c.lines.find((l) => sp.PERMIT_SENT_RE.test(l)).match(sp.PERMIT_SENT_RE);
+  assert.deepEqual(sentPermit.slice(1, 4), [k12(c.game), "p1", gave.ref]);
+  assert.deepEqual(JSON.parse(sentPermit[4]), gave.permit, "the sent line carries the permit");
+  const before = c.sent.length;
+  c.dms.received({ type: "dm_put_refused", ref: gave.ref, reason: "reach" });
+  assert.equal(c.sent.length, before, "a refused put sends no copy to herself");
+  assert.deepEqual(c.lines.find((l) => sp.DM_PUT_REFUSED_RE.test(l)).match(sp.DM_PUT_REFUSED_RE).slice(1), [gave.ref, "reach"]);
+  assert.deepEqual(c.dms.given(), [], "and counts nothing as given");
+
+  // 4. The game gives Ada a permit for its plot.
+  const toAda = sp.mintPermit(c.game, { server: SERVER_DID, plot: "p2", grantee: sp.didFor(c.noble, c.ada.publicKeyHex), expiry: c.nowS + 30 * 86400 });
+  c.dms.received(c.dmFrom(c.game, sp.permitNoteText(toAda)));
+  const got = c.lines.find((l) => sp.PERMIT_RECEIVED_RE.test(l)).match(sp.PERMIT_RECEIVED_RE)[1];
+  assert.deepEqual(JSON.parse(got), toAda, "permit received: {json} carries it whole");
+  assert.deepEqual(sp.parsePermitJson(got), toAda, "as the JSON a build or an unbuild carries");
+  const ok = c.lines.find((l) => sp.PERMIT_OK_RE.test(l));
+  assert.ok(ok, "permit checks out is logged");
+  assert.deepEqual(ok.match(sp.PERMIT_OK_RE).slice(1), ["p2", toAda.serial, String(toAda.expiry), k12(c.game)]);
+  assert.deepEqual(c.dms.held(), [{ from: c.game.publicKeyHex, permit: toAda }]);
+  // The lines never read as each other.
+  for (const l of c.lines) {
+    if (sp.PERMIT_RECEIVED_RE.test(l) || sp.PERMIT_SENT_RE.test(l)) assert.equal(l.match(sp.PERMIT_RE), null, `a minted-permit reader never takes "${l.slice(0, 40)}"`);
+  }
+  assert.equal(c.lines.filter((l) => /did not open|names someone else/.test(l)).length, 0, "nothing failed to open");
+});
+
+// A permit that does not check out is never held: the game's rules in the game's order
+// (net/household.rs `judge_arrival`, the eight rows of its own test), plus the walker's friend rule.
+// Red check run 2026-10-12, restored afterwards: the issuer-equals-sender line taken out of
+// judgePermit. FAILED at "a permit Cy forwarded from the game":
+//   actual: 'does_not_check_out', expected: 'not_from_its_issuer'
+// (Cy's signature check still refused it, under the wrong reason; with the signature row also
+// dropped it would have been kept).
+test("a permit that does not check out is refused, saying why, and never held", async () => {
+  const c = await dmCast();
+  c.dms.received(c.dmFrom(c.game, DM.CTL_FRIEND_CERT, c.passFrom(c.game)));
+  c.dms.received(c.dmFrom(c.cy, DM.CTL_FRIEND_CERT, c.passFrom(c.cy)));
+  const adaDid = sp.didFor(c.noble, c.ada.publicKeyHex);
+  const mint = (who, over = {}) => sp.mintPermit(who, { server: SERVER_DID, plot: "p2", grantee: adaDid, expiry: c.nowS + 7 * 86400, ...over });
+  const good = mint(c.game);
+  const rows = [
+    ["a permit Cy forwarded from the game", c.cy, good, "not_from_its_issuer"],
+    ["one given on another server", c.game, mint(c.game, { server: "did:hum:AnotherServer1" }), "other_server"],
+    ["one naming someone else", c.game, mint(c.game, { grantee: sp.didFor(c.noble, c.cy.publicKeyHex) }), "not_for_me"],
+    ["one that ran out", c.game, { ...good, expiry: c.nowS - 1 }, "ran_out"],
+    ["one 92 days long", c.game, { ...good, expiry: c.nowS + 92 * 86400 }, "too_long"],
+    ["one whose signature is not its words'", c.game, { ...good, plot: "p3" }, "does_not_check_out"],
+  ];
+  for (const [what, sender, permit, why] of rows) {
+    assert.equal(sp.judgePermit(c.noble, permit, { sender: sender.publicKeyHex, serverDid: SERVER_DID, myDid: adaDid, nowS: c.nowS }), why, what);
+    const n = c.lines.length;
+    c.dms.received(c.dmFrom(sender, sp.permitNoteText(permit)));
+    const fresh = c.lines.slice(n);
+    assert.ok(fresh.some((l) => sp.PERMIT_RECEIVED_RE.test(l)), `${what}: received`);
+    assert.deepEqual(fresh.filter((l) => sp.PERMIT_REFUSED_RE.test(l)).map((l) => l.match(sp.PERMIT_REFUSED_RE)[1]), [why], `${what}: refused as ${why}`);
+    assert.ok(!fresh.some((l) => sp.PERMIT_OK_RE.test(l)), `${what}: never "checks out"`);
+  }
+  assert.equal(sp.judgePermit(c.noble, good, { sender: c.game.publicKeyHex, serverDid: null, myDid: adaDid, nowS: c.nowS }), "no_server_yet");
+  assert.equal(sp.judgePermit(c.noble, good, { sender: c.game.publicKeyHex.toUpperCase(), serverDid: SERVER_DID, myDid: adaDid, nowS: c.nowS }), null, "the issuer compared as the game compares it, case aside");
+  assert.equal(sp.judgePermit(c.noble, { ...good, expiry: c.nowS + 91 * 86400 }, { sender: c.game.publicKeyHex, serverDid: SERVER_DID, myDid: adaDid, nowS: c.nowS }), "does_not_check_out", "a day past 90 is within the clock slack, so only its signature refuses it");
+  // From someone who gave Ada no pass: a stranger's permit is not kept.
+  const stranger = sp.deriveIdentity(c.noble, sp.masterSeedFrom(c.noble, "household stranger", "TestBotStranger"));
+  const n = c.lines.length;
+  c.dms.received(c.dmFrom(stranger, sp.permitNoteText(mint(stranger))));
+  assert.deepEqual(c.lines.slice(n).filter((l) => sp.PERMIT_REFUSED_RE.test(l)).map((l) => l.match(sp.PERMIT_REFUSED_RE)[1]), ["not_a_friend"]);
+  // A note that does not read: never shown, never held.
+  c.dms.received(c.dmFrom(c.game, `${DM.CTL_PERMIT}{oops`));
+  assert.equal(c.lines[c.lines.length - 1].match(sp.PERMIT_REFUSED_RE)[1], "unreadable");
+  assert.deepEqual(c.dms.held(), [], "nothing held");
+  // And the good one, after all that, is.
+  c.dms.received(c.dmFrom(c.game, sp.permitNoteText(good)));
+  assert.equal(c.dms.held().length, 1);
+});
+
+// What else arrives is read the way the apps read it. Red check run 2026-10-12, restored
+// afterwards: an unfollow no longer dropping the pass it came with. FAILED at "an unfollow takes
+// their pass with it": actual: '{"v":2,"serial":"0123456789abcdef...', expected: null.
+test("a pass that does not check out, an unfollow, a stranger's request, my own copies", async () => {
+  const c = await dmCast();
+  const k12 = (id) => id.publicKeyHex.slice(0, 12);
+  c.dms.received(c.dmFrom(c.game, DM.CTL_FRIEND_CERT, c.passFrom(c.game, "did:hum:AnotherServer1")));
+  assert.equal(c.dms.passFrom(c.game.publicKeyHex), null, "a pass given on another server is not kept");
+  assert.ok(c.lines.some((l) => /dm: a friend pass from \w{12} did not check out/.test(l)));
+  assert.ok(!c.lines.some((l) => sp.DM_PASS_RE.test(l)), "and never logged as a friend pass");
+  c.dms.received(c.dmFrom(c.game, DM.CTL_FRIEND_CERT, c.passFrom(c.game)));
+  c.dms.received(c.dmFrom(c.game, DM.CTL_UNFOLLOW));
+  assert.equal(c.lines[c.lines.length - 1].match(sp.DM_UNFOLLOW_RE)[1], k12(c.game));
+  assert.equal(c.dms.passFrom(c.game.publicKeyHex), null, "an unfollow takes their pass with it");
+  // A request from Cy is logged, never answered.
+  const sentBefore = c.sent.length;
+  c.dms.received(c.dmFrom(c.cy, REACH.contactRequestText("TestBotCy", c.passFrom(c.cy))));
+  assert.equal(c.lines[c.lines.length - 1].match(sp.DM_REQUEST_RE)[1], k12(c.cy));
+  assert.equal(c.sent.length, sentBefore);
+  // A DM sealed to someone else, or forged, or not a DM.
+  c.dms.received({ type: "dm_new", id: 2, content: DM.sealV2(c.noble, c.cy.kyberPublicB64, DM.signedInner(c.game, { to: c.cy.publicKeyHex, ts: 1, text: "hi" })) });
+  assert.match(c.lines[c.lines.length - 1], /dm: one did not open or check out/);
+  const forged = { publicKeyHex: c.game.publicKeyHex, sign: c.cy.sign };
+  c.dms.received(c.dmFrom(forged, DM.CTL_FOLLOW));
+  assert.match(c.lines[c.lines.length - 1], /dm: one did not open or check out \(the sender's signature/);
+  assert.ok(!c.dms.isFollower(c.game.publicKeyHex), "a forged follow counts for nothing");
+  // My own copies (what I sent, back from my mailbox) change nothing and say nothing.
+  const n = c.lines.length;
+  const mine = DM.sealV2(c.noble, c.ada.kyberPublicB64, DM.signedInner(c.ada, { to: c.game.publicKeyHex, ts: 1, text: DM.CTL_FOLLOW }));
+  assert.equal(c.dms.received({ type: "dm_new", id: 3, content: mine }), true);
+  assert.equal(c.lines.length, n);
+  assert.equal(c.dms.received({ type: "dm_put_ok", ref: "not-ours" }), false, "an answer to someone else's put is not ours");
+  // A plain message is logged in short.
+  c.dms.received(c.dmFrom(c.game, "hello Ada"));
+  assert.equal(c.lines[c.lines.length - 1], `second-player: dm: message from ${k12(c.game)}: "hello Ada"`);
+  // Nothing goes to someone whose DM key the member list has not shown, and a sentence says so.
+  const nobody = sp.deriveIdentity(c.noble, sp.masterSeedFrom(c.noble, "household nobody", "TestBotNobody"));
+  assert.throws(() => c.dms.befriend(nobody.publicKeyHex), /no DM key for/);
+  assert.throws(() => c.dms.givePermit(nobody.publicKeyHex, "p1", 30), /no DM key for/);
+  const noServer = sp.makeDms({ noble: c.noble, identity: c.ada, name: "TestBotAda", serverDid: null, kyberOf: () => c.game.kyberPublicB64, send: () => {}, log: () => {} });
+  assert.throws(() => noServer.givePermit(c.game.publicKeyHex, "p1", 30), /named no did:hum/);
+  assert.throws(() => noServer.befriend(c.game.publicKeyHex), /named no did:hum/);
+});
+
+// The walker's whole key, which the rig hands the game's accept_request (plan section 6, step 3).
+// Red check run 2026-10-12, restored afterwards: PUBLIC_KEY_RE loosened to /key:? ([0-9a-f]{16,})/.
+// FAILED at the shortened line: it read 'key 8129780826a5bac6' out of "connecting to ... (key
+// 8129780826a5bac6...)", expected: null.
+test("the walker's public key line is read whole, and never from the shortened one", async () => {
+  const noble = await sp.loadNoble();
+  const ada = sp.deriveIdentity(noble, sp.masterSeedFrom(noble, "household ada", "TestBotAda"));
+  assert.equal(`second-player: public key: ${ada.publicKeyHex}`.match(sp.PUBLIC_KEY_RE)[1], ada.publicKeyHex);
+  assert.equal(`second-player: connecting to ws://localhost:3210/ws as "TestBotAda" (key ${ada.publicKeyHex.slice(0, 16)}...)`.match(sp.PUBLIC_KEY_RE), null);
+  assert.equal(ada.publicKeyHex.length, 3904, "a Dilithium3 key, whole");
+  assert.ok(sp.MEMBER_KEY_RULE.test(ada.publicKeyHex), "and a befriend or give-permit command takes it");
+});
