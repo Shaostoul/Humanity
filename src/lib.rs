@@ -12498,6 +12498,9 @@ mod native_app {
                                     (name, e.remaining as f32)
                                 })
                                 .collect();
+                            // Each wound and illness, with what helps (first-hour audit S8,
+                            // systems::wounds): the HUD's rows and the Inventory's lines.
+                            state.gui_state.vitals.care = crate::systems::wounds::care_lines(effects, fx_registry);
                         }
                     }
                     // Bridge player skills (live levels + XP) from ECS for the profile
