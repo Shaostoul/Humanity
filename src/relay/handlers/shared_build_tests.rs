@@ -278,6 +278,118 @@ fn a_withdrawn_permit_no_longer_lets_its_holder_in() {
     assert!(wrong.is_empty(), "\n{}", wrong.join("\n"));
 }
 
+/// A PERMIT CHECK ANSWERS AS A BUILD WOULD (ship homes 5b, plan section 3.5: `judge_permit_check`
+/// and `permit_status`, the answer to `game_permit_check`). Ann holds p1, Bo p2, Cy p3 and Eve
+/// p5; Gil is a guest. Row by row, the plot each permit names is judged for the player showing
+/// it, and the same permit is carried by a wall built on that plot (`judge_build`, the whole
+/// build path): the check must say what the build is told, and what the row expects.
+/// - Ann's 30-day permit for Bo works, and so does hers for Gil the guest.
+/// - Run out: `permit_expired`. Signed by hand to run 92 days: `permit_too_long`.
+/// - Eve's permit for p5, after Eve gave p5 back: `permit_not_from_holder`.
+/// - Ann's permit for Cy, shown by Bo (another grantee); one she signed for another server; her
+///   p1 permit with its plot changed to p3 (another plot): each `permit_bad`, as the signature
+///   is over the relay's own facts.
+/// - Bo's own plot: works whatever the permit says (here Ann's p1 permit renamed p2, whose
+///   signature is no good), as a build on his own plot needs none.
+/// - A permit Ann took back (`cert_revoke`'s list): `permit_withdrawn`.
+/// - A plot this ship does not have (p99): `permit_bad` (a build there is `bad_frame`).
+///
+/// The answers as sent: a permit that works is `ok` alone; one that does not carries its why
+/// and that why's words, the same a build would; one the relay could not judge (too soon, not
+/// in the world, the database not answering) is `again` with neither; and no answer names a key
+/// or a `did:hum`.
+///
+/// Seen red 2026-10-12 with `permit_lets_in` returning Ok at its top: "Bo, a permit that ran out:
+/// check Ok(()), build Ok(()), expected Err(PermitExpired)" failed, and the same for the too
+/// long, given back, another grantee, another server, another plot and taken back rows (the
+/// taken-back row is the check's `permit_withdrawn`). And with the permit branch taken out of
+/// `may_build` (a build on another's plot refused as if no permit came with it), the check left
+/// as it was, so only the comparison with the build could see it: "Bo, Ann's permit: check
+/// Ok(()), build Err(NotYourPlot), expected Ok(())" failed.
+#[test]
+fn a_permit_check_answers_as_a_build_would() {
+    use base64::{engine::general_purpose::STANDARD as B64, Engine};
+    let (world, db) = ship("permit_check", &[(1, Some("p1")), (2, Some("p2")), (3, Some("p3")), (6, Some("p5")), (4, None)]);
+    let ship_id = world.ship_plots.ship_id.clone();
+    let plain = Ranks::default();
+    let good = permit(&world, 1, "p1", 2, NOW + 30 * DAY, NOW);
+    let too_long = {
+        // Signed by hand, as a modified game could: the minting never makes one past 90 days.
+        let mut p = good.clone();
+        p.expiry = NOW + 92 * DAY;
+        let issuer = DilithiumKeypair::from_seed(&derive_dilithium_seed(&[1; 32]));
+        p.sig = B64.encode(issuer.sign(plot_permit_preimage(&world.pieces.server_did, "p1", &p.grantee, &p.serial, p.expiry).as_bytes()));
+        p
+    };
+    let other_server = {
+        let mut p = good.clone();
+        p.server = "did:hum:SomeOtherServer11111".into();
+        p.sig = build_plot_permit(&[1; 32], &p.server, "p1", &p.grantee, &p.serial, p.expiry, NOW).unwrap();
+        p
+    };
+    let renamed = |plot: &str| Permit { plot: plot.into(), ..good.clone() };
+    let taken_back = permit_named(&world, 1, "p1", 2, "ffeeddccbbaa99887766554433221100", NOW + 30 * DAY, NOW);
+    db.withdraw_friend_cert(&key(1), &taken_back.serial, (NOW / DAY) as i64).expect("Ann's withdrawal is kept");
+    let eves = permit(&world, 6, "p5", 2, NOW + 30 * DAY, NOW);
+    assert!(db.release_plot_by_id(&ship_id, "p5").unwrap(), "Eve gives p5 back");
+
+    let rows: Vec<(&str, u8, Permit, Result<(), Why>)> = vec![
+        ("Bo, Ann's permit", 2, good.clone(), Ok(())),
+        ("Gil the guest, Ann's permit for him", 4, permit(&world, 1, "p1", 4, NOW + DAY, NOW), Ok(())),
+        ("Bo, a permit that ran out", 2, permit(&world, 1, "p1", 2, NOW - DAY, NOW - 10 * DAY), Err(Why::PermitExpired)),
+        ("Bo, a permit running 92 days", 2, too_long, Err(Why::PermitTooLong)),
+        ("Bo, Eve's permit for the p5 she gave back", 2, eves, Err(Why::PermitNotFromHolder)),
+        ("Bo, Ann's permit for Cy", 2, permit(&world, 1, "p1", 3, NOW + DAY, NOW), Err(Why::PermitBad)),
+        ("Bo, Ann's permit given on another server", 2, other_server, Err(Why::PermitBad)),
+        ("Bo, Ann's p1 permit renamed p3", 2, renamed("p3"), Err(Why::PermitBad)),
+        ("Bo, his own plot", 2, renamed("p2"), Ok(())),
+        ("Bo, the permit Ann took back", 2, taken_back, Err(Why::PermitWithdrawn)),
+    ];
+    let mut wrong = Vec::new();
+    for (what, n, p, want) in &rows {
+        let asker = who(&world, *n, plain);
+        let check = judge_permit_check(&world.pieces, &db, &ship_id, &asker, p, NOW);
+        let mut wall = ask(&world, &format!("plot:{}", p.plot), "wood_wall", [20.0, 0.2, 18.0], 0);
+        wall.permit = Some(p.clone());
+        let build = judge_build(&world, &db, &asker, &wall, 1_000, NOW).map(|_| ()).map_err(|r| r.refusal.why.unwrap_or(Why::Unknown));
+        let check_r = check.clone().map_err(|r| r.why.unwrap_or(Why::Unknown));
+        if check_r != *want || build != *want {
+            wrong.push(format!("{what}: check {check_r:?}, build {build:?}, expected {want:?}"));
+        }
+        // The answer as sent.
+        let text = serde_json::to_string(&permit_status(7, &p.plot, &check)).unwrap();
+        let sent: serde_json::Value = serde_json::from_str(&text).unwrap();
+        let (ok, why) = (sent["ok"].as_bool(), sent["why"].as_str());
+        let want_sent = match want {
+            Ok(()) => (Some(true), None),
+            Err(w) => (Some(false), Some(w.as_str())),
+        };
+        let words = want.err().map(|w| shared::why_words(Action::Build, Reason::NotAllowed, Some(w)));
+        if (ok, why) != want_sent || sent["message"].as_str().map(str::to_string) != words || sent.get("again").is_some() {
+            wrong.push(format!("{what}: sent {text}"));
+        }
+        if sent["req_id"] != 7 || sent["plot"] != p.plot.as_str() || text.contains("did:hum") || text.contains(&key(1)) || text.contains(&key(2)) {
+            wrong.push(format!("{what}: the answer says more than its own: {text}"));
+        }
+    }
+    // A plot this ship does not have: a bad permit to the check (a build there is a bad frame).
+    let nowhere = judge_permit_check(&world.pieces, &db, &ship_id, &who(&world, 2, plain), &renamed("p99"), NOW);
+    if nowhere.as_ref().err().and_then(|r| r.why) != Some(Why::PermitBad) {
+        wrong.push(format!("Bo, a permit for p99: {nowhere:?}, expected PermitBad"));
+    }
+    assert!(wrong.is_empty(), "\n{}", wrong.join("\n"));
+
+    // Not judged this time: ask again, with no why and no words.
+    for (what, r) in [
+        ("too soon", Refusal::new(Reason::RateLimited, "")),
+        ("not in the world", Refusal::new(Reason::NotInGame, "")),
+        ("the database not answering", Refusal::new(Reason::StorageError, "who holds p1 could not be read")),
+    ] {
+        let text = serde_json::to_string(&permit_status(8, "p1", &Err(r))).unwrap();
+        assert_eq!(text, r#"{"type":"game_permit_status","req_id":8,"plot":"p1","ok":false,"again":true}"#, "{what}");
+    }
+}
+
 /// A FRAME COMES INTO VIEW AT 250 M AND LEAVES ONLY PAST 300 M (increment 4's distances,
 /// data/ship/shared_world.ron). At p1's door the frames in view are the Commons, First Street and
 /// p1 to p3, and p4 (256.5 m) is not. Walking north along x 53.5, over p4's floor: at 260 m
