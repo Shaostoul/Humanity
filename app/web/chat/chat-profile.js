@@ -32,7 +32,10 @@
 //
 // Depends on (from app.js): ws, myKey, myName, esc, generateIdenticon,
 //   roleBadge, peerData, isFriend, isFollowing, myFollowing, myFollowers,
-//   addSystemMessage.
+//   addSystemMessage. For signing the copy of my profile that other servers
+//   keep (signProfileCopy, BUG-191): myDilithiumSecret (crypto.js),
+//   window.pqSignMessage (pq.js) and window.HosProfileCopy
+//   (/shared/profile-copy.js).
 
 /** Canonical local store for the network-facing profile. Also written by /profile. */
 const PROFILE_LS_KEY = 'humanity_profile';
@@ -340,12 +343,71 @@ function pushWaitingOnce() {
  */
 function ownProfileArrived(msg) {
   if (!msg || typeof msg.privacy !== 'string') return;
+  // The server asks this device to sign the copy of my profile that other servers keep (BUG-191).
+  signProfileCopy(msg);
   ownProfileHeard = true;
   const pushedAlready = waitingPushedOnce;
   const publish = filesAcceptHeard(msg.accepts_files, msg.stored !== false);
   pushWaitingOnce();
   // A choice that waits only from now on goes now: the once-per-socket push has already gone.
   if (publish && pushedAlready) pushProfileToRelay();
+}
+
+// ── The copy of my profile that other servers keep (BUG-191, 2026-10-12) ──
+// docs/design/bug-191-profile-copies-plan.md 3.3, 3.4 and 3.11. The server never signs my profile
+// for me: when it wants the servers it is linked with to have a new copy (after a save from any of
+// my devices, or when the copy out there shows more than I now allow), my own copy comes with
+// `sign_now: true`. This device then builds the PUBLIC copy of exactly what the server stored
+// (/shared/profile-copy.js: the fields I keep for friends blank, everything blank when I am
+// unlisted), signs it with my Dilithium3 key, and sends one `profile_sign`. The server rebuilds the
+// copy itself, checks the signature, keeps it and passes it on. Nothing is sent without `sign_now`.
+//
+// The time on it is after the clock, after the copy the server holds (`signed_at`), and after the
+// last one this page signed for that server, so a device whose clock runs fast cannot win every
+// later edit.
+
+/** Server (its did:hum, else its address) to the time of the last copy this page signed for it. In memory: this page's run. */
+const profileCopyLastAt = {};
+
+/**
+ * Sign the copy of my profile that other servers keep, when my own copy `msg` (a profile_data)
+ * asks for it, and send it as `profile_sign`. Returns true when one was sent.
+ */
+async function signProfileCopy(msg) {
+  if (!msg || msg.sign_now !== true) return false; // the server did not ask
+  if (typeof msg.privacy !== 'string') return false; // my own complete copy only, never the public one
+  const C = window.HosProfileCopy;
+  if (!C || typeof window.pqSignMessage !== 'function') return false;
+  if (typeof myDilithiumSecret === 'undefined' || !myDilithiumSecret || !myKey) return false; // no identity yet
+  if (!ws || ws.readyState !== WebSocket.OPEN) return false;
+  // A copy routed to another key under my name is that device's to sign, not this one's.
+  if (typeof msg.target === 'string' && msg.target.toLowerCase() !== String(myKey).toLowerCase()) return false;
+  const copy = C.publicCopy(msg.name, msg, msg.privacy);
+  if (!C.withinLimits(myKey, copy)) {
+    // The server never asks for one of these; signing it would only be refused.
+    console.warn('Profile copy for other servers not signed: it is over the limits a save holds.');
+    return false;
+  }
+  const server = filesAcceptServer(); // the server this page is signed in to
+  const at = C.nextCopyTime(Date.now(), msg.signed_at, profileCopyLastAt[server]);
+  profileCopyLastAt[server] = at; // before the wait, so a second ask meanwhile is dated after this one
+  const sock = ws;
+  let sig = null;
+  try {
+    sig = await window.pqSignMessage(myDilithiumSecret, new TextEncoder().encode(C.copyText(myKey, copy, at)));
+  } catch (e) {
+    sig = null;
+  }
+  if (!sig) {
+    console.warn('Profile copy for other servers not signed: the signature could not be made.');
+    return false;
+  }
+  // The socket it was asked on, still open: a new socket has not asked (and may be another server).
+  if (ws !== sock || !ws || ws.readyState !== WebSocket.OPEN) return false;
+  let hex = '';
+  for (let i = 0; i < sig.length; i++) hex += sig[i].toString(16).padStart(2, '0');
+  ws.send(JSON.stringify({ type: 'profile_sign', at, signature: hex }));
+  return true;
 }
 
 /** This device's "Accept files from" as the profile publishes it; left out without the module. */
