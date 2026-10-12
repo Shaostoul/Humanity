@@ -24,6 +24,9 @@ pub const TOXINS_CSV: &str = include_str!("../data/chemistry/toxins.csv");
 
 // ── Asteroids ───────────────────────────────────────────────────────
 pub const ASTEROID_TYPES_CSV: &str = include_str!("../data/asteroids/types.csv");
+/// The asteroids a new world starts with (ship homes increment 6: moved out of lib.rs's startup so
+/// a server save made fresh starts with the same belt; src/save_load.rs `fresh_asteroids`).
+pub const ASTEROID_BELT_RON: &str = include_str!("../data/asteroids/belt.ron");
 
 // ── JSON data ───────────────────────────────────────────────────────
 pub const GLOSSARY_JSON: &str = include_str!("../data/glossary.json");
@@ -296,6 +299,7 @@ pub fn get_embedded(path: &str) -> Option<&'static str> {
         "chemistry/gases.csv" => Some(GASES_CSV),
         "chemistry/toxins.csv" => Some(TOXINS_CSV),
         "asteroids/types.csv" => Some(ASTEROID_TYPES_CSV),
+        "asteroids/belt.ron" => Some(ASTEROID_BELT_RON),
         "creatures.csv" => Some(CREATURES_CSV),
         "entities/livestock.ron" => Some(LIVESTOCK_RON),
         "entities/wild_spawns.ron" => Some(WILD_SPAWNS_RON),
@@ -577,6 +581,7 @@ pub const EMBEDDED_KEYS: &[&str] = &[
     "chemistry/gases.csv",
     "chemistry/toxins.csv",
     "asteroids/types.csv",
+    "asteroids/belt.ron",
     // JSON
     "glossary.json",
     "star_systems/sol.json",

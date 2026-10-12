@@ -119,6 +119,25 @@ impl ActiveHome {
             ship_place: None,
         }
     }
+
+    /// The live save `save`, kept at `path` for `slot` (engine/save_slot.rs `take_up`, when a
+    /// change of pairing makes another save live): its start, household, server and place.
+    pub fn of_save(slot: persistence::SaveSlot, path: PathBuf, save: &WorldSave) -> ActiveHome {
+        ActiveHome {
+            slot,
+            path,
+            start: save.start.clone(),
+            household: save.household.clone(),
+            server: save.server.clone(),
+            ship_place: save.ship_place.clone(),
+        }
+    }
+
+    /// A server's save (`SaveSlot::Server`): it always keeps its progress, whatever "Start every
+    /// session from the default home" says, because that setting is about your own home.
+    pub fn is_server(&self) -> bool {
+        matches!(self.slot, persistence::SaveSlot::Server { .. })
+    }
 }
 
 // Thread-local for the reason RESTORED_SAVE_WAITING below is: every save, every load and every
@@ -139,19 +158,57 @@ pub fn set_active_home(home: ActiveHome) {
 }
 
 /// The DataStore key of the mess hall's offline meter (`persistence::ShipMeals`): the meals and
-/// water the ship's stores have given this save on this computer (increment 6).
+/// water the ship's stores have given this save on this computer (increment 6). The DataStore holds
+/// it as `std::sync::Mutex<ShipMeals>` (the ship supply ledger's pattern: a system or the counter's
+/// card changes it through `&DataStore`); `register_ship_meals` puts it there at startup, every
+/// save writes it (`save_home_at`) and every load puts the save's back (`resume_home`,
+/// `put_save_on_world`).
 pub const SHIP_MEALS_KEY: &str = "ship_meals";
+
+/// Put an empty meter in the DataStore, once at startup, before the first save is applied (a
+/// load then fills it). Replaces nothing that is there.
+pub fn register_ship_meals(data: &mut crate::hot_reload::data_store::DataStore) {
+    if !data.contains(SHIP_MEALS_KEY) {
+        data.insert(SHIP_MEALS_KEY, std::sync::Mutex::new(persistence::ShipMeals::default()));
+    }
+}
+
+/// The meter as it stands, None when nothing registered it (then a save keeps what it had).
+pub fn ship_meals(data: &crate::hot_reload::data_store::DataStore) -> Option<persistence::ShipMeals> {
+    data.get::<std::sync::Mutex<persistence::ShipMeals>>(SHIP_MEALS_KEY).and_then(|m| m.lock().ok().map(|m| m.clone()))
+}
+
+/// Make `meals` the meter, registering it when it is not there yet (a load: the save is
+/// authoritative, as for the ship supply ledger).
+pub fn put_ship_meals(data: &mut crate::hot_reload::data_store::DataStore, meals: &persistence::ShipMeals) {
+    register_ship_meals(data);
+    restore_ship_meals(data, meals);
+}
+
+/// `put_ship_meals` through a shared DataStore: only when the meter is registered.
+fn restore_ship_meals(data: &crate::hot_reload::data_store::DataStore, meals: &persistence::ShipMeals) {
+    if let Some(Ok(mut m)) = data.get::<std::sync::Mutex<persistence::ShipMeals>>(SHIP_MEALS_KEY).map(|m| m.lock()) {
+        *m = meals.clone();
+    }
+}
 
 /// The live save's file (`ActiveHome::path`): saves/offline_home.json for your own home.
 pub fn active_home_path() -> PathBuf {
     active_home().path
 }
 
-/// A new save of the live start and household (`extract_world_save`, a first character-only save).
+/// A new save of the live save's kind: its start, household, server and place
+/// (`extract_world_save`, a first character-only save). A server's save says "server".
 fn new_save_of_active_home() -> WorldSave {
     let active = active_home();
+    let server = active.is_server();
     let mut save = WorldSave::new_offline("My Homestead", active.start);
+    if server {
+        save.kind = "server".to_string();
+    }
     save.household = active.household;
+    save.server = active.server;
+    save.ship_place = active.ship_place;
     save
 }
 
@@ -490,8 +547,10 @@ pub fn apply_save_to_world(world: &mut hecs::World, save: &WorldSave) {
     // RESTORED_SAVE_WAITING). Released before the kind check: holding saves
     // for a load that can never apply would stop saving for the whole session.
     release_restore_hold();
-    // Only offline homes are supported today.
-    if save.kind != "offline" {
+    // Your own home ("offline") and your home and things on a server ("server", ship homes
+    // increment 6: kept on this computer, one save per server). A "real" save (the real-life
+    // side of the Real/Sim toggle) is not a world to play in.
+    if !applies_to_the_world(save) {
         return;
     }
     for (_e, (inv, skills, name, appearance, outfit, _ctrl)) in world.query_mut::<(
@@ -729,8 +788,27 @@ pub fn apply_save_to_world(world: &mut hecs::World, save: &WorldSave) {
     // What the home's machines hold (2026-09-27): onto the machines by
     // instance id now, and a vessel's contents held until world entry spawns
     // the vessel (the menu-mode machines carry none). Not advanced by the
-    // time away: a bank, a tank and a drum come back as saved.
+    // time away: a bank, a tank and a drum come back as saved. Every machine
+    // goes back to its spawn level first (ship homes increment 6), so one the
+    // save does not list keeps its spawn level as the save's field promises,
+    // not the level of the world the save was applied over: a server's fresh
+    // save lists none, and kept your own home's charged banks and full drums.
+    crate::systems::machine_levels::reset_all(world);
     crate::systems::machine_levels::restore(world, &save.machine_levels);
+}
+
+/// Whether `apply_save_to_world` puts this save on the world: your own home's ("offline") and a
+/// server's ("server"). (`WorldSave::kind`'s third kind, "real", is the real-life side's.)
+pub fn applies_to_the_world(save: &WorldSave) -> bool {
+    save.kind == "offline" || save.kind == "server"
+}
+
+/// Whether loading `save` puts its PROGRESS on the world (true) or only the character (false): a
+/// save that carries no progress, and your own home's while "Start every session from the default
+/// home" is on, give only the character. A server's save always gives its progress, since that
+/// setting is about your own home (ship homes increment 6).
+pub fn applies_progress(save: &WorldSave, fresh_world_each_launch: bool) -> bool {
+    save.progress_saved && (save.kind == "server" || !fresh_world_each_launch)
 }
 
 /// A NEW player's starting kit: the `kit` of their start in data/homes/starts.ron (the data dir
@@ -747,6 +825,106 @@ pub fn starting_kit(data_dir: &std::path::Path, start: &str) -> Vec<(String, u32
             starts.default_start().kit.clone()
         }
     }
+}
+
+/// Spawn a NEW character of the start `start` (data/homes/starts.ron; one not in the file is the
+/// default start) into `world`: the player entity with a fresh body, the default credits, no skills,
+/// the start's kit in the backpack and the start's opening quest accepted (ship homes increment 6:
+/// the startup spawn in lib.rs, and every fresh save, `engine::save_slot::fresh_save`). Returns it.
+pub fn spawn_fresh_player(world: &mut hecs::World, data_dir: &std::path::Path, start: &str) -> hecs::Entity {
+    let starts = crate::ship::starts::Starts::load(data_dir);
+    let row = starts.get(start).unwrap_or_else(|| {
+        log::warn!("new character: no start '{start}' in {}; the default start", crate::ship::starts::STARTS_FILE);
+        starts.default_start()
+    });
+    spawn_player_of_start(world, row)
+}
+
+/// `spawn_fresh_player` for a start already in hand.
+pub fn spawn_player_of_start(world: &mut hecs::World, start: &crate::ship::starts::Start) -> hecs::Entity {
+    use crate::ecs::components::{Appearance, Controllable, Health, Name, Outfit, StatusEffects, Transform, Velocity, Vitals, Wallet};
+    // The opening the start gives a new character (a homestead's First Steps; none for a start
+    // whose opening has not been written: never another start's).
+    let mut quests = crate::systems::quests::QuestTracker::default();
+    if let Some(opening) = &start.opening {
+        quests.accept_quest(opening);
+    }
+    let mut backpack = Inventory::new(36);
+    for (id, qty) in &start.kit {
+        backpack.add_item(id, *qty, 99);
+    }
+    world.spawn((
+        Transform::default(),
+        Velocity::default(),
+        Controllable,
+        Health::default(),
+        Name("Player".to_string()),
+        backpack,
+        Vitals::default(),
+        StatusEffects::default(),
+        Appearance::default(),
+        Outfit::default(),
+        Wallet::default(),
+        PlayerSkills::new(),
+        quests,
+    ))
+}
+
+/// Where the asteroids a new world starts with are listed, under data/.
+pub const ASTEROID_BELT_FILE: &str = "asteroids/belt.ron";
+
+/// The asteroids a NEW world starts with (data/asteroids/belt.ron, disk first, else the copy built
+/// into the exe; ship homes increment 6 moved them there from lib.rs's startup, so a server's
+/// fresh save starts with the same belt). None at all when neither copy reads, which is logged:
+/// the world then has nothing to mine, and everything else goes on.
+pub fn asteroid_belt(data_dir: &std::path::Path) -> Vec<crate::ecs::components::AsteroidBody> {
+    #[derive(serde::Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Belt {
+        asteroids: Vec<crate::ecs::components::AsteroidBody>,
+    }
+    crate::embedded_data::load_data_or_embedded(data_dir, ASTEROID_BELT_FILE, |bytes| {
+        let belt: Belt = crate::assets::loader::parse_ron(bytes)?;
+        let mut ids = std::collections::HashSet::new();
+        if let Some(a) = belt.asteroids.iter().find(|a| a.id.trim().is_empty() || !ids.insert(a.id.as_str())) {
+            return Err(format!("the asteroid '{}' has an empty or repeated id", a.name));
+        }
+        Ok(belt.asteroids)
+    })
+    .unwrap_or_else(|e| {
+        log::warn!("{e}; a new world starts with no asteroids to mine");
+        Vec::new()
+    })
+}
+
+/// Spawn the asteroids a new world starts with (`asteroid_belt`) into `world`.
+pub fn fresh_asteroids(world: &mut hecs::World, data_dir: &std::path::Path) {
+    for a in asteroid_belt(data_dir) {
+        world.spawn((a,));
+    }
+}
+
+/// The places a home of the start `start` holds at the start: the start's storage file under data/
+/// (`Start::storage`, data/places/seed.json for a homestead, data/places/cabin_seed.json for a cabin),
+/// the spine the Inventory's containers are drawn on (`GuiState::places`). None for a start with no
+/// storage, or when its file cannot be read (logged).
+pub fn start_places(data_dir: &std::path::Path, start: &str) -> Vec<crate::gui::Place> {
+    #[derive(serde::Deserialize)]
+    struct File {
+        #[serde(default)]
+        entities: Vec<crate::gui::Place>,
+    }
+    let starts = crate::ship::starts::Starts::load(data_dir);
+    let row = starts.get(start).unwrap_or_else(|| starts.default_start());
+    if row.storage.trim().is_empty() {
+        return Vec::new();
+    }
+    crate::embedded_data::load_data_or_embedded(data_dir, &row.storage, crate::assets::loader::parse_json::<File>)
+        .map(|f| f.entities)
+        .unwrap_or_else(|e| {
+            log::warn!("{e}; the {} home starts with no storage", row.name);
+            Vec::new()
+        })
 }
 
 /// Apply ONLY the character (name, look, outfit) from a save: the path for
@@ -814,7 +992,11 @@ pub fn save_active_home(
     keep_progress: bool,
     own_home: Option<&crate::persistence::SavedHome>,
 ) {
-    save_home_at(&active_home_path(), world, placed, data, keep_progress, own_home);
+    // A server's save always keeps its progress (ship homes increment 6): "Start every session
+    // from the default home", which every caller passes as `keep_progress`, is about your own
+    // home, and a server save written character-only would leave nothing of your home there.
+    let active = active_home();
+    save_home_at(&active.path, world, placed, data, keep_progress || active.is_server(), own_home);
 }
 
 /// `save_active_home` with the save file given, so a test can point it at a
@@ -867,6 +1049,13 @@ pub(crate) fn save_home_at(
     save.mining_order = crate::systems::mining::standing_order(data);
     // So does the ship supply ledger (systems::ship_power): the reactor's kWh.
     save.ship_supply = crate::systems::ship_power::ledger(data);
+    // And the mess hall's meter on this computer (ship homes increment 6): the meals and water
+    // the ship's stores gave this save away from a server. With no meter registered (nothing has
+    // counted this session) the save keeps the one it had, rather than writing it back to zero.
+    save.ship_meals = match ship_meals(data) {
+        Some(m) => m,
+        None => load_home_at(path).map(|s| s.ship_meals).unwrap_or_default(),
+    };
     // Before world entry the herd is not spawned yet and its saved timers
     // are still waiting for it: keep those rather than forget them.
     if save.herd.is_empty() {
@@ -905,6 +1094,131 @@ pub(crate) fn save_home_at(
 // moves to another thread, this has to move with it.
 thread_local! {
     static RESTORED_SAVE_WAITING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    /// The file a restore of the live save asked to be loaded into the running game (taken once,
+    /// by `take_pending_load`).
+    static RELOAD_WAITING: std::cell::RefCell<Option<PathBuf>> = const { std::cell::RefCell::new(None) };
+}
+
+/// The save to load into the running world now, taken once: the live save a snapshot restore just
+/// put back (by its path, so a server's save is found too), else the save the character picker
+/// asked for by name (`GuiState::launcher_pending_load`, among the saves at the top of the saves
+/// folder). The caller applies it with `apply_onto_running_world` once the world is loaded (lib.rs).
+/// A restored file that cannot be read is logged and lets the saves go on (holding them for a load
+/// that can never happen would stop saving for the session).
+pub fn take_pending_load(gui: &mut crate::gui::GuiState) -> Option<WorldSave> {
+    if let Some(path) = RELOAD_WAITING.with(|r| r.borrow_mut().take()) {
+        match persistence::load_world(&path) {
+            Ok(save) => {
+                // The same save, also asked for by name for the older loader: not twice.
+                if gui.launcher_pending_load.as_deref() == Some(save.name.as_str()) {
+                    gui.launcher_pending_load = None;
+                }
+                return Some(save);
+            }
+            Err(e) => {
+                log::warn!("the restored save {} could not be loaded into the game: {e}", path.display());
+                release_restore_hold();
+            }
+        }
+    }
+    let name = gui.launcher_pending_load.take()?;
+    let found = std::fs::read_dir(persistence::saves_dir())
+        .ok()?
+        .filter_map(|e| e.ok())
+        .map(|e| e.path())
+        .filter(|p| p.extension().and_then(|x| x.to_str()) == Some("json"))
+        .filter_map(|p| persistence::load_world(&p).ok())
+        .find(|s| s.name == name);
+    if found.is_none() {
+        log::warn!("Launcher: no save named '{name}' among the saves");
+    }
+    found
+}
+
+/// Load `save` onto the running world (a snapshot restore, the character picker's Play, a change
+/// of save slot): the sequence lib.rs ran inline, lifted here so the three share it (ship homes
+/// increment 6). Its progress (`applies_progress`), or only the character: the backpack, skills,
+/// credits, quests, body, vehicles, crops, builds, asteroids, drone and the machines' levels
+/// (`apply_save_to_world`), the ship supply ledger and the mess hall's meter, the character's own
+/// home or the default one (`own_home::reapply_saved_home`), its pieces carried to the plot the home
+/// stands on, the clock and the time away (`resume_home`), the home's storage and the notice
+/// (`after_resume`); then in-flight crafts are dropped (the world rewound), the editing copies of
+/// the look follow, and the character snaps aboard next frame.
+pub fn apply_onto_running_world(state: &mut crate::engine::state::EngineState, save: &WorldSave) {
+    let progress = applies_progress(save, state.gui_state.settings.fresh_world_each_launch);
+    put_save_on_world(&mut state.game_world.world, &mut state.data_store, &mut state.gui_state, &state.data_dir, save, progress);
+    if progress {
+        // The home goes back to the one this save holds, the character's own or the default,
+        // machines and walls both: a restore that gave a machine's item back also takes the
+        // machine away (engine/own_home.rs). Then from the plot its home stood on to the one it
+        // stands on now (1b).
+        crate::engine::own_home::reapply_saved_home(state, save);
+        crate::engine::home_plot::carry_saved_pieces_home(state, save.home_plot_box);
+    }
+    settle_save_on_world(&mut state.game_world.world, &state.data_store, &mut state.gui_state, save, progress);
+    // Orbital home (v0.881): the character spawns aboard; snap the frame onto the station NEXT
+    // frame (after this path's own ship and camera writes, which used to overwrite the boot-time
+    // snap and strand the home in orbit without the player).
+    state.station_spawn_snap = true;
+}
+
+/// The first half of `apply_onto_running_world`, everything it does before the home is rebuilt
+/// (pure on the world, the DataStore and the GUI state, so a test can drive it): the character
+/// only, or the save's progress with its own home, the mess hall's meter and the places its start
+/// holds (`start_places`).
+pub fn put_save_on_world(
+    world: &mut hecs::World,
+    data: &mut crate::hot_reload::data_store::DataStore,
+    gui: &mut crate::gui::GuiState,
+    data_dir: &std::path::Path,
+    save: &WorldSave,
+    progress: bool,
+) {
+    if !progress {
+        apply_identity(world, save);
+        return;
+    }
+    apply_save_to_world(world, save);
+    gui.own_home = save.home.clone();
+    put_ship_meals(data, &save.ship_meals);
+    gui.places = start_places(data_dir, &save.start);
+}
+
+/// The second half of `apply_onto_running_world`, after the home is rebuilt (pure, like the
+/// first): the clock and the time away, the home's storage, the notice and the Keep mining switch
+/// (`resume_home`, `after_resume`) for a save whose progress was put on the world; for any save,
+/// the crafts in flight dropped (their outputs would land on top of the restored materials, the
+/// v0.679 review fix) and the editing copies of the look made the save's, the avatar rebuilt.
+pub fn settle_save_on_world(
+    world: &mut hecs::World,
+    data: &crate::hot_reload::data_store::DataStore,
+    gui: &mut crate::gui::GuiState,
+    save: &WorldSave,
+    progress: bool,
+) {
+    if progress {
+        let resumed = resume_home(
+            world,
+            data,
+            save,
+            gui.settings.offline_progression,
+            gui.settings.time_speed,
+            gui.home_machines.as_ref(),
+        );
+        after_resume(gui, save, &resumed);
+    }
+    if let Some(flag) = data.get::<std::sync::Mutex<bool>>("abort_active_crafts") {
+        if let Ok(mut f) = flag.lock() {
+            *f = true;
+        }
+    }
+    gui.appearance = save.appearance.clone();
+    gui.outfit = save.outfit.clone();
+    if !save.character_name.is_empty() {
+        gui.character_name = save.character_name.clone();
+    }
+    gui.appearance_dirty = true;
+    gui.outfit_dirty = true;
 }
 
 /// True while a restored active home is waiting to be loaded into the world
@@ -930,16 +1244,30 @@ pub fn restore_snapshot_into_game(
     snapshot: &std::path::Path,
     save_path: &std::path::Path,
 ) -> Result<String, String> {
+    // Settings names each slot's save saves/<slot>.json; a server's save lives in saves/servers/
+    // (ship homes increment 6), and its snapshot goes back THERE, never beside your own home.
+    let save_path = &match (save_path.parent(), save_path.file_stem().and_then(|s| s.to_str())) {
+        (Some(dir), Some(slot)) if !save_path.exists() => persistence::snapshot_slot_save(dir, slot),
+        _ => save_path.to_path_buf(),
+    };
     let restored = persistence::restore_snapshot(snapshot, save_path, persistence::now_ms())?;
-    if save_path == active_home_path() {
+    let active = active_home();
+    if *save_path == active.path {
         hold_saves_for_restore();
-        // lib.rs finds the save by this name among the saves and applies it.
-        gui.launcher_pending_load = Some(restored.name.clone());
+        // Loaded by its PATH (`take_pending_load`): a server's save is not among the saves the
+        // picker finds by name, and two saves can carry one name.
+        RELOAD_WAITING.with(|r| *r.borrow_mut() = Some(save_path.clone()));
+        // Your own home is also found by its name, by the loader lib.rs has until it takes the
+        // path (the same save: `take_pending_load` drops this when it takes the path).
+        if !active.is_server() {
+            gui.launcher_pending_load = Some(restored.name.clone());
+        }
         // With "Start every session from the default home" on (off by default
         // since 2026-10-04) the load applies only the character, so say so:
         // the restored home is safe on disk (a character-only save leaves the
         // progress in the file untouched), it just is not what you are playing.
-        if gui.settings.fresh_world_each_launch {
+        // (Never for a server's save, which always loads whole.)
+        if gui.settings.fresh_world_each_launch && !active.is_server() {
             Ok("Restored on disk. Because \"Start every session from the default home\" is on (Settings > Gameplay), only your character is loaded now; turn it off and the restored home is what you play. The save it replaced is kept among the snapshots.".to_string())
         } else {
             Ok("Restored. Your home is being loaded back into the game; the save it replaced is kept among the snapshots.".to_string())
@@ -1275,6 +1603,9 @@ pub fn resume_home(
     // THE SHIP SUPPLY LEDGER comes back as saved; the time away adds to it
     // when the machines take it (crafting::away::meter_away_reactor).
     crate::systems::ship_power::restore(data, &save.ship_supply);
+    // THE MESS HALL'S METER (ship homes increment 6) comes back as saved: meals are not taken
+    // while you are away.
+    restore_ship_meals(data, &save.ship_meals);
     let hauls = crate::systems::mining::advance_away(world, data, r.away_secs);
     r.drone_hauls = hauls.len();
     // LIVESTOCK: each animal's timer as saved, moved on by the time away (by
@@ -1386,8 +1717,11 @@ mod tests {
         assert_eq!(restored.outfit.equipped.get("chest").map(|s| s.as_str()), Some("work_jacket"));
     }
 
+    /// A "real" save (the real-life side of the Real/Sim toggle) is not a world: applying it
+    /// changes nothing. (Your own home and a server's save both apply: ship homes increment 6,
+    /// `slot_tests::a_server_save_applies`.)
     #[test]
-    fn apply_ignores_non_offline_kind() {
+    fn apply_ignores_a_save_that_is_not_a_world() {
         let mut world = hecs::World::new();
         let mut inv = Inventory::new(36);
         inv.add_item("wood_plank_0", 5, 99);
@@ -1401,7 +1735,7 @@ mod tests {
         ));
 
         let mut save = WorldSave::new_offline("X", "homestead");
-        save.kind = "server".to_string();
+        save.kind = "real".to_string();
         save.inventory = vec![("steel_ingot_0".to_string(), 99)];
         apply_save_to_world(&mut world, &save); // should be a no-op
 
@@ -2485,10 +2819,10 @@ mod tests {
         // A save of another kind is ignored by the apply, but must still
         // release: holding for a load that can never happen would stop
         // saving for the rest of the session.
-        let mut server = WorldSave::new_offline("Elsewhere", "homestead");
-        server.kind = "server".to_string();
+        let mut real = WorldSave::new_offline("Elsewhere", "homestead");
+        real.kind = "real".to_string();
         hold_saves_for_restore();
-        apply_save_to_world(&mut world, &server);
+        apply_save_to_world(&mut world, &real);
         assert!(!restored_save_waiting(), "an ignored save still releases the hold");
     }
 
@@ -3178,3 +3512,9 @@ mod tests {
 #[cfg(test)]
 #[path = "save_load_body_tests.rs"]
 mod body_tests;
+
+/// One save per world (ship homes increment 6, lane 1C): a server's save applies, a fresh one
+/// resets the machines, the live save's file, a restore of it, the asteroid belt, the mess hall's meter.
+#[cfg(test)]
+#[path = "save_load_slot_tests.rs"]
+mod slot_tests;
