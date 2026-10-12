@@ -824,11 +824,19 @@ Browser ↔ nginx (TLS) ↔ Relay (port 3210)
 ## Privacy
 
 By default, the relay:
-- Does NOT log IP addresses
+- Stores no IP address in its database, and its log names an address only when it is limiting
+  it: too many identify attempts, or too many new identities, from one address
+  (`src/relay/relay.rs`, `src/relay/handlers/sign_ups.rs`). nginx in front of it keeps access logs
+  with addresses; the provisioned rotation keeps 2 days of them, for fail2ban
+  (`/etc/logrotate.d/nginx`, `rotate 2`; checked on united-humanity.us 2026-10-12).
 - Does NOT track users
 - Does NOT require email or phone
-- Stores messages in SQLite (encrypted DMs stored as ciphertext)
-- Stores uploaded files in data/uploads/ (4-image FIFO per user)
+- Stores messages in SQLite; direct messages only as sealed ciphertext in a mailbox with no sender
+  column, removed after `dm_mailbox_ttl_days` (30 by default)
+- Stores uploaded files in data/uploads/, within each role's limits (Server settings, Roles: the
+  largest file, a day's total, an hour's count, and how much private files one person may keep).
+  Files from direct messages and groups arrive already encrypted by the sender's app, so the server
+  cannot open them, and leave after the DM mailbox lifetime.
 
 You control your server. You control the data. Delete the database file and everything's gone.
 

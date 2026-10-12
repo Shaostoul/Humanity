@@ -1086,7 +1086,7 @@ impl GameWorld {
         let held = if ids.is_empty() {
             None
         } else if !sp.is_this_ship(join) {
-            tracing::info!("Game: {owner_key} names no ship (or not ours, {}); a guest, no plot claimed", sp.ship_hash);
+            tracing::info!("Game: {} names no ship (or not ours, {}); a guest, no plot claimed", crate::relay::handlers::federation::key_in_log(&owner_key), sp.ship_hash);
             None
         } else {
             match db.claim_plot(&sp.ship_id, &plot_owner_id(owner_key), &ids) {
