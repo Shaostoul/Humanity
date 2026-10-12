@@ -906,3 +906,94 @@ fn the_lookup_answers_not_found_for_a_withdrawal_and_an_unlisted_account() {
     st.db.save_profile_extended("Ann", "hi", "{}", "", "", "", "", "", "{}", None).unwrap();
     assert_eq!(lookup(&st, &ann).0, StatusCode::OK, "listed again: answered");
 }
+
+// ── An erase takes the copy off the linked servers (BUG-191 Wave 2B, plan section 9 decision 2) ──
+
+/// `key` erases their account, typing `name`, with `withdrawal`; what the relay sent meanwhile.
+fn erase(st: &Arc<RelayState>, key: &str, name: &str, withdrawal: Option<Withdrawal>) -> Vec<RelayMessage> {
+    let mut rx = st.broadcast_tx.subscribe();
+    block(crate::relay::handlers::msg_handlers::handle_account_delete(st, key, name.to_string(), withdrawal));
+    let mut out = Vec::new();
+    while let Ok(m) = rx.try_recv() {
+        out.push(m);
+    }
+    out
+}
+
+/// What the person's app sends with an erase: the withdrawal, dated after the copy the server holds
+/// (`signed_at`, from their own copy), signed with the seed `[seed; 32]` for the key of `[for_key; 32]`.
+fn withdrawal_by(seed: u8, for_key: u8, signed_at: u64) -> Withdrawal {
+    let at = next_copy_time(now_millis(), signed_at, 0);
+    Withdrawal { at, signature: sign_copy(&[seed; 32], &key_of(for_key), &withdrawal(), at) }
+}
+
+/// `name` (the key of `[seed; 32]`) saved a listed profile here, and their app signed its copy,
+/// which this server kept and passed on to `other_server`. Returns their key and the copy's time.
+fn listed_and_passed_on(st: &Arc<RelayState>, other_server: &mut tokio::sync::mpsc::UnboundedReceiver<String>, seed: u8, name: &str) -> (String, u64) {
+    let key = key_of(seed);
+    sign_in(st, &key, name);
+    let own = own_copy_for(&send(st, &key, json!({ "type": "profile_update", "bio": "hi", "socials": "{}", "location": "Lisbon" })), &key);
+    let (at, sig) = app_signs(&own, seed, 0);
+    send_sign(st, &key, at, &sig);
+    assert_eq!(gossip_got(other_server).len(), 1, "test setup: {name}'s listed copy went out");
+    (key, at)
+}
+
+/// AN ERASE PASSES ON ONLY THE PERSON'S OWN WITHDRAWAL, BEFORE THEIR ACCOUNT GOES. Ann erases her
+/// account with the withdrawal her app signed: the linked server gets it (nothing in it but the
+/// mark, her signature over it), and her account and the copy held here are gone. An erase the
+/// server refuses (her name mistyped) passes nothing on and keeps her copy. Bo's erase carries a
+/// withdrawal another key signed, Cy's her own signature over her LISTED copy rather than the
+/// withdrawal, and Di's none (an older app): each is erased, and nothing is passed on. An admin's
+/// erase of Eve cannot carry one (only her key can sign it): erased, nothing passed on, and the
+/// linked server keeps her copy.
+///
+/// Seen red 2026-10-12 with the `withdraw_on_erase` call taken out of `handle_account_delete`:
+/// "Ann's withdrawal reaches the linked server" (left 0, right 1); with it called AFTER `carry_out`
+/// instead of before: the same (the copy held here is gone with the account, so the store keeps
+/// no withdrawal and nothing goes); and with the signature check skipped in `withdraw_on_erase`
+/// (`good` always true): "a withdrawal another key signed was passed on".
+#[test]
+fn an_erase_passes_on_only_the_persons_own_withdrawal() {
+    let st = fresh_state();
+    let mut other_server = link_a_server(&st, "peer_b");
+    let (ann, ann_at) = listed_and_passed_on(&st, &mut other_server, 7, "Ann");
+
+    erase(&st, &ann, "ann", Some(withdrawal_by(7, 7, ann_at)));
+    assert!(gossip_got(&mut other_server).is_empty(), "a refused erase passes nothing on");
+    assert!(st.db.get_signed_profile(&ann).unwrap().is_some_and(|h| !is_withdrawal(&h.copy())), "and keeps her copy");
+
+    let mine = withdrawal_by(7, 7, ann_at);
+    erase(&st, &ann, "Ann", Some(mine.clone()));
+    let got = gossip_got(&mut other_server);
+    assert_eq!(got.len(), 1, "Ann's withdrawal reaches the linked server");
+    assert_eq!(copy_in(&got[0]), withdrawal(), "nothing in it but the mark: {}", got[0]);
+    assert_eq!((got[0]["public_key"].as_str(), got[0]["timestamp"].as_u64()), (Some(ann.as_str()), Some(mine.at)));
+    assert!(verify_copy(&ann, &withdrawal(), mine.at, got[0]["signature"].as_str().unwrap()), "signed by her key");
+    assert_eq!(st.db.name_for_key(&ann).unwrap(), None, "her account is erased");
+    assert!(st.db.get_signed_profile(&ann).unwrap().is_none(), "and the copy held here with it");
+
+    let (bo, bo_at) = listed_and_passed_on(&st, &mut other_server, 8, "Bo");
+    erase(&st, &bo, "Bo", Some(withdrawal_by(9, 8, bo_at)));
+    assert!(gossip_got(&mut other_server).is_empty(), "a withdrawal another key signed was passed on");
+    assert_eq!(st.db.name_for_key(&bo).unwrap(), None, "Bo is erased all the same");
+
+    let (cy, cy_at) = listed_and_passed_on(&st, &mut other_server, 10, "Cy");
+    let listed = public_copy("Cy", "hi", "", "", "{}", "", "Lisbon", "", "{}");
+    let at = next_copy_time(now_millis(), cy_at, 0);
+    erase(&st, &cy, "Cy", Some(Withdrawal { at, signature: sign_copy(&[10; 32], &cy, &listed, at) }));
+    assert!(gossip_got(&mut other_server).is_empty(), "her signature over her listed copy is not a withdrawal");
+    assert_eq!(st.db.name_for_key(&cy).unwrap(), None);
+
+    let (di, _) = listed_and_passed_on(&st, &mut other_server, 11, "Di");
+    erase(&st, &di, "Di", None);
+    assert!(gossip_got(&mut other_server).is_empty(), "no withdrawal sent, nothing passed on");
+    assert_eq!(st.db.name_for_key(&di).unwrap(), None, "an older app's erase still erases");
+
+    let (eve, _) = listed_and_passed_on(&st, &mut other_server, 12, "Eve");
+    sign_in(&st, "admin_key", "Admin");
+    st.db.set_role("admin_key", "admin").unwrap();
+    block(crate::relay::handlers::account_erase::handle_admin_erase(&st, "admin_key", eve.clone(), "Eve".to_string()));
+    assert_eq!(st.db.name_for_key(&eve).unwrap(), None, "the admin erased Eve");
+    assert!(gossip_got(&mut other_server).is_empty(), "an admin's erase has no withdrawal to pass on");
+}

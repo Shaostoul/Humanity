@@ -32,12 +32,17 @@ pub const TYPE_LABEL: &str = "Type their name exactly to confirm";
 /// does not do, so an admin who wants the person kept out knows a ban is a separate step, and
 /// knows the moderation records about them stay (corrected 2026-10-10: the first wording said
 /// "everything", but reports, bans and mutes about the person are kept, as with the self-erase).
+/// And (2026-10-12, BUG-191 Wave 2B) that their profile stays on the servers this one is linked
+/// with: only the person's own key can sign the withdrawal that takes it off, which their own
+/// erase carries and an admin's cannot.
 pub fn confirm_words(name: &str) -> String {
     format!(
         "This deletes everything this server stores about {name}: their messages, profile, uploads, \
          membership and settings. Reports, bans and mutes about them are kept, as when someone \
-         erases their own account. It cannot be undone. It does not touch anything on their own \
-         devices, and it does not stop them joining again (ban them too for that)."
+         erases their own account. It cannot be undone. Their profile stays on the servers this one \
+         is linked with, because only their own app can take it off there. It does not touch \
+         anything on their own devices, and it does not stop them joining again (ban them too for \
+         that)."
     )
 }
 
