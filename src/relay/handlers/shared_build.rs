@@ -19,7 +19,8 @@
 //! - on someone else's plot, only with a household permit its holder signed for you on THIS
 //!   server, checked without storing it (`relay::core::pq_crypto::verify_plot_permit`, given the
 //!   relay's own facts: its server DID, the frame's plot and the sender's own id, never what the
-//!   permit says it is for), and there you take down only what you put up;
+//!   permit says it is for) and not taken back by its holder (the withdrawal list friendship
+//!   passes use), and there you take down only what you put up;
 //! - in the ship's shared spaces, only with the server's `can_edit_ship` rank
 //!   (`Storage::has_ship_rank`), and with it you take down any piece there;
 //! - the server's admins and its owner take down anything, anywhere (`take_down_any`);
@@ -391,16 +392,22 @@ pub fn may_remove(
 /// rebuilds from its OWN facts (its own server DID, this plot, the sender's own id), so a permit
 /// given on another server, for another plot or to someone else does not check out
 /// (`permit_bad`); it must not have run out (`permit_expired`) nor run more than 90 days ahead
-/// (`permit_too_long`); and its issuer must hold the plot now, so a permit stops working when the
-/// plot changes hands (`permit_not_from_holder`).
+/// (`permit_too_long`); its issuer must not have taken its serial back (`permit_withdrawn`, the
+/// withdrawal list friendship passes use, `Storage::friend_cert_withdrawn`, which says yes when it
+/// cannot know); and its issuer must hold the plot now, so a permit stops working when the plot
+/// changes hands (`permit_not_from_holder`). The signature comes first, so nothing is looked up
+/// for a permit that is not the asker's own.
 fn permit_lets_in(book: &PieceBook, db: &Storage, world_id: &str, plot: &str, who: &Asker, p: &Permit, now_s: u64) -> Result<(), Refusal> {
-    verify_plot_permit(&p.issuer, &book.server_did, plot, &who.did, p.expiry, &p.sig, now_s).map_err(|e| {
+    verify_plot_permit(&p.issuer, &book.server_did, plot, &who.did, &p.serial, p.expiry, &p.sig, now_s).map_err(|e| {
         Refusal::not_allowed(match e {
             PlotPermitError::Expired => Why::PermitExpired,
             PlotPermitError::TooLong => Why::PermitTooLong,
-            PlotPermitError::Malformed | PlotPermitError::BadSignature => Why::PermitBad,
+            PlotPermitError::Malformed | PlotPermitError::BadSerial | PlotPermitError::BadSignature => Why::PermitBad,
         })
     })?;
+    if db.friend_cert_withdrawn(&p.issuer, &p.serial) {
+        return Err(Refusal::not_allowed(Why::PermitWithdrawn));
+    }
     match db.plot_holder(world_id, plot) {
         Ok(Some(holder)) if holder == plot_owner_id(&p.issuer) => Ok(()),
         Ok(_) => Err(Refusal::not_allowed(Why::PermitNotFromHolder)),
@@ -824,13 +831,12 @@ fn clean(s: &str) -> String {
 fn read_request(raw: &serde_json::Value) -> Result<ToRelay, Refusal> {
     let shape = |what: &str| Refusal::new(Reason::BadShape, what.to_string());
     let msg: ToRelay = serde_json::from_value(raw.clone()).map_err(|_| shape("the message does not read as its type says"))?;
-    let permit_ok = |p: &Option<Permit>| {
-        p.as_ref().is_none_or(|p| {
-            p.issuer.len() <= PERMIT_ISSUER_MAX_LEN
-                && p.sig.len() <= PERMIT_SIG_MAX_LEN
-                && [&p.server, &p.plot, &p.grantee].iter().all(|s| s.len() <= crate::relay::core::pq_crypto::PLOT_PERMIT_FIELD_MAX_LEN)
-        })
+    let fits = |p: &Permit| {
+        p.issuer.len() <= PERMIT_ISSUER_MAX_LEN
+            && p.sig.len() <= PERMIT_SIG_MAX_LEN
+            && [&p.server, &p.plot, &p.grantee, &p.serial].iter().all(|s| s.len() <= crate::relay::core::pq_crypto::PLOT_PERMIT_FIELD_MAX_LEN)
     };
+    let permit_ok = |p: &Option<Permit>| p.as_ref().is_none_or(fits);
     match &msg {
         ToRelay::Build { frame, blueprint_id, position, rotation, scale, permit, .. } => {
             if frame.len() > shared::MAX_FRAME_LEN || blueprint_id.len() > shared::MAX_BLUEPRINT_ID_LEN {
@@ -851,6 +857,12 @@ fn read_request(raw: &serde_json::Value) -> Result<ToRelay, Refusal> {
         ToRelay::PiecesRequest { frame } => {
             if frame.len() > shared::MAX_FRAME_LEN {
                 return Err(shape("a frame id longer than the wire allows"));
+            }
+        }
+        // A permit check (ship homes 5b): the permit's caps, as on a build.
+        ToRelay::PermitCheck { permit, .. } => {
+            if !fits(permit) {
+                return Err(shape("a permit field longer than any permit holds"));
             }
         }
     }

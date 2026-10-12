@@ -116,6 +116,12 @@ pub mod protected;
 #[cfg(feature = "native")]
 pub mod protected_store;
 
+/// Household permits (ship homes 5b, 2026-10-12): the permit note, what is kept of permits held
+/// and given, the rules for keeping them, the session's state and the lengths offered, with no
+/// socket and no GUI. src/engine/household.rs acts on them.
+#[cfg(feature = "native")]
+pub mod household;
+
 /// The pace of background `dm_put`s (the friendship-pass sweep): a burst of six, then one a
 /// second, under the server's limit so nothing sent in the background is refused (2026-10-10).
 #[cfg(feature = "native")]

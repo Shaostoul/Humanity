@@ -966,8 +966,12 @@ const PLOT_ID_RULE = /^[A-Za-z0-9_-]{1,64}$/;
 /** The longest a household permit may run, days: shared.rs PERMIT_MAX_DAYS, the relay's
  *  pq_crypto.rs PLOT_PERMIT_MAX_DAYS (the operator, 2026-10-05: no endless permits). */
 const PERMIT_MAX_DAYS = 90;
-/** The permit's signature domain: pq_crypto.rs PLOT_PERMIT_DOMAIN. */
-const PERMIT_DOMAIN = "hum/permit/v1";
+/** The permit's signature domain: pq_crypto.rs PLOT_PERMIT_DOMAIN (v2 since ship homes 5b: the
+ *  words name a serial, so the giver can take a permit back). */
+const PERMIT_DOMAIN = "hum/permit/v2";
+/** A permit's serial: 16 bytes in lowercase hex (pq_crypto.rs `friend_cert_serial_ok`, the
+ *  friendship pass's shape: both are withdrawn through the same list). */
+const PERMIT_SERIAL_RULE = /^[0-9a-f]{32}$/;
 /** f32's pi/2, the step `placement::quarter_turn` multiplies by (std::f32::consts::FRAC_PI_2). */
 const F32_FRAC_PI_2 = Math.fround(Math.PI / 2);
 
@@ -1081,7 +1085,7 @@ function turnOf(q) {
 }
 
 /** A permit as a build or an unbuild carries it: the JSON a `permit` line logged (shared.rs
- *  `Permit`: issuer, server, plot, grantee, expiry, sig). */
+ *  `Permit`: issuer, server, plot, grantee, serial, expiry, sig). */
 function parsePermitJson(text) {
   let p = null;
   try {
@@ -1094,11 +1098,12 @@ function parsePermitJson(text) {
     typeof p.server === "string" &&
     typeof p.plot === "string" &&
     typeof p.grantee === "string" &&
+    typeof p.serial === "string" &&
     Number.isInteger(p.expiry) &&
     p.expiry >= 0 &&
     typeof p.sig === "string";
-  if (!ok) throw new Error(`a permit must be the JSON a "permit" line logged: {"issuer", "server", "plot", "grantee", "expiry", "sig"}, got ${text}`);
-  return { issuer: p.issuer, server: p.server, plot: p.plot, grantee: p.grantee, expiry: p.expiry, sig: p.sig };
+  if (!ok) throw new Error(`a permit must be the JSON a "permit" line logged: {"issuer", "server", "plot", "grantee", "serial", "expiry", "sig"}, got ${text}`);
+  return { issuer: p.issuer, server: p.server, plot: p.plot, grantee: p.grantee, serial: p.serial, expiry: p.expiry, sig: p.sig };
 }
 
 /** One line of the walker's input, as a command: { kind: "build", blueprint, frame, local:
@@ -1307,23 +1312,26 @@ function makeRequests({ send, log, now = () => performance.now(), setTimer = set
  *  `server` is the did:hum of the server the permit is given on (its /api/server-info
  *  `server_did`, `fetchServerDid`): every server hands out its plots in the ship file's order, so
  *  one person often holds the same plot id on several, and a permit is good on its own server
- *  only (Wave 0's 6e0174cd7). */
-function permitPreimage(server, plot, grantee, expiry) {
-  return `${PERMIT_DOMAIN}\n${server}\n${plot}\n${grantee}\n${expiry}`;
+ *  only (Wave 0's 6e0174cd7). `serial` names the permit, so its giver can take it back (v2,
+ *  ship homes 5b). */
+function permitPreimage(server, plot, grantee, serial, expiry) {
+  return `${PERMIT_DOMAIN}\n${server}\n${plot}\n${grantee}\n${serial}\n${expiry}`;
 }
 
 /** A household permit `identity` (`deriveIdentity`) signs for `grantee` (their did:hum, `didFor`)
  *  on `plot` (its own id, p1) of the server `server` (its did:hum, `fetchServerDid`) until `expiry`
- *  (Unix seconds): { issuer, server, plot, grantee, expiry, sig }, the contract's `Permit`, its
- *  signature base64. Whether `plot` is the issuer's to give is the relay's question, and it answers
- *  it. */
-function mintPermit(identity, { server, plot, grantee, expiry }) {
+ *  (Unix seconds), named `serial` (16 random bytes in lowercase hex, fresh when not given):
+ *  { issuer, server, plot, grantee, serial, expiry, sig }, the contract's `Permit` in its field
+ *  order, its signature base64. Whether `plot` is the issuer's to give is the relay's question,
+ *  and it answers it. */
+function mintPermit(identity, { server, plot, grantee, expiry, serial = require("crypto").randomBytes(16).toString("hex") }) {
   const fit = (s) => typeof s === "string" && s.length > 0 && !/[\r\n]/.test(s);
   if (!fit(server) || !PLOT_ID_RULE.test(String(plot)) || !fit(grantee) || !Number.isSafeInteger(expiry) || expiry < 1) {
     throw new Error(`a permit needs the server's did:hum, a plot id, a grantee and an end date in Unix seconds, got ${JSON.stringify({ server, plot, grantee, expiry })}`);
   }
-  const sig = identity.sign(new TextEncoder().encode(permitPreimage(server, plot, grantee, expiry)));
-  return { issuer: identity.publicKeyHex, server, plot, grantee, expiry, sig: Buffer.from(sig).toString("base64") };
+  if (!PERMIT_SERIAL_RULE.test(String(serial))) throw new Error(`a permit's serial is 16 bytes in lowercase hex, got ${JSON.stringify(serial)}`);
+  const sig = identity.sign(new TextEncoder().encode(permitPreimage(server, plot, grantee, serial, expiry)));
+  return { issuer: identity.publicKeyHex, server, plot, grantee, serial, expiry, sig: Buffer.from(sig).toString("base64") };
 }
 
 /** The relay's own did:hum (its /api/server-info `server_did`, src/relay/api.rs), which a household

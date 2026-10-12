@@ -195,82 +195,9 @@ impl GuiState {
     }
 }
 
+/// The Donate page's funding tests, in their own file to keep this one under its line budget.
 #[cfg(all(test, feature = "native"))]
-mod donate_funding_tests {
-    use super::{DonateAddress, GuiState};
-
-    #[test]
-    fn funding_result_from_the_connected_server_lands_and_absent_funding_clears() {
-        let mut state = GuiState::default();
-        state.server_url = "https://united-humanity.us/".to_string();
-        let funding = serde_json::json!({
-            "goal_usd": 100000.0, "goal_label": "Full-time development",
-            "addresses": [{"network": "GitHub Sponsors", "type": "url",
-                           "value": "https://github.com/sponsors/Shaostoul", "label": "x"}]
-        });
-        state.apply_server_funding("https://united-humanity.us", Some(&funding));
-        assert_eq!(state.donate_addresses_server.len(), 1);
-        assert_eq!(state.donate_funding_goal, Some((100000.0, "Full-time development".to_string())));
-
-        // Reconnect-to-a-server-without-funding: the SAME url reporting no funding
-        // must CLEAR the fields, not leave the old list showing (the adversarial
-        // review's major finding: stale addresses = money to the wrong operator).
-        state.apply_server_funding("https://united-humanity.us", None);
-        assert!(state.donate_addresses_server.is_empty(), "absent funding clears the list");
-        assert!(state.donate_funding_goal.is_none(), "absent funding clears the goal");
-    }
-
-    #[test]
-    fn late_result_from_a_previous_server_is_discarded() {
-        let mut state = GuiState::default();
-        state.server_url = "https://server-b.example".to_string();
-        let funding_a = serde_json::json!({
-            "addresses": [{"network": "Bitcoin (BTC)", "type": "address", "value": "bc1qA", "label": ""}]
-        });
-        // A stale fetch tagged with server A's url lands while connected to B.
-        state.apply_server_funding("https://server-a.example", Some(&funding_a));
-        assert!(state.donate_addresses_server.is_empty(), "server A's addresses must not display on server B");
-        assert!(state.donate_funding_server.is_empty());
-    }
-
-    #[test]
-    fn parses_filled_entries_and_skips_blank_placeholders() {
-        // Mirrors the real shipped server-config.json shape: GitHub Sponsors is
-        // filled in, the crypto rows are blank placeholders awaiting the operator.
-        let funding = serde_json::json!({
-            "enabled": true,
-            "goal_usd": 100000,
-            "addresses": [
-                {"network": "GitHub Sponsors", "type": "url",
-                 "value": "https://github.com/sponsors/Shaostoul", "label": "Recurring or one-time"},
-                {"network": "Solana (SOL)", "type": "address", "value": "", "label": "Send SOL"},
-                {"network": "Bitcoin (BTC)", "type": "address", "value": "", "label": "Send BTC"},
-            ]
-        });
-        let parsed = DonateAddress::from_funding_json(&funding);
-        assert_eq!(parsed.len(), 1, "blank-value placeholder rows are dropped");
-        assert_eq!(parsed[0].network, "GitHub Sponsors");
-        assert_eq!(parsed[0].addr_type, "url");
-        assert_eq!(parsed[0].value, "https://github.com/sponsors/Shaostoul");
-        assert_eq!(parsed[0].label, "Recurring or one-time");
-    }
-
-    #[test]
-    fn missing_or_malformed_addresses_yield_empty_not_panic() {
-        assert!(DonateAddress::from_funding_json(&serde_json::json!({"enabled": true})).is_empty());
-        assert!(DonateAddress::from_funding_json(&serde_json::json!({"addresses": "oops"})).is_empty());
-        assert!(DonateAddress::from_funding_json(&serde_json::json!(null)).is_empty());
-    }
-
-    #[test]
-    fn missing_type_defaults_to_address() {
-        let funding = serde_json::json!({"addresses": [{"network": "X", "value": "abc123"}]});
-        let parsed = DonateAddress::from_funding_json(&funding);
-        assert_eq!(parsed.len(), 1);
-        assert_eq!(parsed[0].addr_type, "address");
-        assert_eq!(parsed[0].label, "");
-    }
-}
+mod donate_funding_tests;
 
 /// What the passphrase / PIN prompt is for.
 ///
@@ -2611,6 +2538,9 @@ pub struct GuiState {
     /// The fleet ledger (2026-10-04, pages/fleet_ledger.rs, engine/fleet.rs): this player's
     /// ledger, the fleet's stores, gives in flight, and the admin's Fleet supply control.
     pub fleet: pages::fleet_ledger::FleetView,
+    /// Household permits this session (ship homes 5b, net/household.rs): my plot, the server's
+    /// word on each permit I hold, the plots open to me, permits on their way. Never saved.
+    pub household: crate::net::household::Household,
 
     // ── The Play picker (docs/design/play-characters.md). The screen composes
     //    ONE pairing: a WHO (character) entering a WHERE (a local home world or
@@ -4059,6 +3989,7 @@ impl Default for GuiState {
             game_admin_status: String::new(),
             game_admin_clock_draft: None,
             fleet: Default::default(),
+            household: Default::default(),
             // The Play picker (WHO/WHERE pairing)
             launcher_homes: Vec::new(),
             launcher_homes_loaded: false,
@@ -4746,54 +4677,7 @@ impl Default for SettingsState {
     }
 }
 
+/// The click sound's tests, in their own file to keep this one under its line budget.
 #[cfg(all(test, feature = "native"))]
-mod ui_click_sound_tests {
-    use super::ui_click_should_sound;
-    use egui::output::OutputEvent;
-    use egui::{WidgetInfo, WidgetType};
-
-    fn clicked_button() -> OutputEvent {
-        OutputEvent::Clicked(WidgetInfo::new(WidgetType::Button))
-    }
-
-    /// The whole point of the fix: with NO widget-activation event this frame
-    /// (the pointer was pressed over empty panel background), the click sound
-    /// must NOT fire. This is the operator's complaint reproduced as logic -
-    /// before the fix, being over any egui area was enough.
-    #[test]
-    fn no_click_event_means_no_sound() {
-        // Events that are NOT a real click: focus + value-change happen without
-        // a pointer click, and empty background produces no events at all.
-        let not_clicks = [
-            OutputEvent::FocusGained(WidgetInfo::new(WidgetType::TextEdit)),
-            OutputEvent::ValueChanged(WidgetInfo::new(WidgetType::Slider)),
-        ];
-        assert!(
-            !ui_click_should_sound(&[], true),
-            "empty-background frame (no events) must be silent"
-        );
-        assert!(
-            !ui_click_should_sound(&not_clicks, true),
-            "focus/value-change without a click must be silent"
-        );
-    }
-
-    /// A genuine widget activation DOES fire the sound.
-    #[test]
-    fn real_click_event_makes_sound() {
-        assert!(ui_click_should_sound(&[clicked_button()], true));
-        assert!(ui_click_should_sound(
-            &[OutputEvent::DoubleClicked(WidgetInfo::new(WidgetType::Button))],
-            true
-        ));
-    }
-
-    /// The "Interface sounds" master switch gates even a real click.
-    #[test]
-    fn disabled_switch_silences_a_real_click() {
-        assert!(
-            !ui_click_should_sound(&[clicked_button()], false),
-            "with interface sounds disabled, even a real click is silent"
-        );
-    }
-}
+#[path = "click_sound_tests.rs"]
+mod ui_click_sound_tests;

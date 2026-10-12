@@ -494,7 +494,7 @@ test("build and unbuild commands parse", () => {
   assert.equal(sp.parseCommand("   "), null, "an empty line is no command");
   assert.deepEqual(sp.parseCommand("permit p1 did:hum:4dQe1bVHyiHm1Vh8rWbx2F 30"), { kind: "permit", plot: "p1", grantee: "did:hum:4dQe1bVHyiHm1Vh8rWbx2F", days: 30 });
   // A permit rides along as the JSON the walker that minted it logged.
-  const permit = { issuer: "ab12", server: "did:hum:srv", plot: "p1", grantee: "did:hum:x", expiry: 1900000000, sig: "c2ln" };
+  const permit = { issuer: "ab12", server: "did:hum:srv", plot: "p1", grantee: "did:hum:x", serial: "00112233445566778899aabbccddeeff", expiry: 1900000000, sig: "c2ln" };
   assert.deepEqual(sp.parseCommand(`build wood_wall@plot:p1:46,0.2,36,1 permit ${JSON.stringify(permit)}`).permit, permit);
   assert.deepEqual(sp.parseCommand(`unbuild 7 permit ${JSON.stringify(permit)}`), { kind: "unbuild", pieceId: 7, permit });
   for (const [bad, why] of [
@@ -510,6 +510,8 @@ test("build and unbuild commands parse", () => {
     ['build wood_wall@plot:p1:1,0,1,0 permit {"issuer":"ab"}', /permit must be/],
     // A permit that names no server (the words before Wave 0's 6e0174cd7) is not one.
     [`unbuild 7 permit ${JSON.stringify({ ...permit, server: undefined })}`, /permit must be/],
+    // Nor one that names no serial (v1, before ship homes 5b).
+    [`unbuild 7 permit ${JSON.stringify({ ...permit, serial: undefined })}`, /permit must be/],
     ["permit plot:p1 did:hum:x 30", /permit wants/],
     ["permit p1 did:hum:x 91", /at most 90 days/],
     ["dance", /unknown command/],
@@ -607,6 +609,12 @@ test("sizes read from basic.ron", () => {
 //   AssertionError [ERR_ASSERTION]: permitPreimage("did:hum:srv", "p3", "did:hum:abc", 0)
 //     actual: 'hum/permit/v1\ndid:hum:srv\np3\ndid:hum:abc',
 //     expected: 'hum/permit/v1\ndid:hum:srv\np3\ndid:hum:abc\n0'
+// Permit v2 (ship homes 5b, 2026-10-12: a serial, so the giver can take a permit back). Seen red
+// 2026-10-12 with this script's PERMIT_DOMAIN left at v1 against the relay's v2 pin:
+//   AssertionError [ERR_ASSERTION]: permitPreimage("did:hum:srv", "p3", "did:hum:abc",
+//   "00112233445566778899aabbccddeeff", 0)
+//     actual: 'hum/permit/v1\ndid:hum:srv\np3\ndid:hum:abc\n00112233445566778899aabbccddeeff\n0',
+//     expected: 'hum/permit/v2\ndid:hum:srv\np3\ndid:hum:abc\n00112233445566778899aabbccddeeff\n0'
 test("permitPreimage equals the Rust KAT string", async () => {
   const rust = fs.readFileSync(path.join(REPO, "src", "relay", "core", "pq_crypto.rs"), "utf8");
   const pins = [...rust.matchAll(/assert_eq!\(\s*plot_permit_preimage\(([^)]*)\)\s*,\s*"((?:[^"\\]|\\.)*)"\s*\)/g)];
@@ -625,15 +633,23 @@ test("permitPreimage equals the Rust KAT string", async () => {
   const expiry = 1900000000;
   const server = "did:hum:7Xq1server2DidHere3Abc";
   const permit = sp.mintPermit(issuer, { server, plot: "p1", grantee: "did:hum:4dQe1bVHyiHm1Vh8rWbx2F", expiry });
+  assert.deepEqual(Object.keys(permit), fields, "the contract's fields in its order, the order its words are signed in");
   assert.deepEqual(Object.keys(permit).sort(), fields.sort(), "the permit's fields are the contract's");
   assert.equal(permit.issuer, issuer.publicKeyHex);
   assert.equal(permit.server, server);
-  const words = (srv, plot) => new TextEncoder().encode(sp.permitPreimage(srv, plot, permit.grantee, expiry));
+  assert.match(permit.serial, /^[0-9a-f]{32}$/, "a fresh serial: 16 bytes in lowercase hex");
+  const words = (srv, plot, serial = permit.serial) => new TextEncoder().encode(sp.permitPreimage(srv, plot, permit.grantee, serial, expiry));
   const pk = new Uint8Array(Buffer.from(issuer.publicKeyHex, "hex"));
   const sig = new Uint8Array(Buffer.from(permit.sig, "base64"));
   assert.ok(noble.ml_dsa65.verify(sig, words(server, "p1"), pk), "the issuer's signature over the permit's words");
   assert.ok(!noble.ml_dsa65.verify(sig, words(server, "p2"), pk), "and not over another plot's");
   assert.ok(!noble.ml_dsa65.verify(sig, words("did:hum:another", "p1"), pk), "nor over the same plot on another server");
+  assert.ok(!noble.ml_dsa65.verify(sig, words(server, "p1", "ffeeddccbbaa99887766554433221100"), pk), "nor under another serial");
+  const again = sp.mintPermit(issuer, { server, plot: "p1", grantee: permit.grantee, expiry });
+  assert.notEqual(again.serial, permit.serial, "each permit gets a serial of its own");
+  const named = sp.mintPermit(issuer, { server, plot: "p1", grantee: permit.grantee, expiry, serial: "00112233445566778899aabbccddeeff" });
+  assert.equal(named.serial, "00112233445566778899aabbccddeeff", "a serial given is the one signed");
+  assert.throws(() => sp.mintPermit(issuer, { server, plot: "p1", grantee: permit.grantee, expiry, serial: "00112233445566778899AABBCCDDEEFF" }), /serial is 16 bytes/, "never a serial the relay refuses");
   assert.throws(() => sp.mintPermit(issuer, { plot: "p1", grantee: permit.grantee, expiry }), /needs the server's did:hum/, "no permit without the server it is good on");
   // The server's did:hum, read where the relay shows it (/api/server-info `server_did`), from a
   // stand-in served by this process (no relay booted).

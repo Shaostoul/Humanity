@@ -43,14 +43,22 @@ fn who(world: &GameWorld, n: u8, ranks: Ranks) -> Asker {
     Asker::in_world(world, &key(n), ranks).expect("in the world")
 }
 
+/// The serial these tests' permits are named by, unless a test names another.
+const SERIAL: &str = "00112233445566778899aabbccddeeff";
+
 /// A household permit the holder with seed `issuer` signs, on this relay, for the player with
 /// seed `grantee` on `plot`, running out at `expiry`, minted at `minted` (the minting refuses an
-/// end date already past at that time).
+/// end date already past at that time), named [`SERIAL`].
 fn permit(world: &GameWorld, issuer: u8, plot: &str, grantee: u8, expiry: u64, minted: u64) -> Permit {
+    permit_named(world, issuer, plot, grantee, SERIAL, expiry, minted)
+}
+
+/// [`permit`], named `serial`.
+fn permit_named(world: &GameWorld, issuer: u8, plot: &str, grantee: u8, serial: &str, expiry: u64, minted: u64) -> Permit {
     let server = world.pieces.server_did.clone();
     let grantee = plot_owner_id(&key(grantee));
-    let sig = build_plot_permit(&[issuer; 32], &server, plot, &grantee, expiry, minted).expect("minted");
-    Permit { issuer: key(issuer), server, plot: plot.into(), grantee, expiry, sig }
+    let sig = build_plot_permit(&[issuer; 32], &server, plot, &grantee, serial, expiry, minted).expect("minted");
+    Permit { issuer: key(issuer), server, plot: plot.into(), grantee, serial: serial.into(), expiry, sig }
 }
 
 /// A piece of `blueprint` in `frame` at `at` (frame metres), built by `owner`, for the book alone.
@@ -111,7 +119,7 @@ fn who_may_build_where() {
     let other_server = {
         let mut p = permit(&world, 1, "p1", 2, NOW + 30 * DAY, NOW);
         let elsewhere = "did:hum:SomeOtherServer11111";
-        p.sig = build_plot_permit(&[1; 32], elsewhere, "p1", &p.grantee, p.expiry, NOW).unwrap();
+        p.sig = build_plot_permit(&[1; 32], elsewhere, "p1", &p.grantee, &p.serial, p.expiry, NOW).unwrap();
         p.server = elsewhere.into();
         p
     };
@@ -120,7 +128,7 @@ fn who_may_build_where() {
         let mut p = good.clone();
         p.expiry = NOW + 92 * DAY;
         let issuer = DilithiumKeypair::from_seed(&derive_dilithium_seed(&[1; 32]));
-        p.sig = B64.encode(issuer.sign(plot_permit_preimage(&world.pieces.server_did, "p1", &p.grantee, p.expiry).as_bytes()));
+        p.sig = B64.encode(issuer.sign(plot_permit_preimage(&world.pieces.server_did, "p1", &p.grantee, &p.serial, p.expiry).as_bytes()));
         p
     };
     let not_a_signature = Permit { sig: "bm90LWEtc2ln".into(), ..good.clone() };
@@ -211,6 +219,60 @@ fn who_may_take_down_what() {
         let got_r = got.map_err(|r| r.why.unwrap_or(Why::Unknown));
         if got_r != want_r {
             wrong.push(format!("{what}: {got_r:?}, expected {want_r:?}"));
+        }
+    }
+    assert!(wrong.is_empty(), "\n{}", wrong.join("\n"));
+}
+
+/// A PERMIT ITS HOLDER TOOK BACK LETS NOBODY IN (ship homes 5b, amendment A1). Ann holds p1 and
+/// gives Bo a permit named `SERIAL`; Bo's foundation stands there. Before anything is taken back
+/// Bo builds, and takes down his own foundation, with it. Cy "withdrawing" that serial on her own
+/// account changes nothing (the list is keyed by the issuer, as for friendship passes). Once Ann
+/// takes it back (`cert_revoke`, the withdrawal list friendship passes use) Bo can neither build
+/// nor take down his own foundation with it, each refused `permit_withdrawn`; a second permit Ann
+/// gives him under another serial still works (a withdrawal names one permit); Cy showing the
+/// withdrawn permit is told only `permit_bad` (the signature over the asker's own id is checked
+/// before the list is read, so nothing is said about someone else's permit); and Ann on her own
+/// plot needs no permit at all.
+///
+/// Seen red 2026-10-12 with the withdrawal lookup skipped in `permit_lets_in`: "Bo builds with
+/// the permit Ann took back: Ok(()), expected Err(PermitWithdrawn)" and "Bo takes down his own
+/// foundation with the permit Ann took back: Ok(()), expected Err(PermitWithdrawn)".
+#[test]
+fn a_withdrawn_permit_no_longer_lets_its_holder_in() {
+    let (mut world, db) = ship("withdrawn", &[(1, Some("p1")), (2, Some("p2")), (3, Some("p3"))]);
+    let bos_piece = stored(1, "plot:p1", "wood_foundation", [30.0, 0.0, 20.0], &plot_owner_id(&key(2)));
+    put(&mut world, bos_piece.clone());
+    let plain = Ranks::default();
+    let p1 = world.pieces.frames.get("plot:p1").expect("p1");
+    let given = permit(&world, 1, "p1", 2, NOW + 30 * DAY, NOW);
+    let second = permit_named(&world, 1, "p1", 2, "ffeeddccbbaa99887766554433221100", NOW + 30 * DAY, NOW);
+    let ship_id = world.ship_plots.ship_id.clone();
+    let judge = |who_n: u8, permit: Option<&Permit>| {
+        let asker = who(&world, who_n, plain);
+        let build = may_build(&world.pieces, &db, &ship_id, &p1, &asker, permit, NOW).map_err(|r| r.why.unwrap_or(Why::Unknown));
+        let remove = may_remove(&world.pieces, &db, &ship_id, &p1, &bos_piece, &asker, permit, NOW).map_err(|r| r.why.unwrap_or(Why::Unknown));
+        (build, remove)
+    };
+    let today = (NOW / DAY) as i64;
+    assert_eq!(judge(2, Some(&given)), (Ok(()), Ok(())), "before it is taken back, Bo builds and takes down his own foundation");
+
+    db.withdraw_friend_cert(&key(3), SERIAL, today).expect("Cy's withdrawal is kept");
+    assert_eq!(judge(2, Some(&given)), (Ok(()), Ok(())), "Cy cannot take back a permit Ann gave");
+
+    db.withdraw_friend_cert(&key(1), SERIAL, today).expect("Ann's withdrawal is kept");
+    let mut wrong = Vec::new();
+    let (build, remove) = judge(2, Some(&given));
+    let rows: Vec<(&str, Result<(), Why>, Result<(), Why>)> = vec![
+        ("Bo builds with the permit Ann took back", build, Err(Why::PermitWithdrawn)),
+        ("Bo takes down his own foundation with the permit Ann took back", remove, Err(Why::PermitWithdrawn)),
+        ("Bo builds with the second permit Ann gave him", judge(2, Some(&second)).0, Ok(())),
+        ("Cy shows the permit Ann gave Bo and took back", judge(3, Some(&given)).0, Err(Why::PermitBad)),
+        ("Ann on her own plot", judge(1, None).0, Ok(())),
+    ];
+    for (what, got, want) in rows {
+        if got != want {
+            wrong.push(format!("{what}: {got:?}, expected {want:?}"));
         }
     }
     assert!(wrong.is_empty(), "\n{}", wrong.join("\n"));

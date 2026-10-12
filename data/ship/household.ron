@@ -1,0 +1,22 @@
+// HOUSEHOLD PERMITS: HOW LONG ONE IS GIVEN FOR (ship homes increment 5b,
+// docs/design/ship-homes-increment-5b-plan.md; read by src/net/household.rs `load_lengths`, disk
+// first, the copy built into the exe only when this file is missing or breaks the rules below).
+//
+// A household permit lets a friend build on your plot on a server, and walk into your home there,
+// until a date you choose. The Home page's Household card offers these lengths. Every permit
+// ends: the operator decided on 2026-10-05 that none runs longer than 90 days (the relay refuses
+// one that does), and that a permit is renewed with one press. You can also take one back sooner,
+// and blocking someone takes back every permit you gave them.
+//
+//   lengths_days      The lengths offered, in days, smallest first, each 1 to 90.
+//   default_days      The one picked first: one of lengths_days.
+//   ended_kept_days   How long a permit that ran out, or was taken back, stays on the card's
+//                     lists ("ran out on 10 November 2026"), in days (1 to 365). Then it goes.
+//
+// A file that breaks a rule (a length past 90 days, a default that is not one of the lengths) is
+// not read, and the copy built into the exe is used instead, said once in the log.
+(
+    lengths_days: [7, 30, 90],
+    default_days: 30,
+    ended_kept_days: 30,
+)

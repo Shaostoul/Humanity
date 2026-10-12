@@ -561,6 +561,9 @@ fn receive(cx: &mut Ctx, m: FromRelay) {
                 check(cx, &frames);
             }
         }
+        // The answer to a household permit check (ship homes 5b): the household's (Wave 2A
+        // routes it there); nothing to do with the pieces.
+        FromRelay::PermitStatus { .. } => {}
     }
 }
 

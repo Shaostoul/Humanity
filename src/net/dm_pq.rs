@@ -189,7 +189,8 @@ pub struct DmInner {
     /// 2026-08-24) use reserved markers: `[[hum:follow]]`,
     /// `[[hum:unfollow]]`, `[[hum:friend-cert]]`, and the notes to
     /// oneself `[[hum:block:v1]]<key>` / `[[hum:unblock:v1]]<key>`
-    /// (2026-10-09) and `[[hum:choice:v1]]<key>/<may>` (2026-10-10).
+    /// (2026-10-09), `[[hum:choice:v1]]<key>/<may>` (2026-10-10) and a
+    /// household permit `[[hum:permit:v1]]<permit JSON>` (2026-10-12).
     /// Clients act on them instead of rendering them.
     pub text: String,
     /// Base64 Dilithium3 signature (kept for dedupe keying).
@@ -216,6 +217,12 @@ pub const CTL_UNBLOCK: &str = "[[hum:unblock:v1]]";
 /// a person sends only to themselves, like a block note, carrying what one friend may do:
 /// `[[hum:choice:v1]]<friend key>/<may>` (net/choice.rs). Must match the web client exactly.
 pub const CTL_CHOICE: &str = "[[hum:choice:v1]]";
+/// A household permit (ship homes 5b, docs/design/ship-homes-increment-5b-plan.md 3.1,
+/// 2026-10-12): a plot's holder gives a friend a permit to build on, and walk into, their plot on
+/// this server. The contract's `Permit` JSON (systems/construction/shared.rs) follows the marker
+/// directly, so the DM's own signature covers it (net/household.rs `note_text`, `parse_note`).
+/// The desktop app keeps it; the website swallows it. Must match the web client exactly.
+pub const CTL_PERMIT: &str = "[[hum:permit:v1]]";
 
 /// Encrypted-attachment marker (2026-08-24). A DM whose text starts with this
 /// carries a base64 JSON payload `{url,k,n,name,mime,size}` instead of prose:

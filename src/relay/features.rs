@@ -3941,10 +3941,12 @@ mod tests {
 
     /// The household permit the player with seed `[issuer; 32]` (key `issuer_key`) signs for
     /// `grantee` (a did:hum) on `plot` of the server `server`, running out at `expiry`, minted at
-    /// `minted`, as the game mints one (pq_crypto.rs `build_plot_permit`).
+    /// `minted`, as the game mints one (pq_crypto.rs `build_plot_permit`), under a fresh serial
+    /// (permit v2, ship homes 5b).
     fn mint_permit(issuer: u8, issuer_key: &str, server: &str, plot: &str, grantee: &str, expiry: u64, minted: u64) -> crate::systems::construction::shared::Permit {
-        let sig = crate::relay::core::pq_crypto::build_plot_permit(&[issuer; 32], server, plot, grantee, expiry, minted).expect("minted");
-        crate::systems::construction::shared::Permit { issuer: issuer_key.into(), server: server.into(), plot: plot.into(), grantee: grantee.into(), expiry, sig }
+        let serial = crate::relay::core::pq_crypto::new_friend_cert_serial().expect("randomness");
+        let sig = crate::relay::core::pq_crypto::build_plot_permit(&[issuer; 32], server, plot, grantee, &serial, expiry, minted).expect("minted");
+        crate::systems::construction::shared::Permit { issuer: issuer_key.into(), server: server.into(), plot: plot.into(), grantee: grantee.into(), serial, expiry, sig }
     }
 
     /// The relay's clock, Unix seconds.
