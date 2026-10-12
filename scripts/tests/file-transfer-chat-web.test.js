@@ -254,28 +254,41 @@ function fakeIndexedDB() {
   // test can let a piece's write finish after something else happened. `api.pending`: how many wait.
   // `api.refusePieces`: while true, a write to `pieces` fails as a full browser storage does.
   const api = { dbs, gate: null, pending: 0, refusePieces: false };
-  const req = (fn, gate) => {
+  // `tx`: the transaction a request belongs to. It commits (oncomplete) once its last request is
+  // done, and aborts (onerror, onabort) when one failed, as a browser's does. `api.refuseCommit`:
+  // while true, a transaction writing to `pieces` aborts at its commit although its put
+  // succeeded, as a full disk is often reported by a browser.
+  const req = (tx, fn, gate) => {
     const r = { result: undefined, error: null, onsuccess: null, onerror: null };
+    tx.open++;
     const go = () => setImmediate(() => {
       try { r.result = fn(); if (r.onsuccess) r.onsuccess({ target: r }); }
-      catch (e) { r.error = e; if (r.onerror) r.onerror({ target: r }); }
+      catch (e) { r.error = e; tx.failed = true; if (r.onerror) r.onerror({ target: r }); }
+      tx.open--;
+      if (tx.open === 0) setImmediate(() => {
+        if (tx.failed || (tx.wrotePieces && api.refuseCommit)) {
+          if (tx.onerror) tx.onerror({ target: tx });
+          if (tx.onabort) tx.onabort({ target: tx });
+        } else if (tx.oncomplete) tx.oncomplete({ target: tx });
+      });
     });
     if (gate) { api.pending++; gate.then(() => { api.pending--; go(); }); } else go();
     return r;
   };
-  const storeApi = (st, name) => ({
-    put: (v, key) => req(() => {
+  const storeApi = (tx, st, name) => ({
+    put: (v, key) => req(tx, () => {
       if (name === "pieces" && api.refusePieces) throw Object.assign(new Error("The quota has been exceeded."), { name: "QuotaExceededError" });
+      if (name === "pieces") tx.wrotePieces = true;
       const k = key !== undefined ? key : (st.keyPath ? v[st.keyPath] : (v.k ?? v.scope));
       st.map.set(k, v);
       return k;
     }, name === "pieces" ? api.gate : null),
-    get: (k) => req(() => st.map.get(k)),
-    delete: (k) => req(() => { st.map.delete(k); }),
-    clear: () => req(() => { st.map.clear(); }),
-    getAll: () => req(() => [...st.map.values()]),
-    getAllKeys: () => req(() => [...st.map.keys()]),
-    index: (field) => ({ getAll: (val) => req(() => [...st.map.values()].filter((v) => v[field] === val)) }),
+    get: (k) => req(tx, () => st.map.get(k)),
+    delete: (k) => req(tx, () => { st.map.delete(k); }),
+    clear: () => req(tx, () => { st.map.clear(); }),
+    getAll: () => req(tx, () => [...st.map.values()]),
+    getAllKeys: () => req(tx, () => [...st.map.keys()]),
+    index: (field) => ({ getAll: (val) => req(tx, () => [...st.map.values()].filter((v) => v[field] === val)) }),
   });
   return Object.assign(api, {
     open(name) {
@@ -287,12 +300,14 @@ function fakeIndexedDB() {
         r.result = {
           objectStoreNames: { contains: (n) => db.stores.has(n) },
           createObjectStore: (n, o) => { db.stores.set(n, { keyPath: o && o.keyPath, map: new Map() }); return { createIndex() {} }; },
-          transaction: () => ({
-            objectStore: (n) => {
+          transaction: () => {
+            const tx = { open: 0, failed: false, wrotePieces: false, oncomplete: null, onerror: null, onabort: null };
+            tx.objectStore = (n) => {
               if (!db.stores.has(n)) db.stores.set(n, { keyPath: n === "msgs" ? "k" : (n === "meta" ? "scope" : undefined), map: new Map() });
-              return storeApi(db.stores.get(n), n);
-            },
-          }),
+              return storeApi(tx, db.stores.get(n), n);
+            };
+            return tx;
+          },
           close() {},
         };
         if (fresh && r.onupgradeneeded) r.onupgradeneeded({ target: r });
@@ -1628,6 +1643,49 @@ test("19. rule 9: Ann's copy of Ben's answer is lost; the dial is her answer: he
   assert.ok(shown.indexOf("Sending through the server's call relay") < shown.indexOf("Sent"));
 });
 
+test("20. a dial for a file Ann cancelled, her cancel note lost on the way: she says it again, once, and Ben's other file with her goes", async () => {
+  const s = await pair();
+  const benTimers = keepTimers(s.ben);
+  const x = await offerFrom(s.ann, zipBytes(7 * MB, 201), "x.zip");
+  const y = await offerFrom(s.ann, zipBytes(7 * MB + 3, 202), "y.zip");
+  await waitFor(() => transfers(s.ben).length === 2 && transfers(s.ben).every((t) => t.state === "asked"), "both asked");
+  // Ann cancels X before Ben answers, and Ben's copy of her cancel note is lost on the way.
+  s.relay.lose = (page, msg) => page.who === "Ann" && msg.to === s.ppl.ben.key && noteText(msg) === FT.cancelNoteText(x.id) && s.relay.lost.length === 0;
+  await press(s.ann, x.id, "cancel");
+  await waitFor(() => s.relay.lost.length === 1, "Ben's copy of the cancel is lost");
+  assert.equal(transferOf(s.ben, x.id).state, "asked", "test setup: Ben still has X waiting");
+  const cancelsToBen = () => s.ann.sock.sent.filter((m) => m.type === "dm_put" && m.to === s.ppl.ben.key && noteText(m) === FT.cancelNoteText(x.id));
+  // Ben accepts X: he dials Ann for it. Ann does not answer, and says the cancel again.
+  await press(s.ben, x.id, "accept");
+  await waitFor(() => transferOf(s.ben, x.id).state === "cancelled", "Ben's X ends on the cancel said again");
+  assert.equal(cancelsToBen().length, 2, "the cancel to Ben, then once more");
+  assert.equal(s.relay.signals.filter((x2) => x2.who === "Ann").length, 0, "the dial for X is not answered");
+  // Ben accepts Y: once his dial for X has been given up, he dials for Y and it arrives.
+  await press(s.ben, y.id, "accept");
+  benTimers.fire(45000);
+  benTimers.fire(60000);
+  await waitFor(() => transferOf(s.ben, y.id).state === "saved", "Y arrives");
+  await waitFor(() => wordsOf(s.ann, y.id) === "Sent", "Ann's Y says Sent");
+  // A second dial for X (Ben's page from before the cancel came) gets no third cancel.
+  const again = { type: "webrtc_signal", from: s.ppl.ben.key, to: s.ppl.ann.key, signal_type: "dc_offer", file: x.id, data: JSON.stringify({ type: "offer", sdp: "fake-offer 998" }) };
+  assert.equal(s.ann.fn("fileTransferSignal")(clone(again)), true, "a dial for X is still taken");
+  await settle();
+  assert.equal(cancelsToBen().length, 2, "said again once, not on every dial");
+  assert.deepEqual([...(s.ann.errors || []), ...(s.ben.errors || [])], [], "no errors");
+});
+
+test("21. a piece whose write the browser refuses only when it commits (a full disk, reported late) ends the transfer at once with the storage words, and cancel is said", async () => {
+  const idb = fakeIndexedDB();
+  const s = await pair({ ben: { indexedDB: idb } });
+  const t = await offer(s, zipBytes(12 * MB, 211));
+  await acceptAndWait(s, t, () => idb.pieces(t.id).length >= 3);
+  idb.refuseCommit = true;
+  await waitFor(() => only(s.ben).state === "failed", "Ben's transfer ends");
+  assert.equal(wordsOf(s.ben, t.id), "This browser could not keep part of the file (its storage may be full), so the transfer stopped.", "Ben's row says why");
+  assert.equal(s.relay.net.log.filter((m) => m.from === "Ben" && m.kind === '{"t":"cancel"}').length, 1, "cancel said on the channel");
+  await waitFor(() => wordsOf(s.ann, t.id) === "Cancelled", "Ann's row ends");
+});
+
 // ── Red first ────────────────────────────────────────────────────────────
 // 2026-10-11: each break made in a copy of web/ and this file run against it with HOS_WEB_DIR,
 // seen failing with the assertion named; every other test passed unless named.
@@ -1711,3 +1769,7 @@ test("19. rule 9: Ann's copy of Ben's answer is lost; the dial is her answer: he
 //  C33 chat-file-transfer.js, a channel opening leaving an offered transfer offered: test 19 "the
 //      channel opening moved it to sending: ["Waiting for Ben to accept","Sent"]".
 //  C34 C33, and done ending as Sent only from sending: test 19 "never happened: Ann's row says Sent".
+//  C35 (2026-10-12) chat-file-transfer.js, a dial for an ended offer of mine taken with no word: test
+//      20 "Ben's X ends on the cancel said again" (timed out).
+//  C36 (2026-10-12) chat-file-transfer.js, ftIdb counting a write on the request's success (not the
+//      commit): test 21 "Ben's transfer ends" (not within the wait: the piece counted as kept).

@@ -4868,4 +4868,41 @@ mod tests {
         assert!(gate_notice(Feature::Voice, "call_credentials", &call).contains("'voice' disabled"), "a call's keeps the general notice");
         assert!(gate_notice(Feature::Game, "game_build", &serde_json::json!({})).contains("'game' disabled"));
     }
+
+    /// A CLIENT'S OWN `file` ON A SIGNAL IS NEVER PASSED ON (the review of 2026-10-12): only the
+    /// relay sets it, on a dial a file pass let in, so the file's sender trusts it to pick the one
+    /// transfer it asks the forwarder for. Through the real socket path: a routing change that
+    /// passed the frame's field along would fail here, where a test of the handler alone cannot.
+    ///
+    /// Seen red 2026-10-12 with `handle_webrtc_signal` putting a `file` on every signal that is
+    /// not a dial: "a client's file is never passed on".
+    #[tokio::test]
+    async fn a_clients_own_file_on_a_signal_is_never_passed_on() {
+        use futures::{SinkExt, StreamExt};
+        use tokio_tungstenite::tungstenite::Message as WsMsg;
+        let (state, port) = spawn_relay("signal_file", Features::all_enabled()).await;
+        let (mut ann, _) = bind_socket(&state, port, [61u8; 32], Some("AnnSignal"), 1).await;
+        let (mut bo, bo_key) = bind_socket(&state, port, [62u8; 32], Some("BoSignal"), 1).await;
+        let frame = serde_json::json!({
+            "type": "webrtc_signal", "to": bo_key, "signal_type": "dc_ice", "data": { "candidate": "c" }, "file": "ab".repeat(16)
+        });
+        ann.send(WsMsg::Text(frame.to_string().into())).await.unwrap();
+        let heard = tokio::time::timeout(tokio::time::Duration::from_secs(10), async {
+            while let Some(Ok(m)) = bo.next().await {
+                if let Ok(text) = m.into_text() {
+                    let v: Value = serde_json::from_str(&text).unwrap_or(Value::Null);
+                    if v["type"] == "webrtc_signal" {
+                        return Some(v);
+                    }
+                }
+            }
+            None
+        })
+        .await
+        .ok()
+        .flatten()
+        .expect("Bo hears the signal");
+        assert_eq!(heard["signal_type"], "dc_ice");
+        assert!(heard.get("file").is_none(), "a client's file is never passed on: {}", heard["file"]);
+    }
 }

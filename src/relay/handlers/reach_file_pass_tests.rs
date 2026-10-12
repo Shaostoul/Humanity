@@ -170,17 +170,10 @@ fn a_dial_let_in_by_a_file_pass_names_its_transfer() {
     assert_eq!(dial[0]["file"], ID, "the dial names its transfer: {}", dial[0]);
     let ice = forwarded(&bo, &ann, "dc_ice", Some(anns.clone()));
     assert!(ice[0].get("file").is_none(), "a candidate names none: {}", ice[0]);
+    // A dial let in another way (Ann's own key: her other device) is forwarded, naming none.
     let own = forwarded(&ann, &ann, "dc_offer", None);
-    assert!(own.is_empty() || own[0].get("file").is_none(), "a dial let in another way names none");
-
-    // A client's own `file` on its frame is not passed on (the frame is read, then rebuilt).
-    let frame: RelayMessage = serde_json::from_value(serde_json::json!({
-        "type": "webrtc_signal", "to": ann.key, "signal_type": "dc_ice", "data": {}, "file": "ffff"
-    }))
-    .unwrap();
-    let RelayMessage::WebrtcSignal { to, signal_type, data, friend_cert, file_pass, .. } = frame else { unreachable!() };
-    let mut rx = st.broadcast_tx.subscribe();
-    block(handle_webrtc_signal(&st, &bo.key, to, signal_type, data, friend_cert, file_pass));
-    let out = rx.try_recv().map(|m| serde_json::to_value(&m).unwrap()).unwrap();
-    assert!(out.get("file").is_none(), "a client's own file is never passed on: {out}");
+    assert_eq!(own.len(), 1, "her own device's dial is forwarded");
+    assert!(own[0].get("file").is_none(), "a dial let in another way names none: {}", own[0]);
+    // A client's own `file` on its frame never reaches the handler: features.rs
+    // `a_clients_own_file_on_a_signal_is_never_passed_on` proves it through the real socket path.
 }

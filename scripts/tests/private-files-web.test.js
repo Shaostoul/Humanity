@@ -337,7 +337,16 @@ function fakeIndexedDB() {
     getAllKeys: () => req([...of(name).keys()]),
     index: () => ({ getAll: (scope) => req([...of(name).values()].filter((v) => v.scope === scope)) }),
   });
-  const db = { objectStoreNames: { contains: () => true }, transaction: (name) => ({ objectStore: () => objectStore(name) }) };
+  // A transaction commits (oncomplete) once the turn its request was made in has passed: enough for
+  // a page that counts a write only once it is committed (chat-file-transfer.js ftIdb).
+  const db = {
+    objectStoreNames: { contains: () => true },
+    transaction: (name) => {
+      const tx = { oncomplete: null, onerror: null, onabort: null, objectStore: () => objectStore(name) };
+      setImmediate(() => setImmediate(() => { if (tx.oncomplete) tx.oncomplete(); }));
+      return tx;
+    },
+  };
   return { open: () => req(db), stores };
 }
 

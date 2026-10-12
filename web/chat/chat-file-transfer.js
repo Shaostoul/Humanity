@@ -215,16 +215,28 @@ function ftDb() {
   return ftDbPromise;
 }
 
-/** One request on one store; its result, or null when it failed. */
+/**
+ * One request on one store; its result, or null when it failed. A write counts only once the
+ * browser has committed it: a full disk is often reported when the transaction commits, after the
+ * request itself succeeded, and a piece taken as kept then would only show at the end, as a file
+ * that "does not match" (the review of 2026-10-12).
+ */
 async function ftIdb(store, mode, fn) {
   const db = await ftDb();
   if (!db) return null;
   return new Promise((resolve) => {
     try {
-      const os = db.transaction(store, mode).objectStore(store);
-      const r = fn(os);
-      r.onsuccess = () => resolve(r.result === undefined ? null : r.result);
-      r.onerror = () => resolve(null);
+      const tx = db.transaction(store, mode);
+      const r = fn(tx.objectStore(store));
+      const result = () => (r.result === undefined ? null : r.result);
+      if (mode === 'readwrite') {
+        tx.oncomplete = () => resolve(result());
+        tx.onerror = () => resolve(null);
+        tx.onabort = () => resolve(null);
+      } else {
+        r.onsuccess = () => resolve(result());
+        r.onerror = () => resolve(null);
+      }
     } catch (e) {
       resolve(null);
     }
@@ -378,6 +390,7 @@ async function ftSendNote(peer, text, opts) {
 async function ftNote(t, text, opts) {
   if (await ftSendNote(t.peer, text, opts)) return true;
   t.pendingNotes.push({ text, opts: opts || {} });
+  ftSave(t); // kept with the record, so a note that could not go survives the page closing
   return false;
 }
 
@@ -999,8 +1012,18 @@ function fileTransferSignal(msg) {
     const F = ftApi();
     if (!F || !F.idOk(msg.file)) return false;
     const named = ftTransfers.get(msg.file);
-    // A dial for a file of mine that is no longer live (ended here, its note on its way): not answered.
-    if (!ftLiveOfferTo(named, msg.from)) return true;
+    // A dial for a file of mine that is no longer live: not answered. When I cancelled it or it
+    // failed here, they are dialling because my cancel note never reached them, and their other
+    // files with me wait behind this dial: say it again, once in this page's life (the review of
+    // 2026-10-12).
+    if (!ftLiveOfferTo(named, msg.from)) {
+      if (named && named.role === 'send' && named.offer && ftSameKey(named.peer, msg.from)
+          && ['cancelled', 'failed'].includes(named.state) && !named.cancelSaidAgain) {
+        named.cancelSaidAgain = true;
+        ftCancelNote(named);
+      }
+      return true;
+    }
     if (link && link.role === 'dial' && !link.open) {
       // Both of us dialing at once (each has a file for the other): the larger key's dial goes on,
       // as the desktop app's offerer rule has it; the other side answers it, and its own receiving
