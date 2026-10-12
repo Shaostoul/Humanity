@@ -438,7 +438,10 @@ pub fn dm_gate(
     let pass = friend_pass(state, to, sender, cert);
     // A file pass the recipient gave the sender lets their answer and cancel notes in (the
     // review's rule 4, media-showcase.md), unless the recipient takes messages from nobody; it
-    // still costs a stranger's knock.
+    // still costs a stranger's knock (an admin or moderator pays nothing, as for any DM). The
+    // relay cannot see what such a DM holds, and keeps no block list, so for the pass's life
+    // (at most 7 days) a person the issuer later blocked can still send up to the stranger's
+    // daily budget; the issuer's app drops what it holds from someone blocked.
     let by_file_pass = file_pass.is_some()
         && audience(state, to, Kind::Message) != Audience::Nobody
         && file_pass_of(state, to, sender, file_pass).is_some();

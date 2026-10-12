@@ -427,12 +427,14 @@ async fn in_voice_room(state: &RelayState, key: &str, room: &str) -> bool {
 /// must check out on this relay with (issuer, grantee) = (peer, me) or (me, peer), its `id` must
 /// be `file`, and `peer` must be someone else (the shapes, part 2). Either of the two may ask: the
 /// sender (the pass's issuer) and the receiver (its grantee) each need an allocation.
-fn file_pass_fits(state: &RelayState, me: &str, peer: &str, file: &str, file_pass: Option<&serde_json::Value>) -> bool {
+fn file_pass_fits(state: &RelayState, me: &str, peer: &str, peer_known: bool, file: &str, file_pass: Option<&serde_json::Value>) -> bool {
     use crate::relay::handlers::reach::file_pass_of;
-    // The other person must hold a name on this server: a pass the asker signs to a key nobody
-    // has (or to text that is not a key) is no other person's consent (the review of 2026-10-12).
+    // The other person must be known here (a name on this server, or signed in now): a pass the
+    // asker signs to a key nobody holds, or to text that is not a key, gets nothing (the review of
+    // 2026-10-12). This is not the other person's consent (the asker can sign a pass naming any
+    // known key); what bounds such use is the forwarded day amount and the per-person allocations.
     me != peer
-        && state.db.current_name_for_key(peer).ok().flatten().is_some()
+        && peer_known
         && [(peer, me), (me, peer)]
             .into_iter()
             .any(|(issuer, grantee)| file_pass_of(state, issuer, grantee, file_pass).is_some_and(|p| p.id == file))
@@ -463,7 +465,11 @@ pub async fn handle(state: &Arc<RelayState>, my_key: &str, raw: &serde_json::Val
         }
         (None, None, Some(f)) => {
             let peer = named(raw, "peer");
-            match peer.filter(|p| file_pass_fits(state, my_key, p, f, raw.get("file_pass"))) {
+            let peer_known = match peer {
+                Some(p) => state.db.current_name_for_key(p).ok().flatten().is_some() || state.peers.read().await.contains_key(p),
+                None => false,
+            };
+            match peer.filter(|p| file_pass_fits(state, my_key, p, peer_known, f, raw.get("file_pass"))) {
                 Some(p) => (state.calls.keys().file_scope(f, my_key, p), true),
                 None => return refuse(state, my_key, asked, NO_FILE_PASS),
             }

@@ -1007,7 +1007,14 @@ pub async fn handle_webrtc_signal(
             let _ = state.broadcast_tx.send(private);
         }
     } else {
-        // Neither pass is forwarded: the target issued both and has no use for their echo.
+        // Neither pass is forwarded: the target issued both and has no use for their echo. A
+        // `dc_offer` that came in on a file pass carries that transfer's id instead, so the
+        // file's sender asks the forwarder for that transfer alone.
+        let file = if signal_type == "dc_offer" {
+            reach::file_pass_of(state, &to, my_key, file_pass.as_ref()).map(|p| p.id)
+        } else {
+            None
+        };
         let msg = RelayMessage::WebrtcSignal {
             from: my_key.to_string(),
             to,
@@ -1015,6 +1022,7 @@ pub async fn handle_webrtc_signal(
             data,
             friend_cert: None,
             file_pass: None,
+            file,
         };
         let _ = state.broadcast_tx.send(msg);
     }

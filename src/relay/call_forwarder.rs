@@ -103,9 +103,9 @@ pub const MAX_PER_CREDENTIAL: usize = 16;
 /// Allocations one source IP may hold at once (a household behind one router shares an IP).
 pub const MAX_PER_SOURCE_IP: usize = 32;
 /// File-transfer allocations one person (person tag) may hold at once, across all their
-/// credentials: a transfer needs one each side, and an app answers at most four offers to one
-/// person at a time (the review of 2026-10-12, rule 5).
-pub const MAX_FILE_PER_PERSON: usize = 8;
+/// credentials and devices: one per connection (a connection carries any number of files), so 16
+/// people sending to or receiving from them at once (the reviews of 2026-10-12, rule 5).
+pub const MAX_FILE_PER_PERSON: usize = 16;
 /// People whose forwarded bytes are counted at once; when full, the smallest count goes first
 /// (which errs toward that person: their count starts again).
 pub const FORWARDED_TRACK_MAX: usize = 10_000;

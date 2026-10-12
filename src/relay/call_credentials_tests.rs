@@ -376,3 +376,25 @@ fn file_credentials_need_a_registered_peer_and_refusals_count_toward_the_limit()
         "after 25 refused requests in a minute, even a good one waits"
     );
 }
+
+/// A PEER SIGNED IN NOW, WITHOUT A REGISTERED NAME, COUNTS AS KNOWN (the second review of
+/// 2026-10-12: a person whose name was never registered, a placeholder name, stays signed in, and
+/// their sender was refused credentials, so the transfer never connected).
+///
+/// Seen red 2026-10-12 with `peer_known` reading the registered names only: "a peer signed in now
+/// is known" failed.
+#[test]
+fn a_peer_signed_in_without_a_registered_name_is_known() {
+    let state = fresh_state("file_peer_signed_in");
+    let (ann, bo) = (person(221), person(222));
+    state.db.register_name("Ann", &ann.1).unwrap();
+    block(async {
+        state.peers.write().await.insert(
+            bo.1.clone(),
+            crate::relay::relay::Peer { public_key_hex: bo.1.clone(), display_name: None, upload_token: None, kyber_public: None, conn_id: 1 },
+        );
+    });
+    let now = unix_now();
+    let pass = file_pass(&state, &ann, &bo.1, ID, now + 86_400);
+    assert!(ask(&state, &ann.1, file(ID, &bo.1, Some(&pass))).is_ok(), "a peer signed in now is known");
+}

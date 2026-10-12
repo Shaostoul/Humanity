@@ -1421,6 +1421,12 @@ pub enum RelayMessage {
         /// docs/design/media-showcase.md): the receiver of a file dials its sender with it. Read by
         /// the relay (handlers/reach.rs `dc_offer_may_pass`), never forwarded.
         #[serde(default, skip_serializing_if = "Option::is_none")] file_pass: Option<serde_json::Value>,
+        /// Relay to the target, on a `dc_offer` let through by a file pass: that transfer's id, so
+        /// the file's sender asks the forwarder for that one transfer's credentials instead of one
+        /// for every offer it has open to the dialler (the second review of 2026-10-12: those
+        /// idle allocations used up a person's share). Both people already know the id. Set by
+        /// the relay only; one a client puts on its frame is never passed on.
+        #[serde(default, skip_serializing_if = "Option::is_none")] file: Option<String>,
     },
 
     /// Server → the issuer: the friendship pass `serial` is withdrawn here (the answer to

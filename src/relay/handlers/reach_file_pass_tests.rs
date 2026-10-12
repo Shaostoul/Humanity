@@ -137,3 +137,50 @@ fn an_answer_with_the_file_pass_reaches_a_sender_who_takes_messages_from_friends
     set(&st, &ann.key, Kind::Message, Audience::Nobody);
     assert!(!put(Some(anns)), "Ann takes messages from nobody: her choice stands");
 }
+
+/// A DIAL LET IN BY A FILE PASS TELLS ITS TARGET WHICH TRANSFER IT IS FOR (the second review of
+/// 2026-10-12): the forwarded `dc_offer` carries the pass's id as `file`, so the file's sender asks
+/// the forwarder for that one transfer instead of every offer it has open. A dial let in another way
+/// (a friendship pass here: Ann's own other device) carries none, nor does any other signal, and a
+/// `file` a client puts on its frame is never passed on.
+///
+/// Seen red 2026-10-12 with `file` always None in `handle_webrtc_signal`: "the dial names its
+/// transfer" failed.
+#[test]
+fn a_dial_let_in_by_a_file_pass_names_its_transfer() {
+    let st = fresh_state("dc_offer_names_file");
+    let (ann, bo) = (person(211), person(212));
+    for p in [&ann, &bo] {
+        connect(&st, &p.key);
+    }
+    let anns = file_pass_from(&st, &ann, &bo.key, ID);
+    let forwarded = |from: &Person, to: &Person, signal: &str, pass: Option<serde_json::Value>| -> Vec<serde_json::Value> {
+        let mut rx = st.broadcast_tx.subscribe();
+        block(handle_webrtc_signal(&st, &from.key, to.key.clone(), signal.to_string(), serde_json::json!({ "sdp": "x" }), None, pass));
+        let mut out = Vec::new();
+        while let Ok(m) = rx.try_recv() {
+            if matches!(m, RelayMessage::WebrtcSignal { .. }) {
+                out.push(serde_json::to_value(&m).unwrap());
+            }
+        }
+        out
+    };
+    let dial = forwarded(&bo, &ann, "dc_offer", Some(anns.clone()));
+    assert_eq!(dial.len(), 1);
+    assert_eq!(dial[0]["file"], ID, "the dial names its transfer: {}", dial[0]);
+    let ice = forwarded(&bo, &ann, "dc_ice", Some(anns.clone()));
+    assert!(ice[0].get("file").is_none(), "a candidate names none: {}", ice[0]);
+    let own = forwarded(&ann, &ann, "dc_offer", None);
+    assert!(own.is_empty() || own[0].get("file").is_none(), "a dial let in another way names none");
+
+    // A client's own `file` on its frame is not passed on (the frame is read, then rebuilt).
+    let frame: RelayMessage = serde_json::from_value(serde_json::json!({
+        "type": "webrtc_signal", "to": ann.key, "signal_type": "dc_ice", "data": {}, "file": "ffff"
+    }))
+    .unwrap();
+    let RelayMessage::WebrtcSignal { to, signal_type, data, friend_cert, file_pass, .. } = frame else { unreachable!() };
+    let mut rx = st.broadcast_tx.subscribe();
+    block(handle_webrtc_signal(&st, &bo.key, to, signal_type, data, friend_cert, file_pass));
+    let out = rx.try_recv().map(|m| serde_json::to_value(&m).unwrap()).unwrap();
+    assert!(out.get("file").is_none(), "a client's own file is never passed on: {out}");
+}
