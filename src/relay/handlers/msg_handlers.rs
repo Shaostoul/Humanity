@@ -2918,6 +2918,7 @@ pub async fn handle_game_join(
         "rejoin": is_rejoin,
         "ranks": super::shared_build::ranks_of(state, my_key), // what they may build or take down beyond their own plot (increment 5)
     });
+    home.add_to_welcome(&mut welcome); // a guest: which kind was full, how many of each are free (increment 6, game_state.rs)
     if let Some(q) = current_quest {
         welcome["current_quest"] = q;
     }

@@ -31,7 +31,7 @@ fn ship(tag: &str, players: &[(u8, Option<&str>)]) -> (GameWorld, Storage) {
         let arrival = plot.and_then(|p| world.ship_plots.plot(p).cloned());
         world.set_home_plot(id, arrival.as_ref());
         if let Some(p) = plot {
-            let held = db.claim_plot(&world.ship_plots.ship_id, &plot_owner_id(&k), &[p]).expect("a claim");
+            let held = db.claim_plot(&world.ship_plots.ship_id, &plot_owner_id(&k), &[p], &[p]).expect("a claim");
             assert_eq!(held.as_deref(), Some(*p));
         }
     }

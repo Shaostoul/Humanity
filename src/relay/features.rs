@@ -1690,11 +1690,15 @@ mod tests {
     // Seen red 2026-10-03 on the 1a relay (the commit before 1b), every one of
     // them: the failure texts are in each test's comment.
 
-    /// The ship file's plots, in the order the relay hands them out.
+    /// The ship file's plots a join asking for no particular home is given, in the order the
+    /// relay hands them out: those of the default start's kind, the homesteads. (Ship homes
+    /// increment 6: the ship holds cabins too, which only a join or a choice asking for a cabin
+    /// is given, so the tests written for a ship of homesteads count the homesteads.)
     fn ship_plot_ids() -> Vec<String> {
         let ship = crate::ship::ship_structure::ShipStructure::load_ship_file(std::path::Path::new("data"))
             .expect("the ship file loads");
-        ship.plots.iter().map(|p| p.id.clone()).collect()
+        let kind = crate::ship::starts::Starts::load(std::path::Path::new("data")).default_start().plot_kind.clone();
+        ship.plots.iter().filter(|p| p.kind == kind).map(|p| p.id.clone()).collect()
     }
 
     /// Where the game puts a player whose home stands on plot `id`: 1a's
@@ -2143,6 +2147,164 @@ mod tests {
         for mut s in [admin, guest, next, after] {
             s.close(None).await.ok();
         }
+        for (mut s, ..) in homes {
+            s.close(None).await.ok();
+        }
+        server.abort();
+    }
+
+    // ── Ship homes increment 6: the kind of home you ask for ─────────────────────
+
+    /// A relay on a fresh plots database whose ship has its cabins (game_state.rs
+    /// `with_cabin_plots`: lane 1A's row, until the ship file holds it), and whose 200 ms limit
+    /// reads a clock the test moves (`home_ask` moves it past the limit before each ask).
+    async fn relay_with_cabins(tag: &str) -> (std::sync::Arc<crate::relay::relay::RelayState>, u16, tokio::task::JoinHandle<()>, std::sync::Arc<crate::test_clock::ManualClock>, std::sync::Arc<crate::test_temp::TempPath>) {
+        let path = plots_db(tag);
+        let (state, port, server) = relay_on(&path).await;
+        crate::relay::handlers::game_state::with_cabin_plots(&mut *state.game_world.write().await);
+        let clock = crate::test_clock::ManualClock::new();
+        assert!(state.perception_clock.set(clock.clone()).is_ok(), "a new relay has no test clock yet");
+        (state, port, server, clock, path)
+    }
+
+    /// Send a `game_home_request` (no `start`) or a `game_choose_home` (with one) past the 200 ms
+    /// limit, and return the `game_home` answer.
+    async fn home_ask(sock: &mut TestSocket, clock: &crate::test_clock::ManualClock, start: Option<&str>) -> Value {
+        clock.advance(std::time::Duration::from_millis(250));
+        let msg = match start {
+            Some(s) => serde_json::json!({ "type": "game_choose_home", "start": s }),
+            None => serde_json::json!({ "type": "game_home_request" }),
+        };
+        send_json(sock, msg).await;
+        next_game_of(sock, &["game_home"]).await.expect("a game_home answer")
+    }
+
+    /// An answer's free count for a start.
+    fn free_in(answer: &Value, start: &str) -> Option<u64> {
+        answer["starts"].as_array()?.iter().find(|s| s["id"] == start)?["free"].as_u64()
+    }
+
+    /// A CABIN AND A HOMESTEAD ON ONE SHIP, on a real relay (ship homes increment 6, plan 3.5):
+    /// Ann's join asks for a cabin and gets the first cabin; Bo's asks for nothing and gets the
+    /// first homestead; Cy chooses a cabin before she ever joins (the second cabin), and her join,
+    /// asking for nothing, gets that cabin; Dee asks where she lives and is told none, with the
+    /// counts, and nothing of Ann, Bo or Cy. No log line written here names a key or a DID.
+    ///
+    /// Seen red 2026-10-12 with `assign_home` ignoring `start` (`resolve(None)`): "Ann was given
+    /// p1, a homestead, asking for a cabin" (at her join, the first check).
+    #[tokio::test]
+    async fn a_cabin_and_a_homestead_on_one_ship() {
+        let log = LogLines::default();
+        let _listening = log.listen();
+        let (state, port, server, clock, _path) = relay_with_cabins("cabin_and_homestead").await;
+        let (cabins, homesteads) = {
+            let w = state.game_world.read().await;
+            let ids = |k: &str| w.plot_ids_of_kind(k).iter().map(|s| s.to_string()).collect::<Vec<_>>();
+            (ids("cabin"), ids("homestead"))
+        };
+        let (mut ann, ann_key) = bind_socket(&state, port, [190u8; 32], Some("HomeAnn"), 1).await;
+        let (mut bo, bo_key) = bind_socket(&state, port, [191u8; 32], Some("HomeBo"), 1).await;
+        let (mut cy, cy_key) = bind_socket(&state, port, [192u8; 32], Some("HomeCy"), 1).await;
+        let (mut dee, dee_key) = bind_socket(&state, port, [193u8; 32], Some("HomeDee"), 1).await;
+
+        let w = welcome_after_join_with(&mut ann, "HomeAnn", serde_json::json!({ "start": "cabin" })).await;
+        let hp = &w["home_plot"];
+        assert!(
+            hp["kind"] == "cabin",
+            "Ann was given {}, a {}, asking for a cabin",
+            hp["id"].as_str().unwrap_or("nothing"),
+            hp["kind"].as_str().unwrap_or("guest")
+        );
+        assert_eq!((hp["id"].as_str(), hp["start"].as_str()), (Some(cabins[0].as_str()), Some("cabin")), "the first cabin: {hp}");
+        assert!(w.get("home_full").is_none() && w.get("home_free").is_none(), "a player with a home is told nothing of the others: {w}");
+        let at = relay_position(&state, &ann_key).await;
+        let (o, s) = (hp["origin"].as_array().unwrap(), hp["size"].as_array().unwrap());
+        let inside = |i: usize, v: f32| o[i].as_f64().unwrap() as f32 - 1e-3 <= v && v <= (o[i].as_f64().unwrap() + s[i].as_f64().unwrap()) as f32 + 1e-3;
+        assert!(inside(0, at[0]) && inside(2, at[2]), "Ann arrives on her cabin, at {at:?}: {hp}");
+
+        let w = welcome_after_join(&mut bo, "HomeBo").await;
+        assert_eq!((welcome_plot(&w), w["home_plot"]["start"].as_str()), (Some(homesteads[0].clone()), Some("homestead")), "Bo asked for nothing: the first homestead");
+
+        let a = home_ask(&mut cy, &clock, Some("cabin")).await;
+        assert_eq!(a["chose"], true, "Cy chose a cabin before joining: {a}");
+        assert_eq!((a["plot"]["id"].as_str(), a["plot"]["kind"].as_str()), (Some(cabins[1].as_str()), Some("cabin")), "{a}");
+        let w = welcome_after_join(&mut cy, "HomeCy").await;
+        assert_eq!(welcome_plot(&w), Some(cabins[1].clone()), "Cy's join, asking for nothing, gets the cabin she chose");
+
+        let a = home_ask(&mut dee, &clock, None).await;
+        assert!(a["plot"].is_null(), "Dee holds no home: {a}");
+        assert_eq!(free_in(&a, "cabin"), Some(cabins.len() as u64 - 2), "two cabins held: {a}");
+        assert_eq!(free_in(&a, "homestead"), Some(homesteads.len() as u64 - 1), "one homestead held: {a}");
+        assert_eq!(free_in(&a, "apartment"), Some(0));
+        let text = a.to_string();
+        for (who, key) in [("Ann", &ann_key), ("Bo", &bo_key), ("Cy", &cy_key)] {
+            assert!(!text.contains(&key[..16]) && !text.contains(&crate::relay::storage::plot_owner_id(key)), "Dee's answer names {who}: {text}");
+        }
+        for id in [&cabins[0], &cabins[1], &homesteads[0]] {
+            assert!(!text.contains(&format!("\"{id}\"")), "Dee's answer names the plot {id}: {text}");
+        }
+
+        // The relay's log: the choice is there, by kind, and no line written for it names anyone.
+        let lines = log.text();
+        assert!(lines.contains("Game: home chosen (cabin)"), "the choice is logged: {lines}");
+        for line in lines.lines().filter(|l| l.contains("home chosen") || l.contains("home asked")) {
+            for key in [&ann_key, &bo_key, &cy_key, &dee_key] {
+                assert!(!line.contains(&key[..12]) && !line.contains(&crate::relay::storage::plot_owner_id(key)), "a home line names a key: {line}");
+            }
+            for id in [&cabins[0], &cabins[1], &homesteads[0]] {
+                assert!(!line.contains(id.as_str()), "a home line names a plot: {line}");
+            }
+        }
+
+        for mut s in [ann, bo, cy, dee] {
+            s.close(None).await.ok();
+        }
+        server.abort();
+    }
+
+    /// A GUEST CHOOSES A FREE CABIN, AND THE NEXT WELCOME GIVES IT (plan 3.5 and 3.7): twelve
+    /// households hold every homestead; Gil, asking for nothing, is a guest, and his welcome says
+    /// the homesteads were full and how many cabins are free; standing in the world, he chooses a
+    /// cabin and is answered `chose: true` with it; he steps out and joins again (what his game
+    /// does on that answer) and the welcome gives him the cabin, where the relay spawns him.
+    ///
+    /// Seen red 2026-10-12 with a choice refused for anyone standing in the world (answered
+    /// `again`): "Gil, a guest in the world, chose a cabin: {\"message\":\"The server is busy; try
+    /// again in a moment.\",\"plot\":null,\"refused\":\"again\",\"starts\":[],\"type\":\"game_home\"}".
+    #[tokio::test]
+    async fn a_guest_chooses_a_free_cabin_and_the_next_welcome_gives_it() {
+        let (state, port, server, clock, _path) = relay_with_cabins("guest_chooses").await;
+        let cabins = state.game_world.read().await.plot_ids_of_kind("cabin").iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        let homes = join_households(&state, port, 12, 61, 200).await;
+        assert!(homes.iter().all(|h| h.3.starts_with('p')), "twelve homesteads held: {:?}", homes.iter().map(|h| &h.3).collect::<Vec<_>>());
+
+        let (mut gil, gil_key) = bind_socket_from(&state, port, [220u8; 32], Some("HomeGil"), 1, Some("10.61.1.1")).await;
+        let w = welcome_after_join(&mut gil, "HomeGil").await;
+        assert_eq!(welcome_plot(&w), None, "every homestead held: Gil is a guest");
+        assert_eq!(w["home_full"], "homestead", "his welcome says the homesteads were full: {w}");
+        assert_eq!(w["home_free"]["cabin"], cabins.len() as u64, "and how many cabins are free: {w}");
+        assert_eq!(w["home_free"]["homestead"], 0, "{w}");
+        assert!(state.game_world.read().await.find_player_entity(&gil_key).is_some(), "Gil stands in the world");
+
+        let a = home_ask(&mut gil, &clock, Some("cabin")).await;
+        assert!(a["chose"] == true, "Gil, a guest in the world, chose a cabin: {a}");
+        assert_eq!(a["plot"]["id"].as_str(), Some(cabins[0].as_str()), "the first cabin: {a}");
+
+        send_json(&mut gil, serde_json::json!({ "type": "game_leave" })).await;
+        assert!(wait_until(|| async { state.game_world.read().await.find_player_entity(&gil_key).is_none() }).await, "Gil stepped out");
+        let w = welcome_after_join(&mut gil, "HomeGil").await;
+        assert_eq!(welcome_plot(&w), Some(cabins[0].clone()), "the next welcome gives him the cabin");
+        assert_eq!((w["home_plot"]["kind"].as_str(), w["home_plot"]["start"].as_str()), (Some("cabin"), Some("cabin")));
+        assert!(w.get("home_full").is_none(), "no longer a guest: {w}");
+        let at = relay_position(&state, &gil_key).await;
+        let plot = state.game_world.read().await.ship_plots.plot(&cabins[0]).cloned().unwrap();
+        assert!(
+            (plot.origin.0..=plot.origin.0 + plot.size.0).contains(&at[0]) && (plot.origin.2..=plot.origin.2 + plot.size.2).contains(&at[2]),
+            "Gil arrives on {}: the relay holds him at {at:?}",
+            plot.id
+        );
+
+        gil.close(None).await.ok();
         for (mut s, ..) in homes {
             s.close(None).await.ok();
         }
