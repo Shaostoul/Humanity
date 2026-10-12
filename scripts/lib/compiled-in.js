@@ -88,7 +88,11 @@ const ALLOWLIST = {};
 // says the built-in copy was served and a rig refuses the run.
 const FALLBACK_SITES = {
   "src/storage.rs::extract_embedded_to":
-    "first-run extraction (called by extract_data_if_needed, and by a test into a temp dir): writes every built-in copy out to a data dir that does not exist yet, then notes it once; a rig's data dir always exists (a junction to the tree's data/), so a rig never reaches it",
+    "first-run extraction (called by extract_data_if_needed, and by tests into a temp dir): writes every built-in copy out to a data dir that does not exist yet, with the stamp of what it wrote (storage/refresh.rs write_fresh), then notes it once; a rig's data dir always exists (a junction to the tree's data/), so a rig never reaches it",
+  "src/storage/refresh.rs::refresh_on_start":
+    "the data folder refresh on start (BUG-163 part 2, called by extract_data_if_needed for a folder that exists): writes a built-in copy only over a file that still holds what the game last wrote there, or where the file is absent, never over an edited one, and notes it once when it wrote any; it never touches a source tree's data/ or a folder reached through a link (why_left_alone), which every rig's is, so a rig never has a file written",
+  "src/storage/refresh.rs::use_the_games_copy":
+    "Settings > Data's \"Use the game's copy\" for one kept file, pressed by the player: moves their file aside and writes the built-in copy in its place, then notes it; refused in a source tree or a linked folder (why_left_alone)",
   "src/assets/mod.rs::parse_embedded_csv":
     "private; called only by AssetManager::load_csv_or_embedded, after the disk file is absent, unreadable or does not parse",
   "src/assets/mod.rs::parse_embedded_toml":

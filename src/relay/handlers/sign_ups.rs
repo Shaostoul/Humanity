@@ -310,7 +310,8 @@ mod tests {
     /// this file's erase paths, the erase itself (msg_handlers.rs `handle_account_delete`, and
     /// all of account_erase.rs: the steps both erases share, and an admin's erase of someone
     /// else, blocking-and-safe-mode.md 10i), what it calls to take the account out of the world
-    /// (home_plots.rs `leave_world_for_erase`),
+    /// (home_plots.rs `leave_world_for_erase`) and to pass on the person's profile withdrawal
+    /// (profile.rs `withdraw_on_erase`, BUG-191),
     /// and the teardown that runs when the erasing client closes its socket a moment later
     /// (relay.rs, from "Another socket for this identity is still open" to the departure),
     /// which names whoever left through `log_name_for` so an erased key is not named there.
@@ -343,7 +344,9 @@ mod tests {
         let erase = body("src/relay/handlers/msg_handlers.rs", "pub async fn handle_account_delete");
         let shared = read("src/relay/handlers/account_erase.rs");
         let shared = shared.split("#[cfg(test)]").next().unwrap();
-        let erase = format!("{erase}\n{shared}");
+        // What the person's own erase calls first: passing on their profile's withdrawal (BUG-191).
+        let withdraw = body("src/relay/handlers/profile.rs", "pub async fn withdraw_on_erase");
+        let erase = format!("{erase}\n{shared}\n{withdraw}");
         let leave = body("src/relay/handlers/home_plots.rs", "pub async fn leave_world_for_erase");
         let relay = read("src/relay/relay.rs");
         let teardown = &relay[relay.find("// ── Another socket for this identity is still open ──").unwrap()..];

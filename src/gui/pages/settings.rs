@@ -9,6 +9,9 @@ use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use crate::updater::{UpdateChannel, UpdateState};
 
+/// Settings > Data > "Data folder": what the last update refreshed and kept (BUG-163 part 2).
+mod data_folder;
+
 // Full-PQ: the web "import ECDH key" flow is gone. DMs are pure Kyber768
 // derived from the BIP39 seed — identical on web and native with no manual
 // key import, ever (that import existed only to bridge the old random
@@ -505,7 +508,8 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
              profile, settings sync, mailbox, reactions, codes and membership, your \
              progress in the shared world, what you built in the shared world, and \
              your home's plot on the ship (it goes to the next player; if you come \
-             back you get a free plot or a guest place). Type your display name \
+             back you get a free plot or a guest place). Your profile is also taken \
+             off the servers this one is linked with. Type your display name \
              exactly to arm the button.",
         );
         ui.add_space(theme.spacing_sm);
@@ -542,11 +546,12 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
             if armed
                 && widgets::Button::danger("Erase my account on this server").show(ui, theme)
             {
+                // With the withdrawal of the copy of their profile that other servers keep,
+                // signed here, so the server takes it off its linked servers first (BUG-191).
+                let typed = state.account_delete_confirm_input.trim().to_string();
+                let frame = crate::gui::pages::own_profile::erase_frame(state, &typed);
                 if let Some(ref client) = state.ws_client {
-                    client.send(&serde_json::json!({
-                        "type": "account_delete",
-                        "confirm_name": state.account_delete_confirm_input.trim(),
-                    }).to_string());
+                    client.send(&frame.to_string());
                 }
                 state.account_delete_confirm_input.clear();
             }
@@ -4478,6 +4483,8 @@ pub(crate) fn draw_data_content(ui: &mut egui::Ui, theme: &Theme, state: &mut Gu
                 }
             }
         }
+
+        data_folder::draw_data_folder(ui, theme, hint);
 
         ui.add_space(theme.spacing_lg);
         draw_save_snapshots(ui, theme, state);

@@ -1564,8 +1564,15 @@ pub async fn handle_friend_code_redeem(
 /// Erase the caller's account. Requires typing their exact registered
 /// name as confirmation; replies with a per-table receipt. Admin accounts
 /// must demote themselves first (a server must never lose its last admin
-/// to a mistyped confirmation flow).
-pub async fn handle_account_delete(state: &Arc<RelayState>, my_key: &str, confirm_name: String) {
+/// to a mistyped confirmation flow). `withdrawal`: the person's signed
+/// withdrawal of their profile's copy on linked servers (BUG-191 Wave 2B),
+/// passed on before the erase (profile.rs `withdraw_on_erase`).
+pub async fn handle_account_delete(
+    state: &Arc<RelayState>,
+    my_key: &str,
+    confirm_name: String,
+    withdrawal: Option<crate::relay::handlers::profile::Withdrawal>,
+) {
     let name = state.db.name_for_key(my_key).ok().flatten().unwrap_or_default();
     if name.is_empty() || confirm_name.trim() != name {
         let _ = state.broadcast_tx.send(RelayMessage::Private {
@@ -1582,6 +1589,9 @@ pub async fn handle_account_delete(state: &Arc<RelayState>, my_key: &str, confir
         });
         return;
     }
+    // Their profile's copy comes off the linked servers first: after the erase there is no copy
+    // held here for a withdrawal to replace, so it would go nowhere (BUG-191 Wave 2B).
+    crate::relay::handlers::profile::withdraw_on_erase(state, my_key, withdrawal).await;
     // The erase itself: the same steps an admin's erase of someone else takes (account_erase.rs
     // `carry_out`, blocking-and-safe-mode.md 10i), so the two cannot drift apart.
     crate::relay::handlers::account_erase::carry_out(state, my_key, &name, crate::relay::handlers::account_erase::ErasedBy::Themselves).await;
