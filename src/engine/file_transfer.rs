@@ -19,21 +19,38 @@
 //! 4. Whenever R has a transfer from S accepted and not paused, S is online and no connection
 //!    stands, R's app dials: it asks for one transfer's forwarder credentials with its pass
 //!    (`{"type":"call_credentials","file","peer","file_pass"}`) and starts the connection, whose
-//!    `dc_offer` carries that pass ([`pump`]). Signals carry no transfer id.
-//! 5. S's app, dialled by R ([`on_signal`]), asks for credentials for each of its live offers to R
-//!    (at most four, since it cannot know which one R chose) and answers with all of them. Every
-//!    transfer between the two then rides that one connection, each on its own channel
-//!    (`file:<id>`), opened by its receiver. If both dial at once, the larger key wins.
+//!    `dc_offer` carries that pass ([`pump`]).
+//! 5. The relay hands R's `dc_offer` to S with the pass's id as `file` (rule 7 below). S's app
+//!    ([`on_signal`]) asks for that one transfer's credentials and answers; each side holds ONE
+//!    allocation for the connection. Every transfer between the two then rides that one
+//!    connection, each on its own channel (`file:<id>`), opened by its receiver. If both dial at
+//!    once, the larger key wins.
 //!
 //! Either side may Cancel (on the channel when it is open, and always with the cancel note, so the
 //! other side's row says so even when no connection stands), Pause and Resume.
 //!
 //! THE RULES SETTLED BY THE FIRST REVIEW (media-showcase.md, 2026-10-12) that live here:
 //! - Rule 3: while S waits for its credentials to answer R's dial, R's `dc_ice` are kept for R
-//!   ([`Pair::early_ice`]) and handed to the connection, which applies them once its allocations
-//!   exist; none is dropped or handed to the call code ([`on_signal`]).
+//!   ([`Pair::early_ice`]) and handed to the connection, which applies them once its allocation
+//!   exists; none is dropped or handed to the call code ([`on_signal`]).
 //! - Rule 4: R's answer and cancel notes carry the offer's file pass on their `dm_put` to S
 //!   (`file_pass`), so they reach a sender who takes messages only from friends ([`send_note`]).
+//!
+//! AND BY THE SECOND REVIEW (2026-10-12):
+//! - Rule 7, a dial names its transfer: only a `dc_offer` carrying `file` (which the relay sets on
+//!   a dial it let in by a file pass, and never passes on from a client) is a file dial. S asks for
+//!   that transfer's credentials alone, so one allocation serves the connection; a dial naming a
+//!   transfer that is not one of this device's live offers to R is refused quietly ([`on_signal`]).
+//! - Rule 8, an end is always said: a failure on either side sends `cancel` on the channel (the
+//!   connection's protocol does) and the cancel note with the receiver's pass ([`on_end`]); a
+//!   channel R closes before `done`, without a word, ends S's transfer ("R's side stopped it") 15
+//!   seconds on if R is still on the connection and did not open it again, and is otherwise a drop
+//!   that waits for R's next dial; one S closes is opened again by R on the same connection
+//!   (net/file_link.rs). Either way the row stops saying it is open or paused at once
+//!   (`LinkEvent::TransferClosed`).
+//! - Rule 9, a dial is an answer: S, its record still waiting for R's answer note, takes the
+//!   transfer's channel opening as Accept and `done` as Sent ([`pump_link`], file_offer.rs
+//!   `advance`), so a lost answer note never leaves the row waiting.
 //!
 //! The runtime state (connections, progress) is [`Transfers`], kept in the chat's file state
 //! (`GuiState::files_flow.transfers`); what lasts is the DM store's record of each transfer.
@@ -92,9 +109,10 @@ pub struct Pair {
     pub phase: Phase,
     /// This side dialled (or is asking to).
     pub dialer: bool,
-    /// The credentials asked for this connection, by transfer: None while awaited, then the answer
-    /// (None: refused).
-    pub creds: Vec<(String, Option<Option<Relay>>)>,
+    /// The transfer whose forwarder credentials were asked for this connection, while the answer
+    /// is awaited: dialling, the oldest transfer accepted here; answering, the one the dial named.
+    /// One credential, so one allocation, per connection (rule 7 of the second review).
+    pub asked: Option<String>,
     /// Dialling: the pass of the transfer whose credentials it dials with.
     pub dial_pass: Option<FilePass>,
     /// Answering: the other side's WebRTC offer, waiting for this side's credentials.
@@ -117,7 +135,7 @@ impl Default for Pair {
             link: None,
             phase: Phase::Idle,
             dialer: false,
-            creds: Vec::new(),
+            asked: None,
             dial_pass: None,
             their_offer: None,
             early_ice: Vec::new(),
@@ -628,38 +646,25 @@ pub fn read_credentials(frame: &serde_json::Value) -> Option<(String, Option<Rel
     Some((id, relay))
 }
 
-/// Ask for the credentials of `ids` (transfers with `peer`), for a connection this side dials
-/// (`dialer`) or answers.
-fn ask_credentials(gs: &mut GuiState, peer: &str, ids: &[String], dialer: bool) {
-    let mut asked = Vec::new();
-    for id in ids {
-        if let Some(r) = record(gs, id) {
-            if send_frame(gs, &credentials_request(id, peer, &r.offer.pass)) {
-                asked.push(id.clone());
-            }
-        }
-    }
-    let dial_pass = if dialer { ids.first().and_then(|id| record(gs, id)).map(|r| r.offer.pass.clone()) } else { None };
+/// Ask for the credentials of transfer `id` (with `peer`), the one credential of a connection this
+/// side dials (`dialer`) or answers (rule 7: one allocation per connection, whatever it carries).
+fn ask_credentials(gs: &mut GuiState, peer: &str, id: &str, dialer: bool) {
+    let pass = record(gs, id).map(|r| r.offer.pass.clone());
+    let sent = pass.as_ref().is_some_and(|p| send_frame(gs, &credentials_request(id, peer, p)));
     let pair = gs.files_flow.transfers.pair(peer);
     pair.dialer = dialer;
-    pair.dial_pass = dial_pass;
-    pair.creds = asked.into_iter().map(|id| (id, None)).collect();
-    pair.phase = if pair.creds.is_empty() { Phase::Dropped(Instant::now()) } else { Phase::Asking(Instant::now()) };
+    pair.dial_pass = if dialer { pass } else { None };
+    pair.asked = sent.then(|| id.to_string());
+    pair.phase = if sent { Phase::Asking(Instant::now()) } else { Phase::Dropped(Instant::now()) };
 }
 
 /// A frame the message pump did not handle (engine/call_relay.rs `on_frame` passes it here first):
 /// true when it was a transfer's `call_credentials` answer.
 pub fn on_credentials(gs: &mut GuiState, frame: &serde_json::Value) -> bool {
     let Some((id, relay)) = read_credentials(frame) else { return false };
-    let peer = gs.files_flow.transfers.pairs.iter().find(|(_, p)| matches!(p.phase, Phase::Asking(_)) && p.creds.iter().any(|(i, a)| *i == id && a.is_none())).map(|(k, _)| k.clone());
+    let peer = gs.files_flow.transfers.pairs.iter().find(|(_, p)| matches!(p.phase, Phase::Asking(_)) && p.asked.as_deref() == Some(id.as_str())).map(|(k, _)| k.clone());
     let Some(peer) = peer else { return true }; // not awaited (given up on, or another device's)
-    let pair = gs.files_flow.transfers.pair(&peer);
-    if let Some(slot) = pair.creds.iter_mut().find(|(i, _)| *i == id) {
-        slot.1 = Some(relay);
-    }
-    if pair.creds.iter().all(|(_, a)| a.is_some()) {
-        start_link(gs, &peer);
-    }
+    start_link(gs, &peer, relay);
     true
 }
 
@@ -683,7 +688,7 @@ fn transfer_of(gs: &mut GuiState, r: &OfferRecord, name: &str) -> Option<Transfe
     let side = if r.outgoing {
         let mut proto = Sending::new(r.offer.clone(), live.hashes.clone());
         proto.set_paused(r.paused);
-        Side::Send { proto, path: PathBuf::from(&r.path) }
+        Side::Send { proto, path: PathBuf::from(&r.path), receiver: name.to_string() }
     } else {
         if r.stage != Stage::Accepted {
             return None;
@@ -699,26 +704,31 @@ fn transfer_of(gs: &mut GuiState, r: &OfferRecord, name: &str) -> Option<Transfe
     Some(Transfer { id: r.offer.id.clone(), side })
 }
 
-/// Every credential answered (or the wait ran out): start the connection with those granted, or
-/// say the server is not set up.
-fn start_link(gs: &mut GuiState, peer: &str) {
-    let relays: Vec<Relay> = gs.files_flow.transfers.pair(peer).creds.iter().filter_map(|(_, a)| a.clone().flatten()).collect();
-    if relays.is_empty() {
-        let pair = gs.files_flow.transfers.pair(peer);
-        pair.phase = Phase::NotSetUp(Instant::now());
-        pair.their_offer = None;
-        pair.early_ice.clear();
-        pair.creds.clear();
+/// Nothing more is awaited for the connection with `peer`: it is at `phase`, with no offer of
+/// theirs to answer, no candidates kept and no credentials asked.
+fn give_up(pair: &mut Pair, phase: Phase) {
+    pair.phase = phase;
+    pair.their_offer = None;
+    pair.early_ice.clear();
+    pair.asked = None;
+}
+
+/// The credential came (or the wait ran out: None): start the connection with it, or say the
+/// server is not set up.
+fn start_link(gs: &mut GuiState, peer: &str, relay: Option<Relay>) {
+    let Some(relay) = relay else {
+        give_up(gs.files_flow.transfers.pair(peer), Phase::NotSetUp(Instant::now()));
         log::info!("file transfer: the server gave no forwarder credentials");
+        return;
+    };
+    let pair = gs.files_flow.transfers.pair(peer);
+    if !pair.dialer && pair.their_offer.is_none() {
+        give_up(pair, Phase::Idle);
         return;
     }
     let transfers = transfers_for(gs, peer);
     if transfers.is_empty() {
-        let pair = gs.files_flow.transfers.pair(peer);
-        pair.phase = Phase::Idle;
-        pair.their_offer = None;
-        pair.early_ice.clear();
-        pair.creds.clear();
+        give_up(gs.files_flow.transfers.pair(peer), Phase::Idle);
         return;
     }
     let ids: HashSet<String> = transfers.iter().map(|t| t.id.clone()).collect();
@@ -730,39 +740,51 @@ fn start_link(gs: &mut GuiState, peer: &str) {
         peer: peer.to_string(),
         dial_pass: if pair.dialer { pair.dial_pass.clone() } else { None },
         their_offer: if pair.dialer { None } else { pair.their_offer.take() },
-        relays,
+        relay,
         transfers,
         bind,
         // The candidates that came while this side waited (rule 3), applied by the connection
-        // once its allocations exist.
+        // once its allocation exists.
         early_ice: std::mem::take(&mut pair.early_ice),
     };
-    if !pair.dialer && setup.their_offer.is_none() {
-        pair.phase = Phase::Idle;
-        return;
-    }
     pair.link = Some(FileLink::start(setup));
     pair.on_link = ids;
-    pair.creds.clear();
+    pair.asked = None;
     pair.their_dial_set_aside = false; // from here on their candidates go to the connection
     pair.phase = Phase::Connecting;
 }
 
-/// The live offers this device makes to `peer`, newest first, at most four: the transfers whose
-/// credentials it asks for when `peer` dials (the receiver chose one of them).
-fn live_offers_to(gs: &GuiState, peer: &str) -> Vec<String> {
-    let mut v: Vec<&OfferRecord> = records_with(gs, peer).filter(|r| r.outgoing && r.here && !r.stage.ended()).collect();
-    v.sort_by(|a, b| b.at.cmp(&a.at));
-    v.into_iter().take(file_link::MAX_RELAYS).map(|r| r.offer.id.clone()).collect()
+/// Whether transfer `id` is one of the live offers this device makes to `peer` (its file is here
+/// and the transfer has not ended): the only transfers a dial from `peer` may name (rule 7).
+fn is_live_offer_to(gs: &GuiState, peer: &str, id: &str) -> bool {
+    records_with(gs, peer).any(|r| r.offer.id == id && r.outgoing && r.here && !r.stage.ended())
+}
+
+/// Let go of the connection standing with `peer` (its thread stops when its handle is dropped):
+/// the transfers it carried are no longer open or paused by them.
+fn let_go(gs: &mut GuiState, peer: &str) {
+    let pair = gs.files_flow.transfers.pair(peer);
+    pair.link = None;
+    let was: Vec<String> = pair.on_link.drain().collect();
+    for id in was {
+        let live = gs.files_flow.transfers.entry(&id);
+        live.open = false;
+        live.paused_them = false;
+    }
 }
 
 /// A `webrtc_signal` (frame_ws_poll.rs): true when it is for the file connection with its sender,
-/// taken here whatever becomes of it. Signals carry no transfer id, so it is told by who sent it:
-/// a `dc_offer` from someone this device has live offers to (it is answered as their file
-/// connection, with credentials for each of those offers), a `dc_answer` or `dc_ice` from someone a
-/// file connection stands with, a `dc_ice` from someone whose dial this side is answering but has
-/// no credentials for yet (kept, rule 3), and a `dc_ice` of a dial set aside when both dialled.
-/// Anything else is left for the app's WebRTC manager.
+/// taken here whatever becomes of it:
+/// - a `dc_offer` naming its transfer (`file`, which the relay sets on a dial it let in by a file
+///   pass and never passes on from a client: rule 7). Naming one of this device's live offers to
+///   its sender, it is answered as their file connection with that one transfer's credentials;
+///   naming anything else, it is refused quietly (nothing is sent and nothing shown: another of
+///   this person's devices may hold that file), and never given to the call code;
+/// - a `dc_answer` or `dc_ice` from someone a file connection stands with;
+/// - a `dc_ice` from someone whose dial this side is answering but has no credentials for yet
+///   (kept, rule 3), and a `dc_ice` of a dial set aside when both dialled.
+///
+/// Anything else, a `dc_offer` naming no transfer included, is left for the app's WebRTC manager.
 pub fn on_signal(gs: &mut GuiState, frame: &serde_json::Value) -> bool {
     let from = frame.get("from").and_then(|v| v.as_str()).unwrap_or("").to_string();
     let signal_type = frame.get("signal_type").and_then(|v| v.as_str()).unwrap_or("");
@@ -773,9 +795,12 @@ pub fn on_signal(gs: &mut GuiState, frame: &serde_json::Value) -> bool {
     let text = file_link::signal_text(&data);
     match signal_type {
         "dc_offer" => {
-            let offers = live_offers_to(gs, &from);
-            if offers.is_empty() {
-                return false;
+            let Some(id) = frame.get("file").and_then(|v| v.as_str()).filter(|f| fo::is_id(f)).map(str::to_string) else {
+                return false; // not a file dial: a friend's direct connection, the manager's
+            };
+            if !is_live_offer_to(gs, &from, &id) {
+                log::info!("file transfer: a dial for a transfer this device is not offering them was not answered");
+                return true;
             }
             let me = gs.profile_public_key.clone();
             let pair = gs.files_flow.transfers.pair(&from);
@@ -786,13 +811,14 @@ pub fn on_signal(gs: &mut GuiState, frame: &serde_json::Value) -> bool {
                 pair.their_dial_set_aside = true;
                 return true;
             }
-            // Theirs stands: any attempt or connection of ours is let go, and this one answered.
-            pair.link = None;
-            pair.on_link.clear();
+            // Theirs stands: any attempt or connection of ours is let go, and this one answered
+            // with the credentials of the transfer it names, the connection's one allocation.
+            let_go(gs, &from);
+            let pair = gs.files_flow.transfers.pair(&from);
             pair.their_offer = Some(text);
             pair.early_ice.clear();
             pair.their_dial_set_aside = false;
-            ask_credentials(gs, &from, &offers, false);
+            ask_credentials(gs, &from, &id, false);
             true
         }
         "dc_answer" | "dc_ice" => {
@@ -809,8 +835,8 @@ pub fn on_signal(gs: &mut GuiState, frame: &serde_json::Value) -> bool {
             }
             // RULE 3 OF THE FIRST REVIEW: answering their dial, still waiting for this side's
             // credentials, so no connection stands to take it yet. Kept, and handed to the
-            // connection when it starts (`start_link`), which applies it once its allocations
-            // exist. Before this, it fell through to the call code and was lost, and the forwarder
+            // connection when it starts (`start_link`), which applies it once its allocation
+            // exists. Before this, it fell through to the call code and was lost, and the forwarder
             // then dropped the dialler's packets for want of a permission toward its address.
             if pair.their_offer.is_some() {
                 if pair.early_ice.len() < file_link::MAX_EARLY_ICE {
@@ -865,23 +891,25 @@ pub fn pump(gs: &mut GuiState) {
         }
     }
     for peer in peers_live {
-        // Credentials not all answered in time: start with what came.
+        // The credential not answered in time: the server is not set up for it.
         if let Phase::Asking(t) = gs.files_flow.transfers.phase(&peer) {
             if now.duration_since(t) >= CREDENTIALS_WAIT {
-                start_link(gs, &peer);
+                start_link(gs, &peer, None);
             }
         }
         if gs.files_flow.transfers.pair(&peer).link.is_some() {
             join_link(gs, &peer);
             continue;
         }
-        let wants: Vec<String> = records_with(gs, &peer)
+        // The dial goes with the oldest transfer accepted here: its credential is the
+        // connection's one allocation, and every other transfer with them joins it.
+        let wants: Option<String> = records_with(gs, &peer)
             .filter(|r| !r.outgoing && r.here && r.stage == Stage::Accepted && !r.paused)
             .map(|r| (r.at, r.offer.id.clone()))
             .min()
-            .map(|(_, id)| vec![id])
-            .unwrap_or_default();
-        if wants.is_empty() || !peer_online(gs, &peer) || !connected(gs) {
+            .map(|(_, id)| id);
+        let Some(wants) = wants else { continue };
+        if !peer_online(gs, &peer) || !connected(gs) {
             continue;
         }
         let due = match gs.files_flow.transfers.phase(&peer) {
@@ -957,7 +985,24 @@ fn pump_link(gs: &mut GuiState, peer: &str) {
             LinkEvent::RelayReady => gs.files_flow.transfers.pair(peer).phase = Phase::Connecting,
             LinkEvent::RelayUnavailable => gs.files_flow.transfers.pair(peer).phase = Phase::NotSetUp(Instant::now()),
             LinkEvent::Open => gs.files_flow.transfers.pair(peer).phase = Phase::Open,
-            LinkEvent::TransferOpen(id) => gs.files_flow.transfers.entry(&id).open = true,
+            LinkEvent::TransferOpen(id) => {
+                gs.files_flow.transfers.entry(&id).open = true;
+                // RULE 9 OF THE SECOND REVIEW, a dial is an answer: the receiver opens a
+                // transfer's channel only once it accepted, so a sender whose record still waits
+                // for the answer note (lost, or slower than the dial) takes this as the answer.
+                let accepted = record(gs, &id).filter(|r| r.outgoing && r.peer == peer).and_then(|r| fo::advance(&r.stage, &Happened::Accepted));
+                if let Some(next) = accepted {
+                    with_record(gs, &id, |r| r.stage = next);
+                }
+            }
+            LinkEvent::TransferClosed(id) => {
+                // Rule 8: the other side closed its channel. Not open, and a pause they held is
+                // over (they say it again if it still holds); the connection opens it again, or
+                // ends the transfer, and says which.
+                let live = gs.files_flow.transfers.entry(&id);
+                live.open = false;
+                live.paused_them = false;
+            }
             LinkEvent::Wanted(id) => {
                 // The other side opened a channel for a transfer of ours with them: it joins.
                 let r = record(gs, &id).filter(|r| r.peer == peer && r.here && !r.stage.ended()).cloned();
@@ -995,9 +1040,12 @@ fn pump_link(gs: &mut GuiState, peer: &str) {
     }
 }
 
-/// How a transfer's channel ended, into its record. A failure on this side is told to the other
-/// side with the cancel note too (its row then says they cancelled), since it will not be tried
-/// again.
+/// How a transfer's channel ended, into its record. A failure on this side (its words, including
+/// "Ann's side stopped it" when they closed the channel and stayed on the connection) is told to
+/// the other side with the cancel note too, the receiver's carrying its pass (rule 8 of the second
+/// review: an end is always said; the channel's `cancel` went from the connection's protocol when
+/// the channel was open). Its row then says they cancelled. `done` ends a sender still waiting for
+/// the answer note as Sent (rule 9, file_offer.rs `advance`).
 fn on_end(gs: &mut GuiState, id: &str, end: End) {
     let Some(r) = record(gs, id).cloned() else { return };
     let what = match &end {

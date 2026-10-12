@@ -46,6 +46,13 @@
 //! forgets what it asked when the sender's pause reaches it (everything sent before it has
 //! arrived by then); after its own pause it still takes what was already on its way, and its
 //! resume asks again from the first missing piece.
+//!
+//! RULE 8 OF THE SECOND REVIEW ("an end is always said"): every end here other than `done` says
+//! `cancel` on the channel when it is open (a piece bad three times, a list or a whole file that
+//! does not match, a piece the disk refused, a file that cannot be read, the person's Cancel), and
+//! the engine sends the cancel note besides. A channel the other side closes before `done` is
+//! net/file_link.rs's to handle: the sender ends ([`Sending::stopped`], [`stopped_line`]), the
+//! receiver opens it again ([`Receiving::closed`] forgets what was asked and the pause they held).
 
 use std::collections::{BTreeSet, HashMap, VecDeque};
 use std::sync::Arc;
@@ -141,6 +148,18 @@ pub fn damaged_line(name: &str) -> String {
 /// The words when the whole file did not match the offer.
 pub fn whole_mismatch_line(name: &str, sender: &str) -> String {
     format!("{name} did not match what {sender} offered, so it was not saved.")
+}
+
+/// The sender's words when the receiver closed the transfer's channel before `done` (rule 8 of the
+/// second review), `receiver` being their name.
+pub fn stopped_line(receiver: &str) -> String {
+    format!("{receiver}'s side stopped it")
+}
+
+/// `{"t":"cancel"}`, for a transfer that already ended here when the other side opens its channel
+/// again (rule 8: an end is always said).
+pub fn cancel_message() -> Out {
+    say("cancel")
 }
 
 /// Where a file's bytes are read and written: the part file (receiver), the file sent (sender).
@@ -308,7 +327,9 @@ impl Receiving {
         Step::out(out)
     }
 
-    /// The connection dropped.
+    /// The channel closed (the connection dropped, or the other side closed it): what was asked
+    /// went with it, and a pause they held is cleared (they say it again on the next channel if it
+    /// still holds).
     pub fn closed(&mut self) {
         self.open = false;
         self.asked.clear();
@@ -678,7 +699,8 @@ impl Sending {
         if self.paused_me && !self.ended { vec![say("pause")] } else { Vec::new() }
     }
 
-    /// The connection dropped.
+    /// The channel closed (the connection dropped, or the receiver closed it): what was owed went
+    /// with it.
     pub fn closed(&mut self) {
         self.open = false;
         self.drop_owed();
@@ -712,6 +734,19 @@ impl Sending {
         }
         self.ended = true;
         Step { out: if self.open { vec![say("cancel")] } else { Vec::new() }, events: vec![Event::Ended(End::Cancelled { by_them: false })] }
+    }
+
+    /// The receiver closed this transfer's channel before `done` and is still on the connection
+    /// (rule 8 of the second review): the transfer ends with `words` (net/file_link.rs decides when,
+    /// and the engine sends the cancel note). Nothing is said on the channel: it is gone.
+    pub fn stopped(&mut self, words: String) -> Step {
+        if self.ended {
+            return Step::default();
+        }
+        self.ended = true;
+        self.open = false;
+        self.drop_owed();
+        Step { out: Vec::new(), events: vec![Event::Ended(End::Failed(words))] }
     }
 
     /// A text message from the receiver.
