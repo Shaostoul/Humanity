@@ -1,4 +1,5 @@
 use super::Storage;
+use crate::relay::core::profile_copy::kept_for_friends;
 use rusqlite::params;
 use std::collections::HashMap;
 
@@ -13,13 +14,12 @@ pub const ACCEPTS_FILES_WORDS: [&str; 3] = ["nobody", "friends", "anyone"];
 pub const ACCEPTS_FILES_DEFAULT: &str = "friends";
 
 /// `value` as a copy anyone may see carries it: empty when the privacy map `privacy_json` keeps
-/// `field` for friends ("private"). An unreadable map leaves it public, as everywhere else.
+/// `field` for friends ("private"). Read the one way every side reads it
+/// (`core::profile_copy::kept_for_friends`, BUG-191): a map that is not an object leaves it
+/// public. Until 2026-10-12 this parsed the map as words only, so ONE value that was not a word
+/// made every field public.
 pub fn public_field(privacy_json: &str, field: &str, value: &str) -> String {
-    let private = serde_json::from_str::<std::collections::HashMap<String, String>>(privacy_json)
-        .ok()
-        .and_then(|m| m.get(field).cloned())
-        .is_some_and(|v| v == "private");
-    if private { String::new() } else { value.to_string() }
+    if kept_for_friends(privacy_json, field) { String::new() } else { value.to_string() }
 }
 
 /// `word` if it is one of [`ACCEPTS_FILES_WORDS`], exactly as written (no trimming or case
@@ -216,15 +216,9 @@ impl Storage {
         };
         let (bio, socials, avatar_url, banner_url, pronouns, location, website, privacy_json) = row;
 
-        // Parse the privacy map; unknown fields default to public.
-        let privacy: std::collections::HashMap<String, String> =
-            serde_json::from_str(&privacy_json).unwrap_or_default();
-
-        let is_private = |field: &str| -> bool {
-            // A field is hidden if it is marked "private" AND the requester is not a friend.
-            !requester_is_friend
-                && privacy.get(field).map(|v| v == "private").unwrap_or(false)
-        };
+        // A field is hidden if the person keeps it for friends AND the requester is not a friend,
+        // by the one reading of the privacy map every side uses (BUG-191).
+        let is_private = |field: &str| -> bool { !requester_is_friend && kept_for_friends(&privacy_json, field) };
 
         let mut map = std::collections::HashMap::new();
         // bio and socials are always visible — they serve as the public-facing display.
@@ -260,6 +254,33 @@ mod tests {
             c.query_row("SELECT accepts_files FROM profiles WHERE name = ?1 COLLATE NOCASE", params![name], |r| r.get(0))
                 .optional()
         })
+    }
+
+    /// THE RELAY READS A PRIVACY MAP ONE WAY, the way the copy for other servers is built
+    /// (`core::profile_copy::kept_for_friends`, BUG-191): a field is kept for friends when its
+    /// value is the word "private", even when another value in the map is not a word (a map no app
+    /// writes now, but a row saved before the save checked for it may hold one); any other word,
+    /// or a map that is not an object, leaves it public. The member lookup (`public_field`) and
+    /// the chat profile (`get_public_profile`) both read it so, and a friend still sees the field.
+    ///
+    /// Seen red 2026-10-12 with the map parsed as words only again (`HashMap<String, String>` in
+    /// `public_field`): "a map holding a number still keeps the location for friends"
+    /// (left "Lisbon", right "").
+    #[test]
+    fn the_relay_reads_a_privacy_map_one_way() {
+        let with_a_number = r#"{"location":"private","since":2019}"#;
+        assert_eq!(public_field(with_a_number, "location", "Lisbon"), "", "a map holding a number still keeps the location for friends");
+        assert_eq!(public_field(with_a_number, "pronouns", "she"), "she");
+        for map in [r#"{"location":"friends"}"#, "[]", "not json", ""] {
+            assert_eq!(public_field(map, "location", "Lisbon"), "Lisbon", "{map:?} keeps nothing");
+        }
+
+        let db = Storage::open_temp("privacy_one_way");
+        db.save_profile_extended("Ann", "hi", "{}", "", "", "she", "Lisbon", "", with_a_number, None).unwrap();
+        let shown = db.get_public_profile("Ann", false).unwrap().expect("a profile");
+        assert_eq!((shown.get("location"), shown.get("pronouns").map(String::as_str)), (None, Some("she")), "the chat profile reads it the same way: {shown:?}");
+        let to_a_friend = db.get_public_profile("Ann", true).unwrap().expect("a profile");
+        assert_eq!(to_a_friend.get("location").map(String::as_str), Some("Lisbon"), "a friend sees it");
     }
 
     /// BUG-046's rule for a new column on a live table: a database from before `accepts_files`

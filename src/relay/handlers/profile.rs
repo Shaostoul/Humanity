@@ -3,16 +3,32 @@
 //! app signs (`profile_sign`, BUG-191).
 //!
 //! Moved out of msg_handlers.rs on 2026-10-12 (docs/design/bug-191-profile-copies-plan.md,
-//! Wave 0) to make room under the file-size ratchet for asking for that copy and checking it. The
-//! two handlers moved verbatim, but for the two new own-copy fields (`signed_at`, `sign_now`) and
-//! the save's unsigned copy for other servers, which is gone.
+//! Wave 0) to make room under the file-size ratchet for asking for that copy and checking it.
+//!
+//! THE COPY FOR OTHER SERVERS (BUG-191, Wave 1A, plan 3.3 and 3.5). The save stores no copy
+//! itself. Its echo, the person's own complete copy sent to each of their devices, asks each one
+//! to sign the public copy of what was stored (`sign_now`, decided by `ask_for_copy`); a device
+//! that was asked answers with `profile_sign`, which `handle_profile_sign` checks against the copy
+//! it rebuilds from what it stored, keeps, and passes on to the servers this one is linked with.
+//! Going unlisted is the same path: the public copy is then the withdrawal, which replaces every
+//! copy already passed on.
 
+use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
-use crate::relay::core::profile_copy::{PublicCopy, BIO_MAX_CHARS};
+use crate::relay::core::profile_copy::{self, public_copy, PublicCopy, BIO_MAX_CHARS, MAX_AHEAD_MS};
+use crate::relay::handlers::federation::{gossip_profile, key_in_log};
 use crate::relay::handlers::friend_passes::friend_pass;
 use crate::relay::relay::{RelayMessage, RelayState};
+
+/// How long an ask to sign stays open (plan 3.5 step 1): a `profile_sign` from a key this server
+/// did not ask within the last minute is dropped, so a device cannot push copies nobody asked for.
+pub const ASK_LIFETIME: Duration = Duration::from_secs(60);
+
+/// What a person is told when their device dated its copy more than a day ahead of this server's
+/// clock: the one refusal they can fix themselves (plan 3.5 step 6).
+pub const CLOCK_AHEAD_NOTICE: &str = "Your profile is saved on this server, but it was not passed on to the servers this one is linked with: your device's clock is more than a day ahead. Set your clock right, then save your profile again.";
 
 pub async fn handle_profile_update(
     state: &Arc<RelayState>,
@@ -70,7 +86,12 @@ pub async fn handle_profile_update(
             return;
         }
 
-        if socials.len() > 1024 || serde_json::from_str::<serde_json::Value>(&socials).is_err() {
+        // The links are a JSON object (2026-10-12): the copy for other servers is held to that
+        // (`profile_copy::within_limits`), so a save that stored anything else (any JSON was
+        // accepted) could never be signed, and the copy already out there, perhaps with a field
+        // since kept for friends, would stay. Both apps always send an object.
+        let links_object = matches!(serde_json::from_str::<serde_json::Value>(&socials), Ok(serde_json::Value::Object(_)));
+        if socials.len() > 1024 || !links_object {
             let private = RelayMessage::Private {
                 to: my_key.to_string(),
                 message: "Invalid socials data.".to_string(),
@@ -143,6 +164,18 @@ pub async fn handle_profile_update(
         let loc     = location.as_deref().unwrap_or("").trim().to_string();
         let priv_map = privacy.as_deref().unwrap_or("{}").trim().to_string();
 
+        // No line break in a one-line field (BUG-191): the words a copy's signature covers are one
+        // field a line, and only the bio may hold a line break, so they split one way only
+        // (`profile_copy::within_limits`, which every receiving server holds a copy to). No app's
+        // inputs can type one; the trim above already took any at the ends.
+        if [&pronoun, &loc, &avatar, &banner, &w_site, &socials].iter().any(|s| s.contains('\n')) {
+            let _ = state.broadcast_tx.send(RelayMessage::Private {
+                to: my_key.to_string(),
+                message: "Pronouns, location and links cannot hold a line break.".to_string(),
+            });
+            return;
+        }
+
         for url_val in &[&avatar, &banner, &w_site] {
             if url_val.is_empty() { continue; }
             if is_dangerous(url_val) || (!url_val.starts_with("https://")) {
@@ -155,7 +188,14 @@ pub async fn handle_profile_update(
             }
         }
 
-        if serde_json::from_str::<serde_json::Value>(&priv_map).is_err() {
+        // The privacy map is an object of words (BUG-191): every side reads it one way
+        // (`profile_copy::kept_for_friends`), and a map holding anything but words is one no app
+        // writes. Any JSON at all was accepted until 2026-10-12.
+        let words_only = matches!(
+            serde_json::from_str::<serde_json::Value>(&priv_map),
+            Ok(serde_json::Value::Object(map)) if map.values().all(serde_json::Value::is_string)
+        );
+        if !words_only {
             let private = RelayMessage::Private {
                 to: my_key.to_string(),
                 message: "Invalid privacy map.".to_string(),
@@ -209,13 +249,35 @@ pub async fn handle_profile_update(
                 // The person's own copy goes to every device signed in under this name: a linked
                 // device has a key of its own (a link code adds one under the name), and each needs
                 // the privacy map to send the whole profile back without undoing this save.
-                let mut own_keys = state.db.keys_for_name(name).unwrap_or_default();
+                //
+                // BUG-191: each copy names the person as THAT device's socket does (the name its
+                // app signs into the copy for other servers), and asks it to sign that copy when
+                // it changed (`ask_for_copy`, `just_saved`), so every online device re-signs and
+                // the person's keys agree. Going unlisted asks for the withdrawal the same way. A
+                // key not registered to the name (a placeholder name such as "Player", whose
+                // profile row anyone using it shares) is never asked.
+                let registered = state.db.keys_for_name(name).unwrap_or_default();
+                let mut own_keys = registered.clone();
                 if !own_keys.iter().any(|k| k == my_key) {
                     own_keys.push(my_key.to_string());
                 }
+                let socket_names: HashMap<String, String> = {
+                    let peers = state.peers.read().await;
+                    own_keys
+                        .iter()
+                        .filter_map(|k| peers.get(k).and_then(|p| p.display_name.clone()).map(|n| (k.clone(), n)))
+                        .collect()
+                };
                 for key in own_keys {
+                    let shown = socket_names.get(&key).cloned().unwrap_or_else(|| name.clone());
+                    let ask = if registered.contains(&key) {
+                        let copy = public_copy(&shown, &clean_bio, &avatar, &banner, &socials, &pronoun, &loc, &w_site, &priv_map);
+                        ask_for_copy(state, &key, &copy, &priv_map, true)
+                    } else {
+                        CopyAsk::default()
+                    };
                     let _ = state.broadcast_tx.send(RelayMessage::ProfileData {
-                        name: name.clone(),
+                        name: shown,
                         bio: clean_bio.clone(),
                         socials: socials.clone(),
                         avatar_url: if avatar.is_empty() { None } else { Some(avatar.clone()) },
@@ -226,24 +288,13 @@ pub async fn handle_profile_update(
                         accepts_files: Some(accepts_files_stored.clone()),
                         privacy: Some(priv_map.clone()),
                         stored: Some(true),
-                        signed_at: None,
-                        sign_now: None,
+                        signed_at: Some(ask.signed_at),
+                        sign_now: Some(ask.sign_now),
                         target: Some(key),
                     });
                 }
-
-                // The save no longer writes the copy kept for other servers (BUG-191): nothing signed it,
-                // so every linked server refused it, and before 2026-10-11 it held fields kept for friends.
-                // The person's own app signs the public copy after this echo (handle_profile_sign). Until
-                // the signed withdrawal (Wave 1A), going unlisted still removes this server's own copy.
-                let unlisted = privacy
-                    .as_deref()
-                    .and_then(|p| serde_json::from_str::<serde_json::Value>(p).ok())
-                    .and_then(|v| v.get("directory").and_then(|d| d.as_str()).map(|s| s == "unlisted"))
-                    .unwrap_or(false);
-                if unlisted {
-                    let _ = state.db.delete_signed_profile(my_key);
-                }
+                // The save writes no copy for other servers itself (BUG-191): the devices asked
+                // above sign it, and `handle_profile_sign` keeps it and passes it on.
             }
             Err(e) => {
                 tracing::error!("Failed to save profile: {e}");
@@ -284,8 +335,12 @@ pub async fn handle_profile_request(
 
     // The person asking for their OWN profile (an app that has not had its own copy from this
     // server, such as one switched to without a fresh connect) gets their complete copy, privacy
-    // map included, as on connect; an empty one when they have no profile here yet.
+    // map included, as on connect; an empty one when they have no profile here yet. It names them
+    // as their socket does, not as they asked ("ann" for "Ann"), because their app signs that
+    // name into the copy for other servers (BUG-191); and, as on connect, it asks them to sign
+    // only when the copy out there shows more than they allow here now (`just_saved` false).
     if state.db.keys_for_name(&name).map(|keys| keys.iter().any(|k| k == my_key)).unwrap_or(false) {
+        let own_name = state.peers.read().await.get(my_key).and_then(|p| p.display_name.clone()).unwrap_or_else(|| name.clone());
         // A profile that could not be read is not answered: an empty copy would be taken as the
         // server's, and the app's next save would wipe the profile (no row is an empty profile).
         let row = match state.db.get_profile_extended(&name) {
@@ -297,21 +352,25 @@ pub async fn handle_profile_request(
         };
         let stored = row.is_some();
         let (bio, socials, avatar_url, banner_url, pronouns, location, website, privacy) = row.unwrap_or_default();
+        let socials = if socials.trim().is_empty() { "{}".to_string() } else { socials };
+        let privacy = if privacy.trim().is_empty() { "{}".to_string() } else { privacy };
+        let copy = public_copy(&own_name, &bio, &avatar_url, &banner_url, &socials, &pronouns, &location, &website, &privacy);
+        let ask = ask_for_copy(state, my_key, &copy, &privacy, false);
         let opt = |s: String| if s.is_empty() { None } else { Some(s) };
         let _ = state.broadcast_tx.send(RelayMessage::ProfileData {
-            name: name.clone(),
+            name: own_name,
             bio,
-            socials: if socials.trim().is_empty() { "{}".to_string() } else { socials },
+            socials,
             avatar_url: opt(avatar_url),
             banner_url: opt(banner_url),
             pronouns: opt(pronouns),
             location: opt(location),
             website: opt(website),
             accepts_files: Some(state.db.accepts_files_of(&name)),
-            privacy: Some(if privacy.trim().is_empty() { "{}".to_string() } else { privacy }),
+            privacy: Some(privacy),
             stored: Some(stored),
-            signed_at: None,
-            sign_now: None,
+            signed_at: Some(ask.signed_at),
+            sign_now: Some(ask.sign_now),
             target: Some(my_key.to_string()),
         });
         return;
@@ -374,27 +433,120 @@ pub struct CopyAsk {
 }
 
 /// Whether to ask `key`'s device to sign the public copy `now` (the copy of what this server
-/// stored, under `privacy`), as `profile_copy::sign_wanted` decides against the copy held here;
-/// the ask is recorded in `RelayState::profile_sign_asks`, and never made for a key that is not a
-/// person's (bots). `just_saved`: the echo of a save (ask whenever the copy changed), rather than
-/// a connect or the person's own request (ask only to narrow what is out there).
-///
-/// WAVE 0 STUB: answers "no copy held, no ask". Wave 1A fills it in (plan 3.3).
+/// stored, under `privacy`), as `profile_copy::sign_wanted` decides against the copy held here
+/// (from any server); the ask is recorded in `RelayState::profile_sign_asks`, and never made for
+/// a key that is not a person's (bots: `profile_copy::is_key_text`). `just_saved`: the echo of a
+/// save (ask whenever the copy changed), rather than a connect or the person's own request (ask
+/// only to narrow what is out there, so a device that connects never pushes an older profile over
+/// a newer save made on another server). `signed_at` is the held copy's time, 0 for none.
 pub fn ask_for_copy(state: &RelayState, key: &str, now: &PublicCopy, privacy: &str, just_saved: bool) -> CopyAsk {
-    let _ = (state, key, now, privacy, just_saved);
-    CopyAsk::default()
+    let held = match state.db.get_signed_profile(key) {
+        Ok(held) => held,
+        Err(e) => {
+            tracing::error!("Profile: could not read the copy for other servers of {}: {e}", key_in_log(key));
+            return CopyAsk::default();
+        }
+    };
+    let signed_at = held.as_ref().map_or(0, |h| h.timestamp);
+    let sign_now = profile_copy::is_key_text(key)
+        && profile_copy::sign_wanted(held.map(|h| h.copy()).as_ref(), now, just_saved, privacy);
+    if sign_now {
+        let mut asks = state.profile_sign_asks.lock().unwrap_or_else(|p| p.into_inner());
+        // Asks older than their lifetime are of no use: dropped here, so the map holds only the
+        // keys asked in the last minute.
+        asks.retain(|_, asked| asked.elapsed() < ASK_LIFETIME);
+        asks.insert(key.to_string(), Instant::now());
+    }
+    CopyAsk { signed_at, sign_now }
 }
 
-/// A device's signature over its profile's copy for other servers (`profile_sign`): checked
-/// against the copy rebuilt from what this server stored, then kept and passed on (plan 3.5).
+/// Use up the ask for `key` (a copy was kept, or found not newer than the one held).
+fn take_ask(state: &RelayState, key: &str) {
+    state.profile_sign_asks.lock().unwrap_or_else(|p| p.into_inner()).remove(key);
+}
+
+/// A device's signature over its profile's copy for other servers (`profile_sign`, plan 3.5). The
+/// frame carries no profile: the relay rebuilds the copy from what it stored under the socket's
+/// own name, checks the signature, keeps the copy and passes it on. Cheapest checks first:
 ///
-/// WAVE 0 STUB: logs and drops it. Wave 1A fills it in.
+/// 1. an ask for this key in the last minute, else dropped (looked at, not taken: a copy that does
+///    not match leaves it, because a save from another device may have changed the profile in
+///    between, and that save's own copy is coming);
+/// 2. a signature of the right shape; 3. the socket's name, registered to this key;
+/// 4. the profile stored under it; 5. its public copy within the limits;
+/// 6. dated at most a day ahead, else the person is told (the one refusal they can fix);
+/// 7. newer than the copy held, else dropped and the ask used up;
+/// 8. the signature checks, off the async pool (a panic counts as no), else dropped with no
+///    notice: the app signs on its own, so the cause is a race or a broken app, which the shared
+///    fixture catches, and a notice nobody can act on is noise;
+/// 9. kept, the ask used up, and passed on to every linked server.
 pub async fn handle_profile_sign(state: &Arc<RelayState>, my_key: &str, at: u64, signature: String) {
-    let _ = (state, signature);
-    tracing::debug!(
-        "Profile: dropped a copy for other servers from {} (at {at}): not checked yet",
-        crate::relay::handlers::federation::key_in_log(my_key)
-    );
+    let who = key_in_log(my_key);
+    let asked = state
+        .profile_sign_asks
+        .lock()
+        .unwrap_or_else(|p| p.into_inner())
+        .get(my_key)
+        .is_some_and(|asked| asked.elapsed() < ASK_LIFETIME);
+    if !asked {
+        tracing::debug!("Profile: dropped a copy for other servers from {who}: nobody asked for one");
+        return;
+    }
+    if !profile_copy::is_signature_text(&signature) {
+        tracing::debug!("Profile: dropped a copy for other servers from {who}: not a signature");
+        return;
+    }
+    let Some(name) = state.peers.read().await.get(my_key).and_then(|p| p.display_name.clone()) else {
+        return;
+    };
+    if !state.db.keys_for_name(&name).map(|keys| keys.iter().any(|k| k == my_key)).unwrap_or(false) {
+        return;
+    }
+    let (bio, socials, avatar, banner, pronouns, location, website, privacy) = match state.db.get_profile_extended(&name) {
+        Ok(Some(row)) => row,
+        Ok(None) => return,
+        Err(e) => {
+            tracing::error!("Profile: could not read the profile of {who} to check its copy: {e}");
+            return;
+        }
+    };
+    let copy = public_copy(&name, &bio, &avatar, &banner, &socials, &pronouns, &location, &website, &privacy);
+    if !profile_copy::within_limits(my_key, &copy) {
+        return;
+    }
+    if at > crate::relay::storage::now_millis().saturating_add(MAX_AHEAD_MS) {
+        let _ = state.broadcast_tx.send(RelayMessage::Private { to: my_key.to_string(), message: CLOCK_AHEAD_NOTICE.to_string() });
+        return;
+    }
+    match state.db.get_signed_profile(my_key) {
+        Ok(Some(held)) if held.timestamp >= at => {
+            take_ask(state, my_key);
+            tracing::debug!("Profile: dropped a copy for other servers from {who}: not newer than the one held");
+            return;
+        }
+        Ok(_) => {}
+        Err(e) => {
+            tracing::error!("Profile: could not read the copy for other servers of {who}: {e}");
+            return;
+        }
+    }
+    let (key, checked, sig) = (my_key.to_string(), copy.clone(), signature.clone());
+    let good = tokio::task::spawn_blocking(move || profile_copy::verify_copy(&key, &checked, at, &sig)).await.unwrap_or(false);
+    if !good {
+        tracing::info!("Profile: the copy for other servers from {who} does not match what this server stored; kept the one held");
+        return;
+    }
+    match state.db.store_signed_profile(my_key, &copy, at, &signature) {
+        Ok(kept) => {
+            take_ask(state, my_key);
+            if kept {
+                gossip_profile(state, my_key, &copy, at, &signature, None).await;
+                let withdrawn = if profile_copy::is_withdrawal(&copy) { " (withdrawn)" } else { "" };
+                tracing::info!("Profile: kept and passed on the copy for other servers of {who}{withdrawn}");
+            }
+        }
+        Err(e) => tracing::error!("Profile: could not keep the copy for other servers of {who}: {e}"),
+    }
 }
 
 /// The profile handlers' tests: the field `accepts_files` (2026-10-11, docs/design/media-showcase.md),
