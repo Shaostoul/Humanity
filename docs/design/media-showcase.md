@@ -2660,9 +2660,17 @@ over a `FileAt` trait (a file, or a `Vec<u8>` in the tests). A data message is a
 header included, so a 256 KiB piece is five messages; the receiver places each message by its own
 header and takes any message that continues the piece at its next offset, up to 256 KiB (tested with
 three splits). The receiver asks for at most 16 pieces at once, one `get` per run of consecutive
-missing pieces; a piece that fails its hash is asked for again alone; the third failure of one piece
-ends the transfer with words and `cancel`. A pause from either side stops the flow both ways; a
-resume asks again from the first missing piece. After a drop the receiver keeps the list and asks
+missing pieces, and keeps its window full by asking only for pieces it has not asked for yet
+(after each piece in, usually `{"from":N,"count":1}`); a piece that fails its hash is asked for
+again alone (`count` 1); 30 seconds with nothing it asked for arriving asks the window again; the
+third failure of one piece ends the transfer with words and `cancel`. It ignores a message for a
+piece it did not ask for or already holds, and holds a partial buffer only for a piece it asked
+for, so at most 16. The sender's `get` adds to what it owes (a `BTreeSet`), sent lowest first,
+each piece once, from offset 0; a piece asked for while it is being sent goes again, whole, after
+it (rule 1 below). A pause from either side stops the flow both ways: the sender drops what it
+owes, and a `get` that reaches it while paused; the receiver forgets what it asked when the
+sender's pause reaches it, but after its own pause still takes what was on its way, and its resume
+asks again from the first missing piece. After a drop the receiver keeps the list and asks
 from the first missing piece; after a restart it asks for the list again and checks its part file
 16 pieces per turn before asking for anything. `finish_part` reads the whole part file for its
 BLAKE3 and names it only on a match, never over an existing file (the downloads' own
@@ -2697,14 +2705,45 @@ Accept makes the part file (`<name>.<first 12 of the id>.part` in the downloads 
 file's full size, so too little room says so at once. `pump` dials, per person, when a transfer
 from them is accepted here and not paused, they are listed online and no connection stands;
 transfers accepted or offered while one stands join it. `on_signal` (from `frame_ws_poll.rs`, before
-the app's WebRTC manager) takes a `dc_offer` from someone this device has live offers to, and a
-`dc_answer` or `dc_ice` from someone a file connection stands with; anything else goes on to the
-manager. If both dial at once the larger key keeps its dial and the other drops its attempt and
-answers. A credentials answer (`read_credentials`, from `engine/call_relay.rs` `on_frame`) that
-is refused, or none at all within 8 seconds, with nothing granted, is "This server is not set up for
-that yet", tried again after a minute or on Resume; a dropped connection is dialled again after 5
-seconds. A failure on one side is told to the other with the cancel note. A transfer with someone
-blocked ends at once with nothing sent to them.
+the app's WebRTC manager) takes a `dc_offer` from someone this device has live offers to, a
+`dc_answer` or `dc_ice` from someone a file connection stands with, a `dc_ice` from someone whose
+dial it is answering but has no credentials for yet (kept for that person, `Pair::early_ice`, at
+most 32, and handed to the connection in `Setup::early_ice`), and a `dc_ice` of a dial set aside
+when both dialled (dropped); anything else goes on to the manager. If both dial at once the larger
+key keeps its dial and the other drops its attempt and answers. A credentials answer
+(`read_credentials`, from `engine/call_relay.rs` `on_frame`) that is refused, or none at all within
+8 seconds, with nothing granted, is "This server is not set up for that yet", tried again after a
+minute or on Resume; a dropped connection is dialled again after 5 seconds. A failure on one side
+is told to the other with the cancel note. The receiver's answer and cancel notes carry the offer's
+pass on their `dm_put` to the sender as `file_pass` (the self-copies and the sender's own notes
+carry none). A transfer with someone blocked ends at once with nothing sent to them.
+
+**Brought into line with the rules settled by the first review (2026-10-12).** A review of this
+half against the website's found them disagreeing at the seams; the four rules that touch the
+desktop app are now kept as follows.
+- Rule 1 (a `get` adds). Before: the sender appended a re-asked piece to its queue but skipped the
+  piece it was sending, so after the website asked `get(next, 16)` for a bad piece the website
+  waited for a piece that never came again (a stall). The receiver reserved 256 KiB for any piece
+  number arriving at offset 0, asked for or not, so a sender naming pieces could make it reserve
+  about the whole file and abort the app; and the stall clock was moved by any data message. Now
+  as described under the channel above.
+- Rule 2 (one engine per channel). Checked: each transfer is its own leg with its own `Receiving`
+  or `Sending` on both sides, and one leg ending leaves the others as they are. Two gaps closed.
+  The connection closed only once every leg had ended, so on the sending side an offer the other
+  person had not accepted (a leg with no channel) kept it up; now it closes when its last channel
+  ends (`last_channel_ended`: a receiving leg is a channel, a sending leg once it was opened). And a
+  sending leg whose channel closes now forgets what it owed (only a receiving leg did). A finished
+  transfer's channel is left open rather than closed, since the website as first built took a
+  channel's close as the whole connection's.
+- Rule 3 (early candidates kept). Before: a `dc_ice` that came while this side waited for its
+  credentials to answer a dial found no connection, fell through to the call code and was lost, and
+  the forwarder then dropped the dialler's packets for want of a permission toward its relayed
+  address, so a website (which trickles its candidates after its offer) dialling a desktop sender
+  might never connect. Now kept and applied once the allocations exist, as the offer's own
+  `a=candidate` lines are.
+- Rule 4 (answers reach a sender who takes messages only from friends). The receiver's answer and
+  cancel notes carry `file_pass` on their `dm_put`. The relay half of this rule (letting such a put
+  through the gate) was being built in parallel and is not part of this change.
 
 **The screens.** The attach step (`attach_step.rs` `route_pick`, `open_direct`) offers a DM file over
 the person's private file limit instead of refusing it: the look and the switch as for any file, the
@@ -2719,17 +2758,30 @@ again after "not set up", Remove once ended, and the line saying whose app must 
 `net::file_offer::tests` (7: the spec's words; the shared fixture; the pass checks only for its two
 people, its way round, its file and its server; an offer that does not add up is not read; Files in
 messages before the question; notes move a transfer forward only; a file read for its hashes),
-`net::file_transfer::tests` (8, against stand-ins written from the spec's words: a whole file in
+`net::file_transfer::tests` (13, against stand-ins written from the spec's words: a whole file in
 three splits, the hash-list check, piece checking with three failures, resume after a drop and
 after a restart, pause and resume from either side, cancel from either side, the sender's 64 KiB
-messages, the rename only after the whole file matches), `net::file_link::tests` (2: three files,
-two one way and one the other, on one connection between two apps through the test forwarder, the
-dialler with one relayed candidate and the answerer with two, nothing sent around the forwarder;
-the channel label), and `engine::file_transfer::tests` (7, two apps with recording sockets: the
-offer as a sealed note with its self-copy, listed and never shown; decline, and the other device's
-"Answered on your other device"; an unanswered offer runs out with nothing sent; cancel from either
-side; dialling only while the sender is online and not paused, with "not set up" and Pause;
-credentials for each live offer when dialled; the larger key winning when both dial).
+messages, the rename only after the whole file matches; and from the first review: a stand-in
+sender that follows rule 1 exactly, with the receiver's asks reaching it several messages late,
+gets the whole file across with no stall, each piece asked once plus once per bad copy, `count` 1;
+the sender sends a piece re-asked mid-send again, whole, after it; a stand-in receiver with the
+website's pattern, `get(next, 16)` after a bad piece, gets it again without a stall; pieces not
+asked for are ignored and reserve nothing; only 30 seconds with nothing asked for arriving asks
+again), `net::file_link::tests` (3: three files, two one way and one the other, on one connection
+between two apps through the test forwarder, the dialler with one relayed candidate and the
+answerer with two, nothing sent around the forwarder; the channel label; and from the first
+review, the connection closing when its last channel ends, an offer nobody opened not keeping it
+up), and
+`engine::file_transfer::tests` (10, two apps with recording sockets: the offer as a sealed note
+with its self-copy, listed and never shown; decline, and the other device's "Answered on your other
+device"; an unanswered offer runs out with nothing sent; cancel from either side; dialling only
+while the sender is online and not paused, with "not set up" and Pause; credentials for each live
+offer when dialled; the larger key winning when both dial, the set-aside dial's candidates taken
+and dropped; and from the first review: the receiver's answer, decline and cancel carrying the file
+pass on the put to the sender and nothing else carrying one; a `dc_ice` that comes before the
+credentials kept in order and handed to the connection; and end to end through the test
+forwarder, a dial whose candidate comes as a `dc_ice` after its offer and before the answering
+side's credentials, which connects and carries the file whole).
 
 **Not built yet.** Groups (file-transfer-at-scale.md, layer 3). The direct connection between
 friends. Showing the forwarder's day amount (the relay counts it; the app shows only "not set up").

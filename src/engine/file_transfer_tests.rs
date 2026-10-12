@@ -306,8 +306,8 @@ fn an_accepted_transfer_is_dialled_only_while_the_sender_is_online_and_not_pause
 /// SIGNALS CARRY NO TRANSFER ID (the shape agreed with the web): a `dc_offer` from someone Sam has
 /// live offers to is their file connection, and Sam asks for credentials for EACH of those offers
 /// (newest first, at most four), since he cannot know which one Rae dialled with; a `dc_offer` from
-/// anyone else, and a `dc_answer` or `dc_ice` with no file connection standing, are left for the
-/// app's WebRTC manager.
+/// anyone else, and a `dc_answer` or `dc_ice` from someone with no file connection standing or
+/// being answered, are left for the app's WebRTC manager.
 /// Seen red 2026-10-11 with `live_offers_to` taking only the newest offer: "credentials for each
 /// live offer" got one.
 #[test]
@@ -336,9 +336,12 @@ fn a_dial_is_answered_with_credentials_for_each_live_offer() {
 /// BOTH DIAL AT ONCE (the shape agreed with the web): Sam offered Rae a file and Rae offered Sam
 /// one, both accepted, so each dials the other. When each one's `dc_offer` reaches the other, the
 /// larger key (string compare of the Dilithium hex) keeps its dial and ignores the other's, and the
-/// smaller drops its own attempt and answers, asking for credentials for its live offers.
+/// smaller drops its own attempt and answers, asking for credentials for its live offers. A
+/// candidate of the dial set aside is taken by the winner and dropped (rule 3 of the first review:
+/// a file connection's signal is never the call code's).
 /// Seen red 2026-10-11 with the key comparison in `on_signal` reversed (`me < from`): "exactly one
-/// side yields" found the larger key answering.
+/// side yields" found the larger key answering. Seen red 2026-10-12 with `on_signal` as before the
+/// review (no connection standing: false): "a candidate of the dial set aside is taken" failed.
 #[test]
 fn when_both_dial_the_larger_key_wins() {
     crate::config::keep_saves_off_disk();
@@ -366,5 +369,180 @@ fn when_both_dial_the_larger_key_wins() {
     let winner_out = if winner == "Rae" { &rae_out } else { &sam_out };
     assert!(winner_out.is_empty(), "the larger key ({winner}) ignores the other's dial");
     assert_eq!(loser_out, &vec![want], "exactly one side yields, asking for its own live offers' credentials");
+    // A candidate of the dial set aside reaches the winner, still asking for its own credentials:
+    // the file connection's, so taken here and not given to the call code, and not kept for the
+    // winner's own connection either (rule 3).
+    let (winner_gs, loser_key) = if rae.key > sam.key { (&mut rae.gs, sam.key.clone()) } else { (&mut sam.gs, rae.key.clone()) };
+    let ice = json!({ "type": "webrtc_signal", "from": loser_key, "signal_type": "dc_ice", "data": json!({ "candidate": "candidate:1 1 udp 16777215 127.0.0.1 40001 typ relay raddr 0.0.0.0 rport 0" }).to_string() });
+    assert!(on_signal(winner_gs, &ice), "a candidate of the dial set aside is taken");
+    assert!(winner_gs.files_flow.transfers.pair(&loser_key).early_ice.is_empty(), "and not kept for the winner's connection");
+    tidy(&[&sam, &rae]);
+}
+
+/// `{"type":"webrtc_signal","signal_type":"dc_ice"}` from `from`, carrying `line` the way a browser
+/// sends a candidate (`JSON.stringify(event.candidate)`).
+fn dc_ice_from(from: &str, line: &str) -> Value {
+    json!({ "type": "webrtc_signal", "from": from, "signal_type": "dc_ice", "data": json!({ "candidate": line, "sdpMid": "0", "sdpMLineIndex": 0 }).to_string() })
+}
+
+/// RULE 4 OF THE FIRST REVIEW (media-showcase.md): the receiver's answer (yes or no) and its cancel
+/// go with the offer's file pass on the `dm_put` to the sender (`file_pass`, the same object the
+/// offer carried), so the relay lets them through to a sender who takes messages only from
+/// friends; the self-copies carry none, and neither do the sender's own notes (the pass names the
+/// receiver as its grantee, so it is no use to the receiver's own gate).
+/// Seen red 2026-10-12 with `send_note` leaving the pass off: "the answer's put carries the
+/// offer's pass" found `null`.
+#[test]
+fn the_receivers_answer_and_cancel_carry_the_file_pass() {
+    crate::config::keep_saves_off_disk();
+    let (rae_id, sam_id) = (identity(187), identity(188));
+    let mut sam = app(188, "pass-sam", &rae_id, "Rae", true);
+    let mut rae = app(187, "pass-rae", &sam_id, "Sam", true);
+    let id = offer_file(&mut sam, &rae.key, 300_000);
+    let out = deliver(&sam, &mut rae);
+    assert!(out.iter().all(|v| v.get("file_pass").is_none()), "the offer's put carries none (the pass is inside the note)");
+    let pass = serde_json::to_value(&rec(&rae, &id).offer.pass).unwrap();
+    assert!(accept(&mut rae.gs, &id, &rae.dir.join("dl"), "clip.mp4"));
+    let out = deliver(&rae, &mut sam);
+    let to_sam = puts_to(&out, &sam.key);
+    assert_eq!(to_sam.len(), 1);
+    assert_eq!(to_sam[0]["file_pass"], pass, "the answer's put carries the offer's pass");
+    assert!(puts_to(&out, &rae.key).iter().all(|v| v.get("file_pass").is_none()), "its self-copy carries none");
+    assert_eq!(rec(&sam, &id).stage, Stage::Accepted, "and Sam heard it");
+
+    cancel(&mut rae.gs, &id);
+    let out = deliver(&rae, &mut sam);
+    assert_eq!(puts_to(&out, &sam.key)[0]["file_pass"], pass, "the receiver's cancel too");
+    assert_eq!(rec(&sam, &id).stage, Stage::Cancelled { by_me: false });
+
+    let id2 = offer_file(&mut sam, &rae.key, 200_000);
+    deliver(&sam, &mut rae);
+    let pass2 = serde_json::to_value(&rec(&rae, &id2).offer.pass).unwrap();
+    assert!(decline(&mut rae.gs, &id2));
+    let out = deliver(&rae, &mut sam);
+    assert_eq!(puts_to(&out, &sam.key)[0]["file_pass"], pass2, "a decline too");
+
+    let id3 = offer_file(&mut sam, &rae.key, 200_000);
+    deliver(&sam, &mut rae);
+    cancel(&mut sam.gs, &id3);
+    let out = deliver(&sam, &mut rae);
+    let to_rae = puts_to(&out, &rae.key);
+    assert_eq!(to_rae.len(), 1, "the sender's cancel goes");
+    assert!(to_rae[0].get("file_pass").is_none(), "carrying no pass");
+    tidy(&[&sam, &rae]);
+}
+
+/// RULE 3 OF THE FIRST REVIEW: Rae dials Sam, and her candidates come as `dc_ice` after her offer,
+/// while Sam is still waiting for his credentials. Each is taken by the file connection (true, so
+/// never handed to the call code) and kept, in order; when the credentials come the connection
+/// starts with them; once it stands, a candidate goes straight to it. Without a dial or a file
+/// connection with them, a candidate is still the WebRTC manager's.
+/// Seen red 2026-10-12 with `on_signal` as before the review (no connection standing: false):
+/// "taken while Sam waits for his credentials" failed.
+#[test]
+fn a_candidate_that_comes_before_the_credentials_is_kept_for_the_connection() {
+    crate::config::keep_saves_off_disk();
+    let (rae_id, sam_id) = (identity(189), identity(190));
+    let mut sam = app(190, "ice-sam", &rae_id, "Rae", true);
+    let rae = app(189, "ice-rae", &sam_id, "Sam", true);
+    let id = offer_file(&mut sam, &rae.key, 300_000);
+    frames(&sam.sent);
+    let one = "candidate:1 1 udp 16777215 127.0.0.1 40001 typ relay raddr 0.0.0.0 rport 0";
+    let two = "candidate:2 1 udp 16777215 127.0.0.1 40002 typ relay raddr 0.0.0.0 rport 0";
+    assert!(!on_signal(&mut sam.gs, &dc_ice_from(&rae.key, one)), "no dial yet: the WebRTC manager's");
+    assert!(on_signal(&mut sam.gs, &dc_offer_from(&rae.key)));
+    assert_eq!(credentials_asked(&frames(&sam.sent)), vec![(id.clone(), rae.key.clone())]);
+    assert!(on_signal(&mut sam.gs, &dc_ice_from(&rae.key, one)), "taken while Sam waits for his credentials");
+    assert!(on_signal(&mut sam.gs, &dc_ice_from(&rae.key, two)));
+    let kept: Vec<String> = sam.gs.files_flow.transfers.pair(&rae.key).early_ice.clone();
+    assert_eq!(kept.len(), 2, "both kept");
+    assert!(kept[0].contains("40001") && kept[1].contains("40002"), "in order: {kept:?}");
+
+    // The credentials come (a forwarder address nothing answers on: only the hand-over is looked
+    // at here; the test below runs a whole transfer this way).
+    let granted = json!({ "type": "call_credentials", "file": id, "urls": ["turn:127.0.0.1:9?transport=udp"], "username": "1:s", "credential": "ps" });
+    assert!(on_credentials(&mut sam.gs, &granted));
+    let pair = sam.gs.files_flow.transfers.pair(&rae.key);
+    assert!(pair.link.is_some(), "the connection starts");
+    assert!(pair.early_ice.is_empty(), "with the candidates handed to it");
+    assert!(on_signal(&mut sam.gs, &dc_ice_from(&rae.key, two)), "once it stands, straight to it");
+    assert!(sam.gs.files_flow.transfers.pair(&rae.key).early_ice.is_empty());
+    tidy(&[&sam, &rae]);
+}
+
+/// RULE 3, END TO END, through a forwarder on this machine (the test forwarder, which passes data
+/// only to an allocation holding a permission for the sender's relayed address): Rae dials Sam,
+/// her offer carries no candidate, and her one relayed candidate follows as a `dc_ice` that
+/// reaches Sam before his credentials do (a browser trickles its candidates this way). Sam keeps
+/// it, his connection applies it once its allocation exists, and the file crosses: Rae's copy is
+/// saved whole and both records say Done. Nothing goes around the forwarder.
+/// Seen red 2026-10-12 with the connection leaving `Setup::early_ice` unapplied (the loop in
+/// `Link::new` filtered empty): "Rae's file came" failed after 60 seconds with the record still
+/// Accepted, the forwarder refusing "data from 127.0.0.1:... without the receiver's permission"
+/// again and again (the defect the review found). With `on_signal` as before the review the test
+/// stops sooner, at "the candidate is the file connection's".
+#[test]
+fn a_dial_whose_candidate_comes_after_its_offer_connects() {
+    use crate::net::webrtc::test_forwarder::{Forwarder, Trap};
+    crate::config::keep_saves_off_disk();
+    let (rae_id, sam_id) = (identity(191), identity(192));
+    let mut sam = app(192, "trickle-sam", &rae_id, "Rae", true);
+    let mut rae = app(191, "trickle-rae", &sam_id, "Sam", true);
+    let len = fo::PIECE_SIZE as usize * 2 + 70_000;
+    let id = offer_file(&mut sam, &rae.key, len);
+    deliver(&sam, &mut rae);
+    assert!(accept(&mut rae.gs, &id, &rae.dir.join("dl"), "clip.mp4"));
+    deliver(&rae, &mut sam);
+    assert_eq!(rec(&sam, &id).stage, Stage::Accepted);
+
+    let traps: Vec<Trap> = (0..2).map(|_| Trap::bind()).collect();
+    let fwd = Forwarder::start(traps.iter().map(|t| t.addr).collect());
+    fwd.add_account("1:r", "pr", &format!("file:{id}"));
+    fwd.add_account("1:s", "ps", &format!("file:{id}"));
+    let grant = |user: &str, cred: &str| json!({ "type": "call_credentials", "file": id, "urls": [format!("turn:{}?transport=udp", fwd.addr)], "username": user, "credential": cred });
+
+    pump(&mut rae.gs);
+    assert_eq!(credentials_asked(&frames(&rae.sent)), vec![(id.clone(), sam.key.clone())], "Rae dials");
+    assert!(on_credentials(&mut rae.gs, &grant("1:r", "pr")));
+
+    let mut trickled = 0;
+    let deadline = Instant::now() + Duration::from_secs(60);
+    while Instant::now() < deadline && !(rec(&rae, &id).stage == Stage::Done && rec(&sam, &id).stage == Stage::Done) {
+        pump(&mut rae.gs);
+        for f in frames(&rae.sent).into_iter().filter(|f| f["type"] == "webrtc_signal") {
+            if f["signal_type"] != "dc_offer" {
+                assert!(on_signal(&mut sam.gs, &f));
+                continue;
+            }
+            // The offer goes without its candidates; they follow it, before Sam's credentials.
+            let mut inner: Value = serde_json::from_str(f["data"].as_str().unwrap()).unwrap();
+            let sdp = inner["sdp"].as_str().unwrap().to_string();
+            let (candidates, rest): (Vec<&str>, Vec<&str>) = sdp.split("\r\n").partition(|l| l.starts_with("a=candidate:"));
+            inner["sdp"] = Value::String(rest.join("\r\n"));
+            let mut offer = f.clone();
+            offer["data"] = Value::String(inner.to_string());
+            assert!(on_signal(&mut sam.gs, &offer), "Rae's dial is Sam's file connection");
+            assert_eq!(credentials_asked(&frames(&sam.sent)), vec![(id.clone(), rae.key.clone())]);
+            for line in candidates {
+                assert!(on_signal(&mut sam.gs, &dc_ice_from(&rae.key, line.trim_start_matches("a="))), "the candidate is the file connection's");
+                trickled += 1;
+            }
+            assert!(on_credentials(&mut sam.gs, &grant("1:s", "ps")));
+        }
+        pump(&mut sam.gs);
+        for f in frames(&sam.sent).into_iter().filter(|f| f["type"] == "webrtc_signal") {
+            assert!(on_signal(&mut rae.gs, &f), "Sam's answer is Rae's file connection's");
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    assert_eq!(trickled, 1, "Rae's one relayed candidate went after her offer");
+    assert_eq!(rec(&rae, &id).stage, Stage::Done, "Rae's file came: refused {:?}", fwd.refused());
+    assert_eq!(rec(&sam, &id).stage, Stage::Done, "Sam's side says it went");
+    let saved = PathBuf::from(rec(&rae, &id).path);
+    assert_eq!(std::fs::read(&saved).unwrap(), (0..len).map(|i| (i % 251) as u8).collect::<Vec<u8>>(), "whole");
+    assert!(fwd.delivered() > 0);
+    for t in &traps {
+        assert!(t.received().is_empty(), "nothing went straight to {}", t.addr);
+    }
     tidy(&[&sam, &rae]);
 }

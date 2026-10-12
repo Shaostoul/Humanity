@@ -27,6 +27,22 @@
 //! direct connections on is not built: the app has no such setting yet
 //! (`webrtc::DIRECT_CONNECTIONS` is false), so every transfer goes through the forwarder.
 //!
+//! ONE ENGINE PER CHANNEL (rule 2 of the first review, media-showcase.md "Device-to-device big
+//! files: rules settled by the first review"). Each transfer is its own leg with its own
+//! `Receiving` or `Sending`, on the dialling side and the answering side alike; one leg ending
+//! (done, cancelled, failed) leaves the others as they are, and the connection closes when its
+//! last channel ends (a sending leg the other side never opened a channel for, an offer not yet
+//! accepted, does not keep it up). A finished transfer's channel is left open, not closed: the
+//! website as first built took a channel's close for the whole connection's.
+//!
+//! EARLY CANDIDATES ARE KEPT (rule 3). The answering side makes its allocations only once its
+//! credentials are in, and a dialler's candidates often come as `dc_ice` right after its offer (a
+//! browser trickles them). The engine keeps them for that person while it waits and hands them
+//! over in [`Setup::early_ice`]; the connection holds those, and any that come before its
+//! allocations exist, until it has them, then installs a forwarder permission toward each and gives
+//! it to ICE, as it does for the offer's own `a=candidate` lines. Without that permission the
+//! forwarder drops what the other side sends, and the connection never opens.
+//!
 //! What is said on each channel is net/file_transfer.rs; this file only moves it.
 
 use std::collections::{HashMap, VecDeque};
@@ -107,7 +123,15 @@ pub struct Setup {
     pub transfers: Vec<Transfer>,
     /// The address the sockets bind: all interfaces in the app, 127.0.0.1 in the tests.
     pub bind: String,
+    /// Answering: the other side's `dc_ice` that arrived while this side waited for its
+    /// credentials (each signal's data, its JSON text, in order). They are applied, with the
+    /// offer's own candidates, once the allocations exist (rule 3 of the first review).
+    pub early_ice: Vec<String>,
 }
+
+/// The most early candidates kept for one connection (a browser on relay-only ICE gives one or two
+/// per forwarder credential, and an answer carries at most [`MAX_RELAYS`]).
+pub const MAX_EARLY_ICE: usize = 32;
 
 /// From the engine to the connection.
 pub enum Cmd {
@@ -286,6 +310,25 @@ struct Leg {
     /// The sender's piece hashes, worked out again from the file on a helper thread.
     hashing: Option<Receiver<std::io::Result<Vec<[u8; 32]>>>>,
     ended: bool,
+    /// A channel was bound to it at some point.
+    had_channel: bool,
+}
+
+impl Leg {
+    /// Whether this leg is one of the connection's channels: a receiving leg opens one; a sending
+    /// leg is one once the receiver opened it (an offer to the other person that they have not
+    /// accepted, or not opened on this connection, is not).
+    fn is_channel(&self) -> bool {
+        matches!(self.side, Side::Receive { .. }) || self.had_channel
+    }
+}
+
+/// RULE 2 OF THE FIRST REVIEW: the connection closes when its last channel ends. True when there
+/// is at least one channel and every one of them has ended; a sending leg nobody opened does not
+/// keep the connection up.
+fn last_channel_ended<'a>(legs: impl Iterator<Item = &'a Leg> + Clone) -> bool {
+    let mut channels = legs.filter(|l| l.is_channel()).peekable();
+    channels.peek().is_some() && channels.all(|l| l.ended)
 }
 
 struct Link {
@@ -343,6 +386,11 @@ impl Link {
         for t in setup.transfers {
             link.add(t);
         }
+        // Candidates the engine kept while it waited for the credentials: held until the
+        // allocations exist (the Rtc does not yet), then applied with the offer's own.
+        for data in setup.early_ice {
+            link.command(Cmd::Signal { signal_type: "dc_ice".to_string(), data });
+        }
         link
     }
 
@@ -397,11 +445,12 @@ impl Link {
                 }
                 self.drain();
             }
-            // 6. Dropped, every transfer over, or never opened.
+            // 6. Dropped, the last channel ended (rule 2: an offer nobody opened a channel for
+            //    does not keep the connection up), or never opened.
             if self.dropped {
                 return self.close();
             }
-            if !self.legs.is_empty() && self.legs.values().all(|l| l.ended) {
+            if last_channel_ended(self.legs.values()) {
                 let t = *self.all_ended_at.get_or_insert_with(Instant::now);
                 let flushed = self.legs.values().all(|l| l.outbox.is_empty()) && self.buffered_total() == 0;
                 if t.elapsed() >= LINGER || flushed {
@@ -456,7 +505,7 @@ impl Link {
             }
         };
         let receive = matches!(t.side, Side::Receive { .. });
-        self.legs.insert(t.id.clone(), Leg { side: t.side, disk, cid: None, outbox: VecDeque::new(), finishing: None, hashing: None, ended: false });
+        self.legs.insert(t.id.clone(), Leg { side: t.side, disk, cid: None, outbox: VecDeque::new(), finishing: None, hashing: None, ended: false, had_channel: false });
         if let Some(cid) = self.unbound.remove(&t.id) {
             self.bind(&t.id, cid);
         } else if receive {
@@ -491,6 +540,7 @@ impl Link {
             return; // both sides opened one; the first serves
         }
         leg.cid = Some(cid);
+        leg.had_channel = true;
         self.by_cid.insert(cid, id.to_string());
         let step = match &mut leg.side {
             Side::Receive { proto, .. } => proto.open(Instant::now()),
@@ -661,7 +711,7 @@ impl Link {
                         return; // the end-of-candidates marker
                     }
                     if self.rtc.is_none() {
-                        if self.early_ice.len() < 32 {
+                        if self.early_ice.len() < MAX_EARLY_ICE {
                             self.early_ice.push(line);
                         }
                         return;
@@ -683,7 +733,7 @@ impl Link {
             Cmd::Resume(id) => {
                 if let Some(leg) = self.legs.get_mut(&id) {
                     let out = match &mut leg.side {
-                        Side::Receive { proto, .. } => proto.resume(),
+                        Side::Receive { proto, .. } => proto.resume(Instant::now()),
                         Side::Send { proto, .. } => proto.resume(),
                     };
                     leg.outbox.extend(out);
@@ -786,7 +836,7 @@ impl Link {
                 let now = Instant::now();
                 let step = match (&mut leg.side, &mut leg.disk) {
                     (Side::Receive { proto, .. }, Disk::File(f)) if d.binary => proto.on_binary(&d.data, f, now),
-                    (Side::Receive { proto, .. }, _) if !d.binary => proto.on_text(&String::from_utf8_lossy(&d.data)),
+                    (Side::Receive { proto, .. }, _) if !d.binary => proto.on_text(&String::from_utf8_lossy(&d.data), now),
                     (Side::Send { proto, .. }, _) if !d.binary => proto.on_text(&String::from_utf8_lossy(&d.data)),
                     _ => Step::default(),
                 };
@@ -798,8 +848,9 @@ impl Link {
                 if let Some(id) = self.by_cid.remove(&cid) {
                     if let Some(leg) = self.legs.get_mut(&id) {
                         leg.cid = None;
-                        if let Side::Receive { proto, .. } = &mut leg.side {
-                            proto.closed();
+                        match &mut leg.side {
+                            Side::Receive { proto, .. } => proto.closed(),
+                            Side::Send { proto, .. } => proto.closed(),
                         }
                     }
                 }
