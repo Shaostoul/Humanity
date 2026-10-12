@@ -482,6 +482,25 @@ test("a blocked key's DM is not stored or notified", async () => {
   assert.equal(ctx.peerData[BEN].display_name, "Ben");
 });
 
+// A household permit (ship homes 5b) only ever comes through the mailbox, where chat-social.js
+// swallows it; one coming over a direct channel is dropped unread too, from a friend as from
+// anyone (lane 1D's finding, 2026-10-12). Seen red 2026-10-12 with the chat-p2p.js line taken out:
+// "over a direct channel: not stored" failed.
+test("a household permit note over a direct channel is dropped unread", async () => {
+  const { store, appended, notified, handle, fn } = await loadChat();
+  await handle({ type: "reach_settings", settings: { message: "anyone", call: "chosen", trade: "friends" } });
+  const permit = fn("CTL_PERMIT") + JSON.stringify({ issuer: BEN, server: "did:hum:srv", plot: "p1", grantee: "did:hum:me", serial: "77".repeat(16), expiry: 1, sig: "x" });
+  await fn("onDCMessage")({ data: JSON.stringify({ type: "p2p_dm", env: dmEnvelope(BEN, permit, 9) }) }, BEN);
+  await settle();
+  assert.deepEqual(store.conversation(BEN), [], "over a direct channel: not stored");
+  assert.ok(!shown(appended).includes("hum:permit"), "and its text is never shown");
+  assert.equal(notified.length, 0, "or notified");
+  // The control: a plain DM the same way is stored.
+  await fn("onDCMessage")({ data: JSON.stringify({ type: "p2p_dm", env: dmEnvelope(BEN, "direct words from Ben", 10) }) }, BEN);
+  await settle();
+  assert.equal(store.conversation(BEN).length, 1, "a plain DM over a direct channel is stored");
+});
+
 test("a blocked key's contact request is dropped", async () => {
   const { sock, store, notified, handle, fn } = await loadChat();
   await fn("blockKey")(BEN);

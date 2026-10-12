@@ -1020,6 +1020,14 @@ async function ingestChoiceNote(inner) {
  * other devices.
  */
 async function ingestDmControl(inner) {
+  // A household permit (ship homes 5b, 2026-10-12): the desktop app's note
+  // giving a friend a permit for its giver's plot ([[hum:permit:v1]], crypto.js
+  // CTL_PERMIT). The website has no game and holds no permits, so the note is
+  // consumed here, first: live and from the mailbox (app.js), before the reach
+  // screen and the store, it is never stored, listed, notified or turned into
+  // a contact request. Only "starts with the marker", as the desktop app reads
+  // it (net::household is_note): one whose permit does not read is still a note.
+  if (typeof inner.text === 'string' && inner.text.startsWith(CTL_PERMIT)) return true;
   // A choice note (10n): a text that starts with its marker is never shown.
   if (typeof isChoiceNoteText === 'function' && isChoiceNoteText(inner.text)) {
     await ingestChoiceNote(inner);
