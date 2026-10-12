@@ -1,10 +1,17 @@
-// Child of msg_handlers.rs (#[path], so `use super::*` reaches everything it has): the profile
+// Child of profile.rs (#[path], so `use super::*` reaches everything it has): the profile
 // field `accepts_files`, who a person accepts files in messages from (2026-10-11,
-// docs/design/media-showcase.md "Files on the sender's device and in messages, exact", part 3).
-// Kept out of msg_handlers.rs under the file-size ratchet (tests/file_size_ratchet.rs).
+// docs/design/media-showcase.md "Files on the sender's device and in messages, exact", part 3),
+// the person's own copy, and what the lookups show. Was msg_handlers_profile_tests.rs, a child of
+// msg_handlers.rs, until the profile handlers moved to profile.rs (2026-10-12, BUG-191 Wave 0).
+//
+// Since BUG-191 a save no longer writes the copy kept for other servers (the person's own app
+// signs it after the save), so a test that looks the profile up at /api/profile/{key} stores a
+// signed copy itself, as `handle_profile_sign` will.
 
 use super::*;
+use crate::relay::core::profile_copy::{public_copy, PublicCopy};
 use crate::relay::relay::{Peer, RelayState};
+use crate::relay::storage::Storage;
 
 fn fresh_state() -> Arc<RelayState> {
     Arc::new(RelayState::new(Storage::open_temp("profile_files")))
@@ -77,6 +84,14 @@ fn notices(sent: &[RelayMessage], key: &str) -> Vec<String> {
 
 fn some(word: &str) -> Option<String> {
     Some(word.to_string())
+}
+
+/// The copy for other servers of what this server stored for `name`, as the person's app signs it
+/// after the echo of their save (a save no longer writes one: BUG-191).
+fn signed_copy_of(st: &Arc<RelayState>, name: &str) -> PublicCopy {
+    let (bio, socials, avatar, banner, pronouns, location, website, privacy) =
+        st.db.get_profile_extended(name).unwrap().expect("a stored profile");
+    public_copy(name, &bio, &avatar, &banner, &socials, &pronouns, &location, &website, &privacy)
 }
 
 /// A profile update that names the word stores it, and every profile answer carries it on the
@@ -175,7 +190,9 @@ fn the_member_and_profile_lookups_carry_it() {
     sign_in(&st, "ann_key", "Ann");
     send(&st, "ann_key", serde_json::json!({ "type": "profile_update", "bio": "hi", "socials": "{}", "accepts_files": "nobody" }));
     let now = crate::relay::storage::now_millis();
-    st.db.store_signed_profile("far_key", "Far", "from a peer server", "", "", "{}", "", "", "", now, "sig").unwrap();
+    st.db.store_signed_profile("ann_key", &signed_copy_of(&st, "Ann"), now, "sig").unwrap();
+    let far = PublicCopy { name: "Far".into(), bio: "from a peer server".into(), socials: "{}".into(), ..Default::default() };
+    st.db.store_signed_profile("far_key", &far, now, "sig").unwrap();
 
     let body = |resp: axum::response::Response| -> serde_json::Value {
         let bytes = block(axum::body::to_bytes(resp.into_body(), usize::MAX)).unwrap();
@@ -296,6 +313,9 @@ fn asking_for_your_own_profile_gets_your_complete_copy() {
 /// a public one is shown. Also a copy cached before this rule is answered by the privacy map as
 /// it is now.
 ///
+/// Since BUG-191 the copy for other servers is the person's app's signed public copy of what was
+/// stored, which this test stores itself (2026-10-12).
+///
 /// Seen red 2026-10-11 with the lookups as they were (the relay review of that day): "the member
 /// lookup leaves out a private location" failed with "Lisbon".
 #[test]
@@ -305,6 +325,10 @@ fn private_fields_stay_out_of_the_lookups() {
     let st = fresh_state();
     sign_in(&st, "ann_key", "Ann");
     send(&st, "ann_key", serde_json::json!({ "type": "profile_update", "bio": "hi", "socials": "{}", "location": "Lisbon", "pronouns": "she", "privacy": "{\"location\":\"private\"}" }));
+    let kept = signed_copy_of(&st, "Ann");
+    assert_eq!(kept.location, "", "the copy for other servers leaves it out");
+    let now = crate::relay::storage::now_millis();
+    st.db.store_signed_profile("ann_key", &kept, now, "sig").unwrap();
     let body = |resp: axum::response::Response| -> serde_json::Value {
         let bytes = block(axum::body::to_bytes(resp.into_body(), usize::MAX)).unwrap();
         serde_json::from_slice(&bytes).unwrap()
@@ -314,40 +338,20 @@ fn private_fields_stay_out_of_the_lookups() {
     let signed = body(block(crate::relay::api::get_signed_profile(State(st.clone()), Path("ann_key".to_string()))).into_response());
     assert_eq!(signed["location"], "", "the profile lookup too: {signed}");
     assert_eq!(signed["pronouns"], "she", "a public field is shown");
-    let kept = st.db.get_signed_profile("ann_key").unwrap().expect("the copy for other servers");
-    assert_eq!(kept.location, "", "the copy for other servers leaves it out");
 
     // A copy cached before the rule, still holding the location.
-    st.db.store_signed_profile("ann_key", "Ann", "hi", "", "", "{}", "she", "Lisbon", "", crate::relay::storage::now_millis(), "").unwrap();
+    let older = PublicCopy { location: "Lisbon".to_string(), ..kept };
+    st.db.store_signed_profile("ann_key", &older, now + 1, "sig").unwrap();
     let signed = body(block(crate::relay::api::get_signed_profile(State(st.clone()), Path("ann_key".to_string()))).into_response());
     assert_eq!(signed["location"], "", "an older cached copy is answered by the map as it is now");
 }
 
-/// This server's own copy of someone no longer here (no account: kicked, banned, name released; no
-/// signature, which every copy from another server carries) is answered at /api/profile/{key}
-/// without the fields people keep for friends: their privacy map went with the account. The second
-/// review of 2026-10-11.
-///
-/// Seen red 2026-10-11 without that branch in `api::get_signed_profile`: "a copy for someone no
-/// longer here leaves out the location" failed with "Lisbon".
-#[test]
-fn a_copy_for_someone_no_longer_here_leaves_out_the_private_fields() {
-    use axum::extract::{Path, State};
-    use axum::response::IntoResponse;
-    let st = fresh_state();
-    let now = crate::relay::storage::now_millis();
-    st.db.store_signed_profile("gone_key", "Gone", "bio", "", "", "{}", "she", "Lisbon", "https://g.example", now, "").unwrap();
-    st.db.store_signed_profile("far_key", "Far", "bio", "", "", "{}", "they", "Porto", "", now, "sig").unwrap();
-    let body = |key: &str| -> serde_json::Value {
-        let resp = block(crate::relay::api::get_signed_profile(State(st.clone()), Path(key.to_string()))).into_response();
-        let bytes = block(axum::body::to_bytes(resp.into_body(), usize::MAX)).unwrap();
-        serde_json::from_slice(&bytes).unwrap()
-    };
-    let gone = body("gone_key");
-    assert_eq!(gone["location"], "", "a copy for someone no longer here leaves out the location: {gone}");
-    assert_eq!((gone["pronouns"].as_str(), gone["website"].as_str()), (Some(""), Some("")));
-    assert_eq!(body("far_key")["location"], "Porto", "a signed copy from another server is served as it came");
-}
+// `a_copy_for_someone_no_longer_here_leaves_out_the_private_fields` (2026-10-11) was deleted on
+// 2026-10-12 (BUG-191 Wave 0): it stored this server's own UNSIGNED copy of someone with no account
+// here and checked that /api/profile/{key} left out their friends-only fields. That case can no
+// longer arise: the save stores no copy, the storage refuses an unsigned one, and the open drops
+// the old unsigned rows (storage/signed_profiles.rs). Every copy held now is a public copy its
+// owner signed, which leaves those fields out before it is signed.
 
 /// The person's own copy says whether this server holds a profile for them (`stored`): false in
 /// the answer to their own request when there is none yet (its words are defaults, so their app

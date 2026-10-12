@@ -101,12 +101,14 @@
     .tier-desc { font-size: var(--text-sm); color: var(--text-muted); margin-bottom: var(--space-md); line-height: 1.5; }
     .rm-items { list-style: none; display: flex; flex-direction: column; gap: var(--space-sm); }
     .rm-item { display: flex; align-items: flex-start; gap: var(--space-md); line-height: 1.5; }
-    .rm-text { font-size: var(--text-sm); color: var(--text); }
+    /* min-width 0 + overflow-wrap: a long file path in an item's text or version breaks
+       instead of widening the page (it ran 90 px past a phone screen, 2026-10-12). */
+    .rm-text { font-size: var(--text-sm); color: var(--text); min-width: 0; overflow-wrap: anywhere; }
     .rm-ver {
       font-size: var(--text-xs); color: var(--text-muted); font-family: var(--font-mono, monospace);
-      white-space: nowrap;
+      overflow-wrap: anywhere;
     }
-    .rm-ver.lead { color: var(--accent); font-weight: 700; flex-shrink: 0; min-width: 5.5em; }
+    .rm-ver.lead { color: var(--accent); font-weight: 700; flex-shrink: 0; min-width: 5.5em; white-space: nowrap; }
     .recent-section .rm-text { color: var(--text-muted); }
     .task-card-labels { display: flex; gap: var(--space-xs); flex-wrap: wrap; margin-top: var(--space-sm); }
     .label-tag {

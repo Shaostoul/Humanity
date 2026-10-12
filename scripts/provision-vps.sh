@@ -305,9 +305,10 @@ Your node's homepage lives here.
 
 Drop an index.html in this directory and nginx serves it at / instead of the
 stock landing page; delete it to fall back. Ready-made flavors ship in the
-repo at web/home/ (e.g. technical.html, the engineer-facing intro):
+repo at web/home/ (e.g. technical.html, the engineer-facing intro). Link
+one rather than copying it, so it follows every update:
 
-  cp /var/www/humanity/home/technical.html /var/www/humanity-site/index.html
+  ln -sfn /var/www/humanity/home/technical.html /var/www/humanity-site/index.html
 
 Root-absolute includes (/shared/theme.css, /shared/shell.js) keep working in
 a custom page, so it inherits the site nav and theme. Put extra assets in

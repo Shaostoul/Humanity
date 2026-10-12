@@ -456,6 +456,16 @@ impl ProtectedSetup {
         !self.on || self.is_approved(key)
     }
 
+    /// May this device give a household permit (ship homes 5b), or renew one? Never while the
+    /// setup is on: a permit lets someone build on this person's plot and walk into their home,
+    /// and the setup exists so that no new way in opens without the person who set it up. This is
+    /// refused outright, not asked for with the PIN: it is not a [`ProtectedAction`], whose every
+    /// locked row the PIN lets through (engine/protected.rs `perform`). Taking a permit back only
+    /// shuts a way in, so it is never refused (engine/household.rs `give`, `renew`, `take_back`).
+    pub fn permit_allowed(&self) -> bool {
+        !self.on
+    }
+
     /// Is a public room listed? Read-only rooms always are; the rest only while the setup is off
     /// or they were shown with the PIN (10h).
     pub fn lists_room(&self, read_only: bool) -> bool {
@@ -479,7 +489,8 @@ impl ProtectedSetup {
 
 /// Everything the setup has a rule for, locked or not (10h, "While it is on, these need the PIN"
 /// and "Never locked"). Unblock is not here: it adds no one, and becoming friends again after it
-/// is a Follow, which is.
+/// is a Follow, which is. Giving a household permit is not here either: the PIN does not let it
+/// through, it is refused for as long as the setup is on ([`ProtectedSetup::permit_allowed`]).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProtectedAction {
     /// Changing a "Who can reach me" row.

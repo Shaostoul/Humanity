@@ -19,7 +19,8 @@ gives a build order. Source files read: `data/machines/home.ron`,
 `data/waste_management.ron`, `data/food_system.ron`, `data/plants.csv`,
 `data/recipes.csv`, `data/structures.csv`,
 `data/blueprints/homestead_layout.ron`, `data/garden/grow_media.ron`,
-`data/medical.ron`, `data/creatures.csv`, `docs/design/self-sufficiency.md`.
+`data/medical.ron` (deleted 2026-10-12; wounds and healing are now
+`data/medical/wounds.ron`), `data/creatures.csv`, `docs/design/self-sufficiency.md`.
 
 The intellectual backbone is `docs/design/self-sufficiency.md`:
 self-sufficiency is the **weakest of several coupled loops** (energy,
@@ -481,8 +482,10 @@ abstracted single steps that hide enormous real infrastructure:
 3. **Medicine synthesis.** `recipes.csv` had `craft_antibiotics` ("Culture and
    extract antimicrobial compounds," water+flour+sugar → antibiotics; removed
    2026-10-05: nothing made that way is an antibiotic, and the trading post
-   sells them), `craft_medkit_full` packs bought ones, and `medical.ron` treats broken bones,
-   infections, poisoning. But real antibiotic, insulin, vaccine, or
+   sells them), `craft_medkit_full` packs bought ones, and the game treats wounds and
+   their infections (`data/medical/wounds.ron`, `data/medical/treatments.ron`; the old
+   catalogue `medical.ron`, which listed broken bones and poisoning too, was deleted
+   2026-10-12, never having been read). But real antibiotic, insulin, vaccine, or
    analgesic synthesis needs pharmaceutical-grade fermentation,
    purification, and QC — a hospital/industry, not a `chemistry_set_0`.
    The homestead can grow the **apothecary tower** (chamomile, echinacea,

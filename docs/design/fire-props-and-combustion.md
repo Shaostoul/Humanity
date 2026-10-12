@@ -39,7 +39,7 @@ It also helps to know what EmberGen itself is. It is an **offline authoring tool
 - **AtmosphereSystem** is live (lib.rs:1070, since 310714e4). It models one 14,000 m3 home air volume (engine/home_spawn.rs:36) with O2 and CO2 from occupants. Its explosive-limit and toxic-gas tables are hard-coded (atmosphere.rs:195-237) and duplicate data/chemistry/gases.csv. The damage path needs `InEnclosedSpace` and `IgnitionSource`, which nothing spawns, so only the O2 "breathable" flag reaches the player (lib.rs:5741-5758).
 - **Vitals are richer than the HUD shows.** Satiation, hydration, energy, oxygen, body temperature and waste all exist and drain health (ecs/components.rs:79-110; food.rs:476-630). The HUD shows a health bar only (gui/pages/hud.rs:101-118). Everything else is on the Inventory page (inventory.rs:1431-1520).
 - **Status effects are ready but unused.** Rows for burning, poisoned, toxic_atmosphere and overheated (status_effects.csv:46, 47, 80, 54) would tick through the live effect loop (food.rs:601-626) as soon as something applies them. Nothing does.
-- **Burn degrees 1 to 3** are defined in data/medical.ron:105-139, but MedicalSystem is dormant.
+- **Burn degrees 1 to 3** were defined in data/medical.ron:105-139, but MedicalSystem was dormant. (2026-10-12, first-hour audit S8: both deleted. Burns are now three `wound` status effects in data/medical/wounds.ron, red skin, blistered and deep, each with a course and a chance of going bad, applied by the food system through src/systems/wounds.rs; fire.rs pushes a body's heat as an injury instead of taking health in f32.)
 - **DisasterSystem** has MeteorImpact and AsteroidImpact (src/systems/disasters.rs:36-37, 104-105, 124). It is not registered (engine_wiring_lint.rs:41), and nothing reads its `vfx_id` strings.
 
 ### Models and props
@@ -196,7 +196,7 @@ Only one GPU rig may run at a time.
   - Burning dry chars the wick.
   - Products per kg go into the AtmosphereSystem composition, and O2 is consumed, so a wick cannot burn in vacuum.
   - Heat conducts wick to shaft to grip in 1D, using the alloy's conductivity, specific heat and max_service_c.
-  - Radiant and contact exposure map to medical.ron burn degrees.
+  - Radiant and contact exposure map to the burn depths in data/medical/wounds.ron (`burns.steps`, today seconds of fire at full intensity).
   - A CO/smoke field on EnvironmentContext lets the existing status rows (toxic_atmosphere, poisoned, burning, overheated) apply through the live effect tick. Each needs only an `effects.apply()` call.
 - Also fix the status-ID mismatch: fire_system.ron uses `debuff_*` IDs that are not in status_effects.csv.
 - Files: new src/systems/wick.rs, src/ecs/components.rs, src/systems/atmosphere.rs, src/systems/food.rs, data/status_effects.csv, registration in src/lib.rs, tests/engine_wiring_lint.rs.
@@ -251,7 +251,7 @@ What the ladder makes possible, using hooks that mostly already exist:
   - Re-dipping a hot head can self-ignite it: lamp oil autoignites at about 200 to 216 C (fuel-use research F21).
   - All of this falls out of fuels.csv. None of it is scripted.
 - **Build choices have consequences.** Shaft alloy and wall decide weight, flex and how fast the grip heats. Wick fibre decides lifespan. Aramid chars; polyester melts. Galvanised or cadmium-plated hardware near the wick gives off fumes.
-- **Burns are graded injuries, not HP.** Contact and radiant exposure map to burn degrees 1 to 3 with treatment and recovery (medical.ron). The Library's treating_burns.md is the matching real-world skill.
+- **Burns are graded injuries, not HP.** Contact and radiant exposure map to burn degrees 1 to 3 with treatment and recovery (data/medical/wounds.ron since 2026-10-12). The Library's treating_burns.md is the matching real-world skill.
 - **Air is a resource.** Spin indoors and the room's CO and soot rise, visibility drops, and toxic_atmosphere applies. Ventilation and scrubbers matter. Smoke inhalation is a condition that can be treated.
 - **Clothing matters.** The Forest Service rule the guide already cites: synthetics melt onto skin, while cotton, wool, silk and aramid do not. A flare-up in a polyester shirt is a different injury from one in cotton.
 - **Safety is gameplay, and co-op.** A spotter role with a Duvetyne fire blanket, a fuel depot at the Portland FIR 3.07 distances, and a spin-off can. In multiplayer the spotter is a real job, not a menu.

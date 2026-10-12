@@ -1110,34 +1110,25 @@ plan built on the household mean.
 
 ## What the simulation models
 
-The medical system in HumanityOS carries one record for this whole
-subject, and its limits are worth knowing so you do not mistake the game
-for the world.
+The game models going without food, and nothing finer, and its limits are
+worth knowing so you do not mistake the game for the world.
 
-The condition is `malnutrition` in `data/medical.ron`. It is rated
-severity "moderate", affects the whole body, and presents as three status
-effects: `hungry`, `weakness` and `slow`. Its description reads "Chronic
-dietary deficiency. Muscles waste and immune system weakens." Recovery
-time is 604,800 seconds, which is seven days. It has no untreated
-progression, which is a simplification: real progressive undernutrition
-does not plateau.
+Your Satiation bar empties over about a week; below a quarter you are
+Hungry, which slows you, and at empty your health starts to fall. Since 12
+October 2026 a body that is Hungry or Thirsty also heals at half its usual
+rate, and one that is starving does not heal at all
+(`data/medical/wounds.ron`): a nod to how much going short slows wound
+healing in life. There is no malnutrition as a condition of its own, no
+recovery from it, and nothing about which nutrients you ate. (An older
+medical catalogue, `data/medical.ron`, described a `malnutrition`
+condition and a `nutrition_therapy` procedure of bread and dried meat,
+but nothing in the game ever used it, and it was deleted on 12 October
+2026.)
 
-The treatment is the `nutrition_therapy` procedure in the same file. It
-requires the `medicine` skill at level 2, needs no tools, consumes two
-units of `bread_0` and one of `dried_meat_0`, takes 7,200 seconds (two
-hours) and succeeds 90 percent of the time. Its description is a
-"Structured caloric intake plan to reverse malnutrition."
-
-Notice that the consumables are bread and dried meat: a grain and an
-animal protein, which is the complementary pairing this guide has been
-describing, plus the one class of food that carries B12. That is a better
-piece of design than it looks.
-
-Notice also what the model cannot represent. It has one malnutrition
-state, so it cannot distinguish running out of energy from running out of
-iodine, and those are completely different problems on completely
-different timescales. The seven-day recovery is right for an energy
-deficit and wrong by years for a B12 reserve. And the per-crop nutrition
+Notice also what the model cannot represent. Hunger is one bar, so it
+cannot distinguish running out of energy from running out of iodine, and
+those are completely different problems on completely different
+timescales. And the per-crop nutrition
 data in `data/food/crop_nutrition.ron` carries energy, protein, fat and
 carbohydrate only, and **not one micronutrient**, so the entire second
 half of this guide is outside what the simulation can currently compute. The
@@ -1306,8 +1297,9 @@ not quoted beyond short attributed phrases):
 
 **Local simulation data**, referenced by record id:
 
-- `data/medical.ron`, condition `malnutrition` and procedure
-  `nutrition_therapy`
+- `data/medical/wounds.ron`, `healing` (Hungry and Thirsty halve the
+  healing rate), and `src/systems/food.rs` (the Satiation bar and
+  starving)
 - `data/food/crop_nutrition.ron`, all per-crop figures in Part two
 - `data/plants.csv`, the yield ranges used in the per-plant arithmetic
 

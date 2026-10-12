@@ -411,7 +411,7 @@
   <script src="/shared/settings.js"></script>
   <script src="/shared/eli5.js"></script>
   <!-- Which profile fields a save changed, for Chat to send on top of the server's copy (BUG-195). -->
-  <script src="/shared/profile-changes.js?v=1"></script>
+  <script src="/shared/profile-changes.js?v=2"></script>
   <div class="eli5-block">
     <div class="eli5-simple">This is you! Set your name, picture, bio, and show off your skills.</div>
     <div class="eli5-expert">Dilithium3 (ML-DSA-65) identity, derived from your 24-word recovery phrase, with profile data synced over WebSocket. Skills tab has 9 domains with 49 skills tracked by XP/level (10 pips per level, 50 max). Endorsements from other users. Profile data broadcasts to connected peers on save.</div>
@@ -732,7 +732,7 @@
               <input type="url" id="f-website" maxlength="256" placeholder="https://yoursite.com">
             </div>
           </div>
-          <p class="privacy-note">🌐 Public = visible to everyone &nbsp;&middot;&nbsp; 🔒 Friends = visible only to people you follow who follow you back.</p>
+          <p class="privacy-note">🌐 Public = visible to everyone, here and on the servers this one is linked with &nbsp;&middot;&nbsp; 🔒 Friends = visible only to people you follow who follow you back.</p>
         </div>
 
         <div class="prof-card">
@@ -741,7 +741,7 @@
             <input type="checkbox" id="f-directory-listed" checked aria-describedby="directory-hint">
             <span>List me in this server's public member directory</span>
           </label>
-          <p class="field-hint" id="directory-hint">Separate from the per-field locks above. Turn it off to join and chat without appearing in the member list at all.</p>
+          <p class="field-hint" id="directory-hint">Separate from the per-field locks above. Turn it off to join and chat without appearing in the member list at all. It also keeps your profile off the servers this one is linked with.</p>
         </div>
 
         <div class="prof-card">

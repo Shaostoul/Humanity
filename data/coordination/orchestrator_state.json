@@ -251,6 +251,16 @@
       "date": "2026-10-12",
       "decision": "Released v0.1488.0 (verify 4109, rig-tests 710, boot clean, delivery OK): 5b Wave 0 and 1 (not switched on in the game yet), 32 KB DM padding, permit signature checked before its date, key log lines shortened, the technical page rewritten, self-hosting docs corrected (link a stock front page; what the relay and nginx log). BUG-191 plan written (docs/design/bug-191-profile-copies-plan.md; erase withdrawal included) and its Wave 0 dispatched. Still running: 5b 2A and 2B, 3A rig, increment 6 plan.",
       "why": "Ship what is verified so the servers carry the relay side of 5b before the game side lands; keep local and GitHub in step."
+    },
+    {
+      "date": "2026-10-12",
+      "decision": "Merged 5b lanes 2B (Household card), 3A (just verify-household) and 2A (the game glue: permit checks after a welcome, permitted plots open while a permit works, permits attached to builds and take-downs, giving refused under the protected setup). Small fixes on main: detail rows wrap (Home page loop card), the backpack-overflow notice names the item and says it went to home storage, the sawmill keeps 40 planks and the vehicle assembler one rover, with a test that every automatic machine states its limit. A historian pass found 21 of the first-hour audit 34 items fixed; four of the open ones dispatched as worktree lanes: wounds and natural healing (S8), animal feed and water (S6), crops planted from the backpack (F11), the drone running costs (S5).",
+      "why": "The operator asked for a properly playable game by year end; the first-hour audit is the closest map of what still breaks a new player. Lanes chosen on disjoint files so they run in parallel; lib.rs changes come back as wiring requests."
+    },
+    {
+      "date": "2026-10-12",
+      "decision": "Released v0.1489.0: 5b in the game (27/27 in just verify-household after two rig-side fixes: her wall moved into the common room on the metre grid, the game matched under any name), the 5b review fixes (a restarted game is stood a step out onto the street from a neighbour plot instead of shut in; again keeps a working permit; 30 s rechecks; Renew by this plot; card lines), wounds and healing (S8; MedicalSystem and data/medical.ron deleted, FoodSystem the one owner), backpack sowing (F11), increment 6 Wave 0, BUG-191 Wave 0 and 1D, website permission and wording fixes. The session process had ended at about 6:30 a.m. and killed every agent and a release build; all partial work survived in worktrees and was resumed after noon.",
+      "why": "Ship what is verified in the running game; keep builds to three or four at once (six plus a release crashed rustc for memory twice)."
     }
   ],
   "active_scopes_to_avoid": [

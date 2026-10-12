@@ -393,7 +393,8 @@ struct BodyCarry {
 /// f32, and what that rounding held back is left in `carry` for the next change.
 /// What a bound takes off (an empty or a full meter) is not carried: an empty
 /// stomach cannot go below empty. A change that is not a number changes nothing.
-fn change_exactly(meter: &mut f32, carry: &mut f64, delta: f64, lo: f32, hi: f32) {
+/// The fire system uses it too, for what a fire takes from anything that is not a body.
+pub(crate) fn change_exactly(meter: &mut f32, carry: &mut f64, delta: f64, lo: f32, hi: f32) {
     let exact = f64::from(*meter) + *carry + delta;
     if !exact.is_finite() {
         *carry = 0.0;
@@ -424,6 +425,9 @@ pub struct FoodSystem {
     /// What the medical items' Use does (BUG-162, `systems::treatment`,
     /// data/medical/treatments.ron).
     treatments: crate::systems::treatment::Treatments,
+    /// What a bite or a burn leaves and how a body heals by itself (first-hour audit S8,
+    /// `systems::wounds`, data/medical/wounds.ron).
+    wounds: crate::systems::wounds::Wounds,
 }
 
 impl FoodSystem {
@@ -459,9 +463,11 @@ impl FoodSystem {
         log::info!("Loaded {} edible items from {}", item_profile.len(), ItemProfiles::FILE);
         let illnesses = crate::systems::illness::Illnesses::load(data_dir);
         let treatments = crate::systems::treatment::Treatments::load(data_dir);
+        let wounds = crate::systems::wounds::Wounds::load(data_dir);
         log::info!(
-            "Loaded {} illness(es) and {} medical item(s) with a Use",
+            "Loaded {} illness(es), {} wound(s) and {} medical item(s) with a Use",
             illnesses.illnesses.len(),
+            wounds.wounds.len(),
             treatments.treatments.len()
         );
         Self {
@@ -472,6 +478,7 @@ impl FoodSystem {
             carry: HashMap::new(),
             illnesses,
             treatments,
+            wounds,
         }
     }
 
@@ -637,7 +644,8 @@ impl FoodSystem {
     /// (BUG-162): its row in data/medical/treatments.ron decides what it does
     /// (`treatment::apply`). One is used up only when it helped. Either way the
     /// player is told, and when it could not help, what does help with any
-    /// illness they have. An item with no row has no Use, and is left alone.
+    /// illness or wound they have (2026-10-12, `systems::wounds`). An item with
+    /// no row has no Use, and is left alone.
     fn use_item(
         &self,
         world: &mut hecs::World,
@@ -658,7 +666,7 @@ impl FoodSystem {
             if dead.is_some() || !inv.has_item(item_id, 1) {
                 continue;
             }
-            let out = crate::systems::treatment::apply(t, health, effects, registry);
+            let out = crate::systems::treatment::apply(t, health, effects, registry, &self.wounds);
             let mut message = out.message;
             if out.used {
                 inv.remove_item(item_id, 1);
@@ -666,6 +674,9 @@ impl FoodSystem {
                 for line in self.illnesses.helps_lines(effects, registry) {
                     message.push(' ');
                     message.push_str(&line);
+                }
+                for w in self.wounds.lines(effects, registry) {
+                    message.push_str(&format!(" For {}: {}", w.name, w.line));
                 }
             }
             log::info!("[Medical] {} {item_id}: {message}", if out.used { "used" } else { "kept" });
@@ -693,8 +704,11 @@ impl System for FoodSystem {
         // heat, a burn's g-load and timed status effects, because the player
         // moves and acts in real seconds, and at 72x a held breath would
         // otherwise last half a real second. At time speed 1 the two agree.
-        // An ILLNESS (a `disease` effect, BUG-162) is the exception among the
-        // effects: it runs its course over game days, so it counts game seconds.
+        // An ILLNESS (a `disease` effect, BUG-162) and a WOUND (a `wound`
+        // effect, first-hour audit S8) are the exceptions among the effects:
+        // each runs its course over game minutes to weeks, so it counts game
+        // seconds, as does healing by itself. A fire's heat on the skin counts
+        // real seconds, like breath.
         let game_dt = crate::systems::time::scaled_dt(dt, data);
         // Settings > Gameplay > Illness (BUG-162, systems::illness): how long
         // an illness lasts and how much water it takes.
@@ -882,18 +896,22 @@ impl System for FoodSystem {
             .and_then(|m| m.lock().ok().map(|g| *g))
             .unwrap_or(1.0)
             .clamp(0.0, 5.0);
-        // What the player is told this tick when an illness passes (BUG-162).
+        // What the player is told this tick when an illness passes (BUG-162),
+        // and of their wounds (first-hour audit S8).
         let mut passed: Vec<String> = Vec::new();
-        // An illness (a `disease` effect) counts game seconds; the rest, real
-        // ones (BUG-162, systems::illness).
-        let on_game_clock = |id: &str| registry.and_then(|r| r.get(id)).is_some_and(|d| d.is_disease());
-        for (e, (vitals, effects, health, ctrl, dead, outfit)) in world.query_mut::<(
+        // An illness (a `disease` effect) and a wound count game seconds; the
+        // rest, real ones (BUG-162, systems::illness; systems::wounds).
+        let on_game_clock = |id: &str| registry.and_then(|r| r.get(id)).is_some_and(|d| d.on_game_clock());
+        // Asleep in a bed, a body heals faster (systems::wounds).
+        let sleeping = self.asleep.is_some();
+        for (e, (vitals, effects, health, ctrl, dead, outfit, injuries)) in world.query_mut::<(
             &mut Vitals,
             &mut StatusEffects,
             Option<&mut Health>,
             Option<&crate::ecs::components::Controllable>,
             Option<&crate::ecs::components::Dead>,
             Option<&crate::ecs::components::Outfit>,
+            Option<&mut crate::systems::wounds::Injuries>,
         )>() {
             heat_seen.push(e);
             let clo = crate::systems::body_heat::BASE_OUTFIT_CLO
@@ -904,6 +922,11 @@ impl System for FoodSystem {
             // The dead do not hunger: vitals freeze until respawn so the death
             // screen is stable (no double-death, no draining while paused).
             if dead.is_some() {
+                // What hurt them as they died (the killing bite) leaves no
+                // wound on the body they respawn in.
+                if let Some(inj) = injuries {
+                    inj.pending.clear();
+                }
                 continue;
             }
             // Every change below is worked out in f64, and a meter takes it
@@ -912,6 +935,8 @@ impl System for FoodSystem {
             let carry = self.carry.entry(e).or_default();
             let (game_s, real_s, drain) = (f64::from(game_dt), f64::from(dt), f64::from(drain_scale));
             let mut health_drain = 0.0_f64;
+            // What the wounds do this tick (first-hour audit S8, systems::wounds).
+            let mut wound_tick = crate::systems::wounds::BodyTick::default();
             // Largest single drain source this tick -- becomes the death line
             // ("You died: starvation") if this is the tick that reaches zero.
             let mut worst: (&str, f64) = ("", 0.0);
@@ -1054,20 +1079,36 @@ impl System for FoodSystem {
                 effects.remove("unsanitary");
             }
 
+            // ── WOUNDS (first-hour audit S8, systems::wounds): what hurt this
+            // body since its last tick becomes its wounds (a bite's bleeding, a
+            // fire's burn, and the health the fire takes), and the wounds on it
+            // take what they take (bleeding, an infected wound), on the game
+            // clock and by the Illness and injury mode.
+            if let Some(inj) = injuries {
+                self.wounds.take_injuries(inj, effects, registry, illness_mode, real_s, &mut wound_tick);
+            }
+            self.wounds.harm(effects, illness_mode, game_s, &mut wound_tick);
+            for (cause, amt) in &wound_tick.harm {
+                health_drain += amt;
+                if *amt > worst.1 {
+                    worst = (cause.as_str(), *amt);
+                }
+            }
+
             // ── EFFECT TICK (v0.745, loop-map rung 1): damage/healing-over-time
             // rows from status_effects.csv finally act. Per-tick values are
             // normalized to a continuous per-second rate by tick_interval_s
-            // (0 = the value is already per second): infected_wound's
-            // 3 dmg / 20 s drains 0.15/s; regeneration's 5 heal / 3 s restores
-            // ~1.67/s. This is also the game's first health REGENERATION path.
-            // An illness's own rows count game seconds, like its course.
+            // (0 = the value is already per second): poisoned's 4 dmg / 3 s
+            // drains 1.33/s; regeneration's 5 heal / 3 s restores ~1.67/s.
+            // An illness's or a wound's own rows count game seconds, like its
+            // course (a wound's are 0: what it does is in wounds.ron).
             let mut effect_heal = 0.0_f64;
             if let Some(reg) = registry {
                 for active in &effects.active {
                     if let Some(def) = reg.get(&active.id) {
                         let interval =
                             if def.tick_interval_s > 0.0 { def.tick_interval_s } else { 1.0 };
-                        let clock = if def.is_disease() { game_s } else { real_s };
+                        let clock = if def.on_game_clock() { game_s } else { real_s };
                         if def.damage_per_tick > 0.0 {
                             let amt = f64::from(def.damage_per_tick / interval) * clock;
                             health_drain += amt;
@@ -1088,6 +1129,13 @@ impl System for FoodSystem {
             // A Controllable (the player) whose health reaches zero THIS tick
             // dies: recorded here, Dead inserted after the query borrow ends.
             if let Some(health) = health {
+                // ── HEALING BY ITSELF (first-hour audit S8, systems::wounds):
+                // slowly when nothing took health this tick, faster asleep,
+                // slower while Hungry or Thirsty, never while bleeding,
+                // infected or ill. It replaced Well Fed's 1 health a second.
+                let asleep = sleeping && ctrl.is_some();
+                effect_heal +=
+                    self.wounds.healing(effects, registry, illness_mode, health.max, asleep, health_drain > 0.0, game_s);
                 let before = health.current;
                 if health_drain > 0.0 || effect_heal > 0.0 {
                     change_exactly(&mut health.current, &mut carry.health, effect_heal - health_drain, 0.0, health.max);
@@ -1118,6 +1166,15 @@ impl System for FoodSystem {
                     }
                 }
             }
+            // Wounds that go bad as this step passes, the wounds that heal, and
+            // the care kept as long as the wounds it covers (systems::wounds).
+            let step_s = |id: &str| f64::from(step(id));
+            self.wounds.going_bad(effects, registry, illness_mode, step_s, rand::random::<f32>, &mut wound_tick);
+            if ctrl.is_some() {
+                passed.append(&mut wound_tick.notices);
+                passed.extend(self.wounds.healed(effects, step_s));
+            }
+            self.wounds.keep_care(effects);
             effects.tick_with(step);
         }
         // Forget the heat state and the carry of bodies that are gone.
@@ -1418,34 +1475,36 @@ mod nutrition_tests {
     }
 
     /// v0.745 EFFECT TICK (loop-map rung 1): damage/healing-over-time rows in
-    /// status_effects.csv finally act. infected_wound (3 dmg / 20 s) drains
-    /// health at 0.15/s; regeneration (5 heal / 3 s) restores it. Pinned with
-    /// exact rates so a CSV rebalance shows up as a test diff, not a surprise.
+    /// status_effects.csv finally act. poisoned (4 dmg / 3 s) drains health at
+    /// 1.33/s; regeneration (5 heal / 3 s) restores it. Pinned with exact
+    /// rates so a CSV rebalance shows up as a test diff, not a surprise.
     /// (Food poisoning was the example until BUG-162, 2026-10-05: it takes
-    /// water now, not health; systems::illness and illness_tests.rs.)
+    /// water now, not health; systems::illness and illness_tests.rs. Then
+    /// infected_wound until 2026-10-12: a wound's harm is in wounds.ron now,
+    /// systems::wounds and wounds_tests.rs.)
     #[test]
     fn status_effect_damage_and_healing_tick_on_health() {
         let mut sys = FoodSystem::new(data_dir());
         let data = make_store();
         let mut world = hecs::World::new();
         let mut fx = StatusEffects::default();
-        fx.apply("infected_wound", 5400.0);
+        fx.apply("poisoned", 60.0);
         let e = world.spawn((Inventory::new(4), vitals(80.0, 80.0), fx, Health::default()));
 
-        // 30 simulated seconds of infection at 3/20 = 0.15 dmg/s -> 4.5 damage.
-        for _ in 0..30 {
+        // 3 simulated seconds of poison at 4/3 dmg/s -> 4 damage.
+        for _ in 0..3 {
             sys.tick(&mut world, 1.0, &data);
         }
         let after_poison = world.get::<&Health>(e).unwrap().current;
         assert!(
-            (95.0..96.0).contains(&after_poison),
-            "infected_wound drained 4.5 HP over 30s, got {after_poison}"
+            (95.9..96.1).contains(&after_poison),
+            "poisoned drained 4 HP over 3s, got {after_poison}"
         );
 
-        // Swap the infection for regeneration (5 heal / 3 s): health climbs back.
+        // Swap the poison for regeneration (5 heal / 3 s): health climbs back.
         {
             let mut fx = world.get::<&mut StatusEffects>(e).unwrap();
-            fx.remove("infected_wound");
+            fx.remove("poisoned");
             fx.apply("regeneration", 300.0);
         }
         for _ in 0..3 {
@@ -2421,3 +2480,10 @@ mod illness_tests;
 #[cfg(test)]
 #[path = "food_frame_rate_tests.rs"]
 mod frame_rate_tests;
+
+/// Wounds and healing (first-hour audit S8, 2026-10-12): a bite bleeds and leaves a wound, a
+/// fire burns deeper the longer it lasts, a wound can go bad, and a body heals by itself.
+/// Native only: one test walks the save.
+#[cfg(all(test, feature = "native"))]
+#[path = "wounds_tests.rs"]
+mod wounds_tests;

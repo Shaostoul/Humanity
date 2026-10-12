@@ -1,0 +1,519 @@
+// HumanityOS machine layout: the CABIN's household (ship homes increment 6,
+// docs/design/ship-homes-increment-6-plan.md section 3.2). Same format as data/machines/home.ron.
+// Chosen by the Cabin start's one household (data/homes/starts.ron), loaded by
+// `crate::machines::home_ron_path()` when the live save's start is a cabin.
+//
+// One person in one room of 3.0 x 2.5 m (data/homes/shipped/cabin.ron): a single bed along the
+// north wall, a nightstand at its head, a wardrobe (the locker) and a desk with its chair on the
+// south wall, and a wall screen on the east wall over the bed's foot and the desk. No power rows
+// and no loops: the cabin is on the ship's supply, its meals come from the mess hall and its
+// water from the ship, so nothing at home can break or die.
+//
+// Positions are home-local metres from the cabin's own corner (x east, z south; the door is in
+// the west wall's middle, x 0, z 1.25), each machine's centre. The steel shell is 0.06 m thick,
+// centred on the box edge, so the inside runs from 0.03 to 2.97 (x) and 0.03 to 2.47 (z).
+//
+// `ship_machines` merges the Commons' rows (data/machines/ship.ron) in when this file loads, so a
+// cabin player sees the Commons' garden, its trading posts and, with increment 6's mess hall,
+// its tables and serving counter. The catalog holds exactly the types this file and ship.ron
+// use, each copied byte for byte from data/machines/home.ron (ship.ron's own catalog is empty
+// until increment 6's lane 1A gives it one), except `bed_single`, which is new.
+//
+// Rotation: 0 puts a machine's front toward north (-z), 90 toward west, 180 toward south,
+// 270 toward east, the convention home.ron's desks and chairs follow.
+
+(
+    ship_machines: Some("ship.ron"),
+    catalog: {
+        // A single bed (2026-10-12): a 90 x 200 cm mattress, the cabin's one bed. E sleeps the
+        // night here, as at the family home's bed (`provides: Some("rest")`). Drawn as its box:
+        // the furniture models on disk hold only a double bed, which is never squeezed to fit.
+        // assets/models/furniture.blend holds a twin bed (Frame, Mattress and Covers .Box.Twin)
+        // to export through docs/dev/adding-3d-models.md.
+        "bed_single": (
+            shape: "box",
+            size: (2.00, 0.50, 0.90),
+            color: (0.42, 0.44, 0.50),
+            label: "Single bed",
+            category: "Furniture",
+            stats: [
+                (
+                    kind: "storage",
+                    value: "sleep here",
+                    status: "ok",
+                ),
+            ],
+            provides: Some("rest"),
+            power: None,
+            ports: [],
+            storage: [],
+            auto_recipe: None,
+            container_type: None,
+            model: None,
+        ),
+        "nightstand": (
+            shape: "box",
+            size: (0.50, 0.55, 0.40),
+            color: (0.52, 0.38, 0.24),
+            label: "Nightstand",
+            category: "Furniture",
+            stats: [
+                (
+                    kind: "storage",
+                    value: "small drawer",
+                    status: "ok",
+                ),
+            ],
+            power: None,
+            ports: [],
+            storage: [],
+            auto_recipe: None,
+            container_type: Some("furniture_drawer"),
+            model: Some("assets/models/furniture/cabinetbeddrawertable/cabinetbeddrawertable.gltf"),
+        ),
+        "wardrobe": (
+            shape: "box",
+            size: (1.20, 2.00, 0.60),
+            color: (0.52, 0.38, 0.24),
+            label: "Wardrobe",
+            category: "Furniture",
+            stats: [
+                (
+                    kind: "storage",
+                    value: "clothing",
+                    status: "ok",
+                ),
+            ],
+            power: None,
+            ports: [],
+            storage: [],
+            auto_recipe: None,
+            container_type: Some("wardrobe_cabinet"),
+            model: Some("assets/models/furniture/bookcasecloseddoors/bookcasecloseddoors.gltf"),
+        ),
+        "desk": (
+            shape: "box",
+            size: (1.40, 0.75, 0.70),
+            color: (0.52, 0.38, 0.24),
+            label: "Desk",
+            category: "Furniture",
+            stats: [
+                (
+                    kind: "storage",
+                    value: "work surface + drawer",
+                    status: "ok",
+                ),
+            ],
+            power: None,
+            ports: [],
+            storage: [],
+            auto_recipe: None,
+            container_type: Some("furniture_drawer"),
+            model: Some("assets/models/furniture/desk/desk.gltf"),
+        ),
+        "chair": (
+            shape: "box",
+            size: (0.50, 0.90, 0.50),
+            color: (0.52, 0.38, 0.24),
+            label: "Chair",
+            category: "Furniture",
+            stats: [
+                (
+                    kind: "storage",
+                    value: "seats one",
+                    status: "ok",
+                ),
+            ],
+            power: None,
+            ports: [],
+            storage: [],
+            auto_recipe: None,
+            container_type: None,
+            model: Some("assets/models/furniture/chaircushion/chaircushion.gltf"),
+        ),
+        "wall_screen": (
+            shape: "box",
+            size: (1.8, 1.05, 0.06),
+            color: (0.08, 0.08, 0.1),
+            label: "Wall screen",
+            category: "Displays",
+            stats: [
+                (
+                    kind: "display",
+                    value: "1280 x 720 touchscreen",
+                    status: "ok",
+                ),
+            ],
+            power: None,
+            ports: [],
+            storage: [],
+            auto_recipe: None,
+            container_type: None,
+            model: None,
+            screen: Some((
+                source: "inventory",
+                px: (1280, 720),
+                face: "front",
+                bezel_m: 0.03,
+                brightness: 1.2,
+            )),
+        ),
+        // The types the Commons' rows use (data/machines/ship.ron), as home.ron defines them.
+        "tent_humidifier": (
+            shape: "box",
+            size: (0.172, 0.357, 0.172),
+            color: (0.9, 0.9, 0.88),
+            label: "Tent humidifier (mushroom rack)",
+            category: "Food",
+            // A small ultrasonic grow-tent humidifier with a humidity
+            // controller (AC Infinity CLOUDFORGE T3: "Output Rate: 8.11 fl
+            // oz/h" = 240 ml/h, "Power Consumption: 24 W", a 4.5 L reservoir,
+            // 17.2 x 17.2 x 35.7 cm). It stands on a mushroom rack's bottom
+            // shelf inside the rack's fruiting tent and holds the tent at 90%,
+            // drawing its watts in proportion to its output and its litres from
+            // the home's tanks with the irrigation (data/garden/humidity.ron,
+            // THE FRUITING TENT, has the balance).
+            humidifies_l_h: 0.24,
+            stats: [
+                (
+                    kind: "power",
+                    value: "~20 W holding one rack's tent at 90% with its CO2 fan, 24 W flat out",
+                    status: "ok",
+                ),
+                (
+                    kind: "water",
+                    value: "~5 L a day from the tanks",
+                    status: "ok",
+                ),
+                (
+                    kind: "air",
+                    value: "holds a mushroom rack's tent at 90% humidity",
+                    status: "ok",
+                ),
+            ],
+            // average_watts (2026-09-27): what the static power meter charges it
+            // for a day, about 20 W a tent with the tents' CO2 fans running, measured by src/systems/farming/life_support_tests.rs
+            // (which holds this figure to the measured draw).
+            power: Some(Consumer(
+                watts: 24.0,
+                priority: 4,
+                average_watts: Some(20.4),
+            )),
+            ports: [],
+            storage: [],
+            auto_recipe: None,
+            container_type: None,
+            model: None,
+        ),
+        "tent_co2_fan": (
+            shape: "box",
+            size: (0.303, 0.188, 0.176),
+            color: (0.62, 0.64, 0.66),
+            label: "Tent CO2 fan (mushroom rack)",
+            category: "Food",
+            // A 4 inch inline fan (AC Infinity CLOUDLINE S4: "Airflow" "226 CFM"
+            // = 384 m3/h, "Max Power Draw" "28 W", 30.3 x 18.8 x 17.6 cm, with
+            // "backup memory that retains the last speed setting whenever power is
+            // cut off", so it runs at its set speed whenever its outlet is on),
+            // switched by an AC Infinity CO2 controller (AC-CTC7: "2" outlets,
+            // "0 - 10,000 PPM"). It sits on top of a mushroom rack inside its
+            // fruiting tent and draws the room's air through the tent while the
+            // tent holds more than 900 ppm of carbon dioxide: on for the share of
+            // the time that holds it there, off below, drawing its 28 W for that
+            // share (data/garden/humidity.ron, THE CO2 FANS).
+            // 900 ppm is a GAME CHOICE, 100 under the 1,000 the oysters fruit
+            // under (Lin 2022; Won 2010's best yield), and not the 800 Cornell's
+            // growers keep oysters below: measured in the family home (the model,
+            // docs/design/ship-life-support.md), holding 800 draws more air than
+            // the tent's small humidifier can wet, and the tents fall to 81 to 89%
+            // humidity with it flat out; at 900 they hold 90.0%. (The one-person
+            // home's two racks could hold 800.)
+            ventilation_m3_h: 384.0,
+            co2_setpoint_ppm: 900.0,
+            stats: [
+                (
+                    kind: "power",
+                    value: "28 W while on, on part of the time",
+                    status: "ok",
+                ),
+                (
+                    kind: "air",
+                    value: "holds a mushroom rack's tent under 900 ppm of CO2",
+                    status: "ok",
+                ),
+            ],
+            // average_watts (2026-09-27): what the static power meter charges it
+            // for a day, about 1.7 W a tent, on about 6% of the time, measured by src/systems/farming/life_support_tests.rs
+            // (which holds this figure to the measured draw).
+            power: Some(Consumer(
+                watts: 28.0,
+                priority: 4,
+                average_watts: Some(1.7),
+            )),
+            ports: [],
+            storage: [],
+            auto_recipe: None,
+            container_type: None,
+            model: None,
+        ),
+        "aquaponic_tank": (
+            shape: "box",
+            size: (1.6, 1.0, 1.6),
+            color: (0.2, 0.45, 0.7),
+            label: "Aquaponic tank",
+            category: "Food",
+            stats: [
+                (
+                    kind: "food",
+                    value: "+75 kcal/d (estimate, fish not modelled)",
+                    status: "ok",
+                ),
+                (
+                    kind: "nutrient",
+                    value: "B12 + omega-3",
+                    status: "ok",
+                ),
+                (
+                    kind: "power",
+                    value: "-17 W air pump, all day: 0.41 kWh/d",
+                    status: "ok",
+                ),
+            ],
+            // Its air pump (2026-09-27; the stat said 50 W, which no source backed, and it had no
+            // power, so the meter charged nothing). How much air: FAO's Small-scale aquaponic food
+            // production (Somerville et al. 2014, FAO Fisheries and Aquaculture Technical Paper
+            // 589, https://www.fao.org/4/i4021e/i4021e.pdf, read 2026-09-27), section 7.3: "The
+            // suggested rate is 5–8 litres of air per minute for each cubic metre of water,
+            // coming from at least 2 air stones in different locations in the fish tank", so this
+            // 1.6 x 1.0 x 1.6 m tank, 2.56 m3, wants 12.8 to 20.5 L a minute at the bottom of about
+            // a metre of water. The pump: a HIBLOW HP-20 linear air pump, whose spec sheet
+            // (https://www.hiblow-usa.com/wp-content/uploads/2017/02/HP-20-40_170119.pdf, read
+            // 2026-09-27) gives "Rated Loading Pressure kPa 9.8" (a metre of water), "Airflow
+            // Volume" 20 L/min at 60 Hz and "Power Consumption W 17": the top of FAO's range, for
+            // 17 W. FAO wants the aeration on around the clock ("simple battery backups for air
+            // pumps have saved countless fish"), so it is a steady load, priority 1, shed last.
+            power: Some(Consumer(
+                watts: 17.0,
+                priority: 1,
+            )),
+            ports: [],
+            storage: [],
+            auto_recipe: None,
+            container_type: None,
+            model: None,
+        ),
+        "composter": (
+            shape: "box",
+            size: (0.7, 0.55, 0.7),
+            color: (0.35, 0.25, 0.14),
+            label: "Composter",
+            category: "Food",
+            stats: [
+                (
+                    kind: "nutrient",
+                    value: "+1.2 kg/d",
+                    status: "ok",
+                ),
+                (
+                    kind: "water",
+                    value: "+155 L/d greywater",
+                    status: "ok",
+                ),
+            ],
+            power: None,
+            ports: [],
+            storage: [],
+            auto_recipe: None,
+            container_type: None,
+            model: None,
+        ),
+        "mushroom_rack": (
+            shape: "box",
+            size: (1.2, 1.8, 0.6),
+            color: (0.62, 0.55, 0.45),
+            label: "Mushroom rack",
+            category: "Food",
+            stats: [
+                (
+                    kind: "power",
+                    value: "no light needed",
+                    status: "ok",
+                ),
+            ],
+            power: None,
+            ports: [],
+            storage: [],
+            auto_recipe: None,
+            container_type: None,
+            model: None,
+        ),
+        "aeroponic_tower_apothecary": (
+            shape: "cylinder",
+            size: (0.16, 1.9, 0.16),
+            color: (0.45, 0.55, 0.3),
+            label: "Apothecary tower",
+            category: "Food",
+            stats: [
+                (
+                    kind: "nutrient",
+                    value: "herbs + teas",
+                    status: "ok",
+                ),
+                (
+                    kind: "power",
+                    value: "sun-lit; a 35 W pump on 5 minutes in every 50: 3.5 W averaged",
+                    status: "ok",
+                ),
+            ],
+            // Its pump (2026-09-27; it had none, so the meter charged it nothing while its stat
+            // said -12 W). Tower Garden's standard submersible pump, the maker's own figures (read
+            // 2026-09-27): "This pump is rated at 357 US GPH, 0.65 amps, 35 watts @120 VAC/60 Hz"
+            // (https://us.towergarden.com/products/pump), switched by the maker's timer, "Select I
+            // for Indoor use (5 min on, 45 min off)" (https://us.towergarden.com/products/tower-garden-timer).
+            // The towers stand indoors, so it runs a tenth of the time: 3.5 W averaged over a day.
+            // A tower has no power role (the electrical sim does not run its pump, home_spawn.rs),
+            // so its port is what the static meter charges; the port therefore carries that
+            // continuous-equivalent 3.5 W, the convention home_solo.ron's washer and water heater
+            // already use, and the 35 W nameplate lives in the label and the stat.
+            power: None,
+            ports: [
+                (
+                    utility: Electricity,
+                    dir: In,
+                    label: "pump (35 W, on 5 min in 50: 3.5 W averaged)",
+                    watts: 3.5,
+                    flow_lpm: 0.0,
+                    mbps: 0.0,
+                    anchor: (0.0, 0.0, 0.0),
+                ),
+            ],
+            storage: [],
+            auto_recipe: None,
+            container_type: None,
+            model: None,
+        ),
+        "aeroponic_tower_nutrition": (
+            shape: "cylinder",
+            size: (0.3, 2.4, 0.3),
+            color: (0.3, 0.65, 0.38),
+            label: "Variety tower",
+            category: "Food",
+            stats: [
+                (
+                    kind: "nutrient",
+                    value: "vitamins + protein",
+                    status: "ok",
+                ),
+                (
+                    kind: "power",
+                    value: "sun-lit; a 48 W pump on 5 minutes in every 50: 4.8 W averaged",
+                    status: "ok",
+                ),
+            ],
+            // Its pump (2026-09-27). The port was 15 W of "pump + light" for 24 hours, 0.36 kWh a
+            // day a tower and 11.9 kWh for the 33 placed; the tower is sun-lit and has no light.
+            // Tower Garden's high capacity submersible pump, the maker's own figures (read
+            // 2026-09-27): "This pump is rated at 714 GPH, 0.43 amps, 48 watts @ 120 VAC/60 Hz"
+            // (https://us.towergarden.com/products/pump-model-3-0). Which pump is a GAME CHOICE:
+            // this tower is 2.4 m and 50 cups, taller than a standard Tower Garden, and its parts
+            // list (data/towers/aeroponic_configs.ron) asks for a pump that lifts over 2.5 m, so it
+            // gets the maker's larger pump (twice the standard 357 GPH, 35 W). The maker's timer:
+            // "Select I for Indoor use (5 min on, 45 min off)"
+            // (https://us.towergarden.com/products/tower-garden-timer), so it runs a tenth of the
+            // time, 4.8 W averaged. A tower has no power role (the electrical sim does not run its
+            // pump, home_spawn.rs), so its port is what the static meter charges; the port carries
+            // that continuous-equivalent 4.8 W and the 48 W nameplate lives in the label and stat.
+            power: None,
+            ports: [
+                (
+                    utility: Electricity,
+                    dir: In,
+                    label: "pump (48 W, on 5 min in 50: 4.8 W averaged)",
+                    watts: 4.8,
+                    flow_lpm: 0.0,
+                    mbps: 0.0,
+                    anchor: (0.0, 0.0, 0.0),
+                ),
+            ],
+            storage: [],
+            auto_recipe: None,
+            container_type: None,
+            model: None,
+        ),
+        "trading_post": (
+            shape: "box",
+            size: (1.6, 1.1, 0.8),
+            color: (0.55, 0.42, 0.25),
+            label: "Trading post",
+            category: "Logistics",
+            stats: [
+                (
+                    kind: "trade",
+                    value: "buys + sells goods",
+                    status: "ok",
+                ),
+            ],
+            power: None,
+            ports: [],
+            storage: [],
+            auto_recipe: None,
+            container_type: None,
+            model: None,
+        ),
+    },
+    instances: [
+        // Along the north wall, its head to the west by the nightstand.
+        (
+            id: "bed_single_1",
+            machine: "bed_single",
+            room: "room-cabin",
+            offset: (1.97, 0.0, 0.48),
+            rotation: 0.0,
+            zone: "home",
+        ),
+        (
+            id: "nightstand_1",
+            machine: "nightstand",
+            room: "room-cabin",
+            offset: (0.7, 0.0, 0.23),
+            rotation: 180.0,
+            zone: "home",
+        ),
+        // The locker: the south wall's west end, clear of the door (z 0.8 to 1.7).
+        (
+            id: "wardrobe_1",
+            machine: "wardrobe",
+            room: "room-cabin",
+            offset: (0.63, 0.0, 2.17),
+            rotation: 0.0,
+            zone: "home",
+        ),
+        // The desk on the south wall's east end, its chair facing it.
+        (
+            id: "desk_1",
+            machine: "desk",
+            room: "room-cabin",
+            offset: (2.25, 0.0, 2.12),
+            rotation: 0.0,
+            zone: "home",
+        ),
+        (
+            id: "chair_1",
+            machine: "chair",
+            room: "room-cabin",
+            offset: (2.25, 0.0, 1.45),
+            rotation: 180.0,
+            zone: "home",
+        ),
+        // On the east wall, above the bed's foot and the desk, facing west into the room.
+        (
+            id: "wall_screen_1",
+            machine: "wall_screen",
+            room: "room-cabin",
+            offset: (2.94, 1.2, 1.25),
+            rotation: 90.0,
+            zone: "home",
+        ),
+    ],
+    connections: [],
+)

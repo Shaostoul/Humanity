@@ -29,6 +29,10 @@ pub mod moderation;
 pub mod merkle_disclosure;
 pub mod object;
 pub mod pq_crypto;
+/// The copy of a person's profile that other servers keep (BUG-191, 2026-10-12): the public copy
+/// rule, the words its owner's app signs, the limits, when to ask, and the time on it. Shared by
+/// the relay and the desktop app; web/shared/profile-copy.js is its twin.
+pub mod profile_copy;
 pub mod signing;
 pub mod solana_rpc;
 /// HEIF still picture (HEIC, AVIF) metadata removal in place: the Exif and

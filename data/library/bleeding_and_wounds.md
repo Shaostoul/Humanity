@@ -1227,56 +1227,44 @@ from the same federal guidance as part two of this document.
 
 ## What the simulation models, and what it does not
 
-The game's medical data lives in `data/medical.ron`, and the mapping to
-this document is partial in ways worth knowing, because the simulation
-teaches a shape and the shape is not yet complete.
+The game's wounds are in `data/medical/wounds.ron`, applied by
+`src/systems/wounds.rs` (since 12 October 2026), and they follow the
+shape of this document: the bleeding is short, and the danger after it is
+a wound going bad.
 
-None of it happens to you in the game yet. The system that would apply
-the catalogue (`src/systems/medical.rs`) is not registered with the game,
-so no wound, bleeding or infection from it ever reaches your character,
-and the Bleeding and Infected Wound conditions in `data/status_effects.csv`
-are not applied by anything either. What follows describes the catalogue
-as it is written.
+What happens to you in the game:
 
-What it represents well:
-
-- **`laceration`** ("Deep Laceration") carries the `bleeding` symptom,
-  offers `suturing` or `bandaging`, and progresses to `infected_wound` if
-  untreated. That is the part two story in miniature: a wound whose
-  danger is infection, not blood loss.
-- **`puncture_wound`** is modelled as distinct and worse, listing both
-  `bleeding` and `infected_wound` from the outset, progressing to
-  `infection_bacterial`, and carrying a longer recovery time than the
-  laceration. A puncture starting out already carrying the infection flag
-  matches the real guidance.
-- **`infection_bacterial`** progressing to `sepsis`, which is marked
-  `critical` and described as fatal within days without treatment,
-  correctly represents the escalation the "go now" list is about.
-- **`bandaging`** is a level 1 procedure taking 30 seconds; `suturing` is
-  level 3, takes 300 seconds and carries four times the complication
-  chance, 0.08 against 0.02. That ordering is right: closing a wound is a
-  harder skill with more ways to go wrong than dressing one.
-- **`blood_transfusion`** is a level 6 procedure and a treatment for
-  `internal_bleeding`, which correctly puts replacing lost blood out of
-  reach of a first responder.
+- **A creature's bite** takes health at once and leaves two things:
+  Bleeding and a Bite Wound. Bleeding takes a little health while it lasts
+  and stops on its own in about ten minutes, as an ordinary bleed does
+  when a clot forms; a Bandage or a Medkit stops it at once. You do not
+  heal while you bleed.
+- **The Bite Wound** heals over about ten days. A wound nobody has
+  cleaned and covered can go bad a day in, and a bite does so more often
+  than a cut: the game uses the rates a review of dog and cat bites gives,
+  about 1 in 6 for a bite left untreated and about 1 in 16 for one cleaned
+  and cared for. A Bandage, a Medkit or Antiseptic cleans and covers your
+  wounds; a new wound is not covered by an old dressing, and the game
+  tells you so.
+- **An Infected Wound** takes your health slowly over days and stops you
+  healing until Antibiotics end it, which is the escalation the "go now"
+  list above is about.
+- **Healing.** A body that is fed, watered and not being hurt heals by
+  itself, faster asleep, and not at all while bleeding, infected or ill.
+  In the Realistic mode (Settings > Gameplay > Illness and injury) a body
+  near death takes about three weeks to be whole; in Forgiving, the
+  default, about three days, and wounds last half as long, do half the
+  harm and go bad a quarter as often.
 
 What it does not yet cover is, almost exactly, part one. There is no
-life-threatening external haemorrhage condition in the file:
-`internal_bleeding` is the only `critical` bleeding entry, and its
-treatments are `surgery_major` and `blood_transfusion`. There is no
-tourniquet, as a procedure, an item, or a consequence; the word does not
-appear. There is no wound packing, no irrigation step, and no tetanus or
-immunisation state. Nothing distinguishes a dirty wound from a clean one,
-and nothing expresses that a treatment can be contraindicated rather than
-merely less effective, which is why `suturing` is currently offered for
-`puncture_wound` even though closing a puncture is the error the real
-guidance warns against.
-
-None of that is a criticism of the file, which is a solid condition and
-procedure catalogue. It is a note that the half of this subject that
-saves lives is the half the simulation does not yet model, and that even
-once the catalogue is in play, a player could master every procedure in it
-without encountering the idea that you press on a wound and do not let go.
+bleeding severe enough to kill in minutes, no tourniquet as an item or a
+consequence, no wound packing, no irrigation step and no tetanus or
+immunisation state. Nothing distinguishes a dirty wound from a clean one
+beyond whether it was cleaned and covered, and in the game a dressing is
+not something you change. The half of this subject that saves lives is
+the half the simulation does not yet model: a player can treat every
+wound in it without meeting the idea that you press on a wound and do
+not let go.
 
 ---
 
@@ -1697,6 +1685,14 @@ restated in our own words.
   potable tap water instead of sterile saline does not increase infection
   risk.
   https://www.aafp.org/pubs/afp/issues/2017/0515/p628.html
+- Ellis, R., and Ellis, C. Dog and Cat Bites. *American Family
+  Physician*, volume 90, issue 4, 15 August 2014, pages 239 to 243. An
+  infection rate of 16 percent in untreated patients in a meta-analysis of
+  antibiotic prophylaxis; 7.6 percent for bites closed and 7.8 percent for
+  bites left open, and 5.5 percent in a second study of closed bites;
+  infection within 24 hours often caused by Pasteurella. Read 12 October
+  2026 for the game's bite wound (`data/medical/wounds.ron`).
+  https://www.aafp.org/pubs/afp/issues/2014/0815/p239.html
 
 ### What could not be sourced
 

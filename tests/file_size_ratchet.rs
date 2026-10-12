@@ -35,6 +35,13 @@ fn repo() -> &'static Path {
 /// commit message.
 ///
 /// RATCHET CLICKS (newest first):
+/// - 2026-10-12: `relay/handlers/profile.rs` joins at 650 (BUG-191 Wave 0,
+///   docs/design/bug-191-profile-copies-plan.md). The two profile handlers
+///   (374 lines) moved out of `msg_handlers.rs` (4_653 -> 4_273, seven lines
+///   under its budget before) to make room for asking for and checking the
+///   copy of a profile other servers keep; 650 leaves room for the plan's
+///   Wave 1A to fill in `handle_profile_sign` and `ask_for_copy` there.
+///   `msg_handlers.rs` keeps 4_660 until a later click.
 /// - 2026-10-04: `relay/relay.rs` 6_500 -> 6_400. It stood at 6_498 when the
 ///   shared-world clock needed one more server setting, so the whole
 ///   `server_settings_update` arm (151 lines) moved, unchanged, into
@@ -390,6 +397,7 @@ const BUDGETS: &[(&str, usize)] = &[
     ("src/gui/loaders.rs", 1_650),
     ("src/relay/relay.rs", 6_400),
     ("src/relay/handlers/msg_handlers.rs", 4_660),
+    ("src/relay/handlers/profile.rs", 650),
     ("src/relay/handlers/stream.rs", 550),
     ("src/terrain/planet_chunks.rs", 4_740),
     ("src/terrain/water_patches.rs", 450),

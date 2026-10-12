@@ -8,6 +8,7 @@ use base64::{Engine, engine::general_purpose::STANDARD as B64};
 use futures::{SinkExt, StreamExt};
 
 use crate::relay::core::object::Object;
+use crate::relay::core::profile_copy::{self, PublicCopy};
 use crate::relay::relay::{FederatedConnection, FederationServerStatus, RelayMessage, RelayState};
 use crate::relay::storage::Storage;
 
@@ -27,93 +28,21 @@ pub fn sign_with_server_key(db: &Storage, message: &str) -> Option<String> {
     Some(hex::encode(kp.sign(message.as_bytes())))
 }
 
-/// Canonical message bytes that a profile signature commits to.
-///
-/// Format (newline-separated, type-tagged for forward versioning):
-///   profile_v1\n{public_key}\n{name}\n{bio}\n{avatar_url}\n{banner_url}\n{socials}\n{pronouns}\n{location}\n{website}\n{timestamp}
-///
-/// Any field change invalidates the signature; the version tag lets us
-/// rotate the format without ambiguity if profile shape evolves.
-#[allow(clippy::too_many_arguments)]
-pub fn canonical_profile_message(
-    public_key: &str,
-    name: &str,
-    bio: &str,
-    avatar_url: &str,
-    banner_url: &str,
-    socials: &str,
-    pronouns: &str,
-    location: &str,
-    website: &str,
-    timestamp: u64,
-) -> String {
-    format!(
-        "profile_v1\n{public_key}\n{name}\n{bio}\n{avatar_url}\n{banner_url}\n{socials}\n{pronouns}\n{location}\n{website}\n{timestamp}"
-    )
-}
-
-/// Verify a **Dilithium3** signature over a profile gossip payload.
-/// Returns true only when both the public key and signature decode and
-/// the signature commits to the canonical message bytes. Was Ed25519
-/// before the full-PQ cutover; users' identity keys are Dilithium3
-/// (1952-byte pubkey hex, 3309-byte sig hex), so an Ed25519 verify
-/// here is forgeable post-quantum. Closes task #5.
-#[allow(clippy::too_many_arguments)]
-pub fn verify_profile_signature(
-    public_key_hex: &str,
-    name: &str,
-    bio: &str,
-    avatar_url: &str,
-    banner_url: &str,
-    socials: &str,
-    pronouns: &str,
-    location: &str,
-    website: &str,
-    timestamp: u64,
-    signature_hex: &str,
-) -> bool {
-    let Ok(pk_bytes) = hex::decode(public_key_hex) else { return false };
-    let Ok(sig_bytes) = hex::decode(signature_hex) else { return false };
-    let message = canonical_profile_message(
-        public_key_hex, name, bio, avatar_url, banner_url, socials,
-        pronouns, location, website, timestamp,
-    );
-    crate::relay::core::pq_crypto::verify_dilithium(&pk_bytes, message.as_bytes(), &sig_bytes).is_ok()
-}
-
-/// Decide whether to accept an inbound `ProfileGossip` payload.
-/// Returns true when the gossip should be stored.
-///
-/// Every profile MUST carry a verifying Dilithium3 signature over the
-/// canonical preimage: profiles are self-certifying, so the transport
-/// (which peer relayed it) never has to be trusted for content. The old
-/// accept-unsigned "trust-by-source" grace period is over; clients have
-/// signed their profiles since the full-PQ cutover.
-#[allow(clippy::too_many_arguments)]
-pub fn should_accept_profile_gossip(
-    public_key_hex: &str,
-    name: &str,
-    bio: &str,
-    avatar_url: &str,
-    banner_url: &str,
-    socials: &str,
-    pronouns: &str,
-    location: &str,
-    website: &str,
-    timestamp: u64,
-    signature_hex: &str,
-) -> bool {
-    // No signature, no cache write. The old fail-open here meant an empty
-    // signature was a skeleton key: any message shaped like gossip could
-    // overwrite any cached profile. A profile that cannot prove itself is
-    // simply not replicated (closed 2026-08-13, federation repair).
+/// Decide whether to keep an inbound `ProfileGossip` copy (BUG-191): it must carry a signature
+/// of the right shape, keep the save's own limits (`profile_copy::within_limits`: what a save
+/// would refuse is never kept, and no line break outside the bio, so the signed words split one
+/// way only), and verify as its owner's Dilithium3 signature over `profile_copy::copy_text`.
+/// Profiles are self-certifying, so which peer relayed a copy never has to be trusted for its
+/// content. Before BUG-191 no app signed a profile, so every copy was refused here; each person's
+/// own app signs from this release. CPU-bound: run it off the async pool.
+pub fn should_accept_profile_gossip(public_key_hex: &str, copy: &PublicCopy, timestamp: u64, signature_hex: &str) -> bool {
+    // No signature, no cache write. The old fail-open here meant an empty signature was a
+    // skeleton key: any message shaped like gossip could overwrite any cached profile (closed
+    // 2026-08-13, federation repair).
     if signature_hex.is_empty() {
         return false;
     }
-    verify_profile_signature(
-        public_key_hex, name, bio, avatar_url, banner_url, socials,
-        pronouns, location, website, timestamp, signature_hex,
-    )
+    profile_copy::within_limits(public_key_hex, copy) && profile_copy::verify_copy(public_key_hex, copy, timestamp, signature_hex)
 }
 
 /// Forward a chat message to all connected federated servers.
@@ -728,42 +657,36 @@ pub async fn handle_peer_message(
             tracing::info!("Federation: welcome from {} — channels: {:?}", name, channels);
             let _ = state.db.update_federated_server_status(&server_id, "online");
         }
-        // Profile gossip from a federated peer — cache if it verifies.
+        // A copy of someone's profile from a federated peer (BUG-191): kept if it keeps the
+        // limits, verifies as its owner's signature and is newer than the one held.
         RelayMessage::ProfileGossip { public_key, name, bio, avatar_url, banner_url, socials, pronouns, location, website, timestamp, signature } => {
-            // The Dilithium3 profile-signature verify inside
-            // should_accept_profile_gossip is CPU-bound; run it OFF the
-            // async worker pool so a gossip burst can't starve tokio.
-            // A panicked/cancelled verify task fails closed (reject).
+            let copy = PublicCopy { name, bio, avatar_url, banner_url, socials, pronouns, location, website };
+            // The Dilithium3 verify inside should_accept_profile_gossip is CPU-bound; run it OFF
+            // the async worker pool so a gossip burst can't starve tokio. A panicked/cancelled
+            // verify task fails closed (refused).
             let accept = {
-                let pk = public_key.clone();
-                let nm = name.clone();
-                let bo = bio.clone();
-                let av = avatar_url.clone();
-                let bn = banner_url.clone();
-                let so = socials.clone();
-                let pr = pronouns.clone();
-                let lo = location.clone();
-                let we = website.clone();
-                let sg = signature.clone();
-                tokio::task::spawn_blocking(move || {
-                    should_accept_profile_gossip(
-                        &pk, &nm, &bo, &av, &bn,
-                        &so, &pr, &lo, &we,
-                        timestamp, &sg,
-                    )
-                })
-                .await
-                .unwrap_or(false)
+                let (pk, c, sg) = (public_key.clone(), copy.clone(), signature.clone());
+                tokio::task::spawn_blocking(move || should_accept_profile_gossip(&pk, &c, timestamp, &sg))
+                    .await
+                    .unwrap_or(false)
             };
             if !accept {
-                tracing::warn!("Federation: rejecting profile gossip for {} — signature did not verify", &name);
+                tracing::warn!(
+                    "Federation: refused a profile copy for {} from {}: over the limits or the signature did not verify",
+                    key_in_log(&public_key),
+                    key_in_log(source_server_id)
+                );
                 return;
             }
-            tracing::debug!("Federation: received profile gossip for {}", &name);
-            let _ = state.db.store_signed_profile(
-                &public_key, &name, &bio, &avatar_url, &banner_url,
-                &socials, &pronouns, &location, &website, timestamp, &signature,
-            );
+            match state.db.store_signed_profile(&public_key, &copy, timestamp, &signature) {
+                Ok(kept) => tracing::debug!(
+                    "Federation: profile copy for {} from {}: {}",
+                    key_in_log(&public_key),
+                    key_in_log(source_server_id),
+                    if kept { "kept" } else { "not newer than the one held, or a withdrawal of nothing held" }
+                ),
+                Err(e) => tracing::error!("Federation: could not keep a profile copy for {}: {e}", key_in_log(&public_key)),
+            }
         }
         // Generic post-quantum signed-object gossip (Phase 3 PR 1).
         RelayMessage::SignedObjectGossip {
@@ -968,192 +891,173 @@ pub async fn gossip_signed_object(
     );
 }
 
-/// Gossip a profile update to all connected federated servers.
-/// Called after a local user updates their profile. The `signature` is the
-/// client-supplied **Dilithium3** signature (hex) over `canonical_profile_message(...)`;
-/// pass an empty string when the client did not sign (peers will then accept
-/// under the trust-by-source model — see `should_accept_profile_gossip`).
-/// Was Ed25519 pre-cutover; switched in v0.276.0 so the profile signing path
-/// uses the same identity key the user actually holds (Dilithium3).
-#[allow(clippy::too_many_arguments)]
+/// Send the copy of `public_key`'s profile that other servers keep to every linked server but
+/// `exclude` (the one a copy came from, when it is passed on; BUG-191 plan 3.6). Called when this
+/// server keeps a copy its owner's app signed (handlers/profile.rs `handle_profile_sign`), and for
+/// one of this server's own accounts, a copy kept from a peer. `signature` is the owner's
+/// Dilithium3 signature (hex) over `profile_copy::copy_text`; an unsigned copy is never sent, since
+/// no server would keep it.
 pub async fn gossip_profile(
     state: &Arc<RelayState>,
     public_key: &str,
-    name: &str,
-    bio: &str,
-    avatar_url: &str,
-    banner_url: &str,
-    socials: &str,
-    pronouns: &str,
-    location: &str,
-    website: &str,
+    copy: &PublicCopy,
     timestamp: u64,
     signature: &str,
+    exclude: Option<&str>,
 ) {
-    let gossip_msg = RelayMessage::ProfileGossip {
-        public_key: public_key.to_string(),
-        name: name.to_string(),
-        bio: bio.to_string(),
-        avatar_url: avatar_url.to_string(),
-        banner_url: banner_url.to_string(),
-        socials: socials.to_string(),
-        pronouns: pronouns.to_string(),
-        location: location.to_string(),
-        website: website.to_string(),
-        timestamp,
-        signature: signature.to_string(),
+    let Some(json) = profile_gossip_text(public_key, copy, timestamp, signature) else {
+        return;
     };
-
-    let json = match serde_json::to_string(&gossip_msg) {
-        Ok(j) => j,
-        Err(_) => return,
-    };
-
     let connections = state.federation_connections.read().await;
     for conn in connections.values() {
+        if exclude.is_some_and(|source| conn.server_id == source) {
+            continue;
+        }
         let _ = conn.tx.send(json.clone());
     }
+}
+
+/// The `profile_gossip` frame carrying one signed copy, or None for an unsigned one (never sent).
+pub(crate) fn profile_gossip_text(public_key: &str, copy: &PublicCopy, timestamp: u64, signature: &str) -> Option<String> {
+    if signature.is_empty() {
+        return None;
+    }
+    serde_json::to_string(&RelayMessage::ProfileGossip {
+        public_key: public_key.to_string(),
+        name: copy.name.clone(),
+        bio: copy.bio.clone(),
+        avatar_url: copy.avatar_url.clone(),
+        banner_url: copy.banner_url.clone(),
+        socials: copy.socials.clone(),
+        pronouns: copy.pronouns.clone(),
+        location: copy.location.clone(),
+        website: copy.website.clone(),
+        timestamp,
+        signature: signature.to_string(),
+    })
+    .ok()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::relay::core::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
+    use crate::relay::core::profile_copy::{sign_copy, verify_copy, SIGNATURE_HEX_LEN};
 
-    // Full-PQ: profile gossip now Dilithium3-signed (was Ed25519). The
-    // tests use a deterministic seed to keep them stable; the verifier
-    // path under test is the same one production uses
-    // (`verify_dilithium` inside `verify_profile_signature`).
-    fn fixture() -> (DilithiumKeypair, String) {
-        let seed = [7u8; 32];
-        let dil_seed = derive_dilithium_seed(&seed);
-        let kp = DilithiumKeypair::from_seed(&dil_seed);
-        let pk_hex = hex::encode(kp.public_key());
-        (kp, pk_hex)
+    // A profile copy is Dilithium3-signed by its owner's app (BUG-191). The tests use a fixed
+    // seed; the verifier under test is the one production uses (`profile_copy::verify_copy`
+    // inside `should_accept_profile_gossip`).
+    const SEED: [u8; 32] = [7u8; 32];
+    const TS: u64 = 1_700_000_000_000;
+
+    fn key_of(seed: &[u8; 32]) -> String {
+        hex::encode(DilithiumKeypair::from_seed(&derive_dilithium_seed(seed)).public_key())
     }
 
-    fn sign_profile(kp: &DilithiumKeypair, msg: &str) -> String {
-        hex::encode(kp.sign(msg.as_bytes()))
+    /// A copy inside every limit.
+    fn alice() -> PublicCopy {
+        PublicCopy {
+            name: "Alice".to_string(),
+            bio: "bio".to_string(),
+            avatar_url: "https://alice.example/a.png".to_string(),
+            banner_url: String::new(),
+            socials: r#"{"github":"alice"}"#.to_string(),
+            pronouns: "she/her".to_string(),
+            location: "Lisbon".to_string(),
+            website: "https://alice.example".to_string(),
+        }
     }
 
     #[test]
     fn verify_accepts_valid_signature() {
-        let (sk, pk_hex) = fixture();
-        let timestamp = 1_700_000_000_000u64;
-        let msg = canonical_profile_message(
-            &pk_hex, "Alice", "bio", "avatar", "banner", "socials",
-            "pronouns", "location", "website", timestamp,
-        );
-        let sig_hex = sign_profile(&sk, &msg);
-
-        assert!(verify_profile_signature(
-            &pk_hex, "Alice", "bio", "avatar", "banner", "socials",
-            "pronouns", "location", "website", timestamp, &sig_hex,
-        ));
+        let pk = key_of(&SEED);
+        let sig = sign_copy(&SEED, &pk, &alice(), TS);
+        assert!(verify_copy(&pk, &alice(), TS, &sig));
     }
 
     #[test]
     fn verify_rejects_forged_signature() {
-        let (_sk, pk_hex) = fixture();
-        let forged = "0".repeat(128); // 64 zero bytes hex-encoded
-        assert!(!verify_profile_signature(
-            &pk_hex, "Alice", "bio", "avatar", "banner", "socials",
-            "pronouns", "location", "website", 1_700_000_000_000, &forged,
-        ));
+        let forged = "0".repeat(SIGNATURE_HEX_LEN);
+        assert!(!verify_copy(&key_of(&SEED), &alice(), TS, &forged));
     }
 
     #[test]
     fn verify_rejects_tampered_field() {
-        let (sk, pk_hex) = fixture();
-        let timestamp = 1_700_000_000_000u64;
-        let msg = canonical_profile_message(
-            &pk_hex, "Alice", "bio", "avatar", "banner", "socials",
-            "pronouns", "location", "website", timestamp,
-        );
-        let sig_hex = sign_profile(&sk, &msg);
-
-        // Same signature, different name — should fail.
-        assert!(!verify_profile_signature(
-            &pk_hex, "Mallory", "bio", "avatar", "banner", "socials",
-            "pronouns", "location", "website", timestamp, &sig_hex,
-        ));
+        let pk = key_of(&SEED);
+        let sig = sign_copy(&SEED, &pk, &alice(), TS);
+        // Same signature, different name: fails.
+        let mallory = PublicCopy { name: "Mallory".to_string(), ..alice() };
+        assert!(!verify_copy(&pk, &mallory, TS, &sig));
+        // Same signature, a later time: fails.
+        assert!(!verify_copy(&pk, &alice(), TS + 1, &sig));
     }
 
     #[test]
     fn verify_rejects_wrong_key() {
-        let (sk, _pk_hex) = fixture();
-        let timestamp = 1_700_000_000_000u64;
-        let other_dil_seed = derive_dilithium_seed(&[9u8; 32]);
-        let other_sk = DilithiumKeypair::from_seed(&other_dil_seed);
-        let other_pk_hex = hex::encode(other_sk.public_key());
-
-        // Sign with one key, claim another's public key — should fail.
-        let msg = canonical_profile_message(
-            &other_pk_hex, "Alice", "bio", "avatar", "banner", "socials",
-            "pronouns", "location", "website", timestamp,
-        );
-        let sig_hex = sign_profile(&sk, &msg);
-        assert!(!verify_profile_signature(
-            &other_pk_hex, "Alice", "bio", "avatar", "banner", "socials",
-            "pronouns", "location", "website", timestamp, &sig_hex,
-        ));
+        // Signed with one key, claimed for another's: fails.
+        let other = key_of(&[9u8; 32]);
+        let sig = sign_copy(&SEED, &other, &alice(), TS);
+        assert!(!verify_copy(&other, &alice(), TS, &sig));
     }
 
     #[test]
     fn verify_rejects_malformed_inputs() {
-        // Bad public key length.
-        assert!(!verify_profile_signature(
-            "deadbeef", "Alice", "bio", "avatar", "banner", "socials",
-            "pronouns", "location", "website", 1, &"0".repeat(128),
-        ));
-        // Bad signature length.
-        assert!(!verify_profile_signature(
-            &"a".repeat(64), "Alice", "bio", "avatar", "banner", "socials",
-            "pronouns", "location", "website", 1, "deadbeef",
-        ));
-        // Non-hex public key.
-        assert!(!verify_profile_signature(
-            "zz", "Alice", "bio", "avatar", "banner", "socials",
-            "pronouns", "location", "website", 1, &"0".repeat(128),
-        ));
+        let pk = key_of(&SEED);
+        let sig = sign_copy(&SEED, &pk, &alice(), TS);
+        assert!(!verify_copy("deadbeef", &alice(), TS, &sig), "a key of the wrong length");
+        assert!(!verify_copy("zz", &alice(), TS, &sig), "a key that is not hex");
+        assert!(!verify_copy(&pk, &alice(), TS, "deadbeef"), "a signature of the wrong length");
+        assert!(!verify_copy(&pk, &alice(), TS, &sig.to_uppercase()), "a signature in upper case (one spelling)");
     }
 
     #[test]
     fn accept_rejects_empty_signature() {
-        // The old trust-by-source model ADMITTED empty signatures, which
-        // made an empty string a skeleton key over every cached profile.
-        // Closed in the 2026-08-13 federation repair: no signature, no
-        // cache write, no exceptions.
-        let (_sk, pk_hex) = fixture();
-        assert!(!should_accept_profile_gossip(
-            &pk_hex, "Alice", "bio", "avatar", "banner", "socials",
-            "pronouns", "location", "website", 1_700_000_000_000, "",
-        ));
+        // The old trust-by-source model ADMITTED empty signatures, which made an empty string a
+        // skeleton key over every cached profile. Closed in the 2026-08-13 federation repair: no
+        // signature, no cache write, no exceptions.
+        assert!(!should_accept_profile_gossip(&key_of(&SEED), &alice(), TS, ""));
     }
 
     #[test]
     fn accept_admits_valid_signature() {
-        let (sk, pk_hex) = fixture();
-        let timestamp = 1_700_000_000_000u64;
-        let msg = canonical_profile_message(
-            &pk_hex, "Alice", "bio", "avatar", "banner", "socials",
-            "pronouns", "location", "website", timestamp,
-        );
-        let sig_hex = sign_profile(&sk, &msg);
-        assert!(should_accept_profile_gossip(
-            &pk_hex, "Alice", "bio", "avatar", "banner", "socials",
-            "pronouns", "location", "website", timestamp, &sig_hex,
-        ));
+        let pk = key_of(&SEED);
+        let sig = sign_copy(&SEED, &pk, &alice(), TS);
+        assert!(should_accept_profile_gossip(&pk, &alice(), TS, &sig));
+        let w = profile_copy::withdrawal();
+        let sig = sign_copy(&SEED, &pk, &w, TS + 1);
+        assert!(should_accept_profile_gossip(&pk, &w, TS + 1, &sig), "a signed withdrawal");
     }
 
     #[test]
     fn accept_rejects_invalid_non_empty_signature() {
-        let (_sk, pk_hex) = fixture();
-        let forged = "0".repeat(128);
-        assert!(!should_accept_profile_gossip(
-            &pk_hex, "Alice", "bio", "avatar", "banner", "socials",
-            "pronouns", "location", "website", 1_700_000_000_000, &forged,
-        ));
+        let forged = "0".repeat(SIGNATURE_HEX_LEN);
+        assert!(!should_accept_profile_gossip(&key_of(&SEED), &alice(), TS, &forged));
+    }
+
+    /// A copy its owner really signed is still refused when it breaks the save's limits: a line
+    /// break outside the bio would let the signed words split two ways.
+    ///
+    /// Seen red 2026-10-12 with the `within_limits` call taken out of
+    /// `should_accept_profile_gossip`: "a signed copy whose location holds a line break was
+    /// accepted" failed.
+    #[test]
+    fn accept_refuses_a_signed_copy_over_the_limits() {
+        let pk = key_of(&SEED);
+        let broken = PublicCopy { location: "Lis\nbon".to_string(), ..alice() };
+        let sig = sign_copy(&SEED, &pk, &broken, TS);
+        assert!(verify_copy(&pk, &broken, TS, &sig), "test setup: the signature itself is good");
+        assert!(!should_accept_profile_gossip(&pk, &broken, TS, &sig), "a signed copy whose location holds a line break was accepted");
+    }
+
+    /// The frame sent between servers carries the copy's fields and the signature as they are; an
+    /// unsigned copy makes no frame at all.
+    #[test]
+    fn the_gossip_frame_carries_the_copy_and_never_an_unsigned_one() {
+        assert!(profile_gossip_text(&key_of(&SEED), &alice(), TS, "").is_none(), "an unsigned copy is never sent");
+        let text = profile_gossip_text("k", &alice(), TS, "sig").expect("a frame");
+        let wire: serde_json::Value = serde_json::from_str(&text).unwrap();
+        assert_eq!((wire["type"].as_str(), wire["public_key"].as_str(), wire["location"].as_str()), (Some("profile_gossip"), Some("k"), Some("Lisbon")));
+        assert_eq!((wire["socials"].as_str(), wire["timestamp"].as_u64(), wire["signature"].as_str()), (Some(r#"{"github":"alice"}"#), Some(TS), Some("sig")));
     }
 }
 

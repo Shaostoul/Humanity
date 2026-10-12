@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 /// Complete world save state. A "home" (the homes-as-save-profiles model, v0.380)
-/// IS a WorldSave that knows its `kind` + `design`.
+/// IS a WorldSave that knows its `kind` and its `start`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorldSave {
     pub name: String,
@@ -42,16 +42,36 @@ pub struct WorldSave {
     #[serde(default = "default_true_save")]
     pub progress_saved: bool,
     pub weather_state: String,
-    /// What this home IS (the "who owns the truth" axis): "offline" (you own the
-    /// local save), "server" (a relay owns it), or "real" (physical sensors own
-    /// it). Defaults to "offline" so pre-v0.380 saves load unchanged. Server + Real
-    /// are deferred; offline is the only live kind today.
+    /// Which world this save is for (the "who owns the truth" axis): "offline" (your own home,
+    /// saves/offline_home.json) or "server" (your home and things on one server, kept on this
+    /// computer: `SaveSlot::Server`, ship homes increment 6). Defaults to "offline" so pre-v0.380
+    /// saves load unchanged.
     #[serde(default = "default_kind")]
     pub kind: String,
-    /// The Design (blueprint) this home is built from, e.g. "fibonacci". Defaults
-    /// to "fibonacci" (the first + only design today).
-    #[serde(default = "default_design")]
-    pub design: String,
+    /// The start this home is (data/homes/starts.ron: "cabin", "homestead"): the design it
+    /// builds, the household files it may load, what a new character carried (ship homes
+    /// increment 6). A save from before the starts is a homestead, as every home then was. It
+    /// replaced `design` ("fibonacci"), which nothing but the picker's detail row ever read.
+    #[serde(default = "default_start")]
+    pub start: String,
+    /// Who lives there, one of the start's households ("family", "solo"); it picks the machine
+    /// file (`machines::home_ron_path`). A save from before is a family, the old default (the
+    /// per-install Family or Solo setting it replaces is not carried over).
+    #[serde(default = "default_household")]
+    pub household: String,
+    /// A server save's server (its normalized address, as the picker keys servers); empty for
+    /// your own home. The FILE never names it (`slot_path`).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub server: String,
+    /// Where the home stood on a ship when this was saved: which ship (id and hash) and plot.
+    /// The next world load builds the home there when it is still this ship (a ship file that
+    /// changed is not trusted). None: no place yet (a save from before, or one never aboard).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ship_place: Option<ShipPlace>,
+    /// The ship's stores' meals and water this save has had away from a server (the mess hall's
+    /// counter offline, increment 6): counted on this computer. Zero in a save from before.
+    #[serde(default)]
+    pub ship_meals: ShipMeals,
     /// The GAME character's name (v0.448), DECOUPLED from the chat/network profile name
     /// (which is the Dilithium identity). A character lives in the save (self-custodial,
     /// local), separate from who you are in chat. serde-default for old saves.
@@ -257,6 +277,71 @@ fn default_credits() -> i64 {
     -1
 }
 
+/// Where a save's home stood aboard (`WorldSave::ship_place`, ship homes increment 6).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ShipPlace {
+    /// The ship file's `id` ("mothership-1").
+    pub ship_id: String,
+    /// The ship file's hash (`ShipStructure::ship_hash`): a ship that changed since is not trusted.
+    pub ship_hash: String,
+    /// The plot id ("c2", "p1").
+    pub plot: String,
+}
+
+/// The ship's stores' meals and water a save has had away from a server (`WorldSave::ship_meals`,
+/// the mess hall's counter offline, increment 6): the counter on this computer. In a server's
+/// world the server counts them instead (its fleet ledger).
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct ShipMeals {
+    /// Crew meals taken.
+    pub taken: u32,
+    /// The world clock (game seconds) at which the next meal is ready.
+    pub next_at_game_s: f64,
+    /// Litres of drinking water drawn.
+    pub water_l: f64,
+}
+
+/// Which save is live (ship homes increment 6, docs/design/ship-homes-increment-6-plan.md 3.6):
+/// your own home, or your home and things on one server, each its own file. A server world starts
+/// you fresh from the start you choose there (the operator's rule of 2026-10-04); only your name,
+/// look and outfit come along. Which one is live follows the pairing the picker made, never a
+/// moment's step out of the shared world (engine/save_slot.rs `wanted`).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum SaveSlot {
+    /// Your own home: saves/offline_home.json.
+    #[default]
+    Offline,
+    /// One server, for one identity: saves/servers/<server hash>-<identity>.json.
+    Server {
+        /// The server's normalized address (engine/home_plot.rs `active_server_key`).
+        server: String,
+        /// The identity's public key, hex.
+        identity: String,
+    },
+}
+
+/// Your own home's save file, in the saves folder.
+pub const OFFLINE_SAVE_FILE: &str = "offline_home.json";
+/// The folder under the saves folder that holds the server saves. The picker scans only the
+/// saves folder's top level, so a server save never shows as a character of its own.
+pub const SERVER_SAVES_DIR: &str = "servers";
+
+/// The file of a save slot under `saves_dir`. A server save's name is the first 16 hex digits of
+/// the BLAKE3 hash of the server's address, then the first 16 hex digits of the identity: one
+/// file per server and identity, and no address in a file name (a file list says nothing about
+/// where you play). Native only: only the game names its own save files.
+#[cfg(feature = "native")]
+pub fn slot_path(saves_dir: &Path, slot: &SaveSlot) -> PathBuf {
+    match slot {
+        SaveSlot::Offline => saves_dir.join(OFFLINE_SAVE_FILE),
+        SaveSlot::Server { server, identity } => {
+            let server_tag = blake3::hash(server.as_bytes()).to_hex();
+            let who: String = identity.chars().filter(|c| c.is_ascii_hexdigit()).take(16).collect::<String>().to_ascii_lowercase();
+            saves_dir.join(SERVER_SAVES_DIR).join(format!("{}-{who}.json", &server_tag[..16]))
+        }
+    }
+}
+
 /// One deployed vehicle in a save: what it is + where it stands.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VehicleSave {
@@ -277,19 +362,27 @@ pub struct VehicleSave {
 fn default_kind() -> String {
     "offline".to_string()
 }
-fn default_design() -> String {
-    "fibonacci".to_string()
+/// The start of a save from before the starts (ship homes increment 6): every home then was a
+/// homestead. (The default a NEW player gets is data/homes/starts.ron's `default`.)
+pub fn default_start() -> String {
+    "homestead".to_string()
+}
+/// The household of a save from before the starts: the family, the old default.
+pub fn default_household() -> String {
+    "family".to_string()
 }
 fn default_character_name() -> String {
     "Wanderer".to_string()
 }
 
 impl WorldSave {
-    /// A fresh OFFLINE home built from the given design, with empty progress. The
-    /// "save wrapper" entry point: a home is a WorldSave that knows its kind +
-    /// design. `timestamp` is left 0; the save flow stamps it when the file is
+    /// A fresh OFFLINE home of the given start (data/homes/starts.ron, "homestead" or "cabin"),
+    /// with empty progress, the family household, no place aboard and no meals counted. The
+    /// "save wrapper" entry point: a home is a WorldSave that knows its kind and start. A start
+    /// with no "family" household gets its first one wherever the household is read
+    /// (`Starts::household`). `timestamp` is left 0; the save flow stamps it when the file is
     /// written.
-    pub fn new_offline(name: impl Into<String>, design: impl Into<String>) -> Self {
+    pub fn new_offline(name: impl Into<String>, start: impl Into<String>) -> Self {
         WorldSave {
             name: name.into(),
             timestamp: 0,
@@ -303,7 +396,11 @@ impl WorldSave {
             progress_saved: true,
             weather_state: "clear".to_string(),
             kind: "offline".to_string(),
-            design: design.into(),
+            start: start.into(),
+            household: default_household(),
+            server: String::new(),
+            ship_place: None,
+            ship_meals: ShipMeals::default(),
             character_name: default_character_name(),
             appearance: Default::default(),
             outfit: Default::default(),
@@ -990,7 +1087,11 @@ mod tests {
             progress_saved: true,
             weather_state: "clear".to_string(),
             kind: "offline".to_string(),
-            design: "fibonacci".to_string(),
+            start: "cabin".to_string(),
+            household: "solo".to_string(),
+            server: String::new(),
+            ship_place: Some(ShipPlace { ship_id: "mothership-1".into(), ship_hash: "abc".into(), plot: "c2".into() }),
+            ship_meals: ShipMeals { taken: 2, next_at_game_s: 28_800.0, water_l: 1.5 },
             character_name: "Test Character".to_string(),
             appearance: Default::default(),
             outfit: Default::default(),
@@ -1026,11 +1127,66 @@ mod tests {
 
     #[test]
     fn new_offline_has_defaults() {
-        let h = WorldSave::new_offline("My Homestead", "fibonacci");
+        let h = WorldSave::new_offline("My Homestead", "homestead");
         assert_eq!(h.kind, "offline");
-        assert_eq!(h.design, "fibonacci");
+        assert_eq!((h.start.as_str(), h.household.as_str()), ("homestead", "family"));
+        assert!(h.server.is_empty() && h.ship_place.is_none() && h.ship_meals == ShipMeals::default());
         assert_eq!(h.name, "My Homestead");
         assert!(h.inventory.is_empty());
+    }
+
+    /// A save written before the starts (ship homes increment 6) loads as a homestead for a
+    /// family with no place aboard and no meals counted, whatever else it holds: the operator's
+    /// own home must come through the update unchanged. The fixture is a save the v0.1484.0 exe
+    /// wrote in a probe rig's sandbox on 2026-10-11 (.probe-rig/clips/saves/offline_home.json),
+    /// copied unedited; WorldSave's shape did not change between v0.1484 and v0.1488. It still
+    /// carries the old `"design": "fibonacci"`, which now loads as nothing.
+    ///
+    /// Seen red 2026-10-12 with `start` lacking its default (`#[serde(default = ...)]` taken off):
+    /// "a save from before the starts loads" failed with "missing field `start`".
+    #[test]
+    fn a_save_from_before_this_increment_loads_as_a_homestead_with_no_place() {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/saves/offline_home_v1484.json");
+        let text = std::fs::read_to_string(&path).expect("the fixture is in the repo");
+        assert!(text.contains("\"design\": \"fibonacci\"") && !text.contains("\"start\""), "the fixture is from before the starts");
+        let save = load_world(&path).unwrap_or_else(|e| panic!("a save from before the starts loads: {e}"));
+        assert_eq!(save.kind, "offline");
+        assert_eq!(save.start, "homestead");
+        assert_eq!(save.household, "family");
+        assert!(save.server.is_empty());
+        assert_eq!(save.ship_place, None);
+        assert_eq!(save.ship_meals, ShipMeals::default());
+        assert_eq!(save.character_name, "Player", "and the rest of it as it was");
+    }
+
+    /// Each server keeps its own save for each identity, and no file name says where you play:
+    /// two servers and two identities give four files, all in the servers folder, none holding
+    /// either address; your own home stays offline_home.json, where every save before was.
+    ///
+    /// Seen red 2026-10-12 with the identity left out of the name: "fa621e5b03e851bf.json does
+    /// not end with its identity" failed.
+    #[cfg(feature = "native")]
+    #[test]
+    fn server_saves_are_one_file_per_server_and_identity() {
+        let saves = Path::new("saves");
+        assert_eq!(slot_path(saves, &SaveSlot::Offline), saves.join("offline_home.json"));
+        let servers = ["wss://united-humanity.us/ws", "ws://192.168.1.5:3210/ws"];
+        let identities = ["A1b2C3d4E5f60718293a4b5c6d7e8f90aa", "ffeeddccbbaa99887766554433221100bb"];
+        let mut paths = std::collections::BTreeSet::new();
+        for server in servers {
+            for identity in identities {
+                let p = slot_path(saves, &SaveSlot::Server { server: server.into(), identity: identity.into() });
+                assert_eq!(p.parent(), Some(saves.join(SERVER_SAVES_DIR).as_path()), "{}", p.display());
+                let name = p.file_name().unwrap().to_string_lossy().to_string();
+                for leak in ["united-humanity", "192.168", "ws:", "wss:", "3210"] {
+                    assert!(!name.contains(leak), "{name} names where you play ({leak})");
+                }
+                assert!(name.ends_with(&format!("-{}.json", identity[..16].to_ascii_lowercase())), "{name} does not end with its identity");
+                assert_eq!(slot_path(saves, &SaveSlot::Server { server: server.into(), identity: identity.into() }), p, "the same slot, the same file");
+                paths.insert(p);
+            }
+        }
+        assert_eq!(paths.len(), 4, "two servers and two identities give four files: {paths:#?}");
     }
 
     #[test]
@@ -1049,7 +1205,9 @@ mod tests {
         assert_eq!(loaded.inventory.len(), save.inventory.len());
         assert_eq!(loaded.constructions.len(), save.constructions.len());
         assert_eq!(loaded.kind, save.kind);
-        assert_eq!(loaded.design, save.design);
+        assert_eq!((&loaded.start, &loaded.household, &loaded.server), (&save.start, &save.household, &save.server));
+        assert_eq!(loaded.ship_place, save.ship_place);
+        assert_eq!(loaded.ship_meals, save.ship_meals);
 
         // Clean up
         let _ = std::fs::remove_file(&path);
@@ -1058,8 +1216,8 @@ mod tests {
 
     #[test]
     fn legacy_save_without_kind_design_defaults() {
-        // A pre-v0.380 save has no kind/design fields; serde defaults must fill them
-        // (kind=offline, design=fibonacci) so old saves load unchanged.
+        // A pre-v0.380 save has no kind/start fields; serde defaults must fill them
+        // (kind=offline, start=homestead) so old saves load unchanged.
         let dir = std::env::temp_dir().join(format!("humanity_test_legacy_save_{}", std::process::id()));
         let _ = std::fs::create_dir_all(&dir);
         let path = dir.join("legacy.json");
@@ -1067,7 +1225,7 @@ mod tests {
         std::fs::write(&path, legacy).unwrap();
         let loaded = load_world(&path).expect("legacy load should succeed");
         assert_eq!(loaded.kind, "offline");
-        assert_eq!(loaded.design, "fibonacci");
+        assert_eq!(loaded.start, "homestead");
         let _ = std::fs::remove_file(&path);
         let _ = std::fs::remove_dir(&dir);
     }

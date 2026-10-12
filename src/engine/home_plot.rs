@@ -354,7 +354,7 @@ pub(crate) fn plan_welcome(ship: Option<&ShipStructure>, welcome: &serde_json::V
     };
     if ship.home.as_ref().is_some_and(|a| a.plot == id) {
         let door = own_door(ship);
-        return WelcomeHome::Stay { door, stand_at: stand_at(door) };
+        return WelcomeHome::Stay { door, stand_at: off_neighbours_ground(ship, stand_at(door)) };
     }
     let (Some(design), Some(plot)) = (ship.home_design(), ship.plots.iter().find(|p| p.id == id)) else {
         log::warn!("Co-presence: the plot {id:?} this server gave us is not one our ship has, or our ship has no home design");
@@ -364,7 +364,10 @@ pub(crate) fn plan_welcome(ship: Option<&ShipStructure>, welcome: &serde_json::V
     match ship.ship_file().assemble(design, id) {
         // The old home is gone from under the player, so they always go somewhere: where the
         // relay holds them, or this home's door on the new plot.
-        Ok(moved) => WelcomeHome::Move { ship: moved, plot: id.to_string(), door, stand_at: held.unwrap_or(door) },
+        Ok(moved) => {
+            let stand_at = off_neighbours_ground(&moved, held).unwrap_or(door);
+            WelcomeHome::Move { ship: moved, plot: id.to_string(), door, stand_at }
+        }
         // The plot this server gave us cannot hold our home: give it back (`give_up_plot`) so
         // it is not held for good by someone who never lives there. What did not fit goes to
         // the log: it can be a sentence of its own, and the refusal is one.
@@ -372,6 +375,33 @@ pub(crate) fn plan_welcome(ship: Option<&ShipStructure>, welcome: &serde_json::V
             log::warn!("Co-presence: our home does not fit plot {id:?}: {e}");
             refuse(&does_not_fit_sentence(id), true)
         }
+    }
+}
+
+/// Where a welcome stands a player who has a plot (`plan_welcome`'s Stay and Move): `at`, unless
+/// that is on a NEIGHBOUR's plot ground (its box or its door corridor), when it is a step out onto
+/// the street from that plot's corridor (`ship::door_points::STEP_IN_M` past its street mouth, at
+/// eye height). A game restarted inside a friend's plot within the relay's grace was put back
+/// there, and if the permit had stopped working meanwhile its walls were shut around them, with no
+/// Respawn while alive (2026-10-12 review of ship homes 5b). Standing somewhere never opens a shut
+/// plot (engine/household.rs `open_for`), so they stand just outside it; a permit that still works
+/// lets them walk back in. Not their own door: that can be farther than the relay lets a returning
+/// player be moved (`FAR_FROM_HELD_M`), which freezes them, and the plot's own street step is
+/// close to anywhere inside it. Guests have their own rule (`guest_stand`). Pure.
+pub(crate) fn off_neighbours_ground(ship: &ShipStructure, at: Option<Vec3>) -> Option<Vec3> {
+    let p = at?;
+    let Some(plot) = plot_ground_of(ship, p).filter(|plot| ship.neighbour_plots().any(|n| n.id == plot.id)) else {
+        return Some(p);
+    };
+    match ship.plot_door_tube(plot, None) {
+        // From the plot (end_from) to its street (end_to): one step past the street's mouth.
+        Ok(g) => {
+            let out = (g.end_to - g.end_from).normalize_or_zero();
+            let eye = Vec3::Y * crate::ship::ship_structure::SPAWN_EYE_HEIGHT_M;
+            Some(g.end_to + out * crate::ship::door_points::STEP_IN_M + eye)
+        }
+        // A plot with no corridor to a street (it cannot be on this ship's ground then): as asked.
+        Err(_) => Some(p),
     }
 }
 
@@ -407,14 +437,22 @@ pub(crate) fn guest_stand(ship: &ShipStructure, held: Option<Vec3>, door: Option
 /// inside the door corridor a plot's home makes to its street (from the plot's own box,
 /// `ShipStructure::plot_door_tube`). Pure.
 pub(crate) fn on_plot_ground(ship: &ShipStructure, p: Vec3) -> bool {
-    ship.plots.iter().any(|plot| {
-        over_plot(p, plot.aabb()) || ship.plot_door_tube(plot, None).is_ok_and(|g| in_corridor(&g, p))
-    })
+    plot_ground_of(ship, p).is_some()
+}
+
+/// The plot whose ground `p` stands on (`on_plot_ground`): the one whose box it is over, else the
+/// one whose door corridor it is in. Household permits (ship homes 5b, engine/household.rs
+/// `open_for`) keep the plot a player stands in walkable, and lit, by it. Pure.
+pub(crate) fn plot_ground_of(ship: &ShipStructure, p: Vec3) -> Option<&crate::ship::ship_structure::Plot> {
+    ship.plots
+        .iter()
+        .find(|plot| over_plot(p, plot.aabb()))
+        .or_else(|| ship.plots.iter().find(|plot| ship.plot_door_tube(plot, None).is_ok_and(|g| in_corridor(&g, p))))
 }
 
 /// True when `p` stands inside corridor tube `g` across the floor (x and z), with a centimetre of
 /// slack, the way `over_plot` tests a plot. Pure.
-fn in_corridor(g: &crate::ship::ship_structure::CorridorGeom, p: Vec3) -> bool {
+pub(crate) fn in_corridor(g: &crate::ship::ship_structure::CorridorGeom, p: Vec3) -> bool {
     use crate::ship::ship_structure::CorridorAxis;
     let (along, across) = match g.axis {
         CorridorAxis::X => (p.x, p.z),
@@ -1691,6 +1729,42 @@ mod tests {
                 "a guest held in the home it loses keeps standing in it: {stand_at:?}"
             ),
             other => panic!("{other:?}"),
+        }
+    }
+
+    /// The 2026-10-12 review of ship homes 5b: a game restarted (an arrival) while the relay
+    /// held it inside a friend's plot was stood back there, and with the permit gone meanwhile
+    /// the friend's walls were shut around it. It now stands a step out onto the street from
+    /// that plot's corridor: off every plot, near the plot's door, and close enough to where
+    /// the relay holds it that its moves are taken. Seen red 2026-10-12 with
+    /// `off_neighbours_ground` returning `at` unchanged: "held deep in p2, an arrival on our own
+    /// plot stands it on plot ground: Vec3(30.0, 1.7, 170.0)".
+    #[test]
+    fn a_plot_holder_is_never_stood_inside_a_neighbours_plot() {
+        let ship = booted();
+        let deep_p2 = Vec3::new(30.0, 1.7, 170.0);
+        let outside_p2 = |at: Vec3, what: &str| {
+            assert!(!on_plot_ground(&ship, at), "{what} stands it on plot ground: {at:?}");
+            assert!(at.distance(deep_p2) <= FAR_FROM_HELD_M, "{what}: {at:?} is {:.0} m from where it is held", at.distance(deep_p2));
+            assert!((at.z - P2_DOOR.z).abs() < 1.5, "{what}: out by p2's own door, not elsewhere: {at:?}");
+        };
+        let w = welcome_at(Some("p1"), &ship.ship_hash(), Some(deep_p2.into()));
+        match plan_welcome(Some(&ship), &w, &arriving(P1_DOOR)) {
+            WelcomeHome::Stay { stand_at: Some(at), .. } => outside_p2(at, "held deep in p2, an arrival on our own plot"),
+            other => panic!("{other:?}"),
+        }
+        let w = welcome_at(Some("p3"), &ship.ship_hash(), Some(deep_p2.into()));
+        match plan_welcome(Some(&ship), &w, &arriving(P1_DOOR)) {
+            WelcomeHome::Move { stand_at, .. } => outside_p2(stand_at, "held deep in p2, a move to p3"),
+            other => panic!("{other:?}"),
+        }
+        // Held anywhere else, it stands where it is held, as before.
+        for held in [COMMONS, P1_DOOR] {
+            let w = welcome_at(Some("p1"), &ship.ship_hash(), Some(held.into()));
+            match plan_welcome(Some(&ship), &w, &arriving(P2_DOOR)) {
+                WelcomeHome::Stay { stand_at: Some(at), .. } => assert!((at - held).length() < 1e-4, "held at {held:?}: {at:?}"),
+                other => panic!("{other:?}"),
+            }
         }
     }
 

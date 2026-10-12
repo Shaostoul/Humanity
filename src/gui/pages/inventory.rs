@@ -1776,6 +1776,16 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     }
                 });
             }
+            // Each wound and illness in plain words: how it passes and what
+            // helps (2026-10-12, first-hour audit S8, systems::wounds).
+            for c in &state.vitals.care {
+                let color = match c.severity {
+                    0 => theme.text_secondary(),
+                    1 => theme.warning(),
+                    _ => theme.danger(),
+                };
+                ui.label(RichText::new(format!("{}: {}", c.name, c.line)).size(theme.font_size_small).color(color));
+            }
 
             } // ── end Status ──
 
@@ -2380,6 +2390,11 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         let air_here = state.garden_pests.air.iter().find(|a| a.0 == area_tag).cloned();
                         let weeds_here = state.garden_pests.weeds.iter().find(|w| w.area == area_tag).cloned();
                         let cover_here = state.garden_pests.covers.iter().find(|c| c.area == area_tag).cloned();
+                        // Each crop's wait and water in words (farming::outlook, 2026-10-12).
+                        let outlook_here: std::collections::HashMap<u64, crate::systems::farming::outlook::CropOutlook> = crops
+                            .iter()
+                            .filter_map(|c| state.garden_pests.outlook.get(&c.entity_bits).map(|o| (c.entity_bits, o.clone())))
+                            .collect();
                         widgets::expandable_row(
                             ui,
                             ("garden_grp", gi),
@@ -2631,6 +2646,12 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                                                     .desired_width(SLOT_TILE_W - 16.0)
                                                                     .desired_height(4.0),
                                                             );
+                                                            // Its wait in real time, or that it needs water
+                                                            // (farming::outlook, 2026-10-12).
+                                                            if let Some(o) = outlook_here.get(&c.entity_bits).filter(|o| !o.tile.is_empty()) {
+                                                                let col = if o.thirsty { theme.warning() } else { theme.text_muted() };
+                                                                ui.label(RichText::new(&o.tile).size(theme.font_size_small).color(col));
+                                                            }
                                                         }
                                                     });
                                                 });
@@ -2638,7 +2659,11 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                             // in full on hover.
                                             let hover = match crop.filter(|c| !c.dead && !c.mature && c.picking.bearing_next_in.is_some()) {
                                                 Some(c) => format!("Slot {} · {name} · {}", s + 1, crate::systems::farming::picking::stage_word(false, false, &c.stage, &c.picking, true)),
-                                                None => format!("Slot {} · {name}", s + 1),
+                                                None => match crop.and_then(|c| outlook_here.get(&c.entity_bits)).filter(|o| !o.grown && !o.ripens.is_empty()) {
+                                                    // Its wait in full (farming::outlook, 2026-10-12).
+                                                    Some(o) => format!("Slot {} · {name} · ripe in {}", s + 1, o.ripens),
+                                                    None => format!("Slot {} · {name}", s + 1),
+                                                },
                                             };
                                             let resp = inner
                                                 .response
@@ -2721,6 +2746,19 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                                             stat(ui, "Stage", stage);
                                                             stat(ui, "Plants", c.plants.to_string());
                                                             stat(ui, "Growth", format!("{:.0}%", c.progress * 100.0));
+                                                            // Its wait and its water in plain words (2026-10-12,
+                                                            // first-hour audit F11, farming::outlook).
+                                                            if let Some(o) = outlook_here.get(&c.entity_bits) {
+                                                                if !o.ripens.is_empty() && !o.grown {
+                                                                    stat(ui, "Ripe in", o.ripens.clone());
+                                                                }
+                                                                if !o.water.is_empty() {
+                                                                    ui.label(RichText::new("Water").size(theme.font_size_small).color(theme.text_muted()));
+                                                                    let col = if o.thirsty { theme.warning() } else { theme.text_secondary() };
+                                                                    ui.label(RichText::new(&o.water).size(theme.font_size_small).color(col));
+                                                                    ui.end_row();
+                                                                }
+                                                            }
                                                             // Grams in the unit against the season's need (2026-09-26).
                                                             stat(ui, "Soil N·P·K", format!("{:.1} · {:.1} · {:.1} g", c.soil[0], c.soil[1], c.soil[2]));
                                                             stat(ui, "Season needs", format!("{:.1} · {:.1} · {:.1} g", c.need[0], c.need[1], c.need[2]));

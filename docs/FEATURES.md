@@ -1874,7 +1874,15 @@ harvest reuse the tower paths. 8 `grain_<plant>_0` harvest items (dry_goods,
 silo-compatible) + fruit_sunflower_0. Garden slots render as a compact TILE
 GRID with one detail card (v0.739) and each group has a "Harvest N ready"
 bulk button (`harvest_many_request` channel). Harvest overflow routes to a
-compatible home vessel (v0.729 silo routing).
+compatible home vessel (v0.729 silo routing). A seed's Plant button in the
+backpack (2026-10-12, first-hour audit F11) sows it into the nearest free
+tower cup, bed, tray or field plot within 5 m of where the player stands (a
+mushroom's spawn only onto a rack, nothing into a fish tank: grow_media.ron
+`takes`), so it is drawn and irrigated like any machine crop; with nothing in
+reach it plants nothing and names the nearest machine with room
+(`farming/sowing.rs`). The notice and each crop's card say when it ripens in
+real time at the clock's speed and what its water needs (`farming/outlook.rs`;
+lib.rs fills `GardenPests::outlook`).
 - Native: `src/systems/farming/mod.rs`, `src/gui/pages/inventory.rs` (Garden)
 - Data: `data/plants.csv`, `data/garden/grow_media.ron`, `data/items.csv`
 
@@ -3040,7 +3048,7 @@ approximate and drift as data grows; run `just data-counts` for live figures.)
 
 ### Illness and medical items (BUG-162, 2026-10-05)
 Food poisoning takes water over game days and passes on its own (Realistic two
-days, Forgiving one, Settings > Gameplay > Illness); drinking puts the water back,
+days, Forgiving one, Settings > Gameplay > Illness and injury); drinking puts the water back,
 oral rehydration solution most (sachets in the starting kit, mixed by the
 `mix_ors` recipe); harm only through dehydration. The Inventory's Use button works
 for the medical items, each from data: health restored, effects ended by tag
@@ -3051,6 +3059,27 @@ its health and the illness's countdown are exact at any frame rate (BUG-164,
 `change_exactly` and f64 effect timers).
 - Code: `src/systems/illness.rs`, `src/systems/treatment.rs`, `src/systems/food.rs`
 - Data: `data/medical/illnesses.ron`, `data/medical/treatments.ron`
+
+### Wounds and healing (first-hour audit S8, 2026-10-12)
+A creature's bite takes health and leaves Bleeding (stops on its own in about ten
+minutes, or at once with a Bandage or Medkit) and a Bite Wound (heals over days); a
+fire leaves a burn by how long you stood in it: red skin, blistered or deep (no fire
+burns anyone in play yet: FireSystem is not registered). A wound that can go bad
+may turn into an Infected Wound a day or two in, far less often once a Bandage, a
+Medkit or Antiseptic has cleaned and covered it (`Wounds Cared For`; a new wound is
+not covered); Antibiotics end it. A body heals by itself when nothing is harming it:
+Realistic about three weeks from near death, Forgiving about three days, 1.8 times as
+fast asleep, half as fast Hungry or Thirsty, never while bleeding, infected or ill.
+Well Fed no longer heals. Both modes are Settings > Gameplay > Illness and injury.
+The HUD shows a row per wound and illness with what helps; the Inventory's Status
+section says how each passes. Wounds are status effects, so the save keeps them.
+MedicalSystem, its `MedicalConditions` component and the never-read
+`data/medical.ron` were deleted.
+- Code: `src/systems/wounds.rs` (data and rules), applied in `src/systems/food.rs`'s
+  body pass; injuries from `src/systems/combat/mod.rs` and `src/systems/fire.rs`;
+  tests `src/systems/wounds_tests.rs`
+- Data: `data/medical/wounds.ron`, the `wound` rows of `data/status_effects.csv`,
+  `cares` in `data/medical/treatments.ron`
 
 ### Enchantments Database (v0.90.0)
 133 enchantments for equipment with tier scaling and compatibility rules.
@@ -3102,7 +3131,7 @@ Wiring" above. The old `plumbing.ron`/`WaterFixture` scaffold was removed when P
 
 ### Real-World Systems (v0.90.0)
 Data definitions for social and biological simulation. **⚠️ The consuming systems are scaffolds, NOT registered, they never tick (see the lint); data exists but isn't consumed at runtime.**
-- Data: `data/governance.ron`, `data/psychology.ron`, `data/medical.ron`, `data/food_system.ron`, `data/economy.ron`, `data/creative_arts.ron`, `data/aging_fitness.ron`
+- Data: `data/governance.ron`, `data/psychology.ron`, `data/food_system.ron`, `data/economy.ron`, `data/creative_arts.ron`, `data/aging_fitness.ron` (`data/medical.ron` was deleted 2026-10-12: see "Wounds and healing")
 
 ### Science Systems (v0.90.0)
 Data definitions for natural science simulation. **⚠️ The consuming systems are scaffolds, NOT registered, they never tick (see the lint); data exists but isn't consumed at runtime.**

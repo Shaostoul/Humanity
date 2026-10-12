@@ -1400,6 +1400,17 @@ impl ShipStructure {
         self.default_plot.clone().or_else(|| self.plots.first().map(|p| p.id.clone()))
     }
 
+    /// The plot a home of `kind` goes on when nothing names one (ship homes increment 6: a cabin
+    /// save with no place yet): `default_plot` when it is of that kind, else the first plot of that
+    /// kind in the file. None when the ship has no plot of that kind.
+    pub fn default_plot_of_kind(&self, kind: &str) -> Option<String> {
+        let of_kind = |id: &str| self.plots.iter().any(|p| p.id == id && p.kind == kind);
+        self.default_plot
+            .clone()
+            .filter(|d| of_kind(d))
+            .or_else(|| self.plots.iter().find(|p| p.kind == kind).map(|p| p.id.clone()))
+    }
+
     /// Index of a zone by id.
     pub fn zone_index(&self, id: &str) -> Option<usize> {
         self.zones.iter().position(|z| z.id == id)
@@ -3304,6 +3315,55 @@ mod tests {
         // The file under data/ that a person edits to change the default is the one the exe embeds.
         let repo = std::fs::read_to_string(data_dir().join(&shipped_rel)).unwrap().replace("\r\n", "\n");
         assert_eq!(repo, shipped_home_design("homestead").unwrap().replace("\r\n", "\n"), "data/{shipped_rel} is not what the exe embeds");
+    }
+
+    /// THE CABIN (ship homes increment 6): the shipped cabin is England's single bedroom, a floor
+    /// of 7.5 m2 at least 2.15 m wide and at least 2.3 m high (Nationally Described Space
+    /// Standard, 2015), measured as its box is, to the middle of its walls; its door is in the
+    /// west wall's middle, where every cabin's hall runs; you arrive inside it; and the player's
+    /// own copy (data/homes/cabin.ron) and the file the exe embeds are that design.
+    ///
+    /// Seen red 2026-10-12 with the shipped cabin's depth 2.0: "the cabin's floor is 6 m2, not
+    /// 7.5" failed.
+    #[test]
+    fn a_cabin_is_seven_and_a_half_square_metres() {
+        use crate::embedded_data::{shipped_home_design, SHIPPED_HOMES_DIR};
+        let cabin = HomeDesign::built_in("cabin").expect("the cabin is built in");
+        let b = &cabin.body;
+        let floor = b.width * b.depth;
+        assert!((floor - 7.5).abs() < 1e-4, "the cabin's floor is {floor} m2, not 7.5");
+        assert!(b.width.min(b.depth) >= 2.15, "the cabin is {} m wide, under 2.15", b.width.min(b.depth));
+        assert!(b.height >= 2.3, "the cabin is {} m high, under 2.3", b.height);
+        assert_eq!(cabin.door, (0.0, b.depth / 2.0), "the door is in the west wall's middle");
+        assert_eq!(cabin.door_lat((80.5, 0.0, 88.0)), Ok(89.25), "a cabin at z 88 meets its hall at lat 89.25");
+        let (sx, sz) = b.spawn.expect("the cabin has a spawn");
+        assert!(sx > 0.0 && sx < b.width && sz > 0.0 && sz < b.depth, "you arrive inside the cabin, not at ({sx}, {sz})");
+        assert!(!b.roof_is_glass(), "an inner cabin has a ceiling, not a skylight");
+        assert_eq!(b.zones.len(), 1);
+        assert_eq!((b.zones[0].label.as_str(), b.zones[0].room_type.as_deref()), ("Cabin", Some("bedroom")));
+        let own = HomeDesign::load(&data_dir(), "cabin").expect("data/homes/cabin.ron loads");
+        assert_eq!(ron::ser::to_string(&own).unwrap(), ron::ser::to_string(&cabin).unwrap(), "the player's own cabin starts as the shipped one");
+        let repo = std::fs::read_to_string(data_dir().join(format!("{SHIPPED_HOMES_DIR}/cabin.ron"))).unwrap().replace("\r\n", "\n");
+        assert_eq!(repo, shipped_home_design("cabin").unwrap().replace("\r\n", "\n"), "data/homes/shipped/cabin.ron is not what the exe embeds");
+    }
+
+    /// The plot a home of a kind goes on when nothing names one: the default plot when it is of
+    /// that kind, else the first plot of that kind, else none.
+    ///
+    /// Seen red 2026-10-12 with the default plot skipped (always the first of the kind): "the
+    /// default plot, when it is a cabin" failed (p3 for p5).
+    #[test]
+    fn the_default_plot_of_a_kind_is_the_default_when_it_is_that_kind() {
+        let mut ship = ShipStructure::load_ship_file(&data_dir()).expect("the ship file loads");
+        assert_eq!(ship.default_plot_of_kind("homestead").as_deref(), Some("p1"), "the shipped default plot");
+        assert_eq!(ship.default_plot_of_kind("palace"), None, "no plot of that kind");
+        for id in ["p3", "p5"] {
+            ship.plots.iter_mut().find(|p| p.id == id).expect("the plot").kind = "cabin".into();
+        }
+        assert_eq!(ship.default_plot_of_kind("cabin").as_deref(), Some("p3"), "the first cabin plot");
+        ship.default_plot = Some("p5".into());
+        assert_eq!(ship.default_plot_of_kind("cabin").as_deref(), Some("p5"), "the default plot, when it is a cabin");
+        assert_eq!(ship.default_plot_of_kind("homestead").as_deref(), Some("p1"), "the first homestead, the default being a cabin");
     }
 
     /// Saving splits the ship again: the home design always, the ship file only with the Dev

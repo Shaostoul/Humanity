@@ -36,7 +36,17 @@
 //! - from anyone else: dropped with one log line naming 12 characters of the key.
 //!
 //! The relay keeps no permit. Whether a held permit works now (its giver still holds the plot, and
-//! has not taken it back) is the relay's `game_permit_check`, asked by the game's glue (lane 2A).
+//! has not taken it back) is the relay's `game_permit_check`, asked by the game's glue (lane 2A,
+//! the second half of this file):
+//! - [`session_began`] / [`session_ended`]: a welcome names my plot and every held permit is
+//!   asked about afresh; leaving forgets what the relay said, never a send on its way;
+//! - [`tick`] / [`on_status`]: the checks and their answers (engine/shared_build.rs routes both);
+//! - [`open_for`] / [`apply_open`]: the plots this game may walk into (`ShipStructure::open`);
+//! - [`plot_permit`]: what the build gate reads (engine/shared_build.rs `gate`);
+//! - [`probe_json`]: what the dev IPC reports (engine/ipc.rs).
+//!
+//! The protected setup (net/protected.rs `permit_allowed`) refuses Give and Renew outright while it
+//! is on: a permit lets someone into the home. Take back is never refused.
 
 use std::collections::BTreeSet;
 
@@ -48,7 +58,7 @@ use crate::net::dm_store::DmStore;
 use crate::net::household::{self as hh, Arrival, GivenPermit, GivenState, HeldPermit, Kept, PermitPut, Verdict};
 use crate::net::put_answers::{Answer, ANSWER_WAIT};
 use crate::relay::storage::plot_owner_id;
-use crate::systems::construction::shared::{Permit, PERMIT_MAX_DAYS};
+use crate::systems::construction::shared::{Permit, Why, PERMIT_MAX_DAYS};
 
 /// Seconds in a day.
 const DAY: u64 = 86_400;
@@ -73,6 +83,10 @@ pub const NO_PLOT: &str =
 pub const BAD_LENGTH: &str = "A household permit lasts 1 to 90 days.";
 /// The permit could not be made or sealed (no randomness, a malformed plot id).
 pub const NOT_MADE: &str = "The permit could not be made; try again.";
+/// Give and Renew while the protected setup is on (net/protected.rs `permit_allowed`): refused
+/// outright, the PIN does not let it through.
+pub const PROTECTED: &str =
+    "The protected setup is on, so this device does not give household permits: a permit lets someone into your home. You can still take one back.";
 
 fn now_ms() -> u64 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0)
@@ -295,6 +309,9 @@ pub fn screens_dm_parked(gs: &mut GuiState, store: &mut DmStore, inner: &DmInner
 /// Err with the sentence the card shows when it cannot go now (plan 3.3). Ok once it is on its way:
 /// it counts as given only on the server's `dm_put_ok` ([`on_answer`]).
 pub fn give(gs: &mut GuiState, peer: &str, days: u64) -> Result<(), String> {
+    if !gs.protected.setup.permit_allowed() {
+        return Err(PROTECTED.into());
+    }
     let expiry = now_s() + days.saturating_mul(DAY);
     give_until(gs, peer, days, expiry)
 }
@@ -371,8 +388,20 @@ fn give_until(gs: &mut GuiState, peer: &str, days: u64, expiry: u64) -> Result<(
 /// ([`on_answer`]), so one permit per friend and plot is ever live. Refused with a sentence when
 /// nothing was given to them, or when it was for a plot that is no longer mine here.
 pub fn renew(gs: &mut GuiState, peer: &str) -> Result<(), String> {
+    if !gs.protected.setup.permit_allowed() {
+        return Err(PROTECTED.into());
+    }
     let name = crate::engine::dm::dm_display_name(gs, peer);
-    let Some(row) = gs.dm_store.as_ref().and_then(|s| s.permits_given().iter().filter(|g| g.to == peer).max_by_key(|g| g.at).cloned()) else {
+    // In a session, the latest given for THIS plot: a later row for another plot (the plot changed
+    // and came back) used to make Renew refuse with nothing else offered (2026-10-12 review).
+    let mine_now = gs.household.my_plot.clone();
+    let for_mine = |g: &&hh::GivenPermit| mine_now.as_deref().is_none_or(|m| g.plot == m);
+    // Else the latest for another plot, so the refusal below can name it.
+    let given = |s: &crate::net::dm_store::DmStore| -> Option<hh::GivenPermit> {
+        let to_peer = || s.permits_given().iter().filter(|g| g.to == peer);
+        to_peer().filter(for_mine).max_by_key(|g| g.at).or_else(|| to_peer().max_by_key(|g| g.at)).cloned()
+    };
+    let Some(row) = gs.dm_store.as_ref().and_then(given) else {
         return Err(format!("You have not given {name} a permit here yet."));
     };
     if let Some(mine) = gs.household.my_plot.as_deref() {
@@ -676,13 +705,471 @@ pub fn permit_for(gs: &GuiState, plot: &str) -> Option<Permit> {
 }
 
 fn permit_for_at(gs: &GuiState, plot: &str, now_s: u64) -> Option<Permit> {
+    held_for_at(gs, plot, now_s).map(|h| h.permit.clone())
+}
+
+/// [`permit_for`] as the held permit, so a build's refusal can be filed against the permit it
+/// carried (engine/shared_build.rs `send_next`, plan 3.4 item 3).
+pub(crate) fn held_for<'a>(gs: &'a GuiState, plot: &str) -> Option<&'a HeldPermit> {
+    held_for_at(gs, plot, now_s())
+}
+
+fn held_for_at<'a>(gs: &'a GuiState, plot: &str, now_s: u64) -> Option<&'a HeldPermit> {
     let store = gs.dm_store.as_ref()?;
     store
         .permits_held()
         .iter()
         .filter(|h| h.permit.plot == plot && h.permit.expiry > now_s)
         .max_by_key(|h| (gs.household.verdict(h) == Some(Verdict::Works), h.permit.expiry))
-        .map(|h| h.permit.clone())
+}
+
+// ── This session in the shared world (lane 2A, the game's glue) ───────────────────────────────
+//
+// WHEN A HELD PERMIT IS ASKED ABOUT (plan 3.4 and 3.5). Only while the game is in a server's shared
+// world and welcomed (engine/shared_build.rs `tick_core` calls [`tick`]): every permit held for a
+// neighbour's plot of this ship, not run out, right after each welcome ([`session_began`]); again
+// `RECHECK_S` after its last answer; at once when a new one arrives (`ingest` sets
+// `next_check_at` to 0); one unanswered for `UNANSWERED_S` is asked again, and one the relay could
+// not judge (`again`) after `AGAIN_S`. One check at a time, at most one each `CHECK_GAP_S` (the
+// relay turns away a second within 200 ms). A permit the relay refused for good (it ran out, it
+// was taken back, it does not check out, it runs too long) is not asked about again: a renewal is
+// a new permit, with a new serial, and is asked about as one.
+//
+// WHAT OPENS (plan 3.7, [`open_for`], run every frame by [`apply_open`]). A plot this game may
+// build on now (`Household::usable_plots`: the relay said works this session, not run out, a
+// neighbour's plot of this ship) is walkable; so is the plot the player stands in, or in the
+// corridor of, while it was walkable the frame before, so nobody is ever walled in when a permit
+// stops working or the session ends. The walkable plot the player stands in is lit.
+
+/// After its last answer, a permit is asked about again this many seconds later (plan 3.4). 30 s,
+/// not the plan's 300 (2026-10-12 review): a permit taken back, or Block, refuses builds at once,
+/// but the plot's door stayed open to walk into until the next check, up to five minutes.
+pub const RECHECK_S: f64 = 30.0;
+/// A check with no answer this long is asked again, seconds (plan 3.5).
+pub const UNANSWERED_S: f64 = 10.0;
+/// A check the relay could not judge (`again`) is asked again this many seconds later (plan 3.5).
+pub const AGAIN_S: f64 = 5.0;
+/// At most one check each this many seconds (shared.rs `SEND_INTERVAL_MS`; the relay's own limit
+/// for permit checks is 200 ms per player).
+pub const CHECK_GAP_S: f64 = crate::systems::construction::shared::SEND_INTERVAL_MS as f64 / 1000.0;
+
+/// The crosshair's words while a held permit for the plot aimed at is still being checked with the
+/// server (plan 3.8), after "Placing Wood Wall: ".
+pub const CHECKING_WORDS: &str = "your household permit for this plot is being checked with the server; try again in a moment";
+
+/// A welcome to a server's shared world (engine/shared_build.rs `welcome`): this session's plot is
+/// the welcome's `home_plot` (None for a guest), and every held permit is asked about afresh
+/// (`next_check_at` 0). What the relay said in an earlier session says nothing about this one.
+/// What the player may walk out of (`walkable`, `lit`) is left to [`apply_open`].
+pub(crate) fn session_began(gs: &mut GuiState, welcome: &serde_json::Value) {
+    let plot = welcome
+        .get("home_plot")
+        .filter(|v| !v.is_null())
+        .and_then(|hp| hp.get("id"))
+        .and_then(|i| i.as_str())
+        .map(str::to_string);
+    let hh = &mut gs.household;
+    hh.my_plot = plot;
+    hh.welcomed = true;
+    hh.verdicts.clear();
+    hh.usable.clear();
+    hh.asked.clear();
+    hh.next_check_at = 0.0;
+}
+
+/// The session ended (left, dropped, or a new join waiting for its welcome; engine/shared_build.rs
+/// `leave`): no plot of this server is mine any more, and nothing the relay said of a permit counts.
+/// KEPT: the permits on their way to a friend and the card's last line (DM sends, answered on their
+/// own, not this session's), and what the player may walk out of (`walkable`, `lit`), which
+/// [`apply_open`] lets go as they step off: so nobody is walled in on the plot they stand in.
+pub(crate) fn session_ended(gs: &mut GuiState) {
+    let hh = &mut gs.household;
+    hh.my_plot = None;
+    hh.welcomed = false;
+    hh.verdicts.clear();
+    hh.usable.clear();
+    hh.asked.clear();
+    hh.next_check_at = 0.0;
+}
+
+/// A refusal no later check can change for this permit: it ran out, it was taken back, it does not
+/// check out, it runs too long. (Not from the plot's holder can change: the plot may come back.)
+fn refused_for_good(why: Why) -> bool {
+    matches!(why, Why::PermitExpired | Why::PermitWithdrawn | Why::PermitBad | Why::PermitTooLong)
+}
+
+/// When a permit judged `judged` is next asked about (the game's clock), or None for never. Not yet
+/// asked, or asked and its check let go: now.
+fn due_at(judged: Option<&hh::Judged>) -> Option<f64> {
+    let Some(j) = judged else { return Some(0.0) };
+    match j.verdict {
+        Verdict::Checking => Some(0.0),
+        Verdict::Later => Some(j.at + AGAIN_S),
+        Verdict::Works => Some(j.at + RECHECK_S),
+        Verdict::Refused(w) if refused_for_good(w) => None,
+        Verdict::Refused(_) => Some(j.at + RECHECK_S),
+    }
+}
+
+/// The checks (plan 3.5), once a frame while in the shared world and welcomed: the next permit due,
+/// as a `game_permit_check` into `outbox`, at most one each [`CHECK_GAP_S`] (`last_sent`, the game's
+/// clock, kept by the caller). `now` is the game's clock, seconds (`SharedBuild`'s). A permit is
+/// asked about only when it is for a neighbour's plot of this ship (never my own), has not run out
+/// and is not being asked about already. Until the next one is due, nothing is looked at
+/// (`next_check_at`).
+pub(crate) fn tick(gs: &mut GuiState, now: f64, last_sent: &mut Option<f64>, outbox: &mut Vec<String>) {
+    if now < gs.household.next_check_at {
+        return;
+    }
+    // A check unanswered this long was lost: its permit is due again.
+    gs.household.asked.retain(|_, (_, at)| now - *at < UNANSWERED_S);
+    if last_sent.is_some_and(|t| now - t < CHECK_GAP_S) {
+        return;
+    }
+    let (Some(store), Some(ship)) = (gs.dm_store.as_ref(), gs.ship_structure.as_ref()) else { return };
+    let unix = now_s();
+    let neighbours: BTreeSet<&str> = ship.neighbour_plots().map(|p| p.id.as_str()).collect();
+    let house = &mut gs.household;
+    let asking: BTreeSet<&hh::PermitKey> = house.asked.values().map(|(k, _)| k).collect();
+    let mut next: Option<(f64, &HeldPermit)> = None;
+    for h in store.permits_held() {
+        let plot = h.permit.plot.as_str();
+        if h.permit.expiry <= unix || !neighbours.contains(plot) || house.my_plot.as_deref() == Some(plot) {
+            continue;
+        }
+        let key = hh::PermitKey::of(h);
+        if asking.contains(&key) {
+            continue;
+        }
+        if let Some(due) = due_at(house.verdicts.get(&key)) {
+            if next.is_none_or(|(d, _)| due < d) {
+                next = Some((due, h));
+            }
+        }
+    }
+    let reask = house.asked.values().map(|(_, at)| at + UNANSWERED_S).fold(f64::INFINITY, f64::min);
+    match next {
+        Some((due, h)) if due <= now => {
+            house.last_req = house.last_req.wrapping_add(1).max(1);
+            let req_id = house.last_req;
+            let key = hh::PermitKey::of(h);
+            let check = crate::systems::construction::shared::ToRelay::PermitCheck { req_id, permit: h.permit.clone() };
+            outbox.push(serde_json::to_string(&check).unwrap_or_default());
+            house.asked.insert(req_id, (key.clone(), now));
+            // A permit asked about again keeps what the relay said last until it answers, so a
+            // door that is open stays open while it is asked.
+            house.verdicts.entry(key).or_insert(hh::Judged { verdict: Verdict::Checking, at: now });
+            *last_sent = Some(now);
+        }
+        other => house.next_check_at = other.map_or(f64::INFINITY, |(d, _)| d).min(reask),
+    }
+}
+
+/// `game_permit_status` (engine/shared_build.rs `receive`): the relay's word on check `req_id`.
+/// Works, refused with its why, or `again` (asked again after [`AGAIN_S`]). An answer to no check
+/// this session asked (an earlier session's, a duplicate) changes nothing. A permit that worked and
+/// now does not says so in a notice (plan 3.10); one refused from the start is shown on the card.
+/// True when it answered a check of ours.
+pub(crate) fn on_status(gs: &mut GuiState, req_id: u32, plot: &str, ok: bool, why: Option<Why>, again: bool, now: f64) -> bool {
+    let Some((key, _)) = gs.household.asked.remove(&req_id) else { return false };
+    if key.plot != plot {
+        log::warn!("Household: the server answered check {req_id} about plot {plot}, asked about {}", key.plot);
+    }
+    let held_works = gs.household.verdicts.get(&key).is_some_and(|j| j.verdict == Verdict::Works);
+    // `again` (the relay could not judge it yet) on a permit that works keeps it working, asked
+    // again in AGAIN_S: dated so its RECHECK_S comes due then (2026-10-12 review: it used to turn
+    // to Later, shutting an open door for at least 5 s).
+    let (verdict, at) = if ok {
+        (Verdict::Works, now)
+    } else if again && held_works {
+        (Verdict::Works, now - RECHECK_S + AGAIN_S)
+    } else if again {
+        (Verdict::Later, now)
+    } else {
+        (Verdict::Refused(why.unwrap_or(Why::Unknown)), now)
+    };
+    log::info!("Household: the server says the permit for {} is {verdict:?}", key.plot);
+    let was = gs.household.verdicts.insert(key.clone(), hh::Judged { verdict, at }).map(|j| j.verdict);
+    gs.household.next_check_at = 0.0;
+    if let (Some(Verdict::Works), Verdict::Refused(w)) = (was, verdict) {
+        let notice = no_longer_works(gs, &key, w);
+        gs.pending_notices.push(notice);
+    }
+    true
+}
+
+/// A build or take-down the relay refused with a `permit_*` why (engine/shared_build.rs `refused`,
+/// plan 3.4 item 3): the permit it carried, `key`, is refused for that reason from now on, so its
+/// plot closes as a check's refusal closes it.
+pub(crate) fn refused_by_server(gs: &mut GuiState, key: hh::PermitKey, why: Why, now: f64) {
+    let was = gs.household.verdicts.insert(key.clone(), hh::Judged { verdict: Verdict::Refused(why), at: now }).map(|j| j.verdict);
+    gs.household.next_check_at = 0.0;
+    if was == Some(Verdict::Works) {
+        log::info!("Household: a build on {} was refused ({}); that plot closes", key.plot, why.as_str());
+    }
+}
+
+/// The notice when a permit that worked stops working: "Your household permit for plot p1 no
+/// longer works: Ada took it back."
+fn no_longer_works(gs: &GuiState, key: &hh::PermitKey, why: Why) -> String {
+    use crate::systems::construction::shared::{why_words, Action, Reason};
+    let name = crate::engine::dm::dm_display_name(gs, &key.from);
+    let reason = match why {
+        Why::PermitNotFromHolder => format!("{name} does not hold that plot any more"),
+        Why::PermitWithdrawn => format!("{name} took it back"),
+        Why::PermitExpired => "it ran out".to_string(),
+        w => why_words(Action::Build, Reason::NotAllowed, Some(w)),
+    };
+    format!("Your household permit for plot {} no longer works: {reason}.", key.plot)
+}
+
+/// What this game's permits say of building on `plot` now (the build gate, engine/shared_build.rs
+/// `gate`, plan 3.8).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum PlotPermit {
+    /// No permit held for it.
+    None,
+    /// A permit the relay said works this session ([`Household::usable`](hh::Household)).
+    Usable,
+    /// A permit not yet answered for, or one the relay could not judge yet.
+    Checking,
+    /// Every permit held for it ran out, or the relay refused it, for this reason.
+    Refused(Why),
+}
+
+/// [`PlotPermit`] for `plot` from the session's state and the permits `held`, at `now_s` (Unix
+/// seconds). A usable one first; then one still being checked (or not yet asked); then why the
+/// latest-ending one does not work. Pure.
+pub(crate) fn plot_permit(household: &hh::Household, held: &[HeldPermit], plot: &str, now_s: u64) -> PlotPermit {
+    if household.usable.contains(plot) {
+        return PlotPermit::Usable;
+    }
+    let mine: Vec<&HeldPermit> = held.iter().filter(|h| h.permit.plot == plot).collect();
+    if mine.is_empty() {
+        return PlotPermit::None;
+    }
+    let asking = |h: &HeldPermit| matches!(household.verdict(h), None | Some(Verdict::Checking | Verdict::Later));
+    if mine.iter().any(|h| h.permit.expiry > now_s && asking(h)) {
+        return PlotPermit::Checking;
+    }
+    let latest = mine.iter().max_by_key(|h| h.permit.expiry).copied();
+    match latest.map(|h| (h.permit.expiry > now_s, household.verdict(h))) {
+        Some((true, Some(Verdict::Refused(w)))) => PlotPermit::Refused(w),
+        // A permit that worked and has since run out by this game's clock (the relay rules on a
+        // build by its own clock; this only says so before anything is spent).
+        _ => PlotPermit::Refused(Why::PermitExpired),
+    }
+}
+
+/// THE OPEN PLOTS NOW (plan 3.7; [`apply_open`]'s core, pure on its parts). Sets `household.usable`
+/// from the permits `held` (works this session, not run out at `now_s`, a neighbour's plot of
+/// `ship`), then `walkable` = usable, plus the plot the player stands in or in the corridor of
+/// (`standing`, ship metres; None while not aboard) when it was walkable already, and `lit` = that
+/// plot when walkable. Standing somewhere never opens a plot that was shut, so nobody opens a home
+/// by pressing into its corridor; a game restarted inside one is put at its own door on arrival
+/// instead (engine/home_plot.rs `plan_welcome`). Returns what `ship.open` should be.
+pub(crate) fn open_for(
+    household: &mut hh::Household,
+    held: &[HeldPermit],
+    ship: &crate::ship::ship_structure::ShipStructure,
+    standing: Option<glam::Vec3>,
+    now_s: u64,
+) -> crate::ship::ship_structure::OpenPlots {
+    // Nothing held: nothing usable, and no set of the ship's plots built every frame for it.
+    household.usable = if held.is_empty() {
+        BTreeSet::new()
+    } else {
+        let neighbours: BTreeSet<&str> = ship.neighbour_plots().map(|p| p.id.as_str()).collect();
+        household.usable_plots(held, |p| neighbours.contains(p), now_s)
+    };
+    // Where the player stands matters only when something is or was open.
+    let here: Option<String> = if household.usable.is_empty() && household.walkable.is_empty() {
+        None
+    } else {
+        standing.and_then(|p| crate::engine::home_plot::plot_ground_of(ship, p)).map(|p| p.id.clone())
+    };
+    let mut walkable = household.usable.clone();
+    if let Some(h) = here.as_ref().filter(|h| household.walkable.contains(*h)) {
+        walkable.insert(h.clone());
+    }
+    household.lit = here.filter(|h| walkable.contains(h));
+    household.walkable = walkable;
+    crate::ship::ship_structure::OpenPlots { plots: household.walkable.clone(), lit: household.lit.clone() }
+}
+
+/// Make `ship.open` `want`; true when it changed. Compared with the LIVE ship each frame, so a ship
+/// rebuilt since (which starts with nothing open) is opened again.
+pub(crate) fn set_open(ship: &mut crate::ship::ship_structure::ShipStructure, want: crate::ship::ship_structure::OpenPlots) -> bool {
+    if ship.open == want {
+        return false;
+    }
+    ship.open = want;
+    true
+}
+
+/// Once a frame (engine/shared_build.rs `tick`, joined or not): the plots this game may walk into
+/// ([`open_for`]), from where the camera stands while aboard; when they changed, the ship takes
+/// them and the colliders, doors and lights that read them are redone
+/// (engine/home_meshes.rs `open_plots_changed`).
+pub(crate) fn apply_open(state: &mut crate::engine::state::EngineState) {
+    let standing = crate::engine::home_plot::aboard(state).then_some(state.camera.position);
+    let gs = &mut state.gui_state;
+    let Some(ship) = gs.ship_structure.as_ref() else { return };
+    let held: &[HeldPermit] = gs.dm_store.as_ref().map_or(&[], |s| s.permits_held());
+    let want = open_for(&mut gs.household, held, ship, standing, now_s());
+    let Some(ship) = gs.ship_structure.as_mut() else { return };
+    if set_open(ship, want) {
+        crate::engine::home_meshes::open_plots_changed(state);
+    }
+}
+
+// ── What the dev IPC reports (engine/ipc.rs, the recorder's `household`) ───────────────────────
+
+/// The probe's `household` (engine/ipc.rs's recorder, done JSON; scripts/verify-copresence.js
+/// --household reads it).
+pub(crate) fn probe_json(state: &crate::engine::state::EngineState) -> serde_json::Value {
+    probe_core(&state.gui_state, &state.door_panels)
+}
+
+/// [`probe_json`] on its parts: `doors` are the door panels with their open fractions
+/// (`EngineState::door_panels`). Fields:
+/// - `me` (my full key), `me_did` (my id as the relay holds plots under it), `server` (the server's
+///   own `did:hum:` this DM store holds), `my_plot` (this session's);
+/// - `friends`: the card's "Your plot" rows, each with its permit's standing;
+/// - `given` and `held`: every permit given and held on this server, `given` with its state as the
+///   card reads it, `held` with what the relay said this session (`verdict`: works, checking,
+///   later, refused, or null; `why` for refused);
+/// - `usable`, `walkable`, `lit`, `open_plots` (what the ship has open now) and `open_lights` (how
+///   many lights the lit open plot adds);
+/// - `mouths`: each neighbour plot's corridor door mouths, both ends, with `others_only` (true:
+///   shut to this player) and `open` (the doors' largest open fraction);
+/// - `checks_waiting`, `sending`, `withdrawals_waiting` and `line`.
+pub(crate) fn probe_core(gs: &GuiState, doors: &[(crate::ship::door_panels::PanelPlacement, f32)]) -> serde_json::Value {
+    use serde_json::json;
+    let store = gs.dm_store.as_ref();
+    let household = &gs.household;
+    let me = gs.profile_public_key.as_str();
+    let friend_rows: Vec<serde_json::Value> = friends(gs)
+        .iter()
+        .map(|r| {
+            json!({
+                "key": r.key,
+                "name": r.name,
+                "friend": r.friend,
+                "blocked": r.blocked,
+                "sealable": r.sealable,
+                "permit": standing_json(&r.permit),
+                "other_plots": r.other_plots,
+            })
+        })
+        .collect();
+    let given: Vec<serde_json::Value> = store
+        .map(|s| {
+            s.permits_given()
+                .iter()
+                .map(|g| {
+                    let row = GivenPermit { state: household.given_state(g), ..g.clone() };
+                    serde_json::to_value(row).unwrap_or_default()
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    let held: Vec<serde_json::Value> = store
+        .map(|s| {
+            s.permits_held()
+                .iter()
+                .map(|h| {
+                    let (verdict, why) = match household.verdict(h) {
+                        None => (None, None),
+                        Some(Verdict::Works) => (Some("works"), None),
+                        Some(Verdict::Checking) => (Some("checking"), None),
+                        Some(Verdict::Later) => (Some("later"), None),
+                        Some(Verdict::Refused(w)) => (Some("refused"), Some(w.as_str())),
+                    };
+                    json!({
+                        "from": h.from,
+                        "plot": h.permit.plot,
+                        "serial": h.permit.serial,
+                        "expiry": h.permit.expiry,
+                        "at": h.at,
+                        "verdict": verdict,
+                        "why": why,
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    let ship = gs.ship_structure.as_ref();
+    json!({
+        "me": me,
+        "me_did": (!me.is_empty()).then(|| plot_owner_id(me)),
+        "server": store.and_then(|s| s.pass_server()),
+        "my_plot": household.my_plot,
+        "friends": friend_rows,
+        "given": given,
+        "held": held,
+        "usable": household.usable,
+        "walkable": household.walkable,
+        "lit": household.lit,
+        "open_plots": ship.map(|s| s.open.plots.clone()).unwrap_or_default(),
+        "open_lights": ship.map_or(0, |s| crate::engine::home_meshes::open_plot_lights(s).len()),
+        "mouths": ship.map_or_else(|| json!({}), |s| mouths_json(s, doors)),
+        "checks_waiting": household.asked.len(),
+        "sending": household.on_their_way.len(),
+        "withdrawals_waiting": store.map_or(0, |s| s.pending_withdrawals().len()),
+        "line": household.line,
+    })
+}
+
+/// A [`Standing`] as the probe writes it: `{"state": "stands", "expiry": ..., "days": ...}`.
+fn standing_json(s: &Standing) -> serde_json::Value {
+    use serde_json::json;
+    match s {
+        Standing::None => json!({ "state": "none" }),
+        Standing::Sending { expiry } => json!({ "state": "sending", "expiry": expiry }),
+        Standing::Stands { expiry, days } => json!({ "state": "stands", "expiry": expiry, "days": days }),
+        Standing::Unconfirmed { expiry } => json!({ "state": "unconfirmed", "expiry": expiry }),
+        Standing::Refused { reason } => json!({ "state": "refused", "reason": reason }),
+        Standing::RanOut { expiry } => json!({ "state": "ran_out", "expiry": expiry }),
+        Standing::TakingBack { expiry } => json!({ "state": "taking_back", "expiry": expiry }),
+        Standing::TakenBack { expiry } => json!({ "state": "taken_back", "expiry": expiry }),
+    }
+}
+
+/// Each neighbour plot's corridor door mouths (`NeighbourView::mouths_by_plot`, both ends of its
+/// corridor), keyed by plot: where the mouth is (its aperture's floor centre, ship metres), how many
+/// door halves stand in it, whether they open only for the other players (`others_only`, null with
+/// none), and how far open they are (the larger fraction). The halves are found by where they stand
+/// among the neighbours' doors, which `ship_panel_placements` puts last.
+fn mouths_json(ship: &crate::ship::ship_structure::ShipStructure, doors: &[(crate::ship::door_panels::PanelPlacement, f32)]) -> serde_json::Value {
+    use crate::ship::ship_structure::CorridorAxis;
+    let view = crate::ship::neighbours::neighbour_view(ship);
+    let tail_len = crate::ship::door_panels::neighbour_panel_placements(ship).len();
+    let tail = &doors[doors.len().saturating_sub(tail_len)..];
+    let mut out: std::collections::BTreeMap<String, Vec<serde_json::Value>> = std::collections::BTreeMap::new();
+    for (plot, m) in view.mouths_by_plot(ship) {
+        let (x, z) = match m.axis {
+            CorridorAxis::X => (m.plane, m.lat),
+            CorridorAxis::Z => (m.lat, m.plane),
+        };
+        let in_mouth = |c: glam::Vec3| {
+            let (along, across) = match m.axis {
+                CorridorAxis::X => (c.x, c.z),
+                CorridorAxis::Z => (c.z, c.x),
+            };
+            (along - m.plane).abs() < 0.05 && (across - m.lat).abs() <= m.door.0 * 0.5 + 0.01 && (c.y - m.floor_y).abs() < 0.05
+        };
+        let halves: Vec<&(crate::ship::door_panels::PanelPlacement, f32)> = tail.iter().filter(|(p, _)| in_mouth(p.center)).collect();
+        let others_only = (!halves.is_empty()).then(|| halves.iter().all(|(p, _)| p.others_only));
+        let open = halves.iter().map(|(_, f)| *f).fold(0.0f32, f32::max);
+        out.entry(plot.to_string()).or_default().push(serde_json::json!({
+            "at": [x, m.floor_y, z],
+            "doors": halves.len(),
+            "others_only": others_only,
+            "open": open,
+        }));
+    }
+    serde_json::to_value(out).unwrap_or_default()
 }
 
 #[cfg(test)]

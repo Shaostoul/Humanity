@@ -1381,11 +1381,11 @@ mod native_app {
             // it auto-accepts its dependents (prerequisite chaining in QuestSystem).
             let mut player_quests = QuestTracker::default();
             player_quests.accept_quest("gs_first_steps");
-            // A new player's starting kit (2026-09-25; data/world/player.ron).
+            // A new player's starting kit (2026-09-25; the start's kit, data/homes/starts.ron).
             // A save replaces it through apply_save_to_world when progress is
             // kept; with a fresh home each launch this is what you start with.
             let mut start_inv = Inventory::new(36);
-            for (id, qty) in crate::save_load::starting_kit(&data_dir) {
+            for (id, qty) in crate::save_load::starting_kit(&data_dir, &crate::save_load::active_home().start) {
                 start_inv.add_item(&id, qty, 99);
             }
             game_world.world.spawn((
@@ -12498,6 +12498,9 @@ mod native_app {
                                     (name, e.remaining as f32)
                                 })
                                 .collect();
+                            // Each wound and illness, with what helps (first-hour audit S8,
+                            // systems::wounds): the HUD's rows and the Inventory's lines.
+                            state.gui_state.vitals.care = crate::systems::wounds::care_lines(effects, fx_registry);
                         }
                     }
                     // Bridge player skills (live levels + XP) from ECS for the profile
@@ -12643,6 +12646,9 @@ mod native_app {
                         let picking = crate::systems::farming::picking::GuiView::new(&state.game_world.world, &state.data_store);
                         let air_view = crate::systems::farming::humidity::GuiView::new(&state.game_world.world, &state.data_store); // humidity rows
                         let weed_view = crate::systems::farming::weeds::GuiView::new(&state.game_world.world, &state.data_store); // weed rows
+                        // Each crop's wait and water, for the Garden card (first-hour F11, systems/farming/outlook.rs).
+                        let outlook_view = crate::systems::farming::outlook::OutlookView::new(&state.game_world.world, &state.data_store);
+                        state.gui_state.garden_pests.outlook.clear();
                         for (entity, (crop, soil)) in state
                             .game_world
                             .world
@@ -12712,6 +12718,7 @@ mod native_app {
                                 humidity: air_view.crop_row(crop, def),
                                 weeds: weed_view.crop_row(crop, def),
                             });
+                            state.gui_state.garden_pests.outlook.insert(entity.to_bits().into(), outlook_view.row(crop, def));
                         }
                         state.gui_state.garden_pests.weeds = weed_view.areas;
                         state.gui_state.garden_pests.pollinate_areas = pollination.areas;
