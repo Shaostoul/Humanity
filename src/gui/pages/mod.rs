@@ -42,6 +42,8 @@ pub mod humanity;
 pub mod library;
 pub mod quests;
 pub mod homes;
+/// Home > Household: giving, renewing and taking back household permits (ship homes 5b, 2026-10-12).
+pub mod household;
 pub mod market;
 pub mod market_directory;
 pub mod market_publish;
