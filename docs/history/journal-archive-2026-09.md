@@ -1182,3 +1182,703 @@ Decisions rotated out of `data/coordination/orchestrator_state.json` (oldest fir
 
 **Why:** Operator asked for Starmade-style cargo that fills as inventory fills (2026-09-25). The pool mixes garage bags and a car trunk, which are not in the barn, so only Barn-filed and loose Home stock count. Harvest overflow still goes to machine vessels, so harvesting does not yet grow the crates; next is fluids as litres. 3c (containers as items) is blocked on the unified placement schema. Tests red on purpose first; photographed with the home-photos rig (28-barn, 19-plant-room).
 
+
+## 2026-09-26
+
+**Decision:** Fluids as litres, first rung (v0.1347.0): data/containers/fluids.ron names tap-water items (water_purified_0 = 1 L) and carryable vessels (bottle 0.5 L, jerrycan 20 L). Crafting draws tap water from the tanks when the pack lacks it (manual and auto paths; refused and nothing spent when the tanks are low); the Crafting page counts the tanks. A water tank card fills and pours vessels. Drinking a bottle returns the empty bottle.
+
+**Why:** The tanks held real litres and the water items came from nowhere; this joins the two. A vessel is an empty item plus a full item because ItemStack carries no metadata and real vessels keep to one fluid anyway (a water jerrycan is never a fuel can). No auto recipe uses water, so automation cannot drain the cistern. Tests red on purpose first.
+
+
+## 2026-09-26
+
+**Decision:** Crafting depth rung 1 (v0.1348.0): hand tools. data/crafting/tools.ron (rules by station+category, per-recipe overrides) gives 182 recipes tools that must be in the backpack; not consumed; ItemStack gained a serde-default wear counter and Inventory::wear_item breaks one at items.csv durability. Automated machines need no tools; creative skips the check. Starter kit + hammer, hand saw, screwdriver, wrench, pliers. Statues stopped consuming their chisel. The web recipes.json generator resolves the same tools and a Rust test compares every recipe across the two.
+
+**Why:** Operator-agreed gameplay order item 5 (crafting depth). Tools-as-items is the real model and ItemStack was only ever built via ItemStack::new, so per-stack wear was a clean add. The obtainability test (fixed point over vendor, kit and recipes) exists because a rule can silently lock recipes behind a tool nobody can get: it failed on purpose with forge_hammer_0, which has no source. Tests red on purpose first. Gardening rung 1 (yield from health, six unmapped plant model sets) was handed to a worktree agent in parallel.
+
+
+## 2026-09-26
+
+**Decision:** Crafting depth rung 2 (v0.1349.0): station power. MachinePower::Consumer gained idle_watts (serde default None, skipped when None so editor saves do not churn); machine entities carry MachineType; a StationLoad component holds active/idle watts and the crafting tick sets PowerConsumer.draw_watts to active while a craft runs at the station (auto: its own batch; manual: one powered station of the type), idle otherwise. A manual craft at an electric station with no powered machine of its type is refused with a notice; the Crafting page mirrors it via GuiState.unpowered_station_types. Family home: stove idle 0, oven 2, electronics bench 5, sewing machine 0.
+
+**Why:** Those four drew ~3.65 kW around the clock, which is not how a stove works and distorted the home power budget. Not done: pausing a running craft when power drops (rung 3). An idle 0 W consumer is disabled by the shedder on an over-budget island, which reads as no power, and that is intended: there is no spare power to switch it on. Tests red on purpose first (no gate; no drop to idle).
+
+
+## 2026-09-26
+
+**Decision:** Gardening depth rung 1 merged (v0.1350.0, worktree agent commit cherry-picked as 2e15cae1): CropInstance keeps health_seconds/growing_seconds; the harvest scales the rolled yield by season health (FAO 33 linear, Ky 1) and posts one notice for a stressed harvest; data/plants_visual.ron stage_models maps six previously unused model sets (plus wheat for spelt/triticale/rye/barley) to 24 species, 36 of 189 now draw a stage model. Added the Season health stat to the crop card (agent suggestion; it could not touch lib.rs).
+
+**Why:** Season average, not harvest-day health, because health recovers in minutes and freezes at maturity, so a drought would be forgotten. Edible mushrooms deliberately NOT mapped to the mushroom model: it carries Amanita field marks (warted cap, ring, swollen base), which would teach the wrong look. Visual check: planted oat, coconut, raspberry, prickly pear and tulip in the showcase fields for one rig run (reverted), all rendered, 0 panics. Byproducts handed to the homestead-engineer agent in a worktree.
+
+
+## 2026-09-26
+
+**Decision:** v0.1351.0 bundle: (1) a craft pauses while its station has no power; (2) tool wear survives storage (transfer op carries wear, PlacedItem.wear, add_item_worn/remove_worn; found reviewing the v0.1348 rung, a worn hammer came back fresh); (3) byproducts merged from the homestead-engineer worktree (slag, sawdust, bran, press cake, olive pomace; tan_leather fixed; sawmill/oil/fertilizer mass creation fixed; byproduct_use_lint) plus follow-ups it could not make (iron slag, whey with whey bread, apple pomace with juice mass fix and compost); (4) automated machines deliver into home storage via home_stock_outputs, filed into the Barn by stock_piles::receive_machine_outputs, and AutoRefine.keep / MachineDef.auto_keep rest a machine while that many of its product are on hand (grain mill 20 flour, workbench 2 hammers).
+
+**Why:** The byproducts change made the grain mill grind wheat; as an automated machine drawing from home storage it would have milled the seeded Barn wheat straight into the backpack. Filing machine output in the Barn is also the Starmade loop the operator asked for (the barn grows as machines produce). Tests red on purpose first for each piece.
+
+
+## 2026-09-26
+
+**Decision:** Gardening rung 2, light (v0.1352.0; worktree agent commit cherry-picked, one machines.rs conflict with auto_keep resolved by keeping both): green crops grow only while lit and pause (no harm) in the dark; lit time counts 2x so a sun-only crop still matures in its calendar growth_days; fields get only the sun, every other grow area gets the sun through the skylight plus a powered grow light (MachineDef.lights_crops -> GrowLight marker, home-wide like irrigation); plants.csv needs_light false only for fungi.
+
+**Why:** The agent departed from the brief (grow lights as the only indoor light) with evidence: both homes are designed sun-lit through a glass roof and place no grow lights, a machines.rs test pins that, so the brief would have frozen every indoor garden. Accepted. Left for later: per-species light amounts, grow lights that reach only nearby beds, seasonal day length, the power meter assuming 14 h of grow-light use.
+
+
+## 2026-09-26
+
+**Decision:** Crafting quality (v0.1353.0): crafting/quality.rs reads manufacturing.ron quality_levels; ItemStack.quality (index+1, 0 ungraded); add_item_q / add_item_volume_gated_q keep grades apart; the backpack/storage transfer became a TransferOp struct carrying wear and quality; PlacedItem.quality; hand-made durable outputs graded by skill_factor(level,max) (level 1 = 0.45, max = 1.0) plus the file spread; wear_item takes a per-grade durability; vendor_sell prices by grade via remove_item_report; machine outputs are standard; inventory card shows grade and true uses left; Crafting page shows expected grade (GuiRecipe.graded, GuiSkill.max_level).
+
+**Why:** Last item of the crafting list the operator agreed to. Grading only durable goods so materials never fragment into six stacks. BEGINNER_FACTOR 0.45 is a design choice (a beginner does standard work most of the time), stated as such in the code. Tests red on purpose first (no grading, flat price, grades merging).
+
+
+## 2026-09-26
+
+**Decision:** v0.1354.0: the Barn draws stock by kind (sacks for dry goods, casks for liquids and fresh food, crates for the rest; 29-barn-stock vantage added); Eat/Drink buttons ask food::consume_kinds (built from the embedded food data) instead of the water_ prefix; 49 non-food items refiled out of category food and their not_food exemptions removed; tallow material for animal_fat_0; cook_coffee roasts 6 cherries into coffee_0 (was 1 cherry + water -> 2 energy drinks); 16 stale NPC shop items mapped to real ones, flask_0 added, recipe_sources_lint npc_shops_sell_real_items guards it.
+
+**Why:** Closing the defects list found while merging. Left open deliberately: soap needs a lye item and source; the 100 g eating rule is satiation pacing (abstract 7-day reserve) and belongs to the realism/simplified vitals modes; tech_tree.ron is unread aspirational data (about 50 future items), so the new lint covers only NPC shops.
+
+
+## 2026-09-26
+
+**Decision:** Gardening rung 3, N-P-K (v0.1355.0): merged the homestead-engineer worktree (soil.rs model, data/garden/nutrients.ron with sources, slider becomes a feeder, the old growth multiplier and +40 fertilizer health removed) and did the wiring it could not touch: garden_nutrients registered and embedded, crop_soil + soil_memory in WorldSave (save/apply, round-trip test), crop card shows soil grams, season need and the scarcest nutrient, the home.ron Nutrients loop string replaced with the audited 53/75/93%.
+
+**Why:** The agent found compost alone cannot close nitrogen (7% first-season availability) and the plants.csv indices understate dense crops 5-20x; both are recorded as next rungs rather than papered over. The conflict resolution in the gap doc had re-added the stale defects note; removed.
+
+
+## 2026-09-26
+
+**Decision:** v0.1356.0: soap needs lye (lye_0 vendor item, corrosive class; craft_soap_bar = 3 tallow + 2 lye + 1 water -> 15 bars at a ~0.143 SAP ratio, the salt-only recipe removed) and ContentClass.cleaning_agent (food: soap_bar_0) makes a food/dairy vessel clean take one soap use besides water, via containers::clean_container (the lib.rs Clean handler shrank to a call).
+
+**Why:** Soap was the last open item in the found-defects list that is not a pacing decision; making it the cleaning agent closes the containers arc item (PMO hot wash) at the same time.
+
+
+## 2026-09-26
+
+**Decision:** v0.1357.0: 13 station blueprints (forge, anvil, electronics bench, sewing machine, loom, stove, oven, chemistry set, composter, sawmill, grain mill, fuel refinery, water purifier) each consume the crafted station item; recipe_sources_lint every_recipe_station_can_be_built (vehicle_assembler exempt, family-home only).
+
+**Why:** The gap survey found 12 of 17 station types unreachable in the one-person home (160 recipes). The crafted station items existed but nothing placed them; a blueprint consuming the item joins craft and construction without new systems. Built electric stations do not draw home power yet (no MachineType/PowerConsumer on built structures), noted.
+
+
+## 2026-09-26
+
+**Decision:** v0.1358.0: construction::wire_built_stations gives built electric stations (blueprint power_watts/idle_watts/power_priority) MachineType + PowerConsumer + StationLoad on the strongest island; vessel level gauges via MachineDef.level_gauge (silo, fuel drums), crossed plates; silo_1 moved from (45,78) inside a rack bay to (52.3,76).
+
+**Why:** v0.1357 made stations buildable but a built stove ignored power. Gauges on every container would have covered 21 shelves, so an explicit machine flag marks bulk vessels.
+
+
+## 2026-09-26
+
+**Decision:** Nitrogen loop merged (v0.1359.0, homestead-engineer worktree, clean cherry-pick): compost organic cohorts in SoilMemory.organic released at [0, 3.5%, 2%/yr] of the remainder (Gravuer 2016; OSU EM 9165), urine_stored_0 (Jonsson 2004 per person-day, all available, WHO one-month withholding), legume n_fixed_pct for 9 species (Salvagiotti 2008, Hossain 2017) with a harvest credit; feeder uses urine for N first then compost. Follow-ups done here: Compost button relabelled "Compost and draw off urine"; the home.ron Nutrients loop now closes: false with an honest note.
+
+**Why:** The agent computed the household balance: 3 residents urine = 12 kg N/yr vs 10.2 kg net need, but only on a shared clock; the body runs real-time and the garden ~720x faster, so in play urine is ~0.05-0.5% of need. That is a design call (which clock) for the operator, recorded in PRIORITIES, not tuned away. P and K do not close from urine at all.
+
+
+## 2026-09-26
+
+**Decision:** v0.1360.0: fixed the eight defects an independent critic review found in v0.1345..v0.1359 (BUG-088): backpack wear/grade saved (inventory_state), stable power shedding (demand counts shed loads; busy stations keep demand), vendor sells one grade and refuses defective, fill is a swap, durable goods kept out of machine vessels, remove_worn across matching stacks, a slot for the returned empty bottle, restored auto batches resolved by machine id.
+
+**Why:** Asked a critic to try to break the day's work; seven of eight were reproduced against the crate. The power flip-flop predated today (ElectricalSystem) but today's station power exposed it; the unit tests had set enabled by hand and never ran ElectricalSystem, the checks-that-cannot-fail pattern again. The new stove test ticks both systems.
+
+
+## 2026-09-26
+
+**Decision:** Pests merged (v0.1361.0, worktree agent commit cherry-picked cleanly): pests.rs + data/garden/pests.ron (5 pests, UC IPM / UMN / Iowa State / Cornell / CSU / Clemson sources, game estimates labelled), pressure in SoilMemory.pests (saved), IPM-ordered controls via pest_control_request. Wired here: garden_pests/garden_pest_severity/pest_control_request channels, GardenPests + GuiAreaPests in state_types, per-area report in the crop bridge, Garden panel rows with control buttons, Settings Off/Gentle/Realistic (AppConfig.pest_severity, default gentle).
+
+**Why:** Pests default to gentle, so shipping the sim without the panel buttons would have left the player unable to respond; wired in the same release. Left open: pests in the offline catch-up, all hand-planted crops share one pest area.
+
+
+## 2026-09-26
+
+**Decision:** v0.1362.0: harvest surplus that neither pack nor vessel takes goes to home_stock_outputs (the Barn) instead of being discarded. Per-crop nutrient removal columns handed to the homestead-engineer in a worktree.
+
+**Why:** Last loss path noted in the storage work; the channel already existed for automated machines.
+
+
+## 2026-09-26
+
+**Decision:** v0.1363.0: merged the per-crop nutrient removal columns (worktree agent commit cherry-picked cleanly): plants.csv removal_n/p2o5/k2o_g_per_kg for 64 crops (NRCS AWMFH Table 6-6 N for dry harvests, FDC protein/N-factor N for fresh, UW A2809 P/K), soil::removal_per_kg with per-nutrient fallback to the index. Wired here: the crop card row "Each kg takes" (GuiCrop n/p/k now carry removal per kg; they held the unitless index and were shown nowhere). Showcase oilseed_bed plants sunflower (flax is modelled as fiber). Launched two worktree agents: harvest per grow unit from floor area x crop spacing (plants.csv area_per_plant_m2, per-plant yields, water and nutrient need scale with plants, one harvest-mass source), and soil pH (data/garden/soil_ph.ron, acidification from N, lime/sulfur, availability cap, Off/On setting).
+
+**Why:** The agent found the old indices had made urine look like it closed the nitrogen loop (118%); real removal makes it 26%. It also found items.csv and crop_nutrition.ron disagree on harvest mass by 6-10x and a tower cup grew 1.65 kg of dry soybeans: the unit means a whole 2 m2 tray for beds but one plant for towers while yields are per plant. Area x spacing is the real model, so that is the next rung rather than retuning numbers.
+
+
+## 2026-09-26
+
+**Decision:** v0.1364.0: grow lights light the plots near them (farming/lighting.rs + data/garden/lighting.ron: watts x 2.30 umol/J DLC Hort V3.0 over Cornell 17 mol/m2/d in a 12 h night = 394 umol/m2/s, 0.58 m2 per 100 W, nearest first within 3 m, partial cover = that share of a night's growth). Engine publishes grow_plots / grow_instances / grow_plot_area_m2 from grow anchors (home_meshes::publish_grow_plots). grow_media.ron gains plots (+ stacked for racks); showcase sows one crop per plot (bed_units removed). BUG-089 fixed: bed Plant button crops were tagged with the machine TYPE and never drawn; farming now expands a type to its instances.
+
+**Why:** The first light rung admitted one light lit the whole home. Local lighting needs each crop's place, which exposed that bed-planted crops had none (never rendered). Plots per machine were needed anyway for the area-based harvest agent, which I told to read grow_plot_area_m2. Left: per-species DLI, and the renderer draws one plant per plot until plants-per-plot lands.
+
+
+## 2026-09-26
+
+**Decision:** v0.1365.0: crop card Light row (lighting::light_now/light_word); pests do not advance offline (recorded in offline-progression.md: harms without a decision; soil draw for offline growth is paid on return); removed three pure-multiplier recipes (craft_battery_charge, craft_titanium_alloy, craft_nanomaterial); sawmill keeps slabs (wood_slab_0 -> make_charcoal_slabs) and bark (bark_0 -> tan_leather at 2x hide weight, Traditional Tanners).
+
+**Why:** Worked the non-conflicting leftovers while the area and pH agents run. Rubber vulcanization stays on the multiplier list until the pH agent's sulfur item lands (vulcanizing needs sulfur and a raw rubber item; the rubber tree currently harvests a fiber bundle, a defect like flax).
+
+
+## 2026-09-26
+
+**Decision:** In flight (worktree agents, merge by cherry-pick): (1) harvest per plot from area x crop spacing (plants.csv area_per_plant_m2 + per-plant yields, reads grow_plot_area_m2; crop_nutrition grams_per_yield_unit removed in favour of items.csv mass); (2) soil pH (data/garden/soil_ph.ron, lime/sulfur items, Off/On); (3) crop DLI research as docs/reference/findings/2026-09-26-crop-daily-light-integrals.md (no plants.csv edit; I add a dli column after (1) merges); (4) pollination (data/garden/pollination.ron, farming/pollination.rs, hand-pollinate + bumblebee_hive, Off/On).
+
+**Why:** Parallel waves on disjoint files; plants.csv is edited by (1) only, so every other agent was told not to touch it. Merge order: (1) then (2) then (4); DLI column and the renderer drawing plants per plot come after (1). Rubber vulcanization waits for (2)'s sulfur item.
+
+
+## 2026-09-26
+
+**Decision:** v0.1366.0: merged soil pH (worktree commit 75f7928c cherry-picked; four keep-both conflicts with the lighting work in farming/mod.rs, lib.rs, inventory.rs, the gap doc). Switched its stopgap unit area (inferred from N removal) to the real plot floor area from grow_plot_area_m2 (soil_ph::plot_area; unit_area_m2 takes plot_m2 first), test a_placed_plot_buffers_over_its_real_floor_area red first.
+
+**Why:** The agent inferred area because plots did not exist when it started; they do now. Kept its Settings switch on GardenPests.soil_ph_off (gui/mod.rs has no line budget left) and default On (slow drift, gentle cap). Left: the Home page tower compatibility check still intersects plants.csv soil windows for the held tower solution; wood ash liming waits for an ash item.
+
+
+## 2026-09-26
+
+**Decision:** Merged the crop DLI findings doc (docs/reference/findings/2026-09-26-crop-daily-light-integrals.md: 27 of 63 crops sourced, min/target/saturation, photoperiod for 13). Plan for the per-species light rung, AFTER the area agent merges plants.csv: add dli_min/dli_target/dli_saturation columns; lighting.rs cover = delivered DLI / crop target (capped 1), so a lamp planned at 17 covers a tomato (25) only 68%; unsourced crops show "light need not sourced, planned at 17" on the card (the agent warned not to fill blanks silently). Flagged for later: tomato and some potatoes are harmed by continuous light (sun by day + lamp all night = 24 h), so grow lights need a photoperiod timer; lettuce ceiling 17 needs airflow (12 in still air); potato/soy/NASA wheat figures are CO2-enriched.
+
+**Why:** The findings doc is the source of truth; plants.csv is edited only by the area agent until it merges, so the column waits. Rubber chain also waits on plants.csv (rubber_tree harvests a fiber bundle; should be latex, DRC 28-40% per Wattana et al. 2025 Polymers PMC12073864; vulcanize 36 raw rubber + 1 garden_sulfur_0 bag = ~5 phr soft rubber).
+
+
+## 2026-09-26
+
+**Decision:** v0.1367.0: merged per-plot harvest (ba43d132: units.rs, yields.ron, plants.csv area_per_plant_m2 + per-plant yields for 52+ crops, FAO-56 water, grams_per_yield_unit deleted) and pollination (cc8e8dd6: pollination.rs/.ron, CropPollination saved, bumblebee_hive, Hand-pollinate, Off/On). Merge fixes: pH paths pass plant counts to need_for; unit_tests test-only; harvest = ymin*plants with season health x fruit set; Garden panel conflict blocks re-nested by hand. Moved GuiCrop/GuiAreaPests/GardenPests verbatim to gui/state_types/garden.rs (state_types.rs hit 1,881 of 1,880); budget lowered to 1,850.
+
+**Why:** Realistic yields cut the home garden from ~28,400 to ~6,300 kcal/day (NASS/extension per-plant yields at real spacing), which is the honest number: a finding for the operator, not a bug. Open from the agents: season compression (whole-season yield on first pick), home.ron hand-typed kcal claims now contradict the computed model, seeds per harvest ignore plants and fruit set, pests count units not plants, hive colony life unmodelled. Pollination and pH default On (slow, gentle); the house rule favours softened defaults, flagged to the operator.
+
+
+## 2026-09-26
+
+**Decision:** v0.1368.0 (in progress): per-crop light need. plants.csv dli_min/dli_target/dli_saturation from the findings table (27 crops); lighting::area_needs (neediest crop per area) scales a plot canopy by target/17 in light_cover; lamps_on_at + lighting.ron lamp_photoperiod_h 18 (on at sunset, off at midnight: Runkle "four to six hours of darkness"); light_at/light_now return LightNow {sun_up, lamps_on, cover}; crop card Light need row. Launched three worktree agents: plot plants drawn at spacing (home_meshes), computed kcal on grow machine cards (self_sufficiency display + home.ron food stats), picking windows + seed return (farming harvest, yields.ron).
+
+**Why:** The findings agent warned not to fill blanks silently with 17, so unsourced crops say so on the card. The timer halves a lamp night to half a day of growth: honest, since 24 h light harms tomato. Two farming tests moved from 900 to 500 s of growth with a one-tick tolerance at the midnight switch.
+
+
+## 2026-09-26
+
+**Decision:** v0.1368.0 released (per-crop DLI + 18 h lamp timer + rubber chain). In flight (worktree agents, cherry-pick each): (1) plot plants drawn at spacing with a visual cap (home_meshes.rs); (2) grow machine cards show computed kcal (self_sufficiency display, home.ron food stats removed); (3) picking windows + seed return follows harvest (farming harvest, yields.ron or harvest_windows.ron, self_sufficiency season count); (4) greenhouse humidity from transpiration + ventilation, diseases as pests.ron rows with a Humidity condition, plants.csv humidity windows as a health cap.
+
+**Why:** Disjoint files per agent; the likely overlaps are self_sufficiency.rs (2 and 3), farming/mod.rs hooks (3 and 4), home.ron (2 food stats vs 4 a new fan entry), lib.rs crop bridge (3 and 4). Merge order: whichever lands first, then resolve.
+
+
+## 2026-09-26
+
+**Decision:** Merged computed kcal on grow machine cards (2c8e48e9: src/systems/grow_machines.rs, MachineHome::stats_for/grown_kcal_per_day, typed food figures removed from both home RONs; home.ron computed 9,507 kcal/day vs demand 6,600, solo 2,728 vs 2,200; showcase crops per machine type). Read-only survey: the home is an equatorial GEO station; the gameplay sun (6-18 arc on the game hour) and the drawn sun (real ephemeris, wall clock, permanent equinox) disagree aboard by up to 12 h (BUG-090, OPEN). Seasonal daylight for crops waits on an operator decision: ground site at Silverdale 47.6 N (the data assumes it) or the GEO station (no seasons).
+
+**Why:** Did not pick a side: whether the home is on the ground or in orbit is a world-direction decision for the operator, and it decides whether seasons exist. Findings to follow up: crop_nutrition.ron oregano/sage/turmeric kcal look like dried-spice values applied to fresh harvest (apothecary tower 232 kcal/day inflated); the computed food model is an upper bound (no light limit yet).
+
+
+## 2026-09-26
+
+**Decision:** v0.1369.0: merged picking windows (a97dc32d: picking.rs, harvest_windows.ron with UMN/USU/MSU sources, CropPicking saved, Forgiving/Realistic setting, seed return follows the harvest, self_sufficiency divisor = growth_days + window) on top of the computed kcal cards; both cherry-picked cleanly; 219 targeted tests pass.
+
+**Why:** Picking closes the season-compression overstatement (a replanted tomato yielded 2-3x a real year). Left: a bearing plant takes no water or nutrients during its window (the tick skips ripe plants; it is in the growth loop), and tomato/pepper/cucumber windows are field-timed against high-tunnel season totals.
+
+
+## 2026-09-26
+
+**Decision:** v0.1369.0: merged plot drawing (665311f8 + 281d2707: plant_layout.rs, 128-plant cap + 65,536-vertex plot budget in plants_visual.ron, per-machine rebuilds 2-6 ms, first build ~190 ms for 3.35M vertices; world_load now publishes grow plots = BUG-091 fix) and the crop_nutrition fresh-vs-dried check (a2d5fe44: oregano/sage/turmeric fresh estimates, drinks and lavender to 0, FDC ids on every row; apothecary tower 232 -> 161 kcal/day). The solo food loop now reads closes: false (2,154 vs 2,200).
+
+**Why:** BUG-091 was mine from v0.1364.0: publish_grow_plots was only called on a machine edit, and every test inserted its own maps (checks-that-cannot-fail again); the plot-drawing agent saw no visual change and traced it. Left from the agents: hero_plant_objects is dead (delete with its lib.rs loop), photograph-home --keep-open is broken, runner_bean harvests a dry-bean item for a green-pod yield, in-shell weights inflate nut/seed calories, a bearing plant takes no water or nutrients during its picking window.
+
+
+## 2026-09-26
+
+**Decision:** v0.1370.0: merged greenhouse humidity + fungal disease (b339091f: humidity.rs/.ron, room vapour balance with UGA leakage 0.5 ACH and an AC Infinity-based exhaust fan placed in home.ron, FAO-56 saturation, gray mold/powdery/downy mildew as pests.ron rows with a Humidity condition, Cultural controls first, potassium bicarbonate item, humidity-window health cap). Bearing plants now stay in the crop tick (a ripe plant with a picking window). home.ron energy loop marked closes: false (fan 0.7 kWh/day tips 12.7 vs 12.2). Also: photograph-home --keep-open works; hero_plant_objects removed.
+
+**Why:** The 3-person greenhouse on leakage alone would sit at 100% RH, so the fan is required, and its power has to show in the energy loop honestly. Bearing plants skipped by the tick drank no water for 63 days; fixed now that humidity has merged into the same loop. Left from the humidity agent: greenhouse vents into fixed 40% home air (no condensate recovery), constant day/night transpiration and 21 C rooms, the mushroom room sits near 50% (oyster wants 85-95%: a humidifier), no in-panel fan switch, no web mirror.
+
+
+## 2026-09-26
+
+**Decision:** v0.1370.0 delivered. In flight (worktree agents): (1) mushroom-room humidifier (humidity.rs, machine catalogs, home_spawn, plumbing draw, mushroom-specific humidity cap); (2) weeds in soil areas (weeds.rs/.ron, SoilMemory, hoe wear, bark/sawdust mulch, Garden panel rows). Operator decision still open: ground site at Silverdale vs the GEO station (BUG-090, seasonal daylight).
+
+**Why:** Both extend systems shipped today; humidity.rs and weeds.rs are disjoint, the overlap is small hooks in farming/mod.rs, inventory.rs and lib.rs.
+
+
+## 2026-09-26
+
+**Decision:** Merged the mushroom-room humidifier (82819864: AC Infinity CLOUDFORGE T7, 1.3 L/h, 100 W, setpoint 90% from UF/IFAS SS662; water through the irrigation draw; fungi cap fitted to Kim et al. 2013). Family room 48% -> 90%, solo 41% -> 88%. Energy loops: family 14.8 vs 12.2 kWh/day, solo 6.4 vs 5.76 (closes false). Asked the same agent to continue with fruiting tents (Martha tents: small room boxes around each rack) to cut the humidifier load.
+
+**Why:** Humidifying a 300 m3 room costs about 2 kWh and 30 L a day; real small growers fruit in a tent of a few m3. The agent proposed it; continuing it keeps its context. Also: give each agent its own scratchpad subfolder (two agents shared scratchpad/breaks.js today; no files crossed).
+
+
+## 2026-09-26
+
+**Decision:** v0.1371.0: humidifier (82819864) + weeds (7fcb0f38: weeds.rs/.ron, soil areas only via soil_ph soil_for, WSSA yield-loss table, critical periods from UMass/NC State/UC IPM/FAO, hoe wear, sawdust and bark mulch with N tie-up from OSU; pest severity setting covers weeds). Fixed the relay test build (the weeds save test was not native-gated).
+
+**Why:** Agents run the relay cargo check but not the relay TEST build; just verify caught it. Future agent prompts should say to run just verify (or cargo test --features relay --no-default-features --lib --no-run). Left from weeds: yield loss under-realised (~half WSSA because harvest follows average season health), no straw item, no nutrient share taken by weeds (sources blocked), no perennial weeds.
+
+
+## 2026-09-26
+
+**Decision:** v0.1372.0: fruiting tents (6b2798a6): grow_media enclosure on the mushroom rack medium, each tent its own room (tent:<rack>) venting into its room; fresh air 22.6 m3/h from oyster CO2 output (Pavlik 2020) against a 0.1% limit (Lin 2022); AC Infinity CLOUDFORGE T3 per tent. Family 13.3 L/55 W/1.3 kWh a day for 7 tents, solo 5.6 L/23 W/0.56 kWh; solo energy loop closes again, family still open (about 14.0 vs 12.2).
+
+**Why:** The whole-room humidifier was honest but wasteful; tents are what small growers use. Left: no CO2 model (the mushroom room gets about 540 ppm extra from six racks), tents not drawn, T3 reservoir not modelled.
+
+
+## 2026-09-26
+
+**Decision:** v0.1372.1: two more solar panels in the family home (solar_9 at (11,0,17) and solar_10 at (11,0,19) on the power terrace, to battery_1 and battery_2); Energy loop supply ~15.1 kWh/day vs demand ~14.0, closes: true.
+
+**Why:** The home design is AI-authored data meant to close its loops; realism added real loads (greenhouse fan, tent humidifiers), so the design adapts the way a real homesteader would size up the array. Placed clear of the wind turbine at x 14.
+
+
+## 2026-09-26
+
+**Decision:** v0.1373.0: fixed the independent review of v0.1363-v0.1372.1 (BUG-092): crops ripen at growth_days (stage_from_progress last stage at 1.0; uptake follows), pest controls per plant, grow-light power follows the timer (GrowLight{watts}, meter 6 h), emptied beds can be weeded and are listed, showcase/tower stagger on the growth clock, hand-planted crops not pH-modelled, rubber tree tapped 20 years (harvest_windows + plants.csv yield 450-650), legume/tuber/oilseed fields sow their own crop, dead mushroom humidity slider removed, picking comment corrected. Room air vs tank water clocks left OPEN (operator clock decision).
+
+**Why:** Second review of the day found nine real defects, seven reproduced; the ripening one was older than today but today's food cards and conclusions depended on it. Pattern again: parallel agents built systems that each passed their own tests while disagreeing at the seams (plant counts, clocks, keys).
+
+
+## 2026-09-27
+
+**Decision:** OPERATOR DECISION: the spaceship first, planets after (verbatim in PRIORITIES Blocked #2). Garden work order: the ship's closed loops (condensate back to the tanks, CO2/O2 through the ship's air, crop light from the ship's real sun direction = the BUG-090 fix), then ground farming and seasons.
+
+**Why:** Operator: the ship gardens are the place to get the physics of gases and liquids right; a planet will simplify some things and complicate others. The clock question (body on real time vs garden on the game clock) is still open; recommended keeping crops fast and sizing the ship's pumps and tanks to the garden's clock so mass balances.
+
+
+## 2026-09-27
+
+**Decision:** v0.1374.0: BUG-093 fixed. The intermittent lib-test abort (a rav1d worker panicking in DisjointMut, STATUS_STACK_BUFFER_OVERRUN) was a real over-wide borrow in rav1d 1.1.0 src/cdef.rs padding: columns 0..x_end borrowed at the frame's left edge where only 2..x_end are read, overlapping another postfilter thread's backup2lines write. Vendored the published crate minus its assembly as vendor/rav1d with the borrow narrowed, via [patch.crates-io]; vendor/README.md has provenance and the way back. Stress 8/20 aborts -> 0/20; screens 1/150 -> 0/150; full lib suite 0/5; decode byte-identical (hash bc2eee527943655c). New tests: rav1d_threaded_decode_stress (ignored) and threaded_decode_is_bit_identical_to_single_threaded.
+
+**Why:** The 2026-09-17 note had called it instrumentation only and release unaffected; release kept the overlapping borrow (undefined behaviour) with the checker compiled out. Single-threaded tests would have hidden it, and the product needs threads for 1080p (69 against 28 fps). rav1d main still has the code; reporting upstream is a public post, left to the operator. A scratch git worktree remains in the session scratchpad (rav1d/wt): not removed, because removing it needs a forced (destructive) git command and the operator asked for none. Found alongside: a flaky screens test (4 in 150 under load), queued next.
+
+
+## 2026-09-27
+
+**Decision:** v0.1374.1: BUG-094 fixed. The flaky screens test (a_looked_at_or_paused_clip_...) assumed a paused clip delivers no new frame; pausing stops the clock, not the decode thread, so a decoder still behind the paused position delivered due frames into the "nothing new" tick. The test now rewinds the paused clip to its start, waits on a new #[cfg(test)] VideoPlayer::decoder_past_clock, and stands in for the GPU upload its draw helper cannot do. 0 in 150 sequential runs (was 1-4 in 150), 0 in 60 at six concurrent copies (was 2 in 60); the Keep-path drop mutation still fails it (26 events, not 0).
+
+**Why:** A test fix, not a player fix: showing frames that fall due at the paused position is correct. Left alone and recorded in BUG-094: at six concurrent copies two real-time tests fail on wall-clock floors (frames_arrive 36-51 of 60, notices 2 of 60), never at normal load. Also dispatched in parallel: a homestead-engineer agent on the ship air and water loops (condensate to the tanks, CO2 and O2), the operator having chosen the spaceship first.
+
+
+## 2026-09-27
+
+**Decision:** v0.1375.0: three garden loose ends from the 2026-09-26 review list. (1) Soil pH steps over the offline catch-up: resume_home hands the time away to the farming tick (soil_ph::hand_away_secs / take_away_secs), which steps the pending lime, sulfur and nitrification pools once at the player's growth speed and Soil pH switch. (2) The Home page tower check no longer intersects plants.csv SOIL pH windows; it shows the solution's held pH (6.0, soil_ph.ron) that the model grows towers at. (3) Stale catalog kcal text removed from a farming comment, home_solo.ron and home_outline.json (a dated balance note; the rendered potato-bed reason no longer quotes the retired +120). New ignored test print_grown_food_per_machine prints each grow machine's computed kcal for both homes.
+
+**Why:** Stepping offline in the farming tick rather than in resume_home because the growth speed and the pH switch reach the DataStore only after the resume (the Settings bridge runs each frame before the system tick). Soil chemistry is not upkeep and destroys nothing, so it is on the advancing side of offline-progression.md; weeds and pests stay frozen. Found while doing (3): the mushroom rack computes 198 kcal/day from an UNSOURCED placeholder yield (yields.ron "not sourced yet"), about 3x what ten 5 lb blocks give; handed to a botanist agent along with the wrong-form harvest items. Wood ash liming waits for that agent to finish with items.csv and recipes.csv.
+
+
+## 2026-09-27
+
+**Decision:** v0.1376.0 to v0.1378.0. v0.1376.0 (BUG-095): video screens start muted (Unmute on the strip) and a script-launched instance opens no audio device, after the operator heard the workshop screen's 440 Hz demo tone on every agent boot. v0.1377.0: ship life support (homestead-engineer agent: air handlers return condensate to the cistern, CO2/O2 mass balance, CDRA scrubber, Station-supplied/Realistic modes, BUG-096 f32 tank rounding) and sourced mushroom yields plus harvest forms (botanist agent). v0.1378.0: cherry-picked three worktree branches (garden drawing: open racks, tents, plant meshes built on a worker; pests: whitefly, thrips, row covers; pollination: bought colonies that work 70 garden days, a circulation fan, bearing-between-picks) plus the pests wiring in lib.rs and the seam: a covered field is shut to wild insects.
+
+**Why:** Parallel agents on disjoint files, merged serially, each verified. The homestead and botanist work depended on each other's test changes, so they were committed as two commits pushed together, split hunk by hunk (home.ron, home_solo.ron and the gap doc held both). Six operator questions came out of the batch and are listed in PRIORITIES; none blocks the next work. A critic review of the whole batch is next, per the review-after-parallel-waves rule.
+
+
+## 2026-09-27
+
+**Decision:** Overnight, operator asleep ("8+ hours"). v0.1379.0: seven of nine critic findings on the v0.1377/1378 batch fixed (BUG-097: covers and pollination, cover pieces, rack moves, click-to-unmute for non-Explorer launches, pest notice filtering, rack shelves), audio launch logic moved into engine/launch_focus.rs to keep lib.rs under its 16,700 budget, and the Wi-Fi-and-plants findings doc (docs/reference/findings/2026-09-27-wifi-and-plants.md) for the operator decision on the v0.620 RF crop harm. Snapshots: 43 baselines regenerated and looked at (753034d5), two harness bugs fixed (half-faded windows, a too-short canvas), 14 wrong pages held back and handed to a UI agent. v0.1380.0: crafting and food (rice mill, sunflower press, no spawn from mushroom harvests, barley hull, charcoal wood ash as a liming amendment with potash).
+
+**Why:** The two HIGH/MEDIUM findings in life-support code went to the mushroom-CO2 agent that owns those files. settings_full.png had a pre-existing uncommitted change from another session, so its new baseline went in through the index only and the working file was left alone. Agents still running: mushroom CO2 + power meter + the two findings, grain metric, aurora pass, cloud brightness, UI page fixes.
+
+
+## 2026-09-27
+
+**Decision:** v0.1381.0 to v0.1383.0 overnight. v0.1381.0: mushroom-room CO2 (stale-air harm from Won et al. 2010, CO2-switched fans at 900 ppm), the static meter mode-aware, home_outline CDRA/TCCS corrected, and the review's two life-support findings (power fed priority-descending; 0 W loads shed; tents breathing for unplanted blocks). v0.1382.0: the aurora as its own additive pass after the cloud composite (PRIORITIES 1b; also restores faint glow lost to 8-bit alpha) and the 14 wrong pages fixed; emission state moved to emission_pass.rs to hold file budgets. v0.1383.0: the blur-proof grain measure (the forced spatial filter's win was the old metric; animated jitter is 2.0x better and has shipped since v0.1331.18), UI polish (HUD chat renders markup, Watch headings, map label placement web and native, pinned snapshot version), chat message-text parsing moved to chat_text.rs for the chat.rs budget, real daily energy for water heater/washer/tower pumps (EIA RECS), barley/oat/spelt dehulling, cooked rice.
+
+**Why:** The C: drive filled mid-night from parallel worktree builds (56 old worktrees held 451 GB of target/ caches); stale caches (>24 h untouched) were cleared, ~420 GB free again, and CLAUDE.md now carries the rule. Neither home's Energy loop closes even in Station-supplied mode once appliances charge real energy; that and the other ship/garden decisions are in PRIORITIES Blocked 3b. Still running: the cloud-brightness agent (TIER 0 item 2).
+
+
+## 2026-09-27
+
+**Decision:** v0.1384.0: batteries carry the night load (electrical.rs: supply = generation + each bank's discharge up to its limit and held energy; the bank drains only for loads kept on), TIER 0 item 2 fixed (the step economy lit the deck at a sample ~0.9 km inside it; each march step is lit across its depth; MS-off ratio 0.66 to 0.91; +0.85 ms High, +2 ms Ultra, CLOUD_STEP_LIGHT switch returns the old frame), sourced barley/oat/spelt yields, and the meter supply side at the site (PVWatts Silverdale 1.09 kWh/panel/day, wind 2.8% CF, generator as backstop, household hot water from the REU 2016 shares; the family plumbing had drained the cistern ~6x faster than its loop said).
+
+**Why:** The honest wind (4.4 W, not 150 W) made the live game shed nearly everything at sunset because batteries never carried load; the right fix was the battery, not keeping the inflated wind. Neither home's Energy loop closes in either mode; the meter agent's five questions (site, whether play should match the meter, water heater basis, outline December solar, the wind turbine) are in PRIORITIES Blocked 3b. A lone CR from a scripted PRIORITIES edit made git treat the file as binary and commit it CRLF; fixed in 18e9a0f6.
+
+
+## 2026-09-27
+
+**Decision:** v0.1385.0: mushroom racks draw their fruiting blocks, cased beds and stage-following fruit (engine/fungus_mesh.rs, a rigid type-20 material that does not sway). A read-only fidelity review found ship interiors have NO indirect light (the whole term is AMBIENT_FLOOR 0.005: walls 2.5% of the floor against ~25-30% predicted); per-room DDGI probes chosen as the destination, rung 1 (box-traced probes) dispatched to a worktree agent. HDR scene target planned (docs/design/hdr-scene-target.md, six bootable increments). Agents in flight: room GI rung 1, built beds/chests/shelter, offline progression for machines and livestock, cloud reg.tint gate + ocean glint stripes.
+
+**Why:** Operator asleep, spaceship first: the ship interior is where the player lives, and its rooms render near-black away from lamps. Two more findings from the same review wait: the home never casts into the sun shadow map (sun leaks through shelves and lids; a near cascade with home casters is the next renderer increment after room GI), and dry mushroom caps take the bark branch (fixed next as its own organ). The HDR implementation waits until the cloud agent frees the GPU, to keep rig-booting agents to two at a time.
+
+
+## 2026-09-27
+
+**Decision:** v0.1386.0: dry mushroom caps get Organ::Plain (bit 21) instead of the bark branch (BUG-098). v0.1387.0 (pending verify): built beds sleep the night at 120x and built chests are containers that persist (c077265c); offline progression rung 2, automated machines, drone and livestock catch up by the time away (4ac97f2e); Library guides Growing Mushrooms and Testing and Correcting Soil (sourced, then independently checked; EPA Oct 2025 soil lead directive confirmed from the PDF); BUG-099 two machine-load flaky tests (video frame count, terrain tile temp path shared across processes; 13 fixed temp paths now carry the process id); BUG-100 four review seams (power grid and livestock on scaled_dt, a clock jump ends a sleep unrested, WorldSave.placed_items is an Option, two weak tests).
+
+**Why:** A critic review after merging two side-by-side features again found real seams (the memory rule feedback_review_after_parallel_waves holds). Electrical on scaled_dt is the existing v0.663 economy rule, not a Brief 6 decision: at time_scale 1 nothing changes. Plans saved: docs/design/hdr-scene-target.md and docs/design/sun-cascades.md. In flight: room GI rung 1, cloud tint gate and ocean stripes, body heat balance (found: outdoors on a mild day is hypothermic within seconds).
+
+
+## 2026-09-27
+
+**Decision:** v0.1388.0: the Gagge two-node body heat model (Forgiving default, Realistic), clothing clo, Rest as a 10-minute nap. v0.1389.0: ocean glint stripes fixed (BUG-101, coarse crest warp ungated), reg.tint gate measured and NOT shipped (it brightens storm bases 29%), sea-colour blocks diagnosed as value-noise lattice seams (fix proven, held: shared noise re-rolls land/shore/cloud patterns, needs its own look-checked step), guides Watering and Irrigation and Extending the Season (independently checked; CO and rain-barrel advice tightened), probe-sweep --game-only. PRIORITIES and ROADMAP synced to v0.1388 by roadmap-keeper (PRIORITIES 1,892 to 779 lines; retired blocks in docs/history/priorities-archive-2026-09-20-to-27.md).
+
+**Why:** Independent refutation of every teaching guide keeps catching real errors (this pass: CO advice weaker than its source, greywater rule misworded, an FDA figure from a proposed rule). The machine guard was blocking panics-only checks behind agent builds, so a flag rather than a longer timeout. In flight: room GI rung 1, HDR increments 1-2, shelter, environment Layer 1. roadmap-keeper asked for an operator ranking call: does arc C (ship life support, his spaceship-first answer) rank against the all-rendering TIER 0?
+
+
+## 2026-09-27
+
+**Decision:** v0.1390.0: room GI rung 1 merged whole (branch had two merges of main; a full merge was clean where per-commit picks conflicted): per-room DDGI probes, 25b wall sRGB 4 to 46, ~0.6 ms. Shelter (961745f7): ghost in hand, R turns, roofs OnTop, a roof on three walls feeds body_heat sheltered. BUG-102 from its critic review: pieces are home-frame but placement and the shelter test used the raw camera, so off the ship they were wrong; GATED to aboard_station, and the real fix (planet-anchored pieces plus the MEDIUM findings) dispatched. Four guides promoted to verified (13/143; caution hazard, independent second pass, compost precedent). engine_wiring_lint stale PlacementSystem entry removed.
+
+**Why:** The critic after each merge keeps finding the seam the author could not see (here: every shelter test ran in a flat Y-up world). Gating rather than shipping a false Sheltered claim; the operator asked for realistic-first, so the fix is planet anchoring, not a workaround. HDR increments 1-2 still with an agent; sun cascades wait for it (both touch mod.rs and pipeline.rs). water_hot will be lethal-hazard, so it stays sourced until the operator reads it.
+
+
+## 2026-09-27
+
+**Decision:** v0.1391.0: environment Layer 1 (latitude/season/altitude temperature fitted to NCEP/NCAR, standard atmosphere, circulation winds; CPU and WGSL twins through a naga-IR interpreter test), survival_env merged by hand with the shelter work; Heating Water (lethal, stays sourced) and Perennials guides. v0.1392.0: value noise integer lattice hash (BUG-103, sea-colour blocks gone, clouds pattern kept exactly), two more load-bound tests hardened (BUG-099 addendum).
+
+**Why:** Library writer+independent refuter cadence continues (batteries and seasons in flight); WebFetch summaries invent figures, so refuters read raw source text (memory updated). In flight: HDR increments 1-2 (long), planet-anchored building (BUG-102 real fix), batteries and seasons guides, rain or snow by local air. Next after HDR lands: sun cascades (docs/design/sun-cascades.md), then Layer 1 GPU consumer (cloud advection by wind).
+
+
+## 2026-09-27
+
+**Decision:** Merged to main, UNTAGGED: planet-anchored building (930c2364, BUG-102 real fix), rain or snow by local air (2bfcfc2d, Jennings 2018 threshold), batteries and seasons guides (+ seasons game section corrected against code: the drawn Sun also runs on the 20-min day, no axial tilt), 3 more guides verified (16/143), HDR scene target increments 1-2 (4a63f0b2; 4K capture byte-identical; gpu.present ~0.06 ms; new scene_format_lint). All boots 0 panics.
+
+**Why:** The planet-building critic found a HIGH (the near copy in the depth-clearing scene pass draws over nearer celestial objects: furniture vanishes behind walls), overlapping sites, and home-frame leaks (planet stations on the ship grid, materials from the orbiting home). No tag until the fix agent (lower celestial near plane via one constant, delete the near copy, site membership by pieces, planet-local materials and power) lands. HDR increments 3-4 (Rgba16Float + one dither, closes the banding report) dispatched. Operator back briefly at 16:39 and got a summary from the logs.
+
+
+## 2026-09-27
+
+**Decision:** v0.1393.0 released and delivered: planet building with the review fixes (celestial near plane 0.05 m as CELESTIAL_NEAR_M, no near copy, sites follow pieces, no home-frame leaks), rain or snow by local air, HDR scene target steps 1-2, batteries and seasons guides; 16/143 verified. Independent boot of the delivered build: planet-built-inside and blue-marble-12000km, 0 panics.
+
+**Why:** Merged tree was byte-identical to the fix branch the agent verified (2508 tests, 16 lints, 6 boots), so the battery was not re-run; one independent boot of the delivered exe instead. In flight: HDR steps 3-4 (Rgba16Float + one dither). Next candidates: sun cascades (docs/design/sun-cascades.md, now unblocked by room GI), Layer 1 GPU consumer (cloud advection by wind), battery charge persistence, more guides.
+
+
+## 2026-09-27
+
+**Decision:** Operator answered: 24-hour configurable day (hour fixed, one time-speed control), ship reactor as metered effectively-unlimited power with fleet tracking later, no Wi-Fi crop harm, arc C ranked first in TIER 0. Agents dispatched for each, plus electroculture findings research. Then the operator reported weekly usage at 89%: every agent told to commit (WIP if unfinished) and stop; the in-flight branch list is at the top of PRIORITIES TIER 0.
+
+**Why:** Wind down at the usage cap so nothing is lost: all merged work is released and pushed (v0.1393.0 is the latest release, delivered); unmerged work lives on named branches with self-describing commits; PRIORITIES carries the resume map.
+
+
+## 2026-09-28
+
+**Decision:** Sequential work after the usage warning. v0.1396.1: Drying and Fermenting guides verified (18 of 143); the jerky/dried-meat recipe loop broken by starting both from raw_mutton_0, the only meat a spawned creature drops (raw_meat_0 has no spawned source, so the recipe sources lint rejected it). Sun cascades increment 0 merged (inert fixtures). BUG-090 fixed: the home station now hangs over its longitude on every date (orbit::over_its_longitude re-phases a synchronous orbit by the sun azimuth the planet spin uses), and the home panels, grow-light timer, crop light, HUD clock aboard and wake notice read the home local solar time (GameTime::solar_hour_at at HOME_LONGITUDE_KEY).
+
+**Why:** The game clock stays longitude 0 time so the time pinned in 482 of the 486 vantages keeps its meaning; making the clock home-local instead would have shifted every pin by 8.15 h. The drift was a real bug: the spin tracks the sun azimuth (a turn a year) while the station tracked the game clock alone, so the deck noon would have walked through every hour over a year. Late September happened to be the date it lined up, which is why the home-clock-noon pin at 20.15 looked right.
+
+
+## 2026-09-28
+
+**Decision:** HDR scene target increments 3 and 4 (Rgba16Float target, one present-pass dither) finished from the WIP branch and merged in v0.1398.0: GPU tests 7/7, same-boot A/B plans A (float target: still scenes within 2 codes), B (banding: mean dark flat run cut at every banding vantage, means and aurora comb held) and C (about 0.03-0.06 ms at 2560x1387), panics 0 at world entry. 35 high-frequency gate vantages pin present_dither 0. Banding report closed as BUG-104. Plans kept in scripts/hdr-ab/.
+
+**Why:** The resume map from the usage cap listed this branch as NOT safe until measured; every item it named is now done, so it merges rather than lingering as a loose end. Sun cascades increment 1 and increment 5 (hdr_linear flag) are the next rendering rungs; arc C stays ranked first.
+
+
+## 2026-09-28
+
+**Decision:** Arc C shelter: the wind direction against the open side. ShelterCheck records which sides are walled; under a roof the wind reaching the body is the share coming in through open sides facing into it (cosine per side, a stated game choice); three walls shelter only with their back to the wind. HUD note says Sheltered / Out of the rain and the wind / N% of the wind gets in.
+
+**Why:** Next unticked Tier A item after the day-length work; the direction rule is the survival manuals' back-to-the-wind advice, which the game can now teach. The walls' radiant warmth stays open.
+
+
+## 2026-09-28
+
+**Decision:** Arc C Tier B: built pieces are solid aboard. Finished home-frame Structures whose box spans knee to eye join the first-person wall resolver as live segments (build_place::built_piece_segments); roofs, floors and scaffolds do not block. Planet build sites left for their own pass.
+
+**Why:** Walking through what you built was the most visible gap in the building loop, and aboard it was a small change riding the existing 2D resolver. On a planet the player moves by the frame lock anchor, not the camera, so it needs a separate design rather than a shortcut.
+
+
+## 2026-09-28
+
+**Decision:** Built pieces solid on planet ground too: planet_build::collide_on_site resolves the surface walk anchor step in the build site frame against that site pieces, same 2D resolver and segments as aboard (built_piece_segments now takes the frame).
+
+**Why:** Closes the half v0.1400.0 left open. The anchor, not the camera, is what moves on a planet, so the collision has to act on the anchor; resolving in site-local metres keeps it precise and only round-trips when a piece moved the step.
+
+
+## 2026-09-28
+
+**Decision:** Take down a built piece: with a piece in hand, the Swing tool key (F, AttackSwing, unused in build mode) takes down the finished piece in view within 8 m; all its materials go back to the pack via the inventory transfer channel (overflow to storage); a chest holding anything is refused.
+
+**Why:** Solid built pieces (v0.1400.0) made it possible to wall yourself in with no way out: there was no way to remove a piece at all. Reusing AttackSwing avoided a new binding; full material return is a stated game choice.
+
+
+## 2026-09-28
+
+**Decision:** Doors set into walls: Blueprint.doorway (width, height), the Wood Wall with Door blueprint, construction::doorway::parts as the one source of a doorway piece's boxes for drawing and collision, StructureUse::Door via looked_at with the registry, E toggles a DoorOpen marker (not saved). Also started docs/outreach/since-last-update.md at the operator's request (report on his prompt near 100% usage).
+
+**Why:** Solid walls made a closed room unenterable except by taking a wall down; a door is the real answer and the next Tier B blocker. One parts function keeps what is drawn and what blocks identical.
+
+
+## 2026-09-28
+
+**Decision:** Door state saved: ConstructionSave gains open (serde default false), written from the DoorOpen marker and restored with it.
+
+**Why:** v0.1402.0 shipped doors that reset to shut on load; the save record already carries each piece, so one defaulted field closes it without any migration code.
+
+
+## 2026-09-28
+
+**Decision:** Windows in walls: Blueprint.window (width, height, sill), the Wood Wall with Window, doorway::window_parts sharing opening_walls with doors, glass drawn with the home window glass material in the transparent lists; at planet sites the celestial transparent key gains a near-glass flag sorted after everything (celestial_order::list_key). Also closed BUG-052 (fixed as BUG-077 in v0.1315.0, re-proved with a vsync-off rig boot).
+
+**Why:** Doors needed windows to make a real room; the one risk was the celestial transparent order, so near glass goes after the layer stack and water, where what is seen through it is already composited, and the key is a pure tested function.
+
+
+## 2026-09-28
+
+**Decision:** Critic review of v0.1399.0..v0.1404.0 (building batch): no crash, trap or loss. Fixed: the look ray now meets doorway and window pieces as their parts and stops at a scaffold in front (first_in_view takes the registry); aboard the wind has no direction (home frame has no compass, vacuum outside); the old free-standing Wood Door and Window blueprints removed (solid slabs that could not open); tests strengthened (window glass segment count, upwind_from sign). Left, documented: the look ray does not stop at the home's own walls aboard; take-down overflow goes to the home's storage even on a planet; take_down itself (despawn and refund) is untested.
+
+**Why:** Same lesson as 2026-09-26: features built back to back disagree at the seams (here the look ray kept the whole-box model after drawing and collision moved to parts). Each finding was checked against the code before fixing.
+
+
+## 2026-09-28
+
+**Decision:** The look ray (E and F) stops at the home's own walls aboard: uses::ray_crosses_walls tests the ray's horizontal travel against wall_colliders (full-height segments, windows solid) before the piece it found.
+
+**Why:** The review's main leftover; with take-down on F it let a player remove a chest or bed in the next room through a wall.
+
+
+## 2026-09-28
+
+**Decision:** placement::level_top: a piece resting on the ground that touches a finished piece of the same category and built height with a top within 0.3 m takes that top (scale.y adjusted, bottom on its own ground). The window vantage builds without a foundation again, as the proof.
+
+**Why:** The window vantage showed a sliver of sky over a wall standing 1-2 cm lower on the sand than the roof rest height. Stretching the wall to meet its neighbour keeps both the bottom on the ground and the top at the roof, which neither levelling bases nor lowering the roof does.
+
+
+## 2026-09-28
+
+**Decision:** Sea state reads the wind at the player (Weather::sea_state_target, the at-player wind from environment Layer 1 plus the weather deviation) instead of the weather's global wind; the v0.909 mapping (2 m/s glassy to 15 m/s storm) unchanged.
+
+**Why:** PRIORITIES item 1 names it as one of Layer 1's next consumers; the sea the player sees is the sea where they are, and the body heat model already feels that wind. A one-function change with a test that can fail.
+
+
+## 2026-09-28
+
+**Decision:** The FFT sea spectrum wind reads the at-player wind too (weather::ocean_fft_wind_target), matching the sea state shading moved in v0.1408.0.
+
+**Why:** v0.1408.0 created a seam: shading on the at-player wind, wave shapes on the global wind, so a calm spot under a global storm drew storm waves with calm shading. Caught while reading the sea-state consumers, before anyone saw it.
+
+
+## 2026-09-28
+
+**Decision:** take_down split into apply_take_down (refund ops, despawn, the line) and tested; the line names items by the item registry instead of printing ids.
+
+**Why:** The review's last untested path; reading it showed the player saw raw item ids ("6 wood_plank_0 back").
+
+
+## 2026-09-28
+
+**Decision:** Built doors play the home doors' open and close sounds on the E toggle (built_uses, pending_sfx).
+
+**Why:** Small polish while keeping to one-release items so the operator's report prompt can land any time; built doors were silent where the home's doors are not.
+
+
+## 2026-09-28
+
+**Decision:** HUD weather line reads the home air when sealed (hud_weather_text; GuiVitals.air_c from EnvironmentContext.ambient_temp_c): "Indoors 20C, still air".
+
+**Why:** Every capture aboard showed the planet weather ("Clear 22C wind 4 m/s from W") while the body heat model used the still 20 C room air; the line promised the air the player stands in.
+
+
+## 2026-09-28
+
+**Decision:** HUD clock night icon painted (icons::paint_moon); U+263E added to icon_glyph_lint BROKEN_GLYPHS with capture evidence.
+
+**Why:** Seen as tofu in the v0.1412.0 check capture; the lint had no entry for it, so it had shipped unnoticed.
+
+
+## 2026-09-28
+
+**Decision:** SolarSystem reads each panel's own longitude: the home's aboard, a planet build site's own (solar::site_longitude_deg, atan2(-z, x) of the site origin in the body frame).
+
+**Why:** BUG-090's documented leftover: a panel built in the Sahara followed noon over the home at 122.3 W.
+
+
+## 2026-09-28
+
+**Decision:** The weather's day/night warmth reads weather::local_solar_hour: the player's longitude on a world (atan2(-z, x) of BodyEnvironment.up_dir), the home's longitude anywhere else.
+
+**Why:** BUG-090's last clock leftover: the Moon's afternoon heat arrived at longitude 0's afternoon wherever the player stood. The F11 hour slider already read the HUD's local hour.
+
+
+## 2026-09-28
+
+**Decision:** Tier D rung 1 done: persistence and storage compile into the relay. PlacedItem moved to systems::inventory::placed, MachineLevels to systems::machine_levels (paths updated outright, no re-exports); save_load stays native.
+
+**Why:** The playable assessment's first multiplayer step: a server that holds a shared home needs the save shape the desktop writes. It had grown from one blocker (PlacedItem) to three since 2026-09-19.
+
+
+## 2026-09-28
+
+**Decision:** Outdoor mean radiant temperature at night: body_heat::open_sky_radiant_c (half sky at Swinbank 0.0552*T^1.5 mixed with cloud at the air's, half ground at the air's, as T^4), weighted by night_sky_weight of the local solar hour; a roof (walls or not) sets it back to the air's. Only in breathable open air.
+
+**Why:** Tier A shelter leftover 'the walls' radiant warmth': with the surroundings always at the air's temperature a roof could give no radiant benefit. Night-only because the sun's warmth (SolarCal) is not modelled and by day 'the air's' is the better stand-in for sun plus sky.
+
+
+## 2026-09-28
+
+**Decision:** The sun in the body heat model: body_heat::sun_mrt_rise_c (ASHRAE 55 SolarCal with pythermalcomfort's constants, Fanger's rotation-averaged projected area, Meinel clear-sky beam with Kasten-Young air mass, cloud removing the beam, ground albedo 0.2) added to the open-sky long-wave MRT; night_sky_weight deleted. A roof is full shade.
+
+**Why:** v0.1416.0's night-only weighting was a stand-in because the sun was missing; with the sun modelled the sky's cold applies day and night, as physically it does. Sun height from the gameplay sun (solar::sun_factor) so body, crops and panels agree.
+
+
+## 2026-09-28
+
+**Decision:** SolarSystem dims a planet-site panel by solar::cloud_light_share(Weather::cloud_share()) (Kasten and Czeplak 1980: 1 - 0.75 (N/8)^3.4) when the site's body is the frame-locked body with air; panels aboard and on unsimulated bodies keep a clear sky.
+
+**Why:** The cloud share added for the body heat sky was sitting unused by the panels: an overcast day on the ground made full clear-sky power.
+
+
+## 2026-09-28
+
+**Decision:** HUD weather line appends 'feels NC' outside when GuiVitals.feels_c (body_heat::operative_c: air and radiant temperatures weighted by h_c and a linearised h_r) differs from the air by >= 2 C.
+
+**Why:** With the sun and the night sky in the body heat model, the player's body could warm or cool at an air temperature that did not explain it; the explanation belongs inline on the HUD, not in a manual.
+
+
+## 2026-09-28
+
+**Decision:** Rig showcase key walk:'1' turns fly mode off after a stand; new vantage planet-open-noon-walk. HUD Air row keys on GuiVitals.breathing (env.oxygenated), not on sealed (BUG-105).
+
+**Why:** Every rig park sets fly mode, which suspends survival, so no capture could show the outdoor HUD lines; the first walking capture proved the feels note and exposed the Air bar warning on breathable Earth air.
+
+
+## 2026-09-28
+
+**Decision:** Tier D nameplates: engine::net_route::nameplate_labels builds gui_state.crew_labels from RemoteNpc (name + chore) AND RemotePlayer (name only, 0.3 m over the head position); lib.rs calls it. PRIORITIES Tier D now records why bridging game_time_sync is a design question, not three lines.
+
+**Why:** The name was on the wire and on the component; only the draw list skipped players. game_time_sync is broadcast to every socket at 1x from relay start, so applying it would jump single-player time.
+
+
+## 2026-09-28
+
+**Decision:** End of session: evening posts written (docs/outreach/posts/2026-09-28-evening-update.md), tracker reset. Sweat-costs-water set aside unshipped with its measured numbers in docs/design/body-heat.md; source reverted, tree clean.
+
+**Why:** Operator heading to bed asked to wrap up and end with a post; the sweat change still needed its bounds set, red checks, verify and a boot, and its first numbers disagreed with the test comments.
+
+
+## 2026-09-29
+
+**Decision:** Server health check on request: relay, nginx, backups (30-min .db.aes, 6-h .db.enc, Windows pull OK), disk 72%, memory fine; log noise only (federation peer public.guide unreachable, bot probes, TLS handshake failures). Forgejo found GONE from the VPS (last push 2026-08-03). just ship now warns on a failed forge push; just brief gains a MIRROR row; keep-or-retire is Blocked on the operator #10.
+
+**Why:** The forge push was '-git push forge main' (errors ignored), so the self-hosted mirror silently stopped taking pushes for eight weeks.
+
+
+## 2026-09-29
+
+**Decision:** Sweat costs water: BodyHeat::sweat_litres (evaporated sweat, latent heat 2.43 MJ/kg), HeatOutcome::sweat_l per frame, hydration -= sweat_l * 20 points/L * drain_scale in the food system. Bounds from measurement (0.205 L for an hour walking at 35 C).
+
+**Why:** body-heat.md 'Not modelled yet'; parked the night before because the first numbers disagreed with the test comments.
+
+
+## 2026-09-29
+
+**Decision:** Disk cleanup: removed 58 landed worktrees (git cherry shows nothing unmerged; branches kept), cargo clean on main and on every remaining worktree. Freed about 1.25 TB (C: from 173 GB free, 91% used, to 1.4 TB free, 24% used). CLAUDE.md gotcha extended: the main target/ grows without limit (1.13 TB).
+
+**Why:** Operator: C: at ~90%. The build cache was the cause, not logs or backups.
+
+
+## 2026-09-29
+
+**Decision:** Dev PC disk guard: scripts/pc-disk-guard.js hourly via Task Scheduler 'HumanityOS Dev Disk Guard' (S4U, Hidden): idle-48h worktree target/ always, main target debug/incremental at >=75% C:, whole main target at >=85%, skip while cargo/rustc/HumanityOS runs. Logs to %LOCALAPPDATA%/HumanityOS/disk-guard.log; just brief DISK row; just disk-guard / just install-disk-guard.
+
+**Why:** Operator: automate it so a full C: never needs a prompt again. Build output was the whole problem (1.13 TB main target, 102 GB worktree targets).
+
+
+## 2026-09-29
+
+**Decision:** Forgejo reinstalled (v16.0.5) as a PULL mirror of GitHub (8 h, LFS on): private install (127.0.0.1 + nginx 503 hold) until the operator made the admin account via SSH tunnel, then live with TLS by webroot. just ship no longer pushes to forge; forge remote is HTTPS fetch-only; just brief MIRROR row reads /api/v1/repos/shaostoul/Humanity mirror_updated.
+
+**Why:** Operator chose to keep the mirror. A pull mirror cannot silently stop taking pushes the way the push mirror did for eight weeks.
+
+
+## 2026-09-29
+
+**Decision:** Mirror announced: site footer, download banner, home sameAs and README link git.united-humanity.us; posts incl. a first LinkedIn introduction in docs/outreach/posts/2026-09-29-git-mirror.md.
+
+**Why:** Operator asked for an official post; nothing linked the mirror yet, and the posts had to be fact-checked (releases vs tags, new guides checked, no account).
+
+
+## 2026-09-29
+
+**Decision:** Terminology sweep: 'recovery phrase' replaces 'seed phrase' in everything people read (163 places; seedling icons -> key; /seed -> /recovery; glossary key 'recovery phrase'; help topic id 'recovery-phrase'), 'no sign-up' replaces 'no account(s)' (~40; 'no passwords stored on any server'). tests/terminology_lint.rs enforces; CLAUDE.md rule 'Account words'.
+
+**Why:** Operator: people new to tech; 'seed' will mean plant and world seeds, and people do have an account (theirs). Records left as written; code names and saved-file fields untouched.
+
+
+## 2026-09-29
+
+**Decision:** Multiplayer clock: the host (relay) clock wins while joined (operator). net_route routes game_time_sync into time::HOST_CLOCK_SLOT only when copresence_active && !solo; TimeSystem follows it at HOST_TIME_SPEED 1.0, sums jumps into REBASE_SLOT; FarmingSystem shifts CropInstance.planted_at by rebase deltas; sleep refused while host_clock_active; 20 s silence releases the speed (date stays, no jump back).
+
+**Why:** Operator: 'For multiplayer the host clock wins.' Farming keeps absolute planted_at stamps, so a bare clock jump would ripen or erase gardens on joining; the relay broadcasts to every socket so chat-only clients must not follow it; NetSyncSystem never clears local_player_id, so copresence_active is the joined truth.
+
+
+## 2026-09-29
+
+**Decision:** Rig: showcase 'weather_wind' pins the manual weather's wind beside 'weather'; vantage planet-open-night-walk (clear, calm, midnight, on foot) captured 'Clear 19C calm feels 15C'.
+
+**Why:** The night half of the open-sky model was unit-tested only; the clear pin's fixed 4 m/s wind would have left the feels gap near the 2 C note threshold.
+
+
+## 2026-09-29
+
+**Decision:** Review fixes: onboarding /seed -> /recovery (+ lint rule); host calendar (HOST_HOURS_PER_DAY 24, HOST_DAYS_PER_YEAR default) applies while hosted; pc-disk-guard idle by .fingerprint unit files and rmSync errors logged, not thrown.
+
+**Why:** Critic review of v0.1414.0..v0.1426.0 confirmed two defects (a stale command tip; hour mismatch across players with different day lengths) and flagged two guard weaknesses; the rest checked clean.
+
+
+## 2026-09-29
+
+**Decision:** BodyHeat::sweat_litres counts all sweat made (sweat_made, before the wettedness cap), not only evaporated sweat.
+
+**Why:** Review note: evaporated-only made humid heat cost less water than dry (0.14 vs 0.20 L/h at 35 C); now 0.38 vs 0.20.
+
+
+## 2026-09-29
+
+**Decision:** time::HOST_RELEASE_SLOT + release_host_clock, called at both lib.rs leave sites (game_leave, disconnect): the host lock ends on the next tick and a same-frame host word is dropped.
+
+**Why:** Review note: sleep refused and host speed kept for up to 20 s after leaving.
+
+
+## 2026-09-29
+
+**Decision:** Appearance sync rung 1: crate::player_look::PlayerLook (skin, hair, height; clamped) sent in game_join from gui_state.appearance, kept by the relay on the entity + game_player_joined, parsed by net_route into NetMessage::PlayerJoined.look (serde skip) and kept on RemotePlayer.look. Rung 2 = render per-player colours/height.
+
+**Why:** Tier D next item after nameplates; split in two so each rung lands whole near the usage cap.
+
+
+## 2026-09-29
+
+**Decision:** Appearance sync rung 2: net_route::remote_figure_parts (Body/Head/Hair, scaled by look.height, hung from the eye) + look_material_key (64 steps a channel); lib.rs draws head in skin tone and a hair cap, body teal; EngineState.remote_look_materials caches (skin, hair) materials.
+
+**Why:** Finishes Tier D appearance sync; a capture needs two clients, so proof is the unit test (seen red) and a clean boot.
+
+
+## 2026-09-29
+
+**Decision:** Next Tier D item scoped, not started: making a trade move items needs a trade_completed message applied by both clients to their own inventories (trades complete only as a relay DB status today; items are free-text JSON). Recorded in PRIORITIES Tier D.
+
+**Why:** Too large to start near the usage cap; a half-built trade would be worse than none.
+
+
+## 2026-09-29
+
+**Decision:** Trades move items: TradeItem gains optional wear/quality; native offer lines resolve against the backpack and carry reference_id; Confirm gated on offer_shortfall; __trade_complete__ calls trade::settle_completed (once per trade, TradePageState.settled) which queues TransferOps; unknown received ids skipped. Trade types moved to gui/trade_types.rs.
+
+**Why:** Tier D; the completion line claimed an exchange that never happened. Escrow needs server-held inventories (with the relay SystemRunner host), so the confirm check is the guard until then.
+
+
+## 2026-09-29
+
+**Decision:** Zone fillers: structure::filler_parts builds rack/stall/cradle/array; footprint_box winding flipped outward (was inward) with a facing-vs-normal test; home_structure::underside only for parts that neither touch the floor nor rest on another part top.
+
+**Why:** Tier C mesh_kind item. The inward winding was invisible while fillers stood above eye height; the power-terrace close-up exposed it. home-racks-noon lands in open space on older builds too, spawned as a separate task.
+
+
+## 2026-09-29
+
+**Decision:** Tried hero stage models in tower net cups (scaled to 0.6 m and species spread, per-tower vertex budget); REVERTED, findings in PRIORITIES Tier C.
+
+**Why:** Greenhouse capture: single-sided leaf backs render black on a vertical column and root crops dangle their roots; needs two-sided plant lighting in the shared shader tail first. Shipping it would have made the showpiece look worse.
+
+
+## 2026-09-29
+
+**Decision:** Tower hero models parked on pushed branch wip-tower-hero-models (committed via a temp index, no branch switch in the shared checkout). Negative params.w on type 19 = foliage transmission + two-sided leaves, wind off.
+
+**Why:** A red positive control proved the black seedlings are black ALBEDO from their palette textures, not lighting; shipping would show black sprouts in the greenhouse. PRIORITIES Tier C carries the next step.
+
+
+## 2026-09-30
+
+**Decision:** Clip maker: engine movie mode (src/engine/movie.rs; fixed 1/fps dt, start_time slid to virtual time, camera hold/pan/path/descend, blocking RGBA readback piped to ffmpeg) + scripts/make-clips.js + scripts/clips.json + just clips.
+
+**Why:** Operator: update posts underperform and people love videos; logs showed ~19 social clicks in 2 days. Deterministic capture (Source host_framerate / Unreal MRQ technique) gives smooth video at any render speed without a screen recorder over the operator's screen. Portrait is a centre crop until a native portrait render.
+
+
+## 2026-09-30
+
+**Decision:** Web chat seed-only identity (BUG-106): without WebCrypto Ed25519 the 32-byte seed is held directly (seedOnlyIdentity), saved as the standard PKCS8 backup with an empty public key; restoreKeyFromLocalStorage derives the key via JWK when absent; all seed reads go through identitySeed(). Import no longer requires a 64-char publicKey.
+
+**Why:** A user in Nigeria could not connect: Ed25519 WebCrypto is default only from Chrome 137, so Chrome 85-136 (most phones in much of the world) got a keyless identity and attachPqIdentity refused. The same backup format keeps the identity when the browser later gains Ed25519. Verified in the browser pane with the support flag off.
+
