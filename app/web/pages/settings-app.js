@@ -696,6 +696,24 @@ function calculateStorage() {
   container.innerHTML = rows.join('');
 }
 
+// ── Files kept from messages (2026-10-11, docs/design/media-showcase.md, "Files on the sender's
+// device and in messages, exact", part 4) ──
+// The chat keeps an encrypted copy of each private file opened (/shared/kept-files.js), so it
+// still opens after the server lets it go. Here: how much is kept, the cap, and Clear kept files.
+function mountKeptFiles() {
+  const box = document.getElementById('kept-files-box');
+  if (!box || !window.HosKeptFiles) return;
+  let storage = null;
+  try { storage = localStorage; } catch (e) { storage = null; }
+  let idb = null;
+  try { idb = window.indexedDB; } catch (e) { idb = null; }
+  box.replaceChildren();
+  HosKeptFiles.mountControls(box, {
+    document, storage, indexedDB: idb,
+    confirm: (words) => (typeof holdConfirm === 'function' ? holdConfirm(words, { seconds: 2 }) : Promise.resolve(confirm(words))),
+  });
+}
+
 async function clearModule(key, name) {
   if (!await holdConfirm('Clear all ' + name + ' data? This cannot be undone.', { seconds: 3 })) return;
   localStorage.removeItem(key);
@@ -719,7 +737,7 @@ savePref = function() { _origSavePref(); updateRangeLabels(); };
 // Version tag
 try {
   const vEl = document.getElementById('version-tag');
-  if (vEl) vEl.textContent = 'HumanityOS, v0.1485.1 · ' + new Date().getFullYear();
+  if (vEl) vEl.textContent = 'HumanityOS, v0.1486.0 · ' + new Date().getFullYear();
 } catch(e) {}
 
 // Inject hosIcon SVGs into action bar buttons
@@ -1010,6 +1028,7 @@ populateDeviceLists();
 checkKeyProtection();
 checkBackupStatus();
 calculateStorage();
+mountKeptFiles();
 updateRangeLabels();
 initDndDropdowns();
 loadPushPrefs();

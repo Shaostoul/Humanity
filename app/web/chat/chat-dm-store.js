@@ -945,6 +945,36 @@ const hosDmStore = {
     return true;
   },
 
+  // ── Private files kept on this device (2026-10-11, docs/design/media-showcase.md,
+  // "Files on the sender's device and in messages, exact", part 4) ──
+  // A file opened in a DM or a group is kept here, encrypted under this
+  // store's own key (the seed-derived key of the DM history), in its own
+  // database (/shared/kept-files.js, HosKeptFiles), so it still opens after
+  // the server removes its copy. chat-dms.js openPrivateFile looks here
+  // before fetching. Nothing is kept by a page that only reads the store.
+  /** The kept copy of a private file (its marker's meta), or null. */
+  async keptFileGet(meta) {
+    const K = window.HosKeptFiles;
+    if (!K || !this.ready || this.readOnly || !meta) return null;
+    try {
+      return await K.get({ indexedDB: window.indexedDB, key: this._key, scope: this.scope, meta });
+    } catch (e) {
+      return null;
+    }
+  },
+  /** Keep an opened private file's bytes here, within this device's cap (Settings > Storage). */
+  async keptFilePut(meta, bytes) {
+    const K = window.HosKeptFiles;
+    if (!K || !this.ready || this.readOnly || !meta || !bytes) return false;
+    let storage = null;
+    try { storage = window.localStorage; } catch (e) { storage = null; }
+    try {
+      return await K.put({ indexedDB: window.indexedDB, key: this._key, scope: this.scope, meta, bytes, cap: K.capBytes(storage) });
+    } catch (e) {
+      return false;
+    }
+  },
+
   setHighWater(id) {
     const n = Number(id) || 0;
     if (n > this.highWater) {

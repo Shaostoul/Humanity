@@ -976,6 +976,7 @@ function openSocket(opts) {
   // Fresh socket: re-arm the one-time DM mailbox fetch (sealed-sender), and
   // hold the pass sweep until that fetch is read (10n N7).
   dmFetchSent = false;
+  if (typeof profileSocketOpened === 'function') profileSocketOpened(); // chat-profile.js
   dmMailboxUnread = true;
   dmFetchRef = null;
 
@@ -1248,6 +1249,8 @@ async function handleMessage(msg) {
       updateStats();
       break;
     case 'channel_list':
+      // The server sends my own profile, when it has one, before this: by now it has been heard.
+      if (typeof ownProfileSettled === 'function') ownProfileSettled();
       updateChannelList(msg.channels || []);
       updateChannelHeader();
       updateInputForChannel();
@@ -1448,6 +1451,9 @@ async function handleMessage(msg) {
           pronouns:   msg.pronouns   || '',
           location:   msg.location   || '',
           website:    msg.website    || '',
+          // Files in messages (2026-10-11): who they accept files from, for the attach step's
+          // line in a DM to them (chat-messages.js acceptsFilesLine). '' when the server sent none.
+          accepts_files: typeof msg.accepts_files === 'string' ? msg.accepts_files : '',
         };
         // If we have a pending view for this user, show it now.
         if (pendingProfileView && pendingProfileView.name.toLowerCase() === msg.name.toLowerCase()) {
@@ -1455,26 +1461,15 @@ async function handleMessage(msg) {
           showViewProfileCard(pendingProfileView.name, pendingProfileView.publicKey, c);
           pendingProfileView = null;
         }
-        // If this is our own full profile echoed back on connect, sync to local storage
-        // only when local storage has no data yet (avoids overwriting unsaved edits).
+        // My own profile. My own complete copy (on connect, and the echo of a save from any of
+        // my devices) is taken into the stored profile while no change of mine waits here
+        // (chat-profile.js adoptOwnProfile, BUG-195; it used to fill only an empty store, and
+        // every connect pushed the store back over a newer change made elsewhere).
         if (msg.name.toLowerCase() === myName.toLowerCase()) {
-          try {
-            const local = loadProfileLocal();
-            const localIsEmpty = !local.bio && !local.avatar_url && !local.pronouns &&
-                                 Object.keys(local.socials || {}).length === 0;
-            if (localIsEmpty) {
-              saveProfileLocal({
-                bio:        msg.bio        || '',
-                socials:    JSON.parse(msg.socials || '{}'),
-                avatar_url: msg.avatar_url || '',
-                banner_url: msg.banner_url || '',
-                pronouns:   msg.pronouns   || '',
-                location:   msg.location   || '',
-                website:    msg.website    || '',
-                privacy:    JSON.parse(msg.privacy || '{}'),
-              });
-            }
-          } catch {}
+          if (typeof adoptOwnProfile === 'function') adoptOwnProfile(msg);
+          // "Accept files from" (Files in messages): sent if a choice here is waiting, taken if
+          // another device chose (chat-profile.js).
+          if (typeof ownProfileArrived === 'function') ownProfileArrived(msg);
         }
       }
       break;
@@ -2458,6 +2453,8 @@ function switchChannel(channelId) {
 function updateInputForChannel() {
   const input = document.getElementById('msg-input');
   const sendBtn = document.getElementById('send-btn');
+  // The attach button follows Files in messages in a DM or a group (chat-messages.js).
+  if (typeof updateAttachButton === 'function') updateAttachButton();
 
   // Scratch pad is always writable with a custom placeholder.
   if (isScratchPad()) {

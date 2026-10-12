@@ -410,6 +410,8 @@
   <script src="/shared/defaults.js"></script>
   <script src="/shared/settings.js"></script>
   <script src="/shared/eli5.js"></script>
+  <!-- Which profile fields a save changed, for Chat to send on top of the server's copy (BUG-195). -->
+  <script src="/shared/profile-changes.js?v=1"></script>
   <div class="eli5-block">
     <div class="eli5-simple">This is you! Set your name, picture, bio, and show off your skills.</div>
     <div class="eli5-expert">Dilithium3 (ML-DSA-65) identity, derived from your 24-word recovery phrase, with profile data synced over WebSocket. Skills tab has 9 domains with 49 skills tracked by XP/level (10 pips per level, 50 max). Endorsements from other users. Profile data broadcasts to connected peers on save.</div>
@@ -1240,7 +1242,16 @@
 
       // Persist the full page state too, so nothing typed is lost on reload.
       saveAll();
-      localStorage.setItem('humanity_profile', JSON.stringify(profile));
+      // Which fields this save changes, recorded BEFORE the profile is written, so the Chat tab the
+      // write wakes (storage event) sends them; Chat sends only fields changed in this browser, on
+      // top of the server's copy (BUG-195, /shared/profile-changes.js). Every other key of the
+      // stored profile is kept.
+      var before = {};
+      try { before = JSON.parse(localStorage.getItem('humanity_profile') || '{}') || {}; } catch (_) { before = {}; }
+      if (window.HosProfileChanges) {
+        window.HosProfileChanges.add(localStorage, window.HosProfileChanges.changedFields(before, profile));
+      }
+      localStorage.setItem('humanity_profile', JSON.stringify(Object.assign({}, before, profile)));
 
       var status = document.getElementById('sync-status');
       // If a Chat tab is open in this browser it will catch the `storage` event
@@ -1315,6 +1326,13 @@
         });
       }
     }
+
+    // Chat updates this page's stores when my own profile changes on another device (BUG-195,
+    // chat-profile.js followOnProfilePage): show it here at once, as it would show on a reload.
+    window.addEventListener('storage', function(e) {
+      if (e.key === STORE_KEY) { loadProfile(); updateBioCount(); }
+      if (e.key === PRIVACY_KEY) loadPrivacy();
+    });
 
     // ── Init ──
     loadProfile();

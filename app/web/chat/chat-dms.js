@@ -94,6 +94,8 @@ function openDmConversation(partnerKey, partnerName) {
   input.disabled = false;
   input.placeholder = `Message ${partnerName}…`;
   document.getElementById('send-btn').disabled = false;
+  // The attach button follows Files in messages (chat-messages.js).
+  if (typeof updateAttachButton === 'function') updateAttachButton();
 
   // History renders from the LOCAL encrypted store — the relay keeps no
   // DM history any more (sealed-sender: its mailbox is a sender-less
@@ -279,6 +281,27 @@ function addDmMessage(author, body, timestamp, fromKey, toKey, isEncrypted) {
 // Only a file on this server is fetched (a `/uploads/` path, which is what the
 // encrypted upload answers): a marker naming any other address is not
 // followed, so a message cannot make this device reach another site.
+//
+// Files in messages (2026-10-11, docs/design/media-showcase.md, "Files on the
+// sender's device and in messages, exact", parts 2 to 4; the settings and
+// their words are /shared/files-in-messages.js, drawn in Safety by
+// chat-privacy.js). THIS app enforces them, never the server:
+//  - "Accept files from" (Nobody / Friends / Anyone I talk to, default
+//    Friends): a file from someone it does not allow is not fetched at all;
+//    its card says "Ann sent a file. You accept files only from friends.
+//    Accept this one?", and Accept lets that one file through (a picture is
+//    then fetched and shown; any other file gets its Save);
+//  - "Show pictures without asking from" (Friends / Nobody; the protected
+//    setup is always Nobody) is the click-to-load rule above, made a setting;
+//    my own pictures always show;
+//  - a file whose marker says `"unchecked": true` (its sender's app could not
+//    check it for hidden location, and they sent it anyway) carries one line
+//    under its name saying so;
+//  - a file opened here is kept on this device, encrypted with the DM
+//    history's key (/shared/kept-files.js through chat-dm-store.js), and
+//    opening a file looks there first, so it still opens after the server
+//    removes its copy.
+// Without /shared/files-in-messages.js loaded, every file but mine asks first.
 // Sending is chat-messages.js (sendEncryptedAttachment).
 // Test: scripts/tests/private-files-web.test.js
 
@@ -367,25 +390,86 @@ function privateFileHidden(fromKey) {
   return typeof protectedHidesPicturesFrom === 'function' && protectedHidesPicturesFrom(fromKey);
 }
 
+// ── Files in messages (part 3) ──
+// The files the person pressed Accept on, by address, for this page.
+const privateFilesAccepted = new Set();
+// The line under a file whose sender's app could not check it (part 2): /shared/upload-clean.js's words.
+const PRIVATE_FILE_UNCHECKED = (window.HosUploadClean && HosUploadClean.WORDS && HosUploadClean.WORDS.recipientLine)
+  || "The sender's app could not check this file for hidden location.";
+
+/** This device's Files in messages settings, or null when /shared/files-in-messages.js is not loaded. */
+function privateFilesSettings() {
+  const F = window.HosFilesInMessages;
+  if (!F) return null;
+  let storage = null;
+  try { storage = window.localStorage; } catch (e) { storage = null; }
+  return F.readSettings(storage);
+}
+
+/** The sender as the Files in messages rules see them: me, or a friend (privateFileFromFriend). */
+function privateFileSender(fromKey) {
+  const isMe = typeof myKey === 'string' && !!myKey && typeof fromKey === 'string' && fromKey.toLowerCase() === myKey.toLowerCase();
+  return { isMe, isFriend: isMe || privateFileFromFriend(fromKey) };
+}
+
+/** Is this file downloaded without asking ("Accept files from", or Accept pressed here)? */
+function privateFileAccepted(meta, fromKey) {
+  if (meta && privateFilesAccepted.has(meta.url)) return true;
+  const who = privateFileSender(fromKey);
+  const settings = privateFilesSettings();
+  if (!settings) return who.isMe;
+  return HosFilesInMessages.acceptsFrom(settings, who);
+}
+
+/** Is this picture shown at once ("Show pictures without asking from", or a click here)? */
+function privateFilePictureNow(meta, fromKey) {
+  if (meta && privateFilesLoaded.has(meta.url)) return true;
+  const who = privateFileSender(fromKey);
+  const settings = privateFilesSettings();
+  if (!settings) return who.isMe;
+  const prot = typeof protectedIsOn === 'function' && protectedIsOn();
+  return HosFilesInMessages.picturesWithoutAsking(settings, who, prot);
+}
+
+/** The words on a file that was not downloaded: "Ann sent a file. You accept files only from friends. Accept this one?" */
+function privateFileAskWords(fromKey) {
+  const name = typeof reachDisplayName === 'function' ? reachDisplayName(fromKey)
+    : ((typeof peerData !== 'undefined' && peerData && peerData[fromKey] && peerData[fromKey].display_name) || 'Someone');
+  const settings = privateFilesSettings();
+  return window.HosFilesInMessages ? HosFilesInMessages.askWords(name, settings) : `${name} sent a file. Accept this one?`;
+}
+
 /** The body of a message that is a file: the protected setup's line, or the card. */
 function privateFileHtml(meta, fromKey) {
   if (privateFileHidden(fromKey) && typeof protectedPictureHiddenHtml === 'function') return protectedPictureHiddenHtml();
-  const way = privateFileWay(meta);
-  const now = way === 'picture' && (privateFileFromFriend(fromKey) || privateFilesLoaded.has(meta.url));
-  // The note's words (a picture too large to show here, a file too large for a browser) are
-  // written by hydratePrivateFile with textContent.
-  const note = privateFileNote(meta) ? '<div class="enc-attach-note"></div>' : '';
+  // The line under a file its sender's app could not check, written by hydratePrivateFile with textContent.
+  const unchecked = meta && meta.unchecked === true ? '<div class="enc-attach-unchecked"></div>' : '';
   return `<div class="enc-attach" data-enc="1">
     <div class="enc-attach-head">${hosIcon('lock', 12)} <span>${esc(meta.name || 'file')}</span>
       <span class="enc-attach-size">${_fmtBytes(meta.size)}</span></div>
-    <div class="enc-attach-body">${way === 'desktop'
-      ? note
-      : way === 'save'
-        ? note + '<button type="button" class="enc-attach-dl">Save</button>'
-        : now
-          ? '<div class="enc-attach-loading">Opening image…</div>'
-          : '<button type="button" class="enc-attach-load">' + hosIcon('image', 14) + ' Image (click to load)</button>'}</div>
+    ${unchecked}<div class="enc-attach-body">${privateFileBodyHtml(meta, fromKey)}</div>
   </div>`;
+}
+
+/** The inside of a file card: Accept (a file not allowed yet), the note, Save, the picture or its click. */
+function privateFileBodyHtml(meta, fromKey) {
+  // Not allowed by "Accept files from": nothing is fetched until Accept. Its words are written
+  // by hydratePrivateFile with textContent.
+  if (!privateFileAccepted(meta, fromKey)) {
+    return '<div class="enc-attach-ask"></div><button type="button" class="enc-attach-accept">Accept</button>';
+  }
+  const way = privateFileWay(meta);
+  const now = way === 'picture' && privateFilePictureNow(meta, fromKey);
+  // The note's words (a picture too large to show here, a file too large for a browser) are
+  // written by hydratePrivateFile with textContent.
+  const note = privateFileNote(meta) ? '<div class="enc-attach-note"></div>' : '';
+  return way === 'desktop'
+    ? note
+    : way === 'save'
+      ? note + '<button type="button" class="enc-attach-dl">Save</button>'
+      : now
+        ? '<div class="enc-attach-loading">Opening image…</div>'
+        : '<button type="button" class="enc-attach-load">' + hosIcon('image', 14) + ' Image (click to load)</button>';
 }
 
 /**
@@ -400,6 +484,14 @@ async function openPrivateFile(meta, max) {
   try {
     const url = meta && typeof meta.url === 'string' ? meta.url : '';
     if (!/^\/uploads\/[^\s?#\\]+$/.test(url) || url.includes('..')) return null;
+    const type = privateFileWay(meta) === 'picture' ? String(meta.mime).toLowerCase() : 'application/octet-stream';
+    // A copy kept on this device (part 4) opens without asking the server, which may have let
+    // the file go: the DM mailbox's lifetime, 30 days by default.
+    const store = (window.hosDmStore && hosDmStore.ready) ? hosDmStore : null;
+    if (store && typeof store.keptFileGet === 'function') {
+      const kept = await store.keptFileGet(meta);
+      if (kept && kept.length <= (Number(max) || PRIVATE_FILE_SAVE_MAX)) return new Blob([kept], { type });
+    }
     const limit = (Number(max) || PRIVATE_FILE_SAVE_MAX) + PRIVATE_FILE_SEAL_BYTES;
     const resp = await fetch(url);
     if (!resp || !resp.ok) return null;
@@ -413,7 +505,9 @@ async function openPrivateFile(meta, max) {
     const plain = await pqDecryptFile(ct, meta.k, meta.n);
     ct = null;
     if (!plain) return null;
-    const type = privateFileWay(meta) === 'picture' ? String(meta.mime).toLowerCase() : 'application/octet-stream';
+    // Opened: kept on this device for when the server no longer has it (within the cap,
+    // Settings > Storage). Never waited for: the file is shown or saved at once.
+    if (store && typeof store.keptFilePut === 'function') store.keptFilePut(meta, plain).catch(() => {});
     return new Blob([plain], { type });
   } catch (e) {
     return null;
@@ -463,12 +557,40 @@ async function openPrivatePicture(meta) {
   return pending;
 }
 
-/** Wire a drawn file card: show a picture (now, or on its click), or Save. Never runs while the file is hidden. */
+/**
+ * Wire a drawn file card: the unchecked line, Accept (a file "Accept files from" does not
+ * allow yet), then a picture (now, or on its click) or Save. Never runs while the file is hidden.
+ */
 async function hydratePrivateFile(el, meta, fromKey) {
   if (privateFileHidden(fromKey)) return;
   const card = el && el.querySelector('.enc-attach');
   const bodyEl = card && card.querySelector('.enc-attach-body');
   if (!bodyEl) return;
+  if (meta && meta.unchecked === true) {
+    const line = card.querySelector('.enc-attach-unchecked');
+    if (line) line.textContent = PRIVATE_FILE_UNCHECKED;
+  }
+  if (!privateFileAccepted(meta, fromKey)) {
+    const ask = bodyEl.querySelector('.enc-attach-ask');
+    if (ask) ask.textContent = privateFileAskWords(fromKey);
+    const accept = bodyEl.querySelector('.enc-attach-accept');
+    if (!accept) return;
+    accept.onclick = async (e) => {
+      if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+      // This one file, for this page. Accept is the person's own click, so a picture is
+      // fetched and shown now; any other file gets its Save, which fetches it.
+      privateFilesAccepted.add(meta.url);
+      if (privateFileWay(meta) === 'picture') privateFilesLoaded.add(meta.url);
+      bodyEl.innerHTML = privateFileBodyHtml(meta, fromKey);
+      await hydratePrivateFileBody(bodyEl, meta, fromKey);
+    };
+    return;
+  }
+  await hydratePrivateFileBody(bodyEl, meta, fromKey);
+}
+
+/** Wire a card's body once the file is allowed: the note, Save, or the picture (now, or on its click). */
+async function hydratePrivateFileBody(bodyEl, meta, fromKey) {
   const failed = () => { bodyEl.innerHTML = '<div class="enc-attach-failed">' + esc(PRIVATE_FILE_FAILED) + '</div>'; };
   const way = privateFileWay(meta);
   const words = privateFileNote(meta);
@@ -516,7 +638,7 @@ async function hydratePrivateFile(el, meta, fromKey) {
     bodyEl.innerHTML = '';
     bodyEl.appendChild(img);
   };
-  if (privateFileFromFriend(fromKey) || privateFilesLoaded.has(meta.url)) {
+  if (privateFilePictureNow(meta, fromKey)) {
     await show();
     return;
   }
