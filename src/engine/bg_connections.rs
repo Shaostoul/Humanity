@@ -773,13 +773,16 @@ fn handle_bg_message(state: &mut EngineState, ci: usize, raw: &str) {
             }
         }
         // This person's own profile on this server, filed under its address so a switch to it has
-        // it at once (gui/pages/own_profile.rs, BUG-196). Anyone else's is dropped.
+        // it at once (gui/pages/own_profile.rs, BUG-196). Anyone else's is dropped. When this
+        // server asks, the copy other servers keep goes back signed on this socket (BUG-191).
         Some("profile_data") => {
             let conn = &state.gui_state.connections[ci];
             let name = conn.ws.as_ref().map(|w| w.user_name().to_string()).unwrap_or_default();
-            if let Some(copy) = crate::gui::pages::own_profile::own_copy(&val, &name) {
-                let url = conn.url.clone();
-                crate::gui::pages::own_profile::keep_copy(&mut state.gui_state, &url, copy);
+            let url = conn.url.clone();
+            if let Some(signed) = crate::gui::pages::own_profile::take_own_copy(&mut state.gui_state, &url, &val, &name) {
+                if let Some(ws) = state.gui_state.connections[ci].ws.as_ref() {
+                    ws.send(&signed);
+                }
             }
         }
         // Admin, tasks, listings, voice, trades, game: active-server
