@@ -41,7 +41,9 @@ pub(super) fn draw_data_folder(ui: &mut egui::Ui, theme: &Theme, hint: HintDispl
             };
             ui.data_mut(|d| d.insert_temp(result_id, line));
         }
-        Some(Asked::Show(rel)) => show_file(&view.dir.join(&rel)),
+        // Joined part by part: a shipped path is written with `/`, which Explorer's /select does
+        // not take.
+        Some(Asked::Show(rel)) => show_file(&rel.split('/').fold(view.dir.clone(), |p, part| p.join(part))),
         None => {}
     }
     if let Some(line) = ui.data_mut(|d| d.get_temp::<String>(result_id)) {
@@ -83,7 +85,8 @@ fn draw_view(ui: &mut egui::Ui, theme: &Theme, hint: HintDisplay, view: &View, n
         small(ui, theme, &holds, theme.text_primary());
         if let Some(r) = &view.last_update {
             let when = crate::gui::pages::chat::format_full_timestamp(r.at.saturating_mul(1000));
-            let from = r.from.as_deref().map(|f| format!("from {f} ")).unwrap_or_default();
+            // No `from`: the folder was written before the game kept a record of its files.
+            let from = r.from.as_deref().map(|f| format!("from {f} ")).unwrap_or_else(|| "from an earlier version ".to_string());
             let mut line = format!(
                 "Last update, {from}to {} ({when}): {} brought up to date",
                 r.to,
@@ -145,9 +148,10 @@ fn count(n: usize, one: &str, many: &str) -> String {
 fn show_file(path: &std::path::Path) {
     #[cfg(target_os = "windows")]
     {
-        let mut arg = std::ffi::OsString::from("/select,");
-        arg.push(path.as_os_str());
-        let _ = std::process::Command::new("explorer").arg(arg).spawn();
+        // Explorer reads its own command line, and wants `/select,"<path>"` exactly as written,
+        // which the usual argument quoting (the whole argument in quotes) does not give.
+        use std::os::windows::process::CommandExt;
+        let _ = std::process::Command::new("explorer").raw_arg(format!("/select,\"{}\"", path.display())).spawn();
     }
     #[cfg(not(target_os = "windows"))]
     super::open_in_file_manager(path);
@@ -181,7 +185,8 @@ mod tests {
     /// file this run did not use, with why (design section 6).
     ///
     /// Seen red 2026-10-12 with the kept rows not drawn: "each kept file is named: [\"Data
-    /// folder\", ...]".
+    /// folder\", ...]"; and with a folder from before stamps given no `from`: the texts drawn,
+    /// "Last update, to 0.1490.0 (...)" among them, where "from an earlier version" belongs.
     #[test]
     fn the_block_names_each_kept_file_with_its_two_buttons_and_each_file_not_used() {
         let view = View {
@@ -209,6 +214,12 @@ mod tests {
         assert_eq!(texts.iter().filter(|t| *t == "Show the file").count(), 1, "{texts:?}");
         assert!(has("Not brought up to date: recipes.csv: it could not be written (in use)"), "{texts:?}");
         assert!(has("status_effects.csv: this version cannot read line 21"), "{texts:?}");
+
+        // A folder written before stamps: the last update says it came from an earlier version.
+        let mut first = view.clone();
+        first.last_update.as_mut().unwrap().from = None;
+        let texts = drawn(&first, &[]);
+        assert!(texts.iter().any(|t| t.starts_with("Last update, from an earlier version to 0.1490.0")), "{texts:?}");
 
         let alone = View { left_alone: Some("it is a source tree's own data folder".into()), ..view.clone() };
         let texts = drawn(&alone, &[]);

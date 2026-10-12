@@ -477,9 +477,11 @@ pub fn read_data_or_embedded(data_dir: &std::path::Path, rel: &str) -> Option<St
 /// READ ALL OF IT, otherwise the copy built into this exe (BUG-163). THE loader
 /// for a data file that is parsed; every registry goes through it.
 ///
-/// Why: an installed game writes its data folder once, on its first run, and an
-/// update replaces only the exe, so the folder can hold files older than the
-/// game reading them (docs/design/data-folder-updates.md). A folder written
+/// Why: the data folder can hold files older than the game reading them
+/// (docs/design/data-folder-updates.md). Until 2026-10-12 an update replaced only
+/// the exe and nothing rewrote the folder; since then a start brings every file
+/// nobody edited up to date (storage/refresh.rs), but an edited file is kept as
+/// it is, and may be one this version cannot read. A folder written
 /// before 2026-10-05 still had status_effects.csv's `dispel_type` column; the
 /// status effect rows now refuse a column they do not declare, the CSV parser
 /// skipped each refused row and went on, and the registry loaded EMPTY (no
