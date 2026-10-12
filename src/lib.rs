@@ -1381,11 +1381,11 @@ mod native_app {
             // it auto-accepts its dependents (prerequisite chaining in QuestSystem).
             let mut player_quests = QuestTracker::default();
             player_quests.accept_quest("gs_first_steps");
-            // A new player's starting kit (2026-09-25; data/world/player.ron).
+            // A new player's starting kit (2026-09-25; the start's kit, data/homes/starts.ron).
             // A save replaces it through apply_save_to_world when progress is
             // kept; with a fresh home each launch this is what you start with.
             let mut start_inv = Inventory::new(36);
-            for (id, qty) in crate::save_load::starting_kit(&data_dir) {
+            for (id, qty) in crate::save_load::starting_kit(&data_dir, &crate::save_load::active_home().start) {
                 start_inv.add_item(&id, qty, 99);
             }
             game_world.world.spawn((

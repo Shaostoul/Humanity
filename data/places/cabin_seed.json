@@ -1,0 +1,32 @@
+{
+  "_comment": "The CABIN's storage at the start (ship homes increment 6, data/homes/starts.ron `storage`), the same shape as data/places/seed.json: top-level entries are ENTITIES, each a container of rooms, sub-containers and items. A cabin holds little: the backpack you carry, and a locker in the cabin with spare clothes, a towel and a toiletry kit, as labels (free-text items, not in items.csv). Meals come from the mess hall and water from the ship, so there is no pantry.",
+  "entities": [
+    {
+      "id": "you",
+      "label": "You",
+      "kind": "person",
+      "location": "Cabin",
+      "children": [
+        { "id": "you_backpack", "label": "Backpack", "kind": "backpack", "children": [] }
+      ]
+    },
+    {
+      "id": "home",
+      "label": "Cabin",
+      "kind": "building",
+      "location": "Aboard the ship",
+      "children": [
+        {
+          "id": "locker",
+          "label": "Locker",
+          "kind": "container",
+          "children": [
+            { "label": "Spare clothes (two changes)", "kind": "item" },
+            { "label": "Towel", "kind": "item" },
+            { "label": "Toiletry kit (toothbrush, toothpaste, soap, comb)", "kind": "item" }
+          ]
+        }
+      ]
+    }
+  ]
+}

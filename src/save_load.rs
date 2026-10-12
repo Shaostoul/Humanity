@@ -91,10 +91,68 @@ pub fn record_home_frame(save: &mut WorldSave, frame: Option<&HomeFrame>) {
     save.home_plot_box = frame.map(|f| [f.home.0.to_array(), f.home.1.to_array()]);
 }
 
-/// The active offline home's save file. Progressive disclosure: one home for now
-/// (the homes-as-profiles model). Multi-home selection comes with multiplayer.
+/// Which save is live and what it is (ship homes increment 6, docs/design/ship-homes-increment-6-plan.md
+/// 3.6): the slot (your own home, or one server's), its file, the start and household it is, the
+/// server it belongs to, and where its home stands aboard. Every save writes to `path`, and the
+/// household file comes from `start` and `household` (`machines::home_ron_path`). Until anything
+/// sets it, it is your own home, a homestead for a family, where every save before the starts was.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ActiveHome {
+    pub slot: persistence::SaveSlot,
+    pub path: PathBuf,
+    pub start: String,
+    pub household: String,
+    pub server: String,
+    pub ship_place: Option<persistence::ShipPlace>,
+}
+
+impl ActiveHome {
+    /// Your own home: saves/offline_home.json, a homestead for a family.
+    pub fn offline() -> ActiveHome {
+        let slot = persistence::SaveSlot::Offline;
+        ActiveHome {
+            path: persistence::slot_path(&persistence::saves_dir(), &slot),
+            slot,
+            start: persistence::default_start(),
+            household: persistence::default_household(),
+            server: String::new(),
+            ship_place: None,
+        }
+    }
+}
+
+// Thread-local for the reason RESTORED_SAVE_WAITING below is: every save, every load and every
+// world build runs on the one main (event loop) thread, and a thread-local keeps each test's
+// active home its own.
+thread_local! {
+    static ACTIVE_HOME: std::cell::RefCell<Option<ActiveHome>> = const { std::cell::RefCell::new(None) };
+}
+
+/// The live save (`ActiveHome::offline` until something sets another).
+pub fn active_home() -> ActiveHome {
+    ACTIVE_HOME.with(|a| a.borrow().clone()).unwrap_or_else(ActiveHome::offline)
+}
+
+/// Make `home` the live save: what every later save writes and every world load builds from.
+pub fn set_active_home(home: ActiveHome) {
+    ACTIVE_HOME.with(|a| *a.borrow_mut() = Some(home));
+}
+
+/// The DataStore key of the mess hall's offline meter (`persistence::ShipMeals`): the meals and
+/// water the ship's stores have given this save on this computer (increment 6).
+pub const SHIP_MEALS_KEY: &str = "ship_meals";
+
+/// The live save's file (`ActiveHome::path`): saves/offline_home.json for your own home.
 pub fn active_home_path() -> PathBuf {
-    persistence::saves_dir().join("offline_home.json")
+    active_home().path
+}
+
+/// A new save of the live start and household (`extract_world_save`, a first character-only save).
+fn new_save_of_active_home() -> WorldSave {
+    let active = active_home();
+    let mut save = WorldSave::new_offline("My Homestead", active.start);
+    save.household = active.household;
+    save
 }
 
 /// Load the active offline home's save, if it exists + parses. None on first run.
@@ -118,7 +176,7 @@ fn load_home_at(path: &std::path::Path) -> Option<WorldSave> {
 
 /// Extract the live player's progress (inventory + skills) into a WorldSave.
 pub fn extract_world_save(world: &hecs::World) -> WorldSave {
-    let mut save = WorldSave::new_offline("My Homestead", "fibonacci");
+    let mut save = new_save_of_active_home();
     save.timestamp = now_secs();
     // The player is the single Controllable entity.
     for (_e, (inv, skills, name, appearance, outfit, _ctrl)) in world
@@ -675,22 +733,20 @@ pub fn apply_save_to_world(world: &mut hecs::World, save: &WorldSave) {
     crate::systems::machine_levels::restore(world, &save.machine_levels);
 }
 
-/// A NEW player's starting kit: `starting_items` in data/world/player.ron
-/// (the data dir first, the embedded copy when the data dir's is missing or
-/// this version cannot read it, BUG-163). Empty only when neither loads, so a
-/// broken data file never blocks a boot.
-pub fn starting_kit(data_dir: &std::path::Path) -> Vec<(String, u32)> {
-    #[derive(serde::Deserialize)]
-    struct PlayerDef {
-        #[serde(default)]
-        starting_items: Vec<(String, u32)>,
+/// A NEW player's starting kit: the `kit` of their start in data/homes/starts.ron (the data dir
+/// first, the embedded copy when the data dir's is missing or this version cannot read it,
+/// BUG-163; ship homes increment 6 moved it there from data/world/player.ron's `starting_items`,
+/// since what you carry depends on where you live). A start that is not in the file is logged
+/// and gets the default start's kit.
+pub fn starting_kit(data_dir: &std::path::Path, start: &str) -> Vec<(String, u32)> {
+    let starts = crate::ship::starts::Starts::load(data_dir);
+    match starts.get(start) {
+        Some(s) => s.kit.clone(),
+        None => {
+            log::warn!("starting kit: no start '{start}' in {}; the default start's kit", crate::ship::starts::STARTS_FILE);
+            starts.default_start().kit.clone()
+        }
     }
-    crate::embedded_data::load_data_or_embedded(data_dir, "world/player.ron", crate::assets::loader::parse_ron::<PlayerDef>)
-        .map(|def| def.starting_items)
-        .unwrap_or_else(|e| {
-            log::warn!("{e}; starting kit empty");
-            Vec::new()
-        })
 }
 
 /// Apply ONLY the character (name, look, outfit) from a save: the path for
@@ -729,7 +785,7 @@ pub fn apply_identity(world: &mut hecs::World, save: &WorldSave) {
 pub fn identity_only_save(existing: Option<WorldSave>, world: &hecs::World) -> WorldSave {
     let current = extract_world_save(world);
     let mut save = existing.unwrap_or_else(|| {
-        let mut s = WorldSave::new_offline("My Homestead", "fibonacci");
+        let mut s = new_save_of_active_home();
         s.progress_saved = false;
         s
     });
@@ -1344,7 +1400,7 @@ mod tests {
             crate::ecs::components::Outfit::default(),
         ));
 
-        let mut save = WorldSave::new_offline("X", "fibonacci");
+        let mut save = WorldSave::new_offline("X", "homestead");
         save.kind = "server".to_string();
         save.inventory = vec![("steel_ingot_0".to_string(), 99)];
         apply_save_to_world(&mut world, &save); // should be a no-op
@@ -1461,7 +1517,7 @@ mod tests {
         // The save is authoritative (v0.678 review fix): applying a DIFFERENT
         // save clears vehicles that aren't in it — the launcher's character
         // switch must not leak one character's trucks into another's world.
-        let empty = WorldSave::new_offline("Other", "fibonacci");
+        let empty = WorldSave::new_offline("Other", "homestead");
         apply_save_to_world(&mut fresh, &empty);
         let n = fresh.query_mut::<&Vehicle>().into_iter().count();
         assert_eq!(n, 0, "vehicles absent from the applied save are despawned");
@@ -1816,14 +1872,14 @@ mod tests {
         };
         let mut gui = crate::gui::GuiState::default();
         gui.placed_items = vec![plank.clone()];
-        let mut save = WorldSave::new_offline("Test", "fibonacci");
+        let mut save = WorldSave::new_offline("Test", "homestead");
         save.placed_items = Some(Vec::new());
         let save: WorldSave = serde_json::from_str(&serde_json::to_string(&save).unwrap()).unwrap();
         after_resume(&mut gui, &save, &Resumed::default());
         assert!(gui.placed_items.is_empty(), "the empty pool came back empty: {:?}", gui.placed_items);
 
         gui.placed_items = vec![plank];
-        let fresh = WorldSave::new_offline("Test", "fibonacci");
+        let fresh = WorldSave::new_offline("Test", "homestead");
         after_resume(&mut gui, &fresh, &Resumed::default());
         assert_eq!(gui.placed_items.len(), 1, "a save with no pool keeps the live one");
     }
@@ -1832,7 +1888,7 @@ mod tests {
     /// so the places spine's seed stays.
     #[test]
     fn placed_items_persist_and_old_saves_default_empty() {
-        let mut save = WorldSave::new_offline("Test", "fibonacci");
+        let mut save = WorldSave::new_offline("Test", "homestead");
         save.placed_items = Some(vec![
             crate::systems::inventory::placed::PlacedItem {
                 key: "ice_axe_0".into(),
@@ -1884,7 +1940,7 @@ mod tests {
     /// dead alone, never touches water or health, and does nothing when off.
     #[test]
     fn offline_catch_up_ages_living_crops_only_when_on() {
-        let mut save = WorldSave::new_offline("t", "fibonacci");
+        let mut save = WorldSave::new_offline("t", "homestead");
         save.game_time = 6000.0;
         save.timestamp = 1_000;
         save.crops = vec![crop(5000.0, "seedling"), crop(4000.0, crate::ecs::components::STAGE_DEAD)];
@@ -1921,7 +1977,7 @@ mod tests {
     /// stored carries game_time 0 next to crops planted at game second 5000).
     #[test]
     fn clock_never_resumes_behind_the_newest_crop() {
-        let mut save = WorldSave::new_offline("t", "fibonacci");
+        let mut save = WorldSave::new_offline("t", "homestead");
         save.crops = vec![crop(5000.0, "seedling"), crop(1200.0, "seedling")];
         let mut world = hecs::World::new();
         apply_save_to_world(&mut world, &save);
@@ -1932,7 +1988,7 @@ mod tests {
     /// growth, never negative.
     #[test]
     fn unstamped_saves_and_backwards_clocks_grant_nothing() {
-        let mut save = WorldSave::new_offline("t", "fibonacci");
+        let mut save = WorldSave::new_offline("t", "homestead");
         save.crops = vec![crop(100.0, "seedling")];
         let mut world = hecs::World::new();
         apply_save_to_world(&mut world, &save);
@@ -2137,7 +2193,7 @@ mod tests {
     fn a_campfire_finished_while_away_has_burned_since() {
         use crate::ecs::systems::System;
         use crate::systems::construction::{fires::FireFuel, BlueprintRegistry, ConstructionSystem, Structure};
-        let mut save = WorldSave::new_offline("t", "fibonacci");
+        let mut save = WorldSave::new_offline("t", "homestead");
         save.timestamp = 1_000;
         save.constructions = vec![crate::persistence::ConstructionSave {
             blueprint_id: "campfire".to_string(),
@@ -2350,7 +2406,7 @@ mod tests {
     #[test]
     fn offline_catch_up_finishes_scaffolds_without_skipping_completion() {
         use crate::systems::construction::Construction;
-        let mut save = WorldSave::new_offline("t", "fibonacci");
+        let mut save = WorldSave::new_offline("t", "homestead");
         save.timestamp = 1_000;
         save.constructions = vec![crate::persistence::ConstructionSave {
             blueprint_id: "wooden_door".to_string(),
@@ -2385,7 +2441,7 @@ mod tests {
     /// (which completes them on the next tick through the normal delivery).
     #[test]
     fn restored_crafts_count_down_by_the_time_away() {
-        let mut save = WorldSave::new_offline("t", "fibonacci");
+        let mut save = WorldSave::new_offline("t", "homestead");
         let batch = |t: f32| crate::systems::crafting::CraftSave {
             recipe_id: "smelt_iron".to_string(),
             time_remaining: t,
@@ -2414,7 +2470,7 @@ mod tests {
     fn a_restored_home_holds_saves_until_it_is_loaded() {
         // Thread-local, so this test's hold is its own (see RESTORED_SAVE_WAITING).
         assert!(!restored_save_waiting());
-        let save = WorldSave::new_offline("Restored", "fibonacci");
+        let save = WorldSave::new_offline("Restored", "homestead");
         let mut world = hecs::World::new();
 
         hold_saves_for_restore();
@@ -2429,7 +2485,7 @@ mod tests {
         // A save of another kind is ignored by the apply, but must still
         // release: holding for a load that can never happen would stop
         // saving for the rest of the session.
-        let mut server = WorldSave::new_offline("Elsewhere", "fibonacci");
+        let mut server = WorldSave::new_offline("Elsewhere", "homestead");
         server.kind = "server".to_string();
         hold_saves_for_restore();
         apply_save_to_world(&mut world, &server);
@@ -2491,7 +2547,7 @@ mod tests {
         let path = root.join("saves").join("offline_home.json");
         let slot = persistence::snapshots_root_for(&path).join("offline_home");
         // The restored home, as the restore left it on disk.
-        let mut restored = WorldSave::new_offline("Restored home", "fibonacci");
+        let mut restored = WorldSave::new_offline("Restored home", "homestead");
         restored.progress_saved = true;
         persistence::save_world(&path, &restored).unwrap();
         let restored_bytes = std::fs::read(&path).unwrap();
@@ -2538,7 +2594,7 @@ mod tests {
         let t = 1_759_400_000_000u64;
         assert_eq!(snapshot_home_now_at(&path, t).unwrap(), SnapshotNow::NotSavedYet);
 
-        persistence::save_world(&path, &WorldSave::new_offline("Home", "fibonacci")).unwrap();
+        persistence::save_world(&path, &WorldSave::new_offline("Home", "homestead")).unwrap();
         assert!(matches!(snapshot_home_now_at(&path, t + 1_000).unwrap(), SnapshotNow::Kept(_)));
         assert_eq!(
             snapshot_home_now_at(&path, t + 2_000).unwrap(),
@@ -2547,7 +2603,7 @@ mod tests {
         );
         // The home changes (written without the snapshot a save would keep):
         // the next click keeps it.
-        let mut changed = WorldSave::new_offline("Home", "fibonacci");
+        let mut changed = WorldSave::new_offline("Home", "homestead");
         changed.character_name = "Changed".to_string();
         persistence::write_atomic(&path, serde_json::to_string_pretty(&changed).unwrap().as_bytes()).unwrap();
         assert!(matches!(snapshot_home_now_at(&path, t + 3_000).unwrap(), SnapshotNow::Kept(_)));
@@ -2571,7 +2627,7 @@ mod tests {
             crate::ecs::components::Appearance::default(),
             crate::ecs::components::Outfit::default(),
         ));
-        let mut existing = WorldSave::new_offline("t", "fibonacci");
+        let mut existing = WorldSave::new_offline("t", "homestead");
         existing.character_name = "Old Name".into();
         existing.inventory = vec![("wood_plank_0".into(), 40)];
         existing.crops = vec![crop(5.0, "seedling")];
@@ -2590,12 +2646,17 @@ mod tests {
     }
 
     /// The shipped starting kit parses and every item in it is a real item,
-    /// so a new player never starts with a name that resolves to nothing.
+    /// so a new player never starts with a name that resolves to nothing. A
+    /// homestead player can plant at once; a cabin player carries water and
+    /// eats at the mess hall; a start that is not in the file gets the default's.
     #[test]
     fn the_starting_kit_is_real_items() {
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
-        let kit = starting_kit(&dir);
+        let kit = starting_kit(&dir, "homestead");
         assert!(kit.iter().any(|(id, _)| id.starts_with("seed_")), "a new player can plant: {kit:?}");
+        let cabin = starting_kit(&dir, "cabin");
+        assert!(cabin.iter().any(|(id, _)| id == "water_purified_0") && !cabin.iter().any(|(id, _)| id.starts_with("seed_")), "{cabin:?}");
+        assert_eq!(starting_kit(&dir, "palace"), kit, "an unknown start carries the default's kit");
         let items = crate::systems::inventory::ItemRegistry::from_csv(include_bytes!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/data/items.csv"
@@ -2695,7 +2756,7 @@ mod tests {
         crate::systems::crafting::register(&mut data);
         crate::systems::livestock::register(&mut data);
 
-        let mut save = WorldSave::new_offline("t", "fibonacci");
+        let mut save = WorldSave::new_offline("t", "homestead");
         save.timestamp = now_secs() - 3600;
         save.asteroids = Some(vec![rock(6.0)]);
         save.mining_order = Some(("rock".into(), vec![("iron_ore_0".into(), 2)]));
@@ -2751,7 +2812,7 @@ mod tests {
         data.insert("auto_mine_order", std::sync::Mutex::new(Option::<(String, Vec<(String, u32)>)>::None));
         crate::systems::crafting::register(&mut data);
         crate::systems::livestock::register(&mut data);
-        let mut save = WorldSave::new_offline("t", "fibonacci");
+        let mut save = WorldSave::new_offline("t", "homestead");
         save.timestamp = now_secs() - 3600;
         save.asteroids = Some(vec![rock(6.0)]);
         save.mining_order = Some(("rock".into(), vec![("iron_ore_0".into(), 2)]));

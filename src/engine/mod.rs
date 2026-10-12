@@ -63,6 +63,9 @@ pub mod pipe_markers;
 /// Your home on the shared ship: applying the relay's plot from `game_welcome`
 /// (increment 1b of docs/design/ship-homes-and-logistics.md).
 pub mod home_plot;
+/// Which save is live (your own home, or one server's, made fresh from the start you chose there)
+/// and the home a save's start builds (ship homes increment 6).
+pub mod save_slot;
 /// The fleet ledger's engine half (2026-10-04): the server's answers into the fleet panel, a
 /// give's items out of the backpack once, and the home's reactor power reported.
 pub mod fleet;

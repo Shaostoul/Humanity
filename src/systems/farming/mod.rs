@@ -3580,7 +3580,7 @@ mod gardening_tests {
                 (def.growth_days as f64 * SECONDS_PER_DAY, def.stages())
             };
             // Saved one minute after planting, at game second 1000.
-            let mut save = crate::persistence::WorldSave::new_offline("t", "fibonacci");
+            let mut save = crate::persistence::WorldSave::new_offline("t", "homestead");
             save.game_time = 1060.0;
             save.timestamp = 1_000_000;
             save.crops = vec![CropInstance {

@@ -32,6 +32,9 @@ pub mod ship_space;
 pub mod transit;
 pub mod rooms;
 pub mod ship_structure;
+/// The starts as data (increment 6, data/homes/starts.ron): Cabin, Apartment, Homestead, what
+/// each builds, who lives there and what a new character carries; and the `game_home` wire.
+pub mod starts;
 pub mod structure;
 pub mod wall_collision;
 pub mod room_types;
