@@ -239,7 +239,7 @@ fn moving_food_keeps_its_age() {
     // Back to storage when the backpack is full (`gui::return_to_storage`), at their age.
     let mut pool = Vec::new();
     let origin = PlacedItem { age_s: 3750.0, ..barn("bread_0", 2) };
-    crate::gui::return_to_storage(&mut pool, "bread_0", 2, Some(&origin));
+    crate::gui::return_to_storage(&mut pool, "bread_0", 2, Some(&origin), "Bread");
     assert_eq!(pool[0].age_s, 3750.0, "what the backpack could not take goes back as old as it was");
 }
 

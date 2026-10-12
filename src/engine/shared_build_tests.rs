@@ -532,7 +532,7 @@ fn our_take_down_gives_the_materials_back_once_and_what_the_pack_cannot_hold_lan
         inventory.tick(&mut g.world, 0.016, &g.data);
         let returned = std::mem::take(&mut *g.data.get::<Mutex<Vec<(String, u32)>>>("inventory_transfer_returns").unwrap().lock().unwrap());
         for (key, qty) in returned {
-            crate::gui::return_to_storage(&mut g.gui.placed_items, &key, qty, None);
+            crate::gui::return_to_storage(&mut g.gui.placed_items, &key, qty, None, &key);
         }
     };
     // What the player holds of the planks, as the probe counts it: (the backpack, home storage).

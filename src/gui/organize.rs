@@ -101,18 +101,22 @@ fn split_numbered(id: &str) -> (String, Option<u32>) {
 
 /// Put `qty` of `key` back into the storage pool after a backpack could not
 /// take it (2026-09-25), merging into the stack it came from when that stack
-/// is still there. `origin` is the item as it was before it was taken; with
-/// none (it should not happen) it goes to "Home". Food goes back as old as it
-/// was (2026-10-04, first-hour audit S6). Returns the notice to show.
+/// is still there. `origin` is the item as it was before it was taken. With
+/// none, the item was never in storage (a trade's goods, say), so it goes to
+/// "Home" under `name`, its readable name, and the notice says it went there
+/// rather than that it "stayed" (2026-10-12: the notice used to show the item's
+/// id and claim it stayed in Home). Food goes back as old as it was
+/// (2026-10-04, first-hour audit S6). Returns the notice to show.
 pub fn return_to_storage(
     pool: &mut Vec<PlacedItem>,
     key: &str,
     qty: u32,
     origin: Option<&PlacedItem>,
+    name: &str,
 ) -> String {
     let (name, container, wear, quality, age_s) = match origin {
         Some(o) => (o.name.clone(), o.container.clone(), o.wear, o.quality, o.age_s),
-        None => (key.to_string(), "Home".to_string(), 0, 0, 0.0),
+        None => (name.to_string(), "Home".to_string(), 0, 0, 0.0),
     };
     // Merge only with an entry worn and graded the same, at the average age.
     if let Some(p) = pool
@@ -124,7 +128,11 @@ pub fn return_to_storage(
     } else {
         pool.push(PlacedItem { key: key.to_string(), name: name.clone(), qty, container: container.clone(), wear, quality, age_s });
     }
-    format!("Backpack full: {qty} x {name} stayed in {container}")
+    if origin.is_some() {
+        format!("Backpack full: {qty} x {name} stayed in {container}")
+    } else {
+        format!("Backpack full: {qty} x {name} went to home storage")
+    }
 }
 
 #[cfg(all(test, feature = "native"))]
@@ -213,14 +221,25 @@ mod return_to_storage_tests {
     fn overflow_goes_back_to_where_it_came_from() {
         let origin = item("rope_0", 10, "Home/Garage");
         let mut pool = vec![item("rope_0", 2, "Home/Garage"), item("rope_0", 1, "Home/Shed")];
-        let msg = return_to_storage(&mut pool, "rope_0", 4, Some(&origin));
+        let msg = return_to_storage(&mut pool, "rope_0", 4, Some(&origin), "Rope");
         assert_eq!(pool[0].qty, 6, "merged into the Garage stack");
         assert_eq!(pool[1].qty, 1, "the Shed stack is untouched");
         assert_eq!(msg, "Backpack full: 4 x Rope stayed in Home/Garage");
 
         let mut empty = Vec::new();
-        return_to_storage(&mut empty, "rope_0", 3, Some(&origin));
+        return_to_storage(&mut empty, "rope_0", 3, Some(&origin), "Rope");
         assert_eq!(empty.len(), 1);
         assert_eq!((empty[0].qty, empty[0].container.as_str()), (3, "Home/Garage"));
+    }
+
+    /// Goods that were never in storage (a trade's, say) go to home storage
+    /// under their readable name, and the notice says they went there: it used
+    /// to read "8 x wood_plank_0 stayed in Home" (2026-10-12).
+    #[test]
+    fn overflow_that_was_never_stored_goes_home_by_name() {
+        let mut pool = Vec::new();
+        let msg = return_to_storage(&mut pool, "wood_plank_0", 8, None, "Wood Plank");
+        assert_eq!(msg, "Backpack full: 8 x Wood Plank went to home storage");
+        assert_eq!((pool[0].name.as_str(), pool[0].container.as_str(), pool[0].qty), ("Wood Plank", "Home", 8));
     }
 }

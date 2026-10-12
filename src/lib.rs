@@ -6681,11 +6681,17 @@ mod native_app {
                     let origins = std::mem::take(&mut state.gui_state.inflight_take_origins);
                     for (key, qty) in returned {
                         let origin = origins.iter().find(|o| o.key == key).cloned();
+                        let name = state
+                            .data_store
+                            .get::<crate::systems::inventory::ItemRegistry>("item_registry")
+                            .and_then(|r| r.items.get(&key).map(|d| d.name.clone()))
+                            .unwrap_or_else(|| key.clone());
                         let msg = crate::gui::return_to_storage(
                             &mut state.gui_state.placed_items,
                             &key,
                             qty,
                             origin.as_ref(),
+                            &name,
                         );
                         state
                             .gui_state
