@@ -653,7 +653,7 @@ which was split into five files, and omitted nine that exist). As of 2026-10-12 
 `chat-voice-rooms.js` → `chat-voice-calls.js` → `chat-voice-webrtc.js` →
 `chat-voice-streaming.js` → `chat-live.js` → `chat-voice-modal.js` → `chat-profile.js` →
 `chat-privacy.js` → `chat-game-admin.js` → `chat-reports.js` → `chat-warnings.js` →
-`chat-file-transfer.js` → `chat-protected.js` → `chat-fleet.js` → `chat-onboarding.js` → `qrcode.js` → `chat-p2p.js`
+`chat-file-transfer.js` → `chat-protected.js` → `chat-fleet.js` → `chat-home.js` → `chat-onboarding.js` → `qrcode.js` → `chat-p2p.js`
 
 ## REST routes (a WORKING SUBSET, not all of them)
 
