@@ -3323,7 +3323,7 @@ pub async fn handle_game_join(
     // describes, so no later move can be sent ahead of it (increment 4 review, P4).
     drop(world);
 
-    tracing::info!("Game: player '{}' ({}) joined as entity {}", player_name, my_key, player_id);
+    tracing::info!("Game: player '{}' ({}) joined as entity {}", player_name, crate::relay::handlers::federation::key_in_log(my_key), player_id);
 }
 
 // ── Game admin: game-world bans (v0.474), SEPARATE from chat moderation ──
@@ -3638,7 +3638,7 @@ pub async fn handle_game_disconnect(
                 .insert(player_key.to_string(), std::time::Instant::now());
             tracing::info!(
                 "Game: player {} lost their link; holding their place for {}s",
-                player_key,
+                crate::relay::handlers::federation::key_in_log(player_key),
                 state.reconnect_grace.as_secs()
             );
             return;
@@ -3705,7 +3705,7 @@ pub async fn despawn_player_now(
             }
         }
 
-        tracing::info!("Game: player {} left (entity {})", player_key, entity_id);
+        tracing::info!("Game: player {} left (entity {})", crate::relay::handlers::federation::key_in_log(player_key), entity_id);
     }
 }
 

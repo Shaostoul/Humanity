@@ -3082,7 +3082,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                 // Checked and written in one step: an erase that landed after the
                                 // identify's check still wins (handlers/sign_ups.rs, BUG-135).
                                 match state.db.register_name_unless_erased(name, &public_key) {
-                                    Ok(true) => info!("Name '{name}' registered to {public_key}"),
+                                    Ok(true) => info!("Name '{name}' registered to {}", crate::relay::handlers::federation::key_in_log(&public_key)),
                                     Ok(false) => { crate::relay::handlers::sign_ups::tell_erased_and_close(&mut ws_tx, &state, &public_key).await; return; }
                                     Err(e) => tracing::error!("Failed to register name: {e}"),
                                 }
@@ -3165,7 +3165,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                     }
                 }
 
-                info!("Peer connected: {public_key} ({:?})", final_name);
+                info!("Peer connected: {} ({:?})", crate::relay::handlers::federation::key_in_log(&public_key), final_name);
 
                 // Unclaimed-server notice (v0.936): while no admin exists, tell
                 // each connecting (non-bot) user how the owner claims it. Tells

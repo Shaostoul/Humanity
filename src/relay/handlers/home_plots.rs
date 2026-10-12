@@ -239,7 +239,7 @@ pub async fn handle_game_release_plot(state: &Arc<RelayState>, my_key: &str, raw
                 ),
                 Ok(Some(_)) => match state.db.release_plot_by_id(&ship, &target) {
                     Ok(_) => {
-                        tracing::info!("Game: admin {} released plot {}", my_key, target);
+                        tracing::info!("Game: admin {} released plot {}", crate::relay::handlers::federation::key_in_log(my_key), target);
                         let note = came_down_note(take_down_plot(state, &mut world, &state.db, &target));
                         reply(format!("Released plot {target}. The next player to join without a plot gets it.{note}"), true)
                     }
@@ -258,7 +258,7 @@ pub async fn handle_game_release_plot(state: &Arc<RelayState>, my_key: &str, raw
         } else {
             match world.release_home(&state.db, &target) {
                 Ok(Some(plot)) => {
-                    tracing::info!("Game: admin {} released plot {} held by {}", my_key, plot, target);
+                    tracing::info!("Game: admin {} released plot {} held by {}", crate::relay::handlers::federation::key_in_log(my_key), plot, crate::relay::handlers::federation::key_in_log(&target));
                     let note = came_down_note(take_down_plot(state, &mut world, &state.db, &plot));
                     reply(format!("Released plot {plot}, held by {short}. The next player to join without a plot gets it.{note}"), true)
                 }

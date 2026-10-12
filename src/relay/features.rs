@@ -4292,9 +4292,10 @@ mod tests {
     /// bystander admin are sent nothing at all. Ann steps out and the admin gives p1 back: the same
     /// permit now answers `permit_not_from_holder`, with its words, which name nobody. The relay's
     /// log has the two lines the proof rig reads, and no line the checks wrote carries any of the
-    /// three keys, their first 16 characters, or their `did:hum`. (Two older lines in the same log
-    /// do name a key, a player leaving and an admin's release, in msg_handlers.rs and
-    /// home_plots.rs; they are not the permit check's, and are left to their own files.)
+    /// three keys, their first 16 characters, or their `did:hum`. (Older lines in the same log do
+    /// name a key, by its first 16 characters since 2026-10-12: a player joining, leaving or losing
+    /// their link, and an admin's release, in msg_handlers.rs and home_plots.rs. An admin needs to
+    /// know who; they are not the permit check's, which must name nobody.)
     ///
     /// Seen red 2026-10-12 with the holder check skipped in `permit_lets_in`: "after Ann gave p1
     /// back, Bo's permit still works" failed, the answer

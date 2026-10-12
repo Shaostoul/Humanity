@@ -627,11 +627,14 @@ pub fn verify_plot_permit(
     if !friend_cert_serial_ok(serial) {
         return Err(PlotPermitError::BadSerial);
     }
-    plot_permit_window(expiry, now, PLOT_PERMIT_CLOCK_SLACK_SECS)?;
+    // The signature first, then the end date: a permit not made out to this grantee (someone
+    // else's, shown by another person) is a bad signature whatever its date, so its end date
+    // tells the person showing it nothing (the review of lane 1C, 2026-10-12).
     let Ok(issuer_pk) = hex_decode_str(issuer_hex) else { return Err(PlotPermitError::BadSignature) };
     let Ok(sig) = B64.decode(sig_b64.trim()) else { return Err(PlotPermitError::BadSignature) };
     verify_dilithium(&issuer_pk, plot_permit_preimage(server, plot, grantee, serial, expiry).as_bytes(), &sig)
-        .map_err(|_| PlotPermitError::BadSignature)
+        .map_err(|_| PlotPermitError::BadSignature)?;
+    plot_permit_window(expiry, now, PLOT_PERMIT_CLOCK_SLACK_SECS)
 }
 
 // ── File passes (device-to-device big files, 2026-10-11) ───────────────────
@@ -1425,6 +1428,34 @@ mod tests {
             "never minted over it"
         );
         assert!(build_plot_permit(&issuer_master, &server, "p3", grantee, PERMIT_SERIAL, now + 90 * day, now).is_ok());
+    }
+
+    /// SOMEONE ELSE'S EXPIRED PERMIT IS JUST NOT VALID (the review of lane 1C, 2026-10-12): Bo
+    /// shows the permit Ada gave Cy, which has run out. Checked against Bo's own id it is a bad
+    /// signature, never "expired", so its date tells Bo nothing; Cy, its grantee, is told it ran out.
+    /// Seen red 2026-10-12 with the end date checked before the signature: "Bo showing Cy's
+    /// expired permit", left `Err(Expired)`, right `Err(BadSignature)`.
+    #[test]
+    fn someone_elses_expired_permit_is_a_bad_signature() {
+        let ada_master = [0x11u8; 32];
+        let ada_hex = hex::encode(DilithiumKeypair::from_seed(&derive_dilithium_seed(&ada_master)).public_key());
+        let did = |b: u8| crate::relay::core::did::did_for_pubkey(&DilithiumKeypair::from_seed(&derive_dilithium_seed(&[b; 32])).public_key());
+        let (bo, cy) = (did(0x22), did(0x44));
+        let server = server_did_of(0x55);
+        let minted = 1_760_000_000u64;
+        let expiry = minted + 7 * 86_400;
+        let sig = build_plot_permit(&ada_master, &server, "p1", &cy, PERMIT_SERIAL, expiry, minted).expect("minted for Cy");
+        let later = expiry + 86_400;
+        assert_eq!(
+            verify_plot_permit(&ada_hex, &server, "p1", &bo, PERMIT_SERIAL, expiry, &sig, later),
+            Err(PlotPermitError::BadSignature),
+            "Bo showing Cy's expired permit"
+        );
+        assert_eq!(
+            verify_plot_permit(&ada_hex, &server, "p1", &cy, PERMIT_SERIAL, expiry, &sig, later),
+            Err(PlotPermitError::Expired),
+            "Cy, its grantee, is told it ran out"
+        );
     }
 
     /// FILE PASS ROUND TRIP + A PINNED PREIMAGE (device-to-device big files,
