@@ -264,13 +264,11 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         });
 }
 
-/// Whether the home has the homestead's coupled loops: the live household file's when one is
-/// loaded (a Cabin's cabin.ron has none), else the loops read at startup.
+/// Whether the home has the homestead's coupled loops: the live household file's (a Cabin's
+/// cabin.ron has none). With no household file loaded nothing says otherwise, so the page draws
+/// as it always did (its "No homestead blueprint loaded" line included).
 pub(crate) fn home_has_loops(state: &GuiState) -> bool {
-    match state.home_machines.as_ref() {
-        Some(home) => !home.loops.is_empty(),
-        None => !state.homestead_loops.is_empty(),
-    }
+    state.home_machines.as_ref().is_none_or(|home| !home.loops.is_empty())
 }
 
 /// Live power readout from the running sim (SolarSystem + ElectricalSystem -> PowerStatus
