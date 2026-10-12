@@ -2170,9 +2170,29 @@ built in parallel, and brought to "rules settled by the first review" (rules 1, 
 Accept click) on 2026-10-12, then to the second review's rules 7, 8 and 9 the same day. The relay's
 side (the pass check on `dc_offer` and on a `dm_put`'s `file_pass`, the `file` it puts on a dial,
 file credentials, the forwarder) is stood in by the tests. The first build ran website to website
-through a real browser and a real forwarder; the 2026-10-12 changes have run only against the
-stand-ins, and the spec's "one desktop-to-web transfer between two real apps through a throwaway
-relay" is still to do.
+through a real browser and a real forwarder, and so did the second review's changes (2026-10-12,
+below); the spec's "one desktop-to-web transfer between two real apps through a throwaway relay" is
+still to do.
+
+**Real browser run, second review (2026-10-12).** Two origins in one browser (Ann on
+127.0.0.1:8098, Ben on localhost:8098, each its own storage and identity) through
+`scripts/preview-server.js --api` to a throwaway loopback relay built from main at edbbdba69 (its
+forwarder on a loopback port). What it showed:
+- On the fresh server, Ben's browser (whose setting predates BUG-200's fix, so it carried no
+  "chosen" mark) took the server's "friends"; choosing "anyone" in Safety reached the server
+  (`/api/members` said so) and was remembered under that server and Ben's key.
+- Ann's first offer was refused by Ben's "who can reach me" (Messages: friends, the safe default on
+  a fresh server), and her row said so in words ("Ben's settings do not let you reach them").
+  With Ben's Messages opened to anyone, the offer went through.
+- 20 MB through the call relay: Ben's dial reached Ann carrying `file` from the real relay (Ann's
+  page answers no file dial without it, rule 7), and the file ended Saved on Ben's side, Sent on
+  Ann's.
+- 120 MB with Ben's page RELOADED mid-transfer (about 18 s in): Ann's side never ended it as
+  "stopped" (sampled every second, it read sending throughout), Ben's reloaded page dialled again on
+  its own, and the file finished Saved and Sent (the receiver checks every piece and the whole file
+  before saving). So the first of rule 8's two assumptions below holds in Chromium: a page that
+  reloads is a drop, not a stop. The second (a channel's queued cancel goes before it closes) was
+  not exercised: nothing failed on the receiving side.
 
 **The second review's rules (7 to 9), in short (2026-10-12).**
 - Rule 7, `web/chat/chat-file-transfer.js` (`fileTransferSignal`, `ftAnswerDial`, `ftRtcConfig`).
@@ -2411,7 +2431,8 @@ never takes a button from under the pointer), and each button's hint says what i
   the stand-ins have shown here: a closing page's connection stops reading connected within the
   15-second wait (its ICE checks go unanswered; how fast a browser says "disconnected" was not
   measured), and a channel's queued cancel goes before the channel closes (the WebRTC spec's closing
-  procedure). Neither was checked in a real browser this round. A receiver
+  procedure). The first was checked in a real browser on 2026-10-12 (a reload mid-transfer resumed,
+above); the second was not. A receiver
   that ends its only transfer without a word AND closes its connection looks like a drop, so the
   sender waits; both apps now send the cancel note on every end, which covers it.
 - Groups come later (file-transfer-at-scale.md, layer 3).
