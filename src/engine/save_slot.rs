@@ -126,8 +126,11 @@ pub fn fresh_save(data_dir: &Path, starts: &Starts, start: &str, household: &str
     // The start's storage: Some, so a load replaces the pool of the home it lands on.
     let places = crate::save_load::start_places(data_dir, &start.id);
     save.placed_items = Some(crate::gui::flatten_placed_items(&places));
-    // A fresh body: a save with none gives the body a new character starts with.
+    // A fresh body: a save with none gives the body a new character starts with. And a new mining
+    // drone, full and unworn, with no standing order.
     save.body = None;
+    save.mining_drone = None;
+    save.mining_order = None;
     save.home = None;
     save.character_name = look.name.clone();
     save.appearance = look.appearance.clone();
