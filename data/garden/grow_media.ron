@@ -32,6 +32,12 @@
 // Towers ignore it: a tower cup is one plant. The plot counts are layout choices, not data
 // about the crops: a 2 x 1 m bed or tray is two 1 m2 plots, a 2.4 x 2.4 m field four
 // 1.44 m2 plots (square-metre plots, the way a garden plan is drawn).
+//
+// takes (2026-10-12, first-hour audit F11): what a seed from the backpack may be sown
+// into (its Plant button sows into the nearest free place within reach,
+// src/systems/farming/sowing.rs). Plants (the default when absent): every green plant.
+// Fungi: a mushroom's spawn and nothing green (the rack's shelves are in the dark of its
+// tent). NoSeeds: nothing (a fish tank).
 (
     media: [
         (
@@ -100,6 +106,7 @@
             // data/garden/humidity.ron (THE FRUITING TENT) has the sources and
             // the fresh air this much substrate needs.
             enclosure: Some((size: (1.3, 1.9, 0.7), substrate_kg: 22.7)),
+            takes: Fungi,
             // No humidity slider: the tent's humidifier holds the air at its
             // setpoint (farming::humidity), so a slider here would do nothing
             // (2026-09-26 review found it read by nothing).
@@ -112,6 +119,7 @@
             match_exact: Some("aquaponic_tank"),
             label: "Aquaponic tank - fish + plants",
             note: "Fish waste fertilizes the plants; the plants clean the water. Closes B12 + omega-3, the gaps no plant fills.",
+            takes: NoSeeds,
             controls: [
                 Crop(label: "Fish", hint: "e.g. tilapia"),
                 Slider(key: "nutrient", label: "Feed rate"),

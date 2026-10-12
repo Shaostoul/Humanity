@@ -381,14 +381,18 @@ pub struct CropInstance {
     pub water_level: f32,
     /// Current health (affected by disease, pests, weather).
     pub health: f32,
-    /// The aeroponic tower this crop was planted in (its config id), if any. Lets
-    /// the inventory group crops collapsibly by tower (v0.389). Seed-planted crops
-    /// are None; #[serde(default)] keeps pre-v0.389 saves loading.
+    /// The grow machine this crop stands in: a tower's design id ("nutrition")
+    /// or a machine's instance id ("ntower_3", "potato_grow_bed_1"). Lets the
+    /// inventory group crops by machine (v0.389), and the renderer, the water,
+    /// the light and the soil find it. Every way the game plants sets it, a
+    /// seed from the backpack too since 2026-10-12 (farming::sowing); None is
+    /// only a crop from a save before that, which nothing draws.
+    /// #[serde(default)] keeps pre-v0.389 saves loading.
     #[serde(default)]
     pub tower_id: Option<String>,
     /// Which SLOT of the tower this crop occupies (0-based), if planted in a tower.
     /// Lets "Plant this tower" FILL fixed slots (idempotent) instead of stacking new
-    /// crops on every replant (v0.410). Seed-planted crops are None.
+    /// crops on every replant (v0.410). A bed's plot or a rack's shelf the same way.
     #[serde(default)]
     pub tower_slot: Option<u32>,
     /// The crop's growing-season health record (2026-09-26): the sum of
