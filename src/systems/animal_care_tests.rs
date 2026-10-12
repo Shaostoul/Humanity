@@ -97,8 +97,8 @@ fn since(world: &hecs::World, e: hecs::Entity) -> f32 {
 /// beside a full barn); every day's amount is real; and the hours run in order, so an animal
 /// slows before it stops, stops before it sickens, sickens before it dies.
 ///
-/// Seen red with "hay_0" taken out of data/items.csv: "goat eats hay_0, which is not an item
-/// with a mass".
+/// Seen red with "hay_0" taken out of data/items.csv: "sheep eats hay_0, which is not an item
+/// with a mass" (the goat or the sheep, whichever the map yields first).
 #[test]
 fn the_shipped_care_data_holds_together() {
     let cd = shipped_care();
@@ -250,7 +250,9 @@ fn a_hen_without_feed_lays_less_then_nothing_then_dies_in_realistic() {
 /// again she comes back as fast as she fell off (`forgiving_recovery`), laying at full rate a
 /// day after her water and 4 days after her feed came back.
 ///
-/// Seen red with Forgiving's cap taken out ("never dead in Forgiving: Ok(\"died of thirst\")").
+/// Seen red with Forgiving's cap taken out: "held where laying stops", left (1008.0, 1008.0)
+/// hours short, right (96.0, 24.0). (Forgiving never kills whether or not the count is capped;
+/// the cap is what lets her come back.)
 #[test]
 fn in_forgiving_neglect_only_stops_production() {
     let data = store(&[], Mode::Forgiving);
@@ -296,31 +298,39 @@ fn water_comes_from_the_tanks_then_stored_tap_water() {
     assert_eq!((stock_of(&data, "hay_0"), stock_of(&data, "grain_oat_0")), (0, 5), "hay before grain");
 }
 
-/// THE YIELD TIMER KEEPS COUNTING FOR A YEAR. A sheep's wool takes 365 days. Counting a minute
-/// at a time in the component's f32 stops once the count is past about three days at 60 frames
-/// a second, and loses whole hours at a minute a tick; the care tick counts in f64 and writes
-/// the f32. A year of minute ticks, fed and watered: the fleece is ready to the minute. And a
-/// collect (the E bridge setting the timer to 0) starts the next one.
+/// THE YIELD TIMER KEEPS COUNTING, A FRAME AT A TIME, ALL YEAR. A sheep's wool takes 365 days.
+/// The game ticks once a frame, and in the component's f32 a frame's 1/60 s is lost outright
+/// once the count passes about 4 days (half the spacing between f32 values there is more than
+/// a frame), so a fleece counted that way would never be ready. The care tick counts in f64 and
+/// writes the f32. A year of minute ticks, fed and watered, brings her to the last hour; that
+/// hour at 60 frames a second makes the fleece ready; and a collect (the E bridge setting the
+/// timer to 0) starts the next one, counted by frames too.
 ///
-/// Seen red with the care tick adding the time in f32 (`h.time_since_harvest += dt * share`):
-/// "a year of wool ready: false, at 31535800".
+/// Seen red with the care tick adding each frame in f32 (`h.time_since_harvest + dt * share`):
+/// "the last hour at 60 frames a second: 31532400" (not a second of it counted).
 #[test]
-fn a_sheeps_year_of_wool_counts_to_the_minute() {
+fn a_sheeps_year_of_wool_counts_frame_by_frame() {
     let data = store(&[("hay_0", 40)], Mode::Realistic);
     let mut world = hecs::World::new();
     tank(&mut world, 8000.0);
     let sheep = herd_animal(&mut world, "sheep", "sheep#0");
     run(&mut world, &data, 365.0 * 24.0 - 1.0);
-    assert!(since(&world, sheep) < 31_536_000.0, "not quite a year");
-    run(&mut world, &data, 1.0);
+    assert_eq!(since(&world, sheep), 31_532_400.0, "a year less an hour, by minutes");
+    let mut sys = LivestockSystem::new();
+    let frames = |world: &mut hecs::World, n: u32, sys: &mut LivestockSystem| {
+        for _ in 0..n {
+            sys.tick(world, 1.0 / 60.0, &data);
+        }
+    };
+    frames(&mut world, 3600 * 60, &mut sys);
     let s = since(&world, sheep);
-    assert!(s >= 31_536_000.0, "a year of wool ready: {}, at {s}", s >= 31_536_000.0);
+    assert!(s >= 31_536_000.0, "the last hour at 60 frames a second: {s}");
     {
         let mut h = world.get::<&mut Harvestable>(sheep).unwrap();
         assert_eq!(crate::systems::livestock::collect(&mut h), Some(8), "8 x 0.4 kg of wool");
     }
-    run(&mut world, &data, 1.0);
-    assert!((since(&world, sheep) - 3600.0).abs() < 1.0, "the next fleece starts: {}", since(&world, sheep));
+    frames(&mut world, 600 * 60, &mut sys);
+    assert!((since(&world, sheep) - 600.0).abs() < 0.1, "the next fleece starts: {}", since(&world, sheep));
 }
 
 /// CARE AND THE DEAD SURVIVE A SAVE AND A RESTORE. The herd's care goes into the save by slot
@@ -330,7 +340,7 @@ fn a_sheeps_year_of_wool_counts_to_the_minute() {
 /// loses it at once.
 ///
 /// Seen red with `attach` ignoring the waiting save (every animal fresh): "the hungry goat comes
-/// back hungry: 0".
+/// back hungry: 0.016666666666666666" (one minute short, from scratch).
 #[test]
 fn care_and_the_dead_survive_a_save_and_a_restore() {
     let data = store(&[], Mode::Realistic);
@@ -375,7 +385,7 @@ fn care_and_the_dead_survive_a_save_and_a_restore() {
 /// short for the rest, held where laying stops (4 days short), not sick, not dead.
 ///
 /// Seen red with the away cap taken out (`care.hungry_h + short_h`): "held where laying stops:
-/// 613".
+/// 611".
 #[test]
 fn the_time_away_feeds_from_storage_and_never_sickens() {
     let data = store(&[("grain_corn_0", 1)], Mode::Realistic);
@@ -394,6 +404,9 @@ fn the_time_away_feeds_from_storage_and_never_sickens() {
 
 /// WHAT THE PLAYER READS. The walk-up lines for a fed hen and a hungry one, a forage plant
 /// (no care: the old prompt), and the Home page's rows, the dead included.
+///
+/// Seen red with `condition_words` always saying "Fed and watered": "Fed and watered (no feed
+/// in home storage). Eats about 110 g of Corn Grain ..." for the hungry hen.
 #[test]
 fn the_walk_up_lines_and_the_animals_card_say_it_plainly() {
     let data = store(&[("grain_corn_0", 5)], Mode::Realistic);
@@ -431,6 +444,9 @@ fn the_walk_up_lines_and_the_animals_card_say_it_plainly() {
 }
 
 /// The Settings hint's numbers are the chicken's own, read from the data.
+///
+/// Seen red with the hint reading the water's sick hours where it means its stop hours: "A
+/// chicken without water stops laying after 2 days, falls sick after 2 days ...".
 #[test]
 fn the_settings_hint_reads_the_data() {
     let hint = hint_text(&shipped_care());

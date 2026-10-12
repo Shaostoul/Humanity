@@ -1089,7 +1089,10 @@ mod tests {
     }
 
     /// Only the animals that were still regrowing and are ready now count
-    /// for the notice; one ready at the save is not news.
+    /// for the notice; one ready at the save is not news. And a hen that had
+    /// stopped laying for want of feed at the save lays nothing while away
+    /// (2026-10-12): seen red with `timers_after_away` ignoring the shares,
+    /// "the hungry hen did not lay" (left 1, right 0).
     #[test]
     fn the_notice_counts_the_animals_the_time_away_made_ready() {
         let reg = shipped_registry();
