@@ -59,10 +59,12 @@ done
 
 # Homepage FLAVORS (web/home/): served under /home/ so an operator can pick
 # one for the per-node override exactly as SELF-HOSTING.md documents:
-#   cp /var/www/humanity/home/technical.html /var/www/humanity-site/index.html
+#   ln -sfn /var/www/humanity/home/technical.html /var/www/humanity-site/index.html
+# A LINK, so the front page follows every update; a copy is frozen the day it
+# is made (public.guide served a months-old copy until 2026-10-12).
 # (v0.1144 fix: the flavors shipped in-repo since v0.1141 but this script
-# never placed them, so that documented cp had nothing to copy on a fresh
-# deploy.) Note /home is the Home PAGE route; nginx's $uri.html try_files
+# never placed them, so the documented command had nothing to point at on a
+# fresh deploy.) Note /home is the Home PAGE route; nginx's $uri.html try_files
 # resolves the file before the directory, so home.html keeps winning.
 if [ -d "$SRC/web/home" ]; then
   mkdir -p "$DST/home"

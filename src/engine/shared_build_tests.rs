@@ -252,6 +252,9 @@ fn the_gate_in_and_out_of_the_shared_world() {
             pose: &pose,
             site: r.planet.then_some(&site),
             ranks: r.ranks,
+            household: &crate::net::household::Household::default(),
+            held: &[],
+            now_s: 0,
         });
         if got != r.want {
             wrong.push(format!("{}: want {:?}, got {:?}", r.what, r.want, got));
@@ -261,8 +264,9 @@ fn the_gate_in_and_out_of_the_shared_world() {
 }
 
 /// THE TAKE-DOWN GATE MIRRORS THE RELAY'S `may_remove`. The home on p1: the holder takes down
-/// anything on their own plot, their own piece or a household member's; a visitor takes down
-/// nothing on someone else's plot, not even a piece of their own there (no permit until 5b); the
+/// anything on their own plot, their own piece or a household member's; a visitor with no working
+/// household permit takes down nothing on someone else's plot, not even a piece of their own there
+/// (with one: `take_down_gate_lets_a_permit_holder_take_down_only_their_own`); the
 /// Commons needs the ship-editing rank; the server's admins take down anything anywhere; a guest
 /// takes down nothing on the plot their home stood on; a frame the ship does not have is nobody's.
 /// And F's refusal reads as the take-down sentence of the contract.
@@ -283,7 +287,7 @@ fn take_down_gate_mirrors_may_remove() {
         ("the holder, their own piece on their plot", &p1, kept("plot:p1", true), none, Ok(())),
         ("the holder, a household member's piece on their plot", &p1, kept("plot:p1", false), none, Ok(())),
         ("a visitor, the holder's piece on p2", &p1, kept("plot:p2", false), none, Err(Why::NotYourPlot)),
-        ("a visitor, their own piece on p2 (no permit)", &p1, kept("plot:p2", true), none, Err(Why::NotYourPlot)),
+        ("a visitor, their own piece on p2 (no working permit)", &p1, kept("plot:p2", true), none, Err(Why::NotYourPlot)),
         ("the Commons without the rank", &p1, kept("zone:commons", true), none, Err(Why::ShipRank)),
         ("the Commons with the rank", &p1, kept("zone:commons", false), rank, Ok(())),
         ("an admin, someone else's plot", &p1, kept("plot:p2", false), admin, Ok(())),
@@ -293,7 +297,7 @@ fn take_down_gate_mirrors_may_remove() {
     ];
     let mut wrong = Vec::new();
     for (what, ship, k, ranks, want) in &rows {
-        let got = take_down_gate(k, Some(ship), *ranks);
+        let got = take_down_gate(k, Some(ship), *ranks, &BTreeSet::new());
         if got != *want {
             wrong.push(format!("{what}: want {want:?}, got {got:?}"));
         }
@@ -1021,10 +1025,10 @@ fn a_rank_given_mid_session_reaches_the_gate() {
     g.hear_json(check(serde_json::json!({}), serde_json::json!({ "can_edit_ship": true, "take_down_any": false })));
     let now = gate_now(&g);
     assert_eq!(now, Gate::Shared("zone:commons".into()), "the check's rank never reached the gate: left: {now:?}");
-    assert_eq!(take_down_gate(&in_commons, g.gui.ship_structure.as_ref(), g.sb.ranks), Ok(()), "and F there too");
+    assert_eq!(take_down_gate(&in_commons, g.gui.ship_structure.as_ref(), g.sb.ranks, &g.gui.household.usable), Ok(()), "and F there too");
     g.hear_json(check(serde_json::json!({}), serde_json::json!({ "can_edit_ship": false, "take_down_any": false })));
     assert_eq!(gate_now(&g), rank_words, "taken away: refused again");
-    assert_eq!(take_down_gate(&in_commons, g.gui.ship_structure.as_ref(), g.sb.ranks), Err(Why::ShipRank));
+    assert_eq!(take_down_gate(&in_commons, g.gui.ship_structure.as_ref(), g.sb.ranks, &g.gui.household.usable), Err(Why::ShipRank));
 }
 
 /// A LIST STILL ARRIVING AT THE CHECK'S SEQ IS LEFT TO ITS PARTS. A list the player asked for goes
@@ -1168,4 +1172,548 @@ fn what_waits_for_another_server_holds_nothing_up_here() {
     assert_eq!(sent.len(), 1, "F on this server's piece 7 was never sent: {sent:?}");
     assert_eq!(sent[0]["piece_id"], 7);
     assert_eq!(g.sb.counts(), (1, 2, 0), "the first server's build and take-down wait on, beside this one's take-down");
+}
+
+// ── Household permits, the game's glue (ship homes 5b, lane 2A, 2026-10-12) ─────────────────────
+
+use crate::engine::household::{self as household_glue, open_for, set_open, PlotPermit};
+use crate::net::household::{HeldPermit, Household, Judged, PermitKey, Verdict};
+use crate::systems::construction::shared::Permit;
+
+const DAY: u64 = 86_400;
+
+/// The computer's clock, Unix seconds: the household reads permits' end dates against it.
+fn unix_now() -> u64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs())
+}
+
+/// A permit `from` gave this game for `plot`, named `serial`, running out at `expiry` (Unix
+/// seconds). The game never checks a held permit's signature itself (it was checked when it
+/// arrived, engine/household.rs `ingest`, and the relay checks it again), so these carry a
+/// stand-in one.
+fn held(from: &str, plot: &str, serial: &str, expiry: u64) -> HeldPermit {
+    let permit = Permit {
+        issuer: from.into(),
+        server: "did:hum:ThisServer".into(),
+        plot: plot.into(),
+        grantee: "did:hum:ThisGame".into(),
+        serial: serial.into(),
+        expiry,
+        sig: "c2ln".into(),
+    };
+    HeldPermit { from: from.into(), permit, at: 1 }
+}
+
+/// A serial made of one byte, repeated.
+fn serial(n: u8) -> String {
+    format!("{n:02x}").repeat(16)
+}
+
+impl Game {
+    /// Give this game a DM store holding `permits` (never saved: nothing lands on disk).
+    fn holding(&mut self, permits: Vec<HeldPermit>) {
+        let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_nanos());
+        let mut store = crate::net::dm_store::DmStore::load(&[77; 32], "me", &format!("https://household-glue-{nanos}.example"));
+        for p in permits {
+            store.keep_permit(p);
+        }
+        self.gui.dm_store = Some(store);
+    }
+
+    fn held(&self) -> Vec<HeldPermit> {
+        self.gui.dm_store.as_ref().map(|s| s.permits_held().to_vec()).unwrap_or_default()
+    }
+
+    /// The plots open to this game now, standing at `at` (ship metres; None: not aboard), its
+    /// permits read against `now_s`: what `household::apply_open` sets on the ship each frame.
+    fn open_at(&mut self, at: Option<Vec3>, now_s: u64) -> crate::ship::ship_structure::OpenPlots {
+        let held = self.held();
+        let ship = self.gui.ship_structure.clone().expect("a ship");
+        open_for(&mut self.gui.household, &held, &ship, at, now_s)
+    }
+
+    /// The relay's answer to check `req_id`, written as the relay writes it.
+    fn status(&mut self, req_id: u64, plot: &str, ok: bool, why: Option<Why>, again: bool) -> bool {
+        let message = why.map(|w| shared::why_words(Action::Build, Reason::NotAllowed, Some(w))).unwrap_or_default();
+        self.hear(&FromRelay::PermitStatus { req_id: req_id as u32, plot: plot.into(), ok, why, again, message })
+    }
+
+    /// What this game asked the relay about its permits since the last look: (req_id, plot).
+    fn checks(&mut self) -> Vec<(u64, String)> {
+        self.sent()
+            .into_iter()
+            .filter(|m| m["type"] == "game_permit_check")
+            .map(|m| (m["req_id"].as_u64().unwrap(), m["permit"]["plot"].as_str().unwrap().to_string()))
+            .collect()
+    }
+
+    /// The verdict this session on the permit `from` gave for `plot`.
+    fn verdict(&self, from: &str, plot: &str) -> Option<Verdict> {
+        let h = self.held().into_iter().find(|h| h.from == from && h.permit.plot == plot)?;
+        self.gui.household.verdict(&h)
+    }
+}
+
+/// Where a player stands, ship metres at eye height, on the shipped ship: the Commons, p1's door
+/// corridor (it runs from p1 at x 55 to the Commons at x 65, along z 40) and inside p1.
+const COMMONS: Vec3 = Vec3::new(80.0, 1.7, 40.0);
+const P1_CORRIDOR: Vec3 = Vec3::new(60.0, 1.7, 40.0);
+const IN_P1: Vec3 = Vec3::new(40.0, 1.7, 40.0);
+
+/// EACH HELD PERMIT IS CHECKED AFTER A WELCOME, AND THE ANSWER OPENS ITS PLOT (plan 3.4 and 3.5).
+/// The home on p2. The game holds five permits: Ada's for p1, Cy's for p3, Dee's for p4 (ran out),
+/// Eve's for p99 (not a plot of this ship) and Fay's for p2 (this game's own plot). Nothing is
+/// asked before the welcome; the welcome names p2 as this session's plot, and then exactly p1 and
+/// p3 are asked about, one check at a time, a quarter second apart (the relay turns away a second
+/// within 200 ms), each carrying its whole permit. The relay says Ada's works and Cy's is not from
+/// the plot's holder: p1 is usable, and the ship takes it as open, its corridor doors now opening
+/// for this player (a ship rebuilt since, with nothing open, takes it again). Thirty seconds after
+/// their answers both are asked again (the plot may come back to Cy); while p1's check is out its
+/// door stays open. A check unanswered for 10 s is asked again; one the relay could not judge
+/// (`again`) is asked again 5 s later, and a permit that worked keeps working meanwhile.
+///
+/// Seen red 2026-10-12 with `on_status` ignoring the answer (returning before the verdict is set):
+/// "the relay's answer opens p1" failed, left `{}`, right `{"p1"}`. And (the 2026-10-12 review)
+/// with `again` turning a working permit to Later, as it first did: "an again keeps a working
+/// permit working" failed, left `Some(Later)`, right `Some(Works)`.
+#[test]
+fn each_held_permit_is_checked_after_a_welcome_and_the_answer_opens_its_plot() {
+    let mut g = Game::at("p2");
+    let now = unix_now();
+    let ada = held("ada", "p1", &serial(1), now + 30 * DAY);
+    g.holding(vec![
+        ada.clone(),
+        held("cy", "p3", &serial(2), now + 30 * DAY),
+        held("dee", "p4", &serial(3), now - DAY),
+        held("eve", "p99", &serial(4), now + DAY),
+        held("fay", "p2", &serial(5), now + DAY),
+    ]);
+    g.rejoining(1.0);
+    assert!(g.checks().is_empty(), "nothing is asked before the welcome");
+    g.welcome(serde_json::json!({ "type": "game_welcome", "player_id": 3, "home_plot": { "id": "p2" } }));
+    assert_eq!(g.gui.household.my_plot.as_deref(), Some("p2"), "the welcome names this session's plot");
+
+    g.frame(0.016);
+    let first = g.checks();
+    g.frame(0.1);
+    assert!(g.checks().is_empty(), "a second check waits a quarter second");
+    g.frame(0.2);
+    let second = g.checks();
+    for _ in 0..3 {
+        g.frame(0.3);
+    }
+    assert!(g.checks().is_empty(), "nothing else is asked");
+    let asked: Vec<&str> = first.iter().chain(&second).map(|(_, p)| p.as_str()).collect();
+    assert_eq!(asked, ["p1", "p3"], "the permits for neighbours' plots of this ship that have not run out");
+    // The check carries the whole permit, as the relay reads it.
+    g.frame(10.5); // both lapse unanswered; Ada's goes again
+    let sent = g.sent();
+    let again = sent.iter().find(|m| m["type"] == "game_permit_check").expect("asked again after 10 s unanswered");
+    assert_eq!(again["permit"], serde_json::to_value(&ada.permit).unwrap(), "with the whole permit");
+    let p1_req = again["req_id"].as_u64().unwrap();
+    g.frame(0.3);
+    let (p3_req, _) = g.checks().pop().expect("Cy's again too");
+
+    assert!(g.status(p1_req, "p1", true, None, false), "the answer is the household's");
+    assert!(g.status(p3_req, "p3", false, Some(Why::PermitNotFromHolder), false));
+    let open = g.open_at(Some(COMMONS), now);
+    assert_eq!(g.gui.household.usable, BTreeSet::from(["p1".to_string()]), "the relay's answer opens p1");
+    assert_eq!(open.plots, BTreeSet::from(["p1".to_string()]));
+    assert_eq!(g.verdict("ada", "p1"), Some(Verdict::Works));
+    assert_eq!(g.verdict("cy", "p3"), Some(Verdict::Refused(Why::PermitNotFromHolder)));
+    let ship = g.gui.ship_structure.as_mut().unwrap();
+    let shut_to_me = |s: &ShipStructure| crate::ship::door_panels::neighbour_panel_placements(s).iter().filter(|p| !p.others_only).count();
+    assert_eq!(shut_to_me(&*ship), 0, "every neighbour's door is shut to this player before");
+    assert!(set_open(ship, open.clone()), "the ship takes it");
+    assert!(shut_to_me(&*ship) > 0, "p1's corridor doors open for this player now");
+    assert!(!set_open(ship, open.clone()), "the same again changes nothing");
+    let mut rebuilt = self::ship("p2");
+    assert!(set_open(&mut rebuilt, open.clone()), "a ship rebuilt since opens it again");
+
+    g.frame(household_glue::RECHECK_S as f32 - 1.0);
+    assert!(g.checks().is_empty(), "nothing before RECHECK_S");
+    g.frame(2.0);
+    g.frame(0.3);
+    let rechecked = g.checks();
+    assert_eq!(rechecked.iter().map(|(_, p)| p.as_str()).collect::<Vec<_>>(), ["p1", "p3"], "both again after RECHECK_S");
+    assert!(g.open_at(Some(COMMONS), now).plots.contains("p1"), "p1 stays open while it is asked about");
+    g.status(rechecked[1].0, "p3", false, Some(Why::PermitNotFromHolder), false);
+    assert!(g.status(rechecked[0].0, "p1", false, None, true), "the relay could not judge it");
+    assert_eq!(g.verdict("ada", "p1"), Some(Verdict::Works), "an again keeps a working permit working");
+    assert!(g.open_at(Some(COMMONS), now).plots.contains("p1"), "and its door open");
+    g.frame(4.0);
+    assert!(g.checks().is_empty(), "asked again only after 5 s");
+    g.frame(1.5);
+    assert_eq!(g.checks().iter().map(|(_, p)| p.as_str()).collect::<Vec<_>>(), ["p1"], "then once more");
+    g.gui.dm_store.as_ref().unwrap().remove_file_for_test();
+}
+
+/// THE PERMIT STATUS REACHES THE HOUSEHOLD (plan 5, 2A: the router's side). engine/net_route.rs
+/// `route_game_message` hands every `game_*` message to this file before its own match (where an
+/// unknown type falls to `_ => {}`); `game_permit_status`, written by hand as the relay writes it
+/// and parsed as the router parses the payload after `__game__:`, is claimed and sets the verdict
+/// of the permit its check asked about. A status answering no check of this session is claimed and
+/// changes nothing.
+///
+/// Seen red 2026-10-12 with `is_ours` not listing `msg::PERMIT_STATUS`: "the router's hook never
+/// hands game_permit_status to the household" failed.
+#[test]
+fn the_permit_status_reaches_the_household() {
+    let src = include_str!("net_route.rs").replace("\r\n", "\n");
+    let start = src.find("pub(crate) fn route_game_message(").expect("the router");
+    let body = &src[start..start + src[start..].find("\n}\n").expect("its end")];
+    let hook = body.find("crate::engine::shared_build::on_game_message(state, &v)").expect("the router's hook");
+    assert!(hook < body.find("match v.get(\"type\")").expect("the router's own match"), "the hook comes before the router's own match");
+
+    let mut g = Game::at("p2");
+    g.holding(vec![held("ada", "p1", &serial(1), unix_now() + DAY)]);
+    g.welcome(serde_json::json!({ "type": "game_welcome", "player_id": 3, "home_plot": { "id": "p2" } }));
+    g.frame(0.016);
+    let (req, _) = g.checks().pop().expect("Ada's permit is asked about");
+    let wire = format!(r#"__game__:{{"type":"game_permit_status","req_id":{req},"plot":"p1","ok":true}}"#);
+    let v: serde_json::Value = serde_json::from_str(wire.strip_prefix("__game__:").unwrap()).unwrap();
+    assert!(on_message(&mut g.cx(), &v), "the router's hook never hands game_permit_status to the household");
+    assert_eq!(g.verdict("ada", "p1"), Some(Verdict::Works));
+    let stray = serde_json::json!({ "type": "game_permit_status", "req_id": 999, "plot": "p1", "ok": false, "why": "permit_withdrawn" });
+    assert!(on_message(&mut g.cx(), &stray), "claimed");
+    assert_eq!(g.verdict("ada", "p1"), Some(Verdict::Works), "an answer to no check of ours changes nothing");
+    g.gui.dm_store.as_ref().unwrap().remove_file_for_test();
+}
+
+/// THE GATE OPENS A PLOT YOU HOLD A WORKING PERMIT FOR (plan 3.8). The home on p1, in a shared
+/// world; permits held for p2 (the relay said works), p3 (being checked), p4 (the relay could not
+/// judge it yet), p5 (worked, then ran out by this game's clock), p6 (not from the plot's holder)
+/// and p7 (taken back); none for p8. A wall on p2 goes to the server in `plot:p2`, with the hint
+/// naming the permit; a foundation over p2's line is refused for the plot's edge; a chest on p2 is
+/// refused for its kind (only shell pieces are built outside your own home); p3 and p4 say the
+/// permit is being checked; p5, p6 and p7 say why it does not work; p8 is someone else's plot as
+/// before. A guest holding the same permits builds on p2 too; offline nothing changes.
+///
+/// Seen red 2026-10-12 with `usable` ignored in `household::plot_permit` (its first check
+/// removed): "a wall on p2: want Shared(\"plot:p2\"), got Refused(\"your household permit for this
+/// plot has run out; ask its holder for a new one\")", and the same for the foundation over p2's
+/// line and the guest's wall on p2.
+#[test]
+fn the_gate_opens_a_plot_you_hold_a_working_permit_for() {
+    let reg = registry();
+    let p1 = ship("p1");
+    let guest = p1.put_home_away().unwrap();
+    let now = 1_800_000_000;
+    let at_plot = |n: u32| (30.0, 99.0 * (n - 1) as f32 + 40.0);
+    let permits: Vec<HeldPermit> =
+        (2..=7).map(|n| held("ada", &format!("p{n}"), &serial(n as u8), if n == 5 { now - 60 } else { now + 30 * DAY })).collect();
+    let mut hh = Household { my_plot: Some("p1".into()), ..Default::default() };
+    let verdicts = [
+        ("p2", Verdict::Works),
+        ("p3", Verdict::Checking),
+        ("p4", Verdict::Later),
+        ("p5", Verdict::Works),
+        ("p6", Verdict::Refused(Why::PermitNotFromHolder)),
+        ("p7", Verdict::Refused(Why::PermitWithdrawn)),
+    ];
+    for (plot, v) in verdicts {
+        let h = permits.iter().find(|h| h.permit.plot == plot).unwrap();
+        hh.verdicts.insert(PermitKey::of(h), Judged { verdict: v, at: 0.0 });
+    }
+    hh.usable = hh.usable_plots(&permits, |p| p != "p1", now);
+    let why = |w: Why| Gate::Refused(shared::why_words(Action::Build, Reason::NotAllowed, Some(w)));
+    let checking = Gate::Refused(household_glue::CHECKING_WORDS.into());
+    let rows: Vec<(&str, bool, &ShipStructure, &str, (f32, f32), Gate)> = vec![
+        ("a wall on p2", true, &p1, "wood_wall", at_plot(2), Gate::Shared("plot:p2".into())),
+        ("a foundation over p2's line", true, &p1, "wood_foundation", (54.0, at_plot(2).1), Gate::Refused(PERMIT_PLOT_EDGE.into())),
+        ("a chest on p2", true, &p1, "storage_chest", at_plot(2), Gate::Refused(shared::only_shell_pieces_words(&reg))),
+        ("p3, being checked", true, &p1, "wood_wall", at_plot(3), checking.clone()),
+        ("p4, not judged yet", true, &p1, "wood_wall", at_plot(4), checking),
+        ("p5, ran out", true, &p1, "wood_wall", at_plot(5), why(Why::PermitExpired)),
+        ("p6, not from the holder", true, &p1, "wood_wall", at_plot(6), why(Why::PermitNotFromHolder)),
+        ("p7, taken back", true, &p1, "wood_wall", at_plot(7), why(Why::PermitWithdrawn)),
+        ("p8, no permit", true, &p1, "wood_wall", at_plot(8), why(Why::NotYourPlot)),
+        ("a guest, a wall on p2", true, &guest, "wood_wall", at_plot(2), Gate::Shared("plot:p2".into())),
+        ("offline, a wall on p2", false, &p1, "wood_wall", at_plot(2), Gate::Refused(build_place::off_plot_reason(false).into())),
+    ];
+    let world = hecs::World::new();
+    let mut wrong = Vec::new();
+    for (what, joined, ship, bp, at, want) in &rows {
+        let bp = reg.get(bp).unwrap();
+        let pose = placement::placement_pose(bp, Vec3::new(at.0, 0.0, at.1), 0, &world, &reg, None);
+        let got = gate(&GateInput {
+            joined: *joined,
+            ship_scope: false,
+            ship: Some(ship),
+            registry: Some(&reg),
+            bp: Some(bp),
+            pose: &pose,
+            site: None,
+            ranks: Ranks::default(),
+            household: &hh,
+            held: &permits,
+            now_s: now,
+        });
+        if got != *want {
+            wrong.push(format!("{what}: want {want:?}, got {got:?}"));
+        }
+    }
+    assert!(wrong.is_empty(), "{wrong:#?}");
+    assert_eq!(household_glue::plot_permit(&hh, &permits, "p8", now), PlotPermit::None);
+    assert_eq!(kept_words("plot:p2", &hh), KEPT_WITH_YOUR_PERMIT, "the hint names the permit");
+    assert_eq!(kept_words("plot:p1", &hh), shared::KEPT_BY_THE_SERVER);
+    assert_eq!(kept_words("zone:commons", &hh), shared::KEPT_BY_THE_SERVER);
+}
+
+/// THE TAKE-DOWN GATE LETS A PERMIT HOLDER TAKE DOWN ONLY THEIR OWN (plan 3.8, the relay's
+/// `may_remove` mirrored). The home on p1, a working permit for p2: this player's own piece on p2
+/// comes down; the piece Ada (p2's holder) put up there does not, as someone else's piece; on p3,
+/// with no permit, not even their own; their own plot as before. And F's refusal reads as the
+/// contract's take-down sentence.
+///
+/// Seen red 2026-10-12 with `kept.mine` ignored in `take_down_gate` (a permit plot's pieces all
+/// `Ok`): "Ada's piece on p2: want Err(NotYourPiece), got Ok(())".
+#[test]
+fn take_down_gate_lets_a_permit_holder_take_down_only_their_own() {
+    let p1 = ship("p1");
+    let usable = BTreeSet::from(["p2".to_string()]);
+    let kept = |frame: &str, mine: bool| SharedPiece { piece_id: 7, frame: frame.into(), mine };
+    let rows: Vec<(&str, SharedPiece, Result<(), Why>)> = vec![
+        ("my piece on p2", kept("plot:p2", true), Ok(())),
+        ("Ada's piece on p2", kept("plot:p2", false), Err(Why::NotYourPiece)),
+        ("my piece on p3, no permit", kept("plot:p3", true), Err(Why::NotYourPlot)),
+        ("a piece on my own plot", kept("plot:p1", false), Ok(())),
+    ];
+    let mut wrong = Vec::new();
+    for (what, k, want) in &rows {
+        let got = take_down_gate(k, Some(&p1), Ranks::default(), &usable);
+        if got != *want {
+            wrong.push(format!("{what}: want {want:?}, got {got:?}"));
+        }
+    }
+    assert!(wrong.is_empty(), "{wrong:#?}");
+    assert_eq!(
+        shared::refusal_message(Action::Unbuild, "Wood Wall", Reason::NotAllowed, Some(Why::NotYourPiece)),
+        "Wood Wall not taken down: it was put up by someone else, and only this plot's holder can take it down."
+    );
+}
+
+/// A game at home on p1 holding Ada's permit for p2, welcomed, the relay having said it works.
+fn with_a_working_permit_for_p2() -> (Game, HeldPermit) {
+    let mut g = Game::at("p1");
+    let ada = held("ada", "p2", &serial(9), unix_now() + 30 * DAY);
+    g.holding(vec![ada.clone()]);
+    g.welcome(serde_json::json!({ "type": "game_welcome", "player_id": 3, "home_plot": { "id": "p1" } }));
+    g.frame(0.016);
+    let (req, _) = g.checks().pop().expect("the permit is asked about");
+    g.status(req, "p2", true, None, false);
+    g.open_at(None, unix_now());
+    assert!(g.gui.household.usable.contains("p2"), "p2 is usable");
+    (g, ada)
+}
+
+/// A BUILD ON A PERMITTED PLOT ATTACHES ITS PERMIT (plan 3.8). With a working permit for p2, a
+/// wall paid for on p2 goes to the relay with Ada's whole permit; one on the player's own p1 goes
+/// with none. When the relay refuses the p2 build as `permit_withdrawn`, the planks come back as
+/// for any refusal, and the permit is refused from then on (plan 3.4 item 3): p2 is no longer
+/// usable.
+///
+/// Seen red 2026-10-12 with `send_next` sending `permit: None` again: "the build on p2 carries
+/// Ada's permit" failed, left `Null`.
+#[test]
+fn a_build_on_a_permitted_plot_attaches_its_permit() {
+    let (mut g, ada) = with_a_working_permit_for_p2();
+    g.hear(&list("plot:p2", 0, Vec::new()));
+    g.paid("plot:p2", "wood_wall", 30.0, 140.0, planks(6));
+    g.paid("plot:p1", "wood_wall", 30.0, 20.0, planks(6));
+    g.frame(0.3);
+    g.frame(0.3);
+    let builds: Vec<serde_json::Value> = g.sent().into_iter().filter(|m| m["type"] == "game_build").collect();
+    assert_eq!(builds.len(), 2);
+    let on = |frame: &str| builds.iter().find(|m| m["frame"] == frame).unwrap_or_else(|| panic!("a build in {frame}")).clone();
+    assert_eq!(on("plot:p2")["permit"], serde_json::to_value(&ada.permit).unwrap(), "the build on p2 carries Ada's permit");
+    assert!(on("plot:p1").get("permit").is_none(), "one on my own plot carries none");
+
+    let req = on("plot:p2")["req_id"].as_u64().map(|r| r as u32);
+    g.hear(&refused(req, Action::Build, Reason::NotAllowed, Some(Why::PermitWithdrawn)));
+    assert_eq!(g.ops(), vec![plank_op(6)], "its planks back");
+    assert_eq!(g.verdict("ada", "p2"), Some(Verdict::Refused(Why::PermitWithdrawn)), "the permit is refused from now on");
+    g.open_at(None, unix_now());
+    assert!(!g.gui.household.usable.contains("p2"), "p2 is not usable now");
+    g.gui.dm_store.as_ref().unwrap().remove_file_for_test();
+}
+
+/// A TAKE-DOWN OF MY PIECE THERE ATTACHES IT TOO (plan 3.8). With a working permit for p2, whose
+/// list holds this player's wall 7 and Ada's wall 8: F on wall 7 is asked of the relay with Ada's
+/// whole permit; F on wall 8 is refused at the crosshair as someone else's piece, and nothing goes.
+///
+/// Seen red 2026-10-12 with `send_next` sending a take-down with `permit: None` again: "the
+/// take-down of my wall on p2 carries Ada's permit" failed, left `Null`.
+#[test]
+fn a_take_down_of_my_piece_there_attaches_it_too() {
+    let (mut g, ada) = with_a_working_permit_for_p2();
+    let old = T - 100.0;
+    g.hear(&list("plot:p2", 3, vec![piece(7, "wood_wall", [20.0, 0.0, 30.0], old, true), piece(8, "wood_wall", [26.0, 0.0, 30.0], old, false)]));
+    let reg = registry();
+    let take_down = |g: &mut Game, id: u64| {
+        let e = g.entity(id);
+        let (name, back) = build_place::kept_piece_back(&g.world, Some(&reg), e);
+        build_place::take_down_entity_on(&mut g.sb, &mut g.world, &g.data, &g.gui, e, &name, &back)
+    };
+    assert_eq!(take_down(&mut g, 7), None, "my wall: asked of the relay");
+    assert_eq!(
+        take_down(&mut g, 8).as_deref(),
+        Some("Wood Wall not taken down: it was put up by someone else, and only this plot's holder can take it down."),
+        "Ada's wall: refused at the crosshair"
+    );
+    g.frame(0.3);
+    g.frame(0.3);
+    let unbuilds: Vec<serde_json::Value> = g.sent().into_iter().filter(|m| m["type"] == "game_unbuild").collect();
+    assert_eq!(unbuilds.len(), 1, "only mine goes: {unbuilds:?}");
+    assert_eq!(unbuilds[0]["piece_id"], 7);
+    assert_eq!(unbuilds[0]["permit"], serde_json::to_value(&ada.permit).unwrap(), "the take-down of my wall on p2 carries Ada's permit");
+    g.gui.dm_store.as_ref().unwrap().remove_file_for_test();
+}
+
+/// A PLOT STAYS WALKABLE UNTIL YOU STEP OFF IT (plan 3.6 and 3.7). The home on p2, a working permit
+/// for p1. From the Commons, p1 is open (walkable) and not lit; in p1's corridor and inside p1 it is
+/// lit too. The permit runs out while the player stands inside p1: it is no longer usable, yet p1
+/// stays walkable and lit, inside and back in its corridor, so nobody is walled in. Once they step
+/// into the Commons it closes, and walking back to its corridor does not open it again. Away from
+/// the ship (not aboard) only usable plots are open. Another plot never opens because of where the
+/// player stands, and this game's own plot is never "open".
+///
+/// Seen red 2026-10-12 with `walkable = usable` in `open_for` (where the player stands ignored):
+/// "inside p1 as it runs out: still walkable" failed, left `{}`, right `{"p1"}`.
+#[test]
+fn a_plot_stays_walkable_until_you_step_off_it() {
+    let mut g = Game::at("p2");
+    let now = 1_800_000_000;
+    g.holding(vec![held("ada", "p1", &serial(1), now + DAY)]);
+    g.gui.household.my_plot = Some("p2".into());
+    let h = g.held()[0].clone();
+    g.gui.household.verdicts.insert(PermitKey::of(&h), Judged { verdict: Verdict::Works, at: 0.0 });
+    let p1 = || BTreeSet::from(["p1".to_string()]);
+    let lit = |g: &Game| g.gui.household.lit.clone();
+
+    assert_eq!(g.open_at(Some(COMMONS), now).plots, p1(), "from the Commons, p1 is open");
+    assert_eq!(lit(&g), None, "and not lit");
+    assert_eq!(g.open_at(Some(P1_CORRIDOR), now).lit.as_deref(), Some("p1"), "lit from its corridor");
+    assert_eq!(g.open_at(Some(IN_P1), now).lit.as_deref(), Some("p1"), "and inside");
+
+    let ran_out = now + DAY + 1;
+    let open = g.open_at(Some(IN_P1), ran_out);
+    assert!(g.gui.household.usable.is_empty(), "run out: no longer usable");
+    assert_eq!(open.plots, p1(), "inside p1 as it runs out: still walkable");
+    assert_eq!(open.lit.as_deref(), Some("p1"), "and still lit");
+    assert_eq!(g.open_at(Some(P1_CORRIDOR), ran_out).plots, p1(), "back in its corridor: still walkable");
+    let off = g.open_at(Some(COMMONS), ran_out);
+    assert!(off.plots.is_empty() && off.lit.is_none(), "stepped into the Commons: closed, {off:?}");
+    assert!(g.open_at(Some(P1_CORRIDOR), ran_out).plots.is_empty(), "walking back does not open it again");
+
+    let away = g.open_at(None, now);
+    assert_eq!((away.plots, away.lit), (p1(), None), "not aboard: the usable plots only");
+    let p3_yard = Vec3::new(30.0, 1.7, 240.0);
+    assert_eq!(g.open_at(Some(p3_yard), now).plots, p1(), "standing on p3 opens nothing more");
+    let own = Vec3::new(30.0, 1.7, 140.0);
+    let at_home = g.open_at(Some(own), now);
+    assert!(!at_home.plots.contains("p2") && at_home.lit.is_none(), "my own plot is never open: {at_home:?}");
+    g.gui.dm_store.as_ref().unwrap().remove_file_for_test();
+}
+
+/// LEAVING THE SHARED WORLD CLOSES EVERY PLOT BUT THE ONE YOU STAND IN (plan 3.7, 2A's notes). The
+/// home on p2, working permits for p1 and p3, a permit to a friend on its way and the card's last
+/// line. The player stands inside p1, both plots open. The session ends (the game steps out):
+/// this session's plot and what the relay said go, so neither is usable, but p1, where the player
+/// stands, stays walkable and lit until they step off it; p3 closes at once. What was on its way to
+/// a friend and the card's line are kept. A late answer to a check of the ended session changes
+/// nothing, and the next welcome asks about both again.
+///
+/// Seen red 2026-10-12 with `session_ended` also clearing `walkable`: "the plot I stand in stays
+/// open" failed, left `{}`, right `{"p1"}`.
+#[test]
+fn leaving_the_shared_world_closes_every_plot_but_the_one_you_stand_in() {
+    let mut g = Game::at("p2");
+    let now = unix_now();
+    g.holding(vec![held("ada", "p1", &serial(1), now + DAY), held("cy", "p3", &serial(2), now + DAY)]);
+    g.welcome(serde_json::json!({ "type": "game_welcome", "player_id": 3, "home_plot": { "id": "p2" } }));
+    g.frame(0.016);
+    g.frame(0.3);
+    let asked = g.checks();
+    assert_eq!(asked.len(), 2);
+    for (req, plot) in &asked {
+        g.status(*req, plot, true, None, false);
+    }
+    g.gui.household.on_their_way.push(crate::net::household::PermitPut {
+        reference: "r1".into(),
+        peer: "bo".into(),
+        plot: "p2".into(),
+        serial: serial(7),
+        expiry: now + DAY,
+        days: 1,
+        self_copy: serde_json::Value::Null,
+        at: std::time::Instant::now(),
+    });
+    g.gui.household.line = "Sending Bo a permit...".into();
+    assert_eq!(g.open_at(Some(IN_P1), now).plots, BTreeSet::from(["p1".to_string(), "p3".to_string()]));
+
+    g.frame(0.3);
+    g.sent();
+    g.out(0.016);
+    assert_eq!(g.gui.household.my_plot, None, "no plot of this server is mine now");
+    assert!(g.gui.household.verdicts.is_empty() && g.gui.household.asked.is_empty(), "nothing the relay said counts");
+    assert_eq!((g.gui.household.on_their_way.len(), g.gui.household.line.as_str()), (1, "Sending Bo a permit..."), "the sends are kept");
+    let open = g.open_at(Some(IN_P1), now);
+    assert!(g.gui.household.usable.is_empty(), "nothing is usable");
+    assert_eq!(open.plots, BTreeSet::from(["p1".to_string()]), "the plot I stand in stays open");
+    assert_eq!(open.lit.as_deref(), Some("p1"));
+    assert!(g.open_at(Some(COMMONS), now).plots.is_empty(), "and closes once I step off it");
+    g.status(asked[0].0, "p1", true, None, false);
+    assert!(g.gui.household.verdicts.is_empty(), "a late answer to a check of the ended session changes nothing");
+
+    g.rejoining(0.016);
+    g.welcome(serde_json::json!({ "type": "game_welcome", "player_id": 4, "home_plot": { "id": "p2" } }));
+    g.frame(0.016);
+    g.frame(0.3);
+    assert_eq!(g.checks().len(), 2, "the next welcome asks about both again");
+    g.gui.dm_store.as_ref().unwrap().remove_file_for_test();
+}
+
+/// A WITHDRAWN PERMIT CLOSES ITS PLOT ONCE YOU STEP OFF IT (amendment A1, plan 3.7). The home on
+/// p2; Ada's permit for p1 works and the player walks into p1. Ada takes it back: at the next check
+/// the relay answers `permit_withdrawn`. The notice says so in plain words; p1 is no longer usable,
+/// and E there says why; p1 stays walkable while the player stands in it, and closes once they step
+/// into the Commons. A permit taken back is never asked about again.
+///
+/// Seen red 2026-10-12 with `on_status` returning before the verdict is set when the relay refuses
+/// a permit that worked (`if !ok && <its verdict is Works> { return true; }`): "p1 leaves usable"
+/// failed, left `{"p1"}`, right `{}`.
+#[test]
+fn a_withdrawn_permit_closes_its_plot_once_you_step_off_it() {
+    let mut g = Game::at("p2");
+    g.gui.chat_users.push(crate::gui::ChatUser { name: "Ada".into(), public_key: "ada".into(), role: String::new(), status: String::new() });
+    let now = unix_now();
+    g.holding(vec![held("ada", "p1", &serial(1), now + 30 * DAY)]);
+    g.welcome(serde_json::json!({ "type": "game_welcome", "player_id": 3, "home_plot": { "id": "p2" } }));
+    g.frame(0.016);
+    let (req, _) = g.checks().pop().unwrap();
+    g.status(req, "p1", true, None, false);
+    assert!(g.open_at(Some(IN_P1), now).plots.contains("p1"), "in p1, open");
+
+    g.frame(household_glue::RECHECK_S as f32 + 1.0);
+    let (req, plot) = g.checks().pop().expect("asked again after five minutes");
+    assert_eq!(plot, "p1");
+    assert!(g.status(req, "p1", false, Some(Why::PermitWithdrawn), false));
+    let open = g.open_at(Some(IN_P1), now);
+    assert_eq!(g.gui.household.usable, BTreeSet::new(), "p1 leaves usable");
+    assert_eq!(open.plots, BTreeSet::from(["p1".to_string()]), "walkable while I stand in it");
+    assert_eq!(
+        g.gui.pending_notices.last().map(String::as_str),
+        Some("Your household permit for plot p1 no longer works: Ada took it back.")
+    );
+    let reg = registry();
+    let bp = reg.get("wood_wall").unwrap();
+    let pose = placement::placement_pose(bp, Vec3::new(30.0, 0.0, 40.0), 0, &hecs::World::new(), &reg, None);
+    let gate_now = gate_here(&g.gui, Some(&reg), g.sb.ranks, Some(bp), &pose, None);
+    assert_eq!(gate_now, Gate::Refused(shared::why_words(Action::Build, Reason::NotAllowed, Some(Why::PermitWithdrawn))), "E there says why");
+    assert!(g.open_at(Some(COMMONS), now).plots.is_empty(), "closed once I step off it");
+    g.frame(household_glue::RECHECK_S as f32 * 2.0);
+    g.frame(1.0);
+    assert!(g.checks().is_empty(), "a permit taken back is never asked about again");
+    g.gui.dm_store.as_ref().unwrap().remove_file_for_test();
 }

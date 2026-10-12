@@ -287,7 +287,7 @@ pub struct LauncherHome {
     pub world: String,
     /// The character living in that save (`WorldSave.character_name`).
     pub character: String,
-    /// Home design id (fibonacci, etc.) for the inline summary.
+    /// The save's start (data/homes/starts.ron: "homestead", "cabin") for the inline summary.
     pub design: String,
     /// Save timestamp (unix seconds), shown as "last played".
     pub timestamp: u64,
@@ -504,6 +504,10 @@ pub struct GuiState {
     pub copresence_names: Vec<String>,
     pub copresence_refused_note: Option<String>,
     pub home_plots: std::collections::BTreeMap<String, crate::config::RememberedPlot>,
+    /// Ship homes increment 6 (engine/save_slot.rs): which save is live (your own home, or one server's), and
+    /// the connected server's last `game_home` answer (where you live there, and what is free).
+    pub save_slot: crate::persistence::SaveSlot,
+    pub home_answer: Option<crate::ship::starts::HomeAnswer>,
     /// Dev spawn tool (v0.777, Platform > Dev): when Some(def_id), lib.rs spawns
     /// that creature/NPC in front of the player next frame and clears it. The
     /// generic "spawn any creature/NPC" the operator asked for; species come
@@ -891,6 +895,8 @@ pub struct GuiState {
     /// True when the pinned machine is a trading post (v0.747, ladder rung 3):
     /// the card shows a Trade button that opens the vendor modal.
     pub machine_card_vendor: bool,
+    /// True when the pinned machine is a mess hall's serving counter (increment 6): the card offers a meal.
+    pub machine_card_meal: bool,
     /// Vendor modal open (v0.747). Opened from the trading post's card.
     pub vendor_open: bool,
     /// The vendor's catalog: goods that exist in BOTH trade_goods.ron and
@@ -3202,6 +3208,8 @@ impl Default for GuiState {
             copresence_names: Vec::new(),
             copresence_refused_note: None,
             home_plots: Default::default(),
+            save_slot: Default::default(),
+            home_answer: None,
             pending_dev_spawn: None,
             pending_dev_despawn_creatures: false,
             dev_spawn_filter: String::new(),
@@ -3353,6 +3361,7 @@ impl Default for GuiState {
             machine_card_fluid_actions: Vec::new(),
             machine_card_fluid_pending: None,
             machine_card_vendor: false,
+            machine_card_meal: false,
             vendor_open: false,
             vendor_goods: Vec::new(),
             vendor_status: String::new(),

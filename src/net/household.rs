@@ -344,6 +344,9 @@ pub struct PermitPut {
 pub struct Household {
     /// The plot this session's welcome gave me; None before one, or as a guest.
     pub my_plot: Option<String>,
+    /// This session's welcome has arrived, with a plot or without one (2026-10-12): until it
+    /// does, the Household card says it is joining rather than that the player is a guest.
+    pub welcomed: bool,
     /// What the relay said of each held permit this session.
     pub verdicts: BTreeMap<PermitKey, Judged>,
     /// Plots I may build on now: [`Household::usable_plots`].

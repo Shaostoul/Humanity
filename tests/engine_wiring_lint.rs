@@ -77,7 +77,9 @@ const DEFERRED_SYSTEMS: &[(&str, &str)] = &[
     // ManufacturingSystem is REGISTERED in src/lib.rs as of 2026-07-01 (afternoon audit:
     // fully-coded ProductionFacility->timed recipe->output_count loop, just never turned
     // on). Safe no-op until something spawns a ProductionFacility entity.
-    ("MedicalSystem", "scaffold; needs health/injury entities"),
+    // MedicalSystem entry removed 2026-10-12 (first-hour audit S8): medical.rs and its
+    // never-read data/medical.ron were deleted. Wounds and healing are systems::wounds,
+    // applied by the registered FoodSystem, which owns the body.
     ("TransportationSystem", "scaffold; needs a transit network"),
     // HvacSystem was DELETED (2026-10-05): never registered, superseded by the farming air
     // step's heat model (src/systems/farming/heat.rs, BUG-155).

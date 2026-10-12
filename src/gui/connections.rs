@@ -271,6 +271,20 @@ impl GuiState {
         // So is the fleet ledger (2026-10-04, finding 16): the old server's ledger, stores and
         // totals go; gives held for it stay held, tagged with it, and are never sent here.
         self.fleet.forget_server();
+        // And the household's session (ship homes 5b): the plot that server gave, what it said of
+        // each permit held, the checks asked, the card's last line. Kept: permits on their way to
+        // a friend (DM sends, each answered on its own), and the plot the player may still walk
+        // out of (`walkable`, `lit`), which engine/household.rs `apply_open` lets go as they step
+        // off it, so a switch never walls anyone in.
+        let household = std::mem::take(&mut self.household);
+        self.household = crate::net::household::Household {
+            on_their_way: household.on_their_way,
+            walkable: household.walkable,
+            lit: household.lit,
+            // Check numbers go on counting, so no answer can be taken for a later check's.
+            last_req: household.last_req,
+            ..Default::default()
+        };
         // Sealed-sender DMs: the local history store and fetch high-water
         // are per (identity, server) — drop them so the next server loads
         // its own store from disk and re-fetches its own mailbox.
@@ -799,6 +813,68 @@ mod park_unpark_tests {
         state.park_active_connection();
         assert!(!state.chat_banned_requested, "admin refetch latch reset for the next server");
         assert!(!state.unpark_connection("https://never-visited.example"));
+    }
+
+    /// A SERVER SWITCH FORGETS THE HOUSEHOLD'S SESSION (ship homes 5b, lane 2A). On server A this
+    /// game holds plot p2, the relay said Ada's permit for p1 works, a check is out, p1 is open and
+    /// lit with the player inside it, a permit to Bo is on its way, and the card says so. Switching
+    /// away forgets A's session: its plot, what it said of each permit, the checks asked, the card's
+    /// line, and asks afresh on the next welcome. Kept: the permit on its way (a DM send, answered on
+    /// its own), the plot the player stands in, still walkable and lit until they step off it (so a
+    /// switch never walls anyone in), and the count of checks (no answer is taken for a later one's).
+    /// Coming back to A forgets the same again.
+    ///
+    /// Seen red 2026-10-12 with the household's lines left out of `reset_per_server_transients`:
+    /// "this server's plot is forgotten" failed, left `Some("p2")`, right `None`.
+    #[test]
+    fn a_server_switch_forgets_the_households_session() {
+        use crate::net::household::{Household, Judged, PermitKey, PermitPut, Verdict};
+        let p1 = || ["p1".to_string()].into_iter().collect::<std::collections::BTreeSet<String>>();
+        let session = || {
+            let key = PermitKey { from: "ada".into(), plot: "p1".into(), serial: "01".repeat(16) };
+            Household {
+                my_plot: Some("p2".into()),
+                welcomed: true,
+                verdicts: [(key.clone(), Judged { verdict: Verdict::Works, at: 3.0 })].into_iter().collect(),
+                usable: p1(),
+                walkable: p1(),
+                lit: Some("p1".into()),
+                asked: [(7, (key, 2.0))].into_iter().collect(),
+                last_req: 7,
+                next_check_at: 300.0,
+                on_their_way: vec![PermitPut {
+                    reference: "r1".into(),
+                    peer: "bo".into(),
+                    plot: "p2".into(),
+                    serial: "02".repeat(16),
+                    expiry: 1,
+                    days: 30,
+                    self_copy: serde_json::Value::Null,
+                    at: std::time::Instant::now(),
+                }],
+                line: "Sending Bo a permit for your plot p2...".into(),
+            }
+        };
+        let forgotten = |h: &Household| {
+            assert_eq!(h.my_plot, None, "this server's plot is forgotten");
+            assert!(!h.welcomed, "the next server's welcome is waited for");
+            assert!(h.verdicts.is_empty() && h.usable.is_empty() && h.asked.is_empty(), "and what it said of each permit");
+            assert_eq!(h.next_check_at, 0.0, "the next welcome asks afresh");
+            assert!(h.line.is_empty(), "the card's line was about that server");
+            assert_eq!(h.on_their_way.len(), 1, "a permit on its way to a friend is kept");
+            assert_eq!((h.walkable.clone(), h.lit.clone()), (p1(), Some("p1".to_string())), "the plot I stand in stays open until I step off it");
+            assert_eq!(h.last_req, 7, "check numbers go on counting");
+        };
+        let mut state = connected_state("https://a.example/");
+        state.household = session();
+        state.park_active_connection();
+        forgotten(&state.household);
+
+        state.server_url = "https://b.example".to_string();
+        state.connected_server_url = "https://b.example".to_string();
+        state.household = session();
+        assert!(state.unpark_connection("https://a.example"));
+        forgotten(&state.household);
     }
 }
 

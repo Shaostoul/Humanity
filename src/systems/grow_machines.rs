@@ -107,8 +107,28 @@ pub struct GrowMedium {
     /// machine stands in. None = the machine grows in the room's air.
     #[serde(default)]
     pub enclosure: Option<Enclosure>,
+    /// What a seed from the backpack may be sown into a machine of this
+    /// medium (2026-10-12, first-hour audit F11, farming::sowing): green
+    /// plants (the default), a mushroom's spawn, or nothing at all.
+    #[serde(default)]
+    pub takes: Takes,
     #[serde(default)]
     pub controls: Vec<GrowControl>,
+}
+
+/// What a grow medium takes from the backpack (`GrowMedium::takes`). A
+/// seed's own kind comes from plants.csv: a species that `needs_light` is a
+/// green plant, one that does not is a fungus (farming::sowing::seed_takes).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
+pub enum Takes {
+    /// Seeds, seed potatoes, sets: every green plant in plants.csv.
+    #[default]
+    Plants,
+    /// A mushroom's spawn, and nothing green: a rack's shelves stand in the
+    /// dark of its fruiting tent.
+    Fungi,
+    /// No seed at all: an aquaponic tank grows fish.
+    NoSeeds,
 }
 
 /// A grow machine's enclosure (`GrowMedium::enclosure`): a fruiting tent

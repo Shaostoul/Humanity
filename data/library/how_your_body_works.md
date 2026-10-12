@@ -665,7 +665,7 @@ timescales, and leaves out nearly everything that can go wrong inside one.
   Hydration, 1.5 litres a day on top of the usual 2.5, and slows you a
   little, and then it passes on its own: after two days of game time in
   the Realistic Illness mode, and after one day, taking half the water,
-  in Forgiving, the default (Settings > Gameplay > Illness). It does no
+  in Forgiving, the default (Settings > Gameplay > Illness and injury). It does no
   harm of its own, so drinking keeps you safe: while you are ill, oral
   rehydration solution puts back all of a drink's water, plain water
   three quarters and sugary or caffeinated drinks half. You start with
@@ -678,10 +678,26 @@ timescales, and leaves out nearly everything that can go wrong inside one.
   Sick](/library#when-food-or-water-makes-you-sick) has the detail;
   `data/medical/illnesses.ron`, `src/systems/illness.rs`,
   `src/systems/food.rs`).
+- **Wounds, and healing by itself.** A creature's bite takes health and
+  leaves Bleeding, which stops on its own in about ten minutes, and a Bite
+  Wound that heals over days; a wound nobody cleans and covers can go bad
+  and become an Infected Wound, which takes health slowly until
+  Antibiotics end it. A fire leaves a burn by how long you stood in it,
+  though nothing in the game burns anyone yet. Your body heals by itself
+  when it is fed, watered and not being hurt: about 1.8 times as fast
+  asleep, at half the rate while Hungry or Thirsty, and not at all while
+  bleeding, infected or ill. In the Realistic mode (Settings > Gameplay >
+  Illness and injury) a body near death takes about three weeks to be
+  whole, close to how long an ordinary wound takes to close; in
+  Forgiving, the default, about three days. The HUD names each wound and
+  illness and what helps (`data/medical/wounds.ron`,
+  `src/systems/wounds.rs`; [Bleeding and Wounds](/library#bleeding-and-wounds)
+  has the detail).
 - **Medical items.** In the Inventory, a medical item shows a Use
   button. A Bandage, a Medkit and an Advanced Medkit put back 5, 30 and
-  50 health, and Antibiotics and the Antidote end the conditions they
-  treat, though nothing in the game gives you those yet. An item that
+  50 health, stop Bleeding, and clean and cover your wounds, as
+  Antiseptic does; Antibiotics end an Infected Wound, and the Antidote
+  ends poisoning, though nothing in the game poisons you yet. An item that
   would do nothing for you, because you are not hurt or because the game
   does not model what it is for (pain, broken bones, a stopped heart),
   stays in your pack and the game says why (`data/medical/treatments.ron`,
@@ -711,16 +727,15 @@ rested, and only your character's name, look and clothes carry over, so
 the food and water in your pack go too.
 
 What the game leaves out, so you do not learn it from the game: there are
-no heart attacks, strokes, allergies, infections, sepsis, diabetes or
-carbon monoxide, and nothing about you has a pulse, a breathing rate or a
-blood pressure to measure. The game's data includes a catalogue of
-injuries and illnesses (`data/medical.ron`) and disease effects such as
-flu and infection in `data/status_effects.csv`, but nothing in the game
-gives them to you yet. In the game, a body fails in a handful of clear
-ways (hunger, thirst, air, heat and cold, and hard acceleration, with
-food poisoning harming you only through thirst), and each one warns you
-with a bar or a named condition. A real one fails in hundreds, and tells
-you only if you know how to listen.
+no heart attacks, strokes, allergies, sepsis, diabetes, broken bones or
+carbon monoxide, the only infection is a wound gone bad, and nothing
+about you has a pulse, a breathing rate or a blood pressure to measure.
+The disease effects such as flu in `data/status_effects.csv` are given to
+nobody yet. In the game, a body fails in a handful of clear ways (hunger,
+thirst, air, heat and cold, hard acceleration, and wounds, with food
+poisoning harming you only through thirst), and each one warns you with a
+bar or a named condition. A real one fails in hundreds, and tells you
+only if you know how to listen.
 
 ## You own this when
 
@@ -877,7 +892,7 @@ Grouped by what kind of authority each one is. Web pages were read on
   `src/systems/body_heat.rs`; raw and spoiled food in
   `data/food_system.ron`.
 - The Inventory readings (`src/gui/pages/inventory.rs`) and the Settings >
-  Gameplay controls: Vitals drain, Body heat, Illness, and "Survival bars
+  Gameplay controls: Vitals drain, Body heat, Illness and injury, and "Survival bars
   on the HUD" (`src/gui/pages/settings.rs`, `HudVitals` in `src/config.rs`; which
   rows "When low" shows: `vital_rows` in `src/gui/pages/hud.rs`).
 - Acceleration: the crew tolerance row (1.5 g safe, 2 health a second at
@@ -899,15 +914,17 @@ Grouped by what kind of authority each one is. Web pages were read on
   you are told in `data/medical/illnesses.ron`, applied each tick in
   `src/systems/food.rs` through `src/systems/illness.rs` (an illness
   counts game time); the Illness setting (`illness_realistic` in
-  `src/config.rs`). Well Fed's healing in `data/status_effects.csv`. The
+  `src/config.rs`). Wounds and healing by itself: `data/medical/wounds.ron`,
+  applied each tick in `src/systems/food.rs` through
+  `src/systems/wounds.rs`, a bite's wounds given by
+  `src/systems/combat/mod.rs` (Well Fed no longer heals, since 12 October
+  2026: `data/status_effects.csv`). The
   medical items' Use button in `src/gui/pages/inventory.rs`, what each
   item does in `data/medical/treatments.ron`, applied by
   `src/systems/treatment.rs`. The Death setting (`death_realistic` in
   `src/config.rs`) and the respawn that restores full health and clears
   every condition (`src/lib.rs`).
-- The medical catalogue and disease rows that nothing applies yet:
-  `data/medical.ron` (its system, `src/systems/medical.rs`, is not
-  registered with the game) and `data/status_effects.csv`.
+- The disease rows that nothing applies yet: `data/status_effects.csv`.
 - [Cold and Hypothermia](/library#cold-and-hypothermia), [Heat and How It
   Moves](/library#heat-and-how-it-moves), [Bleeding and
   Wounds](/library#bleeding-and-wounds), [Treating Burns](/library#treating-burns),

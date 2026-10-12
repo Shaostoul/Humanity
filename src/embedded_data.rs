@@ -151,10 +151,15 @@ pub const FOOD_ITEM_PROFILES_RON: &str = include_str!("../data/food/item_profile
 /// (BUG-162, 2026-10-05: systems::illness and systems::treatment).
 pub const MEDICAL_ILLNESSES_RON: &str = include_str!("../data/medical/illnesses.ron");
 pub const MEDICAL_TREATMENTS_RON: &str = include_str!("../data/medical/treatments.ron");
+/// What a bite or a burn leaves and how a body heals (first-hour audit S8, 2026-10-12:
+/// systems::wounds).
+pub const MEDICAL_WOUNDS_RON: &str = include_str!("../data/medical/wounds.ron");
 pub const MACHINES_HOME_RON: &str = include_str!("../data/machines/home.ron");
 pub const MACHINES_HOME_SOLO_RON: &str = include_str!("../data/machines/home_solo.ron");
 /// The ship's own machines (the Commons), merged into a home file that names them (increment 1a).
 pub const MACHINES_SHIP_RON: &str = include_str!("../data/machines/ship.ron");
+/// The cabin's household (ship homes increment 6): the Cabin start's one machine file.
+pub const MACHINES_CABIN_RON: &str = include_str!("../data/machines/cabin.ron");
 /// The ship file and the default home design (increment 1a of docs/design/ship-homes-and-logistics.md):
 /// built in so a fresh install or a throwaway relay still has a ship with plots, and a home to put on one.
 pub const SHIP_STRUCTURE_RON: &str = include_str!("../data/blueprints/ship_structure.ron");
@@ -166,10 +171,19 @@ pub const SHIP_STRUCTURE_RON: &str = include_str!("../data/blueprints/ship_struc
 /// the embedded copy was the editable file itself, so a Save in a repo checkout changed what
 /// every neighbour looked like at the next build and made every rig refuse the exe as stale.
 pub const HOME_HOMESTEAD_RON: &str = include_str!("../data/homes/shipped/homestead.ron");
+/// The cabin's SHIPPED default (ship homes increment 6), arranged as the homestead's above: a
+/// neighbour's cabin is drawn as it, and a game with no data/homes/cabin.ron of its own starts its
+/// cabin from it (`own_home_text`).
+pub const HOME_CABIN_RON: &str = include_str!("../data/homes/shipped/cabin.ron");
+/// The starts (ship homes increment 6, src/ship/starts.rs): the kinds of home a new player can
+/// start in. Built in so a fresh install or a throwaway relay still offers them.
+pub const STARTS_RON: &str = include_str!("../data/homes/starts.ron");
 pub const GROW_MEDIA_RON: &str = include_str!("../data/garden/grow_media.ron");
 pub const VEHICLE_KITS_RON: &str = include_str!("../data/vehicles/kits.ron");
 pub const AEROPONIC_CONFIGS_RON: &str = include_str!("../data/towers/aeroponic_configs.ron");
 pub const PLACES_SEED_JSON: &str = include_str!("../data/places/seed.json");
+/// The cabin's storage at the start (the Cabin start's `storage`, ship homes increment 6).
+pub const PLACES_CABIN_SEED_JSON: &str = include_str!("../data/places/cabin_seed.json");
 pub const HOME_OUTLINE_JSON: &str = include_str!("../data/home_outline.json");
 pub const FIBONACCI_HOMESTEAD_RON: &str = include_str!("../data/blueprints/fibonacci_homestead.ron");
 pub const TRADE_GOODS_RON: &str = include_str!("../data/trade_goods.ron");
@@ -230,7 +244,7 @@ pub fn shipped_home_design(kind: &str) -> Option<&'static str> {
 }
 
 /// Every shipped home design: (kind, its RON). `HomeDesign::built_in_ref` parses each once.
-pub const SHIPPED_HOMES: &[(&str, &str)] = &[("homestead", HOME_HOMESTEAD_RON)];
+pub const SHIPPED_HOMES: &[(&str, &str)] = &[("homestead", HOME_HOMESTEAD_RON), ("cabin", HOME_CABIN_RON)];
 
 /// Where a home kind's shipped design lives under data/, for the test that the game never
 /// saves over it (src/ship/ship_structure.rs). The same file `shipped_home_design` embeds.
@@ -402,17 +416,22 @@ pub fn get_embedded(path: &str) -> Option<&'static str> {
         "food/item_profiles.ron" => Some(FOOD_ITEM_PROFILES_RON),
         "medical/illnesses.ron" => Some(MEDICAL_ILLNESSES_RON),
         "medical/treatments.ron" => Some(MEDICAL_TREATMENTS_RON),
+        "medical/wounds.ron" => Some(MEDICAL_WOUNDS_RON),
         "machines/home.ron" => Some(MACHINES_HOME_RON),
         "machines/home_solo.ron" => Some(MACHINES_HOME_SOLO_RON),
         "machines/ship.ron" => Some(MACHINES_SHIP_RON),
+        "machines/cabin.ron" => Some(MACHINES_CABIN_RON),
         "blueprints/ship_structure.ron" => Some(SHIP_STRUCTURE_RON),
         // The player's OWN home, as a game with none on disk starts it: the shipped design under
         // the own-home header (`own_home_text`), never the shipped file's own header.
         "homes/homestead.ron" => Some(own_home_text(HOME_HOMESTEAD_RON)),
+        "homes/cabin.ron" => Some(own_home_text(HOME_CABIN_RON)),
+        "homes/starts.ron" => Some(STARTS_RON),
         "garden/grow_media.ron" => Some(GROW_MEDIA_RON),
         "vehicles/kits.ron" => Some(VEHICLE_KITS_RON),
         "towers/aeroponic_configs.ron" => Some(AEROPONIC_CONFIGS_RON),
         "places/seed.json" => Some(PLACES_SEED_JSON),
+        "places/cabin_seed.json" => Some(PLACES_CABIN_SEED_JSON),
         "home_outline.json" => Some(HOME_OUTLINE_JSON),
         "blueprints/fibonacci_homestead.ron" => Some(FIBONACCI_HOMESTEAD_RON),
         "trade_goods.ron" => Some(TRADE_GOODS_RON),
@@ -638,15 +657,20 @@ pub const EMBEDDED_KEYS: &[&str] = &[
     "food/item_profiles.ron",
     "medical/illnesses.ron",
     "medical/treatments.ron",
+    "medical/wounds.ron",
     "machines/home.ron",
     "machines/home_solo.ron",
     "machines/ship.ron",
+    "machines/cabin.ron",
     "blueprints/ship_structure.ron",
     "homes/homestead.ron",
+    "homes/cabin.ron",
+    "homes/starts.ron",
     "garden/grow_media.ron",
     "vehicles/kits.ron",
     "towers/aeroponic_configs.ron",
     "places/seed.json",
+    "places/cabin_seed.json",
     "home_outline.json",
     "blueprints/fibonacci_homestead.ron",
     "trade_goods.ron",

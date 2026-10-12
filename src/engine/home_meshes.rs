@@ -327,7 +327,6 @@ pub(crate) fn auto_room_lights(rooms: impl Iterator<Item = (Vec3, Vec3)>) -> Vec
 /// eye meets there, is the same open or not, and the neighbours' view is not made again
 /// (`neighbours::NeighbourKey` does not hold the open set). Call it once after setting
 /// `ship.open`, only when it changed.
-#[expect(dead_code, reason = "engine/household.rs apply_open (ship homes 5b, lane 2A) calls it; delete this line in the commit that adds that call")]
 pub(crate) fn open_plots_changed(state: &mut EngineState) {
     let Some(ship) = state.gui_state.ship_structure.as_ref() else {
         return;

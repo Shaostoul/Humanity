@@ -1,0 +1,70 @@
+// HumanityOS home design: the CABIN (3.0 x 2.5 m, 7.5 m2), the smallest start
+// (data/homes/starts.ron; docs/design/ship-homes-increment-6-plan.md section 3.2). One private
+// room on a cabin block's hall: you sleep, keep your things and sit at a desk here, and eat in the
+// mess hall and wash in the block's washroom down the hall. It carries NO position on the ship:
+// the loader places it at the origin of a plot of kind "cabin" (data/blueprints/ship_structure.ron).
+// Home-local metres from the box's min corner (x east, z south).
+//
+//   kind  "cabin": the plots it fits, and this file's name.
+//   door  (0.0, 1.25): the west wall's middle. Every cabin's hall runs along its west side, and
+//         every cabin plot's door record must meet this point (the loader checks).
+//   body  one room, no interior walls: 3.0 m east to west, 2.5 m north to south, 2.6 m high.
+//         Steel shell and a steel ceiling (an inner cabin has no skylight). One ceiling panel in
+//         the middle. You arrive a metre inside the door.
+//
+// Why these numbers. England's Nationally Described Space Standard (Department for Communities
+// and Local Government, "Technical housing standards: nationally described space standard",
+// March 2015) gives a single bedroom a floor area of at least 7.5 m2 and a width of at least
+// 2.15 m, and a minimum floor to ceiling height of 2.3 m. The cabin's box is that bedroom's
+// 7.5 m2, with 0.3 m more headroom for the ceiling light, measured to the middle of its walls: the
+// 0.06 m steel shell leaves 2.94 x 2.44 m (7.17 m2) inside, 4% under the standard, which measures
+// inside the walls. Plots 2.5 m apart fix that today (the cabin row, increment 6 lane 1A); a
+// cabin that meets it inside needs a 3.06 x 2.56 m box. A shared washroom down the hall,
+// rather than one in every cabin, follows the shared berthing the design cites (Navy Times,
+// 2014-10-13; docs/design/ship-homes-and-logistics.md).
+//
+// Machines (bed, nightstand, wardrobe, desk, chair, wall screen) are data/machines/cabin.ron.
+// Materials: 0 = grid, 1 = steel/metal, 2 = concrete, 3 = wood, 4 = glass.
+
+(
+    kind: "cabin",
+    door: (0.0, 1.25),
+    body: (
+        width: 3.0,
+        depth: 2.5,
+        height: 2.6,
+        shell_material: 1,
+        roof_material: 1,
+        walls: [],
+        shell_thickness: None,
+        lights: [
+            (
+                type_id: "ceiling_panel",
+                pos: (1.5, 2.45, 1.25),
+                dir: (0.0, -1.0, 0.0),
+                on: true,
+                color: None,
+                intensity: None,
+                range: None,
+                path: [],
+                subdivision: 0,
+            ),
+        ],
+        spawn: Some((1.0, 1.25)),
+        structures: [],
+        road_nodes: [],
+        road_edges: [],
+        zones: [
+            (
+                id: "room-cabin",
+                type_id: "room_bedroom",
+                origin: (0.0, 0.0, 0.0),
+                size: (3.0, 2.6, 2.5),
+                label: "Cabin",
+                room_type: Some("bedroom"),
+            ),
+        ],
+        rail_nodes: [],
+        rail_edges: [],
+    ),
+)

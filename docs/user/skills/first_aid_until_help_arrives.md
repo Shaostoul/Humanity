@@ -792,22 +792,28 @@ spot, and little else of what this guide is about.
   It keeps a person breathing, stops them losing blood, keeps them warm and
   gets them to people who can treat them, which is why this guide spends
   its time on calling, pressing and staying (our reading).
-- **No injuries to treat.** Losing health in the game never leaves a wound,
-  a burn, a fracture or a concussion. The game's data includes a catalogue
-  of injuries, illnesses and treatments (`data/medical.ron`), but the
-  system that would apply it (`src/systems/medical.rs`) is not registered
-  with the game, so nothing in it ever happens to you. The Bleeding, Broken
-  Bone, Concussion and Infected Wound conditions in
-  `data/status_effects.csv` are not applied by anything either.
-- **Medical items put health back, or say why not.** The item list
-  includes a Bandage, a Medkit, a Splint, Antiseptic, Painkillers and a
-  Defibrillator (`data/items.csv`), and the Crafting page has recipes
-  that make some of them (`data/recipes.csv`). In the Inventory each one
-  has a Use button. A Bandage puts back 5 health, a Medkit 30 and an
-  Advanced Medkit 50, up to full, and each would also stop the Bleeding
-  condition. The rest do nothing yet, because nothing in the game causes
-  what they treat: pain, an infection, poisoning, venom, a broken bone or
-  a stopped heart. Pressing Use on one, or on a medkit when you are not
+- **A few injuries to treat.** Since 12 October 2026 a creature's bite
+  leaves Bleeding, which stops on its own in about ten minutes, and a Bite
+  Wound that heals over days and can go bad if nobody cleans and covers
+  it; a fire leaves a burn that is red skin, blistered or deep by how long
+  you stood in it (no fire in the game burns anyone yet). The HUD names
+  each wound and what helps, and the Inventory says how it passes
+  (`data/medical/wounds.ron`, `src/systems/wounds.rs`; [Bleeding and
+  Wounds](bleeding_and_wounds.md) has the detail). A body that is fed,
+  watered and unhurt heals by itself, slowly, faster asleep. There are no
+  fractures, concussions or severe bleeding: the Broken Bone and
+  Concussion conditions in `data/status_effects.csv` are applied by
+  nothing.
+- **Medical items put health back, treat wounds, or say why not.** The
+  item list includes a Bandage, a Medkit, a Splint, Antiseptic,
+  Painkillers and a Defibrillator (`data/items.csv`), and the Crafting
+  page has recipes that make some of them (`data/recipes.csv`). In the
+  Inventory each one has a Use button. A Bandage puts back 5 health, a
+  Medkit 30 and an Advanced Medkit 50, up to full; each stops Bleeding and
+  cleans and covers your wounds, and so does Antiseptic. Antibiotics end
+  an Infected Wound. The rest do nothing yet, because nothing in the game
+  causes what they treat: pain, poisoning, venom, a broken bone or a
+  stopped heart. Pressing Use on one, or on a medkit when you are not
   hurt, keeps it in your pack and tells you why in plain words. An item
   is used up only when it helps
   (`data/medical/treatments.ron`, `src/systems/treatment.rs`,
@@ -1084,9 +1090,12 @@ were read on 4 October 2026 and are cited with the date they carry.
   button in `src/gui/pages/profile.rs` and bound
   to the HUD's number keys in `src/lib.rs`. The "Dev: max skills" button:
   `src/gui/pages/profile.rs`, applied in `src/systems/skills/mod.rs`. The
-  medical catalogue `data/medical.ron` and its unregistered system
-  `src/systems/medical.rs`; the injury conditions in
-  `data/status_effects.csv`, applied by no code. The medical items in
+  wounds and healing by itself: `data/medical/wounds.ron`, applied each
+  tick by `src/systems/food.rs` through `src/systems/wounds.rs`, a bite's
+  wounds given by `src/systems/combat/mod.rs`; the Broken Bone and
+  Concussion conditions in `data/status_effects.csv`, applied by no code.
+  (The old medical catalogue, `data/medical.ron`, and its never-run
+  system were deleted on 12 October 2026.) The medical items in
   `data/items.csv`, the medical recipes in `data/recipes.csv`, the
   Inventory's Use button (`src/gui/pages/inventory.rs`), and what each
   item does when used, the health it restores, the conditions it ends

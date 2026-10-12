@@ -52,6 +52,9 @@ struct TreatmentRow {
     heals: f32,
     #[serde(default)]
     ends: Vec<String>,
+    /// Cleans and covers wounds (2026-10-12, systems::wounds; its tests are wounds_tests.rs).
+    #[serde(default)]
+    cares: bool,
     #[serde(default)]
     used: String,
     #[serde(default)]
@@ -443,7 +446,9 @@ fn eating_spoiled_food_again_while_ill_does_not_start_the_illness_over() {
 
 /// Use on each medical item does exactly what treatments.ron says: one that helps is used up,
 /// restores its Health and ends every effect carrying a tag it names, and nothing else; one
-/// that would do nothing is kept, changes nothing, and says why.
+/// that would do nothing is kept, changes nothing, and says why. (The body here has no wound
+/// that can go bad, so an item that only cleans and covers, Antiseptic, is kept: that use is
+/// `wounds_tests::cleaning_and_covering_a_wound_is_a_use`.)
 ///
 /// Seen red on the old code: "Use on bandage_0: 2 left, expected 1 (used up)" (the Use
 /// button discarded its click).
@@ -571,8 +576,10 @@ fn every_medical_item_has_a_treatment_and_every_treatment_is_real() {
     for t in &rows {
         assert!(items.iter().any(|i| i.id == t.item), "treatments.ron names {}, which is not an item", t.item);
         assert!(!t.no_help.is_empty(), "{} says nothing when it cannot help", t.item);
-        if t.heals <= 0.0 && t.ends.is_empty() {
+        if t.heals <= 0.0 && t.ends.is_empty() && !t.cares {
             assert!(t.used.is_empty(), "{} can never be used, so it needs no `used` line", t.item);
+        } else {
+            assert!(!t.used.is_empty(), "{} can be used, so it says what it did", t.item);
         }
         for tag in &t.ends {
             assert!(

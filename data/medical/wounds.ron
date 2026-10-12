@@ -1,0 +1,278 @@
+// Wounds, and how a body heals (first-hour audit S8, 2026-10-12). Read by
+// src/systems/wounds.rs; the food system, which owns the body's meters,
+// applies it every tick (src/systems/food.rs). Disk first, with a copy built
+// into the game as the fallback.
+//
+// A WOUND is a status effect of type "wound" in data/status_effects.csv. Its
+// row there gives its name, how long it lasts and its tags: `duration_s` is
+// the Realistic course, counted on the game clock with the body's other daily
+// needs, so the time-speed setting and a night asleep move it along; and the
+// tags decide which medical items end it (data/medical/treatments.ron:
+// dressings end `bleeding`, antibiotics end `bacterial`). This file gives what
+// it does to the body while it lasts, what can make it go bad, and what the
+// player is told.
+//
+// WHAT HURTS YOU TODAY, AND WHAT IT LEAVES:
+// - A creature's bite (the combat system, src/systems/combat/mod.rs): the bite
+//   itself takes health at once, and it leaves the wounds in `bite`.
+// - Fire (src/systems/fire.rs): every second in a fire takes health, and the
+//   longer the exposure the deeper the burn (`burns`). Nothing in the game
+//   lights a fire you can stand in yet (the fire system is not running), so
+//   burns arrive with the fire props (docs/design/fire-props-and-combustion.md).
+// - The game has no falls that hurt, and starving, drying out, cold, heat,
+//   airlessness and a hard burn of the ship's drive take health without
+//   leaving a wound, as in life they hurt the whole body, not one place.
+//
+// TWO MODES (the house rule for deep systems, CLAUDE.md "Dual modes"), the
+// same Settings > Gameplay > Illness and injury setting as illness
+// (`illness_realistic`, systems::illness::Mode). Realistic uses the numbers
+// below as they are; Forgiving, the default, uses `forgiving`'s shares of them
+// and heals in `healing.forgiving_days`.
+//
+// Sources, each read on 2026-10-12:
+//   Merck Manual Professional Version, "Burns", D.W. Carter, full review
+//     September 2024, https://www.merckmanuals.com/professional/injuries-poisoning/burns/burns:
+//     superficial partial-thickness burns "heal within 1 to 2 weeks, and
+//     scarring is usually minimal"; deep partial-thickness burns "take ≥ 2
+//     weeks to heal"; full-thickness: "Healing occurs only from the
+//     periphery; these burns, unless small, require excision and skin
+//     grafting."; "Infection, even in small burns, is a common cause of sepsis
+//     and mortality, as well as local complications."
+//   Merck Manual Consumer Version, "Burns", D.W. Carter, September 2024,
+//     https://www.merckmanuals.com/home/injuries-and-poisoning/burns/burns:
+//     "Superficial and some partial-thickness burns heal in days to weeks
+//     without scarring."; "Keeping the burned area clean is essential, because
+//     the damaged skin is easily infected."; "Covering the burn with an
+//     over-the-counter antibiotic ointment and a nonstick, sterile bandage can
+//     help prevent infection."; "Sometimes the infection can spread throughout
+//     the bloodstream and cause severe illness or death."
+//   Wasiak J, Cleland H, "Burns (minor thermal)", BMJ Clinical Evidence
+//     2009:1903 (27 October 2009), https://pmc.ncbi.nlm.nih.gov/articles/PMC2907786/:
+//     superficial partial-thickness burns "will heal spontaneously, with
+//     minimal hypertrophic scarring, within 2 to 3 weeks"; "Cleaning
+//     solutions and dressings aim to prevent wound infection."
+//   Ji S, Xiao S, Xia Z et al., "Consensus on the treatment of second-degree
+//     burn wounds (2024 edition)", Burns & Trauma 12:tkad061 (30 January
+//     2024), https://pmc.ncbi.nlm.nih.gov/articles/PMC10858447/: "wounds that
+//     take longer than 21 days to heal usually lead to proliferative scarring".
+//   US Department of Defense, Joint Trauma System, Burn Care Clinical
+//     Practice Guideline (CPG ID 12), 10 June 2025: "Superficial burns (1st
+//     degree) appear red, do not blister, and blanch readily."
+//   MedlinePlus Medical Encyclopedia, "Cuts and puncture wounds", review date
+//     14 October 2025, https://medlineplus.gov/ency/article/000043.htm: call
+//     for help when "The bleeding is severe or cannot be stopped (for example,
+//     after 10 minutes of pressure)."
+//   Ellis R, Ellis C, "Dog and Cat Bites", American Family Physician
+//     90(4):239-243 (15 August 2014),
+//     https://www.aafp.org/pubs/afp/issues/2014/0815/p239.html: "the infection
+//     rate was 16% in untreated patients" (bites not given antibiotics); with
+//     the wound cleaned and cared for, 7.6% closed and 7.8% left open, and in a
+//     second study "only 5.5% became infected"; "Wounds that become infected
+//     within 24 hours of the bite are often caused by" Pasteurella.
+//   Smith TJ, Wilson MA, Karl JP et al., "Impact of sleep restriction on local
+//     immune response and skin barrier restoration with and without
+//     'multinutrient' nutrition intervention", Journal of Applied Physiology
+//     124(1):190-200 (2018), PubMed 28912361: "Skin barrier recovery was
+//     shorter for AS (4.2 ± 0.9 days) compared with SR (5.0 ± 0.9 days)",
+//     AS being adequate sleep and SR 2-hour nights; "Relatively modest sleep
+//     disruption delays wound healing."
+//   Guo S, DiPietro LA, "Factors Affecting Wound Healing", Journal of Dental
+//     Research 89(3):219-229 (2010), https://pmc.ncbi.nlm.nih.gov/articles/PMC2903966/:
+//     "malnutrition or specific nutrient deficiencies can have a profound
+//     impact on wound healing".
+(
+    // Forgiving, the default: a wound lasts `course_share` as long, does
+    // `harm_share` of the harm and goes bad `goes_bad_share` as often. A GAME
+    // CHOICE: the same half the illness and body heat modes use, and a quarter
+    // of the chance of a wound going bad.
+    forgiving: (course_share: 0.5, harm_share: 0.5, goes_bad_share: 0.25),
+
+    // HEALING. The game's Health stands for every hurt at once, so how fast it
+    // comes back is a GAME CHOICE anchored to how long real wounds take: an
+    // ordinary wound closes within about three weeks (a blistered burn "within
+    // 2 to 3 weeks", Wasiak and Cleland; past 21 days a wound is the slow,
+    // scarring kind, Ji et al.). So in Realistic a body that is nearly dead is
+    // whole again after `realistic_days` of ordinary days (each with a night's
+    // sleep, systems::sleep::SLEEP_HOURS), and in Forgiving after
+    // `forgiving_days`.
+    //
+    // ASLEEP the body heals `asleep` times as fast as awake. Our reading of
+    // Smith et al.: skin healed in 4.2 days with ordinary sleep and 5.0 with
+    // 2-hour nights, about 1.19 times as fast; with 8 hours asleep a day
+    // against 2, that is a sleeping hour worth about 1.8 waking ones
+    // ((16 + 8 x 1.8) / (22 + 2 x 1.8) = 1.19). One small study, so a reading,
+    // not a measurement.
+    //
+    // A body heals only when nothing is harming it that moment (no starving,
+    // drying out, cold, heat, airlessness, hard burn, bleeding or infection),
+    // and not while it is ill (any illness, data/medical/illnesses.ron) or has
+    // a wound with `stops_healing`. Hungry or Thirsty (the effects named in
+    // `slowed_by`), it heals at `slowed_share` of the rate: a GAME CHOICE for
+    // Guo and DiPietro's "profound impact" of going short.
+    healing: (
+        realistic_days: 21.0,
+        forgiving_days: 3.0,
+        asleep: 1.8,
+        slowed_by: ["hungry", "thirsty"],
+        slowed_share: 0.5,
+    ),
+
+    // CARE. A Bandage, a Medkit, an Advanced Medkit or Antiseptic cleans and
+    // covers the wounds you have (data/medical/treatments.ron, `cares`), which
+    // puts this status effect on you for as long as the longest wound that can
+    // go bad still has to heal. A new wound that can go bad is not covered by
+    // it: getting one takes the effect off, and you are told. What the player
+    // is told, and the HUD's few words, are below.
+    care: (
+        effect: "wound_care",
+        cared: "It has been cared for, so it is unlikely to go bad.",
+        uncared: "Clean and cover it (a Bandage, a Medkit or Antiseptic) or it may go bad.",
+        cared_hud: "cared for",
+        uncared_hud: "needs cleaning and covering",
+        given: "Your wounds are cared for, so they are unlikely to go bad.",
+        new_wound: "The new wound is not covered yet: clean and cover it too.",
+    ),
+
+    // A creature's bite leaves these wounds, in this order.
+    bite: ["bleeding", "bite_wound"],
+
+    // FIRE. While you stand in a fire it takes `health_per_s` health a second
+    // at full intensity (the fire system's rate since it was written; Forgiving
+    // takes its harm share), named `cause` on the death screen, and the
+    // exposure's burn deepens with its seconds at full intensity: from
+    // `from_s` it is that step's burn. A GAME CHOICE: the game's fire has an
+    // intensity, not a temperature, so there is no real time to a given depth
+    // to copy; real skin is reddened by a moment and burned through by
+    // seconds, which is the shape these follow. Heat that comes back after
+    // `new_burn_after_s` seconds away is a new burn, not a deeper one.
+    burns: (
+        health_per_s: 1.0,
+        cause: "burns",
+        new_burn_after_s: 5.0,
+        steps: [
+            (from_s: 1.0, effect: "burn_superficial"),
+            (from_s: 3.0, effect: "burn_partial"),
+            (from_s: 10.0, effect: "burn_full"),
+        ],
+    ),
+
+    // THE WOUNDS.
+    //   effect         The status effect (data/status_effects.csv, type "wound").
+    //   health_per_h   Health it takes an hour of game time while it lasts,
+    //                  Realistic (Forgiving its harm share). Absent: none.
+    //   stops_healing  The body does not heal while it lasts.
+    //   cause          The death screen's words when it is what killed you.
+    //   goes_bad       After `after_h` game hours, the chance it turns into
+    //                  `becomes`: `cared` if it was cleaned and covered by then,
+    //                  `uncared` if not (Forgiving: its share of either).
+    //   severity       The HUD row's colour: 0 fine, 1 attention, 2 danger.
+    //   onset          Told when it happens. The game then adds `course`, with
+    //                  {time} the time it lasts in this mode, and `helps`.
+    //   course         How it passes, with {time}.
+    //   helps          What helps, in the game.
+    //   hud            A few words for the HUD row after its name.
+    //   healed         Told when it has passed.
+    wounds: [
+        (
+            effect: "bleeding",
+            // Its course: 600 s, ten minutes (data/status_effects.csv). An
+            // ordinary bleed stops itself with a clot in minutes; MedlinePlus
+            // treats one that has not stopped after 10 minutes of pressure as
+            // an emergency, so ten minutes is the outer edge of ordinary.
+            // A GAME CHOICE: 36 health an hour, 6 of the body's 100 over the ten
+            // minutes, a steady ooze from a bite. Bleeding severe enough to
+            // kill in minutes is not modelled yet.
+            health_per_h: 36.0,
+            stops_healing: true,
+            cause: "blood loss",
+            severity: 2,
+            onset: "You are bleeding.",
+            course: "An ordinary bleed stops on its own in about {time}.",
+            helps: "A Bandage or a Medkit stops it now, and in life so does pressing firmly on it. You do not heal while it bleeds.",
+            hud: "a Bandage stops it",
+            healed: "The bleeding has stopped.",
+        ),
+        (
+            effect: "bite_wound",
+            // Its course: 864000 s, ten days (data/status_effects.csv). A GAME
+            // CHOICE for a small bite, inside the three weeks an ordinary wound
+            // takes to close (Ji et al.). It goes bad at the bite rates AAFP
+            // gives (Ellis and Ellis): 16% left untreated, about 6% (5.5 to
+            // 7.8%) cleaned and cared for, read here as a bite left uncleaned
+            // and uncovered against one cleaned and covered. A day in, because
+            // an infected bite often shows within 24 hours.
+            goes_bad: Some((after_h: 24.0, uncared: 0.16, cared: 0.06, becomes: "infected_wound")),
+            severity: 1,
+            onset: "The bite has left a wound.",
+            course: "It heals on its own in about {time}.",
+            helps: "Bites go bad more often than cuts.",
+            hud: "",
+            healed: "The bite wound has healed.",
+        ),
+        (
+            effect: "burn_superficial",
+            // Its course: 518400 s, six days. Red skin with no blisters (the
+            // Joint Trauma System's first degree); Merck: such burns "heal in
+            // days to weeks". A GAME CHOICE inside that. The skin is not broken,
+            // so it does not go bad.
+            severity: 0,
+            onset: "You are burned: red skin.",
+            course: "It heals on its own in about {time}.",
+            helps: "In life, cool a burn under cool running water for 20 minutes as soon as you can; the game does not model cooling a burn yet.",
+            hud: "heals by itself",
+            healed: "The burn has healed.",
+        ),
+        (
+            effect: "burn_partial",
+            // Its course: 1209600 s, fourteen days: Merck's "within 1 to 2
+            // weeks" for a blistered (superficial partial-thickness) burn, inside
+            // Wasiak and Cleland's 2 to 3 weeks. Its chances of going bad are A
+            // GAME CHOICE, two days in: nothing read gives a number, only that
+            // burned skin "is easily infected" and that covering it "can help
+            // prevent infection" (Merck).
+            goes_bad: Some((after_h: 48.0, uncared: 0.10, cared: 0.02, becomes: "infected_wound")),
+            severity: 1,
+            onset: "You are burned: the skin has blistered.",
+            course: "It heals in about {time}.",
+            helps: "Leave the blisters whole. In life, cool it under cool running water for 20 minutes first; the game does not model cooling a burn yet.",
+            hud: "",
+            healed: "The blistered burn has healed.",
+        ),
+        (
+            effect: "burn_full",
+            // Its course: 3628800 s, six weeks. A deep (full-thickness) burn
+            // heals "only from the periphery" and, unless small, needs grafting
+            // (Merck). The game has no surgeon, so it heals the way only a small
+            // one can, from its edges: six weeks is A GAME CHOICE. Its chances
+            // of going bad are A GAME CHOICE, higher than a blister's: "Infection,
+            // even in small burns, is a common cause of sepsis and mortality"
+            // (Merck).
+            goes_bad: Some((after_h: 48.0, uncared: 0.30, cared: 0.05, becomes: "infected_wound")),
+            severity: 2,
+            onset: "You are badly burned: the burn goes through the skin.",
+            course: "Healing only from its edges, it takes about {time}.",
+            helps: "In life a deep burn bigger than a coin needs a burn surgeon; the game has none yet.",
+            hud: "",
+            healed: "The deep burn has closed.",
+        ),
+        (
+            effect: "infected_wound",
+            // Its course: 864000 s, ten days, untreated. A GAME CHOICE, as is
+            // its harm: 0.3 health an hour, 72 of 100 over the ten days, with no
+            // healing meanwhile, because an infection can spread through the
+            // blood and kill (Merck) and antibiotics stop that (Wasiak and
+            // Cleland: "If a burn wound should become infected, antibiotics will
+            // prevent significant complications"). Antibiotics end it: it
+            // carries the `bacterial` tag.
+            health_per_h: 0.3,
+            stops_healing: true,
+            cause: "an infected wound",
+            severity: 2,
+            onset: "A wound has gone bad: it is red, hot and swollen, and hurts more each day.",
+            course: "Untreated it lasts about {time}, taking your health all the while.",
+            helps: "Antibiotics end it. You do not heal while it lasts.",
+            hud: "Antibiotics end it",
+            healed: "The infection has cleared.",
+        ),
+    ],
+)

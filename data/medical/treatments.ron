@@ -20,6 +20,9 @@
 //            commonest cause of illness from food is a virus, which
 //            antibiotics do nothing for, and the CDC says not to use them
 //            even for some bacterial ones (data/medical/illnesses.ron).
+//   cares    It cleans and covers the wounds that can go bad, so they are
+//            unlikely to (data/medical/wounds.ron, its `care`). It helps
+//            only while one is not yet cleaned and covered. Absent: false.
 //   used     What the player is told when it is used. One is used up.
 //   no_help  What the player is told when it would do nothing for them; the
 //            item is then KEPT, not used up. For an item the game has no use
@@ -28,18 +31,21 @@
 //            illness the player has.
 (
     treatments: [
-        // Wound care: Health back, and bleeding stopped.
+        // Wound care: Health back, bleeding stopped, and the wounds that can go
+        // bad cleaned and covered (wounds.ron).
         (
             item: "bandage_0",
             heals: 5.0,
             ends: ["bleeding"],
+            cares: true,
             used: "You cover the wound with a clean dressing.",
-            no_help: "A bandage covers a wound, and you have none to cover, so you keep it.",
+            no_help: "A bandage covers a wound, and you have none that needs it, so you keep it.",
         ),
         (
             item: "medkit_0",
             heals: 30.0,
             ends: ["bleeding"],
+            cares: true,
             used: "You clean and dress your injuries from the first-aid kit.",
             no_help: "A first-aid kit treats injuries, and you are not hurt, so you keep it.",
         ),
@@ -47,6 +53,7 @@
             item: "med_kit_advanced_0",
             heals: 50.0,
             ends: ["bleeding"],
+            cares: true,
             used: "You close and dress your wounds with the kit's sutures and sterile dressings.",
             no_help: "The advanced kit is for wounds beyond first aid, and you are not hurt, so you keep it.",
         ),
@@ -98,7 +105,9 @@
         ),
         (
             item: "antiseptic_0",
-            no_help: "Antiseptic cleans a fresh wound so that it does not go bad; on its own it heals nothing, so you keep it. It goes into a Medkit.",
+            cares: true,
+            used: "You clean your wounds with antiseptic.",
+            no_help: "Antiseptic cleans a wound so that it does not go bad, and you have none that needs it, so you keep it. It also goes into a Medkit.",
         ),
         (
             item: "poultice_0",
