@@ -130,14 +130,20 @@ fn no_profile_copy() -> ServerProfile {
     own_profile::own_copy(&frame, "Ada").expect("her own copy")
 }
 
-/// "Accept files from" as this device holds it: `from`, chosen here or not, and the words seen.
+/// "Accept files from" as this device holds it: `from`, chosen here or not, and the words seen
+/// (each for Ada, the person the app is signed in as).
 fn prefs(from: AcceptFrom, chosen: bool, seen: &[(&str, &str)]) -> FilesInMessages {
     FilesInMessages {
         accept_from: from,
         accept_chosen: chosen,
-        accept_seen: seen.iter().map(|(s, w)| (s.to_string(), w.to_string())).collect(),
+        accept_seen: seen.iter().map(|(s, w)| (ada_on(s), w.to_string())).collect(),
         ..Default::default()
     }
+}
+
+/// The key a word Ada's profile holds on `server` is remembered under.
+fn ada_on(server: &str) -> String {
+    crate::net::files_policy::accept_seen_key(server, "me")
 }
 
 /// A device whose person chose "Anyone" meets a server with no profile for her (the relay answers
@@ -170,7 +176,7 @@ fn a_device_that_chose_publishes_its_choice_on_a_server_with_no_profile() {
     own_profile::pump(&mut gs);
     let p = &gs.settings.files_in_messages;
     assert!(!p.accept_unsent, "saved");
-    assert_eq!(p.accept_seen.get(TWO).map(String::as_str), Some("anyone"), "and seen there");
+    assert_eq!(p.accept_seen.get(&ada_on(TWO)).map(String::as_str), Some("anyone"), "and seen there");
 }
 
 /// A device whose person never chose takes the word of a server it meets, sends nothing, and
@@ -184,7 +190,7 @@ fn a_device_that_never_chose_takes_the_servers_word() {
     own_profile::pump(&mut gs);
     assert_eq!(gs.settings.files_in_messages.accept_from, AcceptFrom::Nobody, "the server's word is taken");
     assert!(updates(&sent).is_empty(), "nothing is sent");
-    assert_eq!(gs.settings.files_in_messages.accept_seen.get(SERVER).map(String::as_str), Some("nobody"), "seen there");
+    assert_eq!(gs.settings.files_in_messages.accept_seen.get(&ada_on(SERVER)).map(String::as_str), Some("nobody"), "seen there");
     assert!(!gs.settings.files_in_messages.accept_chosen, "taking is not choosing");
 }
 
@@ -200,7 +206,7 @@ fn a_word_changed_since_this_device_saw_it_is_taken() {
     own_profile::pump(&mut gs);
     assert_eq!(gs.settings.files_in_messages.accept_from, AcceptFrom::Nobody, "another device's change is taken");
     assert!(updates(&sent).is_empty(), "nothing goes over it");
-    assert_eq!(gs.settings.files_in_messages.accept_seen.get(SERVER).map(String::as_str), Some("nobody"));
+    assert_eq!(gs.settings.files_in_messages.accept_seen.get(&ada_on(SERVER)).map(String::as_str), Some("nobody"));
 }
 
 /// Two servers holding different words, each seen before (the second never got this device's
@@ -236,7 +242,7 @@ fn switching_between_two_servers_flips_nothing() {
     // Its copy carries it at last: seen there.
     own_profile::keep_copy(&mut gs, TWO, server_copy("anyone"));
     own_profile::pump(&mut gs);
-    assert_eq!(gs.settings.files_in_messages.accept_seen.get(TWO).map(String::as_str), Some("anyone"));
+    assert_eq!(gs.settings.files_in_messages.accept_seen.get(&ada_on(TWO)).map(String::as_str), Some("anyone"));
     assert!(!gs.settings.files_in_messages.accept_unsent);
 }
 
@@ -252,7 +258,7 @@ fn the_protected_setup_never_takes_a_more_open_word() {
     gs.settings.files_in_messages = prefs(AcceptFrom::Friends, true, &[(SERVER, "friends")]);
     own_profile::pump(&mut gs);
     assert_eq!(gs.settings.files_in_messages.accept_from, AcceptFrom::Friends, "not another device's more open word");
-    assert_eq!(gs.settings.files_in_messages.accept_seen.get(SERVER).map(String::as_str), Some("friends"), "and not recorded as settled");
+    assert_eq!(gs.settings.files_in_messages.accept_seen.get(&ada_on(SERVER)).map(String::as_str), Some("friends"), "and not recorded as settled");
 
     let (mut gs, _sent) = app("anyone");
     gs.protected.setup.on = true;
@@ -264,4 +270,30 @@ fn the_protected_setup_never_takes_a_more_open_word() {
     gs.settings.files_in_messages = prefs(AcceptFrom::Friends, true, &[(SERVER, "friends")]);
     own_profile::pump(&mut gs);
     assert_eq!(gs.settings.files_in_messages.accept_from, AcceptFrom::Nobody, "a more closed word is taken");
+}
+
+/// A restore from a different recovery phrase on this device: the words seen were the first
+/// person's, so on a server holding the default for the new one (no profile there), the device's
+/// own choice is published instead of the old person's seen word turning the setting. Back as the
+/// first person, their seen word still holds.
+///
+/// Seen red 2026-10-12 with `accept_seen_key` ignoring the person (the server alone): "the
+/// device's choice stands for the new person" failed (Friends taken).
+#[test]
+fn a_different_person_on_this_device_starts_with_no_word_seen() {
+    let (mut gs, sent) = app("anyone");
+    gs.settings.files_in_messages = prefs(AcceptFrom::Anyone, true, &[(SERVER, "anyone")]);
+    own_profile::pump(&mut gs);
+    assert!(updates(&sent).is_empty(), "test setup: settled for the first person");
+
+    // Restored as Bea: the copies were the old identity's (apply_pq_identity resets them).
+    gs.profile_public_key = "bea".into();
+    gs.own_profile = Default::default();
+    own_profile::keep_copy(&mut gs, SERVER, no_profile_copy());
+    own_profile::pump(&mut gs);
+    assert_eq!(gs.settings.files_in_messages.accept_from, AcceptFrom::Anyone, "the device's choice stands for the new person");
+    assert_eq!(updates(&sent).pop().expect("and goes to her profile there")["accepts_files"], "anyone");
+    let bea = crate::net::files_policy::accept_seen_key(SERVER, "bea");
+    assert_eq!(gs.settings.files_in_messages.accept_seen.get(&bea), None, "nothing seen for her before her copy carries it");
+    assert_eq!(gs.settings.files_in_messages.accept_seen.get(&ada_on(SERVER)).map(String::as_str), Some("anyone"), "the first person's word stays");
 }

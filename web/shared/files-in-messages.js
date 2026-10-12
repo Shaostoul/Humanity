@@ -170,7 +170,18 @@
     return out;
   }
 
-  /** The word this device last saw `server` hold, or null when it never saw one there. */
+  /**
+   * The key a word is remembered under: the server and whose profile there (the start of the
+   * person's public key), so after a restore from a different recovery phrase no word counts as
+   * seen for the new person, and the first one's stay for a switch back. '' when either is
+   * missing (nothing is remembered then).
+   */
+  function acceptSeenKey(server, personKey) {
+    const who = String(personKey || '').slice(0, 16);
+    return server && who ? String(server) + ' ' + who : '';
+  }
+
+  /** The word this device last saw `server` (an acceptSeenKey) hold, or null when it never saw one there. */
   function acceptSeen(storage, server) {
     if (!server) return null;
     const map = acceptSeenMap(storage);
@@ -254,7 +265,7 @@
     FILES_SETTINGS_KEY, ACCEPT_CHOICES, PICTURE_CHOICES, DEFAULTS, WORDS,
     settingsFrom, readSettings, settingsChosen, writeSettings, acceptLooser, acceptsFrom,
     picturesWithoutAsking, askWords, profileValue, acceptsFilesOf, senderLine,
-    ACCEPT_SEEN_KEY, ACCEPT_CHOSEN_KEY, ACCEPT_SEEN_MAX, acceptSeen, recordAcceptSeen, acceptChosen,
+    ACCEPT_SEEN_KEY, ACCEPT_CHOSEN_KEY, ACCEPT_SEEN_MAX, acceptSeenKey, acceptSeen, recordAcceptSeen, acceptChosen,
     markAcceptChosen, acceptServerStep,
   };
   if (typeof module === 'object' && module && module.exports) module.exports = api;

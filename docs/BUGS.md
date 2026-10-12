@@ -5789,6 +5789,13 @@ of the rule as written: a device whose person never chose follows whichever serv
 two servers hold different words set elsewhere, so its setting changes as it switches between
 them (it has no choice of its own to keep). A config written before this fix reads as not chosen
 (no migration, before launch): on such a device the person picks the setting once more (a
-different answer, then back) for it to count as theirs. Not cleared on a new identity: `accept_seen`
-lives in the config beside the setting, so after a restore from a different recovery phrase the
-first server whose word differs from the old identity's is taken as another device's change.
+different answer, then back) for it to count as theirs.
+
+**Both apps, one more case (2026-10-12).** The word seen is kept per server AND person (the
+start of the person's public key: `files_policy::accept_seen_key`, the web's `acceptSeenKey`), so
+after a restore from a different recovery phrase on the same device no word counts as seen for the
+new person (their servers are new to this device: one that chose publishes its choice there) and the
+first person's words stay for a switch back. Before, the old identity's word on a server was taken
+for another device's change and turned the setting. Tests: `a_different_person_on_this_device_starts_with_no_word_seen`
+and the web's "a different person in this browser", each seen red (desktop: the key without the
+person; web: the key stuck on the first person signed in).

@@ -99,9 +99,12 @@ pub struct FilesInMessages {
     /// publishes its choice to a server that never got it; a device that only ever took a server's
     /// word (false) takes that server's word instead.
     pub accept_chosen: bool,
-    /// For each server (normalised address), the word this device last saw it hold once settled:
-    /// confirmed after a publish, taken, or agreeing with this device's setting (BUG-200). A server
-    /// holding a different word now is one where another device changed it since.
+    /// For each server and person (`accept_seen_key`), the word this device last saw that person's
+    /// profile there hold once settled: confirmed after a publish, taken, or agreeing with this
+    /// device's setting (BUG-200). A server holding a different word now is one where another
+    /// device changed it since. Keyed by the person too, so after a restore from a different
+    /// recovery phrase no word counts as seen for the new one, and the old one's stay for a switch
+    /// back.
     pub accept_seen: BTreeMap<String, String>,
 }
 
@@ -144,6 +147,17 @@ pub fn adopt_from_server(mine: &FilesInMessages, server_word: &str, protected: b
     Some(theirs)
 }
 
+/// The key `accept_seen` keeps a word under: the server's normalised address and the start of the
+/// person's public key (16 hex characters are plenty to tell this device's identities apart, and
+/// keep the config small). Empty when either is missing: nothing is remembered then.
+pub fn accept_seen_key(server: &str, person: &str) -> String {
+    let who: String = person.chars().take(16).collect();
+    if server.is_empty() || who.is_empty() {
+        return String::new();
+    }
+    format!("{server} {who}")
+}
+
 /// What this device does about "Accept files from" when the server it is on holds a word for it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AcceptStep {
@@ -159,8 +173,8 @@ pub enum AcceptStep {
     Keep,
 }
 
-/// The rule (BUG-200), once the own copy of the server the app is on (`server`, its normalised
-/// address) is in and holds `server_word`:
+/// The rule (BUG-200), once the own copy of the server the app is on is in and holds
+/// `server_word` (`seen_key`: that server and person's `accept_seen_key`):
 /// 1. the server holds this device's word: settled;
 /// 2. a choice of this device's waits (`accept_unsent`): it goes;
 /// 3. the server's word differs from the one this device last saw there: another device changed
@@ -170,7 +184,7 @@ pub enum AcceptStep {
 ///
 /// A server with no profile for the person answers with the relay's default word, "friends", so a
 /// new server is case 4.
-pub fn accept_step(mine: &FilesInMessages, server: &str, server_word: &str, protected: bool) -> AcceptStep {
+pub fn accept_step(mine: &FilesInMessages, seen_key: &str, server_word: &str, protected: bool) -> AcceptStep {
     let Some(theirs) = AcceptFrom::from_word(server_word) else { return AcceptStep::Keep };
     if theirs == mine.accept_from {
         return AcceptStep::Settled;
@@ -178,7 +192,7 @@ pub fn accept_step(mine: &FilesInMessages, server: &str, server_word: &str, prot
     if mine.accept_unsent {
         return AcceptStep::Send;
     }
-    let changed_there = mine.accept_seen.get(server).is_some_and(|seen| seen != server_word);
+    let changed_there = mine.accept_seen.get(seen_key).is_some_and(|seen| seen != server_word);
     if mine.accept_chosen && !changed_there {
         return AcceptStep::Send;
     }

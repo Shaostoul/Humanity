@@ -2334,8 +2334,12 @@ test("files: a private file opened is kept here, encrypted, and opens after a re
 const SERVER_A = "did:hum:7aQf2RtsServerAlpha";
 const SERVER_B = "did:hum:9bWx4KmpServerBravo";
 const SERVER_C = "did:hum:3cZr8LqnServerCharlie";
-/** The word this device last saw each server hold. */
-const seenWords = (page) => JSON.parse(page.ctx.localStorage.getItem(FIM.ACCEPT_SEEN_KEY) || "{}");
+/** The word this device last saw each server hold for the person signed in now (by server). */
+const seenWords = (page) => {
+  const who = " " + String(page.fn("myKey")).slice(0, 16);
+  const all = JSON.parse(page.ctx.localStorage.getItem(FIM.ACCEPT_SEEN_KEY) || "{}");
+  return Object.fromEntries(Object.entries(all).filter(([k]) => k.endsWith(who)).map(([k, w]) => [k.slice(0, -who.length), w]));
+};
 /** This device's "Accept files from". */
 const acceptHere = (page) => FIM.readSettings(page.ctx.localStorage).accept;
 /** My own complete copy of my profile, as the relay sends it (on connect, and the echo of any save of mine). */
@@ -2529,6 +2533,27 @@ test("BUG-200: with the protected setup on, a more open word from a server is ne
   assert.equal(acceptHere(page), "nobody", "a closed one is");
 });
 
+test("BUG-200: a different person in this browser (a restore from another recovery phrase) starts with no word seen", async () => {
+  const fx = await fixture();
+  const page = await loadChat(fx.ann);
+  await page.handle(ownCopy("friends"));
+  await page.handle({ type: "channel_list", channels: [] });
+  await chooseAccept(page, "anyone");
+  await page.handle(ownCopy("anyone"));
+  let sent = await connectTo(page, SERVER_A, "anyone");
+  assert.equal(seenWords(page)[SERVER_A], "anyone", "test setup: seen there for Ann");
+  assert.notEqual(fx.ann.key.slice(0, 16), fx.ben.key.slice(0, 16), "test setup: two people");
+
+  // Restored as Ben in this browser; his profile on server A is the default (none there yet).
+  page.set("(k) => { myKey = k; }", fx.ben.key);
+  sent = await connectTo(page, SERVER_A, null);
+  assert.equal(acceptHere(page), "anyone", "the choice made here stands for the new person");
+  assert.deepEqual(sent().map((u) => u.accepts_files), ["anyone"], "and goes to his profile there");
+  assert.equal(seenWords(page)[SERVER_A], undefined, "nothing seen for him before his copy carries it");
+  page.set("(k) => { myKey = k; }", fx.ann.key);
+  assert.equal(seenWords(page)[SERVER_A], "anyone", "Ann's word stays for a switch back");
+});
+
 // ── Red first (BUG-200) ──────────────────────────────────────────────────
 // 2026-10-11: each break made in a copy of web/ and this file run against it with HOS_WEB_DIR,
 // seen failing with the assertion named; every other test in this file passed.
@@ -2561,6 +2586,8 @@ test("BUG-200: with the protected setup on, a more open word from a server is ne
 //     device's choice back".
 //  A8 chat-profile.js, the word remembered as soon as a publish is decided: "a device that chose
 //     Anyone ... not remembered before the server's copy carries it".
+//  A9 (2026-10-12) chat-profile.js, the seen key kept on the first person signed in (never the one now): "a
+//     different person in this browser ... the choice made here stands for the new person".
 // Not covered by a test: ownProfileArrived's direct push for a choice that starts waiting after the
 // socket's one push has gone (only reachable when a copy repeats a word this device already saw
 // there after one it would not take, under the protected setup).

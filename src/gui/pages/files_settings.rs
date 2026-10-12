@@ -70,7 +70,9 @@ pub(crate) fn sync_accepts(state: &mut GuiState) {
     let server = crate::gui::pages::own_profile::current_server(state);
     let Some(word) = crate::gui::pages::own_profile::current_copy(state).and_then(|c| c.accepts_files.clone()) else { return };
     let protected = crate::engine::protected::is_on(state);
-    match policy::accept_step(&state.settings.files_in_messages, &server, &word, protected) {
+    // The word seen is kept per server and person (a different recovery phrase starts with none).
+    let seen_key = policy::accept_seen_key(&server, &state.profile_public_key);
+    match policy::accept_step(&state.settings.files_in_messages, &seen_key, &word, protected) {
         AcceptStep::Settled => {
             let prefs = &mut state.settings.files_in_messages;
             if prefs.accept_unsent {
@@ -80,7 +82,7 @@ pub(crate) fn sync_accepts(state: &mut GuiState) {
                 state.settings_dirty = true;
             }
             state.own_profile.accept_sent.remove(&server);
-            note_seen(state, server, word);
+            note_seen(state, seen_key, word);
         }
         AcceptStep::Send => {
             let prefs = &mut state.settings.files_in_messages;
@@ -97,17 +99,18 @@ pub(crate) fn sync_accepts(state: &mut GuiState) {
         AcceptStep::Take(take) => {
             state.settings.files_in_messages.accept_from = take;
             state.settings_dirty = true;
-            note_seen(state, server, word);
+            note_seen(state, seen_key, word);
         }
         AcceptStep::Keep => {}
     }
 }
 
-/// Record the word a server holds once settled (kept in the config, so it holds across runs).
-fn note_seen(state: &mut GuiState, server: String, word: String) {
+/// Record the word a server holds for the person once settled (kept in the config, so it holds
+/// across runs). `seen_key` is empty without a server or a key: nothing is remembered then.
+fn note_seen(state: &mut GuiState, seen_key: String, word: String) {
     let seen = &mut state.settings.files_in_messages.accept_seen;
-    if seen.get(&server) != Some(&word) {
-        seen.insert(server, word);
+    if !seen_key.is_empty() && seen.get(&seen_key) != Some(&word) {
+        seen.insert(seen_key, word);
         state.settings_dirty = true;
     }
 }

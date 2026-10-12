@@ -272,7 +272,8 @@ function filesAcceptHeard(value) {
   const F = window.HosFilesInMessages;
   if (!F) return false;
   const storage = profileStorage();
-  const server = filesAcceptServer();
+  // Remembered per server and person: a different recovery phrase here starts with no word seen.
+  const server = F.acceptSeenKey(filesAcceptServer(), typeof myKey === 'string' ? myKey : '');
   const word = F.acceptsFilesOf(value);
   const mine = F.readSettings(storage);
   const step = F.acceptServerStep({
