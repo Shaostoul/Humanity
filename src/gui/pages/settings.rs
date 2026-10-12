@@ -9,6 +9,9 @@ use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use crate::updater::{UpdateChannel, UpdateState};
 
+/// Settings > Data > "Data folder": what the last update refreshed and kept (BUG-163 part 2).
+mod data_folder;
+
 // Full-PQ: the web "import ECDH key" flow is gone. DMs are pure Kyber768
 // derived from the BIP39 seed — identical on web and native with no manual
 // key import, ever (that import existed only to bridge the old random
@@ -4478,6 +4481,8 @@ pub(crate) fn draw_data_content(ui: &mut egui::Ui, theme: &Theme, state: &mut Gu
                 }
             }
         }
+
+        data_folder::draw_data_folder(ui, theme, hint);
 
         ui.add_space(theme.spacing_lg);
         draw_save_snapshots(ui, theme, state);
