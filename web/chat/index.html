@@ -721,7 +721,7 @@
        (fast enough for gigabytes, which the noble bundle's is not); file-transfer.js holds the
        file pass, the offer notes and the channel protocol. Before chat-file-transfer.js. -->
   <script src="/shared/blake3.js?v=2"></script>
-  <script src="/shared/file-transfer.js?v=2"></script>
+  <script src="/shared/file-transfer.js?v=3"></script>
   <!-- profile-changes.js: which profile fields were changed in this browser and not yet on the
        server (BUG-195), before chat-profile.js and chat-privacy.js, which use it. -->
   <script src="/shared/profile-changes.js?v=1"></script>
@@ -770,7 +770,7 @@
   <!-- Device-to-device big files (2026-10-11): a file over my private limit in a DM goes straight to
        the other person's device once they say yes; the offer, the question, the rows and the
        connection. Wraps the frame handler, so before chat-protected.js, which stays the last. -->
-  <script src="/chat/chat-file-transfer.js?v=2"></script>
+  <script src="/chat/chat-file-transfer.js?v=3"></script>
   <!-- The protected setup (step G, 2026-10-10): the Safety section, its steps, the PIN prompt, the
        always-visible line, public rooms hidden and pictures from non-friends not shown. After
        chat-privacy.js (the Safety page it draws into) and chat-warnings.js (the recovery phrase

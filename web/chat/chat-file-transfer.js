@@ -40,14 +40,30 @@
 // own engine, on the dialling side and the answering side alike. A transfer's
 // channel is opened by its receiver, whichever side dialled, so a file each way
 // rides one connection. A channel ends without touching the others, and the
-// connection closes when its last channel has ended. Signalling carries no
-// transfer id: the sender answers a dial with credentials for each of its live
-// offers to that person (the forwarder passes packets only within one
-// transfer's pair), and each channel's label says which file it is.
+// connection closes when its last channel has ended. Each channel's label says
+// which file it is.
 //
 // The receiver's answer and cancel notes carry the offer's file pass on their
 // dm_put (`file_pass`, rule 4), so they reach a sender who takes messages only
 // from friends.
+//
+// Settled by the second review (2026-10-12), rules 7 to 9:
+//  7. A dial names its transfer: the relay passes a dc_offer it let in on a
+//     file pass to the sender with that pass's id as `file`. The sender asks
+//     the server's call relay for that one transfer's credentials and makes ONE
+//     allocation for the connection; every other transfer with that person
+//     rides it as its own channel. (Before, the sender asked for each of its
+//     live offers to that person, up to four: idle allocations used up the
+//     person's share, and a dial for a fifth offer matched none.) A dc_offer
+//     with no `file` is no file dial.
+//  8. An end is always said: a transfer that ends here for any reason other
+//     than done says cancel on the channel and sends the cancel note (ftFail).
+//     A channel the other side closes while the connection stays up ends a
+//     sending transfer ("Ben's side stopped it"); a receiving transfer still
+//     live opens its channel again after a wait (ftScheduleRetry), and a pause
+//     the other side held is cleared.
+//  9. A dial is an answer: a sender still waiting for the answer note takes its
+//     channel opening as Accept and done as Sent (ftBindChannel).
 //
 // Kept on this device: each transfer's record (encrypted with the DM store's
 // key, /chat/chat-dm-store.js sealBox) and the pieces received so far (in
@@ -74,6 +90,7 @@ const FT_DIRECT_KEY = 'hos_file_direct';
 const FT_STALL_MS = 30000;           // nothing for this long while a window is out: ask again
 const FT_CONNECT_WAIT_MS = 45000;    // a dial not open by then is given up (and tried again later)
 const FT_DIAL_RETRY_MS = 60000;      // while waiting for the sender, try again this often
+const FT_STOPPED_WAIT_MS = 15000;    // a sending channel closed by the other side: how long to tell a stop from a drop
 const FT_PUT_WAIT_MS = 30000;        // how long a note's put waits for the server's answer
 const FT_PIECES_LINGER_MS = 120000;  // pieces stay this long after a save, while the browser copies them
 const FT_KEEP_ENDED_MS = 30 * 24 * 3600 * 1000; // a finished transfer's row is kept this long
@@ -662,15 +679,33 @@ async function ftDecline(t) {
 
 /** Cancel, from either side: the channel hears it if it is open, and the note goes either way. */
 async function ftCancel(t) {
-  const F = ftApi();
   if (!t || ftFinished(t)) return;
   const chan = ftChanFor(t);
   if (chan && chan.engine && chan.open) chan.engine.cancel();
   else if (t.receiver && t.receiver.io) t.receiver.cancel();
   const offered = t.offer && t.state !== 'preparing';
   await ftEnd(t, 'cancelled');
-  // The receiver's cancel carries the pass, as its answer does (rule 4); the sender's needs none.
-  if (offered) await ftNote(t, F.cancelNoteText(t.id), { selfCopy: true, filePass: t.role === 'receive' ? t.offer.pass : null });
+  if (offered) await ftCancelNote(t);
+}
+
+/** The cancel note to the other side (and my other devices). The receiver's carries the pass, as its answer does (rule 4); the sender's needs none. */
+async function ftCancelNote(t) {
+  const F = ftApi();
+  await ftNote(t, F.cancelNoteText(t.id), { selfCopy: true, filePass: t.role === 'receive' ? t.offer.pass : null });
+}
+
+/**
+ * A transfer that cannot go on ends here, and the other side is told (rule 8 of the second review,
+ * "An end is always said"): its engine has said {"t":"cancel"} on the channel when there was one,
+ * and the cancel note goes too, so the other side's row ends even with the connection gone. The
+ * row here says why (`reason`). Until 2026-10-12 a damaged, mismatched or unstorable file ended
+ * here without a word to anyone, and a desktop sender waited for it until the pass ran out, up to
+ * 7 days.
+ */
+async function ftFail(t, reason) {
+  if (!t || ftFinished(t)) return;
+  await ftEnd(t, 'failed', reason);
+  if (t.offer) await ftCancelNote(t);
 }
 
 function ftPause(t) {
@@ -765,19 +800,20 @@ function ftSignal(peer, type, data, extra) {
 }
 
 /**
- * The peer-connection settings for these transfers with `peer`: the server's call relay only
- * (credentials asked for each transfer: the forwarder passes packets only within one), or, when
- * direct connections are allowed for us, that and this server's own address lookup. Null when
- * neither is possible: the server cannot carry it, and it may not go direct.
+ * The peer-connection settings for a connection with `peer` set up for transfer `t`: the server's
+ * call relay only, with ONE allocation, that transfer's credentials (rule 7: the forwarder passes
+ * packets only between the two people's allocations for one transfer, so both ends ask for the
+ * same one, the dialler for the transfer it dials for and the answerer for the dial's `file`;
+ * every other transfer rides the connection as its own channel). Or, when direct connections are
+ * allowed for us, that and this server's own address lookup. Null when neither is possible: the
+ * server cannot carry it, and it may not go direct.
  */
-async function ftRtcConfig(transfers, peer) {
+async function ftRtcConfig(t, peer) {
   const direct = ftDirectAllowed(peer);
   const servers = [];
   if (typeof requestCallCredentials === 'function') {
-    for (const t of transfers) {
-      const creds = await requestCallCredentials({ file: t.id, peer, file_pass: t.offer.pass });
-      if (creds) servers.push({ urls: creds.urls.slice(), username: creds.username, credential: creds.credential });
-    }
+    const creds = await requestCallCredentials({ file: t.id, peer, file_pass: t.offer.pass });
+    if (creds) servers.push({ urls: creds.urls.slice(), username: creds.username, credential: creds.credential });
   }
   if (!direct) {
     if (!servers.length) return null;
@@ -812,7 +848,7 @@ async function ftDial(t) {
   link.toOpen.push(t.id);
   ftLinks.set(key, link);
   ftDraw(t);
-  const cfg = await ftRtcConfig([t], t.peer);
+  const cfg = await ftRtcConfig(t, t.peer);
   if (link.closed) return;
   if (!cfg) {
     // The server cannot carry it: every transfer waiting for this connection says so.
@@ -885,28 +921,36 @@ function ftChannelArrived(link, ch) {
   ftBindChannel(link, t, ch);
 }
 
-/** The sender's live offers to `peer` (a dial from them may be for any of them; its label says which). */
+/** Is `t` a live offer of mine to `peer`: offered, accepted or sending (a dial may be for it)? */
+function ftLiveOfferTo(t, peer) {
+  return !!t && t.role === 'send' && ftSameKey(t.peer, peer) && !!t.offer && ['offered', 'accepted', 'sending'].includes(t.state);
+}
+
+/** The sender's live offers to `peer`. */
 function ftLiveOffersTo(peer) {
   const out = [];
-  for (const t of ftTransfers.values()) {
-    if (t.role !== 'send' || !ftSameKey(t.peer, peer) || !t.offer) continue;
-    if (['offered', 'accepted', 'sending'].includes(t.state)) out.push(t);
-  }
+  for (const t of ftTransfers.values()) if (ftLiveOfferTo(t, peer)) out.push(t);
   return out.sort((a, b) => (a.offerTs || 0) - (b.offerTs || 0));
 }
 
-/** The sender answers a dial. */
-async function ftAnswerDial(msg, offers, link) {
-  const usable = offers.filter((t) => t.file && t.pieceHashes).slice(0, 4);
-  if (!usable.length) { ftCloseLink(link); return; }
-  const cfg = await ftRtcConfig(usable, msg.from);
+/**
+ * The sender answers a dial for `named`, the live offer the dial's `file` names (rule 7): one
+ * allocation, that transfer's credentials, the one the dialler asked for too. Every other transfer
+ * with them rides the same connection as its own channel, which each channel's label names. It is
+ * answered while something can go on it: an offer to them whose file this page holds, or a
+ * transfer of theirs to me waiting to open its channel.
+ */
+async function ftAnswerDial(msg, named, link) {
+  const going = ftLiveOffersTo(msg.from).filter((t) => t.file && t.pieceHashes);
+  if (!going.length && !ftWaitingFrom(msg.from).length) { ftCloseLink(link); return; }
+  const cfg = await ftRtcConfig(named, msg.from);
   if (link.closed) return;
   if (!cfg) {
-    for (const t of usable) { t.noServer = true; ftDraw(t); }
+    for (const t of going) { t.noServer = true; ftDraw(t); }
     ftCloseLink(link);
     return;
   }
-  for (const t of usable) t.noServer = false;
+  for (const t of going) t.noServer = false;
   link.path = cfg.path;
   try {
     const pc = new RTCPeerConnection(cfg.config);
@@ -949,8 +993,14 @@ function fileTransferSignal(msg) {
   const key = ftLower(msg.from);
   const link = ftLinks.get(key);
   if (msg.signal_type === 'dc_offer') {
-    const offers = ftLiveOffersTo(msg.from);
-    if (!offers.length) return false; // nothing of mine for them: chat-p2p.js ignores it
+    // Rule 7: the relay names the transfer whose file pass let the dial in (`file`, set by the relay
+    // alone). A dc_offer without it came in some other way (a friend's own-device link), so it is no
+    // file dial: chat-p2p.js decides on it, and answers only my own devices.
+    const F = ftApi();
+    if (!F || !F.idOk(msg.file)) return false;
+    const named = ftTransfers.get(msg.file);
+    // A dial for a file of mine that is no longer live (ended here, its note on its way): not answered.
+    if (!ftLiveOfferTo(named, msg.from)) return true;
     if (link && link.role === 'dial' && !link.open) {
       // Both of us dialing at once (each has a file for the other): the larger key's dial goes on,
       // as the desktop app's offerer rule has it; the other side answers it, and its own receiving
@@ -964,7 +1014,7 @@ function fileTransferSignal(msg) {
     ftLinks.set(key, fresh);
     // My own receiving transfers with them ride this connection too: I open their channels once it is up.
     for (const t of ftWaitingFrom(msg.from)) ftJoin(fresh, t);
-    ftAnswerDial(msg, offers, fresh);
+    ftAnswerDial(msg, named, fresh);
     return true;
   }
   if (!link) return false;
@@ -1017,7 +1067,10 @@ function ftBindChannel(link, t, dc) {
     t.path = link.path;
     t.noServer = false;
     if (t.role === 'send') {
-      if (t.state === 'offered') t.state = 'accepted'; // the dial came before their answer note
+      // Rule 9 (second review), a dial is an answer: a record still waiting for the answer note
+      // (lost, or slower than the dial) takes the channel opening as Accept, and its done (the
+      // Sender's 'end' below) as Sent, so a lost note never leaves the row waiting.
+      if (t.state === 'offered') t.state = 'accepted';
       t.state = 'sending';
       chan.engine = new F.Sender({
         offer: t.offer, file: t.file, pieceHashes: t.pieceHashes, io, paused: t.pausedHere,
@@ -1086,7 +1139,9 @@ function ftReceiverEvent(t, type, d) {
     // A cancel pressed here is ended by ftCancel itself; the engine's 'cancelled-here' only repeats it.
     if (d.reason === 'cancelled-here') return;
     if (d.reason === 'cancelled-there') ftEnd(t, 'cancelled');
-    else ftEnd(t, 'failed', { mismatch: 'mismatch', 'mismatch-file': 'mismatch', damaged: 'damaged' }[d.reason] || 'failed');
+    // Rule 8: the Receiver has said cancel on the channel; ftFail sends the cancel note and the row
+    // says why.
+    else ftFail(t, { mismatch: 'mismatch', 'mismatch-file': 'mismatch', damaged: 'damaged', storage: 'storage' }[d.reason] || 'failed');
   }
 }
 
@@ -1097,12 +1152,21 @@ function ftStopEngine(chan) {
   else if (typeof chan.engine.close === 'function') chan.engine.close();
 }
 
-/** Close the connection when its last channel has ended (and nothing waits to open on it). */
+/**
+ * Close the connection when its last channel has ended (and nothing waits to open on it, no channel
+ * closed here is still closing, and no channel the other side closed is still being judged, see
+ * ftSendChannelGone).
+ */
 function ftCloseIfIdle(link) {
-  if (!link.closed && link.chans.size === 0 && link.toOpen.length === 0) ftCloseLink(link);
+  if (!link.closed && link.chans.size === 0 && link.toOpen.length === 0 && !link.closingHere && !link.judging) ftCloseLink(link);
 }
 
-/** A transfer ended here: its channel closes, and the others on the connection go on. */
+/**
+ * A transfer ended here: its channel closes, and the others on the connection go on. When it was
+ * the last, the connection closes once the channel has (its close event, ftChanGone): a browser
+ * sends what was queued on a channel before closing it, but closing the whole connection drops
+ * that at once, and the last thing said on an ending transfer's channel is its cancel (rule 8).
+ */
 function ftDropChannel(t) {
   const link = t ? ftLinks.get(ftLower(t.peer)) : null;
   if (!link || link.closed) return;
@@ -1113,17 +1177,34 @@ function ftDropChannel(t) {
     chan.closed = true;
     link.chans.delete(t.id);
     ftStopEngine(chan);
-    try { chan.dc.close(); } catch (e) { /* gone */ }
+    if (chan.dc.readyState !== 'closed') {
+      chan.closingHere = true;
+      link.closingHere = (link.closingHere || 0) + 1;
+    }
+    try { chan.dc.close(); } catch (e) { ftClosedHere(link, chan); }
   }
   ftCloseIfIdle(link);
 }
 
+/** A channel closed here has finished closing. */
+function ftClosedHere(link, chan) {
+  if (!chan.closingHere) return;
+  chan.closingHere = false;
+  link.closingHere -= 1;
+}
+
 /**
  * One channel closed (the other side closed it, or it failed): that transfer is off the connection
- * and is dialled again later if it did not end; the others go on.
+ * and the others go on. A receiving transfer that did not end opens its channel again (or dials
+ * again) at the next retry, and a pause the other side held is cleared (rule 8; its Receiver clears
+ * its own on the next channel). A sending transfer is judged by ftSendChannelGone.
  */
 function ftChanGone(link, chan) {
-  if (chan.closed) return;
+  if (chan.closed) {
+    // One this side closed has finished closing (ftDropChannel): the connection may close now.
+    if (chan.closingHere) { ftClosedHere(link, chan); ftCloseIfIdle(link); }
+    return;
+  }
   chan.closed = true;
   if (link.chans.get(chan.id) === chan) link.chans.delete(chan.id);
   ftStopEngine(chan);
@@ -1133,9 +1214,41 @@ function ftChanGone(link, chan) {
     t.pausedThere = false;
     ftSave(t);
     ftDraw(t);
-    ftScheduleRetry();
+    if (t.role === 'send') ftSendChannelGone(link, t);
+    else ftScheduleRetry();
   }
   ftCloseIfIdle(link);
+}
+
+/** Is this connection still up: not closed here, and the browser says it is connected? */
+function ftLinkUp(link) {
+  return !!link && !link.closed && !!link.pc && link.pc.connectionState === 'connected';
+}
+
+/**
+ * A sending transfer's channel closed by the other side before done (rule 8 of the second review):
+ * their side stopped it, and it ends here with words ("Ben's side stopped it") and the cancel note,
+ * rather than waiting for the pass to run out. A DROP is not a stop, though: a receiver whose page
+ * reloads, or whose network goes, comes back and dials again with the same pass, and the spec's
+ * resume needs this side to still answer. The two look alike at the moment a channel closes (a
+ * closing page's channels close one event at a time, while its connection still reads connected
+ * here), so the close is judged after FT_STOPPED_WAIT_MS:
+ *  - the connection gone by then (a new dial from them replaced it, or the browser no longer says
+ *    connected: a page that closed or reloaded stops answering ICE's checks, which the browser is
+ *    expected to notice within the wait; not yet measured in a real browser, media-showcase.md):
+ *    a drop, and the transfer waits for their next dial, as before;
+ *  - still connected, and the transfer not back on a channel since: a stop, and it ends.
+ * A connection already gone when the channel closes is a drop at once. The connection is kept open
+ * while a close is judged (ftCloseIfIdle waits for it).
+ */
+function ftSendChannelGone(link, t) {
+  if (!ftLinkUp(link)) return; // a drop: it waits for their next dial
+  link.judging = (link.judging || 0) + 1;
+  setTimeout(() => {
+    link.judging -= 1;
+    if (ftLinkUp(link) && t.state === 'accepted' && !ftChanFor(t)) ftFail(t, 'stoppedThere');
+    ftCloseIfIdle(link);
+  }, FT_STOPPED_WAIT_MS);
 }
 
 /** The connection went (closed, failed, or never opened in time): every transfer on it waits again. */
@@ -1283,6 +1396,7 @@ function ftStateWords(t) {
       default:
         if (t.reason === 'noFile') return W.noFile;
         if (t.reason === 'notSigned') return W.notSigned;
+        if (t.reason === 'stoppedThere') return W.stoppedThere(name);
         return W.failed;
     }
   }
@@ -1306,6 +1420,7 @@ function ftStateWords(t) {
     default:
       if (t.reason === 'mismatch') return W.mismatch(name);
       if (t.reason === 'damaged') return W.damaged;
+      if (t.reason === 'storage') return W.storage;
       return W.failed;
   }
 }
