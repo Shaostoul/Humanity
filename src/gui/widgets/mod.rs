@@ -1736,7 +1736,9 @@ pub fn badge_sm(ui: &mut Ui, theme: &Theme, text: &str, color: Color32) {
 
 /// Label: Value detail row. Used in maps, inventory, crafting detail panels.
 pub fn detail_row(ui: &mut Ui, theme: &Theme, label: &str, value: &str) {
-    ui.horizontal(|ui| {
+    // Wrapped, so a long value breaks onto the next line instead of running off the page
+    // (the Home page's loop rows ran past the window, 2026-10-12).
+    ui.horizontal_wrapped(|ui| {
         ui.label(
             RichText::new(format!("{}:", label))
                 .color(theme.text_secondary())
@@ -1752,7 +1754,7 @@ pub fn detail_row(ui: &mut Ui, theme: &Theme, label: &str, value: &str) {
 
 /// Bold label: Value row (for headers/important stats).
 pub fn detail_row_bold(ui: &mut Ui, theme: &Theme, label: &str, value: &str) {
-    ui.horizontal(|ui| {
+    ui.horizontal_wrapped(|ui| {
         ui.label(
             RichText::new(format!("{}:", label))
                 .color(theme.text_secondary())
