@@ -735,10 +735,11 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                             if let Some(bio) = val.get("bio").and_then(|v| v.as_str()) {
                                 state.gui_state.profile_bio = bio.to_string();
                             }
-                            if let Some(copy) = own_profile::own_copy(&val, &socket_name) {
-                                let server = state.gui_state.server_url.clone();
-                                own_profile::keep_copy(&mut state.gui_state, &server, copy);
-                                log::info!("Received own profile from server");
+                            // Filed as this server's copy; when the server asks, the copy other
+                            // servers keep goes back signed on this socket (BUG-191).
+                            let server = state.gui_state.server_url.clone();
+                            if let Some(signed) = own_profile::take_own_copy(&mut state.gui_state, &server, &val, &socket_name) {
+                                if let Some(ws) = state.gui_state.ws_client.as_ref() { ws.send(&signed); }
                             }
                         }
                     }
