@@ -2396,7 +2396,7 @@ pub async fn handle_federation_hello(
                         channels: fed_channels,
                     };
                     let _ = state.db.update_federated_server_status(&server_id, "online");
-                    tracing::info!("Federation: accepted hello from {} ({})", name, server_id);
+                    tracing::info!("Federation: accepted hello from {} ({})", name, crate::relay::handlers::federation::key_in_log(&server_id));
                     return Some(welcome);
                 } else {
                     tracing::warn!("Federation: invalid signature from {}", server_id);

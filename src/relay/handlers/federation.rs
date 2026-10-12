@@ -169,6 +169,12 @@ pub async fn forward_to_federation(state: &Arc<RelayState>, channel: &str, from_
     }
 }
 
+/// A server key as the log shows it: its first 16 hex characters. A whole Dilithium3 key is 3,904
+/// characters, and every hello and connect wrote it out in full (2026-10-12).
+pub(crate) fn key_in_log(key: &str) -> String {
+    if key.len() <= 16 { key.to_string() } else { format!("{}...", &key[..16]) }
+}
+
 /// How often a live federation link checks that its peer is still in the registry.
 pub(crate) const REGISTRY_CHECK_SECS: u64 = 15;
 
@@ -380,7 +386,7 @@ pub async fn federation_connect_loop(
                             Err(_) => {
                                 tracing::warn!(
                                     "Federation: peer {} silent for 90s, dropping the link to reconnect",
-                                    _sid_for_read
+                                    key_in_log(&_sid_for_read)
                                 );
                                 break;
                             }
@@ -626,7 +632,7 @@ pub async fn run_inbound_peer(
         );
     }
     broadcast_federation_status(&state).await;
-    tracing::info!("Federation: inbound peer {} ({}) connected", name, server_id);
+    tracing::info!("Federation: inbound peer {} ({}) connected", name, key_in_log(&server_id));
 
     // Write pump: everything forward_to_federation / gossip queues for this
     // peer flows out over the socket THEY opened.
@@ -650,7 +656,7 @@ pub async fn run_inbound_peer(
                 Err(_) => {
                     tracing::warn!(
                         "Federation: inbound peer {} silent for 120s, closing",
-                        sid_for_read
+                        key_in_log(&sid_for_read)
                     );
                     break;
                 }
@@ -677,7 +683,7 @@ pub async fn run_inbound_peer(
     write_task.abort();
     read_task.abort();
     if removed {
-        tracing::info!("Federation: inbound peer {} was removed from the registry, so its link closes", server_id);
+        tracing::info!("Federation: inbound peer {} was removed from the registry, so its link closes", key_in_log(&server_id));
     }
     {
         let mut conns = state.federation_connections.write().await;
@@ -685,7 +691,7 @@ pub async fn run_inbound_peer(
     }
     let _ = state.db.update_federated_server_status(&server_id, "offline");
     broadcast_federation_status(&state).await;
-    tracing::info!("Federation: inbound peer {} disconnected", server_id);
+    tracing::info!("Federation: inbound peer {} disconnected", key_in_log(&server_id));
 }
 
 /// Handle ONE message from an authenticated federation peer. Shared by the
@@ -1260,6 +1266,16 @@ mod recheck_tests {
         assert!(!wait.is_finished(), "a listed peer's link stays");
         state.db.remove_federated_server("peer-row").unwrap();
         tokio::time::timeout(Duration::from_secs(2), wait).await.expect("the wait ends once it is removed").unwrap();
+    }
+
+    /// A KEY IN THE LOG IS ITS FIRST 16 CHARACTERS: a whole server key is 3,904, and every hello
+    /// wrote it out (2026-10-12). Seen red with key_in_log returning the key whole: "16 characters
+    /// and dots".
+    #[test]
+    fn a_key_in_the_log_is_its_first_16_characters() {
+        let key = "a1".repeat(1952);
+        assert_eq!(key_in_log(&key), format!("{}...", &key[..16]), "16 characters and dots");
+        assert_eq!(key_in_log("short"), "short");
     }
 
     /// A SERVER KEY IS TODAY'S KEY: 3,904 lower-case hex characters (Dilithium3). A 64-hex Ed25519
