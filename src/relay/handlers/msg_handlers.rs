@@ -498,6 +498,7 @@ pub async fn handle_profile_update(
                     website: None,
                     accepts_files: Some(accepts_files_stored.clone()),
                     privacy: None,
+                    stored: None,
                     target: None,
                 });
 
@@ -520,6 +521,7 @@ pub async fn handle_profile_update(
                         website: if w_site.is_empty() { None } else { Some(w_site.clone()) },
                         accepts_files: Some(accepts_files_stored.clone()),
                         privacy: Some(priv_map.clone()),
+                        stored: Some(true),
                         target: Some(key),
                     });
                 }
@@ -611,14 +613,15 @@ pub async fn handle_profile_request(
     if state.db.keys_for_name(&name).map(|keys| keys.iter().any(|k| k == my_key)).unwrap_or(false) {
         // A profile that could not be read is not answered: an empty copy would be taken as the
         // server's, and the app's next save would wipe the profile (no row is an empty profile).
-        let (bio, socials, avatar_url, banner_url, pronouns, location, website, privacy) =
-            match state.db.get_profile_extended(&name) {
-                Ok(row) => row.unwrap_or_default(),
-                Err(e) => {
-                    tracing::error!("Failed to read own profile: {e}");
-                    return;
-                }
-            };
+        let row = match state.db.get_profile_extended(&name) {
+            Ok(row) => row,
+            Err(e) => {
+                tracing::error!("Failed to read own profile: {e}");
+                return;
+            }
+        };
+        let stored = row.is_some();
+        let (bio, socials, avatar_url, banner_url, pronouns, location, website, privacy) = row.unwrap_or_default();
         let opt = |s: String| if s.is_empty() { None } else { Some(s) };
         let _ = state.broadcast_tx.send(RelayMessage::ProfileData {
             name: name.clone(),
@@ -631,6 +634,7 @@ pub async fn handle_profile_request(
             website: opt(website),
             accepts_files: Some(state.db.accepts_files_of(&name)),
             privacy: Some(if privacy.trim().is_empty() { "{}".to_string() } else { privacy }),
+            stored: Some(stored),
             target: Some(my_key.to_string()),
         });
         return;
@@ -650,6 +654,7 @@ pub async fn handle_profile_request(
                 website:    get("website"),
                 accepts_files: get("accepts_files"),
                 privacy: None,
+                stored: None,
                 target: Some(my_key.to_string()),
             });
         }
@@ -666,6 +671,7 @@ pub async fn handle_profile_request(
                 website:    None,
                 accepts_files: Some(crate::relay::storage::profile::ACCEPTS_FILES_DEFAULT.to_string()),
                 privacy: None,
+                stored: None,
                 target: Some(my_key.to_string()),
             });
         }

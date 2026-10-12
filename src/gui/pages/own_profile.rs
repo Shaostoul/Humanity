@@ -102,6 +102,9 @@ pub(crate) fn own_copy(val: &serde_json::Value, socket_name: &str) -> Option<Ser
         socials: if socials.trim().is_empty() { "{}".to_string() } else { socials },
         accepts_files: val.get("accepts_files").and_then(|x| x.as_str()).map(str::to_string),
         privacy,
+        // A copy that does not say counts as stored: the server's word may then be another
+        // device's choice, and the rule takes the tighter one (files_policy::accept_step).
+        stored: val.get("stored").and_then(|x| x.as_bool()).unwrap_or(true),
     })
 }
 

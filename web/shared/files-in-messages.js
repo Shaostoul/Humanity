@@ -222,6 +222,8 @@
    *   waiting     a choice made here is waiting to go (hos_files_accept_unsent)
    *   chosen      the person has changed the setting on this device (acceptChosen)
    *   seen        the word this device last saw this server hold, or null
+   *   stored      the server holds a profile for me (false: none yet, so its word is the default,
+   *               never a choice made elsewhere; undefined counts as true)
    *   protectedOn the protected setup is on (never a word more open than mine)
    * One of:
    *   'none'      the server said nothing usable (a relay from before the field)
@@ -229,9 +231,12 @@
    *   'waits'     the waiting choice goes, as before; nothing else changes
    *   'same'      the server holds what this device has (remember it)
    *   'take'      take the server's word (remember it): another device changed it there since this
-   *               device last saw it, or this device has never chosen
+   *               device last saw it, or this device has never chosen, or (a server never seen
+   *               that holds a profile for me) the server's word is the tighter one
    *   'publish'   send this device's choice to this server: it never got it (remembered once the
-   *               server's copy carries it)
+   *               server's copy carries it). On a server never seen that holds a profile for me,
+   *               only when this device's word is the tighter: the server's may be my newer choice
+   *               from another device, and nothing tells which (the review of 2026-10-12)
    *   'keep'      the protected setup does not take a more open word (nothing remembered, so the
    *               next copy is the same question again, never a reason to publish over it)
    */
@@ -244,7 +249,9 @@
     const take = o.protectedOn && acceptLooser(mine, word) ? 'keep' : 'take';
     const seen = acceptsFilesOf(o.seen);
     if (seen && seen !== word) return take; // changed there since this device last looked
-    return o.chosen ? 'publish' : take;
+    if (!o.chosen) return take;
+    if (seen || o.stored === false) return 'publish'; // still what I saw there, or no profile there
+    return acceptLooser(mine, word) ? 'publish' : take; // never seen there: the tighter word wins
   }
 
   /**

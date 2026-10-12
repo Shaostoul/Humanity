@@ -104,17 +104,21 @@ fn which_word_wins_on_a_server() {
         ..Default::default()
     };
     let anyone = chose(AcceptFrom::Anyone, None);
-    assert_eq!(accept_step(&anyone, one, "anyone", false), AcceptStep::Settled, "the same word");
-    assert_eq!(accept_step(&anyone, one, "friends", false), AcceptStep::Send, "never seen there: this device's choice goes");
-    assert_eq!(accept_step(&chose(AcceptFrom::Anyone, Some("friends")), one, "friends", false), AcceptStep::Send, "still what was seen: it goes");
-    assert_eq!(accept_step(&chose(AcceptFrom::Anyone, Some("anyone")), one, "nobody", false), AcceptStep::Take(AcceptFrom::Nobody), "another device changed it there: taken");
+    assert_eq!(accept_step(&anyone, one, "anyone", true, false), AcceptStep::Settled, "the same word");
+    assert_eq!(accept_step(&anyone, one, "friends", false, false), AcceptStep::Send, "never seen there, no profile there: this device's choice goes");
+    assert_eq!(accept_step(&chose(AcceptFrom::Anyone, Some("friends")), one, "friends", true, false), AcceptStep::Send, "still what was seen: it goes");
+    assert_eq!(accept_step(&chose(AcceptFrom::Anyone, Some("anyone")), one, "nobody", true, false), AcceptStep::Take(AcceptFrom::Nobody), "another device changed it there: taken");
+    // Never seen there, and the server holds a profile: the tighter of the two words.
+    assert_eq!(accept_step(&anyone, one, "nobody", true, false), AcceptStep::Take(AcceptFrom::Nobody), "never seen, a profile there: its tighter word is taken");
+    assert_eq!(accept_step(&chose(AcceptFrom::Nobody, None), one, "anyone", true, false), AcceptStep::Send, "never seen, a profile there: this device's tighter word goes");
     let never = FilesInMessages { accept_from: AcceptFrom::Friends, ..Default::default() };
-    assert_eq!(accept_step(&never, one, "nobody", false), AcceptStep::Take(AcceptFrom::Nobody), "a device that never chose takes it");
+    assert_eq!(accept_step(&never, one, "nobody", true, false), AcceptStep::Take(AcceptFrom::Nobody), "a device that never chose takes it");
+    assert_eq!(accept_step(&never, one, "anyone", false, false), AcceptStep::Take(AcceptFrom::Anyone), "a device that never chose takes it with no profile there too");
     let waiting = FilesInMessages { accept_unsent: true, ..chose(AcceptFrom::Nobody, Some("friends")) };
-    assert_eq!(accept_step(&waiting, one, "anyone", false), AcceptStep::Send, "a waiting choice goes, whatever changed there");
-    assert_eq!(accept_step(&chose(AcceptFrom::Friends, Some("friends")), one, "anyone", true), AcceptStep::Keep, "never more open under the protected setup");
-    assert_eq!(accept_step(&never, one, "anyone", true), AcceptStep::Keep, "nor for a device that never chose");
-    assert_eq!(accept_step(&anyone, one, "Anyone", false), AcceptStep::Keep, "not one of the three");
+    assert_eq!(accept_step(&waiting, one, "anyone", true, false), AcceptStep::Send, "a waiting choice goes, whatever changed there");
+    assert_eq!(accept_step(&chose(AcceptFrom::Friends, Some("friends")), one, "anyone", true, true), AcceptStep::Keep, "never more open under the protected setup");
+    assert_eq!(accept_step(&never, one, "anyone", true, true), AcceptStep::Keep, "nor for a device that never chose");
+    assert_eq!(accept_step(&anyone, one, "Anyone", true, false), AcceptStep::Keep, "not one of the three");
 }
 
 /// Another device's choice (the word the server holds) is taken only when nothing chosen here is

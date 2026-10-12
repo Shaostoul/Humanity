@@ -348,3 +348,34 @@ fn a_copy_for_someone_no_longer_here_leaves_out_the_private_fields() {
     assert_eq!((gone["pronouns"].as_str(), gone["website"].as_str()), (Some(""), Some("")));
     assert_eq!(body("far_key")["location"], "Porto", "a signed copy from another server is served as it came");
 }
+
+/// The person's own copy says whether this server holds a profile for them (`stored`): false in
+/// the answer to their own request when there is none yet (its words are defaults, so their app
+/// sends its own "Accept files from" there), true once there is one, in that answer and on the
+/// echo of a save; never on a copy for anyone else (BUG-200, the review of 2026-10-12).
+///
+/// Seen red 2026-10-12 with the own request's answer always `stored: Some(true)`: "no profile
+/// here yet: stored false" failed.
+#[test]
+fn the_own_copy_says_whether_a_profile_is_stored_here() {
+    let st = fresh_state();
+    sign_in(&st, "ann_key", "Ann");
+    sign_in(&st, "bob_key", "Bob");
+    let stored_of = |sent: &[RelayMessage]| -> Vec<(Option<String>, Option<bool>)> {
+        sent.iter()
+            .filter(|m| matches!(m, RelayMessage::ProfileData { .. }))
+            .map(|m| {
+                let w = serde_json::to_value(m).unwrap();
+                (w["target"].as_str().map(str::to_string), w["stored"].as_bool())
+            })
+            .collect()
+    };
+    let ask = serde_json::json!({ "type": "profile_request", "name": "Ann" });
+    assert_eq!(stored_of(&send(&st, "ann_key", ask.clone())), vec![(some("ann_key"), Some(false))], "no profile here yet: stored false");
+    assert_eq!(stored_of(&send(&st, "bob_key", ask.clone())), vec![(some("bob_key"), None)], "never on an answer to someone else");
+
+    let echo = send(&st, "ann_key", serde_json::json!({ "type": "profile_update", "bio": "hi", "socials": "{}" }));
+    assert_eq!(stored_of(&echo), vec![(None, None), (some("ann_key"), Some(true))], "the echo of a save: stored, on the own copy only");
+    assert_eq!(stored_of(&send(&st, "ann_key", ask.clone())), vec![(some("ann_key"), Some(true))], "a profile here now: stored true");
+    assert_eq!(stored_of(&send(&st, "bob_key", ask)), vec![(some("bob_key"), None)]);
+}

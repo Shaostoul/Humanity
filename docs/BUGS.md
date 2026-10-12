@@ -5799,3 +5799,16 @@ first person's words stay for a switch back. Before, the old identity's word on 
 for another device's change and turned the setting. Tests: `a_different_person_on_this_device_starts_with_no_word_seen`
 and the web's "a different person in this browser", each seen red (desktop: the key without the
 person; web: the key stuck on the first person signed in).
+
+**Both apps, a server never seen (the review of 2026-10-12).** A device that chose used to publish
+its word on every server it had never seen, which could put a looser word over the person's
+newer, tighter one from another device ("anyone" over a phone's "nobody"), and that device then
+took it as a change. The relay now says on the person's own copies whether it holds a profile for
+them (`stored`, false in the answer to their own request when there is none: its words are
+defaults). On a server never seen: no profile there, the device's choice goes (BUG-200's second
+sighting still covered); a profile there, the TIGHTER of the two words wins (the device's goes if
+tighter, the server's is taken if that is). Safe over convenient: a person who loosened the
+setting on one device and then visits a server where another device left it tighter sees it
+tighten. Tests: `the_own_copy_says_whether_a_profile_is_stored_here` (relay),
+`a_never_seen_server_holding_a_profile_keeps_the_tighter_word` and the `which_word_wins_on_a_server`
+table (desktop), the step table and "... the tighter word wins" (web), each seen red.

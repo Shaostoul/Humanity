@@ -179,12 +179,16 @@ pub enum AcceptStep {
 /// 2. a choice of this device's waits (`accept_unsent`): it goes;
 /// 3. the server's word differs from the one this device last saw there: another device changed
 ///    it there, so take it (never a more open one under the protected setup);
-/// 4. otherwise (no word seen there yet, or the server still holds what this device last saw): a
-///    device that chose publishes its choice there; one that never chose takes the server's word.
-///
-/// A server with no profile for the person answers with the relay's default word, "friends", so a
-/// new server is case 4.
-pub fn accept_step(mine: &FilesInMessages, seen_key: &str, server_word: &str, protected: bool) -> AcceptStep {
+/// 4. a device that never chose takes the server's word;
+/// 5. one that chose publishes its choice where the server still holds what this device last saw
+///    there, or holds no profile for the person (`stored` false: its word is the relay's default,
+///    "friends", never a choice made elsewhere);
+/// 6. a server this device has never seen that holds a profile: its word may be the person's newer
+///    choice from another device, or an older one, and nothing tells which, so the TIGHTER of the
+///    two wins (this device's goes if it is tighter, the server's is taken if that is). Publishing
+///    there unconditionally put a looser word over a newer, tighter one (the review of
+///    2026-10-12).
+pub fn accept_step(mine: &FilesInMessages, seen_key: &str, server_word: &str, stored: bool, protected: bool) -> AcceptStep {
     let Some(theirs) = AcceptFrom::from_word(server_word) else { return AcceptStep::Keep };
     if theirs == mine.accept_from {
         return AcceptStep::Settled;
@@ -192,11 +196,15 @@ pub fn accept_step(mine: &FilesInMessages, seen_key: &str, server_word: &str, pr
     if mine.accept_unsent {
         return AcceptStep::Send;
     }
-    let changed_there = mine.accept_seen.get(seen_key).is_some_and(|seen| seen != server_word);
-    if mine.accept_chosen && !changed_there {
+    let take = || adopt_from_server(mine, server_word, protected).map_or(AcceptStep::Keep, AcceptStep::Take);
+    let seen = mine.accept_seen.get(seen_key);
+    if seen.is_some_and(|seen| seen != server_word) || !mine.accept_chosen {
+        return take();
+    }
+    if seen.is_some() || !stored || mine.accept_from.openness() < theirs.openness() {
         return AcceptStep::Send;
     }
-    adopt_from_server(mine, server_word, protected).map_or(AcceptStep::Keep, AcceptStep::Take)
+    take()
 }
 
 /// The words when the protected setup will not send a file that could not be checked (the web's

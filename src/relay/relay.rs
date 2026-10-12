@@ -1256,6 +1256,13 @@ pub enum RelayMessage {
         /// Its presence is also how an app tells its own complete copy from the public one.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         privacy: Option<String>,
+        /// On the person's own copies only: does this server hold a profile for them? False (the
+        /// answer to their own request when there is none yet) means every word in it is a
+        /// default, never a choice made on another device, so their app sends its own "Accept
+        /// files from" there; true means the server's word may be another device's newer choice
+        /// (BUG-200, the review of 2026-10-12).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        stored: Option<bool>,
         /// When Some(key): deliver only to that client. When None: broadcast to all.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         target: Option<String>,
@@ -3224,6 +3231,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                             website:    opt(website),
                             accepts_files: Some(state.db.accepts_files_of(name)),
                             privacy: Some(if privacy.is_empty() { "{}".to_string() } else { privacy }),
+                            stored: Some(true),
                             target: None, // Direct send to this socket — no routing needed
                         }).unwrap();
                         let _ = ws_tx.send(Message::Text(profile_msg.into())).await;

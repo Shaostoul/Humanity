@@ -268,7 +268,7 @@ function filesAcceptServer() {
  * The server's word for my "Accept files from" (BUG-200; the rule is above). Returns true when
  * this device's choice is now waiting to go to this server and has to be pushed.
  */
-function filesAcceptHeard(value) {
+function filesAcceptHeard(value, stored) {
   const F = window.HosFilesInMessages;
   if (!F) return false;
   const storage = profileStorage();
@@ -282,6 +282,7 @@ function filesAcceptHeard(value) {
     waiting: filesAcceptUnsent(),
     chosen: F.acceptChosen(storage),
     seen: F.acceptSeen(storage, server),
+    stored,
     protectedOn: typeof protectedIsOn === 'function' && protectedIsOn(),
   });
   if (step === 'saved') {
@@ -309,7 +310,7 @@ function ownProfileSettled() {
   // sender's app hears its default word for me (BUG-200's second sighting: the device said
   // "anyone", the server "friends", and nothing went).
   const F = window.HosFilesInMessages;
-  if (F) filesAcceptHeard(F.DEFAULTS.accept);
+  if (F) filesAcceptHeard(F.DEFAULTS.accept, false);
   pushWaitingOnce();
 }
 
@@ -341,7 +342,7 @@ function ownProfileArrived(msg) {
   if (!msg || typeof msg.privacy !== 'string') return;
   ownProfileHeard = true;
   const pushedAlready = waitingPushedOnce;
-  const publish = filesAcceptHeard(msg.accepts_files);
+  const publish = filesAcceptHeard(msg.accepts_files, msg.stored !== false);
   pushWaitingOnce();
   // A choice that waits only from now on goes now: the once-per-socket push has already gone.
   if (publish && pushedAlready) pushProfileToRelay();

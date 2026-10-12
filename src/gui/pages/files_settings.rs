@@ -55,6 +55,9 @@ pub(crate) struct ServerProfile {
     pub accepts_files: Option<String>,
     /// Their privacy map (JSON text).
     pub privacy: String,
+    /// The server holds a profile for them (false: none yet, so its words are defaults, never
+    /// another device's choice; the relay's `stored`, BUG-200).
+    pub stored: bool,
 }
 
 /// Every frame, from own_profile.rs `pump` once the server the app is on has sent the person's own
@@ -68,11 +71,11 @@ pub(crate) struct ServerProfile {
 /// - Take: the server's word becomes this device's, recorded as seen there.
 pub(crate) fn sync_accepts(state: &mut GuiState) {
     let server = crate::gui::pages::own_profile::current_server(state);
-    let Some(word) = crate::gui::pages::own_profile::current_copy(state).and_then(|c| c.accepts_files.clone()) else { return };
+    let Some((word, stored)) = crate::gui::pages::own_profile::current_copy(state).and_then(|c| Some((c.accepts_files.clone()?, c.stored))) else { return };
     let protected = crate::engine::protected::is_on(state);
     // The word seen is kept per server and person (a different recovery phrase starts with none).
     let seen_key = policy::accept_seen_key(&server, &state.profile_public_key);
-    match policy::accept_step(&state.settings.files_in_messages, &seen_key, &word, protected) {
+    match policy::accept_step(&state.settings.files_in_messages, &seen_key, &word, stored, protected) {
         AcceptStep::Settled => {
             let prefs = &mut state.settings.files_in_messages;
             if prefs.accept_unsent {

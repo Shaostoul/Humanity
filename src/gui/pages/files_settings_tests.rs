@@ -126,7 +126,7 @@ const TWO: &str = "https://two.example";
 /// The person's own copy from a server with no profile for her: what the relay answers her own
 /// profile request with (an empty profile and its default word, "friends").
 fn no_profile_copy() -> ServerProfile {
-    let frame = serde_json::json!({ "type": "profile_data", "name": "Ada", "bio": "", "socials": "{}", "accepts_files": "friends", "privacy": "{}" });
+    let frame = serde_json::json!({ "type": "profile_data", "name": "Ada", "bio": "", "socials": "{}", "accepts_files": "friends", "privacy": "{}", "stored": false });
     own_profile::own_copy(&frame, "Ada").expect("her own copy")
 }
 
@@ -296,4 +296,26 @@ fn a_different_person_on_this_device_starts_with_no_word_seen() {
     let bea = crate::net::files_policy::accept_seen_key(SERVER, "bea");
     assert_eq!(gs.settings.files_in_messages.accept_seen.get(&bea), None, "nothing seen for her before her copy carries it");
     assert_eq!(gs.settings.files_in_messages.accept_seen.get(&ada_on(SERVER)).map(String::as_str), Some("anyone"), "the first person's word stays");
+}
+
+/// A server this device has never seen that holds a profile for the person, with a tighter word
+/// than this device's (another device of hers may have closed it there since): the tighter word
+/// is taken, and nothing looser is published over it. A looser word there gets this device's
+/// tighter choice instead.
+///
+/// Seen red 2026-10-12 with `accept_step` publishing on every server never seen (the `stored`
+/// check taken out): "her newer, tighter word is taken" failed (Send).
+#[test]
+fn a_never_seen_server_holding_a_profile_keeps_the_tighter_word() {
+    let (mut gs, sent) = app("nobody");
+    gs.settings.files_in_messages = prefs(AcceptFrom::Anyone, true, &[]);
+    own_profile::pump(&mut gs);
+    assert_eq!(gs.settings.files_in_messages.accept_from, AcceptFrom::Nobody, "her newer, tighter word is taken");
+    assert!(updates(&sent).is_empty(), "and nothing looser goes over it");
+
+    let (mut gs, sent) = app("anyone");
+    gs.settings.files_in_messages = prefs(AcceptFrom::Friends, true, &[]);
+    own_profile::pump(&mut gs);
+    assert_eq!(gs.settings.files_in_messages.accept_from, AcceptFrom::Friends, "a looser word there is not taken");
+    assert_eq!(updates(&sent).pop().expect("this device's tighter choice goes")["accepts_files"], "friends");
 }

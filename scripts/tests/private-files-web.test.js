@@ -2381,9 +2381,14 @@ test("BUG-200: what a server's word means, step by step (acceptServerStep)", () 
   assert.equal(step({ word: "anyone", chosen: true, seen: "friends" }), "same");
   // Changed there since this device last saw it: another device's choice, taken by a device that chose too.
   assert.equal(step({ word: "nobody", seen: "friends", chosen: true }), "take");
-  // Never seen there, or still what this device last saw: a device that chose sends its choice...
-  assert.equal(step({ word: "friends", chosen: true }), "publish");
+  // Still what this device last saw there, or no profile for me there: a device that chose sends its choice...
   assert.equal(step({ word: "friends", seen: "friends", chosen: true }), "publish");
+  assert.equal(step({ word: "friends", chosen: true, stored: false }), "publish");
+  // ...and on a server never seen that holds a profile for me, the tighter of the two words wins
+  // (its word may be my newer choice from another device; the review of 2026-10-12).
+  assert.equal(step({ word: "friends", chosen: true }), "take", "its tighter word is taken");
+  assert.equal(step({ word: "friends", chosen: true, stored: true }), "take");
+  assert.equal(step({ mine: "nobody", word: "anyone", chosen: true }), "publish", "this device's tighter word goes");
   // ...and one that never chose takes the server's word.
   assert.equal(step({ word: "friends" }), "take");
   assert.equal(step({ word: "friends", seen: "friends" }), "take");
@@ -2397,7 +2402,7 @@ test("BUG-200: what a server's word means, step by step (acceptServerStep)", () 
   assert.equal(step({ word: "everyone", chosen: true }), "none");
 });
 
-test("BUG-200: a device that chose Anyone sends it to a server holding no profile for me, and to one holding a word it never saw", async () => {
+test("BUG-200: a device that chose Anyone sends it to a server holding no profile for me; on one holding a profile it never saw, the tighter word wins", async () => {
   const fx = await fixture();
   const page = await loadChat(fx.ann);
   await page.handle(ownCopy("friends"));
@@ -2418,10 +2423,16 @@ test("BUG-200: a device that chose Anyone sends it to a server holding no profil
   sent = await connectTo(page, SERVER_A, "anyone");
   assert.equal(sent().length, 0, "and nothing goes there again");
 
-  // A server holding another word, never seen by this device: it never got the choice either.
+  // A server holding a profile for me with a tighter word, never seen by this device: that word may
+  // be my newer choice from another device, so it is taken and nothing looser goes over it.
   sent = await connectTo(page, SERVER_B, "nobody");
-  assert.equal(acceptHere(page), "anyone", "that server's word does not turn the choice back");
-  assert.deepEqual(sent().map((u) => u.accepts_files), ["anyone"], "the choice is sent there");
+  assert.equal(acceptHere(page), "nobody", "the tighter word there is taken");
+  assert.equal(sent().length, 0, "and nothing looser is sent over it");
+  assert.equal(seenWords(page)[SERVER_B], "nobody", "remembered there");
+  // One holding a looser word, never seen: this device's tighter word goes there.
+  sent = await connectTo(page, SERVER_C, "anyone");
+  assert.equal(acceptHere(page), "nobody", "a looser word is not taken");
+  assert.deepEqual(sent().map((u) => u.accepts_files), ["nobody"], "this device's tighter word is sent there");
 });
 
 test("BUG-200: a device that never chose takes each server's word; changing only Show pictures is not a choice", async () => {
@@ -2588,6 +2599,9 @@ test("BUG-200: a different person in this browser (a restore from another recove
 //     Anyone ... not remembered before the server's copy carries it".
 //  A9 (2026-10-12) chat-profile.js, the seen key kept on the first person signed in (never the one now): "a
 //     different person in this browser ... the choice made here stands for the new person".
+//  A10 (2026-10-12) files-in-messages.js, acceptServerStep publishing on every server never seen
+//     (the stored and tighter checks taken out): the step table ("its tighter word is taken"), "a
+//     device that chose Anyone ... the tighter word there is taken".
 // Not covered by a test: ownProfileArrived's direct push for a choice that starts waiting after the
 // socket's one push has gone (only reachable when a copy repeats a word this device already saw
 // there after one it would not take, under the protected setup).
