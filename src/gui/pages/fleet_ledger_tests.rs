@@ -302,6 +302,27 @@ fn out_of_the_world_the_ledger_is_from_the_last_visit() {
     assert!(find_text_in_shapes(&out.shapes, "2 Bread are held for the fleet of the server at wss://there").is_some(), "a give held for another server is shown");
 }
 
+/// AWAY FROM A SERVER THE PANEL COUNTS THE MESS HALL'S MEALS ON THIS COMPUTER (ship homes
+/// increment 6, plan 3.8): the counter's offline meter in a sentence; in the shared world the
+/// ledger says it instead, so the sentence is not shown there.
+///
+/// Seen red 2026-10-12 with the offline block taken out of `draw_section`: "away from a server
+/// the panel says \"On this computer the ship's stores have fed you 3 meals and 1.5 L of
+/// water.\"".
+#[test]
+fn away_from_a_server_the_panel_counts_the_meals_here() {
+    let (ctx, theme) = ctx_and_theme();
+    let mut gs = GuiState::default();
+    gs.fleet.meals_here = Some(crate::persistence::ShipMeals { taken: 3, next_at_game_s: 0.0, water_l: 1.5 });
+    let want = "On this computer the ship's stores have fed you 3 meals and 1.5 L of water.";
+    let out = frame(&ctx, &theme, &mut gs);
+    assert!(find_text_in_shapes(&out.shapes, want).is_some(), "away from a server the panel says {want:?}");
+    assert_eq!(meals_here_sentence(&crate::persistence::ShipMeals { taken: 1, next_at_game_s: 0.0, water_l: 20.0 }), "On this computer the ship's stores have fed you 1 meal and 20 L of water.");
+    gs.copresence_active = true;
+    let out = frame(&ctx, &theme, &mut gs);
+    assert!(find_text_in_shapes(&out.shapes, "On this computer").is_none(), "in the shared world the ledger says it");
+}
+
 /// A SERVER SWITCH FORGETS THE OLD SERVER'S LEDGER (finding 16 of the 2026-10-04 review): its
 /// ledger, stores, totals and what was sent to it go; gives held for it stay, tagged with it.
 ///

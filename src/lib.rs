@@ -14104,6 +14104,9 @@ mod native_app {
                                 })
                             })
                             .unwrap_or(false);
+                        // The mess hall's serving counter (ship homes increment 6): its card's
+                        // flag, its button's ask, the offline meter (engine/mess_hall.rs).
+                        crate::engine::mess_hall::frame(state);
                     }
 
                     // Dev autopilot (v0.793): zero-click world entry for scripted

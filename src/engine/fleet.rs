@@ -38,7 +38,9 @@
 //!
 //! A MEAL. The server's answer to `take_meal` names the good a meal is (`meal_item`, a Basic
 //! Ration); the game puts one in the backpack and eats it at once (the Eat button's path), so a
-//! meal charged to the ledger is a meal eaten.
+//! meal charged to the ledger is a meal eaten. It is asked for from Inventory > The fleet or at
+//! the mess hall's serving counter (engine/mess_hall.rs, increment 6), which away from a server
+//! serves the ship's stores on this computer instead, through the same `feed`.
 //!
 //! POWER. The ship's reactor meters every watt-hour a home draws from it and returns to it
 //! (systems::ship_power, `ShipSupplyLedger`). While the player is in a server's shared world,
@@ -127,6 +129,12 @@ pub(crate) fn on_game_message(state: &mut EngineState, v: &serde_json::Value) ->
         }
         // The answers that need no word of their own (the ledger follows an adjust).
         Some("game_fleet_power_result" | "game_fleet_give_adjusted") => true,
+        // A fleet store that came into view joins the list (increment 6: the South Commons'
+        // store is out of most welcomes' view). Not consumed: co-presence reads it too.
+        Some("game_in_view") => {
+            note_store_in_view(&mut state.gui_state.fleet, v);
+            false
+        }
         // A meal the panel asked for (an AI agent's take_meal answers the same way): eat it, say
         // what happened, and fetch the ledger with its new line.
         Some("game_interact_result") if v.get("action").and_then(|a| a.as_str()) == Some("take_meal") => {
@@ -147,7 +155,10 @@ pub(crate) fn on_meal(state: &mut EngineState, v: &serde_json::Value) {
         let max_stack = state.data_store.get::<crate::systems::inventory::ItemRegistry>("item_registry").map_or(99, |r| r.max_stack_for(item));
         feed(&mut state.game_world.world, &mut state.gui_state, item, max_stack)
     });
-    state.gui_state.fleet.status = meal_sentence(v, eaten);
+    let said = meal_sentence(v, eaten);
+    // The panel and the mess hall's serving counter (engine/mess_hall.rs) both show it.
+    state.gui_state.fleet.counter_status = said.clone();
+    state.gui_state.fleet.status = said;
 }
 
 /// Put one `item` in the player's backpack (a slot is made for it, as a drink's empty vessel
@@ -323,17 +334,35 @@ pub(crate) fn on_welcome(state: &mut EngineState, v: &serde_json::Value) {
 /// The fleet's stores in a welcome's world snapshot.
 pub fn stores_in(v: &serde_json::Value) -> Vec<FleetStore> {
     let Some(snap) = v.get("world_snapshot").and_then(|s| s.as_array()) else { return Vec::new() };
-    snap.iter()
-        .filter(|e| e.get("entity_type").and_then(|t| t.as_str()) == Some("food_store"))
-        .filter_map(|e| {
-            let p = e.get("position")?.as_array()?;
-            Some(FleetStore {
-                entity_id: e.get("entity_id")?.as_u64()?,
-                name: e.get("components").and_then(|c| c.get("name")).and_then(|n| n.as_str()).unwrap_or("The fleet's store").to_string(),
-                position: [p.first()?.as_f64()? as f32, p.get(1)?.as_f64()? as f32, p.get(2)?.as_f64()? as f32],
-            })
-        })
-        .collect()
+    snap.iter().filter_map(store_of).collect()
+}
+
+/// One snapshot entry (a welcome's, or a `game_in_view`'s) as a fleet store; None for anything
+/// that is not one.
+fn store_of(e: &serde_json::Value) -> Option<FleetStore> {
+    if e.get("entity_type").and_then(|t| t.as_str()) != Some("food_store") {
+        return None;
+    }
+    let p = e.get("position")?.as_array()?;
+    Some(FleetStore {
+        entity_id: e.get("entity_id")?.as_u64()?,
+        name: e.get("components").and_then(|c| c.get("name")).and_then(|n| n.as_str()).unwrap_or("The fleet's store").to_string(),
+        position: [p.first()?.as_f64()? as f32, p.get(1)?.as_f64()? as f32, p.get(2)?.as_f64()? as f32],
+    })
+}
+
+/// A `game_in_view` naming a fleet store: it joins the list, or takes the place of the one with
+/// its id (a store stands still, so one that goes out of view stays listed where it stands).
+/// True when it was a store. Increment 6: a second mess hall halfway down First Street is out
+/// of most welcomes' view, so the welcome alone would never list its store.
+pub(crate) fn note_store_in_view(fleet: &mut crate::gui::pages::fleet_ledger::FleetView, v: &serde_json::Value) -> bool {
+    if v.get("type").and_then(|t| t.as_str()) != Some("game_in_view") {
+        return false;
+    }
+    let Some(store) = v.get("entity").and_then(store_of) else { return false };
+    fleet.stores.retain(|s| s.entity_id != store.entity_id);
+    fleet.stores.push(store);
+    true
 }
 
 /// Take the asked gives' items out of the backpack and hold them (step 2 of the module doc).

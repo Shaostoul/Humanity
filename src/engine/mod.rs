@@ -69,6 +69,9 @@ pub mod save_slot;
 /// The fleet ledger's engine half (2026-10-04): the server's answers into the fleet panel, a
 /// give's items out of the backpack once, and the home's reactor power reported.
 pub mod fleet;
+/// The mess hall's serving counter (ship homes increment 6): a free crew meal, the server's in
+/// the shared world and the ship's stores on this computer elsewhere, and drinking water.
+pub mod mess_hall;
 pub mod home_spawn;
 /// The F10 sidebar's key rules (F10 toggle, Escape-closes-first), the
 /// cursor-free predicate and the flag-by-name lookup the dev IPC reports
