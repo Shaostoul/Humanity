@@ -2750,10 +2750,11 @@ call `handle_webrtc_signal` pass `None` for the new argument.
 The desktop app's half of "Device-to-device big files: the shapes, exact" (parts 1, 3, 4, 5 and 6),
 built 2026-10-11 in one worktree while the relay's half and the web's were built in parallel, then
 brought into line with the choices the web half made (the coordinator's note of the same day): one
-connection per pair of people, no transfer id in the signalling, a data message at most 65,536
-bytes header included, no automatic decline. It is tested with stand-ins and the shared fixture;
-no desktop-to-web transfer has run yet, and the relay's real `call_credentials` answer for a file
-has been read only as its shape (the answer and its refusal echo `file`).
+connection per pair of people, a data message at most 65,536 bytes header included, no automatic
+decline. It was then brought to the rules settled by the first review and by the second (both
+below). It is tested with stand-ins and the shared fixture; no desktop-to-web transfer has run
+yet, and the relay's real `call_credentials` answer for a file has been read only as its shape
+(the answer and its refusal echo `file`).
 
 **The words, `src/net/file_offer.rs`.** The pass (`file_pass_preimage`, `mint_file_pass`,
 `verify_file_pass`: Dilithium3 from the identity seed, at most 7 days, a day of slack when checked
@@ -2804,18 +2805,18 @@ writes are refused first and retried on the next turn.
 **The connection, `src/net/file_link.rs`.** One connection per pair of people, on its own thread,
 with one data channel per transfer labelled `file:<id>`, opened by that transfer's receiver
 whichever side dialled (str0m opens a channel on a live connection without a new offer); the
-sender tells the transfers apart by the label. The receiver dials with the credentials of one of
-its accepted transfers, and its `dc_offer` carries that transfer's pass. The dialled side cannot
-know which of its offers was chosen (signals carry no transfer id), so it asks for credentials for
-each of its live offers to that person, at most four, and answers with one relayed address per
-credential, each allocation on its own UDP socket (a forwarder keeps one allocation per client
-address); the forwarder joins only the pair in the same scope, and ICE finds it. The TURN client is
-webrtc.rs's `mod turn`, as it is; the app's WebRTC manager is not used, since it keys connections
-by person and holds one call's allocation at a time. Relay only: the local candidates are the
-relayed addresses alone, a datagram not from a socket's own forwarder is never read, and a transmit
-goes out through the allocation whose relayed address is its source or not at all. The spec's
-direct connection between friends who both turned it on is not built: the app has no such setting
-yet (`webrtc::DIRECT_CONNECTIONS` is false), so every transfer goes through the forwarder.
+sender tells the transfers apart by the label. The receiver dials with the credentials of its
+oldest accepted transfer from that person, and its `dc_offer` carries that transfer's pass; the
+relay hands it on naming that transfer (`file`), and the dialled side asks for that transfer's
+credentials alone (rule 7 below). Each side holds ONE allocation for the connection, on its own UDP
+socket, and the forwarder joins the two in that transfer's scope; every other transfer between
+them rides the same connection as its own channel. The TURN client is webrtc.rs's `mod turn`, as
+it is; the app's WebRTC manager is not used, since it keys connections by person and holds one
+call's allocation at a time. Relay only: the one local candidate is the relayed address, a
+datagram not from the socket's own forwarder is never read, and a transmit goes out through the
+allocation only when the relayed address is its source. The spec's direct connection between
+friends who both turned it on is not built: the app has no such setting yet
+(`webrtc::DIRECT_CONNECTIONS` is false), so every transfer goes through the forwarder.
 
 **The app, `src/engine/file_transfer.rs`.** `offer` cleans the file on a worker when the attach
 step's switch is on (`file_clean::clean_copy` into `offered-files/` beside the DM stores, never the
@@ -2828,14 +2829,14 @@ Accept makes the part file (`<name>.<first 12 of the id>.part` in the downloads 
 file's full size, so too little room says so at once. `pump` dials, per person, when a transfer
 from them is accepted here and not paused, they are listed online and no connection stands;
 transfers accepted or offered while one stands join it. `on_signal` (from `frame_ws_poll.rs`, before
-the app's WebRTC manager) takes a `dc_offer` from someone this device has live offers to, a
-`dc_answer` or `dc_ice` from someone a file connection stands with, a `dc_ice` from someone whose
-dial it is answering but has no credentials for yet (kept for that person, `Pair::early_ice`, at
-most 32, and handed to the connection in `Setup::early_ice`), and a `dc_ice` of a dial set aside
-when both dialled (dropped); anything else goes on to the manager. If both dial at once the larger
-key keeps its dial and the other drops its attempt and answers. A credentials answer
-(`read_credentials`, from `engine/call_relay.rs` `on_frame`) that is refused, or none at all within
-8 seconds, with nothing granted, is "This server is not set up for that yet", tried again after a
+the app's WebRTC manager) takes a `dc_offer` that names its transfer (`file`), a `dc_answer` or
+`dc_ice` from someone a file connection stands with, a `dc_ice` from someone whose dial it is
+answering but has no credentials for yet (kept for that person, `Pair::early_ice`, at most 32, and
+handed to the connection in `Setup::early_ice`), and a `dc_ice` of a dial set aside when both
+dialled (dropped); anything else, a `dc_offer` naming no transfer included, goes on to the manager.
+If both dial at once the larger key keeps its dial and the other drops its attempt and answers. A
+credentials answer (`read_credentials`, from `engine/call_relay.rs` `on_frame`) that is refused, or
+none at all within 8 seconds, is "This server is not set up for that yet", tried again after a
 minute or on Resume; a dropped connection is dialled again after 5 seconds. A failure on one side
 is told to the other with the cancel note. The receiver's answer and cancel notes carry the offer's
 pass on their `dm_put` to the sender as `file_pass` (the self-copies and the sender's own notes
@@ -2868,6 +2869,58 @@ desktop app are now kept as follows.
   cancel notes carry `file_pass` on their `dm_put`. The relay half of this rule (letting such a put
   through the gate) was being built in parallel and is not part of this change.
 
+**Brought into line with the rules settled by the second review (2026-10-12),** against the relay's
+half of rule 7 (commit 397ff2750: a `dc_offer` let in by a file pass reaches its target with
+`file` = the transfer id).
+- Rule 7 (a dial names its transfer). Before: the dialled side asked credentials for its four
+  newest live offers to the dialler and held one allocation per credential for the whole
+  connection, each on its own socket, so idle offers used up the person's share, and a dial whose
+  transfer was not among the four could not connect. Now `on_signal` reads `file`: naming one of
+  this device's live offers to the dialler (Offered or Accepted, the file here), it asks for that
+  transfer's credentials alone and answers with one allocation (`Pair::asked`, `Setup::relay`,
+  the link's single `Alloc`); naming anything else, it is refused quietly (taken, nothing sent or
+  shown, never handed to the call code: another of the person's devices may hold the file). A
+  `dc_offer` naming no transfer is not a file dial: it goes to the WebRTC manager, which before
+  this was handed a friend's direct-connection dial only when this device had no live offer to
+  them. A dropped earlier connection with that person is let go (`let_go`) and its rows stop
+  saying open.
+- Rule 8 (an end is always said). The desktop's own failures were already said both ways (`cancel`
+  on the channel from the protocol, the cancel note with the receiver's pass from `on_end`), and
+  stay so. Before: a channel the other side closed only reset that leg, which then waited for the
+  whole connection to drop, with the row still saying "Sending" or "Receiving" (`live.open` was
+  never cleared) and any pause they held still showing. Now the engine hears `TransferClosed` at
+  once (not open, their pause cleared), and the connection (`channel_closed`, `closed_channels`):
+  a SENDING transfer waits 15 seconds (`STOPPED_WAIT`, the website's `FT_STOPPED_WAIT_MS`, the
+  coordinator's ruling of the same day, after the website found that ending at once breaks
+  resume: a receiver that restarts closes its channels one at a time while its connection still
+  reads connected for a moment). If by then the channel was not opened again and the connection is
+  still there, it ends "Ann's side stopped it" (`stop_due`, `Sending::stopped`, `stopped_line`; the
+  cancel note follows from `on_end`); otherwise it was a drop, and the transfer waits on that
+  connection until it goes, then for the next dial. "Still there" is decided here as anything
+  from Ann a second or more after the close (`STOP_PROOF`, `they_stopped`; ICE checks the path
+  every 3 seconds at most), not str0m's ICE state, which can read connected for a while after a
+  peer has gone. A receiver that really stops says `cancel` on the channel (and sends the note),
+  which ends the transfer at once; the wait only covers a stop without one. The connection stays
+  up while a close is judged (the leg is still a channel). A RECEIVING transfer opens its channel
+  again on the same connection after 2 seconds (`REOPEN_AFTER`), doubling each time it is closed
+  again before a piece arrives, at most a minute (`REOPEN_MAX`, so a website sender that lost its
+  file and closes each new channel is not hammered). Three more, decided here: a channel opened for
+  a transfer that already has one replaces it (only its receiver opens one, and only after it saw
+  the last one close, which str0m's own close never tells the other side); one opened for a
+  transfer that already ended here, other than done, is answered with `cancel`; and a channel this
+  side asks to open that str0m closes before it opens is asked for again at once, three times,
+  then after a minute (`Link::opening`, `MAX_QUICK_REOPENS`). That last is a str0m matter: its own
+  close never resets an SCTP stream, and after two seconds' cooldown it gives the same stream id
+  out again, which the association still holds, so the open is refused; asked again while the
+  failed id cools down, it gets another. (A browser's close does reset its stream, so this shows
+  only between two copies of str0m, or a close str0m made itself.)
+- Rule 9 (a dial is an answer). Before: a sender whose answer note was lost stayed Offered through
+  the whole transfer ("Waiting for Ann to accept" with the file going), `done` changed nothing
+  (`advance(Offered, Done)` was None and `on_end` returned before `ended()`), and the row later
+  ended "Ann did not answer in time". Now the transfer's channel opening is Accept for a sender
+  still Offered (`pump_link`, `TransferOpen`; it comes before any `hashes` or `get` on that
+  channel), and `done` is Done from Offered too (`advance`), so "Sent".
+
 **The screens.** The attach step (`attach_step.rs` `route_pick`, `open_direct`) offers a DM file over
 the person's private file limit instead of refusing it: the look and the switch as for any file, the
 line "Files over 6 MB go straight to Ann's device instead of through the server.", that both apps
@@ -2878,9 +2931,10 @@ answer in time", "Answered on your other device"), a progress bar, Pause or Resu
 again after "not set up", Remove once ended, and the line saying whose app must stay open.
 
 **Tests**, each seen failing once against the break named in its doc comment:
-`net::file_offer::tests` (7: the spec's words; the shared fixture; the pass checks only for its two
+`net::file_offer::tests` (8: the spec's words; the shared fixture; the pass checks only for its two
 people, its way round, its file and its server; an offer that does not add up is not read; Files in
-messages before the question; notes move a transfer forward only; a file read for its hashes),
+messages before the question; notes move a transfer forward only; a file read for its hashes; and
+from the second review, `done` ending a transfer still Offered as Done),
 `net::file_transfer::tests` (13, against stand-ins written from the spec's words: a whole file in
 three splits, the hash-list check, piece checking with three failures, resume after a drop and
 after a restart, pause and resume from either side, cancel from either side, the sender's 64 KiB
@@ -2890,21 +2944,35 @@ gets the whole file across with no stall, each piece asked once plus once per ba
 the sender sends a piece re-asked mid-send again, whole, after it; a stand-in receiver with the
 website's pattern, `get(next, 16)` after a bad piece, gets it again without a stall; pieces not
 asked for are ignored and reserve nothing; only 30 seconds with nothing asked for arriving asks
-again), `net::file_link::tests` (3: three files, two one way and one the other, on one connection
-between two apps through the test forwarder, the dialler with one relayed candidate and the
-answerer with two, nothing sent around the forwarder; the channel label; and from the first
-review, the connection closing when its last channel ends, an offer nobody opened not keeping it
-up), and
-`engine::file_transfer::tests` (10, two apps with recording sockets: the offer as a sealed note
+again), `net::file_link::tests` (7: three files, two one way and one the other, on one connection
+between two apps through the test forwarder, one relayed candidate each side, nothing sent around
+the forwarder; the channel label; from the first review, the connection closing when its last
+channel ends, an offer nobody opened not keeping it up; and from the second: through the test
+forwarder, a channel the receiver closes without a word ending the sending transfer "Rae's side
+stopped it" only after the 15 seconds, and a channel the sender closes opened again by the
+receiver on the same connection two seconds later with the pause it held cleared and the file then
+whole; on a connection with no thread, each branch of the sender's judgement (stopped: the wait
+over and Rae heard since; drop: nothing heard since, nothing ends; opened again within the wait:
+served; not yet: the wait not over); and the wait, the stop proof and the reopen wait's doubling
+as rules. str0m's own close tells the other side nothing, so the network tests close a channel on
+one side with `Cmd::CloseChannel` and report it on the other with `Cmd::TheyClosed`, both
+test-only), and
+`engine::file_transfer::tests` (11, two apps with recording sockets: the offer as a sealed note
 with its self-copy, listed and never shown; decline, and the other device's "Answered on your other
 device"; an unanswered offer runs out with nothing sent; cancel from either side; dialling only
-while the sender is online and not paused, with "not set up" and Pause; credentials for each live
-offer when dialled; the larger key winning when both dial, the set-aside dial's candidates taken
-and dropped; and from the first review: the receiver's answer, decline and cancel carrying the file
-pass on the put to the sender and nothing else carrying one; a `dc_ice` that comes before the
-credentials kept in order and handed to the connection; and end to end through the test
-forwarder, a dial whose candidate comes as a `dc_ice` after its offer and before the answering
-side's credentials, which connects and carries the file whole).
+while the sender is online and not paused, with "not set up" and Pause; the larger key winning
+when both dial, the set-aside dial's candidates taken and dropped; from the first review: the
+receiver's answer, decline and cancel carrying the file pass on the put to the sender and nothing
+else carrying one; a `dc_ice` that comes before the credentials kept in order and handed to the
+connection; and from the second review: a dial answered with the credentials of the one transfer
+it names out of five live offers, a dial naming anything else refused quietly and one naming none
+left to the WebRTC manager; through a stand-in connection (`FileLink::stand_in`), a sender whose
+answer notes were lost taking the channel opening as Accept and `done` as Sent, the pause cleared
+with a closed channel, and "Rae's side stopped it" sending the cancel note; and end to end through
+the test forwarder, five live offers, two accepted and one of those answers lost, a dial whose
+candidate comes as a `dc_ice` after its offer and before the answering side's credentials, one
+credential and one relayed candidate each side, and both files whole on the one connection, the
+lost answer's transfer Sent).
 
 **Not built yet.** Groups (file-transfer-at-scale.md, layer 3). The direct connection between
 friends. Showing the forwarder's day amount (the relay counts it; the app shows only "not set up").

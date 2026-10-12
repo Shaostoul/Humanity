@@ -220,7 +220,21 @@ fn notes_move_a_transfer_forward_only() {
     assert_eq!(apply_note(&mut mine, me, cy, me, 6, yes(false), |_| true), Applied::Moved(ID.into(), Stage::Declined));
     assert_eq!(apply_note(&mut mine, me, ann, cy, 7, off(), |_| true), Applied::Nothing, "a note between other people");
     assert_eq!(advance(&Stage::Accepted, &Happened::Done), Some(Stage::Done));
-    assert_eq!(advance(&Stage::Offered, &Happened::Done), None, "only an accepted transfer is done");
+}
+
+/// RULE 9 OF THE SECOND REVIEW (media-showcase.md, "a dial is an answer"): `done` on the channel
+/// ends a transfer as Done even while its record still waits for the answer note (Offered), so a
+/// sender whose answer note was lost is Sent, not left to end as "did not answer in time". Nothing
+/// else about an ended transfer changes, and an answer note arriving after it changes nothing.
+/// Seen red 2026-10-12 with the `(Stage::Offered, Happened::Done)` arm taken out of `advance` (as
+/// before the review): "done from Offered" was None.
+#[test]
+fn done_ends_a_transfer_still_waiting_for_its_answer() {
+    assert_eq!(advance(&Stage::Offered, &Happened::Done), Some(Stage::Done), "done from Offered");
+    assert_eq!(advance(&Stage::Accepted, &Happened::Done), Some(Stage::Done));
+    assert_eq!(advance(&Stage::Done, &Happened::Accepted), None, "the lost answer arriving late changes nothing");
+    assert_eq!(advance(&Stage::Declined, &Happened::Done), None, "an ended transfer stays ended");
+    assert_eq!(advance(&Stage::Expired, &Happened::Done), None);
 }
 
 /// The hashes of a file read for its offer: the whole file's BLAKE3, each piece's, and the digest

@@ -449,15 +449,20 @@ pub enum Happened {
 
 /// Where a transfer at `stage` goes when `what` happens, or None when nothing changes: an ended
 /// transfer never changes again (a late note from a relay that delivers twice cannot bring back a
-/// cancelled one), an answer counts only while the offer waits for one, and only an accepted
-/// transfer can be done or fail.
+/// cancelled one), and an answer counts only while the offer waits for one.
+///
+/// RULE 9 OF THE SECOND REVIEW (media-showcase.md, "a dial is an answer"): `done` ends a transfer
+/// as Done from Offered too. Only the channel reports `done`, and a channel exists only once the
+/// receiver opened it, so a sender whose answer note was lost (its record still Offered) is Sent
+/// when the receiver says `done`, never left waiting to end as "did not answer in time". (A
+/// receiver's own record is Accepted before it opens a channel, so this changes nothing for it.)
 pub fn advance(stage: &Stage, what: &Happened) -> Option<Stage> {
     match (stage, what) {
         (s, _) if s.ended() => None,
         (Stage::Offered, Happened::Accepted) => Some(Stage::Accepted),
         (Stage::Offered, Happened::Declined) => Some(Stage::Declined),
         (_, Happened::Cancelled { by_me }) => Some(Stage::Cancelled { by_me: *by_me }),
-        (Stage::Accepted, Happened::Done) => Some(Stage::Done),
+        (Stage::Accepted, Happened::Done) | (Stage::Offered, Happened::Done) => Some(Stage::Done),
         (Stage::Accepted, Happened::Failed(w)) | (Stage::Offered, Happened::Failed(w)) => Some(Stage::Failed(w.clone())),
         _ => None,
     }
