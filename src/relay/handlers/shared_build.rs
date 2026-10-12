@@ -60,7 +60,9 @@
 //! names a key): `Game: built piece {id} {bp} on {frame}`, `Game: build refused ({reason}/{why})
 //! on {frame}` (`({reason})` with no why), `Game: took down piece {id} on {frame}`, `Game:
 //! take-down refused ({reason}/{why})`, exactly; a refusal's own detail (which number was off,
-//! and by how much) goes to a debug line of its own.
+//! and by how much) goes to a debug line of its own. A permit check (ship homes 5b,
+//! [`permit_check`]) logs `Game: permit for {plot} checked (ok)` or `Game: permit for {plot}
+//! checked (not_allowed/{why})`, and nothing more at info.
 //!
 //! Its own file because relay.rs and msg_handlers.rs are held to line budgets
 //! (tests/file_size_ratchet.rs): each makes one-line calls into it.
@@ -797,13 +799,15 @@ pub fn came_down_note(pieces: usize) -> String {
 
 // ── The messages ──────────────────────────────────────────────────────────
 
-/// The building messages (relay.rs routes `game_build`, `game_unbuild` and `game_pieces_request`
-/// here). Every refusal goes to the sender alone, with the one sentence shared.rs keeps for it.
+/// The building messages (relay.rs routes `game_build`, `game_unbuild`, `game_pieces_request` and
+/// `game_permit_check` here). Every refusal goes to the sender alone, with the one sentence
+/// shared.rs keeps for it, and so does every permit check's answer.
 pub async fn handle(state: &Arc<RelayState>, key: &str, kind: &str, raw: &serde_json::Value) {
     match kind {
         shared::msg::BUILD => build(state, key, raw).await,
         shared::msg::UNBUILD => unbuild(state, key, raw).await,
         shared::msg::PIECES_REQUEST => pieces_request(state, key, raw).await,
+        shared::msg::PERMIT_CHECK => permit_check(state, key, raw).await,
         _ => {}
     }
 }
@@ -1020,6 +1024,100 @@ fn pieces_request_allowed(state: &RelayState, key: &str) -> bool {
         map.insert(bucket, now);
     }
     allowed
+}
+
+// ── Does my permit work? (ship homes 5b) ──────────────────────────────────
+
+/// Does household permit `p` let `who` onto the plot it names, now? The judging half of a
+/// `game_permit_check` (docs/design/ship-homes-increment-5b-plan.md section 3.5, steps 4 to 6),
+/// once the asker is known to be in the shared world and the message reads:
+/// - the plot must be one of this ship's plots, else `permit_bad` (a build there would be
+///   refused `bad_frame`; to the asker it is a permit that does not check out);
+/// - the asker's own plot works without a word, whatever the permit says;
+/// - anything else is [`permit_lets_in`], exactly as a build on that plot with that permit is
+///   judged: the signature over the relay's OWN facts (its server DID, this plot, the asker's
+///   own id) first, so a permit not made out to the asker is `permit_bad` before the withdrawal
+///   list or the plot's holder is read, and nothing is learned about anyone else's permit or
+///   about who holds a plot; then the end date, the withdrawal list and the holder.
+///
+/// A `storage_error` (the holder could not be read) means "ask again later", not "no".
+pub fn judge_permit_check(book: &PieceBook, db: &Storage, world_id: &str, who: &Asker, p: &Permit, now_s: u64) -> Result<(), Refusal> {
+    if book.frames.get(&plot_frame_id(&p.plot)).is_none_or(|f| f.kind != FrameKind::Plot) {
+        return Err(Refusal::not_allowed(Why::PermitBad));
+    }
+    if who.home_plot.as_deref() == Some(p.plot.as_str()) {
+        return Ok(());
+    }
+    permit_lets_in(book, db, world_id, &p.plot, who, p, now_s)
+}
+
+/// The `game_permit_status` that answers check `req_id` about `plot`, from what the check found:
+/// Ok is `ok: true` and nothing more; a `not_allowed` refusal is `ok: false` with its `why` and
+/// that why's words (shared.rs `why_words`, as a build would say them); anything else (too soon,
+/// not in the shared world, the database not answering) is `again`, with no why and no words.
+/// It never names who holds a plot: the words are shared.rs's, the same for everyone.
+pub fn permit_status(req_id: u32, plot: &str, verdict: &Result<(), Refusal>) -> FromRelay {
+    let (ok, why, again) = match verdict {
+        Ok(()) => (true, None, false),
+        Err(Refusal { reason: Reason::NotAllowed, why: Some(w), .. }) => (false, Some(*w), false),
+        Err(_) => (false, None, true),
+    };
+    let message = why.map(|w| shared::why_words(Action::Build, Reason::NotAllowed, Some(w))).unwrap_or_default();
+    FromRelay::PermitStatus { req_id, plot: plot.to_string(), ok, why, again, message }
+}
+
+/// `game_permit_check` (ship homes 5b, plan section 3.5): does the asker's own household permit
+/// let them onto the plot it names, now? A game asks after each welcome and every few minutes,
+/// and opens a permitted plot's door only on a yes. Cheapest step first:
+/// 1. at most one check per player every 200 ms, in a bucket of its own
+///    (`perception_rate_allows`, "permit"); sooner is `again`;
+/// 2. the asker is in the shared world, else `again` (a game asks after its welcome);
+/// 3. the message reads as a check, within the permit's caps ([`read_request`]), else
+///    `permit_bad`;
+/// 4. to 6. [`judge_permit_check`]; its `storage_error` is `again`.
+///
+/// The answer ([`permit_status`]) goes to the asker alone, about their own permit only; nobody
+/// else is sent anything, and nothing is stored. The log line names the plot and the verdict,
+/// never a key: `Game: permit for {plot} checked (ok)` or `Game: permit for {plot} checked
+/// (not_allowed/{why})`; a check not judged goes to a debug line.
+async fn permit_check(state: &Arc<RelayState>, key: &str, raw: &serde_json::Value) {
+    let req_id = req_id_of(raw).unwrap_or(0);
+    // The plot as sent, for the answer to a check that cannot be read: at most as long as any
+    // plot a permit holds, so an answer is never longer than what the asker could have meant.
+    let plot_said: String = raw
+        .get("permit")
+        .and_then(|p| p.get("plot"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .chars()
+        .take(crate::relay::core::pq_crypto::PLOT_PERMIT_FIELD_MAX_LEN)
+        .collect();
+    let say = |plot: &str, verdict: Result<(), Refusal>| {
+        match &verdict {
+            Ok(()) => tracing::info!("Game: permit for {} checked (ok)", clean(plot)),
+            Err(Refusal { reason: Reason::NotAllowed, why: Some(w), .. }) => {
+                tracing::info!("Game: permit for {} checked (not_allowed/{})", clean(plot), w.as_str())
+            }
+            Err(r) => tracing::debug!("Game: permit for {} not checked ({}: {}); the game asks again", clean(plot), r.reason.as_str(), r.detail),
+        }
+        send_to(state, HashSet::from([key.to_string()]), &wire(&permit_status(req_id, plot, &verdict)));
+    };
+    if !super::msg_handlers::perception_rate_allows(state, key, "permit") {
+        return say(&plot_said, Err(Refusal::new(Reason::RateLimited, "a second permit check within 200 ms")));
+    }
+    let world = state.game_world.read().await;
+    // Ranks play no part in a permit (a rank never gives a plot), so none is read.
+    let Some(who) = Asker::in_world(&world, key, Ranks::default()) else {
+        return say(&plot_said, Err(Refusal::new(Reason::NotInGame, "the sender is not in the shared world")));
+    };
+    let p = match read_request(raw) {
+        Ok(ToRelay::PermitCheck { permit, .. }) => permit,
+        _ => return say(&plot_said, Err(Refusal::not_allowed(Why::PermitBad))),
+    };
+    let (_, _, now_s) = now();
+    let verdict = judge_permit_check(&world.pieces, &state.db, &world.ship_plots.ship_id, &who, &p, now_s);
+    drop(world);
+    say(&p.plot, verdict);
 }
 
 #[cfg(test)]

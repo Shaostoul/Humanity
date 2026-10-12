@@ -3789,8 +3789,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                 super::handlers::fleet_ledger::handle(&state_clone, &my_key_for_recv, kind, &raw).await;
                                 continue;
                             }
-                            // Building in the shared world (ship homes increment 5): pieces built, taken down, a frame's list asked for again.
-                            Some(kind @ ("game_build" | "game_unbuild" | "game_pieces_request")) => {
+                            // Building in the shared world (ship homes 5 and 5b): pieces built, taken down, a frame's list asked for again, a permit checked.
+                            Some(kind @ ("game_build" | "game_unbuild" | "game_pieces_request" | "game_permit_check")) => {
                                 super::handlers::shared_build::handle(&state_clone, &my_key_for_recv, kind, &raw).await;
                                 continue;
                             }

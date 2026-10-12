@@ -3068,10 +3068,22 @@ mod tests {
             self.clone()
         }
     }
+    /// What [`LogLines::listen`] holds while it listens: this thread's subscriber, and a second one
+    /// that is nobody's default. While only one subscriber exists, `tracing` asks the CURRENT
+    /// thread's subscriber whether a log line is wanted the first time that line runs anywhere
+    /// (tracing-core `Rebuilder::JustOne`), and keeps the answer for every thread. A line first run
+    /// by a test on another thread, which has no subscriber, was then dropped here for good: seen
+    /// 2026-10-12, when `Game: permit for p1 checked (ok)` never reached this log because another
+    /// permit check test ran that line first. With two alive it asks both, and both want it.
+    struct Listening {
+        _guard: tracing::subscriber::DefaultGuard,
+        _second: tracing::Dispatch,
+    }
     impl LogLines {
-        fn listen(&self) -> tracing::subscriber::DefaultGuard {
+        fn listen(&self) -> Listening {
             let sub = tracing_subscriber::fmt().with_writer(self.clone()).with_ansi(false).with_max_level(tracing::Level::TRACE).finish();
-            tracing::subscriber::set_default(sub)
+            let guard = tracing::subscriber::set_default(sub);
+            Listening { _guard: guard, _second: tracing::Dispatch::new(tracing_subscriber::registry()) }
         }
         fn text(&self) -> String {
             String::from_utf8_lossy(&self.0.lock().unwrap()).into_owned()
@@ -4201,6 +4213,279 @@ mod tests {
         assert!(rows_in(&state, "plot:p2").is_empty(), "nothing on Cy's plot");
 
         for mut s in [ann, cy, bo] {
+            s.close(None).await.ok();
+        }
+        server.abort();
+    }
+
+    // ── Ship homes 5b: does my permit work? ───────────────────────────────────
+    //
+    // `game_permit_check` on a real relay over its socket (shared_build.rs `permit_check`; the
+    // judging alone is shared_build_tests.rs `a_permit_check_answers_as_a_build_would`).
+
+    /// The relay key (Dilithium3 public key, hex) of the person whose seed is `[n; 32]`, for one
+    /// who never connects.
+    fn key_of_seed(n: u8) -> String {
+        use crate::relay::core::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
+        hex::encode(DilithiumKeypair::from_seed(&derive_dilithium_seed(&[n; 32])).public_key())
+    }
+
+    /// A `game_permit_check` numbered `req_id` for permit `p`, as the game sends it.
+    fn permit_check_msg(req_id: u32, p: &crate::systems::construction::shared::Permit) -> Value {
+        serde_json::json!({ "type": "game_permit_check", "req_id": req_id, "permit": p })
+    }
+
+    /// The relay's answer to permit check `req_id`: the next `game_permit_status` carrying it.
+    /// Fails the test when none comes within 10 s.
+    async fn permit_status_of(sock: &mut TestSocket, req_id: u32) -> Value {
+        next_frame_with(sock, |v| game_payload(v).filter(|g| g["type"] == "game_permit_status" && g["req_id"] == req_id))
+            .await
+            .unwrap_or_else(|| panic!("no answer to permit check {req_id}"))
+    }
+
+    /// The `game_permit_status` a permit that does not work is answered with: `why` and its words.
+    fn permit_refused(req_id: u32, plot: &str, why: &str) -> Value {
+        use crate::systems::construction::shared::{why_words, Action, Reason, Why};
+        let w: Why = serde_json::from_value(serde_json::json!(why)).unwrap();
+        let message = why_words(Action::Build, Reason::NotAllowed, Some(w));
+        serde_json::json!({ "type": "game_permit_status", "req_id": req_id, "plot": plot, "ok": false, "why": why, "message": message })
+    }
+
+    /// How many rows each table of the relay's database holds: what a test compares to show that
+    /// something stored nothing.
+    fn row_counts(state: &crate::relay::relay::RelayState) -> std::collections::BTreeMap<String, i64> {
+        state
+            .db
+            .with_conn(|c: &rusqlite::Connection| -> rusqlite::Result<std::collections::BTreeMap<String, i64>> {
+                let mut q = c.prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")?;
+                let names: Vec<String> = q.query_map([], |r| r.get(0))?.collect::<rusqlite::Result<_>>()?;
+                let mut out = std::collections::BTreeMap::new();
+                for n in names {
+                    let count: i64 = c.query_row(&format!("SELECT COUNT(*) FROM \"{n}\""), [], |r| r.get(0))?;
+                    out.insert(n, count);
+                }
+                Ok(out)
+            })
+            .expect("the tables count")
+    }
+
+    /// The keys and ids that `logged` names, from `who`: each key whole and its first 16
+    /// characters (a key cut short to fit a line is still a key), and each `did:hum`.
+    fn keys_named(logged: &str, who: &[&str]) -> Vec<String> {
+        let mut named = Vec::new();
+        for key in who {
+            let did = crate::relay::storage::plot_owner_id(key);
+            for told in [key.to_string(), key[..16].to_string(), did] {
+                if logged.contains(&told) {
+                    named.push(told);
+                }
+            }
+        }
+        named
+    }
+
+    /// THE RELAY SAYS WHETHER A PERMIT WORKS, AND TELLS NOTHING ELSE (ship homes 5b, plan sections
+    /// 3.5 and 3.11). Bo signs in and, before he joins the shared world, asks whether Ann's permit
+    /// for p1 works: ask again later (`again`), since a game asks after its welcome. Ann holds p1
+    /// and Bo p2. Joined, Bo asks again: it works (`ok` and nothing more). A second check within
+    /// 200 ms is `again`. Nothing is stored (every table keeps its count of rows), and Ann and a
+    /// bystander admin are sent nothing at all. Ann steps out and the admin gives p1 back: the same
+    /// permit now answers `permit_not_from_holder`, with its words, which name nobody. The relay's
+    /// log has the two lines the proof rig reads, and no line the checks wrote carries any of the
+    /// three keys, their first 16 characters, or their `did:hum`. (Two older lines in the same log
+    /// do name a key, a player leaving and an admin's release, in msg_handlers.rs and
+    /// home_plots.rs; they are not the permit check's, and are left to their own files.)
+    ///
+    /// Seen red 2026-10-12 with the holder check skipped in `permit_lets_in`: "after Ann gave p1
+    /// back, Bo's permit still works" failed, the answer
+    /// `{"ok":true,"plot":"p1","req_id":4,"type":"game_permit_status"}`. The same day, with the
+    /// answer sent to every player in the shared world: "Bo's permit checks reached Ann" failed;
+    /// and with the check writing a withdrawal row: "a permit check stored something:
+    /// [\"friend_cert_revocations: 1\"]" failed.
+    #[tokio::test]
+    async fn the_relay_says_whether_a_permit_works_and_tells_nothing_else() {
+        let path = plots_db("permit_check");
+        let (state, port, server) = relay_on(&path).await;
+        let clock = limit_clock(&state);
+        let log = LogLines::default();
+        let listening = log.listen();
+        let (mut admin, admin_key) = bind_socket_from(&state, port, [90u8; 32], Some("CheckAdmin"), 1, Some("10.55.0.90")).await;
+        state.db.set_role(&admin_key, "admin").expect("make admin");
+        let (mut ann, ann_key, ann_plot) = joiner(&state, port, 91, "CheckAnn").await;
+        let (mut bo, bo_key) = bind_socket_from(&state, port, [92u8; 32], Some("CheckBo"), 1, Some("10.55.0.92")).await;
+        let here = state.db.server_did().expect("the relay's own did:hum");
+        let now = unix_now();
+        let from_ann = mint_permit(91, &ann_key, &here, "p1", &crate::relay::storage::plot_owner_id(&bo_key), now + 30 * 86_400, now);
+
+        send_json(&mut bo, permit_check_msg(1, &from_ann)).await;
+        let not_joined = permit_status_of(&mut bo, 1).await;
+        let again = |req_id: u32| serde_json::json!({ "type": "game_permit_status", "req_id": req_id, "plot": "p1", "ok": false, "again": true });
+        assert_eq!(not_joined, again(1), "a check before joining is asked again later");
+        let w = welcome_after_join(&mut bo, "CheckBo").await;
+        assert_eq!((ann_plot.as_deref(), welcome_plot(&w).as_deref()), (Some("p1"), Some("p2")), "Ann p1, Bo p2");
+        for s in [&mut admin, &mut ann, &mut bo] {
+            frames_until_quiet(s, 300).await;
+        }
+        let rows_before = row_counts(&state);
+        let tables = ["friend_cert_revocations", "game_plots", "world_pieces"];
+        assert!(tables.iter().all(|t| rows_before.contains_key(*t)), "the count does not read every table: {rows_before:?}");
+
+        later(&clock);
+        send_json(&mut bo, permit_check_msg(2, &from_ann)).await;
+        let works = permit_status_of(&mut bo, 2).await;
+        assert_eq!(works, serde_json::json!({ "type": "game_permit_status", "req_id": 2, "plot": "p1", "ok": true }), "Ann's permit for Bo works");
+        send_json(&mut bo, permit_check_msg(3, &from_ann)).await;
+        assert_eq!(permit_status_of(&mut bo, 3).await, again(3), "a second check within 200 ms is asked again later");
+        for (who, sock) in [("Ann", &mut ann), ("the admin", &mut admin)] {
+            let heard = frames_until_quiet(sock, 400).await;
+            assert!(heard.is_empty(), "Bo's permit checks reached {who}: {heard:?}");
+        }
+        let rows_after = row_counts(&state);
+        let changed: Vec<String> = rows_after.iter().filter(|(t, n)| rows_before.get(t.as_str()) != Some(*n)).map(|(t, n)| format!("{t}: {n}")).collect();
+        assert!(changed.is_empty(), "a permit check stored something: {changed:?}");
+
+        // Ann steps out, and the admin gives her plot back.
+        send_json(&mut ann, serde_json::json!({ "type": "game_leave" })).await;
+        assert!(wait_until(|| async { state.game_world.read().await.find_player_entity(&ann_key).is_none() }).await, "Ann stepped out");
+        send_json(&mut admin, serde_json::json!({ "type": "game_release_plot", "target": "p1" })).await;
+        let notice = next_game_of(&mut admin, &["game_admin_notice", "game_admin_error"]).await.expect("the admin is answered");
+        assert!(notice["message"].as_str().is_some_and(|m| m.contains("Released plot p1")), "{notice}");
+        later(&clock);
+        send_json(&mut bo, permit_check_msg(4, &from_ann)).await;
+        let gone = permit_status_of(&mut bo, 4).await;
+        assert_eq!(gone, permit_refused(4, "p1", "permit_not_from_holder"), "after Ann gave p1 back, Bo's permit still works: {gone}");
+
+        drop(listening);
+        let logged = log.text();
+        for line in ["Game: permit for p1 checked (ok)", "Game: permit for p1 checked (not_allowed/permit_not_from_holder)"] {
+            assert!(logged.contains(line), "the log has no {line:?}:\n{logged}");
+        }
+        // Every line the building handlers wrote (the permit check's among them), by their target.
+        let ours: String = logged.lines().filter(|l| l.contains("relay::handlers::shared_build:")).map(|l| format!("{l}\n")).collect();
+        assert!(ours.lines().count() >= 4, "the permit checks wrote fewer lines than they made:\n{ours}");
+        let named = keys_named(&ours, &[&admin_key, &ann_key, &bo_key]);
+        assert!(named.is_empty(), "a permit check's log line carries a key: {named:?}\n{ours}");
+
+        for mut s in [admin, ann, bo] {
+            s.close(None).await.ok();
+        }
+        server.abort();
+    }
+
+    /// A PERMIT CHECK NEVER ANSWERS ABOUT SOMEONE ELSE'S PERMIT (ship homes 5b, plan section 3.11).
+    /// Ann holds p1, Bo p2 and Cy p3. Cy holds three permits for p1: one from Ann; one from Dee,
+    /// who holds no plot; and one Ann gave and then took back (`cert_revoke` on her own socket,
+    /// answered `cert_revoked`). Cy, whose permits they are, is told the truth about each: it
+    /// works, `permit_not_from_holder`, `permit_withdrawn`. Bo shows the same three and is told
+    /// `permit_bad` each time, word for word the same answer: the signature is checked over Bo's
+    /// own id before the withdrawal list or the plot's holder is read, so nothing Bo hears depends
+    /// on who holds p1 or on what Ann took back. Ann and Cy are sent nothing of Bo's checks.
+    ///
+    /// Seen red 2026-10-12 with the holder read moved before the signature in `permit_lets_in`:
+    /// "permit_not_from_holder told about Cy's permit (Dee's, for a plot Dee does not hold)"
+    /// failed. And with the withdrawal list read before the signature: "permit_withdrawn told about
+    /// Cy's permit (the one Ann took back)" failed.
+    #[tokio::test]
+    async fn a_permit_check_never_answers_about_someone_elses_permit() {
+        let path = plots_db("permit_check_others");
+        let (state, port, server) = relay_on(&path).await;
+        let clock = limit_clock(&state);
+        let (mut ann, ann_key, _) = joiner(&state, port, 93, "OthersAnn").await;
+        let (mut bo, _, _) = joiner(&state, port, 94, "OthersBo").await;
+        let (mut cy, cy_key, cy_plot) = joiner(&state, port, 95, "OthersCy").await;
+        assert_eq!(cy_plot.as_deref(), Some("p3"), "Ann p1, Bo p2, Cy p3");
+        let dee_key = key_of_seed(96);
+        let here = state.db.server_did().expect("the relay's own did:hum");
+        let cy_did = crate::relay::storage::plot_owner_id(&cy_key);
+        let now = unix_now();
+        let month = now + 30 * 86_400;
+        let from_ann = mint_permit(93, &ann_key, &here, "p1", &cy_did, month, now);
+        let from_dee = mint_permit(96, &dee_key, &here, "p1", &cy_did, month, now);
+        let taken_back = mint_permit(93, &ann_key, &here, "p1", &cy_did, month, now);
+        send_json(&mut ann, serde_json::json!({ "type": "cert_revoke", "serial": taken_back.serial })).await;
+        let serial = taken_back.serial.clone();
+        let revoked = next_frame_with(&mut ann, |v| (v["type"] == "cert_revoked" && v["serial"] == serial.as_str()).then(|| v.clone())).await;
+        assert!(revoked.is_some(), "Ann's withdrawal is answered");
+        for s in [&mut ann, &mut bo, &mut cy] {
+            frames_until_quiet(s, 300).await;
+        }
+
+        let permits = [("Ann's", &from_ann, None), ("Dee's, for a plot Dee does not hold", &from_dee, Some("permit_not_from_holder")), ("the one Ann took back", &taken_back, Some("permit_withdrawn"))];
+        for (k, (what, p, why)) in permits.iter().enumerate() {
+            later(&clock);
+            let req = 10 + k as u32;
+            send_json(&mut cy, permit_check_msg(req, p)).await;
+            let r = permit_status_of(&mut cy, req).await;
+            let want = match why {
+                None => serde_json::json!({ "type": "game_permit_status", "req_id": req, "plot": "p1", "ok": true }),
+                Some(w) => permit_refused(req, "p1", w),
+            };
+            assert_eq!(r, want, "Cy is told the truth about {what}");
+        }
+        let mut told = Vec::new();
+        for (k, (what, p, _)) in permits.iter().enumerate() {
+            later(&clock);
+            let req = 20 + k as u32;
+            send_json(&mut bo, permit_check_msg(req, p)).await;
+            let r = permit_status_of(&mut bo, req).await;
+            assert_eq!(r, permit_refused(req, "p1", "permit_bad"), "{} told about Cy's permit ({what}): {r}", r["why"].as_str().unwrap_or("something"));
+            told.push(r.as_object().unwrap().iter().filter(|(f, _)| *f != "req_id").map(|(f, v)| format!("{f}={v}")).collect::<Vec<_>>());
+        }
+        assert!(told.windows(2).all(|w| w[0] == w[1]), "Bo heard different answers about Cy's permits: {told:?}");
+        for (who, sock) in [("Ann", &mut ann), ("Cy", &mut cy)] {
+            let heard = frames_until_quiet(sock, 400).await;
+            assert!(heard.is_empty(), "Bo's checks reached {who}: {heard:?}");
+        }
+
+        for mut s in [ann, bo, cy] {
+            s.close(None).await.ok();
+        }
+        server.abort();
+    }
+
+    /// A PERMIT CHECK SAYS WHEN A PERMIT WAS TAKEN BACK (ship homes 5b, amendment A1). Ann holds
+    /// p1 and gives Bo (p2) two permits for it. Bo's check of the first works. Ann takes it back
+    /// over her own socket (`cert_revoke`, answered `cert_revoked`): Bo's next check of it says
+    /// `permit_withdrawn` with its words, and a wall he builds on p1 with it is refused the same,
+    /// while the second permit still works (a withdrawal names one permit).
+    ///
+    /// Seen red 2026-10-12 with the withdrawal lookup skipped in `permit_lets_in`: "after Ann took
+    /// it back, Bo's permit still works" failed, the answer
+    /// `{"ok":true,"plot":"p1","req_id":2,"type":"game_permit_status"}`.
+    #[tokio::test]
+    async fn a_permit_check_says_when_a_permit_was_taken_back() {
+        let path = plots_db("permit_check_withdrawn");
+        let (state, port, server) = relay_on(&path).await;
+        let clock = limit_clock(&state);
+        let (mut ann, ann_key, _) = joiner(&state, port, 97, "TakeBackAnn").await;
+        let (mut bo, bo_key, bo_plot) = joiner(&state, port, 98, "TakeBackBo").await;
+        assert_eq!(bo_plot.as_deref(), Some("p2"), "Ann p1, Bo p2");
+        let here = state.db.server_did().expect("the relay's own did:hum");
+        let bo_did = crate::relay::storage::plot_owner_id(&bo_key);
+        let now = unix_now();
+        let first = mint_permit(97, &ann_key, &here, "p1", &bo_did, now + 30 * 86_400, now);
+        let second = mint_permit(97, &ann_key, &here, "p1", &bo_did, now + 30 * 86_400, now);
+
+        send_json(&mut bo, permit_check_msg(1, &first)).await;
+        assert_eq!(permit_status_of(&mut bo, 1).await["ok"], true, "before it is taken back, Bo's permit works");
+        send_json(&mut ann, serde_json::json!({ "type": "cert_revoke", "serial": first.serial })).await;
+        let serial = first.serial.clone();
+        let revoked = next_frame_with(&mut ann, |v| (v["type"] == "cert_revoked" && v["serial"] == serial.as_str()).then(|| v.clone())).await;
+        assert!(revoked.is_some(), "Ann's withdrawal is answered");
+
+        later(&clock);
+        send_json(&mut bo, permit_check_msg(2, &first)).await;
+        let taken = permit_status_of(&mut bo, 2).await;
+        assert_eq!(taken, permit_refused(2, "p1", "permit_withdrawn"), "after Ann took it back, Bo's permit still works: {taken}");
+        later(&clock);
+        send_json(&mut bo, with_permit(build_msg(3, "plot:p1", "wood_wall", [20.0, 0.2, 18.0], 0), &first)).await;
+        let r = answer(&mut bo, 3).await;
+        assert_eq!((r["type"].as_str(), r["reason"].as_str(), r["why"].as_str()), (Some("game_build_refused"), Some("not_allowed"), Some("permit_withdrawn")), "a build with it: {r}");
+        later(&clock);
+        send_json(&mut bo, permit_check_msg(4, &second)).await;
+        assert_eq!(permit_status_of(&mut bo, 4).await["ok"], true, "the second permit still works");
+
+        for mut s in [ann, bo] {
             s.close(None).await.ok();
         }
         server.abort();
