@@ -10,6 +10,13 @@
 // two-step First Steps of before keeps it finished (the id is unchanged, and a
 // finished quest is never accepted again), so nobody is sent back to the start.
 //
+// EACH START HAS ITS OWN OPENING (ship homes increment 6): the quest a new
+// character of that start is given is the start's `opening` in
+// data/homes/starts.ron. The Homestead's is First Steps; the Cabin's is Settling
+// In (gs_first_steps_cabin, below): a cabin has no garden, workbench or smelter,
+// so its first minutes are checking on yourself, finding the mess hall and
+// eating there, seeing where people meet, and going home.
+//
 // Every step is something the game sees the player do, reported where it really
 // happens:
 //   View(view: "vitals")   the Inventory page's Status section came on screen
@@ -23,7 +30,9 @@
 //   Build(blueprint_id)    a piece finished building
 //   Travel(destination)    standing in the place while this is the step; the
 //                          front door is the player's own, resolved to the plot
-//                          they were given (data/entities/destinations.ron)
+//                          they were given, and the mess hall and the recreation
+//                          room are the ship's ones nearest their front door
+//                          (data/entities/destinations.ron)
 // Eat and Plant name no item, so any food and any crop count; give them an
 // item_id / crop_id to ask for one. A count step counts from when the quest was
 // accepted, so doing a later thing early is not wasted; Travel counts only on
@@ -36,11 +45,13 @@
 // systems::quests::step_text). Each step's completion posts a notice naming the
 // next one, and the quest's completion one naming what it gave.
 //
-// Tests (src/systems/quests/mod.rs, src/machines.rs): the_opening_walks_*
-// plays the whole opening on this data with the real systems; every_step_*
-// holds every line to the 64 characters and to the places it names;
-// every_shipped_home_has_what_the_starter_quests_need checks both shipped homes
-// have what each step uses (the station, the food, the seeds, the materials).
+// Tests (src/systems/quests/opening_tests.rs, src/machines.rs): the_opening_walks_*
+// and the_cabin_opening_walks_on_this_data play each opening on this data with
+// the real systems; the_mess_hall_is_the_nearest_one holds where the Cabin's is
+// sent; every_step_* holds every line to the 64 characters and to the places it
+// names; every_shipped_home_has_what_the_starter_quests_need checks both shipped
+// homesteads have what each First Steps step uses (the station, the food, the
+// seeds, the materials).
 //
 // Format: Vec<QuestDef>, see src/systems/quests/mod.rs
 [
@@ -124,5 +135,53 @@
             ("woodworking", 10),
         ],
         prerequisite: Some("gs_first_steps"),
+    ),
+    // THE CABIN'S OPENING (ship homes increment 6, docs/design/ship-homes-
+    // increment-6-plan.md section 3.10): the opening a new Cabin character is
+    // given (data/homes/starts.ron). One private room, the meals in the mess
+    // hall, the washroom down the hall: so check on yourself, walk to the
+    // mess hall and eat, see the recreation room where people spend an
+    // evening, and head home. The mess hall and the recreation room are the
+    // ones nearest your cabin's door (data/entities/destinations.ron); every
+    // cabin of the ship is on the Commons' side of First Street, so the lines
+    // name the Commons, and opening_tests holds that true for each cabin plot.
+    // No follow-on quest: a cabin has no workshop for Toolsmith.
+    (
+        id: "gs_first_steps_cabin",
+        name: "Settling In",
+        description: "Your first minutes aboard: check on yourself, find the mess hall and eat, see where people meet, then head home.",
+        steps: [
+            (
+                description: "Check your vitals: press I, see Inventory > Status",
+                objective: View(view: "vitals"),
+            ),
+            (
+                description: "Walk to the mess hall, in the Commons",
+                objective: Travel(destination: "mess_hall"),
+            ),
+            (
+                // E at the mess hall's serving counter opens its card, whose
+                // Take a meal button serves a free crew meal (on a server, from
+                // the ship's stores, a line of your fleet ledger; offline, from
+                // the ship's stores on this computer). The meal is eaten at
+                // once, and eating it is what this step counts: a cabin's kit
+                // carries no food, so the first thing eaten is that meal.
+                description: "Take a meal: E at the serving counter, then Take a meal",
+                objective: Eat(quantity: 1),
+            ),
+            (
+                description: "Visit the recreation room in the Commons",
+                objective: Travel(destination: "recreation"),
+            ),
+            (
+                // Just outside your own cabin's door, in its block's hall.
+                description: "Head home to your cabin door on {front_door_opens_on}",
+                objective: Travel(destination: "front_door"),
+            ),
+        ],
+        rewards: [
+            ("ration_basic_0", 1),
+        ],
+        prerequisite: None,
     ),
 ]
