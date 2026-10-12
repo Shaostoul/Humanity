@@ -180,6 +180,9 @@ pub const HOME_CABIN_RON: &str = include_str!("../data/homes/shipped/cabin.ron")
 pub const STARTS_RON: &str = include_str!("../data/homes/starts.ron");
 pub const GROW_MEDIA_RON: &str = include_str!("../data/garden/grow_media.ron");
 pub const VEHICLE_KITS_RON: &str = include_str!("../data/vehicles/kits.ron");
+/// The mining drone's running costs: its energy a trip, its dock's charger and its service
+/// (first-hour audit S5, 2026-10-12: systems::mining::DroneSpec).
+pub const MINING_DRONE_RON: &str = include_str!("../data/mining/drone.ron");
 pub const AEROPONIC_CONFIGS_RON: &str = include_str!("../data/towers/aeroponic_configs.ron");
 pub const PLACES_SEED_JSON: &str = include_str!("../data/places/seed.json");
 /// The cabin's storage at the start (the Cabin start's `storage`, ship homes increment 6).
@@ -426,6 +429,7 @@ pub fn get_embedded(path: &str) -> Option<&'static str> {
         "homes/starts.ron" => Some(STARTS_RON),
         "garden/grow_media.ron" => Some(GROW_MEDIA_RON),
         "vehicles/kits.ron" => Some(VEHICLE_KITS_RON),
+        "mining/drone.ron" => Some(MINING_DRONE_RON),
         "towers/aeroponic_configs.ron" => Some(AEROPONIC_CONFIGS_RON),
         "places/seed.json" => Some(PLACES_SEED_JSON),
         "places/cabin_seed.json" => Some(PLACES_CABIN_SEED_JSON),
@@ -665,6 +669,7 @@ pub const EMBEDDED_KEYS: &[&str] = &[
     "homes/starts.ron",
     "garden/grow_media.ron",
     "vehicles/kits.ron",
+    "mining/drone.ron",
     "towers/aeroponic_configs.ron",
     "places/seed.json",
     "places/cabin_seed.json",

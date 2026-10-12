@@ -5812,3 +5812,19 @@ setting on one device and then visits a server where another device left it tigh
 tighten. Tests: `the_own_copy_says_whether_a_profile_is_stored_here` (relay),
 `a_never_seen_server_holding_a_profile_keeps_the_tighter_word` and the `which_word_wins_on_a_server`
 table (desktop), the step table and "... the tighter word wins" (web), each seen red.
+
+## BUG-201: a device-to-device file can finish on the receiver while the sender never says "Sent" (OPEN, found 2026-10-12)
+
+- **Seen:** `engine::file_transfer::tests::one_dial_one_allocation_carries_every_file_with_a_late_candidate`
+  failed twice on 2026-10-12 while six worktree builds and a release build loaded the machine
+  (src/engine/file_transfer_tests.rs:629, "Sam's side says it went": Rae, the receiver, had both
+  files whole and Done, and Sam, the sender, still had the first one short of Done). Each time it
+  passed alone in under 2 seconds, and the 60 s loop (`all_done` needs both sides Done) had run
+  out, so this is not only slowness: the sender waited a minute for something that never came.
+- **Suspected:** the receiver's last word for a transfer (its done or acknowledgement over the
+  data channel) can be lost or never sent when its last piece is processed late, and nothing
+  resends it or lets the sender find out another way. In real use the sender's row would sit at
+  "Sending" with the file already whole on the other device.
+- **Next:** reproduce under load deliberately (a busy loop on every core, or a forwarder that delays
+  datagrams), log both sides' channel messages for the stuck transfer, then fix the rule in the
+  sender (ask again, as rule 9 asks again for a lost answer) rather than lengthen the test.

@@ -459,11 +459,8 @@ openSocket = function() {
 function sendSWNotification(title, body, tag, url) {
   if (!document.hidden) return; // Only notify when tab is backgrounded
   if (!('serviceWorker' in navigator) || !navigator.serviceWorker.controller) return;
-  // Request permission if needed
-  if (Notification.permission === 'default') {
-    Notification.requestPermission();
-    return;
-  }
+  // Only when allowed: permission is offered once above the message box (chat-ui.js
+  // requestNotifications), never asked for here.
   if (Notification.permission !== 'granted') return;
   navigator.serviceWorker.controller.postMessage({
     type: 'notification',
@@ -474,13 +471,6 @@ function sendSWNotification(title, body, tag, url) {
   });
 }
 
-// Request notification permission on first interaction
-document.addEventListener('click', function requestNotifPerm() {
-  if ('Notification' in window && Notification.permission === 'default') {
-    Notification.requestPermission();
-  }
-  document.removeEventListener('click', requestNotifPerm);
-}, { once: true });
 
 // Patch handleMessage to send notifications for DMs and calls
 const _origHandleMessage4 = handleMessage;
