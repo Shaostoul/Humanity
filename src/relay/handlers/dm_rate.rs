@@ -98,9 +98,29 @@ impl Bucket {
 #[derive(Default)]
 pub struct DmRateLimits {
     buckets: Mutex<HashMap<String, Bucket>>,
+    /// Tests: the clock stopped here ([`DmRateLimits::freeze`]), so a test's sends happen in the
+    /// same instant however long a loaded machine takes over them (2026-10-12: the burst and
+    /// refill tests failed while seven builds ran, a refill landing between two sends).
+    #[cfg(test)]
+    frozen: Mutex<Option<Instant>>,
 }
 
 impl DmRateLimits {
+    /// The limiter's clock: now, or the instant a test froze it at.
+    pub(crate) fn now(&self) -> Instant {
+        #[cfg(test)]
+        if let Some(t) = *self.frozen.lock().unwrap_or_else(|p| p.into_inner()) {
+            return t;
+        }
+        Instant::now()
+    }
+
+    /// Tests: stop the limiter's clock now. `rewind` still moves a bucket's refill back.
+    #[cfg(test)]
+    pub(crate) fn freeze(&self) {
+        *self.frozen.lock().unwrap() = Some(Instant::now());
+    }
+
     /// Take one send for `sender` at `now`. `account_age` is asked (once, for a sender with no
     /// bucket yet) how many seconds old their account is. Err carries the whole seconds to wait.
     pub(crate) fn take_at(&self, sender: &str, now: Instant, trusted: bool, account_age: impl FnOnce() -> u64) -> Result<(), u64> {
@@ -125,7 +145,7 @@ impl DmRateLimits {
     /// refused until it refills.
     #[cfg(test)]
     pub(crate) fn drain(&self, sender: &str) {
-        let now = Instant::now();
+        let now = self.now();
         let mut buckets = self.buckets.lock().unwrap();
         let b = buckets.entry(sender.to_string()).or_insert_with(|| Bucket::new(now, u64::MAX));
         b.tokens = 0.0;
@@ -170,7 +190,7 @@ pub fn allow(state: &Arc<RelayState>, sender: &str, role: &str) -> bool {
         return true;
     }
     let trusted = matches!(role, "verified" | "donor" | "mod" | "admin" | "owner");
-    match state.dm_rate.take_at(sender, Instant::now(), trusted, || account_age(state, sender)) {
+    match state.dm_rate.take_at(sender, state.dm_rate.now(), trusted, || account_age(state, sender)) {
         Ok(()) => true,
         Err(wait) => {
             let _ = state.broadcast_tx.send(RelayMessage::Private {
