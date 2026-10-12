@@ -208,6 +208,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     egui::CentralPanel::default()
         .frame(Frame::none().fill(theme.bg_panel()).inner_margin(16.0))
         .show(ctx, |ui| {
+            // Home > Household (ship homes 5b, household.rs): first on the page, with or without a
+            // design loaded.
+            super::household::draw_card(ui, theme, state);
             // Clone so the immutable design can be browsed without holding a borrow
             // of state (cheap; the blueprint is small).
             let Some(design) = state.homestead_design.clone() else {

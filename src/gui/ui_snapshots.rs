@@ -1657,6 +1657,25 @@ fn snapshot_fleet_ledger() {
     });
 }
 
+/// Home > Household (ship homes 5b, pages/household.rs): a player in the shared world on p2 whose
+/// friends' permits stand each way the card can say (taken with Renew and Take back, on its way,
+/// unanswered, refused, ran out, being taken back, taken back, not online, old plot, blocked), and
+/// the permits friends gave them, one for each thing the server can say. The whole card, uncapped,
+/// so every row is in the picture. Dates are counted from today, so they move day to day.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_household() {
+    use crate::gui::pages::household;
+    render_page_png("household", 1000, 1750, |ctx, theme, state| {
+        if state.dm_store.is_none() {
+            household::tests::snapshot_state(state);
+        }
+        egui::CentralPanel::default()
+            .frame(egui::Frame::none().fill(theme.bg_panel()).inner_margin(theme.card_padding))
+            .show(ctx, |ui| household::draw_card_uncapped(ui, theme, state));
+    });
+}
+
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
 fn snapshot_watch() {
