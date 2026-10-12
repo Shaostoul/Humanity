@@ -252,12 +252,7 @@ pub(crate) fn rebuild_homestead(state: &mut EngineState) {
     // material change regrows the exterior shell in the same rebuild.
     rebuild_hull(state);
     // Refresh lights + sealed bounds from the new room_info (height edits move them).
-    let auto_lights = room_info.iter().map(|r| {
-        let light_pos = Vec3::new(r.center.x, r.center.y + r.dimensions.y * 0.5 - 0.1, r.center.z);
-        let room_size = r.dimensions.x.max(r.dimensions.z);
-        let intensity = (room_size * 0.5).clamp(2.0, 15.0);
-        crate::renderer::light::RoomLight::point(light_pos, [1.0, 0.95, 0.85], intensity, room_size * 1.5)
-    }).collect();
+    let auto_lights = auto_room_lights(room_info.iter().map(|r| (r.center, r.dimensions)));
     // v0.571: placed lights (across ALL zones, v0.754) override the auto synthesis (empty -> auto).
     state.room_lights = home_lights(state.gui_state.ship_structure.as_ref(), auto_lights, state.gui_state.gi_enabled);
     state.homestead_bounds = room_info.iter().fold(None, |acc, r| {
@@ -300,6 +295,66 @@ pub(crate) fn rebuild_homestead(state: &mut EngineState) {
     // (engine/home_plot.rs, ship homes 1b; a no-op otherwise).
     crate::engine::home_plot::follow_home_box(state);
     log::info!("Homestead rebuilt: {} rooms", room_info.len());
+}
+
+/// The crude one-per-room fill light (`home_lights`' `auto`): a warm point near each room's
+/// ceiling, sized by the room. Each room is its (centre, dimensions).
+pub(crate) fn auto_room_lights(rooms: impl Iterator<Item = (Vec3, Vec3)>) -> Vec<crate::renderer::light::RoomLight> {
+    rooms
+        .map(|(center, dims)| {
+            let light_pos = Vec3::new(center.x, center.y + dims.y * 0.5 - 0.1, center.z);
+            let room_size = dims.x.max(dims.z);
+            let intensity = (room_size * 0.5).clamp(2.0, 15.0);
+            crate::renderer::light::RoomLight::point(light_pos, [1.0, 0.95, 0.85], intensity, room_size * 1.5)
+        })
+        .collect()
+}
+
+/// The plots this game may walk into changed (ship homes increment 5b, `ShipStructure::open`, set
+/// by engine/household.rs `apply_open`): redo what reads them, and nothing else.
+/// - The walking colliders (`wall_collision::ship_wall_segments`): an open plot's corridor and
+///   home walls stop this player, and its street or Commons wall lets them through.
+/// - The door placements (`door_panels::ship_panel_placements`): an open plot's corridor doors
+///   open for this player. The list keeps its length and order whatever is open, so each door is
+///   swapped in place and keeps its open fraction, its manual-open flag and its live lock states.
+///   (`rebuild_door_panels` resets the last two, which is right after a structure edit and wrong
+///   here: this runs while walking, as the player steps onto or off a plot.)
+/// - The room lights (`home_lights`): the lit open plot's design lights, on nobody's meter. The
+///   auto fill is redone from the rooms the HUD already holds (`room_bounds`, the same rooms the
+///   last rebuild made).
+///
+/// The meshes, the hull and the sight lines are unchanged: what a neighbour draws, and what the
+/// eye meets there, is the same open or not, and the neighbours' view is not made again
+/// (`neighbours::NeighbourKey` does not hold the open set). Call it once after setting
+/// `ship.open`, only when it changed.
+#[expect(dead_code, reason = "engine/household.rs apply_open (ship homes 5b, lane 2A) calls it; delete this line in the commit that adds that call")]
+pub(crate) fn open_plots_changed(state: &mut EngineState) {
+    let Some(ship) = state.gui_state.ship_structure.as_ref() else {
+        return;
+    };
+    state.wall_colliders = crate::ship::wall_collision::ship_wall_segments(ship);
+    let placements = crate::ship::door_panels::ship_panel_placements(ship);
+    let auto = auto_room_lights(state.gui_state.room_bounds.iter().map(|r| ((r.min + r.max) * 0.5, r.max - r.min)));
+    state.room_lights = home_lights(Some(ship), auto, state.gui_state.gi_enabled);
+    if !swap_door_placements(&mut state.door_panels, placements) {
+        // A different door count means the structure changed under us: the full rebuild.
+        rebuild_door_panels(state);
+    }
+}
+
+/// Put `placements` in place of the doors' placements, each door keeping its open fraction, when
+/// the count is the same (true); else change nothing (false). `open_plots_changed`.
+fn swap_door_placements(
+    doors: &mut [(crate::ship::door_panels::PanelPlacement, f32)],
+    placements: Vec<crate::ship::door_panels::PanelPlacement>,
+) -> bool {
+    if placements.len() != doors.len() {
+        return false;
+    }
+    for (d, p) in doors.iter_mut().zip(placements) {
+        d.0 = p;
+    }
+    true
 }
 
 /// Build a machine's primitive mesh from its shape + size. Shared by load_world (initial spawn)
@@ -2142,12 +2197,18 @@ pub(crate) fn door_locked_now(
 /// pool -- so once the operator places their own lights, we drop it entirely (their lights ARE the
 /// room lighting; the directional SUN, gated separately by GI, still provides the even base when GI
 /// is on). With NO placed lights the old behaviour is unchanged (auto fill when GI on, dark when off).
+///
+/// OPEN PLOTS (ship homes increment 5b): when `ship.open.lit` names an open plot drawn as a
+/// neighbour's, that plot's design lights are added at it (`open_plot_lights`), whatever else is
+/// lit. They light the neighbour's plot only, so they never decide whether this ship's own rooms
+/// get the auto fill; and they are no zone's lights, so no meter counts them
+/// (`ShipStructure::lighting_watts`, the house lighting consumer in lib.rs).
 pub(crate) fn home_lights(
     ship: Option<&ShipStructure>,
     auto: Vec<crate::renderer::light::RoomLight>,
     gi_on: bool,
 ) -> Vec<crate::renderer::light::RoomLight> {
-    use crate::renderer::light::{LightKind, RoomLight};
+    use crate::renderer::light::RoomLight;
     // v0.754: EVERY zone's placed lights, each offset by its zone's world origin; none of a home
     // put away (ship homes increment 2, `ShipStructure::put_home_away`): it lights nothing aboard.
     let placed: Vec<RoomLight> = ship
@@ -2156,78 +2217,104 @@ pub(crate) fn home_lights(
                 .iter()
                 .enumerate()
                 .filter(|(zi, _)| !s.is_away_home(*zi))
-                .flat_map(|(_, z)| {
-                    let o = z.origin_vec();
-                    z.body.lights.iter().filter(|l| l.on).filter_map(move |l| {
-                        let t = crate::renderer::light::light_type(&l.type_id)?;
-                        let c = l.color.unwrap_or(t.color);
-                        let pos = Vec3::new(l.pos.0, l.pos.1, l.pos.2) + o;
-                        let color = [c.0, c.1, c.2];
-                        let intensity = l.intensity.unwrap_or(t.intensity);
-                        let range = l.range.unwrap_or(t.range);
-                        Some(match t.kind {
-                            LightKind::Spot => {
-                                let dir = Vec3::new(l.dir.0, l.dir.1, l.dir.2);
-                                vec![RoomLight::spot(pos, color, intensity, range, dir, t.cone_inner_deg, t.cone_outer_deg)]
-                            }
-                            // A strip is a LINE LIGHT (v0.786, operator: "make the
-                            // full length of the bar emit light onto surfaces"):
-                            // one segment light per sampled leg, each lit from its
-                            // closest point in the shader. Intensity is split
-                            // across segments by length so the strip's total
-                            // output matches its dial (energy conservation).
-                            // Emission follows the SAME subdivided curve as the
-                            // rendered tube (v0.792) -- it used to follow the
-                            // straight CONTROL polyline, so a curved strip's
-                            // rounded sections glowed without lighting anything
-                            // (operator screenshot). strip_emission_segments caps
-                            // the per-strip segment count so a 100-subdivision
-                            // strip can't flood the (uncapped, v0.782) light
-                            // buffer with useless segments.
-                            LightKind::Bar => {
-                                let (pts, sub): (Vec<Vec3>, u32) = if l.path.is_empty() {
-                                    // Pathless: the classic straight bar of the
-                                    // type's length along the horizontal dir. A
-                                    // straight segment has nothing to subdivide.
-                                    let flat = Vec3::new(l.dir.0, 0.0, l.dir.2);
-                                    let axis = if flat.length_squared() > 1e-4 {
-                                        flat.normalize()
-                                    } else {
-                                        Vec3::X
-                                    };
-                                    let half = t.length_m.max(0.3) * 0.5;
-                                    (vec![pos - axis * half, pos + axis * half], 0)
-                                } else {
-                                    (
-                                        std::iter::once(pos)
-                                            .chain(l.path.iter().map(|p| Vec3::new(p.0, p.1, p.2) + o))
-                                            .collect(),
-                                        l.subdivision,
-                                    )
-                                };
-                                crate::renderer::light::strip_emission_segments(&pts, sub)
-                                    .into_iter()
-                                    .map(|(a, b, share)| {
-                                        RoomLight::line(a, b, color, intensity * share, range)
-                                    })
-                                    .collect()
-                            }
-                            _ => vec![RoomLight::point(pos, color, intensity, range)],
-                        })
-                    })
-                    .flatten()
-                })
+                .flat_map(|(_, z)| placed_room_lights(&z.body.lights, z.origin_vec()))
                 .collect()
         })
         .unwrap_or_default();
     // Any placed lights -> the home is manually lit, no auto centre-spot. Else auto fill if GI on.
-    if !placed.is_empty() {
+    let mut lights = if !placed.is_empty() {
         placed
     } else if gi_on {
         auto
     } else {
         Vec::new()
+    };
+    if let Some(s) = ship {
+        lights.extend(open_plot_lights(s));
     }
+    lights
+}
+
+/// The lit open plot's own design lights, at its plot (ship homes increment 5b, `home_lights`):
+/// none unless `ship.open.lit` names a plot that is in `ship.open.plots` and drawn as a
+/// neighbour's (`NeighbourView::design_lights_of`, the shipped design of its kind, about 35
+/// lights for the homestead). The neighbours' view is asked for only when a plot is lit.
+pub(crate) fn open_plot_lights(ship: &ShipStructure) -> Vec<crate::renderer::light::RoomLight> {
+    let Some(lit) = ship.open.lit.as_deref().filter(|p| ship.open.plots.contains(*p)) else {
+        return Vec::new();
+    };
+    let view = crate::ship::neighbours::neighbour_view(ship);
+    match view.design_lights_of(lit) {
+        Some((lights, origin)) => placed_room_lights(lights, origin),
+        None => Vec::new(),
+    }
+}
+
+/// Every switched-on light of `lights` (placed in a body's own metres) as the lights the renderer
+/// draws, offset by `o`, the body's origin: a point, a spot, or a strip's line segments, each
+/// resolved through light_types.ron with its per-instance overrides. A light of an unknown type
+/// is left out. `home_lights` for each zone, `open_plot_lights` for an open plot's design.
+fn placed_room_lights(lights: &[crate::ship::home_structure::PlacedLight], o: Vec3) -> Vec<crate::renderer::light::RoomLight> {
+    use crate::renderer::light::{LightKind, RoomLight};
+    lights.iter().filter(|l| l.on).filter_map(move |l| {
+        let t = crate::renderer::light::light_type(&l.type_id)?;
+        let c = l.color.unwrap_or(t.color);
+        let pos = Vec3::new(l.pos.0, l.pos.1, l.pos.2) + o;
+        let color = [c.0, c.1, c.2];
+        let intensity = l.intensity.unwrap_or(t.intensity);
+        let range = l.range.unwrap_or(t.range);
+        Some(match t.kind {
+            LightKind::Spot => {
+                let dir = Vec3::new(l.dir.0, l.dir.1, l.dir.2);
+                vec![RoomLight::spot(pos, color, intensity, range, dir, t.cone_inner_deg, t.cone_outer_deg)]
+            }
+            // A strip is a LINE LIGHT (v0.786, operator: "make the
+            // full length of the bar emit light onto surfaces"):
+            // one segment light per sampled leg, each lit from its
+            // closest point in the shader. Intensity is split
+            // across segments by length so the strip's total
+            // output matches its dial (energy conservation).
+            // Emission follows the SAME subdivided curve as the
+            // rendered tube (v0.792) -- it used to follow the
+            // straight CONTROL polyline, so a curved strip's
+            // rounded sections glowed without lighting anything
+            // (operator screenshot). strip_emission_segments caps
+            // the per-strip segment count so a 100-subdivision
+            // strip can't flood the (uncapped, v0.782) light
+            // buffer with useless segments.
+            LightKind::Bar => {
+                let (pts, sub): (Vec<Vec3>, u32) = if l.path.is_empty() {
+                    // Pathless: the classic straight bar of the
+                    // type's length along the horizontal dir. A
+                    // straight segment has nothing to subdivide.
+                    let flat = Vec3::new(l.dir.0, 0.0, l.dir.2);
+                    let axis = if flat.length_squared() > 1e-4 {
+                        flat.normalize()
+                    } else {
+                        Vec3::X
+                    };
+                    let half = t.length_m.max(0.3) * 0.5;
+                    (vec![pos - axis * half, pos + axis * half], 0)
+                } else {
+                    (
+                        std::iter::once(pos)
+                            .chain(l.path.iter().map(|p| Vec3::new(p.0, p.1, p.2) + o))
+                            .collect(),
+                        l.subdivision,
+                    )
+                };
+                crate::renderer::light::strip_emission_segments(&pts, sub)
+                    .into_iter()
+                    .map(|(a, b, share)| {
+                        RoomLight::line(a, b, color, intensity * share, range)
+                    })
+                    .collect()
+            }
+            _ => vec![RoomLight::point(pos, color, intensity, range)],
+        })
+    })
+    .flatten()
+    .collect()
 }
 
 /// Per-frame: animate + emit the door/window panels (v0.537). A door eases open as an actor
@@ -2467,3 +2554,7 @@ pub(crate) fn render_door_panels(
     }
     state.pending_sfx.extend(sfx);
 }
+
+#[cfg(test)]
+#[path = "home_meshes_tests.rs"]
+mod tests;

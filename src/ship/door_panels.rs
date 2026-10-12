@@ -68,7 +68,8 @@ pub struct PanelPlacement {
     /// A NEIGHBOUR's corridor door (ship homes increment 2 review, finding 8,
     /// `neighbour_panel_placements`): it opens for the other players, the neighbour walking home,
     /// and never for this one, whose way into a neighbour's corridor the shared zone's wall keeps
-    /// shut (that hole is cut for the eye only). `door_actor_distance` picks who counts.
+    /// shut (that hole is cut for the eye only). `door_actor_distance` picks who counts. False for
+    /// an OPEN plot's corridor doors (ship homes 5b): this player holds a permit to walk in.
     pub others_only: bool,
 }
 
@@ -109,9 +110,15 @@ pub fn ship_panel_placements(ship: &crate::ship::ship_structure::ShipStructure) 
 /// unseen wall. Now the hole has a door, shut to this player, which opens for the neighbour
 /// walking through it (in the neighbour's own game it is their corridor's door, and opens for
 /// them), and the HUD's sight check agrees with it (`wall_collision::ship_sight_segments`).
+///
+/// An OPEN plot's doors (ship homes increment 5b, `ShipStructure::open`: a plot this game holds a
+/// working household permit for) open for this player too, as their own corridor's do: its way in
+/// is a walking gap then (`wall_collision::ship_wall_segments`). The list is the same length and
+/// order whatever is open, so opening a plot moves no door's index or open fraction.
 pub fn neighbour_panel_placements(ship: &crate::ship::ship_structure::ShipStructure) -> Vec<PanelPlacement> {
     let view = crate::ship::neighbours::neighbour_view(ship);
-    view.neighbour_mouths(ship).iter().flat_map(|m| mouth_pair(m, true)).collect()
+    let mouths = view.mouths_by_plot(ship);
+    mouths.iter().flat_map(|(plot, m)| mouth_pair(m, !ship.open.plots.contains(*plot))).collect()
 }
 
 /// How far door `p` is from the nearest actor that opens it, across the floor (eye height never
@@ -528,5 +535,45 @@ mod tests {
         assert!((all[0].center - Vec3::new(25.0, 0.0, 2.0)).length() < 1e-4, "got {:?}", all[0].center);
         // The first corridor half sits at the home-shell mouth -- world coordinates, un-offset.
         assert!((all[1].center - Vec3::new(10.0, 0.0, 4.75)).length() < 1e-4, "got {:?}", all[1].center);
+    }
+
+    /// AN OPEN PLOT'S CORRIDOR DOORS OPEN FOR THIS PLAYER (ship homes increment 5b, plan section 5
+    /// lane 1B; section 3.7's table, "Corridor doors (both ends)"). The home on p2, so p1 is a
+    /// neighbour's: its corridor's two door pairs (p1's end at x 55, the Commons' at x 65, both at
+    /// z 40) open for the others only. With p1 OPEN those four halves, and only those, open for
+    /// this player as well; the list keeps its length, order and every door's place, so the
+    /// engine swaps it in without moving an open fraction. Seen red 2026-10-12 with the flag left
+    /// `true` for every neighbour (`mouth_pair(m, true || ..)` in `neighbour_panel_placements`):
+    /// "with p1 open, 0 door halves flipped, want p1's two pairs" failed.
+    #[test]
+    fn an_open_plots_corridor_doors_open_for_this_player() {
+        use crate::ship::ship_structure::OpenPlots;
+        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let closed = ShipStructure::load_and_assemble_shipped(&data, Some("p2")).expect("the shipped ship assembles");
+        let mut open = closed.clone();
+        open.open = OpenPlots { plots: ["p1".to_string()].into_iter().collect(), lit: None };
+        let (before, after) = (ship_panel_placements(&closed), ship_panel_placements(&open));
+        assert_eq!(before.len(), after.len(), "opening a plot changed the door count");
+        let flipped: Vec<&PanelPlacement> = before
+            .iter()
+            .zip(&after)
+            .filter(|(b, a)| {
+                assert_eq!((b.center, b.rotation, b.size), (a.center, a.rotation, a.size), "a door moved when p1 opened");
+                b.others_only != a.others_only
+            })
+            .map(|(_, a)| a)
+            .collect();
+        assert_eq!(flipped.len(), 4, "with p1 open, {} door halves flipped, want p1's two pairs", flipped.len());
+        for d in &flipped {
+            let at_p1 = (d.center.z - 40.0).abs() < 1.0 && ((d.center.x - 55.0).abs() < 0.01 || (d.center.x - 65.0).abs() < 0.01);
+            assert!(at_p1 && !d.others_only, "a door that flipped is not p1's, or shut to this player: {:?}", d.center);
+            // This player opens it now, as they open their own.
+            let beside = d.center + Vec3::new(1.0, 1.7, 0.0);
+            assert!(door_actor_distance(d, Some(beside), &[], &[]) < 1.5, "p1's open door does not open for this player");
+        }
+        // Every other neighbour's doors are still the others' only.
+        let others_only = after.iter().filter(|p| p.others_only).count();
+        assert_eq!(others_only, before.iter().filter(|p| p.others_only).count() - 4);
+        assert!(others_only > 0, "the other neighbours' doors opened too");
     }
 }

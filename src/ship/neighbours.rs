@@ -13,8 +13,9 @@
 //! plot the default design does not fit is not drawn (the rule `assemble` uses for the player's
 //! own home, `design_fits_plot`), with one line in the log.
 //!
-//! RENDER ONLY, by design (the increment's own words): no machines (they are not part of a body),
-//! no rooms (so no lights, no "you are in" volume, no sealed-atmosphere bound), and no collision
+//! RENDER ONLY, by design (the increment's own words; an OPEN plot, below, is the one exception):
+//! no machines (they are not part of a body), no rooms (so no lights, no "you are in" volume, no
+//! sealed-atmosphere bound), and no collision
 //! (src/ship/wall_collision.rs's walking segments never see a neighbour, and the hole in a shared
 //! zone is cut in its mesh only, so its wall still stops anyone walking into a neighbour's
 //! corridor). What the eye meets does agree with what is drawn (increment 2 review, finding 8):
@@ -32,17 +33,28 @@
 //! same design bakes the same shell), then moved to each plot that uses it. Drawing each neighbour
 //! as an object of its own, so it can be culled and drawn in less detail far away, is later.
 //!
+//! OPEN PLOTS (ship homes increment 5b, docs/design/ship-homes-increment-5b-plan.md section 3.7).
+//! A plot this game holds a working household permit for is OPEN (`ShipStructure::open`, set by
+//! engine/household.rs), and for this player alone its neighbour stops being render only: the
+//! walking path adds the hole its corridor makes in the shared zone and its walls as its holder
+//! walks them (`zone_cuts_of`, `segments_of`, read by wall_collision.rs), its corridor doors open
+//! for this player too (`mouths_by_plot`, door_panels.rs), and while this player stands there its
+//! design's own placed lights come on (`design_lights_of`, engine/home_meshes.rs `home_lights`),
+//! charged to nobody's meter. The open set is not in `NeighbourKey`: these are queries on the
+//! view already made, so opening or closing a plot bakes nothing.
+//!
 //! It replaces the v0.638 clone tiling (`HomeStructure::tile_home_clones`, which stamped the
 //! player's OWN home into every slot of a residential district and laid walkway connectors between
 //! the slots; increment 1a switched it off because the clones overlapped the Commons).
 
 use crate::renderer::mesh::Vertex;
 use crate::ship::fibonacci::HomesteadMeshes;
-use crate::ship::home_structure::ShellCut;
+use crate::ship::home_structure::{PlacedLight, ShellCut};
 use crate::ship::ship_structure::{
     design_fits_plot, end_mouth_cut, push_corridor_tube, CorridorGeom, CorridorMouth, HomeDesign, Plot, ShipStructure,
 };
 use std::cell::{Cell, RefCell};
+use std::collections::BTreeSet;
 use std::rc::Rc;
 
 /// One neighbour as this game draws it: its plot, the design drawn there (the default of the
@@ -58,8 +70,9 @@ pub struct Neighbour {
 /// everything they draw, baked once (`neighbour_view`).
 pub struct NeighbourView {
     pub neighbours: Vec<Neighbour>,
-    /// (zone index, the hole) for each neighbour corridor's end on a shared zone.
-    zone_cuts: Vec<(usize, ShellCut)>,
+    /// (zone index, the hole, the index in `neighbours` of the one whose corridor makes it) for
+    /// each neighbour corridor's end on a shared zone.
+    zone_cuts: Vec<(usize, ShellCut, usize)>,
     /// The neighbours' shells and corridor tubes, ready to append (`draw_into`).
     meshes: HomesteadMeshes,
     /// How many shells were baked for it: one per (design, door), however many plots use it.
@@ -141,7 +154,7 @@ fn make_view(ship: &ShipStructure) -> NeighbourView {
         if let Some(g) = &tube {
             let z = &ship.zones[g.to_zone_idx];
             let cut = end_mouth_cut(z.origin_vec(), z.body.width, z.body.depth, z.body.height, g, g.end_to, g.end_from);
-            zone_cuts.push((g.to_zone_idx, cut));
+            zone_cuts.push((g.to_zone_idx, cut, neighbours.len()));
         }
         neighbours.push(Neighbour { plot: plot.clone(), design, tube });
     }
@@ -230,7 +243,34 @@ fn append(into: &mut (Vec<Vertex>, Vec<u32>), from: &(Vec<Vertex>, Vec<u32>)) {
 impl NeighbourView {
     /// The render-only holes neighbour corridors make in zone `zi`'s shell.
     pub fn zone_cuts(&self, zi: usize) -> impl Iterator<Item = ShellCut> + '_ {
-        self.zone_cuts.iter().filter(move |(z, _)| *z == zi).map(|(_, c)| *c)
+        self.zone_cuts.iter().filter(move |(z, ..)| *z == zi).map(|(_, c, _)| *c)
+    }
+
+    /// The neighbour drawn on `plot` (its ship-file id), None when that plot is not drawn as a
+    /// neighbour's (the home's own plot, one its design does not fit, or no such plot).
+    pub fn on_plot(&self, plot: &str) -> Option<&Neighbour> {
+        self.neighbours.iter().find(|n| n.plot.id == plot)
+    }
+
+    /// The holes the corridors of the neighbours on `plots` make in zone `zi`'s shell. For the
+    /// OPEN plots (ship homes 5b) this is the walking twin of the hole `zone_cuts` cuts for the
+    /// eye, so the permit holder walks from the street or the Commons into that corridor.
+    pub fn zone_cuts_of<'a>(&'a self, zi: usize, plots: &'a BTreeSet<String>) -> impl Iterator<Item = ShellCut> + 'a {
+        self.zone_cuts
+            .iter()
+            .filter(move |(z, _, ni)| *z == zi && plots.contains(&self.neighbours[*ni].plot.id))
+            .map(|(_, c, _)| *c)
+    }
+
+    /// The design's own placed lights of the neighbour on `plot`, and the plot's origin they are
+    /// offset by (a design's lights are in its own local metres); None when no neighbour is drawn
+    /// there. For the open plot this player stands in (ship homes 5b, `OpenPlots::lit`): those
+    /// lights are drawn and never added to a zone, so no meter counts them (`lighting_watts`
+    /// reads the zones only).
+    pub fn design_lights_of(&self, plot: &str) -> Option<(&'static [PlacedLight], glam::Vec3)> {
+        let n = self.on_plot(plot)?;
+        let design: &'static HomeDesign = n.design;
+        Some((design.body.lights.as_slice(), glam::Vec3::new(n.plot.origin.0, n.plot.origin.1, n.plot.origin.2)))
     }
 
     /// Append everything the neighbours draw to `out`: copies of the meshes baked when the view
@@ -246,17 +286,41 @@ impl NeighbourView {
     /// Every neighbour corridor's door mouths, both ends (`ShipStructure::tube_mouths`): where the
     /// sliding door pairs that open only for the other players stand (door_panels.rs).
     pub fn neighbour_mouths(&self, ship: &ShipStructure) -> Vec<CorridorMouth> {
-        self.neighbours.iter().filter_map(|n| n.tube.as_ref()).flat_map(|g| ship.tube_mouths(g)).collect()
+        self.mouths_by_plot(ship).into_iter().map(|(_, m)| m).collect()
+    }
+
+    /// `neighbour_mouths` with the plot each mouth's corridor belongs to, in the same order, so
+    /// door_panels.rs can open an OPEN plot's doors for this player too (ship homes 5b) and keep
+    /// every other neighbour's for the others only.
+    pub fn mouths_by_plot(&self, ship: &ShipStructure) -> Vec<(&str, CorridorMouth)> {
+        self.neighbours
+            .iter()
+            .filter_map(|n| n.tube.as_ref().map(|g| (n.plot.id.as_str(), g)))
+            .flat_map(|(id, g)| ship.tube_mouths(g).into_iter().map(move |m| (id, m)))
+            .collect()
     }
 
     /// The walls the neighbours make: each one's walls with its door open, at its plot (its windows
     /// open too when `sight`), and its corridor's two side walls. For the HUD's sight check
     /// (`wall_collision::ship_sight_segments`) and the rig's walls (`everyones_walls`); never a
-    /// walking collider of this game.
+    /// walking collider of this game, but for an open plot's (`segments_of`).
     pub fn segments(&self, sight: bool) -> Vec<crate::ship::wall_collision::WallSegment> {
+        self.segments_where(sight, |_| true)
+    }
+
+    /// `segments` for the neighbours on `plots` only. With `sight` false these are an OPEN plot's
+    /// walls as its holder walks them (ship homes 5b): the home's walls with its door open, its
+    /// windows solid and its interior doorways open, and its corridor's two side walls. The
+    /// walking path adds them for the plots this game may walk into (wall_collision.rs).
+    pub fn segments_of(&self, plots: &BTreeSet<String>, sight: bool) -> Vec<crate::ship::wall_collision::WallSegment> {
+        self.segments_where(sight, |n| plots.contains(&n.plot.id))
+    }
+
+    /// `segments` for the neighbours `keep` keeps.
+    fn segments_where(&self, sight: bool, keep: impl Fn(&Neighbour) -> bool) -> Vec<crate::ship::wall_collision::WallSegment> {
         use crate::ship::wall_collision::{corridor_side_walls, sight_segments_with_shell_cuts, wall_segments_with_shell_cuts, WallSegment};
         let mut out = Vec::new();
-        for n in &self.neighbours {
+        for n in self.neighbours.iter().filter(|n| keep(n)) {
             let cuts: Vec<ShellCut> = own_cut(n).into_iter().collect();
             let (ox, oz) = (n.plot.origin.0, n.plot.origin.2);
             let own = if sight { sight_segments_with_shell_cuts(&n.design.body, &cuts) } else { wall_segments_with_shell_cuts(&n.design.body, &cuts) };
@@ -451,6 +515,51 @@ mod tests {
         ship.plots[i].origin.0 -= 1.0;
         rebuild(&ship);
         assert_eq!(views_made() - before, 1, "a move of the neighbour's plot is drawn: one view made");
+    }
+
+    /// OPENING A PLOT REBAKES NO NEIGHBOUR (ship homes increment 5b, plan section 5 lane 1B): the
+    /// open set (`ShipStructure::open`) changes as the player steps onto a plot or off it, and
+    /// everything that reads it (the walking walls, the doors, the lights) asks the view already
+    /// made. Here: after a rebuild with nothing open, opening p1, lighting it, and closing it again
+    /// each redo what `open_plots_changed` redoes (and the meshes, hull and sight lines) and make
+    /// no view; and the open plot's queries answer from that view. Seen red 2026-10-12 with the
+    /// open set put in `NeighbourKey`: "opening, lighting and closing p1 made 3 neighbour views"
+    /// failed.
+    #[test]
+    fn opening_a_plot_rebakes_no_neighbour() {
+        use crate::ship::ship_structure::OpenPlots;
+        let rebuild = |ship: &ShipStructure| {
+            let _ = ship.generate_meshes();
+            let _ = crate::ship::hull::hull_geom(ship, &crate::ship::hull::HullProfile::parse("()").unwrap());
+            let _ = crate::ship::wall_collision::ship_wall_segments(ship);
+            let _ = crate::ship::wall_collision::ship_sight_segments(ship);
+            let _ = crate::ship::door_panels::ship_panel_placements(ship);
+        };
+        let mut ship = on("p2");
+        rebuild(&ship);
+        let before = views_made();
+        let p1: BTreeSet<String> = ["p1".to_string()].into_iter().collect();
+        for open in [
+            OpenPlots { plots: p1.clone(), lit: None },
+            OpenPlots { plots: p1.clone(), lit: Some("p1".into()) },
+            OpenPlots::default(),
+        ] {
+            ship.open = open;
+            rebuild(&ship);
+        }
+        let made = views_made() - before;
+        assert_eq!(made, 0, "opening, lighting and closing p1 made {made} neighbour views");
+        // The open plot's queries, from the view already made.
+        let view = neighbour_view(&ship);
+        let commons = ship.zone_index("commons").expect("commons");
+        assert_eq!(view.zone_cuts_of(commons, &p1).count(), 1, "p1's corridor cuts the Commons' wall once");
+        assert_eq!(view.zone_cuts_of(commons, &BTreeSet::new()).count(), 0);
+        assert!(!view.segments_of(&p1, false).is_empty() && view.segments_of(&BTreeSet::new(), false).is_empty());
+        assert_eq!(view.mouths_by_plot(&ship).iter().filter(|(p, _)| *p == "p1").count(), 2, "p1's corridor has a mouth at each end");
+        let (lights, origin) = view.design_lights_of("p1").expect("p1 is drawn as a neighbour's");
+        assert!(!lights.is_empty() && origin == glam::Vec3::ZERO, "p1's design lights at p1's corner");
+        assert!(view.design_lights_of("p2").is_none(), "the home's own plot is no neighbour's");
+        assert_eq!(views_made() - before, 0);
     }
 
     /// Each shipped design is parsed once per process (finding 6): `built_in_ref` hands back the
