@@ -55,7 +55,11 @@ fn ask(state: &Arc<RelayState>, who: &str, request: serde_json::Value) -> Result
         return Ok(creds);
     }
     let as_asked = |k: &str| request.get(k).and_then(|v| v.as_str()).map(str::to_string);
-    assert_eq!((creds.room.clone(), creds.call.clone()), (as_asked("room"), as_asked("call")), "the refusal echoes what was asked");
+    assert_eq!(
+        (creds.room.clone(), creds.call.clone(), creds.file.clone()),
+        (as_asked("room"), as_asked("call"), as_asked("file")),
+        "the refusal echoes what was asked"
+    );
     assert!(creds.urls.is_empty() && creds.username.is_empty() && creds.credential.is_empty() && creds.ttl == 0, "{creds:?}");
     Err(notice.expect("a refusal comes with a notice saying why"))
 }
@@ -207,4 +211,128 @@ fn nonces_are_bound_to_the_address_and_expire() {
     altered[23] = if altered[23] == b'0' { b'1' } else { b'0' };
     assert!(!keys.nonce_ok(&altered, at, 1_000_000));
     assert!(!CallKeys::generate().nonce_ok(n.as_bytes(), at, 1_000_000), "another run's nonce");
+}
+
+// ── File transfers (device-to-device big files, 2026-10-11) ──────────────────
+
+/// A real identity: its BIP39 seed and its Dilithium3 public key, hex.
+fn person(seed_byte: u8) -> (Vec<u8>, String) {
+    use crate::relay::core::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
+    let seed = vec![seed_byte; 32];
+    let key = hex::encode(DilithiumKeypair::from_seed(&derive_dilithium_seed(&seed)).public_key());
+    (seed, key)
+}
+
+/// The file pass `issuer` (seed, key) gives `grantee` on this relay for transfer `id`, ending at
+/// `expiry`, signed by hand (so a run-out or overlong one can be made too).
+fn file_pass(state: &RelayState, issuer: &(Vec<u8>, String), grantee: &str, id: &str, expiry: u64) -> serde_json::Value {
+    use crate::relay::core::pq_crypto::{derive_dilithium_seed, file_pass_preimage, DilithiumKeypair};
+    use base64::Engine;
+    let server = state.db.server_did().unwrap();
+    let kp = DilithiumKeypair::from_seed(&derive_dilithium_seed(&issuer.0));
+    let sig = base64::engine::general_purpose::STANDARD.encode(kp.sign(file_pass_preimage(&server, &issuer.1, grantee, id, expiry).as_bytes()));
+    serde_json::json!({ "v": 1, "id": id, "expiry": expiry, "sig": sig })
+}
+
+fn file(id: &str, peer: &str, pass: Option<&serde_json::Value>) -> serde_json::Value {
+    let mut r = serde_json::json!({ "type": "call_credentials", "file": id, "peer": peer });
+    if let Some(p) = pass {
+        r["file_pass"] = p.clone();
+    }
+    r
+}
+
+const ID: &str = "00112233445566778899aabbccddeeff";
+
+/// FILE CREDENTIALS ONLY WITH A MATCHING PASS (the shapes, part 2). Ann sends Bo a file and gave
+/// him a file pass for it. Bo (its grantee) asking with Ann as his peer, and Ann (its issuer)
+/// asking with Bo as hers, are each given credentials for the same transfer: one scope, the
+/// keyed hash of the id and the two keys, not a call's or a room's. Each credential carries its
+/// asker's person tag and their role's forwarded day (Bo Verified, 2048; Ann Admin, 0, no
+/// limit) inside the part the HMAC covers; a room's carries none. The reply echoes `file`.
+/// Refused, with the refusal and the notice: another file's id, a third person, the pass with
+/// someone else named as peer, yourself as your own peer, no pass, a forged pass, one run out,
+/// one longer than a week, and `file` beside a `room`. With the forwarder not listening, a good
+/// pass gets the not-set-up words.
+///
+/// Seen red 2026-10-11 with the id check left out of `file_pass_fits`: "another file's id",
+/// left: None (it was granted), right: Some("No credentials for that transfer: ...").
+#[test]
+fn file_credentials_only_with_a_matching_pass_both_ways_round() {
+    let state = fresh_state("file");
+    let (ann, bo, cy) = (person(201), person(202), person(203));
+    state.db.set_role(&ann.1, "admin").unwrap();
+    state.db.set_role(&bo.1, "verified").unwrap();
+    let now = unix_now();
+    let pass = file_pass(&state, &ann, &bo.1, ID, now + 86_400);
+
+    let to_bo = ask(&state, &bo.1, file(ID, &ann.1, Some(&pass))).expect("Bo, the pass's grantee, is given credentials");
+    let to_ann = ask(&state, &ann.1, file(ID, &bo.1, Some(&pass))).expect("Ann, its issuer, is too");
+    assert_eq!((to_bo.file.as_deref(), to_bo.room.as_deref(), to_bo.call.as_deref()), (Some(ID), None, None), "the reply echoes the file");
+    let scope = |c: &CallCredentials| parse_username(&c.username).expect("this relay's shape").1.to_string();
+    assert_eq!(scope(&to_bo), state.calls.keys().file_scope(ID, &ann.1, &bo.1), "the transfer's scope");
+    assert_eq!(scope(&to_bo), scope(&to_ann), "one transfer, one scope, whichever of the two asks");
+    assert_ne!(scope(&to_bo), state.calls.keys().call_scope(&ann.1, &bo.1), "a transfer is not a call between the two");
+    assert_eq!(to_bo.credential, state.calls.keys().credential_for(&to_bo.username));
+    let bo_meter = username_meter(&to_bo.username).expect("a file credential carries a tag");
+    let ann_meter = username_meter(&to_ann.username).expect("so does Ann's");
+    assert_eq!(bo_meter, Meter { tag: state.calls.keys().person_tag(&bo.1), limit_mb: 2048 }, "Bo's tag and Verified's forwarded day");
+    assert_eq!(ann_meter, Meter { tag: state.calls.keys().person_tag(&ann.1), limit_mb: 0 }, "Ann's tag and Admin's: no limit");
+    assert_ne!(bo_meter.tag, ann_meter.tag, "one tag per person");
+    let wire = serde_json::to_value(RelayMessage::CallCredentials { to: bo.1.clone(), creds: to_bo.clone() }).unwrap();
+    assert_eq!(wire["file"], ID, "{wire}");
+
+    let refused = |who: &str, req: serde_json::Value| ask(&state, who, req).err();
+    let no = Some(NO_FILE_PASS.to_string());
+    assert_eq!(refused(&bo.1, file("ffeeddccbbaa99887766554433221100", &ann.1, Some(&pass))), no, "another file's id");
+    assert_eq!(refused(&cy.1, file(ID, &ann.1, Some(&pass))), no, "a third person naming the issuer");
+    assert_eq!(refused(&cy.1, file(ID, &bo.1, Some(&pass))), no, "a third person naming the grantee");
+    assert_eq!(refused(&bo.1, file(ID, &cy.1, Some(&pass))), no, "someone else named as the peer");
+    let own = file_pass(&state, &bo, &bo.1, ID, now + 86_400);
+    assert_eq!(refused(&bo.1, file(ID, &bo.1, Some(&own))), no, "yourself as your own peer");
+    assert_eq!(refused(&bo.1, file(ID, &ann.1, None)), no, "no pass");
+    let mut forged = pass.clone();
+    forged["sig"] = file_pass(&state, &cy, &bo.1, ID, now + 86_400)["sig"].clone();
+    assert_eq!(refused(&bo.1, file(ID, &ann.1, Some(&forged))), no, "a forged pass");
+    assert_eq!(refused(&bo.1, file(ID, &ann.1, Some(&file_pass(&state, &ann, &bo.1, ID, now - 1)))), no, "a pass run out");
+    assert_eq!(refused(&bo.1, file(ID, &ann.1, Some(&file_pass(&state, &ann, &bo.1, ID, now + 30 * 86_400)))), no, "a pass of thirty days");
+    let with_room = serde_json::json!({ "type": "call_credentials", "file": ID, "peer": ann.1, "file_pass": pass, "room": "lounge" });
+    assert_eq!(refused(&bo.1, with_room), Some(NOT_IN_IT.to_string()), "a file beside a room");
+
+    // A room's credentials carry no tag: the forwarder never counts them.
+    seat(&state, "lounge", &[&bo.1]);
+    let room_creds = ask(&state, &bo.1, room("lounge")).unwrap();
+    assert_eq!(username_meter(&room_creds.username), None, "a room's credential carries no tag");
+
+    let quiet = Arc::new(RelayState::new(Storage::open_temp("callcreds_file_quiet")));
+    let pass_there = file_pass(&quiet, &ann, &bo.1, ID, now + 86_400);
+    assert_eq!(ask(&quiet, &bo.1, file(ID, &ann.1, Some(&pass_there))), Err(NOT_SET_UP.to_string()), "no forwarder, no transfer through it");
+}
+
+/// THE USERNAME'S TWO SHAPES. A call's and a room's: `{expiry}:{scope}-{nonce}`, no meter. A
+/// file's: `{expiry}:{scope}-{nonce}-{tag}-{limit}`, the tag and limit read back exactly; a limit
+/// of 0 is "no limit". Anything else in between, an upper-case tag, a missing limit or a sixth
+/// part, is not this relay's shape at all (an Allocate with it is challenged).
+///
+/// Seen red 2026-10-11 with `username_parts` accepting anything after the limit: "a sixth part",
+/// left `Some((4600, "7c50.."))`, right `None`.
+#[test]
+fn usernames_carry_a_meter_only_for_files() {
+    let keys = CallKeys::generate();
+    let (call, _) = keys.issue(&keys.call_scope("a", "b"), 1_000);
+    assert_eq!(parse_username(&call).map(|(e, _)| e), Some(1_000 + CREDENTIAL_TTL_SECS));
+    assert_eq!(username_meter(&call), None, "a call's carries none");
+    let (f, _) = keys.issue_metered(&keys.file_scope(ID, "a", "b"), "a", 2048, 1_000);
+    assert_eq!(parse_username(&f).map(|(_, s)| s.to_string()), Some(keys.file_scope(ID, "a", "b")));
+    let m = username_meter(&f).expect("a file's carries one");
+    assert_eq!(m, Meter { tag: keys.person_tag("a"), limit_mb: 2048 });
+    assert_eq!(m.limit_bytes(), Some(2048 * 1024 * 1024));
+    let (free, _) = keys.issue_metered(&keys.file_scope(ID, "a", "b"), "a", 0, 1_000);
+    assert_eq!(username_meter(&free).and_then(|m| m.limit_bytes()), None, "0 is no limit");
+    assert_ne!(keys.person_tag("a"), keys.person_tag("b"));
+    assert_ne!(keys.person_tag("a"), CallKeys::generate().person_tag("a"), "another run, another tag");
+    assert_eq!(parse_username(&format!("{f}-7")), None, "a sixth part");
+    assert_eq!(parse_username(&f.replace(&keys.person_tag("a"), &keys.person_tag("a").to_uppercase())), None, "an upper-case tag");
+    let (head, _) = f.rsplit_once('-').unwrap();
+    assert_eq!(parse_username(head), None, "a tag without its limit");
 }

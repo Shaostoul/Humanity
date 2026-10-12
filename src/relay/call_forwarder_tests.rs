@@ -527,6 +527,88 @@ fn relayed_data_is_limited_in_size_and_rate() {
     assert_eq!(passed, (RELAY_BYTES_BURST as usize) / MAX_DATA, "the burst, then nothing until it refills");
 }
 
+/// A client at `addr` with a FILE credential `keys` issued for `scope` to the person `key`, whose
+/// role may send `limit_mb` a day through the forwarder.
+fn file_client(keys: &CallKeys, addr: SocketAddr, scope: &str, key: &str, limit_mb: u64) -> Client {
+    let (username, credential) = keys.issue_metered(scope, key, limit_mb, UNIX);
+    let key = long_term_key(&username, REALM, &credential);
+    Client { addr, username, key }
+}
+
+/// Allocate for `a` and `b` and give each a permission toward the other: (a's relayed address,
+/// b's).
+fn pair(fw: &mut Forwarder, keys: &CallKeys, a: &Client, b: &Client, t: Instant) -> (SocketAddr, SocketAddr) {
+    let (ra, rb) = (allocate(fw, keys, a, t), allocate(fw, keys, b, t));
+    for (c, peer) in [(a, rb), (b, ra)] {
+        assert_eq!(code(&only_reply(fw.handle(c.addr, &permission_request(keys, c, peer, UNIX), t, UNIX), c.addr)), None);
+    }
+    (ra, rb)
+}
+
+/// THE DAY'S FORWARDED AMOUNT, PER PERSON (device-to-device big files, the shapes part 2). Ann
+/// may send 1 MB a day through the forwarder: her file credential carries her tag and that limit.
+/// Her packets to Bo pass until the next would take her past 1 MB (128 packets of 8 KiB), then
+/// nothing more of hers passes; her count is exactly 1 MB. Her second transfer, another scope with
+/// the same tag, is stopped too (the limit is the person's, not the transfer's). Bo (no limit)
+/// still answers her; Cy, with her own 1 MB in another transfer, still sends; and a call between
+/// two others is never counted (no tag), however much it carries. The next UTC day Ann sends
+/// again.
+///
+/// Seen red 2026-10-11 with `on_allocate` leaving every allocation's meter empty: "Ann is stopped
+/// past her day's limit" (left: 129, right: 128).
+#[test]
+fn the_day_count_stops_one_person_past_their_limit_and_never_counts_a_call() {
+    let keys = CallKeys::generate();
+    let t = Instant::now();
+    let mut fw = forwarder(&keys, t);
+    let id = "00112233445566778899aabbccddeeff";
+    let transfer = keys.file_scope(id, "ann", "bo");
+    let ann = file_client(&keys, addr("203.0.113.10:1000"), &transfer, "ann", 1);
+    let bo = file_client(&keys, addr("198.51.100.20:2000"), &transfer, "bo", 0);
+    let (ra, rb) = pair(&mut fw, &keys, &ann, &bo, t);
+
+    let packet = vec![7u8; MAX_DATA];
+    let sent = |fw: &mut Forwarder, c: &Client, peer: SocketAddr, n: usize, unix: u64| {
+        (0..n).filter(|_| !fw.handle(c.addr, &send_indication(peer, &packet), t, unix).is_empty()).count()
+    };
+    let mib = 1024 * 1024;
+    assert_eq!(sent(&mut fw, &ann, rb, 129, UNIX), mib / MAX_DATA, "Ann is stopped past her day's limit");
+    assert_eq!(fw.forwarded_today(&keys.person_tag("ann"), UNIX), mib as u64, "her count is exactly her limit");
+    assert_eq!(sent(&mut fw, &ann, rb, 1, UNIX), 0, "and stays stopped");
+    assert_eq!(sent(&mut fw, &bo, ra, 3, UNIX), 3, "Bo, with no limit, still answers her");
+    assert_eq!(fw.forwarded_today(&keys.person_tag("bo"), UNIX), 3 * MAX_DATA as u64, "Bo's own count, apart from Ann's");
+
+    // Ann's second transfer, to Dee: the same tag, so it is stopped too.
+    let second = keys.file_scope("ffeeddccbbaa99887766554433221100", "ann", "dee");
+    let ann2 = file_client(&keys, addr("203.0.113.10:1001"), &second, "ann", 1);
+    let dee = file_client(&keys, addr("198.51.100.40:4000"), &second, "dee", 0);
+    let (_, rd) = pair(&mut fw, &keys, &ann2, &dee, t);
+    assert_eq!(sent(&mut fw, &ann2, rd, 1, UNIX), 0, "Ann's limit is hers, across her transfers");
+
+    // Cy, with a limit of her own in another transfer, is not held to Ann's count.
+    let third = keys.file_scope("0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f", "cy", "eve");
+    let cy = file_client(&keys, addr("203.0.113.30:3000"), &third, "cy", 1);
+    let eve = file_client(&keys, addr("198.51.100.50:5000"), &third, "eve", 0);
+    let (_, re) = pair(&mut fw, &keys, &cy, &eve, t);
+    assert_eq!(sent(&mut fw, &cy, re, 4, UNIX), 4, "another person still sends");
+
+    // A call between two others: no tag, never counted, however much passes.
+    let call = keys.call_scope("fay", "gus");
+    let fay = client(&keys, addr("203.0.113.60:6000"), &call);
+    let gus = client(&keys, addr("198.51.100.70:7000"), &call);
+    let (_, rg) = pair(&mut fw, &keys, &fay, &gus, t);
+    let tags_before = fw.forwarded.len();
+    assert_eq!(sent(&mut fw, &fay, rg, 200, UNIX), 200, "a call passes 1.6 MB, more than any file limit here");
+    assert_eq!(fw.forwarded.len(), tags_before, "and nothing of it is counted");
+
+    // The next UTC day, Ann's count starts again.
+    let tomorrow = UNIX + 86_400;
+    assert_eq!(fw.forwarded_today(&keys.person_tag("ann"), tomorrow), 0);
+    let later = t + Duration::from_secs(2);
+    let n = (0..1).filter(|_| !fw.handle(ann.addr, &send_indication(rb, &packet), later, tomorrow).is_empty()).count();
+    assert_eq!(n, 1, "the next day Ann sends again");
+}
+
 /// The settings: TURN_BIND follows the relay's own BIND_ADDRESS unless set; a bad value is an
 /// error, never every interface; TURN_PUBLIC_HOST falls back to TURN_SERVER_HOST, then the bind
 /// address when it is one address.

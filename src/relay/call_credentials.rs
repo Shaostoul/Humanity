@@ -1,38 +1,49 @@
 //! Credentials for the call forwarder (call_forwarder.rs), given out over the signed-in socket
-//! only (docs/design/blocking-and-safe-mode.md 10f).
+//! only (docs/design/blocking-and-safe-mode.md 10f; files: docs/design/media-showcase.md,
+//! "Device-to-device big files: the shapes, exact", part 2).
 //!
 //! The request, from a signed-in socket:
 //!
 //! ```text
 //! {"type":"call_credentials","room":"<voice room id>"}
 //! {"type":"call_credentials","call":"<the other person's key>"}
+//! {"type":"call_credentials","file":"<transfer id>","peer":"<the other person's key>","file_pass":{...}}
 //! ```
 //!
-//! answered only when the asker is in that voice room's live roster (`RelayState::voice_rooms`)
-//! or in an open call with that person (`handlers/reach.rs`, a ring that was let through), with
+//! answered only when the asker is in that voice room's live roster (`RelayState::voice_rooms`),
+//! in an open call with that person (`handlers/reach.rs`, a ring that was let through), or, for a
+//! file, holds a file pass for it (pq_crypto `verify_file_pass`) that checks with (issuer,
+//! grantee) = (peer, asker) or (asker, peer) and whose `id` is the `file` asked for (32 lowercase
+//! hex; never with the asker as their own peer), with
 //!
 //! ```text
-//! {"type":"call_credentials","room"|"call":...,
+//! {"type":"call_credentials","room"|"call"|"file":...,
 //!  "urls":["turn:<host>:<port>?transport=udp","stun:<host>:<port>"],
-//!  "username":"<expiry>:<room tag>","credential":"<base64 HMAC-SHA1>","ttl":3600}
+//!  "username":"<expiry>:<scope>-<nonce>[-<person tag>-<MB a day>]","credential":"<base64 HMAC-SHA1>","ttl":3600}
 //! ```
 //!
 //! to that person's own sockets. Anything else is answered at once with
-//! `{"type":"call_credentials","room"|"call":<as asked>,"refused":true}` (no urls, username or
-//! credential), so the client stops waiting, and a Private notice saying why.
+//! `{"type":"call_credentials","room"|"call"|"file":<as asked>,"refused":true}` (no urls, username
+//! or credential), so the client stops waiting, and a Private notice saying why.
 //!
 //! # What the credential is
 //!
 //! `username` is `"{expiry}:{scope}-{nonce}"`: the Unix time it stops working, a hash of the room
-//! (or of the two call keys, sorted) and 8 random bytes so that no two requests get the same one.
-//! `credential` is the base64 HMAC-SHA1 of `username` under a 32-byte secret made when the relay
-//! starts and never written anywhere ([`CallKeys`]). So a credential is good for one room on
-//! this run of this relay: the forwarder recomputes the HMAC to check it, reads the room from the
-//! username it covers, and every credential dies with the process. The scope hash is keyed by the
-//! same secret, so a username says nothing about which room it is for to anyone else.
+//! (or of the two call keys, sorted; or of the transfer id and the two keys, sorted) and 8 random
+//! bytes so that no two requests get the same one. A FILE credential carries two more parts,
+//! `"-{tag}-{limit}"`: a keyed tag of the person it was issued to (32 hex, [`CallKeys::person_tag`])
+//! and their role's `max_forwarded_mb_per_day` (0 = no limit). `credential` is the base64
+//! HMAC-SHA1 of `username` under a 32-byte secret made when the relay starts and never written
+//! anywhere ([`CallKeys`]). So a credential is good for one room, call or transfer on this run of
+//! this relay: the forwarder recomputes the HMAC to check it, reads the scope (and a file's tag
+//! and limit) from the username it covers, and every credential dies with the process. The scope
+//! hash and the tag are keyed by the same secret, so a username says nothing about which room or
+//! whom it is for to anyone else.
 //!
-//! An allocation made with a credential belongs to its room, and the forwarder only ever passes
-//! packets between allocations of the same room.
+//! An allocation made with a credential belongs to its scope, and the forwarder only ever passes
+//! packets between allocations of the same scope. The forwarder counts what each person tag's
+//! allocations send through it in a UTC day and stops relaying for that tag past its limit; a
+//! call's or a room's credentials carry no tag and are never counted.
 
 use std::collections::{HashMap, VecDeque};
 use std::net::{Ipv6Addr, SocketAddr};
@@ -63,6 +74,9 @@ const ISSUE_TRACK_MAX: usize = 10_000;
 
 /// The notice for a request from someone not in that room or call.
 pub const NOT_IN_IT: &str = "No call credentials: you are not in that voice room or call.";
+/// The notice for a file request whose pass is missing, does not check out, is not for this
+/// transfer or does not name the asker (device-to-device big files).
+pub const NO_FILE_PASS: &str = "No credentials for that transfer: its file pass is missing, run out, or not between you and that person.";
 /// The notice when this relay is not running the forwarder (voice is off, or its UDP port could
 /// not be opened). The same sentence the clients show when a call cannot be put through.
 pub const NOT_SET_UP: &str =
@@ -78,6 +92,8 @@ pub struct CallKeys {
     secret: [u8; 32],
     scope_key: [u8; 32],
     nonce_key: [u8; 32],
+    /// Keys the person tag a file credential carries ([`CallKeys::person_tag`]).
+    tag_key: [u8; 32],
 }
 
 impl std::fmt::Debug for CallKeys {
@@ -97,6 +113,7 @@ impl CallKeys {
             secret,
             scope_key: blake3::derive_key("hum/call-scope/v1", &secret),
             nonce_key: blake3::derive_key("hum/call-nonce/v1", &secret),
+            tag_key: blake3::derive_key("hum/call-person-tag/v1", &secret),
         }
     }
 
@@ -125,12 +142,33 @@ impl CallKeys {
         self.scope(&format!("call\n{x}\n{y}"))
     }
 
+    /// The scope of transfer `id` between `a` and `b` (device-to-device big files), the same
+    /// whichever of them asks: a keyed hash of `file\n{id}\n{the two keys, sorted}`, so the
+    /// forwarder passes packets only between the two people's allocations for this one transfer.
+    pub fn file_scope(&self, id: &str, a: &str, b: &str) -> String {
+        let (x, y) = if a <= b { (a, b) } else { (b, a) };
+        self.scope(&format!("file\n{id}\n{x}\n{y}"))
+    }
+
+    /// The tag a file credential issued to `key` carries: 32 hex characters, a keyed hash of the
+    /// key, the same for every credential the person is given on this run (so the forwarder counts
+    /// all their transfers together) and meaningless to anyone without this run's secret.
+    pub fn person_tag(&self, key: &str) -> String {
+        hex::encode(&blake3::keyed_hash(&self.tag_key, format!("person\n{key}").as_bytes()).as_bytes()[..16])
+    }
+
     /// A username and credential for `scope`, good for [`CREDENTIAL_TTL_SECS`] from `unix_now`.
     pub fn issue(&self, scope: &str, unix_now: u64) -> (String, String) {
-        use rand::RngCore;
-        let mut nonce = [0u8; 8];
-        rand::rng().fill_bytes(&mut nonce);
-        let username = format!("{}:{scope}-{}", unix_now + CREDENTIAL_TTL_SECS, hex::encode(nonce));
+        let username = format!("{}:{scope}-{}", unix_now + CREDENTIAL_TTL_SECS, random_nonce());
+        let credential = self.credential_for(&username);
+        (username, credential)
+    }
+
+    /// A FILE credential for `scope`, issued to `key` whose role may send `limit_mb` MB a day
+    /// through the forwarder (0 = no limit): the username carries [`person_tag`](Self::person_tag)
+    /// of `key` and the limit, inside the part the HMAC covers, so neither can be changed.
+    pub fn issue_metered(&self, scope: &str, key: &str, limit_mb: u64, unix_now: u64) -> (String, String) {
+        let username = format!("{}:{scope}-{}-{}-{limit_mb}", unix_now + CREDENTIAL_TTL_SECS, random_nonce(), self.person_tag(key));
         let credential = self.credential_for(&username);
         (username, credential)
     }
@@ -169,19 +207,65 @@ impl CallKeys {
     }
 }
 
-/// The expiry and scope a username carries, when it has this relay's shape:
-/// `"{expiry}:{32 hex}-{16 hex}"`.
-pub fn parse_username(username: &str) -> Option<(u64, &str)> {
-    let (expiry, tag) = username.split_once(':')?;
-    if expiry.is_empty() || expiry.len() > 20 || !expiry.bytes().all(|b| b.is_ascii_digit()) {
+/// 8 random bytes as 16 hex characters: what keeps two usernames for one scope apart.
+fn random_nonce() -> String {
+    use rand::RngCore;
+    let mut nonce = [0u8; 8];
+    rand::rng().fill_bytes(&mut nonce);
+    hex::encode(nonce)
+}
+
+/// Who a file credential's allocations are counted against, and how much they may send through
+/// the forwarder in a UTC day: read from the username, where the HMAC covers it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Meter {
+    /// [`CallKeys::person_tag`] of the person it was issued to.
+    pub tag: String,
+    /// Their role's `max_forwarded_mb_per_day` when it was issued; 0 means no limit.
+    pub limit_mb: u64,
+}
+
+impl Meter {
+    /// The day's limit in bytes, or None for no limit.
+    pub fn limit_bytes(&self) -> Option<u64> {
+        (self.limit_mb > 0).then(|| self.limit_mb.saturating_mul(1024 * 1024))
+    }
+}
+
+/// The parts of a username in this relay's shape: `"{expiry}:{32 hex}-{16 hex}"`, or a file
+/// credential's `"{expiry}:{32 hex}-{16 hex}-{32 hex}-{digits}"`.
+fn username_parts(username: &str) -> Option<(u64, &str, Option<Meter>)> {
+    let (expiry, rest) = username.split_once(':')?;
+    let digits = |s: &str| !s.is_empty() && s.len() <= 20 && s.bytes().all(|b| b.is_ascii_digit());
+    if !digits(expiry) {
         return None;
     }
-    let (scope, nonce) = tag.split_once('-')?;
     let lower_hex = |s: &str, n: usize| s.len() == n && s.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'));
+    let mut parts = rest.split('-');
+    let (scope, nonce) = (parts.next()?, parts.next()?);
     if !(lower_hex(scope, 32) && lower_hex(nonce, 16)) {
         return None;
     }
-    Some((expiry.parse().ok()?, scope))
+    let meter = match (parts.next(), parts.next(), parts.next()) {
+        (None, _, _) => None,
+        (Some(tag), Some(limit), None) if lower_hex(tag, 32) && digits(limit) => {
+            Some(Meter { tag: tag.to_string(), limit_mb: limit.parse().ok()? })
+        }
+        _ => return None,
+    };
+    Some((expiry.parse().ok()?, scope, meter))
+}
+
+/// The expiry and scope a username carries, when it has this relay's shape (a call's, a room's or
+/// a file's).
+pub fn parse_username(username: &str) -> Option<(u64, &str)> {
+    username_parts(username).map(|(expiry, scope, _)| (expiry, scope))
+}
+
+/// The person tag and day limit a FILE credential's username carries; None for a call's or a
+/// room's (never counted) and for anything not in this relay's shape.
+pub fn username_meter(username: &str) -> Option<Meter> {
+    username_parts(username).and_then(|(_, _, meter)| meter)
 }
 
 /// The forwarder's side of the relay state: its keys, where it listens once it does, and how many
@@ -257,7 +341,7 @@ impl CallService {
     }
 }
 
-/// The reply's fields after `"type":"call_credentials"`: `room` or `call` as asked, then the
+/// The reply's fields after `"type":"call_credentials"`: `room`, `call` or `file` as asked, then the
 /// servers, the username, the credential and how many seconds it is good for. A refusal is the
 /// same reply with `"refused":true` and none of the other four, sent at once so a client stops
 /// waiting (the web client reads a reply without them as "no credentials").
@@ -267,6 +351,9 @@ pub struct CallCredentials {
     pub room: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub call: Option<String>,
+    /// The transfer id a file request named (device-to-device big files), echoed as asked.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub file: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub urls: Vec<String>,
     #[serde(default, skip_serializing_if = "String::is_empty")]
@@ -287,15 +374,39 @@ fn unix_now() -> u64 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
 }
 
-/// The `room` or `call` a request names (non-empty, not absurdly long).
+/// The `room`, `call`, `file` or `peer` a request names (non-empty, not absurdly long).
 fn named<'a>(raw: &'a serde_json::Value, k: &str) -> Option<&'a str> {
     raw.get(k).and_then(|v| v.as_str()).filter(|s| !s.is_empty() && s.len() <= MAX_ID_CHARS)
 }
 
-/// Refuse `who`: the refusal reply (echoing `room` and `call` as asked) so the client stops
-/// waiting, and a notice saying why.
-fn refuse(state: &RelayState, who: &str, room: Option<&str>, call: Option<&str>, message: &str) {
-    let creds = CallCredentials { room: room.map(str::to_string), call: call.map(str::to_string), refused: true, ..Default::default() };
+/// What a request asked for, echoed in its reply: a voice room, a call or a file transfer.
+#[derive(Clone, Copy)]
+struct Asked<'a> {
+    room: Option<&'a str>,
+    call: Option<&'a str>,
+    file: Option<&'a str>,
+}
+
+impl<'a> Asked<'a> {
+    fn of(raw: &'a serde_json::Value) -> Asked<'a> {
+        Asked { room: named(raw, "room"), call: named(raw, "call"), file: named(raw, "file") }
+    }
+
+    /// A reply carrying what was asked and nothing else yet.
+    fn reply(self) -> CallCredentials {
+        CallCredentials {
+            room: self.room.map(str::to_string),
+            call: self.call.map(str::to_string),
+            file: self.file.map(str::to_string),
+            ..Default::default()
+        }
+    }
+}
+
+/// Refuse `who`: the refusal reply (echoing `room`, `call` and `file` as asked) so the client
+/// stops waiting, and a notice saying why.
+fn refuse(state: &RelayState, who: &str, asked: Asked<'_>, message: &str) {
+    let creds = CallCredentials { refused: true, ..asked.reply() };
     let _ = state.broadcast_tx.send(RelayMessage::CallCredentials { to: who.to_string(), creds });
     let _ = state.broadcast_tx.send(RelayMessage::Private { to: who.to_string(), message: message.to_string() });
 }
@@ -303,12 +414,7 @@ fn refuse(state: &RelayState, who: &str, room: Option<&str>, call: Option<&str>,
 /// The refusal reply alone, for a request the WS feature gate turned away because the owner
 /// switched voice off (relay.rs; the gate sends its own notice).
 pub fn refused_reply(state: &RelayState, who: &str, raw: &serde_json::Value) {
-    let creds = CallCredentials {
-        room: named(raw, "room").map(str::to_string),
-        call: named(raw, "call").map(str::to_string),
-        refused: true,
-        ..Default::default()
-    };
+    let creds = CallCredentials { refused: true, ..Asked::of(raw).reply() };
     let _ = state.broadcast_tx.send(RelayMessage::CallCredentials { to: who.to_string(), creds });
 }
 
@@ -317,32 +423,55 @@ async fn in_voice_room(state: &RelayState, key: &str, room: &str) -> bool {
     state.voice_rooms.read().await.get(room).is_some_and(|r| r.participants.iter().any(|(k, _)| k == key))
 }
 
-/// `call_credentials` from the signed-in `my_key`. Exactly one of `room` and `call`; the asker
-/// must be in that room or in an open call with that person; the forwarder must be listening;
-/// and no more than [`ISSUES_PER_MINUTE`] a minute. Otherwise a refusal and a notice.
+/// Does `file_pass` let `me` and `peer` have forwarder credentials for transfer `file`? The pass
+/// must check out on this relay with (issuer, grantee) = (peer, me) or (me, peer), its `id` must
+/// be `file`, and `peer` must be someone else (the shapes, part 2). Either of the two may ask: the
+/// sender (the pass's issuer) and the receiver (its grantee) each need an allocation.
+fn file_pass_fits(state: &RelayState, me: &str, peer: &str, file: &str, file_pass: Option<&serde_json::Value>) -> bool {
+    use crate::relay::handlers::reach::file_pass_of;
+    me != peer
+        && [(peer, me), (me, peer)]
+            .into_iter()
+            .any(|(issuer, grantee)| file_pass_of(state, issuer, grantee, file_pass).is_some_and(|p| p.id == file))
+}
+
+/// What `key`'s role may send through the forwarder a day, in MB (0 = no limit): their role's
+/// `max_forwarded_mb_per_day`, as it stands when the credential is issued.
+fn forwarded_limit_mb(state: &RelayState, key: &str) -> u64 {
+    state.db.role_def(&state.db.get_role(key).unwrap_or_default()).max_forwarded_mb_per_day.max(0) as u64
+}
+
+/// `call_credentials` from the signed-in `my_key`. Exactly one of `room`, `call` and `file`; the
+/// asker must be in that room, in an open call with that person, or hold a file pass for that
+/// transfer between them and `peer` ([`file_pass_fits`]); the forwarder must be listening; and no
+/// more than [`ISSUES_PER_MINUTE`] a minute. Otherwise a refusal and a notice. A file credential
+/// carries the asker's person tag and day limit ([`CallKeys::issue_metered`]); the others none.
 pub async fn handle(state: &Arc<RelayState>, my_key: &str, raw: &serde_json::Value) {
-    let (room, call) = (named(raw, "room"), named(raw, "call"));
-    let scope = match (room, call) {
-        (Some(r), None) if in_voice_room(state, my_key, r).await => state.calls.keys().room_scope(r),
-        (None, Some(c)) if crate::relay::handlers::reach::call_is_open(state, my_key, c) => {
-            state.calls.keys().call_scope(my_key, c)
+    let asked = Asked::of(raw);
+    let (scope, metered) = match (asked.room, asked.call, asked.file) {
+        (Some(r), None, None) if in_voice_room(state, my_key, r).await => (state.calls.keys().room_scope(r), false),
+        (None, Some(c), None) if crate::relay::handlers::reach::call_is_open(state, my_key, c) => {
+            (state.calls.keys().call_scope(my_key, c), false)
         }
-        _ => return refuse(state, my_key, room, call, NOT_IN_IT),
+        (None, None, Some(f)) => {
+            let peer = named(raw, "peer");
+            match peer.filter(|p| file_pass_fits(state, my_key, p, f, raw.get("file_pass"))) {
+                Some(p) => (state.calls.keys().file_scope(f, my_key, p), true),
+                None => return refuse(state, my_key, asked, NO_FILE_PASS),
+            }
+        }
+        _ => return refuse(state, my_key, asked, NOT_IN_IT),
     };
-    let Some(urls) = state.calls.urls() else { return refuse(state, my_key, room, call, NOT_SET_UP) };
+    let Some(urls) = state.calls.urls() else { return refuse(state, my_key, asked, NOT_SET_UP) };
     if !state.calls.may_issue(my_key, Instant::now()) {
-        return refuse(state, my_key, room, call, TOO_MANY);
+        return refuse(state, my_key, asked, TOO_MANY);
     }
-    let (username, credential) = state.calls.keys().issue(&scope, unix_now());
-    let creds = CallCredentials {
-        room: room.map(str::to_string),
-        call: call.map(str::to_string),
-        urls,
-        username,
-        credential,
-        ttl: CREDENTIAL_TTL_SECS,
-        refused: false,
+    let (username, credential) = if metered {
+        state.calls.keys().issue_metered(&scope, my_key, forwarded_limit_mb(state, my_key), unix_now())
+    } else {
+        state.calls.keys().issue(&scope, unix_now())
     };
+    let creds = CallCredentials { urls, username, credential, ttl: CREDENTIAL_TTL_SECS, refused: false, ..asked.reply() };
     let _ = state.broadcast_tx.send(RelayMessage::CallCredentials { to: my_key.to_string(), creds });
 }
 

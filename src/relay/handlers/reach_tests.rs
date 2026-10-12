@@ -488,7 +488,7 @@ fn a_refused_call_hears_nothing_and_a_call_let_through_flows_both_ways() {
         let mut rx = st.broadcast_tx.subscribe();
         let mut rx_to = st.broadcast_tx.subscribe();
         if let Some(signal) = what.strip_prefix("signal ") {
-            block(handle_webrtc_signal(&st, from, to.to_string(), signal.to_string(), serde_json::json!({ "sdp": "x" }), cert.map(str::to_string)));
+            block(handle_webrtc_signal(&st, from, to.to_string(), signal.to_string(), serde_json::json!({ "sdp": "x" }), cert.map(str::to_string), None));
         } else {
             block(handle_voice_call(&st, from, to.to_string(), what.to_string(), cert.map(str::to_string)));
         }
@@ -548,7 +548,7 @@ fn a_direct_connection_offer_only_from_someone_the_target_knows() {
     let offer = |from: &str, signal: &str, cert: Option<&str>| -> (Vec<String>, Vec<String>) {
         let mut rx = st.broadcast_tx.subscribe();
         let mut rx_to = st.broadcast_tx.subscribe();
-        block(handle_webrtc_signal(&st, from, target.key.clone(), signal.to_string(), serde_json::json!("{}"), cert.map(str::to_string)));
+        block(handle_webrtc_signal(&st, from, target.key.clone(), signal.to_string(), serde_json::json!("{}"), cert.map(str::to_string), None));
         (heard(&mut rx, from), heard(&mut rx_to, &target.key))
     };
     let (back, reached) = offer(&stranger.key, "dc_offer", None);
@@ -626,3 +626,8 @@ fn reach_set_saves_a_subset_refuses_unknown_words_and_always_answers() {
 // the contact request. In its own file, which reuses the helpers above.
 #[path = "reach_group_report_tests.rs"]
 mod group_reports;
+
+// A direct-connection offer let through by a file pass (device-to-device big files). In its own
+// file, which reuses the helpers above.
+#[path = "reach_file_pass_tests.rs"]
+mod file_passes;

@@ -134,6 +134,7 @@ fn hidden_presence_gets_the_same_answer_online_or_not() {
                 "dc_offer".to_string(),
                 serde_json::json!({ "sdp": "x" }),
                 None,
+                None,
             ))
         }),
     ];

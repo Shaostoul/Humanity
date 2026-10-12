@@ -2236,3 +2236,112 @@ words, nothing left after the strips), `net::file_clean` (5), `net::files_policy
 changed with the behaviour: `attach_send_tests.rs file_bytes` is now a real (clean) JPEG, since a
 ".jpg" that is not one could not be checked, and the Media share test's stand-in file is named
 `.dat`, not `.png`, for the same reason.
+
+## As built (relay, device-to-device)
+
+The relay half of "Device-to-device big files: the shapes, exact", parts 1 and 2, built
+2026-10-11, plus the Roles editor rows for the new limit. What the two apps build against:
+
+**The file pass** (`src/relay/core/pq_crypto.rs`). The sender's app signs, with its Dilithium3
+identity key,
+
+```text
+hum/file-pass/v1\n{server}\n{issuer}\n{grantee}\n{id}\n{expiry}
+```
+
+and carries `{"v":1,"id":"<id>","expiry":<n>,"sig":"<base64>"}`, an object in every frame (never
+a string holding JSON; a string is refused). `build_file_pass` writes exactly that text, keys in
+that order. `id` is 32 lowercase hex characters (`file_pass_id_ok`, `new_file_pass_id`); `expiry`
+is Unix seconds, more than now and at most `FILE_PASS_MAX_DAYS` (7) ahead when minted, and the
+check allows `FILE_PASS_CLOCK_SLACK_SECS` (one day) past that. `verify_file_pass(server, issuer,
+grantee, pass, now)` refuses, cheapest first: `Malformed` (not an object, `v` not 1, a missing
+field, an `expiry` that is not a whole number, a `sig` over 8,192 characters, an empty or
+line-broken server or key), `BadId`, `Expired`, `TooLong`, `BadSignature`. The minting refuses
+whatever the check would.
+
+**Where the relay reads it**, always through `handlers/reach.rs` `file_pass_of(state, issuer,
+grantee, pass)`, which supplies the relay's own server DID and clock:
+
+- **`webrtc_signal` gains `file_pass`** (optional, the object). A `dc_offer` from S to T now also
+  passes when the pass checks with issuer T and grantee S (`dc_offer_may_pass`). The offer goes on
+  to T with neither `friend_cert` nor `file_pass` (its wire form has no such field). A file pass
+  opens no call: a call's `offer`, `answer` or `ice` with one is checked exactly as before.
+  Refusals stay silent.
+- **`call_credentials` gains a third request**,
+  `{"type":"call_credentials","file":"<id>","peer":"<key>","file_pass":{...}}`. Granted when the
+  pass checks with (issuer, grantee) = (peer, asker) or (asker, peer), its `id` is `file`, and
+  `peer` is not the asker. The reply is the usual one with `"file":"<id>"` instead of `room` or
+  `call` (urls, username, credential, ttl 3600); a refusal is `{"type":"call_credentials",
+  "file":"<id>","refused":true}` plus a notice: `NO_FILE_PASS` ("No credentials for that
+  transfer: its file pass is missing, run out, or not between you and that person."), `NOT_IN_IT`
+  for a request naming `file` beside `room` or `call`, `NOT_SET_UP` when the forwarder is not
+  listening, `TOO_MANY` past twenty a minute. The scope is the keyed hash of
+  `file\n{id}\n{the two keys, sorted}` (`CallKeys::file_scope`), so the forwarder passes packets
+  only between the two people's allocations for that transfer. `call_credentials` and
+  `webrtc_signal` are both in the Voice feature: an owner who switches voice off switches this
+  off too (the forwarder only runs when voice is offered).
+
+**The username of a file credential** is `{expiry}:{scope}-{nonce}-{tag}-{limit}`: the call's
+shape, then the asker's person tag (32 hex, `CallKeys::person_tag`, a BLAKE3 keyed hash of the key
+under a key derived from this run's secret, `hum/call-person-tag/v1`) and their role's
+`max_forwarded_mb_per_day` at the time of issue, decimal. The HMAC covers the whole username, so
+neither part can be changed. `parse_username` accepts both shapes; `username_meter` returns the
+tag and limit (`Meter`) for a file's and None for a call's or a room's.
+
+**The day count** (`src/relay/call_forwarder.rs`). An allocation made with a file credential keeps
+its `Meter`. `deliver` counts the bytes each tag's allocations send through the forwarder per UTC
+day (`forwarded_today`) and passes a packet only while the tag's count with it stays within
+its limit (0 = no limit); past it nothing more of that tag's passes until the next UTC day.
+The limit is the person's, across all their transfers; the receiver's own replies count against
+the receiver's tag. A call's and a room's allocations carry no tag and are never counted. The
+counts live in memory: a restart starts the day again (and ends every credential anyway).
+Yesterday's counts are dropped in the forwarder's once-a-second sweep.
+
+**The role limit** (`src/relay/storage/roles.rs`, `RoleDef::max_forwarded_mb_per_day`). 0 to
+`FORWARDED_MB_PER_DAY_MAX` (1,000,000) when saved; Admin 0 and every other built-in 2048 on a
+fresh server, and the same by tier (`CASE base_tier WHEN 'admin' THEN 0 ELSE 2048`) for an
+existing table, which gains the column through a guarded ALTER after the upload limits' and
+before the seed (BUG-046). A role save without the field (an app from v0.1486.0 or older) keeps
+the stored value (`LIMIT_NOT_SENT`); a new role saved that way gets 2048. It travels in
+`role_list` and `role_upsert` like the other limits.
+
+**Roles editor.** The desktop app's Server Settings > Roles "Upload limits per role" table gains
+a seventh column, "Forwarded a day (MB, 0 = no limit)", with a line under the table saying what
+it is (`src/gui/pages/server_settings/role_limits.rs`: `COLUMNS`, `FORWARDED_LINE`, `ranges`,
+`prefill`). The website still has no Roles editor (see round 2, "Not done here"), so the limit is
+edited in the desktop app only.
+
+**The shared fixture**, `scripts/tests/fixtures/file-offer-v1.json`: one pass minted by
+`build_file_pass` from the seeds `[7; 32]` (the sender) and `[9; 32]` (the receiver) on the server
+of seed `[5; 32]`, at 1,760,000,000 and running out a week later: both keys, the server DID, the
+id, the preimage text, the signature, the pass as text and as an object. Beside it, a 600,000-byte
+file stated as a rule (byte i is i mod 251), its BLAKE3, its three pieces' BLAKE3 and `hashes`
+(the BLAKE3 of the piece hashes, 32 raw bytes each, in order), and the exact texts of the offer
+note (`[[hum:offer:v1]]` then compact JSON, keys in the spec's order, the name escaped as
+`JSON.stringify` and serde_json both do), the answer for yes and for no, and a cancel.
+
+**Decided here** (the spec left them open):
+- A pass is refused as a string holding JSON; only the object counts.
+- Credentials are refused with yourself as your own peer, so one person cannot use a pass to
+  themselves to pipe data between two of their own devices through the server.
+- The custom roles of an existing server get the forwarded day by tier, as the upload limits
+  did: a custom role on the Admin tier gets 0 (no limit), any other 2048.
+- The count includes what each side sends, each against their own tag (a receiver's requests
+  and acknowledgements are small).
+- The relay does not tell an app its forwarded day or what is left of it (no field in the
+  profile or identify answers); a transfer that stops passing simply stalls. If the apps want to
+  say "your daily amount through the server is used up", that is a follow-up.
+
+**Tests**, each seen failing once against a single break (the doc comment on each names the break
+and what it saw): `relay::core::pq_crypto::tests::file_pass_roundtrip_and_pinned_preimage` (the
+server left out of the words), `a_file_pass_longer_than_a_week_or_malformed_is_refused` (the
+week's ceiling removed), `file_pass_fixture_matches_the_builder` (the builder writing `expiry`
+before `id`); `relay::handlers::reach::tests::file_passes::a_direct_connection_offer_with_a_file_pass_only_from_its_grantee`
+(the pass checked with the sender as issuer); `relay::call_credentials::tests::file_credentials_only_with_a_matching_pass_both_ways_round`
+(the id check left out) and `usernames_carry_a_meter_only_for_files` (a sixth part accepted);
+`relay::call_forwarder::tests::the_day_count_stops_one_person_past_their_limit_and_never_counts_a_call`
+(every allocation's meter left empty); `relay::storage::roles::tests::the_forwarded_day_round_trips_is_held_to_its_range_and_survives_an_older_apps_save`
+(the keep step left out) and `an_existing_roles_table_gains_the_forwarded_limit` (the guarded
+ALTER removed); and `gui::pages::server_settings::role_limits::tests::the_five_upload_limits_are_edited_and_saved_with_the_role`,
+extended to the seventh column (its field drawn over another limit). The four older tests that
+call `handle_webrtc_signal` pass `None` for the new argument.

@@ -611,6 +611,205 @@ pub fn verify_plot_permit(
         .map_err(|_| PlotPermitError::BadSignature)
 }
 
+// ── File passes (device-to-device big files, 2026-10-11) ───────────────────
+// docs/design/media-showcase.md, "Device-to-device big files: the shapes, exact", part 1. A file
+// bigger than a person's private file limit goes from one device to the other, never to the
+// server's disk. The receiver, once it says yes, dials the sender over WebRTC, and by default the
+// packets go through the server's call forwarder so neither learns the other's address. The two
+// need not be friends, so the relay needs some other word from the sender that this connection
+// is wanted. That word is a FILE PASS, minted by the sender for this one transfer:
+//
+//   preimage = "hum/file-pass/v1\n{server}\n{issuer}\n{grantee}\n{id}\n{expiry}"
+//   pass     = {"v":1,"id":"<id>","expiry":<n>,"sig":"<base64 Dilithium3 over the preimage>"}
+//
+// - `server` is the relay's own `did:hum:` (`Storage::server_did`, also in every
+//   `identify_challenge` as `server_did`), so a pass given on one server is a bad signature on
+//   any other.
+// - `issuer` is the sender's key, `grantee` the receiver's (Dilithium3 hex, as everywhere).
+// - `id` is the transfer's id, 16 random bytes as 32 lowercase hex characters: the same id the
+//   offer note (`[[hum:offer:v1]]`) carries, and the data channel's label (`file:<id>`).
+// - `expiry` is Unix seconds, at most FILE_PASS_MAX_DAYS ahead. No endless passes: the relay
+//   keeps no list, so a pass cannot be withdrawn and must run out by itself.
+//
+// The pass says one thing: "the issuer wants the grantee to be able to reach them for this file".
+// The relay checks it STATELESSLY, the friendship pass's and the household permit's pattern: it
+// rebuilds the words from its OWN facts (its server DID, and the two keys it knows from the frame:
+// the signed-in socket's key and the person named), never from the pass's claims, so a pass given
+// to someone else, by someone else, for another file or on another server is a bad signature.
+// Two doors read it, and nothing else:
+// - a `dc_offer` from the grantee to the issuer (handlers/reach.rs `dc_offer_may_pass`): the
+//   receiver dials the sender, the way round in which the relay can check it;
+// - `call_credentials {file, peer, file_pass}` from either of the two (call_credentials.rs): the
+//   forwarder's credentials for this one transfer.
+//
+// MINT AND CHECK LIVE TOGETHER (as the friendship pass and the household permit do): the minting
+// refuses what the check would refuse. Both apps mint it too (desktop net/, web chat/); the shared
+// fixture scripts/tests/fixtures/file-offer-v1.json holds one pass minted here from a fixed seed,
+// and `file_pass_fixture_matches_the_builder` below holds this builder to it byte for byte.
+
+/// File-pass signature domain: the first line of what is signed. Both apps MUST use the
+/// identical string.
+pub const FILE_PASS_DOMAIN: &str = "hum/file-pass/v1";
+
+/// The `v` a file pass's JSON carries.
+pub const FILE_PASS_VERSION: u64 = 1;
+
+/// The longest a file pass may run, days (the spec, part 1). An offer nobody answers expires with
+/// the DM mailbox; its pass by its own end date, a week at most.
+pub const FILE_PASS_MAX_DAYS: u64 = 7;
+
+/// [`FILE_PASS_MAX_DAYS`] in seconds.
+pub const FILE_PASS_MAX_SECS: u64 = FILE_PASS_MAX_DAYS * 86_400;
+
+/// How much longer than [`FILE_PASS_MAX_SECS`] the CHECK allows, seconds: the sender mints on its
+/// own clock and the relay checks on its own (the household permit's day of slack, for the same
+/// reason). The minting allows none.
+pub const FILE_PASS_CLOCK_SLACK_SECS: u64 = 86_400;
+
+/// A transfer id's length, bytes (it travels as twice as many lowercase hex characters).
+pub const FILE_PASS_ID_BYTES: usize = 16;
+
+/// The longest signature text the check reads, characters. A Dilithium3 signature is 4,412
+/// characters of base64; anything far longer is refused before it is decoded.
+pub const FILE_PASS_SIG_MAX_LEN: usize = 8_192;
+
+/// What the sender signs to let the grantee reach them for transfer `id` on the server `server`
+/// (that server's own `did:hum:`) until `expiry` (Unix seconds).
+pub fn file_pass_preimage(server: &str, issuer_hex: &str, grantee_hex: &str, id: &str, expiry: u64) -> String {
+    format!("{FILE_PASS_DOMAIN}\n{server}\n{issuer_hex}\n{grantee_hex}\n{id}\n{expiry}")
+}
+
+/// Why a file pass was not minted, or does not count.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FilePassError {
+    /// Not the v1 JSON shape, or a server, issuer or grantee that is empty or holds a line break
+    /// (which would let two different passes sign the same words).
+    Malformed,
+    /// An id that is not 16 bytes of lowercase hex.
+    BadId,
+    /// It has run out: the clock has reached its `expiry`.
+    Expired,
+    /// It runs out more than [`FILE_PASS_MAX_DAYS`] days ahead.
+    TooLong,
+    /// The issuer's key or the signature is not well formed, or the signature is not the
+    /// issuer's over these words.
+    BadSignature,
+}
+
+/// A file pass that checked out: the transfer it is for, and when it runs out.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FilePass {
+    pub id: String,
+    pub expiry: u64,
+}
+
+/// Is `id` a transfer id: [`FILE_PASS_ID_BYTES`] bytes as lowercase hex?
+pub fn file_pass_id_ok(id: &str) -> bool {
+    id.len() == FILE_PASS_ID_BYTES * 2 && id.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+}
+
+/// A fresh random transfer id, or None when the OS gives no randomness.
+pub fn new_file_pass_id() -> Option<String> {
+    let mut bytes = [0u8; FILE_PASS_ID_BYTES];
+    os_random(&mut bytes).ok()?;
+    Some(bytes.iter().map(|b| format!("{b:02x}")).collect())
+}
+
+/// Does a pass ending at `expiry` keep the rules at `now`: not run out, and not more than the
+/// ceiling (plus `slack`) ahead?
+fn file_pass_window(expiry: u64, now: u64, slack: u64) -> std::result::Result<(), FilePassError> {
+    if expiry <= now {
+        return Err(FilePassError::Expired);
+    }
+    if expiry - now > FILE_PASS_MAX_SECS + slack {
+        return Err(FilePassError::TooLong);
+    }
+    Ok(())
+}
+
+/// Read a pass's JSON object without checking its signature: its id and end date, and the
+/// signature. Only the v1 shape is read: `v` 1, `id` 32 lowercase hex, `expiry` a whole number,
+/// `sig` a string.
+pub fn parse_file_pass(pass: &serde_json::Value) -> std::result::Result<(FilePass, String), FilePassError> {
+    let Some(obj) = pass.as_object() else { return Err(FilePassError::Malformed) };
+    if obj.get("v").and_then(|x| x.as_u64()) != Some(FILE_PASS_VERSION) {
+        return Err(FilePassError::Malformed);
+    }
+    let (Some(id), Some(expiry), Some(sig)) = (
+        obj.get("id").and_then(|x| x.as_str()),
+        obj.get("expiry").and_then(|x| x.as_u64()),
+        obj.get("sig").and_then(|x| x.as_str()),
+    ) else {
+        return Err(FilePassError::Malformed);
+    };
+    if sig.len() > FILE_PASS_SIG_MAX_LEN {
+        return Err(FilePassError::Malformed);
+    }
+    if !file_pass_id_ok(id) {
+        return Err(FilePassError::BadId);
+    }
+    Ok((FilePass { id: id.to_string(), expiry }, sig.to_string()))
+}
+
+/// Mint MY file pass for `grantee_hex` on the server `server` (its own `did:hum:`), for transfer
+/// `id` (from [`new_file_pass_id`]), running out at `expiry` (Unix seconds); `now` is my clock.
+/// The JSON text, keys in the spec's order (`v`, `id`, `expiry`, `sig`), its signature made with
+/// the Dilithium key derived from my BIP39 `seed`. Refused, minting nothing, whenever
+/// [`verify_file_pass`] would refuse it: a malformed id or key, an end date already past, or one
+/// more than [`FILE_PASS_MAX_DAYS`] days ahead.
+pub fn build_file_pass(
+    seed: &[u8],
+    server: &str,
+    my_hex: &str,
+    grantee_hex: &str,
+    id: &str,
+    expiry: u64,
+    now: u64,
+) -> std::result::Result<String, FilePassError> {
+    use base64::{engine::general_purpose::STANDARD as B64, Engine};
+    if ![server, my_hex, grantee_hex].into_iter().all(friend_cert_field_ok) {
+        return Err(FilePassError::Malformed);
+    }
+    if !file_pass_id_ok(id) {
+        return Err(FilePassError::BadId);
+    }
+    file_pass_window(expiry, now, 0)?;
+    let kp = DilithiumKeypair::from_seed(&derive_dilithium_seed(seed));
+    let sig = B64.encode(kp.sign(file_pass_preimage(server, my_hex, grantee_hex, id, expiry).as_bytes()));
+    // Written by hand so the keys keep the spec's order (serde_json sorts them). Nothing in it
+    // needs escaping: hex, a number and base64.
+    Ok(format!("{{\"v\":{FILE_PASS_VERSION},\"id\":\"{id}\",\"expiry\":{expiry},\"sig\":\"{sig}\"}}"))
+}
+
+/// Did `issuer_hex` (a Dilithium3 public key, hex) really give `grantee_hex` this pass on the
+/// server `server`, and is it good at `now` (the checker's clock, Unix seconds)? Stateless.
+/// `server`, `issuer_hex` and `grantee_hex` must be the CHECKER's own facts (the relay's own
+/// `Storage::server_did`, and the two keys of the frame: the signed-in socket's key and the
+/// person it names, each in the place the door puts them), never anything the pass claims; only
+/// the id and the end date come from the pass, and whether the id is the transfer asked about is
+/// the caller's question. Checked cheapest first, so a stale or absurd pass costs no signature
+/// check: the shape, the ids, the end date (not passed, not more than [`FILE_PASS_MAX_DAYS`] days
+/// plus [`FILE_PASS_CLOCK_SLACK_SECS`] ahead), then the signature.
+pub fn verify_file_pass(
+    server: &str,
+    issuer_hex: &str,
+    grantee_hex: &str,
+    pass: &serde_json::Value,
+    now: u64,
+) -> std::result::Result<FilePass, FilePassError> {
+    use base64::{engine::general_purpose::STANDARD as B64, Engine};
+    let (pass, sig_b64) = parse_file_pass(pass)?;
+    if ![server, issuer_hex, grantee_hex].into_iter().all(friend_cert_field_ok) {
+        return Err(FilePassError::Malformed);
+    }
+    file_pass_window(pass.expiry, now, FILE_PASS_CLOCK_SLACK_SECS)?;
+    let Ok(issuer_pk) = hex_decode_str(issuer_hex) else { return Err(FilePassError::BadSignature) };
+    let Ok(sig) = B64.decode(sig_b64.trim()) else { return Err(FilePassError::BadSignature) };
+    let words = file_pass_preimage(server, issuer_hex, grantee_hex, &pass.id, pass.expiry);
+    verify_dilithium(&issuer_pk, words.as_bytes(), &sig).map_err(|_| FilePassError::BadSignature)?;
+    Ok(pass)
+}
+
 // =========================================================================
 // Reports the admins can check (2026-10-09, docs/design/blocking-and-safe-mode.md 10e)
 // =========================================================================
@@ -1189,6 +1388,176 @@ mod tests {
             "never minted over it"
         );
         assert!(build_plot_permit(&issuer_master, &server, "p3", grantee, now + 90 * day, now).is_ok());
+    }
+
+    /// FILE PASS ROUND TRIP + A PINNED PREIMAGE (device-to-device big files,
+    /// docs/design/media-showcase.md, the shapes part 1). The signed words are frozen here
+    /// because both apps mint passes too and the relay checks them; the shared fixture
+    /// (scripts/tests/fixtures/file-offer-v1.json) carries one minted pass's words for the apps'
+    /// tests. A pass minted by the SHIPPED builder verifies, to its last second, and reads back
+    /// its id and end date; each signed field matters (another server, issuer, grantee, id or end
+    /// date is a bad signature, as are words that are not a signature and a key that is not a
+    /// key); it runs out at its expiry.
+    /// Seen red 2026-10-11 with the server left out of `file_pass_preimage`'s words: left
+    /// `"hum/file-pass/v1\nAABB\nCCDD\n00112233445566778899aabbccddeeff\n1760604800"`, right
+    /// `"hum/file-pass/v1\ndid:hum:srv\nAABB\nCCDD\n00112233445566778899aabbccddeeff\n1760604800"`.
+    #[test]
+    fn file_pass_roundtrip_and_pinned_preimage() {
+        assert_eq!(
+            file_pass_preimage("did:hum:srv", "AABB", "CCDD", "00112233445566778899aabbccddeeff", 1_760_604_800),
+            "hum/file-pass/v1\ndid:hum:srv\nAABB\nCCDD\n00112233445566778899aabbccddeeff\n1760604800"
+        );
+        let sender_master = [0x11u8; 32];
+        let (sender, receiver, other) = (key_hex_of(0x11), key_hex_of(0x22), key_hex_of(0x33));
+        let (server, other_server) = (server_did_of(0x55), server_did_of(0x66));
+        let id = new_file_pass_id().expect("the OS gives randomness");
+        assert!(file_pass_id_ok(&id), "a fresh id is an id: {id}");
+        let now = 1_760_000_000u64;
+        let expiry = now + 3 * 86_400;
+        let text = build_file_pass(&sender_master, &server, &sender, &receiver, &id, expiry, now).expect("a pass is minted");
+        assert!(text.starts_with(&format!("{{\"v\":1,\"id\":\"{id}\",\"expiry\":{expiry},\"sig\":\"")), "the spec's key order: {}", &text[..80]);
+        let pass: serde_json::Value = serde_json::from_str(&text).expect("the pass is JSON");
+        assert_eq!(verify_file_pass(&server, &sender, &receiver, &pass, now), Ok(FilePass { id: id.clone(), expiry }));
+        assert!(verify_file_pass(&server, &sender, &receiver, &pass, expiry - 1).is_ok(), "good to its last second");
+        assert_eq!(verify_file_pass(&server, &sender, &receiver, &pass, expiry), Err(FilePassError::Expired), "run out at its expiry");
+        let bad = Err(FilePassError::BadSignature);
+        assert_eq!(verify_file_pass(&other_server, &sender, &receiver, &pass, now), bad, "another server");
+        assert_eq!(verify_file_pass(&server, &other, &receiver, &pass, now), bad, "another issuer");
+        assert_eq!(verify_file_pass(&server, &sender, &other, &pass, now), bad, "another grantee");
+        assert_eq!(verify_file_pass(&server, &receiver, &sender, &pass, now), bad, "the wrong way round");
+        assert_eq!(verify_file_pass(&server, "zz", &receiver, &pass, now), bad, "not a key");
+        let with = |k: &str, val: serde_json::Value| {
+            let mut w = pass.clone();
+            w[k] = val;
+            verify_file_pass(&server, &sender, &receiver, &w, now)
+        };
+        assert_eq!(with("id", "ffeeddccbbaa99887766554433221100".into()), bad, "another file");
+        assert_eq!(with("expiry", (expiry + 60).into()), bad, "another end date");
+        assert_eq!(with("sig", "bm90LWEtc2ln".into()), bad, "words that are not a signature");
+    }
+
+    /// A FILE PASS RUNS A WEEK AT MOST, AND ONLY ITS ONE SHAPE IS READ. Passes signed by hand, as
+    /// a modified app could make them, so the check is shown not to lean on the builder's: 7 days
+    /// verifies, and so does 7 days minted on a clock an hour ahead of the relay's; 9 days, a
+    /// year and "endless" are refused as too long; one already run out is refused. The builder
+    /// never mints one over the week or run out. A `v` other than 1, an id not 16 bytes of
+    /// lowercase hex, a missing or overlong signature, and anything not an object are refused
+    /// before any signature is checked; ids that could frame two passes alike are refused by the
+    /// minting and the check both.
+    /// Seen red 2026-10-11 with the ceiling's line removed from `file_pass_window`: "9 days",
+    /// left `Ok(FilePass { id: "0011..", expiry: 1760777600 })`, right `Err(TooLong)`.
+    #[test]
+    fn a_file_pass_longer_than_a_week_or_malformed_is_refused() {
+        use base64::{engine::general_purpose::STANDARD as B64, Engine};
+        let sender_master = [0x11u8; 32];
+        let sender_kp = DilithiumKeypair::from_seed(&derive_dilithium_seed(&sender_master));
+        let (sender, receiver) = (key_hex_of(0x11), key_hex_of(0x22));
+        let server = server_did_of(0x55);
+        let id = "00112233445566778899aabbccddeeff";
+        let (now, day) = (1_760_000_000u64, 86_400u64);
+        let signed = |expiry: u64| {
+            let sig = B64.encode(sender_kp.sign(file_pass_preimage(&server, &sender, &receiver, id, expiry).as_bytes()));
+            serde_json::json!({ "v": 1, "id": id, "expiry": expiry, "sig": sig })
+        };
+        let check = |expiry: u64| verify_file_pass(&server, &sender, &receiver, &signed(expiry), now);
+        assert!(check(now + 7 * day).is_ok(), "7 days, the most a pass may run");
+        assert!(check(now + 7 * day + 3600).is_ok(), "minted on a clock an hour ahead of the relay's");
+        let too_long = Err(FilePassError::TooLong);
+        assert_eq!(check(now + 9 * day), too_long, "9 days");
+        assert_eq!(check(now + 365 * day), too_long, "a year");
+        assert_eq!(check(u64::MAX), too_long, "endless");
+        assert_eq!(check(now - 1), Err(FilePassError::Expired), "already run out");
+        let mint = |id: &str, expiry: u64| build_file_pass(&sender_master, &server, &sender, &receiver, id, expiry, now).err();
+        assert_eq!(mint(id, now + 7 * day + 1), Some(FilePassError::TooLong), "never minted over a week");
+        assert_eq!(mint(id, now), Some(FilePassError::Expired), "never minted run out");
+        assert_eq!(mint(id, now + 7 * day), None);
+        assert_eq!(mint("0011", now + day), Some(FilePassError::BadId), "a short id");
+        assert_eq!(mint(&id.to_uppercase(), now + day), Some(FilePassError::BadId), "upper case");
+        assert_eq!(
+            build_file_pass(&sender_master, &server, &sender, "a\nb", id, now + day, now).err(),
+            Some(FilePassError::Malformed),
+            "a line break in a key"
+        );
+
+        let good = signed(now + day);
+        let with = |k: &str, val: serde_json::Value| {
+            let mut w = good.clone();
+            w[k] = val;
+            verify_file_pass(&server, &sender, &receiver, &w, now)
+        };
+        assert!(with("v", 1.into()).is_ok(), "the untouched pass, rebuilt, still verifies");
+        let malformed = Err(FilePassError::Malformed);
+        assert_eq!(with("v", 2.into()), malformed, "v2");
+        assert_eq!(with("sig", serde_json::Value::Null), malformed, "no signature");
+        assert_eq!(with("expiry", "1760086400".into()), malformed, "an end date as text");
+        assert_eq!(with("sig", "A".repeat(FILE_PASS_SIG_MAX_LEN + 1).into()), malformed, "too long to read");
+        assert_eq!(with("id", "00112233445566778899AABBCCDDEEFF".into()), Err(FilePassError::BadId), "upper case");
+        assert_eq!(with("id", "0011".into()), Err(FilePassError::BadId), "too short");
+        assert_eq!(verify_file_pass(&server, &sender, &receiver, &serde_json::json!(good.to_string()), now), malformed, "the pass as text, not an object");
+        assert_eq!(verify_file_pass("", &sender, &receiver, &good, now), malformed, "no server");
+        assert_eq!(verify_file_pass(&server, &sender, "a\nb", &good, now), malformed, "a line break in an id");
+    }
+
+    /// THE SHARED FIXTURE BOTH APPS READ (scripts/tests/fixtures/file-offer-v1.json) IS WHAT THIS
+    /// CODE MAKES. ML-DSA signing here is the deterministic variant, so the builder reproduces the
+    /// fixture's pass byte for byte from its seeds, and the pass verifies at its minting time with
+    /// this relay's check. The fixture's keys, server DID and preimage text are what the seeds
+    /// give; its file (made from the rule it states) hashes to its `blake3`, its pieces to
+    /// `piece_hashes`, and those to `hashes`; and its three note texts are the spec's shapes
+    /// (the shapes part 3) with those values, keys in the spec's order, compact.
+    /// Seen red 2026-10-11 with `build_file_pass` writing `expiry` before `id`: "the builder
+    /// reproduces the fixture's pass byte for byte" failed (left `{"v":1,"expiry":1760604800,..`,
+    /// right `{"v":1,"id":"0011..`).
+    #[test]
+    fn file_pass_fixture_matches_the_builder() {
+        let fx: serde_json::Value =
+            serde_json::from_str(include_str!("../../../scripts/tests/fixtures/file-offer-v1.json")).expect("the fixture is JSON");
+        let s = |k: &str| fx[k].as_str().unwrap_or_else(|| panic!("fixture field {k}")).to_string();
+        let n = |k: &str| fx[k].as_u64().unwrap_or_else(|| panic!("fixture field {k}"));
+        let master = [n("issuer_master_byte") as u8; 32];
+        let issuer = key_hex_of(n("issuer_master_byte") as u8);
+        let grantee = key_hex_of(n("grantee_master_byte") as u8);
+        let server = server_did_of(n("server_master_byte") as u8);
+        assert_eq!((s("issuer"), s("grantee"), s("server")), (issuer.clone(), grantee.clone(), server.clone()), "the keys and DID the seeds give");
+        let (id, expiry, minted_at) = (s("id"), n("expiry"), n("minted_at"));
+        assert_eq!(s("preimage"), file_pass_preimage(&server, &issuer, &grantee, &id, expiry), "the words signed");
+        let minted = build_file_pass(&master, &server, &issuer, &grantee, &id, expiry, minted_at).expect("minted");
+        assert_eq!(minted, s("pass_text"), "the builder reproduces the fixture's pass byte for byte");
+        let pass = fx["pass"].clone();
+        assert_eq!(pass, serde_json::from_str::<serde_json::Value>(&minted).unwrap(), "the pass object is the pass text");
+        assert_eq!(pass["sig"].as_str(), Some(s("sig").as_str()));
+        assert_eq!(verify_file_pass(&server, &issuer, &grantee, &pass, minted_at), Ok(FilePass { id: id.clone(), expiry }), "the frozen pass verifies");
+
+        // The file: byte i is i mod 251, `size` bytes, cut into `piece`-byte pieces.
+        let file = &fx["file"];
+        let fsz = |k: &str| file[k].as_u64().unwrap_or_else(|| panic!("file field {k}"));
+        let (size, piece) = (fsz("size"), fsz("piece"));
+        let bytes: Vec<u8> = (0..size).map(|i| (i % 251) as u8).collect();
+        let pieces: Vec<&[u8]> = bytes.chunks(piece as usize).collect();
+        assert_eq!(pieces.len() as u64, size.div_ceil(piece), "pieces is ceil(size / piece)");
+        assert_eq!(file["pieces"].as_u64(), Some(pieces.len() as u64));
+        let piece_hashes: Vec<blake3::Hash> = pieces.iter().map(|p| blake3::hash(p)).collect();
+        let listed: Vec<String> = file["piece_hashes"].as_array().unwrap().iter().map(|h| h.as_str().unwrap().to_string()).collect();
+        assert_eq!(listed, piece_hashes.iter().map(|h| h.to_hex().to_string()).collect::<Vec<_>>(), "each piece's BLAKE3");
+        let mut joined = Vec::new();
+        for h in &piece_hashes {
+            joined.extend_from_slice(h.as_bytes());
+        }
+        let hashes = blake3::hash(&joined).to_hex().to_string();
+        let whole = blake3::hash(&bytes).to_hex().to_string();
+        assert_eq!(file["hashes"].as_str(), Some(hashes.as_str()), "BLAKE3 of the piece hashes, 32 raw bytes each, in order");
+        assert_eq!(file["blake3"].as_str(), Some(whole.as_str()), "BLAKE3 of the whole file");
+
+        let name = serde_json::to_string(file["name"].as_str().unwrap()).unwrap();
+        let kind = serde_json::to_string(file["type"].as_str().unwrap()).unwrap();
+        let offer = format!(
+            "[[hum:offer:v1]]{{\"id\":\"{id}\",\"name\":{name},\"size\":{size},\"type\":{kind},\"blake3\":\"{whole}\",\"piece\":{piece},\"pieces\":{},\"hashes\":\"{hashes}\",\"pass\":{minted}}}",
+            pieces.len()
+        );
+        assert_eq!(s("offer_note"), offer, "the offer note");
+        assert_eq!(s("accept_note"), format!("[[hum:offer-answer:v1]]{{\"id\":\"{id}\",\"accept\":true}}"), "the answer, yes");
+        assert_eq!(s("decline_note"), format!("[[hum:offer-answer:v1]]{{\"id\":\"{id}\",\"accept\":false}}"), "the answer, no");
+        assert_eq!(s("cancel_note"), format!("[[hum:offer-cancel:v1]]{{\"id\":\"{id}\"}}"), "a cancel");
     }
 
     /// REPORTS: THE WORDS A REPORTER SIGNS AND THE EVIDENCE HASH, PINNED (blocking-and-safe-

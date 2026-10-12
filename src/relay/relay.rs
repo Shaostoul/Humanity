@@ -1411,6 +1411,11 @@ pub enum RelayMessage {
         data: serde_json::Value,
         /// On a `dc_offer`: the target's friendship pass for the sender, as on `voice_call`; never forwarded.
         #[serde(default, skip_serializing_if = "Option::is_none")] friend_cert: Option<String>,
+        /// On a `dc_offer`: the target's FILE PASS for the sender, the JSON object
+        /// `{"v":1,"id","expiry","sig"}` (pq_crypto `verify_file_pass`; device-to-device big files,
+        /// docs/design/media-showcase.md): the receiver of a file dials its sender with it. Read by
+        /// the relay (handlers/reach.rs `dc_offer_may_pass`), never forwarded.
+        #[serde(default, skip_serializing_if = "Option::is_none")] file_pass: Option<serde_json::Value>,
     },
 
     /// Server → the issuer: the friendship pass `serial` is withdrawn here (the answer to
@@ -5840,8 +5845,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                 handle_voice_call(&state_clone, &my_key_for_recv, to, action, friend_cert).await;
                             }
                             // WebRTC signaling — forward to target peer.
-                            RelayMessage::WebrtcSignal { to, signal_type, data, friend_cert, .. } => {
-                                handle_webrtc_signal(&state_clone, &my_key_for_recv, to, signal_type, data, friend_cert).await;
+                            RelayMessage::WebrtcSignal { to, signal_type, data, friend_cert, file_pass, .. } => {
+                                handle_webrtc_signal(&state_clone, &my_key_for_recv, to, signal_type, data, friend_cert, file_pass).await;
                             }
                             // DM purge — the caller scrubs their own mailbox.
                             RelayMessage::DmPurge {} => {

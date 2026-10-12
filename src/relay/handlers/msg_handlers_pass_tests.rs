@@ -216,7 +216,7 @@ fn rings_and_offers_read_the_pass_and_never_forward_it() {
     for cert in [Some(pass.clone()), Some("Zm9yZ2Vk".to_string()), None] {
         let mut rx = st.broadcast_tx.subscribe();
         block(handle_voice_call(&st, &caller, to.clone(), action.clone(), cert.clone()));
-        block(handle_webrtc_signal(&st, &caller, callee.clone(), "dc_offer".into(), serde_json::json!("{}"), cert.clone()));
+        block(handle_webrtc_signal(&st, &caller, callee.clone(), "dc_offer".into(), serde_json::json!("{}"), cert.clone(), None));
         let (mut rings, mut offers, mut to_caller) = (0, 0, 0);
         while let Ok(m) = rx.try_recv() {
             match m {

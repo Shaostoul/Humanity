@@ -46,6 +46,18 @@
 //! data is at most [`MAX_DATA`] bytes a packet and [`RELAY_BYTES_PER_SEC`] a second per
 //! allocation.
 //!
+//! # Files sent device to device
+//!
+//! A big file goes from one device to the other over a WebRTC data channel, and by default
+//! through here (docs/design/media-showcase.md, "Device-to-device big files: the shapes, exact").
+//! Its credentials are scoped to the one transfer, like a call's to the one call, and carry a
+//! keyed tag of the person they were issued to and that person's role limit,
+//! `max_forwarded_mb_per_day` (call_credentials.rs `Meter`). The forwarder counts the bytes each
+//! tag's allocations send through it in a UTC day and, past the limit, passes nothing more of
+//! that tag's until the next day (0 = no limit). A call's and a room's credentials carry no tag
+//! and are never counted. The count lives in memory only: a restart starts the day again, which
+//! errs toward the person.
+//!
 //! # Shape
 //!
 //! [`Forwarder`] is the whole protocol with no socket: `handle` takes one datagram and returns the
@@ -57,7 +69,7 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use crate::relay::call_credentials::{parse_username, CallKeys};
+use crate::relay::call_credentials::{parse_username, username_meter, CallKeys, Meter};
 use crate::relay::relay::RelayState;
 use crate::relay::stun_wire::{self as wire, Class, Message, MessageBuilder};
 
@@ -189,6 +201,9 @@ struct Allocation {
     /// Channel number to (relayed address, until when).
     channels: HashMap<u16, (SocketAddr, Instant)>,
     bytes: Bucket,
+    /// A file credential's person tag and day limit (call_credentials.rs `Meter`): what this
+    /// allocation sends is counted against the tag. None for a call's or a room's, never counted.
+    meter: Option<Meter>,
 }
 
 impl Allocation {
@@ -223,6 +238,9 @@ pub struct Forwarder {
     by_port: HashMap<u16, SocketAddr>,
     limiter: SourceLimiter,
     last_sweep: Instant,
+    /// What each person tag's allocations sent through the forwarder today: tag to (UTC day,
+    /// bytes). In memory only, so a restart starts the day again (which errs toward the person).
+    forwarded: HashMap<String, (u64, u64)>,
 }
 
 /// The reason phrase sent with each error code.
@@ -258,6 +276,7 @@ impl Forwarder {
             by_port: HashMap::new(),
             limiter: SourceLimiter::new(now),
             last_sweep: now,
+            forwarded: HashMap::new(),
         }
     }
 
@@ -277,10 +296,13 @@ impl Forwarder {
         let src = wire::canonical(src);
         if now.saturating_duration_since(self.last_sweep) >= Duration::from_secs(1) {
             self.sweep(now);
+            // Yesterday's counts are of no more use (each day starts at nothing).
+            let today = utc_day(unix_now);
+            self.forwarded.retain(|_, (day, _)| *day == today);
         }
         let mut out = Vec::new();
         if pkt.first().is_some_and(|b| (0x40..=0x7F).contains(b)) {
-            self.on_channel_data(src, pkt, now, &mut out);
+            self.on_channel_data(src, pkt, now, unix_now, &mut out);
             return out;
         }
         let Some(msg) = Message::parse(pkt) else { return out };
@@ -293,7 +315,7 @@ impl Forwarder {
             (wire::METHOD_REFRESH, Class::Request)
             | (wire::METHOD_CREATE_PERMISSION, Class::Request)
             | (wire::METHOD_CHANNEL_BIND, Class::Request) => self.on_allocation_request(src, &msg, now, unix_now, &mut out),
-            (wire::METHOD_SEND, Class::Indication) => self.on_send(src, &msg, now, &mut out),
+            (wire::METHOD_SEND, Class::Indication) => self.on_send(src, &msg, now, unix_now, &mut out),
             // Everything else (Binding indications are keep-alives) gets nothing.
             _ => {}
         }
@@ -472,6 +494,7 @@ impl Forwarder {
             return out.push(refuse(self, 440));
         }
         let scope = parse_username(&username).map(|(_, s)| s.to_string()).unwrap_or_default();
+        let meter = username_meter(&username);
         let held_by = |f: &dyn Fn(&SocketAddr, &Allocation) -> bool| self.allocations.iter().filter(|(c, a)| f(c, a)).count();
         if self.relayed_ip.is_none() || self.allocations.len() >= MAX_ALLOCATIONS {
             return out.push(refuse(self, 508));
@@ -497,6 +520,7 @@ impl Forwarder {
                 permissions: HashMap::new(),
                 channels: HashMap::new(),
                 bytes: Bucket::full(RELAY_BYTES_BURST, now),
+                meter,
             },
         );
         out.push(Out { to: src, bytes: reply });
@@ -611,35 +635,66 @@ impl Forwarder {
         self.response(msg, Class::Success, |_| {}, Some(key))
     }
 
-    fn on_send(&mut self, src: SocketAddr, msg: &Message, now: Instant, out: &mut Vec<Out>) {
+    fn on_send(&mut self, src: SocketAddr, msg: &Message, now: Instant, unix_now: u64, out: &mut Vec<Out>) {
         let peer = msg.get(wire::ATTR_XOR_PEER_ADDRESS).and_then(|v| wire::decode_xor_address(v, &msg.txid));
         if let (Some(peer), Some(data)) = (peer, msg.get(wire::ATTR_DATA)) {
-            self.deliver(src, wire::canonical(peer), data, now, out);
+            self.deliver(src, wire::canonical(peer), data, now, unix_now, out);
         }
     }
 
-    fn on_channel_data(&mut self, src: SocketAddr, pkt: &[u8], now: Instant, out: &mut Vec<Out>) {
+    fn on_channel_data(&mut self, src: SocketAddr, pkt: &[u8], now: Instant, unix_now: u64, out: &mut Vec<Out>) {
         let Some((channel, data)) = wire::parse_channel_data(pkt) else { return };
         let Some(a) = self.allocations.get(&src) else { return };
         if let Some((peer, until)) = a.channels.get(&channel).copied() {
             if until > now {
-                self.deliver(src, peer, data, now, out);
+                self.deliver(src, peer, data, now, unix_now, out);
             }
         }
+    }
+
+    /// The bytes person tag `tag`'s allocations sent through the forwarder on the UTC day of
+    /// `unix_now` (0 for a tag that sent nothing that day).
+    pub fn forwarded_today(&self, tag: &str, unix_now: u64) -> u64 {
+        self.forwarded.get(tag).filter(|(day, _)| *day == utc_day(unix_now)).map_or(0, |(_, bytes)| *bytes)
+    }
+
+    /// May `len` more bytes be sent today under `meter`: is the tag's count for the day, with
+    /// them, within its limit (always, for a limit of 0)?
+    fn meter_allows(&self, meter: &Meter, len: usize, unix_now: u64) -> bool {
+        match meter.limit_bytes() {
+            None => true,
+            Some(limit) => self.forwarded_today(&meter.tag, unix_now).saturating_add(len as u64) <= limit,
+        }
+    }
+
+    /// Count `len` bytes sent today under `meter`.
+    fn count(&mut self, meter: &Meter, len: usize, unix_now: u64) {
+        let today = utc_day(unix_now);
+        let entry = self.forwarded.entry(meter.tag.clone()).or_insert((today, 0));
+        if entry.0 != today {
+            *entry = (today, 0);
+        }
+        entry.1 = entry.1.saturating_add(len as u64);
     }
 
     /// Pass `data` from the allocation `from` holds to the allocation whose relayed address is
     /// `peer`, if that is a live allocation of the same room that both sides have a permission
     /// for, within the sender's byte budget. It goes to that allocation's client, as ChannelData
     /// when the receiver bound a channel to the sender, else as a Data indication. This is the
-    /// only place relayed data is sent, and it sends only to an allocation's client.
-    fn deliver(&mut self, from: SocketAddr, peer: SocketAddr, data: &[u8], now: Instant, out: &mut Vec<Out>) {
+    /// only place relayed data is sent, and it sends only to an allocation's client. What a file
+    /// credential's allocation sends is counted against its person tag for the UTC day, and past
+    /// the tag's limit nothing more of that tag's is passed until the next day; a call's and a
+    /// room's allocations carry no tag and are never counted.
+    fn deliver(&mut self, from: SocketAddr, peer: SocketAddr, data: &[u8], now: Instant, unix_now: u64, out: &mut Vec<Out>) {
         if data.len() > MAX_DATA {
             return;
         }
         let Some(sender) = self.allocations.get(&from).filter(|a| a.expires > now) else { return };
-        let (scope, from_port) = (sender.scope.clone(), sender.port);
+        let (scope, from_port, meter) = (sender.scope.clone(), sender.port, sender.meter.clone());
         if !sender.permits(peer, now) {
+            return;
+        }
+        if meter.as_ref().is_some_and(|m| !self.meter_allows(m, data.len(), unix_now)) {
             return;
         }
         let Some(to_client) = self.same_room_peer(from, &scope, peer, now) else { return };
@@ -653,6 +708,9 @@ impl Forwarder {
         if !sender.bytes.take(data.len() as f64, RELAY_BYTES_PER_SEC, RELAY_BYTES_BURST, now) {
             return;
         }
+        if let Some(m) = &meter {
+            self.count(m, data.len(), unix_now);
+        }
         let bytes = match channel {
             Some(c) => wire::channel_data(c, data),
             None => MessageBuilder::new(wire::METHOD_DATA, Class::Indication, random_txid())
@@ -662,6 +720,11 @@ impl Forwarder {
         };
         out.push(Out { to: to_client, bytes });
     }
+}
+
+/// The UTC calendar day of `unix_now`, as days since 1970.
+fn utc_day(unix_now: u64) -> u64 {
+    unix_now / 86_400
 }
 
 // ── The socket ──────────────────────────────────────────────────────────────
