@@ -411,7 +411,15 @@ impl DmAsk {
 /// fourth report in a day still arrives. Only where the ordinary gate would refuse, or would
 /// charge a stranger's knock, does the exception apply, and then it costs a group report. Where
 /// the exception does not apply either, the ordinary answer stands: a knock, or the refusal.
-pub fn dm_gate(state: &Arc<RelayState>, sender: &str, to: &str, cert: Option<&str>, ask: DmAsk, role: &str) -> Option<Cost> {
+pub fn dm_gate(
+    state: &Arc<RelayState>,
+    sender: &str,
+    to: &str,
+    cert: Option<&str>,
+    ask: DmAsk,
+    role: &str,
+    file_pass: Option<&serde_json::Value>,
+) -> Option<Cost> {
     let refuse = || {
         let _ = state.broadcast_tx.send(RelayMessage::ReachRefused {
             sender: sender.to_string(),
@@ -428,7 +436,13 @@ pub fn dm_gate(state: &Arc<RelayState>, sender: &str, to: &str, cert: Option<&st
         return Some(Cost::ContactRequest);
     }
     let pass = friend_pass(state, to, sender, cert);
-    let let_in = allowed(state, to, sender, Kind::Message, pass.as_ref());
+    // A file pass the recipient gave the sender lets their answer and cancel notes in (the
+    // review's rule 4, media-showcase.md), unless the recipient takes messages from nobody; it
+    // still costs a stranger's knock.
+    let by_file_pass = file_pass.is_some()
+        && audience(state, to, Kind::Message) != Audience::Nobody
+        && file_pass_of(state, to, sender, file_pass).is_some();
+    let let_in = allowed(state, to, sender, Kind::Message, pass.as_ref()) || by_file_pass;
     let free = pass.is_some() || role == "admin" || role == "mod";
     if let_in && free {
         return Some(Cost::Free);

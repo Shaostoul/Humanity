@@ -104,3 +104,36 @@ fn a_direct_connection_offer_with_a_file_pass_only_from_its_grantee() {
     .unwrap();
     assert!(matches!(frame, RelayMessage::WebrtcSignal { file_pass: Some(ref p), .. } if p["id"] == ID), "the frame carries the pass to the relay");
 }
+
+/// THE RECEIVER'S ANSWER REACHES A SENDER WHO TAKES MESSAGES ONLY FROM FRIENDS, WITH THE PASS (the
+/// review's rule 4, 2026-10-12, found in a real browser run: Ben's "yes" never reached Ann). Ann
+/// (the sender) takes messages from friends only, the default; Bo (the receiver) is a stranger.
+/// Bo's DM to Ann is refused without the pass and delivered with Ann's pass for him, at a
+/// stranger's knock; a pass Bo minted himself, a pass Ann gave Cy, and any pass when Ann takes
+/// messages from nobody, are refused.
+///
+/// Seen red 2026-10-12 with `by_file_pass` left out of `dm_gate`'s let-in: "with Ann's pass for
+/// him, delivered" failed.
+#[test]
+fn an_answer_with_the_file_pass_reaches_a_sender_who_takes_messages_from_friends_only() {
+    let st = fresh_state("dm_put_file_pass");
+    let (ann, bo, cy) = (person(201), person(202), person(203));
+    for p in [&ann, &bo, &cy] {
+        connect(&st, &p.key);
+    }
+    let anns = file_pass_from(&st, &ann, &bo.key, ID);
+    let put = |pass: Option<serde_json::Value>| -> bool {
+        let before = st.db.mailbox_fetch(&ann.key, 0, 1_000).unwrap().len();
+        block(async {
+            st.dm_rate.forget(&bo.key);
+            handle_dm_put(&st, &bo.key, ann.key.clone(), envelope(), None, DmAsk::Ordinary, None, pass).await;
+        });
+        st.db.mailbox_fetch(&ann.key, 0, 1_000).unwrap().len() > before
+    };
+    assert!(!put(None), "without a pass, refused (Ann takes messages from friends only)");
+    assert!(put(Some(anns.clone())), "with Ann's pass for him, delivered");
+    assert!(!put(Some(file_pass_from(&st, &bo, &ann.key, ID))), "a pass Bo minted for Ann is not Ann's consent");
+    assert!(!put(Some(file_pass_from(&st, &ann, &cy.key, ID))), "a pass Ann gave Cy is not for Bo");
+    set(&st, &ann.key, Kind::Message, Audience::Nobody);
+    assert!(!put(Some(anns)), "Ann takes messages from nobody: her choice stands");
+}

@@ -729,9 +729,10 @@ pub async fn handle_dm_put(
     friend_cert: Option<String>,
     ask: reach::DmAsk,
     put_ref: Option<String>,
+    file_pass: Option<serde_json::Value>,
 ) {
     let answer_as = answered_ref(my_key, &to, put_ref.as_deref());
-    let outcome = deposit_dm(state, my_key, to, content, friend_cert, ask).await;
+    let outcome = deposit_dm(state, my_key, to, content, friend_cert, ask, file_pass).await;
     if let Some(r) = answer_as {
         answer_dm_put(state, my_key, r, outcome);
     }
@@ -747,6 +748,7 @@ async fn deposit_dm(
     content: String,
     friend_cert: Option<String>,
     ask: reach::DmAsk,
+    file_pass: Option<serde_json::Value>,
 ) -> Result<(), DmPutRefusal> {
     if content.is_empty() || to.is_empty() {
         return Err(DmPutRefusal::Other);
@@ -809,7 +811,7 @@ async fn deposit_dm(
     let cost = if is_self_copy {
         reach::Cost::Free
     } else {
-        match reach::dm_gate(state, my_key, &to, friend_cert.as_deref(), ask, &user_role) {
+        match reach::dm_gate(state, my_key, &to, friend_cert.as_deref(), ask, &user_role, file_pass.as_ref()) {
             Some(cost) => cost,
             None => return Err(DmPutRefusal::Reach),
         }
@@ -4250,7 +4252,7 @@ mod dm_mailbox_tests {
         let st = fresh_state();
         let (alice, bob, cert) = friends(&st);
         let mut rx = st.broadcast_tx.subscribe();
-        block(handle_dm_put(&st, &alice, bob.clone(), envelope(), Some(cert), reach::DmAsk::Ordinary, None));
+        block(handle_dm_put(&st, &alice, bob.clone(), envelope(), Some(cert), reach::DmAsk::Ordinary, None, None));
         // Delivered live, targeted at Bob's mailbox key only.
         let mut saw_dm_new = false;
         while let Ok(msg) = rx.try_recv() {
@@ -4276,8 +4278,8 @@ mod dm_mailbox_tests {
         let st = fresh_state();
         let (alice, bob, cert) = friends(&st);
         let mut rx = st.broadcast_tx.subscribe();
-        block(handle_dm_put(&st, &alice, bob.clone(), "hi bob, plaintext".to_string(), Some(cert.clone()), reach::DmAsk::Ordinary, None));
-        block(handle_dm_put(&st, &alice, bob.clone(), r#"{"v":1,"r":{},"s":{}}"#.to_string(), Some(cert), reach::DmAsk::Ordinary, None));
+        block(handle_dm_put(&st, &alice, bob.clone(), "hi bob, plaintext".to_string(), Some(cert.clone()), reach::DmAsk::Ordinary, None, None));
+        block(handle_dm_put(&st, &alice, bob.clone(), r#"{"v":1,"r":{},"s":{}}"#.to_string(), Some(cert), reach::DmAsk::Ordinary, None, None));
         assert!(st.db.mailbox_fetch(&bob, 0, 10).unwrap().is_empty(), "nothing may be stored");
         let mut refusals = 0;
         while let Ok(msg) = rx.try_recv() {
@@ -4310,7 +4312,7 @@ mod dm_mailbox_tests {
             "precondition: muting does not set a role, which is what hid this"
         );
         let mut rx = st.broadcast_tx.subscribe();
-        block(handle_dm_put(&st, "loud_key", "quiet_key".to_string(), envelope(), None, reach::DmAsk::Ordinary, None));
+        block(handle_dm_put(&st, "loud_key", "quiet_key".to_string(), envelope(), None, reach::DmAsk::Ordinary, None, None));
         assert!(
             st.db.mailbox_fetch("quiet_key", 0, 10).unwrap().is_empty(),
             "a muted sender's DM must not land"
@@ -4326,7 +4328,7 @@ mod dm_mailbox_tests {
         assert!(told, "and they must be told why, not silently dropped");
         // Unmuting restores the ability to write.
         st.db.unmute_user("loud_key").unwrap();
-        block(handle_dm_put(&st, "loud_key", "quiet_key".to_string(), envelope(), None, reach::DmAsk::Ordinary, None));
+        block(handle_dm_put(&st, "loud_key", "quiet_key".to_string(), envelope(), None, reach::DmAsk::Ordinary, None, None));
         assert_eq!(
             st.db.mailbox_fetch("quiet_key", 0, 10).unwrap().len(),
             1,
@@ -4351,7 +4353,7 @@ mod dm_mailbox_tests {
             "precondition: the newcomer holds no granted role"
         );
         let mut rx = st.broadcast_tx.subscribe();
-        block(handle_dm_put(&st, "newcomer_key", "stranger_key".to_string(), envelope(), None, reach::DmAsk::Ordinary, None));
+        block(handle_dm_put(&st, "newcomer_key", "stranger_key".to_string(), envelope(), None, reach::DmAsk::Ordinary, None, None));
         assert_eq!(
             st.db.mailbox_fetch("stranger_key", 0, 10).unwrap().len(),
             1,
@@ -4369,7 +4371,7 @@ mod dm_mailbox_tests {
         for _ in 0..(DM_KNOCKS_PER_DAY + 5) {
             block(async {
                 st.dm_rate.forget("newcomer_key");
-                handle_dm_put(&st, "newcomer_key", "stranger_key".to_string(), envelope(), None, reach::DmAsk::Ordinary, None).await;
+                handle_dm_put(&st, "newcomer_key", "stranger_key".to_string(), envelope(), None, reach::DmAsk::Ordinary, None, None).await;
             });
         }
         assert_eq!(
@@ -4391,7 +4393,7 @@ mod dm_mailbox_tests {
         st.db.register_name("Stranger", "stranger_key").unwrap();
         st.db.set_reach_settings("stranger_key", &[("message", "anyone")]).unwrap(); // takes strangers' mail (handlers/reach.rs)
         // Self-copy: unlimited, no cert, no knock budget spent.
-        block(handle_dm_put(&st, "loner_key", "loner_key".to_string(), envelope(), None, reach::DmAsk::Ordinary, None));
+        block(handle_dm_put(&st, "loner_key", "loner_key".to_string(), envelope(), None, reach::DmAsk::Ordinary, None, None));
         assert_eq!(st.db.mailbox_fetch("loner_key", 0, 10).unwrap().len(), 1);
         // Certless knocks land until the daily budget is spent, then stop.
         // (The DM send limiter, handlers/dm_rate.rs, is reset between sends: it
@@ -4400,7 +4402,7 @@ mod dm_mailbox_tests {
         for _ in 0..(DM_KNOCKS_PER_DAY + 5) {
             block(async {
                 st.dm_rate.forget("loner_key");
-                handle_dm_put(&st, "loner_key", "stranger_key".to_string(), envelope(), None, reach::DmAsk::Ordinary, None).await;
+                handle_dm_put(&st, "loner_key", "stranger_key".to_string(), envelope(), None, reach::DmAsk::Ordinary, None, None).await;
             });
         }
         let landed = st.db.mailbox_fetch("stranger_key", 0, 200).unwrap().len();
@@ -4418,6 +4420,7 @@ mod dm_mailbox_tests {
                 Some("Zm9yZ2VkLXNpZw==".to_string()),
                 reach::DmAsk::Ordinary,
                 None,
+                None,
             )
             .await;
         });
@@ -4433,7 +4436,7 @@ mod dm_mailbox_tests {
         let (cert, _) = crate::relay::handlers::friend_passes::test_pass(&st, &recipient_seed, &recipient_hex, "loner_key");
         block(async {
             st.dm_rate.forget("loner_key");
-            handle_dm_put(&st, "loner_key", recipient_hex.clone(), envelope(), Some(cert), reach::DmAsk::Ordinary, None).await;
+            handle_dm_put(&st, "loner_key", recipient_hex.clone(), envelope(), Some(cert), reach::DmAsk::Ordinary, None, None).await;
         });
         assert_eq!(
             st.db.mailbox_fetch(&recipient_hex, 0, 10).unwrap().len(),
@@ -4452,12 +4455,12 @@ mod dm_mailbox_tests {
         st.db.register_name("Newbie", "newbie_key").unwrap();
         st.db.register_name("Target", "target_key").unwrap();
         st.db.set_reach_settings("target_key", &[("message", "anyone")]).unwrap(); // takes strangers' mail (handlers/reach.rs)
-        block(handle_dm_put(&st, "bot_helper", "target_key".to_string(), envelope(), None, reach::DmAsk::Ordinary, None));
+        block(handle_dm_put(&st, "bot_helper", "target_key".to_string(), envelope(), None, reach::DmAsk::Ordinary, None, None));
         assert!(
             st.db.mailbox_fetch("target_key", 0, 10).unwrap().is_empty(),
             "a bot has no seal keypair, so it can never deposit a sealed DM"
         );
-        block(handle_dm_put(&st, "newbie_key", "target_key".to_string(), envelope(), None, reach::DmAsk::Ordinary, None));
+        block(handle_dm_put(&st, "newbie_key", "target_key".to_string(), envelope(), None, reach::DmAsk::Ordinary, None, None));
         assert_eq!(
             st.db.mailbox_fetch("target_key", 0, 10).unwrap().len(),
             1,

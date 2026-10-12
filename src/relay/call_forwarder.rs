@@ -102,6 +102,13 @@ pub const MAX_ALLOCATIONS: usize = 2000;
 pub const MAX_PER_CREDENTIAL: usize = 16;
 /// Allocations one source IP may hold at once (a household behind one router shares an IP).
 pub const MAX_PER_SOURCE_IP: usize = 32;
+/// File-transfer allocations one person (person tag) may hold at once, across all their
+/// credentials: a transfer needs one each side, and an app answers at most four offers to one
+/// person at a time (the review of 2026-10-12, rule 5).
+pub const MAX_FILE_PER_PERSON: usize = 8;
+/// People whose forwarded bytes are counted at once; when full, the smallest count goes first
+/// (which errs toward that person: their count starts again).
+pub const FORWARDED_TRACK_MAX: usize = 10_000;
 /// Permissions or channels one allocation may hold at once.
 pub const MAX_PEERS_PER_ALLOCATION: usize = 64;
 
@@ -502,6 +509,11 @@ impl Forwarder {
         if held_by(&|_, a| a.username == username) >= MAX_PER_CREDENTIAL || held_by(&|c, _| c.ip() == src.ip()) >= MAX_PER_SOURCE_IP {
             return out.push(refuse(self, 486));
         }
+        if let Some(m) = meter.as_ref() {
+            if held_by(&|_, a| a.meter.as_ref().is_some_and(|am| am.tag == m.tag)) >= MAX_FILE_PER_PERSON {
+                return out.push(refuse(self, 486));
+            }
+        }
         let Some(port) = self.free_port() else { return out.push(refuse(self, 508)) };
         let lifetime = Self::lifetime(Self::requested_lifetime(msg));
         let reply = self.allocate_success(msg, src, port, lifetime, &key);
@@ -670,6 +682,14 @@ impl Forwarder {
     /// Count `len` bytes sent today under `meter`.
     fn count(&mut self, meter: &Meter, len: usize, unix_now: u64) {
         let today = utc_day(unix_now);
+        if self.forwarded.len() >= FORWARDED_TRACK_MAX && !self.forwarded.contains_key(&meter.tag) {
+            self.forwarded.retain(|_, (day, _)| *day == today);
+            if self.forwarded.len() >= FORWARDED_TRACK_MAX {
+                if let Some(smallest) = self.forwarded.iter().min_by_key(|(_, (_, b))| *b).map(|(t, _)| t.clone()) {
+                    self.forwarded.remove(&smallest);
+                }
+            }
+        }
         let entry = self.forwarded.entry(meter.tag.clone()).or_insert((today, 0));
         if entry.0 != today {
             *entry = (today, 0);

@@ -59,7 +59,7 @@ struct Heard {
 fn put_as(st: &Arc<RelayState>, from: &str, to: &str, content: String, put_ref: Option<&str>) -> Heard {
     let mut rx = st.broadcast_tx.subscribe();
     let before = st.db.mailbox_fetch(to, 0, 1_000).unwrap().len();
-    block(handle_dm_put(st, from, to.to_string(), content, None, DmAsk::Ordinary, put_ref.map(str::to_string)));
+    block(handle_dm_put(st, from, to.to_string(), content, None, DmAsk::Ordinary, put_ref.map(str::to_string), None));
     let stored = st.db.mailbox_fetch(to, 0, 1_000).unwrap().len() > before;
     let mut heard = Heard { stored, answers: Vec::new(), notices: Vec::new(), reach_refused: 0 };
     while let Ok(msg) = rx.try_recv() {

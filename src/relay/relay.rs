@@ -1312,6 +1312,11 @@ pub enum RelayMessage {
         /// ref and the put is still handled, never dropped. Never stored.
         #[serde(default, rename = "ref", deserialize_with = "crate::relay::handlers::dm_answer::lenient_put_ref", skip_serializing_if = "Option::is_none")]
         put_ref: Option<String>,
+        /// A file pass the RECIPIENT gave the sender for a device-to-device transfer: lets the
+        /// receiver's answer and cancel notes reach a sender who takes messages only from friends
+        /// (handlers/reach.rs `dm_gate`; media-showcase.md, the review's rule 4). Never stored.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        file_pass: Option<serde_json::Value>,
     },
 
     /// Server -> the sender alone (spec 10l): their `dm_put` to someone else, carrying `ref`, is
@@ -5832,9 +5837,9 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                 handle_profile_request(&state_clone, &my_key_for_recv, name, friend_cert).await;
                             }
                             // DM — deposit a sealed envelope into a mailbox.
-                            RelayMessage::DmPut { to, content, friend_cert, contact_request, group_report, put_ref } => {
+                            RelayMessage::DmPut { to, content, friend_cert, contact_request, group_report, put_ref, file_pass } => {
                                 let ask = crate::relay::handlers::reach::DmAsk::from_flags(contact_request, group_report);
-                                handle_dm_put(&state_clone, &my_key_for_recv, to, content, friend_cert, ask, put_ref).await;
+                                handle_dm_put(&state_clone, &my_key_for_recv, to, content, friend_cert, ask, put_ref, file_pass).await;
                             }
                             // DM fetch — page the caller's own mailbox.
                             RelayMessage::DmFetch { after_id, fetch_ref } => {

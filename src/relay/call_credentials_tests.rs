@@ -147,7 +147,9 @@ fn malformed_requests_no_forwarder_and_too_many_are_refused() {
     assert_eq!(ask(&state, "alice_key", both), Err(NOT_IN_IT.to_string()));
     assert_eq!(ask(&state, "alice_key", serde_json::json!({ "type": "call_credentials" })), Err(NOT_IN_IT.to_string()));
 
-    for _ in 0..ISSUES_PER_MINUTE {
+    // The two refused requests above count toward the minute's share too (2026-10-12: every
+    // request counts, before anything else is checked).
+    for _ in 0..ISSUES_PER_MINUTE - 2 {
         ask(&state, "alice_key", room("lounge")).expect("within the minute's share");
     }
     assert_eq!(ask(&state, "alice_key", room("lounge")), Err(TOO_MANY.to_string()));
@@ -261,6 +263,9 @@ const ID: &str = "00112233445566778899aabbccddeeff";
 fn file_credentials_only_with_a_matching_pass_both_ways_round() {
     let state = fresh_state("file");
     let (ann, bo, cy) = (person(201), person(202), person(203));
+    // Both hold a name here: file credentials need the other person to be on this server.
+    state.db.register_name("Ann", &ann.1).unwrap();
+    state.db.register_name("Bo", &bo.1).unwrap();
     state.db.set_role(&ann.1, "admin").unwrap();
     state.db.set_role(&bo.1, "verified").unwrap();
     let now = unix_now();
@@ -305,6 +310,8 @@ fn file_credentials_only_with_a_matching_pass_both_ways_round() {
     assert_eq!(username_meter(&room_creds.username), None, "a room's credential carries no tag");
 
     let quiet = Arc::new(RelayState::new(Storage::open_temp("callcreds_file_quiet")));
+    quiet.db.register_name("Ann", &ann.1).unwrap();
+    quiet.db.register_name("Bo", &bo.1).unwrap();
     let pass_there = file_pass(&quiet, &ann, &bo.1, ID, now + 86_400);
     assert_eq!(ask(&quiet, &bo.1, file(ID, &ann.1, Some(&pass_there))), Err(NOT_SET_UP.to_string()), "no forwarder, no transfer through it");
 }
@@ -335,4 +342,37 @@ fn usernames_carry_a_meter_only_for_files() {
     assert_eq!(parse_username(&f.replace(&keys.person_tag("a"), &keys.person_tag("a").to_uppercase())), None, "an upper-case tag");
     let (head, _) = f.rsplit_once('-').unwrap();
     assert_eq!(parse_username(head), None, "a tag without its limit");
+}
+
+/// FILE CREDENTIALS NEED ANOTHER PERSON WHO IS HERE, AND THE LIMIT COUNTS EVERY REQUEST (the relay
+/// review of 2026-10-12, rule 5): a pass the asker signs naming a key nobody holds on this server
+/// gets nothing, and refused requests count toward the 20 a minute, which is checked before any
+/// pass is.
+///
+/// Seen red 2026-10-12 with the registered-peer check taken out of `file_pass_fits`: "a pass to a
+/// key nobody holds here gets no credentials" failed.
+#[test]
+fn file_credentials_need_a_registered_peer_and_refusals_count_toward_the_limit() {
+    let state = fresh_state("file_peer");
+    let (ann, bo) = (person(211), person(212));
+    state.db.register_name("Ann", &ann.1).unwrap();
+    state.db.register_name("Bo", &bo.1).unwrap();
+    let now = unix_now();
+    let nobody = "ab".repeat(1952);
+    let to_nobody = file_pass(&state, &ann, &nobody, ID, now + 86_400);
+    assert_eq!(
+        ask(&state, &ann.1, file(ID, &nobody, Some(&to_nobody))).err(),
+        Some(NO_FILE_PASS.to_string()),
+        "a pass to a key nobody holds here gets no credentials"
+    );
+    let pass = file_pass(&state, &ann, &bo.1, ID, now + 86_400);
+    assert!(ask(&state, &bo.1, file(ID, &ann.1, Some(&pass))).is_ok(), "the pass's grantee, both registered: credentials");
+    for _ in 0..25 {
+        let _ = ask(&state, &bo.1, file(ID, &ann.1, None));
+    }
+    assert_eq!(
+        ask(&state, &bo.1, file(ID, &ann.1, Some(&pass))).err(),
+        Some(TOO_MANY.to_string()),
+        "after 25 refused requests in a minute, even a good one waits"
+    );
 }

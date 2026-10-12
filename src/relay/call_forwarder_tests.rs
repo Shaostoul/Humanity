@@ -637,3 +637,28 @@ fn settings_follow_the_relay_and_refuse_bad_values() {
     assert!(Settings::from_vars(vars(&[("TURN_PORT", "34780")]), loopback).is_ok());
     assert!(Settings::from_vars(vars(&[("TURN_PORT", "99999")]), loopback).is_err());
 }
+
+/// ONE PERSON HOLDS AT MOST 8 LIVE FILE ALLOCATIONS (the relay review of 2026-10-12, rule 5),
+/// across all their credentials and addresses, so a person cannot fill the forwarder's slots with
+/// file credentials; another person is not held to it, and a call never is.
+///
+/// Seen red 2026-10-12 with the per-person check taken out of Allocate: "the 9th file allocation
+/// of one person" failed (the allocation was made).
+#[test]
+fn one_person_holds_at_most_eight_live_file_allocations() {
+    let keys = CallKeys::generate();
+    let t = Instant::now();
+    let mut fw = forwarder(&keys, t);
+    for i in 0..MAX_FILE_PER_PERSON as u8 {
+        let scope = keys.file_scope(&format!("{:032x}", i), "ann", "bo");
+        let c = file_client(&keys, SocketAddr::new(IpAddr::V4(Ipv4Addr::new(10, 3, i, 1)), 1000), &scope, "ann", 0);
+        allocate(&mut fw, &keys, &c, t);
+    }
+    let ninth = keys.file_scope(&format!("{:032x}", 99), "ann", "cy");
+    let c = file_client(&keys, addr("10.3.99.1:1000"), &ninth, "ann", 0);
+    assert_eq!(code(&only_reply(fw.handle(c.addr, &allocate_request(&keys, &c, UNIX), t, UNIX), c.addr)), Some(486), "the 9th file allocation of one person");
+    let bo = file_client(&keys, addr("10.4.0.1:1000"), &ninth, "bo", 0);
+    allocate(&mut fw, &keys, &bo, t);
+    let call = keys.call_scope("ann", "dee");
+    allocate(&mut fw, &keys, &client(&keys, addr("10.5.0.1:1000"), &call), t);
+}

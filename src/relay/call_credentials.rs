@@ -429,7 +429,10 @@ async fn in_voice_room(state: &RelayState, key: &str, room: &str) -> bool {
 /// sender (the pass's issuer) and the receiver (its grantee) each need an allocation.
 fn file_pass_fits(state: &RelayState, me: &str, peer: &str, file: &str, file_pass: Option<&serde_json::Value>) -> bool {
     use crate::relay::handlers::reach::file_pass_of;
+    // The other person must hold a name on this server: a pass the asker signs to a key nobody
+    // has (or to text that is not a key) is no other person's consent (the review of 2026-10-12).
     me != peer
+        && state.db.current_name_for_key(peer).ok().flatten().is_some()
         && [(peer, me), (me, peer)]
             .into_iter()
             .any(|(issuer, grantee)| file_pass_of(state, issuer, grantee, file_pass).is_some_and(|p| p.id == file))
@@ -448,6 +451,11 @@ fn forwarded_limit_mb(state: &RelayState, key: &str) -> u64 {
 /// carries the asker's person tag and day limit ([`CallKeys::issue_metered`]); the others none.
 pub async fn handle(state: &Arc<RelayState>, my_key: &str, raw: &serde_json::Value) {
     let asked = Asked::of(raw);
+    // Every request counts toward the limit, refused or not, and before any signature is checked:
+    // a stream of bad file passes costs the server two signature checks each otherwise.
+    if !state.calls.may_issue(my_key, Instant::now()) {
+        return refuse(state, my_key, asked, TOO_MANY);
+    }
     let (scope, metered) = match (asked.room, asked.call, asked.file) {
         (Some(r), None, None) if in_voice_room(state, my_key, r).await => (state.calls.keys().room_scope(r), false),
         (None, Some(c), None) if crate::relay::handlers::reach::call_is_open(state, my_key, c) => {
@@ -463,9 +471,6 @@ pub async fn handle(state: &Arc<RelayState>, my_key: &str, raw: &serde_json::Val
         _ => return refuse(state, my_key, asked, NOT_IN_IT),
     };
     let Some(urls) = state.calls.urls() else { return refuse(state, my_key, asked, NOT_SET_UP) };
-    if !state.calls.may_issue(my_key, Instant::now()) {
-        return refuse(state, my_key, asked, TOO_MANY);
-    }
     let (username, credential) = if metered {
         state.calls.keys().issue_metered(&scope, my_key, forwarded_limit_mb(state, my_key), unix_now())
     } else {

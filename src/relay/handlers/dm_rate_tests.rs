@@ -47,7 +47,7 @@ fn pair(st: &Arc<RelayState>) -> (&'static str, &'static str) {
 fn put(st: &Arc<RelayState>, from: &str, to: &str) -> (bool, Vec<String>) {
     let mut rx = st.broadcast_tx.subscribe();
     let before = st.db.mailbox_fetch(to, 0, 1_000).unwrap().len();
-    block(handle_dm_put(st, from, to.to_string(), envelope(), None, DmAsk::Ordinary, None));
+    block(handle_dm_put(st, from, to.to_string(), envelope(), None, DmAsk::Ordinary, None, None));
     let stored = st.db.mailbox_fetch(to, 0, 1_000).unwrap().len() > before;
     let mut told = Vec::new();
     while let Ok(msg) = rx.try_recv() {
