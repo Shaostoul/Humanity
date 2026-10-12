@@ -153,8 +153,9 @@ pub fn parse_reply(frame: &Value) -> Option<Reply> {
 }
 
 /// `turn:host:port?transport=udp` (or with no transport, which means UDP) to `host:port`.
-/// A `turns:` address, or one for TCP, is not one the client can use.
-fn udp_turn_server(url: &str) -> Option<String> {
+/// A `turns:` address, or one for TCP, is not one the client can use. Also read for a file
+/// transfer's credentials (engine/file_transfer.rs).
+pub(crate) fn udp_turn_server(url: &str) -> Option<String> {
     let rest = url.strip_prefix("turn:")?;
     let (addr, query) = match rest.split_once('?') {
         Some((a, q)) => (a, Some(q)),

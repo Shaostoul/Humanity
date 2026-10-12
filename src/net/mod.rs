@@ -45,6 +45,19 @@ pub mod file_clean;
 #[cfg(feature = "native")]
 pub mod kept_files;
 
+/// Device-to-device big files (docs/design/media-showcase.md, answer 10, 2026-10-11): the file
+/// pass, the offer and its answer and cancel notes, the receiver's question and each transfer's
+/// record.
+#[cfg(feature = "native")]
+pub mod file_offer;
+/// What is said on a transfer's `file:<id>` data channel: hashes, get windows, piece checks,
+/// resume, pause, cancel and done, as two state machines with no socket.
+#[cfg(feature = "native")]
+pub mod file_transfer;
+/// One transfer's WebRTC connection, on its own thread, through the server's call forwarder only.
+#[cfg(feature = "native")]
+pub mod file_link;
+
 /// "Who can reach me" (step B of docs/design/blocking-and-safe-mode.md, 2026-10-09): the
 /// audiences per kind of contact, the relay's frames, the "show as a request" rule and the
 /// contact request itself, with no socket and no GUI so each rule is unit tested.

@@ -55,6 +55,7 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
     // This person's own profile: show the server's copy, ask for it, send a wanted save (BUG-196).
     crate::gui::pages::own_profile::pump(&mut state.gui_state);
     crate::engine::dm::pace_owed_passes(&mut state.gui_state, std::time::Instant::now()); // passes the sweep held back, at the server's pace
+    crate::engine::file_transfer::pump(&mut state.gui_state); // device-to-device big files: offers, connections, dialling
     // ── Poll WebSocket messages from relay server ──
     let mut ws_dropped = false;
     if let Some(ref mut ws) = state.gui_state.ws_client {
@@ -1048,6 +1049,10 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                         // native client (join/leave are outbound; the roster
                         // arrives via voice_channel_list).
                     }
+                    // A file connection's signal (a dial from someone we offered files to, or the
+                    // answer and candidates of one that stands) is engine/file_transfer.rs's
+                    // (media-showcase.md, device-to-device big files); anything else goes on below.
+                    Some("webrtc_signal") if crate::engine::file_transfer::on_signal(&mut state.gui_state, &val) => {}
                     #[cfg(feature = "native")]
                     Some("webrtc_signal") => {
                         // Two protocols share this envelope (mirroring the web):

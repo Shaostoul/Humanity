@@ -2125,3 +2125,117 @@ words, nothing left after the strips), `net::file_clean` (5), `net::files_policy
 changed with the behaviour: `attach_send_tests.rs file_bytes` is now a real (clean) JPEG, since a
 ".jpg" that is not one could not be checked, and the Media share test's stand-in file is named
 `.dat`, not `.png`, for the same reason.
+
+## As built (desktop, device-to-device)
+
+The desktop app's half of "Device-to-device big files: the shapes, exact" (parts 1, 3, 4, 5 and 6),
+built 2026-10-11 in one worktree while the relay's half and the web's were built in parallel, then
+brought into line with the choices the web half made (the coordinator's note of the same day): one
+connection per pair of people, no transfer id in the signalling, a data message at most 65,536
+bytes header included, no automatic decline. It is tested with stand-ins and the shared fixture;
+no desktop-to-web transfer has run yet, and the relay's real `call_credentials` answer for a file
+has been read only as its shape (the answer and its refusal echo `file`).
+
+**The words, `src/net/file_offer.rs`.** The pass (`file_pass_preimage`, `mint_file_pass`,
+`verify_file_pass`: Dilithium3 from the identity seed, at most 7 days, a day of slack when checked
+and none when minted, the plot permits' pattern) and the three notes (`Offer::text`,
+`OfferAnswer::text`, `OfferCancel::text`, `parse_note`), written with `serde_json` in the spec's
+field order with no spaces. From the shared fixture's seeds this app makes the fixture's keys, its
+pass byte for byte, its file hashes and its four note texts (`the_shared_fixture_is_what_this_app_builds`,
+the fixture copied unchanged from main). An offer this app does not read: a piece size other than
+262,144, a piece count that is not `ceil(size / piece)`, a digest that is not 64 lowercase hex, a
+pass for another transfer, an empty file, or one over 256 GiB (`MAX_OFFER_BYTES`, a limit of this
+app's own, so the list of piece hashes it holds stays under 32 MB). The receiver checks an offer's
+pass on arrival (the server's did:hum, the sender, itself) and does not list one the relay would
+refuse. `question` is part 3's order: the protected setup leaves a non-friend's offer out; then
+"Files in messages" ("Ann wants to send you a file. You accept files only from friends. Accept this
+one?"); only then "Ann wants to send you clip.mp4 (2.3 GB). Accept?". Nothing is sent for an offer
+left unanswered (an automatic decline would tell the sender when the receiver came online): when
+its pass runs out it ends as `Expired`, the sender's row saying "Ann did not answer in time". Each
+transfer is an `OfferRecord` in the DM store (`file_offers`, per identity and server, encrypted with
+the rest): the notes are read from the mailbox once, so the record is what survives a restart.
+`apply_note` moves a record forward only (`advance`): an ended transfer never changes, an answer
+counts only from the receiver while the offer waits, a cancel only from one of the two. Answers and
+cancels also go to the person's own mailbox; a device that did not answer shows "Answered on your
+other device".
+
+**The channel, `src/net/file_transfer.rs`.** `Receiving` and `Sending` are plain state machines
+over a `FileAt` trait (a file, or a `Vec<u8>` in the tests). A data message is at most 65,536 bytes
+header included, so a 256 KiB piece is five messages; the receiver places each message by its own
+header and takes any message that continues the piece at its next offset, up to 256 KiB (tested with
+three splits). The receiver asks for at most 16 pieces at once, one `get` per run of consecutive
+missing pieces; a piece that fails its hash is asked for again alone; the third failure of one piece
+ends the transfer with words and `cancel`. A pause from either side stops the flow both ways; a
+resume asks again from the first missing piece. After a drop the receiver keeps the list and asks
+from the first missing piece; after a restart it asks for the list again and checks its part file
+16 pieces per turn before asking for anything. `finish_part` reads the whole part file for its
+BLAKE3 and names it only on a match, never over an existing file (the downloads' own
+`claim_and_move`); on a mismatch nothing is named and the part file is deleted. The sender holds
+back while the buffer is over 1 MB, but str0m caps a connection's send buffer at 128 KiB, so its
+writes are refused first and retried on the next turn.
+
+**The connection, `src/net/file_link.rs`.** One connection per pair of people, on its own thread,
+with one data channel per transfer labelled `file:<id>`, opened by that transfer's receiver
+whichever side dialled (str0m opens a channel on a live connection without a new offer); the
+sender tells the transfers apart by the label. The receiver dials with the credentials of one of
+its accepted transfers, and its `dc_offer` carries that transfer's pass. The dialled side cannot
+know which of its offers was chosen (signals carry no transfer id), so it asks for credentials for
+each of its live offers to that person, at most four, and answers with one relayed address per
+credential, each allocation on its own UDP socket (a forwarder keeps one allocation per client
+address); the forwarder joins only the pair in the same scope, and ICE finds it. The TURN client is
+webrtc.rs's `mod turn`, as it is; the app's WebRTC manager is not used, since it keys connections
+by person and holds one call's allocation at a time. Relay only: the local candidates are the
+relayed addresses alone, a datagram not from a socket's own forwarder is never read, and a transmit
+goes out through the allocation whose relayed address is its source or not at all. The spec's
+direct connection between friends who both turned it on is not built: the app has no such setting
+yet (`webrtc::DIRECT_CONNECTIONS` is false), so every transfer goes through the forwarder.
+
+**The app, `src/engine/file_transfer.rs`.** `offer` cleans the file on a worker when the attach
+step's switch is on (`file_clean::clean_copy` into `offered-files/` beside the DM stores, never the
+person's own file; the copy is deleted when the transfer ends), reads it for its hashes, and
+`send_offer` mints the pass and sends the note with its self-copy. `screens_dm` takes the three
+notes on the DM path after the "who can reach me" rule, so an offer from someone whose messages
+this person does not take goes to Requests like any message from them; a parked server's notes go
+into that server's records. A conversation with only an offer in it is listed in the DM sidebar.
+Accept makes the part file (`<name>.<first 12 of the id>.part` in the downloads folder) at the
+file's full size, so too little room says so at once. `pump` dials, per person, when a transfer
+from them is accepted here and not paused, they are listed online and no connection stands;
+transfers accepted or offered while one stands join it. `on_signal` (from `frame_ws_poll.rs`, before
+the app's WebRTC manager) takes a `dc_offer` from someone this device has live offers to, and a
+`dc_answer` or `dc_ice` from someone a file connection stands with; anything else goes on to the
+manager. If both dial at once the larger key keeps its dial and the other drops its attempt and
+answers. A credentials answer (`read_credentials`, from `engine/call_relay.rs` `on_frame`) that
+is refused, or none at all within 8 seconds, with nothing granted, is "This server is not set up for
+that yet", tried again after a minute or on Resume; a dropped connection is dialled again after 5
+seconds. A failure on one side is told to the other with the cancel note. A transfer with someone
+blocked ends at once with nothing sent to them.
+
+**The screens.** The attach step (`attach_step.rs` `route_pick`, `open_direct`) offers a DM file over
+the person's private file limit instead of refusing it: the look and the switch as for any file, the
+line "Files over 6 MB go straight to Ann's device instead of through the server.", that both apps
+must be open, and why it cannot go now when it cannot. The rows (`chat/transfer_rows.rs`) sit at the
+top of the DM, newest first, the five newest ended ones kept: name and size, the state words of part
+6 (plus "Preparing...", "Paused", "Ann paused it", "Waiting for Ann's app to connect", "Ann did not
+answer in time", "Answered on your other device"), a progress bar, Pause or Resume, Cancel, Try
+again after "not set up", Remove once ended, and the line saying whose app must stay open.
+
+**Tests**, each seen failing once against the break named in its doc comment:
+`net::file_offer::tests` (7: the spec's words; the shared fixture; the pass checks only for its two
+people, its way round, its file and its server; an offer that does not add up is not read; Files in
+messages before the question; notes move a transfer forward only; a file read for its hashes),
+`net::file_transfer::tests` (8, against stand-ins written from the spec's words: a whole file in
+three splits, the hash-list check, piece checking with three failures, resume after a drop and
+after a restart, pause and resume from either side, cancel from either side, the sender's 64 KiB
+messages, the rename only after the whole file matches), `net::file_link::tests` (2: three files,
+two one way and one the other, on one connection between two apps through the test forwarder, the
+dialler with one relayed candidate and the answerer with two, nothing sent around the forwarder;
+the channel label), and `engine::file_transfer::tests` (7, two apps with recording sockets: the
+offer as a sealed note with its self-copy, listed and never shown; decline, and the other device's
+"Answered on your other device"; an unanswered offer runs out with nothing sent; cancel from either
+side; dialling only while the sender is online and not paused, with "not set up" and Pause;
+credentials for each live offer when dialled; the larger key winning when both dial).
+
+**Not built yet.** Groups (file-transfer-at-scale.md, layer 3). The direct connection between
+friends. Showing the forwarder's day amount (the relay counts it; the app shows only "not set up").
+The one desktop-to-web transfer through a throwaway relay with its forwarder on loopback that the
+spec asks for before release.

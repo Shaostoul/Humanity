@@ -35,6 +35,10 @@ pub mod group_report;
 /// for a call or voice room's `call_credentials`, handing them to the WebRTC manager, and the line
 /// the call UI shows when the server cannot carry the call.
 pub mod call_relay;
+/// Device-to-device big files (docs/design/media-showcase.md, answer 10, 2026-10-11): offering a
+/// file, the offer notes as they arrive, Accept and Decline, each transfer's connection through
+/// the server's call forwarder, Pause, Resume and Cancel.
+pub mod file_transfer;
 /// Warnings, and the recovery-phrase guard (step F of docs/design/blocking-and-safe-mode.md,
 /// 2026-10-10): which messages get which warnings, "Got it", and the guard every send path calls.
 pub mod warnings;
