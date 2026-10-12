@@ -10,8 +10,8 @@
 //   /data/*      -> data/*           (the same dir the deploy rsyncs to /var/www/.../data)
 //   /docs/*      -> docs/*
 //   /assets/*    -> assets/*
-// It does NOT proxy /api or /ws (no relay), so pages that need the live relay show
-// their empty/offline state, which is fine for layout checks. Static-content pages
+// It does NOT proxy /api or /ws unless a relay is named (--api, below), so pages that
+// need the live relay show their empty/offline state, which is fine for layout checks. Static-content pages
 // (like the roadmap, which reads /data/roadmap.json) render fully.
 //
 //   node scripts/preview-server.js [port]   (default 8099)
@@ -106,7 +106,7 @@ function proxyToRelay(req, res) {
   req.pipe(upstream);
 }
 
-http.createServer((req, res) => {
+const server = http.createServer((req, res) => {
   if (API_TARGET && (req.url === '/health' || req.url.startsWith('/api/'))) {
     proxyToRelay(req, res);
     return;
@@ -129,8 +129,32 @@ http.createServer((req, res) => {
       res.end(buf);
     });
   });
-}).listen(PORT, () => {
-  console.log(`preview server on http://localhost:${PORT}  (root: ${ROOT})`);
-  if (API_TARGET) console.log(`  /api and /health proxied to ${API_TARGET.origin}`);
+});
+
+// The chat's WebSocket (/ws) too, when a relay is named (2026-10-12): the upgrade request is
+// passed through as raw bytes with the relay's own Host and Origin (its browser-origin allowlist
+// does not list this dev port), then the two sockets are joined. Two browser tabs on two origins
+// (http://127.0.0.1:PORT and http://localhost:PORT keep separate storage, so two identities) can
+// then talk through one local relay, the way a real two-person test needs.
+server.on('upgrade', (req, socket, head) => {
+  if (!API_TARGET || !req.url.startsWith('/ws')) { socket.destroy(); return; }
+  const up = require('net').connect(Number(API_TARGET.port || 80), API_TARGET.hostname, () => {
+    const headers = { ...req.headers, host: API_TARGET.host, origin: API_TARGET.origin };
+    const CRLF = String.fromCharCode(13, 10);
+    const lines = Object.entries(headers).map(([k, v]) => `${k}: ${v}`).join(CRLF);
+    up.write(`${req.method} ${req.url} HTTP/1.1${CRLF}${lines}${CRLF}${CRLF}`);
+    if (head && head.length) up.write(head);
+    up.pipe(socket);
+    socket.pipe(up);
+  });
+  up.on('error', () => socket.destroy());
+  socket.on('error', () => up.destroy());
+});
+
+// Loopback only, like every dev listener here: on Windows a program listening on every address
+// raises a firewall prompt once per program path (CLAUDE.md, "No Windows Firewall prompts").
+server.listen(PORT, '127.0.0.1', () => {
+  console.log(`preview server on http://127.0.0.1:${PORT}  (root: ${ROOT})`);
+  if (API_TARGET) console.log(`  /api, /health and /ws proxied to ${API_TARGET.origin}`);
   else console.log('  /api not proxied (pass --api http://127.0.0.1:PORT to reach a local relay)');
 });

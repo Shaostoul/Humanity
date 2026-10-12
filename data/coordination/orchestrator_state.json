@@ -911,6 +911,11 @@
       "date": "2026-10-12",
       "decision": "Released v0.1486.0 (boot-checked, archived, delivery OK, Deploy to VPS green). public.guide's reviewed follower took it by itself on its first real update (v0.1485.1 to v0.1486.0, backup kept, health ok, federation reconnected both ways). Device-to-device big files designed to exact shapes (file pass = Dilithium3 one-transfer permission checked statelessly so a non-friend receiver can dial the sender; call_credentials `file` scope with a per-person max_forwarded_mb_per_day counted by the forwarder; offer note carries one hash of the piece-hash list, the list goes over the channel) and dispatched as three worktree agents (relay, desktop, web).",
       "why": "The operator's four increments (answer 10 last); the piece list in the offer note would have been ~0.5 MB for 2 GB, so a single hash plus the list over the channel; non-friends could not signal a direct connection, so the certificate pattern."
+    },
+    {
+      "date": "2026-10-12",
+      "decision": "Device-to-device big files: relay, web and desktop halves merged (full verify green, 4034 lib tests). A real two-browser run through a throwaway loopback relay and our forwarder sent 20 MB web to web. The review found: web Sender replaced windows on every get (desktop tops up one piece at a time: 16 min instead of 1 for 2.3 GB), web answerer one transfer per link, desktop dropping early dc_ice while waiting for credentials, desktop receiver allocating 256 KiB for any piece number, file credentials obtainable with a self-signed pass to anyone, and (from the browser run) an answer note refused by a friends-only sender. Rules settled in media-showcase.md (get is additive; one engine per channel; early candidates kept; answer notes carry the file pass, which the relay accepts on dm_put; file credentials need a registered peer, 8 live file allocations a person, refusals counted first). Relay round done; desktop and web fixes dispatched in worktrees. Dev tool: preview-server proxies /ws and binds loopback.",
+      "why": "Interop between the two apps had no test (each tested against its own counterpart); a review plus a real browser run found what stand-ins could not."
     }
   ],
   "active_scopes_to_avoid": [
