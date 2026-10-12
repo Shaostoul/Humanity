@@ -611,6 +611,11 @@ lints:
 # broken one (the builder's build kept inside the game's plot, a piece drawn late or off where
 # it was built, planks spent twice, a wall not in the picture, ...) fails its own check and no
 # other, and the same run saved to a folder is judged by `--dry-verdict`.
+# And the household judge (scripts/lib/household-judge.js, ship homes increment 5b, 2026-10-12): a
+# made-up `verify-household` run that went right passes every check, each broken one (the game
+# walking through her shut corridor, a permit naming another server, a key in a relay permit-check
+# line, Ada's build with a permit taken back KEPT, ...) fails its own check and no other, the probe's
+# household fields are read in one place (PROBE), and the rig's corridor walks stay at walking pace.
 # And the probe sweep's ground_probe judgement (scripts/tests/tree-ground-check.test.js,
 # BUG-156, 2026-10-05): trees floating over the drawn ground, or an eye off it, fail.
 # And the friendship pass words (scripts/tests/friend-pass.test.js, passes v2, 2026-10-09):
@@ -625,7 +630,7 @@ lints:
 # frame is the spec's, the receipt is shown, and the erased person's client says an admin did it.
 # Add a file here whenever a rig script grows a judgement of its own.
 rig-tests:
-    node --test scripts/tests/machine-guard.test.js scripts/tests/perf-report.test.js scripts/tests/terminator-grain.test.js scripts/tests/make-clips.test.js scripts/tests/voice-rejoin.test.js scripts/tests/p2p-sync-own-devices.test.js scripts/tests/p2p-direct-offers.test.js scripts/tests/link-preview-pictures.test.js scripts/tests/erase-sign-up-again.test.js scripts/tests/backup-rotate.test.js scripts/tests/second-player.test.js scripts/tests/sealed-dm.test.js scripts/tests/copresence-judge.test.js scripts/tests/dxc-dlls.test.js scripts/tests/station-park-check.test.js scripts/tests/check-fresh-exe.test.js scripts/tests/check-delivery.test.js scripts/tests/throwaway-relay.test.js scripts/tests/rig-boot.test.js scripts/tests/compiled-in.test.js scripts/tests/game-launch.test.js scripts/tests/rig-exe-copy.test.js scripts/tests/showcase-pins.test.js scripts/tests/rig-gameplay.test.js scripts/tests/clean-test-temp.test.js scripts/tests/shared-build-judge.test.js scripts/tests/tree-ground-check.test.js scripts/tests/friend-pass.test.js scripts/tests/friend-pass-web.test.js scripts/tests/reach-web.test.js scripts/tests/block-web.test.js scripts/tests/server-list-backoff.test.js scripts/tests/report-web.test.js scripts/tests/outside-help-web.test.js scripts/tests/calls-through-server.test.js scripts/tests/warnings-web.test.js scripts/tests/protected-web.test.js scripts/tests/admin-erase-web.test.js scripts/tests/group-report-web.test.js scripts/tests/trade-page-web.test.js scripts/tests/private-files-web.test.js scripts/tests/media-web.test.js scripts/tests/media-web-round2.test.js scripts/tests/strip-metadata.test.js scripts/tests/media-web-round3.test.js scripts/tests/media-web-round4.test.js scripts/tests/upload-clean-web.test.js scripts/tests/files-in-messages-web.test.js scripts/tests/kept-files-web.test.js scripts/tests/media-web-files.test.js scripts/tests/describe-agree.test.js scripts/tests/relay-follow.test.js scripts/tests/file-transfer-web.test.js scripts/tests/file-transfer-chat-web.test.js
+    node --test scripts/tests/machine-guard.test.js scripts/tests/perf-report.test.js scripts/tests/terminator-grain.test.js scripts/tests/make-clips.test.js scripts/tests/voice-rejoin.test.js scripts/tests/p2p-sync-own-devices.test.js scripts/tests/p2p-direct-offers.test.js scripts/tests/link-preview-pictures.test.js scripts/tests/erase-sign-up-again.test.js scripts/tests/backup-rotate.test.js scripts/tests/second-player.test.js scripts/tests/sealed-dm.test.js scripts/tests/copresence-judge.test.js scripts/tests/dxc-dlls.test.js scripts/tests/station-park-check.test.js scripts/tests/check-fresh-exe.test.js scripts/tests/check-delivery.test.js scripts/tests/throwaway-relay.test.js scripts/tests/rig-boot.test.js scripts/tests/compiled-in.test.js scripts/tests/game-launch.test.js scripts/tests/rig-exe-copy.test.js scripts/tests/showcase-pins.test.js scripts/tests/rig-gameplay.test.js scripts/tests/clean-test-temp.test.js scripts/tests/shared-build-judge.test.js scripts/tests/household-judge.test.js scripts/tests/tree-ground-check.test.js scripts/tests/friend-pass.test.js scripts/tests/friend-pass-web.test.js scripts/tests/reach-web.test.js scripts/tests/block-web.test.js scripts/tests/server-list-backoff.test.js scripts/tests/report-web.test.js scripts/tests/outside-help-web.test.js scripts/tests/calls-through-server.test.js scripts/tests/warnings-web.test.js scripts/tests/protected-web.test.js scripts/tests/admin-erase-web.test.js scripts/tests/group-report-web.test.js scripts/tests/trade-page-web.test.js scripts/tests/private-files-web.test.js scripts/tests/media-web.test.js scripts/tests/media-web-round2.test.js scripts/tests/strip-metadata.test.js scripts/tests/media-web-round3.test.js scripts/tests/media-web-round4.test.js scripts/tests/upload-clean-web.test.js scripts/tests/files-in-messages-web.test.js scripts/tests/kept-files-web.test.js scripts/tests/media-web-files.test.js scripts/tests/describe-agree.test.js scripts/tests/relay-follow.test.js scripts/tests/file-transfer-web.test.js scripts/tests/file-transfer-chat-web.test.js
 
 # The scripted second player (scripts/second-player.js) against a REAL relay.
 # NOT pure node, so NOT in rig-tests or `just verify` (rig-tests keeps the
@@ -707,6 +712,28 @@ verify-copresence *ARGS:
 [positional-arguments]
 verify-shared-build *ARGS:
     node scripts/verify-copresence.js --build "$@"
+
+# Proves in the REAL game that household permits work end to end (ship homes increment 5b, "the
+# household page, and walking into a permitted plot", docs/design/ship-homes-increment-5b-plan.md
+# section 6, with its section 8 amendments: a permit can be taken back): `verify-copresence
+# --household`. BOOTS TWO THINGS, like verify-shared-build: a throwaway relay (loopback only, its own
+# database) and ONE game in the .probe-rig/copresence sandbox (background, never focused, silent),
+# plus one scripted friend, Ada (scripts/second-player.js --path still). Ada holds p1 with a wall on
+# it, the game p2. Judged (scripts/lib/household-judge.js): they become friends through a contact
+# request the game accepts; before any permit the game cannot walk into her corridor; the game
+# gives her a permit by clicking its Household card, she builds on its plot with it and takes down
+# only her own; Renew gives her a second and takes the first back; she gives the game one, the relay
+# checks it within 2 s, and the game walks into her home, never corrected, lit, sees her wall in a
+# picture, builds there and takes down only its own; Take back on the card makes her next build with
+# that permit refused permit_withdrawn; no relay permit-check line names anyone. Refuses (exit 1)
+# while ANY HumanityOS.exe runs (one GPU: check `tasklist | grep -i humanityos` first) or when the
+# exe is older than the source; exit 2 = a check failed. Needs a build with ship homes 5b Wave 2
+# (the probe's `household` block, the showcase `page` and `accept_request` verbs, and the Household
+# card). Evidence in .probe-rig/copresence/runs/<stamp>-household/.
+#   just verify-household --dry-verdict <manifest.json>   re-judge without booting
+[positional-arguments]
+verify-household *ARGS:
+    node scripts/verify-copresence.js --household "$@"
 
 # Render all 63 native UI snapshots to PNGs in tests/snapshots/ for review.
 # NEEDS A GPU: without an adapter every page is SKIPPED with a printed note and the

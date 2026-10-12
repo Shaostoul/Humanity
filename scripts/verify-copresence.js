@@ -173,6 +173,26 @@
 // out of the shared world, ship editing and no shared piece; back in, the same pieces by the same
 // ids, finished). Evidence in runs/<stamp>-build/.
 //
+// HOUSEHOLD PERMITS (--household, `just verify-household`; ship homes increment 5b, "the household
+// page, and walking into a permitted plot", docs/design/ship-homes-increment-5b-plan.md section 6,
+// with its section 8 amendments: a permit can be taken back). One game and one scripted friend,
+// Ada (second-player.js --path still: she befriends, gives permits and builds through lines on her
+// input), on a throwaway relay. Ada joins first and holds p1, with a foundation and a wall on it;
+// the game p2. Judged by scripts/lib/household-judge.js from the game's probe (its `household`
+// block, read only through that judge's readHousehold, where the field names live once), Ada's log
+// and the relay's: FRIENDS (her contact request named in the game's notice, accepted, her pass
+// and follow logged); SHUT BEFORE A PERMIT (the game's walk into her corridor stopped at the
+// Commons' wall, her corridor doors for other players only, nothing open or lit); THE GAME GIVES
+// THROUGH ITS PAGE (the Home page's Household card clicked by its words: one given row, taken, Ada
+// receiving it and her own check passing; and no relay permit-check line naming anyone); HER
+// PERMIT WORKS FOR HER OWN PIECES ONLY (built on the game's plot and drawn as hers, her take-down
+// of the game's piece refused not_your_piece); RENEW (a second permit, the first taken back); THE
+// GAME HOLDS ONE (checked by the relay within 2 s, her plot opened); WALKS IN (through her
+// corridor, never corrected, Ada seeing it), LIT, SEES HER WALL (wood in its screen rect, gone in a
+// picture at the same pose once she took it down); BUILDS THERE and TAKES DOWN ONLY ITS OWN; TAKE
+// BACK (her next build with the permit taken back refused permit_withdrawn). Evidence in
+// runs/<stamp>-household/.
+//
 // HOW THE GAME COMES IN (--entry, round 4 of the 1b review): a returning
 // player's game identifies on the main menu (its auto-connect) and only then
 // is Enter World pressed, so the join gate runs on that frame, BEFORE the
@@ -197,6 +217,8 @@
 //        [--meet-pose x,y,z,yaw,pitch] [--allow-other-build "<reason>"]
 //   node scripts/verify-copresence.js --build [--exe PATH] [--timeout-min N]
 //        [--meet-pose x,y,z,yaw,pitch] [--allow-other-build "<reason>"]
+//   node scripts/verify-copresence.js --household [--exe PATH] [--timeout-min N]
+//        [--allow-other-build "<reason>"]
 //   node scripts/verify-copresence.js --dry-verdict <manifest.json>
 // Exit 0 = every check passed. Exit 1 = refused to run. Exit 2 = failed.
 
@@ -262,6 +284,8 @@ const { CORRECTED_RE } = require("./second-player.js");
 // lines they log, one copy each in second-player.js; and the judge of a --build run.
 const SP = require("./second-player.js");
 const { judgeSharedBuild } = require("./lib/shared-build-judge.js");
+// --household (ship homes increment 5b): its judge, and the one reader of the probe's household block.
+const HJ = require("./lib/household-judge.js");
 // The freshness gate, run through its one runner so --allow-other-build reaches
 // it and comes back as the manifest's other_build record (BUG-133).
 const { runFreshGate, otherBuildNotice, requireBootCopy, bootRecord } = require("./lib/src-fingerprint.js");
@@ -280,12 +304,15 @@ const KEEP_OPEN = flag("--keep-open");
 const EXE = path.resolve(opt("--exe", path.join(REPO, "target", "release", "HumanityOS.exe")));
 // A --plots run boots the game twice (the second boot proves the remembered plot) and walks
 // the meeting and the 1b legs between: 20 minutes per join order by default. A --build run boots
-// it once and builds for a few minutes: 15.
-const TIMEOUT_MS = Number(opt("--timeout-min", flag("--plots") ? "20" : flag("--build") ? "15" : "10")) * 60 * 1000;
+// it once and builds for a few minutes: 15. A --household run boots it once and walks, clicks and
+// waits on a friend through thirteen steps: 20.
+const TIMEOUT_MS = Number(opt("--timeout-min", flag("--plots") ? "20" : flag("--build") ? "15" : flag("--household") ? "20" : "10")) * 60 * 1000;
 const DRY = opt("--dry-verdict", null);
 const PLOTS = flag("--plots");
 // Shared building (ship homes increment 5): `just verify-shared-build`.
 const BUILD = flag("--build");
+// Household permits (ship homes increment 5b): `just verify-household`.
+const HOUSEHOLD = flag("--household");
 // The join orders: the walker first, the game first, and the GUEST (scripted players take every
 // plot, the game comes in after them). All three by default; `both` is the first two.
 const ORDERS = {
@@ -469,7 +496,14 @@ if (DRY) {
   if (!fs.existsSync(manifest)) refuse([`--dry-verdict: no such manifest: ${manifest}`]);
   const m = JSON.parse(fs.readFileSync(manifest, "utf8"));
   console.log(`[dry] verdict only, nothing booted: ${rel(manifest)}`);
-  const printer = m.kind === "verify-copresence-build" ? printBuildVerdict : m.kind === "verify-copresence-plots" ? printPlotsVerdict : printVerdict;
+  const printer =
+    m.kind === "verify-copresence-build"
+      ? printBuildVerdict
+      : m.kind === "verify-copresence-household"
+        ? printHouseholdVerdict
+        : m.kind === "verify-copresence-plots"
+          ? printPlotsVerdict
+          : printVerdict;
   const pass = printer("DRY VERDICT (nothing was booted): ", m, path.dirname(manifest));
   process.exit(pass ? 0 : 2);
 }
@@ -484,9 +518,9 @@ if (poseNums.length !== 5 || !poseNums.every(Number.isFinite)) refuse([`--pose m
 if (!(DISTANCE > 0 && RADIUS > 0 && SPEED > 0)) refuse(["--distance, --radius and --speed must be above 0"]);
 if (PLOTS && !ORDERS) refuse(["--order must be walker-first, game-first or both"]);
 if (PLOTS && ENTRY && ENTRY !== "menu" && ENTRY !== "autopilot") refuse(["--entry must be menu or autopilot"]);
-if (PLOTS && BUILD) refuse(["--plots and --build are separate runs: pick one (each boots the game on its own relay)"]);
+if ([PLOTS, BUILD, HOUSEHOLD].filter(Boolean).length > 1) refuse(["--plots, --build and --household are separate runs: pick one (each boots the game on its own relay)"]);
 // Refuse a stage the judge could not read before booting anything.
-if (!PLOTS && !BUILD) {
+if (!PLOTS && !BUILD && !HOUSEHOLD) {
   const p = planLine(poseNums.slice(0, 3), poseNums[3], DISTANCE, RADIUS);
   if (p.error) refuse([`REFUSED: ${p.error}.`]);
   if (!clearApproach(SPAWN, p)) {
@@ -2968,6 +3002,216 @@ function printBuildVerdict(prefix, m, dir) {
   return pass;
 }
 
+// ── THE WALKER POOL (--build and --household) ────────────────────────────────────────────────────
+/**
+ * The scripted players of one run, each second-player.js --path still on the run's relay: it stands
+ * where the relay puts it and acts on lines written to its input (build, unbuild, befriend,
+ * give-permit, stop). Every line any of them prints lands in `walkerOut` with the computer's clock
+ * and its name, so a step reads what a walker logged since a mark (an index into it). `serverUrl()`
+ * names the run's relay, read as each walker starts (the relay is up first).
+ *
+ * Lifted out of runBuildOnce (ship homes 5b, 2026-10-12) so --household's Ada is started, asked,
+ * waited on and stopped by the same code as --build's builders; the move was proven by re-judging
+ * the last green --build run (.probe-rig/copresence/runs/20261006-004750-build) with --dry-verdict,
+ * 35/35 before and after. Two things were added on the way: a build or take-down may carry a
+ * household permit (the walker's "... permit {json}"), and a line the walker prints in pieces (its
+ * permit lines run past 8 KB, and a pipe may hand them over in more than one chunk) is put back
+ * together before anyone reads it, where each chunk used to be split into lines on its own.
+ */
+function makeWalkerPool(serverUrl) {
+  const walkerOut = [];
+  const builders = [];
+  /** The first line builder `b` printed from index `from` matching `re` (and, when given,
+   *  `wanted(match)`), waiting up to `ms`: { hit, m }, or null (also once the builder has exited). */
+  const waitFor = async (b, re, from, ms, wanted = () => true) => {
+    let ended = false;
+    b.exit.then(() => (ended = true));
+    for (const t0 = Date.now(); Date.now() - t0 < ms; ) {
+      for (const o of walkerOut.slice(from)) {
+        if (o.who !== b.name) continue;
+        const m = o.line.match(re);
+        if (m && wanted(m)) return { hit: o, m };
+      }
+      if (ended) return null;
+      await sleep(50);
+    }
+    return null;
+  };
+  const linesOf = (b, from) => walkerOut.slice(from).filter((o) => o.who === b.name).map((o) => o.line);
+  /** Start a scripted builder as `who` (second-player.js --path still: it stands where the relay
+   *  puts it and builds through lines on its input) and wait until it stands in the world: its
+   *  entity, its plot, what its welcome says it may do, and its key. */
+  const joinBuilder = async (who) => {
+    const args = [path.join(__dirname, "second-player.js"), "--server", serverUrl(), "--name", who.name, "--seed", who.seed, "--path", "still", "--seconds", "0"];
+    const from = walkerOut.length;
+    const started = Date.now();
+    // Its input is a pipe: the rig's build lines, and "stop" to end it cleanly.
+    const child = spawn(process.execPath, args, { cwd: REPO, stdio: ["pipe", "pipe", "pipe"] });
+    const b = { ...who, args: args.slice(1), child, from, exit: new Promise((r) => child.on("exit", (code) => r(code))) };
+    builders.push(b);
+    const push = (line) => walkerOut.push({ at_s: (Date.now() - started) / 1000, epoch: Date.now(), line, who: who.name });
+    // Whole lines only: what follows the last line break of a chunk waits for the next chunk (or
+    // the stream's end), one buffer per stream.
+    const taker = (stream) => {
+      let partial = "";
+      stream.on("data", (buf) => {
+        const parts = (partial + String(buf)).split(/\r?\n/);
+        partial = parts.pop();
+        for (const line of parts.filter(Boolean)) push(line);
+      });
+      stream.on("end", () => {
+        if (partial) push(partial);
+        partial = "";
+      });
+    };
+    taker(child.stdout);
+    taker(child.stderr);
+    child.stdin.on("error", () => {});
+    const inWorld = await waitFor(b, /in the world as entity (\d+), starting at \(([-\d.]+), ([-\d.]+), ([-\d.]+)\)/, from, 40000);
+    if (!inWorld) throw new Error(`${who.name} never got into the world: ${linesOf(b, from).join(" | ")}`);
+    const plotLine = await waitFor(b, /home_plot (null|missing|\{.*\})/, from, 5000);
+    const ranksLine = await waitFor(b, SP.RANKS_RE, from, 5000);
+    const keyLine = await waitFor(b, /\(key ([0-9a-f]{16})\.\.\.\)/, from, 1000);
+    const hp = plotLine && plotLine.m[1].startsWith("{") ? JSON.parse(plotLine.m[1]) : null;
+    let ranks = null;
+    try {
+      ranks = ranksLine && ranksLine.m[1] !== "missing" ? JSON.parse(ranksLine.m[1]) : null;
+    } catch {}
+    Object.assign(b, {
+      id: Number(inWorld.m[1]),
+      start: [Number(inWorld.m[2]), Number(inWorld.m[3]), Number(inWorld.m[4])],
+      plot: hp ? hp.id : null,
+      ranks,
+      key16: keyLine ? keyLine.m[1] : null,
+    });
+    return b;
+  };
+  /** A builder's record for the manifest. */
+  const builderRecord = (b) => ({ name: b.name, seed: b.seed, args: b.args, id: b.id, start: b.start, plot: b.plot, ranks: b.ranks, key16: b.key16 });
+  /** Write `line` on builder `b`'s input and wait up to `ms` for its first line from then matching
+   *  `okRe` (and `wanted(match)`), or its "command refused" line: { hit, m, mark } or { error, mark }.
+   *  For the commands that are no build request (befriend, give-permit). */
+  const tell = async (b, line, okRe, ms = 8000, wanted = () => true) => {
+    const mark = walkerOut.length;
+    try {
+      b.child.stdin.write(`${line}\n`);
+    } catch (e) {
+      return { error: `could not write to ${b.name}: ${e.message}`, mark };
+    }
+    for (const t0 = Date.now(); Date.now() - t0 < ms; ) {
+      for (const o of walkerOut.slice(mark)) {
+        if (o.who !== b.name) continue;
+        const m = o.line.match(okRe);
+        if (m && wanted(m)) return { hit: o, m, mark };
+        if (/command refused: /.test(o.line)) return { error: o.line, mark };
+      }
+      await sleep(50);
+    }
+    return { error: `${b.name} never answered "${line.slice(0, 60)}${line.length > 60 ? "..." : ""}" within ${ms / 1000} s`, mark };
+  };
+  /** Write one command on builder `b`'s input and wait until it says it sent it (with its
+   *  req_id), or why it did not. { req, mark } or { error }. */
+  const command = async (b, line) => {
+    const mark = walkerOut.length;
+    try {
+      b.child.stdin.write(`${line}\n`);
+    } catch (e) {
+      return { error: `could not write to ${b.name}: ${e.message}` };
+    }
+    for (const t0 = Date.now(); Date.now() - t0 < 5000; ) {
+      for (const o of walkerOut.slice(mark)) {
+        if (o.who !== b.name) continue;
+        const s = o.line.match(SP.SENT_RE);
+        if (s) return { req: Number(s[2]), mark };
+        if (/command refused: /.test(o.line)) return { error: o.line };
+      }
+      await sleep(50);
+    }
+    return { error: `${b.name} never said it sent "${line.slice(0, 80)}${line.length > 80 ? "..." : ""}"` };
+  };
+  /** The relay's answer to builder `b`'s request `req` (its lines from `mark`): kept, taken down or
+   *  refused, as the builder logged it. Null after BUILD_ANSWER_MS. */
+  const answer = async (b, req, mark) => {
+    for (const t0 = Date.now(); Date.now() - t0 < BUILD_ANSWER_MS; ) {
+      for (const o of walkerOut.slice(mark)) {
+        if (o.who !== b.name) continue;
+        let m = o.line.match(SP.BUILT_RE);
+        if (m && Number(m[8]) === req) return { kind: "built", m, line: o.line, epoch: o.epoch };
+        m = o.line.match(SP.TOOK_DOWN_RE);
+        if (m && Number(m[3]) === req) return { kind: "took", m, line: o.line, epoch: o.epoch };
+        m = o.line.match(SP.REFUSED_RE);
+        if (m && m[4] !== "-" && Number(m[4]) === req) return { kind: "refused", m, line: o.line, epoch: o.epoch };
+      }
+      await sleep(50);
+    }
+    return null;
+  };
+  const refusalOf = (a) => ({ action: a.m[1], reason: a.m[2], why: a.m[3] || null, line: a.line });
+  /** The words a household permit adds to a build or take-down line ("... permit {json}"). */
+  const withPermit = (permit) => (permit ? ` permit ${JSON.stringify(permit)}` : "");
+  /** Builder `b` builds `cmd` ({ blueprint, frame, local, turns }, and a household `permit` it
+   *  carries, when given); the record the judge reads (the permit by its serial, `permit_serial`). */
+  const buildBy = async (b, cmd) => {
+    const { permit = null, ...plain } = cmd;
+    const ps = permit ? { permit_serial: permit.serial } : {};
+    const sent = await command(b, `build ${plain.blueprint}@${plain.frame}:${plain.local.join(",")},${plain.turns}${withPermit(permit)}`);
+    if (sent.error) return { cmd: plain, ...ps, req: null, piece_id: null, refusal: null, error: sent.error };
+    const a = await answer(b, sent.req, sent.mark);
+    if (!a) return { cmd: plain, ...ps, req: sent.req, piece_id: null, refusal: null, error: `no answer from the relay in ${BUILD_ANSWER_MS / 1000} s` };
+    if (a.kind === "built") {
+      return {
+        cmd: plain,
+        ...ps,
+        req: sent.req,
+        piece_id: Number(a.m[1]),
+        line_epoch_ms: a.epoch,
+        placed_at: Number(a.m[10]),
+        logged: { frame: a.m[3], local: [Number(a.m[4]), Number(a.m[5]), Number(a.m[6])], turn: Number(a.m[7]) },
+        refusal: null,
+        line: a.line,
+      };
+    }
+    return { cmd: plain, ...ps, req: sent.req, piece_id: null, refusal: refusalOf(a), line_epoch_ms: a.epoch };
+  };
+  /** Builder `b` takes piece `pieceId` down (carrying `permit` when given); the record the judge
+   *  reads. */
+  const unbuildBy = async (b, pieceId, permit = null) => {
+    const sent = await command(b, `unbuild ${pieceId}${withPermit(permit)}`);
+    if (sent.error) return { req: null, took: false, refusal: null, error: sent.error };
+    const a = await answer(b, sent.req, sent.mark);
+    if (!a) return { req: sent.req, took: false, refusal: null, error: `no answer from the relay in ${BUILD_ANSWER_MS / 1000} s` };
+    if (a.kind === "took") return { req: sent.req, took: true, refusal: null, line: a.line, epoch: a.epoch };
+    return { req: sent.req, took: false, refusal: refusalOf(a), epoch: a.epoch };
+  };
+  /** Stop every builder the way Ctrl+C does (game_leave, then close). */
+  const stopBuilders = async () => {
+    for (const b of builders) {
+      if (b.child.exitCode !== null) continue;
+      try {
+        b.child.stdin.write("stop\n");
+      } catch {}
+      const code = await Promise.race([b.exit, sleep(10000).then(() => "still running")]);
+      if (code === "still running") {
+        try {
+          execSync(`taskkill /PID ${b.child.pid} /T /F`, { stdio: "ignore" });
+        } catch {}
+      }
+    }
+  };
+  /** Kill every builder still running at once (a run's cleanup, the watchdog, Ctrl+C). */
+  const killBuilders = () => {
+    for (const b of builders) {
+      if (b.child.exitCode !== null) continue;
+      try {
+        execSync(`taskkill /PID ${b.child.pid} /T /F`, { stdio: "ignore" });
+      } catch {}
+    }
+  };
+  /** Every line a builder printed since index `mark`, tagged with its name. */
+  const walkerLinesSince = (mark) => walkerOut.slice(mark).map((o) => `[${o.who}] ${o.line}`);
+  return { walkerOut, builders, waitFor, linesOf, joinBuilder, builderRecord, tell, command, answer, buildBy, unbuildBy, stopBuilders, killBuilders, walkerLinesSince };
+}
+
 /** The one --build run. Returns true when every check passed. */
 async function runBuildOnce(runStamp, cleanups) {
   setupRig();
@@ -3009,7 +3253,10 @@ async function runBuildOnce(runStamp, cleanups) {
   let relay = null;
   let gamePid = null;
   let game = null;
-  const builders = [];
+  // The builders, and every line they print (the walker pool, makeWalkerPool): the relay is up
+  // before the first one starts.
+  const pool = makeWalkerPool(() => relay.url);
+  const builders = pool.builders;
   let killed = false;
   const killGame = () => {
     if (gamePid) {
@@ -3046,145 +3293,9 @@ async function runBuildOnce(runStamp, cleanups) {
     process.exit(2);
   }, TIMEOUT_MS);
 
-  // Every line either builder printed, with the computer's clock, tagged with its name.
-  const walkerOut = [];
-  /** The first line builder `b` printed from index `from` matching `re` (and, when given,
-   *  `wanted(match)`), waiting up to `ms`: { hit, m }, or null (also once the builder has exited). */
-  const waitFor = async (b, re, from, ms, wanted = () => true) => {
-    let ended = false;
-    b.exit.then(() => (ended = true));
-    for (const t0 = Date.now(); Date.now() - t0 < ms; ) {
-      for (const o of walkerOut.slice(from)) {
-        if (o.who !== b.name) continue;
-        const m = o.line.match(re);
-        if (m && wanted(m)) return { hit: o, m };
-      }
-      if (ended) return null;
-      await sleep(50);
-    }
-    return null;
-  };
-  const linesOf = (b, from) => walkerOut.slice(from).filter((o) => o.who === b.name).map((o) => o.line);
-  /** Start a scripted builder as `who` (second-player.js --path still: it stands where the relay
-   *  puts it and builds through lines on its input) and wait until it stands in the world: its
-   *  entity, its plot, what its welcome says it may do, and its key. */
-  const joinBuilder = async (who) => {
-    const args = [path.join(__dirname, "second-player.js"), "--server", relay.url, "--name", who.name, "--seed", who.seed, "--path", "still", "--seconds", "0"];
-    const from = walkerOut.length;
-    const started = Date.now();
-    // Its input is a pipe: the rig's build lines, and "stop" to end it cleanly.
-    const child = spawn(process.execPath, args, { cwd: REPO, stdio: ["pipe", "pipe", "pipe"] });
-    const b = { ...who, args: args.slice(1), child, from, exit: new Promise((r) => child.on("exit", (code) => r(code))) };
-    builders.push(b);
-    const take = (buf) => {
-      for (const line of String(buf).split(/\r?\n/).filter(Boolean)) walkerOut.push({ at_s: (Date.now() - started) / 1000, epoch: Date.now(), line, who: who.name });
-    };
-    child.stdout.on("data", take);
-    child.stderr.on("data", take);
-    child.stdin.on("error", () => {});
-    const inWorld = await waitFor(b, /in the world as entity (\d+), starting at \(([-\d.]+), ([-\d.]+), ([-\d.]+)\)/, from, 40000);
-    if (!inWorld) throw new Error(`${who.name} never got into the world: ${linesOf(b, from).join(" | ")}`);
-    const plotLine = await waitFor(b, /home_plot (null|missing|\{.*\})/, from, 5000);
-    const ranksLine = await waitFor(b, SP.RANKS_RE, from, 5000);
-    const keyLine = await waitFor(b, /\(key ([0-9a-f]{16})\.\.\.\)/, from, 1000);
-    const hp = plotLine && plotLine.m[1].startsWith("{") ? JSON.parse(plotLine.m[1]) : null;
-    let ranks = null;
-    try {
-      ranks = ranksLine && ranksLine.m[1] !== "missing" ? JSON.parse(ranksLine.m[1]) : null;
-    } catch {}
-    Object.assign(b, {
-      id: Number(inWorld.m[1]),
-      start: [Number(inWorld.m[2]), Number(inWorld.m[3]), Number(inWorld.m[4])],
-      plot: hp ? hp.id : null,
-      ranks,
-      key16: keyLine ? keyLine.m[1] : null,
-    });
-    return b;
-  };
-  /** A builder's record for the manifest. */
-  const builderRecord = (b) => ({ name: b.name, seed: b.seed, args: b.args, id: b.id, start: b.start, plot: b.plot, ranks: b.ranks, key16: b.key16 });
-  /** Write one command on builder `b`'s input and wait until it says it sent it (with its
-   *  req_id), or why it did not. { req, mark } or { error }. */
-  const command = async (b, line) => {
-    const mark = walkerOut.length;
-    try {
-      b.child.stdin.write(`${line}\n`);
-    } catch (e) {
-      return { error: `could not write to ${b.name}: ${e.message}` };
-    }
-    for (const t0 = Date.now(); Date.now() - t0 < 5000; ) {
-      for (const o of walkerOut.slice(mark)) {
-        if (o.who !== b.name) continue;
-        const s = o.line.match(SP.SENT_RE);
-        if (s) return { req: Number(s[2]), mark };
-        if (/command refused: /.test(o.line)) return { error: o.line };
-      }
-      await sleep(50);
-    }
-    return { error: `${b.name} never said it sent "${line}"` };
-  };
-  /** The relay's answer to builder `b`'s request `req` (its lines from `mark`): kept, taken down or
-   *  refused, as the builder logged it. Null after BUILD_ANSWER_MS. */
-  const answer = async (b, req, mark) => {
-    for (const t0 = Date.now(); Date.now() - t0 < BUILD_ANSWER_MS; ) {
-      for (const o of walkerOut.slice(mark)) {
-        if (o.who !== b.name) continue;
-        let m = o.line.match(SP.BUILT_RE);
-        if (m && Number(m[8]) === req) return { kind: "built", m, line: o.line, epoch: o.epoch };
-        m = o.line.match(SP.TOOK_DOWN_RE);
-        if (m && Number(m[3]) === req) return { kind: "took", m, line: o.line, epoch: o.epoch };
-        m = o.line.match(SP.REFUSED_RE);
-        if (m && m[4] !== "-" && Number(m[4]) === req) return { kind: "refused", m, line: o.line, epoch: o.epoch };
-      }
-      await sleep(50);
-    }
-    return null;
-  };
-  const refusalOf = (a) => ({ action: a.m[1], reason: a.m[2], why: a.m[3] || null, line: a.line });
-  /** Builder `b` builds `cmd` ({ blueprint, frame, local, turns }); the record the judge reads. */
-  const buildBy = async (b, cmd) => {
-    const sent = await command(b, `build ${cmd.blueprint}@${cmd.frame}:${cmd.local.join(",")},${cmd.turns}`);
-    if (sent.error) return { cmd, req: null, piece_id: null, refusal: null, error: sent.error };
-    const a = await answer(b, sent.req, sent.mark);
-    if (!a) return { cmd, req: sent.req, piece_id: null, refusal: null, error: `no answer from the relay in ${BUILD_ANSWER_MS / 1000} s` };
-    if (a.kind === "built") {
-      return {
-        cmd,
-        req: sent.req,
-        piece_id: Number(a.m[1]),
-        line_epoch_ms: a.epoch,
-        placed_at: Number(a.m[10]),
-        logged: { frame: a.m[3], local: [Number(a.m[4]), Number(a.m[5]), Number(a.m[6])], turn: Number(a.m[7]) },
-        refusal: null,
-        line: a.line,
-      };
-    }
-    return { cmd, req: sent.req, piece_id: null, refusal: refusalOf(a), line_epoch_ms: a.epoch };
-  };
-  /** Builder `b` takes piece `pieceId` down; the record the judge reads. */
-  const unbuildBy = async (b, pieceId) => {
-    const sent = await command(b, `unbuild ${pieceId}`);
-    if (sent.error) return { req: null, took: false, refusal: null, error: sent.error };
-    const a = await answer(b, sent.req, sent.mark);
-    if (!a) return { req: sent.req, took: false, refusal: null, error: `no answer from the relay in ${BUILD_ANSWER_MS / 1000} s` };
-    if (a.kind === "took") return { req: sent.req, took: true, refusal: null, line: a.line, epoch: a.epoch };
-    return { req: sent.req, took: false, refusal: refusalOf(a), epoch: a.epoch };
-  };
-  /** Stop every builder the way Ctrl+C does (game_leave, then close). */
-  const stopBuilders = async () => {
-    for (const b of builders) {
-      if (b.child.exitCode !== null) continue;
-      try {
-        b.child.stdin.write("stop\n");
-      } catch {}
-      const code = await Promise.race([b.exit, sleep(10000).then(() => "still running")]);
-      if (code === "still running") {
-        try {
-          execSync(`taskkill /PID ${b.child.pid} /T /F`, { stdio: "ignore" });
-        } catch {}
-      }
-    }
-  };
+  // Starting, asking, waiting on and stopping the builders, and every line they print: the walker
+  // pool both --build and --household use (makeWalkerPool, lifted out of here on 2026-10-12).
+  const { walkerOut, waitFor, linesOf, joinBuilder, builderRecord, command, answer, buildBy, unbuildBy, stopBuilders } = pool;
   /** The relay's log so far, as a mark, and its piece lines since a mark (a window). */
   const relayMark = () => (relay ? relay.logText().length : 0);
   const relayLinesSince = (mark) => (relay ? relay.logText().slice(mark).split(/\r?\n/).filter((l) => RELAY_PIECE_RE.test(l)) : null);
@@ -3709,7 +3820,920 @@ async function mainBuild() {
   process.exit(ok ? 0 : 2);
 }
 
-(PLOTS ? mainPlots() : BUILD ? mainBuild() : main()).catch((e) => {
+// ── HOUSEHOLD PERMITS (--household, `just verify-household`; ship homes increment 5b) ─────────────
+//
+// docs/design/ship-homes-increment-5b-plan.md section 6, with its section 8 amendments (a permit
+// can be taken back, and Block takes it back). ONE game and ONE scripted friend, Ada
+// (second-player.js --path still, TestBotAda), on a throwaway relay. Each step's record is what
+// scripts/lib/household-judge.js reads; its header says what each check holds, and the probe's
+// `household` block is read only through its `readHousehold` (the field names live there, once).
+//
+//   1-2  the relay; Ada joins first (p1) and builds a wood foundation and a wall on her plot, the
+//        "what is really there"; the game boots and joins (p2).
+//   3    Ada sends the game a contact request (`befriend` with the probe's `household.me`); the
+//        game's notice names it; the showcase `accept_request` verb accepts it; Ada logs the game's
+//        pass and follow.
+//   4    the game walks to the Commons' side of her corridor and on into it at walking pace: the
+//        wall must stop it (no permit yet); then back.
+//   5    the Home page (the showcase `page` verb) and its Household card: "30 days", "Give a
+//        permit", "Give"; Ada logs the permit and her own check of it.
+//   6    the game's own foundation on its plot; Ada builds there with the permit (kept, drawn as
+//        hers); her take-down of the game's piece with it (refused not_your_piece); the game takes
+//        hers down.
+//   7    "Renew for 30 days": Ada gets a second permit; the first is taken back (A1).
+//   8    Ada gives the game a permit for her plot; the relay checks it (its log, by the rig's clock).
+//   9    the game walks through her corridor at walking pace and on to a point inside her home.
+//   10   a picture there, facing her wall, with a recording of where the game drew it.
+//   11   the game builds a foundation on her plot (the `place` verb); Ada sees it.
+//   12   the game's take-down of her wall (refused at its own crosshair), then of its own piece.
+//   13   "Take back" and its confirm on the card; Ada's next build on the game's plot with the
+//        permit taken back.
+//   then Ada takes her wall down, and the same pose is photographed without it: the control that
+//   makes step 10's wood her wall and not the room.
+//
+// THE WALKS AGAINST AND THROUGH HER CORRIDOR GO AT HOUSE_DOOR_MPS, a walking pace. The showcase
+// `walk_to` moves the camera itself each frame and the wall collision then pushes it out of a wall
+// it stepped into; at the meeting rigs' 6 m/s a frame's stride (0.6 m at the 0.1 s step cap) can
+// land past a wall's middle and be pushed out the far side, so a shut corridor could pass for an
+// open one. At 1.4 m/s a stride is 0.14 m, under the collision's own 0.15 m substep.
+// (scripts/tests/household-judge.test.js holds this.)
+
+/** Ada: the friend, a scripted player. Joins first, so she holds the ship's first plot. */
+const HOUSE_ADA = { name: "TestBotAda", seed: "verify-copresence-household-ada" };
+/** The game's name on the relay (the autopilot's), how Ada's log names it. */
+const HOUSE_GAME_NAME = "CopresenceHouse";
+/** Step 2: what Ada builds on her own plot, metres from its corner: a foundation, and a wall on
+ *  its north edge facing south, toward where the game stands in step 10. */
+const HOUSE_HER_PIECES = [
+  { blueprint: "wood_foundation", local: [48, 0, 36], turns: 0 },
+  { blueprint: "wood_wall", local: [48, 0.2, 34], turns: 0 },
+];
+/** Step 6: the game's own foundation on its plot (what Ada's permit may not take down). */
+const HOUSE_OURS = { blueprint: "wood_foundation", local: [48, 0, 36], turns: 0 };
+/** Steps 6 and 13: where Ada builds on the game's plot with its permit. */
+const HOUSE_HERS_THERE = { blueprint: "wood_foundation", local: [20, 0, 20], turns: 0 };
+/** Step 11: where the game builds on her plot with hers. */
+const HOUSE_OURS_THERE = { blueprint: "wood_foundation", local: [20, 0, 20], turns: 0 };
+/** Step 9: where the game walks to inside her home (metres from her plot's corner, at eye height),
+ *  and its facing there: north, toward her wall (yaw 0 looks along -Z). */
+const HOUSE_INSIDE = { local: [48, 1.7, 44], yaw: 0, pitch: -0.05 };
+/** The length the page gives and renews, days (one of data/ship/household.ron's lengths). */
+const HOUSE_DAYS = 30;
+/** The pace of the walks against and through her corridor, m/s (see above: a walking pace). */
+const HOUSE_DOOR_MPS = 1.4;
+/** How long the shut walk is given to get through, seconds: her corridor is 10 m and a step a
+ *  metre inside each end, 12 m in all, 8.6 s at HOUSE_DOOR_MPS, and a turn first. */
+const HOUSE_SHUT_WAIT_S = 14;
+/** How long the rig waits for a friend's answer, the game's household to change, a permit to
+ *  arrive, ms. */
+const HOUSE_WAIT_MS = 15000;
+/** THE HOUSEHOLD CARD'S WORDS (lane 2B's page, src/gui/pages/household.rs; plan section 3.9 and
+ *  amendment A1), clicked by finding the drawn text (the ui `find` verb, exact match). Written
+ *  before 2B merged: if a button reads otherwise, change it here. A confirm whose button wears the
+ *  row button's words is clicked by its place beside its Cancel (`clickConfirm`). */
+const HOUSE_UI = {
+  card: "Household",
+  length: `${HOUSE_DAYS} days`,
+  give: "Give a permit",
+  confirm_give: "Give",
+  renew: `Renew for ${HOUSE_DAYS} days`,
+  take_back: "Take back",
+  confirm_take_back: "Take back",
+  cancel: "Cancel",
+};
+
+/** The evidence of a --household run in its folder (what its manifest names): the recording at the
+ *  picture, the two pictures and the relay's log, read for the judge. Missing ones are left out
+ *  (the judge fails their checks as not recorded). */
+function householdEvidence(m, dir) {
+  const recordings = {};
+  const pictures = {};
+  const pic = m.picture || {};
+  if (pic.samples) {
+    try {
+      recordings[pic.samples] = JSON.parse(fs.readFileSync(path.join(dir, pic.samples), "utf8")).frames || [];
+    } catch {}
+  }
+  for (const name of [pic.with, pic.without].filter(Boolean)) {
+    try {
+      pictures[name] = png.decode(fs.readFileSync(path.join(dir, name)));
+    } catch {}
+  }
+  let relayLog = null;
+  try {
+    relayLog = fs.readFileSync(path.join(dir, "relay.log"), "utf8");
+  } catch {}
+  return { recordings, pictures, relayLog };
+}
+
+/** Print a --household run's verdict (the judge over its folder's evidence). Used live and by
+ *  --dry-verdict. Returns true when every check passed. */
+function printHouseholdVerdict(prefix, m, dir) {
+  const { checks, pass } = HJ.judgeHousehold(m, householdEvidence(m, dir));
+  console.log("");
+  console.log("-".repeat(72));
+  console.log("--household, household permits: give, use, renew, hold, walk in, take back");
+  for (const c of checks) console.log(`${c.ok ? "PASS" : "FAIL"}  ${pad(c.id, 33)} ${c.detail}`);
+  console.log("-".repeat(72));
+  if (m.other_build) console.log(otherBuildNotice(m.other_build));
+  if (pass) console.log(`${prefix}PASS  ${checks.length}/${checks.length} household checks passed`);
+  else {
+    const failed = checks.filter((c) => !c.ok).map((c) => c.id);
+    console.log(`${prefix}FAIL  ${checks.length - failed.length}/${checks.length} passed; failed: ${failed.join(", ")}`);
+  }
+  console.log(`        evidence ${rel(dir)}`);
+  console.log("-".repeat(72));
+  console.log("");
+  return pass;
+}
+
+/** The corridor between plot `frameId` and the zone it opens on, from the game's door points:
+ *  { plot, zone, axis, mouth_zone, mouth_plot, step_zone, step_plot }, or null. */
+function corridorOf(dp, frameId) {
+  const d = ((dp && dp.doors) || []).find((x) => (x.from === frameId && /^zone:/.test(x.to)) || (x.to === frameId && /^zone:/.test(x.from)));
+  if (!d || !Array.isArray(d.mouths) || !Array.isArray(d.steps)) return null;
+  const z = d.from === frameId ? 1 : 0;
+  return { plot: frameId, zone: z === 1 ? d.to : d.from, axis: d.axis, mouth_zone: d.mouths[z], mouth_plot: d.mouths[1 - z], step_zone: d.steps[z], step_plot: d.steps[1 - z] };
+}
+
+/** The one --household run. Returns true when every check passed. */
+async function runHouseholdOnce(runStamp, cleanups) {
+  setupRig();
+  forgetSandboxPlots();
+  const out = path.join(RIG, "runs", `${runStamp}-household`);
+  fs.mkdirSync(out, { recursive: true });
+  const manifest = {
+    kind: "verify-copresence-household",
+    stamp: runStamp,
+    exe: EXE,
+    binary: bootRecord(fresh, RIG_EXE),
+    ...(OTHER_BUILD ? { other_build: OTHER_BUILD } : {}),
+    rig: RIG,
+    relay: null,
+    frames: null,
+    blueprints: null,
+    walkers: {},
+    game: {},
+    household_joined: null,
+    her_pieces: null,
+    friends: null,
+    closed: null,
+    give: null,
+    ours_p2: null,
+    her_build: null,
+    her_pieces_only: null,
+    renew: null,
+    held: null,
+    walk_in: null,
+    picture: null,
+    build_p1: null,
+    take_down_p1: null,
+    take_back: null,
+    // Every walk of the game and every turn in place (judgeWalks, as --build). The shut walk of
+    // step 4 is not one: it must NOT arrive, and is kept in `closed`.
+    walks: [],
+    turns: [],
+    steps: [],
+    steps_ok: {},
+    panics: 0,
+  };
+  const save = () => fs.writeFileSync(path.join(out, "manifest.json"), JSON.stringify(manifest, null, 2));
+  const step = (id, ok, detail) => {
+    manifest.steps.push({ id, ok, detail });
+    save();
+    log(`${ok ? "ok  " : "FAIL"} ${pad(id, 12)} ${detail}`);
+    return ok;
+  };
+  let relay = null;
+  let gamePid = null;
+  let game = null;
+  // Ada, and every line she prints (the walker pool, makeWalkerPool): the relay is up first.
+  const pool = makeWalkerPool(() => relay.url);
+  let killed = false;
+  const killGame = () => {
+    if (gamePid) {
+      if (game) game.expectExit(); // our own stop: not a hand-off to look for
+      try {
+        execSync(`taskkill /PID ${gamePid} /T /F`, { stdio: "ignore" });
+      } catch {}
+    }
+    killRigProcesses();
+  };
+  const killAll = () => {
+    if (killed) return;
+    killed = true;
+    pool.killBuilders();
+    killGame();
+    if (relay) {
+      relay.kill();
+      relay.removeDir();
+    }
+  };
+  cleanups.push(killAll);
+  const watchdog = setTimeout(() => {
+    log(`TIMEOUT after ${TIMEOUT_MS / 60000} min; killing everything`);
+    manifest.steps.push({ id: "timeout", ok: false, detail: `run exceeded ${TIMEOUT_MS / 60000} min` });
+    manifest.panics = panicCount();
+    save();
+    killAll();
+    printHouseholdVerdict("RESULT: ", manifest, out);
+    process.exit(2);
+  }, TIMEOUT_MS);
+  const { walkerOut, waitFor, joinBuilder, builderRecord, tell, buildBy, unbuildBy, stopBuilders } = pool;
+
+  /** The relay's log so far, as a mark, and its piece lines since a mark (a window). */
+  const relayMark = () => (relay ? relay.logText().length : 0);
+  const relayLinesSince = (mark) => (relay ? relay.logText().slice(mark).split(/\r?\n/).filter((l) => RELAY_PIECE_RE.test(l)) : null);
+  const showcase = async (body) => {
+    req("showcase_request.json", body);
+    // The game deletes the request when it takes it (engine/ipc.rs poll_showcase_request).
+    for (const t0 = Date.now(); Date.now() - t0 < 10000 && fs.existsSync(path.join(DEBUG, "showcase_request.json")); ) await sleep(100);
+  };
+  const until = async (ok, ms) => {
+    let p = null;
+    for (const t0 = Date.now(); Date.now() - t0 < ms; ) {
+      p = await probe();
+      if (p && ok(p)) return p;
+      await sleep(500);
+    }
+    return p;
+  };
+  const camOf = (p) => (p && p.camera_end ? p.camera_end.pos : null);
+  const gap3 = (a, b) => (Array.isArray(a) && Array.isArray(b) ? Math.hypot(...[0, 1, 2].map((k) => Number(a[k]) - Number(b[k]))) : Infinity);
+  /** The game's household block in a probe, as it wrote it (kept in the manifest), and read
+   *  (household-judge.js `readHousehold`, the one reader of its field names). */
+  const hhOf = (p) => HJ.householdOfProbe(p);
+  const Hof = (p) => HJ.readHousehold(HJ.householdOfProbe(p));
+  /** Walk the game to `p` (the showcase `walk_to` verb at `mps`), ending facing yaw and pitch (a
+   *  `yaw` of null: the way this walk goes), and wait until it arrives. Recorded for judgeWalks.
+   *  As --build's walkGame, with the pace a parameter. Returns whether it arrived. */
+  const walkGame = async (p, yaw, pitch, label, mps = WALK_MPS) => {
+    const from = await probe();
+    const here = camOf(from) || p;
+    const far = gap3(p, here);
+    const endYaw = yaw === null ? walkYaw(here, p, from && from.camera_end ? from.camera_end.yaw : 0) : yaw;
+    await showcase({ walk_to: `${p.join(",")},${endYaw},${pitch},${mps}` });
+    const at = (pr) => pr && pr.moves && pr.moves.walking === false && pr.camera_end && gap3(pr.camera_end.pos, p) < 0.05;
+    const pr = await until(at, Math.ceil((far / mps) * 1000) + 15000);
+    const ok = !!at(pr);
+    const stopped = camOf(pr);
+    manifest.walks.push({ label, to: p, at: stopped, ok });
+    if (!ok) step(`${label}_walk`, false, `the walk to ${fmt(p)} never arrived: the camera stopped at ${stopped ? fmt(stopped) : "(unknown)"}`);
+    return ok;
+  };
+  /** Walk the game through `points` in order, facing each leg, turning to yaw and pitch only at
+   *  the last (`routeFacings`, BUG-165). True when every walk arrived. */
+  const walkRoute = async (points, yaw, pitch, label, mps = WALK_MPS) => {
+    const facings = routeFacings(points.length, yaw, pitch);
+    for (const [i, p] of points.entries()) {
+      if (!(await walkGame(p, facings[i].yaw, facings[i].pitch, label, mps))) return false;
+    }
+    return true;
+  };
+  /** Turn the game where it stands (the `cam` verb), only when it already stands there (R4). */
+  const turnTo = async (pose) => {
+    const pr = await probe();
+    const at = camOf(pr);
+    const t = turnInPlace(at, pose);
+    manifest.turns.push({ pose, at, off: Number.isFinite(t.off) ? Number(t.off.toFixed(3)) : null, ok: t.ok });
+    if (!t.ok) {
+      step("turn", false, `refused to turn to ${pose}: the camera stands ${Number.isFinite(t.off) ? t.off.toFixed(2) : "?"} m from it`);
+      return false;
+    }
+    await showcase({ cam: pose });
+    return true;
+  };
+  /** The counts of `blueprint`'s materials in the game's backpack (`pack`) or home storage
+   *  (`storage`), or null when the probe reports none (as --build). */
+  const countsOf = (p, blueprint, field) => {
+    const have = sharedOf(p)[field];
+    const bp = manifest.blueprints && manifest.blueprints[blueprint];
+    if (!have || typeof have !== "object" || !bp) return null;
+    const o = {};
+    for (const [item] of bp.materials) o[item] = Number.isFinite(Number(have[item])) ? Number(have[item]) : 0;
+    return o;
+  };
+  const boxOf = (id) => (manifest.frames || []).find((f) => f.id === id) || null;
+  const shipAt = (id, local) => {
+    const f = boxOf(id);
+    return f ? [0, 1, 2].map((k) => f.min[k] + local[k]) : null;
+  };
+  /** The showcase `place` verb's body for `piece` at its `local` metres from frame `id`'s corner. */
+  const placeBody = (id, piece) => {
+    const at = shipAt(id, piece.local);
+    return at ? { place: `${piece.blueprint}@${at[0]},${at[2]},${piece.turns}` } : null;
+  };
+  /** Click the drawn text `label` (the ui `find` verb, exact match only, then `click`):
+   *  { label, ok, pos, why }. */
+  const clickText = async (label) => {
+    const f = await ui({ action: "find", text: label });
+    if (!f || f.ok !== true) return { label, ok: false, why: `could not ask: ${JSON.stringify(f)}` };
+    if (!f.found || f.text !== label) return { label, ok: false, why: f.found ? `"${f.text}" is drawn, not "${label}"` : "not drawn" };
+    await ui({ action: "click", pos: f.pos_px });
+    await sleep(700);
+    return { label, ok: true, pos: f.pos_px };
+  };
+  /** Click a confirm's button `label`, after the row's button `row` (clickText's record) opened it.
+   *  Its own button when it is drawn somewhere else than the row's; when the confirm's button
+   *  wears the row button's words (the row's is drawn first, so `find` names it), by its place:
+   *  just left of the confirm's Cancel, the two side by side, the action first. */
+  const clickConfirm = async (label, row) => {
+    const f = await ui({ action: "find", text: label });
+    if (!f || f.ok !== true) return { label, ok: false, why: `could not ask: ${JSON.stringify(f)}` };
+    const exact = f.found && f.text === label;
+    const sameSpot = exact && row && Array.isArray(row.pos) && Math.hypot(f.pos_px[0] - row.pos[0], f.pos_px[1] - row.pos[1]) < 3;
+    if (exact && !sameSpot) {
+      await ui({ action: "click", pos: f.pos_px });
+      await sleep(700);
+      return { label, ok: true, pos: f.pos_px, how: "its own button" };
+    }
+    const c = await ui({ action: "find", text: HOUSE_UI.cancel });
+    if (!c || c.found !== true || c.text !== HOUSE_UI.cancel || !Array.isArray(c.rect_px)) {
+      return { label, ok: false, why: exact ? `only the row's "${label}" is drawn, and no "${HOUSE_UI.cancel}" of a confirm beside it` : `"${label}" is not drawn` };
+    }
+    const h = c.rect_px[3] - c.rect_px[1];
+    const pos = [c.rect_px[0] - 1.5 * h, (c.rect_px[1] + c.rect_px[3]) / 2];
+    await ui({ action: "click", pos });
+    await sleep(700);
+    return { label, ok: true, pos, how: `by its place, left of "${HOUSE_UI.cancel}" (the row's "${label}" is drawn first)` };
+  };
+  /** Open the Home page (the showcase `page` verb) and its Household card when it is shut (a row
+   *  of it not drawn: its header is clicked). Returns the clicks made. */
+  const openCard = async () => {
+    const clicks = [];
+    await showcase({ page: "homes" });
+    await sleep(1500);
+    for (let i = 0; i < 2; i++) {
+      for (const label of [HOUSE_UI.length, HOUSE_UI.give, HOUSE_UI.renew, HOUSE_UI.take_back]) {
+        const f = await ui({ action: "find", text: label });
+        if (f && f.found === true && f.text === label) return clicks;
+      }
+      clicks.push(await clickText(HOUSE_UI.card));
+      await sleep(800);
+    }
+    return clicks;
+  };
+  /** The page drawn now (the ui `state` verb's `active_page`: "None" for the world view), or null. */
+  const pageNow = async () => {
+    const st = await ui({ action: "state" });
+    return st && st.ok === true && typeof st.active_page === "string" ? st.active_page : null;
+  };
+  /** Back to the world view: the `page` verb's "none", and, should a page still be drawn, a walk to
+   *  where the camera already stands (`walk_to` shuts any page; it ends at once and moves nothing).
+   *  A page left over the view would hide her wall in a picture. Returns the page drawn after. */
+  const closePage = async () => {
+    await showcase({ page: "none" });
+    await sleep(800);
+    if ((await pageNow()) === "None") return "None";
+    const p = await probe();
+    const c = p && p.camera_end;
+    if (c) await showcase({ walk_to: `${c.pos.join(",")},${c.yaw},${c.pitch},1` });
+    await sleep(1000);
+    return pageNow();
+  };
+  /** A permit line Ada logged, read ({ permit, epoch_ms }), or null. */
+  const permitOf = (hit) => {
+    if (!hit) return null;
+    try {
+      return { permit: JSON.parse(hit.m[1]), epoch_ms: hit.hit.epoch };
+    } catch {
+      return null;
+    }
+  };
+  const checksOutOf = (hit) => (hit ? { plot: hit.m[1], serial: hit.m[2], expiry: Number(hit.m[3]), from: hit.m[4] } : null);
+
+  try {
+    // ── 1. The relay. Its own did:hum (/api/server-info) is what every permit given on it names.
+    relay = await TR.startRelay({
+      sourceExe: EXE,
+      // Its copy must be the bytes the gate judged, like the rig's (BUG-133).
+      expectSha256: fresh.result && fresh.result.exe_sha256,
+      prefix: "verify-copresence-relay-",
+      config: { server_name: "verify-copresence household relay" },
+    });
+    manifest.relay = { url: relay.httpUrl, pid: relay.pid, dir: relay.dir, health: relay.health, listening: relay.listening.map((x) => x.line), server_did: null };
+    manifest.steps_ok.relay = relay.health
+      ? { ok: true, detail: `${relay.httpUrl} answered /health (pid ${relay.pid}); ${loopbackNote(relay)}` }
+      : { ok: false, detail: `${relay.httpUrl} never answered /health: ${relay.logText().slice(-400)}` };
+    step("relay", manifest.steps_ok.relay.ok, manifest.steps_ok.relay.detail);
+    if (!relay.health) throw new Error("the throwaway relay did not come up");
+    try {
+      manifest.relay.server_did = await SP.fetchServerDid(relay.url);
+    } catch (e) {
+      log(`     could not ask the relay for its did:hum: ${e.message}`);
+    }
+    // The blueprints the builds use, from the file the relay and Ada read.
+    const bps = SP.readBlueprints(fs.readFileSync(SP.BLUEPRINTS_RON, "utf8"));
+    manifest.blueprints = {};
+    for (const id of new Set([...HOUSE_HER_PIECES, HOUSE_OURS, HOUSE_HERS_THERE, HOUSE_OURS_THERE].map((x) => x.blueprint))) {
+      const bp = bps.get(id);
+      if (!bp) throw new Error(`data/blueprints/basic.ron has no ${id}`);
+      manifest.blueprints[id] = { name: bp.name, size: bp.size, build_time: bp.build_time, materials: bp.materials, shared: bp.shared };
+    }
+
+    // ── 2. Ada first (the ship's first plot), and what is really there on it.
+    const A = await joinBuilder(HOUSE_ADA);
+    const keyLine = await waitFor(A, SP.PUBLIC_KEY_RE, A.from, 3000);
+    const didLine = await waitFor(A, SP.DID_RE, A.from, 3000);
+    A.key = keyLine ? keyLine.m[1].toLowerCase() : null;
+    A.did = didLine ? didLine.m[1] : null;
+    manifest.walkers.ada = { ...builderRecord(A), key: A.key, did: A.did };
+    manifest.steps_ok.walker = {
+      ok: !!(A.plot && A.key && A.did),
+      detail: `${A.name} in the world as entity ${A.id} at ${fmt(A.start)}, holding ${A.plot || "no plot"}; ${A.key ? `key ${A.key.slice(0, 16)}...` : "her whole key NOT logged"}, ${A.did || "her did:hum NOT logged"}`,
+    };
+    step("ada", manifest.steps_ok.walker.ok, manifest.steps_ok.walker.detail);
+    if (!A.plot || !A.key) throw new Error(`${A.name} holds no plot, or never said her key: nothing of the household can be tried`);
+    const aFrame = `plot:${A.plot}`;
+    manifest.her_pieces = { builds: [] };
+    for (const t of HOUSE_HER_PIECES) {
+      const b = await buildBy(A, { ...t, frame: aFrame });
+      manifest.her_pieces.builds.push(b);
+      step("hers", Number.isInteger(b.piece_id), Number.isInteger(b.piece_id) ? `${A.name}: ${b.line}` : `${A.name}'s ${t.blueprint} on ${aFrame} was not kept: ${b.refusal ? b.refusal.line : b.error}`);
+    }
+    const herWall = manifest.her_pieces.builds[1];
+    const wallId = herWall && Number.isInteger(herWall.piece_id) ? herWall.piece_id : null;
+
+    // The game, second (p2).
+    game = GL.spawnGame(RIG_EXE, [], { fresh, rigName: "verify-copresence", log, cwd: RIG, detached: true, stdio: "ignore", env: gameEnv(), gameplay: { server_url: relay.httpUrl } });
+    gamePid = game.child.pid;
+    fs.writeFileSync(path.join(RIG, "probe_pid.txt"), String(gamePid));
+    game.child.unref();
+    step("launch", true, `game pid ${gamePid} from ${rel(RIG_EXE)} (background, no focus)`);
+    await waitBoot(180000, game);
+    step("boot", true, "booted (run.log: cloud noise volumes generated, no PANIC)");
+    clearDone("autopilot_done.json");
+    req("autopilot_request.json", { server_url: relay.httpUrl, user_name: HOUSE_GAME_NAME, character_name: HOUSE_GAME_NAME });
+    const ap = await waitFile("autopilot_done.json", 300000);
+    if (!ap || ap.ok !== true) throw new Error(`the autopilot did not run: ${ap ? ap.error || JSON.stringify(ap) : "no answer in 300 s"}`);
+    step("autopilot", true, `entering the world on ${ap.server_url}`);
+    let pj = null;
+    for (const t0 = Date.now(); Date.now() - t0 < 120000; ) {
+      pj = await probe();
+      if (pj && pj.ok && pj.world_loaded && pj.game_joined && pj.copresence_active && pj.welcomed !== false) break;
+      if (pj && pj.copresence_refused) break;
+      await sleep(1000);
+    }
+    const joined = !!(pj && pj.ok && pj.game_joined && pj.copresence_active && pj.welcomed !== false);
+    manifest.steps_ok.joined = {
+      ok: joined,
+      detail: pj ? `world_loaded=${pj.world_loaded} game_joined=${pj.game_joined} copresence_active=${pj.copresence_active} welcomed=${pj.welcomed} refused=${pj.copresence_refused}` : "the recorder never answered",
+    };
+    step("join", joined, manifest.steps_ok.joined.detail);
+    if (!joined) throw new Error("the game never joined the shared world");
+    await sleep(2000);
+    const pg = await probe();
+    manifest.game = { plot: pg && pg.home_plot ? pg.home_plot.id : null, last_welcome: pg ? pg.last_welcome : null, camera: camOf(pg), name: HOUSE_GAME_NAME, entity: null };
+    manifest.household_joined = hhOf(pg);
+    const H0 = HJ.readHousehold(manifest.household_joined);
+    step("game", !!(manifest.game.plot && H0 && H0.me), `the game holds ${manifest.game.plot || "no plot"} (the welcome did "${manifest.game.last_welcome}"); ${H0 ? `its household says plot ${H0.my_plot}, key ${H0.me ? `${H0.me.slice(0, 16)}...` : "NOT reported"}` : "this build reports NO household (the probe's household block: ship homes 5b lane 2A)"}`);
+    if (!H0 || !H0.me) throw new Error("the game reports no household or no key of its own, so nothing of the household can be tried (a build from before ship homes 5b lane 2A?)");
+    const me = H0.me;
+    const gFrame = `plot:${manifest.game.plot}`;
+    // The game's entity as Ada's log names it (her "saw entity" lines of step 9).
+    const ent = await waitFor(A, new RegExp(`(?:player joined|in view): entity (\\d+) "${HOUSE_GAME_NAME}"`), A.from, 10000);
+    manifest.game.entity = ent ? Number(ent.m[1]) : null;
+    // Every frame's box and her corridor, from the game's own door points.
+    const dp = await doorPointsOf();
+    if (!dp || dp.ok !== true) throw new Error(`the game reported no door points: ${JSON.stringify(dp)}`);
+    manifest.door_points = dp;
+    manifest.frames = dp.places.map((p) => ({ id: p.id, kind: p.kind, min: p.min, max: p.max }));
+    const door = corridorOf(dp, aFrame);
+    manifest.her_door = door;
+    step("frames", !!door, `${manifest.frames.length} frames; ${door ? `${aFrame}'s corridor opens on ${door.zone} at ${fmt(door.mouth_zone)}` : `NO corridor for ${aFrame} in the door points`}`);
+    save();
+
+    // ── 3. FRIENDS: her contact request, the game's notice of it, Accept.
+    {
+      const sent = await tell(A, `befriend ${me}`, SP.REQUEST_SENT_RE);
+      step("befriend", !sent.error, sent.error ? `${A.name} could not send a contact request: ${sent.error}` : `${A.name}: ${sent.hit.line.slice(0, 120)}`);
+      const seen = [];
+      let notice = null;
+      for (const t0 = Date.now(); Date.now() - t0 < HOUSE_WAIT_MS && !notice; ) {
+        const p = await probe();
+        for (const n of p && Array.isArray(p.notices) ? p.notices : []) {
+          if (!seen.includes(n)) seen.push(n);
+          if (String(n).includes(A.name) && /contact request/.test(String(n))) notice = n;
+        }
+        if (!notice) await sleep(400);
+      }
+      const mark = walkerOut.length;
+      await showcase({ accept_request: A.key });
+      const pass = await waitFor(A, SP.DM_PASS_RE, mark, HOUSE_WAIT_MS);
+      const follow = await waitFor(A, SP.DM_FOLLOW_RE, mark, HOUSE_WAIT_MS);
+      const pf = await until((p) => {
+        const H = Hof(p);
+        return !!H && H.friends.includes(A.key);
+      }, 10000);
+      manifest.friends = { notice, notices_seen: seen.slice(-12), pass_from: pass ? pass.m[1] : null, follow_from: follow ? follow.m[1] : null, household: hhOf(pf) };
+      step("friends", !!(notice && pass && follow), `notice ${notice ? JSON.stringify(notice) : "NOT seen"}; ${A.name} logged ${pass ? pass.hit.line.slice(0, 80) : "NO pass"}, ${follow ? "a follow" : "NO follow"}`);
+    }
+
+    // ── 4. SHUT BEFORE A PERMIT: from the game's door to the Commons' side of her corridor, then
+    // into it at walking pace; the Commons' wall at the corridor must stop it. Then back.
+    {
+      const own = dp.places.find((p) => p.kind === "plot" && p.own);
+      const start = own && own.door ? own.door : manifest.game.camera;
+      let atDoor = false;
+      if (door && start) {
+        const route = doorRoute(dp, start, door.step_zone, MEET_STEP_M);
+        if (route.error) step("to_her_door", false, `no route from the game's door to her corridor: ${route.error}`);
+        else atDoor = await walkRoute([start, ...route.points], walkYaw(door.step_zone, door.step_plot, 0), 0, "to_her_door");
+      } else {
+        step("to_her_door", false, door ? "the game's door is unknown" : `no corridor for ${aFrame}`);
+      }
+      if (atDoor) {
+        await sleep(1000);
+        const c0 = await probe();
+        const track = [];
+        let last = null;
+        let arrived = false;
+        await showcase({ walk_to: `${door.step_plot.join(",")},${walkYaw(door.step_zone, door.step_plot, 0)},0,${HOUSE_DOOR_MPS}` });
+        for (const t0 = Date.now(); Date.now() - t0 < HOUSE_SHUT_WAIT_S * 1000; ) {
+          last = await probe();
+          if (last && last.camera_end) track.push(last.camera_end.pos);
+          if (last && last.moves && last.moves.walking === false) {
+            arrived = gap3(camOf(last), door.step_plot) < 0.05;
+            break;
+          }
+          await sleep(400);
+        }
+        manifest.closed = { door, from: camOf(c0), to: door.step_plot, track, end: camOf(last), arrived, walking_at_end: !!(last && last.moves && last.moves.walking), household: hhOf(last) };
+        const past = HJ.pastWall(door, camOf(last));
+        step("shut", !arrived, `the walk into ${aFrame}'s corridor ${arrived ? "ARRIVED inside her plot" : `stopped at ${camOf(last) ? fmt(camOf(last)) : "(unknown)"}, ${Number.isFinite(past) ? past.toFixed(2) : "?"} m past the wall`}`);
+        // Back to the Commons' side: a walk of its own replaces the one held at the wall.
+        await walkGame(door.step_zone, walkYaw(door.step_plot, door.step_zone, 0), 0, "back_from_her_door", HOUSE_DOOR_MPS);
+      }
+      save();
+    }
+
+    // ── 5. THE GAME GIVES, THROUGH ITS PAGE.
+    {
+      const clicks = await openCard();
+      clicks.push(await clickText(HOUSE_UI.length));
+      const row = await clickText(HOUSE_UI.give);
+      clicks.push(row);
+      const mark = walkerOut.length;
+      const epoch = Date.now();
+      clicks.push(await clickConfirm(HOUSE_UI.confirm_give, row));
+      const pr = await until((p) => {
+        const H = Hof(p);
+        return !!H && HJ.givenTo(H, A.key).some((g) => g.state === HJ.WORDS.given_taken);
+      }, HOUSE_WAIT_MS);
+      const rec = await waitFor(A, SP.PERMIT_RECEIVED_RE, mark, HOUSE_WAIT_MS);
+      const ok = rec ? await waitFor(A, SP.PERMIT_OK_RE, mark, 5000) : null;
+      const no = await waitFor(A, SP.PERMIT_REFUSED_RE, mark, 100);
+      await closePage();
+      manifest.give = { epoch_ms: epoch, days: HOUSE_DAYS, clicks, household: hhOf(pr), received: permitOf(rec), checks_out: checksOutOf(ok), refused: no ? no.m[1] : null };
+      step("give", !!(rec && ok), `clicks ${clicks.map((c) => `${c.label}:${c.ok ? "ok" : c.why}`).join(", ")}; ${A.name} ${rec ? `received a permit for ${manifest.give.received ? manifest.give.received.permit.plot : "?"}${ok ? " that checks out" : " that did NOT check out"}` : "received NO permit"}`);
+    }
+    const givenPermit = manifest.give && manifest.give.received ? manifest.give.received.permit : null;
+
+    // ── 6. HER PERMIT WORKS, AND ONLY FOR HER OWN PIECES.
+    {
+      await showcase({ stock: "1" });
+      await sleep(1500);
+      const body = placeBody(gFrame, HOUSE_OURS);
+      if (body) await showcase(body);
+      const mine = (p) => piecesOf(p).find((x) => x.mine === true && x.frame === gFrame) || null;
+      const pr = await until((p) => !!mine(p), 8000);
+      const ours = mine(pr);
+      manifest.ours_p2 = { place: { ...HOUSE_OURS, frame: gFrame }, piece: ours ? pieceRecord(ours) : null };
+      step("ours_p2", !!ours, ours ? `the game's piece ${ours.piece_id} stands on ${gFrame}` : `the game's ${HOUSE_OURS.blueprint} on ${gFrame} never stood`);
+      const hb = givenPermit
+        ? await buildBy(A, { ...HOUSE_HERS_THERE, frame: gFrame, permit: givenPermit })
+        : { cmd: { ...HOUSE_HERS_THERE, frame: gFrame }, permit_serial: null, piece_id: null, refusal: null, error: `${A.name} holds no permit from the game` };
+      let row = null;
+      if (Number.isInteger(hb.piece_id)) {
+        const p = await until((q) => piecesOf(q).some((x) => Number(x.piece_id) === hb.piece_id), 6000);
+        const x = piecesOf(p).find((y) => Number(y.piece_id) === hb.piece_id);
+        row = x ? pieceRecord(x) : null;
+      }
+      manifest.her_build = { ...hb, game_row: row };
+      step("her_build", Number.isInteger(hb.piece_id), Number.isInteger(hb.piece_id) ? `${A.name} with the game's permit: ${hb.line}` : `${A.name}'s build on ${gFrame} with the permit: ${hb.refusal ? hb.refusal.line : hb.error}`);
+      let ht = null;
+      if (ours && givenPermit) {
+        const rMark = relayMark();
+        const u = await unbuildBy(A, ours.piece_id, givenPermit);
+        await sleep(1000);
+        const p = await probe();
+        ht = { piece_id: Number(ours.piece_id), refusal: u.refusal, took: u.took, error: u.error || null, relay_lines: relayLinesSince(rMark), still_drawn: reported(p) ? piecesOf(p).some((x) => Number(x.piece_id) === Number(ours.piece_id)) : null };
+        step("her_take", !!u.refusal, `${A.name} took down the game's piece ${ours.piece_id} with her permit: ${u.refusal ? u.refusal.line : u.took ? "TAKEN DOWN" : u.error}`);
+      }
+      let ot = null;
+      if (Number.isInteger(hb.piece_id)) {
+        const mark = walkerOut.length;
+        const epoch = Date.now();
+        await showcase({ take_down: String(hb.piece_id) });
+        const saw = await waitFor(A, SP.SAW_UNBUILT_RE, mark, 5000, (m) => Number(m[1]) === hb.piece_id);
+        const gone = await until((p) => reported(p) && !piecesOf(p).some((x) => Number(x.piece_id) === hb.piece_id), 6000);
+        ot = { piece_id: hb.piece_id, epoch_ms: epoch, seen_by_walker: saw ? { epoch_ms: saw.hit.epoch, piece_id: hb.piece_id, line: saw.hit.line } : null, gone: reported(gone) ? !piecesOf(gone).some((x) => Number(x.piece_id) === hb.piece_id) : null };
+        step("our_take", !!saw, `the game took down ${A.name}'s piece ${hb.piece_id}: ${saw ? `she saw it: ${saw.hit.line}` : "she never saw it come down"}`);
+      }
+      manifest.her_pieces_only = { her_take_down: ht, our_take_down: ot };
+      save();
+    }
+
+    // ── 7. RENEW: one press; the first permit is taken back once the server took the new one (A1).
+    {
+      const clicks = await openCard();
+      const mark = walkerOut.length;
+      const epoch = Date.now();
+      clicks.push(await clickText(HOUSE_UI.renew));
+      const isNew = (m) => {
+        try {
+          return !givenPermit || JSON.parse(m[1]).serial !== givenPermit.serial;
+        } catch {
+          return false;
+        }
+      };
+      const rec = await waitFor(A, SP.PERMIT_RECEIVED_RE, mark, HOUSE_WAIT_MS, isNew);
+      const got = permitOf(rec);
+      const ok = got ? await waitFor(A, SP.PERMIT_OK_RE, mark, 5000, (m) => m[2] === got.permit.serial) : null;
+      const pr = await until((p) => {
+        const H = Hof(p);
+        if (!H || !got) return false;
+        const stand = HJ.standingTo(H, A.key);
+        const old = givenPermit ? H.given.find((g) => g.serial === givenPermit.serial) : null;
+        return stand.length === 1 && stand[0].serial === got.permit.serial && stand[0].state === HJ.WORDS.given_taken && (!old || old.state === HJ.WORDS.given_taken_back);
+      }, HOUSE_WAIT_MS);
+      await closePage();
+      manifest.renew = { epoch_ms: epoch, clicks, received: got, checks_out: checksOutOf(ok), household: hhOf(pr) };
+      step("renew", !!(got && ok), `clicks ${clicks.map((c) => `${c.label}:${c.ok ? "ok" : c.why}`).join(", ")}; ${A.name} ${got ? `received a second permit ending ${got.permit.expiry}${ok ? ", and it checks out" : ", which did NOT check out"}` : "received NO second permit"}`);
+    }
+
+    // ── 8. THE GAME HOLDS ONE: Ada gives it a permit for her plot; the relay checks it.
+    {
+      const rMark = relayMark();
+      const sent = await tell(A, `give-permit ${me} ${A.plot} ${HOUSE_DAYS}`, SP.PERMIT_SENT_RE);
+      let permit = null;
+      try {
+        permit = sent.m ? JSON.parse(sent.m[4]) : null;
+      } catch {}
+      const ref = sent.m ? sent.m[3] : null;
+      const putOk = ref ? await waitFor(A, SP.DM_PUT_OK_RE, sent.mark, HOUSE_WAIT_MS, (m) => m[1] === ref) : null;
+      // The relay's check of it, timed by the rig's clock as the line appears in its log.
+      let checkLine = null;
+      for (const t0 = Date.now(); Date.now() - t0 < HOUSE_WAIT_MS && !checkLine; ) {
+        const hit = relay
+          .logText()
+          .slice(rMark)
+          .split(/\r?\n/)
+          .find((l) => {
+            const m = l.match(HJ.RELAY_PERMIT_CHECK_RE);
+            return !!m && m[1] === A.plot;
+          });
+        if (hit) checkLine = { line: hit, epoch_ms: Date.now() };
+        else await sleep(100);
+      }
+      const pr = await until((p) => {
+        const H = Hof(p);
+        return !!H && H.held.some((h) => h.from === A.key && h.plot === A.plot && h.verdict === HJ.WORDS.verdict_works) && H.walkable.includes(A.plot);
+      }, HOUSE_WAIT_MS);
+      manifest.held = { sent: permit ? { permit, ref, put_ok_epoch_ms: putOk ? putOk.hit.epoch : null } : null, check_line: checkLine, household: hhOf(pr), error: sent.error || null };
+      step("held", !!(permit && putOk && checkLine), `${A.name} ${permit ? `gave the game a permit for ${A.plot}${putOk ? ", stored by the relay" : ", NOT stored by the relay"}` : `could not give one: ${sent.error}`}; the relay ${checkLine ? `logged "${checkLine.line.replace(/^.*?Game: /, "Game: ")}"` : "logged NO check of it"}`);
+    }
+
+    // ── 9. WALKS IN: through her corridor at walking pace, then on into her home.
+    const target = shipAt(aFrame, HOUSE_INSIDE.local);
+    const pose = target ? `${target.join(",")},${HOUSE_INSIDE.yaw},${HOUSE_INSIDE.pitch}` : null;
+    {
+      const c0 = await probe();
+      const before = c0 && c0.moves ? Number(c0.moves.count) : null;
+      const mark = walkerOut.length;
+      let arrived = false;
+      if (door && target) {
+        const inDoor = await walkGame(door.step_plot, null, 0, "into_her_door", HOUSE_DOOR_MPS);
+        const inside = inDoor ? doorRoute(dp, door.step_plot, target, MEET_STEP_M) : null;
+        if (inside && inside.error) step("into_her_home", false, `no route inside her home: ${inside.error}`);
+        arrived = !!inside && !inside.error && (await walkRoute(inside.points, HOUSE_INSIDE.yaw, HOUSE_INSIDE.pitch, "into_her_home"));
+      }
+      await sleep(1000);
+      const c1 = await probe();
+      const sawRe = /saw entity (\d+) at \(([-\d.]+), ([-\d.]+), ([-\d.]+)\)/;
+      const seen =
+        manifest.game.entity === null
+          ? null
+          : walkerOut
+              .slice(mark)
+              .filter((o) => o.who === A.name)
+              .map((o) => o.line.match(sawRe))
+              .filter((x) => x && Number(x[1]) === manifest.game.entity)
+              .map((x) => [Number(x[2]), Number(x[3]), Number(x[4])]);
+      manifest.walk_in = { target, at: camOf(c1), arrived, corrections_before: before, corrections_after: c1 && c1.moves ? Number(c1.moves.count) : null, seen_by_ada: seen, household: hhOf(c1) };
+      step("walk_in", arrived, `the walk into ${aFrame} to ${target ? fmt(target) : "(no target)"} ${arrived ? "arrived" : "did NOT arrive"}; ${A.name} saw the game at ${seen ? seen.length : "?"} place(s) on its way`);
+      save();
+    }
+
+    // ── 10. SEES WHAT IS THERE: a picture facing her wall, and a recording of where it is drawn.
+    {
+      if (pose) await turnTo(pose);
+      await sleep(1500);
+      const view = await clearFirstRunWindows();
+      const pageWith = await closePage();
+      clearDone("remote_players_done.json");
+      req("remote_players_request.json", { seconds: 3 });
+      await sleep(1200);
+      const shot = await screenshot("inside_p1");
+      const withEpoch = Date.now();
+      if (shot.ok) fs.copyFileSync(shot.src, path.join(out, "inside_p1.png"));
+      const rec = await waitFile("remote_players_done.json", 60000);
+      if (rec && rec.ok === true) fs.copyFileSync(path.join(DEBUG, "remote_players_done.json"), path.join(out, "inside_p1_samples.json"));
+      manifest.picture = {
+        pose,
+        view,
+        wall_piece_id: wallId,
+        // The page drawn when each picture was taken: "None", the world view, or the picture shows a page.
+        page_with: pageWith,
+        page_without: null,
+        with: shot.ok ? "inside_p1.png" : null,
+        with_epoch_ms: withEpoch,
+        samples: rec && rec.ok === true ? "inside_p1_samples.json" : null,
+        screen_px: rec && Array.isArray(rec.screen_px) ? rec.screen_px : null,
+        without: null,
+        without_epoch_ms: null,
+        wall_gone: null,
+        shot_errors: [shot.ok ? null : shot.error].filter(Boolean),
+      };
+      step("picture", shot.ok && !!(rec && rec.ok), `inside_p1.png ${shot.ok ? "taken" : `failed: ${shot.error}`}, ${rec && rec.ok ? `${rec.frame_count} frames -> inside_p1_samples.json` : "no recording"}; ${view.detail}`);
+    }
+
+    // ── 11. BUILDS THERE: the game's foundation on her plot, with her permit.
+    let ourThereId = null;
+    {
+      const place = { ...HOUSE_OURS_THERE, frame: aFrame, at: shipAt(aFrame, HOUSE_OURS_THERE.local), epoch_ms: null };
+      const body = placeBody(aFrame, HOUSE_OURS_THERE);
+      const rMark = relayMark();
+      const mark = walkerOut.length;
+      place.epoch_ms = Date.now();
+      if (body) await showcase(body);
+      const mine = (p) => piecesOf(p).find((x) => x.mine === true && x.frame === aFrame) || null;
+      const pr = await until((p) => !!mine(p), 8000);
+      const piece = mine(pr);
+      const saw = await waitFor(A, SP.SAW_BUILT_RE, mark, 5000, (m) => m[3] === aFrame);
+      await sleep(500);
+      manifest.build_p1 = {
+        place,
+        piece: piece ? pieceRecord(piece) : null,
+        notices: pr && Array.isArray(pr.notices) ? pr.notices : null,
+        relay_lines: relayLinesSince(rMark),
+        seen_by_walker: saw ? { epoch_ms: saw.hit.epoch, piece_id: Number(saw.m[1]), frame: saw.m[3], local: [Number(saw.m[4]), Number(saw.m[5]), Number(saw.m[6])], turn: Number(saw.m[7]) } : null,
+      };
+      ourThereId = piece ? Number(piece.piece_id) : null;
+      step("build_p1", !!piece, piece ? `the game's piece ${piece.piece_id} stands on ${aFrame}, mine ${piece.mine}; ${A.name} ${saw ? `saw it: ${saw.hit.line}` : "never saw it"}` : `the game's ${place.blueprint} on ${aFrame} never stood (on screen: ${JSON.stringify(manifest.build_p1.notices)})`);
+    }
+
+    // ── 12. TAKES DOWN ONLY ITS OWN: her wall refused at the crosshair; its own piece comes down.
+    {
+      let theirs = null;
+      if (wallId !== null) {
+        const rMark = relayMark();
+        await showcase({ take_down: String(wallId) });
+        await sleep(2000);
+        const p = await probe();
+        theirs = { piece_id: wallId, notices: p && Array.isArray(p.notices) ? p.notices : null, relay_lines: relayLinesSince(rMark), still_drawn: reported(p) ? piecesOf(p).some((x) => Number(x.piece_id) === wallId) : null };
+        step("their_wall", theirs.still_drawn === true, `the game's take-down of ${A.name}'s wall ${wallId}: notices ${JSON.stringify(theirs.notices)}; ${theirs.relay_lines ? theirs.relay_lines.length : "?"} relay piece line(s)`);
+      }
+      let ours = null;
+      if (ourThereId !== null) {
+        const before = await probe();
+        const mark = walkerOut.length;
+        const epoch = Date.now();
+        await showcase({ take_down: String(ourThereId) });
+        const saw = await waitFor(A, SP.SAW_UNBUILT_RE, mark, 5000, (m) => Number(m[1]) === ourThereId);
+        const gonePr = await until((p) => reported(p) && !piecesOf(p).some((x) => Number(x.piece_id) === ourThereId), 6000);
+        await sleep(500);
+        const after = await probe();
+        await sleep(3000);
+        const later = await probe();
+        const bp = HOUSE_OURS_THERE.blueprint;
+        ours = {
+          piece_id: ourThereId,
+          blueprint: bp,
+          epoch_ms: epoch,
+          seen_by_walker: saw ? { epoch_ms: saw.hit.epoch, piece_id: ourThereId, line: saw.hit.line } : null,
+          gone: reported(gonePr) ? !piecesOf(gonePr).some((x) => Number(x.piece_id) === ourThereId) : null,
+          pack_before: countsOf(before, bp, "pack"),
+          pack_after: countsOf(after, bp, "pack"),
+          pack_later: countsOf(later, bp, "pack"),
+          store_before: countsOf(before, bp, "storage"),
+          store_after: countsOf(after, bp, "storage"),
+          store_later: countsOf(later, bp, "storage"),
+        };
+        step("our_take_p1", !!saw, `the game took down its piece ${ourThereId} on ${aFrame}: ${saw ? `${A.name} saw it` : `${A.name} never saw it come down`}`);
+      }
+      manifest.take_down_p1 = theirs || ours ? { theirs, ours } : null;
+      save();
+    }
+
+    // ── 13. TAKE BACK (amendment A1): through the card; then Ada tries the permit taken back.
+    {
+      const clicks = await openCard();
+      const before = Hof(await probe());
+      const standingBefore = before ? HJ.standingTo(before, A.key).map((g) => g.serial) : [];
+      const row = await clickText(HOUSE_UI.take_back);
+      clicks.push(row);
+      const epoch = Date.now();
+      clicks.push(await clickConfirm(HOUSE_UI.confirm_take_back, row));
+      const pr = await until((p) => {
+        const H = Hof(p);
+        return !!H && HJ.standingTo(H, A.key).length === 0;
+      }, HOUSE_WAIT_MS);
+      await closePage();
+      // The serial that stood before the click and reads taken back after it: what the game took back.
+      const Hafter = Hof(pr);
+      const back = Hafter ? Hafter.given.filter((g) => standingBefore.includes(g.serial) && g.state === HJ.WORDS.given_taken_back).map((g) => g.serial) : [];
+      const serial = back.length === 1 ? back[0] : null;
+      const held = [givenPermit, manifest.renew && manifest.renew.received ? manifest.renew.received.permit : null].filter(Boolean);
+      const permit = held.find((p) => p.serial === serial) || null;
+      // The game sent cert_revoke on its own socket at the confirm; a moment for it to land first.
+      await sleep(2000);
+      const rMark = relayMark();
+      const b = permit
+        ? await buildBy(A, { ...HOUSE_HERS_THERE, frame: gFrame, permit })
+        : { cmd: { ...HOUSE_HERS_THERE, frame: gFrame }, permit_serial: null, piece_id: null, refusal: null, error: "no permit of hers reads taken back on the game's card" };
+      await sleep(800);
+      manifest.take_back = { epoch_ms: epoch, clicks, standing_before: standingBefore, serial, household: hhOf(pr), build: { ...b, relay_lines: relayLinesSince(rMark) } };
+      step("take_back", !!(b.refusal && b.refusal.why === "permit_withdrawn"), `clicks ${clicks.map((c) => `${c.label}:${c.ok ? (c.how ? `ok (${c.how})` : "ok") : c.why}`).join(", ")}; ${A.name}'s next build on ${gFrame} with it: ${b.refusal ? b.refusal.line : Number.isInteger(b.piece_id) ? `KEPT as piece ${b.piece_id}` : b.error}`);
+      save();
+    }
+
+    // ── The control picture: Ada takes her wall down, and the same pose is photographed without it.
+    if (manifest.picture && wallId !== null) {
+      const u = await unbuildBy(A, wallId);
+      const gone = await until((p) => reported(p) && !piecesOf(p).some((x) => Number(x.piece_id) === wallId), 6000);
+      manifest.picture.wall_gone = reported(gone) ? !piecesOf(gone).some((x) => Number(x.piece_id) === wallId) : null;
+      manifest.picture.wall_take_down = { took: u.took, refusal: u.refusal, error: u.error || null };
+      if (pose) await turnTo(pose);
+      await sleep(1500);
+      manifest.picture.page_without = await closePage();
+      const shot = await screenshot("inside_p1_without");
+      manifest.picture.without_epoch_ms = Date.now();
+      if (shot.ok) {
+        fs.copyFileSync(shot.src, path.join(out, "inside_p1_without.png"));
+        manifest.picture.without = "inside_p1_without.png";
+      } else manifest.picture.shot_errors.push(shot.error);
+      step("control", shot.ok && manifest.picture.wall_gone === true, `${A.name} took her wall down (${u.took ? "kept" : u.refusal ? u.refusal.line : u.error}); the game ${manifest.picture.wall_gone ? "no longer has it" : "STILL HAS IT"}; inside_p1_without.png ${shot.ok ? "taken" : `failed: ${shot.error}`}`);
+      save();
+    }
+
+    // ── 14. Every correction the game took this run (none may be).
+    const pEnd = await probe();
+    manifest.corrections_game = pEnd && pEnd.moves ? Number(pEnd.moves.count) : null;
+  } catch (e) {
+    manifest.steps.push({ id: "abort", ok: false, detail: String(e.message || e) });
+    log(`ABORT ${e.message || e}`);
+  }
+  clearTimeout(watchdog);
+  manifest.panics = panicCount();
+  // BUILT-IN DATA (BUG-133), as every rig: the game's run.log and the relay's log.
+  manifest.builtin_data = [
+    ...GL.builtinDataLines(fs.existsSync(LOG) ? fs.readFileSync(LOG, "utf8") : ""),
+    ...(relay ? GL.builtinDataLines(relay.logText()).map((l) => `relay: ${l}`) : []),
+  ];
+  await stopBuilders();
+  fs.writeFileSync(path.join(out, "walker.log"), walkerOut.map((o) => `${o.at_s.toFixed(2)}s [${o.who}] ${o.line}`).join("\n") + "\n");
+  // Every correction Ada took (none may be: she stands still).
+  manifest.walker_corrections = walkerOut.filter((o) => CORRECTED_RE.test(o.line)).map((o) => `[${o.who}] ${o.line}`);
+  // Ada's key (first 16 hex digits), so the relay's corrections to the game can be told from hers.
+  manifest.walker_keys = [...new Set(walkerOut.map((o) => (o.line.match(/\(key ([0-9a-f]{16})\.\.\.\)/) || [])[1]).filter(Boolean))];
+  try {
+    fs.copyFileSync(LOG, path.join(out, "run.log"));
+  } catch {}
+  if (relay) {
+    try {
+      fs.copyFileSync(relay.logPath, path.join(out, "relay.log"));
+    } catch {}
+  }
+  save();
+  killAll();
+  await sleep(2000);
+  const pass = printHouseholdVerdict("RESULT: ", manifest, out);
+  if (!pass) {
+    console.log("What to do:");
+    console.log("  1. read the first FAIL line above and the step log above it: each says what it saw");
+    console.log(`  2. walker.log holds every line Ada printed (what the relay and the game sent her), relay.log its "Game:" lines`);
+    console.log("  3. manifest.json keeps the game's household block at each step as it reported it (household-judge.js PROBE reads it)");
+    console.log(`  4. re-judge without booting: node scripts/verify-copresence.js --dry-verdict ${rel(path.join(out, "manifest.json"))}`);
+    console.log("");
+  }
+  return pass;
+}
+
+async function mainHousehold() {
+  const cleanups = [];
+  process.on("exit", () => {
+    for (const k of cleanups) k();
+  });
+  for (const [sig, code] of [["SIGINT", 130], ["SIGTERM", 143], ["SIGBREAK", 149], ["SIGHUP", 129]]) {
+    process.on(sig, () => process.exit(code));
+  }
+  log("── --household, household permits ──");
+  const ok = await runHouseholdOnce(stamp, cleanups);
+  process.exit(ok ? 0 : 2);
+}
+
+(PLOTS ? mainPlots() : BUILD ? mainBuild() : HOUSEHOLD ? mainHousehold() : main()).catch((e) => {
   console.error(e);
   process.exit(2);
 });
