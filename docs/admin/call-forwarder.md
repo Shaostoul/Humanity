@@ -91,7 +91,8 @@ go straight between them). What that means for an operator:
   credentials are refused, and the person sending it is told so in plain words ("its owner turned
   off voice, and the same call relay carries both").
 - **Who can get credentials for a file.** Someone holding a file pass for that one transfer (a
-  signed permission the receiver's app makes when they press Accept, good for at most 7 days), for
+  signed permission the SENDER's app puts in its offer, letting the receiver reach the sender for
+  that one file, good for at most 7 days), for
   a person this server knows (a registered name, or signed in now). The credentials work for that
   transfer only, and the forwarder passes packets only between the two people's allocations of it.
   A pass is not the other person's consent to be sent anything: what bounds use is the next two
