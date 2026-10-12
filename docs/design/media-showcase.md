@@ -1803,6 +1803,117 @@ shared fixture), piece checking and resume against a stand-in peer, a decline an
 pause and cancel, the forwarder's per-person day amount, and one desktop-to-web transfer between two
 real apps through a local forwarder before release.
 
+## Device-to-device big files: the shapes, exact (2026-10-11, refining the section above)
+
+Written before the build so the relay, the desktop app and the website build against the same
+bytes. Three things the section above left open are settled here: who may set up the connection
+when the two people are not friends, how the server counts what goes through it, and how the list
+of piece hashes travels (in the offer note it would be about half a megabyte for a 2 GB file, far
+past what a DM carries).
+
+**1. The file pass (the certificate pattern, as friendship passes and plot permits).** The sender's
+app mints, for this one transfer, a Dilithium3 signature over
+
+```text
+hum/file-pass/v1\n{server}\n{issuer}\n{grantee}\n{id}\n{expiry}
+```
+
+`server` is the relay's own `did:hum:` (the one the friendship passes use, `Storage::server_did`,
+also in `identify_challenge` as `server_did`); `issuer` the sender's key, `grantee` the receiver's
+key (Dilithium hex, as everywhere); `id` the transfer's id (32 lowercase hex characters, 16 random
+bytes); `expiry` Unix seconds, at most 7 days ahead. Carried as
+`{"v":1,"id":"<id>","expiry":<n>,"sig":"<base64>"}`. The relay checks it STATELESSLY, rebuilding
+the words from its own DID and the two keys it knows from the frame (never the pass's claims), and
+accepts up to one day of clock slack past 7 days, as plot permits do. A pass says "the issuer wants
+the grantee to be able to reach them for this file"; it is good for nothing else.
+
+**2. The relay (`src/relay/handlers/reach.rs`, `src/relay/call_credentials.rs`,
+`src/relay/call_forwarder.rs`, roles).**
+- `webrtc_signal` gains an optional `file_pass` (the object above). A `dc_offer` from S to T passes
+  when it did before, or when `file_pass` verifies with issuer T and grantee S
+  (`dc_offer_may_pass`). The pass is not forwarded to T. So the receiver (grantee) dials the
+  sender (issuer), the way round in which the relay can check it.
+- `call_credentials` gains a third request,
+  `{"type":"call_credentials","file":"<id>","peer":"<key>","file_pass":{...}}`, answered to the
+  asker when the pass verifies with (issuer, grantee) = (peer, asker) or (asker, peer) and its `id`
+  is the `file` asked for; otherwise refused as the others are. The scope is a keyed hash of
+  `file\n{id}\n{the two keys, sorted}`, so the forwarder passes packets only between the two
+  people's allocations for this one transfer.
+- **The day amount.** A new role limit `max_forwarded_mb_per_day` beside the upload limits
+  (`storage/roles.rs`, with the `LIMIT_NOT_SENT` rule for older apps, editable in Server Settings
+  > Roles on both apps), 0 meaning no limit: Admin 0, every other built-in role 2048 by default.
+  A file credential carries, inside the part its HMAC covers, a keyed tag of the person it was
+  issued to and their limit in MB; the forwarder counts the bytes each tag's allocations send
+  through it per UTC day and stops relaying for that tag past its limit until the next day
+  (a call's credentials carry no tag and are not counted). Nothing about the count is written to
+  disk; a restart starts the day's count again, which errs toward the person.
+- A transfer cannot start while the forwarder is not running; `call_credentials` says so with the
+  existing `NOT_SET_UP` words, and the apps show them.
+
+**3. The offer and its answer (sealed DM control notes, never shown as messages).**
+
+```text
+[[hum:offer:v1]]{"id":"<32 hex>","name":"clip.mp4","size":2468000000,"type":"video/mp4",
+                 "blake3":"<64 hex, the whole file>","piece":262144,"pieces":9415,
+                 "hashes":"<64 hex, BLAKE3 of the piece hashes, each 32 raw bytes, in order>",
+                 "pass":{"v":1,"id":"<same id>","expiry":<n>,"sig":"<base64>"}}
+[[hum:offer-answer:v1]]{"id":"<32 hex>","accept":true|false}
+[[hum:offer-cancel:v1]]{"id":"<32 hex>"}
+```
+
+`pieces` is `ceil(size / piece)` (a zero-byte file is not offered). The file is checked after the
+receiver says yes: the receiver's app applies "Files in messages" first (a sender it does not
+accept files from never gets as far as the question), then asks "Ann wants to send you clip.mp4
+(2.3 GB). Accept?"; Decline sends `accept: false`; an offer nobody answers expires with the DM
+mailbox, and its pass by its own expiry. Either side may cancel (`offer-cancel`). A shared fixture,
+`scripts/tests/fixtures/file-offer-v1.json`, holds one offer's exact text and pass preimage, and
+both apps' tests read it.
+
+**4. The connection.** The receiver, on Accept, dials the sender: a WebRTC connection with one data
+channel labelled `file:<id>` (ordered, reliable), its `dc_offer` carrying the pass. **Both apps use
+the forwarder only (relay-only ICE)** unless the two are friends (each holds the other's
+friendship pass) and the person has turned direct connections on, so neither learns the other's
+network address by default; each app guards its own address by its own ICE policy.
+
+**5. On the channel.** Text messages are JSON; data messages are binary, at most 64 KiB each
+(browsers cap a data channel message near 256 KiB).
+- The receiver sends `{"t":"hashes"}`; the sender answers with the piece hashes as binary
+  messages (32 bytes per piece, in order, split at 64 KiB). The receiver checks that BLAKE3 of all
+  of them is the offer's `hashes`; otherwise the transfer ends ("The file Ann offered does not
+  match its description").
+- The receiver asks `{"t":"get","from":<piece>,"count":<n>}` (n at most 16, a window of 4 MB);
+  the sender sends each piece as 64 KiB binary messages, each starting with an 8-byte header
+  (piece number and the offset within the piece, both u32 big-endian) and holding back while the
+  channel's buffer is over 1 MB.
+- The receiver checks each whole piece against its hash and writes it (the desktop app to a
+  `.part` file beside the chosen folder, renamed when done; the website into IndexedDB, then a
+  Blob saved through the browser, or the File System Access API where the browser has it, so
+  nothing near the file's size is held in memory). A piece that fails is asked for again; three
+  failures of one piece end the transfer with words.
+- After a drop either side may resume: the receiver asks again from the first piece it lacks, on a
+  new connection with the same pass.
+- When every piece is in and the whole file's BLAKE3 matches the offer's, the receiver sends
+  `{"t":"done"}` and both show "Sent" / "Saved".
+- `{"t":"pause"}`, `{"t":"resume"}` and `{"t":"cancel"}` from either side; cancel also sends the
+  `offer-cancel` note so the other side's row says so even if the connection is gone.
+
+**6. On screen (both apps).** The sender's attach step offers this for a file over their private
+file limit (`max_private_file_mb` for their role) with a line saying why ("Files over 6 MB go
+straight to Ann's device instead of through the server."). Both sides get a row in the
+conversation: the name, the size, a progress bar, Pause, Resume and Cancel, and words for each
+state: "Waiting for Ann to accept", "Waiting for Ann to come online", "Sending through the
+server's call relay", "Sent", "Saved", "Ann declined", "Cancelled", "This server is not set up
+for that yet" (the forwarder's words). A transfer survives the app being closed only as an offer:
+the sender must be online for it to go, and the row says so.
+
+**Proof (each test seen failing once):** the pass preimage pinned in the pq_crypto tests and read
+by the web's tests; the offer note's text from the shared fixture in both apps; the relay letting a
+`dc_offer` through with a valid pass and refusing a forged, wrong-way, other-file or expired one;
+file credentials only with a matching pass; the forwarder's day count stopping a tag past its
+limit and not a call; on each app, piece checking and resume against a stand-in peer, a decline,
+an expiry, pause and cancel; and before release one desktop-to-web transfer between two real apps
+through a throwaway relay with its forwarder on loopback.
+
 ## As built (relay, files in messages)
 
 The relay half of part 3, built 2026-10-11. What the two apps build against:
