@@ -1914,6 +1914,43 @@ limit and not a call; on each app, piece checking and resume against a stand-in 
 an expiry, pause and cancel; and before release one desktop-to-web transfer between two real apps
 through a throwaway relay with its forwarder on loopback.
 
+## Device-to-device big files: rules settled by the first review (2026-10-12)
+
+The first build ran website to website through a real browser and our own forwarder (a 20 MB file,
+80 pieces, "Sent" and "Saved"), and the desktop to desktop on loopback. A review of the desktop
+against the website found the two disagreeing at the seams, and the browser run found one more.
+These rules are now part of the shapes above; both apps follow them exactly.
+
+1. **A `get` adds, it never replaces.** `{"t":"get","from":n,"count":k}` adds pieces n to n+k-1 to
+   what the sender owes. The sender sends what it owes in ascending order, each piece once, from
+   offset 0, and forgets a piece once its last message has gone. A piece asked for while it is
+   being sent is sent again, whole, after the current one (the receiver may have found it bad). A
+   receiver asks for a piece once, and again only after it failed its hash (`count` 1) or after a
+   stall with nothing arriving (30 seconds); it keeps its window full by asking for pieces it has
+   not asked for yet, never repeating the rest of a window. A receiver ignores messages for a piece it did not ask for or already
+   holds, and holds partial buffers only for pieces it asked for (at most its window, 16).
+2. **One connection, several transfers.** Each side keeps one engine per data channel
+   (`file:<id>`), on both the dialling and the answering side, and ends a channel's engine without
+   touching the others; the connection closes when its last channel ends.
+3. **Candidates that arrive early are kept.** A side waiting for its forwarder credentials keeps
+   every `dc_ice` (and the offer's own candidates) for that person and applies them once its
+   allocation exists; none is dropped or handed to the call code.
+4. **Answers reach a sender who takes messages only from friends.** The receiver's answer and
+   cancel notes go with the offer's file pass on their `dm_put` (`file_pass`, the same object),
+   and the relay lets a `dm_put` through the "who can reach me" gate when the pass verifies with
+   the recipient as its issuer and the sender as its grantee (it still counts against the
+   stranger's daily budget). Before this, a receiver who was not the sender's friend could accept,
+   but the sender never heard it; only the dial then started the transfer.
+5. **File credentials need the other person.** The relay gives file credentials only when the
+   peer is a key registered on this server, and holds each person to at most 8 live file
+   allocations at once (a person tag's allocations, past which Allocate is refused with 486). A
+   request it refuses still counts toward the 20-a-minute limit, which is checked before any
+   signature is checked. The forwarded day count keeps at most 10,000 people at once (the
+   smallest count goes first when it is full).
+6. **What the day amount covers.** Bytes sent with file credentials only. Voice rooms and calls
+   are not counted (they are held to their rate and their allocation's 12-hour life), so the
+   amount limits file transfers, not everything a modified app could push through.
+
 ## As built (relay, files in messages)
 
 The relay half of part 3, built 2026-10-11. What the two apps build against:
