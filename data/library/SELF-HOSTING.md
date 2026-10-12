@@ -248,12 +248,21 @@ ship in the repo under `web/home/`:
   two front doors, one platform.
 
 ```bash
-# pick a flavor
-sudo cp /var/www/humanity/home/technical.html /var/www/humanity-site/index.html
-# or write your own; /shared/theme.css and /shared/shell.js keep working,
-# so a custom page inherits the site nav and theme. Extra assets go in
-# /var/www/humanity-site/site/ and are served under /site/.
+# pick a flavor, LINKED so it follows every update (the release refreshes
+# /var/www/humanity/home/, and the link always shows the current page):
+sudo ln -sfn /var/www/humanity/home/technical.html /var/www/humanity-site/index.html
+# or write your own page as a plain file there; /shared/theme.css and
+# /shared/shell.js keep working, so a custom page inherits the site nav and
+# theme. Extra assets go in /var/www/humanity-site/site/ and are served under /site/.
 ```
+
+**Link, do not copy, a stock flavor.** A copy is frozen at the day it was made:
+deploys never touch `/var/www/humanity-site/`, which is what keeps a custom page
+safe, so a copied flavor never gets the release's fixes. public.guide ran an
+August 15 copy of `technical.html` until 2026-10-12, still saying "seed phrase"
+and "no accounts" two months after the page itself was corrected. nginx follows
+the link by default. There is no in-app control for the front page yet: it is
+logged in `docs/design/in-app-ops.md`.
 
 Nodes provisioned before this seam existed need the updated nginx config once:
 copy `scripts/nginx/humanity.conf` over `/etc/nginx/sites-available/humanity`,
@@ -815,11 +824,19 @@ Browser ↔ nginx (TLS) ↔ Relay (port 3210)
 ## Privacy
 
 By default, the relay:
-- Does NOT log IP addresses
+- Stores no IP address in its database, and its log names an address only when it is limiting
+  it: too many identify attempts, or too many new identities, from one address
+  (`src/relay/relay.rs`, `src/relay/handlers/sign_ups.rs`). nginx in front of it keeps access logs
+  with addresses; the provisioned rotation keeps 2 days of them, for fail2ban
+  (`/etc/logrotate.d/nginx`, `rotate 2`; checked on united-humanity.us 2026-10-12).
 - Does NOT track users
 - Does NOT require email or phone
-- Stores messages in SQLite (encrypted DMs stored as ciphertext)
-- Stores uploaded files in data/uploads/ (4-image FIFO per user)
+- Stores messages in SQLite; direct messages only as sealed ciphertext in a mailbox with no sender
+  column, removed after `dm_mailbox_ttl_days` (30 by default)
+- Stores uploaded files in data/uploads/, within each role's limits (Server settings, Roles: the
+  largest file, a day's total, an hour's count, and how much private files one person may keep).
+  Files from direct messages and groups arrive already encrypted by the sender's app, so the server
+  cannot open them, and leave after the DM mailbox lifetime.
 
 You control your server. You control the data. Delete the database file and everything's gone.
 

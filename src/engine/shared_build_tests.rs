@@ -1267,13 +1267,15 @@ const IN_P1: Vec3 = Vec3::new(40.0, 1.7, 40.0);
 /// p3 are asked about, one check at a time, a quarter second apart (the relay turns away a second
 /// within 200 ms), each carrying its whole permit. The relay says Ada's works and Cy's is not from
 /// the plot's holder: p1 is usable, and the ship takes it as open, its corridor doors now opening
-/// for this player (a ship rebuilt since, with nothing open, takes it again). Five minutes after
+/// for this player (a ship rebuilt since, with nothing open, takes it again). Thirty seconds after
 /// their answers both are asked again (the plot may come back to Cy); while p1's check is out its
 /// door stays open. A check unanswered for 10 s is asked again; one the relay could not judge
-/// (`again`) is asked again 5 s later.
+/// (`again`) is asked again 5 s later, and a permit that worked keeps working meanwhile.
 ///
 /// Seen red 2026-10-12 with `on_status` ignoring the answer (returning before the verdict is set):
-/// "the relay's answer opens p1" failed, left `{}`, right `{"p1"}`.
+/// "the relay's answer opens p1" failed, left `{}`, right `{"p1"}`. And (the 2026-10-12 review)
+/// with `again` turning a working permit to Later, as it first did: "an again keeps a working
+/// permit working" failed, left `Some(Later)`, right `Some(Works)`.
 #[test]
 fn each_held_permit_is_checked_after_a_welcome_and_the_answer_opens_its_plot() {
     let mut g = Game::at("p2");
@@ -1328,16 +1330,17 @@ fn each_held_permit_is_checked_after_a_welcome_and_the_answer_opens_its_plot() {
     let mut rebuilt = self::ship("p2");
     assert!(set_open(&mut rebuilt, open.clone()), "a ship rebuilt since opens it again");
 
-    g.frame(299.0);
-    assert!(g.checks().is_empty(), "nothing before five minutes");
+    g.frame(household_glue::RECHECK_S as f32 - 1.0);
+    assert!(g.checks().is_empty(), "nothing before RECHECK_S");
     g.frame(2.0);
     g.frame(0.3);
     let rechecked = g.checks();
-    assert_eq!(rechecked.iter().map(|(_, p)| p.as_str()).collect::<Vec<_>>(), ["p1", "p3"], "both again after five minutes");
+    assert_eq!(rechecked.iter().map(|(_, p)| p.as_str()).collect::<Vec<_>>(), ["p1", "p3"], "both again after RECHECK_S");
     assert!(g.open_at(Some(COMMONS), now).plots.contains("p1"), "p1 stays open while it is asked about");
     g.status(rechecked[1].0, "p3", false, Some(Why::PermitNotFromHolder), false);
     assert!(g.status(rechecked[0].0, "p1", false, None, true), "the relay could not judge it");
-    assert_eq!(g.verdict("ada", "p1"), Some(Verdict::Later));
+    assert_eq!(g.verdict("ada", "p1"), Some(Verdict::Works), "an again keeps a working permit working");
+    assert!(g.open_at(Some(COMMONS), now).plots.contains("p1"), "and its door open");
     g.frame(4.0);
     assert!(g.checks().is_empty(), "asked again only after 5 s");
     g.frame(1.5);

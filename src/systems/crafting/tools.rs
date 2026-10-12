@@ -154,7 +154,8 @@ mod tests {
             parse_csv::<Item>(&data("items.csv")).unwrap().into_iter().map(|i| (i.id, i.durability)).collect();
         let recipes: Vec<Row> = parse_csv(&data("recipes.csv")).unwrap();
         let vendor = String::from_utf8(data("trade_goods.ron")).unwrap();
-        let kit = String::from_utf8(data("world/player.ron")).unwrap();
+        // Every start's kit (ship homes increment 6 moved the starting kit into the starts).
+        let kit = String::from_utf8(data("homes/starts.ron")).unwrap();
 
         let per_recipe: Vec<(Vec<String>, Vec<String>)> = recipes
             .iter()

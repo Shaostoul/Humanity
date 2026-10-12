@@ -754,6 +754,8 @@ pub struct GuiVitals {
     pub shelter_note: String,
     /// Active status effects: (display name, seconds remaining).
     pub effects: Vec<(String, f32)>,
+    /// Each wound and illness, with what helps (2026-10-12, `systems::wounds::care_lines`).
+    pub care: Vec<crate::systems::wounds::CareLine>,
 }
 
 /// An asteroid (with remaining ore) for GUI display.

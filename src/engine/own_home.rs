@@ -570,7 +570,7 @@ mod tests {
         let mut normal = session(&dir, PlayMode::Normal);
         let id = place_and_build(&mut normal, None);
         keep_own_home(&mut normal).unwrap();
-        let mut save = crate::persistence::WorldSave::new_offline("t", "fibonacci");
+        let mut save = crate::persistence::WorldSave::new_offline("t", "homestead");
         save.home = normal.own_home.clone();
         let mut dev = GuiState::default();
         dev.settings.play_mode = PlayMode::Dev;

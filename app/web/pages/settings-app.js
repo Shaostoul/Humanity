@@ -541,33 +541,40 @@ let micTestStream = null;
 let micTestAnalyser = null;
 let micTestRaf = null;
 
+// Lists the devices WITHOUT asking for the camera or microphone (2026-10-12: opening Settings
+// used to ask for both at once, just to put names in these lists). Until the person allows a
+// device, the browser gives no names, so each is numbered and a hint says how names appear;
+// Test Mic and Preview ask for their own device and refresh the lists once allowed.
 async function populateDeviceLists() {
-  try {
-    await navigator.mediaDevices.getUserMedia({ audio: true, video: true }).then(s => s.getTracks().forEach(t => t.stop()));
-  } catch {}
+  if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
   try {
     const devices = await navigator.mediaDevices.enumerateDevices();
+    const hint = document.getElementById('av-names-hint');
+    if (hint) hint.style.display = devices.some(d => !d.label) ? 'block' : 'none';
+    // Numbers for unnamed devices, 1, 2, ... in the browser's order.
+    const counter = () => { let n = 0; return () => ++n; };
+    const micN = counter(), spkN = counter(), camN = counter();
     const micSel = document.getElementById('pref-mic-device');
     const spkSel = document.getElementById('pref-speaker-device');
     const camSel = document.getElementById('pref-camera-device');
     if (micSel) {
       const mics = devices.filter(d => d.kind === 'audioinput');
       micSel.innerHTML = '<option value="">System Default</option>' + mics.map(d =>
-        `<option value="${d.deviceId}">${d.label || 'Microphone ' + d.deviceId.slice(0,6)}</option>`
+        `<option value="${d.deviceId}">${d.label || 'Microphone ' + micN(d)}</option>`
       ).join('');
       micSel.value = prefs['mic-device'] || '';
     }
     if (spkSel) {
       const spks = devices.filter(d => d.kind === 'audiooutput');
       spkSel.innerHTML = '<option value="">System Default</option>' + spks.map(d =>
-        `<option value="${d.deviceId}">${d.label || 'Speaker ' + d.deviceId.slice(0,6)}</option>`
+        `<option value="${d.deviceId}">${d.label || 'Speaker ' + spkN(d)}</option>`
       ).join('');
       spkSel.value = prefs['speaker-device'] || '';
     }
     if (camSel) {
       const cams = devices.filter(d => d.kind === 'videoinput');
       camSel.innerHTML = '<option value="">System Default</option>' + cams.map(d =>
-        `<option value="${d.deviceId}">${d.label || 'Camera ' + d.deviceId.slice(0,6)}</option>`
+        `<option value="${d.deviceId}">${d.label || 'Camera ' + camN(d)}</option>`
       ).join('');
       camSel.value = prefs['camera-device'] || '';
     }
@@ -589,6 +596,7 @@ async function testMic() {
     micTestStream = await navigator.mediaDevices.getUserMedia({
       audio: deviceId ? { deviceId: { exact: deviceId } } : true
     });
+    populateDeviceLists(); // allowed now, so the browser gives the names
     const ctx = new AudioContext();
     const src = ctx.createMediaStreamSource(micTestStream);
     micTestAnalyser = ctx.createAnalyser();
@@ -626,6 +634,7 @@ async function toggleCameraPreview() {
     camPreviewStream = await navigator.mediaDevices.getUserMedia({
       video: { deviceId: deviceId ? { exact: deviceId } : undefined, height: { ideal: quality } }
     });
+    populateDeviceLists(); // allowed now, so the browser gives the names
     video.srcObject = camPreviewStream;
     video.style.display = 'block';
     if (btn) btn.textContent = 'Stop';
@@ -737,7 +746,7 @@ savePref = function() { _origSavePref(); updateRangeLabels(); };
 // Version tag
 try {
   const vEl = document.getElementById('version-tag');
-  if (vEl) vEl.textContent = 'HumanityOS, v0.1488.0 · ' + new Date().getFullYear();
+  if (vEl) vEl.textContent = 'HumanityOS, v0.1489.0 · ' + new Date().getFullYear();
 } catch(e) {}
 
 // Inject hosIcon SVGs into action bar buttons
@@ -1025,6 +1034,10 @@ loadVoicePrefs();
 loadKeybinds();
 renderKeybinds();
 populateDeviceLists();
+// A device plugged in or removed, or a permission given in another tab, refreshes the lists.
+if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) {
+  navigator.mediaDevices.addEventListener('devicechange', populateDeviceLists);
+}
 checkKeyProtection();
 checkBackupStatus();
 calculateStorage();

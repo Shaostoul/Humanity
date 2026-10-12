@@ -258,6 +258,18 @@ fn quoted_in_list_after(text: &str, key: &str) -> Vec<String> {
         .collect()
 }
 
+/// `quoted_in_list_after` for EVERY `key` in `text`, in order: the quoted strings of each list
+/// that follows one (data/homes/starts.ron has one `kit:` list per start).
+fn quoted_in_every_list_after(text: &str, key: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut rest = text;
+    while let Some(k) = rest.find(key) {
+        out.extend(quoted_in_list_after(&rest[k..], key));
+        rest = &rest[k + key.len()..];
+    }
+    out
+}
+
 // -------------------------------------------------------------------------
 // The shipped data, loaded once per test
 // -------------------------------------------------------------------------
@@ -394,9 +406,11 @@ fn load() -> Data {
         add(ore, "mined from a test asteroid (src/lib.rs)".to_string());
     }
 
-    let player = strip_line_comments(&read("data/world/player.ron"));
-    for s in quoted_in_list_after(&player, "starting_items") {
-        add(&s, "player starting item (world/player.ron)".to_string());
+    // What a new character carries: every start's `kit` (ship homes increment 6 moved the
+    // starting kit there from data/world/player.ron's `starting_items`).
+    let starts = strip_line_comments(&read("data/homes/starts.ron"));
+    for s in quoted_in_every_list_after(&starts, "kit:") {
+        add(&s, "a start's kit (homes/starts.ron)".to_string());
     }
 
     // Non-vacuity: a scan that silently matched nothing would pass everything.
@@ -890,4 +904,8 @@ fn strip_comments_keeps_strings() {
         vec!["a", "b"]
     );
     assert!(quoted_in_list_after("starting_items: [],", "starting_items").is_empty());
+    assert_eq!(
+        quoted_in_every_list_after("(kit: [(\"a\", 2)]), (kit: []), (kit: [(\"b\", 1), (\"c\", 3)])", "kit:"),
+        vec!["a", "b", "c"]
+    );
 }

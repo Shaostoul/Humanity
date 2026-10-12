@@ -188,14 +188,14 @@ fn load_homes(state: &mut GuiState) {
                 Some(existing) => {
                     if save.timestamp > existing.timestamp {
                         existing.character = save.character_name.clone();
-                        existing.design = save.design.clone();
+                        existing.design = save.start.clone();
                         existing.timestamp = save.timestamp;
                     }
                 }
                 None => homes.push(crate::gui::LauncherHome {
                     world: save.name.clone(),
                     character: save.character_name.clone(),
-                    design: save.design.clone(),
+                    design: save.start.clone(),
                     timestamp: save.timestamp,
                 }),
             }

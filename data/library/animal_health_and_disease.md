@@ -552,7 +552,7 @@ home's animals never need a vet.
   your Hydration, 1.5 litres a day on top of what you lose anyway, and
   then it passes on its own: after two days of game time in the
   Realistic Illness mode, and after one day, taking half the water, in
-  Forgiving, the default (Settings > Gameplay > Illness). It does no harm
+  Forgiving, the default (Settings > Gameplay > Illness and injury). It does no harm
   of its own: only if your Hydration runs out does your health start to
   drain, as it would for anyone without water. So drinking is the cure,
   and the oral rehydration solution you can mix from the sachets you

@@ -1152,11 +1152,14 @@ fn send_next(cx: &mut Ctx) {
     if now < cx.sb.next_send_at {
         return;
     }
-    let message = if let Some(i) = cx.sb.pending.iter().position(|p| p.resend_at.is_some_and(|t| t <= now)) {
+    // A resend goes only to the server it was first sent to (2026-10-12 review: one left over from
+    // a server just left could go, permit and all, to the next one).
+    let server = cx.sb.server.clone();
+    let message = if let Some(i) = cx.sb.pending.iter().position(|p| p.server == server && p.resend_at.is_some_and(|t| t <= now)) {
         let p = &mut cx.sb.pending[i];
         p.resend_at = None;
         Some(p.message.clone())
-    } else if let Some(i) = cx.sb.pending_unbuilds.iter().position(|u| u.resend_at.is_some_and(|t| t <= now)) {
+    } else if let Some(i) = cx.sb.pending_unbuilds.iter().position(|u| u.server == server && u.resend_at.is_some_and(|t| t <= now)) {
         let u = &mut cx.sb.pending_unbuilds[i];
         u.resend_at = None;
         Some(u.message.clone())

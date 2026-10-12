@@ -381,6 +381,15 @@ fn renew_gives_the_same_length_counted_from_today() {
     let (_, eve) = identity(202);
     assert!(renew(&mut gs, &eve).is_err(), "nothing given, nothing to renew");
     assert!(frames(&sent).is_empty());
+    // The 2026-10-12 review: Dee also has an older permit for p2, mine again now (my plot went p2,
+    // p3, then back to p2). Renew takes this plot's, not the latest row, which is for p3 and used
+    // to refuse with nothing else offered. Seen red with the plot filter taken out of `renew`:
+    // "the p2 permit renews" failed with the p3 refusal.
+    let store = gs.dm_store.as_mut().unwrap();
+    store.record_given(given_row(&dee, "p2", "a4".repeat(16).as_str(), 5 * DAY, 30, GivenState::Taken), now());
+    renew(&mut gs, &dee).expect("the p2 permit renews");
+    let p = crate::net::household::parse_note(&open(&puts_to(&frames(&sent), &dee)[0], &dee_seed).text).unwrap();
+    assert_eq!(p.plot, "p2", "for this plot");
     tidy(&gs);
 }
 

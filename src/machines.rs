@@ -1115,17 +1115,19 @@ pub fn placement_item_id(machine_type: &str) -> String {
     format!("{machine_type}_0")
 }
 
-/// Resolve which home design file to load/save, per the operator-configurable
-/// `AppConfig::home_variant` setting (Settings page, "Household size"): `"home_solo"` uses
-/// the one-person self-sufficient design (`docs/design/homestead-solo-design.md`), anything
-/// else -- including an empty/unrecognized/future value -- falls back to the default
-/// family-scale `home.ron` rather than panicking on a bad config value. Reads the config
-/// file fresh at each call (cheap, startup/world-load/save frequency only, never per-frame).
+/// Resolve which household machine file to load and save: the live save's start and household
+/// (`save_load::active_home`, ship homes increment 6), looked up in data/homes/starts.ron
+/// (`Starts::household`): a homestead's family is home.ron, its solo home_solo.ron (the
+/// one-person self-sufficient design, `docs/design/homestead-solo-design.md`), a cabin
+/// cabin.ron. A household the start lacks is its first, a start the file lacks the default's.
+/// Before the starts it was one setting per install (Settings, "Home Design"); now each save
+/// carries its own. Reads the starts file at each call (startup, world-load and save frequency
+/// only, never per frame).
 #[cfg(feature = "native")]
 pub fn home_ron_path(data_dir: &Path) -> std::path::PathBuf {
-    let variant = crate::config::AppConfig::load().home_variant;
-    let filename = if variant == "home_solo" { "home_solo.ron" } else { "home.ron" };
-    data_dir.join("machines").join(filename)
+    let active = crate::save_load::active_home();
+    let starts = crate::ship::starts::Starts::load(data_dir);
+    data_dir.join("machines").join(&starts.household(&active.start, &active.household).machines)
 }
 
 impl MachineHome {
@@ -2579,6 +2581,32 @@ impl MachineHome {
 mod tests {
     use super::*;
 
+    /// Which household machine file loads is the live save's start and household, looked up in
+    /// data/homes/starts.ron, never a setting of the install (ship homes increment 6): a
+    /// homestead's family is home.ron, its solo home_solo.ron, a cabin cabin.ron, and the file
+    /// each names loads. (`ActiveHome` is thread-local, so this test's is its own.)
+    ///
+    /// Seen red 2026-10-12 with `home_ron_path` still reading AppConfig's `home_variant`: "a
+    /// homestead for solo" failed (home.ron for home_solo.ron; that install's setting said Family).
+    #[cfg(feature = "native")]
+    #[test]
+    fn the_household_file_comes_from_the_start() {
+        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        for (start, household, file) in [
+            ("homestead", "family", "home.ron"),
+            ("homestead", "solo", "home_solo.ron"),
+            ("cabin", "solo", "cabin.ron"),
+        ] {
+            let mut active = crate::save_load::ActiveHome::offline();
+            active.start = start.into();
+            active.household = household.into();
+            crate::save_load::set_active_home(active);
+            let path = home_ron_path(&data);
+            assert_eq!(path, data.join("machines").join(file), "a {start} for {household}");
+            assert!(MachineHome::load(&path).is_some(), "{} loads", path.display());
+        }
+    }
+
     /// The build editor's utility legend (`connection_color`: the port gizmos, the connection
     /// inspector, the meters) is the ship's marking scheme, so it says what the pipes' marker
     /// bands say (2026-10-04). Seen red with the v0.622 legend still in place: "power's legend is
@@ -2801,7 +2829,8 @@ mod tests {
     ///
     /// THE OPENING (2026-10-04): First Steps is now the first ten minutes, and the check covers
     /// what each of its steps uses as well. An Eat step needs food in the starting kit
-    /// (data/world/player.ron; only the backpack's food has an Eat button). A Plant step needs the
+    /// (the homestead's kit in data/homes/starts.ron since increment 6; only the backpack's food
+    /// has an Eat button). A Plant step needs the
     /// tower design its line names placed in the home, growing something the kit has a seed for.
     /// A Make or Craft step needs, besides its station, every input of that recipe to hand: in
     /// the home's stores, in the kit, sold at a trading post the home places, or got by an earlier
@@ -2859,19 +2888,12 @@ mod tests {
         }
         assert!(chain.len() >= 2, "First Steps leads on to Toolsmith");
 
-        // What a new player carries (data/world/player.ron, the list save_load::starting_kit reads).
-        #[derive(serde::Deserialize)]
-        struct PlayerDef {
-            #[serde(default)]
-            starting_items: Vec<(String, u32)>,
-        }
+        // What a new homestead player carries (the homestead's kit in data/homes/starts.ron, the
+        // list save_load::starting_kit reads; the starter chain is the homestead's opening).
+        let starts = crate::ship::starts::Starts::parse(&std::fs::read(root.join("data").join(crate::ship::starts::STARTS_FILE)).unwrap())
+            .expect("starts.ron parses");
         let kit: std::collections::BTreeSet<String> =
-            ron::from_str::<PlayerDef>(&std::fs::read_to_string(root.join("data").join("world").join("player.ron")).unwrap())
-                .expect("player.ron parses")
-                .starting_items
-                .into_iter()
-                .map(|(id, _)| id)
-                .collect();
+            starts.get("homestead").expect("the homestead start").kit.iter().map(|(id, _)| id.clone()).collect();
         assert!(kit.len() > 5, "the starting kit parsed: {kit:?}");
         // The tower designs (data/towers/aeroponic_configs.ron): which plants each grows. A tower
         // of design X is placed as machine "aeroponic_tower_X".

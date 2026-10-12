@@ -1,0 +1,142 @@
+// HumanityOS STARTS: the kinds of home a new player can start in (ship homes increment 6,
+// docs/design/ship-homes-increment-6-plan.md section 3.1; the kinds themselves are
+// docs/design/ship-homes-and-logistics.md section 1.2b). Read by the relay (which plot kind a
+// player who asks for this start is given) and by the game (which design it builds, which
+// household file it loads, what a new character carries), both through src/ship/starts.rs,
+// disk first, else the copy built into the exe (src/embedded_data.rs STARTS_RON).
+//
+// A start is how much space you hold and how much looking after it needs. It never changes how
+// deep the world runs or how hard it is: that is the play mode (docs/design/engagement-modes.md).
+// So nothing here is a tier, a rank or a level, and no word a player reads says so (a test
+// holds that).
+//
+//   default     the start a player who asks for nothing gets; it must be offered.
+//   id          stable, letters, digits, - and _ (at most 32): what `game_join` carries as
+//               `start` and what a save records.
+//   name, sentence   what the choice shows, word for word.
+//   offered     false: shown greyed with `not_offered_why`, never given.
+//   design      data/homes/shipped/<design>.ron, built into the exe; its `kind` must equal
+//               `plot_kind`, the plots of the ship file this start lives on.
+//   households  who lives there, the first the default; each names its machine file under
+//               data/machines/ (the old Settings choice of Family or Solo, now per start).
+//   engagement  how each of food, water, energy and fertilizer is looked after by default
+//               (Direct, Trade, Automation, Cooperative, Background: engagement-modes.md). Shown in
+//               words; nothing else reads it yet.
+//   shared      the zone types (data/blueprints/zone_types.ron) this start relies on aboard.
+//   kit         what a new character carries, (items.csv id, how many).
+//   storage     the home's storage at the start, a places file under data/ (empty: none).
+//   opening     the quest a new character is given (data/quests/), or None.
+//   own_air     false: the home is on the ship's ventilation and breathes the ship's air.
+//   home_content  the homestead's world content this home carries (its herd, the wild spawns,
+//               the decoration plants, the showcase garden's first planting, the hologram).
+//
+// Design, plots, machines, kit, storage, opening and shared places are checked for OFFERED rows
+// only (src/ship/starts.rs tests): a row not offered yet may name a design nobody has built. The
+// other kinds of section 1.2b (Townhouse, House, Smallholding, Farm) join as rows when each has a
+// design and plots; no code changes.
+
+(
+    default: "homestead",
+    starts: [
+        (
+            id: "cabin",
+            name: "Cabin",
+            sentence: "One private room of your own. You eat free crew meals in the mess hall, the washroom is down the hall, and nothing at home can break or die.",
+            offered: true,
+            design: "cabin",
+            plot_kind: "cabin",
+            households: [
+                (id: "solo", name: "Just you", machines: "cabin.ron"),
+            ],
+            engagement: (food: Background, water: Background, energy: Background, fertilizer: Background),
+            shared: ["mess_hall", "room_bathroom", "recreation"],
+            // Water for the first day and two bottles to fill at the mess hall, and oral
+            // rehydration salts for a stomach illness (the homestead kit's reasons, below). Meals
+            // come from the mess hall, so no food is carried.
+            kit: [
+                ("water_purified_0", 2),
+                ("water_bottle_empty_0", 2),
+                ("ors_sachet_0", 2),
+            ],
+            storage: "places/cabin_seed.json",
+            // The Cabin's own opening (gs_first_steps_cabin: check yourself, find the mess hall
+            // and eat, see the recreation room, go home) arrives with its quest (increment 6, lane
+            // 1G). Until then a cabin gets no opening, never the homestead's.
+            opening: None,
+            own_air: false,
+            home_content: [],
+        ),
+        (
+            id: "apartment",
+            name: "Apartment",
+            sentence: "A small home in a block that shares a common house: dinners together, a big kitchen, and a garden you look after as a group.",
+            offered: false,
+            not_offered_why: "Apartments come with the first apartment block, in a later update.",
+            design: "apartment",
+            plot_kind: "apartment",
+            households: [
+                (id: "solo", name: "Just you", machines: "apartment.ron"),
+                (id: "family", name: "A family of three", machines: "apartment.ron"),
+            ],
+            engagement: (food: Cooperative, water: Background, energy: Background, fertilizer: Cooperative),
+            shared: ["apartment_block", "mess_hall", "recreation"],
+            kit: [],
+            storage: "",
+            opening: None,
+            own_air: false,
+            home_content: [],
+        ),
+        (
+            id: "homestead",
+            name: "Homestead",
+            sentence: "The full acre: a house, a greenhouse, a barn, fields and a workshop. You grow your own food and make your own power, and the mess hall is there if a week goes wrong.",
+            offered: true,
+            design: "homestead",
+            plot_kind: "homestead",
+            households: [
+                (id: "family", name: "A family of three", machines: "home.ron"),
+                (id: "solo", name: "Just you", machines: "home_solo.ron"),
+            ],
+            engagement: (food: Direct, water: Direct, energy: Direct, fertilizer: Direct),
+            shared: [],
+            // What a NEW player carries (2026-09-25; read by
+            // save_load::starting_kit at spawn). Before this the list was empty and
+            // nothing read it, so a player started with nothing and could only get a
+            // first seed from a dev button. A small real homestead start: quick crops
+            // to plant in the first minutes, water and food for the first day, and
+            // the hand tools gardening uses. Every id must exist in data/items.csv
+            // (tests/recipe_sources_lint.rs and a unit test check it).
+            // (Moved here from data/world/player.ron's `starting_items` by increment 6.)
+            kit: [
+                ("seed_lettuce_0", 5),
+                ("seed_tomato_0", 5),
+                ("seed_potato_0", 5),
+                ("seed_bean_0", 5),
+                ("seed_carrot_0", 5),
+                ("seed_wheat_0", 10),
+                ("water_purified_0", 4),
+                ("water_bottle_empty_0", 2),
+                ("ration_basic_0", 3),
+                // Oral rehydration salts for a stomach illness (BUG-162, 2026-10-05):
+                // each sachet mixes into a litre (the mix_ors recipe). The Library's
+                // When Food or Water Makes You Sick, from the CDC: keep them in the
+                // house and start them as soon as the diarrhoea begins.
+                ("ors_sachet_0", 4),
+                ("trowel_0", 1),
+                ("hoe_0", 1),
+                ("knife_utility_0", 1),
+                // A homestead's basic hand tools (2026-09-26): carpentry, machine
+                // assembly and electronics each need some (data/crafting/tools.ron).
+                ("hammer_0", 1),
+                ("saw_hand_0", 1),
+                ("screwdriver_flat_0", 1),
+                ("wrench_adjustable_0", 1),
+                ("pliers_0", 1),
+            ],
+            storage: "places/seed.json",
+            opening: Some("gs_first_steps"),
+            own_air: true,
+            home_content: [Herd, WildSpawns, Decorations, ShowcaseGarden, Hologram],
+        ),
+    ],
+)

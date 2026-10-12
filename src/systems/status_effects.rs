@@ -33,13 +33,14 @@ pub struct StatusEffectDef {
     pub id: String,
     /// Display name.
     pub name: String,
-    /// `buff`, `debuff`, `condition`, `environmental`, `disease`, or `poison`.
-    /// A `disease` runs on the game clock (`systems::illness`, BUG-162).
+    /// `buff`, `debuff`, `condition`, `environmental`, `disease`, `wound` or `poison`.
+    /// A `disease` (`systems::illness`, BUG-162) and a `wound` (`systems::wounds`,
+    /// 2026-10-12) run on the game clock (`on_game_clock`).
     #[serde(rename = "type")]
     pub kind: String,
     /// Duration in seconds. 0 = a condition that persists until removed (the
     /// owning system refreshes it each tick while its trigger holds). For a
-    /// `disease`, game seconds: its Realistic course.
+    /// `disease` or a `wound`, game seconds: its Realistic course.
     #[serde(default)]
     pub duration_s: f32,
     /// Whether the effect stacks. READ, NOT ACTED ON: no effect stacks yet;
@@ -57,7 +58,7 @@ pub struct StatusEffectDef {
     /// Seconds between damage/healing applications (0 = the per-tick values
     /// are already per second). Consumed by the FoodSystem effect tick
     /// (v0.745, loop-map rung 1) which normalizes to a continuous rate:
-    /// infected_wound's 3 dmg / 20 s becomes 0.15 dmg/s.
+    /// poisoned's 4 dmg / 3 s becomes 1.33 dmg/s.
     #[serde(default)]
     pub tick_interval_s: f32,
     /// Damage applied each tick (0 = none).
@@ -89,6 +90,12 @@ impl StatusEffectDef {
     /// Whether it is an illness, which runs on the game clock (`systems::illness`).
     pub fn is_disease(&self) -> bool {
         self.kind == crate::systems::illness::DISEASE
+    }
+
+    /// Whether it counts game seconds rather than real ones: an illness, or a wound
+    /// (`systems::wounds`, 2026-10-12), each of which runs its course over game hours or days.
+    pub fn on_game_clock(&self) -> bool {
+        self.is_disease() || self.kind == crate::systems::wounds::WOUND
     }
 
     /// Parse `stat_modifier` into `(stat, value, operation)`, or `None` for the

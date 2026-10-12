@@ -71,6 +71,13 @@ pub struct GardenPests {
     /// area saying whether a cover is on, with its Row cover / Take off
     /// button. The button goes through `pending`, like the pest controls.
     pub covers: Vec<crate::systems::farming::pests::CoverRow>,
+    /// Each crop's wait and water in plain words (2026-10-12, first-hour
+    /// audit F11, farming::outlook): its card's "Ripe in" and "Water" rows
+    /// and the line under its slot tile. Keyed by the crop's entity bits
+    /// (`GuiCrop::entity_bits`), filled beside `crops` by lib.rs's crop
+    /// bridge from `farming::outlook::OutlookView`; a crop with no entry
+    /// shows neither row.
+    pub outlook: std::collections::HashMap<u64, crate::systems::farming::outlook::CropOutlook>,
 }
 
 /// A growing crop for GUI display (synced from the ECS each frame).

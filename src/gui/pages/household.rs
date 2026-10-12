@@ -49,9 +49,9 @@ pub const NOT_CONNECTED: &str = "Connect to a server to see its household permit
 /// Connected, but not in the server's shared world, so no plot is known this session.
 pub const NOT_IN_WORLD: &str =
     "Step into this server's shared world to give permits: the server says which plot is yours when you arrive.";
-/// In the shared world with no plot of one's own.
 /// In the shared world, the server's welcome not here yet (it names the plot, or none).
 pub const JOINING: &str = "Joining this server's shared world...";
+/// In the shared world with no plot of one's own.
 pub const GUEST: &str = "You have no plot on this ship (the server had none free), so there is nothing to give a permit for.";
 /// Nobody to list.
 pub const NO_FRIENDS: &str = "No friends here yet: people you follow who follow you back on this server are listed here.";
@@ -63,8 +63,12 @@ pub const TAKING_BACK: &str = "Taking it back...";
 pub const NONE_HELD: &str = "Nobody has given you a permit on this server.";
 /// A held permit asked about, no answer yet.
 pub const CHECKING: &str = "Checking it with the server...";
-/// A held permit while not in the shared world (the server is asked when you arrive).
-pub const WORKS_OUTSIDE: &str = "It works in this server's shared world.";
+/// A held permit while not in the shared world (the server is asked when you arrive). It used to
+/// say "It works in this server's shared world.", even for a permit the server had just said was
+/// taken back (what it said is forgotten when you leave; 2026-10-12 review).
+pub const WORKS_OUTSIDE: &str = "The server checks it when you step into its shared world.";
+/// A held permit for the plot that is now your own here: nothing to check.
+pub const YOUR_OWN_PLOT: &str = "That plot is your own on this ship now, so you need no permit for it.";
 
 /// The card's tallest, pixels: its own scroll area past that, so the rest of the Home page stays
 /// in view (plan 3.9).
@@ -268,7 +272,10 @@ fn draw_your_plot(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, length
     let now = now_s();
     let in_world = state.copresence_active;
     let my_plot = state.household.my_plot.clone();
-    let giving = in_world && my_plot.is_some();
+    // Under the protected setup the card offers no Give or Renew at all (they are refused anyway;
+    // 2026-10-12 review: it offered them and refused only after the press). Take back stays.
+    let protected = !state.protected.setup.permit_allowed();
+    let giving = in_world && my_plot.is_some() && !protected;
     match (&my_plot, in_world) {
         (Some(p), true) => {
             ui.label(RichText::new(format!("Your plot on this server: {p}.")).size(theme.font_size_small).color(theme.text_primary()));
@@ -276,6 +283,9 @@ fn draw_your_plot(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, length
         (None, true) if !state.household.welcomed => say(ui, theme, JOINING, theme.text_muted()),
         (None, true) => say(ui, theme, GUEST, theme.text_muted()),
         (_, false) => say(ui, theme, NOT_IN_WORLD, theme.text_muted()),
+    }
+    if protected && in_world && my_plot.is_some() {
+        say(ui, theme, eh::PROTECTED, theme.text_muted());
     }
     ui.add_space(theme.spacing_xs);
 
@@ -483,10 +493,15 @@ enum Tone {
 /// The line under a permit I hold (plan 3.9 "Plots you may build on", amendment A1 for one taken
 /// back): `in_world` is whether this session is in the server's shared world, `on_ship` whether
 /// the plot is one of this ship's.
-fn held_line(r: &HeldRow, in_world: bool, on_ship: bool) -> (String, Tone) {
+fn held_line(r: &HeldRow, in_world: bool, on_ship: bool, my_plot: Option<&str>) -> (String, Tone) {
     let (n, p) = (r.name.as_str(), r.plot.as_str());
     if !on_ship {
         return (format!("Plot {p} is not on this ship any more."), Tone::Plain);
+    }
+    // Never asked about (engine/household.rs `tick` skips my own plot), so it said "Checking it
+    // with the server..." for ever (2026-10-12 review).
+    if in_world && my_plot == Some(p) {
+        return (YOUR_OWN_PLOT.to_string(), Tone::Plain);
     }
     if r.ran_out || r.verdict == Some(Verdict::Refused(Why::PermitExpired)) {
         return (format!("Ran out on {}. Ask {n} for a new one.", hh::date_words(r.expiry)), Tone::Plain);
@@ -525,7 +540,7 @@ fn draw_held(ui: &mut egui::Ui, theme: &Theme, state: &GuiState) {
             format!("{}'s plot {}, until {} {}.", r.name, r.plot, hh::date_words(r.expiry), left_words(r.expiry, now))
         };
         ui.label(RichText::new(heading).size(theme.font_size_small).strong().color(theme.text_primary()));
-        let (line, tone) = held_line(r, in_world, on_ship(&r.plot));
+        let (line, tone) = held_line(r, in_world, on_ship(&r.plot), state.household.my_plot.as_deref());
         checking |= line == CHECKING;
         let color = match tone {
             Tone::Plain => theme.text_secondary(),
