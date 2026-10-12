@@ -226,6 +226,11 @@
       "date": "2026-10-12",
       "decision": "public.guide updated itself to v0.1487.0 (07:22Z). Phone check of web chat at 375 px done and released as v0.1487.1 (web only): header fits (count hidden, connection as its dot with a tooltip, room left for the site help button that covered the account button), text box fits its placeholder, composer bottom padding restored so the footer tab no longer covers the text box, chat uploads show a percentage via XMLHttpRequest upload progress (fetch where none). Resumable uploads in the apps were already done (Media page, both apps), so the approved plan moves to the game: the two-person session needs the operator; the household page (plot permits, increment 5b) is next for an agent.",
       "why": "The approved plan after Media: resumable in the apps, a phone check, then the game. A real browser at phone width found the sideways scroll, a covered button and a covered text box that no desktop-width test could."
+    },
+    {
+      "date": "2026-10-12",
+      "decision": "Ship homes increment 5b planned (docs/design/ship-homes-increment-5b-plan.md): the Household card on the Home page gives a friend a household permit for your plot (7, 30 or 90 days), sent as a sealed DM note; the grantee keeps it, the relay checks it each session (game_permit_check, stores nothing), the door to that plot opens for them, they can walk in, see the start design plus server-kept pieces, and build there. AMENDED by the orchestrator: permits become v2 with a serial and can be taken back through the relay withdrawal list (friend_cert_revocations), and Block takes back every permit given to that person; renew withdraws the old serial once the new one is taken. Questions 2 and 3 accepted as recommended. Wave 0 dispatched to one worktree builder.",
+      "why": "Decision 3 of 2026-10-05 (no take-back) rested on a server that stored nothing; the withdrawal list exists since 2026-10-09, and a permit a blocked person keeps for up to 90 days (walking into the home, building there) is the gap the protect-users rule says to close now. The operator can overrule; the change is confined to the permit words, one relay check and the page."
     }
   ],
   "active_scopes_to_avoid": [
