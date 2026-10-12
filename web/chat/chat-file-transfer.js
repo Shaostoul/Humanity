@@ -34,11 +34,20 @@
 //  6. A row per transfer in the conversation, on both sides: the name, the
 //     size, a progress bar, Pause, Resume and Cancel, and words for each state.
 //
-// One connection with each person at a time: signalling carries no transfer id,
-// so a second file between the same two waits for the first. The sender answers
-// a dial with credentials for each of its live offers to that person (the
-// forwarder passes packets only within one transfer's pair), and the channel's
-// label says which file it is.
+// One connection with each person at a time, carrying several transfers (rule 2
+// of "Device-to-device big files: rules settled by the first review",
+// 2026-10-12): one data channel per transfer, labelled file:<id>, each with its
+// own engine, on the dialling side and the answering side alike. A transfer's
+// channel is opened by its receiver, whichever side dialled, so a file each way
+// rides one connection. A channel ends without touching the others, and the
+// connection closes when its last channel has ended. Signalling carries no
+// transfer id: the sender answers a dial with credentials for each of its live
+// offers to that person (the forwarder passes packets only within one
+// transfer's pair), and each channel's label says which file it is.
+//
+// The receiver's answer and cancel notes carry the offer's file pass on their
+// dm_put (`file_pass`, rule 4), so they reach a sender who takes messages only
+// from friends.
 //
 // Kept on this device: each transfer's record (encrypted with the DM store's
 // key, /chat/chat-dm-store.js sealBox) and the pieces received so far (in
@@ -230,17 +239,36 @@ async function ftForget(t) {
   await ftIdb('transfers', 'readwrite', (os) => os.delete(t.id));
 }
 
+/** The numbers of the pieces kept for a transfer (any order). */
+async function ftHeldPieces(id) {
+  const prefix = id + ':';
+  // Only this transfer's keys where the browser can say so ("id:" up to, not including, "id;").
+  const range = typeof IDBKeyRange !== 'undefined' ? IDBKeyRange.bound(prefix, id + ';', false, true) : undefined;
+  const keys = (await ftIdb('pieces', 'readonly', (os) => (range ? os.getAllKeys(range) : os.getAllKeys()))) || [];
+  const out = [];
+  for (const k of keys) {
+    if (typeof k !== 'string' || !k.startsWith(prefix)) continue;
+    const i = Number(k.slice(prefix.length));
+    if (Number.isSafeInteger(i) && i >= 0) out.push(i);
+  }
+  return out;
+}
+
 /** The pieces received for a transfer go (a cancel, a failure, or after the save). */
 async function ftDropPieces(t) {
-  const n = Math.max(Number(t.kept) || 0, Number(t.done) || 0, (t.offer && t.offer.pieces) || 0);
-  for (let i = 0; i < n; i++) await ftIdb('pieces', 'readwrite', (os) => os.delete(ftPieceKey(t.id, i)));
+  for (const i of await ftHeldPieces(t.id)) await ftIdb('pieces', 'readwrite', (os) => os.delete(ftPieceKey(t.id, i)));
   t.kept = 0;
 }
 
-/** The pieces store a Receiver uses: checked pieces in order, as Blobs, so nothing large is held in memory. */
+/**
+ * The pieces store a Receiver uses: checked pieces, as Blobs, so nothing large is held in memory.
+ * A piece is kept as soon as it checks, in whatever order it arrives (a piece asked again after a
+ * bad hash comes after the ones asked before it).
+ */
 function ftPieceStore(t) {
+  let puts = 0;
   return {
-    async firstMissing() { return Number(t.kept) || 0; },
+    async held() { return ftHeldPieces(t.id); },
     async put(i, bytes) {
       const ok = await ftIdb('pieces', 'readwrite', (os) => os.put(new Blob([bytes]), ftPieceKey(t.id, i)));
       if (ok === null) throw new Error('this browser could not keep a piece');
@@ -249,8 +277,8 @@ function ftPieceStore(t) {
         await ftIdb('pieces', 'readwrite', (os) => os.delete(ftPieceKey(t.id, i)));
         return;
       }
-      t.kept = i + 1;
-      if (t.kept % FT_RECORD_EVERY === 0) ftSave(t);
+      puts += 1;
+      if (puts % FT_RECORD_EVERY === 0) ftSave(t);
     },
     async get(i) {
       const blob = await ftIdb('pieces', 'readonly', (os) => os.get(ftPieceKey(t.id, i)));
@@ -306,13 +334,18 @@ function ftPutRef() {
 /**
  * Seal and send a note to `peer`. opts.selfCopy: my other devices hear it too
  * (answers and cancels). opts.answerFor: the transfer whose row hears the
- * server's answer to the put. Returns false when it could not go now.
+ * server's answer to the put. opts.filePass: the offer's file pass, carried on
+ * the put to them as `file_pass` (the receiver's answer and cancel, rule 4: the
+ * relay lets it through to a sender who takes messages only from friends,
+ * because the pass is theirs, made out to me). Returns false when it could not
+ * go now.
  */
 async function ftSendNote(peer, text, opts) {
   const o = opts || {};
   if (!text || typeof ws === 'undefined' || !ws || ws.readyState !== WebSocket.OPEN) return false;
   const built = await pqBuildDmPuts(text, peer, Date.now());
   if (!built || !built.recipientPut) return false;
+  if (o.filePass) built.recipientPut.file_pass = o.filePass;
   if (o.answerFor) {
     const ref = ftPutRef();
     built.recipientPut.ref = ref;
@@ -582,56 +615,72 @@ async function ftTakeOffer(offer, inner) {
   ftDraw(t);
 }
 
-/** Accept (the question's button). Where to save is asked now, while the click counts. */
-async function ftAccept(t) {
+/**
+ * Accept (the question's button). One click accepts, and the row moves on at once.
+ *
+ * Where to save is asked in the same click, since a browser opens its save dialog only straight
+ * after one, but the answer only decides where the finished file goes: the place chosen, or (the
+ * dialog closed, or a browser without one) the browser's own download. Until 2026-10-12 Accept
+ * waited for the dialog first and did nothing when it was closed. A browser that cannot show the
+ * dialog (a headless one) closes it at once, measured 2026-10-12 in Edge: "AbortError ... The user
+ * aborted a request." So a real click there left the question on the row with nothing sent, while
+ * a script's click, which a browser lets open no dialog ("NotAllowedError ... User activation
+ * required."), went on to the transfer: the review's real-browser run saw exactly that.
+ */
+function ftAccept(t) {
   const F = ftApi();
-  if (!t || t.role !== 'receive' || t.state !== 'asked') return;
-  if (!F.filePassTimeOk(t.offer.pass, ftNowSecs())) { await ftEnd(t, 'expired'); return; }
+  if (!t || t.role !== 'receive' || t.state !== 'asked') return Promise.resolve();
+  if (!F.filePassTimeOk(t.offer.pass, ftNowSecs())) return ftEnd(t, 'expired');
+  let picking = null;
   if (typeof window.showSaveFilePicker === 'function') {
-    try {
-      t.saveHandle = await window.showSaveFilePicker({ suggestedName: t.name });
-    } catch (e) {
-      if (e && e.name === 'AbortError') return; // the person closed the picker: still asked
-      t.saveHandle = null;
-    }
+    try { picking = Promise.resolve(window.showSaveFilePicker({ suggestedName: t.name })); } catch (e) { picking = null; }
   }
   t.state = 'accepted';
-  await ftSave(t);
+  t.reason = null;
+  t.saveHandle = null;
+  if (picking) {
+    t.savePicking = picking.then((h) => { t.saveHandle = h || null; }, () => { t.saveHandle = null; })
+      .then(() => { t.savePicking = null; ftDraw(t); });
+  }
   ftDraw(t);
-  await ftNote(t, F.answerNoteText(t.id, true), { selfCopy: true });
-  ftDial(t);
+  return (async () => {
+    await ftSave(t);
+    await ftNote(t, F.answerNoteText(t.id, true), { selfCopy: true, filePass: t.offer.pass });
+    ftDial(t);
+  })();
 }
 
-/** Decline (the question's button). */
+/** Decline (the question's button): the row says so at once. */
 async function ftDecline(t) {
   const F = ftApi();
   if (!t || t.role !== 'receive' || t.state !== 'asked') return;
   t.state = 'declined';
-  await ftSave(t);
   ftDraw(t);
-  await ftNote(t, F.answerNoteText(t.id, false), { selfCopy: true });
+  await ftSave(t);
+  await ftNote(t, F.answerNoteText(t.id, false), { selfCopy: true, filePass: t.offer.pass });
 }
 
 /** Cancel, from either side: the channel hears it if it is open, and the note goes either way. */
 async function ftCancel(t) {
   const F = ftApi();
   if (!t || ftFinished(t)) return;
-  const link = ftLinkFor(t);
-  if (link && link.engine && typeof link.engine.cancel === 'function') link.engine.cancel();
+  const chan = ftChanFor(t);
+  if (chan && chan.engine && chan.open) chan.engine.cancel();
   else if (t.receiver && t.receiver.io) t.receiver.cancel();
   const offered = t.offer && t.state !== 'preparing';
   await ftEnd(t, 'cancelled');
-  if (offered) await ftNote(t, F.cancelNoteText(t.id), { selfCopy: true });
+  // The receiver's cancel carries the pass, as its answer does (rule 4); the sender's needs none.
+  if (offered) await ftNote(t, F.cancelNoteText(t.id), { selfCopy: true, filePass: t.role === 'receive' ? t.offer.pass : null });
 }
 
 function ftPause(t) {
   if (!t || ftFinished(t) || t.pausedHere) return;
   t.pausedHere = true;
-  const link = ftLinkFor(t);
-  if (link && link.engine) link.engine.pause();
+  const chan = ftChanFor(t);
+  if (chan && chan.engine && chan.open) chan.engine.pause();
   else if (t.receiver) t.receiver.pause();
-  ftSave(t);
   ftDraw(t);
+  ftSave(t);
 }
 
 function ftResume(t) {
@@ -639,23 +688,26 @@ function ftResume(t) {
   const was = t.pausedHere;
   t.pausedHere = false;
   t.noServer = false;
-  const link = ftLinkFor(t);
-  if (was && link && link.engine) link.engine.resume();
+  const chan = ftChanFor(t);
+  if (was && chan && chan.engine && chan.open) chan.engine.resume();
   else if (was && t.receiver && t.receiver.io) t.receiver.resume();
   else if (t.receiver) t.receiver.pausedHere = false;
-  ftSave(t);
   ftDraw(t);
+  ftSave(t);
   if (t.role === 'receive') ftDial(t);
 }
 
-/** End a transfer: its state, its words, its connection, and (when it can never finish) its pieces. */
+/**
+ * End a transfer: its state and words (on the row at once), its channel (the others on the
+ * connection go on), and (when it can never finish) its pieces.
+ */
 async function ftEnd(t, state, reason) {
   t.state = state;
   t.reason = reason || null;
   t.hashing = null;
-  const link = ftLinkFor(t);
-  if (link) ftCloseLink(link);
+  ftDropChannel(t);
   if (t.role === 'send') { t.file = null; t.pieceHashes = null; }
+  ftDraw(t);
   if (t.role === 'receive' && state !== 'saved') {
     t.receiver = null;
     await ftDropPieces(t);
@@ -678,10 +730,33 @@ function ftExpireOld() {
 window.expireFileTransfers = ftExpireOld;
 
 // ── The connection ──
+//
+// Rule 2 of "Device-to-device big files: rules settled by the first review" (2026-10-12): one
+// connection with each person, several transfers on it, one data channel and one engine each.
+// Until then this page kept one engine per connection: a second transfer between the same two
+// waited for the first, and on the answering side every channel was handed to the first
+// transfer's Sender (the review found it at the seams with the desktop app, which already kept
+// several).
+//
+// A link: {peer, role ('dial' or 'answer'), pc, chans (transfer id -> its channel), toOpen (ids of
+// my receiving transfers whose channels open once the connection is up), pendingIce, remoteSet,
+// open (a channel has opened), closed, timer, path}. A channel: {id, t, dc, engine, open, closed}.
 
+function ftNewLink(peer, role) {
+  return { peer, role, pc: null, chans: new Map(), toOpen: [], pendingIce: [], remoteSet: false, open: false, closed: false, timer: 0, path: null };
+}
+
+/** The connection a transfer rides, or waits to ride, or null. */
 function ftLinkFor(t) {
-  const link = ftLinks.get(ftLower(t.peer));
-  return link && link.id === t.id ? link : null;
+  const link = t ? ftLinks.get(ftLower(t.peer)) : null;
+  if (!link || link.closed) return null;
+  return (link.chans.has(t.id) || link.toOpen.includes(t.id)) ? link : null;
+}
+
+/** A transfer's channel, or null. */
+function ftChanFor(t) {
+  const link = ftLinkFor(t);
+  return link ? (link.chans.get(t.id) || null) : null;
 }
 
 function ftSignal(peer, type, data, extra) {
@@ -715,23 +790,35 @@ async function ftRtcConfig(transfers, peer) {
   return { config: { iceServers: stun.concat(servers), iceTransportPolicy: 'all' }, path: 'direct' };
 }
 
-/** The receiver dials the sender for transfer `t` (Accept, Resume, the sender coming online, a retry). */
+/** May this receiving transfer open its channel now? */
+function ftWantsChannel(t) {
+  return !!t && t.role === 'receive' && t.state === 'accepted' && !t.pausedHere;
+}
+
+/**
+ * The receiver dials the sender for transfer `t` (Accept, Resume, the sender coming online, a
+ * retry). With a connection to them already there (either side's dial), the transfer rides it:
+ * its channel opens on it, now or as soon as it is up.
+ */
 async function ftDial(t) {
   const F = ftApi();
-  if (!t || t.role !== 'receive' || !['accepted'].includes(t.state) || t.pausedHere) return;
-  const key = ftLower(t.peer);
-  if (ftLinks.has(key)) return; // one connection with each person at a time
+  if (!ftWantsChannel(t)) return;
   if (!F.filePassTimeOk(t.offer.pass, ftNowSecs())) { await ftEnd(t, 'expired'); return; }
+  const key = ftLower(t.peer);
+  const have = ftLinks.get(key);
+  if (have && !have.closed) { ftJoin(have, t); return; }
   if (typeof ws === 'undefined' || !ws || ws.readyState !== WebSocket.OPEN) return;
-  const link = { peer: t.peer, role: 'dial', id: t.id, pc: null, dc: null, engine: null, pendingIce: [], remoteSet: false, open: false, closed: false, timer: 0, path: null };
+  const link = ftNewLink(t.peer, 'dial');
+  link.toOpen.push(t.id);
   ftLinks.set(key, link);
   ftDraw(t);
   const cfg = await ftRtcConfig([t], t.peer);
   if (link.closed) return;
   if (!cfg) {
-    t.noServer = true;
+    // The server cannot carry it: every transfer waiting for this connection says so.
+    const waiting = link.toOpen.map((id) => ftTransfers.get(id)).filter(Boolean);
     ftCloseLink(link);
-    ftDraw(t);
+    for (const w of waiting) { w.noServer = true; ftDraw(w); }
     return;
   }
   t.noServer = false;
@@ -739,8 +826,12 @@ async function ftDial(t) {
   try {
     const pc = new RTCPeerConnection(cfg.config);
     link.pc = pc;
-    const dc = pc.createDataChannel(F.channelLabel(t.id), { ordered: true });
-    ftBindChannel(link, t, dc);
+    // A channel the other side opens: one of my offers to them, which they are receiving.
+    pc.ondatachannel = (ev) => ftChannelArrived(link, ev && ev.channel);
+    // The channels of every transfer waiting for this connection, made before the offer so it
+    // carries them (one more joining later opens on the live connection, no new offer needed).
+    for (const id of link.toOpen.splice(0)) ftOpenChannel(link, id);
+    if (!link.chans.size) { ftCloseLink(link); return; }
     pc.onicecandidate = (ev) => { if (ev && ev.candidate) ftSignal(t.peer, 'dc_ice', JSON.stringify(ev.candidate)); };
     pc.onconnectionstatechange = () => { if (pc.connectionState === 'failed' || pc.connectionState === 'closed') ftLinkGone(link); };
     const offer = await pc.createOffer();
@@ -752,6 +843,46 @@ async function ftDial(t) {
   } catch (e) {
     ftLinkGone(link);
   }
+}
+
+/** A receiving transfer of mine rides a connection already there: its channel opens now, or once it is up. */
+function ftJoin(link, t) {
+  if (link.closed || !ftWantsChannel(t) || link.chans.has(t.id) || link.toOpen.includes(t.id)) return;
+  if (link.open && link.pc) ftOpenChannel(link, t.id);
+  else link.toOpen.push(t.id);
+  ftDraw(t);
+}
+
+/** Open a receiving transfer's channel on the connection (the receiver opens it, whichever side dialled). */
+function ftOpenChannel(link, id) {
+  const F = ftApi();
+  const t = ftTransfers.get(id);
+  if (!ftWantsChannel(t) || link.chans.has(id) || !link.pc) return;
+  let dc;
+  try { dc = link.pc.createDataChannel(F.channelLabel(id), { ordered: true }); } catch (e) { return; }
+  ftBindChannel(link, t, dc);
+}
+
+/** The connection is up: the channels waiting for it open. */
+function ftOpenWaiting(link) {
+  for (const id of link.toOpen.splice(0)) ftOpenChannel(link, id);
+}
+
+/**
+ * A channel the other side opened: for one of my live offers to them (their receiving end), served
+ * by a Sender of its own. Anything else is closed.
+ */
+function ftChannelArrived(link, ch) {
+  const F = ftApi();
+  const id = ch ? F.channelLabelId(ch.label) : null;
+  const t = id ? ftTransfers.get(id) : null;
+  const ok = t && t.role === 'send' && ftSameKey(t.peer, link.peer) && !ftFinished(t) && t.state !== 'preparing'
+    && t.file && t.pieceHashes && !link.chans.has(id) && !link.closed;
+  if (!ok) {
+    try { if (ch) ch.close(); } catch (e) { /* gone */ }
+    return;
+  }
+  ftBindChannel(link, t, ch);
 }
 
 /** The sender's live offers to `peer` (a dial from them may be for any of them; its label says which). */
@@ -766,7 +897,6 @@ function ftLiveOffersTo(peer) {
 
 /** The sender answers a dial. */
 async function ftAnswerDial(msg, offers, link) {
-  const F = ftApi();
   const usable = offers.filter((t) => t.file && t.pieceHashes).slice(0, 4);
   if (!usable.length) { ftCloseLink(link); return; }
   const cfg = await ftRtcConfig(usable, msg.from);
@@ -781,17 +911,7 @@ async function ftAnswerDial(msg, offers, link) {
   try {
     const pc = new RTCPeerConnection(cfg.config);
     link.pc = pc;
-    pc.ondatachannel = (ev) => {
-      const ch = ev && ev.channel;
-      const id = ch ? F.channelLabelId(ch.label) : null;
-      const t = id ? ftTransfers.get(id) : null;
-      if (!t || t.role !== 'send' || !ftSameKey(t.peer, link.peer) || ftFinished(t) || !t.file || !usable.includes(t)) {
-        try { if (ch) ch.close(); } catch (e) { /* gone */ }
-        return;
-      }
-      link.id = t.id;
-      ftBindChannel(link, t, ch);
-    };
+    pc.ondatachannel = (ev) => ftChannelArrived(link, ev && ev.channel);
     pc.onicecandidate = (ev) => { if (ev && ev.candidate) ftSignal(msg.from, 'dc_ice', JSON.stringify(ev.candidate)); };
     pc.onconnectionstatechange = () => { if (pc.connectionState === 'failed' || pc.connectionState === 'closed') ftLinkGone(link); };
     await pc.setRemoteDescription(new RTCSessionDescription(JSON.parse(msg.data)));
@@ -814,6 +934,11 @@ async function ftApplyIce(link) {
   }
 }
 
+/** My receiving transfers with `peer` waiting to ride a connection to them. */
+function ftWaitingFrom(peer) {
+  return Array.from(ftTransfers.values()).filter((t) => ftWantsChannel(t) && ftSameKey(t.peer, peer));
+}
+
 /**
  * A `webrtc_signal` from the relay: true when it belongs to a file transfer
  * (chat-voice-calls.js handleWebrtcSignalMessage asks here first). My own
@@ -826,18 +951,19 @@ function fileTransferSignal(msg) {
   if (msg.signal_type === 'dc_offer') {
     const offers = ftLiveOffersTo(msg.from);
     if (!offers.length) return false; // nothing of mine for them: chat-p2p.js ignores it
-    if (link && link.role === 'dial') {
+    if (link && link.role === 'dial' && !link.open) {
       // Both of us dialing at once (each has a file for the other): the larger key's dial goes on,
-      // as the desktop app's offerer rule has it; the other side answers it.
+      // as the desktop app's offerer rule has it; the other side answers it, and its own receiving
+      // transfers ride the connection it answers.
       if (String(myKey).toLowerCase() > key) return true;
-      const t = ftTransfers.get(link.id);
       ftCloseLink(link);
-      if (t) setTimeout(() => ftDial(t), 2000);
     } else if (link) {
-      ftCloseLink(link); // they dialed again: the old connection is gone on their side
+      ftLinkGone(link); // they dialed again: the old connection is gone on their side
     }
-    const fresh = { peer: msg.from, role: 'answer', id: null, pc: null, dc: null, engine: null, pendingIce: [], remoteSet: false, open: false, closed: false, timer: 0, path: null };
+    const fresh = ftNewLink(msg.from, 'answer');
     ftLinks.set(key, fresh);
+    // My own receiving transfers with them ride this connection too: I open their channels once it is up.
+    for (const t of ftWaitingFrom(msg.from)) ftJoin(fresh, t);
     ftAnswerDial(msg, offers, fresh);
     return true;
   }
@@ -863,10 +989,11 @@ function fileTransferSignal(msg) {
 }
 window.fileTransferSignal = fileTransferSignal;
 
-/** Wire a data channel to its transfer's engine. */
+/** Wire a data channel to its transfer's own engine. */
 function ftBindChannel(link, t, dc) {
   const F = ftApi();
-  link.dc = dc;
+  const chan = { id: t.id, t, dc, engine: null, open: false, closed: false };
+  link.chans.set(t.id, chan);
   try { dc.binaryType = 'arraybuffer'; } catch (e) { /* read-only in some fakes */ }
   try { dc.bufferedAmountLowThreshold = 262144; } catch (e) { /* not every browser */ }
   const io = {
@@ -880,17 +1007,21 @@ function ftBindChannel(link, t, dc) {
     }),
   };
   const opened = () => {
-    if (link.open || link.closed) return;
-    link.open = true;
-    clearTimeout(link.timer);
+    if (chan.open || chan.closed || link.closed) return;
+    chan.open = true;
+    if (!link.open) {
+      link.open = true;
+      clearTimeout(link.timer);
+      ftOpenWaiting(link);
+    }
     t.path = link.path;
     t.noServer = false;
     if (t.role === 'send') {
       if (t.state === 'offered') t.state = 'accepted'; // the dial came before their answer note
       t.state = 'sending';
-      link.engine = new F.Sender({
+      chan.engine = new F.Sender({
         offer: t.offer, file: t.file, pieceHashes: t.pieceHashes, io, paused: t.pausedHere,
-        onEvent: (type, d) => ftSenderEvent(t, link, type, d),
+        onEvent: (type, d) => ftSenderEvent(t, chan, type, d),
       });
     } else {
       t.state = 'receiving';
@@ -900,19 +1031,20 @@ function ftBindChannel(link, t, dc) {
           onEvent: (type, d) => ftReceiverEvent(t, type, d),
         });
       }
-      link.engine = t.receiver;
+      chan.engine = t.receiver;
       t.receiver.attach(io);
     }
     ftSave(t);
     ftDraw(t);
   };
   dc.onopen = opened;
-  dc.onmessage = (ev) => { if (link.engine && !link.closed) link.engine.receive(ev.data); };
-  dc.onclose = () => ftLinkGone(link);
+  dc.onmessage = (ev) => { if (chan.engine && !chan.closed) chan.engine.receive(ev.data); };
+  dc.onclose = () => ftChanGone(link, chan);
   if (dc.readyState === 'open') opened();
 }
 
-function ftSenderEvent(t, link, type, d) {
+function ftSenderEvent(t, chan, type, d) {
+  if (chan.closed) return;
   if (type === 'progress') {
     t.done = Math.max(t.done || 0, d.piece + 1);
     ftDrawSoon(t);
@@ -929,7 +1061,7 @@ function ftSenderEvent(t, link, type, d) {
       t.file = null;
       t.pieceHashes = null;
       t.reason = 'unreadable';
-      ftCloseLink(link);
+      ftDropChannel(t);
       t.state = 'accepted';
       ftSave(t);
       ftDraw(t);
@@ -940,6 +1072,7 @@ function ftSenderEvent(t, link, type, d) {
 function ftReceiverEvent(t, type, d) {
   if (type === 'progress') {
     t.done = d.done;
+    t.kept = d.low;
     ftDrawSoon(t);
   } else if (type === 'paused-there' || type === 'resumed-there') {
     t.pausedThere = type === 'paused-there';
@@ -957,18 +1090,69 @@ function ftReceiverEvent(t, type, d) {
   }
 }
 
-/** The connection went (closed, failed, or never opened in time). */
+/** Stop a channel's engine without a word (the Receiver stays with its transfer, for the next channel). */
+function ftStopEngine(chan) {
+  if (!chan.engine) return;
+  if (typeof chan.engine.detach === 'function') chan.engine.detach();
+  else if (typeof chan.engine.close === 'function') chan.engine.close();
+}
+
+/** Close the connection when its last channel has ended (and nothing waits to open on it). */
+function ftCloseIfIdle(link) {
+  if (!link.closed && link.chans.size === 0 && link.toOpen.length === 0) ftCloseLink(link);
+}
+
+/** A transfer ended here: its channel closes, and the others on the connection go on. */
+function ftDropChannel(t) {
+  const link = t ? ftLinks.get(ftLower(t.peer)) : null;
+  if (!link || link.closed) return;
+  const q = link.toOpen.indexOf(t.id);
+  if (q >= 0) link.toOpen.splice(q, 1);
+  const chan = link.chans.get(t.id);
+  if (chan) {
+    chan.closed = true;
+    link.chans.delete(t.id);
+    ftStopEngine(chan);
+    try { chan.dc.close(); } catch (e) { /* gone */ }
+  }
+  ftCloseIfIdle(link);
+}
+
+/**
+ * One channel closed (the other side closed it, or it failed): that transfer is off the connection
+ * and is dialled again later if it did not end; the others go on.
+ */
+function ftChanGone(link, chan) {
+  if (chan.closed) return;
+  chan.closed = true;
+  if (link.chans.get(chan.id) === chan) link.chans.delete(chan.id);
+  ftStopEngine(chan);
+  const t = chan.t;
+  if (!ftFinished(t) && t.state !== 'checking' && !(t.receiver && t.receiver.completed)) {
+    if (t.state === 'sending' || t.state === 'receiving') t.state = 'accepted';
+    t.pausedThere = false;
+    ftSave(t);
+    ftDraw(t);
+    ftScheduleRetry();
+  }
+  ftCloseIfIdle(link);
+}
+
+/** The connection went (closed, failed, or never opened in time): every transfer on it waits again. */
 function ftLinkGone(link) {
   if (link.closed) return;
+  const riding = Array.from(link.chans.values()).map((c) => c.t)
+    .concat(link.toOpen.map((id) => ftTransfers.get(id)).filter(Boolean));
   ftCloseLink(link);
-  const t = link.id ? ftTransfers.get(link.id) : null;
-  if (!t || ftFinished(t)) return;
-  // Every piece in and being checked (or saved): that needs no connection, and goes on.
-  if (t.state === 'checking' || (t.receiver && t.receiver.completed)) return;
-  if (t.state === 'sending' || t.state === 'receiving') t.state = 'accepted';
-  t.pausedThere = false;
-  ftSave(t);
-  ftDraw(t);
+  for (const t of riding) {
+    if (ftFinished(t)) continue;
+    // Every piece in and being checked (or saved): that needs no connection, and goes on.
+    if (t.state === 'checking' || (t.receiver && t.receiver.completed)) continue;
+    if (t.state === 'sending' || t.state === 'receiving') t.state = 'accepted';
+    t.pausedThere = false;
+    ftSave(t);
+    ftDraw(t);
+  }
   ftScheduleRetry();
 }
 
@@ -978,11 +1162,13 @@ function ftCloseLink(link) {
   clearTimeout(link.timer);
   const key = ftLower(link.peer);
   if (ftLinks.get(key) === link) ftLinks.delete(key);
-  if (link.engine) {
-    if (typeof link.engine.detach === 'function') link.engine.detach();
-    else if (typeof link.engine.close === 'function') link.engine.close();
+  for (const chan of link.chans.values()) {
+    chan.closed = true;
+    ftStopEngine(chan);
+    try { chan.dc.close(); } catch (e) { /* gone */ }
   }
-  try { if (link.dc) link.dc.close(); } catch (e) { /* gone */ }
+  link.chans.clear();
+  link.toOpen.length = 0;
   try { if (link.pc) link.pc.close(); } catch (e) { /* gone */ }
 }
 
@@ -1005,6 +1191,13 @@ function ftScheduleRetry() {
 async function ftSaveFile(t) {
   const n = t.offer.pieces;
   const piece = async (i) => ftIdb('pieces', 'readonly', (os) => os.get(ftPieceKey(t.id, i)));
+  if (t.savePicking) {
+    // The save dialog Accept opened is still open: the file waits for the place (the row says so).
+    t.awaitingPlace = true;
+    ftDraw(t);
+    await t.savePicking;
+    t.awaitingPlace = false;
+  }
   try {
     if (t.saveHandle && typeof t.saveHandle.createWritable === 'function') {
       // Straight into the file the person chose, a piece at a time.
@@ -1053,8 +1246,8 @@ async function ftSaveFile(t) {
   t.state = 'saved';
   await ftSave(t);
   ftDraw(t);
-  const link = ftLinkFor(t);
-  if (link) setTimeout(() => ftCloseLink(link), 2000);
+  // Its channel closes a moment later ("done" has gone by then); the others on the connection go on.
+  setTimeout(() => ftDropChannel(t), 2000);
   setTimeout(() => ftDropPieces(t), FT_PIECES_LINGER_MS);
 }
 
@@ -1102,7 +1295,7 @@ function ftStateWords(t) {
       if (t.pausedHere) return W.paused;
       if (t.pausedThere) return W.pausedThere(name);
       return t.path === 'direct' ? W.receivingDirect : W.receivingThroughRelay;
-    case 'checking': return W.checking;
+    case 'checking': return t.awaitingPlace ? W.choosePlace : W.checking;
     case 'saved': return W.saved;
     case 'declined': return W.youDeclined;
     case 'refused': return W.refused(name, t.name, t.size, t.refusedAccept);
@@ -1153,7 +1346,38 @@ function ftDrawSoon(t) {
   Promise.resolve().then(run);
 }
 
-/** Fill a row's contents (createElement and textContent only). */
+/** A row element -> its parts (built once, then changed in place; see ftFill). */
+const ftRowParts = new WeakMap();
+
+/** The buttons a row shows as the transfer stands, by their data-ft names. */
+function ftButtonsFor(t) {
+  const show = new Set();
+  const finished = ftFinished(t);
+  if (t.role === 'receive' && t.state === 'asked') {
+    show.add('accept');
+    show.add('decline');
+  } else if (!finished) {
+    const canPause = t.state === 'accepted' || t.state === 'sending' || t.state === 'receiving';
+    if (canPause && !t.pausedHere && !t.noServer) show.add('pause');
+    if (canPause && (t.pausedHere || t.noServer)) show.add('resume');
+    if (t.role === 'send' && !t.file && t.state !== 'preparing') show.add('choose');
+    if (t.state !== 'checking') show.add('cancel');
+  }
+  // Saved through the browser's download: the same file once more, while the browser still holds it.
+  if (t.role === 'receive' && t.state === 'saved' && t.savedUrl) show.add('save-again');
+  return show;
+}
+
+/**
+ * Fill a row's contents (createElement and textContent only).
+ *
+ * The row is built once and then only changed in place: its words, its bar, which buttons show.
+ * Until 2026-10-12 every redraw emptied the row and made new buttons, and a redraw comes with every
+ * piece (one a frame). A browser sends a click only to the element the button went down AND came
+ * up on, so a button replaced between the two lost the click: Pause and Cancel could hardly be
+ * pressed while a file was moving. Each button is now the same element for the row's whole life,
+ * hidden when it does not apply, so a redraw never takes one from under the pointer.
+ */
 function ftFill(el, t) {
   const F = ftApi();
   const W = ftWords();
@@ -1163,64 +1387,78 @@ function ftFill(el, t) {
     if (text != null) e.textContent = text;
     return e;
   };
-  el.innerHTML = ''; // emptied (no markup is ever written here: everything below is textContent)
-  el.dataset.state = t.state;
-  const card = mk('div', 'enc-attach ft-card');
-  const head = mk('div', 'enc-attach-head');
-  head.appendChild(mk('span', 'ft-name', t.name));
-  head.appendChild(mk('span', 'enc-attach-size ft-size', F.sizeWords(t.size)));
-  card.appendChild(head);
-  const body = mk('div', 'enc-attach-body');
-  const finished = ftFinished(t);
-  if (!finished && t.state !== 'asked') {
-    const bar = mk('div', 'ft-bar');
-    const fill = mk('div', 'ft-bar-fill');
-    fill.style.width = Math.round(ftFraction(t) * 100) + '%';
-    bar.appendChild(fill);
-    body.appendChild(bar);
-  }
-  const words = mk('div', 'ft-state', ftStateWords(t));
-  words.setAttribute('role', 'status');
-  body.appendChild(words);
-  if (t.role === 'send' && !finished && t.state !== 'preparing' && t.file) body.appendChild(mk('div', 'enc-attach-note ft-note', W.sendKeepOpen));
-  const buttons = mk('div', 'ft-buttons');
-  const button = (label, what, fn) => {
-    const b = mk('button', 'enc-attach-dl ft-btn', label);
-    b.type = 'button';
-    b.dataset.ft = what;
-    b.onclick = () => { fn(); };
-    buttons.appendChild(b);
-    return b;
-  };
-  if (t.role === 'receive' && t.state === 'asked') {
-    button(W.accept, 'accept', () => ftAccept(t));
-    button(W.decline, 'decline', () => ftDecline(t));
-  } else if (!finished) {
-    const canPause = t.state === 'accepted' || t.state === 'sending' || t.state === 'receiving';
-    if (canPause && !t.pausedHere && !t.noServer) button(W.pause, 'pause', () => ftPause(t));
-    if (canPause && (t.pausedHere || t.noServer)) button(W.resume, 'resume', () => ftResume(t));
-    if (t.role === 'send' && !t.file && t.state !== 'preparing') {
+  const show = (e, on) => { e.style.display = on ? '' : 'none'; };
+  let p = ftRowParts.get(el);
+  if (!p) {
+    p = { buttons: new Map() };
+    el.innerHTML = ''; // emptied once (no markup is ever written here: everything below is textContent)
+    const card = mk('div', 'enc-attach ft-card');
+    const head = mk('div', 'enc-attach-head');
+    p.name = head.appendChild(mk('span', 'ft-name', ''));
+    p.size = head.appendChild(mk('span', 'enc-attach-size ft-size', ''));
+    card.appendChild(head);
+    const body = mk('div', 'enc-attach-body');
+    p.bar = body.appendChild(mk('div', 'ft-bar'));
+    p.fill = p.bar.appendChild(mk('div', 'ft-bar-fill'));
+    p.words = body.appendChild(mk('div', 'ft-state', ''));
+    p.words.setAttribute('role', 'status');
+    p.note = body.appendChild(mk('div', 'enc-attach-note ft-note', W.sendKeepOpen));
+    p.row = body.appendChild(mk('div', 'ft-buttons'));
+    const name = ftName(t.peer);
+    const button = (label, what, tip, fn) => {
+      const b = mk('button', 'enc-attach-dl ft-btn', label);
+      b.type = 'button';
+      b.dataset.ft = what;
+      b.setAttribute('data-tip-desc', tip);
+      b.onclick = () => { fn(); };
+      p.row.appendChild(b);
+      p.buttons.set(what, b);
+      return b;
+    };
+    // Every button this row can ever show, in their order, made now; which show is decided below.
+    if (t.role === 'receive') {
+      button(W.accept, 'accept', W.tipAccept(name), () => ftAccept(t));
+      button(W.decline, 'decline', W.tipDecline(name), () => ftDecline(t));
+    }
+    button(W.pause, 'pause', W.tipPause, () => ftPause(t));
+    button(W.resume, 'resume', W.tipResume, () => ftResume(t));
+    if (t.role === 'send') {
       const pick = document.createElement('input');
       pick.type = 'file';
       pick.style.display = 'none';
       pick.onchange = () => { const f = pick.files && pick.files[0]; if (f) ftChooseAgain(t, f); };
-      buttons.appendChild(pick);
-      button(W.chooseAgain, 'choose', () => { if (typeof pick.click === 'function') pick.click(); });
+      p.row.appendChild(pick);
       t.choosePicker = pick;
+      button(W.chooseAgain, 'choose', W.tipChoose, () => { if (typeof pick.click === 'function') pick.click(); });
     }
-    if (t.state !== 'checking') button(W.cancel, 'cancel', () => ftCancel(t));
+    button(W.cancel, 'cancel', W.tipCancel(name), () => ftCancel(t));
+    if (t.role === 'receive') {
+      const again = mk('a', 'enc-attach-dl ft-btn', W.saveAgain);
+      again.dataset.ft = 'save-again';
+      again.setAttribute('data-tip-desc', W.tipSaveAgain);
+      p.row.appendChild(again);
+      p.buttons.set('save-again', again);
+    }
+    card.appendChild(body);
+    el.appendChild(card);
+    ftRowParts.set(el, p);
   }
-  if (t.role === 'receive' && t.state === 'saved' && t.savedUrl) {
-    // Saved through the browser's download: the same file once more, while the browser still holds it.
-    const again = mk('a', 'enc-attach-dl ft-btn', W.saveAgain);
+  el.dataset.state = t.state;
+  p.name.textContent = t.name;
+  p.size.textContent = F.sizeWords(t.size);
+  const finished = ftFinished(t);
+  show(p.bar, !finished && t.state !== 'asked');
+  p.fill.style.width = Math.round(ftFraction(t) * 100) + '%';
+  p.words.textContent = ftStateWords(t);
+  show(p.note, t.role === 'send' && !finished && t.state !== 'preparing' && !!t.file);
+  const wanted = ftButtonsFor(t);
+  for (const [what, b] of p.buttons) show(b, wanted.has(what));
+  const again = p.buttons.get('save-again');
+  if (again && wanted.has('save-again')) {
     again.href = t.savedUrl;
     again.download = t.name;
-    again.dataset.ft = 'save-again';
-    buttons.appendChild(again);
   }
-  body.appendChild(buttons);
-  card.appendChild(body);
-  el.appendChild(card);
+  show(p.row, wanted.size > 0);
 }
 
 /** The open conversation's rows, drawn after its messages (chat-dms.js renderDmConversationFromStore). */

@@ -36,6 +36,15 @@
 // 10. Nothing near the file's size is held on the sending side: hashing and sending a 40 MB file
 //     read it only a piece at a time (the whole file is never read), every message is at most
 //     64 KiB, and the channel never holds much more than 1 MB.
+// 11. Rule 1 of "...: rules settled by the first review" (2026-10-12): a get adds to what the
+//     Sender owes. Asked the way the desktop app asks (16, then one piece as each arrives), it sends
+//     every piece once, in order, with no stall.
+// 12. A piece asked for again is sent again, whole: after a bad hash, and when asked while it is
+//     going out (straight after it); a get for pieces already owed adds nothing.
+// 13. The Receiver asks the first window, then one piece at a time, never a piece twice; at most 16
+//     asked and partial buffers only for those; a piece nobody asked for is not kept until asked
+//     for; a damaged copy of a piece it holds is ignored; after a stall the lost piece is asked
+//     for alone.
 //
 // HOS_WEB_DIR points the test at another copy of web/. Red first: see the end of this file.
 
@@ -101,11 +110,13 @@ function virtualFile(size, seed = 7) {
   return { size, name: "big.bin", type: "application/octet-stream", reads, slice, arrayBuffer: refuse, text: refuse, stream: refuse };
 }
 
-/** Kept pieces in memory, as the page keeps them in IndexedDB. */
+/** Kept pieces in memory, as the page keeps them in IndexedDB (in any order). */
 function memoryStore() {
   const pieces = new Map();
   return {
     pieces,
+    async held() { return [...pieces.keys()]; },
+    /** The first piece not kept: the tests' own measure (a Receiver reads held()). */
     async firstMissing() { let n = 0; while (pieces.has(n)) n++; return n; },
     async put(i, bytes) { pieces.set(i, new Uint8Array(bytes)); },
     async get(i) { return pieces.get(i) || null; },
@@ -435,7 +446,9 @@ test("5. a damaged piece is asked for again; the third failure of one piece ends
   await waitFor(() => ended(c.ev.sender), "the sender hears done");
   assert.equal(ended(c.ev.sender).reason, "done");
 
-  // Piece 3 arrives damaged every time: three tries, then it ends, with nothing after piece 3 kept.
+  // Piece 3 arrives damaged every time: three tries, then it ends; piece 3 is never kept, and every
+  // piece that is kept is the file's own. (Pieces after it may be kept: since 2026-10-12 a piece is
+  // kept in whatever order it arrives, rule 1; the page drops them all when a transfer ends this way.)
   const always = (m) => {
     const r = FT.readPieceMessage(m);
     if (r.piece === 3 && r.offset === 0) { const x = m.slice(); x[20] ^= 0x55; return x; }
@@ -447,7 +460,10 @@ test("5. a damaged piece is asked for again; the third failure of one piece ends
   await waitFor(() => ended(c2.ev.receiver), "the receiver ends");
   assert.equal(ended(c2.ev.receiver).reason, "damaged", "three failures of one piece end it");
   assert.deepEqual(c2.ev.receiver.filter(([t]) => t === "piece-failed").map(([, d]) => d.tries), [1, 2, 3], "after exactly three tries");
-  assert.deepEqual([...store2.pieces.keys()].sort(), [0, 1, 2], "nothing after piece 3 kept");
+  assert.ok(!store2.pieces.has(3), "piece 3 never kept");
+  for (const [i, p] of store2.pieces) assert.ok(Buffer.from(p).equals(Buffer.from(bytes.subarray(i * FT.PIECE_BYTES, (i + 1) * FT.PIECE_BYTES))), "piece " + i + " kept is the file's");
+  const asks3 = gets(c2.ch.st).filter((g) => g.from === 3);
+  assert.deepEqual(asks3, [{ t: "get", from: 3, count: 1 }, { t: "get", from: 3, count: 1 }], "piece 3 asked again alone after each of the first two failures: " + JSON.stringify(asks3));
   assert.ok(!has(c2.ev.receiver, "complete"));
   assert.ok(SHAPES.replace(/\s+/g, " ").includes("three failures of one piece end the transfer with words"), "the spec's rule");
 });
@@ -514,10 +530,12 @@ test("7. a pause from either side holds the transfer until the same side resumes
   await turns(400);
   assert.equal(c.ch.st.sent.length, sentAtPause, "the sender sends nothing more while the receiver is paused");
   assert.equal(store.pieces.size, atPause, "and nothing more is kept");
+  const asksBeforeResume = gets(c.ch.st).length;
   c.receiver.resume();
   await waitFor(() => store.pieces.size > atPause + 2, "it goes on");
-  const lastAsk = gets(c.ch.st).pop();
-  assert.ok(lastAsk.from <= atPause + 16, "from the first piece it lacked");
+  // (Until 2026-10-12 this read the LAST ask; with a window kept full a piece at a time, that is a
+  // top-up of one piece further on, so it reads the first ask after the resume.)
+  assert.deepEqual(gets(c.ch.st)[asksBeforeResume], { t: "get", from: atPause, count: 16 }, "a whole window from the first piece it lacked");
 
   // The sender pauses: the receiver asks for nothing until the sender resumes.
   c.sender.pause();
@@ -617,6 +635,251 @@ test("10. hashing and sending a 40 MB file read it a piece at a time, in message
   assert.ok(ok, "the pieces kept are the file's");
 });
 
+// ── 11 to 13. Rule 1: a get adds; the receiver asks for a piece once ─────────
+// docs/design/media-showcase.md, "Device-to-device big files: rules settled by the first review"
+// (2026-10-12), rule 1. The desktop app's receiver keeps its window of 16 full by asking for one
+// more piece each time one arrives, and the web Sender took each get as the whole new window: the
+// rest of the window was never sent, so 200 pieces took 188 round trips and 30-second stalls.
+
+/**
+ * A receiver that asks the way the desktop app's does (src/net/file_transfer.rs, Receiving::pump):
+ * the list, then the first 16 pieces, then, each time a piece is whole, the first piece it lacks
+ * and has not asked for, one get per run (so one piece at a time once the first window is out). A
+ * piece that fails its hash is asked for again the same way (alone, in practice). It has no stall
+ * clock: what it is not sent it never gets, so a sender that drops part of what it owes leaves it
+ * waiting, where the app would wait 30 seconds. `st.order`: each whole piece, in arrival order;
+ * `st.copies`: how many times each piece started arriving.
+ */
+function desktopReceiver(offer, io) {
+  const n = offer.pieces;
+  const st = { list: new Uint8Array(n * 32), listGot: 0, have: new Uint8Array(n), haveCount: 0, asked: new Set(), building: new Map(), order: [], copies: new Map(), gets: [], bad: 0, done: false };
+  const say = (o) => { if (o.t === "get") st.gets.push(o); io.send(JSON.stringify(o)); };
+  const pump = () => {
+    let room = 16 - st.asked.size;
+    let i = 0;
+    while (i < n && st.have[i]) i++;
+    while (room > 0 && i < n) {
+      while (i < n && (st.have[i] || st.asked.has(i))) i++;
+      if (i >= n) break;
+      const from = i;
+      let count = 0;
+      while (i < n && count < room && !st.have[i] && !st.asked.has(i)) { st.asked.add(i); i++; count++; }
+      room -= count;
+      say({ t: "get", from, count });
+    }
+  };
+  return {
+    st,
+    start() { say({ t: "hashes" }); },
+    receive(m) {
+      if (typeof m === "string") return;
+      if (st.listGot < st.list.length) {
+        st.list.set(m, st.listGot);
+        st.listGot += m.length;
+        if (st.listGot === st.list.length) pump();
+        return;
+      }
+      const r = FT.readPieceMessage(m);
+      const p = r.piece;
+      if (r.offset === 0) st.copies.set(p, (st.copies.get(p) || 0) + 1);
+      if (p >= n || st.have[p] || !st.asked.has(p)) return;
+      if (r.offset === 0) st.building.set(p, []);
+      const parts = st.building.get(p);
+      if (!parts) return;
+      parts.push(Buffer.from(r.payload));
+      const whole = Buffer.concat(parts);
+      if (whole.length < FT.pieceLength(offer.size, offer.piece, p)) return;
+      st.building.delete(p);
+      st.asked.delete(p);
+      if (!Buffer.from(B3.hash(whole)).equals(Buffer.from(st.list.subarray(p * 32, p * 32 + 32)))) {
+        st.bad++;
+        pump();
+        return;
+      }
+      st.have[p] = 1;
+      st.haveCount++;
+      st.order.push(p);
+      if (st.haveCount === n) { st.done = true; say({ t: "done" }); return; }
+      pump();
+    },
+  };
+}
+
+/** Run turns until `pred` holds or the channel has been quiet (nothing in flight either way) for a while. */
+async function untilDoneOrQuiet(pred, ch, quietTurns = 3000) {
+  let quiet = 0;
+  for (let i = 0; i < 4000000 && quiet < quietTurns; i++) {
+    if (pred()) return true;
+    await new Promise((r) => setImmediate(r));
+    quiet = ch.st.toReceiver.length || ch.st.toSender.length ? 0 : quiet + 1;
+  }
+  return pred();
+}
+
+/** The web Sender against the desktop app's way of asking, over the stand-in channel. */
+async function senderToDesktop(bytes, tamper) {
+  const file = new Blob([bytes]);
+  const { offer, hashed } = await offerFor(file);
+  const ch = channel({ tamper });
+  const ev = [];
+  const sender = new FT.Sender({ offer, file, pieceHashes: hashed.pieceHashes, io: ch.senderIo, onEvent: (t, d) => ev.push([t, d]) });
+  const rx = desktopReceiver(offer, ch.receiverIo);
+  ch.bind(sender, rx);
+  rx.start();
+  const done = await untilDoneOrQuiet(() => rx.st.done && ended(ev), ch);
+  return { offer, rx, ev, done };
+}
+
+test("11. the Sender, asked the desktop app's way (16, then one more piece as each arrives), sends every piece once, in order, with no stall", async () => {
+  const pieces = 40;
+  const bytes = fileBytes(pieces * FT.PIECE_BYTES - 1000, 21);
+  const { offer, rx, ev, done } = await senderToDesktop(bytes);
+  // The stand-in asks as the desktop app does: one window, then a get of one piece per piece in.
+  assert.deepEqual(rx.st.gets[0], { t: "get", from: 0, count: 16 }, "the first window");
+  assert.ok(rx.st.gets.slice(1).every((g) => g.count === 1), "then one piece at a time: " + JSON.stringify(rx.st.gets.slice(1, 6)));
+  assert.ok(done && rx.st.done, `every piece arrived without a stall (a real receiver would have waited 30 seconds here): ${rx.st.haveCount} of ${offer.pieces}`);
+  assert.equal(rx.st.gets.length, 1 + (offer.pieces - 16), "one get per piece past the first window, none asked again");
+  assert.deepEqual(rx.st.order, Array.from({ length: offer.pieces }, (_, i) => i), "in ascending order");
+  for (let i = 0; i < offer.pieces; i++) assert.equal(rx.st.copies.get(i), 1, "piece " + i + " sent once");
+  assert.equal(ended(ev).reason, "done", "and the sender hears done");
+  assert.ok(SPEC.replace(/\s+/g, " ").includes("A `get` adds, it never replaces."), "the rule, as the spec writes it");
+});
+
+test("12. a piece asked for again is sent again, whole: after a bad hash, and when asked while it is being sent (after the current one)", async () => {
+  // a. The first copy of piece 5 arrives damaged: the desktop's receiver asks for piece 5 alone, and it comes again.
+  let spoiled = false;
+  const tamper = (m) => {
+    const r = FT.readPieceMessage(m);
+    if (r.piece === 5 && r.offset === 0 && !spoiled) { spoiled = true; const x = m.slice(); x[300] ^= 0x0f; return x; }
+    return m;
+  };
+  const bytes = fileBytes(24 * FT.PIECE_BYTES + 5, 22);
+  const a = await senderToDesktop(bytes, tamper);
+  assert.equal(a.rx.st.bad, 1, "piece 5 failed once");
+  assert.ok(a.rx.st.gets.some((g) => g.from === 5 && g.count === 1), "and was asked for again alone");
+  assert.ok(a.done && a.rx.st.done, "the file arrived: " + a.rx.st.haveCount + " of " + a.offer.pieces);
+  assert.equal(a.rx.st.copies.get(5), 2, "piece 5 sent twice");
+  assert.ok(a.rx.st.order.indexOf(5) > a.rx.st.order.indexOf(6), "its second copy after the pieces already owed below the window's end: " + a.rx.st.order.slice(0, 10));
+
+  // b. A get for the piece going out now: that piece again, whole, straight after it (the lowest
+  // owed), then the rest; a get for pieces already owed adds nothing.
+  const file = new Blob([fileBytes(6 * FT.PIECE_BYTES, 23)]);
+  const { offer, hashed } = await offerFor(file);
+  const sent = [];
+  let sender = null;
+  let poked = false;
+  const io = {
+    send(d) {
+      if (typeof d === "string") return;
+      const r = FT.readPieceMessage(d);
+      sent.push([r.piece, r.offset, r.payload.length]);
+      if (r.piece === 1 && r.offset === 0 && !poked) {
+        poked = true;
+        sender.receive(JSON.stringify({ t: "get", from: 1, count: 1 })); // while piece 1 is going out
+        sender.receive(JSON.stringify({ t: "get", from: 2, count: 2 }));  // already owed
+      }
+    },
+    buffered: () => 0,
+    drained: () => Promise.resolve(),
+  };
+  const ev = [];
+  sender = new FT.Sender({ offer, file, pieceHashes: hashed.pieceHashes, io, onEvent: (t, d) => ev.push([t, d]) });
+  sender.receive(JSON.stringify({ t: "get", from: 0, count: 4 }));
+  await waitFor(() => ev.filter(([t]) => t === "progress").length >= 4, "the four pieces asked for sent", 200000);
+  await waitFor(() => !sender.pumping, "the sender done with what it owes", 200000);
+  await turns(200);
+  const starts = sent.filter(([, off]) => off === 0).map(([p]) => p);
+  assert.deepEqual(starts, [0, 1, 1, 2, 3], "piece 1 again straight after itself, then 2 and 3 once each");
+  for (const p of [0, 1, 2, 3]) {
+    const bytesOf = sent.filter(([q]) => q === p).reduce((s, [, , len]) => s + len, 0);
+    assert.equal(bytesOf, (p === 1 ? 2 : 1) * FT.pieceLength(offer.size, offer.piece, p), "piece " + p + " whole each time");
+  }
+});
+
+test("13. the Receiver asks for a piece once, keeps 16 asked a piece at a time, asks again only after a bad hash or a stall, and ignores what it did not ask for", async () => {
+  const bytes = fileBytes(40 * FT.PIECE_BYTES + 17, 24);
+  const file = new Blob([bytes]);
+  const { offer, hashed } = await offerFor(file);
+  const timeline = [];
+  const store = memoryStore();
+  const put = store.put;
+  store.put = async (i, b) => { timeline.push("put " + i); return put(i, b); };
+  const timers = { live: new Map(), next: 1, set(fn) { const id = this.next++; this.live.set(id, fn); return id; }, clear(id) { this.live.delete(id); } };
+  // Piece 9's first copy is lost on the way (its header names a piece that does not exist).
+  let lost = false;
+  const tamper = (m) => {
+    const r = FT.readPieceMessage(m);
+    if (r.piece === 9 && !lost) {
+      const x = m.slice();
+      new DataView(x.buffer, x.byteOffset).setUint32(0, 0xfffffff0, false);
+      if (r.offset + r.payload.length >= FT.pieceLength(offer.size, offer.piece, 9)) lost = true;
+      return x;
+    }
+    return m;
+  };
+  const ch = channel({ tamper });
+  const evS = [];
+  const evR = [];
+  const sender = new FT.Sender({ offer, file, pieceHashes: hashed.pieceHashes, io: ch.senderIo, onEvent: (t, d) => evS.push([t, d]) });
+  const receiver = new FT.Receiver({ offer, store, blake3: B3, stallMs: 30000, timers, onEvent: (t, d) => evR.push([t, d]) });
+  const io = {
+    send(d) { if (d.includes('"t":"get"')) timeline.push("ask " + d); ch.receiverIo.send(d); },
+    buffered: () => 0,
+    drained: () => Promise.resolve(),
+  };
+  // After piece 3 is kept: a piece nobody asked for (30, its true bytes) and a damaged copy of a
+  // piece already kept (1). The first must not be kept before it is asked for; the second changes nothing.
+  let injected = false;
+  const piecesOf = (p, spoil) => {
+    const len = FT.pieceLength(offer.size, offer.piece, p);
+    const out = [];
+    for (let off = 0; off < len; off += FT.CHUNK_BYTES) {
+      const m = FT.pieceMessage(p, off, bytes.subarray(p * FT.PIECE_BYTES + off, p * FT.PIECE_BYTES + Math.min(len, off + FT.CHUNK_BYTES)));
+      if (spoil && off === 0) m[40] ^= 0xff;
+      out.push(m);
+    }
+    return out;
+  };
+  const watched = {
+    receive(m) {
+      const r = receiver.receive(m);
+      // At most 16 asked for, and partial buffers only for pieces asked for.
+      assert.ok(receiver.asked.size <= 16, "at most 16 asked for: " + receiver.asked.size);
+      for (const k of receiver.partial.keys()) assert.ok(receiver.asked.has(k), "a partial buffer only for a piece asked for: " + k);
+      if (!injected && receiver.low >= 4) {
+        injected = true;
+        for (const x of piecesOf(30, false)) receiver.receive(x);
+        for (const x of piecesOf(1, true)) receiver.receive(x);
+      }
+      return r;
+    },
+  };
+  ch.bind(sender, watched);
+  await receiver.attach(io);
+  await untilDoneOrQuiet(() => ended(evS), ch);
+  assert.ok(!ended(evR), "piece 9 lost: nothing ended, it waits");
+  const asks = timeline.filter((x) => x.startsWith("ask ")).map((x) => JSON.parse(x.slice(4)));
+  assert.deepEqual(asks[0], { t: "get", from: 0, count: 16 }, "the first window");
+  assert.ok(asks.slice(1).every((g) => g.count === 1), "then one more piece as each arrives: " + JSON.stringify(asks.slice(1, 6)));
+  const askedFor = (list) => list.flatMap((g) => Array.from({ length: g.count }, (_, k) => g.from + k));
+  const beforeStall = askedFor(asks);
+  assert.equal(new Set(beforeStall).size, beforeStall.length, "no piece asked for twice (the rest of a window is never asked again)");
+  assert.equal(store.pieces.has(9), false, "piece 9 not in");
+  assert.equal(store.pieces.size, offer.pieces - 1, "every other piece in, in whatever order");
+  const askedThirty = timeline.findIndex((x) => x.startsWith("ask ") && askedFor([JSON.parse(x.slice(4))]).includes(30));
+  assert.ok(askedThirty >= 0 && timeline.indexOf("put 30") > askedThirty, "the piece nobody asked for was not kept until it was asked for");
+  assert.ok(!evR.some(([t]) => t === "piece-failed"), "the damaged copy of a piece already kept was ignored");
+  assert.ok(Buffer.from(store.pieces.get(1)).equals(Buffer.from(bytes.subarray(FT.PIECE_BYTES, 2 * FT.PIECE_BYTES))), "and piece 1 is still the file's");
+  // The stall: nothing arriving, so the clock it keeps runs out, and piece 9 is asked for again.
+  assert.ok(timers.live.size >= 1, "a stall clock runs while piece 9 is asked for");
+  for (const fn of Array.from(timers.live.values())) fn();
+  await untilDoneOrQuiet(() => has(evR, "complete"), ch);
+  const after = timeline.filter((x) => x.startsWith("ask ")).map((x) => JSON.parse(x.slice(4))).slice(asks.length);
+  assert.deepEqual(after, [{ t: "get", from: 9, count: 1 }], "after the stall, piece 9 alone");
+  assert.ok(has(evR, "complete"), "and the file is whole");
+  assert.ok(Buffer.from(bytes).equals(store.assembled()), "exactly the file");
+});
+
 // ── Red first ────────────────────────────────────────────────────────────
 // 2026-10-11: each break made in a copy of web/ and this file run against it with HOS_WEB_DIR,
 // seen failing with the assertion named; every other test passed.
@@ -646,3 +909,24 @@ test("10. hashing and sending a 40 MB file read it a piece at a time, in message
 //      most 64 KiB" (65,544), and test 5, whose damaged message no longer started where it did.
 //  E14 file-transfer.js, offerChecked taking any piece size: test 3 "a piece size other than
 //      256 KiB".
+//
+// 2026-10-12, the review's rules (rule 1 of "Device-to-device big files: rules settled by the first
+// review"): each break made in a fresh copy of web/ (HOS_WEB_DIR) and the whole file run against it;
+// the tests named failed with the assertion quoted, every other test passed.
+//  R1  file-transfer.js, the Sender's get replacing what is owed (the window it had before): test 11
+//      "every piece arrived without a stall" (25 of 40), test 12 "piece 5 failed once", test 13
+//      "every other piece in", and tests 6, 7 and 10, whose Receiver now tops its window up a piece
+//      at a time, which is how the review found it.
+//  R2  file-transfer.js, a piece asked for while it is going out not sent again: test 12 "piece 1
+//      again straight after itself". (Its first form waited for five pieces and failed on the wait;
+//      it waits for the sender to finish now, so the order is what fails.)
+//  R3  file-transfer.js, a piece already sent never sent again: test 12 "the file arrived" (24 of
+//      25), and tests 5, 7 and 13.
+//  R4  file-transfer.js, the Receiver asking a whole window again each time a piece arrives: test 13
+//      "then one more piece as each arrives", and test 5.
+//  R5  file-transfer.js, the Receiver taking a piece it did not ask for: test 13 "the piece nobody
+//      asked for was not kept until it was asked for", and test 7.
+//  R6  file-transfer.js, the stall clock running out and asking nothing again: test 13 "after the
+//      stall, piece 9 alone".
+//  R7  file-transfer.js, a bad piece asked again with a window of 16: test 5 "piece 3 asked again
+//      alone after each of the first two failures".

@@ -16,9 +16,11 @@
 //  - the channel's messages (section 5): text messages are JSON, data messages
 //    binary, at most 64 KiB each, a piece's starting with an 8-byte header;
 //  - hashing a file a piece at a time (never the whole file at once);
-//  - the Sender and the Receiver (section 5): hashes, get windows, piece
-//    checks, three tries a piece, resume from the first missing piece, done,
-//    pause, resume and cancel;
+//  - the Sender and the Receiver (section 5, and rule 1 of "...: rules
+//    settled by the first review"): hashes, gets that add to what is owed,
+//    a window of 16 kept full a piece at a time, piece checks, three tries a
+//    piece, resume from the first missing piece, done, pause, resume and
+//    cancel;
 //  - the words people see (section 6).
 //
 // A classic script in the browser (HosFileTransfer lands on window), a
@@ -285,7 +287,7 @@
 
   // ── The sender's end of the channel ──
   //
-  // One Sender per connection. `o`: {offer, file, pieceHashes, io, onEvent}.
+  // One Sender per data channel. `o`: {offer, file, pieceHashes, io, onEvent}.
   // io: {send(data), buffered() -> bytes queued, drained() -> a promise that
   // settles when the queue has gone down (or soon)}. onEvent(type, detail):
   // 'progress' {piece} after each piece is handed to the channel, 'paused-there',
@@ -294,11 +296,21 @@
   // (the file could not be read any more; the receiver is told to pause).
   //
   // It sends only what the receiver asks for: the piece hashes when asked
-  // ({"t":"hashes"}), and each window of pieces ({"t":"get"}), a piece read
+  // ({"t":"hashes"}), and the pieces it is asked for ({"t":"get"}), a piece read
   // from the file only when it is sent, in messages of at most 64 KiB, and
-  // never while the channel already holds more than 1 MB. A new get replaces
-  // the window being sent (the receiver asks again after a bad piece); a pause
-  // from either side drops it (the receiver asks again on resume).
+  // never while the channel already holds more than 1 MB.
+  //
+  // Rule 1 of "Device-to-device big files: rules settled by the first review"
+  // (2026-10-12): a get ADDS pieces to what the sender owes, it never replaces
+  // what was asked before. The desktop app keeps its window full by asking for
+  // one more piece each time one arrives ({"from":n,"count":1}); a sender that
+  // took each get as the whole new window dropped the rest of the old one, so
+  // 200 pieces took 188 round trips and 30-second stalls (found by the review).
+  // What is owed goes in ascending order, each piece once, from offset 0, and
+  // is forgotten once its last message has gone. A piece asked for while it is
+  // being sent is sent again, whole, after the current one: the receiver may
+  // have found the earlier copy bad. A pause from either side drops everything
+  // owed (the receiver asks again on resume).
 
   function Sender(o) {
     this.offer = o.offer;
@@ -306,7 +318,8 @@
     this.pieceHashes = o.pieceHashes;
     this.io = o.io;
     this.onEvent = typeof o.onEvent === 'function' ? o.onEvent : () => {};
-    this.window = null;
+    this.owed = [];        // piece numbers owed, ascending, each once
+    this.current = null;   // the piece going out now: {index, again, dropped}
     this.hashesWanted = false;
     this.pausedHere = !!o.paused;
     this.pausedThere = false;
@@ -314,6 +327,32 @@
     this.ended = false;
     if (this.pausedHere) this._say({ t: 'pause' });
   }
+
+  /** Put `n` into the ascending list `list` unless it is there. */
+  function insertAscending(list, n) {
+    let lo = 0;
+    let hi = list.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >>> 1;
+      if (list[mid] < n) lo = mid + 1; else hi = mid;
+    }
+    if (list[lo] !== n) list.splice(lo, 0, n);
+  }
+
+  /** Owe piece `index`: added in order, or (the piece going out now) sent again after it. */
+  Sender.prototype._owe = function (index) {
+    if (this.current && this.current.index === index && !this.current.dropped) {
+      this.current.again = true;
+      return;
+    }
+    insertAscending(this.owed, index);
+  };
+
+  /** Drop everything owed, the piece going out included (a pause from either side). */
+  Sender.prototype._dropOwed = function () {
+    this.owed = [];
+    if (this.current) this.current.dropped = true;
+  };
 
   Sender.prototype._say = function (obj) {
     if (this.ended) return;
@@ -323,7 +362,7 @@
   Sender.prototype._end = function (reason) {
     if (this.ended) return;
     this.ended = true;
-    this.window = null;
+    this._dropOwed();
     this.onEvent('end', { reason });
   };
 
@@ -343,13 +382,14 @@
         const from = msg.from;
         const count = msg.count;
         if (!isInt(from) || !isInt(count) || from < 0 || from >= pieces || count < 1 || count > WINDOW_MAX) return;
-        this.window = { from, end: Math.min(pieces, from + count), next: from };
+        const end = Math.min(pieces, from + count);
+        for (let i = from; i < end; i++) this._owe(i);
         this._pump();
         break;
       }
       case 'pause':
         this.pausedThere = true;
-        this.window = null;
+        this._dropOwed();
         this.onEvent('paused-there', {});
         break;
       case 'resume':
@@ -391,47 +431,48 @@
           await this._sendHashes();
           continue;
         }
-        const w = this.window;
-        if (!w || this.pausedHere || this.pausedThere) break;
-        if (w.next >= w.end) {
-          if (this.window === w) this.window = null;
-          break;
-        }
-        const index = w.next;
+        if (this.pausedHere || this.pausedThere || !this.owed.length) break;
+        // The lowest piece owed, from offset 0. A get for it from now on asks for it again.
+        const cur = { index: this.owed.shift(), again: false, dropped: false };
+        this.current = cur;
         let bytes;
         try {
-          bytes = await readPiece(this.file, index, this.offer.piece);
+          bytes = await readPiece(this.file, cur.index, this.offer.piece);
         } catch (e) {
           // The file cannot be read any more (moved, deleted, or the browser let go of it).
+          this.current = null;
           this._say({ t: 'pause' });
           this._end('unreadable');
           break;
         }
-        if (bytes.length !== pieceLength(this.offer.size, this.offer.piece, index)) {
+        if (bytes.length !== pieceLength(this.offer.size, this.offer.piece, cur.index)) {
+          this.current = null;
           this._say({ t: 'pause' });
           this._end('unreadable');
           break;
         }
-        if (this.window !== w) continue; // a new get, or a pause, came while it was read
         let whole = true;
         for (let off = 0; off < bytes.length; off += CHUNK_BYTES) {
-          if (!(await this._room()) || this.window !== w) { whole = false; break; }
-          this.io.send(pieceMessage(index, off, bytes.subarray(off, Math.min(bytes.length, off + CHUNK_BYTES))));
+          if (!(await this._room()) || cur.dropped) { whole = false; break; }
+          this.io.send(pieceMessage(cur.index, off, bytes.subarray(off, Math.min(bytes.length, off + CHUNK_BYTES))));
         }
-        if (!whole) continue;
-        if (this.window === w) w.next = index + 1;
-        this.onEvent('progress', { piece: index });
+        if (this.current === cur) this.current = null;
+        if (!whole) continue; // a pause (or the end) dropped it part way: forgotten, asked again on resume
+        this.onEvent('progress', { piece: cur.index });
+        if (cur.again) insertAscending(this.owed, cur.index);
       }
+    } catch (e) {
+      // The channel refused a message (it is closing): its close ends this engine.
     } finally {
       this.pumping = false;
     }
   };
 
-  /** Pause here: the window is dropped and the receiver told. */
+  /** Pause here: everything owed is dropped and the receiver told. */
   Sender.prototype.pause = function () {
     if (this.ended || this.pausedHere) return;
     this.pausedHere = true;
-    this.window = null;
+    this._dropOwed();
     this._say({ t: 'pause' });
   };
 
@@ -449,31 +490,42 @@
     this._end('cancelled-here');
   };
 
-  /** The connection went: stop without a word. */
+  /** The channel went: stop without a word. */
   Sender.prototype.close = function () {
     this.ended = true;
-    this.window = null;
+    this._dropOwed();
   };
 
   // ── The receiver's end of the channel ──
   //
-  // One Receiver per transfer, kept across connections (attach on each new
-  // one, detach when it goes). `o`: {offer, store, blake3, onEvent, stallMs,
-  // timers}. store: {firstMissing() -> how many pieces from the first are kept,
+  // One Receiver per transfer, kept across channels (attach on each new one,
+  // detach when it goes). `o`: {offer, store, blake3, onEvent, stallMs, timers}.
+  // store: {held() -> the numbers of the pieces kept so far (any order),
   // put(index, bytes), get(index) -> bytes}. blake3: HosBlake3. onEvent(type,
-  // detail): 'progress' {done, total}, 'piece-failed' {piece, tries},
-  // 'paused-there', 'resumed-there', 'checking', 'complete' (every piece in and
-  // the whole file's BLAKE3 matches: the page saves it now), 'end' {reason}:
+  // detail): 'progress' {done, total, low} (done: pieces kept; low: the first
+  // piece not kept), 'piece-failed' {piece, tries}, 'paused-there',
+  // 'resumed-there', 'checking', 'complete' (every piece in and the whole
+  // file's BLAKE3 matches: the page saves it now), 'end' {reason}:
   // 'cancelled-here', 'cancelled-there', 'mismatch' (the piece hashes do not
   // match the offer's `hashes`), 'mismatch-file' (the whole file's BLAKE3 does
   // not match the offer's), 'damaged' (one piece failed three times).
   //
-  // It asks for the piece hashes on a connection when it does not hold them
-  // yet, checks them against the offer, then asks for windows of at most 16
-  // pieces from the first piece it lacks. Each piece is checked against its
-  // hash before it is kept; a bad one is asked for again, and the third failure
-  // of one piece ends the transfer. Pieces are kept strictly in order, so after
-  // a drop (or a reload) the first piece it lacks is where it starts again.
+  // It asks for the piece hashes on a channel when it does not hold them yet,
+  // checks them against the offer, then asks for pieces. Rule 1 of "Device-to-
+  // device big files: rules settled by the first review" (2026-10-12), the same
+  // in both apps:
+  //  - it asks for a piece once, and again only after it failed its hash (a get
+  //    of that one piece) or after a stall with nothing arriving (`stallMs`);
+  //  - it keeps its window (16 pieces) full by asking for pieces it has not
+  //    asked for yet, the first ones it lacks, as one get per run: so after the
+  //    first window, each piece that arrives is followed by a get of one more,
+  //    and the rest of a window is never asked again;
+  //  - it ignores messages for a piece it did not ask for or already holds, and
+  //    holds partial buffers only for pieces it asked for (at most 16).
+  // Each piece is checked against its hash before it is kept, in whatever order
+  // it arrives (a piece asked again after a bad hash comes after the ones asked
+  // before it); the third failure of one piece ends the transfer. After a drop
+  // (or a reload) it starts again from the first piece it lacks.
 
   function Receiver(o) {
     this.offer = o.offer;
@@ -488,15 +540,16 @@
     this.hashes = null;
     this.hashBuf = null;
     this.hashGot = 0;
-    this.next = 0;
-    this.fill = 0;
-    this.buf = new Uint8Array(this.offer.piece);
+    this.have = new Uint8Array(this.offer.pieces); // 1: the piece is kept
+    this.haveCount = 0;
+    this.low = 0;                                  // no piece before this one is missing
+    this.asked = new Set();                        // asked for on this channel, not in yet
+    this.partial = new Map();                      // piece -> {buf, fill}: only pieces asked for
     this.fails = new Map();
     this.whole = this.B3.create();
-    this.wholeUpTo = 0;
+    this.wholeUpTo = 0;                            // the whole-file hash has taken the pieces before this one
     this.io = null;
     this.phase = 'idle';
-    this.window = null;
     this.pausedHere = !!o.paused;
     this.pausedThere = false;
     this.ended = false;
@@ -506,13 +559,24 @@
     this.loaded = false;
   }
 
-  /** Learn from the store how far it already got. */
+  /** Learn from the store which pieces it already holds. */
   Receiver.prototype.load = async function () {
-    const n = Number(await this.store.firstMissing());
-    this.next = Number.isFinite(n) && n > 0 ? Math.min(n, this.offer.pieces) : 0;
+    const n = this.offer.pieces;
+    const held = await this.store.held();
+    for (const i of Array.isArray(held) ? held : []) {
+      if (isInt(i) && i >= 0 && i < n && !this.have[i]) {
+        this.have[i] = 1;
+        this.haveCount += 1;
+      }
+    }
+    while (this.low < n && this.have[this.low]) this.low += 1;
     this.loaded = true;
-    this.onEvent('progress', { done: this.next, total: this.offer.pieces });
-    return this.next;
+    this._progress();
+    return this.low;
+  };
+
+  Receiver.prototype._progress = function () {
+    this.onEvent('progress', { done: this.haveCount, total: this.offer.pieces, low: this.low });
   };
 
   Receiver.prototype._say = function (obj) {
@@ -523,9 +587,15 @@
   Receiver.prototype._end = function (reason) {
     if (this.ended) return;
     this.ended = true;
-    this.window = null;
-    this._unstall();
+    this._forget();
     this.onEvent('end', { reason });
+  };
+
+  /** Nothing asked for any more, nothing half in, no clock running. */
+  Receiver.prototype._forget = function () {
+    this.asked.clear();
+    this.partial.clear();
+    this._unstall();
   };
 
   Receiver.prototype._unstall = function () {
@@ -535,27 +605,29 @@
     }
   };
 
-  /** Ask again from the first piece it lacks when nothing came for a while (nothing is counted against a piece). */
-  Receiver.prototype._armStall = function () {
+  /**
+   * The stall clock, started again: nothing arriving for `stallMs` while pieces are asked for, and
+   * they are asked for again (nothing is counted against a piece for it).
+   */
+  Receiver.prototype._watch = function () {
     this._unstall();
-    if (!this.stallMs || !this.window || this.ended) return;
+    if (!this.stallMs || this.ended || !this.asked.size) return;
     this.stallTimer = this.timers.set(() => {
       this.stallTimer = null;
-      if (this.window && !this.ended && this.io) {
-        this.fill = 0;
-        this._ask();
-      }
+      if (this.ended || !this.io || !this.asked.size) return;
+      this.asked.clear();
+      this.partial.clear();
+      this._pump();
     }, this.stallMs);
   };
 
-  /** A connection is open: ask for what is needed. */
+  /** A channel is open: ask for what is needed. */
   Receiver.prototype.attach = async function (io) {
     if (this.ended || this.completed) return;
     if (!this.loaded) await this.load();
     this.io = io;
     this.pausedThere = false;
-    this.window = null;
-    this.fill = 0;
+    this._forget();
     if (this.pausedHere) this._say({ t: 'pause' });
     if (!this.hashes) {
       this.phase = 'hashes';
@@ -565,16 +637,14 @@
       return;
     }
     this.phase = 'data';
-    if (this.next >= this.offer.pieces) await this._finish();
-    else this._ask();
+    if (this.haveCount >= this.offer.pieces) await this._finish();
+    else this._pump();
   };
 
-  /** The connection went. */
+  /** The channel went: what was asked on it went with it. */
   Receiver.prototype.detach = function () {
     this.io = null;
-    this.window = null;
-    this.fill = 0;
-    this._unstall();
+    this._forget();
     if (this.phase === 'hashes') this.phase = 'idle';
   };
 
@@ -584,26 +654,54 @@
     return this.queue;
   };
 
-  Receiver.prototype._ask = function () {
-    if (!this.io || this.ended || this.pausedHere || this.pausedThere || this.phase !== 'data') return;
-    const count = Math.min(WINDOW_MAX, this.offer.pieces - this.next);
-    if (count <= 0) return;
-    this.window = { from: this.next, end: this.next + count };
-    this._say({ t: 'get', from: this.next, count });
-    this._armStall();
+  /** May it ask for pieces now? */
+  Receiver.prototype._mayAsk = function () {
+    return !!this.io && !this.ended && !this.pausedHere && !this.pausedThere && this.phase === 'data';
   };
 
-  Receiver.prototype._failed = function () {
-    const i = this.next;
-    const tries = (this.fails.get(i) || 0) + 1;
-    this.fails.set(i, tries);
-    this.fill = 0;
-    this.onEvent('piece-failed', { piece: i, tries });
+  /**
+   * Keep the window full: the first pieces it lacks and has not asked for, until 16 are asked
+   * for, one get per run of them. Nothing already asked for is asked again here.
+   */
+  Receiver.prototype._pump = function () {
+    if (!this._mayAsk()) return;
+    const n = this.offer.pieces;
+    while (this.low < n && this.have[this.low]) this.low += 1;
+    let room = WINDOW_MAX - this.asked.size;
+    let i = this.low;
+    let asked = false;
+    while (room > 0 && i < n) {
+      while (i < n && (this.have[i] || this.asked.has(i))) i += 1;
+      if (i >= n) break;
+      const from = i;
+      let count = 0;
+      while (i < n && count < room && !this.have[i] && !this.asked.has(i)) {
+        this.asked.add(i);
+        i += 1;
+        count += 1;
+      }
+      room -= count;
+      this._say({ t: 'get', from, count });
+      asked = true;
+    }
+    if (asked && this.stallTimer === null) this._watch();
+  };
+
+  /** Piece `p` failed (its hash, or more bytes than it has): asked for again alone, or the end. */
+  Receiver.prototype._failed = function (p) {
+    this.partial.delete(p);
+    this.asked.delete(p);
+    const tries = (this.fails.get(p) || 0) + 1;
+    this.fails.set(p, tries);
+    this.onEvent('piece-failed', { piece: p, tries });
     if (tries >= PIECE_TRIES) {
       this._end('damaged');
       return;
     }
-    this._ask();
+    if (!this._mayAsk()) return; // paused: asked again on resume
+    this.asked.add(p);
+    this._say({ t: 'get', from: p, count: 1 });
+    this._watch();
   };
 
   Receiver.prototype._handle = async function (data) {
@@ -613,15 +711,14 @@
       try { msg = JSON.parse(data); } catch (e) { return; }
       if (!msg || typeof msg.t !== 'string') return;
       if (msg.t === 'pause') {
+        // The sender dropped what it owed: nothing is asked for until it resumes.
         this.pausedThere = true;
-        this.window = null;
-        this.fill = 0;
-        this._unstall();
+        this._forget();
         this.onEvent('paused-there', {});
       } else if (msg.t === 'resume') {
         this.pausedThere = false;
         this.onEvent('resumed-there', {});
-        if (!this.pausedHere) this._ask();
+        if (!this.pausedHere) this._pump();
       } else if (msg.t === 'cancel') {
         this._end('cancelled-there');
       }
@@ -644,49 +741,84 @@
       this.hashes = this.hashBuf;
       this.hashBuf = null;
       this.phase = 'data';
-      if (this.next >= this.offer.pieces) await this._finish();
-      else this._ask();
+      if (this.haveCount >= this.offer.pieces) await this._finish();
+      else this._pump();
       return;
     }
     if (this.phase !== 'data') return;
     const m = readPieceMessage(bytes);
-    if (!m || !this.window || m.piece !== this.next) return; // not asked for, or left over from before a new ask
-    if (this.fill === 0 && m.offset !== 0) return;          // waiting for the piece to start again
-    const len = pieceLength(this.offer.size, this.offer.piece, this.next);
-    if (m.offset !== this.fill || this.fill + m.payload.length > len) {
-      this._failed();
+    if (!m) return;
+    const p = m.piece;
+    // Not asked for (left over from before a pause, or never asked), or already kept.
+    if (p >= this.offer.pieces || this.have[p] || !this.asked.has(p)) return;
+    this._watch();
+    const len = pieceLength(this.offer.size, this.offer.piece, p);
+    if (m.offset + m.payload.length > len) {
+      this._failed(p);
       return;
     }
-    this.buf.set(m.payload, this.fill);
-    this.fill += m.payload.length;
-    this._armStall();
-    if (this.fill < len) return;
-    const piece = this.buf.subarray(0, len);
-    const want = this.hashes.subarray(this.next * HASH_BYTES, (this.next + 1) * HASH_BYTES);
-    const got = this.B3.hash(piece);
+    let part;
+    if (m.offset === 0) {
+      // The piece starts (again): a piece sent again starts afresh.
+      part = { buf: new Uint8Array(len), fill: 0 };
+      this.partial.set(p, part);
+    } else {
+      part = this.partial.get(p);
+      if (!part || part.fill !== m.offset) {
+        // Cut off part way (a pause on the other side): forgotten until it starts again.
+        this.partial.delete(p);
+        return;
+      }
+    }
+    part.buf.set(m.payload, part.fill);
+    part.fill += m.payload.length;
+    if (part.fill < len) return;
+    this.partial.delete(p);
+    const want = this.hashes.subarray(p * HASH_BYTES, (p + 1) * HASH_BYTES);
+    const got = this.B3.hash(part.buf);
     let same = true;
     for (let i = 0; i < HASH_BYTES; i++) if (got[i] !== want[i]) { same = false; break; }
     if (!same) {
-      this._failed();
+      this._failed(p);
       return;
     }
-    const index = this.next;
-    await this.store.put(index, piece.slice());
+    await this.store.put(p, part.buf);
+    if (this.ended || this.have[p]) return;
+    this.have[p] = 1;
+    this.haveCount += 1;
+    this.asked.delete(p);
+    this.fails.delete(p);
+    while (this.low < this.offer.pieces && this.have[this.low]) this.low += 1;
+    await this._hashOn(p, part.buf);
     if (this.ended) return;
-    if (this.wholeUpTo === index) {
-      this.whole.update(piece);
-      this.wholeUpTo = index + 1;
-    }
-    this.fill = 0;
-    this.next = index + 1;
-    this.onEvent('progress', { done: this.next, total: this.offer.pieces });
-    if (this.next >= this.offer.pieces) {
-      this.window = null;
-      this._unstall();
+    this._progress();
+    if (this.haveCount >= this.offer.pieces) {
+      this._forget();
       await this._finish();
       return;
     }
-    if (this.window && this.next >= this.window.end) this._ask();
+    if (!this.asked.size) this._unstall();
+    this._pump();
+  };
+
+  /**
+   * The whole-file hash takes the pieces in order as they come: piece `p` (just kept, `bytes`) when
+   * it is the next one, then any kept after it that came early, read back from the store (a few at
+   * most: only pieces asked for come early). Pieces kept before this page are read back at the end.
+   */
+  Receiver.prototype._hashOn = async function (p, bytes) {
+    if (p !== this.wholeUpTo) return;
+    this.whole.update(bytes);
+    this.wholeUpTo += 1;
+    let more = 0;
+    while (this.wholeUpTo < this.offer.pieces && this.have[this.wholeUpTo] && more < 2 * WINDOW_MAX) {
+      const b = await this.store.get(this.wholeUpTo);
+      if (this.ended) return;
+      if (!b || b.length !== pieceLength(this.offer.size, this.offer.piece, this.wholeUpTo)) return; // the end's check says so
+      this.whole.update(b);
+      this.wholeUpTo += 1;
+      more += 1;
+    }
   };
 
   /** Every piece is in: check the whole file's BLAKE3 against the offer's before anything is saved. */
@@ -694,7 +826,7 @@
     if (this.ended || this.completed) return;
     this.phase = 'checking';
     this.onEvent('checking', {});
-    // Pieces kept before this page (or before a gap) are read back from the store, one at a time.
+    // Pieces kept before this page (or the hash has not reached yet) are read back from the store, one at a time.
     while (this.wholeUpTo < this.offer.pieces) {
       const bytes = await this.store.get(this.wholeUpTo);
       if (this.ended) return;
@@ -719,18 +851,16 @@
   Receiver.prototype.pause = function () {
     if (this.ended || this.pausedHere) return;
     this.pausedHere = true;
-    this.window = null;
-    this.fill = 0;
-    this._unstall();
+    this._forget();
     this._say({ t: 'pause' });
   };
 
-  /** Resume here: the sender is told, and the next window asked for (unless they paused too). */
+  /** Resume here: the sender is told, and the first pieces it lacks asked for (unless they paused too). */
   Receiver.prototype.resume = function () {
     if (this.ended || !this.pausedHere) return;
     this.pausedHere = false;
     this._say({ t: 'resume' });
-    this._ask();
+    this._pump();
   };
 
   /** Cancel: the sender is told. (The page also sends the cancel note.) */
@@ -776,6 +906,15 @@
     cancel: 'Cancel',
     chooseAgain: 'Choose the file again',
     saveAgain: 'Save again',
+    // What each button does, in the hint shown over it (shell.js's rich tooltip reads data-tip-desc;
+    // without one it said only "Tap or click to use this control.").
+    tipAccept: (name) => `Say yes. The file comes straight from ${who(name)}'s device, and you can choose where to save it.`,
+    tipDecline: (name) => `Say no. ${who(name)} is told you declined.`,
+    tipPause: 'Hold the transfer here. Nothing more goes until you press Resume.',
+    tipResume: 'Carry on from where it stopped.',
+    tipCancel: (name) => `Stop this transfer for good. ${who(name)} is told.`,
+    tipChoose: 'This page no longer has the file. Choose the same file again to keep sending.',
+    tipSaveAgain: 'Save the same file once more, while this browser still holds it.',
     // The states (section 6), and the few this page adds.
     preparing: 'Getting the file ready',
     waitingAccept: (name) => `Waiting for ${who(name)} to accept`,
@@ -788,6 +927,7 @@
     paused: 'Paused',
     pausedThere: (name) => `Paused by ${who(name)}`,
     checking: 'Checking the file',
+    choosePlace: 'Choose where to save it',
     sent: 'Sent',
     saved: 'Saved',
     declined: (name) => `${who(name)} declined`,
