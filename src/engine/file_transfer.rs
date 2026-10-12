@@ -47,7 +47,12 @@
 //!   seconds on if R is still on the connection and did not open it again, and is otherwise a drop
 //!   that waits for R's next dial; one S closes is opened again by R on the same connection
 //!   (net/file_link.rs). Either way the row stops saying it is open or paused at once
-//!   (`LinkEvent::TransferClosed`).
+//!   (`LinkEvent::TransferClosed`). From the review of the merged code (2026-10-12): a cancel or
+//!   failure note that cannot go (the chat offline) is kept with the transfer's record and sent
+//!   once the server is connected again ([`say_note`], [`flush_notes`]); a dial naming an offer
+//!   that ended here as cancelled or failed, and a channel opened for a transfer that ended here
+//!   other than done, both mean the note never arrived, so it goes again once in this run of the
+//!   app ([`say_cancel_again`]), the channel answered with `cancel` too (`Cmd::AddEnded`).
 //! - Rule 9, a dial is an answer: S, its record still waiting for R's answer note, takes the
 //!   transfer's channel opening as Accept and `done` as Sent ([`pump_link`], file_offer.rs
 //!   `advance`), so a lost answer note never leaves the row waiting.
@@ -84,6 +89,10 @@ pub const RAN_OUT: &str = "This offer ran out before the file went across (an of
 
 /// The words on a receiver's other device once one of them answered.
 pub const ANSWERED_ELSEWHERE: &str = "Answered on your other device";
+
+/// While connected, how long before kept notes that could not go (one that cannot be sealed yet:
+/// no DM key for them) are tried again.
+pub const NOTES_RETRY: Duration = Duration::from_secs(30);
 
 /// Where the connection with one person stands right now (not kept: a restart starts from the
 /// records).
@@ -190,6 +199,12 @@ pub struct Transfers {
     pub preparing: Vec<Preparing>,
     /// Where connections bind their sockets: all interfaces, or 127.0.0.1 in the tests.
     pub bind: Option<String>,
+    /// The transfers whose cancel note was said again in this run of the app ([`say_cancel_again`]):
+    /// once each, so a receiver dialling every few seconds gets one note, not one per dial.
+    pub said_again: HashSet<String>,
+    /// When kept notes that could not all go are tried again ([`flush_notes`]); None: at once,
+    /// which is how every new connection starts.
+    pub notes_retry: Option<Instant>,
 }
 
 impl Transfers {
@@ -258,6 +273,89 @@ fn send_note(gs: &GuiState, peer: &str, text: &str, file_pass: Option<&FilePass>
 /// The pass a note about `r` carries: the offer's, when this device is its receiver (rule 4).
 fn note_pass(r: &OfferRecord) -> Option<&FilePass> {
     (!r.outgoing).then_some(&r.offer.pass)
+}
+
+/// Whether a note can go now: the chat is connected, and signed in with this connection's mailbox
+/// read (the mailbox is fetched only on a signed-in socket, and a `dm_put` before that is refused).
+fn can_say(gs: &GuiState) -> bool {
+    connected(gs) && crate::engine::dm::mailbox_read(gs)
+}
+
+/// RULE 8, AN END IS ALWAYS SAID, even offline (the review of 2026-10-12): send a note about
+/// transfer `id` now, or, when it cannot go ([`can_say`], or it cannot be sealed yet), keep it
+/// with the transfer's record (`OfferRecord::unsaid`, saved with the DM store, so a restart keeps
+/// it) to send when the server is connected again ([`flush_notes`]). One kept already waits ahead
+/// of it, in order. The website does the same (`pendingNotes`, at most 8 a transfer). Before this a
+/// cancel made with the chat offline was lost, and the other side waited for the file until its
+/// pass ran out, up to 7 days, the sender's other files with them waiting behind it.
+fn say_note(gs: &mut GuiState, id: &str, text: &str) {
+    let Some(r) = record(gs, id).cloned() else { return };
+    if r.unsaid.is_empty() && can_say(gs) && send_note(gs, &r.peer, text, note_pass(&r)) {
+        return;
+    }
+    with_record(gs, id, |r| {
+        if r.unsaid.len() < fo::NOTES_KEPT && !r.unsaid.iter().any(|t| t == text) {
+            r.unsaid.push(text.to_string());
+        }
+    });
+}
+
+/// Send the notes kept for transfer `id`, in order, as far as they go, when a note can go now
+/// ([`can_say`]). True when none is left. A note to someone this person has since blocked is
+/// dropped instead (step C: nothing is sent to them).
+fn flush_record(gs: &mut GuiState, id: &str) -> bool {
+    let Some(r) = record(gs, id).cloned() else { return true };
+    if r.unsaid.is_empty() {
+        return true;
+    }
+    if crate::engine::block::is_blocked(gs, &r.peer) {
+        with_record(gs, id, |r| r.unsaid.clear());
+        return true;
+    }
+    if !can_say(gs) {
+        return false;
+    }
+    let sent = r.unsaid.iter().take_while(|text| send_note(gs, &r.peer, text, note_pass(&r))).count();
+    if sent > 0 {
+        with_record(gs, id, |r| {
+            let n = sent.min(r.unsaid.len());
+            r.unsaid.drain(..n);
+        });
+    }
+    sent == r.unsaid.len()
+}
+
+/// Once a frame ([`pump`]): the notes kept because they could not go are sent once the server is
+/// connected and signed in again, at once on each new connection, then (any that still cannot go)
+/// every [`NOTES_RETRY`].
+fn flush_notes(gs: &mut GuiState, now: Instant) {
+    if !connected(gs) {
+        gs.files_flow.transfers.notes_retry = None;
+        return;
+    }
+    if !can_say(gs) || gs.files_flow.transfers.notes_retry.is_some_and(|t| now < t) {
+        return;
+    }
+    let waiting: Vec<String> = gs.dm_store.as_ref().map(|s| s.file_offers().iter().filter(|r| !r.unsaid.is_empty()).map(|r| r.offer.id.clone()).collect()).unwrap_or_default();
+    let mut all_went = true;
+    for id in waiting {
+        all_went &= flush_record(gs, &id);
+    }
+    gs.files_flow.transfers.notes_retry = (!all_went).then(|| now + NOTES_RETRY);
+}
+
+/// THE BACKSTOP OF RULE 8 (the review of 2026-10-12): the other side acts as if transfer `r` goes
+/// on (it dials for it, or opens its channel) although it ended on this device as cancelled or
+/// failed, so the cancel note never reached them. It goes again, once in this run of the app for
+/// that transfer ([`Transfers::said_again`]). A transfer that ended done, declined or expired sends
+/// nothing: no cancel note went for it. The website does the same once in a page's life.
+fn say_cancel_again(gs: &mut GuiState, r: &OfferRecord) {
+    if !r.here || !matches!(r.stage, Stage::Cancelled { .. } | Stage::Failed(_)) || crate::engine::block::is_blocked(gs, &r.peer) {
+        return;
+    }
+    if gs.files_flow.transfers.said_again.insert(r.offer.id.clone()) {
+        say_note(gs, &r.offer.id, &OfferCancel { id: r.offer.id.clone() }.text());
+    }
 }
 
 fn record<'a>(gs: &'a GuiState, id: &str) -> Option<&'a OfferRecord> {
@@ -407,6 +505,7 @@ pub fn send_offer(gs: &mut GuiState, prep: &Preparing, ready: Prepared) -> bool 
         let_in: false,
         paused: false,
         at: now_ms(),
+        unsaid: Vec::new(),
     };
     if let Some(store) = gs.dm_store.as_mut() {
         store.file_offers_mut().push(rec);
@@ -568,7 +667,8 @@ fn link_for<'a>(gs: &'a GuiState, peer: &str, id: &str) -> Option<&'a FileLink> 
 }
 
 /// Cancel `id`: `cancel` on its channel when it is open, the cancel note always (so the other
-/// side's row says so even without a connection), and the record ends here.
+/// side's row says so even without a connection; kept to send later when the chat is offline),
+/// and the record ends here.
 pub fn cancel(gs: &mut GuiState, id: &str) {
     let Some(r) = record(gs, id).cloned() else { return };
     if r.stage.ended() {
@@ -578,7 +678,7 @@ pub fn cancel(gs: &mut GuiState, id: &str) {
         link.send(Cmd::Cancel(id.to_string()));
     }
     if !crate::engine::block::is_blocked(gs, &r.peer) {
-        let _ = send_note(gs, &r.peer, &OfferCancel { id: id.to_string() }.text(), note_pass(&r));
+        say_note(gs, id, &OfferCancel { id: id.to_string() }.text());
     }
     with_record(gs, id, |r| r.stage = Stage::Cancelled { by_me: true });
     ended(gs, id);
@@ -609,8 +709,18 @@ pub fn resume(gs: &mut GuiState, id: &str) {
 }
 
 /// Take an ended transfer off the list, or an offer to this person that is left unanswered (one the
-/// protected setup left out): nothing is said to the other person.
+/// protected setup left out): nothing is said to the other person. One whose cancel note has not
+/// gone yet (made while offline) stays until it has: the record is what keeps the note, and
+/// without it the other person would wait for the file until its pass ran out.
 pub fn remove(gs: &mut GuiState, id: &str) {
+    if record(gs, id).is_some_and(|r| !r.unsaid.is_empty()) {
+        flush_record(gs, id); // sent now when it can be (dropped for someone since blocked)
+        if let Some(r) = record(gs, id).filter(|r| !r.unsaid.is_empty()).cloned() {
+            let name = crate::engine::dm::dm_display_name(gs, &r.peer);
+            gs.pending_notices.push(format!("{} stays on the list until this server is connected again, so {name} hears that it ended.", r.offer.name));
+            return;
+        }
+    }
     if let Some(store) = gs.dm_store.as_mut() {
         store.file_offers_mut().retain(|r| r.offer.id != id || !(r.stage.ended() || (!r.outgoing && r.stage == Stage::Offered)));
         store.save();
@@ -702,6 +812,18 @@ fn transfer_of(gs: &mut GuiState, r: &OfferRecord, name: &str) -> Option<Transfe
         Side::Receive { proto, part, dir, name: final_name, sender: name.to_string() }
     };
     Some(Transfer { id: r.offer.id.clone(), side })
+}
+
+/// A transfer that ended here, as the connection holds it to answer a channel opened for it
+/// ([`Cmd::AddEnded`]): never served, so no file is named and its protocol never runs.
+fn ended_transfer(r: &OfferRecord, name: &str) -> Transfer {
+    let side = if r.outgoing {
+        Side::Send { proto: Sending::new(r.offer.clone(), None), path: PathBuf::new(), receiver: name.to_string() }
+    } else {
+        let proto = Receiving::new(r.offer.clone(), name, false, Instant::now());
+        Side::Receive { proto, part: PathBuf::new(), dir: PathBuf::new(), name: String::new(), sender: name.to_string() }
+    };
+    Transfer { id: r.offer.id.clone(), side }
 }
 
 /// Nothing more is awaited for the connection with `peer`: it is at `phase`, with no offer of
@@ -799,6 +921,15 @@ pub fn on_signal(gs: &mut GuiState, frame: &serde_json::Value) -> bool {
                 return false; // not a file dial: a friend's direct connection, the manager's
             };
             if !is_live_offer_to(gs, &from, &id) {
+                // THE BACKSTOP OF RULE 8: a dial for an offer of this device's to them that ended
+                // here as cancelled or failed means the cancel note never reached them, and their
+                // other files from this person wait behind this dial (they dial with their oldest
+                // accepted one). Still not answered, but the cancel note goes again, once in this
+                // run of the app.
+                let mine = records_with(gs, &from).find(|r| r.offer.id == id && r.outgoing).cloned();
+                if let Some(r) = mine {
+                    say_cancel_again(gs, &r);
+                }
                 log::info!("file transfer: a dial for a transfer this device is not offering them was not answered");
                 return true;
             }
@@ -867,6 +998,7 @@ pub fn pump(gs: &mut GuiState) {
         pump_link(gs, peer);
     }
     let now = Instant::now();
+    flush_notes(gs, now);
     let records: Vec<OfferRecord> = gs.dm_store.as_ref().map(|s| s.file_offers().to_vec()).unwrap_or_default();
     let mut peers_live: Vec<String> = Vec::new();
     for r in &records {
@@ -1004,10 +1136,10 @@ fn pump_link(gs: &mut GuiState, peer: &str) {
                 live.paused_them = false;
             }
             LinkEvent::Wanted(id) => {
-                // The other side opened a channel for a transfer of ours with them: it joins.
-                let r = record(gs, &id).filter(|r| r.peer == peer && r.here && !r.stage.ended()).cloned();
-                if let Some(r) = r {
-                    let name = crate::engine::dm::dm_display_name(gs, peer);
+                let Some(r) = record(gs, &id).filter(|r| r.peer == peer && r.here).cloned() else { continue };
+                let name = crate::engine::dm::dm_display_name(gs, peer);
+                if !r.stage.ended() {
+                    // The other side opened a channel for a transfer of ours with them: it joins.
                     if let Some(t) = transfer_of(gs, &r, &name) {
                         let pair = gs.files_flow.transfers.pair(peer);
                         if let Some(link) = &pair.link {
@@ -1015,6 +1147,17 @@ fn pump_link(gs: &mut GuiState, peer: &str) {
                             pair.on_link.insert(id);
                         }
                     }
+                } else if r.stage != Stage::Done {
+                    // RULE 8, AN END IS ALWAYS SAID (the review of 2026-10-12): they opened a
+                    // channel for a transfer that ended here, so they never heard it ended. The
+                    // connection says `cancel` on that channel (and on any they open for it
+                    // again), and the cancel note goes again, once in this run. Before this the
+                    // channel was never answered: their side had asked for `hashes`, and its row
+                    // read "Receiving" at 0 while another transfer ran beside it.
+                    if let Some(link) = gs.files_flow.transfers.pairs.get(peer).and_then(|p| p.link.as_ref()) {
+                        link.send(Cmd::AddEnded(ended_transfer(&r, &name)));
+                    }
+                    say_cancel_again(gs, &r);
                 }
             }
             LinkEvent::Progress(id, n) => gs.files_flow.transfers.entry(&id).progress = n,
@@ -1044,8 +1187,9 @@ fn pump_link(gs: &mut GuiState, peer: &str) {
 /// "Ann's side stopped it" when they closed the channel and stayed on the connection) is told to
 /// the other side with the cancel note too, the receiver's carrying its pass (rule 8 of the second
 /// review: an end is always said; the channel's `cancel` went from the connection's protocol when
-/// the channel was open). Its row then says they cancelled. `done` ends a sender still waiting for
-/// the answer note as Sent (rule 9, file_offer.rs `advance`).
+/// the channel was open; the note is kept to send later when the chat is offline). Its row then
+/// says they cancelled. `done` ends a sender still waiting for the answer note as Sent (rule 9,
+/// file_offer.rs `advance`).
 fn on_end(gs: &mut GuiState, id: &str, end: End) {
     let Some(r) = record(gs, id).cloned() else { return };
     let what = match &end {
@@ -1055,7 +1199,7 @@ fn on_end(gs: &mut GuiState, id: &str, end: End) {
     };
     let Some(next) = fo::advance(&r.stage, &what) else { return };
     if matches!(end, End::Failed(_)) && !crate::engine::block::is_blocked(gs, &r.peer) {
-        let _ = send_note(gs, &r.peer, &OfferCancel { id: id.to_string() }.text(), note_pass(&r));
+        say_note(gs, id, &OfferCancel { id: id.to_string() }.text());
     }
     with_record(gs, id, |r| r.stage = next);
     if let End::Done = end {

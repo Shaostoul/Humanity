@@ -59,10 +59,16 @@
 //!   connection to drop.
 //!
 //! Either way the engine hears [`LinkEvent::TransferClosed`] at once. A channel opened for a
-//! transfer that already has one replaces it (only its receiver opens one, and only after it saw
-//! the last one close), and one opened for a transfer that already ended here, other than done, is
-//! answered with `cancel`. A channel this side asks to open that str0m closes before it opens (a
+//! transfer that already has one replaces it, the old one closed (only its receiver opens one, and
+//! only after it saw the last one close), and one opened for a transfer that already ended here,
+//! other than done, is answered with `cancel`, whether the transfer ended on this connection or
+//! before it (the engine hands such a one over as [`Cmd::AddEnded`] when the connection asks with
+//! [`LinkEvent::Wanted`]). A channel this side asks to open that str0m closes before it opens (a
 //! stream id the association still holds) is asked for again at once (`Link::opening`).
+//!
+//! THE LAST MESSAGES GET THEIR ACKNOWLEDGEMENT. When the last channel ends the connection stays
+//! until everything it wrote was acknowledged, at most [`LINGER`] (15 seconds), so a receiver's
+//! `done` lost on the way is sent again by SCTP before the connection closes.
 //!
 //! What is said on each channel is net/file_transfer.rs; this file only moves it.
 
@@ -88,8 +94,14 @@ use super::webrtc::turn::{TurnClient, TurnInbound};
 pub const RELAY_WAIT: Duration = Duration::from_secs(25);
 /// How long, once the forwarder answered, the first channel may take to open.
 pub const OPEN_WAIT: Duration = Duration::from_secs(45);
-/// After every transfer on the connection ended, how long the last messages get to leave.
-const LINGER: Duration = Duration::from_secs(2);
+/// After every transfer on the connection ended, the longest it stays for its last messages (a
+/// receiver's `done`, a `cancel`) to be acknowledged by the other side; it closes as soon as they
+/// are ([`may_close`]), which is normally at once. SCTP's shortest wait before it sends a lost
+/// message again is one second, doubled each time, so 15 seconds lets a `done` lost two or three
+/// times still go again. The 2 seconds before 2026-10-12 did not: a `done` lost twice was never
+/// sent again before the connection closed, and a website sender then waited until the pass ran
+/// out and ended "expired" with the file delivered.
+pub const LINGER: Duration = Duration::from_secs(15);
 /// The longest the loop blocks on the socket when nothing is going on.
 const IDLE_WAIT: Duration = Duration::from_millis(20);
 /// Messages written per loop turn at most, so commands and datagrams are never starved.
@@ -143,6 +155,12 @@ pub fn they_stopped(closed: Instant, heard: Option<Instant>) -> bool {
 /// this connection until it goes, then for the next dial.
 pub fn stop_due(closed: Instant, heard: Option<Instant>, now: Instant) -> bool {
     now.checked_duration_since(closed).is_some_and(|d| d >= STOPPED_WAIT) && they_stopped(closed, heard)
+}
+
+/// Whether a connection whose last channel ended at `since` closes now: once everything it wrote
+/// was acknowledged by the other side (`flushed`), or once [`LINGER`] has gone by whatever is left.
+pub fn may_close(since: Instant, flushed: bool, now: Instant) -> bool {
+    flushed || now.checked_duration_since(since).is_some_and(|d| d >= LINGER)
 }
 
 /// The forwarder's address and the credentials the server gave for one transfer.
@@ -200,6 +218,11 @@ pub enum Cmd {
     Signal { signal_type: String, data: String },
     /// Another transfer between the two (accepted, or offered, while the connection is up).
     Add(Transfer),
+    /// A transfer that already ended on this device, other than done, whose channel the other side
+    /// opened anyway ([`LinkEvent::Wanted`]): held as a leg already ended, so `bind` answers that
+    /// channel, and any it opens for it again, with `cancel` (rule 8 of the second review: an end
+    /// is always said). Nothing of it is served and its file is never opened.
+    AddEnded(Transfer),
     Pause(String),
     Resume(String),
     Cancel(String),
@@ -234,7 +257,9 @@ pub enum LinkEvent {
     /// a pause they held is over. A sending transfer ends after [`STOPPED_WAIT`] if they are still
     /// there and did not open it again; a receiving one opens its channel again.
     TransferClosed(String),
-    /// The other side opened a channel for a transfer this connection was not given.
+    /// The other side opened a channel for a transfer this connection was not given: the engine
+    /// answers with [`Cmd::Add`] for one that goes on here, or [`Cmd::AddEnded`] for one that ended
+    /// here other than done.
     Wanted(String),
     /// Pieces in (receiver) or sent (sender).
     Progress(String, u64),
@@ -472,6 +497,10 @@ struct Link {
     /// The last moment anything came from the other side through the forwarder (rule 8: whether
     /// they are still there after closing a channel).
     heard_at: Option<Instant>,
+    /// The tests' record of the channels this side closed (`close_channel`): str0m's own close
+    /// tells the other side nothing, so a test cannot see it there.
+    #[cfg(test)]
+    closed_here: Vec<ChannelId>,
 }
 
 impl Link {
@@ -499,6 +528,8 @@ impl Link {
             all_ended_at: None,
             dropped: false,
             heard_at: None,
+            #[cfg(test)]
+            closed_here: Vec::new(),
         };
         for t in setup.transfers {
             link.add(t);
@@ -567,8 +598,10 @@ impl Link {
             }
             if last_channel_ended(self.legs.values()) {
                 let t = *self.all_ended_at.get_or_insert_with(Instant::now);
+                // Flushed: nothing left to write and nothing written waiting for its
+                // acknowledgement (str0m's buffered amount falls only as SCTP acknowledges).
                 let flushed = self.legs.values().all(|l| l.outbox.is_empty()) && self.buffered_total() == 0;
-                if t.elapsed() >= LINGER || flushed {
+                if may_close(t, flushed, Instant::now()) {
                     return self.close();
                 }
             } else {
@@ -627,6 +660,34 @@ impl Link {
         }
     }
 
+    /// RULE 8, AN END IS ALWAYS SAID, for a channel the other side opened for a transfer that ended
+    /// here before this connection was given it ([`Cmd::AddEnded`]): it joins as a leg already
+    /// ended (no file opened, nothing served), so `bind` writes `cancel` on that channel, and on any
+    /// it opens for the transfer again, as it does for a leg that ended on this connection. Before
+    /// 2026-10-12 such a channel stayed unanswered: the receiver had asked for `hashes`, nothing
+    /// came, and its row read "Receiving" at 0 while another transfer ran beside it.
+    fn add_ended(&mut self, t: Transfer) {
+        let id = t.id;
+        if !self.legs.contains_key(&id) {
+            let mut leg = Leg::new(t.side, Disk::None);
+            leg.ended = true;
+            self.legs.insert(id.clone(), leg);
+        }
+        if let Some(cid) = self.unbound.remove(&id) {
+            self.bind(&id, cid);
+        }
+    }
+
+    /// Close one of this connection's channels (str0m's close, which tells another copy of str0m
+    /// nothing; a browser hears it).
+    fn close_channel(&mut self, cid: ChannelId) {
+        #[cfg(test)]
+        self.closed_here.push(cid);
+        if let Some(rtc) = self.rtc.as_mut() {
+            rtc.direct_api().close_data_channel(cid);
+        }
+    }
+
     /// Open the receivers' channels waiting to be opened, when the connection can take them: once
     /// it exists and is not waiting for the answer to its offer (str0m opens a channel on a live
     /// connection without a new offer).
@@ -670,9 +731,7 @@ impl Link {
         let ended = leg.ended;
         if let Some(old) = old {
             self.by_cid.remove(&old);
-            if let Some(rtc) = self.rtc.as_mut() {
-                rtc.direct_api().close_data_channel(old);
-            }
+            self.close_channel(old);
         }
         self.by_cid.insert(cid, id.to_string());
         if ended {
@@ -696,6 +755,9 @@ impl Link {
     fn channel_closed(&mut self, cid: ChannelId) {
         let now = Instant::now();
         let Some(id) = self.by_cid.remove(&cid) else {
+            // One the other side opened for a transfer this connection was not given: gone, so
+            // nothing is said on it.
+            self.unbound.retain(|_, c| *c != cid);
             // One this side asked to open, closed by str0m before it opened (`opening`).
             if let Some(id) = self.opening.remove(&cid) {
                 if let Some(leg) = self.legs.get_mut(&id).filter(|l| !l.ended && l.cid.is_none()) {
@@ -886,6 +948,7 @@ impl Link {
                 _ => {}
             },
             Cmd::Add(t) => self.add(t),
+            Cmd::AddEnded(t) => self.add_ended(t),
             Cmd::Pause(id) => {
                 if let Some(leg) = self.legs.get_mut(&id) {
                     let out = match &mut leg.side {
@@ -1014,7 +1077,13 @@ impl Link {
                 if self.legs.contains_key(&id) {
                     self.bind(&id, cid);
                 } else {
-                    self.unbound.insert(id.clone(), cid);
+                    // Kept for the engine's answer. A second channel for the same transfer before
+                    // that answer replaces the first, which is closed (only the transfer's receiver
+                    // opens one, and opens one again only after it saw the last one close), as
+                    // `bind` does for a transfer the connection holds.
+                    if let Some(old) = self.unbound.insert(id.clone(), cid).filter(|old| *old != cid) {
+                        self.close_channel(old);
+                    }
                     self.emit(LinkEvent::Wanted(id));
                 }
             }

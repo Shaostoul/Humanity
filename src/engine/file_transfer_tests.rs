@@ -329,8 +329,18 @@ fn an_accepted_transfer_is_dialled_only_while_the_sender_is_online_and_not_pause
 /// nothing asked, and not handed to the WebRTC manager. A `dc_offer` naming no transfer is not a
 /// file dial and is the manager's (a friend's direct connection), as is a candidate from someone
 /// with no file connection standing or being answered.
+///
+/// THE BACKSTOP OF RULE 8 (the review of the merged code, 2026-10-12): a dial naming an offer of
+/// Sam's to Rae that he cancelled is not answered either, but it means his cancel note never
+/// reached her (she dials with her oldest accepted transfer, so her other files from him wait
+/// behind it): the cancel note goes again, exactly one, and her row ends. A second dial for it in
+/// the same run sends nothing, and a dial naming one that was sent (done) sends nothing.
 /// Seen red 2026-10-12 with `on_signal` answering a dial with the newest live offer whatever it
-/// named (as if it named none): "only the transfer the dial names" got the fifth offer.
+/// named (as if it named none): "only the transfer the dial names" got the fifth offer. Seen red
+/// 2026-10-12 with `on_signal` not saying the cancel again (the `say_cancel_again` call taken
+/// out): "the cancel note goes again, exactly one" failed, 0 against 1. Seen red the same day with
+/// `say_cancel_again` not keeping its once-a-run mark (`said_again` not consulted): "a second dial
+/// for it sends nothing" failed.
 #[test]
 fn a_dial_is_answered_for_the_transfer_it_names() {
     crate::config::keep_saves_off_disk();
@@ -361,9 +371,20 @@ fn a_dial_is_answered_for_the_transfer_it_names() {
     assert!(matches!(sam.gs.files_flow.transfers.phase(&rae.key), Phase::NotSetUp(_)), "refused: not set up");
 
     cancel(&mut sam.gs, &offers[4]);
-    frames(&sam.sent);
+    frames(&sam.sent); // the cancel note, lost on its way to Rae
     assert!(on_signal(&mut sam.gs, &dc_offer_from(&rae.key, &offers[4])), "naming one that ended: taken");
-    assert!(frames(&sam.sent).is_empty(), "and refused quietly");
+    let again = frames(&sam.sent);
+    assert!(credentials_asked(&again).is_empty(), "not answered");
+    let to_rae = puts_to(&again, &rae.key);
+    assert_eq!(to_rae.len(), 1, "the cancel note goes again, exactly one");
+    assert_eq!(fo::parse_note(&open(&to_rae[0], &rae.seed).text), Some(fo::Note::Cancel(OfferCancel { id: offers[4].clone() })));
+    hand(&again, &mut rae);
+    assert_eq!(rec(&rae, &offers[4]).stage, Stage::Cancelled { by_me: false }, "and Rae's row ends");
+    assert!(on_signal(&mut sam.gs, &dc_offer_from(&rae.key, &offers[4])));
+    assert!(frames(&sam.sent).is_empty(), "a second dial for it sends nothing (once in this run)");
+    with_record(&mut sam.gs, &offers[3], |r| r.stage = Stage::Done);
+    assert!(on_signal(&mut sam.gs, &dc_offer_from(&rae.key, &offers[3])), "naming one that was sent: taken");
+    assert!(frames(&sam.sent).is_empty(), "and nothing said: no cancel note went for it");
     tidy(&[&sam, &rae]);
 }
 
@@ -682,5 +703,140 @@ fn a_sender_still_waiting_for_the_answer_takes_the_channel_as_it() {
     assert!(to_rae[0].get("file_pass").is_none(), "carrying no pass");
     assert_eq!(fo::parse_note(&open(&to_rae[0], &rae.seed).text), Some(fo::Note::Cancel(OfferCancel { id: two.clone() })));
     assert_eq!(words(&rae, &two, "Sam"), "Sam cancelled", "Rae's row ends too");
+    tidy(&[&sam, &rae]);
+}
+
+/// RULE 8 OFFLINE (the review of the merged code, 2026-10-12): a cancel or failure note that cannot
+/// go because the chat is not connected is kept with its transfer's record, is still there in the
+/// DM store read back from disk (a restart keeps it), and goes once the server is connected and
+/// signed in again: nothing while the new connection's mailbox is still being read, then each note
+/// once, carrying what it would have carried (the receiver's, the offer's pass). Sam cancels one
+/// transfer and another fails on its channel while he is offline; Rae, offline too, cancels a
+/// third. Each side's rows end on the other's. Remove keeps a row whose note has not gone, saying
+/// why, and takes it off once it has.
+/// Seen red 2026-10-12 with `cancel` sending its note as before (`let _ = send_note(...)`, nothing
+/// kept): "the cancel is kept with the record" failed, the list empty.
+#[test]
+fn a_note_that_cannot_go_is_kept_and_sent_once_connected_again() {
+    use crate::net::mailbox_fetch::MailboxFetch;
+    crate::config::keep_saves_off_disk();
+    let (rae_id, sam_id) = (identity(195), identity(196));
+    let mut sam = app(196, "unsaid-sam", &rae_id, "Rae", true);
+    let mut rae = app(195, "unsaid-rae", &sam_id, "Sam", true);
+    let one = offer_file(&mut sam, &rae.key, 300_000);
+    let two = offer_file(&mut sam, &rae.key, 200_000);
+    let three = offer_file(&mut sam, &rae.key, 100_000);
+    deliver(&sam, &mut rae);
+    for id in [&one, &two, &three] {
+        assert!(accept(&mut rae.gs, id, &rae.dir.join("dl"), "clip.mp4"));
+    }
+    deliver(&rae, &mut sam);
+
+    // Both chats go offline.
+    let (sam_socket, rae_socket) = (sam.gs.ws_client.take(), rae.gs.ws_client.take());
+    cancel(&mut sam.gs, &one);
+    on_end(&mut sam.gs, &two, End::Failed("clip.mp4 could not be read on this device any more.".into()));
+    cancel(&mut rae.gs, &three);
+    assert_eq!(rec(&sam, &one).stage, Stage::Cancelled { by_me: true });
+    assert_eq!(rec(&sam, &one).unsaid, vec![OfferCancel { id: one.clone() }.text()], "the cancel is kept with the record");
+    assert_eq!(rec(&sam, &two).unsaid, vec![OfferCancel { id: two.clone() }.text()], "and the failure's note");
+    assert_eq!(rec(&rae, &three).unsaid, vec![OfferCancel { id: three.clone() }.text()], "and the receiver's");
+    let server = crate::gui::pages::chat::norm_server_url(&sam.gs.server_url);
+    let reread = DmStore::load(&sam.seed, &sam.key, &server);
+    let kept: Vec<usize> = [&one, &two].iter().map(|id| reread.file_offers().iter().find(|r| &r.offer.id == *id).map(|r| r.unsaid.len()).unwrap_or(0)).collect();
+    assert_eq!(kept, vec![1, 1], "kept on disk, so a restart keeps them");
+    remove(&mut sam.gs, &one);
+    assert!(record(&sam.gs, &one).is_some(), "Remove keeps a row whose note waits");
+    assert!(sam.gs.pending_notices.iter().any(|n| n == "clip.mp4 stays on the list until this server is connected again, so Rae hears that it ended."), "{:?}", sam.gs.pending_notices);
+    pump(&mut sam.gs);
+
+    // Connected again, the new connection's mailbox not yet read: nothing yet.
+    sam.gs.ws_client = sam_socket;
+    rae.gs.ws_client = rae_socket;
+    sam.gs.dm_fetch = MailboxFetch::default();
+    pump(&mut sam.gs);
+    assert!(frames(&sam.sent).is_empty(), "nothing before the mailbox is read");
+
+    sam.gs.dm_fetch = MailboxFetch::already_read();
+    pump(&mut sam.gs);
+    pump(&mut rae.gs);
+    let out = deliver(&sam, &mut rae);
+    let to_rae = puts_to(&out, &rae.key);
+    let notes: Vec<Option<fo::Note>> = to_rae.iter().map(|p| fo::parse_note(&open(p, &rae.seed).text)).collect();
+    assert_eq!(notes, vec![Some(fo::Note::Cancel(OfferCancel { id: one.clone() })), Some(fo::Note::Cancel(OfferCancel { id: two.clone() }))], "each note once");
+    assert_eq!(puts_to(&out, &sam.key).len(), 2, "with their self-copies");
+    assert!(to_rae.iter().all(|p| p.get("file_pass").is_none()), "the sender's carry no pass");
+    let back = deliver(&rae, &mut sam);
+    let to_sam = puts_to(&back, &sam.key);
+    assert_eq!(to_sam.len(), 1, "Rae's kept cancel goes");
+    assert_eq!(to_sam[0]["file_pass"], serde_json::to_value(&rec(&rae, &three).offer.pass).unwrap(), "carrying the offer's pass, as it would have");
+    for id in [&one, &two, &three] {
+        assert!(rec(&sam, id).unsaid.is_empty() && rec(&rae, id).unsaid.is_empty(), "nothing left kept");
+    }
+    assert_eq!(words(&rae, &one, "Sam"), "Sam cancelled", "Rae's rows end");
+    assert_eq!(rec(&rae, &two).stage, Stage::Cancelled { by_me: false });
+    assert_eq!(words(&sam, &three, "Rae"), "Rae cancelled", "and Sam's");
+    pump(&mut sam.gs);
+    pump(&mut rae.gs);
+    assert!(frames(&sam.sent).is_empty() && frames(&rae.sent).is_empty(), "and only once");
+    remove(&mut sam.gs, &one);
+    assert!(record(&sam.gs, &one).is_none(), "its note gone, Remove takes the row off");
+    tidy(&[&sam, &rae]);
+}
+
+/// RULE 8 ON A CONNECTION THAT STANDS (the review of the merged code, 2026-10-12), through a
+/// stand-in connection: it carries one of Sam's transfers to Rae when Rae opens the channel of
+/// another that Sam cancelled (his cancel note lost). The connection asks (`Wanted`), and Sam's app
+/// hands that transfer over as already ended (`Cmd::AddEnded`, so the connection writes `cancel`
+/// on the channel) and sends the cancel note again: Rae's row ends. A channel she opens for it
+/// again is answered the same way with no second note (once in this run), and one opened for a
+/// transfer that ended done gets nothing (nothing to say).
+/// Seen red 2026-10-12 with `pump_link` taking `Wanted` as before (an ended record ignored): "the
+/// connection is told to answer it with cancel" failed.
+#[test]
+fn a_channel_opened_for_an_ended_transfer_is_answered_with_cancel() {
+    crate::config::keep_saves_off_disk();
+    let (rae_id, sam_id) = (identity(197), identity(198));
+    let mut sam = app(198, "ended-sam", &rae_id, "Rae", true);
+    let mut rae = app(197, "ended-rae", &sam_id, "Sam", true);
+    let one = offer_file(&mut sam, &rae.key, 300_000);
+    let two = offer_file(&mut sam, &rae.key, 200_000);
+    let three = offer_file(&mut sam, &rae.key, 100_000);
+    deliver(&sam, &mut rae);
+    for id in [&one, &two, &three] {
+        assert!(accept(&mut rae.gs, id, &rae.dir.join("dl"), "clip.mp4"));
+    }
+    deliver(&rae, &mut sam);
+    cancel(&mut sam.gs, &two);
+    frames(&sam.sent); // the cancel note, lost on its way to Rae
+    with_record(&mut sam.gs, &three, |r| r.stage = Stage::Done);
+
+    let (link, cmds, news) = file_link::FileLink::stand_in();
+    let pair = sam.gs.files_flow.transfers.pair(&rae.key);
+    pair.link = Some(link);
+    pair.on_link = [one.clone()].into_iter().collect();
+    pair.phase = Phase::Open;
+    let play = |sam: &mut App, ev: LinkEvent| {
+        news.send(ev).unwrap();
+        pump(&mut sam.gs);
+    };
+    play(&mut sam, LinkEvent::Wanted(two.clone()));
+    match cmds.try_recv() {
+        Ok(Cmd::AddEnded(t)) => assert_eq!(t.id, two, "for the transfer it names"),
+        _ => panic!("the connection is told to answer it with cancel"),
+    }
+    let out = deliver(&sam, &mut rae);
+    let to_rae = puts_to(&out, &rae.key);
+    assert_eq!(to_rae.len(), 1, "the cancel note goes again");
+    assert_eq!(fo::parse_note(&open(&to_rae[0], &rae.seed).text), Some(fo::Note::Cancel(OfferCancel { id: two.clone() })));
+    assert_eq!(words(&rae, &two, "Sam"), "Sam cancelled", "Rae's row ends");
+
+    play(&mut sam, LinkEvent::Wanted(two.clone()));
+    assert!(matches!(cmds.try_recv(), Ok(Cmd::AddEnded(_))), "a channel opened for it again is answered again");
+    assert!(frames(&sam.sent).is_empty(), "with no second note in this run");
+    play(&mut sam, LinkEvent::Wanted(three.clone()));
+    assert!(cmds.try_recv().is_err(), "a transfer that ended done: nothing to say");
+    assert!(frames(&sam.sent).is_empty());
+    assert_eq!(rec(&sam, &one).stage, Stage::Accepted, "the transfer on the connection goes on");
     tidy(&[&sam, &rae]);
 }

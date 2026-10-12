@@ -492,6 +492,73 @@ fn the_connection_closes_when_its_last_channel_ends() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// RULE 8, A CHANNEL OPENED FOR A TRANSFER THAT ENDED HERE BEFORE THIS CONNECTION (the review of the
+/// merged code, 2026-10-12), on a connection with no thread: it carries X when Rae opens Y's
+/// channel, which it was not given, and asks the engine (`Wanted`). She opens Y's again before the
+/// answer: the first is closed and the second kept. The engine hands Y over as ended
+/// (`Cmd::AddEnded`): `cancel` is written on that channel, and Y is not served (its file, deleted
+/// already, never opened; no `TransferOpen`, no end reported). A channel she opens for Y once more
+/// is answered `cancel` again, the last one closed.
+/// Seen red 2026-10-12 with `Cmd::AddEnded` doing nothing: "cancel is said on Y's channel" failed
+/// (no leg for Y). Seen red the same day with `ChannelOpen` keeping a second unbound channel
+/// without closing the first (as before the review): "the replaced channel is closed" failed.
+#[test]
+fn a_channel_for_a_transfer_that_ended_here_is_answered_with_cancel() {
+    let dir = std::env::temp_dir().join(format!("hum_file_link_ended_{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let (px, _, ox) = file(&dir, X, 1000, 1);
+    let (py, _, oy) = file(&dir, Y, 1000, 2);
+    let (mut link, news, _cmds) = bare_link(vec![send(&px, &ox)]);
+    let cids = channel_ids(4);
+    link.bind(X, cids[0]);
+    link.rtc_event(RtcEvent::ChannelOpen(cids[1], label(Y)));
+    link.rtc_event(RtcEvent::ChannelOpen(cids[2], label(Y)));
+    let told: Vec<LinkEvent> = news.try_iter().collect();
+    assert_eq!(told.iter().filter(|e| **e == LinkEvent::Wanted(Y.into())).count(), 2, "the engine asked each time: {told:?}");
+    assert_eq!(link.closed_here, vec![cids[1]], "the replaced channel is closed");
+    assert_eq!(link.unbound.get(Y), Some(&cids[2]), "the newer one kept");
+
+    std::fs::remove_file(&py).unwrap(); // a cleaned copy goes when its transfer ends
+    link.command(Cmd::AddEnded(send(&py, &oy)));
+    let said: Vec<Out> = link.legs.get(Y).map(|l| l.outbox.iter().cloned().collect()).unwrap_or_default();
+    assert_eq!(said, vec![cancel_message()], "cancel is said on Y's channel");
+    let leg = &link.legs[Y];
+    assert!(leg.ended && !leg.done && leg.cid == Some(cids[2]), "held as ended, on that channel");
+    assert!(link.unbound.is_empty());
+    let told: Vec<LinkEvent> = news.try_iter().collect();
+    assert!(told.is_empty(), "not served, nothing reported: {told:?}");
+    assert!(!link.legs[X].ended, "X goes on");
+
+    link.rtc_event(RtcEvent::ChannelOpen(cids[3], label(Y)));
+    assert_eq!(link.legs[Y].cid, Some(cids[3]));
+    assert_eq!(link.legs[Y].outbox.len(), 2, "a channel opened for Y again is answered cancel again");
+    assert_eq!(link.closed_here, vec![cids[1], cids[2]], "the last one closed");
+    let told: Vec<LinkEvent> = news.try_iter().collect();
+    assert!(told.is_empty(), "the connection holds Y now: nothing asked: {told:?}");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// THE LAST MESSAGES GET THEIR ACKNOWLEDGEMENT (the review of the merged code, 2026-10-12): once its
+/// last channel ended, a connection stays until what it wrote was acknowledged, at most 15 seconds,
+/// so a receiver's `done` lost on its way is sent again by SCTP (after one second, then two more,
+/// then four more: at 1, 3 and 7 seconds) before the connection closes; acknowledged, it closes
+/// at once.
+/// Seen red 2026-10-12 with `LINGER` back at 2 seconds: "a done lost twice is sent again at 3
+/// seconds: still there" failed.
+#[test]
+fn the_connection_stays_until_its_last_messages_are_acknowledged_or_15_seconds() {
+    let t = Instant::now();
+    let at = |ms: u64| t + Duration::from_millis(ms);
+    assert!(may_close(t, true, t), "acknowledged: at once");
+    assert!(may_close(t, true, at(5_000)));
+    assert!(!may_close(t, false, at(3_000)), "a done lost twice is sent again at 3 seconds: still there");
+    assert!(!may_close(t, false, at(7_000)), "lost three times, at 7 seconds: still there");
+    assert!(!may_close(t, false, at(14_999)));
+    assert!(may_close(t, false, at(15_000)), "15 seconds: it goes, whatever is left");
+    assert_eq!(LINGER, Duration::from_secs(15));
+}
+
 /// A transfer's channel is told by its label.
 /// Seen red 2026-10-11 with `label_id` taking anything after "file:": "file:not-an-id" read as
 /// a transfer.
