@@ -387,6 +387,17 @@ pub fn ws_message_feature(msg_type: &str) -> Option<Feature> {
     }
 }
 
+/// The notice a person gets when a message of theirs is refused because the owner switched
+/// `feature` off. A device-to-device file's credentials (`call_credentials` with `file`) are
+/// refused with voice, because the call relay that carries calls carries those files too, and
+/// "voice disabled" alone puzzles someone sending a file (2026-10-12).
+pub fn gate_notice(feature: Feature, msg_type: &str, raw: &serde_json::Value) -> String {
+    if msg_type == "call_credentials" && raw.get("file").is_some() {
+        return crate::relay::call_credentials::FILES_NEED_VOICE.to_string();
+    }
+    format!("This server has '{}' disabled ({}). The server owner chose not to host it.", feature.key(), feature.summary())
+}
+
 /// Inbound WS message types that are deliberately NEVER gated, with the reason.
 ///
 /// THIS IS THE OTHER HALF OF THE GATE. `ws_message_feature` returning `None`
@@ -4841,5 +4852,20 @@ mod tests {
 
         drop(sock);
         server.abort();
+    }
+
+    /// A device-to-device file's credentials refused on a server with voice off say so in file
+    /// words; a call's, and anything else gated, keep the general notice.
+    ///
+    /// Seen red 2026-10-12 with `gate_notice` always giving the general notice: "a file's
+    /// refusal names files" failed.
+    #[test]
+    fn a_files_refusal_with_voice_off_names_files() {
+        let file = serde_json::json!({ "type": "call_credentials", "file": "ab".repeat(16), "peer": "k" });
+        let call = serde_json::json!({ "type": "call_credentials", "call": "k" });
+        let n = gate_notice(Feature::Voice, "call_credentials", &file);
+        assert_eq!(n, crate::relay::call_credentials::FILES_NEED_VOICE, "a file's refusal names files");
+        assert!(gate_notice(Feature::Voice, "call_credentials", &call).contains("'voice' disabled"), "a call's keeps the general notice");
+        assert!(gate_notice(Feature::Game, "game_build", &serde_json::json!({})).contains("'game' disabled"));
     }
 }

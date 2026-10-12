@@ -413,6 +413,10 @@ fn refuse(state: &RelayState, who: &str, asked: Asked<'_>, message: &str) {
 
 /// The refusal reply alone, for a request the WS feature gate turned away because the owner
 /// switched voice off (relay.rs; the gate sends its own notice).
+/// The notice for a file's credentials on a server whose owner turned voice off: the forwarder
+/// that carries calls carries these files too, and it does not run without voice.
+pub const FILES_NEED_VOICE: &str = "This server does not carry files sent device to device: its owner turned off voice, and the same call relay carries both.";
+
 pub fn refused_reply(state: &RelayState, who: &str, raw: &serde_json::Value) {
     let creds = CallCredentials { refused: true, ..Asked::of(raw).reply() };
     let _ = state.broadcast_tx.send(RelayMessage::CallCredentials { to: who.to_string(), creds });

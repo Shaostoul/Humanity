@@ -78,3 +78,32 @@ lifetimes of 10 minutes by default and an hour at most (refreshed by the apps), 
 packet and 1.25 MB a second per allocation.
 
 A self-hoster opens the same UDP port on their own firewall or router, the same way.
+
+## Files sent device to device
+
+Since 2026-10-12 the same forwarder carries big files sent straight from one person's device to
+another's (`docs/design/media-showcase.md`, "Device-to-device big files"). The file never lands on
+the server: it passes through the forwarder encrypted, as a call does, and both people see only
+the server's address (unless they are friends who both turned on direct connections, when it may
+go straight between them). What that means for an operator:
+
+- **It runs only with voice on.** With `features.voice` off the forwarder does not start, a file's
+  credentials are refused, and the person sending it is told so in plain words ("its owner turned
+  off voice, and the same call relay carries both").
+- **Who can get credentials for a file.** Someone holding a file pass for that one transfer (a
+  signed permission the receiver's app makes when they press Accept, good for at most 7 days), for
+  a person this server knows (a registered name, or signed in now). The credentials work for that
+  transfer only, and the forwarder passes packets only between the two people's allocations of it.
+  A pass is not the other person's consent to be sent anything: what bounds use is the next two
+  limits.
+- **A day amount per person.** Each role has `max_forwarded_mb_per_day` ("Forwarded a day" in the desktop
+  app's Server settings, Roles; the website has no Roles editor). Default 2048 MB for every
+  role; 0 = no limit, the built-in Admin role's default. The forwarder counts what each person's file
+  allocations send in a UTC day and stops passing their file traffic past it until the next day.
+  Calls and voice rooms are never counted. The count lives in memory: a restart starts the day
+  again.
+- **At most 16 file allocations per person at once** (`MAX_FILE_PER_PERSON`), across all their
+  devices. One connection between two people carries any number of files, so this is 16 people
+  sending to or receiving from them at the same moment.
+- Asking for credentials of any kind counts toward 20 a minute per person, refused requests
+  included.

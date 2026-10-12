@@ -3652,14 +3652,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                         if let Some(msg_type) = raw.get("type").and_then(|t| t.as_str()) {
                             if let Some(feature) = crate::relay::features::ws_message_feature(msg_type) {
                                 if !state_clone.features.enabled(feature) {
-                                    let private = RelayMessage::Private {
-                                        to: my_key_for_recv.clone(),
-                                        message: format!(
-                                            "This server has '{}' disabled ({}). The server owner chose not to host it.",
-                                            feature.key(),
-                                            feature.summary()
-                                        ),
-                                    };
+                                    let message = crate::relay::features::gate_notice(feature, msg_type, &raw);
+                                    let private = RelayMessage::Private { to: my_key_for_recv.clone(), message };
                                     let _ = state_clone.broadcast_tx.send(private);
                                     // A call client waits for its credentials reply: refuse at once (call_credentials.rs).
                                     if msg_type == "call_credentials" { crate::relay::call_credentials::refused_reply(&state_clone, &my_key_for_recv, &raw); }
