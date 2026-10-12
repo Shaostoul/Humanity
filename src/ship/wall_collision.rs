@@ -132,6 +132,11 @@ fn segments_impl(home: &HomeStructure, shell_cuts: &[ShellCut], see_through_wind
 /// meets it (`ShipStructure::shell_cuts_for_zone`), and each valid corridor contributes its two
 /// SIDE walls as blocking rails -- and NOTHING across its open ends, so the player walks down the
 /// hallway but not through its sides.
+///
+/// OPEN plots too (ship homes increment 5b, `ShipStructure::open`): for each neighbour plot this
+/// game may walk into, the hole its corridor makes in the shared zone it runs to is a walking gap
+/// here as well, and its walls as its holder walks them (`NeighbourView::segments_of`) stop this
+/// player. Every other neighbour stays render only. With nothing open this is the pre-5b path.
 pub fn ship_wall_segments(ship: &crate::ship::ship_structure::ShipStructure) -> Vec<WallSegment> {
     ship_segments_impl(ship, false, false)
 }
@@ -144,7 +149,8 @@ pub fn ship_wall_segments(ship: &crate::ship::ship_structure::ShipStructure) -> 
 /// corridor makes in a shared zone's wall is OPEN to sight, as it is to the eye. That hole has a
 /// door pair that opens only for the other players, and a closed door blocks sight through the
 /// live door list the caller adds, so a neighbour walking home through it is seen, and nothing
-/// behind a shut door is. The walking segments keep that wall whole: no one walks in there.
+/// behind a shut door is. The walking segments keep that wall whole: no one walks in there but a
+/// player holding a working household permit for that plot (an OPEN plot, `ship_wall_segments`).
 pub fn ship_sight_segments(ship: &crate::ship::ship_structure::ShipStructure) -> Vec<WallSegment> {
     ship_segments_impl(ship, true, true)
 }
@@ -174,9 +180,14 @@ pub(crate) fn corridor_side_walls(g: &crate::ship::ship_structure::CorridorGeom)
 
 /// `sight`: windows open (glass). `neighbours`: the neighbours' walls and corridors too, and the
 /// holes their corridors make in the shared zones open (`ship_sight_segments`, `everyones_walls`).
+/// Without it, the OPEN plots' (`ShipStructure::open`, ship homes 5b) and no other neighbour's.
 fn ship_segments_impl(ship: &crate::ship::ship_structure::ShipStructure, sight: bool, neighbours: bool) -> Vec<WallSegment> {
     let mut segs = Vec::new();
-    let neighbours = neighbours.then(|| crate::ship::neighbours::neighbour_view(ship));
+    let open = &ship.open.plots;
+    // Which neighbours this path walls: all of them, or only the open ones. The view is not even
+    // asked for when there are none (the pre-5b walking path, bit for bit).
+    let view = (neighbours || !open.is_empty()).then(|| crate::ship::neighbours::neighbour_view(ship));
+    let neighbours = view.as_ref().map(|v| (v, neighbours));
     for (zi, zone) in ship.zones.iter().enumerate() {
         // A home put away stops nobody (ship homes increment 2, `ShipStructure::put_home_away`):
         // collision tests x and z only, so its walls would stand in the ship's own footprint.
@@ -186,8 +197,10 @@ fn ship_segments_impl(ship: &crate::ship::ship_structure::ShipStructure, sight: 
         }
         let (ox, oz) = (zone.origin.0, zone.origin.2);
         let mut cuts = ship.shell_cuts_for_zone(zi);
-        if let Some(n) = &neighbours {
-            cuts.extend(n.zone_cuts(zi));
+        match neighbours {
+            Some((n, true)) => cuts.extend(n.zone_cuts(zi)),
+            Some((n, false)) => cuts.extend(n.zone_cuts_of(zi, open)),
+            None => {}
         }
         segs.extend(segments_impl(&zone.body, &cuts, sight).into_iter().map(|s| WallSegment {
             a: (s.a.0 + ox, s.a.1 + oz),
@@ -201,8 +214,10 @@ fn ship_segments_impl(ship: &crate::ship::ship_structure::ShipStructure, sight: 
         };
         segs.extend(corridor_side_walls(&g));
     }
-    if let Some(n) = &neighbours {
-        segs.extend(n.segments(sight));
+    match neighbours {
+        Some((n, true)) => segs.extend(n.segments(sight)),
+        Some((n, false)) => segs.extend(n.segments_of(open, sight)),
+        None => {}
     }
     segs
 }
@@ -607,5 +622,63 @@ mod tests {
         // mouth is the walk-through gap again.
         let through = resolve(Vec3::new(9.5, 1.7, 5.0), Vec3::new(10.5, 1.7, 5.0), PLAYER_RADIUS, &segs, &[]);
         assert!(through.x > 10.3, "an open corridor door walks through, got x={}", through.x);
+    }
+
+    /// A player walking toward `to`, 0.1 m a frame, the way the camera moves: each frame's step is
+    /// resolved against `walls` (doors open), so a wall in the way stops them at it.
+    fn walk(from: Vec3, to: Vec3, walls: &[WallSegment]) -> Vec3 {
+        let mut p = from;
+        for _ in 0..2000 {
+            let left = Vec3::new(to.x - p.x, 0.0, to.z - p.z);
+            if left.length() < 1e-3 {
+                break;
+            }
+            let step = left.normalize() * left.length().min(0.1);
+            p = resolve(p, p + step, PLAYER_RADIUS, walls, &[]);
+        }
+        p
+    }
+
+    /// AN OPEN PLOT LETS ITS PERMIT HOLDER WALK IN, AND A CLOSED ONE DOES NOT (ship homes increment
+    /// 5b, plan section 5 lane 1B; section 3.7's table). The home on p2, so p1 is a neighbour's,
+    /// its corridor running from its door (x 55, z 40) to the Commons' west wall (x 65). From the
+    /// Commons, (67, 40), toward (40, 40) inside p1's home: with p1 OPEN (`ShipStructure::open`)
+    /// the walk ends there; closed, the Commons' wall stops it at x 65 or more, as before 5b. Open,
+    /// p1's walls stop this player too (its corridor's side walls, and its home's walls off its
+    /// door), and the eye's segments are the same open or closed. The walk starts at x 67, not the
+    /// plan's 70: the Commons' own inner wall at x 69 (local x 4, z 9 to 29) is solid at z 40, so
+    /// (70, 40) is in the hallway beyond it, and the corridor mouth opens into the 4 m strip
+    /// between that wall and the west wall (the first try, from 70, stopped at x 69.35 open or not).
+    /// Seen red 2026-10-12 with the open plot's zone cut not added to the walking path
+    /// (`zone_cuts_of` skipped in `ship_segments_impl`): "open p1: the walk from the Commons ends
+    /// at Vec3(65.33, 1.7, 40.0), not in p1's home at (40, 40)" failed.
+    #[test]
+    fn an_open_plot_lets_its_permit_holder_walk_in_and_a_closed_one_does_not() {
+        use crate::ship::ship_structure::{OpenPlots, ShipStructure};
+        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let closed = ShipStructure::load_and_assemble_shipped(&data, Some("p2")).expect("the shipped ship assembles");
+        let mut open = closed.clone();
+        open.open = OpenPlots { plots: ["p1".to_string()].into_iter().collect(), lit: None };
+        let (from, to) = (Vec3::new(67.0, 1.7, 40.0), Vec3::new(40.0, 1.7, 40.0));
+
+        let shut = walk(from, to, &ship_wall_segments(&closed));
+        assert!(shut.x >= 65.0, "closed p1: the walk from the Commons got to x {} (past its wall at 65)", shut.x);
+        let walls = ship_wall_segments(&open);
+        let end = walk(from, to, &walls);
+        assert!((end - to).length() < 0.1, "open p1: the walk from the Commons ends at {end:?}, not in p1's home at (40, 40)");
+
+        // Open, p1's corridor sides and home walls stand for this player: pressed into the
+        // corridor's north side (z 41.5), or into the home's east wall off its door (x 55, z 20),
+        // they are pushed off. Closed, nothing of p1 collides (render only).
+        let pushed = |p: Vec3, w: &[WallSegment]| (resolve(p, p, PLAYER_RADIUS, w, &[]) - p).length() > 0.1;
+        for (p, what) in [(Vec3::new(60.0, 1.7, 41.5), "the corridor's side wall"), (Vec3::new(55.0, 1.7, 20.0), "the home's east wall")] {
+            assert!(pushed(p, &walls), "open p1: {what} at {p:?} stops nobody");
+            assert!(!pushed(p, &ship_wall_segments(&closed)), "closed p1: {what} at {p:?} collides");
+        }
+        // Another neighbour stays render only, and the eye sees the same either way.
+        let flat = |s: Vec<WallSegment>| s.into_iter().map(|w| [w.a.0, w.a.1, w.b.0, w.b.1]).collect::<Vec<_>>();
+        assert_eq!(flat(ship_sight_segments(&open)), flat(ship_sight_segments(&closed)), "opening p1 changed the sight lines");
+        let p3_door = Vec3::new(60.0, 1.7, 238.0);
+        assert!(!pushed(p3_door + Vec3::new(0.0, 0.0, 1.5), &walls), "p3, not open, collides");
     }
 }
