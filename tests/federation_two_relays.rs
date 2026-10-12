@@ -138,21 +138,27 @@ async fn two_relays_handshake_chat_and_gossip() {
     })
     .await;
 
-    // Profile gossip: a self-certifying (Dilithium3-signed) profile sent by
-    // A must be cached by B; an UNSIGNED one must be refused (the old code
-    // accepted empty signatures, which let anyone overwrite any profile).
-    use humanity_engine::relay::core::pq_crypto::DilithiumKeypair;
-    let user = DilithiumKeypair::generate().expect("user keypair");
-    let user_pk_hex = hex::encode(user.public_key());
+    // Profile gossip: a self-certifying copy, signed by its owner's app
+    // (core::profile_copy, BUG-191), sent by A must be cached by B; an
+    // UNSIGNED one must be refused (the old code accepted empty signatures,
+    // which let anyone overwrite any profile). Links are "{}": a copy's links
+    // are always a JSON object (a blank stored value is read as "{}").
+    use humanity_engine::relay::core::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
+    use humanity_engine::relay::core::profile_copy::{self, PublicCopy};
+    let seed = [21u8; 32];
+    let user_pk_hex = hex::encode(DilithiumKeypair::from_seed(&derive_dilithium_seed(&seed)).public_key());
     let ts = now_ms + 1;
-    let canonical = federation::canonical_profile_message(
-        &user_pk_hex, "Nova", "explorer", "", "", "", "", "", "", ts,
-    );
-    let sig_hex = hex::encode(user.sign(canonical.as_bytes()));
+    let copy = PublicCopy {
+        name: "Nova".to_string(),
+        bio: "explorer".to_string(),
+        socials: "{}".to_string(),
+        ..PublicCopy::default()
+    };
+    let sig_hex = profile_copy::sign_copy(&seed, &user_pk_hex, &copy, ts);
     let signed = serde_json::json!({
         "type": "profile_gossip",
         "public_key": user_pk_hex, "name": "Nova", "bio": "explorer",
-        "avatar_url": "", "banner_url": "", "socials": "", "pronouns": "",
+        "avatar_url": "", "banner_url": "", "socials": "{}", "pronouns": "",
         "location": "", "website": "", "timestamp": ts, "signature": sig_hex,
     });
     let unsigned = serde_json::json!({

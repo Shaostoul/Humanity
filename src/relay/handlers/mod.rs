@@ -16,6 +16,8 @@ pub mod home_plots;
 pub mod live_conns;
 pub mod move_check;
 pub mod msg_handlers;
+/// The profile save and request, and the copy for other servers each person's app signs (BUG-191).
+pub mod profile;
 pub mod reach;
 pub mod reports;
 pub mod server_settings_update;
@@ -29,4 +31,5 @@ pub use broadcast::*;
 pub use federation::*;
 pub use home_plots::handle_game_admin;
 pub use msg_handlers::*;
+pub use profile::{handle_profile_request, handle_profile_sign, handle_profile_update};
 pub use utils::*;

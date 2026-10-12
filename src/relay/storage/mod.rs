@@ -2186,6 +2186,15 @@ impl Storage {
             CREATE INDEX IF NOT EXISTS idx_signed_profiles_timestamp
                 ON signed_profiles(timestamp);"
         )?;
+        // The copies the profile save used to store with an empty signature (BUG-191): never valid
+        // copies (no server could check one), and those from before 2026-10-11 hold fields their
+        // owners keep for friends. Every copy is signed by its owner's app now, and the storage
+        // refuses an unsigned one, so this finds nothing after the first start. `signature` has
+        // been in the table since it was created, so this is safe on an old database (BUG-046).
+        let unsigned = conn.execute("DELETE FROM signed_profiles WHERE signature = ''", [])?;
+        if unsigned > 0 {
+            info!("Removed {unsigned} unsigned profile copies kept for other servers (BUG-191)");
+        }
 
         // Phase 0 substrate: generic post-quantum signed objects.
         // Every higher-level domain (signed_profiles, vouches, VCs, governance proposals,

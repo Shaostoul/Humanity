@@ -766,7 +766,13 @@ mod tests {
         let receipt = db.delete_account("5b22", "Ivy");
         assert!(!receipt.iter().any(|(l, _)| l.ends_with("_FAILED")), "{receipt:?}");
         let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as u64;
-        db.store_signed_profile("5b22", "Ivy", "from a peer server", "", "", "{}", "", "", "", now, "sig").unwrap();
+        let copy = crate::relay::core::profile_copy::PublicCopy {
+            name: "Ivy".to_string(),
+            bio: "from a peer server".to_string(),
+            socials: "{}".to_string(),
+            ..Default::default()
+        };
+        db.store_signed_profile("5b22", &copy, now, "sig").unwrap();
         assert!(!db.erase_left_rows("5b22"), "a profile another server gossiped back made a finished erase read as unfinished");
     }
 

@@ -235,6 +235,10 @@ pub struct RelayState {
     pub active_stream: RwLock<Option<ActiveStream>>,
     /// Active federation connections (server_id → FederatedConnection).
     pub federation_connections: RwLock<HashMap<String, FederatedConnection>>,
+    /// When this server last asked each key to sign its profile's copy for other servers (BUG-191,
+    /// handlers/profile.rs `ask_for_copy`): a `profile_sign` from a key with no ask in the last
+    /// minute is dropped, so a device cannot push copies nobody asked for.
+    pub profile_sign_asks: std::sync::Mutex<HashMap<String, Instant>>,
     /// Rate limiter for federation message forwarding (server_id → last send times).
     pub federation_rate: std::sync::Mutex<HashMap<String, Vec<Instant>>>,
     /// v0.279.0: per-source-IP identify rate limit. Sliding 60-second
@@ -498,6 +502,7 @@ impl RelayState {
             perception_clock: std::sync::OnceLock::new(),
             active_stream: RwLock::new(None),
             federation_connections: RwLock::new(HashMap::new()),
+            profile_sign_asks: std::sync::Mutex::new(HashMap::new()),
             federation_rate: std::sync::Mutex::new(HashMap::new()),
             identify_rate: std::sync::Mutex::new(HashMap::new()),
             new_identity_per_ip: std::sync::Mutex::new(HashMap::new()),
@@ -1263,9 +1268,32 @@ pub enum RelayMessage {
         /// (BUG-200, the review of 2026-10-12).
         #[serde(default, skip_serializing_if = "Option::is_none")]
         stored: Option<bool>,
+        /// On the person's own copies only (BUG-191): the time of the copy for other servers this
+        /// server holds for the receiving key, 0 for none. The device dates its next copy after it
+        /// (`core::profile_copy::next_copy_time`).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        signed_at: Option<u64>,
+        /// On the person's own copies only (BUG-191): this server asks the receiving device to
+        /// sign the public copy of this own copy now (`profile_copy::public_copy` of this frame's
+        /// name and fields under its privacy map) and send it back as `profile_sign`.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        sign_now: Option<bool>,
         /// When Some(key): deliver only to that client. When None: broadcast to all.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         target: Option<String>,
+    },
+
+    /// A device's signature over the public copy of its own profile, sent when its own copy asked
+    /// (`sign_now`; BUG-191, docs/design/bug-191-profile-copies-plan.md 3.5). Carries no profile:
+    /// the relay rebuilds the copy from what it stored and the socket's own name and key, checks
+    /// the signature over `profile_copy::copy_text(key, copy, at)`, keeps it and passes it on to
+    /// the servers this one is linked with (handlers/profile.rs `handle_profile_sign`).
+    #[serde(rename = "profile_sign")]
+    ProfileSign {
+        /// The copy's time, Unix milliseconds (`profile_copy::next_copy_time`).
+        at: u64,
+        /// Dilithium3 over the copy's words, 6,618 lowercase hex characters.
+        signature: String,
     },
 
     /// Client requests another user's profile.
@@ -2180,8 +2208,10 @@ pub enum RelayMessage {
         servers: Vec<FederationServerStatus>,
     },
 
-    /// Profile gossip between federated servers — signed profiles replicate everywhere.
-    /// No home server: the signature is the authority. Latest timestamp wins.
+    /// Profile gossip between federated servers: the copy of a person's profile that other
+    /// servers keep, signed by the person's own app (`core::profile_copy::PublicCopy`, only what
+    /// anyone may see; an empty name is a withdrawal). No home server: the signature is the
+    /// authority. Latest timestamp wins.
     #[serde(rename = "profile_gossip")]
     ProfileGossip {
         public_key: String,
@@ -3220,6 +3250,13 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                         state.db.get_profile_extended(name)
                     {
                         let opt = |s: String| if s.is_empty() { None } else { Some(s) };
+                        let privacy = if privacy.is_empty() { "{}".to_string() } else { privacy };
+                        // Whether this device should sign its profile's copy for other servers
+                        // (BUG-191): on connect only to narrow what is out there (`just_saved` false).
+                        let copy = crate::relay::core::profile_copy::public_copy(
+                            name, &bio, &avatar_url, &banner_url, &socials, &pronouns, &location, &website, &privacy,
+                        );
+                        let ask = crate::relay::handlers::profile::ask_for_copy(&state, &public_key, &copy, &privacy, false);
                         let profile_msg = serde_json::to_string(&RelayMessage::ProfileData {
                             name: name.clone(),
                             bio,
@@ -3230,8 +3267,10 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                             location:   opt(location),
                             website:    opt(website),
                             accepts_files: Some(state.db.accepts_files_of(name)),
-                            privacy: Some(if privacy.is_empty() { "{}".to_string() } else { privacy }),
+                            privacy: Some(privacy),
                             stored: Some(true),
+                            signed_at: Some(ask.signed_at),
+                            sign_now: Some(ask.sign_now),
                             target: None, // Direct send to this socket — no routing needed
                         }).unwrap();
                         let _ = ws_tx.send(Message::Text(profile_msg.into())).await;
@@ -5843,6 +5882,10 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                             // Profile request — look up the profile, apply privacy filter, and unicast to requester.
                             RelayMessage::ProfileRequest { name, friend_cert } => {
                                 handle_profile_request(&state_clone, &my_key_for_recv, name, friend_cert).await;
+                            }
+                            // A device's signature over its profile's copy for other servers (BUG-191).
+                            RelayMessage::ProfileSign { at, signature } => {
+                                handle_profile_sign(&state_clone, &my_key_for_recv, at, signature).await;
                             }
                             // DM — deposit a sealed envelope into a mailbox.
                             RelayMessage::DmPut { to, content, friend_cert, contact_request, group_report, put_ref, file_pass } => {
