@@ -964,7 +964,9 @@ function chooseFilesSetting(change) {
     renderSafetyPanel();
     return false;
   }
-  // Published in my profile, with the whole of it (chat-profile.js).
+  // Published in my profile, with the whole of it, and marked as chosen on this device, so a server
+  // that never got it is sent it rather than this device taking that server's word (chat-profile.js
+  // filesAcceptChanged, BUG-200).
   if (change.accept && change.accept !== before.accept && typeof filesAcceptChanged === 'function') filesAcceptChanged();
   if (typeof updateAttachButton === 'function') updateAttachButton();
   renderSafetyPanel();

@@ -127,9 +127,21 @@ function buildProfileUpdate(local) {
 // on another device is not undone. A choice made while the local profile is empty waits until
 // this connection has heard the server's copy of my profile, or heard there is none (the relay
 // sends it before the channel list): an empty local copy then never overwrites a profile written
-// on another device, because app.js has copied the server's into it first. My own profile
-// coming back with another word while nothing waits here is a choice made on another device:
-// this device takes it (never one more open than now while the protected setup is on).
+// on another device, because app.js has copied the server's into it first.
+//
+// Which word wins when nothing waits (BUG-200, 2026-10-11). The choice is one per device but a
+// word in my profile on each server, and senders' apps go by the server's. Taking every different
+// word as another device's choice meant a server that never got this device's choice (a new
+// server, or one holding no profile for me, which says "friends") turned the setting back, and two
+// servers holding different words flipped it at each switch. So this device remembers, per server
+// (its did:hum, else its address), the word it last saw that server hold, and whether the person
+// ever chose here (/shared/files-in-messages.js acceptServerStep has the rule):
+//   - a server whose word changed since this device last saw it: another device chose there, take
+//     it (never one more open than now while the protected setup is on);
+//   - a server this device never saw, or still holding what it last saw, and saying something else:
+//     if the person chose here, this device's choice goes to it (waiting, as a choice made here,
+//     so it rides the whole profile and counts as saved on the echo); if not, take its word.
+// The word is remembered once it is settled: confirmed by the echo, taken, or already the same.
 const FILES_ACCEPT_UNSENT_KEY = 'hos_files_accept_unsent';
 let ownProfileHeard = false;
 
@@ -238,16 +250,65 @@ function followOnProfilePage(before, after) {
   }
 }
 
-/** "Accept files from" was changed here (chat-privacy.js): send it with the profile. */
+/** "Accept files from" was changed here (chat-privacy.js): the person chose here; send it with the profile. */
 function filesAcceptChanged() {
+  const F = window.HosFilesInMessages;
+  if (F) F.markAcceptChosen(profileStorage());
   setFilesAcceptUnsent(true);
   pushProfileToRelay();
+}
+
+/** The server this page is signed in to, as the seen words are kept: its did:hum, else its address. */
+function filesAcceptServer() {
+  if (window.hosServerDid) return String(window.hosServerDid);
+  try { return String((window.location && window.location.host) || ''); } catch (e) { return ''; }
+}
+
+/**
+ * The server's word for my "Accept files from" (BUG-200; the rule is above). Returns true when
+ * this device's choice is now waiting to go to this server and has to be pushed.
+ */
+function filesAcceptHeard(value) {
+  const F = window.HosFilesInMessages;
+  if (!F) return false;
+  const storage = profileStorage();
+  const server = filesAcceptServer();
+  const word = F.acceptsFilesOf(value);
+  const mine = F.readSettings(storage);
+  const step = F.acceptServerStep({
+    word,
+    mine: mine.accept,
+    waiting: filesAcceptUnsent(),
+    chosen: F.acceptChosen(storage),
+    seen: F.acceptSeen(storage, server),
+    protectedOn: typeof protectedIsOn === 'function' && protectedIsOn(),
+  });
+  if (step === 'saved') {
+    // A choice made here counts as saved once the server's copy carries it (an update the server
+    // turned down leaves it waiting).
+    setFilesAcceptUnsent(false);
+    F.recordAcceptSeen(storage, server, word);
+  } else if (step === 'same') {
+    F.recordAcceptSeen(storage, server, word);
+  } else if (step === 'take') {
+    if (F.writeSettings(storage, Object.assign({}, mine, { accept: word }))) F.recordAcceptSeen(storage, server, word);
+    if (typeof renderSafetyPanel === 'function') renderSafetyPanel();
+  } else if (step === 'publish') {
+    setFilesAcceptUnsent(true);
+    return true;
+  }
+  return false;
 }
 
 /** The server has said what it holds of my profile, or that it holds none (app.js, channel_list). */
 function ownProfileSettled() {
   if (ownProfileHeard) return;
   ownProfileHeard = true;
+  // No copy of mine came before the channel list: this server holds no profile for me, and a
+  // sender's app hears its default word for me (BUG-200's second sighting: the device said
+  // "anyone", the server "friends", and nothing went).
+  const F = window.HosFilesInMessages;
+  if (F) filesAcceptHeard(F.DEFAULTS.accept);
   pushWaitingOnce();
 }
 
@@ -270,24 +331,19 @@ function pushWaitingOnce() {
   if (profileChangesWaiting().length || filesAcceptUnsent()) pushProfileToRelay();
 }
 
-/** My own profile from the server (app.js profile_data, after the local copy is filled in). */
+/**
+ * My own profile from the server (app.js profile_data, after the local copy is filled in). Only my
+ * own complete copy counts, the one carrying my privacy map: the public copy of a save names me
+ * too, and the own copy of the same save follows it.
+ */
 function ownProfileArrived(msg) {
+  if (!msg || typeof msg.privacy !== 'string') return;
   ownProfileHeard = true;
-  const F = window.HosFilesInMessages;
-  let storage = null;
-  try { storage = window.localStorage; } catch (e) { storage = null; }
-  const word = F ? F.acceptsFilesOf(msg && msg.accepts_files) : null;
-  // A choice made here counts as saved once the server's copy carries it (an update the server
-  // turned down leaves it waiting).
-  if (F && word && filesAcceptUnsent() && word === F.readSettings(storage).accept) setFilesAcceptUnsent(false);
+  const pushedAlready = waitingPushedOnce;
+  const publish = filesAcceptHeard(msg.accepts_files);
   pushWaitingOnce();
-  if (!F || filesAcceptUnsent()) return;
-  if (!word) return;
-  const mine = F.readSettings(storage);
-  if (word === mine.accept) return;
-  if (typeof protectedIsOn === 'function' && protectedIsOn() && F.acceptLooser(mine.accept, word)) return;
-  F.writeSettings(storage, Object.assign({}, mine, { accept: word }));
-  if (typeof renderSafetyPanel === 'function') renderSafetyPanel();
+  // A choice that waits only from now on goes now: the once-per-socket push has already gone.
+  if (publish && pushedAlready) pushProfileToRelay();
 }
 
 /** This device's "Accept files from" as the profile publishes it; left out without the module. */
