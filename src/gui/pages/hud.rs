@@ -769,12 +769,23 @@ pub fn draw(
                     13.0,
                     if ready { theme.accent() } else { theme.text_secondary() },
                 );
+                // How the animal is and what it needs (2026-10-12, animal_care).
+                if !state.livestock_care.is_empty() {
+                    text_shadowed(
+                        painter,
+                        Pos2::new(center.x, center.y + 70.0),
+                        Align2::CENTER_TOP,
+                        &state.livestock_care,
+                        11.0,
+                        theme.text_muted(),
+                    );
+                }
             }
             // Collect feedback ("+1 Egg from Chicken"); lib.rs fades it after 3 s.
             if !state.livestock_notice.is_empty() {
                 text_shadowed(
                     painter,
-                    Pos2::new(center.x, center.y + 72.0),
+                    Pos2::new(center.x, center.y + 88.0),
                     Align2::CENTER_TOP,
                     &state.livestock_notice,
                     13.0,

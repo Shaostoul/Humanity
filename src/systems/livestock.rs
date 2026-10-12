@@ -438,9 +438,11 @@ pub fn herd_slot(creature: &str, n: u32) -> String {
 /// (world entry comes after the save is applied at startup).
 pub const HERD_RESTORE: &str = "livestock_herd_restore";
 
-/// Put the herd's restore channel in the DataStore (lib.rs, at boot).
+/// Put the herd's restore channel in the DataStore (lib.rs, at boot), and the
+/// care module's (the saved care waiting for the herd, the herd's dead).
 pub fn register(store: &mut DataStore) {
     store.insert(HERD_RESTORE, std::sync::Mutex::new(Option::<Vec<(String, f32)>>::None));
+    crate::systems::animal_care::register(store);
 }
 
 /// Each living homestead animal's yield timer, (slot, seconds since it was
@@ -473,28 +475,35 @@ pub fn apply_herd_timers(world: &mut hecs::World, timers: &[(String, f32)]) -> u
 /// docs/design/offline-progression.md): an animal's egg, milk or wool keeps
 /// coming while the player is out, exactly as it would while they stood in
 /// the yard and never collected, so the same one-yield cap applies (it is
-/// applied with the animal's regrow time in `apply_herd_timers`). Nothing
-/// here can make an animal hungry, ill or dead: the livestock system has no
-/// such state today, and when it gets one it belongs to the doc's "must NOT
-/// advance offline" class, kept by the character's upkeep.
-pub fn timers_after_away(timers: &[(String, f32)], away_secs: f64) -> Vec<(String, f32)> {
+/// applied with the animal's regrow time in `apply_herd_timers`). An animal
+/// that was hungry or thirsty when the game was saved makes only its share
+/// (`shares`, by slot, from `animal_care::away_shares`; a slot not in it
+/// makes a full share). Nothing here makes an animal hungry, ill or dead: the
+/// character feeds them while away, out of home storage
+/// (`animal_care`, the first tick after the save comes back).
+pub fn timers_after_away(timers: &[(String, f32)], away_secs: f64, shares: &HashMap<String, f64>) -> Vec<(String, f32)> {
     timers
         .iter()
-        .map(|(s, t)| (s.clone(), (f64::from(*t) + away_secs.max(0.0)).min(f64::from(f32::MAX)) as f32))
+        .map(|(s, t)| {
+            let away = away_secs.max(0.0) * shares.get(s).copied().unwrap_or(1.0).clamp(0.0, 1.0);
+            (s.clone(), (f64::from(*t) + away).min(f64::from(f32::MAX)) as f32)
+        })
         .collect()
 }
 
 /// How many of the saved animals were still regrowing when the player left
 /// and are ready again after `away_secs`: the "while you were away" count.
 /// The species' regrow time comes from the creature registry by the slot's
-/// species half.
-pub fn readied_by_away(timers: &[(String, f32)], away_secs: f64, reg: &CreatureRegistry) -> usize {
+/// species half, and each animal's share as in `timers_after_away`.
+pub fn readied_by_away(timers: &[(String, f32)], away_secs: f64, reg: &CreatureRegistry, shares: &HashMap<String, f64>) -> usize {
+    let after = timers_after_away(timers, away_secs, shares);
     timers
         .iter()
-        .filter(|(slot, t)| {
+        .zip(after.iter())
+        .filter(|((slot, t), (_, moved))| {
             let species = slot.split('#').next().unwrap_or_default();
             reg.get(species).and_then(|d| d.renewable()).is_some_and(|p| {
-                f64::from(*t) < f64::from(p.regrow_s) && f64::from(*t) + away_secs >= f64::from(p.regrow_s)
+                f64::from(*t) < f64::from(p.regrow_s) && f64::from(*moved) >= f64::from(p.regrow_s)
             })
         })
         .count()
@@ -565,14 +574,22 @@ impl System for LivestockSystem {
         // below stays on real dt, so a herd never sprints while you sleep.
         let game_dt = crate::systems::time::scaled_dt(dt, data);
 
+        // Care (2026-10-12, first-hour audit S6): animals of a species with a
+        // care row eat from home storage, drink from the tanks, and age their
+        // own yield by how well they are kept (systems::animal_care).
+        crate::systems::animal_care::tick(world, game_dt, data);
+
         // Regrowth: every Harvestable in the world ages toward ready (animals
         // today; wild berry bushes ride the same pass when they land). Clamped
         // at ready so the float never grows unbounded across long sessions.
-        // Dead animals stop producing (v0.760).
-        for (_e, (h, dead)) in
-            world.query_mut::<(&mut Harvestable, Option<&crate::ecs::components::Dead>)>()
-        {
-            if dead.is_some() {
+        // Dead animals stop producing (v0.760). Cared-for animals are aged by
+        // the care tick above, by how well they are fed and watered.
+        for (_e, (h, dead, cared)) in world.query_mut::<(
+            &mut Harvestable,
+            Option<&crate::ecs::components::Dead>,
+            Option<&crate::systems::animal_care::AnimalCare>,
+        )>() {
+            if dead.is_some() || cared.is_some() {
                 continue;
             }
             if h.time_since_harvest < h.regrow_time {
@@ -812,13 +829,14 @@ mod tests {
         assert_eq!(chicken.hostility, "passive");
         assert_eq!(chicken.name, "Chicken");
         assert!(chicken.movement_speed > 0.0);
-        // Renewable products parse for the farm trio.
+        // Renewable products parse for the farm trio. A hen lays about an
+        // egg a day, 26 hours apart (2026-10-12; it was every 5 minutes).
         assert_eq!(
             chicken.renewable(),
             Some(RenewableProduct {
                 item: "egg_0".into(),
                 amount: 1,
-                regrow_s: 300.0
+                regrow_s: 93_600.0
             })
         );
         assert_eq!(reg.get("sheep").unwrap().renewable().unwrap().item, "wool_0");
@@ -1063,7 +1081,7 @@ mod tests {
         assert_eq!(world.get::<&Harvestable>(hen).unwrap().time_since_harvest, 100.0, "still regrowing, as saved");
 
         // An hour away: ready, and one egg waits, not twelve.
-        apply_herd_timers(&mut world, &timers_after_away(&saved, 3600.0));
+        apply_herd_timers(&mut world, &timers_after_away(&saved, 3600.0, &HashMap::new()));
         let mut h = world.get::<&mut Harvestable>(hen).unwrap();
         assert_eq!(h.time_since_harvest, 300.0);
         assert_eq!(collect(&mut h), Some(1));
@@ -1075,10 +1093,16 @@ mod tests {
     #[test]
     fn the_notice_counts_the_animals_the_time_away_made_ready() {
         let reg = shipped_registry();
-        let saved = vec![("chicken#0".to_string(), 100.0), ("chicken#1".to_string(), 300.0), ("goat#0".to_string(), 0.0)];
-        assert_eq!(readied_by_away(&saved, 60.0, &reg), 0);
-        assert_eq!(readied_by_away(&saved, 200.0, &reg), 1, "the hen, not the goat (400 s)");
-        assert_eq!(readied_by_away(&saved, 3600.0, &reg), 2);
+        let none = HashMap::new();
+        let saved = vec![("chicken#0".to_string(), 93_400.0), ("chicken#1".to_string(), 93_600.0), ("goat#0".to_string(), 0.0)];
+        assert_eq!(readied_by_away(&saved, 60.0, &reg, &none), 0);
+        assert_eq!(readied_by_away(&saved, 200.0, &reg, &none), 1, "the hen, not the goat (a day)");
+        assert_eq!(readied_by_away(&saved, 86_400.0, &reg, &none), 2);
+        // A hen that had stopped laying for want of feed when the game was
+        // saved lays nothing while away (animal_care::away_shares).
+        let stopped = HashMap::from([("chicken#0".to_string(), 0.0)]);
+        assert_eq!(readied_by_away(&saved, 200.0, &reg, &stopped), 0, "the hungry hen did not lay");
+        assert_eq!(timers_after_away(&saved, 200.0, &stopped)[0].1, 93_400.0);
     }
 
     /// Timers restored before the herd exists wait for world entry, and are

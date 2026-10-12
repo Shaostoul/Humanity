@@ -1668,8 +1668,10 @@ Restore and "Snapshot now" (v0.1442.0, BUG-129).
   targets and feeding each other (`src/systems/crafting/away.rs`); the drone
   finishes its trip and keeps flying a standing order out of the asteroid's
   real ore (`mining::advance_away`); each animal's egg, milk or wool timer
-  moves on to one yield waiting (`livestock::timers_after_away`). Nothing
-  dies or is used up without the player's say. A character select now
+  moves on to one yield waiting (`livestock::timers_after_away`), and since
+  2026-10-12 they eat the time away's feed out of home storage
+  (`systems::animal_care`, the character feeding them). Nothing else is
+  used up, and nothing dies, without the player's say. A character select now
   restores the Barn with the save (`save_load::after_resume`). The power the
   time away charges a space heater is what its thermostat was running it at
   when the game was saved (2026-10-05, `WorldSave.heater_draw_w`), not the
@@ -1740,6 +1742,17 @@ Placeholder block bodies sized from real species mass.
 - Native: `src/systems/livestock.rs` (registry, spawn list, collect, LivestockSystem),
   `src/ecs/components.rs` (`Creature`, `Harvestable`), lib.rs walk-up + collect bridges + render pass
 - Data: `data/creatures.csv`, `data/entities/livestock.ron`, `wool_0` in `data/items.csv`
+- **Animal care (2026-10-12, first-hour audit S6):** each kept animal eats real dry matter a
+  day from home storage (the machines' `home_stock` channel; which items are feed is
+  `data/livestock/care.ron`) and drinks from the home's water tanks, then stored tap water.
+  Short of either it makes less, then nothing; Settings > Gameplay > Farm animals: Realistic
+  (it then sickens and dies, and stays dead across restarts: `WorldSave::herd_lost`) or
+  Forgiving (production only). Yields are per real day at 1x (a hen every 26 h, a goat 3 L a
+  day, a sheep's fleece a year), timed in f64. The walk-up prompt says how the animal is and
+  what it needs; Home > Animals lists the herd. Feed is drawn while the player is away, and
+  nothing sickens then. Native: `src/systems/animal_care.rs` (+ `_tests.rs`),
+  `src/gui/pages/herd.rs`; data: `data/livestock/care.ron`, `hay_0` (items.csv, trade_goods.ron,
+  30 bales in the seeded Barn).
 
 ### Abilities (v0.753)
 AbilityRegistry parses all 110 `data/abilities.csv` rows (renamed from spells.csv;

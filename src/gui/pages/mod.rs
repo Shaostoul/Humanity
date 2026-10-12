@@ -44,6 +44,8 @@ pub mod quests;
 pub mod homes;
 /// Home > Household: giving, renewing and taking back household permits (ship homes 5b, 2026-10-12).
 pub mod household;
+/// Home > Animals: each farm animal, how it is and what it needs (2026-10-12, first-hour audit S6).
+pub mod herd;
 pub mod market;
 pub mod market_directory;
 pub mod market_publish;

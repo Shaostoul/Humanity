@@ -86,6 +86,12 @@ pub(crate) fn load_data_registries(store: &mut DataStore, data_dir: &Path) {
     // CreatureRegistry (v0.751, ladder rung 7): creatures.csv finally gets
     // its loader. Read by the livestock spawn + walk-up collect bridges.
     put(store, data_dir, "creatures.csv", "creature_registry", crate::systems::livestock::CreatureRegistry::from_csv);
+    // What each kept animal eats and drinks, and what going without does
+    // (2026-10-12, first-hour audit S6). Read by the livestock tick.
+    {
+        use crate::systems::animal_care::{CareData, DATA_KEY, FILE};
+        put(store, data_dir, FILE, DATA_KEY, CareData::from_ron);
+    }
     // AbilityRegistry (v0.753, ladder rung 8): abilities.csv (formerly
     // spells.csv) gets its loader. Read by AbilitySystem + the Profile
     // page's Abilities panel.

@@ -19,6 +19,9 @@ pub mod quests;
 pub mod crafting;
 pub mod vehicles;
 pub mod livestock;
+/// Farm animals need care: feed from home storage, water from the tanks, and what going
+/// without does in each mode (2026-10-12, first-hour audit S6).
+pub mod animal_care;
 pub mod abilities;
 pub mod ai;
 pub mod skills;

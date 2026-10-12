@@ -211,6 +211,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             // Home > Household (ship homes 5b, household.rs): first on the page, with or without a
             // design loaded.
             super::household::draw_card(ui, theme, state);
+            // Home > Animals (2026-10-12, herd.rs): the farm animals, fed and watered or not.
+            super::herd::draw_card(ui, theme, state);
             // Clone so the immutable design can be browsed without holding a borrow
             // of state (cheap; the blueprint is small).
             let Some(design) = state.homestead_design.clone() else {
