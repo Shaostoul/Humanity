@@ -16,6 +16,10 @@ pub mod units;
 pub mod picking;
 pub mod humidity;
 pub mod heat;
+pub mod outlook;
+pub mod sowing;
+#[cfg(test)]
+mod sowing_tests;
 #[cfg(test)]
 mod heat_tests;
 #[cfg(test)]
@@ -1026,12 +1030,8 @@ impl System for FarmingSystem {
         // edit modal) tops its crops up to a target water level each tick. Keyed by
         // tower_id (e.g. "nutrition"). A neutral HashMap<String, f32> so the sim never
         // imports a GUI type; the GUI publishes it via lib.rs -> "garden_irrigation".
-        // Empty/missing = no automated irrigation (crops dehydrate normally).
-        let irrigation: std::collections::HashMap<String, f32> = data
-            .get::<std::sync::Mutex<std::collections::HashMap<String, f32>>>("garden_irrigation")
-            .and_then(|m| m.lock().ok())
-            .map(|g| g.clone())
-            .unwrap_or_default();
+        // An area without one is held at DEFAULT_AUTO_IRRIGATION. Read below with
+        // the tanks and the irrigation machine into `WaterSupply` (outlook.rs).
         // Per-area nutrient slider (garden edit modal), keyed by tower_id. Until
         // 2026-09-26 it multiplied growth speed (0.5x..1.5x); it now sets the
         // automatic FEEDER that tops each unit's N-P-K store up from home
@@ -1051,17 +1051,10 @@ impl System for FarmingSystem {
         // Is the home's irrigation running? (2026-09-25) A powered machine
         // with the Irrigator marker; with none (or none powered) crops get no
         // automatic water and must be watered by hand.
-        let irrigation_on = world
-            .query::<(
-                &crate::ecs::components::Irrigator,
-                Option<&crate::ecs::components::WaterConsumer>,
-                Option<&crate::ecs::components::PowerConsumer>,
-            )>()
-            .iter()
-            .any(|(_, (_, wc, pc))| {
-                let needs_power = wc.map_or(false, |w| w.needs_power);
-                !needs_power || pc.map_or(false, |p| p.enabled)
-            });
+        // All three read once into `WaterSupply` (2026-10-12, outlook.rs), the
+        // same answer the Garden card and the planting notice give.
+        let supply = outlook::WaterSupply::now(world, data);
+        let irrigation_on = supply.irrigation_on;
         // Light (2026-09-26, see light_growth_rate). The sun is up when it
         // makes solar power: the same curve, so the fields and the panels
         // agree on when it is day. A grow light lights the plots near it
@@ -1113,11 +1106,7 @@ impl System for FarmingSystem {
             }))
             .unwrap_or(false);
         let mut irrigation_l_per_day = 0.0_f32;
-        let water_available = data
-            .get::<std::sync::Mutex<crate::systems::plumbing::WaterStatus>>("water_status")
-            .and_then(|m| m.lock().ok())
-            .map(|ws| ws.capacity_l <= 0.0 || ws.stored_l > ws.capacity_l * 0.02)
-            .unwrap_or(true);
+        let water_available = supply.water_available;
 
         // Creative mode (default ON in early dev): planting + fertilizing skip the
         // inventory requirement + consumption. Absent flag (tests) = survival =
@@ -1220,51 +1209,15 @@ impl System for FarmingSystem {
 
         // ── GUI / dev gardening commands (the inventory page writes these via the
         //    main-loop bridge): plant a seed, water a crop, dev-grow all, harvest. ──
-        // PLANT: consume one matching seed from the player, spawn a CropInstance.
+        // PLANT: a seed from the backpack goes into the nearest free place of
+        // a grow machine within reach, or nothing is planted and the notice
+        // says why (2026-10-12, first-hour audit F11; sowing.rs). Until then
+        // it made a crop with no place, which nothing drew or watered.
         let plant_seed = data
             .get::<std::sync::Mutex<Option<String>>>("plant_request")
             .and_then(|m| m.lock().ok().and_then(|mut s| s.take()));
         if let Some(seed_id) = plant_seed {
-            if let Some(plant_id) = plant_id_from_seed(&seed_id) {
-                // Resolve the first growth stage now (immutable plant_registry borrow),
-                // copied out before the &mut World pass below.
-                let first_stage = plant_registry
-                    .and_then(|reg| reg.get(&plant_id))
-                    .map(|d| d.first_stage().to_string());
-                if let Some(first_stage) = first_stage {
-                    let mut planted = false;
-                    for (_e, (inv, _ctrl)) in world.query_mut::<(
-                        &mut crate::systems::inventory::Inventory,
-                        &crate::ecs::components::Controllable,
-                    )>() {
-                        if creative || inv.has_item(&seed_id, 1) {
-                            if !creative {
-                                inv.remove_item(&seed_id, 1);
-                            }
-                            planted = true;
-                            break;
-                        }
-                    }
-                    if planted {
-                        world.spawn((CropInstance {
-                            crop_def_id: plant_id.clone(),
-                            growth_stage: first_stage,
-                            planted_at: elapsed_seconds,
-                            water_level: 1.0,
-                            health: 100.0,
-                            tower_id: None,
-                            tower_slot: None,
-                            health_seconds: 0.0,
-                            growing_seconds: 0.0,
-                        },));
-                        log::info!("[Farming] planted {plant_id} (from {seed_id})");
-                        // The player planted it (2026-10-04, the opening's Plant step).
-                        crate::systems::quests::push_quest_event(data, crate::systems::quests::plant_event_key(&plant_id));
-                    }
-                } else {
-                    log::debug!("[Farming] no plant def for seed {seed_id}; not planted");
-                }
-            }
+            sowing::sow_from_backpack(world, data, &seed_id, plant_registry, creative, &supply);
         }
 
         // PLANT TOWER (v0.386): spawn a CropInstance for each plant id sent by the
@@ -2236,27 +2189,25 @@ impl System for FarmingSystem {
             // of 1,976 crops dead of thirst, and a new player's showcase garden
             // went the same way. A slider still overrides it (set it low to let an
             // area dry out), a dry cistern still cuts it off, and a crop planted
-            // outside any grow area still needs watering by hand.
-            if water_available && irrigation_on {
-                if let Some(tid) = &crop.tower_id {
-                    let target = irrigation.get(tid).copied().unwrap_or(DEFAULT_AUTO_IRRIGATION);
-                    crop.water_level = crop.water_level.max(target);
-                    // The water is real: this unit's daily need, plants.csv's
-                    // litres per plant times the plants it holds (2026-09-26;
-                    // a 666-plant wheat tray drinks 666 wheat plants' water,
-                    // not one), counts toward what the irrigation draws.
-                    // And, with ship life support (2026-09-26), the water its
-                    // tissue keeps on top of what it breathes out
-                    // (life_support.ron, WHAT A CROP KEEPS).
-                    if target > 0.0 {
-                        let kept = life.map_or(0.0, |l| l.exchange_for(&crop.crop_def_id).kept_l_per_l) as f32;
-                        irrigation_l_per_day += plant_registry
-                            .as_ref()
-                            .and_then(|r| r.get(&crop.crop_def_id))
-                            .map_or(0.0, |d| d.water_per_day)
-                            * plants_here as f32
-                            * (1.0 + kept);
-                    }
+            // outside any grow area still needs watering by hand. The rule is
+            // `WaterSupply::holds` (outlook.rs), which the Garden card reads too.
+            if let Some(target) = supply.holds(crop.tower_id.as_deref()) {
+                crop.water_level = crop.water_level.max(target);
+                // The water is real: this unit's daily need, plants.csv's
+                // litres per plant times the plants it holds (2026-09-26;
+                // a 666-plant wheat tray drinks 666 wheat plants' water,
+                // not one), counts toward what the irrigation draws.
+                // And, with ship life support (2026-09-26), the water its
+                // tissue keeps on top of what it breathes out
+                // (life_support.ron, WHAT A CROP KEEPS).
+                if target > 0.0 {
+                    let kept = life.map_or(0.0, |l| l.exchange_for(&crop.crop_def_id).kept_l_per_l) as f32;
+                    irrigation_l_per_day += plant_registry
+                        .as_ref()
+                        .and_then(|r| r.get(&crop.crop_def_id))
+                        .map_or(0.0, |d| d.water_per_day)
+                        * plants_here as f32
+                        * (1.0 + kept);
                 }
             }
             // Rain on an outdoor field (2026-09-25).

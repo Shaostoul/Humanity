@@ -1874,7 +1874,15 @@ harvest reuse the tower paths. 8 `grain_<plant>_0` harvest items (dry_goods,
 silo-compatible) + fruit_sunflower_0. Garden slots render as a compact TILE
 GRID with one detail card (v0.739) and each group has a "Harvest N ready"
 bulk button (`harvest_many_request` channel). Harvest overflow routes to a
-compatible home vessel (v0.729 silo routing).
+compatible home vessel (v0.729 silo routing). A seed's Plant button in the
+backpack (2026-10-12, first-hour audit F11) sows it into the nearest free
+tower cup, bed, tray or field plot within 5 m of where the player stands (a
+mushroom's spawn only onto a rack, nothing into a fish tank: grow_media.ron
+`takes`), so it is drawn and irrigated like any machine crop; with nothing in
+reach it plants nothing and names the nearest machine with room
+(`farming/sowing.rs`). The notice and each crop's card say when it ripens in
+real time at the clock's speed and what its water needs (`farming/outlook.rs`;
+lib.rs fills `GardenPests::outlook`).
 - Native: `src/systems/farming/mod.rs`, `src/gui/pages/inventory.rs` (Garden)
 - Data: `data/plants.csv`, `data/garden/grow_media.ron`, `data/items.csv`
 

@@ -373,6 +373,14 @@ fn planting_counts_every_way_the_player_sows_and_nothing_else() {
     }
     let mut data = data;
     data.insert("quest_registry", reg);
+    // A two-plot bed beside the player: a seed from the backpack is sown into
+    // a grow machine within reach (farming::sowing, 2026-10-12).
+    data.insert(
+        "grow_plots",
+        vec![crate::systems::farming::lighting::GrowPlot { id: "oilseed_bed_1".into(), footprint_m2: 2.0, ..Default::default() }],
+    );
+    data.insert("grow_instances", HashMap::from([("oilseed_bed".to_string(), vec![("oilseed_bed_1".to_string(), 2u32)])]));
+    data.insert("camera_position", Vec3::new(0.0, 1.7, 1.0));
     let mut inv = Inventory::new(36);
     for seed in ["seed_lettuce_0", "seed_tomato_0", "seed_potato_0", "seed_wheat_0"] {
         inv.add_item(seed, 5, 99);
