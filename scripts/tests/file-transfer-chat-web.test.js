@@ -14,14 +14,19 @@
 // real chat scripts load in index.html's order, the new ones included. Stood in: the relay (it
 // passes each `dm_put` to the pages of the key it names as `dm_new`, answers a put that carries a
 // ref with `dm_put_ok`, refuses a put to someone who takes messages only from friends unless its
-// `file_pass` verifies (test 14), forwards `webrtc_signal` without its `file_pass` as the relay does, and
-// answers `call_credentials`, or refuses it as a relay without its forwarder does), the DM layer as
-// in private-files-web.test.js (a DM's "signature" is its signed words and "sealing" base64s it,
-// so a test reads exactly what was sealed), and WebRTC (two stand-in peer connections that join
-// when both descriptions are set, whose data channels deliver one message per turn, as bytes made
-// in the receiving page's own realm, with a buffered amount and its low-water event). The file
-// pass is signed and checked with real Dilithium3 (the vendored noble bundle), and the hashes are
-// real BLAKE3. HOS_WEB_DIR points the test at another copy of web/ (used to see each test red).
+// `file_pass` verifies (test 14), forwards `webrtc_signal` without its `file_pass` as the relay does,
+// naming the transfer as `file` on a dc_offer its file pass let in (rule 7, the relay since
+// 2026-10-12), and answers `call_credentials` with a username naming the transfer, or refuses it as
+// a relay without its forwarder does), the DM layer as in private-files-web.test.js (a DM's
+// "signature" is its signed words and "sealing" base64s it, so a test reads exactly what was
+// sealed), and WebRTC (two stand-in peer connections that join when both descriptions are set and,
+// unless both may go direct, both hold the call relay's credentials for the same transfer, as the
+// forwarder passes packets only within one; whose data channels deliver one message per turn, as
+// bytes made in the receiving page's own realm, with a buffered amount and its low-water event; a
+// channel a page closes sends what was queued first, as a browser's does, while a closed connection
+// delivers nothing more and leaves the other side's reading 'disconnected'). The file pass is
+// signed and checked with real Dilithium3 (the vendored noble bundle), and the hashes are real
+// BLAKE3. HOS_WEB_DIR points the test at another copy of web/ (used to see each test red).
 //
 // What it proves:
 //  1. The attach step: a file over my private limit in a DM is offered device to device, with the
@@ -71,6 +76,19 @@
 //     closed at once (as headless Edge does), still open (the file waits for the place, then goes
 //     into it), or absent; Decline, Pause, Resume and Cancel each change the row in the click; a
 //     redraw never replaces the Pause button.
+// 16. A file that arrived whole but could not be saved says so, and can be saved again.
+// 17. Rule 7 of "...: settled by the second review" (2026-10-12): with five offers to Ben live, his
+//     dial for the fifth reaches Ann naming it, and she asks for that one transfer's credentials
+//     only and makes one allocation; a second file he accepts rides the same connection with no
+//     credentials of its own; a dc_offer naming no file is no file dial.
+// 18. Rule 8, an end is always said: Ben's store refuses a piece, and he says cancel on the channel
+//     and sends the cancel note with the pass (Ann's row ends from the channel alone when her copy
+//     of the note is lost, and from the note alone when the channel's cancel is lost); a channel
+//     Ben's side closes without a word while the connection stays up ends Ann's sending transfer
+//     after the wait ("Ben's side stopped it"), with the note to Ben; a drop (the connection gone
+//     by then) does not.
+// 19. Rule 9, a dial is an answer: with Ben's answer to Ann lost, her row goes from waiting to
+//     sending when his channel opens, and to Sent on done.
 //
 // Red first: see the end of this file for each deliberate break and the assertion it tripped.
 
@@ -234,7 +252,8 @@ function fakeIndexedDB() {
   const dbs = new Map();
   // `api.gate`, a promise: while set, a write to the `pieces` store waits for it (a slow disk), so a
   // test can let a piece's write finish after something else happened. `api.pending`: how many wait.
-  const api = { dbs, gate: null, pending: 0 };
+  // `api.refusePieces`: while true, a write to `pieces` fails as a full browser storage does.
+  const api = { dbs, gate: null, pending: 0, refusePieces: false };
   const req = (fn, gate) => {
     const r = { result: undefined, error: null, onsuccess: null, onerror: null };
     const go = () => setImmediate(() => {
@@ -245,7 +264,12 @@ function fakeIndexedDB() {
     return r;
   };
   const storeApi = (st, name) => ({
-    put: (v, key) => req(() => { const k = key !== undefined ? key : (st.keyPath ? v[st.keyPath] : (v.k ?? v.scope)); st.map.set(k, v); return k; }, name === "pieces" ? api.gate : null),
+    put: (v, key) => req(() => {
+      if (name === "pieces" && api.refusePieces) throw Object.assign(new Error("The quota has been exceeded."), { name: "QuotaExceededError" });
+      const k = key !== undefined ? key : (st.keyPath ? v[st.keyPath] : (v.k ?? v.scope));
+      st.map.set(k, v);
+      return k;
+    }, name === "pieces" ? api.gate : null),
     get: (k) => req(() => st.map.get(k)),
     delete: (k) => req(() => { st.map.delete(k); }),
     clear: () => req(() => { st.map.clear(); }),
@@ -361,27 +385,42 @@ function webrtc(net) {
     FakeChannel.prototype._pump = function () {
       const item = this.queue.shift();
       if (!item) return;
-      if (this.readyState === "open" && this.peer && this.peer.readyState === "open") {
+      if ((this.readyState === "open" || this.readyState === "closing") && this.peer && this.peer.readyState === "open") {
         let data = item.copy;
+        // net.loseText(who, text): a text message from `who` lost on the way.
+        const lost = typeof data === "string" && net.loseText && net.loseText(page.who, data);
         if (typeof data !== "string") {
           if (net.tamper) data = net.tamper(data) || data;
           const there = this.peer.pc.page.makeBytes(data.length);
           there.set(data);
           data = there.buffer;
         }
-        if (this.peer.onmessage) this.peer.onmessage({ data });
+        if (!lost && this.peer.onmessage) this.peer.onmessage({ data });
       }
       const before = this.bufferedAmount;
       this.bufferedAmount -= item.size;
       if (before > this.bufferedAmountLowThreshold && this.bufferedAmount <= this.bufferedAmountLowThreshold && this.onbufferedamountlow) this.onbufferedamountlow();
       if (this.queue.length) setImmediate(() => this._pump());
+      else if (this.readyState === "closing") this._shut();
     };
+    // close() from a page: a browser sends what was queued on the channel, then closes it (the
+    // closing procedure), so a {"t":"cancel"} sent just before close() still arrives (rule 8 of the
+    // second review). A connection closed (pc.close()) or dropped (net.blocked) delivers nothing
+    // more: its channels are shut at once, and so is the other end of a channel that closes.
     FakeChannel.prototype.close = function () {
+      if (this.readyState === "closed" || this.readyState === "closing") return;
+      if (this.queue.length && !net.blocked && this.pc.connectionState !== "closed" && this.peer && this.peer.readyState === "open") {
+        this.readyState = "closing";
+        return;
+      }
+      this._shut();
+    };
+    FakeChannel.prototype._shut = function () {
       if (this.readyState === "closed") return;
       this.readyState = "closed";
       this.queue.length = 0;
       setImmediate(() => { if (this.onclose) this.onclose(); });
-      if (this.peer && this.peer.readyState !== "closed") this.peer.close();
+      if (this.peer && this.peer.readyState !== "closed") this.peer._shut();
     };
     function FakePeerConnection(config) {
       this.config = config;
@@ -390,6 +429,7 @@ function webrtc(net) {
       net.pcs.set(this.id, this);
       net.made.push({ who: page.who, config: clone(config) });
       this.channels = [];
+      this.received = []; // channels the other side opened (ondatachannel)
       this.local = null; this.remote = null; this.peer = null;
       this.connectionState = "new";
       this.onicecandidate = null; this.ondatachannel = null; this.onconnectionstatechange = null;
@@ -407,6 +447,7 @@ function webrtc(net) {
         setImmediate(() => {
           if (this.connectionState === "closed" || there.connectionState === "closed" || ch.readyState === "closed") return;
           const other = new FakeChannel(label, there);
+          there.received.push(other);
           other.peer = ch; ch.peer = other;
           if (there.ondatachannel) there.ondatachannel({ channel: other });
           other.readyState = "open"; ch.readyState = "open";
@@ -436,6 +477,13 @@ function webrtc(net) {
       const a = this;
       const b = this.peer;
       if (!b || !a.local || !a.remote || !b.local || !b.remote || a.joined || net.blocked) return;
+      // The server's call relay passes packets only between the two people's allocations for one
+      // transfer (the scope its credentials carry), so unless both sides may go direct, they join
+      // only when they asked for the same transfer's credentials (rule 7 of the second review).
+      if (!(a.config.iceTransportPolicy === "all" && b.config.iceTransportPolicy === "all")) {
+        const theirs = forwarderScopes(b.config);
+        if (!forwarderScopes(a.config).some((x) => theirs.includes(x))) { net.unjoined.push([a.page.who, b.page.who]); return; }
+      }
       a.joined = b.joined = true;
       const dialer = a.local.type === "offer" ? a : b;
       const answerer = dialer === a ? b : a;
@@ -444,6 +492,7 @@ function webrtc(net) {
           if (ch.delivered) continue;
           ch.delivered = true;
           const other = new FakeChannel(ch.label, answerer);
+          answerer.received.push(other);
           other.peer = ch; ch.peer = other;
           if (answerer.ondatachannel) answerer.ondatachannel({ channel: other });
           other.readyState = "open"; ch.readyState = "open";
@@ -454,12 +503,27 @@ function webrtc(net) {
       });
     };
     FakePeerConnection.prototype.close = function () {
+      if (this.connectionState === "closed") return;
       this.connectionState = "closed";
-      for (const ch of this.channels) ch.close();
+      for (const ch of this.channels.concat(this.received)) ch._shut();
+      // The other side hears nothing more from this one, and its browser says so: ICE there gets
+      // no answers, and a browser soon reads 'disconnected' (within seconds; 'failed' much later).
+      const other = this.peer;
+      if (other && other.connectionState === "connected") {
+        other.connectionState = "disconnected";
+        setImmediate(() => { if (other.onconnectionstatechange) other.onconnectionstatechange(); });
+      }
     };
     return FakePeerConnection;
   };
   return { make };
+}
+
+/** The transfers whose forwarder credentials a connection's settings hold (the stand-in username is `<expiry>:<file>-<who>`). */
+function forwarderScopes(config) {
+  return ((config && config.iceServers) || [])
+    .filter((s) => typeof s.username === "string" && [].concat(s.urls).some((u) => String(u).startsWith("turn:")))
+    .map((s) => s.username.slice(s.username.indexOf(":") + 1, s.username.lastIndexOf("-")));
 }
 
 // ── The stand-in relay ─────────────────────────────────────────────────────
@@ -472,8 +536,14 @@ function passLetsIn(pass, issuer, grantee) {
   try { return MODS.noble.ml_dsa65.verify(Buffer.from(p.sig, "base64"), words, Buffer.from(issuer, "hex")); } catch (e) { return false; }
 }
 
+/** The text sealed in a dm_put (the stand-in seal base64s it). */
+function noteText(put) {
+  try { return JSON.parse(unb64(JSON.parse(put.content).ct_b64)).text; } catch (e) { return ""; }
+}
+
 function relayFor() {
-  const net = { pcs: new Map(), count: 0, made: [], log: [], tamper: null, blocked: false };
+  // unjoined: pairs of connections that could not join (no forwarder credentials for the same transfer).
+  const net = { pcs: new Map(), count: 0, made: [], log: [], tamper: null, blocked: false, unjoined: [] };
   const relay = {
     pages: [],
     net,
@@ -486,8 +556,11 @@ function relayFor() {
     onlyFriends: new Map(),
     refusedPuts: [],       // each put refused that way, {who, msg}
     refuse: null,          // a reason word: every put with a ref is refused with it
+    lose: null,            // (page, msg) -> true: that put is lost on the way, without a word
+    lost: [],              // each put lost that way, {who, msg}
     frames: [],            // every frame a page sent, {who, msg}
     signals: [],           // every webrtc_signal as sent, file_pass included
+    forwarded: [],         // every webrtc_signal as passed on, {to, msg}
     credentials: [],       // every call_credentials asked
     nextId: 1,
     deliver(page, msg) {
@@ -498,6 +571,7 @@ function relayFor() {
       relay.frames.push({ who: page.who, msg });
       const to = (k) => relay.pages.filter((p) => p.key === k && !p.closed);
       if (msg.type === "dm_put") {
+        if (relay.lose && relay.lose(page, msg)) { relay.lost.push({ who: page.who, msg: clone(msg) }); return; }
         if (msg.ref && relay.refuse) { relay.deliver(page, { type: "dm_put_refused", ref: msg.ref, reason: relay.refuse }); return; }
         const friends = relay.onlyFriends.get(msg.to);
         if (friends && msg.to !== page.key && !friends.has(page.key) && !passLetsIn(msg.file_pass, msg.to, page.key)) {
@@ -511,11 +585,16 @@ function relayFor() {
       } else if (msg.type === "webrtc_signal") {
         relay.signals.push({ who: page.who, msg: clone(msg) });
         const fwd = { type: "webrtc_signal", from: page.key, to: msg.to, signal_type: msg.signal_type, data: msg.data };
+        // Rule 7 of the second review (the relay since 397ff2750): a dc_offer let in by a file pass,
+        // one the target issued to the sender, reaches the target with the pass's id as `file`.
+        if (msg.signal_type === "dc_offer" && passLetsIn(msg.file_pass, msg.to, page.key)) fwd.file = FT.filePassParse(msg.file_pass).id;
+        relay.forwarded.push({ to: msg.to, msg: clone(fwd) });
         for (const p of to(msg.to)) relay.deliver(p, fwd);
       } else if (msg.type === "call_credentials") {
         relay.credentials.push({ who: page.who, msg: clone(msg) });
         if (!relay.forwarder) relay.deliver(page, { type: "call_credentials", file: msg.file, refused: true });
-        else relay.deliver(page, { type: "call_credentials", file: msg.file, urls: ["turn:relay.test:3478?transport=udp"], username: "1760000000:abc-" + page.who, credential: "cred-" + page.who, ttl: 600 });
+        // The username names the transfer, so the stand-in WebRTC joins only allocations of the same one.
+        else relay.deliver(page, { type: "call_credentials", file: msg.file, urls: ["turn:relay.test:3478?transport=udp"], username: "1760000000:" + msg.file + "-" + page.who, credential: "cred-" + page.who, ttl: 600 });
       }
     },
   };
@@ -952,7 +1031,7 @@ test("4. Accept: Ben dials Ann through the server's call relay, with the pass; t
   assert.deepEqual(annAsk, { type: "call_credentials", file: t.id, peer: s.ppl.ben.key, file_pass: t.offer.pass }, "Ann asks with the same pass");
   // Both connections: the server's call relay only, with the reply's three fields.
   const benPc = s.relay.net.made.find((m) => m.who === "Ben").config;
-  assert.deepEqual(benPc, { iceServers: [{ urls: ["turn:relay.test:3478?transport=udp"], username: "1760000000:abc-Ben", credential: "cred-Ben" }], iceTransportPolicy: "relay" });
+  assert.deepEqual(benPc, { iceServers: [{ urls: ["turn:relay.test:3478?transport=udp"], username: "1760000000:" + t.id + "-Ben", credential: "cred-Ben" }], iceTransportPolicy: "relay" });
   const annPc = s.relay.net.made.find((m) => m.who === "Ann").config;
   assert.equal(annPc.iceTransportPolicy, "relay", "Ann's too");
   // The dial: from Ben to Ann, its dc_offer carrying the pass, one channel labelled file:<id>.
@@ -1380,6 +1459,175 @@ test("16. a file that arrived whole but could not be saved says so, and can be s
   assert.ok(sameBytes((await savedFiles(s.ben))[0], bytes), "exactly its bytes");
 });
 
+// ── 17 to 19. The rules settled by the second review (2026-10-12) ─────────
+// docs/design/media-showcase.md, "Settled by the second review": rule 7 (a dial names its
+// transfer), rule 8 (an end is always said) and rule 9 (a dial is an answer).
+
+/** Keep a page's timers instead of dropping them (the pages' setTimeout does nothing by default); `fire(ms)` runs those set for `ms`. */
+function keepTimers(page) {
+  const kept = [];
+  page.ctx.setTimeout = (fn, ms) => { kept.push({ fn, ms, fired: false }); return kept.length; };
+  return {
+    kept,
+    fire(ms) {
+      const due = kept.filter((x) => x.ms === ms && !x.fired);
+      for (const x of due) { x.fired = true; x.fn(); }
+      return due.length;
+    },
+  };
+}
+/** The channel a page opened (or was handed) for a transfer, in the stand-in WebRTC. */
+function channelOf(s, who, id) {
+  for (const pc of s.relay.net.pcs.values()) {
+    if (pc.page.who !== who) continue;
+    const ch = pc.channels.concat(pc.received).find((c) => c.label === "file:" + id);
+    if (ch) return ch;
+  }
+  return null;
+}
+/** Every word a row's state line showed from now on, in order. */
+function wordsLog(page, id) {
+  const el = everyUnder(rowOf(page, id)).find((e) => String(e.className).split(/\s+/).includes("ft-state"));
+  const log = [el.textContent];
+  let now = el.textContent;
+  Object.defineProperty(el, "textContent", { configurable: true, get: () => now, set: (v) => { if (v !== now) log.push(v); now = v; } });
+  return log;
+}
+
+test("17. rule 7: with five offers live, Ann answers Ben's dial with one allocation, for the file it names; a second file rides the same connection; a dc_offer naming no file is no file dial", async () => {
+  const idb = fakeIndexedDB();
+  const s = await pair({ ben: { indexedDB: idb } });
+  const files = [];
+  const offers = [];
+  for (let i = 0; i < 5; i++) {
+    files.push(zipBytes((i === 4 ? 12 : 7) * MB + i, 80 + i));
+    offers.push(await offerFrom(s.ann, files[i], `f${i}.zip`));
+  }
+  await waitFor(() => transfers(s.ben).length === 5 && transfers(s.ben).every((t) => t.state === "asked"), "five asked");
+  // Ben accepts the fifth: the one a sender asking for each of its live offers, at most four, missed.
+  const [second, fifth] = [offers[1], offers[4]];
+  await press(s.ben, fifth.id, "accept");
+  await waitFor(() => idb.pieces(fifth.id).length >= 3, "the fifth is moving");
+  const dial = s.relay.forwarded.filter((f) => f.msg.signal_type === "dc_offer");
+  assert.deepEqual(dial.map((f) => [f.to, f.msg.file]), [[s.ppl.ann.key, fifth.id]], "one dial, passed to Ann naming the fifth");
+  const annAsks = () => s.relay.credentials.filter((c) => c.who === "Ann").map((c) => c.msg);
+  assert.deepEqual(annAsks(), [{ type: "call_credentials", file: fifth.id, peer: s.ppl.ben.key, file_pass: fifth.offer.pass }], "Ann asked once, for the file the dial names");
+  const annMade = () => s.relay.net.made.filter((m) => m.who === "Ann");
+  assert.equal(annMade().length, 1, "one connection on Ann's side");
+  assert.equal(annMade()[0].config.iceServers.length, 1, "with one allocation");
+  // The second, accepted while the fifth moves: its own channel on the same connection, no allocation of its own.
+  await press(s.ben, second.id, "accept");
+  await waitFor(() => transferOf(s.ben, fifth.id).state === "saved" && transferOf(s.ben, second.id).state === "saved", "both arrive");
+  assert.equal(annAsks().length, 1, "still one credentials request from Ann");
+  assert.equal(s.relay.credentials.filter((c) => c.who === "Ben").length, 1, "and one from Ben");
+  assert.equal(annMade().length, 1, "still one connection on Ann's side");
+  assert.equal(s.relay.net.made.filter((m) => m.who === "Ben").length, 1, "and on Ben's");
+  assert.deepEqual(s.relay.net.unjoined, [], "nothing failed to join");
+  const got = await savedFiles(s.ben);
+  assert.ok(got.some((g) => sameBytes(g, files[4])) && got.some((g) => sameBytes(g, files[1])), "each exactly its bytes");
+  await waitFor(() => wordsOf(s.ann, fifth.id) === "Sent" && wordsOf(s.ann, second.id) === "Sent", "Ann's two rows say Sent");
+  for (const i of [0, 2, 3]) assert.equal(wordsOf(s.ann, offers[i].id), "Waiting for Ben to accept", "the others still wait");
+
+  // A dc_offer without `file`: the relay let it in some other way (a friend's own-device link). With
+  // three offers to Ben still live, it is no file dial: nothing asked, nothing made, nothing answered.
+  const before = { asks: annAsks().length, made: annMade().length, answers: s.relay.signals.filter((x) => x.who === "Ann").length };
+  const bare = { type: "webrtc_signal", from: s.ppl.ben.key, to: s.ppl.ann.key, signal_type: "dc_offer", data: JSON.stringify({ type: "offer", sdp: "fake-offer 999" }) };
+  assert.equal(s.ann.fn("fileTransferSignal")(clone(bare)), false, "not a file dial");
+  await s.ann.handle(clone(bare));
+  await settle();
+  assert.deepEqual({ asks: annAsks().length, made: annMade().length, answers: s.relay.signals.filter((x) => x.who === "Ann").length }, before, "and nothing came of it");
+  assert.deepEqual([...(s.ann.errors || []), ...(s.ben.errors || [])], [], "no errors");
+});
+
+test("18. rule 8: an end is always said; a receiver whose store refuses a piece says cancel on the channel and sends the cancel note; a channel Ben's side closes without a word ends Ann's after the wait, and a drop does not", async () => {
+  // a. Ben's browser storage refuses a piece mid-transfer, and Ann's copy of his cancel note is lost
+  //    on the way: the cancel said on the channel ends her row on its own.
+  const idb = fakeIndexedDB();
+  let s = await pair({ ben: { indexedDB: idb } });
+  let t = await offer(s, zipBytes(12 * MB, 71));
+  s.relay.lose = (page, msg) => page.who === "Ben" && msg.to === s.ppl.ann.key && noteText(msg) === FT.cancelNoteText(t.id);
+  await acceptAndWait(s, t, () => idb.pieces(t.id).length >= 3);
+  idb.refusePieces = true;
+  await waitFor(() => only(s.ben).state === "failed", "Ben's transfer ends");
+  await settle();
+  assert.equal(wordsOf(s.ben, t.id), "This browser could not keep part of the file (its storage may be full), so the transfer stopped.", "Ben's row says why");
+  assert.equal(s.relay.net.log.filter((m) => m.from === "Ben" && m.kind === '{"t":"cancel"}').length, 1, "cancel said on the channel");
+  const cancelPuts = () => s.ben.sock.sent.filter((m) => m.type === "dm_put" && noteText(m) === FT.cancelNoteText(t.id));
+  await waitFor(() => cancelPuts().length >= 2, "the cancel note goes");
+  assert.deepEqual(cancelPuts().map((m) => [m.to, m.file_pass || null]), [[s.ppl.ann.key, t.offer.pass], [s.ppl.ben.key, null]], "the cancel note to Ann with the offer's pass, and its copy to my other devices without");
+  assert.equal(s.relay.lost.length, 1, "Ann's copy of the note really was lost");
+  await waitFor(() => wordsOf(s.ann, t.id) === "Cancelled", "Ann's row ends, from the channel alone");
+  assert.deepEqual(idb.pieces(t.id), [], "Ben's pieces are dropped");
+  assert.equal(s.ben.blobs.size, 0, "nothing saved");
+
+  // b. A file that does not match, the cancel said on its channel lost on the way: the note, with
+  //    the pass, ends Ann's row.
+  s = await pair();
+  s.ann.set("(h) => { const real = HosFileTransfer.hashFile; HosFileTransfer.hashFile = async (f, o) => { const r = await real(f, o); r.blake3 = h; return r; }; }", hex(B3.hash(zipBytes(10))));
+  s.relay.net.loseText = (who, text) => who === "Ben" && text === '{"t":"cancel"}';
+  t = await offer(s, zipBytes(7 * MB, 72));
+  await acceptAndWait(s, t, () => only(s.ben).state === "failed");
+  assert.equal(wordsOf(s.ben, t.id), "The file Ann offered does not match its description", "Ben's row says why");
+  assert.equal(s.relay.net.log.filter((m) => m.from === "Ben" && m.kind === '{"t":"cancel"}').length, 1, "cancel said on the channel (and lost)");
+  await waitFor(() => s.ben.sock.sent.some((m) => m.type === "dm_put" && m.to === s.ppl.ann.key && noteText(m) === FT.cancelNoteText(t.id)), "the cancel note goes");
+  assert.ok(s.ben.sock.sent.some((m) => m.type === "dm_put" && m.to === s.ppl.ann.key && noteText(m) === FT.cancelNoteText(t.id) && m.file_pass && m.file_pass.id === t.id), "to Ann with the pass");
+  await waitFor(() => wordsOf(s.ann, t.id) === "Cancelled", "Ann's row ends, from the note");
+
+  // c. Ben's side closes the transfer's channel without a word and keeps its connection (as an app
+  //    may that has other transfers on it): Ann's transfer is off the channel, and once the wait has
+  //    passed with the connection still up, it ends as stopped there, and Ben is told.
+  s = await pair();
+  let annTimers = keepTimers(s.ann);
+  t = await offer(s, zipBytes(12 * MB, 73));
+  await acceptAndWait(s, t, () => (only(s.ann).done || 0) >= 3);
+  let benCh = channelOf(s, "Ben", t.id);
+  benCh.onclose = null; benCh.onmessage = null; // Ben's page hears nothing of it: only the channel goes
+  benCh.close();
+  await waitFor(() => only(s.ann).state === "accepted", "Ann's transfer is off the channel");
+  assert.equal(wordsOf(s.ann, t.id), "Connecting", "not ended at once: a closing page looks the same at first");
+  assert.equal(annTimers.fire(15000), 1, "one close being judged");
+  await waitFor(() => wordsOf(s.ann, t.id) === "Ben's side stopped it", "then it ends with words");
+  await waitFor(() => s.ann.sock.sent.some((m) => m.type === "dm_put" && m.to === s.ppl.ben.key && noteText(m) === FT.cancelNoteText(t.id) && !("file_pass" in m)), "and the cancel note goes to Ben (the sender's carries no pass)");
+  await waitFor(() => wordsOf(s.ben, t.id) === "Cancelled", "Ben's row ends too");
+
+  // d. A drop is not a stop: Ben's page goes (its channel closes while Ann's connection still reads
+  //    connected, then her browser stops hearing his). After the wait, Ann's transfer still waits
+  //    for his next dial, to resume.
+  s = await pair();
+  annTimers = keepTimers(s.ann);
+  t = await offer(s, zipBytes(12 * MB, 74));
+  await acceptAndWait(s, t, () => (only(s.ann).done || 0) >= 3);
+  benCh = channelOf(s, "Ben", t.id);
+  benCh.onclose = null; benCh.onmessage = null;
+  benCh.close();
+  await waitFor(() => only(s.ann).state === "accepted", "Ann's transfer is off the channel");
+  [...s.relay.net.pcs.values()].find((p) => p.page.who === "Ann").connectionState = "disconnected";
+  assert.equal(annTimers.fire(15000), 1, "the close is judged");
+  await settle();
+  assert.equal(only(s.ann).state, "accepted", "still live");
+  assert.equal(wordsOf(s.ann, t.id), "Connecting");
+  assert.ok(!s.ann.sock.sent.some((m) => m.type === "dm_put" && noteText(m) === FT.cancelNoteText(t.id)), "and no cancel went");
+  assert.deepEqual([...(s.ann.errors || []), ...(s.ben.errors || [])], [], "no errors");
+});
+
+test("19. rule 9: Ann's copy of Ben's answer is lost; the dial is her answer: her row goes from waiting to sending when the channel opens, and to Sent on done", async () => {
+  const s = await pair();
+  const bytes = zipBytes(9 * MB, 91);
+  const t = await offer(s, bytes);
+  await waitFor(() => transfers(s.ben).length === 1 && only(s.ben).state === "asked", "asked");
+  s.relay.lose = (page, msg) => page.who === "Ben" && msg.to === s.ppl.ann.key && noteText(msg).startsWith(FT.CTL_OFFER_ANSWER);
+  const shown = wordsLog(s.ann, t.id);
+  await press(s.ben, t.id, "accept");
+  await waitFor(() => only(s.ben).state === "saved", "the file arrives");
+  assert.equal(s.relay.lost.length, 1, "the answer to Ann was lost");
+  assert.ok(sameBytes((await savedFiles(s.ben))[0], bytes), "exactly its bytes");
+  await waitFor(() => wordsOf(s.ann, t.id) === "Sent", "Ann's row says Sent");
+  assert.equal(shown[0], "Waiting for Ben to accept", "it waited for the answer");
+  assert.ok(shown.includes("Sending through the server's call relay"), "the channel opening moved it to sending: " + JSON.stringify(shown));
+  assert.equal(shown[shown.length - 1], "Sent", "and done to Sent");
+  assert.ok(shown.indexOf("Sending through the server's call relay") < shown.indexOf("Sent"));
+});
+
 // ── Red first ────────────────────────────────────────────────────────────
 // 2026-10-11: each break made in a copy of web/ and this file run against it with HOS_WEB_DIR,
 // seen failing with the assertion named; every other test passed unless named.
@@ -1439,3 +1687,27 @@ test("16. a file that arrived whole but could not be saved says so, and can be s
 //      same Pause button after the redraws".
 //  C26 chat-file-transfer.js, ftEnd drawing the row only after the pieces are dropped: test 15
 //      "Cancel: at once".
+//
+// 2026-10-12, the second review's rules 7 to 9: each break made in a fresh copy of web/
+// (HOS_WEB_DIR) and the whole file run against it; only the test named failed (20 passed), with
+// the assertion quoted.
+//  R8  file-transfer.js, Receiver._end not saying cancel: test 18 "cancel said on the channel".
+//  R9  file-transfer.js, a store that refuses a piece ending as 'error' (no try/catch round the
+//      put): test 18 "Ben's row says why".
+//  C27 chat-file-transfer.js, the answering side asking for each of its live offers, at most four,
+//      oldest first (as before): test 17 "never happened: the fifth is moving" (no two allocations
+//      of the same transfer, so the stand-in forwarder joined nothing).
+//  C28 chat-file-transfer.js, a dc_offer without `file` taken as a dial for the oldest live offer:
+//      test 17 "not a file dial".
+//  C29 chat-file-transfer.js, ftFail without the cancel note: test 18 "never happened: the cancel
+//      note goes".
+//  C30 chat-file-transfer.js, the connection closed at once when its last channel is dropped here
+//      (not once that channel has closed): test 18 "never happened: Ann's row ends, from the
+//      channel alone" (closing the connection dropped the queued cancel).
+//  C31 chat-file-transfer.js, a sending channel closed by the other side never judged (back to
+//      waiting, as before): test 18 "one close being judged".
+//  C32 chat-file-transfer.js, a sending channel closed while connected ended at once, without the
+//      wait: test 18 "never happened: Ann's transfer is off the channel" (it had ended).
+//  C33 chat-file-transfer.js, a channel opening leaving an offered transfer offered: test 19 "the
+//      channel opening moved it to sending: ["Waiting for Ben to accept","Sent"]".
+//  C34 C33, and done ending as Sent only from sending: test 19 "never happened: Ann's row says Sent".

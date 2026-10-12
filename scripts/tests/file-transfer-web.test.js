@@ -45,6 +45,11 @@
 //     asked and partial buffers only for those; a piece nobody asked for is not kept until asked
 //     for; a damaged copy of a piece it holds is ignored; after a stall the lost piece is asked
 //     for alone.
+// 14. Rule 8 of "...: settled by the second review" (2026-10-12), an end is always said: a
+//     Receiver that ends for any reason but done (a piece damaged three times, a hash list or a
+//     whole file that does not match, a store that refuses a piece, anything else going wrong)
+//     says cancel on the channel once, and the Sender hears it and ends; the sender's own cancel
+//     is not echoed.
 //
 // HOS_WEB_DIR points the test at another copy of web/. Red first: see the end of this file.
 
@@ -880,6 +885,61 @@ test("13. the Receiver asks for a piece once, keeps 16 asked a piece at a time, 
   assert.ok(Buffer.from(bytes).equals(store.assembled()), "exactly the file");
 });
 
+// ── 14. Rule 8 of the second review: an end is always said ────────────────
+
+test("14. every end of the Receiver but done says cancel on the channel, and the Sender hears it; a cancel from the sender is not echoed", async () => {
+  const bytes = fileBytes(6 * FT.PIECE_BYTES + 321, 41);
+  const file = new Blob([bytes]);
+  const { offer, hashed } = await offerFor(file);
+  const cancels = (st) => st.said.filter((m) => m === '{"t":"cancel"}').length;
+  /** Run a sender and a receiver until the receiver ends; check it said cancel once, and the sender heard it. */
+  async function endsSaid(what, c, reason) {
+    await c.start();
+    await waitFor(() => ended(c.ev.receiver), what + ": the receiver ends");
+    assert.equal(ended(c.ev.receiver).reason, reason, what + ": its reason");
+    assert.equal(cancels(c.ch.st), 1, what + ": cancel said on the channel, once");
+    await waitFor(() => ended(c.ev.sender), what + ": the sender hears");
+    assert.equal(ended(c.ev.sender).reason, "cancelled-there", what + ": and ends as cancelled there, not waiting");
+    assert.ok(!has(c.ev.receiver, "complete"), what + ": nothing handed over to be saved");
+  }
+  // A piece damaged three times.
+  const always = (m) => {
+    const r = FT.readPieceMessage(m);
+    if (r.piece === 2 && r.offset === 0) { const x = m.slice(); x[30] ^= 0x11; return x; }
+    return m;
+  };
+  await endsSaid("damaged", connect(offer, file, hashed.pieceHashes, memoryStore(), { tamper: always }), "damaged");
+  // A list of piece hashes that does not match the offer.
+  const wrong = hashed.pieceHashes.slice();
+  wrong[7] ^= 1;
+  await endsSaid("mismatch", connect(offer, file, wrong, memoryStore()), "mismatch");
+  // A whole file that does not match the offer.
+  const lying = Object.assign({}, offer, { blake3: hex(B3.hash(fileBytes(10, 1))) });
+  await endsSaid("mismatch-file", connect(lying, file, hashed.pieceHashes, memoryStore()), "mismatch-file");
+  // Storage that refuses a piece (a full browser storage).
+  const full = memoryStore();
+  full.put = async (i, b) => { if (full.pieces.size >= 2) throw new Error("The quota has been exceeded."); full.pieces.set(i, new Uint8Array(b)); };
+  await endsSaid("storage", connect(offer, file, hashed.pieceHashes, full), "storage");
+  assert.equal(FT.WORDS.storage, "This browser could not keep part of the file (its storage may be full), so the transfer stopped.", "the words for it");
+  // Anything else that goes wrong: a store that cannot read back a piece kept before (a reload).
+  const broken = memoryStore();
+  broken.pieces.set(0, bytes.slice(0, FT.PIECE_BYTES));
+  broken.get = async () => { throw new Error("the store went"); };
+  await endsSaid("error", connect(offer, file, hashed.pieceHashes, broken), "error");
+  // The sender's own cancel ends the receiver without an echo.
+  const store = memoryStore();
+  const c = connect(offer, file, hashed.pieceHashes, store);
+  await c.start();
+  await waitFor(() => store.pieces.size >= 1, "a piece kept");
+  c.sender.cancel();
+  await waitFor(() => ended(c.ev.receiver), "the receiver hears");
+  assert.equal(ended(c.ev.receiver).reason, "cancelled-there");
+  await turns(50);
+  assert.equal(cancels(c.ch.st), 0, "the receiver said nothing back");
+  assert.equal(FT.WORDS.stoppedThere("Ann"), "Ann's side stopped it", "the sender's words when the other side stops it without a word, the spec's");
+  assert.ok(SPEC.replace(/\s+/g, " ").includes('("Ann\'s side stopped it")'), "as rule 8 has them");
+});
+
 // ── Red first ────────────────────────────────────────────────────────────
 // 2026-10-11: each break made in a copy of web/ and this file run against it with HOS_WEB_DIR,
 // seen failing with the assertion named; every other test passed.
@@ -930,3 +990,10 @@ test("13. the Receiver asks for a piece once, keeps 16 asked a piece at a time, 
 //      stall, piece 9 alone".
 //  R7  file-transfer.js, a bad piece asked again with a window of 16: test 5 "piece 3 asked again
 //      alone after each of the first two failures".
+//
+// 2026-10-12, the second review's rule 8: each break made in a fresh copy of web/ (HOS_WEB_DIR) and
+// the whole file run against it; only test 14 failed (13 passed), with the assertion quoted.
+//  R8  file-transfer.js, Receiver._end not saying cancel: test 14 "damaged: cancel said on the
+//      channel, once".
+//  R9  file-transfer.js, a store that refuses a piece ending as 'error' (no try/catch round the
+//      put): test 14 "storage: its reason".

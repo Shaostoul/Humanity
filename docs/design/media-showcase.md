@@ -2167,11 +2167,52 @@ files are zeros named as videos. The four new test files are not in `just rig-te
 The website's half of "Device-to-device big files: the shapes, exact" (parts 3 to 6, and the
 client side of parts 1 and 2), built 2026-10-11 against the shapes above while the relay half was
 built in parallel, and brought to "rules settled by the first review" (rules 1, 2 and 4, and the
-Accept click) on 2026-10-12. The relay's side (the pass check on `dc_offer` and on a `dm_put`'s
-`file_pass`, file credentials, the forwarder) is stood in by the tests. The first build ran website
-to website through a real browser and a real forwarder; the 2026-10-12 changes have run only
-against the stand-ins, and the spec's "one desktop-to-web transfer between two real apps through a
-throwaway relay" is still to do.
+Accept click) on 2026-10-12, then to the second review's rules 7, 8 and 9 the same day. The relay's
+side (the pass check on `dc_offer` and on a `dm_put`'s `file_pass`, the `file` it puts on a dial,
+file credentials, the forwarder) is stood in by the tests. The first build ran website to website
+through a real browser and a real forwarder; the 2026-10-12 changes have run only against the
+stand-ins, and the spec's "one desktop-to-web transfer between two real apps through a throwaway
+relay" is still to do.
+
+**The second review's rules (7 to 9), in short (2026-10-12).**
+- Rule 7, `web/chat/chat-file-transfer.js` (`fileTransferSignal`, `ftAnswerDial`, `ftRtcConfig`).
+  The sender answers a dial only when it carries `file` (put there by the relay, commit 397ff2750)
+  naming a live offer of mine to the dialler, and asks the call relay for THAT transfer's
+  credentials alone: one allocation for the connection, one entry in `iceServers`, the same
+  transfer the dialler asked for, so the forwarder joins the two. Every other transfer with that
+  person rides the connection as its own channel and asks for nothing. Until then it asked for each
+  live offer to that person, at most four: the idle allocations used up the person's share, and a
+  dial for a fifth offer matched none of the four and never connected. A dc_offer without `file`
+  came in some other way (a friend's own-device link) and is no file dial: `fileTransferSignal`
+  hands it on to chat-p2p.js, which answers only my own devices. One naming a file of mine that is
+  no longer live is taken and not answered. The dial is answered while something can go on it: an
+  offer to them whose file this page holds, or a transfer of theirs to me waiting to open its
+  channel. The dialler already asked for one transfer's credentials (the one it dials for).
+- Rule 8, `web/shared/file-transfer.js` (`Receiver._end`) and `chat-file-transfer.js` (`ftFail`,
+  `ftSendChannelGone`, `ftDropChannel`). The Receiver says `{"t":"cancel"}` on the channel for every
+  end but one the sender said ('cancelled-there'): a piece damaged three times, a hash list or a
+  whole file that does not match, a store that refuses a piece (a new reason, `storage`, "This
+  browser could not keep part of the file (its storage may be full), so the transfer stopped."), and
+  anything else going wrong (`error`). The page then sends the cancel note, with the offer's pass as
+  the answer carries it and a copy to my other devices, and the row says why. Until then these four
+  ends said nothing to anyone, and a desktop sender waited for the pass to run out, up to 7 days.
+  A transfer's channel closed here now keeps its connection open until the channel has closed (its
+  close event): a browser sends what was queued on a channel before closing it, but closing the
+  whole connection drops that at once, and the last thing said is the cancel.
+  On the sending side, a channel the other side closes before `done` is judged after 15 seconds
+  (`FT_STOPPED_WAIT_MS`): still connected, and the transfer not back on a channel, it ends, "Ben's
+  side stopped it", with the cancel note to Ben; the connection gone by then (a new dial from them
+  replaced it, or the browser stopped saying connected) is a drop, and the transfer waits for the
+  next dial, so a receiver whose page reloads still resumes. The wait is there because the two look
+  alike when the channel closes: a closing page's channels close one event at a time, while the
+  connection still reads connected here until ICE notices nobody answers. A connection already gone
+  when the channel closes is a drop at once. A receiving transfer still live opens its channel again
+  (or dials again) at the next minute's retry, and a pause the other side held is cleared, as
+  before.
+- Rule 9, checked and kept (`ftBindChannel`): a sender whose record still waits for the answer
+  note takes its transfer's channel opening as Accept (the state moves to sending, so the first
+  `hashes` or `get` need no rule of their own) and `done` as Sent, so a lost answer never leaves
+  the row waiting.
 
 **The 2026-10-12 round (the review's rules), in short.**
 - Rule 1, `web/shared/file-transfer.js`. The `Sender` keeps what it owes as an ascending list: a
@@ -2251,9 +2292,11 @@ Node, and one chat script:
 ended) before it shows anything; an offer whose pass does not check is dropped.
 
 **Part 2, credentials.** `{"type":"call_credentials","file":"<id>","peer":"<key>","file_pass":{...}}`,
-exactly. **Assumed, not in the spec:** the relay's reply echoes `file` the way it echoes `room` and
-`call`; a reply without it is never matched and the wait (8 seconds) runs out. A refusal or no reply
-gives the spec's "This server is not set up for that yet" on the row, with Resume to try again.
+exactly. The relay's reply echoes `file` the way it echoes `room` and `call`
+(`src/relay/call_credentials.rs`); a reply without it is never matched and the wait (8 seconds) runs
+out. A refusal or no reply gives the spec's "This server is not set up for that yet" on the row,
+with Resume to try again. Each side asks once per connection (rule 7): the dialler for the transfer
+it dials for, the sender for the one the dial names.
 
 **Part 3, the notes.**
 - The offer goes to the recipient alone, with no copy to my other devices (they do not have the
@@ -2287,12 +2330,12 @@ gives the spec's "This server is not set up for that yet" on the row, with Resum
   next minute's retry, and on the answering side every channel went to the first transfer's engine.)
 - The receiver dials (on Accept, on Resume, and when the sender appears in the member list; and
   every minute while the page is open), unless a connection with that person is already there, in
-  which case its channel opens on that one. The sender answers a dial only from someone it has a live
-  offer to. It cannot know which file a dial is for until a channel opens with its label, so it
-  asks for credentials for each of its live offers to that person (at most four) and puts them all in
-  its connection: the forwarder passes packets only within one transfer, so only the matching pair
-  connects, and every later channel rides that pair. A channel whose label is no live offer of mine
-  to them is closed.
+  which case its channel opens on that one. The sender answers a dial only when the relay's `file`
+  on it names a live offer of mine to them (rule 7, since 2026-10-12), with that transfer's
+  credentials alone; every later channel rides that one allocation. (Before, it could not tell
+  which file a dial was for, asked for each of its live offers to that person, at most four, and
+  put them all in its connection.) A channel whose label is no live offer of mine to them is
+  closed.
 - Both dial at once (each has a file for the other): the larger key's dial goes on, as the desktop
   app's offerer rule has it, and the other side's receiving transfers open their channels on the
   connection it answers. A dial from someone I already have an open connection with means theirs is
@@ -2317,7 +2360,8 @@ gives the spec's "This server is not set up for that yet" on the row, with Resum
   ends the transfer ("Part of the file arrived damaged three times, so the transfer stopped."). A
   message for a piece it did not ask for, or already holds, is ignored. A list of piece hashes that
   does not match the offer, or a whole file that does not, ends it with "The file Ann offered does
-  not match its description".
+  not match its description". Every such end says cancel on the channel and sends the cancel note
+  (rule 8, since 2026-10-12), so the sender's row says "Cancelled".
 - Pause: each side's pause holds until the same side resumes. A pause from either side drops
   everything the sender owes and every half-received piece; on resume the receiver asks again for
   the first pieces it lacks.
@@ -2341,7 +2385,9 @@ gives the spec's "This server is not set up for that yet" on the row, with Resum
 name, the size, a progress bar, Pause, Resume and Cancel, and the spec's words for each state,
 plus a few of this page's own: "Getting the file ready" (hashing), "Connecting", "Paused", "Paused by
 Ann", "Checking the file", "Receiving through the server's call relay", "You declined", "Answered on
-your other device", "Choose where to save it". The sender's row says the file goes from this device
+your other device", "Choose where to save it", and since 2026-10-12 rule 8's "Ben's side stopped it"
+and "This browser could not keep part of the file (its storage may be full), so the transfer
+stopped." The sender's row says the file goes from this device
 and the page must stay open. **After a reload the sender no longer has the file** (a browser does
 not keep a picked file across a reload): the row asks for it to be chosen again ("Choose the file
 again"), and only the same file (its size, its BLAKE3 and its piece list) is taken. Every button
@@ -2359,7 +2405,15 @@ never takes a button from under the pointer), and each button's hint says what i
 - Two of the receiver's devices pressing Accept at the same moment may both dial; the signalling
   cannot tell them apart.
 - The browser's own storage limit is the only size limit (Firefox and Safari allow less than
-  Chromium).
+  Chromium). Since 2026-10-12 a piece the storage refuses ends the transfer with words and tells the
+  sender (rule 8).
+- Rule 8's judging of a closed sending channel rests on two things a real browser does that only
+  the stand-ins have shown here: a closing page's connection stops reading connected within the
+  15-second wait (its ICE checks go unanswered; how fast a browser says "disconnected" was not
+  measured), and a channel's queued cancel goes before the channel closes (the WebRTC spec's closing
+  procedure). Neither was checked in a real browser this round. A receiver
+  that ends its only transfer without a word AND closes its connection looks like a drop, so the
+  sender waits; both apps now send the cancel note on every end, which covers it.
 - Groups come later (file-transfer-at-scale.md, layer 3).
 
 **Tests** (each seen failing once against a single break in a copy of web/; the note at each test
@@ -2400,6 +2454,33 @@ C26 in the notes at each file's end):
   button is the same element across redraws (red with the old Accept, with the row rebuilt on each
   redraw, and with an ended transfer drawn only after its pieces are dropped). The stand-in WebRTC
   now delivers a channel made on a live connection to the other side, as Edge does.
+
+Added 2026-10-12 for the second review's rules 7 to 9 (each seen red against a single break in a
+fresh copy of web/, R8, R9 and C27 to C34 in the notes at each file's end; only the test named
+failed):
+- `file-transfer-web.test.js` 14: a Receiver that ends with a piece damaged three times, a hash list
+  or a whole file that does not match, a store that refuses a piece, or a store that cannot read
+  back a piece kept before, says cancel on the channel once, and the Sender ends as cancelled there;
+  the sender's own cancel is not echoed (red with `_end` saying nothing, and with the store's
+  refusal ending as `error`).
+- `file-transfer-chat-web.test.js` 17: five offers to Ben live, he accepts the fifth: his dial
+  reaches Ann naming it, she asks for that transfer's credentials alone and makes one allocation,
+  and a second file he accepts while it moves rides the same connection with no credentials of its
+  own; a dc_offer naming no file makes nothing (red with the old four-offer answer, which never
+  connected, and with a nameless dial taken as the oldest offer's). 18: Ben's storage refuses a
+  piece: cancel on the channel, the cancel note to Ann with the pass and a copy to his devices, his
+  row says why, and Ann's row ends from the channel alone with her copy of the note lost; a file
+  that does not match with the channel's cancel lost ends her row from the note; a channel Ben's
+  side closes without a word ends Ann's transfer after the wait ("Ben's side stopped it", the note
+  to Ben, his row "Cancelled"), and a drop does not (red with no cancel said, no note, the
+  connection closed before its channel, the close never judged, and the close judged at once). 19:
+  Ben's answer to Ann lost: her row goes from "Waiting for Ben to accept" to "Sending through the
+  server's call relay" when his channel opens, and to "Sent" on done (red with an offered transfer
+  left offered, and with done counted only from sending as well). The stand-ins grew to match: the
+  relay puts `file` on a dial its file pass let in, its credentials name the transfer and the
+  stand-in WebRTC joins only allocations of the same one (unless both may go direct), a channel a
+  page closes sends what was queued first, and a closed connection leaves the other side reading
+  "disconnected".
 
 ## As built (desktop, files)
 

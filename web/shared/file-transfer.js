@@ -20,7 +20,9 @@
 //    settled by the first review"): hashes, gets that add to what is owed,
 //    a window of 16 kept full a piece at a time, piece checks, three tries a
 //    piece, resume from the first missing piece, done, pause, resume and
-//    cancel;
+//    cancel; and (rule 8 of "...: settled by the second review") a receiver
+//    whose transfer ends for any reason other than done says cancel on the
+//    channel, so the sender's row ends too;
 //  - the words people see (section 6).
 //
 // A classic script in the browser (HosFileTransfer lands on window), a
@@ -508,7 +510,17 @@
   // file's BLAKE3 matches: the page saves it now), 'end' {reason}:
   // 'cancelled-here', 'cancelled-there', 'mismatch' (the piece hashes do not
   // match the offer's `hashes`), 'mismatch-file' (the whole file's BLAKE3 does
-  // not match the offer's), 'damaged' (one piece failed three times).
+  // not match the offer's), 'damaged' (one piece failed three times),
+  // 'storage' (the store refused a piece: store.put threw), 'error' (anything
+  // else that went wrong handling a message).
+  //
+  // Rule 8 ("Settled by the second review", 2026-10-12, under "Device-to-device
+  // big files: rules settled by the first review"): an end is always said. Every end
+  // but 'cancelled-there' (the sender said it) sends {"t":"cancel"} on the
+  // channel before the 'end' event ('cancelled-here' through cancel()). Until
+  // then this Receiver ended a damaged, mismatched or unstorable file without a
+  // word, so a desktop sender kept waiting for it until the pass ran out, up to
+  // 7 days. (The page sends the cancel note as well.)
   //
   // It asks for the piece hashes on a channel when it does not hold them yet,
   // checks them against the offer, then asks for pieces. Rule 1 of "Device-to-
@@ -586,6 +598,9 @@
 
   Receiver.prototype._end = function (reason) {
     if (this.ended) return;
+    // Rule 8: said on the channel while it is there (cancel() has said it already; the sender's own
+    // cancel needs no answer).
+    if (reason !== 'cancelled-here' && reason !== 'cancelled-there') this._say({ t: 'cancel' });
     this.ended = true;
     this._forget();
     this.onEvent('end', { reason });
@@ -782,7 +797,13 @@
       this._failed(p);
       return;
     }
-    await this.store.put(p, part.buf);
+    try {
+      await this.store.put(p, part.buf);
+    } catch (e) {
+      // The store refused it (the browser's storage is full, or it went): the transfer cannot go on.
+      this._end('storage');
+      return;
+    }
     if (this.ended || this.have[p]) return;
     this.have[p] = 1;
     this.haveCount += 1;
@@ -943,6 +964,9 @@
     notSigned: 'The offer could not be signed: this page has not finished signing in. Try again in a moment.',
     mismatch: (name) => `The file ${who(name)} offered does not match its description`,
     damaged: 'Part of the file arrived damaged three times, so the transfer stopped.',
+    storage: 'This browser could not keep part of the file (its storage may be full), so the transfer stopped.',
+    /** The sender's row when the receiver's side closed the transfer's channel before the end (rule 8). */
+    stoppedThere: (name) => `${who(name)}'s side stopped it`,
     failed: 'The transfer stopped because something went wrong on this page.',
     unreadable: 'This device could not read the file any more. Choose it again to keep sending.',
     noFile: 'This page was closed or reloaded, so it no longer has the file.',
