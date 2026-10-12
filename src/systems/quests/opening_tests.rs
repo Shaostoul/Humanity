@@ -111,7 +111,7 @@ fn ship_on(plot: &str) -> ShipStructure {
 /// the wallet, and First Steps accepted. Standing where they wake up.
 fn new_player(world: &mut hecs::World, ship: &ShipStructure) -> hecs::Entity {
     let mut inv = Inventory::new(36);
-    for (id, qty) in crate::save_load::starting_kit(&data_dir()) {
+    for (id, qty) in crate::save_load::starting_kit(&data_dir(), "homestead") {
         inv.add_item(&id, qty, 99);
     }
     let mut tracker = QuestTracker::default();
@@ -816,7 +816,7 @@ fn every_step_of_the_opening_names_what_the_game_shows() {
     let items = ItemRegistry::from_csv(&read("items.csv")).unwrap();
     let blueprints = BlueprintRegistry::from_ron(&read("blueprints/basic.ron")).unwrap();
     let towers = crate::gui::load_tower_configs(&data_dir());
-    let kit: Vec<String> = crate::save_load::starting_kit(&data_dir()).into_iter().map(|(id, _)| id).collect();
+    let kit: Vec<String> = crate::save_load::starting_kit(&data_dir(), "homestead").into_iter().map(|(id, _)| id).collect();
     let def = opening();
     let has = |text: &str, part: &str, why: &str| assert!(text.contains(part), "the opening's line {text:?} names {part:?}: {why}");
     // The keys it names are the World keys (data/keymaps.ron).
@@ -909,7 +909,7 @@ fn a_player_who_finished_the_old_first_steps_is_not_sent_back() {
             ),
         )
         .unwrap();
-    let mut save = crate::persistence::WorldSave::new_offline("My Homestead", "fibonacci");
+    let mut save = crate::persistence::WorldSave::new_offline("My Homestead", "homestead");
     let mut before = QuestTracker::default();
     before.completed_quests.push("gs_first_steps".into());
     before.accept_quest("gs_toolsmith");

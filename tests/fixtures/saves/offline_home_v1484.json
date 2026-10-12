@@ -1,0 +1,106 @@
+{
+  "name": "My Homestead",
+  "timestamp": 0,
+  "game_time": 0.0,
+  "player_position": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "player_rotation": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+  ],
+  "inventory": [],
+  "inventory_state": [],
+  "inventory_age": [],
+  "skills": {},
+  "constructions": [],
+  "crafts": [],
+  "progress_saved": false,
+  "weather_state": "clear",
+  "kind": "offline",
+  "design": "fibonacci",
+  "character_name": "Player",
+  "appearance": {
+    "body_type": "default",
+    "height_scale": 1.0,
+    "skin_tone": [
+      0.8,
+      0.62,
+      0.5
+    ],
+    "hair_style": "short",
+    "hair_color": [
+      0.25,
+      0.18,
+      0.1
+    ],
+    "eye_color": [
+      0.3,
+      0.45,
+      0.55
+    ]
+  },
+  "outfit": {
+    "equipped": {}
+  },
+  "placed_items": null,
+  "deployed_vehicles": [],
+  "crops": [],
+  "crop_soil": [],
+  "crop_pollination": [],
+  "crop_picking": [],
+  "soil_memory": {
+    "units": {},
+    "organic": {},
+    "pests": {},
+    "ph": {},
+    "rooms": {},
+    "hives": {},
+    "weeds": {},
+    "home_air": {
+      "vapour_g_m3": 0.0,
+      "co2_g_m3": 0.0,
+      "o2_g_m3": 0.0,
+      "air_handler": 0.0,
+      "condensate_l_day": 0.0,
+      "scrubber": 0.0,
+      "scrubbed_kg_day": 0.0,
+      "co2_out_kg_day": 0.0,
+      "co2_uptake_kg_day": 0.0,
+      "o2_made_kg_day": 0.0,
+      "o2_used_kg_day": 0.0,
+      "leak_kg_day": 0.0,
+      "ledger": {
+        "breathed_l": 0.0,
+        "humidified_l": 0.0,
+        "people_l": 0.0,
+        "condensed_l": 0.0,
+        "surface_l": 0.0,
+        "leaked_l": 0.0
+      },
+      "warmed_k": 0.0,
+      "heater": 0.0
+    }
+  },
+  "credits": -1,
+  "quests": null,
+  "herd": [],
+  "asteroids": null,
+  "drone": null,
+  "mining_order": null,
+  "machine_levels": [],
+  "ship_supply": {
+    "homes": {}
+  },
+  "settled_trades": [],
+  "home_id": "",
+  "fleet_held": [],
+  "home_plot_box": null,
+  "body": null,
+  "urine_tank_person_days": 0.0,
+  "left_packs": []
+}
