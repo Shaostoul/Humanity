@@ -474,8 +474,37 @@ async function loadChat(me, opts = {}) {
       uploadsInFlight--;
     }
   };
+  // opts.xhr: the page gets a stand-in XMLHttpRequest that goes to the same stand-in relay, says
+  // the upload is half way and then all there, and keeps the upload line's words after each step.
+  const xhrWords = [];
+  class FakeXhr {
+    constructor() { this.upload = { onprogress: null }; this.status = 0; this.responseText = ""; }
+    open(method, url) { this.method = method; this.url = url; }
+    send(body) {
+      const file = body && body.get ? body.get("file") : null;
+      const total = (file && file.size) || 1;
+      const say = (loaded) => {
+        if (this.upload.onprogress) this.upload.onprogress({ lengthComputable: true, loaded, total });
+        xhrWords.push(ctx.document.getElementById("upload-indicator").textContent);
+      };
+      setImmediate(async () => {
+        fetched.push("XHR " + this.method + " " + this.url);
+        say(Math.floor(total / 2));
+        say(total);
+        try {
+          const json = await upload(this.url, { method: this.method, body });
+          this.status = 200;
+          this.responseText = JSON.stringify(json);
+          if (this.onload) this.onload();
+        } catch (e) {
+          if (this.onerror) this.onerror(e);
+        }
+      });
+    }
+  }
   const ctx = {
     console: { log() {}, warn() {}, error() {}, info() {}, debug() {} },
+    ...(opts.xhr ? { XMLHttpRequest: FakeXhr } : {}),
     document: fakeDom(state),
     navigator: new Proxy({}, { get: (_t, p) => (p === "serviceWorker" ? serviceWorker : anything()), has: () => true }),
     location: { hash: "", host: "localhost", protocol: "https:", pathname: "/chat", search: "", origin: "https://localhost", reload() {} },
@@ -623,7 +652,7 @@ async function loadChat(me, opts = {}) {
   const fn = (name) => vm.runInContext(name, ctx);
   const set = (code, ...args) => vm.runInContext(code, ctx)(...args);
   const page = {
-    ctx, fx, sock, store, state, relay, posted, fetched, uploads, files, blobs, notices, systemLines, handle, fn, set,
+    ctx, fx, sock, store, state, relay, posted, fetched, uploads, files, blobs, notices, systemLines, handle, fn, set, xhrWords,
     el: (id) => ctx.document.getElementById(id),
     /** Hold every upload until release() (to leave the conversation while one is on its way). */
     holdUploads() {
@@ -829,6 +858,26 @@ test("a public channel still uploads the plain file and posts its address", asyn
   assert.equal(page.uploads.length, 2);
   assert.ok(!/encrypted=1/.test(page.uploads[1].query) && sameBytes(page.uploads[1].bytes, PDF), "a picked file too");
   assert.equal(page.sock.sent.filter((m) => m.type === "chat").pop().content, page.uploads[1].url);
+});
+
+// Seen red 2026-10-12 with uploadPost's progress handler taken out: the upload line never had a number.
+test("an upload says how much of it has gone, in a public channel and in a DM (the phone check of 2026-10-12)", async () => {
+  const fx = await fixture();
+  const page = await loadChat(fx.ann, { xhr: true });
+  await paste(page, picture("image.png"));
+  assert.equal(page.uploads.length, 1, "the public upload went");
+  assert.ok(page.fetched.some((f) => f.startsWith("XHR POST /api/upload")), "through the request that reports progress");
+  assert.deepEqual(page.xhrWords, ["Uploading image.png… 50%", "Uploading image.png… 100%"], "the upload line counts up");
+  assert.equal(page.sock.sent.filter((m) => m.type === "chat").pop().content, page.uploads[0].url, "and its address is posted");
+
+  page.fn("openDmConversation")(fx.ben.key, "Ben");
+  await settle();
+  page.xhrWords.length = 0;
+  await paste(page, picture("image.png"));
+  assert.equal(page.uploads.length, 2, "the DM's encrypted upload went");
+  assert.ok(/encrypted=1/.test(page.uploads[1].query), "encrypted");
+  assert.deepEqual(page.xhrWords, ["Uploading image.png… 50%", "Uploading image.png… 100%"], "its line counts up too");
+  assert.equal(page.sock.sent.filter((m) => m.type === "dm_put").length, 2, "and it is sent sealed (Ben's copy and mine)");
 });
 
 // ── 5. A marker in a group message ──────────────────────────────────────

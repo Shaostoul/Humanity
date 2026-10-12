@@ -49,6 +49,23 @@ header h1 {
 
 @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
 
+/* Phones: the header's two halves fit 375 px (the phone check of 2026-10-12: the message count
+   wrapped to four lines and the icons ran off the right edge, so the whole page scrolled
+   sideways). The count goes, and the connection shows as its dot; its words stay for screen
+   readers, and on the dot as a tooltip (app.js setStatus). */
+@media (max-width: 640px) {
+  /* The right padding keeps the icons clear of the site's help button, which sits fixed at the
+     top right of every page just under the nav (shell.js, 44 px at 10 px from the edge): it
+     covered the account button. */
+  header { padding: var(--space-md) calc(44px + 10px + var(--space-md)) var(--space-md) var(--space-lg); }
+  .header-left { gap: var(--space-md); }
+  #stats { display: none; }
+  #status-text {
+    position: absolute; width: 1px; height: 1px; overflow: hidden;
+    clip: rect(0 0 0 0); white-space: nowrap;
+  }
+}
+
 /* ── Layout ── */
 .main {
   flex: 1;

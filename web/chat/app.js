@@ -2549,6 +2549,7 @@ function rulesDisagree() {
 function setStatus(cls, text) {
   const el = document.getElementById('status');
   el.className = cls;
+  el.title = text; // on phones the dot is all that shows (layout.css)
   document.getElementById('status-text').textContent = text;
   // Reflect connection state on the nav Chat tab for visibility from any scroll position
   updateNavDot(cls);
