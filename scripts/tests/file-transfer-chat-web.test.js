@@ -13,7 +13,8 @@
 // sends, and Ben, who receives (and in one test a second page of Ben's, his other device). The
 // real chat scripts load in index.html's order, the new ones included. Stood in: the relay (it
 // passes each `dm_put` to the pages of the key it names as `dm_new`, answers a put that carries a
-// ref with `dm_put_ok`, forwards `webrtc_signal` without its `file_pass` as the relay does, and
+// ref with `dm_put_ok`, refuses a put to someone who takes messages only from friends unless its
+// `file_pass` verifies (test 14), forwards `webrtc_signal` without its `file_pass` as the relay does, and
 // answers `call_credentials`, or refuses it as a relay without its forwarder does), the DM layer as
 // in private-files-web.test.js (a DM's "signature" is its signed words and "sealing" base64s it,
 // so a test reads exactly what was sealed), and WebRTC (two stand-in peer connections that join
@@ -60,6 +61,16 @@
 //     accepts here.
 // 12. Direct connections: off by default (relay only), a row in Safety > Files in messages; on, a
 //     friend's file may go direct (iceTransportPolicy 'all'); with the protected setup on, never.
+// 13. Rule 2 of "...: rules settled by the first review" (2026-10-12): two files to Ben (the second
+//     accepted while the first moves), and one each way, all over one connection, a channel and an
+//     engine each, each file exactly its bytes.
+// 14. Rule 4: the receiver's answer (yes and no) and cancel carry the offer's pass on their put, and
+//     reach a sender who takes messages only from friends (the stand-in relay checks the pass with
+//     real Dilithium3, and refuses the same put without it).
+// 15. One click on Accept moves the row on at once and starts the transfer, with the save dialog
+//     closed at once (as headless Edge does), still open (the file waits for the place, then goes
+//     into it), or absent; Decline, Pause, Resume and Cancel each change the row in the click; a
+//     redraw never replaces the Pause button.
 //
 // Red first: see the end of this file for each deliberate break and the assertion it tripped.
 
@@ -388,6 +399,21 @@ function webrtc(net) {
       const ch = new FakeChannel(label, this);
       ch.opts = opts;
       this.channels.push(ch);
+      // On a connection already joined (either side), a new channel reaches the other side at once,
+      // as a browser's does over the live connection (no new offer needed).
+      if (this.joined && this.peer) {
+        const there = this.peer;
+        ch.delivered = true;
+        setImmediate(() => {
+          if (this.connectionState === "closed" || there.connectionState === "closed" || ch.readyState === "closed") return;
+          const other = new FakeChannel(label, there);
+          other.peer = ch; ch.peer = other;
+          if (there.ondatachannel) there.ondatachannel({ channel: other });
+          other.readyState = "open"; ch.readyState = "open";
+          if (other.onopen) other.onopen();
+          if (ch.onopen) ch.onopen();
+        });
+      }
       return ch;
     };
     FakePeerConnection.prototype.createOffer = async function () { return { type: "offer", sdp: "fake-offer " + this.id }; };
@@ -415,6 +441,8 @@ function webrtc(net) {
       const answerer = dialer === a ? b : a;
       setImmediate(() => {
         for (const ch of dialer.channels) {
+          if (ch.delivered) continue;
+          ch.delivered = true;
           const other = new FakeChannel(ch.label, answerer);
           other.peer = ch; ch.peer = other;
           if (answerer.ondatachannel) answerer.ondatachannel({ channel: other });
@@ -436,6 +464,14 @@ function webrtc(net) {
 
 // ── The stand-in relay ─────────────────────────────────────────────────────
 
+/** Does `pass` let `grantee` reach `issuer`: a file pass of the issuer's, made out to the grantee, on this server, not ended? Real Dilithium3. */
+function passLetsIn(pass, issuer, grantee) {
+  const p = FT.filePassParse(pass);
+  if (!p || !MODS || !FT.filePassTimeOk(p, Math.floor(Date.now() / 1000))) return false;
+  const words = new TextEncoder().encode(FT.filePassPreimage(SERVER, issuer, grantee, p.id, p.expiry));
+  try { return MODS.noble.ml_dsa65.verify(Buffer.from(p.sig, "base64"), words, Buffer.from(issuer, "hex")); } catch (e) { return false; }
+}
+
 function relayFor() {
   const net = { pcs: new Map(), count: 0, made: [], log: [], tamper: null, blocked: false };
   const relay = {
@@ -443,6 +479,12 @@ function relayFor() {
     net,
     rtc: webrtc(net),
     forwarder: true,
+    // Recipients who take messages only from friends: key -> the keys of their friends. A put to
+    // one from anyone else is refused, unless it carries `file_pass`, a pass that verifies with the
+    // recipient as its issuer and the sender as its grantee (rule 4 of "Device-to-device big files:
+    // rules settled by the first review"; the relay's own check is being built beside this).
+    onlyFriends: new Map(),
+    refusedPuts: [],       // each put refused that way, {who, msg}
     refuse: null,          // a reason word: every put with a ref is refused with it
     frames: [],            // every frame a page sent, {who, msg}
     signals: [],           // every webrtc_signal as sent, file_pass included
@@ -457,6 +499,12 @@ function relayFor() {
       const to = (k) => relay.pages.filter((p) => p.key === k && !p.closed);
       if (msg.type === "dm_put") {
         if (msg.ref && relay.refuse) { relay.deliver(page, { type: "dm_put_refused", ref: msg.ref, reason: relay.refuse }); return; }
+        const friends = relay.onlyFriends.get(msg.to);
+        if (friends && msg.to !== page.key && !friends.has(page.key) && !passLetsIn(msg.file_pass, msg.to, page.key)) {
+          relay.refusedPuts.push({ who: page.who, msg: clone(msg) });
+          if (msg.ref) relay.deliver(page, { type: "dm_put_refused", ref: msg.ref, reason: "reach" });
+          return;
+        }
         const id = relay.nextId++;
         for (const p of to(msg.to)) relay.deliver(p, { type: "dm_new", id, content: msg.content });
         if (msg.ref && msg.to !== page.key) relay.deliver(page, { type: "dm_put_ok", ref: msg.ref });
@@ -645,17 +693,24 @@ function rowOf(page, id) {
   const rows = page.state.appended.filter((e) => e && e.dataset && e.dataset.fileTransfer && (!id || e.dataset.fileTransfer === id));
   return rows.length ? rows[rows.length - 1] : null;
 }
+/**
+ * A row's parts as a person sees them. Since 2026-10-12 a row keeps every button it can show and
+ * hides those that do not apply (display none), so a redraw never replaces the button under the
+ * pointer; a hidden one is not there for a person, so it is not counted here.
+ */
 function rowParts(row) {
   const els = everyUnder(row);
+  const seen = (e) => !e.style || e.style.display !== "none";
   const byClass = (cls) => els.find((e) => String(e.className).split(/\s+/).includes(cls)) || null;
+  const buttons = els.filter((e) => e.dataset && e.dataset.ft && seen(e));
   return {
     words: (byClass("ft-state") || {}).textContent,
     name: (byClass("ft-name") || {}).textContent,
     size: (byClass("ft-size") || {}).textContent,
     bar: byClass("ft-bar-fill"),
-    note: (byClass("ft-note") || {}).textContent,
-    button: (what) => els.find((e) => e.dataset && e.dataset.ft === what) || null,
-    buttons: els.filter((e) => e.dataset && e.dataset.ft).map((e) => e.dataset.ft),
+    note: seen(byClass("ft-note") || {}) ? (byClass("ft-note") || {}).textContent : undefined,
+    button: (what) => buttons.find((e) => e.dataset.ft === what) || null,
+    buttons: buttons.map((e) => e.dataset.ft),
   };
 }
 const wordsOf = (page, id) => { const r = rowOf(page, id); return r ? rowParts(r).words : null; };
@@ -1133,6 +1188,177 @@ test("12. direct connections: off by default; on, a friend's file may go direct;
   assert.equal(s.relay.net.made.find((m) => m.who === "Ben").config.iceTransportPolicy, "relay");
 });
 
+// ── 13 to 15. The rules settled by the first review (2026-10-12) ───────────
+// docs/design/media-showcase.md, "Device-to-device big files: rules settled by the first review":
+// rule 2 (one connection, several transfers), rule 4 (answers reach a sender who takes messages
+// only from friends), and the Accept click the review's real-browser run found doing nothing.
+
+/** `page` offers `bytes` to the person whose conversation is open; returns the new transfer once offered. */
+async function offerFrom(page, bytes, name) {
+  const before = new Set(transfers(page).map((t) => t.id));
+  const { going } = await sendFile(page, zip(bytes, name));
+  await going;
+  await waitFor(() => transfers(page).some((t) => !before.has(t.id) && t.state !== "preparing"), page.who + "'s offer is made");
+  await settle();
+  return transfers(page).find((t) => !before.has(t.id));
+}
+const transferOf = (page, id) => transfers(page).find((t) => t.id === id);
+const savedFiles = async (page) => Promise.all([...page.blobs.values()].map(async (b) => new Uint8Array(await b.arrayBuffer())));
+
+test("13. one connection, several transfers: two files to Ben, and one each way, all arrive over one connection, a channel and an engine each", async () => {
+  // a. Ann offers Ben two files. He accepts the first, and the second while the first is moving:
+  //    the second opens its own channel on the same connection, and both arrive.
+  const idb = fakeIndexedDB();
+  let s = await pair({ ben: { indexedDB: idb } });
+  const one = zipBytes(9 * MB, 31);
+  const two = zipBytes(7 * MB + 77, 32);
+  const tOne = await offerFrom(s.ann, one, "one.zip");
+  const tTwo = await offerFrom(s.ann, two, "two.zip");
+  await waitFor(() => transfers(s.ben).length === 2 && transfers(s.ben).every((t) => t.state === "asked"), "both asked");
+  await press(s.ben, tOne.id, "accept");
+  await waitFor(() => idb.pieces(tOne.id).length >= 3, "the first is moving");
+  await press(s.ben, tTwo.id, "accept");
+  await waitFor(() => transfers(s.ben).every((t) => t.state === "saved"), "a. both files to Ben saved");
+  assert.equal(s.relay.net.made.filter((m) => m.who === "Ben").length, 1, "one connection on Ben's side");
+  assert.equal(s.relay.net.made.filter((m) => m.who === "Ann").length, 1, "and one on Ann's");
+  assert.equal(s.relay.signals.filter((x) => x.msg.signal_type === "dc_offer").length, 1, "dialled once");
+  const benPc = [...s.relay.net.pcs.values()].find((p) => p.page.who === "Ben");
+  assert.deepEqual(benPc.channels.map((c) => c.label), ["file:" + tOne.id, "file:" + tTwo.id], "a channel each, both opened by Ben");
+  const got = await savedFiles(s.ben);
+  assert.equal(got.length, 2, "two files saved");
+  assert.ok(got.some((g) => sameBytes(g, one)) && got.some((g) => sameBytes(g, two)), "each exactly its bytes");
+  await waitFor(() => wordsOf(s.ann, tOne.id) === "Sent" && wordsOf(s.ann, tTwo.id) === "Sent", "Ann's rows both say Sent");
+  assert.deepEqual([...(s.ann.errors || []), ...(s.ben.errors || [])], [], "no errors");
+
+  // b. One each way: Ann offers Ben a file and Ben offers Ann one. Ben accepts (and dials); then
+  //    Ann accepts, and as the receiver she opens her channel on the connection Ben dialled.
+  s = await pair();
+  const toBen = zipBytes(7 * MB, 33);
+  const toAnn = zipBytes(7 * MB + 5, 34);
+  const tToBen = await offerFrom(s.ann, toBen, "to-ben.zip");
+  const tToAnn = await offerFrom(s.ben, toAnn, "to-ann.zip");
+  await waitFor(() => transferOf(s.ben, tToBen.id) && transferOf(s.ben, tToBen.id).state === "asked"
+    && transferOf(s.ann, tToAnn.id) && transferOf(s.ann, tToAnn.id).state === "asked", "each asked");
+  await press(s.ben, tToBen.id, "accept");
+  await waitFor(() => (transferOf(s.ben, tToBen.id).done || 0) >= 2, "Ben's is moving");
+  await press(s.ann, tToAnn.id, "accept");
+  await waitFor(() => transferOf(s.ben, tToBen.id).state === "saved" && transferOf(s.ann, tToAnn.id).state === "saved", "b. the file each way saved");
+  assert.equal(s.relay.net.made.length, 2, "one connection: a peer connection on each side");
+  assert.deepEqual(s.relay.signals.filter((x) => x.msg.signal_type === "dc_offer").map((x) => x.who), ["Ben"], "dialled once, by Ben");
+  const annPc = [...s.relay.net.pcs.values()].find((p) => p.page.who === "Ann");
+  assert.deepEqual(annPc.channels.map((c) => c.label), ["file:" + tToAnn.id], "Ann opened her own transfer's channel on Ben's connection");
+  assert.ok(sameBytes((await savedFiles(s.ben))[0], toBen) && sameBytes((await savedFiles(s.ann))[0], toAnn), "each file exactly its bytes");
+  await waitFor(() => wordsOf(s.ann, tToBen.id) === "Sent" && wordsOf(s.ben, tToAnn.id) === "Sent", "and each sender's row says Sent");
+  assert.deepEqual([...(s.ann.errors || []), ...(s.ben.errors || [])], [], "no errors");
+});
+
+test("14. the receiver's answer and cancel carry the offer's file pass on their put, so they reach a sender who takes messages only from friends", async () => {
+  // Ann and Ben are not friends; Ben accepts files from anyone he talks to; Ann takes messages only
+  // from friends. The server's call relay is off, so only the notes can move Ann's row.
+  const s = await pair({ friends: false, ben: { stored: { hos_files_in_messages: JSON.stringify({ accept: "anyone" }) } } });
+  s.relay.onlyFriends.set(s.ppl.ann.key, new Set());
+  s.relay.forwarder = false;
+  const t = await offer(s, zipBytes(7 * MB, 51));
+  await waitFor(() => transfers(s.ben).length === 1 && only(s.ben).state === "asked", "asked");
+  await press(s.ben, t.id, "accept");
+  const putsTo = (key) => s.ben.sock.sent.filter((m) => m.type === "dm_put" && m.to === key);
+  assert.equal(putsTo(s.ppl.ann.key).length, 1, "one put to Ann");
+  assert.deepEqual(putsTo(s.ppl.ann.key)[0].file_pass, t.offer.pass, "the answer's put carries the offer's pass, the same object");
+  assert.ok(!("file_pass" in putsTo(s.ppl.ben.key)[0]), "its copy to my other devices carries none");
+  await waitFor(() => transferOf(s.ann, t.id).state === "accepted", "the answer reached Ann: her row moved on");
+  assert.equal(s.relay.refusedPuts.length, 0, "nothing refused");
+  // Ben cancels: its put carries the pass too, and Ann's row says so.
+  await press(s.ben, t.id, "cancel");
+  const cancel = putsTo(s.ppl.ann.key).find((m) => FT.cancelNoteText(t.id) === JSON.parse(unb64(JSON.parse(m.content).ct_b64)).text);
+  assert.ok(cancel, "the cancel note went to Ann");
+  assert.deepEqual(cancel.file_pass, t.offer.pass, "with the pass");
+  await waitFor(() => wordsOf(s.ann, t.id) === "Cancelled", "Ann's row says Cancelled");
+  // A second offer, declined: the no reaches her too.
+  const t2 = await offerFrom(s.ann, zipBytes(7 * MB + 9, 52), "second.zip");
+  await waitFor(() => transferOf(s.ben, t2.id) && transferOf(s.ben, t2.id).state === "asked", "asked again");
+  await press(s.ben, t2.id, "decline");
+  assert.deepEqual(putsTo(s.ppl.ann.key).pop().file_pass, t2.offer.pass, "the no carries its own offer's pass");
+  await waitFor(() => wordsOf(s.ann, t2.id) === "Ben declined", "Ann's row says Ben declined");
+  assert.equal(s.relay.refusedPuts.length, 0, "nothing refused");
+  // The stand-in holds the rule: the same answer without the pass is refused.
+  const bare = clone(putsTo(s.ppl.ann.key)[0]);
+  delete bare.file_pass;
+  s.relay.fromPage(s.ben, bare);
+  assert.equal(s.relay.refusedPuts.length, 1, "without the pass, a stranger's put to Ann is refused");
+});
+
+test("15. one click on Accept moves the row on at once and starts the transfer, the save dialog closed, open or absent; Decline, Pause, Resume and Cancel too, and a redraw never replaces a button", async () => {
+  // a. A browser that cannot show the save dialog closes it at once: headless Edge, measured
+  //    2026-10-12, rejects showSaveFilePicker after a real click with AbortError "The user aborted
+  //    a request." That is the review's real-browser run, where Accept did nothing.
+  let s = await pair();
+  const asked = [];
+  s.ben.ctx.showSaveFilePicker = (o) => { asked.push(o); return Promise.reject(Object.assign(new Error("The user aborted a request."), { name: "AbortError" })); };
+  let bytes = zipBytes(7 * MB, 61);
+  let t = await offer(s, bytes);
+  await waitFor(() => transfers(s.ben).length === 1 && only(s.ben).state === "asked", "asked");
+  rowParts(rowOf(s.ben, t.id)).button("accept").onclick(); // one click, nothing awaited
+  assert.equal(asked.length, 1, "the save dialog was asked for in the click itself");
+  assert.equal(wordsOf(s.ben, t.id), "Connecting", "the row moved on at once");
+  assert.deepEqual(rowParts(rowOf(s.ben, t.id)).buttons, ["pause", "cancel"], "Accept and Decline gone at once");
+  await waitFor(() => only(s.ben).state === "saved", "the file arrived and was saved");
+  assert.equal(s.ben.blobs.size, 1, "through the browser's own download");
+  assert.ok(sameBytes((await savedFiles(s.ben))[0], bytes), "exactly its bytes");
+
+  // b. The dialog still open while the file moves: the file waits for the place, then goes into it.
+  s = await pair();
+  let choose = null;
+  s.ben.ctx.showSaveFilePicker = () => new Promise((r) => { choose = r; });
+  bytes = zipBytes(7 * MB + 3, 62);
+  t = await offer(s, bytes);
+  await waitFor(() => transfers(s.ben).length === 1 && only(s.ben).state === "asked", "asked");
+  rowParts(rowOf(s.ben, t.id)).button("accept").onclick();
+  assert.equal(wordsOf(s.ben, t.id), "Connecting", "the row moved on at once, the dialog open");
+  await waitFor(() => only(s.ben).awaitingPlace === true, "every piece in, waiting for the place");
+  assert.equal(wordsOf(s.ben, t.id), "Choose where to save it");
+  const written = [];
+  choose({ name: "archive.zip", async createWritable() { return { async write(b) { written.push(Buffer.from(await b.arrayBuffer())); }, async close() {} }; } });
+  await waitFor(() => only(s.ben).state === "saved", "saved into the place chosen");
+  assert.ok(sameBytes(Buffer.concat(written), bytes), "exactly its bytes, written there");
+  assert.equal(s.ben.blobs.size, 0, "and no download");
+
+  // c. Decline: one click, the row says so at once.
+  s = await pair({ ben: { indexedDB: fakeIndexedDB() } });
+  t = await offer(s, zipBytes(7 * MB, 63));
+  await waitFor(() => transfers(s.ben).length === 1 && only(s.ben).state === "asked", "asked");
+  rowParts(rowOf(s.ben, t.id)).button("decline").onclick();
+  assert.equal(wordsOf(s.ben, t.id), "You declined", "Decline: at once");
+
+  // d. While a file moves, its row is redrawn with every piece; Pause stays the same element (a
+  //    browser clicks only the element the button went down and came up on), and Pause, Resume and
+  //    Cancel each change the row at once.
+  const idb = fakeIndexedDB();
+  s = await pair({ ben: { indexedDB: idb } });
+  t = await offer(s, zipBytes(14 * MB, 64));
+  await waitFor(() => transfers(s.ben).length === 1 && only(s.ben).state === "asked", "asked");
+  rowParts(rowOf(s.ben, t.id)).button("accept").onclick();
+  await waitFor(() => idb.pieces(t.id).length >= 2, "moving");
+  const row = rowOf(s.ben, t.id);
+  const down = rowParts(row).button("pause");
+  const widthDown = rowParts(row).bar.style.width;
+  await waitFor(() => idb.pieces(t.id).length >= 12 && rowParts(rowOf(s.ben, t.id)).bar.style.width !== widthDown, "redrawn as pieces arrived");
+  assert.equal(rowOf(s.ben, t.id), row, "the same row");
+  const up = rowParts(rowOf(s.ben, t.id)).button("pause");
+  assert.ok(up === down, "the same Pause button after the redraws: a click across them still lands on it");
+  up.onclick();
+  assert.equal(wordsOf(s.ben, t.id), "Paused", "Pause: at once");
+  assert.deepEqual(rowParts(row).buttons, ["resume", "cancel"]);
+  rowParts(row).button("resume").onclick();
+  assert.equal(wordsOf(s.ben, t.id), "Receiving through the server's call relay", "Resume: at once");
+  rowParts(row).button("cancel").onclick();
+  assert.equal(wordsOf(s.ben, t.id), "Cancelled", "Cancel: at once");
+  await waitFor(() => wordsOf(s.ann, t.id) === "Cancelled", "and Ann's row says so");
+  // Each button says what it does in its hint (shell.js's tooltip had only "Tap or click to use this control.").
+  assert.equal(rowParts(row).button("cancel") === null, true, "Cancel gone once cancelled");
+  const accept = everyUnder(rowOf(s.ben, t.id)).find((e) => e.dataset && e.dataset.ft === "accept");
+  assert.equal(accept.attrs["data-tip-desc"], "Say yes. The file comes straight from Ann's device, and you can choose where to save it.", "Accept's hint");
+});
+
 // ── Red first ────────────────────────────────────────────────────────────
 // 2026-10-11: each break made in a copy of web/ and this file run against it with HOS_WEB_DIR,
 // seen failing with the assertion named; every other test passed unless named.
@@ -1170,3 +1396,25 @@ test("12. direct connections: off by default; on, a friend's file may go direct;
 //      from the first piece kept before the reload".
 // C1 to C11, C13, C14, C16 and C18 were run before tests 1c and the gate were added; those changes
 // only add assertions.
+//
+// 2026-10-12, the review's rules (rules 2 and 4, and the Accept click): each break made in a fresh
+// copy of web/ (HOS_WEB_DIR) and the whole file run against it; the tests named failed with the
+// assertion quoted, every other test passed.
+//  C19 chat-file-transfer.js, ftDial returning when a connection with the person is there (one
+//      transfer per connection, as before): test 13 "a. both files to Ben saved".
+//  C20 chat-file-transfer.js, the answering side handing a new channel to the first transfer's
+//      engine (as before, where link.id went to the newest channel): test 13 "a. both files to Ben
+//      saved".
+//  C21 chat-file-transfer.js, the dialling side taking no channel the other side opens: test 13 "b.
+//      the file each way saved".
+//  C22 chat-file-transfer.js, a transfer's end closing the whole connection (as before): test 13 "a.
+//      both files to Ben saved".
+//  C23 chat-file-transfer.js, the put to the sender without file_pass: test 14 "the answer's put
+//      carries the offer's pass, the same object".
+//  C24 chat-file-transfer.js, the Accept from before 2026-10-12 put back (it waited for the save
+//      dialog and returned when it was closed): test 15 "the row moved on at once", and test 14 (that
+//      Accept sent no pass).
+//  C25 chat-file-transfer.js, ftFill rebuilding the row on every redraw (as before): test 15 "the
+//      same Pause button after the redraws".
+//  C26 chat-file-transfer.js, ftEnd drawing the row only after the pieces are dropped: test 15
+//      "Cancel: at once".

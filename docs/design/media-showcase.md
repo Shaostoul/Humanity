@@ -2145,9 +2145,58 @@ files are zeros named as videos. The four new test files are not in `just rig-te
 
 The website's half of "Device-to-device big files: the shapes, exact" (parts 3 to 6, and the
 client side of parts 1 and 2), built 2026-10-11 against the shapes above while the relay half was
-built in parallel. The relay's side (the pass check on `dc_offer`, file credentials, the forwarder)
-is stood in by the tests: none of this has run against a real relay or the desktop app yet, and the
-spec's "one desktop-to-web transfer between two real apps through a throwaway relay" is still to do.
+built in parallel, and brought to "rules settled by the first review" (rules 1, 2 and 4, and the
+Accept click) on 2026-10-12. The relay's side (the pass check on `dc_offer` and on a `dm_put`'s
+`file_pass`, file credentials, the forwarder) is stood in by the tests. The first build ran website
+to website through a real browser and a real forwarder; the 2026-10-12 changes have run only
+against the stand-ins, and the spec's "one desktop-to-web transfer between two real apps through a
+throwaway relay" is still to do.
+
+**The 2026-10-12 round (the review's rules), in short.**
+- Rule 1, `web/shared/file-transfer.js`. The `Sender` keeps what it owes as an ascending list: a
+  `get` adds to it, the lowest piece goes next from offset 0, and a piece asked for while it is going
+  out is sent again, whole, right after (`_owe`, `current.again`). A pause from either side drops
+  what is owed. The `Receiver` keeps 16 pieces asked for: the first window, then one more piece
+  (`{"from":n,"count":1}`) each time one is kept, which is how the desktop app asks too; a piece that
+  fails its hash is asked for again alone, and nothing is asked again except after a 30-second stall.
+  It ignores a message for a piece it did not ask for or already holds, keeps a partial buffer only
+  for a piece it asked for, and keeps each piece as soon as it checks, in whatever order it arrives
+  (a piece asked again after a bad hash comes after the ones asked before it). The store a `Receiver`
+  uses now says which pieces it holds (`held()`) instead of how many in a row (`firstMissing()`); the
+  page reads them from the IndexedDB keys.
+- Rule 2, `web/chat/chat-file-transfer.js`. A link is one connection with one person holding a map
+  of channels, one per transfer, each with its own engine (`ftBindChannel`, `chan.engine`). A
+  transfer's channel is opened by its receiver whichever side dialled (`ftJoin`, `ftOpenChannel`):
+  a receiver with a connection already there opens its channel on it, now or once it is up, and both
+  the dialling and the answering side take a channel the other opens (`pc.ondatachannel` ->
+  `ftChannelArrived`, which serves it with a `Sender` of its own). A transfer that ends closes its
+  own channel (`ftDropChannel`), a channel that closes takes only its transfer off (`ftChanGone`),
+  and the connection closes when its last channel has ended (`ftCloseIfIdle`). Checked in headless
+  Edge on 2026-10-12: a data channel opened later by either side of a live connection reaches the
+  other and opens with no new offer, and closing one leaves the others and the connection up.
+- Rule 4. The receiver's answer (yes or no) and its cancel carry the offer's pass on the `dm_put` to
+  the sender as `file_pass`, the same object the offer carried; the copy to my own devices carries
+  none, and the sender's own cancel carries none (it would not verify that way round).
+- **The Accept click (found by the review's real-browser run: a real click on Accept left the
+  question on the row, a script's `click()` started the transfer).** The click WAS handled; the
+  hint seen ("Tap or click to use this control.") is `shell.js`'s rich tooltip, which has
+  `pointer-events: none` and took nothing. Accept called `showSaveFilePicker` and waited for it
+  before changing anything, and returned without a word when it was closed. Measured in headless
+  Edge on 2026-10-12: after a real click it rejects at once with `AbortError` ("The user aborted a
+  request.", there is no dialog to show), and after a script's click with `NotAllowedError` ("User
+  activation required."), which the code took as "no dialog" and went on. So the run's real clicks
+  hit the silent return and its script click did not. Now one click accepts: the row says
+  "Connecting" in the same click, the answer goes and the dial starts, and the save dialog (asked
+  for in the same click, since a browser opens it only straight after one) only decides where the
+  finished file goes; closed or absent, it is the browser's own download, and still open when every
+  piece is in, the row says "Choose where to save it" and the file waits for the place.
+- **A second click problem, found while looking:** every redraw emptied the row and made new
+  buttons, and a row is redrawn with every piece. A browser sends a click only to the element the
+  button went down and came up on, so Pause and Cancel could hardly be pressed while a file moved.
+  The row is now built once and changed in place (`ftFill`, `ftRowParts`): each button is the same
+  element for the row's life, hidden when it does not apply. Decline and Cancel now redraw the row
+  before their slower work (saving the record, dropping the pieces), so every button changes the row
+  in the click. Each button carries a `data-tip-desc` saying what it does, so the hint says that.
 
 **Files.** Two new shared scripts, each a classic script in the browser and a CommonJS module under
 Node, and one chat script:
@@ -2191,6 +2240,11 @@ gives the spec's "This server is not set up for that yet" on the row, with Resum
   Ben's settings do not let you reach them." and the like).
 - The answer and the cancel go with a copy to my other devices: a question still open on Ben's other
   device becomes "Answered on your other device", and a cancel reaches them all.
+- The receiver's answer and cancel carry the offer's pass on the put to the sender (`file_pass`,
+  rule 4), so they reach a sender who takes messages only from friends once the relay lets such a
+  put through; a relay from before that ignores the field. They carry no `ref`: a refused one
+  changes nothing on the receiver's row, and its dial (whose `dc_offer` carries the pass) still
+  starts the transfer.
 - A note that cannot go (no connection) is kept with the transfer's record and goes on the next
   member list.
 - **Files in messages first**, then "who can reach me", then the protected setup's hide rule. An
@@ -2204,16 +2258,24 @@ gives the spec's "This server is not set up for that yet" on the row, with Resum
   again.").
 
 **Part 4, the connection.**
-- **One connection with each person at a time.** Signalling carries no transfer id, so two files
-  between the same two people go one after the other.
+- **One connection with each person at a time, several transfers on it (rule 2, since
+  2026-10-12).** Each transfer has its own data channel and its own engine, opened by its receiver,
+  whichever side dialled; a file each way, or several the same way, ride one connection. A channel's
+  transfer ends without touching the others, and the connection closes when its last channel ends.
+  (Before 2026-10-12 a second file between the same two waited for the first to finish and the
+  next minute's retry, and on the answering side every channel went to the first transfer's engine.)
 - The receiver dials (on Accept, on Resume, and when the sender appears in the member list; and
-  every minute while the page is open). The sender answers a dial only from someone it has a live
-  offer to. It cannot know which file a dial is for until the channel opens with its label, so it
+  every minute while the page is open), unless a connection with that person is already there, in
+  which case its channel opens on that one. The sender answers a dial only from someone it has a live
+  offer to. It cannot know which file a dial is for until a channel opens with its label, so it
   asks for credentials for each of its live offers to that person (at most four) and puts them all in
   its connection: the forwarder passes packets only within one transfer, so only the matching pair
-  connects. A channel whose label is no offer of mine to them is closed.
+  connects, and every later channel rides that pair. A channel whose label is no live offer of mine
+  to them is closed.
 - Both dial at once (each has a file for the other): the larger key's dial goes on, as the desktop
-  app's offerer rule has it.
+  app's offerer rule has it, and the other side's receiving transfers open their channels on the
+  connection it answers. A dial from someone I already have an open connection with means theirs is
+  gone: mine is dropped and the new one answered.
 - Relay only (`iceTransportPolicy: 'relay'`) unless the two are friends both ways (a mutual follow,
   and each holds the other's friendship pass) and the person turned on "Let files from friends go
   straight between devices" (Safety > Files in messages; off by default; never with the protected
@@ -2225,41 +2287,50 @@ gives the spec's "This server is not set up for that yet" on the row, with Resum
   carries 65,528 bytes of a piece and a 256 KiB piece is five messages. The receiver takes any message
   that continues the piece it is filling, so a sender that puts a full 64 KiB after the header still
   works with this receiver. The piece hashes go as messages of exactly 64 KiB (2,048 hashes), no header.
-- One window of at most 16 pieces at a time; the next is asked for when the window's last piece is
-  in. Nothing for 30 seconds with a window out: it asks again (nothing counted against a piece). A
-  piece that fails its hash is asked for again; the third failure ends the transfer ("Part of the file
-  arrived damaged three times, so the transfer stopped."). A list of piece hashes that does not match
-  the offer, or a whole file that does not, ends it with "The file Ann offered does not match its
-  description".
-- Pause: each side's pause holds until the same side resumes; the receiver asks for every window,
-  so a resume from either side ends with the receiver asking from the first piece it lacks. A pause
-  drops a half-received piece.
+- Rule 1 (since 2026-10-12): a `get` adds to what the sender owes, which goes in ascending order,
+  each piece once, from offset 0; a piece asked for while it is going out is sent again, whole,
+  after it. The receiver keeps 16 pieces asked for: the first 16 it lacks, then one more each time
+  one is kept (one get per run of pieces, so `{"from":n,"count":1}` once the first window is out).
+  Nothing for 30 seconds with pieces asked for: it asks again for the first ones it lacks (nothing
+  counted against a piece). A piece that fails its hash is asked for again alone; the third failure
+  ends the transfer ("Part of the file arrived damaged three times, so the transfer stopped."). A
+  message for a piece it did not ask for, or already holds, is ignored. A list of piece hashes that
+  does not match the offer, or a whole file that does not, ends it with "The file Ann offered does
+  not match its description".
+- Pause: each side's pause holds until the same side resumes. A pause from either side drops
+  everything the sender owes and every half-received piece; on resume the receiver asks again for
+  the first pieces it lacks.
 - The sender reads only the piece it is sending and holds back while the channel buffers more than
   1 MB (the `bufferedamountlow` event, with a half-second check as well).
-- Pieces are kept in IndexedDB (`humanity_file_transfers`, store `pieces`, one Blob per piece, in
-  order). **Decision:** the pieces are not encrypted at rest. The saved file will be in the open in
+- Pieces are kept in IndexedDB (`humanity_file_transfers`, store `pieces`, one Blob per piece, key
+  `<id>:<piece>`, each kept as soon as it checks, in whatever order; which are held is read from the
+  keys after a reload). **Decision:** the pieces are not encrypted at rest. The saved file will be in the open in
   any case, and an encrypted piece would have to be opened into memory to make the file's Blob. Each
   transfer's record (who, the offer, how far) is encrypted with the DM store's key, as the DM history
   is. The pieces go when the transfer is cancelled or fails, and two minutes after a save.
-- The whole file's BLAKE3 is built as the pieces arrive in order and, after a reload, from the
-  pieces kept. Only when it matches is `{"t":"done"}` sent and the file saved: through the File
-  System Access API where the browser has it (the place is asked for at Accept, while the click
-  counts) and otherwise as a Blob made of the kept pieces, saved through the browser's own download,
-  with a "Save again" link while the pieces are kept.
+- The whole file's BLAKE3 takes the pieces in order as they come (a piece that came early is read
+  back from IndexedDB once the gap before it fills) and, after a reload, from the pieces kept. Only
+  when it matches is `{"t":"done"}` sent and the file saved: into the place chosen in the save dialog
+  where the browser has the File System Access API (the dialog opens in Accept's click and the
+  transfer does not wait for it; a file whose pieces are all in waits for the place, "Choose where to
+  save it"), and otherwise, or when the dialog was closed, as a Blob made of the kept pieces, saved
+  through the browser's own download, with a "Save again" link while the pieces are kept.
 
 **Part 6, the screens.** A row per transfer after the conversation's messages, on both sides: the
 name, the size, a progress bar, Pause, Resume and Cancel, and the spec's words for each state,
 plus a few of this page's own: "Getting the file ready" (hashing), "Connecting", "Paused", "Paused by
 Ann", "Checking the file", "Receiving through the server's call relay", "You declined", "Answered on
-your other device". The sender's row says the file goes from this device and the page must stay
-open. **After a reload the sender no longer has the file** (a browser does not keep a picked file
-across a reload): the row asks for it to be chosen again ("Choose the file again"), and only the
-same file (its size, its BLAKE3 and its piece list) is taken.
+your other device", "Choose where to save it". The sender's row says the file goes from this device
+and the page must stay open. **After a reload the sender no longer has the file** (a browser does
+not keep a picked file across a reload): the row asks for it to be chosen again ("Choose the file
+again"), and only the same file (its size, its BLAKE3 and its piece list) is taken. Every button
+changes the row in its own click, the row is changed in place rather than rebuilt (so a redraw
+never takes a button from under the pointer), and each button's hint says what it does.
 
 **Not done, or honest notes.**
-- The shared fixture `scripts/tests/fixtures/file-offer-v1.json` was not in this tree: the tests pin
-  the spec's own text and also read the fixture when it is there (its `text` and `preimage.words`
-  fields as written in the test; a different shape needs the test's reader adjusted).
+- The shared fixture `scripts/tests/fixtures/file-offer-v1.json` (minted by the relay's Rust) is
+  read by test 2 since 2026-10-12: the pass's words, its signature, the three notes and the file's
+  hashes must match it byte for byte.
 - The offer has no field saying the file could not be checked for hidden location: the sender is
   asked "Send anyway?" as for any private file, but the receiver is not told.
 - After a reload with every piece already kept, the receiver dials once more to check the file and
@@ -2283,6 +2354,31 @@ file that does not match, the other device, direct connections). `private-files-
 the new scripts and two of its tests changed (a file over the limit in a DM is now offered device
 to device); `p2p-direct-offers.test.js` and `calls-through-server.test.js` load the new chat script,
 so they hold it to answering no offer that is not a file's.
+
+Added 2026-10-12 for the review's rules (each seen red against a single break, R1 to R7 and C19 to
+C26 in the notes at each file's end):
+- `file-transfer-web.test.js` 11: the `Sender`, asked by a stand-in that asks exactly as the desktop
+  app's receiver does (16, then one piece at a time), sends every piece once, in order, with no
+  stall (red with a get replacing what is owed: 25 of 40 pieces, then nothing). 12: a piece asked
+  again after a bad hash comes again, and one asked while it is going out comes again straight after
+  it, whole (red without the "again", and with a piece never sent twice). 13: the `Receiver` asks the
+  first window, then one piece at a time, never a piece twice, keeps at most 16 asked and partial
+  buffers only for those, does not keep a piece nobody asked for until it asks for it, ignores a
+  damaged copy of a piece it holds, and after a stall asks for the lost piece alone (red with a whole
+  window asked on each arrival, with an unasked piece taken, and with the stall asking nothing). Test
+  5 now also holds a bad piece to being asked again alone (red with a window asked instead), and no
+  longer requires that nothing after a failing piece is kept (pieces are kept in any order now).
+- `file-transfer-chat-web.test.js` 13: two files to Ben (the second accepted while the first moves)
+  and one each way, all over one connection, a channel each (red with the dial waiting for the
+  connection, with the answering side handing a channel to the first transfer's engine, with the
+  dialling side taking no channel, and with an ending closing the whole connection). 14: the answer
+  (yes and no) and the receiver's cancel carry the pass, and reach Ann where the stand-in relay
+  takes only friends' puts or a put whose pass verifies with real Dilithium3 (red with the pass left
+  off). 15: one click on Accept with the save dialog closed at once (as headless Edge does), still
+  open, or absent; Decline, Pause, Resume and Cancel each change the row in the click; the Pause
+  button is the same element across redraws (red with the old Accept, with the row rebuilt on each
+  redraw, and with an ended transfer drawn only after its pieces are dropped). The stand-in WebRTC
+  now delivers a channel made on a live connection to the other side, as Edge does.
 
 ## As built (desktop, files)
 
