@@ -13,6 +13,8 @@
 //!
 //! No socket and no GUI here, so every rule is unit tested (files_policy_tests.rs).
 
+use std::collections::BTreeMap;
+
 use serde::{Deserialize, Serialize};
 
 /// Accept files from: Nobody / Friends / Anyone I talk to.
@@ -88,11 +90,19 @@ pub struct FilesInMessages {
     pub remove_details: bool,
     /// How much of the private files the person opened this device keeps, in MB (0 keeps none).
     pub kept_cap_mb: u64,
-    /// "Accept files from" was changed on this device and the server has not been told yet (a
-    /// choice made offline still goes). Only while this is set does a profile update carry
-    /// `accepts_files`; otherwise the server keeps its word, and a different word the server holds
-    /// is another device's newer choice, which this device takes (the web's rule, 2026-10-11).
+    /// "Accept files from" waits to go to the server the app is on: a choice made on this device
+    /// (one made offline still goes), or this device's choice for a server that never got it
+    /// (`accept_step`). Only while this is set does a profile update carry `accepts_files`;
+    /// otherwise the server keeps its word. It counts as saved when that server's copy carries it.
     pub accept_unsent: bool,
+    /// The person changed "Accept files from" on this device at least once (BUG-200). Such a device
+    /// publishes its choice to a server that never got it; a device that only ever took a server's
+    /// word (false) takes that server's word instead.
+    pub accept_chosen: bool,
+    /// For each server (normalised address), the word this device last saw it hold once settled:
+    /// confirmed after a publish, taken, or agreeing with this device's setting (BUG-200). A server
+    /// holding a different word now is one where another device changed it since.
+    pub accept_seen: BTreeMap<String, String>,
 }
 
 impl Default for FilesInMessages {
@@ -104,6 +114,8 @@ impl Default for FilesInMessages {
             remove_details: true,
             kept_cap_mb: KEPT_CAP_DEFAULT_MB,
             accept_unsent: false,
+            accept_chosen: false,
+            accept_seen: BTreeMap::new(),
         }
     }
 }
@@ -120,16 +132,57 @@ impl AcceptFrom {
     }
 }
 
-/// What this device does with the word its server holds for it (`accepts_files` in its own
-/// profile), given its own setting: None to keep its own (a choice of its own is waiting to go, the
-/// words agree, the word is unknown, or the server's is more open while the protected setup is on),
-/// or the choice to take (another device's newer choice).
+/// Whether this device may take the word a server holds for it (`accepts_files` in its own
+/// profile) in place of its own setting: None to keep its own (a choice of its own is waiting to
+/// go, the words agree, the word is unknown, or the server's is more open while the protected setup
+/// is on), or the choice to take. `accept_step` decides when taking is the thing to do.
 pub fn adopt_from_server(mine: &FilesInMessages, server_word: &str, protected: bool) -> Option<AcceptFrom> {
     let theirs = AcceptFrom::from_word(server_word)?;
     if mine.accept_unsent || theirs == mine.accept_from || (protected && theirs.openness() > mine.accept_from.openness()) {
         return None;
     }
     Some(theirs)
+}
+
+/// What this device does about "Accept files from" when the server it is on holds a word for it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AcceptStep {
+    /// The server holds this device's word: settled. A waiting choice counts as saved, and the word
+    /// is recorded as seen there.
+    Settled,
+    /// This device's choice goes to this server and waits until the server's copy carries it.
+    Send,
+    /// Take the server's word, and record it as seen there.
+    Take(AcceptFrom),
+    /// Nothing: a word that is not one of the three, or a more open one while the protected setup
+    /// is on.
+    Keep,
+}
+
+/// The rule (BUG-200), once the own copy of the server the app is on (`server`, its normalised
+/// address) is in and holds `server_word`:
+/// 1. the server holds this device's word: settled;
+/// 2. a choice of this device's waits (`accept_unsent`): it goes;
+/// 3. the server's word differs from the one this device last saw there: another device changed
+///    it there, so take it (never a more open one under the protected setup);
+/// 4. otherwise (no word seen there yet, or the server still holds what this device last saw): a
+///    device that chose publishes its choice there; one that never chose takes the server's word.
+///
+/// A server with no profile for the person answers with the relay's default word, "friends", so a
+/// new server is case 4.
+pub fn accept_step(mine: &FilesInMessages, server: &str, server_word: &str, protected: bool) -> AcceptStep {
+    let Some(theirs) = AcceptFrom::from_word(server_word) else { return AcceptStep::Keep };
+    if theirs == mine.accept_from {
+        return AcceptStep::Settled;
+    }
+    if mine.accept_unsent {
+        return AcceptStep::Send;
+    }
+    let changed_there = mine.accept_seen.get(server).is_some_and(|seen| seen != server_word);
+    if mine.accept_chosen && !changed_there {
+        return AcceptStep::Send;
+    }
+    adopt_from_server(mine, server_word, protected).map_or(AcceptStep::Keep, AcceptStep::Take)
 }
 
 /// The words when the protected setup will not send a file that could not be checked (the web's

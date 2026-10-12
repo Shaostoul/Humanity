@@ -23,7 +23,8 @@
 //! server's copy for every field this app does not edit (banner, pronouns, location, website,
 //! links), and the server's privacy map with only the directory choice changed. Asks that come
 //! close together go as one update. A waiting "Accept files from" goes with it and counts as
-//! saved only when that server's copy comes back carrying it (files_settings.rs).
+//! saved only when that server's copy comes back carrying it; a server that never got the choice
+//! is sent it the same way (files_settings.rs, BUG-200).
 //!
 //! THE PROFILE PAGE'S FIELDS. When the copy for the server the app is on is new to the page, it
 //! fills the bio, picture and directory choice where the person has not changed them since the
@@ -62,9 +63,11 @@ pub struct OwnProfile {
     /// A save sent to this server, and when, whose echo has not come back yet (the Profile page's
     /// note). Unanswered after ECHO_WAIT, the server turned it down (it says why in the chat).
     pub(crate) awaiting_echo: Option<(String, Instant)>,
-    /// The "Accept files from" word last asked to go to a server, so a choice is sent once per
-    /// server in a run of the app (files_settings.rs `sync_accepts`).
-    pub(crate) accept_sent: Option<(String, String)>,
+    /// The "Accept files from" word last asked to go to each server (normalised address), so a
+    /// choice is sent once per server in a run of the app, however often the person switches
+    /// servers (files_settings.rs `sync_accepts`). A server's entry goes when its copy carries the
+    /// word; every entry goes when the person makes a new choice.
+    pub(crate) accept_sent: HashMap<String, String>,
 }
 
 /// The normalised address of the server the app is on.
