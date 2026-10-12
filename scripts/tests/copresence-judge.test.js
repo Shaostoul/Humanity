@@ -462,11 +462,17 @@ test("plots: the ship file's plots read the way the game has them", () => {
   const fs = require("fs");
   const path = require("path");
   const text = fs.readFileSync(path.join(__dirname, "..", "..", "data", "blueprints", "ship_structure.ron"), "utf8");
-  const read = readShipPlots(text);
-  assert.deepEqual(read.slice(0, 2), PLOTS, "p1 and p2 where they always were");
+  const all = readShipPlots(text);
+  assert.deepEqual(all.slice(0, 2), PLOTS, "p1 and p2 where they always were");
   // The twelve plots along First Street (2026-10-04): p3 to p12 down its west side, 99 m apart.
+  const read = all.filter((p) => p.kind === "homestead");
   assert.deepEqual(read.map((p) => p.id), Array.from({ length: 12 }, (_, k) => `p${k + 1}`));
   for (const [k, p] of read.entries()) assert.deepEqual([p.kind, p.origin, p.size], ["homestead", [0, 0, 99 * k], [55, 3, 89]], p.id);
+  // And since ship homes increment 6, after them, sixteen cabins along the cabin block's hall east
+  // of First Street, 2.5 m apart.
+  const cabins = all.slice(12);
+  assert.deepEqual(cabins.map((p) => p.id), Array.from({ length: 16 }, (_, k) => `c${k + 1}`));
+  for (const [k, p] of cabins.entries()) assert.deepEqual([p.kind, p.origin, p.size], ["cabin", [80.5, 0, 88 + 2.5 * k], [3.15, 3, 2.5]], p.id);
   assert.ok(inPlot(P2_SPAWN, PLOTS[1]) && !inPlot(P2_SPAWN, PLOTS[0]));
 });
 
@@ -684,10 +690,12 @@ test("routes: the walker's way to the meeting line never runs along it", () => {
 
 // The far places, from the report: each shared zone's corners a metre in. Since
 // the twelve plots (2026-10-04) First Street runs to z 1185, so its far corner
-// is more than a kilometre from either door, past every walker's view.
+// is more than a kilometre from either door, past every walker's view. Since
+// ship homes increment 6 the shared zones are four: the Commons, First Street,
+// the cabin block's hall and the South Commons.
 test("routes: the far places are the shared zones' corners", () => {
   const far = farPlaces(DOORS);
-  assert.equal(far.length, 8, "four corners of the Commons and of First Street");
+  assert.equal(far.length, 16, "four corners of each of the four shared zones");
   assert.deepEqual(far[0], [66, 1.7, 21]);
   assert.deepEqual(farthestFrom(far, P1_SPAWN), [74, 1.7, 1184]);
   assert.deepEqual(farthestFrom(far, P2_DOOR), [74, 1.7, 1184]);
@@ -737,7 +745,11 @@ test("far places: the farthest shared place every watching walker still has in v
 // Commons, held there by the relay; the walker drawn out of p2's corridor, along
 // First Street and into the Commons; the walker saw the game where it stands.
 const COMMONS_BOX = DOORS.places[0];
-const P2_TUBE = { min: DOORS.doors[2].tube[0], max: DOORS.doors[2].tube[1] };
+// p2's door corridor, found by its place: the report's door order changes as the ship grows
+// (since ship homes increment 6 the street's corridors to the cabin block and the South Commons
+// come before the plots' doors).
+const P2_DOOR_ROW = DOORS.doors.find((d) => d.from === "plot:p2");
+const P2_TUBE = { min: P2_DOOR_ROW.tube[0], max: P2_DOOR_ROW.tube[1] };
 const MEET_OK = {
   commons: COMMONS_BOX,
   gameFrom: P1_SPAWN,

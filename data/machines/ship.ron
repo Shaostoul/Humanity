@@ -1,25 +1,488 @@
 // HumanityOS ship machine layout: the machines that belong to the SHIP's shared zones (the
-// Commons today), not to any one home. Same format as data/machines/home.ron.
+// Commons, the South Commons), not to any one home. Same format as data/machines/home.ron.
 // docs/design/ship-homes-and-logistics.md (increment 1a) moved them out of home.ron.
 //
 // Positions are ZONE-LOCAL: offset x/z (and an array's origin) are metres from the min corner
-// of the zone the row names (`zone: "commons"`, whose box starts at ship (65, 0, 20)), and y is
-// up from that zone's deck. The engine adds the zone's origin and keeps the machine inside the
-// zone's box.
+// of the zone the row names (`zone: "commons"`, whose box starts at ship (65, 0, 20); `zone:
+// "commons-2"`, the South Commons, at ship (77, 0, 770)), and y is up from that zone's deck. The
+// engine adds the zone's origin and keeps the machine inside the zone's box. `room` names the
+// labelled volume a row stands in (data/blueprints/ship_structure.ron: "mess-hall",
+// "recreation", "mess-hall-2"), or the zone itself.
 //
-// How it is loaded: a home file that names this file (`ship_machines: Some("ship.ron")` in
-// data/machines/home.ron) gets these rows merged in when it loads, and the editor writes them
-// back here, not into the home file, and only in the Dev play mode. The family home names it
-// because its battery bank powers the Commons' tent humidifier, CO2 fan and fish tank and its
-// loops count the Commons garden: that is how the household was modelled before the split, and
-// moving those machines onto the ship's own supply (and off the household's meters) is a later
-// increment. home_solo.ron does not name it, so the one-person home loads without them, as before.
+// How it is loaded: a household file that names this file (`ship_machines: Some("ship.ron")` in
+// data/machines/home.ron and data/machines/cabin.ron) gets these rows merged in when it loads, and
+// the editor writes them back here, not into the household file, and only in the Dev play mode.
+// The family home names it because its battery bank powers the Commons' tent humidifier, CO2 fan
+// and fish tank and its loops count the Commons garden: that is how the household was modelled
+// before the split, and moving those machines onto the ship's own supply (and off the
+// household's meters) is a later increment. Those three power wires are the family home's own
+// rows (home.ron's connections, since increment 6 lane 1A): a wire from a household's machine
+// stays with that household (src/machines.rs `split_for_save`), so a cabin, which merges this
+// file too, finds no wire here naming a battery it does not have. home_solo.ron does not name
+// this file, so the one-person home loads without the Commons, as before.
 //
-// The catalog is empty on purpose: these rows use the machine types of the home file they are
-// merged into (data/machines/home.ron), so each type is defined once.
+// THE CATALOG (increment 6, lane 1A) defines every type these rows use, so any household file
+// can merge it: each copied from data/machines/home.ron, which defines the same types the same
+// way (the test `a_type_two_machine_files_define_is_defined_the_same` in src/machines.rs holds
+// every file to it), and the new serving_counter. A household file's own definition wins on a
+// merge, and an editor save of a household file leaves out the types this file defines.
+//
+// THE MESS HALL'S FURNITURE (increment 6, plan section 3.3). The Commons' mess hall is its north
+// strip, Commons-local x 0..30, z 0..8 (the volume "mess-hall"):
+//   - the SERVING COUNTER along the north wall at its west end, x 0.4..2.8, z 0.3..0.9, its front
+//     to the south: the ship's food store stands 1.1 m in front of it (data/food/ship_stores.ron,
+//     spot (2, 2)), so E at the counter is E at the store;
+//   - four DINING TABLES with four chairs each in a row along the north half, x 5..19, z 1.25 to
+//     2.25 (chairs at z 0.75 and 2.75): the crew's maintenance hand walks z 4 between the stores,
+//     the tables and the floor (data/npc/chores.ron), and every crew walk keeps 0.5 m from every
+//     piece of furniture here (the relay test `every_crew_walk_is_clear_of_the_ships_furniture`);
+//   - the crew's LONG TABLE, three dining tables end to end at x 29.55..30.55, z 1.4..7.4: east of
+//     the crew's own meal seats (x 29, z 1.5 to 7.25), so a crew member sits on its west side,
+//     facing east, and the walks from their work in the hall to their seats never cross it.
+// THE RECREATION ROOM (the volume "recreation", Commons-local x 0.5..10.5, z 43.5..51.5, the
+// Commons' south-west corner): a wall screen on the west wall facing east, a rug, a couch facing
+// the screen and one along the rug's north side.
+// THE SOUTH COMMONS (zone "commons-2", halfway down First Street): its mess hall ("mess-hall-2",
+// its north strip, x 0..24, z 0..8) has its own serving counter, where the South Commons' store
+// stands (spot (2, 2)), and three tables with their chairs. Furniture is drawn as its model's box
+// where its model is missing: the serving counter is a plain box (no counter model is on disk;
+// question 5 of the plan).
 
 (
-    catalog: {},
+    catalog: {
+        "aeroponic_tower_apothecary": (
+            shape: "cylinder",
+            size: (0.16, 1.9, 0.16),
+            color: (0.45, 0.55, 0.3),
+            label: "Apothecary tower",
+            category: "Food",
+            stats: [
+                (
+                    kind: "nutrient",
+                    value: "herbs + teas",
+                    status: "ok",
+                ),
+                (
+                    kind: "power",
+                    value: "sun-lit; a 35 W pump on 5 minutes in every 50: 3.5 W averaged",
+                    status: "ok",
+                ),
+            ],
+            // Its pump (2026-09-27; it had none, so the meter charged it nothing while its stat
+            // said -12 W). Tower Garden's standard submersible pump, the maker's own figures (read
+            // 2026-09-27): "This pump is rated at 357 US GPH, 0.65 amps, 35 watts @120 VAC/60 Hz"
+            // (https://us.towergarden.com/products/pump), switched by the maker's timer, "Select I
+            // for Indoor use (5 min on, 45 min off)" (https://us.towergarden.com/products/tower-garden-timer).
+            // The towers stand indoors, so it runs a tenth of the time: 3.5 W averaged over a day.
+            // A tower has no power role (the electrical sim does not run its pump, home_spawn.rs),
+            // so its port is what the static meter charges; the port therefore carries that
+            // continuous-equivalent 3.5 W, the convention home_solo.ron's washer and water heater
+            // already use, and the 35 W nameplate lives in the label and the stat.
+            power: None,
+            ports: [
+                (
+                    utility: Electricity,
+                    dir: In,
+                    label: "pump (35 W, on 5 min in 50: 3.5 W averaged)",
+                    watts: 3.5,
+                    flow_lpm: 0.0,
+                    mbps: 0.0,
+                    anchor: (0.0, 0.0, 0.0),
+                ),
+            ],
+            storage: [],
+            auto_recipe: None,
+            container_type: None,
+            model: None,
+        ),
+        "aeroponic_tower_nutrition": (
+            shape: "cylinder",
+            size: (0.3, 2.4, 0.3),
+            color: (0.3, 0.65, 0.38),
+            label: "Variety tower",
+            category: "Food",
+            stats: [
+                (
+                    kind: "nutrient",
+                    value: "vitamins + protein",
+                    status: "ok",
+                ),
+                (
+                    kind: "power",
+                    value: "sun-lit; a 48 W pump on 5 minutes in every 50: 4.8 W averaged",
+                    status: "ok",
+                ),
+            ],
+            // Its pump (2026-09-27). The port was 15 W of "pump + light" for 24 hours, 0.36 kWh a
+            // day a tower and 11.9 kWh for the 33 placed; the tower is sun-lit and has no light.
+            // Tower Garden's high capacity submersible pump, the maker's own figures (read
+            // 2026-09-27): "This pump is rated at 714 GPH, 0.43 amps, 48 watts @ 120 VAC/60 Hz"
+            // (https://us.towergarden.com/products/pump-model-3-0). Which pump is a GAME CHOICE:
+            // this tower is 2.4 m and 50 cups, taller than a standard Tower Garden, and its parts
+            // list (data/towers/aeroponic_configs.ron) asks for a pump that lifts over 2.5 m, so it
+            // gets the maker's larger pump (twice the standard 357 GPH, 35 W). The maker's timer:
+            // "Select I for Indoor use (5 min on, 45 min off)"
+            // (https://us.towergarden.com/products/tower-garden-timer), so it runs a tenth of the
+            // time, 4.8 W averaged. A tower has no power role (the electrical sim does not run its
+            // pump, home_spawn.rs), so its port is what the static meter charges; the port carries
+            // that continuous-equivalent 4.8 W and the 48 W nameplate lives in the label and stat.
+            power: None,
+            ports: [
+                (
+                    utility: Electricity,
+                    dir: In,
+                    label: "pump (48 W, on 5 min in 50: 4.8 W averaged)",
+                    watts: 4.8,
+                    flow_lpm: 0.0,
+                    mbps: 0.0,
+                    anchor: (0.0, 0.0, 0.0),
+                ),
+            ],
+            storage: [],
+            auto_recipe: None,
+            container_type: None,
+            model: None,
+        ),
+        "aquaponic_tank": (
+            shape: "box",
+            size: (1.6, 1.0, 1.6),
+            color: (0.2, 0.45, 0.7),
+            label: "Aquaponic tank",
+            category: "Food",
+            stats: [
+                (
+                    kind: "food",
+                    value: "+75 kcal/d (estimate, fish not modelled)",
+                    status: "ok",
+                ),
+                (
+                    kind: "nutrient",
+                    value: "B12 + omega-3",
+                    status: "ok",
+                ),
+                (
+                    kind: "power",
+                    value: "-17 W air pump, all day: 0.41 kWh/d",
+                    status: "ok",
+                ),
+            ],
+            // Its air pump (2026-09-27; the stat said 50 W, which no source backed, and it had no
+            // power, so the meter charged nothing). How much air: FAO's Small-scale aquaponic food
+            // production (Somerville et al. 2014, FAO Fisheries and Aquaculture Technical Paper
+            // 589, https://www.fao.org/4/i4021e/i4021e.pdf, read 2026-09-27), section 7.3: "The
+            // suggested rate is 5–8 litres of air per minute for each cubic metre of water,
+            // coming from at least 2 air stones in different locations in the fish tank", so this
+            // 1.6 x 1.0 x 1.6 m tank, 2.56 m3, wants 12.8 to 20.5 L a minute at the bottom of about
+            // a metre of water. The pump: a HIBLOW HP-20 linear air pump, whose spec sheet
+            // (https://www.hiblow-usa.com/wp-content/uploads/2017/02/HP-20-40_170119.pdf, read
+            // 2026-09-27) gives "Rated Loading Pressure kPa 9.8" (a metre of water), "Airflow
+            // Volume" 20 L/min at 60 Hz and "Power Consumption W 17": the top of FAO's range, for
+            // 17 W. FAO wants the aeration on around the clock ("simple battery backups for air
+            // pumps have saved countless fish"), so it is a steady load, priority 1, shed last.
+            power: Some(Consumer(
+                watts: 17.0,
+                priority: 1,
+            )),
+            ports: [],
+            storage: [],
+            auto_recipe: None,
+            container_type: None,
+            model: None,
+        ),
+        "composter": (
+            shape: "box",
+            size: (0.7, 0.55, 0.7),
+            color: (0.35, 0.25, 0.14),
+            label: "Composter",
+            category: "Food",
+            stats: [
+                (
+                    kind: "nutrient",
+                    value: "+1.2 kg/d",
+                    status: "ok",
+                ),
+                (
+                    kind: "water",
+                    value: "+155 L/d greywater",
+                    status: "ok",
+                ),
+            ],
+            power: None,
+            ports: [],
+            storage: [],
+            auto_recipe: None,
+            container_type: None,
+            model: None,
+        ),
+        "tent_co2_fan": (
+            shape: "box",
+            size: (0.303, 0.188, 0.176),
+            color: (0.62, 0.64, 0.66),
+            label: "Tent CO2 fan (mushroom rack)",
+            category: "Food",
+            // A 4 inch inline fan (AC Infinity CLOUDLINE S4: "Airflow" "226 CFM"
+            // = 384 m3/h, "Max Power Draw" "28 W", 30.3 x 18.8 x 17.6 cm, with
+            // "backup memory that retains the last speed setting whenever power is
+            // cut off", so it runs at its set speed whenever its outlet is on),
+            // switched by an AC Infinity CO2 controller (AC-CTC7: "2" outlets,
+            // "0 - 10,000 PPM"). It sits on top of a mushroom rack inside its
+            // fruiting tent and draws the room's air through the tent while the
+            // tent holds more than 900 ppm of carbon dioxide: on for the share of
+            // the time that holds it there, off below, drawing its 28 W for that
+            // share (data/garden/humidity.ron, THE CO2 FANS).
+            // 900 ppm is a GAME CHOICE, 100 under the 1,000 the oysters fruit
+            // under (Lin 2022; Won 2010's best yield), and not the 800 Cornell's
+            // growers keep oysters below: measured in the family home (the model,
+            // docs/design/ship-life-support.md), holding 800 draws more air than
+            // the tent's small humidifier can wet, and the tents fall to 81 to 89%
+            // humidity with it flat out; at 900 they hold 90.0%. (The one-person
+            // home's two racks could hold 800.)
+            ventilation_m3_h: 384.0,
+            co2_setpoint_ppm: 900.0,
+            stats: [
+                (
+                    kind: "power",
+                    value: "28 W while on, on part of the time",
+                    status: "ok",
+                ),
+                (
+                    kind: "air",
+                    value: "holds a mushroom rack's tent under 900 ppm of CO2",
+                    status: "ok",
+                ),
+            ],
+            // average_watts (2026-09-27): what the static power meter charges it
+            // for a day, about 1.7 W a tent, on about 6% of the time, measured by src/systems/farming/life_support_tests.rs
+            // (which holds this figure to the measured draw).
+            power: Some(Consumer(
+                watts: 28.0,
+                priority: 4,
+                average_watts: Some(1.7),
+            )),
+            ports: [],
+            storage: [],
+            auto_recipe: None,
+            container_type: None,
+            model: None,
+        ),
+        "tent_humidifier": (
+            shape: "box",
+            size: (0.172, 0.357, 0.172),
+            color: (0.9, 0.9, 0.88),
+            label: "Tent humidifier (mushroom rack)",
+            category: "Food",
+            // A small ultrasonic grow-tent humidifier with a humidity
+            // controller (AC Infinity CLOUDFORGE T3: "Output Rate: 8.11 fl
+            // oz/h" = 240 ml/h, "Power Consumption: 24 W", a 4.5 L reservoir,
+            // 17.2 x 17.2 x 35.7 cm). It stands on a mushroom rack's bottom
+            // shelf inside the rack's fruiting tent and holds the tent at 90%,
+            // drawing its watts in proportion to its output and its litres from
+            // the home's tanks with the irrigation (data/garden/humidity.ron,
+            // THE FRUITING TENT, has the balance).
+            humidifies_l_h: 0.24,
+            stats: [
+                (
+                    kind: "power",
+                    value: "~20 W holding one rack's tent at 90% with its CO2 fan, 24 W flat out",
+                    status: "ok",
+                ),
+                (
+                    kind: "water",
+                    value: "~5 L a day from the tanks",
+                    status: "ok",
+                ),
+                (
+                    kind: "air",
+                    value: "holds a mushroom rack's tent at 90% humidity",
+                    status: "ok",
+                ),
+            ],
+            // average_watts (2026-09-27): what the static power meter charges it
+            // for a day, about 20 W a tent with the tents' CO2 fans running, measured by src/systems/farming/life_support_tests.rs
+            // (which holds this figure to the measured draw).
+            power: Some(Consumer(
+                watts: 24.0,
+                priority: 4,
+                average_watts: Some(20.4),
+            )),
+            ports: [],
+            storage: [],
+            auto_recipe: None,
+            container_type: None,
+            model: None,
+        ),
+        "mushroom_rack": (
+            shape: "box",
+            size: (1.2, 1.8, 0.6),
+            color: (0.62, 0.55, 0.45),
+            label: "Mushroom rack",
+            category: "Food",
+            stats: [
+                (
+                    kind: "power",
+                    value: "no light needed",
+                    status: "ok",
+                ),
+            ],
+            power: None,
+            ports: [],
+            storage: [],
+            auto_recipe: None,
+            container_type: None,
+            model: None,
+        ),
+        "trading_post": (
+            shape: "box",
+            size: (1.6, 1.1, 0.8),
+            color: (0.55, 0.42, 0.25),
+            label: "Trading post",
+            category: "Logistics",
+            stats: [
+                (
+                    kind: "trade",
+                    value: "buys + sells goods",
+                    status: "ok",
+                ),
+            ],
+            power: None,
+            ports: [],
+            storage: [],
+            auto_recipe: None,
+            container_type: None,
+            model: None,
+        ),
+        "chair": (
+            shape: "box",
+            size: (0.50, 0.90, 0.50),
+            color: (0.52, 0.38, 0.24),
+            label: "Chair",
+            category: "Furniture",
+            stats: [
+                (
+                    kind: "storage",
+                    value: "seats one",
+                    status: "ok",
+                ),
+            ],
+            power: None,
+            ports: [],
+            storage: [],
+            auto_recipe: None,
+            container_type: None,
+            model: Some("assets/models/furniture/chaircushion/chaircushion.gltf"),
+        ),
+        "couch": (
+            shape: "box",
+            size: (2.00, 0.80, 0.90),
+            color: (0.42, 0.44, 0.50),
+            label: "Couch",
+            category: "Furniture",
+            stats: [
+                (
+                    kind: "storage",
+                    value: "seats three",
+                    status: "ok",
+                ),
+            ],
+            power: None,
+            ports: [],
+            storage: [],
+            auto_recipe: None,
+            container_type: None,
+            model: Some("assets/models/furniture/loungesofa/loungesofa.gltf"),
+        ),
+        "dining_table": (
+            shape: "box",
+            size: (2.00, 0.75, 1.00),
+            color: (0.52, 0.38, 0.24),
+            label: "Dining table",
+            category: "Furniture",
+            stats: [
+                (
+                    kind: "storage",
+                    value: "seats six",
+                    status: "ok",
+                ),
+            ],
+            power: None,
+            ports: [],
+            storage: [],
+            auto_recipe: None,
+            container_type: None,
+            model: Some("assets/models/furniture/table/table.gltf"),
+        ),
+        "rug": (
+            shape: "box",
+            size: (3.00, 0.02, 2.00),
+            color: (0.50, 0.30, 0.25),
+            label: "Rug",
+            category: "Furniture",
+            stats: [
+                (
+                    kind: "storage",
+                    value: "soft floor",
+                    status: "ok",
+                ),
+            ],
+            power: None,
+            ports: [],
+            storage: [],
+            auto_recipe: None,
+            container_type: None,
+            model: Some("assets/models/furniture/rugrectangle/rugrectangle.gltf"),
+        ),
+        "wall_screen": (
+            shape: "box",
+            size: (1.8, 1.05, 0.06),
+            color: (0.08, 0.08, 0.1),
+            label: "Wall screen",
+            category: "Displays",
+            stats: [
+                (
+                    kind: "display",
+                    value: "1280 x 720 touchscreen",
+                    status: "ok",
+                ),
+            ],
+            power: None,
+            ports: [],
+            storage: [],
+            auto_recipe: None,
+            container_type: None,
+            model: None,
+            screen: Some((
+                source: "inventory",
+                px: (1280, 720),
+                face: "front",
+                bezel_m: 0.03,
+                brightness: 1.2,
+            )),
+        ),
+        // A serving counter (increment 6): where a crew meal is taken in a mess hall. 2.4 m long,
+        // 0.6 m deep and 0.9 m high, a kitchen counter's working height. Drawn as its box: the
+        // furniture models on disk hold no counter, and the kitchen cabinet's model is never
+        // stretched to fit (docs/dev/adding-3d-models.md; the plan's question 5).
+        "serving_counter": (
+            shape: "box",
+            size: (2.40, 0.90, 0.60),
+            color: (0.62, 0.64, 0.66),
+            label: "Serving counter",
+            category: "Furniture",
+            stats: [
+                (
+                    kind: "storage",
+                    value: "free crew meals",
+                    status: "ok",
+                ),
+            ],
+            power: None,
+            ports: [],
+            storage: [],
+            auto_recipe: None,
+            container_type: None,
+            model: None,
+        ),
+    },
     instances: [
         // The commons rack's tent humidifier (2026-09-26): each mushroom rack
         // fruits in its own tent, held at 90% by a small humidifier on its
@@ -107,6 +570,367 @@
             rotation: 0.0,
             zone: "commons",
         ),
+        // THE MESS HALL (increment 6): the serving counter on the north wall, its front to the south;
+        // the store stands 1.1 m in front of it (data/food/ship_stores.ron, mess-hall (2, 2)).
+        (
+            id: "counter_m1",
+            machine: "serving_counter",
+            room: "mess-hall",
+            offset: (1.6, 0.0, 0.6),
+            rotation: 180.0,
+            zone: "commons",
+        ),
+        // Four tables along the north half, four chairs each, clear of the crew's walk along z 4.
+        (
+            id: "mess_table_1",
+            machine: "dining_table",
+            room: "mess-hall",
+            offset: (6.0, 0.0, 1.75),
+            rotation: 0.0,
+            zone: "commons",
+        ),
+        (
+            id: "mess_chair_1",
+            machine: "chair",
+            room: "mess-hall",
+            offset: (5.5, 0.0, 0.75),
+            rotation: 180.0,
+            zone: "commons",
+        ),
+        (
+            id: "mess_chair_2",
+            machine: "chair",
+            room: "mess-hall",
+            offset: (6.5, 0.0, 0.75),
+            rotation: 180.0,
+            zone: "commons",
+        ),
+        (
+            id: "mess_chair_3",
+            machine: "chair",
+            room: "mess-hall",
+            offset: (5.5, 0.0, 2.75),
+            rotation: 0.0,
+            zone: "commons",
+        ),
+        (
+            id: "mess_chair_4",
+            machine: "chair",
+            room: "mess-hall",
+            offset: (6.5, 0.0, 2.75),
+            rotation: 0.0,
+            zone: "commons",
+        ),
+        (
+            id: "mess_table_2",
+            machine: "dining_table",
+            room: "mess-hall",
+            offset: (10.0, 0.0, 1.75),
+            rotation: 0.0,
+            zone: "commons",
+        ),
+        (
+            id: "mess_chair_5",
+            machine: "chair",
+            room: "mess-hall",
+            offset: (9.5, 0.0, 0.75),
+            rotation: 180.0,
+            zone: "commons",
+        ),
+        (
+            id: "mess_chair_6",
+            machine: "chair",
+            room: "mess-hall",
+            offset: (10.5, 0.0, 0.75),
+            rotation: 180.0,
+            zone: "commons",
+        ),
+        (
+            id: "mess_chair_7",
+            machine: "chair",
+            room: "mess-hall",
+            offset: (9.5, 0.0, 2.75),
+            rotation: 0.0,
+            zone: "commons",
+        ),
+        (
+            id: "mess_chair_8",
+            machine: "chair",
+            room: "mess-hall",
+            offset: (10.5, 0.0, 2.75),
+            rotation: 0.0,
+            zone: "commons",
+        ),
+        (
+            id: "mess_table_3",
+            machine: "dining_table",
+            room: "mess-hall",
+            offset: (14.0, 0.0, 1.75),
+            rotation: 0.0,
+            zone: "commons",
+        ),
+        (
+            id: "mess_chair_9",
+            machine: "chair",
+            room: "mess-hall",
+            offset: (13.5, 0.0, 0.75),
+            rotation: 180.0,
+            zone: "commons",
+        ),
+        (
+            id: "mess_chair_10",
+            machine: "chair",
+            room: "mess-hall",
+            offset: (14.5, 0.0, 0.75),
+            rotation: 180.0,
+            zone: "commons",
+        ),
+        (
+            id: "mess_chair_11",
+            machine: "chair",
+            room: "mess-hall",
+            offset: (13.5, 0.0, 2.75),
+            rotation: 0.0,
+            zone: "commons",
+        ),
+        (
+            id: "mess_chair_12",
+            machine: "chair",
+            room: "mess-hall",
+            offset: (14.5, 0.0, 2.75),
+            rotation: 0.0,
+            zone: "commons",
+        ),
+        (
+            id: "mess_table_4",
+            machine: "dining_table",
+            room: "mess-hall",
+            offset: (18.0, 0.0, 1.75),
+            rotation: 0.0,
+            zone: "commons",
+        ),
+        (
+            id: "mess_chair_13",
+            machine: "chair",
+            room: "mess-hall",
+            offset: (17.5, 0.0, 0.75),
+            rotation: 180.0,
+            zone: "commons",
+        ),
+        (
+            id: "mess_chair_14",
+            machine: "chair",
+            room: "mess-hall",
+            offset: (18.5, 0.0, 0.75),
+            rotation: 180.0,
+            zone: "commons",
+        ),
+        (
+            id: "mess_chair_15",
+            machine: "chair",
+            room: "mess-hall",
+            offset: (17.5, 0.0, 2.75),
+            rotation: 0.0,
+            zone: "commons",
+        ),
+        (
+            id: "mess_chair_16",
+            machine: "chair",
+            room: "mess-hall",
+            offset: (18.5, 0.0, 2.75),
+            rotation: 0.0,
+            zone: "commons",
+        ),
+        // The crew's long table, east of their meal seats at x 29 (data/npc/chores.ron).
+        (
+            id: "crew_table_1",
+            machine: "dining_table",
+            room: "mess-hall",
+            offset: (30.05, 0.0, 2.4),
+            rotation: 90.0,
+            zone: "commons",
+        ),
+        (
+            id: "crew_table_2",
+            machine: "dining_table",
+            room: "mess-hall",
+            offset: (30.05, 0.0, 4.4),
+            rotation: 90.0,
+            zone: "commons",
+        ),
+        (
+            id: "crew_table_3",
+            machine: "dining_table",
+            room: "mess-hall",
+            offset: (30.05, 0.0, 6.4),
+            rotation: 90.0,
+            zone: "commons",
+        ),
+        // THE RECREATION ROOM, the Commons' south-west corner: a screen on the west wall,
+        // facing east.
+        (
+            id: "rec_screen_1",
+            machine: "wall_screen",
+            room: "recreation",
+            offset: (0.06, 1.2, 47.5),
+            rotation: 270.0,
+            zone: "commons",
+        ),
+        (
+            id: "rec_rug_1",
+            machine: "rug",
+            room: "recreation",
+            offset: (3.6, 0.0, 47.5),
+            rotation: 90.0,
+            zone: "commons",
+        ),
+        // A couch facing the screen, and one along the rug's north side.
+        (
+            id: "rec_couch_1",
+            machine: "couch",
+            room: "recreation",
+            offset: (6.0, 0.0, 47.5),
+            rotation: 90.0,
+            zone: "commons",
+        ),
+        (
+            id: "rec_couch_2",
+            machine: "couch",
+            room: "recreation",
+            offset: (3.6, 0.0, 45.0),
+            rotation: 180.0,
+            zone: "commons",
+        ),
+        // THE SOUTH COMMONS' MESS HALL: its counter, with its store 1.1 m in front of it
+        // (data/food/ship_stores.ron, mess-hall-2 (2, 2)), and three tables with their chairs.
+        (
+            id: "counter_m2",
+            machine: "serving_counter",
+            room: "mess-hall-2",
+            offset: (1.6, 0.0, 0.6),
+            rotation: 180.0,
+            zone: "commons-2",
+        ),
+        (
+            id: "south_table_1",
+            machine: "dining_table",
+            room: "mess-hall-2",
+            offset: (6.0, 0.0, 2.5),
+            rotation: 0.0,
+            zone: "commons-2",
+        ),
+        (
+            id: "south_chair_1",
+            machine: "chair",
+            room: "mess-hall-2",
+            offset: (5.5, 0.0, 1.5),
+            rotation: 180.0,
+            zone: "commons-2",
+        ),
+        (
+            id: "south_chair_2",
+            machine: "chair",
+            room: "mess-hall-2",
+            offset: (6.5, 0.0, 1.5),
+            rotation: 180.0,
+            zone: "commons-2",
+        ),
+        (
+            id: "south_chair_3",
+            machine: "chair",
+            room: "mess-hall-2",
+            offset: (5.5, 0.0, 3.5),
+            rotation: 0.0,
+            zone: "commons-2",
+        ),
+        (
+            id: "south_chair_4",
+            machine: "chair",
+            room: "mess-hall-2",
+            offset: (6.5, 0.0, 3.5),
+            rotation: 0.0,
+            zone: "commons-2",
+        ),
+        (
+            id: "south_table_2",
+            machine: "dining_table",
+            room: "mess-hall-2",
+            offset: (11.0, 0.0, 2.5),
+            rotation: 0.0,
+            zone: "commons-2",
+        ),
+        (
+            id: "south_chair_5",
+            machine: "chair",
+            room: "mess-hall-2",
+            offset: (10.5, 0.0, 1.5),
+            rotation: 180.0,
+            zone: "commons-2",
+        ),
+        (
+            id: "south_chair_6",
+            machine: "chair",
+            room: "mess-hall-2",
+            offset: (11.5, 0.0, 1.5),
+            rotation: 180.0,
+            zone: "commons-2",
+        ),
+        (
+            id: "south_chair_7",
+            machine: "chair",
+            room: "mess-hall-2",
+            offset: (10.5, 0.0, 3.5),
+            rotation: 0.0,
+            zone: "commons-2",
+        ),
+        (
+            id: "south_chair_8",
+            machine: "chair",
+            room: "mess-hall-2",
+            offset: (11.5, 0.0, 3.5),
+            rotation: 0.0,
+            zone: "commons-2",
+        ),
+        (
+            id: "south_table_3",
+            machine: "dining_table",
+            room: "mess-hall-2",
+            offset: (16.0, 0.0, 2.5),
+            rotation: 0.0,
+            zone: "commons-2",
+        ),
+        (
+            id: "south_chair_9",
+            machine: "chair",
+            room: "mess-hall-2",
+            offset: (15.5, 0.0, 1.5),
+            rotation: 180.0,
+            zone: "commons-2",
+        ),
+        (
+            id: "south_chair_10",
+            machine: "chair",
+            room: "mess-hall-2",
+            offset: (16.5, 0.0, 1.5),
+            rotation: 180.0,
+            zone: "commons-2",
+        ),
+        (
+            id: "south_chair_11",
+            machine: "chair",
+            room: "mess-hall-2",
+            offset: (15.5, 0.0, 3.5),
+            rotation: 0.0,
+            zone: "commons-2",
+        ),
+        (
+            id: "south_chair_12",
+            machine: "chair",
+            room: "mess-hall-2",
+            offset: (16.5, 0.0, 3.5),
+            rotation: 0.0,
+            zone: "commons-2",
+        ),
     ],
     arrays: [
         (
@@ -121,9 +945,6 @@
         ),
     ],
     connections: [
-        (from: "battery_7", to: "mushhum_c1", kind: "power", spec: None),
-        (from: "battery_7", to: "mushfan_c1", kind: "power", spec: None),
-        (from: "battery_7", to: "aqua_c1", kind: "power", spec: None),
         (
             from: "aqua_c1",
             to: "ctower_0",

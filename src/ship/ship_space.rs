@@ -263,26 +263,37 @@ mod tests {
     /// Seen red 2026-10-04 on the two-plot ship file: "the twelve plots along First Street: 2";
     /// and on the twelve-plot file with `is_aboard` put back to the sphere (`p.length() <
     /// 400.0`): "p5's corner [55, 3, 485] is aboard".
+    ///
+    /// SINCE SHIP HOMES INCREMENT 6 (lane 1A) the ship file holds sixteen cabin plots too, and
+    /// each plot is assembled with the shipped design of its OWN kind (a cabin on c1, never the
+    /// homestead, which `assemble` refuses there), and "outside its door" is a metre into the zone
+    /// its door corridor runs to: First Street, the Commons, or the cabins' hall. Seen red
+    /// 2026-10-12 with every plot given the shipped homestead (the design of p1's kind, which
+    /// this test's assembly put everywhere while every plot was a homestead): "c1 takes the
+    /// shipped cabin: plot 'c1' takes a cabin home, not a homestead".
+    /// (Whether a cabin breathes its own air or the ship's is lane 2A's: `own_air` in
+    /// data/homes/starts.ron. Until then every home, a cabin included, has its own.)
     #[test]
     fn every_plot_is_aboard_and_breathes_its_own_air() {
         let file = ShipStructure::load_ship_file(&data()).expect("the ship file loads");
-        assert!(file.plots.len() >= 12, "the twelve plots along First Street: {}", file.plots.len());
+        assert!(file.plots.len() >= 28, "the twelve homesteads along First Street and the sixteen cabins: {}", file.plots.len());
         for p in &file.plots {
-            let ship = shipped(&p.id);
+            let design = HomeDesign::built_in(&p.kind).unwrap_or_else(|| panic!("the shipped {} design is built in", p.kind));
+            let ship = file.clone().assemble(design, &p.id).unwrap_or_else(|e| panic!("{} takes the shipped {}: {e}", p.id, p.kind));
             let (lo, hi) = p.aabb();
             for c in [lo, hi, Vec3::new(lo.x, hi.y, hi.z), Vec3::new(hi.x, lo.y, lo.z)] {
                 assert!(ship.is_aboard(c), "{}'s corner {c} is aboard", p.id);
             }
-            let door = ship.home_spawn_world().expect("the shipped homestead names its door");
+            let door = ship.home_spawn_world().unwrap_or_else(|| panic!("the shipped {} names its door", p.kind));
             assert!(ship.is_aboard(door), "{}'s door {door} is aboard", p.id);
             let air = ship.air_spaces();
             assert_eq!(air.home.map(|b| b.0), Some(lo), "{}: the home's air box stands on its plot", p.id);
             assert_eq!(air.at(door), AirAt::OwnHome, "{}'s door breathes its own home's air", p.id);
             let middle = (lo + hi) * 0.5 + Vec3::new(0.0, 1.7 - (hi.y - lo.y) * 0.5, 0.0);
             assert_eq!(air.at(middle), AirAt::OwnHome, "{}'s middle breathes its own home's air", p.id);
-            // Out of the door, on First Street (or the Commons for p1): the ship's air.
-            let street = Vec3::new(70.0, 1.7, p.door.lat);
-            let outside = if p.door.zone == "street-1" { street } else { Vec3::new(80.0, 1.7, p.door.lat) };
+            // Out of the door, a metre into the zone its corridor runs to: the ship's air.
+            let g = ship.corridor_geometry(&ship.corridors[0]).expect("the home's door corridor resolves");
+            let outside = g.end_to + (g.end_to - g.end_from).normalize() * 1.0 + Vec3::new(0.0, 1.7, 0.0);
             assert_eq!(air.at(outside), AirAt::Ship, "{}: outside its door, {outside}, is the ship's air", p.id);
             for q in file.plots.iter().filter(|q| q.id != p.id) {
                 let (qlo, qhi) = q.aabb();

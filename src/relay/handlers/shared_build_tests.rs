@@ -392,7 +392,8 @@ fn a_permit_check_answers_as_a_build_would() {
 
 /// A FRAME COMES INTO VIEW AT 250 M AND LEAVES ONLY PAST 300 M (increment 4's distances,
 /// data/ship/shared_world.ron). At p1's door the frames in view are the Commons, First Street and
-/// p1 to p3, and p4 (256.5 m) is not. Walking north along x 53.5, over p4's floor: at 260 m
+/// p1 to p3, and since ship homes increment 6 the cabin block's hall and its sixteen cabins (89 m
+/// away at the farthest), and p4 (256.5 m) is not. Walking north along x 53.5, over p4's floor: at 260 m
 /// from it p4 is still out, at 249 m it comes in, back at 290 m it stays in (the gap that keeps
 /// someone at the edge from flickering), and at 301 m it leaves; nothing else changes on the way.
 ///
@@ -408,7 +409,10 @@ fn a_frame_comes_into_view_at_250_m_and_leaves_past_300() {
     book.views.insert(id, Viewer::new(&key(1)));
     let mut at = |z: f32| book.rejudge(id, Vec3::new(53.5, 1.7, z), in_m, out_m);
     let (came, went) = at(40.5);
-    assert_eq!(came, ["zone:commons", "zone:street-1", "plot:p1", "plot:p2", "plot:p3"], "the frames in view at p1's door");
+    let cabins: Vec<String> = (1..=16).map(|n| format!("plot:c{n}")).collect();
+    let mut want: Vec<String> = ["zone:commons", "zone:street-1", "zone:cabins-1", "plot:p1", "plot:p2", "plot:p3"].iter().map(|s| s.to_string()).collect();
+    want.extend(cabins.iter().cloned());
+    assert_eq!(came, want, "the frames in view at p1's door");
     assert!(went.is_empty());
     // p4's floor starts at z 297, so standing over its x the distance is 297 - z.
     assert_eq!(at(37.0), (vec![], vec![]), "260 m: p4 not yet in view");
@@ -417,7 +421,10 @@ fn a_frame_comes_into_view_at_250_m_and_leaves_past_300() {
     assert!(came.is_empty());
     assert_eq!(went, Vec::<String>::new(), "290 m keeps p4 in view / left: {went:?} / right: []");
     assert_eq!(at(-4.0), (vec![], vec!["plot:p4".to_string()]), "301 m: p4 leaves the view");
-    assert_eq!(world.pieces.frames_in_view(id), ["plot:p1", "plot:p2", "plot:p3", "zone:commons", "zone:street-1"]);
+    let mut still: Vec<String> = cabins.clone();
+    still.extend(["plot:p1", "plot:p2", "plot:p3", "zone:cabins-1", "zone:commons", "zone:street-1"].iter().map(|s| s.to_string()));
+    still.sort();
+    assert_eq!(world.pieces.frames_in_view(id), still);
 }
 
 /// THE CAPS HOLD (shared.rs: 512 pieces to a frame, 512 to a builder, 4,096 to a ship). Ann

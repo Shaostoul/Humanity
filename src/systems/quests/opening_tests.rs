@@ -539,7 +539,10 @@ fn the_front_door_is_the_door_of_the_plot_you_were_given() {
     assert!(file.plots.len() >= 2, "the ship has a family plot and a street plot");
     let design = crate::ship::ship_structure::HomeDesign::built_in("homestead").expect("the homestead design is built in");
     let mut opens_on = Vec::new();
-    for plot in &file.plots {
+    // The homestead plots: First Steps is the homestead's opening (since ship homes increment 6
+    // the ship file holds sixteen cabin plots too, whose home is the cabin and whose opening is
+    // its own).
+    for plot in file.plots.iter().filter(|p| p.kind == "homestead") {
         let ship = ship_on(&plot.id);
         let door = front_door_of(&ship).unwrap_or_else(|| panic!("plot {} has a front door", plot.id));
         let expected = (plot.origin.0 + design.door.0, plot.origin.2 + design.door.1);

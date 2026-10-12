@@ -574,22 +574,72 @@ mod tests {
     }
 
     /// One shell is baked per design and door, however many plots use them (finding 6): with the
-    /// home put away every plot is a neighbour's (twelve since 2026-10-04), the same design with
-    /// the same door, so one bake is moved to each. Seen red 2026-10-04 with one bake per
-    /// neighbour (the c98c5465b `draw_into`): "2 shells baked for 2 neighbours of one design and
-    /// door".
+    /// home put away every plot is a neighbour's (twelve homesteads since 2026-10-04, and sixteen
+    /// cabins since increment 6), each kind one design with one door, so one bake per kind is
+    /// moved to each of its plots: two bakes for 28 neighbours. Seen red 2026-10-04 with one bake
+    /// per neighbour (the c98c5465b `draw_into`): "2 shells baked for 2 neighbours of one design
+    /// and door".
     #[test]
     fn plots_of_one_design_and_door_share_one_bake() {
         let away = on("p1").put_home_away().unwrap();
         let view = neighbour_view(&away);
         assert_eq!(view.neighbours.len(), away.plots.len());
-        assert_eq!(view.shells_baked, 1, "{} shells baked for {} neighbours of one design and door", view.shells_baked, view.neighbours.len());
-        // And both are drawn: each plot carries its share of the geometry.
+        let kinds: BTreeSet<&str> = away.plots.iter().map(|p| p.kind.as_str()).collect();
+        assert_eq!(view.shells_baked, kinds.len(), "{} shells baked for {} neighbours of {} designs, one door each", view.shells_baked, view.neighbours.len(), kinds.len());
+        // And all are drawn: each plot carries its share of the geometry (a homestead's walls,
+        // rooms and doors are thousands of vertices; a cabin's one room a few dozen).
         let m = away.generate_meshes();
         for p in &away.plots {
             let (lo, hi) = p.aabb();
             let n = wall_points(&m).into_iter().filter(|q| inside_xz(*q, lo, hi)).count();
-            assert!(n > 1000, "{} is drawn: {n} vertices", p.id);
+            let least = if p.kind == "homestead" { 1000 } else { 20 };
+            assert!(n > least, "{} is drawn: {n} vertices", p.id);
+        }
+    }
+
+    /// A CABIN NEIGHBOUR IS DRAWN WITH ITS DOOR (ship homes increment 6, lane 1A): with the home on
+    /// p1, each of the sixteen cabins is drawn as the shipped cabin, ONE shell baked for all of
+    /// them (one design, one door), its door corridor leaving through the cabin's west wall into
+    /// the hall `cabins-1`, and the hall's east wall opened, for the eye only, at each cabin's
+    /// door. Nothing of a cabin neighbour is a room or a wall anyone walks into.
+    ///
+    /// Seen red 2026-10-12 with the cabin left out of `embedded_data::SHIPPED_HOMES`: "sixteen
+    /// cabins are drawn as neighbours: 0 ([])".
+    #[test]
+    fn a_cabin_neighbour_is_drawn_with_its_door() {
+        use crate::ship::wall_collision::ship_wall_segments;
+        let ship = on("p1");
+        let view = neighbour_view(&ship);
+        let cabins: Vec<&Neighbour> = view.neighbours.iter().filter(|n| n.plot.kind == "cabin").collect();
+        assert_eq!(cabins.len(), 16, "sixteen cabins are drawn as neighbours: {} ({:?})", cabins.len(), cabins.iter().map(|n| n.plot.id.as_str()).collect::<Vec<_>>());
+        let hall = ship.zone_index("cabins-1").expect("the cabin block's hall");
+        let hall_east = ship.zones[hall].origin.0 + ship.zones[hall].body.width;
+        for n in &cabins {
+            assert!(std::ptr::eq(n.design, HomeDesign::built_in_ref("cabin").unwrap()), "{} is the shipped cabin", n.plot.id);
+            let g = n.tube.as_ref().unwrap_or_else(|| panic!("{}'s corridor resolves", n.plot.id));
+            let door = Vec3::new(n.plot.origin.0 + n.design.door.0, 0.0, n.plot.origin.2 + n.design.door.1);
+            assert!((g.end_from - door).length() < 1e-3, "{}'s corridor leaves the cabin at its door {door:?}, got {:?}", n.plot.id, g.end_from);
+            assert_eq!(g.to_zone_idx, hall, "{}'s corridor runs to the hall", n.plot.id);
+            assert!((g.end_to.x - hall_east).abs() < 1e-3, "{}'s corridor arrives on the hall's east wall", n.plot.id);
+        }
+        // The homesteads' bake and the cabins' one bake, whatever the count.
+        assert_eq!(view.shells_baked, 2, "one shell for eleven homesteads and one for sixteen cabins: {}", view.shells_baked);
+        // The hall's wall has a hole at each cabin's door, for the eye; its collision is whole.
+        let cuts: Vec<ShellCut> = view.zone_cuts(hall).collect();
+        assert_eq!(cuts.len(), 16, "the hall's east wall opens at every cabin's door: {cuts:?}");
+        assert!(cuts.iter().all(|c| c.edge == 1), "every hole is in the hall's east wall (edge 1): {cuts:?}");
+        assert!(ship.shell_cuts_for_zone(hall).iter().all(|c| c.edge != 1), "the hall's own (collision) cuts include a cabin's door");
+        // Drawn on its plot, and nothing of it walked into.
+        let m = ship.generate_meshes();
+        let walls = ship_wall_segments(&ship);
+        for n in &cabins {
+            let (lo, hi) = n.plot.aabb();
+            let shrink = Vec3::new(0.2, 0.0, 0.2);
+            let drawn = wall_points(&m).into_iter().filter(|p| p.x > lo.x + 0.01 && p.x < hi.x + 0.05 && p.z > lo.z + 0.05 && p.z < hi.z - 0.05).count();
+            assert!(drawn > 20, "{} is drawn: {drawn} vertices on it", n.plot.id);
+            let on_it = walls.iter().filter(|s| inside_xz(Vec3::new(s.a.0, 0.0, s.a.1), lo + shrink, hi - shrink)).count();
+            assert_eq!(on_it, 0, "{on_it} collision segments stand inside the cabin {}", n.plot.id);
+            assert!(m.room_info.iter().all(|r| !inside_xz(r.center, lo + shrink, hi - shrink)), "a room of the ship stands in the cabin {}", n.plot.id);
         }
     }
 

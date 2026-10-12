@@ -1034,6 +1034,52 @@
       "settle_s": 10
     },
     {
+      "id": "ship-cabin-row",
+      "desc": "The cabin block (ship homes increment 6, lane 1A) from 7 m up over its north-east corner, looking south-west down the row at 12:00 station time with the hull hidden (showcase hull 0): the hall, its washroom and the sixteen cabins beside it.",
+      "expect": "Centre, a narrow glass-roofed hall 3 m wide running away from the camera for 48 m, its floor seen through the roof, a steel end wall across it 40 m along with a sliding door, and past that wall the washroom's 8 m. Left of the hall (east), a row of sixteen small cabins, each 3.15 m deep across the frame and 2.5 m along the row, touching each other, under plain opaque steel roofs, each joined to the hall by a 0.5 m door corridor; nothing east of them. Right of the hall, past a 2 m gap, First Street's glass roof, and near the camera the 2 m corridor from First Street into the hall at its north end. The homesteads p1 and p2 far right. Each cabin, at 3.15 x 2.5 m, reads as a small bedroom beside the 55 x 89 m homesteads; held against England's single bedroom (Nationally Described Space Standard: at least 7.5 m2 and 2.15 m wide inside) and a ship's berthing passage, the hall should read as a passage, not a street.",
+      "_why": "Ship homes increment 6, lane 1A (docs/design/ship-homes-increment-6-plan.md section 3.3): the cabin block is new ship geometry, sixteen neighbour cabins drawn from the shipped cabin design (src/ship/neighbours.rs) and a new hall zone with its corridor. A neighbour's cabin is render only and its door is shut to this player, so the row is checked from above.",
+      "regressions": [
+        "sixteen cabins are drawn in a row along the hall's east side",
+        "each cabin's door corridor reaches the hall",
+        "the hall's corridor from First Street is drawn",
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "88,7,82,3.44,-0.25",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear",
+        "hull": "0"
+      },
+      "settle_s": 10
+    },
+    {
+      "id": "mess-hall-counter",
+      "desc": "The Commons' mess hall (ship homes increment 6, lane 1A) at eye height from its middle, looking west-north-west at the serving counter at 12:00 station time.",
+      "expect": "At the far end of the hall, against its north wall, the serving counter: a plain grey box 2.4 m long and 0.9 m high (a stand-in: no counter model is on disk), with open floor in front of it where the store stands. Between the camera and the counter, along the hall's north (right-hand) wall, dining tables 2 m long with four chairs each, two on each side, in a row with walking room between them; the floor along the hall's middle and south side clear. The hall is lit by the Commons' own lights. Nothing stands in the middle of the floor where the crew walk.",
+      "_why": "Ship homes increment 6, lane 1A (plan section 3.3): the mess hall had a food store and the crew's meal seats but no furniture; now it has a serving counter, four tables with sixteen chairs and the crew's long table at its east end (data/machines/ship.ron). The counter is where a meal is taken (lane 1D), so this vantage is the counter's.",
+      "regressions": [
+        "the serving counter stands against the north wall at the hall's west end",
+        "the tables and chairs stand along the north half, clear of the crew's walk",
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "74,1.6,26.5,-0.897,-0.105",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 10
+    },
+    {
       "id": "console-face-6",
       "desc": "The console room, 2.2 m from the east wall, facing wall_screen_6 (the readable-web screen). The screens rig park.",
       "expect": "Two wall screens on the east wall (tasks above, web below), the north wall screens (watch, video) at the right edge, the glass ceiling lit by the deck sun; every visible screen shows a rendered page, never a black quad.",

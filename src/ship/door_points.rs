@@ -161,18 +161,32 @@ mod tests {
         (0..3).all(|k| p[k] >= pl.min[k] - 1e-3 && p[k] <= pl.max[k] + 1e-3)
     }
 
-    /// The places a ship's door points list: its two shared zones, then every plot in the file's order.
+    /// The places a ship's door points list: its four shared zones (the Commons, First Street,
+    /// and since ship homes increment 6 the cabin block's hall and the South Commons), then every
+    /// plot in the file's order.
     fn shipped_place_ids(ship: &ShipStructure) -> Vec<String> {
-        ["zone:commons", "zone:street-1"].iter().map(|s| s.to_string()).chain(ship.plots.iter().map(|p| format!("plot:{}", p.id))).collect()
+        ["zone:commons", "zone:street-1", "zone:cabins-1", "zone:commons-2"]
+            .iter()
+            .map(|s| s.to_string())
+            .chain(ship.plots.iter().map(|p| format!("plot:{}", p.id)))
+            .collect()
     }
 
-    /// The shipped ship, from either plot: the Commons, First Street and every plot (twelve since
-    /// 2026-10-04) are places; the corridors are doors (the Commons to the street, each plot to its
-    /// zone); each door's steps stand inside the two places it joins, and its mouths are the
-    /// corridor the game draws (the home's own corridor for its plot, the neighbours' tubes for the
-    /// others). The numbers are the ship file's (section 2.4 of the design). Seen red 2026-10-04
-    /// with the steps taken a metre OUTWARD from each mouth instead of in: "zone:commons ->
-    /// zone:street-1: step [70.0, 1.7, 76.0] is not inside zone:commons".
+    /// The doors of the shipped ship: its three corridors between shared zones (the Commons to
+    /// First Street, and since increment 6 First Street to the cabin block and to the South
+    /// Commons) and one door per plot.
+    fn shipped_door_count(ship: &ShipStructure) -> usize {
+        3 + ship.plots.len()
+    }
+
+    /// The shipped ship, from either plot: the shared zones and every plot (twelve homesteads
+    /// since 2026-10-04, and sixteen cabins since increment 6) are places; the corridors are
+    /// doors (the Commons to the street, the street to the cabin block and to the South Commons,
+    /// each plot to its zone); each door's steps stand inside the two places it joins, and its
+    /// mouths are the corridor the game draws (the home's own corridor for its plot, the
+    /// neighbours' tubes for the others). The numbers are the ship file's (section 2.4 of the
+    /// design). Seen red 2026-10-04 with the steps taken a metre OUTWARD from each mouth instead
+    /// of in: "zone:commons -> zone:street-1: step [70.0, 1.7, 76.0] is not inside zone:commons".
     #[test]
     fn every_door_of_the_shipped_ship_joins_two_places_where_the_game_draws_it() {
         for own in ["p1", "p2"] {
@@ -181,7 +195,7 @@ mod tests {
             assert_eq!(d.ship_hash, ship.ship_hash());
             let ids: Vec<&str> = d.places.iter().map(|p| p.id.as_str()).collect();
             assert_eq!(ids, shipped_place_ids(&ship), "on {own}");
-            assert_eq!(d.doors.len(), 1 + ship.plots.len(), "on {own}: {:?}", d.doors);
+            assert_eq!(d.doors.len(), shipped_door_count(&ship), "on {own}: {:?}", d.doors);
             for x in &d.doors {
                 for (step, end) in x.steps.iter().zip([&x.from, &x.to]) {
                     assert!(inside(*step, place(&d, end)), "{} -> {}: step {step:?} is not inside {end}", x.from, x.to);
@@ -201,6 +215,12 @@ mod tests {
             assert_eq!(place(&d, "plot:p2").door, Some([53.5, 1.7, 139.5]));
             assert_eq!(place(&d, "plot:p2").door_local, Some([53.5, 40.5]));
             assert!(place(&d, &format!("plot:{own}")).own);
+            // A cabin's door (increment 6): where its holder arrives with the shipped cabin, a
+            // metre inside its west-wall door, and its corridor into the hall.
+            assert_eq!(place(&d, "plot:c1").door, Some([81.5, 1.7, 89.25]));
+            let c1 = door(&d, "plot:c1");
+            assert_eq!((c1.to.as_str(), c1.axis, c1.lat), ("zone:cabins-1", "x", 89.25));
+            assert_eq!(c1.mouths, [[80.5, 0.0, 89.25], [80.0, 0.0, 89.25]]);
             // The home's own corridor is reported as its plot's door, with the geometry the game draws.
             let home_corridor = ship.corridors.iter().find(|c| ship.is_plot_door(c)).unwrap();
             let g = ship.corridor_geometry(home_corridor).unwrap();
@@ -266,6 +286,6 @@ mod tests {
         let ids: Vec<&str> = d.places.iter().map(|p| p.id.as_str()).collect();
         assert_eq!(ids, shipped_place_ids(&away));
         assert!(d.places.iter().all(|p| !p.own), "a guest owns no plot");
-        assert_eq!(d.doors.len(), 1 + away.plots.len());
+        assert_eq!(d.doors.len(), shipped_door_count(&away));
     }
 }

@@ -4362,6 +4362,14 @@
         // The fish tanks' air pumps (2026-09-27), on the same bank.
         (from: "battery_7", to: "aqua_1", kind: "power", spec: None),
         (from: "battery_7", to: "aqua_2", kind: "power", spec: None),
+        // The Commons' tent humidifier, CO2 fan and fish tank (data/machines/ship.ron), on the
+        // same bank: the family home powers them, as it has since the ship and the home came apart
+        // (increment 1a). These three wires were ship.ron's rows until increment 6 lane 1A: a wire
+        // from a household's machine is that household's (src/machines.rs `split_for_save`), so a
+        // cabin, which merges ship.ron too, finds no wire there naming a battery it does not have.
+        (from: "battery_7", to: "mushhum_c1", kind: "power", spec: None),
+        (from: "battery_7", to: "mushfan_c1", kind: "power", spec: None),
+        (from: "battery_7", to: "aqua_c1", kind: "power", spec: None),
         (
             from: "battery_8",
             to: "turret_1",

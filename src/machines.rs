@@ -1244,12 +1244,23 @@ impl MachineHome {
     /// Split a merged layout: (the household file's part, the ship file's part). Without a
     /// `ship_machines` link nothing is split off (the whole layout is the household's).
     /// `ship_catalog` is the ship file's own catalog keys, which stay in the ship file.
+    ///
+    /// A CONNECTION goes with the ship only when it touches a ship row and neither end is one of
+    /// the household's (ship homes increment 6, lane 1A): a wire from the household's battery to
+    /// a Commons machine is the household's, kept in its own file, because every household file
+    /// that merges the ship file gets the ship's connections too, and a cabin has no battery_7 for
+    /// the family home's wires to name. Until lane 1A any wire touching a ship row went to the
+    /// ship file, so a Dev save moved the family home's three Commons power wires back there.
     fn split_for_save(&self, ship_catalog: &std::collections::BTreeSet<String>) -> (MachineHome, Option<MachineHome>) {
         if self.ship_machines.is_none() {
             return (self.clone(), None);
         }
         let ship_ids = self.ship_row_ids();
-        let touches_ship = |c: &MachineConnection| ship_ids.contains(&c.from) || ship_ids.contains(&c.to);
+        let household_ids: std::collections::HashSet<String> =
+            self.all_instances().into_iter().filter(|i| !Self::is_ship_zone(&i.zone)).map(|i| i.id).collect();
+        let touches_ship = |c: &MachineConnection| {
+            (ship_ids.contains(&c.from) || ship_ids.contains(&c.to)) && !household_ids.contains(&c.from) && !household_ids.contains(&c.to)
+        };
         // Loops and conduit nodes carry no zone: the ones `load` merged in from the ship file go
         // back there (`ship_part`); a conduit edge goes with the ship when either end is a ship
         // row or a ship node, the same rule a connection follows. Everything else is the home's.
@@ -1351,9 +1362,11 @@ impl MachineHome {
     /// Put a character's own household rows in place of this layout's (engine/own_home.rs): the
     /// household's part becomes `rows`, and the ship's part (its rows, connections, loops and
     /// conduit graph, merged in from the linked ship file) stays as loaded. A saved row in a ship
-    /// zone, or a connection or conduit edge reaching the ship's, is not the household's and is
-    /// left out, as is a payment for a machine that is not among the rows. The catalog and the
-    /// loops stay the data file's.
+    /// zone, a connection between two of the ship's rows, or a conduit edge reaching the ship's,
+    /// is not the household's and is left out, as is a payment for a machine that is not among
+    /// the rows. A wire from one of the household's machines to a ship row IS the household's
+    /// (`split_for_save`, increment 6 lane 1A) and is kept. The catalog and the loops stay the
+    /// data file's.
     pub fn set_household_rows(&mut self, rows: HouseholdMachines) {
         let ship_ids: std::collections::HashSet<String> =
             if self.ship_machines.is_some() { self.ship_row_ids() } else { Default::default() };
@@ -1379,7 +1392,7 @@ impl MachineHome {
         let mut instances: Vec<MachineInstance> = rows.instances.into_iter().filter(|i| !self.is_ship_row_zone(&i.zone)).collect();
         let mut arrays: Vec<MachineArray> = rows.arrays.into_iter().filter(|a| !self.is_ship_row_zone(&a.zone)).collect();
         let mut connections: Vec<MachineConnection> =
-            rows.connections.into_iter().filter(|c| !ship_ids.contains(&c.from) && !ship_ids.contains(&c.to)).collect();
+            rows.connections.into_iter().filter(|c| !(ship_ids.contains(&c.from) && ship_ids.contains(&c.to))).collect();
         let mut conduit_nodes: Vec<ConduitNode> = rows.conduit_nodes.into_iter().filter(|n| !ship_nodes.contains(&n.id)).collect();
         let mut conduit_edges: Vec<ConduitEdge> = rows.conduit_edges.into_iter().filter(|e| !ship_end(&e.from) && !ship_end(&e.to)).collect();
         let placed: std::collections::HashSet<String> = instances.iter().map(|i| i.id.clone()).collect();
@@ -4373,9 +4386,19 @@ mod tests {
         assert_eq!(home_only.ship_machines.as_deref(), Some("ship.ron"));
         assert!(home_only.all_instances().iter().all(|i| i.zone == "home"), "home.ron holds only home rows");
         let ship_only = MachineHome::load_file(&machines.join("ship.ron")).expect("parses");
-        assert_eq!(ship_only.instances.len() + ship_only.arrays.len(), 11, "the 11 Commons rows");
-        assert_eq!(ship_only.connections.len(), 5, "the 5 connections that touch them");
-        assert!(ship_only.all_instances().iter().all(|i| i.zone == "commons"));
+        // The 11 Commons rows of increment 1a (its garden and market stalls), and since increment
+        // 6 the mess halls' and the recreation room's furniture beside them, in the Commons and
+        // the South Commons. The connections are the 2 between the ship's own rows: the family
+        // home's 3 power wires to the Commons were ship.ron's until increment 6 lane 1A and are
+        // home.ron's now (`split_for_save`: a household's wire is the household's).
+        let ship_ids: Vec<String> = ship_only.all_instances().into_iter().map(|i| i.id).collect();
+        for id in commons_ids.iter().chain(["ctower_0", "ctower_8"].iter()) {
+            assert!(ship_ids.iter().any(|i| i == id), "{id} is in ship.ron");
+        }
+        assert_eq!(ship_only.arrays.len(), 1, "the Commons' nutrition towers");
+        assert_eq!(ship_only.connections.len(), 2, "the 2 connections between the ship's own rows");
+        assert!(ship_only.all_instances().iter().all(|i| i.zone == "commons" || i.zone == "commons-2"), "every row stands in a shared zone");
+        assert_eq!(home_only.connections.iter().filter(|c| c.from == "battery_7" && c.to.ends_with("_c1")).count(), 3, "home.ron powers the Commons");
         let solo = MachineHome::load(&machines.join("home_solo.ron")).expect("home_solo.ron loads");
         assert!(solo.ship_machines.is_none() && solo.all_instances().iter().all(|i| i.zone == "home"), "the solo home loads without them, as before");
 
@@ -4535,6 +4558,167 @@ mod tests {
         assert!(home_back.conduit_nodes.iter().any(|n| n.id == "home_main"), "the household's own node stays home");
         assert!(!ship_back.conduit_nodes.iter().any(|n| n.id == "home_main"));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A TYPE TWO MACHINE FILES DEFINE IS DEFINED THE SAME (ship homes increment 6, lane 1A): the
+    /// ship's file defines every type its rows use, so any household file can merge it, and a
+    /// household file's own definition wins on a merge (`merge_ship_machines`). So every type
+    /// ship.ron or cabin.ron defines is the same machine, field for field (compared parsed, so
+    /// comments and number formatting do not count), wherever it meets itself in a merge (ship.ron
+    /// and the files that merge it, home.ron and cabin.ron), and, for Furniture, in every shipped
+    /// file that defines it (home_solo.ron too): a chair is the same chair in the Commons, the
+    /// family home, the one-person home and a cabin. (home_solo.ron does not merge ship.ron, and
+    /// its own machines of other kinds differ from home.ron's on purpose: its composter's stats
+    /// are a one-person household's, its wall screen a smaller one, its air handler's load its
+    /// own rooms'.) And ship.ron defines every type its rows use.
+    ///
+    /// Seen red 2026-10-12 with ship.ron's chair 0.6 m wide for 0.5: "the chair is defined
+    /// differently in ship.ron and home.ron".
+    #[test]
+    fn a_type_two_machine_files_define_is_defined_the_same() {
+        let machines = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines");
+        let files = ["home.ron", "home_solo.ron", "cabin.ron", "ship.ron"];
+        let parsed: Vec<(&str, MachineHome)> =
+            files.iter().map(|f| (*f, MachineHome::load_file(&machines.join(f)).unwrap_or_else(|| panic!("{f} parses")))).collect();
+        let text = |d: &MachineDef| ron::ser::to_string(d).expect("a definition serialises");
+        let checked: std::collections::BTreeSet<&String> =
+            parsed.iter().filter(|(f, _)| *f == "ship.ron" || *f == "cabin.ron").flat_map(|(_, h)| h.catalog.keys()).collect();
+        let merges = |f: &str, h: &MachineHome| f == "ship.ron" || h.ship_machines.as_deref() == Some("ship.ron");
+        let mut shared = 0usize;
+        for (i, (fa, a)) in parsed.iter().enumerate() {
+            for (fb, b) in parsed.iter().skip(i + 1) {
+                for (k, da) in a.catalog.iter().filter(|(k, _)| checked.contains(k)) {
+                    let furniture = da.category == "Furniture";
+                    if !(furniture || (merges(fa, a) && merges(fb, b))) {
+                        continue;
+                    }
+                    if let Some(db) = b.catalog.get(k) {
+                        shared += 1;
+                        assert_eq!(text(da), text(db), "the {k} is defined differently in {fb} and {fa}");
+                    }
+                }
+            }
+        }
+        assert!(shared >= 13, "the files share their furniture and the Commons' machines: {shared} shared definitions");
+        let (_, ship) = parsed.iter().find(|(f, _)| *f == "ship.ron").unwrap();
+        for i in ship.all_instances() {
+            assert!(ship.catalog.contains_key(&i.machine), "ship.ron's {} is a {} it does not define", i.id, i.machine);
+        }
+    }
+
+    /// A HOUSEHOLD WIRE TO A SHIP ROW STAYS WITH THE HOUSEHOLD (ship homes increment 6, lane 1A).
+    /// The family home's battery bank powers the Commons' tent humidifier, CO2 fan and fish tank
+    /// pump. Those three wires are home.ron's: a Dev save of the family layout writes them to
+    /// home.ron and none to ship.ron, the save's household rows keep them through a round trip,
+    /// and a cabin, which merges ship.ron too, has no connection naming a machine it lacks (the
+    /// wires used to be ship.ron's, so every cabin carried three wires from a battery_7 it does
+    /// not have).
+    ///
+    /// Seen red 2026-10-12 with `split_for_save` sending every wire that touches a ship row to the
+    /// ship file (the code before lane 1A): "battery_7 -> mushhum_c1 went into ship.ron".
+    #[test]
+    fn a_household_wire_to_a_ship_row_stays_with_the_household() {
+        let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines");
+        let dir = crate::test_temp::dir("household_wire");
+        for f in ["home.ron", "ship.ron", "cabin.ron"] {
+            std::fs::copy(src.join(f), dir.join(f)).unwrap();
+        }
+        let wires = [("battery_7", "mushhum_c1"), ("battery_7", "mushfan_c1"), ("battery_7", "aqua_c1")];
+        let has = |h: &MachineHome, (from, to): (&str, &str)| h.connections.iter().filter(|c| c.from == from && c.to == to).count();
+        // A Dev save of the family layout: the household's part and the ship's part.
+        let layout = MachineHome::load(&dir.join("home.ron")).expect("home.ron loads merged");
+        layout.save(&dir.join("home.ron")).expect("saves the household's part");
+        layout.save_ship_part(&dir.join("home.ron")).expect("saves the ship's part");
+        let home_back = MachineHome::load_file(&dir.join("home.ron")).expect("parses");
+        let ship_back = MachineHome::load_file(&dir.join("ship.ron")).expect("parses");
+        for w in wires {
+            assert_eq!(has(&ship_back, w), 0, "{} -> {} went into ship.ron", w.0, w.1);
+            assert_eq!(has(&home_back, w), 1, "{} -> {} is the family home's, once", w.0, w.1);
+        }
+        assert!(ship_back.connections.iter().all(|c| !c.from.starts_with("battery")), "no battery wire in ship.ron: {:?}", ship_back.connections);
+        // The character's save keeps them: household rows out and back in.
+        let rows = layout.household_rows();
+        for w in wires {
+            let saved = rows.connections.iter().filter(|c| c.from == w.0 && c.to == w.1).count();
+            assert_eq!(saved, 1, "{} -> {} is one of the household's saved rows", w.0, w.1);
+        }
+        let mut again = MachineHome::load(&dir.join("home.ron")).expect("loads");
+        again.set_household_rows(rows);
+        for w in wires {
+            assert_eq!(has(&again, w), 1, "{} -> {} comes back once from the save", w.0, w.1);
+        }
+        // A cabin merges ship.ron and names nothing it lacks.
+        let cabin = MachineHome::load(&dir.join("cabin.ron")).expect("cabin.ron loads merged");
+        let ids: std::collections::HashSet<String> = cabin.all_instances().into_iter().map(|i| i.id).collect();
+        for c in &cabin.connections {
+            assert!(ids.contains(&c.from) && ids.contains(&c.to), "a cabin's wire {} -> {} names a machine it does not have", c.from, c.to);
+        }
+    }
+
+    /// EVERY FLEET STORE HAS ITS SERVING COUNTER (ship homes increment 6, plan 3.3 and 3.8): each
+    /// food store of data/food/ship_stores.ron stands where a player takes a meal at a counter, so
+    /// each has a `serving_counter` row in data/machines/ship.ron within 1.5 m of it (measured to
+    /// the counter's footprint, its size turned with its rotation), in ship metres: the store's
+    /// place (a zone, or a labelled volume in one) and spot, the counter's zone and offset. E at
+    /// the counter (lane 1D) then asks the store a player stands at.
+    ///
+    /// Seen red 2026-10-12 with the Commons' counter moved 3 m east (x 4.6 for 1.6): "the store
+    /// mess-hall-stores at (67.0, 22.0) has no serving counter within 1.5 m (the nearest is 1.78
+    /// m off)".
+    #[test]
+    fn every_fleet_store_has_its_serving_counter() {
+        #[derive(serde::Deserialize)]
+        struct Store {
+            id: String,
+            place: String,
+            spot: (f32, f32),
+        }
+        #[derive(serde::Deserialize)]
+        struct Stores {
+            stores: Vec<Store>,
+        }
+        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let stores: Stores = ron::from_str(&std::fs::read_to_string(data.join("food/ship_stores.ron")).unwrap()).expect("ship_stores.ron parses");
+        assert!(stores.stores.len() >= 2, "the Commons' store and the South Commons'");
+        let ship = crate::ship::ship_structure::ShipStructure::load_ship_file(&data).expect("the ship file loads");
+        // A room id's min corner, ship metres (x, z): a zone, or a labelled volume in one.
+        let place = |id: &str| -> Option<(f32, f32)> {
+            ship.zones.iter().find(|z| z.id == id).map(|z| (z.origin.0, z.origin.2)).or_else(|| {
+                ship.zones.iter().find_map(|z| z.body.zones.iter().find(|v| v.id == id).map(|v| (z.origin.0 + v.origin.0, z.origin.2 + v.origin.2)))
+            })
+        };
+        let rows = MachineHome::load_file(&data.join("machines/ship.ron")).expect("ship.ron parses");
+        let counters: Vec<(String, (f32, f32), (f32, f32))> = rows
+            .all_instances()
+            .into_iter()
+            .filter(|i| i.machine == "serving_counter")
+            .map(|i| {
+                let size = rows.catalog["serving_counter"].size;
+                let turned = (i.rotation.rem_euclid(180.0) - 90.0).abs() < 1.0;
+                let (w, d) = if turned { (size.2, size.0) } else { (size.0, size.2) };
+                let (ox, oz) = place(&i.zone).unwrap_or_else(|| panic!("counter {} stands in zone {}, which is not a zone", i.id, i.zone));
+                let (cx, cz) = (ox + i.offset.0, oz + i.offset.2);
+                (i.id, (cx - w * 0.5, cz - d * 0.5), (cx + w * 0.5, cz + d * 0.5))
+            })
+            .collect();
+        assert!(!counters.is_empty(), "ship.ron places serving counters");
+        for s in &stores.stores {
+            let (ox, oz) = place(&s.place).unwrap_or_else(|| panic!("store {} names place {}, which is not a room of the ship", s.id, s.place));
+            let at = (ox + s.spot.0, oz + s.spot.1);
+            let off = |lo: (f32, f32), hi: (f32, f32)| {
+                let dx = (lo.0 - at.0).max(0.0).max(at.0 - hi.0);
+                let dz = (lo.1 - at.1).max(0.0).max(at.1 - hi.1);
+                (dx * dx + dz * dz).sqrt()
+            };
+            let nearest = counters.iter().map(|(_, lo, hi)| off(*lo, *hi)).fold(f32::INFINITY, f32::min);
+            assert!(
+                nearest <= 1.5,
+                "the store {} at ({:.1}, {:.1}) has no serving counter within 1.5 m (the nearest is {nearest:.2} m off)",
+                s.id,
+                at.0,
+                at.1
+            );
+        }
     }
 
     /// v0.525/v0.538: in SHIP mode (zones=None) placements() resolves room center + offset,

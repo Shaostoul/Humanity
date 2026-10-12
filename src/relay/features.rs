@@ -2155,13 +2155,13 @@ mod tests {
 
     // ── Ship homes increment 6: the kind of home you ask for ─────────────────────
 
-    /// A relay on a fresh plots database whose ship has its cabins (game_state.rs
-    /// `with_cabin_plots`: lane 1A's row, until the ship file holds it), and whose 200 ms limit
-    /// reads a clock the test moves (`home_ask` moves it past the limit before each ask).
+    /// A relay on a fresh plots database whose ship has its cabins (the ship file's sixteen,
+    /// since lane 1A), and whose 200 ms limit reads a clock the test moves (`home_ask` moves it
+    /// past the limit before each ask).
     async fn relay_with_cabins(tag: &str) -> (std::sync::Arc<crate::relay::relay::RelayState>, u16, tokio::task::JoinHandle<()>, std::sync::Arc<crate::test_clock::ManualClock>, std::sync::Arc<crate::test_temp::TempPath>) {
         let path = plots_db(tag);
         let (state, port, server) = relay_on(&path).await;
-        crate::relay::handlers::game_state::with_cabin_plots(&mut *state.game_world.write().await);
+        assert!(state.game_world.read().await.plot_ids_of_kind("cabin").len() >= 16, "the shipped ship has its cabins");
         let clock = crate::test_clock::ManualClock::new();
         assert!(state.perception_clock.set(clock.clone()).is_ok(), "a new relay has no test clock yet");
         (state, port, server, clock, path)
@@ -2332,11 +2332,14 @@ mod tests {
     }
 
     /// THE SHARED WORLD IS THE SHIP, end to end on a real relay (increment 3): the welcome
-    /// names the ship's rooms (the Commons, its mess hall, First Street) and every crew member
-    /// in it stands in the Commons, on no plot; the player's explore quest has its "find your
-    /// home" step on the plot they hold; walking from their door through the three rooms and
-    /// back home finishes it (a step in each, every one under the 100 m rule); and a meal taken
-    /// at the mess hall's stores comes off the stock the crew eat from.
+    /// names the ship's rooms (the Commons, its mess hall, First Street, and since ship homes
+    /// increment 6 the Commons' recreation room, the cabin block's hall and washroom, and the
+    /// South Commons with its mess hall) and every crew member in it stands in the Commons, on no
+    /// plot; the player's explore quest has its "find your home" step on the plot they hold;
+    /// walking from their door through the rooms and back home finishes it (a step in each, every
+    /// one under the 100 m rule; the South Commons, 750 m down First Street, 50 s of walking at
+    /// the test's pace, is visited in the world itself); and a meal taken at the mess hall's
+    /// stores comes off the stock the crew eat from.
     ///
     /// Seen red 2026-10-04 with the relay's rooms read from data/ships/starter_fleet.ron again
     /// (and the previous chores and crew put through this code): "the welcome's rooms are not
@@ -2346,16 +2349,20 @@ mod tests {
     async fn the_shared_world_is_the_ship_and_its_quest_ends_at_home() {
         let path = plots_db("ship_world");
         let (state, port, server) = relay_on(&path).await;
-        let (mut sock, _) = bind_socket(&state, port, [93u8; 32], Some("ShipWalker"), 1).await;
+        let (mut sock, walker_key) = bind_socket(&state, port, [93u8; 32], Some("ShipWalker"), 1).await;
         let w = welcome_after_join(&mut sock, "ShipWalker").await;
         assert_eq!(welcome_plot(&w).as_deref(), Some("p1"), "the first joiner holds p1");
 
         let mut rooms: Vec<String> = w["rooms"].as_array().unwrap().iter().map(|r| r["id"].as_str().unwrap().to_string()).collect();
         rooms.sort();
-        assert_eq!(rooms, ["commons", "mess-hall", "street-1"], "the welcome's rooms are not the ship's: {rooms:?}");
+        assert_eq!(
+            rooms,
+            ["cabins-1", "commons", "commons-2", "mess-hall", "mess-hall-2", "recreation", "street-1", "washroom-1"],
+            "the welcome's rooms are not the ship's: {rooms:?}"
+        );
         let q = &w["current_quest"];
         assert_eq!(q["home_plot"], "p1", "their quest names their plot: {q}");
-        assert_eq!(q["total_rooms"], 4, "three rooms and home: {q}");
+        assert_eq!(q["total_rooms"], 9, "eight rooms and home: {q}");
 
         let plots = crate::ship::ship_structure::ShipPlots::load(std::path::Path::new("data")).unwrap().plots;
         let commons = (65.0, 20.0, 99.0, 75.0);
@@ -2364,7 +2371,7 @@ mod tests {
         let mut store = None;
         for e in w["world_snapshot"].as_array().unwrap() {
             let p: Vec<f32> = e["position"].as_array().unwrap().iter().map(|v| v.as_f64().unwrap() as f32).collect();
-            if e["entity_type"] == "food_store" {
+            if e["entity_type"] == "food_store" && e["components"]["store_id"] == "mess-hall-stores" {
                 store = Some((e["entity_id"].as_u64().unwrap(), [p[0], p[1], p[2]]));
             }
             if e["entity_type"] == "player" {
@@ -2378,18 +2385,34 @@ mod tests {
             assert!(p[0] >= commons.0 && p[0] <= commons.2 && p[2] >= commons.1 && p[2] <= commons.3, "{name} is not in the Commons: {p:?}");
         }
 
-        // From their door, through the Commons, its mess hall and First Street, and home.
+        // The South Commons and its mess hall, 750 m down First Street, visited in the world.
+        {
+            let mut world = state.game_world.write().await;
+            let id = world.find_player_entity(&walker_key).expect("the walker is in the world");
+            for (p, room) in [([89.0, 1.7, 790.0], "commons-2"), ([89.0, 1.7, 774.0], "mess-hall-2")] {
+                let got = world.quest_step_at(id, p).0.unwrap_or_else(|| panic!("no quest progress in {room}"));
+                assert_eq!(got.step_id, room);
+            }
+        }
+        // From their door, through the Commons, its recreation room and mess hall, First Street,
+        // the cabin block's hall and its washroom, and home.
         let door = game_spawn_on("p1");
         let walk = [
             ([66.0, 1.7, 40.0], "commons", false),
+            ([70.5, 1.7, 67.5], "recreation", false),
             ([75.0, 1.7, 24.0], "mess-hall", false),
             ([70.0, 1.7, 100.0], "street-1", false),
+            ([78.5, 1.7, 100.0], "cabins-1", false),
+            ([78.5, 1.7, 132.0], "washroom-1", false),
             (door, "home", true),
         ];
         // Walked, not jumped (increment 4: the relay corrects a move faster than anyone can go):
         // legs of at most 15 m half a second apart, 30 m/s, under the 31.25 m/s the relay allows.
         let mut at = door;
         for (p, step, last) in walk {
+            // Half a second before each walk as between its legs: the relay judges a leg's
+            // speed by the time since the last one.
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
             walk_steps(&mut sock, at, p).await;
             at = p;
             let got = next_game_of(&mut sock, &["game_quest_progress", "game_quest_completed"]).await;
@@ -2450,7 +2473,14 @@ mod tests {
         let (mut sock, key) = bind_socket(&state, port, [95u8; 32], Some("FleetGiver"), 1).await;
         let (mut other, _) = bind_socket(&state, port, [96u8; 32], Some("FleetOther"), 1).await;
         let w = welcome_after_join(&mut sock, "FleetGiver").await;
-        let store = w["world_snapshot"].as_array().unwrap().iter().find(|e| e["entity_type"] == "food_store").expect("the welcome carries the ship's stores").clone();
+        // The Commons' store (since ship homes increment 6 the South Commons has one too).
+        let store = w["world_snapshot"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|e| e["entity_type"] == "food_store" && e["components"]["store_id"] == "mess-hall-stores")
+            .expect("the welcome carries the ship's stores")
+            .clone();
         let store_id = store["entity_id"].as_u64().unwrap();
         let at: Vec<f32> = store["position"].as_array().unwrap().iter().map(|v| v.as_f64().unwrap() as f32).collect();
         assert_eq!(state.game_world.read().await.fleet_supply, FleetSupply::Unlimited, "a new server's fleet is unlimited");
@@ -4736,9 +4766,10 @@ mod tests {
     /// A JOIN GETS THE PLOTS IN VIEW AND NOT THE FAR ONES (increment 4's 250 m and 300 m, by each
     /// frame's floor). Pieces stand on p2 and on p12, at First Street's far end. A player joining
     /// at p1's door is sent the lists of the Commons, First Street and p1 to p3 (p2's with its
-    /// piece), and nothing of p12, 1 km off. Walking up the street to 249 m from p12 brings p12's
-    /// list, with its piece, and takes p1 to p3 and the Commons out of view; walking back to 301 m
-    /// takes p12 out again.
+    /// piece), since ship homes increment 6 the cabin block's hall and its sixteen cabins too (89
+    /// m away at the farthest), and nothing of p12, 1 km off. Walking up the street to 249 m from
+    /// p12 brings p12's list, with its piece, and takes p1 to p3, the Commons and the cabin block
+    /// out of view; walking back to 301 m takes p12 out again.
     ///
     /// Seen red 2026-10-05 with every frame sent on a join: "the frames in view at p1's door /
     /// left: {\"plot:p1\", \"plot:p10\", \"plot:p11\", \"plot:p12\", ...".
@@ -4752,7 +4783,9 @@ mod tests {
         assert_eq!(plot.as_deref(), Some("p1"));
         let lists = shared_build_messages_for(&mut j, 800).await;
         let frames: std::collections::BTreeSet<&str> = lists.iter().filter(|g| g["type"] == "game_pieces").filter_map(|g| g["frame"].as_str()).collect();
-        let want: std::collections::BTreeSet<&str> = ["plot:p1", "plot:p2", "plot:p3", "zone:commons", "zone:street-1"].into_iter().collect();
+        let cabins: Vec<String> = (1..=16).map(|n| format!("plot:c{n}")).collect();
+        let mut want: std::collections::BTreeSet<&str> = ["plot:p1", "plot:p2", "plot:p3", "zone:commons", "zone:street-1", "zone:cabins-1"].into_iter().collect();
+        want.extend(cabins.iter().map(|s| s.as_str()));
         assert_eq!(frames, want, "the frames in view at p1's door");
         let p2 = lists.iter().find(|g| g["frame"] == "plot:p2").unwrap();
         assert_eq!(ids_of(p2["pieces"].as_array().unwrap()), vec![on_p2], "p2's list has its piece");
@@ -4764,7 +4797,8 @@ mod tests {
         assert_eq!(ids_of(&pieces), vec![on_p12], "p12 came into view, with its piece");
         let gone = shared_build_messages_for(&mut j, 600).await;
         let gone: std::collections::BTreeSet<&str> = gone.iter().filter(|g| g["type"] == "game_frame_out_of_view").filter_map(|g| g["frame"].as_str()).collect();
-        let want: std::collections::BTreeSet<&str> = ["plot:p1", "plot:p2", "plot:p3", "zone:commons"].into_iter().collect();
+        let mut want: std::collections::BTreeSet<&str> = ["plot:p1", "plot:p2", "plot:p3", "zone:commons", "zone:cabins-1"].into_iter().collect();
+        want.extend(cabins.iter().map(|s| s.as_str()));
         assert_eq!(gone, want, "the far end of the street is out of the Commons' view");
 
         // Back down to 301 m from p12's floor.
@@ -4977,7 +5011,12 @@ mod tests {
 
         crate::relay::handlers::shared_build::send_checks(&state).await;
         let c = next_frame_with(&mut ann, checks).await.expect("Ann's check");
-        let want = serde_json::json!({ "plot:p1": 1, "plot:p2": 0, "plot:p3": 0, "zone:commons": 0, "zone:street-1": 0 });
+        // Since ship homes increment 6 the cabin block's hall and its sixteen cabins are in view
+        // of p1's door too, at no change.
+        let mut want = serde_json::json!({ "plot:p1": 1, "plot:p2": 0, "plot:p3": 0, "zone:commons": 0, "zone:street-1": 0, "zone:cabins-1": 0 });
+        for n in 1..=16 {
+            want[format!("plot:c{n}")] = serde_json::json!(0);
+        }
         assert_eq!(c["frames"], want, "the frames in view at p1's door, p1 at its one change: {c}");
         assert_eq!(c["ranks"], none, "no rank: {c}");
         let b = next_frame_with(&mut bo, checks).await.expect("Bo's check");
