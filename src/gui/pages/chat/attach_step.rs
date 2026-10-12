@@ -175,6 +175,70 @@ pub(crate) struct Step {
     pub channel: String,
     /// When it was picked: the step shows "Checking..." only if the look takes a while.
     pub opened: std::time::Instant,
+    /// Over the person's private file limit in a DM: it goes straight to the other person's device
+    /// instead (device-to-device big files, media-showcase.md answer 10), never to the server.
+    pub direct: Option<Direct>,
+}
+
+/// A file that goes device to device: where it is, and the limit it is over.
+pub(crate) struct Direct {
+    pub path: std::path::PathBuf,
+    pub peer: String,
+    pub limit: u64,
+}
+
+/// Where a picked file goes.
+pub(crate) enum Picked {
+    /// The upload (and its own refusals): anything but a DM file over the private file limit.
+    Upload,
+    /// A DM file over the person's private file limit there: offered device to device.
+    Direct(AttachJob, Direct),
+    /// Its name holds the person's recovery phrase (the guard said so already): nothing is sent.
+    Stopped,
+}
+
+/// Route a file picked with Attach. A file in a DM over the person's private file limit there is
+/// offered device to device; its name is held to the recovery-phrase guard first, as an upload's
+/// is (the name travels in the offer).
+pub(crate) fn route_pick(state: &mut GuiState, path: &std::path::Path) -> Picked {
+    let Some(peer) = state.chat_active_channel.strip_prefix("dm:").map(str::to_string) else { return Picked::Upload };
+    let Ok(len) = std::fs::metadata(path).map(|m| m.len()) else { return Picked::Upload };
+    let limit = attach_send::limit_for(attach_send::Limits::of(state), Destination::DirectMessage);
+    if len <= limit {
+        return Picked::Upload;
+    }
+    let filename = path.file_name().and_then(|n| n.to_str()).unwrap_or("file").to_string();
+    if crate::engine::warnings::guard_stops(state, &[filename.as_str()]) {
+        return Picked::Stopped;
+    }
+    let job = placeholder_job(state, &filename, path, len, limit);
+    Picked::Direct(job, Direct { path: path.to_path_buf(), peer, limit })
+}
+
+/// The attach step's job for a file that goes device to device: its name, type and size, as an
+/// upload's would be (nothing is uploaded, so no token).
+fn placeholder_job(state: &GuiState, filename: &str, path: &std::path::Path, len: u64, limit: u64) -> AttachJob {
+    AttachJob {
+        server: state.server_url.clone(),
+        token: String::new(),
+        filename: filename.to_string(),
+        mime: mime_for_filename(filename).to_string(),
+        body: super::attach_body::Body::File { path: path.to_path_buf(), len },
+        share: false,
+        to: Destination::DirectMessage,
+        limit,
+        clean: true,
+        allow_unchecked: false,
+    }
+}
+
+/// Open the attach step for a file that goes device to device (it always shows: the line says why
+/// the file does not go through the server, and the person says Send).
+pub(super) fn open_direct(state: &mut GuiState, job: AttachJob, direct: Direct) {
+    let looking = Looking::of_file(direct.path.clone(), job.filename.clone());
+    let remove = remove_at_start(state);
+    let channel = state.chat_active_channel.clone();
+    state.files_flow.step = Some(Step { job, looking, remove, channel, opened: std::time::Instant::now(), direct: Some(direct) });
 }
 
 /// How long a look may take before the step shows "Checking..." (a quick one shows nothing).
@@ -194,6 +258,9 @@ pub struct FilesFlow {
     asking: Option<((String, String), Receiver<Option<(String, String)>>)>,
     /// The Settings > Data line after "Clear kept files".
     pub(crate) kept_note: String,
+    /// Device-to-device big files: each transfer's connection and progress on this device
+    /// (engine/file_transfer.rs; what lasts is the DM store's record of each).
+    pub(crate) transfers: crate::engine::file_transfer::Transfers,
 }
 
 /// Is this a private conversation (a DM or a group) whose attach button the person turned off
@@ -208,7 +275,7 @@ pub(super) fn open(state: &mut GuiState, job: AttachJob, path: &std::path::Path)
     let looking = Looking::of_file(path.to_path_buf(), job.filename.clone());
     let remove = remove_at_start(state);
     let channel = state.chat_active_channel.clone();
-    state.files_flow.step = Some(Step { job, looking, remove, channel, opened: std::time::Instant::now() });
+    state.files_flow.step = Some(Step { job, looking, remove, channel, opened: std::time::Instant::now(), direct: None });
 }
 
 /// The other person's published `accepts_files` and name, from their server's member answer
@@ -273,9 +340,16 @@ pub(crate) fn needs_asking(look: &Result<Look, String>, line: Option<&String>) -
     }
 }
 
-/// Send `step`'s file: the switch remembered, then the upload on its worker.
+/// Send `step`'s file: the switch remembered, then the upload on its worker, or, for a file over
+/// the private limit in a DM, the offer to the other person's device (cleaned and read for its
+/// hashes on a worker first, engine/file_transfer.rs `offer`).
 fn send_step(state: &mut GuiState, step: Step, anyway: bool) {
     remember_switch(state, step.remove);
+    if let Some(d) = &step.direct {
+        let (name, mime) = (step.job.filename.clone(), step.job.mime.clone());
+        crate::engine::file_transfer::offer(state, &d.peer, &d.path, &name, &mime, step.remove, anyway);
+        return;
+    }
     let mut job = step.job;
     job.clean = step.remove;
     job.allow_unchecked = anyway;
@@ -304,24 +378,42 @@ pub(super) fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         return;
     }
     if let Some(look) = &step.looking.look {
-        if !needs_asking(look, line.as_ref()) {
+        // A file that goes device to device always asks: its line says why it does not go
+        // through the server.
+        if step.direct.is_none() && !needs_asking(look, line.as_ref()) {
             send_step(state, step, false); // nothing hidden in it: it goes as it is
             return;
         }
     }
+    // Device to device: the line saying why, and anything that stops it going now.
+    let direct_lines = step.direct.as_ref().map(|d| {
+        let name = crate::engine::dm::dm_display_name(state, &d.peer);
+        let why = crate::net::file_offer::goes_direct_line(d.limit, &name);
+        let blocker = crate::engine::file_transfer::cannot_offer(state, &d.peer).map(|b| format!("It cannot be offered now: {b}"));
+        (why, format!("{name}'s app asks them first, and both of your apps have to be open while it goes."), blocker)
+    });
     let mut open = true;
     let mut send = false;
     let mut cancel = false;
     let mut verdict_now = Verdict { can_send: false, anyway: false };
     widgets::dialog(ctx, theme, "chat_attach_step", "Send a file", &mut open, |ui| {
         ui.set_max_width(460.0);
-        let size = super::attach_view::size_words(step.job.body.len());
+        let size = if step.direct.is_some() { crate::net::file_offer::size_words(step.job.body.len()) } else { super::attach_view::size_words(step.job.body.len()) };
         ui.label(RichText::new(format!("{} ({size})", step.job.filename)).size(theme.font_size_body).color(theme.text_primary()).strong());
         ui.add_space(theme.spacing_xs);
         verdict_now = draw_look(ui, theme, &mut step.looking, &mut step.remove, protected, private);
         if let Some(line) = &line {
             ui.add_space(theme.spacing_xs);
             ui.label(RichText::new(line).size(theme.font_size_small).color(theme.text_secondary()));
+        }
+        if let Some((why, how, blocker)) = &direct_lines {
+            ui.add_space(theme.spacing_xs);
+            ui.label(RichText::new(why).size(theme.font_size_small).color(theme.text_primary()));
+            ui.label(RichText::new(how).size(theme.font_size_small).color(theme.text_secondary()));
+            if let Some(b) = blocker {
+                ui.label(RichText::new(b).size(theme.font_size_small).color(theme.warning()));
+                verdict_now.can_send = false;
+            }
         }
         ui.add_space(theme.spacing_sm);
         ui.horizontal(|ui| {

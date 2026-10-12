@@ -166,6 +166,12 @@ struct StoreBody {
     /// of the file's key (its `[[hum:file:v1]]` marker).
     #[serde(default)]
     scratchpad: Vec<ScratchNote>,
+    /// Device-to-device big files (docs/design/media-showcase.md, answer 10, 2026-10-11): every
+    /// transfer offered to or by this person on this server, oldest first, as this device knows it
+    /// (net/file_offer.rs `OfferRecord`). The notes that bring them are read once from the mailbox,
+    /// so this is the only copy: a transfer survives the app being closed as this record.
+    #[serde(default)]
+    file_offers: Vec<super::file_offer::OfferRecord>,
 }
 
 /// Scratch pad notes kept, newest first to stay (10m R10, the web's number).
@@ -325,6 +331,16 @@ impl DmStore {
 
     pub fn high_water(&self) -> i64 {
         self.body.high_water
+    }
+
+    /// The device-to-device transfers this device knows of (engine/file_transfer.rs).
+    pub fn file_offers(&self) -> &[super::file_offer::OfferRecord] {
+        &self.body.file_offers
+    }
+
+    /// The same, to change (the caller saves).
+    pub fn file_offers_mut(&mut self) -> &mut Vec<super::file_offer::OfferRecord> {
+        &mut self.body.file_offers
     }
 
     /// Raise the fetch high-water mark (never lowers it).

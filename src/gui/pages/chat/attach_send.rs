@@ -371,8 +371,16 @@ pub(super) fn start(state: &mut GuiState, job: AttachJob) {
 /// The Attach picker chose `path`: its attach step opens (chat/attach_step.rs), which shows what is
 /// hidden in it and sends it on Send (the worker reads it).
 pub(super) fn start_attach(state: &mut GuiState, path: &std::path::Path) {
-    if let Some(job) = attach_file_job(state, path) {
-        super::attach_step::open(state, job, path);
+    // A DM file over the person's private file limit goes straight to the other person's device
+    // instead of being refused (device-to-device big files, media-showcase.md answer 10).
+    match super::attach_step::route_pick(state, path) {
+        super::attach_step::Picked::Direct(job, direct) => super::attach_step::open_direct(state, job, direct),
+        super::attach_step::Picked::Stopped => {}
+        super::attach_step::Picked::Upload => {
+            if let Some(job) = attach_file_job(state, path) {
+                super::attach_step::open(state, job, path);
+            }
+        }
     }
 }
 

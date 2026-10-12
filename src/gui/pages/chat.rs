@@ -84,6 +84,8 @@ pub(crate) mod attach_step;
 pub use attach_step::FilesFlow;
 /// Showing a private file (10k): the picture inline, or a card with Save. See `chat/attach_view.rs`.
 mod attach_view;
+/// Device-to-device big files (answer 10): a row per transfer at the top of a DM. See `chat/transfer_rows.rs`.
+mod transfer_rows;
 #[cfg(test)]
 pub(crate) use attach_view::{cache_key as private_file_key, open as open_private_file};
 /// Quote / reply: a reply stays in its own conversation and never carries private words or a
@@ -470,6 +472,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     // Send request, above the conversation.
     if let Some(peer) = state.chat_active_channel.strip_prefix("dm:").map(str::to_string) {
         reach::draw_refusal_notice(ui, theme, state, &peer);
+        transfer_rows::draw(ui, theme, state, &peer); // files going device to device with them
     }
 
     // ── Message area ──
