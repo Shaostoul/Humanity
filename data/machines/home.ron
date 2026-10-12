@@ -2110,6 +2110,9 @@
             ports: [],
             storage: [],
             auto_recipe: Some("saw_planks"),
+            // Stops at 40 planks on hand (2026-10-12, first-hour audit F7): without a limit it sawed
+            // every stored log, leaving none for the kiln's charcoal, a bed's fiber or a raft.
+            auto_keep: Some(40),
             container_type: None,
             model: None,
         ),
@@ -2334,6 +2337,9 @@
             ports: [],
             storage: [],
             auto_recipe: Some("assemble_rover"),
+            // One rover on hand, then it stops (2026-10-12): unlimited, it turned every steel and
+            // iron ingot and rubber sheet in the home into rovers, 6 + 4 + 4 at a time.
+            auto_keep: Some(1),
             container_type: None,
             model: None,
         ),

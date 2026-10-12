@@ -50,6 +50,8 @@ pub const NOT_CONNECTED: &str = "Connect to a server to see its household permit
 pub const NOT_IN_WORLD: &str =
     "Step into this server's shared world to give permits: the server says which plot is yours when you arrive.";
 /// In the shared world with no plot of one's own.
+/// In the shared world, the server's welcome not here yet (it names the plot, or none).
+pub const JOINING: &str = "Joining this server's shared world...";
 pub const GUEST: &str = "You have no plot on this ship (the server had none free), so there is nothing to give a permit for.";
 /// Nobody to list.
 pub const NO_FRIENDS: &str = "No friends here yet: people you follow who follow you back on this server are listed here.";
@@ -271,6 +273,7 @@ fn draw_your_plot(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, length
         (Some(p), true) => {
             ui.label(RichText::new(format!("Your plot on this server: {p}.")).size(theme.font_size_small).color(theme.text_primary()));
         }
+        (None, true) if !state.household.welcomed => say(ui, theme, JOINING, theme.text_muted()),
         (None, true) => say(ui, theme, GUEST, theme.text_muted()),
         (_, false) => say(ui, theme, NOT_IN_WORLD, theme.text_muted()),
     }

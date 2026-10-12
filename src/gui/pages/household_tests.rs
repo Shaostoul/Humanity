@@ -48,6 +48,7 @@ fn on_p2(seed: &[u8], me: &str, tag: &str) -> (GuiState, Receiver<String>) {
     let (mut gs, sent) = app(seed, me, tag);
     gs.copresence_active = true;
     gs.household.my_plot = Some("p2".into());
+    gs.household.welcomed = true;
     (gs, sent)
 }
 
@@ -373,8 +374,22 @@ fn the_household_card_in_words() {
     }
     assert!(!drawn.iter().any(|d| d == "Lee"), "a friend with nothing given is not listed outside a giving session");
 
-    // A guest: in the shared world with no plot of their own.
+    // Joining: in the shared world, the welcome not here yet. The card says so, not that the
+    // player is a guest (it used to flash the guest line on every join). Seen red 2026-10-12 with
+    // the JOINING arm taken out of draw_your_plot: "joining; missing: [Joining this server's
+    // shared world...]".
     gs.copresence_active = true;
+    gs.household.welcomed = false;
+    let out = body_frame(&ctx, &theme, &mut gs);
+    let gone = missing(&out, &["Joining this server's shared world...".into()]);
+    assert!(gone.is_empty(), "joining; missing: {gone:?}");
+    assert!(
+        !texts(&out).iter().any(|t| t.starts_with("You have no plot")),
+        "no guest line before the welcome"
+    );
+
+    // A guest: in the shared world with no plot of their own, the welcome in.
+    gs.household.welcomed = true;
     let out = body_frame(&ctx, &theme, &mut gs);
     let gone = missing(&out, &["You have no plot on this ship (the server had none free), so there is nothing to give a permit for.".into()]);
     assert!(gone.is_empty(), "a guest; missing: {gone:?}");

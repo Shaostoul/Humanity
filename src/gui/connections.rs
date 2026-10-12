@@ -834,6 +834,7 @@ mod park_unpark_tests {
             let key = PermitKey { from: "ada".into(), plot: "p1".into(), serial: "01".repeat(16) };
             Household {
                 my_plot: Some("p2".into()),
+                welcomed: true,
                 verdicts: [(key.clone(), Judged { verdict: Verdict::Works, at: 3.0 })].into_iter().collect(),
                 usable: p1(),
                 walkable: p1(),
@@ -856,6 +857,7 @@ mod park_unpark_tests {
         };
         let forgotten = |h: &Household| {
             assert_eq!(h.my_plot, None, "this server's plot is forgotten");
+            assert!(!h.welcomed, "the next server's welcome is waited for");
             assert!(h.verdicts.is_empty() && h.usable.is_empty() && h.asked.is_empty(), "and what it said of each permit");
             assert_eq!(h.next_check_at, 0.0, "the next welcome asks afresh");
             assert!(h.line.is_empty(), "the card's line was about that server");

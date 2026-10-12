@@ -2741,6 +2741,42 @@ mod tests {
         }
     }
 
+    /// EVERY AUTOMATIC MACHINE SAYS WHEN IT STOPS (2026-10-12, first-hour audit F7). A machine
+    /// with an `auto_recipe` and no `auto_keep` runs until an input is gone, which is right only
+    /// when its inputs have no other use worth keeping. The sawmill had none and sawed every
+    /// stored log (leaving none for charcoal, a bed's fiber or a raft), and the vehicle assembler
+    /// turned every steel ingot into rovers. So a machine with no limit must be listed here with
+    /// the reason it may run until its inputs are gone.
+    ///
+    /// Red, with the sawmill's `auto_keep` taken out of home.ron: "home.ron: the automatic
+    /// machine 'sawmill' (saw_planks) has no auto_keep and is not listed as one that may run
+    /// until its inputs are gone".
+    #[test]
+    fn every_automatic_machine_says_when_it_stops() {
+        const RUNS_UNTIL_INPUTS_ARE_GONE: &[(&str, &str)] = &[
+            ("smelter", "iron ore has no other use, and ingots are what the home works with"),
+            ("fuel_refinery", "crude oil has no other use than refining"),
+        ];
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let mut automatic = 0usize;
+        for file in ["home.ron", "home_solo.ron"] {
+            let home = MachineHome::load(&root.join("data").join("machines").join(file))
+                .unwrap_or_else(|| panic!("{file} parses"));
+            for (name, def) in &home.catalog {
+                let Some(recipe) = def.auto_recipe.as_deref() else { continue };
+                automatic += 1;
+                if def.auto_keep.is_none() {
+                    assert!(
+                        RUNS_UNTIL_INPUTS_ARE_GONE.iter().any(|(m, _)| m == name),
+                        "{file}: the automatic machine '{name}' ({recipe}) has no auto_keep and is not \
+                         listed as one that may run until its inputs are gone"
+                    );
+                }
+            }
+        }
+        assert!(automatic >= 6, "the shipped homes' automatic machines were read, got {automatic}");
+    }
+
     /// EVERY SHIPPED HOME HAS WHAT THE STARTER QUESTS NEED (2026-10-04, the first-hour
     /// audit's B4). A hand craft needs its recipe's station placed in the home (the station
     /// gate in CraftingSystem). Settings > Home Design = Solo loads home_solo.ron, which placed

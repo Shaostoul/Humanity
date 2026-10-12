@@ -759,6 +759,7 @@ pub(crate) fn session_began(gs: &mut GuiState, welcome: &serde_json::Value) {
         .map(str::to_string);
     let hh = &mut gs.household;
     hh.my_plot = plot;
+    hh.welcomed = true;
     hh.verdicts.clear();
     hh.usable.clear();
     hh.asked.clear();
@@ -773,6 +774,7 @@ pub(crate) fn session_began(gs: &mut GuiState, welcome: &serde_json::Value) {
 pub(crate) fn session_ended(gs: &mut GuiState) {
     let hh = &mut gs.household;
     hh.my_plot = None;
+    hh.welcomed = false;
     hh.verdicts.clear();
     hh.usable.clear();
     hh.asked.clear();
