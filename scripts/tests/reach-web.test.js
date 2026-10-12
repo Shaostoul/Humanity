@@ -58,6 +58,11 @@
 //     choice or withdraws another pass); every pass's self-copy waits for dm_put_ok again, an
 //     untick's too, and the choice reaches my other devices in its note first (N5). The rest
 //     of 10n, with the two-device sequences, is scripts/tests/choice-web.test.js.
+// 10. Ship homes 5b (2026-10-12, docs/design/ship-homes-increment-5b-plan.md 3.12): a household
+//     permit is the desktop app's alone. Its marker is native CTL_PERMIT, read out of
+//     src/net/dm_pq.rs; a permit note from a friend, live (`dm_new`) and from the mailbox
+//     (`dm_batch`), my own desktop app's self-copy included, is not stored, listed or notified;
+//     one from a stranger is not listed under Requests. See the test at the end of this file.
 //
 // Red first, 2026-10-09 (each mutation made in a copy of web/, run, seen failing; tests 0, 4 and 5
 // seen red again after the amendment):
@@ -112,6 +117,13 @@
 //     unticked, held still".
 //  chat-dm-store.js: no cap on the passes never answered (friend-pass-web.test.js): "the fifth
 //     withdraws the oldest".
+//
+// Red first, 2026-10-12 (10, ship homes 5b; in a copy of web/ named by HOS_WEB_DIR):
+//  chat-social.js: the CTL_PERMIT line taken out of ingestDmControl failed "the permit note is
+//     stored as a DM" (a friend's note, live, was kept as a message). With the line back the
+//     test passes.
+//  crypto.js: CTL_PERMIT spelled '[[hum:permit]]': "the web's permit marker is not the desktop
+//     app's".
 
 const test = require("node:test");
 const assert = require("node:assert");
@@ -1535,4 +1547,85 @@ test("10m R3: a pass of mine still on its way goes too when my other device with
   await handle({ type: "full_user_list", users: memberUsers() });
   await settle();
   assert.ok(!sock.sent.some((m) => m.type === "dm_put" && m.to === BEN), "and no pass goes to him by itself");
+});
+
+// ── 10. Ship homes 5b: a household permit is the desktop app's alone (2026-10-12) ──
+// docs/design/ship-homes-increment-5b-plan.md 3.12. The desktop app gives a friend a permit for its
+// giver's plot as a sealed DM whose text is [[hum:permit:v1]] and then the permit's JSON (native
+// net::household note_text). The website has no game and holds no permits, so chat-social.js
+// ingestDmControl swallows the note first, live and from the mailbox, before the reach screen and
+// the store. The assertion messages below say what went wrong when one fails. Each half has a
+// control at its end (a friend's plain DM is stored and notified, a stranger's is a request), so
+// the checks can be seen to fail. Seen red: see "Red first, 2026-10-12" at the top of this file.
+
+/** A permit note's text, the shape the desktop app sends (src/systems/construction/shared.rs Permit). */
+function permitNoteText(marker, issuer, plot, serial) {
+  return marker + JSON.stringify({
+    issuer, server: SERVER, plot, grantee: "did:hum:7Wq2nXhVbA1kPz9cR3tYfE", serial,
+    expiry: 1767225600, sig: b64(`hum/permit/v2\n${SERVER}\n${plot}`),
+  });
+}
+
+test("10: a permit note is never stored, listed, notified or made a contact request", async () => {
+  const rust = fs.readFileSync(path.join(ROOT, "src", "net", "dm_pq.rs"), "utf8");
+  const m = rust.match(/pub const CTL_PERMIT:\s*&str\s*=\s*"([^"]+)";/);
+  assert.ok(m, "src/net/dm_pq.rs still declares CTL_PERMIT");
+  const t = await loadChat();
+  const { ctx, sock, store, appended, notified, handle, fn } = t;
+  const marker = vm.runInContext("CTL_PERMIT", ctx);
+  assert.equal(marker, m[1], "the web's permit marker is not the desktop app's");
+  assert.equal(marker, "[[hum:permit:v1]]");
+
+  await handle({ type: "reach_settings", settings: { message: "friends", call: "chosen", trade: "friends" } });
+  store.recordPassSent(ANN, "aa".repeat(16), DEFAULT_MAY); // Ann is a friend
+  const dmList = () => vm.runInContext("dmConversations", ctx);
+  const everything = () => [
+    ...appended.map(textOf), ...notified.map((a) => a.join(" ")), JSON.stringify(store.contactRequests),
+    JSON.stringify(dmList()), fn("contactRequestsSidebarHtml")(),
+  ].join("\n");
+
+  // Live, from a friend.
+  await handle({ type: "dm_new", id: 1, content: dmEnvelope(ANN, permitNoteText(marker, ANN, "p1", "11".repeat(16)), 1760000100000) });
+  await settle();
+  assert.deepEqual(store.conversation(ANN), [], "the permit note is stored as a DM");
+  assert.deepEqual(store.summaries(), [], "the permit note is listed among the conversations");
+  assert.deepEqual(dmList(), [], "the permit note is listed in the DMs tab");
+  assert.deepEqual(notified, [], "the permit note is notified");
+  assert.deepEqual(store.contactRequestList(), [], "a friend's permit note is listed under Requests");
+
+  // From the mailbox: a friend's, my own desktop app's self-copy of one I gave Ann, and a friend's
+  // plain DM after them (the control: the page was read).
+  await handle({ type: "dm_batch", ref: fn("sendDmFetch")(store.highWater), messages: [
+    { id: 2, content: dmEnvelope(ANN, permitNoteText(marker, ANN, "p2", "22".repeat(16)), 1760000200000) },
+    { id: 3, content: selfEnvelope(ANN, permitNoteText(marker, ME, "p3", "33".repeat(16)), undefined, 1760000300000) },
+    { id: 4, content: dmEnvelope(ANN, "hi from Ann", 1760000400000) },
+  ], done: true });
+  await settle();
+  assert.deepEqual(store.conversation(ANN).map((x) => x.text), ["hi from Ann"], "a permit note from the mailbox is stored as a DM");
+  assert.deepEqual(store.summaries().map((s) => [s.peer, s.lastText]), [[ANN, "hi from Ann"]], "a permit note from the mailbox is listed");
+  assert.deepEqual(dmList().map((c) => [c.partner_key, c.last_message]), [[ANN, "hi from Ann"]], "a permit note from the mailbox is listed in the DMs tab");
+  assert.deepEqual(notified, [], "a permit note from the mailbox is notified");
+
+  // From strangers (my settings let only friends message me): never a contact request, live or
+  // from the mailbox.
+  await handle({ type: "dm_new", id: 5, content: dmEnvelope(CY, permitNoteText(marker, CY, "p4", "44".repeat(16)), 1760000500000) });
+  await settle();
+  await handle({ type: "dm_batch", ref: fn("sendDmFetch")(store.highWater), messages: [
+    { id: 6, content: dmEnvelope(BEN, permitNoteText(marker, BEN, "p5", "55".repeat(16)), 1760000600000) },
+  ], done: true });
+  await settle();
+  assert.deepEqual(store.contactRequestList(), [], "a stranger's permit note is listed under Requests");
+  assert.deepEqual(store.conversation(CY), [], "a stranger's permit note is stored as a DM");
+  assert.deepEqual(store.conversation(BEN), [], "a stranger's permit note from the mailbox is stored as a DM");
+  assert.ok(!everything().includes(marker), "a permit note is shown somewhere");
+  assert.ok(!everything().includes("hum/permit"), "a permit's words are shown somewhere");
+  assert.deepEqual(sock.sent.filter((x) => x.type === "dm_put"), [], "a permit note made the page send something");
+
+  // The controls: a friend's plain DM is stored and notified; a stranger's is listed by name.
+  await handle({ type: "dm_new", id: 7, content: dmEnvelope(ANN, "and again", 1760000700000) });
+  await handle({ type: "dm_new", id: 8, content: dmEnvelope(CY, "a stranger's words", 1760000800000) });
+  await settle();
+  assert.equal(store.conversation(ANN).length, 2, "the control: a friend's plain DM is kept");
+  assert.deepEqual(notified.filter((a) => a[0] === "Ann").map((a) => a[1]), ["and again"], "the control: and notified");
+  assert.deepEqual(store.contactRequestList().map((r) => [r.key, r.name, r.hasPass]), [[CY, "Cy", false]], "the control: a stranger's plain DM is listed under Requests");
 });

@@ -906,6 +906,15 @@ const DM_SIG_DOMAIN_V2 = 'hum/dm/v2';
 const CTL_FOLLOW = '[[hum:follow]]';
 const CTL_UNFOLLOW = '[[hum:unfollow]]';
 const CTL_FRIEND_CERT = '[[hum:friend-cert]]';
+// A household permit (ship homes 5b, 2026-10-12): the desktop app gives a
+// friend a permit to build on, and walk into, its giver's plot on this server,
+// as a note whose text is this marker and then the permit's JSON (native
+// net::household note_text). The website has no game, so it holds no permits:
+// chat-social.js ingestDmControl swallows the note, which is never stored,
+// listed, notified or turned into a contact request
+// (docs/design/ship-homes-increment-5b-plan.md 3.12). Pinned to native
+// CTL_PERMIT by scripts/tests/reach-web.test.js.
+const CTL_PERMIT = '[[hum:permit:v1]]';
 // Block's notes to myself, [[hum:block:v1]]<key> and [[hum:unblock:v1]]<key>
 // (step C, 2026-10-09), are CTL_BLOCK and CTL_UNBLOCK in /shared/block.js,
 // pinned to native by scripts/tests/block-web.test.js; pqBuildSelfNote below
