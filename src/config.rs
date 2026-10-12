@@ -2379,7 +2379,7 @@ mod play_mode_tests {
         assert_eq!(old.files_in_messages, FilesInMessages::default(), "the defaults in an old config");
         let mut state = crate::gui::GuiState::default();
         assert_eq!(state.settings.files_in_messages, FilesInMessages::default(), "the defaults in a fresh app");
-        let chosen = FilesInMessages { accept_from: AcceptFrom::Nobody, show_pictures_from: ShowPictures::Nobody, attach_button: false, remove_details: false, kept_cap_mb: 7, accept_unsent: true };
+        let chosen = FilesInMessages { accept_from: AcceptFrom::Nobody, show_pictures_from: ShowPictures::Nobody, attach_button: false, remove_details: false, kept_cap_mb: 7, accept_unsent: true, accept_chosen: true, accept_seen: [("https://one.example".to_string(), "nobody".to_string())].into() };
         state.settings.files_in_messages = chosen.clone();
         let json = serde_json::to_string(&AppConfig::from_gui_state(&state)).unwrap();
         let back: AppConfig = serde_json::from_str(&json).unwrap();

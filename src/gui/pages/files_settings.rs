@@ -8,17 +8,25 @@
 //! remembered switch. The receiving app enforces them (chat/attach_view.rs `plan`); the server
 //! cannot and is not asked to.
 //!
-//! PUBLISHING "Accept files from" (`accepts_files` in the person's profile on the server they are
-//! on, so a sender's app can say so before anything is sent), by the web's rules of 2026-10-11:
+//! PUBLISHING "Accept files from" (`accepts_files` in the person's profile on each server they
+//! use, so a sender's app can say so before anything is sent). The choice is one per device; each
+//! server holds its own copy of the word:
 //! - the server saves a profile update WHOLE (a field left out is saved empty), so the word goes in
 //!   the whole profile every save sends (own_profile.rs), built from that server's own copy, so
 //!   publishing the choice never wipes a bio or a picture set elsewhere;
-//! - the word goes only while a choice made on this device is waiting (`accept_unsent`, kept in the
-//!   config, so a choice made offline still goes), and it counts as saved only when that server's
-//!   copy comes back carrying it (BUG-196: it used to count as saved when sent, so an update the
-//!   server turned down was lost, and the server's old word was then taken back);
-//! - while nothing waits, a different word on the server is another device's newer choice, and this
-//!   device takes it, except a more open one while the protected setup is on.
+//! - the word goes only while it waits (`accept_unsent`, kept in the config, so a choice made
+//!   offline still goes), and it counts as saved only when that server's copy comes back carrying
+//!   it (BUG-196: it used to count as saved when sent, so an update the server turned down was
+//!   lost, and the server's old word was then taken back);
+//! - which word wins on a server is `files_policy::accept_step` (BUG-200): this device remembers
+//!   the word it last saw each server hold (`accept_seen`). A server holding a different word now
+//!   is one where another device changed it, and this device takes it (never a more open one while
+//!   the protected setup is on). A server still holding what this device last saw, or one it has
+//!   never seen (a new server, or one with no profile for the person, which answers "friends"),
+//!   is sent this device's choice if the person ever chose here (`accept_chosen`); a device that
+//!   never chose takes that server's word. Before BUG-200 any different word was taken whenever
+//!   nothing waited, so a server that never got the choice turned it back, and switching between
+//!   two servers flipped it.
 //! Under the protected setup the choice can be closed here but not opened (the web asks for the
 //! PIN; this app has no PIN step for it, so turning the setup off comes first).
 //!
@@ -29,7 +37,7 @@ use egui::RichText;
 
 use crate::gui::theme::Theme;
 use crate::gui::{widgets, GuiState};
-use crate::net::files_policy::{self as policy, AcceptFrom, ShowPictures};
+use crate::net::files_policy::{self as policy, AcceptFrom, AcceptStep, ShowPictures};
 
 /// This person's own profile as their server holds it, the fields a profile update saves, from the
 /// own copy the server sends over the chat socket (own_profile.rs `own_copy`).
@@ -50,31 +58,56 @@ pub(crate) struct ServerProfile {
 }
 
 /// Every frame, from own_profile.rs `pump` once the server the app is on has sent the person's own
-/// copy: keep "Accept files from" in step with it (see the module notes).
-/// - A choice made here waits (`accept_unsent`) until that server's copy carries it: it goes with
-///   the whole profile (`own_profile::want_save`), once per choice and server in a run of the app,
+/// copy: keep "Accept files from" in step with it, by `files_policy::accept_step` (see the module
+/// notes).
+/// - Settled (the server holds this device's word): a waiting choice counts as saved, and the word
+///   is recorded as seen there.
+/// - Send: the choice waits (`accept_unsent`) until that server's copy carries it, and goes with
+///   the whole profile (`own_profile::want_save`) once per choice and server in a run of the app,
 ///   so an update the server refuses (it says why, in the chat) is not sent again and again.
-/// - While nothing waits, a different word on the server is another device's newer choice, and
-///   this device takes it, except a more open one while the protected setup is on.
+/// - Take: the server's word becomes this device's, recorded as seen there.
 pub(crate) fn sync_accepts(state: &mut GuiState) {
     let server = crate::gui::pages::own_profile::current_server(state);
     let Some(word) = crate::gui::pages::own_profile::current_copy(state).and_then(|c| c.accepts_files.clone()) else { return };
-    let prefs = state.settings.files_in_messages.clone();
-    if prefs.accept_unsent {
-        let mine = prefs.accept_from.word();
-        if word == mine {
-            state.settings.files_in_messages.accept_unsent = false;
-            state.settings_dirty = true;
-            state.own_profile.accept_sent = None;
-        } else if state.own_profile.accept_sent.as_ref() != Some(&(server.clone(), mine.to_string())) {
-            state.own_profile.accept_sent = Some((server, mine.to_string()));
-            crate::gui::pages::own_profile::want_save(state);
-        }
-        return;
-    }
     let protected = crate::engine::protected::is_on(state);
-    if let Some(take) = policy::adopt_from_server(&prefs, &word, protected) {
-        state.settings.files_in_messages.accept_from = take;
+    match policy::accept_step(&state.settings.files_in_messages, &server, &word, protected) {
+        AcceptStep::Settled => {
+            let prefs = &mut state.settings.files_in_messages;
+            if prefs.accept_unsent {
+                // A choice of this device's is saved there: this device has chosen.
+                prefs.accept_unsent = false;
+                prefs.accept_chosen = true;
+                state.settings_dirty = true;
+            }
+            state.own_profile.accept_sent.remove(&server);
+            note_seen(state, server, word);
+        }
+        AcceptStep::Send => {
+            let prefs = &mut state.settings.files_in_messages;
+            if !prefs.accept_unsent {
+                prefs.accept_unsent = true;
+                state.settings_dirty = true;
+            }
+            let mine = prefs.accept_from.word().to_string();
+            if state.own_profile.accept_sent.get(&server) != Some(&mine) {
+                state.own_profile.accept_sent.insert(server, mine);
+                crate::gui::pages::own_profile::want_save(state);
+            }
+        }
+        AcceptStep::Take(take) => {
+            state.settings.files_in_messages.accept_from = take;
+            state.settings_dirty = true;
+            note_seen(state, server, word);
+        }
+        AcceptStep::Keep => {}
+    }
+}
+
+/// Record the word a server holds once settled (kept in the config, so it holds across runs).
+fn note_seen(state: &mut GuiState, server: String, word: String) {
+    let seen = &mut state.settings.files_in_messages.accept_seen;
+    if seen.get(&server) != Some(&word) {
+        seen.insert(server, word);
         state.settings_dirty = true;
     }
 }
@@ -105,17 +138,19 @@ pub(crate) fn draw_files_in_messages(ui: &mut egui::Ui, theme: &Theme, state: &m
         }
     });
     if accept != current {
-        state.settings.files_in_messages.accept_from = accept;
-        state.settings.files_in_messages.accept_unsent = true;
+        let prefs = &mut state.settings.files_in_messages;
+        prefs.accept_from = accept;
+        prefs.accept_unsent = true;
+        prefs.accept_chosen = true;
         state.settings_dirty = true;
-        state.own_profile.accept_sent = None; // a new choice goes, even one made before this run
+        state.own_profile.accept_sent.clear(); // a new choice goes, even one made before this run
     }
     widgets::setting_hint(
         ui,
         theme,
         hint,
         "A file from anyone else is not downloaded: you are asked first, and Accept takes that one \
-         file. Your choice is in your profile on the server you are on, so people see it before \
+         file. Your choice goes in your profile on each server you use, so people see it before \
          they send.",
     );
     if protected {

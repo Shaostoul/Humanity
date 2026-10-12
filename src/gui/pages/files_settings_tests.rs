@@ -118,3 +118,150 @@ fn a_choice_made_again_goes_again() {
     let f = updates(&sent).pop().expect("made again, it goes again");
     assert_eq!(f["accepts_files"], "nobody");
 }
+
+// BUG-200: the choice is one per device, and each server holds its own copy of the word.
+
+const TWO: &str = "https://two.example";
+
+/// The person's own copy from a server with no profile for her: what the relay answers her own
+/// profile request with (an empty profile and its default word, "friends").
+fn no_profile_copy() -> ServerProfile {
+    let frame = serde_json::json!({ "type": "profile_data", "name": "Ada", "bio": "", "socials": "{}", "accepts_files": "friends", "privacy": "{}" });
+    own_profile::own_copy(&frame, "Ada").expect("her own copy")
+}
+
+/// "Accept files from" as this device holds it: `from`, chosen here or not, and the words seen.
+fn prefs(from: AcceptFrom, chosen: bool, seen: &[(&str, &str)]) -> FilesInMessages {
+    FilesInMessages {
+        accept_from: from,
+        accept_chosen: chosen,
+        accept_seen: seen.iter().map(|(s, w)| (s.to_string(), w.to_string())).collect(),
+        ..Default::default()
+    }
+}
+
+/// A device whose person chose "Anyone" meets a server with no profile for her (the relay answers
+/// "friends", its default): the choice is published there instead of the default being taken,
+/// and it counts as saved, and seen, when the server's copy carries it.
+///
+/// Seen red 2026-10-11 with `accept_step` counting a server never seen as one another device
+/// changed (`changed_there` true when no word was seen): "the choice is published there" failed
+/// (the server's default was taken instead).
+#[test]
+fn a_device_that_chose_publishes_its_choice_on_a_server_with_no_profile() {
+    let (mut gs, sent) = app("anyone");
+    gs.settings.files_in_messages = prefs(AcceptFrom::Anyone, true, &[(SERVER, "anyone")]);
+    own_profile::pump(&mut gs);
+    assert!(updates(&sent).is_empty(), "the first server holds it already");
+
+    gs.server_url = TWO.into();
+    own_profile::keep_copy(&mut gs, TWO, no_profile_copy());
+    own_profile::pump(&mut gs);
+    let f = updates(&sent).pop().expect("the choice is published there");
+    assert_eq!(f["accepts_files"], "anyone");
+    assert_eq!(f["bio"], "", "with that server's own (empty) profile");
+    let p = &gs.settings.files_in_messages;
+    assert_eq!(p.accept_from, AcceptFrom::Anyone, "the default is not taken");
+    assert!(p.accept_unsent, "waiting until that server's copy carries it");
+
+    let mut echo = no_profile_copy();
+    echo.accepts_files = Some("anyone".into());
+    own_profile::keep_copy(&mut gs, TWO, echo);
+    own_profile::pump(&mut gs);
+    let p = &gs.settings.files_in_messages;
+    assert!(!p.accept_unsent, "saved");
+    assert_eq!(p.accept_seen.get(TWO).map(String::as_str), Some("anyone"), "and seen there");
+}
+
+/// A device whose person never chose takes the word of a server it meets, sends nothing, and
+/// remembers the word as seen there.
+///
+/// Seen red 2026-10-11 with `accept_step` publishing for every device (`accept_chosen` ignored):
+/// "the server's word is taken" failed (still Friends).
+#[test]
+fn a_device_that_never_chose_takes_the_servers_word() {
+    let (mut gs, sent) = app("nobody");
+    own_profile::pump(&mut gs);
+    assert_eq!(gs.settings.files_in_messages.accept_from, AcceptFrom::Nobody, "the server's word is taken");
+    assert!(updates(&sent).is_empty(), "nothing is sent");
+    assert_eq!(gs.settings.files_in_messages.accept_seen.get(SERVER).map(String::as_str), Some("nobody"), "seen there");
+    assert!(!gs.settings.files_in_messages.accept_chosen, "taking is not choosing");
+}
+
+/// A server whose word changed since this device last saw it (another device changed it there):
+/// taken, even on a device whose person chose, and nothing is sent over it.
+///
+/// Seen red 2026-10-11 with the seen word ignored (`changed_there` always false): "another
+/// device's change is taken" failed (still Anyone).
+#[test]
+fn a_word_changed_since_this_device_saw_it_is_taken() {
+    let (mut gs, sent) = app("nobody");
+    gs.settings.files_in_messages = prefs(AcceptFrom::Anyone, true, &[(SERVER, "anyone")]);
+    own_profile::pump(&mut gs);
+    assert_eq!(gs.settings.files_in_messages.accept_from, AcceptFrom::Nobody, "another device's change is taken");
+    assert!(updates(&sent).is_empty(), "nothing goes over it");
+    assert_eq!(gs.settings.files_in_messages.accept_seen.get(SERVER).map(String::as_str), Some("nobody"));
+}
+
+/// Two servers holding different words, each seen before (the second never got this device's
+/// choice): switching between them flips nothing. The choice goes to the second server once in a
+/// run, even when it does not answer and the person switches away and back.
+///
+/// Seen red 2026-10-11 twice: with the rule as it was (any different word taken while nothing
+/// waits), "switching to the second server flips nothing" failed (Friends); with `accept_sent`
+/// one entry that the first server's copy cleared (as the Option it was), "not sent again on
+/// switching back" failed.
+#[test]
+fn switching_between_two_servers_flips_nothing() {
+    let (mut gs, sent) = app("anyone");
+    gs.settings.files_in_messages = prefs(AcceptFrom::Anyone, true, &[(SERVER, "anyone"), (TWO, "friends")]);
+    own_profile::keep_copy(&mut gs, TWO, server_copy("friends"));
+    own_profile::pump(&mut gs);
+
+    gs.server_url = TWO.into();
+    own_profile::pump(&mut gs);
+    assert_eq!(gs.settings.files_in_messages.accept_from, AcceptFrom::Anyone, "switching to the second server flips nothing");
+    assert_eq!(updates(&sent).pop().expect("the choice goes there")["accepts_files"], "anyone");
+
+    // No answer from the second server; back to the first, and to the second again.
+    gs.server_url = SERVER.into();
+    own_profile::pump(&mut gs);
+    assert_eq!(gs.settings.files_in_messages.accept_from, AcceptFrom::Anyone, "nor back");
+    gs.server_url = TWO.into();
+    gs.own_profile.last_sent.insert(own_profile::current_server(&gs), Instant::now() - Duration::from_secs(40));
+    own_profile::pump(&mut gs);
+    assert_eq!(gs.settings.files_in_messages.accept_from, AcceptFrom::Anyone);
+    assert!(updates(&sent).is_empty(), "not sent again on switching back");
+
+    // Its copy carries it at last: seen there.
+    own_profile::keep_copy(&mut gs, TWO, server_copy("anyone"));
+    own_profile::pump(&mut gs);
+    assert_eq!(gs.settings.files_in_messages.accept_seen.get(TWO).map(String::as_str), Some("anyone"));
+    assert!(!gs.settings.files_in_messages.accept_unsent);
+}
+
+/// The protected setup never takes a more open word: not one another device set on a server, not
+/// one a device that never chose meets. A more closed one is taken.
+///
+/// Seen red 2026-10-11 with `accept_step` taking the server's word without asking
+/// `adopt_from_server` (no protected check): "not another device's more open word" failed.
+#[test]
+fn the_protected_setup_never_takes_a_more_open_word() {
+    let (mut gs, _sent) = app("anyone");
+    gs.protected.setup.on = true;
+    gs.settings.files_in_messages = prefs(AcceptFrom::Friends, true, &[(SERVER, "friends")]);
+    own_profile::pump(&mut gs);
+    assert_eq!(gs.settings.files_in_messages.accept_from, AcceptFrom::Friends, "not another device's more open word");
+    assert_eq!(gs.settings.files_in_messages.accept_seen.get(SERVER).map(String::as_str), Some("friends"), "and not recorded as settled");
+
+    let (mut gs, _sent) = app("anyone");
+    gs.protected.setup.on = true;
+    own_profile::pump(&mut gs);
+    assert_eq!(gs.settings.files_in_messages.accept_from, AcceptFrom::Friends, "not for a device that never chose");
+
+    let (mut gs, _sent) = app("nobody");
+    gs.protected.setup.on = true;
+    gs.settings.files_in_messages = prefs(AcceptFrom::Friends, true, &[(SERVER, "friends")]);
+    own_profile::pump(&mut gs);
+    assert_eq!(gs.settings.files_in_messages.accept_from, AcceptFrom::Nobody, "a more closed word is taken");
+}

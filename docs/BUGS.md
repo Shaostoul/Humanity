@@ -5723,7 +5723,7 @@ opened at once (a DM's pictures open together) could interleave, and the first o
 second's fresh copy for a leftover; keeping, trimming and clearing now wait for each other on the
 page (`web/shared/kept-files.js`).
 
-## BUG-200: "Accept files from" can flip when one person uses two servers (website FIXED, desktop OPEN; found 2026-10-11)
+## BUG-200: "Accept files from" can flip when one person uses two servers (FIXED in both apps 2026-10-11, found 2026-10-11)
 
 Older than the profile fixes (the HTTP version did the same); found by the second review of
 BUG-196. The choice is one setting per device but is published in the person's profile on each
@@ -5763,5 +5763,32 @@ did:hum) or a test relay; keying by did:hum covers both. Tests:
 the BUG-200 section of `scripts/tests/private-files-web.test.js`, each seen red against a break
 (listed at the file's end). A browser that chose before this change carries no mark, so it counts
 as never having chosen until the setting is changed once (no compatibility shim, by the
-pre-launch rule). The desktop app's half is still open: `src/net/files_policy.rs` (the rule) and
-`src/gui/pages/files_settings.rs` (applying it) follow the old one.
+pre-launch rule).
+
+**The desktop app, fixed (2026-10-11).** The config now keeps two more things with the setting
+(`FilesInMessages` in `src/net/files_policy.rs`, both defaulting so an older config loads):
+`accept_chosen`, true once the person changes the setting on this device (a device that only ever
+took a server's word has false), and `accept_seen`, the word this device last saw each server hold
+once settled. When the own copy of the server the app is on comes in, `files_policy::accept_step`
+decides, and `sync_accepts` (`src/gui/pages/files_settings.rs`) acts:
+1. the server holds this device's word: settled (a waiting choice counts as saved) and seen;
+2. a choice waits (`accept_unsent`): it goes with the whole profile, as before;
+3. the server's word differs from the one this device last saw there: another device changed it
+   there, so it is taken (never a more open one under the protected setup) and seen;
+4. otherwise (never seen there, which includes a server with no profile for the person, whose
+   answer is "friends", or the server still holds what was last seen): a device whose person chose
+   publishes its choice there (it waits and is confirmed the same way as a choice made now); one
+   that never chose takes the server's word.
+A choice goes to each server once in a run of the app (`OwnProfile::accept_sent` is per server
+now, so switching away and back does not send it again). The choice reaches a server when the app
+is on it, not to every background socket at once. Tests: `src/gui/pages/files_settings_tests.rs`
+(a device that chose meets a server with no profile; a device that never chose; a word changed
+since it was seen; two servers, switching flips nothing; the protected setup) and
+`src/net/files_policy_tests.rs` (the rule case by case; an older config loads). One consequence
+of the rule as written: a device whose person never chose follows whichever server it is on when
+two servers hold different words set elsewhere, so its setting changes as it switches between
+them (it has no choice of its own to keep). A config written before this fix reads as not chosen
+(no migration, before launch): on such a device the person picks the setting once more (a
+different answer, then back) for it to count as theirs. Not cleared on a new identity: `accept_seen`
+lives in the config beside the setting, so after a restore from a different recovery phrase the
+first server whose word differs from the old identity's is taken as another device's change.

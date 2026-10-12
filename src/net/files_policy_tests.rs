@@ -62,10 +62,59 @@ fn the_setting_reads_and_writes() {
     let old: FilesInMessages = serde_json::from_str("{}").unwrap();
     assert_eq!(old, FilesInMessages::default());
     assert!(old.attach_button && old.remove_details && old.kept_cap_mb == KEPT_CAP_DEFAULT_MB);
-    let chosen = FilesInMessages { accept_from: AcceptFrom::Nobody, show_pictures_from: ShowPictures::Nobody, attach_button: false, remove_details: false, kept_cap_mb: 3, accept_unsent: true };
+    let chosen = FilesInMessages {
+        accept_from: AcceptFrom::Nobody,
+        show_pictures_from: ShowPictures::Nobody,
+        attach_button: false,
+        remove_details: false,
+        kept_cap_mb: 3,
+        accept_unsent: true,
+        accept_chosen: true,
+        accept_seen: [("https://one.example".to_string(), "nobody".to_string())].into(),
+    };
     let json = serde_json::to_string(&chosen).unwrap();
     assert!(json.contains("\"accept_from\":\"nobody\""), "{json}");
     assert_eq!(serde_json::from_str::<FilesInMessages>(&json).unwrap(), chosen);
+}
+
+/// A config written before BUG-200's fields (every other field there) loads: the person's choices
+/// as they were, a device that has not chosen, no word seen on any server. Seen red 2026-10-11 with
+/// the struct's `#[serde(default)]` taken out: "an older config loads" failed with "missing field
+/// `accept_chosen`".
+#[test]
+fn an_older_config_without_the_new_fields_loads() {
+    let older = r#"{"accept_from":"anyone","show_pictures_from":"nobody","attach_button":false,"remove_details":true,"kept_cap_mb":512,"accept_unsent":false}"#;
+    let loaded: FilesInMessages = serde_json::from_str(older).expect("an older config loads");
+    assert_eq!(loaded.accept_from, AcceptFrom::Anyone, "the choice as it was");
+    assert_eq!((loaded.show_pictures_from, loaded.attach_button, loaded.kept_cap_mb), (ShowPictures::Nobody, false, 512));
+    assert!(!loaded.accept_chosen, "not counted as chosen here");
+    assert!(loaded.accept_seen.is_empty(), "no word seen on any server");
+}
+
+/// The rule, case by case (BUG-200), for a server the device is on ("one"). Seen red 2026-10-11
+/// with the seen word ignored (`changed_there` always false): "another device changed it there:
+/// taken" failed with `Send`.
+#[test]
+fn which_word_wins_on_a_server() {
+    let one = "https://one.example";
+    let chose = |from: AcceptFrom, seen: Option<&str>| FilesInMessages {
+        accept_from: from,
+        accept_chosen: true,
+        accept_seen: seen.map(|w| [(one.to_string(), w.to_string())].into()).unwrap_or_default(),
+        ..Default::default()
+    };
+    let anyone = chose(AcceptFrom::Anyone, None);
+    assert_eq!(accept_step(&anyone, one, "anyone", false), AcceptStep::Settled, "the same word");
+    assert_eq!(accept_step(&anyone, one, "friends", false), AcceptStep::Send, "never seen there: this device's choice goes");
+    assert_eq!(accept_step(&chose(AcceptFrom::Anyone, Some("friends")), one, "friends", false), AcceptStep::Send, "still what was seen: it goes");
+    assert_eq!(accept_step(&chose(AcceptFrom::Anyone, Some("anyone")), one, "nobody", false), AcceptStep::Take(AcceptFrom::Nobody), "another device changed it there: taken");
+    let never = FilesInMessages { accept_from: AcceptFrom::Friends, ..Default::default() };
+    assert_eq!(accept_step(&never, one, "nobody", false), AcceptStep::Take(AcceptFrom::Nobody), "a device that never chose takes it");
+    let waiting = FilesInMessages { accept_unsent: true, ..chose(AcceptFrom::Nobody, Some("friends")) };
+    assert_eq!(accept_step(&waiting, one, "anyone", false), AcceptStep::Send, "a waiting choice goes, whatever changed there");
+    assert_eq!(accept_step(&chose(AcceptFrom::Friends, Some("friends")), one, "anyone", true), AcceptStep::Keep, "never more open under the protected setup");
+    assert_eq!(accept_step(&never, one, "anyone", true), AcceptStep::Keep, "nor for a device that never chose");
+    assert_eq!(accept_step(&anyone, one, "Anyone", false), AcceptStep::Keep, "not one of the three");
 }
 
 /// Another device's choice (the word the server holds) is taken only when nothing chosen here is
