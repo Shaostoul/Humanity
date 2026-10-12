@@ -252,17 +252,59 @@ function notifyNewMessage(author, content, isDm) {
   }
 }
 
-// Request notification permission and subscribe to WebPush (once).
+// Notifications are OFFERED, never asked for unprompted (2026-10-12). The chat used to ask the
+// browser for notification permission on connect, again on the first click anywhere, and again
+// when a message arrived in a background tab. Now, once, a line above the message box offers
+// them; the browser asks only after "Turn on" is pressed. Settings > Notifications holds the
+// same switch. Already allowed: subscribe to push, as before.
 function requestNotifications() {
   if (!('Notification' in window)) return;
-  if (Notification.permission === 'default' && !localStorage.getItem('humanity_notif_asked')) {
-    Notification.requestPermission().then(function(result) {
-      localStorage.setItem('humanity_notif_asked', '1');
-      if (result === 'granted') subscribeToPush();
-    });
-  } else if (Notification.permission === 'granted' && !localStorage.getItem('hos_push_subscribed')) {
-    subscribeToPush();
+  if (Notification.permission === 'granted') {
+    if (!localStorage.getItem('hos_push_subscribed')) subscribeToPush();
+    return;
   }
+  if (Notification.permission === 'default' && !localStorage.getItem('humanity_notif_asked')
+      && localStorage.getItem('humanity_onboarding_done')) {
+    showNotificationOffer();
+  }
+}
+
+function showNotificationOffer() {
+  if (document.getElementById('notif-offer-banner')) return;
+  const inputArea = document.getElementById('input-area');
+  if (!inputArea || !inputArea.parentNode) return;
+  const banner = document.createElement('div');
+  banner.id = 'notif-offer-banner';
+  banner.style.cssText = 'padding:var(--space-md) var(--space-xl);border-top:1px solid var(--border);background:var(--bg-panel,#141414);display:flex;align-items:center;gap:var(--space-lg);flex-wrap:wrap;flex-shrink:0;';
+  const words = document.createElement('span');
+  words.style.cssText = 'font-size:0.85rem;flex:1 1 14rem;';
+  words.textContent = 'Get a notification when someone messages you while this tab is in the background?';
+  const yes = document.createElement('button');
+  yes.textContent = 'Turn on';
+  yes.style.cssText = 'background:var(--accent);border:none;color:var(--bg,#000);padding:var(--space-sm) var(--space-xl);border-radius:var(--radius);cursor:pointer;font-size:0.82rem;font-weight:600;';
+  const no = document.createElement('button');
+  no.textContent = 'Not now';
+  no.style.cssText = 'background:none;border:1px solid var(--border);color:var(--text-muted);padding:var(--space-sm) var(--space-xl);border-radius:var(--radius);cursor:pointer;font-size:0.82rem;';
+  yes.onclick = function() {
+    localStorage.setItem('humanity_notif_asked', '1');
+    banner.remove();
+    Notification.requestPermission().then(function(result) {
+      if (result === 'granted') {
+        localStorage.setItem('hos_notify_enabled', 'true');
+        subscribeToPush();
+        addSystemMessage('Notifications are on. Settings > Notifications turns them off.');
+      } else {
+        addSystemMessage('Your browser did not allow notifications. You can allow them in its site settings, then in Settings > Notifications.');
+      }
+    });
+  };
+  no.onclick = function() {
+    localStorage.setItem('humanity_notif_asked', '1');
+    banner.remove();
+    addSystemMessage('No notifications. You can turn them on any time in Settings > Notifications.');
+  };
+  banner.append(words, yes, no);
+  inputArea.parentNode.insertBefore(banner, inputArea);
 }
 
 // Subscribe to WebPush via the relay's VAPID key.
@@ -377,15 +419,20 @@ function updateCharCounter(len) {
   }
 }
 
-// ── Crypto status check ──
-(async () => {
-  const has = await supportsEd25519();
+// ── Signing status on the entry screen ──
+// Chat messages are signed with Dilithium3 (ML-DSA-65, pq.js, pure JavaScript), whether or not
+// the browser has WebCrypto Ed25519, which is only the recovery phrase's wallet key (BUG-106).
+// This line used to say "Ed25519 signatures enabled", or that messages would NOT be signed
+// without Ed25519: both untrue since v0.262 (2026-10-12). What signing does need is a secure
+// page (https or localhost), where the browser's crypto.subtle exists.
+(() => {
   const el = document.getElementById('crypto-status');
-  if (has) {
-    el.textContent = '✓ Ed25519 signatures enabled, messages will be cryptographically signed';
+  if (!el) return;
+  if (window.isSecureContext && window.crypto && window.crypto.subtle) {
+    el.textContent = '✓ Messages you send are signed on this device, so nobody can post as you.';
     el.style.color = 'var(--success)';
   } else {
-    el.textContent = '⚠ Ed25519 not supported in this browser, messages will not be signed';
+    el.textContent = '⚠ This page is not on a secure connection, so it cannot sign messages. Open it with https.';
     el.style.color = 'var(--warning)';
   }
 })();
