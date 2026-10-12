@@ -115,6 +115,10 @@ pub struct Illness {
     /// lasts. Absent from the file: a plain line of the game's own.
     #[serde(default)]
     pub again: String,
+    /// A few words for the HUD row after its name (2026-10-12, `wounds::CareLine`): "drink
+    /// while it lasts". Absent from the file: the name alone.
+    #[serde(default)]
+    pub hud: String,
 }
 
 /// How much of a drink's water a body keeps while an illness is taking water.

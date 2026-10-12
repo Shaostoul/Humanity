@@ -641,7 +641,7 @@ The game has one illness that comes from food, and none from water.
 - **What it does: it dries you out.** While it lasts, Food Poisoning
   takes water from your Hydration bar, 1.5 litres a day on top of the
   2.5 litres a resting body loses anyway, and slows you a little; then it
-  passes by itself. Settings > Gameplay > Illness decides how hard it is:
+  passes by itself. Settings > Gameplay > Illness and injury decides how hard it is:
   Realistic runs it for two days of game time, and Forgiving, the
   default, for one day, taking half as much water. It does no harm of its
   own. Harm comes only if your Hydration runs out, when your health

@@ -1201,7 +1201,7 @@ ceramic_plate_0,Ceramic Plate,material,processed,ceramic,1.5,10,0,Fired ceramic 
 linen_cloth_0,Linen Cloth,material,processed,linen,0.3,10,0,A length of fabric woven from flax fiber: cool and strong,solid,0.33
 silk_cloth_0,Silk Cloth,material,processed,silk,0.2,10,0,A length of fabric woven from silk thread: light and smooth and strong,solid,0.25
 gunpowder_0,Gunpowder,material,chemical,black_powder,0.3,20,0,Black powder of saltpeter and charcoal and sulfur: the propellant of early firearms,hazmat,0.50
-# Named by the game's own data: data/medical.ron, data/blueprints/lock_types.ron, data/astronomy_tools.ron
+# Named by the game's own data: data/medical/treatments.ron, data/blueprints/lock_types.ron, data/astronomy_tools.ron
 poultice_0,Poultice,medical,medical,plant_fiber,0.1,20,0,Herbal compress wrapped in cloth and laid on a wound or swelling,solid,0.28
 med_kit_advanced_0,Advanced Medkit,medical,medical,abs_plastic,1.0,5,0,Sutures and sterile instruments and dressings for procedures beyond first aid,solid,3.17
 lockpick_0,Lockpick,tool,security,steel,0.02,1,100,Thin steel pick and tension wrench for opening a pin-tumbler lock without its key,solid,0.01

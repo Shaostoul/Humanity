@@ -1041,31 +1041,9 @@ pub struct LootTable {
     pub entries: Vec<(String, f32, u32, u32)>,
 }
 
-// ── Medical ─────────────────────────────────────────────────
-
-/// An active medical condition on an entity (injury, illness, infection).
-/// `MedicalSystem::tick` decrements `ticks_remaining` and applies effects
-/// (e.g. health regen reduction, status modifier). Cleared when remaining hits 0.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MedicalConditions {
-    pub active: Vec<ActiveCondition>,
-}
-
-impl Default for MedicalConditions {
-    fn default() -> Self { Self { active: Vec::new() } }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ActiveCondition {
-    /// Condition id from `data/medical.ron` (e.g. "burn_minor", "infection").
-    pub id: String,
-    /// Severity 0.0 to 1.0 — multiplies effect strength.
-    pub severity: f32,
-    /// Game-seconds until this condition resolves naturally.
-    pub seconds_remaining: f32,
-    /// Per-second health change while active (negative = damage, positive = regen).
-    pub health_per_sec: f32,
-}
+// Medical conditions are status effects (`StatusEffects`): an illness is a `disease` row
+// (`systems::illness`), a wound a `wound` row (`systems::wounds`). The separate
+// `MedicalConditions` list and its never-run `MedicalSystem` were deleted 2026-10-12.
 
 // ── Electrical ──────────────────────────────────────────────
 

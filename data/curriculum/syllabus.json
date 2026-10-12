@@ -2182,7 +2182,8 @@
       "locale_dependent": false,
       "hazard": "lethal",
       "data": [
-        "data/medical.ron",
+        "data/medical/wounds.ron",
+        "data/medical/treatments.ron",
         "data/status_effects.csv",
         "data/items.csv",
         "data/recipes.csv"
@@ -2212,7 +2213,8 @@
       "locale_dependent": false,
       "hazard": "lethal",
       "data": [
-        "data/medical.ron"
+        "data/medical/wounds.ron",
+        "data/medical/treatments.ron"
       ],
       "reading": [
         "bleeding-and-wounds"
@@ -2287,7 +2289,6 @@
       "locale_dependent": true,
       "hazard": "lethal",
       "data": [
-        "data/medical.ron",
         "data/locales/<id>/climate.json",
         "data/status_effects.csv"
       ],
@@ -2335,7 +2336,7 @@
       "locale_dependent": false,
       "hazard": "lethal",
       "data": [
-        "data/medical.ron",
+        "data/medical/wounds.ron",
         "data/status_effects.csv",
         "data/items.csv",
         "data/recipes.csv"
@@ -2366,7 +2367,6 @@
       "locale_dependent": false,
       "hazard": "serious",
       "data": [
-        "data/medical.ron",
         "data/food/crop_nutrition.ron"
       ],
       "reading": [
@@ -2422,9 +2422,6 @@
       ],
       "locale_dependent": false,
       "hazard": "serious",
-      "data": [
-        "data/medical.ron"
-      ],
       "reading": [
         "teeth"
       ]

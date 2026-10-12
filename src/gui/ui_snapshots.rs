@@ -131,7 +131,17 @@ fn demo_state() -> GuiState {
         feels_c: 20.0,
         sheltered: false,
         shelter_note: String::new(),
-        effects: vec![("Well-fed".into(), 180.0), ("Rested".into(), 90.0)],
+        effects: vec![("Well-fed".into(), 180.0), ("Rested".into(), 90.0), ("Bite Wound".into(), 777_600.0)],
+        // A bite wound nobody has cleaned yet (2026-10-12): the Status section's wound line.
+        care: vec![crate::systems::wounds::CareLine {
+            kind: "Wound",
+            name: "Bite Wound".into(),
+            short: "needs cleaning and covering".into(),
+            line: "It heals on its own in about 9 days. Bites go bad more often than cuts. Clean and cover it \
+                   (a Bandage, a Medkit or Antiseptic) or it may go bad."
+                .into(),
+            severity: 1,
+        }],
     };
     let mut items = vec![
         Some(GuiItemSlot { item_id: "water_bottle_0".into(), name: "Water Bottle".into(), quantity: 2, ..Default::default() }),
@@ -937,6 +947,14 @@ fn settings_panel(
             sheltered: false,
             shelter_note: "Out of the rain; 100% of the wind gets in".into(),
             effects: Vec::new(),
+            // A bleeding bite (2026-10-12): the HUD's wound row.
+            care: vec![crate::systems::wounds::CareLine {
+                kind: "Wound",
+                name: "Bleeding".into(),
+                short: "a Bandage stops it".into(),
+                line: String::new(),
+                severity: 2,
+            }],
         };
         state.quests = vec![crate::gui::GuiQuest {
             name: "First Steps".to_string(),

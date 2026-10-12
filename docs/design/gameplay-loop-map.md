@@ -83,7 +83,11 @@ one-line death cause ("You froze outside the hull"). A tiny EffectTick pass
 consumes damage/healing per tick from the CSV, which simultaneously gives
 poison teeth and creates regeneration as the first healing. MedicalSystem
 (dormant, data/medical.ron: 62 injuries/treatments) is the T0 deepening
-AFTER that, not before.
+AFTER that, not before. (2026-10-12, first-hour audit S8: that deepening
+landed as `systems::wounds` and data/medical/wounds.ron, applied by the
+FoodSystem: a bite bleeds and leaves a wound, fire burns by depth, wounds
+can go bad, and a body heals by itself. MedicalSystem and medical.ron
+were deleted.)
 
 ---
 
@@ -241,7 +245,8 @@ homestead; life support is the SAME AtmosphereSystem).
 complete:** CombatSystem (damage types, armor mitigation, loot tables,
 death), FireSystem (spread/suppression), EcologySystem (disease contagion),
 DisasterSystem (21 types with chain reactions), MedicalSystem (62
-conditions/treatments), AISystem (5 behavior modes, deals no damage).
+conditions/treatments; deleted 2026-10-12, replaced by `systems::wounds`),
+AISystem (5 behavior modes, deals no damage).
 **Authored with zero loaders:** creatures.csv (92 creatures with health,
 hostility tiers, loot tables, AI strings), factions.ron (25).
 

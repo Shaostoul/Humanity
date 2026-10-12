@@ -966,61 +966,26 @@ an emergency is neither.
 
 ## What the simulation models, and what it does not
 
-The game's medical data lives in `data/medical.ron`, and four records
-relate to this document. The mapping is worth setting out, because the
-simulation currently teaches a shape that is partly right and partly
-missing the point of this guide.
+The game does not model teeth. Nothing in it decays, aches, abscesses or
+needs filling, there is no dentist, and nothing represents brushing,
+cleaning between teeth, fluoride, sealants, saliva or how often you eat
+sugar.
 
-What it represents well:
+An older medical catalogue, `data/medical.ron`, described tooth decay
+that led to an abscess and on to a body-wide infection, with an
+extraction and a filling as procedures, but nothing in the game ever used
+it, and it was deleted on 12 October 2026 when the game's first real
+wounds were built (`data/medical/wounds.ron`). Its records also taught
+some of this guide backwards: decay "recovered" in an hour, when enamel
+does not recover at all, and there was no gum disease anywhere in it,
+though periodontitis affects 42.2 percent of adults over 30 and is a
+leading cause of adult tooth loss.
 
-- **`tooth_decay`** is described as "Cavities and enamel erosion causing
-  increasing pain," lists `dental_extraction` and `dental_filling` as its
-  treatments, and carries `untreated_progression: Some("tooth_abscess")`.
-  That progression is the correct one and it is the spine of the
-  "recognising trouble" section above.
-- **`tooth_abscess`** in turn progresses to `infection_bacterial`, which
-  progresses to `sepsis`, which is marked `critical` and described as
-  fatal within days without treatment. That chain, decay to abscess to
-  systemic infection to death, is medically the right escalation and is
-  unusual to see modelled at all.
-- **`dental_extraction`** is a level 3 procedure requiring
-  `med_kit_advanced_0`, and **`dental_filling`** is level 4. Both
-  requiring an advanced kit is right: neither is a field-improvised
-  action, which is the same conclusion this guide reaches.
-
-What it does not yet cover:
-
-- **There is no gum disease in the file at all.** No gingivitis, no
-  periodontitis, no record mentioning gums. Searching `data/medical.ron`
-  for gum, gingiv or perio returns nothing. Given that periodontitis
-  affects 42.2 percent of adults over 30 and is a leading cause of adult
-  tooth loss, the simulation currently models the disease that dominates
-  childhood cavities and omits the one that actually takes adults' teeth.
-  Half of this guide has no counterpart in the data.
-- **There is no prevention mechanic.** Nothing represents brushing,
-  cleaning between teeth, fluoride, sealants, saliva or sugar frequency.
-  Because `tooth_decay` has `symptoms: []` and no precondition, decay is
-  something that happens to a character rather than something their
-  behaviour drives. The central teaching claim of this document, that
-  frequency of sugar exposure determines whether teeth survive, is not
-  expressible in the current schema.
-- **`tooth_decay` carries `recovery_time_s: 3600`,** one hour. Whatever
-  that field means elsewhere, applied to decay it encodes the opposite of
-  the fact this guide is built on. Enamel structure does not recover, at
-  any timescale. A filling is a patch, not a recovery. If that field is
-  read as "time until healed," it is teaching the single most important
-  thing about teeth backwards.
-- **`tooth_decay` is `severity: "minor"` and `tooth_abscess` is
-  `"moderate"`,** while the topic's own hazard rating is serious.
-  Moderate is defensible for a typical abscess, but nothing in the data
-  expresses the airway emergency that gives this topic its rating, and
-  `tooth_abscess` offers `dental_extraction` as a treatment option with a
-  0.92 success rate and no representation of a spreading infection that
-  extraction alone does not solve.
-
-None of that makes the existing records wrong to have. It means the
-reading layer currently carries teaching the data cannot yet back, which
-is worth knowing when the two are compared.
+So the teaching here has no counterpart in the game. If teeth are ever
+modelled, the claims this guide is built on are the ones to keep: how
+often sugar reaches the teeth decides whether they survive, gum disease
+takes adults' teeth, and a spreading infection from a tooth can close an
+airway.
 
 ## Sources
 
@@ -1246,9 +1211,6 @@ prohibited."
 
 ### Shipped project data used
 
-- `data/medical.ron`, records `tooth_decay`, `tooth_abscess`, and the
-  procedures `dental_extraction` and `dental_filling`, together with
-  `infection_bacterial` and `sepsis` for the progression chain.
 - `data/locales/silverdale_wa/water.json`, the `groundwater` block, for
   the typical domestic well depth near Silverdale and the spread of local
   well depths computed from USGS records in Kitsap County.

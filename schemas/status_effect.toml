@@ -52,6 +52,7 @@ valid_values = [
     "condition",     # Neutral or mixed (hungry, exhausted, encumbered)
     "environmental", # Caused by weather, biome, or terrain (heatstroke, altitude sickness)
     "disease",       # Contracted from creatures, water, or prolonged exposure
+    "wound",         # A bite, a burn, bleeding, an infected wound (data/medical/wounds.ron)
     "poison",        # Damage-over-time from creatures, plants, or traps
 ]
 
