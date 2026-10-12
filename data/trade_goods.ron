@@ -105,6 +105,9 @@
     (id: "fiber_hemp_0",      name: "Hemp",               category: "raw_organic",     base_value: 2,    weight_kg: 0.3,   description: "Versatile fiber plant for rope, cloth, and paper"),
     (id: "leather_hide_0",    name: "Raw Hide",           category: "raw_organic",     base_value: 5,    weight_kg: 2.0,   description: "Untanned animal skin, needs processing"),
     (id: "wool_0",            name: "Wool",               category: "raw_organic",     base_value: 1,    weight_kg: 0.4,   description: "Unprocessed sheep fleece"),
+    // Hay (2026-10-12): feed for goats, sheep and cattle (data/livestock/care.ron).
+    // A 20 kg bale at 30 is a little under wheat grain by the kilo (1 a 500 g bag).
+    (id: "hay_0",             name: "Hay",                category: "raw_organic",     base_value: 30,   weight_kg: 20.0,  description: "Small square bale of dried grass hay, feed for goats, sheep and cattle"),
     (id: "silk_thread_0",     name: "Silk Thread",        category: "raw_organic",     base_value: 3,    weight_kg: 0.05,  description: "Reeled silkworm silk, ready to weave"),
     (id: "bone_0",            name: "Bone",               category: "raw_organic",     base_value: 1,    weight_kg: 0.5,   description: "Animal bone for tools and crafting"),
     (id: "feather_0",         name: "Feather",            category: "raw_organic",     base_value: 1,    weight_kg: 0.01,  description: "Bird feather for arrows and insulation"),

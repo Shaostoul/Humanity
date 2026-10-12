@@ -141,6 +141,16 @@ pub struct WorldSave {
     /// without this every restart made every animal ready to collect again.
     #[serde(default)]
     pub herd: Vec<(String, f32)>,
+    /// What each living homestead animal has been given and how long it has gone
+    /// short of feed and water (2026-10-12, first-hour audit S6), by herd slot
+    /// (`systems::animal_care`).
+    #[serde(default)]
+    pub herd_care: Vec<crate::systems::animal_care::CareSave>,
+    /// The homestead animals that died, by herd slot, with what they died of: world
+    /// entry does not spawn them again (2026-10-12; before this every restart brought
+    /// them back).
+    #[serde(default)]
+    pub herd_lost: Vec<crate::systems::animal_care::LostAnimal>,
     /// The asteroids as they stood (2026-09-27), mined-down ore and all.
     /// None = not recorded, keep the fresh set; Some = authoritative, and an
     /// asteroid missing from it was mined out.
@@ -416,6 +426,8 @@ impl WorldSave {
             credits: -1,
             quests: None,
             herd: Vec::new(),
+            herd_care: Vec::new(),
+            herd_lost: Vec::new(),
             asteroids: None,
             drone: None,
             mining_order: None,
@@ -1107,6 +1119,8 @@ mod tests {
             credits: -1,
             quests: None,
             herd: Vec::new(),
+            herd_care: Vec::new(),
+            herd_lost: Vec::new(),
             asteroids: None,
             drone: None,
             mining_order: None,

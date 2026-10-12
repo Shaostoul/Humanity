@@ -866,6 +866,13 @@ pub struct AppConfig {
     /// GuiState as `settings.illness_realistic`.
     #[serde(default)]
     pub illness_realistic: bool,
+    /// Farm animals (2026-10-12, first-hour audit S6, systems::animal_care): false is
+    /// Forgiving (an animal left without feed or water only stops making eggs, milk or wool),
+    /// true is Realistic (left long enough it falls sick and dies). The simplified mode by
+    /// default, the house rule for deep systems. Held in GuiState as
+    /// `settings.animal_care_realistic`.
+    #[serde(default)]
+    pub animal_care_realistic: bool,
     /// Carrying weight (BUG-136, systems::encumbrance): false is Forgiving
     /// (the limit and a warning only), true is Realistic (an overload slows
     /// walking and stops jumps under gravity, and a load's mass weighs on
@@ -1621,6 +1628,7 @@ impl AppConfig {
             vitals_drain: state.settings.vitals_drain,
             body_heat_realistic: state.settings.body_heat_realistic,
             illness_realistic: state.settings.illness_realistic,
+            animal_care_realistic: state.settings.animal_care_realistic,
             carry_realistic: state.settings.carry_realistic,
             pipe_marking_full: state.settings.pipe_marking_full,
             death_realistic: state.settings.death_realistic,
@@ -1911,6 +1919,7 @@ impl AppConfig {
         state.settings.vitals_drain = self.vitals_drain.clamp(0.0, 5.0);
         state.settings.body_heat_realistic = self.body_heat_realistic;
         state.settings.illness_realistic = self.illness_realistic;
+        state.settings.animal_care_realistic = self.animal_care_realistic;
         state.settings.carry_realistic = self.carry_realistic;
         state.settings.pipe_marking_full = self.pipe_marking_full;
         state.settings.death_realistic = self.death_realistic;
@@ -2433,6 +2442,23 @@ mod play_mode_tests {
         let mut fresh = crate::gui::GuiState::default();
         back.apply_to_gui_state(&mut fresh);
         assert!(fresh.settings.illness_realistic, "Realistic illness stays chosen after a restart");
+    }
+
+    /// The farm animals mode (2026-10-12, first-hour audit S6) starts Forgiving and a chosen
+    /// Realistic survives a save and a load, through the GUI state, the JSON and back.
+    /// Seen red 2026-10-12 with `from_gui_state` writing `animal_care_realistic: false`: "the
+    /// farm animals mode is written" (the JSON held `"animal_care_realistic":false`).
+    #[test]
+    fn the_farm_animals_mode_survives_a_save_and_a_load() {
+        let mut state = crate::gui::GuiState::default();
+        assert!(!state.settings.animal_care_realistic, "farm animals start Forgiving");
+        state.settings.animal_care_realistic = true;
+        let json = serde_json::to_string(&AppConfig::from_gui_state(&state)).unwrap();
+        assert!(json.contains("\"animal_care_realistic\":true"), "the farm animals mode is written");
+        let back: AppConfig = serde_json::from_str(&json).unwrap();
+        let mut fresh = crate::gui::GuiState::default();
+        back.apply_to_gui_state(&mut fresh);
+        assert!(fresh.settings.animal_care_realistic, "Realistic farm animals stay chosen after a restart");
     }
 
     /// The pipe-marking mode (2026-10-04) starts Simplified and a chosen Full survives a save

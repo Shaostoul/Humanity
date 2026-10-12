@@ -194,6 +194,8 @@ pub const ECONOMY_RON: &str = include_str!("../data/economy.ron");
 pub const EQUIPMENT_CSV: &str = include_str!("../data/equipment.csv");
 pub const CREATURES_CSV: &str = include_str!("../data/creatures.csv");
 pub const LIVESTOCK_RON: &str = include_str!("../data/entities/livestock.ron");
+/// What each kept animal eats and drinks (2026-10-12, systems::animal_care).
+pub const LIVESTOCK_CARE_RON: &str = include_str!("../data/livestock/care.ron");
 pub const WILD_SPAWNS_RON: &str = include_str!("../data/entities/wild_spawns.ron");
 pub const WEATHER_EVENTS_RON: &str = include_str!("../data/weather/events.ron");
 /// Environment Layer 1, each world's climate (systems::env_layer1, 2026-09-27).
@@ -301,6 +303,7 @@ pub fn get_embedded(path: &str) -> Option<&'static str> {
         "asteroids/types.csv" => Some(ASTEROID_TYPES_CSV),
         "creatures.csv" => Some(CREATURES_CSV),
         "entities/livestock.ron" => Some(LIVESTOCK_RON),
+        "livestock/care.ron" => Some(LIVESTOCK_CARE_RON),
         "entities/wild_spawns.ron" => Some(WILD_SPAWNS_RON),
         "weather/events.ron" => Some(WEATHER_EVENTS_RON),
         "environment/climate.ron" => Some(CLIMATE_RON),
@@ -680,6 +683,7 @@ pub const EMBEDDED_KEYS: &[&str] = &[
     "equipment.csv",
     "creatures.csv",
     "entities/livestock.ron",
+    "livestock/care.ron",
     "entities/wild_spawns.ron",
     "weather/events.ron",
     "environment/climate.ron",

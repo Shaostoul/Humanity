@@ -173,6 +173,9 @@ pub(crate) fn publish(state: &mut EngineState) {
     state.data_store.insert(body_heat::MODE_KEY, mode);
     let illness = crate::systems::illness::Mode::from_realistic(state.gui_state.settings.illness_realistic);
     state.data_store.insert(crate::systems::illness::MODE_KEY, illness);
+    // Farm animals (2026-10-12, first-hour audit S6): what neglect does to them.
+    let animals = crate::systems::animal_care::Mode::from_realistic(state.gui_state.settings.animal_care_realistic);
+    state.data_store.insert(crate::systems::animal_care::MODE_KEY, animals);
 
     // The air where the player stands: temperature, humidity, wind, what is
     // falling and the pressure, all from the weather's at-player export

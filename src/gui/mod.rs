@@ -834,6 +834,12 @@ pub struct GuiState {
     /// Crosshair prompt for the farm animal the player faces (v0.751):
     /// "[E] collect Egg (Chicken)" when ready, the regrow countdown otherwise.
     pub livestock_prompt: String,
+    /// How the faced farm animal is and what it needs, under the prompt (2026-10-12,
+    /// `animal_care::walk_up_lines`): "Hungry (no feed in home storage). Eats about ...".
+    pub livestock_care: String,
+    /// Every cared-for animal and every herd animal that died, for Home > Animals
+    /// (`animal_care::herd_rows`, refreshed each frame by lib.rs).
+    pub herd: Vec<crate::systems::animal_care::HerdRow>,
     /// Transient collect feedback ("+1 Egg from Chicken" / "Your pack is full").
     pub livestock_notice: String,
     /// game_time when livestock_notice was set; lib.rs clears it after 3 s.
@@ -3341,6 +3347,8 @@ impl Default for GuiState {
             targeted_machine: None,
             vehicle_prompt: String::new(),
             livestock_prompt: String::new(),
+            livestock_care: String::new(),
+            herd: Vec::new(),
             livestock_notice: String::new(),
             livestock_notice_at: 0.0,
             targeted_control_panel: None,
@@ -4542,6 +4550,10 @@ pub struct SettingsState {
     /// default: a shorter course taking half the water), true is Realistic.
     /// Saved as AppConfig::illness_realistic; published by engine::survival_env.
     pub illness_realistic: bool,
+    /// Farm animals mode (2026-10-12, systems::animal_care): false is Forgiving (the default:
+    /// neglect only stops what they make), true is Realistic (they fall sick and die).
+    /// Saved as AppConfig::animal_care_realistic; published by engine::survival_env.
+    pub animal_care_realistic: bool,
     /// Carrying weight mode (BUG-136, systems::encumbrance): false is
     /// Forgiving (the default: the same limit, a warning only), true is
     /// Realistic (an overload slows walking and stops jumps, and a load's
@@ -4682,6 +4694,7 @@ impl Default for SettingsState {
             vitals_drain: 1.0,
             body_heat_realistic: false,
             illness_realistic: false,
+            animal_care_realistic: false,
             carry_realistic: false,
             pipe_marking_full: false,
             death_realistic: false,

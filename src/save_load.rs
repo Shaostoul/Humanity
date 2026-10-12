@@ -345,6 +345,8 @@ pub fn extract_world_save(world: &hecs::World) -> WorldSave {
     // rebuilt fresh at every launch: every animal ready again, every asteroid
     // full again, and the ore in a flying drone's hold gone.
     save.herd = crate::systems::livestock::herd_timers(world);
+    // And how each is kept: fed, watered, how long it has gone short (S6, 2026-10-12).
+    save.herd_care = crate::systems::animal_care::herd_care(world);
     save.asteroids = Some(
         world
             .query::<&crate::ecs::components::AsteroidBody>()
@@ -875,6 +877,12 @@ pub(crate) fn save_home_at(
     if save.herd.is_empty() {
         save.herd = crate::systems::livestock::pending_herd(data).unwrap_or_default();
     }
+    // Their care the same way, and the herd's dead, which live in the DataStore
+    // (a corpse is despawned; its slot must not come back).
+    if save.herd_care.is_empty() {
+        save.herd_care = crate::systems::animal_care::pending_care(data).unwrap_or_default();
+    }
+    save.herd_lost = crate::systems::animal_care::lost(data);
     if let Err(e) = persistence::save_world(path, &save) {
         log::error!("save_active_home failed: {e}");
     } else {
@@ -1297,11 +1305,18 @@ pub fn resume_home(
     r.drone_hauls = hauls.len();
     // LIVESTOCK: each animal's timer as saved, moved on by the time away (by
     // nothing when it does not count), onto the herd now or at world entry.
+    // An animal that had stopped making anything for want of feed or water
+    // when the game was saved makes only its share while away (S6).
+    let shares = crate::systems::animal_care::away_shares(data, &save.herd_care);
     r.animals_ready = data
         .get::<crate::systems::livestock::CreatureRegistry>("creature_registry")
-        .map_or(0, |reg| crate::systems::livestock::readied_by_away(&save.herd, r.away_secs, reg));
-    let timers = crate::systems::livestock::timers_after_away(&save.herd, r.away_secs);
+        .map_or(0, |reg| crate::systems::livestock::readied_by_away(&save.herd, r.away_secs, reg, &shares));
+    let timers = crate::systems::livestock::timers_after_away(&save.herd, r.away_secs, &shares);
     crate::systems::livestock::restore_herd(world, data, timers);
+    // And how each is kept, the herd's dead, and the time away the character
+    // fed them through: the first livestock tick takes that feed out of home
+    // storage (systems::animal_care).
+    crate::systems::animal_care::restore(world, data, save.herd_care.clone(), save.herd_lost.clone(), r.away_secs);
     // AUTOMATED MACHINES: handed the time away with what each was busy with
     // at the save, the home's spare power and the drone's hauls; the
     // CraftingSystem runs them through it once they exist (crafting::away).
@@ -2788,6 +2803,49 @@ mod tests {
         assert_eq!(drones[0].home, player.to_bits().get(), "home is this player now");
     }
 
+    /// THE HERD'S CARE AND ITS DEAD GO THROUGH THE SAVE FILE (2026-10-12, first-hour audit
+    /// S6). A hungry goat's care and a starved hen's slot are written to disk by the home save,
+    /// and the next launch's resume hands them on: the care waits for the herd, and the hen's
+    /// slot is lost, so world entry does not spawn her again.
+    ///
+    /// Seen red 2026-10-12 with `resume_home` not calling `animal_care::restore`: "the goat's
+    /// care waits for the herd: None".
+    #[test]
+    fn the_herds_care_and_its_dead_go_through_the_save_file() {
+        use crate::systems::animal_care::{self as care, AnimalCare, CareSave, LostAnimal};
+        use std::sync::Mutex;
+        let root = std::env::temp_dir().join(format!("hos_herd_care_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let path = root.join("saves").join("offline_home.json");
+        let mut data = crate::hot_reload::data_store::DataStore::new();
+        crate::systems::livestock::register(&mut data);
+        let mut world = hecs::World::new();
+        world.spawn((Inventory::new(16), Controllable));
+        world.spawn((
+            crate::systems::livestock::HerdSlot("goat#0".into()),
+            AnimalCare { hungry_h: 30.0, trough_kg: 0.5, ..Default::default() },
+        ));
+        let starved = LostAnimal { slot: "chicken#2".into(), cause: "starved".into() };
+        data.get::<Mutex<Vec<LostAnimal>>>(care::LOST_KEY).unwrap().lock().unwrap().push(starved.clone());
+        save_home_at(&path, &world, &[], &data, true, None);
+        let save = persistence::load_world(&path).unwrap();
+        let goat = vec![CareSave { slot: "goat#0".into(), trough_kg: 0.5, drinker_l: 0.0, hungry_h: 30.0, thirsty_h: 0.0 }];
+        assert_eq!(save.herd_care, goat, "the goat's care is in the file");
+        assert_eq!(save.herd_lost, vec![starved], "and the hen that starved");
+
+        // The next launch, before world entry.
+        let mut data = crate::hot_reload::data_store::DataStore::new();
+        crate::systems::livestock::register(&mut data);
+        let mut world = hecs::World::new();
+        world.spawn((Inventory::new(16), Controllable));
+        apply_save_to_world(&mut world, &save);
+        resume_home(&mut world, &data, &save, false, 1.0, None);
+        let waiting = care::pending_care(&data);
+        assert_eq!(waiting, Some(goat), "the goat's care waits for the herd: {waiting:?}");
+        assert!(care::is_lost(&data, "chicken#2"), "the starved hen is not spawned again");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
     /// A return runs the home through the time away, end to end: the drone's
     /// standing order mines the asteroid out (three hauls of 2), the smelter
     /// smelts each haul from the moment it landed (three ingots, one coal
@@ -2820,7 +2878,8 @@ mod tests {
         save.timestamp = now_secs() - 3600;
         save.asteroids = Some(vec![rock(6.0)]);
         save.mining_order = Some(("rock".into(), vec![("iron_ore_0".into(), 2)]));
-        save.herd = vec![("chicken#0".into(), 100.0)];
+        // The hen lays every 26 hours (2026-10-12): 600 s short of her egg at the save.
+        save.herd = vec![("chicken#0".into(), 93_000.0)];
 
         let mut world = hecs::World::new();
         let player = world.spawn((Inventory::new(16), Controllable));
@@ -2830,7 +2889,7 @@ mod tests {
         assert_eq!((r.drone_hauls, r.animals_ready), (3, 1));
         assert!((r.away_secs - 3600.0).abs() <= 2.0, "{}", r.away_secs);
         let pending = crate::systems::livestock::pending_herd(&data).expect("waits for the herd");
-        assert!(pending[0].1 >= 3700.0, "{pending:?}");
+        assert!(pending[0].1 >= 96_600.0, "{pending:?}");
 
         crate::ecs::systems::System::tick(&mut crate::systems::crafting::CraftingSystem::new(), &mut world, 0.0, &data);
         let ingots: u32 = data

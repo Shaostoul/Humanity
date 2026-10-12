@@ -258,6 +258,10 @@ glue_0,Glue,material,adhesive,epoxy,0.3,20,0,All-purpose adhesive tube,flammable
 tape_duct_0,Duct Tape,material,adhesive,tarp_material,0.2,20,0,Reinforced adhesive tape roll,solid,0.35
 paint_0,Paint,material,finish,acrylic,1.0,10,0,Acrylic paint can 1L,flammable,1.41
 fertilizer_0,Fertilizer,material,agricultural,plant_fiber,2.0,10,0,Nutrient-rich plant food bag,dry_goods,2.78
+# Hay (2026-10-12, first-hour audit S6): what goats, sheep and cattle eat most of (data/livestock/care.ron).
+# One small square bale: about 14 x 18 x 36 inches (0.36 x 0.46 x 0.91 m, 149 L) and 40 to 60 lb, the
+# common size; 20 kg is the light end, a well-cured bale. Dry matter share is in care.ron.
+hay_0,Hay,material,feed,plant_fiber,20.0,10,0,A small square bale of dried grass hay about 20 kg: most of what goats and sheep and cattle eat,solid,149.0
 seed_wheat_0,Wheat Seeds,material,seed,plant_fiber,0.1,50,0,Planting grain seeds packet,dry_goods,0.14
 seed_corn_0,Corn Seeds,material,seed,plant_fiber,0.1,50,0,Planting maize seeds packet,dry_goods,0.14
 seed_potato_0,Seed Potatoes,material,seed,plant_fiber,0.2,30,0,Seed potato tuber set,dry_goods,0.28
