@@ -28,6 +28,11 @@
 // signed-in chat socket, exactly as 10f fixes it:
 //   {"type":"call_credentials","room":"<voice room id>"}
 //   {"type":"call_credentials","call":"<the other person's key>"}
+// and, for a device-to-device file (2026-10-11, docs/design/media-showcase.md,
+// "Device-to-device big files: the shapes, exact", section 2;
+// chat-file-transfer.js), with the transfer's file pass:
+//   {"type":"call_credentials","file":"<id>","peer":"<key>","file_pass":{...}}
+// whose reply is matched on its `file`, as a room's is on `room`;
 // and waits for the reply, which carries `urls`, `username`, `credential` and
 // `ttl` (seconds). The relay answers only someone in that voice room, or in an
 // open call with that person; anyone else gets no reply at all. So no reply
@@ -43,12 +48,13 @@ const CALL_CREDENTIALS_WAIT_MS = 8000;
 /** What a person sees when a call cannot go through the server (10f, word for word). */
 const CALLS_NEED_SERVER = 'Calls go through the server to keep your address private; this server is not set up for that yet.';
 
-/** Requests waiting for their reply: "room:<id>" or "call:<key>" -> { promise, resolve, timer }. */
+/** Requests waiting for their reply: "room:<id>", "call:<key>" or "file:<id>" -> { promise, resolve, timer }. */
 const callCredentialWaits = new Map();
 
 /** The key a request and its reply are matched on. Keys compare without regard to letter case. */
 function callScopeKey(scope) {
   if (!scope) return '';
+  if (typeof scope.file === 'string' && scope.file !== '') return 'file:' + scope.file.toLowerCase();
   if (scope.room !== undefined && scope.room !== null && String(scope.room) !== '') return 'room:' + String(scope.room);
   if (typeof scope.call === 'string' && scope.call !== '') return 'call:' + scope.call.toLowerCase();
   return '';
@@ -76,7 +82,11 @@ function requestCallCredentials(scope) {
   callCredentialWaits.set(key, entry);
   entry.timer = setTimeout(() => entry.resolve(null), CALL_CREDENTIALS_WAIT_MS);
   const ask = { type: 'call_credentials' };
-  if (key.startsWith('room:')) ask.room = String(scope.room);
+  if (key.startsWith('file:')) {
+    ask.file = scope.file;
+    ask.peer = scope.peer;
+    ask.file_pass = scope.file_pass;
+  } else if (key.startsWith('room:')) ask.room = String(scope.room);
   else ask.call = scope.call;
   ws.send(JSON.stringify(ask));
   return entry.promise;
@@ -94,7 +104,8 @@ function callCredentialsFromReply(msg) {
 
 /** A `call_credentials` reply: hand it to whoever is waiting for that room or call. */
 function onCallCredentials(msg) {
-  const scope = msg.room !== undefined && msg.room !== null ? { room: msg.room } : { call: msg.call };
+  const scope = typeof msg.file === 'string' && msg.file !== '' ? { file: msg.file }
+    : (msg.room !== undefined && msg.room !== null ? { room: msg.room } : { call: msg.call });
   const entry = callCredentialWaits.get(callScopeKey(scope));
   if (!entry) return; // nobody asked, or the wait already ran out
   entry.resolve(callCredentialsFromReply(msg));

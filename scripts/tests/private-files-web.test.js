@@ -543,6 +543,8 @@ async function loadChat(me, opts = {}) {
   run("shared/upload-clean.js");
   run("shared/files-in-messages.js");
   run("shared/kept-files.js");
+  run("shared/blake3.js");
+  run("shared/file-transfer.js");
   run("shared/profile-changes.js");
   run("chat/crypto.js");
   run("chat/chat-dm-store.js");
@@ -560,6 +562,7 @@ async function loadChat(me, opts = {}) {
   run("chat/chat-privacy.js");
   run("chat/chat-reports.js");
   run("chat/chat-warnings.js");
+  run("chat/chat-file-transfer.js");
   run("chat/chat-protected.js");
   run("chat/chat-onboarding.js");
   run("chat/chat-p2p.js");
@@ -996,9 +999,13 @@ test("a file named with my recovery phrase or over 6 MB is not uploaded or sent,
   await paste(page, picture(phraseName));
   nothingWent("a DM, the phrase in the name");
   assert.ok(guardSaid(), "the guard says the file was not sent");
-  await paste(page, picture("big.png", big));
+  // Since device-to-device big files (2026-10-11), a file over the limit in a DM is offered straight
+  // to their device instead of being refused: the attach step says so, and Cancel sends nothing
+  // (the offer itself: scripts/tests/file-transfer-chat-web.test.js).
+  const big1 = await pasteToStep(page, picture("big.png", big));
+  assert.ok(stepDirectLines(page).includes("Files over 6 MB go straight to Ben's device instead of through the server."), "a DM, over 6 MB: offered device to device");
+  await press(page, big1.going, "cancel");
   nothingWent("a DM, over 6 MB");
-  assert.ok(page.systemLines.some((l) => l.includes("a private conversation can be up to 6 MB")), "and says a private conversation takes up to 6 MB");
 
   page.systemLines.length = 0;
   await openGroup(page);
@@ -1448,9 +1455,12 @@ test("a private conversation takes a file up to my role's private limit once the
   seven.set(PNG, 0);
   page.fn("openDmConversation")(fx.ben.key, "Ben");
   await settle();
-  await paste(page, picture("big.png", seven));
-  assert.equal(page.uploads.length, 0, "with no private limit said, 6 MB holds");
-  assert.ok(page.systemLines.some((l) => l.includes("a private conversation can be up to 6 MB for your role on this server")), "and says so");
+  // Over the limit in a DM, the file is offered device to device (2026-10-11), and the step's line
+  // names the limit that applies.
+  const over6 = await pasteToStep(page, picture("big.png", seven));
+  assert.ok(stepDirectLines(page).includes("Files over 6 MB go straight to Ben's device instead of through the server."), "with no private limit said, 6 MB holds");
+  await press(page, over6.going, "cancel");
+  assert.equal(page.uploads.length, 0, "and nothing is uploaded");
   // My peer-list entry: a 10 MB private limit, and a room limit of 1 MB that does not apply here.
   page.fn("updatePeerList")([{ public_key: fx.ann.key, private_limit_mb: 10, upload_limit_mb: 1 }]);
   await paste(page, picture("big.png", seven));
@@ -1458,10 +1468,16 @@ test("a private conversation takes a file up to my role's private limit once the
   assert.ok(/(^|&)encrypted=1(&|$)/.test(page.uploads[0].query), "encrypted, as every private file is");
   const eleven = new Uint8Array(11 * MB);
   eleven.set(PNG, 0);
-  await paste(page, picture("bigger.png", eleven));
+  const over10 = await pasteToStep(page, picture("bigger.png", eleven));
+  assert.ok(stepDirectLines(page).includes("Files over 10 MB go straight to Ben's device instead of through the server."), "and the words name my limit");
+  await press(page, over10.going, "cancel");
   assert.equal(page.uploads.length, 1, "over it, nothing is uploaded");
-  assert.ok(page.systemLines.some((l) => l.includes("a private conversation can be up to 10 MB for your role on this server")), "and the words name my limit");
 });
+
+/** The attach step's lines for a file that goes device to device (chat-messages.js showAttachStep). */
+function stepDirectLines(page) {
+  return everyUnder(attachStep(page)).filter((e) => String(e.className).split(/\s+/).includes("attach-step-direct")).map((e) => e.textContent);
+}
 
 // Every upload carries this session's token; before the server has sent one nothing is uploaded
 // and the person is told why (the upload review, 2026-10-11: a bare key proved nothing about the
@@ -2291,3 +2307,13 @@ test("files: a private file opened is kept here, encrypted, and opens after a re
 // test failed on "a friend's picture still shows" (the setup is always Nobody now) and says so;
 // every test that pastes PNG failed on the attach step once the cleaning could not walk the old
 // stand-in PNG, so PNG is a real one now.
+//
+// Device-to-device big files (2026-10-11, docs/design/media-showcase.md, "As built (web,
+// device-to-device)"): the page now loads /shared/blake3.js, /shared/file-transfer.js and
+// /chat/chat-file-transfer.js, in index.html's order. A file over my private limit in a DM is
+// offered straight to the other person's device instead of being refused, so "a file named with my
+// recovery phrase or over 6 MB" and "a private conversation takes a file up to my role's private
+// limit" now meet the attach step there (its line naming the limit that applies) and press Cancel;
+// both hung on the step before they were changed. A group still refuses the file with the limit's
+// words. Seen red 2026-10-11 with chat-messages.js showAttachStep not drawing the direct lines: both
+// tests, "offered device to device" and "with no private limit said, 6 MB holds".

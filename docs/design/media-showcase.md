@@ -2104,6 +2104,149 @@ that changed with the behaviour are named at the end of private-files-web.test.j
 tests run without the cleaning (`clean: null` in media-web-harness.js), because their stand-in
 files are zeros named as videos. The four new test files are not in `just rig-tests` yet.
 
+## As built (web, device-to-device)
+
+The website's half of "Device-to-device big files: the shapes, exact" (parts 3 to 6, and the
+client side of parts 1 and 2), built 2026-10-11 against the shapes above while the relay half was
+built in parallel. The relay's side (the pass check on `dc_offer`, file credentials, the forwarder)
+is stood in by the tests: none of this has run against a real relay or the desktop app yet, and the
+spec's "one desktop-to-web transfer between two real apps through a throwaway relay" is still to do.
+
+**Files.** Two new shared scripts, each a classic script in the browser and a CommonJS module under
+Node, and one chat script:
+- `web/shared/blake3.js` (`HosBlake3`): BLAKE3, the plain 32-byte hash, streamed. The vendored
+  noble bundle's BLAKE3 measured about 12 MB/s on this machine, over three minutes to hash a 2.3 GB
+  file and a cap of about 12 MB/s on receiving; this one measured about 167 MB/s. It does only the
+  default hash mode (no keyed mode, no derive_key, no longer output) and is held to the noble bundle
+  at every length around the block, chunk and tree boundaries and for every way of splitting the
+  input across updates. (`web/pages/media-upload.js` says the web cannot hash a gigabyte cheaply;
+  this would let it, which is the media lane's call.)
+- `web/shared/file-transfer.js` (`HosFileTransfer`): the pass's words and JSON, the three notes'
+  exact text, the channel's messages, hashing a file a piece at a time, the `Sender` and the
+  `Receiver` (the channel protocol, with nothing of the page in them), and the words on screen.
+- `web/chat/chat-file-transfer.js`: the attach step's way for a big file, minting the pass, sending
+  and taking the notes, the question, the rows, the connection, the pieces kept in IndexedDB and the
+  save.
+- Changed: `chat-messages.js` (a file over my private limit in a DM goes to `offerFileDirect`; the
+  attach step takes `direct` lines and can turn Send off; `acceptsFilesKnown`), `chat-social.js`
+  (`ingestDmControl` hands the three notes over, never shown), `chat-p2p.js` (a note arriving on an
+  own-device channel is dropped unread), `chat-voice-rooms.js` (the third `call_credentials` request,
+  its reply matched on `file`), `chat-voice-calls.js` (`webrtc_signal` asks the file transfers
+  first), `chat-dms.js` (the rows, after the conversation's messages), `chat-privacy.js` (the direct
+  connections row), `chat-dm-store.js` (`sealBox` / `openBox`, the record's encryption),
+  `index.html` (the order: `blake3.js` and `file-transfer.js` after `kept-files.js`,
+  `chat-file-transfer.js` after `chat-warnings.js` and before `chat-protected.js`, which stays the
+  last script to wrap the frame handler) and `messages.css`.
+
+**Part 1, the pass.** Minted for each transfer by the sender: Dilithium3 over
+`hum/file-pass/v1\n{server}\n{me}\n{them}\n{id}\n{expiry}`, the server's `did:hum:` from its
+`identify_challenge`, an end 7 days ahead. The receiver checks the signature (and that it has not
+ended) before it shows anything; an offer whose pass does not check is dropped.
+
+**Part 2, credentials.** `{"type":"call_credentials","file":"<id>","peer":"<key>","file_pass":{...}}`,
+exactly. **Assumed, not in the spec:** the relay's reply echoes `file` the way it echoes `room` and
+`call`; a reply without it is never matched and the wait (8 seconds) runs out. A refusal or no reply
+gives the spec's "This server is not set up for that yet" on the row, with Resume to try again.
+
+**Part 3, the notes.**
+- The offer goes to the recipient alone, with no copy to my other devices (they do not have the
+  file). It carries a `ref`, so a `dm_put_refused` shows on the row ("The offer was not delivered:
+  Ben's settings do not let you reach them." and the like).
+- The answer and the cancel go with a copy to my other devices: a question still open on Ben's other
+  device becomes "Answered on your other device", and a cancel reaches them all.
+- A note that cannot go (no connection) is kept with the transfer's record and goes on the next
+  member list.
+- **Files in messages first**, then "who can reach me", then the protected setup's hide rule. An
+  offer from a sender this device does not accept files from is not asked about, and its row says so
+  ("Ann offered you clip.mp4 (2.3 GB). You accept files only from friends, so you were not asked.").
+  **Decision:** no answer goes back for it. An automatic decline would tell the sender the moment
+  the receiver's app was online; the sender's row waits, and says "Ben did not answer in time" once
+  the pass has ended. The sender's attach step already says when the other person's published choice
+  means their app will not ask them, and then Send is off.
+- An offer whose pass has ended is not asked about ("This offer ran out. Ask for it to be sent
+  again.").
+
+**Part 4, the connection.**
+- **One connection with each person at a time.** Signalling carries no transfer id, so two files
+  between the same two people go one after the other.
+- The receiver dials (on Accept, on Resume, and when the sender appears in the member list; and
+  every minute while the page is open). The sender answers a dial only from someone it has a live
+  offer to. It cannot know which file a dial is for until the channel opens with its label, so it
+  asks for credentials for each of its live offers to that person (at most four) and puts them all in
+  its connection: the forwarder passes packets only within one transfer, so only the matching pair
+  connects. A channel whose label is no offer of mine to them is closed.
+- Both dial at once (each has a file for the other): the larger key's dial goes on, as the desktop
+  app's offerer rule has it.
+- Relay only (`iceTransportPolicy: 'relay'`) unless the two are friends both ways (a mutual follow,
+  and each holds the other's friendship pass) and the person turned on "Let files from friends go
+  straight between devices" (Safety > Files in messages; off by default; never with the protected
+  setup on). Direct adds this server's own address lookup (`/api/turn-credentials`) and keeps the
+  forwarder's credentials. Each side applies its own setting, so each guards its own address.
+
+**Part 5, the channel.**
+- **Decision on the 64 KiB:** a message is at most 64 KiB INCLUDING its 8-byte header, so each
+  carries 65,528 bytes of a piece and a 256 KiB piece is five messages. The receiver takes any message
+  that continues the piece it is filling, so a sender that puts a full 64 KiB after the header still
+  works with this receiver. The piece hashes go as messages of exactly 64 KiB (2,048 hashes), no header.
+- One window of at most 16 pieces at a time; the next is asked for when the window's last piece is
+  in. Nothing for 30 seconds with a window out: it asks again (nothing counted against a piece). A
+  piece that fails its hash is asked for again; the third failure ends the transfer ("Part of the file
+  arrived damaged three times, so the transfer stopped."). A list of piece hashes that does not match
+  the offer, or a whole file that does not, ends it with "The file Ann offered does not match its
+  description".
+- Pause: each side's pause holds until the same side resumes; the receiver asks for every window,
+  so a resume from either side ends with the receiver asking from the first piece it lacks. A pause
+  drops a half-received piece.
+- The sender reads only the piece it is sending and holds back while the channel buffers more than
+  1 MB (the `bufferedamountlow` event, with a half-second check as well).
+- Pieces are kept in IndexedDB (`humanity_file_transfers`, store `pieces`, one Blob per piece, in
+  order). **Decision:** the pieces are not encrypted at rest. The saved file will be in the open in
+  any case, and an encrypted piece would have to be opened into memory to make the file's Blob. Each
+  transfer's record (who, the offer, how far) is encrypted with the DM store's key, as the DM history
+  is. The pieces go when the transfer is cancelled or fails, and two minutes after a save.
+- The whole file's BLAKE3 is built as the pieces arrive in order and, after a reload, from the
+  pieces kept. Only when it matches is `{"t":"done"}` sent and the file saved: through the File
+  System Access API where the browser has it (the place is asked for at Accept, while the click
+  counts) and otherwise as a Blob made of the kept pieces, saved through the browser's own download,
+  with a "Save again" link while the pieces are kept.
+
+**Part 6, the screens.** A row per transfer after the conversation's messages, on both sides: the
+name, the size, a progress bar, Pause, Resume and Cancel, and the spec's words for each state,
+plus a few of this page's own: "Getting the file ready" (hashing), "Connecting", "Paused", "Paused by
+Ann", "Checking the file", "Receiving through the server's call relay", "You declined", "Answered on
+your other device". The sender's row says the file goes from this device and the page must stay
+open. **After a reload the sender no longer has the file** (a browser does not keep a picked file
+across a reload): the row asks for it to be chosen again ("Choose the file again"), and only the
+same file (its size, its BLAKE3 and its piece list) is taken.
+
+**Not done, or honest notes.**
+- The shared fixture `scripts/tests/fixtures/file-offer-v1.json` was not in this tree: the tests pin
+  the spec's own text and also read the fixture when it is there (its `text` and `preimage.words`
+  fields as written in the test; a different shape needs the test's reader adjusted).
+- The offer has no field saying the file could not be checked for hidden location: the sender is
+  asked "Send anyway?" as for any private file, but the receiver is not told.
+- After a reload with every piece already kept, the receiver dials once more to check the file and
+  say done, so the sender must still be online for the save to happen there.
+- Two of the receiver's devices pressing Accept at the same moment may both dial; the signalling
+  cannot tell them apart.
+- The browser's own storage limit is the only size limit (Firefox and Safari allow less than
+  Chromium).
+- Groups come later (file-transfer-at-scale.md, layer 3).
+
+**Tests** (each seen failing once against a single break in a copy of web/; the note at each test
+file's end names the break and what it saw): `scripts/tests/file-transfer-web.test.js` (BLAKE3; the
+pass's words and the notes against the spec's own blocks; fit offers; the hash list; piece checks
+and three tries; resume after a drop and after a reload; pause from either side; cancel from either
+side; the whole-file check before saving; a 40 MB virtual file read only a piece at a time, messages
+of at most 64 KiB, the channel held near 1 MB) and `scripts/tests/file-transfer-chat-web.test.js`
+(two chat pages and a stand-in relay and WebRTC: the attach step and the sealed offer with a real
+Dilithium3 pass, Files in messages first, decline, the whole transfer through the call relay only,
+cancel from either side, pause, a server not set up, resume after a drop and a reload, expiry, a
+file that does not match, the other device, direct connections). `private-files-web.test.js` loads
+the new scripts and two of its tests changed (a file over the limit in a DM is now offered device
+to device); `p2p-direct-offers.test.js` and `calls-through-server.test.js` load the new chat script,
+so they hold it to answering no offer that is not a file's.
+
 ## As built (desktop, files)
 
 The desktop app's half of parts 1 to 4 above, built 2026-10-11 against the relay's `accepts_files`

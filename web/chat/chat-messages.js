@@ -560,6 +560,18 @@ function askAcceptsFiles(key) {
  */
 function acceptsFilesLine(key) {
   const F = window.HosFilesInMessages;
+  const known = acceptsFilesKnown(key);
+  if (!F || !known) return null;
+  return F.senderLine(known.shown, known.value, known.friend);
+}
+
+/**
+ * What the person a DM goes to published about files: {value ("nobody", "friends" or "anyone"),
+ * friend (whether they count me one), shown (their name here)}, or null when it is not known yet
+ * (it is asked for then). The device-to-device offer reads it too (chat-file-transfer.js).
+ */
+function acceptsFilesKnown(key) {
+  const F = window.HosFilesInMessages;
   if (!F || !key) return null;
   const name = attachProfileName(key);
   const known = name && typeof profileCache !== 'undefined' && profileCache ? profileCache[name.toLowerCase()] : null;
@@ -569,9 +581,9 @@ function acceptsFilesLine(key) {
   }
   const store = (window.hosDmStore && hosDmStore.ready) ? hosDmStore : null;
   // They count me a friend when we follow each other and they gave me a pass.
-  const iAmTheirFriend = !!(store && store.isFriendPeer(key) && store.certFor(key));
+  const friend = !!(store && store.isFriendPeer(key) && store.certFor(key));
   const shown = typeof reachDisplayName === 'function' ? reachDisplayName(key) : name;
-  return F.senderLine(shown, known.accepts_files, iAmTheirFriend);
+  return { value: known.accepts_files, friend, shown };
 }
 
 /**
@@ -624,6 +636,10 @@ function showAttachStep(o) {
     card.appendChild(offLine);
     card.appendChild(said);
     if (o.extraLine) card.appendChild(mk('p', 'attach-step-recipient', o.extraLine));
+    // A file over my private limit in a DM goes device to device (chat-file-transfer.js): why, and
+    // that the page must stay open; and, when their published choice means their app will not ask
+    // them, that too, with Send off.
+    if (o.direct) for (const line of o.direct.lines || []) card.appendChild(mk('p', 'attach-step-direct', line));
     const buttons = mk('div', 'attach-step-buttons');
     const send = mk('button', 'vr-btn attach-step-send', W.send);
     send.type = 'button';
@@ -642,7 +658,7 @@ function showAttachStep(o) {
       offLine.textContent = !o.ctx.protectedOn && !remove() ? W.switchOffLine : '';
       said.textContent = d.words || '';
       send.textContent = d.action === 'ask' ? W.sendAnyway : W.send;
-      send.disabled = d.action === 'refuse';
+      send.disabled = d.action === 'refuse' || !!(o.direct && o.direct.refuse);
     };
     const done = (yes) => {
       if (typeof overlay.remove === 'function') overlay.remove();
@@ -662,9 +678,10 @@ function showAttachStep(o) {
  * answer ('' for a public room). Resolves null when the file is not to be sent, else
  * {file, keepMetadata, unchecked}: the file to send (cleaned, or as picked when the person kept
  * the details), whether the upload says keep_metadata=1, and whether its marker says it could not
- * be checked.
+ * be checked. `opts.direct` ({lines, refuse}): the file goes device to device instead
+ * (chat-file-transfer.js offerFileDirect), so the step is always shown, with those lines.
  */
-async function prepareAttachment(file, where) {
+async function prepareAttachment(file, where, opts) {
   const C = window.HosUploadClean;
   if (!C) {
     addSystemMessage('The file was not sent: this page could not load its file checker. Reload the page and try again.');
@@ -673,12 +690,14 @@ async function prepareAttachment(file, where) {
   const storage = attachStorage();
   const ctx = { where: where ? 'private' : 'public', remove: C.removeDetailsChosen(storage), protectedOn: attachProtectedOn() };
   const clean = await C.cleanFile(file);
-  const extraLine = where && where.startsWith('dm:') ? acceptsFilesLine(where.slice(3)) : null;
-  if (!C.stepNeeded(clean, ctx, extraLine)) {
+  const direct = opts && opts.direct ? opts.direct : null;
+  // (Device to device, the direct lines say what the recipient's choice means for it.)
+  const extraLine = !direct && where && where.startsWith('dm:') ? acceptsFilesLine(where.slice(3)) : null;
+  if (!direct && !C.stepNeeded(clean, ctx, extraLine)) {
     const d = C.decide(clean, ctx);
     return d.action === 'send' ? d : null;
   }
-  const choice = await showAttachStep({ file, clean, ctx, extraLine });
+  const choice = await showAttachStep({ file, clean, ctx, extraLine, direct });
   if (!choice || !choice.send) return null;
   if (!ctx.protectedOn) C.rememberRemoveDetails(storage, choice.remove);
   const d = C.decide(clean, Object.assign({}, ctx, { remove: choice.remove }));
@@ -794,8 +813,14 @@ async function sendEncryptedAttachment(file) {
   // holds the key, so it would make the file public).
   const target = privateConversationNow();
   if (!target) return;
-  // My role's private limit (attachmentLimit), which the server holds an
-  // encrypted upload to. Guard before encrypting/uploading.
+  // A file over my role's private limit in a DM never goes to the server's disk: it goes straight
+  // to their device once they say yes (device-to-device big files, 2026-10-11,
+  // chat-file-transfer.js offerFileDirect). In a group or the scratch pad it is refused with the
+  // limit's words (attachmentLimit), which the server holds an encrypted upload to.
+  if (target.startsWith('dm:') && file && file.size > attachmentLimit() && typeof offerFileDirect === 'function') {
+    await offerFileDirect(file, target.slice(3));
+    return;
+  }
   if (attachmentTooLarge(file)) return;
   // The file's name rides in the sealed message: never my recovery phrase
   // (step F, chat-warnings.js).

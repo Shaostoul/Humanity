@@ -601,6 +601,9 @@ async function onDCMessage(event, peerKey) {
   // A choice note (10n) only ever goes to my own mailbox: one coming this way
   // is someone else's, dropped unread, and its text is never shown.
   if (typeof isChoiceNoteText === 'function' && isChoiceNoteText(inner.text)) return;
+  // A file transfer's note (an offer, its answer, a cancel) only ever comes through the mailbox:
+  // one coming this way is dropped unread, its text never shown.
+  if (window.HosFileTransfer && HosFileTransfer.isFileNoteText(inner.text)) return;
   // A contact request, or a DM from someone my "who can reach me" settings
   // refuse (step B): a request, name only, its text dropped, as for mail
   // (chat-privacy.js ingestContactRequest, reachScreenDm).
