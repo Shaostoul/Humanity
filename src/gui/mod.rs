@@ -1328,6 +1328,13 @@ pub struct GuiState {
     pub asteroids: Vec<GuiAsteroid>,
     /// Active mining drones (ore / phase / cargo), synced from the ECS.
     pub drones: Vec<GuiDrone>,
+    /// The drone's running costs as the drone system last showed them (first-hour audit
+    /// S5, 2026-10-12): its battery, its wear and what its service takes. None with no
+    /// drone data, when it flies free. Synced by engine::drone::bridge.
+    pub drone_readout: Option<crate::systems::mining::DroneReadout>,
+    /// The Mining panel's Repair or Cancel this frame, handed to the drone system by
+    /// engine::drone::bridge.
+    pub pending_drone_request: Option<crate::systems::mining::DroneRequest>,
     /// World vehicles (Stage 3, v0.680), synced from the ECS each frame for the
     /// Inventory page's Vehicles section.
     pub vehicles: Vec<GuiVehicle>,
@@ -3538,6 +3545,8 @@ impl Default for GuiState {
             drone_active: false,
             asteroids: Vec::new(),
             drones: Vec::new(),
+            drone_readout: None,
+            pending_drone_request: None,
             vehicles: Vec::new(),
             pending_summon_vehicle: None,
             pending_open_mining_modal: None,
@@ -4537,6 +4546,12 @@ pub struct SettingsState {
     /// lost), true is Realistic (the backpack's contents stay where you fell, in a pack to go
     /// back for). Saved as AppConfig::death_realistic.
     pub death_realistic: bool,
+    /// Mining drone (first-hour audit S5, 2026-10-12, systems::mining): false is Simplified
+    /// (the default: its dock charges it even when the home has no power to spare, so a flat
+    /// home only delays a trip, and it wears half as fast), true is Realistic (a trip needs a
+    /// charge the home really gave). Saved as AppConfig::drone_realistic; published by
+    /// engine::drone::bridge.
+    pub drone_realistic: bool,
     /// Which survival bars the HUD draws (2026-09-25). See HudVitals.
     pub hud_vitals: crate::config::HudVitals,
     /// Play mode (task #50): Normal | Creative | Dev -- one ladder for every
@@ -4661,6 +4676,7 @@ impl Default for SettingsState {
             carry_realistic: false,
             pipe_marking_full: false,
             death_realistic: false,
+            drone_realistic: false,
             hud_vitals: crate::config::HudVitals::default(),
             play_mode: crate::config::PlayMode::default(),
             profile_visible: true,

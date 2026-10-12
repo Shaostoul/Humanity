@@ -3588,6 +3588,21 @@ pub(crate) fn draw_gameplay_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
         });
         let interact = crate::input::bindings::pretty_key_name(state.keybinds.pair(crate::input::bindings::GameAction::Interact).0);
         widgets::setting_hint(ui, theme, hint, &death_hint(&state.death_pack.rules, &interact));
+        // Mining drone (first-hour audit S5, 2026-10-12, systems::mining; the dual-mode house
+        // rule): what its battery and its wear ask of the home. The hint's numbers are read
+        // from the data it describes.
+        ui.add_space(theme.spacing_sm);
+        ui.label(RichText::new("Mining drone").color(theme.text_secondary()));
+        ui.horizontal(|ui| {
+            for (realistic, label) in [(false, "Simplified"), (true, "Realistic")] {
+                let selected = state.settings.drone_realistic == realistic;
+                if ui.radio(selected, RichText::new(label).color(theme.text_primary())).clicked() && !selected {
+                    state.settings.drone_realistic = realistic;
+                    state.settings_dirty = true;
+                }
+            }
+        });
+        widgets::setting_hint(ui, theme, hint, &crate::systems::mining::mode_hint());
         // Survival bars on the HUD (2026-09-25): the simple and full modes of
         // the same readout, plus the default that shows a need when it matters.
         ui.add_space(theme.spacing_sm);
