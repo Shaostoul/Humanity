@@ -71,7 +71,7 @@
   }
 
   /** A bio as the server keeps it: everything from a "<" to the next ">" taken out, and every ">"
-   *  (src/relay/handlers/msg_handlers.rs, the profile save's clean-up). Without this a bio holding
+   *  (src/relay/handlers/profile.rs, the profile save's clean-up). Without this a bio holding
    *  "<3" or ">" never matched the server's copy and stayed waiting for good, going back over
    *  bios saved on other devices (the web review of 2026-10-11). */
   function tidyBio(text) {

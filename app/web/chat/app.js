@@ -1560,6 +1560,11 @@ async function handleMessage(msg) {
               window.fleetLedger = game;
               if (typeof renderFleetLedger === 'function') renderFleetLedger();
               break;
+            case 'game_home':
+              // Where I live on this server, or the homes I can choose (ship homes increment 6):
+              // to me alone, for the Where you live window (chat-home.js).
+              if (typeof renderWhereYouLive === 'function') renderWhereYouLive(game);
+              break;
             case 'game_admin_error':
             // A done-and-said from a game-admin action (releasing a plot): the same status line.
             case 'game_admin_notice':
