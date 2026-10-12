@@ -43,6 +43,14 @@
 //!   waits: a Respawn steps out and in on the same connection, and the answer still comes. Only
 //!   the server a request went to can settle it.
 //!
+//! - HOUSEHOLD PERMITS (ship homes 5b, docs/design/ship-homes-increment-5b-plan.md 3.4 to 3.8):
+//!   the gate opens a plot this game holds a permit for that the relay said works this session
+//!   (engine/household.rs `plot_permit`); F there takes down only this player's own pieces; a
+//!   build on, or a take-down on, someone else's plot carries the permit; the relay's answers to
+//!   the permit checks (`game_permit_status`) are handed to engine/household.rs, whose checks go
+//!   out from [`tick_core`] and whose open plots are set from [`tick`]; a welcome and a departure
+//!   start and end its session.
+//!
 //! A PIECE IS DRAWN ONLY WHEN THE RELAY SAYS IT IS KEPT. The player's own build never puts up a
 //! scaffold here: the relay's `game_built` does, for the builder exactly as for everyone near, so
 //! nobody ever sees a piece the server did not keep. A piece younger than its build time grows
@@ -109,6 +117,13 @@ pub(crate) struct GateInput<'a> {
     pub site: Option<&'a PlanetSite>,
     /// What the last welcome said this player may do beyond their own plot.
     pub ranks: Ranks,
+    /// This session's household permits (ship homes 5b): which plots the relay said this game may
+    /// build on now (`usable`), and what it said of each permit held.
+    pub household: &'a crate::net::household::Household,
+    /// The permits held on this server (the DM store's `permits_held`).
+    pub held: &'a [crate::net::household::HeldPermit],
+    /// The clock a permit's end date is read against, Unix seconds.
+    pub now_s: u64,
 }
 
 /// Why nothing is built in a shared space reaching past its edge: the words after "Placing Wood
@@ -118,6 +133,25 @@ pub(crate) const ZONE_EDGE: &str = "a piece in the ship's shared spaces must sta
 /// Why nothing is built where no frame is (a corridor, the gap between two plots), for someone
 /// with the ship-editing rank; anyone else hears the plot rule ([`build_place::off_plot_reason`]).
 pub(crate) const NOT_IN_A_CORRIDOR: &str = "nothing is built in the ship's corridors, only on plots and in its shared spaces";
+
+/// Why nothing is built reaching past the edge of a plot this player holds a household permit for
+/// (ship homes 5b, plan 3.8): the words after "Placing Wood Wall: ".
+pub(crate) const PERMIT_PLOT_EDGE: &str = "a piece on someone else's plot must stand wholly on it";
+
+/// The placing hint's note on a piece kept by the server on a plot this player builds on with a
+/// household permit (ship homes 5b, plan 3.8): "[E] build here (with your household permit, kept
+/// by the server: anyone near sees it)".
+pub(crate) const KEPT_WITH_YOUR_PERMIT: &str = "with your household permit, kept by the server: anyone near sees it";
+
+/// The placing hint's note on a piece the gate sends to the server in `frame` (`Gate::Shared`):
+/// [`KEPT_WITH_YOUR_PERMIT`] on a plot this game builds on with a household permit, else
+/// `shared::KEPT_BY_THE_SERVER`.
+pub(crate) fn kept_words(frame: &str, household: &crate::net::household::Household) -> &'static str {
+    match parse_frame_id(frame) {
+        Some((FrameKind::Plot, plot)) if household.usable.contains(plot) => KEPT_WITH_YOUR_PERMIT,
+        _ => shared::KEPT_BY_THE_SERVER,
+    }
+}
 
 /// THE GATE: what E does with the piece in hand (ship homes increment 5, plan section 3.4). It
 /// mirrors the relay's `may_build` and the pose rules (`shared::box_inside_frame`) so the player
@@ -132,8 +166,12 @@ pub(crate) const NOT_IN_A_CORRIDOR: &str = "nothing is built in the ship's corri
 ///   - anywhere else only shareable pieces can go (the words name the kinds);
 ///   - in a shared space: with the `can_edit_ship` rank, to the server (`zone:<id>`); without it,
 ///     refused with the rank's words;
-///   - on another plot: refused, as someone else's plot (a guest: with no plot of their own).
-///     Household permits (increment 5b) will open that row.
+///   - on another plot (ship homes 5b, plan 3.8): with a household permit the relay said works
+///     this session, to the server (`plot:<id>`) when all of it stands on that plot, else refused
+///     ([`PERMIT_PLOT_EDGE`]); with a permit still being checked, refused for now
+///     (`household::CHECKING_WORDS`); with one that ran out or the relay refused, refused in that
+///     reason's words; with none, refused as someone else's plot (a guest: with no plot of their
+///     own).
 /// Pure, so every row is tested.
 pub(crate) fn gate(g: &GateInput) -> Gate {
     if g.site.is_some() {
@@ -167,6 +205,7 @@ pub(crate) fn gate(g: &GateInput) -> Gate {
         let empty = BlueprintRegistry::new();
         return Gate::Refused(shared::only_shell_pieces_words(g.registry.unwrap_or(&empty)));
     }
+    let refused = |why: Why| Gate::Refused(shared::why_words(Action::Build, Reason::NotAllowed, Some(why)));
     let why = match frame.kind {
         FrameKind::Zone if g.ranks.can_edit_ship => {
             return match shared::box_inside_frame(frame, &local) {
@@ -175,14 +214,27 @@ pub(crate) fn gate(g: &GateInput) -> Gate {
             };
         }
         FrameKind::Zone => Why::ShipRank,
-        FrameKind::Plot if guest => Why::Guest,
-        FrameKind::Plot => Why::NotYourPlot,
+        FrameKind::Plot => {
+            use crate::engine::household::{plot_permit, PlotPermit, CHECKING_WORDS};
+            match plot_permit(g.household, g.held, frame.plot_id().unwrap_or(""), g.now_s) {
+                PlotPermit::Usable => {
+                    return match shared::box_inside_frame(frame, &local) {
+                        Ok(()) => Gate::Shared(frame.id.clone()),
+                        Err(_) => Gate::Refused(PERMIT_PLOT_EDGE.to_string()),
+                    };
+                }
+                PlotPermit::Checking => return Gate::Refused(CHECKING_WORDS.to_string()),
+                PlotPermit::Refused(why) => return refused(why),
+                PlotPermit::None if guest => Why::Guest,
+                PlotPermit::None => Why::NotYourPlot,
+            }
+        }
     };
-    Gate::Refused(shared::why_words(Action::Build, Reason::NotAllowed, Some(why)))
+    refused(why)
 }
 
 /// [`gate`] for this session as it stands: whether it is in a shared world, its ship, its play
-/// mode, and the ranks its last welcome gave.
+/// mode, the ranks its last welcome gave, and its household permits.
 pub(crate) fn gate_here(
     gui: &GuiState,
     registry: Option<&BlueprintRegistry>,
@@ -191,6 +243,7 @@ pub(crate) fn gate_here(
     pose: &Transform,
     site: Option<&PlanetSite>,
 ) -> Gate {
+    let now_s = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs());
     gate(&GateInput {
         joined: gui.copresence_active,
         ship_scope: crate::config::ship_editing_for(gui),
@@ -200,6 +253,9 @@ pub(crate) fn gate_here(
         pose,
         site,
         ranks,
+        household: &gui.household,
+        held: gui.dm_store.as_ref().map_or(&[], |s| s.permits_held()),
+        now_s,
     })
 }
 
@@ -214,11 +270,12 @@ pub(crate) fn will_be_shared(gui: &GuiState, data: &DataStore, ranks: Ranks, bp:
 
 /// THE TAKE-DOWN GATE (F on a piece the server keeps): whether the relay would let this player take
 /// `kept` down, the relay's `may_remove` mirrored: the server's admins and its owner anything
-/// anywhere (`take_down_any`); a plot's holder anything on their own plot; the ship's shared spaces
-/// only with the `can_edit_ship` rank; anyone else nothing, as someone else's plot (household
-/// permits, increment 5b, will let a permit holder take down their own pieces there). Err is the
-/// `why` its words come from. Pure.
-pub(crate) fn take_down_gate(kept: &SharedPiece, ship: Option<&ShipStructure>, ranks: Ranks) -> Result<(), Why> {
+/// anywhere (`take_down_any`); a plot's holder anything on their own plot; the holder of a household
+/// permit the relay said works this session (`usable`, ship homes 5b) only the pieces they put up
+/// on that plot (`kept.mine`), anything else there being someone else's piece; the ship's shared
+/// spaces only with the `can_edit_ship` rank; anyone else nothing, as someone else's plot. Err is
+/// the `why` its words come from. Pure.
+pub(crate) fn take_down_gate(kept: &SharedPiece, ship: Option<&ShipStructure>, ranks: Ranks, usable: &BTreeSet<String>) -> Result<(), Why> {
     if ranks.take_down_any {
         return Ok(());
     }
@@ -227,6 +284,13 @@ pub(crate) fn take_down_gate(kept: &SharedPiece, ship: Option<&ShipStructure>, r
         Some((FrameKind::Zone, _)) if ranks.can_edit_ship => Ok(()),
         Some((FrameKind::Zone, _)) => Err(Why::ShipRank),
         Some((FrameKind::Plot, plot)) if own == Some(plot) => Ok(()),
+        Some((FrameKind::Plot, plot)) if usable.contains(plot) => {
+            if kept.mine {
+                Ok(())
+            } else {
+                Err(Why::NotYourPiece)
+            }
+        }
         _ => Err(Why::NotYourPlot),
     }
 }
@@ -271,6 +335,9 @@ struct PendingBuild {
     asked: Option<f64>,
     /// The relay said too much at once: send it again then.
     resend_at: Option<f64>,
+    /// The household permit it carried (ship homes 5b), so a `permit_*` refusal is filed against
+    /// that permit (`household::refused_by_server`).
+    permit: Option<crate::net::household::PermitKey>,
 }
 
 /// A take-down sent and not answered yet: settled as a build is ([`PendingBuild`]), by its answer
@@ -287,6 +354,8 @@ struct PendingUnbuild {
     server: String,
     asked: Option<f64>,
     resend_at: Option<f64>,
+    /// The household permit it carried ([`PendingBuild::permit`]).
+    permit: Option<crate::net::household::PermitKey>,
 }
 
 /// The game's books on the pieces the server keeps: one field on EngineState. Nothing in it is
@@ -330,6 +399,9 @@ pub(crate) struct SharedBuild {
     /// Messages for the relay. The engine sends them on the active connection ([`flush`]); the
     /// tests read them.
     pub(crate) outbox: Vec<String>,
+    /// When the last household permit check went (this clock; engine/household.rs `tick`, ship
+    /// homes 5b): one each `household::CHECK_GAP_S` at most.
+    permit_check_sent: Option<f64>,
 }
 
 impl SharedBuild {
@@ -463,11 +535,13 @@ pub(crate) fn on_welcome(state: &mut EngineState, v: &serde_json::Value) {
 }
 
 /// Once a frame, at the end of the co-presence block (lib.rs), joined or not: paid-for builds are
-/// sent (or, out of the shared world, given back), unanswered ones looked after, and a session
-/// that ended is cleared away.
+/// sent (or, out of the shared world, given back), unanswered ones looked after, the household
+/// permits held asked about (ship homes 5b), and a session that ended is cleared away. Then the
+/// plots this game may walk into are set on the ship (engine/household.rs `apply_open`).
 pub(crate) fn tick(state: &mut EngineState, real_dt: f32) {
     let (joined, welcomed) = (state.game_joined, state.game_welcomed);
     tick_core(&mut ctx(state), real_dt, joined, welcomed);
+    crate::engine::household::apply_open(state);
     flush(state);
 }
 
@@ -489,9 +563,10 @@ fn flush(state: &mut EngineState) {
 
 // ── Messages ──────────────────────────────────────────────────────────────
 
-/// Is `ty` one of the relay's messages about the pieces it keeps?
+/// Is `ty` one of the relay's messages about the pieces it keeps, or the answer to a household
+/// permit check (ship homes 5b, handed on to engine/household.rs)?
 pub(crate) fn is_ours(ty: &str) -> bool {
-    [msg::BUILT, msg::UNBUILT, msg::PIECES, msg::FRAME_OUT_OF_VIEW, msg::BUILD_REFUSED, msg::PIECES_CHECK].contains(&ty)
+    [msg::BUILT, msg::UNBUILT, msg::PIECES, msg::FRAME_OUT_OF_VIEW, msg::BUILD_REFUSED, msg::PIECES_CHECK, msg::PERMIT_STATUS].contains(&ty)
 }
 
 /// A relay message: true when it is about the pieces the server keeps (then it is applied here,
@@ -561,9 +636,11 @@ fn receive(cx: &mut Ctx, m: FromRelay) {
                 check(cx, &frames);
             }
         }
-        // The answer to a household permit check (ship homes 5b): the household's (Wave 2A
-        // routes it there); nothing to do with the pieces.
-        FromRelay::PermitStatus { .. } => {}
+        // The answer to a household permit check (ship homes 5b): the household's, in a session or
+        // out of one (an answer to a check no session of ours asked changes nothing there).
+        FromRelay::PermitStatus { req_id, plot, ok, why, again, message: _ } => {
+            crate::engine::household::on_status(cx.gui, req_id, &plot, ok, why, again, cx.sb.now);
+        }
     }
 }
 
@@ -788,6 +865,16 @@ fn beaten_to_it(cx: &mut Ctx, piece_id: u64) {
 fn refused(cx: &mut Ctx, req_id: Option<u32>, action: Action, reason: Reason, why: Option<Why>, message: &str) {
     let retry = cx.sb.now + shared::RATE_LIMITED_RETRY_MS as f64 / 1000.0;
     let said = |name: &str| if reason == Reason::Unknown { message.to_string() } else { shared::refusal_message(action, name, reason, why) };
+    // A household permit the relay refused with a build (ship homes 5b, plan 3.4 item 3): that
+    // permit is refused for this reason from now on, so its plot closes as a check would close it.
+    let permit_refused = |cx: &mut Ctx, permit: Option<crate::net::household::PermitKey>| {
+        let permit_why = why.filter(|w| {
+            matches!(w, Why::PermitExpired | Why::PermitNotFromHolder | Why::PermitBad | Why::PermitTooLong | Why::PermitWithdrawn)
+        });
+        if let (Some(key), Some(w)) = (permit, permit_why) {
+            crate::engine::household::refused_by_server(cx.gui, key, w, cx.sb.now);
+        }
+    };
     match (action, req_id) {
         (Action::Build, Some(id)) => {
             let Some(i) = cx.sb.pending.iter().position(|p| p.req_id == id) else { return };
@@ -796,6 +883,7 @@ fn refused(cx: &mut Ctx, req_id: Option<u32>, action: Action, reason: Reason, wh
                 return;
             }
             let p = cx.sb.pending.remove(i);
+            permit_refused(cx, p.permit.clone());
             let line = said(&blueprint_name(cx.data, &p.intent.blueprint_id));
             refund_build(cx, &p.intent, line);
         }
@@ -806,6 +894,7 @@ fn refused(cx: &mut Ctx, req_id: Option<u32>, action: Action, reason: Reason, wh
                 return;
             }
             let u = cx.sb.pending_unbuilds.remove(i);
+            permit_refused(cx, u.permit.clone());
             if reason == Reason::NoSuchPiece && cx.sb.active && u.server == cx.sb.server {
                 // The server no longer keeps it, and this game still drew it, solid: the news of
                 // its take-down was lost (review of increment 5, finding 1, case A). It comes down
@@ -898,6 +987,8 @@ pub(crate) fn welcome(cx: &mut Ctx, v: &serde_json::Value) {
     cx.sb.ranks = v.get("ranks").and_then(|r| serde_json::from_value::<Ranks>(r.clone()).ok()).unwrap_or_default();
     cx.sb.session = cx.sb.session.wrapping_add(1);
     cx.sb.active = true;
+    // The plot this welcome gave, and every household permit held asked about afresh (5b).
+    crate::engine::household::session_began(cx.gui, v);
     let now = cx.sb.now;
     for p in &mut cx.sb.pending {
         p.asked = None;
@@ -928,6 +1019,8 @@ fn leave(cx: &mut Ctx) {
     sb.lists_wanted.clear();
     sb.unbuilds.clear();
     sb.ranks = Ranks::default();
+    // No plot of this server is ours now, and nothing it said of a household permit counts (5b).
+    crate::engine::household::session_ended(cx.gui);
     if sb.active {
         log::info!(
             "Shared building: out of the session; took down {taken} piece(s) the server keeps; {} build(s) and {} take-down(s) wait for their answer",
@@ -970,6 +1063,9 @@ pub(crate) fn tick_core(cx: &mut Ctx, real_dt: f32, joined: bool, welcomed: bool
     parts_overdue(cx);
     ask_for_lists(cx);
     send_next(cx);
+    // The household permits held, asked about (ship homes 5b): their own pace, one check at a
+    // time, beside the builds (the relay counts them apart).
+    crate::engine::household::tick(cx.gui, cx.sb.now, &mut cx.sb.permit_check_sent, &mut cx.sb.outbox);
 }
 
 /// A build or take-down sent to this session's server with no answer after
@@ -1033,9 +1129,24 @@ fn wire(m: &ToRelay) -> String {
     serde_json::to_string(m).unwrap_or_default()
 }
 
+/// The household permit a build in, or a take-down of a piece in, `frame` carries (ship homes 5b,
+/// plan 3.8): on a plot that is not this player's own, the held permit for it
+/// (`household::held_for`: one the relay said works first, never one that ran out), with its key
+/// to file a refusal under. None on the player's own plot, in a shared space, or with no permit.
+fn permit_to_show(gui: &GuiState, frame: &str) -> Option<(crate::net::household::PermitKey, crate::systems::construction::shared::Permit)> {
+    let Some((FrameKind::Plot, plot)) = parse_frame_id(frame) else { return None };
+    let own = gui.ship_structure.as_ref().filter(|s| !s.home_is_away()).and_then(|s| s.home_plot()).map(|p| p.id.as_str());
+    if own == Some(plot) {
+        return None;
+    }
+    crate::engine::household::held_for(gui, plot).map(|h| (crate::net::household::PermitKey::of(h), h.permit.clone()))
+}
+
 /// Send the next request, at most one each `shared::SEND_INTERVAL_MS`: first one the relay asked
 /// to have again (`rate_limited`), then a take-down, then a build. A build goes measured from its
-/// frame's corner (`BuildFrame::to_local`); one for a frame this ship does not have comes back.
+/// frame's corner (`BuildFrame::to_local`); one for a frame this ship does not have comes back. A
+/// build on, or a take-down on, someone else's plot carries the household permit held for it
+/// ([`permit_to_show`]).
 fn send_next(cx: &mut Ctx) {
     let now = cx.sb.now;
     if now < cx.sb.next_send_at {
@@ -1061,9 +1172,21 @@ fn send_next(cx: &mut Ctx) {
             }
             Some(frame) => {
                 let req_id = cx.sb.next_req_id();
-                let message = wire(&ToRelay::Unbuild { req_id, piece_id: unbuild.piece_id, permit: None });
+                let (key, permit) = permit_to_show(cx.gui, &frame).unzip();
+                let message = wire(&ToRelay::Unbuild { req_id, piece_id: unbuild.piece_id, permit });
                 let (session, server) = (cx.sb.session, cx.sb.server.clone());
-                cx.sb.pending_unbuilds.push(PendingUnbuild { req_id, unbuild, frame, message: message.clone(), sent_at: now, session, server, asked: None, resend_at: None });
+                cx.sb.pending_unbuilds.push(PendingUnbuild {
+                    req_id,
+                    unbuild,
+                    frame,
+                    message: message.clone(),
+                    sent_at: now,
+                    session,
+                    server,
+                    asked: None,
+                    resend_at: None,
+                    permit: key,
+                });
                 Some(message)
             }
         }
@@ -1077,6 +1200,7 @@ fn send_next(cx: &mut Ctx) {
             Some(frame) => {
                 let req_id = cx.sb.next_req_id();
                 let local = frame.to_local(&intent.pose);
+                let (key, permit) = permit_to_show(cx.gui, &intent.frame).unzip();
                 let message = wire(&ToRelay::Build {
                     req_id,
                     frame: intent.frame.clone(),
@@ -1084,10 +1208,20 @@ fn send_next(cx: &mut Ctx) {
                     position: local.position.to_array(),
                     rotation: local.rotation.to_array(),
                     scale: local.scale.to_array(),
-                    permit: None,
+                    permit,
                 });
                 let (session, server) = (cx.sb.session, cx.sb.server.clone());
-                cx.sb.pending.push(PendingBuild { req_id, intent, message: message.clone(), sent_at: now, session, server, asked: None, resend_at: None });
+                cx.sb.pending.push(PendingBuild {
+                    req_id,
+                    intent,
+                    message: message.clone(),
+                    sent_at: now,
+                    session,
+                    server,
+                    asked: None,
+                    resend_at: None,
+                    permit: key,
+                });
                 Some(message)
             }
         }
