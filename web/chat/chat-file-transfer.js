@@ -928,10 +928,40 @@ function ftChannelArrived(link, ch) {
   const ok = t && t.role === 'send' && ftSameKey(t.peer, link.peer) && !ftFinished(t) && t.state !== 'preparing'
     && t.file && t.pieceHashes && !link.chans.has(id) && !link.closed;
   if (!ok) {
+    // A channel for an offer of mine that ended here (cancelled, failed): an end is always said
+    // (rule 8). Cancel goes on the channel before it closes, and the cancel note once more: the
+    // receiver never heard the first, or it would not be opening this (the review of 2026-10-12).
+    if (ch && ftEndedOfferTo(t, link.peer)) {
+      ftSayCancelAndClose(ch);
+      ftCancelAgainOnce(t);
+      return;
+    }
     try { if (ch) ch.close(); } catch (e) { /* gone */ }
     return;
   }
   ftBindChannel(link, t, ch);
+}
+
+/** Is `t` an offer of mine to `peer` that ended here without being sent (cancelled or failed)? */
+function ftEndedOfferTo(t, peer) {
+  return !!t && t.role === 'send' && !!t.offer && ftSameKey(t.peer, peer) && ['cancelled', 'failed'].includes(t.state);
+}
+
+/** The cancel note for an ended offer of mine, said again once in this page's life. */
+function ftCancelAgainOnce(t) {
+  if (t.cancelSaidAgain) return;
+  t.cancelSaidAgain = true;
+  ftCancelNote(t);
+}
+
+/** Say {"t":"cancel"} on a channel (once it is open), then close it: a browser sends what is queued first. */
+function ftSayCancelAndClose(ch) {
+  const go = () => {
+    try { ch.send(JSON.stringify({ t: 'cancel' })); } catch (e) { /* gone */ }
+    try { ch.close(); } catch (e) { /* gone */ }
+  };
+  if (ch.readyState === 'open') go();
+  else ch.onopen = go;
 }
 
 /** Is `t` a live offer of mine to `peer`: offered, accepted or sending (a dial may be for it)? */
@@ -1017,11 +1047,7 @@ function fileTransferSignal(msg) {
     // files with me wait behind this dial: say it again, once in this page's life (the review of
     // 2026-10-12).
     if (!ftLiveOfferTo(named, msg.from)) {
-      if (named && named.role === 'send' && named.offer && ftSameKey(named.peer, msg.from)
-          && ['cancelled', 'failed'].includes(named.state) && !named.cancelSaidAgain) {
-        named.cancelSaidAgain = true;
-        ftCancelNote(named);
-      }
+      if (ftEndedOfferTo(named, msg.from)) ftCancelAgainOnce(named);
       return true;
     }
     if (link && link.role === 'dial' && !link.open) {

@@ -392,7 +392,8 @@ function webrtc(net) {
       const size = typeof data === "string" ? data.length : data.byteLength;
       this.bufferedAmount += size;
       this.sentCount++;
-      net.log.push({ from: page.who, label: this.label, kind: typeof data === "string" ? data : "bin", size });
+      // The page that sends it: a channel the other side opened belongs to this side's connection.
+      net.log.push({ from: this.pc.page.who, label: this.label, kind: typeof data === "string" ? data : "bin", size });
       const copy = typeof data === "string" ? data : Uint8Array.from(new Uint8Array(data.buffer || data, data.byteOffset || 0, size));
       this.queue.push({ copy, size });
       if (this.queue.length === 1) setImmediate(() => this._pump());
@@ -1686,6 +1687,27 @@ test("21. a piece whose write the browser refuses only when it commits (a full d
   await waitFor(() => wordsOf(s.ann, t.id) === "Cancelled", "Ann's row ends");
 });
 
+test("22. a channel Ben opens for a file Ann already cancelled, on a live connection: cancel is said on it and the note goes again, and his other file arrives", async () => {
+  const s = await pair();
+  const x = await offerFrom(s.ann, zipBytes(7 * MB, 221), "x.zip");
+  const y = await offerFrom(s.ann, zipBytes(9 * MB + 5, 222), "y.zip");
+  await waitFor(() => transfers(s.ben).length === 2 && transfers(s.ben).every((t) => t.state === "asked"), "both asked");
+  // Ann cancels X before Ben answers; Ben's copy of her cancel note is lost on the way.
+  s.relay.lose = (page, msg) => page.who === "Ann" && msg.to === s.ppl.ben.key && noteText(msg) === FT.cancelNoteText(x.id) && s.relay.lost.length === 0;
+  await press(s.ann, x.id, "cancel");
+  await waitFor(() => s.relay.lost.length === 1, "Ben's copy of the cancel is lost");
+  // Ben accepts Y (the connection is made for it), then X, whose channel opens on that connection.
+  await press(s.ben, y.id, "accept");
+  await waitFor(() => transferOf(s.ben, y.id).state === "receiving", "Y moving");
+  await press(s.ben, x.id, "accept");
+  await waitFor(() => transferOf(s.ben, x.id).state === "cancelled", "Ben's X ends");
+  assert.equal(s.relay.net.log.filter((m) => m.from === "Ann" && m.kind === '{"t":"cancel"}').length, 1, "cancel said on X's channel");
+  const cancelsToBen = s.ann.sock.sent.filter((m) => m.type === "dm_put" && m.to === s.ppl.ben.key && noteText(m) === FT.cancelNoteText(x.id));
+  assert.equal(cancelsToBen.length, 2, "the cancel note to Ben, then once more");
+  await waitFor(() => transferOf(s.ben, y.id).state === "saved", "Y arrives");
+  assert.deepEqual([...(s.ann.errors || []), ...(s.ben.errors || [])], [], "no errors");
+});
+
 // ── Red first ────────────────────────────────────────────────────────────
 // 2026-10-11: each break made in a copy of web/ and this file run against it with HOS_WEB_DIR,
 // seen failing with the assertion named; every other test passed unless named.
@@ -1773,3 +1795,5 @@ test("21. a piece whose write the browser refuses only when it commits (a full d
 //      20 "Ben's X ends on the cancel said again" (timed out).
 //  C36 (2026-10-12) chat-file-transfer.js, ftIdb counting a write on the request's success (not the
 //      commit): test 21 "Ben's transfer ends" (not within the wait: the piece counted as kept).
+//  C37 (2026-10-12) chat-file-transfer.js, a channel for an ended offer of mine closed with no word:
+//      test 22 "Ben's X ends" (it waited on its channel).
