@@ -407,14 +407,22 @@ pub(crate) fn guest_stand(ship: &ShipStructure, held: Option<Vec3>, door: Option
 /// inside the door corridor a plot's home makes to its street (from the plot's own box,
 /// `ShipStructure::plot_door_tube`). Pure.
 pub(crate) fn on_plot_ground(ship: &ShipStructure, p: Vec3) -> bool {
-    ship.plots.iter().any(|plot| {
-        over_plot(p, plot.aabb()) || ship.plot_door_tube(plot, None).is_ok_and(|g| in_corridor(&g, p))
-    })
+    plot_ground_of(ship, p).is_some()
+}
+
+/// The plot whose ground `p` stands on (`on_plot_ground`): the one whose box it is over, else the
+/// one whose door corridor it is in. Household permits (ship homes 5b, engine/household.rs
+/// `open_for`) keep the plot a player stands in walkable, and lit, by it. Pure.
+pub(crate) fn plot_ground_of(ship: &ShipStructure, p: Vec3) -> Option<&crate::ship::ship_structure::Plot> {
+    ship.plots
+        .iter()
+        .find(|plot| over_plot(p, plot.aabb()))
+        .or_else(|| ship.plots.iter().find(|plot| ship.plot_door_tube(plot, None).is_ok_and(|g| in_corridor(&g, p))))
 }
 
 /// True when `p` stands inside corridor tube `g` across the floor (x and z), with a centimetre of
 /// slack, the way `over_plot` tests a plot. Pure.
-fn in_corridor(g: &crate::ship::ship_structure::CorridorGeom, p: Vec3) -> bool {
+pub(crate) fn in_corridor(g: &crate::ship::ship_structure::CorridorGeom, p: Vec3) -> bool {
     use crate::ship::ship_structure::CorridorAxis;
     let (along, across) = match g.axis {
         CorridorAxis::X => (p.x, p.z),

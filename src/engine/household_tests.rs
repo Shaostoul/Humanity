@@ -847,6 +847,44 @@ fn a_parked_servers_permit_note_is_kept_in_that_servers_store() {
     tidy(&gs);
 }
 
+/// GIVING IS REFUSED UNDER THE PROTECTED SETUP (lane 1A's review, 2026-10-12): a protected account
+/// does not hand out a way into its home. With the setup on, Give and Renew each say so in a plain
+/// sentence (the PIN does not let them through: no PIN prompt opens), and nothing is minted, sent or
+/// listed. Take back, which only shuts a way in, still works. With the setup off again, Give goes.
+/// Seen red 2026-10-12 with the check removed from `give` and from `renew`: "with the setup on,
+/// Give is refused" failed, left `Ok(())`.
+#[test]
+fn giving_is_refused_under_the_protected_setup() {
+    crate::config::keep_saves_off_disk();
+    let (ada_seed, ada) = identity(236);
+    let (bo_seed, bo) = identity(237);
+    let (mut gs, sent) = app(&ada_seed, &ada, "protected", &[(&bo_seed, &bo, "Bo")]);
+    gs.household.my_plot = Some("p2".into());
+    let old = "c3".repeat(16);
+    gs.dm_store.as_mut().unwrap().record_given(given_row(&bo, "p2", &old, DAY, 30, GivenState::Taken), now());
+    gs.protected.setup.on = true;
+
+    let given = gs.dm_store.as_ref().unwrap().permits_given().len();
+    let refused = give(&mut gs, &bo, 30);
+    assert_eq!(refused, Err(PROTECTED.to_string()), "with the setup on, Give is refused");
+    assert_eq!(renew(&mut gs, &bo), Err(PROTECTED.to_string()), "and so is Renew");
+    assert!(gs.protected.prompt.is_none(), "no PIN prompt: the PIN does not let it through");
+    assert!(frames(&sent).is_empty(), "nothing sent");
+    assert_eq!(gs.dm_store.as_ref().unwrap().permits_given().len(), given, "nothing listed");
+    assert!(gs.household.on_their_way.is_empty());
+    for word in ["certificate", "signature", "key", "token", "revoke", "verify"] {
+        assert!(!PROTECTED.to_lowercase().contains(word), "{word:?} in {PROTECTED:?}");
+    }
+
+    assert_eq!(take_back(&mut gs, &bo), Ok(1), "Take back still works");
+    assert_eq!(revoked(&frames(&sent)), [old], "its serial goes to the relay");
+
+    gs.protected.setup.on = false;
+    give(&mut gs, &bo, 30).expect("with the setup off, Give goes");
+    assert_eq!(puts_to(&frames(&sent), &bo).len(), 1);
+    tidy(&gs);
+}
+
 /// THE PERMIT A BUILD ON A PLOT SHOWS (lane 2A's `send_next`): of the permits held for that plot, one
 /// the relay said works this session before any other, else the latest-ending; never one that
 /// ran out; none for a plot I hold no permit for.

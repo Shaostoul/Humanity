@@ -360,7 +360,8 @@ pub(crate) fn frame(state: &mut EngineState) {
         Err(_) => None,
     };
     let kept = match (&gate, &placed) {
-        (Gate::Shared(_), _) => Some(contract::KEPT_BY_THE_SERVER),
+        // On a plot this game builds on with a household permit, the hint says so (ship homes 5b).
+        (Gate::Shared(frame), _) => Some(shared_build::kept_words(frame, &state.gui_state.household)),
         (Gate::Private, Ok(g)) if state.gui_state.copresence_active && g.site.is_none() => Some(contract::ONLY_IN_YOUR_HOME),
         _ => None,
     };
@@ -650,7 +651,9 @@ pub(crate) fn take_down_entity_on(
 ) -> Option<String> {
     let kept = world.get::<&SharedPiece>(e).ok().map(|k| (*k).clone());
     let Some(kept) = kept else { return Some(apply_take_down(world, data, e, name, materials)) };
-    match shared_build::take_down_gate(&kept, gui.ship_structure.as_ref(), sb.ranks) {
+    // A plot this game holds a working household permit for lets it take down its own pieces
+    // there (ship homes 5b).
+    match shared_build::take_down_gate(&kept, gui.ship_structure.as_ref(), sb.ranks, &gui.household.usable) {
         Err(why) => Some(contract::refusal_message(Action::Unbuild, name, Reason::NotAllowed, Some(why))),
         Ok(()) => {
             sb.ask_take_down(shared_build::Unbuild { piece_id: kept.piece_id, name: name.to_string(), materials: materials.to_vec() });

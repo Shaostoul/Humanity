@@ -113,6 +113,21 @@ pub(crate) fn parse_take_down(raw: &str) -> Option<u64> {
     raw.trim().parse::<u64>().ok()
 }
 
+/// Read a `page` verb's value (ship homes 5b): a page by the id the data files name it with
+/// (`homes`, `inventory`; gui/dispatch.rs `page_from_id`). None for an id no page has, so a typo
+/// opens nothing.
+pub(crate) fn parse_page(raw: &str) -> Option<GuiPage> {
+    crate::gui::dispatch::page_from_id(raw.trim())
+}
+
+/// Read an `accept_request` verb's value (ship homes 5b): the whole key, in hex, of someone whose
+/// contact request waits. None for anything that is not a key.
+pub(crate) fn parse_accept_request(raw: &str) -> Option<String> {
+    let key = raw.trim();
+    let hex = !key.is_empty() && key.len() <= crate::net::household::ISSUER_MAX_LEN && key.bytes().all(|b| b.is_ascii_hexdigit());
+    hex.then(|| key.to_string())
+}
+
 /// What a showcase `hull` pin asks for: "0" hides the ship's hull, "1" shows it (the H key's
 /// toggle, `GuiState::show_hull`). None for anything else, so a typo leaves the hull as it is.
 pub(crate) fn hull_pin(raw: &str) -> Option<bool> {
@@ -592,6 +607,33 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
                 log::info!("Showcase: take_down -> {note}");
             }
             None => log::warn!("Showcase: take_down wants the id of a piece the server keeps, not {spec:?}"),
+        }
+    }
+    // {"page":"homes"} (ship homes 5b, 2026-10-12): open that page, as its nav item does (the
+    // back stack cleared: the nav's clicks are lateral). verify-copresence --household opens the
+    // Home page, whose Household card it then clicks through. Permanent dev tooling.
+    if let Some(spec) = grab("page") {
+        match parse_page(&spec) {
+            Some(page) => {
+                state.gui_state.clear_nav_back();
+                state.gui_state.active_page = page;
+                log::info!("Showcase: page -> {page:?}");
+            }
+            None => log::warn!("Showcase: page wants a page id (gui/dispatch.rs `page_id`), not {spec:?}"),
+        }
+    }
+    // {"accept_request":"<key>"} (ship homes 5b): accept that person's contact request, as the
+    // Requests list's Accept does (engine/reach.rs `accept_request`, the protected setup's gate
+    // included): they become a friend, and get a friendship pass. verify-copresence --household
+    // befriends its scripted walker this way. Permanent dev tooling.
+    if let Some(spec) = grab("accept_request") {
+        match parse_accept_request(&spec) {
+            Some(key) => {
+                let waiting = state.gui_state.dm_store.as_ref().is_some_and(|s| s.requests().iter().any(|r| r.key == key));
+                crate::engine::reach::accept_request(&mut state.gui_state, &key);
+                log::info!("Showcase: accept_request -> {} ({})", &key[..key.len().min(12)], if waiting { "accepted" } else { "no such request waits" });
+            }
+            None => log::warn!("Showcase: accept_request wants a whole key in hex, not {spec:?}"),
         }
     }
     // Optional "time":"9.5" sets the game clock to that hour of the
@@ -3756,6 +3798,10 @@ pub(crate) fn poll_remote_players_request(state: &mut EngineState, clock_dt: f32
         // build, what waits for the relay (engine/shared_build.rs `probe_json`), and the window's
         // size in pixels, the space of every frame's `shared` rects and of a screenshot.
         "shared_build": crate::engine::shared_build::probe_json(state),
+        // Ship homes 5b: the household permits given and held on this server, what the relay
+        // said of each this session, the plots open to walk into and the one lit, and each
+        // neighbour corridor's doors (engine/household.rs `probe_json`).
+        "household": crate::engine::household::probe_json(state),
         "screen_px": [screen_w, screen_h],
         "camera_start": rec.camera_start,
         "camera_end": camera_json(state),
@@ -4428,5 +4474,152 @@ mod shared_build_ipc_tests {
         for wired in ["\"shared\": shared", "\"shared_build\": crate::engine::shared_build::probe_json(state)", "\"screen_px\": [screen_w, screen_h]"] {
             assert!(rec.contains(wired), "the recorder never writes {wired}");
         }
+    }
+}
+
+#[cfg(test)]
+mod household_ipc_tests {
+    //! The dev IPC's side of household permits (ship homes 5b, lane 2A, 2026-10-12): the showcase
+    //! verbs scripts/verify-copresence.js --household sends, and the recorder's `household`, which
+    //! its judge reads.
+    use super::*;
+    use crate::net::household::{GivenPermit, GivenState, HeldPermit, Household, Judged, PermitKey, Verdict};
+    use crate::ship::door_panels::{neighbour_panel_placements, ship_panel_placements, PanelPlacement};
+    use crate::ship::ship_structure::{OpenPlots, ShipStructure};
+    use crate::systems::construction::shared::Permit;
+    use std::collections::BTreeSet;
+
+    /// The body of `fn name` in this file, up to the first line that is a lone `}`.
+    fn body_of(name: &str) -> String {
+        let src = include_str!("ipc.rs").replace("\r\n", "\n");
+        let start = src.find(&format!("pub(crate) fn {name}(")).unwrap_or_else(|| panic!("fn {name} in ipc.rs"));
+        src[start..start + src[start..].find("\n}\n").expect("its end")].to_string()
+    }
+
+    /// THE PAGE AND ACCEPT_REQUEST VERBS PARSE, AND THE SHOWCASE POLL READS AND DOES THEM. `page`
+    /// takes a page by the id the data files name it with (`homes`, the Home page that holds the
+    /// Household card), spaces allowed, and nothing else (another spelling, the screen-surface
+    /// `page:` form, nothing); `accept_request` takes a whole key in hex and nothing else (empty,
+    /// not hex, longer than any key). The request bodies as verify-copresence writes them reach
+    /// each verb by its key, and the poll opens the page as its nav item does and accepts through
+    /// the Requests list's own function.
+    ///
+    /// Seen red 2026-10-12 with the two blocks not yet in `poll_showcase_request`: "the showcase poll
+    /// never reads grab(\"page\")".
+    #[test]
+    fn the_page_and_accept_request_verbs_parse() {
+        assert_eq!(parse_page("homes"), Some(GuiPage::Homes));
+        assert_eq!(parse_page(" inventory "), Some(GuiPage::Inventory));
+        for bad in ["Homes", "home", "page:homes", ""] {
+            assert_eq!(parse_page(bad), None, "{bad:?}");
+        }
+        let key = "a1".repeat(1952);
+        assert_eq!(parse_accept_request(&format!(" {key} ")), Some(key.clone()), "a Dilithium3 key, 3,904 hex characters");
+        let too_long = "a".repeat(crate::net::household::ISSUER_MAX_LEN + 1);
+        for bad in ["", "not a key", "zz12", too_long.as_str()] {
+            assert_eq!(parse_accept_request(bad), None, "{bad:?}");
+        }
+        assert_eq!(showcase_value(r#"{"page":"homes"}"#, "page").as_deref(), Some("homes"));
+        assert_eq!(showcase_value(&format!(r#"{{"accept_request":"{key}"}}"#), "accept_request").as_deref(), Some(key.as_str()));
+        let poll = body_of("poll_showcase_request");
+        for verb in ["grab(\"page\")", "grab(\"accept_request\")"] {
+            assert!(poll.contains(verb), "the showcase poll never reads {verb}");
+        }
+        for done in ["state.gui_state.active_page = page;", "crate::engine::reach::accept_request(&mut state.gui_state, &key);"] {
+            assert!(poll.contains(done), "the showcase poll never does {done}");
+        }
+    }
+
+    /// THE PROBE REPORTS THE HOUSEHOLD (plan 5, 2A; what verify-copresence --household judges). A
+    /// game at home on p2 on server `did:hum:ProbeServer`: Ada's permit for p1 held, the relay having
+    /// said it works; a permit for p2 given to Bo, taken. p1 is usable, walkable and lit, and the
+    /// ship has it open; p1's corridor doors stand three quarters open. The probe names me (my whole
+    /// key and my id as the relay holds plots under it), the server, my plot, Bo's row with his
+    /// permit standing, the given row as "taken", the held row as "works", the open plots, how many
+    /// lights the lit plot adds (some), and every neighbour plot's corridor mouths: p1's open to me
+    /// (`others_only` false) and three quarters open, p3's shut to me and closed, none for my own p2.
+    /// And the recorder writes it into its done JSON beside `shared_build`.
+    ///
+    /// Seen red 2026-10-12 before the probe was wired (`"household"` not yet in the recorder's done
+    /// JSON): "the recorder never writes \"household\": crate::engine::household::probe_json(state)".
+    #[test]
+    fn the_probe_reports_the_household() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let mut ship = ShipStructure::load_and_assemble_shipped(&dir, Some("p2")).unwrap();
+        let p1: BTreeSet<String> = BTreeSet::from(["p1".to_string()]);
+        ship.open = OpenPlots { plots: p1.clone(), lit: Some("p1".into()) };
+        let tail = neighbour_panel_placements(&ship).len();
+        let all = ship_panel_placements(&ship);
+        let first_tail = all.len() - tail;
+        let doors: Vec<(PanelPlacement, f32)> =
+            all.into_iter().enumerate().map(|(i, p)| { let f = if i >= first_tail && !p.others_only { 0.75 } else { 0.0 }; (p, f) }).collect();
+
+        let me = "ab".repeat(16);
+        let (ada, bo) = ("cd".repeat(16), "ef".repeat(16));
+        let mut gs = GuiState::default();
+        gs.profile_public_key = me.clone();
+        let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_nanos());
+        let mut store = crate::net::dm_store::DmStore::load(&[78; 32], &me, &format!("https://household-probe-{nanos}.example"));
+        store.set_pass_server("did:hum:ProbeServer");
+        let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs());
+        let serial = "0a".repeat(16);
+        let permit = Permit {
+            issuer: ada.clone(),
+            server: "did:hum:ProbeServer".into(),
+            plot: "p1".into(),
+            grantee: crate::relay::storage::plot_owner_id(&me),
+            serial: serial.clone(),
+            expiry: now + 86_400,
+            sig: "c2ln".into(),
+        };
+        let held = HeldPermit { from: ada.clone(), permit, at: 5 };
+        store.keep_permit(held.clone());
+        let given = GivenPermit { to: bo.clone(), plot: "p2".into(), serial: "0b".repeat(16), expiry: now + 86_400, at: now * 1000, state: GivenState::Taken };
+        store.record_given(given.clone(), now);
+        gs.dm_store = Some(store);
+        gs.household = Household { my_plot: Some("p2".into()), usable: p1.clone(), walkable: p1.clone(), lit: Some("p1".into()), ..Default::default() };
+        gs.household.verdicts.insert(PermitKey::of(&held), Judged { verdict: Verdict::Works, at: 1.0 });
+        gs.ship_structure = Some(ship);
+
+        let v = crate::engine::household::probe_core(&gs, &doors);
+        let mut keys: Vec<&str> = v.as_object().unwrap().keys().map(String::as_str).collect();
+        keys.sort_unstable();
+        assert_eq!(
+            keys,
+            [
+                "checks_waiting", "friends", "given", "held", "line", "lit", "me", "me_did", "mouths", "my_plot", "open_lights", "open_plots",
+                "sending", "server", "usable", "walkable", "withdrawals_waiting"
+            ]
+        );
+        assert_eq!((v["me"].as_str(), v["me_did"].as_str()), (Some(me.as_str()), Some(crate::relay::storage::plot_owner_id(&me).as_str())));
+        assert_eq!((v["server"].as_str(), v["my_plot"].as_str()), (Some("did:hum:ProbeServer"), Some("p2")));
+        assert_eq!(v["given"][0]["to"], bo.as_str());
+        assert_eq!((v["given"][0]["plot"].as_str(), v["given"][0]["state"].as_str()), (Some("p2"), Some("taken")));
+        assert_eq!(v["given"][0]["expiry"], given.expiry);
+        assert_eq!(v["friends"][0]["key"], bo.as_str());
+        assert_eq!(v["friends"][0]["permit"]["state"], "stands");
+        assert_eq!((v["held"][0]["from"].as_str(), v["held"][0]["plot"].as_str()), (Some(ada.as_str()), Some("p1")));
+        assert_eq!((v["held"][0]["verdict"].as_str(), v["held"][0]["serial"].as_str()), (Some("works"), Some(serial.as_str())));
+        assert!(v["held"][0]["why"].is_null());
+        for field in ["usable", "walkable", "open_plots"] {
+            assert_eq!(v[field], serde_json::json!(["p1"]), "{field}");
+        }
+        assert_eq!(v["lit"], "p1");
+        assert!(v["open_lights"].as_u64().unwrap() > 0, "the lit plot adds its lights: {}", v["open_lights"]);
+        let mouths = v["mouths"].as_object().unwrap();
+        assert!(mouths.get("p2").is_none(), "none for my own plot");
+        let p1_mouths = mouths["p1"].as_array().unwrap();
+        assert!(!p1_mouths.is_empty());
+        for m in p1_mouths {
+            assert_eq!((m["doors"].as_u64(), m["others_only"].as_bool(), m["open"].as_f64()), (Some(2), Some(false), Some(0.75)), "p1: {m}");
+        }
+        for m in mouths["p3"].as_array().unwrap() {
+            assert_eq!((m["doors"].as_u64(), m["others_only"].as_bool(), m["open"].as_f64()), (Some(2), Some(true), Some(0.0)), "p3: {m}");
+        }
+        gs.dm_store.as_ref().unwrap().remove_file_for_test();
+
+        let rec = body_of("poll_remote_players_request");
+        let wired = "\"household\": crate::engine::household::probe_json(state)";
+        assert!(rec.contains(wired), "the recorder never writes {wired}");
     }
 }
