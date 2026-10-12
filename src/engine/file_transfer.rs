@@ -28,6 +28,13 @@
 //! Either side may Cancel (on the channel when it is open, and always with the cancel note, so the
 //! other side's row says so even when no connection stands), Pause and Resume.
 //!
+//! THE RULES SETTLED BY THE FIRST REVIEW (media-showcase.md, 2026-10-12) that live here:
+//! - Rule 3: while S waits for its credentials to answer R's dial, R's `dc_ice` are kept for R
+//!   ([`Pair::early_ice`]) and handed to the connection, which applies them once its allocations
+//!   exist; none is dropped or handed to the call code ([`on_signal`]).
+//! - Rule 4: R's answer and cancel notes carry the offer's file pass on their `dm_put` to S
+//!   (`file_pass`), so they reach a sender who takes messages only from friends ([`send_note`]).
+//!
 //! The runtime state (connections, progress) is [`Transfers`], kept in the chat's file state
 //! (`GuiState::files_flow.transfers`); what lasts is the DM store's record of each transfer.
 
@@ -92,13 +99,31 @@ pub struct Pair {
     pub dial_pass: Option<FilePass>,
     /// Answering: the other side's WebRTC offer, waiting for this side's credentials.
     pub their_offer: Option<String>,
+    /// Answering: the other side's `dc_ice` that came while this side waited for its credentials
+    /// (each signal's data, its JSON text), handed to the connection when it starts (rule 3 of the
+    /// first review: a candidate that arrives early is kept, never dropped or given to the call
+    /// code).
+    pub early_ice: Vec<String>,
+    /// Both dialled at once and theirs was set aside (this key is the larger): its candidates are
+    /// taken here and dropped until this side's own connection stands, not given to the call code.
+    pub their_dial_set_aside: bool,
     /// The transfers handed to the connection.
     pub on_link: HashSet<String>,
 }
 
 impl Default for Pair {
     fn default() -> Self {
-        Pair { link: None, phase: Phase::Idle, dialer: false, creds: Vec::new(), dial_pass: None, their_offer: None, on_link: HashSet::new() }
+        Pair {
+            link: None,
+            phase: Phase::Idle,
+            dialer: false,
+            creds: Vec::new(),
+            dial_pass: None,
+            their_offer: None,
+            early_ice: Vec::new(),
+            their_dial_set_aside: false,
+            on_link: HashSet::new(),
+        }
     }
 }
 
@@ -195,12 +220,26 @@ fn send_frame(gs: &GuiState, frame: &str) -> bool {
 
 /// Send one note to `peer` and its self-copy (for this person's other devices). False when it
 /// cannot go now (not connected, locked, or no DM key for them yet).
-fn send_note(gs: &GuiState, peer: &str, text: &str) -> bool {
+///
+/// `file_pass`: the offer's pass, which the RECEIVER's answer and cancel notes carry on the
+/// `dm_put` to the sender (rule 4 of the first review, media-showcase.md): the relay lets such a
+/// put through the sender's "who can reach me" gate when the pass verifies with the sender as its
+/// issuer and this person as its grantee, so the answer reaches a sender who takes messages only
+/// from friends. The self-copy never carries it.
+fn send_note(gs: &GuiState, peer: &str, text: &str, file_pass: Option<&FilePass>) -> bool {
     if !connected(gs) {
         return false;
     }
-    let Some((theirs, ours)) = crate::engine::dm::control_puts(gs, peer, text, None) else { return false };
+    let Some((mut theirs, ours)) = crate::engine::dm::control_puts(gs, peer, text, None) else { return false };
+    if let Some(pass) = file_pass {
+        theirs["file_pass"] = serde_json::to_value(pass).unwrap_or(serde_json::Value::Null);
+    }
     send_frame(gs, &theirs.to_string()) && send_frame(gs, &ours.to_string())
+}
+
+/// The pass a note about `r` carries: the offer's, when this device is its receiver (rule 4).
+fn note_pass(r: &OfferRecord) -> Option<&FilePass> {
+    (!r.outgoing).then_some(&r.offer.pass)
 }
 
 fn record<'a>(gs: &'a GuiState, id: &str) -> Option<&'a OfferRecord> {
@@ -336,7 +375,7 @@ pub fn send_offer(gs: &mut GuiState, prep: &Preparing, ready: Prepared) -> bool 
     if offer.check().is_err() {
         return fail(gs, "it is past the size this app sends.");
     }
-    if !send_note(gs, &prep.peer, &offer.text()) {
+    if !send_note(gs, &prep.peer, &offer.text(), None) {
         return fail(gs, "the offer could not be sent (check the connection and try again).");
     }
     let rec = OfferRecord {
@@ -471,7 +510,7 @@ pub fn accept(gs: &mut GuiState, id: &str, dir: &Path, safe_name: &str) -> bool 
         gs.pending_notices.push(format!("{} could not be made ready on this device ({e}).", r.offer.name));
         return false;
     }
-    if !send_note(gs, &r.peer, &OfferAnswer { id: id.to_string(), accept: true }.text()) {
+    if !send_note(gs, &r.peer, &OfferAnswer { id: id.to_string(), accept: true }.text(), note_pass(&r)) {
         let _ = std::fs::remove_file(&part);
         gs.pending_notices.push("The answer could not be sent: try again in a moment.".to_string());
         return false;
@@ -491,7 +530,7 @@ pub fn decline(gs: &mut GuiState, id: &str) -> bool {
     if r.outgoing || r.stage != Stage::Offered {
         return false;
     }
-    if !send_note(gs, &r.peer, &OfferAnswer { id: id.to_string(), accept: false }.text()) {
+    if !send_note(gs, &r.peer, &OfferAnswer { id: id.to_string(), accept: false }.text(), note_pass(&r)) {
         gs.pending_notices.push("The answer could not be sent: try again in a moment.".to_string());
         return false;
     }
@@ -521,7 +560,7 @@ pub fn cancel(gs: &mut GuiState, id: &str) {
         link.send(Cmd::Cancel(id.to_string()));
     }
     if !crate::engine::block::is_blocked(gs, &r.peer) {
-        let _ = send_note(gs, &r.peer, &OfferCancel { id: id.to_string() }.text());
+        let _ = send_note(gs, &r.peer, &OfferCancel { id: id.to_string() }.text(), note_pass(&r));
     }
     with_record(gs, id, |r| r.stage = Stage::Cancelled { by_me: true });
     ended(gs, id);
@@ -668,6 +707,7 @@ fn start_link(gs: &mut GuiState, peer: &str) {
         let pair = gs.files_flow.transfers.pair(peer);
         pair.phase = Phase::NotSetUp(Instant::now());
         pair.their_offer = None;
+        pair.early_ice.clear();
         pair.creds.clear();
         log::info!("file transfer: the server gave no forwarder credentials");
         return;
@@ -676,6 +716,8 @@ fn start_link(gs: &mut GuiState, peer: &str) {
     if transfers.is_empty() {
         let pair = gs.files_flow.transfers.pair(peer);
         pair.phase = Phase::Idle;
+        pair.their_offer = None;
+        pair.early_ice.clear();
         pair.creds.clear();
         return;
     }
@@ -691,6 +733,9 @@ fn start_link(gs: &mut GuiState, peer: &str) {
         relays,
         transfers,
         bind,
+        // The candidates that came while this side waited (rule 3), applied by the connection
+        // once its allocations exist.
+        early_ice: std::mem::take(&mut pair.early_ice),
     };
     if !pair.dialer && setup.their_offer.is_none() {
         pair.phase = Phase::Idle;
@@ -699,6 +744,7 @@ fn start_link(gs: &mut GuiState, peer: &str) {
     pair.link = Some(FileLink::start(setup));
     pair.on_link = ids;
     pair.creds.clear();
+    pair.their_dial_set_aside = false; // from here on their candidates go to the connection
     pair.phase = Phase::Connecting;
 }
 
@@ -713,8 +759,10 @@ fn live_offers_to(gs: &GuiState, peer: &str) -> Vec<String> {
 /// A `webrtc_signal` (frame_ws_poll.rs): true when it is for the file connection with its sender,
 /// taken here whatever becomes of it. Signals carry no transfer id, so it is told by who sent it:
 /// a `dc_offer` from someone this device has live offers to (it is answered as their file
-/// connection, with credentials for each of those offers), and a `dc_answer` or `dc_ice` from
-/// someone a file connection stands with. Anything else is left for the app's WebRTC manager.
+/// connection, with credentials for each of those offers), a `dc_answer` or `dc_ice` from someone a
+/// file connection stands with, a `dc_ice` from someone whose dial this side is answering but has
+/// no credentials for yet (kept, rule 3), and a `dc_ice` of a dial set aside when both dialled.
+/// Anything else is left for the app's WebRTC manager.
 pub fn on_signal(gs: &mut GuiState, frame: &serde_json::Value) -> bool {
     let from = frame.get("from").and_then(|v| v.as_str()).unwrap_or("").to_string();
     let signal_type = frame.get("signal_type").and_then(|v| v.as_str()).unwrap_or("");
@@ -733,23 +781,46 @@ pub fn on_signal(gs: &mut GuiState, frame: &serde_json::Value) -> bool {
             let pair = gs.files_flow.transfers.pair(&from);
             let dialling = pair.dialer && (pair.link.is_some() || matches!(pair.phase, Phase::Asking(_)));
             if dialling && me > from {
-                return true; // both dialled at once: the larger key's dial stands, theirs is dropped
+                // Both dialled at once: the larger key's dial stands, theirs is dropped (and so
+                // are its candidates, below).
+                pair.their_dial_set_aside = true;
+                return true;
             }
             // Theirs stands: any attempt or connection of ours is let go, and this one answered.
             pair.link = None;
             pair.on_link.clear();
             pair.their_offer = Some(text);
+            pair.early_ice.clear();
+            pair.their_dial_set_aside = false;
             ask_credentials(gs, &from, &offers, false);
             true
         }
         "dc_answer" | "dc_ice" => {
-            let Some(pair) = gs.files_flow.transfers.pairs.get(&from) else { return false };
-            let Some(link) = pair.link.as_ref() else { return false };
-            if signal_type == "dc_answer" && !pair.dialer {
+            let Some(pair) = gs.files_flow.transfers.pairs.get_mut(&from) else { return false };
+            if let Some(link) = pair.link.as_ref() {
+                if signal_type == "dc_answer" && !pair.dialer {
+                    return false;
+                }
+                link.send(Cmd::Signal { signal_type: signal_type.to_string(), data: text });
+                return true;
+            }
+            if signal_type != "dc_ice" {
                 return false;
             }
-            link.send(Cmd::Signal { signal_type: signal_type.to_string(), data: text });
-            true
+            // RULE 3 OF THE FIRST REVIEW: answering their dial, still waiting for this side's
+            // credentials, so no connection stands to take it yet. Kept, and handed to the
+            // connection when it starts (`start_link`), which applies it once its allocations
+            // exist. Before this, it fell through to the call code and was lost, and the forwarder
+            // then dropped the dialler's packets for want of a permission toward its address.
+            if pair.their_offer.is_some() {
+                if pair.early_ice.len() < file_link::MAX_EARLY_ICE {
+                    pair.early_ice.push(text);
+                }
+                return true;
+            }
+            // A candidate of the dial set aside when both dialled: the file connection's, so it
+            // is not the call code's either.
+            pair.their_dial_set_aside
         }
         _ => false,
     }
@@ -936,7 +1007,7 @@ fn on_end(gs: &mut GuiState, id: &str, end: End) {
     };
     let Some(next) = fo::advance(&r.stage, &what) else { return };
     if matches!(end, End::Failed(_)) && !crate::engine::block::is_blocked(gs, &r.peer) {
-        let _ = send_note(gs, &r.peer, &OfferCancel { id: id.to_string() }.text());
+        let _ = send_note(gs, &r.peer, &OfferCancel { id: id.to_string() }.text(), note_pass(&r));
     }
     with_record(gs, id, |r| r.stage = next);
     if let End::Done = end {

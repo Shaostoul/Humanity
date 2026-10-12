@@ -28,8 +28,24 @@
 //! app that carries a full 64 KiB after its header, or any other split, is taken all the same: the
 //! receiver places each message by its own header and accepts up to 256 KiB per message.
 //!
-//! A pause from either side stops the flow both ways: the sender drops what it was asked for, the
-//! receiver forgets what it asked, and a resume starts asking again from the first missing piece.
+//! THE RULES SETTLED BY THE FIRST REVIEW (media-showcase.md, "Device-to-device big files: rules
+//! settled by the first review (2026-10-12)", rule 1), which the website follows too:
+//! - A `get` ADDS, it never replaces: pieces `from` to `from + count - 1` join what the sender owes.
+//!   The sender sends what it owes in ascending order, each piece once, from offset 0, and forgets
+//!   a piece once its last message has gone. A piece asked for while it is being sent is sent
+//!   again, whole, after the current one (the receiver may have found it bad).
+//! - The receiver asks for a piece once, and again only after it failed its hash (`count` 1) or
+//!   after 30 seconds with nothing arriving; it keeps its window full by asking for pieces it has
+//!   not asked for yet, never repeating the rest of a window.
+//! - The receiver ignores messages for a piece it did not ask for or already holds, and holds a
+//!   partial buffer only for a piece it asked for, so at most its window (16) of them: a sender
+//!   cannot make it reserve memory by naming pieces.
+//!
+//! A pause from either side stops the flow both ways: the sender drops what it owes (and a `get`
+//! that reaches it while paused, which the receiver asks again after the resume). The receiver
+//! forgets what it asked when the sender's pause reaches it (everything sent before it has
+//! arrived by then); after its own pause it still takes what was already on its way, and its
+//! resume asks again from the first missing piece.
 
 use std::collections::{BTreeSet, HashMap, VecDeque};
 use std::sync::Arc;
@@ -195,12 +211,15 @@ pub struct Receiving {
     scan_at: u64,
     /// No piece before this one is missing.
     low: u64,
+    /// Partial pieces, only ever for pieces in `asked` (so at most [`WINDOW`] of them).
     building: HashMap<u64, Building>,
+    /// Pieces asked for and not yet in: each asked once (again only after a bad hash or a stall).
     asked: BTreeSet<u64>,
     failures: HashMap<u64, u8>,
     paused_me: bool,
     paused_them: bool,
     open: bool,
+    /// The stall clock: the last time something asked for arrived, or something was asked.
     last_data: Instant,
     ended: bool,
     complete_said: bool,
@@ -244,6 +263,12 @@ impl Receiving {
         self.asked.iter().copied().collect()
     }
 
+    /// The bytes reserved for partial pieces right now (the tests read it: a sender naming pieces
+    /// that were not asked for must not make this grow).
+    pub fn partial_bytes(&self) -> usize {
+        self.building.values().map(|b| b.buf.capacity()).sum()
+    }
+
     /// Paused on this device (it is not dialled while paused).
     pub fn paused(&self) -> bool {
         self.paused_me
@@ -278,7 +303,7 @@ impl Receiving {
             self.hash_buf.clear();
             out.push(say("hashes"));
         } else {
-            out.extend(self.pump());
+            out.extend(self.pump(now));
         }
         Step::out(out)
     }
@@ -291,9 +316,11 @@ impl Receiving {
         self.paused_them = false;
     }
 
-    /// Ask for what is missing, up to the window: the first missing pieces not asked for yet, as
-    /// one `get` per run of consecutive pieces.
-    fn pump(&mut self) -> Vec<Out> {
+    /// Keep the window full: ask for the first missing pieces not asked for yet, as one `get` per
+    /// run of consecutive pieces, up to [`WINDOW`] asked at once. A piece already asked is never in
+    /// a `get` again from here (rule 1): only a bad hash ([`Self::piece_failed`]) or a stall
+    /// ([`Self::tick`]) asks again.
+    fn pump(&mut self, now: Instant) -> Vec<Out> {
         if !self.open || self.ended || self.paused_me || self.paused_them || self.hashes.is_none() || !self.known {
             return Vec::new();
         }
@@ -321,27 +348,39 @@ impl Receiving {
             room -= n;
             out.push(get_message(start, n));
         }
+        if !out.is_empty() {
+            self.last_data = now; // the wait for what was just asked starts now
+        }
         out
     }
 
-    /// Pause here: the sender is told, and nothing more is asked until Resume.
+    /// Partial buffers only for pieces still asked for.
+    fn trim_building(&mut self) {
+        let asked = &self.asked;
+        self.building.retain(|p, _| asked.contains(p));
+    }
+
+    /// Pause here: the sender is told, and nothing more is asked until Resume. What was asked
+    /// stays asked for now, so what was already on its way still lands.
     pub fn pause(&mut self) -> Vec<Out> {
         if self.paused_me || self.ended {
             return Vec::new();
         }
         self.paused_me = true;
-        self.asked.clear();
         if self.open { vec![say("pause")] } else { Vec::new() }
     }
 
-    /// Resume here: the sender is told, and the missing pieces are asked for again.
-    pub fn resume(&mut self) -> Vec<Out> {
+    /// Resume here: the sender is told, and the missing pieces are asked for again (the sender
+    /// dropped what it owed when it heard the pause).
+    pub fn resume(&mut self, now: Instant) -> Vec<Out> {
         if !self.paused_me || self.ended {
             return Vec::new();
         }
         self.paused_me = false;
+        self.asked.clear();
         let mut out = if self.open { vec![say("resume")] } else { Vec::new() };
-        out.extend(self.pump());
+        out.extend(self.pump(now));
+        self.trim_building();
         out
     }
 
@@ -355,20 +394,23 @@ impl Receiving {
     }
 
     /// A text message from the sender.
-    pub fn on_text(&mut self, text: &str) -> Step {
+    pub fn on_text(&mut self, text: &str, now: Instant) -> Step {
         if self.ended {
             return Step::default();
         }
         let Some((t, _)) = read_text(text) else { return Step::default() };
         match t.as_str() {
             "pause" => {
+                // Everything the sender sent before its pause has arrived (the channel is
+                // ordered), and it dropped what it owed: what is asked and half in is forgotten.
                 self.paused_them = true;
-                self.asked.clear(); // the sender dropped what it was asked for
+                self.asked.clear();
+                self.building.clear();
                 Step { out: Vec::new(), events: vec![Event::PausedByThem(true)] }
             }
             "resume" => {
                 self.paused_them = false;
-                Step { out: self.pump(), events: vec![Event::PausedByThem(false)] }
+                Step { out: self.pump(now), events: vec![Event::PausedByThem(false)] }
             }
             "cancel" => {
                 self.ended = true;
@@ -379,14 +421,15 @@ impl Receiving {
     }
 
     /// A data message from the sender: part of the list of hashes while it is coming, else part
-    /// of a piece, placed by its header and written once the whole piece checks.
+    /// of a piece, placed by its header and written once the whole piece checks. A message for a
+    /// piece not asked for, or already held, is ignored and reserves nothing (rule 1).
     pub fn on_binary(&mut self, data: &[u8], part: &mut impl FileAt, now: Instant) -> Step {
         if self.ended || data.len() > MAX_ACCEPTED {
             return Step::default();
         }
-        self.last_data = now;
         if self.hashes.is_none() {
-            return self.take_hashes(data);
+            self.last_data = now;
+            return self.take_hashes(data, now);
         }
         if data.len() < HEADER_LEN {
             return Step::default();
@@ -394,22 +437,24 @@ impl Receiving {
         let piece = u32::from_be_bytes([data[0], data[1], data[2], data[3]]) as u64;
         let offset = u32::from_be_bytes([data[4], data[5], data[6], data[7]]) as u64;
         let payload = &data[HEADER_LEN..];
-        if piece >= self.offer.pieces || self.have[piece as usize] {
-            return Step::default(); // nothing we need (a repeat, or a piece already in)
+        if piece >= self.offer.pieces || self.have[piece as usize] || !self.asked.contains(&piece) {
+            return Step::default(); // not asked for, or already in
         }
         let plen = piece_len(self.offer.size, piece);
-        if offset + payload.len() as u64 > plen {
-            return self.piece_failed(piece);
-        }
         if offset == 0 {
+            // A piece starts (again): a fresh buffer, for a piece asked for, so at most 16.
             self.building.insert(piece, Building { buf: Vec::with_capacity(plen as usize) });
         }
-        let Some(b) = self.building.get_mut(&piece) else { return Step::default() };
-        if b.buf.len() as u64 != offset {
-            // Out of order (a piece cut off by a pause): forgotten, asked again in its turn.
-            self.building.remove(&piece);
+        let Some(b) = self.building.get_mut(&piece) else {
+            // The middle of a piece whose start this side let go of (a stall or a pause): the
+            // sender sends it again whole, since it was asked again.
             return Step::default();
+        };
+        if b.buf.len() as u64 != offset || offset + payload.len() as u64 > plen {
+            // Not the next part of the piece, or past its end: the piece did not arrive right.
+            return self.piece_failed(piece, now);
         }
+        self.last_data = now;
         b.buf.extend_from_slice(payload);
         if (b.buf.len() as u64) < plen {
             return Step::default();
@@ -417,7 +462,7 @@ impl Receiving {
         let Some(b) = self.building.remove(&piece) else { return Step::default() };
         let ok = self.hashes.as_ref().is_some_and(|h| blake3::hash(&b.buf).as_bytes() == &h[piece as usize]);
         if !ok {
-            return self.piece_failed(piece);
+            return self.piece_failed(piece, now);
         }
         if let Err(e) = part.write_at(piece * PIECE_SIZE, &b.buf) {
             return self.fail(format!("{} could not be written on this device ({e}).", self.offer.name));
@@ -426,24 +471,30 @@ impl Receiving {
         self.have_count += 1;
         self.asked.remove(&piece);
         self.failures.remove(&piece);
-        let mut step = Step { out: self.pump(), events: vec![Event::Progress(self.have_count)] };
+        let mut step = Step { out: self.pump(now), events: vec![Event::Progress(self.have_count)] };
         self.check_complete(&mut step);
         step
     }
 
-    /// A piece that did not check: asked for again, unless it has failed three times.
-    fn piece_failed(&mut self, piece: u64) -> Step {
+    /// A piece that did not check: asked for again, alone (`count` 1), unless it has failed three
+    /// times. While paused it is only forgotten: the resume asks for it with the rest.
+    fn piece_failed(&mut self, piece: u64, now: Instant) -> Step {
         self.building.remove(&piece);
-        self.asked.remove(&piece);
         let n = self.failures.entry(piece).or_insert(0);
         *n += 1;
         if *n >= MAX_FAILURES {
             return self.fail(damaged_line(&self.offer.name));
         }
-        Step::out(self.pump())
+        if !self.open || self.paused_me || self.paused_them {
+            self.asked.remove(&piece);
+            return Step::default();
+        }
+        self.asked.insert(piece);
+        self.last_data = now;
+        Step::out(vec![get_message(piece, 1)])
     }
 
-    fn take_hashes(&mut self, data: &[u8]) -> Step {
+    fn take_hashes(&mut self, data: &[u8], now: Instant) -> Step {
         let expected = self.offer.pieces as usize * 32;
         self.hash_buf.extend_from_slice(data);
         if self.hash_buf.len() > expected {
@@ -458,7 +509,7 @@ impl Receiving {
             return self.fail(mismatch_line(&self.sender));
         }
         self.hashes = Some(list);
-        let mut step = Step::out(self.pump());
+        let mut step = Step::out(self.pump(now));
         self.check_complete(&mut step);
         step
     }
@@ -471,8 +522,8 @@ impl Receiving {
     }
 
     /// Once a turn: after a restart, check a few pieces of the part file against their hashes
-    /// (a piece already right is not asked for again); and when nothing has arrived for
-    /// [`STALL`] while pieces are asked for, ask again.
+    /// (a piece already right is not asked for again); and when nothing asked for has arrived for
+    /// [`STALL`] while pieces are asked for and neither side is paused, ask again.
     pub fn tick(&mut self, part: &mut impl FileAt, now: Instant) -> Step {
         if self.ended {
             return Step::default();
@@ -494,16 +545,17 @@ impl Receiving {
             if self.scan_at >= self.offer.pieces {
                 self.known = true;
                 step.events.push(Event::Progress(self.have_count));
-                step.out.extend(self.pump());
+                step.out.extend(self.pump(now));
                 self.check_complete(&mut step);
             }
             return step;
         }
-        if self.open && !self.asked.is_empty() && now.duration_since(self.last_data) >= STALL {
+        let waiting = self.open && !self.paused_me && !self.paused_them && !self.asked.is_empty();
+        if waiting && now.duration_since(self.last_data) >= STALL {
             self.asked.clear();
             self.building.clear();
             self.last_data = now;
-            step.out.extend(self.pump());
+            step.out.extend(self.pump(now));
         }
         step
     }
@@ -534,7 +586,9 @@ pub struct Sending {
     hashes_wanted: bool,
     /// The list's messages waiting to go.
     list_out: VecDeque<Out>,
-    queue: VecDeque<u64>,
+    /// What the receiver asked for and is not yet sent since it was asked: each `get` adds to it,
+    /// and it goes in ascending order, each piece once (rule 1).
+    owed: BTreeSet<u64>,
     /// The piece going out and the next offset in it.
     current: Option<(u64, u64)>,
     sent: Vec<bool>,
@@ -555,7 +609,7 @@ impl Sending {
             hashes,
             hashes_wanted: false,
             list_out: VecDeque::new(),
-            queue: VecDeque::new(),
+            owed: BTreeSet::new(),
             current: None,
             sent: vec![false; pieces],
             sent_count: 0,
@@ -608,11 +662,16 @@ impl Sending {
         }
     }
 
+    /// Forget what is owed and the piece going out (a pause, a new channel, a drop).
+    fn drop_owed(&mut self) {
+        self.owed.clear();
+        self.current = None;
+    }
+
     /// A connection's channel opened. What was asked on an earlier connection went with it.
     pub fn open(&mut self) -> Vec<Out> {
         self.open = true;
-        self.queue.clear();
-        self.current = None;
+        self.drop_owed();
         self.list_out.clear();
         self.hashes_wanted = false;
         self.paused_them = false;
@@ -622,8 +681,7 @@ impl Sending {
     /// The connection dropped.
     pub fn closed(&mut self) {
         self.open = false;
-        self.queue.clear();
-        self.current = None;
+        self.drop_owed();
         self.list_out.clear();
         self.paused_them = false;
     }
@@ -634,8 +692,7 @@ impl Sending {
             return Vec::new();
         }
         self.paused_me = true;
-        self.queue.clear();
-        self.current = None;
+        self.drop_owed();
         if self.open { vec![say("pause")] } else { Vec::new() }
     }
 
@@ -674,20 +731,22 @@ impl Sending {
                 Step::default()
             }
             "get" => {
-                let from = v.get("from").and_then(|x| x.as_u64()).unwrap_or(u64::MAX);
+                // Rule 1: a get ADDS to what is owed. A piece being sent right now is owed again
+                // and goes again, whole, after the current one (the receiver may have found it
+                // bad). One that reaches a paused sender is dropped: the receiver forgets what it
+                // asked when it hears the pause and asks again after the resume.
+                let Some(from) = v.get("from").and_then(|x| x.as_u64()) else { return Step::default() };
                 let count = v.get("count").and_then(|x| x.as_u64()).unwrap_or(0).min(WINDOW);
-                let end = from.saturating_add(count).min(self.offer.pieces);
-                for p in from..end {
-                    if !self.queue.contains(&p) && self.current.map(|(c, _)| c) != Some(p) {
-                        self.queue.push_back(p);
-                    }
+                if self.paused_me || self.paused_them || count == 0 || from >= self.offer.pieces {
+                    return Step::default();
                 }
+                let end = from.saturating_add(count).min(self.offer.pieces);
+                self.owed.extend(from..end);
                 Step::default()
             }
             "pause" => {
                 self.paused_them = true;
-                self.queue.clear();
-                self.current = None;
+                self.drop_owed();
                 Step { out: Vec::new(), events: vec![Event::PausedByThem(true)] }
             }
             "resume" => {
@@ -707,9 +766,9 @@ impl Sending {
     }
 
     /// The next message to write, when one may go now: the list first (it is small and the
-    /// receiver waits on it), then the pieces asked for, one data message at a time, held back
-    /// while paused either side or while `buffered` (the channel's buffer) is over [`HIGH_WATER`].
-    /// Err ends the transfer: the file could not be read as it was offered.
+    /// receiver waits on it), then the pieces owed, lowest first, one data message at a time, held
+    /// back while paused either side or while `buffered` (the channel's buffer) is over
+    /// [`HIGH_WATER`]. Err ends the transfer: the file could not be read as it was offered.
     pub fn next(&mut self, file: &mut impl FileAt, buffered: usize) -> Result<Option<(Out, Option<Event>)>, String> {
         if self.ended || !self.open {
             return Ok(None);
@@ -725,7 +784,7 @@ impl Sending {
         }
         let (piece, offset) = match self.current {
             Some(c) => c,
-            None => match self.queue.pop_front() {
+            None => match self.owed.pop_first() {
                 Some(p) => (p, 0),
                 None => return Ok(None),
             },
@@ -743,7 +802,7 @@ impl Sending {
         let next = offset + len as u64;
         let mut event = None;
         if next >= plen {
-            self.current = None;
+            self.current = None; // its last message has gone: forgotten, unless asked again
             if !self.sent[piece as usize] {
                 self.sent[piece as usize] = true;
                 self.sent_count += 1;
@@ -757,7 +816,7 @@ impl Sending {
 
     /// Whether anything waits to be written (the link loops quickly while so).
     pub fn busy(&self) -> bool {
-        self.open && !self.ended && (!self.list_out.is_empty() || (!self.paused_me && !self.paused_them && (self.current.is_some() || !self.queue.is_empty())))
+        self.open && !self.ended && (!self.list_out.is_empty() || (!self.paused_me && !self.paused_them && (self.current.is_some() || !self.owed.is_empty())))
     }
 }
 

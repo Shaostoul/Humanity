@@ -82,6 +82,7 @@ fn a_pair_s_files_cross_one_connection_only_through_the_forwarder() {
         relays: vec![relay("1:rx", "prx")],
         transfers: vec![receive(&rae_dir, &ox, "Sam"), receive(&rae_dir, &oy, "Sam"), send(&pz, &oz)],
         bind: "127.0.0.1:0".into(),
+        early_ice: Vec::new(),
     });
 
     let (mut er, mut es) = (Vec::new(), Vec::new());
@@ -110,6 +111,7 @@ fn a_pair_s_files_cross_one_connection_only_through_the_forwarder() {
                         relays: vec![relay("1:sx", "psx"), relay("1:sy", "psy")],
                         transfers: vec![send(&px, &ox), send(&py, &oy), receive(&sam_dir, &oz, "Rae")],
                         bind: "127.0.0.1:0".into(),
+                        early_ice: Vec::new(),
                     }));
                 } else if let Some(s) = &sam {
                     s.send(Cmd::Signal { signal_type: v["signal_type"].as_str().unwrap().into(), data: signal_text(&v["data"]) });
@@ -161,6 +163,32 @@ fn a_pair_s_files_cross_one_connection_only_through_the_forwarder() {
     }
     drop(sam);
     drop(rae);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// RULE 2 OF THE FIRST REVIEW: the connection closes when its last channel ends. A receiving leg
+/// is a channel (it opens one), a sending leg is one once the receiver opened it; one leg ending
+/// leaves the rest, and an offer the other person never opened a channel for does not keep the
+/// connection up.
+/// Seen red 2026-10-12 with the close rule as before the review (every leg ended, channel or not):
+/// "an offer nobody opened does not keep it up" failed.
+#[test]
+fn the_connection_closes_when_its_last_channel_ends() {
+    let dir = std::env::temp_dir().join(format!("hum_file_link_close_{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let (px, _, ox) = file(&dir, X, 1000, 1);
+    let (_, _, oz) = file(&dir, Z, 1000, 3);
+    let leg = |t: Transfer, ended: bool, had_channel: bool| Leg { side: t.side, disk: Disk::None, cid: None, outbox: VecDeque::new(), finishing: None, hashing: None, ended, had_channel };
+    let sent_done = leg(send(&px, &ox), true, true);
+    let offered = leg(send(&px, &oz), false, false);
+    assert!(last_channel_ended([&sent_done, &offered].into_iter()), "an offer nobody opened does not keep it up");
+    let receiving = leg(receive(&dir, &oz, "Rae"), false, false);
+    assert!(!last_channel_ended([&sent_done, &receiving].into_iter()), "a receiving leg is a channel, still going");
+    let opened = leg(send(&px, &oz), false, true);
+    assert!(!last_channel_ended([&sent_done, &opened].into_iter()), "one ended leaves the other going");
+    assert!(!last_channel_ended([&offered].into_iter()), "no channel yet: nothing has ended");
+    assert!(!last_channel_ended(std::iter::empty::<&Leg>()));
     let _ = std::fs::remove_dir_all(&dir);
 }
 

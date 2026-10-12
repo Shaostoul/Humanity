@@ -258,11 +258,14 @@ fn a_dropped_transfer_resumes_from_the_first_missing_piece() {
 }
 
 /// PAUSE AND RESUME FROM EITHER SIDE (part 5): the receiver's pause says `pause` and asks for
-/// nothing more until Resume, which says `resume` and asks again from the first missing piece; the
-/// sender's pause says `pause`, stops what it sends, and the receiver, told so, asks for nothing
-/// until it hears `resume`.
+/// nothing more until Resume (what was already on its way still lands, since it was asked), and
+/// Resume says `resume` and asks again from the first missing piece; the sender's pause says
+/// `pause`, stops what it sends and drops what it owed (a `get` reaching it while paused too: the
+/// receiver, told of the pause, forgets what it asked and asks again after `resume`).
 /// Seen red 2026-10-11 with `Sending::next` ignoring `paused_me`: "a paused sender sends nothing"
-/// got a data message.
+/// got a data message. Seen red 2026-10-12 with the receiver's own pause clearing `asked` (as
+/// before the first review, when what was on its way would then be ignored as not asked for):
+/// "what was asked stays asked while it may still land" found nothing asked.
 #[test]
 fn pause_and_resume_from_either_side() {
     let (bytes, offer, hashes) = file(PIECE_SIZE as usize * 40);
@@ -276,21 +279,21 @@ fn pause_and_resume_from_either_side() {
     }
     assert_eq!(rx.pause(), vec![Out::Text("{\"t\":\"pause\"}".into())]);
     assert!(rx.paused());
-    assert!(rx.asked().is_empty(), "what was asked is forgotten");
+    assert_eq!(rx.asked(), (0..16).collect::<Vec<u64>>(), "what was asked stays asked while it may still land");
     for m in tx.answer(&get_message(0, 2)) {
-        rx.on_binary(&m, &mut part, now); // what was already on its way still lands
+        rx.on_binary(&m, &mut part, now);
     }
-    assert_eq!(rx.have(), 2);
-    assert!(gets(&rx.tick(&mut part, now).out).is_empty(), "nothing asked while paused");
-    let out = rx.resume();
+    assert_eq!(rx.have(), 2, "what was already on its way still lands");
+    assert!(gets(&rx.tick(&mut part, now + STALL * 2).out).is_empty(), "nothing asked while paused, a stall neither");
+    let out = rx.resume(now);
     assert_eq!(out.first(), Some(&Out::Text("{\"t\":\"resume\"}".into())));
     assert_eq!(gets(&out), vec![(2, 16)], "asked again from the first missing piece");
 
     // The receiver told the sender paused.
-    let step = rx.on_text("{\"t\":\"pause\"}");
+    let step = rx.on_text("{\"t\":\"pause\"}", now);
     assert_eq!(step.events, vec![Event::PausedByThem(true)]);
     assert!(rx.asked().is_empty());
-    let step = rx.on_text("{\"t\":\"resume\"}");
+    let step = rx.on_text("{\"t\":\"resume\"}", now);
     assert_eq!(step.events, vec![Event::PausedByThem(false)]);
     assert_eq!(gets(&step.out), vec![(2, 16)]);
 
@@ -303,8 +306,7 @@ fn pause_and_resume_from_either_side() {
     s.on_text("{\"t\":\"get\",\"from\":0,\"count\":2}"); // asked before the receiver heard the pause
     assert_eq!(s.next(&mut src, 0).unwrap(), None, "a paused sender sends nothing");
     assert_eq!(s.resume(), vec![Out::Text("{\"t\":\"resume\"}".into())]);
-    while s.next(&mut src, 0).unwrap().is_some() {} // what was asked while paused goes now
-    assert_eq!(s.next(&mut src, 0).unwrap(), None);
+    assert_eq!(s.next(&mut src, 0).unwrap(), None, "what was owed, and asked while paused, was dropped: the receiver asks again");
     s.on_text("{\"t\":\"get\",\"from\":0,\"count\":1}");
     assert!(matches!(s.next(&mut src, 0).unwrap(), Some((Out::Binary(_), None))));
     // Told the receiver paused, it stops too.
@@ -325,7 +327,7 @@ fn cancel_from_either_side() {
     let step = rx.cancel();
     assert_eq!(step.out, vec![Out::Text("{\"t\":\"cancel\"}".into())]);
     assert_eq!(step.events, vec![Event::Ended(End::Cancelled { by_them: false })]);
-    assert_eq!(rx.resume(), Vec::<Out>::new(), "nothing after");
+    assert_eq!(rx.resume(now), Vec::<Out>::new(), "nothing after");
 
     let mut s = Sending::new(offer.clone(), Some(std::sync::Arc::new(hashes.clone())));
     s.open();
@@ -339,7 +341,7 @@ fn cancel_from_either_side() {
     assert_eq!((step.out, step.events), (vec![Out::Text("{\"t\":\"cancel\"}".into())], vec![Event::Ended(End::Cancelled { by_them: false })]));
     let mut rx = Receiving::new(offer, "Ann", true, now);
     rx.open(now);
-    assert_eq!(rx.on_text("{\"t\":\"cancel\"}").events, vec![Event::Ended(End::Cancelled { by_them: true })], "the receiver hears the sender's cancel");
+    assert_eq!(rx.on_text("{\"t\":\"cancel\"}", now).events, vec![Event::Ended(End::Cancelled { by_them: true })], "the receiver hears the sender's cancel");
 }
 
 /// THE SENDER (part 5): the list on `hashes` (worked out again when it was not in hand, and checked
@@ -414,4 +416,401 @@ fn the_part_file_is_named_only_after_the_whole_file_matches() {
     assert_eq!(std::fs::read(&saved).unwrap(), bytes);
     assert!(!part.exists());
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+// ── The rules settled by the first review (media-showcase.md, 2026-10-12, rule 1) ──────────────
+
+/// The `(piece, offset)` of a data message.
+fn header(m: &[u8]) -> (u64, u64) {
+    (u32::from_be_bytes([m[0], m[1], m[2], m[3]]) as u64, u32::from_be_bytes([m[4], m[5], m[6], m[7]]) as u64)
+}
+
+/// A stand-in sender that follows rule 1 to the letter, written from the rule's words, not from
+/// `Sending`: a `get` ADDS pieces to what it owes; it sends what it owes lowest first, each piece
+/// once, from offset 0, in messages of at most 64 KiB header included; it forgets a piece once its
+/// last message has gone; a piece asked for while it is being sent goes again, whole, after the
+/// current one. `damage` names pieces whose next copies go out wrong (one byte flipped), and how
+/// many times.
+struct RuleOneSender {
+    bytes: Vec<u8>,
+    hashes: Vec<[u8; 32]>,
+    list_out: std::collections::VecDeque<Vec<u8>>,
+    owed: std::collections::BTreeSet<u64>,
+    /// The piece going out, its bytes as they go (damaged or not), and the next offset.
+    current: Option<(u64, Vec<u8>, usize)>,
+    damage: std::collections::HashMap<u64, u32>,
+}
+
+impl RuleOneSender {
+    fn new(bytes: &[u8], hashes: &[[u8; 32]]) -> Self {
+        RuleOneSender { bytes: bytes.to_vec(), hashes: hashes.to_vec(), list_out: Default::default(), owed: Default::default(), current: None, damage: Default::default() }
+    }
+
+    /// A message from the receiver.
+    fn hear(&mut self, msg: &Out) {
+        let Out::Text(t) = msg else { panic!("the receiver sends text only") };
+        let v: serde_json::Value = serde_json::from_str(t).unwrap();
+        match v["t"].as_str().unwrap() {
+            "hashes" => self.list_out.extend(self.hashes.concat().chunks(65_536).map(|c| c.to_vec())),
+            "get" => {
+                let (from, count) = (v["from"].as_u64().unwrap(), v["count"].as_u64().unwrap());
+                assert!((1..=16).contains(&count), "at most 16 pieces asked at once: {t}");
+                let pieces = (self.bytes.len() as u64).div_ceil(PIECE_SIZE);
+                self.owed.extend(from..(from + count).min(pieces));
+            }
+            _ => {}
+        }
+    }
+
+    /// The next data message, or None when nothing is owed.
+    fn next(&mut self) -> Option<Vec<u8>> {
+        if let Some(m) = self.list_out.pop_front() {
+            return Some(m);
+        }
+        if self.current.is_none() {
+            let p = self.owed.pop_first()?;
+            let start = (p * PIECE_SIZE) as usize;
+            let mut piece = self.bytes[start..(start + PIECE_SIZE as usize).min(self.bytes.len())].to_vec();
+            if let Some(n) = self.damage.get_mut(&p).filter(|n| **n > 0) {
+                *n -= 1;
+                piece[0] ^= 0xff;
+            }
+            self.current = Some((p, piece, 0));
+        }
+        let (p, piece, at) = self.current.as_mut()?;
+        let end = (*at + 65_528).min(piece.len());
+        let mut m = Vec::with_capacity(8 + end - *at);
+        m.extend_from_slice(&(*p as u32).to_be_bytes());
+        m.extend_from_slice(&(*at as u32).to_be_bytes());
+        m.extend_from_slice(&piece[*at..end]);
+        *at = end;
+        if *at >= piece.len() {
+            self.current = None; // its last message has gone: forgotten
+        }
+        Some(m)
+    }
+}
+
+/// RULE 1, THE RECEIVER (a get adds; ask each piece once, again only after a bad hash, `count` 1):
+/// driven by a stand-in sender that follows rule 1 exactly, with what the receiver says reaching
+/// the sender only after `lag` more data messages (so asks cross pieces in flight), the desktop
+/// receiver gets the whole file with no stall (nothing here ever waits out the 30 seconds: a stall
+/// would leave the file unfinished). Each piece is asked for once, plus once more per bad copy,
+/// and every second ask is `count` 1; no `get` repeats the rest of a window.
+/// Seen red 2026-10-12 with `piece_failed` only forgetting the bad piece (no `get`, as a receiver
+/// that leaves it to the stall): "every piece in (lag 0)" failed, the conversation stopping with
+/// pieces missing. Also red with `pump` asking from the first missing piece again every time
+/// (`self.asked.clear()` at its top, repeating the rest of the window): "piece 1 asked once, plus
+/// once per bad copy (lag 0)" counted 2 asks.
+#[test]
+fn a_rule_one_sender_and_this_receiver_finish_without_a_stall() {
+    for lag in [0usize, 3, 7, 40, 100] {
+        let (bytes, offer, hashes) = file(PIECE_SIZE as usize * 40 + 1000);
+        let now = Instant::now();
+        let mut rx = Receiving::new(offer.clone(), "Ann", true, now);
+        let mut tx = RuleOneSender::new(&bytes, &hashes);
+        tx.damage.insert(3, 1);
+        tx.damage.insert(17, 2);
+        tx.damage.insert(40, 1);
+        let mut part = Vec::new();
+        let mut events = Vec::new();
+        let mut said: Vec<Out> = Vec::new();
+        // What the receiver said, and after how many data messages it reaches the sender.
+        let mut to_tx: std::collections::VecDeque<(usize, Out)> = std::collections::VecDeque::new();
+        for m in rx.open(now).out {
+            said.push(m.clone());
+            to_tx.push_back((0, m));
+        }
+        let mut sent = 0usize;
+        loop {
+            while to_tx.front().is_some_and(|(due, _)| *due <= sent) {
+                let (_, m) = to_tx.pop_front().unwrap();
+                tx.hear(&m);
+            }
+            let Some(data) = tx.next() else {
+                // Nothing owed: what is still on its way reaches the sender now, or it is over.
+                match to_tx.pop_front() {
+                    Some((_, m)) => {
+                        tx.hear(&m);
+                        continue;
+                    }
+                    None => break,
+                }
+            };
+            sent += 1;
+            let step = rx.on_binary(&data, &mut part, now);
+            events.extend(step.events);
+            for m in step.out {
+                said.push(m.clone());
+                to_tx.push_back((sent + lag, m));
+            }
+        }
+        assert!(events.contains(&Event::Complete), "every piece in (lag {lag})");
+        assert_eq!(part, bytes, "the part file holds the file (lag {lag})");
+        let asks = gets(&said);
+        let times = |p: u64| asks.iter().filter(|(f, n)| *f <= p && p < f + n).count();
+        for p in 0..offer.pieces {
+            let bad = match p {
+                3 | 40 => 1,
+                17 => 2,
+                _ => 0,
+            };
+            assert_eq!(times(p), 1 + bad, "piece {p} asked once, plus once per bad copy (lag {lag}): {asks:?}");
+        }
+        let mut seen = std::collections::HashSet::new();
+        for (from, n) in &asks {
+            if (*from..from + n).any(|p| seen.contains(&p)) {
+                assert_eq!(*n, 1, "asked again: one piece alone (lag {lag}): {asks:?}");
+            }
+            seen.extend(*from..from + n);
+        }
+    }
+}
+
+/// RULE 1, THE SENDER: a piece asked for while it is being sent goes again, whole, after the
+/// current one; a `get` adds (pieces already owed are sent once); a piece already sent and asked
+/// again goes again; what is owed goes lowest first.
+/// Seen red 2026-10-12 with a `get` skipping the piece being sent (as before the review):
+/// "piece 0 again, whole, after the current one" got [0, 1, 2] where [0, 0, 1, 2] was expected.
+#[test]
+fn a_piece_asked_again_while_it_is_being_sent_goes_again_whole() {
+    let (bytes, offer, hashes) = file(PIECE_SIZE as usize * 6);
+    let mut src = bytes.clone();
+    let mut s = Sending::new(offer, Some(std::sync::Arc::new(hashes)));
+    s.open();
+    let mut sent: Vec<(u64, u64)> = Vec::new();
+    let mut take = |s: &mut Sending, n: usize, sent: &mut Vec<(u64, u64)>| {
+        for _ in 0..n {
+            match s.next(&mut src, 0).unwrap() {
+                Some((Out::Binary(m), _)) => sent.push(header(&m)),
+                other => panic!("a data message: {other:?}"),
+            }
+        }
+    };
+    s.on_text("{\"t\":\"get\",\"from\":0,\"count\":3}");
+    take(&mut s, 2, &mut sent); // piece 0 is going out
+    s.on_text("{\"t\":\"get\",\"from\":0,\"count\":1}"); // the receiver asks for it again meanwhile
+    s.on_text("{\"t\":\"get\",\"from\":1,\"count\":2}"); // and for 1 and 2, owed already
+    while let Some((m, _)) = s.next(&mut src, 0).unwrap() {
+        let Out::Binary(m) = m else { panic!("data only") };
+        sent.push(header(&m));
+    }
+    let starts: Vec<u64> = sent.iter().filter(|(_, at)| *at == 0).map(|(p, _)| *p).collect();
+    assert_eq!(starts, vec![0, 0, 1, 2], "piece 0 again, whole, after the current one; 1 and 2 once each");
+    let whole = |from: usize| sent[from..from + 5].iter().map(|(_, at)| *at).collect::<Vec<u64>>();
+    let offsets: Vec<u64> = (0..5).map(|i| i * 65_528).collect();
+    assert_eq!(whole(0), offsets, "the first copy of piece 0 finished");
+    assert_eq!(whole(5), offsets, "the second, from offset 0");
+    assert_eq!(sent.len(), 20, "four pieces, five messages each");
+
+    // A piece already sent, asked again, goes again; what is owed goes lowest first.
+    s.on_text("{\"t\":\"get\",\"from\":4,\"count\":2}");
+    s.on_text("{\"t\":\"get\",\"from\":1,\"count\":1}");
+    let mut starts = Vec::new();
+    while let Some((Out::Binary(m), _)) = s.next(&mut src, 0).unwrap() {
+        if header(&m).1 == 0 {
+            starts.push(header(&m).0);
+        }
+    }
+    assert_eq!(starts, vec![1, 4, 5], "lowest first, each once");
+}
+
+/// A stand-in receiver with the WEBSITE'S PATTERN (web/shared/file-transfer.js `Receiver`, as it
+/// was when the first review ran): it takes pieces strictly in order, asks for a window of 16 from
+/// the next piece it needs, asks the next window when this one is in, ignores anything that is not
+/// the next piece, and after a bad piece asks `get(next, 16)` again.
+struct WebStyleReceiver {
+    offer: Offer,
+    hashes: Option<Vec<[u8; 32]>>,
+    list: Vec<u8>,
+    next: u64,
+    window_end: Option<u64>,
+    fill: Vec<u8>,
+    part: Vec<u8>,
+    failures: u32,
+    done: bool,
+}
+
+impl WebStyleReceiver {
+    fn new(offer: &Offer) -> Self {
+        WebStyleReceiver { offer: offer.clone(), hashes: None, list: Vec::new(), next: 0, window_end: None, fill: Vec::new(), part: Vec::new(), failures: 0, done: false }
+    }
+
+    fn ask(&mut self) -> Vec<Out> {
+        let count = WINDOW.min(self.offer.pieces - self.next);
+        self.window_end = Some(self.next + count);
+        vec![get_message(self.next, count)]
+    }
+
+    fn receive(&mut self, data: &[u8]) -> Vec<Out> {
+        if self.hashes.is_none() {
+            self.list.extend_from_slice(data);
+            if self.list.len() < self.offer.pieces as usize * 32 {
+                return Vec::new();
+            }
+            self.hashes = Some(self.list.chunks_exact(32).map(|c| c.try_into().unwrap()).collect());
+            return self.ask();
+        }
+        let (piece, offset) = header(data);
+        if self.window_end.is_none() || piece != self.next || (self.fill.is_empty() && offset != 0) {
+            return Vec::new(); // not asked for, or left over from before a new ask
+        }
+        let len = piece_len(self.offer.size, piece) as usize;
+        if offset as usize != self.fill.len() || self.fill.len() + data.len() - 8 > len {
+            self.failures += 1;
+            self.fill.clear();
+            return self.ask();
+        }
+        self.fill.extend_from_slice(&data[8..]);
+        if self.fill.len() < len {
+            return Vec::new();
+        }
+        if blake3::hash(&self.fill).as_bytes() != &self.hashes.as_ref().unwrap()[piece as usize] {
+            self.failures += 1;
+            self.fill.clear();
+            return self.ask(); // get(next, 16) after a bad piece
+        }
+        self.part.extend_from_slice(&self.fill);
+        self.fill.clear();
+        self.next += 1;
+        if self.next == self.offer.pieces {
+            self.done = true;
+            return vec![say("done")];
+        }
+        if self.window_end.is_some_and(|end| self.next >= end) {
+            return self.ask();
+        }
+        Vec::new()
+    }
+}
+
+/// RULE 1 WITH THE WEBSITE'S RECEIVER: after a bad piece the website asks `get(next, 16)` while the
+/// desktop sender is further on, mid-way through a later piece. A sender whose `get` adds sends the
+/// bad piece again, then each piece after it in order, so the website's in-order receiver finishes
+/// without a stall (no timer runs here: a stall would leave it unfinished).
+/// Seen red 2026-10-12 with a `get` skipping the piece being sent (as before the review): "the
+/// website's receiver finished (lag 7): at piece 7" failed, the receiver waiting for piece 7, the
+/// one being sent when it asked, which never came again.
+#[test]
+fn the_websites_receiver_pattern_gets_a_bad_piece_again_without_a_stall() {
+    for lag in [7usize, 12, 30] {
+        let (bytes, offer, hashes) = file(PIECE_SIZE as usize * 40 + 3);
+        let mut src = bytes.clone();
+        let mut s = Sending::new(offer.clone(), Some(std::sync::Arc::new(hashes)));
+        s.open();
+        let mut rx = WebStyleReceiver::new(&offer);
+        let mut to_tx: std::collections::VecDeque<(usize, Out)> = std::collections::VecDeque::new();
+        to_tx.push_back((0, say("hashes")));
+        let mut damaged = false;
+        let mut sent = 0usize;
+        let mut asks = Vec::new();
+        loop {
+            while to_tx.front().is_some_and(|(due, _)| *due <= sent) {
+                let (_, Out::Text(t)) = to_tx.pop_front().unwrap() else { panic!("text") };
+                asks.push(Out::Text(t.clone()));
+                s.on_text(&t);
+            }
+            let Some((m, _)) = s.next(&mut src, 0).unwrap() else {
+                match to_tx.pop_front() {
+                    Some((_, Out::Text(t))) => {
+                        asks.push(Out::Text(t.clone()));
+                        s.on_text(&t);
+                        continue;
+                    }
+                    _ => break,
+                }
+            };
+            let Out::Binary(mut m) = m else { panic!("data only") };
+            sent += 1;
+            // Piece 5's first copy is damaged on the way.
+            if !damaged && m.len() > 8 && header(&m) == (5, 0) {
+                damaged = true;
+                m[8] ^= 0xff;
+            }
+            for o in rx.receive(&m) {
+                to_tx.push_back((sent + lag, o));
+            }
+        }
+        assert!(rx.done, "the website's receiver finished (lag {lag}): at piece {}", rx.next);
+        assert_eq!(rx.part, bytes, "with the whole file (lag {lag})");
+        assert_eq!(rx.failures, 1, "the one bad copy");
+        assert!(gets(&asks).contains(&(5, 16)), "it asked get(next, 16) after the bad piece (lag {lag})");
+    }
+}
+
+/// RULE 1, MEMORY: a message for a piece the receiver did not ask for, or already holds, is
+/// ignored and reserves nothing; partial buffers are held only for pieces asked for, so at most
+/// the window's 16, whatever piece numbers a sender names.
+/// Seen red 2026-10-12 with the receiver reserving a buffer for any piece at offset 0 (the
+/// `asked` check taken out of `on_binary`, as before the review): "nothing reserved for pieces not
+/// asked (piece 16)" found 262,144 bytes after the first message.
+#[test]
+fn pieces_not_asked_for_are_ignored_and_reserve_nothing() {
+    let many: Vec<[u8; 32]> = (0..3000u32).map(|i| *blake3::hash(&i.to_be_bytes()).as_bytes()).collect();
+    let (_, small, _) = file(PIECE_SIZE as usize);
+    let offer = Offer { size: 3000 * PIECE_SIZE, pieces: 3000, hashes: hashes_digest(&many), ..small };
+    let now = Instant::now();
+    let mut rx = Receiving::new(offer, "Ann", true, now);
+    rx.open(now);
+    let mut part = Vec::new();
+    let step = rx.on_binary(&many.concat(), &mut part, now);
+    assert_eq!(gets(&step.out), vec![(0, 16)]);
+    let start = |p: u32| {
+        let mut m = Vec::with_capacity(8 + 100);
+        m.extend_from_slice(&p.to_be_bytes());
+        m.extend_from_slice(&0u32.to_be_bytes());
+        m.extend_from_slice(&[7u8; 100]);
+        m
+    };
+    for p in 16..3000u32 {
+        let step = rx.on_binary(&start(p), &mut part, now);
+        assert_eq!(step, Step::default(), "piece {p}, not asked for: ignored");
+        assert_eq!(rx.partial_bytes(), 0, "nothing reserved for pieces not asked (piece {p})");
+    }
+    for p in 0..16u32 {
+        rx.on_binary(&start(p), &mut part, now);
+    }
+    assert!(rx.partial_bytes() <= 16 * PIECE_SIZE as usize, "at most the window's 16 partial pieces: {}", rx.partial_bytes());
+    assert_eq!(rx.asked(), (0..16).collect::<Vec<u64>>(), "and nothing asked because of them");
+
+    // A piece already held: ignored too.
+    let (bytes, offer, hashes) = file(PIECE_SIZE as usize * 2);
+    let mut rx = Receiving::new(offer, "Ann", true, now);
+    rx.open(now);
+    let mut part = Vec::new();
+    rx.on_binary(&hashes.concat(), &mut part, now);
+    let mut tx = StandInSender::new(&bytes, &hashes);
+    for m in tx.answer(&get_message(0, 1)) {
+        rx.on_binary(&m, &mut part, now);
+    }
+    assert_eq!(rx.have(), 1);
+    for m in tx.answer(&get_message(0, 1)) {
+        assert_eq!(rx.on_binary(&m, &mut part, now), Step::default(), "piece 0 again: held already");
+    }
+    assert_eq!(rx.partial_bytes(), 0);
+}
+
+/// RULE 1, A STALL: when nothing asked for has arrived for 30 seconds, the receiver asks again
+/// (and only then: before 30 seconds, and while paused, it does not). Messages for pieces it did
+/// not ask for do not count as something arriving.
+/// Seen red 2026-10-12 with the stall clock moved by every data message (asked for or not, as
+/// before the first review): "a sender naming other pieces does not hold off the stall" got
+/// nothing asked where (0, 16) was expected.
+#[test]
+fn a_stall_asks_again_and_only_a_stall() {
+    let (bytes, offer, hashes) = file(PIECE_SIZE as usize * 20);
+    let now = Instant::now();
+    let mut rx = Receiving::new(offer, "Ann", true, now);
+    rx.open(now);
+    let mut part = Vec::new();
+    rx.on_binary(&hashes.concat(), &mut part, now);
+    assert!(gets(&rx.tick(&mut part, now + STALL / 2).out).is_empty(), "not before 30 seconds");
+    // A sender naming a piece not asked for, 20 seconds in: no help.
+    let mut tx = StandInSender::new(&bytes, &hashes);
+    for m in tx.answer(&get_message(18, 1)) {
+        rx.on_binary(&m, &mut part, now + STALL * 2 / 3);
+    }
+    let step = rx.tick(&mut part, now + STALL);
+    assert_eq!(gets(&step.out), vec![(0, 16)], "a sender naming other pieces does not hold off the stall");
+    assert!(gets(&rx.tick(&mut part, now + STALL + STALL / 2).out).is_empty(), "and the clock starts again");
 }
