@@ -1630,10 +1630,15 @@ in the data folder. Every registry reads the folder's copy of a file only when
 this version can read ALL of it (a single CSV row it cannot read refuses the
 file); otherwise it uses the copy built into the exe and writes one
 `[built-in data copy]` log line naming the file, the line and why (BUG-163,
-2026-10-05). An installed game's data folder going stale after an update is
-designed, not built: `docs/design/data-folder-updates.md`.
+2026-10-05). Since 2026-10-12 every start brings each data file nobody edited
+up to the running game's copy and keeps each edited one (a stamp,
+`data/.shipped.json`, records what the game wrote), never in a source tree or a
+linked folder; Settings > Data > "Data folder" lists what the last update did,
+the files it kept with "Use the game's copy", and the files this run did not
+use (BUG-163 part 2, `docs/design/data-folder-updates.md`).
 - Native: `src/mods/mod.rs`, `src/embedded_data.rs` (`load_data_or_embedded`),
-  `src/assets/loader.rs` (`refusing_rows`)
+  `src/assets/loader.rs` (`refusing_rows`), `src/storage/refresh.rs` (the
+  refresh), `src/gui/pages/settings/data_folder.rs` (the Settings block)
 - Data: `data/mods/README.md`, `data/mods/example-mod/mod.json`
 
 ### World Persistence

@@ -354,6 +354,25 @@ The remaining server-held data classes and length/transport leaks, closed:
   copy. Listed users (Open/Spotlight) gossip as before. Note that gossip only
   ever carried user-authored PUBLIC profile fields (name/bio/avatar/socials/
   location/website), never presence, IP, or DM metadata.
+- **Erasing your account takes your profile off the linked servers (2026-10-12,
+  BUG-191).** Your own erase carries a withdrawal of the copy of your profile
+  that the servers this one is linked with keep, signed by your own app. The
+  server passes it on before it erases (`handle_account_delete`, then
+  `src/relay/handlers/profile.rs` `withdraw_on_erase`), and each linked server
+  that holds your copy replaces it with the withdrawal: every field blank,
+  nothing else. What it cannot reach, said plainly:
+  - **An admin's erase.** Only your own key can sign a withdrawal, so when an
+    admin erases your account (Server Settings > Members), your profile stays
+    on the linked servers until you withdraw it yourself (go unlisted, or erase
+    your own account, on a server where you still have one). The admin's
+    confirm says so.
+  - **A linked server that is not connected at that moment** keeps your copy:
+    after the erase this server holds nothing of yours to send it when the link
+    comes back.
+  - **Your other devices' copies.** A device added with a link code has a key of
+    its own, and its copy stays until that device withdraws it.
+  - **An app that cannot sign** (the desktop app with its identity locked) sends
+    the erase without a withdrawal; the erase still happens.
 - **Transport IP privacy (opt-in).** An optional Tor v3 onion service
   (`scripts/tor-onion-setup.sh`, `docs/admin/tor-onion-service.md`) lets users
   reach the relay without revealing their IP at all — the honest answer to the

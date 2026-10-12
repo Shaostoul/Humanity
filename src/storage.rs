@@ -33,6 +33,10 @@
 use std::path::{Path, PathBuf};
 use std::sync::RwLock;
 
+/// Keeping the data folder current after an update (BUG-163 part 2): the stamp of what the game
+/// wrote, the refresh on start, and Settings > Data's view of it.
+pub mod refresh;
+
 /// The four storage states. See the module docs for what each means.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StorageMode {
@@ -172,24 +176,23 @@ pub fn writable_data_dir() -> Option<PathBuf> {
     }
 }
 
-/// Extract the embedded, editable game-data files to the mode's writable data
-/// dir on first run (no-op if it already exists, if Undecided, or if the OS
-/// root is unresolvable — reads fall back to the embedded copies either way).
-/// This is what enables file-based modding without ever littering a folder
-/// the user didn't choose (pre-v0.706 this dumped ~70 files beside the exe).
+/// Write the embedded, editable game-data files to the mode's writable data dir on its first
+/// run, and keep them current after every update (no-op if Undecided, or if the OS root is
+/// unresolvable: reads fall back to the embedded copies either way). This is what enables
+/// file-based modding without ever littering a folder the user didn't choose (pre-v0.706 this
+/// dumped ~70 files beside the exe).
 ///
-/// ONCE: nothing refreshes the folder after an update (the updater replaces only
-/// the exe), so it holds the files of the version that first ran. A file this
-/// version cannot read is set aside for its built-in copy at load time
-/// (`embedded_data::load_data_or_embedded`, BUG-163); a file it can read is used
-/// however old it is. Keeping the folder current is designed in
-/// docs/design/data-folder-updates.md, not built.
+/// The folder exists: `refresh::refresh_on_start` brings every shipped file nobody edited up to
+/// this exe's copy and keeps every edited one (BUG-163 part 2, docs/design/data-folder-updates.md;
+/// before 2026-10-12 an update replaced only the exe and the folder kept the files of the version
+/// that first ran). It never touches a source tree's data/ or a folder reached through a link.
 pub fn extract_data_if_needed() {
     let data_dir = match writable_data_dir() {
         Some(d) => d,
         None => return,
     };
     if data_dir.exists() {
+        refresh::refresh_on_start(&data_dir);
         return;
     }
     log::info!("First run: extracting editable game data to {:?}", data_dir);
@@ -197,11 +200,12 @@ pub fn extract_data_if_needed() {
     log::info!("Data extraction complete");
 }
 
-/// Write every embedded data file under `data_dir`: what `extract_data_if_needed` does on a
-/// first run, once it has decided to, and then say so once. Best-effort per file: a failed write
-/// is logged and the rest go on (reads fall back to the embedded copy of anything missing). The
-/// home designs come out as the PLAYER'S OWN homes (`embedded_data::get_embedded` gives the
-/// own-home text, not the shipped default's, whose header says it is never written by the game).
+/// Write every embedded data file under `data_dir`, and the stamp of what was written
+/// (`refresh::write_fresh`): what `extract_data_if_needed` does on a first run, once it has
+/// decided to, and then say so once. Best-effort per file: a failed write is logged and the rest
+/// go on (reads fall back to the embedded copy of anything missing). The home designs come out as
+/// the PLAYER'S OWN homes (`embedded_data::get_embedded` gives the own-home text, not the shipped
+/// default's, whose header says it is never written by the game).
 ///
 /// The extraction list IS embedded_data::EMBEDDED_KEYS (v0.743) — one
 /// canonical enumeration, unit-tested against the get_embedded match, so
@@ -211,16 +215,13 @@ pub fn extract_data_if_needed() {
 /// (food/crop_nutrition.ron, world/showcase.ron, ...) are the tracked
 /// distributed-build-completeness follow-up.
 fn extract_embedded_to(data_dir: &Path) {
-    for relative_path in crate::embedded_data::EMBEDDED_KEYS {
-        if let Some(content) = crate::embedded_data::get_embedded(relative_path) {
-            let file_path = data_dir.join(relative_path);
-            if let Some(parent) = file_path.parent() {
-                let _ = std::fs::create_dir_all(parent);
-            }
-            if let Err(e) = std::fs::write(&file_path, content) {
-                log::warn!("Failed to extract {}: {e}", relative_path);
-            }
-        }
+    let shipped: Vec<(&str, &[u8])> = crate::embedded_data::EMBEDDED_KEYS
+        .iter()
+        .filter_map(|rel| crate::embedded_data::get_embedded(rel).map(|text| (*rel, text.as_bytes())))
+        .collect();
+    let (_, failed) = refresh::write_fresh(data_dir, refresh::VERSION, &shipped);
+    for f in &failed {
+        log::warn!("Failed to extract {}: {}", f.file, f.why);
     }
     // This run (and every later one, until the files are edited) runs on the
     // copies compiled into this exe, written out: say so once (BUG-133). A rig

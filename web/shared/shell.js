@@ -301,8 +301,9 @@
     // exact mirror of the app header. Web-only pages still light up where sensible.
     if (p === '/') active = 'humanity';
     else if (p.startsWith('/chat'))      active = 'chat';
-    // Media sits beside Watch, and Watch lights the Chat tab (watch.html).
-    else if (p.startsWith('/media'))     active = 'chat';
+    // Watch and Media have their own tabs beside Chat, as in the app (2026-10-12).
+    else if (p.startsWith('/media'))     active = 'media';
+    else if (p.startsWith('/watch'))     active = 'watch';
     else if (p.startsWith('/studio'))    active = 'studio';
     else if (p.startsWith('/profile'))   active = 'profile';
     else if (p.startsWith('/identity'))   active = 'identity';
@@ -925,6 +926,10 @@
 
       '<span class="nav-group-red">' +
         navTab('/chat',     'chat',  'Chat',   'chat') +
+        /* Watch and Media beside Chat, as in the desktop app's menu (2026-10-12: on a desktop
+         * browser the Media page had no link at all, only the phone menu listed it). */
+        navTab('/watch',    'video', 'Watch',  'watch') +
+        navTab('/media',    'image', 'Media',  'media') +
         /* Studio dropped from the web header (operator, 2026-08-17): it is
          * a native feature today, and two tabs opening /download read as a
          * bug. The streaming surface's future home is the Chat page (see

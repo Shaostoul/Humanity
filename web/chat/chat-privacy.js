@@ -239,19 +239,31 @@ async function eraseMemoryDays() {
 
 async function deleteMyAccount() {
   const remembered = eraseMemorySentence(await eraseMemoryDays());
-  if (!await holdConfirm('Erase your entire account on this server (messages, uploads, profile, mailbox, membership, your progress in the shared world, what you built in the shared world, and your home\'s plot on the ship)? This is permanent. Data on your own devices stays.' + (remembered ? ' ' + remembered : ''), { seconds: 5, confirmLabel: 'Hold to erase account' })) return;
+  if (!await holdConfirm('Erase your entire account on this server (messages, uploads, profile, mailbox, membership, your progress in the shared world, what you built in the shared world, and your home\'s plot on the ship)? This is permanent. Your profile is also taken off the servers this one is linked with. Data on your own devices stays.' + (remembered ? ' ' + remembered : ''), { seconds: 5, confirmLabel: 'Hold to erase account' })) return;
   const typed = prompt(
     'This ERASES your account on this server: messages, uploads, profile, '
     + 'mailbox, membership, your progress in the shared world, what you built in the shared world, '
     + 'and your home\'s plot on the ship '
     + '(it goes to the next player; if you come back you get a free plot or a guest place), '
-    + 'permanently. Data on your own devices stays.\n\n'
+    + 'permanently. Your profile is also taken off the servers this one is linked with. '
+    + 'Data on your own devices stays.\n\n'
     + (remembered ? remembered + '\n\n' : '')
     + 'Type your display name exactly to confirm:');
   if (!typed || !typed.trim()) return;
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'account_delete', confirm_name: typed.trim() }));
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  // The erase carries the signed withdrawal of my profile's copy on the linked servers
+  // (chat-profile.js accountDeleteFrame, BUG-191), so this server takes it off them before it
+  // erases. It is sent on the socket the person confirmed on, or not at all: signing takes a
+  // moment, and a reconnect meanwhile may be to another server.
+  const sock = ws;
+  const frame = typeof accountDeleteFrame === 'function'
+    ? await accountDeleteFrame(typed.trim())
+    : { type: 'account_delete', confirm_name: typed.trim() };
+  if (ws !== sock || sock.readyState !== WebSocket.OPEN) {
+    if (typeof addSystemMessage === 'function') addSystemMessage('The connection changed before your erase was sent, so nothing was erased. Try again.');
+    return;
   }
+  sock.send(JSON.stringify(frame));
 }
 
 function injectAccountDataButtons() {
