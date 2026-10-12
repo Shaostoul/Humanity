@@ -59,10 +59,10 @@
                 ("ors_sachet_0", 2),
             ],
             storage: "places/cabin_seed.json",
-            // The Cabin's own opening (gs_first_steps_cabin: check yourself, find the mess hall
-            // and eat, see the recreation room, go home) arrives with its quest (increment 6, lane
-            // 1G). Until then a cabin gets no opening, never the homestead's.
-            opening: None,
+            // The Cabin's own opening, Settling In (data/quests/getting_started.ron): check on
+            // yourself, find the mess hall and eat, see the recreation room, go home. Never the
+            // homestead's First Steps, which needs a garden, a workbench and a smelter.
+            opening: Some("gs_first_steps_cabin"),
             own_air: false,
             home_content: [],
         ),

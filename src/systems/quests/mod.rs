@@ -137,13 +137,14 @@ impl QuestRegistry {
     }
 }
 
-// ── Travel destinations (v0.979; where the player stands, 2026-10-04) ──────
+// ── Travel destinations (v0.979; where the player stands, 2026-10-04; the
+//    ship's shared places, 2026-10-12) ──────
 
 /// One named world destination a Travel objective can point at. Positions are
 /// XZ in the homestead-world frame (the same frame `entities/wild_spawns.ron`
 /// uses), so a destination can mark a spawn cluster, a field, or any landmark.
-/// A destination that is no fixed place (the player's own front door) names
-/// what it resolves to in `at` instead (2026-10-04).
+/// A destination that is no fixed place (the player's own front door, the
+/// nearest mess hall) names what it resolves to in `at` instead (2026-10-04).
 #[derive(Debug, Clone, Deserialize)]
 pub struct DestinationDef {
     /// The id Travel(destination: ...) references.
@@ -153,7 +154,9 @@ pub struct DestinationDef {
     /// World XZ centre. Unused when `at` names where the place is.
     #[serde(default)]
     pub pos: (f32, f32),
-    /// Arrival radius in metres.
+    /// How near counts as being there, metres: within this radius of `pos`
+    /// or of a doorstep; for a volume aboard (`NearestVolume`), within this
+    /// far of its floor, so anywhere on the floor counts and so does its edge.
     pub radius: f32,
     /// Where the place is when it is not a fixed point: resolved every tick
     /// from what the game publishes (`DestinationAnchor`). None: `pos`.
@@ -163,7 +166,7 @@ pub struct DestinationDef {
 
 /// A destination that moves with the player's own circumstances (2026-10-04,
 /// the opening): never a fixed coordinate.
-#[derive(Debug, Clone, Copy, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Deserialize, PartialEq)]
 pub enum DestinationAnchor {
     /// The doorstep of the player's OWN front door: `out_m` metres out of the
     /// door, along the corridor its plot's door makes. A family home's door
@@ -173,16 +176,67 @@ pub enum DestinationAnchor {
     /// whose home is put away, has no front door aboard, and the place does
     /// not resolve.
     OwnFrontDoor { out_m: f32 },
+    /// The ship's labelled volume of zone type `zone_type`
+    /// (data/blueprints/zone_types.ron: a row of a zone body's `zones` in the
+    /// ship file, like the Commons' "mess-hall") NEAREST the player's own
+    /// front door, its whole floor (2026-10-12, ship homes increment 6, the
+    /// Cabin's opening). So each home is sent to the mess hall that serves it:
+    /// the cabin row by First Street's north end to the Commons', a homestead
+    /// far down the street to the South Commons'. A player with no front door
+    /// aboard (a guest) is sent to the one nearest where they stand. Never a
+    /// room of the player's own home: these are the ship's shared places
+    /// (`ShipPlaces`). With none of that type aboard, it does not resolve.
+    ///
+    /// Nearest as the crow flies, to the edge of the floor. On this ship every
+    /// home reaches every shared place along First Street, so the nearest by
+    /// line is the nearest on foot; a ship where the two differ needs the walk
+    /// along its corridors here instead.
+    NearestVolume { zone_type: String },
 }
 
 impl DestinationDef {
-    /// The centre of this place now, XZ: `pos`, or what `at` resolves to
-    /// (None when it does not resolve, so nobody stands in it).
-    pub fn centre(&self, front_door: Option<&FrontDoor>) -> Option<(f32, f32)> {
-        match self.at {
-            None => Some(self.pos),
-            Some(DestinationAnchor::OwnFrontDoor { out_m }) => front_door.map(|d| d.doorstep(out_m)),
+    /// The volume aboard this place is now, for a `NearestVolume` place: the
+    /// nearest of its type to the player's own front door, or to `player_xz`
+    /// when there is none. None for any other kind of place, and when no
+    /// volume of the type is aboard.
+    pub fn volume<'a>(&self, aboard: Aboard<'a>, player_xz: (f32, f32)) -> Option<&'a ShipVolume> {
+        match &self.at {
+            Some(DestinationAnchor::NearestVolume { zone_type }) => {
+                let from = aboard.front_door.map_or(player_xz, |d| d.door);
+                aboard.places?.nearest(zone_type, from)
+            }
+            _ => None,
         }
+    }
+
+    /// How far `player_xz` stands from this place now, metres: from `pos` or
+    /// the doorstep, or from the edge of a volume's floor (0 on it). None when
+    /// the place does not resolve (a guest's front door; a kind of room the
+    /// ship does not have), so nobody stands in it.
+    pub fn distance_from(&self, player_xz: (f32, f32), aboard: Aboard<'_>) -> Option<f32> {
+        let to = |c: (f32, f32)| (player_xz.0 - c.0).hypot(player_xz.1 - c.1);
+        match &self.at {
+            None => Some(to(self.pos)),
+            Some(DestinationAnchor::OwnFrontDoor { out_m }) => aboard.front_door.map(|d| to(d.doorstep(*out_m))),
+            Some(DestinationAnchor::NearestVolume { .. }) => self.volume(aboard, player_xz).map(|v| v.distance_from(player_xz)),
+        }
+    }
+}
+
+/// What the places that are no fixed points resolve against: the player's own
+/// front door and the ship's labelled volumes, as the game publishes them
+/// every frame (`publish_front_door`). A guest has no front door aboard; a
+/// headless world or a test may publish neither.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Aboard<'a> {
+    pub front_door: Option<&'a FrontDoor>,
+    pub places: Option<&'a ShipPlaces>,
+}
+
+impl<'a> Aboard<'a> {
+    /// What `data` holds of them.
+    pub fn of(data: &'a DataStore) -> Aboard<'a> {
+        Aboard { front_door: data.get::<FrontDoor>(FRONT_DOOR_KEY), places: data.get::<ShipPlaces>(SHIP_PLACES_KEY) }
     }
 }
 
@@ -210,19 +264,108 @@ impl DestinationList {
 pub fn destinations_here(
     player_xz: (f32, f32),
     dests: &DestinationList,
-    front_door: Option<&FrontDoor>,
+    aboard: Aboard<'_>,
 ) -> std::collections::HashSet<String> {
     dests
         .destinations
         .iter()
-        .filter(|d| {
-            d.centre(front_door).is_some_and(|c| {
-                let (dx, dz) = (player_xz.0 - c.0, player_xz.1 - c.1);
-                dx * dx + dz * dz <= d.radius * d.radius
-            })
-        })
+        .filter(|d| d.distance_from(player_xz, aboard).is_some_and(|m| m <= d.radius))
         .map(|d| d.id.clone())
         .collect()
+}
+
+// ── The ship's shared places (2026-10-12, ship homes increment 6) ───────
+
+/// One labelled volume of the ship as the quests see it: a row of a zone
+/// body's `zones` in the ship file (the Commons' "mess-hall"), with its floor
+/// in ship metres, the frame "camera_position" is in.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ShipVolume {
+    /// The volume's id, also a room id of the relay's world ("mess-hall").
+    pub id: String,
+    /// Its zone type (data/blueprints/zone_types.ron): "mess_hall".
+    pub type_id: String,
+    /// Its own label ("Mess hall"); may be empty.
+    pub label: String,
+    /// The label of the ship zone it stands in ("The Commons"), its id when
+    /// it has none.
+    pub zone_label: String,
+    /// The floor's corners, XZ: the smaller x and z, then the larger.
+    pub min: (f32, f32),
+    pub max: (f32, f32),
+}
+
+impl ShipVolume {
+    /// How far `xz` is from this floor, metres: 0 anywhere on it.
+    pub fn distance_from(&self, xz: (f32, f32)) -> f32 {
+        let dx = (self.min.0 - xz.0).max(xz.0 - self.max.0).max(0.0);
+        let dz = (self.min.1 - xz.1).max(xz.1 - self.max.1).max(0.0);
+        dx.hypot(dz)
+    }
+
+    /// The zone it stands in as it reads inside a sentence: "the Commons".
+    pub fn zone_in_a_sentence(&self) -> String {
+        in_a_sentence(&self.zone_label)
+    }
+}
+
+/// The ship's labelled volumes, every zone's but the player's own home's.
+/// DataStore: `SHIP_PLACES_KEY`, published by the game every frame with the
+/// front door (`publish_front_door`).
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct ShipPlaces {
+    pub volumes: Vec<ShipVolume>,
+}
+
+impl ShipPlaces {
+    /// Every labelled volume of every zone of `ship`, in the ship file's
+    /// order, but none of the player's own home (its rooms are no shared
+    /// place, and a home put away stands nowhere aboard).
+    pub fn of_ship(ship: &crate::ship::ship_structure::ShipStructure) -> ShipPlaces {
+        use crate::ship::ship_structure::HOME_ZONE_ID;
+        let volumes = ship
+            .zones
+            .iter()
+            .filter(|z| z.id != HOME_ZONE_ID)
+            .flat_map(|z| {
+                let zone_label = if z.label.is_empty() { z.id.clone() } else { z.label.clone() };
+                z.body.zones.iter().map(move |v| {
+                    let min = (z.origin.0 + v.origin.0, z.origin.2 + v.origin.2);
+                    ShipVolume {
+                        id: v.id.clone(),
+                        type_id: v.type_id.clone(),
+                        label: v.label.clone(),
+                        zone_label: zone_label.clone(),
+                        min,
+                        max: (min.0 + v.size.0, min.1 + v.size.2),
+                    }
+                })
+            })
+            .collect();
+        ShipPlaces { volumes }
+    }
+
+    /// The volume of type `zone_type` nearest `from` (XZ), to the edge of its
+    /// floor; of two as near, the first in the ship file. None when the ship
+    /// has none of that type.
+    pub fn nearest(&self, zone_type: &str, from: (f32, f32)) -> Option<&ShipVolume> {
+        self.volumes
+            .iter()
+            .filter(|v| v.type_id == zone_type)
+            .min_by(|a, b| a.distance_from(from).total_cmp(&b.distance_from(from)))
+    }
+}
+
+/// The DataStore key of the published `ShipPlaces`.
+pub const SHIP_PLACES_KEY: &str = "ship_places";
+
+/// A place's label as it reads inside a sentence: a leading "The" lowered
+/// ("The Commons" is "the Commons"), anything else as it is ("First Street").
+pub fn in_a_sentence(label: &str) -> String {
+    match label.strip_prefix("The ") {
+        Some(rest) => format!("the {rest}"),
+        None => label.to_string(),
+    }
 }
 
 // ── The player's own front door (2026-10-04, the opening) ──────────────
@@ -251,10 +394,7 @@ impl FrontDoor {
     /// What the door opens on, as it reads inside a sentence: "the Commons"
     /// (a leading "The" lowered), "First Street".
     pub fn opens_on_in_a_sentence(&self) -> String {
-        match self.opens_on.strip_prefix("The ") {
-            Some(rest) => format!("the {rest}"),
-            None => self.opens_on.clone(),
-        }
+        in_a_sentence(&self.opens_on)
     }
 }
 
@@ -279,8 +419,13 @@ pub fn front_door_of(ship: &crate::ship::ship_structure::ShipStructure) -> Optio
     Some(FrontDoor { door: (g.end_from.x, g.end_from.z), outward: (out.x, out.y), opens_on })
 }
 
-/// Publish the player's own front door for the quests (the game calls this
-/// every frame with the ship it runs), or take it away when there is none.
+/// Publish where the quests' places aboard are, from the ship the game runs
+/// (it calls this every frame, engine::quest_hooks): the player's own front
+/// door (`FRONT_DOOR_KEY`), and since 2026-10-12 the ship's labelled volumes
+/// a `NearestVolume` place is found among (`SHIP_PLACES_KEY`), so "walk to the
+/// mess hall" finds the mess hall that serves this home. Each is taken away
+/// when there is none: no ship, or (the door) a guest whose home is put away.
+/// A guest keeps the ship's places: the mess hall is theirs too.
 pub fn publish_front_door(data: &mut DataStore, ship: Option<&crate::ship::ship_structure::ShipStructure>) {
     match ship.and_then(front_door_of) {
         Some(door) => {
@@ -291,6 +436,18 @@ pub fn publish_front_door(data: &mut DataStore, ship: Option<&crate::ship::ship_
         None => {
             if data.contains(FRONT_DOOR_KEY) {
                 data.remove(FRONT_DOOR_KEY);
+            }
+        }
+    }
+    match ship.map(ShipPlaces::of_ship).filter(|p| !p.volumes.is_empty()) {
+        Some(places) => {
+            if data.get::<ShipPlaces>(SHIP_PLACES_KEY) != Some(&places) {
+                data.insert(SHIP_PLACES_KEY, places);
+            }
+        }
+        None => {
+            if data.contains(SHIP_PLACES_KEY) {
+                data.remove(SHIP_PLACES_KEY);
             }
         }
     }
@@ -615,12 +772,12 @@ impl System for QuestSystem {
 
         // Where the player stands now, for Travel steps (2026-10-04): the
         // destinations (data/entities/destinations.ron) they are inside this
-        // tick, the player's own front door among them when the game
-        // published one. Where the player is comes from the walking camera
-        // (`player_xz`): the entity's Transform never moved when they walked.
-        let front_door = data.get::<FrontDoor>(FRONT_DOOR_KEY);
+        // tick, the player's own front door and the ship's shared places
+        // among them when the game published them (`Aboard`). Where the player
+        // is comes from the walking camera (`player_xz`): the entity's
+        // Transform never moved when they walked.
         let here = match (data.get::<DestinationList>("quest_destinations"), player_xz(world, data)) {
-            (Some(dests), Some(xz)) => destinations_here(xz, dests, front_door),
+            (Some(dests), Some(xz)) => destinations_here(xz, dests, Aboard::of(data)),
             _ => std::collections::HashSet::new(),
         };
 
@@ -919,16 +1076,69 @@ mod quest_tests {
             ],
         };
         let door = FrontDoor { door: (55.0, 139.0), outward: (1.0, 0.0), opens_on: "First Street".into() };
-        let here = |xz| destinations_here(xz, &dests, Some(&door));
+        let aboard = Aboard { front_door: Some(&door), places: None };
+        let here = |xz| destinations_here(xz, &dests, aboard);
         assert!(here((30.0, 30.0)).is_empty(), "out in the open");
         assert_eq!(here((11.0, 11.0)), ["fields".to_string()].into_iter().collect(), "in the fields");
         assert_eq!(here((56.5, 139.0)), ["front_door".to_string()].into_iter().collect(), "on the doorstep, 1.5 m out of the door");
         assert!(here((53.5, 139.5)).is_empty(), "just inside the door is not out of it");
         assert!(here((0.0, 0.0)).is_empty(), "the front door's unused pos is no place");
-        assert!(destinations_here((56.5, 139.0), &dests, None).is_empty(), "no door published, no doorstep");
+        assert!(destinations_here((56.5, 139.0), &dests, Aboard::default()).is_empty(), "no door published, no doorstep");
         assert_eq!(door.opens_on_in_a_sentence(), "First Street");
         let commons = FrontDoor { opens_on: "The Commons".into(), ..door };
         assert_eq!(commons.opens_on_in_a_sentence(), "the Commons", "\"The\" is lowered inside a sentence");
+    }
+
+    /// A SHARED PLACE ABOARD IS ITS WHOLE FLOOR (2026-10-12, ship homes
+    /// increment 6): standing anywhere on the floor of the nearest volume of
+    /// its type counts, and so does standing within the radius of its edge.
+    /// A circle round the middle would not do: the mess hall is a 30 x 8 m
+    /// strip, and its stores stand at its west end, 13 m from the middle,
+    /// where a player taking a meal stands. Nearest to the player's own front
+    /// door, so the other hall does not count; a guest, with no door, is sent
+    /// to the one nearest where they stand. No places published, no place.
+    ///
+    /// Seen red 2026-10-12 with the place taken as a 4 m circle round the
+    /// floor's middle (the plan's wording, docs/design/ship-homes-increment-6-
+    /// plan.md 3.10: "the centre of the nearest labelled volume", radius 4.0):
+    /// "the stores' end of the mess hall is in it".
+    #[test]
+    fn a_shared_place_aboard_is_its_whole_floor() {
+        let hall = |id: &str, zone: &str, min: (f32, f32), max: (f32, f32)| ShipVolume {
+            id: id.into(),
+            type_id: "mess_hall".into(),
+            label: "Mess hall".into(),
+            zone_label: zone.into(),
+            min,
+            max,
+        };
+        let places = ShipPlaces {
+            volumes: vec![
+                hall("mess-hall", "The Commons", (65.0, 20.0), (95.0, 28.0)),
+                hall("mess-hall-2", "The South Commons", (77.0, 770.0), (101.0, 778.0)),
+            ],
+        };
+        let dests = DestinationList {
+            destinations: vec![DestinationDef {
+                id: "mess_hall".into(),
+                label: "the mess hall".into(),
+                pos: (0.0, 0.0),
+                radius: 1.0,
+                at: Some(DestinationAnchor::NearestVolume { zone_type: "mess_hall".into() }),
+            }],
+        };
+        let cabin_door = FrontDoor { door: (80.5, 89.25), outward: (-1.0, 0.0), opens_on: "Cabin Block A".into() };
+        let aboard = Aboard { front_door: Some(&cabin_door), places: Some(&places) };
+        let here = |xz: (f32, f32), aboard: Aboard<'_>| destinations_here(xz, &dests, aboard).contains("mess_hall");
+        assert!(here((67.0, 22.0), aboard), "the stores' end of the mess hall is in it");
+        assert!(here((80.0, 24.0), aboard), "its middle");
+        assert!(here((80.0, 28.9), aboard), "within a metre of its edge");
+        assert!(!here((80.0, 29.5), aboard), "a metre and a half out is not");
+        assert!(!here((89.0, 774.0), aboard), "the cabin's mess hall is the Commons', not the South Commons'");
+        let guest = Aboard { front_door: None, places: Some(&places) };
+        assert!(here((89.0, 774.0), guest), "a guest is sent to the one nearest where they stand");
+        assert_eq!(dests.destinations[0].volume(guest, (89.0, 790.0)).map(|v| v.zone_in_a_sentence()), Some("the South Commons".into()));
+        assert!(!here((80.0, 24.0), Aboard { front_door: Some(&cabin_door), places: None }), "no places published, no place");
     }
 
     #[test]

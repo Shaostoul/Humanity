@@ -12580,9 +12580,14 @@ mod native_app {
                             // or done. Sorted for a stable list.
                             state.gui_state.quests_available.clear();
                             if let Some(reg) = quest_reg {
+                                // Another start's opening is never offered (increment 6: each start
+                                // has its own, and none has a prerequisite).
+                                let my_start = crate::save_load::active_home().start;
+                                let openings = crate::ship::starts::opening_quests(&state.data_dir);
                                 let mut avail: Vec<crate::gui::GuiAvailableQuest> = reg
                                     .quests
                                     .values()
+                                    .filter(|d| !openings.iter().any(|(start, quest)| *quest == d.id && *start != my_start))
                                     .filter(|d| {
                                         !tracker.is_active(&d.id)
                                             && !tracker.is_completed(&d.id)
