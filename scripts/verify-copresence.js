@@ -3863,10 +3863,14 @@ const HOUSE_ADA = { name: "TestBotAda", seed: "verify-copresence-household-ada" 
 /** The game's name on the relay (the autopilot's), how Ada's log names it. */
 const HOUSE_GAME_NAME = "CopresenceHouse";
 /** Step 2: what Ada builds on her own plot, metres from its corner: a foundation, and a wall on
- *  its north edge facing south, toward where the game stands in step 10. */
+ *  its south edge facing north, toward where the game stands in step 10. Both in her home's
+ *  common room (data/homes/shipped/homestead.ron room-common, x 42..52, z 43..51), in its open
+ *  east half, clear of the couch, side table and dining set (data/machines/home.ron). They first
+ *  stood in the wet room, behind the hall's wall from the game's spot, and the picture showed
+ *  only that wall (verify-household, 2026-10-12: 0% wood where hers was drawn). */
 const HOUSE_HER_PIECES = [
-  { blueprint: "wood_foundation", local: [48, 0, 36], turns: 0 },
-  { blueprint: "wood_wall", local: [48, 0.2, 34], turns: 0 },
+  { blueprint: "wood_foundation", local: [49.5, 0, 48.5], turns: 0 },
+  { blueprint: "wood_wall", local: [49.5, 0.2, 50.5], turns: 2 },
 ];
 /** Step 6: the game's own foundation on its plot (what Ada's permit may not take down). */
 const HOUSE_OURS = { blueprint: "wood_foundation", local: [48, 0, 36], turns: 0 };
@@ -3875,8 +3879,10 @@ const HOUSE_HERS_THERE = { blueprint: "wood_foundation", local: [20, 0, 20], tur
 /** Step 11: where the game builds on her plot with hers. */
 const HOUSE_OURS_THERE = { blueprint: "wood_foundation", local: [20, 0, 20], turns: 0 };
 /** Step 9: where the game walks to inside her home (metres from her plot's corner, at eye height),
- *  and its facing there: north, toward her wall (yaw 0 looks along -Z). */
-const HOUSE_INSIDE = { local: [48, 1.7, 44], yaw: 0, pitch: -0.05 };
+ *  and its facing there: south, across the common room's open floor to her wall 6.5 m off
+ *  (yaw 0 looks along -Z, so pi looks along +Z). Just inside the room from the hall, where the
+ *  walk in already ended before (it was (48, 1.7, 44) facing north). */
+const HOUSE_INSIDE = { local: [49.5, 1.7, 44], yaw: Math.PI, pitch: -0.05 };
 /** The length the page gives and renews, days (one of data/ship/household.ron's lengths). */
 const HOUSE_DAYS = 30;
 /** The pace of the walks against and through her corridor, m/s (see above: a walking pace). */
@@ -4290,8 +4296,11 @@ async function runHouseholdOnce(runStamp, cleanups) {
     if (!H0 || !H0.me) throw new Error("the game reports no household or no key of its own, so nothing of the household can be tried (a build from before ship homes 5b lane 2A?)");
     const me = H0.me;
     const gFrame = `plot:${manifest.game.plot}`;
-    // The game's entity as Ada's log names it (her "saw entity" lines of step 9).
-    const ent = await waitFor(A, new RegExp(`(?:player joined|in view): entity (\\d+) "${HOUSE_GAME_NAME}"`), A.from, 10000);
+    // The game's entity as Ada's log names it (her "saw entity" lines of step 9). The game is the
+    // only other player and the walker never logs itself, so any name matches: the game may join
+    // as "Player" whatever the autopilot asked (as the meeting rig found), and matching
+    // HOUSE_GAME_NAME left the entity unknown, so step 9 recorded nothing Ada saw (2026-10-12).
+    const ent = await waitFor(A, /(?:player joined|in view): entity (\d+) "[^"]*"/, A.from, 10000);
     manifest.game.entity = ent ? Number(ent.m[1]) : null;
     // Every frame's box and her corridor, from the game's own door points.
     const dp = await doorPointsOf();
