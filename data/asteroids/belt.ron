@@ -1,0 +1,67 @@
+// HumanityOS ASTEROID BELT: the asteroids a NEW world starts with, for the mining loop (the
+// drone flies to one, mines its finite ore and brings it home; DroneSystem removes an asteroid
+// once it is mined out). Read by src/save_load.rs `fresh_asteroids`, disk first, else the copy
+// built into the exe (src/embedded_data.rs ASTEROID_BELT_RON).
+//
+// Where they are used: every world that starts fresh, your own home's first launch and every
+// server save made fresh for you (ship homes increment 6: a server world starts every player
+// fresh, so its asteroids are this belt, never the ones you mined down at home). A save that
+// recorded its asteroids keeps them as they stood (`WorldSave::asteroids`), so editing this file
+// changes only worlds started after the edit.
+//
+// Moved here verbatim from src/lib.rs's startup (2026-10-12), where the three were written
+// inline. Dev and testing content: an MMO's asteroids belong to the server.
+//
+//   id              stable, what a drone targets ("m12").
+//   name            shown on the Mining panel and the map.
+//   classification  the spectral class: C (carbonaceous), S (silicaceous), M (metallic), the
+//                   real asteroid taxonomy (data/asteroids/types.csv describes each).
+//   ores            what can be mined, (items.csv id, how many), counted in inventory items.
+//   position        where it is, km in an arbitrary frame, for travel distance and the map.
+
+(
+    asteroids: [
+        (
+            id: "m12",
+            name: "Asteroid M-12 (metallic)",
+            classification: "M",
+            // v0.904 (loop audit): gold and silver had NO mining source, which gated their
+            // whole smelt chains on the vendor. M-types are the precious-metal asteroids.
+            ores: [
+                ("iron_ore_0", 120.0),
+                ("nickel_ore_0", 60.0),
+                ("platinum_ore_0", 20.0),
+                ("gold_ore_0", 15.0),
+                ("silver_ore_0", 25.0),
+            ],
+            position: (60.0, 12.0, -30.0),
+        ),
+        (
+            id: "s7",
+            name: "Asteroid S-7 (silicaceous)",
+            classification: "S",
+            // v0.904: bauxite and rutile (the aluminium and titanium roots) live in the silicate
+            // rock: S-types are stony asteroids.
+            ores: [
+                ("iron_ore_0", 40.0),
+                ("copper_ore_0", 50.0),
+                ("bauxite_0", 45.0),
+                ("rutile_0", 30.0),
+            ],
+            position: (-45.0, 8.0, 55.0),
+        ),
+        (
+            id: "c3",
+            name: "Asteroid C-3 (carbonaceous)",
+            classification: "C",
+            // C-class = carbonaceous: THE answer to "how do I get coal in space" (operator,
+            // 2026-07-04). C-types are the most common and the richest in carbon; the graphite
+            // mined here feeds the smelter through the graphite smelt variants (recipes.csv).
+            ores: [
+                ("graphite_0", 90.0),
+                ("iron_ore_0", 25.0),
+            ],
+            position: (30.0, -6.0, 70.0),
+        ),
+    ],
+)

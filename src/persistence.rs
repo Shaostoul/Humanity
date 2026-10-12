@@ -639,10 +639,34 @@ pub fn backups_dir() -> PathBuf {
 /// `backups_dir()/saves`. Deriving it from the save's own path (rather than
 /// always from `saves_dir()`) keeps a test's throwaway save beside its own
 /// throwaway backups, never in the player's real backups folder.
+///
+/// A server save (saves/servers/<name>.json, ship homes increment 6) keeps its snapshots with all
+/// the others, in `backups/saves/<name>/`: its folder is the one under the saves folder, so the
+/// saves folder is one up. Without that its snapshots went into saves/backups/saves/, where
+/// Settings > Data never lists them.
 pub fn snapshots_root_for(save_path: &Path) -> PathBuf {
-    match save_path.parent().and_then(|saves| saves.parent()) {
+    let mut saves = save_path.parent();
+    if saves.and_then(|dir| dir.file_name()).is_some_and(|name| name == SERVER_SAVES_DIR) {
+        saves = saves.and_then(|dir| dir.parent());
+    }
+    match saves.and_then(|saves| saves.parent()) {
         Some(root) if !root.as_os_str().is_empty() => root.join("backups").join("saves"),
         _ => PathBuf::from("backups").join("saves"),
+    }
+}
+
+/// The save a snapshot slot belongs to, under `saves_dir`: the slot is the save file's name
+/// (`backups/saves/<slot>/`), and the save is saves/<slot>.json, or for a server save
+/// saves/servers/<slot>.json (ship homes increment 6). The server folder is chosen when a save of
+/// that name is there and none is at the top, so a restore puts a server save's snapshot back
+/// where the game reads it, never beside your own home as a new character.
+pub fn snapshot_slot_save(saves_dir: &Path, slot: &str) -> PathBuf {
+    let top = saves_dir.join(format!("{slot}.json"));
+    let server = saves_dir.join(SERVER_SAVES_DIR).join(format!("{slot}.json"));
+    if !top.exists() && server.exists() {
+        server
+    } else {
+        top
     }
 }
 
