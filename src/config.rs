@@ -893,6 +893,13 @@ pub struct AppConfig {
     /// `settings.death_realistic`.
     #[serde(default)]
     pub death_realistic: bool,
+    /// Mining drone (first-hour audit S5, 2026-10-12, systems::mining): false is Simplified
+    /// (its dock charges it even when the home has no power to spare, so a flat home only
+    /// delays a trip, and it wears half as fast), true is Realistic (a trip needs a charge the
+    /// home really gave, and a full trip's wear). Simplified by default, the house rule for
+    /// deep systems. Held in GuiState as `settings.drone_realistic`.
+    #[serde(default)]
+    pub drone_realistic: bool,
     /// Play mode (task #50): Normal | Creative | Dev -- the ladder every
     /// cheat/scope gate hangs off (see the `PlayMode` docs above). Absent =>
     /// Normal via `#[serde(default)]` (the default since 2026-10-04; it was
@@ -1625,6 +1632,7 @@ impl AppConfig {
             carry_realistic: state.settings.carry_realistic,
             pipe_marking_full: state.settings.pipe_marking_full,
             death_realistic: state.settings.death_realistic,
+            drone_realistic: state.settings.drone_realistic,
             play_mode: state.settings.play_mode,
             hud_vitals: state.settings.hud_vitals,
             // v0.488 voice input prefs (top-level GuiState, not SettingsState).
@@ -1915,6 +1923,7 @@ impl AppConfig {
         state.settings.carry_realistic = self.carry_realistic;
         state.settings.pipe_marking_full = self.pipe_marking_full;
         state.settings.death_realistic = self.death_realistic;
+        state.settings.drone_realistic = self.drone_realistic;
         // Play mode (task #50): restore the persisted mode, then PRESET the
         // creative (free resources) flag from it -- GuiState defaults that
         // flag to true (early-dev posture), so a Normal-mode player must get
@@ -2484,6 +2493,24 @@ mod play_mode_tests {
         let mut fresh = crate::gui::GuiState::default();
         back.apply_to_gui_state(&mut fresh);
         assert!(fresh.settings.death_realistic, "Realistic death stays chosen after a restart");
+    }
+
+    /// The Mining drone mode (first-hour audit S5, 2026-10-12, systems::mining) starts
+    /// Simplified and a chosen Realistic survives a save and a load, through the GUI state,
+    /// the JSON and back. Seen red with `from_gui_state` writing `drone_realistic: false`:
+    /// "the drone mode is written" (the JSON held `"drone_realistic":false`).
+    #[test]
+    fn the_drone_mode_survives_a_save_and_a_load() {
+        let mut state = crate::gui::GuiState::default();
+        assert!(!state.settings.drone_realistic, "the drone starts Simplified");
+        assert!(!AppConfig::default().drone_realistic, "a fresh install too");
+        state.settings.drone_realistic = true;
+        let json = serde_json::to_string(&AppConfig::from_gui_state(&state)).unwrap();
+        assert!(json.contains("\"drone_realistic\":true"), "the drone mode is written");
+        let back: AppConfig = serde_json::from_str(&json).unwrap();
+        let mut fresh = crate::gui::GuiState::default();
+        back.apply_to_gui_state(&mut fresh);
+        assert!(fresh.settings.drone_realistic, "Realistic drone stays chosen after a restart");
     }
 
     /// The per-screen video choice and the ffmpeg path survive a save and a

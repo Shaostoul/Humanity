@@ -163,6 +163,12 @@ pub struct WorldSave {
     /// The drone's standing order ("Keep mining"), (asteroid id, manifest).
     #[serde(default)]
     pub mining_order: Option<(String, Vec<(String, u32)>)>,
+    /// The drone itself between trips (first-hour audit S5, 2026-10-12,
+    /// systems::mining::DroneUnit): its battery's charge, its wear since its
+    /// last service and a launch waiting for the battery. None (a save from
+    /// before) is a new drone, full and unworn.
+    #[serde(default)]
+    pub mining_drone: Option<crate::systems::mining::DroneUnit>,
     /// What each home machine holds, by instance id (2026-09-27): a battery
     /// bank's charge, a water tank's litres, a vessel's contents. Before it
     /// every launch reset each bank and tank to half and emptied every
@@ -425,6 +431,7 @@ impl WorldSave {
             asteroids: None,
             drone: None,
             mining_order: None,
+            mining_drone: None,
             machine_levels: Vec::new(),
             heater_draw_w: Default::default(),
             ship_supply: Default::default(),
@@ -1117,6 +1124,7 @@ mod tests {
             asteroids: None,
             drone: None,
             mining_order: None,
+            mining_drone: None,
             machine_levels: Vec::new(),
             heater_draw_w: Default::default(),
             ship_supply: Default::default(),

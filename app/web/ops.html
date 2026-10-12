@@ -235,7 +235,8 @@
  <div class="panel" style="margin-top:var(--space-xl);">
   <h2>⚡ Dev Command Runner (just)</h2>
   <p style="color:var(--text-muted);font-size:0.82rem;margin-bottom:var(--space-lg);">Install: <code style="background:var(--bg);padding:2px 6px;border-radius:3px;">winget install Casey.Just</code>, then run from the repo root.</p>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-md) var(--space-2xl);">
+  <!-- Two columns where they fit, one on a phone: the command lines cannot wrap (2026-10-12). -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:var(--space-md) var(--space-2xl);">
 
    <div>
     <div style="font-size:0.7rem;font-weight:700;letter-spacing:0.1em;color:var(--accent);text-transform:uppercase;margin-bottom:var(--space-md);">Daily workflow</div>
@@ -309,7 +310,7 @@
 (function() {
   // Populate system info
   const el = id => document.getElementById(id);
-  if (el('debug-version')) el('debug-version').textContent = 'v0.1488.0';
+  if (el('debug-version')) el('debug-version').textContent = 'v0.1489.0';
   if (el('debug-server'))  el('debug-server').textContent  = window.location.origin;
   if (el('debug-ua'))      el('debug-ua').textContent      = navigator.userAgent.slice(0, 120);
   if (el('debug-screen'))  el('debug-screen').textContent  = screen.width + '×' + screen.height + ' · ' + (window.devicePixelRatio||1) + 'x DPR';

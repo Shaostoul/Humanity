@@ -1193,9 +1193,12 @@ fn mining_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     .color(theme.text_secondary()),
             );
             ui.add_space(theme.spacing_xs);
+            // Its running costs (first-hour audit S5): a drone due for its service
+            // cannot be launched, and one without a trip's charge says when it can.
+            let worn = state.drone_readout.as_ref().is_some_and(|r| r.wear_trips >= r.service_trips && r.service_trips > 0.0);
             ui.horizontal(|ui| {
                 let any = draft.iter().any(|(_, u)| *u > 0);
-                ui.add_enabled_ui(any && !drone_active, |ui| {
+                ui.add_enabled_ui(any && !drone_active && !worn, |ui| {
                     if widgets::primary_button(ui, theme, "Launch drone") {
                         launch = true;
                     }
@@ -1207,6 +1210,24 @@ fn mining_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     ui.label(RichText::new("A drone is already out.").size(theme.font_size_small).color(theme.text_muted()));
                 }
             });
+            if let Some(r) = state.drone_readout.as_ref().filter(|_| !drone_active) {
+                let note = if worn {
+                    Some("The drone is due for its service: Repair it from the Mining panel first.".to_string())
+                } else if r.pack_wh < r.trip_wh - 1e-3 {
+                    let when = r.ready_in_s.map(crate::systems::mining::duration_words);
+                    Some(match (r.realistic, when) {
+                        (false, Some(w)) => format!("Its battery is charging: it takes off by itself in {w}."),
+                        (false, None) => "Its battery is charging: it takes off by itself when it holds a trip.".to_string(),
+                        (true, Some(w)) => format!("Its battery is charging and holds a trip in {w}; with Keep mining ticked it goes then."),
+                        (true, None) => "Its battery is not charging: the home has no power to spare for it.".to_string(),
+                    })
+                } else {
+                    None
+                };
+                if let Some(note) = note {
+                    ui.label(RichText::new(note).size(theme.font_size_small).color(theme.text_muted()));
+                }
+            }
         });
     if launch {
         let manifest: Vec<(String, u32)> = draft.into_iter().filter(|(_, u)| *u > 0).collect();
@@ -1243,8 +1264,15 @@ fn mining_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 /// is out, and the Keep mining box lived only in the asteroid's window, which
 /// only Maps could open. Stop turns Keep mining off (the main loop clears the
 /// standing order); the trip in the air still brings its ore home.
+///
+/// Its running costs (first-hour audit S5, 2026-10-12, systems::mining): with
+/// the drone's data loaded, the docked drone has a row too, with the energy a
+/// trip takes from the home, its battery, the wear left before its service
+/// and what the service takes, a Repair button, and why it cannot take off
+/// when it cannot; a drone in flight shows the same three under its row.
 pub(crate) fn draw_drone_rows(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, tree_force: Option<bool>) {
     if state.drones.is_empty() {
+        draw_docked_drone(ui, theme, state);
         return;
     }
     let keep_mining = state.auto_mine_enabled;
@@ -1302,9 +1330,83 @@ pub(crate) fn draw_drone_rows(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiS
             "The drone brings this load home and stays docked."
         };
         ui.label(RichText::new(next).size(theme.font_size_small).color(theme.text_muted()));
+        if let Some(r) = &state.drone_readout {
+            drone_cost_rows(ui, theme, r);
+        }
     }
     if stop {
         state.auto_mine_enabled = false;
+    }
+}
+
+/// The drone's running costs, as rows: the energy a trip takes, the wear left before
+/// its service and what the service takes (first-hour audit S5).
+fn drone_cost_rows(ui: &mut egui::Ui, theme: &Theme, r: &crate::systems::mining::DroneReadout) {
+    use crate::systems::mining::kwh;
+    widgets::detail_row(ui, theme, "Each trip", &format!("{} from the home's power (a full battery)", kwh(r.trip_wh)));
+    widgets::detail_row(
+        ui,
+        theme,
+        "Wear left",
+        &format!(
+            "{:.0}%: {} {} to its next service",
+            r.wear_left() * 100.0,
+            r.trips_left,
+            if r.trips_left == 1 { "trip" } else { "trips" }
+        ),
+    );
+    let parts: Vec<String> = r.service_parts.iter().map(|p| format!("{} {} (you have {})", p.need, p.name, p.have)).collect();
+    widgets::detail_row(ui, theme, "Service takes", &parts.join(", "));
+}
+
+/// The docked drone's row (first-hour audit S5): its battery and what the dock is
+/// doing, the energy a trip takes, its wear, what its service takes, Repair, and a
+/// Launch waiting for the battery with its Cancel. Nothing without the drone's data.
+fn draw_docked_drone(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    use crate::systems::mining::{kwh, DroneRequest};
+    let Some(r) = state.drone_readout.clone() else { return };
+    let mut req: Option<DroneRequest> = None;
+    ui.horizontal_wrapped(|ui| {
+        ui.label(RichText::new("Drone at its dock").size(theme.font_size_small).strong().color(theme.text_primary()));
+        ui.label(
+            RichText::new(format!("· battery {} of {}", kwh(r.pack_wh), kwh(r.pack_capacity_wh)))
+                .size(theme.font_size_small)
+                .color(theme.text_secondary()),
+        );
+        let fill = if r.pack_capacity_wh > 0.0 { (r.pack_wh / r.pack_capacity_wh).clamp(0.0, 1.0) } else { 0.0 };
+        ui.add(egui::ProgressBar::new(fill).fill(theme.accent()).desired_width(theme.status_bar_width).desired_height(theme.status_bar_height));
+        if r.wear_trips > 0.0 {
+            ui.add_enabled_ui(r.can_service, |ui| {
+                if widgets::compact_button(ui, theme, "Repair", widgets::ButtonVariant::Secondary) {
+                    req = Some(DroneRequest::Repair);
+                }
+            });
+        }
+        if r.held_target.is_some() && widgets::compact_button(ui, theme, "Cancel launch", widgets::ButtonVariant::Secondary) {
+            req = Some(DroneRequest::CancelHeld);
+        }
+    });
+    ui.label(RichText::new(&r.power_line).size(theme.font_size_small).color(theme.text_muted()));
+    if let Some(target) = &r.held_target {
+        ui.label(
+            RichText::new(format!("Waiting to take off for {target} when its battery holds a trip."))
+                .size(theme.font_size_small)
+                .color(theme.text_secondary()),
+        );
+    }
+    if let Some(why) = &r.blocked {
+        ui.label(RichText::new(why).size(theme.font_size_small).color(theme.warning()));
+    }
+    drone_cost_rows(ui, theme, &r);
+    if r.wear_trips > 0.0 && !r.can_service {
+        ui.label(
+            RichText::new("Repair takes the parts from your backpack, then from home storage.")
+                .size(theme.font_size_small)
+                .color(theme.text_muted()),
+        );
+    }
+    if req.is_some() {
+        state.pending_drone_request = req;
     }
 }
 
@@ -3043,6 +3145,55 @@ mod drone_row_tests {
         let out = frame(&ctx, &theme, &mut gs, Vec::new());
         assert!(find_text_in_shapes(&out.shapes, "Stop").is_none(), "nothing left to stop");
         assert!(find_text_in_shapes(&out.shapes, "brings this load home").is_some(), "the row says the trip in the air still comes home");
+    }
+
+    /// THE DOCKED DRONE HAS A ROW WITH ITS RUNNING COSTS (first-hour audit S5,
+    /// 2026-10-12): the energy a trip takes from the home, its battery and why
+    /// it cannot take off, the wear left before its service and what the
+    /// service takes, and a Repair button that hands the request on. Without
+    /// the drone's data (it flies free) there is no such row.
+    ///
+    /// Seen red 2026-10-12 with `draw_docked_drone` returning at once: "the
+    /// energy a trip takes is drawn".
+    #[test]
+    fn the_docked_drone_row_shows_its_costs_and_repairs() {
+        use crate::systems::mining::{DroneReadout, DroneRequest, ServicePart};
+        let (ctx, theme) = ctx_and_theme();
+        let mut gs = GuiState::default();
+        let out = frame(&ctx, &theme, &mut gs, Vec::new());
+        assert!(find_text_in_shapes(&out.shapes, "Drone at its dock").is_none(), "no data, no row");
+        gs.drone_readout = Some(DroneReadout {
+            realistic: true,
+            docked: true,
+            trip_wh: 4264.0,
+            pack_wh: 1200.0,
+            pack_capacity_wh: 4264.0,
+            ready_in_s: None,
+            power_line: "Not charging: the home has no power to spare.".into(),
+            wear_trips: 37.0,
+            service_trips: 100.0,
+            trips_left: 63,
+            service_parts: vec![
+                ServicePart { id: "carbon_fiber_sheet_0".into(), name: "Carbon Fiber Sheet".into(), need: 2, have: 3 },
+                ServicePart { id: "rubber_sheet_0".into(), name: "Rubber Sheet".into(), need: 1, have: 1 },
+            ],
+            can_service: true,
+            held_target: None,
+            blocked: Some("Its battery holds 1.2 kWh of the 4.3 kWh a trip needs.".into()),
+        });
+        let out = frame(&ctx, &theme, &mut gs, Vec::new());
+        for text in [
+            "4.3 kWh from the home's power",
+            "battery 1.2 kWh of 4.3 kWh",
+            "Not charging: the home has no power to spare",
+            "Its battery holds 1.2 kWh",
+            "63%: 63 trips to its next service",
+            "2 Carbon Fiber Sheet (you have 3), 1 Rubber Sheet (you have 1)",
+        ] {
+            assert!(find_text_in_shapes(&out.shapes, text).is_some(), "the energy a trip takes is drawn: {text}");
+        }
+        click(&ctx, &theme, &mut gs, "Repair");
+        assert_eq!(gs.pending_drone_request, Some(DroneRequest::Repair), "Repair is handed on");
     }
 
     /// The box follows an order the drone ended by itself (an empty trip, or

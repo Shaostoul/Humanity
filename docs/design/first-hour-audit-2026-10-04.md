@@ -250,6 +250,7 @@ I traced the core path myself. Three read-only sub-audits ran alongside: one on 
 4. **Death is free:** full health, food, water and energy raised to at least 60, effects cleared, nothing dropped (lib.rs:12381-12436).
    - **Fix:** any cost.
 5. **The drone is free and unlimited** (mining.rs:356-357).
+   - **Done 2026-10-12:** each trip takes a full charge of its battery (4.3 kWh, a DJI FlyCart 100's two packs) from the home's grid through a 3 kW dock that the electrical sim feeds or sheds, it wears a trip each time and needs a service (2 Carbon Fiber Sheet, 1 Rubber Sheet) every 100 trips, and Settings > Gameplay > Mining drone picks Realistic (no home power, no trip) or Simplified (a flat home only delays the trip; half the wear). Numbers and sources: data/mining/drone.ron.
 6. **Animals need nothing and lay an egg every 5 minutes.**
 7. **Stored food never spoils, and the carried-food clock resets.**
 8. **No medicine and no natural regeneration** (medical.rs; status_effects.csv:76).

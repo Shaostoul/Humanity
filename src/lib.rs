@@ -1184,6 +1184,7 @@ mod native_app {
             crate::systems::farming::picking::register(&mut data_store); // harvest windows, Settings picking mode, Clear
             crate::systems::farming::humidity::register(&mut data_store); // greenhouse air: its data and the home's room boxes
             crate::systems::life_support::register(&mut data_store); // ship life support: the home's air and water loops
+            crate::systems::mining::register(&mut data_store); // the mining drone's running costs: its data, its state, the Mining panel's requests (first-hour audit S5)
             crate::systems::farming::weeds::register(&mut data_store); // weeds: their data and the Hoe / Mulch request
             // Backpack <-> container transfers (organize-layer inventory): the GUI pushes
             // (item_id, qty, is_add) ops; InventorySystem applies them to the player's
@@ -1729,6 +1730,10 @@ mod native_app {
                         save.inventory.len(),
                         save.skills.len()
                     );
+                    // The player's modes before the time-away catch-up below, which charges the drone
+                    // (and decides whether the ship powers it) by them (first-hour audit S5).
+                    crate::systems::mining::publish_mode(&data_store, gui_state.settings.drone_realistic);
+                    crate::systems::life_support::publish(&data_store, gui_state.garden_pests.life_support_realistic);
                     let resumed = crate::save_load::resume_home(
                         &mut game_world.world,
                         &data_store,
@@ -5748,6 +5753,7 @@ mod native_app {
                     // Survival environment context (sealed home or the weather) and the
                     // body heat mode: engine::survival_env (moved out of lib.rs 2026-09-27).
                     crate::engine::survival_env::publish(state);
+                    crate::engine::drone::bridge(state); // the mining drone: its Settings mode, the Mining panel's Repair/Cancel, its battery and wear on the panel (first-hour audit S5)
 
                     // Bridge GUI craft/dev commands into the DataStore so the ECS
                     // CraftingSystem (which only gets &DataStore in tick) acts on them

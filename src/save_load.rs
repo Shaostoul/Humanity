@@ -867,6 +867,9 @@ pub(crate) fn save_home_at(
         .unwrap_or_default();
     // The drone's standing order lives in the DataStore (2026-09-27).
     save.mining_order = crate::systems::mining::standing_order(data);
+    // And so does the drone itself between trips: its charge and its wear
+    // (first-hour audit S5, 2026-10-12).
+    save.mining_drone = crate::systems::mining::unit(data);
     // So does the ship supply ledger (systems::ship_power): the reactor's kWh.
     save.ship_supply = crate::systems::ship_power::ledger(data);
     // Before world entry the herd is not spawned yet and its saved timers
@@ -1062,7 +1065,9 @@ pub struct Resumed {
 ///   garden days.
 /// - THE DRONE (2026-09-27, in `resume_home`): the trip in flight finishes and
 ///   a standing order keeps flying, bounded by the asteroid's real ore
-///   (`mining::advance_away`).
+///   (`mining::advance_away`), and since 2026-10-12 by its battery: its dock
+///   charges it on the power the home could spare, which the machines then
+///   do not get, and each trip wears it toward its service.
 /// - AUTOMATED MACHINES (2026-09-27): handed the time away, they run it
 ///   through on the inputs really on hand and the power the home could spare,
 ///   once they exist (`crafting::away`).
@@ -1280,10 +1285,23 @@ pub fn resume_home(
     // any the order sends finish in the time away, out of the asteroid's real
     // ore, and each haul lands in home storage as it would have (BUG-150).
     crate::systems::mining::set_standing_order(data, save.mining_order.clone());
+    // The drone itself comes back as saved, its charge and its wear (a save
+    // from before gets a new drone), and its dock charges it through the time
+    // away on the power the home could spare it: the ship's reactor where the
+    // home is tied to it, else the home's own day surplus (first-hour audit S5).
+    crate::systems::mining::set_unit(data, save.mining_drone.clone());
     // THE SHIP SUPPLY LEDGER comes back as saved; the time away adds to it
     // when the machines take it (crafting::away::meter_away_reactor).
     crate::systems::ship_power::restore(data, &save.ship_supply);
-    let hauls = crate::systems::mining::advance_away(world, data, r.away_secs);
+    let balance_w = home.map_or([0.0; 2], |h| crate::systems::crafting::away::day_power_balance(h, &save.heater_draw_w));
+    let dock_spare_w = crate::systems::ship_power::feed_watts(data)
+        .unwrap_or_else(|| f64::from(balance_w[usize::from(crate::systems::life_support::is_realistic(data))].max(0.0)));
+    let drone_away = crate::systems::mining::advance_away(world, data, r.away_secs, dock_spare_w);
+    // What the dock took is the home's spare power the machines no longer have
+    // (in Station-supplied the reactor covers it, metered through the same balance).
+    let dock_w = if r.away_secs > 0.0 { (drone_away.drawn_wh * 3600.0 / r.away_secs) as f32 } else { 0.0 };
+    let balance_w = [balance_w[0] - dock_w, balance_w[1] - dock_w];
+    let hauls = drone_away.hauls;
     r.drone_hauls = hauls.len();
     // LIVESTOCK: each animal's timer as saved, moved on by the time away (by
     // nothing when it does not count), onto the herd now or at world entry.
@@ -1310,7 +1328,7 @@ pub fn resume_home(
             .filter(|c| c.auto)
             .filter_map(|c| c.machine_id.clone().map(|id| (id, f64::from(c.time_remaining))))
             .collect(),
-        power_balance_w: home.map_or([0.0; 2], |h| crate::systems::crafting::away::day_power_balance(h, &save.heater_draw_w)),
+        power_balance_w: balance_w,
         hauls,
     });
     crate::systems::crafting::away::hand_over(data, work);
@@ -2691,6 +2709,48 @@ mod tests {
             ores: vec![("iron_ore_0".into(), iron)],
             position: [0.0, 0.0, 0.0],
         }
+    }
+
+    /// THE DRONE'S CHARGE AND WEAR SURVIVE A SAVE (first-hour audit S5,
+    /// 2026-10-12): a save writes its battery, its wear and a launch waiting
+    /// for the battery, and resuming it puts them back, so quitting neither
+    /// recharges nor services the drone. A save from before them gets a new
+    /// drone, full and unworn.
+    ///
+    /// Seen red 2026-10-12 with `save_home_at` not writing `mining_drone`:
+    /// "the save holds the drone" (left: None).
+    #[test]
+    fn the_drones_charge_and_wear_survive_a_save() {
+        use crate::systems::mining::{DroneSpec, DroneUnit, SPEC_KEY, UNIT_KEY};
+        use std::sync::Mutex;
+        let spec = DroneSpec::from_ron(include_str!("../data/mining/drone.ron")).unwrap();
+        let with = |u: DroneUnit| {
+            let mut data = crate::hot_reload::data_store::DataStore::new();
+            data.insert(SPEC_KEY, spec.clone());
+            data.insert(UNIT_KEY, Mutex::new(u));
+            data
+        };
+        let used = DroneUnit {
+            pack_wh: 1200.0,
+            wear_trips: 37.5,
+            held: Some(("m12".into(), vec![("iron_ore_0".into(), 10)])),
+            told_worn: false,
+        };
+        let root = std::env::temp_dir().join(format!("hos_drone_unit_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let path = root.join("saves").join("offline_home.json");
+        save_home_at(&path, &hecs::World::new(), &[], &with(used.clone()), true, None);
+        let mut save = persistence::load_world(&path).unwrap();
+        assert_eq!(save.mining_drone, Some(used.clone()), "the save holds the drone");
+
+        let fresh = with(DroneUnit::new(&spec));
+        resume_home(&mut hecs::World::new(), &fresh, &save, false, 1.0, None);
+        assert_eq!(crate::systems::mining::unit(&fresh), Some(used), "resumed as it was left");
+
+        save.mining_drone = None;
+        resume_home(&mut hecs::World::new(), &fresh, &save, false, 1.0, None);
+        assert_eq!(crate::systems::mining::unit(&fresh), Some(DroneUnit::new(&spec)), "a save from before: a new drone");
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// The asteroids as mined down, the drone in flight with its cargo, the
