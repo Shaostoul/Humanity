@@ -562,6 +562,9 @@ pub async fn run_inbound_peer(
     }
     broadcast_federation_status(&state).await;
     tracing::info!("Federation: inbound peer {} ({}) connected", name, key_in_log(&server_id));
+    // The catch-up (BUG-191 plan 3.7): queued now, sent by the write pump below once it starts,
+    // after the welcome already on the socket. The dialer sends its own on our welcome.
+    send_own_copies(&state, &server_id).await;
 
     // Write pump: everything forward_to_federation / gossip queues for this
     // peer flows out over the socket THEY opened.
@@ -656,9 +659,15 @@ pub async fn handle_peer_message(
         RelayMessage::FederationWelcome { server_id, name, channels } => {
             tracing::info!("Federation: welcome from {} — channels: {:?}", name, channels);
             let _ = state.db.update_federated_server_status(&server_id, "online");
+            // The link we dialed is up: the catch-up (BUG-191 plan 3.7). The side that was dialed
+            // sends its own from run_inbound_peer.
+            send_own_copies(state, source_server_id).await;
         }
         // A copy of someone's profile from a federated peer (BUG-191): kept if it keeps the
-        // limits, verifies as its owner's signature and is newer than the one held.
+        // limits, verifies as its owner's signature and is newer than the one held. A withdrawal
+        // (the person went unlisted on another server) replaces the copy held, as any newer copy
+        // does, and nothing else: this server's own profile for them, and every other copy, stay
+        // as they are. A withdrawal for a key never held is kept nowhere.
         RelayMessage::ProfileGossip { public_key, name, bio, avatar_url, banner_url, socials, pronouns, location, website, timestamp, signature } => {
             let copy = PublicCopy { name, bio, avatar_url, banner_url, socials, pronouns, location, website };
             // The Dilithium3 verify inside should_accept_profile_gossip is CPU-bound; run it OFF
@@ -678,14 +687,42 @@ pub async fn handle_peer_message(
                 );
                 return;
             }
-            match state.db.store_signed_profile(&public_key, &copy, timestamp, &signature) {
-                Ok(kept) => tracing::debug!(
-                    "Federation: profile copy for {} from {}: {}",
+            let kept = match state.db.store_signed_profile(&public_key, &copy, timestamp, &signature) {
+                Ok(kept) => kept,
+                Err(e) => {
+                    tracing::error!("Federation: could not keep a profile copy for {}: {e}", key_in_log(&public_key));
+                    return;
+                }
+            };
+            if !kept {
+                tracing::debug!(
+                    "Federation: profile copy for {} from {}: not newer than the one held, or a withdrawal of nothing held",
                     key_in_log(&public_key),
-                    key_in_log(source_server_id),
-                    if kept { "kept" } else { "not newer than the one held, or a withdrawal of nothing held" }
-                ),
-                Err(e) => tracing::error!("Federation: could not keep a profile copy for {}: {e}", key_in_log(&public_key)),
+                    key_in_log(source_server_id)
+                );
+                return;
+            }
+            // Passing on (plan 3.6): a copy newly kept for one of THIS server's accounts goes on
+            // to the other links, never back to the one it came from, the way signed objects are
+            // passed on below. With a third server this carries a withdrawal, or a field made
+            // friends-only, to every server that has the copy. It cannot loop: a copy that is
+            // not newer than the one held is not kept, so it goes no further. A copy of someone
+            // with no account here is kept but not passed on: their own server sends it.
+            let ours = match state.db.name_for_key(&public_key) {
+                Ok(name) => name.is_some(),
+                Err(e) => {
+                    tracing::error!("Federation: could not look up an account for {}, so its copy is not passed on: {e}", key_in_log(&public_key));
+                    false
+                }
+            };
+            tracing::debug!(
+                "Federation: kept the profile copy for {} from {}{}",
+                key_in_log(&public_key),
+                key_in_log(source_server_id),
+                if ours { ", one of ours, so it goes on to the other links" } else { "" }
+            );
+            if ours {
+                gossip_profile(state, &public_key, &copy, timestamp, &signature, Some(source_server_id)).await;
             }
         }
         // Generic post-quantum signed-object gossip (Phase 3 PR 1).
@@ -938,6 +975,56 @@ pub(crate) fn profile_gossip_text(public_key: &str, copy: &PublicCopy, timestamp
     .ok()
 }
 
+/// The catch-up when a federation link comes up (BUG-191 plan 3.7): queue onto `peer_id`'s own
+/// channel this server's copies for its own accounts (`copies_of_accounts_here`: withdrawals
+/// included, newest first, at most 1,000). So a server that was down when someone here made a
+/// field friends-only or went unlisted learns it when the link returns; it keeps what is newer
+/// than what it holds and refuses the rest. Called by the side that was dialed once the peer is
+/// registered (`run_inbound_peer`) and by the dialer on the welcome. Returns how many were queued.
+///
+/// Once per link: a link is known by when it was registered (`connected_at`), so a peer that sends
+/// its welcome again is not sent up to 1,000 copies (about 13 MB) again. A new link always is.
+pub async fn send_own_copies(state: &Arc<RelayState>, peer_id: &str) -> usize {
+    let Some(link) = state.federation_connections.read().await.get(peer_id).map(|c| c.connected_at) else {
+        return 0;
+    };
+    {
+        // federation_rate is this server's per-peer federation bookkeeping; the mark is the one
+        // entry under its own key, never counted as a rate.
+        let mut marks = state.federation_rate.lock().unwrap();
+        let mark = marks.entry(format!("{peer_id}:catch_up")).or_default();
+        if mark.as_slice() == [link] {
+            return 0;
+        }
+        *mark = vec![link];
+    }
+    let copies = match state.db.copies_of_accounts_here() {
+        Ok(copies) => copies,
+        Err(e) => {
+            tracing::error!("Federation: could not read the profile copies to send {} on link up: {e}", key_in_log(peer_id));
+            return 0;
+        }
+    };
+    let connections = state.federation_connections.read().await;
+    let Some(conn) = connections.get(peer_id) else {
+        return 0;
+    };
+    let mut sent = 0;
+    for row in &copies {
+        let Some(text) = profile_gossip_text(&row.public_key, &row.copy(), row.timestamp, &row.signature) else {
+            continue;
+        };
+        if conn.tx.send(text).is_err() {
+            break;
+        }
+        sent += 1;
+    }
+    if sent > 0 {
+        tracing::info!("Federation: sent {} this server's profile copies on link up: {}", key_in_log(peer_id), sent);
+    }
+    sent
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1058,6 +1145,230 @@ mod tests {
         let wire: serde_json::Value = serde_json::from_str(&text).unwrap();
         assert_eq!((wire["type"].as_str(), wire["public_key"].as_str(), wire["location"].as_str()), (Some("profile_gossip"), Some("k"), Some("Lisbon")));
         assert_eq!((wire["socials"].as_str(), wire["timestamp"].as_u64(), wire["signature"].as_str()), (Some(r#"{"github":"alice"}"#), Some(TS), Some("sig")));
+    }
+}
+
+/// BUG-191 Wave 1B: what a server keeps of the profile copies its links send, what it passes on,
+/// and what it sends a new link. A linked server is faked the way a real link registers itself: a
+/// `FederatedConnection` whose channel the test reads where the link's write pump would.
+#[cfg(test)]
+mod receiving_tests {
+    use super::*;
+    use crate::relay::core::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
+    use crate::relay::core::profile_copy::{is_withdrawal, sign_copy, withdrawal};
+    use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver};
+
+    /// A person's key: 3,904 lowercase hex characters, a real Dilithium3 public key.
+    fn key_of(seed: &[u8; 32]) -> String {
+        hex::encode(DilithiumKeypair::from_seed(&derive_dilithium_seed(seed)).public_key())
+    }
+
+    /// A minute ago: a real time, since a server keeps nothing dated more than a day ahead of its
+    /// clock, with room for the few later times a test adds.
+    fn recently() -> u64 {
+        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as u64 - 60_000
+    }
+
+    fn copy_of(name: &str, location: &str) -> PublicCopy {
+        PublicCopy {
+            name: name.to_string(),
+            bio: "hello".to_string(),
+            avatar_url: "https://example.org/a.png".to_string(),
+            socials: r#"{"github":"x"}"#.to_string(),
+            location: location.to_string(),
+            ..PublicCopy::default()
+        }
+    }
+
+    /// The frame a linked server sends: `copy` of `key`'s profile at `at`, signed by `seed`.
+    fn gossip(seed: &[u8; 32], key: &str, copy: &PublicCopy, at: u64) -> RelayMessage {
+        RelayMessage::ProfileGossip {
+            public_key: key.to_string(),
+            name: copy.name.clone(),
+            bio: copy.bio.clone(),
+            avatar_url: copy.avatar_url.clone(),
+            banner_url: copy.banner_url.clone(),
+            socials: copy.socials.clone(),
+            pronouns: copy.pronouns.clone(),
+            location: copy.location.clone(),
+            website: copy.website.clone(),
+            timestamp: at,
+            signature: sign_copy(seed, key, copy, at),
+        }
+    }
+
+    /// Keep `copy` here as if its owner's app had signed it on this server.
+    fn keep(state: &RelayState, seed: &[u8; 32], key: &str, copy: &PublicCopy, at: u64) {
+        assert!(state.db.store_signed_profile(key, copy, at, &sign_copy(seed, key, copy, at)).unwrap(), "test setup: the copy is kept");
+    }
+
+    /// A fake linked server, registered as a link registers itself; read what it is sent with `sent`.
+    async fn link(state: &RelayState, id: &str) -> UnboundedReceiver<String> {
+        let (tx, rx) = unbounded_channel();
+        state.federation_connections.write().await.insert(
+            id.to_string(),
+            FederatedConnection { tx, server_id: id.to_string(), server_name: id.to_string(), trust_tier: 2, connected_at: Instant::now() },
+        );
+        rx
+    }
+
+    /// Every frame queued for a fake link since the last look.
+    fn sent(rx: &mut UnboundedReceiver<String>) -> Vec<serde_json::Value> {
+        let mut frames = Vec::new();
+        while let Ok(text) = rx.try_recv() {
+            frames.push(serde_json::from_str(&text).expect("a frame is JSON"));
+        }
+        frames
+    }
+
+    fn welcome(id: &str) -> RelayMessage {
+        RelayMessage::FederationWelcome { server_id: id.to_string(), name: id.to_string(), channels: Vec::new() }
+    }
+
+    /// WHAT A SAVE WOULD REFUSE IS NOT KEPT, even signed by its owner: a location holding a line
+    /// break (the signed words could then split two ways), a bio of 281 characters, an avatar link
+    /// that is not https. A copy inside the limits, sent the same way, is kept.
+    ///
+    /// Seen red 2026-10-12 with `within_limits` skipped in `should_accept_profile_gossip`: "a copy
+    /// whose location holds a line break was kept".
+    #[tokio::test]
+    async fn gossip_a_save_would_refuse_is_not_kept() {
+        let state = Arc::new(RelayState::new(Storage::open_temp("fed_over_limits")));
+        let at = recently();
+        let ok = [40u8; 32];
+        let ok_key = key_of(&ok);
+        handle_peer_message(&state, "peer-b", gossip(&ok, &ok_key, &copy_of("Ann", "Lisbon"), at)).await;
+        assert!(state.db.get_signed_profile(&ok_key).unwrap().is_some(), "a copy inside the limits is kept");
+
+        let over = [
+            ([41u8; 32], PublicCopy { location: "Lis\nbon".to_string(), ..copy_of("Bo", "") }, "a copy whose location holds a line break was kept"),
+            ([42u8; 32], PublicCopy { bio: "a".repeat(281), ..copy_of("Cy", "") }, "a copy with a 281-character bio was kept"),
+            ([43u8; 32], PublicCopy { avatar_url: "http://example.org/a.png".to_string(), ..copy_of("Di", "") }, "a copy with an http avatar was kept"),
+        ];
+        for (seed, copy, said) in &over {
+            let key = key_of(seed);
+            handle_peer_message(&state, "peer-b", gossip(seed, &key, copy, at)).await;
+            assert!(state.db.get_signed_profile(&key).unwrap().is_none(), "{said}");
+        }
+    }
+
+    /// A WITHDRAWAL FROM A PEER (the person went unlisted on another server) replaces the copy held
+    /// here, whole, and nothing else: their own profile on this server and the copies of other
+    /// people stay as they were. Their old copy, sent again by another link, does not come back.
+    /// A withdrawal for a key never held is kept nowhere.
+    ///
+    /// Seen red 2026-10-12 with the arm deleting the held copy on a withdrawal instead of keeping
+    /// it (the save's old delete-only way of going unlisted): "the withdrawal is held in place of
+    /// her copy".
+    #[tokio::test]
+    async fn a_withdrawal_from_a_peer_replaces_the_copy_held_and_nothing_else() {
+        let state = Arc::new(RelayState::new(Storage::open_temp("fed_withdrawal")));
+        let (ann, bo, cy) = ([51u8; 32], [52u8; 32], [53u8; 32]);
+        let (ann_key, bo_key, cy_key) = (key_of(&ann), key_of(&bo), key_of(&cy));
+        state.db.register_name("Ann", &ann_key).unwrap();
+        state.db.save_profile_extended("Ann", "hello", "{}", "", "", "she/her", "Lisbon", "", "{}", None).unwrap();
+        let t = recently();
+        handle_peer_message(&state, "peer-b", gossip(&ann, &ann_key, &copy_of("Ann", "Lisbon"), t)).await;
+        handle_peer_message(&state, "peer-b", gossip(&bo, &bo_key, &copy_of("Bo", "Porto"), t)).await;
+        assert!(state.db.get_signed_profile(&ann_key).unwrap().is_some(), "test setup: Ann's copy is held");
+
+        handle_peer_message(&state, "peer-b", gossip(&ann, &ann_key, &withdrawal(), t + 1)).await;
+        let held = state.db.get_signed_profile(&ann_key).unwrap().expect("the withdrawal is held in place of her copy");
+        assert_eq!((held.copy(), held.timestamp), (withdrawal(), t + 1), "the whole row is replaced: nothing of her old copy stays");
+
+        handle_peer_message(&state, "peer-c", gossip(&ann, &ann_key, &copy_of("Ann", "Lisbon"), t)).await;
+        assert!(is_withdrawal(&state.db.get_signed_profile(&ann_key).unwrap().unwrap().copy()), "her old copy came back after the withdrawal");
+
+        assert_eq!(state.db.get_signed_profile(&bo_key).unwrap().map(|r| r.copy()), Some(copy_of("Bo", "Porto")), "another person's copy changed");
+        let here = state.db.get_profile_extended("Ann").unwrap().expect("her profile on this server stays");
+        assert_eq!((here.0.as_str(), here.5.as_str(), here.7.as_str()), ("hello", "Lisbon", "{}"), "a peer's withdrawal changed her profile on this server");
+
+        handle_peer_message(&state, "peer-b", gossip(&cy, &cy_key, &withdrawal(), t + 1)).await;
+        assert!(state.db.get_signed_profile(&cy_key).unwrap().is_none(), "a withdrawal for a key never held left a trace");
+    }
+
+    /// A NEW LINK IS SENT THIS SERVER'S OWN COPIES (the catch-up, on the welcome): the copies of
+    /// keys with an account here, a withdrawal among them, newest first, each one a receiver
+    /// keeps; never a copy that only arrived from another server; only on the new link. Once per
+    /// link: a second welcome on it sends nothing, and the next link is sent them again.
+    ///
+    /// Seen red 2026-10-12 with the account filter removed from `copies_of_accounts_here`: "the
+    /// copy that only arrived from another server went out on link up".
+    #[tokio::test]
+    async fn a_new_link_is_sent_this_servers_own_copies() {
+        let state = Arc::new(RelayState::new(Storage::open_temp("fed_catch_up")));
+        let (ann, bo, far) = ([61u8; 32], [62u8; 32], [63u8; 32]);
+        let (ann_key, bo_key, far_key) = (key_of(&ann), key_of(&bo), key_of(&far));
+        state.db.register_name("Ann", &ann_key).unwrap();
+        state.db.register_name("Bo", &bo_key).unwrap();
+        let t = recently();
+        keep(&state, &ann, &ann_key, &copy_of("Ann", "Lisbon"), t);
+        keep(&state, &bo, &bo_key, &copy_of("Bo", "Porto"), t + 1);
+        keep(&state, &bo, &bo_key, &withdrawal(), t + 2);
+        keep(&state, &far, &far_key, &copy_of("Far", "Oslo"), t + 3);
+
+        let mut old = link(&state, "peer-b").await;
+        let mut new = link(&state, "peer-c").await;
+        handle_peer_message(&state, "peer-c", welcome("peer-c")).await;
+        let frames = sent(&mut new);
+        let keys: Vec<&str> = frames.iter().map(|f| f["public_key"].as_str().unwrap_or("")).collect();
+        assert!(!keys.contains(&far_key.as_str()), "the copy that only arrived from another server went out on link up");
+        assert_eq!(keys, [bo_key.as_str(), ann_key.as_str()], "this server's accounts, newest first");
+        for frame in &frames {
+            let Ok(RelayMessage::ProfileGossip { public_key, name, bio, avatar_url, banner_url, socials, pronouns, location, website, timestamp, signature }) =
+                serde_json::from_value::<RelayMessage>(frame.clone())
+            else {
+                panic!("not a profile_gossip frame: {frame}");
+            };
+            let copy = PublicCopy { name, bio, avatar_url, banner_url, socials, pronouns, location, website };
+            assert!(should_accept_profile_gossip(&public_key, &copy, timestamp, &signature), "a receiver would refuse {frame}");
+        }
+        assert_eq!(frames[0]["name"].as_str(), Some(""), "Bo's withdrawal is sent");
+        assert!(sent(&mut old).is_empty(), "the catch-up went to a link that was already up");
+
+        handle_peer_message(&state, "peer-c", welcome("peer-c")).await;
+        assert!(sent(&mut new).is_empty(), "a second welcome on the same link was sent everything again");
+        let mut again = link(&state, "peer-c").await;
+        assert_eq!(send_own_copies(&state, "peer-c").await, 2, "the next link to the same server is sent them again");
+        assert_eq!(sent(&mut again).len(), 2);
+    }
+
+    /// A COPY KEPT FOR ONE OF OURS GOES ON TO THE OTHER LINKS AND NOT BACK: Ann has an account
+    /// here, so her copy from one link goes on to the other, and her withdrawal from that other
+    /// goes back the first way. The same copy again is not newer, so it goes nowhere (no loop). A
+    /// copy kept for someone with no account here is not passed on.
+    ///
+    /// Seen red 2026-10-12 with the exclusion removed (`gossip_profile(.., None)` in the arm):
+    /// "the copy went back to the server it came from".
+    #[tokio::test]
+    async fn a_copy_kept_for_one_of_ours_goes_on_to_the_other_links_and_not_back() {
+        let state = Arc::new(RelayState::new(Storage::open_temp("fed_pass_on")));
+        let (ann, far) = ([71u8; 32], [72u8; 32]);
+        let (ann_key, far_key) = (key_of(&ann), key_of(&far));
+        state.db.register_name("Ann", &ann_key).unwrap();
+        let mut b = link(&state, "peer-b").await;
+        let mut c = link(&state, "peer-c").await;
+        let t = recently();
+
+        let copy = gossip(&ann, &ann_key, &copy_of("Ann", "Lisbon"), t);
+        handle_peer_message(&state, "peer-b", copy.clone()).await;
+        let on = sent(&mut c);
+        assert_eq!(on.len(), 1, "the copy did not go on to the other link");
+        assert_eq!((on[0]["public_key"].as_str(), on[0]["location"].as_str(), on[0]["timestamp"].as_u64()), (Some(ann_key.as_str()), Some("Lisbon"), Some(t)));
+        assert!(sent(&mut b).is_empty(), "the copy went back to the server it came from");
+
+        handle_peer_message(&state, "peer-b", copy.clone()).await;
+        handle_peer_message(&state, "peer-c", copy).await;
+        assert!(sent(&mut b).is_empty() && sent(&mut c).is_empty(), "a copy already held was passed on again");
+
+        handle_peer_message(&state, "peer-c", gossip(&ann, &ann_key, &withdrawal(), t + 1)).await;
+        let back = sent(&mut b);
+        assert_eq!((back.len(), back.first().and_then(|f| f["name"].as_str())), (1, Some("")), "her withdrawal did not go on to the other link");
+        assert!(sent(&mut c).is_empty(), "the withdrawal went back to the server it came from");
+
+        handle_peer_message(&state, "peer-b", gossip(&far, &far_key, &copy_of("Far", "Oslo"), t)).await;
+        assert!(state.db.get_signed_profile(&far_key).unwrap().is_some(), "test setup: Far's copy is kept");
+        assert!(sent(&mut c).is_empty(), "a copy of someone with no account here was passed on");
     }
 }
 
