@@ -488,7 +488,7 @@ mod tests {
     use std::time::Duration;
 
     /// A relay on a fresh database, its 200 ms limit on a clock the test moves (`ask` moves it past
-    /// the limit before each ask). The tests give its ship the cabin row (`with_cabin_plots`).
+    /// the limit before each ask). Its ship is the shipped one, cabins and all (since lane 1A).
     fn relay(tag: &str) -> (Arc<RelayState>, Arc<ManualClock>) {
         let state = Arc::new(RelayState::new(Storage::open_temp(&format!("home_answer_{tag}"))));
         let clock = ManualClock::new();
@@ -523,7 +523,6 @@ mod tests {
     #[tokio::test]
     async fn choosing_a_home_claims_one_only_when_you_hold_none() {
         let (state, clock) = relay("choose");
-        crate::relay::handlers::game_state::with_cabin_plots(&mut *state.game_world.write().await);
         let (cabins, homesteads) = {
             let w = state.game_world.read().await;
             (w.plot_ids_of_kind("cabin").len() as u32, w.plot_ids_of_kind("homestead").len() as u32)
@@ -610,7 +609,6 @@ mod tests {
     #[tokio::test]
     async fn the_answer_names_only_the_askers_own_home() {
         let (state, clock) = relay("only_mine");
-        crate::relay::handlers::game_state::with_cabin_plots(&mut *state.game_world.write().await);
         let (ann, bo) = ("a11ce0", "b0b0b0");
         let annes = ask(&state, &clock, ann, "game_choose_home", Some("cabin")).await.plot.expect("Ann's cabin");
         let bos = ask(&state, &clock, bo, "game_choose_home", Some("homestead")).await.plot.expect("Bo's homestead");

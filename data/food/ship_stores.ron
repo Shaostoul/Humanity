@@ -6,9 +6,16 @@
 // food stores as players, and NPC homesteads mostly provide for themselves. So each store here
 // is ONE stock of meals that everyone eats from: a crew member who eats takes one at the end of
 // its meal in the mess hall (data/npc/chores.ron, `meal: true`), and a player takes one with
-// the `take_meal` action on the store, one a meal interval per person like the crew (the game's
-// own hunger does not read it yet; serving meals into the food system is the design's
-// increment 6).
+// the `take_meal` action on the store, one a meal interval per person like the crew. A taken
+// meal is eaten in the game (a Basic Ration, src/engine/fleet.rs `on_meal`, since the fleet
+// ledger), and since increment 6 it is taken at the mess hall's serving counter, which stands
+// 1.1 m behind each store's spot (data/machines/ship.ron; the test
+// `every_fleet_store_has_its_serving_counter` in src/machines.rs).
+//
+// TWO STORES since increment 6: the Commons' mess hall, and the South Commons' halfway down
+// First Street (data/blueprints/ship_structure.ron), so every home is within five minutes' walk
+// of a meal. Each player's meal interval is theirs, not a store's: a meal taken at one store
+// is the meal of that meal time at both. The crew eat in the Commons only.
 //
 // Every time here is on the shared world's GAME clock, which runs at the server setting
 // `world_time_scale` (1x, real time, by default: a game day is a real day). Meals come on it and
@@ -41,9 +48,11 @@
 //                 what fills the stores today: a stand-in for the ship's farms (the agricultural
 //                 bay, the Commons garden) until goods are really carried aboard (the design's
 //                 increment 9, shipments). What players give the fleet is recorded in their
-//                 ledger and does not fill this stock yet. Meals per GAME day: 18
-//                 feeds the five crew who eat (15 a day at three meals each) with a little over
-//                 for players.
+//                 ledger and does not fill this stock yet. Meals per GAME day, shared evenly
+//                 across the stores (src/relay/handlers/ship_stores.rs `stock_stores`): 36 is
+//                 18 a day into each of the two, the Commons' feeding the five crew who eat (15
+//                 a day at three meals each) with a little over for players, as its 18 did
+//                 when it was the only store, and the South Commons' 18 for players alone.
 //   npc_homestead_self_provided
 //                 the operator's "NPC homesteads should mostly provide for themselves": the share
 //                 of an NPC homestead household's meals its own homestead grows (crew.ron
@@ -64,10 +73,18 @@
             meals: 90.0,
             capacity: 300.0,
         ),
+        (
+            id: "mess-hall-2-stores",
+            label: "The South Commons' stores",
+            place: "mess-hall-2",
+            spot: (2.0, 2.0),
+            meals: 30.0,
+            capacity: 120.0,
+        ),
     ],
     meal_interval_hours: 8.0,
     empty_store_retry_minutes: 30.0,
-    ship_farms_meals_per_day: 18.0,
+    ship_farms_meals_per_day: 36.0,
     npc_homestead_self_provided: 0.8,
     npc_homestead_fleet_meals_per_day: 0.0,
 )

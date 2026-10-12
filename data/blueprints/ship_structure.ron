@@ -43,6 +43,41 @@
 // no lights of its own, as before: it is lit through its glass roof, and every zone's lights are
 // charged to each player's home meter today (lib.rs, the house lighting consumer).
 //
+// THE CABIN BLOCK (ship homes increment 6, docs/design/ship-homes-increment-6-plan.md section
+// 3.3). East of First Street's north end, a block of sixteen cabins on one hall:
+//   - the hall, zone `cabins-1` "Cabin Block A" (residence), x 77..80, z 88..136, 3 m high under
+//     a glass roof and with no lights of its own (like First Street: every zone's lights are
+//     charged to each player's own meter today). The zone's own floor IS the hall (local z
+//     0..40), and its one volume is the block's shared WASHROOM, `washroom-1` (local z 40..48, a
+//     room_bathroom), behind an interior wall with a door. The hall is not a volume of its own,
+//     though the plan drew one: the relay makes every zone and every volume a room and its
+//     explore quest asks a player to visit each, and a zone wholly divided into volumes has no
+//     floor of its own to visit (the relay test `every_room_of_the_ship_has_a_floor_of_its_own`).
+//     The washroom's fixtures wait for ship machines that leave the households' meters (plan 3.8);
+//   - its corridor from First Street: an X run across x 75..77 at z 92, a 2 m door;
+//   - sixteen CABIN PLOTS, c1 to c16, kind "cabin", each 3.15 x 3.0 x 2.5 m at x 80.5..83.65 and
+//     z 88 + 2.5 (i - 1): the shipped cabin (data/homes/shipped/cabin.ron), whose door is in its
+//     west wall's middle, so each plot's door corridor runs 0.5 m west into the hall at z 89.25 +
+//     2.5 (i - 1), a 0.9 x 2.0 m door in a 1.2 m tube. Neighbouring cabins share a wall face,
+//     which validate() allows; their tubes are 2.5 m apart and 1.2 m wide, so none overlaps. The
+//     cabins are 3.15 m wide so each room is England's single bedroom INSIDE its walls (7.54 m2;
+//     the design file says why). East of them, nothing stands until the districts at x 200.
+//   - A block is this ZONE, not a parent plot: a walkable shared hall cannot sit inside a plot
+//     (validate() refuses a zone overlapping a plot), and a parent plot's own door tube would
+//     overlap its cabins' tubes. A cabin's block is the zone its door opens on.
+// THE RECREATION ROOM: the Commons' south-west corner, the volume `recreation` (Commons-local
+// x 0.5..10.5, z 43.5..51.5), 3.5 m from the corridor to First Street, 12 m from where a guest
+// arrives and clear of every crew walk; its couches, rug and screen are data/machines/ship.ron's.
+// THE SOUTH COMMONS: zone `commons-2`, a second Commons halfway down First Street (x 77..101,
+// z 770..810, glass roof, no lights), after the Commons in this list so a guest still arrives
+// in the first; its mess hall, `mess-hall-2`, is its north strip with a serving counter and a
+// food store of its own (data/food/ship_stores.ron), reached by a corridor from the street at
+// z 790. It is there for the design's rule that every home is within five minutes' walk of a
+// mess hall (docs/design/ship-homes-and-logistics.md section 2.9; the test
+// `every_home_reaches_a_mess_hall_within_five_minutes` in src/ship/ship_structure.rs): at 1.4 m/s,
+// p5 to p12 are 5.0 to 13.3 minutes from the Commons' mess hall along the street, and with the
+// South Commons every home is within 4.6 minutes (p5) of one of the two.
+//
 // The relay's world is this file (increment 3, src/relay/handlers/ship_world.rs): every zone is
 // a room of it, and so is every labelled volume in a zone's body (the Commons' "mess-hall", the
 // north strip along its first wall, where the crew eat and the ship's food stores stand,
@@ -976,6 +1011,14 @@
                         label: "Mess hall",
                         room_type: Some("commons"),
                     ),
+                    (
+                        id: "recreation",
+                        type_id: "recreation",
+                        origin: (0.5, 0.0, 43.5),
+                        size: (10.0, 3.0, 8.0),
+                        label: "Recreation room",
+                        room_type: Some("commons"),
+                    ),
                 ],
                 rail_nodes: [],
                 rail_edges: [],
@@ -1004,12 +1047,118 @@
                 rail_edges: [],
             ),
         ),
+        (
+            id: "cabins-1",
+            label: "Cabin Block A",
+            purpose: "residence",
+            origin: (77.0, 0.0, 88.0),
+            body: (
+                width: 3.0,
+                depth: 48.0,
+                height: 3.0,
+                shell_material: 1,
+                roof_material: 4,
+                walls: [
+                    (
+                        a: (0.0, 40.0),
+                        b: (3.0, 40.0),
+                        height: 3.0,
+                        material: 1,
+                        openings: [
+                            (
+                                kind: Door,
+                                at: 1.0,
+                                width: 1.0,
+                                sill: 0.0,
+                                height: 2.1,
+                                style: "slide",
+                                open_dist: 2.6,
+                                locked: false,
+                                auto_open: true,
+                                control_panel: false,
+                                locks: [],
+                            ),
+                        ],
+                        thickness: None,
+                        layers: [],
+                    ),
+                ],
+                shell_thickness: None,
+                lights: [],
+                spawn: None,
+                structures: [],
+                road_nodes: [],
+                road_edges: [],
+                zones: [
+                    (
+                        id: "washroom-1",
+                        type_id: "room_bathroom",
+                        origin: (0.0, 0.0, 40.0),
+                        size: (3.0, 3.0, 8.0),
+                        label: "Washroom",
+                        room_type: Some("bathroom"),
+                    ),
+                ],
+                rail_nodes: [],
+                rail_edges: [],
+            ),
+        ),
+        (
+            id: "commons-2",
+            label: "The South Commons",
+            purpose: "commons",
+            origin: (77.0, 0.0, 770.0),
+            body: (
+                width: 24.0,
+                depth: 40.0,
+                height: 4.0,
+                shell_material: 1,
+                roof_material: 4,
+                walls: [],
+                shell_thickness: None,
+                lights: [],
+                spawn: None,
+                structures: [],
+                road_nodes: [],
+                road_edges: [],
+                zones: [
+                    (
+                        id: "mess-hall-2",
+                        type_id: "mess_hall",
+                        origin: (0.0, 0.0, 0.0),
+                        size: (24.0, 3.0, 8.0),
+                        label: "South mess hall",
+                        room_type: Some("commons"),
+                    ),
+                ],
+                rail_nodes: [],
+                rail_edges: [],
+            ),
+        ),
     ],
     corridors: [
         (
             from_zone: "commons",
             to_zone: "street-1",
             lat: 70.0,
+            width: 3.0,
+            door_width: 2.0,
+            door_height: 2.2,
+            glass_top: true,
+        ),
+        (
+            from_zone: "street-1",
+            to_zone: "cabins-1",
+            lat: 92.0,
+            width: 3.0,
+            door_width: 2.0,
+            door_height: 2.2,
+            glass_top: true,
+        ),
+        (
+            from_zone: "street-1",
+            to_zone: "commons-2",
+            lat: 790.0,
             width: 3.0,
             door_width: 2.0,
             door_height: 2.2,
@@ -1183,6 +1332,230 @@
                 door_width: 2.0,
                 door_height: 2.2,
                 glass_top: true,
+            ),
+        ),
+        (
+            id: "c1",
+            kind: "cabin",
+            origin: (80.5, 0.0, 88.0),
+            size: (3.15, 3.0, 2.5),
+            door: (
+                zone: "cabins-1",
+                lat: 89.25,
+                width: 1.2,
+                door_width: 0.9,
+                door_height: 2.0,
+                glass_top: false,
+            ),
+        ),
+        (
+            id: "c2",
+            kind: "cabin",
+            origin: (80.5, 0.0, 90.5),
+            size: (3.15, 3.0, 2.5),
+            door: (
+                zone: "cabins-1",
+                lat: 91.75,
+                width: 1.2,
+                door_width: 0.9,
+                door_height: 2.0,
+                glass_top: false,
+            ),
+        ),
+        (
+            id: "c3",
+            kind: "cabin",
+            origin: (80.5, 0.0, 93.0),
+            size: (3.15, 3.0, 2.5),
+            door: (
+                zone: "cabins-1",
+                lat: 94.25,
+                width: 1.2,
+                door_width: 0.9,
+                door_height: 2.0,
+                glass_top: false,
+            ),
+        ),
+        (
+            id: "c4",
+            kind: "cabin",
+            origin: (80.5, 0.0, 95.5),
+            size: (3.15, 3.0, 2.5),
+            door: (
+                zone: "cabins-1",
+                lat: 96.75,
+                width: 1.2,
+                door_width: 0.9,
+                door_height: 2.0,
+                glass_top: false,
+            ),
+        ),
+        (
+            id: "c5",
+            kind: "cabin",
+            origin: (80.5, 0.0, 98.0),
+            size: (3.15, 3.0, 2.5),
+            door: (
+                zone: "cabins-1",
+                lat: 99.25,
+                width: 1.2,
+                door_width: 0.9,
+                door_height: 2.0,
+                glass_top: false,
+            ),
+        ),
+        (
+            id: "c6",
+            kind: "cabin",
+            origin: (80.5, 0.0, 100.5),
+            size: (3.15, 3.0, 2.5),
+            door: (
+                zone: "cabins-1",
+                lat: 101.75,
+                width: 1.2,
+                door_width: 0.9,
+                door_height: 2.0,
+                glass_top: false,
+            ),
+        ),
+        (
+            id: "c7",
+            kind: "cabin",
+            origin: (80.5, 0.0, 103.0),
+            size: (3.15, 3.0, 2.5),
+            door: (
+                zone: "cabins-1",
+                lat: 104.25,
+                width: 1.2,
+                door_width: 0.9,
+                door_height: 2.0,
+                glass_top: false,
+            ),
+        ),
+        (
+            id: "c8",
+            kind: "cabin",
+            origin: (80.5, 0.0, 105.5),
+            size: (3.15, 3.0, 2.5),
+            door: (
+                zone: "cabins-1",
+                lat: 106.75,
+                width: 1.2,
+                door_width: 0.9,
+                door_height: 2.0,
+                glass_top: false,
+            ),
+        ),
+        (
+            id: "c9",
+            kind: "cabin",
+            origin: (80.5, 0.0, 108.0),
+            size: (3.15, 3.0, 2.5),
+            door: (
+                zone: "cabins-1",
+                lat: 109.25,
+                width: 1.2,
+                door_width: 0.9,
+                door_height: 2.0,
+                glass_top: false,
+            ),
+        ),
+        (
+            id: "c10",
+            kind: "cabin",
+            origin: (80.5, 0.0, 110.5),
+            size: (3.15, 3.0, 2.5),
+            door: (
+                zone: "cabins-1",
+                lat: 111.75,
+                width: 1.2,
+                door_width: 0.9,
+                door_height: 2.0,
+                glass_top: false,
+            ),
+        ),
+        (
+            id: "c11",
+            kind: "cabin",
+            origin: (80.5, 0.0, 113.0),
+            size: (3.15, 3.0, 2.5),
+            door: (
+                zone: "cabins-1",
+                lat: 114.25,
+                width: 1.2,
+                door_width: 0.9,
+                door_height: 2.0,
+                glass_top: false,
+            ),
+        ),
+        (
+            id: "c12",
+            kind: "cabin",
+            origin: (80.5, 0.0, 115.5),
+            size: (3.15, 3.0, 2.5),
+            door: (
+                zone: "cabins-1",
+                lat: 116.75,
+                width: 1.2,
+                door_width: 0.9,
+                door_height: 2.0,
+                glass_top: false,
+            ),
+        ),
+        (
+            id: "c13",
+            kind: "cabin",
+            origin: (80.5, 0.0, 118.0),
+            size: (3.15, 3.0, 2.5),
+            door: (
+                zone: "cabins-1",
+                lat: 119.25,
+                width: 1.2,
+                door_width: 0.9,
+                door_height: 2.0,
+                glass_top: false,
+            ),
+        ),
+        (
+            id: "c14",
+            kind: "cabin",
+            origin: (80.5, 0.0, 120.5),
+            size: (3.15, 3.0, 2.5),
+            door: (
+                zone: "cabins-1",
+                lat: 121.75,
+                width: 1.2,
+                door_width: 0.9,
+                door_height: 2.0,
+                glass_top: false,
+            ),
+        ),
+        (
+            id: "c15",
+            kind: "cabin",
+            origin: (80.5, 0.0, 123.0),
+            size: (3.15, 3.0, 2.5),
+            door: (
+                zone: "cabins-1",
+                lat: 124.25,
+                width: 1.2,
+                door_width: 0.9,
+                door_height: 2.0,
+                glass_top: false,
+            ),
+        ),
+        (
+            id: "c16",
+            kind: "cabin",
+            origin: (80.5, 0.0, 125.5),
+            size: (3.15, 3.0, 2.5),
+            door: (
+                zone: "cabins-1",
+                lat: 126.75,
+                width: 1.2,
+                door_width: 0.9,
+                door_height: 2.0,
+                glass_top: false,
             ),
         ),
     ],

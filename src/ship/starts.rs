@@ -476,6 +476,40 @@ mod tests {
         }
     }
 
+    /// EACH OFFERED START HAS PLOTS AND ITS PLACES ABOARD (ship homes increment 6, lane 1A): on the
+    /// shipped ship file, every start a player may choose has plots of its kind, and its design
+    /// stands on each of them (`assemble`: the kind, the size, the door); and every shared place
+    /// it relies on (`shared`, zone_types.ron ids) is a zone type and stands aboard, as a labelled
+    /// volume of that type in one of the ship's zones (the mess hall, the cabin block's washroom,
+    /// the recreation room). The Cabin's "the washroom is down the hall" is true only while
+    /// these hold.
+    ///
+    /// Seen red 2026-10-12 with the sixteen cabin plots' kind spelt "cabins": "the cabin start
+    /// lives on cabin plots, and the shipped ship has none".
+    #[test]
+    fn each_offered_start_has_plots_and_its_places_aboard() {
+        use crate::ship::ship_structure::{HomeDesign, ShipStructure};
+        let starts = the_file();
+        let ship = ShipStructure::load_ship_file(&data_dir()).expect("the ship file loads");
+        let types = crate::ship::structure::zone_types();
+        for s in starts.offered() {
+            let plots: Vec<&str> = ship.plots.iter().filter(|p| p.kind == s.plot_kind).map(|p| p.id.as_str()).collect();
+            assert!(!plots.is_empty(), "the {} start lives on {} plots, and the shipped ship has none", s.id, s.plot_kind);
+            let design = HomeDesign::built_in(&s.design).expect("the design is built in");
+            for id in &plots {
+                ship.clone().assemble(design.clone(), id).unwrap_or_else(|e| panic!("the {} start's home does not stand on {id}: {e}", s.id));
+            }
+            for place in &s.shared {
+                assert!(types.iter().any(|t| &t.id == place), "the {} start relies on '{place}', which is not a zone type", s.id);
+                let aboard = ship.zones.iter().flat_map(|z| z.body.zones.iter()).filter(|v| &v.type_id == place && !v.label.trim().is_empty()).count();
+                assert!(aboard > 0, "the {} start relies on a {place} aboard, and the ship has none", s.id);
+            }
+        }
+        // The Cabin's places, by name: the mess hall, a bathroom down the hall, the recreation room.
+        let cabin = starts.get("cabin").expect("the cabin row");
+        assert_eq!(cabin.shared, ["mess_hall", "room_bathroom", "recreation"]);
+    }
+
     /// The copy built into the exe is the file in the repo, so a fresh install, a throwaway relay
     /// and a rig all agree on the starts with the data folder this exe was built from.
     ///

@@ -1086,10 +1086,17 @@ mod tests {
         // Every glass roof and glass corridor lid cuts a hole: the home, the Commons and the
         // street roofs, the home's corridor and the Commons-to-street corridor, and since
         // increment 2 each neighbour's corridor lid (eleven since the twelve plots); a
-        // neighbour's own roof is drawn opaque.
+        // neighbour's own roof is drawn opaque. Since ship homes increment 6 (lane 1A): the
+        // cabin block's hall and the South Commons have glass roofs and glass-lidded corridors
+        // from the street, and a cabin's own door corridor has a steel lid (the sixteen cabins
+        // are neighbours whose lids cut nothing): 5 roofs, 4 ship corridor lids, 11 neighbour lids.
         let neighbours = ship.neighbour_plots().count();
         assert_eq!(neighbours, ship.plots.len() - 1, "every plot but the home's is a neighbour's");
-        assert_eq!(geom.holes.len(), 5 + neighbours, "home + commons + street roofs, the two ship corridor lids and every neighbour's corridor lid are open");
+        let roofs = ship.zones.iter().filter(|z| z.body.roof_is_glass()).count();
+        let lids = ship.corridors.iter().filter(|c| c.glass_top).count();
+        let neighbour_lids = ship.neighbour_plots().filter(|p| p.door.glass_top).count();
+        assert_eq!((roofs, lids, neighbour_lids), (5, 4, 11), "the shipped glass roofs, ship corridor lids and neighbour corridor lids");
+        assert_eq!(geom.holes.len(), roofs + lids + neighbour_lids, "every glass roof, ship corridor lid and neighbour's glass corridor lid is open");
         // The neighbour's plot (p2, z 99..188) is inside the hull too (increment 2: the hull wraps
         // every plot, whoever holds it). Seen red 2026-10-04 with the neighbours left out of
         // `hull_geom`: "the neighbour's plot p2 is sliced by the hull at long 143.5".

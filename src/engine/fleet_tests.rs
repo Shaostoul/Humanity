@@ -296,8 +296,10 @@ fn the_game_reads_what_the_relay_really_sends() {
     let mut rw = GameWorld::new();
     let snapshot: Vec<serde_json::Value> = rw.snapshot().iter().map(|e| serde_json::to_value(e).unwrap()).collect();
     let stores = stores_in(&serde_json::json!({ "world_snapshot": snapshot }));
-    assert_eq!(stores.len(), 1, "the game finds the relay's store in its welcome: {stores:?}");
-    let store = stores[0].clone();
+    // Both of the ship's stores (the Commons' and, since ship homes increment 6, the South
+    // Commons'): the welcome's snapshot holds the whole world's entities.
+    assert_eq!(stores.len(), 2, "the game finds the relay's stores in its welcome: {stores:?}");
+    let store = stores.iter().find(|s| s.name == "The mess hall's stores").expect("the Commons' store").clone();
     rw.spawn_player("e11e00c0", [store.position[0] + 1.0, 1.7, store.position[2]]);
     let meal = relay_fleet::take_meal_and_record(&mut rw, &db, "e11e00c0", store.entity_id);
     assert_eq!(meal["meal_item"], "ration_basic_0", "the meal names its good: {meal}");

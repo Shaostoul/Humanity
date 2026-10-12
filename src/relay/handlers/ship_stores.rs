@@ -16,9 +16,12 @@
 //!     (`handle_take_meal`, the same reach as every interaction), one draw on the same stock,
 //!     and one a meal interval, by their key (`GameWorld::player_next_meal`): the "free,
 //!     metered" meal of the design's question 11, so no one person can empty the crew's stock.
-//!     The game's own hunger does not read this yet: serving meals into the food system is
-//!     increment 6 ("the mess hall serves free, metered crew meals"), and until then a taken
-//!     meal is counted on the player (`meals_taken`), which is what an AI agent sees;
+//!     A taken meal is counted on the player (`meals_taken`, which is what an AI agent sees) and
+//!     eaten in the game as a Basic Ration (src/engine/fleet.rs `on_meal`, since the fleet
+//!     ledger); since increment 6 it is taken at a mess hall's serving counter, which stands
+//!     1.1 m behind each store's spot (data/machines/ship.ron). Two stores since increment 6, the
+//!     Commons' and the South Commons' (data/food/ship_stores.ron): a player's meal interval is
+//!     theirs at both;
 //!   - an NPC of a HOMESTEAD household (crew.ron `household: "homestead"`) eats the share
 //!     `npc_homestead_self_provided` of its meals from its own homestead and the rest from
 //!     the stores, and puts `npc_homestead_fleet_meals_per_day` into them. The share is
@@ -560,7 +563,7 @@ mod tests {
             ("a store with NaN meals", "meals: 90.0", "meals: NaN"),
             ("a store starting fuller than it holds", "meals: 90.0", "meals: 301.0"),
             ("a store with negative meals", "meals: 90.0", "meals: -1.0"),
-            ("farms giving NaN a day", "ship_farms_meals_per_day: 18.0", "ship_farms_meals_per_day: NaN"),
+            ("farms giving NaN a day", "ship_farms_meals_per_day: 36.0", "ship_farms_meals_per_day: NaN"),
             ("a meal every inf hours", "meal_interval_hours: 8.0", "meal_interval_hours: inf"),
         ] {
             let bad = text.replace(from, to);
@@ -674,22 +677,29 @@ mod tests {
         assert_eq!(stored, (home + stored).div_ceil(5), "four in five at home (0.8): {home} at home, {stored} from the stores");
         assert_eq!(meals_in(&world, store), start - stored as f64, "only the stores' share came off the store");
 
-        // What it gives the fleet's stores is the open question's value, per day.
+        // What it gives the fleet's stores is the open question's value, per day, shared evenly
+        // across the stores (two since ship homes increment 6).
         world.provisions.npc_homestead_fleet_meals_per_day = 2.0;
-        let before = meals_in(&world, store);
+        let all = stores(&world);
+        let before: f64 = all.iter().map(|s| meals_in(&world, *s)).sum();
         world.stock_stores(86_400.0);
-        assert!((meals_in(&world, store) - before - 2.0).abs() < 1e-6, "one homestead NPC gives 2 a day");
+        let after: f64 = all.iter().map(|s| meals_in(&world, *s)).sum();
+        assert!((after - before - 2.0).abs() < 1e-6, "one homestead NPC gives 2 a day to the stores together");
     }
 
-    /// The ship's farms fill the stores at their rate, and no store goes past its capacity.
+    /// The ship's farms fill the stores at their rate, shared evenly across the stores (two since
+    /// ship homes increment 6: the Commons' and the South Commons'), and no store goes past its
+    /// capacity.
     #[test]
     fn the_farms_restock_the_stores_up_to_capacity() {
         let mut world = GameWorld::new();
         world.provisions.ship_farms_meals_per_day = 24.0;
+        let n = stores(&world).len() as f64;
+        assert!(n >= 2.0, "the shipped ship has two stores: {n}");
         let store = stores(&world)[0];
         world.entities.get_mut(&store).unwrap().components["meals"] = serde_json::json!(10.0);
         world.stock_stores(43_200.0);
-        assert!((meals_in(&world, store) - 22.0).abs() < 1e-6, "half a day at 24 a day: {}", meals_in(&world, store));
+        assert!((meals_in(&world, store) - (10.0 + 12.0 / n)).abs() < 1e-6, "half a day at 24 a day, shared by {n} stores: {}", meals_in(&world, store));
         world.stock_stores(86_400.0 * 100.0);
         let cap = world.entities[&store].components["capacity"].as_f64().unwrap();
         assert_eq!(meals_in(&world, store), cap, "never past capacity");

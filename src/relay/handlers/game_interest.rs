@@ -381,11 +381,19 @@ mod tests {
         world.despawn_player("e11e00dd");
         world.despawn_player("e11e00ee");
 
-        // Neighbours: each plot's door and the next plot's door, with the shipped homestead.
-        let design = HomeDesign::built_in_ref("homestead").expect("the shipped homestead");
-        let doors: Vec<(String, glam::Vec3)> = ship.plots.iter().map(|p| (p.id.clone(), ShipStructure::plot_spawn(p, design))).collect();
+        // Neighbours: each plot's door and the next plot of its kind's door, each with its own
+        // kind's shipped design (since ship homes increment 6 the ship holds sixteen cabins after
+        // the twelve homesteads, 2.5 m apart on their hall: the last homestead's neighbour is not
+        // the first cabin).
+        let door_of = |p: &crate::ship::ship_structure::Plot| {
+            let design = HomeDesign::built_in_ref(&p.kind).unwrap_or_else(|| panic!("the shipped {} design", p.kind));
+            (p.id.clone(), ShipStructure::plot_spawn(p, design))
+        };
+        let doors: Vec<(String, glam::Vec3)> = ship.plots.iter().filter(|p| p.kind == "homestead").map(door_of).collect();
+        let cabin_doors: Vec<(String, glam::Vec3)> = ship.plots.iter().filter(|p| p.kind == "cabin").map(door_of).collect();
         assert!(doors.len() >= 12, "the twelve plots along First Street: {}", doors.len());
-        for w in doors.windows(2) {
+        assert!(cabin_doors.len() >= 16, "the sixteen cabins: {}", cabin_doors.len());
+        for w in doors.windows(2).chain(cabin_doors.windows(2)) {
             let ((ia, pa), (ib, pb)) = (&w[0], &w[1]);
             assert!(pa.distance(*pb) < view, "{ia}'s door and {ib}'s are {:.1} m apart, past the {view} m view", pa.distance(*pb));
             let a = world.spawn_player("e11e0d0a", pa.to_array());

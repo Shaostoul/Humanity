@@ -1858,35 +1858,15 @@ impl GameWorld {
     }
 }
 
-/// TESTS: the cabin row ship homes increment 6's lane 1A adds to the ship file (plan 3.3: sixteen
-/// cabin plots c1..c16, 3.0 x 3.0 x 2.5 m at (80.5, 0, 88 + 2.5(i-1)), east of First Street), in
-/// `world`'s plots, when the ship file does not hold cabin plots yet. A ship file that has them
-/// (lane 1A merged) is left as it is, so these tests read the real row from then on. The ship's
-/// hash is unchanged: a test's game names the ship the relay loaded.
-#[cfg(test)]
-pub(crate) fn with_cabin_plots(world: &mut GameWorld) {
-    if world.ship_plots.plots.iter().any(|p| p.kind == "cabin") {
-        return;
-    }
-    for i in 0..16 {
-        world.ship_plots.plots.push(crate::ship::ship_structure::PlotArrival {
-            id: format!("c{}", i + 1),
-            kind: "cabin".into(),
-            origin: (80.5, 0.0, 88.0 + 2.5 * i as f32),
-            size: (3.0, 3.0, 2.5),
-        });
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    /// The world and a fresh plot table of the tests below: the shipped ship with its cabins
-    /// (`with_cabin_plots`).
+    /// The world and a fresh plot table of the tests below: the shipped ship, with its sixteen
+    /// cabins (the ship file holds them since lane 1A; until then a test helper added them).
     fn world_with_cabins(tag: &str) -> (GameWorld, crate::relay::storage::Storage) {
-        let mut world = GameWorld::new();
-        with_cabin_plots(&mut world);
+        let world = GameWorld::new();
+        assert!(world.plot_ids_of_kind("cabin").len() >= 16, "the shipped ship has its cabins");
         (world, crate::relay::storage::Storage::open_temp(&format!("gs_{tag}")))
     }
 

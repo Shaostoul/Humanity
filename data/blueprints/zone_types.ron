@@ -211,13 +211,45 @@
     ),
     // Shared-place zones (docs/design/ship-homes-and-logistics.md section 2.8). The mess hall
     // came first, in increment 3: the crew eat there and the ship's food stores stand there
-    // (data/food/ship_stores.ron). No zone_filler.ron entry, so it draws only its editor
-    // wireframe; its tables and serving line are increment 6's.
+    // (data/food/ship_stores.ron). Its tables, chairs and serving counter are machine rows in
+    // data/machines/ship.ron (increment 6). None of these has a zone_filler.ron entry: each holds
+    // real furniture, or nothing, and draws only its editor wireframe.
     (
         id: "mess_hall",
         label: "Mess hall",
         color: (0.95, 0.62, 0.40),
         purpose: "Where the ship eats together: crew meals at meal times, from the ship's food stores.",
         default_size: (30.0, 3.0, 8.0),
+    ),
+    // The places increment 6 adds (docs/design/ship-homes-increment-6-plan.md section 3.4): a
+    // start lists the ones it relies on aboard (data/homes/starts.ron `shared`), and the labels
+    // are what the zone picker shows.
+    (
+        id: "recreation",
+        label: "Recreation room",
+        color: (0.62, 0.55, 0.92),
+        purpose: "Games, music and shared screens for watching together; where neighbours spend an evening.",
+        default_size: (10.0, 3.0, 8.0),
+    ),
+    (
+        id: "cabin_block",
+        label: "Cabin block",
+        color: (0.70, 0.62, 0.88),
+        purpose: "A row of private cabins off one hall, with a shared washroom; up to 40 cabins.",
+        default_size: (3.0, 3.0, 40.0),
+    ),
+    (
+        id: "apartment_block",
+        label: "Apartment block",
+        color: (0.80, 0.66, 0.85),
+        purpose: "Small homes around a common house with a mess hall, a big kitchen and a garden.",
+        default_size: (40.0, 6.0, 40.0),
+    ),
+    (
+        id: "street",
+        label: "Street",
+        color: (0.58, 0.60, 0.64),
+        purpose: "A walkway between places; people pass each other here.",
+        default_size: (10.0, 4.0, 100.0),
     ),
 ]

@@ -2749,9 +2749,13 @@ mod tests {
         // SAME tube, or the migration silently moved the hallway. Since increment 1a that row
         // is p1's door, put first by assembly; the Commons-to-street corridor follows it.
         let ship = shipped_ship();
-        assert_eq!(ship.corridors.len(), 2);
+        // The home's door, the Commons to First Street, and since ship homes increment 6 First
+        // Street to the cabin block's hall and to the South Commons.
+        assert_eq!(ship.corridors.len(), 4);
         assert_eq!((ship.corridors[0].from_zone.as_str(), ship.corridors[0].to_zone.as_str()), ("home", "commons"));
         assert_eq!((ship.corridors[1].from_zone.as_str(), ship.corridors[1].to_zone.as_str()), ("commons", "street-1"));
+        assert_eq!((ship.corridors[2].from_zone.as_str(), ship.corridors[2].to_zone.as_str()), ("street-1", "cabins-1"));
+        assert_eq!((ship.corridors[3].from_zone.as_str(), ship.corridors[3].to_zone.as_str()), ("street-1", "commons-2"));
         let g = ship.corridor_geometry(&ship.corridors[0]).expect("the shipped corridor resolves");
         assert_eq!(g.axis, CorridorAxis::X);
         assert!((g.start - 55.0).abs() < 1e-4, "got start {}", g.start);
@@ -3065,7 +3069,8 @@ mod tests {
     const HOME_SEGMENTS_BEFORE: usize = 69;
 
     /// Assembling at p1 reproduces today's ship. Everything that existed before the split (the
-    /// assembled ship without street-1 and its corridor, both new in 1a) has the same 34 rooms,
+    /// assembled ship without street-1 and its corridor, both new in 1a, and without the cabin
+    /// block, the South Commons and the recreation room of increment 6) has the same 34 rooms,
     /// each with the same id, centre and size, and the same 122 collision and 135 sight
     /// segments; the home alone keeps its 23 rooms and 69 segments. Then the whole assembled ship
     /// is pinned too: street-1 adds one room (its open box) and its corridor a walkable bound
@@ -3079,9 +3084,16 @@ mod tests {
         assert_eq!(home.rooms.len(), 23, "the home's own rooms");
         assert_eq!(home.segments.len(), HOME_SEGMENTS_BEFORE, "the home's own collision segments");
 
+        // The ship before the split: without street-1 and its corridors (1a), and without what
+        // ship homes increment 6 (lane 1A) added: the cabin block's hall and the South Commons
+        // (whose corridors run from street-1), the sixteen cabin plots, and the Commons'
+        // recreation room.
         let mut before_shape = ship.clone();
-        before_shape.zones.retain(|z| z.id != "street-1");
+        before_shape.zones.retain(|z| !["street-1", "cabins-1", "commons-2"].contains(&z.id.as_str()));
         before_shape.corridors.retain(|c| c.from_zone != "street-1" && c.to_zone != "street-1");
+        before_shape.plots.retain(|p| p.kind != "cabin");
+        let ci = before_shape.zone_index("commons").expect("the Commons");
+        before_shape.zones[ci].body.zones.retain(|v| v.id != "recreation");
         let rooms = before_shape.generate_meshes().room_info;
         assert_eq!(rooms.len(), ROOMS_BEFORE_THE_SPLIT.len(), "today's room count");
         for (id, c, s) in ROOMS_BEFORE_THE_SPLIT {
@@ -3119,9 +3131,16 @@ mod tests {
             "today's sight segments, and one bare homestead shell per neighbour plot ({neighbour_plots} x {bare_shell})"
         );
 
+        // The whole ship: street-1's room and its corridor's (36 rooms, 130 segments after 1a);
+        // since ship homes increment 6 (lane 1A) five rooms more, the cabin block's hall and its
+        // washroom (its wall with a door makes two), the South Commons, and the two corridors
+        // from First Street to them (41); and 18 segments more, the hall's and the South
+        // Commons' walls, the washroom's wall either side of its door, the cuts the two
+        // corridors make in their walls and in First Street's east wall, and their rails (148).
         let all = ship.generate_meshes().room_info;
-        assert_eq!(all.len(), 36, "the whole ship: + street-1's room + its corridor's");
-        assert_eq!(ship_wall_segments(&ship).len(), 130, "the whole ship: + street-1's walls, two cuts, two rails");
+        assert_eq!(all.len(), 41, "the whole ship's rooms");
+        assert!(all.iter().any(|r| r.id == "cabins-1:washroom-1"), "the cabin block's washroom is a room");
+        assert_eq!(ship_wall_segments(&ship).len(), 148, "the whole ship's collision segments");
         // The home's corridor keeps its id in the whole ship too: assembly puts it first.
         let c0 = all.iter().find(|r| r.id == "corridor_0").expect("corridor_0");
         assert!((c0.center - Vec3::new(60.0, 1.5, 40.0)).abs().max_element() < 1e-3, "corridor_0 is the home's corridor, got {:?}", c0.center);
@@ -3223,7 +3242,9 @@ mod tests {
     fn assembly_refuses_what_does_not_fit_and_splits_back_into_its_files() {
         let (ship, design) = shipped_files();
         assert!(ship.zone_index(HOME_ZONE_ID).is_none(), "the ship file holds no home");
-        assert_eq!(ship.plots.len(), 12, "p1 to p12 (the twelve plots along First Street, 2026-10-04)");
+        // p1 to p12 (the twelve plots along First Street, 2026-10-04), and since ship homes
+        // increment 6 the sixteen cabins c1 to c16.
+        assert_eq!(ship.plots.len(), 28, "p1 to p12 and c1 to c16");
         assert_eq!(ship.default_plot_id().as_deref(), Some("p1"));
         let refuse = |s: ShipStructure, d: HomeDesign, plot: &str, frag: &str| {
             let e = s.assemble(d, plot).expect_err(frag);
@@ -3243,17 +3264,20 @@ mod tests {
         big.body.width = 60.0;
         refuse(ship.clone(), big, "p1", "does not fit plot 'p1'");
         // The right lat through the wrong wall (the critic's case): a plot EAST of street-1 at
-        // (80, 0, 99), its door lat 139 on the street. The lat meets the design's door (local
+        // (80, 0, 300), its door lat 340 on the street. The lat meets the design's door (local
         // z 40), but the door is in the home's east wall and the corridor would cut the west
         // one. Red check, run: without the door-face check this plot assembles (nothing
         // overlaps there), and this refusal fails.
-        // (Named "east": p3 is a real plot since the twelve plots along First Street.)
+        // (Named "east": p3 is a real plot since the twelve plots along First Street. At z 300,
+        // not 99: since ship homes increment 6 the cabin block stands east of the street at z 88
+        // to 136.)
         let mut east = ship.clone();
         let mut across = east.plots.iter().find(|p| p.id == "p2").cloned().expect("p2");
         across.id = "east".to_string();
-        across.origin = (80.0, 0.0, 99.0);
+        across.origin = (80.0, 0.0, 300.0);
+        across.door.lat = 340.0;
         east.plots.push(across);
-        refuse(east, design.clone(), "east", "not through the homestead design's door at (135.0, 139.0)");
+        refuse(east, design.clone(), "east", "not through the homestead design's door at (135.0, 340.0)");
         let assembled = ship.clone().assemble(design.clone(), "p1").expect("assembles");
         refuse(assembled.clone(), design.clone(), "p2", "zone named 'home'");
 
@@ -3318,22 +3342,30 @@ mod tests {
     }
 
     /// THE CABIN (ship homes increment 6): the shipped cabin is England's single bedroom, a floor
-    /// of 7.5 m2 at least 2.15 m wide and at least 2.3 m high (Nationally Described Space
-    /// Standard, 2015), measured as its box is, to the middle of its walls; its door is in the
-    /// west wall's middle, where every cabin's hall runs; you arrive inside it; and the player's
-    /// own copy (data/homes/cabin.ron) and the file the exe embeds are that design.
+    /// of at least 7.5 m2, at least 2.15 m wide and at least 2.3 m from floor to ceiling
+    /// (Nationally Described Space Standard, 2015), measured as the standard measures, INSIDE its
+    /// walls: the box is drawn to the middle of its shell, which is centred on the box's edge, so
+    /// half the shell's thickness comes off each side (3.15 x 2.5 m outside, 3.09 x 2.44 m inside,
+    /// 7.54 m2); its door is in the west wall's middle, where every cabin's hall runs; you arrive
+    /// inside it; and the player's own copy (data/homes/cabin.ron) and the file the exe embeds
+    /// are that design.
     ///
     /// Seen red 2026-10-12 with the shipped cabin's depth 2.0: "the cabin's floor is 6 m2, not
-    /// 7.5" failed.
+    /// 7.5" failed (Wave 0's test, which measured the box). Lane 1A measures inside the shell;
+    /// seen red 2026-10-12 on Wave 0's 3.0 x 2.5 m cabin: "the cabin's floor inside its walls is
+    /// 7.1736 m2 (2.94 x 2.44 m), under the standard's 7.5".
     #[test]
     fn a_cabin_is_seven_and_a_half_square_metres() {
         use crate::embedded_data::{shipped_home_design, SHIPPED_HOMES_DIR};
         let cabin = HomeDesign::built_in("cabin").expect("the cabin is built in");
         let b = &cabin.body;
-        let floor = b.width * b.depth;
-        assert!((floor - 7.5).abs() < 1e-4, "the cabin's floor is {floor} m2, not 7.5");
-        assert!(b.width.min(b.depth) >= 2.15, "the cabin is {} m wide, under 2.15", b.width.min(b.depth));
-        assert!(b.height >= 2.3, "the cabin is {} m high, under 2.3", b.height);
+        let shell = b.shell_resolved_thickness();
+        assert!((shell - 0.06).abs() < 1e-4, "the cabin's steel shell is 0.06 m thick: {shell}");
+        let (inside_w, inside_d) = (b.width - shell, b.depth - shell);
+        let floor = inside_w * inside_d;
+        assert!(floor >= 7.5, "the cabin's floor inside its walls is {floor} m2 ({inside_w} x {inside_d} m), under the standard's 7.5");
+        assert!(inside_w.min(inside_d) >= 2.15, "the cabin is {} m wide inside, under 2.15", inside_w.min(inside_d));
+        assert!(b.height - shell >= 2.3, "the cabin is {} m from floor to ceiling, under 2.3", b.height - shell);
         assert_eq!(cabin.door, (0.0, b.depth / 2.0), "the door is in the west wall's middle");
         assert_eq!(cabin.door_lat((80.5, 0.0, 88.0)), Ok(89.25), "a cabin at z 88 meets its hall at lat 89.25");
         let (sx, sz) = b.spawn.expect("the cabin has a spawn");
@@ -3394,7 +3426,8 @@ mod tests {
         ship.save_assembled(&dir, true).expect("a Dev save writes both");
         let back = ShipStructure::load_and_assemble(&dir, None).expect("reassembles");
         assert_eq!(back.districts[1].origin.0, ship.districts[1].origin.0, "the district edit was saved");
-        assert!(back.zone_index("street-1").is_some() && back.plots.len() == 12);
+        // Every plot, the cabins of increment 6 among them (28 since lane 1A, 12 before it).
+        assert!(back.zone_index("street-1").is_some() && back.plots.len() == ship.plots.len() && back.plots.len() >= 28);
 
         // An overlapping ship is refused, and the file on disk stays as it was. (The street
         // dragged into the Commons: its own corridor no longer resolves and is left out of the
@@ -3440,9 +3473,11 @@ mod tests {
         let back = ShipStructure::load_and_assemble(&dir, None).expect("reassembles");
         assert_eq!(back.zones[back.home_zone_index()].origin, (0.0, 0.0, -10.0), "the home loads on its moved plot");
 
-        // Turned away from its street: the panel says why, and the save refuses it.
+        // Turned away from its street: the panel says why, and the save refuses it. (East of the
+        // street at z 300: since ship homes increment 6 the cabin block stands there at z 88 to
+        // 136, and a p2 moved onto it would be refused for the overlap instead.)
         let before = std::fs::read(&ship_path).unwrap();
-        assert!(ship.move_plot("p2", (80.0, 0.0, 99.0)));
+        assert!(ship.move_plot("p2", (80.0, 0.0, 300.0)));
         let why = ship.plot_check("p2").expect("p2 takes the homestead").expect_err("p2 faces away from its street");
         assert!(why.contains("not through the homestead design's door"), "got: {why}");
         let e = ship.save_assembled(&dir, true).expect_err("a ship whose p2 would not load is not saved");
@@ -3451,13 +3486,15 @@ mod tests {
         assert!(ship.move_plot("p2", (0.0, 0.0, 99.0)) && ship.plot_check("p2") == Some(Ok(())), "and back again");
 
         // Plots add beyond their model and remove (never the home's own). The model is the last
-        // plot, p12, as the panel's "Add plot" picks it (twelve plots since 2026-10-04).
+        // homestead, p12 (twelve homesteads since 2026-10-04; the sixteen cabins of increment 6
+        // follow it in the file, and the new plot takes the first free "p" number).
+        let plots_before = ship.plots.len();
         let p13 = ship.add_plot_like("p12", 10.0).expect("a copy of p12");
         assert_eq!(p13, "p13");
         let added = ship.plots.iter().find(|p| p.id == "p13").unwrap();
         assert_eq!((added.origin, added.door.lat), ((0.0, 0.0, 1188.0), 1228.0), "past p12 by its depth and the gap, the lat with it");
         assert!(!ship.remove_plot("p1"), "the home's own plot stays");
-        assert!(ship.remove_plot("p13") && ship.plots.len() == 12);
+        assert!(ship.remove_plot("p13") && ship.plots.len() == plots_before);
 
         // Districts.
         let id = ship.add_district("hangar", (200.0, 0.0, 0.0), (40.0, 10.0, 40.0));
@@ -3569,6 +3606,10 @@ mod plot_handout_tests {
     /// The shipped home design names its door, and the relay's arrival for that door on every
     /// plot is exactly where the game's camera lands once the home is assembled there (the game's
     /// own path, `assemble` then `home_spawn_world`), inside that plot's box.
+    ///
+    /// Since ship homes increment 6 (lane 1A) the ship holds cabins too: each plot is checked
+    /// with the door of its own kind's shipped design, which is what that plot's holder's game
+    /// names.
     #[test]
     fn every_plot_spawn_is_where_the_game_stands_on_it() {
         let plots = ShipPlots::load(&data_dir()).expect("the shipped plots load");
@@ -3578,6 +3619,8 @@ mod plot_handout_tests {
         for p in &plots.plots {
             let ship = ShipStructure::load_and_assemble_shipped(&data_dir(), Some(&p.id)).expect("assembles");
             let cam = ship.home_spawn_world().expect("the design has a spawn");
+            let door = HomeDesign::built_in(&p.kind).and_then(|d| d.body.spawn);
+            assert!(door.is_some(), "the shipped {} design names its door", p.kind);
             let relay = p.arrival(door);
             assert!((cam - relay).length() < 1e-4, "{}: relay {relay:?}, game {cam:?}", p.id);
             // And it is inside the plot's own box.
@@ -3602,6 +3645,8 @@ mod plot_handout_tests {
     /// the default design's spawn): "p1: relay Vec3(53.5, 1.7, 40.5), game Vec3(12.5, 1.7, 30.0)".
     /// No door named now arrives in the middle of the plot (the second review); with `arrival`
     /// put back to the default design's door for that: "no door named: the middle of the plot".
+    /// (The homestead goes on the homestead plots only: since increment 6 the ship holds cabins,
+    /// which `assemble` refuses it.)
     #[test]
     fn the_players_own_door_arrives_where_their_home_is_entered() {
         let plots = ShipPlots::load(&data_dir()).expect("the shipped plots load");
@@ -3610,7 +3655,7 @@ mod plot_handout_tests {
         ship.zones[home].body.spawn = Some((12.5, 30.0)); // the player moved their door
         let door = ship.home_arrival_local().expect("an assembled home has a door");
         assert_eq!(door, (12.5, 30.0));
-        for p in &plots.plots {
+        for p in plots.plots.iter().filter(|p| p.kind == "homestead") {
             let there = ship.ship_file().assemble(ship.home_design().unwrap(), &p.id).expect("fits");
             let cam = there.home_spawn_world().unwrap();
             assert!((p.arrival(Some(door)) - cam).length() < 1e-4, "{}: relay {:?}, game {cam:?}", p.id, p.arrival(Some(door)));
@@ -3636,7 +3681,8 @@ mod plot_handout_tests {
     #[test]
     fn a_home_with_no_door_arrives_in_the_middle_of_the_plot_it_is_given() {
         let mut file = ShipStructure::load_ship_file(&data_dir()).unwrap();
-        let big = file.plots.len() - 1;
+        // The last HOMESTEAD plot (since increment 6 the cabins follow the homesteads in the file).
+        let big = file.plots.iter().rposition(|p| p.kind == "homestead").expect("a homestead plot");
         let id = file.plots[big].id.clone();
         // Wider up to the street (x 65) and deeper: 63 x 120 m against p1's 55 x 89.
         file.plots[big].size.0 += 8.0;
@@ -3682,13 +3728,20 @@ mod plot_handout_tests {
     ///
     /// Seen red 2026-10-04 on the two-plot ship file: "the shipped ship has twelve plots, in the
     /// order a relay hands them out: [\"p1\", \"p2\"]".
+    ///
+    /// Since ship homes increment 6 (lane 1A) the ship file holds sixteen cabin plots as well,
+    /// after the homesteads (`the_shipped_ship_has_a_cabin_block_beside_first_street`), so this
+    /// test reads the HOMESTEAD plots: they are still the first twelve in the file, p1 to p12.
     #[test]
     fn the_shipped_ship_has_twelve_homes_along_first_street() {
-        let file = ShipStructure::load_ship_file(&data_dir()).expect("the ship file loads");
+        let mut file = ShipStructure::load_ship_file(&data_dir()).expect("the ship file loads");
         file.validate().expect("the ship file validates: no plot, zone or corridor overlaps another");
+        let all = file.clone();
+        file.plots.retain(|p| p.kind == "homestead");
         let ids: Vec<&str> = file.plots.iter().map(|p| p.id.as_str()).collect();
         let want: Vec<String> = (1..=12).map(|n| format!("p{n}")).collect();
         assert_eq!(ids, want, "the shipped ship has twelve plots, in the order a relay hands them out: {ids:?}");
+        assert_eq!(all.plots[..12].iter().map(|p| p.id.as_str()).collect::<Vec<_>>(), want, "the homesteads come first in the file");
         // p1 and p2 never move: a relay's stored claims name them, and a player's remembered plot
         // (AppConfig `home_plots`) is an id too.
         let plot = |id: &str| file.plots.iter().find(|p| p.id == id).unwrap_or_else(|| panic!("{id}"));
@@ -3710,11 +3763,11 @@ mod plot_handout_tests {
             }
             // Its home stands on it, the door corridor leaving through the design's own door
             // (`assemble` refuses anything else), and its holder arrives at that door, on it.
-            let ship = file.clone().assemble(design.clone(), &p.id).unwrap_or_else(|e| panic!("{} takes the shipped homestead: {e}", p.id));
+            let ship = all.clone().assemble(design.clone(), &p.id).unwrap_or_else(|e| panic!("{} takes the shipped homestead: {e}", p.id));
             let door = ship.home_spawn_world().expect("the shipped homestead names its door");
             let (lo, hi) = p.aabb();
             assert!(door.cmpge(lo).all() && door.cmple(hi).all(), "{}'s door {door:?} is on it", p.id);
-            assert_eq!(ship.ship_hash(), file.ship_hash(), "the ship is the same ship whichever plot the home stands on");
+            assert_eq!(ship.ship_hash(), all.ship_hash(), "the ship is the same ship whichever plot the home stands on");
         }
         // Consecutive plots 10 m apart along z, as p2 sits past p1: room for each corridor, and no
         // two homes' walls flush against each other.
@@ -3723,7 +3776,169 @@ mod plot_handout_tests {
         }
         // A relay with no data folder hands out exactly these.
         let built_in = ShipStructure::built_in_ship_file("test: the twelve plots").expect("the built-in ship loads");
+        assert_eq!(built_in.ship_hash(), all.ship_hash(), "the ship built into the exe is the data folder's");
+    }
+
+    /// THE CABIN BLOCK (ship homes increment 6, plan section 3.3): east of First Street's north
+    /// end, the hall `cabins-1` ("Cabin Block A") is reached from First Street by its own
+    /// corridor, and sixteen cabin plots, c1 to c16 in the file's order after the homesteads,
+    /// stand along its east side, each taking the SHIPPED cabin (data/homes/shipped/cabin.ron)
+    /// through its own door into the hall: the door corridor leaves the cabin through the
+    /// design's door, in its west wall, and arrives on the hall's east wall. Neighbouring cabins
+    /// touch, 2.5 m apart, and none overlaps another or the hall; the file validates; whoever
+    /// holds a cabin arrives inside it; the hall's washroom is a bathroom; the first cabin is
+    /// where a cabin goes when nothing names a plot; and the copy built into the exe, which a
+    /// relay with no data folder hands out, is the same ship.
+    ///
+    /// Seen red 2026-10-12 with c7's door lat moved 1 m north (103.25 for 104.25), which takes its
+    /// door off the plot: "the ship file validates: no plot, zone or corridor overlaps another:
+    /// \"plot 'c7' door: lat 103.25 m puts the door mouth outside the zones' shared z span; valid:
+    /// 103.45 to 105.05 m\""; and moved half a metre (103.75), still on the plot: "c7 takes the
+    /// shipped cabin: plot 'c7' door lat 103.75 does not meet the cabin design's door at local
+    /// (0.0, 1.25), which needs lat 104.25".
+    #[test]
+    fn the_shipped_ship_has_a_cabin_block_beside_first_street() {
+        let file = ShipStructure::load_ship_file(&data_dir()).expect("the ship file loads");
+        file.validate().expect("the ship file validates: no plot, zone or corridor overlaps another");
+        let cabin = HomeDesign::built_in("cabin").expect("the shipped cabin is built in");
+        let hall = &file.zones[file.zone_index("cabins-1").expect("the cabin block's hall is a zone")];
+        assert_eq!((hall.label.as_str(), hall.purpose.as_str()), ("Cabin Block A", "residence"));
+        let (hx0, hx1, hz0, hz1) = (hall.origin.0, hall.origin.0 + hall.body.width, hall.origin.2, hall.origin.2 + hall.body.depth);
+        // The hall is reached from First Street by its own corridor.
+        let to_hall = file
+            .corridors
+            .iter()
+            .find(|c| (c.from_zone == "street-1" && c.to_zone == "cabins-1") || (c.from_zone == "cabins-1" && c.to_zone == "street-1"))
+            .expect("a corridor from First Street to the cabin block");
+        let g = file.corridor_geometry(to_hall).expect("the hall's corridor resolves");
+        assert_eq!(g.axis, CorridorAxis::X, "it runs across from the street to the hall");
+        assert!((g.end.min(g.start) - 75.0).abs() < 1e-3 && (g.end.max(g.start) - hx0).abs() < 1e-3, "from the street's east wall to the hall's west wall: {g:?}");
+        // The washroom, behind the hall's end wall.
+        let wash = hall.body.zones.iter().find(|v| v.type_id == "room_bathroom").expect("the block has a washroom");
+        assert_eq!((wash.label.as_str(), wash.room_type.as_deref()), ("Washroom", Some("bathroom")));
+        // Sixteen cabins after the homesteads.
+        let ids: Vec<&str> = file.plots.iter().filter(|p| p.kind == "cabin").map(|p| p.id.as_str()).collect();
+        let want: Vec<String> = (1..=16).map(|n| format!("c{n}")).collect();
+        assert_eq!(ids, want, "sixteen cabin plots in the file's order");
+        let first_cabin = file.plots.iter().position(|p| p.kind == "cabin").unwrap();
+        assert!(file.plots[..first_cabin].iter().all(|p| p.kind == "homestead"), "the homesteads come first: a relay's older claims name them");
+        assert_eq!(file.default_plot_of_kind("cabin").as_deref(), Some("c1"), "a cabin with no place yet goes on the first");
+        let cabins: Vec<&Plot> = file.plots.iter().filter(|p| p.kind == "cabin").collect();
+        for (i, p) in cabins.iter().enumerate() {
+            assert_eq!(p.door.zone, "cabins-1", "{}'s door opens on the hall", p.id);
+            assert!(p.origin.0 >= hx1 + CORRIDOR_MIN_RUN - 1e-3, "{} stands east of the hall, across a door corridor", p.id);
+            assert!(p.origin.2 >= hz0 && p.origin.2 + p.size.2 <= hz1, "{} stands along the hall", p.id);
+            let ship = file.clone().assemble(cabin.clone(), &p.id).unwrap_or_else(|e| panic!("{} takes the shipped cabin: {e}", p.id));
+            // `assemble` refuses a corridor that leaves through another wall; it ends on the hall.
+            let door = ship.corridor_geometry(&ship.corridors[0]).expect("the cabin's door corridor resolves");
+            assert!((door.end_to.x - hx1).abs() < 1e-3 && door.end_to.z > hz0 && door.end_to.z < hz1, "{}'s corridor arrives on the hall's east wall: {:?}", p.id, door.end_to);
+            let spawn = ship.home_spawn_world().expect("the shipped cabin names where you arrive");
+            let (lo, hi) = p.aabb();
+            assert!(spawn.cmpge(lo).all() && spawn.cmple(hi).all(), "whoever holds {} arrives in it, not at {spawn:?}", p.id);
+            assert_eq!(ship.ship_hash(), file.ship_hash(), "the ship is the same ship whichever cabin the home stands on");
+            if i > 0 {
+                let prev = cabins[i - 1];
+                assert!((p.origin.2 - (prev.origin.2 + prev.size.2)).abs() < 1e-3, "{} touches {}", p.id, prev.id);
+                assert!((p.door.lat - prev.door.lat - 2.5).abs() < 1e-3, "{}'s door is 2.5 m past {}'s", p.id, prev.id);
+            }
+        }
+        // Nothing stands east of the cabins on the ship's floor: the wider cabins crowd nothing.
+        let east = cabins.iter().map(|p| p.origin.0 + p.size.0).fold(0.0_f32, f32::max);
+        for z in file.zones.iter().filter(|z| z.id != "cabins-1") {
+            let (zx0, zz0, zz1) = (z.origin.0, z.origin.2, z.origin.2 + z.body.depth);
+            assert!(zx0 + z.body.width <= hx0 || zz1 <= hz0 || zz0 >= hz1 || zx0 >= east + 10.0, "zone {} crowds the cabin block", z.id);
+        }
+        let built_in = ShipStructure::built_in_ship_file("test: the cabin block").expect("the built-in ship loads");
         assert_eq!(built_in.ship_hash(), file.ship_hash(), "the ship built into the exe is the data folder's");
+    }
+
+    /// EVERY HOME REACHES A MESS HALL WITHIN FIVE MINUTES (docs/design/ship-homes-and-logistics.md
+    /// section 2.9, the rule that a household without a kitchen of its own still eats; plan 3.3):
+    /// from every plot's door, along the ship's corridors, to the middle of the nearest
+    /// `mess_hall` volume, at 1.4 m/s, an adult's walking pace. The walk is the corridor graph:
+    /// each plot's door corridor (with the plot's own shipped design on it), the ship's corridors
+    /// between zones, and a straight line between any two points of one zone (interior walls are
+    /// not walked around: the Commons' room block adds about 10 m to a walk to its mess hall).
+    ///
+    /// Seen red 2026-10-12 on the ship without the South Commons (its zone and corridor taken out
+    /// of the loaded file): "over five minutes from the nearest mess hall: p5 5.0 min (423 m), p6
+    /// 6.2 min (522 m), p7 7.4 min (621 m), p8 8.6 min (720 m), p9 9.7 min (819 m), p10 10.9 min
+    /// (918 m), p11 12.1 min (1017 m), p12 13.3 min (1116 m)". With it the farthest is p5, 4.6
+    /// minutes (386 m) from the South Commons.
+    #[test]
+    fn every_home_reaches_a_mess_hall_within_five_minutes() {
+        let file = ShipStructure::load_ship_file(&data_dir()).expect("the ship file loads");
+        let walks = minutes_to_a_mess_hall(&file);
+        assert_eq!(walks.len(), file.plots.len(), "every plot's door is on the corridor graph: {walks:?}");
+        let over: Vec<String> = walks.iter().filter(|w| w.1 > 5.0).map(|(id, minutes, metres)| format!("{id} {minutes:.1} min ({metres:.0} m)")).collect();
+        assert!(over.is_empty(), "over five minutes from the nearest mess hall: {}", over.join(", "));
+        // Both mess halls serve someone: the rule needs the South Commons.
+        let far = walks.iter().map(|w| w.1).fold(0.0_f32, f32::max);
+        assert!(far > 3.0, "the far end of First Street is still a walk: {far:.1} minutes at most");
+    }
+
+    /// Each plot's walk from its door to the middle of the nearest mess hall: (plot id, minutes
+    /// at 1.4 m/s, metres), along the corridor graph `every_home_reaches_a_mess_hall_within_five_
+    /// minutes` describes. A plot whose door does not reach a mess hall is left out.
+    fn minutes_to_a_mess_hall(ship: &ShipStructure) -> Vec<(String, f32, f32)> {
+        const WALK_M_PER_S: f32 = 1.4;
+        let xz = |v: Vec3| glam::Vec2::new(v.x, v.z);
+        // Points on the floor and the zone each stands in (None: a plot's door, inside a home).
+        let mut nodes: Vec<(glam::Vec2, Option<usize>)> = Vec::new();
+        let mut edges: Vec<(usize, usize, f32)> = Vec::new();
+        let add = |nodes: &mut Vec<(glam::Vec2, Option<usize>)>, p: glam::Vec2, zone: Option<usize>| {
+            nodes.push((p, zone));
+            nodes.len() - 1
+        };
+        for c in &ship.corridors {
+            let Ok(g) = ship.corridor_geometry(c) else { continue };
+            let a = add(&mut nodes, xz(g.end_from), Some(g.from_zone_idx));
+            let b = add(&mut nodes, xz(g.end_to), Some(g.to_zone_idx));
+            edges.push((a, b, g.end_from.distance(g.end_to)));
+        }
+        let mut doors: Vec<(String, usize)> = Vec::new();
+        for p in &ship.plots {
+            let Ok(g) = ship.plot_door_tube(p, HomeDesign::built_in_ref(&p.kind)) else { continue };
+            let a = add(&mut nodes, xz(g.end_from), None);
+            let b = add(&mut nodes, xz(g.end_to), Some(g.to_zone_idx));
+            edges.push((a, b, g.end_from.distance(g.end_to)));
+            doors.push((p.id.clone(), a));
+        }
+        let mut halls: Vec<usize> = Vec::new();
+        for (zi, z) in ship.zones.iter().enumerate() {
+            for v in z.body.zones.iter().filter(|v| v.type_id == "mess_hall") {
+                let centre = glam::Vec2::new(z.origin.0 + v.origin.0 + v.size.0 * 0.5, z.origin.2 + v.origin.2 + v.size.2 * 0.5);
+                halls.push(add(&mut nodes, centre, Some(zi)));
+            }
+        }
+        for i in 0..nodes.len() {
+            for j in i + 1..nodes.len() {
+                if nodes[i].1.is_some() && nodes[i].1 == nodes[j].1 {
+                    edges.push((i, j, nodes[i].0.distance(nodes[j].0)));
+                }
+            }
+        }
+        let mut out = Vec::new();
+        for (id, start) in doors {
+            // Dijkstra on a graph of a few dozen points.
+            let mut dist = vec![f32::INFINITY; nodes.len()];
+            let mut done = vec![false; nodes.len()];
+            dist[start] = 0.0;
+            while let Some(u) = (0..nodes.len()).filter(|&i| !done[i] && dist[i].is_finite()).min_by(|&a, &b| dist[a].total_cmp(&dist[b])) {
+                done[u] = true;
+                for &(a, b, w) in &edges {
+                    let v = if a == u { b } else if b == u { a } else { continue };
+                    if dist[u] + w < dist[v] {
+                        dist[v] = dist[u] + w;
+                    }
+                }
+            }
+            let metres = halls.iter().map(|&h| dist[h]).fold(f32::INFINITY, f32::min);
+            if metres.is_finite() {
+                out.push((id, metres / WALK_M_PER_S / 60.0, metres));
+            }
+        }
+        out
     }
 
     /// A relay whose ship file on disk does not load (a bad hand edit on the server) keeps the

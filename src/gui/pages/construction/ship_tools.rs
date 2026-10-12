@@ -478,6 +478,11 @@ pub(super) fn draw_plots_and_districts(ui: &mut egui::Ui, theme: &Theme, state: 
         .collect();
     let plots: Vec<crate::ship::ship_structure::Plot> = ship.plots.clone();
     let plot_ids: Vec<String> = plots.iter().map(|p| p.id.clone()).collect();
+    // "Add plot" copies the last plot of your home's kind (since ship homes increment 6 the file
+    // ends with the cabins, whose hall is full; a homestead's copy goes on down First Street),
+    // else the last plot.
+    let own_kind = ship.home.as_ref().map(|a| a.kind.clone()).unwrap_or_default();
+    let add_model: Option<String> = plots.iter().rev().find(|p| p.kind == own_kind).map(|p| p.id.clone()).or_else(|| plot_ids.last().cloned());
     egui::CollapsingHeader::new(RichText::new(format!("Plots ({})", plots.len())).strong().color(theme.text_primary()))
         .id_salt("ship_plots")
         .default_open(false)
@@ -569,7 +574,7 @@ pub(super) fn draw_plots_and_districts(ui: &mut egui::Ui, theme: &Theme, state: 
                             }
                         }
                     });
-                if let Some(last) = plot_ids.last() {
+                if let Some(last) = add_model.as_ref() {
                     if ui.small_button("Add plot").on_hover_text(format!("A copy of {last}, past it")).clicked() {
                         act = Some(Act::AddLike(last.clone()));
                     }
@@ -704,10 +709,11 @@ mod tests {
     /// One headless frame of the Plots and Districts panel in a plain panel, with `events`. Tall
     /// enough for the whole panel with the twelve shipped plots open (2026-10-04: at 1400 px the
     /// "Add plot" button below them was clipped and not drawn; in the game the panel sits in the
-    /// Construction page's scrolling side column, construction.rs `hs_left_scroll`).
+    /// Construction page's scrolling side column, construction.rs `hs_left_scroll`). 9000 px since
+    /// ship homes increment 6 put sixteen cabin plots in the list too.
     fn frame(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, events: Vec<egui::Event>) -> egui::FullOutput {
         let input = egui::RawInput {
-            screen_rect: Some(egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(900.0, 4000.0))),
+            screen_rect: Some(egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(900.0, 9000.0))),
             events,
             ..Default::default()
         };
@@ -728,11 +734,14 @@ mod tests {
 
     /// The Plots and Districts panel is the in-app control the critic found missing in 1a, so it
     /// is proven the way a player meets it, drawn and clicked, not just built: outside the Dev
-    /// mode it is not there at all; in the Dev mode "Plots (12)" opens to the shipped plots, yours
-    /// marked, and "Add plot" really adds a plot (a copy of the last, p12, past it) and asks for a
-    /// rebuild; "Districts (13)" opens to the districts. Red check, run: the panel with its early
-    /// `return` for the Dev mode removed draws "Plots (2)" in Normal mode and fails the first
-    /// assertion (the ship had two plots then; twelve since 2026-10-04).
+    /// mode it is not there at all; in the Dev mode "Plots (28)" opens to the shipped plots, yours
+    /// marked, and "Add plot" really adds a plot (a copy of the last of your home's kind, p12, past
+    /// it) and asks for a rebuild; "Districts (13)" opens to the districts. Red check, run: the
+    /// panel with its early `return` for the Dev mode removed draws "Plots (2)" in Normal mode and
+    /// fails the first assertion (the ship had two plots then; twelve since 2026-10-04, and 28
+    /// since ship homes increment 6 added sixteen cabins after the homesteads, which is why
+    /// "Add plot" copies the last plot of your home's kind: the last plot is a cabin, whose hall is
+    /// full).
     #[test]
     fn the_plots_panel_is_dev_only_and_its_buttons_edit_the_ship() {
         let ctx = egui::Context::default();
@@ -747,18 +756,19 @@ mod tests {
 
         state.settings.play_mode = crate::config::PlayMode::Normal;
         let out = frame(&ctx, &theme, &mut state, Vec::new());
-        assert!(find_text_in_shapes(&out.shapes, "Plots (12)").is_none(), "no plot editing outside the Dev mode");
+        assert!(find_text_in_shapes(&out.shapes, "Plots (28)").is_none(), "no plot editing outside the Dev mode");
 
         state.settings.play_mode = crate::config::PlayMode::Dev;
-        click(&ctx, &theme, &mut state, "Plots (12)");
+        click(&ctx, &theme, &mut state, "Plots (28)");
         let out = frame(&ctx, &theme, &mut state, Vec::new());
         assert!(find_text_in_shapes(&out.shapes, "p1  homestead  (yours)  (offline)").is_some(), "your plot, marked");
         assert!(find_text_in_shapes(&out.shapes, "lat 40.0 m").is_some(), "p1's door lat, shown");
         state.construction_structure_dirty = false;
         click(&ctx, &theme, &mut state, "Add plot");
         let ship = state.ship_structure.as_ref().unwrap();
-        assert_eq!(ship.plots.len(), 13, "Add plot added a plot");
-        assert_eq!(ship.plots[12].origin, (0.0, 0.0, 1188.0), "past p12");
+        assert_eq!(ship.plots.len(), 29, "Add plot added a plot");
+        let added = ship.plots.last().unwrap();
+        assert_eq!((added.id.as_str(), added.kind.as_str(), added.origin), ("p13", "homestead", (0.0, 0.0, 1188.0)), "a homestead past p12");
         assert!(state.construction_structure_dirty && state.construction_machines_dirty, "and asked for a rebuild");
 
         click(&ctx, &theme, &mut state, "Districts (13)");

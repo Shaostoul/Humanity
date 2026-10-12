@@ -20,4 +20,22 @@
         room_type: "street",
         items: ["bench_seating", "locker"],
     ),
+    // Increment 6's places (docs/design/ship-homes-increment-6-plan.md section 3.3): the cabin
+    // block's hall, which is its zone's own floor, so it is keyed by the zone's purpose
+    // ("residence", data/blueprints/ship_structure.ron `cabins-1`), and, keyed like "mess_hall" by
+    // their volume's zone type, the block's shared washroom and the Commons' recreation room. The
+    // washroom's fixtures are listed for an agent's perception only: the game draws none yet (they
+    // wait for ship machines that leave the households' meters, the plan's 3.8).
+    (
+        room_type: "residence",
+        items: ["notice_board", "fire_extinguisher"],
+    ),
+    (
+        room_type: "room_bathroom",
+        items: ["toilet_stall", "shower_stall", "wash_basin"],
+    ),
+    (
+        room_type: "recreation",
+        items: ["couch", "couch", "rug", "wall_screen"],
+    ),
 ]

@@ -688,6 +688,95 @@ mod tests {
         }
     }
 
+    /// EVERY CREW WALK IS CLEAR OF THE SHIP'S FURNITURE (ship homes increment 6, lane 1A): the
+    /// crew walk in straight lines between their sites (as above), and since increment 6 the
+    /// mess hall has tables, chairs and a serving counter and the Commons a recreation room
+    /// (data/machines/ship.ron). Machines do not collide, so a table across a walk would be walked
+    /// through; every walk keeps 0.5 m from every piece of Furniture there, its footprint turned
+    /// with its rotation, in ship metres.
+    ///
+    /// Seen red 2026-10-12 with the second mess hall table moved onto the maintenance hand's walk
+    /// along z 4 (Commons-local (10, 4) for (10, 1.75)): "CB-7 walks from restock_stores (68.0,
+    /// 1.0, 24.0) to wipe_tables (76.0, 1.0, 24.0) 0.00 m from mess_table_2, within 0.5 m".
+    #[test]
+    fn every_crew_walk_is_clear_of_the_ships_furniture() {
+        let world = GameWorld::new();
+        let ship = ship();
+        let rows = crate::machines::MachineHome::load_file(&data().join("machines/ship.ron")).expect("ship.ron parses");
+        // Each Furniture row's footprint, ship metres: (id, min x, min z, max x, max z).
+        let furniture: Vec<(String, (f32, f32), (f32, f32))> = rows
+            .all_instances()
+            .into_iter()
+            .filter(|i| rows.catalog.get(&i.machine).is_some_and(|d| d.category == "Furniture"))
+            .map(|i| {
+                let size = rows.catalog[&i.machine].size;
+                let turned = (i.rotation.rem_euclid(180.0) - 90.0).abs() < 1.0;
+                let (w, d) = if turned { (size.2, size.0) } else { (size.0, size.2) };
+                let z = ship.zones.iter().find(|z| z.id == i.zone).unwrap_or_else(|| panic!("{} stands in zone {}, which is not a zone", i.id, i.zone));
+                let (cx, cz) = (z.origin.0 + i.offset.0, z.origin.2 + i.offset.2);
+                (i.id, (cx - w * 0.5, cz - d * 0.5), (cx + w * 0.5, cz + d * 0.5))
+            })
+            .collect();
+        assert!(furniture.len() >= 20, "the mess halls' and the recreation room's furniture: {}", furniture.len());
+        // Closest distance from a walk to a footprint: 0 when the walk enters it.
+        let to_box = |a: (f32, f32), b: (f32, f32), lo: (f32, f32), hi: (f32, f32)| {
+            let inside = |p: (f32, f32)| p.0 >= lo.0 && p.0 <= hi.0 && p.1 >= lo.1 && p.1 <= hi.1;
+            if inside(a) || inside(b) {
+                return 0.0;
+            }
+            let corners = [(lo.0, lo.1), (hi.0, lo.1), (hi.0, hi.1), (lo.0, hi.1)];
+            (0..4).map(|k| seg_dist(a, b, corners[k], corners[(k + 1) % 4])).fold(f32::INFINITY, f32::min)
+        };
+        let mut walks = 0usize;
+        for e in world.entities.values().filter(|e| e.components.get("chore_agent").is_some()) {
+            let name = e.components["name"].as_str().unwrap_or("?");
+            let role = e.components["role"].as_str().unwrap_or("");
+            let eats = e.components.get("eats").and_then(|v| v.as_bool()).unwrap_or(false);
+            let sites: Vec<(&str, [f32; 3])> = world
+                .chores
+                .iter()
+                .filter(|c| (c.roles.is_empty() || c.roles.iter().any(|r| r == role)) && (!c.meal || eats))
+                .map(|c| (c.id.as_str(), world.chore_site_of(c).expect("a valid site")))
+                .collect();
+            for (i, (ia, a)) in sites.iter().enumerate() {
+                for (ib, b) in sites.iter().skip(i + 1) {
+                    walks += 1;
+                    for (id, lo, hi) in &furniture {
+                        let d = to_box((a[0], a[2]), (b[0], b[2]), *lo, *hi);
+                        assert!(d >= 0.5, "{name} walks from {ia} {} to {ib} {} {d:.2} m from {id}, within 0.5 m", fmt3(*a), fmt3(*b));
+                    }
+                }
+            }
+        }
+        assert!(walks >= 20, "the crew's walks were checked: {walks}");
+    }
+
+    /// EVERY ROOM OF THE SHIP HAS A FLOOR OF ITS OWN (ship homes increment 6, lane 1A): the
+    /// explore quest asks a player to visit every room (`explore_quest`), and a point is in the
+    /// SMALLEST room holding it (`room_for_position`), so a zone wholly divided into labelled
+    /// volumes could never be visited and the quest never finished. Every room has somewhere a
+    /// person stands in it and in no smaller room. (The plan drew the cabin block's hall as a
+    /// volume `cabin-block-1` filling its zone beside the washroom; the hall is the zone's own
+    /// floor instead.)
+    ///
+    /// Seen red 2026-10-12 with the hall volume put back in the ship file (`cabin-block-1`, local
+    /// z 0..40 of `cabins-1`, beside the washroom's 40..48): "the room cabins-1 (Cabin Block A) has
+    /// no floor of its own: every point of it is in a smaller room, so the explore quest can never
+    /// be finished".
+    #[test]
+    fn every_room_of_the_ship_has_a_floor_of_its_own() {
+        let world = GameWorld::new();
+        for r in &world.rooms {
+            let step = 0.25_f32;
+            let (nx, nz) = ((r.size[0] / step) as usize, (r.size[2] / step) as usize);
+            let own = (0..=nx).flat_map(|i| (0..=nz).map(move |k| (i, k))).any(|(i, k)| {
+                let p = [r.position[0] + i as f32 * step, r.position[1] + STANDING_Y_M, r.position[2] + k as f32 * step];
+                world.room_for_position(p).is_some_and(|got| got.id == r.id)
+            });
+            assert!(own, "the room {} ({}) has no floor of its own: every point of it is in a smaller room, so the explore quest can never be finished", r.id, r.name);
+        }
+    }
+
     /// AN OLD STORED WORLD UPGRADES: a database holding the world the PREVIOUS code stored
     /// (the Pioneer's, `game_world_snapshot_v9`) opens on this code without trouble, and its
     /// world becomes the ship's: the players' progress is kept (written to player_progress, as
@@ -922,8 +1011,14 @@ mod tests {
         for _ in 0..(20 * 60 * 5) {
             world.tick(0.05); // five real minutes: six game hours at 72x, several meals each
         }
-        let store_id = *world.entities.iter().find(|(_, e)| e.entity_type == "food_store").map(|(id, _)| id).unwrap();
-        let store_at = world.entities[&store_id].position;
+        // Every store where the stores file puts it (two since ship homes increment 6), by its id.
+        let stores_at: std::collections::HashMap<String, [f32; 3]> = world
+            .entities
+            .values()
+            .filter(|e| e.entity_type == "food_store")
+            .map(|e| (e.components["store_id"].as_str().unwrap().to_string(), e.position))
+            .collect();
+        assert!(stores_at.len() >= 2, "the shipped stores stand in the world: {stores_at:?}");
         world.save_to_db(&db).unwrap();
 
         // The snapshot as an old ship file would have left it.
@@ -970,9 +1065,13 @@ mod tests {
                 assert!(plot_at(&plots, t).is_none(), "a crew member walks toward plot p1 at {}", fmt3(t));
             }
         }
-        let store = restored.entities.values().find(|e| e.entity_type == "food_store").expect("the store stands");
-        assert_eq!(store.position, store_at, "the store stands where the stores file puts it");
-        assert_eq!(store.components["meals"].as_f64(), Some(saved_meals), "its stock carried over");
+        let stores: Vec<&GameEntity> = restored.entities.values().filter(|e| e.entity_type == "food_store").collect();
+        assert_eq!(stores.len(), stores_at.len(), "every store stands");
+        for store in stores {
+            let id = store.components["store_id"].as_str().unwrap();
+            assert_eq!(Some(&store.position), stores_at.get(id), "the store {id} stands where the stores file puts it");
+            assert_eq!(store.components["meals"].as_f64(), Some(saved_meals), "its stock carried over");
+        }
         for e in restored.entities.values().filter(|e| e.components.get("chore_agent").is_some()) {
             let name = e.components["name"].as_str().unwrap();
             let was = saved.get(name).unwrap_or_else(|| panic!("{name} was not in the snapshot"));

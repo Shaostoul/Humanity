@@ -235,8 +235,10 @@ mod tests {
 
     /// THE SHIPPED SHIP'S FRAMES, the same from every side. The relay's ship file, the game's
     /// ship assembled at p1 and at p2, and a guest's ship (the home put away) all give the same
-    /// fourteen frames: the Commons and First Street, then the twelve plots, with the ship
-    /// file's corners and sizes, and never the assembled ship's `home` zone, which is the
+    /// frames: the shared zones (the Commons and First Street, and since ship homes increment 6
+    /// the cabin block's hall and the South Commons), then the twelve homesteads and the sixteen
+    /// cabins, with the ship file's corners and sizes, and never the assembled ship's `home`
+    /// zone, which is the
     /// player's own home standing inside its plot. `frame_at` finds the plot, the street or the
     /// Commons a point stands over, and nothing in a corridor or between two plots;
     /// `parse_frame_id` knows a plot from a zone and refuses a planet site; moving a pose to a
@@ -252,8 +254,11 @@ mod tests {
         let relay = ShipStructure::ship_for_relay(&data_dir()).expect("the relay's ship file loads");
         let frames = BuildFrames::of_ship(&relay);
         let ids: Vec<&str> = frames.frames.iter().map(|f| f.id.as_str()).collect();
-        let mut want = vec!["zone:commons".to_string(), "zone:street-1".to_string()];
+        // Since ship homes increment 6 (lane 1A): the cabin block's hall and the South Commons
+        // are zones too, and the sixteen cabins plots, after the twelve homesteads.
+        let mut want: Vec<String> = ["zone:commons", "zone:street-1", "zone:cabins-1", "zone:commons-2"].iter().map(|s| s.to_string()).collect();
         want.extend((1..=12).map(|n| format!("plot:p{n}")));
+        want.extend((1..=16).map(|n| format!("plot:c{n}")));
         assert_eq!(ids, want, "the relay's frames");
         for (game, ship) in [("assembled at p1", assembled("p1")), ("assembled at p2", assembled("p2"))] {
             assert_eq!(BuildFrames::of_ship(&ship), frames, "{game}: the game's frames are the relay's");
@@ -277,6 +282,8 @@ mod tests {
         assert_eq!(at(55.0, 240.0), Some("plot:p3"), "a wall's centre on the plot's line is the plot's");
         assert_eq!(at(80.0, 40.0), Some("zone:commons"));
         assert_eq!(at(70.0, 500.0), Some("zone:street-1"));
+        assert_eq!(at(82.0, 89.0), Some("plot:c1"), "the first cabin");
+        assert_eq!(at(78.5, 100.0), Some("zone:cabins-1"), "the cabins' hall");
         assert_eq!(at(60.0, 40.0), None, "p1's door corridor is no frame");
         assert_eq!(at(30.0, 94.0), None, "nor the gap between p1 and p2");
         assert_eq!(at(-5.0, 40.0), None, "nor off the ship");

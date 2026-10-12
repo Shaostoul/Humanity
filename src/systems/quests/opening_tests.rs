@@ -116,80 +116,17 @@ fn stored_in(rel: &str) -> HashMap<String, u32> {
     out
 }
 
-/// The shipped ship file, with what increment 6's ship lane (1A) adds to it
-/// where the file does not have it yet, each only when the file has none of
-/// its kind, the way the relay's tests add the cabin row
-/// (src/relay/handlers/game_state.rs `with_cabin_plots`). Once the ship file
-/// has them, these tests read the file's own. As the plan places them
-/// (docs/design/ship-homes-increment-6-plan.md section 3.3):
-///   - the cabin row: the hall `cabins-1` ("Cabin Block A", its washroom at
-///     the far end) off First Street, and sixteen cabin plots c1..c16 east of
-///     it, each with its door on the hall;
-///   - a recreation room in the Commons (where the ship lane puts it is its
-///     own choice; this one stands clear of the Commons' doors and spawn);
-///   - the South Commons, with the second mess hall, halfway down First
-///     Street.
+/// The shipped ship file. Since increment 6's ship lane (1A) it holds the
+/// places the Cabin's opening walks (docs/design/ship-homes-increment-6-plan.md
+/// section 3.3): the cabin row (the hall `cabins-1`, "Cabin Block A", its
+/// washroom at the far end, off First Street, and sixteen cabin plots c1..c16
+/// east of it, each with its door on the hall), the Commons' recreation room,
+/// and the South Commons, with the second mess hall, halfway down First Street.
+/// (Until 1A merged, this helper added them where the file had none.)
 fn ship_file() -> ShipStructure {
-    let mut ship = ShipStructure::load_ship_file(&data_dir()).expect("the ship file loads");
-    let zone = |ron_text: &str| ron::from_str::<crate::ship::ship_structure::ShipZone>(ron_text).expect("a test zone parses");
-    let corridor = |to: &str, lat: f32| crate::ship::ship_structure::ShipCorridor {
-        from_zone: "street-1".into(),
-        to_zone: to.into(),
-        lat,
-        width: 3.0,
-        door_width: 2.0,
-        door_height: 2.2,
-        glass_top: true,
-    };
-    let volumes = |ship: &ShipStructure, kind: &str| ship.zones.iter().flat_map(|z| z.body.zones.iter()).filter(|v| v.type_id == kind).count();
-    if !ship.plots.iter().any(|p| p.kind == "cabin") {
-        if ship.zone_index("cabins-1").is_none() {
-            ship.zones.push(zone(
-                r#"(id: "cabins-1", label: "Cabin Block A", purpose: "residence", origin: (77.0, 0.0, 88.0),
-                    body: (width: 3.0, depth: 48.0, height: 3.0, shell_material: 1, roof_material: 4, zones: [
-                        (id: "cabin-block-1", type_id: "cabin_block", origin: (0.0, 0.0, 0.0), size: (3.0, 3.0, 40.0), label: "Cabin Block A", room_type: Some("hall")),
-                        (id: "washroom-1", type_id: "room_bathroom", origin: (0.0, 0.0, 40.0), size: (3.0, 3.0, 8.0), label: "Washroom", room_type: Some("bathroom")),
-                    ]))"#,
-            ));
-            ship.corridors.push(corridor("cabins-1", 92.0));
-        }
-        for i in 0..16 {
-            let z = 88.0 + 2.5 * i as f32;
-            ship.plots.push(crate::ship::ship_structure::Plot {
-                id: format!("c{}", i + 1),
-                parent: None,
-                kind: "cabin".into(),
-                origin: (80.5, 0.0, z),
-                size: (3.0, 3.0, 2.5),
-                door: crate::ship::ship_structure::PlotDoor {
-                    zone: "cabins-1".into(),
-                    lat: z + 1.25,
-                    width: 1.2,
-                    door_width: 0.9,
-                    door_height: 2.0,
-                    glass_top: false,
-                },
-                neighbourhood: String::new(),
-            });
-        }
-    }
-    if volumes(&ship, "recreation") == 0 {
-        let commons = ship.zone_index("commons").expect("the ship has the Commons");
-        ship.zones[commons].body.zones.push(
-            ron::from_str(r#"(id: "recreation", type_id: "recreation", origin: (2.0, 0.0, 34.0), size: (10.0, 3.0, 8.0), label: "Recreation room", room_type: Some("commons"))"#)
-                .expect("a test volume parses"),
-        );
-    }
-    if volumes(&ship, "mess_hall") < 2 {
-        ship.zones.push(zone(
-            r#"(id: "commons-2", label: "The South Commons", purpose: "commons", origin: (77.0, 0.0, 770.0),
-                body: (width: 24.0, depth: 40.0, height: 4.0, shell_material: 1, roof_material: 4, zones: [
-                    (id: "mess-hall-2", type_id: "mess_hall", origin: (0.0, 0.0, 0.0), size: (24.0, 3.0, 8.0), label: "Mess hall", room_type: Some("commons")),
-                ]))"#,
-        ));
-        ship.corridors.push(corridor("commons-2", 790.0));
-    }
-    ship.validate().unwrap_or_else(|e| panic!("the ship with increment 6's places: {e}"));
+    let ship = ShipStructure::load_ship_file(&data_dir()).expect("the ship file loads");
+    assert!(ship.plots.iter().any(|p| p.kind == "cabin"), "the ship file has its cabin row");
+    ship.validate().unwrap_or_else(|e| panic!("the shipped ship: {e}"));
     ship
 }
 
