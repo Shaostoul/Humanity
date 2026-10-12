@@ -12,10 +12,17 @@
 //! every shipped quest, and a returning player who finished the old two-step
 //! First Steps. Native only: it reads the starting kit and the tower designs
 //! through the app's own loaders, and draws the Inventory page.
+//!
+//! THE CABIN'S OPENING (2026-10-12, ship homes increment 6, lane 1G): each
+//! start gives a new character its own opening (data/homes/starts.ron). The
+//! Cabin's, Settling In, is walked here too, on the shipped ship: check
+//! yourself, the mess hall that serves your cabin, a meal there, the
+//! recreation room, your cabin's door.
 
 use super::*;
 use crate::ecs::components::{AsteroidBody, Controllable, StatusEffects, Transform, Vitals, Wallet};
-use crate::ship::ship_structure::ShipStructure;
+use crate::ship::ship_structure::{HomeDesign, ShipStructure};
+use crate::ship::starts::Starts;
 use crate::systems::construction::{placement, BlueprintRegistry, BuildRequest, ConstructionSystem};
 use crate::systems::crafting::{CraftingSystem, RecipeRegistry};
 use crate::systems::farming::{FarmingSystem, PlantRegistry};
@@ -83,6 +90,14 @@ fn placed_in(home_file: &str) -> std::collections::HashSet<String> {
 
 /// What the home's Barn holds at the start (data/places/seed.json).
 fn barn() -> HashMap<String, u32> {
+    let out = stored_in("places/seed.json");
+    assert!(out.get("wood_plank_0").copied().unwrap_or(0) > 0, "the Barn parsed: {out:?}");
+    out
+}
+
+/// What a home's storage holds at the start: every item under the "home"
+/// entity of the places file `rel` (a start's `storage`).
+fn stored_in(rel: &str) -> HashMap<String, u32> {
     fn walk(v: &serde_json::Value, out: &mut HashMap<String, u32>) {
         if let (Some(item), Some(qty)) = (v.get("item").and_then(|i| i.as_str()), v.get("qty").and_then(|q| q.as_u64())) {
             *out.entry(item.to_string()).or_insert(0) += qty as u32;
@@ -91,20 +106,38 @@ fn barn() -> HashMap<String, u32> {
             walk(c, out);
         }
     }
-    let seed: serde_json::Value = serde_json::from_slice(&read("places/seed.json")).expect("seed.json parses");
+    let seed: serde_json::Value = serde_json::from_slice(&read(rel)).unwrap_or_else(|e| panic!("{rel} parses: {e}"));
     let mut out = HashMap::new();
-    for e in seed["entities"].as_array().expect("seed.json lists entities") {
+    for e in seed["entities"].as_array().unwrap_or_else(|| panic!("{rel} lists entities")) {
         if e["id"] == "home" {
             walk(e, &mut out);
         }
     }
-    assert!(out.get("wood_plank_0").copied().unwrap_or(0) > 0, "the Barn parsed: {out:?}");
     out
 }
 
-/// The ship a new player boots, with the shipped home on `plot`.
+/// The shipped ship file. Since increment 6's ship lane (1A) it holds the
+/// places the Cabin's opening walks (docs/design/ship-homes-increment-6-plan.md
+/// section 3.3): the cabin row (the hall `cabins-1`, "Cabin Block A", its
+/// washroom at the far end, off First Street, and sixteen cabin plots c1..c16
+/// east of it, each with its door on the hall), the Commons' recreation room,
+/// and the South Commons, with the second mess hall, halfway down First Street.
+/// (Until 1A merged, this helper added them where the file had none.)
+fn ship_file() -> ShipStructure {
+    let ship = ShipStructure::load_ship_file(&data_dir()).expect("the ship file loads");
+    assert!(ship.plots.iter().any(|p| p.kind == "cabin"), "the ship file has its cabin row");
+    ship.validate().unwrap_or_else(|e| panic!("the shipped ship: {e}"));
+    ship
+}
+
+/// The ship a new player boots, with the shipped home of `plot`'s kind on
+/// `plot` (`HomeDesign::built_in`, never data/homes/<kind>.ron, which in a
+/// repo checkout is the developer's own home).
 fn ship_on(plot: &str) -> ShipStructure {
-    ShipStructure::load_and_assemble_shipped(&data_dir(), Some(plot)).unwrap_or_else(|e| panic!("the home assembles on {plot}: {e}"))
+    let file = ship_file();
+    let kind = file.plots.iter().find(|p| p.id == plot).unwrap_or_else(|| panic!("the ship has no plot {plot}")).kind.clone();
+    let design = HomeDesign::built_in(&kind).unwrap_or_else(|| panic!("no {kind} design is built in"));
+    file.assemble(design, plot).unwrap_or_else(|e| panic!("the home assembles on {plot}: {e}"))
 }
 
 /// The world lib.rs spawns for a new player: the starting kit, fresh vitals,
@@ -143,6 +176,8 @@ struct Game {
     food: FoodSystem,
     drones: DroneSystem,
     quests: QuestSystem,
+    /// The opening this player was given (a quest id).
+    quest: String,
 }
 
 impl Game {
@@ -155,14 +190,43 @@ impl Game {
     /// are the stations), on `plot`, in the Dev play mode when `dev` (its free
     /// resources: crafting and planting take nothing) or else Normal.
     fn of(home_file: &str, plot: &str, dev: bool) -> Self {
-        let mut data = opening_store();
-        data.insert("placed_machine_types", Mutex::new(placed_in(home_file)));
-        *data.get::<Mutex<bool>>("creative_mode").unwrap().lock().unwrap() = dev;
         let ship = ship_on(plot);
-        // The game publishes the front door every frame (engine::quest_hooks).
-        publish_front_door(&mut data, Some(&ship));
         let mut world = hecs::World::new();
         let player = new_player(&mut world, &ship);
+        Self::around(home_file, "places/seed.json", ship, world, player, "gs_first_steps", dev)
+    }
+
+    /// A new character of the start that lives on `plot`'s kind of plot
+    /// (data/homes/starts.ron), spawned as every new character of a start is
+    /// (`save_load::spawn_player_of_start`: its kit, its opening), in its
+    /// first household's home and its own storage, in the Normal play mode.
+    fn starting_on(plot: &str) -> Self {
+        let ship = ship_on(plot);
+        let kind = ship.home_plot().expect("the home stands on a plot").kind.clone();
+        let starts = Starts::load(&data_dir());
+        let start = starts.for_plot_kind(&kind).unwrap_or_else(|| panic!("no offered start lives on a {kind} plot")).clone();
+        let opening = start.opening.clone().unwrap_or_else(|| panic!("the {} start has no opening", start.id));
+        let mut world = hecs::World::new();
+        let player = crate::save_load::spawn_player_of_start(&mut world, &start);
+        Self::around(&start.households[0].machines, &start.storage, ship, world, player, &opening, false)
+    }
+
+    fn around(
+        home_file: &str,
+        storage: &str,
+        ship: ShipStructure,
+        mut world: hecs::World,
+        player: hecs::Entity,
+        quest: &str,
+        dev: bool,
+    ) -> Self {
+        let mut data = opening_store();
+        data.insert("home_stock", Mutex::new(stored_in(storage)));
+        data.insert("placed_machine_types", Mutex::new(placed_in(home_file)));
+        *data.get::<Mutex<bool>>("creative_mode").unwrap().lock().unwrap() = dev;
+        // The game publishes the front door and the ship's places every frame
+        // (engine::quest_hooks).
+        publish_front_door(&mut data, Some(&ship));
         data.insert("camera_position", ship.home_spawn_world().unwrap());
         // The asteroid the drone mines iron from (lib.rs spawns M-12 at boot).
         world.spawn((AsteroidBody {
@@ -183,6 +247,7 @@ impl Game {
             food: FoodSystem::new(&data_dir()),
             drones: DroneSystem::new(),
             quests: QuestSystem::new(),
+            quest: quest.to_string(),
         }
     }
 
@@ -206,11 +271,28 @@ impl Game {
     /// The opening's step the player is on (its length once it is done).
     fn step(&self) -> usize {
         let t = self.world.get::<&QuestTracker>(self.player).unwrap();
-        match t.active_quests.iter().find(|q| q.quest_id == "gs_first_steps") {
+        match t.active_quests.iter().find(|q| q.quest_id == self.quest) {
             Some(q) => q.current_step,
-            None if t.is_completed("gs_first_steps") => opening().steps.len(),
-            None => panic!("First Steps is neither under way nor done"),
+            None if t.is_completed(&self.quest) => quest_def(&self.quest).steps.len(),
+            None => panic!("{} is neither under way nor done", self.quest),
         }
+    }
+
+    /// Put the player on step `i` of their opening (0-based).
+    fn put_on_step(&mut self, i: usize) {
+        let mut t = self.world.get::<&mut QuestTracker>(self.player).unwrap();
+        let quest = t.active_quests.iter_mut().find(|q| q.quest_id == self.quest).expect("the opening is under way");
+        quest.current_step = i;
+    }
+
+    /// Where the place `id` (data/entities/destinations.ron) is a volume
+    /// aboard now, as the quests resolve it for this player standing where
+    /// they stand (`DestinationDef::volume`).
+    fn volume_of(&self, id: &str) -> Option<ShipVolume> {
+        let dests = self.data.get::<DestinationList>("quest_destinations").expect("the destinations are loaded");
+        let dest = dests.destinations.iter().find(|d| d.id == id).unwrap_or_else(|| panic!("no destination {id}"));
+        let at = self.data.get::<Vec3>("camera_position").map_or((0.0, 0.0), |p| (p.x, p.z));
+        dest.volume(Aboard::of(&self.data), at).cloned()
     }
 
     fn notices(&self) -> Vec<String> {
@@ -248,15 +330,20 @@ impl Game {
 
 /// The shipped opening.
 fn opening() -> QuestDef {
-    QuestRegistry::from_ron_dir(&data_dir().join("quests")).get("gs_first_steps").expect("First Steps ships").clone()
+    quest_def("gs_first_steps")
+}
+
+/// A shipped quest.
+fn quest_def(id: &str) -> QuestDef {
+    QuestRegistry::from_ron_dir(&data_dir().join("quests")).get(id).unwrap_or_else(|| panic!("{id} ships")).clone()
 }
 
 /// How far out of the door the shipped front-door destination stands.
 const DOORSTEP_OUT_M: f32 = 1.5;
 
-/// What the player reads for step `i` of the opening on `game`'s plot.
+/// What the player reads for step `i` of `game`'s opening on its plot.
 fn line(game: &Game, i: usize) -> String {
-    step_text(&opening().steps[i].description, &game.data)
+    step_text(&quest_def(&game.quest).steps[i].description, &game.data)
 }
 
 // ── Eat ────────────────────────────────────────────────────────────────
@@ -524,25 +611,25 @@ fn opening_inventory_status_finishes_the_vitals_step() {
 
 /// THE FRONT DOOR IS THE DOOR OF THE PLOT YOU WERE GIVEN (2026-10-04), never a
 /// fixed coordinate. For every plot of the shipped ship, with the shipped
-/// home on it: the door is where that plot's corridor leaves the home, it
-/// opens on that plot's door zone (the Commons for p1, First Street for p2),
-/// the doorstep the opening's last step asks for is a step out of it, the
-/// spot the player wakes up in is not, and standing on the doorstep finishes
-/// the step. A guest, whose home is put away, has no front door aboard.
+/// home of its kind on it: the door is where that plot's corridor leaves the
+/// home, it opens on that plot's door zone (the Commons for p1, First Street
+/// for p2, a cabin's block hall for a cabin), the doorstep the opening's last
+/// step asks for is a step out of it, the spot the player wakes up in is
+/// not, and standing on the doorstep finishes the step. Each plot is played
+/// by a new character of the start that lives on its kind of plot, with that
+/// start's own opening (both openings end at the door, since 2026-10-12). A
+/// guest, whose home is put away, has no front door aboard.
 ///
 /// Red, run with the destination as the fixed point outside p1's door,
 /// (56.5, 40): "on plot p2, standing on its own doorstep finishes the step"
 /// (left: 7, right: 8).
 #[test]
 fn the_front_door_is_the_door_of_the_plot_you_were_given() {
-    let file = ShipStructure::load_ship_file(&data_dir()).expect("the ship file loads");
+    let file = ship_file();
     assert!(file.plots.len() >= 2, "the ship has a family plot and a street plot");
-    let design = crate::ship::ship_structure::HomeDesign::built_in("homestead").expect("the homestead design is built in");
     let mut opens_on = Vec::new();
-    // The homestead plots: First Steps is the homestead's opening (since ship homes increment 6
-    // the ship file holds sixteen cabin plots too, whose home is the cabin and whose opening is
-    // its own).
-    for plot in file.plots.iter().filter(|p| p.kind == "homestead") {
+    for plot in &file.plots {
+        let design = HomeDesign::built_in(&plot.kind).unwrap_or_else(|| panic!("the {} design is built in", plot.kind));
         let ship = ship_on(&plot.id);
         let door = front_door_of(&ship).unwrap_or_else(|| panic!("plot {} has a front door", plot.id));
         let expected = (plot.origin.0 + design.door.0, plot.origin.2 + design.door.1);
@@ -559,14 +646,21 @@ fn the_front_door_is_the_door_of_the_plot_you_were_given() {
         assert!(door.outward.0 * to_zone.0 + door.outward.1 * to_zone.1 > 0.0, "plot {}: out of the door is toward {}", plot.id, zone.label);
         opens_on.push(door.opens_on.clone());
 
-        let mut game = Game::new(&plot.id);
-        game.world.get::<&mut QuestTracker>(game.player).unwrap().active_quests[0].current_step = opening().steps.len() - 1;
+        let mut game = Game::starting_on(&plot.id);
+        let steps = quest_def(&game.quest).steps.len();
+        assert!(
+            matches!(&quest_def(&game.quest).steps[steps - 1].objective, QuestObjective::Travel { destination } if destination == "front_door"),
+            "plot {}: {} ends at the front door",
+            plot.id,
+            game.quest
+        );
+        game.put_on_step(steps - 1);
         game.tick();
-        assert_eq!(game.step(), opening().steps.len() - 1, "plot {}: waking up just inside the door is not stepping out of it", plot.id);
+        assert_eq!(game.step(), steps - 1, "plot {}: waking up just inside the door is not stepping out of it", plot.id);
         let at = game.doorstep();
         game.stand_at(at);
         game.tick();
-        assert_eq!(game.step(), opening().steps.len(), "on plot {}, standing on its own doorstep finishes the step", plot.id);
+        assert_eq!(game.step(), steps, "on plot {}, standing on its own doorstep finishes the step", plot.id);
     }
     assert!(opens_on.contains(&"The Commons".to_string()), "a family plot opens on the Commons: {opens_on:?}");
     assert!(opens_on.contains(&"First Street".to_string()), "a street plot opens on First Street: {opens_on:?}");
@@ -764,13 +858,213 @@ fn walk_the_opening(home_file: &str, plot: &str, dev: bool) {
     assert!(t.is_active("gs_toolsmith"), "{walk}: the chain runs on into Toolsmith");
 }
 
+// ── The Cabin's opening (2026-10-12, ship homes increment 6) ───────────
+
+/// THE CABIN'S OPENING, WALKED ON THIS DATA: a new Cabin character (spawned
+/// as every new character of a start is, `save_load::spawn_player_of_start`,
+/// so with the Cabin's kit and the opening data/homes/starts.ron gives it) on
+/// the ship's first cabin plot does what each of Settling In's five lines
+/// says, and the real systems take it from waking up to its own cabin door:
+/// the vitals; the mess hall that serves the cabin, stood in at its stores'
+/// end, where a meal is taken (13 m from the hall's middle on this ship); a
+/// meal, eaten;
+/// the recreation room; the cabin's door, on its block's hall. Each step
+/// done in order with its notice, the last with the quest's, and nothing
+/// after it (a cabin has no workshop for Toolsmith). On the way the player
+/// looks into the recreation room before the mess hall, which must not count.
+///
+/// THE MEAL is eaten as a meal from the mess hall's counter is today
+/// (engine::fleet `on_meal`, for the meal the server's `take_meal` serves):
+/// the fleet ledger's meal good goes into the backpack through
+/// `engine::fleet::feed` and is eaten through the Eat button's path (lib.rs
+/// hands `pending_consume_item` to the food system's `consume_request`); the
+/// food system reports it eaten (`eat_event_key`), and that is what the Eat
+/// step counts. The counter's own button (increment 6's lane 1D) must serve
+/// its meal, online and offline, through that same path to count here.
+///
+/// Red, run 2026-10-12 with `NearestVolume` unresolved (`distance_from`
+/// answering None for it): "the Cabin's opening on c1: walking into the mess
+/// hall: the opening stayed on step 2 for 2 ticks (notices: [])".
+#[test]
+fn the_cabin_opening_walks_on_this_data() {
+    let plot = ship_file().default_plot_of_kind("cabin").expect("the ship has cabin plots");
+    let walk = format!("the Cabin's opening on {plot}");
+    let mut game = Game::starting_on(&plot);
+    let def = quest_def(&game.quest);
+    let kinds: Vec<String> = def
+        .steps
+        .iter()
+        .map(|s| match &s.objective {
+            QuestObjective::View { view } => format!("view {view}"),
+            QuestObjective::Eat { .. } => "eat".to_string(),
+            QuestObjective::Travel { destination } => format!("to {destination}"),
+            other => format!("{other:?}"),
+        })
+        .collect();
+    assert_eq!(
+        kinds,
+        ["view vitals", "to mess_hall", "eat", "to recreation", "to front_door"],
+        "{walk}: the five steps of the plan, in its order ({})",
+        def.id
+    );
+    let n = def.steps.len();
+    let player = game.player;
+    let meal = crate::relay::handlers::fleet_ledger::LedgerData {
+        file: crate::relay::handlers::fleet_ledger::LedgerData::load_file(&data_dir().join("ship/fleet_ledger.ron")),
+        goods: Default::default(),
+    }
+    .meal_item()
+    .expect("the fleet ledger prices a meal as a good")
+    .to_string();
+    let carries = |game: &Game, id: &str| game.world.get::<&Inventory>(player).unwrap().count_item(id);
+    assert_eq!(carries(&game, &meal), 0, "{walk}: a cabin's kit carries no {meal}: the meal is the mess hall's");
+
+    game.tick();
+    assert_eq!(game.step(), 0, "{walk}: nothing is done by waking up");
+    assert!(game.notices().is_empty(), "{walk}: no notice for waking up");
+    let expect_step_notice = |game: &Game, said: &[String], done: usize| {
+        let want = step_notice(&def.name, done, n, &line(game, done));
+        assert!(said.contains(&want), "{walk}: step {done} posts its notice {want:?}, got {said:?}");
+    };
+
+    // 1. Check your vitals: press I, see Inventory > Status.
+    push_quest_event(&game.data, view_event_key("vitals"));
+    let said = game.until_past(0, 2, &format!("{walk}: the vitals"));
+    expect_step_notice(&game, &said, 1);
+
+    // The places, as this cabin's player is sent to them: the Commons'.
+    let hall = game.volume_of("mess_hall").expect("a mess hall is aboard");
+    let rec = game.volume_of("recreation").expect("a recreation room is aboard");
+    for (place, step) in [(&hall, 1), (&rec, 3)] {
+        assert!(line(&game, step).contains(&place.zone_in_a_sentence()), "{walk}: step {} names {}", step + 1, place.zone_label);
+    }
+    let middle = |v: &ShipVolume| ((v.min.0 + v.max.0) * 0.5, (v.min.1 + v.max.1) * 0.5);
+
+    // A curious player looks into the recreation room first: not the mess hall.
+    game.stand_at(middle(&rec));
+    game.tick();
+    assert_eq!(game.step(), 1, "{walk}: the recreation room is not the mess hall");
+    assert!(game.notices().is_empty(), "{walk}: looking into the recreation room early finishes nothing");
+
+    // 2. Walk to the mess hall, in the Commons: to the ship's stores at its
+    //    end (data/food/ship_stores.ron), where a meal is taken.
+    let provisions = crate::relay::handlers::ship_stores::Provisions::parse(&String::from_utf8(read("food/ship_stores.ron")).unwrap())
+        .expect("ship_stores.ron parses");
+    let store = provisions.stores.iter().find(|s| s.place == hall.id).unwrap_or_else(|| panic!("{walk}: the ship's stores stand in {}", hall.id));
+    let at_stores = (hall.min.0 + store.spot.0, hall.min.1 + store.spot.1);
+    game.stand_at(at_stores);
+    let said = game.until_past(1, 2, &format!("{walk}: walking into the mess hall"));
+    expect_step_notice(&game, &said, 2);
+
+    // 3. Take a meal: E at the serving counter, then Take a meal. The meal
+    //    goes into the backpack and is eaten through the Eat button's path.
+    let before = game.world.get::<&Vitals>(player).unwrap().satiation;
+    game.world.get::<&mut Vitals>(player).unwrap().satiation = before * 0.5;
+    let hungry = before * 0.5;
+    let mut gui = crate::gui::GuiState::default();
+    assert!(crate::engine::fleet::feed(&mut game.world, &mut gui, &meal, 99), "{walk}: the meal goes into the backpack");
+    let eat = gui.pending_consume_item.take().expect("the meal is sent to be eaten");
+    game.request("consume_request", &eat);
+    let said = game.until_past(2, 2, &format!("{walk}: eating the meal"));
+    expect_step_notice(&game, &said, 3);
+    assert_eq!(carries(&game, &meal), 0, "{walk}: the meal was eaten");
+    assert!(game.world.get::<&Vitals>(player).unwrap().satiation > hungry, "{walk}: the meal fed the player");
+
+    // 4. Visit the recreation room in the Commons.
+    game.stand_at(middle(&rec));
+    let said = game.until_past(3, 2, &format!("{walk}: the recreation room"));
+    expect_step_notice(&game, &said, 4);
+    let opens_on = front_door_of(&game.ship).expect("the cabin has a front door").opens_on_in_a_sentence();
+    assert!(line(&game, 4).ends_with(&format!("cabin door on {opens_on}")), "{walk}: the last line names the cabin's block: {}", line(&game, 4));
+
+    // Still in the recreation room: not home.
+    game.tick();
+    assert_eq!(game.step(), n - 1, "{walk}: the opening ends at the cabin's door");
+
+    // 5. Head home to your cabin door on Cabin Block A.
+    let at = game.doorstep();
+    game.stand_at(at);
+    game.tick();
+    assert_eq!(game.step(), n, "{walk}: at the cabin's door, the opening is done");
+    assert_eq!(
+        game.notices(),
+        vec![format!("Quest complete: {}. You received 1 Basic Ration.", def.name)],
+        "{walk}: the end of the opening says what it gave, and nothing follows it"
+    );
+    assert_eq!(carries(&game, "ration_basic_0"), 1, "{walk}: the reward is in the backpack");
+    assert!(game.world.get::<&QuestTracker>(player).unwrap().active_quests.is_empty(), "{walk}: no quest follows a cabin's opening");
+}
+
+/// THE MESS HALL IS THE NEAREST ONE (2026-10-12, ship homes increment 6): the
+/// mess hall a player is sent to is the one nearest their own front door. For
+/// every plot of the ship with the shipped home of its kind on it, the place
+/// the quests resolve (published by the game with the front door, read
+/// through the destination) is the mess hall the ship file's own geometry
+/// puts nearest that plot's door; the first cabin is served by the Commons'
+/// mess hall, and the homestead farthest down First Street by the South
+/// Commons'. So both are someone's, and the choice is really made.
+///
+/// Red, run 2026-10-12 with the first volume of the type taken instead of the
+/// nearest (`ShipPlaces::nearest` as a `find`): "assertion `left == right`
+/// failed: from p5's door the nearest mess hall is mess-hall-2 in The South
+/// Commons, got mess-hall in The Commons".
+#[test]
+fn the_mess_hall_is_the_nearest_one() {
+    let file = ship_file();
+    let dests = DestinationList::from_ron(&read("entities/destinations.ron")).expect("destinations parse");
+    let mess_hall = dests.destinations.iter().find(|d| d.id == "mess_hall").expect("the mess hall is a destination");
+    // Every mess hall of the ship, from the file itself: (id, zone label, floor min, floor max).
+    let halls: Vec<(String, String, (f32, f32), (f32, f32))> = file
+        .zones
+        .iter()
+        .flat_map(|z| {
+            z.body.zones.iter().filter(|v| v.type_id == "mess_hall").map(move |v| {
+                let min = (z.origin.0 + v.origin.0, z.origin.2 + v.origin.2);
+                (v.id.clone(), z.label.clone(), min, (min.0 + v.size.0, min.1 + v.size.2))
+            })
+        })
+        .collect();
+    assert!(halls.len() >= 2, "the ship has the Commons' mess hall and the South Commons': {halls:?}");
+    let far = |h: &(String, String, (f32, f32), (f32, f32)), p: (f32, f32)| {
+        let dx = (h.2 .0 - p.0).max(p.0 - h.3 .0).max(0.0);
+        let dz = (h.2 .1 - p.1).max(p.1 - h.3 .1).max(0.0);
+        dx.hypot(dz)
+    };
+    let mut served: HashMap<String, String> = HashMap::new(); // plot -> the mess hall's id
+    for plot in &file.plots {
+        let mut data = DataStore::new();
+        publish_front_door(&mut data, Some(&ship_on(&plot.id)));
+        let door = data.get::<FrontDoor>(FRONT_DOOR_KEY).unwrap_or_else(|| panic!("{} has a front door", plot.id)).door;
+        let got = mess_hall.volume(Aboard::of(&data), (0.0, 0.0)).unwrap_or_else(|| panic!("a mess hall resolves from {}'s door", plot.id));
+        let want = halls.iter().min_by(|a, b| far(a, door).total_cmp(&far(b, door))).unwrap();
+        assert_eq!(
+            got.id, want.0,
+            "from {}'s door the nearest mess hall is {} in {}, got {} in {}",
+            plot.id, want.0, want.1, got.id, got.zone_label
+        );
+        served.insert(plot.id.clone(), got.id.clone());
+    }
+    let first_cabin = file.default_plot_of_kind("cabin").expect("the ship has cabin plots");
+    let far_homestead = file
+        .plots
+        .iter()
+        .filter(|p| p.kind == "homestead")
+        .max_by(|a, b| a.origin.2.total_cmp(&b.origin.2))
+        .expect("the ship has homesteads");
+    let commons = &halls.iter().find(|h| h.1 == "The Commons").expect("the Commons has a mess hall").0;
+    assert_eq!(&served[&first_cabin], commons, "from {first_cabin}, the Commons' mess hall");
+    let south = &halls.iter().find(|h| h.1 == "The South Commons").expect("the South Commons has a mess hall").0;
+    assert_eq!(&served[&far_homestead.id], south, "from {}, the far end of First Street, the South Commons'", far_homestead.id);
+}
+
 // ── The HUD's line, and the names in it ────────────────────────────────
 
 /// EVERY STEP OF EVERY SHIPPED QUEST FITS THE HUD'S QUEST LINE (2026-10-04):
 /// the line is the step as the player reads it with its "(2/8)", cut at 64
 /// characters (src/gui/pages/hud.rs `quest_line`, `QUEST_LINE_CHARS`). A step
-/// naming what the front door opens on is read on every plot of the ship, and
-/// with no door at all ("the ship").
+/// naming what the front door opens on is read on every plot of the ship (the
+/// cabin row's too, whose doors open on their block's hall), and with no door
+/// at all ("the ship").
 ///
 /// Red, run on a draft of the last step, "Step out your front door, by the
 /// Entry, to see {front_door_opens_on}": 64 on the Commons, 65 on First
@@ -781,7 +1075,7 @@ fn walk_the_opening(home_file: &str, plot: &str, dev: bool) {
 fn every_step_of_every_shipped_quest_fits_the_hud_line() {
     use crate::gui::pages::hud::{quest_line, QUEST_LINE_CHARS};
     let reg = QuestRegistry::from_ron_dir(&data_dir().join("quests"));
-    let file = ShipStructure::load_ship_file(&data_dir()).expect("the ship file loads");
+    let file = ship_file();
     // Every way a front door can read: each plot's, and none.
     let mut doors: Vec<(String, DataStore)> = vec![("no plot".to_string(), DataStore::new())];
     for plot in &file.plots {
@@ -815,6 +1109,24 @@ fn every_step_of_every_shipped_quest_fits_the_hud_line() {
 /// Red, run with the tool step reading "Carve a Fishing Rod": "the opening's
 /// line \"Craft a tool: Esc > Crafting > Carve a Fishing Rod > Craft\" names
 /// none of the recipes that make fishing_rod_0".
+///
+/// EVERY START'S OPENING (2026-10-12, ship homes increment 6): each offered
+/// start with an opening is read, against its own kit and the plots its homes
+/// stand on. A place aboard (the mess hall, the recreation room) is named by
+/// its label and by the zone it stands in, for every plot of the start's kind:
+/// the place is the one nearest that plot's door, so a line naming the
+/// Commons must be true from every cabin. A start whose kit carries no food
+/// eats at the mess hall: its Eat line names the serving counter and its Take
+/// a meal button, after a step that walks to the mess hall, and the ship's
+/// stores stand in the mess hall each of its homes is sent to
+/// (data/food/ship_stores.ron). The counter itself and its button come with
+/// the ship lane and the mess hall lane of increment 6 (1A, 1D); this reads
+/// their words from the line only.
+///
+/// Red, run 2026-10-12 with the Cabin's mess hall step reading "Walk to the
+/// mess hall, in the South Commons": "the opening's line \"Walk to the mess
+/// hall, in the South Commons\" names \"the Commons\": the zone of the
+/// mess_hall nearest c1's door".
 #[test]
 fn every_step_of_the_opening_names_what_the_game_shows() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
@@ -827,68 +1139,129 @@ fn every_step_of_the_opening_names_what_the_game_shows() {
     let items = ItemRegistry::from_csv(&read("items.csv")).unwrap();
     let blueprints = BlueprintRegistry::from_ron(&read("blueprints/basic.ron")).unwrap();
     let towers = crate::gui::load_tower_configs(&data_dir());
-    let kit: Vec<String> = crate::save_load::starting_kit(&data_dir(), "homestead").into_iter().map(|(id, _)| id).collect();
-    let def = opening();
+    let dests = DestinationList::from_ron(&read("entities/destinations.ron")).expect("destinations parse");
+    let stores = crate::relay::handlers::ship_stores::Provisions::parse(&String::from_utf8(read("food/ship_stores.ron")).unwrap())
+        .expect("ship_stores.ron parses");
+    let file = ship_file();
     let has = |text: &str, part: &str, why: &str| assert!(text.contains(part), "the opening's line {text:?} names {part:?}: {why}");
     // The keys it names are the World keys (data/keymaps.ron).
     assert!(keys.contains("(action: \"Inventory\", keys: \"I\")"), "I opens the Inventory");
     assert!(keys.contains("(action: \"Menu / back\", keys: \"Esc\")"), "Esc opens the menu");
+    assert!(keys.contains("keys: \"E (look at a target)\""), "E opens what the player looks at");
     assert!(nav.contains("NavItem { label: \"Crafting\""), "the menu has a Crafting tab");
-    for s in &def.steps {
-        let t = &s.description;
-        match &s.objective {
-            QuestObjective::View { view } => {
-                assert_eq!(view, "vitals");
-                has(t, "press I", "the key");
-                has(t, "Inventory > Status", "the section");
-                assert!(inventory.contains("(\"inv_sec\", \"status\"), \"Status\""), "the Inventory page has a Status section");
+    let starts = Starts::load(&data_dir());
+    let mut read_openings = Vec::new();
+    for start in starts.offered() {
+        let Some(id) = &start.opening else { continue };
+        read_openings.push(id.clone());
+        let def = quest_def(id);
+        let kit: Vec<String> = start.kit.iter().map(|(id, _)| id.clone()).collect();
+        let food = kit.iter().find(|id| crate::systems::food::consume_kinds().get(*id) == Some(&false));
+        // Each plot this start's homes stand on, as the quests see it from there.
+        let plots: Vec<(String, DataStore)> = file
+            .plots
+            .iter()
+            .filter(|p| p.kind == start.plot_kind)
+            .map(|p| {
+                let mut data = DataStore::new();
+                publish_front_door(&mut data, Some(&ship_on(&p.id)));
+                (p.id.clone(), data)
+            })
+            .collect();
+        assert!(!plots.is_empty(), "the {} start has plots aboard", start.id);
+        // The place a step goes to, from each plot.
+        let places_of = |destination: &str| -> Vec<(String, ShipVolume)> {
+            let dest = dests.destinations.iter().find(|d| d.id == destination).unwrap_or_else(|| panic!("no destination {destination}"));
+            plots
+                .iter()
+                .map(|(plot, data)| {
+                    let v = dest.volume(Aboard::of(data), (0.0, 0.0)).unwrap_or_else(|| panic!("{destination} resolves from {plot}'s door"));
+                    (plot.clone(), v.clone())
+                })
+                .collect()
+        };
+        let mut walked_to_mess_hall = false;
+        for s in &def.steps {
+            let t = &s.description;
+            match &s.objective {
+                QuestObjective::View { view } => {
+                    assert_eq!(view, "vitals");
+                    has(t, "press I", "the key");
+                    has(t, "Inventory > Status", "the section");
+                    assert!(inventory.contains("(\"inv_sec\", \"status\"), \"Status\""), "the Inventory page has a Status section");
+                }
+                QuestObjective::Eat { .. } if food.is_some() => {
+                    has(t, "press I", "the key");
+                    has(t, "then Eat", "the button");
+                    assert!(inventory.contains("\"Eat\""), "food in the backpack has an Eat button");
+                    has(t, &items.items[food.unwrap()].name, "the food in the starting kit");
+                }
+                // No food carried: the meal is the mess hall's.
+                QuestObjective::Eat { .. } => {
+                    assert!(walked_to_mess_hall, "{}: the Eat step comes after the walk to the mess hall, since the kit holds no food", def.id);
+                    has(t, "E at the serving counter", "where the meal is taken, and the key");
+                    has(t, "Take a meal", "the counter card's button");
+                    for (plot, hall) in places_of("mess_hall") {
+                        assert!(
+                            stores.stores.iter().any(|st| st.place == hall.id),
+                            "the mess hall {} that {plot}'s door is sent to has no ship's stores (data/food/ship_stores.ron)",
+                            hall.id
+                        );
+                    }
+                }
+                QuestObjective::Plant { .. } => {
+                    has(t, "press I", "the key");
+                    has(t, "Garden", "the section");
+                    assert!(inventory.contains("(\"inv_sec\", \"garden\"), \"Garden\""), "the Inventory page has a Garden section");
+                    assert!(inventory.contains("\"Plant this tower\""), "a tower design's button plants it");
+                    let tower = towers.iter().find(|tw| t.contains(&tw.name)).unwrap_or_else(|| panic!("the opening's line {t:?} names a tower design"));
+                    assert!(
+                        tower.plantings.iter().any(|p| kit.contains(&format!("seed_{}_0", p.plant))),
+                        "the {} tower grows something the starting kit has a seed for",
+                        tower.name
+                    );
+                }
+                QuestObjective::Make { item_id, .. } => {
+                    has(t, "Crafting > ", "the page");
+                    let named: Vec<&str> = recipes.recipes_producing(item_id).iter().map(|r| r.name.as_str()).filter(|n| t.contains(n)).collect();
+                    assert!(!named.is_empty(), "the opening's line {t:?} names none of the recipes that make {item_id}");
+                }
+                QuestObjective::Gather { .. } => {
+                    has(t, "Inventory > Mining", "the drone");
+                    has(t, "trading post (E)", "the vendor, and the key that opens it");
+                    assert!(inventory.contains("(\"inv_sec\", \"mining\"), \"Mining\""), "the Inventory page has a Mining section");
+                }
+                QuestObjective::Build { blueprint_id } => {
+                    has(t, "Crafting > Structures", "the section");
+                    has(t, "then E", "the key that builds it");
+                    assert!(crafting.contains("RichText::new(\"Structures\")"), "the Crafting page has Structures");
+                    assert!(blueprints.blueprints.contains_key(blueprint_id), "the blueprint ships");
+                }
+                QuestObjective::Travel { destination } if destination == "front_door" => {
+                    has(t, "door", "where");
+                    has(t, FRONT_DOOR_OPENS_ON, "what it opens on, for the plot the player was given");
+                }
+                // A shared place aboard: its own label, and the zone it stands
+                // in as seen from every one of this start's plots.
+                QuestObjective::Travel { destination } => {
+                    let lower = t.to_lowercase();
+                    for (plot, place) in places_of(destination) {
+                        assert!(!place.label.is_empty(), "the {} volume {} has a label to name it by", place.type_id, place.id);
+                        assert!(
+                            lower.contains(&place.label.to_lowercase()),
+                            "the opening's line {t:?} names {:?}: the {destination} {plot}'s door is sent to",
+                            place.label
+                        );
+                        has(t, &place.zone_in_a_sentence(), &format!("the zone of the {destination} nearest {plot}'s door"));
+                    }
+                    walked_to_mess_hall |= destination == "mess_hall";
+                }
+                other => panic!("the opening has a step the game cannot see done: {other:?}"),
             }
-            QuestObjective::Eat { .. } => {
-                has(t, "press I", "the key");
-                has(t, "then Eat", "the button");
-                assert!(inventory.contains("\"Eat\""), "food in the backpack has an Eat button");
-                let food = kit
-                    .iter()
-                    .find(|id| crate::systems::food::consume_kinds().get(*id) == Some(&false))
-                    .expect("the starting kit holds food");
-                has(t, &items.items[food].name, "the food in the starting kit");
-            }
-            QuestObjective::Plant { .. } => {
-                has(t, "press I", "the key");
-                has(t, "Garden", "the section");
-                assert!(inventory.contains("(\"inv_sec\", \"garden\"), \"Garden\""), "the Inventory page has a Garden section");
-                assert!(inventory.contains("\"Plant this tower\""), "a tower design's button plants it");
-                let tower = towers.iter().find(|tw| t.contains(&tw.name)).unwrap_or_else(|| panic!("the opening's line {t:?} names a tower design"));
-                assert!(
-                    tower.plantings.iter().any(|p| kit.contains(&format!("seed_{}_0", p.plant))),
-                    "the {} tower grows something the starting kit has a seed for",
-                    tower.name
-                );
-            }
-            QuestObjective::Make { item_id, .. } => {
-                has(t, "Crafting > ", "the page");
-                let named: Vec<&str> = recipes.recipes_producing(item_id).iter().map(|r| r.name.as_str()).filter(|n| t.contains(n)).collect();
-                assert!(!named.is_empty(), "the opening's line {t:?} names none of the recipes that make {item_id}");
-            }
-            QuestObjective::Gather { .. } => {
-                has(t, "Inventory > Mining", "the drone");
-                has(t, "trading post (E)", "the vendor, and the key that opens it");
-                assert!(inventory.contains("(\"inv_sec\", \"mining\"), \"Mining\""), "the Inventory page has a Mining section");
-                assert!(keys.contains("keys: \"E (look at a target)\""), "E opens what the player looks at");
-            }
-            QuestObjective::Build { blueprint_id } => {
-                has(t, "Crafting > Structures", "the section");
-                has(t, "then E", "the key that builds it");
-                assert!(crafting.contains("RichText::new(\"Structures\")"), "the Crafting page has Structures");
-                assert!(blueprints.blueprints.contains_key(blueprint_id), "the blueprint ships");
-            }
-            QuestObjective::Travel { destination } => {
-                assert_eq!(destination, "front_door");
-                has(t, "front door", "where");
-                has(t, FRONT_DOOR_OPENS_ON, "what it opens on, for the plot the player was given");
-            }
-            other => panic!("the opening has a step the game cannot see done: {other:?}"),
         }
+    }
+    for want in ["gs_first_steps", "gs_first_steps_cabin"] {
+        assert!(read_openings.iter().any(|id| id == want), "{want} was read, as an offered start's opening: {read_openings:?}");
     }
 }
 

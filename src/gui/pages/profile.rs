@@ -226,11 +226,19 @@ fn draw_network_profile(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
 
         // Member-directory opt-out (audit 2026-06-12). On = listed in this server's
         // public member directory; off sends profile privacy directory:"unlisted" so
-        // the relay hides you from /api/members (you stay a full member, just unlisted).
+        // the relay hides you from /api/members (you stay a full member, just unlisted),
+        // and the copy of your profile other servers keep is withdrawn: the server asks
+        // this app to sign a blank copy that replaces it on every linked server (BUG-191,
+        // own_profile.rs `take_own_copy`).
         ui.add_space(theme.spacing_sm);
         ui.checkbox(
             &mut state.profile_directory_listed,
             "List me in the public member directory",
+        );
+        ui.label(
+            RichText::new("Off: you are left out of this server's member list, and your profile is not passed on to the servers this one is linked with.")
+                .color(theme.text_muted())
+                .size(theme.font_size_small),
         );
 
         // Online status

@@ -111,6 +111,17 @@ pub fn is_start_id(s: &str) -> bool {
     !s.is_empty() && s.len() <= 32 && s.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-' || b == b'_')
 }
 
+/// Every start's opening quest, as (start id, quest id), read once per run. The Quests page's
+/// Available list asks every frame which quests are some start's opening, so a player is never
+/// offered another start's (2026-10-12: a homestead player was offered the Cabin's "Settling
+/// In", and a Cabin player the homestead's "First Steps").
+pub fn opening_quests(data_dir: &Path) -> &'static [(String, String)] {
+    static OPENINGS: std::sync::OnceLock<Vec<(String, String)>> = std::sync::OnceLock::new();
+    OPENINGS.get_or_init(|| {
+        Starts::load(data_dir).starts.iter().filter_map(|s| s.opening.clone().map(|q| (s.id.clone(), q))).collect()
+    })
+}
+
 impl Starts {
     /// Parse a starts file and check it (`validate`): what `load` builds the disk copy and the
     /// built-in copy with, so a file that parses but breaks a rule is set aside like one that
@@ -364,6 +375,19 @@ pub fn refusal_words(r: HomeRefusal, asked: &Start, held: Option<&HeldHome>, fre
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// EACH START NAMES ITS OWN OPENING, READ ONCE (the Quests page leaves out every other
+    /// start's, lib.rs's Available list). Seen red 2026-10-12 with `opening_quests` returning an
+    /// empty list: "the homestead's opening is listed" failed.
+    #[test]
+    fn each_start_names_its_own_opening() {
+        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let openings = opening_quests(&data);
+        let of = |start: &str| openings.iter().find(|(s, _)| s == start).map(|(_, q)| q.as_str());
+        assert_eq!(of("homestead"), Some("gs_first_steps"), "the homestead's opening is listed");
+        assert_eq!(of("cabin"), Some("gs_first_steps_cabin"), "and the cabin's");
+        assert!(std::ptr::eq(openings, opening_quests(&data)), "read once");
+    }
     use std::path::PathBuf;
 
     fn data_dir() -> PathBuf {

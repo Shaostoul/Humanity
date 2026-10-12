@@ -30,12 +30,30 @@
 //! fills the bio, picture and directory choice where the person has not changed them since the
 //! last copy the page took (from whichever server), so an unsaved edit stays, and switching
 //! servers shows that server's profile.
+//!
+//! THE COPY OTHER SERVERS KEEP (BUG-191, 2026-10-12, docs/design/bug-191-profile-copies-plan.md
+//! 3.10). A server never signs the person's profile for them. When it wants the servers it is
+//! linked with to have a new copy (after a save from any of their devices, or when the copy out
+//! there shows more than they now allow), their own copy comes with `sign_now: true`. The app then
+//! builds the PUBLIC copy of exactly what that server stored (`profile_copy::public_copy`: the
+//! fields kept for friends blank, every field blank when they are unlisted), under the name the
+//! copy carries, signs it with their Dilithium3 key and sends one `profile_sign` back on the socket
+//! the copy came in on (`take_own_copy`). The server rebuilds the copy itself, checks the
+//! signature, keeps it and passes it on. Nothing is signed without `sign_now`, nor with the
+//! identity locked. The time on it is after the clock, after the copy that server holds
+//! (`signed_at`) and after the last one this app signed for that server in this run
+//! (`OwnProfile::signed_here`), so a device whose clock runs fast cannot win every later edit.
+//! The website's twin is web/chat/chat-profile.js `signProfileCopy`; the shared fixture
+//! scripts/tests/fixtures/profile-copy-v1.json holds both to the relay's bytes.
 
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
+use serde_json::Value;
+
 use crate::gui::pages::files_settings::ServerProfile;
 use crate::gui::GuiState;
+use crate::relay::core::profile_copy;
 
 /// The least time between two profile updates to one server (the relay allows one per 30 seconds).
 pub(crate) const SEND_GAP: Duration = Duration::from_secs(31);
@@ -68,6 +86,10 @@ pub struct OwnProfile {
     /// servers (files_settings.rs `sync_accepts`). A server's entry goes when its copy carries the
     /// word; every entry goes when the person makes a new choice.
     pub(crate) accept_sent: HashMap<String, String>,
+    /// The time on the last copy for other servers this app signed for each server (normalised
+    /// address), in Unix milliseconds: the next one is dated after it (`next_copy_time`). In
+    /// memory, this run only; the server's `signed_at` covers the rest.
+    pub(crate) signed_here: HashMap<String, u64>,
 }
 
 /// The normalised address of the server the app is on.
@@ -118,6 +140,65 @@ pub(crate) fn keep_copy(state: &mut GuiState, server: &str, copy: ServerProfile)
         }
     }
     state.own_profile.copies.insert(server, copy);
+}
+
+/// A `profile_data` frame from `server`'s socket (active or in the background): when it is this
+/// person's own complete copy it is filed (`own_copy`, `keep_copy`), and when that server asks for
+/// the copy other servers keep (`sign_now: true`) the answer to send back on THAT socket is
+/// returned, `{"type":"profile_sign","at":..,"signature":..}`, once per ask. None when the frame
+/// is not their own copy, does not ask, is addressed to another of their keys (a linked device
+/// signs its own), or the identity is locked.
+pub(crate) fn take_own_copy(state: &mut GuiState, server: &str, val: &Value, socket_name: &str) -> Option<String> {
+    let now_ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_millis() as u64);
+    take_own_copy_at(state, server, val, socket_name, now_ms)
+}
+
+/// `take_own_copy` with the clock given (Unix milliseconds), for the tests.
+pub(crate) fn take_own_copy_at(state: &mut GuiState, server: &str, val: &Value, socket_name: &str, now_ms: u64) -> Option<String> {
+    let copy = own_copy(val, socket_name)?;
+    keep_copy(state, server, copy.clone());
+    log::info!("Received own profile from server");
+    if val.get("sign_now").and_then(Value::as_bool) != Some(true) {
+        return None; // the server did not ask
+    }
+    // Unlocked: the 32-byte seed the Dilithium3 key comes from, and that key.
+    let seed = state.private_key_bytes.as_deref().filter(|s| s.len() == 32).map(<[u8]>::to_vec);
+    let key = state.profile_public_key.clone();
+    let Some(seed) = seed.filter(|_| !key.is_empty()) else {
+        log::warn!("Profile: the server asked for the copy of your profile that other servers keep; not signed, the identity is locked");
+        return None;
+    };
+    if val.get("target").and_then(Value::as_str).is_some_and(|t| !t.eq_ignore_ascii_case(&key)) {
+        return None; // another of this person's keys: that device signs its own
+    }
+    let server = crate::gui::pages::chat::norm_server_url(server);
+    // The name exactly as the copy carries it: the server's own name for this socket's person,
+    // which is what it rebuilds the copy under.
+    let name = val.get("name").and_then(Value::as_str).unwrap_or("");
+    let signed_at = val.get("signed_at").and_then(Value::as_u64).unwrap_or(0);
+    let last_here = state.own_profile.signed_here.get(&server).copied().unwrap_or(0);
+    let Some(frame) = sign_frame(&seed, &key, name, &copy, signed_at, last_here, now_ms) else {
+        log::warn!("Profile: the copy of your profile for other servers is over the limits a save holds; not signed");
+        return None;
+    };
+    state.own_profile.signed_here.insert(server, frame["at"].as_u64().unwrap_or(0));
+    Some(frame.to_string())
+}
+
+/// The signed copy for other servers of `copy` (a server's own copy of this person's profile,
+/// under the name `name`), as the `profile_sign` frame: the public copy (`profile_copy::public_copy`
+/// under the copy's own privacy map), dated `next_copy_time(now_ms, signed_at, last_here)` and
+/// signed with the Dilithium3 key of `seed` (`key` its public key in lowercase hex). None when the
+/// copy is over the limits a save holds: the server never asks for one, and would refuse it.
+pub(crate) fn sign_frame(seed: &[u8], key: &str, name: &str, copy: &ServerProfile, signed_at: u64, last_here: u64, now_ms: u64) -> Option<Value> {
+    let c = copy;
+    let public = profile_copy::public_copy(name, &c.bio, &c.avatar_url, &c.banner_url, &c.socials, &c.pronouns, &c.location, &c.website, &c.privacy);
+    if !profile_copy::within_limits(key, &public) {
+        return None;
+    }
+    let at = profile_copy::next_copy_time(now_ms, signed_at, last_here);
+    let signature = profile_copy::sign_copy(seed, key, &public, at);
+    Some(serde_json::json!({ "type": "profile_sign", "at": at, "signature": signature }))
 }
 
 /// The copy of the server the app is on, when it has come.
