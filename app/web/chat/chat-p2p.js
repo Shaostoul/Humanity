@@ -604,6 +604,9 @@ async function onDCMessage(event, peerKey) {
   // A file transfer's note (an offer, its answer, a cancel) only ever comes through the mailbox:
   // one coming this way is dropped unread, its text never shown.
   if (window.HosFileTransfer && HosFileTransfer.isFileNoteText(inner.text)) return;
+  // A household permit (ship homes 5b) is for the desktop app's game and only ever comes through
+  // the mailbox: one coming this way is dropped unread, its text never shown.
+  if (typeof inner.text === 'string' && typeof CTL_PERMIT === 'string' && inner.text.startsWith(CTL_PERMIT)) return;
   // A contact request, or a DM from someone my "who can reach me" settings
   // refuse (step B): a request, name only, its text dropped, as for mail
   // (chat-privacy.js ingestContactRequest, reachScreenDm).

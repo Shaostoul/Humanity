@@ -1119,9 +1119,9 @@
     },
     {
       "path": "/chat/chat-p2p.js",
-      "hash": "sha256:84984817eaa77792bd20c1a5e4b48031538547d97359abcae6a03fb5b3db98db",
-      "size": 38077,
-      "modified": 1791768050
+      "hash": "sha256:454b75367c18fcf0f83ea7b0719d79ff326aeb5af21428b11f65bee280415f7e",
+      "size": 38374,
+      "modified": 1791797056
     },
     {
       "path": "/chat/chat-privacy.js",
@@ -1149,9 +1149,9 @@
     },
     {
       "path": "/chat/chat-social.js",
-      "hash": "sha256:93b99ed58a204c7c9dbaa1de03072f871be0e1a80026187e0a7dc2259fc9f2c5",
-      "size": 57382,
-      "modified": 1791768050
+      "hash": "sha256:08b1b113462965f93fd4243d84e5456c0ca8d8c69520b8578e36175d68270ee8",
+      "size": 58035,
+      "modified": 1791797040
     },
     {
       "path": "/chat/chat-ui.js",
@@ -1197,9 +1197,9 @@
     },
     {
       "path": "/chat/crypto.js",
-      "hash": "sha256:7146688c867255e133c173fb267d9afb202191678a784265f37650ebcd06721f",
-      "size": 73573,
-      "modified": 1791670642
+      "hash": "sha256:bc56ba6275e81e26762ad1e157ef75b8ab5bc999df32a21da43fc4785101327f",
+      "size": 74247,
+      "modified": 1791798632
     },
     {
       "path": "/chat/favicon.ico",
@@ -1221,9 +1221,9 @@
     },
     {
       "path": "/chat/index.html",
-      "hash": "sha256:d3d5d896e9358f30e3b6c24a51d67de2be0d0635be41292e5e740dec8c1405e8",
-      "size": 55736,
-      "modified": 1791789561
+      "hash": "sha256:f81a1cf36ed795c57129327f061d06cd3bafffbc6bc4b354be8074ca2785a6c2",
+      "size": 56535,
+      "modified": 1791799053
     },
     {
       "path": "/chat/inputs.css",
@@ -1305,9 +1305,9 @@
     },
     {
       "path": "/download.html",
-      "hash": "sha256:a36030feb13a20b7ae2d0595d2823b528fb3f35699afa836582de2608ebbcfd7",
+      "hash": "sha256:ae86d1bb5969e2a4b7513300fc9af1df5f2de3f614117b5078f70591c2a7856d",
       "size": 47278,
-      "modified": 1791789747
+      "modified": 1791805828
     },
     {
       "path": "/files.html",
@@ -1353,9 +1353,9 @@
     },
     {
       "path": "/index.html",
-      "hash": "sha256:6e36c45ae7e547694b229dd258a21d49213d53701e3520f0f32146ab5d59caf0",
+      "hash": "sha256:e95325bf0692c1979bdb79c67a339acb8abeb07d92e97e90012cf06123155950",
       "size": 40209,
-      "modified": 1791786929
+      "modified": 1791805828
     },
     {
       "path": "/inventory.html",
@@ -1413,9 +1413,9 @@
     },
     {
       "path": "/ops.html",
-      "hash": "sha256:5ec35f9aa5f9044d54be7a95576281f10079b560a04dbc2554ffc65034f2aec3",
+      "hash": "sha256:0098a23989100c3d5941c70293a7be7bee87544926df45958da596f94b2b5660",
       "size": 21939,
-      "modified": 1791789747
+      "modified": 1791805828
     },
     {
       "path": "/pages/accord-app.js",
@@ -1515,9 +1515,9 @@
     },
     {
       "path": "/pages/settings-app.js",
-      "hash": "sha256:63c77c588a53d9fadbdd61eedb69ee0cfe98b5c846d18285ef53a0cbb334b657",
+      "hash": "sha256:bfde49ea2c86ea8e8a6342f62718a9307fe6416e4f5db6445b964d47a18a248b",
       "size": 104530,
-      "modified": 1791789747
+      "modified": 1791805828
     },
     {
       "path": "/pages/tasks-app.js",
@@ -1845,9 +1845,9 @@
     },
     {
       "path": "/shared/shell.js",
-      "hash": "sha256:bdd9845e54b351a0e39c8267ad9c79b7ce31873093169675d3bcd4ac21d37397",
+      "hash": "sha256:ac8c9841562fd8b0484a358194603faa9c913eb0fb14bdeb4807ab667b28e31c",
       "size": 98223,
-      "modified": 1791789747
+      "modified": 1791805828
     },
     {
       "path": "/shared/strip-metadata.js",
@@ -1857,9 +1857,9 @@
     },
     {
       "path": "/shared/sw.js",
-      "hash": "sha256:0ffbfcc18135777c70d16b45f199695c6effb671324afbca77c8c2c7fb350333",
+      "hash": "sha256:650b569005b7a1fef64b6ad1e36970d181202d7bc6a588ddbf886f5500503912",
       "size": 5824,
-      "modified": 1791789747
+      "modified": 1791805828
     },
     {
       "path": "/shared/theme.css",
@@ -1937,9 +1937,9 @@
       "path": "/index.html",
       "hash": "sha256:807ef9ccfde6574793792f240c8ca2fbab9472f7b7c766a7804bff183fa12a23",
       "size": 208,
-      "modified": 1791789845
+      "modified": 1791805888
     }
   ],
-  "total_size": 16102185,
+  "total_size": 16104608,
   "file_count": 323
 }
