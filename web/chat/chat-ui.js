@@ -2446,6 +2446,8 @@ const CMD_PALETTE_ACTIONS = {
   openServerStats:       function() { window.open('/info', '_blank'); },
   openGameAdmin:         function() { if (typeof openGameAdminModal === 'function') openGameAdminModal(); },
   openFleetLedger:       function() { if (typeof openFleetLedger === 'function') openFleetLedger(); },
+  // Where you live on this server's ship, and choosing a home there (chat-home.js, ship homes 6).
+  openWhereYouLive:      function() { if (typeof openWhereYouLive === 'function') openWhereYouLive(); },
   // The Reports view (chat-reports.js, step D). The Moderation section's View
   // Reports item sends /reports, which opens it too (sendMessage above).
   openReports:           function() { if (typeof openReportsView === 'function') openReportsView(); },

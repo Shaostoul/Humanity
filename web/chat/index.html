@@ -743,12 +743,12 @@
        Load before app.js so its renderers can call them. -->
   <script src="/chat/view/timestampPill.js?v=1"></script>
   <script src="/chat/view/messageRow.js?v=1"></script>
-  <script src="/chat/app.js?v=27"></script>
+  <script src="/chat/app.js?v=28"></script>
   <script src="/chat/chat-messages.js?v=17"></script>
   <script src="/chat/chat-dms.js?v=17"></script>
   <script src="/chat/chat-social.js?v=20"></script>
   <script src="/chat/chat-groups-p2p.js?v=17"></script>
-  <script src="/chat/chat-ui.js?v=16"></script>
+  <script src="/chat/chat-ui.js?v=17"></script>
   <script src="/chat/chat-voice-rooms.js?v=8"></script>
   <script src="/chat/chat-voice-calls.js?v=8"></script>
   <script src="/chat/chat-voice-webrtc.js?v=1"></script>
@@ -783,6 +783,10 @@
   <script src="/chat/chat-protected.js?v=3"></script>
   <!-- Your fleet ledger: the player's own used/given ledger from the server, read-only (command palette) -->
   <script src="/chat/chat-fleet.js?v=1"></script>
+  <!-- Where you live (ship homes increment 6): your own home on this server's ship, or the kinds of
+       home it offers with how many are free and a Choose for each; every name and sentence is the
+       server's own (command palette). Like chat-fleet.js, it builds its window when first opened. -->
+  <script src="/chat/chat-home.js?v=1"></script>
   <!-- Onboarding wizard: first-time user guide (ELI5 identity + recovery phrase) -->
   <script src="/chat/chat-onboarding.js?v=2"></script>
   <!-- qrcode-generator (public domain, ~18 KB), used by chat-p2p.js for contact card QR codes -->
