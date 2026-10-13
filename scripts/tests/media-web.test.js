@@ -13,7 +13,7 @@
 // What it proves (the design's web Proof list):
 //  1. Empty: the empty words, no tile, no featured strip, no More.
 //  2. Items: tiles with titles, uploader names and pick counts; the featured strip (asked for
-//     with featured=1); More pages with `before`; the category and person filters come from the
+//     with featured=1); More pages with the answer's `cursor`; the category and person filters come from the
 //     server's answers and the kinds from data/media/kinds.json.
 //  3. A labelled tile shows its label instead of its picture, and no picture is even requested
 //     until it is clicked.
@@ -358,7 +358,13 @@ test("8. pick, unpick, remove and feature are each signed over their own item, n
   assert.equal(last().url, "/api/media/unpick");
   assert.equal(last().body.sig, "sig:media_pick:5", "unpick is signed over its item");
   assert.equal(last().body.filename, "1_a.png");
-  tileOf(5).querySelector('[data-action="feature"]').click();
+  // Media round 5, lane 1G (2026-10-12): Feature is a three-way choice now (a select on the tile:
+  // Not featured, Featured, Featured in its category), so this picks "main" in it where it used to
+  // press a Feature button. What it proves is unchanged.
+  const where = tileOf(5).querySelector('[data-action="feature"]');
+  assert.equal(where.value, "none", "an item on no shelf reads Not featured");
+  where.value = "main";
+  where.dispatch("change");
   await settle();
   const feature = net.calls.find((c) => c.url === "/api/media/feature");
   // Round 5: Feature puts it on the main shelf, signed over the item and where.

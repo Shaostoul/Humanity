@@ -96,9 +96,12 @@
   function reportMediaFoundBadge(name) {
     return 'Checked: on the Media page, put there by ' + name;
   }
-  /** Where the Reports view opens a reported Media item: the Media page, which loads it by number. */
+  /**
+   * Where the Reports view opens a reported Media item: its own page, /media/<n> (Media round 5,
+   * docs/design/media-round-5-plan.md 3.6), which the Media page opens by its number.
+   */
   function reportMediaHref(id) {
-    return '/media?id=' + encodeURIComponent(String(id));
+    return '/media/' + encodeURIComponent(String(id));
   }
 
   // An identity key as the relay and both clients write it: lowercase hex.
