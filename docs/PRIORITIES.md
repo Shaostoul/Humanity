@@ -267,24 +267,22 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
 - **Released 2026-10-05:** v0.1459.0 to v0.1463.0 and v0.1464.0 (ship-homes increment 5, building
   only on your own plot; BUG-165 and BUG-166, the walking-backwards fixes; two new clips),
   all delivered to the taskbar exe.
-- **NEXT in TIER 0 (updated 2026-10-12, after v0.1491.0):**
-  - **Increment 6, Wave 3: `just verify-starts`** (lane 3A, the rig, being written; it boots
-    nothing until the orchestrator runs it on the one GPU). Waves 0 to 2 are DONE and released:
-    v0.1490.0 (the Cabin row, the mess halls, "Where you live", the relay's homes by start) and
-    v0.1491.0 (one save per server; Characters chooses where you live; the docs pass). Plan
-    `docs/design/ship-homes-increment-6-plan.md`. Also: a second home of your own on one
-    computer (the new-home row offers the choice only before your own home is saved).
-  - **Media round 5, Wave 1 then 2.** DONE and in v0.1491.0: Wave 0 (the contract), 1A (the
-    relay's item edit, add and remove), 1F (the website's server strip), 1G (the website's list:
-    sort, scroll paging, the shelf per category, `/media/<id>`). In flight: 1B (download and
-    view counts, the item page for social sites, the nginx route), 1D (the desktop item page and
-    editor, with the hosting paragraph beside Add to Media), 1E (the desktop server strip). Next:
-    1C (the desktop list and the Admin tab), then Wave 2 (2A the website's item page and editor,
-    2B the proof rig and snapshots), then phase 2 ("Also put this on..." other servers). Plan
-    `docs/design/media-round-5-plan.md`. The live nginx has a static `/media/<number>` route
-    (2026-10-12) that 1B's relay route replaces. Still waiting on the operator: a DMCA agent
-    (and the entity findings, `docs/reference/findings/2026-10-12-project-entity-and-succession.md`,
-    uncommitted until he says keep or drop its WHOIS section).
+- **NEXT in TIER 0 (updated 2026-10-12, after v0.1492.0; weekly usage at 96%, resets Thursday 8 PM):**
+  - **Increment 6 is DONE** (Waves 0 to 3): `just verify-starts` passes 18/18 and was seen red on
+    a real build (the save swap broken). Left for later: a second home of your own on one
+    computer (the new-home row offers the choice only before your own home is saved), moving
+    house, a server-held character. Plan `docs/design/ship-homes-increment-6-plan.md`.
+  - **Media round 5: Wave 1 is DONE except 1D** (the desktop item page and editor, with the
+    hosting paragraph beside Add to Media). 1D was still running in its worktree at the week's
+    cap: branch `worktree-agent-abf10b563923957f8`; merge it when it reports (it must call
+    `filters::draw_feature_choice` on the tile and update `page_tests::the_tiles_show_what_they_are`).
+    In v0.1491.0 and v0.1492.0: Wave 0, 1A (relay edits), 1B (counts, the item page for social
+    sites; the live nginx routes `/media/<number>` to the relay), 1C (desktop list and Admin tab),
+    1E (desktop strip), 1F (web strip), 1G (web list). Next: Wave 2 (2A the website's item page
+    and editor, after 1D; 2B the proof rig and snapshots), then phase 2 ("Also put this on...").
+    public.guide's nginx needs the same `/media/<number>` block by hand. Waiting on the operator:
+    the DMCA agent's address, a takedown email, and whether the entity findings
+    (`docs/reference/findings/2026-10-12-project-entity-and-succession.md`, uncommitted) go public.
   - DONE and released 2026-10-12: increment 5b (household permits, v0.1489.0), BUG-191 (profile
     copies, v0.1490.0), the first-hour audit's S5, S6, S8 and F11, BUG-163 part 2, rule 7 and
     the takedown section (v0.1491.0).
