@@ -266,6 +266,21 @@
       "date": "2026-10-12",
       "decision": "Media round 5, from the operator sharing his first 3D model: (1) a keep is undone only by the same or a higher role (shipped on main: a moderator could undo his admin keep); (2) edit an item in place (title, description, category, labels, visibility, files, licence), several files per item, descriptions shown (item and category), a fixed strip naming the server on every server-scoped page, Media admin moved onto the Media page, a page and share link per item with preview tags, cover pictures, download counts; (3) operator answers: featured items may show twice (fine at scale), add featured per category, sorting and load-more; a licence per item from a data file with All rights reserved preselected plus a separate opt-in letting HumanityOS use it in the game and its own videos with credit, the wording waiting on a dated findings doc (docs/reference/findings/2026-10-12-media-item-licences.md, in progress); one item on several servers wanted (\"Also put this on...\", the app copying through normal uploads, copies linked by the main file fingerprint) as phase 2. Plan: docs/design/media-round-5-plan.md (being written).",
       "why": "The operator wants Media right and user friendly before people use it; the plan coordinates relay, web and desktop lanes in parallel."
+    },
+    {
+      "date": "2026-10-12",
+      "decision": "Plots rig guest leg judged against the default start's plot kind, not every plot. Since increment 6 the ship has the Cabin row (c1..c16) beside the twelve homesteads; the guest leg's scripted players ask for no start and get homesteads, so the game is a guest once those are held with the cabins free. The judge compared held plots with every plot and failed a correct run (26/27). The rig now reads data/homes/starts.ron's default start's plot_kind; no kind recorded fails rather than judging every plot. After the fix: guest 27/27, plots 88/88 both orders, household 27/27, shared-build 35/35 on the build with one save per server and the picker.",
+      "why": "A rig whose expectation predates a data change fails correct runs; the fix keeps the check's meaning (the game comes in after every plot it could be given is taken) instead of loosening it."
+    },
+    {
+      "date": "2026-10-12",
+      "decision": "Rules page rule 7 is the approved hosting paragraph, word for word from data/media/licences.json `hosting` (a relay test, the_rules_page_carries_the_hosting_paragraph, fails if the two drift). A takedown section was added: members report the item with a new reason `copyright` (\"My work, shared without my permission\", data/safety/report_reasons.json); others open a GitHub issue naming the item's address, with no private details. The gaps callout says plainly that no copyright agent is registered yet. No email or postal address was published: none was approved.",
+      "why": "The operator asked for a takedown contact and process now, with uploads kept to trusted people until a DMCA agent exists. Checked in code: a new member has no role and cannot upload at all (upload_rules.rs uploader_role), so 'trusted people only' already holds and needed no new gate; the rules page states it as fact."
+    },
+    {
+      "date": "2026-10-12",
+      "decision": "Live nginx on united-humanity.us: /media/<number> now goes to the relay (lane 1B, deployed 5f7d5d7a8), which serves media.html with the item's Open Graph tags and counts views by X-Real-IP. A static try_files stand-in carried it for about an hour after v0.1491.0 shipped lane 1G's /media/<id> addresses. Backups /root/nginx-humanity.bak-20261013-*. Verified: /media/2 200 with the item's title and og:url, a missing number the generic page, /media/2x 404, /media unchanged; both CSPs allow blob: pictures; the page opens the item in a browser with no console errors. The relay needs no ALLOWED_ORIGINS on this server (its default list has https://united-humanity.us, and nginx passes Host). public.guide still needs the same block by hand.",
+      "why": "1G made /media/<id> the share address; without the route a reload or a shared link 404d. The relay route is what lets social sites show the item."
     }
   ],
   "active_scopes_to_avoid": [
@@ -316,5 +331,5 @@
     ],
     "context_note": "Compaction may occur - this plan IS the handoff. Cluster-cards workflow running (wf_380e6842, task wbhlb5vg3). All vegetation history in recent_decisions 2026-07-31/08-01 entries. Stable exe v0.1087.1."
   },
-  "serialization_convention": "Write this file with JSON.stringify(state, null, 1) - one-space indent. Two sessions serializing with different indents re-churned 800-line diffs against each other (2026-08-29); match this or the diff noise returns."
+  "serialization_convention": "Write this file with JSON.stringify(state, null, 2) - two-space indent, the file's actual format (this note said one-space until 2026-10-12, while the file had two; a one-space write re-indented 640 lines). Two sessions serializing with different indents re-churned 800-line diffs against each other (2026-08-29); match this or the diff noise returns."
 }

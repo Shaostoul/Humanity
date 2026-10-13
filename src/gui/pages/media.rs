@@ -2,15 +2,19 @@
 //! videos, 3D models and files people on this server chose to show, in a grid. The web mirrors
 //! it (web/pages/media.html); the relay half is src/relay/media.rs.
 //!
-//! What it has, top to bottom: the uploads in progress, each with its bar (media/uploading.rs),
-//! and the offers to carry on ones a restart or a switch cut off; the person's own uploads waiting
-//! to be published, and the server's unfinished ones this app lost track of (media/waiting.rs); a
-//! strip of every featured item (`featured=1`); the filters
-//! (category, kind, person, My picks, a search over titles); the grid, newest first, with More for
-//! the next page; each tile's actions (Pick, Remove, Feature, Keep on the server, Report). Add to
-//! Media (a file from this computer, sent in pieces: media/resumable.rs) and Put on Media (a file
-//! already in Shared Files, from the Files page) open the same short form. Suggest a category
-//! sends the admins a name and a note.
+//! What it has, top to bottom: its heading, "Media on united-humanity.us" (the server it is for,
+//! Media round 5); for admins, two tabs, Media and Admin (the Admin tab is the admins' section,
+//! media/admin.rs, which was in Server Settings until round 5); the uploads in progress, each with
+//! its bar (media/uploading.rs), and the offers to carry on ones a restart or a switch cut off; the
+//! person's own uploads waiting to be published, and the server's unfinished ones this app lost
+//! track of (media/waiting.rs); the featured shelf (`featured=1`: the main shelf, or the picked
+//! category's shelf, "Featured in Fire flow arts"); the filters (category with its description
+//! under them, kind, person, Sort, My picks, a search over titles: media/filters.rs); the grid, in
+//! the order picked (Newest, Most picked, Most downloaded), whose next page is asked for once when
+//! the list's end comes into view, with More under it as well for keyboards; each tile's actions
+//! (Pick, Remove, Feature, Keep on the server, Report). Add to Media (a file from this computer,
+//! sent in pieces: media/resumable.rs) and Put on Media (a file already in Shared Files, from the
+//! Files page) open the same short form. Suggest a category sends the admins a name and a note.
 //!
 //! WHO SEES WHAT is the relay's to decide: a signed list from a member gets members-only items
 //! too, anyone else the public ones, and on a members-only server nothing. Someone not signed in
@@ -30,8 +34,8 @@
 //! NOTHING RUNS ON THE FRAME BUT DRAWING: every request goes to a worker thread ([`spawn`]) and
 //! its answer is read on a later frame ([`poll`]), the way the Files and Watch pages do theirs.
 //! [`poll_upload`] runs every frame whatever page is open (src/lib.rs), so an upload and its
-//! publish carry on while the person is elsewhere. The admins' half (the Media section of Server
-//! Settings, media/admin.rs, which round 5 shows on this page as its Admin tab) uses the same jobs.
+//! publish carry on while the person is elsewhere. The admins' half (this page's Admin tab,
+//! media/admin.rs; Server Settings keeps one line pointing to it) uses the same jobs.
 
 use std::sync::mpsc::Receiver;
 
@@ -137,7 +141,7 @@ impl Job {
     }
 }
 
-/// The admins' half (Server Settings > ADMIN > Media), kept with the page's state.
+/// The admins' half (the Media page's Admin tab, media/admin.rs), kept with the page's state.
 #[derive(Default)]
 pub struct MediaAdmin {
     /// Asked for this server's categories, suggestions and usage.
@@ -194,9 +198,19 @@ pub struct MediaState {
     /// One line about the last thing done or refused.
     pub status: String,
     pub jobs: Vec<(Job, Receiver<Result<Value, Refusal>>)>,
-    /// Every featured item, for the strip (asked for page by page with `featured=1`).
+    /// Every featured item on the shelf shown (asked for page by page with `featured=1`, and the
+    /// picked category with it when one is picked: round 5).
     pub featured: Vec<Item>,
     pub featured_generation: u64,
+    /// The category the shelf was last asked for (None: the main shelf), and the one `featured`
+    /// holds now (set when its first page arrives, so the heading never names a shelf before its
+    /// items are in).
+    pub shelf_asked: Option<i64>,
+    pub shelf_of: Option<i64>,
+    /// A next page could not be had (the server refused it, or could not be reached): the end of
+    /// the list coming into view asks again only after More is pressed or the list is loaded
+    /// afresh, so a failing server is never asked once a frame.
+    pub more_paused: bool,
     /// This person's own use of the Media space, as the server counts it, with their uploads
     /// waiting to be published (`/api/media/mine`).
     pub mine: Option<api::Mine>,
@@ -251,6 +265,24 @@ pub(crate) fn base_of(state: &GuiState) -> String {
     crate::gui::widgets::image_cache::http_base(&server_here(state))
 }
 
+/// The server's host as a person reads it ("united-humanity.us", "127.0.0.1:8099"): the server
+/// strip's own `host_of` over the same connected server, so the strip under the top menu and
+/// this page's heading always name the same host. Empty with no server.
+pub(crate) fn host_here(state: &GuiState) -> String {
+    crate::gui::pages::server_strip::host_of(&server_here(state))
+}
+
+/// The page's heading (round 5, 3.9 of docs/design/media-round-5-plan.md): "Media on
+/// united-humanity.us", so nobody wonders whose Media page this is; plain "Media" with no server.
+pub(crate) fn heading(state: &GuiState) -> String {
+    let host = host_here(state);
+    if host.is_empty() {
+        "Media".to_string()
+    } else {
+        format!("Media on {host}")
+    }
+}
+
 /// This connection's upload token, when it is for the server this page is for ([`server_here`]).
 pub(crate) fn token_here(state: &GuiState) -> Option<String> {
     let here = server_here(state);
@@ -274,8 +306,8 @@ pub(crate) fn signer_here(state: &GuiState) -> Option<api::Signer> {
 /// What is said when something needs a signature and there is none to make.
 pub(crate) const UNLOCK_LINE: &str = "Unlock your identity and sign in to this server first.";
 
-/// The signer for a write, or None with [`UNLOCK_LINE`] said on the page and in its Server
-/// Settings section, so a press is never silently dropped.
+/// The signer for a write, or None with [`UNLOCK_LINE`] said on the page and on its Admin tab,
+/// so a press is never silently dropped.
 pub(crate) fn signer_or_say(state: &mut GuiState) -> Option<api::Signer> {
     let signer = signer_here(state);
     if signer.is_none() {
@@ -419,12 +451,18 @@ pub(crate) fn on_done(state: &mut GuiState, job: Job, result: Result<Value, Refu
         (Job::List { append, generation }, Ok(v)) => {
             if generation == state.media.generation {
                 apply_list(&mut state.media, api::parse_list(&v), append);
+                state.media.more_paused = false;
             }
         }
-        (Job::List { generation, .. }, Err(e)) => {
+        (Job::List { append, generation }, Err(e)) => {
             if generation == state.media.generation {
                 state.media.answered = true;
                 state.media.status = e.words;
+                // A next page that failed is asked again only when More is pressed: the end of
+                // the list stays in view, and would otherwise ask the failing server every frame.
+                if append {
+                    state.media.more_paused = true;
+                }
             }
         }
         (Job::Featured { generation, pages }, Ok(v)) => {
@@ -432,6 +470,8 @@ pub(crate) fn on_done(state: &mut GuiState, job: Job, result: Result<Value, Refu
                 let answer = api::parse_list(&v);
                 if pages == 1 {
                     state.media.featured.clear();
+                    // The shelf now holds the category it was asked for (its heading follows).
+                    state.media.shelf_of = state.media.shelf_asked;
                 }
                 state.media.featured.extend(answer.items);
                 // Every featured item, page by page (a strip of more than 480 shows the first 480).
@@ -590,22 +630,29 @@ pub(crate) fn reload_list(state: &mut GuiState) {
     }
     state.media.generation += 1;
     state.media.requested = true;
+    // A fresh list starts with its next page askable again.
+    state.media.more_paused = false;
     let req = api::list_request(&state.media.filters, None, api::PAGE, &state.profile_public_key, signer_here(state).as_ref());
     let generation = state.media.generation;
     spawn(state, Job::List { append: false, generation }, req);
 }
 
-/// Ask for every featured item again, for the strip.
+/// Ask for every featured item again, for the shelf: the main shelf, or with a category picked
+/// in the filters, that category's shelf (round 5: `featured=1` with `category=c`, which the relay
+/// answers with the items featured on the main shelf or on that category's alone, in it).
 pub(crate) fn reload_featured(state: &mut GuiState) {
     if server_here(state).is_empty() {
         return;
     }
     state.media.featured_generation += 1;
+    state.media.shelf_asked = state.media.filters.category;
     featured_page(state, None, 1);
 }
 
+/// One page of the shelf asked for: of the category it was last asked for, so its later pages
+/// are the same shelf's.
 fn featured_page(state: &mut GuiState, cursor: Option<&str>, pages: u32) {
-    let f = Filters { featured: true, ..Default::default() };
+    let f = Filters { featured: true, category: state.media.shelf_asked, ..Default::default() };
     let req = api::list_request(&f, cursor, api::PAGE, &state.profile_public_key, signer_here(state).as_ref());
     let generation = state.media.featured_generation;
     spawn(state, Job::Featured { generation, pages }, req);
@@ -621,12 +668,40 @@ pub(crate) fn refresh_mine(state: &mut GuiState) {
     spawn(state, Job::Mine, api::mine_request(&signer));
 }
 
-/// Ask for the next page.
+/// Whether a page of the list is on its way: a next page, or a first page after the filters
+/// changed (whose answer the cursor held now does not belong to).
+pub(crate) fn page_on_its_way(state: &GuiState) -> bool {
+    state.media.jobs.iter().any(|(j, _)| matches!(j, Job::List { .. }))
+}
+
+/// Ask for the next page, once: nothing more is asked while a page of the list is on its way, so
+/// the end of the list staying in view for many frames asks for one page, not one a frame. More
+/// and the end coming into view both come here.
 fn more(state: &mut GuiState) {
+    if page_on_its_way(state) {
+        return;
+    }
     let Some(cursor) = state.media.list.next_cursor.clone() else { return };
     let req = api::list_request(&state.media.filters, Some(&cursor), api::PAGE, &state.profile_public_key, signer_here(state).as_ref());
     let generation = state.media.generation;
     spawn(state, Job::List { append: true, generation }, req);
+}
+
+/// The end of the list came into view (3.9): the next page, unless one failed since the list was
+/// loaded, which waits for More.
+pub(crate) fn more_when_seen(state: &mut GuiState) {
+    if !state.media.more_paused {
+        more(state);
+    }
+}
+
+/// Server Settings' "Open them" (round 5): the Media page, on its Admin tab. The page's state is
+/// brought to this server and person first, so the tab set here is never undone by the page
+/// forgetting another server's state on its next frame.
+pub(crate) fn open_admin_tab(state: &mut GuiState) {
+    sync_server(state);
+    state.media.tab = MediaTab::Admin;
+    state.push_nav_to(GuiPage::Media);
 }
 
 /// The admins' section asks again for the categories, the suggestions and the usage.
@@ -653,6 +728,8 @@ pub(crate) fn refresh_usage(state: &mut GuiState) {
 /// list then holds that item alone, if this person may see it, with a line to show everything.
 pub(crate) fn open_item_by_number(state: &mut GuiState, id: i64) {
     sync_server(state);
+    // The list, not the Admin tab an admin may have left open: the item is what was asked for.
+    state.media.tab = MediaTab::Media;
     state.media.filters = Filters { id: Some(id), ..Default::default() };
     state.media.search.clear();
     reload_list(state);
@@ -701,21 +778,29 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
 /// Everything inside the page's scroll area.
 pub(crate) fn draw_body(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    let no_server = server_here(state).is_empty();
+    // Only an admin has the Admin tab; anyone else always sees the list, whatever the state says
+    // (an admin who lost the role, or a tab left set by Server Settings' "Open them").
+    let admin = is_admin(state) && !no_server;
+    let on_list = !admin || state.media.tab == MediaTab::Media;
     ui.horizontal_wrapped(|ui| {
-        ui.label(RichText::new("Media").size(theme.font_size_title).color(theme.text_primary()));
-        ui.add_space(theme.spacing_md);
-        let signed_in = signed_in_here(state);
-        if signed_in && widgets::Button::primary("Add to Media").tooltip("Upload a picture, video, model or file and show it here.").show(ui, theme) {
-            add::begin_add(state);
-        }
-        if signed_in && widgets::Button::secondary("Suggest a category").tooltip("Ask this server's admins for a new category.").show(ui, theme) {
-            state.media.suggest = Some((String::new(), String::new()));
-        }
-        if widgets::Button::secondary("Shared Files").tooltip("The server's public file library, on the Files page.").show(ui, theme) {
-            state.push_nav_to(GuiPage::Files);
-        }
-        if widgets::Button::ghost("Refresh").show(ui, theme) {
-            reload(state);
+        ui.label(RichText::new(heading(state)).size(theme.font_size_title).color(theme.text_primary()));
+        // The list's actions belong to the Media tab; the Admin tab has its own Refresh.
+        if on_list {
+            ui.add_space(theme.spacing_md);
+            let signed_in = signed_in_here(state);
+            if signed_in && widgets::Button::primary("Add to Media").tooltip("Upload a picture, video, model or file and show it here.").show(ui, theme) {
+                add::begin_add(state);
+            }
+            if signed_in && widgets::Button::secondary("Suggest a category").tooltip("Ask this server's admins for a new category.").show(ui, theme) {
+                state.media.suggest = Some((String::new(), String::new()));
+            }
+            if widgets::Button::secondary("Shared Files").tooltip("The server's public file library, on the Files page.").show(ui, theme) {
+                state.push_nav_to(GuiPage::Files);
+            }
+            if widgets::Button::ghost("Refresh").show(ui, theme) {
+                reload(state);
+            }
         }
     });
     widgets::body_hint(
@@ -723,18 +808,22 @@ pub(crate) fn draw_body(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
         theme,
         "Pictures, videos, 3D models and files the people on this server chose to show. Nothing is here unless the person who uploaded it put it here, and nothing from a private conversation can be.",
     );
-    if is_admin(state) {
-        ui.horizontal(|ui| {
-            widgets::body_hint(ui, theme, "Admins: the Media space, its categories and suggestions are in Server Settings.");
-            if widgets::Button::ghost("Open Server Settings").show(ui, theme) {
-                state.push_nav_to(GuiPage::ServerSettings);
-            }
-        });
+    // The tabs, for admins only (round 5): Media, the list; Admin, the section that was in Server
+    // Settings (media/admin.rs): who sees the page, its space, its categories and what to prune.
+    if admin {
+        let mut i = if state.media.tab == MediaTab::Admin { 1 } else { 0 };
+        if widgets::tab_bar(ui, theme, &TAB_NAMES, &mut i) {
+            state.media.tab = if i == 1 { MediaTab::Admin } else { MediaTab::Media };
+        }
     }
     ui.add_space(theme.spacing_sm);
 
-    if server_here(state).is_empty() {
+    if no_server {
         ui.label(RichText::new("Connect to a server first (Chat page) to see its Media page.").size(theme.font_size_small).color(theme.warning()));
+        return;
+    }
+    if admin && state.media.tab == MediaTab::Admin {
+        admin::draw_admin(ui, theme, state);
         return;
     }
     if !state.media.status.is_empty() {
@@ -758,7 +847,8 @@ pub(crate) fn draw_body(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
     } else {
         let featured = state.media.featured.clone();
         if !featured.is_empty() {
-            widgets::subsection_label(ui, theme, "Featured");
+            // "Featured", or "Featured in Fire flow arts" when it is a category's shelf (3.9).
+            widgets::subsection_label(ui, theme, &filters::shelf_heading(state));
             egui::ScrollArea::horizontal().id_salt("media_featured").show(ui, |ui| {
                 ui.horizontal(|ui| {
                     for item in &featured {
@@ -789,14 +879,29 @@ pub(crate) fn draw_body(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
     }
     if state.media.list.next_cursor.is_some() {
         ui.add_space(theme.spacing_sm);
-        let loading = state.media.jobs.iter().any(|(j, _)| matches!(j, Job::List { append: true, .. }));
-        if loading {
+        let next_on_its_way = state.media.jobs.iter().any(|(j, _)| matches!(j, Job::List { append: true, .. }));
+        // While a fresh first page is on its way (the filters changed), More is not offered: that
+        // page brings its own cursor.
+        if next_on_its_way {
             ui.label(RichText::new("Loading more...").size(theme.font_size_small).color(theme.text_muted()));
-        } else if widgets::Button::secondary("More").show(ui, theme) {
+        } else if !page_on_its_way(state)
+            && widgets::Button::secondary("More").tooltip("The next page. It also comes by itself as the end of the list scrolls into view.").show(ui, theme) {
+            // Pressed: asked whatever happened to the last one (a failure waits for this press).
+            state.media.more_paused = false;
             more(state);
+        }
+        // The end of the list (3.9): a strip one point high under the grid and More. When the
+        // scroll area shows it, the next page is asked for, once (`more` asks nothing while a
+        // page is on its way); a short page that shows its end at once fills itself the same way.
+        let (sentinel, _) = ui.allocate_exact_size(egui::vec2(ui.available_width().max(1.0), 1.0), egui::Sense::hover());
+        if ui.is_rect_visible(sentinel) {
+            more_when_seen(state);
         }
     }
 }
+
+/// The tabs' names, in the order of [`MediaTab`] (the website's are the same: media-app.js).
+const TAB_NAMES: [&str; 2] = ["Media", "Admin"];
 
 #[cfg(test)]
 #[path = "media/page_tests.rs"]
@@ -813,3 +918,7 @@ mod relay_round3_tests;
 #[cfg(test)]
 #[path = "media/round4_tests.rs"]
 mod round4_tests;
+
+#[cfg(test)]
+#[path = "media/round5_list_tests.rs"]
+mod round5_list_tests;

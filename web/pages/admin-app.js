@@ -124,8 +124,6 @@
   function renderDashboard(data) {
     authGate.style.display = 'none';
     dashboard.style.display = '';
-    // The Media section (/pages/media-admin.js) starts once, now that the person is an admin.
-    if (typeof window.startMediaAdmin === 'function') window.startMediaAdmin();
 
     // Overview cards
     document.getElementById('stat-users').textContent = formatNumber(data.user_count);
@@ -318,7 +316,9 @@
       return;
     }
     container.innerHTML = servers.map(function (s) {
-      const online = s.status === 'active' || s.status === 'connected';
+      // The relay writes online, offline, unreachable or disconnected (federation.rs); it never wrote
+      // 'active' or 'connected', so every peer showed as offline here until 2026-10-12.
+      const online = s.status === 'online';
       const id = escapeHtml(s.server_id);
       // "outbound-only" is the marker for a key-added peer with no address.
       const where = s.url === 'outbound-only'

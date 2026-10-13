@@ -516,7 +516,9 @@ fn warn_delete_post_and_dismiss() {
 fn the_shipped_report_reasons_load() {
     let shipped = ReportReasons::parse(include_str!("../../../data/safety/report_reasons.json")).expect("the shipped file loads");
     let ids: Vec<&str> = shipped.0.iter().map(|r| r.id.as_str()).collect();
-    assert_eq!(ids, ["spam", "scam", "harassment", "threats", "hate", "unwanted_sexual", "impersonation", "child_danger", "someone_in_danger", "other"]);
+    // `copyright` (2026-10-12): a person whose work was put here without their permission
+    // reports it in the app, the takedown route web/pages/rules.html describes.
+    assert_eq!(ids, ["spam", "scam", "harassment", "threats", "hate", "unwanted_sexual", "impersonation", "child_danger", "someone_in_danger", "copyright", "other"]);
     const DANGER: &str = "If anyone is in danger right now, contact your local emergency number. This server's admins are volunteers, not police.";
     for id in ["child_danger", "someone_in_danger"] {
         assert_eq!(shipped.get(id).unwrap().help, DANGER, "the danger reasons carry the sentence word for word ({id})");

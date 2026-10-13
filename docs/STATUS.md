@@ -361,6 +361,30 @@ actual binary.
 
 ---
 
+## Ship homes: where you live aboard (docs/design/ship-homes-and-logistics.md)
+
+**Added 2026-10-12, at ship homes increment 6.** Increments 1 to 5b (plots on one ship
+frame, the relay handing out plots, the relay's world as the ship, moving aboard, building
+only on your own plot, household permits) are recorded in the design doc's section 7, each
+with an "as built" note or a build plan of its own, and in FEATURES.md; they are not
+repeated here. Increment 6's Wave 0 and Wave 1 shipped in v0.1490.0; Wave 2 (one save per
+world, the picker) merged after it on 2026-10-12. Its in-game proof, `just verify-starts`,
+is not built yet.
+
+| Feature | Status | Details |
+|---------|--------|---------|
+| Starts as data | ✅ | `data/homes/starts.ron` through `src/ship/starts.rs`, read by the relay and the game alike: Cabin and Homestead offered (the Homestead the default), Apartment shown greyed until there is an apartment block. Each row names its design, plot kind, households (the old Family/Solo choice, now per start), kit, storage, opening quest, own air and homestead world content. |
+| The Cabin and Cabin Block A | ✅ | One private room, 3.15 x 2.5 m (7.54 m2 inside its walls, England's single bedroom), `data/homes/shipped/cabin.ron`, furnished by `data/machines/cabin.ron`. Sixteen cabin plots (c1 to c16) on a glass-roofed hall east of First Street, with one shared washroom (no fixtures yet). The single bed and the serving counter are plain boxes until real models are exported. |
+| Mess halls that serve | ✅ | E at a serving counter: Take a meal and Fill your bottles. On a server the meal is the server's, a line in your fleet ledger; away from one it comes from the ship's stores on this computer, one a meal time, counted in the save. A second mess hall, the South Commons, keeps every home within five minutes' walk of a meal; the Commons has a recreation room. `src/engine/mess_hall.rs`, `src/systems/ship_meals.rs`, `src/gui/pages/hud.rs`, `data/machines/ship.ron`. |
+| The relay gives the kind of home asked for | ✅ | `game_join` may carry `start`; a plot already held is always kept. `game_home_request` and `game_choose_home` answer with `game_home`: your own home there and how many of each kind are free, never who lives where. A guest is told which kinds are free. `src/relay/handlers/game_state.rs`, `src/relay/handlers/home_plots.rs`, `src/relay/storage/plots.rs`. |
+| One save per world | ✅ | Your own home is `saves/offline_home.json`; each server keeps a save for you on this computer (`saves/servers/`), made fresh from the start you choose there, carrying only your name, look and outfit (the operator's rule of 2026-10-04). The home on a server is the shipped design on your plot; a cabin breathes the ship's air and has none of the homestead's herd, wilds or garden. An erased account's server save is set aside, never deleted. `src/engine/save_slot.rs`, `src/save_load.rs`, `src/persistence.rs`. Merged after v0.1490.0. |
+| Choose where you live | ✅ | Settings > Gameplay "Where you live" (replaced Home Design; the household is the save's), the Home page's line, Characters (Play): "A new home" while your own home has no save yet, and the connected server's card with Choose (`src/gui/pages/where_you_live.rs`, `src/gui/pages/showroom.rs`). The website's chat mirrors the server card ("Where you live" in the command palette, `web/chat/chat-home.js`). The picker half merged after v0.1490.0. |
+| The Cabin's opening | ✅ | "Settling In" (`gs_first_steps_cabin`): vitals, the mess hall, a meal, the recreation room, home. Places of a new kind, the nearest mess hall or recreation room (`NearestVolume`, `src/systems/quests/mod.rs`). |
+| The in-game proof | ❌ | `just verify-starts` (one game and one scripted walker: a Cabin chosen on the server, arriving fresh, a meal at the counter, home again) is planned, not built. The walker and the game's dev verbs it will drive exist. |
+| Moving house | ❌ | Not built: one choice per server; an admin's release frees a home. Planned with shipments (increment 9). |
+
+---
+
 ## Server & Infrastructure
 
 | Feature | Status | Details |
@@ -473,7 +497,7 @@ actual binary.
 | Feature | Status | Details |
 |---------|--------|---------|
 | OS-standard data dir | ✅ | `%APPDATA%\HumanityOS\` with identity, saves, settings, cache, backups |
-| Save slots | ⚠️ | The full multi-slot model (profile/farm/quests/world) is design + test-only. What actually persists between sessions today (v0.381 `src/save_load.rs`, single `offline_home.json`): **inventory + skills**, applied at startup, saved on close + periodically. Health/position/game-time/vitals/crops/quests still reset every launch (the next persistence increment). |
+| Save slots | ✅ | One save per world (ship homes increment 6, 2026-10-12, merged after v0.1490.0): your own home is `saves/offline_home.json`, and each server you play on keeps its own save for you at `saves/servers/<server hash>-<identity>.json` (no address in the file name), made fresh from the start you choose there; only your name, look and outfit cross between them. Which one is live follows the pairing you made in Characters (Play) (`src/engine/save_slot.rs`). A save carries the backpack, skills, credits, quests, body, vehicles, crops, builds, asteroids, drone, machine levels, the start, household, plot aboard and the mess hall meter (`src/persistence.rs` `WorldSave`, applied by `src/save_load.rs` `apply_onto_running_world`). Each is snapshotted in `backups/saves/` (Settings > Data > Save snapshots). The older note here, that only inventory and skills persisted (v0.381), was long out of date. |
 | Auto-rotating backups | ✅ | Keeps last 5 timestamped snapshots |
 | USB drive detection | ✅ | Detects removable drives for export/import |
 | Tiered sync config | ✅ | Configurable sync levels |

@@ -1071,9 +1071,16 @@ fn draw_admin_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         ui.separator();
         ui.add_space(theme.spacing_sm);
 
-        // ── Media (2026-10-11): who sees it, its space, categories, suggestions, the meter ──
-        // (pages/media/admin.rs since Media round 5, 2026-10-12, which moves it to the Media page)
-        crate::gui::pages::media::admin::draw_admin(ui, theme, state);
+        // ── Media: one line pointing to the Media page's Admin tab (Media round 5, 2026-10-12) ──
+        // Who sees it, its space, categories, suggestions and the meter moved there whole
+        // (pages/media/admin.rs); "Open them" lands on the Media page with Admin selected.
+        widgets::subsection_label(ui, theme, "Media");
+        ui.horizontal_wrapped(|ui| {
+            widgets::body_hint(ui, theme, crate::gui::pages::media::admin::POINTER_LINE);
+            if widgets::Button::secondary("Open them").tooltip("The Media page, on its Admin tab.").show(ui, theme) {
+                crate::gui::pages::media::open_admin_tab(state);
+            }
+        });
 
         ui.add_space(theme.spacing_md);
         ui.separator();
@@ -2863,7 +2870,7 @@ pub(crate) fn send_server_settings_update(
 }
 
 /// The `server_settings_update` frame for `draft`: every setting the Save buttons send, the
-/// Media section's four included (pages/media/admin.rs).
+/// four of the Media page's Admin tab included (pages/media/admin.rs).
 pub(crate) fn settings_update_frame(draft: &crate::relay::storage::ServerSettings) -> serde_json::Value {
     serde_json::json!({
         "type": "server_settings_update",

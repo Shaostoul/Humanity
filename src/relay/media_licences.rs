@@ -331,4 +331,23 @@ mod tests {
         }
         assert_eq!(blank.words_source_problem(exists), None, "no words, nothing to name");
     }
+
+    /// THE RULES PAGE CARRIES THE HOSTING PARAGRAPH WORD FOR WORD (2026-10-12): rule 7 of
+    /// web/pages/rules.html is the paragraph both apps show beside Add to Media, read from this
+    /// file's `hosting`. Two copies of words people agree to must never drift apart, so a change
+    /// to one without the other fails here.
+    ///
+    /// Seen red 2026-10-12 with rules.html's "keep backup copies" edited to "keep copies": "rule 7
+    /// of web/pages/rules.html is not the hosting paragraph of data/media/licences.json".
+    #[test]
+    fn the_rules_page_carries_the_hosting_paragraph() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let rules = std::fs::read_to_string(root.join("web/pages/rules.html")).expect("web/pages/rules.html is readable");
+        // The page wraps its lines; compare with every run of white space made one space.
+        let flat = |s: &str| s.split_whitespace().collect::<Vec<_>>().join(" ");
+        let page = flat(&rules);
+        let shipped = parse_licences(&shipped_text()).expect("the shipped file parses");
+        let rule = flat(&format!("<b>7. {}</b> <span>{}</span>", shipped.hosting.heading, shipped.hosting.text));
+        assert!(page.contains(&rule), "rule 7 of web/pages/rules.html is not the hosting paragraph of data/media/licences.json");
+    }
 }

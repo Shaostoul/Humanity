@@ -217,6 +217,13 @@ pub const TICKET_REFUSED: &str = "That link to a members-only file has run out (
 /// row, and the key there must have the ticket's fingerprint, so a row number given to someone else
 /// later never inherits a ticket.
 pub fn admitted(state: &RelayState, ticket: &str, id: i64, file: i64, now: Instant) -> Result<MediaItem, Refused> {
+    admitted_as(state, ticket, id, file, now).map(|(item, _key)| item)
+}
+
+/// [`admitted`], and the key of the member the ticket was given to: the counted download route
+/// counts a members-only download by that key, once a day (relay/media_counts.rs, Media round 5).
+/// The key is looked up from the member row, as above; the ticket itself still holds none.
+pub fn admitted_as(state: &RelayState, ticket: &str, id: i64, file: i64, now: Instant) -> Result<(MediaItem, String), Refused> {
     let refused = || (StatusCode::FORBIDDEN, TICKET_REFUSED.to_string());
     let t = state.media_tickets.lookup(ticket, id, now).ok_or_else(refused)?;
     let key = state.db.member_key_at_row(t.member_row).ok_or_else(refused)?;
@@ -229,7 +236,7 @@ pub fn admitted(state: &RelayState, ticket: &str, id: i64, file: i64, now: Insta
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("storage: {e}")))?
         .ok_or_else(refused)?;
     match item.file_name(file) {
-        Some(name) if print("file", name) == t.file => Ok(item),
+        Some(name) if print("file", name) == t.file => Ok((item, key)),
         _ => Err(refused()),
     }
 }

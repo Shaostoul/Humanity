@@ -5,12 +5,16 @@
 // desktop app's Media page is the original (src/gui/pages/media.rs); this page
 // mirrors its layout and words.
 //
-// What it shows: a strip of featured items (every featured item, asked for with
-// `featured=1`), filters (category, kind, person, My picks, a search over
-// titles), a grid of tiles newest first with More, a viewer, and the person's
-// own uploads waiting to be published. What it does: Pick and Unpick, Remove
-// (with the words naming what happens to the file), Feature and Unfeature for
-// admins, Keep on the server and Stop keeping for admins and moderators, Report,
+// What it shows (round 5, docs/design/media-round-5-plan.md 3.10): "Media on
+// <host>", with Media and Admin tabs for admins (/media#admin opens Admin); the
+// featured shelf (the main one, or the picked category's, `featured=1&category=`);
+// filters (category with its description under them, kind, person, My picks,
+// Sort, a search over titles); a grid paged by the answer's cursor, the next page
+// asked for once as its end comes into view, with More for keyboards; a viewer at
+// the item's own address, /media/<id>; and the person's own uploads waiting to be
+// published. What it does: Pick and Unpick, Remove
+// (with the words naming what happens to the file), Feature (main shelf, its
+// category's, or none) for admins, Keep on the server and Stop keeping for admins and moderators, Report,
 // Add to Media (the file picker, a short form, then a resumable upload with a
 // progress bar, Pause and Resume), Put on Media for a Shared Files row (public
 // only), and Suggest a category. The relay half is src/relay/media.rs and
@@ -42,7 +46,7 @@
 //   video keeps playing through a sign-in, a reconnect or a list reload.
 // - A labelled item (spoiler, flashing lights, graphic) shows its label
 //   instead of its picture until clicked, on its tile and in the viewer
-//   (/media?id=<n> included): its file is not even requested before then.
+//   (/media/<n> included): its file is not even requested before then.
 // - Uploads in progress are a list of their own (each with its bar, Pause,
 //   Resume and Cancel), each published by its own form, so opening another
 //   form never leaves one behind (round 3, review 2). Uploads the server still
@@ -52,9 +56,11 @@
 //   page says what the server answered (round 4, W4-3).
 // - Every write is signed (Dilithium over "purpose\ntimestamp", getPqSignedAuth
 //   in /shared/pq-relay-auth.js, which never signs two requests with the same
-//   timestamp) with a purpose that names its target: media_publish:<file name>,
-//   media_remove:<item id or file name>, media_pick:<item id>,
-//   media_feature:<item id>, media_keep:<item id>:<on|off>. A write on an item
+//   timestamp) with a purpose that names its target:
+//   media_publish:<file name>:<licence id>:<0|1> (round 5: the licence and the
+//   game tick are signed with it), media_remove:<item id or file name>,
+//   media_pick:<item id>, media_feature:<item id>:<main|category|none> (round
+//   5), media_keep:<item id>:<on|off>. A write on an item
 //   also names the item's file (`filename`, the relay's W5), so a tile left on
 //   a page that is out of date never acts on another item: the relay answers
 //   409 and the page loads the list again.
@@ -84,6 +90,12 @@
   const TICKET_RENEW_AFTER_MS = 60000;
   // How long a report waits for the server's answer before saying it did not come.
   const ANSWER_WAIT_MS = 15000;
+  // How far below the screen the grid's end may still be when its next page is asked for.
+  const SENTINEL_MARGIN = '600px';
+  // The relay's sorts (3.3; newest first when none is sent) and where an admin may feature an
+  // item (3.4), each with the words both apps show.
+  const SORTS = [['new', 'Newest'], ['picks', 'Most picked'], ['downloads', 'Most downloaded']];
+  const FEATURE_CHOICES = [['none', 'Not featured'], ['main', 'Featured'], ['category', 'Featured in its category']];
 
   // ── Words (the design's own, shared with the desktop page) ──
   const MEDIA_WORDS = Object.freeze({
@@ -343,10 +355,31 @@
     return isAdminRole(role) || role === 'mod' || role === 'moderator';
   }
 
+  /**
+   * Whether an item is on a featured shelf (round 5: the relay sends "main", "category" or
+   * "none"; it was a bool).
+   */
+  function isFeatured(item) {
+    return !!item && (item.featured === 'main' || item.featured === 'category');
+  }
+
+  /** The item an address names: /media/<n> is item n (3.6, the shape nginx sends to the relay); else null. */
+  function itemIdOf(path) {
+    const m = /^\/media\/(\d{1,15})$/.exec(String(path || ''));
+    return m ? Number(m[1]) : null;
+  }
+
+  /** The licence an item gets when none is chosen (the relay's DEFAULT_LICENCE). */
+  const DEFAULT_LICENCE = 'all_rights_reserved';
+
   // ── Requests ──
 
-  /** The list's filters as the relay takes them, without the empty ones. */
-  function listParams(filters, before, limit) {
+  /**
+   * The list's filters as the relay takes them, without the empty ones. `cursor` is the last
+   * answer's `next_cursor` (round 5; it replaced `before`), opaque here; `filters.sort` is
+   * "picks" or "downloads" (newest first when left out).
+   */
+  function listParams(filters, cursor, limit) {
     const f = filters || {};
     const p = {};
     if (f.category) p.category = Number(f.category);
@@ -355,7 +388,8 @@
     if (f.q && f.q.trim()) p.q = f.q.trim();
     if (f.featured) p.featured = 1;
     if (f.id) p.id = Number(f.id);
-    if (before != null) p.before = Number(before);
+    if (f.sort && f.sort !== 'new') p.sort = String(f.sort);
+    if (cursor != null) p.cursor = String(cursor);
     p.limit = limit || PAGE_SIZE;
     return p;
   }
@@ -374,10 +408,10 @@
   const purposes = Object.freeze({
     list: () => 'media_list',
     mine: () => 'media_mine',
-    publish: (filename) => 'media_publish:' + filename,
+    publish: (filename, licence, forGame) => 'media_publish:' + filename + ':' + (licence || DEFAULT_LICENCE) + ':' + (forGame ? 1 : 0),
     remove: (target) => 'media_remove:' + target,
     pick: (id) => 'media_pick:' + id,
-    feature: (id) => 'media_feature:' + id,
+    feature: (id, to) => 'media_feature:' + id + ':' + to,
     keep: (id, on) => 'media_keep:' + id + ':' + (on ? 'on' : 'off'),
     suggest: () => 'media_suggest',
     suggestions: () => 'media_suggestions',
@@ -464,8 +498,10 @@
    *   save(url, name) (saves a file; optional: a hidden link is clicked otherwise),
    *   report (/shared/report.js's names), language (navigator.language),
    *   put ({filename, name} to open Put on Media for a Shared Files upload, or null),
-   *   openId (an item's number to open, from /media?id=<n>, or null),
-   *   mountAdmin(container) (the admins' Media section, /pages/media-admin.js), optional,
+   *   path and hash (the address's: /media/<n> opens item n, #admin the Admin tab),
+   *   history (pushState, replaceState, back: an opened item's address; optional),
+   *   IntersectionObserver (loads the next page as the grid's end comes into view; optional),
+   *   mountAdmin(container) (the admins' Media section, /pages/media-admin.js, on the Admin tab), optional,
    *   clean (/shared/upload-clean.js, which cleans each file before it goes up; that module when
    *   not given, and null for no cleaning at all: the older tests' stand-in files are zeros named
    *   as videos, which the cleaning would rightly refuse).
@@ -483,11 +519,18 @@
     const Abort = env.AbortController || (typeof AbortController !== 'undefined' ? AbortController : null);
     // The cleaning (part 1): false when the page could not load it, so nothing goes up unchecked.
     const cleaner = env.clean !== undefined ? env.clean : (C || false);
+    // The heading and the tab's title name the server (3.10): "Media on united-humanity.us".
+    let host = '';
+    try { host = new URL(env.origin).host; } catch (e) { host = ''; }
+    const mediaOn = 'Media on ' + host;
+    const hist = env.history || null;
+    let watcher = null; // the IntersectionObserver on the sentinel after the grid
 
     const st = {
       items: [],
       featured: [],
-      nextBefore: null,
+      nextCursor: null,          // the last answer's next_cursor (round 5)
+      licences: null,            // the server's licences answer (round 5)
       answered: false,          // a list answer has come back
       membersView: false,
       membersOnlyForYou: false,
@@ -497,7 +540,10 @@
       kinds: [],                // data/media/kinds.json
       seenKinds: [],            // the kinds the items carry, used when the kinds file could not be read
       people: new Map(),        // uploader key -> name, from the answers
-      filters: { category: '', kind: '', by: '', q: '', picks: false },
+      filters: { category: '', kind: '', by: '', q: '', picks: false, sort: 'new' },
+      shelfOf: '',              // the category whose shelf st.featured is ('' the main shelf)
+      tab: env.hash === '#admin' ? 'admin' : 'media', // shown only to admins
+      pushed: false,            // the open item's address was pushed here, so closing goes Back
       revealed: new Set(),      // labelled items the person clicked to show
       loading: false,
       listError: '',
@@ -544,23 +590,35 @@
       els.suggest = h('div', { id: 'media-suggest', className: 'media-form-wrap' });
       els.featured = h('section', { id: 'media-featured', className: 'media-featured' });
       els.filters = h('div', { id: 'media-filters', className: 'media-filters' });
+      els.catDesc = h('p', { id: 'media-category-desc', className: 'media-hint media-category-desc', hidden: true });
       els.grid = h('div', { id: 'media-grid', className: 'media-grid' });
       els.more = h('div', { id: 'media-more-wrap', className: 'media-more-wrap' });
+      // Comes into view just after the grid's end: the next page is asked for then (3.10).
+      els.sentinel = h('div', { id: 'media-sentinel', className: 'media-sentinel', attrs: { 'aria-hidden': 'true' } });
       els.viewer = h('div', { id: 'media-viewer', className: 'media-viewer-wrap' });
       els.report = h('div', { id: 'media-report', className: 'media-viewer-wrap' });
-      els.admin = h('div', { id: 'media-admin-wrap', className: 'media-admin-wrap' });
+      els.tabs = h('div', { id: 'media-tabs-wrap' });
+      // The Media tab, and the Admin tab (the admins' section, mounted in renderAdmin).
+      els.main = h('div', { id: 'media-main' }, [els.members, els.actions, els.form, els.uploads, els.waiting, els.suggest,
+        els.featured, els.filters, els.catDesc, els.grid, els.more, els.sentinel]);
+      els.admin = h('div', { id: 'media-admin-wrap', className: 'media-admin-wrap', hidden: true });
+      doc.title = mediaOn;
       env.root.replaceChildren(
         h('div', { className: 'media-head' }, [
-          h('h1', { text: 'Media' }),
+          h('h1', { id: 'media-title', text: mediaOn }),
           h('p', { className: 'media-lede' }, [
             MEDIA_WORDS.lede + ' Files people share for download are in ',
             h('a', { href: '/shared-files', text: 'Shared Files' }),
             '.',
           ]),
         ]),
-        els.status, els.notice, els.members, els.actions, els.form, els.uploads, els.waiting, els.suggest,
-        els.featured, els.filters, els.grid, els.more, els.viewer, els.report, els.admin, fileInput
+        els.status, els.notice, els.tabs, els.main, els.admin, els.viewer, els.report, fileInput
       );
+      const Watch = env.IntersectionObserver || null;
+      if (Watch) {
+        watcher = new Watch((seen) => { if (seen.some((e) => e.isIntersecting)) more(); }, { rootMargin: SENTINEL_MARGIN });
+        watcher.observe(els.sentinel);
+      }
     }
 
     // ── Who the person is here ──
@@ -687,9 +745,14 @@
     }
     function renderFilters() {
       const peopleList = Array.from(st.people.entries()).sort((a, b) => String(a[1] || '').localeCompare(String(b[1] || '')));
-      const key = JSON.stringify([st.categories.map((c) => [c.id, c.name]), kindsOffered(), st.kinds.map((k) => k.label), peopleList, !!myKey, st.filters]);
+      const key = JSON.stringify([st.categories.map((c) => [c.id, c.name, c.description]), kindsOffered(), st.kinds.map((k) => k.label), peopleList, !!myKey, st.filters]);
       if (key === st.filtersKey) return;
       st.filtersKey = key;
+      // The picked category's description, under the filters (3.10), as text.
+      const picked = st.categories.find((c) => String(c.id) === String(st.filters.category));
+      const desc = picked && typeof picked.description === 'string' ? picked.description.trim() : '';
+      els.catDesc.textContent = desc;
+      els.catDesc.hidden = !desc;
       const keepQ = els.search ? els.search.value : st.filters.q;
       const option = (value, text, chosen) => h('option', { value: String(value), text, selected: String(chosen) === String(value) });
       const category = h('select', { id: 'media-filter-category', className: 'media-select', attrs: { 'aria-label': 'Category' } },
@@ -701,7 +764,10 @@
       const person = h('select', { id: 'media-filter-person', className: 'media-select', attrs: { 'aria-label': 'Person' } },
         [option('', 'Everyone', st.filters.by)].concat(peopleList.map(([k, name]) => option(k, name || 'Someone without a name', st.filters.by))));
       person.addEventListener('change', () => setFilter('by', person.value));
-      const kids = [category, kind, person];
+      const sort = h('select', { id: 'media-filter-sort', className: 'media-select', attrs: { 'aria-label': 'Sort' } },
+        SORTS.map(([v, words]) => option(v, words, st.filters.sort)));
+      sort.addEventListener('change', () => setFilter('sort', sort.value));
+      const kids = [category, kind, person, sort];
       if (myKey) {
         const picks = h('input', { type: 'checkbox', id: 'media-filter-picks', checked: !!st.filters.picks });
         picks.addEventListener('change', () => setFilter('picks', !!picks.checked));
@@ -713,9 +779,11 @@
       kids.push(h('button', { type: 'button', id: 'media-search-btn', className: 'media-btn', text: 'Search', on: { click: () => setFilter('q', els.search.value) } }));
       els.filters.replaceChildren(...kids);
     }
+    /** A filter changed: the list is asked for afresh (no cursor), and a category its own shelf. */
     function setFilter(name, value) {
       st.filters[name] = value;
       load(true);
+      if (name === 'category') loadFeatured();
     }
 
     // ── Members-only pictures: fetched with the token in a header, shown through object URLs ──
@@ -950,10 +1018,12 @@
         }));
       }
       if (isAdmin()) {
-        row.appendChild(h('button', {
-          type: 'button', className: 'media-btn media-btn-small', dataset: { action: item.featured ? 'unfeature' : 'feature' },
-          text: item.featured ? 'Unfeature' : 'Feature', on: { click: () => feature(item, !item.featured) },
-        }));
+        // Three ways (round 5): not featured, on the main shelf, or on its category's shelf only.
+        const now = isFeatured(item) ? item.featured : 'none';
+        const where = h('select', { className: 'media-select media-select-small', dataset: { action: 'feature' }, attrs: { 'aria-label': 'Feature' } },
+          FEATURE_CHOICES.map(([v, words]) => h('option', { value: v, text: words, selected: v === now })));
+        where.addEventListener('change', () => feature(item, where.value));
+        row.appendChild(where);
       }
       if (isStaff()) {
         row.appendChild(h('button', {
@@ -1018,7 +1088,9 @@
     function renderFeatured() {
       els.featured.replaceChildren();
       if (!st.featured.length) return;
-      els.featured.appendChild(h('h2', { text: 'Featured' }));
+      // The main shelf, or the shelf of the category it was asked for (3.9: "Featured in Fire flow arts").
+      const cat = st.shelfOf ? st.categories.find((c) => String(c.id) === String(st.shelfOf)) : null;
+      els.featured.appendChild(h('h2', { id: 'media-featured-title', text: cat ? 'Featured in ' + cat.name : 'Featured' }));
       els.featured.appendChild(h('div', { id: 'media-featured-row', className: 'media-featured-row' }, st.featured.map(tile)));
     }
 
@@ -1037,25 +1109,61 @@
         for (const item of st.items) els.grid.appendChild(tile(item));
       }
       els.more.replaceChildren();
-      if (st.nextBefore != null && !st.listError) {
+      if (st.nextCursor != null && !st.listError) {
         els.more.appendChild(h('button', {
           type: 'button', id: 'media-more', className: 'media-btn', text: st.loading ? MEDIA_WORDS.loading : 'More',
-          disabled: st.loading, on: { click: () => load(false) },
+          disabled: st.loading, on: { click: more },
         }));
       }
     }
+    // The next page, from More or the sentinel coming into view, asked for once: nothing more is
+    // asked while a page is on its way, so a sentinel reporting again never asks for it twice.
+    function more() {
+      if (st.loading || st.nextCursor == null || st.listError) return;
+      load(false);
+    }
+
+    // ── The item's address (3.10): an opened item is /media/<id> ──
+    /** Put `path` in the address bar: as a new step (Back undoes it) or in place of this one. */
+    function go(path, push) {
+      if (!hist) return;
+      try { if (push) hist.pushState(null, '', path); else hist.replaceState(null, '', path); } catch (e) { /* refused (a sandboxed frame): the page works without */ }
+    }
+    /** Back or Forward changed the address: show what it names (an item or the list; #admin the Admin tab). */
+    function route(path, hash) {
+      st.pushed = false;
+      st.tab = hash === '#admin' ? 'admin' : 'media';
+      renderTabs();
+      const id = itemIdOf(path);
+      if (id == null) { if (st.viewer) closeViewer(true); return Promise.resolve(); }
+      if (st.viewer && st.viewer.id === id) return Promise.resolve();
+      // An item the list holds already opens as it is; any other is asked for by its number.
+      const known = st.items.concat(st.featured).find((i) => i.id === id);
+      if (known) { openViewer(known, true); return Promise.resolve(); }
+      return openById(id);
+    }
 
     // ── The viewer: drawn again only when what it shows changes ──
-    function openViewer(item) {
+    /** Open an item. `fromAddress`: the address names it already (a load of /media/<id>, Back, Forward). */
+    function openViewer(item, fromAddress) {
       // A ticket refused earlier is asked for afresh when the person opens the item again (the
       // relay's words for too many open say to do just that); while it stays open it is not asked
       // again, so a refusal never becomes a loop of requests.
       const was = item && tickets.get(item.id);
       if (was && was.state === 'error') tickets.delete(item.id);
+      if (item && fromAddress !== true) {
+        // Opened from the list: a new step in the history, so Back closes it.
+        if (!st.viewer) st.pushed = !!hist;
+        go('/media/' + item.id, !st.viewer);
+      }
       st.viewer = item;
       renderViewerIfChanged();
     }
-    function closeViewer() {
+    /** Close the item. Its address goes too: Back when it was pushed here, else replaced by /media. */
+    function closeViewer(fromAddress) {
+      if (st.viewer && fromAddress !== true) {
+        if (st.pushed) { st.pushed = false; hist.back(); } else go('/media', false);
+      }
       st.viewer = null;
       st.saveWanted = null;
       renderViewerIfChanged();
@@ -1109,6 +1217,8 @@
     }
     function renderViewer() {
       els.viewer.replaceChildren();
+      // The tab's title as the relay writes it for the item's page: "Dusk, Media on <host>".
+      doc.title = (st.viewer ? itemName(st.viewer, st.kinds) + ', ' : '') + mediaOn;
       const item = st.viewer;
       if (!item) return;
       const name = itemName(item, st.kinds);
@@ -1119,7 +1229,7 @@
       if (route.why) {
         body = h('p', { className: 'media-warn', text: route.why });
       } else if (covered) {
-        // The label cover, as on its tile (/media?id=<n> opens the viewer directly): nothing is
+        // The label cover, as on its tile (/media/<n> opens the viewer directly): nothing is
         // fetched until it is clicked.
         body = h('button', {
           type: 'button', id: 'media-viewer-veil', className: 'media-thumb media-veil media-viewer-veil', dataset: { veil: item.id },
@@ -1190,7 +1300,8 @@
     function takeAnswer(a) {
       const items = Array.isArray(a && a.items) ? a.items : [];
       st.items = st.items.concat(items);
-      st.nextBefore = a && a.next_before != null ? a.next_before : null;
+      st.nextCursor = a && a.next_cursor != null ? a.next_cursor : null;
+      if (a && a.licences && typeof a.licences === 'object') st.licences = a.licences;
       st.answered = true;
       st.membersView = !!(a && a.members_view);
       st.membersOnlyForYou = !!(a && a.members_only_for_you);
@@ -1231,12 +1342,12 @@
         // the ones it still shows instead of fetching each again.
         st.reloadKeep = new Set(Array.from(st.reloadKeep || []).concat(st.items.map((i) => i.id)));
         st.items = [];
-        st.nextBefore = null;
+        st.nextCursor = null;
       }
       st.loading = true;
       st.listError = '';
       renderGrid();
-      const params = listParams(st.filters, reset ? null : st.nextBefore);
+      const params = listParams(st.filters, reset ? null : st.nextCursor);
       const fromPicks = !!(st.filters.picks && myKey);
       try {
         const res = fromPicks ? await fetchPicks(params) : await fetchList(params);
@@ -1250,20 +1361,28 @@
       st.loading = false;
       st.reloadKeep = null;
       renderAll();
+      // Watched afresh, the sentinel reports at once whether it is still in view (a short page),
+      // so the next page comes without a scroll; it stops once the sentinel is out of reach.
+      if (watcher && st.nextCursor != null) { watcher.unobserve(els.sentinel); watcher.observe(els.sentinel); }
     }
 
-    /** Every featured item (`featured=1`), not only those on the pages loaded. */
+    /**
+     * The shelf: every featured item (`featured=1`), not only those on the pages loaded; with a
+     * category picked, that category's shelf (`featured=1&category=c`, 3.3).
+     */
     async function loadFeatured() {
       const seq = ++featuredSeq;
+      const shelf = st.filters.category || '';
       let featured = [];
       try {
-        const a = await answerOf(await fetchList(listParams({ featured: 1 }, null, FEATURED_LIMIT)));
+        const a = await answerOf(await fetchList(listParams({ featured: 1, category: shelf }, null, FEATURED_LIMIT)));
         featured = Array.isArray(a.items) ? a.items : [];
       } catch (e) {
         featured = [];
       }
       if (seq !== featuredSeq) return;
       st.featured = featured;
+      st.shelfOf = shelf;
       takePeople(featured);
       renderFeatured();
       sweepBlobs();
@@ -1361,17 +1480,19 @@
       if (!a) return;
       st.items = st.items.filter((i) => i.id !== item.id);
       st.featured = st.featured.filter((i) => i.id !== item.id);
-      if (st.viewer && st.viewer.id === item.id) st.viewer = null;
+      if (st.viewer && st.viewer.id === item.id) closeViewer();
       say(removedWords(a));
       renderAll();
       loadMine();
     }
 
-    async function feature(item, on) {
-      const a = await act('/api/media/feature', purposes.feature(item.id), item, { featured: on });
+    /** Feature an item on the main shelf ("main"), its category's only ("category") or neither ("none"). */
+    async function feature(item, to) {
+      const a = await act('/api/media/feature', purposes.feature(item.id, to), item, { featured: to });
       if (a) {
-        for (const c of copiesOf(item.id)) c.featured = on;
-        say(on ? 'Featured: it leads the Media page now.' : 'Taken off the featured row.');
+        for (const c of copiesOf(item.id)) c.featured = to;
+        say(to === 'main' ? 'Featured: it leads the Media page now.'
+          : to === 'category' ? "Featured in its category: it leads that category's shelf now." : 'Taken off the featured shelves.');
         loadFeatured();
       }
       renderGrid();
@@ -1879,7 +2000,10 @@
       renderFormActions(f);
       try {
         const filename = f.mode === 'put' ? f.filename : f.uploadedName;
-        const auth = await env.sign(purposes.publish(filename));
+        // The licence and the game tick (round 5): the default until the form offers a choice.
+        const licence = f.licence || DEFAULT_LICENCE;
+        const forGame = !!f.forGame;
+        const auth = await env.sign(purposes.publish(filename, licence, forGame));
         if (!auth) throw new Error(MEDIA_WORDS.cannotSign);
         const body = Object.assign({
           filename,
@@ -1887,6 +2011,8 @@
           description: (f.description || '').trim(),
           labels: f.labels || [],
           visibility: f.visibility || 'public',
+          licence,
+          project_use: forGame,
         }, f.category ? { category_id: Number(f.category) } : {}, auth);
         await answerOf(await env.fetch('/api/media', jsonPost(body)));
         if (st.form === f) closeForm();
@@ -2140,16 +2266,33 @@
       renderSuggest();
     }
 
-    // ── Admins ──
+    // ── Admins: the Admin tab (round 5; it was a <details> at the page's foot) ──
     function renderAdmin() {
-      if (st.adminMounted || !isAdmin() || typeof env.mountAdmin !== 'function') return;
-      st.adminMounted = true;
-      const body = h('div', { id: 'media-admin-body', className: 'media-admin-body' });
-      els.admin.appendChild(h('details', { className: 'media-panel media-admin', id: 'media-admin' }, [
-        h('summary', { text: 'Media settings, categories and space (admins)' }),
-        body,
-      ]));
-      env.mountAdmin(body);
+      if (!st.adminMounted && isAdmin() && typeof env.mountAdmin === 'function') {
+        st.adminMounted = true;
+        const body = h('div', { id: 'media-admin-body', className: 'media-admin-body' });
+        els.admin.appendChild(h('div', { className: 'media-panel media-admin', id: 'media-admin' }, [
+          h('h2', { text: 'Media settings, categories and space' }),
+          body,
+        ]));
+        env.mountAdmin(body);
+      }
+      renderTabs();
+    }
+    /** The tabs, for admins only: Media (the list) and Admin (the section above). */
+    function renderTabs() {
+      const admin = isAdmin();
+      const tab = admin && st.tab === 'admin' ? 'admin' : 'media';
+      els.main.hidden = tab !== 'media';
+      els.admin.hidden = tab !== 'admin';
+      els.tabs.replaceChildren();
+      if (!admin) return;
+      const button = (id, words) => h('button', {
+        type: 'button', id: 'media-tab-' + id, className: 'media-tab' + (tab === id ? ' media-tab-active' : ''), text: words,
+        attrs: { role: 'tab', 'aria-selected': String(tab === id) },
+        on: { click: () => { st.tab = id; go(id === 'admin' ? '/media#admin' : '/media', false); renderTabs(); } },
+      });
+      els.tabs.appendChild(h('div', { id: 'media-tabs', className: 'media-tabs', attrs: { role: 'tablist' } }, [button('media', 'Media'), button('admin', 'Admin')]));
     }
 
     function renderAll() {
@@ -2192,7 +2335,7 @@
       }
     }
 
-    /** /media?id=<n>: the item by its number (the admins' Reports view opens one this way). */
+    /** /media/<n>: the item by its number, its address already (the chat's Reports view links there). */
     async function openById(id) {
       try {
         const a = await answerOf(await fetchList(listParams({ id }, null, 1)));
@@ -2200,7 +2343,7 @@
         if (!item) { say(MEDIA_WORDS.notFound, true); return; }
         takePeople([item]);
         if (Array.isArray(a.labels) && a.labels.length) st.labels = a.labels;
-        openViewer(item);
+        openViewer(item, true);
       } catch (e) {
         say(MEDIA_WORDS.notFound + ' ' + (e && e.message ? e.message : ''), true);
       }
@@ -2219,7 +2362,8 @@
       loadMine();
       // Put on Media (a Shared Files row's link) once the categories and labels are known.
       if (env.put && myKey) openPutForm(env.put);
-      if (env.openId) await openById(env.openId);
+      const id = itemIdOf(env.path);
+      if (id != null) await openById(id);
     }
 
     /** Revoke every object URL (the page is going away). */
@@ -2230,7 +2374,7 @@
 
     return {
       start, state: st, load, loadFeatured, loadMine, openAddForm, openPutForm, removeItem: remove, pickItem: pick,
-      featureItem: feature, keepItem: keep, openReport, openViewer, closeViewer, dispose, blobs, tickets,
+      featureItem: feature, keepItem: keep, openReport, openViewer, closeViewer, route, dispose, blobs, tickets,
     };
   }
 
@@ -2239,9 +2383,9 @@
     const doc = root.document;
     const rootEl = doc && doc.getElementById('media-root');
     if (!rootEl) return;
-    const params = new URLSearchParams(root.location.search || '');
+    const loc = root.location;
+    const params = new URLSearchParams(loc.search || '');
     const put = params.get('put') ? { filename: params.get('put'), name: params.get('name') || '' } : null;
-    const openId = /^\d+$/.test(params.get('id') || '') ? Number(params.get('id')) : null;
     const go = async () => {
       let identity = null;
       try { identity = typeof root.getPqIdentity === 'function' ? await root.getPqIdentity() : null; } catch (e) { identity = null; }
@@ -2278,9 +2422,11 @@
         report: typeof root.buildReportFrame === 'function' ? root : null,
         language: (root.navigator && root.navigator.language) || '',
         put,
-        openId,
+        // /media/<n> opens item n (the relay serves this page there, 3.6); #admin the Admin tab.
+        path: loc.pathname, hash: loc.hash, history: root.history,
+        IntersectionObserver: root.IntersectionObserver || null,
         retryIdentity: () => root.location.reload(),
-        // The admins' section (/pages/media-admin.js, loaded after this file).
+        // The admins' section on the Admin tab (/pages/media-admin.js, loaded after this file).
         mountAdmin: (container) => {
           if (typeof root.mountMediaAdmin !== 'function') return;
           root.mountMediaAdmin(container, {
@@ -2291,6 +2437,8 @@
         },
       });
       root.addEventListener('pagehide', () => page.dispose());
+      // Back and Forward between /media and /media/<n> (and #admin) show what the address names.
+      root.addEventListener('popstate', () => page.route(loc.pathname, loc.hash));
       page.start();
     };
     if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', go);
@@ -2300,7 +2448,7 @@
   const api = {
     MEDIA_WORDS, PAGE_SIZE, FEATURED_LIMIT, KINDS_URL, RESUME_KEY, parseKinds, kindWords, sizeWords, shareLeftWords,
     shareStop, limitStop, budgetStop, meterWords, keptMeterWords, removeWords, removedWords, resetsWords, ownFilePath,
-    fileRoute, storedName, itemFileName, itemName, downloadName, labelsOf, listParams, publicListUrl, purposes, jsonPost,
+    fileRoute, storedName, itemFileName, itemName, downloadName, labelsOf, listParams, publicListUrl, purposes, jsonPost, isFeatured, itemIdOf, DEFAULT_LICENCE,
     refusalOf, refusalWords, answerOf, makeH, isAdminRole, isStaffRole, rememberUpload, findUpload, forgetUpload,
     createUploader, fingerprint, createMediaPage,
   };

@@ -203,8 +203,8 @@ fn where_you_live_in_words() {
         "A family of three",
         "Just you",
         "Takes effect the next time you enter the world.",
-        "To live somewhere else, start a new home in Characters (Play), or choose on a server's card there. \
-         Moving to another kind of home on a server comes in a later update.",
+        "Your own home on this computer stays the one you have. To live somewhere else, choose a home \
+         on a server's card in Characters (Play). Moving house comes in a later update.",
     ];
     assert_eq!(missing(&out, &want), Vec::<String>::new(), "Settings > Gameplay is missing these");
     assert_eq!(present(&out, &["Home Design", "Family (default)", "Solo --"]), Vec::<String>::new(), "and no longer says these");

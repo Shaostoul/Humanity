@@ -2120,8 +2120,12 @@ var federatedRetryMs = 30000;
     const fedHeader = e.target.closest('[data-federated-url]');
     if (fedHeader) {
       const url = fedHeader.getAttribute('data-federated-url');
-      if (url && confirm(`Switch to server: ${url}?\n\nThis will open the server in a new tab.`)) {
-        window.open(url, '_blank');
+      // Only a web address opens: a linked server's stored address comes from another server, so
+      // a javascript: or data: one must never reach window.open (found 2026-10-12, lane 1F).
+      let web = null;
+      try { const u = new URL(url); if (u.protocol === 'https:' || u.protocol === 'http:') web = u.href; } catch (_) { web = null; }
+      if (web && confirm(`Switch to server: ${web}?\n\nThis will open the server in a new tab.`)) {
+        window.open(web, '_blank', 'noopener,noreferrer');
       }
       return;
     }
