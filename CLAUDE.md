@@ -639,10 +639,10 @@ When you change any of these in code, update this table + status in the same com
 
 READ THE ORDER OFF `web/chat/index.html`, never off this list: it is load-bearing
 for an IIFE shell and it has drifted before (this block named `chat-voice.js`,
-which was split into five files, and omitted nine that exist). As of 2026-10-12 (after the website signs its own profile copy):
+which was split into five files, and omitted nine that exist). As of 2026-10-12 (after the server strip, media-round-5-plan.md 3.11):
 
 `twemoji` → `/shared/icons.js` → `/shared/events.js` → `/shared/hold-confirm.js` →
-`/shared/shell.js` → `/shared/defaults.js` → `/shared/settings.js` → `bip39-english.js` →
+`/shared/shell.js` → `/shared/server-strip.js` → `/shared/defaults.js` → `/shared/settings.js` → `bip39-english.js` →
 `/shared/friend-pass.js` → `/shared/reach.js` → `/shared/block.js` → `/shared/report.js` →
 `/shared/group-report.js` →
 `/shared/warnings.js` → `/shared/protected.js` → `/shared/admin-erase.js` →

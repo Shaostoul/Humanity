@@ -613,11 +613,8 @@ test("12. the page is in the nav beside Watch and loads its scripts in order", (
   assert.ok(at2.every((i) => i > 0), "every script is loaded: " + at2);
   assert.deepEqual(at2.slice().sort((a, b) => a - b), at2, "in order");
   assert.ok(html.includes('id="media-root"'));
-  // The Admin page mounts the same section, so it loads the upload helper before the page's helpers.
-  const adminHtml = fs.readFileSync(path.join(WEB, "pages", "admin.html"), "utf8");
-  const order2 = ["/shared/relay-session.js", "/pages/media-upload.js", "/pages/media-app.js", "/pages/media-admin.js"].map((s) => adminHtml.indexOf('src="' + s));
-  assert.ok(order2.every((i) => i > 0), "the Admin page loads the section's scripts: " + order2);
-  assert.deepEqual(order2.slice().sort((a, b) => a - b), order2, "in order");
+  // The Admin page no longer mounts the section (round 5, lane 1F): its Media panel is one line
+  // linking /media#admin and it loads none of these scripts, which server-strip-web.test.js checks.
   const shared = fs.readFileSync(path.join(WEB, "pages", "shared-files.html"), "utf8");
   assert.ok(shared.includes("'/media?put=' + encodeURIComponent("), "a Shared Files row links to Put on Media");
   assert.ok(/f\.uploader_key !== myKey/.test(shared), "on the person's own rows only");

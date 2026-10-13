@@ -95,6 +95,10 @@ header h1 {
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  /* In a short window the form is taller than the room under the nav and the server strip:
+     `safe` keeps its top in view instead of centering it off the top, and the screen scrolls. */
+  justify-content: safe center;
+  overflow-y: auto;
   flex: 1;
   min-height: 0;
   gap: var(--space-xl);
