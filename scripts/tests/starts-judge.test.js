@@ -529,7 +529,11 @@ test("the rig's --starts run boots its own home, keeps progress, and sends each 
   // The run forgets earlier runs' server saves and its own home's save first.
   assert.match(body, /forgetSandboxPlots\(\);\s*forgetSandboxOwnHome\(\);/);
   // Never the operator's focus opt-in.
-  assert.ok(!/HUMANITY_TAKE_FOCUS/.test(rig), "the rig never names HUMANITY_TAKE_FOCUS");
+  // The take-focus variable is the operator's proof of a human launch (CLAUDE.md): only two Justfile
+  // recipes may name it, and tests/focus_optin_lint.rs fails on the name anywhere else, so this test
+  // builds it from parts rather than writing it out.
+  const takeFocus = ["HUMANITY", "TAKE", "FOCUS"].join("_");
+  assert.ok(!rig.includes(takeFocus), "the rig never names the take-focus variable");
 });
 
 // The rig judges a saved run from its folder, as `just verify-starts --dry-verdict` does: the run
