@@ -3035,3 +3035,13 @@ the connection as ended and the note said again once, nothing for one that ended
 friends. Showing the forwarder's day amount (the relay counts it; the app shows only "not set up").
 The one desktop-to-web transfer through a throwaway relay with its forwarder on loopback that the
 spec asks for before release.
+
+
+## Round 5, as built (2026-10-12, v0.1491.0 to v0.1493.0)
+
+The plan is `docs/design/media-round-5-plan.md`; what shipped of it:
+
+- **Wave 0** (the contract): `media_items` gained licence, project_use and downloads; `media_item_files` and `media_licence_log`; featured main/category/none; sort new/picks/downloads with the cursor "<value>.<id>"; `data/media/licences.json`; the shared fixture `scripts/tests/fixtures/media-round5-v1.json`.
+- **1A** relay item writes (`media_edit.rs`), **1B** counts and the item page for social sites (`media_counts.rs`, `media_page.rs`; the live nginx routes `/media/<number>` to the relay), **1C** the desktop list and Admin tab, **1D** the desktop item page and editor, **1E** the desktop strip, **1F** the web strip, **1G** the web list. Each lane's tests were seen red against their named breaks.
+- **The operator's answers** (plan section 10) are built in: the editor states that a Creative Commons licence cannot be taken back and what it means on a members-only item; "Offer this for the game" only for CC0 and CC BY 4.0; the hosting paragraph ("Your uploads stay yours.") beside Add to Media, in Edit and as rule 7 of web/pages/rules.html (a relay test holds the two copies equal).
+- **Next:** 2A (the website's item page and editor), 2B (the proof and snapshots), then phase 2 ("Also put this on..." other servers). public.guide's nginx needs the `/media/<number>` block by hand.
