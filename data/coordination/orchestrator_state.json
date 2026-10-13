@@ -261,6 +261,11 @@
       "date": "2026-10-12",
       "decision": "Released v0.1489.0: 5b in the game (27/27 in just verify-household after two rig-side fixes: her wall moved into the common room on the metre grid, the game matched under any name), the 5b review fixes (a restarted game is stood a step out onto the street from a neighbour plot instead of shut in; again keeps a working permit; 30 s rechecks; Renew by this plot; card lines), wounds and healing (S8; MedicalSystem and data/medical.ron deleted, FoodSystem the one owner), backpack sowing (F11), increment 6 Wave 0, BUG-191 Wave 0 and 1D, website permission and wording fixes. The session process had ended at about 6:30 a.m. and killed every agent and a release build; all partial work survived in worktrees and was resumed after noon.",
       "why": "Ship what is verified in the running game; keep builds to three or four at once (six plus a release crashed rustc for memory twice)."
+    },
+    {
+      "date": "2026-10-12",
+      "decision": "Media round 5, from the operator sharing his first 3D model: (1) a keep is undone only by the same or a higher role (shipped on main: a moderator could undo his admin keep); (2) edit an item in place (title, description, category, labels, visibility, files, licence), several files per item, descriptions shown (item and category), a fixed strip naming the server on every server-scoped page, Media admin moved onto the Media page, a page and share link per item with preview tags, cover pictures, download counts; (3) operator answers: featured items may show twice (fine at scale), add featured per category, sorting and load-more; a licence per item from a data file with All rights reserved preselected plus a separate opt-in letting HumanityOS use it in the game and its own videos with credit, the wording waiting on a dated findings doc (docs/reference/findings/2026-10-12-media-item-licences.md, in progress); one item on several servers wanted (\"Also put this on...\", the app copying through normal uploads, copies linked by the main file fingerprint) as phase 2. Plan: docs/design/media-round-5-plan.md (being written).",
+      "why": "The operator wants Media right and user friendly before people use it; the plan coordinates relay, web and desktop lanes in parallel."
     }
   ],
   "active_scopes_to_avoid": [
