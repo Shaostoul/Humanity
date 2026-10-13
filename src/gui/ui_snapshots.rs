@@ -1562,10 +1562,11 @@ fn snapshot_report_reasons() -> Vec<crate::net::report::ReportReason> {
 #[test]
     #[ignore = "GPU snapshot; run via `just snapshots`"]
     fn snapshot_gameplay_settings() {
-    // Settings > Gameplay (2026-10-04): the realism switches, the home design
-    // and the Pipe markings row (Simplified / Full) at the end. Tall canvas so
-    // the whole section is one reviewable image.
-    render_page_png("gameplay_settings", 960, 2150, |ctx, theme, state| {
+    // Settings > Gameplay (2026-10-04): the realism switches, Where you live
+    // (ship homes increment 6; it was Home Design) and the Pipe markings row
+    // (Simplified / Full) at the end. Tall canvas so the whole section is one
+    // reviewable image (2,150 px had stopped short of Where you live by 2026-10-12).
+    render_page_png("gameplay_settings", 960, 2800, |ctx, theme, state| {
         settings_panel(ctx, theme, state, crate::gui::pages::settings::draw_gameplay_content);
     });
 }
@@ -1691,6 +1692,64 @@ fn snapshot_household() {
         egui::CentralPanel::default()
             .frame(egui::Frame::none().fill(theme.bg_panel()).inner_margin(theme.card_padding))
             .show(ctx, |ui| household::draw_card_uncapped(ui, theme, state));
+    });
+}
+
+/// "Choose where you live" (ship homes increment 6, lane 1E, pages/where_you_live.rs): on the
+/// left, Settings > Gameplay's "Where you live" for your own homestead (with its household
+/// sub-choice) and the Home page's line, then the new-home choice (every start from
+/// data/homes/starts.ron, the Apartment greyed); on the right, a server's card where you live in
+/// its cabin c2, and a guest's card (15 cabins free, no homestead free, the Apartment greyed) with
+/// the server's refusal sentence. Each panel is captioned with where the app draws it.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_where_you_live() {
+    use crate::gui::pages::where_you_live as wyl;
+    use crate::ship::starts::{HomeAnswer, HomeRefusal, Starts};
+    let starts = Starts::load(std::path::Path::new("data"));
+    let held = wyl::tests::held_answer(&starts);
+    let full = HomeAnswer {
+        refused: Some(HomeRefusal::Full),
+        message: crate::ship::starts::refusal_words(HomeRefusal::Full, starts.get("homestead").unwrap(), None, &["Cabin"]),
+        ..wyl::tests::guest_answer(&starts)
+    };
+    render_page_png("where_you_live", 1280, 780, |ctx, theme, state| {
+        let theme: &Theme = theme;
+        crate::save_load::set_active_home(crate::save_load::ActiveHome::offline());
+        wyl::reset_draft();
+        let caption = |ui: &mut egui::Ui, theme: &Theme, text: &str| {
+            ui.label(egui::RichText::new(text).size(theme.font_size_small).italics().color(theme.text_muted()));
+        };
+        egui::CentralPanel::default()
+            .frame(egui::Frame::none().fill(theme.bg_panel()).inner_margin(theme.card_padding))
+            .show(ctx, |ui| {
+                ui.columns(2, |cols| {
+                    caption(&mut cols[0], theme, "Settings > Gameplay, your own homestead");
+                    crate::gui::widgets::card(&mut cols[0], theme, |ui| {
+                        ui.set_min_width(ui.available_width());
+                        wyl::draw_settings_section(ui, theme, state);
+                    });
+                    cols[0].add_space(theme.spacing_sm);
+                    caption(&mut cols[0], theme, "The Home page");
+                    wyl::draw_home_line(&mut cols[0], theme);
+                    caption(&mut cols[0], theme, "Characters (Play), a new home");
+                    crate::gui::widgets::card(&mut cols[0], theme, |ui| {
+                        ui.set_min_width(ui.available_width());
+                        wyl::draw_choice(ui, theme, &starts);
+                    });
+                    caption(&mut cols[1], theme, "A server's card: you live there");
+                    crate::gui::widgets::card(&mut cols[1], theme, |ui| {
+                        ui.set_min_width(ui.available_width());
+                        wyl::draw_server(ui, theme, &starts, Some(&held), false);
+                    });
+                    cols[1].add_space(theme.spacing_sm);
+                    caption(&mut cols[1], theme, "A server's card: a guest, after asking for a homestead");
+                    crate::gui::widgets::card(&mut cols[1], theme, |ui| {
+                        ui.set_min_width(ui.available_width());
+                        wyl::draw_server(ui, theme, &starts, Some(&full), false);
+                    });
+                });
+            });
     });
 }
 

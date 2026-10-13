@@ -211,8 +211,18 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             // Home > Household (ship homes 5b, household.rs): first on the page, with or without a
             // design loaded.
             super::household::draw_card(ui, theme, state);
+            // Where you live (ship homes increment 6, where_you_live.rs): "In this world you live in
+            // a Homestead (a family of three).", read only (Settings > Gameplay changes the
+            // household; Characters chooses the start).
+            super::where_you_live::draw_home_line(ui, theme);
             // Home > Animals (2026-10-12, herd.rs): the farm animals, fed and watered or not.
             super::herd::draw_card(ui, theme, state);
+            // The homestead's own section below (its design, its loops, what one home cannot
+            // close) only for a home that has loops: a Cabin's household file has none, and a
+            // cabin is not an acre to close loops on (increment 6, plan 3.9).
+            if !home_has_loops(state) {
+                return;
+            }
             // Clone so the immutable design can be browsed without holding a borrow
             // of state (cheap; the blueprint is small).
             let Some(design) = state.homestead_design.clone() else {
@@ -252,6 +262,13 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             let grown_kcal = state.home_machines.as_ref().map_or(0.0, |h| h.grown_kcal_per_day());
             draw_design(ui, theme, &design, &state.tower_configs, &state.tower_compat, &state.homestead_loops, grown_kcal, power, water, air);
         });
+}
+
+/// Whether the home has the homestead's coupled loops: the live household file's (a Cabin's
+/// cabin.ron has none). With no household file loaded nothing says otherwise, so the page draws
+/// as it always did (its "No homestead blueprint loaded" line included).
+pub(crate) fn home_has_loops(state: &GuiState) -> bool {
+    state.home_machines.as_ref().is_none_or(|home| !home.loops.is_empty())
 }
 
 /// Live power readout from the running sim (SolarSystem + ElectricalSystem -> PowerStatus
@@ -307,21 +324,9 @@ fn draw_design(
     ui.label(RichText::new(&design.name).size(theme.font_size_heading).color(theme.accent()));
     ui.label(RichText::new(&design.description).size(theme.font_size_small).color(theme.text_muted()));
     ui.add_space(theme.spacing_xs);
-
-    // "Your Home" identity (the save-wrapper model, v0.380): this design IS your
-    // offline home. Progressive disclosure -- one home, no manager, until there is
-    // a reason for more. Play-loads-this-home + progress persistence is next.
-    widgets::card(ui, theme, |ui| {
-        ui.horizontal(|ui| {
-            ui.label(RichText::new("Offline home").size(theme.font_size_small).strong().color(theme.accent()));
-            ui.label(RichText::new("you own the save").size(theme.font_size_small).color(theme.text_muted()));
-        });
-        ui.label(
-            RichText::new("This homestead is now a save profile (kind: offline, design: fibonacci). Saving your progress here and entering it from Play is the next step.")
-                .size(theme.font_size_small)
-                .color(theme.text_secondary()),
-        );
-    });
+    // (The "Offline home ... design: fibonacci ... saving is the next step" card that stood here
+    // was retired in ship homes increment 6: saves have long kept progress, a save names its start
+    // rather than a design, and the "Where you live" card above says which home this is.)
     ui.add_space(theme.spacing_sm);
 
     // Scale selector.

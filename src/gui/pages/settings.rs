@@ -3734,7 +3734,8 @@ pub(crate) fn draw_gameplay_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             ui,
             theme,
             hint,
-            "On: each launch starts from the home a new player gets, and only your \
+            "Your own home only: a home on a server always keeps its progress. On: each \
+             launch starts your own home from the home a new player gets, and only your \
              character (name, look, outfit) carries over. Your saved progress is \
              kept on disk untouched and comes back when you turn this off. Off by \
              default: your progress is kept between launches. Applies at the next launch.",
@@ -3757,24 +3758,12 @@ pub(crate) fn draw_gameplay_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
         );
 
         ui.add_space(theme.spacing_lg);
-        // Household size (2026-07-01, moved here from Data in v0.791): which home design
-        // data/machines/*.ron loads. Two real, fully-authored designs exist -- the default
-        // family-scale home.ron and a one-person self-sufficient design (home_solo.ron,
-        // see docs/design/homestead-solo-design.md) sized to real one-person kWh/L/kcal
-        // needs. GUI-first per the project's own rule.
-        ui.label(RichText::new("Home Design").color(theme.text_secondary()).strong());
-        ui.add_space(theme.spacing_xs);
-        widgets::setting_hint(ui, theme, hint, "Which pre-built homestead loads. Takes effect next time you enter the world (restart HumanityOS to apply immediately).");
-        let mut is_family = state.settings.home_variant != "home_solo";
-        let mut is_solo = state.settings.home_variant == "home_solo";
-        if ui.radio_value(&mut is_family, true, "Family (default) -- 3-person self-sufficient design").changed() && is_family {
-            state.settings.home_variant = "home".to_string();
-            state.settings_dirty = true;
-        }
-        if ui.radio_value(&mut is_solo, true, "Solo -- 1-person self-sufficient design").changed() && is_solo {
-            state.settings.home_variant = "home_solo".to_string();
-            state.settings_dirty = true;
-        }
+        // Where you live (ship homes increment 6, lane 1E, where_you_live.rs): the live save's
+        // start and household, with the household sub-choice (a homestead's "A family of three"
+        // or "Just you", which picks data/machines/home.ron or home_solo.ron). It replaced "Home
+        // Design", one Family/Solo setting per install in AppConfig, which did nothing once the
+        // household file followed the save (Wave 0). The household is the save's, never AppConfig's.
+        super::where_you_live::draw_settings_section(ui, theme, state);
         // Pipe markings (2026-10-04, engine::pipe_markers; the dual-mode house rule). The
         // colours are the ship's scheme, ISO 14726 (data/piping/marking_schemes.ron).
         ui.add_space(theme.spacing_lg);
@@ -4297,7 +4286,10 @@ fn draw_save_snapshots(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let mut restore: Option<(std::path::PathBuf, std::path::PathBuf)> = None;
     let mut cancel = false;
     for (slot, snaps) in &slots {
-        let save_path = saves.join(format!("{slot}.json"));
+        // The save the slot's snapshots belong to: saves/<slot>.json, or a server's
+        // saves/servers/<slot>.json (ship homes increment 6), so the live server save is titled
+        // "Your home" and a restore puts its snapshot back where the game reads it.
+        let save_path = persistence::snapshot_slot_save(&saves, slot);
         let title = if save_path == active { format!("Your home ({slot})") } else { slot.clone() };
         ui.add_space(theme.spacing_sm);
         ui.label(
@@ -4493,7 +4485,8 @@ pub(crate) fn draw_data_content(ui: &mut egui::Ui, theme: &Theme, state: &mut Gu
         crate::gui::pages::files_settings::draw_kept_files(ui, theme, state);
 
         ui.add_space(theme.spacing_lg);
-        // (Home Design moved to Settings > Gameplay in v0.791.)
+        // (Home Design moved to Settings > Gameplay in v0.791, and became Where you live, the
+        // save's own household, in ship homes increment 6.)
 
         ui.label(RichText::new("Export & Backup").color(theme.text_secondary()).strong());
         ui.add_space(theme.spacing_xs);
