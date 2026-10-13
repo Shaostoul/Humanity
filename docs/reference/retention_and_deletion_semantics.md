@@ -414,3 +414,47 @@ analysis by an active wire observer on the clearnet endpoint is still a
 mixnet problem the onion service sidesteps but doesn't universally solve;
 group-chat attachments are not yet encrypted the way DM attachments are (a
 follow-up once the pattern is proven on DMs).
+
+## Game saves on your device: your own home, and one per server (2026-10-12)
+
+Ship homes increment 6 gave every world its own game save (docs/design/ship-homes-and-logistics.md,
+"Increment 6 as built"). All of them live on YOUR device, in the app's data folder
+(`%APPDATA%\HumanityOS\` on Windows); no server keeps a copy.
+
+- **Where they are.**
+  - Your own home: `saves/offline_home.json`.
+  - Each server you have played on, for each identity that played there:
+    `saves/servers/<A>-<B>.json`, where A is the first 16 hex digits of the BLAKE3 hash of the
+    server's address and B the first 16 hex digits of your public key (`src/persistence.rs`
+    `slot_path`). The file NAME holds no address, so a listing of the folder does not say where
+    you play. The file itself is plain JSON and does record the server's address (`server`) and
+    where your home stood on its ship (`ship_place`: the ship's id and hash, and the plot), with
+    everything else a save holds: your backpack, skills, credits, quests, body, crops, builds and
+    so on. Anyone who can read your data folder can read it, as with every save.
+  - Snapshots of each, as for every save: `backups/saves/<file name>/`, at most one every 15
+    minutes, the newest ten kept, listed in Settings > Data > Save snapshots.
+- **What the server keeps about your home there is unchanged:** the claim on your plot (the
+  `game_plots` row, under your `did:hum:`), which a choice made with `game_choose_home` writes the
+  same way a join does. Its answers to `game_home_request` name only your own plot and how many
+  homes of each kind are free, and its log lines name the kind of home chosen or why a choice was
+  refused, never a key or a plot.
+- **When your account on that server is erased** (by you or by an admin, finished or not), the app
+  sets that server's save aside as soon as it is told: it renames the file beside itself to
+  `<name>.erased-<yyyy-mm-dd>.json` (a second one the same day gets `-2`), and never deletes it
+  (`src/engine/save_slot.rs` `set_aside_erased`, called from `src/gui/connections.rs`
+  `account_erased_on_server`). Your own home becomes the live save, and signing up on that server
+  again (Connect under the erase note) starts a fresh save there, because the old file no longer
+  has the name the game looks for. Said plainly, what stays on the device:
+  - **The set-aside file**, with everything it held, until you delete it yourself. The server's
+    erase cannot reach it: the server never had it.
+  - **Its snapshots**, which are not moved: they stay in `backups/saves/<name>/` until newer
+    snapshots of a fresh save under the same name push them out (ten are kept), or you delete the
+    folder.
+  - **Your other devices.** Each sets aside its own copy only when it is told of the erase. The
+    erasing device is told at once; another device is told when it next connects while that
+    server still remembers the erase (up to `erased_accounts_ttl_days`, default 30; section
+    "WHAT AN ERASE LEAVES BEHIND" above). A device that stays away longer is not told, and keeps
+    its save for that server as it was.
+  - **Your own home's save** is never touched by a server's erase.
+- **A save this version cannot read** is set aside the same way (`<name>.unreadable-<ms>.json`) and
+  a fresh one made; it is never deleted either.

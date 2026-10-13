@@ -817,6 +817,19 @@ The relay checks every position update against how far anyone can go in the time
 
 ### Ship's food stores (ship homes increment 3, 2026-10-04)
 One stock of meals at the mess hall (`data/food/ship_stores.ron`) that NPCs and players eat from alike: a crew member who eats walks to the mess hall when a meal is due and takes one; a player takes one with the `take_meal` interaction and eats it in their game (the reply names the good, a Basic Ration, since the fleet ledger). NPC homesteads mostly feed themselves (`npc_homestead_self_provided`) and give the fleet nothing for now (the operator, 2026-10-04: 0). Two modes, the server setting `fleet_supply_mode` (2026-10-04): **unlimited**, the default during early development (the stores never run out or refuse a meal), and **stocked**, the realistic mode where an empty store is a missed meal.
+
+**The mess halls serve (ship homes increment 6, 2026-10-12).** Each store stands just in front of
+a serving counter (1.1 m), and there are two: the Commons' mess hall and the South Commons' halfway down
+First Street (`mess-hall-2-stores`), so every home is within five minutes' walk of one. E at a
+counter opens its card: **Take a meal** (in a server's world the server's meal, asked of the
+nearest store in reach and written in the fleet ledger; away from a server the ship's stores on
+this computer, one a meal time on the game clock, counted in the save's `ship_meals`) and **Fill
+your bottles** (every empty water vessel carried, online and offline, counted on the same meter).
+Away from a server, Inventory > The fleet says how many meals and litres were counted here. The
+mess halls have tables and chairs, and the Commons a recreation room with couches and a screen.
+- Native: `src/engine/mess_hall.rs` (`card_offers_meal`, `take_meal`, `fill_bottles`), `src/systems/ship_meals.rs` (`serve`), `src/gui/pages/hud.rs` (the counter card), `src/gui/pages/fleet_ledger.rs` (`take_meal_at_nearest`), `src/engine/fleet.rs` (`on_meal`, stores from `game_in_view`)
+- Data: `data/food/ship_stores.ron`, `data/machines/ship.ron` (`serving_counter`, the tables, the recreation room), `data/ship/fleet_ledger.ron` (the meal good)
+- Server: `src/relay/handlers/ship_stores.rs` (`take_meal`)
 - Server: `src/relay/handlers/ship_stores.rs`
 
 ### Fleet ledger (2026-10-04)
@@ -1603,14 +1616,42 @@ File watcher (notify) invalidates asset cache per frame.
 The ship and the home are separate files: `data/blueprints/ship_structure.ron`
 holds the Commons, street-1, the corridors, 13 districts and a `plots` list
 (twelve homesteads since 2026-10-04: p1 on the Commons and p2 to p12 down the
-west side of First Street, which runs 1.1 km; `default_plot`); `data/homes/homestead.ron` holds the home design (23 room
+west side of First Street, which runs 1.1 km; `default_plot`; since increment 6, 2026-10-12,
+also sixteen cabin plots, c1 to c16, on Cabin Block A east of the street's north end, and the
+South Commons halfway down it); `data/homes/homestead.ron` holds the home design (23 room
 zones, door, spawn); `data/machines/ship.ron` the Commons machines (zone-local).
 Loading assembles the ship with "my home" at my plot's origin
 (`ship_structure::load_and_assemble`); moving a plot moves the whole home, its
 machines and its spawn. Plots and zones may not overlap; the E key builds only
 inside your own plot (Dev exempt); outside Dev the ship's machines are
 read-only. Dev mode has a Plots and Districts panel in Construction
-(`src/gui/pages/construction/ship_tools.rs`). Next: the relay hands out plots (1b).
+(`src/gui/pages/construction/ship_tools.rs`). The relay hands out plots since 1b
+(`src/relay/handlers/game_state.rs` `assign_home`, `src/relay/storage/plots.rs`), and since
+increment 6 a plot of the kind the player's start asks for (next entry).
+
+### Where you live: starts, the Cabin, one save per world (ship homes increment 6, 2026-10-12)
+The kinds of home a player can start in are data, read by the relay and the game alike: Cabin
+and Homestead offered (the Homestead the default), Apartment shown greyed until there is an
+apartment block. Each row names its design, plot kind, households (Family/Solo now lives here,
+per start), kit, storage, opening quest, whether the home has its own air, and which of the
+homestead's world content it carries. The Cabin is one room of 3.15 x 2.5 m (7.54 m2 inside
+its walls) with a single bed, nightstand, wardrobe, desk, chair and wall screen; sixteen of them
+line Cabin Block A's hall, which has one shared washroom. The relay gives a joining player a
+plot of the kind their `start` asks for and always keeps one already held; `game_home_request`
+and `game_choose_home` say where you live there and let you choose while you hold none (answers
+name only your own plot and the free counts). Your own home is `saves/offline_home.json` and
+each server keeps its own save for you on this computer (`saves/servers/`), made fresh from the
+start you choose there: only your name, look and outfit cross. A server's home is the shipped
+design on your plot; a cabin breathes the ship's air and has none of the homestead's herd, wilds
+or garden; an erased account's server save is set aside, never deleted. Choose it in Settings >
+Gameplay "Where you live" (the household, for the live save), on the Home page (read only), and
+in Characters (Play): "A new home" while your own home has no save yet, and the connected
+server's card. The website's chat has a "Where you live" window (command palette).
+- Data: `data/homes/starts.ron`, `data/homes/shipped/cabin.ron` (the player's copy `data/homes/cabin.ron`), `data/machines/cabin.ron`, `data/places/cabin_seed.json`, `data/asteroids/belt.ron`, `data/blueprints/ship_structure.ron` (`cabins-1`, c1 to c16, `commons-2`), `data/blueprints/zone_types.ron`
+- Native: `src/ship/starts.rs` (`Starts`, `HomeAnswer`, `refusal_words`), `src/engine/save_slot.rs` (`wanted`, `fresh_save`, `follow`, `home_for`, `on_game_message`, `set_aside_erased`), `src/save_load.rs` (`ActiveHome`, `apply_onto_running_world`, `starting_kit`), `src/persistence.rs` (`SaveSlot`, `slot_path`, `ShipPlace`, `ShipMeals`), `src/engine/home_plot.rs` (`add_join_fields`, `guest_arrival`), `src/engine/world_load.rs` (`refresh_home_content`), `src/ship/ship_space.rs` (`air_spaces_for`), `src/gui/pages/where_you_live.rs`, `src/gui/pages/showroom.rs`, `src/gui/pages/settings.rs`, `src/gui/pages/homes.rs`, `src/engine/ipc.rs` (`choose_start`, `pairing`, `meal`, `water`, `home_session`)
+- Server: `src/relay/handlers/game_state.rs` (`JoinHome`, `assign_home`, `HomeAssignment::add_to_welcome`), `src/relay/handlers/home_plots.rs` (`handle_home`, `answer_home`), `src/relay/storage/plots.rs` (`claim_plot`, `held_by`, `free_of`)
+- Web: `web/chat/chat-home.js` (palette item `openWhereYouLive` in `data/commands.json`)
+- Tests: `src/ship/starts.rs`, `src/engine/save_slot_tests.rs`, `src/engine/save_slot_home_tests.rs`, `src/save_load_slot_tests.rs`, `src/gui/pages/where_you_live_tests.rs`, `src/gui/pages/showroom_tests.rs`, `src/relay/features.rs` (`a_cabin_and_a_homestead_on_one_ship`), `scripts/tests/chat-home.test.js`. Design: `docs/design/ship-homes-and-logistics.md` (increment 6 as built), `docs/design/ship-homes-increment-6-plan.md`
 
 ### Multiplayer Networking
 WebSocket client (tungstenite), message protocol, ECS sync, position interpolation.
@@ -2290,6 +2331,10 @@ Data-driven quest progression from RON files. 10 objective kinds: Gather, Craft,
 - **Travel** is done while the player stands in the place AND it is the current step (`destinations_here`): walking past a place earlier does not count. A destination can be `at: Some(OwnFrontDoor(out_m: 1.5))` instead of a fixed `pos`: the doorstep of the player's OWN front door, on whichever plot they were given (the Commons for a family plot, First Street for a street plot), published every frame from the assembled ship (`front_door_of`, `publish_front_door`, `FRONT_DOOR_KEY`). A step line can say what the door opens on with `{front_door_opens_on}` (`step_text`). A guest (no plot, the home put away) has no front door aboard, and cannot build or craft at the home's stations either, so a guest's opening waits until they hold a plot or play solo.
 - Tests: `src/systems/quests/opening_tests.rs` walks the whole opening on the shipped data with the real systems, plus one test per new kind, the HUD's 64 characters for every step of every shipped quest on every plot, the names each step quotes, and a returning player; `every_shipped_home_has_what_the_starter_quests_need` (`src/machines.rs`) checks both shipped homes have the food, the seeds, the tower, the stations and every recipe input the chain uses.
 
+**Each start has its own opening (ship homes increment 6, 2026-10-12).** A new character is given its start's `opening` (data/homes/starts.ron): the Homestead's First Steps above, or the Cabin's **Settling In** (`gs_first_steps_cabin`): check your vitals, walk to the mess hall, take a meal at the serving counter, visit the recreation room, head home to your cabin door. The mess hall and the recreation room are destinations of a new kind, `at: Some(NearestVolume(zone_type: ...))`: the ship's labelled volume of that zone type nearest the player's own front door (nearest where they stand, for a guest), the place being its whole floor plus the destination's radius (the ship's volumes are published every frame beside the front door, `publish_front_door`, `SHIP_PLACES_KEY`). The Quests page never offers another start's opening (`ship::starts::opening_quests`).
+- Data: `data/quests/getting_started.ron` (`gs_first_steps_cabin`), `data/entities/destinations.ron` (`mess_hall`, `recreation`), `data/homes/starts.ron` (`opening`)
+- Tests: `src/systems/quests/opening_tests.rs` (`the_cabin_opening_walks_on_this_data`, `the_mess_hall_is_the_nearest_one`), `src/systems/quests/mod.rs` (`a_shared_place_aboard_is_its_whole_floor`)
+
 ### Combat
 Damage calculation, status effects. **⚠️ `CombatSystem` NOT registered, never ticks (see the lint).**
 - Native: `src/systems/combat/`
@@ -2844,8 +2889,9 @@ rest, so a home never sheds, and every watt-hour drawn and returned is metered p
 f64, saved with the home, and shown on the Home card's Live power, the HUD power line and the Usage
 meter. Realistic mode runs on the home's own generation and batteries. A buildable Solar Panel
 blueprint (400 W, `generates`) offsets the draw one for one aboard, and powers a planet build site on
-its own island, which the reactor never reaches. The fleet ledger is designed, not built
-(docs/design/ship-life-support.md section 8).
+its own island, which the reactor never reaches. In a server's shared world the power a home
+draws and returns is reported to that server's fleet ledger (built 2026-10-04, see "Fleet
+ledger"; designed in docs/design/ship-life-support.md section 8).
 - Native: `src/systems/ship_power.rs` (`ShipFeed`, `ShipSupplyLedger`, `feed_watts`, `site_island`), `src/systems/electrical.rs` (`ShipFeedReading`), `src/systems/construction/mod.rs` (`wire_built_generators`), `src/engine/home_spawn.rs` (`spawn_home_feed_taps`), `src/systems/crafting/away.rs` (`meter_away_reactor`)
 - Data: `data/ship_power.ron`, `data/blueprints/basic.ron` (`solar_panel`)
 - Tests: `src/systems/ship_power_tests.rs`
@@ -2866,12 +2912,17 @@ full sizing derivation -- 4 solar / 2 battery / 1 wind / 1 generator, 1 cistern 
 purifier / household tap, 1 air recycler, 2 composters, 9 nutrition towers + 1 apothecary + 8
 potato beds + 3 oilseed beds + 2 grain trays + 2 mushroom racks + 1 aquaponic tank + 1 grain
 field + 1 legume field + 1 silo + 1 irrigation -- the same 34x34 m garden room that covers
-only ~half the calories for 3 people closes ~94% for 1). Selectable in Settings -> Data ->
-"Home Design" (Family / Solo radio buttons); which file loads is resolved by
-`machines::home_ron_path()` from the persisted `AppConfig.home_variant` at every real
-`MachineHome::load` call site. Takes effect on next world load, not live mid-session.
-- Native: `src/machines.rs` (`home_ron_path`), `src/config.rs` (`AppConfig::home_variant`, `default_home_variant`), `src/gui/mod.rs` (`SettingsState::home_variant`), `src/gui/pages/settings.rs` (`draw_data_content` "Home Design" section)
-- Data: `data/machines/home_solo.ron`
+only ~half the calories for 3 people closes ~94% for 1). Since ship homes increment 6
+(2026-10-12) the household belongs to the SAVE, not the install: each start in
+`data/homes/starts.ron` lists its households (the Homestead "A family of three" = `home.ron` and
+"Just you" = `home_solo.ron`; the Cabin "Just you" = `cabin.ron`), the save records which
+(`WorldSave::household`; a save from before is a family), and `machines::home_ron_path()` reads
+the live save's start and household (`save_load::ActiveHome`) at every real `MachineHome::load`
+call site. Chosen in Settings > Gameplay > "Where you live", which replaced "Home Design"
+(Family / Solo, one setting per install in `AppConfig.home_variant`, now gone). Takes effect the
+next time you enter the world, not live mid-session.
+- Native: `src/machines.rs` (`home_ron_path`), `src/save_load.rs` (`ActiveHome`), `src/ship/starts.rs` (`Starts::household`), `src/gui/pages/where_you_live.rs` (`draw_settings_section`), `src/gui/pages/settings.rs` (`draw_gameplay_content`)
+- Data: `data/machines/home_solo.ron`, `data/machines/cabin.ron`, `data/homes/starts.ron`
 
 ### "What one home cannot close" panel (Home page)
 The pedagogical payoff of the homestead design (operator: "people need to see the bare minimum
@@ -2886,7 +2937,11 @@ trade line. Medicine names the opposite: since 2026-10-05 no recipe makes antibi
 old craft_antibiotics cultured them from water, flour and sugar), and the trading post sells
 them. Intro + footer carry the non-defeatist framing: these gaps ARE why
 civilization exists. Data-driven (infinite-of-X): categories live in the RON, not code.
-- Native: `src/gui/pages/homes.rs` (`CannotCloseEntry`, `CannotCloseData`, `load_cannot_close`, the panel in `draw_design`)
+Since ship homes increment 6 (2026-10-12) the Home page shows "Where you live" (the live save's
+start and household, read only) under the Household card, and draws the homestead's
+section (its design, its loops and this panel) only when the loaded household file has loops,
+so a Cabin's Home page has none.
+- Native: `src/gui/pages/homes.rs` (`CannotCloseEntry`, `CannotCloseData`, `load_cannot_close`, the panel in `draw_design`, `home_has_loops`), `src/gui/pages/where_you_live.rs` (`draw_home_line`)
 - Data: `data/self_sufficiency/cannot_close.ron` (distilled from `docs/design/homestead-solo-design.md` section 8)
 - Tests: `gui::pages::homes::tests::{cannot_close_data_parses_and_is_complete, cannot_close_missing_file_is_empty}`
 
@@ -3318,9 +3373,15 @@ The character-select launcher lists the server you are connected to (virtual row
 deduped against bookmarks; a bookmark of the live connection counts as connected) with
 live `/api/server-info` details and a working "Enter World". `/api/server-info`
 exposes `game_players` (avatars in-world, distinct from chat `users_online`) - the
-public mirror of the in-world roster, shown as "In world" in the launcher pane.
-- Native: `src/gui/pages/showroom.rs`
-- Server: `src/relay/api.rs` (`get_server_info`)
+public mirror of the in-world roster, shown as "In world" in the launcher pane. Since ship
+homes increment 6 (2026-10-12) the connected server's card also asks the server where you live
+on its ship (`game_home_request`) and shows your home there, or each kind of home with how many
+are free and a Choose button (`game_choose_home`), with the note that a server starts you fresh
+and keeps your home there on this computer; Enter on a server pairing plays that server's own
+save. The WHERE column's new-home row is "A new home", offering "Choose where you live" while
+your own home has no save yet.
+- Native: `src/gui/pages/showroom.rs`, `src/gui/pages/where_you_live.rs` (`draw_server`, `draw_choice`), `src/engine/save_slot.rs` (`ask_where_you_live`, `choose_on_server_gui`, `enter_pairing_gui`)
+- Server: `src/relay/api.rs` (`get_server_info`), `src/relay/handlers/home_plots.rs` (`handle_home`)
 
 ### Dev Page: Spawn Any Creature + Walk-Up Editor
 Platform > Dev (cheats-gated, like every dev affordance): searchable list of all 92

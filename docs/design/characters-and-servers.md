@@ -9,6 +9,12 @@ is built right (and so the multiplayer join wire is designed with the character 
 one, not retrofitted). It pairs with [first-playable.md](first-playable.md) (the wiring gap) and
 [homes-as-profiles.md](homes-as-profiles.md) (which already seeded "servers store augmented versions").
 
+**Built so far (2026-10-12): per-server saves, the first slice.** Each server you play on now keeps
+its own save for you, made fresh, with only your name and look crossing over (ship homes increment
+6). It is held on YOUR device, not by the server, so it is the "your name and look come with you,
+gear and progress start fresh" rule of this design, not yet a closed realm. See
+[Per-server saves](#per-server-saves-the-first-slice-built-2026-10-12) below.
+
 ## The core idea: a character is TWO objects with two owners
 The reason the open/closed split is clean here is that a character naturally decomposes into two parts
 with different owners and different forge-resistance:
@@ -200,6 +206,42 @@ may assert.
   progression," so the cheatable-everything sandbox is an explicit operator choice.
 - **"real" (sensor-owned home) custody:** call made: defer. open/closed/hybrid covers the requirement;
   "real" is a separate future axis (physical sensors own the truth, no PvP/ladder semantics).
+
+## Per-server saves: the first slice, built (2026-10-12)
+
+Ship homes increment 6 (docs/design/ship-homes-and-logistics.md, "Increment 6 as built"; the build
+plan is [ship-homes-increment-6-plan.md](ship-homes-increment-6-plan.md)) built the operator's rule
+of 2026-10-04 that server worlds start every player fresh: "I don't want people cheating in MMO
+servers by loading homes fully kitted out and cheated inventory." What it is, in this document's
+terms:
+
+- **One save per world, on the device.** Your own home is `saves/offline_home.json`; each server you
+  play on gets `saves/servers/<server hash>-<identity>.json` (the first 16 hex digits of the BLAKE3
+  hash of the server's address, then the first 16 of your public key; no address in a file name),
+  one per server and identity (`src/persistence.rs` `SaveSlot`, `slot_path`). The picker's WHO list
+  scans only the top of `saves/`, so a server save never shows as a character of its own.
+- **Made fresh, the look crosses.** A server's save is made from the start you choose there (a
+  Cabin or a Homestead, `data/homes/starts.ron`): the start's kit and opening quest, the default
+  credits, a fresh body, no skills, no own home, nothing from the world you came from but your
+  name, look and outfit (`src/engine/save_slot.rs` `fresh_save`, `Look`). The look crosses again at
+  every entry, so a change of outfit at home is worn on the server too. This is exactly this
+  document's "LOCAL -> closed carries name + appearance only", applied to every server by default.
+- **Which one is live follows the pairing** you made in Characters (Play) (`save_slot::wanted`),
+  never a moment's step out of the shared world, and the join waits until the save has swapped, so
+  a switch of server never joins with the previous server's home.
+- **The home on a server is the shipped design**, never your own edited design, on the plot the
+  server gave you; the server remembers only the plot claim it always kept (`game_plots`), and
+  answers `game_home_request` with your own plot and the free counts.
+- **What it is NOT yet.** The save lives on the computer that played it, so it is self-custodial,
+  not server-held: two computers give one person two separate characters on one server (until
+  the server holds inventories, ship homes increment 8), and a modified app could still bring things
+  in. That was accepted for this increment and is said on the server's card ("Your home there is
+  kept on this computer."). The real fix is this document's closed realm: progression the relay
+  writes and holds (`server_characters`, build-order steps 5 to 7 below). None of the
+  `character_policy`, `character_v1` or `GET /api/characters` pieces exist yet.
+- **An erased account's save** on that server is set aside on the device (renamed
+  `<name>.erased-<yyyy-mm-dd>.json`, never deleted), so signing up there again starts fresh
+  (docs/reference/retention_and_deletion_semantics.md).
 
 ## Build order (when multiplayer work starts)
 1. **Policy declaration** (no behavior change): add `character_policy` (default "open") to

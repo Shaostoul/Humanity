@@ -604,7 +604,11 @@ When you change any of these in code, update this table + status in the same com
 | `src/web_reader/` | The readable-web fetcher behind `web:` wall screens |
 | `src/station/`, `src/input/`, `src/hot_reload/` | Orbital station frame; input mapping; shader + data hot reload |
 | top-level `src/*.rs` | ~20 more beyond the six below, incl. `machines.rs`, `save_load.rs`, `storage.rs`, `showroom.rs`, `cosmos.rs`, `auto_unlock.rs`, `boot_timing.rs`, `debug.rs` |
-| `src/persistence.rs` | World save/load (entities, terrain, player progress) |
+| `src/persistence.rs` | World save/load (entities, terrain, player progress); `WorldSave`, `SaveSlot` + `slot_path` (your own home, or one save per server and identity) |
+| `src/engine/save_slot.rs` | Which save is live (follows the picker's pairing), a server's FRESH save (only name, look, outfit cross), the swap, the home a save's start builds on its plot, `game_home` answers, an erased account's save set aside (ship homes increment 6) |
+| `src/ship/starts.rs` + `data/homes/starts.ron` | The starts (Cabin, Apartment not offered yet, Homestead the default) as data, read by relay AND game; the `game_home_request` / `game_choose_home` / `game_home` wire shapes |
+| `src/gui/pages/where_you_live.rs` | "Choose where you live": Settings > Gameplay, the Home page, the picker's new-home row and server card (web mirror `web/chat/chat-home.js`) |
+| `src/engine/mess_hall.rs` + `src/systems/ship_meals.rs` | The mess hall's serving counter: a meal (the server's on a server, the ship's stores on this computer offline) and drinking water |
 | `src/config.rs` | Configuration management |
 | `src/embedded_data.rs` | Compile-time embedded data |
 | `src/updater.rs` | Auto-update: version check, download, delegate to newer exe |
@@ -756,7 +760,8 @@ via notify file watcher. Mods = editing files in the data directory.
 **Local-first storage** (native binary):
 OS-standard data dir (`%APPDATA%\HumanityOS\` on Windows) with:
 - `identity/` — encrypted Ed25519 keys (chat identity); Dilithium3 keys parallel where applicable
-- `saves/` — named save slots (profile, inventory, farm, quests, skills, world)
+- `saves/`: game saves. Your own home is `saves/offline_home.json` (the picker lists the top level only)
+- `saves/servers/<server hash>-<identity>.json`: one save per server and identity (ship homes increment 6, `src/engine/save_slot.rs`, `persistence::slot_path`): the first 16 hex of BLAKE3 of the server's address, then the first 16 hex of the public key, so no file name holds an address. Made fresh from the start chosen there; an erased account's is renamed `<name>.erased-<yyyy-mm-dd>.json`, never deleted
 - `settings/` — preferences, sync config, display state
 - `cache/` — offline messages, avatars, manifests
 - `backups/saves/<slot>/`: snapshots of each game save (2026-10-03, `src/persistence.rs`): before `save_world` overwrites a save it keeps the previous version as `<slot>_<UTC time>.json`, at most one every 15 min (`SNAPSHOT_SPACING_SECS`), newest 10 kept (`SNAPSHOTS_KEPT`); every save and snapshot is written to a `.tmp` and renamed, so a crash mid-write never tears one. See and restore them in Settings > Data > Save snapshots (a restore keeps what it replaced as a snapshot and reloads the home into the running game)

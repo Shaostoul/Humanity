@@ -107,7 +107,12 @@ killed by wolves and dying of thirst too fast:
 - `hostile_wildlife` on/off. Off removes predators immediately.
 - `vitals_drain` 0.0 to 3.0. 1.0 is normal (roughly half an hour from full to
   empty), 0 pauses survival needs entirely.
-- `home_variant` family / solo, which home design loads.
+- ~~`home_variant` family / solo, which home design loads.~~ Gone since ship homes
+  increment 6 (2026-10-12): the household size was never a difficulty. It belongs to the
+  save now, one of its start's households (data/homes/starts.ron), chosen in Settings >
+  Gameplay > Where you live (src/gui/pages/where_you_live.rs). Which kind of home you live
+  in (a Cabin or a Homestead) is a start, not a difficulty either: it sets how much space you
+  hold and how much looking after it needs, never how deep the world runs.
 
 Designed but never built: `docs/game/difficulty_fidelity_matrix.md` defines a
 five-rung ladder (Baby/Creative, Easy, Medium, Hard, Realistic) mapped to
@@ -127,6 +132,11 @@ buried in Settings with no name.
 
 - **Solo offline** is the default and is real: local `WorldSave`, saves, settings
   and identity on disk, progress persists between sessions (v0.381).
+- **One save per world** (ship homes increment 6, 2026-10-12): your own home is
+  `saves/offline_home.json`, and each server you play on keeps its own save for you on
+  this computer (`saves/servers/`), made fresh from the start you choose there, with only
+  your name, look and outfit crossing over (src/engine/save_slot.rs). Which one is live
+  follows the pairing made in Characters (Play), never a step out of the shared world.
 - **Relay co-presence** shipped its client wiring in v0.472. `copresence_active`
   and `copresence_solo` live on `GuiState`; two clients join the VPS world, stream
   position, and render each other. It has **never had a two-player live test** and
@@ -149,7 +159,9 @@ Dilithium key, signed `character_v1` object). Progression is owned per server
 policy: open trusts the save you bring, closed makes the relay the sole writer,
 hybrid runs both lists side by side. Partly pre-built server-side
 (`PlayerProgress`, and `handle_game_join` already re-seeds a returning player from
-the server row and never from client-sent stats).
+the server row and never from client-sent stats). The first slice on the game side is
+built (2026-10-12): per-server saves made fresh, held on the device, not by the server
+(characters-and-servers.md, "Per-server saves").
 
 ## 5. Engagement: five modes per domain (DESIGNED, ZERO CODE)
 
@@ -159,6 +171,11 @@ Cooperative / Background. This is the project's stated answer to the accessibili
 problem (do not force everyone through electrical engineering; do not shallow the
 sim for everyone). `grep -i engagementmode src/` returns nothing. It is entirely
 unbuilt, and it is the most load-bearing unbuilt design in the repo.
+*Since ship homes increment 6 (2026-10-12) one piece exists as data: each start's
+default per domain (data/homes/starts.ron `engagement`; src/ship/starts.rs `Engagement`,
+`EngagementDefaults`), the Cabin's all Background and the Homestead's all Direct. It is
+shown in words on each "Choose where you live" row ("Food: free crew meals in the mess
+hall."), and nothing simulates by it yet.*
 
 ## 6. Purpose: NOTHING EXISTS
 

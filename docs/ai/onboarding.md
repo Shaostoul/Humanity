@@ -268,7 +268,38 @@ After identifying via WebSocket, send:
 
 The server responds with `game_welcome` containing your player ID and a full world snapshot (all entities, positions, components).
 
-The world is the mothership (`data/blueprints/ship_structure.ron`): its shared places are **The Commons**, the **Mess hall** at its north end, and **First Street** to its south. Each player's home stands on a plot of its own; a game names its ship and door when it joins and arrives at its own door. A join that names no ship, the usual case for an agent, has no plot and arrives at the ship's guest spot in The Commons.
+The world is the mothership (`data/blueprints/ship_structure.ron`): its shared places are **The Commons** (with the **Mess hall** at its north end and a **Recreation room** in its south-west corner), **First Street** to its south, **Cabin Block A** (a hall of sixteen cabins with a shared **Washroom**) off the street's north end, and **The South Commons** with its own **South mess hall** halfway down the street. Each player's home stands on a plot of its own; a game names its ship and door when it joins and arrives at its own door. A join that names no ship, the usual case for an agent, has no plot and arrives at the ship's guest spot in The Commons.
+
+#### A home of your own, and which kind
+
+The kinds of home a player can start in are data (`data/homes/starts.ron`): a **Cabin** (one private room; you eat free crew meals at a mess hall) and a **Homestead** (the full acre, the default), with an **Apartment** listed but not offered yet. To hold a plot, read the ship's hash from `GET /api/server-info` (`ship.hash`) and name it in your join, with the kind of home you want:
+```json
+{"type": "game_join", "player_name": "YourName", "ship_hash": "<ship.hash>", "start": "cabin"}
+```
+`start` is a start id (1 to 32 of `a-z`, `0-9`, `-`, `_`); one that is unknown or not offered, or none, asks for the default. A plot you already hold is always kept, whatever you ask for. The welcome's `home_plot` is then `{"id": "c1", "kind": "cabin", "start": "cabin", "origin": [...], "size": [...]}`. When no plot of the kind you asked for is free you are a guest, and a guest's welcome carries `home_full` (the start you asked for) and `home_free` (each offered start with how many of its plots are free, for example `{"cabin": 15, "homestead": 0}`).
+
+Ask where you live on this server, and what is free, at any time after identifying (you need not be in the world):
+```json
+{"type": "game_home_request"}
+```
+Choose a home while you hold none there:
+```json
+{"type": "game_choose_home", "start": "cabin"}
+```
+Both are answered to you alone with `game_home`:
+```json
+{
+  "type": "game_home",
+  "plot": {"id": "c2", "kind": "cabin", "start": "cabin"},
+  "starts": [
+    {"id": "cabin", "name": "Cabin", "sentence": "One private room of your own. ...", "offered": true, "free": 14},
+    {"id": "apartment", "name": "Apartment", "sentence": "...", "offered": false, "why_not": "Apartments come with the first apartment block, in a later update.", "free": 0},
+    {"id": "homestead", "name": "Homestead", "sentence": "...", "offered": true, "free": 12}
+  ],
+  "chose": true
+}
+```
+`plot` is null when you hold no home there. A refused choice has `refused` (`holds_one`: you already hold a home, and moving is not built yet; `full`; `not_offered`; `again`: asked within 200 ms of your last ask, or a server error; `no_ship`) and a sentence to show in `message`. The answer names only your own plot and counts: nobody is told who lives where. A choice made while you stand in the world as a guest takes effect at your next join (the server hands out plots only at a join), so leave and join again. An account erased on this server, or one banned from the game world, is refused a choice the way its join would be (`game_join_denied`).
 
 ### Perceiving Your Surroundings
 
@@ -291,7 +322,8 @@ The server responds with `game_perception` (this one at the guest spot, trimmed 
     "exits": [
       {"direction": "south", "connects_to": "street-1", "room_name": "First Street"},
       {"direction": "west", "connects_to": "plot:p1", "room_name": "plot:p1"},
-      {"direction": "north", "connects_to": "mess-hall", "room_name": "Mess hall"}
+      {"direction": "north", "connects_to": "mess-hall", "room_name": "Mess hall"},
+      {"direction": "south", "connects_to": "recreation", "room_name": "Recreation room"}
     ]
   },
   "nearby_entities": [
@@ -348,6 +380,8 @@ The `game_fleet_ledger` reply carries `used_value`, `contributed_value`, `balanc
 | `game_interact` | Interact with an entity (inspect, open, use) |
 | `game_fleet_give` | Give items to the fleet at a fleet store |
 | `game_fleet_ledger_request` | Read your own fleet ledger (used, contributed, balance) |
+| `game_home_request` | Where you live on this server, and how many homes of each kind are free (answered with `game_home`) |
+| `game_choose_home` | Choose a kind of home (`start`) while you hold none on this server (answered with `game_home`) |
 
 ### Example Session
 
