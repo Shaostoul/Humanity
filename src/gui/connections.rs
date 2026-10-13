@@ -116,6 +116,21 @@ impl EraseOutcome {
     }
 }
 
+/// What [`GuiState::switch_to_server`] did, so a caller can say or do what follows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Switched {
+    /// No identity is unlocked, so nothing changed, and the status line says to unlock first.
+    Locked,
+    /// The server's background link was brought back as it was, already signed in.
+    Restored,
+    /// A new connection to the server is being made; its rooms come with its sign-in.
+    Dialling,
+}
+
+/// What the status line says when a switch is asked for with no identity unlocked (the Chat
+/// page's server rows have said it since v0.712; the strip says it too).
+pub const UNLOCK_TO_SWITCH: &str = "Unlock your identity first to connect (Settings).";
+
 /// How an erased server is remembered for an identity: its public key and the server's
 /// normalized URL (`pages::chat::norm_server_url`), so the address with or without a trailing
 /// slash is the same server, and restoring a different identity is not refused a server
@@ -242,6 +257,68 @@ impl GuiState {
         true
     }
 
+    /// THE switch to the saved server at `url` (named `name` in the status line while it dials):
+    /// what clicking a server's row in Chat does, and what its cog and its rooms do before they
+    /// open their page or room, and what the server strip's Switch does (pages/server_strip.rs,
+    /// Media round 5's 3.11). Until 2026-10-12 the Chat page carried this block three times over
+    /// (pages/chat/left_panel.rs), each copy a little different; now there is one.
+    ///
+    /// In order: no unlocked identity, nothing changes and the status line says to unlock first
+    /// (connecting locked would register a keyless name-squatter on the relay); otherwise the
+    /// active server is parked with its socket still open (`park_active_connection`), the
+    /// target's background link is brought back as it was (`unpark_connection`), landing in the
+    /// server's own room (#local) when it has one, or, with no link to bring back, a new
+    /// connection is dialled with this identity, landing in #general; and the config is saved,
+    /// so the next launch opens on the server chosen.
+    ///
+    /// The caller decides whether to switch at all (a row never switches to the server it
+    /// already is), and the strip asks first when uploads are on their way, since a switch stops
+    /// them where they are.
+    pub fn switch_to_server(&mut self, url: &str, name: &str) -> Switched {
+        if self.private_key_bytes.is_none() {
+            self.ws_status = UNLOCK_TO_SWITCH.to_string();
+            return Switched::Locked;
+        }
+        self.park_active_connection();
+        let switched = if self.unpark_connection(url) {
+            // Land in this server's own room: #local.
+            if let Some(local_id) = self.chat_channels.iter().find(|c| c.local_only).map(|c| c.id.clone()) {
+                if self.chat_active_channel != local_id {
+                    self.chat_active_channel = local_id;
+                    self.chat_messages.clear();
+                    self.history_fetched = false;
+                }
+            }
+            Switched::Restored
+        } else {
+            self.server_url = url.to_string();
+            let ws_url = pages::chat::derive_ws_url(url);
+            // A key is always there once an identity is unlocked; the random one only keeps a
+            // half-set-up state from dialling with an empty key.
+            let pubkey = if self.profile_public_key.is_empty() {
+                pages::chat::generate_random_hex_key()
+            } else {
+                self.profile_public_key.clone()
+            };
+            self.ws_client =
+                Some(crate::net::ws_client::WsClient::connect_with_kyber(&ws_url, &self.user_name, &pubkey, &self.kyber_public_b64));
+            self.connected_server_url = url.to_string();
+            // A fresh socket: its sign-in, and the mailbox fetch that follows it, are still to come.
+            self.ws_identified = false;
+            self.dm_fetch = Default::default();
+            self.ws_status = format!("Switching to {name}...");
+            self.ws_manually_disconnected = false;
+            self.ws_reconnect_timer = 0.0;
+            self.ws_reconnect_delay = 5.0;
+            self.ws_reconnect_attempts = 0;
+            self.chat_active_channel = "general".to_string();
+            self.history_fetched = false;
+            Switched::Dialling
+        };
+        crate::config::AppConfig::from_gui_state(self).save();
+        switched
+    }
+
     /// Clear state that must never leak across a server switch and cannot be
     /// parked: admin-domain caches (their pages refetch via request latches),
     /// in-flight fetches, and per-conversation UI transients.
@@ -285,6 +362,13 @@ impl GuiState {
             last_req: household.last_req,
             ..Default::default()
         };
+        // And the server's last answer about where you live on it (ship homes increment 6,
+        // engine/save_slot.rs `take_answer`): it is about the server just left. Characters' server
+        // card showed it on the new server while that one's own answer was still to come (its ask
+        // goes only once the new socket is signed in), and the probe reported it as the new
+        // server's. Lane 2B of increment 6 found it was never cleared; the switch clears it now,
+        // and the card asks the new server afresh.
+        self.home_answer = None;
         // Sealed-sender DMs: the local history store and fetch high-water
         // are per (identity, server) — drop them so the next server loads
         // its own store from disk and re-fetches its own mailbox.
