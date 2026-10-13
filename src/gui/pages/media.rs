@@ -118,11 +118,13 @@ pub(crate) enum Job {
     Suggestions,
     Decide,
     Usage,
-    /// Round 5 (item_view.rs `on_answer`): one item read for its own page, an edit, a file added
-    /// or taken off (each answers the item as it now is), and a view counted.
+    /// Round 5 (item_view.rs `on_answer`): one item read for its own page (opened by its number:
+    /// item_view.rs `open_by_number`), an edit, a file taken off (each answers the item as it now
+    /// is), and a view counted. A file ADDED to an item has no job of its own: it is an upload like
+    /// any other, published onto the item as `Publish { of: Of::Attach, .. }` (publishing.rs
+    /// `attach`), whose answer lands in publishing.rs `attach_answered`.
     Item { id: i64 },
     Edit { id: i64 },
-    FileAdd { id: i64 },
     FileRemove { id: i64, file: i64 },
     Viewed { id: i64 },
 }
@@ -132,7 +134,7 @@ impl Job {
     fn acts_on_item(&self) -> bool {
         matches!(
             self,
-            Job::Remove { id: Some(_), .. } | Job::Pick { .. } | Job::Feature { .. } | Job::Keep { .. } | Job::Edit { .. } | Job::FileAdd { .. } | Job::FileRemove { .. }
+            Job::Remove { id: Some(_), .. } | Job::Pick { .. } | Job::Feature { .. } | Job::Keep { .. } | Job::Edit { .. } | Job::FileRemove { .. }
         )
     }
 
@@ -578,7 +580,7 @@ pub(crate) fn on_done(state: &mut GuiState, job: Job, result: Result<Value, Refu
         (Job::AdminCategories | Job::SaveCategories | Job::Suggestions | Job::Decide | Job::Usage, Err(e)) => {
             state.media.admin.status = e.words;
         }
-        (job @ (Job::Item { .. } | Job::Edit { .. } | Job::FileAdd { .. } | Job::FileRemove { .. } | Job::Viewed { .. }), result) => {
+        (job @ (Job::Item { .. } | Job::Edit { .. } | Job::FileRemove { .. } | Job::Viewed { .. }), result) => {
             item_view::on_answer(state, job, result)
         }
     }
@@ -724,15 +726,21 @@ pub(crate) fn refresh_usage(state: &mut GuiState) {
     }
 }
 
-/// Open the Media page on one item, by its number (the Reports page's Open: the relay's A5). The
-/// list then holds that item alone, if this person may see it, with a line to show everything.
+/// Open the Media page on one item's own page, by its number (the Reports page's Open: the relay's
+/// A5). The page an item's tile opens (item_view.rs), never the list filtered down to it: an item
+/// the list or the shelf holds opens as it is, any other is asked for by its number, the way the
+/// website's `route` does (media-app.js `openById`). Until it comes the page says "Loading...", and
+/// if this person may not see it, that it is not there.
+///
+/// The list itself is left as the person had it (it was filtered to the one item until 2026-10-12,
+/// which showed a tile to click instead of the item, and lost the person's own filters).
 pub(crate) fn open_item_by_number(state: &mut GuiState, id: i64) {
+    // The page's state brought to this server and person first, so the item page opened here is
+    // never forgotten by the page catching up with another server's state on its next frame.
     sync_server(state);
     // The list, not the Admin tab an admin may have left open: the item is what was asked for.
     state.media.tab = MediaTab::Media;
-    state.media.filters = Filters { id: Some(id), ..Default::default() };
-    state.media.search.clear();
-    reload_list(state);
+    item_view::open_by_number(state, id);
     state.push_nav_to(GuiPage::Media);
 }
 
@@ -836,38 +844,28 @@ pub(crate) fn draw_body(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
     waiting::draw(ui, theme, state);
     ui.add_space(theme.spacing_sm);
 
-    if let Some(id) = state.media.filters.id {
-        ui.horizontal_wrapped(|ui| {
-            ui.label(RichText::new(format!("Showing item {id} only, from a report.")).size(theme.font_size_small).color(theme.info()));
-            if widgets::Button::secondary("Show everything").show(ui, theme) {
-                state.media.filters = Filters::default();
-                reload_list(state);
-            }
-        });
-    } else {
-        let featured = state.media.featured.clone();
-        if !featured.is_empty() {
-            // "Featured", or "Featured in Fire flow arts" when it is a category's shelf (3.9).
-            widgets::subsection_label(ui, theme, &filters::shelf_heading(state));
-            egui::ScrollArea::horizontal().id_salt("media_featured").show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    for item in &featured {
-                        tiles::draw_tile(ui, theme, state, item);
-                    }
-                });
+    // (An item opened by its number, from a report, opens its own page over this one:
+    // item_view.rs `open_by_number`. The list is never filtered down to it.)
+    let featured = state.media.featured.clone();
+    if !featured.is_empty() {
+        // "Featured", or "Featured in Fire flow arts" when it is a category's shelf (3.9).
+        widgets::subsection_label(ui, theme, &filters::shelf_heading(state));
+        egui::ScrollArea::horizontal().id_salt("media_featured").show(ui, |ui| {
+            ui.horizontal(|ui| {
+                for item in &featured {
+                    tiles::draw_tile(ui, theme, state, item);
+                }
             });
-            ui.add_space(theme.spacing_md);
-        }
-        filters::draw_filters(ui, theme, state);
+        });
+        ui.add_space(theme.spacing_md);
     }
+    filters::draw_filters(ui, theme, state);
     ui.add_space(theme.spacing_sm);
 
     let items = state.media.list.items.clone();
     if items.is_empty() {
         let line = if !state.media.answered {
             "Loading..."
-        } else if state.media.filters.id.is_some() {
-            "That item is not on the Media page, or you may not see it."
         } else if state.media.filters != Filters::default() {
             "Nothing matches these filters."
         } else {

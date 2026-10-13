@@ -950,8 +950,11 @@ next start; a failed or cut-off fetch leaves no partial file.
 
 **Report.** A tile's Report opens the existing dialog with the context `media` and the evidence
 `{kind: "media", id}`. The Reports page shows such evidence as what the server kept ("Media item
-12: "Dusk", a video, labelled Flashing lights, members only") with Open the item, which opens the
-Media page on that item alone (`id=<n>` on the list) with Show everything.
+12: "Dusk", a video, labelled Flashing lights, members only") with Open the item, which opens that
+item's own page on the Media page, asked for by its number (`id=<n>` on the list read) when the
+list does not hold it. (Until Media round 5 the desktop's Open filtered the list down to the item,
+with Show everything; since 2026-10-12 it opens the item's page, as the website's `/media/<id>`
+does.)
 
 **Roles.** Server Settings > Roles has an "Upload limits per role" table under the roles table:
 Per file (the existing `max_upload_mb`), Media file (0 = up to the share), Private file, Private

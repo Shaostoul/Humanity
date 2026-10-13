@@ -281,10 +281,13 @@ mod tests {
 
     /// A REPORTED MEDIA ITEM SHOWS WHAT THE SERVER KEPT OF IT, WITH AN OPEN THAT SHOWS IT (the
     /// relay's A5): its number, title, kind, labels and who may see it, the checked badge, and Open,
-    /// which takes the admin to the Media page showing that item alone (`id=<n>` on the list).
+    /// which takes the admin to the Media page with that item's own page open, asked for by its
+    /// number (the list is not filtered down to it: media/item_tests.rs
+    /// `the_reports_open_opens_the_items_own_page` follows the answer onto the page).
     ///
     /// Seen red 2026-10-11 with media evidence drawn as text like any other: "the item is
-    /// described" (the card said "(no text kept)").
+    /// described" (the card said "(no text kept)"). Seen red 2026-10-12 against the old Open, which
+    /// filtered the list: "Open opens item 12's own page" (left: None, right: Some(12)).
     #[test]
     fn a_reported_media_item_is_described_and_opens() {
         crate::config::keep_saves_off_disk();
@@ -317,6 +320,11 @@ mod tests {
         run(&mut state, vec![egui::Event::PointerButton { pos: open, button: egui::PointerButton::Primary, pressed: true, modifiers: m }]);
         run(&mut state, vec![egui::Event::PointerButton { pos: open, button: egui::PointerButton::Primary, pressed: false, modifiers: m }]);
         assert_eq!(state.active_page, crate::gui::GuiPage::Media, "Open goes to the Media page");
-        assert_eq!(state.media.filters.id, Some(12), "showing that item alone");
+        assert_eq!(state.media.item.as_ref().map(|p| p.id), Some(12), "Open opens item 12's own page");
+        assert!(
+            state.media.jobs.iter().any(|(j, _)| *j == crate::gui::pages::media::Job::Item { id: 12 }),
+            "and asks for it by its number, since the list does not hold it"
+        );
+        assert_eq!(state.media.filters.id, None, "the list is not filtered down to it");
     }
 }
