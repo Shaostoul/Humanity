@@ -971,9 +971,12 @@ test("editor: a build spot inside the 100 m rule's reach proves nothing, and a c
 // p1 and the camera walked into it, coming back inside the grace to stand the
 // guest off the plot where the relay holds it.
 const { judgeGuest, onPlotGround, GUEST_NO_EDITOR_START, GUEST_ARRIVAL_START } = require("../lib/copresence-judge.js");
+// Two homesteads and a cabin (increment 6): the scripted players, asking for no start, take the
+// homesteads; the cabin stands free and the game is still a guest.
 const PLOTS2 = [
-  { id: "p1", origin: [0, 0, 0], size: [55, 3, 89] },
-  { id: "p2", origin: [0, 0, 99], size: [55, 3, 89] },
+  { id: "p1", kind: "homestead", origin: [0, 0, 0], size: [55, 3, 89] },
+  { id: "p2", kind: "homestead", origin: [0, 0, 99], size: [55, 3, 89] },
+  { id: "c1", kind: "cabin", origin: [80.5, 0, 88], size: [3.15, 3, 2.5] },
 ];
 const GUEST_ARRIVAL = [82, 1.7, 47.5];
 const AWAY = [-1000, -200, 0];
@@ -985,6 +988,7 @@ const GUEST_OK = {
   doors: DOORS.doors,
   commons: COMMONS_BOX,
   defaultPlot: "p1",
+  kind: "homestead",
   walkers: [{ name: "TestBotPlots", id: 1, plot: "p1" }, { name: "TestBotPlotsTwo", id: 2, plot: "p2" }],
   arrived: { lastWelcome: "guest", homePlot: null, homeAway: true, camera: GUEST_ARRIVAL, homeThings: THINGS_AWAY, notices: [`${GUEST_ARRIVAL_START}, so you are a guest on its ship.`] },
   editor: { open: false, notices: [`${GUEST_NO_EDITOR_START}, so your home is not aboard to build on.`] },
@@ -1059,6 +1063,8 @@ test("guest: each broken guest run FAILS its own check", () => {
     ["the camera never walked into the home", w({ reconnect: { ...GUEST_OK.reconnect, before: GUEST_ARRIVAL } }), "guest_reconnect_setup"],
     ["the reconnected guest's move refused", w({ reconnect: { ...GUEST_OK.reconnect, seen: [] } }), "guest_reconnect_moves_reach_others"],
     ["a plot left free (the game held p2)", w({ walkers: [GUEST_OK.walkers[0]] }), "guest_plots_taken"],
+    ["no plot kind recorded (every plot of the ship would be judged)", w({ kind: undefined }), "guest_plots_taken"],
+    ["the kind is the cabin's, which nobody holds", w({ kind: "cabin" }), "guest_plots_taken"],
     ["the welcome moved the home onto a plot", w({ arrived: { ...GUEST_OK.arrived, lastWelcome: "move", homePlot: { id: "p2" }, homeAway: false } }), "guest_welcome"],
     // Told on arriving (engine/home_plot.rs GUEST_ARRIVAL, the first-hour audit's Blocker 1).
     // Seen red 2026-10-05 before judgeGuest had the check: "a guest told nothing on arriving

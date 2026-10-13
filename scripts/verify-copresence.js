@@ -1072,6 +1072,22 @@ const FILL_MAX = 60;
 // go within a moment: the dropped link's thread ends on the next message it is sent.
 const GUEST_DROP_HOLD_S = 12;
 const SHIP_FILE = path.join(REPO, "data", "blueprints", "ship_structure.ron");
+const STARTS_FILE = path.join(REPO, "data", "homes", "starts.ron");
+
+/** The plot kind a player who asks for no start is given (data/homes/starts.ron: `default` names
+ *  the start, and that start's `plot_kind` the plots it lives on), the guest order's ship-is-full
+ *  test: since increment 6 the ship carries more than one kind of plot (the Cabin row beside First
+ *  Street's homesteads), and the scripted players and the game ask for nothing, so the game comes
+ *  in a guest once every plot of THAT kind is held, whatever other kinds stand free. Throws when
+ *  the file does not say, so a renamed field fails the run instead of judging every plot. */
+function defaultPlotKind(ron) {
+  const def = /^\s*default:\s*"([a-z0-9_]+)"/m.exec(ron);
+  if (!def) throw new Error("data/homes/starts.ron names no default start");
+  const at = ron.search(new RegExp(`id:\\s*"${def[1]}"`));
+  const kind = at < 0 ? null : /plot_kind:\s*"([a-z0-9_]+)"/.exec(ron.slice(at));
+  if (!kind) throw new Error(`data/homes/starts.ron: the default start "${def[1]}" names no plot_kind`);
+  return kind[1];
+}
 /** One back-and-forth of the walker's line, seconds (second-player.js walks
  *  2r out and 2r back). */
 const CYCLE_S = (4 * RADIUS) / SPEED;
@@ -2105,6 +2121,9 @@ async function runPlotsOnce(order, runStamp, cleanups) {
     g.commons = commons ? { min: commons.min, max: commons.max } : null;
     // The ship's default plot: the first the relay hands out, where a guest's home comes back.
     g.defaultPlot = Array.isArray(manifest.plots) && manifest.plots.length ? manifest.plots[0].id : null;
+    // The kind of plot the game, asking for no start, would be given: full means every one of
+    // these is held (the Cabin row's plots are another start's and stay free).
+    g.kind = defaultPlotKind(fs.readFileSync(STARTS_FILE, "utf8"));
     // The notices on screen two seconds after the welcome: the guest's own sentence
     // (GUEST_ARRIVAL) stays up 12 s (gui NOTICE_LIFE), so it is there to read.
     g.arrived = { lastWelcome: pj.last_welcome, homePlot: pj.home_plot, homeAway: pj.home_away, camera: camOf(pj), homeThings: pj.home_things, bootPlot: pj.boot_plot, notices: Array.isArray(pj.notices) ? pj.notices : null };
