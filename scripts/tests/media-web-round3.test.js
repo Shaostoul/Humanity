@@ -30,7 +30,8 @@
 //  5. Members-only pictures are fetched with an AbortController: stopped when no longer shown, so
 //     their slot frees; kept (not revoked, not fetched again) across a list loaded afresh. A
 //     members-only video gets a new ticket where it stopped once its old one runs out.
-//  6. /media?id=<n> keeps the label cover (click to load): nothing is fetched before the click.
+//  6. /media/<n> (it was /media?id=<n> until round 5) keeps the label cover (click to load):
+//     nothing is fetched before the click.
 //  8. Resume matches the file's fingerprint (SHA-256 of its first and last megabyte), not only its
 //     name, size and date.
 //  B. Both apps: Pause stops every request in every phase (the piece on its way, a server error's
@@ -443,13 +444,15 @@ test("5b. a members-only video plays through a ticket, and gets a new one where 
   assert.equal(video.src, "/api/media/file/4?ticket=t2", "nor its ticket changed");
 });
 
-// ── 6. /media?id=<n> keeps the label cover ───────────────────────────────
+// ── 6. /media/<n> keeps the label cover ──────────────────────────────────
 
 // Seen red 2026-10-11 with renderViewer's `covered` branch taken out (round 2's viewer): "the
-// label cover, not the picture".
-test("6. /media?id=<n> shows a labelled item's label cover and fetches nothing until it is clicked", async () => {
+// label cover, not the picture". Media round 5, lane 1G (2026-10-12): an item's address is
+// /media/<n> now and `/media?id=<n>` is gone, so the page is opened at the path /media/42 (the
+// harness's `path`, where it took `openId`); what the test proves is unchanged.
+test("6. /media/<n> shows a labelled item's label cover and fetches nothing until it is clicked", async () => {
   const it = item({ id: 42, title: "Fire show", kind: "picture", url: "/api/media/file/42", visibility: "members", labels: ["flashing"], filename: "42_f.png" });
-  const { doc, net } = await openPage({ openId: 42, routes: listRoutes(listAnswer([]), [
+  const { doc, net } = await openPage({ path: "/media/42", routes: listRoutes(listAnswer([]), [
     [(c) => c.url === "/api/media/list" && c.body.id === 42, () => respond(200, listAnswer([it]))],
     [at("/api/media/file/42"), () => respond(200, "", new Uint8Array([42]))],
   ]) });
