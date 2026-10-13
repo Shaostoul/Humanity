@@ -15,6 +15,8 @@
 //! (Pick, Remove, Feature, Keep on the server, Report). Add to Media (a file from this computer,
 //! sent in pieces: media/resumable.rs) and Put on Media (a file already in Shared Files, from the
 //! Files page) open the same short form. Suggest a category sends the admins a name and a note.
+//! At its foot, for anyone: Report a copyright problem and the public takedown log
+//! (media/takedown.rs; an item's own page has the same Report a copyright problem).
 //!
 //! WHO SEES WHAT is the relay's to decide: a signed list from a member gets members-only items
 //! too, anyone else the public ones, and on a members-only server nothing. Someone not signed in
@@ -83,6 +85,9 @@ pub(crate) mod admin;
 mod filters;
 /// Tickets: a members-only file watched or downloaded without a token in any address (R3-8).
 pub(crate) mod ticket;
+/// "Report a copyright problem", the admins' decisions on those reports, and the public takedown
+/// log (2026-10-13; the relay half is relay/media_takedown.rs, the website's media-takedown.js).
+pub(crate) mod takedown;
 
 pub(crate) use add::put_on_media;
 pub(crate) use tiles::{KEEP as KEEP_LABEL, KEEP_TIP as KEEP_LABEL_TIP};
@@ -127,6 +132,13 @@ pub(crate) enum Job {
     Edit { id: i64 },
     FileRemove { id: i64, file: i64 },
     Viewed { id: i64 },
+    /// "Report a copyright problem" (takedown.rs `on_answer`): the form sent (`who` is the form's
+    /// number, so an answer for a form closed meanwhile is dropped), the public log read, the
+    /// admins' read of the open reports, and an admin's decision on report `id`.
+    TakedownSend { who: u64 },
+    TakedownLog,
+    TakedownOpen,
+    TakedownDecide { id: i64, removed: bool },
 }
 
 impl Job {
@@ -251,6 +263,9 @@ pub struct MediaState {
     pub look: Option<(u64, crate::gui::pages::chat::attach_step::Looking)>,
     /// When the cleaned copies of uploads were last swept (uploading.rs `sweep_cleaned`).
     pub last_sweep: Option<std::time::Instant>,
+    /// "Report a copyright problem": its form, the public log's window, and the admins' open
+    /// reports (takedown.rs).
+    pub takedown: takedown::Takedowns,
 }
 
 /// The server this page is for: the one the connection was dialled for and signs in to, never an
@@ -583,6 +598,9 @@ pub(crate) fn on_done(state: &mut GuiState, job: Job, result: Result<Value, Refu
         (job @ (Job::Item { .. } | Job::Edit { .. } | Job::FileRemove { .. } | Job::Viewed { .. }), result) => {
             item_view::on_answer(state, job, result)
         }
+        (job @ (Job::TakedownSend { .. } | Job::TakedownLog | Job::TakedownOpen | Job::TakedownDecide { .. }), result) => {
+            takedown::on_answer(state, job, result)
+        }
     }
 }
 
@@ -782,6 +800,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // A Report pressed on a tile opens the existing report dialog, drawn here while this page is
     // on screen (the chat page draws it on its own).
     crate::gui::pages::chat::draw_report_dialog(ctx, theme, state);
+    // "Report a copyright problem" and the public takedown log, over the page and an item's page.
+    takedown::draw_windows(ctx, theme, state);
 }
 
 /// Everything inside the page's scroll area.
@@ -896,6 +916,9 @@ pub(crate) fn draw_body(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
             more_when_seen(state);
         }
     }
+    // The page's foot (2026-10-13, takedown.rs): "Report a copyright problem" for anyone, signed in
+    // or not, and the public takedown log, as the website's Media page has them.
+    takedown::draw_foot(ui, theme, state);
 }
 
 /// The tabs' names, in the order of [`MediaTab`] (the website's are the same: media-app.js).

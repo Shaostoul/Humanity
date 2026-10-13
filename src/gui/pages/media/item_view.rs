@@ -14,7 +14,8 @@
 //!   and admins (never on the first: that is the item itself);
 //! - Copy link (`https://<host>/media/<id>`, the page the relay serves, never `/media?id=`), Edit
 //!   (the uploader and admins: edit.rs), Pick, the three Feature choices (admins), Keep (admins
-//!   and moderators), Report and Remove item.
+//!   and moderators), Report and Remove item, and, for anyone signed in or not, Report a copyright
+//!   problem (takedown.rs, 2026-10-13).
 //!
 //! Opening it counts a view (`POST /api/media/viewed`; the relay counts a person once a day).
 //!
@@ -255,6 +256,8 @@ struct Pressed {
     keep: bool,
     report: bool,
     remove: bool,
+    /// "Report a copyright problem" (takedown.rs): for anyone, signed in or not.
+    copyright: bool,
 }
 
 /// The item's page and its windows (the Edit window, a file picker, the confirmations), while one
@@ -513,6 +516,11 @@ fn draw_actions(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, item: &I
         }
         // The confirmation is drawn over the page (draw_confirmations).
         pressed.remove = signed_in && (mine || admin) && widgets::Button::danger("Remove item").show(ui, theme);
+        // "Report a copyright problem" (2026-10-13, takedown.rs): for anyone, signed in or not, a
+        // member or not. In this row rather than a line of its own (the website's place): a row
+        // added under the actions made the page taller, and two older headless click tests on this
+        // page (a Download, the Edit window's Save) then lost their clicks; why is not yet known.
+        pressed.copyright = super::takedown::item_button(ui, theme);
     });
     if pressed.copy_link {
         // Copied here, where the frame's context is: the item's own page on this server.
@@ -554,6 +562,9 @@ fn act(state: &mut GuiState, page: &mut ItemPage, opened: &mut Opened, item: &It
     }
     if pressed.report {
         crate::engine::report::open_for_media(state, item);
+    }
+    if pressed.copyright {
+        super::takedown::open_form(state, Some(item));
     }
     if !(pressed.pick || pressed.keep) {
         return;

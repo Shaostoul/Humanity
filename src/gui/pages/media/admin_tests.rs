@@ -63,6 +63,9 @@ pub(crate) fn admin_state() -> GuiState {
     s.media_members_note = "The relay's own words about members.".into();
     state.server_settings = Some(s);
     crate::gui::pages::media::sync_server(&mut state);
+    // The copyright reports (takedown.rs) count as asked too, with none waiting.
+    state.media.takedown.requested = true;
+    state.media.takedown.open = Some(Vec::new());
     let a = &mut state.media.admin;
     a.requested = true;
     a.cats = vec![
