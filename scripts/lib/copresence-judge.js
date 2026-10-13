@@ -1216,6 +1216,9 @@ function homeThingsOf(things) {
  *   plots, doors   the ship's plots (probe) and door points' doors
  *   commons        the Commons place ({ min, max })
  *   defaultPlot    the ship's default plot id (a guest's home comes back there)
+ *   kind           the plot kind a player asking for no start is given (data/homes/
+ *                  starts.ron's default start's plot_kind): the game is a guest once every
+ *                  plot of this kind is held; other kinds (the Cabin row) may stand free
  *   walkers        [{ name, id, plot }]: the scripted players holding the plots (the
  *                  two walkers, and since the twelve plots the households that took
  *                  the rest)
@@ -1242,13 +1245,17 @@ function judgeGuest(guest) {
   const d3 = (a, b) => (Array.isArray(a) && Array.isArray(b) ? Math.hypot(...[0, 1, 2].map((k) => Number(a[k]) - Number(b[k]))) : Infinity);
   const inCommons = (p) => Array.isArray(p) && g.commons && [0, 2].every((k) => p[k] >= g.commons.min[k] - 0.05 && p[k] <= g.commons.max[k] + 0.05);
   const onPlot = (p) => onPlotGround(p, g.plots, g.doors);
-  const plotIds = (g.plots || []).map((p) => p.id).sort();
+  // Only the plots of the kind the game would be given count (g.kind): no kind recorded judges
+  // nothing, a failure, never every plot of the ship.
+  const plotIds = g.kind ? (g.plots || []).filter((p) => p.kind === g.kind).map((p) => p.id).sort() : [];
   const held = (g.walkers || []).map((w) => w.plot).filter(Boolean).sort();
   add(
     "plots_taken",
     plotIds.length > 0 && JSON.stringify(held) === JSON.stringify(plotIds),
-    `the ${(g.walkers || []).length} scripted players hold ${held.join(", ") || "nothing"}; the ship's plots are ${plotIds.join(", ") || "(unknown)"}` +
-      (JSON.stringify(held) === JSON.stringify(plotIds) ? ", so the game comes in after them, with none left" : ": a plot is left, so the game is no guest"),
+    !g.kind
+      ? "the rig recorded no plot kind a player asking for no start is given, so whether the ship is full for the game is unknown"
+      : `the ${(g.walkers || []).length} scripted players hold ${held.join(", ") || "nothing"}; the ship's ${g.kind} plots are ${plotIds.join(", ") || "(none)"}` +
+          (JSON.stringify(held) === JSON.stringify(plotIds) ? `, so the game comes in after them, with no ${g.kind} plot left` : `: a ${g.kind} plot is left, or one is held that is not one, so the game is no guest`),
   );
   const a = g.arrived || {};
   add(

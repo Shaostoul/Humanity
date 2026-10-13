@@ -1014,6 +1014,8 @@
       // separator) so nothing slides under the fixed nav.
       var h = Math.ceil(navEl.getBoundingClientRect().height) + 1;
       navSpacer.style.height = h + 'px';
+      // The same height for whatever sticks under the nav (/shared/server-strip.js: top: var(--hos-nav-h)).
+      document.documentElement.style.setProperty('--hos-nav-h', h + 'px');
     }
     var btn = document.getElementById('hos-navmode-btn');
     if (btn) {
@@ -1654,7 +1656,8 @@
     // measure it rather than guessing an offset that would overlap on one of
     // them. Called on open and on resize.
     function place() {
-      var nav = document.querySelector('.hub-nav');
+      // Under the server strip on the pages that have one (/shared/server-strip.js), else under the nav.
+      var nav = document.getElementById('hos-server-strip') || document.querySelector('.hub-nav');
       var top = nav ? Math.round(nav.getBoundingClientRect().bottom) + 8 : 12;
       if (btn) btn.style.top = top + 'px';
       if (btn) btn.style.right = '10px';
@@ -1801,6 +1804,8 @@
 
       place();
       window.addEventListener('resize', place);
+      // Again once the page is read: the server strip, a script after this one, is on it by then.
+      document.addEventListener('DOMContentLoaded', place);
 
       // The registry the Keyboard section reads. Offline just means the
       // universal keys are listed and nothing else, which is still correct.
@@ -1901,7 +1906,7 @@
   // WHY: Light up the download button with RGB when a new version is available
   // so the user knows at a glance. Checks GitHub releases once per session.
   (function updateChecker() {
-    var CURRENT_VERSION = '0.1490.0';
+    var CURRENT_VERSION = '0.1491.0';
     var CACHE_KEY = 'hos_latest_version';
     var CACHE_TS_KEY = 'hos_latest_version_ts';
     var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min

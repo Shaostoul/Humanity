@@ -13,7 +13,7 @@
 // What it proves (the design's web Proof list):
 //  1. Empty: the empty words, no tile, no featured strip, no More.
 //  2. Items: tiles with titles, uploader names and pick counts; the featured strip (asked for
-//     with featured=1); More pages with `before`; the category and person filters come from the
+//     with featured=1); More pages with the answer's `cursor`; the category and person filters come from the
 //     server's answers and the kinds from data/media/kinds.json.
 //  3. A labelled tile shows its label instead of its picture, and no picture is even requested
 //     until it is clicked.
@@ -358,7 +358,13 @@ test("8. pick, unpick, remove and feature are each signed over their own item, n
   assert.equal(last().url, "/api/media/unpick");
   assert.equal(last().body.sig, "sig:media_pick:5", "unpick is signed over its item");
   assert.equal(last().body.filename, "1_a.png");
-  tileOf(5).querySelector('[data-action="feature"]').click();
+  // Media round 5, lane 1G (2026-10-12): Feature is a three-way choice now (a select on the tile:
+  // Not featured, Featured, Featured in its category), so this picks "main" in it where it used to
+  // press a Feature button. What it proves is unchanged.
+  const where = tileOf(5).querySelector('[data-action="feature"]');
+  assert.equal(where.value, "none", "an item on no shelf reads Not featured");
+  where.value = "main";
+  where.dispatch("change");
   await settle();
   const feature = net.calls.find((c) => c.url === "/api/media/feature");
   // Round 5: Feature puts it on the main shelf, signed over the item and where.
@@ -607,11 +613,8 @@ test("12. the page is in the nav beside Watch and loads its scripts in order", (
   assert.ok(at2.every((i) => i > 0), "every script is loaded: " + at2);
   assert.deepEqual(at2.slice().sort((a, b) => a - b), at2, "in order");
   assert.ok(html.includes('id="media-root"'));
-  // The Admin page mounts the same section, so it loads the upload helper before the page's helpers.
-  const adminHtml = fs.readFileSync(path.join(WEB, "pages", "admin.html"), "utf8");
-  const order2 = ["/shared/relay-session.js", "/pages/media-upload.js", "/pages/media-app.js", "/pages/media-admin.js"].map((s) => adminHtml.indexOf('src="' + s));
-  assert.ok(order2.every((i) => i > 0), "the Admin page loads the section's scripts: " + order2);
-  assert.deepEqual(order2.slice().sort((a, b) => a - b), order2, "in order");
+  // The Admin page no longer mounts the section (round 5, lane 1F): its Media panel is one line
+  // linking /media#admin and it loads none of these scripts, which server-strip-web.test.js checks.
   const shared = fs.readFileSync(path.join(WEB, "pages", "shared-files.html"), "utf8");
   assert.ok(shared.includes("'/media?put=' + encodeURIComponent("), "a Shared Files row links to Put on Media");
   assert.ok(/f\.uploader_key !== myKey/.test(shared), "on the person's own rows only");

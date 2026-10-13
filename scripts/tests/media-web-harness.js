@@ -1,6 +1,6 @@
 // The stand-ins the Media page's web tests run against (2026-10-11): shared by
-// scripts/tests/media-web.test.js, media-web-round2.test.js, media-web-round3.test.js and
-// media-web-round4.test.js. Not a test itself
+// scripts/tests/media-web.test.js, media-web-round2.test.js, media-web-round3.test.js,
+// media-web-round4.test.js and media-web-round5.test.js. Not a test itself
 // (its name does not end in .test.js, so `node --test "scripts/tests/*.test.js"` does not run it).
 //
 // The page's own files run as they do in the browser: web/pages/media-app.js (the page),
@@ -368,7 +368,12 @@ async function openPage(opts) {
     signBytes: async (bytes) => new TextEncoder().encode("sig:" + new TextDecoder().decode(bytes)),
     blake3: BLAKE,
     confirm: async (words) => { confirms.push(words); return o.confirm !== false; },
-    FormData: FakeFormData, put: o.put || null, openId: o.openId || null,
+    // Round 5 (2026-10-12): the address the page was loaded at (/media/<n> opens item n; it was
+    // `openId`, read from /media?id=<n>, which is gone), its hash (#admin opens the Admin tab),
+    // the history it pushes an opened item's address onto, and the sentinel's observer; the
+    // last two are absent unless a test hands in its own (media-web-round5.test.js).
+    FormData: FakeFormData, put: o.put || null, path: o.path || "/media", hash: o.hash || "",
+    history: o.history || null, IntersectionObserver: o.IntersectionObserver || null,
     mountAdmin: o.mountAdmin ? (c) => o.mountAdmin(c, ctx) : null,
     URL: urls, storage, save: (url, name) => saved.push({ url, name }),
     sleep: o.sleep || (() => Promise.resolve()), now: o.now || (() => 1760000000000),

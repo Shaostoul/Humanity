@@ -44,7 +44,7 @@
 // relay carries out through its moderation path and its rules. A reported Media
 // item (context `media`, 2026-10-11) shows its title, kind, labels and
 // visibility with an Open that loads it on the Media page by its number
-// (/media?id=<n>, which asks the list route for `id=<n>`). It lives here,
+// (its own page, /media/<n>, which asks the list route for `id=<n>`). It lives here,
 // in the chat app, and not on the Admin page (web/pages/admin.html): the Admin
 // page is open to admins only and signs its requests over HTTP, while the
 // report frames go over the signed-in chat socket, and moderators review

@@ -588,6 +588,7 @@ async function loadChat(me, opts = {}) {
   run("shared/blake3.js");
   run("shared/file-transfer.js");
   run("shared/profile-changes.js");
+  run("shared/profile-copy.js"); // as web/chat/index.html loads it (BUG-191)
   run("chat/crypto.js");
   run("chat/chat-dm-store.js");
   run("chat/view/timestampPill.js");

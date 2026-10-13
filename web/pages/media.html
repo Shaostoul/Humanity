@@ -12,7 +12,7 @@
   <!-- The Media page (docs/design/media-showcase.md, "Increment 2, exact"). Everything
        inside #media-root is built by /pages/media-app.js with createElement and
        textContent; its styles are /shared/media.css, theme tokens only. -->
-  <link rel="stylesheet" href="/shared/media.css?v=3">
+  <link rel="stylesheet" href="/shared/media.css?v=4">
   <style>
     body { background: var(--bg); color: var(--text); line-height: var(--line-height); min-height: 100vh; padding-bottom: 60px; }
   </style>
@@ -22,6 +22,9 @@
 <script src="/shared/shell.js"></script>
 <script src="/shared/defaults.js"></script>
 <script src="/shared/settings.js"></script>
+<!-- Which server this is (Media round 5, docs/design/media-round-5-plan.md 3.11): a strip under
+     the top menu naming it, with Switch. After shell.js, which sets the menu's height it sits under. -->
+<script src="/shared/server-strip.js?v=1"></script>
 
 <div id="media-root"></div>
 
@@ -35,7 +38,7 @@
 <!-- The page's own signed-in connection: the upload token and the server's settings. -->
 <script src="/shared/relay-session.js?v=2"></script>
 <!-- Report on a Media tile: the words a report signs and the reasons' help (context `media`). -->
-<script src="/shared/report.js?v=3"></script>
+<script src="/shared/report.js?v=4"></script>
 <!-- Every file is cleaned on this device before it goes up (2026-10-11, docs/design/media-showcase.md,
      part 1): where it was taken and which camera took it are removed, unless the person turns off
      "Remove location and camera details". upload-clean.js after strip-metadata.js. -->
@@ -43,8 +46,8 @@
 <script src="/shared/upload-clean.js?v=1"></script>
 <!-- Add to Media's resumable upload (pieces, Pause and Resume, carrying on after a drop). -->
 <script src="/pages/media-upload.js?v=3"></script>
-<script src="/pages/media-app.js?v=4"></script>
-<!-- The admins' Media section, shown on this page to admins (also on /admin). -->
-<script src="/pages/media-admin.js?v=2"></script>
+<script src="/pages/media-app.js?v=5"></script>
+<!-- The admins' Media section: this page's Admin tab, for admins (/media#admin; /admin points here). -->
+<script src="/pages/media-admin.js?v=3"></script>
 </body>
 </html>

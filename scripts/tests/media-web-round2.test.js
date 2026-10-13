@@ -35,7 +35,8 @@
 //  L. Report on a tile: context `media`, evidence [{kind: "media", id}], signed by the reporter;
 //     the help outside this server for the danger reasons; the relay's answer or refusal.
 //  M. The admins' Reports view in the chat shows a Media item's title, kind, labels and
-//     visibility with an Open that loads it by number (/media?id=<n>), which the page opens.
+//     visibility with an Open that loads it by number (/media/<n> since round 5; it was
+//     /media?id=<n>), which the page opens.
 //  N. The resumable upload: pieces, progress, Pause and Resume, a dropped connection, the
 //     allowance (429) with when it resets, no room at the finish (507) with Retry sending the
 //     empty piece, an answer lost on the way (`done`), carrying on after a reload, storage that
@@ -74,6 +75,12 @@ const ID = "a".repeat(32);
 
 const tileOf = (doc, id) => byId(doc, "media-grid").querySelectorAll(".media-tile").find((t) => t.dataset.id === String(id));
 const notice = (doc) => text(byId(doc, "media-notice").querySelector(".media-notice-text"));
+/** Round 5: an admin picks where a tile's item is featured in its three-way select ("main", "category", "none"). */
+const featureAs = (tile, where) => {
+  const select = tile.querySelector('[data-action="feature"]');
+  select.value = where;
+  select.dispatch("change");
+};
 
 function aFile(name, size, type, lastModified) {
   return {
@@ -182,13 +189,15 @@ test("B. a write names the item's file; a page out of date is loaded again; an u
   assert.equal(notice(doc), media.MEDIA_WORDS.reloaded, "and says the page was out of date");
   assert.ok(net.calls.filter((c) => c.url === "/api/media/list").length >= listsBefore + 2, "the list is asked for again (and the strip)");
   // An item the server names by `filename` (a members-only one, whose address is its number).
-  tileOf(doc, 7).querySelector('[data-action="feature"]').click();
+  // Media round 5, lane 1G (2026-10-12): Feature is a three-way select now, so "main" is picked
+  // in it here and below where a Feature button used to be pressed.
+  featureAs(tileOf(doc, 7), "main");
   await settle();
   const f = net.calls.filter((c) => c.url === "/api/media/feature").at(-1);
   assert.equal(f && f.body.filename, "7_m.png", "an item the server names by `filename` is acted on");
   // An item whose file the answer does not name: nothing is sent, and the page says why.
   const sentBefore = net.calls.length;
-  tileOf(doc, 8).querySelector('[data-action="feature"]').click();
+  featureAs(tileOf(doc, 8), "main");
   await settle();
   assert.equal(net.calls.length, sentBefore, "nothing is sent for an item whose file is not named");
   assert.equal(notice(doc), media.MEDIA_WORDS.noFileName);
@@ -613,8 +622,11 @@ function loadChatReports() {
 
 // Seen red 2026-10-11 with reportsViewHtml drawing a Media item's (empty) text like a message's:
 // "the item's title"; and with report.js reportItemView dropping the item's number: "Open loads
-// it by its number".
-test("M. the admins' Reports view shows a reported Media item with Open, and /media?id=<n> opens it", async () => {
+// it by its number". Media round 5, lane 1G (2026-10-12): an item's address is its own page,
+// /media/<n>, and `/media?id=<n>` is gone outright (docs/design/media-round-5-plan.md 3.10), so
+// Open links /media/42 and the page is opened at the path /media/42 (the harness's `path`, where
+// it took `openId`). media-web-round5.test.js holds the rest of the address.
+test("M. the admins' Reports view shows a reported Media item with Open, and /media/<n> opens it", async () => {
   const ctx = loadChatReports();
   const set = vm.runInContext("(items) => { reportsView.open = false; reportsView.tab = 'open'; reportsView.lists.open = items.map(reportItemView); }", ctx);
   const view = () => vm.runInContext("reportsViewHtml(reportsViewModel())", ctx);
@@ -625,7 +637,7 @@ test("M. the admins' Reports view shows a reported Media item with Open, and /me
   const html = view();
   assert.ok(html.includes("Fire show"), "the item's title");
   assert.ok(html.includes("Video · Labels: Flashing lights · Members only"), "its kind, labels and who can see it, by their names: " + html.slice(html.indexOf("report-media-facts"), html.indexOf("report-media-facts") + 160));
-  assert.ok(html.includes('href="/media?id=42"'), "Open loads it by its number");
+  assert.ok(html.includes('href="/media/42"'), "Open loads it by its number, at its own page");
   assert.ok(/data-report-media-open="42"[^>]*target="_blank" rel="noopener noreferrer"/.test(html), "in a new tab");
   assert.ok(html.includes("Checked: on the Media page, put there by"), "the checked badge");
   assert.ok(html.includes("The Media page"), "where it happened");
@@ -634,16 +646,16 @@ test("M. the admins' Reports view shows a reported Media item with Open, and /me
   const h2 = view();
   assert.ok(h2.includes("Media item 43") && h2.includes(report.REPORT_NOT_PROVEN));
 
-  // The Media page opened at /media?id=42: the list route asked for that item, and the viewer shows it.
+  // The Media page opened at /media/42: the list route asked for that item, and the viewer shows it.
   const it = item({ id: 42, title: "Fire show", kind: "video", url: "/uploads/42_f.mp4" });
-  const { doc, net } = await openPage({ openId: 42, routes: listRoutes(listAnswer([]), [
+  const { doc, net } = await openPage({ path: "/media/42", routes: listRoutes(listAnswer([]), [
     [(c) => c.url === "/api/media/list" && c.body.id === 42, () => respond(200, listAnswer([it]))],
   ]) });
   const ask = net.calls.find((c) => c.url === "/api/media/list" && c.body.id === 42);
   assert.ok(ask, "the list route is asked for id=42");
   assert.equal(ask.body.limit, 1);
   assert.equal(text(byId(doc, "media-viewer-open").querySelector("h2")), "Fire show");
-  const gone = await openPage({ openId: 77, routes: listRoutes(listAnswer([])) });
+  const gone = await openPage({ path: "/media/77", routes: listRoutes(listAnswer([])) });
   assert.equal(notice(gone.doc), media.MEDIA_WORDS.notFound);
 });
 
@@ -973,8 +985,10 @@ test("P. round 5: the purposes, `featured` as a word and `next_cursor`, as the r
   assert.ok(media.isFeatured(FX.item_members_view), "\"category\" is on a shelf");
   assert.ok(!media.isFeatured(Object.assign({}, FX.item_members_view, { featured: "none" })));
 
-  // The page on the relay's own answer: Unfeature on an item featured in its category, More
-  // sending back the cursor.
+  // The page on the relay's own answer: an item featured in its category reads so, and taking it
+  // off the shelves sends "none"; More sends back the cursor. (Media round 5, lane 1G, 2026-10-12:
+  // the Feature button became a three-way select, so this reads the select's value where it read
+  // an Unfeature button's words, and picks "none" in it where it pressed that button.)
   const answer = FX.list_by_downloads;
   const routes = listRoutes(answer, [
     [at("/api/media/feature", "POST"), (c) => respond(200, { ok: true, id: c.body.id, featured: c.body.featured })],
@@ -982,8 +996,8 @@ test("P. round 5: the purposes, `featured` as a word and `next_cursor`, as the r
   ]);
   const { doc, net } = await openPage({ session: fakeSession({ role: "admin" }), routes });
   const tile = tileOf(doc, 1);
-  assert.equal(text(tile.querySelector('[data-action="unfeature"]')), "Unfeature", "featured in its category reads as featured");
-  tile.querySelector('[data-action="unfeature"]').click();
+  assert.equal(tile.querySelector('[data-action="feature"]').value, "category", "featured in its category reads as such");
+  featureAs(tile, "none");
   await settle();
   const feature = net.calls.find((c) => c.url === "/api/media/feature");
   assert.deepEqual([feature.body.featured, feature.body.sig, feature.body.filename], ["none", "sig:" + p.feature_none, "1760_x.png"]);
