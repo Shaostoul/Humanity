@@ -234,8 +234,8 @@ fn the_card_shows_the_first_line_and_the_file_count() {
     };
     let mut state = page_on(SERVER, answer_of(vec![item]), "tok");
     let out = settled(&ctx, &theme, &mut state);
-    assert!(shows(&out, &cut), "the first line, cut");
     assert!(!shows(&out, "The second line stays on the page"), "the second line stays on the page");
+    assert!(shows(&out, &cut), "the first line, cut");
     for text in ["3 files", "3 picks, 2 downloads", tiles::FEATURED_CATEGORY] {
         assert!(shows(&out, text), "the card shows {text:?}");
     }
@@ -323,8 +323,8 @@ fn an_admin_sees_the_licence_but_cannot_change_it() {
 /// answer's item, now with two files, is the page's.
 ///
 /// Seen red 2026-10-12 with `publish_entry` publishing every upload (the attach left out): "added,
-/// never published" (the server saw "POST /api/media {...\"filename\":\"1700_clip.webm\"...}" and
-/// no files/add).
+/// never published: [\"POST /api/media/viewed\", \"POST /api/media/mine\", \"POST /api/media\",
+/// \"POST /api/media/mine\"]" (a publish, and no files/add).
 #[test]
 fn add_a_file_uploads_then_attaches() {
     let (ctx, theme) = ctx_and_theme();
@@ -348,9 +348,11 @@ fn add_a_file_uploads_then_attaches() {
     until(&ctx, &theme, &mut state, "the upload is up and added", |s| s.media.uploads.is_empty() && s.media.jobs.iter().all(|(j, _)| !matches!(j, Job::Publish { .. })));
 
     let seen = seen.lock().unwrap().clone();
-    let add = seen.iter().find(|r| r.starts_with("POST /api/media/files/add ")).unwrap_or_else(|| panic!("added, never published: {seen:?}"));
+    // What was asked, without the bodies (a signature is 6 KB of hex).
+    let asked: Vec<String> = seen.iter().map(|r| r.split(' ').take(2).collect::<Vec<_>>().join(" ")).collect();
+    let add = seen.iter().find(|r| r.starts_with("POST /api/media/files/add ")).unwrap_or_else(|| panic!("added, never published: {asked:?}"));
     assert!(add.contains(r#""add":"1700_clip.webm""#) && add.contains(r#""as":"file""#) && add.contains(r#""filename":"7_dusk.glb""#), "{add}");
-    assert!(!seen.iter().any(|r| r.starts_with("POST /api/media ")), "added, never published: {seen:?}");
+    assert!(!seen.iter().any(|r| r.starts_with("POST /api/media ")), "added, never published: {asked:?}");
     let page = state.media.item.as_ref().and_then(|p| p.item.as_ref()).expect("the page's item");
     assert_eq!(page.files.iter().map(|f| f.filename.as_str()).collect::<Vec<_>>(), vec!["7_dusk.glb", "1700_clip.webm"], "the answer's item is the page's");
     assert_eq!(state.media.status, "Added to \"Dusk\".");
@@ -383,8 +385,9 @@ fn copy_link_is_the_items_page_address() {
 /// `/api/media/download/<id>?file=<n>`, never its `/uploads/` address, so the download is counted;
 /// a members-only item's asks for a ticket made for that route, for that file.
 ///
-/// Seen red 2026-10-12 with `download_origin` fetching the file's own address: "the counted route"
-/// (the server saw "GET /uploads/8_textures.zip").
+/// Seen red 2026-10-12 with `download_origin` fetching the item's own address (`api::file_url`, as
+/// before round 5): "the counted route: [\"POST /api/media/viewed {\\\"id\\\":7}\", \"GET
+/// /uploads/7_dusk.glb \"]".
 #[test]
 fn download_goes_through_the_counting_route() {
     let (ctx, theme) = ctx_and_theme();
@@ -397,11 +400,15 @@ fn download_goes_through_the_counting_route() {
     let row = find_text(&out, "textures.zip, file").expect("the added file's row");
     let press = every_exact(&out, "Download").into_iter().min_by(|a, b| (a.center().y - row.center().y).abs().total_cmp(&(b.center().y - row.center().y).abs())).expect("its Download");
     click_at(&ctx, &theme, &mut state, press.center());
-    until(&ctx, &theme, &mut state, "the download ends", |s| s.media.open.as_ref().is_some_and(|o| o.saved_words(1).is_some()));
-    let words = state.media.open.as_ref().and_then(|o| o.saved_words(1)).unwrap().to_string();
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while !state.media.open.as_ref().is_some_and(|o| o.saved_words(1).is_some()) && Instant::now() < deadline {
+        frame(&ctx, &theme, &mut state, Vec::new());
+        std::thread::sleep(Duration::from_millis(5));
+    }
     let requests = seen.lock().unwrap().clone();
     assert!(requests.iter().any(|r| r.starts_with("GET /api/media/download/7?file=1 ")), "the counted route: {requests:?}");
     assert!(!requests.iter().any(|r| r.starts_with("GET /uploads/")), "never the file's own address: {requests:?}");
+    let words = state.media.open.as_ref().and_then(|o| o.saved_words(1)).expect("the download ends").to_string();
     if let Some(path) = words.strip_prefix("Saved to ") {
         assert_eq!(std::fs::read(path).unwrap(), b"abc");
         let _ = std::fs::remove_file(path);
