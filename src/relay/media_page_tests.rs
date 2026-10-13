@@ -347,7 +347,14 @@ async fn the_page_keeps_blob_pictures_in_its_csp() {
     assert!(page_csp().contains("img-src 'self' data: blob: https:;"), "{}", page_csp());
     assert_ne!(page_csp(), crate::relay::csp_value(), "it is not the relay's usual policy");
     let connect = |csp: &str| csp.split(';').map(str::trim).find(|d| d.starts_with("connect-src")).map(str::to_string);
-    assert_eq!(connect(page_csp()), connect(crate::relay::csp_value()), "the same connect-src, from the same configured addresses");
+    // The relay's connect-src, from the same configured addresses, plus the shell's check for a
+    // newer release (seen red 2026-10-12 on the live /media/2: the browser refused the fetch).
+    let want = connect(crate::relay::csp_value()).map(|c| format!("{c} {}", super::SHELL_VERSION_CHECK));
+    assert_eq!(connect(page_csp()), want, "the relay's connect-src and the shell's version check");
+    let shell = std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("web/shared/shell.js")).unwrap();
+    assert!(shell.contains(&format!("fetch('{}/", super::SHELL_VERSION_CHECK)), "the shell still asks that address");
+    assert_eq!(super::with_connect_source("connect-src 'self';", "https://a.example"), "connect-src 'self' https://a.example;");
+    assert_eq!(super::with_connect_source("connect-src 'self' https://a.example;", "https://a.example"), "connect-src 'self' https://a.example;", "never twice");
 
     for id in [item.id.to_string(), "999999".to_string()] {
         let mut res = page_core(&state, d.folders(), Some(&media_html()), &id, SITE);
