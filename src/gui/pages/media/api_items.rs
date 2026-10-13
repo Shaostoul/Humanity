@@ -11,9 +11,10 @@
 //! edit's text is written once and both hashed and sent as it is ([`edit_request`]), the categories
 //! request's pattern, so the relay hashes exactly the same characters.
 
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
-use super::api::{bare_name, post, Item, ItemRef, Method, Request, Signer, DEFAULT_LICENCE};
+use super::api::{bare_name, post, Item, ItemRef, Method, Refusal, Request, Signer, DEFAULT_LICENCE};
 
 fn s(v: &Value, k: &str) -> String {
     v.get(k).and_then(Value::as_str).unwrap_or("").to_string()
@@ -220,9 +221,12 @@ pub fn edit_request(signer: &Signer, item: &ItemRef, e: &EditFields) -> Request 
     Request { method: Method::Post, path: "/api/media/edit".to_string(), body: Some(body), purpose: Some(purpose) }
 }
 
-/// What an upload is added to an item as.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// What an upload is added to an item as. Kept in the record of an upload a restart cut off
+/// ([`AttachTo`]), as the relay's own word.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum FileRole {
+    #[default]
     File,
     Cover,
 }
@@ -234,6 +238,100 @@ impl FileRole {
             FileRole::Cover => "cover",
         }
     }
+}
+
+/// Where an upload goes once it is up, instead of being published as an item of its own (lane
+/// 1D): added to item `id`, whose own stored file is `filename` (every write names it, W5), as a
+/// file or as its cover. The upload's record carries it (resumable.rs `Unfinished::attach`), so an
+/// upload a restart cut off and carried on later still goes to the same item.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct AttachTo {
+    pub id: i64,
+    pub filename: String,
+    pub role: FileRole,
+}
+
+impl AttachTo {
+    /// The item it goes to, as every write names it.
+    pub fn item(&self) -> ItemRef {
+        ItemRef { id: self.id, filename: self.filename.clone() }
+    }
+}
+
+/// The number the relay gave the upload stored as `stored` on `item` (an added file or the cover):
+/// what a file's Remove names. None when the item does not hold it.
+pub fn file_number_of(item: &Item, stored: &str) -> Option<i64> {
+    let stored = bare_name(stored);
+    item.files.iter().chain(item.cover.iter()).find(|f| f.filename == stored).map(|f| f.file)
+}
+
+/// The purpose making item `id` public or members only is signed over (the relay's existing
+/// `/api/media/visibility`).
+pub fn visibility_purpose(id: i64, members: bool) -> String {
+    format!("media_visibility:{id}:{}", if members { "members" } else { "public" })
+}
+
+/// `POST /api/media/visibility`: who can see item `item`, sent by the Edit window apart from the
+/// edit and only when it changed. The relay moves every one of the item's files with it.
+pub fn visibility_request(signer: &Signer, item: &ItemRef, members: bool) -> Request {
+    let purpose = visibility_purpose(item.id, members);
+    let body = json!({ "id": item.id, "filename": bare_name(&item.filename), "visibility": if members { "members" } else { "public" } });
+    post("/api/media/visibility", purpose.clone(), signer.signed(&purpose, body))
+}
+
+/// The most characters a card shows of a description's first line, "..." included.
+pub const CARD_LINE_MAX: usize = 120;
+
+/// What a card shows of `description`: its first line, at most [`CARD_LINE_MAX`] characters, cut
+/// at a word with "..." when it is longer. The item's page shows the whole description.
+pub fn first_line(description: &str) -> String {
+    let line = description.trim().lines().next().unwrap_or("").trim();
+    if line.chars().count() <= CARD_LINE_MAX {
+        return line.to_string();
+    }
+    let cut: String = line.chars().take(CARD_LINE_MAX - 3).collect();
+    // Back to the last whole word, unless the line is one word longer than the card.
+    let at_word = match cut.rfind(char::is_whitespace) {
+        Some(i) if i > 0 => &cut[..i],
+        _ => cut.as_str(),
+    };
+    format!("{}...", at_word.trim_end())
+}
+
+/// The item's own page on the server at `base`: `https://<host>/media/<id>`, what Copy link copies
+/// (the relay serves it, with its preview for social sites; never `/media?id=`).
+pub fn item_link(base: &str, id: i64) -> String {
+    format!("{}/media/{id}", base.trim_end_matches('/'))
+}
+
+/// Send `req` to the server at `base` like `api::send`, with `header` on it when one is given (the
+/// session's upload token, which only counts a members-only item's view). Blocking: call it on a
+/// worker thread.
+pub fn send_with_header(base: &str, req: &Request, header: Option<(&str, &str)>) -> Result<Value, Refusal> {
+    let url = format!("{}{}", base.trim_end_matches('/'), req.path);
+    let mut call = match req.method {
+        Method::Get => ureq::get(&url),
+        Method::Post => ureq::post(&url),
+    }
+    .timeout(std::time::Duration::from_secs(30));
+    if let Some((name, value)) = header {
+        call = call.set(name, value);
+    }
+    let result = match (req.method, req.body.as_deref()) {
+        (Method::Get, _) => call.call(),
+        (Method::Post, body) => call.set("Content-Type", "application/json").send_string(body.unwrap_or("{}")),
+    };
+    let resp = result.map_err(|e| match e {
+        ureq::Error::Status(code, r) => {
+            let text = r.into_string().unwrap_or_default();
+            let text = text.trim();
+            Refusal::new(code, if text.is_empty() || text.starts_with('<') { format!("The server refused it ({code}).") } else { text.to_string() })
+        }
+        other => Refusal::new(0, format!("The server could not be reached ({other}).")),
+    })?;
+    let text = resp.into_string().map_err(|e| Refusal::new(0, format!("The answer could not be read ({e}).")))?;
+    serde_json::from_str(&text).map_err(|e| Refusal::new(0, format!("The answer was not understood ({e}).")))
 }
 
 /// The purpose adding `add` to item `id` as `role` is signed over.

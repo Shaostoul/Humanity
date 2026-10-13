@@ -48,6 +48,8 @@ pub(crate) mod api;
 pub(crate) mod api_items;
 /// An item's own page: where the answers for it land (its window is round 5's lane 1D).
 pub(crate) mod item_view;
+/// An item's Edit window (round 5, lane 1D): its words, licence, who can see it, files and cover.
+pub(crate) mod edit;
 /// The kinds of item, from data/media/kinds.json.
 pub(crate) mod kinds;
 /// Add to Media's upload, in pieces (and kept in the config when a restart cuts it off).

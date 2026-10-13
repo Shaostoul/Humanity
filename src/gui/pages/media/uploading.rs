@@ -13,6 +13,11 @@
 //!   its words, Put it on Media and Cancel, which is the same `DELETE`: the relay removes a
 //!   finished upload's stored file with its session (round 4), so no signature is needed.
 //!
+//! ADDED TO AN ITEM INSTEAD (Media round 5, lane 1D): a file or a cover picked in an item's Edit
+//! window is the same upload, in the same list, carrying the item it goes to (`AttachTo`, kept in
+//! its record too); once it is up it is added to that item (`POST /api/media/files/add`,
+//! publishing.rs `attach`) instead of published, and its Cancel takes it off the item again.
+//!
 //! "Cancelled" is said only when the server confirmed it (round 4 of the design, D4-2): every
 //! cancel is asked again while the server is busy writing (upload_cancel.rs), and one the server
 //! did not confirm is said plainly, the upload staying listed with its Cancel until it is.
@@ -135,20 +140,60 @@ pub(crate) fn start_with(state: &mut GuiState, form: &Form, t: Arc<dyn Transport
         category_id: fields.category_id,
         labels: fields.labels,
         members_only: form.members_only,
+        licence: fields.licence,
+        project_use: fields.project_use,
+        attach: None,
     };
-    // The form's switch: cleaned on this device first, or kept by choice (keep_metadata).
+    push_upload(state, record, form.remove, token, t);
+    Ok(())
+}
+
+/// Start the upload `record` describes, cleaned on this device first when `clean` (the form's
+/// switch) or sent exactly as it is (`keep_metadata`): a new row in the list.
+fn push_upload(state: &mut GuiState, record: Unfinished, clean: bool, token: String, t: Arc<dyn Transport>) {
     let plan = Plan {
-        path: path.clone(),
-        name: name.clone(),
-        size: *len,
-        content_type: crate::gui::pages::chat::mime_for_filename(name).to_string(),
+        path: record.path.clone(),
+        name: record.name.clone(),
+        size: record.size,
+        content_type: crate::gui::pages::chat::mime_for_filename(&record.name).to_string(),
         resume: None,
         file_changed: false,
-        clean: form.remove,
-        keep_metadata: !form.remove,
+        clean,
+        keep_metadata: !clean,
     };
     let run = Run::start(t.clone(), plan, Arc::new(Control::new(Some(token))));
     state.media.uploads.push(Entry { local: super::next_id(), run, record, after: After::Uploading, cancelling: false, transport: t });
+}
+
+/// Start uploading the file at `path` (named `name`, `len` bytes) for an item's Edit window (Media
+/// round 5, lane 1D): the same upload in pieces and the same row under "Uploads in progress" as
+/// Add to Media's, added to the item `to` names as a file or its cover once it is up, instead of
+/// published. Cleaned on this device first under the person's own switch ("Remove location and
+/// camera details", always on under the protected setup), as a picked file is. Err with the
+/// words when it cannot start.
+pub(crate) fn start_attach(state: &mut GuiState, path: &std::path::Path, name: &str, len: u64, to: super::api_items::AttachTo) -> Result<(), String> {
+    let t = transport(state);
+    start_attach_with(state, path, name, len, to, t)
+}
+
+/// [`start_attach`] through `t` (the tests' simulated server).
+pub(crate) fn start_attach_with(state: &mut GuiState, path: &std::path::Path, name: &str, len: u64, to: super::api_items::AttachTo, t: Arc<dyn Transport>) -> Result<(), String> {
+    let Some(token) = super::token_here(state) else {
+        return Err(crate::gui::pages::chat::NOT_SIGNED_IN_YET.to_string());
+    };
+    let record = Unfinished {
+        server: state.media.server.clone(),
+        key: state.media.key.clone(),
+        id: String::new(),
+        path: path.to_path_buf(),
+        name: name.to_string(),
+        size: len,
+        modified_ms: resumable::modified_ms(path),
+        attach: Some(to),
+        ..Default::default()
+    };
+    let clean = crate::gui::pages::chat::attach_step::remove_at_start(state);
+    push_upload(state, record, clean, token, t);
     Ok(())
 }
 
@@ -238,24 +283,37 @@ pub(crate) fn on_event(state: &mut GuiState, local: u64, e: Event) {
     }
 }
 
-/// Upload `local`'s file is up as `filename`: publish it with what its own form said, signed now.
+/// Upload `local`'s file is up as `filename`: publish it with what its own form said, signed now;
+/// or, made from an item's Edit window (round 5), add it to that item instead.
 fn publish_entry(state: &mut GuiState, local: u64, filename: String) {
     let Some(record) = entry(state, local).map(|e| e.record.clone()) else { return };
     match signer_here(state) {
         Some(signer) => {
-            let fields = fields_of_record(&record, &filename, super::members_only_server(state));
-            publishing::publish(state, Of::Upload, local, &signer, &fields);
+            match &record.attach {
+                Some(to) => publishing::attach(state, local, &signer, to, &filename),
+                None => {
+                    let fields = fields_of_record(&record, &filename, super::members_only_server(state));
+                    publishing::publish(state, Of::Upload, local, &signer, &fields);
+                }
+            }
             if let Some(e) = entry(state, local) {
                 e.after = After::Publishing { filename };
             }
         }
         None => {
+            let words = if record.attach.is_some() { UNLOCK_TO_ATTACH } else { UNLOCK_TO_PUBLISH };
             if let Some(e) = entry(state, local) {
-                e.after = After::NotPublished { filename, words: UNLOCK_TO_PUBLISH.to_string() };
+                e.after = After::NotPublished { filename, words: words.to_string() };
             }
         }
     }
 }
+
+/// What an upload made for an item says when it is up but there is no signature to add it with.
+pub(crate) const UNLOCK_TO_ATTACH: &str = "Uploaded, but not added to the item yet: unlock your identity, then press Add it to the item. It waits a day.";
+/// The button that adds an upload that is up to its item (the "Put it on Media" of one made from
+/// an item's Edit window).
+pub(crate) const ADD_TO_ITEM: &str = "Add it to the item";
 
 /// What an upload is published as: what its form said when it was sent.
 pub(crate) fn fields_of_record(r: &Unfinished, filename: &str, members_server: bool) -> api::PublishFields {
@@ -266,8 +324,9 @@ pub(crate) fn fields_of_record(r: &Unfinished, filename: &str, members_server: b
         category_id: r.category_id,
         labels: r.labels.clone(),
         visibility: if members_server || r.members_only { "members" } else { "public" }.to_string(),
-        // The licence and the game tick (Media round 5): the defaults until the form offers them.
-        ..Default::default()
+        // The licence and the game tick (Media round 5): what the form said.
+        licence: r.licence.clone(),
+        project_use: r.project_use,
     }
 }
 
@@ -292,22 +351,29 @@ pub(crate) fn published(state: &mut GuiState, local: u64, filename: &str, result
         }
         Undo::None => {}
     }
+    // Made from an item's Edit window (round 5): added to that item, not published.
+    let attached = entry(state, local).is_some_and(|e| e.record.attach.is_some());
     match result {
         Ok(v) => {
             if let Some(gone) = drop_entry(state, local) {
                 forget_record(state, &gone.record.id);
             }
-            state.media.status = publishing::on_media_words(&v);
-            super::reload(state);
+            if attached {
+                state.media.status = publishing::attached_words(&v);
+                super::refresh_mine(state);
+            } else {
+                state.media.status = publishing::on_media_words(&v);
+                super::reload(state);
+            }
         }
         Err(e) => {
+            let words = if attached {
+                format!("Not added to the item: {} The file is uploaded and waits a day.", e.words)
+            } else {
+                format!("Not put on the Media page: {} The file is uploaded and waits a day.", e.words)
+            };
             match entry(state, local) {
-                Some(entry) => {
-                    entry.after = After::NotPublished {
-                        filename: filename.to_string(),
-                        words: format!("Not put on the Media page: {} The file is uploaded and waits a day.", e.words),
-                    }
-                }
+                Some(entry) => entry.after = After::NotPublished { filename: filename.to_string(), words },
                 None => state.media.status = e.words,
             }
             super::refresh_mine(state);
@@ -477,8 +543,9 @@ pub(crate) fn draw_list(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
     }
     let mut pressed: Vec<(u64, &'static str)> = Vec::new();
     for e in &state.media.uploads {
+        let heading = row_heading(state, &e.record);
         widgets::card(ui, theme, |ui| {
-            ui.label(RichText::new(format!("{} ({})", e.record.name, api::size_words(e.record.size as i64))).color(theme.text_primary()).strong());
+            ui.label(RichText::new(heading).color(theme.text_primary()).strong());
             if let Some(press) = draw_row(ui, theme, e) {
                 pressed.push((e.local, press));
             }
@@ -513,11 +580,31 @@ pub(crate) fn draw_list(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
     }
 }
 
+/// What a row is headed: the file and its size, and for one made from an item's Edit window what
+/// it goes to ("textures.zip (4 MB), to add to Dusk", "dusk.jpg (1 MB), the cover for Dusk"), the
+/// item named by its title wherever this page shows it, else by its number.
+pub(crate) fn row_heading(state: &GuiState, record: &Unfinished) -> String {
+    let file = format!("{} ({})", record.name, api::size_words(record.size as i64));
+    let Some(to) = &record.attach else { return file };
+    let page = state.media.item.as_ref().and_then(|p| p.item.as_ref());
+    let title = page
+        .into_iter()
+        .chain(state.media.list.items.iter())
+        .chain(state.media.featured.iter())
+        .find(|i| i.id == to.id)
+        .map(|i| i.display_title())
+        .unwrap_or_else(|| format!("item {}", to.id));
+    match to.role {
+        super::api_items::FileRole::File => format!("{file}, to add to {title}"),
+        super::api_items::FileRole::Cover => format!("{file}, the cover for {title}"),
+    }
+}
+
 /// A row's button `press` was pressed (its label).
 pub(crate) fn press_on(state: &mut GuiState, local: u64, press: &str) {
     match press {
         "Cancel" => cancel(state, local),
-        "Put it on Media" => {
+        "Put it on Media" | ADD_TO_ITEM => {
             if let Some(After::NotPublished { filename, .. }) = entry(state, local).map(|e| e.after.clone()) {
                 publish_entry(state, local, filename);
             }
@@ -576,7 +663,8 @@ fn draw_row(ui: &mut egui::Ui, theme: &Theme, e: &Entry) -> Option<&'static str>
             });
         }
         After::Publishing { .. } => {
-            ui.label(RichText::new("Uploaded. Putting it on the Media page...").size(theme.font_size_small).color(theme.text_secondary()));
+            let words = if e.record.attach.is_some() { "Uploaded. Adding it to the item..." } else { "Uploaded. Putting it on the Media page..." };
+            ui.label(RichText::new(words).size(theme.font_size_small).color(theme.text_secondary()));
             if widgets::Button::secondary("Cancel").size(small).tooltip("Take it off again: nothing of it stays on the server.").show(ui, theme) {
                 pressed = Some("Cancel");
             }
@@ -584,8 +672,9 @@ fn draw_row(ui: &mut egui::Ui, theme: &Theme, e: &Entry) -> Option<&'static str>
         After::NotPublished { words, .. } => {
             ui.label(RichText::new(words).size(theme.font_size_small).color(theme.warning()));
             ui.horizontal(|ui| {
-                if widgets::Button::primary("Put it on Media").size(small).show(ui, theme) {
-                    pressed = Some("Put it on Media");
+                let again = if e.record.attach.is_some() { ADD_TO_ITEM } else { "Put it on Media" };
+                if widgets::Button::primary(again).size(small).show(ui, theme) {
+                    pressed = Some(again);
                 }
                 if widgets::Button::secondary("Cancel").size(small).tooltip("Delete the uploaded file from the server.").show(ui, theme) {
                     pressed = Some("Cancel");

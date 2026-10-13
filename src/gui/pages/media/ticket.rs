@@ -2,8 +2,10 @@
 //! watched (Play here) or downloaded through an address that opens that one file for ten minutes,
 //! instead of a request carrying this session's upload token for as long as a big transfer takes.
 //!
-//! `POST /api/media/ticket`, the token in `X-Upload-Token`, the body `{id, filename}`, answers
-//! `{url: "/api/media/file/<id>?ticket=<random>", expires_in_s: 600}`. The ticket reveals nothing
+//! `POST /api/media/ticket`, the token in `X-Upload-Token`, the body `{id, filename, file,
+//! download}` (Media round 5: which of the item's files, and whether the address is the counted
+//! download route), answers `{url: "/api/media/file/<id>?file=<n>&ticket=<random>", expires_in_s:
+//! 600}`, or `/api/media/download/<id>?file=<n>&ticket=...` for a download. The ticket reveals nothing
 //! about the session, a copied link stops working after ten minutes, and range requests work with
 //! it. The address is used only when it is that file's on this server: a ticket for another
 //! address, or another server's, is refused here. A ticket in words shown or logged is hidden the
@@ -14,7 +16,7 @@
 
 use std::time::Duration;
 
-use serde_json::{json, Value};
+use serde_json::Value;
 
 use super::api::{self, ItemRef};
 use crate::gui::widgets::image_cache::hide_token;
@@ -22,31 +24,40 @@ use crate::gui::widgets::image_cache::hide_token;
 /// The ticket route.
 pub const TICKET_PATH: &str = "/api/media/ticket";
 
-/// The body asking for a ticket to `item`.
-pub fn ticket_body(item: &ItemRef) -> Value {
-    json!({ "id": item.id, "filename": api::bare_name(&item.filename) })
-}
-
 /// The full address a ticket's answer gives, on the server at `base`: only the members' file
 /// route for that item, with its ticket; anything else is refused.
 pub fn ticket_address(base: &str, id: i64, answer: &Value) -> Result<String, String> {
+    ticket_address_for(base, id, false, answer)
+}
+
+/// [`ticket_address`] for a ticket asked with `download` (Media round 5): then only the counted
+/// download route for that item, `/api/media/download/<id>?file=<n>&ticket=`, is taken, and a
+/// download never quietly becomes an uncounted fetch (nor the other way round).
+pub fn ticket_address_for(base: &str, id: i64, download: bool, answer: &Value) -> Result<String, String> {
     let url = answer.get("url").and_then(Value::as_str).unwrap_or("");
-    let route = format!("/api/media/file/{id}?");
+    let route = format!("/api/media/{}/{id}?", if download { "download" } else { "file" });
     if !url.starts_with(&route) || !url.contains("ticket=") || url.contains("://") || url.contains("..") {
         return Err("The server's answer for this file was not understood.".to_string());
     }
     Ok(format!("{}{url}", base.trim_end_matches('/')))
 }
 
-/// Ask the server at `base` for a ticket to `item`, with this session's upload `token` in the
-/// header. Blocking: call it on a worker thread. The words never hold the token or a ticket.
+/// Ask the server at `base` for a ticket to `item`'s own file (file 0, to watch it), with this
+/// session's upload `token` in the header. Blocking: call it on a worker thread. The words never
+/// hold the token or a ticket.
 pub fn ask(base: &str, token: &str, item: &ItemRef) -> Result<String, String> {
+    ask_for(base, token, item, 0, false)
+}
+
+/// [`ask`] for file `file` of `item` (Media round 5: 0 is the item's own, any other an added file
+/// or the cover), through the counted download route when `download`.
+pub fn ask_for(base: &str, token: &str, item: &ItemRef, file: i64, download: bool) -> Result<String, String> {
     let url = format!("{}{TICKET_PATH}", base.trim_end_matches('/'));
     let result = ureq::post(&url)
         .timeout(Duration::from_secs(30))
         .set(api::TOKEN_HEADER, token)
         .set("Content-Type", "application/json")
-        .send_string(&ticket_body(item).to_string());
+        .send_string(&super::api_items::ticket_request(item, file, download).to_string());
     let resp = result.map_err(|e| {
         let words = match e {
             ureq::Error::Status(code, r) => {
@@ -63,12 +74,13 @@ pub fn ask(base: &str, token: &str, item: &ItemRef) -> Result<String, String> {
         hide_token(&words)
     })?;
     let v: Value = serde_json::from_str(&resp.into_string().map_err(|e| format!("The answer could not be read ({e})."))?).unwrap_or(Value::Null);
-    ticket_address(base, item.id, &v)
+    ticket_address_for(base, item.id, download, &v)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
     use std::io::{Read as _, Write as _};
 
     /// A TICKET'S ADDRESS IS USED ONLY WHEN IT IS THAT FILE'S, ON THIS SERVER: the answer's
@@ -92,7 +104,12 @@ mod tests {
             assert!(ticket_address(base, 7, &bad).is_err(), "refused: {bad}");
         }
         let r = ItemRef { id: 7, filename: "/uploads/1700_dusk.webm".into() };
-        assert_eq!(ticket_body(&r), json!({ "id": 7, "filename": "1700_dusk.webm" }));
+        // Round 5: the body names which file, and whether it is a counted download.
+        assert_eq!(super::super::api_items::ticket_request(&r, 0, false), json!({ "id": 7, "filename": "1700_dusk.webm", "file": 0, "download": false }));
+        // A download's ticket is taken only on the download route, and a watch's only on the file route.
+        let dl = json!({ "url": "/api/media/download/7?file=1&ticket=abc123" });
+        assert_eq!(ticket_address_for(base, 7, true, &dl).as_deref(), Ok("https://chat.example/api/media/download/7?file=1&ticket=abc123"));
+        assert!(ticket_address_for(base, 7, false, &dl).is_err() && ticket_address_for(base, 7, true, &good).is_err());
     }
 
     /// THE TICKET IS ASKED FOR WITH THE TOKEN IN A HEADER, and a refusal's words hold neither the
