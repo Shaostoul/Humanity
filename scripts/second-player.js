@@ -1633,6 +1633,10 @@ const TOO_SOON_RE = /\b(build|unbuild) req (\d+): the relay said too much at onc
 const RESENT_RE = /sent again: (build|unbuild) req (\d+)\b/;
 // The welcome's ranks, as JSON (or "missing" from a relay older than increment 5).
 const RANKS_RE = /ranks (\{.*\}|missing)/;
+// This walker in the world: its entity and where it starts. A walker that asked for a start
+// (--start cabin) says so in brackets before the comma; the rig's matchers once missed that line
+// and judged a walker that had joined as never in the world (verify-starts, 2026-10-12).
+const IN_WORLD_RE = /in the world as entity (\d+)(?: \([^)]*\))?, starting at \(([-\d.]+), ([-\d.]+), ([-\d.]+)\)/;
 // This walker's own did:hum (a permit's grantee is named by it).
 const DID_RE = /identity: (did:hum:[1-9A-HJ-NP-Za-km-z]+)/;
 // The relay's own did:hum (a permit names the server it is good on).
@@ -2232,6 +2236,7 @@ async function main() {
 }
 
 module.exports = {
+  IN_WORLD_RE,
   CORRECTED_RE,
   correctedLine,
   onCorrection,

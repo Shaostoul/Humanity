@@ -953,7 +953,7 @@ async function main() {
       return null;
     };
     manifest.walker = { name: WALKER_NAME, seed: WALKER_SEED, args: walkerArgs.slice(1), id: null, start: null, exit_code: null };
-    const inWorld = await waitLine(/in the world as entity (\d+), starting at \(([-\d.]+), ([-\d.]+), ([-\d.]+)\)/, 40000);
+    const inWorld = await waitLine(SP.IN_WORLD_RE, 40000);
     if (!inWorld) throw new Error(`the walker never got into the world: ${walkerOut.map((o) => o.line).join(" | ")}`);
     manifest.walker.id = Number(inWorld.m[1]);
     manifest.walker.start = [Number(inWorld.m[2]), Number(inWorld.m[3]), Number(inWorld.m[4])];
@@ -1849,7 +1849,7 @@ async function runPlotsOnce(order, runStamp, cleanups) {
   const startWalker = async () => {
     const { from, args } = spawnWalker(["--axis", "z"]);
     manifest.walker = { name: PLOTS_WALKER_NAME, seed: PLOTS_WALKER_SEED, args, id: null, start: null };
-    const inWorld = await waitLine(/in the world as entity (\d+), starting at \(([-\d.]+), ([-\d.]+), ([-\d.]+)\)/, 40000, from);
+    const inWorld = await waitLine(SP.IN_WORLD_RE, 40000, from);
     const plotLine = await waitLine(/home_plot (null|missing|\{.*\})/, 5000, from);
     const centred = await waitLine(/centred on \(([-\d.]+), ([-\d.]+), ([-\d.]+)\)/, 5000, from);
     const onPath = await waitLine(/on the path at/, 15000, from);
@@ -2028,7 +2028,7 @@ async function runPlotsOnce(order, runStamp, cleanups) {
    *  plot the relay gave it, and the index its lines start at (the guest order). */
   const startHomeWalker = async (who) => {
     const { from } = spawnWalker(["--axis", "z"], who);
-    const inWorld = await waitLine(/in the world as entity (\d+), starting at \(([-\d.]+), ([-\d.]+), ([-\d.]+)\)/, 40000, from);
+    const inWorld = await waitLine(SP.IN_WORLD_RE, 40000, from);
     const plotLine = await waitLine(/home_plot (null|missing|\{.*\})/, 5000, from);
     const onPath = await waitLine(/on the path at/, 15000, from);
     if (!inWorld || !onPath) throw new Error(`${who.name} never got walking: ${walkerOut.slice(from).map((o) => o.line).join(" | ")}`);
@@ -2430,7 +2430,7 @@ async function runPlotsOnce(order, runStamp, cleanups) {
         "--route-speed", String(MEET_ROUTE_SPEED),
         "--home-spawn", wPlace.door_local.join(","),
       ]);
-      const inWorld2 = await waitLine(/in the world as entity (\d+), starting at \(([-\d.]+), ([-\d.]+), ([-\d.]+)\)/, 40000, w2.from);
+      const inWorld2 = await waitLine(SP.IN_WORLD_RE, 40000, w2.from);
       if (!inWorld2) throw new Error(`the walker never came back into the world: ${walkerOut.slice(w2.from).map((o) => o.line).join(" | ")}`);
       const w2id = Number(inWorld2.m[1]);
       const w2start = [Number(inWorld2.m[2]), Number(inWorld2.m[3]), Number(inWorld2.m[4])];
@@ -3124,7 +3124,7 @@ function makeWalkerPool(serverUrl) {
     taker(child.stdout);
     taker(child.stderr);
     child.stdin.on("error", () => {});
-    const inWorld = await waitFor(b, /in the world as entity (\d+), starting at \(([-\d.]+), ([-\d.]+), ([-\d.]+)\)/, from, 40000);
+    const inWorld = await waitFor(b, SP.IN_WORLD_RE, from, 40000);
     if (!inWorld) throw new Error(`${who.name} never got into the world: ${linesOf(b, from).join(" | ")}`);
     const plotLine = await waitFor(b, /home_plot (null|missing|\{.*\})/, from, 5000);
     const ranksLine = await waitFor(b, SP.RANKS_RE, from, 5000);
