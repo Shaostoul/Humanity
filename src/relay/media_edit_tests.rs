@@ -144,8 +144,9 @@ fn count(db: &Storage, sql: &str) -> i64 {
 /// Seen red 2026-10-12 against two breaks. (1) The hash taken over the parsed edit, re-serialised
 /// (`serde_json::from_str::<Value>(sent).to_string()` in `edit_request`): "the edit as signed:
 /// (401, \"Signature verification failed.\")". (2) The purpose without the edit's hash
-/// (`media_edit:<id>`): "a reworded edit with the old signature / left: 200 / right: 401" (the
-/// reworded body kept the old signature).
+/// (`edit_purpose` answering `media_edit:<id>`): "a reworded edit with the old signature / left:
+/// Ok(String(\"Someone else's words\")) / right: Err(401)" (the reworded body kept the old
+/// signature).
 #[tokio::test]
 async fn the_uploader_edits_an_item_and_the_signature_covers_the_edit_as_sent() {
     let state = relay("me_sig");
