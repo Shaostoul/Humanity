@@ -227,7 +227,7 @@ async fn a_labelled_item_has_no_picture() {
 /// `www.` before one counts as it); any other Host, this machine's own addresses and the desktop
 /// app's (which every relay allows) included, gets the first configured https address; a server
 /// configured with http alone names that. Through the route itself, a forged Host appears nowhere
-/// in the page.
+/// in the page, and the page is the website's own media.html with the item's tags in it.
 ///
 /// Seen red 2026-10-12 with the Host used raw in `page` (`format!("https://{host}")`): "a forged
 /// Host appears nowhere in the page", the page carrying `<link rel="canonical"
@@ -265,6 +265,11 @@ async fn a_forged_host_never_reaches_the_tags() {
     assert_eq!(res.status(), StatusCode::OK);
     let text = String::from_utf8(axum::body::to_bytes(res.into_body(), 1 << 20).await.unwrap().to_vec()).unwrap();
     assert!(!text.contains("evil.example"), "a forged Host appears nowhere in the page\n{text}");
+    // The route serves the website's real Media page, which reads the item's number from the
+    // address and opens it (lane 1G), with the item's tags added.
+    for part in ["<div id=\"media-root\"></div>", "<script src=\"/pages/media-app.js", "<title>Dusk, Media on "] {
+        assert!(text.contains(part), "the real Media page, with the item's tags: {part}");
+    }
     let at = text.find("og:url\" content=\"").expect("an og:url") + "og:url\" content=\"".len();
     let url = &text[at..at + text[at..].find('"').unwrap()];
     let ours = crate::relay::allowed_origins();
@@ -393,7 +398,9 @@ async fn no_media_html_says_so_in_words() {
 /// and each has one location for the pattern (the relay's replaces the static stand-in).
 ///
 /// Seen red 2026-10-12 with the location missing from the guide: "docs/admin/SELF-HOSTING.md:
-/// location ~ ^/media/[0-9]+$ {".
+/// location ~ ^/media/[0-9]+$ {"; and with the static stand-in left in the guide beside the
+/// relay's block: "docs/admin/SELF-HOSTING.md: one /media/<number> location, the relay's / left: 2
+/// / right: 1".
 #[test]
 fn nginx_sends_item_pages_to_the_relay() {
     for (file, zone) in [("scripts/nginx/humanity.conf", "api_read_limit"), ("docs/admin/SELF-HOSTING.md", "general")] {

@@ -172,15 +172,6 @@ fn mark_of(secret: &[u8; 32], what: Count, item: i64, who: Who) -> [u8; 16] {
     out
 }
 
-/// What a route that waits on its lane answers. Lane 1A's routes (relay/media_edit.rs) answered it
-/// while they were stubs; kept so the waves merge in either order.
-pub const NOT_BUILT: &str = "Not built yet.";
-
-#[allow(dead_code)] // nothing calls it once every round 5 lane has landed
-pub(crate) fn not_built() -> Response {
-    (StatusCode::NOT_IMPLEMENTED, NOT_BUILT).into_response()
-}
-
 // ── Who a person is ──
 
 /// The header nginx sets from the connection: `proxy_set_header X-Real-IP $remote_addr;`.
