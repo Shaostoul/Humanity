@@ -471,6 +471,7 @@ async function loadChat(opts = {}) {
   run("shared/warnings.js");
   run("shared/protected.js");
   run("shared/profile-changes.js");
+  run("shared/profile-copy.js"); // as web/chat/index.html loads it (BUG-191)
   run("chat/crypto.js");
   run("chat/chat-dm-store.js");
   run("chat/view/timestampPill.js");

@@ -703,7 +703,7 @@ async function loadPage(relay, me, opts = {}) {
     "shared/events.js", "chat/bip39-english.js", "shared/friend-pass.js", "shared/reach.js", "shared/block.js",
     "shared/report.js", "shared/group-report.js", "shared/warnings.js", "shared/protected.js", "shared/strip-metadata.js",
     "shared/upload-clean.js", "shared/files-in-messages.js", "shared/kept-files.js", "shared/blake3.js",
-    "shared/file-transfer.js", "shared/profile-changes.js", "chat/crypto.js", "chat/chat-dm-store.js",
+    "shared/file-transfer.js", "shared/profile-changes.js", "shared/profile-copy.js", "chat/crypto.js", "chat/chat-dm-store.js",
     "chat/view/timestampPill.js", "chat/view/messageRow.js", "chat/app.js", "chat/chat-messages.js", "chat/chat-dms.js",
     "chat/chat-social.js",
   ]) run(rel);
