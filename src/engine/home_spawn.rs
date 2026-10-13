@@ -41,7 +41,11 @@ pub(crate) fn spawn_home_power_entities_for(world: &mut hecs::World, home: &crat
         spawn_home_machine_entity(world, inst, def, &power_islands, &water_islands, None, None);
     }
     spawn_home_feed_taps(world, home, &all, &power_islands);
-    spawn_home_air_space(world, home_metabolic_kcal(home), own_home_air_m3(data_dir, None));
+    // Only a home that breathes its own air has a sealed space (a cabin is on the ship's air,
+    // ship homes increment 6, data/homes/starts.ron `own_air`).
+    if crate::engine::save_slot::live_own_air() {
+        spawn_home_air_space(world, home_metabolic_kcal(home), own_home_air_m3(data_dir, None));
+    }
 }
 
 /// The player's own home's air, m3 (ship homes increment 4, src/ship/ship_space.rs): its own

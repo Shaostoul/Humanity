@@ -325,10 +325,17 @@ impl GuiState {
             self.connected_server_url.clone()
         };
         self.disconnect_active();
-        let entry = erased_entry(&self.profile_public_key, &dialed);
-        // The relay released this identity's plot on that server with the account (ship homes
-        // increment 2): the plot remembered there is forgotten, keyed the same way.
-        self.home_plots.remove(&entry);
+        self.account_erased_on_server(&dialed, outcome, &crate::persistence::saves_dir());
+    }
+
+    /// `account_erased_on_active` and `account_erased_on_parked` past the connection: remember the
+    /// erase for this identity on `url`, and set aside this identity's save there (ship homes
+    /// increment 6, engine/save_slot.rs `set_aside_erased`: renamed beside itself, never deleted,
+    /// so a sign-up there again starts fresh, and its plot, which the relay released with the
+    /// account, is not built on again). `saves_dir` is the saves folder (a test gives a throwaway).
+    pub fn account_erased_on_server(&mut self, url: &str, outcome: EraseOutcome, saves_dir: &std::path::Path) {
+        crate::engine::save_slot::set_aside_erased(saves_dir, url, &self.profile_public_key);
+        let entry = erased_entry(&self.profile_public_key, url);
         self.account_erased_on.insert(entry, outcome);
     }
 
@@ -344,9 +351,8 @@ impl GuiState {
         conn.identified = false;
         conn.manually_disconnected = true;
         conn.status = "Disconnected".to_string();
-        let entry = erased_entry(&self.profile_public_key, &conn.url);
-        self.home_plots.remove(&entry);
-        self.account_erased_on.insert(entry, outcome);
+        let url = conn.url.clone();
+        self.account_erased_on_server(&url, outcome, &crate::persistence::saves_dir());
     }
 
     /// True when this identity erased its account on the server at `url`, finished or not:
@@ -956,31 +962,52 @@ mod erased_account_tests {
         assert!(!state.ws_manually_disconnected);
     }
 
-    /// Ship homes increment 2 review, finding 3: the relay released the plot along with the
-    /// account, so the plot this identity remembered on that server is forgotten, for an erase
-    /// whose receipt came on the active link (made from the main menu, out of the world) and one
-    /// that came on a parked link. Otherwise the next world load built the home on a plot that
-    /// may be someone else's by then. Plots remembered on other servers, and by another identity,
-    /// stay. Seen red 2026-10-04 on c98c5465b (only an erase made in the world forgot the plot,
-    /// net_route.rs): "an erase on the active server left its plot remembered: Some(RememberedPlot
-    /// { ship_hash: \"h\", plot: \"p2\" })".
+    /// AN ERASED ACCOUNT SETS ITS SERVER SAVE ASIDE (ship homes increment 6, plan 3.6). The relay
+    /// releases this identity's plot on that server with the account, so the save this computer
+    /// keeps there (its home, its things and where it stood aboard) is renamed beside itself,
+    /// `<name>.erased-<day>.json`, never deleted: a sign-up there again starts fresh, and the next
+    /// world load never builds the home on a plot that may be someone else's by then. The same for
+    /// an erase whose receipt came on a parked link. Another server's save, another identity's, and
+    /// your own home stay where they are. (Before increment 6 the plot was remembered in the
+    /// config, and the erase forgot it: increment 2 review, finding 3.)
+    ///
+    /// Seen red 2026-10-12 with `account_erased_on_server` leaving the save where it was (the
+    /// `set_aside_erased` line removed): "an erase on the active server left its save in place".
     #[test]
-    fn an_erase_forgets_the_plot_remembered_on_that_server() {
-        let plot = crate::config::RememberedPlot { ship_hash: "h".into(), plot: "p2".into() };
+    fn an_erased_account_sets_its_server_save_aside() {
+        let saves = crate::test_temp::dir("erased_account_save_aside");
+        let save_of = |key: &str, url: &str| {
+            let slot = crate::engine::save_slot::slot_for("", key, &crate::gui::pages::chat::norm_server_url(url), false);
+            let path = crate::persistence::slot_path(&saves, &slot);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(&path, b"{}").unwrap();
+            path
+        };
+        let erased = save_of(KEY, "https://a.example");
+        let other_server = save_of(KEY, "https://b.example");
+        let other_identity = save_of("ffee9988", "https://a.example");
+        let own_home = crate::persistence::slot_path(&saves, &crate::persistence::SaveSlot::Offline);
+        std::fs::write(&own_home, b"{}").unwrap();
+
         let mut state = on("https://a.example");
-        for (key, url) in [(KEY, "https://a.example"), (KEY, "https://b.example"), ("ffee9988", "https://a.example")] {
-            state.home_plots.insert(erased_entry(key, url), plot.clone());
-        }
-        state.account_erased_on_active(EraseOutcome::Erased);
-        let left = state.home_plots.get(&erased_entry(KEY, "https://a.example"));
-        assert!(left.is_none(), "an erase on the active server left its plot remembered: {left:?}");
-        assert!(state.home_plots.contains_key(&erased_entry(KEY, "https://b.example")), "another server's plot stays");
-        assert!(state.home_plots.contains_key(&erased_entry("ffee9988", "https://a.example")), "another identity's plot stays");
-        // On a parked link.
-        state.connections.push(ServerConnection { url: crate::gui::pages::chat::norm_server_url("https://b.example"), ..Default::default() });
-        state.account_erased_on_parked(0, EraseOutcome::Erased);
-        let left = state.home_plots.get(&erased_entry(KEY, "https://b.example"));
-        assert!(left.is_none(), "an erase on a parked server left its plot remembered: {left:?}");
+        state.disconnect_active();
+        state.account_erased_on_server("https://a.example", EraseOutcome::Erased, &saves);
+        assert!(!erased.exists(), "an erase on the active server left its save in place");
+        let day = crate::persistence::utc_day(crate::persistence::now_ms());
+        let aside = erased.with_file_name(format!("{}.erased-{day}.json", erased.file_stem().unwrap().to_string_lossy()));
+        assert_eq!(std::fs::read(&aside).ok().as_deref(), Some(&b"{}"[..]), "the save is kept beside itself, never deleted: {}", aside.display());
+        assert!(other_server.exists(), "another server's save stays");
+        assert!(other_identity.exists(), "another identity's save stays");
+        assert!(own_home.exists(), "your own home stays");
+        assert!(state.account_erased_here("https://a.example"));
+        // A second erase the same day (a sign-up again, then another erase) keeps both.
+        save_of(KEY, "https://a.example");
+        state.account_erased_on_server("https://a.example", EraseOutcome::Erased, &saves);
+        assert!(!erased.exists() && aside.exists());
+        assert!(erased.with_file_name(format!("{}.erased-{day}-2.json", erased.file_stem().unwrap().to_string_lossy())).exists(), "the second is kept beside the first");
+        // On a parked link: the same, for that server.
+        state.account_erased_on_server("https://b.example", EraseOutcome::Erased, &saves);
+        assert!(!other_server.exists(), "an erase on a parked server left its save in place");
     }
 
     /// The Chat page's sentence: one sentence, naming the button it sits above, saying what

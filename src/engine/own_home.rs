@@ -244,11 +244,18 @@ pub(crate) fn reapply_saved_home(state: &mut EngineState, save: &crate::persiste
         state.gui_state.home_machines = Some(home);
     }
     let own_design = design_in_effect(&state.gui_state).cloned();
+    // A server's save is the SHIPPED design (ship homes increment 6, `save_slot::design_of`), never
+    // data/homes/<kind>.ron, which an offline Dev session can change; your own home the file's.
+    let server = crate::save_load::active_home().is_server();
     if let Some(ship) = state.gui_state.ship_structure.as_ref() {
         if let (Some(plot), Some(now)) = (ship.home_plot().map(|p| p.id.clone()), ship.home_design()) {
-            let design = own_design
-                .filter(|d| d.kind == now.kind)
-                .or_else(|| HomeDesign::load(&state.data_dir, &now.kind).ok());
+            let design = own_design.filter(|d| d.kind == now.kind).or_else(|| {
+                if server {
+                    HomeDesign::built_in(&now.kind)
+                } else {
+                    HomeDesign::load(&state.data_dir, &now.kind).ok()
+                }
+            });
             if let Some(design) = design {
                 match ship.ship_file().assemble(design, &plot) {
                     Ok(next) => state.gui_state.ship_structure = Some(next),

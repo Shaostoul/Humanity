@@ -350,10 +350,13 @@ fn air_spaces_of(state: &EngineState) -> Option<crate::ship::ship_space::AirSpac
 
 /// Refresh whose air each place breathes and where aboard ends from the ship as it stands now
 /// (ship homes increment 4): called wherever the room boxes are (world_load.rs, home_meshes.rs),
-/// so a home moved by a welcome, put away or edited is breathed in where it stands.
+/// so a home moved by a welcome, put away or edited is breathed in where it stands. A home whose
+/// start is on the ship's ventilation (a cabin, `own_air: false`, ship homes increment 6) is the
+/// ship's air (`ShipStructure::air_spaces_for`).
 pub(crate) fn refresh_ship_spaces(state: &mut EngineState) {
+    let own_air = crate::engine::save_slot::live_own_air();
     let ship = state.gui_state.ship_structure.as_ref();
-    state.ship_air = ship.map(|s| s.air_spaces()).unwrap_or_default();
+    state.ship_air = ship.map(|s| s.air_spaces_for(own_air)).unwrap_or_default();
     state.aboard_bounds = ship.and_then(|s| s.aboard_bounds());
 }
 

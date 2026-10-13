@@ -702,6 +702,13 @@ fn civil_from_days(days: i64) -> (i64, u32, u32) {
     (if m <= 2 { y + 1 } else { y }, m, d)
 }
 
+/// The UTC date of `ms` (Unix milliseconds) as yyyy-mm-dd: the day an erased account's server save
+/// is set aside under (engine/save_slot.rs `set_aside`, ship homes increment 6).
+pub fn utc_day(ms: u64) -> String {
+    let (y, m, d) = civil_from_days((ms / 86_400_000) as i64);
+    format!("{y:04}-{m:02}-{d:02}")
+}
+
 /// The inverse of `civil_from_days` (Hinnant's `days_from_civil`).
 fn days_from_civil(y: i64, m: u32, d: u32) -> i64 {
     let y = if m <= 2 { y - 1 } else { y };

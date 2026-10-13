@@ -1839,6 +1839,13 @@ fn snapshot_toast() {
     });
 }
 
+/// The guest notice as a Cabin player reads it on a ship whose cabins are taken and whose
+/// homesteads are not (engine/home_plot.rs `guest_arrival`, ship homes increment 6).
+fn guest_arrival_example() -> String {
+    let welcome = serde_json::json!({ "home_full": "cabin", "home_free": { "homestead": 3 } });
+    crate::engine::home_plot::guest_arrival(&welcome, crate::gui::pages::where_you_live::starts())
+}
+
 /// A long notice stays on the window (first-hour audit 2026-10-04). A toast's text never
 /// wrapped, so a notice longer than the window ran off both edges and could not be read: the
 /// guest notice, and before it the shared world's refusal sentences (engine/home_plot.rs
@@ -1853,7 +1860,7 @@ fn a_long_notice_wraps_inside_the_window() {
     let theme = load_theme();
     theme.apply_to_egui(&ctx);
     let mut state = GuiState::default();
-    state.pending_notices.push(crate::engine::home_plot::GUEST_ARRIVAL.to_string());
+    state.pending_notices.push(guest_arrival_example());
     state.pending_notices.push(super::first_steps::controls_hint(&state.keybinds));
     let screen = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(1280.0, 360.0));
     for _ in 0..3 {
@@ -1872,8 +1879,9 @@ fn a_long_notice_wraps_inside_the_window() {
 
 /// The two notices a new player's first session can show (first-hour audit 2026-10-04): the
 /// controls hint on the first entry into the world (gui/first_steps.rs) and, on a shared
-/// server with every plot taken, the guest notice (engine/home_plot.rs `GUEST_ARRIVAL`). Both
-/// ride the long-lived notice toast; this shows how they read on a 1280 px window.
+/// server with no plot of the asked kind free, the guest notice (engine/home_plot.rs
+/// `guest_arrival`). Both ride the long-lived notice toast; this shows how they read on a 1280 px
+/// window.
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
 fn snapshot_first_steps_notices() {
@@ -1881,7 +1889,7 @@ fn snapshot_first_steps_notices() {
         // First frame only, as `snapshot_toast` does: the closure runs once per frame.
         if state.toasts.is_empty() {
             let now = ctx.input(|i| i.time);
-            state.notice(crate::engine::home_plot::GUEST_ARRIVAL, now);
+            state.notice(&guest_arrival_example(), now);
             state.notice(super::first_steps::controls_hint(&state.keybinds), now);
         }
         crate::gui::widgets::draw_toasts(ctx, theme, state);

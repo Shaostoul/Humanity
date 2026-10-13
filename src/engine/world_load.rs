@@ -7,6 +7,7 @@ use crate::engine::net_route::reload_planet_defs;
 use crate::engine::registries::load_data_registries;
 use crate::engine::state::{EngineState, GrowSpot};
 use crate::renderer::mesh::Mesh;
+use crate::ship::starts::HomeContent;
 use crate::systems::inventory::ItemRegistry;
 use crate::terrain::planet::PlanetDef;
 
@@ -243,6 +244,11 @@ pub(crate) fn load_world(state: &mut EngineState) {
     // file is absent (distributed builds); the tower placeholders above still show.
     // The household's food energy is kept for its air space below (ship life support).
     let mut home_kcal = 0.0f32;
+    // What the live save's start carries of the homestead's world (its herd, the wilds, the
+    // decoration plants, the hologram) and whether its home breathes its own air (ship homes
+    // increment 6, data/homes/starts.ron): a cabin carries none of it and is on the ship's air.
+    let start_row = crate::engine::save_slot::live_start(&state.data_dir);
+    let content = start_row.home_content.clone();
     {
         let path = crate::machines::home_ron_path(&state.data_dir);
         // The data file's layout, with the character's own machines in the household's place when
@@ -252,6 +258,9 @@ pub(crate) fn load_world(state: &mut EngineState) {
         // startup, before the save and any Settings change of household).
         if let Some(home) = crate::engine::own_home::machines_for_world(&mut state.gui_state, &path) {
             state.gui_state.home_machines = Some(home.clone());
+            // The Home page's loops and the garden follow the household loaded (it can have
+            // changed since startup: Settings' "Where you live", a change of save; increment 6).
+            crate::engine::save_slot::refresh_household_views(&mut state.gui_state, &state.data_dir);
             home_kcal = crate::engine::home_spawn::home_metabolic_kcal(&home);
             use std::collections::HashMap;
             // room id -> (center, floor_y, ceiling_y).
@@ -455,247 +464,18 @@ pub(crate) fn load_world(state: &mut EngineState) {
                 crate::engine::screens::sync_screens(state, &placements);
             }
 
-            // ── Starter livestock (v0.751, ladder rung 7) ── farm animals
-            // near the outdoor fields, from data/entities/livestock.ron rows
-            // against creatures.csv species. Spawned READY to collect so a
-            // fresh homestead demonstrates the loop immediately. Idempotent
-            // across world reloads (previous herd despawns first).
-            // Each animal carries its HerdSlot, and a saved yield timer comes
-            // back onto it (2026-09-27): the save's, held since startup, else
-            // the previous herd's, else ready (livestock::HerdSlot).
-            {
-                let saved_timers = crate::systems::livestock::take_pending_herd(&state.data_store)
-                    .unwrap_or_else(|| crate::systems::livestock::herd_timers(&state.game_world.world));
-                // How each is kept (fed, watered, how long short) goes to the
-                // new herd the same way: the save's, else the previous herd's
-                // (systems::animal_care, 2026-10-12).
-                crate::systems::animal_care::hold_current(&state.game_world.world, &state.data_store);
-                let old: Vec<hecs::Entity> = state
-                    .game_world
-                    .world
-                    .query::<&crate::ecs::components::Creature>()
-                    .iter()
-                    .map(|(e, _)| e)
-                    .collect();
-                for e in old {
-                    let _ = state.game_world.world.despawn(e);
-                }
-                let mut bundles = Vec::new();
-                if let (Some(reg), Some(list)) = (
-                    state
-                        .data_store
-                        .get::<crate::systems::livestock::CreatureRegistry>("creature_registry"),
-                    state
-                        .data_store
-                        .get::<crate::systems::livestock::LivestockSpawnList>("livestock_spawn_list"),
-                ) {
-                    let items = state.data_store.get::<ItemRegistry>("item_registry");
-                    let mut per_species: std::collections::HashMap<&str, u32> = std::collections::HashMap::new();
-                    for (pi, p) in list.animals.iter().enumerate() {
-                        let Some(def) = reg.get(&p.creature) else {
-                            log::warn!("livestock.ron: unknown creature {}", p.creature);
-                            continue;
-                        };
-                        let Some(product) = def.renewable() else {
-                            log::warn!("livestock.ron: {} has no renewable product", p.creature);
-                            continue;
-                        };
-                        let Some(&anchor) = machine_world_pos.get(&p.near) else {
-                            log::warn!("livestock.ron: anchor {} not placed", p.near);
-                            continue;
-                        };
-                        for i in 0..p.count {
-                            // Golden-angle scatter: deterministic, spread out.
-                            let a = i as f32 * 2.399_963 + pi as f32 * 1.7;
-                            let r = p.spread * (0.45 + 0.55 * (i as f32 + 1.0) / p.count as f32);
-                            let pos = anchor + Vec3::new(a.cos() * r, 0.0, a.sin() * r);
-                            let n = per_species.entry(def.id.as_str()).or_insert(0);
-                            let slot = crate::systems::livestock::herd_slot(&def.id, *n);
-                            *n += 1;
-                            // An animal that died stays dead (2026-10-12).
-                            if crate::systems::animal_care::is_lost(&state.data_store, &slot) {
-                                continue;
-                            }
-                            let since = saved_timers
-                                .iter()
-                                .find(|(s, _)| *s == slot)
-                                .map_or(product.regrow_s, |(_, t)| t.clamp(0.0, product.regrow_s));
-                            bundles.push((
-                                crate::ecs::components::Creature {
-                                    def_id: def.id.clone(),
-                                    anchor,
-                                    range: p.spread,
-                                    phase: pi as f32 * 0.9 + i as f32 * 1.7,
-                                    speed: (def.movement_speed * 0.35).max(0.2),
-                                    tint: [p.tint.0, p.tint.1, p.tint.2],
-                                    body_side: def.body_side(),
-                                },
-                                Transform {
-                                    position: pos,
-                                    ..Default::default()
-                                },
-                                Name(def.name.clone()),
-                                crate::ecs::components::Harvestable {
-                                    resource: product.item.clone(),
-                                    amount: product.amount as f32,
-                                    regrow_time: product.regrow_s,
-                                    time_since_harvest: since, // ready on arrival unless saved
-                                },
-                                crate::systems::livestock::HerdSlot(slot),
-                                // Combat arc (v0.760): animals are living
-                                // entities - real health from the species
-                                // + a resolved loot table for the kill.
-                                Health {
-                                    current: def.health_base.max(1.0),
-                                    max: def.health_base.max(1.0),
-                                },
-                                crate::ecs::components::LootTable {
-                                    entries: def.loot_entries(items),
-                                },
-                            ));
-                        }
-                    }
-                }
-                let herd = bundles.len();
-                for b in bundles {
-                    state.game_world.world.spawn(b);
-                }
-                if herd > 0 {
-                    log::info!("Livestock: spawned {herd} animals near the fields");
-                }
-            }
+            // ── Starter livestock (v0.751, ladder rung 7) ── farm animals near the outdoor
+            // fields, only for a home whose start carries a herd (`spawn_herd`).
+            spawn_herd(
+                &mut state.game_world.world,
+                &state.data_store,
+                &machine_world_pos,
+                content.contains(&HomeContent::Herd),
+            );
 
-            // ── Decoration plants (v0.909, operator: "get the plants
-            // added and the environment decorated") ── photoscanned CC0
-            // Poly Haven models scattered around homestead anchors from
-            // data/entities/decorations.ron. Meshes/materials cache
-            // across world reloads; positions rebuild each load.
-            {
-                #[derive(serde::Deserialize)]
-                struct DecoEntry {
-                    model: String,
-                    near: String,
-                    #[serde(default)]
-                    offset: (f32, f32, f32),
-                    count: u32,
-                    spread: f32,
-                    #[serde(default = "one_f32")]
-                    scale: f32,
-                }
-                #[derive(serde::Deserialize)]
-                struct DecoList {
-                    decorations: Vec<DecoEntry>,
-                }
-                fn one_f32() -> f32 {
-                    1.0
-                }
-                state.decoration_objects.clear();
-                let path = state.asset_manager.data_dir().join("entities/decorations.ron");
-                let parsed = std::fs::read_to_string(&path)
-                    .map_err(|e| e.to_string())
-                    .and_then(|t| ron::from_str::<DecoList>(&t).map_err(|e| e.to_string()));
-                match parsed {
-                    Ok(list) => {
-                        let mut placed = 0u32;
-                        for (di, d) in list.decorations.iter().enumerate() {
-                            let Some(&anchor) = machine_world_pos.get(&d.near) else {
-                                log::warn!("decorations.ron: anchor {} not placed", d.near);
-                                continue;
-                            };
-                            let cached = state.decoration_mesh_cache.get(&d.model).copied();
-                            let (mesh_idx, mat_idx) = match cached {
-                                Some(mm) => mm,
-                                None => {
-                                    // Variant file lives in its base model's
-                                    // folder: grass_medium_02_v1 ->
-                                    // plants/grass_medium_02/grass_medium_02_v1.gltf.
-                                    let base = d
-                                        .model
-                                        .rfind("_v")
-                                        .map(|i| &d.model[..i])
-                                        .unwrap_or(d.model.as_str());
-                                    let rel = format!(
-                                        "assets/models/plants/{}/{}.gltf",
-                                        base, d.model
-                                    );
-                                    match state
-                                        .asset_manager
-                                        .parse_gltf_mesh_textured(&state.renderer.device, &rel)
-                                    {
-                                        Ok((mesh, tex)) => {
-                                            let mesh_idx = state.renderer.add_mesh(mesh);
-                                            let mat_idx = match tex {
-                                                Some((rgba, w, h)) => {
-                                                    // Type 19: textured mesh
-                                                    // (albedo texture + alpha
-                                                    // cutout + standard sun-lit
-                                                    // shading).
-                                                    state.renderer.add_textured_material(
-                                                        [1.0, 1.0, 1.0, 1.0],
-                                                        0.0,
-                                                        0.9,
-                                                        19.0,
-                                                        0.0,
-                                                        &rgba,
-                                                        w,
-                                                        h,
-                                                    )
-                                                }
-                                                None => state.renderer.add_material_full(
-                                                    [0.35, 0.5, 0.3, 1.0],
-                                                    0.0,
-                                                    0.9,
-                                                    0.0,
-                                                    0.0,
-                                                ),
-                                            };
-                                            state
-                                                .decoration_mesh_cache
-                                                .insert(d.model.clone(), (mesh_idx, mat_idx));
-                                            (mesh_idx, mat_idx)
-                                        }
-                                        Err(e) => {
-                                            log::warn!(
-                                                "decorations.ron: {} failed to load: {e}",
-                                                d.model
-                                            );
-                                            continue;
-                                        }
-                                    }
-                                }
-                            };
-                            for i in 0..d.count {
-                                // Golden-angle scatter with deterministic
-                                // yaw/scale jitter: natural-looking, stable
-                                // across reloads.
-                                let a = i as f32 * 2.399_963 + di as f32 * 1.3;
-                                let r = d.spread
-                                    * (0.3 + 0.7 * ((i as f32 + 0.7) / d.count.max(1) as f32));
-                                let pos = anchor
-                                    + Vec3::new(
-                                        d.offset.0 + a.cos() * r,
-                                        d.offset.1,
-                                        d.offset.2 + a.sin() * r,
-                                    );
-                                let yaw = (i as f32 * 73.13 + di as f32 * 31.7) % 360.0;
-                                let scl = d.scale
-                                    * (0.85
-                                        + 0.3
-                                            * (((i * 37 + di as u32 * 11) % 100) as f32
-                                                / 100.0));
-                                state
-                                    .decoration_objects
-                                    .push((mesh_idx, mat_idx, pos, yaw, scl, anchor));
-                                placed += 1;
-                            }
-                        }
-                        log::info!(
-                            "Loaded {placed} decoration plants from entities/decorations.ron"
-                        );
-                    }
-                    Err(e) => log::warn!("decorations.ron not loaded: {e}"),
-                }
-            }
+            // ── Decoration plants (v0.909) ── only for a home whose start carries them
+            // (`place_decorations`).
+            place_decorations(state, &machine_world_pos, content.contains(&HomeContent::Decorations));
         }
     }
     // The grow machines' plots, lights and plot areas (2026-09-26). This load
@@ -704,266 +484,32 @@ pub(crate) fn load_world(state: &mut EngineState) {
     // until the first machine edit every bed, tray and field plot counted as
     // one plant to the farm and drew as one plant.
     crate::engine::home_meshes::publish_grow_plots(state);
-    // ── Wild hostiles (v0.761, combat arc) ── absolute-position spawns
-    // away from the homestead; the AISystem drives them (hunt-class rows
-    // become predators that stalk prey INCLUDING the player). Runs even
-    // without a home layout. Idempotent: previous wild creatures clear
-    // first (the livestock pass only despawns when a home exists).
-    {
-        let old: Vec<hecs::Entity> = state
-            .game_world
-            .world
-            .query::<(
-                &crate::ecs::components::Creature,
-                &crate::ecs::components::AIBehavior,
-            )>()
-            .iter()
-            .map(|(e, _)| e)
-            .collect();
-        for e in old {
-            let _ = state.game_world.world.despawn(e);
-        }
-        let mut bundles = Vec::new();
-        if let (Some(reg), Some(list)) = (
-            state
-                .data_store
-                .get::<crate::systems::livestock::CreatureRegistry>("creature_registry"),
-            state
-                .data_store
-                .get::<crate::systems::livestock::WildSpawnList>("wild_spawn_list"),
-        ) {
-            let items = state.data_store.get::<ItemRegistry>("item_registry");
-            for (si, s) in list.spawns.iter().enumerate() {
-                let Some(def) = reg.get(&s.creature) else {
-                    log::warn!("wild_spawns.ron: unknown creature {}", s.creature);
-                    continue;
-                };
-                // Settings > Gameplay "Hostile wildlife" (v0.791): predator/
-                // aggressive rows only spawn when enabled (default OFF pre-launch;
-                // operator: "disable the wolves"). Dev-page spawns are unaffected.
-                if !state.gui_state.settings.hostile_wildlife
-                    && matches!(
-                        crate::systems::livestock::behavior_type_for(def),
-                        "predator" | "aggressive"
-                    )
-                {
-                    continue;
-                }
-                let center = Vec3::new(s.pos.0, 0.0, s.pos.1);
-                for i in 0..s.count {
-                    let a = i as f32 * 2.399_963 + si as f32 * 1.7;
-                    let r = s.radius * (0.4 + 0.6 * (i as f32 + 1.0) / s.count.max(1) as f32);
-                    let pos = center + Vec3::new(a.cos() * r, 0.0, a.sin() * r);
-                    bundles.push(((
-                        crate::ecs::components::Creature {
-                            def_id: def.id.clone(),
-                            anchor: center,
-                            range: s.radius,
-                            phase: si as f32 * 0.9 + i as f32 * 1.7,
-                            speed: (def.movement_speed * 0.35).max(0.2),
-                            tint: [s.tint.0, s.tint.1, s.tint.2],
-                            body_side: def.body_side(),
-                        },
-                        Transform {
-                            position: pos,
-                            ..Default::default()
-                        },
-                        Name(def.name.clone()),
-                        Health {
-                            current: def.health_base.max(1.0),
-                            max: def.health_base.max(1.0),
-                        },
-                        crate::ecs::components::LootTable {
-                            entries: def.loot_entries(items),
-                        },
-                        crate::ecs::components::AIBehavior {
-                            behavior_type: crate::systems::livestock::behavior_type_for(def)
-                                .to_string(),
-                            state: "idle".to_string(),
-                            target: None,
-                        },
-                        Velocity::default(),
-                    ), def.renewable()));
-                }
-            }
-        }
-        let packs = bundles.len();
-        for (b, renewable) in bundles {
-            let e = state.game_world.world.spawn(b);
-            // Renewable-yield wild species (v0.978: berry bush, wild flax -
-            // same Harvestable the placed hen/goat carry) support walk-up
-            // [E] collection. Spawn ready-to-harvest, like spawn_creature_at.
-            if let Some(p) = renewable {
-                let _ = state.game_world.world.insert_one(
-                    e,
-                    crate::ecs::components::Harvestable {
-                        resource: p.item,
-                        amount: p.amount as f32,
-                        regrow_time: p.regrow_s,
-                        time_since_harvest: p.regrow_s,
-                    },
-                );
-            }
-        }
-        if packs > 0 {
-            log::info!("Wild creatures: spawned {packs} in the wilds");
-        }
-    }
+    // ── Wild hostiles (v0.761, combat arc) ── only for a home whose start carries the wilds
+    // (`spawn_wilds`).
+    spawn_wilds(
+        &mut state.game_world.world,
+        &state.data_store,
+        state.gui_state.settings.hostile_wildlife,
+        content.contains(&HomeContent::WildSpawns),
+    );
 
     // The home's sealed air space for the live AtmosphereSystem readout (v0.617), as big as this
     // home (ship homes increment 4).
-    let home_m3 = crate::engine::home_spawn::own_home_air_m3(&state.data_dir, state.gui_state.ship_structure.as_ref());
-    spawn_home_air_space(&mut state.game_world.world, home_kcal, home_m3);
+    // A home on the ship's ventilation (a cabin, `own_air: false`) has none of its own.
+    if start_row.own_air {
+        let home_m3 = crate::engine::home_spawn::own_home_air_m3(&state.data_dir, state.gui_state.ship_structure.as_ref());
+        spawn_home_air_space(&mut state.game_world.world, home_kcal, home_m3);
+    }
     // Build the live connection cylinders (replaces the old static routed pipes). (v0.530)
     rebuild_connection_objects(state);
     // Build the door/window panels from the home structure's openings. (v0.537)
     rebuild_door_panels(state);
 
-    // ── Solar system hologram (map-sync increment C, v0.262.13) ──
-    // Driven by the CANONICAL crate::cosmos model at the live date,
-    // so the tabletop matches the Maps page + the FPS sky exactly.
-    // Was the drifted solar_system.ron placed at fake golden angles
-    // (operator: "isn't working — still showing an old
-    // placeholder"). Sun is the room centre; bodies sit at their
-    // REAL ecliptic longitude (orbit radii still log-compressed to
-    // fit the room — true AU ratios can't show indoors).
-    let sim_t_now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs_f64())
-        .unwrap_or(0.0)
-        - 946_728_000.0; // Unix secs at the J2000.0 epoch
-    let hologram =
-        crate::renderer::hologram::generate_hologram_from_cosmos(sim_t_now);
-
-    let orbit_mat = state.renderer.add_material([0.3, 0.7, 0.9, 0.8], 0.0, 0.3);
-    let ring_disc_mat = state.renderer.add_material([0.8, 0.7, 0.5, 0.6], 0.0, 0.4);
-    let mut orbit_radii_used: Vec<f32> = Vec::new();
-
-    for body in &hologram.bodies {
-        if body.radius <= 0.0 { continue; }
-
-        let stacks = if body.radius > 0.05 { 16 } else { 8 };
-        let slices = if body.radius > 0.05 { 24 } else { 12 };
-        let mesh_idx = state.renderer.add_mesh(
-            crate::renderer::hologram::sphere_mesh(&state.renderer.device, body.radius, stacks, slices)
-        );
-        let (metallic, roughness, emissive) = if body.body_type == crate::renderer::hologram::BodyType::Star {
-            (0.0, 0.2, 5.0) // Stars glow bright
-        } else {
-            (0.3, 0.5, 0.0)
-        };
-        let mat_idx = state.renderer.add_material_full(body.color, metallic, roughness, 0.0, emissive);
-        state.hologram_objects.push((mesh_idx, mat_idx, body.local_position, body.name.clone()));
-
-        if body.orbit_radius > 0.01
-            && body.parent.as_deref() == Some("Sun")
-            && !orbit_radii_used.iter().any(|&r| (r - body.orbit_radius).abs() < 0.01)
-        {
-            let ring_mesh_idx = state.renderer.add_mesh(
-                crate::renderer::hologram::orbit_ring_mesh(&state.renderer.device, body.orbit_radius, 128)
-            );
-            state.hologram_orbits.push((ring_mesh_idx, orbit_mat));
-            orbit_radii_used.push(body.orbit_radius);
-        }
-
-        if body.has_rings && body.body_type == crate::renderer::hologram::BodyType::Planet {
-            let inner_r = body.radius * 1.3;
-            let outer_r = body.radius * 2.2;
-            let disc_mesh = state.renderer.add_mesh(
-                crate::renderer::hologram::ring_disc_mesh(&state.renderer.device, inner_r, outer_r, 32)
-            );
-            state.hologram_objects.push((disc_mesh, ring_disc_mat, body.local_position, format!("{} Rings", body.name)));
-        }
-
-        if body.body_type == crate::renderer::hologram::BodyType::Planet
-            || body.body_type == crate::renderer::hologram::BodyType::DwarfPlanet
-        {
-            let pin_mesh_idx = state.renderer.add_mesh(
-                crate::renderer::hologram::pin_marker_mesh(&state.renderer.device, 0.03, 0.12)
-            );
-            let pin_mat = state.renderer.add_material(body.color, 0.0, 0.5);
-            let pin_offset = Vec3::new(0.0, body.radius + 0.13, 0.0);
-            state.hologram_pins.push((pin_mesh_idx, pin_mat, body.local_position + pin_offset, body.name.clone()));
-        }
-    }
-
-    // ── GROUND-TRUTH INSTRUMENTATION (v0.262.24) ──
-    // Operator: "the in-home map never updated, whatever you do
-    // doesn't affect it" across many builds, while the skybox DID
-    // update. Logic says this block runs and is correct; reality
-    // disagrees. So stop reasoning — make the next run conclusive.
-    //
-    // 1) Log exactly what generate_hologram_from_cosmos produced.
-    // 2) Spawn an UNCONDITIONAL bright-MAGENTA proof beacon at the
-    //    orrery centre. If it is ABSENT in the operator's run, THIS
-    //    code is not executing in their binary (a build/launch path
-    //    issue) — a totally different root cause. If it is PRESENT
-    //    but bodies look old, the generator output is the problem.
-    // 3) Then the green HOME beacon, with a tolerant Earth lookup
-    //    and a RED fallback at centre if Earth is somehow missing,
-    //    so a silent failure becomes a visible one.
-    {
-        let names: Vec<&str> =
-            hologram.bodies.iter().map(|b| b.name.as_str()).take(40).collect();
-        let earth_idx = hologram
-            .bodies
-            .iter()
-            .position(|b| b.name.eq_ignore_ascii_case("earth"));
-        log::info!(
-            "ORRERY-DIAG: generate_hologram_from_cosmos -> {} bodies; earth_at={:?}; names={:?}",
-            hologram.bodies.len(),
-            earth_idx,
-            names
-        );
-
-        // Magenta proof beacon removed in v0.262.26 — it confirmed
-        // the orrery path executes + updates (operator saw it), so
-        // the "in-home map never changes" was a misperception (the
-        // rings are circles by nature; the cosmos model DOES drive
-        // it). Keeping only the clean green HOME marker + the diag
-        // log.
-
-        // Green HOME beacon at Earth (tolerant lookup); RED
-        // fallback at centre if Earth is missing from the model.
-        let earth = hologram
-            .bodies
-            .iter()
-            .find(|b| b.name.eq_ignore_ascii_case("earth"));
-        let (anchor, blip_col, pin_col, label) = match earth {
-            Some(e) => (
-                e.local_position + Vec3::new(0.0, e.radius, 0.0),
-                [0.15, 1.0, 0.45, 1.0],
-                [0.15, 1.0, 0.45, 1.0],
-                "HOME",
-            ),
-            None => {
-                log::error!("ORRERY-DIAG: NO 'earth' body in hologram — RED fallback");
-                (Vec3::new(0.0, 0.10, 0.0), [1.0, 0.1, 0.1, 1.0], [1.0, 0.1, 0.1, 1.0], "HOME?")
-            }
-        };
-        let blip_mesh = state.renderer.add_mesh(
-            crate::renderer::hologram::sphere_mesh(&state.renderer.device, 0.045, 10, 14),
-        );
-        let blip_mat =
-            state.renderer.add_material_full(blip_col, 0.0, 0.3, 0.0, 8.0);
-        state.hologram_objects.push((
-            blip_mesh,
-            blip_mat,
-            anchor + Vec3::new(0.0, 0.10, 0.0),
-            "Home (high Earth orbit)".to_string(),
-        ));
-        let home_pin_mesh = state.renderer.add_mesh(
-            crate::renderer::hologram::pin_marker_mesh(&state.renderer.device, 0.07, 0.75),
-        );
-        let home_pin_mat =
-            state.renderer.add_material_full(pin_col, 0.0, 0.4, 0.0, 6.0);
-        state.hologram_pins.push((
-            home_pin_mesh,
-            home_pin_mat,
-            anchor + Vec3::new(0.0, 0.95, 0.0),
-            label.to_string(),
-        ));
-        log::info!("ORRERY-DIAG: HOME marker + magenta proof beacon pushed");
+    // ── Solar system hologram (map-sync increment C) ── only for a home whose start carries it
+    // (`build_hologram`): a cabin has no hologram room, and it fell back to a point on the ship.
+    clear_hologram(state);
+    if content.contains(&HomeContent::Hologram) {
+        build_hologram(state);
     }
 
     // ── Star skybox ──
@@ -1280,3 +826,583 @@ pub(crate) fn load_world(state: &mut EngineState) {
     let boot_total = state.boot_timer.boot_start.elapsed();
     state.boot_timer.emit(boot_total);
 }
+
+/// ── Starter livestock (v0.751, ladder rung 7) ── farm animals
+/// near the outdoor fields, from data/entities/livestock.ron rows
+/// against creatures.csv species. Spawned READY to collect so a
+/// fresh homestead demonstrates the loop immediately. Idempotent
+/// across world reloads (previous herd despawns first).
+/// Each animal carries its HerdSlot, and a saved yield timer comes
+/// back onto it (2026-09-27): the save's, held since startup, else
+/// the previous herd's, else ready (livestock::HerdSlot).
+///
+/// Only for a home whose start carries a herd (`carries`: data/homes/starts.ron `home_content`,
+/// ship homes increment 6): a cabin has no fields to keep animals on. Either way the previous
+/// herd goes first, so a home that stops carrying one (a swap to a cabin save) has none. Pure on
+/// the world and the data store; returns how many animals it spawned.
+pub(crate) fn spawn_herd(
+    world: &mut hecs::World,
+    data: &crate::hot_reload::data_store::DataStore,
+    machine_world_pos: &std::collections::HashMap<String, Vec3>,
+    carries: bool,
+) -> usize {
+    let saved_timers = crate::systems::livestock::take_pending_herd(data)
+        .unwrap_or_else(|| crate::systems::livestock::herd_timers(world));
+    // How each is kept (fed, watered, how long short) goes to the
+    // new herd the same way: the save's, else the previous herd's
+    // (systems::animal_care, 2026-10-12).
+    crate::systems::animal_care::hold_current(world, data);
+    let old: Vec<hecs::Entity> = world.query::<&crate::ecs::components::Creature>()
+        .iter()
+        .map(|(e, _)| e)
+        .collect();
+    for e in old {
+        let _ = world.despawn(e);
+    }
+    if !carries {
+        return 0;
+    }
+    let mut bundles = Vec::new();
+    if let (Some(reg), Some(list)) = (
+        data.get::<crate::systems::livestock::CreatureRegistry>("creature_registry"),
+        data.get::<crate::systems::livestock::LivestockSpawnList>("livestock_spawn_list"),
+    ) {
+        let items = data.get::<ItemRegistry>("item_registry");
+        let mut per_species: std::collections::HashMap<&str, u32> = std::collections::HashMap::new();
+        for (pi, p) in list.animals.iter().enumerate() {
+            let Some(def) = reg.get(&p.creature) else {
+                log::warn!("livestock.ron: unknown creature {}", p.creature);
+                continue;
+            };
+            let Some(product) = def.renewable() else {
+                log::warn!("livestock.ron: {} has no renewable product", p.creature);
+                continue;
+            };
+            let Some(&anchor) = machine_world_pos.get(&p.near) else {
+                log::warn!("livestock.ron: anchor {} not placed", p.near);
+                continue;
+            };
+            for i in 0..p.count {
+                // Golden-angle scatter: deterministic, spread out.
+                let a = i as f32 * 2.399_963 + pi as f32 * 1.7;
+                let r = p.spread * (0.45 + 0.55 * (i as f32 + 1.0) / p.count as f32);
+                let pos = anchor + Vec3::new(a.cos() * r, 0.0, a.sin() * r);
+                let n = per_species.entry(def.id.as_str()).or_insert(0);
+                let slot = crate::systems::livestock::herd_slot(&def.id, *n);
+                *n += 1;
+                // An animal that died stays dead (2026-10-12).
+                if crate::systems::animal_care::is_lost(data, &slot) {
+                    continue;
+                }
+                let since = saved_timers
+                    .iter()
+                    .find(|(s, _)| *s == slot)
+                    .map_or(product.regrow_s, |(_, t)| t.clamp(0.0, product.regrow_s));
+                bundles.push((
+                    crate::ecs::components::Creature {
+                        def_id: def.id.clone(),
+                        anchor,
+                        range: p.spread,
+                        phase: pi as f32 * 0.9 + i as f32 * 1.7,
+                        speed: (def.movement_speed * 0.35).max(0.2),
+                        tint: [p.tint.0, p.tint.1, p.tint.2],
+                        body_side: def.body_side(),
+                    },
+                    Transform {
+                        position: pos,
+                        ..Default::default()
+                    },
+                    Name(def.name.clone()),
+                    crate::ecs::components::Harvestable {
+                        resource: product.item.clone(),
+                        amount: product.amount as f32,
+                        regrow_time: product.regrow_s,
+                        time_since_harvest: since, // ready on arrival unless saved
+                    },
+                    crate::systems::livestock::HerdSlot(slot),
+                    // Combat arc (v0.760): animals are living
+                    // entities - real health from the species
+                    // + a resolved loot table for the kill.
+                    Health {
+                        current: def.health_base.max(1.0),
+                        max: def.health_base.max(1.0),
+                    },
+                    crate::ecs::components::LootTable {
+                        entries: def.loot_entries(items),
+                    },
+                ));
+            }
+        }
+    }
+    let herd = bundles.len();
+    for b in bundles {
+        world.spawn(b);
+    }
+    if herd > 0 {
+        log::info!("Livestock: spawned {herd} animals near the fields");
+    }
+    herd
+}
+
+/// ── Wild hostiles (v0.761, combat arc) ── absolute-position spawns
+/// away from the homestead; the AISystem drives them (hunt-class rows
+/// become predators that stalk prey INCLUDING the player). Runs even
+/// without a home layout. Idempotent: previous wild creatures clear
+/// first (the livestock pass only despawns when a home exists).
+///
+/// Only for a home whose start carries the wilds (`carries`, ship homes increment 6): their
+/// spawn points are fixed homestead-frame points. Either way the previous wild creatures go
+/// first. Pure on the world and the data store; returns how many it spawned.
+pub(crate) fn spawn_wilds(
+    world: &mut hecs::World,
+    data: &crate::hot_reload::data_store::DataStore,
+    hostile_wildlife: bool,
+    carries: bool,
+) -> usize {
+    let old: Vec<hecs::Entity> = world.query::<(
+            &crate::ecs::components::Creature,
+            &crate::ecs::components::AIBehavior,
+        )>()
+        .iter()
+        .map(|(e, _)| e)
+        .collect();
+    for e in old {
+        let _ = world.despawn(e);
+    }
+    if !carries {
+        return 0;
+    }
+    let mut bundles = Vec::new();
+    if let (Some(reg), Some(list)) = (
+        data.get::<crate::systems::livestock::CreatureRegistry>("creature_registry"),
+        data.get::<crate::systems::livestock::WildSpawnList>("wild_spawn_list"),
+    ) {
+        let items = data.get::<ItemRegistry>("item_registry");
+        for (si, s) in list.spawns.iter().enumerate() {
+            let Some(def) = reg.get(&s.creature) else {
+                log::warn!("wild_spawns.ron: unknown creature {}", s.creature);
+                continue;
+            };
+            // Settings > Gameplay "Hostile wildlife" (v0.791): predator/
+            // aggressive rows only spawn when enabled (default OFF pre-launch;
+            // operator: "disable the wolves"). Dev-page spawns are unaffected.
+            if !hostile_wildlife
+                && matches!(
+                    crate::systems::livestock::behavior_type_for(def),
+                    "predator" | "aggressive"
+                )
+            {
+                continue;
+            }
+            let center = Vec3::new(s.pos.0, 0.0, s.pos.1);
+            for i in 0..s.count {
+                let a = i as f32 * 2.399_963 + si as f32 * 1.7;
+                let r = s.radius * (0.4 + 0.6 * (i as f32 + 1.0) / s.count.max(1) as f32);
+                let pos = center + Vec3::new(a.cos() * r, 0.0, a.sin() * r);
+                bundles.push(((
+                    crate::ecs::components::Creature {
+                        def_id: def.id.clone(),
+                        anchor: center,
+                        range: s.radius,
+                        phase: si as f32 * 0.9 + i as f32 * 1.7,
+                        speed: (def.movement_speed * 0.35).max(0.2),
+                        tint: [s.tint.0, s.tint.1, s.tint.2],
+                        body_side: def.body_side(),
+                    },
+                    Transform {
+                        position: pos,
+                        ..Default::default()
+                    },
+                    Name(def.name.clone()),
+                    Health {
+                        current: def.health_base.max(1.0),
+                        max: def.health_base.max(1.0),
+                    },
+                    crate::ecs::components::LootTable {
+                        entries: def.loot_entries(items),
+                    },
+                    crate::ecs::components::AIBehavior {
+                        behavior_type: crate::systems::livestock::behavior_type_for(def)
+                            .to_string(),
+                        state: "idle".to_string(),
+                        target: None,
+                    },
+                    Velocity::default(),
+                ), def.renewable()));
+            }
+        }
+    }
+    let packs = bundles.len();
+    for (b, renewable) in bundles {
+        let e = world.spawn(b);
+        // Renewable-yield wild species (v0.978: berry bush, wild flax -
+        // same Harvestable the placed hen/goat carry) support walk-up
+        // [E] collection. Spawn ready-to-harvest, like spawn_creature_at.
+        if let Some(p) = renewable {
+            let _ = world.insert_one(
+                e,
+                crate::ecs::components::Harvestable {
+                    resource: p.item,
+                    amount: p.amount as f32,
+                    regrow_time: p.regrow_s,
+                    time_since_harvest: p.regrow_s,
+                },
+            );
+        }
+    }
+    if packs > 0 {
+        log::info!("Wild creatures: spawned {packs} in the wilds");
+    }
+    packs
+}
+
+/// ── Decoration plants (v0.909, operator: "get the plants
+/// added and the environment decorated") ── photoscanned CC0
+/// Poly Haven models scattered around homestead anchors from
+/// data/entities/decorations.ron. Meshes/materials cache
+/// across world reloads; positions rebuild each load.
+///
+/// Only for a home whose start carries them (`carries`, ship homes increment 6); the previous
+/// ones go either way.
+pub(crate) fn place_decorations(state: &mut EngineState, machine_world_pos: &std::collections::HashMap<String, Vec3>, carries: bool) {
+    #[derive(serde::Deserialize)]
+    struct DecoEntry {
+        model: String,
+        near: String,
+        #[serde(default)]
+        offset: (f32, f32, f32),
+        count: u32,
+        spread: f32,
+        #[serde(default = "one_f32")]
+        scale: f32,
+    }
+    #[derive(serde::Deserialize)]
+    struct DecoList {
+        decorations: Vec<DecoEntry>,
+    }
+    fn one_f32() -> f32 {
+        1.0
+    }
+    state.decoration_objects.clear();
+    if !carries {
+        return;
+    }
+    let path = state.asset_manager.data_dir().join("entities/decorations.ron");
+    let parsed = std::fs::read_to_string(&path)
+        .map_err(|e| e.to_string())
+        .and_then(|t| ron::from_str::<DecoList>(&t).map_err(|e| e.to_string()));
+    match parsed {
+        Ok(list) => {
+            let mut placed = 0u32;
+            for (di, d) in list.decorations.iter().enumerate() {
+                let Some(&anchor) = machine_world_pos.get(&d.near) else {
+                    log::warn!("decorations.ron: anchor {} not placed", d.near);
+                    continue;
+                };
+                let cached = state.decoration_mesh_cache.get(&d.model).copied();
+                let (mesh_idx, mat_idx) = match cached {
+                    Some(mm) => mm,
+                    None => {
+                        // Variant file lives in its base model's
+                        // folder: grass_medium_02_v1 ->
+                        // plants/grass_medium_02/grass_medium_02_v1.gltf.
+                        let base = d
+                            .model
+                            .rfind("_v")
+                            .map(|i| &d.model[..i])
+                            .unwrap_or(d.model.as_str());
+                        let rel = format!(
+                            "assets/models/plants/{}/{}.gltf",
+                            base, d.model
+                        );
+                        match state
+                            .asset_manager
+                            .parse_gltf_mesh_textured(&state.renderer.device, &rel)
+                        {
+                            Ok((mesh, tex)) => {
+                                let mesh_idx = state.renderer.add_mesh(mesh);
+                                let mat_idx = match tex {
+                                    Some((rgba, w, h)) => {
+                                        // Type 19: textured mesh
+                                        // (albedo texture + alpha
+                                        // cutout + standard sun-lit
+                                        // shading).
+                                        state.renderer.add_textured_material(
+                                            [1.0, 1.0, 1.0, 1.0],
+                                            0.0,
+                                            0.9,
+                                            19.0,
+                                            0.0,
+                                            &rgba,
+                                            w,
+                                            h,
+                                        )
+                                    }
+                                    None => state.renderer.add_material_full(
+                                        [0.35, 0.5, 0.3, 1.0],
+                                        0.0,
+                                        0.9,
+                                        0.0,
+                                        0.0,
+                                    ),
+                                };
+                                state
+                                    .decoration_mesh_cache
+                                    .insert(d.model.clone(), (mesh_idx, mat_idx));
+                                (mesh_idx, mat_idx)
+                            }
+                            Err(e) => {
+                                log::warn!(
+                                    "decorations.ron: {} failed to load: {e}",
+                                    d.model
+                                );
+                                continue;
+                            }
+                        }
+                    }
+                };
+                for i in 0..d.count {
+                    // Golden-angle scatter with deterministic
+                    // yaw/scale jitter: natural-looking, stable
+                    // across reloads.
+                    let a = i as f32 * 2.399_963 + di as f32 * 1.3;
+                    let r = d.spread
+                        * (0.3 + 0.7 * ((i as f32 + 0.7) / d.count.max(1) as f32));
+                    let pos = anchor
+                        + Vec3::new(
+                            d.offset.0 + a.cos() * r,
+                            d.offset.1,
+                            d.offset.2 + a.sin() * r,
+                        );
+                    let yaw = (i as f32 * 73.13 + di as f32 * 31.7) % 360.0;
+                    let scl = d.scale
+                        * (0.85
+                            + 0.3
+                                * (((i * 37 + di as u32 * 11) % 100) as f32
+                                    / 100.0));
+                    state
+                        .decoration_objects
+                        .push((mesh_idx, mat_idx, pos, yaw, scl, anchor));
+                    placed += 1;
+                }
+            }
+            log::info!(
+                "Loaded {placed} decoration plants from entities/decorations.ron"
+            );
+        }
+        Err(e) => log::warn!("decorations.ron not loaded: {e}"),
+    }
+}
+
+/// ── Solar system hologram (map-sync increment C, v0.262.13) ──
+/// Driven by the CANONICAL crate::cosmos model at the live date,
+/// so the tabletop matches the Maps page + the FPS sky exactly.
+/// Was the drifted solar_system.ron placed at fake golden angles
+/// (operator: "isn't working — still showing an old
+/// placeholder"). Sun is the room centre; bodies sit at their
+/// REAL ecliptic longitude (orbit radii still log-compressed to
+/// fit the room — true AU ratios can't show indoors).
+pub(crate) fn build_hologram(state: &mut EngineState) {
+    let sim_t_now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs_f64())
+        .unwrap_or(0.0)
+        - 946_728_000.0; // Unix secs at the J2000.0 epoch
+    let hologram =
+        crate::renderer::hologram::generate_hologram_from_cosmos(sim_t_now);
+
+    let orbit_mat = state.renderer.add_material([0.3, 0.7, 0.9, 0.8], 0.0, 0.3);
+    let ring_disc_mat = state.renderer.add_material([0.8, 0.7, 0.5, 0.6], 0.0, 0.4);
+    let mut orbit_radii_used: Vec<f32> = Vec::new();
+
+    for body in &hologram.bodies {
+        if body.radius <= 0.0 { continue; }
+
+        let stacks = if body.radius > 0.05 { 16 } else { 8 };
+        let slices = if body.radius > 0.05 { 24 } else { 12 };
+        let mesh_idx = state.renderer.add_mesh(
+            crate::renderer::hologram::sphere_mesh(&state.renderer.device, body.radius, stacks, slices)
+        );
+        let (metallic, roughness, emissive) = if body.body_type == crate::renderer::hologram::BodyType::Star {
+            (0.0, 0.2, 5.0) // Stars glow bright
+        } else {
+            (0.3, 0.5, 0.0)
+        };
+        let mat_idx = state.renderer.add_material_full(body.color, metallic, roughness, 0.0, emissive);
+        state.hologram_objects.push((mesh_idx, mat_idx, body.local_position, body.name.clone()));
+
+        if body.orbit_radius > 0.01
+            && body.parent.as_deref() == Some("Sun")
+            && !orbit_radii_used.iter().any(|&r| (r - body.orbit_radius).abs() < 0.01)
+        {
+            let ring_mesh_idx = state.renderer.add_mesh(
+                crate::renderer::hologram::orbit_ring_mesh(&state.renderer.device, body.orbit_radius, 128)
+            );
+            state.hologram_orbits.push((ring_mesh_idx, orbit_mat));
+            orbit_radii_used.push(body.orbit_radius);
+        }
+
+        if body.has_rings && body.body_type == crate::renderer::hologram::BodyType::Planet {
+            let inner_r = body.radius * 1.3;
+            let outer_r = body.radius * 2.2;
+            let disc_mesh = state.renderer.add_mesh(
+                crate::renderer::hologram::ring_disc_mesh(&state.renderer.device, inner_r, outer_r, 32)
+            );
+            state.hologram_objects.push((disc_mesh, ring_disc_mat, body.local_position, format!("{} Rings", body.name)));
+        }
+
+        if body.body_type == crate::renderer::hologram::BodyType::Planet
+            || body.body_type == crate::renderer::hologram::BodyType::DwarfPlanet
+        {
+            let pin_mesh_idx = state.renderer.add_mesh(
+                crate::renderer::hologram::pin_marker_mesh(&state.renderer.device, 0.03, 0.12)
+            );
+            let pin_mat = state.renderer.add_material(body.color, 0.0, 0.5);
+            let pin_offset = Vec3::new(0.0, body.radius + 0.13, 0.0);
+            state.hologram_pins.push((pin_mesh_idx, pin_mat, body.local_position + pin_offset, body.name.clone()));
+        }
+    }
+
+    // ── GROUND-TRUTH INSTRUMENTATION (v0.262.24) ──
+    // Operator: "the in-home map never updated, whatever you do
+    // doesn't affect it" across many builds, while the skybox DID
+    // update. Logic says this block runs and is correct; reality
+    // disagrees. So stop reasoning — make the next run conclusive.
+    //
+    // 1) Log exactly what generate_hologram_from_cosmos produced.
+    // 2) Spawn an UNCONDITIONAL bright-MAGENTA proof beacon at the
+    //    orrery centre. If it is ABSENT in the operator's run, THIS
+    //    code is not executing in their binary (a build/launch path
+    //    issue) — a totally different root cause. If it is PRESENT
+    //    but bodies look old, the generator output is the problem.
+    // 3) Then the green HOME beacon, with a tolerant Earth lookup
+    //    and a RED fallback at centre if Earth is somehow missing,
+    //    so a silent failure becomes a visible one.
+    {
+        let names: Vec<&str> =
+            hologram.bodies.iter().map(|b| b.name.as_str()).take(40).collect();
+        let earth_idx = hologram
+            .bodies
+            .iter()
+            .position(|b| b.name.eq_ignore_ascii_case("earth"));
+        log::info!(
+            "ORRERY-DIAG: generate_hologram_from_cosmos -> {} bodies; earth_at={:?}; names={:?}",
+            hologram.bodies.len(),
+            earth_idx,
+            names
+        );
+
+        // Magenta proof beacon removed in v0.262.26 — it confirmed
+        // the orrery path executes + updates (operator saw it), so
+        // the "in-home map never changes" was a misperception (the
+        // rings are circles by nature; the cosmos model DOES drive
+        // it). Keeping only the clean green HOME marker + the diag
+        // log.
+
+        // Green HOME beacon at Earth (tolerant lookup); RED
+        // fallback at centre if Earth is missing from the model.
+        let earth = hologram
+            .bodies
+            .iter()
+            .find(|b| b.name.eq_ignore_ascii_case("earth"));
+        let (anchor, blip_col, pin_col, label) = match earth {
+            Some(e) => (
+                e.local_position + Vec3::new(0.0, e.radius, 0.0),
+                [0.15, 1.0, 0.45, 1.0],
+                [0.15, 1.0, 0.45, 1.0],
+                "HOME",
+            ),
+            None => {
+                log::error!("ORRERY-DIAG: NO 'earth' body in hologram — RED fallback");
+                (Vec3::new(0.0, 0.10, 0.0), [1.0, 0.1, 0.1, 1.0], [1.0, 0.1, 0.1, 1.0], "HOME?")
+            }
+        };
+        let blip_mesh = state.renderer.add_mesh(
+            crate::renderer::hologram::sphere_mesh(&state.renderer.device, 0.045, 10, 14),
+        );
+        let blip_mat =
+            state.renderer.add_material_full(blip_col, 0.0, 0.3, 0.0, 8.0);
+        state.hologram_objects.push((
+            blip_mesh,
+            blip_mat,
+            anchor + Vec3::new(0.0, 0.10, 0.0),
+            "Home (high Earth orbit)".to_string(),
+        ));
+        let home_pin_mesh = state.renderer.add_mesh(
+            crate::renderer::hologram::pin_marker_mesh(&state.renderer.device, 0.07, 0.75),
+        );
+        let home_pin_mat =
+            state.renderer.add_material_full(pin_col, 0.0, 0.4, 0.0, 6.0);
+        state.hologram_pins.push((
+            home_pin_mesh,
+            home_pin_mat,
+            anchor + Vec3::new(0.0, 0.95, 0.0),
+            label.to_string(),
+        ));
+        log::info!("ORRERY-DIAG: HOME marker + magenta proof beacon pushed");
+    }
+}
+
+/// Take the hologram down (before it is built again, or for a home that carries none). The
+/// renderer keeps the meshes it had, as every world load always has.
+pub(crate) fn clear_hologram(state: &mut EngineState) {
+    state.hologram_objects.clear();
+    state.hologram_orbits.clear();
+    state.hologram_pins.clear();
+}
+
+/// Where the hologram stands for a home on a plot whose box starts at `home_min`: the point the
+/// world load falls back to with the home on p1 (at the ship's origin), carried to this plot, as a
+/// move of the home carries it (engine/home_plot.rs `carry_with_home`). A ship home has no
+/// hologram room of its own (`home_structure` marks none), so this is where it has always stood.
+pub(crate) fn hologram_spot(home_min: Vec3) -> Vec3 {
+    home_min + Vec3::new(-0.5, 1.0, 2.5)
+}
+
+/// The live home's world content again, after the home changed under a running world (a change
+/// of save, engine/save_slot.rs `build_home`, or a welcome giving a plot of another kind,
+/// engine/home_plot.rs): the herd, the wild spawns, the decoration plants and the hologram its
+/// start carries (`spawn_herd`, `spawn_wilds`, `place_decorations`, `build_hologram`), anchored to
+/// the machines as they stand now, and its own air when it breathes its own (`replace_home_air`).
+/// What the start does not carry is taken away: a homestead's herd does not follow a player into
+/// a cabin.
+pub(crate) fn refresh_home_content(state: &mut EngineState) {
+    let start = crate::engine::save_slot::live_start(&state.data_dir);
+    let carries = |c: HomeContent| start.home_content.contains(&c);
+    let anchors: std::collections::HashMap<String, Vec3> = crate::engine::home_meshes::current_placements(state)
+        .unwrap_or_default()
+        .into_iter()
+        .map(|p| (p.id, Vec3::new(p.pos.0, p.pos.1, p.pos.2)))
+        .collect();
+    spawn_herd(&mut state.game_world.world, &state.data_store, &anchors, carries(HomeContent::Herd));
+    place_decorations(state, &anchors, carries(HomeContent::Decorations));
+    spawn_wilds(&mut state.game_world.world, &state.data_store, state.gui_state.settings.hostile_wildlife, carries(HomeContent::WildSpawns));
+    if let Some(b) = state.gui_state.ship_structure.as_ref().and_then(crate::engine::home_plot::home_box) {
+        state.hologram_room_center = hologram_spot(b.0);
+    }
+    clear_hologram(state);
+    if carries(HomeContent::Hologram) {
+        build_hologram(state);
+    }
+    let kcal = state.gui_state.home_machines.as_ref().map_or(0.0, crate::engine::home_spawn::home_metabolic_kcal);
+    let m3 = crate::engine::home_spawn::own_home_air_m3(&state.data_dir, state.gui_state.ship_structure.as_ref());
+    replace_home_air(&mut state.game_world.world, start.own_air, kcal, m3);
+}
+
+/// The home's own sealed air space (`atmosphere::HomeAir`), made again for the home standing now:
+/// the old one goes, and a new one of `volume_m3` comes when the home breathes its own air
+/// (`own_air`); a home on the ship's ventilation (a cabin) gets none, and its player breathes the
+/// ship's air there (ship/ship_space.rs `air_spaces_for`). Pure on the world.
+pub(crate) fn replace_home_air(world: &mut hecs::World, own_air: bool, metabolic_kcal_per_day: f32, volume_m3: f32) {
+    let old: Vec<hecs::Entity> = world.query::<&crate::systems::atmosphere::HomeAir>().iter().map(|(e, _)| e).collect();
+    for e in old {
+        let _ = world.despawn(e);
+    }
+    if own_air {
+        spawn_home_air_space(world, metabolic_kcal_per_day, volume_m3);
+    }
+}
+
+#[cfg(test)]
+#[path = "world_load_tests.rs"]
+mod home_content_tests;

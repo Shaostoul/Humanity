@@ -92,8 +92,12 @@ pub(crate) fn poll_and_apply(state: &mut crate::engine::state::EngineState) {
     // Perpetual showcase (v0.863): an empty garden replants itself at
     // staggered stages while free resources are on (Creative and Dev; the
     // first-hour audit's Missing stakes 2), then the plant meshes regenerate
-    // whenever growth actually moved.
-    crate::engine::ipc::auto_seed_showcase(state);
+    // whenever growth actually moved. Only for a home whose start carries the
+    // showcase garden (ship homes increment 6: a cabin has no garden, and the
+    // grow machines it sees are the Commons').
+    if crate::engine::save_slot::live_carries(crate::ship::starts::HomeContent::ShowcaseGarden) {
+        crate::engine::ipc::auto_seed_showcase(state);
+    }
     crate::engine::home_meshes::rebuild_plant_meshes(state);
     // Hull-profile hot-reload (v0.770): saving
     // data/blueprints/hull_profile.ron regrows the hull next frame -

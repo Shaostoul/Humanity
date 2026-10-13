@@ -954,9 +954,10 @@ mod first_session_tests {
     use crate::gui::{GuiPage, GuiState, LauncherWhere};
 
     /// The join gate once the player stands in the loaded world, connected and identified,
-    /// aboard: everything a join waits for except the player's own solo choice.
+    /// aboard, with the server's own save live: everything a join waits for except the player's
+    /// own solo choice.
     fn in_world_gate(solo: bool) -> JoinGate {
-        JoinGate { in_world: true, joined: false, identified: true, solo, aboard: true, refused_here: false, world_loaded: true, has_ship: true }
+        JoinGate { in_world: true, joined: false, identified: true, solo, aboard: true, refused_here: false, world_loaded: true, has_ship: true, slot_ready: true }
     }
 
     /// The app closed and opened again: the config written from `state`, read back as JSON,
@@ -1081,5 +1082,60 @@ mod first_session_tests {
         let back = relaunch(&GuiState::default());
         assert!(back.launcher_last_world.is_empty());
         assert!(!back.copresence_solo, "no pairing comes back solo, which would keep every rig out of the shared world");
+    }
+
+    /// A RELAUNCH ON A SERVER PAIRING LOADS THAT SERVER'S SAVE (ship homes increment 6, plan 3.6):
+    /// the player's last pairing was a server, where they live in a Cabin with its water. After a
+    /// restart the boot (engine/save_slot.rs `boot`, from the config as it was written) makes that
+    /// server's save the live one, never your own home's (whose gold stays home), so the player is
+    /// spawned as a Cabin and its save is what the startup applies. A home pairing boots your own
+    /// home's save.
+    ///
+    /// Seen red 2026-10-12 with `boot` reading offline_home.json for the server pairing too (its
+    /// `open_slot` given your own home's slot, as the boot before increment 6 always read): "a
+    /// relaunch on a server pairing loaded your own home's save: [(\"gold_ingot_0\", 7)]".
+    #[test]
+    fn a_relaunch_on_a_server_pairing_loads_that_servers_save() {
+        use crate::persistence::{save_world, slot_path, SaveSlot, WorldSave};
+        let data_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let saves = crate::test_temp::dir("relaunch_server_save");
+        let mut state = GuiState::default();
+        state.onboarding_complete = true;
+        state.profile_public_key = "AB".repeat(32);
+        state.server_url = "https://server.example/".into();
+        state.launcher_where_kind = LauncherWhere::Server;
+        state.launcher_selected_server = Some("__connected__".to_string());
+        state.record_pairing();
+        let config: AppConfig = serde_json::from_str(&serde_json::to_string(&AppConfig::from_gui_state(&state)).unwrap()).unwrap();
+        // Your own home, with its gold; the server's save, a Cabin with its water.
+        let mut own = WorldSave::new_offline("My Homestead", "homestead");
+        own.inventory = vec![("gold_ingot_0".into(), 7)];
+        own.progress_saved = true;
+        save_world(&slot_path(&saves, &SaveSlot::Offline), &own).unwrap();
+        let slot = SaveSlot::Server { server: "https://server.example".into(), identity: "ab".repeat(32) };
+        let mut theirs = WorldSave::new_offline("My Cabin", "cabin");
+        theirs.kind = "server".into();
+        theirs.household = "solo".into();
+        theirs.inventory = vec![("water_purified_0".into(), 2)];
+        theirs.progress_saved = true;
+        save_world(&slot_path(&saves, &slot), &theirs).unwrap();
+
+        let boot = crate::engine::save_slot::boot(&saves, &data_dir, Some(&config));
+        assert_eq!(boot.slot, slot, "the server's save is the live one");
+        let save = boot.save.expect("the server's save was read");
+        assert_eq!(save.inventory, theirs.inventory, "a relaunch on a server pairing loaded your own home's save: {:?}", save.inventory);
+        let active = crate::save_load::active_home();
+        assert_eq!((active.start.as_str(), active.household.as_str(), active.path.clone()), ("cabin", "solo", slot_path(&saves, &slot)));
+        assert!(crate::save_load::applies_progress(&save, true), "a server's save keeps its progress whatever the fresh-home setting says");
+
+        // A home pairing boots your own home.
+        state.launcher_where_kind = LauncherWhere::Home;
+        state.record_pairing();
+        let home: AppConfig = serde_json::from_str(&serde_json::to_string(&AppConfig::from_gui_state(&state)).unwrap()).unwrap();
+        let boot = crate::engine::save_slot::boot(&saves, &data_dir, Some(&home));
+        assert_eq!(boot.slot, SaveSlot::Offline);
+        assert_eq!(boot.save.map(|s| s.inventory), Some(own.inventory));
+        assert_eq!(crate::save_load::active_home().start, "homestead");
+        crate::save_load::set_active_home(crate::save_load::ActiveHome::offline());
     }
 }
