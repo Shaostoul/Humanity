@@ -1,9 +1,11 @@
 // ── media-admin.js ────────────────────────────────────────────────────────
 // The admins' Media section on the website (2026-10-11; docs/design/
-// media-showcase.md, "Increment 2, exact", "Admins"). The desktop app keeps it
-// in Server Settings; the website has no Server Settings page, so it lives on
-// the Admin dashboard (/admin, admin.html) and, for admins, on the Media page
-// itself. One section, mounted in both places by `mountMediaAdmin`.
+// media-showcase.md, "Increment 2, exact", "Admins"). Since Media round 5
+// (2026-10-12, docs/design/media-round-5-plan.md 3.10) it lives in one place:
+// the Media page's Admin tab (/media#admin), mounted there by media-app.js
+// through `mountMediaAdmin`, as the desktop app's lives on its Media page's
+// Admin tab. The Admin dashboard (/admin) keeps one line pointing there, so it
+// no longer starts a copy of its own (its `startMediaAdmin` is gone).
 //
 // It holds:
 // - Who sees the Media page (Public / Members only), with the relay's own
@@ -515,39 +517,7 @@
     return { state: st, ready, reload: () => Promise.all([loadCategories(), loadSuggestions(), loadUsage()]) };
   }
 
-  /** On the Admin dashboard: called by admin-app.js once the dashboard shows (the person is an admin). */
-  let startedOnAdminPage = false;
-  async function startMediaAdmin() {
-    if (startedOnAdminPage) return;
-    const doc = root.document;
-    const container = doc && doc.getElementById('media-admin-root');
-    if (!container) return;
-    startedOnAdminPage = true;
-    let identity = null;
-    try { identity = typeof root.getPqIdentity === 'function' ? await root.getPqIdentity() : null; } catch (e) { identity = null; }
-    const session = identity && typeof root.createRelaySession === 'function'
-      ? root.createRelaySession({
-        getIdentity: async () => identity,
-        signBytes: (secret, bytes) => root.pqSignMessage(secret, bytes),
-        WebSocket: root.WebSocket,
-        location: root.location,
-        storage: root.localStorage,
-      })
-      : null;
-    if (session) session.start();
-    mountMediaAdmin(container, {
-      document: doc,
-      fetch: (u, i) => root.fetch(u, i),
-      sign: (purpose) => (typeof root.getPqSignedAuth === 'function' ? root.getPqSignedAuth(purpose) : Promise.resolve(null)),
-      blake3: (bytes) => root.pqBlake3(bytes),
-      confirm: (words) => (typeof root.holdConfirm === 'function'
-        ? root.holdConfirm(words, { seconds: 2, confirmLabel: 'Hold to remove' })
-        : Promise.resolve(root.confirm(words))),
-      session,
-    });
-  }
-
-  const api = { GENERAL_ID, ADMIN_WORDS, SAVE_WAIT_MS, categoriesListText, categoriesBody, categoriesPurpose, expiresWords, storedAs, answersSave, mountMediaAdmin, startMediaAdmin };
+  const api = { GENERAL_ID, ADMIN_WORDS, SAVE_WAIT_MS, categoriesListText, categoriesBody, categoriesPurpose, expiresWords, storedAs, answersSave, mountMediaAdmin };
   if (typeof module === 'object' && module && module.exports) module.exports = api;
-  else Object.assign(root, { mountMediaAdmin, startMediaAdmin, MediaAdmin: api });
+  else Object.assign(root, { mountMediaAdmin, MediaAdmin: api });
 })(typeof globalThis !== 'undefined' ? globalThis : this);

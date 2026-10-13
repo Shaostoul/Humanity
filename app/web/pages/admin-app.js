@@ -124,8 +124,6 @@
   function renderDashboard(data) {
     authGate.style.display = 'none';
     dashboard.style.display = '';
-    // The Media section (/pages/media-admin.js) starts once, now that the person is an admin.
-    if (typeof window.startMediaAdmin === 'function') window.startMediaAdmin();
 
     // Overview cards
     document.getElementById('stat-users').textContent = formatNumber(data.user_count);

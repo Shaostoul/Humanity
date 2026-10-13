@@ -26,7 +26,7 @@
   <link rel="icon" type="image/x-icon" href="/favicon.ico">
   <link rel="stylesheet" href="/shared/theme.css?v=3">
   <link rel="stylesheet" href="/chat/base.css?v=3">
-  <link rel="stylesheet" href="/chat/layout.css?v=6">
+  <link rel="stylesheet" href="/chat/layout.css?v=7">
   <link rel="stylesheet" href="/chat/sidebar.css?v=3">
   <link rel="stylesheet" href="/chat/messages.css?v=6">
   <link rel="stylesheet" href="/chat/modals.css?v=4">
@@ -87,7 +87,10 @@
   <script src="/shared/icons.js?v=1"></script>
   <script src="/shared/events.js?v=1"></script>
   <script src="/shared/hold-confirm.js?v=1"></script>
-  <script src="/shared/shell.js?v=3" data-active="chat"></script>
+  <script src="/shared/shell.js?v=4" data-active="chat"></script>
+  <!-- Which server this page is on, held under the nav (media-round-5-plan.md 3.11). Needs nothing
+       from the chat scripts; asks Chat's protectedHidesRooms only when Switch opens, long after load. -->
+  <script src="/shared/server-strip.js?v=1"></script>
   <script src="/shared/defaults.js"></script>
   <script src="/shared/settings.js?v=4"></script>
 
@@ -686,7 +689,7 @@
   <!-- report.js: the words a report signs, its evidence and the Report dialog's words
        (step D, 2026-10-09), shared with Node tests that pin it to the relay. Before
        crypto.js (pqBuildReport) and chat-reports.js. -->
-  <script src="/shared/report.js?v=3"></script>
+  <script src="/shared/report.js?v=4"></script>
   <!-- group-report.js: a report about a group reaches the group's creator (10j, 2026-10-10): the
        marker, the limits, the dialog's choices and words, and the creator's checks against their
        own copy of the group, shared with Node tests. After report.js (its file rule), before
