@@ -86,6 +86,9 @@ pub mod grow_machines;
 /// Ship life support: the home's air and the garden's water as closed loops (2026-09-26).
 pub mod life_support;
 pub mod ship_power;
+/// The mess hall's counter away from a server: a free crew meal one a meal time, and drinking
+/// water, counted on the save (ship homes increment 6; the shared world's are the server's).
+pub mod ship_meals;
 
 /// Push a one-shot SFX request onto the shared `"sfx_events"` DataStore
 /// channel (v0.985): ECS systems (construction, crafting) have no engine

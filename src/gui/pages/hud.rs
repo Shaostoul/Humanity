@@ -1727,6 +1727,7 @@ pub fn draw_machine_recipe_selector(ctx: &egui::Context, theme: &Theme, state: &
         && state.machine_card_container_note.is_none()
         && state.machine_card_fluid_actions.is_empty()
         && !state.machine_card_vendor
+        && !state.machine_card_meal
     {
         return;
     }
@@ -1839,8 +1840,47 @@ pub fn draw_machine_recipe_selector(ctx: &egui::Context, theme: &Theme, state: &
                         state.vendor_status.clear();
                     }
                 }
+                // The mess hall's serving counter (ship homes increment 6): a free crew meal
+                // and drinking water; engine/mess_hall.rs carries out the ask this frame.
+                if state.machine_card_meal {
+                    draw_counter_actions(ui, theme, state);
+                }
             });
         });
+}
+
+/// The counter's meal line in a server's shared world: the server counts it.
+pub const COUNTER_MEAL_SHARED: &str = "Free crew meals, one a meal time; each is a line in your fleet ledger (Inventory > The fleet).";
+/// The counter's meal line away from a server: this computer counts it.
+pub const COUNTER_MEAL_HERE: &str = "Free crew meals from the ship's stores, one a meal time, counted on this computer.";
+/// The counter's water line.
+pub const COUNTER_WATER: &str = "Drinking water from the ship, free.";
+
+/// The meal line for where the player is.
+pub fn counter_meal_line(in_shared_world: bool) -> &'static str {
+    if in_shared_world {
+        COUNTER_MEAL_SHARED
+    } else {
+        COUNTER_MEAL_HERE
+    }
+}
+
+/// Take a meal and Fill your bottles, each with its line, and the last result.
+fn draw_counter_actions(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    ui.vertical(|ui| {
+        ui.set_max_width(300.0);
+        if crate::gui::widgets::Button::primary("Take a meal").tooltip("Eat one free crew meal now; one a meal time.").show(ui, theme) {
+            state.fleet.counter_ask = Some(crate::gui::pages::fleet_ledger::CounterAsk::Meal);
+        }
+        ui.label(RichText::new(counter_meal_line(state.copresence_active)).size(theme.font_size_small).color(theme.text_muted()));
+        if crate::gui::widgets::Button::secondary("Fill your bottles").tooltip("Fill every empty water bottle and jerrycan you carry.").show(ui, theme) {
+            state.fleet.counter_ask = Some(crate::gui::pages::fleet_ledger::CounterAsk::Water);
+        }
+        ui.label(RichText::new(COUNTER_WATER).size(theme.font_size_small).color(theme.text_muted()));
+        if !state.fleet.counter_status.is_empty() {
+            ui.label(RichText::new(state.fleet.counter_status.clone()).size(theme.font_size_small).color(theme.accent()));
+        }
+    });
 }
 
 /// Walk-up NPC dialogue card (v0.797, operator: "I can't interact with NPCs
@@ -2572,5 +2612,87 @@ mod placement_and_line_tests {
             movement_line(true, false, 1.0e6, false, true),
             Some(("FLY x1M FTL - ship flying - away from home".to_string(), true))
         );
+    }
+}
+
+#[cfg(test)]
+mod counter_card_tests {
+    use super::*;
+    use crate::gui::pages::fleet_ledger::CounterAsk;
+    use crate::gui::screen_surface::find_text_in_shapes;
+
+    /// One headless frame of the pinned card's interactive panel, with `events`.
+    fn frame(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, events: Vec<egui::Event>) -> egui::FullOutput {
+        let input = egui::RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(1280.0, 900.0))), events, ..Default::default() };
+        ctx.run(input, |ctx| draw_machine_recipe_selector(ctx, theme, state))
+    }
+
+    /// The serving counter's card pinned: one walk-up label, selected.
+    fn at_the_counter() -> GuiState {
+        let mut gs = GuiState::default();
+        gs.machine_labels = vec![crate::gui::MachineLabel {
+            pos: Vec3::new(2.0, 1.2, 0.6),
+            name: "Serving counter".into(),
+            stats: Vec::new(),
+            room: "mess-hall".into(),
+            machine_id: "mess-hall-counter".into(),
+            on_use: None,
+        }];
+        gs.selected_machine = Some(0);
+        gs.machine_card_meal = true;
+        gs
+    }
+
+    /// Click the text `label`: the canonical three frames (move, press, release).
+    fn click(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, label: &str) {
+        let out = frame(ctx, theme, state, Vec::new());
+        let pos = find_text_in_shapes(&out.shapes, label).unwrap_or_else(|| panic!("{label:?} is drawn")).rect.center();
+        let m = egui::Modifiers::default();
+        frame(ctx, theme, state, vec![egui::Event::PointerMoved(pos)]);
+        frame(ctx, theme, state, vec![egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: true, modifiers: m }]);
+        frame(ctx, theme, state, vec![egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: false, modifiers: m }]);
+    }
+
+    /// THE COUNTER'S CARD IN WORDS (ship homes increment 6, plan 3.8): Take a meal with its line
+    /// (in a server's world each meal is a line of the fleet ledger; elsewhere it is counted on
+    /// this computer), Fill your bottles with "Drinking water from the ship, free.", and the last
+    /// result; each button asks for its own thing. A card that is not a counter offers neither.
+    ///
+    /// Seen red 2026-10-12 with the ledger line taken out of `counter_meal_line` (the shared
+    /// world given the line for this computer): "in a server's world the card says \"each is a
+    /// line in your fleet ledger (Inventory > The fleet)\"".
+    #[test]
+    fn the_counter_card_in_words() {
+        let ctx = egui::Context::default();
+        crate::gui::fonts::install_font_fallbacks(&ctx);
+        let theme = crate::gui::theme::load_theme();
+        theme.apply_to_egui(&ctx);
+        let mut gs = at_the_counter();
+
+        // An Area's first frame is egui's sizing pass, drawn invisibly: read the second.
+        frame(&ctx, &theme, &mut gs, Vec::new());
+        let out = frame(&ctx, &theme, &mut gs, Vec::new());
+        for text in ["Take a meal", COUNTER_MEAL_HERE, "Fill your bottles", COUNTER_WATER] {
+            assert!(find_text_in_shapes(&out.shapes, text).is_some(), "away from a server the card says {text:?}");
+        }
+        assert!(find_text_in_shapes(&out.shapes, "fleet ledger").is_none(), "no ledger line away from a server");
+
+        gs.copresence_active = true;
+        gs.fleet.counter_status = "Filled 2 x Water Bottle (1 L) from the ship's water.".into();
+        let out = frame(&ctx, &theme, &mut gs, Vec::new());
+        let ledger_line = "each is a line in your fleet ledger (Inventory > The fleet)";
+        assert!(find_text_in_shapes(&out.shapes, ledger_line).is_some(), "in a server's world the card says {ledger_line:?}");
+        assert!(find_text_in_shapes(&out.shapes, "counted on this computer").is_none(), "and not that this computer counts it");
+        assert!(find_text_in_shapes(&out.shapes, "Filled 2 x Water Bottle").is_some(), "the count it filled is shown");
+
+        click(&ctx, &theme, &mut gs, "Take a meal");
+        assert_eq!(gs.fleet.counter_ask, Some(CounterAsk::Meal), "Take a meal asks for a meal");
+        gs.fleet.counter_ask = None;
+        click(&ctx, &theme, &mut gs, "Fill your bottles");
+        assert_eq!(gs.fleet.counter_ask, Some(CounterAsk::Water), "Fill your bottles asks for water");
+
+        gs.machine_card_meal = false;
+        let out = frame(&ctx, &theme, &mut gs, Vec::new());
+        assert!(find_text_in_shapes(&out.shapes, "Take a meal").is_none(), "a card that is not a counter offers no meal");
     }
 }

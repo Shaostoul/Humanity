@@ -19,6 +19,11 @@
 //! them given, a refusal puts them back). Held gives are listed here, so the player can see
 //! where those items are. Only one give at a time waits for the server.
 //!
+//! THE MESS HALL'S SERVING COUNTER (ship homes increment 6, engine/mess_hall.rs) asks for a meal
+//! the same way this panel does (`take_meal_at_nearest`); away from a server it serves the
+//! ship's stores on this computer, and this panel then says how many meals and litres of water
+//! it has counted there (`meals_here_sentence`).
+//!
 //! THE WEB mirrors the player's ledger read-only (web/chat/chat-fleet.js, the chat's command
 //! palette, "Your fleet ledger"): the ledger is the server's record, so a browser signed in as
 //! the player can show it with no game world. Taking a meal and giving stay in the game,
@@ -205,6 +210,23 @@ pub struct FleetView {
     /// already reported, and the real seconds since the last report.
     pub power_baseline: Option<(f64, f64)>,
     pub power_timer: f32,
+    /// What the mess hall's serving counter's card asked for this frame (hud.rs sets it,
+    /// engine/mess_hall.rs carries it out the same frame).
+    pub counter_ask: Option<CounterAsk>,
+    /// The counter's last result, in a sentence (its card shows it).
+    pub counter_status: String,
+    /// The meals and water the ship's stores have given this save on this computer (the
+    /// offline meter, mirrored each frame by engine/mess_hall.rs; None until something counts).
+    pub meals_here: Option<crate::persistence::ShipMeals>,
+}
+
+/// A button on the mess hall's serving counter's card (ship homes increment 6).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CounterAsk {
+    /// Take a meal.
+    Meal,
+    /// Fill your bottles.
+    Water,
 }
 
 impl FleetView {
@@ -332,6 +354,32 @@ pub fn request_ledger(state: &GuiState) -> bool {
     send(state, &serde_json::json!({ "type": "game_fleet_ledger_request" }))
 }
 
+/// Ask the nearest fleet store in reach for a meal (`game_interact take_meal`): this panel's
+/// Take a meal and the mess hall's serving counter share it (engine/mess_hall.rs). The server's
+/// answer is eaten by engine/fleet.rs `on_meal`. Ok is the message sent; Err says, in a
+/// sentence, why nothing was asked.
+pub fn take_meal_at_nearest(state: &GuiState) -> Result<serde_json::Value, String> {
+    let Some((store, dist)) = nearest_store(&state.fleet) else {
+        return Err("No fleet store is known in this world yet.".into());
+    };
+    if dist > STORE_REACH_M {
+        return Err(format!("Walk within {} m of {} to take a meal (you are {:.0} m away).", STORE_REACH_M, store.name, dist));
+    }
+    let msg = serde_json::json!({ "type": "game_interact", "entity_id": store.entity_id, "action": "take_meal" });
+    if send(state, &msg) {
+        Ok(msg)
+    } else {
+        Err("Not connected to the server.".into())
+    }
+}
+
+/// "On this computer the ship's stores have fed you 3 meals and 1.5 L of water." (Inventory >
+/// The fleet out of a server's world: the mess hall's counter counts here then.)
+pub fn meals_here_sentence(m: &crate::persistence::ShipMeals) -> String {
+    let meals = if m.taken == 1 { "1 meal".to_string() } else { format!("{} meals", m.taken) };
+    format!("On this computer the ship's stores have fed you {meals} and {} of water.", crate::systems::ship_meals::litres_text(m.water_l))
+}
+
 /// Give `qty` of `item_id` from the backpack to the fleet at the nearest store: checked here
 /// first (in the world, at a store, connected, no other give waiting, carried and free), then
 /// ASKED: engine/fleet.rs takes the items out and holds them on the next frame. Returns the
@@ -404,6 +452,12 @@ pub fn draw_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         widgets::body_hint(ui, theme, "Asking the server for your ledger...");
     } else {
         widgets::body_hint(ui, theme, "The ledger is kept by the server whose shared world you play in. Join one to see yours.");
+    }
+    if !joined {
+        // Away from a server the mess hall's counter counts on this computer (increment 6).
+        if let Some(m) = &state.fleet.meals_here {
+            widgets::body_hint(ui, theme, &meals_here_sentence(m));
+        }
     }
     draw_held(ui, theme, state);
     if !joined {
@@ -512,13 +566,10 @@ fn draw_actions(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     };
     ui.horizontal_wrapped(|ui| {
         if widgets::Button::primary("Take a meal").disabled(in_reach.is_none()).tooltip("Eat one crew meal from the ship's stores, one a meal time. It is a line in your ledger.").show(ui, theme) {
-            if let Some(s) = &in_reach {
-                state.fleet.status = if send(state, &serde_json::json!({ "type": "game_interact", "entity_id": s.entity_id, "action": "take_meal" })) {
-                    "Asking for a meal...".into()
-                } else {
-                    "Not connected to the server.".into()
-                };
-            }
+            state.fleet.status = match take_meal_at_nearest(state) {
+                Ok(_) => "Asking for a meal...".into(),
+                Err(why) => why,
+            };
         }
         if widgets::Button::secondary("Refresh").tooltip("Ask the server for your ledger again.").show(ui, theme) {
             state.fleet.status = if request_ledger(state) { String::new() } else { "Not connected to the server.".into() };

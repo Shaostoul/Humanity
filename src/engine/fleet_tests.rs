@@ -350,3 +350,44 @@ fn the_welcome_names_the_stores_and_a_meal_answer_reads() {
     assert_eq!(meal_sentence(&serde_json::json!({ "success": true }), false), "The ship's stores gave you a meal.");
     assert_eq!(meal_sentence(&serde_json::json!({ "success": false, "error": "not_yet", "next_meal_in_s": 7100.0 }), false), "Your next meal is in 119 game minutes.");
 }
+
+/// A STORE COMING INTO VIEW IS LISTED (ship homes increment 6, plan 3.8): a `game_in_view`
+/// naming a fleet store (the second mess hall's, out of most welcomes' view) joins the stores
+/// the panel and the serving counter take meals from, once, and the counter then reaches it.
+/// A player coming into view is no store; a message that is not `game_in_view` adds nothing.
+///
+/// Seen red 2026-10-12 with `note_store_in_view` returning at once (`game_in_view` ignored):
+/// "the store that came into view is listed / left: [FleetStore { entity_id: 12, name: \"The
+/// mess hall's stores\", .. }] / right: [FleetStore { entity_id: 12, .. }, FleetStore {
+/// entity_id: 40, name: \"The South Commons' stores\", .. }]".
+#[test]
+fn a_store_coming_into_view_is_listed() {
+    let mut gs = here();
+    gs.fleet.stores = stores_in(&serde_json::json!({ "world_snapshot": [
+        { "entity_id": 12, "entity_type": "food_store", "position": [67.0, 1.0, 22.0], "components": { "name": "The mess hall's stores" } },
+    ]}));
+    let south = serde_json::json!({ "type": "game_in_view", "entity": {
+        "entity_id": 40, "entity_type": "food_store", "position": [79.0, 1.0, 772.0], "rotation": [0.0, 0.0, 0.0, 1.0],
+        "components": { "name": "The South Commons' stores" } } });
+    let was_a_store = note_store_in_view(&mut gs.fleet, &south);
+    let want = vec![
+        FleetStore { entity_id: 12, name: "The mess hall's stores".into(), position: [67.0, 1.0, 22.0] },
+        FleetStore { entity_id: 40, name: "The South Commons' stores".into(), position: [79.0, 1.0, 772.0] },
+    ];
+    assert_eq!(gs.fleet.stores, want, "the store that came into view is listed / left: {:?} / right: {want:?}", gs.fleet.stores);
+    assert!(was_a_store);
+    assert!(note_store_in_view(&mut gs.fleet, &south), "seen again");
+    assert_eq!(gs.fleet.stores.len(), 2, "listed once");
+    let player = serde_json::json!({ "type": "game_in_view", "entity": { "entity_id": 5, "entity_type": "player", "position": [60.0, 1.7, 40.0], "components": { "name": "Ada" } } });
+    assert!(!note_store_in_view(&mut gs.fleet, &player), "a player is no store");
+    let welcome_like = serde_json::json!({ "type": "game_position_update", "entity": south["entity"].clone() });
+    assert!(!note_store_in_view(&mut gs.fleet, &welcome_like));
+    assert_eq!(gs.fleet.stores.len(), 2);
+    // Standing at the South Commons' counter, the meal is asked of ITS store.
+    let (client, sent) = crate::net::ws_client::WsClient::recording();
+    gs.ws_client = Some(client);
+    gs.fleet.my_position = Some([78.0, 1.7, 771.0]);
+    let asked = crate::gui::pages::fleet_ledger::take_meal_at_nearest(&gs).expect("in reach");
+    assert_eq!(asked["entity_id"], 40, "{asked}");
+    assert_eq!(sent.try_iter().count(), 1);
+}
