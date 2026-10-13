@@ -267,24 +267,28 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
 - **Released 2026-10-05:** v0.1459.0 to v0.1463.0 and v0.1464.0 (ship-homes increment 5, building
   only on your own plot; BUG-165 and BUG-166, the walking-backwards fixes; two new clips),
   all delivered to the taskbar exe.
-- **NEXT in TIER 0 (updated 2026-10-12, after v0.1490.0):**
-  - **Increment 6, Wave 2 then 3.** Waves 0 and 1 are DONE and released in v0.1490.0 (the Cabin
-    row and the South Commons, the mess hall counter, "Where you live", the relay's homes by
-    start, the save-slot core, the Cabin's opening). Wave 2A (the session and the home: one save
-    per server switched on) is IN PROGRESS; then 2B (the picker and the probe), then 3A (`just
-    verify-starts`). Plan `docs/design/ship-homes-increment-6-plan.md`. Also: a better vantage
-    for the Cabin row (the steel roofs vanish against space from `ship-cabin-row`).
-  - **Media round 5:** editing an item after publishing, several files per item, descriptions
-    shown, a fixed strip naming the server, Media admin on the Media page, a page and link per
-    item, cover pictures, download counts, featured per category, sorting, load more, a licence
-    per item. Plan being written: `docs/design/media-round-5-plan.md`. The licence wording,
-    the rules' hosting paragraph, the opt-in's grantee and a DMCA agent wait on the operator
-    (findings `docs/reference/findings/2026-10-12-media-item-licences.md`). Phase 2: "Also put
-    this on..." other servers.
-  - DONE and released 2026-10-12: increment 5b (household permits, v0.1489.0, 27/27 in the
-    rig), BUG-191 (profile copies, all waves, v0.1490.0), and the first-hour audit's S5 (drone
-    costs), S6 (animal care), S8 (wounds and healing), F11 (backpack sowing), BUG-163 part 2
-    (the data folder follows updates).
+- **NEXT in TIER 0 (updated 2026-10-12, after v0.1491.0):**
+  - **Increment 6, Wave 3: `just verify-starts`** (lane 3A, the rig, being written; it boots
+    nothing until the orchestrator runs it on the one GPU). Waves 0 to 2 are DONE and released:
+    v0.1490.0 (the Cabin row, the mess halls, "Where you live", the relay's homes by start) and
+    v0.1491.0 (one save per server; Characters chooses where you live; the docs pass). Plan
+    `docs/design/ship-homes-increment-6-plan.md`. Also: a better vantage for the Cabin row (the
+    steel roofs vanish against space from `ship-cabin-row`); and a second home of your own on one
+    computer (the new-home row offers the choice only before your own home is saved).
+  - **Media round 5, Wave 1 then 2.** DONE and in v0.1491.0: Wave 0 (the contract), 1A (the
+    relay's item edit, add and remove), 1F (the website's server strip), 1G (the website's list:
+    sort, scroll paging, the shelf per category, `/media/<id>`). In flight: 1B (download and
+    view counts, the item page for social sites, the nginx route), 1D (the desktop item page and
+    editor, with the hosting paragraph beside Add to Media), 1E (the desktop server strip). Next:
+    1C (the desktop list and the Admin tab), then Wave 2 (2A the website's item page and editor,
+    2B the proof rig and snapshots), then phase 2 ("Also put this on..." other servers). Plan
+    `docs/design/media-round-5-plan.md`. The live nginx has a static `/media/<number>` route
+    (2026-10-12) that 1B's relay route replaces. Still waiting on the operator: a DMCA agent
+    (and the entity findings, `docs/reference/findings/2026-10-12-project-entity-and-succession.md`,
+    uncommitted until he says keep or drop its WHOIS section).
+  - DONE and released 2026-10-12: increment 5b (household permits, v0.1489.0), BUG-191 (profile
+    copies, v0.1490.0), the first-hour audit's S5, S6, S8 and F11, BUG-163 part 2, rule 7 and
+    the takedown section (v0.1491.0).
   Day 5 (a real two-person session on the VPS) is unblocked whenever the operator has a partner.
 - **Follow-ups found today (not started):** BUG-161 (the copresence rig's steady-speed
   judges fail a starved machine); BUG-163 part 2 (refresh a stale data folder on update:

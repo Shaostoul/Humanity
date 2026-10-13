@@ -193,6 +193,23 @@
 // BACK (her next build with the permit taken back refused permit_withdrawn). Evidence in
 // runs/<stamp>-household/.
 //
+// WHERE YOU LIVE, FRESH ON A SERVER (--starts, `just verify-starts`; ship homes increment 6, "the
+// starts as data, the Cabin, the mess hall", docs/design/ship-homes-increment-6-plan.md section 6).
+// One game and one scripted walker, TestBotCabin (second-player.js --path still, its own
+// forwarded address), on a throwaway relay. The game's sandbox is paired with its own home
+// ("home:") and keeps its progress between worlds, so it boots in its own home, alone. Judged by
+// scripts/lib/starts-judge.js from the game's probe (its `home_session` block), the walker's log
+// and the relay's, against the tree's own data (the Cabin's kit and opening, the plots, the serving
+// counter, the meal's good, read when the run is made and kept in the manifest): MARKED OFFLINE
+// (the Dev stock fills its backpack, OFFLINE_MARK); THE WALKER joins asking for a cabin, gets the
+// first cabin plot and hears what is free; THE GAME CHOOSES A CABIN on the server and pairs with
+// it: FRESH there (the Cabin's kit, no skills, a new character's credits, the Cabin's opening,
+// nothing of OFFLINE_MARK) with the same look, ITS CABIN on the next cabin plot; TO THE MESS HALL
+// through the doors, never corrected; EATS (a meal on the fleet ledger, then "not yet") and FILLS
+// ITS BOTTLES, the walker eats too; THE OPENING FOLLOWS; HOME AGAIN to OFFLINE_MARK untouched,
+// the server's save kept on disk; BACK TO THE SERVER, its cabin remembered. Evidence in
+// runs/<stamp>-starts/.
+//
 // HOW THE GAME COMES IN (--entry, round 4 of the 1b review): a returning
 // player's game identifies on the main menu (its auto-connect) and only then
 // is Enter World pressed, so the join gate runs on that frame, BEFORE the
@@ -218,6 +235,8 @@
 //   node scripts/verify-copresence.js --build [--exe PATH] [--timeout-min N]
 //        [--meet-pose x,y,z,yaw,pitch] [--allow-other-build "<reason>"]
 //   node scripts/verify-copresence.js --household [--exe PATH] [--timeout-min N]
+//        [--allow-other-build "<reason>"]
+//   node scripts/verify-copresence.js --starts [--exe PATH] [--timeout-min N]
 //        [--allow-other-build "<reason>"]
 //   node scripts/verify-copresence.js --dry-verdict <manifest.json>
 // Exit 0 = every check passed. Exit 1 = refused to run. Exit 2 = failed.
@@ -286,6 +305,8 @@ const SP = require("./second-player.js");
 const { judgeSharedBuild } = require("./lib/shared-build-judge.js");
 // --household (ship homes increment 5b): its judge, and the one reader of the probe's household block.
 const HJ = require("./lib/household-judge.js");
+// --starts (ship homes increment 6): its judge, and the readers of the tree's data it judges against.
+const SJ = require("./lib/starts-judge.js");
 // The freshness gate, run through its one runner so --allow-other-build reaches
 // it and comes back as the manifest's other_build record (BUG-133).
 const { runFreshGate, otherBuildNotice, requireBootCopy, bootRecord } = require("./lib/src-fingerprint.js");
@@ -305,14 +326,17 @@ const EXE = path.resolve(opt("--exe", path.join(REPO, "target", "release", "Huma
 // A --plots run boots the game twice (the second boot proves the remembered plot) and walks
 // the meeting and the 1b legs between: 20 minutes per join order by default. A --build run boots
 // it once and builds for a few minutes: 15. A --household run boots it once and walks, clicks and
-// waits on a friend through thirteen steps: 20.
-const TIMEOUT_MS = Number(opt("--timeout-min", flag("--plots") ? "20" : flag("--build") ? "15" : flag("--household") ? "20" : "10")) * 60 * 1000;
+// waits on a friend through thirteen steps: 20. A --starts run boots it once, swaps its save three
+// times and walks to the mess hall: 15.
+const TIMEOUT_MS = Number(opt("--timeout-min", flag("--plots") ? "20" : flag("--build") ? "15" : flag("--household") ? "20" : flag("--starts") ? "15" : "10")) * 60 * 1000;
 const DRY = opt("--dry-verdict", null);
 const PLOTS = flag("--plots");
 // Shared building (ship homes increment 5): `just verify-shared-build`.
 const BUILD = flag("--build");
 // Household permits (ship homes increment 5b): `just verify-household`.
 const HOUSEHOLD = flag("--household");
+// Where you live, fresh on a server (ship homes increment 6): `just verify-starts`.
+const STARTS = flag("--starts");
 // The join orders: the walker first, the game first, and the GUEST (scripted players take every
 // plot, the game comes in after them). All three by default; `both` is the first two.
 const ORDERS = {
@@ -501,9 +525,11 @@ if (DRY) {
       ? printBuildVerdict
       : m.kind === "verify-copresence-household"
         ? printHouseholdVerdict
-        : m.kind === "verify-copresence-plots"
-          ? printPlotsVerdict
-          : printVerdict;
+        : m.kind === "verify-copresence-starts"
+          ? printStartsVerdict
+          : m.kind === "verify-copresence-plots"
+            ? printPlotsVerdict
+            : printVerdict;
   const pass = printer("DRY VERDICT (nothing was booted): ", m, path.dirname(manifest));
   process.exit(pass ? 0 : 2);
 }
@@ -518,9 +544,15 @@ if (poseNums.length !== 5 || !poseNums.every(Number.isFinite)) refuse([`--pose m
 if (!(DISTANCE > 0 && RADIUS > 0 && SPEED > 0)) refuse(["--distance, --radius and --speed must be above 0"]);
 if (PLOTS && !ORDERS) refuse(["--order must be walker-first, game-first or both"]);
 if (PLOTS && ENTRY && ENTRY !== "menu" && ENTRY !== "autopilot") refuse(["--entry must be menu or autopilot"]);
-if ([PLOTS, BUILD, HOUSEHOLD].filter(Boolean).length > 1) refuse(["--plots, --build and --household are separate runs: pick one (each boots the game on its own relay)"]);
+if ([PLOTS, BUILD, HOUSEHOLD, STARTS].filter(Boolean).length > 1) refuse(["--plots, --build, --household and --starts are separate runs: pick one (each boots the game on its own relay)"]);
+// --starts judges against the tree's own data (starts-judge.js readTreeData): refuse before booting
+// anything when it cannot be read, since the run plans its walk on it.
+if (STARTS) {
+  const d = SJ.readTreeData(REPO);
+  if (d.errors.length) refuse(["REFUSED: --starts could not read the tree's data it is judged against:", ...d.errors.map((e) => `  ${e}`)]);
+}
 // Refuse a stage the judge could not read before booting anything.
-if (!PLOTS && !BUILD && !HOUSEHOLD) {
+if (!PLOTS && !BUILD && !HOUSEHOLD && !STARTS) {
   const p = planLine(poseNums.slice(0, 3), poseNums[3], DISTANCE, RADIUS);
   if (p.error) refuse([`REFUSED: ${p.error}.`]);
   if (!clearApproach(SPAWN, p)) {
@@ -921,7 +953,7 @@ async function main() {
       return null;
     };
     manifest.walker = { name: WALKER_NAME, seed: WALKER_SEED, args: walkerArgs.slice(1), id: null, start: null, exit_code: null };
-    const inWorld = await waitLine(/in the world as entity (\d+), starting at \(([-\d.]+), ([-\d.]+), ([-\d.]+)\)/, 40000);
+    const inWorld = await waitLine(SP.IN_WORLD_RE, 40000);
     if (!inWorld) throw new Error(`the walker never got into the world: ${walkerOut.map((o) => o.line).join(" | ")}`);
     manifest.walker.id = Number(inWorld.m[1]);
     manifest.walker.start = [Number(inWorld.m[2]), Number(inWorld.m[3]), Number(inWorld.m[4])];
@@ -1817,7 +1849,7 @@ async function runPlotsOnce(order, runStamp, cleanups) {
   const startWalker = async () => {
     const { from, args } = spawnWalker(["--axis", "z"]);
     manifest.walker = { name: PLOTS_WALKER_NAME, seed: PLOTS_WALKER_SEED, args, id: null, start: null };
-    const inWorld = await waitLine(/in the world as entity (\d+), starting at \(([-\d.]+), ([-\d.]+), ([-\d.]+)\)/, 40000, from);
+    const inWorld = await waitLine(SP.IN_WORLD_RE, 40000, from);
     const plotLine = await waitLine(/home_plot (null|missing|\{.*\})/, 5000, from);
     const centred = await waitLine(/centred on \(([-\d.]+), ([-\d.]+), ([-\d.]+)\)/, 5000, from);
     const onPath = await waitLine(/on the path at/, 15000, from);
@@ -1996,7 +2028,7 @@ async function runPlotsOnce(order, runStamp, cleanups) {
    *  plot the relay gave it, and the index its lines start at (the guest order). */
   const startHomeWalker = async (who) => {
     const { from } = spawnWalker(["--axis", "z"], who);
-    const inWorld = await waitLine(/in the world as entity (\d+), starting at \(([-\d.]+), ([-\d.]+), ([-\d.]+)\)/, 40000, from);
+    const inWorld = await waitLine(SP.IN_WORLD_RE, 40000, from);
     const plotLine = await waitLine(/home_plot (null|missing|\{.*\})/, 5000, from);
     const onPath = await waitLine(/on the path at/, 15000, from);
     if (!inWorld || !onPath) throw new Error(`${who.name} never got walking: ${walkerOut.slice(from).map((o) => o.line).join(" | ")}`);
@@ -2398,7 +2430,7 @@ async function runPlotsOnce(order, runStamp, cleanups) {
         "--route-speed", String(MEET_ROUTE_SPEED),
         "--home-spawn", wPlace.door_local.join(","),
       ]);
-      const inWorld2 = await waitLine(/in the world as entity (\d+), starting at \(([-\d.]+), ([-\d.]+), ([-\d.]+)\)/, 40000, w2.from);
+      const inWorld2 = await waitLine(SP.IN_WORLD_RE, 40000, w2.from);
       if (!inWorld2) throw new Error(`the walker never came back into the world: ${walkerOut.slice(w2.from).map((o) => o.line).join(" | ")}`);
       const w2id = Number(inWorld2.m[1]);
       const w2start = [Number(inWorld2.m[2]), Number(inWorld2.m[3]), Number(inWorld2.m[4])];
@@ -3065,7 +3097,9 @@ function makeWalkerPool(serverUrl) {
    *  puts it and builds through lines on its input) and wait until it stands in the world: its
    *  entity, its plot, what its welcome says it may do, and its key. */
   const joinBuilder = async (who) => {
-    const args = [path.join(__dirname, "second-player.js"), "--server", serverUrl(), "--name", who.name, "--seed", who.seed, "--path", "still", "--seconds", "0"];
+    // `who.extra`: options of its own after these (--starts: the start it asks for, its address, and
+    // for its walk to the mess hall its route, its door and where it stands).
+    const args = [path.join(__dirname, "second-player.js"), "--server", serverUrl(), "--name", who.name, "--seed", who.seed, "--path", "still", "--seconds", "0", ...(Array.isArray(who.extra) ? who.extra : [])];
     const from = walkerOut.length;
     const started = Date.now();
     // Its input is a pipe: the rig's build lines, and "stop" to end it cleanly.
@@ -3090,7 +3124,7 @@ function makeWalkerPool(serverUrl) {
     taker(child.stdout);
     taker(child.stderr);
     child.stdin.on("error", () => {});
-    const inWorld = await waitFor(b, /in the world as entity (\d+), starting at \(([-\d.]+), ([-\d.]+), ([-\d.]+)\)/, from, 40000);
+    const inWorld = await waitFor(b, SP.IN_WORLD_RE, from, 40000);
     if (!inWorld) throw new Error(`${who.name} never got into the world: ${linesOf(b, from).join(" | ")}`);
     const plotLine = await waitFor(b, /home_plot (null|missing|\{.*\})/, from, 5000);
     const ranksLine = await waitFor(b, SP.RANKS_RE, from, 5000);
@@ -4766,7 +4800,650 @@ async function mainHousehold() {
   process.exit(ok ? 0 : 2);
 }
 
-(PLOTS ? mainPlots() : BUILD ? mainBuild() : HOUSEHOLD ? mainHousehold() : main()).catch((e) => {
+// ── WHERE YOU LIVE, FRESH ON A SERVER (--starts, `just verify-starts`; ship homes increment 6) ───
+//
+// docs/design/ship-homes-increment-6-plan.md section 6, step by step; judged by
+// scripts/lib/starts-judge.js (its header lists every check and what each record is). ONE game and
+// ONE scripted walker, TestBotCabin, on a throwaway relay; never beside another rig or the
+// operator's game (the machine guard at the top refuses it).
+//
+// WHAT THE GAME MUST PROVIDE (increment 6 lane 2B, src/engine/ipc.rs), all of it read here:
+//   showcase verbs  {"choose_start":"cabin"}  a server card's Choose (save_slot::choose_on_server)
+//                   {"pairing":"home"|"server"}  the picker's Enter (save_slot::enter_pairing)
+//                   {"meal":"1"} {"water":"1"}   the serving counter's two buttons (mess_hall.rs)
+//                   {"stock":"1"}               the Crafting page's Dev stock (increment 5)
+//                   {"page":"inventory"|"none"} open a page (5b), for the opening's first step
+//                   Each home verb's result is the probe's `home_session.last_verb`, and only the
+//                   LAST is kept, so the rig sends `choose_start` and `pairing` as two requests.
+//   the probe's     home_session (ipc.rs home_session_core): which save is live, its start, the
+//   done JSON       home it built, the backpack, skills, credits, quests, look, vitals, the
+//                   counter's sentence, the fleet ledger's meals, the server's game_home answer,
+//                   both save files on disk, and last_verb; beside game_joined, welcomed,
+//                   last_welcome, home_plot, moves and camera_end, which the other modes read too.
+// AND THE RELAY: "Game: home chosen (cabin)" in its log, never with a key.
+
+/** The scripted walker: it joins asking for a cabin (the first cabin plot), and later walks from
+ *  its door to the mess hall's counter and takes a meal there. Its own forwarded address, so its
+ *  sign-up counts against an address of its own (the relay signs up at most five new accounts an
+ *  hour from one), as the --plots guest leg's households do. */
+const STARTS_WALKER = { name: "TestBotCabin", seed: "verify-copresence-starts-cabin" };
+const STARTS_WALKER_ADDR = "10.78.0.1";
+/** The game's own names, as the autopilot signs it in. */
+const STARTS_GAME_NAME = "CopresenceStarts";
+/** How far east of the game's place at the counter the walker stands, metres: beside it, both in
+ *  reach of the food store (second-player.js STORE_REACH_M). */
+const STARTS_WALKER_EAST_M = 1.2;
+/** The game's walking pace through the cabin's 0.9 m door, the hall and the corridors, metres a
+ *  second: a brisk walk, so each frame's stride (at most 0.1 s of it, engine/move_check.rs) stays
+ *  well inside the door's clearance either side of the player. */
+const STARTS_WALK_MPS = 3;
+/** How long the rig waits for a verb's answer from the game or the relay, ms. */
+const STARTS_ANSWER_MS = 20000;
+/** How long a save swap and the join after it may take, ms (the swap writes one save, reads or
+ *  makes another and rebuilds the home; the join then waits for the relay's welcome). */
+const STARTS_SWAP_MS = 120000;
+
+/** The evidence of a --starts run in its folder (what its manifest names): the relay's log, read for
+ *  the judge. A missing one is left out (the judge fails its checks as not recorded). */
+function startsEvidence(m, dir) {
+  let relayLog = null;
+  try {
+    relayLog = fs.readFileSync(path.join(dir, "relay.log"), "utf8");
+  } catch {}
+  return { relayLog };
+}
+
+/** Print a --starts run's verdict (the judge over its folder's evidence). Used live and by
+ *  --dry-verdict. Returns true when every check passed. */
+function printStartsVerdict(prefix, m, dir) {
+  const { checks, pass } = SJ.judgeStarts(m, startsEvidence(m, dir));
+  console.log("");
+  console.log("-".repeat(72));
+  console.log("--starts, where you live: fresh on a server, the mess hall, home again");
+  for (const c of checks) console.log(`${c.ok ? "PASS" : "FAIL"}  ${pad(c.id, 23)} ${c.detail}`);
+  console.log("-".repeat(72));
+  if (m.other_build) console.log(otherBuildNotice(m.other_build));
+  if (pass) console.log(`${prefix}PASS  ${checks.length}/${checks.length} starts checks passed`);
+  else {
+    const failed = checks.filter((c) => !c.ok).map((c) => c.id);
+    console.log(`${prefix}FAIL  ${checks.length - failed.length}/${checks.length} passed; failed: ${failed.join(", ")}`);
+  }
+  console.log(`        evidence ${rel(dir)}`);
+  console.log("-".repeat(72));
+  console.log("");
+  return pass;
+}
+
+/** Forget the sandbox game's own home save (saves/offline_home.json), so the run's boot is a new
+ *  player's own home, the default start on the default plot, whatever an earlier run left there:
+ *  this run keeps progress between worlds (fresh_world_each_launch false), so a save left over
+ *  would be loaded. The rig sandbox's only; never anyone's own. */
+function forgetSandboxOwnHome() {
+  const f = path.join(RIG, "saves", "offline_home.json");
+  if (!fs.existsSync(f)) return;
+  try {
+    fs.unlinkSync(f);
+    log("     forgot the sandbox game's own home save from an earlier run");
+  } catch (e) {
+    log(`     could not remove the sandbox's own home save (${e.message}); left as it is`);
+  }
+}
+
+/** Pair the sandbox's game with its own home ("home:", the fresh home of the new-home row), so it
+ *  boots there alone: solo, out of the shared world (config.rs `apply_to_gui_state`), its own home's
+ *  save the live one (save_slot::boot_slot). Written before spawnGame, whose pin (rig-gameplay.js)
+ *  leaves a home pairing as it is. */
+function pairSandboxWithHome() {
+  const f = path.join(RIG, "config.json");
+  let cfg = {};
+  try {
+    if (fs.existsSync(f)) cfg = JSON.parse(fs.readFileSync(f, "utf8"));
+  } catch (e) {
+    log(`     the sandbox's config.json did not parse (${e.message}); starting it over with only the pairing`);
+    cfg = {};
+  }
+  cfg.last_world = "home:";
+  // No character to load by name over it (config.rs `default_character`, what Play repeats).
+  cfg.default_character = "";
+  fs.writeFileSync(f, JSON.stringify(cfg, null, 2));
+}
+
+/** The one --starts run. Returns true when every check passed. */
+async function runStartsOnce(runStamp, cleanups) {
+  setupRig();
+  forgetSandboxPlots();
+  forgetSandboxOwnHome();
+  pairSandboxWithHome();
+  const out = path.join(RIG, "runs", `${runStamp}-starts`);
+  fs.mkdirSync(out, { recursive: true });
+  // The tree's data the run plans on and is judged against (checked readable before booting).
+  const data = SJ.readTreeData(REPO);
+  const chosen = data.starts[data.chosen];
+  const opening = data.opening;
+  const manifest = {
+    kind: "verify-copresence-starts",
+    stamp: runStamp,
+    exe: EXE,
+    binary: bootRecord(fresh, RIG_EXE),
+    ...(OTHER_BUILD ? { other_build: OTHER_BUILD } : {}),
+    rig: RIG,
+    relay: null,
+    data,
+    offline: null,
+    walker: null,
+    choose: null,
+    server: null,
+    walk: null,
+    meal: null,
+    meal_again: null,
+    water: null,
+    walker_meal: null,
+    opening: null,
+    home_again: null,
+    server_again: null,
+    // Every walk of the game (the one to the mess hall), as the other modes keep them.
+    walks: [],
+    turns: [],
+    steps: [],
+    steps_ok: {},
+    panics: 0,
+  };
+  const save = () => fs.writeFileSync(path.join(out, "manifest.json"), JSON.stringify(manifest, null, 2));
+  const step = (id, ok, detail) => {
+    manifest.steps.push({ id, ok, detail });
+    save();
+    log(`${ok ? "ok  " : "FAIL"} ${pad(id, 12)} ${detail}`);
+    return ok;
+  };
+  let relay = null;
+  let gamePid = null;
+  let game = null;
+  // The walker, and every line it prints (the walker pool, makeWalkerPool): the relay is up first.
+  const pool = makeWalkerPool(() => relay.url);
+  let killed = false;
+  const killGame = () => {
+    if (gamePid) {
+      if (game) game.expectExit(); // our own stop: not a hand-off to look for
+      try {
+        execSync(`taskkill /PID ${gamePid} /T /F`, { stdio: "ignore" });
+      } catch {}
+    }
+    killRigProcesses();
+  };
+  const killAll = () => {
+    if (killed) return;
+    killed = true;
+    pool.killBuilders();
+    killGame();
+    if (relay) {
+      relay.kill();
+      relay.removeDir();
+    }
+  };
+  cleanups.push(killAll);
+  const watchdog = setTimeout(() => {
+    log(`TIMEOUT after ${TIMEOUT_MS / 60000} min; killing everything`);
+    manifest.steps.push({ id: "timeout", ok: false, detail: `run exceeded ${TIMEOUT_MS / 60000} min` });
+    manifest.panics = panicCount();
+    save();
+    killAll();
+    printStartsVerdict("RESULT: ", manifest, out);
+    process.exit(2);
+  }, TIMEOUT_MS);
+  const { walkerOut, waitFor, linesOf, joinBuilder, builderRecord, tell, stopBuilders } = pool;
+
+  const showcase = async (body) => {
+    req("showcase_request.json", body);
+    // The game deletes the request when it takes it (engine/ipc.rs poll_showcase_request).
+    for (const t0 = Date.now(); Date.now() - t0 < 10000 && fs.existsSync(path.join(DEBUG, "showcase_request.json")); ) await sleep(100);
+  };
+  const until = async (ok, ms) => {
+    let p = null;
+    for (const t0 = Date.now(); Date.now() - t0 < ms; ) {
+      p = await probe();
+      if (p && ok(p)) return p;
+      await sleep(500);
+    }
+    return p;
+  };
+  const camOf = (p) => (p && p.camera_end ? p.camera_end.pos : null);
+  const gap3 = (a, b) => (Array.isArray(a) && Array.isArray(b) ? Math.hypot(...[0, 1, 2].map((k) => Number(a[k]) - Number(b[k]))) : Infinity);
+  /** The probe's home_session block (lane 2B), or null from a build without it. */
+  const hsOf = (p) => (p && p.home_session && typeof p.home_session === "object" ? p.home_session : null);
+  /** The last home verb the game carried out, as the probe says. */
+  const lastVerb = (p) => (hsOf(p) && hsOf(p).last_verb) || null;
+  /** The game's corrections so far (the probe's moves.count), or null. */
+  const movesOf = (p) => (p && p.moves && Number.isFinite(Number(p.moves.count)) ? Number(p.moves.count) : null);
+  /** The live save swapped to `slot` and, for a server's, the game in its world with the welcome
+   *  come: { joined, welcomed, copresence }. */
+  const settled = (slot) => (p) => {
+    const s = hsOf(p);
+    if (!s || s.slot !== slot) return false;
+    return slot === "server" ? !!(p.game_joined && p.welcomed && p.copresence_active) : p.game_joined === false;
+  };
+  /** Walk the game to `p` (the showcase `walk_to` verb at STARTS_WALK_MPS), ending facing yaw and
+   *  pitch (a `yaw` of null: the way this walk goes), and wait until it arrives. Recorded for the
+   *  manifest's walks. Returns whether it arrived. */
+  const walkGame = async (p, yaw, pitch, label) => {
+    const from = await probe();
+    const here = camOf(from) || p;
+    const far = gap3(p, here);
+    const endYaw = yaw === null ? walkYaw(here, p, from && from.camera_end ? from.camera_end.yaw : 0) : yaw;
+    await showcase({ walk_to: `${p.join(",")},${endYaw},${pitch},${STARTS_WALK_MPS}` });
+    const at = (pr) => pr && pr.moves && pr.moves.walking === false && pr.camera_end && gap3(pr.camera_end.pos, p) < 0.05;
+    const pr = await until(at, Math.ceil((far / STARTS_WALK_MPS) * 1000) + 15000);
+    const ok = !!at(pr);
+    const stopped = camOf(pr);
+    manifest.walks.push({ label, to: p, at: stopped, ok });
+    if (!ok) step(`${label}_walk`, false, `the walk to ${fmt(p)} never arrived: the camera stopped at ${stopped ? fmt(stopped) : "(unknown)"}`);
+    return ok;
+  };
+  /** Walk the game through `points` in order, facing each leg, turning to yaw and pitch only at the
+   *  last (`routeFacings`, BUG-165). True when every walk arrived. */
+  const walkRoute = async (points, yaw, pitch, label) => {
+    const facings = routeFacings(points.length, yaw, pitch);
+    for (const [i, p] of points.entries()) {
+      if (!(await walkGame(p, facings[i].yaw, facings[i].pitch, label))) return false;
+    }
+    return true;
+  };
+  /** Stop scripted player `b` the way Ctrl+C does (game_leave, then close), and wait for it. */
+  const stopOne = async (b) => {
+    if (b.child.exitCode !== null) return true;
+    try {
+      b.child.stdin.write("stop\n");
+    } catch {}
+    const code = await Promise.race([b.exit, sleep(10000).then(() => "still running")]);
+    if (code === "still running") {
+      try {
+        execSync(`taskkill /PID ${b.child.pid} /T /F`, { stdio: "ignore" });
+      } catch {}
+      return false;
+    }
+    return true;
+  };
+  /** Every position the walker logged the relay passing on for another player since walkerOut
+   *  index `from` (the game is the only other player in this run). */
+  const sawRe = /saw entity (\d+) at \(([-\d.]+), ([-\d.]+), ([-\d.]+)\)/;
+  const seenSince = (from, notEntity) =>
+    walkerOut
+      .slice(from)
+      .map((o) => o.line.match(sawRe))
+      .filter((x) => x && Number(x[1]) !== notEntity)
+      .map((x) => [Number(x[2]), Number(x[3]), Number(x[4])]);
+
+  try {
+    // ── 1. SETUP: the relay (the tree's data/ mirrored, loopback only), then the game, paired
+    // with its own home (pairSandboxWithHome) and keeping its progress between worlds
+    // (fresh_world_each_launch false: going home must find what it left there, not the default
+    // home built again).
+    relay = await TR.startRelay({
+      sourceExe: EXE,
+      // Its copy must be the bytes the gate judged, like the rig's (BUG-133).
+      expectSha256: fresh.result && fresh.result.exe_sha256,
+      prefix: "verify-copresence-relay-",
+      config: { server_name: "verify-copresence starts relay" },
+    });
+    manifest.relay = { url: relay.httpUrl, pid: relay.pid, dir: relay.dir, health: relay.health, listening: relay.listening.map((x) => x.line) };
+    manifest.steps_ok.relay = relay.health
+      ? { ok: true, detail: `${relay.httpUrl} answered /health (pid ${relay.pid}); ${loopbackNote(relay)}` }
+      : { ok: false, detail: `${relay.httpUrl} never answered /health: ${relay.logText().slice(-400)}` };
+    step("relay", manifest.steps_ok.relay.ok, manifest.steps_ok.relay.detail);
+    if (!relay.health) throw new Error("the throwaway relay did not come up");
+    game = GL.spawnGame(RIG_EXE, [], {
+      fresh,
+      rigName: "verify-copresence",
+      log,
+      cwd: RIG,
+      detached: true,
+      stdio: "ignore",
+      env: gameEnv(),
+      gameplay: { server_url: relay.httpUrl, fresh_world_each_launch: false },
+    });
+    gamePid = game.child.pid;
+    fs.writeFileSync(path.join(RIG, "probe_pid.txt"), String(gamePid));
+    game.child.unref();
+    step("launch", true, `game pid ${gamePid} from ${rel(RIG_EXE)} (background, no focus), paired with its own home`);
+    await waitBoot(180000, game);
+    step("boot", true, "booted (run.log: cloud noise volumes generated, no PANIC)");
+    // The autopilot makes the identity, connects to the relay and enters the world: with the home
+    // pairing the world is its own home, and nothing joins the server's.
+    clearDone("autopilot_done.json");
+    req("autopilot_request.json", { server_url: relay.httpUrl, user_name: STARTS_GAME_NAME, character_name: STARTS_GAME_NAME });
+    const ap = await waitFile("autopilot_done.json", 300000);
+    if (!ap || ap.ok !== true) throw new Error(`the autopilot did not run: ${ap ? ap.error || JSON.stringify(ap) : "no answer in 300 s"}`);
+    step("autopilot", true, `entering its own home, connected to ${ap.server_url}`);
+    // In its own home, with the socket identified (a server card's Choose needs it).
+    const p1 = await until((p) => p.ok && p.world_loaded && p.ws_identified && !!hsOf(p), 120000);
+    const homeUp = !!(p1 && p1.ok && p1.world_loaded && p1.ws_identified && hsOf(p1));
+    manifest.steps_ok.home = {
+      ok: homeUp,
+      detail: p1 ? `world_loaded=${p1.world_loaded} ws_identified=${p1.ws_identified} game_joined=${p1.game_joined} home_session=${hsOf(p1) ? "reported" : "NOT REPORTED (a build without lane 2B's probe?)"}` : "the recorder never answered",
+    };
+    step("home", homeUp, manifest.steps_ok.home.detail);
+    if (!homeUp) throw new Error("the game never stood in its own home, connected");
+
+    // ── 2. MARKED OFFLINE: the Dev stock fills the backpack; what it holds then is OFFLINE_MARK.
+    await sleep(1500);
+    const p2 = await probe();
+    manifest.offline = { session: hsOf(p2), joined: p2 ? p2.game_joined : null, ws_identified: p2 ? p2.ws_identified : null, before: hsOf(p2) ? hsOf(p2).backpack : null, mark: null };
+    save();
+    await showcase({ stock: "1" });
+    // Until the backpack has changed and reads the same twice running (the stock lands on a later
+    // frame, and what does not fit goes to storage).
+    let prev = null;
+    let marked = null;
+    for (const t0 = Date.now(); Date.now() - t0 < 15000; ) {
+      const p = await probe();
+      const b = hsOf(p) ? hsOf(p).backpack : null;
+      if (b && !SJ.bagEqual(b, manifest.offline.before) && prev && SJ.bagEqual(b, prev)) {
+        marked = p;
+        break;
+      }
+      prev = b;
+      await sleep(700);
+    }
+    manifest.offline.mark = marked ? hsOf(marked).backpack : null;
+    manifest.offline.mark_session = hsOf(marked);
+    const offS = manifest.offline.session;
+    step(
+      "offline",
+      !!marked,
+      `${offS ? `the live save ${offS.slot}, a ${offS.start} on ${offS.home ? offS.home.plot : "?"}` : "no home session"}, joined ${manifest.offline.joined}; ` +
+        (marked ? `OFFLINE_MARK: ${Object.keys(manifest.offline.mark).length} item kinds after the stock` : "the stock never changed the backpack (the Dev mode's cheats off?)"),
+    );
+
+    // The ship's places and doors, from the game's own corridor geometry (src/ship/door_points.rs).
+    const dp = await doorPointsOf();
+    if (!dp || dp.ok !== true) throw new Error(`the game reported no door points: ${JSON.stringify(dp)}`);
+    manifest.door_points = dp;
+
+    // ── 3. THE WALKER joins asking for a cabin, then asks where it lives.
+    const W = await joinBuilder({ ...STARTS_WALKER, extra: ["--start", data.chosen, "--forwarded-for", STARTS_WALKER_ADDR] });
+    const plotLine = linesOf(W, W.from).map((l) => l.match(/home_plot (\{.*\})/)).find(Boolean);
+    let homePlot = null;
+    try {
+      homePlot = plotLine ? JSON.parse(plotLine[1]) : null;
+    } catch {}
+    manifest.walker = { ...builderRecord(W), home_plot: homePlot, home_line: null };
+    step("walker", !!W.plot, `${W.name} in the world as entity ${W.id} at ${fmt(W.start)}, asking for a ${data.chosen}: given ${homePlot ? `${homePlot.id} (${homePlot.kind}, start ${homePlot.start})` : "no plot"}`);
+    const asked = await tell(W, "home", SP.HOME_RE, 8000);
+    manifest.walker.home_line = asked.hit ? asked.hit.line : null;
+    step("walker_home", !!asked.hit, asked.hit ? asked.hit.line : `no answer: ${asked.error}`);
+    save();
+
+    // ── 4. THE GAME CHOOSES A CABIN on the server (a server card's Choose), then pairs with the
+    // server (the picker's Enter). Two requests: the probe keeps only the last verb.
+    await showcase({ choose_start: data.chosen });
+    const pc = await until((p) => {
+      const v = lastVerb(p);
+      const a = hsOf(p) && hsOf(p).answer;
+      return !!v && v.verb === "choose_start" && (v.ok === false || (!!a && (a.chose === true || !!a.refused)));
+    }, STARTS_ANSWER_MS);
+    const answer = hsOf(pc) ? hsOf(pc).answer : null;
+    manifest.choose = { verb: lastVerb(pc), answer };
+    step("choose", !!(answer && answer.chose === true), `the game's Choose said ${JSON.stringify(lastVerb(pc))}; the server answered ${answer ? JSON.stringify({ plot: answer.plot, chose: answer.chose, refused: answer.refused, message: answer.message }) : "nothing"}`);
+    // The look the character wears right before the swap: what must cross into the server's world.
+    const pl = await probe();
+    manifest.offline.look = hsOf(pl) ? hsOf(pl).look : null;
+    save();
+    await showcase({ pairing: "server" });
+    const ps = await until(settled("server"), STARTS_SWAP_MS);
+    await sleep(2000);
+    const ps2 = await probe();
+    manifest.server = {
+      verb: lastVerb(ps),
+      session: hsOf(ps2),
+      joined: !!(ps2 && ps2.game_joined && ps2.copresence_active),
+      welcomed: ps2 ? ps2.welcomed : null,
+      last_welcome: ps2 ? ps2.last_welcome : null,
+      home_plot: ps2 ? ps2.home_plot : null,
+      camera: camOf(ps2),
+    };
+    const sS = manifest.server.session;
+    manifest.steps_ok.joined = {
+      ok: !!(settled("server")(ps) && manifest.server.joined),
+      detail: `pairing said ${JSON.stringify(manifest.server.verb)}; the live save ${sS ? sS.slot : "?"}, a ${sS ? sS.start : "?"} on ${sS && sS.home ? sS.home.plot : "?"}; joined ${manifest.server.joined}, the welcome ${JSON.stringify(manifest.server.last_welcome)}`,
+    };
+    step("server", manifest.steps_ok.joined.ok, manifest.steps_ok.joined.detail);
+    save();
+    if (!manifest.steps_ok.joined.ok) throw new Error("the game never stood in the server's world on its server save");
+
+    // ── 6. TO THE MESS HALL. The opening's first step first: the vitals on screen (Inventory >
+    // Status), as a player checks them. Then through the doors to stand in front of the counter.
+    await showcase({ page: "inventory" });
+    await sleep(2500);
+    const pv = await probe();
+    await showcase({ page: "none" });
+    await sleep(1000);
+    const vitalsStep = opening ? SJ.stepOf(hsOf(pv), opening.quest) : null;
+    const dp2 = await doorPointsOf();
+    if (!dp2 || dp2.ok !== true) throw new Error(`the game reported no door points on the server: ${JSON.stringify(dp2)}`);
+    const gamePlot = sS && sS.home ? sS.home.plot : null;
+    const gPlace = dp2.places.find((p) => p.id === `plot:${gamePlot}`);
+    if (!gPlace || !gPlace.door) throw new Error(`the game's plot ${gamePlot} is not in its door points`);
+    const counter = data.counter;
+    const stand = counter.stand;
+    const faceYaw = walkYaw(stand, counter.centre, 0);
+    const route = doorRoute(dp2, gPlace.door, stand, MEET_STEP_M);
+    if (route.error) throw new Error(`no route from ${gPlace.id} to the counter: ${route.error}`);
+    const gameSteps = [gPlace.door, ...route.points];
+    const pw0 = await probe();
+    const markWalk = walkerOut.length;
+    const arrived = await walkRoute(gameSteps, faceYaw, -0.05, "to_mess_hall");
+    await sleep(2500);
+    const pw1 = await probe();
+    manifest.walk = {
+      from: gPlace.door,
+      stand,
+      steps: gameSteps,
+      doors: route.doors,
+      arrived,
+      at: camOf(pw1),
+      relayed: seenSince(markWalk, W.id),
+      corrections_before: movesOf(pw0),
+      corrections_after: movesOf(pw1),
+      vitals_step: vitalsStep,
+      quest_step: opening ? SJ.stepOf(hsOf(pw1), opening.quest) : null,
+    };
+    step(
+      "walk",
+      arrived,
+      `through ${route.doors.join(", ")} in ${gameSteps.length} steps to ${fmt(stand)}: ${arrived ? "arrived" : "did NOT arrive"} at ${camOf(pw1) ? fmt(camOf(pw1)) : "?"}; ` +
+        `the walker saw ${manifest.walk.relayed.length} position(s); the opening at step ${vitalsStep} after Inventory > Status, ${manifest.walk.quest_step} after the walk`,
+    );
+    save();
+
+    // ── 7. EATS AND DRINKS at the counter: a meal from the server (eaten, a fleet ledger line), a
+    // second refused for now, and the empty bottles filled.
+    {
+      const pb = await probe();
+      const before = { backpack: hsOf(pb) ? hsOf(pb).backpack : null, vitals: hsOf(pb) ? hsOf(pb).vitals : null };
+      await showcase({ meal: "1" });
+      // The server's answer (the counter's sentence changes from the asking one) ...
+      await until((p) => {
+        const v = lastVerb(p);
+        const s = hsOf(p);
+        return !!v && v.verb === "meal" && !!s && typeof s.counter === "string" && s.counter !== v.said;
+      }, STARTS_ANSWER_MS);
+      // ... then the meal eaten and the ledger with its new line (fetched after the answer).
+      const pa = await until((p) => {
+        const s = hsOf(p);
+        return !!s && SJ.usedMeals(s.fleet_meals) >= 1 && !(Number(s.backpack && s.backpack[data.meal_good]) > 0);
+      }, 10000);
+      await sleep(1500);
+      const pa2 = await probe();
+      const s = hsOf(pa2);
+      manifest.meal = {
+        verb: lastVerb(pa) || lastVerb(pa2),
+        before,
+        after: s ? { backpack: s.backpack, vitals: s.vitals, counter: s.counter, fleet_meals: s.fleet_meals } : null,
+      };
+      step("meal", !!s && s.counter === SJ.SENTENCES.eaten, `the counter said ${JSON.stringify(s && s.counter)}; the ledger's meals ${JSON.stringify(s && s.fleet_meals)}; food ${before.vitals ? before.vitals.satiation : "?"} -> ${s && s.vitals ? s.vitals.satiation : "?"}`);
+      save();
+    }
+    {
+      const eatenSaid = manifest.meal && manifest.meal.after ? manifest.meal.after.counter : null;
+      await sleep(1500);
+      await showcase({ meal: "1" });
+      // Until the counter says something other than the first meal's words and the asking ones.
+      const pr = await until((p) => {
+        const s = hsOf(p);
+        return !!s && typeof s.counter === "string" && s.counter !== eatenSaid && s.counter !== SJ.SENTENCES.asked;
+      }, STARTS_ANSWER_MS);
+      const s = hsOf(pr);
+      manifest.meal_again = s ? { verb: lastVerb(pr), counter: s.counter, backpack: s.backpack, fleet_meals: s.fleet_meals, vitals: s.vitals } : null;
+      step("meal_again", !!s && SJ.SENTENCES.not_yet_re.test(String(s.counter)), `asked again: ${JSON.stringify(s && s.counter)}`);
+      save();
+    }
+    {
+      const pb = await probe();
+      const before = { backpack: hsOf(pb) ? hsOf(pb).backpack : null };
+      await showcase({ water: "1" });
+      const pr = await until((p) => {
+        const v = lastVerb(p);
+        return !!v && v.verb === "water";
+      }, STARTS_ANSWER_MS);
+      await sleep(1000);
+      const pr2 = await probe();
+      manifest.water = { verb: lastVerb(pr), before, after: { backpack: hsOf(pr2) ? hsOf(pr2).backpack : null } };
+      step("water", !!lastVerb(pr), `the counter said ${JSON.stringify(lastVerb(pr) && lastVerb(pr).said)}`);
+      save();
+    }
+
+    // ── 8. THE OPENING FOLLOWS: its walk and its meal done.
+    {
+      const po = await probe();
+      manifest.opening = { session: hsOf(po) };
+      step("opening", true, `the quests now: ${JSON.stringify(hsOf(po) && hsOf(po).quests)}`);
+      save();
+    }
+
+    // ── The walker walks to the counter too, and takes a meal: it steps out (cleanly) and comes
+    // back at its own door with a route through its hall, First Street and the Commons.
+    {
+      const left = await stopOne(W);
+      step("walker_out", left, left ? `${W.name} stepped out of the shared world (game_leave)` : `${W.name} did not stop when asked; it was killed`);
+      await sleep(1500);
+      const wPlace = dp2.places.find((p) => p.id === `plot:${W.plot}`);
+      if (!wPlace || !wPlace.door || !wPlace.door_local) throw new Error(`the walker's plot ${W.plot} is not in the door points`);
+      const wStand = [stand[0] + STARTS_WALKER_EAST_M, stand[1], stand[2]];
+      const wRoute = doorRoute(dp2, wPlace.door, wStand);
+      if (wRoute.error) throw new Error(`no route for the walker: ${wRoute.error}`);
+      const routeArg = wRoute.waypoints.slice(0, -1); // the counter's place is where its path stands
+      const routeLen = [wPlace.door, ...wRoute.waypoints].slice(1).reduce((a, p, i, all) => a + gap3(p, i ? all[i - 1] : wPlace.door), 0);
+      const W2 = await joinBuilder({
+        ...STARTS_WALKER,
+        extra: [
+          "--start", data.chosen,
+          "--forwarded-for", STARTS_WALKER_ADDR,
+          "--center", wStand.join(","),
+          "--route", routeArg.map((p) => p.join(",")).join(";"),
+          "--route-speed", String(MEET_ROUTE_SPEED),
+          "--home-spawn", wPlace.door_local.join(","),
+        ],
+      });
+      const reached = await waitFor(W2, /on the path at/, W2.from, (routeLen / MEET_ROUTE_SPEED + 30) * 1000);
+      const ate = reached ? await tell(W2, "take-meal", /meal (taken|refused): /, 10000) : null;
+      manifest.walker_meal = {
+        rejoined: builderRecord(W2),
+        route: [wPlace.door, ...wRoute.waypoints],
+        route_m: Number(routeLen.toFixed(1)),
+        arrived: !!reached,
+        line: ate && ate.hit ? ate.hit.line : null,
+        error: ate ? ate.error || null : "the walker never reached its place at the counter",
+      };
+      step("walker_meal", !!(ate && ate.hit), `${W2.name} walked ${routeLen.toFixed(1)} m through ${wRoute.doors.join(", ")}: ${reached ? "arrived" : "did NOT arrive"}; ${ate && ate.hit ? ate.hit.line : manifest.walker_meal.error}`);
+      save();
+    }
+
+    // ── 9. HOME AGAIN: the picker's Enter on its own home.
+    {
+      await showcase({ pairing: "home" });
+      const ph = await until(settled("offline"), STARTS_SWAP_MS);
+      await sleep(2000);
+      const ph2 = await probe();
+      manifest.home_again = { verb: lastVerb(ph), session: hsOf(ph2), joined: ph2 ? ph2.game_joined : null, home_plot: ph2 ? ph2.home_plot : null };
+      const s = hsOf(ph2);
+      step("home_again", !!settled("offline")(ph2), `pairing said ${JSON.stringify(lastVerb(ph))}; the live save ${s ? s.slot : "?"}, a ${s ? s.start : "?"} on ${s && s.home ? s.home.plot : "?"}; joined ${manifest.home_again.joined}; the server's save ${s && s.server_save ? (s.server_save.exists ? "on disk" : "NOT on disk") : "not reported"}`);
+      save();
+    }
+
+    // ── 10. BACK TO THE SERVER: its cabin save, its plot remembered.
+    {
+      await showcase({ pairing: "server" });
+      const pr = await until(settled("server"), STARTS_SWAP_MS);
+      await sleep(2000);
+      const pr2 = await probe();
+      manifest.server_again = {
+        verb: lastVerb(pr),
+        session: hsOf(pr2),
+        joined: !!(pr2 && pr2.game_joined && pr2.copresence_active),
+        last_welcome: pr2 ? pr2.last_welcome : null,
+        home_plot: pr2 ? pr2.home_plot : null,
+        camera: camOf(pr2),
+      };
+      const s = hsOf(pr2);
+      step("server_again", !!settled("server")(pr2), `the live save ${s ? s.slot : "?"}, a ${s ? s.start : "?"} on ${s && s.home ? s.home.plot : "?"}; joined ${manifest.server_again.joined}, the welcome ${JSON.stringify(manifest.server_again.last_welcome)}`);
+      save();
+    }
+
+    // ── 11. Every correction the game took this run (none may be).
+    const pEnd = await probe();
+    manifest.corrections_game = movesOf(pEnd);
+  } catch (e) {
+    manifest.steps.push({ id: "abort", ok: false, detail: String(e.message || e) });
+    log(`ABORT ${e.message || e}`);
+  }
+  clearTimeout(watchdog);
+  manifest.panics = panicCount();
+  // BUILT-IN DATA (BUG-133), as every rig: the game's run.log and the relay's log.
+  manifest.builtin_data = [
+    ...GL.builtinDataLines(fs.existsSync(LOG) ? fs.readFileSync(LOG, "utf8") : ""),
+    ...(relay ? GL.builtinDataLines(relay.logText()).map((l) => `relay: ${l}`) : []),
+  ];
+  await stopBuilders();
+  fs.writeFileSync(path.join(out, "walker.log"), walkerOut.map((o) => `${o.at_s.toFixed(2)}s [${o.who}] ${o.line}`).join("\n") + "\n");
+  // Every correction the walker took (none may be: it stands, and walks at a walking pace).
+  manifest.walker_corrections = walkerOut.filter((o) => CORRECTED_RE.test(o.line)).map((o) => `[${o.who}] ${o.line}`);
+  manifest.walker_keys = [...new Set(walkerOut.map((o) => (o.line.match(/\(key ([0-9a-f]{16})\.\.\.\)/) || [])[1]).filter(Boolean))];
+  try {
+    fs.copyFileSync(LOG, path.join(out, "run.log"));
+  } catch {}
+  if (relay) {
+    try {
+      fs.copyFileSync(relay.logPath, path.join(out, "relay.log"));
+    } catch {}
+  }
+  save();
+  killAll();
+  await sleep(2000);
+  const pass = printStartsVerdict("RESULT: ", manifest, out);
+  if (!pass) {
+    console.log("What to do:");
+    console.log("  1. read the first FAIL line above and the step log above it: each says what it saw");
+    console.log(`  2. walker.log holds every line TestBotCabin printed (what the relay told it), relay.log its "Game:" lines`);
+    console.log("  3. manifest.json keeps the game's home_session at each step as it reported it, and the tree's data it was judged against");
+    console.log(`  4. re-judge without booting: node scripts/verify-copresence.js --dry-verdict ${rel(path.join(out, "manifest.json"))}`);
+    console.log("");
+  }
+  return pass;
+}
+
+async function mainStarts() {
+  const cleanups = [];
+  process.on("exit", () => {
+    for (const k of cleanups) k();
+  });
+  for (const [sig, code] of [["SIGINT", 130], ["SIGTERM", 143], ["SIGBREAK", 149], ["SIGHUP", 129]]) {
+    process.on(sig, () => process.exit(code));
+  }
+  log("── --starts, where you live: fresh on a server, the mess hall, home again ──");
+  const ok = await runStartsOnce(stamp, cleanups);
+  process.exit(ok ? 0 : 2);
+}
+
+(PLOTS ? mainPlots() : BUILD ? mainBuild() : HOUSEHOLD ? mainHousehold() : STARTS ? mainStarts() : main()).catch((e) => {
   console.error(e);
   process.exit(2);
 });

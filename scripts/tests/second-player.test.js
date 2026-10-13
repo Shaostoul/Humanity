@@ -42,6 +42,16 @@ const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
 //  - pathPoint's circle drawn at radius 1 instead of r: FAILED here at "every
 //    circle point is radius metres out (s=0)", and the relay test at "only the
 //    last 0 of 129 updates were on the circle".
+// The walker's own "in the world" line, with and without a start asked for: the rig reads both with
+// IN_WORLD_RE. Seen red 2026-10-12: verify-starts' walker joined with --start cabin, printed
+// "(asked for a cabin)" before the comma, and the rig's pattern judged it never in the world.
+test("the in-world line is read whether or not the walker asked for a start", () => {
+  const plain = "second-player: in the world as entity 7, starting at (1.00, 1.70, -2.50)";
+  const cabin = "second-player: in the world as entity 38 (asked for a cabin), starting at (82.07, 1.70, 89.25)";
+  assert.deepStrictEqual(plain.match(sp.IN_WORLD_RE).slice(1), ["7", "1.00", "1.70", "-2.50"]);
+  assert.deepStrictEqual(cabin.match(sp.IN_WORLD_RE).slice(1), ["38", "82.07", "1.70", "89.25"]);
+});
+
 test("paths and facing use the desktop app's conventions", () => {
   // The desktop camera at yaw looks along (sin yaw, 0, -cos yaw)
   // (src/renderer/camera.rs forward) and sends [0, sin(yaw/2), 0, cos(yaw/2)]
