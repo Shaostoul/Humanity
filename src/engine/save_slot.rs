@@ -878,14 +878,18 @@ pub fn ask_where_you_live(gui: &GuiState) -> bool {
 /// (`where_you_live::draft_household`). Its answer (`on_game_message`) puts the home chosen into
 /// that server's save. Err with the sentence to show when it cannot be asked.
 pub fn choose_on_server(state: &mut EngineState, start: &str) -> Result<(), String> {
+    choose_on_server_gui(&state.gui_state, start)
+}
+
+/// `choose_on_server` on the GUI state alone (the picker's server card is drawn on it).
+pub fn choose_on_server_gui(gui: &GuiState, start: &str) -> Result<(), String> {
     let starts = crate::gui::pages::where_you_live::starts();
     let Some(row) = starts.get(start).filter(|s| s.offered) else {
         return Err(format!("'{start}' is not a home you can choose."));
     };
-    if server_slot(&state.gui_state).is_none() {
+    if server_slot(gui).is_none() {
         return Err("A server keeps your home there under your identity: make one first (Settings > Identity).".into());
     }
-    let gui = &state.gui_state;
     let Some(ws) = gui.ws_client.as_ref().filter(|w| w.is_connected() && gui.ws_identified) else {
         return Err("Connect to this server in Chat first.".into());
     };
@@ -907,7 +911,11 @@ pub const CONNECTED_SERVER_ROW: &str = "__connected__";
 /// (`where_you_live::draft_choice`). Err with the sentence to show when the pairing cannot be
 /// made.
 pub fn enter_pairing(state: &mut EngineState, pairing: &str) -> Result<(), String> {
-    let gui = &mut state.gui_state;
+    enter_pairing_gui(&mut state.gui_state, pairing)
+}
+
+/// `enter_pairing` on the GUI state alone (the picker's Enter is drawn on it).
+pub fn enter_pairing_gui(gui: &mut GuiState, pairing: &str) -> Result<(), String> {
     match pairing {
         "home" => {
             let own = read_save(&crate::persistence::slot_path(&crate::persistence::saves_dir(), &SaveSlot::Offline));
