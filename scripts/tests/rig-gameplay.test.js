@@ -94,7 +94,8 @@ test("a rig's config comes out a Dev sandbox with the default home every launch,
   assert.strictEqual(next.fresh_world_each_launch, true);
   assert.strictEqual(next.server_url, RG.RIG_NO_SERVER, "never absent (the game's built-in server, the live one) and never empty");
   assert.deepStrictEqual(next.saved_servers, []);
-  assert.deepStrictEqual(Object.keys(changed).sort(), ["fresh_world_each_launch", "play_mode", "saved_servers", "server_url"]);
+  assert.deepStrictEqual(Object.keys(changed).sort(), ["fresh_world_each_launch", "last_world", "play_mode", "saved_servers", "server_url"]);
+  assert.strictEqual(next.last_world, "home:", "no server of its own: it boots your own home (ship homes increment 6)");
   assert.deepStrictEqual(RG.gameplayProblems(next), []);
   assert.ok(RG.gameplayProblems({}).length > 0, "an empty config is the fresh-install default: Normal, on the live server");
 });
@@ -112,7 +113,7 @@ test("a rig config holding Normal with progress kept is pinned back, and nothing
   assert.strictEqual(next.fresh_world_each_launch, true);
   assert.strictEqual(next.fov, 80);
   assert.strictEqual(next.readable_web, true);
-  assert.deepStrictEqual(next.home_plots, before.home_plots, "a loopback relay's remembered plot stays");
+  assert.strictEqual(next.home_plots, undefined, "home_plots is gone from the game (increment 6, lane 2A): the pin drops it");
   assert.deepStrictEqual(changed.play_mode, { was: "Normal", now: "Dev" });
   assert.strictEqual(before.play_mode, "Normal", "pinGameplay does not change what it was given");
   // Already pinned: nothing to change.
@@ -130,10 +131,10 @@ test("a rig sandbox that once reached the live server is taken off it: no saved 
   assert.deepStrictEqual(RG.publicServers(next), [], "a rig's config names no server off this computer after the pin");
   assert.deepStrictEqual(next.saved_servers, [], "nothing is left for the game to dial in the background");
   assert.strictEqual(next.server_url, RG.RIG_NO_SERVER);
-  assert.deepStrictEqual(Object.keys(next.home_plots), [`${KEY} http://127.0.0.1:62050`], "the loopback relay's plot stays");
+  assert.strictEqual(next.home_plots, undefined, "home_plots is gone from the game: dropped whole");
   assert.deepStrictEqual(next.account_erased_on, {});
   assert.deepStrictEqual(next.collapsed_servers, ["http://127.0.0.1:62050"]);
-  assert.strictEqual(next.last_world, "", "a pairing with the live server is forgotten");
+  assert.strictEqual(next.last_world, "home:", "a pairing with the live server is forgotten, and with no server of its own the rig boots your own home");
   assert.strictEqual(next.fov, 77);
   assert.deepStrictEqual(RG.gameplayProblems(next), []);
 });

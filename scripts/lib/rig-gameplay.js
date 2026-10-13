@@ -30,10 +30,15 @@
 //                     but a rig names its own port rather than lean on that.
 //   saved_servers     emptied. A rig's server is the one its autopilot request names; the
 //                     background pump has nothing else to dial.
-//   home_plots, account_erased_on, collapsed_servers, last_world
-//                     every entry naming a server off this computer is dropped (the plot
-//                     remembered for a relay on this computer stays: verify-copresence --plots
-//                     proves it survives a relaunch).
+//   account_erased_on, collapsed_servers, last_world
+//                     every entry naming a server off this computer is dropped.
+//   last_world        "home:" for a rig with no server of its own (probe-sweep, verify-runtime):
+//                     since ship homes increment 6 (lane 2A) a pairing with a server boots that
+//                     server's own save (saves/servers/), which outlives "Start every session
+//                     from the default home"; your own home's pairing keeps the fresh default
+//                     home on every launch, as these rigs always had. A rig with a relay keeps
+//                     the server pairing its autopilot makes (verify-copresence clears the
+//                     sandbox's server saves itself at each run's start).
 // And spawnGame refuses to boot a rig whose config still names a server off this computer after
 // the pin (a config field the pin does not know yet): `publicServers` finds any URL whose host is
 // not loopback, and any mention of the live domain, anywhere in the file.
@@ -141,8 +146,14 @@ function pinGameplay(cfg, overrides = {}) {
   for (const [k, v] of Object.entries(rigGameplay(overrides))) set(k, v);
   // Nothing to dial in the background: the rig's server is its autopilot's (or its relay).
   set("saved_servers", []);
+  // home_plots is gone from the game (ship homes increment 6, lane 2A: a server's plot lives in
+  // its own save); an old sandbox's leftover would only name a server for the boot check to refuse.
+  if (next.home_plots !== undefined) {
+    changed.home_plots = { was: next.home_plots, now: undefined };
+    delete next.home_plots;
+  }
   // Memories of servers off this computer go; a loopback relay's stay.
-  for (const k of ["home_plots", "account_erased_on"]) {
+  for (const k of ["account_erased_on"]) {
     const m = next[k];
     if (m && typeof m === "object" && !Array.isArray(m)) {
       const kept = Object.fromEntries(Object.entries(m).filter(([key, v]) => !namesPublicServer(key) && !publicServers(v).length));
@@ -154,6 +165,8 @@ function pinGameplay(cfg, overrides = {}) {
     if (kept.length !== next.collapsed_servers.length) set("collapsed_servers", kept);
   }
   if (typeof next.last_world === "string" && namesPublicServer(next.last_world)) set("last_world", "");
+  // No server of its own: boot your own home, fresh each launch (see the header).
+  if (next.server_url === RIG_NO_SERVER) set("last_world", "home:");
   return { next, changed };
 }
 

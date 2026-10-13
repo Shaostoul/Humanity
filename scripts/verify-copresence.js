@@ -1622,22 +1622,26 @@ function printPlotsVerdict(prefix, m, dir) {
   return pass;
 }
 
-/** Forget every plot the rig sandbox's game remembers (increment 2), so each
- *  run's first boot builds on the default plot as a newcomer's does, whatever
- *  port an earlier run's relay happened to share with this one's. */
+/** Forget every server save the rig sandbox's game kept from earlier runs, so each run's first
+ *  boot is a newcomer's: a fresh server save, built on the default plot, whatever port an earlier
+ *  run's relay happened to share with this one's. Since ship homes increment 6 (lane 2A) the plot
+ *  a server gave, and everything played there, lives in that server's own save
+ *  (saves/servers/<server>-<identity>.json, its ship_place); config.json's home_plots is gone.
+ *  Called once at a run's start, so the --plots reboot leg keeps the save it made. */
 function forgetSandboxPlots() {
-  const cfg = path.join(RIG, "config.json");
-  if (!fs.existsSync(cfg)) return;
-  try {
-    const c = JSON.parse(fs.readFileSync(cfg, "utf8"));
-    if (c.home_plots && Object.keys(c.home_plots).length) {
-      c.home_plots = {};
-      fs.writeFileSync(cfg, JSON.stringify(c, null, 2));
-      log("     forgot the plots the sandbox's game remembered from earlier runs");
+  const dir = path.join(RIG, "saves", "servers");
+  if (!fs.existsSync(dir)) return;
+  let gone = 0;
+  for (const f of fs.readdirSync(dir)) {
+    if (!f.endsWith(".json")) continue;
+    try {
+      fs.unlinkSync(path.join(dir, f));
+      gone += 1;
+    } catch (e) {
+      log(`     could not remove the sandbox's server save ${f} (${e.message}); left as it is`);
     }
-  } catch (e) {
-    log(`     could not read the sandbox's config.json (${e.message}); left as it is`);
   }
+  if (gone) log(`     forgot ${gone} server save(s) the sandbox's game kept from earlier runs`);
 }
 
 /** One --plots run in one join order. Returns true when every check passed. */
