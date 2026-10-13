@@ -414,7 +414,9 @@ fn draw_licence(ui: &mut egui::Ui, theme: &Theme, state: &GuiState, item: &Item)
 }
 
 /// The line on an item offered for the game, when the server words it no other way.
-pub const OFFERED_FOR_GAME: &str = "Offered for the game: HumanityOS may use it in the game, with credit.";
+/// Plain status words only: what the offer allows is the licence's, in the server's own words
+/// (the line above it), never a sentence written here.
+pub const OFFERED_FOR_GAME: &str = "Offered for the game.";
 
 /// The item's files, the item's own first, each with its name, kind, size, Download and, for an
 /// added file or the cover, Remove for the uploader and admins.
