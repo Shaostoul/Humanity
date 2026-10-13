@@ -128,6 +128,45 @@ pub(crate) fn parse_accept_request(raw: &str) -> Option<String> {
     hex.then(|| key.to_string())
 }
 
+/// Read a `pairing` verb's value (ship homes increment 6): `home` (the picker's Enter on your own
+/// home) or `server` (on the connected server), spaces allowed. None for anything else, so a typo
+/// pairs with nothing.
+pub(crate) fn parse_pairing(raw: &str) -> Option<&'static str> {
+    match raw.trim() {
+        "home" => Some("home"),
+        "server" => Some("server"),
+        _ => None,
+    }
+}
+
+/// Read a `choose_start` verb's value (ship homes increment 6): a start's id as a relay takes one
+/// in `game_join` (`starts::is_start_id`: 1 to 32 of a-z, 0-9, - and _). None for anything else.
+/// Whether that start is offered is the server card's own check (`save_slot::choose_on_server`).
+pub(crate) fn parse_start(raw: &str) -> Option<String> {
+    let id = raw.trim();
+    crate::ship::starts::is_start_id(id).then(|| id.to_string())
+}
+
+/// Read a `meal` or `water` verb's value (ship homes increment 6): "1" presses the serving
+/// counter's button, anything else nothing.
+pub(crate) fn counter_press(raw: Option<&str>) -> bool {
+    raw.map(str::trim) == Some("1")
+}
+
+// The last home verb the showcase poll carried out (`pairing`, `choose_start`, `meal`, `water`)
+// and what came of it, for the probe's `home_session.last_verb`: a rig reads why a verb did
+// nothing without reading run.log. Thread-local: the poll and the probe run on the main thread.
+thread_local! {
+    static LAST_HOME_VERB: std::cell::RefCell<Option<serde_json::Value>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Note what a home verb did: `ok` false with the sentence that said why not.
+fn note_home_verb(verb: &str, value: &str, ok: bool, said: &str) {
+    log::info!("Showcase: {verb} {value} -> {said}");
+    let v = serde_json::json!({ "verb": verb, "value": value, "ok": ok, "said": said });
+    LAST_HOME_VERB.with(|l| *l.borrow_mut() = Some(v));
+}
+
 /// What a showcase `hull` pin asks for: "0" hides the ship's hull, "1" shows it (the H key's
 /// toggle, `GuiState::show_hull`). None for anything else, so a typo leaves the hull as it is.
 pub(crate) fn hull_pin(raw: &str) -> Option<bool> {
@@ -635,6 +674,49 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
             }
             None => log::warn!("Showcase: accept_request wants a whole key in hex, not {spec:?}"),
         }
+    }
+    // {"choose_start":"cabin"} (ship homes increment 6, 2026-10-12): a server card's Choose in
+    // Characters (Play) (engine/save_slot.rs `choose_on_server`): ask the connected server for a
+    // home of that start (`game_choose_home`, with the household picked for it on the card); its
+    // answer puts the home chosen into that server's save. verify-starts chooses a Cabin with it.
+    // Before `pairing` in one request, so a choice and a pairing sent together choose first.
+    // Permanent dev tooling.
+    if let Some(spec) = grab("choose_start") {
+        match parse_start(&spec) {
+            Some(start) => match crate::engine::save_slot::choose_on_server(state, &start) {
+                Ok(()) => note_home_verb("choose_start", &start, true, "asked the server"),
+                Err(why) => note_home_verb("choose_start", &start, false, &why),
+            },
+            None => note_home_verb("choose_start", &spec, false, "choose_start wants a start's id (letters, digits, - and _)"),
+        }
+    }
+    // {"pairing":"home"} / {"pairing":"server"} (ship homes increment 6): the picker's Enter on
+    // your own home or on the connected server (engine/save_slot.rs `enter_pairing`): the pairing is
+    // recorded as Play repeats it, and `save_slot::follow` then makes that world's save the live one
+    // (a server's made fresh from the start chosen there; your own home with no save yet from the
+    // new-home row's choice). verify-starts goes to the server and home again with it. Permanent
+    // dev tooling.
+    if let Some(spec) = grab("pairing") {
+        match parse_pairing(&spec) {
+            Some(pairing) => match crate::engine::save_slot::enter_pairing(state, pairing) {
+                Ok(()) => note_home_verb("pairing", pairing, true, "paired"),
+                Err(why) => note_home_verb("pairing", pairing, false, &why),
+            },
+            None => note_home_verb("pairing", &spec, false, "pairing wants home or server"),
+        }
+    }
+    // {"meal":"1"} / {"water":"1"} (ship homes increment 6): the mess hall serving counter's card
+    // buttons, Take a meal and Fill your bottles (engine/mess_hall.rs `take_meal`, `fill_bottles`),
+    // under their own rules (at the counter; in a server's world the meal is the server's). The
+    // sentence each said is the card's (`fleet.counter_status`, the probe's `counter`).
+    // verify-starts eats and fills its bottles with them. Permanent dev tooling.
+    if counter_press(grab("meal").as_deref()) {
+        let said = crate::engine::mess_hall::take_meal(state);
+        note_home_verb("meal", "1", true, &said);
+    }
+    if counter_press(grab("water").as_deref()) {
+        let said = crate::engine::mess_hall::fill_bottles(state);
+        note_home_verb("water", "1", true, &said);
     }
     // Optional "time":"9.5" sets the game clock to that hour of the
     // current day (dev/screenshot control: dawn shots without waiting
@@ -3802,6 +3884,11 @@ pub(crate) fn poll_remote_players_request(state: &mut EngineState, clock_dt: f32
         // said of each this session, the plots open to walk into and the one lit, and each
         // neighbour corridor's doors (engine/household.rs `probe_json`).
         "household": crate::engine::household::probe_json(state),
+        // Ship homes increment 6: which save is live (your own home or this server's), its start,
+        // household and place aboard, the home it built, what the character carries, the mess
+        // hall's meter and counter, the server's `game_home` answer and the last home verb
+        // (`home_session_json`): what verify-starts judges.
+        "home_session": home_session_json(state),
         "screen_px": [screen_w, screen_h],
         "camera_start": rec.camera_start,
         "camera_end": camera_json(state),
@@ -3813,6 +3900,123 @@ pub(crate) fn poll_remote_players_request(state: &mut EngineState, clock_dt: f32
         rec.frames.len(),
         rec.clock
     );
+}
+
+// ── The home session (ship homes increment 6) ─────────────────────────────────
+//
+// The recorder's `home_session` (above): what scripts/verify-copresence.js --starts judges
+// (docs/design/ship-homes-increment-6-plan.md section 6). Its fields:
+//   slot, wanted      "offline" (your own home) or "server": the live save, and the one the
+//                     pairing asks for (`save_slot::wanted`); they differ until `follow` swaps
+//   pairing           the recorded pairing (`launcher_last_world`, "home:..." / "server:...")
+//   path              the live save's file
+//   server, start, household, ship_place   the live save's (`save_load::active_home`)
+//   home              the home built: its kind, plot, whether it is put away (a guest), its box
+//   backpack          every item the character carries and how many, summed by id
+//   skills            how many skills have any level or experience
+//   credits, quests   the wallet; the active quests (id, step index) and those completed
+//   look              the character's name, appearance and outfit (what crosses into every world)
+//   vitals            food and water, as the HUD shows them
+//   own_home          the character's own home design is kept
+//   meals_offline     the mess hall's meter on this computer (`save_load::ship_meals`), or null
+//   counter           the serving counter's last sentence (`fleet.counter_status`)
+//   fleet_meals       the meal lines of the fleet ledger last received, or null with none
+//   answer            the server's last `game_home` answer, or null
+//   own_save, server_save   your own home's save file and this identity's save for the connected
+//                     server: path, whether it exists, and its start, household, place, meals
+//                     and backpack when it reads
+//   last_verb         the last home verb and what came of it
+
+/// The recorder's `home_session` for the running game (see above).
+pub(crate) fn home_session_json(state: &EngineState) -> serde_json::Value {
+    home_session_core(&state.gui_state, &state.game_world.world, &state.data_store, &crate::persistence::saves_dir())
+}
+
+/// Every item of `inventory` and how many, summed by id.
+fn backpack_json(inventory: &[(String, u32)]) -> serde_json::Value {
+    let mut by_id: std::collections::BTreeMap<&str, u32> = std::collections::BTreeMap::new();
+    for (id, qty) in inventory {
+        *by_id.entry(id.as_str()).or_insert(0) += qty;
+    }
+    serde_json::json!(by_id)
+}
+
+/// A save file as the probe reports it: its path, whether it exists, and when it reads, its
+/// start, household, place aboard, mess hall meter and backpack.
+fn save_file_json(path: &std::path::Path) -> serde_json::Value {
+    let mut v = serde_json::json!({ "path": path.display().to_string(), "exists": path.exists() });
+    if let Some(save) = path.exists().then(|| crate::persistence::load_world(path).ok()).flatten() {
+        v["start"] = serde_json::json!(save.start);
+        v["household"] = serde_json::json!(save.household);
+        v["ship_place"] = serde_json::json!(save.ship_place);
+        v["ship_meals"] = serde_json::json!(save.ship_meals);
+        v["backpack"] = backpack_json(&save.inventory);
+    }
+    v
+}
+
+/// `home_session_json` from what it reads (pure apart from reading the two save files under
+/// `saves_dir` and the live save, a thread-local).
+pub(crate) fn home_session_core(
+    gs: &GuiState,
+    world: &hecs::World,
+    data: &crate::hot_reload::data_store::DataStore,
+    saves_dir: &std::path::Path,
+) -> serde_json::Value {
+    use crate::persistence::SaveSlot;
+    let word = |s: &SaveSlot| match s {
+        SaveSlot::Offline => "offline",
+        SaveSlot::Server { .. } => "server",
+    };
+    let active = crate::save_load::active_home();
+    // The character as the live world holds it, as a save would write it.
+    let me = crate::save_load::extract_world_save(world);
+    let quests = me.quests.clone().unwrap_or_default();
+    let home = gs.ship_structure.as_ref().map(|ship| {
+        let bounds = crate::engine::home_plot::home_box(ship).map(|(lo, hi)| serde_json::json!({ "min": [lo.x, lo.y, lo.z], "max": [hi.x, hi.y, hi.z] }));
+        serde_json::json!({
+            "kind": ship.home_design().map(|d| d.kind),
+            "plot": ship.home_plot().map(|p| p.id.clone()),
+            "away": ship.home_is_away(),
+            "box": bounds,
+        })
+    });
+    let fleet_meals = gs.fleet.ledger.as_ref().map(|l| {
+        l.kinds
+            .iter()
+            .filter(|k| k.kind == "meal")
+            .map(|k| serde_json::json!({ "direction": k.direction, "quantity": k.quantity, "value": k.value }))
+            .collect::<Vec<_>>()
+    });
+    let server_save = crate::engine::save_slot::server_slot(gs).map(|s| save_file_json(&crate::persistence::slot_path(saves_dir, &s)));
+    serde_json::json!({
+        "slot": word(&gs.save_slot),
+        "wanted": word(&crate::engine::save_slot::wanted(gs)),
+        "pairing": gs.launcher_last_world,
+        "path": active.path.display().to_string(),
+        "server": active.server,
+        "start": active.start,
+        "household": active.household,
+        "ship_place": active.ship_place,
+        "home": home,
+        "backpack": backpack_json(&me.inventory),
+        "skills": me.skills.values().filter(|(level, xp)| *level > 0 || *xp > 0).count(),
+        "credits": me.credits,
+        "quests": {
+            "active": quests.active_quests.iter().map(|q| serde_json::json!({ "id": q.quest_id, "step": q.current_step })).collect::<Vec<_>>(),
+            "completed": quests.completed_quests,
+        },
+        "look": { "name": me.character_name, "appearance": me.appearance, "outfit": me.outfit },
+        "vitals": { "satiation": gs.vitals.satiation, "hydration": gs.vitals.hydration },
+        "own_home": gs.own_home.is_some(),
+        "meals_offline": crate::save_load::ship_meals(data),
+        "counter": gs.fleet.counter_status,
+        "fleet_meals": fleet_meals,
+        "answer": gs.home_answer.as_ref().map(|a| a.to_message()),
+        "own_save": save_file_json(&crate::persistence::slot_path(saves_dir, &SaveSlot::Offline)),
+        "server_save": server_save,
+        "last_verb": LAST_HOME_VERB.with(|l| l.borrow().clone()),
+    })
 }
 
 // ── Door points (ship homes increment 2, "Meet in the Commons") ───────────────
@@ -4620,6 +4824,192 @@ mod household_ipc_tests {
 
         let rec = body_of("poll_remote_players_request");
         let wired = "\"household\": crate::engine::household::probe_json(state)";
+        assert!(rec.contains(wired), "the recorder never writes {wired}");
+    }
+}
+
+#[cfg(test)]
+mod home_session_ipc_tests {
+    //! The dev IPC's side of choosing where you live (ship homes increment 6, lane 2B,
+    //! 2026-10-12): the showcase verbs scripts/verify-copresence.js --starts sends (the picker's
+    //! Enter, a server card's Choose, the serving counter's two buttons), and the recorder's
+    //! `home_session`, which its judge reads.
+    use super::*;
+    use crate::persistence::{SaveSlot, ShipMeals};
+    use crate::ship::ship_structure::ShipStructure;
+    use crate::ship::starts::Starts;
+
+    /// The body of `fn name` in this file, up to the first line that is a lone `}`.
+    fn body_of(name: &str) -> String {
+        let src = include_str!("ipc.rs").replace("\r\n", "\n");
+        let start = src.find(&format!("pub(crate) fn {name}(")).unwrap_or_else(|| panic!("fn {name} in ipc.rs"));
+        src[start..start + src[start..].find("\n}\n").expect("its end")].to_string()
+    }
+
+    /// THE VERBS PARSE, AND THE SHOWCASE POLL READS AND DOES THEM (plan 5, 2B; plan 6's
+    /// verify-starts). `pairing` takes `home` or `server`, spaces allowed, and nothing else (a
+    /// capital, a plural, the recorded `home:` form, nothing); `choose_start` takes a start's id as
+    /// a relay takes one (a capital, a space, a bang, 33 characters, nothing: none); `meal` and
+    /// `water` press on "1" only. The request bodies as the rig writes them reach each verb by its
+    /// key, and the poll does each through the picker's and the counter's own functions
+    /// (`save_slot::enter_pairing`, `save_slot::choose_on_server`, `mess_hall::take_meal`,
+    /// `mess_hall::fill_bottles`), a choice before a pairing sent in the same request.
+    ///
+    /// Seen red 2026-10-12 with the parsers written and the four blocks not yet in
+    /// `poll_showcase_request`: "the showcase poll never reads grab(\"choose_start\")".
+    #[test]
+    fn the_verbs_parse() {
+        assert_eq!(parse_pairing("home"), Some("home"));
+        assert_eq!(parse_pairing(" server "), Some("server"));
+        for bad in ["Home", "servers", "home:", "server:__connected__", ""] {
+            assert_eq!(parse_pairing(bad), None, "{bad:?}");
+        }
+        assert_eq!(parse_start("cabin").as_deref(), Some("cabin"));
+        assert_eq!(parse_start(" homestead ").as_deref(), Some("homestead"));
+        let too_long = "a".repeat(33);
+        for bad in ["Cabin", "a cabin", "cabin!", "", too_long.as_str()] {
+            assert_eq!(parse_start(bad), None, "{bad:?}");
+        }
+        assert!(counter_press(Some("1")) && counter_press(Some(" 1 ")));
+        for bad in [Some("0"), Some("yes"), Some(""), None] {
+            assert!(!counter_press(bad), "{bad:?}");
+        }
+        assert_eq!(showcase_value(r#"{"pairing":"server"}"#, "pairing").as_deref(), Some("server"));
+        assert_eq!(showcase_value(r#"{"choose_start":"cabin"}"#, "choose_start").as_deref(), Some("cabin"));
+        assert_eq!(showcase_value(r#"{"meal":"1"}"#, "meal").as_deref(), Some("1"));
+        assert_eq!(showcase_value(r#"{"water":"1"}"#, "water").as_deref(), Some("1"));
+        assert_eq!(showcase_value(r#"{"water_l":"1"}"#, "water"), None, "another key is not water");
+
+        let poll = body_of("poll_showcase_request");
+        for verb in ["grab(\"choose_start\")", "grab(\"pairing\")", "grab(\"meal\")", "grab(\"water\")"] {
+            assert!(poll.contains(verb), "the showcase poll never reads {verb}");
+        }
+        for done in [
+            "crate::engine::save_slot::choose_on_server(state, &start)",
+            "crate::engine::save_slot::enter_pairing(state, pairing)",
+            "crate::engine::mess_hall::take_meal(state)",
+            "crate::engine::mess_hall::fill_bottles(state)",
+        ] {
+            assert!(poll.contains(done), "the showcase poll never does {done}");
+        }
+        let at = |s: &str| poll.find(s).unwrap();
+        assert!(at("grab(\"choose_start\")") < at("grab(\"pairing\")"), "a choice and a pairing in one request: the choice first");
+    }
+
+    /// THE PROBE REPORTS THE HOME SESSION (plan 5, 2B; what verify-starts judges). A game on
+    /// ship.example in that server's save: a Cabin for one, standing on c2, the shipped cabin built
+    /// there; the character fresh from the Cabin start (its kit, its opening, no skills, the default
+    /// credits) after one meal from the counter; the fleet ledger with one meal used; the server's
+    /// answer that c2 is held; this server's save on disk, your own home's not. The probe says all
+    /// of it: both slot words, the pairing, the live save's file, server, start, household and
+    /// place, the home's kind, plot and box (c2's own), the backpack summed by id (the cabin kit
+    /// from data/homes/starts.ron), 0 skills, the credits, the active opening, the look, food and
+    /// water, no own home, the meter, the counter's sentence, the ledger's meal line, the answer as
+    /// sent, each save file, and the last home verb. And the recorder writes it into its done JSON.
+    ///
+    /// Seen red 2026-10-12 before the probe was wired (`"home_session"` not yet in the recorder's
+    /// done JSON): "the recorder never writes \"home_session\": home_session_json(state)".
+    #[test]
+    fn the_probe_reports_the_home_session() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let starts = Starts::load(&dir);
+        let cabin = starts.get("cabin").expect("the cabin start").clone();
+        let ship = crate::engine::save_slot::assemble_start(ShipStructure::load_ship_file(&dir).unwrap(), "c2", &cabin, None, None, false, true)
+            .expect("the shipped cabin goes on c2");
+        let c2 = ship.plots.iter().find(|p| p.id == "c2").expect("plot c2").aabb();
+
+        let server = "https://ship.example".to_string();
+        let me = "ab".repeat(32);
+        let slot = SaveSlot::Server { server: server.clone(), identity: me.clone() };
+        let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_nanos());
+        let saves = std::env::temp_dir().join(format!("home-session-probe-{nanos}"));
+        let server_path = crate::persistence::slot_path(&saves, &slot);
+        let place = crate::engine::save_slot::place_on(Some(&ship), "c2");
+        crate::save_load::set_active_home(crate::save_load::ActiveHome {
+            slot: slot.clone(),
+            path: server_path.clone(),
+            start: "cabin".into(),
+            household: "solo".into(),
+            server: server.clone(),
+            ship_place: place.clone(),
+        });
+
+        // The character, fresh from the Cabin start.
+        let mut world = hecs::World::new();
+        crate::save_load::spawn_player_of_start(&mut world, &cabin);
+        let mut data = crate::hot_reload::data_store::DataStore::new();
+        crate::save_load::put_ship_meals(&mut data, &ShipMeals { taken: 1, next_at_game_s: 3600.0, water_l: 1.0 });
+
+        let mut gs = GuiState::default();
+        gs.profile_public_key = me.clone();
+        gs.server_url = server.clone();
+        gs.launcher_last_world = format!("server:{}", crate::engine::save_slot::CONNECTED_SERVER_ROW);
+        gs.save_slot = slot.clone();
+        gs.ship_structure = Some(ship);
+        gs.vitals.satiation = 70.0;
+        gs.fleet.counter_status = "You ate a crew meal from the ship's stores.".into();
+        gs.fleet.ledger = Some(crate::gui::pages::fleet_ledger::FleetLedger {
+            kinds: vec![crate::gui::pages::fleet_ledger::FleetKindLine {
+                kind: "meal".into(),
+                label: "Crew meals".into(),
+                unit: "meals".into(),
+                direction: "used".into(),
+                quantity: 1.0,
+                value: 5.0,
+            }],
+            ..Default::default()
+        });
+        gs.home_answer = Some(crate::gui::pages::where_you_live::tests::held_answer(&starts));
+
+        // This server's save on disk (your own home's is not), written as a save is.
+        let mut on_disk = crate::persistence::WorldSave::new_offline("My Cabin", "cabin");
+        on_disk.kind = "server".into();
+        on_disk.household = "solo".into();
+        on_disk.ship_place = place.clone();
+        on_disk.inventory = vec![("water_purified_0".into(), 2)];
+        std::fs::create_dir_all(server_path.parent().unwrap()).unwrap();
+        std::fs::write(&server_path, serde_json::to_vec(&on_disk).unwrap()).unwrap();
+        note_home_verb("meal", "1", true, "You ate a crew meal from the ship's stores.");
+
+        let v = home_session_core(&gs, &world, &data, &saves);
+        let _ = std::fs::remove_dir_all(&saves);
+        let mut keys: Vec<&str> = v.as_object().unwrap().keys().map(String::as_str).collect();
+        keys.sort_unstable();
+        assert_eq!(
+            keys,
+            [
+                "answer", "backpack", "counter", "credits", "fleet_meals", "home", "household", "last_verb", "look", "meals_offline", "own_home",
+                "own_save", "pairing", "path", "quests", "server", "server_save", "ship_place", "skills", "slot", "start", "vitals", "wanted"
+            ]
+        );
+        assert_eq!((v["slot"].as_str(), v["wanted"].as_str()), (Some("server"), Some("server")));
+        assert_eq!(v["pairing"], "server:__connected__");
+        assert_eq!(v["path"], server_path.display().to_string());
+        assert_eq!((v["server"].as_str(), v["start"].as_str(), v["household"].as_str()), (Some(server.as_str()), Some("cabin"), Some("solo")));
+        assert_eq!(v["ship_place"]["plot"], "c2");
+        assert_eq!((v["home"]["kind"].as_str(), v["home"]["plot"].as_str(), v["home"]["away"].as_bool()), (Some("cabin"), Some("c2"), Some(false)));
+        assert_eq!(v["home"]["box"], serde_json::json!({ "min": [c2.0.x, c2.0.y, c2.0.z], "max": [c2.1.x, c2.1.y, c2.1.z] }), "c2's own box");
+        let kit: serde_json::Map<String, serde_json::Value> = cabin.kit.iter().map(|(id, n)| (id.clone(), serde_json::json!(n))).collect();
+        assert_eq!(v["backpack"], serde_json::Value::Object(kit), "the cabin kit, summed by id");
+        assert_eq!(v["skills"], 0);
+        assert_eq!(v["credits"], crate::ecs::components::Wallet::default().credits);
+        assert_eq!(v["quests"]["active"], serde_json::json!([{ "id": "gs_first_steps_cabin", "step": 0 }]));
+        assert_eq!(v["quests"]["completed"], serde_json::json!([]));
+        assert_eq!(v["look"]["name"], "Player");
+        assert!(v["look"]["appearance"].is_object() && v["look"]["outfit"].is_object(), "{}", v["look"]);
+        assert_eq!((v["vitals"]["satiation"].as_f64(), v["own_home"].as_bool()), (Some(70.0), Some(false)));
+        assert_eq!(v["meals_offline"], serde_json::json!({ "taken": 1, "next_at_game_s": 3600.0, "water_l": 1.0 }));
+        assert_eq!(v["counter"], "You ate a crew meal from the ship's stores.");
+        assert_eq!(v["fleet_meals"], serde_json::json!([{ "direction": "used", "quantity": 1.0, "value": 5.0 }]));
+        assert_eq!((v["answer"]["type"].as_str(), v["answer"]["plot"]["id"].as_str()), (Some("game_home"), Some("c2")));
+        assert_eq!(v["own_save"]["exists"], false);
+        assert_eq!((v["server_save"]["exists"].as_bool(), v["server_save"]["start"].as_str()), (Some(true), Some("cabin")));
+        assert_eq!(v["server_save"]["ship_place"]["plot"], "c2");
+        assert_eq!(v["server_save"]["backpack"], serde_json::json!({ "water_purified_0": 2 }));
+        assert_eq!(v["last_verb"], serde_json::json!({ "verb": "meal", "value": "1", "ok": true, "said": "You ate a crew meal from the ship's stores." }));
+
+        let rec = body_of("poll_remote_players_request");
+        let wired = "\"home_session\": home_session_json(state)";
         assert!(rec.contains(wired), "the recorder never writes {wired}");
     }
 }

@@ -2640,6 +2640,111 @@ fn snapshot_showroom_picker() {
     });
 }
 
+/// Characters (Play), choosing where you live on a server (ship homes increment 6, lane 2B,
+/// pages/showroom.rs `draw_home_here`): the picker with the server the game is connected to
+/// selected in Open Net, a guest there who holds no home. Under the server's details, its card
+/// says "You have no home on this server yet." and offers the choice from the server's answer
+/// (15 cabins free, the Apartment greyed with the server's reason, no homestead free), with the
+/// note that a server starts you fresh. The WHO column carries the new hint (each server keeps its
+/// own home and things for you). The answer is the server's, so it is set each frame: the card's
+/// first frame asks the server afresh, as it does each time the picker opens.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_picker_where_you_live() {
+    use crate::gui::pages::where_you_live as wyl;
+    let starts = crate::ship::starts::Starts::load(std::path::Path::new("data"));
+    let guest = wyl::tests::guest_answer(&starts);
+    wyl::reset_draft();
+    let (ws, _sent) = crate::net::ws_client::WsClient::recording();
+    let ws = std::cell::RefCell::new(Some(ws));
+    // Tall enough to show the whole card (a shorter window scrolls the WHERE column).
+    render_page_png("picker_where_you_live", 1280, 1560, |ctx, theme, state| {
+        state.showroom_mode = 0;
+        if let Some(ws) = ws.borrow_mut().take() {
+            let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+            state.launcher_homes = vec![crate::gui::LauncherHome {
+                world: "My Homestead".into(),
+                character: "Wanderer".into(),
+                design: "homestead".into(),
+                timestamp: now.saturating_sub(26 * 3600),
+            }];
+            state.launcher_homes_loaded = true;
+            state.launcher_who = "My Homestead".into();
+            state.character_name = "Wanderer".into();
+            // Connected to united-humanity.us (demo_state's saved server), signed in.
+            state.server_url = "https://united-humanity.us".into();
+            state.ws_client = Some(ws);
+            state.ws_identified = true;
+            state.launcher_where_kind = crate::gui::LauncherWhere::Server;
+            state.launcher_selected_server = Some("srv_united".into());
+            state.server_info_cache.insert(
+                "srv_united".into(),
+                crate::gui::ServerInfo {
+                    name: "United Humanity".into(),
+                    description: "The project's own server: chat, the Commons and the mothership.".into(),
+                    version: "0.1490.0".into(),
+                    users_online: 3,
+                    game_players: 2,
+                    member_count: 41,
+                    accord_compliant: true,
+                    channels: vec!["general".into(), "announcements".into()],
+                    ..Default::default()
+                },
+            );
+        }
+        state.home_answer = Some(guest.clone());
+        crate::gui::pages::showroom::draw(ctx, theme, state);
+    });
+}
+
+/// Characters (Play), a new home (ship homes increment 6, lane 2B): the picker on a first run, the
+/// new character and the new-home row "A new home" selected, which shows "Choose where you live"
+/// with every start from data/homes/starts.ron (the Apartment greyed), the Cabin picked (by a
+/// click, as a person picks it), and the Enter bar naming the home Enter makes: "Enter as
+/// Wanderer -> a new Cabin (solo)".
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_picker_new_home() {
+    use crate::gui::pages::where_you_live as wyl;
+    let starts = crate::ship::starts::Starts::load(std::path::Path::new("data"));
+    // Pick the Cabin on the choice the way a person does: a click on its row (the draft is the
+    // widget's own, shared with the picker on this thread).
+    wyl::reset_draft();
+    let scratch = egui::Context::default();
+    crate::gui::fonts::install_font_fallbacks(&scratch);
+    let theme = load_theme();
+    let frame = |events: Vec<egui::Event>| {
+        let raw = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(600.0, 1200.0))),
+            events,
+            ..Default::default()
+        };
+        scratch.run(raw, |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                wyl::draw_choice(ui, &theme, &starts);
+            });
+        })
+    };
+    let out = frame(Vec::new());
+    let cabin = crate::gui::screen_surface::find_text_in_shapes(&out.shapes, "Cabin").expect("the Cabin's row is drawn");
+    let pos = cabin.rect.center();
+    let m = egui::Modifiers::default();
+    frame(vec![egui::Event::PointerMoved(pos)]);
+    frame(vec![egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: true, modifiers: m }]);
+    frame(vec![egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: false, modifiers: m }]);
+    assert_eq!(wyl::draft_choice(&starts).start, "cabin", "the Cabin is picked");
+    render_page_png("picker_new_home", 1280, 1000, |ctx, theme, state| {
+        state.showroom_mode = 0;
+        state.launcher_homes.clear();
+        state.launcher_homes_loaded = true;
+        state.launcher_who.clear();
+        state.character_name = "Wanderer".into();
+        state.launcher_where_kind = crate::gui::LauncherWhere::Home;
+        state.launcher_selected_world.clear();
+        crate::gui::pages::showroom::draw(ctx, theme, state);
+    });
+}
+
 /// The Maps page's Planet view (v0.1146): the Seattle Center OSM region
 /// rendered GPS-style (roads by class, building footprints, labels).
 #[test]
