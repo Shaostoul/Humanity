@@ -18,6 +18,8 @@
 //! - The meter, "12.4 GB of 50 GB used" with a bar and a line for what the server keeps, and the
 //!   prune lists (largest, oldest, least viewed, waiting to be published), each row with Remove,
 //!   and an item's row with Keep on the server (a kept item is in no prune list).
+//! - The copyright reports waiting (2026-10-13, media/takedown.rs `draw_admin_section`): what each
+//!   person wrote, a note for the public log, and Remove item or Keep.
 //!
 //! The requests and their answers are the Media page's (pages/media.rs `spawn`, `poll`), so an
 //! answer lands whichever tab is open.
@@ -60,6 +62,10 @@ pub(crate) fn draw_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState)
     draw_suggestions(ui, theme, state);
     ui.add_space(theme.spacing_md);
     draw_meter(ui, theme, state);
+    // The copyright reports waiting for a decision (2026-10-13, takedown.rs), on the same tab as the
+    // website has them. The section checks for itself that this person is an admin here.
+    ui.add_space(theme.spacing_md);
+    super::takedown::draw_admin_section(ui, theme, state);
     if !state.media.admin.status.is_empty() {
         ui.add_space(theme.spacing_xs);
         ui.label(RichText::new(&state.media.admin.status).size(theme.font_size_small).color(theme.text_secondary()));
