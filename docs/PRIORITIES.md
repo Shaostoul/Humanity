@@ -272,10 +272,10 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
     a real build (the save swap broken). Left for later: a second home of your own on one
     computer (the new-home row offers the choice only before your own home is saved), moving
     house, a server-held character. Plan `docs/design/ship-homes-increment-6-plan.md`.
-  - **Media round 5: Wave 1 is DONE except 1D** (the desktop item page and editor, with the
-    hosting paragraph beside Add to Media). 1D was still running in its worktree at the week's
-    cap: branch `worktree-agent-abf10b563923957f8`; merge it when it reports (it must call
-    `filters::draw_feature_choice` on the tile and update `page_tests::the_tiles_show_what_they_are`).
+  - **Media round 5: Wave 1 is DONE** (1D, the desktop item page and editor with the hosting
+    paragraph beside Add to Media, merged and released in v0.1493.0). Follow-ups from 1D: the
+    Reports page's Open (`open_item_by_number`) filters the list instead of opening the item
+    page; `Job::FileAdd` is unused; `resumable::tests::pause_resume_and_cancel` failed once under load.
     In v0.1491.0 and v0.1492.0: Wave 0, 1A (relay edits), 1B (counts, the item page for social
     sites; the live nginx routes `/media/<number>` to the relay), 1C (desktop list and Admin tab),
     1E (desktop strip), 1F (web strip), 1G (web list). Next: Wave 2 (2A the website's item page
