@@ -5587,7 +5587,7 @@ is refused on public shelves. HEIC and AVIF photos, which kept their GPS the sam
 too (src/relay/core/strip_heif_metadata.rs). Not covered: location recorded inside the video stream itself
 (GoPro, DJI, some dashcams).
 
-## BUG-191: profiles never replicate between servers, because nothing signs them (FIXED 2026-10-12 on main, next release; found 2026-10-11)
+## BUG-191: profiles never replicate between servers, because nothing signs them (FIXED v0.1490.0, 2026-10-12; found 2026-10-11)
 
 Found while checking how profile timestamps are set (docs/design/interplanetary.md, rule 3). When a
 person saves their profile, the relay stores it in `signed_profiles` with an EMPTY signature and

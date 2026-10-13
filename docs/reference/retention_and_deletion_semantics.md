@@ -347,13 +347,28 @@ The remaining server-held data classes and length/transport leaks, closed:
   runs at relay start and after every saved settings change: saving a lower
   number (or a number in place of 0) deletes older messages at once and for
   good, as the Server Settings hint says.
-- **Federation gossip respects unlisted.** A user who opts out of the public
-  directory (Private/Balanced tiers) no longer has their profile replicated
-  across federated servers — the gossip + signed-profile cache are gated on
-  the directory choice, and going unlisted retracts the local replicated
-  copy. Listed users (Open/Spotlight) gossip as before. Note that gossip only
-  ever carried user-authored PUBLIC profile fields (name/bio/avatar/socials/
-  location/website), never presence, IP, or DM metadata.
+- **The copy of your profile that linked servers keep shows only what anyone
+  may see, and going unlisted withdraws it (2026-10-12, BUG-191).** Your own
+  app signs the copy when the server asks, and a server keeps one only when
+  that signature checks (`src/relay/core/profile_copy.rs`,
+  `src/relay/handlers/profile.rs`). Pronouns, location and website are blank
+  in it when you keep them for friends; name, bio, avatar, banner and links
+  are public by design. Going unlisted (the Private and Balanced tiers, or
+  turning off the member-list choice on your profile) makes it a withdrawal,
+  every field blank, signed by your app. It replaces the copy on every
+  linked server that has it; a linked server that was down gets it when its
+  link comes back; a server that never had your copy keeps no trace of it.
+  Your key then answers "not found" at `/api/profile/{key}` there and here
+  (here at once, before the withdrawal is even signed). Keeping a field for
+  friends after it went out blanks it out there the same way. There is one
+  copy per key across all linked servers, and the last one signed wins,
+  wherever it was signed. Only your own key can sign, so a device that is
+  offline signs at its next connect, and the desktop app signs nothing while
+  its identity is locked. The copy never carries presence, IP addresses or
+  DM metadata. Before 2026-10-12 no app signed a copy, so none ever left a
+  server (every linked server refused unsigned ones); the unsigned copies a
+  server stored then, which could hold fields kept for friends, are deleted
+  when it first starts on the fixed build.
 - **Erasing your account takes your profile off the linked servers (2026-10-12,
   BUG-191).** Your own erase carries a withdrawal of the copy of your profile
   that the servers this one is linked with keep, signed by your own app. The

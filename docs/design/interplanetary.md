@@ -49,10 +49,13 @@ Each one is required between planets, and each one already pays off on Earth.
    while. The choice notes already use the core of a hybrid logical clock: a new choice is dated
    after the newest one the device has seen for that friend, even when its own clock is behind
    (`DmStore::choose` in src/net/dm_store.rs, and the web's chat-dm-store.js). Signed profiles do
-   not: the relay keeps the one with the latest timestamp and accepts timestamps up to 24 hours
-   ahead (src/relay/storage/signed_profiles.rs), and the timestamp is the origin SERVER's clock,
-   so between servers whichever clock runs fast wins every conflict (BUG-191, which also found
-   that no app signs a profile yet, so they do not replicate at all today).
+   the same since 2026-10-12 (BUG-191): the person's own app dates each copy after its clock,
+   after the copy the server holds and after the last one it signed for that server
+   (`next_copy_time` in src/relay/core/profile_copy.rs), and a server keeps a copy only when it is
+   newer than the one held and at most 24 hours ahead of its own clock
+   (src/relay/storage/signed_profiles.rs). Before that the time was the origin SERVER's clock, so
+   between servers whichever clock ran fast won every conflict (and no app signed a profile, so
+   none replicated at all).
 4. **Read near you, sync across the gap.** Each planet (on Earth: each region, each community)
    keeps its own servers with copies of what its people read, and syncs with the others by
    exchanging bundles. Nobody on Mars waits 44 minutes for a page that is already on Mars. *On
@@ -88,8 +91,8 @@ Each one is required between planets, and each one already pays off on Earth.
 1. Keep every new protocol in the signed-bundle shape (rule 1) and one-way where it can be
    (rule 2). This is already the house pattern; it becomes a written rule here.
 2. Date every "latest wins" record after the newest one already seen (rule 3), as the choice
-   notes do: first signed profiles (the apps sign them, which they do not yet, BUG-191, and date
-   each edit after the newest one seen), then anything else a person edits from more than one device.
+   notes do, and as signed profiles do since 2026-10-12 (BUG-191: the apps sign them and date each
+   copy after the newest one seen); next, anything else a person edits from more than one device.
 3. Show delivery honestly (rule 6), starting with DMs and file transfers.
 4. Build sync as "compare fingerprints, send what is missing" (rule 5) when cross-server mailboxes
    and file pieces are built (eight-billion.md and file-transfer-at-scale.md).

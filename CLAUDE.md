@@ -582,7 +582,8 @@ When you change any of these in code, update this table + status in the same com
 | `src/relay/api.rs` | REST API handlers (~3,800 LOC) |
 | `src/relay/mod.rs` | Router setup, CSP middleware, axum config |
 | `src/relay/core/` | Crypto primitives: encoding, identity, signing, hashing |
-| `src/relay/handlers/` | broadcast.rs, federation.rs, game_state.rs, msg_handlers.rs, utils.rs |
+| `src/relay/handlers/` | broadcast.rs, federation.rs, game_state.rs, msg_handlers.rs, profile.rs (profile saves, asks and signed copies, BUG-191), home_plots.rs, shared_build.rs, reach.rs, friend_passes.rs, reports.rs and more: list the folder |
+| `src/relay/core/profile_copy.rs` | The profile copy other servers keep: public copy, pinned words, sign/verify, limits, `next_copy_time` (web mirror: `web/shared/profile-copy.js`) |
 | `src/relay/storage/` | 50 domain modules (messages, channels, tasks, guilds, reputation, trading, etc.) |
 | `src/renderer/` | wgpu PBR pipeline, camera, sky, stars, instanced rendering |
 | `src/renderer/particles.rs` | Particle system |
@@ -825,7 +826,9 @@ task_comments  (id, task_id, author_key, author_name, content, created_at)
 vault_blobs    (public_key, blob, updated_at)
 key_rotations  (old_key, new_key, sig_by_old, sig_by_new, rotated_at)   -- INERT: the route and handler were deleted in Inc5b; the table was left in place rather than churn positional SQL
 user_uploads   (id, uploader_key, filename, url, size, mime_type, created_at)   -- NOT `uploads`
-signed_profiles (public_key, name, bio, avatar_url, socials, timestamp, signature)
+signed_profiles (public_key, name, bio, avatar_url, banner_url, socials, pronouns, location, website, timestamp, signature)
+               -- the copy other servers keep (BUG-191, verified 2026-10-12): only what anyone may see, signed by the
+               -- person's own app; one row per key, the latest wins; an empty name is a withdrawal; unsigned rows dropped at start
 projects       (id, name, description, owner_key, visibility, color, icon, created_at)
 listing_images (id, listing_id, url, position, created_at)
 listing_reviews (id, listing_id, reviewer_key, rating, comment, created_at)

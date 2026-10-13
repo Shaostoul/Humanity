@@ -57,7 +57,7 @@ author's Dilithium3 key:
 
 | Object type | What it represents |
 |-------------|--------------------|
-| `signed_profile_v1` | User's display profile |
+| `signed_profile_v1` | A reserved name only (the LoRa allowlist in `src/relay/transport/lora.rs` names it); no code makes one. The copy of a profile that other servers keep is NOT a signed object: it is the `profile_v1` words signed by the person's own app, kept in `signed_profiles` and sent as `profile_gossip` (BUG-191, `src/relay/core/profile_copy.rs`) |
 | `vouch_v1` | One DID vouching for another |
 | Various VC schemas | Verifiable Credentials (graduation, employment, role, member, account_age, skill_endorsement, …) |
 | `revocation_v1` / `withdrawal_v1` | VC revocation by issuer / withdrawal by subject |
@@ -135,7 +135,11 @@ Bob's client
 When you connect to a NEW server you've never used before:
 
 1. It looks up your DID (`did:hum:abc...`), your DID resolves anywhere because the BLAKE3 fingerprint is deterministic from your pubkey
-2. It pulls your signed profile via federation gossip if any peer has cached it
+2. Nothing pulls your profile. A new server holds a copy of it only if a server it is linked with
+   pushed one: a server passes on the copy your own app signed each time it keeps a newer one, and
+   sends its accounts' copies when a link comes up (`docs/network/server_federation.md`, "Signed
+   Profile Replication"). The copy holds only what anyone may see. No app shows a copy from another
+   server yet; it is served at `GET /api/profile/{key}`
 3. Your VCs follow you, they're signed by the issuer, not server-bound
 4. Your trust score recomputes locally from the signed objects this server has observed
 

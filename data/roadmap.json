@@ -245,9 +245,9 @@
           "text": "Peer-to-peer groups: signed objects, end-to-end encryption, and a group that behaves like a channel, on both web and native (Phases 1 and 2)."
         },
         {
-          "status": "building",
-          "version": null,
-          "text": "Signed profile replication: your profile gossips between servers, so there is no single home server to lose. The servers' half is built (gossip, and a signature check that refuses an unsigned profile); the apps do not sign profiles yet, so today every gossiped profile is refused (BUG-191, found 2026-10-11)."
+          "status": "done",
+          "version": "v0.1490.0",
+          "text": "Signed profile replication: your profile reaches the servers linked with yours, so there is no single home server to lose. Your own app signs the copy they keep, and it holds only what anyone may see: a field you keep for friends is left blank. A linked server that was down catches up when its link returns, and going unlisted or erasing your own account takes your profile off them (BUG-191, fixed 2026-10-12)."
         },
         {
           "status": "building",
@@ -300,7 +300,7 @@
           "text": "Mobile clients for Android and iOS."
         }
       ],
-      "done": 5,
+      "done": 6,
       "total": 17
     },
     {
@@ -999,7 +999,7 @@
     }
   ],
   "summary": {
-    "done": 50,
+    "done": 51,
     "total": 115
   }
 }

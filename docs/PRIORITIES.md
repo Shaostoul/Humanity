@@ -267,22 +267,28 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
 - **Released 2026-10-05:** v0.1459.0 to v0.1463.0 and v0.1464.0 (ship-homes increment 5, building
   only on your own plot; BUG-165 and BUG-166, the walking-backwards fixes; two new clips),
   all delivered to the taskbar exe.
-- **NEXT in TIER 0:** increment 5b (the household page: give a friend a permit to build on
-  your plot, and walking into a permitted plot): ALL LANES MERGED 2026-10-12 (relay v0.1488.0;
-  the Household card, the game glue and `just verify-household` on main). What remains: the
-  release build, `just verify-household` on the one GPU, fixing what it finds, release. Then
-  increment 6 (the starts as data, the Cabin, the mess hall; fold in a second mess hall along
-  First Street; plan `docs/design/ship-homes-increment-6-plan.md`, Wave 0 MERGED 2026-10-12,
-  Wave 1 next), and BUG-191 (profile copies signed by the person's own apps; plan
-  `docs/design/bug-191-profile-copies-plan.md`, Wave 0 and lane 1D MERGED 2026-10-12, 1A, 1B
-  and 1C next). From the first-hour audit's open items, MERGED 2026-10-12: wounds and natural
-  healing (S8, `src/systems/wounds.rs`, `data/medical/wounds.ron`) and crops planted from the
-  backpack (F11, `src/systems/farming/sowing.rs`); in progress: animal feed and water (S6) and
-  the drone's running costs (S5).
+- **NEXT in TIER 0 (updated 2026-10-12, after v0.1490.0):**
+  - **Increment 6, Wave 2 then 3.** Waves 0 and 1 are DONE and released in v0.1490.0 (the Cabin
+    row and the South Commons, the mess hall counter, "Where you live", the relay's homes by
+    start, the save-slot core, the Cabin's opening). Wave 2A (the session and the home: one save
+    per server switched on) is IN PROGRESS; then 2B (the picker and the probe), then 3A (`just
+    verify-starts`). Plan `docs/design/ship-homes-increment-6-plan.md`. Also: a better vantage
+    for the Cabin row (the steel roofs vanish against space from `ship-cabin-row`).
+  - **Media round 5:** editing an item after publishing, several files per item, descriptions
+    shown, a fixed strip naming the server, Media admin on the Media page, a page and link per
+    item, cover pictures, download counts, featured per category, sorting, load more, a licence
+    per item. Plan being written: `docs/design/media-round-5-plan.md`. The licence wording,
+    the rules' hosting paragraph, the opt-in's grantee and a DMCA agent wait on the operator
+    (findings `docs/reference/findings/2026-10-12-media-item-licences.md`). Phase 2: "Also put
+    this on..." other servers.
+  - DONE and released 2026-10-12: increment 5b (household permits, v0.1489.0, 27/27 in the
+    rig), BUG-191 (profile copies, all waves, v0.1490.0), and the first-hour audit's S5 (drone
+    costs), S6 (animal care), S8 (wounds and healing), F11 (backpack sowing), BUG-163 part 2
+    (the data folder follows updates).
   Day 5 (a real two-person session on the VPS) is unblocked whenever the operator has a partner.
 - **Follow-ups found today (not started):** BUG-161 (the copresence rig's steady-speed
   judges fail a starved machine); BUG-163 part 2 (refresh a stale data folder on update:
-  docs/design/data-folder-updates.md, waits on the operator below); no gasoline or diesel
+  docs/design/data-folder-updates.md: DONE v0.1490.0); no gasoline or diesel
   item (Refined Fuel stands in for the generator's gasoline); the refinery's drum accepts
   any liquid; campfire light (point lights in the celestial pass); heaters aboard only, and
   data/hvac.ron's heat pump and wood stove have no machine; inside survey regions without
