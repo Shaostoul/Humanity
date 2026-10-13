@@ -293,7 +293,11 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
     - **Your folders**: point HumanityOS at folders (his E: "Media" drive), browse them like a
       file explorer, pick files to put on a server's Media page; nothing leaves the computer
       unless picked. Builds on `src/gui/widgets/file_browser.rs`; marks which local files are
-      already on which server (phase 2's fingerprints).
+      already on which server (phase 2's fingerprints). Desktop only (operator, 2026-10-13: no website
+      version, so every browser behaves the same).
+    - **A Games library** (operator idea, 2026-10-13): list and launch every installed game
+      (Steam, Epic, GOG, anything installed elsewhere), the stores still doing downloads and
+      updates behind it. First a dated findings doc on the stores' terms for this.
     - **The project's history in the Library** (docs/history and the decision logs, readable in
       the app).
   - DONE and released 2026-10-12: increment 5b (household permits, v0.1489.0), BUG-191 (profile

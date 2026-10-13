@@ -306,6 +306,11 @@
       "date": "2026-10-13",
       "decision": "Operator idea, welcomed: point HumanityOS at folders on the computer (his E: drive is 'Media'), browse them like a file explorer inside the app, and pick which files go onto a server's Media page; nothing leaves the computer unless picked. Builds on the in-app file browser widget (src/gui/widgets/file_browser.rs, v0.708) and Media round 5's several-files items; ties to phase 2 (copies on other servers, BLAKE3 fingerprints) by marking which local files are already on which server. The website can do a limited version only in Chromium browsers (the File System Access API, one folder at a time with permission).",
       "why": "A safe way to publish from a big personal drive: browsing is local, publishing is explicit and per file, and other people's private files on the same drive never move."
+    },
+    {
+      "date": "2026-10-13",
+      "decision": "Your folders is DESKTOP ONLY (operator): no website version, so every browser behaves the same and people are drawn to the installed app; the direction he stated: \"We have to somehow make HumanityOS better than Steam, GOG, Epic, Brave, Chrome, Safari.\" New idea, welcomed: a Games library in the app that lists and launches every installed game (Steam, Epic, GOG, and games installed anywhere else, e.g. Dwarf Fortress classic), with the stores still doing downloads, updates and licence checks behind it. Before building: a dated findings doc on Steam's and Epic's terms for listing and launching their games from another app and on what we may not do (download or update their games ourselves); Playnite (open source) is prior art for listing and launching.",
+      "why": "One place for a person's games without a store's browser in the way; the store terms decide the line, so they are read from the source first (CLAUDE.md: research a legal question, then write it down and date it)."
     }
   ],
   "active_scopes_to_avoid": [
