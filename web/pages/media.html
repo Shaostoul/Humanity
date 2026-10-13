@@ -12,7 +12,7 @@
   <!-- The Media page (docs/design/media-showcase.md, "Increment 2, exact"). Everything
        inside #media-root is built by /pages/media-app.js with createElement and
        textContent; its styles are /shared/media.css, theme tokens only. -->
-  <link rel="stylesheet" href="/shared/media.css?v=4">
+  <link rel="stylesheet" href="/shared/media.css?v=5">
   <style>
     body { background: var(--bg); color: var(--text); line-height: var(--line-height); min-height: 100vh; padding-bottom: 60px; }
   </style>
@@ -44,9 +44,15 @@
      "Remove location and camera details". upload-clean.js after strip-metadata.js. -->
 <script src="/shared/strip-metadata.js?v=1"></script>
 <script src="/shared/upload-clean.js?v=1"></script>
-<!-- Add to Media's resumable upload (pieces, Pause and Resume, carrying on after a drop). -->
-<script src="/pages/media-upload.js?v=3"></script>
-<script src="/pages/media-app.js?v=5"></script>
+<!-- Add to Media's resumable upload (pieces, Pause and Resume, carrying on after a drop); since
+     round 5 it also attaches an upload to an item instead of publishing it. -->
+<script src="/pages/media-upload.js?v=4"></script>
+<!-- An item's own page and its Edit form (round 5, lane 2A): blake3.js hashes the edit's text,
+     which its signature names; media-edit.js before media-item.js, both before media-app.js. -->
+<script src="/shared/blake3.js?v=2"></script>
+<script src="/pages/media-edit.js?v=1"></script>
+<script src="/pages/media-item.js?v=1"></script>
+<script src="/pages/media-app.js?v=6"></script>
 <!-- The admins' Media section: this page's Admin tab, for admins (/media#admin; /admin points here). -->
 <script src="/pages/media-admin.js?v=3"></script>
 </body>

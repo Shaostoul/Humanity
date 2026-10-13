@@ -10,13 +10,18 @@
 // featured shelf (the main one, or the picked category's, `featured=1&category=`);
 // filters (category with its description under them, kind, person, My picks,
 // Sort, a search over titles); a grid paged by the answer's cursor, the next page
-// asked for once as its end comes into view, with More for keyboards; a viewer at
-// the item's own address, /media/<id>; and the person's own uploads waiting to be
+// asked for once as its end comes into view, with More for keyboards; each card
+// with its cover, its description's first line and its file count; the item's own
+// page at its address, /media/<id> (/pages/media-item.js since round 5's lane 2A:
+// its files with counted Downloads, the counts, the licence, Copy link, and Edit,
+// /pages/media-edit.js); and the person's own uploads waiting to be
 // published. What it does: Pick and Unpick, Remove
 // (with the words naming what happens to the file), Feature (main shelf, its
 // category's, or none) for admins, Keep on the server and Stop keeping for admins and moderators, Report,
-// Add to Media (the file picker, a short form, then a resumable upload with a
-// progress bar, Pause and Resume), Put on Media for a Shared Files row (public
+// Add to Media (the file picker, a short form with the licence and the hosting
+// paragraph, then a resumable upload with a progress bar, Pause and Resume; a file
+// picked in an item's Edit form is the same upload, attached to that item when it
+// is up instead of published), Put on Media for a Shared Files row (public
 // only), and Suggest a category. The relay half is src/relay/media.rs and
 // src/relay/resumable.rs.
 //
@@ -288,7 +293,9 @@
     try { u = new URL(url, origin); } catch (e) { return null; }
     if (u.origin !== new URL(origin).origin) return null;
     if (/^\/uploads\/[^/]+$/.test(u.pathname)) return u.pathname;
-    if (/^\/api\/media\/file\/\d+$/.test(u.pathname)) return u.pathname;
+    // Round 5: a members-only item's other files (and its cover) are `?file=<n>` of its route.
+    const n = u.searchParams.get('file');
+    if (/^\/api\/media\/file\/\d+$/.test(u.pathname)) return u.pathname + (n && /^\d{1,6}$/.test(n) && n !== '0' ? '?file=' + n : '');
     return null;
   }
 
@@ -462,6 +469,11 @@
   // "Files on the sender's device and in messages, exact", parts 1 and 2): /shared/upload-clean.js.
   const C = typeof module === 'object' && module && module.exports ? require('../shared/upload-clean.js') : root.HosUploadClean;
 
+  // An item's own page (/pages/media-item.js) and its Edit form and the licence picker
+  // (/pages/media-edit.js), round 5, lane 2A.
+  const MI = typeof module === 'object' && module && module.exports ? require('./media-item.js') : root.MediaItem;
+  const ED = typeof module === 'object' && module && module.exports ? require('./media-edit.js') : root.MediaEdit;
+
   // ── DOM ──
 
   function makeH(doc) {
@@ -551,7 +563,6 @@
       noticeWarn: false,
       viewer: null,
       viewerKey: '',
-      saveWanted: null,         // the item whose Download is asking for its ticket
       reloadKeep: null,         // the items shown before a list loaded afresh: their pictures stay until it answers
       form: null,               // the form not yet uploading (Add to Media, Put on Media, Publish an upload)
       uploads: [],              // forms whose file is uploading or publishing, each with its own `up`
@@ -578,7 +589,7 @@
     function build() {
       doc.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' && st.report) { closeReport(); return; }
-        if (e.key === 'Escape' && st.viewer) closeViewer();
+        if (e.key === 'Escape' && st.viewer) itemView.close();
       });
       els.status = h('div', { id: 'media-status', className: 'media-status' });
       els.notice = h('div', { id: 'media-notice', className: 'media-notice' });
@@ -854,136 +865,27 @@
      */
     function sweepBlobs() {
       const shown = new Set(st.reloadKeep || []);
-      for (const i of st.items) shown.add(i.id);
-      for (const i of st.featured) shown.add(i.id);
-      if (st.viewer) shown.add(st.viewer.id);
+      // An item's cover is kept under 'c' + its id (media-item.js coverOf).
+      for (const i of st.items.concat(st.featured, st.viewer ? [st.viewer] : [])) { shown.add(i.id); shown.add('c' + i.id); }
+      for (const id of Array.from(st.reloadKeep || [])) shown.add('c' + id);
       for (const id of Array.from(blobs.keys())) if (!shown.has(id)) dropBlob(id);
     }
     function blobChanged() {
       renderGrid();
       renderFeatured();
-      renderViewerIfChanged();
+      itemView.renderIfChanged();
     }
 
-    // ── Tickets (the relay's R3-8): a members-only video or Download, streamed by the browser ──
-    const tickets = new Map(); // item id -> {state: 'loading'|'ready'|'error', url, why, token, at, expiresAt, renewing}
-
-    /** A ticket's address, when it is this server's members' file route for this item with a ticket. */
-    function ticketPath(url, id) {
-      if (typeof url !== 'string' || !url) return null;
-      let u;
-      try { u = new URL(url, env.origin); } catch (e) { return null; }
-      if (u.origin !== new URL(env.origin).origin) return null;
-      if (u.pathname !== '/api/media/file/' + id || !u.searchParams.get('ticket')) return null;
-      return u.pathname + u.search;
-    }
-    /** Ask for a ticket: {path, expiresIn} (seconds), or throws Error(the relay's words). */
-    async function fetchTicket(item, t) {
-      const filename = itemFileName(item);
-      if (!filename) throw new Error(MEDIA_WORDS.noFileName);
-      const a = await answerOf(await env.fetch('/api/media/ticket', {
-        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Upload-Token': t },
-        body: JSON.stringify({ id: item.id, filename }),
-      }));
-      const path = ticketPath(a && a.url, item.id);
-      if (!path) throw new Error(MEDIA_WORDS.ticketOdd);
-      return { path, expiresIn: num(a.expires_in_s) || 600 };
-    }
-    /**
-     * The viewer's ticket for a members-only video, asked for when there is none that can still
-     * be used (one ending within half a minute is not). Null while the page is not signed in.
-     */
-    function ticketFor(item) {
-      let e = tickets.get(item.id);
-      const t = token();
-      if (e && e.state === 'loading') return e;
-      if (e && e.state === 'ready' && (e.renewing || e.expiresAt - TICKET_MARGIN_MS > now())) return e;
-      if (e && e.state === 'error' && e.token === t) return e;
-      if (!t) return e || null;
-      e = { state: 'loading', url: '', why: '', token: t, at: now(), expiresAt: 0, renewing: false };
-      tickets.set(item.id, e);
-      fetchTicket(item, t).then((got) => {
-        if (tickets.get(item.id) !== e) return;
-        e.url = got.path;
-        e.at = now();
-        e.expiresAt = e.at + got.expiresIn * 1000;
-        e.state = 'ready';
-        ticketChanged(item.id);
-      }, (err) => {
-        if (tickets.get(item.id) !== e) return;
-        e.state = 'error';
-        e.why = MEDIA_WORDS.fileFailed + (err && err.message ? err.message : String(err));
-        ticketChanged(item.id);
-      });
-      return e;
-    }
-    function ticketChanged() {
-      renderViewerIfChanged();
-    }
-    /**
-     * Download a members-only file through a ticket of its own (not the viewer's, so a video
-     * playing beside it is never drawn again): the browser saves it from the ticket's address.
-     */
-    const downloadErrors = new Map(); // item id -> the words of a Download that could not start
-    async function downloadMembers(item) {
-      const t = token();
-      if (!t || (st.saveWanted && st.saveWanted.id === item.id)) return;
-      st.saveWanted = item;
-      downloadErrors.delete(item.id);
-      renderDownloadBox(item, '');
-      let got = null;
-      try {
-        got = await fetchTicket(item, t);
-      } catch (err) {
-        downloadErrors.set(item.id, MEDIA_WORDS.fileFailed + (err && err.message ? err.message : String(err)));
-      }
-      // The viewer closed (or another item opened) meanwhile: nothing is saved.
-      if (st.saveWanted !== item) return;
-      st.saveWanted = null;
-      if (got) saveFile(got.path, downloadName(item, st.kinds));
-      renderDownloadBox(item, '');
-    }
-    /**
-     * A playing video whose ticket has run out: a new ticket, the same video element, from where
-     * it stopped. Not for a ticket younger than a minute (then it is the file that fails). A new
-     * ticket refused (a ban 403, the item gone 404 or changed 409, too many open 429, or no answer)
-     * leaves nothing to play, so the ticket becomes an error with the relay's words and the viewer
-     * shows them where the video was (round 4, W4-2: it used to stay a dead video with no words).
-     */
-    function renewTicket(item, video) {
-      const e = tickets.get(item.id);
-      const t = token();
-      if (!e || e.state !== 'ready' || e.renewing || !t || now() - e.at < TICKET_RENEW_AFTER_MS) return;
-      e.renewing = true;
-      let pos = 0;
-      let playing = false;
-      try { pos = Number(video.currentTime) || 0; playing = video.paused === false; } catch (err) { pos = 0; }
-      fetchTicket(item, t).then((got) => {
-        e.renewing = false;
-        if (tickets.get(item.id) !== e) return;
-        e.url = got.path;
-        e.at = now();
-        e.expiresAt = e.at + got.expiresIn * 1000;
-        e.token = t;
-        video.src = got.path;
-        try { video.currentTime = pos; } catch (err) { /* the browser seeks once it can */ }
-        if (playing && typeof video.play === 'function') { try { Promise.resolve(video.play()).catch(() => {}); } catch (err) { /* it waits for a press */ } }
-      }, (err) => {
-        e.renewing = false;
-        if (tickets.get(item.id) !== e) return;
-        e.state = 'error';
-        e.token = t;
-        e.why = MEDIA_WORDS.fileFailed + (err && err.message ? err.message : String(err));
-        ticketChanged(item.id);
-      });
-    }
-    function saveFile(url, name) {
-      if (typeof env.save === 'function') { env.save(url, name); return; }
-      const a = h('a', { href: url, hidden: true, attrs: { download: name } });
-      (doc.body || env.root).appendChild(a);
-      a.click();
-      a.remove();
-    }
+    // ── The item's own page (/pages/media-item.js): the viewer, its tickets and counted downloads ──
+    const itemView = MI.createItemView({
+      env, h, st, els, W: MEDIA_WORDS, myKey, mediaOn, token, isAdmin, membersOnlyServer, blobs, blobFor, sweepBlobs, pictureSource,
+      lib: { fileRoute, itemName, downloadName, itemFileName, labelsOf, kindWords, sizeWords, num, answerOf, jsonPost },
+      go, canPush: !!hist, back: () => hist.back(),
+      rerender: () => { renderGrid(); renderFeatured(); },
+      actions: (item) => tileActions(item, true),
+      attach: (file, item, as) => startAttach(file, item, as),
+      uploadsFor: (id) => st.uploads.filter((u) => u.attach && u.attach.id === id).map((u) => ({ heading: u.heading, words: u.up ? uploadWords(u.up) : u.error })),
+    });
 
     /** Where a picture is drawn from now: {src} or {why} (or {wait} while it loads). */
     function pictureSource(item) {
@@ -999,11 +901,21 @@
 
     // ── Tiles ──
     function copiesOf(id) {
-      return st.items.filter((i) => i.id === id).concat(st.featured.filter((i) => i.id === id));
+      const all = st.items.filter((i) => i.id === id).concat(st.featured.filter((i) => i.id === id));
+      // The item's page may hold its own copy (opened by its number).
+      return st.viewer && st.viewer.id === id && !all.includes(st.viewer) ? all.concat([st.viewer]) : all;
     }
-    function tileActions(item) {
+    /** A tile's actions; `onPage` on the item's own page, which has its own Edit. */
+    function tileActions(item, onPage) {
       const row = h('div', { className: 'media-tile-actions' });
       const mine = !!myKey && item.uploader_key === myKey;
+      // Edit, for the uploader and admins (round 5): it opens the item's page with its Edit form.
+      if (!onPage && itemView.mayEdit(item)) {
+        row.appendChild(h('button', {
+          type: 'button', className: 'media-btn media-btn-small media-btn-primary', dataset: { action: 'edit' },
+          text: 'Edit', title: MI.WORDS.editTip, on: { click: () => itemView.openEdit(item) },
+        }));
+      }
       if (myKey && st.membersView && !mine) {
         const on = item.picked_by_me === true;
         row.appendChild(h('button', {
@@ -1052,9 +964,11 @@
           h('span', { className: 'media-veil-show', text: MEDIA_WORDS.clickToShow }),
         ]);
       }
-      const open = () => openViewer(item);
-      if (item.kind === 'picture') {
-        const where = pictureSource(item);
+      const open = () => itemView.open(item);
+      // The cover first (round 5), else the picture itself.
+      const pic = MI.coverOf(item) || (item.kind === 'picture' ? item : null);
+      if (pic) {
+        const where = pictureSource(pic);
         if (where.why) return h('div', { className: 'media-thumb media-thumb-missing', text: where.why });
         if (where.wait) return h('button', { type: 'button', className: 'media-thumb media-thumb-loading', text: where.wait, on: { click: open } });
         return h('button', { type: 'button', className: 'media-thumb', on: { click: open } }, [
@@ -1076,11 +990,17 @@
       if (item.visibility === 'members') badges.appendChild(h('span', { className: 'media-badge', text: 'Members only' }));
       if (item.kept) badges.appendChild(h('span', { className: 'media-badge media-badge-kept', dataset: { kept: item.id }, text: MEDIA_WORDS.keptBadge }));
       const picks = Number(item.picks) || 0;
+      const downloads = Number(item.downloads) || 0;
+      // The description's first line, cut at a word (the item's page has the rest), and "3 files".
+      const line = MI.firstLine(item.description);
+      const files = MI.filesBadge(item);
       return h('div', { className: 'media-tile', dataset: { id: item.id } }, [
         thumb(item),
         badges.childNodes.length ? badges : null,
         h('div', { className: 'media-tile-title', text: itemName(item, st.kinds) }),
-        h('div', { className: 'media-tile-meta', text: 'by ' + (item.uploader_name || 'someone') + ' · ' + picks + (picks === 1 ? ' pick' : ' picks') }),
+        line ? h('div', { className: 'media-tile-line', text: line }) : null,
+        h('div', { className: 'media-tile-meta', text: 'by ' + (item.uploader_name || 'someone') + ' · ' + picks + (picks === 1 ? ' pick' : ' picks') +
+          (downloads ? ', ' + downloads + (downloads === 1 ? ' download' : ' downloads') : '') + (files ? ' · ' + files : '') }),
         tileActions(item),
       ]);
     }
@@ -1135,165 +1055,12 @@
       st.tab = hash === '#admin' ? 'admin' : 'media';
       renderTabs();
       const id = itemIdOf(path);
-      if (id == null) { if (st.viewer) closeViewer(true); return Promise.resolve(); }
+      if (id == null) { if (st.viewer) itemView.close(true); return Promise.resolve(); }
       if (st.viewer && st.viewer.id === id) return Promise.resolve();
       // An item the list holds already opens as it is; any other is asked for by its number.
       const known = st.items.concat(st.featured).find((i) => i.id === id);
-      if (known) { openViewer(known, true); return Promise.resolve(); }
+      if (known) { itemView.open(known, true); return Promise.resolve(); }
       return openById(id);
-    }
-
-    // ── The viewer: drawn again only when what it shows changes ──
-    /** Open an item. `fromAddress`: the address names it already (a load of /media/<id>, Back, Forward). */
-    function openViewer(item, fromAddress) {
-      // A ticket refused earlier is asked for afresh when the person opens the item again (the
-      // relay's words for too many open say to do just that); while it stays open it is not asked
-      // again, so a refusal never becomes a loop of requests.
-      const was = item && tickets.get(item.id);
-      if (was && was.state === 'error') tickets.delete(item.id);
-      if (item && fromAddress !== true) {
-        // Opened from the list: a new step in the history, so Back closes it.
-        if (!st.viewer) st.pushed = !!hist;
-        go('/media/' + item.id, !st.viewer);
-      }
-      st.viewer = item;
-      renderViewerIfChanged();
-    }
-    /** Close the item. Its address goes too: Back when it was pushed here, else replaced by /media. */
-    function closeViewer(fromAddress) {
-      if (st.viewer && fromAddress !== true) {
-        if (st.pushed) { st.pushed = false; hist.back(); } else go('/media', false);
-      }
-      st.viewer = null;
-      st.saveWanted = null;
-      renderViewerIfChanged();
-      sweepBlobs();
-    }
-    /** A labelled item not yet clicked: its label instead of its file, nothing fetched. */
-    function veiled(item) {
-      return labelsOf(item, st.labels).length > 0 && !st.revealed.has(item.id);
-    }
-    /** What the viewer shows, as a key: the item, whether it is veiled, and for a members-only file where its loading is. */
-    function viewerKey() {
-      const item = st.viewer;
-      if (!item) return '';
-      const route = fileRoute(item, env.origin);
-      let file = route.why ? 'missing' : route.public || '';
-      if (route.members) {
-        // A picture's object URL, or a ticket's state (not its address: a ticket renewed under a
-        // playing video does not draw the video again).
-        // A ticket refused under an earlier sign-in is asked for again under the new one.
-        const e = item.kind === 'picture' ? blobs.get(item.id) : tickets.get(item.id);
-        const stale = e && item.kind !== 'picture' && e.state === 'error' && e.token !== token();
-        file = e ? (stale ? 'stale' : e.state) + ':' + (item.kind === 'picture' ? e.url : '') : token() ? 'members' : 'no-token';
-      }
-      // A Download on its way is not part of it: its box is drawn on its own (renderDownloadBox),
-      // so pressing Download beside a playing video never starts the video again.
-      return [item.id, itemFileName(item), veiled(item) ? 'veiled' : 'shown', file].join('|');
-    }
-    function renderViewerIfChanged() {
-      const key = viewerKey();
-      if (key === st.viewerKey) return;
-      renderViewer();
-      // Drawing it may have asked for its file (its state is then part of the key).
-      st.viewerKey = viewerKey();
-    }
-    /**
-     * The Download for an item in the viewer: a link for a public file; for a members-only one,
-     * the fetched picture when it is here, else a ticket asked for on the press, which the browser
-     * then saves itself (never through the page's memory).
-     */
-    function downloadControl(item, ready) {
-      const route = fileRoute(item, env.origin);
-      const name = downloadName(item, st.kinds);
-      if (route.public) return h('a', { className: 'media-btn media-btn-primary', id: 'media-download', href: route.public, text: 'Download', attrs: { download: name } });
-      if (!route.members) return null;
-      if (ready) return h('a', { className: 'media-btn media-btn-primary', id: 'media-download', href: ready, text: 'Download', attrs: { download: name } });
-      const saving = st.saveWanted && st.saveWanted.id === item.id;
-      return h('button', {
-        type: 'button', className: 'media-btn media-btn-primary', id: 'media-download', text: saving ? MEDIA_WORDS.loadingFile : 'Download', disabled: !!saving || !token(),
-        on: { click: () => downloadMembers(item) },
-      });
-    }
-    function renderViewer() {
-      els.viewer.replaceChildren();
-      // The tab's title as the relay writes it for the item's page: "Dusk, Media on <host>".
-      doc.title = (st.viewer ? itemName(st.viewer, st.kinds) + ', ' : '') + mediaOn;
-      const item = st.viewer;
-      if (!item) return;
-      const name = itemName(item, st.kinds);
-      const route = fileRoute(item, env.origin);
-      const covered = veiled(item);
-      let body;
-      let ready = '';
-      if (route.why) {
-        body = h('p', { className: 'media-warn', text: route.why });
-      } else if (covered) {
-        // The label cover, as on its tile (/media/<n> opens the viewer directly): nothing is
-        // fetched until it is clicked.
-        body = h('button', {
-          type: 'button', id: 'media-viewer-veil', className: 'media-thumb media-veil media-viewer-veil', dataset: { veil: item.id },
-          on: { click: () => { st.revealed.add(item.id); renderViewerIfChanged(); renderGrid(); renderFeatured(); } },
-        }, [
-          h('span', { className: 'media-veil-labels', text: labelsOf(item, st.labels).map((l) => l.label).join(', ') }),
-          h('span', { className: 'media-veil-show', text: MEDIA_WORDS.clickToShow }),
-        ]);
-      } else if (item.kind === 'picture' || item.kind === 'video') {
-        let src = route.public || '';
-        let why = '';
-        let ticketed = false;
-        if (route.members) {
-          // A picture through its object URL; a video through a ticket, streamed by the browser.
-          const e = item.kind === 'picture'
-            ? blobs.get(item.id) || (token() ? blobFor(item) : null)
-            : ticketFor(item);
-          if (e && e.state === 'ready') {
-            src = e.url;
-            if (item.kind === 'picture') ready = e.url;
-            else ticketed = true;
-          } else if (e && e.state === 'error') why = e.why;
-          else why = token() ? MEDIA_WORDS.loadingFile + ' ' + sizeWords(item.size_bytes) : MEDIA_WORDS.waitingToken;
-        }
-        if (!src) body = h('p', { className: 'media-viewer-wait', id: 'media-viewer-wait', text: why });
-        else if (item.kind === 'picture') body = h('img', { className: 'media-viewer-img', src, alt: name });
-        else {
-          body = h('video', { className: 'media-viewer-video', src, controls: true, preload: 'metadata' });
-          if (ticketed) body.addEventListener('error', () => renewTicket(item, body));
-        }
-      } else {
-        body = h('div', { className: 'media-viewer-file' }, [
-          h('div', { className: 'media-viewer-name', text: name }),
-          h('div', { className: 'media-viewer-size', text: sizeWords(item.size_bytes) }),
-        ]);
-      }
-      const labels = labelsOf(item, st.labels).map((l) => l.label);
-      const overlay = h('div', { id: 'media-viewer-open', className: 'media-viewer', attrs: { role: 'dialog', 'aria-label': name } }, [
-        h('div', { className: 'media-viewer-box' }, [
-          h('button', { type: 'button', id: 'media-viewer-close', className: 'media-btn media-viewer-close', text: 'Close', on: { click: closeViewer } }),
-          body,
-          h('h2', { className: 'media-viewer-title', text: name }),
-          item.description ? h('p', { className: 'media-viewer-desc', text: item.description }) : null,
-          h('p', { className: 'media-viewer-meta', text: [
-            'by ' + (item.uploader_name || 'someone'),
-            item.category && item.category.name ? item.category.name : '',
-            kindWords(item.kind, st.kinds).one,
-            sizeWords(item.size_bytes),
-            labels.length ? labels.join(', ') : '',
-            item.kept ? MEDIA_WORDS.keptBadge : '',
-          ].filter(Boolean).join(' · ') }),
-          route.why || covered ? null : (els.downloadBox = h('div', { id: 'media-download-box' })),
-        ]),
-      ]);
-      overlay.addEventListener('click', (e) => { if (e.target === overlay) closeViewer(); });
-      els.viewer.appendChild(overlay);
-      if (!route.why && !covered) renderDownloadBox(item, ready);
-    }
-    /** The viewer's Download and what it says when it could not start: drawn without the rest of the viewer. */
-    function renderDownloadBox(item, ready) {
-      const box = els.downloadBox;
-      if (!box || !st.viewer || st.viewer.id !== item.id) return;
-      box.replaceChildren(h('div', { className: 'media-form-buttons' }, [downloadControl(item, ready)]));
-      if (downloadErrors.has(item.id)) box.appendChild(h('p', { className: 'media-warn', id: 'media-download-error', text: downloadErrors.get(item.id) }));
     }
 
     // ── Loading ──
@@ -1447,7 +1214,7 @@
         const words = await refusalWords(res);
         if (/not the Media item you were looking at/i.test(words)) {
           say(MEDIA_WORDS.reloaded, true);
-          if (st.viewer && st.viewer.id === item.id) closeViewer();
+          if (st.viewer && st.viewer.id === item.id) itemView.close();
           load(true);
           loadFeatured();
           return null;
@@ -1471,6 +1238,7 @@
       }
       renderGrid();
       renderFeatured();
+      itemView.renderInfo();
     }
 
     async function remove(item) {
@@ -1480,7 +1248,7 @@
       if (!a) return;
       st.items = st.items.filter((i) => i.id !== item.id);
       st.featured = st.featured.filter((i) => i.id !== item.id);
-      if (st.viewer && st.viewer.id === item.id) closeViewer();
+      if (st.viewer && st.viewer.id === item.id) itemView.close();
       say(removedWords(a));
       renderAll();
       loadMine();
@@ -1497,6 +1265,7 @@
       }
       renderGrid();
       renderFeatured();
+      itemView.renderInfo();
     }
 
     async function keep(item, on) {
@@ -1507,6 +1276,7 @@
       }
       renderGrid();
       renderFeatured();
+      itemView.renderInfo();
     }
 
     // ── The person's uploads waiting to be published ──
@@ -1808,14 +1578,20 @@
         const pub = h('input', { type: 'radio', name: group, value: 'public', id: 'media-form-vis-public', checked: f.visibility !== 'members' });
         const mem = h('input', { type: 'radio', name: group, value: 'members', id: 'media-form-vis-members', checked: f.visibility === 'members' });
         f.visibilityEls = { pub, mem };
-        pub.addEventListener('change', () => { if (pub.checked) f.visibility = 'public'; });
-        mem.addEventListener('change', () => { if (mem.checked) f.visibility = 'members'; });
+        const picked = () => { f.visibility = mem.checked ? 'members' : 'public'; if (f.licencePicker) f.licencePicker.refresh(); };
+        pub.addEventListener('change', picked);
+        mem.addEventListener('change', picked);
         kids.push(h('fieldset', { className: 'media-field', id: 'media-form-visibility' }, [
           h('legend', { text: 'Who sees it' }),
           h('label', { className: 'media-check' }, [pub, ' Public']),
           h('label', { className: 'media-check' }, [mem, ' Members only']),
         ]));
       }
+      // The licence, "All rights reserved" preselected, and the hosting paragraph beside it (round 5,
+      // as the desktop's Add to Media has them): the server's own words (media-edit.js).
+      f.choice = f.choice || { licence: '', project_use: false };
+      f.licencePicker = ED.licenceChoice(h, { licences: st.licences, choice: f.choice, id: 'media-form-licence', members: () => membersOnlyServer() || f.visibility === 'members' });
+      kids.push(f.licencePicker.el, ED.hostingBlock(h, st.licences));
       f.inputs = { title, category, description };
       kids.push(f.actionsEl);
       f.panel = h('div', { className: 'media-panel media-form' }, kids);
@@ -1908,7 +1684,7 @@
       const go = h('button', {
         type: 'button', id: listed ? undefined : 'media-form-go', dataset: listed ? { uploadAction: 'go' } : undefined,
         className: 'media-btn media-btn-primary', disabled: f.busy || !!f.checking || !!(f.mode === 'add' && !f.uploadedName && sendingOf(f).refused),
-        text: f.checking ? 'Working out your share...' : f.busy ? 'Working...' : put || f.uploadedName ? 'Put on Media' : 'Upload and add',
+        text: f.checking ? 'Working out your share...' : f.busy ? 'Working...' : f.attach ? 'Add it to the item' : put || f.uploadedName ? 'Put on Media' : 'Upload and add',
       });
       go.addEventListener('click', () => {
         // Keep what was typed for a second try.
@@ -1931,7 +1707,67 @@
       if (!f || f.busy || f.stop || f.checking || f.up) return;
       f.error = '';
       if (f.mode === 'add' && !f.uploadedName) { startUpload(f); return; }
+      if (f.attach) { attachUp(f); return; }
       publish(f);
+    }
+
+    /**
+     * A file picked in an item's Edit form ("Add a file", or "Cover picture" as `as` "cover"):
+     * checked and cleaned like Add to Media's, then the same resumable upload, listed under Uploads
+     * in progress, and added to the item when it is up instead of published (`attachUp`). Resolves
+     * to '' once it started, else the words saying why not (shown in the Edit form).
+     */
+    async function startAttach(file, item, as) {
+      const filename = itemFileName(item);
+      if (!filename) return MEDIA_WORDS.noFileName;
+      if (!canUpload()) return bound() ? MEDIA_WORDS.cannotUpload : MEDIA_WORDS.notSignedInUpload;
+      if (st.uploads.some((u) => sameFile(u.file, file) && uploadLive(u))) return '"' + file.name + '"' + MEDIA_WORDS.alreadyUploading;
+      if (cleaner === false) return MEDIA_WORDS.checkerMissing;
+      const title = itemName(item, st.kinds);
+      const f = { mode: 'add', file, name: file.name, attach: { id: item.id, filename, as: as === 'cover' ? 'cover' : 'file', title }, busy: false, error: '', uploadedName: '', up: null, fp: '' };
+      f.heading = file.name + ' (' + sizeWords(file.size) + '), to add to ' + title;
+      if (cleaner) {
+        f.protectedOn = cleaner.protectedSetupOn(env.storage);
+        f.remove = cleaner.removeDetailsChosen(env.storage);
+        f.clean = await cleaner.cleanFile(file);
+      }
+      const sending = sendingOf(f);
+      if (!sending.file) return sending.refused || '';
+      f.fpFile = sending.file;
+      try { f.fp = fingerprint ? await fingerprint(f.fpFile, env.digest) : ''; } catch (e) { f.fp = ''; }
+      // The person's share and the role's largest Media file, as Add to Media checks them.
+      const mine = await loadMine();
+      if (mine) {
+        const stop = limitStop(file, num(mine.file_limit_bytes)) || shareStop(file, num(mine.used_bytes) + num(mine.in_progress_bytes), num(mine.share_bytes));
+        if (stop) return stop;
+      }
+      f.actionsEl = h('div', { className: 'media-form-actions' });
+      f.panel = h('div', { className: 'media-panel media-form' }, [h('h2', { text: f.heading }), f.actionsEl]);
+      startUpload(f);
+      return '';
+    }
+
+    /** An attaching upload is up: add it to its item (media-upload.js attachUpload), never publish it. */
+    async function attachUp(f) {
+      if (f.busy) return;
+      f.busy = true;
+      renderFormActions(f);
+      try {
+        const a = await U.attachUpload({ fetch: env.fetch, sign: env.sign, to: f.attach, add: f.uploadedName, cannotSign: MEDIA_WORDS.cannotSign });
+        if (st.uploads.includes(f)) dropUpload(f);
+        if (a && a.item) itemView.takeItem(a.item);
+        say('Added to "' + f.attach.title + '".');
+        itemView.uploadsChanged();
+        loadMine();
+        return;
+      } catch (e) {
+        f.error = (e && e.message ? e.message : String(e)) + MEDIA_WORDS.uploadWaits;
+        f.up = null;
+        loadMine();
+      }
+      f.busy = false;
+      if (st.uploads.includes(f)) renderFormActions(f);
+      itemView.uploadsChanged();
     }
 
     /** Take a form out of the uploads list (its upload ended, or it was published or closed). */
@@ -1983,11 +1819,13 @@
             return;
           }
           if (st.uploads.includes(f)) renderFormActions(f);
+          if (f.attach) itemView.uploadsChanged();
         },
         onDone: (answer) => {
           f.uploadedName = storedName((answer && (answer.filename || answer.url)) || '');
           loadMine();
-          publish(f);
+          // Round 5: a file for an item's Edit form is added to that item, never published.
+          if (f.attach) attachUp(f); else publish(f);
         },
       });
       renderFormActions(f);
@@ -2000,9 +1838,9 @@
       renderFormActions(f);
       try {
         const filename = f.mode === 'put' ? f.filename : f.uploadedName;
-        // The licence and the game tick (round 5): the default until the form offers a choice.
-        const licence = f.licence || DEFAULT_LICENCE;
-        const forGame = !!f.forGame;
+        // The licence and the game tick (round 5): what the form's picker holds.
+        const licence = (f.choice && f.choice.licence) || DEFAULT_LICENCE;
+        const forGame = !!(f.choice && f.choice.project_use);
         const auth = await env.sign(purposes.publish(filename, licence, forGame));
         if (!auth) throw new Error(MEDIA_WORDS.cannotSign);
         const body = Object.assign({
@@ -2303,7 +2141,7 @@
       renderFilters();
       renderFeatured();
       renderGrid();
-      renderViewerIfChanged();
+      itemView.renderIfChanged();
       renderWaiting();
       if (st.form && !st.form.busy && !st.form.up && st.form.key !== formKey()) renderForm();
       renderAdmin();
@@ -2342,8 +2180,9 @@
         const item = Array.isArray(a.items) ? a.items.find((i) => String(i.id) === String(id)) : null;
         if (!item) { say(MEDIA_WORDS.notFound, true); return; }
         takePeople([item]);
+        if (a.licences && typeof a.licences === 'object') st.licences = a.licences;
         if (Array.isArray(a.labels) && a.labels.length) st.labels = a.labels;
-        openViewer(item, true);
+        itemView.open(item, true);
       } catch (e) {
         say(MEDIA_WORDS.notFound + ' ' + (e && e.message ? e.message : ''), true);
       }
@@ -2369,12 +2208,12 @@
     /** Revoke every object URL (the page is going away). */
     function dispose() {
       for (const id of Array.from(blobs.keys())) dropBlob(id);
-      tickets.clear();
+      itemView.tickets.clear();
     }
 
     return {
       start, state: st, load, loadFeatured, loadMine, openAddForm, openPutForm, removeItem: remove, pickItem: pick,
-      featureItem: feature, keepItem: keep, openReport, openViewer, closeViewer, route, dispose, blobs, tickets,
+      featureItem: feature, keepItem: keep, openReport, openViewer: itemView.open, closeViewer: itemView.close, route, dispose, blobs, tickets: itemView.tickets, itemView,
     };
   }
 

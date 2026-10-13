@@ -127,6 +127,27 @@
 .media-meter { height: 12px; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: var(--pill-radius); overflow: hidden; margin-bottom: var(--space-md); }
 .media-meter-fill { height: 100%; background: var(--accent); }
 .media-meter-words { font-weight: 700; margin-bottom: var(--space-xs); }
+/* Round 5, lane 2A: the card's first line, the item's own page (media-item.js) and its Edit form
+   with the licence picker and the hosting paragraph (media-edit.js). */
+.media-tile-line { color: var(--text-secondary); font-size: var(--text-xs); word-break: break-word; }
+.media-item-info { clear: both; display: flex; flex-direction: column; gap: var(--space-xs); }
+.media-item-info .media-badges { margin-bottom: var(--space-xs); }
+.media-licence-line { font-size: var(--text-sm); margin-top: var(--space-sm); }
+.media-item-game { color: var(--success); }
+.media-item-files { margin: var(--space-md) 0; display: flex; flex-direction: column; gap: var(--space-xs); }
+.media-item-files h3, .media-item-files h4 { font-size: var(--text-sm); margin-bottom: var(--space-xs); }
+.media-item-file-row { display: flex; flex-wrap: wrap; gap: var(--space-sm); align-items: center; }
+.media-item-file-name { flex: 1; min-width: 160px; font-size: var(--text-sm); word-break: break-all; }
+.media-item-buttons { align-items: center; }
+.media-item-buttons .media-tile-actions { margin-top: 0; }
+.media-item-edit .media-edit { margin-top: var(--space-md); margin-bottom: 0; }
+.media-edit h3 { font-size: var(--text-base); margin-bottom: var(--space-md); }
+.media-licence-row { display: flex; flex-wrap: wrap; gap: var(--space-sm); align-items: center; }
+.media-licence-name { font-weight: 700; }
+.media-licence-more { display: flex; flex-direction: column; gap: var(--space-xs); align-items: flex-start; }
+.media-cc-warning { margin: 0; }
+.media-hosting { border-left: 3px solid var(--border); padding-left: var(--space-md); margin-bottom: var(--space-md); }
+.media-hosting-heading { font-weight: 700; font-size: var(--text-sm); }
 @media (max-width: 560px) {
   .media-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
   .media-featured-row .media-tile { flex-basis: 170px; }
