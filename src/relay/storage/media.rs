@@ -500,6 +500,9 @@ pub struct MediaUsage {
 pub struct Removed {
     pub filename: String,
     pub from_shelf: i64,
+    /// The stored names of the item's added files and its cover (round 5): each an upload made
+    /// for Media, whose row went with the item, so the route deletes every one of their files.
+    pub added: Vec<String>,
 }
 
 impl Removed {
@@ -656,6 +659,13 @@ fn item_by_id(conn: &Connection, id: i64) -> Result<Option<MediaItem>, rusqlite:
     Ok(items.pop())
 }
 
+/// The stored names of item `id`'s added files, in their order, then its cover (round 5).
+fn added_names(conn: &Connection, id: i64) -> Result<Vec<String>, rusqlite::Error> {
+    let mut stmt = conn.prepare("SELECT upload_filename FROM media_item_files WHERE item_id = ?1 ORDER BY role = 'cover', position, id")?;
+    let names = stmt.query_map(params![id], |r| r.get(0))?.collect();
+    names
+}
+
 /// Items by an ORDER BY over `media_items m`, `limit` of them, for the prune lists: never an item
 /// the server keeps (A7), which is not for pruning.
 fn items_ordered(conn: &Connection, order: &str, limit: i64) -> Result<Vec<MediaItem>, rusqlite::Error> {
@@ -810,16 +820,17 @@ impl Storage {
 
     /// Make item `id` public or members only (`visibility`): its uploader, or an admin. An item
     /// whose file was already public (chat or Shared Files, [`was_public`]) stays public; `place`
-    /// runs before the change is committed, told whether the item is now members only, so the
-    /// route moves the file with it and nothing changes when the move fails (F3). Returns the
-    /// item as it now is.
+    /// runs before the change is committed, once for each of the item's files (its own, then its
+    /// added files and its cover, round 5), told whether the item is now members only, so the
+    /// route moves every file with it and nothing changes when a move fails (F3; the route puts
+    /// back the ones already moved). Returns the item as it now is.
     pub fn set_media_visibility(
         &self,
         id: i64,
         requester: &str,
         is_admin: bool,
         visibility: &str,
-        place: impl FnOnce(&str, bool) -> std::io::Result<bool>,
+        mut place: impl FnMut(&str, bool) -> std::io::Result<bool>,
     ) -> Result<MediaItem, MediaError> {
         self.with_conn_mut(|conn| {
             let tx = conn.transaction()?;
@@ -847,7 +858,9 @@ impl Storage {
                     params![published_shelf(from_shelf, to), filename],
                 )?;
             }
-            place(&filename, to == "members").map_err(|e| MediaError::Files(format!("The file could not be moved: {e}")))?;
+            for name in std::iter::once(filename).chain(added_names(&tx, id)?) {
+                place(&name, to == "members").map_err(|e| MediaError::Files(format!("The file could not be moved: {e}")))?;
+            }
             let item = item_by_id(&tx, id)?.ok_or(MediaError::Db(rusqlite::Error::QueryReturnedNoRows))?;
             tx.commit()?;
             Ok(item)
@@ -902,8 +915,9 @@ impl Storage {
     /// every pick of it go. Its upload goes back where it was before it was published (a chat
     /// file to chat, a Shared Files file to that list) and keeps its file, so an admin taking
     /// someone's chat photo off the Media page never breaks the chat message; only an upload
-    /// made for Media loses its row, and the route its file (F2). Returns what the route does
-    /// with the file.
+    /// made for Media loses its row, and the route its file (F2). Its added files and its cover
+    /// (round 5) were uploaded for Media: their rows go, and the route deletes their files
+    /// ([`Removed::added`]). Returns what the route does with the files.
     pub fn remove_media(&self, id: i64, requester: &str, is_admin: bool) -> Result<Removed, MediaError> {
         self.with_conn_mut(|conn| {
             let tx = conn.transaction()?;
@@ -918,9 +932,17 @@ impl Storage {
             if uploader != requester && !is_admin {
                 return refused(Refusal::NotAllowed, "Only the person who put it there, or an admin, can remove a Media item.");
             }
+            // Round 5: the added files and the cover go with it (uploads made for Media, so their
+            // rows go and the route deletes their files), and so do its licence choices (decision 8).
+            let added = added_names(&tx, id)?;
+            for name in &added {
+                tx.execute("DELETE FROM user_uploads WHERE filename = ?1 AND shared = ?2", params![name, MEDIA_SHELF])?;
+            }
+            tx.execute("DELETE FROM media_item_files WHERE item_id = ?1", params![id])?;
+            tx.execute("DELETE FROM media_licence_log WHERE item_id = ?1", params![id])?;
             tx.execute("DELETE FROM media_picks WHERE item_id = ?1", params![id])?;
             tx.execute("DELETE FROM media_items WHERE id = ?1", params![id])?;
-            let removed = Removed { filename, from_shelf };
+            let removed = Removed { filename, from_shelf, added };
             if removed.keeps_file() {
                 tx.execute("UPDATE user_uploads SET shared = ?1 WHERE filename = ?2", params![from_shelf, removed.filename])?;
             } else {
