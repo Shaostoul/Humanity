@@ -616,6 +616,12 @@ lints:
 # walking through her shut corridor, a permit naming another server, a key in a relay permit-check
 # line, Ada's build with a permit taken back KEPT, ...) fails its own check and no other, the probe's
 # household fields are read in one place (PROBE), and the rig's corridor walks stay at walking pace.
+# And the starts judge (scripts/lib/starts-judge.js, ship homes increment 6, 2026-10-12): a made-up
+# `verify-starts` run, built from the tree's own data, that went right passes every check, each
+# broken one (the home's things carried into the server's save, the counter's offline meal in a
+# server's world, a key on the relay's home-chosen line, home again to the default home, ...) fails
+# its own check and no other, the counter's words and the probe's field names are the game's own,
+# and the same run saved to a folder is judged by `--dry-verdict`.
 # And the probe sweep's ground_probe judgement (scripts/tests/tree-ground-check.test.js,
 # BUG-156, 2026-10-05): trees floating over the drawn ground, or an eye off it, fail.
 # And the friendship pass words (scripts/tests/friend-pass.test.js, passes v2, 2026-10-09):
@@ -630,7 +636,7 @@ lints:
 # frame is the spec's, the receipt is shown, and the erased person's client says an admin did it.
 # Add a file here whenever a rig script grows a judgement of its own.
 rig-tests:
-    node --test scripts/tests/machine-guard.test.js scripts/tests/perf-report.test.js scripts/tests/terminator-grain.test.js scripts/tests/make-clips.test.js scripts/tests/voice-rejoin.test.js scripts/tests/p2p-sync-own-devices.test.js scripts/tests/p2p-direct-offers.test.js scripts/tests/link-preview-pictures.test.js scripts/tests/erase-sign-up-again.test.js scripts/tests/backup-rotate.test.js scripts/tests/second-player.test.js scripts/tests/sealed-dm.test.js scripts/tests/copresence-judge.test.js scripts/tests/dxc-dlls.test.js scripts/tests/station-park-check.test.js scripts/tests/check-fresh-exe.test.js scripts/tests/check-delivery.test.js scripts/tests/throwaway-relay.test.js scripts/tests/rig-boot.test.js scripts/tests/compiled-in.test.js scripts/tests/game-launch.test.js scripts/tests/rig-exe-copy.test.js scripts/tests/showcase-pins.test.js scripts/tests/rig-gameplay.test.js scripts/tests/clean-test-temp.test.js scripts/tests/shared-build-judge.test.js scripts/tests/household-judge.test.js scripts/tests/tree-ground-check.test.js scripts/tests/friend-pass.test.js scripts/tests/friend-pass-web.test.js scripts/tests/reach-web.test.js scripts/tests/block-web.test.js scripts/tests/server-list-backoff.test.js scripts/tests/report-web.test.js scripts/tests/outside-help-web.test.js scripts/tests/calls-through-server.test.js scripts/tests/warnings-web.test.js scripts/tests/protected-web.test.js scripts/tests/admin-erase-web.test.js scripts/tests/group-report-web.test.js scripts/tests/trade-page-web.test.js scripts/tests/private-files-web.test.js scripts/tests/media-web.test.js scripts/tests/media-web-round2.test.js scripts/tests/strip-metadata.test.js scripts/tests/media-web-round3.test.js scripts/tests/media-web-round4.test.js scripts/tests/upload-clean-web.test.js scripts/tests/files-in-messages-web.test.js scripts/tests/kept-files-web.test.js scripts/tests/media-web-files.test.js scripts/tests/describe-agree.test.js scripts/tests/relay-follow.test.js scripts/tests/file-transfer-web.test.js scripts/tests/file-transfer-chat-web.test.js scripts/tests/profile-copy-web.test.js scripts/tests/chat-home.test.js
+    node --test scripts/tests/machine-guard.test.js scripts/tests/perf-report.test.js scripts/tests/terminator-grain.test.js scripts/tests/make-clips.test.js scripts/tests/voice-rejoin.test.js scripts/tests/p2p-sync-own-devices.test.js scripts/tests/p2p-direct-offers.test.js scripts/tests/link-preview-pictures.test.js scripts/tests/erase-sign-up-again.test.js scripts/tests/backup-rotate.test.js scripts/tests/second-player.test.js scripts/tests/sealed-dm.test.js scripts/tests/copresence-judge.test.js scripts/tests/dxc-dlls.test.js scripts/tests/station-park-check.test.js scripts/tests/check-fresh-exe.test.js scripts/tests/check-delivery.test.js scripts/tests/throwaway-relay.test.js scripts/tests/rig-boot.test.js scripts/tests/compiled-in.test.js scripts/tests/game-launch.test.js scripts/tests/rig-exe-copy.test.js scripts/tests/showcase-pins.test.js scripts/tests/rig-gameplay.test.js scripts/tests/clean-test-temp.test.js scripts/tests/shared-build-judge.test.js scripts/tests/household-judge.test.js scripts/tests/starts-judge.test.js scripts/tests/tree-ground-check.test.js scripts/tests/friend-pass.test.js scripts/tests/friend-pass-web.test.js scripts/tests/reach-web.test.js scripts/tests/block-web.test.js scripts/tests/server-list-backoff.test.js scripts/tests/report-web.test.js scripts/tests/outside-help-web.test.js scripts/tests/calls-through-server.test.js scripts/tests/warnings-web.test.js scripts/tests/protected-web.test.js scripts/tests/admin-erase-web.test.js scripts/tests/group-report-web.test.js scripts/tests/trade-page-web.test.js scripts/tests/private-files-web.test.js scripts/tests/media-web.test.js scripts/tests/media-web-round2.test.js scripts/tests/strip-metadata.test.js scripts/tests/media-web-round3.test.js scripts/tests/media-web-round4.test.js scripts/tests/upload-clean-web.test.js scripts/tests/files-in-messages-web.test.js scripts/tests/kept-files-web.test.js scripts/tests/media-web-files.test.js scripts/tests/describe-agree.test.js scripts/tests/relay-follow.test.js scripts/tests/file-transfer-web.test.js scripts/tests/file-transfer-chat-web.test.js scripts/tests/profile-copy-web.test.js scripts/tests/chat-home.test.js
 
 # The scripted second player (scripts/second-player.js) against a REAL relay.
 # NOT pure node, so NOT in rig-tests or `just verify` (rig-tests keeps the
@@ -712,6 +718,31 @@ verify-copresence *ARGS:
 [positional-arguments]
 verify-shared-build *ARGS:
     node scripts/verify-copresence.js --build "$@"
+
+# Proves in the REAL game that a player who chooses a Cabin on a server starts there fresh, eats at
+# the mess hall and finds their own home untouched (ship homes increment 6, "the starts as data, the
+# Cabin, the mess hall", docs/design/ship-homes-increment-6-plan.md section 6): `verify-copresence
+# --starts`. BOOTS TWO THINGS, like verify-shared-build: a throwaway relay (loopback only, its own
+# database, the tree's data/ mirrored) and ONE game in the .probe-rig/copresence sandbox
+# (background, never focused, silent), paired with its own home so it boots there alone and keeping
+# its progress between worlds, plus one scripted walker, TestBotCabin (scripts/second-player.js
+# --start cabin). Judged (scripts/lib/starts-judge.js) against the tree's own data (the Cabin's kit
+# and opening from data/homes/starts.ron, the plots from the ship file, the serving counter from
+# data/machines/ship.ron): the game's own home stocked (OFFLINE_MARK); the walker given the first
+# cabin and told what is free; the game choosing a Cabin on the server and arriving fresh (the
+# Cabin's kit only, no skills, a new character's credits, the Cabin's opening) with the same look,
+# in its cabin on the next cabin plot; walking through the doors to the mess hall's counter, never
+# corrected; a meal on the fleet ledger, a second refused for now, its bottles filled, the walker
+# eating too; the opening following; home again to OFFLINE_MARK with the server's save kept on disk;
+# back on the server to its cabin. Refuses (exit 1) while ANY HumanityOS.exe runs (one GPU: check
+# `tasklist | grep -i humanityos` first) or when the exe is older than the source; exit 2 = a check
+# failed. Needs a build with increment 6's Wave 2 (the probe's `home_session` block and the
+# `choose_start`, `pairing`, `meal` and `water` verbs). Evidence in
+# .probe-rig/copresence/runs/<stamp>-starts/.
+#   just verify-starts --dry-verdict <manifest.json>   re-judge without booting
+[positional-arguments]
+verify-starts *ARGS:
+    node scripts/verify-copresence.js --starts "$@"
 
 # Proves in the REAL game that household permits work end to end (ship homes increment 5b, "the
 # household page, and walking into a permitted plot", docs/design/ship-homes-increment-5b-plan.md
