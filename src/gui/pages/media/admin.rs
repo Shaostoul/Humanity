@@ -1,7 +1,8 @@
-//! Server Settings > ADMIN > Media (increment 2 of docs/design/media-showcase.md, 2026-10-11):
-//! everything an admin sets about the server's Media page, in one place. Moved here from
-//! pages/server_settings/media.rs unchanged (Media round 5, Wave 0, 2026-10-12): round 5 shows it
-//! on the Media page itself, as its Admin tab (docs/design/media-round-5-plan.md 3.9).
+//! The Media page's Admin tab (increment 2 of docs/design/media-showcase.md, 2026-10-11; on the
+//! Media page since Media round 5, 2026-10-12, docs/design/media-round-5-plan.md 3.9): everything
+//! an admin sets about the server's Media page, in one place. It was Server Settings > ADMIN >
+//! Media until round 5; Server Settings now keeps one line, [`POINTER_LINE`], with "Open them",
+//! which lands here (media.rs `open_admin_tab`). Only admins see the tab (media.rs `draw_body`).
 //!
 //! - Who sees it: Public or Members only, with the relay's own line under the switch saying what
 //!   a member is (`media_members_note`: everyone signed in to this server).
@@ -19,7 +20,7 @@
 //!   and an item's row with Keep on the server (a kept item is in no prune list).
 //!
 //! The requests and their answers are the Media page's (pages/media.rs `spawn`, `poll`), so an
-//! answer lands whichever of the two pages is open.
+//! answer lands whichever tab is open.
 
 use egui::RichText;
 
@@ -33,15 +34,19 @@ const GENERAL: i64 = 1;
 /// The prune lists' names, in the order of `MediaAdmin::prune_tab`.
 const PRUNE_TABS: [&str; 4] = ["Largest", "Oldest", "Least viewed", "Waiting to be published"];
 
+/// What Server Settings > ADMIN says where the section went, beside its "Open them" (the
+/// website's /admin says the same words: web/pages/admin.html).
+pub(crate) const POINTER_LINE: &str = "This server's Media settings, categories and space are on the Media page, under Admin.";
+
 /// The section. Asks the server for the categories, suggestions and usage the first time it is
-/// drawn for a server, and reads their answers every frame.
+/// drawn for a server, and reads their answers every frame. The tab it sits under names it, so it
+/// has no heading of its own (the website's Admin tab has none either).
 pub(crate) fn draw_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     page::sync_server(state);
     page::poll(ui.ctx(), state);
     if !state.media.admin.requested && !page::server_here(state).is_empty() && page::signed_in_here(state) {
         page::refresh_admin(state);
     }
-    widgets::subsection_label(ui, theme, "Media");
     widgets::body_hint(
         ui,
         theme,
@@ -88,12 +93,13 @@ fn draw_settings(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         .on_hover_text("Members get the originals and downloads. The previews themselves come in a later version.");
     let dirty = draft != cached;
     let mut save = false;
-    // As in Server policy: Save sends the whole copy, so say when the server's changed under it.
+    // As in Server Settings' Server policy: Save sends the whole copy (Server Settings' unsaved
+    // edits too: one working copy), so say when the server's changed under it.
     crate::gui::pages::server_settings::draw_changed_underneath_note(ui, theme, state, dirty);
     ui.horizontal(|ui| {
         ui.add_enabled_ui(dirty, |ui| {
             save = widgets::Button::primary("Save Media settings")
-                .tooltip("Sends this server's settings, with any unsaved edits in Server policy above too.")
+                .tooltip("Sends this server's settings, with any unsaved edits on the Server Settings page too.")
                 .show(ui, theme);
         });
         if dirty {
