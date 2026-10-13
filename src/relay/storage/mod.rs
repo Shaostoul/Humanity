@@ -1521,6 +1521,33 @@ impl Storage {
             CREATE INDEX IF NOT EXISTS idx_media_licence_log_item ON media_licence_log(item_id, id);"
         )?;
 
+        // Copyright reports about Media items (2026-10-13, storage/takedowns.rs and relay/
+        // media_takedown.rs): the "Report a copyright problem" form anyone may send, signed in or
+        // not, and the admin's decision, which the public takedown log shows. `name`, `contact`
+        // and `statement` are personal: blanked 90 days after the decision (storage/expiry.rs).
+        // A new table in a batch of its own, every index over its own CREATE TABLE columns, so a
+        // live database from before it simply gains it (BUG-046 concerns ALTER-added columns only;
+        // `a_database_from_before_takedowns_opens_and_gains_the_table` opens one). `id` is
+        // AUTOINCREMENT so a number in the public log is never given to another report.
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS takedown_requests (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                item_id       INTEGER NOT NULL,
+                item_title    TEXT    NOT NULL DEFAULT '',
+                item_public   INTEGER NOT NULL DEFAULT 0,
+                created_at    INTEGER NOT NULL,
+                name          TEXT    NOT NULL DEFAULT '',
+                contact       TEXT    NOT NULL DEFAULT '',
+                statement     TEXT    NOT NULL DEFAULT '',
+                state         TEXT    NOT NULL DEFAULT 'open',
+                decision_note TEXT    NOT NULL DEFAULT '',
+                decided_by    TEXT,
+                decided_at    INTEGER
+            );
+            CREATE INDEX IF NOT EXISTS idx_takedown_requests_state ON takedown_requests(state, id);
+            CREATE INDEX IF NOT EXISTS idx_takedown_requests_decided ON takedown_requests(decided_at);"
+        )?;
+
         // Resumable uploads (2026-10-11, storage/upload_sessions.rs and relay/resumable.rs; docs/
         // design/media-showcase.md "Resumable uploads, exact"): one row per big Media file being
         // sent in pieces, until it is whole and stored (or cancelled, or idle for a day). `id` is
@@ -2892,6 +2919,8 @@ pub use friend_passes::{FriendCertWithdrawal, FRIEND_CERT_WITHDRAWALS_MAX};
 // "Who can reach me": the audience each person chose per kind of contact (2026-10-09, 10c).
 mod reach;
 pub mod reports;
+// Copyright reports about Media items and the public takedown log (2026-10-13).
+pub mod takedowns;
 // The Media page (2026-10-11, docs/design/media-showcase.md): items, categories, suggestions, picks.
 pub mod media;
 /// Resumable uploads' sessions (2026-10-11): a big Media file sent in pieces. Routes in relay/resumable.rs.

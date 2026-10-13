@@ -25,6 +25,8 @@ pub mod media_licences;
 pub mod media_counts;
 pub mod media_edit;
 pub mod media_page;
+// "Report a copyright problem" and the public takedown log (2026-10-13).
+pub mod media_takedown;
 pub mod api_v2_agents;
 pub mod api_v2_ai;
 pub mod api_v2_announce;
@@ -1319,6 +1321,13 @@ pub fn build_router(state: Arc<RelayState>) -> Router {
         .route("/api/media/viewed", post(media_counts::viewed))
         .route("/api/media/download/{id}", get(media_counts::download))
         .route("/api/media/preview/{id}", get(media_page::preview))
+        // "Report a copyright problem" (2026-10-13, media_takedown.rs): the form anyone may send,
+        // signed in or not (a small body, limited per address a day); the public takedown log;
+        // and the admins' open list and decision.
+        .route("/api/media/takedown", post(media_takedown::takedown).layer(axum::extract::DefaultBodyLimit::max(media_takedown::TAKEDOWN_BODY_LIMIT)))
+        .route("/api/media/takedown/decide", post(media_takedown::decide))
+        .route("/api/media/takedowns", get(media_takedown::public_log))
+        .route("/api/media/takedowns/open", get(media_takedown::open_list).post(media_takedown::open_list_post))
         .route("/media/{id}", get(media_page::page))
         .route("/api/github-webhook", post(api::github_webhook))
         .route("/api/tasks", get(api::get_tasks).post(api::create_task))

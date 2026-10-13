@@ -21,7 +21,9 @@
 //   that file (`download: true`), which the browser then saves itself;
 // - Copy link (`https://<host>/media/<id>`, the page the relay serves with its
 //   preview for social sites), Edit (the uploader and admins: media-edit.js),
-//   and the tile's own actions (Pick, Remove, Feature, Keep, Report).
+//   and the tile's own actions (Pick, Remove, Feature, Keep, Report);
+// - "Report a copyright problem" (2026-10-13), for anyone, signed in or not:
+//   media-takedown.js's form, about this item.
 //
 // Opening it counts a view (POST /api/media/viewed, unsigned; the session's
 // upload token goes in its header only for a members-only item, which only a
@@ -61,6 +63,9 @@
     // Plain status words only: what the offer allows is the licence's, in the server's own words.
     offeredForGame: 'Offered for the game.',
     removedFromItem: 'Removed from the item.',
+    // The copyright form's button (media-takedown.js holds the same words as WORDS.button).
+    takedown: 'Report a copyright problem',
+    takedownTip: 'Is this your work, put here without your permission? Tell the admins.',
     saved: 'Saved.',
   });
 
@@ -467,6 +472,13 @@
       const buttons = [h('button', { type: 'button', id: 'media-copy-link', className: 'media-btn', text: WORDS.copyLink, title: WORDS.copyTip, on: { click: () => copyLink(item) } })];
       if (mayEdit(item)) buttons.push(h('button', { type: 'button', id: 'media-item-edit-open', className: 'media-btn media-btn-primary', text: WORDS.edit, title: WORDS.editTip, on: { click: () => openEdit(item) } }));
       kids.push(h('div', { className: 'media-form-buttons media-item-buttons' }, buttons.concat([c.actions(item)])));
+      // "Report a copyright problem" (2026-10-13, media-takedown.js): for anyone, signed in or not.
+      if (typeof c.openTakedown === 'function') {
+        kids.push(h('p', { className: 'media-hint media-item-takedown' }, [h('button', {
+          type: 'button', id: 'media-item-takedown', className: 'media-btn media-btn-small', text: WORDS.takedown,
+          title: WORDS.takedownTip, on: { click: () => c.openTakedown(item) },
+        })]));
+      }
       if (page.copied) kids.push(h('p', { className: 'media-hint', id: 'media-copied', text: page.copied }));
       if (page.status) kids.push(h('p', { className: 'media-hint', id: 'media-item-status', text: page.status }));
       box.replaceChildren(...kids.filter(Boolean));

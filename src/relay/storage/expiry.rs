@@ -7,6 +7,8 @@
 //!     storage/channels.rs);
 //!   - erased accounts past their window or over the cap (storage/erased_accounts.rs);
 //!   - reports decided more than 90 days ago (storage/reports.rs; open reports are kept);
+//!   - the name, contact and statement of copyright reports decided more than 90 days ago,
+//!     blanked (storage/takedowns.rs, 2026-10-13); the row stays, as the public takedown log;
 //!   - Media uploads not published within a day, row and file (storage/media.rs; the Media
 //!     review's F1, 2026-10-11). Their files are in the relay's uploads folder, so this pass
 //!     takes the folders (`run_expiry_sweeps_in` names a test's own);
@@ -57,6 +59,14 @@ impl Storage {
                 super::reports::REPORT_KEEP_DAYS_AFTER_DECISION
             ),
             Err(e) => tracing::error!("Reports sweep failed: {e}"),
+        }
+        match self.takedowns_forget_personal(super::now_millis() as i64) {
+            Ok(0) => {}
+            Ok(n) => tracing::info!(
+                "Copyright reports: blanked the name, contact and statement of {n} decided more than {} days ago",
+                super::takedowns::TAKEDOWN_PERSONAL_KEEP_DAYS
+            ),
+            Err(e) => tracing::error!("Copyright report sweep failed: {e}"),
         }
         match self.expire_unpublished_media_in(folders, super::now_millis() as i64) {
             Ok(0) => {}
