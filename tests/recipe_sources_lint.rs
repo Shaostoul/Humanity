@@ -43,8 +43,9 @@
 //!     the exact id, else `<id>_0`;
 //!   * an item the vendor sells: a data/trade_goods.ron id that is also in
 //!     items.csv (the vendor catalog in src/lib.rs filters to exactly that);
-//!   * an ore from the three test asteroids in src/lib.rs (ASTEROID_ORES);
-//!   * the player's starting items in data/world/player.ron.
+//!   * an ore from the three asteroids a new world starts with,
+//!     data/asteroids/belt.ron (ASTEROID_ORES);
+//!   * what a new character carries: every start's kit in data/homes/starts.ron.
 //!
 //! Standalone by design: std only, imports nothing from the crate, reads the
 //! repo files at runtime, so it runs without linking the native bin (see the
@@ -57,11 +58,11 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fs;
 use std::path::PathBuf;
 
-/// Ores the three test asteroids yield. COPIED from the `AsteroidBody { ..
-/// ores: vec![..] }` spawns in src/lib.rs (grep "AsteroidBody {"): M-12
-/// (metallic), S-7 (silicaceous) and C-3 (carbonaceous). The test
-/// `asteroid_ore_list_matches_src_lib` fails if this list and src/lib.rs drift
-/// apart, so update both together.
+/// Ores the three asteroids a new world starts with yield. COPIED from
+/// data/asteroids/belt.ron (ship homes increment 6 moved them there from
+/// src/lib.rs's startup): M-12 (metallic), S-7 (silicaceous) and C-3
+/// (carbonaceous). The test `asteroid_ore_list_matches_the_belt` fails if this
+/// list and the belt drift apart, so update both together.
 const ASTEROID_ORES: &[&str] = &[
     // M-12
     "iron_ore_0",
@@ -403,7 +404,7 @@ fn load() -> Data {
     }
 
     for ore in ASTEROID_ORES {
-        add(ore, "mined from a test asteroid (src/lib.rs)".to_string());
+        add(ore, "mined from an asteroid (asteroids/belt.ron)".to_string());
     }
 
     // What a new character carries: every start's `kit` (ship homes increment 6 moved the
@@ -847,33 +848,31 @@ fn showcase_bed_crops_name_real_machines_and_plants() {
     );
 }
 
-/// ASTEROID_ORES is a copy; this keeps it honest against src/lib.rs.
+/// ASTEROID_ORES is a copy; this keeps it honest against data/asteroids/belt.ron
+/// (each asteroid's `ores: [("id", n), ..]` up to its `position:`).
 #[test]
-fn asteroid_ore_list_matches_src_lib() {
-    let lib = read("src/lib.rs");
+fn asteroid_ore_list_matches_the_belt() {
+    let belt = strip_line_comments(&read("data/asteroids/belt.ron"));
     let mut found: BTreeSet<String> = BTreeSet::new();
     let mut blocks = 0;
-    let mut rest = lib.as_str();
-    while let Some(k) = rest.find("AsteroidBody {") {
+    let mut rest = belt.as_str();
+    while let Some(k) = rest.find("ores:") {
         blocks += 1;
         let body = &rest[k..];
         let end = body.find("position:").unwrap_or(body.len());
-        let ores = &body[..end];
-        if let Some(v) = ores.find("ores:") {
-            for (i, s) in ores[v..].split('"').enumerate() {
-                if i % 2 == 1 {
-                    found.insert(s.to_string());
-                }
+        for (i, s) in body[..end].split('"').enumerate() {
+            if i % 2 == 1 {
+                found.insert(s.to_string());
             }
         }
-        rest = &body["AsteroidBody {".len()..];
+        rest = &body["ores:".len()..];
     }
     let listed: BTreeSet<String> = ASTEROID_ORES.iter().map(|s| s.to_string()).collect();
-    assert!(blocks >= 3, "found only {blocks} `AsteroidBody {{` spawns in src/lib.rs");
+    assert!(blocks >= 3, "found only {blocks} asteroids' `ores:` in data/asteroids/belt.ron");
     assert_eq!(
         listed, found,
         "\n\nASTEROID_ORES in tests/recipe_sources_lint.rs no longer matches the ores the \
-         `AsteroidBody {{` spawns in src/lib.rs yield. Update the list.\n"
+         asteroids in data/asteroids/belt.ron yield. Update the list.\n"
     );
 }
 

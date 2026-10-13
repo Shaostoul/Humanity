@@ -913,9 +913,12 @@ pub(crate) fn apply_welcome_home(state: &mut EngineState, welcome: &serde_json::
         WelcomeHome::Guest { .. } => "guest",
     });
     state.last_welcome_rejoin = welcome.get("rejoin").and_then(|r| r.as_bool());
-    // Where the home stands is the live save's (the ship's hash is the same before and after a
-    // move, so it is kept before the move).
-    if let Some(plot) = memory {
+    // Where the home stands is the live save's, written into it at once (the ship's hash is the
+    // same before and after a move, so it is kept before the move); a plot of another kind is kept
+    // once the save is that kind's start (the Move arm), so the save never pairs a start with a
+    // plot of another kind.
+    let changes_start = matches!(&plan, WelcomeHome::Move { start: Some(_), .. });
+    if let Some(plot) = memory.clone().filter(|_| !changes_start) {
         crate::engine::save_slot::set_ship_place(state, plot);
     }
     if let Some(sentence) = told {
@@ -943,6 +946,9 @@ pub(crate) fn apply_welcome_home(state: &mut EngineState, welcome: &serde_json::
             // household's machines are loaded before the home is rebuilt with them.
             if let Some((start, household)) = &start {
                 crate::engine::save_slot::change_start(state, start, household);
+                if let Some(plot) = memory {
+                    crate::engine::save_slot::set_ship_place(state, plot);
+                }
             }
             move_home(state, ship);
             if start.is_some() {

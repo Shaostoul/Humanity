@@ -160,9 +160,10 @@ pub fn fill_bottles_at(c: &mut Counter) -> String {
     filled.sentence()
 }
 
-/// The meter as it stands. Until startup registers it (the increment's wiring), the first use
-/// takes up the live save's own meter, as a save with none registered keeps the one it had, so
-/// nothing counted before is lost.
+/// The meter as it stands. Startup registers it before the save is applied (lib.rs,
+/// `save_load::register_ship_meals`), and every load puts the save's there; where nothing has
+/// registered it (a test's bare store), the first use takes up the live save's own meter, as a
+/// save with none registered keeps the one it had, so nothing counted before is lost.
 fn meter(data: &mut DataStore) -> crate::persistence::ShipMeals {
     if let Some(m) = crate::save_load::ship_meals(data) {
         return m;

@@ -647,6 +647,13 @@ pub fn live_own_air() -> bool {
     start_row(crate::gui::pages::where_you_live::starts(), &crate::save_load::active_home().start).own_air
 }
 
+/// Whether the live save's start carries `content` of the homestead's world (`Start::home_content`:
+/// the showcase garden's first planting, hot_reload/mod.rs), from the starts file read once per
+/// run: asked every frame.
+pub fn live_carries(content: crate::ship::starts::HomeContent) -> bool {
+    start_row(crate::gui::pages::where_you_live::starts(), &crate::save_load::active_home().start).home_content.contains(&content)
+}
+
 /// The plot `place` names on `ship_file` for a home of `kind` (pure): its plot when the place was
 /// taken on this same ship (its hash: a plot id names a place only on the same ship; after a ship
 /// change it is not trusted) and that plot exists and takes a home of `kind`. None otherwise.
@@ -726,16 +733,28 @@ pub fn assemble_start(
 }
 
 /// Where the live save's home stands aboard, from a welcome (`home_plot::plot_memory_after`):
-/// `Some(plot)` on the ship the game runs, or `None` (a guest, a plot given back). The next save
-/// writes it (`WorldSave::ship_place`) and the next world load builds the home there (`home_for`).
+/// `Some(plot)` on the ship the game runs, or `None` (a guest, a plot given back). A change is
+/// written into the save at once (`WorldSave::ship_place`, as the remembered plot was written into
+/// the config at once before increment 6), so the next world load builds the home there
+/// (`home_for`) even when the app is closed without its save on quit. The save written then holds
+/// the home's frame as it stood, which the next world load carries to the plot (`HomeFrame`).
 pub fn set_ship_place(state: &mut EngineState, plot: Option<String>) {
     let place = plot.and_then(|p| place_on(state.gui_state.ship_structure.as_ref(), &p));
     let mut active = crate::save_load::active_home();
-    if active.ship_place != place {
-        log::info!("Where you live: this save's plot is now {:?} (kept in the save)", place.as_ref().map(|p| &p.plot));
-        active.ship_place = place;
-        crate::save_load::set_active_home(active);
+    if active.ship_place == place {
+        return;
     }
+    log::info!("Where you live: this save's plot is now {:?} (kept in the save)", place.as_ref().map(|p| &p.plot));
+    active.ship_place = place;
+    crate::save_load::set_active_home(active);
+    crate::engine::own_home::refresh_own_home(&mut state.gui_state);
+    crate::save_load::save_active_home(
+        &state.game_world.world,
+        &state.gui_state.placed_items,
+        &state.data_store,
+        !state.gui_state.settings.fresh_world_each_launch,
+        state.gui_state.own_home.as_ref(),
+    );
 }
 
 // ── The server's game_home answers ───────────────────────────────────────────────────────────────

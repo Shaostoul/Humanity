@@ -316,12 +316,12 @@ mod tests {
     /// A CABIN BREATHES THE SHIP'S AIR (ship homes increment 6, plan 3.7): its start says
     /// `own_air: false` (data/homes/starts.ron), a berth on the ship's ventilation. So the cabin is
     /// no sealed space of its own: standing in it is the ship's air, as in the hall outside, and
-    /// the game simulates no 19.5 m3 box that its one person would use up. A homestead, whose
-    /// start says `own_air: true`, keeps its own.
+    /// the game simulates no 20.5 m3 box (3.15 by 2.5 by 2.6 m, the shipped cabin's body) that its
+    /// one person would use up. A homestead, whose start says `own_air: true`, keeps its own.
     ///
     /// Seen red 2026-10-12 with `air_spaces_for` ignoring `own_air` (the home zone always the
-    /// home's own): "a cabin has 19.5 m3 of its own air: Some((Vec3(80.5, 0.0, 88.0), Vec3(83.5,
-    /// 2.6, 90.5)))".
+    /// home's own): "a cabin has 20.474998 m3 of its own air: Some((Vec3(80.5, 0.0, 88.0),
+    /// Vec3(83.65, 2.6, 90.5)))".
     #[test]
     fn a_cabin_breathes_the_ships_air() {
         let starts = crate::ship::starts::Starts::load(&data());

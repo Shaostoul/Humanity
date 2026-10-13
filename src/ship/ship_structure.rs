@@ -1761,9 +1761,8 @@ impl ShipStructure {
     }
 
     /// `load_and_assemble` on a ship file already loaded: the home design of `plot`'s kind (from
-    /// `data_dir`, disk first) on `plot`, the default plot when None. The world load uses it to
-    /// build the home on the plot this player remembered for the server (increment 2,
-    /// engine/home_plot.rs `boot_plot`), which it chooses from the ship file first.
+    /// `data_dir`, disk first) on `plot`, the default plot when None. The world load falls back to
+    /// it when the live save's own home cannot be built (engine/home_plot.rs `assemble_for_boot`).
     pub fn assemble_from(ship: ShipStructure, data_dir: &Path, plot: Option<&str>) -> Result<ShipStructure, String> {
         let (plot_id, kind) = ship.plot_and_kind(plot)?;
         let design = HomeDesign::load(data_dir, &kind)?;
@@ -3742,8 +3741,8 @@ mod plot_handout_tests {
         let want: Vec<String> = (1..=12).map(|n| format!("p{n}")).collect();
         assert_eq!(ids, want, "the shipped ship has twelve plots, in the order a relay hands them out: {ids:?}");
         assert_eq!(all.plots[..12].iter().map(|p| p.id.as_str()).collect::<Vec<_>>(), want, "the homesteads come first in the file");
-        // p1 and p2 never move: a relay's stored claims name them, and a player's remembered plot
-        // (AppConfig `home_plots`) is an id too.
+        // p1 and p2 never move: a relay's stored claims name them, and the plot a save stands on
+        // (`WorldSave::ship_place`) is an id too.
         let plot = |id: &str| file.plots.iter().find(|p| p.id == id).unwrap_or_else(|| panic!("{id}"));
         assert_eq!((plot("p1").origin, plot("p1").door.zone.as_str(), plot("p1").door.lat), ((0.0, 0.0, 0.0), "commons", 40.0));
         assert_eq!((plot("p2").origin, plot("p2").door.zone.as_str(), plot("p2").door.lat), ((0.0, 0.0, 99.0), "street-1", 139.0));

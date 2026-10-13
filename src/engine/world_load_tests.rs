@@ -33,7 +33,7 @@ fn registries() -> DataStore {
 /// swap into one, `refresh_home_content`, or a world load of one) leave no creature at all.
 ///
 /// Seen red 2026-10-12 with `spawn_herd` ignoring `carries` (the herd spawned for every home, as
-/// before increment 6): "a cabin home has the homestead's world: herd 10, wilds 0, creatures 10".
+/// before increment 6): "a cabin home has the homestead's world: herd 7, wilds 0, creatures 7".
 #[test]
 fn a_cabin_home_spawns_none_of_the_homesteads_world() {
     let starts = Starts::load(&repo_data());

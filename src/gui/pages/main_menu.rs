@@ -1091,9 +1091,9 @@ mod first_session_tests {
     /// spawned as a Cabin and its save is what the startup applies. A home pairing boots your own
     /// home's save.
     ///
-    /// Seen red 2026-10-12 with `boot` reading your own home's save whatever the pairing (the boot
-    /// before increment 6): "a relaunch on a server pairing loaded your own home's save:
-    /// [(\"gold_ingot_0\", 7)]".
+    /// Seen red 2026-10-12 with `boot` reading offline_home.json for the server pairing too (its
+    /// `open_slot` given your own home's slot, as the boot before increment 6 always read): "a
+    /// relaunch on a server pairing loaded your own home's save: [(\"gold_ingot_0\", 7)]".
     #[test]
     fn a_relaunch_on_a_server_pairing_loads_that_servers_save() {
         use crate::persistence::{save_world, slot_path, SaveSlot, WorldSave};
