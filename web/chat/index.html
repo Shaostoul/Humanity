@@ -26,7 +26,7 @@
   <link rel="icon" type="image/x-icon" href="/favicon.ico">
   <link rel="stylesheet" href="/shared/theme.css?v=3">
   <link rel="stylesheet" href="/chat/base.css?v=3">
-  <link rel="stylesheet" href="/chat/layout.css?v=6">
+  <link rel="stylesheet" href="/chat/layout.css?v=7">
   <link rel="stylesheet" href="/chat/sidebar.css?v=3">
   <link rel="stylesheet" href="/chat/messages.css?v=6">
   <link rel="stylesheet" href="/chat/modals.css?v=4">
@@ -87,7 +87,10 @@
   <script src="/shared/icons.js?v=1"></script>
   <script src="/shared/events.js?v=1"></script>
   <script src="/shared/hold-confirm.js?v=1"></script>
-  <script src="/shared/shell.js?v=3" data-active="chat"></script>
+  <script src="/shared/shell.js?v=4" data-active="chat"></script>
+  <!-- Which server this page is on, held under the nav (media-round-5-plan.md 3.11). Needs nothing
+       from the chat scripts; asks Chat's protectedHidesRooms only when Switch opens, long after load. -->
+  <script src="/shared/server-strip.js?v=1"></script>
   <script src="/shared/defaults.js"></script>
   <script src="/shared/settings.js?v=4"></script>
 
