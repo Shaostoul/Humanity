@@ -5587,7 +5587,7 @@ is refused on public shelves. HEIC and AVIF photos, which kept their GPS the sam
 too (src/relay/core/strip_heif_metadata.rs). Not covered: location recorded inside the video stream itself
 (GoPro, DJI, some dashcams).
 
-## BUG-191: profiles never replicate between servers, because nothing signs them (OPEN, found 2026-10-11)
+## BUG-191: profiles never replicate between servers, because nothing signs them (FIXED 2026-10-12 on main, next release; found 2026-10-11)
 
 Found while checking how profile timestamps are set (docs/design/interplanetary.md, rule 3). When a
 person saves their profile, the relay stores it in `signed_profiles` with an EMPTY signature and
@@ -5605,6 +5605,28 @@ timestamp wins" between servers with up to 24 hours ahead accepted, so a server 
 fast would win every conflict. The fix, with federation activation: the apps sign `profile_v1`
 themselves (Dilithium3, the preimage `verify_profile_signature` already checks) and date each edit
 after the newest one they have seen (`max(now, last + 1)`, as the friendship choice notes do).
+
+**Fixed 2026-10-12** (plan and as built: `docs/design/bug-191-profile-copies-plan.md`). The copy
+other servers keep is now signed by the person's own apps, never by a server:
+- The contract is `src/relay/core/profile_copy.rs`: the public copy (every field the person keeps for
+  friends blanked), the pinned words signed, the limits, and `next_copy_time` (after the newest copy
+  seen for that server, so a fast clock wins nothing). A shared fixture
+  (`scripts/tests/fixtures/profile-copy-v1.json`) holds the desktop app and the website to the same
+  bytes.
+- The relay asks each of the person's signed-in devices to sign after a save (`sign_now`), keeps a
+  copy only when it asked, the signature checks over its own rebuild of the copy, and the copy is
+  newer and at most a day ahead, then passes it to every linked server
+  (`src/relay/handlers/profile.rs`). It never stores or passes on an unsigned copy, and drops any it
+  held at start.
+- A receiving server holds a copy to the save's limits, keeps a withdrawal in place of the copy,
+  passes on copies of its own people (never back to the link they came from), and sends a new link
+  its own copies (`src/relay/handlers/federation.rs`).
+- Going unlisted signs a withdrawal; erasing your own account sends one before the erase. An admin's
+  erase of someone else cannot, since only the person's own key can sign a withdrawal, and the admin
+  erase confirmation says so.
+- Proven on real relays in `tests/federation_two_relays.rs`: a saved profile reaches the linked
+  server with only what anyone may see, unlisted leaves a withdrawal and both answer not found, a
+  server linked later gets the current copy, and an erase withdraws it.
 
 ## BUG-192: chat between united-humanity.us and public.guide was down from 2026-09-06 to 2026-10-11 (FIXED, found 2026-10-11)
 
