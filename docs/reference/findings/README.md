@@ -216,3 +216,12 @@ what we will say about it.
   Releases is one, no source answers. A listing on Flathub, Snap, WinGet,
   Homebrew or F-Droid would very likely bring the app inside. Supersedes the
   AB 1043 bullet of the children's online-safety finding of the same day.
+- [`2026-10-12-media-item-licences.md`](2026-10-12-media-item-licences.md),
+  which licence a Media item should carry by default, and what a server needs
+  from its uploaders. "All rights reserved" is what the law gives anyway and
+  can be loosened later; a Creative Commons licence or CC0 cannot be taken back
+  for copies already taken. Each server needs its own limited hosting licence
+  from each uploader, separate from the item's public licence, and no
+  HumanityOS server has such terms yet. NonCommercial is unclear for a
+  donation-funded project, and NC or all-rights-reserved items cannot go into
+  the CC0 game as they stand. DMCA safe harbour needs a registered agent.
