@@ -276,6 +276,11 @@
       "date": "2026-10-12",
       "decision": "Rules page rule 7 is the approved hosting paragraph, word for word from data/media/licences.json `hosting` (a relay test, the_rules_page_carries_the_hosting_paragraph, fails if the two drift). A takedown section was added: members report the item with a new reason `copyright` (\"My work, shared without my permission\", data/safety/report_reasons.json); others open a GitHub issue naming the item's address, with no private details. The gaps callout says plainly that no copyright agent is registered yet. No email or postal address was published: none was approved.",
       "why": "The operator asked for a takedown contact and process now, with uploads kept to trusted people until a DMCA agent exists. Checked in code: a new member has no role and cannot upload at all (upload_rules.rs uploader_role), so 'trusted people only' already holds and needed no new gate; the rules page states it as fact."
+    },
+    {
+      "date": "2026-10-12",
+      "decision": "Live nginx on united-humanity.us: /media/<number> now goes to the relay (lane 1B, deployed 5f7d5d7a8), which serves media.html with the item's Open Graph tags and counts views by X-Real-IP. A static try_files stand-in carried it for about an hour after v0.1491.0 shipped lane 1G's /media/<id> addresses. Backups /root/nginx-humanity.bak-20261013-*. Verified: /media/2 200 with the item's title and og:url, a missing number the generic page, /media/2x 404, /media unchanged; both CSPs allow blob: pictures; the page opens the item in a browser with no console errors. The relay needs no ALLOWED_ORIGINS on this server (its default list has https://united-humanity.us, and nginx passes Host). public.guide still needs the same block by hand.",
+      "why": "1G made /media/<id> the share address; without the route a reload or a shared link 404d. The relay route is what lets social sites show the item."
     }
   ],
   "active_scopes_to_avoid": [
