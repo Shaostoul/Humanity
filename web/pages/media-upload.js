@@ -53,7 +53,9 @@
 // (every read and write wrapped, so a browser that refuses storage only loses
 // the resume). Picking the same file again after a reload carries on instead
 // of starting over; the record is forgotten when the upload is done, fails or
-// is cancelled. Used by /pages/media-app.js. A classic script in the browser
+// is cancelled. Media round 5 (lane 2A): an upload started from an item's Edit
+// form is attached to that item once it is up (`attachUpload`, POST
+// /api/media/files/add) instead of published. Used by /pages/media-app.js. A classic script in the browser
 // (loaded before media-app.js), a CommonJS module under Node, where
 // scripts/tests/media-web-round2.test.js and media-web-round3.test.js drive
 // it against a stand-in server, and media-web-round4.test.js holds round 4.
@@ -183,6 +185,29 @@
     const words = json && typeof json.error === 'string' && json.error ? json.error
       : (!text.trim() || text.trim().startsWith('<') || json ? 'The server answered ' + res.status + '.' : text.trim());
     return { json: json && typeof json === 'object' ? json : null, words };
+  }
+
+  /** The purpose adding upload `add` to item `id` as `as` ("file" or "cover") is signed over (3.4). */
+  function attachPurpose(id, add, as) {
+    return 'media_file_add:' + id + ':' + add + ':' + as;
+  }
+
+  /**
+   * Media round 5 (lane 2A): an upload made from an item's Edit form is ATTACHED once it is up,
+   * never published as an item of its own. POST /api/media/files/add with the item's number, its
+   * own file name (W5), the upload's stored name and as what, signed over
+   * `media_file_add:<id>:<upload>:<file|cover>`. `o`: fetch, sign(purpose), to ({id, filename,
+   * as}), add (the stored name), cannotSign (the words when nothing could sign). Resolves to the
+   * relay's answer ({ok, item}); throws Error(the relay's own words).
+   */
+  async function attachUpload(o) {
+    const as = o.to.as === 'cover' ? 'cover' : 'file';
+    const auth = await o.sign(attachPurpose(o.to.id, o.add, as));
+    if (!auth) throw new Error(o.cannotSign || 'This page could not sign the request.');
+    const body = Object.assign({ id: o.to.id, filename: o.to.filename, add: o.add, as }, auth);
+    const res = await o.fetch('/api/media/files/add', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    if (!res || !res.ok) throw new Error(res ? (await readAnswer(res)).words : 'The server could not be reached.');
+    return res.json();
   }
 
   /**
@@ -631,7 +656,7 @@
   const api = {
     RESUME_KEY, RESUME_MAX_AGE_MS, DEFAULT_CHUNK, RETRY_FIRST_MS, RETRY_MAX_MS, SAME_ERROR_TRIES, ALLOWANCE_MIN_MS,
     CANCEL_TRIES, FINGERPRINT_BYTES, fingerprint, rememberUpload, touchUpload, findUpload, forgetUpload, isAllowance,
-    readAnswer, cancelSession, createUploader,
+    readAnswer, cancelSession, createUploader, attachPurpose, attachUpload,
   };
   if (typeof module === 'object' && module && module.exports) module.exports = api;
   else Object.assign(root, { MediaUpload: api });

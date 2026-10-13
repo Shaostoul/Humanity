@@ -413,7 +413,8 @@ test("5b. a members-only video plays through a ticket, and gets a new one where 
   let n = 0;
   const clip = item({ id: 4, url: "/api/media/file/4", visibility: "members", kind: "video", title: "Fire show", filename: "4_fire.mp4" });
   const { doc, net, saved } = await openPage({ now: () => t, routes: listRoutes(listAnswer([clip]), [
-    [at("/api/media/ticket", "POST"), () => respond(200, { url: "/api/media/file/4?ticket=t" + (++n), expires_in_s: 600 })],
+    // Round 5 (lane 2A): a Download's ticket is for the counting route, /api/media/download/<id>.
+    [at("/api/media/ticket", "POST"), (c) => respond(200, { url: (c.body.download ? "/api/media/download/4?file=0&" : "/api/media/file/4?") + "ticket=t" + (++n), expires_in_s: 600 })],
   ]) });
   byId(doc, "media-grid").querySelector(".media-thumb").click();
   await settle();
@@ -439,7 +440,7 @@ test("5b. a members-only video plays through a ticket, and gets a new one where 
   // Download beside it: a ticket of its own, saved by the browser, and the video is not drawn again.
   byId(doc, "media-download").click();
   await settle();
-  assert.deepEqual(saved, [{ url: "/api/media/file/4?ticket=t3", name: "4_fire.mp4" }], "Download saves through a ticket of its own");
+  assert.deepEqual(saved, [{ url: "/api/media/download/4?file=0&ticket=t3", name: "4_fire.mp4" }], "Download saves through a ticket of its own");
   assert.equal(byId(doc, "media-viewer-open").querySelector("video"), video, "and the playing video is not drawn again");
   assert.equal(video.src, "/api/media/file/4?ticket=t2", "nor its ticket changed");
 });

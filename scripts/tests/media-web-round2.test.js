@@ -281,14 +281,15 @@ test("C2. Publish on an upload that waits opens the form and publishes that file
 // Download's press fetching the file into the page again (blobFor): "Download asks for a ticket".
 test("D. members-only files come by header through object URLs, no token anywhere, revoked when gone, saved under their own name", async () => {
   let showSeven = true;
-  const seven = item({ id: 7, url: "/api/media/file/7", visibility: "members", title: "Members' photo", original_name: "IMG_0001.jpg" });
+  const seven = item({ id: 7, url: "/api/media/file/7", visibility: "members", title: "Members' photo", original_name: "IMG_0001.jpg", filename: "7_photo.jpg" });
   const nine = item({ id: 9, url: "/api/media/file/9", visibility: "members", kind: "file", title: "Plans", original_name: "Workshop plans.pdf", uploader_key: ANN, filename: "9_plans.pdf" });
   const { doc, net, urls, saved, page } = await openPage({ routes: listRoutes(null, [
     [(c) => c.url === "/api/media/list" && c.body.featured !== 1 && !c.body.id, () => respond(200, listAnswer(showSeven ? [seven, nine] : [nine]))],
     [(c) => c.url === "/api/media/list" && c.body.featured === 1, () => respond(200, listAnswer([]))],
     [at("/api/media/file/7"), () => respond(200, "", new Uint8Array([1]))],
     [at("/api/media/file/9"), () => respond(200, "", new Uint8Array([2]))],
-    [at("/api/media/ticket", "POST"), (c) => respond(200, { url: "/api/media/file/" + c.body.id + "?ticket=t" + c.body.id, expires_in_s: 600 })],
+    // Round 5 (lane 2A): a Download's ticket is for the counting route, /api/media/download/<id>.
+    [at("/api/media/ticket", "POST"), (c) => respond(200, { url: (c.body.download ? "/api/media/download/" + c.body.id + "?file=" + c.body.file + "&" : "/api/media/file/" + c.body.id + "?") + "ticket=t" + c.body.id, expires_in_s: 600 })],
   ]) });
   const img = tileOf(doc, 7).querySelector("img");
   assert.equal(img.src, "blob:test/1");
@@ -302,21 +303,23 @@ test("D. members-only files come by header through object URLs, no token anywher
     assert.ok(!/token/i.test(c.url), "the file route is asked for with no token in its address: " + c.url);
     assert.equal(c.headers["X-Upload-Token"], "tok-1");
   }
-  // The picture in the viewer: its Download is the fetched file, under the uploader's own name.
+  // The picture in the viewer: its Download is counted (round 5, lane 2A: a ticket for the relay's
+  // download route, where it was the fetched picture's object URL), under the uploader's own name.
   tileOf(doc, 7).querySelector(".media-thumb").click();
-  const dl = byId(doc, "media-download");
-  assert.equal(dl.href, "blob:test/1", "the viewer's Download is the fetched file");
-  assert.equal(dl.getAttribute("download"), "IMG_0001.jpg", "under the name it had on the uploader's device");
+  byId(doc, "media-download").click();
+  await settle();
+  assert.deepEqual(saved.at(-1), { url: "/api/media/download/7?file=0&ticket=t7", name: "IMG_0001.jpg" }, "under the name it had on the uploader's device");
   byId(doc, "media-viewer-close").click();
+  saved.length = 0;
   // A file (not shown on its tile): Download asks for a ticket and saves through it under its own name.
   assert.equal(net.calls.filter((c) => path0(c.url) === "/api/media/file/9").length, 0, "a file is not fetched for its tile");
   tileOf(doc, 9).querySelector(".media-thumb").click();
   byId(doc, "media-download").click();
   await settle();
-  const ticket = net.calls.find((c) => c.url === "/api/media/ticket");
+  const ticket = net.calls.find((c) => c.url === "/api/media/ticket" && c.body.id === 9);
   assert.ok(ticket, "Download asks for a ticket");
-  assert.deepEqual([ticket.body, ticket.headers["X-Upload-Token"]], [{ id: 9, filename: "9_plans.pdf" }, "tok-1"], "a ticket for that one file, the token in the header");
-  assert.deepEqual(saved, [{ url: "/api/media/file/9?ticket=t9", name: "Workshop plans.pdf" }], "Download saves through the ticket");
+  assert.deepEqual([ticket.body, ticket.headers["X-Upload-Token"]], [{ id: 9, filename: "9_plans.pdf", file: 0, download: true }, "tok-1"], "a ticket for that one file, the token in the header");
+  assert.deepEqual(saved, [{ url: "/api/media/download/9?file=0&ticket=t9", name: "Workshop plans.pdf" }], "Download saves through the ticket");
   assert.equal(net.calls.filter((c) => path0(c.url) === "/api/media/file/9").length, 0, "the page itself never fetches it");
   byId(doc, "media-viewer-close").click();
   // Item 7 leaves the page (a filter, a reload): its object URL is revoked.
