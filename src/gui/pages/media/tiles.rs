@@ -156,10 +156,6 @@ pub(crate) fn request_cover(state: &mut GuiState, item: &Item) {
     }
 }
 
-/// The badge of an item on the main shelf, and of one featured in its category only (round 5).
-pub(crate) const FEATURED_MAIN: &str = "Featured";
-pub(crate) const FEATURED_CATEGORY: &str = "Featured in its category";
-
 /// "3 files" when an item holds several (its own and the added ones, not the cover), else nothing.
 pub(crate) fn files_badge(item: &Item) -> Option<String> {
     (item.file_count > 1).then(|| format!("{} files", item.file_count))
@@ -267,14 +263,9 @@ pub(crate) fn draw_tile(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, 
                         ui.label(RichText::new(files).size(theme.font_size_small).color(theme.text_muted()));
                     }
                     ui.label(RichText::new(api::size_words(item.total_bytes.max(item.size_bytes))).size(theme.font_size_small).color(theme.text_muted()));
-                    match item.featured {
-                        api::Featured::Main => {
-                            ui.label(RichText::new(FEATURED_MAIN).size(theme.font_size_small).color(theme.accent()));
-                        }
-                        api::Featured::Category => {
-                            ui.label(RichText::new(FEATURED_CATEGORY).size(theme.font_size_small).color(theme.accent()));
-                        }
-                        api::Featured::None => {}
+                    // "Featured" or "Featured in its category", in the words the Feature choice uses.
+                    if item.featured.is_on() {
+                        ui.label(RichText::new(super::filters::feature_words(item.featured)).size(theme.font_size_small).color(theme.accent()));
                     }
                     if item.kept {
                         ui.label(RichText::new(KEPT_BADGE).size(theme.font_size_small).color(theme.success()))
@@ -408,8 +399,8 @@ fn reference_or_say(state: &mut GuiState, item: &Item) -> Option<api::ItemRef> {
 }
 
 /// A tile's buttons: Edit (yours, or any as an admin: round 5, it opens the item's page with its
-/// Edit window), Pick or Unpick (not on your own), Remove (yours, or any as an admin), Feature or
-/// Unfeature (admins; the item's page has all three choices), Keep on the server or Stop keeping
+/// Edit window), Pick or Unpick (not on your own), Remove (yours, or any as an admin), the three
+/// Feature choices (admins: filters.rs `draw_feature_choice`), Keep on the server or Stop keeping
 /// (admins and moderators), Report (not on your own).
 fn draw_actions(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, item: &Item) {
     if !signed_in_here(state) {
@@ -436,17 +427,10 @@ fn draw_actions(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, item: &I
         if (own || admin) && widgets::Button::danger("Remove").size(small).show(ui, theme) {
             state.media.confirm_remove = Some(item.clone());
         }
-        if admin {
-            // Feature puts it on the main shelf, Unfeature takes it off any; the item's page has
-            // the three choices (main shelf, its category only, none).
-            let to = if item.featured.is_on() { api::Featured::None } else { api::Featured::Main };
-            let label = if item.featured.is_on() { "Unfeature" } else { "Feature" };
-            if widgets::Button::secondary(label).size(small).tooltip("Featured items lead the Media page.").show(ui, theme) {
-                if let (Some(r), Some(signer)) = (reference_or_say(state, item), signer_or_say(state)) {
-                    spawn(state, Job::Feature { id: item.id, to }, api::feature_request(&signer, &r, to));
-                }
-            }
-        }
+        // The admins' three Feature choices (lane 1C's control, filters.rs): "Not featured",
+        // "Featured" or "Featured in its category", sent as soon as one is picked. Nothing for
+        // anyone else.
+        super::filters::draw_feature_choice(ui, theme, state, item);
         if keeper {
             let (label, tip) = if item.kept { (STOP_KEEPING, STOP_KEEPING_TIP) } else { (KEEP, KEEP_TIP) };
             if widgets::Button::secondary(label).size(small).tooltip(tip).show(ui, theme) {

@@ -236,7 +236,7 @@ fn the_card_shows_the_first_line_and_the_file_count() {
     let out = settled(&ctx, &theme, &mut state);
     assert!(!shows(&out, "The second line stays on the page"), "the second line stays on the page");
     assert!(shows(&out, &cut), "the first line, cut");
-    for text in ["3 files", "3 picks, 2 downloads", tiles::FEATURED_CATEGORY] {
+    for text in ["3 files", "3 picks, 2 downloads", crate::gui::pages::media::filters::feature_words(api::Featured::Category)] {
         assert!(shows(&out, text), "the card shows {text:?}");
     }
 }
@@ -282,7 +282,7 @@ fn a_creative_commons_licence_shows_its_warning_before_save() {
 }
 
 /// The first drawn text holding `text`.
-fn find_text(out: &egui::FullOutput, text: &str) -> Option<egui::Rect> {
+pub(crate) fn find_text(out: &egui::FullOutput, text: &str) -> Option<egui::Rect> {
     crate::gui::screen_surface::find_text_in_shapes(&out.shapes, text).map(|f| f.rect)
 }
 

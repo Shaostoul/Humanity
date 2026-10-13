@@ -27,7 +27,7 @@
 use egui::RichText;
 use serde_json::Value;
 
-use super::api::{self, Featured, Item, ItemFile, Refusal};
+use super::api::{self, Item, ItemFile, Refusal};
 use super::api_items;
 use super::open::{self, Opened};
 use super::{kinds, signed_in_here, signer_or_say, spawn, spawn_with, tiles, Job};
@@ -211,7 +211,6 @@ struct Pressed {
     copied: Option<String>,
     edit: bool,
     pick: bool,
-    feature: Option<Featured>,
     keep: bool,
     report: bool,
     remove: bool,
@@ -282,14 +281,8 @@ fn draw_page(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, page: &Item
         if item.members_only() {
             ui.label(RichText::new("Members only").size(theme.font_size_small).color(theme.info()));
         }
-        match item.featured {
-            Featured::Main => {
-                ui.label(RichText::new(tiles::FEATURED_MAIN).size(theme.font_size_small).color(theme.accent()));
-            }
-            Featured::Category => {
-                ui.label(RichText::new(tiles::FEATURED_CATEGORY).size(theme.font_size_small).color(theme.accent()));
-            }
-            Featured::None => {}
+        if item.featured.is_on() {
+            ui.label(RichText::new(super::filters::feature_words(item.featured)).size(theme.font_size_small).color(theme.accent()));
         }
     });
     ui.label(RichText::new(counts_line(item)).size(theme.font_size_small).color(theme.text_muted()));
@@ -485,26 +478,11 @@ fn draw_actions(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, item: &I
         pressed.copied = Some(link);
     }
     if signed_in && admin {
-        // The three choices, in the website's words (web/pages/media-app.js `FEATURE_CHOICES`).
+        // The admins' three choices, the tile's own control (filters.rs, lane 1C), in the words
+        // both apps use; it sends the change itself.
         widgets::form_row(ui, theme, "Feature", |ui| {
-            egui::ComboBox::from_id_salt("media_item_feature").selected_text(feature_words(item.featured)).show_ui(ui, |ui| {
-                for to in [Featured::None, Featured::Main, Featured::Category] {
-                    if ui.selectable_label(item.featured == to, feature_words(to)).clicked() && item.featured != to {
-                        pressed.feature = Some(to);
-                    }
-                }
-            });
+            super::filters::draw_feature_choice(ui, theme, state, item);
         });
-    }
-}
-
-/// A Feature choice in the website's words: "Not featured", "Featured" (the main shelf, and its
-/// category's) or "Featured in its category" (that shelf only).
-pub(crate) fn feature_words(f: Featured) -> &'static str {
-    match f {
-        Featured::None => "Not featured",
-        Featured::Main => tiles::FEATURED_MAIN,
-        Featured::Category => tiles::FEATURED_CATEGORY,
     }
 }
 
@@ -534,7 +512,7 @@ fn act(state: &mut GuiState, page: &mut ItemPage, opened: &mut Opened, item: &It
     if pressed.report {
         crate::engine::report::open_for_media(state, item);
     }
-    if !(pressed.pick || pressed.keep || pressed.feature.is_some()) {
+    if !(pressed.pick || pressed.keep) {
         return;
     }
     let Some(signer) = signer_or_say(state) else { return };
@@ -550,9 +528,6 @@ fn act(state: &mut GuiState, page: &mut ItemPage, opened: &mut Opened, item: &It
     }
     if pressed.keep {
         spawn(state, Job::Keep { id: item.id, on: !item.kept, from_admin: false }, api::keep_request(&signer, &r, !item.kept));
-    }
-    if let Some(to) = pressed.feature {
-        spawn(state, Job::Feature { id: item.id, to }, api::feature_request(&signer, &r, to));
     }
 }
 

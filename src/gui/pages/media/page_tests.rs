@@ -135,7 +135,9 @@ fn an_empty_page_says_so() {
 /// people's, none of Remove, Feature or Keep for a member who is neither admin nor moderator).
 ///
 /// Seen red 2026-10-11 with the featured strip drawn from every item: "an item that is not
-/// featured is only in the grid" (left: 2 / right: 1).
+/// featured is only in the grid" (left: 2 / right: 1). Seen red again 2026-10-12 (round 5, the
+/// tile's Feature button replaced by the three choices) with the tile's `draw_feature_choice` call
+/// left out: "an admin may remove, feature and keep".
 #[test]
 fn the_tiles_show_what_they_are() {
     let (ctx, theme) = ctx_and_theme();
@@ -148,14 +150,17 @@ fn the_tiles_show_what_they_are() {
     assert_eq!(staff.matches, 2, "only the featured item leads (in the strip and in the grid)");
     let homestead = find_text_in_shapes(&out.shapes, "Fibonacci homestead").unwrap();
     assert_eq!(homestead.matches, 1, "an item that is not featured is only in the grid");
-    assert!(!exact(&out, "Feature") && !exact(&out, "Unfeature"), "no Feature button for a member");
+    // Round 5 (lane 1D): the tile's Feature / Unfeature button became the three Feature choices
+    // (filters.rs `draw_feature_choice`, lane 1C), so the choice's own words are looked for: the
+    // badge of a featured item is "Featured" too, but nothing says "Not featured" to a member.
+    assert!(!exact(&out, "Not featured"), "no Feature choice for a member");
     assert!(!shows(&out, "Remove"), "no Remove on other people's items for a member");
     assert!(!shows(&out, tiles::KEEP), "no Keep for a member");
 
-    // An admin sees Remove, Feature and Keep on every tile.
+    // An admin sees Remove, the Feature choice and Keep on every tile.
     state.chat_users.push(crate::gui::ChatUser { name: "Me".into(), public_key: "me".into(), role: "admin".into(), status: String::new() });
     let out = settled(&ctx, &theme, &mut state);
-    assert!(shows(&out, "Remove") && exact(&out, "Unfeature") && exact(&out, "Feature") && shows(&out, tiles::KEEP), "an admin may remove, feature and keep");
+    assert!(shows(&out, "Remove") && exact(&out, "Not featured") && shows(&out, tiles::KEEP), "an admin may remove, feature and keep");
 }
 
 /// THE FEATURED STRIP IS EVERY FEATURED ITEM, not just those on the pages loaded (`featured=1`,

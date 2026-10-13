@@ -7,7 +7,7 @@
 //! confirmed. relay_round3_tests.rs is the pattern. Seen failing once before it passed; what it saw
 //! red is in its comment.
 
-use super::item_tests::{click_top, until};
+use super::item_tests::{click_at, click_top, every_exact, find_text, until};
 use super::*;
 use crate::gui::pages::media::api_items::{AttachTo, FileRole};
 use crate::gui::pages::media::tests::ctx_and_theme;
@@ -59,7 +59,7 @@ fn relay(tag: &str) -> Relay {
     for p in [&dirs.uploads, &dirs.members, &dirs.resume, &dirs.waiting] {
         std::fs::create_dir_all(p).unwrap();
     }
-    let (d1, d2, d3, d4, d5) = (dirs.clone(), dirs.clone(), dirs.clone(), dirs.clone(), dirs.clone());
+    let (d1, d2, d3, d4, d5, d6) = (dirs.clone(), dirs.clone(), dirs.clone(), dirs.clone(), dirs.clone(), dirs.clone());
     let app = axum::Router::new()
         .route(
             "/api/upload/resumable",
@@ -80,6 +80,20 @@ fn relay(tag: &str) -> Relay {
                 .layer(DefaultBodyLimit::max(rr::PIECE_BODY_LIMIT)),
         )
         .route("/api/media/edit", post(crate::relay::media_edit::edit))
+        // Lane 1B's counting routes: a view as mounted (it touches no folder), a ticket as mounted,
+        // and the counted download over this test's folders.
+        .route("/api/media/viewed", post(crate::relay::media_counts::viewed))
+        .route("/api/media/ticket", post(crate::relay::media_ticket::ticket))
+        .route(
+            "/api/media/download/{id}",
+            get(move |State(s): State<Arc<RelayState>>, AxPath(id): AxPath<i64>, Query(q): Query<crate::relay::media::TokenQuery>, req: axum::extract::Request| {
+                let d = d6.clone();
+                async move {
+                    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64;
+                    crate::relay::media_counts::download_from(&s, d.folders(), id, q, req, now).await
+                }
+            }),
+        )
         .route(
             "/api/media/files/add",
             post(move |State(s): State<Arc<RelayState>>, axum::Json(b): axum::Json<FileAddBody>| {
@@ -123,16 +137,36 @@ fn bytes(n: usize) -> Vec<u8> {
     (0..n).map(|i| (i * 7 + i / 251) as u8).collect()
 }
 
+/// Press Download on the item page's file row holding `row`, wait for it to end, and return what
+/// it saved (the file is deleted after it is read).
+fn download_row(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, row: &str, file: i64) -> Vec<u8> {
+    let out = crate::gui::pages::media::tests::settled(ctx, theme, state);
+    let at = find_text(&out, row).unwrap_or_else(|| panic!("the row {row:?} is drawn"));
+    let press = every_exact(&out, "Download").into_iter().min_by(|a, b| (a.center().y - at.center().y).abs().total_cmp(&(b.center().y - at.center().y).abs())).expect("its Download");
+    click_at(ctx, theme, state, press.center());
+    until(ctx, theme, state, "the download ends", |s| s.media.open.as_ref().is_some_and(|o| o.saved_words(file).is_some()));
+    let words = state.media.open.as_ref().and_then(|o| o.saved_words(file)).unwrap_or_default().to_string();
+    let path = words.strip_prefix("Saved to ").unwrap_or_else(|| panic!("saved: {words}")).to_string();
+    let got = std::fs::read(&path).unwrap();
+    let _ = std::fs::remove_file(&path);
+    got
+}
+
 /// AN ITEM EDITED AND GIVEN FILES ON THE REAL RELAY: Ann's model, published on the relay, is edited
 /// from her Edit window (Save: the relay checks her signature over the edit's text exactly as sent,
-/// and keeps the new words); a file and a cover picked for it go up through the app's resumable
-/// client and are added to it (the relay holds them on the item, in its public folder); made
-/// members only from the same window, every one of its files moves out of the public folder; and
-/// the added file's Remove, confirmed on its page, takes it off the item and deletes it.
+/// and keeps the new words), and opening the page counted a view; a file and a cover picked for it
+/// go up through the app's resumable client and are added to it (the relay holds them on the item,
+/// in its public folder), and the file's Download on the page comes through the relay's counting
+/// route and is counted; made members only from the same window, every one of its files moves out
+/// of the public folder, and the cover's Download comes through a ticket made for the counting
+/// route, counted for the member; and the added file's Remove, confirmed on its page, takes it off
+/// the item and deletes it.
 ///
 /// Seen red 2026-10-12 with `edit_request` sending the edit re-serialised (pretty-printed) after
 /// hashing the compact text: "the relay took the edit (Signature verification failed.)" (left:
-/// ("Dusk", "") / right: ("Dusk at the beach", "First line\nSecond line")).
+/// ("Dusk", "") / right: ("Dusk at the beach", "First line\nSecond line")). Its download legs
+/// (added once lane 1B's routes merged) seen red with `download_origin` fetching the item's
+/// `/uploads/` address, which nothing serves here: "saved: Not saved: The server refused it (404).".
 #[test]
 fn an_item_edited_and_given_files_on_the_real_relay() {
     let r = relay("desk_r5_item");
@@ -183,6 +217,8 @@ fn an_item_edited_and_given_files_on_the_real_relay() {
     assert_eq!((held.title.as_str(), held.description.as_str()), ("Dusk at the beach", "First line\nSecond line"), "the relay took the edit ({})", problem(&state));
     assert_eq!(page_item(&state).title, "Dusk at the beach", "and the page shows it");
     assert_eq!(state.media.item.as_ref().map(|p| p.status.as_str()), Some(SAVED));
+    // Opening the page counted one view, on the relay's own counter.
+    until(&ctx, &theme, &mut state, "the view is counted", |_| r.state.db.media_item(id).unwrap().unwrap().views == 1);
 
     // 2. A file for it: up through the relay's resumable routes, then added to the item.
     let zip = crate::test_temp::file("desk_r5_zip", "zip");
@@ -195,6 +231,9 @@ fn an_item_edited_and_given_files_on_the_real_relay() {
     let added = held.files[0].clone();
     assert!(r.dirs.uploads.join(&added.filename).exists(), "in the public folder, with the item");
     assert_eq!(page_item(&state).files.len(), 2, "the page lists both files");
+    // Its Download goes through the relay's counting route, and is counted.
+    assert_eq!(download_row(&ctx, &theme, &mut state, "textures.zip, file", added.file), bytes(3000), "the file, downloaded from its page");
+    assert_eq!(r.state.db.media_item(id).unwrap().unwrap().downloads, 1, "counted once");
 
     // 3. A cover: a real picture, as the relay checks it.
     let png = crate::test_temp::file("desk_r5_cover", "png");
@@ -220,6 +259,11 @@ fn an_item_edited_and_given_files_on_the_real_relay() {
         assert!(r.dirs.members.join(name).exists() && !r.dirs.uploads.join(name).exists(), "{name} moved with the item");
     }
     assert!(page_item(&state).members_only(), "the page says so");
+    // A members-only file's Download: a ticket for the counting route, for that file, counted by
+    // the member's key (a person apart from the address that downloaded before).
+    let stored_cover = std::fs::read(r.dirs.members.join(&cover.filename)).unwrap();
+    assert_eq!(download_row(&ctx, &theme, &mut state, ", cover picture", cover.file), stored_cover, "the cover, through its ticket");
+    assert_eq!(r.state.db.media_item(id).unwrap().unwrap().downloads, 2, "counted for the member");
 
     // 5. The added file's Remove, confirmed on the page: off the item, and deleted.
     let file = page_item(&state).files.into_iter().find(|f| f.filename == added.filename).expect("the page lists the added file");
