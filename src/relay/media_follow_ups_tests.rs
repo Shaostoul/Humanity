@@ -242,6 +242,22 @@ fn a_kept_item_leaves_its_uploaders_share() {
     assert!(db.media_item(item.id).unwrap().is_some(), "and not deleted for that");
     assert!(media_room(db, &s, &ann.key, 1, Reserved::default()).is_err(), "the share stops her next upload");
     keep_core(db, &mo.key, item.id, true).unwrap();
+
+    // A keep is undone only by the same or a higher role (2026-10-12). Seen red with the rank
+    // check taken out of keep_core: the moderator's stop came back Ok, so `unwrap_err` panicked.
+    let ad = person(10);
+    db.join_server(&ad.key, "Ada").unwrap();
+    db.set_role(&ad.key, "admin").unwrap();
+    keep_core(db, &ad.key, item.id, true).expect("an admin keeps it");
+    let refused = keep_core(db, &mo.key, item.id, false).unwrap_err();
+    assert_eq!(refused.0, StatusCode::FORBIDDEN, "a moderator cannot stop an admin's keep");
+    assert!(refused.1.contains("only an admin"), "and is told why: {}", refused.1);
+    keep_core(db, &mo.key, item.id, true).expect("a moderator keeping it again is fine");
+    assert_eq!(db.media_kept_by(item.id).unwrap().as_deref(), Some(ad.key.as_str()), "and leaves it kept by the admin");
+    keep_core(db, &ad.key, item.id, false).expect("the admin can stop keeping it");
+    keep_core(db, &mo.key, item.id, true).unwrap();
+    keep_core(db, &ad.key, item.id, false).expect("an admin can stop a moderator's keep");
+    keep_core(db, &mo.key, item.id, true).unwrap();
     remove_core(db, d.folders(), &RemoveTarget::Item(item.id), &ann.key).expect("the uploader can still remove a kept item");
 }
 

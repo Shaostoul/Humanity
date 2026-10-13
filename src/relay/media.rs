@@ -1066,9 +1066,28 @@ pub async fn keep(State(state): State<Arc<RelayState>>, Json(b): Json<KeepBody>)
 /// uploader's share, and is in no prune list; stopping puts it back in the uploader's share even
 /// past it (never deleted for that: the share stops only new uploads). Its uploader can still
 /// remove it.
+///
+/// A keep is undone only by someone of the same or a higher role than whoever kept it
+/// (2026-10-12, the operator: a moderator's "Stop keeping" undid what his admin account had
+/// kept): a moderator cannot stop an admin's keep, and a moderator keeping an item an admin
+/// already keeps leaves it kept by the admin.
 pub fn keep_core(db: &Storage, key: &str, id: i64, kept: bool) -> Answer {
-    if !matches!(db.get_role(key).unwrap_or_default().as_str(), "admin" | "owner" | "mod" | "moderator") {
+    let rank = |k: &str| match db.get_role(k).unwrap_or_default().as_str() {
+        "admin" | "owner" => 2,
+        "mod" | "moderator" => 1,
+        _ => 0,
+    };
+    let mine = rank(key);
+    if mine == 0 {
         return Err(forbidden("Only an admin or a moderator can keep Media items on the server."));
+    }
+    let keeper = db.media_kept_by(id).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    if keeper.as_deref().is_some_and(|k| k != key && rank(k) > mine) {
+        if kept {
+            // Already kept, by an admin: it stays theirs.
+            return Ok(Json(json!({ "ok": true, "id": id, "kept": true })));
+        }
+        return Err(forbidden("An admin keeps this item on the server, so only an admin can stop keeping it."));
     }
     db.set_media_kept(id, kept.then_some(key), now_ms() as i64).map_err(refusal)?;
     Ok(Json(json!({ "ok": true, "id": id, "kept": kept })))

@@ -27,6 +27,15 @@ impl Storage {
     /// A kept item counts against the Media budget but not against its uploader's share, and is
     /// left out of the prune lists (A7). Stopping puts it back in the uploader's share even past
     /// it: nothing is deleted for that, the share only stops new uploads. Refused: no such item.
+    /// Who keeps item `id` on the server (the key that kept it), if anyone does.
+    pub fn media_kept_by(&self, id: i64) -> Result<Option<String>, rusqlite::Error> {
+        self.with_read_conn(|conn| {
+            conn.query_row("SELECT kept_by FROM media_items WHERE id = ?1", params![id], |r| r.get::<_, Option<String>>(0))
+                .optional()
+                .map(Option::flatten)
+        })
+    }
+
     pub fn set_media_kept(&self, id: i64, by: Option<&str>, now_ms: i64) -> Result<(), super::MediaError> {
         self.with_conn(|conn| {
             let n = match by {
