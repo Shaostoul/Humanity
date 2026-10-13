@@ -235,10 +235,11 @@ of your identity, and your identity is portable across all of them.
   camera or a stream could see it (options in PRIORITIES, waiting on the operator's pick).
 - `[done]` Peer-to-peer groups: signed objects, end-to-end encryption, and a group
   that behaves like a channel, on both web and native (Phases 1 and 2).
-- `[building]` Signed profile replication: your profile gossips between servers, so there
-  is no single home server to lose. The servers' half is built (gossip, and a signature
-  check that refuses an unsigned profile); the apps do not sign profiles yet, so today
-  every gossiped profile is refused (BUG-191, found 2026-10-11).
+- `[done]` Signed profile replication: your profile reaches the servers linked with yours,
+  so there is no single home server to lose. Your own app signs the copy they keep, and it
+  holds only what anyone may see: a field you keep for friends is left blank. A linked
+  server that was down catches up when its link returns, and going unlisted or erasing
+  your own account takes your profile off them (BUG-191, fixed 2026-10-12) (v0.1490.0).
 - `[building]` Web-to-native parity: rebuilding the web chat view to mirror the native
   app one-to-one (Track W).
 - `[next]` Federation activation: an admin UI to add and trust peer servers, a second

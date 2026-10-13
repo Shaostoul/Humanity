@@ -549,11 +549,13 @@ server {
         proxy_read_timeout 86400;
     }
 
-    # API proxy
+    # API proxy. X-Real-IP is the visitor's address as nginx saw the connection; the Media page's
+    # view and download counts tell people apart by it, once a person a day, without keeping it.
     location /api/ {
         limit_req zone=general burst=20 nodelay;
         proxy_pass http://127.0.0.1:3210/api/;
         proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
     }
 
     # Upload proxy. The size limit is the relay's: each role's limit in Server Settings > Roles,
@@ -594,6 +596,24 @@ server {
         add_header X-Content-Type-Options nosniff;
     }
 
+    # One Media item's own page, /media/12: the relay answers it, with the item's title,
+    # description and picture written in for social sites, and with nothing about the item when
+    # it is members only or not there. A regular-expression location wins over `location /`
+    # below, so /media itself stays the static page from disk. (A regular-expression location's
+    # proxy_pass cannot carry a path, so it names the relay alone.) It replaces the static
+    # stand-in `location ~ ^/media/[0-9]+$ { try_files /media.html =404; }` on a server that has
+    # one: keep only one location for this pattern (see "A server set up before 2026-10-12").
+    location ~ ^/media/[0-9]+$ {
+        limit_req zone=general burst=10 nodelay;
+        limit_req_status 429;
+        proxy_pass http://127.0.0.1:3210;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
     # The website, from disk. Clean URLs: /library serves library.html.
     # Proxying this to the relay instead is the mistake that makes every page
     # 404, because the relay's only static fallback is a client/ directory
@@ -610,6 +630,25 @@ sudo ln -s /etc/nginx/sites-available/humanity /etc/nginx/sites-enabled/
 sudo certbot --nginx -d your-domain.com
 sudo nginx -t && sudo systemctl restart nginx
 ```
+
+**A server set up before 2026-10-12** needs two edits to its nginx config for
+the Media page's item pages and counts. Make them by hand in the config the
+server runs (`/etc/nginx/sites-enabled/humanity` or wherever yours is). If that
+config has ever been changed by hand, do not copy `scripts/nginx/humanity.conf`
+over it: the copy would throw those changes away.
+
+1. In the `/api/` location, add `proxy_set_header X-Real-IP $remote_addr;`.
+   Without it every visitor counts as the same one person, so the view and
+   download counts read low.
+2. Add the `location ~ ^/media/[0-9]+$ { ... }` block shown above, inside the
+   `server` block that serves the website. If the config already has the static
+   stand-in for item pages, `location ~ ^/media/[0-9]+$ { try_files /media.html =404; }`,
+   replace that line with the block rather than adding the block beside it:
+   nginx uses the first regular-expression location that matches, so with both
+   in place one of them is never reached, and if it is the relay's, social sites
+   never see an item's title or picture.
+3. `sudo nginx -t && sudo systemctl reload nginx`. `nginx -t` checks the file
+   before anything changes, and a reload keeps the site up throughout.
 
 ### 5. Open firewall ports
 
@@ -628,7 +667,13 @@ loopback, so nothing changes for users, and the relay then does not listen on
 the network at all, so 3210 stays closed even if the firewall is ever changed
 by mistake. It also matters for one detail: the relay takes a client's address
 for rate limiting from the `X-Forwarded-For` header nginx sets, which is only
-trustworthy when nginx is the only thing that can reach it.
+trustworthy when nginx is the only thing that can reach it. The Media page's
+view and download counts read `X-Real-IP` instead, the one header nginx writes
+from the connection itself and a client cannot add to (a client can put
+anything at the front of `X-Forwarded-For`); they hold an address in memory for
+the day only and write nothing about who looked, only the numbers. A config
+from before 2026-10-12 lacks that header: see "A server set up before
+2026-10-12" under step 4.
 
 ---
 

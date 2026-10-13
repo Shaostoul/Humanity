@@ -2179,6 +2179,372 @@
         }
       ],
       "section": "Reference Library"
+    },
+    {
+      "name": "Project History",
+      "docs": [
+        {
+          "title": "Session history, 12 October 2026",
+          "src": "docs/history/2026-10-12.md",
+          "tags": [
+            "project",
+            "reference"
+          ]
+        },
+        {
+          "title": "Session history, 11 October 2026",
+          "src": "docs/history/2026-10-11.md",
+          "tags": [
+            "project",
+            "reference"
+          ]
+        },
+        {
+          "title": "Session history, 10 October 2026",
+          "src": "docs/history/2026-10-10.md",
+          "tags": [
+            "project",
+            "reference"
+          ]
+        },
+        {
+          "title": "Session history, 9 October 2026",
+          "src": "docs/history/2026-10-09.md",
+          "tags": [
+            "project",
+            "reference"
+          ]
+        },
+        {
+          "title": "Session history, 2 October 2026",
+          "src": "docs/history/2026-10-02.md",
+          "tags": [
+            "project",
+            "reference"
+          ]
+        },
+        {
+          "title": "Session history, 30 September 2026",
+          "src": "docs/history/2026-09-30.md",
+          "tags": [
+            "project",
+            "reference"
+          ]
+        },
+        {
+          "title": "Session history, 29 September 2026",
+          "src": "docs/history/2026-09-29.md",
+          "tags": [
+            "project",
+            "reference"
+          ]
+        },
+        {
+          "title": "Session history, 28 September 2026",
+          "src": "docs/history/2026-09-28.md",
+          "tags": [
+            "project",
+            "reference"
+          ]
+        },
+        {
+          "title": "Session history, 27 September 2026",
+          "src": "docs/history/2026-09-27.md",
+          "tags": [
+            "project",
+            "reference"
+          ]
+        },
+        {
+          "title": "Session history, 22 September 2026",
+          "src": "docs/history/2026-09-22.md",
+          "tags": [
+            "project",
+            "reference"
+          ]
+        },
+        {
+          "title": "Session history, 17 August 2026",
+          "src": "docs/history/2026-08-17.md",
+          "tags": [
+            "project",
+            "reference"
+          ]
+        },
+        {
+          "title": "Session history, 16 August 2026",
+          "src": "docs/history/2026-08-16.md",
+          "tags": [
+            "project",
+            "reference"
+          ]
+        },
+        {
+          "title": "Session history, 15 August 2026",
+          "src": "docs/history/2026-08-15.md",
+          "tags": [
+            "project",
+            "reference"
+          ]
+        },
+        {
+          "title": "Session history, 4 August 2026",
+          "src": "docs/history/2026-08-04.md",
+          "tags": [
+            "project",
+            "reference"
+          ]
+        },
+        {
+          "title": "Session history, 1 August 2026",
+          "src": "docs/history/2026-08-01.md",
+          "tags": [
+            "project",
+            "reference"
+          ]
+        },
+        {
+          "title": "Session history, 31 July 2026",
+          "src": "docs/history/2026-07-31.md",
+          "tags": [
+            "project",
+            "reference"
+          ]
+        },
+        {
+          "title": "Session history, 28 July 2026",
+          "src": "docs/history/2026-07-28.md",
+          "tags": [
+            "project",
+            "reference"
+          ]
+        },
+        {
+          "title": "Session history, 27 July 2026",
+          "src": "docs/history/2026-07-27.md",
+          "tags": [
+            "project",
+            "reference"
+          ]
+        },
+        {
+          "title": "Session history, 26 July 2026",
+          "src": "docs/history/2026-07-26.md",
+          "tags": [
+            "project",
+            "reference"
+          ]
+        },
+        {
+          "title": "Session history, 25 July 2026",
+          "src": "docs/history/2026-07-25.md",
+          "tags": [
+            "project",
+            "reference"
+          ]
+        },
+        {
+          "title": "Session history, 20 July 2026",
+          "src": "docs/history/2026-07-20.md",
+          "tags": [
+            "project",
+            "reference"
+          ]
+        },
+        {
+          "title": "Session history, 19 July 2026",
+          "src": "docs/history/2026-07-19.md",
+          "tags": [
+            "project",
+            "reference"
+          ]
+        },
+        {
+          "title": "Session history, 18 July 2026",
+          "src": "docs/history/2026-07-18.md",
+          "tags": [
+            "project",
+            "reference"
+          ]
+        },
+        {
+          "title": "Session history, 6 July 2026",
+          "src": "docs/history/2026-07-06.md",
+          "tags": [
+            "project",
+            "reference"
+          ]
+        },
+        {
+          "title": "Session history, 4 July 2026",
+          "src": "docs/history/2026-07-04.md",
+          "tags": [
+            "project",
+            "reference"
+          ]
+        },
+        {
+          "title": "Session history, 3 July 2026",
+          "src": "docs/history/2026-07-03.md",
+          "tags": [
+            "project",
+            "reference"
+          ]
+        },
+        {
+          "title": "Session history, 30 June 2026",
+          "src": "docs/history/2026-06-30.md",
+          "tags": [
+            "project",
+            "reference"
+          ]
+        },
+        {
+          "title": "Session history, 21 June 2026",
+          "src": "docs/history/2026-06-21.md",
+          "tags": [
+            "project",
+            "reference"
+          ]
+        },
+        {
+          "title": "Session history, 11 June 2026",
+          "src": "docs/history/2026-06-11.md",
+          "tags": [
+            "project",
+            "reference"
+          ]
+        },
+        {
+          "title": "Session history, 30 May 2026",
+          "src": "docs/history/2026-05-30.md",
+          "tags": [
+            "project",
+            "reference"
+          ]
+        },
+        {
+          "title": "Session history, 16 March 2026",
+          "src": "docs/history/2026-03-16.md",
+          "tags": [
+            "project",
+            "reference"
+          ]
+        },
+        {
+          "title": "Session history, 15 March 2026",
+          "src": "docs/history/2026-03-15.md",
+          "tags": [
+            "project",
+            "reference"
+          ]
+        },
+        {
+          "title": "Session history, 9 March 2026",
+          "src": "docs/history/2026-03-09.md",
+          "tags": [
+            "project",
+            "reference"
+          ]
+        },
+        {
+          "title": "Session history, 7 March 2026",
+          "src": "docs/history/2026-03-07.md",
+          "tags": [
+            "project",
+            "reference"
+          ]
+        },
+        {
+          "title": "Session history, 5 March 2026",
+          "src": "docs/history/2026-03-05.md",
+          "tags": [
+            "project",
+            "reference"
+          ]
+        },
+        {
+          "title": "Session history, 3 March 2026",
+          "src": "docs/history/2026-03-03.md",
+          "tags": [
+            "project",
+            "reference"
+          ]
+        },
+        {
+          "title": "Session history, 14 February 2026",
+          "src": "docs/history/2026-02-14.md",
+          "tags": [
+            "project",
+            "reference"
+          ]
+        },
+        {
+          "title": "Session history, 13 February 2026",
+          "src": "docs/history/2026-02-13.md",
+          "tags": [
+            "project",
+            "reference"
+          ]
+        },
+        {
+          "title": "Decision log, undated entries (May to July 2026)",
+          "src": "docs/history/journal-archive-undated.md",
+          "tags": [
+            "project",
+            "reference"
+          ]
+        },
+        {
+          "title": "Decision log, October 2026",
+          "src": "docs/history/journal-archive-2026-10.md",
+          "tags": [
+            "project",
+            "reference"
+          ]
+        },
+        {
+          "title": "Decision log, September 2026",
+          "src": "docs/history/journal-archive-2026-09.md",
+          "tags": [
+            "project",
+            "reference"
+          ]
+        },
+        {
+          "title": "Decision log, August 2026",
+          "src": "docs/history/journal-archive-2026-08.md",
+          "tags": [
+            "project",
+            "reference"
+          ]
+        },
+        {
+          "title": "Decision log, July 2026",
+          "src": "docs/history/journal-archive-2026-07.md",
+          "tags": [
+            "project",
+            "reference"
+          ]
+        },
+        {
+          "title": "Decision log, June 2026",
+          "src": "docs/history/journal-archive-2026-06.md",
+          "tags": [
+            "project",
+            "reference"
+          ]
+        },
+        {
+          "title": "Decision log, May 2026",
+          "src": "docs/history/journal-archive-2026-05.md",
+          "tags": [
+            "project",
+            "reference"
+          ]
+        }
+      ],
+      "section": "Reference Library"
     }
   ],
   "_sections": [

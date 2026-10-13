@@ -298,8 +298,9 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
     - **A Games library** (operator idea, 2026-10-13): list and launch every installed game
       (Steam, Epic, GOG, anything installed elsewhere), the stores still doing downloads and
       updates behind it. First a dated findings doc on the stores' terms for this.
-    - **The project's history in the Library** (docs/history and the decision logs, readable in
-      the app).
+    - DONE 2026-10-13 (v0.1495.1): **the project's history in the Library**, a "Project History"
+      shelf with the 38 dated session histories and the 7 decision logs (catalog rows; re-run
+      `node scripts/build-library.js` after a new history page).
   - DONE and released 2026-10-12: increment 5b (household permits, v0.1489.0), BUG-191 (profile
     copies, v0.1490.0), the first-hour audit's S5, S6, S8 and F11, BUG-163 part 2, rule 7 and
     the takedown section (v0.1491.0).
