@@ -498,12 +498,11 @@ pub struct GuiState {
     /// from the Options tab (slider); persisted in AppConfig.
     pub ingame_chat_panel_height: f32,
     /// Shared-world co-presence (v0.774; ship homes 1b and 2, engine/home_plot.rs): `copresence_active` = joined; the
-    /// OTHER players present; the refusal's one sentence while it holds (`refuse_shared_world`); each server's
-    /// plot of its ship, remembered so a world load builds the home there (`boot_plot`, AppConfig `home_plots`).
+    /// OTHER players present; the refusal's one sentence while it holds (`refuse_shared_world`). Where your home
+    /// stands aboard is the save's own since increment 6 (`WorldSave::ship_place`, engine/save_slot.rs).
     pub copresence_active: bool,
     pub copresence_names: Vec<String>,
     pub copresence_refused_note: Option<String>,
-    pub home_plots: std::collections::BTreeMap<String, crate::config::RememberedPlot>,
     /// Ship homes increment 6 (engine/save_slot.rs): which save is live (your own home, or one server's), and
     /// the connected server's last `game_home` answer (where you live there, and what is free).
     pub save_slot: crate::persistence::SaveSlot,
@@ -2998,7 +2997,11 @@ impl GuiState {
             return false;
         }
         self.launcher_who = self.launcher_last_character.clone();
-        if !self.launcher_who.is_empty() {
+        // A home pairing loads its character's save by name. A server pairing loads none: the
+        // server's own save (made fresh, ship homes increment 6) is taken up by
+        // engine/save_slot.rs `follow`, and loading your own home's save there would carry your
+        // own home's things into the server's world.
+        if !self.launcher_who.is_empty() && self.launcher_where_kind == LauncherWhere::Home {
             self.launcher_pending_load = Some(self.launcher_who.clone());
         }
         true
@@ -3214,7 +3217,6 @@ impl Default for GuiState {
             copresence_active: false,
             copresence_names: Vec::new(),
             copresence_refused_note: None,
-            home_plots: Default::default(),
             save_slot: Default::default(),
             home_answer: None,
             pending_dev_spawn: None,
@@ -4524,12 +4526,6 @@ pub struct SettingsState {
     // (GuiState::notif_*, edited by Settings > Notifications AND the chat DM
     // cog; v0.980 removed the dead notify_*/dnd_* placebos nothing read).
     // Gameplay
-    /// Which home design loads (2026-07-01): `"home"` (default, family-scale) or
-    /// `"home_solo"` (one-person self-sufficient design, see
-    /// `docs/design/homestead-solo-design.md`). Applied via `crate::machines::
-    /// home_ron_path` at world-load time -- changing this takes effect on next
-    /// world load, not live mid-session (see the Settings UI's own note).
-    pub home_variant: String,
     /// Spawn hostile wild creatures (wolf packs etc. from wild_spawns.ron).
     /// Default OFF pre-launch (v0.791, operator: "disable the wolves") -- the
     /// Dev spawn page still places any creature deliberately. Turning it off
@@ -4689,7 +4685,6 @@ impl Default for SettingsState {
             dark_mode: true,
             font_size: 14.0,
             hint_display: HintDisplay::default(),
-            home_variant: "home".to_string(),
             hostile_wildlife: false,
             vitals_drain: 1.0,
             body_heat_realistic: false,

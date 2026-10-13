@@ -149,8 +149,17 @@ impl ShipStructure {
         Some((lo - Vec3::splat(ABOARD_MARGIN_M), hi + Vec3::splat(ABOARD_MARGIN_M)))
     }
 
-    /// The air spaces (`AirSpaces`): the home's own box, and the ship's shared ones.
+    /// The air spaces (`AirSpaces`) of a home that breathes its own air: the home's own box, and the
+    /// ship's shared ones.
     pub fn air_spaces(&self) -> AirSpaces {
+        self.air_spaces_for(true)
+    }
+
+    /// `air_spaces` for a home that breathes its own air (`own_air`, data/homes/starts.ron: a
+    /// homestead) or one on the ship's ventilation (`own_air` false: a cabin, ship homes increment
+    /// 6). A home on the ship's air is no sealed space of its own: its box is one of the ship's
+    /// shared spaces, so its player breathes the ship's air in it, as a berth does.
+    pub fn air_spaces_for(&self, own_air: bool) -> AirSpaces {
         let own_plot = self.home_plot().map(|p| p.id.clone());
         let mut spaces = AirSpaces::default();
         for (zi, z) in self.zones.iter().enumerate() {
@@ -161,7 +170,7 @@ impl ShipStructure {
             // Up to where a person standing on its tallest piece can be (`air_top`), every zone,
             // so a teleporter, stairs or a deck built in a shared zone one day reaches its air too.
             let b = (o, o + Vec3::new(z.body.width, air_top(&z.body), z.body.depth));
-            if z.id == HOME_ZONE_ID {
+            if z.id == HOME_ZONE_ID && own_air {
                 spaces.home = Some(b);
             } else {
                 spaces.shared.push(b);
@@ -271,8 +280,9 @@ mod tests {
     /// 2026-10-12 with every plot given the shipped homestead (the design of p1's kind, which
     /// this test's assembly put everywhere while every plot was a homestead): "c1 takes the
     /// shipped cabin: plot 'c1' takes a cabin home, not a homestead".
-    /// (Whether a cabin breathes its own air or the ship's is lane 2A's: `own_air` in
-    /// data/homes/starts.ron. Until then every home, a cabin included, has its own.)
+    /// (This is the own-air answer, `air_spaces`, for every plot: whether a home breathes its own
+    /// air is its start's `own_air` in data/homes/starts.ron, and a cabin's is false,
+    /// `a_cabin_breathes_the_ships_air` below.)
     #[test]
     fn every_plot_is_aboard_and_breathes_its_own_air() {
         let file = ShipStructure::load_ship_file(&data()).expect("the ship file loads");
@@ -301,5 +311,34 @@ mod tests {
                 assert_eq!(air.at(mid), AirAt::Ship, "with the home on {}, the neighbour's plot {} is the ship's air", p.id, q.id);
             }
         }
+    }
+
+    /// A CABIN BREATHES THE SHIP'S AIR (ship homes increment 6, plan 3.7): its start says
+    /// `own_air: false` (data/homes/starts.ron), a berth on the ship's ventilation. So the cabin is
+    /// no sealed space of its own: standing in it is the ship's air, as in the hall outside, and
+    /// the game simulates no 19.5 m3 box that its one person would use up. A homestead, whose
+    /// start says `own_air: true`, keeps its own.
+    ///
+    /// Seen red 2026-10-12 with `air_spaces_for` ignoring `own_air` (the home zone always the
+    /// home's own): "a cabin has 19.5 m3 of its own air: Some((Vec3(80.5, 0.0, 88.0), Vec3(83.5,
+    /// 2.6, 90.5)))".
+    #[test]
+    fn a_cabin_breathes_the_ships_air() {
+        let starts = crate::ship::starts::Starts::load(&data());
+        let own_air = |start: &str| starts.get(start).unwrap_or_else(|| panic!("the {start} start")).own_air;
+        let file = ShipStructure::load_ship_file(&data()).expect("the ship file loads");
+        let cabin = HomeDesign::built_in("cabin").expect("the cabin is built in");
+        let ship = file.assemble(cabin, "c1").expect("the cabin goes on c1");
+        let air = ship.air_spaces_for(own_air("cabin"));
+        let body = &ship.zones[ship.home_zone_index()].body;
+        assert!(air.home.is_none(), "a cabin has {} m3 of its own air: {:?}", home_air_volume_m3(body), air.home);
+        let (lo, hi) = ship.home_plot().expect("the cabin stands on c1").aabb();
+        let middle = Vec3::new((lo.x + hi.x) * 0.5, 1.7, (lo.z + hi.z) * 0.5);
+        assert_eq!(air.at(middle), AirAt::Ship, "standing in the cabin is the ship's air");
+        let door = ship.home_spawn_world().expect("the cabin names its door");
+        assert_eq!(air.at(door), AirAt::Ship, "and so is its door");
+        // The homestead keeps its own air.
+        let homestead = shipped("p1").air_spaces_for(own_air("homestead"));
+        assert_eq!(homestead.at(Vec3::new(26.0, 1.7, 40.0)), AirAt::OwnHome, "a homestead breathes its own air");
     }
 }

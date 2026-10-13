@@ -252,8 +252,9 @@ pub fn reset_draft() {
     DRAFT.with(|d| *d.borrow_mut() = Draft::default());
 }
 
-/// The household picked for `start` on a server's card (else its first).
-fn draft_household(starts: &Starts, start: &str) -> String {
+/// The household picked for `start` on a server's card (else its first); engine/save_slot.rs
+/// `choose_on_server` takes it for the save it makes there.
+pub fn draft_household(starts: &Starts, start: &str) -> String {
     let picked = DRAFT.with(|d| d.borrow().households.get(start).cloned()).unwrap_or_default();
     starts.household(start, &picked).id.clone()
 }

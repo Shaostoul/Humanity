@@ -1378,90 +1378,22 @@ mod native_app {
             // QuestSystem ticks after the action + skill systems so it sees this
             // frame's quest_events; advances/completes quests + grants rewards.
             system_runner.register(QuestSystem::new());
-            // The player starts the "First Steps" quest (auto-accepted); completing
-            // it auto-accepts its dependents (prerequisite chaining in QuestSystem).
-            let mut player_quests = QuestTracker::default();
-            player_quests.accept_quest("gs_first_steps");
-            // A new player's starting kit (2026-09-25; the start's kit, data/homes/starts.ron).
-            // A save replaces it through apply_save_to_world when progress is
-            // kept; with a fresh home each launch this is what you start with.
-            let mut start_inv = Inventory::new(36);
-            for (id, qty) in crate::save_load::starting_kit(&data_dir, &crate::save_load::active_home().start) {
-                start_inv.add_item(&id, qty, 99);
-            }
-            game_world.world.spawn((
-                Transform::default(),
-                Velocity::default(),
-                Controllable,
-                Health::default(),
-                Name("Player".to_string()),
-                start_inv,
-                crate::ecs::components::Vitals::default(),
-                crate::ecs::components::StatusEffects::default(),
-                crate::ecs::components::Appearance::default(),
-                crate::ecs::components::Outfit::default(),
-                crate::ecs::components::Wallet::default(),
-                PlayerSkills::new(),
-                player_quests,
-            ));
-            // Restore the active offline home's progress (inventory + skills) onto
-            // the freshly-spawned player, if a save exists (v0.381, homes inc 3).
-            // The ECS player is authoritative (systems tick every frame), so we apply
-            // HERE at startup, not on 3D-enter; this also makes the exit-save safe
-            // (the player carries the loaded state, so a no-play session round-trips
-            // it instead of overwriting with empty).
-            // Kept for two later steps: the placed-items pool below, and the
-            // clock resume + offline catch-up after the config loads.
-            // APPLIED after the config loads (below), because whether the
-            // progress in it is used at all is a setting ("Start every session
-            // from the default home", 2026-09-25). Nothing ticks in between.
-            let home_save = crate::save_load::load_active_home();
-            // Test asteroids for the mining loop (finite ore; DroneSystem deletes one
-            // when fully consumed). Dev/testing content — MMO asteroids are server-side.
-            game_world.world.spawn((crate::ecs::components::AsteroidBody {
-                id: "m12".to_string(),
-                name: "Asteroid M-12 (metallic)".to_string(),
-                classification: "M".to_string(),
-                ores: vec![
-                    ("iron_ore_0".to_string(), 120.0),
-                    ("nickel_ore_0".to_string(), 60.0),
-                    ("platinum_ore_0".to_string(), 20.0),
-                    // v0.904 (loop audit): gold/silver had NO mining source,
-                    // gating their whole smelt chains on the vendor. M-types
-                    // are the precious-metal asteroids.
-                    ("gold_ore_0".to_string(), 15.0),
-                    ("silver_ore_0".to_string(), 25.0),
-                ],
-                position: [60.0, 12.0, -30.0],
-            },));
-            game_world.world.spawn((crate::ecs::components::AsteroidBody {
-                id: "s7".to_string(),
-                name: "Asteroid S-7 (silicaceous)".to_string(),
-                classification: "S".to_string(),
-                ores: vec![
-                    ("iron_ore_0".to_string(), 40.0),
-                    ("copper_ore_0".to_string(), 50.0),
-                    // v0.904: bauxite/rutile (aluminum + titanium roots) live
-                    // in the silicate rock - S-types are stony asteroids.
-                    ("bauxite_0".to_string(), 45.0),
-                    ("rutile_0".to_string(), 30.0),
-                ],
-                position: [-45.0, 8.0, 55.0],
-            },));
-            // C-class = carbonaceous: THE answer to "how do I get coal in space"
-            // (operator 2026-07-04). Real asteroid taxonomy -- C-types are the
-            // most common and carbon-rich; graphite mined here feeds the smelter
-            // via the graphite smelt variants (recipes.csv).
-            game_world.world.spawn((crate::ecs::components::AsteroidBody {
-                id: "c3".to_string(),
-                name: "Asteroid C-3 (carbonaceous)".to_string(),
-                classification: "C".to_string(),
-                ores: vec![
-                    ("graphite_0".to_string(), 90.0),
-                    ("iron_ore_0".to_string(), 25.0),
-                ],
-                position: [30.0, -6.0, 70.0],
-            },));
+            // Which save is live (ship homes increment 6, engine/save_slot.rs `boot`): the config's
+            // pairing picks your own home or this server's save (made fresh when there is none), and
+            // it becomes the live one before the player is spawned, so the player carries its
+            // start's kit and opening and the household file loaded below is its own. Its progress
+            // is APPLIED after the config loads (below), because whether your own home's progress
+            // is used at all is a setting ("Start every session from the default home",
+            // 2026-09-25). Nothing ticks in between. The mess hall's meter is registered first, so
+            // the save's meals land in it (engine/mess_hall.rs).
+            let boot_config = crate::config::AppConfig::load_if_exists();
+            crate::save_load::register_ship_meals(&mut data_store);
+            let boot = crate::engine::save_slot::boot(&crate::persistence::saves_dir(), &data_dir, boot_config.as_ref());
+            let (boot_slot, home_save) = (boot.slot, boot.save);
+            crate::save_load::spawn_fresh_player(&mut game_world.world, &data_dir, &crate::save_load::active_home().start);
+            // A new world's asteroids for the mining loop (finite ore; DroneSystem deletes one when
+            // mined out), from data/asteroids/belt.ron. A save's replace them.
+            crate::save_load::fresh_asteroids(&mut game_world.world, &data_dir);
 
             // Live HOME POWER in MENU mode (v0.518): spawn the home's electrical-role
             // entities now (no meshes) so SolarSystem + ElectricalSystem publish a live
@@ -1514,7 +1446,8 @@ mod native_app {
             gui_state.keymaps = crate::gui::pages::keymap::load_keymaps(&data_dir);
             gui_state.onboarding_quest_chains = onboarding::load_quest_chains(&data_dir);
             gui_state.map_planets = crate::gui::load_planets();
-            gui_state.places = crate::gui::load_places(&data_dir);
+            // The places the live save's start holds (a cabin its own, data/homes/starts.ron).
+            gui_state.places = crate::save_load::start_places(&data_dir, &crate::save_load::active_home().start);
             // Organize-layer inventory pool: restore the SAVED container contents if the
             // active home has any (transfers persisted, v0.517), else seed from the
             // places spine (every leaf item tagged with its container path). The live
@@ -1686,9 +1619,10 @@ mod native_app {
             // designed defaults -- AppConfig's derived Default is all-zeroes
             // and used to stomp first boots to fov 0 / planet detail off /
             // no atmosphere / no clouds (see AppConfig::load_if_exists).
-            if let Some(config) = crate::config::AppConfig::load_if_exists() {
+            if let Some(config) = boot_config {
                 config.apply_to_gui_state(&mut gui_state);
             }
+            gui_state.save_slot = boot_slot;
             // The protected setup has its own file, read whether or not config.json exists or reads (10h).
             gui_state.protected.setup = crate::config::AppConfig::load_protected_setup();
             // Resume the world clock where the save left it, and age the garden
@@ -1698,9 +1632,10 @@ mod native_app {
             //
             // "Start every session from the default home" (off by default since
             // 2026-10-04; the operator's own config keeps it on) keeps only the
-            // character, and so does a save that carries no progress.
+            // character of your own home, and so does a save that carries no
+            // progress; a server's save always keeps its progress (increment 6).
             if let Some(save) = &home_save {
-                if gui_state.settings.fresh_world_each_launch || !save.progress_saved {
+                if !crate::save_load::applies_progress(save, gui_state.settings.fresh_world_each_launch) {
                     crate::save_load::apply_identity(&mut game_world.world, save);
                     log::info!(
                         "Fresh home this session: kept the character '{}', started from the default home (Settings > Gameplay)",
@@ -6705,6 +6640,9 @@ mod native_app {
                         // on, and a fresh connection tries a server that refused us again
                         // (ship homes 1b, engine/home_plot.rs `follow_server`).
                         crate::engine::home_plot::follow_server(state);
+                        // Then the save follows the pairing: your own home's, or this server's
+                        // (ship homes increment 6, engine/save_slot.rs `follow`).
+                        crate::engine::save_slot::follow(state);
                         if connected {
                             // SOLO step-out (v0.801): joined but the player switched to
                             // solo (offline home entry, or Dev travel engaging) -- leave
@@ -6747,6 +6685,7 @@ mod native_app {
                                     == Some(crate::engine::home_plot::active_server_key(&state.gui_state).as_str()),
                                 world_loaded: state.world_loaded,
                                 has_ship: state.gui_state.ship_structure.is_some(),
+                                slot_ready: crate::engine::save_slot::slot_ready(&state.gui_state),
                             };
                             match crate::engine::home_plot::join_step(&gate) {
                                 crate::engine::home_plot::JoinStep::Wait => {}
@@ -6776,7 +6715,7 @@ mod native_app {
                                     });
                                     // Our ship and our own door, for the plot (increment 1b).
                                     // Never a join without a ship (round 4).
-                                    if crate::engine::home_plot::add_join_fields(&mut join, state.gui_state.ship_structure.as_ref()) {
+                                    if crate::engine::home_plot::add_join_fields(&mut join, state.gui_state.ship_structure.as_ref(), &crate::save_load::active_home().start) {
                                         if let Some(ref ws) = state.gui_state.ws_client {
                                             ws.send(&join.to_string());
                                         }
@@ -14564,88 +14503,13 @@ mod native_app {
                         open_showroom(state, 0); // mode 0 = the Play picker
                     }
 
-                    // Apply a launcher-selected character once the world exists
-                    // (v0.474). Finds the local save by its display name and
-                    // applies its inventory + skills + name + look to the live
-                    // player. Idempotent: re-applying the active home is harmless.
+                    // Load a save onto the running world once it exists: a snapshot restore of the
+                    // live save, or a character the picker asked for (engine/save_slot.rs
+                    // `apply_pending_load`; your own home's character only lends its look while a
+                    // server's save is live, ship homes increment 6).
                     if state.world_loaded {
-                        if let Some(name) = state.gui_state.launcher_pending_load.take() {
-                            let dir = crate::persistence::saves_dir();
-                            if let Ok(entries) = std::fs::read_dir(&dir) {
-                                for entry in entries.filter_map(|e| e.ok()) {
-                                    let path = entry.path();
-                                    if path.extension().and_then(|x| x.to_str()) != Some("json") {
-                                        continue;
-                                    }
-                                    if let Ok(save) = crate::persistence::load_world(&path) {
-                                        if save.name == name {
-                                            // Same rule as startup: with "Start every
-                                            // session from the default home" on (or a
-                                            // save carrying no progress) only the
-                                            // character is applied.
-                                            if state.gui_state.settings.fresh_world_each_launch
-                                                || !save.progress_saved
-                                            {
-                                                crate::save_load::apply_identity(&mut state.game_world.world, &save);
-                                            } else {
-                                                crate::save_load::apply_save_to_world(
-                                                    &mut state.game_world.world,
-                                                    &save,
-                                                );
-                                                // The home goes back to the one this save holds, the
-                                                // character's own or the default, machines and walls
-                                                // both: a restore that gave a machine's item back also
-                                                // takes the machine away (engine/own_home.rs).
-                                                crate::engine::own_home::reapply_saved_home(state, &save);
-                                                // From the plot its home stood on to the one it stands on now (1b).
-                                                crate::engine::home_plot::carry_saved_pieces_home(state, save.home_plot_box);
-                                                // The clock rewinds with the save, and
-                                                // the garden is caught up from its stamp.
-                                                let resumed = crate::save_load::resume_home(
-                                                    &mut state.game_world.world,
-                                                    &state.data_store,
-                                                    &save,
-                                                    state.gui_state.settings.offline_progression,
-                                                    state.gui_state.settings.time_speed,
-                                                    state.gui_state.home_machines.as_ref(),
-                                                );
-                                                crate::save_load::after_resume(&mut state.gui_state, &save, &resumed);
-                                            }
-                                            // The world just REWOUND to the save:
-                                            // drop in-flight craft batches or their
-                                            // outputs would deliver on top of the
-                                            // restored materials (v0.679 review fix).
-                                            if let Some(flag) = state
-                                                .data_store
-                                                .get::<std::sync::Mutex<bool>>("abort_active_crafts")
-                                            {
-                                                if let Ok(mut f) = flag.lock() {
-                                                    *f = true;
-                                                }
-                                            }
-                                            // Sync the editing copies + rebuild the avatar.
-                                            state.gui_state.appearance = save.appearance.clone();
-                                            state.gui_state.outfit = save.outfit.clone();
-                                            if !save.character_name.is_empty() {
-                                                state.gui_state.character_name = save.character_name.clone();
-                                            }
-                                            state.gui_state.appearance_dirty = true;
-                                            state.gui_state.outfit_dirty = true;
-                                            log::info!("Launcher: loaded character '{name}'");
-                                            // Orbital home (v0.881): the
-                                            // character spawns aboard - snap
-                                            // the frame onto the station NEXT
-                                            // frame (after this path's own
-                                            // ship/camera writes, which used
-                                            // to overwrite the boot-time
-                                            // snap and strand the home in
-                                            // orbit without the player).
-                                            state.station_spawn_snap = true;
-                                            break;
-                                        }
-                                    }
-                                }
-                            }
+                        if let Some(save) = crate::save_load::take_pending_load(&mut state.gui_state) {
+                            crate::engine::save_slot::apply_pending_load(state, &save);
                         }
                     }
 

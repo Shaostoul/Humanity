@@ -52,16 +52,22 @@
 //!
 //! `plan_welcome` decides, and is pure (tested below); `apply_welcome_home` does it.
 //!
-//! THE REMEMBERED PLOT (increment 2). Every applied welcome tells the game its plot on that
-//! server (`plot_memory_after`), which it keeps per identity and server in its config
-//! (`remember_plot`, `plot_memory_key`, AppConfig `home_plots`, with the ship's hash). The next
-//! world load builds the home on that plot before it joins (`assemble_for_boot`, `boot_plot`), so
-//! a returning player's welcome only confirms it (a Stay). Offline play builds on it too: the
-//! plot remembered for the configured server, else the default plot. A server that forgot or
-//! released the plot corrects it (a Move, or a guest's put-away), a changed ship is not trusted
-//! (the hash), an erased account forgets it (gui/connections.rs), and "Start every session from
-//! the default home" does not touch it: that setting is about what the home holds, not where it
-//! stands.
+//! THE PLOT IS IN THE SAVE (increment 2; per save since increment 6). Every applied welcome tells
+//! the game its plot on that server (`plot_memory_after`), which the live save keeps
+//! (`save_slot::set_ship_place`, `WorldSave::ship_place`, with the ship's id and hash). Each
+//! server has its own save for each identity (engine/save_slot.rs), so the plot is that server's
+//! and that identity's by where it is kept. The next world load builds the home on that plot
+//! before it joins (`assemble_for_boot`, `save_slot::home_for`), so a returning player's welcome
+//! only confirms it (a Stay). A server that forgot or released the plot corrects it (a Move, or a
+//! guest's put-away), a changed ship is not trusted (the hash), an erased account's save is set
+//! aside (gui/connections.rs), and "Start every session from the default home" does not touch it:
+//! that setting is about what the home holds, not where it stands.
+//!
+//! THE KIND OF HOME (increment 6). The join names the save's start (`add_join_fields`), and the
+//! relay gives a plot of that start's kind, always keeping one already held. A welcome naming a
+//! plot of ANOTHER kind (a homestead save whose holder chose a cabin on that server) builds that
+//! kind's home there and makes the save that start (`plan_welcome`, `WelcomeHome::Move`'s
+//! `start`): a kind mismatch never gives a plot back; only a kind this app has no home for does.
 //!
 //! THE SAVE'S FRAME. Pieces built aboard and parked vehicles are saved where they stand, beside
 //! the box of the plot the home stood on (save_load.rs `HomeFrame`, `WorldSave::home_plot_box`).
@@ -80,7 +86,9 @@
 
 use crate::ecs::components::Transform;
 use crate::engine::state::{ConstructionHistory, EditorSnapshot, EngineState};
+use crate::persistence::ShipPlace;
 use crate::ship::ship_structure::ShipStructure;
+use crate::ship::starts::Starts;
 use glam::Vec3;
 
 /// The sentence a player reads when the server's ship is not theirs (one copy, shared with
@@ -180,8 +188,10 @@ pub(crate) enum WelcomeHome {
     Stay { door: Option<Vec3>, stand_at: Option<Vec3> },
     /// Move the home: the ship re-assembled on `plot`. `door` is where the holder of that plot
     /// arrives with this home (the Respawn button's point from now on), `stand_at` where the
-    /// player goes now.
-    Move { ship: ShipStructure, plot: String, door: Vec3, stand_at: Vec3 },
+    /// player goes now. `start`: Some((start, household)) when the plot takes another kind of
+    /// home than the one standing (increment 6): `ship` holds that kind's home, and the save
+    /// becomes that start, with that household (the start's first).
+    Move { ship: ShipStructure, plot: String, door: Vec3, stand_at: Vec3, start: Option<(String, String)> },
     /// A guest (the ship is full, or the join named no ship). `door` is the Commons arrival (the
     /// Respawn point), None for a ship with no Commons; `stand_at` where the player goes (None:
     /// they stay). `away`: the ship with the home PUT AWAY (`ShipStructure::put_home_away`), when
@@ -198,22 +208,63 @@ pub(crate) enum WelcomeHome {
 /// away, so there is nothing aboard to edit.
 pub(crate) const GUEST_NO_EDITOR: &str = "You are a guest on this ship, with no plot of your own, so your home is not aboard to build on; it comes back when you step out of the shared world or the server gives you a plot.";
 
+/// The first words of the sentence a player reads when a welcome makes them a guest
+/// (`guest_arrival`). They start unlike `GUEST_NO_EDITOR` on purpose: the copresence rig knows the
+/// sentence by them (scripts/lib/copresence-judge.js GUEST_ARRIVAL_START).
+pub(crate) const GUEST_ARRIVAL_START: &str = "This server has no home plot free for you";
+
 /// The sentence a player reads when a welcome makes them a guest (first-hour audit 2026-10-04,
 /// Blocker 1: becoming a guest showed no message, so a third player on a ship of two plots found
-/// their home, its smelter and their Barn simply gone). What it means, and the way back. It starts
-/// unlike `GUEST_NO_EDITOR` on purpose: the copresence rig knows that one by its first words.
-pub(crate) const GUEST_ARRIVAL: &str = "This server has no home plot free for you, so you are a guest on its ship: your home, with its stations and storage, is put away and you cannot build, but the ship's shared machines are open to you. Your home comes back when you leave the shared world (Characters > Your Homes) or a plot frees up.";
+/// their home, its smelter and their Barn simply gone; per kind of home since increment 6, plan
+/// 3.7): which kind of home was full (the welcome's `home_full`, the start they asked for), what a
+/// guest can and cannot do, and which kinds ARE free on that ship (`home_free`, counts only) and
+/// where to choose one. The names are this game's starts file's (`starts`); a start it does not
+/// know is named by its id, and anything that is not a start id is left out, so a server can never
+/// add words of its own. Pure.
+pub(crate) fn guest_arrival(welcome: &serde_json::Value, starts: &Starts) -> String {
+    let id_of = |v: &serde_json::Value| v.as_str().filter(|s| crate::ship::starts::is_start_id(s)).map(str::to_string);
+    let name = |id: &str| starts.get(id).map(|s| s.name.to_lowercase()).unwrap_or_else(|| id.replace(['_', '-'], " "));
+    let mut said = GUEST_ARRIVAL_START.to_string();
+    match welcome.get("home_full").and_then(id_of) {
+        Some(full) => said.push_str(&format!(": no {} is free on its ship, so you are a guest for now.", name(&full))),
+        None => said.push_str(", so you are a guest on its ship for now."),
+    }
+    said.push_str(" You cannot build, and the ship's shared places are open to you.");
+    // The kinds still free, in the starts file's order, then any this game does not know.
+    let free: Vec<String> = welcome
+        .get("home_free")
+        .and_then(|f| f.as_object())
+        .map(|f| {
+            let mut ids: Vec<String> = f
+                .iter()
+                .filter(|(id, n)| crate::ship::starts::is_start_id(id) && n.as_u64().is_some_and(|n| n > 0))
+                .map(|(id, _)| id.clone())
+                .collect();
+            ids.sort_by_key(|id| starts.starts.iter().position(|s| &s.id == id).unwrap_or(usize::MAX));
+            ids
+        })
+        .unwrap_or_default();
+    if !free.is_empty() {
+        let plural: Vec<String> = free.iter().map(|id| format!("{}s", name(id))).collect();
+        let list = match plural.split_last() {
+            Some((last, [])) => last.clone(),
+            Some((last, rest)) => format!("{} and {last}", rest.join(", ")),
+            None => String::new(),
+        };
+        let mut chars = list.chars();
+        let list = chars.next().map(|c| c.to_uppercase().collect::<String>() + chars.as_str()).unwrap_or_default();
+        said.push_str(&format!(" {list} are free: choose one on this server's card in Characters (Play)."));
+    }
+    said
+}
 
-/// Whether this welcome tells the player they are a guest (`GUEST_ARRIVAL`): when it makes them
+/// Whether this welcome tells the player they are a guest (`guest_arrival`): when it makes them
 /// one, that is on an ARRIVAL (`is_arrival`) or after a welcome that was not a guest's
 /// (`previous`, `EngineState::last_welcome`: a plot holder whose plot was released). Not again on
 /// a reconnect or a Respawn while still a guest, and not on a welcome that only steps out to join
 /// afresh (`join_afresh`): the welcome after that join is an arrival and tells them. Pure.
-pub(crate) fn guest_notice(plan: &WelcomeHome, arriving: bool, previous: Option<&str>) -> Option<&'static str> {
-    match plan {
-        WelcomeHome::Guest { join_afresh: false, .. } if arriving || previous != Some("guest") => Some(GUEST_ARRIVAL),
-        _ => None,
-    }
+pub(crate) fn guest_notice(plan: &WelcomeHome, arriving: bool, previous: Option<&str>) -> bool {
+    matches!(plan, WelcomeHome::Guest { join_afresh: false, .. } if arriving || previous != Some("guest"))
 }
 
 /// What the game knows when a welcome arrives, besides the welcome: the server whose welcome
@@ -224,8 +275,26 @@ pub(crate) struct WelcomeContext<'a> {
     pub server: &'a str,
     pub camera: Vec3,
     /// The game's data folder, for the sentence of a welcome naming another ship
-    /// (`other_ship_sentence_here`); None: the usual sentence.
+    /// (`other_ship_sentence_here`) and the design of a plot of another kind (`save_slot::design_of`);
+    /// None: the usual sentence, and the shipped design.
     pub data_dir: Option<&'a std::path::Path>,
+    /// What a welcome naming a plot of another kind builds there (increment 6): None, and such a
+    /// plot cannot be placed (given back, as before increment 6).
+    pub other_kind: Option<OtherKind<'a>>,
+}
+
+/// What `plan_welcome` needs to build a home of another kind on the plot a welcome names
+/// (increment 6, `save_slot::home_for`'s rules).
+#[derive(Clone, Copy)]
+pub(crate) struct OtherKind<'a> {
+    /// The starts file: which start a plot of that kind is (`Starts::for_plot_kind`).
+    pub starts: &'a Starts,
+    /// The character's own home (`own_home::in_effect`), used when it is of that kind.
+    pub own: Option<&'a crate::persistence::SavedHome>,
+    /// The Dev mode: the data file's design.
+    pub dev: bool,
+    /// A server's save: the shipped design.
+    pub server: bool,
 }
 
 /// The server the game is talking to, as the connection list keys it (normalized, the URL the
@@ -273,6 +342,10 @@ pub(crate) struct JoinGate {
     pub world_loaded: bool,
     /// The ship assembled (`GuiState::ship_structure`).
     pub has_ship: bool,
+    /// The live save is this server's own (ship homes increment 6, `save_slot::slot_ready`): a
+    /// switch of server waits for `save_slot::follow` to take up that server's save, so the join
+    /// never asks for the previous server's start, and your own home never joins a server's world.
+    pub slot_ready: bool,
 }
 
 /// What the join gate does this frame.
@@ -292,7 +365,7 @@ pub(crate) enum JoinStep {
 /// world load had cleared refusals, and held until a reconnect. Now it waits for the world and
 /// its ship, and a world with no ship of its own says why instead of joining.
 pub(crate) fn join_step(g: &JoinGate) -> JoinStep {
-    if !g.in_world || g.joined || !g.identified || g.solo || !g.aboard || g.refused_here {
+    if !g.in_world || g.joined || !g.identified || g.solo || !g.aboard || g.refused_here || !g.slot_ready {
         return JoinStep::Wait;
     }
     if !g.world_loaded {
@@ -307,7 +380,19 @@ pub(crate) fn join_step(g: &JoinGate) -> JoinStep {
 impl<'a> WelcomeContext<'a> {
     /// Read from the running game.
     fn of(state: &'a EngineState, server: &'a str) -> Self {
-        WelcomeContext { arrived_on: state.home_arrived_on.as_deref(), server, camera: state.camera.position, data_dir: Some(&state.data_dir) }
+        let other_kind = OtherKind {
+            starts: crate::gui::pages::where_you_live::starts(),
+            own: crate::engine::own_home::in_effect(&state.gui_state),
+            dev: crate::engine::own_home::authors_data_files(state.gui_state.settings.play_mode),
+            server: crate::save_load::active_home().is_server(),
+        };
+        WelcomeContext {
+            arrived_on: state.home_arrived_on.as_deref(),
+            server,
+            camera: state.camera.position,
+            data_dir: Some(&state.data_dir),
+            other_kind: Some(other_kind),
+        }
     }
 }
 
@@ -360,13 +445,23 @@ pub(crate) fn plan_welcome(ship: Option<&ShipStructure>, welcome: &serde_json::V
         log::warn!("Co-presence: the plot {id:?} this server gave us is not one our ship has, or our ship has no home design");
         return refuse(&cannot_place_sentence(id), true);
     };
+    // A plot of another kind (increment 6: a homestead save given a cabin plot, after its holder
+    // chose a cabin on this server): that kind's home goes on it and the save becomes its start.
+    // The plot is never given back over the kind; only a kind this app has no home for is (today
+    // it was always given back: "plot 'c2' takes a cabin home, not a homestead").
+    if plot.kind != design.kind {
+        return other_kind_move(ship, plot, held, ctx).unwrap_or_else(|why| {
+            log::warn!("Co-presence: the plot {id:?} takes a {} home and ours is a {}: {why}", plot.kind, design.kind);
+            refuse(&cannot_place_sentence(id), true)
+        });
+    }
     let door = ShipStructure::plot_spawn(plot, &design);
     match ship.ship_file().assemble(design, id) {
         // The old home is gone from under the player, so they always go somewhere: where the
         // relay holds them, or this home's door on the new plot.
         Ok(moved) => {
             let stand_at = off_neighbours_ground(&moved, held).unwrap_or(door);
-            WelcomeHome::Move { ship: moved, plot: id.to_string(), door, stand_at }
+            WelcomeHome::Move { ship: moved, plot: id.to_string(), door, stand_at, start: None }
         }
         // The plot this server gave us cannot hold our home: give it back (`give_up_plot`) so
         // it is not held for good by someone who never lives there. What did not fit goes to
@@ -376,6 +471,24 @@ pub(crate) fn plan_welcome(ship: Option<&ShipStructure>, welcome: &serde_json::V
             refuse(&does_not_fit_sentence(id), true)
         }
     }
+}
+
+/// `plan_welcome` for a plot of another kind than the home standing (increment 6, plan 3.7): the
+/// first offered start of that kind (`Starts::for_plot_kind`) with its first household, its home
+/// assembled on the plot by `save_slot::home_for`'s rules (`save_slot::assemble_start`: the
+/// character's own design of that kind outside Dev, else the data file in Dev, the shipped design
+/// on a server, the data file offline), and the player stood where the relay holds them, else at
+/// its door. Err (the plot cannot be placed, and goes back) when the context builds no other kind
+/// or this app has no start or home for that kind. Pure.
+fn other_kind_move(ship: &ShipStructure, plot: &crate::ship::ship_structure::Plot, held: Option<Vec3>, ctx: &WelcomeContext) -> Result<WelcomeHome, String> {
+    let o = ctx.other_kind.ok_or("nothing here builds another kind of home")?;
+    let start = o.starts.for_plot_kind(&plot.kind).ok_or_else(|| format!("this app has no start whose home goes on a {} plot", plot.kind))?;
+    let household = o.starts.household(&start.id, "").id.clone();
+    let moved = crate::engine::save_slot::assemble_start(ship.ship_file(), &plot.id, start, ctx.data_dir, o.own, o.dev, o.server)?;
+    let door = own_door(&moved).ok_or("the home built there names no door")?;
+    let stand_at = off_neighbours_ground(&moved, held).unwrap_or(door);
+    log::info!("Co-presence: plot {:?} takes a {} home; building one there", plot.id, start.id);
+    Ok(WelcomeHome::Move { ship: moved, plot: plot.id.clone(), door, stand_at, start: Some((start.id.clone(), household)) })
 }
 
 /// Where a welcome stands a player who has a plot (`plan_welcome`'s Stay and Move): `at`, unless
@@ -496,7 +609,7 @@ fn does_not_fit_sentence(id: &str) -> String {
 /// Where the holder of the plot this home stands on arrives with it: its door there, else the
 /// middle of the plot (`ShipStructure::plot_spawn`, what the relay spawns at too). None for a
 /// ship that was not assembled with a home.
-fn own_door(ship: &ShipStructure) -> Option<Vec3> {
+pub(crate) fn own_door(ship: &ShipStructure) -> Option<Vec3> {
     Some(ShipStructure::plot_spawn(ship.home_plot()?, &ship.home_design()?))
 }
 
@@ -516,18 +629,23 @@ fn relay_holds_us(welcome: &serde_json::Value) -> Option<Vec3> {
     at.is_finite().then_some(at)
 }
 
-/// The two fields our `game_join` carries for the plot (lib.rs, the join): `ship_hash`, the
-/// ship we draw, and `home_spawn`, our own home's door in plot-local metres
-/// (`ShipStructure::home_arrival_local`), left out when the home has no authored door.
-/// False, and nothing added, when there is no ship: a join must never go out naming none
+/// The fields our `game_join` carries for the plot (lib.rs, the join): `ship_hash`, the ship we
+/// draw; `home_spawn`, our own home's door in plot-local metres
+/// (`ShipStructure::home_arrival_local`), left out when the home has no authored door; and
+/// `start`, the live save's start (increment 6, `save_load::ActiveHome::start`), so a player who
+/// holds no plot there is given one of that start's kind (one already held is kept, whatever the
+/// start). False, and nothing added, when there is no ship: a join must never go out naming none
 /// (round 4 of the 1b review: an empty hash went out on the frame Enter World was pressed,
 /// before the world loaded, and the relay refused it as another ship).
 #[must_use]
-pub(crate) fn add_join_fields(join: &mut serde_json::Value, ship: Option<&ShipStructure>) -> bool {
+pub(crate) fn add_join_fields(join: &mut serde_json::Value, ship: Option<&ShipStructure>, start: &str) -> bool {
     let (Some(obj), Some(ship)) = (join.as_object_mut(), ship) else { return false };
     obj.insert("ship_hash".into(), serde_json::json!(ship.ship_hash()));
     if let Some((x, z)) = ship.home_arrival_local() {
         obj.insert("home_spawn".into(), serde_json::json!([x, z]));
+    }
+    if crate::ship::starts::is_start_id(start) {
+        obj.insert("start".into(), serde_json::json!(start));
     }
     true
 }
@@ -687,16 +805,15 @@ pub(crate) fn respawn_through_relay(state: &mut EngineState) {
     log::info!("Co-presence: respawned; stepping out and joining again so the relay stands us at our door");
 }
 
-/// A guest's home comes back onto the ship (increment 2): onto the plot this player remembers
-/// for the server the game now talks to (`boot_plot`), else the ship's default plot, through
-/// the same move a welcome makes (`move_home`: what it holds goes with it), and Respawn is its
-/// door again. Called when the game leaves the shared world (`forget_shared_world`). Nothing
+/// A guest's home comes back onto the ship (increment 2): onto the plot the live save stands on
+/// (`WorldSave::ship_place`, `save_slot::place_plot`), else the ship's default plot of its kind,
+/// through the same move a welcome makes (`move_home`: what it holds goes with it), and Respawn is
+/// its door again. Called when the game leaves the shared world (`forget_shared_world`). Nothing
 /// when the home is not away, or cannot be placed (logged; it then stays away until the next
 /// world load or a welcome with a plot).
 fn bring_home_back(state: &mut EngineState) {
     let Some(ship) = state.gui_state.ship_structure.as_ref() else { return };
-    let server = active_server_key(&state.gui_state);
-    match home_back_from_away(ship, state.gui_state.home_plots.get(&plot_memory_key(&state.gui_state, &server))) {
+    match home_back_from_away(ship, crate::save_load::active_home().ship_place.as_ref()) {
         None => {}
         Some(Ok(back)) => {
             log::info!("Co-presence: out of the shared world; our home comes back from where it was put away, onto plot {:?}", back.home_plot().map(|p| &p.id));
@@ -710,65 +827,50 @@ fn bring_home_back(state: &mut EngineState) {
     }
 }
 
-/// The ship with a home put away brought back (`bring_home_back`): on the plot `remembered` for
-/// the server the game talks to (`boot_plot`), else on the ship's default plot. None when the
-/// home is not away; Err when it cannot be placed there. Pure.
-pub(crate) fn home_back_from_away(ship: &ShipStructure, remembered: Option<&crate::config::RememberedPlot>) -> Option<Result<ShipStructure, String>> {
+/// The ship with a home put away brought back (`bring_home_back`): on the plot `place` names (the
+/// live save's, when it is a plot of this ship of the home's kind, `save_slot::place_plot`), else
+/// on the ship's default plot of the home's kind. None when the home is not away; Err when it
+/// cannot be placed there. Pure.
+pub(crate) fn home_back_from_away(ship: &ShipStructure, place: Option<&ShipPlace>) -> Option<Result<ShipStructure, String>> {
     if !ship.home_is_away() {
         return None;
     }
     let file = ship.ship_file();
     let design = ship.home_design()?;
-    let plot = boot_plot(&file, remembered).or_else(|| file.default_plot_id())?;
+    let plot = crate::engine::save_slot::place_plot(&file, place, &design.kind).or_else(|| file.default_plot_of_kind(&design.kind))?;
     Some(file.assemble(design, &plot))
 }
 
-/// The plot a world load builds the home on (increment 2): the plot this player remembers for
-/// the server they are about to join (`remembered`, `GuiState::home_plots`), when it is a plot of
-/// `ship_file` and was remembered on this same ship (the same hash: a plot id names a place only
-/// on the same ship; after a ship change it is not trusted). None otherwise: the ship's default
-/// plot, where 1b built every home. The welcome then confirms the plot (a Stay) or corrects it
-/// (a Move, a guest's put-away). Pure.
-pub(crate) fn boot_plot(ship_file: &ShipStructure, remembered: Option<&crate::config::RememberedPlot>) -> Option<String> {
-    let r = remembered?;
-    (r.ship_hash == ship_file.ship_hash() && ship_file.plots.iter().any(|p| p.id == r.plot)).then(|| r.plot.clone())
-}
-
-/// The ship a world load runs (engine/world_load.rs): the ship file with this player's home on
-/// the plot `boot_plot` picks for the server the game talks to, else on the default plot. A
-/// remembered plot the home cannot be put on (a design changed since) falls back to the default
-/// plot, with the reason in the log. Err only when there is no ship (the legacy layout shows).
+/// The ship a world load runs (engine/world_load.rs): the ship file with the live save's home on
+/// its plot (`save_slot::home_for`: the save's start on the plot it stands on, `ship_place`, else
+/// the ship's default plot of that start's kind; the character's own design outside Dev, the
+/// shipped design for a server's save, the data file in Dev and for your own home). When that
+/// cannot be built (a ship file with no plot of the start's kind: an installed game's older ship),
+/// the default plot with its own kind's design, with the reason in the log. Err only when there is
+/// no ship (the legacy layout shows).
 pub(crate) fn assemble_for_boot(data_dir: &std::path::Path, gui: &crate::gui::GuiState) -> Result<ShipStructure, String> {
     let file = ShipStructure::load_ship_file(data_dir)?;
-    let server = active_server_key(gui);
-    // The character's own home design, when their save holds one outside the Dev mode
-    // (engine/own_home.rs, 2026-10-04); else the design file's.
-    let own = crate::engine::own_home::design_in_effect(gui);
-    if let Some(plot) = boot_plot(&file, gui.home_plots.get(&plot_memory_key(gui, &server))) {
-        match ShipStructure::assemble_from_own(file.clone(), data_dir, Some(&plot), own) {
-            Ok(ship) => {
-                log::info!("load_world: building the home on plot {plot}, the plot remembered for {server}");
-                return Ok(ship);
-            }
-            Err(e) => log::warn!("load_world: the home does not go on plot {plot}, remembered for {server} ({e}); the default plot instead"),
+    let active = crate::save_load::active_home();
+    let starts = Starts::load(data_dir);
+    let own = crate::engine::own_home::in_effect(gui);
+    let dev = crate::engine::own_home::authors_data_files(gui.settings.play_mode);
+    match crate::engine::save_slot::home_for(file.clone(), data_dir, &starts, &active.start, &active.household, active.ship_place.as_ref(), own, dev, &active.slot) {
+        Ok(ship) => {
+            log::info!("load_world: a {} home on plot {:?}", active.start, ship.home_plot().map(|p| &p.id));
+            Ok(ship)
+        }
+        Err(e) => {
+            log::warn!("load_world: the save's {} home was not built ({e}); the default plot's home instead", active.start);
+            ShipStructure::assemble_from_own(file, data_dir, None, own.map(|o| &o.design))
         }
     }
-    ShipStructure::assemble_from_own(file, data_dir, None, own)
 }
 
-/// The key a plot is remembered under (`GuiState::home_plots`): this identity on `server`, the
-/// key the erased-server memory uses (`gui::erased_entry`), so a second identity on the same app
-/// does not build its home on the first one's plot, and an erase forgets exactly this entry
-/// (gui/connections.rs `account_erased_on_active`). Increment 2 review, finding 3. Pure.
-pub(crate) fn plot_memory_key(gui: &crate::gui::GuiState, server: &str) -> String {
-    crate::gui::erased_entry(&gui.profile_public_key, server)
-}
-
-/// What an applied welcome's plan teaches about this server's plot (`GuiState::home_plots`):
-/// Some(Some(plot)) to remember it (a Move to it, or a Stay on the plot the home stands on),
-/// Some(None) to forget it (a guest has none; a plot our home does not fit went back), None to
-/// leave the memory as it is (a refusal over the ship: the hash check at the next boot already
-/// distrusts it). Pure.
+/// What an applied welcome's plan teaches about the live save's plot (`save_slot::set_ship_place`):
+/// Some(Some(plot)) to keep it (a Move to it, or a Stay on the plot the home stands on),
+/// Some(None) to clear it (a guest has none; a plot our home does not fit went back), None to
+/// leave it as it is (a refusal over the ship: the hash check at the next boot already distrusts
+/// it). Pure.
 pub(crate) fn plot_memory_after(plan: &WelcomeHome, ship: Option<&ShipStructure>) -> Option<Option<String>> {
     match plan {
         WelcomeHome::Move { plot, .. } => Some(Some(plot.clone())),
@@ -776,28 +878,6 @@ pub(crate) fn plot_memory_after(plan: &WelcomeHome, ship: Option<&ShipStructure>
         WelcomeHome::Guest { .. } => Some(None),
         WelcomeHome::Refuse { give_up_plot: true, .. } => Some(None),
         WelcomeHome::Refuse { .. } => None,
-    }
-}
-
-/// Remember (`Some(plot)`) or forget (`None`) this player's plot on `server`, of the ship the
-/// game runs, and save the config when that changed it (AppConfig `home_plots`), so the next
-/// world load builds the home there.
-pub(crate) fn remember_plot(state: &mut EngineState, server: &str, plot: Option<String>) {
-    let hash = state.gui_state.ship_structure.as_ref().map(|s| s.ship_hash()).unwrap_or_default();
-    let key = plot_memory_key(&state.gui_state, server);
-    let plots = &mut state.gui_state.home_plots;
-    let changed = match (plot, hash.is_empty()) {
-        (Some(plot), false) => {
-            let r = crate::config::RememberedPlot { ship_hash: hash, plot };
-            plots.insert(key.clone(), r.clone()).as_ref() != Some(&r)
-        }
-        // No ship, no plot to remember (a welcome is never applied without one).
-        (Some(_), true) => false,
-        (None, _) => plots.remove(&key).is_some(),
-    };
-    if changed {
-        log::info!("Co-presence: this server's plot is now {:?} (remembered for the next world load)", plots.get(&key).map(|r| &r.plot));
-        crate::config::AppConfig::from_gui_state(&state.gui_state).save();
     }
 }
 
@@ -818,12 +898,14 @@ pub(crate) fn apply_welcome_home(state: &mut EngineState, welcome: &serde_json::
     }
     let server = active_server_key(&state.gui_state);
     let plan = plan_welcome(state.gui_state.ship_structure.as_ref(), welcome, &WelcomeContext::of(state, &server));
-    // What this welcome teaches about our plot on this server, remembered so the next world load
-    // builds the home there (increment 2), and what it does with the home, for the rig's probe.
+    // What this welcome teaches about our plot on this server, kept in the live save so the next
+    // world load builds the home there (increment 2; the save's since increment 6), and what it
+    // does with the home, for the rig's probe.
     let memory = plot_memory_after(&plan, state.gui_state.ship_structure.as_ref());
     // Whether it makes us a guest the player has not been told about (first-hour audit
     // 2026-10-04, Blocker 1), read before this welcome's own word replaces the last one.
-    let told = guest_notice(&plan, is_arrival(state.home_arrived_on.as_deref(), &server), state.last_welcome);
+    let told = guest_notice(&plan, is_arrival(state.home_arrived_on.as_deref(), &server), state.last_welcome)
+        .then(|| guest_arrival(welcome, crate::gui::pages::where_you_live::starts()));
     state.last_welcome = Some(match &plan {
         WelcomeHome::Refuse { .. } => "refused",
         WelcomeHome::Stay { .. } => "stay",
@@ -831,11 +913,13 @@ pub(crate) fn apply_welcome_home(state: &mut EngineState, welcome: &serde_json::
         WelcomeHome::Guest { .. } => "guest",
     });
     state.last_welcome_rejoin = welcome.get("rejoin").and_then(|r| r.as_bool());
+    // Where the home stands is the live save's (the ship's hash is the same before and after a
+    // move, so it is kept before the move).
     if let Some(plot) = memory {
-        remember_plot(state, &server, plot);
+        crate::engine::save_slot::set_ship_place(state, plot);
     }
     if let Some(sentence) = told {
-        state.gui_state.pending_notices.push(sentence.to_string());
+        state.gui_state.pending_notices.push(sentence);
     }
     match plan {
         WelcomeHome::Refuse { sentence, give_up_plot } => {
@@ -853,9 +937,17 @@ pub(crate) fn apply_welcome_home(state: &mut EngineState, welcome: &serde_json::
                 put_player_at(state, at);
             }
         }
-        WelcomeHome::Move { ship, plot, door, stand_at } => {
+        WelcomeHome::Move { ship, plot, door, stand_at, start } => {
             log::info!("Co-presence: the server gave us plot {plot}; moving the home there");
+            // A plot of another kind (increment 6): the save becomes that kind's start, and its
+            // household's machines are loaded before the home is rebuilt with them.
+            if let Some((start, household)) = &start {
+                crate::engine::save_slot::change_start(state, start, household);
+            }
             move_home(state, ship);
+            if start.is_some() {
+                crate::engine::world_load::refresh_home_content(state);
+            }
             // Respawn brings the player back to their own door, on this plot.
             state.fps_spawn = door;
             put_player_at(state, stand_at);
@@ -1518,14 +1610,26 @@ mod tests {
 
     const SERVER: &str = "http://127.0.0.1:3210";
 
+    /// The tree's starts file, read once for these tests.
+    fn test_starts() -> &'static Starts {
+        static STARTS: std::sync::OnceLock<Starts> = std::sync::OnceLock::new();
+        STARTS.get_or_init(|| Starts::load(&data_dir()))
+    }
+
+    /// A server's save in the Normal mode, with no home of its own: a plot of another kind gets
+    /// that kind's SHIPPED design (increment 6).
+    fn on_a_server() -> Option<OtherKind<'static>> {
+        Some(OtherKind { starts: test_starts(), own: None, dev: false, server: true })
+    }
+
     /// The first welcome since the world loaded, the camera at `camera`.
     fn arriving(camera: Vec3) -> WelcomeContext<'static> {
-        WelcomeContext { arrived_on: None, server: SERVER, camera, data_dir: None }
+        WelcomeContext { arrived_on: None, server: SERVER, camera, data_dir: None, other_kind: on_a_server() }
     }
 
     /// A later welcome from the same server (we arrived on it before), the camera at `camera`.
     fn again(camera: Vec3) -> WelcomeContext<'static> {
-        WelcomeContext { arrived_on: Some(SERVER), server: SERVER, camera, data_dir: None }
+        WelcomeContext { arrived_on: Some(SERVER), server: SERVER, camera, data_dir: None, other_kind: on_a_server() }
     }
 
     const P1_DOOR: Vec3 = Vec3::new(53.5, 1.7, 40.5);
@@ -1567,8 +1671,9 @@ mod tests {
         let ship = booted();
         let hash = ship.ship_hash();
         match plan_welcome(Some(&ship), &welcome_at(Some("p2"), &hash, Some(P2_DOOR.into())), &arriving(P1_DOOR)) {
-            WelcomeHome::Move { ship: moved, plot, door, stand_at } => {
+            WelcomeHome::Move { ship: moved, plot, door, stand_at, start } => {
                 assert_eq!(plot, "p2");
+                assert_eq!(start, None, "a plot of our own kind changes no start");
                 assert_eq!(moved.home.as_ref().map(|a| a.plot.as_str()), Some("p2"));
                 let dz = 99.0; // p2 sits 99 m south of p1 (design section 2.4)
                 let home = |s: &ShipStructure| s.zones[s.home_zone_index()].origin;
@@ -1812,29 +1917,29 @@ mod tests {
         let hash = ship.ship_hash();
         let arrival = plan_welcome(Some(&ship), &welcome_at(None, &hash, Some(COMMONS.into())), &arriving(P1_DOOR));
         assert!(matches!(arrival, WelcomeHome::Guest { join_afresh: false, .. }), "{arrival:?}");
-        let told = guest_notice(&arrival, true, None);
-        assert_eq!(told, Some(GUEST_ARRIVAL), "a new guest is told nothing: {told:?}");
-        for words in ["guest", "no home plot free", "cannot build", "put away", "Characters > Your Homes"] {
-            assert!(GUEST_ARRIVAL.contains(words), "the guest sentence does not say {words:?}: {GUEST_ARRIVAL}");
+        assert!(guest_notice(&arrival, true, None), "a new guest is told nothing");
+        let said = guest_arrival(&welcome_at(None, &hash, Some(COMMONS.into())), test_starts());
+        for words in ["guest", "no home plot free", "cannot build", "shared places are open"] {
+            assert!(said.contains(words), "the guest sentence does not say {words:?}: {said}");
         }
         // The rig tells the build editor's refusal apart from this one by its first words.
-        assert!(!GUEST_ARRIVAL.starts_with(&GUEST_NO_EDITOR[..40]), "the two guest sentences start alike");
+        assert!(!GUEST_ARRIVAL_START.starts_with(&GUEST_NO_EDITOR[..40]), "the two guest sentences start alike");
         // Once: a reconnect (or a Respawn) while still a guest says nothing more.
         let reconnect = plan_welcome(Some(&ship), &welcome_full(None, &hash, Some(COMMONS.into()), true), &again(COMMONS));
         assert!(matches!(reconnect, WelcomeHome::Guest { join_afresh: false, .. }), "{reconnect:?}");
-        assert_eq!(guest_notice(&reconnect, false, Some("guest")), None, "a guest is told again on every reconnect");
+        assert!(!guest_notice(&reconnect, false, Some("guest")), "a guest is told again on every reconnect");
         // A plot holder whose plot was released becomes a guest on a reconnect: told.
-        assert_eq!(guest_notice(&reconnect, false, Some("stay")), Some(GUEST_ARRIVAL), "a player who just lost their plot is told nothing");
+        assert!(guest_notice(&reconnect, false, Some("stay")), "a player who just lost their plot is told nothing");
         // Another server's welcome is an arrival, guest before or not.
-        assert_eq!(guest_notice(&reconnect, true, Some("guest")), Some(GUEST_ARRIVAL));
+        assert!(guest_notice(&reconnect, true, Some("guest")));
         // The welcome that steps out to join afresh says nothing; the next one does.
         let deep = Vec3::new(30.0, 1.7, 170.0);
         let afresh = plan_welcome(Some(&ship), &welcome_full(None, &hash, Some(deep.into()), true), &again(deep));
         assert!(matches!(afresh, WelcomeHome::Guest { join_afresh: true, .. }), "{afresh:?}");
-        assert_eq!(guest_notice(&afresh, true, None), None, "told twice across one fresh join");
+        assert!(!guest_notice(&afresh, true, None), "told twice across one fresh join");
         // A plot of our own is not a guest's.
         let own = plan_welcome(Some(&ship), &welcome_at(Some("p1"), &hash, Some(P1_DOOR.into())), &arriving(P1_DOOR));
-        assert_eq!(guest_notice(&own, true, None), None, "{own:?}");
+        assert!(!guest_notice(&own, true, None), "{own:?}");
     }
 
     /// The rig's guest leg (verify-copresence --plots --order guest) knows the build editor's
@@ -1853,7 +1958,7 @@ mod tests {
         assert!(start.len() > 20 && GUEST_NO_EDITOR.starts_with(start), "the rig looks for {start:?}");
     }
 
-    /// The same for the sentence a guest reads on ARRIVING (`GUEST_ARRIVAL`). The rig's guest leg
+    /// The same for the sentence a guest reads on ARRIVING (`GUEST_ARRIVAL_START`). The rig's guest leg
     /// fills the shipped ship's twelve plots with scripted households (the plots along First
     /// Street, 2026-10-04) and the game comes in after them all; check guest_told judges that it
     /// is told it is a guest by the start of this sentence (copresence-judge.js
@@ -1867,7 +1972,9 @@ mod tests {
             .nth(1)
             .and_then(|s| s.split('"').next())
             .expect("the judge names the sentence's start");
-        assert!(start.len() > 20 && GUEST_ARRIVAL.starts_with(start), "the rig looks for {start:?}");
+        assert!(start.len() > 20 && GUEST_ARRIVAL_START.starts_with(start), "the rig looks for {start:?}");
+        let said = guest_arrival(&serde_json::json!({ "home_full": "cabin", "home_free": { "homestead": 2 } }), test_starts());
+        assert!(said.starts_with(start), "the rig looks for {start:?}: {said}");
     }
 
     /// The build editor opened between a reconnect and its guest welcome (finding 1 of the
@@ -2079,19 +2186,19 @@ mod tests {
         let home = ship.home_zone_index();
         ship.zones[home].body.spawn = Some((12.5, 30.0));
         let mut join = serde_json::json!({ "type": "game_join" });
-        assert!(add_join_fields(&mut join, Some(&ship)), "a join with our ship is built");
+        assert!(add_join_fields(&mut join, Some(&ship), "homestead"), "a join with our ship is built");
         assert_eq!(join["ship_hash"], ship.ship_hash().as_str(), "the join names no ship: {}", join["ship_hash"]);
         assert_eq!(join["home_spawn"], serde_json::json!([12.5, 30.0]));
         // No ship: no join (round 4 of the 1b review, finding 1). Seen red 2026-10-03 on
         // db551f530, which sent "" (the relay refused it as another ship): "a join with no ship
         // is built anyway, naming the ship Some(String(\"\"))".
         let mut bare = serde_json::json!({ "type": "game_join" });
-        let built = add_join_fields(&mut bare, None);
+        let built = add_join_fields(&mut bare, None, "homestead");
         assert!(!built && bare.get("ship_hash").is_none(), "a join with no ship is built anyway, naming the ship {:?}", bare.get("ship_hash"));
         assert!(bare.get("home_spawn").is_none());
         ship.zones[home].body.spawn = None;
         let mut doorless = serde_json::json!({ "type": "game_join" });
-        assert!(add_join_fields(&mut doorless, Some(&ship)));
+        assert!(add_join_fields(&mut doorless, Some(&ship), "homestead"));
         assert!(doorless.get("home_spawn").is_none(), "a home with no door names none: {}", doorless["home_spawn"]);
     }
 
@@ -2539,7 +2646,7 @@ mod tests {
         // A plot freed up: the next welcome moves the home from where it was kept onto p2.
         let w = welcome_at(Some("p2"), &away.ship_hash(), Some(P2_DOOR.into()));
         match plan_welcome(Some(&away), &w, &again(COMMONS)) {
-            WelcomeHome::Move { ship: back, plot, door, stand_at } => {
+            WelcomeHome::Move { ship: back, plot, door, stand_at, .. } => {
                 assert_eq!((plot.as_str(), back.home_is_away()), ("p2", false));
                 assert!((door - P2_DOOR).length() < 1e-4 && (stand_at - P2_DOOR).length() < 1e-4, "{door:?} {stand_at:?}");
                 assert_eq!(home_box_change(Some(kept), home_box(&back)), HomeBoxChange::Carry { from: kept, delta: home_box(&back).unwrap().0 - kept.0 });
@@ -2551,8 +2658,9 @@ mod tests {
     }
 
     /// A guest who leaves the shared world (steps out to solo play, is refused, switches server,
-    /// loses the connection) gets its home back onto the ship: onto the plot it remembers for the
-    /// server it now talks to, else the default plot. A home that is not away stays where it is.
+    /// loses the connection) gets its home back onto the ship: onto the plot the live save stands
+    /// on (`ship_place`, on this ship), else the default plot of its kind. A home that is not away
+    /// stays where it is.
     /// Seen red 2026-10-04 with `home_back_from_away` always None (a guest's home stayed away for
     /// the rest of the session): "out of the shared world, the guest's home comes back: None".
     #[test]
@@ -2560,59 +2668,141 @@ mod tests {
         let away = booted().put_home_away().unwrap();
         let back = home_back_from_away(&away, None).map(|r| r.map(|s| s.home_plot().map(|p| p.id.clone())));
         assert_eq!(back, Some(Ok(Some("p1".to_string()))), "out of the shared world, the guest's home comes back: {back:?}");
-        let mem = crate::config::RememberedPlot { ship_hash: away.ship_hash(), plot: "p2".into() };
-        let onto = home_back_from_away(&away, Some(&mem)).unwrap().unwrap();
-        assert_eq!(onto.home_plot().map(|p| p.id.as_str()), Some("p2"), "onto the plot remembered for the server it now talks to");
+        let place = crate::engine::save_slot::place_on(Some(&away), "p2");
+        let onto = home_back_from_away(&away, place.as_ref()).unwrap().unwrap();
+        assert_eq!(onto.home_plot().map(|p| p.id.as_str()), Some("p2"), "onto the plot the live save stands on");
+        let cabin = crate::engine::save_slot::place_on(Some(&away), "c2");
+        let back = home_back_from_away(&away, cabin.as_ref()).unwrap().unwrap();
+        assert_eq!(back.home_plot().map(|p| p.id.as_str()), Some("p1"), "a homestead never comes back onto a cabin plot");
         assert!(!onto.home_is_away());
         assert!(home_back_from_away(&booted(), None).is_none(), "a home on a plot stays where it is");
     }
 
-    /// THE REMEMBERED PLOT, at boot: the world load builds the home on the plot this player
-    /// remembers for the server, when it is a plot of the ship file and was remembered on that
-    /// same ship (its hash); otherwise the default plot. Seen red 2026-10-04 with `boot_plot`
-    /// always None (the 1b world load, which always built on the default plot): "the plot
-    /// remembered for this server: None".
+    /// THE PLOT IS REMEMBERED IN THE SAVE (increment 2; the save's since increment 6, plan 3.6):
+    /// a welcome that moves the home to p2 sets the live save's `ship_place` (with this ship's id
+    /// and hash), the save written then carries it, and the next boot of that save builds the home
+    /// on p2 before it joins, so the returning player's welcome only confirms it (a Stay). A place
+    /// taken on another ship (its hash) is not trusted: the default plot of the save's kind.
+    ///
+    /// Seen red 2026-10-12 with `home_for` ignoring the save's place (`place_plot` answering None):
+    /// "the next boot built the home on Some(\"p1\"), the save stands on p2".
     #[test]
-    fn the_world_load_builds_on_the_plot_remembered_for_the_server() {
-        let file = crate::ship::ship_structure::ShipStructure::load_ship_file(&data_dir()).unwrap();
-        let hash = file.ship_hash();
-        let r = |plot: &str, ship_hash: &str| crate::config::RememberedPlot { ship_hash: ship_hash.into(), plot: plot.into() };
-        assert_eq!(boot_plot(&file, Some(&r("p2", &hash))).as_deref(), Some("p2"), "the plot remembered for this server: {:?}", boot_plot(&file, Some(&r("p2", &hash))));
-        assert_eq!(boot_plot(&file, None), None, "nothing remembered: the default plot");
-        assert_eq!(boot_plot(&file, Some(&r("p2", "0123456789abcdef"))), None, "remembered on another ship: not trusted");
-        // (p99: p9 is a real plot since the twelve plots along First Street, 2026-10-04.)
-        assert_eq!(boot_plot(&file, Some(&r("p99", &hash))), None, "a plot this ship does not have: the default plot");
-        // And the assembled ship puts the home there.
-        let ship = crate::ship::ship_structure::ShipStructure::assemble_from(file.clone(), &data_dir(), boot_plot(&file, Some(&r("p2", &hash))).as_deref()).unwrap();
-        assert_eq!(ship.home_plot().map(|p| p.id.as_str()), Some("p2"));
-        // The returning player's welcome then only confirms it: a Stay, nothing moves.
+    fn the_plot_is_remembered_in_the_save() {
+        let ship = booted();
+        let hash = ship.ship_hash();
+        let mv = plan_welcome(Some(&ship), &welcome_at(Some("p2"), &hash, Some(P2_DOOR.into())), &arriving(P1_DOOR));
+        let Some(Some(plot)) = plot_memory_after(&mv, Some(&ship)) else { panic!("a Move to p2 keeps no place: {mv:?}") };
+        let place = crate::engine::save_slot::place_on(Some(&ship), &plot).expect("a place on our ship");
+        assert_eq!((place.ship_id.as_str(), place.ship_hash.as_str(), place.plot.as_str()), ("mothership-1", hash.as_str(), "p2"));
+        // The save carries it: this server's save, written and read back.
+        let slot = crate::persistence::SaveSlot::Server { server: SERVER.into(), identity: "ab".repeat(32) };
+        let mut save = crate::persistence::WorldSave::new_offline("x", "homestead");
+        save.kind = "server".into();
+        save.ship_place = Some(place.clone());
+        let back: crate::persistence::WorldSave = serde_json::from_str(&serde_json::to_string(&save).unwrap()).unwrap();
+        assert_eq!(back.ship_place.as_ref(), Some(&place));
+        // The next boot of that save.
+        crate::save_load::set_active_home(crate::save_load::ActiveHome::of_save(slot.clone(), std::path::PathBuf::from("unused.json"), &back));
+        let gui = crate::gui::GuiState::default();
+        let built = assemble_for_boot(&data_dir(), &gui).unwrap();
+        assert_eq!(built.home_plot().map(|p| p.id.as_str()), Some("p2"), "the next boot built the home on {:?}, the save stands on p2", built.home_plot().map(|p| &p.id));
         let w = welcome_at(Some("p2"), &hash, Some(P2_DOOR.into()));
-        assert!(matches!(plan_welcome(Some(&ship), &w, &arriving(P2_DOOR)), WelcomeHome::Stay { .. }), "a returning player's welcome is a Stay");
+        assert!(matches!(plan_welcome(Some(&built), &w, &arriving(P2_DOOR)), WelcomeHome::Stay { .. }), "a returning player's welcome is a Stay");
+        // Taken on another ship: not trusted.
+        let mut elsewhere = back.clone();
+        elsewhere.ship_place = Some(crate::persistence::ShipPlace { ship_hash: "0123456789abcdef".into(), ..place });
+        crate::save_load::set_active_home(crate::save_load::ActiveHome::of_save(slot, std::path::PathBuf::from("unused.json"), &elsewhere));
+        let built = assemble_for_boot(&data_dir(), &gui).unwrap();
+        assert_eq!(built.home_plot().map(|p| p.id.as_str()), Some("p1"), "a place on another ship was trusted");
+        crate::save_load::set_active_home(crate::save_load::ActiveHome::offline());
     }
 
-    /// A plot is remembered for THIS IDENTITY on a server (the key `gui::erased_entry` makes, the
-    /// one the erased-server memory uses), so a second identity on the same app, or one restored
-    /// from another recovery phrase, does not build its home on the first one's plot at boot.
-    /// Increment 2 review, finding 3. Seen red 2026-10-04 on c98c5465b (keyed by the server
-    /// alone): "the plot remembered by this identity on this server: Some(\"p1\")".
+    /// A WELCOME OF ANOTHER KIND BUILDS THAT KIND'S HOME AND KEEPS THE PLOT (increment 6, plan
+    /// 3.7). A homestead save whose holder chose a Cabin on this server (as a guest, then joined
+    /// again) is welcomed onto c2, a cabin plot: the game builds the shipped cabin on c2, stands
+    /// the player at its door, and the save becomes a Cabin for one (its first household). Before
+    /// increment 6 the game gave the plot back because its home was a homestead, so the player who
+    /// had just chosen a home lost it at once. A plot of a kind this app has no home for still goes
+    /// back.
+    ///
+    /// Seen red 2026-10-12 with the kind check removed from `plan_welcome` (today's code, which
+    /// put the homestead on c2 and refused): "gave up plot c2: Refuse { sentence: \"Not joining the
+    /// shared world: your home does not fit the plot this server gave you (c2), ...\",
+    /// give_up_plot: true }" (the log: "plot 'c2' takes a cabin home, not a homestead").
     #[test]
-    fn a_plot_is_remembered_for_one_identity_on_one_server() {
-        let hash = ShipStructure::load_ship_file(&data_dir()).unwrap().ship_hash();
-        let mut gui = crate::gui::GuiState::default();
-        gui.server_url = SERVER.to_string();
-        gui.connected_server_url = SERVER.to_string();
-        gui.profile_public_key = "aa11".to_string();
-        let server = active_server_key(&gui);
-        gui.home_plots.insert(crate::gui::erased_entry("aa11", &server), crate::config::RememberedPlot { ship_hash: hash, plot: "p2".into() });
-        let built = |gui: &crate::gui::GuiState| assemble_for_boot(&data_dir(), gui).unwrap().home_plot().map(|p| p.id.clone());
-        assert_eq!(built(&gui).as_deref(), Some("p2"), "the plot remembered by this identity on this server: {:?}", built(&gui));
-        gui.profile_public_key = "bb22".to_string();
-        assert_eq!(built(&gui).as_deref(), Some("p1"), "another identity on the same app builds on the default plot");
+    fn a_welcome_of_another_kind_builds_that_kinds_home_and_keeps_the_plot() {
+        let ship = booted();
+        let hash = ship.ship_hash();
+        let c2 = ship.plots.iter().find(|p| p.id == "c2").expect("the ship has c2").clone();
+        let cabin = crate::ship::ship_structure::HomeDesign::built_in("cabin").expect("the cabin is built in");
+        let c2_door = ShipStructure::plot_spawn(&c2, &cabin);
+        let w = welcome_at(Some("c2"), &hash, Some(c2_door.into()));
+        match plan_welcome(Some(&ship), &w, &arriving(P1_DOOR)) {
+            WelcomeHome::Move { ship: moved, plot, door, stand_at, start } => {
+                assert_eq!(plot, "c2");
+                assert_eq!(start, Some(("cabin".to_string(), "solo".to_string())), "the save becomes a Cabin for one");
+                let design = moved.home_design().expect("a home");
+                assert_eq!((design.kind.as_str(), moved.home_plot().map(|p| p.id.as_str())), ("cabin", Some("c2")));
+                assert_eq!(design.body.walls.len(), cabin.body.walls.len(), "the shipped cabin");
+                assert!((door - c2_door).length() < 1e-4 && (stand_at - c2_door).length() < 1e-4, "{door:?} {stand_at:?}");
+                assert_eq!(moved.ship_hash(), hash, "the same ship");
+            }
+            other => panic!("gave up plot c2: {other:?}"),
+        }
+        // What builds no other kind (a context without it) still gives the plot back.
+        let bare = WelcomeContext { other_kind: None, ..arriving(P1_DOOR) };
+        assert!(matches!(plan_welcome(Some(&ship), &w, &bare), WelcomeHome::Refuse { give_up_plot: true, .. }));
     }
 
-    /// What each welcome teaches the memory: a Move or a Stay remembers the plot, a guest and a
-    /// plot that went back forget it, and a refusal over the ship leaves it (the hash at the next
-    /// boot distrusts it). Seen red 2026-10-04 with `plot_memory_after` always None (the 1b game,
+    /// The join names the live save's start (increment 6): the relay gives a player who holds no
+    /// plot there one of that start's kind. Anything that is not a start id is left out.
+    ///
+    /// Seen red 2026-10-12 with `add_join_fields` adding no start (the join before increment 6):
+    /// "the join names no start: null".
+    #[test]
+    fn the_join_names_the_saves_start() {
+        let ship = booted();
+        let mut join = serde_json::json!({ "type": "game_join" });
+        assert!(add_join_fields(&mut join, Some(&ship), "cabin"));
+        assert_eq!(join["start"], "cabin", "the join names no start: {}", join["start"]);
+        let mut odd = serde_json::json!({ "type": "game_join" });
+        assert!(add_join_fields(&mut odd, Some(&ship), "a cabin, please"));
+        assert!(odd.get("start").is_none(), "a start that is no start id went out: {}", odd["start"]);
+    }
+
+    /// A GUEST IS TOLD WHICH HOMES ARE FREE (increment 6, plan 3.7): the sentence keeps its first
+    /// words (the rig knows it by them), says which kind was full (`home_full`), what a guest can
+    /// and cannot do, and which kinds ARE free on that ship (`home_free`, counts only) and where to
+    /// choose one; a kind with none free, and anything a server sends that is not a start id, is
+    /// not named. With nothing free it says so by naming none.
+    ///
+    /// Seen red 2026-10-12 with `guest_arrival` answering the sentence from before increment 6:
+    /// "the guest is not told a homestead is free: This server has no home plot free for you, so
+    /// you are a guest on its ship: your home, with its stations and storage, is put away ...".
+    #[test]
+    fn a_guest_is_told_which_homes_are_free() {
+        let w = serde_json::json!({
+            "type": "game_welcome", "home_plot": null, "home_full": "cabin",
+            "home_free": { "homestead": 3, "cabin": 0, "no such start!": 9 },
+        });
+        let said = guest_arrival(&w, test_starts());
+        assert!(said.starts_with(GUEST_ARRIVAL_START), "{said}");
+        assert!(said.contains("Homesteads are free: choose one on this server's card in Characters (Play)."), "the guest is not told a homestead is free: {said}");
+        assert!(said.contains("no cabin is free on its ship"), "{said}");
+        assert!(said.contains("cannot build"), "{said}");
+        assert!(!said.contains("Cabins are free") && !said.contains("no such start"), "{said}");
+        // Two kinds free: both, in the starts file's order.
+        let two = guest_arrival(&serde_json::json!({ "home_full": "homestead", "home_free": { "homestead": 0, "cabin": 4, "apartment": 2 } }), test_starts());
+        assert!(two.contains("Cabins and apartments are free"), "{two}");
+        // Nothing free: no list.
+        let none = guest_arrival(&serde_json::json!({ "home_full": "cabin", "home_free": { "cabin": 0 } }), test_starts());
+        assert!(!none.contains(" free:"), "{none}");
+        assert!(none.ends_with("open to you."), "{none}");
+    }
+
+    /// What each welcome teaches the live save's place (`save_slot::set_ship_place`): a Move or a
+    /// Stay keeps the plot, a guest and a plot that went back clear it, and a refusal over the ship
+    /// leaves it (the hash at the next boot distrusts it). Seen red 2026-10-04 with `plot_memory_after` always None (the 1b game,
     /// which remembered nothing): "a Move to p2 remembers p2: None".
     #[test]
     fn each_welcome_teaches_the_memory_its_plot() {
@@ -2628,22 +2818,6 @@ mod tests {
         assert_eq!(plot_memory_after(&gone, Some(&ship)), Some(None), "a plot that went back is forgotten");
         let other = plan_welcome(Some(&ship), &welcome(Some("p2"), "0123456789abcdef"), &arriving(P1_DOOR));
         assert_eq!(plot_memory_after(&other, Some(&ship)), None, "another ship's refusal leaves the memory");
-    }
-
-    /// An old config.json, written before increment 2, has no `home_plots`: it loads, with none
-    /// remembered (so the first world entry builds on the default plot, as 1b did), and a config
-    /// with one round-trips it. Seen red 2026-10-04 with the field's `#[serde(default)]` removed:
-    /// "a config from before increment 2 does not load: missing field `home_plots` at line 1 column
-    /// 39" (and every AppConfig::default() panicked: "every field must carry a serde default").
-    #[test]
-    fn an_old_config_loads_with_no_plot_remembered() {
-        let old: crate::config::AppConfig = serde_json::from_str("{\"server_url\": \"http://127.0.0.1:3210\"}")
-            .unwrap_or_else(|e| panic!("a config from before increment 2 does not load: {e}"));
-        assert!(old.home_plots.is_empty());
-        let mut cfg = old.clone();
-        cfg.home_plots.insert("http://127.0.0.1:3210".into(), crate::config::RememberedPlot { ship_hash: "abc".into(), plot: "p2".into() });
-        let back: crate::config::AppConfig = serde_json::from_str(&serde_json::to_string(&cfg).unwrap()).unwrap();
-        assert_eq!(back.home_plots, cfg.home_plots);
     }
 
     /// FINDINGS 12 and 13 of the third review: a welcome is applied only while the game is in
@@ -2791,6 +2965,7 @@ mod tests {
             refused_here: false,
             world_loaded: true,
             has_ship: true,
+            slot_ready: true,
         };
         assert_eq!(join_step(&ready), JoinStep::Join);
         let pressed = JoinGate { world_loaded: false, has_ship: false, ..ready };
@@ -2804,6 +2979,7 @@ mod tests {
             ("away from the ship", JoinGate { aboard: false, ..ready }),
             ("refused here", JoinGate { refused_here: true, ..ready }),
             ("refused here, no ship", JoinGate { refused_here: true, has_ship: false, ..ready }),
+            ("the server's save is not live yet", JoinGate { slot_ready: false, ..ready }),
         ] {
             assert_eq!(join_step(&g), JoinStep::Wait, "{what}");
         }
