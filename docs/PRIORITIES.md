@@ -297,7 +297,11 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
       version, so every browser behaves the same).
     - **A Games library** (operator idea, 2026-10-13): list and launch every installed game
       (Steam, Epic, GOG, anything installed elsewhere), the stores still doing downloads and
-      updates behind it. First a dated findings doc on the stores' terms for this.
+      updates behind it. Findings: `docs/reference/findings/2026-10-13-game-stores-and-a-games-library.md`
+      (no store's terms mention launchers; recommended first version: read the stores' install
+      records without writing to them, start a game only on a person's click through the store's
+      own link or the game's exe, Install/Update open the store's app, no SteamCMD, no store
+      sign-in, no logos yet, an on-screen note saying why).
     - DONE 2026-10-13 (v0.1495.1): **the project's history in the Library**, a "Project History"
       shelf with the 38 dated session histories and the 7 decision logs (catalog rows; re-run
       `node scripts/build-library.js` after a new history page).

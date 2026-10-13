@@ -239,3 +239,16 @@ what we will say about it.
   demonstrable threat; no source addresses registered-agent or virtual-office
   addresses. Recommends a will and account successors now, a fiscal sponsor
   next.
+- [`2026-10-13-game-stores-and-a-games-library.md`](2026-10-13-game-stores-and-a-games-library.md),
+  whether a Games library in the desktop app may list every installed game
+  (Steam, Epic, GOG, and games from anywhere else such as Dwarf Fortress
+  Classic) and start them while the stores keep downloads and updates. No
+  store's terms mention third-party launchers, their launch links or their
+  local library files; Valve documents `steam://run/<appid>`, Epic documents
+  `com.epicgames.launcher://apps/...?action=launch`, and GOG says its games
+  need no launcher. Steam bars "non-human-controlled" automation of its client
+  and games, so every action should follow a person's click; SteamCMD is
+  documented for dedicated servers and no Valve page lets another program use
+  it for games. GOG's rule 11.1(e) could be read to reach any program that
+  touches a GOG game. Playnite's documentation as prior art. Extends the
+  2026-09-25 launcher finding.
