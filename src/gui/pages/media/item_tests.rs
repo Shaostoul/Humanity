@@ -207,6 +207,60 @@ fn a_tile_opens_the_item_with_description_files_licence_and_counts() {
     assert!(shows(&out, COPY_LINK) && shows(&out, "Report") && !shows(&out, "Remove item"), "a member's buttons on someone else's item");
 }
 
+/// THE REPORTS PAGE'S OPEN OPENS THE ITEM'S OWN PAGE (lane 1D's finding, 2026-10-12): Open (media.rs
+/// `open_item_by_number`) opens the page a tile's click opens, never the list filtered down to the
+/// item. An item the list does not hold is asked for by its number (one signed list read with
+/// `id`, as the website's `openById` asks): its page opens at once, shows the item when it comes and
+/// counts the view then, and the list keeps the filters the person had. An item the list holds
+/// opens at once, with nothing asked.
+///
+/// Seen red 2026-10-12 against the old Open, which set the list's filters to `id` and opened no
+/// page: "Open opens item 12's own page" (left: None, right: Some(12)).
+#[test]
+fn the_reports_open_opens_the_items_own_page() {
+    let (ctx, theme) = ctx_and_theme();
+    let one = r#"{"items":[{"id":12,"title":"Dusk at the shore","kind":"video","visibility":"public","url":"/uploads/12_dusk.webm","size_bytes":5000,"uploader_key":"k2","uploader_name":"Ann","category":{"id":2,"name":"Fire flow arts"},"picks":2,"views":5,"downloads":1}],"members_view":true}"#;
+    let (base, seen) = serve_routes(vec![("/api/media/list", one)]);
+    let mut state = page_on(&base, answer_of(vec![rich_item(("k2", "Ann"))]), "tok");
+    // The person had picked a kind before going to the Reports page: Open must not throw it away.
+    state.media.filters.kind = Some("model".into());
+    let kept = state.media.filters.clone();
+
+    crate::gui::pages::media::open_item_by_number(&mut state, 12);
+    assert_eq!(state.media.item.as_ref().map(|p| p.id), Some(12), "Open opens item 12's own page");
+    assert_eq!(state.active_page, crate::gui::GuiPage::Media, "on the Media page");
+    assert_eq!(state.media.filters, kept, "the list keeps the filters the person had");
+    assert!(state.media.jobs.iter().any(|(j, _)| *j == Job::Item { id: 12 }), "the list does not hold it: it is asked for by its number");
+    // Nothing on the page yet, so its window says "Loading..." (item_view.rs `draw`) until it comes.
+    assert!(state.media.item.as_ref().is_some_and(|p| p.item.is_none() && p.status.is_empty()), "the page waits for the item");
+
+    until(&ctx, &theme, &mut state, "item 12 arrives on its page", |s| s.media.item.as_ref().and_then(|p| p.item.as_ref()).is_some());
+    let out = settled(&ctx, &theme, &mut state);
+    for text in ["Dusk at the shore", "by Ann in Fire flow arts", "2 picks, 5 views, 1 download"] {
+        assert!(shows(&out, text), "the item's page shows {text:?}");
+    }
+    // Asked once, signed, by its number; and the opening counted as a view, as a tile's click is.
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        let asked = seen.lock().unwrap().clone();
+        let reads: Vec<&String> = asked.iter().filter(|r| r.starts_with("POST /api/media/list ")).collect();
+        if asked.iter().any(|r| r.starts_with("POST /api/media/viewed")) {
+            assert_eq!(reads.len(), 1, "one read: {asked:?}");
+            assert!(reads[0].contains(r#""id":12"#) && reads[0].contains(r#""sig":"#), "by its number, signed: {}", reads[0]);
+            break;
+        }
+        assert!(Instant::now() < deadline, "the view was counted: {asked:?}");
+        frame(&ctx, &theme, &mut state, Vec::new());
+        std::thread::sleep(Duration::from_millis(5));
+    }
+
+    // An item the list holds opens at once, as it is: nothing asked for it.
+    state.media.item = None;
+    crate::gui::pages::media::open_item_by_number(&mut state, 7);
+    assert_eq!(state.media.item.as_ref().and_then(|p| p.item.as_ref()).map(|i| i.title.as_str()), Some("Dusk"), "item 7 opens at once");
+    assert!(!state.media.jobs.iter().any(|(j, _)| *j == Job::Item { id: 7 }), "nothing is asked for an item the list holds");
+}
+
 /// THE CARD SHOWS THE DESCRIPTION'S FIRST LINE AND THE FILE COUNT (3.9): at most 120 characters,
 /// cut at a word with "...", never the second line (the page has that), "3 files" when it holds
 /// several, the picks and downloads, and "Featured in its category" for that shelf.

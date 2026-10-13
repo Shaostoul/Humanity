@@ -1793,22 +1793,156 @@ fn snapshot_media() {
     });
 }
 
-/// Server Settings > ADMIN > Media (2026-10-11, pages/media/admin.rs since Media round 5): who sees the
-/// page with the relay's line under it, the space and the share, the categories (General stays),
-/// a suggestion, and the meter with its prune lists.
+/// The Media page's Admin tab (Media round 5: the admins' section moved here from Server Settings,
+/// pages/media/admin.rs; this snapshot was `media_settings`, drawn bare, until 2026-10-12). The
+/// whole page as an admin sees it on that tab: "Media on 127.0.0.1:9", the Media and Admin tabs with
+/// Admin picked, then who sees the page with the relay's line under it, the space and the share,
+/// the categories (General stays), a suggestion, and the meter with its prune lists.
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
-fn snapshot_media_settings() {
-    use crate::gui::pages::media::admin::{self as admin, tests as fixture};
-    render_page_png("media_settings", 1100, 1000, |ctx, theme, state| {
+fn snapshot_media_admin_tab() {
+    use crate::gui::pages::media::{self as media, admin::tests as fixture};
+    render_page_png("media_admin_tab", 1100, 880, |ctx, theme, state| {
         if state.media.server.is_empty() {
             *state = fixture::admin_state();
+            // The list counts as asked and answered, so the page asks nothing of the network.
+            state.media.requested = true;
+            state.media.answered = true;
+            state.media.tab = media::MediaTab::Admin;
         }
-        egui::CentralPanel::default()
-            .frame(egui::Frame::none().fill(theme.bg_panel()).inner_margin(theme.card_padding))
-            .show(ctx, |ui| {
-                egui::ScrollArea::vertical().show(ui, |ui| admin::draw_admin(ui, theme, state));
-            });
+        media::draw(ctx, theme, state);
+    });
+}
+
+/// The item the item-page and Edit snapshots show, put there by `by` (key, name): a 1:1 model of a
+/// contact staff in Fire flow arts, with a description of two lines, an added file (its textures),
+/// a cover picture, counts, CC BY 4.0, offered for the game and featured in its category. Built on
+/// lane 1D's test fixture (media/item_tests.rs `rich_item`), whose licences are the shared fixture's.
+fn media_snapshot_item(by: (&str, &str)) -> crate::gui::pages::media::api::Item {
+    use crate::gui::pages::media::api::{Featured, Item, ItemFile};
+    use crate::gui::pages::media::item_view::item_tests::rich_item;
+    let own = ItemFile { file: 0, filename: "7_contact_staff.glb".into(), original_name: "contact_staff.glb".into(), kind: "model".into(), size_bytes: 2_400_000, url: "/uploads/7_contact_staff.glb".into() };
+    let added = ItemFile { file: 1, filename: "8_staff_textures.zip".into(), original_name: "staff_textures.zip".into(), kind: "file".into(), size_bytes: 4_100_000, url: "/uploads/8_staff_textures.zip".into() };
+    let cover = ItemFile { file: 2, filename: "9_cover.png".into(), original_name: "cover.png".into(), kind: "picture".into(), size_bytes: 180_000, url: "/uploads/9_cover.png".into() };
+    Item {
+        url: own.url.clone(),
+        stored: own.filename.clone(),
+        original_name: own.original_name.clone(),
+        title: "Contact staff, 1.5 m".into(),
+        description: "A 1:1 model of my contact staff: aluminium core, a wick at each end.\nThe zip holds the textures. Print it at full size to check the grip before you buy one.".into(),
+        size_bytes: own.size_bytes,
+        total_bytes: own.size_bytes + added.size_bytes + cover.size_bytes,
+        file_count: 2,
+        files: vec![own, added],
+        cover: Some(cover),
+        project_use: true,
+        featured: Featured::Category,
+        ..rich_item(by)
+    }
+}
+
+/// An app on the test server showing `item` and the demo page's items, with the shared fixture's
+/// licences, two categories and two content labels, signed in as "me" (an admin when `admin`), and
+/// `item`'s page open over the Media page. The cover picture is put in the image cache, so nothing
+/// is fetched; a cover from someone who is not a friend is shown as if its press was made.
+fn media_item_state(item: &crate::gui::pages::media::api::Item, admin: bool) -> GuiState {
+    use crate::gui::pages::media::{self as media, api, item_view, tests as fixture};
+    use crate::gui::pages::media::item_view::item_tests::{answer_of, page_on};
+    let mut items = vec![item.clone()];
+    items.extend(fixture::demo_answer().items);
+    let mut answer = answer_of(items);
+    answer.labels = vec![
+        api::Label { id: "flashing".into(), label: "Flashing lights".into(), desc: "Fast flashing or strobing light".into() },
+        api::Label { id: "spoiler".into(), label: "Spoiler".into(), desc: "Shows the ending".into() },
+    ];
+    let mut state = page_on(fixture::SERVER, answer, "tok");
+    state.media.featured = state.media.list.items.iter().filter(|i| i.featured == api::Featured::Main).cloned().collect();
+    if admin {
+        state.chat_users.push(crate::gui::ChatUser { name: "Me".into(), public_key: "me".into(), role: "admin".into(), status: String::new() });
+    }
+    let base = media::base_of(&state);
+    state.image_cache.allow(&api::file_url(&base, item));
+    state.media.item = Some(item_view::ItemPage { id: item.id, item: Some(item.clone()), ..Default::default() });
+    state
+}
+
+/// An item's own page (Media round 5, pages/media/item_view.rs), as an admin sees someone else's
+/// item: its cover picture, the title, "by Ann in Fire flow arts" with "Featured in its category",
+/// the counts, the whole two-line description, the licence by name with the server's own line for
+/// it and "Offered for the game", the files (the model, its textures, the cover) each with
+/// Download, then Copy link, Edit, Pick, Keep, Report, Remove item and the admins' Feature choice.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_media_item() {
+    use crate::gui::pages::media as media;
+    let item = media_snapshot_item(("k2", "Ann"));
+    render_page_png("media_item", 1280, 1150, |ctx, theme, state| {
+        if state.media.server.is_empty() {
+            *state = media_item_state(&item, true);
+        }
+        let key = format!("{}/uploads/9_cover.png", media::tests::SERVER);
+        if state.image_cache.get_texture(&key).is_none() {
+            state.image_cache.insert_for_test(ctx, &key, &media_snapshot_png()).expect("the cover decodes");
+        }
+        media::draw(ctx, theme, state);
+    });
+}
+
+/// An item's Edit window (Media round 5, pages/media/edit.rs), as its uploader sees it over the
+/// item's page: the title, the category with its description, the description, the two content
+/// labels, Public or Members only, the licence (CC BY 4.0) with the server's line for it, its
+/// warning that a Creative Commons licence cannot be taken back, and "Offer this for the game"
+/// ticked, the hosting paragraph in the server's words, the files with Remove on the added one and
+/// the cover, Add a file and Replace the cover picture, then Save and Cancel. The item's page shows
+/// behind it, as it does in the app.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_media_edit() {
+    use crate::gui::pages::media::{self as media, edit::EditForm};
+    let item = media_snapshot_item(("me", "You"));
+    render_page_png("media_edit", 1280, 1120, |ctx, theme, state| {
+        if state.media.server.is_empty() {
+            *state = media_item_state(&item, false);
+            if let Some(page) = state.media.item.as_mut() {
+                page.edit = Some(EditForm::of(&item));
+            }
+        }
+        let key = format!("{}/uploads/9_cover.png", media::tests::SERVER);
+        if state.image_cache.get_texture(&key).is_none() {
+            state.image_cache.insert_for_test(ctx, &key, &media_snapshot_png()).expect("the cover decodes");
+        }
+        media::draw(ctx, theme, state);
+    });
+}
+
+/// The server strip on the Media page (Media round 5, pages/server_strip.rs): under the top menu,
+/// across the whole width, "United Humanity  127.0.0.1:9" (the name this person saved the server
+/// under, then its host) with its dot, and Switch at the right with its list open: the two saved
+/// servers, the current one marked, and Manage servers. Drawn the way the app draws it: the top
+/// menu first (lib.rs), then `dispatch::draw_tool_page`, which adds the strip before the page.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_server_strip_media() {
+    use crate::gui::pages::media::tests as fixture;
+    render_page_png("server_strip_media", 1280, 900, |ctx, theme, state| {
+        if state.media.server.is_empty() {
+            *state = fixture::page_state(fixture::demo_answer(), true);
+            state.private_key_bytes = Some(vec![7u8; 32]);
+            state.active_page = crate::gui::GuiPage::Media;
+            let saved = |name: &str, url: &str| crate::gui::ChatServer {
+                name: name.to_string(),
+                channels: Vec::new(),
+                voice_channels: Vec::new(),
+                id: format!("srv_{url}"),
+                url: url.to_string(),
+                connected: false,
+            };
+            state.chat_servers = vec![saved("United Humanity", fixture::SERVER), saved("Fire Disciples", "https://fire-disciples.example")];
+        }
+        // Switch's list, open (server_strip.rs keeps that in egui's memory under this id).
+        ctx.data_mut(|d| d.insert_temp(egui::Id::new("server_strip_open"), true));
+        crate::gui::pages::escape_menu::draw_nav_bar(ctx, theme, state);
+        crate::gui::dispatch::draw_tool_page(ctx, crate::gui::GuiPage::Media, theme, state);
     });
 }
 

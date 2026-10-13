@@ -96,14 +96,28 @@ pub(crate) fn saving(state: &GuiState, id: i64) -> bool {
 pub(crate) fn on_answer(state: &mut GuiState, job: Job, result: Result<Value, Refusal>) {
     match (job, result) {
         (Job::Item { id }, Ok(v)) => {
-            let found = api::parse_list(&v).items.into_iter().find(|i| i.id == id);
+            let answer = api::parse_list(&v);
+            // The labels' names, as the website's `openById` takes them: a page opened by its number
+            // before the list ever answered still names a labelled item's labels.
+            if state.media.list.labels.is_empty() && !answer.labels.is_empty() {
+                state.media.list.labels = answer.labels;
+            }
+            let found = answer.items.into_iter().find(|i| i.id == id);
             let page = state.media.item.get_or_insert_with(|| ItemPage { id, ..Default::default() });
             if page.id != id {
                 return;
             }
+            // The page had nothing yet: it was opened by its number (`open_by_number`), and this is
+            // the opening, so it counts a view the way a tile's click does.
+            let first = page.item.is_none();
             page.status = if found.is_some() { String::new() } else { NOT_THERE.to_string() };
             match found {
-                Some(item) => take_item(state, item),
+                Some(item) => {
+                    if first {
+                        count_view(state, &item);
+                    }
+                    take_item(state, item);
+                }
                 None => page.item = None,
             }
         }
@@ -124,7 +138,7 @@ pub(crate) fn on_answer(state: &mut GuiState, job: Job, result: Result<Value, Re
             }
             None => say(state, id, "The server's answer was not understood.".to_string()),
         },
-        (Job::FileAdd { id } | Job::FileRemove { id, .. }, Ok(v)) => match v.get("item").and_then(Item::from_json) {
+        (Job::FileRemove { id, .. }, Ok(v)) => match v.get("item").and_then(Item::from_json) {
             Some(item) => {
                 take_item(state, item);
                 say(state, id, FILE_REMOVED.to_string());
@@ -140,7 +154,7 @@ pub(crate) fn on_answer(state: &mut GuiState, job: Job, result: Result<Value, Re
                 None => say(state, id, e.words),
             }
         }
-        (Job::Item { id } | Job::FileAdd { id } | Job::FileRemove { id, .. }, Err(e)) => say(state, id, e.words),
+        (Job::Item { id } | Job::FileRemove { id, .. }, Err(e)) => say(state, id, e.words),
         (other, _) => log::warn!("Media: {other:?} is not an item page's answer"),
     }
 }
@@ -150,6 +164,33 @@ pub(crate) fn open(state: &mut GuiState, item: &Item) {
     state.media.item = Some(ItemPage { id: item.id, item: Some(item.clone()), ..Default::default() });
     state.media.open = Some(Opened::new(item.clone()));
     count_view(state, item);
+}
+
+/// Open item `id`'s page by its number (the Reports page's Open, through media.rs
+/// `open_item_by_number`). An item the list or the featured shelf holds opens as it is, as a tile's
+/// click opens it. Any other is asked for by its number, a list read with `id` ([`Job::Item`]),
+/// the way the website's `route` asks (media-app.js `openById`): the page opens at once saying
+/// "Loading...", and [`on_answer`] puts the item in it (counting the view then), or says it is not
+/// there for this person.
+pub(crate) fn open_by_number(state: &mut GuiState, id: i64) {
+    let known = state.media.list.items.iter().chain(state.media.featured.iter()).find(|i| i.id == id).cloned();
+    if let Some(item) = known {
+        open(state, &item);
+        return;
+    }
+    state.media.item = Some(ItemPage { id, ..Default::default() });
+    // Another item's transfers go with its page (`Drop for Opened` removes a video's copy).
+    state.media.open = None;
+    if super::server_here(state).is_empty() {
+        if let Some(page) = state.media.item.as_mut() {
+            page.status = NOT_THERE.to_string();
+        }
+        return;
+    }
+    // Signed when this person is signed in here, so a member is answered members-only items too.
+    let filters = api::Filters { id: Some(id), ..Default::default() };
+    let req = api::list_request(&filters, None, 1, &state.profile_public_key, super::signer_here(state).as_ref());
+    spawn(state, Job::Item { id }, req);
 }
 
 /// Count a view of `item` (`POST /api/media/viewed`, unsigned). The session's upload token goes in
@@ -629,7 +670,7 @@ mod tests {
 
 #[cfg(test)]
 #[path = "item_tests.rs"]
-mod item_tests;
+pub(crate) mod item_tests;
 
 #[cfg(test)]
 #[path = "relay_round5_tests.rs"]
