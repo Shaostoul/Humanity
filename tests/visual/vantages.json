@@ -1035,8 +1035,8 @@
     },
     {
       "id": "ship-cabin-row",
-      "desc": "The cabin block (ship homes increment 6, lane 1A) from 7 m up over its north-east corner, looking south-west down the row at 12:00 station time with the hull hidden (showcase hull 0): the hall, its washroom and the sixteen cabins beside it.",
-      "expect": "Centre, a narrow glass-roofed hall 3 m wide running away from the camera for 48 m, its floor seen through the roof, a steel end wall across it 40 m along with a sliding door, and past that wall the washroom's 8 m. Left of the hall (east), a row of sixteen small cabins, each 3.15 m deep across the frame and 2.5 m along the row, touching each other, under plain opaque steel roofs, each joined to the hall by a 0.5 m door corridor; nothing east of them. Right of the hall, past a 2 m gap, First Street's glass roof, and near the camera the 2 m corridor from First Street into the hall at its north end. The homesteads p1 and p2 far right. Each cabin, at 3.15 x 2.5 m, reads as a small bedroom beside the 55 x 89 m homesteads; held against England's single bedroom (Nationally Described Space Standard: at least 7.5 m2 and 2.15 m wide inside) and a ship's berthing passage, the hall should read as a passage, not a street.",
+      "desc": "The cabin block (ship homes increment 6, lane 1A) from 30 m up beside its middle, looking south-west and steeply down at 12:00 station time with the hull hidden (showcase hull 0): the sixteen cabins, the hall beside them, First Street and the Commons. Moved up from 7 m on 2026-10-12, where the row ran edge-on into the starfield and its roofs could not be judged.",
+      "expect": "Lower left to centre, the row of sixteen cabins seen from above: one long strip of plain opaque steel roofs divided by a seam every 2.5 m, sixteen sections in all, each 3.15 m across, with a dark door corridor joining each to the narrow hall beside it. Next to the hall, the long wide glass roof of First Street running away to the top of the frame, with tables and chairs visible through the roof where a mess hall stands. Right, a homestead seen open from above with its rooms, plants and machines. Each cabin should read as a small bedroom beside the homesteads (England's single bedroom: at least 7.5 m2 inside), and the hall as a passage, not a street.",
       "_why": "Ship homes increment 6, lane 1A (docs/design/ship-homes-increment-6-plan.md section 3.3): the cabin block is new ship geometry, sixteen neighbour cabins drawn from the shipped cabin design (src/ship/neighbours.rs) and a new hall zone with its corridor. A neighbour's cabin is render only and its door is shut to this player, so the row is checked from above.",
       "regressions": [
         "sixteen cabins are drawn in a row along the hall's east side",
@@ -1046,7 +1046,7 @@
       ],
       "camera": {
         "station": "home",
-        "pose": "88,7,82,3.44,-0.25",
+        "pose": "92,30,96,3.9,-0.95",
         "time": 20.15
       },
       "showcase": {

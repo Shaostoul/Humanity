@@ -272,8 +272,7 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
     nothing until the orchestrator runs it on the one GPU). Waves 0 to 2 are DONE and released:
     v0.1490.0 (the Cabin row, the mess halls, "Where you live", the relay's homes by start) and
     v0.1491.0 (one save per server; Characters chooses where you live; the docs pass). Plan
-    `docs/design/ship-homes-increment-6-plan.md`. Also: a better vantage for the Cabin row (the
-    steel roofs vanish against space from `ship-cabin-row`); and a second home of your own on one
+    `docs/design/ship-homes-increment-6-plan.md`. Also: a second home of your own on one
     computer (the new-home row offers the choice only before your own home is saved).
   - **Media round 5, Wave 1 then 2.** DONE and in v0.1491.0: Wave 0 (the contract), 1A (the
     relay's item edit, add and remove), 1F (the website's server strip), 1G (the website's list:
