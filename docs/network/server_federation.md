@@ -11,7 +11,7 @@
 
 Define how multiple independently-operated servers form the Humanity Network. Servers are meeting places, not gatekeepers. Identity is portable, the same Dilithium3 (`did:hum:`) key works on any server. Users choose which servers to join; servers choose which servers to trust.
 
-**Key principle: No home servers.** Identity lives in the cryptographic key, not on any server. Signed profiles replicate across every server a user touches. See `docs/design/identity.md` for the full identity architecture.
+**Key principle: No home servers.** Identity lives in the cryptographic key, not on any server. A copy of each person's profile, signed by their own app, replicates to the servers linked with the ones they use. See `docs/design/identity.md` for the full identity architecture.
 
 ---
 
@@ -23,7 +23,7 @@ Define how multiple independently-operated servers form the Humanity Network. Se
 4. **Trust is earned, not assumed.** A tiered trust model signals reliability to users.
 5. **The Accord is voluntary.** Adopting it publicly signals alignment with shared values.
 6. **Federation is opt-in.** Servers can operate in isolation or join the network.
-7. **Profiles replicate, not centralize.** Signed profiles cached on every server touched; latest timestamp wins.
+7. **Profiles replicate, not centralize.** A signed copy of each profile is kept by the linked servers; the latest signed copy wins.
 
 ---
 
@@ -132,49 +132,131 @@ Unverified servers are stored locally in the client's IndexedDB.
 
 ---
 
-## Signed Profile Replication (servers' half shipped; the apps do not sign yet)
+## Signed Profile Replication (working since 2026-10-12, BUG-191)
 
-Profiles are NOT owned by any server. They are signed objects that replicate to every server the user connects to.
+Profiles are NOT owned by any server. The copy of a person's profile that other servers keep is
+signed by the person's own app, never by a server, so any server can check it and none has to be
+trusted for it. It goes to the servers linked with the one the person uses.
 
-> **As of 2026-10-11 this does not work end to end (BUG-191).** Step 1 below never happens: no app
-> signs a profile. The relay stores and gossips the profile with an empty signature, and every
-> receiving server refuses it (an unsigned profile is refused since 2026-08-13). The timestamp is
-> the origin server's clock, not the person's. Both are fixed by the apps signing `profile_v1` and
-> dating each edit after the newest one seen.
+> **Before 2026-10-12 none of this worked (BUG-191).** No app signed a profile: the relay stored
+> and gossiped each save with an empty signature, every linked server refused it (an unsigned
+> profile is refused since 2026-08-13), and the time on it was the origin server's clock. The
+> unsigned copies a server stored then are deleted when it first starts on the fixed build. Plan
+> and as built: `docs/design/bug-191-profile-copies-plan.md`.
+
+### What the copy holds
+
+The copy is the profile as anyone may see it (`src/relay/core/profile_copy.rs` `public_copy`; the
+website's twin is `web/shared/profile-copy.js`):
+
+- name, bio, avatar, banner and links, always;
+- pronouns, location and website, left blank when the person keeps them for friends;
+- every field blank (a "withdrawal") when the person is unlisted.
+
+A field kept for friends never leaves the server, signed or not. "Accept files from" is never in
+it: that is the server's own setting.
 
 ### Protocol
 
-1. **On connect**: Client sends `ProfileUpdate` with signed profile data
-2. **Server validates**: Verify Dilithium3 (`verify_profile_signature`) signature over canonical payload
-3. **Server stores**: Cache in `signed_profiles` table with timestamp
-4. **Server gossips**: Forward to all federated peers via `ProfileGossip` message
-5. **Receiving server validates**: Verify signature, store if newer than existing
-6. **Lookup**: Any server can serve any profile it has cached
+1. **The person saves** (`profile_update`). The server stores the profile. It stores no copy for
+   other servers yet.
+2. **The server asks.** Its echo, the person's own complete copy sent to each of their signed-in
+   devices, carries `signed_at` (the time of the copy it holds for that device's key, 0 for none)
+   and `sign_now: true` when it wants a new copy (`src/relay/handlers/profile.rs` `ask_for_copy`,
+   deciding by `profile_copy::sign_wanted`). On connect, and on the person's own request for their
+   profile, it asks only when the copy out there shows more than the person now allows (they went
+   unlisted, or keep a field for friends that the copy still shows), so a device that connects
+   never pushes an older profile over a newer save made elsewhere.
+3. **The person's app signs.** A device that was asked builds the public copy of exactly what the
+   server stored, dates it after the newest seen (`next_copy_time`: after its own clock, after
+   `signed_at`, and after the last copy it signed for that server), signs the words with its
+   Dilithium3 key and sends a `profile_sign` frame (`at` and `signature`) on the same socket.
+   The desktop app does this in `src/gui/pages/own_profile.rs` (`take_own_copy`), the website in
+   `web/chat/chat-profile.js` (`signProfileCopy`). Nothing is signed without `sign_now`, and the
+   desktop app signs nothing while its identity is locked.
+4. **The server checks and keeps** (`handle_profile_sign`). It keeps the copy only when it asked
+   that key in the last minute, the copy it rebuilds from what it stored keeps the limits, the time
+   is at most a day ahead of its clock (otherwise the person is told to set their clock right), the
+   copy is newer than the one held, and the signature checks over its own rebuild. Then it stores
+   it in `signed_profiles`, replacing the whole row.
+5. **The server passes it on** (`src/relay/handlers/federation.rs` `gossip_profile`): one
+   `profile_gossip` to every linked server.
+6. **A receiving server checks** (`should_accept_profile_gossip`, in the ProfileGossip arm of
+   `handle_peer_message`): a signature, the same limits, and the owner's signature over the words.
+   It keeps the copy only when it is newer than the one held, replacing the whole row. A withdrawal
+   for a key it never held is kept nowhere. A copy it newly keeps for one of ITS OWN accounts goes
+   on to its other links, never back to the one it came from.
+7. **Catch-up when a link comes up** (`send_own_copies`): each side sends the other its copies for
+   its own accounts, withdrawals included, newest first, at most 1,000, once per link. So a server
+   that was down when someone went unlisted, or kept a field for friends, learns it when the link
+   returns.
+8. **Lookup**: `GET /api/profile/{key}` on any server answers the copy it holds. It answers not
+   found for a withdrawal, and for a key whose account HERE is unlisted here. A field the person
+   keeps for friends here is left out, by their choice as it is now. No app reads a copy from
+   another server yet: each server's chat shows only its own profiles.
+
+**One copy per key, network-wide; the latest wins.** A person with accounts on two linked servers
+has one copy out there, the last one signed. A field they keep for friends on either server is
+blanked at their next connect there.
+
+**Going unlisted, and erasing your account.** Going unlisted makes the copy a withdrawal. Each of
+the person's devices whose key has a copy out there is asked to sign one (at once when it is
+signed in, otherwise at its next connect), and the withdrawal replaces the copy on every linked
+server that has it. A person's own erase (`account_delete`) carries a withdrawal their app signed,
+which the server passes on before it erases (`withdraw_on_erase`). An admin's erase of someone
+else cannot withdraw it, because only the person's own key can sign one.
 
 ### Message Format
 
 ```json
 {
-  "type": "ProfileUpdate",
-  "public_key": "abc123...",
+  "type": "profile_gossip",
+  "public_key": "<Dilithium3 public key, 3,904 lowercase hex characters>",
   "name": "Shaostoul",
   "bio": "Building HumanityOS",
   "avatar_url": "https://...",
-  "socials": {},
-  "timestamp": 1711036800000,
-  "signature": "<dilithium3-sig-hex-over-canonical-payload>"
+  "banner_url": "",
+  "socials": "{\"github\":\"Shaostoul\"}",
+  "pronouns": "",
+  "location": "",
+  "website": "",
+  "timestamp": 1760000000001,
+  "signature": "<Dilithium3 over the words below, 6,618 lowercase hex characters>"
 }
 ```
 
+`socials` is the JSON text exactly as the server stored it, never re-serialized: its key order is
+part of the words. The words signed, as UTF-8 (`profile_copy::copy_text`, pinned by the test
+`the_copy_text_is_pinned`), with `timestamp` in decimal milliseconds:
+
+```
+profile_v1\n{public_key}\n{name}\n{bio}\n{avatar_url}\n{banner_url}\n{socials}\n{pronouns}\n{location}\n{website}\n{timestamp}
+```
+
+No field but the bio may hold a line break, so the words split one way only. A withdrawal has an
+empty name, every other field empty and `socials` set to `{}`. The shared fixture
+`scripts/tests/fixtures/profile-copy-v1.json` holds the desktop app and the website to these bytes.
+
 ### Gossip Rules
 
-- Only gossip profiles from users who have been seen on this server (anti-spam)
-- Only gossip to Tier 2+ federated servers
-- Rate limit: max 100 profile gossips per minute per server
-- Receiving servers accept profile only if:
-  - Signature is valid
-  - Timestamp is newer than currently cached version
-  - Payload size is within limits (< 10KB)
+- A server sends only copies of its own accounts (keys registered to a name there): the ones their
+  apps signed, the ones it passes on, and its catch-up. A copy it only received, for someone not
+  registered there, is that person's own server's to send.
+- Copies go to every linked server. A link exists only with a server the operator granted tier 2
+  or above: the outbound dial and the inbound hello both require it.
+- There is no rate limit on profile copies yet (`docs/design/federation-activation.md`, Phase 2).
+  A copy is sent only when its owner's app signed a newer one, a receiver passes on only what it
+  newly kept, and the catch-up goes once per link.
+- Receiving servers keep a copy only if:
+  - it carries a signature that verifies as its owner's Dilithium3 signature over the words;
+  - it keeps the limits a save holds (`profile_copy::within_limits`): the key is 3,904 lowercase
+    hex characters; the name is empty (a withdrawal) or 1 to 24 of letters, digits, `_` and `-`;
+    the bio is at most 280 characters with no `<` or `>`; links are a JSON object of at most 1,024
+    bytes; avatar and banner at most 512 bytes and website at most 256, each empty or `https://`;
+    pronouns at most 64 characters and location at most 128; no line break outside the bio;
+  - it is newer than the copy held, and at most a day ahead of the receiver's clock.
+- There is no separate size limit: the field limits are the limit. The key and the signature alone
+  are 10,522 hex characters, so a copy is about 11 KB to 16 KB as sent.
 
 ### Federated Message Persistence
 
@@ -208,7 +290,9 @@ Clicking a server switches the WebSocket connection and loads that server's chan
 ### Identity Across Servers
 
 - Same Dilithium3 keypair used everywhere; same DID (`did:hum:<base58(BLAKE3(pubkey)[..16])>`) resolves on every federated server.
-- Signed profile sent on each connect, server caches and gossips it.
+- The copy of your profile that other servers keep is signed by your own app when the server asks
+  (after a save, or on connect when the copy out there shows more than you now allow), and goes to
+  the servers linked with that one (see Signed Profile Replication above).
 - Name uniqueness: per-server reservation + optional on-chain global names (see `docs/design/identity.md`).
 - Block list is client-side and applies across all servers.
 
@@ -255,7 +339,8 @@ accord_url = ""
 - Server list with trust tiers.
 
 ### Phase 2: Profile Gossip + Message Persistence (current)
-- Signed profile replication across federated servers (the apps do not sign yet: BUG-191).
+- Signed profile replication across federated servers (working since 2026-10-12; before that no
+  app signed a profile and every copy was refused, BUG-191).
 - Federated messages persisted in storage.
 - Profile lookup from any server that has cached it.
 
@@ -281,13 +366,13 @@ accord_url = ""
 - **Key theft**: If a server operator modifies the client JS to exfiltrate private keys, users on that server are compromised. Verified servers reduce this risk. Long-term: native apps eliminate it.
 - **Registry tampering**: The server registry is signed. Clients verify the signature before trusting it.
 - **Sybil servers**: An attacker could spin up many unverified servers. Trust tiers and the verification process mitigate this.
-- **Profile spam**: Gossip rules prevent amplification, only profiles from seen users are forwarded, rate-limited.
+- **Profile spam**: A server sends only its own accounts' copies, each signed by its owner's app, and a receiver passes on only a copy it newly kept for one of its own accounts, never back to where it came from, so nothing loops. There is no per-peer rate limit on profile copies yet (`docs/design/federation-activation.md`, Phase 2).
 
 ---
 
 ## Relationship to Other Specs
 
-- **Identity** (`design/identity.md`): Identity is the key, not the server. Profiles replicate everywhere.
+- **Identity** (`design/identity.md`): Identity is the key, not the server. Profiles replicate to linked servers.
 - **Social Graph** (`social_graph.md`): Follows/friends are client-side and work across servers. DMs route P2P regardless of server.
 - **Voice/Video** (`voice_video_streaming.md`): WebRTC signaling goes through the current server. Cross-server calls require Phase 3.
 - **File Sharing** (`file_sharing.md`): P2P file transfer works across servers since it's direct between clients.

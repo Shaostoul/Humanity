@@ -369,9 +369,9 @@ actual binary.
 | SQLite via rusqlite | ✅ | relay.db at /opt/Humanity/data/ on VPS |
 | REST API | ✅ | 30+ endpoints (messages, tasks, projects, listings, reviews, members, etc.) |
 | Federation Phase 1+2 | ✅ | Server registry, discovery, S2S WebSocket |
-| Signed profile replication | ✅ | signed_profiles table, ProfileGossip between servers (v0.27.0) |
+| Signed profile replication | ✅ | Working since v0.1490.0 (BUG-191, 2026-10-12). The copy of a profile that other servers keep is signed by the person's own app when the server asks, and holds only what anyone may see (fields kept for friends blank; every field blank, a withdrawal, when unlisted). The server checks and keeps it in `signed_profiles` and sends `profile_gossip` to every linked server; a receiver holds it to the save's limits, keeps it only when newer, and passes on its own accounts' copies; each side sends its accounts' copies when a link comes up. Your own erase withdraws it on linked servers; an admin's erase cannot. `src/relay/core/profile_copy.rs`, `src/relay/handlers/profile.rs`, `src/relay/handlers/federation.rs`, desktop `src/gui/pages/own_profile.rs`, web `web/shared/profile-copy.js` + `web/chat/chat-profile.js`. The table and the gossip existed since v0.27.0, but until 2026-10-12 no app signed a copy and every linked server refused unsigned ones, so this row's earlier ✅ was wrong. |
 | Federated message persistence | ✅ | Messages persisted with origin_server tag, survive restarts (v0.27.0) |
-| Profile lookup API | ✅ | GET /api/profile/{key} for public key lookup (v0.27.0) |
+| Profile lookup API | ✅ | GET /api/profile/{key} for public key lookup (v0.27.0). Since v0.1490.0 it answers not found for a withdrawn copy and for a key whose account here is unlisted here, and leaves out the fields a local account keeps for friends. It is the only reader of copies from other servers: no app shows one yet. |
 | GitHub webhook | ✅ | Deploy bot announces in chat |
 | Admin system | ✅ | Roles, verify, lockdown, wipe, garbage collection |
 | Server→Services toggles | ✅ | Soft feature gate + allowlisted OS-daemon (coturn/transmission) start/stop from Server Settings, no SSH (v0.262.16) |
