@@ -266,6 +266,8 @@ pub(crate) fn fields_of_record(r: &Unfinished, filename: &str, members_server: b
         category_id: r.category_id,
         labels: r.labels.clone(),
         visibility: if members_server || r.members_only { "members" } else { "public" }.to_string(),
+        // The licence and the game tick (Media round 5): the defaults until the form offers them.
+        ..Default::default()
     }
 }
 

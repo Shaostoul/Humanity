@@ -65,7 +65,7 @@ pub(crate) fn page_state(answer: ListAnswer, signed_in: bool) -> GuiState {
     state.profile_public_key = "me".to_string();
     sync_server(&mut state);
     state.media.requested = true;
-    state.media.featured = answer.items.iter().filter(|i| i.featured).cloned().collect();
+    state.media.featured = answer.items.iter().filter(|i| i.featured.is_on()).cloned().collect();
     apply_list(&mut state.media, answer, false);
     if signed_in {
         state.upload_token = Some((SERVER.to_string(), "tok".to_string()));
@@ -96,7 +96,7 @@ pub(crate) fn item(id: i64, title: &str, kind: &str, by: (&str, &str)) -> Item {
 pub(crate) fn demo_answer() -> ListAnswer {
     ListAnswer {
         items: vec![
-            Item { featured: true, picks: 3, description: "Fire staff at dusk".into(), ..item(4, "Contact staff, slow spin", "video", ("k1", "Shaostoul")) },
+            Item { featured: api::Featured::Main, picks: 3, description: "Fire staff at dusk".into(), ..item(4, "Contact staff, slow spin", "video", ("k1", "Shaostoul")) },
             Item { picks: 1, ..item(3, "Fibonacci homestead", "model", ("k2", "Ann")) },
             Item { labels: vec!["spoiler".into()], ..item(2, "The ending", "picture", ("k2", "Ann")) },
             item(1, "Garden this morning", "picture", ("k3", "Ben")),
@@ -167,12 +167,12 @@ fn the_tiles_show_what_they_are() {
 fn the_featured_strip_is_every_featured_item() {
     let (ctx, theme) = ctx_and_theme();
     let mut state = page_state(demo_answer(), true);
-    state.media.featured.push(Item { featured: true, ..item(90, "Old favourite", "model", ("k5", "Cy")) });
+    state.media.featured.push(Item { featured: api::Featured::Main, ..item(90, "Old favourite", "model", ("k5", "Cy")) });
     let out = settled(&ctx, &theme, &mut state);
     assert!(shows(&out, "Old favourite"), "an item off the loaded pages is in the strip");
     // And it is what the featured answer says.
     let generation = state.media.featured_generation;
-    on_done(&mut state, Job::Featured { generation, pages: 1 }, Ok(serde_json::json!({ "items": [{"id": 77, "url": "/uploads/77_x.png", "kind": "picture", "visibility": "public", "featured": true}] })));
+    on_done(&mut state, Job::Featured { generation, pages: 1 }, Ok(serde_json::json!({ "items": [{"id": 77, "url": "/uploads/77_x.png", "kind": "picture", "visibility": "public", "featured": "main"}] })));
     assert_eq!(state.media.featured.iter().map(|i| i.id).collect::<Vec<_>>(), vec![77], "the strip is the featured answer");
 }
 

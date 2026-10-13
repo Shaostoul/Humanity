@@ -43,17 +43,24 @@ fn item_ref(id: i64, filename: &str) -> ItemRef {
 /// the relay's W5 left it: a removal by number sent without `filename` panicked at "the relay
 /// reads the removal" with the relay's own words, "Name the item's file too (`filename`), so a
 /// page that is out of date never acts on another item."; and with `keep_request` leaving the
-/// file out: "the keep names the item's file" (left: "" / right: "1700_photo.png").
+/// file out: "the keep names the item's file" (left: "" / right: "1700_photo.png"). Media round 5
+/// (2026-10-12) changed it: the publish purpose carries the licence and the game tick
+/// (`media_publish:<file>:<licence>:<0|1>`, the relay's `publish_purpose`), and the feature's where
+/// it goes (`media_feature:<id>:<main|category|none>`).
 #[test]
 fn every_signed_request_names_its_target_and_the_relay_accepts_it() {
     let s = signer();
 
     let publish = publish_request(&s, &PublishFields { filename: "/uploads/1700_photo.png".into(), visibility: "public".into(), category_id: 1, ..Default::default() });
-    let relay_purpose = format!("media_publish:{}", crate::relay::media::stored_name(body(&publish)["filename"].as_str().unwrap()).unwrap());
-    assert_eq!(publish.purpose.as_deref(), Some(relay_purpose.as_str()), "the publish names its file");
-    assert_eq!(relay_purpose, "media_publish:1700_photo.png");
+    let relay_body: crate::relay::media::PublishBody = serde_json::from_str(publish.body.as_deref().unwrap()).unwrap();
+    let relay_purpose = crate::relay::media::publish_purpose(crate::relay::media::stored_name(&relay_body.filename).unwrap(), relay_body.licence(), relay_body.project_use);
+    assert_eq!(publish.purpose.as_deref(), Some(relay_purpose.as_str()), "the publish names its file, licence and game tick");
+    assert_eq!(relay_purpose, "media_publish:1700_photo.png:all_rights_reserved:0");
     assert!(relay_accepts(&publish, &relay_purpose));
-    assert!(!relay_accepts(&publish, "media_publish"), "a signature names one file, no other");
+    assert!(!relay_accepts(&publish, "media_publish:1700_photo.png"), "a signature names one file and its licence, no other");
+    let licensed = publish_request(&s, &PublishFields { filename: "1700_photo.png".into(), licence: "cc0_1".into(), project_use: true, ..Default::default() });
+    assert_eq!(licensed.purpose.as_deref(), Some("media_publish:1700_photo.png:cc0_1:1"));
+    assert_eq!((body(&licensed)["licence"].as_str(), body(&licensed)["project_use"].as_bool()), (Some("cc0_1"), Some(true)));
 
     for target in [RemoveTarget::Item(item_ref(42, "1700_photo.png")), RemoveTarget::Upload("/uploads/1700_clip.mp4".into())] {
         let req = remove_request(&s, &target);
@@ -75,11 +82,11 @@ fn every_signed_request_names_its_target_and_the_relay_accepts_it() {
         assert!(relay_accepts(&req, "media_pick:42"));
     }
 
-    let feature = feature_request(&s, &item_ref(9, "9_a.png"), false);
-    assert_eq!(feature.purpose.as_deref(), Some("media_feature:9"));
+    let feature = feature_request(&s, &item_ref(9, "9_a.png"), Featured::None);
+    assert_eq!(feature.purpose.as_deref(), Some("media_feature:9:none"));
     let relay_body: crate::relay::media::FeatureBody = serde_json::from_str(feature.body.as_deref().unwrap()).unwrap();
-    assert_eq!((relay_body.featured, relay_body.filename.as_str()), (false, "9_a.png"), "the feature names the item's file");
-    assert!(relay_accepts(&feature, "media_feature:9"));
+    assert_eq!((relay_body.featured.as_str(), relay_body.filename.as_str()), ("none", "9_a.png"), "the feature names the item's file");
+    assert!(relay_accepts(&feature, "media_feature:9:none"));
 
     for kept in [true, false] {
         let req = keep_request(&s, &photo, kept);
@@ -149,26 +156,28 @@ fn no_two_signatures_share_a_timestamp() {
 /// Seen red 2026-10-11 with the search not encoded: "the search is encoded" (the address held
 /// "fire staff" with its space). Seen red again 2026-10-11 (round 2) with My picks still the
 /// public GET for a member: "a member's picks are the signed POST" (left: (Get,
-/// "/api/media/picks/abc?limit=100") / right: (Post, "/api/media/picks")).
+/// "/api/media/picks/abc?limit=100") / right: (Post, "/api/media/picks")). Media round 5
+/// (2026-10-12) changed the paging: the last answer's `next_cursor` goes back as `cursor` (it was
+/// `before`, a number).
 #[test]
 fn the_list_asks_the_right_way() {
     let f = Filters { category: Some(3), kind: Some("video".into()), q: "fire staff".into(), ..Default::default() };
-    let public = list_request(&f, Some(120), 48, "me", None);
+    let public = list_request(&f, Some("120.120"), 48, "me", None);
     assert_eq!(public.method, Method::Get);
-    assert_eq!(public.path, "/api/media?limit=48&category=3&kind=video&q=fire+staff&before=120", "the search is encoded");
+    assert_eq!(public.path, "/api/media?limit=48&category=3&kind=video&q=fire+staff&cursor=120.120", "the search is encoded");
     assert!(public.purpose.is_none() && public.body.is_none());
 
     let s = signer();
-    let signed = list_request(&f, Some(120), 48, &s.key, Some(&s));
+    let signed = list_request(&f, Some("120.120"), 48, &s.key, Some(&s));
     assert_eq!((signed.method, signed.path.as_str()), (Method::Post, "/api/media/list"));
     let b = body(&signed);
-    assert_eq!((b["category"].as_i64(), b["kind"].as_str(), b["q"].as_str(), b["before"].as_i64()), (Some(3), Some("video"), Some("fire staff"), Some(120)));
+    assert_eq!((b["category"].as_i64(), b["kind"].as_str(), b["q"].as_str(), b["cursor"].as_str()), (Some(3), Some("video"), Some("fire staff"), Some("120.120")));
     assert!(signed.path.len() < 100, "nothing signed rides in the address");
 
-    let picks = list_request(&Filters { my_picks: true, ..Default::default() }, Some(9), 48, "abc", Some(&s));
+    let picks = list_request(&Filters { my_picks: true, ..Default::default() }, Some("9.9"), 48, "abc", Some(&s));
     assert_eq!((picks.method, picks.path.as_str()), (Method::Post, "/api/media/picks"), "a member's picks are the signed POST");
     let pb = body(&picks);
-    assert_eq!((pb["of"].as_str(), pb["before"].as_i64()), (Some("abc"), Some(9)), "whose picks, paged past the first page");
+    assert_eq!((pb["of"].as_str(), pb["cursor"].as_str()), (Some("abc"), Some("9.9")), "whose picks, paged past the first page");
     let relay_params: crate::relay::media::ListParams = serde_json::from_value(pb).expect("the relay reads it");
     assert_eq!(relay_params.of.as_deref(), Some("abc"));
     let public_picks = list_request(&Filters { my_picks: true, ..Default::default() }, None, 100, "abc", None);
@@ -190,22 +199,24 @@ fn the_list_asks_the_right_way() {
 /// `category: {id, name}`): "the item's category" (left: (0, "Fire flow arts") / right: (2, "Fire
 /// flow arts")). Seen red again 2026-10-11 (round 2) with `stored` read from the address alone:
 /// "a members-only item's stored name comes from `filename`" (left: "" / right: "7_clip.webm").
+/// Media round 5 (2026-10-12) changed it: `featured` is a word ("main" here) and the paging is
+/// `next_cursor`.
 #[test]
 fn the_servers_answers_read() {
     let v = serde_json::json!({
         "items": [{"id": 7, "url": "/api/media/file/7", "filename": "7_clip.webm", "title": "", "description": "Spinning at dusk", "category": {"id": 2, "name": "Fire flow arts"},
-                   "kind": "video", "labels": ["flashing"], "visibility": "members", "featured": true, "size_bytes": 1048576, "views": 0,
+                   "kind": "video", "labels": ["flashing"], "visibility": "members", "featured": "main", "size_bytes": 1048576, "views": 0,
                    "uploaded_at": 1, "published_at": 2, "uploader_key": "k1", "uploader_name": "Shaostoul", "picks": 3,
                    "original_name": "", "keeps_file": false, "kept": true, "picked_by_me": true},
                   {"id": 8, "url": "/uploads/8_a.png", "kind": "picture", "visibility": "public", "original_name": "Garden.png", "keeps_file": true}],
-        "next_before": 7, "members_view": true, "media_visibility": "public", "members_only_for_you": false,
+        "next_cursor": "7.7", "members_view": true, "media_visibility": "public", "members_only_for_you": false,
         "categories": [{"id": 1, "name": "General", "description": "", "position": 0}],
         "labels": [{"id": "flashing", "label": "Flashing lights", "desc": "Rapid flashes"}],
     });
     let a = parse_list(&v);
     let item = &a.items[0];
     assert_eq!((item.category_id, item.category_name.as_str()), (2, "Fire flow arts"), "the item's category");
-    assert!(item.members_only() && item.featured && item.upload_name().is_none());
+    assert!(item.members_only() && item.featured == Featured::Main && item.upload_name().is_none());
     assert_eq!(item.display_title(), "Video", "an untitled members-only item is called by its kind");
     assert_eq!(item.stored, "7_clip.webm", "a members-only item's stored name comes from `filename`");
     assert_eq!(item.reference(), Ok(ItemRef { id: 7, filename: "7_clip.webm".into() }));
@@ -214,7 +225,7 @@ fn the_servers_answers_read() {
     assert_eq!((public.stored.as_str(), public.display_title(), public.keeps_file), ("8_a.png", "Garden.png".to_string(), true), "a public item's from its address");
     let unnamed = Item { stored: String::new(), ..item.clone() };
     assert_eq!(unnamed.reference(), Err(NO_FILE_NAME.to_string()), "nothing is asked of an item whose file is not known");
-    assert_eq!((a.next_before, a.members_view, a.labels[0].label.as_str()), (Some(7), true, "Flashing lights"));
+    assert_eq!((a.next_cursor.as_deref(), a.members_view, a.labels[0].label.as_str()), (Some("7.7"), true, "Flashing lights"));
 
     let u = parse_usage(&serde_json::json!({"used_bytes": 10, "budget_bytes": 20, "per_person_bytes": 5, "items": 1, "kept_bytes": 4,
         "largest": [{"id": 1, "url": "/uploads/a.png"}], "oldest": [], "least_viewed": [],

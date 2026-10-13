@@ -1,5 +1,7 @@
 //! Server Settings > ADMIN > Media (increment 2 of docs/design/media-showcase.md, 2026-10-11):
-//! everything an admin sets about the server's Media page, in one place.
+//! everything an admin sets about the server's Media page, in one place. Moved here from
+//! pages/server_settings/media.rs unchanged (Media round 5, Wave 0, 2026-10-12): round 5 shows it
+//! on the Media page itself, as its Admin tab (docs/design/media-round-5-plan.md 3.9).
 //!
 //! - Who sees it: Public or Members only, with the relay's own line under the switch saying what
 //!   a member is (`media_members_note`: everyone signed in to this server).
@@ -77,17 +79,17 @@ fn draw_settings(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     ui.add_space(theme.spacing_xs);
     let (min, max) = crate::relay::storage::MEDIA_MB_RANGE;
     widgets::form_row_wide(ui, theme, "Media space (MB)", |ui| {
-        super::int_input(ui, &mut draft.media_budget_mb, min, max);
+        crate::gui::pages::server_settings::int_input(ui, &mut draft.media_budget_mb, min, max);
     });
     widgets::form_row_wide(ui, theme, "Each person's share (MB)", |ui| {
-        super::int_input(ui, &mut draft.media_per_person_mb, min, max);
+        crate::gui::pages::server_settings::int_input(ui, &mut draft.media_per_person_mb, min, max);
     });
     ui.checkbox(&mut draft.media_public_previews_only, "Public visitors get previews only")
         .on_hover_text("Members get the originals and downloads. The previews themselves come in a later version.");
     let dirty = draft != cached;
     let mut save = false;
     // As in Server policy: Save sends the whole copy, so say when the server's changed under it.
-    super::draw_changed_underneath_note(ui, theme, state, dirty);
+    crate::gui::pages::server_settings::draw_changed_underneath_note(ui, theme, state, dirty);
     ui.horizontal(|ui| {
         ui.add_enabled_ui(dirty, |ui| {
             save = widgets::Button::primary("Save Media settings")
@@ -100,7 +102,7 @@ fn draw_settings(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     });
     state.server_settings_draft = Some(draft.clone());
     if save {
-        super::send_server_settings_update(state, &draft);
+        crate::gui::pages::server_settings::send_server_settings_update(state, &draft);
         state.discard_server_settings_draft();
         let now = ui.ctx().input(|i| i.time);
         state.toast("Media settings sent to the relay", crate::gui::ToastKind::Success, now);
@@ -323,5 +325,5 @@ fn draw_meter(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 }
 
 #[cfg(test)]
-#[path = "media_tests.rs"]
+#[path = "admin_tests.rs"]
 pub(crate) mod tests;

@@ -5,10 +5,12 @@
 //! EVERY WRITE IS SIGNED the way the relay checks it (`check_signed`): Dilithium over
 //! `purpose\ntimestamp`, the same signature every other identity-keyed request of the desktop
 //! makes (`net::identity::pq_sign_chat`), with a purpose that names its target, so a signature is
-//! good for one thing (the relay's F5): `media_publish:<file name>`, `media_remove:<item id or
-//! file name>`, `media_pick:<item id>` (pick and unpick), `media_feature:<item id>`,
-//! `media_keep:<item id>:<on|off>`, `media_suggestions:<suggestion id>:<accept|decline>` and
-//! `media_categories:<BLAKE3 hex of the category list exactly as sent>`. A new suggestion keeps
+//! good for one thing (the relay's F5): `media_publish:<file name>:<licence id>:<0|1>` (Media round
+//! 5: the licence and the game tick are signed with the publish), `media_remove:<item id or file
+//! name>`, `media_pick:<item id>` (pick and unpick), `media_feature:<item id>:<main|category|none>`
+//! (round 5), `media_keep:<item id>:<on|off>`, `media_suggestions:<suggestion id>:<accept|decline>`
+//! and `media_categories:<BLAKE3 hex of the category list exactly as sent>`; round 5's edit and
+//! file purposes are in media/api_items.rs. A new suggestion keeps
 //! plain `media_suggest`, and the reads keep `media_list`, `media_usage`, `media_mine` and
 //! `media_suggestions`. The relay also refuses a (key, purpose, timestamp) it has seen, so every
 //! signature here takes a fresh timestamp from [`next_timestamp`], which never hands out the same
@@ -49,6 +51,43 @@ pub struct Category {
 /// category goes there, and it can be renamed but never removed.
 pub const GENERAL_CATEGORY: i64 = 1;
 
+/// Where an item is featured (Media round 5): the relay sends "main" (the main shelf, and its
+/// category's), "category" (its category's shelf only) or "none". It was a bool; this app changed
+/// with the relay, with no reading of the old shape.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Featured {
+    #[default]
+    None,
+    Main,
+    Category,
+}
+
+impl Featured {
+    /// The relay's word; anything else reads as none.
+    pub fn parse(word: &str) -> Self {
+        match word {
+            "main" => Featured::Main,
+            "category" => Featured::Category,
+            _ => Featured::None,
+        }
+    }
+
+    pub fn word(self) -> &'static str {
+        match self {
+            Featured::None => "none",
+            Featured::Main => "main",
+            Featured::Category => "category",
+        }
+    }
+
+    /// On a shelf at all.
+    pub fn is_on(self) -> bool {
+        self != Featured::None
+    }
+}
+
+pub use super::api_items::{ItemFile, Licence, Licences, Sort};
+
 /// One Media item as every route gives it (relay/media.rs `item_json`).
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Item {
@@ -66,7 +105,9 @@ pub struct Item {
     pub labels: Vec<String>,
     /// `public` or `members`.
     pub visibility: String,
-    pub featured: bool,
+    /// On the main shelf, its category's only, or neither (round 5).
+    pub featured: Featured,
+    /// The item's own file's size (file 0).
     pub size_bytes: i64,
     pub views: i64,
     pub uploaded_at: i64,
@@ -90,6 +131,18 @@ pub struct Item {
     /// sends, else the last part of its `/uploads/` address. Empty when the server says neither
     /// (a members-only item from a server that does not send it).
     pub stored: String,
+    /// Round 5 (2026-10-12): the licence's id (the server's `licences` names it), whether it is
+    /// offered for the game, how many people downloaded it, the item's own file with its added
+    /// files and cover in bytes, its file count (its own and the added ones), its files (file 0,
+    /// its own, first), its cover, and its own page's path (`/media/<id>`).
+    pub licence: String,
+    pub project_use: bool,
+    pub downloads: i64,
+    pub total_bytes: i64,
+    pub file_count: i64,
+    pub files: Vec<ItemFile>,
+    pub cover: Option<ItemFile>,
+    pub link: String,
 }
 
 fn s(v: &Value, k: &str) -> String {
@@ -126,7 +179,7 @@ impl Item {
                 .map(|a| a.iter().filter_map(Value::as_str).map(str::to_string).collect())
                 .unwrap_or_default(),
             visibility: s(v, "visibility"),
-            featured: b(v, "featured"),
+            featured: Featured::parse(&s(v, "featured")),
             size_bytes: i(v, "size_bytes"),
             views: i(v, "views"),
             uploaded_at: i(v, "uploaded_at"),
@@ -139,6 +192,14 @@ impl Item {
             kept: b(v, "kept"),
             picked_by_me: b(v, "picked_by_me"),
             stored,
+            licence: s(v, "licence"),
+            project_use: b(v, "project_use"),
+            downloads: i(v, "downloads"),
+            total_bytes: i(v, "total_bytes"),
+            file_count: i(v, "file_count"),
+            files: v.get("files").and_then(Value::as_array).map(|a| a.iter().filter_map(ItemFile::from_json).collect()).unwrap_or_default(),
+            cover: v.get("cover").and_then(ItemFile::from_json),
+            link: s(v, "link"),
         })
     }
 
@@ -205,8 +266,8 @@ pub struct ItemRef {
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct ListAnswer {
     pub items: Vec<Item>,
-    /// The `before` that asks for the next page; None at the end.
-    pub next_before: Option<i64>,
+    /// The cursor that asks for the next page (round 5, opaque); None at the end.
+    pub next_cursor: Option<String>,
     /// Whether the answer is the members' view (a signed request from a member).
     pub members_view: bool,
     /// The server's `media_visibility`: `public` or `members`.
@@ -215,6 +276,9 @@ pub struct ListAnswer {
     pub members_only_for_you: bool,
     pub categories: Vec<Category>,
     pub labels: Vec<Label>,
+    /// The licences the server offers and the words beside them (round 5); "All rights reserved"
+    /// alone when the answer carries none.
+    pub licences: Licences,
 }
 
 /// Read a category list (the list's `categories`, or a categories answer's).
@@ -249,12 +313,13 @@ fn items_at(v: &Value, key: &str) -> Vec<Item> {
 pub fn parse_list(v: &Value) -> ListAnswer {
     ListAnswer {
         items: items_at(v, "items"),
-        next_before: v.get("next_before").and_then(Value::as_i64),
+        next_cursor: v.get("next_cursor").and_then(Value::as_str).filter(|c| !c.is_empty()).map(str::to_string),
         members_view: b(v, "members_view"),
         media_visibility: s(v, "media_visibility"),
         members_only_for_you: b(v, "members_only_for_you"),
         categories: parse_categories(v.get("categories")),
         labels: parse_labels(v.get("labels")),
+        licences: Licences::from_json(v.get("licences")),
     }
 }
 
@@ -555,8 +620,13 @@ pub fn bare_name(given: &str) -> &str {
     given.trim().trim_start_matches("/uploads/")
 }
 
-pub fn publish_purpose(filename: &str) -> String {
-    format!("media_publish:{}", bare_name(filename))
+/// The licence an item gets when none is chosen (the relay's `DEFAULT_LICENCE`).
+pub const DEFAULT_LICENCE: &str = "all_rights_reserved";
+
+/// The purpose a publish is signed over (round 5): the file, the licence and the game tick.
+pub fn publish_purpose(filename: &str, licence: &str, project_use: bool) -> String {
+    let licence = if licence.trim().is_empty() { DEFAULT_LICENCE } else { licence.trim() };
+    format!("media_publish:{}:{licence}:{}", bare_name(filename), project_use as u8)
 }
 
 /// What a removal names: a published item (its number and file), or a Media upload waiting to be
@@ -578,8 +648,9 @@ pub fn pick_purpose(id: i64) -> String {
     format!("media_pick:{id}")
 }
 
-pub fn feature_purpose(id: i64) -> String {
-    format!("media_feature:{id}")
+/// The purpose featuring item `id` at `to` is signed over (round 5).
+pub fn feature_purpose(id: i64, to: Featured) -> String {
+    format!("media_feature:{id}:{}", to.word())
 }
 
 pub fn keep_purpose(id: i64, kept: bool) -> String {
@@ -615,7 +686,7 @@ pub struct Request {
     pub purpose: Option<String>,
 }
 
-fn post(path: &str, purpose: String, body: Value) -> Request {
+pub(super) fn post(path: &str, purpose: String, body: Value) -> Request {
     Request { method: Method::Post, path: path.to_string(), body: Some(body.to_string()), purpose: Some(purpose) }
 }
 
@@ -637,16 +708,18 @@ pub struct Filters {
     pub featured: bool,
     /// One item by its number (the Reports page opens a reported item this way, A5).
     pub id: Option<i64>,
+    /// The order (round 5): newest (the default, not sent), most picked or most downloaded.
+    pub sort: Sort,
 }
 
 /// How many items a page of the list asks for.
 pub const PAGE: i64 = 48;
 
-/// The list request for `filters`, one page older than `before`. With a signer (someone signed
-/// in to this server) it is a signed POST, which gets members-only items to a member: the list,
-/// or for "My picks" the person's picks (`POST /api/media/picks` with `of`, A3). Without one, the
-/// public GET of either.
-pub fn list_request(filters: &Filters, before: Option<i64>, limit: i64, me: &str, signer: Option<&Signer>) -> Request {
+/// The list request for `filters`, the page after `cursor` (the last answer's `next_cursor`,
+/// round 5; the first page with none). With a signer (someone signed in to this server) it is a
+/// signed POST, which gets members-only items to a member: the list, or for "My picks" the
+/// person's picks (`POST /api/media/picks` with `of`, A3). Without one, the public GET of either.
+pub fn list_request(filters: &Filters, cursor: Option<&str>, limit: i64, me: &str, signer: Option<&Signer>) -> Request {
     let q = filters.q.trim();
     let Some(signer) = signer else {
         let mut query = vec![format!("limit={limit}")];
@@ -668,8 +741,11 @@ pub fn list_request(filters: &Filters, before: Option<i64>, limit: i64, me: &str
         if let Some(id) = filters.id {
             query.push(format!("id={id}"));
         }
-        if let Some(b) = before {
-            query.push(format!("before={b}"));
+        if filters.sort != Sort::New {
+            query.push(format!("sort={}", filters.sort.word()));
+        }
+        if let Some(c) = cursor {
+            query.push(format!("cursor={}", enc(c)));
         }
         let path = if filters.my_picks { format!("/api/media/picks/{}", enc(me)) } else { "/api/media".to_string() };
         return Request { method: Method::Get, path: format!("{path}?{}", query.join("&")), body: None, purpose: None };
@@ -693,8 +769,11 @@ pub fn list_request(filters: &Filters, before: Option<i64>, limit: i64, me: &str
     if let Some(id) = filters.id {
         body["id"] = json!(id);
     }
-    if let Some(b) = before {
-        body["before"] = json!(b);
+    if filters.sort != Sort::New {
+        body["sort"] = json!(filters.sort.word());
+    }
+    if let Some(c) = cursor {
+        body["cursor"] = json!(c);
     }
     if filters.my_picks {
         body["of"] = json!(me);
@@ -715,11 +794,16 @@ pub struct PublishFields {
     pub labels: Vec<String>,
     /// `public` or `members`.
     pub visibility: String,
+    /// The licence's id (round 5); empty is [`DEFAULT_LICENCE`].
+    pub licence: String,
+    /// "Offer this for the game" (round 5): only with a licence whose `game` the server sets.
+    pub project_use: bool,
 }
 
 pub fn publish_request(signer: &Signer, f: &PublishFields) -> Request {
     let name = bare_name(&f.filename).to_string();
-    let purpose = publish_purpose(&name);
+    let licence = if f.licence.trim().is_empty() { DEFAULT_LICENCE } else { f.licence.trim() };
+    let purpose = publish_purpose(&name, licence, f.project_use);
     let body = json!({
         "filename": name,
         "title": f.title.trim(),
@@ -727,6 +811,8 @@ pub fn publish_request(signer: &Signer, f: &PublishFields) -> Request {
         "category_id": f.category_id,
         "labels": f.labels,
         "visibility": if f.visibility == "members" { "members" } else { "public" },
+        "licence": licence,
+        "project_use": f.project_use,
     });
     post("/api/media", purpose.clone(), signer.signed(&purpose, body))
 }
@@ -747,9 +833,10 @@ pub fn pick_request(signer: &Signer, item: &ItemRef, on: bool) -> Request {
     post(path, purpose.clone(), signer.signed(&purpose, json!({ "id": item.id, "filename": bare_name(&item.filename) })))
 }
 
-pub fn feature_request(signer: &Signer, item: &ItemRef, featured: bool) -> Request {
-    let purpose = feature_purpose(item.id);
-    let body = json!({ "id": item.id, "filename": bare_name(&item.filename), "featured": featured });
+/// Feature an item on the main shelf, its category's only, or neither (round 5): admins.
+pub fn feature_request(signer: &Signer, item: &ItemRef, to: Featured) -> Request {
+    let purpose = feature_purpose(item.id, to);
+    let body = json!({ "id": item.id, "filename": bare_name(&item.filename), "featured": to.word() });
     post("/api/media/feature", purpose.clone(), signer.signed(&purpose, body))
 }
 
