@@ -14,21 +14,27 @@
 //! "MEMBER" is anyone signed in to this server who is not banned, as everywhere else on the
 //! relay; on an open server anyone can become one, which Server Settings says under the switch
 //! (`storage::MEDIA_MEMBERS_NOTE`). A members-only item's file is not in the public uploads
-//! folder: it is in `data/media-members/`, served only by `GET /api/media/file/{id}` to a member
-//! with the session's upload token, in the `X-Upload-Token` header (W3b, 2026-10-11) or, for
-//! now, `?token=` (F3), or with a ten-minute ticket for that one file (`?ticket=`, R3-8,
-//! relay/media_ticket.rs), which a video player or a download can use as its address. A Media
+//! folder: it is in `data/media-members/`, served only by `GET /api/media/file/{id}?file=<n>` to a
+//! member with the session's upload token, in the `X-Upload-Token` header (W3b, 2026-10-11) or,
+//! for now, `?token=` (F3), or with a ten-minute ticket for that one file (`?ticket=`, R3-8,
+//! relay/media_ticket.rs), which a video player or a download can use as its address. `file` is
+//! the item's own file (0, the default) or one of its added files or its cover (round 5). A Media
 //! upload not yet published waits in `data/media-waiting/`, which nothing serves (R6).
 //!
 //! EVERY WRITE IS SIGNED: Dilithium over `purpose\ntimestamp`, as `delete_shared_upload` is,
 //! plus what that route does not have: a timestamp at most five minutes old and at most 30
 //! seconds ahead (the relay's replay memory covers the whole window), and a (key, purpose,
 //! timestamp) the relay has not seen, so a captured request cannot be sent twice. Each purpose
-//! names its target, so a signature is good for one thing (F5): `media_publish:<file name>`,
-//! `media_remove:<item id or file name>`, `media_pick:<item id>` (pick and unpick),
-//! `media_feature:<item id>`, `media_visibility:<item id>:<public|members>`,
+//! names its target, so a signature is good for one thing (F5):
+//! `media_publish:<file name>:<licence id>:<0|1>` (round 5: the licence and the HumanityOS
+//! permission are signed with the publish), `media_remove:<item id or file name>`,
+//! `media_pick:<item id>` (pick and unpick), `media_feature:<item id>:<main|category|none>`
+//! (round 5), `media_visibility:<item id>:<public|members>`,
 //! `media_suggestions:<suggestion id>:<accept|decline>`, `media_categories:<BLAKE3 hex of the
-//! request's category list as sent>` and `media_keep:<item id>:<on|off>` (A7, 2026-10-11). A new
+//! request's category list as sent>`, `media_keep:<item id>:<on|off>` (A7, 2026-10-11), and round
+//! 5's `media_edit:<item id>:<BLAKE3 hex of the edit as sent>`,
+//! `media_file_add:<item id>:<upload>:<file|cover>` and `media_file_remove:<item id>:<file number>`
+//! (relay/media_edit.rs). A new
 //! category suggestion keeps plain `media_suggest` (the design names no target for it), and the
 //! reads keep `media_list` (the list, and one person's picks by POST, A3), `media_usage`,
 //! `media_suggestions` and `media_mine` (A4). The role checks happen after the signature, on the
@@ -57,7 +63,8 @@ use std::sync::Arc;
 use crate::relay::relay::{RelayMessage, RelayState};
 pub use crate::relay::storage::media::{Folders, MEMBERS_DIR, UPLOADS_DIR};
 use crate::relay::storage::media::{
-    self as store, bare_name, CategoryEdit, MediaError, MediaItem, MediaQuery, Publish, Refusal, Spot, KINDS, MEDIA_SHELF,
+    self as store, bare_name, CategoryEdit, Featured, ItemFile, MediaError, MediaItem, MediaQuery, Publish, Refusal, Signed, Sort, Spot, KINDS,
+    MEDIA_SHELF,
 };
 use crate::relay::storage::{media_visibility_of, ServerSettings, Storage};
 
@@ -237,7 +244,8 @@ fn forbidden(words: &str) -> Refused {
 }
 
 /// Where an item's file is fetched: its `/uploads/` address while public; a members-only one's
-/// is the members' file route, which the app calls with `?token=` and its session's upload token.
+/// is the members' file route, which the apps ask with the session's upload token in the
+/// `X-Upload-Token` header or with a ticket (W3b, R3-8).
 pub fn item_url(i: &MediaItem) -> String {
     if i.visibility == "public" {
         format!("/uploads/{}", i.upload_filename)
@@ -246,8 +254,20 @@ pub fn item_url(i: &MediaItem) -> String {
     }
 }
 
+// Round 5's wire (2026-10-12): an item's files, the sort and cursor, the licences, the purposes.
+#[path = "media_wire.rs"]
+mod wire;
+pub use wire::{feature_purpose, file_url, publish_purpose, sort_and_cursor, BAD_CURSOR};
+use wire::{file_json, licences_for};
+
 /// One item as every route gives it.
 pub fn item_json(i: &MediaItem) -> Value {
+    // File 0 is the item's own; then its added files, in their order (round 5).
+    let own = ItemFile { file: 0, filename: i.upload_filename.clone(), original_name: i.original_name.clone(), kind: i.kind.clone(), size_bytes: i.size_bytes };
+    let files: Vec<Value> = std::iter::once(&own).chain(i.files.iter()).map(|f| file_json(i, f)).collect();
+    let cover = i.cover.as_ref().map(|c| {
+        json!({ "file": c.file, "filename": c.filename, "kind": c.kind, "size_bytes": c.size_bytes, "url": file_url(i, c.file, &c.filename) })
+    });
     json!({
         "id": i.id,
         "url": item_url(i),
@@ -257,9 +277,12 @@ pub fn item_json(i: &MediaItem) -> Value {
         "kind": i.kind,
         "labels": i.labels,
         "visibility": i.visibility,
-        "featured": i.featured,
+        // Round 5: "main", "category" or "none" (it was a bool; both apps changed with it).
+        "featured": i.featured.word(),
         "size_bytes": i.size_bytes,
+        "total_bytes": i.total_bytes,
         "views": i.views,
+        "downloads": i.downloads,
         "uploaded_at": i.uploaded_at,
         "published_at": i.published_at,
         "uploader_key": i.uploader_key,
@@ -277,6 +300,14 @@ pub fn item_json(i: &MediaItem) -> Value {
         // (found by the web round 2, 2026-10-11). Safe to send: the members' folder is served by
         // nothing, and members-only items go only to members.
         "filename": i.upload_filename,
+        // Round 5 (2026-10-12): the licence, whether it is offered for the game, the item's own file and
+        // its added files (`files`, file 0 first), its cover (null when none), and its own page.
+        "licence": i.licence,
+        "project_use": i.project_use,
+        "file_count": i.file_count,
+        "files": files,
+        "cover": cover,
+        "link": format!("/media/{}", i.id),
     })
 }
 
@@ -636,12 +667,16 @@ pub struct ListParams {
     pub kind: Option<String>,
     pub by: Option<String>,
     pub q: Option<String>,
-    pub before: Option<i64>,
+    /// `new` (the default), `picks` or `downloads` (round 5).
+    pub sort: Option<String>,
+    /// The last answer's `next_cursor`, for the page after it (round 5; it replaced `before`).
+    pub cursor: Option<String>,
     pub limit: Option<i64>,
     pub key: Option<String>,
     pub timestamp: Option<u64>,
     pub sig: Option<String>,
-    /// `featured=1`: featured items only, so the strip shows every one (A2, 2026-10-11).
+    /// `featured=1`: featured items only, so the strip shows every one (A2, 2026-10-11): the main
+    /// shelf, or with `category=c` that category's shelf (round 5).
     pub featured: Option<u8>,
     /// One item by its number, if the viewer may see it (the admins' Reports page opens a
     /// reported item this way, A5).
@@ -665,8 +700,10 @@ async fn members_view(state: &RelayState, p: &ListParams) -> Result<Option<Strin
 }
 
 /// The list for a viewer with the members' view (`member`, their key) or without it, optionally
-/// one person's picks. On a members-only server the public gets no items, and is told so. In the
-/// members' view every item also says whether that member picked it (`picked_by_me`, A3).
+/// one person's picks. On a members-only server the public gets no items, and is told so (and no
+/// categories, labels or licences). In the members' view every item also says whether that member
+/// picked it (`picked_by_me`, A3). Round 5: in `sort`'s order, paged by `cursor`, with the next
+/// page's `next_cursor` (null at the end) and the licences this server offers.
 pub fn list_core(db: &Storage, s: &ServerSettings, p: &ListParams, member: Option<&str>, picked_by: Option<String>) -> Answer {
     let members = member.is_some();
     if let Some(kind) = p.kind.as_deref() {
@@ -674,6 +711,7 @@ pub fn list_core(db: &Storage, s: &ServerSettings, p: &ListParams, member: Optio
             return Err((StatusCode::BAD_REQUEST, format!("\"{kind}\" is not a kind. The kinds are: {}.", KINDS.join(", "))));
         }
     }
+    let (sort, cursor) = sort_and_cursor(p)?;
     let members_only = members_only_server(s);
     let shut = members_only && !members;
     let items = if shut {
@@ -684,7 +722,8 @@ pub fn list_core(db: &Storage, s: &ServerSettings, p: &ListParams, member: Optio
             kind: p.kind.clone(),
             by: p.by.clone(),
             q: p.q.clone(),
-            before: p.before,
+            sort,
+            cursor,
             limit: p.limit,
             members,
             picked_by,
@@ -694,8 +733,9 @@ pub fn list_core(db: &Storage, s: &ServerSettings, p: &ListParams, member: Optio
         .map_err(db_err)?
     };
     let limit = p.limit.unwrap_or(store::MEDIA_LIST_DEFAULT).clamp(1, store::MEDIA_LIST_MAX) as usize;
-    let next_before = if items.len() == limit { items.last().map(|i| i.id) } else { None };
+    let next_cursor = if items.len() == limit { items.last().map(|i| store::cursor_text(sort.value_of(i), i.id)) } else { None };
     let (categories, labels) = categories_and_labels(db, s, members)?;
+    let licences = licences_for(s, members);
     let mut shown = items_json(&items);
     if let Some(me) = member {
         let ids: Vec<i64> = items.iter().map(|i| i.id).collect();
@@ -706,12 +746,13 @@ pub fn list_core(db: &Storage, s: &ServerSettings, p: &ListParams, member: Optio
     }
     Ok(Json(json!({
         "items": shown,
-        "next_before": next_before,
+        "next_cursor": next_cursor,
         "members_view": members,
         "media_visibility": s.media_visibility,
         "members_only_for_you": shut,
         "categories": categories,
         "labels": labels,
+        "licences": licences,
     })))
 }
 
@@ -766,7 +807,12 @@ pub async fn categories(State(state): State<Arc<RelayState>>, Query(p): Query<Li
 /// [`categories`] for a viewer with or without the members' view.
 pub fn category_list_core(db: &Storage, s: &ServerSettings, members: bool) -> Answer {
     let (categories, labels) = categories_and_labels(db, s, members)?;
-    Ok(Json(json!({ "categories": categories, "labels": labels, "members_only_for_you": members_only_server(s) && !members })))
+    Ok(Json(json!({
+        "categories": categories,
+        "labels": labels,
+        "licences": licences_for(s, members),
+        "members_only_for_you": members_only_server(s) && !members,
+    })))
 }
 
 // ── POST /api/media (publish) ──
@@ -789,6 +835,21 @@ pub struct PublishBody {
     /// "public" (the default) or "members".
     #[serde(default)]
     pub visibility: Option<String>,
+    /// The licence's id (round 5); none is the default, "All rights reserved". Refused unless this
+    /// server offers it (relay/media_licences.rs).
+    #[serde(default)]
+    pub licence: Option<String>,
+    /// "Offer this for the game" (round 5, plan section 10); off by default, and refused unless the
+    /// licence allows it (CC0 or CC BY 4.0, data/media/licences.json `game`).
+    #[serde(default)]
+    pub project_use: bool,
+}
+
+impl PublishBody {
+    /// The licence chosen: as sent, else the default.
+    pub fn licence(&self) -> &str {
+        self.licence.as_deref().map(str::trim).filter(|l| !l.is_empty()).unwrap_or(store::DEFAULT_LICENCE)
+    }
 }
 
 /// The stored file name a publish or a removal names: as sent, or its `/uploads/...` address.
@@ -802,7 +863,7 @@ pub fn stored_name(given: &str) -> Result<&str, Refused> {
 }
 
 pub async fn publish(State(state): State<Arc<RelayState>>, Json(b): Json<PublishBody>) -> Answer {
-    let purpose = format!("media_publish:{}", stored_name(&b.filename)?);
+    let purpose = publish_purpose(stored_name(&b.filename)?, b.licence(), b.project_use);
     check_signed(&state, &b.key, b.timestamp, &b.sig, &purpose).await?;
     // Off the executor: the publish waits for the room lock, which an upload holds while its
     // file moves into place (F4).
@@ -815,12 +876,20 @@ pub async fn publish(State(state): State<Arc<RelayState>>, Json(b): Json<Publish
 /// encrypted one, no bigger than their role's largest Media file (R3-3: a file uploaded to chat or
 /// Shared Files was only held to the role's per-file limit), within the Media budget and their
 /// share of it, under the room lock (F4). A members-only item's file moves out of the public
-/// folder before the item is committed (F3).
+/// folder before the item is committed (F3). Round 5: with a licence this server offers and the
+/// game tick only under a licence that allows it, both kept with the publish's signature in the
+/// licence log.
 pub fn publish_core(db: &Storage, s: &ServerSettings, known: &[MediaLabel], folders: Folders, b: &PublishBody) -> Answer {
     if !is_member(db, &b.key) {
         return Err(forbidden("Only members of this server can put things on its Media page."));
     }
     let filename = stored_name(&b.filename)?;
+    let licence = b.licence();
+    crate::relay::media_licences::licences().check_choice(licence, b.project_use).map_err(|w| (StatusCode::BAD_REQUEST, w))?;
+    let purpose = publish_purpose(filename, licence, b.project_use);
+    // The signature the route checked, kept with the choice (nothing when nothing was signed: a
+    // test calling this directly).
+    let signed = (!b.sig.is_empty()).then(|| Signed { key: &b.key, purpose: &purpose, body: "", ts: b.timestamp as i64, sig: &b.sig });
     if b.title.chars().count() > store::MEDIA_TITLE_MAX {
         return Err((StatusCode::BAD_REQUEST, format!("A title can be at most {} characters.", store::MEDIA_TITLE_MAX)));
     }
@@ -850,6 +919,9 @@ pub fn publish_core(db: &Storage, s: &ServerSettings, known: &[MediaLabel], fold
             labels: &labels,
             visibility,
             max_file_mb,
+            licence,
+            project_use: b.project_use,
+            signed,
         },
         s.media_budget_mb.max(1) * MIB,
         s.media_per_person_mb.max(1) * MIB,
@@ -890,10 +962,7 @@ pub fn same_item(db: &Storage, id: i64, filename: &str) -> Result<(), Refused> {
     let name = stored_name(filename)?;
     match db.media_item(id).map_err(db_err)? {
         None => Err((StatusCode::NOT_FOUND, "There is no Media item with that number.".to_string())),
-        Some(item) if item.upload_filename != name => Err((
-            StatusCode::CONFLICT,
-            "That is not the Media item you were looking at: the page is out of date. Load it again.".to_string(),
-        )),
+        Some(item) if item.upload_filename != name => Err((StatusCode::CONFLICT, store::OUT_OF_DATE.to_string())),
         Some(_) => Ok(()),
     }
 }
@@ -1021,18 +1090,21 @@ pub struct FeatureBody {
     pub timestamp: u64,
     pub sig: String,
     pub id: i64,
-    /// True to feature it (the default), false to take it off the featured row.
-    #[serde(default = "yes")]
-    pub featured: bool,
+    /// Where (round 5): "main" (the main shelf, and its category's), "category" (its category's
+    /// shelf only) or "none". Required: it was a bool, and both apps changed with it.
+    #[serde(default)]
+    pub featured: String,
     /// The item's file name, required (W5): [`same_item`].
     #[serde(default)]
     pub filename: String,
 }
 
 pub async fn feature(State(state): State<Arc<RelayState>>, Json(b): Json<FeatureBody>) -> Answer {
-    check_signed(&state, &b.key, b.timestamp, &b.sig, &format!("media_feature:{}", b.id)).await?;
+    let to = Featured::parse(b.featured.trim())
+        .ok_or_else(|| (StatusCode::BAD_REQUEST, "Featured is \"main\", \"category\" or \"none\".".to_string()))?;
+    check_signed(&state, &b.key, b.timestamp, &b.sig, &feature_purpose(b.id, to)).await?;
     same_item(&state.db, b.id, &b.filename)?;
-    feature_core(&state.db, &b.key, b.id, b.featured)
+    feature_core(&state.db, &b.key, b.id, to)
 }
 
 /// `POST /api/media/keep` (A7, 2026-10-11; the operator's answers, number 1): an admin or a
@@ -1093,13 +1165,13 @@ pub fn keep_core(db: &Storage, key: &str, id: i64, kept: bool) -> Answer {
     Ok(Json(json!({ "ok": true, "id": id, "kept": kept })))
 }
 
-/// Admins only.
-pub fn feature_core(db: &Storage, key: &str, id: i64, featured: bool) -> Answer {
+/// Admins only: the main shelf, its category's shelf only, or neither.
+pub fn feature_core(db: &Storage, key: &str, id: i64, featured: Featured) -> Answer {
     if !is_admin(db, key) {
         return Err(forbidden("Only an admin can feature Media items."));
     }
     db.set_media_featured(id, featured).map_err(refusal)?;
-    Ok(Json(json!({ "ok": true, "id": id, "featured": featured })))
+    Ok(Json(json!({ "ok": true, "id": id, "featured": featured.word() })))
 }
 
 // ── POST /api/media/visibility ──
@@ -1365,14 +1437,18 @@ pub fn mine_core(db: &Storage, s: &ServerSettings, key: &str) -> Answer {
     })))
 }
 
-// ── GET /api/media/file/{id}?token= ──
+// ── GET /api/media/file/{id}?file=<n> ──
 
 /// The session's upload token, the one `POST /api/upload` takes, or a ticket for one file (R3-8,
-/// relay/media_ticket.rs).
+/// relay/media_ticket.rs), and which of the item's files (round 5: 0, the default, is the item's
+/// own; any other an added file's or the cover's number). The download route takes the same
+/// (relay/media_counts.rs).
 #[derive(Debug, Default, Deserialize)]
 pub struct TokenQuery {
     pub token: Option<String>,
     pub ticket: Option<String>,
+    #[serde(default)]
+    pub file: Option<i64>,
 }
 
 /// The header the members' file route also takes the session's upload token in (W3b,
@@ -1396,25 +1472,38 @@ pub async fn file(
     file_from(&state, Folders::live(), id, q, req).await
 }
 
-/// [`file`] with the folders named. A ticket (`?ticket=`, R3-8) opens the one item it was given
+/// [`file`] with the folders named. A ticket (`?ticket=`, R3-8) opens the one file it was given
 /// for; otherwise the token from the [`UPLOAD_TOKEN_HEADER`] header when the request has one,
-/// else from `?token=`. A refused ticket falls back to a token when there is one.
+/// else from `?token=`. A refused ticket falls back to a token when there is one. `?file=<n>`
+/// names which of the item's files (round 5; 0 when left out).
 pub async fn file_from(state: &RelayState, folders: Folders<'_>, id: i64, q: TokenQuery, req: axum::extract::Request) -> Response {
     let token = header_token(req.headers()).or(q.token);
+    let file_no = q.file.unwrap_or(0);
     if let Some(ticket) = q.ticket.as_deref().filter(|t| !t.is_empty()) {
-        match crate::relay::media_ticket::admitted(state, ticket, id, std::time::Instant::now()) {
-            Ok(item) => return serve_item(folders, &item, req).await.unwrap_or_else(IntoResponse::into_response),
+        match crate::relay::media_ticket::admitted(state, ticket, id, file_no, std::time::Instant::now()) {
+            Ok(item) => {
+                return serve_item_file(folders, &item, file_no, req, HeaderValue::from_static("attachment"))
+                    .await
+                    .unwrap_or_else(IntoResponse::into_response)
+            }
             Err(refused) if token.is_none() => return refused.into_response(),
             Err(_) => {}
         }
     }
-    file_core(state, folders, id, token.as_deref(), req).await.unwrap_or_else(IntoResponse::into_response)
+    file_core(state, folders, id, file_no, token.as_deref(), req).await.unwrap_or_else(IntoResponse::into_response)
 }
 
-/// A Media item's file, to a member of this server who is not banned, proven by the session's
-/// upload token (F3): the way a members-only item's file is fetched, since it is not in the
-/// public folder.
-pub async fn file_core(state: &RelayState, folders: Folders<'_>, id: i64, token: Option<&str>, req: axum::extract::Request) -> Result<Response, Refused> {
+/// File `file_no` of a Media item, to a member of this server who is not banned, proven by the
+/// session's upload token (F3): the way a members-only item's files are fetched, since they are
+/// not in the public folder.
+pub async fn file_core(
+    state: &RelayState,
+    folders: Folders<'_>,
+    id: i64,
+    file_no: i64,
+    token: Option<&str>,
+    req: axum::extract::Request,
+) -> Result<Response, Refused> {
     let token = token
         .filter(|t| !t.is_empty())
         .ok_or_else(|| (StatusCode::UNAUTHORIZED, "A members-only file needs this session's upload token (?token=).".to_string()))?;
@@ -1429,21 +1518,28 @@ pub async fn file_core(state: &RelayState, folders: Folders<'_>, id: i64, token:
         return Err(forbidden("Only members of this server who are not banned can open members-only Media files."));
     }
     let item = state.db.media_item(id).map_err(db_err)?.ok_or_else(|| (StatusCode::NOT_FOUND, "There is no Media item with that number.".to_string()))?;
-    serve_item(folders, &item, req).await
+    serve_item_file(folders, &item, file_no, req, HeaderValue::from_static("attachment")).await
 }
 
-/// `item`'s file, answering `req`. Ranges work (a video seeks), and like `/uploads` it is sent as
-/// an attachment (relay/mod.rs `security_headers`) and kept out of shared caches.
-async fn serve_item(folders: Folders<'_>, item: &MediaItem, req: axum::extract::Request) -> Result<Response, Refused> {
-    let path = folders
-        .find(&item.upload_filename)
-        .ok_or_else(|| (StatusCode::NOT_FOUND, "That Media item's file is missing.".to_string()))?;
+/// File `file_no` of `item` (0 its own, else an added file's or the cover's number), answering
+/// `req` with `disposition` as its Content-Disposition: `attachment` for the members' file route,
+/// an attachment named by its original name for the download route (lane 1B). Ranges work (a video
+/// seeks), and it is kept out of shared caches.
+pub(crate) async fn serve_item_file(
+    folders: Folders<'_>,
+    item: &MediaItem,
+    file_no: i64,
+    req: axum::extract::Request,
+    disposition: HeaderValue,
+) -> Result<Response, Refused> {
+    let name = item.file_name(file_no).ok_or_else(|| (StatusCode::NOT_FOUND, "That Media item has no file with that number.".to_string()))?;
+    let path = folders.find(name).ok_or_else(|| (StatusCode::NOT_FOUND, "That Media item's file is missing.".to_string()))?;
     let res = tower_http::services::ServeFile::new(path)
         .try_call(req)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("The file could not be read: {e}")))?;
     let mut res = res.map(axum::body::Body::new);
-    res.headers_mut().insert(header::CONTENT_DISPOSITION, HeaderValue::from_static("attachment"));
+    res.headers_mut().insert(header::CONTENT_DISPOSITION, disposition);
     res.headers_mut().insert(header::CACHE_CONTROL, HeaderValue::from_static("private, no-store"));
     Ok(res)
 }

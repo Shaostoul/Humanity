@@ -205,6 +205,9 @@ pub struct RelayState {
     /// Ten-minute tickets that each open one members-only Media file (R3-8, media_ticket.rs).
     /// In memory only.
     pub media_tickets: crate::relay::media_ticket::Tickets,
+    /// Who was counted today for each Media item's views and downloads, as keyed marks, in memory
+    /// only (Media round 5, media_counts.rs).
+    pub media_marks: crate::relay::media_counts::Marks,
     /// Tests only (R3-1): the Unix-ms clock the upload allowances read instead of the wall
     /// (`upload_now_ms`), so a test can carry an upload across midnight UTC. Never set in the product.
     #[cfg(test)]
@@ -492,6 +495,7 @@ impl RelayState {
             typing_timestamps: RwLock::new(HashMap::new()),
             upload_tokens: RwLock::new(HashMap::new()),
             media_tickets: Default::default(),
+            media_marks: Default::default(),
             #[cfg(test)]
             upload_clock: std::sync::OnceLock::new(),
             voice_rooms: RwLock::new(HashMap::new()),

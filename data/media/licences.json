@@ -1,0 +1,24 @@
+{
+  "_comment": "The licences an item on the Media page can carry, and the words beside them (docs/design/media-round-5-plan.md 3.7 and 10). The relay reads this file at start (src/relay/media_licences.rs `licences`) and both apps take everything here from the server's answer, so neither hard-codes a licence sentence. `id` is what the relay stores (lower case a to z, digits and underscore). `default` is preselected. A Creative Commons licence (`cc`) is offered only while `cc_warning` is filled. `game` marks the licences an item can be offered for the game under (public licences that cannot be withdrawn and need no recipient: CC0 and CC BY 4.0, the operator's answer of 2026-10-12), and `game_offer` is that tick. The names, deeds and lines come from `words_from` (a test, `the_licence_words_name_their_source`, holds them to it); the warnings and `hosting` are the operator's approved words in docs/design/media-round-5-plan.md section 10.",
+  "words_from": "docs/reference/findings/2026-10-12-media-item-licences.md",
+  "default": "all_rights_reserved",
+  "licences": [
+    { "id": "all_rights_reserved", "name": "All rights reserved", "official_name": "", "url": "", "cc": false, "game": false,
+      "line": "You keep every right: people may see it here, but need your permission to copy, share or change it." },
+    { "id": "cc_by_4", "name": "CC BY 4.0", "official_name": "Attribution 4.0 International", "url": "https://creativecommons.org/licenses/by/4.0/deed.en", "cc": true, "game": true,
+      "line": "Anyone may copy, share and change it, for any purpose, even commercially, if they credit you." },
+    { "id": "cc_by_sa_4", "name": "CC BY-SA 4.0", "official_name": "Attribution-ShareAlike 4.0 International", "url": "https://creativecommons.org/licenses/by-sa/4.0/deed.en", "cc": true, "game": false,
+      "line": "Anyone may copy, share and change it, even commercially, if they credit you and share their changes under this same licence." },
+    { "id": "cc_by_nc_4", "name": "CC BY-NC 4.0", "official_name": "Attribution-NonCommercial 4.0 International", "url": "https://creativecommons.org/licenses/by-nc/4.0/deed.en", "cc": true, "game": false,
+      "line": "Anyone may copy, share and change it if they credit you, but not for commercial purposes." },
+    { "id": "cc0_1", "name": "CC0 1.0", "official_name": "CC0 1.0 Universal", "url": "https://creativecommons.org/publicdomain/zero/1.0/deed.en", "cc": true, "game": true,
+      "line": "You give up your rights in it: anyone may copy, share and change it, for any purpose, without credit." }
+  ],
+  "game_offer": { "label": "Offer this for the game", "line": "" },
+  "cc_warning": "A Creative Commons licence cannot be taken back for copies already taken.",
+  "cc_members_warning": "On a members-only item, a Creative Commons licence lets every member who receives it republish it publicly.",
+  "hosting": {
+    "heading": "Your uploads stay yours.",
+    "text": "When you put a file on this server, you keep every right you have in it. You give the people who run this server, and anyone who runs it after them, a free, non-exclusive permission to store your file, keep backup copies, make previews and smaller copies of it, and show it and offer it for download to the people you chose (everyone, or this server's members), on this server only, for as long as you leave it here. When you remove the file or your account, the permission ends, apart from backup copies, which age out on the server's own schedule. This permission lets no one else use your file: what others may do with it is set by the licence you chose. Only upload what you have the right to share."
+  }
+}

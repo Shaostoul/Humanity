@@ -151,12 +151,13 @@ async fn open(state: &RelayState, d: &Dirs, id: i64, ticket: &str, range: Option
 
 /// The ticket in a ticket answer's `url`.
 fn ticket_of(answer: &Value) -> String {
-    answer["url"].as_str().unwrap().split("?ticket=").nth(1).expect("a ticket in the url").to_string()
+    answer["url"].as_str().unwrap().split("ticket=").nth(1).expect("a ticket in the url").to_string()
 }
 
 /// R3-8 (a). A TICKET OPENS ONE MEMBERS-ONLY FILE, RANGES INCLUDED, AND NOTHING ELSE: a member asks
 /// with the session's upload token in `X-Upload-Token` and the item's number and file name, and is
-/// given `{url: "/api/media/file/<id>?ticket=...", expires_in_s: 600}`. The ticket is 64 random hex
+/// given `{url: "/api/media/file/<id>?file=0&ticket=...", expires_in_s: 600}` (`file=0` since round 5,
+/// which binds a ticket to one of an item's files). The ticket is 64 random hex
 /// characters with nothing of the token in it; it opens that file whole and by range (a video
 /// seeks), and is refused for another members-only item, as a made-up one is. Without the header
 /// there is no ticket, and a file name that is not the item's is the stale-page refusal (W5).
@@ -173,13 +174,13 @@ async fn a_ticket_opens_one_members_file_ranges_included() {
     let mut headers = axum::http::HeaderMap::new();
     headers.insert(UPLOAD_TOKEN_HEADER, "tok_ann".parse().unwrap());
 
-    let answer = media_ticket::ticket(State(state.clone()), headers.clone(), Json(TicketBody { id: item.id, filename: item.upload_filename.clone() }))
+    let answer = media_ticket::ticket(State(state.clone()), headers.clone(), Json(TicketBody { id: item.id, filename: item.upload_filename.clone(), ..Default::default() }))
         .await
         .unwrap()
         .0;
     assert_eq!(answer["expires_in_s"], 600);
     let ticket = ticket_of(&answer);
-    assert_eq!(answer["url"], format!("/api/media/file/{}?ticket={ticket}", item.id));
+    assert_eq!(answer["url"], format!("/api/media/file/{}?file=0&ticket={ticket}", item.id));
     assert!(ticket.len() == 64 && ticket.bytes().all(|c| c.is_ascii_hexdigit()), "256 random bits in hex: {ticket}");
     assert!(!answer.to_string().contains("tok_ann"), "nothing of the session's token");
 
@@ -190,9 +191,9 @@ async fn a_ticket_opens_one_members_file_ranges_included() {
     let (code, words) = open(&state, &d, item.id, &made_up, None).await;
     assert_eq!((code, String::from_utf8(words).unwrap()), (403, TICKET_REFUSED.to_string()), "a made-up ticket");
 
-    let no_header = media_ticket::ticket(State(state.clone()), axum::http::HeaderMap::new(), Json(TicketBody { id: item.id, filename: item.upload_filename.clone() })).await;
+    let no_header = media_ticket::ticket(State(state.clone()), axum::http::HeaderMap::new(), Json(TicketBody { id: item.id, filename: item.upload_filename.clone(), ..Default::default() })).await;
     assert_eq!(no_header.unwrap_err().0, StatusCode::UNAUTHORIZED, "the token goes in the header");
-    let stale = media_ticket::ticket(State(state.clone()), headers, Json(TicketBody { id: item.id, filename: other.upload_filename.clone() })).await;
+    let stale = media_ticket::ticket(State(state.clone()), headers, Json(TicketBody { id: item.id, filename: other.upload_filename.clone(), ..Default::default() })).await;
     assert_eq!(stale.unwrap_err().0, StatusCode::CONFLICT, "bound to the item's own file");
 }
 
@@ -210,23 +211,29 @@ async fn a_ticket_runs_out_and_is_only_for_members() {
     let d = dirs("mr3_r38b");
     let item = member_with_item(&state, &d, "ann", "tok_ann", "1_clip.mp4");
     let name = item.upload_filename.clone();
+    let body = TicketBody { id: item.id, filename: name.clone(), ..Default::default() };
 
     let long_ago = Instant::now().checked_sub(Duration::from_secs(11 * 60)).expect("this machine has been up eleven minutes");
-    let old = ticket_of(&media_ticket::ticket_core(&state, "ann", item.id, &name, long_ago).unwrap().0);
+    let old = ticket_of(&media_ticket::ticket_core(&state, "ann", &body, long_ago).unwrap().0);
     assert_eq!(open(&state, &d, item.id, &old, None).await.0, 403, "a ticket from eleven minutes ago is refused");
-    let fresh = ticket_of(&media_ticket::ticket_core(&state, "ann", item.id, &name, Instant::now()).unwrap().0);
+    let fresh = ticket_of(&media_ticket::ticket_core(&state, "ann", &body, Instant::now()).unwrap().0);
     assert_eq!(open(&state, &d, item.id, &fresh, None).await.0, 200, "a fresh one opens it");
 
     state.upload_tokens.write().await.insert("tok_carl".into(), "carl".into());
-    let stranger = media_ticket::ticket_core(&state, "carl", item.id, &name, Instant::now());
+    let stranger = media_ticket::ticket_core(&state, "carl", &body, Instant::now());
     assert_eq!(stranger.unwrap_err().0, StatusCode::FORBIDDEN, "someone who is not a member is given none");
 
     state.db.ban_user("ann", "ann").unwrap();
     assert_eq!(open(&state, &d, item.id, &fresh, None).await.0, 403, "banned, their live ticket stops working");
-    assert_eq!(media_ticket::ticket_core(&state, "ann", item.id, &name, Instant::now()).unwrap_err().0, StatusCode::FORBIDDEN);
+    assert_eq!(media_ticket::ticket_core(&state, "ann", &body, Instant::now()).unwrap_err().0, StatusCode::FORBIDDEN);
     assert_eq!(state.media_tickets.len(), 1, "in memory, and the expired one is dropped when the next is given");
 }
 
 // Round 4, the fixes from the round 3 review (2026-10-11): R4-1, the ticket pool.
 #[path = "media_round4_tests.rs"]
 mod round4;
+
+// Round 5's contract (2026-10-12, docs/design/media-round-5-plan.md): a ticket opens one of an
+// item's files, and the shared fixture both apps read.
+#[path = "media_round5_tests.rs"]
+mod round5;

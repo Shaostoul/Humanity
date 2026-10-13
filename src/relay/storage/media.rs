@@ -1,9 +1,12 @@
 //! The Media page's storage (2026-10-11; docs/design/media-showcase.md, "Increment 1, exact").
 //! The routes that use it are src/relay/media.rs.
 //!
-//! Four tables, each created in storage/mod.rs:
-//! - `media_items`: what people published from their OWN uploads, one row per upload. The file
-//!   itself stays a `user_uploads` row. A Media upload (`POST /api/upload?media=1`) sits on shelf
+//! Six tables, each created in storage/mod.rs:
+//! - `media_items`: what people published from their OWN uploads, one row per item, named by its
+//!   first file (`upload_filename`, file 0). Since round 5 (2026-10-12) an item can hold up to 19
+//!   more files and a cover, each a row of `media_item_files` (storage/media_files.rs), and carries
+//!   a licence, whether it is offered for the game and a download count. Every file
+//!   stays a `user_uploads` row. A Media upload (`POST /api/upload?media=1`) sits on shelf
 //!   2 (`user_uploads.shared = 2`): out of the per-person keep-N FIFO (which prunes shelf 0 only)
 //!   and out of the Shared Files list (which lists shelf 1 only). Publishing moves a chat file
 //!   (shelf 0) to shelf 2 too, and a Shared Files file (shelf 1) to shelf 2 while it is members
@@ -14,6 +17,10 @@
 //! - `media_category_suggestions`: categories members asked for, open until an admin decides.
 //! - `media_picks`: each person's picks of other people's items. A pick is a reference, so it
 //!   goes when the item goes.
+//! - `media_item_files`: an item's added files and its cover (round 5). An attached file stays on
+//!   the Media shelf, so it counts against the space and its uploader's share as it did while it
+//!   waited; it is never "waiting" ([`NOT_ON_AN_ITEM`]).
+//! - `media_licence_log`: every licence choice with the signature over it (round 5).
 //!
 //! THE FILES live in two folders ([`Folders`]): the public one, served at `/uploads`, and
 //! `data/media-members/`, which nothing serves but `GET /api/media/file/{id}` to a member. A
@@ -317,10 +324,12 @@ pub struct MediaItem {
     pub labels: Vec<String>,
     /// `public` or `members`.
     pub visibility: String,
-    pub featured: bool,
+    /// On the main shelf, on its category's shelf only, or neither (round 5).
+    pub featured: Featured,
+    /// The item's own file's size (file 0).
     pub size_bytes: i64,
-    /// Nothing counts views yet: that waits for increment 2's viewer (the review's F7), so until
-    /// then every item reads 0 and the least-viewed prune list is oldest first.
+    /// Views and downloads are counted once a person a UTC day (round 5, relay/media_counts.rs).
+    /// Items from before then read 0, so the least-viewed prune list starts oldest first.
     pub views: i64,
     /// When the file was uploaded, and when it was put on the Media page (Unix ms).
     pub uploaded_at: i64,
@@ -337,6 +346,30 @@ pub struct MediaItem {
     /// Whether an admin or a moderator keeps it on the server (A7): it then counts against the
     /// Media budget but not its uploader's share, and is in no prune list.
     pub kept: bool,
+    /// Round 5 (2026-10-12): the licence's id (data/media/licences.json), whether its uploader
+    /// offered it for the game (only under CC0 or CC BY 4.0, plan section 10), and how many people
+    /// downloaded it.
+    pub licence: String,
+    pub project_use: bool,
+    pub downloads: i64,
+    /// The item's own file, its added files and its cover, together.
+    pub total_bytes: i64,
+    /// The item's own file and its added files (not the cover).
+    pub file_count: i64,
+    /// The added files, in their order (the item's own file is not among them: it is file 0).
+    pub files: Vec<ItemFile>,
+    pub cover: Option<ItemFile>,
+}
+
+impl MediaItem {
+    /// The stored name of file `n` of this item: 0 is its own, any other an added file's or its
+    /// cover's number.
+    pub fn file_name(&self, n: i64) -> Option<&str> {
+        if n == 0 {
+            return Some(&self.upload_filename);
+        }
+        self.files.iter().chain(self.cover.iter()).find(|f| f.file == n).map(|f| f.filename.as_str())
+    }
 }
 
 /// One category, in the order the page shows them.
@@ -373,7 +406,8 @@ pub struct MediaSuggestion {
 }
 
 /// What an item is to be published as. `labels` is already checked against the labels file and
-/// joined (relay/media.rs `normalize_labels`); `visibility` is `public` or `members`.
+/// joined (relay/media.rs `normalize_labels`); `visibility` is `public` or `members`; `licence` is
+/// already checked against the licences this server offers (relay/media_licences.rs `offered`).
 #[derive(Debug, Clone, Default)]
 pub struct Publish<'a> {
     pub filename: &'a str,
@@ -386,7 +420,18 @@ pub struct Publish<'a> {
     /// to the share). Checked here too (R3-3, 2026-10-11): a file uploaded to chat or Shared
     /// Files was only held to the role's per-file limit, and could be published past this one.
     pub max_file_mb: i64,
+    /// The licence's id; '' is [`DEFAULT_LICENCE`] (round 5).
+    pub licence: &'a str,
+    /// "Offer this for the game" (round 5): only under a licence that allows it.
+    pub project_use: bool,
+    /// The publish's signature, kept in the licence log with the choice. None only where nothing
+    /// was signed (a test calling storage directly).
+    pub signed: Option<Signed<'a>>,
 }
+
+/// The licence every item carries unless its uploader chose another: what the law already gives
+/// them with no statement at all (docs/reference/findings/2026-10-12-media-item-licences.md).
+pub const DEFAULT_LICENCE: &str = "all_rights_reserved";
 
 /// The list's filters. `members` is whether the viewer gets the members' view (members-only
 /// items included); the route decides it from a checked signature.
@@ -396,11 +441,15 @@ pub struct MediaQuery {
     pub kind: Option<String>,
     pub by: Option<String>,
     pub q: Option<String>,
-    pub before: Option<i64>,
+    /// The order (round 5): newest, most picked or most downloaded first, each then by number.
+    pub sort: Sort,
+    /// The page after this (value, item number), from the last page's `next_cursor` (round 5).
+    pub cursor: Option<(i64, i64)>,
     pub limit: Option<i64>,
     pub members: bool,
     pub picked_by: Option<String>,
-    /// Featured items only (A2, 2026-10-11).
+    /// Featured items only (A2, 2026-10-11): with no category, the main shelf; with one, that
+    /// category's shelf (its items featured on the main shelf or on its own, round 5).
     pub featured: bool,
     /// One item by its number (the admins' Reports page opens a reported item by it, A5).
     pub id: Option<i64>,
@@ -509,37 +558,64 @@ pub fn kind_of(filename: &str) -> &'static str {
 /// The kinds, for checking a filter.
 pub const KINDS: [&str; 4] = ["picture", "video", "model", "file"];
 
+/// ONE MEANING OF "WAITING" (round 5): an upload on the Media shelf that is on no item, neither
+/// as an item's own file nor as an added file or a cover. A test over an unqualified `filename`
+/// column of `user_uploads`: the unpublished expiry, the removal by name, the admins' waiting list
+/// and a person's own all use it, so an attached file is never taken for an upload waiting to be
+/// published (the expiry would otherwise delete it a day after it was uploaded).
+pub(crate) const NOT_ON_AN_ITEM: &str = "filename NOT IN (SELECT upload_filename FROM media_items)
+    AND filename NOT IN (SELECT upload_filename FROM media_item_files)";
+
+/// THE FILES A KEPT ITEM KEEPS (round 5): each kept item's own file, and its added files and
+/// cover that were on it when it was kept (`added_at <= kept_at`). A file added after the keep
+/// counts against its uploader's share until someone keeps the item again (Keep again stamps a
+/// new `kept_at`), so an uploader cannot grow a kept item without limit.
+pub(crate) const KEPT_FILES: &str = "(SELECT upload_filename FROM media_items WHERE kept_by IS NOT NULL
+    UNION SELECT f.upload_filename FROM media_item_files f JOIN media_items k ON k.id = f.item_id
+          WHERE k.kept_by IS NOT NULL AND f.added_at <= k.kept_at)";
+
 /// The bytes counted against the Media space: every upload on the Media shelf and every upload
 /// published as an item (an upload from the Shared Files library counts once published), for
 /// `key` alone or for everyone, leaving out `except` (an upload being published, already counted
-/// if it was a Media upload). For one person, an item the server keeps (A7) is left out: it
-/// counts against the Media budget, not against its uploader's share.
+/// if it was a Media upload). An item's added files and cover are uploads made for Media and stay
+/// on the Media shelf, so they count by the first rule. For one person, the files an item the
+/// server keeps (A7) kept ([`KEPT_FILES`]) are left out: they count against the Media budget, not
+/// against their uploader's share.
 fn media_bytes_on(conn: &Connection, key: Option<&str>, except: Option<&str>) -> Result<i64, rusqlite::Error> {
     conn.query_row(
-        "SELECT COALESCE(SUM(size_bytes), 0) FROM user_uploads
-         WHERE (shared = ?1 OR filename IN (SELECT upload_filename FROM media_items))
-           AND (?2 IS NULL OR public_key = ?2)
-           AND (?2 IS NULL OR filename NOT IN (SELECT upload_filename FROM media_items WHERE kept_by IS NOT NULL))
-           AND (?3 IS NULL OR filename != ?3)",
+        &format!(
+            "SELECT COALESCE(SUM(size_bytes), 0) FROM user_uploads
+             WHERE (shared = ?1 OR filename IN (SELECT upload_filename FROM media_items))
+               AND (?2 IS NULL OR public_key = ?2)
+               AND (?2 IS NULL OR filename NOT IN {KEPT_FILES})
+               AND (?3 IS NULL OR filename != ?3)"
+        ),
         params![MEDIA_SHELF, key, except],
         |r| r.get(0),
     )
 }
 
-/// The columns of [`MediaItem`] in [`item_from_row`]'s order, over `media_items m`. The last
-/// three (2026-10-11): the item's `from_shelf` (A1, `keeps_file`), the uploader's own name for
-/// the file, and whether the server keeps it (A7).
+/// The columns of [`MediaItem`] in [`item_from_row`]'s order, over `media_items m`. Then three
+/// (2026-10-11): the item's `from_shelf` (A1, `keeps_file`), the uploader's own name for the
+/// file, and whether the server keeps it (A7). Then round 5's (2026-10-12): the licence, the
+/// permission, the downloads, `total_bytes` (the item's own file, its added files and its cover,
+/// each by its `user_uploads` row) and `file_count` (its own file and its added files).
 const ITEM_COLUMNS: &str = "m.id, m.upload_filename, m.uploader_key, COALESCE(sm.name, ''), m.title, m.description,
     m.category_id, COALESCE(c.name, ''), m.kind, m.labels, m.visibility, m.featured, m.size_bytes, m.views,
     COALESCE((SELECT MIN(u.uploaded_at) FROM user_uploads u WHERE u.filename = m.upload_filename), m.created_at),
     m.created_at, (SELECT COUNT(*) FROM media_picks p WHERE p.item_id = m.id),
     m.from_shelf,
     COALESCE((SELECT u.original_name FROM user_uploads u WHERE u.filename = m.upload_filename ORDER BY u.id LIMIT 1), ''),
-    m.kept_by IS NOT NULL";
+    m.kept_by IS NOT NULL,
+    m.licence, m.project_use, m.downloads,
+    m.size_bytes + (SELECT COALESCE(SUM(u.size_bytes), 0) FROM media_item_files f JOIN user_uploads u ON u.filename = f.upload_filename
+                    WHERE f.item_id = m.id) AS total_bytes,
+    1 + (SELECT COUNT(*) FROM media_item_files f WHERE f.item_id = m.id AND f.role = 'file')";
 const ITEM_JOINS: &str = "FROM media_items m
     LEFT JOIN server_members sm ON sm.public_key = m.uploader_key
     LEFT JOIN media_categories c ON c.id = m.category_id";
 
+/// One row of [`ITEM_COLUMNS`], its added files and cover not yet read ([`files::fill_files`]).
 fn item_from_row(r: &rusqlite::Row) -> Result<MediaItem, rusqlite::Error> {
     let labels: String = r.get(9)?;
     Ok(MediaItem {
@@ -554,7 +630,7 @@ fn item_from_row(r: &rusqlite::Row) -> Result<MediaItem, rusqlite::Error> {
         kind: r.get(8)?,
         labels: labels.split(',').filter(|l| !l.is_empty()).map(str::to_string).collect(),
         visibility: r.get(10)?,
-        featured: r.get::<_, i64>(11)? != 0,
+        featured: Featured::from_stored(r.get(11)?),
         size_bytes: r.get(12)?,
         views: r.get(13)?,
         uploaded_at: r.get(14)?,
@@ -563,19 +639,29 @@ fn item_from_row(r: &rusqlite::Row) -> Result<MediaItem, rusqlite::Error> {
         keeps_file: was_public(r.get(17)?),
         original_name: r.get(18)?,
         kept: r.get(19)?,
+        licence: r.get(20)?,
+        project_use: r.get::<_, i64>(21)? != 0,
+        downloads: r.get(22)?,
+        total_bytes: r.get(23)?,
+        file_count: r.get(24)?,
+        files: Vec::new(),
+        cover: None,
     })
 }
 
 fn item_by_id(conn: &Connection, id: i64) -> Result<Option<MediaItem>, rusqlite::Error> {
-    conn.query_row(&format!("SELECT {ITEM_COLUMNS} {ITEM_JOINS} WHERE m.id = ?1"), params![id], item_from_row)
-        .optional()
+    let found = conn.query_row(&format!("SELECT {ITEM_COLUMNS} {ITEM_JOINS} WHERE m.id = ?1"), params![id], item_from_row).optional()?;
+    let mut items: Vec<MediaItem> = found.into_iter().collect();
+    files::fill_files(conn, &mut items)?;
+    Ok(items.pop())
 }
 
 /// Items by an ORDER BY over `media_items m`, `limit` of them, for the prune lists: never an item
 /// the server keeps (A7), which is not for pruning.
 fn items_ordered(conn: &Connection, order: &str, limit: i64) -> Result<Vec<MediaItem>, rusqlite::Error> {
     let mut stmt = conn.prepare(&format!("SELECT {ITEM_COLUMNS} {ITEM_JOINS} WHERE m.kept_by IS NULL ORDER BY {order} LIMIT ?1"))?;
-    let rows = stmt.query_map(params![limit], item_from_row)?.collect::<Result<Vec<_>, _>>()?;
+    let mut rows = stmt.query_map(params![limit], item_from_row)?.collect::<Result<Vec<_>, _>>()?;
+    files::fill_files(conn, &mut rows)?;
     Ok(rows)
 }
 
@@ -655,13 +741,11 @@ impl Storage {
                     "That file is encrypted for a private conversation, so it can never be shown on the Media page.",
                 );
             }
-            let already: bool = tx.query_row(
-                "SELECT EXISTS(SELECT 1 FROM media_items WHERE upload_filename = ?1)",
-                params![p.filename],
-                |r| r.get(0),
-            )?;
-            if already {
-                return refused(Refusal::Conflict, "That upload is already on the Media page.");
+            // An item's own file, or one added to an item (round 5): never published again.
+            match files::holding(&tx, p.filename)? {
+                Some((_, 0)) => return refused(Refusal::Conflict, "That upload is already on the Media page."),
+                Some(_) => return refused(Refusal::Conflict, files::ALREADY_ON_AN_ITEM),
+                None => {}
             }
             let visibility = stored_visibility(p.visibility);
             if visibility == "members" && was_public(shelf) {
@@ -685,9 +769,10 @@ impl Storage {
             if mine + size > share {
                 return refused(Refusal::Full, share_full_words(mine, share, size));
             }
+            let licence = if p.licence.is_empty() { DEFAULT_LICENCE } else { p.licence };
             tx.execute(
-                "INSERT INTO media_items (upload_filename, uploader_key, title, description, category_id, kind, labels, visibility, featured, size_bytes, views, created_at, from_shelf)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 0, ?9, 0, ?10, ?11)",
+                "INSERT INTO media_items (upload_filename, uploader_key, title, description, category_id, kind, labels, visibility, featured, size_bytes, views, created_at, from_shelf, licence, project_use)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 0, ?9, 0, ?10, ?11, ?12, ?13)",
                 params![
                     p.filename,
                     signer,
@@ -699,10 +784,16 @@ impl Storage {
                     visibility,
                     size,
                     now_ms(),
-                    shelf
+                    shelf,
+                    licence,
+                    p.project_use as i64
                 ],
             )?;
             let id = tx.last_insert_rowid();
+            // The choice, with the signature over it (round 5).
+            if let Some(s) = &p.signed {
+                files::log_licence(&tx, id, licence, p.project_use, s)?;
+            }
             // Off the keep-N FIFO; a Shared Files upload stays listed there only while it is
             // public (F3). A row with no size takes the size found on disk (F6).
             tx.execute(
@@ -763,11 +854,20 @@ impl Storage {
         })
     }
 
-    /// The list, newest first: one page of up to [`MEDIA_LIST_MAX`] items older than `before`.
-    /// Members-only items only in the members' view.
+    /// The list in `q.sort`'s order (newest, most picked or most downloaded first; then by number,
+    /// newest first): one page of up to [`MEDIA_LIST_MAX`] items after `q.cursor`. The cursor is a
+    /// (value, item number) pair compared as one, so items with the same count are never skipped
+    /// or listed twice across pages. Members-only items only in the members' view. `featured`
+    /// with no category is the main shelf; with category c, c's shelf: its items featured on the
+    /// main shelf or on c's alone (round 5, 3.1 item 9).
     pub fn list_media(&self, q: &MediaQuery) -> Result<Vec<MediaItem>, rusqlite::Error> {
         let limit = q.limit.unwrap_or(MEDIA_LIST_DEFAULT).clamp(1, MEDIA_LIST_MAX);
         let search = q.q.as_deref().filter(|s| !s.trim().is_empty()).map(like_pattern);
+        let value = q.sort.value_sql();
+        let (after_value, after_id) = match q.cursor {
+            Some((v, id)) => (Some(v), Some(id)),
+            None => (None, None),
+        };
         self.with_read_conn(|conn| {
             let mut stmt = conn.prepare(&format!(
                 "SELECT {ITEM_COLUMNS} {ITEM_JOINS}
@@ -775,19 +875,20 @@ impl Storage {
                    AND (?2 IS NULL OR m.kind = ?2)
                    AND (?3 IS NULL OR m.uploader_key = ?3)
                    AND (?4 IS NULL OR LOWER(m.title) LIKE ?4 ESCAPE '\\' OR LOWER(m.description) LIKE ?4 ESCAPE '\\')
-                   AND (?5 IS NULL OR m.id < ?5)
+                   AND (?5 IS NULL OR ({value}, m.id) < (?5, ?11))
                    AND (?6 = 1 OR m.visibility = 'public')
                    AND (?7 IS NULL OR m.id IN (SELECT item_id FROM media_picks WHERE picker_key = ?7))
-                   AND (?9 = 0 OR m.featured = 1)
+                   AND (?9 = 0 OR m.featured = 1 OR (?1 IS NOT NULL AND m.featured = 2))
                    AND (?10 IS NULL OR m.id = ?10)
-                 ORDER BY m.id DESC LIMIT ?8"
+                 ORDER BY {value} DESC, m.id DESC LIMIT ?8"
             ))?;
-            let rows = stmt
+            let mut rows = stmt
                 .query_map(
-                    params![q.category, q.kind, q.by, search, q.before, q.members as i64, q.picked_by, limit, q.featured as i64, q.id],
+                    params![q.category, q.kind, q.by, search, after_value, q.members as i64, q.picked_by, limit, q.featured as i64, q.id, after_id],
                     item_from_row,
                 )?
                 .collect::<Result<Vec<_>, _>>()?;
+            files::fill_files(conn, &mut rows)?;
             Ok(rows)
         })
     }
@@ -844,9 +945,11 @@ impl Storage {
         self.with_conn(|conn| {
             let owner: Option<String> = conn
                 .query_row(
-                    "SELECT public_key FROM user_uploads
-                     WHERE filename = ?1 AND shared = ?2 AND filename NOT IN (SELECT upload_filename FROM media_items)
-                     ORDER BY id LIMIT 1",
+                    &format!(
+                        "SELECT public_key FROM user_uploads
+                         WHERE filename = ?1 AND shared = ?2 AND {NOT_ON_AN_ITEM}
+                         ORDER BY id LIMIT 1"
+                    ),
                     params![filename, MEDIA_SHELF],
                     |r| r.get(0),
                 )
@@ -869,10 +972,10 @@ impl Storage {
     pub fn expire_unpublished_media_in(&self, folders: Folders, now_ms: i64) -> Result<usize, rusqlite::Error> {
         let names: Vec<String> = self.with_conn(|conn| {
             let names: Vec<String> = {
-                let mut stmt = conn.prepare(
+                let mut stmt = conn.prepare(&format!(
                     "SELECT filename FROM user_uploads
-                     WHERE shared = ?1 AND uploaded_at < ?2 AND filename NOT IN (SELECT upload_filename FROM media_items)",
-                )?;
+                     WHERE shared = ?1 AND uploaded_at < ?2 AND {NOT_ON_AN_ITEM}"
+                ))?;
                 let names = stmt.query_map(params![MEDIA_SHELF, now_ms - UNPUBLISHED_KEEP_MS], |r| r.get(0))?.collect::<Result<Vec<String>, _>>()?;
                 names
             };
@@ -922,11 +1025,11 @@ impl Storage {
         })
     }
 
-    /// Feature item `id` on the page, or take it off the featured row (the route checks the
-    /// admin).
-    pub fn set_media_featured(&self, id: i64, featured: bool) -> Result<(), MediaError> {
+    /// Feature item `id` on the main shelf, on its category's shelf only, or on neither (round 5;
+    /// the route checks the admin).
+    pub fn set_media_featured(&self, id: i64, featured: Featured) -> Result<(), MediaError> {
         self.with_conn(|conn| {
-            let n = conn.execute("UPDATE media_items SET featured = ?1 WHERE id = ?2", params![featured as i64, id])?;
+            let n = conn.execute("UPDATE media_items SET featured = ?1 WHERE id = ?2", params![featured.stored(), id])?;
             if n == 0 {
                 return refused(Refusal::NotFound, "There is no Media item with that number.");
             }
@@ -1154,26 +1257,26 @@ impl Storage {
         self.with_conn(|conn| {
             let used_bytes = media_bytes_on(conn, None, None)?;
             let items: i64 = conn.query_row("SELECT COUNT(*) FROM media_items", [], |r| r.get(0))?;
-            let mut stmt = conn.prepare(
+            let mut stmt = conn.prepare(&format!(
                 "SELECT u.public_key, COALESCE(sm.name, ''), SUM(u.size_bytes),
                         (SELECT COUNT(*) FROM media_items m WHERE m.uploader_key = u.public_key)
                  FROM user_uploads u
                  LEFT JOIN server_members sm ON sm.public_key = u.public_key
                  WHERE (u.shared = ?1 OR u.filename IN (SELECT upload_filename FROM media_items))
-                   AND u.filename NOT IN (SELECT upload_filename FROM media_items WHERE kept_by IS NOT NULL)
-                 GROUP BY u.public_key ORDER BY SUM(u.size_bytes) DESC, u.public_key ASC",
-            )?;
+                   AND u.filename NOT IN {KEPT_FILES}
+                 GROUP BY u.public_key ORDER BY SUM(u.size_bytes) DESC, u.public_key ASC"
+            ))?;
             let people = stmt
                 .query_map(params![MEDIA_SHELF], |r| Ok(PersonUse { key: r.get(0)?, name: r.get(1)?, bytes: r.get(2)?, items: r.get(3)? }))?
                 .collect::<Result<Vec<_>, _>>()?;
-            // Waiting to be published (F1): on the Media shelf, no item, oldest first.
-            let mut stmt = conn.prepare(
+            // Waiting to be published (F1): on the Media shelf, on no item, oldest first.
+            let mut stmt = conn.prepare(&format!(
                 "SELECT u.filename, u.public_key, COALESCE(sm.name, ''), u.size_bytes, u.uploaded_at
                  FROM user_uploads u
                  LEFT JOIN server_members sm ON sm.public_key = u.public_key
-                 WHERE u.shared = ?1 AND u.filename NOT IN (SELECT upload_filename FROM media_items)
-                 ORDER BY u.uploaded_at ASC, u.id ASC LIMIT 500",
-            )?;
+                 WHERE u.shared = ?1 AND {NOT_ON_AN_ITEM}
+                 ORDER BY u.uploaded_at ASC, u.id ASC LIMIT 500"
+            ))?;
             let waiting = stmt
                 .query_map(params![MEDIA_SHELF], |r| {
                     let uploaded_at: i64 = r.get(4)?;
@@ -1191,13 +1294,12 @@ impl Storage {
                 used_bytes,
                 items,
                 people,
-                largest: items_ordered(conn, "m.size_bytes DESC, m.id ASC", USAGE_LIST_LEN)?,
+                largest: items_ordered(conn, "total_bytes DESC, m.id ASC", USAGE_LIST_LEN)?,
                 oldest: items_ordered(conn, "m.created_at ASC, m.id ASC", USAGE_LIST_LEN)?,
                 least_viewed: items_ordered(conn, "m.views ASC, m.created_at ASC, m.id ASC", USAGE_LIST_LEN)?,
                 waiting,
                 kept_bytes: conn.query_row(
-                    "SELECT COALESCE(SUM(size_bytes), 0) FROM user_uploads
-                     WHERE filename IN (SELECT upload_filename FROM media_items WHERE kept_by IS NOT NULL)",
+                    &format!("SELECT COALESCE(SUM(size_bytes), 0) FROM user_uploads WHERE filename IN {KEPT_FILES}"),
                     [],
                     |r| r.get(0),
                 )?,
@@ -1211,6 +1313,15 @@ impl Storage {
 #[path = "media_extra.rs"]
 mod extra;
 pub use extra::MyWaitingUpload;
+
+// Round 5's storage (2026-10-12, docs/design/media-round-5-plan.md 3.1): an item's other files
+// and its cover, the licence and its log, the three-way featured, the sorts, the counters.
+#[path = "media_files.rs"]
+mod files;
+pub use files::{
+    cursor_text, parse_cursor, Attached, Edit, Featured, ItemFile, LicenceChoice, Signed, Sort, ALREADY_ON_AN_ITEM, ITEM_FILES_MAX, OUT_OF_DATE,
+    ROLE_COVER, ROLE_FILE,
+};
 
 #[cfg(test)]
 #[path = "media_tests.rs"]

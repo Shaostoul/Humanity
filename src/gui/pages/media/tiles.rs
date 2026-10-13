@@ -1,5 +1,5 @@
-//! The Media page's grid: the filters above it, each tile (what it shows, and its actions), and
-//! the Remove confirmation.
+//! The Media page's grid: each tile (what it shows, and its actions), and the Remove confirmation.
+//! The filters above it are media/filters.rs (moved out in Media round 5).
 //!
 //! WHAT A TILE SHOWS ([`show_of`]), in order, the first that applies:
 //! 1. Hidden: the protected setup leaves it out, either because it is from someone who is not a
@@ -138,47 +138,6 @@ pub(crate) fn request_picture(state: &mut GuiState, item: &Item) {
     }
 }
 
-/// The filters row: category, kind, person, My picks, and the search box.
-pub(crate) fn draw_filters(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    let before = state.media.filters.clone();
-    let signed_in = signed_in_here(state);
-    ui.horizontal_wrapped(|ui| {
-        let m = &mut state.media;
-        let cat_name = m.filters.category.and_then(|c| m.list.categories.iter().find(|x| x.id == c)).map(|c| c.name.clone()).unwrap_or_else(|| "All categories".into());
-        egui::ComboBox::from_id_salt("media_category").selected_text(cat_name).show_ui(ui, |ui| {
-            ui.selectable_value(&mut m.filters.category, None, "All categories");
-            for c in &m.list.categories {
-                ui.selectable_value(&mut m.filters.category, Some(c.id), &c.name);
-            }
-        });
-        let kind_name = m.filters.kind.as_deref().and_then(kinds::kind).map(|k| k.label.clone()).unwrap_or_else(|| "All kinds".into());
-        egui::ComboBox::from_id_salt("media_kind").selected_text(kind_name).show_ui(ui, |ui| {
-            ui.selectable_value(&mut m.filters.kind, None, "All kinds");
-            for k in kinds::kinds() {
-                ui.selectable_value(&mut m.filters.kind, Some(k.id.clone()), &k.label);
-            }
-        });
-        let person = m.filters.by.as_ref().and_then(|k| m.people.iter().find(|(key, _)| key == k)).map(|(_, n)| n.clone()).unwrap_or_else(|| "Everyone".into());
-        egui::ComboBox::from_id_salt("media_person").selected_text(person).show_ui(ui, |ui| {
-            ui.selectable_value(&mut m.filters.by, None, "Everyone");
-            for (key, name) in &m.people {
-                ui.selectable_value(&mut m.filters.by, Some(key.clone()), name);
-            }
-        });
-        if signed_in {
-            ui.checkbox(&mut m.filters.my_picks, "My picks").on_hover_text("Only the items you picked.");
-        }
-        let resp = ui.add(egui::TextEdit::singleline(&mut m.search).hint_text("Search titles").desired_width(180.0));
-        let enter = resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
-        if enter || widgets::Button::secondary("Search").show(ui, theme) {
-            m.filters.q = m.search.trim().to_string();
-        }
-    });
-    if state.media.filters != before {
-        super::reload_list(state);
-    }
-}
-
 /// The grid of `items`, as many to a row as fit.
 pub(crate) fn draw_grid(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, items: &[Item]) {
     let gap = theme.spacing_md;
@@ -203,7 +162,7 @@ pub(crate) fn draw_tile(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, 
     }
     egui::Frame::none()
         .fill(theme.bg_card())
-        .stroke(Stroke::new(1.0, if item.featured { theme.accent() } else { theme.border() }))
+        .stroke(Stroke::new(1.0, if item.featured.is_on() { theme.accent() } else { theme.border() }))
         .rounding(Rounding::same(theme.border_radius as u8))
         .inner_margin(theme.spacing_sm)
         .show(ui, |ui| {
@@ -217,7 +176,7 @@ pub(crate) fn draw_tile(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, 
                     let picks = if item.picks == 1 { "1 pick".to_string() } else { format!("{} picks", item.picks) };
                     ui.label(RichText::new(picks).size(theme.font_size_small).color(theme.text_muted()));
                     ui.label(RichText::new(api::size_words(item.size_bytes)).size(theme.font_size_small).color(theme.text_muted()));
-                    if item.featured {
+                    if item.featured.is_on() {
                         ui.label(RichText::new("Featured").size(theme.font_size_small).color(theme.accent()));
                     }
                     if item.kept {
@@ -375,10 +334,13 @@ fn draw_actions(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, item: &I
             state.media.confirm_remove = Some(item.clone());
         }
         if admin {
-            let label = if item.featured { "Unfeature" } else { "Feature" };
+            // Feature puts it on the main shelf, Unfeature takes it off any (round 5's three
+            // choices are lane 1D's).
+            let to = if item.featured.is_on() { api::Featured::None } else { api::Featured::Main };
+            let label = if item.featured.is_on() { "Unfeature" } else { "Feature" };
             if widgets::Button::secondary(label).size(small).tooltip("Featured items lead the Media page.").show(ui, theme) {
                 if let (Some(r), Some(signer)) = (reference_or_say(state, item), signer_or_say(state)) {
-                    spawn(state, Job::Feature { id: item.id, on: !item.featured }, api::feature_request(&signer, &r, !item.featured));
+                    spawn(state, Job::Feature { id: item.id, to }, api::feature_request(&signer, &r, to));
                 }
             }
         }

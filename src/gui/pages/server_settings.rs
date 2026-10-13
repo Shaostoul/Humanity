@@ -37,9 +37,6 @@ pub(crate) mod reports;
 pub(crate) mod admin_erase;
 use crate::net::admin_erase as admin_erase_rules;
 
-/// The Media page's admin section (docs/design/media-showcase.md, increment 2, 2026-10-11).
-pub(crate) mod media;
-
 /// Each role's upload limits, under the roles table (the Media follow-ups B1 to B5, 2026-10-11).
 pub(crate) mod role_limits;
 
@@ -1075,7 +1072,8 @@ fn draw_admin_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         ui.add_space(theme.spacing_sm);
 
         // ── Media (2026-10-11): who sees it, its space, categories, suggestions, the meter ──
-        media::draw_admin(ui, theme, state);
+        // (pages/media/admin.rs since Media round 5, 2026-10-12, which moves it to the Media page)
+        crate::gui::pages::media::admin::draw_admin(ui, theme, state);
 
         ui.add_space(theme.spacing_md);
         ui.separator();
@@ -2342,7 +2340,7 @@ const CHANGED_UNDERNEATH_NOTE: &str = "This server's settings changed while you 
     Saving sends your whole copy and would undo that change; Revert to server state shows the new settings.";
 
 /// `CHANGED_UNDERNEATH_NOTE` above a section's Save button, while it has unsaved edits.
-fn draw_changed_underneath_note(ui: &mut egui::Ui, theme: &Theme, state: &GuiState, dirty: bool) {
+pub(crate) fn draw_changed_underneath_note(ui: &mut egui::Ui, theme: &Theme, state: &GuiState, dirty: bool) {
     if dirty && state.server_settings_changed_underneath {
         ui.label(RichText::new(CHANGED_UNDERNEATH_NOTE).size(theme.font_size_small).color(theme.warning()));
     }
@@ -2850,7 +2848,7 @@ fn send_service_control(state: &GuiState, service: &str, action: &str) {
 /// payloads can never silently drift apart. Sets `server_settings_status`
 /// (different `state` field than `ws_client`, so the disjoint borrow is
 /// fine — same pattern the call sites used inline before extraction).
-fn send_server_settings_update(
+pub(crate) fn send_server_settings_update(
     state: &mut GuiState,
     draft: &crate::relay::storage::ServerSettings,
 ) {
@@ -2865,7 +2863,7 @@ fn send_server_settings_update(
 }
 
 /// The `server_settings_update` frame for `draft`: every setting the Save buttons send, the
-/// Media section's four included (server_settings/media.rs).
+/// Media section's four included (pages/media/admin.rs).
 pub(crate) fn settings_update_frame(draft: &crate::relay::storage::ServerSettings) -> serde_json::Value {
     serde_json::json!({
         "type": "server_settings_update",
@@ -2909,7 +2907,7 @@ pub(crate) fn settings_update_frame(draft: &crate::relay::storage::ServerSetting
         // Guaranteed local-only room toggle (v0.1132).
         "local_channel_enabled":           draft.local_channel_enabled,
         // The Media page (2026-10-11): who sees it, its space, each person's share, and
-        // whether the public gets previews only (server_settings/media.rs).
+        // whether the public gets previews only (pages/media/admin.rs).
         "media_visibility":                draft.media_visibility,
         "media_budget_mb":                 draft.media_budget_mb,
         "media_per_person_mb":             draft.media_per_person_mb,
@@ -2945,7 +2943,7 @@ fn parse_role_color_ss(hex: &str, theme: &Theme) -> Color32 {
 }
 
 /// Compact int input with min/max bounds. Used for char-limit + upload-MB rows.
-fn int_input(ui: &mut egui::Ui, value: &mut i64, min: i64, max: i64) {
+pub(crate) fn int_input(ui: &mut egui::Ui, value: &mut i64, min: i64, max: i64) {
     let mut text = value.to_string();
     let resp = ui.add(
         egui::TextEdit::singleline(&mut text)

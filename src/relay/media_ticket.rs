@@ -10,15 +10,19 @@
 //! nothing about the session.
 //!
 //! THE ROUTE. `POST /api/media/ticket` with the session's upload token in `X-Upload-Token` (never
-//! in an address) and the body `{id, filename}`: the item's number and its stored file name, as
-//! every write names an item (W5, media.rs `same_item`). For a member who is not banned it answers
-//! `{url: "/api/media/file/<id>?ticket=<ticket>", expires_in_s: 600}`, and the file route then
-//! serves that one item's file for that ticket, range requests included, until it runs out.
+//! in an address) and the body `{id, filename, file, download}`: the item's number and its own
+//! stored file name, as every write names an item (W5, media.rs `same_item`), which of its files
+//! (round 5, 2026-10-12: 0, the default, is the item's own; any other an added file's or the
+//! cover's number), and whether the address is the counted download route. For a member who is not
+//! banned it answers `{url: "/api/media/file/<id>?file=<n>&ticket=<ticket>", expires_in_s: 600}`
+//! (or `/api/media/download/...` with `download`), and the route then serves that one file for that
+//! ticket, range requests included, until it runs out.
 //!
 //! A TICKET is 32 random bytes in hex (256 bits, from the operating system's random source), bound
-//! to the item's number, the item's file name and the member it was given to. It is refused after
-//! ten minutes, for any other item, when the item's file is no longer that file, and once that
-//! person is no longer a member or is banned. Kept in memory only (`RelayState::media_tickets`): a
+//! to the item's number, the stored name of the one file it opens and the member it was given to.
+//! It is refused after ten minutes, for any other item or file, when that file is no longer the
+//! one it was given for, and once that person is no longer a member or is banned. Kept in memory
+//! only (`RelayState::media_tickets`): a
 //! restart ends every ticket, which only means an app asks for a new one.
 //!
 //! THE POOL (R4-1, 2026-10-11). One person holds at most [`TICKETS_PER_PERSON`] at once. The relay
@@ -39,7 +43,7 @@ use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use crate::relay::media::{header_token, is_member, same_item, stored_name};
+use crate::relay::media::{header_token, is_member, same_item};
 use crate::relay::relay::RelayState;
 use crate::relay::storage::media::MediaItem;
 
@@ -206,11 +210,13 @@ const _: fn() = || {
 /// learns nothing.
 pub const TICKET_REFUSED: &str = "That link to a members-only file has run out (links last ten minutes) or is not for this file. Open the file again from the Media page.";
 
-/// The item `ticket` opens at `now`, if it does: live, given for item `id`, that item's file still
-/// the one it was given for, and the person it was given to still a member who is not banned. The
-/// ticket holds no key (R4-1): the person is found by their member row, and the key there must have
-/// the ticket's fingerprint, so a row number given to someone else later never inherits a ticket.
-pub fn admitted(state: &RelayState, ticket: &str, id: i64, now: Instant) -> Result<MediaItem, Refused> {
+/// The item `ticket` opens at `now` as its file `file`, if it does: live, given for item `id`,
+/// that file's stored name still the one the ticket was given for (round 5: a ticket opens the one
+/// file it was given for, the item's own or an added one), and the person it was given to still a
+/// member who is not banned. The ticket holds no key (R4-1): the person is found by their member
+/// row, and the key there must have the ticket's fingerprint, so a row number given to someone else
+/// later never inherits a ticket.
+pub fn admitted(state: &RelayState, ticket: &str, id: i64, file: i64, now: Instant) -> Result<MediaItem, Refused> {
     let refused = || (StatusCode::FORBIDDEN, TICKET_REFUSED.to_string());
     let t = state.media_tickets.lookup(ticket, id, now).ok_or_else(refused)?;
     let key = state.db.member_key_at_row(t.member_row).ok_or_else(refused)?;
@@ -222,18 +228,24 @@ pub fn admitted(state: &RelayState, ticket: &str, id: i64, now: Instant) -> Resu
         .media_item(id)
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("storage: {e}")))?
         .ok_or_else(refused)?;
-    if print("file", &item.upload_filename) != t.file {
-        return Err(refused());
+    match item.file_name(file) {
+        Some(name) if print("file", name) == t.file => Ok(item),
+        _ => Err(refused()),
     }
-    Ok(item)
 }
 
-/// `POST /api/media/ticket`'s body: the item's number and its stored file name (W5).
+/// `POST /api/media/ticket`'s body: the item's number and its own stored file name (W5), which of
+/// its files the ticket opens (round 5; 0, the item's own, when left out), and whether the address
+/// is the counted download route instead of the members' file route.
 #[derive(Debug, Default, Deserialize)]
 pub struct TicketBody {
     pub id: i64,
     #[serde(default)]
     pub filename: String,
+    #[serde(default)]
+    pub file: i64,
+    #[serde(default)]
+    pub download: bool,
 }
 
 pub async fn ticket(State(state): State<Arc<RelayState>>, headers: HeaderMap, Json(b): Json<TicketBody>) -> Result<Json<Value>, Refused> {
@@ -247,18 +259,29 @@ pub async fn ticket(State(state): State<Arc<RelayState>>, headers: HeaderMap, Js
         .get(&token)
         .cloned()
         .ok_or_else(|| (StatusCode::FORBIDDEN, "That upload token is not a session signed in to this server.".to_string()))?;
-    ticket_core(&state, &key, b.id, &b.filename, Instant::now())
+    ticket_core(&state, &key, &b, Instant::now())
 }
 
-/// A ticket for `key` to open item `id` (whose file `filename` must name, W5), given at `now`: only
-/// to a member of this server who is not banned, the one rule for opening members-only files.
-pub fn ticket_core(state: &RelayState, key: &str, id: i64, filename: &str, now: Instant) -> Result<Json<Value>, Refused> {
+/// A ticket for `key` to open file `b.file` of item `b.id` (whose own file `b.filename` must name,
+/// W5), given at `now`: only to a member of this server who is not banned, the one rule for opening
+/// members-only files. The ticket is bound to that one file's stored name. Its address is the
+/// members' file route, `/api/media/file/<id>?file=<n>&ticket=...`, or with `download` the counted
+/// download route, `/api/media/download/<id>?file=<n>&ticket=...` (round 5).
+pub fn ticket_core(state: &RelayState, key: &str, b: &TicketBody, now: Instant) -> Result<Json<Value>, Refused> {
     let not_member = || (StatusCode::FORBIDDEN, "Only members of this server who are not banned can open members-only Media files.".to_string());
     if !is_member(&state.db, key) {
         return Err(not_member());
     }
     let member_row = state.db.member_row(key).ok_or_else(not_member)?;
-    same_item(&state.db, id, filename)?;
-    let ticket = state.media_tickets.issue(key, member_row, id, stored_name(filename)?, now)?;
-    Ok(Json(json!({ "url": format!("/api/media/file/{id}?ticket={ticket}"), "expires_in_s": TICKET_LIFE.as_secs() })))
+    let id = b.id;
+    same_item(&state.db, id, &b.filename)?;
+    let item = state
+        .db
+        .media_item(id)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("storage: {e}")))?
+        .ok_or_else(|| (StatusCode::NOT_FOUND, "There is no Media item with that number.".to_string()))?;
+    let name = item.file_name(b.file).ok_or_else(|| (StatusCode::NOT_FOUND, "That Media item has no file with that number.".to_string()))?;
+    let ticket = state.media_tickets.issue(key, member_row, id, name, now)?;
+    let route = if b.download { "download" } else { "file" };
+    Ok(Json(json!({ "url": format!("/api/media/{route}/{id}?file={}&ticket={ticket}", b.file), "expires_in_s": TICKET_LIFE.as_secs() })))
 }

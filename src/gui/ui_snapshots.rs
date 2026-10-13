@@ -373,7 +373,7 @@ fn demo_state() -> GuiState {
 
 /// Render one settings-style page into an offscreen `w`x`h` surface and write
 /// `tests/snapshots/<name>.png`.
-fn render_page_png(name: &str, w: u32, h: u32, frame: impl Fn(&egui::Context, &mut Theme, &mut GuiState)) {
+pub(crate) fn render_page_png(name: &str, w: u32, h: u32, frame: impl Fn(&egui::Context, &mut Theme, &mut GuiState)) {
     pollster::block_on(async move {
         // ── wgpu device (offscreen) ──
         let instance = wgpu::Instance::default();
@@ -1793,13 +1793,13 @@ fn snapshot_media() {
     });
 }
 
-/// Server Settings > ADMIN > Media (2026-10-11, pages/server_settings/media.rs): who sees the
+/// Server Settings > ADMIN > Media (2026-10-11, pages/media/admin.rs since Media round 5): who sees the
 /// page with the relay's line under it, the space and the share, the categories (General stays),
 /// a suggestion, and the meter with its prune lists.
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
 fn snapshot_media_settings() {
-    use crate::gui::pages::server_settings::media::{self as admin, tests as fixture};
+    use crate::gui::pages::media::admin::{self as admin, tests as fixture};
     render_page_png("media_settings", 1100, 1000, |ctx, theme, state| {
         if state.media.server.is_empty() {
             *state = fixture::admin_state();

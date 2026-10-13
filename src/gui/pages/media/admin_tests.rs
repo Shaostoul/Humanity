@@ -1,5 +1,6 @@
-//! Headless tests of Server Settings > ADMIN > Media (media.rs). Each was seen to fail once before
-//! it passed; what it saw red is in its comment.
+//! Headless tests of Server Settings > ADMIN > Media (media/admin.rs; moved with it from
+//! server_settings/media_tests.rs, unchanged but for that path, Media round 5). Each was seen to
+//! fail once before it passed; what it saw red is in its comment.
 
 use super::*;
 use crate::gui::screen_surface::find_text_in_shapes;
@@ -117,7 +118,7 @@ fn the_save_carries_the_media_settings() {
     d.media_budget_mb = 4096;
     d.media_per_person_mb = 64;
     d.media_public_previews_only = false;
-    let f = super::super::settings_update_frame(&d);
+    let f = crate::gui::pages::server_settings::settings_update_frame(&d);
     assert_eq!(f["type"], "server_settings_update");
     assert_eq!(f["media_visibility"], "members");
     assert_eq!(f["media_budget_mb"], 4096);

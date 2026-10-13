@@ -447,7 +447,8 @@ fn cancel_session(db: &Storage, folders: Folders, s: &UploadSession) -> Result<V
         db.delete_upload_session(&s.id).map_err(db_err)?;
         return Ok(json!({ "ok": true, "removed_stored": true }));
     };
-    if db.media_item_for_upload(&name).map_err(db_err)?.is_some() {
+    // On an item, as its own file or as an added file or cover (Media round 5): it stays.
+    if db.media_item_holding(&name).map_err(db_err)?.is_some() {
         db.delete_upload_session(&s.id).map_err(db_err)?;
         return Ok(json!({ "ok": true, "published": true }));
     }

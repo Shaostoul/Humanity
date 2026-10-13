@@ -339,6 +339,8 @@ pub(crate) fn fields_of(form: &Form, filename: &str, categories: &[Category], me
         category_id: shown_category(form, categories).0,
         labels: form.labels.iter().cloned().collect(),
         visibility: visibility.to_string(),
+        // The licence and the game tick (Media round 5): the defaults until the form offers them.
+        ..Default::default()
     }
 }
 

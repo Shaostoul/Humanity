@@ -31,7 +31,7 @@
 //! its answer is read on a later frame ([`poll`]), the way the Files and Watch pages do theirs.
 //! [`poll_upload`] runs every frame whatever page is open (src/lib.rs), so an upload and its
 //! publish carry on while the person is elsewhere. The admins' half (the Media section of Server
-//! Settings, server_settings/media.rs) uses the same jobs.
+//! Settings, media/admin.rs, which round 5 shows on this page as its Admin tab) uses the same jobs.
 
 use std::sync::mpsc::Receiver;
 
@@ -44,6 +44,10 @@ use crate::gui::{GuiPage, GuiState};
 
 /// The requests and the server's answers.
 pub(crate) mod api;
+/// Media round 5's requests and answers: an item's files, the licences, the order, the edit.
+pub(crate) mod api_items;
+/// An item's own page: where the answers for it land (its window is round 5's lane 1D).
+pub(crate) mod item_view;
 /// The kinds of item, from data/media/kinds.json.
 pub(crate) mod kinds;
 /// Add to Media's upload, in pieces (and kept in the config when a restart cuts it off).
@@ -66,6 +70,11 @@ mod publishing;
 mod waiting;
 /// An opened item: a video playing, a model's or file's card with Download.
 pub(crate) mod open;
+/// The admins' section (moved from Server Settings, Media round 5): the settings, the categories,
+/// the suggestions and the meter.
+pub(crate) mod admin;
+/// The filters row (moved from tiles.rs, Media round 5).
+mod filters;
 /// Tickets: a members-only file watched or downloaded without a token in any address (R3-8).
 pub(crate) mod ticket;
 
@@ -88,7 +97,8 @@ pub(crate) enum Job {
     Publish { of: add::Of, filename: String, who: u64 },
     Remove { id: Option<i64>, from_admin: bool },
     Pick { id: i64, on: bool },
-    Feature { id: i64, on: bool },
+    /// Featured on the main shelf, its category's only, or neither (round 5).
+    Feature { id: i64, to: api::Featured },
     Keep { id: i64, on: bool, from_admin: bool },
     Suggest,
     /// The server's upload `id` cancelled (an upload in the list whose file is up, a record's, or
@@ -102,12 +112,22 @@ pub(crate) enum Job {
     Suggestions,
     Decide,
     Usage,
+    /// Round 5 (item_view.rs `on_answer`): one item read for its own page, an edit, a file added
+    /// or taken off (each answers the item as it now is), and a view counted.
+    Item { id: i64 },
+    Edit { id: i64 },
+    FileAdd { id: i64 },
+    FileRemove { id: i64, file: i64 },
+    Viewed { id: i64 },
 }
 
 impl Job {
     /// An action on one item, which the relay answers 409 when the tile was out of date (W5).
     fn acts_on_item(&self) -> bool {
-        matches!(self, Job::Remove { id: Some(_), .. } | Job::Pick { .. } | Job::Feature { .. } | Job::Keep { .. })
+        matches!(
+            self,
+            Job::Remove { id: Some(_), .. } | Job::Pick { .. } | Job::Feature { .. } | Job::Keep { .. } | Job::Edit { .. } | Job::FileAdd { .. } | Job::FileRemove { .. }
+        )
     }
 
     fn from_admin(&self) -> bool {
@@ -135,10 +155,23 @@ pub struct MediaAdmin {
     pub status: String,
 }
 
+/// The Media page's tabs (round 5): the list, and for admins the section that was in Server
+/// Settings (media/admin.rs).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum MediaTab {
+    #[default]
+    Media,
+    Admin,
+}
+
 /// The Media page's state, kept in `GuiState::media`. It belongs to one server and one person:
 /// when either changes, all of it is forgotten ([`sync_server`]) but `unfinished`.
 #[derive(Default)]
 pub struct MediaState {
+    /// Which tab is shown (round 5).
+    pub tab: MediaTab,
+    /// An item's own page, while one is open (round 5, item_view.rs).
+    pub item: Option<item_view::ItemPage>,
     /// The server (normalised address) this state is for.
     pub server: String,
     /// The identity (public key) this state is for.
@@ -400,8 +433,8 @@ pub(crate) fn on_done(state: &mut GuiState, job: Job, result: Result<Value, Refu
                 }
                 state.media.featured.extend(answer.items);
                 // Every featured item, page by page (a strip of more than 480 shows the first 480).
-                if let (Some(before), true) = (answer.next_before, pages < 10) {
-                    featured_page(state, Some(before), pages + 1);
+                if let (Some(cursor), true) = (answer.next_cursor, pages < 10) {
+                    featured_page(state, Some(&cursor), pages + 1);
                 }
             }
         }
@@ -444,9 +477,9 @@ pub(crate) fn on_done(state: &mut GuiState, job: Job, result: Result<Value, Refu
                 }
             }
         }
-        (Job::Feature { id, on }, Ok(_)) => {
+        (Job::Feature { id, to }, Ok(_)) => {
             for item in state.media.list.items.iter_mut().filter(|i| i.id == id) {
-                item.featured = on;
+                item.featured = to;
             }
             reload_featured(state);
         }
@@ -503,6 +536,9 @@ pub(crate) fn on_done(state: &mut GuiState, job: Job, result: Result<Value, Refu
         (Job::AdminCategories | Job::SaveCategories | Job::Suggestions | Job::Decide | Job::Usage, Err(e)) => {
             state.media.admin.status = e.words;
         }
+        (job @ (Job::Item { .. } | Job::Edit { .. } | Job::FileAdd { .. } | Job::FileRemove { .. } | Job::Viewed { .. }), result) => {
+            item_view::on_answer(state, job, result)
+        }
     }
 }
 
@@ -512,7 +548,7 @@ pub(crate) const SUGGESTION_SENT: &str = "Your suggestion went to this server's 
 /// Put a list answer in place: the first page replaces, More appends.
 pub(crate) fn apply_list(m: &mut MediaState, answer: ListAnswer, append: bool) {
     m.answered = true;
-    let ListAnswer { items, next_before, members_view, media_visibility, members_only_for_you, categories, labels } = answer;
+    let ListAnswer { items, next_cursor, members_view, media_visibility, members_only_for_you, categories, labels, licences } = answer;
     for i in &items {
         if !i.uploader_key.is_empty() && !m.people.iter().any(|(k, _)| k == &i.uploader_key) {
             m.people.push((i.uploader_key.clone(), i.by_name().to_string()));
@@ -523,7 +559,8 @@ pub(crate) fn apply_list(m: &mut MediaState, answer: ListAnswer, append: bool) {
     } else {
         m.list.items = items;
     }
-    m.list.next_before = next_before;
+    m.list.next_cursor = next_cursor;
+    m.list.licences = licences;
     m.list.members_view = members_view;
     m.list.media_visibility = media_visibility;
     m.list.members_only_for_you = members_only_for_you;
@@ -565,9 +602,9 @@ pub(crate) fn reload_featured(state: &mut GuiState) {
     featured_page(state, None, 1);
 }
 
-fn featured_page(state: &mut GuiState, before: Option<i64>, pages: u32) {
+fn featured_page(state: &mut GuiState, cursor: Option<&str>, pages: u32) {
     let f = Filters { featured: true, ..Default::default() };
-    let req = api::list_request(&f, before, api::PAGE, &state.profile_public_key, signer_here(state).as_ref());
+    let req = api::list_request(&f, cursor, api::PAGE, &state.profile_public_key, signer_here(state).as_ref());
     let generation = state.media.featured_generation;
     spawn(state, Job::Featured { generation, pages }, req);
 }
@@ -584,8 +621,8 @@ pub(crate) fn refresh_mine(state: &mut GuiState) {
 
 /// Ask for the next page.
 fn more(state: &mut GuiState) {
-    let Some(before) = state.media.list.next_before else { return };
-    let req = api::list_request(&state.media.filters, Some(before), api::PAGE, &state.profile_public_key, signer_here(state).as_ref());
+    let Some(cursor) = state.media.list.next_cursor.clone() else { return };
+    let req = api::list_request(&state.media.filters, Some(&cursor), api::PAGE, &state.profile_public_key, signer_here(state).as_ref());
     let generation = state.media.generation;
     spawn(state, Job::List { append: true, generation }, req);
 }
@@ -729,7 +766,7 @@ pub(crate) fn draw_body(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
             });
             ui.add_space(theme.spacing_md);
         }
-        tiles::draw_filters(ui, theme, state);
+        filters::draw_filters(ui, theme, state);
     }
     ui.add_space(theme.spacing_sm);
 
@@ -748,7 +785,7 @@ pub(crate) fn draw_body(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
     } else {
         tiles::draw_grid(ui, theme, state, &items);
     }
-    if state.media.list.next_before.is_some() {
+    if state.media.list.next_cursor.is_some() {
         ui.add_space(theme.spacing_sm);
         let loading = state.media.jobs.iter().any(|(j, _)| matches!(j, Job::List { append: true, .. }));
         if loading {

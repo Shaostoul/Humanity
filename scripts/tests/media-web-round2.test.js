@@ -41,6 +41,8 @@
 //     empty piece, an answer lost on the way (`done`), carrying on after a reload, storage that
 //     refuses.
 //  O. A long category name does not widen the filters past a phone's width.
+//  P. Media round 5's contract (2026-10-12), from the shared fixture the relay makes: the publish
+//     and feature purposes, `featured` as "main", "category" or "none", and `next_cursor`.
 //
 // Seen red, 2026-10-11: each with one break made in a fresh copy of web/ (pages, shared, chat)
 // under HOS_WEB_DIR, pq-relay-auth.js and chat-reports.js included, then green again on the real
@@ -171,7 +173,7 @@ test("B. a write names the item's file; a page out of date is loaded again; an u
     [at("/api/media/pick", "POST"), () => (stale
       ? respond(409, "That is not the Media item you were looking at: the page is out of date. Load it again.")
       : respond(200, { ok: true, id: 5, picked: true, picks: 1 }))],
-    [at("/api/media/feature", "POST"), (c) => respond(200, { ok: true, id: c.body.id, featured: true })],
+    [at("/api/media/feature", "POST"), (c) => respond(200, { ok: true, id: c.body.id, featured: c.body.featured })],
   ]) });
   const listsBefore = net.calls.filter((c) => c.url === "/api/media/list").length;
   tileOf(doc, 5).querySelector('[data-action="pick"]').click();
@@ -256,7 +258,7 @@ test("C2. Publish on an upload that waits opens the form and publishes that file
   await settle();
   const pub = net.calls.find((c) => c.url === "/api/media" && c.init.method === "POST");
   assert.equal(pub.body.filename, "1760_w.mp4", "published under its stored name");
-  assert.equal(pub.body.sig, "sig:media_publish:1760_w.mp4");
+  assert.equal(pub.body.sig, "sig:media_publish:1760_w.mp4:all_rights_reserved:0", "round 5: with the licence and the game tick");
   assert.ok(net.calls.filter((c) => c.url === "/api/media/mine").length > n0, "the share is asked for again after a publish");
 });
 
@@ -361,7 +363,7 @@ test("E. a playing video is not drawn again when the session changes or the list
 // Seen red 2026-10-11 with renderFeatured filtering the loaded items again: "a featured item not
 // on the loaded page is in the strip".
 test("F. the featured strip shows every featured item, asked for with featured=1", async () => {
-  const far = item({ id: 99, title: "From long ago", featured: true, url: "/uploads/99_old.png" });
+  const far = item({ id: 99, title: "From long ago", featured: "main", url: "/uploads/99_old.png" });
   const { doc, net } = await openPage({ routes: listRoutes(listAnswer([item({ id: 5 })]), [
     [(c) => c.url === "/api/media/list" && c.body.featured === 1, () => respond(200, listAnswer([far]))],
   ]) });
@@ -945,4 +947,48 @@ test("O. a long category name cannot widen the filters past a phone's width", ()
   const css = fs.readFileSync(path.join(WEB, "shared", "media.css"), "utf8");
   const rules = [...css.matchAll(/([^{}]*\.media-select[^{}]*)\{([^}]*)\}/g)].map((m) => m[2]).join(";");
   assert.ok(/max-width:\s*100%/.test(rules), "a select is held to the width it has");
+});
+
+// ── P. Round 5's contract (2026-10-12) ───────────────────────────────────
+
+// docs/design/media-round-5-plan.md, Wave 0: the page reads round 5's shapes from the shared
+// fixture the relay makes (scripts/tests/fixtures/media-round5-v1.json, held to the relay's own
+// code by its the_shared_fixture_is_what_the_relay_makes): the publish purpose carries the licence
+// and the game tick, the feature purpose where it goes, `featured` is a word, and the list pages by
+// the answer's `next_cursor`.
+//
+// Seen red 2026-10-12 in a copy of web/ whose purposes.publish was the old one
+// ("media_publish:" + filename): "the publish purpose is the relay's / actual:
+// 'media_publish:1760_x.png' / expected: 'media_publish:1760_x.png:cc_by_4:1'".
+test("P. round 5: the purposes, `featured` as a word and `next_cursor`, as the relay makes them", async () => {
+  const FX = JSON.parse(fs.readFileSync(path.join(ROOT, "scripts", "tests", "fixtures", "media-round5-v1.json"), "utf8"));
+  const p = FX.purposes;
+  assert.equal(media.purposes.publish("1760_x.png", "cc_by_4", true), p.publish, "the publish purpose is the relay's");
+  assert.equal(media.purposes.publish("1763_z.glb"), p.publish_default, "with the default licence and no game tick");
+  assert.equal(media.purposes.feature(1, "main"), p.feature_main);
+  assert.equal(media.purposes.feature(1, "category"), p.feature_category);
+  assert.equal(media.purposes.feature(1, "none"), p.feature_none);
+  assert.deepEqual(media.listParams({ sort: "downloads" }, FX.list_by_downloads.next_cursor, 1), Object.assign({ cursor: "3.1" }, FX.list_request));
+  assert.equal(media.listParams({ sort: "new" }, null, 5).sort, undefined, "newest first is the relay's default, not sent");
+  assert.ok(media.isFeatured(FX.item_members_view), "\"category\" is on a shelf");
+  assert.ok(!media.isFeatured(Object.assign({}, FX.item_members_view, { featured: "none" })));
+
+  // The page on the relay's own answer: Unfeature on an item featured in its category, More
+  // sending back the cursor.
+  const answer = FX.list_by_downloads;
+  const routes = listRoutes(answer, [
+    [at("/api/media/feature", "POST"), (c) => respond(200, { ok: true, id: c.body.id, featured: c.body.featured })],
+    [(c) => c.url === "/api/media/list" && c.body.cursor === "3.1", () => respond(200, listAnswer([]))],
+  ]);
+  const { doc, net } = await openPage({ session: fakeSession({ role: "admin" }), routes });
+  const tile = tileOf(doc, 1);
+  assert.equal(text(tile.querySelector('[data-action="unfeature"]')), "Unfeature", "featured in its category reads as featured");
+  tile.querySelector('[data-action="unfeature"]').click();
+  await settle();
+  const feature = net.calls.find((c) => c.url === "/api/media/feature");
+  assert.deepEqual([feature.body.featured, feature.body.sig, feature.body.filename], ["none", "sig:" + p.feature_none, "1760_x.png"]);
+  byId(doc, "media-more").click();
+  await settle();
+  const more = net.calls.filter((c) => c.url === "/api/media/list" && c.body.featured !== 1).at(-1);
+  assert.equal(more.body.cursor, "3.1", "More sends back the answer's next_cursor");
 });

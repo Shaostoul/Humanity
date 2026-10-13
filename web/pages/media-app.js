@@ -52,9 +52,11 @@
 //   page says what the server answered (round 4, W4-3).
 // - Every write is signed (Dilithium over "purpose\ntimestamp", getPqSignedAuth
 //   in /shared/pq-relay-auth.js, which never signs two requests with the same
-//   timestamp) with a purpose that names its target: media_publish:<file name>,
-//   media_remove:<item id or file name>, media_pick:<item id>,
-//   media_feature:<item id>, media_keep:<item id>:<on|off>. A write on an item
+//   timestamp) with a purpose that names its target:
+//   media_publish:<file name>:<licence id>:<0|1> (round 5: the licence and the
+//   game tick are signed with it), media_remove:<item id or file name>,
+//   media_pick:<item id>, media_feature:<item id>:<main|category|none> (round
+//   5), media_keep:<item id>:<on|off>. A write on an item
 //   also names the item's file (`filename`, the relay's W5), so a tile left on
 //   a page that is out of date never acts on another item: the relay answers
 //   409 and the page loads the list again.
@@ -343,10 +345,25 @@
     return isAdminRole(role) || role === 'mod' || role === 'moderator';
   }
 
+  /**
+   * Whether an item is on a featured shelf (round 5: the relay sends "main", "category" or
+   * "none"; it was a bool).
+   */
+  function isFeatured(item) {
+    return !!item && (item.featured === 'main' || item.featured === 'category');
+  }
+
+  /** The licence an item gets when none is chosen (the relay's DEFAULT_LICENCE). */
+  const DEFAULT_LICENCE = 'all_rights_reserved';
+
   // ── Requests ──
 
-  /** The list's filters as the relay takes them, without the empty ones. */
-  function listParams(filters, before, limit) {
+  /**
+   * The list's filters as the relay takes them, without the empty ones. `cursor` is the last
+   * answer's `next_cursor` (round 5; it replaced `before`), opaque here; `filters.sort` is
+   * "picks" or "downloads" (newest first when left out).
+   */
+  function listParams(filters, cursor, limit) {
     const f = filters || {};
     const p = {};
     if (f.category) p.category = Number(f.category);
@@ -355,7 +372,8 @@
     if (f.q && f.q.trim()) p.q = f.q.trim();
     if (f.featured) p.featured = 1;
     if (f.id) p.id = Number(f.id);
-    if (before != null) p.before = Number(before);
+    if (f.sort && f.sort !== 'new') p.sort = String(f.sort);
+    if (cursor != null) p.cursor = String(cursor);
     p.limit = limit || PAGE_SIZE;
     return p;
   }
@@ -374,10 +392,10 @@
   const purposes = Object.freeze({
     list: () => 'media_list',
     mine: () => 'media_mine',
-    publish: (filename) => 'media_publish:' + filename,
+    publish: (filename, licence, forGame) => 'media_publish:' + filename + ':' + (licence || DEFAULT_LICENCE) + ':' + (forGame ? 1 : 0),
     remove: (target) => 'media_remove:' + target,
     pick: (id) => 'media_pick:' + id,
-    feature: (id) => 'media_feature:' + id,
+    feature: (id, to) => 'media_feature:' + id + ':' + to,
     keep: (id, on) => 'media_keep:' + id + ':' + (on ? 'on' : 'off'),
     suggest: () => 'media_suggest',
     suggestions: () => 'media_suggestions',
@@ -487,7 +505,8 @@
     const st = {
       items: [],
       featured: [],
-      nextBefore: null,
+      nextCursor: null,          // the last answer's next_cursor (round 5)
+      licences: null,            // the server's licences answer (round 5)
       answered: false,          // a list answer has come back
       membersView: false,
       membersOnlyForYou: false,
@@ -951,8 +970,8 @@
       }
       if (isAdmin()) {
         row.appendChild(h('button', {
-          type: 'button', className: 'media-btn media-btn-small', dataset: { action: item.featured ? 'unfeature' : 'feature' },
-          text: item.featured ? 'Unfeature' : 'Feature', on: { click: () => feature(item, !item.featured) },
+          type: 'button', className: 'media-btn media-btn-small', dataset: { action: isFeatured(item) ? 'unfeature' : 'feature' },
+          text: isFeatured(item) ? 'Unfeature' : 'Feature', on: { click: () => feature(item, isFeatured(item) ? 'none' : 'main') },
         }));
       }
       if (isStaff()) {
@@ -1037,7 +1056,7 @@
         for (const item of st.items) els.grid.appendChild(tile(item));
       }
       els.more.replaceChildren();
-      if (st.nextBefore != null && !st.listError) {
+      if (st.nextCursor != null && !st.listError) {
         els.more.appendChild(h('button', {
           type: 'button', id: 'media-more', className: 'media-btn', text: st.loading ? MEDIA_WORDS.loading : 'More',
           disabled: st.loading, on: { click: () => load(false) },
@@ -1190,7 +1209,8 @@
     function takeAnswer(a) {
       const items = Array.isArray(a && a.items) ? a.items : [];
       st.items = st.items.concat(items);
-      st.nextBefore = a && a.next_before != null ? a.next_before : null;
+      st.nextCursor = a && a.next_cursor != null ? a.next_cursor : null;
+      if (a && a.licences && typeof a.licences === 'object') st.licences = a.licences;
       st.answered = true;
       st.membersView = !!(a && a.members_view);
       st.membersOnlyForYou = !!(a && a.members_only_for_you);
@@ -1231,12 +1251,12 @@
         // the ones it still shows instead of fetching each again.
         st.reloadKeep = new Set(Array.from(st.reloadKeep || []).concat(st.items.map((i) => i.id)));
         st.items = [];
-        st.nextBefore = null;
+        st.nextCursor = null;
       }
       st.loading = true;
       st.listError = '';
       renderGrid();
-      const params = listParams(st.filters, reset ? null : st.nextBefore);
+      const params = listParams(st.filters, reset ? null : st.nextCursor);
       const fromPicks = !!(st.filters.picks && myKey);
       try {
         const res = fromPicks ? await fetchPicks(params) : await fetchList(params);
@@ -1367,11 +1387,12 @@
       loadMine();
     }
 
-    async function feature(item, on) {
-      const a = await act('/api/media/feature', purposes.feature(item.id), item, { featured: on });
+    /** Feature an item on the main shelf ("main"), its category's only ("category") or neither ("none"). */
+    async function feature(item, to) {
+      const a = await act('/api/media/feature', purposes.feature(item.id, to), item, { featured: to });
       if (a) {
-        for (const c of copiesOf(item.id)) c.featured = on;
-        say(on ? 'Featured: it leads the Media page now.' : 'Taken off the featured row.');
+        for (const c of copiesOf(item.id)) c.featured = to;
+        say(to !== 'none' ? 'Featured: it leads the Media page now.' : 'Taken off the featured row.');
         loadFeatured();
       }
       renderGrid();
@@ -1879,7 +1900,10 @@
       renderFormActions(f);
       try {
         const filename = f.mode === 'put' ? f.filename : f.uploadedName;
-        const auth = await env.sign(purposes.publish(filename));
+        // The licence and the game tick (round 5): the default until the form offers a choice.
+        const licence = f.licence || DEFAULT_LICENCE;
+        const forGame = !!f.forGame;
+        const auth = await env.sign(purposes.publish(filename, licence, forGame));
         if (!auth) throw new Error(MEDIA_WORDS.cannotSign);
         const body = Object.assign({
           filename,
@@ -1887,6 +1911,8 @@
           description: (f.description || '').trim(),
           labels: f.labels || [],
           visibility: f.visibility || 'public',
+          licence,
+          project_use: forGame,
         }, f.category ? { category_id: Number(f.category) } : {}, auth);
         await answerOf(await env.fetch('/api/media', jsonPost(body)));
         if (st.form === f) closeForm();
@@ -2300,7 +2326,7 @@
   const api = {
     MEDIA_WORDS, PAGE_SIZE, FEATURED_LIMIT, KINDS_URL, RESUME_KEY, parseKinds, kindWords, sizeWords, shareLeftWords,
     shareStop, limitStop, budgetStop, meterWords, keptMeterWords, removeWords, removedWords, resetsWords, ownFilePath,
-    fileRoute, storedName, itemFileName, itemName, downloadName, labelsOf, listParams, publicListUrl, purposes, jsonPost,
+    fileRoute, storedName, itemFileName, itemName, downloadName, labelsOf, listParams, publicListUrl, purposes, jsonPost, isFeatured, DEFAULT_LICENCE,
     refusalOf, refusalWords, answerOf, makeH, isAdminRole, isStaffRole, rememberUpload, findUpload, forgetUpload,
     createUploader, fingerprint, createMediaPage,
   };

@@ -119,7 +119,7 @@ async fn the_featured_filter_lists_only_featured_items() {
     let first = published(&state.db, &d, &ann.key, "1_a.png", "public");
     published(&state.db, &d, &ann.key, "2_b.png", "public");
     published(&state.db, &d, &ann.key, "3_c.png", "members");
-    state.db.set_media_featured(first.id, true).unwrap();
+    state.db.set_media_featured(first.id, crate::relay::storage::media::Featured::Main).unwrap();
 
     let featured = ListParams { featured: Some(1), ..Default::default() };
     let got = list(State(state.clone()), Query(featured)).await.unwrap().0;
@@ -287,16 +287,16 @@ async fn a_stale_tile_never_acts_on_another_item() {
     let feature_named = |file: &str, ts: u64| FeatureBody {
         key: op.key.clone(),
         timestamp: ts,
-        sig: op.sign(&format!("media_feature:{}", next.id), ts),
+        sig: op.sign(&format!("media_feature:{}:main", next.id), ts),
         id: next.id,
-        featured: true,
+        featured: "main".into(),
         filename: file.into(),
     };
     let stale = feature(State(state.clone()), Json(feature_named("2_b.png", now))).await;
     assert_eq!(stale.map(|_| ()).map_err(|e| e.0), Err(StatusCode::CONFLICT), "another item's file is refused");
     let unnamed = feature(State(state.clone()), Json(feature_named("", now + 1))).await.unwrap_err();
     assert_eq!((unnamed.0, unnamed.1.as_str()), (StatusCode::BAD_REQUEST, NAME_THE_FILE));
-    assert!(!state.db.media_item(next.id).unwrap().unwrap().featured, "nothing changed");
+    assert!(!state.db.media_item(next.id).unwrap().unwrap().featured.is_on(), "nothing changed");
     feature(State(state.clone()), Json(feature_named("/uploads/3_c.png", now + 2))).await.expect("its own file, as its address");
 
     let keep_b = KeepBody { key: op.key.clone(), timestamp: now, sig: op.sign(&keep_purpose(next.id, true), now), id: next.id, kept: true, filename: "1_a.png".into() };

@@ -66,14 +66,16 @@ test("1. an empty Media page says so and draws no tile, strip or More", async ()
 // ── 2. Items ─────────────────────────────────────────────────────────────
 
 // Seen red with takeAnswer's `next_before` read as `nextBefore`: "More is there when the server
-// says there is more / actual: null". Round 2 (2026-10-11): seen red with the kind filter built
+// says there is more / actual: null". Round 5 (2026-10-12) changed it: the answer's `next_cursor`
+// (opaque, "<value>.<id>") replaced `next_before`, More sends it back as `cursor`, and an item's
+// `featured` is "main", "category" or "none". Round 2 (2026-10-11): seen red with the kind filter built
 // from the items' kinds again instead of the kinds file: "the kinds come from
 // data/media/kinds.json".
 test("2. items show as tiles with names and picks, the featured strip leads, More pages on", async () => {
   const first = listAnswer([
-    item({ id: 9, title: "Contact staff", featured: true, picks: 3 }),
+    item({ id: 9, title: "Contact staff", featured: "main", picks: 3 }),
     item({ id: 8, title: "", url: "/uploads/8_clip.mp4", kind: "video", uploader_key: ME, uploader_name: "Me", picks: 1 }),
-  ], { next_before: 8 });
+  ], { next_cursor: "8.8" });
   const second = listAnswer([item({ id: 7, title: "Older", kind: "model", url: "/uploads/7_part.stl", uploader_key: "c3".repeat(32), uploader_name: "Cy" })]);
   let page = 0;
   const { doc, net } = await openPage({ routes: listRoutes(first, [
@@ -102,7 +104,8 @@ test("2. items show as tiles with names and picks, the featured strip leads, Mor
   more.click();
   await settle();
   const lists = net.calls.filter((c) => c.url === "/api/media/list" && c.body.featured !== 1);
-  assert.equal(lists.at(-1).body.before, 8, "More asks for the items before the last one shown");
+  assert.equal(lists.at(-1).body.cursor, "8.8", "More sends back the answer's cursor");
+  assert.equal(lists.at(-1).body.before, undefined, "and never `before`, which the relay no longer reads");
   assert.equal(byId(doc, "media-grid").querySelectorAll(".media-tile").length, 3, "the next page is added below");
   assert.equal(byId(doc, "media-more"), null, "no More after the last page");
   // A filter asks the server again with it.
@@ -276,14 +279,16 @@ test("6. Add to Media shows the share, stops an upload over it before it starts,
   assert.deepEqual(start.body, { filename: "staff.png", size: 10 * MIB, content_type: "image/png", media: 1 }, "as a Media upload, no hash");
   const pub = net.calls.find((c) => c.url === "/api/media" && c.init.method === "POST");
   assert.equal(pub.body.filename, "1760_new.png");
-  assert.equal(pub.body.sig, "sig:media_publish:1760_new.png", "the publish is signed over its file name");
+  // Round 5: the purpose carries the licence and the game tick (the defaults here).
+  assert.equal(pub.body.sig, "sig:media_publish:1760_new.png:all_rights_reserved:0", "the publish is signed over its file name, licence and game tick");
+  assert.deepEqual([pub.body.licence, pub.body.project_use], ["all_rights_reserved", false]);
   assert.equal(pub.body.title, "Spinning at dusk");
   assert.equal(pub.body.category_id, 2);
   assert.deepEqual(pub.body.labels, ["flashing"]);
   assert.equal(pub.body.visibility, "members");
   assert.equal(byId(doc, "media-form-go"), null, "the form closes");
   assert.equal(text(byId(doc, "media-notice").querySelector(".media-notice-text")), media.MEDIA_WORDS.published);
-  assert.ok(signer.signed.includes("media_publish:1760_new.png"));
+  assert.ok(signer.signed.includes("media_publish:1760_new.png:all_rights_reserved:0"));
 });
 
 // ── 7. Put on Media ──────────────────────────────────────────────────────
@@ -306,7 +311,7 @@ test("7. Put on Media from a Shared Files row offers public only and says why; a
   const pub = net.calls.find((c) => c.url === "/api/media" && c.init.method === "POST");
   assert.equal(pub.body.visibility, "public");
   assert.equal(pub.body.filename, "1700_part.stl");
-  assert.equal(pub.body.sig, "sig:media_publish:1700_part.stl");
+  assert.equal(pub.body.sig, "sig:media_publish:1700_part.stl:all_rights_reserved:0", "round 5: with the licence and the game tick");
 
   // A members-only server: Add to Media puts it on as members only, with no choice offered.
   const settings = Object.assign({}, fakeSession().state.settings, { media_visibility: "members" });
@@ -335,7 +340,7 @@ test("8. pick, unpick, remove and feature are each signed over their own item, n
     [at("/api/media/pick", "POST"), () => respond(200, { ok: true, id: 5, picked: true, picks: 1 })],
     [at("/api/media/unpick", "POST"), () => respond(200, { ok: true, id: 5, picked: false, picks: 0 })],
     [at("/api/media/remove", "POST"), () => respond(200, { ok: true, removed: 6, file_removed: true, file_kept: false })],
-    [at("/api/media/feature", "POST"), () => respond(200, { ok: true, id: 5, featured: true })],
+    [at("/api/media/feature", "POST"), () => respond(200, { ok: true, id: 5, featured: "main" })],
   ]);
   const { doc, net, confirms } = await openPage({ session: fakeSession({ role: "admin" }), routes });
   const tileOf = (id) => byId(doc, "media-grid").querySelectorAll(".media-tile").find((t) => t.dataset.id === String(id));
@@ -356,8 +361,9 @@ test("8. pick, unpick, remove and feature are each signed over their own item, n
   tileOf(5).querySelector('[data-action="feature"]').click();
   await settle();
   const feature = net.calls.find((c) => c.url === "/api/media/feature");
-  assert.equal(feature.body.sig, "sig:media_feature:5");
-  assert.equal(feature.body.featured, true);
+  // Round 5: Feature puts it on the main shelf, signed over the item and where.
+  assert.equal(feature.body.sig, "sig:media_feature:5:main");
+  assert.equal(feature.body.featured, "main");
   assert.equal(feature.body.filename, "1_a.png");
   assert.ok(net.calls.filter((c) => c.url === "/api/media/list" && c.body.featured === 1).length >= 2, "the strip is asked for again");
   tileOf(6).querySelector('[data-action="remove"]').click();

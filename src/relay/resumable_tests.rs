@@ -716,3 +716,7 @@ mod round3;
 // Round 4, the fixes from the round 3 review (2026-10-11): R4-2 to R4-5.
 #[path = "resumable_round4_tests.rs"]
 mod round4;
+
+// Media round 5 (2026-10-12): a file added to an item is never taken as waiting.
+#[path = "resumable_round5_tests.rs"]
+mod round5;

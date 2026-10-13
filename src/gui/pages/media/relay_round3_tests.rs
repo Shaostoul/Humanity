@@ -331,7 +331,8 @@ fn a_members_only_file_comes_through_a_ticket_from_the_real_relay() {
 
     let origin = open::origin_of(&r.base, &item, Some("tok_ann")).expect("an origin");
     let address = origin.address().unwrap_or_else(|e| panic!("the relay's ticket is accepted: {e}"));
-    assert!(address.starts_with(&format!("{}/api/media/file/{}?ticket=", r.base, item.id)) && !address.contains("tok_ann"), "{address}");
+    // Round 5: the ticket names which of the item's files it opens (`file=0`, the item's own).
+    assert!(address.starts_with(&format!("{}/api/media/file/{}?file=0&ticket=", r.base, item.id)) && !address.contains("tok_ann"), "{address}");
     let dir = crate::test_temp::dir("desk_r3_ticket_dl");
     let saved = open::fetch_to(&open::transfer_agent(Duration::from_secs(10)), &address, None, &dir, &open::download_name(&item), 1 << 20).expect("downloaded");
     assert_eq!(std::fs::read(&saved).unwrap(), b"0123456789", "the file, through the ticket alone");
