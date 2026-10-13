@@ -35,6 +35,12 @@ use super::{GuiPage, GuiState};
 /// `theme` is `&mut` only because the Settings page edits the live theme in
 /// place (the appearance editor); every other page reads it.
 pub fn draw_tool_page(ctx: &egui::Context, page: GuiPage, theme: &mut Theme, state: &mut GuiState) -> bool {
+    // The server strip (Media round 5, 3.11): which server Media, Watch, Chat and Server Settings
+    // show, fixed under the top menu. Its panel goes in before the page's own, so it sits above
+    // them across the whole width and does not scroll with the page.
+    if super::pages::server_strip::shown_on(page) {
+        super::pages::server_strip::draw(ctx, theme, state);
+    }
     match page {
         // Engine-bound: the title screen and the in-game HUD frame need the
         // camera, the world and the renderer. They stay in lib.rs.

@@ -1091,87 +1091,19 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                     }
                     if out.cog.clicked() && state.private_key_bytes.is_some() {
                         // Settings for THIS server: switch (instant when its
-                        // background link is live), then open the page.
+                        // background link is live), then open the page. The
+                        // switch is the one in gui/connections.rs, shared with
+                        // the row below, its rooms and the server strip.
                         if !is_current {
-                            state.park_active_connection();
-                            if !state.unpark_connection(&server.url) {
-                                state.server_url = server.url.clone();
-                                let ws_url = derive_ws_url(&server.url);
-                                let uname = state.user_name.clone();
-                                let pubkey = state.profile_public_key.clone();
-                                state.ws_client = Some(
-                                    crate::net::ws_client::WsClient::connect_with_kyber(
-                                        &ws_url,
-                                        &uname,
-                                        &pubkey,
-                                        &state.kyber_public_b64,
-                                    ),
-                                );
-                                state.connected_server_url = server.url.clone();
-                                state.ws_identified = false;
-                        state.dm_fetch = Default::default();
-                                state.ws_status = format!("Switching to {}...", server.name);
-                                state.ws_manually_disconnected = false;
-                                state.ws_reconnect_timer = 0.0;
-                                state.ws_reconnect_delay = 5.0;
-                                state.ws_reconnect_attempts = 0;
-                                state.chat_active_channel = "general".to_string();
-                                state.history_fetched = false;
-                            }
-                            crate::config::AppConfig::from_gui_state(state).save();
+                            state.switch_to_server(&server.url, &server.name);
                         }
                         state.push_nav_to(crate::gui::GuiPage::ServerSettings);
                     }
                     if out.clicked && !is_current {
-                        if state.private_key_bytes.is_some() {
-                            state.park_active_connection();
-                            if state.unpark_connection(&server.url) {
-                                // Land in this server's own room: #local.
-                                if let Some(local_id) = state
-                                    .chat_channels
-                                    .iter()
-                                    .find(|c| c.local_only)
-                                    .map(|c| c.id.clone())
-                                {
-                                    if state.chat_active_channel != local_id {
-                                        state.chat_active_channel = local_id;
-                                        state.chat_messages.clear();
-                                        state.history_fetched = false;
-                                    }
-                                }
-                            } else {
-                                state.server_url = server.url.clone();
-                                let ws_url = derive_ws_url(&server.url);
-                                let uname = state.user_name.clone();
-                                let pubkey = if state.profile_public_key.is_empty() {
-                                    generate_random_hex_key()
-                                } else {
-                                    state.profile_public_key.clone()
-                                };
-                                state.ws_client = Some(
-                                    crate::net::ws_client::WsClient::connect_with_kyber(
-                                        &ws_url,
-                                        &uname,
-                                        &pubkey,
-                                        &state.kyber_public_b64,
-                                    ),
-                                );
-                                state.connected_server_url = server.url.clone();
-                                state.ws_identified = false;
-                        state.dm_fetch = Default::default();
-                                state.ws_status = format!("Switching to {}...", server.name);
-                                state.ws_manually_disconnected = false;
-                                state.ws_reconnect_timer = 0.0;
-                                state.ws_reconnect_delay = 5.0;
-                                state.ws_reconnect_attempts = 0;
-                                state.chat_active_channel = "general".to_string();
-                                state.history_fetched = false;
-                            }
-                            crate::config::AppConfig::from_gui_state(state).save();
-                        } else {
-                            state.ws_status =
-                                "Unlock your identity first to connect (Settings).".to_string();
-                        }
+                        // Park this server, bring that one back (landing in its
+                        // #local) or dial it, and save; with no identity
+                        // unlocked, the status line says to unlock first.
+                        state.switch_to_server(&server.url, &server.name);
                     }
                     // This server's channels, live from its background
                     // connection (multi-connection stage 4). ALL channels are
@@ -1233,32 +1165,10 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                                     if ch_commons {
                                         open_commons_room(state, &ch_id);
                                     } else {
-                                        // Same switch as clicking the server name,
-                                        // then land directly in the clicked room.
-                                        state.park_active_connection();
-                                        if !state.unpark_connection(&server.url) {
-                                            state.server_url = server.url.clone();
-                                            let ws_url = derive_ws_url(&server.url);
-                                            let uname = state.user_name.clone();
-                                            let pubkey = state.profile_public_key.clone();
-                                            state.ws_client = Some(
-                                                crate::net::ws_client::WsClient::connect_with_kyber(
-                                                    &ws_url,
-                                                    &uname,
-                                                    &pubkey,
-                                                    &state.kyber_public_b64,
-                                                ),
-                                            );
-                                            state.connected_server_url = server.url.clone();
-                                            state.ws_identified = false;
-                        state.dm_fetch = Default::default();
-                                            state.ws_status =
-                                                format!("Switching to {}...", server.name);
-                                            state.ws_manually_disconnected = false;
-                                            state.ws_reconnect_timer = 0.0;
-                                            state.ws_reconnect_delay = 5.0;
-                                            state.ws_reconnect_attempts = 0;
-                                        }
+                                        // Same switch as clicking the server name
+                                        // (gui/connections.rs), then land directly
+                                        // in the clicked room.
+                                        state.switch_to_server(&server.url, &server.name);
                                         state.chat_active_channel = ch_id.clone();
                                         state.chat_messages.clear();
                                         state.history_fetched = false;
