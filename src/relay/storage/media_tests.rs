@@ -130,7 +130,7 @@ fn remove_is_the_uploaders_or_an_admins_and_takes_its_picks() {
 
     let (w, _) = why(db.remove_media(a.id, "cal", false));
     assert_eq!(w, Refusal::NotAllowed, "cal is neither the uploader nor an admin");
-    assert_eq!(db.remove_media(a.id, "ann", false).unwrap(), Removed { filename: "1_a.png".into(), from_shelf: 0 });
+    assert_eq!(db.remove_media(a.id, "ann", false).unwrap(), Removed { filename: "1_a.png".into(), from_shelf: 0, added: vec![] });
     assert!(db.media_item(a.id).unwrap().is_none(), "the item is gone");
     assert_eq!(count(&db, "SELECT COUNT(*) FROM media_picks"), 0, "its picks went with it");
     assert_eq!(shelf_of(&db, "1_a.png"), 0, "its chat upload went back to chat");

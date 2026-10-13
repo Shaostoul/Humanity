@@ -208,7 +208,7 @@ fn members_only_server(s: &ServerSettings) -> bool {
     s.media_visibility != "public"
 }
 
-fn is_admin(db: &Storage, key: &str) -> bool {
+pub(crate) fn is_admin(db: &Storage, key: &str) -> bool {
     matches!(db.get_role(key).unwrap_or_default().as_str(), "admin" | "owner")
 }
 
@@ -217,7 +217,7 @@ pub(crate) fn is_member(db: &Storage, key: &str) -> bool {
     db.is_member(key) && !db.is_banned(key).unwrap_or(true)
 }
 
-fn refusal(e: MediaError) -> Refused {
+pub(crate) fn refusal(e: MediaError) -> Refused {
     match e {
         MediaError::Refused(why, words) => (
             match why {
@@ -235,11 +235,11 @@ fn refusal(e: MediaError) -> Refused {
     }
 }
 
-fn db_err(e: rusqlite::Error) -> Refused {
+pub(crate) fn db_err(e: rusqlite::Error) -> Refused {
     (StatusCode::INTERNAL_SERVER_ERROR, format!("storage: {e}"))
 }
 
-fn forbidden(words: &str) -> Refused {
+pub(crate) fn forbidden(words: &str) -> Refused {
     (StatusCode::FORBIDDEN, words.to_string())
 }
 
@@ -1027,7 +1027,8 @@ pub async fn remove(State(state): State<Arc<RelayState>>, Json(b): Json<RemoveBo
 
 /// The uploader or an admin takes something down. An item: it and its picks go, and its upload
 /// goes back where it came from, keeping its file (from chat or Shared Files, back in the public
-/// folder if it was members only), or loses its file (uploaded for Media) (F2). A Media upload
+/// folder if it was members only), or loses its file (uploaded for Media) (F2); its added files
+/// and its cover, each uploaded for Media, are deleted (round 5). A Media upload
 /// not yet published, named by its file name: its row and file go (F1). A file name that is a
 /// published item's removes that item.
 pub fn remove_core(db: &Storage, folders: Folders, target: &RemoveTarget, requester: &str) -> Answer {
@@ -1055,7 +1056,9 @@ pub fn remove_core(db: &Storage, folders: Folders, target: &RemoveTarget, reques
     } else {
         (folders.delete(&removed.filename), false)
     };
-    tracing::info!("A Media item was removed (file removed: {file_removed}, kept: {file_kept})");
+    // Its added files and its cover were uploaded for Media: every one goes (round 5).
+    let others = removed.added.iter().filter(|name| folders.delete(name)).count();
+    tracing::info!("A Media item was removed (file removed: {file_removed}, kept: {file_kept}, other files removed: {others})");
     Ok(Json(json!({ "ok": true, "removed": id, "file_removed": file_removed, "file_kept": file_kept })))
 }
 
@@ -1197,24 +1200,23 @@ pub async fn visibility(State(state): State<Arc<RelayState>>, Json(b): Json<Visi
     visibility_core(&state.db, Folders::live(), b.id, &b.key, to)
 }
 
-/// The uploader or an admin makes item `id` public or members only, and its file moves with it:
-/// out of the public folder for members only, back to its `/uploads/` address for public, before
-/// the change is committed, and back again when it cannot be (F3).
+/// The uploader or an admin makes item `id` public or members only, and every one of its files
+/// moves with it (its own, its added files and its cover, round 5): out of the public folder for
+/// members only, back to its `/uploads/` address for public, before the change is committed, and
+/// each moved one back where it was when the change cannot be (F3).
 pub fn visibility_core(db: &Storage, folders: Folders, id: i64, requester: &str, to: &str) -> Answer {
-    let moved: std::cell::Cell<Option<(String, bool)>> = std::cell::Cell::new(None);
+    let mut moved: Vec<(String, Spot)> = Vec::new();
     let changed = db.set_media_visibility(id, requester, is_admin(db, requester), to, |name, members| {
-        let m = folders.place(name, members)?;
-        if m {
-            moved.set(Some((name.to_string(), members)));
-        }
-        Ok(m)
+        let from = folders.move_to(name, if members { Spot::Members } else { Spot::Public })?;
+        moved.extend(from.map(|f| (name.to_string(), f)));
+        Ok(from.is_some())
     });
     match changed {
         Ok(item) => Ok(Json(json!({ "ok": true, "item": item_json(&item) }))),
         Err(e) => {
-            if let Some((name, members)) = moved.take() {
-                if let Err(err) = folders.place(&name, !members) {
-                    tracing::error!("Media: a refused visibility change could not put its file back ({err})");
+            for (name, from) in moved.iter().rev() {
+                if let Err(err) = folders.move_to(name, *from) {
+                    tracing::error!("Media: a refused visibility change could not put a file back ({err})");
                 }
             }
             Err(refusal(e))
