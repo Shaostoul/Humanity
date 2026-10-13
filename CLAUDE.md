@@ -776,7 +776,7 @@ OS-standard data dir (`%APPDATA%\HumanityOS\` on Windows) with:
 
 **Before pushing, ALWAYS:**
 1. Bump version: `node scripts/bump-version.js [patch|minor]`
-   - This updates all 7 locations: `Cargo.toml`, `web/shared/sw.js`, `web/pages/settings-app.js`, `web/pages/ops.html`, `web/shared/shell.js`, `web/pages/download.html`, `web/pages/index.html` (the proof tile). Stage all seven BY NAME in the release commit; the v0.1316.0 commit missed index.html because the list here said six (fixed in the next commit, no re-tag).
+   - This updates all 8 locations: `Cargo.toml`, `Cargo.lock` (its own `humanity-engine` entry, since 2026-10-12: it had lagged a version behind), `web/shared/sw.js`, `web/pages/settings-app.js`, `web/pages/ops.html`, `web/shared/shell.js`, `web/pages/download.html`, `web/pages/index.html` (the proof tile). Stage all eight BY NAME in the release commit; the v0.1316.0 commit missed index.html because the list here said six (fixed in the next commit, no re-tag).
 2. Commit the version bump IN the same commit (not separate)
 3. Push to main
 4. Tag and release: `git tag vX.Y.Z && git push origin vX.Y.Z && gh release create vX.Y.Z --title "vX.Y.Z" --notes "..."`

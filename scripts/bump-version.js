@@ -46,6 +46,11 @@ function replaceInFile(relPath, search, replacement) {
 // 2. Cargo.toml (root)
 replaceInFile('Cargo.toml', `version = "${oldVersion}"`, `version = "${newVersion}"`);
 
+// 2b. Cargo.lock's own entry (2026-10-12). Cargo did not always rewrite it on the release build,
+// so the lock lagged a version behind and a later build changed it, which changed the source
+// fingerprint and made the delivered exe look stale. Set to the new version whatever it held.
+replaceInFile('Cargo.lock', /(name = "humanity-engine"\r?\nversion = ")[^"]*(")/, `$1${newVersion}$2`);
+
 // 3. web/shared/sw.js — CACHE_NAME bump
 const swPath = path.join(ROOT, 'web/shared/sw.js');
 if (fs.existsSync(swPath)) {
