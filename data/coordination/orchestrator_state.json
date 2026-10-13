@@ -286,6 +286,26 @@
       "date": "2026-10-12",
       "decision": "Week wrap at 96% weekly usage (operator's reading, resets Thursday 8 PM): released v0.1492.0 (Media 1B, 1C, 1E, the Settings sentence, two website fixes, the cabin-row vantage) and stopped starting new work. Media 1D (desktop item page and editor) was still running in its worktree; merge it on resume. Increment 6 is complete (verify-starts 18/18, seen red on a real build). Three operator questions are open (asked 2026-10-12): publish the entity/succession findings or keep the SNAP section and the WHOIS note (3.6) private; a takedown email address; the DMCA agent's address (recommended: wait for a fiscal sponsor or the project's own nonprofit).",
       "why": "The operator asked to finish the important non-gameplay work before the weekly cap; a release puts everything merged into his hands and the journal lets the next session resume without this conversation."
+    },
+    {
+      "date": "2026-10-13",
+      "decision": "DMCA agent: the operator has no address to give (only his home). So no designated agent is registered until an entity exists (a fiscal sponsor or the project's own nonprofit, whose address it would use); Media uploads stay with people an admin verified, as the rules page says.",
+      "why": "The Copyright Office requires the service provider's own street address (a PO box only with a safety waiver); the findings (docs/reference/findings/2026-10-12-project-entity-and-succession.md) found no source on virtual offices."
+    },
+    {
+      "date": "2026-10-13",
+      "decision": "Takedowns without email (operator): a dedicated 'Report a copyright problem' button on the Media page (both apps) opening a simple form anyone can use, members or not; admins are told inside HumanityOS (no email needed, though he has a project address he could use); and the reports are logged publicly. Design notes for the build: the public log shows the item, the date, the kind of claim and the outcome, never the claimant's name or contact (the Lumen database's practice); a form open to non-members needs the relay's per-address limits; the existing reports_v2 and the Reports page are the place to extend.",
+      "why": "He prefers in-app notifications to an email inbox, and a public log keeps the process transparent (his 100% transparency principle)."
+    },
+    {
+      "date": "2026-10-13",
+      "decision": "docs/history/journal-archive-undated.md restored (operator: keep it, clean up later). Idea from the operator: a Library section in the app for the project's own history and decision logs (docs/history), so it can be read in the app.",
+      "why": "75 undated decisions (v0.203 to v0.961) that exist nowhere else in the tree; another session had deleted the file without committing."
+    },
+    {
+      "date": "2026-10-13",
+      "decision": "Operator idea, welcomed: point HumanityOS at folders on the computer (his E: drive is 'Media'), browse them like a file explorer inside the app, and pick which files go onto a server's Media page; nothing leaves the computer unless picked. Builds on the in-app file browser widget (src/gui/widgets/file_browser.rs, v0.708) and Media round 5's several-files items; ties to phase 2 (copies on other servers, BLAKE3 fingerprints) by marking which local files are already on which server. The website can do a limited version only in Chromium browsers (the File System Access API, one folder at a time with permission).",
+      "why": "A safe way to publish from a big personal drive: browsing is local, publishing is explicit and per file, and other people's private files on the same drive never move."
     }
   ],
   "active_scopes_to_avoid": [

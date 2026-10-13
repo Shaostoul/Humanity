@@ -282,8 +282,20 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
     1E (desktop strip), 1F (web strip), 1G (web list). Next: Wave 2 (2A the website's item page
     and editor, after 1D; 2B the proof rig and snapshots), then phase 2 ("Also put this on...").
     public.guide's nginx needs the same `/media/<number>` block by hand. Waiting on the operator:
-    the DMCA agent's address and a takedown email (the entity findings are public since 2026-10-13,
-    without the founder's personal notes, which are kept privately).
+    nothing. The operator has no address for a DMCA agent, so none is registered until a fiscal
+    sponsor or the project's own nonprofit exists (journal 2026-10-13). The entity findings are
+    public since 2026-10-13, without the founder's personal notes, which are kept privately.
+  - **Next for Media (operator, 2026-10-13):**
+    - **"Report a copyright problem"**: a dedicated button on the Media page (both apps) and a
+      simple form anyone can use; admins told inside HumanityOS (no email); a public takedown log
+      (item, date, kind of claim, outcome; never the claimant's details). Extends reports_v2 and
+      the Reports page.
+    - **Your folders**: point HumanityOS at folders (his E: "Media" drive), browse them like a
+      file explorer, pick files to put on a server's Media page; nothing leaves the computer
+      unless picked. Builds on `src/gui/widgets/file_browser.rs`; marks which local files are
+      already on which server (phase 2's fingerprints).
+    - **The project's history in the Library** (docs/history and the decision logs, readable in
+      the app).
   - DONE and released 2026-10-12: increment 5b (household permits, v0.1489.0), BUG-191 (profile
     copies, v0.1490.0), the first-hour audit's S5, S6, S8 and F11, BUG-163 part 2, rule 7 and
     the takedown section (v0.1491.0).
