@@ -582,7 +582,8 @@ When you change any of these in code, update this table + status in the same com
 | `src/relay/api.rs` | REST API handlers (~3,800 LOC) |
 | `src/relay/mod.rs` | Router setup, CSP middleware, axum config |
 | `src/relay/core/` | Crypto primitives: encoding, identity, signing, hashing |
-| `src/relay/handlers/` | broadcast.rs, federation.rs, game_state.rs, msg_handlers.rs, utils.rs |
+| `src/relay/handlers/` | broadcast.rs, federation.rs, game_state.rs, msg_handlers.rs, profile.rs (profile saves, asks and signed copies, BUG-191), home_plots.rs, shared_build.rs, reach.rs, friend_passes.rs, reports.rs and more: list the folder |
+| `src/relay/core/profile_copy.rs` | The profile copy other servers keep: public copy, pinned words, sign/verify, limits, `next_copy_time` (web mirror: `web/shared/profile-copy.js`) |
 | `src/relay/storage/` | 50 domain modules (messages, channels, tasks, guilds, reputation, trading, etc.) |
 | `src/renderer/` | wgpu PBR pipeline, camera, sky, stars, instanced rendering |
 | `src/renderer/particles.rs` | Particle system |
