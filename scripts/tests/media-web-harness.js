@@ -300,7 +300,7 @@ const CATEGORIES = [{ id: 1, name: "General", description: "", position: 0 }, { 
 function item(over) {
   return Object.assign({
     id: 1, url: "/uploads/1_a.png", title: "Contact staff", description: "", category: { id: 2, name: "Fire flow arts" },
-    kind: "picture", labels: [], visibility: "public", featured: false, size_bytes: 2 * MIB, views: 0,
+    kind: "picture", labels: [], visibility: "public", featured: "none", size_bytes: 2 * MIB, views: 0,
     uploaded_at: 1, published_at: 1, uploader_key: ANN, uploader_name: "Ann", picks: 0,
     original_name: "", keeps_file: false, kept: false,
   }, over || {});
@@ -308,7 +308,7 @@ function item(over) {
 
 function listAnswer(items, over) {
   return Object.assign({
-    items, next_before: null, members_view: true, media_visibility: "public", members_only_for_you: false,
+    items, next_cursor: null, members_view: true, media_visibility: "public", members_only_for_you: false,
     categories: CATEGORIES, labels: LABELS,
   }, over || {});
 }
@@ -331,7 +331,8 @@ const isFeatured = (c) => (path0(c.url) === "/api/media/list" && c.body && c.bod
  * its own way.
  */
 function listRoutes(answer, more) {
-  const featured = () => listAnswer(((answer && answer.items) || []).filter((i) => i.featured), answer ? { members_view: answer.members_view, categories: answer.categories, labels: answer.labels } : {});
+  // Round 5: `featured` is "main", "category" or "none" (it was a bool); the main shelf is "main".
+  const featured = () => listAnswer(((answer && answer.items) || []).filter((i) => i.featured === "main"), answer ? { members_view: answer.members_view, categories: answer.categories, labels: answer.labels } : {});
   return (more || []).concat([
     [at("/data/media/kinds.json"), () => respond(200, KINDS)],
     [at("/api/media/mine", "POST"), () => respond(200, mineAnswer())],

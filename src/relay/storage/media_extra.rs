@@ -7,7 +7,7 @@
 //! - [`Storage::picked_among`]: which of some items a person picked (A3, `picked_by_me`).
 //! - [`Storage::media_waiting_of`]: a person's Media uploads not yet published (A4).
 
-use super::MEDIA_SHELF;
+use super::{MEDIA_SHELF, NOT_ON_AN_ITEM};
 use crate::relay::storage::Storage;
 use rusqlite::{params, OptionalExtension};
 
@@ -70,11 +70,12 @@ impl Storage {
     /// person's device.
     pub fn media_waiting_of(&self, key: &str) -> Result<Vec<MyWaitingUpload>, rusqlite::Error> {
         self.with_conn(|conn| {
-            let mut stmt = conn.prepare(
+            // On no item (round 5): an added file or a cover is not waiting either.
+            let mut stmt = conn.prepare(&format!(
                 "SELECT filename, original_name, size_bytes, uploaded_at FROM user_uploads
-                 WHERE public_key = ?1 AND shared = ?2 AND filename NOT IN (SELECT upload_filename FROM media_items)
-                 ORDER BY uploaded_at ASC, id ASC LIMIT 500",
-            )?;
+                 WHERE public_key = ?1 AND shared = ?2 AND {NOT_ON_AN_ITEM}
+                 ORDER BY uploaded_at ASC, id ASC LIMIT 500"
+            ))?;
             let rows = stmt
                 .query_map(params![key, MEDIA_SHELF], |r| {
                     Ok(MyWaitingUpload { filename: r.get(0)?, original_name: r.get(1)?, size_bytes: r.get(2)?, uploaded_at: r.get(3)? })

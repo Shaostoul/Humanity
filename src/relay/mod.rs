@@ -18,6 +18,13 @@ pub mod media;
 /// Ten-minute tickets that open one members-only Media file without the session's token in the
 /// address (R3-8, 2026-10-11).
 pub mod media_ticket;
+/// Media round 5 (2026-10-12, docs/design/media-round-5-plan.md): the licences an item can carry
+/// (data/media/licences.json), views and downloads counted once a person a day, editing an item
+/// and its other files, and an item's own page for social sites.
+pub mod media_licences;
+pub mod media_counts;
+pub mod media_edit;
+pub mod media_page;
 pub mod api_v2_agents;
 pub mod api_v2_ai;
 pub mod api_v2_announce;
@@ -244,7 +251,15 @@ async fn security_headers(
         return (axum::http::StatusCode::NOT_FOUND, "Not found").into_response();
     }
     let mut res = next.run(req).await;
-    let h = res.headers_mut();
+    set_security_headers(res.headers_mut(), is_upload);
+    res
+}
+
+/// The headers [`security_headers`] puts on every answer. A route that set its own
+/// Content-Security-Policy keeps it (Media round 5, 2026-10-12): an item's own page (media_page.rs)
+/// carries the static pages' policy, which shows members-only pictures through `blob:` addresses,
+/// and its preview picture `default-src 'none'`. Every other answer gets [`csp_value`].
+fn set_security_headers(h: &mut axum::http::HeaderMap, is_upload: bool) {
     if is_upload {
         h.insert("content-disposition", HeaderValue::from_static("attachment"));
     }
@@ -252,6 +267,9 @@ async fn security_headers(
     h.insert("x-frame-options",          HeaderValue::from_static("SAMEORIGIN"));
     h.insert("referrer-policy",          HeaderValue::from_static("strict-origin-when-cross-origin"));
     h.insert("permissions-policy",       HeaderValue::from_static("camera=(), microphone=(), geolocation=(), payment=()"));
+    if h.contains_key("content-security-policy") {
+        return;
+    }
     // connect-src derives from the SAME allowlist as the WS Origin check
     // and CORS (white-label seam) -- a static fallback only if the built
     // string were somehow not header-safe (it is plain ASCII).
@@ -261,7 +279,34 @@ async fn security_headers(
             HeaderValue::from_static("default-src 'self'; object-src 'none'; base-uri 'self';")
         }),
     );
-    res
+}
+
+#[cfg(test)]
+mod security_header_tests {
+    use super::*;
+
+    /// A ROUTE THAT SETS ITS OWN CONTENT-SECURITY-POLICY KEEPS IT (Media round 5): an answer whose
+    /// route set one (an item's page, its preview picture) keeps that one; an answer without one
+    /// gets the relay's own policy; the other headers land on both.
+    ///
+    /// Seen red 2026-10-12 with `set_security_headers` inserting the relay's policy over every
+    /// answer (the `contains_key` return taken out): "the route's own policy is kept / left:
+    /// Some(\"default-src 'self'; script-src 'self' 'unsafe-inline'; ...\") / right:
+    /// Some(\"default-src 'none'\")".
+    #[test]
+    fn a_route_that_sets_its_own_csp_keeps_it() {
+        let mut own = axum::http::HeaderMap::new();
+        own.insert("content-security-policy", HeaderValue::from_static("default-src 'none'"));
+        set_security_headers(&mut own, false);
+        assert_eq!(own.get("content-security-policy").and_then(|v| v.to_str().ok()), Some("default-src 'none'"), "the route's own policy is kept");
+        assert_eq!(own.get_all("content-security-policy").iter().count(), 1, "and it is the only one");
+        assert_eq!(own.get("x-content-type-options").and_then(|v| v.to_str().ok()), Some("nosniff"));
+
+        let mut plain = axum::http::HeaderMap::new();
+        set_security_headers(&mut plain, true);
+        assert_eq!(plain.get("content-security-policy").and_then(|v| v.to_str().ok()), Some(csp_value()), "an answer without one gets the relay's");
+        assert_eq!(plain.get("content-disposition").and_then(|v| v.to_str().ok()), Some("attachment"), "an upload is still an attachment");
+    }
 }
 
 /// Whether a path names something whose name starts with a dot, written as a dot or as `%2e`:
@@ -1263,6 +1308,18 @@ pub fn build_router(state: Arc<RelayState>) -> Router {
         .route("/api/media/suggestions", get(media::suggestions).post(media::suggestions_post))
         .route("/api/media/suggestions/decide", post(media::decide))
         .route("/api/media/usage", get(media::usage).post(media::usage_post))
+        // Media round 5 (2026-10-12, docs/design/media-round-5-plan.md): an item edited where it
+        // is, and its other files (media_edit.rs); views and counted downloads (media_counts.rs);
+        // an item's own page and its picture for social sites (media_page.rs). nginx sends
+        // ^/media/[0-9]+$ here; /media itself stays a static page. `/api/media/file/{id}` above
+        // takes `?file=<n>` for an added file or the cover.
+        .route("/api/media/edit", post(media_edit::edit))
+        .route("/api/media/files/add", post(media_edit::files_add))
+        .route("/api/media/files/remove", post(media_edit::files_remove))
+        .route("/api/media/viewed", post(media_counts::viewed))
+        .route("/api/media/download/{id}", get(media_counts::download))
+        .route("/api/media/preview/{id}", get(media_page::preview))
+        .route("/media/{id}", get(media_page::page))
         .route("/api/github-webhook", post(api::github_webhook))
         .route("/api/tasks", get(api::get_tasks).post(api::create_task))
         .route("/api/tasks/{id}", patch(api::update_task).delete(api::delete_task))

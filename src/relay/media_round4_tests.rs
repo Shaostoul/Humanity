@@ -16,7 +16,8 @@ fn relay_with_pool(tag: &str, room: usize) -> Arc<RelayState> {
 
 /// A ticket for `key` to open `item`, now.
 fn ticket_for(state: &RelayState, key: &str, item: &MediaItem) -> Result<String, (StatusCode, String)> {
-    media_ticket::ticket_core(state, key, item.id, &item.upload_filename, Instant::now()).map(|a| ticket_of(&a.0))
+    let body = media_ticket::TicketBody { id: item.id, filename: item.upload_filename.clone(), ..Default::default() };
+    media_ticket::ticket_core(state, key, &body, Instant::now()).map(|a| ticket_of(&a.0))
 }
 
 /// R4-1 (a). A FULL POOL NEVER LOCKS ANYONE OUT: eight members fill a pool of 64 tickets, eight

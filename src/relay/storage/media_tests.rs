@@ -187,7 +187,7 @@ fn the_list_is_newest_first_paged_and_filtered() {
 
     assert_eq!(ids(MediaQuery::default()), vec![c.id, b.id, a.id], "newest first");
     assert_eq!(ids(MediaQuery { limit: Some(2), ..Default::default() }), vec![c.id, b.id]);
-    assert_eq!(ids(MediaQuery { before: Some(b.id), ..Default::default() }), vec![a.id], "the next page");
+    assert_eq!(ids(MediaQuery { cursor: Some((b.id, b.id)), ..Default::default() }), vec![a.id], "the next page");
     assert_eq!(ids(MediaQuery { kind: Some("model".into()), ..Default::default() }), vec![c.id]);
     assert_eq!((a.kind.as_str(), b.kind.as_str(), c.kind.as_str()), ("picture", "video", "model"));
     assert_eq!(ids(MediaQuery { by: Some("ann".into()), ..Default::default() }), vec![b.id, a.id]);
@@ -196,9 +196,9 @@ fn the_list_is_newest_first_paged_and_filtered() {
     assert_eq!(ids(MediaQuery { category: Some(GENERAL_CATEGORY_ID), ..Default::default() }).len(), 3);
     assert_eq!(ids(MediaQuery { category: Some(99), ..Default::default() }), Vec::<i64>::new());
 
-    db.set_media_featured(b.id, true).unwrap();
-    assert!(db.media_item(b.id).unwrap().unwrap().featured);
-    assert_eq!(why(db.set_media_featured(999, true)).0, Refusal::NotFound);
+    db.set_media_featured(b.id, Featured::Main).unwrap();
+    assert_eq!(db.media_item(b.id).unwrap().unwrap().featured, Featured::Main);
+    assert_eq!(why(db.set_media_featured(999, Featured::Main)).0, Refusal::NotFound);
 }
 
 /// CATEGORY SUGGESTIONS: a member's suggestion waits for an admin; one that is already a category

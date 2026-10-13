@@ -230,18 +230,18 @@ fn the_admin_routes_refuse_everyone_else() {
     let suggestion = db.suggest_media_category(&ann.key, "Builds", "").unwrap();
     let general = [CategoryEdit { id: Some(1), name: "Everything".into(), description: String::new() }];
 
-    assert!(feature_core(db, &ann.key, item.id, true).is_err(), "a member featured an item");
-    assert_eq!(feature_core(db, &ann.key, item.id, true).unwrap_err().0, StatusCode::FORBIDDEN);
+    assert!(feature_core(db, &ann.key, item.id, Featured::Main).is_err(), "a member featured an item");
+    assert_eq!(feature_core(db, &ann.key, item.id, Featured::Main).unwrap_err().0, StatusCode::FORBIDDEN);
     assert_eq!(categories_core(db, &ann.key, &general).unwrap_err().0, StatusCode::FORBIDDEN);
     assert_eq!(decide_core(db, &ann.key, suggestion.id, true).unwrap_err().0, StatusCode::FORBIDDEN);
     assert_eq!(usage_core(db, &s, &ann.key).unwrap_err().0, StatusCode::FORBIDDEN);
-    assert!(!db.media_item(item.id).unwrap().unwrap().featured, "the refusal changed nothing");
+    assert!(!db.media_item(item.id).unwrap().unwrap().featured.is_on(), "the refusal changed nothing");
     assert_eq!(db.media_categories().unwrap()[0].name, "General");
 
-    feature_core(db, &op.key, item.id, true).unwrap();
-    assert!(db.media_item(item.id).unwrap().unwrap().featured);
-    feature_core(db, &op.key, item.id, false).unwrap();
-    assert!(!db.media_item(item.id).unwrap().unwrap().featured, "an admin takes it off the featured row");
+    feature_core(db, &op.key, item.id, Featured::Main).unwrap();
+    assert_eq!(db.media_item(item.id).unwrap().unwrap().featured, Featured::Main);
+    feature_core(db, &op.key, item.id, Featured::None).unwrap();
+    assert!(!db.media_item(item.id).unwrap().unwrap().featured.is_on(), "an admin takes it off the featured row");
     assert_eq!(categories_core(db, &op.key, &general).unwrap().0["categories"][0]["name"], "Everything");
 }
 
@@ -358,13 +358,13 @@ async fn a_media_write_needs_a_fresh_signature() {
     state.db.set_role(&op.key, "admin").unwrap();
     let item = published(&state.db, &ann.key, "1_a.png", "public");
     let now = now_ms();
-    let purpose = format!("media_feature:{}", item.id);
+    let purpose = format!("media_feature:{}:main", item.id);
     let body = |ts: u64, signer: &Person| FeatureBody {
         key: op.key.clone(),
         timestamp: ts,
         sig: signer.sign(&purpose, ts),
         id: item.id,
-        featured: true,
+        featured: "main".into(),
         filename: "1_a.png".into(),
     };
 
@@ -541,7 +541,7 @@ async fn a_members_only_file_is_only_for_members() {
     for (token, key) in [("tok_bea", &bea.key), ("tok_bo", &bo.key), ("tok_out", &out.key)] {
         state.upload_tokens.write().await.insert(token.to_string(), key.clone());
     }
-    let res = file_core(&state, folders, id, Some("tok_bea"), file_request(id)).await.expect("a member with a token");
+    let res = file_core(&state, folders, id, 0, Some("tok_bea"), file_request(id)).await.expect("a member with a token");
     assert_eq!(res.status(), StatusCode::OK);
     assert_eq!(res.headers()[axum::http::header::CONTENT_DISPOSITION], "attachment");
     let bytes = axum::body::to_bytes(res.into_body(), 1 << 20).await.unwrap();
@@ -552,7 +552,7 @@ async fn a_members_only_file_is_only_for_members() {
         (Some("tok_bo"), StatusCode::FORBIDDEN, "a banned key"),
         (Some("tok_out"), StatusCode::FORBIDDEN, "not a member"),
     ] {
-        let refused = file_core(&state, folders, id, token, file_request(id)).await.map(|r| r.status());
+        let refused = file_core(&state, folders, id, 0, token, file_request(id)).await.map(|r| r.status());
         assert_eq!(refused.err().map(|(c, _)| c), Some(code), "{who}");
     }
 
@@ -642,9 +642,9 @@ async fn a_signature_names_its_target_and_is_never_far_ahead() {
     let feature_body = |id: i64, signed_for: i64, ts: u64| FeatureBody {
         key: op.key.clone(),
         timestamp: ts,
-        sig: op.sign(&format!("media_feature:{signed_for}"), ts),
+        sig: op.sign(&format!("media_feature:{signed_for}:main"), ts),
         id,
-        featured: true,
+        featured: "main".into(),
         filename: if id == a.id { "1_a.png" } else { "2_b.png" }.into(),
     };
 
@@ -655,7 +655,7 @@ async fn a_signature_names_its_target_and_is_never_far_ahead() {
 
     let moved = feature(State(state.clone()), Json(feature_body(b.id, a.id, now))).await;
     assert_eq!(moved.map(|_| ()).map_err(|(code, _)| code), Err(StatusCode::UNAUTHORIZED), "a signature for one item was taken for another");
-    assert!(!db.media_item(b.id).unwrap().unwrap().featured);
+    assert!(!db.media_item(b.id).unwrap().unwrap().featured.is_on());
 
     let pick_b = ItemBody { key: op.key.clone(), timestamp: now, sig: op.sign(&format!("media_pick:{}", a.id), now), id: b.id, filename: "2_b.png".into() };
     assert_eq!(pick(State(state.clone()), Json(pick_b)).await.unwrap_err().0, StatusCode::UNAUTHORIZED, "a pick");

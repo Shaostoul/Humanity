@@ -124,7 +124,11 @@ impl Storage {
             grab("reach_settings", "SELECT kind, audience FROM reach_settings WHERE public_key = ?1 ORDER BY kind ASC", &[&key]);
             // Their Media page items, their picks of other people's items, and the categories they
             // suggested (2026-10-11, storage/media.rs). The files are in `uploads` above.
-            grab("media_items", "SELECT id, upload_filename, title, description, category_id, kind, labels, visibility, featured, size_bytes, views, created_at, from_shelf FROM media_items WHERE uploader_key = ?1 ORDER BY id ASC", &[&key]);
+            grab("media_items", "SELECT id, upload_filename, title, description, category_id, kind, labels, visibility, featured, size_bytes, views, created_at, from_shelf, licence, project_use, downloads FROM media_items WHERE uploader_key = ?1 ORDER BY id ASC", &[&key]);
+            // Their items' other files and covers, and every licence choice they signed, with the
+            // signature (Media round 5, 2026-10-12, storage/media_files.rs).
+            grab("media_item_files", "SELECT f.id, f.item_id, f.upload_filename, f.role, f.position, f.added_at FROM media_item_files f WHERE f.item_id IN (SELECT id FROM media_items WHERE uploader_key = ?1) ORDER BY f.id ASC", &[&key]);
+            grab("media_licence_log", "SELECT item_id, licence, project_use, signed_purpose, signed_body, signed_ts, signature, set_at FROM media_licence_log WHERE set_by = ?1 ORDER BY id ASC", &[&key]);
             grab("media_picks", "SELECT item_id, picked_at FROM media_picks WHERE picker_key = ?1 ORDER BY picked_at ASC", &[&key]);
             grab("media_category_suggestions", "SELECT id, name, note, created_at, state FROM media_category_suggestions WHERE suggester_key = ?1 ORDER BY id ASC", &[&key]);
             // Their uploads still in progress (2026-10-11, storage/upload_sessions.rs): the file's
@@ -319,6 +323,12 @@ impl Storage {
             // (a pick is a reference, so it goes with the item), then the items, their own picks
             // and their suggestions. The items' files went with `uploads` above.
             del("media_picks_of_their_items", "DELETE FROM media_picks WHERE item_id IN (SELECT id FROM media_items WHERE uploader_key = ?1)", &[&key]);
+            // Their items' other files and covers (the files themselves are their uploads, which
+            // went above) and the licence choices on their items and the ones they signed (Media
+            // round 5, 2026-10-12): before the items, which the first two are found through.
+            del("media_item_files", "DELETE FROM media_item_files WHERE item_id IN (SELECT id FROM media_items WHERE uploader_key = ?1)", &[&key]);
+            del("media_licence_log_of_their_items", "DELETE FROM media_licence_log WHERE item_id IN (SELECT id FROM media_items WHERE uploader_key = ?1)", &[&key]);
+            del("media_licence_log", "DELETE FROM media_licence_log WHERE set_by = ?1", &[&key]);
             del("media_items", "DELETE FROM media_items WHERE uploader_key = ?1", &[&key]);
             del("media_picks", "DELETE FROM media_picks WHERE picker_key = ?1", &[&key]);
             del("media_category_suggestions", "DELETE FROM media_category_suggestions WHERE suggester_key = ?1", &[&key]);
@@ -406,6 +416,7 @@ impl Storage {
             OR EXISTS(SELECT 1 FROM fleet_ledger WHERE public_key = ?1)
             OR EXISTS(SELECT 1 FROM reach_settings WHERE public_key = ?1)
             OR EXISTS(SELECT 1 FROM media_items WHERE uploader_key = ?1)
+            OR EXISTS(SELECT 1 FROM media_licence_log WHERE set_by = ?1)
             OR EXISTS(SELECT 1 FROM media_picks WHERE picker_key = ?1)
             OR EXISTS(SELECT 1 FROM media_category_suggestions WHERE suggester_key = ?1)
             OR EXISTS(SELECT 1 FROM upload_sessions WHERE public_key = ?1)
@@ -800,6 +811,12 @@ mod tests {
     /// Seen red 2026-10-11 with the delete of other people's picks of the items taken out of
     /// `delete_account_in`: "the picks of an erased person's items went with them / left: 1 /
     /// right: 0".
+    ///
+    /// MEDIA ROUND 5 (2026-10-12): an item's added file and every licence choice the person
+    /// signed are in the export (with the item's licence, game tick and downloads), and the erase
+    /// takes their rows and the added file with the item. Seen red 2026-10-12 with the erase
+    /// leaving `media_item_files` rows (its `del(` taken out): "the item's added files' rows went /
+    /// left: 1 / right: 0".
     #[test]
     fn the_media_page_is_exported_and_erased_with_its_files() {
         use crate::relay::storage::media::{Folders, Publish};
@@ -826,13 +843,24 @@ mod tests {
         db.pick_media("bea_key", ann_item.id).unwrap();
         db.pick_media("ann_key", bea_item.id).unwrap();
         db.suggest_media_category("ann_key", "Fire flow arts", "").unwrap();
+        // Round 5: a file added to her item, and a licence choice she signed.
+        std::fs::write(waiting.join("4_ann_extra.zip"), b"extra").unwrap();
+        db.record_upload("ann_key", "4_ann_extra.zip", 100, crate::relay::storage::media::MEDIA_SHELF, "extra.zip", 5).unwrap();
+        db.attach_media_file("ann_key", ann_item.id, "4_ann_extra.zip", crate::relay::storage::media::ROLE_FILE, 0, |m| folders.place("4_ann_extra.zip", m))
+            .unwrap();
+        let edit = crate::relay::storage::media::Edit { title: "", description: "", category_id: 1, labels: "", licence: "cc0_1", project_use: true };
+        let signed = crate::relay::storage::media::Signed { key: "ann_key", purpose: "media_edit:1:00", body: "{}", ts: 1, sig: "sig" };
+        db.edit_media("ann_key", false, ann_item.id, &edit, &signed).unwrap();
 
         let export = db.export_account("ann_key", "Ann");
-        for (table, n) in [("media_items", 2), ("media_picks", 1), ("media_category_suggestions", 1)] {
+        for (table, n) in [("media_items", 2), ("media_picks", 1), ("media_category_suggestions", 1), ("media_item_files", 1), ("media_licence_log", 1)] {
             assert_eq!(export[table].as_array().map(|a| a.len()), Some(n), "the export lists {table}");
         }
         assert_eq!(export["media_items"][0]["upload_filename"], "1_ann.png");
         assert_eq!(export["media_items"][0]["from_shelf"], 0, "the export says where the upload came from");
+        assert_eq!((export["media_items"][0]["licence"].as_str(), export["media_items"][0]["project_use"].as_i64()), (Some("cc0_1"), Some(1)));
+        assert_eq!(export["media_item_files"][0]["upload_filename"], "4_ann_extra.zip");
+        assert_eq!(export["media_licence_log"][0]["signature"], "sig", "a licence choice is listed with its signature");
 
         let receipt = db.delete_account_in("ann_key", "Ann", folders);
         assert!(!members.join("3_ann_inner.png").exists(), "the members-only item's file went");
@@ -842,6 +870,9 @@ mod tests {
         assert_eq!(rows(format!("SELECT COUNT(*) FROM media_picks WHERE item_id = {}", ann_item.id).as_str()), 0, "the picks of an erased person's items went with them");
         assert_eq!(rows("SELECT COUNT(*) FROM media_picks WHERE picker_key = 'ann_key'"), 0, "their own picks went");
         assert_eq!(rows("SELECT COUNT(*) FROM media_category_suggestions"), 0, "their suggestion went");
+        assert_eq!(rows("SELECT COUNT(*) FROM media_item_files"), 0, "the item's added files' rows went");
+        assert_eq!(rows("SELECT COUNT(*) FROM media_licence_log"), 0, "and the licence choices");
+        assert!(!uploads.join("4_ann_extra.zip").exists(), "and the added file");
         assert!(!uploads.join("1_ann.png").exists(), "the item's file went");
         assert!(uploads.join("2_bea.png").exists(), "the other person's file stays");
         assert!(db.media_item(bea_item.id).unwrap().is_some(), "the other person's item stays");

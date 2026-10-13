@@ -1462,6 +1462,65 @@ impl Storage {
             CREATE INDEX IF NOT EXISTS idx_media_picks_item ON media_picks(item_id);"
         )?;
 
+        // Media round 5 (2026-10-12, storage/media_files.rs; docs/design/media-round-5-plan.md
+        // 3.1 and 10): an item's licence, whether its uploader offered it for the game
+        // (`project_use`, off; only under CC0 or CC BY 4.0), and how many people downloaded it. `media_items` has shipped since
+        // v0.1485.0, so live databases already hold it: these are guarded ALTERs, and they are
+        // never named in its CREATE TABLE, so a fresh database gains them by the same path as an
+        // old one. Every item published before reads "All rights reserved", what the law gives
+        // every uploader with no statement at all (docs/reference/findings/
+        // 2026-10-12-media-item-licences.md). `featured` keeps its column and gains a value: 0 none,
+        // 1 the main shelf, 2 its category's shelf only (rows written so far are 0 or 1 and mean
+        // what they did).
+        for (column, add) in [
+            ("licence", "ALTER TABLE media_items ADD COLUMN licence TEXT NOT NULL DEFAULT 'all_rights_reserved';"),
+            ("project_use", "ALTER TABLE media_items ADD COLUMN project_use INTEGER NOT NULL DEFAULT 0;"),
+            ("downloads", "ALTER TABLE media_items ADD COLUMN downloads INTEGER NOT NULL DEFAULT 0;"),
+        ] {
+            if conn.prepare(&format!("SELECT {column} FROM media_items LIMIT 0")).is_err() {
+                conn.execute_batch(add)?;
+                info!("Migration: added {column} (media_items)");
+            }
+        }
+        // The indexes over those columns, in a batch of their own AFTER the ALTERs: an index that
+        // names an ALTER-added column anywhere earlier stops a live database from opening (BUG-046;
+        // `opens_a_v0_1489_media_database_and_migrates_it` opens one shaped like v0.1489.0's).
+        conn.execute_batch(
+            "CREATE INDEX IF NOT EXISTS idx_media_items_downloads ON media_items(downloads, id);
+            CREATE INDEX IF NOT EXISTS idx_media_items_featured ON media_items(featured, category_id, id);"
+        )?;
+        // An item's other files and its cover (`media_item_files`: one row each; the item's own
+        // file stays `media_items.upload_filename`, file 0), and every licence choice with the
+        // signature over it (`media_licence_log`: the publish's, and each edit that changed the
+        // licence or the game tick, with the edit's text so the hash can be checked again). New
+        // tables in a batch of their own, every index over its own CREATE TABLE columns. A file's
+        // size is its `user_uploads` row's; none is copied. In the account export and the erase
+        // (storage/account.rs).
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS media_item_files (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                item_id         INTEGER NOT NULL,
+                upload_filename TEXT    NOT NULL UNIQUE,
+                role            TEXT    NOT NULL,
+                position        INTEGER NOT NULL,
+                added_at        INTEGER NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_media_item_files_item ON media_item_files(item_id, role, position);
+            CREATE TABLE IF NOT EXISTS media_licence_log (
+                id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                item_id        INTEGER NOT NULL,
+                licence        TEXT    NOT NULL,
+                project_use    INTEGER NOT NULL,
+                set_by         TEXT    NOT NULL,
+                signed_purpose TEXT    NOT NULL,
+                signed_body    TEXT    NOT NULL DEFAULT '',
+                signed_ts      INTEGER NOT NULL,
+                signature      TEXT    NOT NULL,
+                set_at         INTEGER NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_media_licence_log_item ON media_licence_log(item_id, id);"
+        )?;
+
         // Resumable uploads (2026-10-11, storage/upload_sessions.rs and relay/resumable.rs; docs/
         // design/media-showcase.md "Resumable uploads, exact"): one row per big Media file being
         // sent in pieces, until it is whole and stored (or cancelled, or idle for a day). `id` is
