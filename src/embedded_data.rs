@@ -27,6 +27,10 @@ pub const ASTEROID_TYPES_CSV: &str = include_str!("../data/asteroids/types.csv")
 /// The asteroids a new world starts with (ship homes increment 6: moved out of lib.rs's startup so
 /// a server save made fresh starts with the same belt; src/save_load.rs `fresh_asteroids`).
 pub const ASTEROID_BELT_RON: &str = include_str!("../data/asteroids/belt.ron");
+/// The fleet's stores and the meal time (increment 6 lane 1D: the mess hall counter reads them).
+pub const SHIP_STORES_RON: &str = include_str!("../data/food/ship_stores.ron");
+/// The fleet ledger's kinds; the counter reads which good is a meal.
+pub const FLEET_LEDGER_RON: &str = include_str!("../data/ship/fleet_ledger.ron");
 
 // ── JSON data ───────────────────────────────────────────────────────
 pub const GLOSSARY_JSON: &str = include_str!("../data/glossary.json");
@@ -305,6 +309,8 @@ pub fn get_embedded(path: &str) -> Option<&'static str> {
         "chemistry/toxins.csv" => Some(TOXINS_CSV),
         "asteroids/types.csv" => Some(ASTEROID_TYPES_CSV),
         "asteroids/belt.ron" => Some(ASTEROID_BELT_RON),
+        "food/ship_stores.ron" => Some(SHIP_STORES_RON),
+        "ship/fleet_ledger.ron" => Some(FLEET_LEDGER_RON),
         "creatures.csv" => Some(CREATURES_CSV),
         "entities/livestock.ron" => Some(LIVESTOCK_RON),
         "livestock/care.ron" => Some(LIVESTOCK_CARE_RON),
@@ -617,6 +623,8 @@ pub const EMBEDDED_KEYS: &[&str] = &[
     "chemistry/toxins.csv",
     "asteroids/types.csv",
     "asteroids/belt.ron",
+    "food/ship_stores.ron",
+    "ship/fleet_ledger.ron",
     // JSON
     "glossary.json",
     "star_systems/sol.json",

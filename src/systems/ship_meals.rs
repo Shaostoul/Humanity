@@ -93,31 +93,27 @@ impl MealRules {
     /// replaced by the copy built into the exe, and the log says so (the relay's rule for these
     /// same files). Both built-in copies are tested to read.
     pub fn load(data_dir: &Path) -> MealRules {
-        let stores = read(data_dir, STORES_FILE, include_str!("../../data/food/ship_stores.ron"));
-        let ledger = read(data_dir, LEDGER_FILE, include_str!("../../data/ship/fleet_ledger.ron"));
+        // Disk first; a missing file is the built-in copy, which read_data_or_embedded logs.
+        let read = |rel: &str| crate::embedded_data::read_data_or_embedded(data_dir, rel).unwrap_or_default();
+        let (stores, ledger) = (read(STORES_FILE), read(LEDGER_FILE));
         Self::parse(&stores, &ledger).unwrap_or_else(|e| {
-            crate::embedded_data::note_builtin_copy(STORES_FILE, format_args!("{e}"));
-            Self::built_in()
+            // This version cannot read the folder's copies: both built-in ones, said in the log.
+            crate::embedded_data::note_builtin_copy("food/ship_stores.ron", format_args!("{e}"));
+            crate::embedded_data::note_builtin_copy("ship/fleet_ledger.ron", format_args!("{e}"));
+            Self::parse(crate::embedded_data::SHIP_STORES_RON, crate::embedded_data::FLEET_LEDGER_RON)
+                .expect("the built-in ship_stores.ron and fleet_ledger.ron read (tested)")
         })
     }
 
-    /// The rules as this exe was built with them.
+    /// The rules as this exe was built with them (tests: the built-in copies read).
+    #[cfg(test)]
     pub fn built_in() -> MealRules {
-        Self::parse(include_str!("../../data/food/ship_stores.ron"), include_str!("../../data/ship/fleet_ledger.ron"))
+        Self::parse(crate::embedded_data::SHIP_STORES_RON, crate::embedded_data::FLEET_LEDGER_RON)
             .expect("the built-in ship_stores.ron and fleet_ledger.ron read (tested)")
     }
 }
 
-/// data/<rel> from the data folder, else `built_in`, logged as the built-in copy.
-fn read(data_dir: &Path, rel: &str, built_in: &str) -> String {
-    match crate::embedded_data::read_data_or_embedded(data_dir, rel) {
-        Some(s) => s,
-        None => {
-            crate::embedded_data::note_builtin_copy(rel, format_args!("{} could not be read", data_dir.join(rel).display()));
-            built_in.to_string()
-        }
-    }
-}
+
 
 /// What the counter does when asked for a meal.
 #[derive(Debug, Clone, PartialEq)]
