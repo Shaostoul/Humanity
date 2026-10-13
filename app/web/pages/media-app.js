@@ -22,8 +22,11 @@
 // paragraph, then a resumable upload with a progress bar, Pause and Resume; a file
 // picked in an item's Edit form is the same upload, attached to that item when it
 // is up instead of published), Put on Media for a Shared Files row (public
-// only), and Suggest a category. The relay half is src/relay/media.rs and
-// src/relay/resumable.rs.
+// only), and Suggest a category. "Report a copyright problem" (2026-10-13,
+// /pages/media-takedown.js) is on every item's page and at the page's foot, for
+// anyone, signed in or not, and the reports waiting are on the Admin tab. The
+// relay half is src/relay/media.rs, src/relay/resumable.rs and
+// src/relay/media_takedown.rs.
 //
 // RULES THIS FILE KEEPS
 // - Every element is built with createElement and textContent: nothing the
@@ -473,6 +476,9 @@
   // (/pages/media-edit.js), round 5, lane 2A.
   const MI = typeof module === 'object' && module && module.exports ? require('./media-item.js') : root.MediaItem;
   const ED = typeof module === 'object' && module && module.exports ? require('./media-edit.js') : root.MediaEdit;
+  // "Report a copyright problem" (2026-10-13, /pages/media-takedown.js): the form anyone may send,
+  // signed in or not, from an item's page and from the page's foot; and the admins' view of them.
+  const TD = typeof module === 'object' && module && module.exports ? require('./media-takedown.js') : root.MediaTakedown;
 
   // ── DOM ──
 
@@ -514,6 +520,8 @@
    *   history (pushState, replaceState, back: an opened item's address; optional),
    *   IntersectionObserver (loads the next page as the grid's end comes into view; optional),
    *   mountAdmin(container) (the admins' Media section, /pages/media-admin.js, on the Admin tab), optional,
+   *   mountTakedowns(container) (the copyright reports waiting, /pages/media-takedown.js, on the
+   *   Admin tab below it), optional,
    *   clean (/shared/upload-clean.js, which cleans each file before it goes up; that module when
    *   not given, and null for no cleaning at all: the older tests' stand-in files are zeros named
    *   as videos, which the cleaning would rightly refuse).
@@ -588,6 +596,7 @@
     });
     function build() {
       doc.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && takedown && takedown.isOpen()) { takedown.close(); return; }
         if (e.key === 'Escape' && st.report) { closeReport(); return; }
         if (e.key === 'Escape' && st.viewer) itemView.close();
       });
@@ -608,10 +617,20 @@
       els.sentinel = h('div', { id: 'media-sentinel', className: 'media-sentinel', attrs: { 'aria-hidden': 'true' } });
       els.viewer = h('div', { id: 'media-viewer', className: 'media-viewer-wrap' });
       els.report = h('div', { id: 'media-report', className: 'media-viewer-wrap' });
+      // The copyright form's dialog, and the page's foot with its button and the public log's link.
+      els.takedown = h('div', { id: 'media-takedown', className: 'media-viewer-wrap' });
+      els.foot = h('p', { id: 'media-foot', className: 'media-hint media-foot' }, TD ? [
+        h('button', {
+          type: 'button', id: 'media-foot-takedown', className: 'media-btn media-btn-small', text: TD.WORDS.button,
+          title: TD.WORDS.buttonTip, on: { click: () => openTakedown(null) },
+        }),
+        ' ',
+        h('a', { href: TD.LOG_PAGE, id: 'media-foot-takedown-log', text: TD.WORDS.logLink }),
+      ] : []);
       els.tabs = h('div', { id: 'media-tabs-wrap' });
       // The Media tab, and the Admin tab (the admins' section, mounted in renderAdmin).
       els.main = h('div', { id: 'media-main' }, [els.members, els.actions, els.form, els.uploads, els.waiting, els.suggest,
-        els.featured, els.filters, els.catDesc, els.grid, els.more, els.sentinel]);
+        els.featured, els.filters, els.catDesc, els.grid, els.more, els.sentinel, els.foot]);
       els.admin = h('div', { id: 'media-admin-wrap', className: 'media-admin-wrap', hidden: true });
       doc.title = mediaOn;
       env.root.replaceChildren(
@@ -623,7 +642,7 @@
             '.',
           ]),
         ]),
-        els.status, els.notice, els.tabs, els.main, els.admin, els.viewer, els.report, fileInput
+        els.status, els.notice, els.tabs, els.main, els.admin, els.viewer, els.report, els.takedown, fileInput
       );
       const Watch = env.IntersectionObserver || null;
       if (Watch) {
@@ -883,6 +902,7 @@
       go, canPush: !!hist, back: () => hist.back(),
       rerender: () => { renderGrid(); renderFeatured(); },
       actions: (item) => tileActions(item, true),
+      openTakedown: TD ? (item) => openTakedown(item) : null,
       attach: (file, item, as) => startAttach(file, item, as),
       uploadsFor: (id) => st.uploads.filter((u) => u.attach && u.attach.id === id).map((u) => ({ heading: u.heading, words: u.up ? uploadWords(u.up) : u.error })),
     });
@@ -2038,6 +2058,14 @@
       return text.startsWith('Your category suggestion') || text.startsWith('Server settings updated') || text.startsWith('__game__:');
     }
 
+    // ── Report a copyright problem (/pages/media-takedown.js): anyone, signed in or not ──
+    const takedown = TD ? TD.createTakedownForm({ document: doc, fetch: env.fetch, container: () => els.takedown }) : null;
+    /** Open the form about `item`, or (from the page's foot) asking for the item's number. */
+    function openTakedown(item) {
+      if (!takedown) return;
+      takedown.open(item ? { id: item.id, title: itemName(item, st.kinds) } : null);
+    }
+
     // ── Suggest a category ──
     function openSuggest() {
       st.suggest = { busy: false, error: '', mine: null };
@@ -2114,6 +2142,15 @@
           body,
         ]));
         env.mountAdmin(body);
+        // The copyright reports waiting for a decision (/pages/media-takedown.js), on the same tab.
+        if (typeof env.mountTakedowns === 'function') {
+          const reports = h('div', { id: 'media-admin-takedowns-body', className: 'media-admin-body' });
+          els.admin.appendChild(h('div', { className: 'media-panel media-admin', id: 'media-admin-takedowns' }, [
+            h('h2', { text: 'Copyright reports' }),
+            reports,
+          ]));
+          env.mountTakedowns(reports);
+        }
       }
       renderTabs();
     }
@@ -2271,6 +2308,14 @@
           root.mountMediaAdmin(container, {
             document: doc, fetch: (u, i) => root.fetch(u, i), sign, confirm, session,
             blake3: (bytes) => root.pqBlake3(bytes),
+            onChange: () => { if (page) { page.load(true); page.loadFeatured(); } },
+          });
+        },
+        // The copyright reports on the Admin tab (/pages/media-takedown.js, loaded before this file).
+        mountTakedowns: (container) => {
+          if (!root.MediaTakedown) return;
+          root.MediaTakedown.mountTakedownAdmin(container, {
+            document: doc, fetch: (u, i) => root.fetch(u, i), sign, confirm,
             onChange: () => { if (page) { page.load(true); page.loadFeatured(); } },
           });
         },

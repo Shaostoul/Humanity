@@ -311,6 +311,11 @@
       "date": "2026-10-13",
       "decision": "Your folders is DESKTOP ONLY (operator): no website version, so every browser behaves the same and people are drawn to the installed app; the direction he stated: \"We have to somehow make HumanityOS better than Steam, GOG, Epic, Brave, Chrome, Safari.\" New idea, welcomed: a Games library in the app that lists and launches every installed game (Steam, Epic, GOG, and games installed anywhere else, e.g. Dwarf Fortress classic), with the stores still doing downloads, updates and licence checks behind it. Before building: a dated findings doc on Steam's and Epic's terms for listing and launching their games from another app and on what we may not do (download or update their games ourselves); Playnite (open source) is prior art for listing and launching.",
       "why": "One place for a person's games without a store's browser in the way; the store terms decide the line, so they are read from the source first (CLAUDE.md: research a legal question, then write it down and date it)."
+    },
+    {
+      "date": "2026-10-13",
+      "decision": "Released v0.1495.0: Report a copyright problem on both apps (no sign-in; 3 a day per address, 100 a day in all), admins decide in the Media Admin tab, public takedown log (GET /api/media/takedowns; never name, contact or statement; those blanked 90 days after a decision; a title shown only if the item was public). The rules page points to the form instead of GitHub. Built in two lanes (relay+web, then desktop), each test seen red.",
+      "why": "The operator (2026-10-13): no address for a DMCA agent, no email; an in-app form and a public log instead."
     }
   ],
   "active_scopes_to_avoid": [

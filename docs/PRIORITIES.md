@@ -286,10 +286,10 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
     sponsor or the project's own nonprofit exists (journal 2026-10-13). The entity findings are
     public since 2026-10-13, without the founder's personal notes, which are kept privately.
   - **Next for Media (operator, 2026-10-13):**
-    - **"Report a copyright problem"**: a dedicated button on the Media page (both apps) and a
-      simple form anyone can use; admins told inside HumanityOS (no email); a public takedown log
-      (item, date, kind of claim, outcome; never the claimant's details). Extends reports_v2 and
-      the Reports page.
+    - DONE 2026-10-13 (v0.1495.0): **"Report a copyright problem"** on both apps (works signed out),
+      admins decide in the Admin tab, the public takedown log (rules page, desktop window). Open:
+      on the desktop item page a button placed on its own line under the actions stopped two
+      tests' clicks registering (`media/item_view.rs` comment); worth a look.
     - **Your folders**: point HumanityOS at folders (his E: "Media" drive), browse them like a
       file explorer, pick files to put on a server's Media page; nothing leaves the computer
       unless picked. Builds on `src/gui/widgets/file_browser.rs`; marks which local files are
