@@ -38,6 +38,16 @@
     .scroll-x { overflow-x: auto; }
     .updated { color: var(--text-muted); font-size: 0.85rem; }
     .rules-wrap a { color: var(--accent); }
+    /* The public takedown log (2026-10-13), drawn by /pages/media-takedown.js. */
+    .takedown-log-list { list-style: none; padding-left: 0; }
+    .takedown-log-row {
+      border: 1px solid var(--border); border-radius: var(--radius, 8px); background: var(--bg-card);
+      padding: var(--space-sm) var(--space-md); margin-bottom: var(--space-sm);
+    }
+    .takedown-log-removed { color: var(--danger); }
+    .takedown-log-kept { color: var(--accent); }
+    .takedown-log-when, .takedown-log-empty { color: var(--text-muted); }
+    .takedown-log-note { margin: var(--space-xs) 0 0; white-space: pre-wrap; }
   </style>
 </head>
 <body>
@@ -55,7 +65,7 @@
     Accord</a>, which takes precedence: a server rule may be stricter than the Accord, never
     looser, and never coercive.
   </p>
-  <p class="updated">Published 6 September 2026; rule 7 and the section on work put here without permission added 12 October 2026. Anyone running their own HumanityOS server writes their own rules; these bind this server only.</p>
+  <p class="updated">Published 6 September 2026; rule 7 and the section on work put here without permission added 12 October 2026; the copyright form and the public takedown log added 13 October 2026. Anyone running their own HumanityOS server writes their own rules; these bind this server only.</p>
 
   <h2>The rules</h2>
 
@@ -147,17 +157,35 @@
     was put here without your permission, tell us. An admin will look at it and can take it down.
   </p>
   <ul>
-    <li><strong>If you are a member here:</strong> open the item and choose Report, with the reason
-      "My work, shared without my permission". Say in the note which file it is and why it is yours.</li>
-    <li><strong>If you are not:</strong> open an issue at
-      <a href="https://github.com/Shaostoul/Humanity/issues" target="_blank" rel="noopener">github.com/Shaostoul/Humanity/issues</a>
-      giving the item's address (it looks like <code>united-humanity.us/media/12</code>) and saying it
-      is yours. The issue is public, so put no private details in it; an admin answers there.</li>
+    <li><strong>Anyone, signed in or not:</strong> open the item on the <a href="/media">Media page</a>
+      and press <strong>Report a copyright problem</strong> (the same button is at the foot of the
+      Media page, where you give the item's number or its address, which looks like
+      <code>united-humanity.us/media/12</code>). Say why the work is yours and tick the box. Your name
+      and how to reach you are optional, and only this server's admins see them. The admins are told
+      inside HumanityOS.</li>
+    <li><strong>If you are a member here,</strong> you can also open the item and choose Report, with
+      the reason "My work, shared without my permission", saying in the note which file it is and why
+      it is yours.</li>
   </ul>
+  <p>
+    Every decision is published in the takedown log below: which item, when it was reported and
+    decided, whether it was removed or kept, and the admin's note. Who reported it, and how to reach
+    them, is never shown, and the name, contact and statement a person gave are deleted from the
+    server 90 days after the decision.
+  </p>
   <p>
     If something of yours was taken down and you believe that was a mistake, because it is yours or
     you had the right to share it, say so the same way and it will be looked at again.
   </p>
+
+  <h3 id="takedown-log-heading">The public takedown log</h3>
+  <p class="updated">
+    Every copyright report this server has decided, the latest first. It is read from the server
+    each time this page opens.
+  </p>
+  <div id="takedown-log" class="takedown-log" aria-live="polite">
+    <p class="takedown-log-empty">Loading the takedown log...</p>
+  </div>
 
   <h2>Appealing a decision</h2>
   <p>
@@ -234,5 +262,8 @@
   </p>
 
 </div>
+<!-- The public takedown log above (#takedown-log): read from GET /api/media/takedowns and drawn
+     with textContent only. -->
+<script src="/pages/media-takedown.js?v=1"></script>
 </body>
 </html>

@@ -82,6 +82,10 @@
 .media-form-actions { margin-top: var(--space-md); }
 .media-report-box { max-width: min(640px, 100%); }
 .media-report-box h3 { font-size: var(--text-sm); margin: var(--space-md) 0 var(--space-xs); }
+/* "Report a copyright problem" (2026-10-13, /pages/media-takedown.js): the ticked box's sentence
+   wraps beside its tick, and the page's foot sits clear of the grid. */
+.media-takedown-check { display: flex; align-items: flex-start; margin: var(--space-sm) 0; }
+.media-foot { margin-top: var(--space-xl); }
 .media-report-reason-help { border-left: 3px solid var(--warning); background: var(--bg-secondary); padding: var(--space-sm) var(--space-md); font-size: var(--text-sm); margin: var(--space-sm) 0; }
 .media-report-help { border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-sm) var(--space-md); margin: var(--space-sm) 0; font-size: var(--text-sm); }
 .media-report-emergency { font-size: var(--text-lg); font-weight: 700; margin: var(--space-xs) 0; }

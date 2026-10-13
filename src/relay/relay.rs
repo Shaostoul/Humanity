@@ -208,6 +208,9 @@ pub struct RelayState {
     /// Who was counted today for each Media item's views and downloads, as keyed marks, in memory
     /// only (Media round 5, media_counts.rs).
     pub media_marks: crate::relay::media_counts::Marks,
+    /// How many copyright reports came today from each address (as keyed marks) and from
+    /// everyone, in memory only (media_takedown.rs).
+    pub media_takedowns: crate::relay::media_takedown::Limits,
     /// Tests only (R3-1): the Unix-ms clock the upload allowances read instead of the wall
     /// (`upload_now_ms`), so a test can carry an upload across midnight UTC. Never set in the product.
     #[cfg(test)]
@@ -496,6 +499,7 @@ impl RelayState {
             upload_tokens: RwLock::new(HashMap::new()),
             media_tickets: Default::default(),
             media_marks: Default::default(),
+            media_takedowns: Default::default(),
             #[cfg(test)]
             upload_clock: std::sync::OnceLock::new(),
             voice_rooms: RwLock::new(HashMap::new()),

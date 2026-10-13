@@ -375,6 +375,8 @@ async function openPage(opts) {
     FormData: FakeFormData, put: o.put || null, path: o.path || "/media", hash: o.hash || "",
     history: o.history || null, IntersectionObserver: o.IntersectionObserver || null,
     mountAdmin: o.mountAdmin ? (c) => o.mountAdmin(c, ctx) : null,
+    // The copyright reports on the Admin tab (2026-10-13, media-takedown-web.test.js).
+    mountTakedowns: o.mountTakedowns ? (c) => o.mountTakedowns(c, ctx) : null,
     URL: urls, storage, save: (url, name) => saved.push({ url, name }),
     sleep: o.sleep || (() => Promise.resolve()), now: o.now || (() => 1760000000000),
     // The fingerprint's SHA-256 (WebCrypto's takes a few hundred event-loop turns in Node, longer
