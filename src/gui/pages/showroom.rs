@@ -7,9 +7,26 @@
 //! The panel only edits `gui_state` (appearance / outfit / backdrop / selection /
 //! confirm); the main loop applies it to the avatar mesh, camera, backdrop, and
 //! save (edit-buffer-then-sync). Structure spec: docs/design/play-characters.md.
+//!
+//! CHOOSE WHERE YOU LIVE (ship homes increment 6, lane 2B, 2026-10-12;
+//! docs/design/ship-homes-increment-6-plan.md 3.9). Two places in the picker choose a home:
+//! - the new-home row ("A new home", `NEW_HOME`): selected while your own home has no save yet,
+//!   it shows the choice (`where_you_live::draw_choice`, every start from data/homes/starts.ron),
+//!   the Enter bar names the home it makes ("Enter as Wanderer -> a new Cabin (solo)"), and Enter
+//!   remembers the choice (`save_slot::choose_new_home`), which `save_slot::follow` makes into
+//!   your own home's save once lib.rs records the pairing;
+//! - the card of the server the game is connected to (`draw_home_here`): it asks the server where
+//!   you live there (`save_slot::ask_where_you_live`) and shows its answer
+//!   (`where_you_live::draw_server`): your home there, or the choice with each start's free count
+//!   and a Choose button (`save_slot::choose_on_server_gui`), whose answer engine/save_slot.rs puts
+//!   into that server's save.
+
+use std::cell::RefCell;
+use std::time::Instant;
 
 use egui::{Context, RichText, ScrollArea};
 
+use crate::gui::pages::where_you_live as wyl;
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use crate::gui::{GuiState, LauncherWhere};
@@ -19,9 +36,17 @@ use crate::gui::{GuiState, LauncherWhere};
 // inventory page and this wardrobe now share the one slot list via
 // gui_state.equipment_slots (id, label), loaded at startup.
 
-/// Display label for the WHERE row that means "the world you are already in,
-/// made yours". It has no save on disk yet, so its id is the empty string.
-const NEW_HOMESTEAD: &str = "My Homestead (new)";
+/// Display label for the WHERE row that makes a new home of your own. It has no
+/// save on disk yet, so its id is the empty string. Since increment 6 it is any
+/// start's home, chosen on the row (it read "My Homestead (new)").
+const NEW_HOME: &str = "A new home";
+
+/// Under the new-home row when your own home already has a save: there is one save for your
+/// own home (saves/offline_home.json, increment 6), so the choice of a start is offered only
+/// while it has none, and a new character moves into the home that is there.
+const NEW_HOME_TAKEN: &str =
+    "You already have a home of your own on this computer, so a new character moves into it. \
+     To live somewhere else, choose on a server's card below.";
 
 /// Sentinel id for the VIRTUAL "server you are connected to right now" row in
 /// the picker's Open Net card (v0.775). The app auto-connects to `server_url`
@@ -29,14 +54,55 @@ const NEW_HOMESTEAD: &str = "My Homestead (new)";
 /// shown here -- only explicitly-saved `chat_servers` were -- so the operator
 /// saw "No servers yet" while actually connected. This id is not a real saved
 /// server; `resolve_server` special-cases it to read `server_url` directly.
-const CONNECTED_SERVER_ID: &str = "__connected__";
+/// It IS engine/save_slot.rs `CONNECTED_SERVER_ROW`, the row a server pairing made by the
+/// probe's `{"pairing":"server"}` records, so the picker preselects that pairing's row.
+const CONNECTED_SERVER_ID: &str = crate::engine::save_slot::CONNECTED_SERVER_ROW;
 
-/// The WHO column's hint: what travels with a character, and where its progress lives. One
-/// save on this computer holds it all, whichever world is played (`save_load::active_home_path`);
-/// a server keeps none of a player's gear (first-hour audit 2026-10-04: the old hint said gear
-/// and skills "stay in the world you earn them in", which the code has never done).
-const WHO_HINT: &str = "Your name and look travel with you. Gear and skills are one save on \
-                        this computer, shared by your home and every server you visit.";
+/// The WHO column's hint: what travels with a character, and where its progress lives. Since
+/// increment 6 (the operator's rule of 2026-10-04: server worlds start every player fresh) each
+/// server keeps its own save for you on this computer, made fresh from the home you choose there
+/// (saves/servers/, `persistence::slot_path`), and your own home keeps saves/offline_home.json;
+/// only your name, look and outfit cross between them (engine/save_slot.rs `Look`).
+const WHO_HINT: &str = "Your name and look travel with you. Each server you visit keeps its own home \
+                        and things for you, starting fresh; your own home keeps yours.";
+
+/// A server's card for someone with no identity: the server keeps a home under one (the sentence
+/// `save_slot::choose_on_server_gui` gives).
+const NO_IDENTITY: &str = "A server keeps your home there under your identity: make one first (Settings > Identity).";
+
+/// How long a server's card waits for its `game_home` answer before it stops saying it is asking,
+/// seconds. A relay from before increment 6 never answers; its card then says so.
+const ANSWER_WAIT_SECS: f32 = 10.0;
+
+/// The card of the connected server: what it asked, and what is on its way.
+#[derive(Default)]
+struct HereCard {
+    /// The server the card asked where you live (its normalized address) since the picker opened.
+    asked: Option<String>,
+    /// When a request or a Choose went out, until its answer comes (or `ANSWER_WAIT_SECS` pass).
+    waiting_since: Option<Instant>,
+    /// The answer as it stood when the request or the Choose went out: one that differs is its
+    /// reply.
+    before: Option<crate::ship::starts::HomeAnswer>,
+    /// A Choose that could not be sent, in the sentence that says why.
+    note: Option<String>,
+}
+
+// Thread-local, the way where_you_live.rs keeps its draft: the picker is drawn on the one main
+// thread, and a test's state stays its own.
+thread_local! {
+    /// The name of your own home's save (saves/offline_home.json) when the picker last scanned
+    /// the saves (`load_homes`), None when it has none: the new-home row offers the choice only
+    /// then (`save_slot::follow` makes the new home only for a save that does not exist yet).
+    static OWN_HOME: RefCell<Option<String>> = const { RefCell::new(None) };
+    /// The connected server's card (`draw_home_here`).
+    static HERE: RefCell<HereCard> = RefCell::new(HereCard::default());
+}
+
+/// The name of your own home's save, as the picker last scanned it (None: it has none).
+fn own_home() -> Option<String> {
+    OWN_HOME.with(|o| o.borrow().clone())
+}
 
 pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
     // Land any finished server-info fetch into the cache (v0.478).
@@ -97,6 +163,7 @@ fn draw_picker(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                     .tooltip("Play as this character in this world.")
                     .show(ui, theme)
                 {
+                    remember_new_home(state);
                     state.showroom_confirm = true;
                 }
             });
@@ -171,6 +238,12 @@ fn draw_picker(ctx: &Context, theme: &Theme, state: &mut GuiState) {
 /// usable id.
 fn load_homes(state: &mut GuiState) {
     let dir = crate::persistence::saves_dir();
+    // Your own home's save, if it has one (the new-home row offers the choice only while it has
+    // none), and the connected server's card asks the server afresh each time the picker opens.
+    let own = crate::persistence::slot_path(&dir, &crate::persistence::SaveSlot::Offline);
+    let own = own.exists().then(|| crate::persistence::load_world(&own).map(|s| s.name).unwrap_or_default());
+    OWN_HOME.with(|o| *o.borrow_mut() = own);
+    HERE.with(|h| *h.borrow_mut() = HereCard::default());
     let mut homes: Vec<crate::gui::LauncherHome> = Vec::new();
     if let Ok(entries) = std::fs::read_dir(&dir) {
         for entry in entries.filter_map(|e| e.ok()) {
@@ -385,10 +458,20 @@ fn draw_where_column(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             if homes.is_empty() || who_is_new {
                 let is_sel = kind == LauncherWhere::Home && sel_world.is_empty();
                 if ui
-                    .selectable_label(is_sel, RichText::new(NEW_HOMESTEAD).color(theme.text_primary()))
+                    .selectable_label(is_sel, RichText::new(NEW_HOME).color(theme.text_primary()))
                     .clicked()
                 {
                     pick_world = Some(String::new());
+                }
+                // Selected: where the new home is (increment 6, 3.9). The choice is offered while
+                // your own home has no save; Enter makes it (`remember_new_home`).
+                if is_sel {
+                    ui.indent("new_home_choice", |ui| match own_home() {
+                        None => {
+                            wyl::draw_choice(ui, theme, wyl::starts());
+                        }
+                        Some(_) => hint(ui, theme, NEW_HOME_TAKEN),
+                    });
                 }
             }
         });
@@ -517,7 +600,7 @@ fn pairing(state: &GuiState) -> Pairing {
     match state.launcher_where_kind {
         LauncherWhere::Home => {
             let world = if state.launcher_selected_world.is_empty() {
-                NEW_HOMESTEAD.to_string()
+                new_home_name()
             } else {
                 state.launcher_selected_world.clone()
             };
@@ -638,6 +721,105 @@ fn draw_server_info(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, id: 
     if is_live_url(state, &svr_url) {
         ui.add_space(theme.spacing_xs);
         hint(ui, theme, "Admins: edit this server's description in Server Settings (server cog in Chat).");
+    }
+
+    // Where you live on it (increment 6, 3.9): only the server the game talks to can be asked.
+    if svr_connected && is_live_url(state, &svr_url) {
+        ui.add_space(theme.spacing_sm);
+        ui.separator();
+        draw_home_here(ui, theme, state);
+    }
+}
+
+/// The connected server's card, "where you live here" (ship homes increment 6, 3.9): the server
+/// is asked where you live on it (`save_slot::ask_where_you_live`) once each time the picker opens,
+/// and its `game_home` answer (`GuiState::home_answer`) is shown by `where_you_live::draw_server`:
+/// "Where you live here: a Cabin, c2.", or "You have no home on this server yet." with the choice,
+/// each start's free count and a Choose button. Choose asks the server for that home
+/// (`save_slot::choose_on_server_gui`, with the household picked on the card, which it reads from
+/// the same draft `draw_server` returns); its answer goes into that server's save
+/// (engine/save_slot.rs `on_game_message`).
+///
+/// An answer kept from before the card asked (another server's, or an old one) is not shown: the
+/// card asks afresh and says it is asking until the reply comes or `ANSWER_WAIT_SECS` pass. While a
+/// Choose waits, the old result is cleared from the answer shown, so any reply differs from it.
+fn draw_home_here(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    use crate::engine::save_slot;
+    if save_slot::server_slot(state).is_none() {
+        ui.label(RichText::new(NO_IDENTITY).size(theme.font_size_small).color(theme.warning()));
+        hint(ui, theme, wyl::SERVER_NOTE);
+        return;
+    }
+    let server = crate::engine::home_plot::active_server_key(state);
+    let now = Instant::now();
+    let asking = HERE.with(|h| {
+        let mut h = h.borrow_mut();
+        if h.asked.as_deref() != Some(server.as_str()) && save_slot::ask_where_you_live(state) {
+            log::info!("Characters: asked this server where you live on it");
+            state.home_answer = None;
+            *h = HereCard { asked: Some(server.clone()), waiting_since: Some(now), before: None, note: None };
+        }
+        if let Some(since) = h.waiting_since {
+            if state.home_answer != h.before || now.duration_since(since).as_secs_f32() > ANSWER_WAIT_SECS {
+                h.waiting_since = None;
+                h.before = None;
+            }
+        }
+        // Not signed in to it yet: the request goes out once it is.
+        h.waiting_since.is_some() || h.asked.as_deref() != Some(server.as_str())
+    });
+    let picked = wyl::draw_server(ui, theme, wyl::starts(), state.home_answer.as_ref(), asking);
+    if let Some(choice) = picked {
+        match save_slot::choose_on_server_gui(state, &choice.start) {
+            Ok(()) => {
+                if let Some(a) = state.home_answer.as_mut() {
+                    a.chose = false;
+                    a.refused = None;
+                    a.message.clear();
+                }
+                let before = state.home_answer.clone();
+                HERE.with(|h| {
+                    let mut h = h.borrow_mut();
+                    h.waiting_since = Some(now);
+                    h.before = before;
+                    h.note = None;
+                });
+            }
+            Err(why) => HERE.with(|h| h.borrow_mut().note = Some(why)),
+        }
+    }
+    if let Some(note) = HERE.with(|h| h.borrow().note.clone()) {
+        ui.label(RichText::new(note).size(theme.font_size_small).color(theme.warning()));
+    }
+}
+
+/// The new-home row's Enter (increment 6, 3.9): when the row is the new home and your own home
+/// has no save yet, the start and household chosen on it are remembered for your own home's save
+/// (`save_slot::choose_new_home`), which `save_slot::follow` makes once lib.rs records the pairing.
+/// Returns the choice remembered.
+fn remember_new_home(state: &GuiState) -> Option<wyl::Choice> {
+    let new_home = state.launcher_where_kind == LauncherWhere::Home && state.launcher_selected_world.is_empty();
+    if !new_home || own_home().is_some() {
+        return None;
+    }
+    let choice = wyl::draft_choice(wyl::starts());
+    crate::engine::save_slot::choose_new_home(&choice.start, &choice.household);
+    log::info!("Characters: a new home, a {} ({})", choice.start, choice.household);
+    Some(choice)
+}
+
+/// The Enter bar's name for the new-home row: your own home's save when it has one (a new
+/// character moves into it), else "a new Cabin", the start chosen on the row.
+fn new_home_name() -> String {
+    match own_home() {
+        Some(name) if !name.trim().is_empty() => name,
+        Some(_) => "your own home".to_string(),
+        None => {
+            let starts = wyl::starts();
+            let choice = wyl::draft_choice(starts);
+            let name = starts.get(&choice.start).map(|s| s.name.clone()).unwrap_or(choice.start);
+            format!("a new {name}")
+        }
     }
 }
 
@@ -942,29 +1124,5 @@ fn cap(s: &str) -> String {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::WHO_HINT;
-
-    /// The picker's WHO hint says what the save really does (first-hour audit 2026-10-04: "The
-    /// picker's hint is wrong"). It said gear and skills "stay in the world you earn them in",
-    /// but your own home and a server share ONE save on this computer: `save_load::active_home_path`
-    /// is a single file whichever world is played, and a server keeps none of a player's gear
-    /// (the relay holds a fresh entity; what you do there is written into that save). So gear
-    /// earned on a server comes home, and the other way round.
-    ///
-    /// Seen red 2026-10-04 on 8e400d7ed: "the picker still says gear and skills stay in the
-    /// world you earn them in: Your name and look travel with you. Gear and skills stay in the
-    /// world you earn them in."
-    #[test]
-    fn the_pickers_hint_says_one_save_holds_gear_and_skills() {
-        assert!(
-            !WHO_HINT.contains("stay in the"),
-            "the picker still says gear and skills stay in the world you earn them in: {WHO_HINT}"
-        );
-        assert!(WHO_HINT.contains("one save on this computer"), "{WHO_HINT}");
-        assert!(WHO_HINT.contains("your home and every server"), "{WHO_HINT}");
-        // The fact the sentence rests on: one save file, named by no world.
-        let save = crate::save_load::active_home_path();
-        assert_eq!(save.file_name().and_then(|n| n.to_str()), Some("offline_home.json"), "{}", save.display());
-    }
-}
+#[path = "showroom_tests.rs"]
+mod tests;
