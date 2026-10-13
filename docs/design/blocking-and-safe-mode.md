@@ -1281,7 +1281,8 @@ parallel. Report retention is 90 days after a decision (10a).
 
 **Reasons** live in `data/safety/report_reasons.json`: an ordered list of `{ "id", "label",
 "help" }` with ids `spam`, `scam`, `harassment`, `threats`, `hate`, `unwanted_sexual`,
-`impersonation`, `child_danger`, `someone_in_danger`, `other`. For `child_danger` and
+`impersonation`, `child_danger`, `someone_in_danger`, `copyright`, `other` (`copyright` added 2026-10-12, the takedown route of
+web/pages/rules.html). For `child_danger` and
 `someone_in_danger` the `help` text says, before sending: "If anyone is in danger right now,
 contact your local emergency number. This server's admins are volunteers, not police." The
 per-country list of outside reporting lines (section 8.3) is NOT in this step: it needs a dated

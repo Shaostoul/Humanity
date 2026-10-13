@@ -231,7 +231,8 @@ const MAY = "invite,message,trade,voice_message";
 const DANGER = "If anyone is in danger right now, contact your local emergency number. This server's admins are volunteers, not police.";
 
 // The reasons file as 10e describes it (the relay team writes the real one).
-const SPEC_REASON_IDS = ["spam", "scam", "harassment", "threats", "hate", "unwanted_sexual", "impersonation", "child_danger", "someone_in_danger", "other"];
+// `copyright` (2026-10-12): the takedown route of web/pages/rules.html ("My work, shared without my permission").
+const SPEC_REASON_IDS = ["spam", "scam", "harassment", "threats", "hate", "unwanted_sexual", "impersonation", "child_danger", "someone_in_danger", "copyright", "other"];
 const STUB_REASONS = {
   _purpose: "Stub for scripts/tests/report-web.test.js",
   reasons: SPEC_REASON_IDS.map((id) => ({
