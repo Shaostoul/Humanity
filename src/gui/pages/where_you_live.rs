@@ -53,8 +53,11 @@ pub const DEFAULT_MARK: &str = " (most people start here)";
 /// Under the household sub-choice in Settings.
 pub const TAKES_EFFECT: &str = "Takes effect the next time you enter the world.";
 /// Settings: how to live somewhere else.
-pub const ELSEWHERE: &str = "To live somewhere else, start a new home in Characters (Play), or choose on a server's card there. \
-     Moving to another kind of home on a server comes in a later update.";
+/// Since increment 6 your own home is one save on this computer, and Characters offers the choice
+/// of a new home only while it has none (showroom.rs `NEW_HOME_TAKEN`); this sentence is shown in
+/// the world, where that save exists, so it never offers that.
+pub const ELSEWHERE: &str = "Your own home on this computer stays the one you have. To live somewhere else, choose a home \
+     on a server's card in Characters (Play). Moving house comes in a later update.";
 /// A server's card when the person holds no home on that server's ship.
 pub const NO_HOME_HERE: &str = "You have no home on this server yet.";
 /// A server's card, always, last (muted).
