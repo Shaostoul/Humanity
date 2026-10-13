@@ -225,3 +225,17 @@ what we will say about it.
   HumanityOS server has such terms yet. NonCommercial is unclear for a
   donation-funded project, and NC or all-rights-reserved items cannot go into
   the CC0 game as they stand. DMCA safe harbour needs a registered agent.
+- [`2026-10-12-project-entity-and-succession.md`](2026-10-12-project-entity-and-succession.md),
+  what legal home lets the project (domains, servers, donations, permissions)
+  outlive its founder and stay free, and how its DMCA registration can avoid a
+  home address. Compares a nonprofit corporation with 501(c)(3) status
+  (Washington needs three directors once public-charity status is sought), an
+  unincorporated association, fiscal sponsors (SPI 5%, OSC 10%, SFC requires an
+  OSI licence and CC0 is not one, HCB is teen-only, OCF closed in 2024), an LLC
+  and a will. Notes in general terms that pay, personal donations and project
+  money in a person's own name can count against means-tested benefits, while
+  money a fiscal sponsor holds generally does not. A DMCA service provider
+  must publish a street address; a post office box needs a waiver for a
+  demonstrable threat; no source addresses registered-agent or virtual-office
+  addresses. Recommends a will and account successors now, a fiscal sponsor
+  next.

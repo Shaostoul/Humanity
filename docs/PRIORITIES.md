@@ -282,8 +282,8 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
     1E (desktop strip), 1F (web strip), 1G (web list). Next: Wave 2 (2A the website's item page
     and editor, after 1D; 2B the proof rig and snapshots), then phase 2 ("Also put this on...").
     public.guide's nginx needs the same `/media/<number>` block by hand. Waiting on the operator:
-    the DMCA agent's address, a takedown email, and whether the entity findings
-    (`docs/reference/findings/2026-10-12-project-entity-and-succession.md`, uncommitted) go public.
+    the DMCA agent's address and a takedown email (the entity findings are public since 2026-10-13,
+    without the founder's personal notes, which are kept privately).
   - DONE and released 2026-10-12: increment 5b (household permits, v0.1489.0), BUG-191 (profile
     copies, v0.1490.0), the first-hour audit's S5, S6, S8 and F11, BUG-163 part 2, rule 7 and
     the takedown section (v0.1491.0).
