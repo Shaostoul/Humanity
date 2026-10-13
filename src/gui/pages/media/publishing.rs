@@ -15,6 +15,12 @@
 //! the undoing's own answer, and the page's take-off says nothing went when there is no signature
 //! to send it with.
 //!
+//! ADDED TO AN ITEM (Media round 5, lane 1D, [`attach`]): an upload made from an item's Edit
+//! window is added to that item (`POST /api/media/files/add`) instead of published, under the same
+//! fate, so Cancel works the same; undoing it takes the file off the item by its number
+//! (`POST /api/media/files/remove`), since a file on an item is not "waiting" and is never removed
+//! by its upload name.
+//!
 //! ALREADY ON MEDIA IS DONE: the relay answers 409 "That upload is already on the Media page." to
 //! a publish of a file that is (its owner check comes first, so it is the person's own). That is a
 //! publish whose answer was lost to a quit or a switch and is now asked again: it counts as done.
@@ -25,6 +31,7 @@ use serde_json::{json, Value};
 
 use super::add::Of;
 use super::api::{self, PublishFields, Refusal, RemoveTarget, Signer};
+use super::api_items::{file_add_request, file_number_of, file_remove_request, AttachTo};
 use super::{signer_here, spawn, spawn_with, Job};
 use crate::gui::GuiState;
 
@@ -104,8 +111,8 @@ impl Fate {
 
 /// What a cancelled publish takes off: a published item always; a Media upload nobody wants any
 /// more always; a shared file never, when it was not published (it stays where it was shared).
-fn takes_off(of: Of, published: bool) -> bool {
-    published || of != Of::Shared
+fn takes_off(of: &Of, published: bool) -> bool {
+    published || *of != Of::Shared
 }
 
 /// The relay's 409 to a publish is "already on the Media page" for one's own file: done.
@@ -120,22 +127,76 @@ pub(crate) fn settle(result: Result<Value, Refusal>) -> Result<Value, Refusal> {
 /// by `signer`, on a worker thread; its answer comes back as `Job::Publish`.
 pub(crate) fn publish(state: &mut GuiState, of: Of, who: u64, signer: &Signer, fields: &PublishFields) {
     let req = api::publish_request(signer, fields);
-    let fate = Fate::new(of);
+    let fate = Fate::new(of.clone());
     let worker = fate.clone();
     let (base, signer) = (super::base_of(state), signer.clone());
     let filename = api::bare_name(&fields.filename).to_string();
     let name = filename.clone();
     state.media.publishes.push((who, fate));
     log::info!("Media: POST /api/media");
-    spawn_with(state, Job::Publish { of, filename, who }, move || {
+    let job = Job::Publish { of: of.clone(), filename, who };
+    spawn_with(state, job, move || {
         let result = settle(api::send(&base, &req));
         if worker.answered(result.is_ok()) {
             // Cancel came first: this worker undoes it, and what goes back to the page is the
             // undoing's own answer, so "Cancelled" is said only when it went (round 4, D4-2).
-            return if takes_off(of, result.is_ok()) { take_off(&base, &signer, &name) } else { Ok(json!({ "ok": true })) };
+            return if takes_off(&of, result.is_ok()) { take_off(&base, &signer, &name) } else { Ok(json!({ "ok": true })) };
         }
         result
     });
+}
+
+/// Add upload `local`'s file, up as `filename`, to the item `to` names as a file or its cover (Media
+/// round 5, lane 1D): `POST /api/media/files/add`, signed by `signer`, on a worker thread, under
+/// the same [`Fate`] as a publish, so its Cancel undoes it the same way. Its answer comes back as
+/// `Job::Publish` with `Of::Attach`.
+///
+/// UNDOING AN ADDED FILE is not a publish's undoing: a file on an item is not "waiting", so the
+/// relay will not remove it by its upload name. It is taken off the item by its number (the
+/// answer's item names it, `file_number_of`) with `POST /api/media/files/remove`; an add that was
+/// refused left the upload waiting, which goes by its name as before.
+pub(crate) fn attach(state: &mut GuiState, local: u64, signer: &Signer, to: &AttachTo, filename: &str) {
+    let item = to.item();
+    let req = file_add_request(signer, &item, filename, to.role);
+    let of = Of::Attach { item: item.clone(), role: to.role };
+    let fate = Fate::new(of.clone());
+    let worker = fate.clone();
+    let (base, signer) = (super::base_of(state), signer.clone());
+    let name = api::bare_name(filename).to_string();
+    state.media.publishes.push((local, fate));
+    log::info!("Media: POST /api/media/files/add");
+    spawn_with(state, Job::Publish { of, filename: name.clone(), who: local }, move || {
+        let result = api::send(&base, &req);
+        if worker.answered(result.is_ok()) {
+            // Cancel came first: take it off the item again (or, refused, the waiting upload).
+            return match &result {
+                Ok(v) => take_off_item(&base, &signer, &item, v, &name),
+                Err(_) => take_off(&base, &signer, &name),
+            };
+        }
+        result
+    });
+}
+
+/// Take the file stored as `name` off `item` again, after the add answered `added` (its `item`
+/// names the file's number). Blocking: on the worker.
+fn take_off_item(base: &str, signer: &Signer, item: &api::ItemRef, added: &Value, name: &str) -> Result<Value, Refusal> {
+    let Some(file) = added.get("item").and_then(api::Item::from_json).and_then(|i| file_number_of(&i, name)) else {
+        return Err(Refusal::new(0, "The server's answer did not name the file, so it could not be taken off the item. Remove it in the item's Edit window."));
+    };
+    let result = api::send(base, &file_remove_request(signer, item, file, name));
+    if let Err(e) = &result {
+        log::warn!("Media: a cancelled file add could not be taken off its item ({e}).");
+    }
+    result
+}
+
+/// What is said when an upload went onto its item: the item's title from the answer.
+pub(crate) fn attached_words(v: &Value) -> String {
+    match v.get("item").and_then(api::Item::from_json) {
+        Some(i) => format!("Added to \"{}\".", i.display_title()),
+        None => "Added to the item.".to_string(),
+    }
 }
 
 /// Take `filename` (an upload, or the item made of it) off the server at `base`, as `signer`.
@@ -169,10 +230,15 @@ pub(crate) fn take_off_now(state: &mut GuiState, filename: &str) -> bool {
 pub(crate) fn cancel(state: &mut GuiState, who: u64, filename: &str) {
     let Some(fate) = state.media.publishes.iter().find(|(w, _)| *w == who).map(|(_, f)| f.clone()) else { return };
     if let Some(published) = fate.cancel() {
-        if takes_off(fate.of, published) {
+        if matches!(fate.of, Of::Attach { .. }) && published {
+            // Added to its item already, but its answer, which names the file's number on the
+            // item, is not read yet: `published` takes it off the item when it is.
+            return;
+        }
+        if takes_off(&fate.of, published) {
             take_off_now(state, filename);
         } else {
-            state.media.status = cancelled_words(fate.of).to_string();
+            state.media.status = cancelled_words(&fate.of).to_string();
         }
     }
 }
@@ -184,12 +250,37 @@ pub(crate) fn finish(state: &mut GuiState, who: u64) -> Undo {
     undo
 }
 
+/// An add to `item` (upload `who`, stored as `filename`) is answered: the item as it is now goes
+/// wherever the page shows it; a Cancel pressed after the add went takes the file off the item
+/// again by its number, which only this answer names; then the upload's row is done with
+/// (uploading.rs `published`).
+fn attach_answered(state: &mut GuiState, item: &api::ItemRef, who: u64, filename: &str, result: Result<Value, Refusal>, undo: Undo) {
+    let added = result.as_ref().ok().and_then(|v| v.get("item")).and_then(api::Item::from_json);
+    match (undo, &added) {
+        (Undo::None, Some(now)) => super::item_view::take_item(state, now.clone()),
+        (Undo::Page, Some(now)) => match (file_number_of(now, filename), signer_here(state)) {
+            (Some(file), Some(signer)) => {
+                state.media.status = "Cancelling...".to_string();
+                spawn(state, Job::FileRemove { id: item.id, file }, file_remove_request(&signer, item, file, filename));
+            }
+            (None, _) => state.media.status = not_taken_off_words("the server's answer did not name the file."),
+            (_, None) => state.media.status = NO_SIGNATURE_TO_TAKE_OFF.to_string(),
+        },
+        // Refused: the upload waits on the server, and goes by its name.
+        (Undo::Page, None) => {
+            take_off_now(state, filename);
+        }
+        _ => {}
+    }
+    super::uploading::published(state, who, filename, result, undo);
+}
+
 /// What is said when a publish was cancelled and undone: a file uploaded for Media goes from the
 /// server; a shared file was only kept off the Media page.
-pub(crate) fn cancelled_words(of: Of) -> &'static str {
+pub(crate) fn cancelled_words(of: &Of) -> &'static str {
     match of {
         Of::Shared => "Cancelled: it is not on the Media page.",
-        Of::Upload | Of::Waiting => super::uploading::CANCELLED_LINE,
+        Of::Upload | Of::Waiting | Of::Attach { .. } => super::uploading::CANCELLED_LINE,
     }
 }
 
@@ -210,6 +301,10 @@ pub(crate) fn on_media_words(v: &Value) -> String {
 /// form, if it is still the one open.
 pub(crate) fn published(state: &mut GuiState, of: Of, who: u64, filename: &str, result: Result<Value, Refusal>) {
     let undo = finish(state, who);
+    if let Of::Attach { item, .. } = &of {
+        // An add is never "already on Media": its 409 is the relay's own words, read as they came.
+        return attach_answered(state, item, who, filename, result, undo);
+    }
     // Only a publish's own answer is "already on Media"; an undoing's is read as it came.
     let result = if undo == Undo::None { settle(result) } else { result };
     if of == Of::Upload {
@@ -217,7 +312,7 @@ pub(crate) fn published(state: &mut GuiState, of: Of, who: u64, filename: &str, 
     }
     let mine = |state: &GuiState| state.media.form.as_ref().is_some_and(|f| f.id == who);
     match (undo, result) {
-        (Undo::Worker, Ok(_)) => state.media.status = cancelled_words(of).to_string(),
+        (Undo::Worker, Ok(_)) => state.media.status = cancelled_words(&of).to_string(),
         (Undo::Worker, Err(e)) => state.media.status = not_taken_off_words(&e.words),
         // The page undid it at the press, and that undoing's own answer says how it went.
         (Undo::Page, _) => {}

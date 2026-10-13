@@ -1,13 +1,17 @@
-//! Opening a Media tile. A public picture the image cache can show goes to the app's image viewer
-//! (widgets/image_cache_view.rs), the one the chat uses. Anything else opens a card here: its
-//! name, who put it there, its size and description, Download, and for a video, Play here, which
-//! fetches it to a temporary file and plays it in the app's own media player
-//! (`crate::media::VideoPlayer`, the one in-world screens use: WebM with AV1 video plays; anything
-//! else says why it cannot and can still be downloaded). The video plays without sound for now:
-//! this page has no audio mixer to hand it. A members-only picture opens the card too (with the
-//! picture in it and View full size), because the viewer offers no Download for a file fetched
-//! with the session's token; and so does a picture too large for the image cache, which Download
-//! takes whatever its size.
+//! Opening a Media item: the transfers behind its page. Since Media round 5 (lane 1D) a click on
+//! any tile opens the item's own page (item_view.rs), which draws the picture (the image viewer
+//! stays behind View full size), the video's Play here, the words and every file with its own
+//! Download. This file is what those buttons run: Play here fetches the video to a temporary file
+//! and plays it in the app's own media player (`crate::media::VideoPlayer`, the one in-world
+//! screens use: WebM with AV1 video plays; anything else says why it cannot and can still be
+//! downloaded; without sound for now, as this page has no audio mixer to hand it); Download saves
+//! one file of the item in the downloads folder.
+//!
+//! DOWNLOADS ARE COUNTED (round 5, docs/design/media-round-5-plan.md 3.5): every Download goes
+//! through the relay's counting route, `/api/media/download/<id>?file=<n>` ([`download_origin`]),
+//! never the file's `/uploads/` address, so the item's download count is the relay's own. A
+//! members-only file's download asks for a ticket made for that route (`download: true`). Play
+//! here is watching, not downloading: it fetches the item's own file the way it always did.
 //!
 //! FETCHES AND DOWNLOADS run on worker threads and stream to disk, so a large file never sits in
 //! memory whole. A members-only item's file is fetched with a ticket (ticket.rs, the relay's R3-8,
@@ -24,7 +28,7 @@
 //!
 //! TEMPORARY FILES: Play here's copy lives in the system's temporary folder
 //! (`HumanityOS-media`) under a name of its own for each fetch ([`play_name`]), and is deleted when
-//! its card closes (`Drop for Opened`), when the app exits (engine/quit.rs calls
+//! its page closes (`Drop for Opened`), when the app exits (engine/quit.rs calls
 //! [`forget_temp_files`]), and, for whatever a run that did not close cleanly left, once at the
 //! start of the next ([`sweep_temp_once`]). The app's player opens a file, so Play here fetches the
 //! whole video before it plays.
@@ -36,11 +40,10 @@ use std::time::Duration;
 
 use egui::RichText;
 
-use super::api::{self, Item, ItemRef};
-use super::kinds;
-use crate::gui::widgets::part_file::Part;
+use super::api::{self, Item, ItemFile, ItemRef};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
+use crate::gui::widgets::part_file::Part;
 use crate::gui::GuiState;
 
 /// The most a fetch or a download takes (the Media budget's own ceiling is far below).
@@ -51,7 +54,7 @@ pub(crate) fn temp_dir() -> PathBuf {
     std::env::temp_dir().join("HumanityOS-media")
 }
 
-/// An opened item: its card.
+/// The transfers of the item whose page is open: its video, playing here, and its downloads.
 pub(crate) struct Opened {
     pub item: Item,
     /// A video being fetched to play here.
@@ -60,21 +63,37 @@ pub(crate) struct Opened {
     texture: Option<egui::TextureHandle>,
     /// Why it cannot play, or the fetch failed.
     pub problem: String,
-    save_rx: Option<Receiver<Result<PathBuf, String>>>,
-    /// Where Download put it, or why it did not.
-    pub saved: String,
-    /// The temporary copy Play here fetched, deleted with the card.
+    /// The downloads on their way, by the number of the file each is of (0, the item's own).
+    saves: Vec<(i64, Receiver<Result<PathBuf, String>>)>,
+    /// Where each finished Download put its file, or why it did not, by file number.
+    pub saved: Vec<(i64, String)>,
+    /// The temporary copy Play here fetched, deleted with the page.
     pub temp: Option<PathBuf>,
 }
 
 impl Opened {
     pub(crate) fn new(item: Item) -> Self {
-        Opened { item, fetch_rx: None, player: None, texture: None, problem: String::new(), save_rx: None, saved: String::new(), temp: None }
+        Opened { item, fetch_rx: None, player: None, texture: None, problem: String::new(), saves: Vec::new(), saved: Vec::new(), temp: None }
+    }
+
+    /// Whether file `file` is being downloaded now.
+    pub(crate) fn downloading(&self, file: i64) -> bool {
+        self.saves.iter().any(|(f, _)| *f == file)
+    }
+
+    /// What the last Download of file `file` said ("Saved to ..." or "Not saved: ..."), if any.
+    pub(crate) fn saved_words(&self, file: i64) -> Option<&str> {
+        self.saved.iter().find(|(f, _)| *f == file).map(|(_, w)| w.as_str())
+    }
+
+    /// Whether something is still on its way (the page repaints until it is not).
+    pub(crate) fn busy(&self) -> bool {
+        self.fetch_rx.is_some() || !self.saves.is_empty()
     }
 }
 
 impl Drop for Opened {
-    /// The card closed (or the page went): the player lets go of the file first, then the
+    /// The page closed (or the Media page went): the player lets go of the file first, then the
     /// temporary copy goes.
     fn drop(&mut self) {
         self.player = None;
@@ -107,8 +126,9 @@ pub(crate) fn sweep(dir: &Path) {
     }
 }
 
-/// The app is exiting (engine/quit.rs): close the card, whose copy goes with it, clear the folder,
-/// and delete every part file still being written (a download or a Save cut off by the exit).
+/// The app is exiting (engine/quit.rs): close the item's page, whose copy goes with it, clear the
+/// folder, and delete every part file still being written (a download or a Save cut off by the
+/// exit).
 pub(crate) fn forget_temp_files(state: &mut GuiState) {
     state.media.open = None;
     sweep(&temp_dir());
@@ -123,12 +143,13 @@ pub(crate) fn play_name(server: &str, id: i64) -> String {
     format!("{}-{}-{}.video", &h.to_hex()[..16], std::process::id(), super::next_id())
 }
 
-/// Where a transfer of an item's file comes from: a public address, or, for a members-only item,
-/// a ticket asked for on the worker (ticket.rs).
+/// Where a transfer of one of an item's files comes from: a public address, or, for a
+/// members-only item, a ticket asked for on the worker (ticket.rs) for file `file`, made for the
+/// counted download route when `download`.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum Origin {
     Address(String),
-    Ticket { base: String, token: String, item: ItemRef },
+    Ticket { base: String, token: String, item: ItemRef, file: i64, download: bool },
 }
 
 impl Origin {
@@ -136,37 +157,36 @@ impl Origin {
     pub(crate) fn address(&self) -> Result<String, String> {
         match self {
             Origin::Address(url) => Ok(url.clone()),
-            Origin::Ticket { base, token, item } => super::ticket::ask(base, token, item),
+            Origin::Ticket { base, token, item, file, download } => super::ticket::ask_for(base, token, item, *file, *download),
         }
     }
 }
 
-/// Where `item`'s file comes from on the server at `base`, with this session's upload `token`.
+/// Where `item`'s own file is watched from (Play here) on the server at `base`, with this session's
+/// upload `token`: its address, or a ticket to the members' file route. Not counted as a download.
 pub(crate) fn origin_of(base: &str, item: &Item, token: Option<&str>) -> Result<Origin, String> {
     if !item.members_only() {
         return Ok(Origin::Address(api::file_url(base, item)));
     }
     let token = token.ok_or_else(|| super::SIGN_IN_LINE.to_string())?;
-    Ok(Origin::Ticket { base: base.to_string(), token: token.to_string(), item: item.reference()? })
+    Ok(Origin::Ticket { base: base.to_string(), token: token.to_string(), item: item.reference()?, file: 0, download: false })
 }
 
-/// A tile was clicked: a public picture the image cache can show opens in the image viewer;
-/// anything else opens its card.
+/// Where Download takes file `file` of `item` from (round 5): always the counted download route,
+/// `/api/media/download/<id>?file=<n>`, never `/uploads/`, so every download is counted; for a
+/// members-only item through a ticket made for that route, the token never in an address.
+pub(crate) fn download_origin(base: &str, item: &Item, file: i64, token: Option<&str>) -> Result<Origin, String> {
+    if !item.members_only() {
+        return Ok(Origin::Address(super::api_items::download_url(base, item, file)));
+    }
+    let token = token.ok_or_else(|| super::SIGN_IN_LINE.to_string())?;
+    Ok(Origin::Ticket { base: base.to_string(), token: token.to_string(), item: item.reference()?, file, download: true })
+}
+
+/// A tile was clicked: the item's own page opens (round 5; item_view.rs). A public picture's full
+/// size is one press away there (View full size), in the app's image viewer.
 pub(crate) fn open_item(state: &mut GuiState, item: &Item) {
-    if item.kind == "picture" && !item.members_only() && !super::tiles::too_big(item) {
-        super::tiles::request_picture(state, item);
-        state.image_viewer_url = Some(super::tiles::cache_key(state, item));
-    } else {
-        open_card(state, item);
-    }
-}
-
-/// Open `item`'s card.
-pub(crate) fn open_card(state: &mut GuiState, item: &Item) {
-    if item.kind == "picture" {
-        super::tiles::request_picture(state, item);
-    }
-    state.media.open = Some(Opened::new(item.clone()));
+    super::item_view::open(state, item);
 }
 
 /// A client for whole files: no limit on a whole transfer's time (a big file on a slow line
@@ -231,24 +251,35 @@ pub(crate) fn download_name(item: &Item) -> String {
     format!("{}-{}", safe_name(&item.display_title()), item.id)
 }
 
+/// The name Download saves file `f` of `item` under: the item's own file as [`download_name`]
+/// does; an added file or the cover by the uploader's own name for it, else its stored name, else
+/// the item's title, number and the file's number.
+pub(crate) fn file_download_name(item: &Item, f: &ItemFile) -> String {
+    if f.file == 0 {
+        return download_name(item);
+    }
+    if !f.original_name.trim().is_empty() {
+        return safe_name(&f.original_name);
+    }
+    if !f.filename.trim().is_empty() {
+        return safe_name(&f.filename);
+    }
+    format!("{}-{}-{}", safe_name(&item.display_title()), item.id, f.file)
+}
+
 fn clock(seconds: f64) -> String {
     let s = seconds.max(0.0) as u64;
     format!("{}:{:02}", s / 60, s % 60)
 }
 
-/// The card of the opened item, while one is open.
-pub(crate) fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
-    let Some(mut opened) = state.media.open.take() else { return };
-    let base = super::base_of(state);
-    let token = super::token_here(state);
-    let origin = origin_of(&base, &opened.item, token.as_deref());
-
-    // Finished fetches and downloads.
+/// Read what the transfers of `opened` finished, and the video's next frame. Every frame its page
+/// is drawn.
+pub(crate) fn poll(ctx: &egui::Context, opened: &mut Opened) {
     if let Some(rx) = opened.fetch_rx.as_ref() {
         if let Ok(result) = rx.try_recv() {
             opened.fetch_rx = None;
             if let Ok(path) = &result {
-                opened.temp = Some(path.clone()); // deleted with the card from here on
+                opened.temp = Some(path.clone()); // deleted with the page from here on
             }
             match result.and_then(|path| crate::media::VideoPlayer::open(&path).map_err(|e| format!("This video cannot play in the app: {e}. Download it to watch it in another player."))) {
                 Ok(mut player) => {
@@ -259,14 +290,25 @@ pub(crate) fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             }
         }
     }
-    if let Some(rx) = opened.save_rx.as_ref() {
-        if let Ok(result) = rx.try_recv() {
-            opened.save_rx = None;
-            opened.saved = match result {
-                Ok(path) => format!("Saved to {}", path.display()),
-                Err(e) => format!("Not saved: {e}"),
-            };
+    let mut finished = Vec::new();
+    opened.saves.retain(|(file, rx)| match rx.try_recv() {
+        Ok(result) => {
+            finished.push((*file, result));
+            false
         }
+        Err(std::sync::mpsc::TryRecvError::Empty) => true,
+        Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+            finished.push((*file, Err("The download stopped unexpectedly.".to_string())));
+            false
+        }
+    });
+    for (file, result) in finished {
+        let words = match result {
+            Ok(path) => format!("Saved to {}", path.display()),
+            Err(e) => format!("Not saved: {e}"),
+        };
+        opened.saved.retain(|(f, _)| *f != file);
+        opened.saved.push((file, words));
     }
     if let Some(player) = opened.player.as_mut() {
         if let Some(frame) = player.poll() {
@@ -283,128 +325,93 @@ pub(crate) fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             ctx.request_repaint();
         }
     }
-    if opened.fetch_rx.is_some() || opened.save_rx.is_some() {
+    if opened.busy() {
         ctx.request_repaint_after(Duration::from_millis(200));
     }
+}
 
-    let mut open = true;
+/// The video area of an item's page: the playing video with Play, Pause and Start again, or Play
+/// here. Returns true when Play here was pressed (the page then calls [`start_play`]).
+pub(crate) fn draw_player(ui: &mut egui::Ui, theme: &Theme, opened: &mut Opened) -> bool {
     let mut fetch = false;
-    let mut save = false;
-    let mut view = false;
-    let item = opened.item.clone();
-    let picture_key = super::tiles::cache_key(state, &item);
-    widgets::dialog_scrolling(ctx, theme, "media_open_item", &item.display_title(), &mut open, |ui| {
-        ui.set_max_width(700.0);
-        ui.label(
-            RichText::new(format!("{} by {}, {}, in {}", kinds::one_name(&item.kind), item.by_name(), api::size_words(item.size_bytes), item.category_name))
-                .size(theme.font_size_small)
-                .color(theme.text_secondary()),
-        );
-        if !item.description.trim().is_empty() {
-            ui.label(RichText::new(item.description.trim()).size(theme.font_size_body).color(theme.text_primary()));
-        }
-        ui.add_space(theme.spacing_sm);
-        if item.kind == "picture" {
-            if super::tiles::too_big(&item) {
-                widgets::body_hint(ui, theme, &format!("This picture is {}, larger than this app shows in place. Download it to see it.", api::size_words(item.size_bytes)));
-            } else if let Some(tex) = state.image_cache.get_texture(&picture_key) {
-                let [w, h] = tex.size();
-                let aspect = w.max(1) as f32 / h.max(1) as f32;
-                let width = ui.available_width().min(640.0);
-                ui.add(egui::Image::new((tex.id(), egui::vec2(width, width / aspect))));
-                view = widgets::Button::secondary("View full size").show(ui, theme);
-            } else {
-                ui.label(RichText::new("Loading...").size(theme.font_size_small).color(theme.text_muted()));
-                ui.ctx().request_repaint_after(Duration::from_millis(200));
-            }
-        }
-        if item.kind == "video" {
-            if let (Some(tex), Some(player)) = (opened.texture.as_ref(), opened.player.as_mut()) {
-                let [w, h] = tex.size();
-                let aspect = w.max(1) as f32 / h.max(1) as f32;
-                let width = ui.available_width().min(640.0);
-                ui.add(egui::Image::new((tex.id(), egui::vec2(width, width / aspect))));
-                ui.horizontal(|ui| {
-                    if player.is_playing() {
-                        if widgets::Button::secondary("Pause").show(ui, theme) {
-                            player.pause();
-                        }
-                    } else if widgets::Button::secondary("Play").show(ui, theme) {
-                        if player.at_end() {
-                            player.seek_to_start();
-                        }
-                        player.play();
-                    }
-                    if widgets::Button::ghost("Start again").show(ui, theme) {
-                        player.seek_to_start();
-                    }
-                    ui.label(RichText::new(format!("{} of {}", clock(player.position_s()), clock(player.duration_s()))).size(theme.font_size_small).color(theme.text_muted()));
-                });
-                widgets::body_hint(ui, theme, "Plays without sound here for now. Download it to hear it.");
-            } else if opened.fetch_rx.is_some() {
-                ui.label(RichText::new("Fetching the video...").size(theme.font_size_small).color(theme.text_muted()));
-            } else if opened.player.is_some() {
-                ui.label(RichText::new("Starting...").size(theme.font_size_small).color(theme.text_muted()));
-                ui.ctx().request_repaint_after(Duration::from_millis(100));
-            } else if opened.problem.is_empty() {
-                fetch = widgets::Button::primary("Play here").tooltip("Fetch the video and play it in the app.").show(ui, theme);
-            }
-        }
-        if !opened.problem.is_empty() {
-            ui.label(RichText::new(&opened.problem).size(theme.font_size_small).color(theme.danger()));
-        }
-        ui.add_space(theme.spacing_sm);
+    if let (Some(tex), Some(player)) = (opened.texture.as_ref(), opened.player.as_mut()) {
+        let [w, h] = tex.size();
+        let aspect = w.max(1) as f32 / h.max(1) as f32;
+        let width = ui.available_width().min(640.0);
+        ui.add(egui::Image::new((tex.id(), egui::vec2(width, width / aspect))));
         ui.horizontal(|ui| {
-            if opened.save_rx.is_some() {
-                ui.label(RichText::new("Downloading...").size(theme.font_size_small).color(theme.text_muted()));
-            } else {
-                save = widgets::Button::secondary("Download").tooltip("Save it in your downloads folder.").show(ui, theme);
+            if player.is_playing() {
+                if widgets::Button::secondary("Pause").show(ui, theme) {
+                    player.pause();
+                }
+            } else if widgets::Button::secondary("Play").show(ui, theme) {
+                if player.at_end() {
+                    player.seek_to_start();
+                }
+                player.play();
             }
+            if widgets::Button::ghost("Start again").show(ui, theme) {
+                player.seek_to_start();
+            }
+            ui.label(RichText::new(format!("{} of {}", clock(player.position_s()), clock(player.duration_s()))).size(theme.font_size_small).color(theme.text_muted()));
         });
-        if !opened.saved.is_empty() {
-            let color = if opened.saved.starts_with("Saved") { theme.success() } else { theme.danger() };
-            ui.label(RichText::new(&opened.saved).size(theme.font_size_small).color(color));
-        }
-    });
+        widgets::body_hint(ui, theme, "Plays without sound here for now. Download it to hear it.");
+    } else if opened.fetch_rx.is_some() {
+        ui.label(RichText::new("Fetching the video...").size(theme.font_size_small).color(theme.text_muted()));
+    } else if opened.player.is_some() {
+        ui.label(RichText::new("Starting...").size(theme.font_size_small).color(theme.text_muted()));
+        ui.ctx().request_repaint_after(Duration::from_millis(100));
+    } else if opened.problem.is_empty() {
+        fetch = widgets::Button::primary("Play here").tooltip("Fetch the video and play it in the app.").show(ui, theme);
+    }
+    if !opened.problem.is_empty() {
+        ui.label(RichText::new(&opened.problem).size(theme.font_size_small).color(theme.danger()));
+    }
+    fetch
+}
 
-    if fetch {
-        match origin.clone() {
-            Ok(origin) => {
-                let name = play_name(&state.media.server, item.id);
-                let (tx, rx) = std::sync::mpsc::channel();
-                std::thread::spawn(move || {
-                    let fetched = origin.address().and_then(|url| fetch_to(&transfer_agent(Duration::from_secs(60)), &url, None, &temp_dir(), &name, MAX_FETCH));
-                    // The card closed while it was fetching: nobody will play it, so it goes now.
-                    if let Err(std::sync::mpsc::SendError(Ok(path))) = tx.send(fetched) {
-                        let _ = std::fs::remove_file(path);
-                    }
-                });
-                opened.fetch_rx = Some(rx);
-                opened.problem.clear();
-            }
-            Err(words) => opened.problem = words,
+/// Play here was pressed: fetch the item's own file to a temporary copy on a worker, then play it.
+pub(crate) fn start_play(state: &GuiState, opened: &mut Opened) {
+    let token = super::token_here(state);
+    match origin_of(&super::base_of(state), &opened.item, token.as_deref()) {
+        Ok(origin) => {
+            let name = play_name(&state.media.server, opened.item.id);
+            let (tx, rx) = std::sync::mpsc::channel();
+            std::thread::spawn(move || {
+                let fetched = origin.address().and_then(|url| fetch_to(&transfer_agent(Duration::from_secs(60)), &url, None, &temp_dir(), &name, MAX_FETCH));
+                // The page closed while it was fetching: nobody will play it, so it goes now.
+                if let Err(std::sync::mpsc::SendError(Ok(path))) = tx.send(fetched) {
+                    let _ = std::fs::remove_file(path);
+                }
+            });
+            opened.fetch_rx = Some(rx);
+            opened.problem.clear();
         }
+        Err(words) => opened.problem = words,
     }
-    if save {
-        match origin {
-            Ok(origin) => {
-                let (dir, name) = (crate::gui::widgets::image_cache::default_downloads_dir(), download_name(&item));
-                let (tx, rx) = std::sync::mpsc::channel();
-                std::thread::spawn(move || {
-                    let _ = tx.send(origin.address().and_then(|url| fetch_to(&transfer_agent(Duration::from_secs(60)), &url, None, &dir, &name, MAX_FETCH)));
-                });
-                opened.save_rx = Some(rx);
-                opened.saved.clear();
-            }
-            Err(words) => opened.saved = format!("Not saved: {words}"),
+}
+
+/// Download file `f` of the open item into the downloads folder, on a worker, through the counted
+/// download route ([`download_origin`]).
+pub(crate) fn start_download(state: &GuiState, opened: &mut Opened, f: &ItemFile) {
+    let token = super::token_here(state);
+    opened.saved.retain(|(file, _)| *file != f.file);
+    match download_origin(&super::base_of(state), &opened.item, f.file, token.as_deref()) {
+        Ok(origin) => {
+            let (dir, name) = (crate::gui::widgets::image_cache::default_downloads_dir(), file_download_name(&opened.item, f));
+            let (tx, rx) = std::sync::mpsc::channel();
+            std::thread::spawn(move || {
+                let _ = tx.send(origin.address().and_then(|url| fetch_to(&transfer_agent(Duration::from_secs(60)), &url, None, &dir, &name, MAX_FETCH)));
+            });
+            opened.saves.push((f.file, rx));
         }
+        Err(words) => opened.saved.push((f.file, format!("Not saved: {words}"))),
     }
-    if view {
-        state.image_viewer_url = Some(picture_key);
-    }
-    if open {
-        state.media.open = Some(opened);
-    }
+}
+
+/// The item's page and its windows, while one is open (media.rs draws this after the page).
+pub(crate) fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
+    super::item_view::draw(ctx, theme, state);
 }
 
 #[cfg(test)]

@@ -11,7 +11,13 @@
 //!    no other-website case).
 //! 4. TooBig: a picture larger than this app shows in place (the image cache's 16 MB) says so,
 //!    and opens its card, where Download takes it whatever its size.
-//! 5. Load: the picture itself (until increment 4's previews), or the kind's mark.
+//! 5. Load: the item's cover (round 5), else the picture itself (until increment 4's previews),
+//!    else the kind's mark.
+//!
+//! A cover is a picture from the uploader too, so it follows rules 2 to 4 the same way. Under the
+//! picture (round 5): the title, the description's first line (at most 120 characters, cut at a
+//! word), who put it there, the picks and downloads, "3 files" when it holds several, and
+//! "Featured" or "Featured in its category". A click opens the item's own page (item_view.rs).
 //!
 //! A click on a Label or Ask tile is remembered in the image cache's "allowed" set, as the chat's
 //! click-to-load is: for this session, one item at a time. A picture that could not be loaded
@@ -44,9 +50,11 @@ pub(crate) const COULD_NOT_LOAD: &str = "This picture could not be loaded. Click
 
 /// What a picture too large to show in place says.
 pub(crate) fn too_big_words(item: &Item) -> String {
+    // The card's picture: its cover when it has one (round 5), else the item's own.
+    let size = item.cover.as_ref().map(|c| c.size_bytes).unwrap_or(item.size_bytes);
     format!(
         "This picture is {}, larger than this app shows in place ({}). Click to open it and download it.",
-        api::size_words(item.size_bytes),
+        api::size_words(size),
         api::size_words(MAX_IMAGE_BYTES as i64)
     )
 }
@@ -94,6 +102,71 @@ pub(crate) fn too_big(item: &Item) -> bool {
     item.kind == "picture" && item.size_bytes > MAX_IMAGE_BYTES as i64
 }
 
+/// Whether `item`'s cover (round 5) is too large for the image cache to show in place (a cover may
+/// be up to the server's picture cap, 64 MB).
+pub(crate) fn cover_too_big(item: &Item) -> bool {
+    item.cover.as_ref().is_some_and(|c| c.size_bytes > MAX_IMAGE_BYTES as i64)
+}
+
+/// Whether the card's picture is too large to show in place: its cover when it has one (the card
+/// shows the cover first), else the item's own picture.
+pub(crate) fn face_too_big(item: &Item) -> bool {
+    if item.cover.is_some() {
+        cover_too_big(item)
+    } else {
+        too_big(item)
+    }
+}
+
+/// The name `item`'s cover goes by in the image cache: its full public address, or, for a
+/// members-only item, a name made from the server, the item and the cover's number under the
+/// private prefix (never the token, as [`cache_key`]).
+pub(crate) fn cover_key(state: &GuiState, item: &Item) -> String {
+    let Some(cover) = item.cover.as_ref() else { return String::new() };
+    let base = super::base_of(state);
+    if item.members_only() {
+        let h = blake3::hash(format!("{}\n{}\ncover\n{}", state.media.server, item.id, cover.file).as_bytes());
+        format!("{PRIVATE_KEY_PREFIX}media-{}", &h.to_hex()[..32])
+    } else if cover.url.starts_with("http://") || cover.url.starts_with("https://") {
+        cover.url.clone()
+    } else {
+        format!("{}{}", base.trim_end_matches('/'), cover.url)
+    }
+}
+
+/// Ask the image cache for `item`'s cover, as [`request_picture`] asks for its picture: a public
+/// one by its address, a members-only one through the members' file route (`file=<n>`) with this
+/// session's upload token in a header, on a worker thread. One too large to show is never asked.
+pub(crate) fn request_cover(state: &mut GuiState, item: &Item) {
+    let Some(cover) = item.cover.as_ref() else { return };
+    let key = cover_key(state, item);
+    if cover_too_big(item) || !matches!(state.image_cache.status(&key), ImageStatus::Idle) {
+        return;
+    }
+    if item.members_only() {
+        let token = super::token_here(state);
+        let url = format!("{}/api/media/file/{}?file={}", super::base_of(state).trim_end_matches('/'), item.id, cover.file);
+        let header = api::token_header(item, token.as_deref());
+        state.image_cache.request_bytes(&key, move || {
+            let header = header.as_ref().map(|(name, value)| (*name, value.as_str()));
+            crate::gui::widgets::image_cache::download_bytes_with(&url, MAX_IMAGE_BYTES, header)
+        });
+    } else {
+        state.image_cache.request(&key);
+    }
+}
+
+/// "3 files" when an item holds several (its own and the added ones, not the cover), else nothing.
+pub(crate) fn files_badge(item: &Item) -> Option<String> {
+    (item.file_count > 1).then(|| format!("{} files", item.file_count))
+}
+
+/// "3 picks, 12 downloads", each in the singular when it is one.
+pub(crate) fn card_counts(item: &Item) -> String {
+    let n = |count: i64, one: &str| if count == 1 { format!("1 {one}") } else { format!("{count} {one}s") };
+    format!("{}, {}", n(item.picks, "pick"), n(item.downloads, "download"))
+}
+
 /// Decide what `item`'s tile shows (see the file header).
 pub(crate) fn show_of(state: &GuiState, item: &Item) -> Show {
     let own = !item.uploader_key.is_empty() && item.uploader_key == state.profile_public_key;
@@ -108,10 +181,12 @@ pub(crate) fn show_of(state: &GuiState, item: &Item) -> Show {
     if !item.labels.is_empty() && !allowed {
         return Show::Label(label_names(state, item));
     }
-    if item.kind == "picture" && !own && !allowed && !crate::engine::protected::picture_friend(state, &item.uploader_key) {
+    // A cover is a picture from its uploader too (round 5): the same press first.
+    let shows_picture = item.kind == "picture" || item.cover.is_some();
+    if shows_picture && !own && !allowed && !crate::engine::protected::picture_friend(state, &item.uploader_key) {
         return Show::Ask;
     }
-    if too_big(item) {
+    if face_too_big(item) {
         return Show::TooBig;
     }
     Show::Load
@@ -157,8 +232,13 @@ pub(crate) fn draw_grid(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, 
 /// its actions.
 pub(crate) fn draw_tile(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, item: &Item) {
     let show = show_of(state, item);
-    if show == Show::Load && item.kind == "picture" {
-        request_picture(state, item);
+    if show == Show::Load {
+        // The card shows the cover first (round 5), else the picture itself.
+        if item.cover.is_some() {
+            request_cover(state, item);
+        } else if item.kind == "picture" {
+            request_picture(state, item);
+        }
     }
     egui::Frame::none()
         .fill(theme.bg_card())
@@ -171,13 +251,21 @@ pub(crate) fn draw_tile(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, 
                 draw_face(ui, theme, state, item, &show);
                 ui.add_space(theme.spacing_xs);
                 ui.add(egui::Label::new(RichText::new(item.display_title()).size(theme.font_size_body).color(theme.text_primary()).strong()).truncate());
+                // The description's first line (round 5), cut at a word: the page has the rest.
+                let line = super::api_items::first_line(&item.description);
+                if !line.is_empty() {
+                    ui.add(egui::Label::new(RichText::new(line).size(theme.font_size_small).color(theme.text_secondary())).wrap());
+                }
                 ui.add(egui::Label::new(RichText::new(format!("by {}", item.by_name())).size(theme.font_size_small).color(theme.text_secondary())).truncate());
                 ui.horizontal_wrapped(|ui| {
-                    let picks = if item.picks == 1 { "1 pick".to_string() } else { format!("{} picks", item.picks) };
-                    ui.label(RichText::new(picks).size(theme.font_size_small).color(theme.text_muted()));
-                    ui.label(RichText::new(api::size_words(item.size_bytes)).size(theme.font_size_small).color(theme.text_muted()));
+                    ui.label(RichText::new(card_counts(item)).size(theme.font_size_small).color(theme.text_muted()));
+                    if let Some(files) = files_badge(item) {
+                        ui.label(RichText::new(files).size(theme.font_size_small).color(theme.text_muted()));
+                    }
+                    ui.label(RichText::new(api::size_words(item.total_bytes.max(item.size_bytes))).size(theme.font_size_small).color(theme.text_muted()));
+                    // "Featured" or "Featured in its category", in the words the Feature choice uses.
                     if item.featured.is_on() {
-                        ui.label(RichText::new("Featured").size(theme.font_size_small).color(theme.accent()));
+                        ui.label(RichText::new(super::filters::feature_words(item.featured)).size(theme.font_size_small).color(theme.accent()));
                     }
                     if item.kept {
                         ui.label(RichText::new(KEPT_BADGE).size(theme.font_size_small).color(theme.success()))
@@ -237,11 +325,13 @@ fn draw_face(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, item: &Item
         Show::TooBig => {
             wrapped(&too_big_words(item), theme.text_secondary());
             if resp.clicked() {
-                super::open::open_card(state, item);
+                super::open::open_item(state, item);
             }
         }
         Show::Load => {
-            if item.kind == "picture" {
+            // The cover when it has one (round 5), else the picture itself, else the kind's mark.
+            let picture_key = if item.cover.is_some() { Some(cover_key(state, item)) } else { (item.kind == "picture").then(|| key.clone()) };
+            if let Some(key) = picture_key {
                 match state.image_cache.status(&key) {
                     ImageStatus::Ready { width: w, height: h } => {
                         if let Some(tex) = state.image_cache.get_texture(&key) {
@@ -308,9 +398,10 @@ fn reference_or_say(state: &mut GuiState, item: &Item) -> Option<api::ItemRef> {
     }
 }
 
-/// A tile's buttons: Pick or Unpick (not on your own), Remove (yours, or any as an admin), Feature
-/// or Unfeature (admins), Keep on the server or Stop keeping (admins and moderators), Report (not
-/// on your own).
+/// A tile's buttons: Edit (yours, or any as an admin: round 5, it opens the item's page with its
+/// Edit window), Pick or Unpick (not on your own), Remove (yours, or any as an admin), the three
+/// Feature choices (admins: filters.rs `draw_feature_choice`), Keep on the server or Stop keeping
+/// (admins and moderators), Report (not on your own).
 fn draw_actions(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, item: &Item) {
     if !signed_in_here(state) {
         return;
@@ -320,6 +411,9 @@ fn draw_actions(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, item: &I
     let keeper = super::may_keep(state);
     let small = widgets::ButtonSize::Small;
     ui.horizontal_wrapped(|ui| {
+        if super::item_view::may_edit(state, item) && widgets::Button::primary("Edit").size(small).tooltip("Change its words, licence, files and cover.").show(ui, theme) {
+            super::edit::open_edit(state, item);
+        }
         if !own {
             let picked = item.picked_by_me;
             let label = if picked { "Unpick" } else { "Pick" };
@@ -333,17 +427,10 @@ fn draw_actions(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, item: &I
         if (own || admin) && widgets::Button::danger("Remove").size(small).show(ui, theme) {
             state.media.confirm_remove = Some(item.clone());
         }
-        if admin {
-            // Feature puts it on the main shelf, Unfeature takes it off any (round 5's three
-            // choices are lane 1D's).
-            let to = if item.featured.is_on() { api::Featured::None } else { api::Featured::Main };
-            let label = if item.featured.is_on() { "Unfeature" } else { "Feature" };
-            if widgets::Button::secondary(label).size(small).tooltip("Featured items lead the Media page.").show(ui, theme) {
-                if let (Some(r), Some(signer)) = (reference_or_say(state, item), signer_or_say(state)) {
-                    spawn(state, Job::Feature { id: item.id, to }, api::feature_request(&signer, &r, to));
-                }
-            }
-        }
+        // The admins' three Feature choices (lane 1C's control, filters.rs): "Not featured",
+        // "Featured" or "Featured in its category", sent as soon as one is picked. Nothing for
+        // anyone else.
+        super::filters::draw_feature_choice(ui, theme, state, item);
         if keeper {
             let (label, tip) = if item.kept { (STOP_KEEPING, STOP_KEEPING_TIP) } else { (KEEP, KEEP_TIP) };
             if widgets::Button::secondary(label).size(small).tooltip(tip).show(ui, theme) {

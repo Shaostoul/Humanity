@@ -1,7 +1,10 @@
 //! Putting something on the Media page, and asking for a category.
 //!
 //! ADD TO MEDIA: the file picker, then a short form (title, category, description, labels,
-//! visibility). Sending it closes the form: the file joins the uploads in progress on the page
+//! visibility, and since Media round 5 the licence, "All rights reserved" preselected, with the
+//! server's own words beside it and its hosting paragraph, "Your uploads stay yours.": edit.rs
+//! `draw_licence_choice` and `draw_hosting`, the same as the Edit window's). Sending it closes the
+//! form: the file joins the uploads in progress on the page
 //! (media/uploading.rs, each with its bar, Pause, Resume and Cancel), goes up in pieces
 //! (media/resumable.rs) and is then published with `POST /api/media`, signed then, with what this
 //! form said (round 3: no form is held open for an upload, so opening another never touches it).
@@ -47,7 +50,7 @@ pub(crate) enum Source {
 }
 
 /// What kind of file a publish puts on Media, so its answer is handled the right way.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Of {
     /// Uploaded here just now (the upload under way is done with when it answers).
     Upload,
@@ -55,6 +58,10 @@ pub(crate) enum Of {
     Waiting,
     /// A file already public in Shared Files or a chat.
     Shared,
+    /// Uploaded here just now from an item's Edit window (Media round 5, lane 1D): added to that
+    /// item as a file or its cover (`POST /api/media/files/add`) instead of published. The same
+    /// upload, the same row under "Uploads in progress", the same Cancel.
+    Attach { item: api::ItemRef, role: super::api_items::FileRole },
 }
 
 /// The Add to Media or Put on Media form.
@@ -79,11 +86,29 @@ pub(crate) struct Form {
     /// docs/design/media-showcase.md, 2026-10-11): cleaned on this device before it goes, or kept
     /// by choice (`keep_metadata`). Starts as last chosen; always on under the protected setup.
     pub remove: bool,
+    /// The licence (Media round 5): empty until one is picked, which shows and sends the server's
+    /// default ("All rights reserved"); and the "Offer this for the game" tick, offered only with a
+    /// licence that allows it.
+    pub licence: String,
+    pub project_use: bool,
 }
 
 impl Form {
     pub(crate) fn new(source: Source) -> Self {
-        Form { id: super::next_id(), source, title: String::new(), description: String::new(), category: None, labels: BTreeSet::new(), members_only: false, problem: String::new(), sending: false, remove: true }
+        Form {
+            id: super::next_id(),
+            source,
+            title: String::new(),
+            description: String::new(),
+            category: None,
+            labels: BTreeSet::new(),
+            members_only: false,
+            problem: String::new(),
+            sending: false,
+            remove: true,
+            licence: String::new(),
+            project_use: false,
+        }
     }
 
     /// A file picked on this computer (not one already on the server).
@@ -209,6 +234,7 @@ pub(crate) fn draw_form(ctx: &egui::Context, theme: &Theme, state: &mut GuiState
     let mine_failed = state.media.mine_failed;
     let categories = state.media.list.categories.clone();
     let labels = state.media.list.labels.clone();
+    let licences = state.media.list.licences.clone();
     let title = if form.is_picked() { "Add to Media" } else { "Put on Media" };
     // A picked file's look (what is hidden in it), its switch, and whether it may go (2026-10-11).
     let mut look = state.media.look.take().filter(|(id, _)| *id == form.id);
@@ -280,6 +306,21 @@ pub(crate) fn draw_form(ctx: &egui::Context, theme: &Theme, state: &mut GuiState
                 ui.radio_value(&mut form.members_only, true, "Members only");
             });
         }
+        // The licence and the game tick (Media round 5), with the server's words beside them, and
+        // what putting a file on this server lets its people do (the hosting paragraph): all from
+        // the server's answer (data/media/licences.json on the relay), never a copy in this app.
+        ui.add_space(theme.spacing_xs);
+        let members = form.for_media() && (members_server || form.members_only);
+        let shown = shown_licence(&form, &licences);
+        let mut choice = super::edit::LicenceChoice { licence: shown.clone(), project_use: form.project_use };
+        super::edit::draw_licence_choice(ui, theme, &licences, &mut choice, members, None, None);
+        // Only a pick changes the form: the default shown stays "none picked" (sent as the
+        // default), so drawing the form never changes it.
+        if choice.licence != shown {
+            form.licence = choice.licence;
+        }
+        form.project_use = choice.project_use;
+        super::edit::draw_hosting(ui, theme, &licences);
         if !form.problem.is_empty() {
             ui.label(RichText::new(&form.problem).size(theme.font_size_small).color(theme.danger()));
         }
@@ -339,8 +380,19 @@ pub(crate) fn fields_of(form: &Form, filename: &str, categories: &[Category], me
         category_id: shown_category(form, categories).0,
         labels: form.labels.iter().cloned().collect(),
         visibility: visibility.to_string(),
-        // The licence and the game tick (Media round 5): the defaults until the form offers them.
-        ..Default::default()
+        // The licence and the game tick (Media round 5): what the form shows.
+        licence: form.licence.clone(),
+        project_use: form.project_use,
+    }
+}
+
+/// The licence the form shows: the one picked, else the server's default. The game tick goes with
+/// it only while that licence allows it (`edit::draw_licence_choice` keeps it so).
+pub(crate) fn shown_licence(form: &Form, licences: &api::Licences) -> String {
+    if form.licence.trim().is_empty() {
+        licences.default.clone()
+    } else {
+        form.licence.clone()
     }
 }
 
