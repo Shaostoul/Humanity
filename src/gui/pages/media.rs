@@ -263,19 +263,11 @@ pub(crate) fn base_of(state: &GuiState) -> String {
     crate::gui::widgets::image_cache::http_base(&server_here(state))
 }
 
-/// The server's host as a person reads it: "united-humanity.us", with its port only when it is
-/// not the usual one ("127.0.0.1:8099"), the way a browser's address bar and the website's own
-/// heading (web/pages/media-app.js, `new URL(origin).host`) write it. Empty with no server.
+/// The server's host as a person reads it ("united-humanity.us", "127.0.0.1:8099"): the server
+/// strip's own `host_of` over the same connected server, so the strip under the top menu and
+/// this page's heading always name the same host. Empty with no server.
 pub(crate) fn host_here(state: &GuiState) -> String {
-    let base = base_of(state);
-    let Ok(u) = url::Url::parse(&base) else { return String::new() };
-    let Some(host) = u.host_str() else { return String::new() };
-    let host = host.to_ascii_lowercase();
-    // `port()` is None when the address uses its scheme's usual port (443 for https).
-    match u.port() {
-        Some(p) => format!("{host}:{p}"),
-        None => host,
-    }
+    crate::gui::pages::server_strip::host_of(&server_here(state))
 }
 
 /// The page's heading (round 5, 3.9 of docs/design/media-round-5-plan.md): "Media on

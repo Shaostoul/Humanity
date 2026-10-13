@@ -180,8 +180,9 @@ fn list_jobs(state: &GuiState, next: bool) -> usize {
     state.media.jobs.iter().filter(|(j, _)| matches!(j, Job::List { append, .. } if *append == next)).count()
 }
 
-/// THE HEADING NAMES THE SERVER (3.9): "Media on <host>", the host as an address bar writes it
-/// (its port only when it is not the usual one), whatever form the app holds the address in.
+/// THE HEADING NAMES THE SERVER (3.9): "Media on <host>", its port included when it has one (as
+/// the website's `location.host` writes it), whatever form the app holds the address in, and
+/// always the host the server strip names.
 ///
 /// Seen red 2026-10-12 with the heading drawn as plain "Media" again: "the heading names the
 /// server it is for" (no shape was exactly "Media on 127.0.0.1:9").
@@ -192,15 +193,19 @@ fn the_heading_names_the_server() {
     let out = settle(media_frame, &ctx, &theme, &mut state);
     assert!(exact(&out, "Media on 127.0.0.1:9"), "the heading names the server it is for");
 
+    // Whatever form the address is held in, the heading names the host the server strip under
+    // the top menu names (lane 1E's `host_of`, over the same connected server).
     for (address, words) in [
-        ("wss://United-Humanity.us/ws", "Media on united-humanity.us"),
+        ("wss://united-humanity.us/ws", "Media on united-humanity.us"),
         ("https://public.guide/", "Media on public.guide"),
-        ("https://example.org:443", "Media on example.org"),
         ("http://localhost:8099", "Media on localhost:8099"),
+        ("united-humanity.us", "Media on united-humanity.us"),
         ("", "Media"),
     ] {
         state.server_url = address.to_string();
         assert_eq!(heading(&state), words, "{address:?}");
+        let strip = crate::gui::pages::server_strip::host_of(&state.active_server());
+        assert!(strip.is_empty() || heading(&state) == format!("Media on {strip}"), "the strip and the heading name one host: {address:?}");
     }
 }
 
