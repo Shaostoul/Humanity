@@ -267,15 +267,11 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
 - **Released 2026-10-05:** v0.1459.0 to v0.1463.0 and v0.1464.0 (ship-homes increment 5, building
   only on your own plot; BUG-165 and BUG-166, the walking-backwards fixes; two new clips),
   all delivered to the taskbar exe.
-- **FIRST AFTER THE RESET (operator screenshot, 2026-10-13): the desktop chat's message bar sits half under
-  the Windows taskbar.** Cause: `src/gui/pages/chat.rs` places the input bar by a FIXED reservation
-  (`input_height = 52.0 + reply_banner_h + typing_h + composer_extra`, around line 506) at
-  `available.max.y - input_height`, so a bar whose content is taller (the operator uses a larger
-  text size) overflows past the window's bottom. A first fix (reserve at least the bar's height
-  as last drawn, from `allocate_ui_at_rect's` response) was REVERTED because it broke
-  `composer_tests::a_long_post_grows_the_composer_upward_and_stays_on_screen` (six lines grew the
-  box 46.8 px, the test wants over 50): the measured height and the composer's own growth
-  interact. Fix it with that test green, and add a test at a larger text size.
+- DONE v0.1496.0: **the desktop chat's message bar no longer sits under the taskbar.** The bar
+  reserved a fixed 52 px but its content is about 66 px even at the default text size; it now
+  reserves its own parts as last drawn (`INPUT_BAR_REST_ID`) plus one line and the box's extra
+  lines. Follow-up: a headless test at a larger text size, and the one-line box height measured
+  instead of `COMPOSER_ONE_LINE_H` (22 px; at a much larger text size a line is taller).
 - **NEXT in TIER 0 (updated 2026-10-12, after v0.1492.0; weekly usage at 96%, resets Thursday 8 PM):**
   - **Increment 6 is DONE** (Waves 0 to 3): `just verify-starts` passes 18/18 and was seen red on
     a real build (the save swap broken). Left for later: a second home of your own on one

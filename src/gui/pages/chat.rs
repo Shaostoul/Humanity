@@ -503,7 +503,16 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     // COMPOSER_MAX_SHARE of the chat area; past that the box scrolls inside.
     let composer_extra = ui.ctx().data(|d| d.get_temp::<f32>(egui::Id::new(COMPOSER_EXTRA_ID))).unwrap_or(0.0);
     let composer_cap = composer_extra_cap(available.height());
-    let input_height = 52.0 + reply_banner_h + typing_h + composer_extra.min(composer_cap);
+    // The bar's own parts as last drawn (`INPUT_BAR_REST_ID`: everything but the text box), plus
+    // one line and the box's extra lines. The fixed 52 px stays as a floor; the bar's real
+    // content is taller than that even at the default text size, so with the floor alone it
+    // overflowed the window's bottom edge, under the taskbar at a larger text size (operator,
+    // 2026-10-13). Measured from the bar itself, so a banner coming or going settles in a frame.
+    let bar_rest = ui.ctx().data(|d| d.get_temp::<f32>(egui::Id::new(INPUT_BAR_REST_ID))).unwrap_or(0.0);
+    let extra_shown = composer_extra.min(composer_cap);
+    let input_height = (52.0 + reply_banner_h + typing_h + extra_shown)
+        .max(bar_rest + COMPOSER_ONE_LINE_H + extra_shown)
+        .min(available.height() * 0.6);
 
     let messages_rect = egui::Rect::from_min_size(
         available.min,
@@ -1550,7 +1559,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         Vec2::new(available.width(), input_height),
     );
 
-    ui.allocate_ui_at_rect(input_rect, |ui| {
+    let input_bar = ui.allocate_ui_at_rect(input_rect, |ui| {
         Frame::NONE
             .fill(theme.bg_sidebar_dark())
             .inner_margin(egui::Margin::symmetric(16, 8))
@@ -1719,6 +1728,8 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                 .hint_text(hint)
                                 .show(ui)
                         });
+                    // The box's height as shown, so the bar's other parts can be measured below.
+                    ui.ctx().data_mut(|d| d.insert_temp(egui::Id::new(INPUT_BOX_H_ID), composer.inner_rect.height()));
                     // Lines beyond the first, for next frame's bar height.
                     let extra = composer_extra_of(&composer.inner.galley);
                     let extra_id = egui::Id::new(COMPOSER_EXTRA_ID);
@@ -1988,7 +1999,22 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 });
             });
     });
+    // The bar's height as drawn this frame less its text box: next frame's reservation (see
+    // `bar_rest` above). A change bigger than half a pixel asks for one more frame to settle.
+    let box_h = ui.ctx().data(|d| d.get_temp::<f32>(egui::Id::new(INPUT_BOX_H_ID))).unwrap_or(0.0);
+    let rest = (input_bar.response.rect.height() - box_h).max(0.0);
+    let rest_id = egui::Id::new(INPUT_BAR_REST_ID);
+    if (rest - ui.ctx().data(|d| d.get_temp::<f32>(rest_id)).unwrap_or(0.0)).abs() > 0.5 {
+        ui.ctx().data_mut(|d| d.insert_temp(rest_id, rest));
+        ui.ctx().request_repaint();
+    }
 }
+
+/// Where the chat's input bar keeps its height as last drawn WITHOUT its text box (toolbar,
+/// margins, reply banner, typing line), so the reservation fits the bar at any text size.
+pub(crate) const INPUT_BAR_REST_ID: &str = "chat_input_bar_rest_h";
+/// Where the chat's text box keeps its height as shown this frame (for `INPUT_BAR_REST_ID`).
+pub(crate) const INPUT_BOX_H_ID: &str = "chat_input_box_h";
 
 /// Full-width press-and-HOLD confirmation button for a destructive native
 /// action -- the button-shaped twin of `widgets::hold_to_confirm`'s icon-sized
