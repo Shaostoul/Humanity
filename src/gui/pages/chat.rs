@@ -514,8 +514,8 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     // COMPOSER_ONE_LINE_H at a larger text size, so reserving the constant left the box's lower
     // border and padding under the taskbar (operator, 2026-10-14). Never less than one line plus
     // the extra lines, so a new line still grows the bar this frame.
-    let box_last = ui.ctx().data(|d| d.get_temp::<f32>(egui::Id::new(INPUT_BOX_H_ID))).unwrap_or(0.0);
-    let box_needed = box_last.max(COMPOSER_ONE_LINE_H + extra_shown);
+    let _ = extra_shown;
+    let box_needed = composer_text_h(ui.ctx(), composer_cap);
     // Once the bar has been drawn, it reserves exactly its own parts plus the box: no fixed floor,
     // so no empty band under the box. The first frame has nothing measured yet and uses the old
     // fixed estimate.
@@ -1729,9 +1729,21 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     // Past COMPOSER_MAX_SHARE of the chat area the box scrolls inside (its
                     // reserved height is capped there, in `draw_center_panel` above), so the
                     // box grows UPWARD and a long post can be read back (operator, 2026-10-10).
-                    let composer = egui::ScrollArea::vertical()
+                    // The box is offered EXACTLY its text's height (as last laid out, `TEXT_H_ID`),
+                    // capped. A scroll area takes all the height it is offered whatever its text,
+                    // so offered the row's few lines it stopped there and the top lines scrolled out
+                    // of view, while the bar kept growing empty space below it (operator's
+                    // screenshots, 2026-10-14: eight lines typed, the last four shown); offered the
+                    // whole cap it stood 273 px tall for one line. The bar reserves the same height
+                    // (`box_needed` in `draw_center_panel`), so the two always agree.
+                    let box_want = composer_text_h(ui.ctx(), composer_cap);
+                    // Its own space in the row, exactly that tall: the row beside the buttons offers
+                    // only a few lines on its own.
+                    let composer = ui
+                        .allocate_ui_with_layout(egui::vec2(composer_text_w, box_want), Layout::top_down(Align::Min), |ui| {
+                        egui::ScrollArea::vertical()
                         .id_salt("chat_composer_scroll")
-                        .max_height(COMPOSER_ONE_LINE_H + composer_cap)
+                        .max_height(box_want)
                         .auto_shrink([true, true])
                         .show(ui, |ui| {
                             egui::TextEdit::multiline(&mut state.chat_input)
@@ -1744,7 +1756,16 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                 )))
                                 .hint_text(hint)
                                 .show(ui)
-                        });
+                        })
+                        })
+                        .inner;
+                    // The text's own height, for next frame's offer and the bar's reservation.
+                    let text_h = composer.inner.response.rect.height();
+                    let text_id = egui::Id::new(TEXT_H_ID);
+                    if (text_h - ui.ctx().data(|d| d.get_temp::<f32>(text_id)).unwrap_or(0.0)).abs() > 0.5 {
+                        ui.ctx().data_mut(|d| d.insert_temp(text_id, text_h));
+                        ui.ctx().request_repaint();
+                    }
                     // The box's height as shown, so the bar's other parts can be measured below.
                     ui.ctx().data_mut(|d| d.insert_temp(egui::Id::new(INPUT_BOX_H_ID), composer.inner_rect.height()));
                     // Lines beyond the first, for next frame's bar height.
@@ -3030,6 +3051,21 @@ pub(crate) const COMPOSER_MAX_SHARE: f32 = 0.45;
 pub(crate) const COMPOSER_ONE_LINE_H: f32 = 22.0;
 
 /// How much the composer's extra lines may add to the bar in a chat area `area_h` tall.
+/// Where the composer keeps its text's own height as last laid out (one line plus its extra
+/// lines, at whatever text size), for the box's offer and the bar's reservation.
+pub(crate) const TEXT_H_ID: &str = "chat_composer_text_h";
+
+/// The height the composer box is offered and the bar reserves for it: its text's height as last
+/// laid out, at least one line, at most one line plus `composer_cap` (past that the text scrolls
+/// inside the box).
+pub(crate) fn composer_text_h(ctx: &egui::Context, composer_cap: f32) -> f32 {
+    let text = ctx.data(|d| d.get_temp::<f32>(egui::Id::new(TEXT_H_ID))).unwrap_or(COMPOSER_ONE_LINE_H);
+    // Rounded up, plus one pixel: the box's rect is snapped to whole pixels, and a box one pixel
+    // short of its text clips its own bottom border line, the line the operator asked to see.
+    let text = text.ceil() + 1.0;
+    text.clamp(COMPOSER_ONE_LINE_H.min(text.max(1.0)), COMPOSER_ONE_LINE_H + composer_cap)
+}
+
 pub(crate) fn composer_extra_cap(area_h: f32) -> f32 {
     (area_h * COMPOSER_MAX_SHARE - 52.0).max(0.0)
 }

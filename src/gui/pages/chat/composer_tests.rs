@@ -134,6 +134,12 @@ fn the_bar_settles_and_shrinks_back_when_the_text_does() {
         frame(&ctx, &theme, &mut state);
     }
     let settled = composer(&ctx);
+    // Every one of the six lines is in view: the box is about six times one line's height, not
+    // held to the few lines its row had room for. Seen red 2026-10-14 with the box placed straight
+    // in the row (v0.1500.0): "all six lines are in view: the text is [[249.0 705.0] - [833.8 793.0]],
+    // the box shows [[249.0 705.0] - [833.8 772.0]]".
+    let full = ctx.read_response(egui::Id::new("chat_composer_input")).expect("drawn").rect;
+    assert!(settled.height() >= full.height() - 0.5, "all six lines are in view: the text is {full:?}, the box shows {settled:?}");
     for _ in 0..10 {
         frame(&ctx, &theme, &mut state);
     }
@@ -147,3 +153,4 @@ fn the_bar_settles_and_shrinks_back_when_the_text_does() {
     let back = composer(&ctx);
     assert!((back.top() - one.top()).abs() < 1.0, "and with the text cleared it is back where one line sat: {one:?} then {back:?}");
 }
+
