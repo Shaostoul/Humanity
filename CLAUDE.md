@@ -201,9 +201,13 @@ focused window because explorer.exe is the parent -- no setup needed.
 HumanityOS instance machine-wide during working hours.** Three agent rigs ran
 concurrently and the operator's whole computer bogged down -- each instance is a
 full GPU renderer even in the background. Before booting any rig, check
-`tasklist //FI "IMAGENAME eq HumanityOS.exe"`; if an instance is already running
-(another agent's rig or the operator's own game), WAIT for it to exit rather
-than booting beside it. Orchestrators: do not dispatch multiple rig-booting
+`tasklist //FI "IMAGENAME eq HumanityOS.exe"`; if an instance is already running,
+CLOSE IT rather than booting beside it. **Operator, 2026-10-13: "assume any
+HumanityOS window presently open on my PC you can close while you're
+developing"**, his own game included. Close it gracefully first (`taskkill //PID
+<pid>` without `//F`, so the game gets its close and saves) and force it only if
+it is still running about 15 s later. The exception is this session's own rigs:
+wait for those to finish. Orchestrators: do not dispatch multiple rig-booting
 agents in parallel -- stagger them so their sweeps serialize. Read-only/code
 work parallelizes fine; GPU boots do not. **That exact-name filter misses the
 operator's own game when he starts it with `just launch` or `just play`:**
