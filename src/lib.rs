@@ -476,6 +476,18 @@ mod native_app {
         // (cursor freed by the per-frame reconciliation in the update loop)
     }
 
+    /// [`apply_window_mode`] only when the mode differs from the one last applied (the first call
+    /// always applies). It runs on every settings save, and re-applying the same mode would
+    /// un-maximize and re-maximize the window each time (see `WindowedFullscreen` below).
+    fn apply_window_mode_once(window: &winit::window::Window, mode: crate::config::WindowMode) {
+        static LAST: std::sync::Mutex<Option<crate::config::WindowMode>> = std::sync::Mutex::new(None);
+        let mut last = LAST.lock().unwrap_or_else(|e| e.into_inner());
+        if *last != Some(mode) {
+            *last = Some(mode);
+            apply_window_mode(window, mode);
+        }
+    }
+
     /// Apply a window presentation mode to the live window (v0.454). Decorations = the OS
     /// title bar; borderless drops it; the fullscreen variants use winit's Fullscreen.
     fn apply_window_mode(window: &winit::window::Window, mode: crate::config::WindowMode) {
@@ -490,6 +502,15 @@ mod native_app {
             WindowMode::WindowedFullscreen => {
                 window.set_fullscreen(None);
                 window.set_decorations(true);
+                // Un-maximize, then maximize again now that the title bar is on, so Windows sizes
+                // the window to the WORK AREA (above the taskbar). The window is created hidden and
+                // maximized; asking an already-maximized window to maximize does nothing, and it
+                // kept a height that ran under the taskbar, hiding the chat's message bar behind
+                // it (operator's screenshots, 2026-10-13). Applied only when the mode changes
+                // (`apply_window_mode_once`), so a settings save does not flicker the window.
+                if window.is_maximized() {
+                    window.set_maximized(false);
+                }
                 window.set_maximized(true);
             }
             WindowMode::BorderlessWindowed => {
@@ -16272,7 +16293,7 @@ mod native_app {
                                 // so a deliberately-focused instance applies modes
                                 // normally from then on.
                                 if !state.background_no_cursor {
-                                    apply_window_mode(&state.window, state.gui_state.settings.window_mode);
+                                    apply_window_mode_once(&state.window, state.gui_state.settings.window_mode);
                                 }
 
                                 // Render distance → camera far plane
