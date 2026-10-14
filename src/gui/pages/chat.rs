@@ -1997,12 +1997,18 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     }
                 });
                 });
-            });
+            })
+            // The frame's own rect as painted: its content plus margins. The allocation's
+            // response is held to the space it was given, so measuring that read the bar as
+            // fitting when it did not (v0.1497.0 still cut the box off at the window's bottom).
+            .response
+            .rect
+            .height()
     });
     // The bar's height as drawn this frame less its text box: next frame's reservation (see
     // `bar_rest` above). A change bigger than half a pixel asks for one more frame to settle.
     let box_h = ui.ctx().data(|d| d.get_temp::<f32>(egui::Id::new(INPUT_BOX_H_ID))).unwrap_or(0.0);
-    let rest = (input_bar.response.rect.height() - box_h).max(0.0);
+    let rest = (input_bar.inner - box_h).max(0.0);
     let rest_id = egui::Id::new(INPUT_BAR_REST_ID);
     if (rest - ui.ctx().data(|d| d.get_temp::<f32>(rest_id)).unwrap_or(0.0)).abs() > 0.5 {
         ui.ctx().data_mut(|d| d.insert_temp(rest_id, rest));
