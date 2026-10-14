@@ -510,9 +510,21 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     // 2026-10-13). Measured from the bar itself, so a banner coming or going settles in a frame.
     let bar_rest = ui.ctx().data(|d| d.get_temp::<f32>(egui::Id::new(INPUT_BAR_REST_ID))).unwrap_or(0.0);
     let extra_shown = composer_extra.min(composer_cap);
-    let input_height = (52.0 + reply_banner_h + typing_h + extra_shown)
-        .max(bar_rest + COMPOSER_ONE_LINE_H + extra_shown)
-        .min(available.height() * 0.6);
+    // The text box's own height as last shown (`INPUT_BOX_H_ID`). One line is taller than
+    // COMPOSER_ONE_LINE_H at a larger text size, so reserving the constant left the box's lower
+    // border and padding under the taskbar (operator, 2026-10-14). Never less than one line plus
+    // the extra lines, so a new line still grows the bar this frame.
+    let box_last = ui.ctx().data(|d| d.get_temp::<f32>(egui::Id::new(INPUT_BOX_H_ID))).unwrap_or(0.0);
+    let box_needed = box_last.max(COMPOSER_ONE_LINE_H + extra_shown);
+    // Once the bar has been drawn, it reserves exactly its own parts plus the box: no fixed floor,
+    // so no empty band under the box. The first frame has nothing measured yet and uses the old
+    // fixed estimate.
+    let input_height = if bar_rest > 0.0 {
+        bar_rest + box_needed
+    } else {
+        52.0 + reply_banner_h + typing_h + extra_shown
+    }
+    .min(available.height() * 0.6);
 
     let messages_rect = egui::Rect::from_min_size(
         available.min,
@@ -1562,7 +1574,10 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let input_bar = ui.allocate_ui_at_rect(input_rect, |ui| {
         Frame::NONE
             .fill(theme.bg_sidebar_dark())
-            .inner_margin(egui::Margin::symmetric(16, 8))
+            // Top and bottom padding from the theme's smallest spacing (Settings > Widgets,
+            // `spacing_xs`, 2 px by default), so the box sits a hair above the window's bottom
+            // edge and under the bar's top line rather than 8 px off each (operator, 2026-10-14).
+            .inner_margin(egui::Margin::symmetric(16, theme.spacing_xs.round().clamp(0.0, 40.0) as i8))
             .show(ui, |ui| {
                 // Reply banner — only shown when a reply context is active.
                 if let Some(ref target) = reply::made_in(state, &state.chat_active_channel) {
