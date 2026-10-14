@@ -108,3 +108,42 @@ fn the_composers_hints_open_above_it() {
     assert!(tip.bottom() <= boxed.top(), "the hint sits above the text box: hint {tip:?}, box {boxed:?}");
     assert!(!tip.intersects(boxed), "and does not overlap it: hint {tip:?}, box {boxed:?}");
 }
+
+/// THE BAR SETTLES AND SHRINKS BACK (operator, 2026-10-14: "as I type more than 4 rows the area
+/// housing the text input box expands"). v0.1499.0 measured the bar's frame, which stretches to
+/// fill the space reserved for it, so every frame read the reservation back as the bar's height:
+/// a long post grew the bar until it filled 60% of the chat, and it never came back. Now the bar
+/// measures what it drew. With the text unchanged the box stays put, and with the text cleared it
+/// returns to where one line sat.
+///
+/// Seen red 2026-10-14 with the measurement taken from the space given (`ui.max_rect()`), the
+/// v0.1499.0 behaviour: "the bar stopped growing once the text stopped changing".
+#[test]
+fn the_bar_settles_and_shrinks_back_when_the_text_does() {
+    let ctx = egui::Context::default();
+    let theme = crate::gui::theme::load_theme();
+    let mut state = GuiState::default();
+    state.chat_active_channel = "general".into();
+    for _ in 0..4 {
+        frame(&ctx, &theme, &mut state);
+    }
+    let one = composer(&ctx);
+
+    state.chat_input = (1..=6).map(|i| format!("line {i}")).collect::<Vec<_>>().join("\n");
+    for _ in 0..6 {
+        frame(&ctx, &theme, &mut state);
+    }
+    let settled = composer(&ctx);
+    for _ in 0..10 {
+        frame(&ctx, &theme, &mut state);
+    }
+    let later = composer(&ctx);
+    assert!((later.top() - settled.top()).abs() < 1.0, "the bar stopped growing once the text stopped changing: {settled:?} then {later:?}");
+
+    state.chat_input.clear();
+    for _ in 0..6 {
+        frame(&ctx, &theme, &mut state);
+    }
+    let back = composer(&ctx);
+    assert!((back.top() - one.top()).abs() < 1.0, "and with the text cleared it is back where one line sat: {one:?} then {back:?}");
+}

@@ -1571,13 +1571,15 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         Vec2::new(available.width(), input_height),
     );
 
+    // The bar's top and bottom padding (see the frame below), also added to its drawn height.
+    let bar_pad_v = theme.spacing_xs.round().clamp(0.0, 40.0);
     let input_bar = ui.allocate_ui_at_rect(input_rect, |ui| {
         Frame::NONE
             .fill(theme.bg_sidebar_dark())
             // Top and bottom padding from the theme's smallest spacing (Settings > Widgets,
             // `spacing_xs`, 2 px by default), so the box sits a hair above the window's bottom
             // edge and under the bar's top line rather than 8 px off each (operator, 2026-10-14).
-            .inner_margin(egui::Margin::symmetric(16, theme.spacing_xs.round().clamp(0.0, 40.0) as i8))
+            .inner_margin(egui::Margin::symmetric(16, bar_pad_v as i8))
             .show(ui, |ui| {
                 // Reply banner — only shown when a reply context is active.
                 if let Some(ref target) = reply::made_in(state, &state.chat_active_channel) {
@@ -2012,13 +2014,16 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     }
                 });
                 });
+                // The height of what was DRAWN in the bar, not of the space it was given. The
+                // frame's own rect stretches to fill the reservation, so measuring that read the
+                // reservation back as the bar's height: every new line grew it and nothing shrank
+                // it, until it filled 60% of the chat (v0.1499.0, operator, 2026-10-14). The
+                // allocation's response before that was held to the space given, so it read the
+                // bar as fitting when it was not (v0.1497.0).
+                ui.min_rect().height()
             })
-            // The frame's own rect as painted: its content plus margins. The allocation's
-            // response is held to the space it was given, so measuring that read the bar as
-            // fitting when it did not (v0.1497.0 still cut the box off at the window's bottom).
-            .response
-            .rect
-            .height()
+            .inner
+            + 2.0 * bar_pad_v
     });
     // The bar's height as drawn this frame less its text box: next frame's reservation (see
     // `bar_rest` above). A change bigger than half a pixel asks for one more frame to settle.
