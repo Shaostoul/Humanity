@@ -630,7 +630,7 @@ pub fn draw_screen(
         match file_picker_modal(ctx, theme, p, "Open a video") {
             FilePickerResult::Open => {}
             FilePickerResult::Cancelled => actions.cancelled = true,
-            FilePickerResult::Picked(path) => actions.picked = Some(path),
+            FilePickerResult::Picked(paths) => actions.picked = paths.into_iter().next(),
         }
     }
 }

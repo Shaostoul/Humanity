@@ -261,6 +261,10 @@ pub struct FilesFlow {
     /// Device-to-device big files: each transfer's connection and progress on this device
     /// (engine/file_transfer.rs; what lasts is the DM store's record of each).
     pub(crate) transfers: crate::engine::file_transfer::Transfers,
+    /// Files chosen together that are still to go (2026-10-16), and the conversation they were
+    /// chosen in: each goes through the same step a single file takes, the next once the one
+    /// before is sent or cancelled (`attach_send::next_queued`).
+    pub(crate) queue: Option<(String, std::collections::VecDeque<std::path::PathBuf>)>,
 }
 
 /// Is this a private conversation (a DM or a group) whose attach button the person turned off

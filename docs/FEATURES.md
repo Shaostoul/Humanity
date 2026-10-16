@@ -346,6 +346,11 @@ attach (v0.708) and the Files page shared-uploads manager (v0.710). Since v0.150
 the person's own Favorites row (Add to favorites / Remove from favorites beside the path) and opens
 in the folder the last file was picked from, both kept on this computer in `file_picker.json` beside
 `config.json` (never synced).
+Since v0.1504.0 a picker can take several files (`FilePickerState::multiple`, a tick per file,
+Choose all here, Clear): Add to Media makes one item of them (the rest added once it is up,
+`resumable::MoreFile`), Edit's Add a file adds each, chat attach and the Files page send them one
+at a time through the one-file step (chat only to the conversation they were chosen in); the website
+mirrors Add to Media, Edit and chat.
 - Native: `src/gui/widgets/file_browser.rs` (`FilePickerState`, `file_picker_modal`), `src/gui/widgets/file_picker_memory.rs` (`PickerMemory`, `with`), chat attach wiring in `src/gui/pages/chat.rs` (`ATTACH_EXTS`, `upload_file_blocking`)
 
 ### Unread Indicators (native, v0.715–v0.719)

@@ -86,6 +86,30 @@ pub struct Unfinished {
     pub licence: String,
     pub project_use: bool,
     pub attach: Option<super::api_items::AttachTo>,
+    /// More files chosen with this one in Add to Media (2026-10-16): each is uploaded and added
+    /// to the item once it is published, as Edit's Add a file adds one.
+    pub more: Vec<MoreFile>,
+}
+
+/// A file chosen beside an Add to Media upload's own, added to its item once it is up.
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct MoreFile {
+    pub path: PathBuf,
+    /// The file's own name, as shown.
+    pub name: String,
+    pub size: u64,
+}
+
+impl MoreFile {
+    /// `path` as a further file: its name and size, or why it cannot be read.
+    pub fn of(path: &Path) -> Result<MoreFile, String> {
+        let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("file").to_string();
+        match std::fs::metadata(path) {
+            Ok(m) => Ok(MoreFile { path: path.to_path_buf(), name, size: m.len() }),
+            Err(e) => Err(format!("{name} could not be read ({e}).")),
+        }
+    }
 }
 
 /// A file's modification time in ms since 1970, 0 when the system cannot say.

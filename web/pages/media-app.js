@@ -238,6 +238,32 @@
       ' limit for one Media file on this server, so it was not uploaded. An admin can raise it in Server Settings > Roles.';
   }
 
+  /** Several files going up together (2026-10-16): the stop when all of them together are more
+   *  than what is left of the person's share or of the server's Media space, else null. Each file
+   *  on its own is checked as one is. The desktop app's words (api.rs room_problem_together). */
+  function togetherStop(files, usedBytes, shareBytes, budgetLeft) {
+    if (!files || files.length < 2) return null;
+    const total = files.reduce((n, f) => n + ((f && f.size) || 0), 0);
+    const n = files.length;
+    if (Number.isFinite(shareBytes) && shareBytes > 0 && Number.isFinite(usedBytes)) {
+      const left = Math.max(0, shareBytes - usedBytes);
+      if (total > left) {
+        return 'These ' + n + ' files come to ' + sizeWords(total) + ', more than the ' + sizeWords(left) +
+          ' left of your share of this server\'s Media space, so none was uploaded. Choose fewer, remove one of your items, or ask an admin to raise each person\'s share.';
+      }
+    }
+    if (Number.isFinite(budgetLeft) && budgetLeft >= 0 && total > budgetLeft) {
+      return 'These ' + n + ' files come to ' + sizeWords(total) + ', more than the ' + sizeWords(budgetLeft) +
+        ' left in this server\'s whole Media space, so none was uploaded. Choose fewer, or its admins can make more room.';
+    }
+    return null;
+  }
+
+  /** What the Add to Media form says about the further files chosen with the first. */
+  function moreWords(more) {
+    return 'Also on this item, each added once the item is up: ' + more.map((m) => m.name + ' (' + sizeWords(m.size) + ')').join(', ');
+  }
+
   /** The stop when a file is bigger than what is left of the whole Media space, else null. */
   function budgetStop(file, leftBytes) {
     if (!file || !Number.isFinite(leftBytes) || leftBytes < 0 || file.size <= leftBytes) return null;
@@ -588,10 +614,11 @@
 
     // ── The page's fixed parts ──
     const els = {};
-    const fileInput = h('input', { id: 'media-file-input', type: 'file', hidden: true, className: 'media-file-input' });
+    const fileInput = h('input', { id: 'media-file-input', type: 'file', hidden: true, multiple: true, className: 'media-file-input' });
     fileInput.addEventListener('change', () => {
-      const file = fileInput.files && fileInput.files[0];
-      if (file) openAddForm(file);
+      // Several at once (2026-10-16): one item holds them all; the first is its own file.
+      const files = Array.from(fileInput.files || []);
+      if (files[0]) openAddForm(files[0], files.slice(1));
       try { fileInput.value = ''; } catch (e) { /* some browsers refuse; harmless */ }
     });
     function build() {
@@ -904,6 +931,14 @@
       actions: (item) => tileActions(item, true),
       openTakedown: TD ? (item) => openTakedown(item) : null,
       attach: (file, item, as) => startAttach(file, item, as),
+      // Several files added at once (2026-10-16): '' when all of them fit together, else why not.
+      together: async (files) => {
+        if (!files || files.length < 2) return '';
+        const mine = await loadMine();
+        if (!mine) return '';
+        const budget = Number.isFinite(Number(mine.budget_left_bytes)) ? Number(mine.budget_left_bytes) : NaN;
+        return togetherStop(files, num(mine.used_bytes) + num(mine.in_progress_bytes), num(mine.share_bytes), budget) || '';
+      },
       uploadsFor: (id) => st.uploads.filter((u) => u.attach && u.attach.id === id).map((u) => ({ heading: u.heading, words: u.up ? uploadWords(u.up) : u.error })),
     });
 
@@ -1464,8 +1499,8 @@
       f.refusedEl.textContent = sendingOf(f).refused || '';
     }
 
-    async function openAddForm(file) {
-      const f = { mode: 'add', file, name: file.name, stop: null, shareLine: '', checking: true, busy: false, error: '', uploadedName: '', up: null, fp: '' };
+    async function openAddForm(file, more) {
+      const f = { mode: 'add', file, more: more || [], name: file.name, stop: null, shareLine: '', checking: true, busy: false, error: '', uploadedName: '', up: null, fp: '' };
       st.form = f;
       renderForm();
       if (!canUpload()) {
@@ -1511,8 +1546,11 @@
         const used = num(mine.used_bytes) + inProgress;
         const share = num(mine.share_bytes);
         if (share) f.shareLine = shareLeftWords(used, share);
+        const budget = Number.isFinite(Number(mine.budget_left_bytes)) ? Number(mine.budget_left_bytes) : NaN;
         f.stop = limitStop(file, num(mine.file_limit_bytes)) || shareStop(file, used, share) ||
-          (Number.isFinite(Number(mine.budget_left_bytes)) ? budgetStop(file, Number(mine.budget_left_bytes)) : null);
+          (Number.isFinite(budget) ? budgetStop(file, budget) : null) ||
+          f.more.map((m) => limitStop(m, num(mine.file_limit_bytes))).find(Boolean) ||
+          togetherStop([file].concat(f.more), used, share, budget);
       }
       renderForm();
     }
@@ -1549,6 +1587,7 @@
       const kids = [h('h2', { text: put ? 'Put on Media' : f.mode === 'waiting' ? 'Publish an upload' : 'Add to Media' })];
       const size = f.file ? f.file.size : f.size;
       kids.push(h('p', { className: 'media-form-file', text: size != null ? f.name + ' (' + sizeWords(size) + ')' : f.name }));
+      if (f.more && f.more.length) kids.push(h('p', { id: 'media-form-more', className: 'media-hint', text: moreWords(f.more) }));
       if (f.shareLine) kids.push(h('p', { id: 'media-share-line', className: 'media-share-line', text: f.shareLine }));
       f.actionsEl = h('div', { id: 'media-form-actions', className: 'media-form-actions' });
       if (f.stop) {
@@ -1767,6 +1806,26 @@
       return '';
     }
 
+    /** An item just published with more files chosen beside its own: each starts its own upload to
+     *  the new item, as Edit's Add a file does, and the line says so (uploading.rs attach_more). */
+    async function attachMore(answer, more) {
+      const item = answer && answer.item;
+      if (!item || !itemFileName(item)) {
+        say(MEDIA_WORDS.published + ' Its other files were not added: the server\'s answer did not say which item it made. Add them from the item\'s Edit window.');
+        return;
+      }
+      let started = 0;
+      const problems = [];
+      for (const file of more) {
+        const stop = await startAttach(file, item, 'file');
+        if (stop) problems.push(file.name + ': ' + stop); else started++;
+      }
+      let line = MEDIA_WORDS.published;
+      if (started) line += ' ' + (started === 1 ? 'Its other file is' : 'Its other ' + started + ' files are') + ' uploading under Uploads in progress, and added to it when up.';
+      if (problems.length) line += ' ' + problems.join(' ');
+      say(line);
+    }
+
     /** An attaching upload is up: add it to its item (media-upload.js attachUpload), never publish it. */
     async function attachUp(f) {
       if (f.busy) return;
@@ -1872,10 +1931,11 @@
           licence,
           project_use: forGame,
         }, f.category ? { category_id: Number(f.category) } : {}, auth);
-        await answerOf(await env.fetch('/api/media', jsonPost(body)));
+        const answer = await answerOf(await env.fetch('/api/media', jsonPost(body)));
         if (st.form === f) closeForm();
         if (st.uploads.includes(f)) dropUpload(f);
         say(MEDIA_WORDS.published);
+        if (f.more && f.more.length) await attachMore(answer, f.more);
         load(true);
         loadMine();
         return;
@@ -2331,7 +2391,7 @@
 
   const api = {
     MEDIA_WORDS, PAGE_SIZE, FEATURED_LIMIT, KINDS_URL, RESUME_KEY, parseKinds, kindWords, sizeWords, shareLeftWords,
-    shareStop, limitStop, budgetStop, meterWords, keptMeterWords, removeWords, removedWords, resetsWords, ownFilePath,
+    shareStop, limitStop, budgetStop, togetherStop, moreWords, meterWords, keptMeterWords, removeWords, removedWords, resetsWords, ownFilePath,
     fileRoute, storedName, itemFileName, itemName, downloadName, labelsOf, listParams, publicListUrl, purposes, jsonPost, isFeatured, itemIdOf, DEFAULT_LICENCE,
     refusalOf, refusalWords, answerOf, makeH, isAdminRole, isStaffRole, rememberUpload, findUpload, forgetUpload,
     createUploader, fingerprint, createMediaPage,

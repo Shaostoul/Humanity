@@ -206,6 +206,11 @@ pub struct FilePickerState {
     /// The button that confirms such a folder ("Play disc"). Only drawn
     /// when a marker matches.
     pub folder_pick_label: String,
+    /// Several files may be chosen at once (`multiple`, 2026-10-16): each file has a tick, the
+    /// ticked ones stay ticked from folder to folder, and the confirm button picks them all.
+    pub multiple: bool,
+    /// The files ticked so far, in the order they were ticked (only with `multiple`).
+    pub chosen: Vec<FsEntry>,
 }
 
 impl FilePickerState {
@@ -232,6 +237,8 @@ impl FilePickerState {
             extra_roots: Vec::new(),
             folder_markers: Vec::new(),
             folder_pick_label: String::new(),
+            multiple: false,
+            chosen: Vec::new(),
         }
     }
 
@@ -264,6 +271,28 @@ impl FilePickerState {
         self
     }
 
+    /// Let the person choose several files at once (operator, 2026-10-16: "Can we have the file
+    /// picker allow for picking multiple files instead of one at a time?"). Only for a caller
+    /// that takes every one of them.
+    pub fn multiple(mut self) -> Self {
+        self.multiple = true;
+        self
+    }
+
+    /// Whether `entry` is ticked.
+    fn is_chosen(&self, entry: &FsEntry) -> bool {
+        self.chosen.iter().any(|c| c.path == entry.path)
+    }
+
+    /// Tick `entry`, or untick it when it is ticked.
+    fn toggle(&mut self, entry: &FsEntry) {
+        if self.is_chosen(entry) {
+            self.chosen.retain(|c| c.path != entry.path);
+        } else {
+            self.chosen.push(entry.clone());
+        }
+    }
+
     /// A picker that chooses a FOLDER (navigate in, confirm the current
     /// directory). Starts from `start` when given, else the user profile.
     pub fn new_dir_picker(start: Option<PathBuf>) -> Self {
@@ -283,8 +312,8 @@ pub enum FilePickerResult {
     Open,
     /// User cancelled/closed.
     Cancelled,
-    /// User confirmed this file.
-    Picked(PathBuf),
+    /// User confirmed these: never empty, and exactly one unless the picker is `multiple`.
+    Picked(Vec<PathBuf>),
 }
 
 /// Draw the modal picker. The caller owns the state (drop it on
@@ -366,6 +395,23 @@ pub fn file_picker_modal(
             });
             ui.add_space(theme.spacing_xs);
 
+            // Several at once: tick every file here that may be chosen.
+            if state.multiple && !state.dir_mode {
+                let fitting: Vec<FsEntry> = entries
+                    .iter()
+                    .filter(|e| !e.is_dir && !(state.max_size > 0 && e.size > state.max_size))
+                    .cloned()
+                    .collect();
+                if !fitting.is_empty() && widgets::Button::secondary(CHOOSE_ALL_HERE).tooltip("Tick every file in this folder.").show(ui, theme) {
+                    for e in fitting {
+                        if !state.is_chosen(&e) {
+                            state.chosen.push(e);
+                        }
+                    }
+                }
+                ui.add_space(theme.spacing_xs);
+            }
+
             // Entry list.
             egui::ScrollArea::vertical()
                 .id_salt("file_picker_list")
@@ -404,6 +450,15 @@ pub fn file_picker_modal(
                         } else {
                             theme.text_primary()
                         };
+                        if state.multiple && !state.dir_mode && !entry.is_dir {
+                            // A tick, on the whole row; an oversized file shows its size, unticked.
+                            let mut on = state.is_chosen(entry);
+                            let tick = egui::Checkbox::new(&mut on, RichText::new(label).size(theme.font_size_small).color(color));
+                            if ui.add_enabled(!too_big, tick).changed() {
+                                state.toggle(entry);
+                            }
+                            continue;
+                        }
                         let resp = ui.selectable_label(
                             selected,
                             RichText::new(label).size(theme.font_size_small).color(color),
@@ -419,7 +474,7 @@ pub fn file_picker_modal(
                             }
                         }
                         if resp.double_clicked() && !entry.is_dir && !too_big {
-                            result = FilePickerResult::Picked(entry.path.clone());
+                            result = FilePickerResult::Picked(vec![entry.path.clone()]);
                         }
                     }
                 });
@@ -432,6 +487,18 @@ pub fn file_picker_modal(
                         .color(theme.text_muted()),
                 );
             }
+            if state.multiple && !state.chosen.is_empty() {
+                ui.horizontal_wrapped(|ui| {
+                    ui.label(
+                        RichText::new(chosen_line(&state.chosen))
+                            .size(theme.font_size_small)
+                            .color(theme.text_secondary()),
+                    );
+                    if widgets::Button::secondary(CLEAR_CHOSEN).tooltip("Untick every file.").show(ui, theme) {
+                        state.chosen.clear();
+                    }
+                });
+            }
             // The whole-folder offer: a disc's VIDEO_TS is one film spread
             // over numbered files nobody should have to understand, so when
             // the open folder is a disc the picker offers to play THE DISC.
@@ -439,7 +506,7 @@ pub fn file_picker_modal(
             // obvious thing to press when it is there at all.
             if let Some(folder) = folder_offer(&state.current_dir, &state.folder_markers) {
                 if widgets::Button::primary(&state.folder_pick_label).show(ui, theme) {
-                    result = FilePickerResult::Picked(folder);
+                    result = FilePickerResult::Picked(vec![folder]);
                 }
                 ui.add_space(theme.spacing_xs);
             }
@@ -454,6 +521,8 @@ pub fn file_picker_modal(
                         .unwrap_or("this folder")
                         .to_string();
                     (format!("Use folder: {name}"), true)
+                } else if state.multiple {
+                    (pick_words(&state.pick_verb, &state.chosen), !state.chosen.is_empty())
                 } else {
                     (
                         state
@@ -474,9 +543,11 @@ pub fn file_picker_modal(
                     .clicked()
                 {
                     if state.dir_mode {
-                        result = FilePickerResult::Picked(state.current_dir.clone());
+                        result = FilePickerResult::Picked(vec![state.current_dir.clone()]);
+                    } else if state.multiple {
+                        result = FilePickerResult::Picked(state.chosen.iter().map(|c| c.path.clone()).collect());
                     } else if let Some(sel) = &state.selected {
-                        result = FilePickerResult::Picked(sel.path.clone());
+                        result = FilePickerResult::Picked(vec![sel.path.clone()]);
                     }
                 }
                 if widgets::Button::secondary("Cancel").show(ui, theme) {
@@ -487,12 +558,37 @@ pub fn file_picker_modal(
 
     // A file was picked: the next picker opens in its folder. A folder pick (a folder picker, a
     // disc) leaves the memory alone.
-    if let FilePickerResult::Picked(path) = &result {
-        if !state.dir_mode && path.is_file() {
+    if let FilePickerResult::Picked(paths) = &result {
+        if let Some(path) = paths.last().filter(|p| !state.dir_mode && p.is_file()) {
             memory::with(|m| m.remember_pick(path));
         }
     }
     result
+}
+
+/// The button that ticks every file in the open folder (a `multiple` picker).
+pub const CHOOSE_ALL_HERE: &str = "Choose all here";
+/// The button that unticks every file.
+pub const CLEAR_CHOSEN: &str = "Clear";
+
+/// The line saying what is ticked: how many, their size, and the first few names.
+pub fn chosen_line(chosen: &[FsEntry]) -> String {
+    const NAMED: usize = 3;
+    let total: u64 = chosen.iter().map(|c| c.size).sum();
+    let names: Vec<&str> = chosen.iter().take(NAMED).map(|c| c.name.as_str()).collect();
+    let more = chosen.len().saturating_sub(NAMED);
+    let count = if chosen.len() == 1 { "1 file".to_string() } else { format!("{} files", chosen.len()) };
+    let tail = if more > 0 { format!(", and {more} more") } else { String::new() };
+    format!("Chosen: {count}, {}: {}{tail}", human_size(total), names.join(", "))
+}
+
+/// The confirm button of a `multiple` picker: the verb, then the one file's name or the count.
+pub fn pick_words(verb: &str, chosen: &[FsEntry]) -> String {
+    match chosen {
+        [] => verb.to_string(),
+        [one] => format!("{verb} {}", one.name),
+        many => format!("{verb} {} files", many.len()),
+    }
 }
 
 /// The button beside the path that keeps the open folder in the Favorites row.
@@ -573,7 +669,7 @@ mod tests {
         // Pick the file there.
         click_text(&ctx, &theme, &mut picker, "part.blend  (1 B)");
         let picked = click_text(&ctx, &theme, &mut picker, "Add part.blend");
-        assert_eq!(picked, FilePickerResult::Picked(models.join("part.blend")), "the file is picked");
+        assert_eq!(picked, FilePickerResult::Picked(vec![models.join("part.blend")]), "the file is picked");
         let next = FilePickerState::new(&[], 0);
         assert!(same(&next.current_dir, &models), "a new picker opens in the folder the file was picked from: {:?}", next.current_dir);
 
@@ -706,4 +802,62 @@ mod tests {
         assert!(!name_matches_ext("notpng", &["png"]));
         assert!(!name_matches_ext("file.png.exe", &["png"]));
     }
+
+    /// SEVERAL FILES AT ONCE (operator, 2026-10-16: "Can we have the file picker allow for picking
+    /// multiple files instead of one at a time?"). In a `multiple` picker each file has a tick:
+    /// Choose all here ticks every file that fits (never one over the size limit), a click unticks,
+    /// ticks stay from folder to folder, the line says what is ticked, and the confirm button picks
+    /// them all in the order they were ticked; Clear unticks everything.
+    ///
+    /// Seen red 2026-10-16: with Choose all here not leaving out an oversized file, "ticks every file
+    /// that fits" listed huge.stl too; with the confirm button picking only the first ticked, "both,
+    /// in the order ticked" got one.
+    #[test]
+    fn several_files_are_chosen_across_folders_and_picked_together() {
+        let ctx = egui::Context::default();
+        let theme = crate::gui::theme::load_theme();
+        theme.apply_to_egui(&ctx);
+        let root = tmp("multiple");
+        let parts = root.join("parts");
+        let pictures = root.join("pictures");
+        std::fs::create_dir_all(&parts).unwrap();
+        std::fs::create_dir_all(&pictures).unwrap();
+        std::fs::write(parts.join("one.stl"), "abc").unwrap();
+        std::fs::write(parts.join("two.stl"), "abcd").unwrap();
+        std::fs::write(parts.join("huge.stl"), "x".repeat(20)).unwrap();
+        std::fs::write(pictures.join("cover.png"), "xy").unwrap();
+        let names = |p: &FilePickerState| p.chosen.iter().map(|c| c.name.clone()).collect::<Vec<_>>();
+
+        let mut picker = FilePickerState::new(&[], 10).with_pick_verb("Add").multiple();
+        picker.current_dir = parts.clone();
+        click_text(&ctx, &theme, &mut picker, CHOOSE_ALL_HERE);
+        assert_eq!(names(&picker), ["one.stl", "two.stl"], "Choose all here ticks every file that fits");
+        click_text(&ctx, &theme, &mut picker, "one.stl  (3 B)");
+        assert_eq!(names(&picker), ["two.stl"], "a click unticks a ticked file");
+        picker.current_dir = pictures.clone();
+        click_text(&ctx, &theme, &mut picker, "cover.png  (2 B)");
+        assert_eq!(names(&picker), ["two.stl", "cover.png"], "ticks stay from folder to folder");
+        let (out, _) = picker_frame(&ctx, &theme, &mut picker, vec![]);
+        assert!(text_at(&out, "Chosen: 2 files, 6 B: two.stl, cover.png").is_some(), "the line says what is ticked");
+        let picked = click_text(&ctx, &theme, &mut picker, "Add 2 files");
+        assert_eq!(picked, FilePickerResult::Picked(vec![parts.join("two.stl"), pictures.join("cover.png")]), "both, in the order ticked");
+        assert!(same(&FilePickerState::new(&[], 0).current_dir, &pictures), "the next picker opens where the last ticked file was");
+
+        let mut picker = FilePickerState::new(&[], 10).with_pick_verb("Add").multiple();
+        picker.current_dir = parts.clone();
+        click_text(&ctx, &theme, &mut picker, CHOOSE_ALL_HERE);
+        click_text(&ctx, &theme, &mut picker, CLEAR_CHOSEN);
+        assert!(picker.chosen.is_empty(), "Clear unticks everything");
+        let (out, _) = picker_frame(&ctx, &theme, &mut picker, vec![]);
+        assert!(text_at(&out, "Add").is_some() && text_at(&out, CLEAR_CHOSEN).is_none(), "nothing to pick and nothing to clear");
+
+        // A one-file picker is unchanged: no ticks, a click selects, and it picks exactly one.
+        let mut single = FilePickerState::new(&[], 10).with_pick_verb("Add");
+        single.current_dir = parts.clone();
+        let (out, _) = picker_frame(&ctx, &theme, &mut single, vec![]);
+        assert!(text_at(&out, CHOOSE_ALL_HERE).is_none(), "a one-file picker has no Choose all here");
+        click_text(&ctx, &theme, &mut single, "one.stl  (3 B)");
+        assert_eq!(click_text(&ctx, &theme, &mut single, "Add one.stl"), FilePickerResult::Picked(vec![parts.join("one.stl")]));
+    }
+
 }

@@ -143,6 +143,7 @@ pub(crate) fn start_with(state: &mut GuiState, form: &Form, t: Arc<dyn Transport
         licence: fields.licence,
         project_use: fields.project_use,
         attach: None,
+        more: form.more.clone(),
     };
     push_upload(state, record, form.remove, token, t);
     Ok(())
@@ -315,6 +316,35 @@ pub(crate) const UNLOCK_TO_ATTACH: &str = "Uploaded, but not added to the item y
 /// an item's Edit window).
 pub(crate) const ADD_TO_ITEM: &str = "Add it to the item";
 
+/// An item just published with more files chosen beside its own (Add to Media, several files):
+/// each starts its own upload to the new item, as Edit's Add a file does, and the line says so.
+fn attach_more(state: &mut GuiState, published: &Value, more: Vec<resumable::MoreFile>) {
+    let item = published.get("item").and_then(api::Item::from_json).and_then(|i| i.reference().ok());
+    let Some(item) = item else {
+        state.media.status.push_str(" Its other files were not added: the server's answer did not say which item it made. Add them from the item's Edit window.");
+        return;
+    };
+    let mut started = 0;
+    let mut problems = Vec::new();
+    for m in more {
+        let to = super::api_items::AttachTo { id: item.id, filename: item.filename.clone(), role: super::api_items::FileRole::File };
+        match start_attach(state, &m.path, &m.name, m.size, to) {
+            Ok(()) => started += 1,
+            Err(words) => problems.push(format!("{}: {words}", m.name)),
+        }
+    }
+    let mut line = std::mem::take(&mut state.media.status);
+    if started > 0 {
+        let files = if started == 1 { "Its other file is".to_string() } else { format!("Its other {started} files are") };
+        line.push_str(&format!(" {files} uploading under Uploads in progress, and added to it when up."));
+    }
+    for p in problems {
+        line.push(' ');
+        line.push_str(&p);
+    }
+    state.media.status = line;
+}
+
 /// What an upload is published as: what its form said when it was sent.
 pub(crate) fn fields_of_record(r: &Unfinished, filename: &str, members_server: bool) -> api::PublishFields {
     api::PublishFields {
@@ -355,7 +385,8 @@ pub(crate) fn published(state: &mut GuiState, local: u64, filename: &str, result
     let attached = entry(state, local).is_some_and(|e| e.record.attach.is_some());
     match result {
         Ok(v) => {
-            if let Some(gone) = drop_entry(state, local) {
+            let gone = drop_entry(state, local);
+            if let Some(gone) = &gone {
                 forget_record(state, &gone.record.id);
             }
             if attached {
@@ -363,6 +394,10 @@ pub(crate) fn published(state: &mut GuiState, local: u64, filename: &str, result
                 super::refresh_mine(state);
             } else {
                 state.media.status = publishing::on_media_words(&v);
+                let more = gone.map(|g| g.record.more).unwrap_or_default();
+                if !more.is_empty() {
+                    attach_more(state, &v, more);
+                }
                 super::reload(state);
             }
         }

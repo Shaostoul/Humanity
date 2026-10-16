@@ -91,6 +91,9 @@ pub(crate) struct Form {
     /// licence that allows it.
     pub licence: String,
     pub project_use: bool,
+    /// More files chosen with the first (2026-10-16): uploaded and added to the item once it is
+    /// published. Only for a picked file.
+    pub more: Vec<super::resumable::MoreFile>,
 }
 
 impl Form {
@@ -108,6 +111,7 @@ impl Form {
             remove: true,
             licence: String::new(),
             project_use: false,
+            more: Vec::new(),
         }
     }
 
@@ -158,8 +162,10 @@ pub(crate) fn form_problem(state: &GuiState, form: &Form) -> Option<String> {
     if matches!(form.source, Source::Waiting { .. }) {
         return None;
     }
-    let (_, len) = form.file();
-    api::room_problem(len, state.media.mine.as_ref())
+    let (name, len) = form.file();
+    let mut files = vec![(name, len)];
+    files.extend(form.more.iter().map(|m| (m.name.as_str(), m.size)));
+    api::room_problem_together(&files, state.media.mine.as_ref())
 }
 
 /// Add to Media was pressed: the file picker opens, and the person's own use is asked for.
@@ -171,7 +177,7 @@ pub(crate) fn begin_add(state: &mut GuiState) {
     // The role's largest Media file, when the server has said and there is one (0: no limit).
     let limit = state.media.mine.as_ref().map(|m| m.file_limit_bytes.max(0) as u64).unwrap_or(0);
     state.media.picker = Some(
-        widgets::file_browser::FilePickerState::new(crate::gui::pages::chat::ATTACH_EXTS, limit).with_pick_verb("Choose"),
+        widgets::file_browser::FilePickerState::new(crate::gui::pages::chat::ATTACH_EXTS, limit).with_pick_verb("Choose").multiple(),
     );
     super::refresh_mine(state);
 }
@@ -199,6 +205,37 @@ pub(crate) fn picked(state: &mut GuiState, path: &std::path::Path) {
     state.media.form = Some(form);
 }
 
+/// The picker chose `paths` (several at once, 2026-10-16): one item holds them all, the way a
+/// 3D model's item holds its model file and its pictures. The first is the item's own file and
+/// the form opens on it (`picked`); the rest are uploaded and added to the item once it is up.
+/// All of them are checked against the person's share together first, so nothing starts that
+/// cannot finish.
+pub(crate) fn picked_many(state: &mut GuiState, paths: &[std::path::PathBuf]) {
+    let Some((first, rest)) = paths.split_first() else { return };
+    let mut more = Vec::new();
+    for path in rest {
+        match super::resumable::MoreFile::of(path) {
+            Ok(m) => more.push(m),
+            Err(words) => {
+                state.media.status = words;
+                return;
+            }
+        }
+    }
+    let first_len = std::fs::metadata(first).map(|m| m.len()).unwrap_or(0);
+    let first_name = first.file_name().and_then(|n| n.to_str()).unwrap_or("file").to_string();
+    let mut files = vec![(first_name.as_str(), first_len)];
+    files.extend(more.iter().map(|m| (m.name.as_str(), m.size)));
+    if let Some(problem) = api::room_problem_together(&files, state.media.mine.as_ref()) {
+        state.media.status = problem;
+        return;
+    }
+    picked(state, first);
+    if let Some(form) = state.media.form.as_mut().filter(|f| f.is_picked()) {
+        form.more = more;
+    }
+}
+
 /// Put a file already on the server (a Shared Files row of the Files page) on the Media page:
 /// the form opens on the Media page, public only. It replaces whatever form was open; an upload
 /// in progress holds none (round 3), so none is touched, and a publish already on its way answers
@@ -215,14 +252,20 @@ pub(crate) fn put_on_media(state: &mut GuiState, filename: &str, name: &str, len
 pub(crate) fn draw_dialogs(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     if let Some(mut picker) = state.media.picker.take() {
         use crate::gui::widgets::file_browser::{file_picker_modal, FilePickerResult};
-        match file_picker_modal(ctx, theme, &mut picker, "Add to Media: choose a file") {
+        match file_picker_modal(ctx, theme, &mut picker, "Add to Media: choose one or more files") {
             FilePickerResult::Open => state.media.picker = Some(picker),
             FilePickerResult::Cancelled => {}
-            FilePickerResult::Picked(path) => picked(state, &path),
+            FilePickerResult::Picked(paths) => picked_many(state, &paths),
         }
     }
     draw_form(ctx, theme, state);
     draw_suggest(ctx, theme, state);
+}
+
+/// What the form says about the further files chosen with the first.
+pub(crate) fn more_line(more: &[super::resumable::MoreFile]) -> String {
+    let names: Vec<String> = more.iter().map(|m| format!("{} ({})", m.name, api::size_words(m.size as i64))).collect();
+    format!("Also on this item, each added once the item is up: {}", names.join(", "))
 }
 
 /// The Add to Media or Put on Media form, while open.
@@ -250,6 +293,9 @@ pub(crate) fn draw_form(ctx: &egui::Context, theme: &Theme, state: &mut GuiState
         ui.set_max_width(520.0);
         let (name, len) = form.file();
         ui.label(RichText::new(format!("{name} ({})", api::size_words(len as i64))).size(theme.font_size_body).color(theme.text_primary()).strong());
+        if !form.more.is_empty() {
+            ui.label(RichText::new(more_line(&form.more)).size(theme.font_size_small).color(theme.text_secondary()));
+        }
         if let (true, Some((_, looking))) = (form.is_picked() && !form.sending, look.as_mut()) {
             may_go = crate::gui::pages::chat::attach_step::draw_look(ui, theme, looking, &mut form.remove, protected, false).can_send;
         }

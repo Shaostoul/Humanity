@@ -296,6 +296,52 @@ test("6. Add to Media shows the share, stops an upload over it before it starts,
 // Seen red with renderForm drawing Put on Media like Add to Media (its public-only branch
 // skipped, so the Public / Members only choice was offered and the reason left out): "null ==
 // 'This file is already public where it was shared.'".
+// Several files at once (2026-10-16): one item holds them all. The form names the others, all of
+// them are checked against the share together, and once the item is published each of the others
+// is uploaded and added to it (POST /api/media/files/add). The desktop app does the same
+// (round4_tests.rs files_chosen_with_the_first_are_added_to_the_item_once_it_is_published).
+// Seen red with attachMore not called: "the other file is added to the new item / 0 !== 1"; with
+// togetherStop left out: "two that fit alone but not together are stopped / actual: null".
+test("6b. Add to Media takes several files: one item, the others added to it once it is up", async () => {
+  const { doc, net } = await openPage({ routes: listRoutes(listAnswer([]), [
+    [at("/api/media/mine", "POST"), () => respond(200, mineAnswer())],
+    ...resumableRoutes("1760_new.png"),
+    [at("/api/media", "POST"), (c) => respond(200, { ok: true, item: item({ id: 200, url: "/uploads/" + c.body.filename }) })],
+    [at("/api/media/files/add", "POST"), () => respond(200, { ok: true, item: item({ id: 200, url: "/uploads/1760_new.png" }) })],
+  ]) });
+  const input = byId(doc, "media-file-input");
+  assert.equal(input.multiple, true, "the picker takes several");
+
+  // Two that fit alone (412 MB left) but not together.
+  input.files = [aFile("left.mp4", 300 * MIB, "video/mp4"), aFile("right.mp4", 300 * MIB, "video/mp4")];
+  input.dispatch("change");
+  await settle();
+  const stop = byId(doc, "media-form-stop");
+  assert.ok(stop, "two that fit alone but not together are stopped");
+  assert.match(text(stop), /^These 2 files come to 600 MB, more than the 412 MB left of your share/);
+  byId(doc, "media-form-cancel").click();
+
+  input.files = [aFile("model.stl", 10 * MIB, "model/stl"), aFile("photo.png", MIB)];
+  input.dispatch("change");
+  await settle();
+  assert.equal(text(byId(doc, "media-form-more")), "Also on this item, each added once the item is up: photo.png (1 MB)", "the form names the other file");
+  byId(doc, "media-form-go").click();
+  for (let i = 0; i < 5; i++) await settle();
+  const adds = net.calls.filter((c) => c.url === "/api/media/files/add");
+  assert.equal(adds.length, 1, "the other file is added to the new item");
+  assert.deepEqual([adds[0].body.id, adds[0].body.filename, adds[0].body.as], [200, "1760_new.png", "file"], "to item 200, as a file");
+  assert.equal(net.calls.filter((c) => c.url === "/api/media" && c.init.method === "POST").length, 1, "one item is published, not two");
+});
+
+test("6c. several files are checked together: words and limits", () => {
+  const files = [{ name: "a", size: 300 * MIB }, { name: "b", size: 300 * MIB }];
+  assert.equal(media.togetherStop(files, 100 * MIB, 512 * MIB, NaN).startsWith("These 2 files come to 600 MB, more than the 412 MB left of your share"), true);
+  assert.equal(media.togetherStop(files, 0, 1024 * MIB, 500 * MIB).startsWith("These 2 files come to 600 MB, more than the 500 MB left in this server's whole Media space"), true);
+  assert.equal(media.togetherStop(files, 0, 1024 * MIB, NaN), null, "they fit");
+  assert.equal(media.togetherStop([files[0]], 500 * MIB, 512 * MIB, NaN), null, "one file is checked as one always was");
+  assert.equal(media.moreWords([{ name: "x.png", size: 2 * MIB }]), "Also on this item, each added once the item is up: x.png (2 MB)");
+});
+
 test("7. Put on Media from a Shared Files row offers public only and says why; a members-only server offers no choice", async () => {
   const { doc, net } = await openPage({
     put: { filename: "1700_part.stl", name: "bushing.stl" },

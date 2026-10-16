@@ -388,3 +388,50 @@ fn a_stale_resume_never_cuts_an_allowances_wait_short() {
     ctl.cancel();
     handle.join().unwrap();
 }
+
+/// SEVERAL FILES IN ADD TO MEDIA MAKE ONE ITEM (2026-10-16): files chosen with the first ride in
+/// the upload's record (so a restart keeps them), and once the server answers that the item is
+/// published, each starts its own upload to that item, as Edit's Add a file does.
+///
+/// Seen red 2026-10-16 with `attach_more` not called: "both start uploading to the new item"
+/// timed out with no upload for it.
+#[test]
+fn files_chosen_with_the_first_are_added_to_the_item_once_it_is_published() {
+    let ctx = egui::Context::default();
+    let (base, _seen) = http_server(vec![(Duration::ZERO, 200, r#"{"ok":true,"item":{"id":52,"url":"/uploads/1700_clip.webm"}}"#)]);
+    let mut state = page_state(demo_answer(), true);
+    state.server_url = base.to_string();
+    sync_server(&mut state);
+    state.media.requested = true;
+    state.upload_token = Some((base.to_string(), TOKEN.to_string()));
+    state.private_key_bytes = Some(vec![7u8; 32]);
+    let (_f, mut form) = picked("r5_more", 10_000, "With pictures");
+    let extra = crate::test_temp::dir("r5_more_extra");
+    std::fs::write(extra.join("front.png"), [1u8; 300]).unwrap();
+    std::fs::write(extra.join("back.png"), [2u8; 400]).unwrap();
+    form.more = vec![
+        super::resumable::MoreFile::of(&extra.join("front.png")).unwrap(),
+        super::resumable::MoreFile::of(&extra.join("back.png")).unwrap(),
+    ];
+    uploading::start_with(&mut state, &form, Fake::new(8192)).expect("it starts");
+    assert_eq!(state.media.uploads[0].record.more.len(), 2, "the record carries them, so a restart keeps them");
+    let to_item = |s: &GuiState| s.media.uploads.iter().filter(|e| e.record.attach.is_some()).count();
+    let deadline = Instant::now() + Duration::from_secs(10);
+    // Looked at the moment the publish's answer is read: this simulated server answers once, so
+    // the two uploads to the item fail soon after they start.
+    loop {
+        poll(&ctx, &mut state);
+        if to_item(&state) >= 2 {
+            break;
+        }
+        uploading::poll(&ctx, &mut state);
+        assert!(Instant::now() < deadline, "both start uploading to the new item: {}", state.media.status);
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    let want = super::api_items::AttachTo { id: 52, filename: "1700_clip.webm".into(), role: super::api_items::FileRole::File };
+    let going: Vec<_> = state.media.uploads.iter().filter(|e| e.record.attach.is_some()).collect();
+    assert!(going.iter().all(|e| e.record.attach.as_ref() == Some(&want)), "each to item 52 as a file");
+    let names: Vec<&str> = going.iter().map(|e| e.record.name.as_str()).collect();
+    assert_eq!(names, ["front.png", "back.png"]);
+    assert!(state.media.status.contains("Its other 2 files are uploading"), "the line says so: {}", state.media.status);
+}

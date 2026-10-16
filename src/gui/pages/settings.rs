@@ -4111,9 +4111,11 @@ pub(crate) fn draw_media_content(ui: &mut egui::Ui, theme: &Theme, state: &mut G
         match file_picker_modal(ui.ctx(), theme, &mut picker, "Choose the ffmpeg program") {
             FilePickerResult::Open => state.ffmpeg_picker = Some(picker),
             FilePickerResult::Cancelled => {}
-            FilePickerResult::Picked(path) => {
-                state.settings.ffmpeg_path = path.display().to_string();
-                crate::config::AppConfig::from_gui_state(state).save();
+            FilePickerResult::Picked(paths) => {
+                if let Some(path) = paths.first() {
+                    state.settings.ffmpeg_path = path.display().to_string();
+                    crate::config::AppConfig::from_gui_state(state).save();
+                }
             }
         }
     }

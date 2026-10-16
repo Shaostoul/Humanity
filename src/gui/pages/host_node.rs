@@ -1001,7 +1001,8 @@ fn draw_setup(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, n: &mut Lo
                 ) {
                     FilePickerResult::Open => n.db_picker = Some(picker),
                     FilePickerResult::Cancelled => {}
-                    FilePickerResult::Picked(dir) => {
+                    FilePickerResult::Picked(dirs) => {
+                        let Some(dir) = dirs.into_iter().next() else { return };
                         // Keep the existing file name when there is one;
                         // otherwise the standard relay.db.
                         let file = std::path::Path::new(n.db_input.trim())

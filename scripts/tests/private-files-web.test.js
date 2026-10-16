@@ -1085,6 +1085,35 @@ test("a file named with my recovery phrase or over 6 MB is not uploaded or sent,
 
 // ── 9. Leaving the conversation while it uploads ────────────────────────
 
+// Several files chosen together (2026-10-16) go one at a time, each its own message, and only to
+// the conversation they were chosen in. Seen red with the conversation check left out of
+// handleFileAttachment: "the second is never uploaded / 2 !== 1".
+test("files chosen together go one by one, and the rest stay behind when the conversation is left", async () => {
+  const fx = await fixture();
+  const page = await loadChat(fx.ann);
+  await openGroup(page);
+  page.posted.length = 0;
+  await page.fn("handleFileAttachment")({ target: { files: [picture("one.png"), picture("two.png")], value: "x" } });
+  await settle();
+  assert.equal(page.uploads.length, 2, "both went up, encrypted");
+  await waitFor(() => page.posted.filter((o) => o.object_type === "group_msg_v1").length === 2, "each as its own group message");
+
+  page.uploads.length = 0;
+  page.posted.length = 0;
+  page.systemLines.length = 0;
+  const release = page.holdUploads();
+  const sending = page.fn("handleFileAttachment")({ target: { files: [picture("three.png"), picture("four.png")], value: "x" } });
+  await waitFor(() => page.uploads.length === 1, "the first has started");
+  page.fn("switchChannel")("general");
+  release();
+  await sending;
+  await settle();
+  assert.equal(page.uploads.length, 1, "the second is never uploaded");
+  assert.equal(page.posted.filter((o) => o.object_type === "group_msg_v1").length, 0, "nothing reaches the group left");
+  assert.equal(page.sock.sent.filter((m) => m.type === "chat").length, 0, "nor the public channel opened meanwhile");
+  assert.ok(page.systemLines.includes("The last file you chose was not sent, because you left the conversation it was for."), "and it says so: " + JSON.stringify(page.systemLines));
+});
+
 test("a group's file is not sent anywhere when another conversation is opened while it uploads", async () => {
   const fx = await fixture();
   const page = await loadChat(fx.ann);

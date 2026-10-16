@@ -308,12 +308,24 @@
       for (const u of c.uploadsFor(item.id)) kids.push(h('p', { className: 'media-hint', dataset: { attachRow: '' }, text: u.heading + ': ' + u.words }));
       if (own) {
         const pick = (as) => {
-          const input = h('input', { type: 'file', hidden: true, dataset: { attachInput: as }, accept: as === 'cover' ? COVER_ACCEPT : undefined });
+          // Several files at once (2026-10-16); a cover is one picture.
+          const input = h('input', { type: 'file', hidden: true, multiple: as === 'cover' ? undefined : true, dataset: { attachInput: as }, accept: as === 'cover' ? COVER_ACCEPT : undefined });
           input.addEventListener('change', async () => {
-            const file = input.files && input.files[0];
+            const files = Array.from(input.files || []);
             try { input.value = ''; } catch (e) { /* some browsers refuse; harmless */ }
-            if (!file) return;
-            f.problem = (await c.attach(file, now, as)) || '';
+            if (!files.length) return;
+            // All of them against the share together first, so nothing starts that cannot finish.
+            const together = c.together ? await c.together(files) : '';
+            if (together) {
+              f.problem = together;
+            } else {
+              const problems = [];
+              for (const file of files) {
+                const problem = await c.attach(file, now, as);
+                if (problem) problems.push(files.length > 1 ? file.name + ': ' + problem : problem);
+              }
+              f.problem = problems.join(' ');
+            }
             drawProblem();
             drawFiles();
           });

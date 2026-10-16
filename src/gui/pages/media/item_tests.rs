@@ -512,3 +512,41 @@ fn edit_opens_in_front_of_the_items_page_every_time() {
         }
     }
 }
+
+/// ADD A FILE TAKES SEVERAL AT ONCE (2026-10-16): Edit's Add a file opens a picker that ticks
+/// several files (the cover picture's stays one picture); the files chosen are checked against the
+/// share together first, so a batch that does not fit starts nothing and says so; one that fits
+/// starts an upload to the item for each.
+///
+/// Seen red 2026-10-16 with the together check left out: "nothing starts" found two uploads
+/// running for a batch over the share.
+#[test]
+fn add_a_file_takes_several_files_at_once() {
+    let (ctx, theme) = ctx_and_theme();
+    let mine = Item { files: vec![rich_item(("me", "Me")).files[0].clone()], file_count: 1, ..rich_item(("me", "Me")) };
+    let mut state = page_on(SERVER, answer_of(vec![mine.clone()]), TOKEN);
+    edit::open_edit(&mut state, &mine);
+    click_top(&ctx, &theme, &mut state, edit::ADD_FILE);
+    let form = state.media.item.as_ref().and_then(|p| p.edit.as_ref()).expect("the Edit window");
+    assert!(matches!(&form.picker, Some((FileRole::File, p)) if p.multiple), "Add a file's picker ticks several");
+
+    let dir = crate::test_temp::dir("media_edit_several");
+    let files = vec![dir.join("left.stl"), dir.join("right.stl")];
+    for f in &files {
+        std::fs::write(f, [9u8; 600]).unwrap();
+    }
+    state.media.mine = Some(crate::gui::pages::media::api::Mine { share_bytes: 1000, file_limit_bytes: 0, budget_left_bytes: 1_000_000, ..Default::default() });
+    let mut form = state.media.item.as_mut().and_then(|p| p.edit.take()).expect("the form");
+    edit::picked_all(&mut state, &mut form, FileRole::File, &files);
+    assert!(form.problem.starts_with("These 2 files come to"), "a batch over the share says so: {}", form.problem);
+    assert!(state.media.uploads.is_empty(), "nothing starts");
+
+    state.media.mine = Some(crate::gui::pages::media::api::Mine { share_bytes: 10_000, budget_left_bytes: 1_000_000, ..Default::default() });
+    edit::picked_all(&mut state, &mut form, FileRole::File, &files);
+    assert!(form.problem.is_empty(), "{}", form.problem);
+    let names: Vec<&str> = state.media.uploads.iter().map(|e| e.record.name.as_str()).collect();
+    assert_eq!(names, ["left.stl", "right.stl"], "an upload to the item for each");
+    assert!(state.media.uploads.iter().all(|e| e.record.attach.as_ref().is_some_and(|t| t.id == mine.id && t.role == FileRole::File)));
+    assert!(state.media.status.starts_with("Uploading 2 files"), "{}", state.media.status);
+    let _ = ctx;
+}

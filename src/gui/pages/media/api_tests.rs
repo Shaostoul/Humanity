@@ -316,3 +316,25 @@ fn a_refusal_keeps_its_status_and_never_carries_a_token() {
     assert_eq!(unreachable.status, 0);
     assert!(!unreachable.words.contains("SECRET"), "{}", unreachable.words);
 }
+
+/// SEVERAL FILES MUST FIT TOGETHER (2026-10-16): files chosen at once are checked one by one (a
+/// file over the role's limit is named) and then all together against what is left of the share
+/// and of the server's whole Media space, so a batch never starts uploads its last file cannot
+/// finish.
+///
+/// Seen red 2026-10-16 with the total left out (each file only): "two that fit alone but not
+/// together" found nothing wrong.
+#[test]
+fn several_files_must_fit_the_share_together_not_only_one_by_one() {
+    let mine = Mine { share_bytes: 100, used_bytes: 20, budget_left_bytes: 1000, file_limit_bytes: 60, ..Default::default() };
+    let both = room_problem_together(&[("a.stl", 50), ("b.stl", 50)], Some(&mine)).expect("two that fit alone but not together");
+    assert!(both.starts_with("These 2 files come to") && both.contains("left of your share") && both.contains("none was uploaded"), "{both}");
+    assert_eq!(room_problem_together(&[("a.stl", 40), ("b.stl", 40)], Some(&mine)), None, "80 of the 80 left fits");
+    let named = room_problem_together(&[("a.stl", 10), ("big.mkv", 70)], Some(&mine)).expect("one over the role's limit");
+    assert!(named.starts_with("big.mkv: "), "it is named: {named}");
+    let space = Mine { budget_left_bytes: 50, ..mine.clone() };
+    let whole = room_problem_together(&[("a.stl", 30), ("b.stl", 30)], Some(&space)).expect("more than the whole space has left");
+    assert!(whole.contains("whole Media space"), "{whole}");
+    assert_eq!(room_problem_together(&[("a.stl", 50)], Some(&mine)), room_problem(50, Some(&mine)), "one file is checked as one always was");
+    assert_eq!(room_problem_together(&[("a.stl", 50), ("b.stl", 50)], None), None, "with nothing known, the server checks");
+}

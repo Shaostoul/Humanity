@@ -126,13 +126,14 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // the finished upload drains below and routes via send_composed_content.
     if let Some(mut picker) = state.chat_attach_picker.take() {
         use crate::gui::widgets::file_browser::{file_picker_modal, FilePickerResult};
-        match file_picker_modal(ctx, theme, &mut picker, "Attach a file") {
+        match file_picker_modal(ctx, theme, &mut picker, "Attach files: choose one or more") {
             FilePickerResult::Open => state.chat_attach_picker = Some(picker),
             FilePickerResult::Cancelled => {}
-            FilePickerResult::Picked(path) => attach_send::start_attach(state, &path),
+            FilePickerResult::Picked(paths) => attach_send::start_attach_all(state, paths),
         }
     }
     attach_step::draw(ctx, theme, state); // the picked file's attach step, until Send or Cancel
+    attach_send::next_queued(state); // then the next of several chosen together
 
     if std::mem::take(&mut state.pending_clipboard_paste) {
         // Grab the PNG on the main thread (clipboard access); the upload runs on a
@@ -1998,7 +1999,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     // Hidden in a DM or a group when the person turned it off ("receive only").
                     if !attach_step::attach_off_here(state) && widgets::Button::secondary("Attach").tooltip_above(&attach_tip, input_rect.top()).show(ui, theme) {
                         state.chat_attach_picker = Some(
-                            crate::gui::widgets::file_browser::FilePickerState::new(ATTACH_EXTS, attach_limit),
+                            crate::gui::widgets::file_browser::FilePickerState::new(ATTACH_EXTS, attach_limit).multiple(),
                         );
                     }
                     let send_clicked = widgets::Button::primary("Send")

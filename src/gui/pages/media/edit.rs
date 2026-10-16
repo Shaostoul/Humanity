@@ -300,7 +300,10 @@ pub(crate) fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, pag
     if let Some(role) = pressed.add {
         let exts: &[&str] = if role == FileRole::Cover { COVER_EXTS } else { crate::gui::pages::chat::ATTACH_EXTS };
         let limit = state.media.mine.as_ref().map(|m| m.file_limit_bytes.max(0) as u64).unwrap_or(0);
-        form.picker = Some((role, FilePickerState::new(exts, limit).with_pick_verb("Add")));
+        let picker = FilePickerState::new(exts, limit).with_pick_verb("Add");
+        // Several files at once (2026-10-16); a cover is one picture.
+        let picker = if role == FileRole::Cover { picker } else { picker.multiple() };
+        form.picker = Some((role, picker));
         super::refresh_mine(state);
     }
     draw_picker(ctx, theme, state, &mut form);
@@ -363,11 +366,45 @@ pub const COVER_PICTURE: &str = "Cover picture";
 fn draw_picker(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, form: &mut EditForm) {
     use crate::gui::widgets::file_browser::{file_picker_modal, FilePickerResult};
     let Some((role, mut picker)) = form.picker.take() else { return };
-    let title = if role == FileRole::Cover { "Cover picture: choose a picture" } else { "Add a file: choose a file" };
+    let title = if role == FileRole::Cover { "Cover picture: choose a picture" } else { "Add files: choose one or more" };
     match file_picker_modal(ctx, theme, &mut picker, title) {
         FilePickerResult::Open => form.picker = Some((role, picker)),
         FilePickerResult::Cancelled => {}
-        FilePickerResult::Picked(path) => picked(state, form, role, &path),
+        FilePickerResult::Picked(paths) => picked_all(state, form, role, &paths),
+    }
+}
+
+/// Every file chosen in the picker, checked together against the person's share first so nothing
+/// starts that cannot finish, then each started as `picked` starts one.
+pub(crate) fn picked_all(state: &mut GuiState, form: &mut EditForm, role: FileRole, paths: &[std::path::PathBuf]) {
+    if paths.len() > 1 {
+        let mut files = Vec::new();
+        for path in paths {
+            match super::resumable::MoreFile::of(path) {
+                Ok(m) => files.push(m),
+                Err(words) => {
+                    form.problem = words;
+                    return;
+                }
+            }
+        }
+        let named: Vec<(&str, u64)> = files.iter().map(|m| (m.name.as_str(), m.size)).collect();
+        if let Some(problem) = api::room_problem_together(&named, state.media.mine.as_ref()) {
+            form.problem = problem;
+            return;
+        }
+    }
+    let mut problems = Vec::new();
+    for path in paths {
+        picked(state, form, role, path);
+        if !form.problem.is_empty() {
+            problems.push(std::mem::take(&mut form.problem));
+        }
+    }
+    let started = paths.len() - problems.len();
+    form.problem = problems.join(" ");
+    if started > 1 {
+        state.media.status = format!("Uploading {started} files: they are under Uploads in progress, and each is added to the item when it is up.");
     }
 }
 

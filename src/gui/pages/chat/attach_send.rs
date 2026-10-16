@@ -384,6 +384,49 @@ pub(super) fn start_attach(state: &mut GuiState, path: &std::path::Path) {
     }
 }
 
+/// Files chosen together (operator, 2026-10-16: several files at once): the first starts now,
+/// the rest wait in `FilesFlow::queue` for the conversation they were chosen in.
+pub(super) fn start_attach_all(state: &mut GuiState, paths: Vec<std::path::PathBuf>) {
+    let mut paths = std::collections::VecDeque::from(paths);
+    let Some(first) = paths.pop_front() else { return };
+    if !paths.is_empty() {
+        state.files_flow.queue = Some((state.chat_active_channel.clone(), paths));
+    }
+    start_attach(state, &first);
+}
+
+/// The next of several files chosen together, once the one before is done: its step closed (sent
+/// or cancelled) and its upload finished. Each goes as a single file goes, one message each. They
+/// belong to the conversation they were chosen in: a file chosen in a DM must never go anywhere
+/// else, so leaving it drops the rest and says so. Every frame (chat.rs `draw`).
+pub(super) fn next_queued(state: &mut GuiState) {
+    let Some((channel, waiting)) = state.files_flow.queue.as_ref() else { return };
+    if *channel != state.chat_active_channel {
+        let n = waiting.len();
+        state.files_flow.queue = None;
+        state.pending_notices.push(left_before_the_rest(n));
+        return;
+    }
+    if state.files_flow.step.is_some() || state.clipboard_upload.is_some() {
+        return;
+    }
+    let next = state.files_flow.queue.as_mut().and_then(|(_, q)| q.pop_front());
+    if state.files_flow.queue.as_ref().is_some_and(|(_, q)| q.is_empty()) {
+        state.files_flow.queue = None;
+    }
+    if let Some(path) = next {
+        start_attach(state, &path);
+    }
+}
+
+/// What is said when the person leaves a conversation while files chosen for it are still to go.
+pub(crate) fn left_before_the_rest(n: usize) -> String {
+    if n == 1 {
+        return "The last file you chose was not sent, because you left the conversation it was for.".to_string();
+    }
+    format!("The last {n} files you chose were not sent, because you left the conversation they were for.")
+}
+
 /// An image was pasted (Ctrl+V with a picture on the clipboard): start sending it, unless sending
 /// files is off in private conversations and this is one (Settings > Privacy, Files in messages).
 pub(super) fn start_paste(state: &mut GuiState, png: Vec<u8>) {

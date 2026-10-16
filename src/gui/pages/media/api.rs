@@ -502,6 +502,39 @@ pub fn share_line(mine: &Mine) -> String {
 /// over what is left of the whole Media space. None when it fits, or when the numbers are not
 /// known yet (the server checks them itself at the start). Checked before a byte is sent, so an
 /// upload over the share never starts.
+/// Several files going up together (2026-10-16): each must fit on its own (`room_problem`, said
+/// with its name), and all of them together in the person's share and the server's space, so a
+/// batch never starts uploads that the last of them cannot finish.
+pub fn room_problem_together(files: &[(&str, u64)], mine: Option<&Mine>) -> Option<String> {
+    for (name, len) in files {
+        if let Some(problem) = room_problem(*len, mine) {
+            return Some(if files.len() > 1 { format!("{name}: {problem}") } else { problem });
+        }
+    }
+    let mine = mine?;
+    if files.len() < 2 {
+        return None;
+    }
+    let total: i64 = files.iter().map(|(_, len)| *len as i64).sum();
+    if total > mine.share_left() {
+        return Some(format!(
+            "These {} files come to {}, more than the {} left of your share of this server's Media space, so none was uploaded. Choose fewer, remove one of your items, or ask an admin to raise each person's share.",
+            files.len(),
+            size_words(total),
+            size_words(mine.share_left())
+        ));
+    }
+    if total > mine.budget_left_bytes.max(0) {
+        return Some(format!(
+            "These {} files come to {}, more than the {} left in this server's whole Media space, so none was uploaded. Choose fewer, or its admins can make more room.",
+            files.len(),
+            size_words(total),
+            size_words(mine.budget_left_bytes)
+        ));
+    }
+    None
+}
+
 pub fn room_problem(len: u64, mine: Option<&Mine>) -> Option<String> {
     let mine = mine?;
     let len = len as i64;

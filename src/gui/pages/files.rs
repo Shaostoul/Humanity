@@ -72,6 +72,9 @@ pub struct FileBrowserState {
     pub shared_picker: Option<widgets::file_browser::FilePickerState>,
     /// A picked file being looked at before it uploads (files_upload_step.rs, 2026-10-11).
     pub shared_step: Option<super::files_upload_step::UploadStep>,
+    /// Files chosen together still to go up (2026-10-16), one at a time through the same step:
+    /// the next once the one before is uploaded or cancelled.
+    pub shared_queue: std::collections::VecDeque<std::path::PathBuf>,
 }
 
 impl Default for FileBrowserState {
@@ -93,6 +96,7 @@ impl Default for FileBrowserState {
             shared_action_rx: None,
             shared_picker: None,
             shared_step: None,
+            shared_queue: std::collections::VecDeque::new(),
         }
     }
 }
@@ -394,10 +398,11 @@ fn draw_shared_files_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSt
     }
     if open_picker {
         with_state(|fs| {
-            fs.shared_picker = Some(widgets::file_browser::FilePickerState::new(
-                crate::gui::pages::chat::ATTACH_EXTS,
-                upload_limit,
-            ));
+            fs.shared_picker = Some(
+                widgets::file_browser::FilePickerState::new(crate::gui::pages::chat::ATTACH_EXTS, upload_limit)
+                    .with_pick_verb("Upload")
+                    .multiple(),
+            );
         });
     }
 
@@ -475,36 +480,35 @@ fn draw_shared_files_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSt
     if picker_open {
         use crate::gui::widgets::file_browser::{file_picker_modal, FilePickerResult};
         let mut picker = with_state(|fs| fs.shared_picker.take().unwrap());
-        match file_picker_modal(ui.ctx(), theme, &mut picker, "Upload a file to the server") {
+        match file_picker_modal(ui.ctx(), theme, &mut picker, "Upload files to the server: choose one or more") {
             FilePickerResult::Open => {
                 with_state(|fs| fs.shared_picker = Some(picker));
             }
             FilePickerResult::Cancelled => {}
-            FilePickerResult::Picked(path) => {
-                let filename = path
-                    .file_name()
-                    .and_then(|n| n.to_str())
-                    .unwrap_or("file")
-                    .to_string();
-                // Its size only, now: the file is read, cleaned and uploaded by a worker after its
-                // look (files_upload_step.rs, 2026-10-11), never on the frame.
-                match std::fs::metadata(&path).map(|m| m.len()) {
-                    Ok(_) if upload_token.is_none() => {
-                        with_state(|fs| fs.shared_status = crate::gui::pages::chat::NOT_SIGNED_IN_YET.to_string());
-                    }
-                    Ok(len) if len <= upload_limit => {
-                        let step = super::files_upload_step::start(state, path.clone(), filename);
-                        with_state(|fs| fs.shared_step = Some(step));
-                    }
-                    Ok(_) => {
-                        with_state(|fs| fs.shared_status =
-                            format!("File is too large ({} MB max for you on this server).", upload_limit / (1024 * 1024)));
-                    }
-                    Err(e) => {
-                        with_state(|fs| fs.shared_status = format!("Read failed: {e}"));
-                    }
+            FilePickerResult::Picked(paths) => {
+                // Sizes first, for all of them: one too large is said now, by name, and the rest
+                // go; the first starts now and the others wait their turn (below).
+                let (paths, too_big): (Vec<_>, Vec<_>) = paths
+                    .into_iter()
+                    .partition(|p| std::fs::metadata(p).map(|m| m.len() <= upload_limit).unwrap_or(true));
+                if !too_big.is_empty() {
+                    let names: Vec<String> = too_big.iter().filter_map(|p| p.file_name().map(|n| n.to_string_lossy().to_string())).collect();
+                    let line = format!("Not uploaded, over the {} MB limit for you on this server: {}.", upload_limit / (1024 * 1024), names.join(", "));
+                    with_state(|fs| fs.shared_status = line);
+                }
+                let mut paths = std::collections::VecDeque::from(paths);
+                if let Some(first) = paths.pop_front() {
+                    with_state(|fs| fs.shared_queue = paths);
+                    start_shared_upload(state, first, upload_token.is_some(), upload_limit);
                 }
             }
+        }
+    }
+    // The next of several chosen together, once the one before is up or cancelled.
+    let ready = with_state(|fs| fs.shared_step.is_none() && fs.shared_action_rx.is_none());
+    if ready {
+        if let Some(next) = with_state(|fs| fs.shared_queue.pop_front()) {
+            start_shared_upload(state, next, upload_token.is_some(), upload_limit);
         }
     }
 
@@ -520,6 +524,33 @@ fn draw_shared_files_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSt
                 fs.shared_status = "Uploading...".to_string();
             }),
             Outcome::Cancelled => {}
+        }
+    }
+}
+
+/// Start one picked file's way to the server: its size checked now, then its step (what is hidden
+/// in it), read, cleaned and uploaded by a worker after its look (files_upload_step.rs,
+/// 2026-10-11), never on the frame.
+fn start_shared_upload(state: &mut GuiState, path: std::path::PathBuf, signed_in: bool, upload_limit: u64) {
+    let filename = path.file_name().and_then(|n| n.to_str()).unwrap_or("file").to_string();
+    match std::fs::metadata(&path).map(|m| m.len()) {
+        Ok(_) if !signed_in => {
+            with_state(|fs| {
+                fs.shared_status = crate::gui::pages::chat::NOT_SIGNED_IN_YET.to_string();
+                fs.shared_queue.clear();
+            });
+        }
+        Ok(len) if len <= upload_limit => {
+            let step = super::files_upload_step::start(state, path, filename);
+            with_state(|fs| fs.shared_step = Some(step));
+        }
+        Ok(_) => {
+            with_state(|fs| {
+                fs.shared_status = format!("{filename} is too large ({} MB max for you on this server).", upload_limit / (1024 * 1024))
+            });
+        }
+        Err(e) => {
+            with_state(|fs| fs.shared_status = format!("{filename} could not be read: {e}"));
         }
     }
 }

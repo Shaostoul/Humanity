@@ -326,6 +326,11 @@
       "date": "2026-10-16",
       "decision": "Released v0.1503.0: the shared file picker (widgets/file_browser.rs) has favorite folders (a Favorites row, Add to favorites / Remove from favorites beside the path) and opens in the folder the last file was picked from. Kept in file_picker.json beside config.json (widgets/file_picker_memory.rs), on this computer only, never synced; not written while the storage choice is undecided. Every picker gets both.",
       "why": "Operator, 2026-10-16, on the Media Edit file picker: add/remove favorites like E:/models, and the second pick should start where the first was. Put in the shared widget, not the Edit window, so chat attach, Add to Media, the video screens and Settings behave the same."
+    },
+    {
+      "date": "2026-10-16",
+      "decision": "Released v0.1504.0: several files at once. The picker's Picked result is a list (one unless `multiple`). Add to Media makes ONE item of several files (first = the item's file, the rest attached after publish, carried in the upload record), Edit's Add a file takes several, chat attach and the Files page queue them through the one-file step (chat: only to the conversation chosen in). Batches are checked against the share together. Website mirrors Add to Media, Edit, chat.",
+      "why": "Operator, 2026-10-16: pick multiple files instead of one at a time. One item for many files matches the 3D-model case (model + pictures in one item, his Recreator3D item). Chat keeps one message per file through the existing step (metadata look, Send) rather than a new multi-file message format, and refuses to carry a queue across conversations so a DM file can never land elsewhere."
     }
   ],
   "active_scopes_to_avoid": [

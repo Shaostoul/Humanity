@@ -790,11 +790,33 @@ async function uploadImage(file) {
 }
 
 // Handle file attachment (📎 button).
+// Several chosen together (2026-10-16) go one at a time, each its own message, to the
+// conversation they were chosen in: leave it and the rest are not sent, since a file chosen
+// for a DM must never land anywhere else (the desktop app's attach_send.rs next_queued).
 async function handleFileAttachment(event) {
-  const file = event.target.files[0];
-  if (!file) return;
+  const files = Array.from(event.target.files || []);
   event.target.value = ''; // Reset for re-selection
-  await sendAttachment(file);
+  if (!files.length) return;
+  const chosenIn = conversationNow();
+  for (let i = 0; i < files.length; i++) {
+    if (conversationNow() !== chosenIn) {
+      addSystemMessage(leftBeforeTheRest(files.length - i));
+      return;
+    }
+    await sendAttachment(files[i]);
+  }
+}
+
+/** The conversation on screen, private or public: what several files chosen together belong to. */
+function conversationNow() {
+  return privateConversationNow() || ('channel:' + activeChannel);
+}
+
+/** What is said when the person leaves a conversation while files chosen for it are still to go. */
+function leftBeforeTheRest(n) {
+  return n === 1
+    ? 'The last file you chose was not sent, because you left the conversation it was for.'
+    : 'The last ' + n + ' files you chose were not sent, because you left the conversation they were for.';
 }
 
 /**

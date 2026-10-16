@@ -398,3 +398,31 @@ fn no_upload_token_in_what_a_failed_upload_says() {
     assert_eq!(hide_token("token=a token=b"), "token=(hidden) token=(hidden)");
     assert_eq!(hide_token("no secrets here"), "no secrets here");
 }
+
+/// SEVERAL FILES GO ONE AT A TIME, ONLY WHERE THEY WERE CHOSEN (2026-10-16): files chosen together
+/// in the attach picker wait their turn (nothing moves while the one before is still going up) and
+/// belong to the conversation they were chosen in: a file chosen for a DM must never land anywhere
+/// else, so leaving it drops the rest and says so.
+///
+/// Seen red 2026-10-16: with the conversation check left out, "leaving drops the rest" found them
+/// still queued; with the busy check left out, "nothing moves" found the next already gone.
+#[test]
+fn files_chosen_together_wait_their_turn_and_never_go_elsewhere() {
+    let mut state = GuiState::default();
+    state.chat_active_channel = "dm:abc".into();
+    let missing = std::path::PathBuf::from("no_such_file_for_the_queue_test.png");
+    state.files_flow.queue = Some(("dm:abc".into(), vec![missing.clone(), missing.clone(), missing].into()));
+    let left = |s: &GuiState| s.files_flow.queue.as_ref().map(|(_, q)| q.len()).unwrap_or(0);
+    let (_still_going, rx) = std::sync::mpsc::channel();
+    state.clipboard_upload = Some(("dm:abc".into(), rx));
+    next_queued(&mut state);
+    assert_eq!(left(&state), 3, "nothing moves while the one before is still going up");
+    state.clipboard_upload = None;
+    next_queued(&mut state);
+    assert_eq!(left(&state), 2, "then the next goes");
+    state.chat_active_channel = "general".into();
+    next_queued(&mut state);
+    assert!(state.files_flow.queue.is_none(), "leaving drops the rest");
+    assert!(state.pending_notices.iter().any(|n| *n == left_before_the_rest(2)), "and says so: {:?}", state.pending_notices);
+    assert_eq!(left_before_the_rest(1), "The last file you chose was not sent, because you left the conversation it was for.");
+}

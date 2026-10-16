@@ -418,7 +418,7 @@
             data-tip-title="Attach File"
             data-tip-desc="Upload an image or file to share in this channel."
             data-tip-detail="Images, video, audio, PDF, text, JSON, ZIP and 3D models. The size limit is your role's on this server, and smaller in private conversations."><span class="pg-ico" data-icon="clip" data-size="16"></span></button>
-          <input type="file" id="file-upload-input" style="display:none;" accept=".png,.jpg,.jpeg,.gif,.webp,.heic,.heif,.avif,.pdf,.txt,.md,.json,.zip,.tar.gz,.mp3,.mp4,.webm,.ogg,.wav,.blend,.stl,.obj,.gltf,.glb" onchange="handleFileAttachment(event)">
+          <input type="file" id="file-upload-input" multiple style="display:none;" accept=".png,.jpg,.jpeg,.gif,.webp,.heic,.heif,.avif,.pdf,.txt,.md,.json,.zip,.tar.gz,.mp3,.mp4,.webm,.ogg,.wav,.blend,.stl,.obj,.gltf,.glb" onchange="handleFileAttachment(event)">
           <textarea id="msg-input" placeholder="Type a message…" rows="1" disabled></textarea>
           <button id="send-btn" onclick="sendMessage()"
             data-tip-title="Send Message"
