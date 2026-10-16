@@ -1,11 +1,12 @@
 /**
  * BIP39 English wordlist -- the canonical 2048-word list, byte-identical to the
- * `bip39` Rust crate (which native uses to GENERATE + display phrases) and to
- * src/net/bip39_wordlist.rs. Source: BIP39 / trezor python-mnemonic english.txt.
+ * `bip39` Rust crate, which the desktop app writes and reads recovery phrases
+ * with. Source: BIP39 / trezor python-mnemonic english.txt.
  *
  * DO NOT hand-edit. Regenerate with `node scripts/gen-wordlist.js`. These lists
  * MUST stay identical or a recovery phrase written on one client will not restore on
- * another. Guards: tests/bip39_wordlist_canonical.rs + scripts/check-bip39-wordlists.js.
+ * another. Guard: scripts/check-bip39-wordlists.js (the list's SHA-256, pinned in
+ * src/net/identity.rs WORDLIST_SHA256).
  *
  * Loaded as a global so crypto.js can reference it without a module system.
  */

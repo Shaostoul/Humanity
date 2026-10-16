@@ -331,6 +331,11 @@
       "date": "2026-10-16",
       "decision": "Released v0.1504.0: several files at once. The picker's Picked result is a list (one unless `multiple`). Add to Media makes ONE item of several files (first = the item's file, the rest attached after publish, carried in the upload record), Edit's Add a file takes several, chat attach and the Files page queue them through the one-file step (chat: only to the conversation chosen in). Batches are checked against the share together. Website mirrors Add to Media, Edit, chat.",
       "why": "Operator, 2026-10-16: pick multiple files instead of one at a time. One item for many files matches the 3D-model case (model + pictures in one item, his Recreator3D item). Chat keeps one message per file through the existing step (metadata look, Send) rather than a new multi-file message format, and refuses to carry a queue across conversations so a DM file can never land elsewhere."
+    },
+    {
+      "date": "2026-10-16",
+      "decision": "Released v0.1505.0 (BUG-202): the desktop app refuses a recovery phrase whose BIP39 check fails, as the website did; the checksum-less fallback and src/net/bip39_wordlist.rs (its only user) are deleted. The web list is held to the bip39 crate's by a pinned SHA-256 (identity.rs WORDLIST_SHA256, checked by scripts/check-bip39-wordlists.js in CI) plus the official vectors. Both apps say the same plain words.",
+      "why": "Found while answering the operator's brute-force question; he asked for it to be done in this session. One mistyped word silently restored an empty identity on the desktop. The fallback's premise (web writes a different checksum) was false: web writes the standard one, now pinned."
     }
   ],
   "active_scopes_to_avoid": [

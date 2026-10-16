@@ -5893,3 +5893,23 @@ table (desktop), the step table and "... the tighter word wins" (web), each seen
 - **Next:** reproduce under load deliberately (a busy loop on every core, or a forwarder that delays
   datagrams), log both sides' channel messages for the stuck transfer, then fix the rule in the
   sender (ask again, as rule 9 asks again for a lost answer) rather than lengthen the test.
+
+## BUG-202: one wrong word in a recovery phrase restored a different, empty identity on the desktop (FIXED v0.1505.0, found 2026-10-16)
+
+Found while answering the operator's question about how strong the recovery phrase is. The 24
+words carry an 8-bit check worked out from the other 256 bits, so one mistyped or swapped word
+almost always (255 times in 256) fails it. The website refused such a phrase; the desktop app
+(`src/net/identity.rs` `derive_keypair_from_mnemonic`) fell back to decoding the words with the
+check ignored, so a word mistyped as another real word restored a different key: an empty account,
+with nothing saying a word was wrong. The fallback's stated reason, that the website might write a
+different check, did not hold: it writes the standard BIP39 check, the same as the `bip39` crate.
+
+Fixed: `seed_from_phrase` reads a phrase the way the website does (any case, any spacing) and
+refuses it in plain words when the count is wrong, a word is not on the list, or the words do not
+add up (`PHRASE_DOES_NOT_ADD_UP`, the same words on the website now, which had said "checksum
+failed"). The desktop app's own copy of the word list (`src/net/bip39_wordlist.rs`), used only by
+the fallback, was deleted; the website's list is held to the crate's by a pinned SHA-256
+(`WORDLIST_SHA256`, checked by `scripts/check-bip39-wordlists.js` in CI) and the official BIP39
+test vectors on both apps. Left by design: about 1 wrong word in 256 still passes the 8-bit check
+and restores a different, empty identity; that is the BIP39 standard's trade-off and why the restore screens say
+to check each word against the written copy.

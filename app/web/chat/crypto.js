@@ -1328,7 +1328,8 @@ async function seedFromMnemonic(mnemonic) {
   let actualChecksum = 0;
   for (let i = 0; i < 8; i++) actualChecksum = (actualChecksum << 1) | bits[256 + i];
   if (actualChecksum !== expectedChecksum) {
-    throw new Error('Invalid recovery phrase, checksum failed. Check for typos.');
+    // The desktop app says the same (src/net/identity.rs PHRASE_DOES_NOT_ADD_UP, 2026-10-16).
+    throw new Error('One of the words is not right: the 24 words do not add up. Check each word against your written copy, in order.');
   }
   return seed;
 }

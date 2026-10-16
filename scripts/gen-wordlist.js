@@ -1,12 +1,15 @@
 #!/usr/bin/env node
-// Regenerate the BIP39 English wordlist in web/chat/bip39-english.js and
-// src/net/bip39_wordlist.rs from the canonical `bip39` crate that native uses to
-// GENERATE + display seed phrases (Mnemonic::from_entropy). All three MUST be
-// byte-identical or a phrase written on one client won't restore on another.
+// Regenerate the BIP39 English wordlist in web/chat/bip39-english.js from the
+// canonical `bip39` crate the desktop app writes and reads recovery phrases with
+// (src/net/identity.rs). The two MUST be the same list or a phrase written on one
+// app won't restore on the other.
 //
 // A non-canonical list shipped for months and broke native->web restore
-// ("<word> is an unknown word"). Guards: tests/bip39_wordlist_canonical.rs
-// (native == crate) and scripts/check-bip39-wordlists.js (web == native).
+// ("<word> is an unknown word"). Guards: the identity.rs test
+// bip39_wordlist_is_canonical_and_matches_web_kat pins the crate list's SHA-256
+// (WORDLIST_SHA256), and scripts/check-bip39-wordlists.js holds the web list to it.
+// The desktop app's own copy of the list (src/net/bip39_wordlist.rs) was deleted
+// 2026-10-16 with the checksum-less fallback that was its only use.
 //
 // Usage: node scripts/gen-wordlist.js   (run after a `bip39` crate version bump)
 const fs = require('fs');
@@ -48,12 +51,13 @@ for (let i = 0; i < words.length; i += 12) chunks.push('"' + words.slice(i, i + 
 chunks[chunks.length - 1] = chunks[chunks.length - 1].replace(/ "$/, '"');
 const web = `/**
  * BIP39 English wordlist -- the canonical 2048-word list, byte-identical to the
- * \`bip39\` Rust crate (which native uses to GENERATE + display phrases) and to
- * src/net/bip39_wordlist.rs. Source: BIP39 / trezor python-mnemonic english.txt.
+ * \`bip39\` Rust crate, which the desktop app writes and reads recovery phrases
+ * with. Source: BIP39 / trezor python-mnemonic english.txt.
  *
  * DO NOT hand-edit. Regenerate with \`node scripts/gen-wordlist.js\`. These lists
- * MUST stay identical or a seed phrase written on one client will not restore on
- * another. Guards: tests/bip39_wordlist_canonical.rs + scripts/check-bip39-wordlists.js.
+ * MUST stay identical or a recovery phrase written on one client will not restore on
+ * another. Guard: scripts/check-bip39-wordlists.js (the list's SHA-256, pinned in
+ * src/net/identity.rs WORDLIST_SHA256).
  *
  * Loaded as a global so crypto.js can reference it without a module system.
  */
@@ -66,24 +70,4 @@ if (window.BIP39_ENGLISH.length !== 2048) {
 `;
 fs.writeFileSync(path.join(repo, 'web/chat/bip39-english.js'), web);
 
-// src/net/bip39_wordlist.rs -- fallback decoder; the crate is the primary parser.
-const rows = words.map(w => `    "${w}",`).join('\n');
-const rust = `//! BIP39 English wordlist -- the canonical 2048-word list, byte-identical to the
-//! \`bip39\` crate (which native uses to GENERATE + display phrases via
-//! Mnemonic::from_entropy) and to web/chat/bip39-english.js. This array is ONLY
-//! the fallback decoder for derive_keypair_from_mnemonic (the checksum-less path);
-//! the crate is the primary parser. It MUST equal the crate or the fallback would
-//! decode a phrase to the wrong seed. Guarded by tests/bip39_wordlist_canonical.rs.
-//!
-//! DO NOT hand-edit -- regenerate with \`node scripts/gen-wordlist.js\`.
-
-pub const WORDLIST: [&str; 2048] = [
-${rows}
-];
-`;
-fs.writeFileSync(path.join(repo, 'src/net/bip39_wordlist.rs'), rust);
-
-console.log('Regenerated from', path.basename(path.dirname(path.dirname(path.dirname(crateFile)))));
-console.log('  web/chat/bip39-english.js  (' + web.length + ' bytes)');
-console.log('  src/net/bip39_wordlist.rs  (' + rust.length + ' bytes)');
-console.log('  occur present:', /\boccur\b/.test(web) && /"occur"/.test(rust));
+console.log('wrote web/chat/bip39-english.js (' + words.length + ' words)');

@@ -222,7 +222,6 @@ pub trait System: Send + Sync {
 | sync.rs | 167 | **Working** | ECS state synchronization |
 | protocol.rs | 104 | **Working** | Message protocol definitions |
 | identity.rs | 99 | **Working** | Ed25519 key management |
-| bip39_wordlist.rs | 2,050 | **Data** | BIP39 word list |
 
 ### Assets (`assets/`, 647 LOC)
 

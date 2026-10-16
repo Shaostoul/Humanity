@@ -1497,7 +1497,7 @@ Luciole, APHont and Tiresias, weakened IBM Plex, and eliminated Inter. It was
 the wrong test. DIDs and the Solana address are base58
 (`src/relay/core/did.rs`), whose alphabet omits 0, O, I and l by construction.
 Public keys are lowercase Dilithium hex, so no O, I or l can occur. The BIP39
-wordlist (`src/net/bip39_wordlist.rs`) is pure lowercase a to z. The only
+wordlist (the `bip39` crate's, mirrored in `web/chat/bip39-english.js`) is pure lowercase a to z. The only
 surface carrying the full confusable set is the base64 invite ticket, and the
 fix for that is monospace routing using a face already shipped.
 

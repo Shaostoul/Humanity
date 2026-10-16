@@ -13,8 +13,6 @@ pub mod sync;
 pub mod ws_client;
 #[cfg(feature = "native")]
 pub mod identity;
-#[cfg(feature = "native")]
-pub mod bip39_wordlist;
 /// Post-quantum DM envelope (pure ML-KEM-768 → BLAKE3-KDF →
 /// AES-256-GCM). Full-PQ replacement for the deleted ECDH `dm_crypto`;
 /// the recipient keypair is deterministic from the BIP39 seed so web

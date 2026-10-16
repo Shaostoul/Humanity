@@ -5,67 +5,55 @@
 //! PBKDF2-based `to_seed()`). This ensures the same mnemonic produces
 //! the same public key on both web and native.
 
-/// Derive an Ed25519 keypair from a 24-word BIP39 mnemonic.
+/// How many words a HumanityOS recovery phrase has (256 bits and an 8-bit check).
+pub const PHRASE_WORDS: usize = 24;
+
+/// What the restore screens say when the words do not add up: every word is a real one, but the
+/// phrase's built-in check (the last 8 bits, from the other 256) does not match, which is what one
+/// mistyped or swapped word does. The website says the same (web/chat/crypto.js
+/// `seedFromMnemonic`).
+pub const PHRASE_DOES_NOT_ADD_UP: &str =
+    "One of the words is not right: the 24 words do not add up. Check each word against your written copy, in order.";
+
+/// The 32-byte secret a recovery phrase writes down, read the way the website reads it: any case,
+/// any spacing (`normalizeMnemonicInput`). Refused, with words a person can act on, when it is not
+/// 24 words, when a word is not on the list, or when the words do not add up
+/// (`PHRASE_DOES_NOT_ADD_UP`).
+///
+/// Until 2026-10-16 the desktop app fell back to decoding the words WITHOUT their check when the
+/// check failed, so one mistyped word that happened to be another real word restored a different,
+/// empty identity instead of saying a word was wrong. The website never did. The fallback's reason,
+/// that the website might write a different check, does not hold: it writes the standard BIP39
+/// check (the first byte of SHA-256 of the 32 bytes), pinned by the test vectors below and by
+/// scripts/check-bip39-wordlists.js.
+pub fn seed_from_phrase(text: &str) -> Result<[u8; 32], String> {
+    let lower = text.to_lowercase();
+    let words: Vec<&str> = lower.split_whitespace().collect();
+    if words.len() != PHRASE_WORDS {
+        return Err(format!("Expected {PHRASE_WORDS} words, got {}. Check for extra spaces or missing words.", words.len()));
+    }
+    let list = bip39::Language::English;
+    if let Some(unknown) = words.iter().find(|w| list.find_word(w).is_none()) {
+        return Err(format!("Unknown word: \"{unknown}\". Check spelling."));
+    }
+    let mnemonic = bip39::Mnemonic::parse_in(list, words.join(" ")).map_err(|e| match e {
+        bip39::Error::InvalidChecksum => PHRASE_DOES_NOT_ADD_UP.to_string(),
+        other => format!("This recovery phrase could not be read ({other})."),
+    })?;
+    mnemonic.to_entropy().try_into().map_err(|_| "This recovery phrase does not hold a 32-byte key.".to_string())
+}
+
+/// Derive an Ed25519 keypair from a 24-word recovery phrase (`seed_from_phrase`).
 ///
 /// Returns `(public_key_hex, private_key_bytes)` on success.
 /// The private_key_bytes are the raw 32-byte Ed25519 seed.
 pub fn derive_keypair_from_mnemonic(mnemonic_str: &str) -> Result<(String, Vec<u8>), String> {
-    // Try strict parsing first (validates checksum)
-    let entropy = match bip39::Mnemonic::parse(mnemonic_str) {
-        Ok(mnemonic) => mnemonic.to_entropy(),
-        Err(_) => {
-            // Fallback: manually decode words to entropy without checksum validation.
-            // The web client's BIP39 implementation may produce slightly different
-            // checksums in edge cases. The words themselves encode the seed correctly.
-            decode_words_to_entropy(mnemonic_str)?
-        }
-    };
-    if entropy.len() != 32 {
-        return Err(format!("Expected 32-byte entropy, got {} bytes", entropy.len()));
-    }
-
-    let secret_key_bytes: [u8; 32] = entropy.try_into()
-        .map_err(|_| "Entropy conversion failed".to_string())?;
-
+    let secret_key_bytes = seed_from_phrase(mnemonic_str)?;
     // Derive the Ed25519 public key from the seed
     let signing_key = ed25519_dalek::SigningKey::from_bytes(&secret_key_bytes);
     let public_key = signing_key.verifying_key();
     let public_key_hex = hex::encode(public_key.as_bytes());
-
     Ok((public_key_hex, secret_key_bytes.to_vec()))
-}
-
-/// Manually decode BIP39 words to 32-byte entropy without checksum validation.
-/// Each of 24 words maps to an 11-bit index in the BIP39 word list.
-/// 24 words x 11 bits = 264 bits = 256 bits entropy + 8 bits checksum.
-/// We extract only the 256 entropy bits (32 bytes).
-fn decode_words_to_entropy(mnemonic_str: &str) -> Result<Vec<u8>, String> {
-    let words: Vec<&str> = mnemonic_str.trim().split_whitespace().collect();
-    if words.len() != 24 {
-        return Err(format!("Expected 24 words, got {}", words.len()));
-    }
-
-    // Use our custom wordlist (matches the web client's bip39-english.js)
-    let word_list = &super::bip39_wordlist::WORDLIST;
-    let mut bits = Vec::with_capacity(264);
-
-    for word in &words {
-        let idx = word_list.iter().position(|w| *w == *word)
-            .ok_or_else(|| format!("Unknown BIP39 word: '{}'", word))?;
-        for bit in (0..11).rev() {
-            bits.push(((idx >> bit) & 1) as u8);
-        }
-    }
-
-    // First 256 bits are entropy (32 bytes), last 8 bits are checksum (ignored)
-    let mut entropy = vec![0u8; 32];
-    for i in 0..256 {
-        if bits[i] == 1 {
-            entropy[i / 8] |= 1 << (7 - (i % 8));
-        }
-    }
-
-    Ok(entropy)
 }
 
 // ── Full-PQ identity (Dilithium3 id+signing, Kyber768 DM) ───────────────────
@@ -249,20 +237,21 @@ mod tests {
         assert!(device_link_payload_json(&[0u8; 16], "x").is_none());
     }
 
+    /// The word list both apps use, fingerprinted: SHA-256 of the 2048 words joined by newlines.
+    /// scripts/check-bip39-wordlists.js holds the website's list (web/chat/bip39-english.js) to the
+    /// SAME number, so the two lists are equal word for word without a second copy in Rust. The guard
+    /// for the 2026-07-12 incident where a non-canonical list shipped and native-shown words like
+    /// "occur" were "unknown" on the web restore. Regenerate the web list with
+    /// `node scripts/gen-wordlist.js`.
+    pub(crate) const WORDLIST_SHA256: &str = "187db04a869dd9bc7be80d21a86497d692c0db6abd3aa8cb6be5d618ff757fae";
+
     #[test]
     fn bip39_wordlist_is_canonical_and_matches_web_kat() {
-        // The fallback decoder list MUST equal the bip39 crate's canonical English
-        // list -- the list native GENERATES + displays phrases with. If it drifts,
-        // a phrase shown on native decodes to the WRONG seed via the fallback, and
-        // the parallel web list (regenerated from the same source) breaks
-        // native<->web restore. This is the guard for the 2026-07-12 incident where
-        // a non-canonical list shipped and native-shown words like "occur" were
-        // "unknown" on the web restore. Regenerate: `node scripts/gen-wordlist.js`.
-        assert_eq!(
-            &crate::net::bip39_wordlist::WORDLIST[..],
-            &bip39::Language::English.word_list()[..],
-            "bip39_wordlist.rs drifted from the bip39 crate; run node scripts/gen-wordlist.js"
-        );
+        use sha2::Digest as _;
+        let list = bip39::Language::English.word_list();
+        assert_eq!(list.len(), 2048);
+        let fingerprint = hex::encode(sha2::Sha256::digest(list.join("\n").as_bytes()));
+        assert_eq!(fingerprint, WORDLIST_SHA256, "the bip39 crate's list changed: regenerate the web list and both pins");
         // Cross-client known-answer: the canonical phrase for seed [7;32] must be
         // IDENTICAL to what the web client produces from the same shared list
         // (scripts/check-bip39-wordlists.js round-trips + prints this exact string).
@@ -275,9 +264,56 @@ mod tests {
             "alpha deal scrub asthma idea logic bright thought alpha deal scrub asthma idea logic bright thought alpha deal scrub asthma idea logic bright truly",
             "native BIP39 phrase for [7;32] diverged from the web KAT -- the wordlists are out of sync"
         );
-        // Round-trips through BOTH native paths (crate parse first, then fallback).
+        // And it reads back to the same seed.
         let (_pk, recovered) = derive_keypair_from_mnemonic(&phrase).expect("recover");
         assert_eq!(recovered, seed);
+    }
+
+    /// THE STANDARD CHECK, BOTH WAYS: official BIP39 test vectors (the trezor python-mnemonic set)
+    /// for 32-byte entropies. The website's generator writes the same phrases
+    /// (scripts/check-bip39-wordlists.js holds it to these exact strings), so every phrase it ever
+    /// made passes the desktop app's strict check, and the checksum-less fallback had no reason.
+    #[test]
+    fn official_bip39_vectors_read_and_write_the_same_on_both_apps() {
+        for (byte, phrase) in [
+            (0x00u8, "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon art"),
+            (0x7f, "legal winner thank year wave sausage worth useful legal winner thank year wave sausage worth useful legal winner thank year wave sausage worth title"),
+            (0x80, "letter advice cage absurd amount doctor acoustic avoid letter advice cage absurd amount doctor acoustic avoid letter advice cage absurd amount doctor acoustic bless"),
+            (0xff, "zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo vote"),
+        ] {
+            assert_eq!(mnemonic_from_seed(&[byte; 32]).as_deref(), Some(phrase), "written for {byte:#04x}");
+            assert_eq!(seed_from_phrase(phrase), Ok([byte; 32]), "read for {byte:#04x}");
+        }
+    }
+
+    /// ONE WRONG WORD IS REFUSED, NOT RESTORED AS SOMEONE ELSE (2026-10-16): a phrase with one word
+    /// swapped for another real word fails its check and is refused in words a person can act on;
+    /// before, the desktop app decoded it anyway and restored a different, empty identity. Case and
+    /// spacing do not matter (as on the website); an unknown word and a wrong count are named.
+    ///
+    /// Seen red 2026-10-16 with the old fallback put back: "one swapped word is refused" got
+    /// Ok(a different seed).
+    #[test]
+    fn a_phrase_with_one_wrong_word_is_refused_not_restored_as_someone_else() {
+        let seed = [7u8; 32];
+        let phrase = mnemonic_from_seed(&seed).unwrap();
+        for (at, swap) in [(0, "abandon"), (4, "ability"), (10, "zoo")] {
+            let mut words: Vec<&str> = phrase.split(' ').collect();
+            words[at] = swap;
+            assert_eq!(seed_from_phrase(&words.join(" ")), Err(PHRASE_DOES_NOT_ADD_UP.to_string()), "one swapped word is refused (word {})", at + 1);
+            assert!(derive_keypair_from_mnemonic(&words.join(" ")).is_err(), "and nothing is restored from it");
+        }
+        // Two words in the wrong order: the same.
+        let mut words: Vec<&str> = phrase.split(' ').collect();
+        words.swap(0, 1);
+        assert_eq!(seed_from_phrase(&words.join(" ")), Err(PHRASE_DOES_NOT_ADD_UP.to_string()), "two words swapped");
+
+        let shouted = format!("  {}\n", phrase.to_uppercase().replace(' ', "   "));
+        assert_eq!(seed_from_phrase(&shouted), Ok(seed), "any case, any spacing, as on the website");
+        let typo = phrase.replacen("alpha", "alpah", 1);
+        assert_eq!(seed_from_phrase(&typo), Err("Unknown word: \"alpah\". Check spelling.".to_string()));
+        let short: Vec<&str> = phrase.split(' ').take(12).collect();
+        assert_eq!(seed_from_phrase(&short.join(" ")), Err("Expected 24 words, got 12. Check for extra spaces or missing words.".to_string()));
     }
 
     #[test]

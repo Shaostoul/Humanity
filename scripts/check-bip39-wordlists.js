@@ -1,11 +1,15 @@
 #!/usr/bin/env node
-// Guard: web/chat/bip39-english.js and src/net/bip39_wordlist.rs MUST be the same
-// 2048-word list, or a seed phrase written on one client won't restore on another.
-// Also runs a standard-BIP39 round-trip KAT over the shared list. Run in CI.
-// (The native list is separately asserted == the bip39 crate by a Rust test.)
+// Guard: web/chat/bip39-english.js MUST be the same 2048-word list the desktop app reads and
+// writes recovery phrases with (the `bip39` crate), or a phrase written on one app won't
+// restore on the other. Checked by fingerprint: the SHA-256 of the 2048 words joined by
+// newlines must equal WORDLIST_SHA256 in src/net/identity.rs, which a Rust test computes from
+// the crate's own list. Also runs the website's BIP39 algorithm over the official test vectors
+// (the same strings src/net/identity.rs pins) and checks that one wrong word is refused, as both
+// apps refuse it (2026-10-16). Run in CI (.github/workflows/verify.yml).
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+
 const repo = path.resolve(__dirname, '..');
 
 function webList() {
@@ -15,24 +19,25 @@ function webList() {
   const joined = (m[1].match(/"([a-z ]*)"/g) || []).map(s => s.replace(/"/g, '')).join('');
   return joined.split(/\s+/).filter(Boolean);
 }
-function nativeList() {
-  const src = fs.readFileSync(path.join(repo, 'src/net/bip39_wordlist.rs'), 'utf8');
-  return (src.match(/"([a-z]+)"/g) || []).map(s => s.replace(/"/g, ''));
+
+/** The desktop app's pin: WORDLIST_SHA256 in src/net/identity.rs. */
+function desktopPin() {
+  const src = fs.readFileSync(path.join(repo, 'src/net/identity.rs'), 'utf8');
+  const m = src.match(/WORDLIST_SHA256: &str = "([0-9a-f]{64})"/);
+  if (!m) throw new Error('WORDLIST_SHA256 not found in src/net/identity.rs');
+  return m[1];
 }
 
 const web = webList();
-const nat = nativeList();
 let fail = false;
 const check = (ok, msg) => { if (!ok) { console.error('FAIL:', msg); fail = true; } else { console.log('ok:', msg); } };
-
 check(web.length === 2048, `web list length ${web.length} === 2048`);
-check(nat.length === 2048, `native list length ${nat.length} === 2048`);
-check(JSON.stringify(web) === JSON.stringify(nat), 'web list === native list (byte-identical)');
 check(web[0] === 'abandon' && web[2047] === 'zoo', 'anchors abandon..zoo');
-check(web.includes('occur') && web.includes('affair'), 'canonical words occur + affair present');
+check(new Set(web).size === 2048, 'no word twice');
+const fingerprint = crypto.createHash('sha256').update(web.join('\n')).digest('hex');
+check(fingerprint === desktopPin(), `web list SHA-256 ${fingerprint} === the desktop's WORDLIST_SHA256`);
 
-// ── Standard BIP39 encode/decode over the shared list (the same algorithm both
-// clients implement). Proves the list is self-consistent + round-trips. ──
+// ── The website's BIP39 algorithm (web/chat/crypto.js mnemonicFromSeed / seedFromMnemonic) ──
 function encode(entropy) { // Buffer(32) -> 24 words
   const hash = crypto.createHash('sha256').update(entropy).digest();
   let bits = '';
@@ -48,7 +53,7 @@ function decode(phrase) { // 24 words -> Buffer(32), validates checksum
     if (i < 0) throw new Error(`unknown word: ${w}`);
     return i;
   });
-  let bits = idx.map(i => i.toString(2).padStart(11, '0')).join('');
+  const bits = idx.map(i => i.toString(2).padStart(11, '0')).join('');
   const ent = bits.slice(0, 256), csum = bits.slice(256);
   const bytes = Buffer.alloc(32);
   for (let i = 0; i < 32; i++) bytes[i] = parseInt(ent.slice(i * 8, i * 8 + 8), 2);
@@ -57,15 +62,26 @@ function decode(phrase) { // 24 words -> Buffer(32), validates checksum
   return bytes;
 }
 
-const seed = Buffer.alloc(32, 7); // [7u8; 32] -- matches the native KAT
-const phrase = encode(seed);
-const back = decode(phrase);
-check(Buffer.compare(seed, back) === 0, 'BIP39 round-trip [7;32] -> phrase -> [7;32]');
-// The exact phrase must match what native (the bip39 crate) produces for the same
-// seed -- native/bip39_kat.rs asserts mnemonic_from_seed([7;32]) equals THIS string.
-console.log('KAT [7;32] canonical phrase:');
-console.log('  ' + phrase);
-// prove a phrase with "occur" decodes (the operator's failing word)
-try { decode(phrase.split(' ').includes('occur') ? phrase : phrase); check(true, '"occur" is decodable (in list)'); } catch (e) { check(false, 'occur decode: ' + e.message); }
+// Official BIP39 vectors (trezor python-mnemonic) and the project's own [7;32] KAT: the same
+// strings src/net/identity.rs pins for the bip39 crate.
+const VECTORS = [
+  [0x00, 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon art'],
+  [0x7f, 'legal winner thank year wave sausage worth useful legal winner thank year wave sausage worth useful legal winner thank year wave sausage worth title'],
+  [0x80, 'letter advice cage absurd amount doctor acoustic avoid letter advice cage absurd amount doctor acoustic avoid letter advice cage absurd amount doctor acoustic bless'],
+  [0xff, 'zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo vote'],
+  [0x07, 'alpha deal scrub asthma idea logic bright thought alpha deal scrub asthma idea logic bright thought alpha deal scrub asthma idea logic bright truly'],
+];
+for (const [byte, phrase] of VECTORS) {
+  const seed = Buffer.alloc(32, byte);
+  check(encode(seed) === phrase, `written for ${byte.toString(16)}: ${phrase.split(' ').slice(-1)[0]}`);
+  check(Buffer.compare(decode(phrase), seed) === 0, `read back for ${byte.toString(16)}`);
+}
+
+// One wrong word (another real word) is refused, not read as a different key.
+const words = VECTORS[4][1].split(' ');
+words[0] = 'abandon';
+let refused = false;
+try { decode(words.join(' ')); } catch (e) { refused = /checksum/.test(e.message); }
+check(refused, 'one wrong word is refused by its checksum');
 
 process.exit(fail ? 1 : 0);
