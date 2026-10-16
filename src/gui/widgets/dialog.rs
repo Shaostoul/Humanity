@@ -73,6 +73,7 @@ fn dialog_inner(
 ) -> bool {
     let mut shown = false;
     let mut local_open = *open;
+    let mut backdrop_layer = None;
 
     // Semi-transparent backdrop — paints a dimmed overlay over the rest of
     // the UI and catches clicks behind the modal. Clicking the backdrop
@@ -88,6 +89,7 @@ fn dialog_inner(
                 ui.painter().rect_filled(screen, 0.0, Color32::from_black_alpha(140));
                 ui.allocate_rect(screen, egui::Sense::click())
             });
+        backdrop_layer = Some(area_resp.response.layer_id);
         if area_resp.inner.clicked() {
             local_open = false;
         }
@@ -143,17 +145,18 @@ fn dialog_inner(
             }
         });
 
-    // Force the modal window to the TOP of its order every frame. The backdrop
-    // Area and this Window both live in `Order::Middle`; without this the
-    // persisted backdrop area can end up above the window and (a) paint its tint
-    // OVER the modal and (b) swallow clicks meant for the modal's own buttons,
-    // so nothing inside the modal is clickable. `move_to_top` makes the window
-    // paint + receive input above the backdrop, while the backdrop (now strictly
-    // below the window) still catches click-outside-to-close in the surrounding
-    // area. Long-standing operator bug: "the tinted background claims the screen;
-    // the modal renders behind it where I can't click anything." (v0.849)
-    if let Some(ref wr) = win_resp {
-        ctx.move_to_top(wr.response.layer_id);
+    // Keep the window directly ABOVE its own backdrop, every frame, and let the backdrop decide
+    // where the pair sits. Both live in `Order::Middle`, and egui raises a layer when it first
+    // appears or is pressed, so the dialog opened last is in front, its backdrop dimming any
+    // dialog under it. Without this the backdrop can end up above its own window, tinting it and
+    // swallowing its clicks: "the tinted background claims the screen; the modal renders behind
+    // it where I can't click anything" (v0.849). The v0.849 fix raised the window to the top on
+    // EVERY frame instead, which made every open dialog ask for the top at once; egui then keeps
+    // their earlier order, and a window it has seen before (closed and opened again) keeps its old
+    // place. So the Media item's Edit window, opened a second time from the item's page, stayed
+    // behind the page for good (operator, 2026-10-15: "Like our layering order is reversed").
+    if let (Some(wr), Some(backdrop)) = (win_resp.as_ref(), backdrop_layer) {
+        ctx.set_sublayer(backdrop, wr.response.layer_id);
     }
 
     *open = local_open;
@@ -202,5 +205,94 @@ mod tests {
         let tall = window_rect(1000.0, 2000.0);
         assert!(tall.height() <= 1000.0 && tall.min.y >= 0.0, "a 2000 px body stays on a 1000 px screen: {tall:?}");
         assert!(tall.height() >= 800.0, "using most of it before scrolling: window {:.0} px", tall.height());
+    }
+
+    /// One headless frame of two dialogs, "older" (large) and "newer" (small, drawn after it, the
+    /// way a dialog opened from inside another is), each while its flag is set; `events` are the
+    /// frame's input.
+    fn two_dialogs(ctx: &egui::Context, theme: &Theme, older: &mut bool, newer: &mut bool, events: Vec<egui::Event>) {
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(1000.0, 800.0))),
+            events,
+            ..Default::default()
+        };
+        let _ = ctx.run(input, |ctx| {
+            if *older {
+                dialog(ctx, theme, "older_dialog", "Older", older, |ui| {
+                    ui.allocate_space(egui::vec2(500.0, 400.0));
+                });
+            }
+            if *newer {
+                dialog(ctx, theme, "newer_dialog", "Newer", newer, |ui| {
+                    ui.allocate_space(egui::vec2(200.0, 100.0));
+                });
+            }
+        });
+    }
+
+    fn press_and_release(at: egui::Pos2) -> [Vec<egui::Event>; 2] {
+        let button = |pressed| egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: egui::Modifiers::default() };
+        [vec![egui::Event::PointerMoved(at), button(true)], vec![button(false)]]
+    }
+
+    fn top_at_centre(ctx: &egui::Context) -> Option<egui::Id> {
+        ctx.layer_id_at(egui::pos2(500.0, 400.0)).map(|l| l.id)
+    }
+
+    /// A DIALOG OPENED FROM ANOTHER IS IN FRONT OF IT, EVERY TIME (operator, 2026-10-15: the Media
+    /// item's Edit window opened behind the item's page, "Like our layering order is reversed").
+    /// Every dialog's window was raised on every frame, so egui kept their earlier order, and a
+    /// window it had seen before kept its old place: the second time, the newer one stayed behind.
+    ///
+    /// Seen red 2026-10-15 with the every-frame `move_to_top` in place of `set_sublayer`: "opened
+    /// again, the newer dialog is in front" found the older dialog's window.
+    #[test]
+    fn a_dialog_opened_from_another_is_in_front_of_it_every_time() {
+        let ctx = egui::Context::default();
+        let theme = crate::gui::theme::load_theme();
+        theme.apply_to_egui(&ctx);
+        let (mut older, mut newer) = (true, false);
+        for _ in 0..3 {
+            two_dialogs(&ctx, &theme, &mut older, &mut newer, vec![]);
+        }
+        for words in ["the newer dialog is in front", "opened again, the newer dialog is in front"] {
+            newer = true;
+            for _ in 0..3 {
+                two_dialogs(&ctx, &theme, &mut older, &mut newer, vec![]);
+            }
+            assert_eq!(top_at_centre(&ctx), Some(egui::Id::new("newer_dialog")), "{words}");
+            // Closed the way the Edit window's Cancel closes it: its flag goes false.
+            newer = false;
+            for _ in 0..3 {
+                two_dialogs(&ctx, &theme, &mut older, &mut newer, vec![]);
+            }
+            assert_eq!(top_at_centre(&ctx), Some(egui::Id::new("older_dialog")), "with the newer one closed, the older is in front");
+        }
+    }
+
+    /// A DIALOG CLOSED BY ITS DIMMED BACKDROP OPENS ABOVE IT AGAIN (v0.849: "the tinted background
+    /// claims the screen; the modal renders behind it where I can't click anything"). The press on
+    /// the backdrop raises it, so without the window pinned above it the next opening is behind it.
+    ///
+    /// Seen red 2026-10-15 with the pin taken out (neither `move_to_top` nor `set_sublayer`):
+    /// "opened again, the window is above its backdrop" found the backdrop's layer.
+    #[test]
+    fn a_dialog_closed_by_its_backdrop_opens_above_it_again() {
+        let ctx = egui::Context::default();
+        let theme = crate::gui::theme::load_theme();
+        theme.apply_to_egui(&ctx);
+        let (mut older, mut newer) = (true, false);
+        for _ in 0..3 {
+            two_dialogs(&ctx, &theme, &mut older, &mut newer, vec![]);
+        }
+        for events in press_and_release(egui::pos2(6.0, 6.0)) {
+            two_dialogs(&ctx, &theme, &mut older, &mut newer, events);
+        }
+        assert!(!older, "a click on the dimmed screen closes the dialog");
+        older = true;
+        for _ in 0..3 {
+            two_dialogs(&ctx, &theme, &mut older, &mut newer, vec![]);
+        }
+        assert_eq!(top_at_centre(&ctx), Some(egui::Id::new("older_dialog")), "opened again, the window is above its backdrop");
     }
 }

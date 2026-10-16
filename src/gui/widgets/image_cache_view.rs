@@ -21,7 +21,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
 
     // Backdrop: darker than the help modal to emphasise the photo.
     let screen = ctx.screen_rect();
-    egui::Area::new(egui::Id::new("hos_image_viewer_backdrop"))
+    let backdrop = egui::Area::new(egui::Id::new("hos_image_viewer_backdrop"))
         .fixed_pos(screen.min)
         .show(ctx, |ui| {
             let (_, resp) = ui.allocate_exact_size(screen.size(), Sense::click());
@@ -179,13 +179,14 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
             });
         });
 
-    // Keep the window ABOVE its backdrop, every frame. Both live in the same layer order, and egui
-    // raises whichever was clicked last: clicking the backdrop to close one picture left the
-    // backdrop on top, so the NEXT picture opened behind the dimmed screen, and a click on its
-    // Download landed on the backdrop and closed it (operator, 2026-10-10). The shared dialog
-    // widget fixed the same thing in v0.849 the same way (widgets/dialog.rs).
+    // Keep the window directly ABOVE its backdrop, every frame. Both live in the same layer order,
+    // and egui raises whichever was clicked last: clicking the backdrop to close one picture left
+    // the backdrop on top, so the NEXT picture opened behind the dimmed screen, and a click on its
+    // Download landed on the backdrop and closed it (operator, 2026-10-10). Pinned to its backdrop
+    // rather than raised every frame, so a picture opened from inside a dialog is in front of it
+    // (widgets/dialog.rs, the same fix, 2026-10-15).
     if let Some(w) = window {
-        ctx.move_to_top(w.response.layer_id);
+        ctx.set_sublayer(backdrop.response.layer_id, w.response.layer_id);
     }
 
     if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {

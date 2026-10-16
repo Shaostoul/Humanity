@@ -476,3 +476,39 @@ fn download_goes_through_the_counting_route() {
         "a members-only file: a ticket for the counted route, for that file"
     );
 }
+
+/// EDIT OPENS IN FRONT OF THE ITEM'S PAGE, EVERY TIME (operator, 2026-10-15: "the initial detailed
+/// media window ... stays layered on top of it preventing me from being able to interact with it").
+/// Every dialog asked for the top on every frame, so egui kept their earlier order, and the Edit
+/// window, once opened and closed, kept a place under the page: opened again, it stayed behind.
+/// Opened, cancelled and opened again from the page, the Edit window must be the layer on top where
+/// the two windows overlap.
+///
+/// Seen red 2026-10-15 with the dialog's every-frame raise put back (widgets/dialog.rs): "the Edit
+/// window opened again is in front of the item's page: where they overlap" found the page's window.
+#[test]
+fn edit_opens_in_front_of_the_items_page_every_time() {
+    let (ctx, theme) = ctx_and_theme();
+    let item = rich_item(("me", "Me"));
+    let mut state = page_on(SERVER, answer_of(vec![item.clone()]), "tok");
+    crate::gui::pages::media::item_view::open(&mut state, &item);
+    let edit_layer = egui::LayerId::new(egui::Order::Middle, egui::Id::new(edit::EDIT_DIALOG_ID));
+    let edit_open = |state: &GuiState| state.media.item.as_ref().and_then(|p| p.edit.as_ref()).is_some();
+    for (time, words) in ["the Edit window is in front of the item's page", "the Edit window opened again is in front of the item's page"].iter().enumerate() {
+        click_top(&ctx, &theme, &mut state, "Edit");
+        assert!(edit_open(&state), "Edit opened its window (time {time})");
+        let out = settled(&ctx, &theme, &mut state);
+        let save = *every_exact(&out, edit::SAVE).last().expect("Save");
+        assert_eq!(ctx.layer_id_at(save.center()), Some(edit_layer), "{words}: at its Save");
+        // Where the two windows overlap (Save can sit below a short page, where only Edit is).
+        let rect_of = |id: &str| ctx.memory(|m| m.area_rect(egui::Id::new(id))).expect("drawn");
+        let both = rect_of("media_item_page").intersect(rect_of(edit::EDIT_DIALOG_ID));
+        assert!(both.is_positive(), "the two windows overlap");
+        assert_eq!(ctx.layer_id_at(both.center()), Some(edit_layer), "{words}: where they overlap");
+        if time == 0 {
+            click_top(&ctx, &theme, &mut state, "Cancel");
+            assert!(!edit_open(&state), "Cancel closed the Edit window");
+            assert!(state.media.item.is_some(), "the item's page is still open");
+        }
+    }
+}

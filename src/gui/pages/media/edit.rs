@@ -199,6 +199,9 @@ struct Pressed {
     add: Option<FileRole>,
 }
 
+/// The Edit window's id (its dialog, and the dimmed backdrop behind it, `-backdrop`).
+pub(crate) const EDIT_DIALOG_ID: &str = "media_item_edit";
+
 /// The Edit window over the item's page, and its file picker, while open.
 pub(crate) fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, page: &mut ItemPage) {
     let Some(mut form) = page.edit.take() else { return };
@@ -218,7 +221,7 @@ pub(crate) fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, pag
         .collect();
     let mut open = true;
     let mut pressed = Pressed::default();
-    widgets::dialog_scrolling(ctx, theme, "media_item_edit", &format!("Edit {}", item.display_title()), &mut open, |ui| {
+    widgets::dialog_scrolling(ctx, theme, EDIT_DIALOG_ID, &format!("Edit {}", item.display_title()), &mut open, |ui| {
         ui.set_max_width(560.0);
         widgets::form_row(ui, theme, "Title", |ui| {
             ui.add(egui::TextEdit::singleline(&mut form.title).desired_width(320.0).char_limit(120));
