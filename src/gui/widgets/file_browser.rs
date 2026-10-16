@@ -15,6 +15,7 @@
 use std::path::{Path, PathBuf};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
+use crate::gui::widgets::file_picker_memory as memory;
 use egui::RichText;
 
 /// One entry in a directory listing.
@@ -208,12 +209,18 @@ pub struct FilePickerState {
 }
 
 impl FilePickerState {
+    /// Opens in the folder the last file was picked from, in any picker, while that folder is
+    /// still there (operator, 2026-10-16: picking a second file should start "the same place I
+    /// just picked a file"); else in the person's home folder. `starting_in` still wins.
     pub fn new(allowed_exts: &[&str], max_size: u64) -> Self {
-        let start = std::env::var("USERPROFILE")
-            .or_else(|_| std::env::var("HOME"))
-            .ok()
-            .map(PathBuf::from)
-            .filter(|p| p.is_dir())
+        let start = memory::with(|m| m.start_folder())
+            .or_else(|| {
+                std::env::var("USERPROFILE")
+                    .or_else(|_| std::env::var("HOME"))
+                    .ok()
+                    .map(PathBuf::from)
+                    .filter(|p| p.is_dir())
+            })
             .unwrap_or_else(|| crate::storage::exe_dir());
         Self {
             current_dir: start,
@@ -310,6 +317,22 @@ pub fn file_picker_modal(
                     }
                 }
             });
+            // The person's own favorite folders, kept on this computer (`file_picker_memory`).
+            // One that is not there right now (a drive unplugged) still opens, and the list says
+            // why it is empty, so it can be taken out with the same button that put it in.
+            let favorites = memory::favorite_labels(&memory::with(|m| m.favorites.clone()));
+            if !favorites.is_empty() {
+                ui.horizontal_wrapped(|ui| {
+                    ui.label(RichText::new("Favorites").size(theme.font_size_small).color(theme.text_muted()));
+                    for (label, path) in favorites {
+                        let tip = path.display().to_string();
+                        if widgets::Button::secondary(&label).tooltip(&tip).show(ui, theme) {
+                            state.current_dir = path;
+                            state.selected = None;
+                        }
+                    }
+                });
+            }
             ui.add_space(theme.spacing_xs);
 
             // Current path + up.
@@ -325,6 +348,21 @@ pub fn file_picker_modal(
                         .size(theme.font_size_small)
                         .color(theme.text_muted()),
                 );
+                let dir = state.current_dir.clone();
+                if memory::with(|m| m.is_favorite(&dir)) {
+                    if widgets::Button::secondary(REMOVE_FAVORITE)
+                        .tooltip("Take this folder out of the Favorites row.")
+                        .show(ui, theme)
+                    {
+                        memory::with(|m| m.remove_favorite(&dir));
+                    }
+                } else if dir.is_dir()
+                    && widgets::Button::secondary(ADD_FAVORITE)
+                        .tooltip("Keep this folder in the Favorites row of every file picker on this computer.")
+                        .show(ui, theme)
+                {
+                    memory::with(|m| m.add_favorite(&dir));
+                }
             });
             ui.add_space(theme.spacing_xs);
 
@@ -333,7 +371,13 @@ pub fn file_picker_modal(
                 .id_salt("file_picker_list")
                 .max_height(300.0)
                 .show(ui, |ui| {
-                    if entries.is_empty() {
+                    if !state.current_dir.is_dir() {
+                        ui.label(
+                            RichText::new("This folder is not there right now: its drive may be unplugged, or the folder moved or deleted.")
+                                .size(theme.font_size_small)
+                                .color(theme.text_muted()),
+                        );
+                    } else if entries.is_empty() {
                         ui.label(
                             RichText::new("Nothing here (or nothing matching the allowed types).")
                                 .size(theme.font_size_small)
@@ -441,12 +485,120 @@ pub fn file_picker_modal(
             });
         });
 
+    // A file was picked: the next picker opens in its folder. A folder pick (a folder picker, a
+    // disc) leaves the memory alone.
+    if let FilePickerResult::Picked(path) = &result {
+        if !state.dir_mode && path.is_file() {
+            memory::with(|m| m.remember_pick(path));
+        }
+    }
     result
 }
+
+/// The button beside the path that keeps the open folder in the Favorites row.
+pub const ADD_FAVORITE: &str = "Add to favorites";
+/// The same button while the open folder is a favorite.
+pub const REMOVE_FAVORITE: &str = "Remove from favorites";
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// One headless frame of the picker; `events` are its input. Its output and what it reported.
+    fn picker_frame(ctx: &egui::Context, theme: &Theme, state: &mut FilePickerState, events: Vec<egui::Event>) -> (egui::FullOutput, FilePickerResult) {
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1400.0, 900.0))),
+            events,
+            ..Default::default()
+        };
+        let mut result = FilePickerResult::Open;
+        let out = ctx.run(input, |ctx| result = file_picker_modal(ctx, theme, state, "Pick"));
+        (out, result)
+    }
+
+    /// Where the text exactly `text` is drawn, if it is.
+    fn text_at(out: &egui::FullOutput, text: &str) -> Option<egui::Pos2> {
+        fn walk(shape: &egui::Shape, text: &str) -> Option<egui::Pos2> {
+            match shape {
+                egui::Shape::Text(t) if t.galley.text() == text => Some(t.galley.rect.translate(t.pos.to_vec2()).center()),
+                egui::Shape::Vec(v) => v.iter().find_map(|s| walk(s, text)),
+                _ => None,
+            }
+        }
+        out.shapes.iter().find_map(|cs| walk(&cs.shape, text))
+    }
+
+    /// Click the text `text` (after two frames to lay the picker out); what the picker reported.
+    fn click_text(ctx: &egui::Context, theme: &Theme, state: &mut FilePickerState, text: &str) -> FilePickerResult {
+        picker_frame(ctx, theme, state, vec![]);
+        let (out, _) = picker_frame(ctx, theme, state, vec![]);
+        let at = text_at(&out, text).unwrap_or_else(|| panic!("{text:?} is drawn"));
+        let button = |pressed| egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: egui::Modifiers::default() };
+        picker_frame(ctx, theme, state, vec![egui::Event::PointerMoved(at), button(true)]);
+        picker_frame(ctx, theme, state, vec![button(false)]).1
+    }
+
+    /// FAVORITES, AND THE NEXT PICKER OPENS WHERE THE LAST FILE WAS PICKED (operator, 2026-10-16:
+    /// "I want to be able to add/remove favorites, like the E:/models/ folder. When I pick a file and
+    /// go to pick another file the path it should have loaded ... be the same place I just picked a
+    /// file"). Through the picker itself: Add to favorites puts the open folder in the Favorites row,
+    /// its button opens it from anywhere, a picked file sends the next picker to its folder, and
+    /// Remove from favorites takes it out again.
+    ///
+    /// Seen red 2026-10-16: with `remember_pick` left out, "a new picker opens in the folder the file
+    /// was picked from" found the home folder; with the Favorites row left out, "\"models_fav_test\" is
+    /// drawn" found no such button.
+    #[test]
+    fn favorites_and_the_next_picker_opens_where_the_last_file_was_picked() {
+        let ctx = egui::Context::default();
+        let theme = crate::gui::theme::load_theme();
+        theme.apply_to_egui(&ctx);
+        let root = tmp("favorites");
+        let models = root.join("models_fav_test");
+        std::fs::create_dir_all(&models).unwrap();
+        std::fs::write(models.join("part.blend"), "x").unwrap();
+
+        let mut picker = FilePickerState::new(&[], 0).with_pick_verb("Add");
+        assert!(!same(&picker.current_dir, &models), "a first picker does not start in the test folder");
+        picker.current_dir = models.clone();
+        click_text(&ctx, &theme, &mut picker, ADD_FAVORITE);
+        assert!(memory::with(|m| m.is_favorite(&models)), "Add to favorites keeps the folder");
+        let (out, _) = picker_frame(&ctx, &theme, &mut picker, vec![]);
+        assert!(text_at(&out, REMOVE_FAVORITE).is_some(), "the button now offers to remove it");
+
+        picker.current_dir = root.to_path_buf();
+        click_text(&ctx, &theme, &mut picker, "models_fav_test");
+        assert!(same(&picker.current_dir, &models), "its button is in the Favorites row, and opens it");
+
+        // Pick the file there.
+        click_text(&ctx, &theme, &mut picker, "part.blend  (1 B)");
+        let picked = click_text(&ctx, &theme, &mut picker, "Add part.blend");
+        assert_eq!(picked, FilePickerResult::Picked(models.join("part.blend")), "the file is picked");
+        let next = FilePickerState::new(&[], 0);
+        assert!(same(&next.current_dir, &models), "a new picker opens in the folder the file was picked from: {:?}", next.current_dir);
+
+        let mut picker = next;
+        click_text(&ctx, &theme, &mut picker, REMOVE_FAVORITE);
+        assert!(!memory::with(|m| m.is_favorite(&models)), "Remove from favorites takes it out");
+        let (out, _) = picker_frame(&ctx, &theme, &mut picker, vec![]);
+        assert!(text_at(&out, "Favorites").is_none(), "and with none left there is no Favorites row");
+
+        // A favorite that is not there right now still opens, and says why it is empty.
+        let gone = root.join("unplugged");
+        memory::with(|m| m.add_favorite(&gone));
+        picker.current_dir = gone.clone();
+        let (out, _) = picker_frame(&ctx, &theme, &mut picker, vec![]);
+        assert!(
+            text_at(&out, "This folder is not there right now: its drive may be unplugged, or the folder moved or deleted.").is_some(),
+            "a missing folder says so"
+        );
+        click_text(&ctx, &theme, &mut picker, REMOVE_FAVORITE);
+        assert!(!memory::with(|m| m.is_favorite(&gone)), "and can be taken out the same way");
+    }
+
+    fn same(a: &Path, b: &Path) -> bool {
+        memory::same_folder(a, b)
+    }
 
     fn tmp(name: &str) -> crate::test_temp::TempPath {
         crate::test_temp::dir(&format!("fb_test_{name}"))

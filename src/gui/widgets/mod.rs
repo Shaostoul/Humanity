@@ -22,6 +22,8 @@ pub mod body_pill;
 pub mod markdown;
 pub mod msg_format;
 pub mod file_browser;
+// The file picker's favorite folders and last folder, on this computer (2026-10-16).
+pub mod file_picker_memory;
 // The readable web view (2026-09-16): draws a `web_reader::Page` with
 // clickable links, history and a URL row. Used by the Browser page; the
 // in-world monitor surface is the next rung up.

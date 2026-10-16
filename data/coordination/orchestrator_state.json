@@ -321,6 +321,11 @@
       "date": "2026-10-15",
       "decision": "Released v0.1502.0: dialogs layer by when they opened. widgets/dialog.rs raised every dialog window to the top on every frame (the v0.849 fix for a backdrop over its own window); with two dialogs open both asked at once, egui sorts stably and keeps closed layers in its order list, so the Media Edit window, once opened and cancelled, opened behind the item page for good. Each window is now a sublayer of its own backdrop (ctx.set_sublayer), and the backdrop, raised by egui when it first appears, sets the pair's place: the dialog opened last is in front. The picture viewer had the same raise and the same fix. Also logged: v0.1496.0 to v0.1501.0, the chat message bar (above the taskbar, even gaps, grows with its text; the box is offered exactly its text height).",
       "why": "Operator, 2026-10-15: \"Like our layering order is reversed.\" Never raise a layer every frame to fix an ordering: pin it to what it must sit above, or every such layer competes and the oldest wins. A layering test must check where the windows overlap; the first draft checked at Save, below the short test page, and passed on the broken code."
+    },
+    {
+      "date": "2026-10-16",
+      "decision": "Released v0.1503.0: the shared file picker (widgets/file_browser.rs) has favorite folders (a Favorites row, Add to favorites / Remove from favorites beside the path) and opens in the folder the last file was picked from. Kept in file_picker.json beside config.json (widgets/file_picker_memory.rs), on this computer only, never synced; not written while the storage choice is undecided. Every picker gets both.",
+      "why": "Operator, 2026-10-16, on the Media Edit file picker: add/remove favorites like E:/models, and the second pick should start where the first was. Put in the shared widget, not the Edit window, so chat attach, Add to Media, the video screens and Settings behave the same."
     }
   ],
   "active_scopes_to_avoid": [

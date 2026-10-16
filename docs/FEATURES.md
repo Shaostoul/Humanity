@@ -342,8 +342,11 @@ fixture is the verdict proven able to fail). Design:
 Universal file-picker widget (NOT the OS dialog — the all-in-one direction): quick
 roots (Home/Downloads/Documents/Desktop/Game data/App folder), dirs-first ci-alpha
 listing, extension filtering (incl. compound `.tar.gz`), max-size guard. Feeds chat
-attach (v0.708) and the Files page shared-uploads manager (v0.710).
-- Native: `src/gui/widgets/file_browser.rs` (`FilePickerState`, `file_picker_modal`), chat attach wiring in `src/gui/pages/chat.rs` (`ATTACH_EXTS`, `upload_file_blocking`)
+attach (v0.708) and the Files page shared-uploads manager (v0.710). Since v0.1503.0 every picker has
+the person's own Favorites row (Add to favorites / Remove from favorites beside the path) and opens
+in the folder the last file was picked from, both kept on this computer in `file_picker.json` beside
+`config.json` (never synced).
+- Native: `src/gui/widgets/file_browser.rs` (`FilePickerState`, `file_picker_modal`), `src/gui/widgets/file_picker_memory.rs` (`PickerMemory`, `with`), chat attach wiring in `src/gui/pages/chat.rs` (`ATTACH_EXTS`, `upload_file_blocking`)
 
 ### Unread Indicators (native, v0.715–v0.719)
 Sidebar-wide unread story, matching the web client's renderUnreadDots:
