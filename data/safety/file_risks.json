@@ -1,64 +1,118 @@
 {
-  "_doc": "Which files deserve a word of caution before someone opens one they were sent (2026-10-17, from a suggestion in the project's Discord: say when a file is a program, a script, an archive and so on, and to scan it first). Read by the desktop app (src/net/file_risk.rs) and the website (web/shared/file-risk.js), the same way, from this one list. Not an antivirus: it reads a file's name and its first bytes, and says what kind of thing it is and what to be careful of. `extensions` are lower case without the dot, longest first where one ends another (tar.gz before gz). `magic` is the file's first bytes, in lower-case hex: a file whose name says one kind and whose bytes say a program or an archive is called out as disguised (`named_as` lists the kinds a name can claim, and which kinds of contents would make it a disguise). Words: {ext} is the file's ending, {claimed} and {actual} are names from this file.",
+  "_doc": "What kind of file a file is, shown on every file a person sees (a badge: a picture, a word and a colour, so that someone who reads little or nothing still knows), and a word of caution before someone opens one they were sent (2026-10-17, from a suggestion in the project's Discord: say when a file is a program, a script, an archive and so on, and to scan it first). Read by the desktop app (src/net/file_risk.rs) and the website (web/shared/file-risk.js), the same way, from this one list. Not an antivirus: it reads a file's name and its first bytes. `kinds` deserve care; `named_as` are the kinds a name can claim, with which kinds of contents would make that claim a disguise; `unknown` is any other file. `level`: view (fine to look at: green), care (amber), danger (red), unknown (grey). `icon` names a drawing in `icons`, each a list of shapes on a 48 by 48 grid that both apps draw (rect [x,y,w,h], line [x1,y1,x2,y2], poly [x,y,...] open unless closed, circle [cx,cy,r]; fill fills it). `extensions` are lower case without the dot. `magic` is a file's first bytes in lower-case hex. Words: {ext} is the file's ending, {claimed} and {actual} are names from this file.",
   "version": 1,
   "kinds": [
-    {
-      "id": "program",
-      "name": "a program",
-      "words": "This is a program ({ext}). A program can do anything on your computer: only run it if you trust the person it came from, and scan it with your antivirus first.",
-      "extensions": ["exe", "msi", "msix", "appx", "com", "scr", "pif", "cpl", "app", "dmg", "pkg", "deb", "rpm", "apk", "appimage", "run", "jar"],
-      "magic": ["4d5a", "7f454c46", "feedface", "feedfacf", "cefaedfe", "cffaedfe", "cafebabe"]
-    },
-    {
-      "id": "script",
-      "name": "a script",
-      "words": "This is a script ({ext}). A script runs commands on your computer when it is opened: only run it if you trust the person it came from, and read it or scan it first.",
-      "extensions": ["bat", "cmd", "ps1", "psm1", "psd1", "vbs", "vbe", "js", "jse", "mjs", "wsf", "wsh", "hta", "sh", "bash", "zsh", "command", "py", "pyw", "rb", "pl", "php", "applescript", "scpt", "reg", "inf"],
-      "magic": ["2321"]
-    },
-    {
-      "id": "archive",
-      "name": "an archive",
-      "words": "This is an archive ({ext}). What is inside it has not been checked: scan it with your antivirus before you open what it holds, and be careful with any program inside.",
-      "extensions": ["tar.gz", "tar.bz2", "tar.xz", "zip", "rar", "7z", "tar", "gz", "tgz", "bz2", "xz", "zst", "cab", "iso", "img", "vhd", "vhdx"],
-      "magic": ["504b0304", "526172211a07", "377abcaf271c", "1f8b", "4d534346", "425a68", "fd377a585a00", "28b52ffd"]
-    },
-    {
-      "id": "macro_document",
-      "name": "a document that can carry macros",
-      "words": "This document can carry macros ({ext}). If it asks you to turn on macros or editing, do not, unless you trust the person it came from.",
-      "extensions": ["docm", "dotm", "xlsm", "xltm", "xlam", "pptm", "potm", "ppam", "sldm"],
-      "magic": []
-    },
-    {
-      "id": "shortcut",
-      "name": "a shortcut",
-      "words": "This is a shortcut ({ext}). A shortcut can start a program or open a website without saying which: do not open it unless you trust the person it came from.",
-      "extensions": ["lnk", "url", "scf", "desktop", "webloc", "inetloc"],
-      "magic": []
-    },
-    {
-      "id": "web_page",
-      "name": "a web page",
-      "words": "This is a web page or markup file ({ext}). Opened, it runs in your browser with its own scripts: do not open it unless you trust the person it came from.",
-      "extensions": ["html", "htm", "xhtml", "svg", "svgz", "xml", "mht", "mhtml"],
-      "magic": []
-    },
-    {
-      "id": "blend",
-      "name": "a Blender file",
-      "words": "Blender files can carry scripts. If Blender asks whether to run them, say no unless you trust the person who shared it.",
-      "extensions": ["blend"],
-      "magic": []
-    }
+    {"id": "program", "name": "a program", "label": "Program", "icon": "program", "level": "danger", "words": "This is a program ({ext}). A program can do anything on your computer: only run it if you trust the person it came from, and scan it with your antivirus first.", "extensions": ["exe", "msi", "msix", "appx", "com", "scr", "pif", "cpl", "app", "dmg", "pkg", "deb", "rpm", "apk", "appimage", "run", "jar"], "magic": ["4d5a", "7f454c46", "feedface", "feedfacf", "cefaedfe", "cffaedfe", "cafebabe"]},
+    {"id": "script", "name": "a script", "label": "Script", "icon": "script", "level": "danger", "words": "This is a script ({ext}). A script runs commands on your computer when it is opened: only run it if you trust the person it came from, and read it or scan it first.", "extensions": ["bat", "cmd", "ps1", "psm1", "psd1", "vbs", "vbe", "js", "jse", "mjs", "wsf", "wsh", "hta", "sh", "bash", "zsh", "command", "py", "pyw", "rb", "pl", "php", "applescript", "scpt", "reg", "inf"], "magic": ["2321"]},
+    {"id": "archive", "name": "an archive", "label": "Archive", "icon": "archive", "level": "care", "words": "This is an archive ({ext}). What is inside it has not been checked: scan it with your antivirus before you open what it holds, and be careful with any program inside.", "extensions": ["tar.gz", "tar.bz2", "tar.xz", "zip", "rar", "7z", "tar", "gz", "tgz", "bz2", "xz", "zst", "cab", "iso", "img", "vhd", "vhdx"], "magic": ["504b0304", "526172211a07", "377abcaf271c", "1f8b", "4d534346", "425a68", "fd377a585a00", "28b52ffd"]},
+    {"id": "macro_document", "name": "a document that can carry macros", "label": "Macro document", "icon": "macro_document", "level": "care", "words": "This document can carry macros ({ext}). If it asks you to turn on macros or editing, do not, unless you trust the person it came from.", "extensions": ["docm", "dotm", "xlsm", "xltm", "xlam", "pptm", "potm", "ppam", "sldm", "doc", "dot", "xls", "xlt", "ppt", "pot"], "magic": []},
+    {"id": "shortcut", "name": "a shortcut", "label": "Shortcut", "icon": "shortcut", "level": "danger", "words": "This is a shortcut ({ext}). A shortcut can start a program or open a website without saying which: do not open it unless you trust the person it came from.", "extensions": ["lnk", "url", "scf", "desktop", "webloc", "inetloc"], "magic": []},
+    {"id": "web_page", "name": "a web page", "label": "Web page", "icon": "web_page", "level": "care", "words": "This is a web page or markup file ({ext}). Opened, it runs in your browser with its own scripts: do not open it unless you trust the person it came from.", "extensions": ["html", "htm", "xhtml", "svg", "svgz", "xml", "mht", "mhtml"], "magic": []},
+    {"id": "blend", "name": "a Blender file", "label": "Blender file", "icon": "model", "level": "care", "words": "Blender files can carry scripts. If Blender asks whether to run them, say no unless you trust the person who shared it.", "extensions": ["blend"], "magic": []}
   ],
   "named_as": [
-    { "name": "a picture", "extensions": ["png", "jpg", "jpeg", "gif", "webp", "heic", "heif", "avif", "bmp", "tif", "tiff"], "disguised_if": ["program", "script", "archive"] },
-    { "name": "a video", "extensions": ["mp4", "webm", "mkv", "mov", "m4v", "avi", "ogv"], "disguised_if": ["program", "script", "archive"] },
-    { "name": "a sound", "extensions": ["mp3", "ogg", "oga", "opus", "wav", "flac", "m4a", "aac"], "disguised_if": ["program", "script", "archive"] },
-    { "name": "a PDF document", "extensions": ["pdf"], "disguised_if": ["program", "script", "archive"] },
-    { "name": "a text file", "extensions": ["txt", "md", "json", "csv"], "disguised_if": ["program", "archive"] },
-    { "name": "a 3D model", "extensions": ["stl", "obj", "glb", "gltf"], "disguised_if": ["program", "script", "archive"] }
+    {"id": "picture", "name": "a picture", "label": "Picture", "icon": "picture", "level": "view", "extensions": ["png", "jpg", "jpeg", "gif", "webp", "heic", "heif", "avif", "bmp", "tif", "tiff"], "disguised_if": ["program", "script", "archive"]},
+    {"id": "video", "name": "a video", "label": "Video", "icon": "video", "level": "view", "extensions": ["mp4", "webm", "mkv", "mov", "m4v", "avi", "ogv"], "disguised_if": ["program", "script", "archive"]},
+    {"id": "sound", "name": "a sound", "label": "Sound", "icon": "sound", "level": "view", "extensions": ["mp3", "ogg", "oga", "opus", "wav", "flac", "m4a", "aac"], "disguised_if": ["program", "script", "archive"]},
+    {"id": "pdf", "name": "a PDF document", "label": "PDF", "icon": "document", "level": "view", "extensions": ["pdf"], "disguised_if": ["program", "script", "archive"]},
+    {"id": "document", "name": "a document", "label": "Document", "icon": "document", "level": "view", "extensions": ["docx", "odt", "rtf", "xlsx", "ods", "pptx", "odp", "epub"], "disguised_if": ["program", "script"]},
+    {"id": "text", "name": "a text file", "label": "Text", "icon": "text", "level": "view", "extensions": ["txt", "md", "json", "csv"], "disguised_if": ["program", "archive"]},
+    {"id": "model", "name": "a 3D model", "label": "3D model", "icon": "model", "level": "view", "extensions": ["stl", "obj", "glb", "gltf"], "disguised_if": ["program", "script", "archive"]}
   ],
-  "disguised": "This file is named like {claimed} ({ext}), but what is inside is {actual}. Do not open it: a file pretending to be something else is a common trick."
+  "disguised": "This file is named like {claimed} ({ext}), but what is inside is {actual}. Do not open it: a file pretending to be something else is a common trick.",
+  "unknown": {
+    "id": "unknown",
+    "label": "File",
+    "icon": "unknown",
+    "level": "unknown"
+  },
+  "icons": {
+    "picture": [
+      {"rect": [6, 10, 36, 28]},
+      {"poly": [10, 34, 20, 22, 27, 30, 31, 26, 38, 34]},
+      {"circle": [31, 18, 3], "fill": true}
+    ],
+    "video": [
+      {"rect": [6, 10, 36, 28]},
+      {"poly": [20, 17, 20, 31, 31, 24], "closed": true, "fill": true}
+    ],
+    "sound": [
+      {"circle": [15, 35, 5], "fill": true},
+      {"circle": [33, 31, 5], "fill": true},
+      {"line": [20, 35, 20, 11]},
+      {"line": [38, 31, 38, 7]},
+      {"poly": [20, 11, 38, 7, 38, 13, 20, 17], "closed": true, "fill": true}
+    ],
+    "document": [
+      {"poly": [12, 4, 30, 4, 38, 12, 38, 44, 12, 44], "closed": true},
+      {"poly": [30, 4, 30, 12, 38, 12]},
+      {"line": [17, 20, 33, 20]},
+      {"line": [17, 27, 33, 27]},
+      {"line": [17, 34, 28, 34]}
+    ],
+    "text": [
+      {"poly": [12, 4, 30, 4, 38, 12, 38, 44, 12, 44], "closed": true},
+      {"poly": [30, 4, 30, 12, 38, 12]},
+      {"line": [17, 22, 33, 22]},
+      {"line": [17, 30, 28, 30]}
+    ],
+    "model": [
+      {"poly": [24, 6, 40, 15, 40, 33, 24, 42, 8, 33, 8, 15], "closed": true},
+      {"poly": [8, 15, 24, 24, 40, 15]},
+      {"line": [24, 24, 24, 42]}
+    ],
+    "archive": [
+      {"rect": [6, 10, 36, 7]},
+      {"rect": [9, 17, 30, 25]},
+      {"line": [24, 17, 24, 42]},
+      {"rect": [20, 22, 8, 6], "fill": true}
+    ],
+    "program": [
+      {"rect": [6, 8, 36, 32]},
+      {"line": [6, 15, 42, 15]},
+      {"circle": [24, 28, 5]},
+      {"line": [24, 19, 24, 22]},
+      {"line": [24, 34, 24, 37]},
+      {"line": [15, 28, 18, 28]},
+      {"line": [30, 28, 33, 28]},
+      {"line": [18, 22, 20, 24]},
+      {"line": [28, 32, 30, 34]},
+      {"line": [30, 22, 28, 24]},
+      {"line": [20, 32, 18, 34]}
+    ],
+    "script": [
+      {"poly": [12, 4, 30, 4, 38, 12, 38, 44, 12, 44], "closed": true},
+      {"poly": [30, 4, 30, 12, 38, 12]},
+      {"poly": [16, 22, 22, 27, 16, 32]},
+      {"line": [24, 34, 33, 34]}
+    ],
+    "macro_document": [
+      {"poly": [12, 4, 30, 4, 38, 12, 38, 44, 12, 44], "closed": true},
+      {"poly": [30, 4, 30, 12, 38, 12]},
+      {"line": [17, 18, 33, 18]},
+      {"circle": [25, 32, 5]},
+      {"line": [25, 24, 25, 26]},
+      {"line": [25, 38, 25, 40]},
+      {"line": [17, 32, 19, 32]},
+      {"line": [31, 32, 33, 32]}
+    ],
+    "shortcut": [
+      {"rect": [8, 8, 32, 32]},
+      {"line": [16, 32, 31, 17]},
+      {"poly": [21, 17, 31, 17, 31, 27]}
+    ],
+    "web_page": [
+      {"circle": [24, 24, 17]},
+      {"poly": [24, 7, 18, 12, 16, 24, 18, 36, 24, 41, 30, 36, 32, 24, 30, 12], "closed": true},
+      {"line": [7, 24, 41, 24]},
+      {"line": [10, 15, 38, 15]},
+      {"line": [10, 33, 38, 33]}
+    ],
+    "unknown": [
+      {"poly": [12, 4, 30, 4, 38, 12, 38, 44, 12, 44], "closed": true},
+      {"poly": [30, 4, 30, 12, 38, 12]},
+      {"poly": [20, 22, 21, 18, 25, 16, 29, 18, 29, 22, 25, 26, 25, 30]},
+      {"circle": [25, 36, 1.5], "fill": true}
+    ]
+  }
 }

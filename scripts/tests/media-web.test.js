@@ -36,6 +36,13 @@
 // 10. The session signs in with a real Dilithium3 signature over the relay's exact words, sends
 //     nothing else first, takes the upload token, role and limit from its own peer_list entry,
 //     asks for the settings, keeps the role list, and with no identity opens no socket.
+// 13. (2026-10-17) Add to Media is in three tinted parts, "Files" (blue) first, then "About it"
+//     (red) and "Who can see it" (green), the buttons under them; each chosen file shows its type's
+//     badge (a grey "File" until the list of kinds is in, asked for once), then its name and size.
+// 14. (2026-10-17) Shared Files: each row's badge just before the file's name, drawn again once the
+//     list of kinds is in; a name is never markup.
+// 15. (2026-10-17) The badge's and the tinted parts' styles use theme tokens only (the levels and the
+//     three sidebar colours), and every page that shows them loads them and /shared/file-risk.js.
 //
 // Seen red, 2026-10-11 (each with the code it guards broken in a copy of web/ under HOS_WEB_DIR,
 // then green again on the real web/): see the note above each test.
@@ -324,7 +331,11 @@ test("6b. Add to Media takes several files: one item, the others added to it onc
   input.files = [aFile("model.stl", 10 * MIB, "model/stl"), aFile("photo.png", MIB)];
   input.dispatch("change");
   await settle();
-  assert.equal(text(byId(doc, "media-form-more")), "Also on this item, each added once the item is up: photo.png (1 MB)", "the form names the other file");
+  // Since 2026-10-17 each further file is its own row, its type's badge first (test 13). Seen red
+  // with the further files back in one line of text: "the form says the others go on the item too".
+  const more = byId(doc, "media-form-more");
+  assert.equal(text(more.children[0]), media.MORE_LEAD, "the form says the others go on the item too");
+  assert.deepEqual(more.querySelectorAll(".media-form-file-name").map(text), ["photo.png (1 MB)"], "the form names the other file");
   byId(doc, "media-form-go").click();
   for (let i = 0; i < 5; i++) await settle();
   const adds = net.calls.filter((c) => c.url === "/api/media/files/add");
@@ -664,4 +675,180 @@ test("12. the page is in the nav beside Watch and loads its scripts in order", (
   const shared = fs.readFileSync(path.join(WEB, "pages", "shared-files.html"), "utf8");
   assert.ok(shared.includes("'/media?put=' + encodeURIComponent("), "a Shared Files row links to Put on Media");
   assert.ok(/f\.uploader_key !== myKey/.test(shared), "on the person's own rows only");
+});
+
+// ── 13. Add to Media in three tinted parts, each file's type shown (2026-10-17) ──
+
+const vm = require("node:vm");
+const FRISK = require(path.join(WEB, "shared", "file-risk.js"));
+const RISK_LIST = JSON.parse(fs.readFileSync(path.join(H.ROOT, "data", "safety", "file_risks.json"), "utf8"));
+const LICENCES = JSON.parse(fs.readFileSync(path.join(H.ROOT, "scripts", "tests", "fixtures", "media-round5-v1.json"), "utf8")).licences;
+/** The tinted parts directly in `el`. */
+const partsOf = (el) => el.children.filter((c) => String(c.className).split(/\s+/).includes("tint-section"));
+/** Is `child` inside `el`? */
+const within = (el, child) => { for (let n = child; n; n = n.parentNode) if (n === el) return true; return false; };
+/** A file-kinds route that answers only once released; its hold ends with the test (`t.after`). */
+function lateList(t) {
+  let release = () => {};
+  const gate = new Promise((r) => { release = r; });
+  const late = { asked: 0, release };
+  late.route = [at("/data/safety/file_risks.json"), async () => { late.asked++; await gate; return respond(200, RISK_LIST); }];
+  t.after(async () => { release(); for (let i = 0; i < 4; i++) await settle(); });
+  return late;
+}
+
+// The operator asked for "the RGB aesthetic for the different sections of the interface like how
+// the DMs, Groups, and servers in chat are but darker RGB in the pop up window"; and every file's
+// type, always ("protect people inexperienced with technology and possibly illiterate people"). As
+// the desktop's Add to Media (media/add.rs): "Files" (blue) first, holding each chosen file with its
+// type's badge and size and the share left; then "About it" (red) and "Who can see it" (green); the
+// buttons under them, outside. Each badge is a grey "File" until the list of kinds is in, asked for
+// once, then the file's type.
+// Seen red 2026-10-17, each in a copy of web/ through HOS_WEB_DIR: with fileLine drawing no badge:
+// "the chosen file: its badge first"; with About it and Who can see it put before Files: "the three
+// parts, Files first" (red, green, blue against blue, red, green); with askFileTypes never asking:
+// "the list is asked for once" (0 against 1).
+test("13. Add to Media is in three tinted parts, its files first; each chosen file shows its type", async (t) => {
+  FRISK.use(null); // not in yet: the form asks for it
+  const late = lateList(t);
+  const { doc } = await openPage({ routes: listRoutes(listAnswer([], { licences: LICENCES }), [
+    [at("/api/media/mine", "POST"), () => respond(200, mineAnswer())],
+    late.route,
+  ]) });
+  const input = byId(doc, "media-file-input");
+  input.files = [aFile("model.stl", 10 * MIB, "model/stl"), aFile("setup.exe", MIB, "application/octet-stream")];
+  input.dispatch("change");
+  await settle();
+  const panel = byId(doc, "media-form").children[0];
+  assert.deepEqual(partsOf(panel).map((p) => [p.className, text(p.children[0])]), [
+    ["tint-section tint-blue", "Files"], ["tint-section tint-red", "About it"], ["tint-section tint-green", "Who can see it"],
+  ], "the three parts, Files first");
+  const [files, about, who] = partsOf(panel);
+  for (const p of partsOf(panel)) assert.equal(p.children[0].className, "tint-section-title", "each with its title on top");
+  const line = files.querySelector(".media-form-file");
+  assert.ok(line && line.children[0] && line.children[0].className.startsWith("file-badge"), "the chosen file: its badge first");
+  assert.equal(line.children[0].className, "file-badge level-unknown", "a grey File before the list is in");
+  assert.equal(text(line.children[1]), "model.stl (10 MB)", "then its name and size");
+  const moreRows = byId(doc, "media-form-more").querySelectorAll(".media-form-more-file");
+  assert.equal(moreRows.length, 1, "the further file, on its own row");
+  assert.ok(within(files, moreRows[0]), "in the Files part");
+  assert.equal(text(moreRows[0].children[1]), "setup.exe (1 MB)");
+  assert.ok(within(files, byId(doc, "media-share-line")), "the share left is in the Files part");
+  for (const id of ["media-form-title", "media-form-category", "media-form-description", "media-form-labels"]) assert.ok(within(about, byId(doc, id)), "About it holds #" + id);
+  for (const id of ["media-form-visibility", "media-form-licence"]) assert.ok(within(who, byId(doc, id)), "Who can see it holds #" + id);
+  assert.ok(within(who, panel.querySelector("[data-hosting]")), "Who can see it holds the hosting paragraph");
+  for (const id of ["media-form-go", "media-form-cancel"]) {
+    assert.ok(byId(doc, id) && partsOf(panel).every((p) => !within(p, byId(doc, id))), "#" + id + " is outside the parts");
+  }
+  assert.ok(panel.children.indexOf(who) < panel.children.indexOf(byId(doc, "media-form-actions")), "the buttons under them");
+  assert.equal(late.asked, 1, "the list is asked for once");
+
+  late.release();
+  for (let i = 0; i < 4; i++) await settle();
+  const first = files.querySelector(".media-form-file").children[0];
+  assert.equal(first.className, "file-badge level-view", "a 3D model, once the list is in: fine to look at");
+  assert.equal(text(first), "3D model.stl");
+  const program = byId(doc, "media-form-more").querySelector(".media-form-more-file").children[0];
+  assert.equal(program.className, "file-badge level-danger", "a program: red");
+  assert.equal(text(program), "Program.exe");
+  assert.equal(program.title, "Program");
+  assert.equal(late.asked, 1, "and not asked again");
+});
+
+// ── 14. Shared Files: each file's type before its name (2026-10-17) ─────
+
+/**
+ * Run the Shared Files page's own script (web/pages/shared-files.html, its one inline <script>)
+ * against a stand-in page: its list element (whose innerHTML is what it draws), its search box, the
+ * server's list of uploads (`files`) and HosFileRisk (`risk`).
+ */
+function sharedFilesPage(files, risk) {
+  const html = fs.readFileSync(path.join(WEB, "pages", "shared-files.html"), "utf8");
+  const src = /<script>([\s\S]*?)<\/script>/.exec(html)[1];
+  const els = { "sf-list": { innerHTML: "", querySelectorAll: () => [] }, "sf-q": { value: "", addEventListener() {} } };
+  const asked = [];
+  const ctx = {
+    document: { getElementById: (id) => els[id] || null, createElement: () => ({}) },
+    fetch: async (u) => { asked.push(String(u)); return { ok: true, json: async () => ({ files }) }; },
+    HosFileRisk: risk, console, Promise,
+  };
+  ctx.window = ctx;
+  vm.runInNewContext(src, ctx);
+  return { list: els["sf-list"], asked };
+}
+
+// Seen red 2026-10-17 in a copy of web/ through HOS_WEB_DIR: with the row drawn without typeBadge
+// (its old text box of the ending): "each row: its badge, then its name"; with the rows not drawn
+// again once the list is in: "bracket.stl, once the list is in: a 3D model's badge".
+test("14. Shared Files: each row shows its file's type just before its name, drawn again once the list is in", async () => {
+  FRISK.use(null);
+  let loaded = false;
+  let release = () => {};
+  const gate = new Promise((r) => { release = r; });
+  const risk = {
+    ready: () => loaded,
+    load: () => gate.then(() => { loaded = true; return RISK_LIST; }),
+    badgeHtml: (name, head) => FRISK.badgeHtml(name, head, loaded ? RISK_LIST : undefined),
+  };
+  const files = [
+    { name: "bracket.stl", url: "/uploads/1_bracket.stl", size_bytes: 2048, uploaded_at: 1, uploader_name: "Ann" },
+    { name: '<b>"odd"</b>.zip', url: "/uploads/2_odd.zip", size_bytes: 10, uploaded_at: 1, uploader_name: "Ben" },
+  ];
+  const page = sharedFilesPage(files, risk);
+  await settle();
+  assert.deepEqual(page.asked, ["/api/uploads?limit=500"], "test setup: the page asked for the list of uploads");
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const rowName = (name) => '<div class="sf-name">' + FRISK.badgeHtml(name, null, loaded ? RISK_LIST : undefined) + '<span class="sf-name-text">' + esc(name) + "</span></div>";
+  for (const f of files) assert.ok(page.list.innerHTML.includes(rowName(f.name)), "each row: its badge, then its name: " + f.name);
+  assert.ok(page.list.innerHTML.includes('class="file-badge level-unknown"'), "a grey File before the list is in");
+  assert.ok(!page.list.innerHTML.includes("sf-icon"), "the old box of the file's ending is gone: the badge says it");
+  assert.ok(!page.list.innerHTML.includes("<b>"), "a name is never markup");
+  release();
+  await settle();
+  assert.ok(page.list.innerHTML.includes(rowName("bracket.stl")) && rowName("bracket.stl").includes('class="file-badge level-view" data-file-badge="bracket.stl" data-file-type="model"'),
+    "bracket.stl, once the list is in: a 3D model's badge");
+  assert.ok(page.list.innerHTML.includes(rowName(files[1].name)) && rowName(files[1].name).includes("level-care"), "an archive: take care");
+});
+
+// ── 15. The badge's and the parts' styles, and every page that shows them (2026-10-17) ──
+
+// Seen red 2026-10-17 in a copy of web/ through HOS_WEB_DIR: with file-badge.css's danger level on a
+// colour theme.css does not have (var(--dangerous)): "file-badge.css: every colour and size is a
+// theme token: --dangerous"; with the stylesheet link taken out of shared-files.html: "pages/shared-
+// files.html links /shared/file-badge.css".
+test("15. the badge and the tinted parts use theme tokens only, and every page that shows them loads them", () => {
+  const theme = fs.readFileSync(path.join(WEB, "shared", "theme.css"), "utf8");
+  const defined = new Set([...theme.matchAll(/(--[\w-]+)\s*:/g)].map((m) => m[1]));
+  const badgeCss = fs.readFileSync(path.join(WEB, "shared", "file-badge.css"), "utf8");
+  const tintCss = fs.readFileSync(path.join(WEB, "shared", "tint-section.css"), "utf8");
+  for (const [name, css] of [["file-badge.css", badgeCss], ["tint-section.css", tintCss]]) {
+    const own = new Set([...css.matchAll(/(--[\w-]+)\s*:/g)].map((m) => m[1]));
+    for (const m of css.matchAll(/var\((--[\w-]+)/g)) {
+      assert.ok(defined.has(m[1]) || own.has(m[1]), name + ": every colour and size is a theme token: " + m[1]);
+    }
+  }
+  const rule = (css, sel) => { const m = new RegExp(sel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s*\\{([^}]*)\\}").exec(css); return m ? m[1].replace(/\s+/g, " ").trim() : null; };
+  assert.equal(rule(badgeCss, ".file-badge.level-view"), "--badge: var(--success);");
+  assert.equal(rule(badgeCss, ".file-badge.level-care"), "--badge: var(--warning);");
+  assert.equal(rule(badgeCss, ".file-badge.level-danger"), "--badge: var(--danger);");
+  assert.equal(rule(badgeCss, ".file-badge.level-unknown"), "--badge: var(--text-muted);");
+  assert.ok(/border-width:\s*2px/.test(rule(badgeCss, ".file-badge.disguised")), "a disguised file's badge: a thicker edge");
+  assert.equal(rule(tintCss, ".tint-section.tint-red"), "--tint: var(--dm-bg);", "red is the DMs' colour");
+  assert.equal(rule(tintCss, ".tint-section.tint-green"), "--tint: var(--group-bg);", "green the groups'");
+  assert.equal(rule(tintCss, ".tint-section.tint-blue"), "--tint: var(--server-bg);", "blue the servers'");
+  const section = rule(tintCss, ".tint-section");
+  assert.ok(section.includes("background: color-mix(in srgb, var(--tint) 70%, transparent);") && section.includes("border: 1px solid var(--tint);"), "darker, edged in the colour itself: " + section);
+  const page = (rel) => fs.readFileSync(path.join(WEB, rel), "utf8");
+  for (const rel of ["chat/index.html", "pages/media.html", "pages/shared-files.html"]) {
+    const html = page(rel);
+    assert.ok(/<link rel="stylesheet" href="\/shared\/file-badge\.css\?v=\d+">/.test(html), rel + " links /shared/file-badge.css");
+    assert.ok(/<script src="\/shared\/file-risk\.js\?v=\d+"><\/script>/.test(html), rel + " loads /shared/file-risk.js");
+  }
+  for (const rel of ["chat/index.html", "pages/media.html"]) {
+    assert.ok(/<link rel="stylesheet" href="\/shared\/tint-section\.css\?v=\d+">/.test(page(rel)), rel + " links /shared/tint-section.css");
+  }
+  const media = page("pages/media.html");
+  assert.ok(media.indexOf("/shared/file-risk.js") < media.indexOf("/pages/media-edit.js"), "file-risk.js before media-edit.js, which draws the badges");
+  const shared = page("pages/shared-files.html");
+  assert.ok(shared.indexOf("/shared/file-risk.js") < shared.indexOf("<script>"), "and before the Shared Files page's own script");
 });

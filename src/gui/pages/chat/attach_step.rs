@@ -33,6 +33,7 @@ use super::*;
 use super::attach_send::{AttachJob, Destination};
 use crate::net::file_clean::{self, Look};
 use crate::net::files_policy as policy;
+use crate::gui::widgets::tint_section::{self, Tint};
 use std::sync::mpsc::Receiver;
 
 /// What a file says, worked out on a worker thread so a big file never stops the frame.
@@ -403,21 +404,40 @@ pub(super) fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     widgets::dialog(ctx, theme, "chat_attach_step", "Send a file", &mut open, |ui| {
         ui.set_max_width(460.0);
         let size = if step.direct.is_some() { crate::net::file_offer::size_words(step.job.body.len()) } else { super::attach_view::size_words(step.job.body.len()) };
-        ui.label(RichText::new(format!("{} ({size})", step.job.filename)).size(theme.font_size_body).color(theme.text_primary()).strong());
-        ui.add_space(theme.spacing_xs);
-        verdict_now = draw_look(ui, theme, &mut step.looking, &mut step.remove, protected, private);
-        if let Some(line) = &line {
-            ui.add_space(theme.spacing_xs);
-            ui.label(RichText::new(line).size(theme.font_size_small).color(theme.text_secondary()));
-        }
-        if let Some((why, how, blocker)) = &direct_lines {
-            ui.add_space(theme.spacing_xs);
-            ui.label(RichText::new(why).size(theme.font_size_small).color(theme.text_primary()));
-            ui.label(RichText::new(how).size(theme.font_size_small).color(theme.text_secondary()));
-            if let Some(b) = blocker {
-                ui.label(RichText::new(b).size(theme.font_size_small).color(theme.warning()));
-                verdict_now.can_send = false;
+        // Two parts in the chat sidebar's colours, darker (widgets/tint_section.rs, 2026-10-17): the
+        // file, with its type first (widgets/file_badge.rs), then what is hidden in it.
+        let mut blocked = false;
+        tint_section::show(ui, theme, Tint::Blue, THE_FILE, |ui| {
+            ui.horizontal_wrapped(|ui| {
+                // From its first bytes too, so a file named like a picture that is a program is red
+                // before it goes (the website's attach step reads them the same way).
+                let file_type = match &step.job.body {
+                    super::attach_body::Body::File { path, .. } => crate::net::file_risk::file_type_saved(&step.job.filename, path),
+                    super::attach_body::Body::Bytes(b) => crate::net::file_risk::file_type(&step.job.filename, Some(&b[..b.len().min(16)])),
+                };
+                widgets::file_badge::show(ui, theme, &file_type);
+                ui.label(RichText::new(format!("{} ({size})", step.job.filename)).size(theme.font_size_body).color(theme.text_primary()).strong());
+            });
+            if let Some(line) = &line {
+                ui.add_space(theme.spacing_xs);
+                ui.label(RichText::new(line).size(theme.font_size_small).color(theme.text_secondary()));
             }
+            if let Some((why, how, blocker)) = &direct_lines {
+                ui.add_space(theme.spacing_xs);
+                ui.label(RichText::new(why).size(theme.font_size_small).color(theme.text_primary()));
+                ui.label(RichText::new(how).size(theme.font_size_small).color(theme.text_secondary()));
+                if let Some(b) = blocker {
+                    ui.label(RichText::new(b).size(theme.font_size_small).color(theme.warning()));
+                    blocked = true;
+                }
+            }
+        });
+        ui.add_space(theme.spacing_sm);
+        tint_section::show(ui, theme, Tint::Green, HIDDEN_DETAILS, |ui| {
+            verdict_now = draw_look(ui, theme, &mut step.looking, &mut step.remove, protected, private);
+        });
+        if blocked {
+            verdict_now.can_send = false;
         }
         ui.add_space(theme.spacing_sm);
         ui.horizontal(|ui| {
@@ -436,6 +456,10 @@ pub(super) fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         state.files_flow.step = Some(step);
     }
 }
+
+/// The two parts of "Send a file" (widgets/tint_section.rs), the website's too.
+pub const THE_FILE: &str = "The file";
+pub const HIDDEN_DETAILS: &str = "Hidden details";
 
 #[cfg(test)]
 #[path = "attach_step_tests.rs"]

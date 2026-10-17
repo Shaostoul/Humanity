@@ -164,6 +164,9 @@ const W = require(path.join(WEB, "shared", "warnings.js"));
 const report = require(path.join(WEB, "shared", "report.js"));
 const SHIPPED_PRESETS = JSON.parse(fs.readFileSync(path.join(ROOT, "data", "gui", "safety_presets.json"), "utf8"));
 const SHIPPED_WARNINGS = JSON.parse(fs.readFileSync(path.join(ROOT, "data", "safety", "warnings.json"), "utf8"));
+// What kind of file a file is (2026-10-17, /shared/file-risk.js): the shipped list, served to the page, so
+// a file card holds its type's badge as it does in a browser.
+const SHIPPED_FILE_RISKS = JSON.parse(fs.readFileSync(path.join(ROOT, "data", "safety", "file_risks.json"), "utf8"));
 const SHIPPED_REASONS = JSON.parse(fs.readFileSync(path.join(ROOT, "data", "safety", "report_reasons.json"), "utf8"));
 const PRESET = P.protectedPresetFrom(SHIPPED_PRESETS);
 const clone = (x) => JSON.parse(JSON.stringify(x));
@@ -416,6 +419,7 @@ async function loadChat(opts = {}) {
       if (u.startsWith("/api/federation/servers")) return ok(opts.federated || []);
       if (u === P.PROTECTED_PRESETS_URL) return ok(clone(presets));
       if (u === W.WARNINGS_URL) return ok(clone(SHIPPED_WARNINGS));
+      if (u === "/data/safety/file_risks.json") return ok(clone(SHIPPED_FILE_RISKS));
       if (u.startsWith(report.REPORT_REASONS_URL)) return ok(clone(SHIPPED_REASONS));
       if (u === "/api/v2/objects" && method === "POST") { posted.push(JSON.parse(init.body)); return ok({ ok: true }); }
       if (u === "/api/account/export") {
@@ -470,6 +474,7 @@ async function loadChat(opts = {}) {
   run("shared/report.js");
   run("shared/warnings.js");
   run("shared/protected.js");
+  run("shared/file-risk.js"); // as web/chat/index.html loads it (2026-10-17): every file card's type
   run("shared/profile-changes.js");
   run("shared/profile-copy.js"); // as web/chat/index.html loads it (BUG-191)
   run("chat/crypto.js");
@@ -1184,10 +1189,15 @@ test("pictures and files from someone who is not a friend are not shown; a frien
   let h = post(BEN, 100);
   assert.ok(h.includes("click to load") && h.includes("<audio") && h.includes("file-card"), "off: everyone's pictures click to load");
   assert.equal(h.split('<div class="file-card').length - 1, 6, "off: a card for each file (the sound, the video, the PDF, the model, the picture, the archive)");
+  // Since 2026-10-17 each card holds its type's badge (/shared/file-risk.js), its drawing an <svg>:
+  // the card still goes as one unit, the badge with it. Seen red 2026-10-17 in a copy of web/
+  // through HOS_WEB_DIR with each badge drawn just before its card (outside the unit): "with
+  // nothing of any card left behind".
+  assert.equal(h.split('<span class="file-badge level-').length - 1, 6, "off: each card shows its file's type");
   await turnOn(chat);
   h = post(BEN, 101);
   assert.ok(!h.includes("img-placeholder") && !h.includes("<audio") && !h.includes("<video") && !h.includes("file-card"), "on: a non-friend's pictures and files are gone");
-  assert.ok(!h.includes("Download") && !h.includes("file-name") && !h.includes("uploads/"), "with nothing of any card left behind");
+  assert.ok(!h.includes("Download") && !h.includes("file-name") && !h.includes("uploads/") && !h.includes("file-badge") && !h.includes("<svg"), "with nothing of any card left behind");
   assert.equal(h.split(line).length - 1, 7, "one line in place of each");
   assert.equal(h.split("<div").length, h.split("</div>").length, "and the body's divs still balance");
   assert.ok(h.includes("look"), "the words stay");

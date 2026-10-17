@@ -1047,9 +1047,9 @@
     },
     {
       "path": "/chat/app.js",
-      "hash": "sha256:af4ff8e2ac25615b31a48a9b4289325715e8519f01606c15fa1ca1c8888e4370",
-      "size": 140638,
-      "modified": 1792272554
+      "hash": "sha256:58ff20f95d5d4cae7fcb4e47a41a696c7010aff97b7c4dc39a8ab9a16022d995",
+      "size": 143480,
+      "modified": 1792277788
     },
     {
       "path": "/chat/base.css",
@@ -1071,15 +1071,15 @@
     },
     {
       "path": "/chat/chat-dms.js",
-      "hash": "sha256:0c7791eaed0f3e14b4affb936bde703d5050c1f88f0a86f373b82d16d78c629b",
-      "size": 40850,
-      "modified": 1792271022
+      "hash": "sha256:f33fd93204f8c3cbb490ae155ea3c0e78c023e6bff9729ad1d3c398dab7ac0f5",
+      "size": 41522,
+      "modified": 1792277812
     },
     {
       "path": "/chat/chat-file-transfer.js",
-      "hash": "sha256:7c9911cf1b24d69cc1299a64219648e81bbbb58547bf3fa8d8124ed79adaafd4",
-      "size": 76939,
-      "modified": 1792271102
+      "hash": "sha256:b631d1740814811e5554dde30998fba0980eebff0a82b91d03204ee1782aab89",
+      "size": 78163,
+      "modified": 1792277831
     },
     {
       "path": "/chat/chat-fleet.js",
@@ -1113,9 +1113,9 @@
     },
     {
       "path": "/chat/chat-messages.js",
-      "hash": "sha256:df02f4387f659635426ffdf9e709f2e32d6bdb537dd2923786a5c28855d2e3ff",
-      "size": 51893,
-      "modified": 1792271054
+      "hash": "sha256:6c821b1f490625975526138f442d6d3f16f0faa092c5db5581a696dbda1e22e1",
+      "size": 53847,
+      "modified": 1792277855
     },
     {
       "path": "/chat/chat-onboarding.js",
@@ -1227,9 +1227,9 @@
     },
     {
       "path": "/chat/index.html",
-      "hash": "sha256:e3bc6adaa590af8635c27ae9ff9a84d13db5e153e57a61f1aff1afab7f434a98",
-      "size": 57514,
-      "modified": 1792271148
+      "hash": "sha256:ebd8147ef7522c3933c2344268b63a336a67792ec54179c59699d28d0db865a7",
+      "size": 57961,
+      "modified": 1792277885
     },
     {
       "path": "/chat/inputs.css",
@@ -1245,9 +1245,9 @@
     },
     {
       "path": "/chat/messages.css",
-      "hash": "sha256:ee72ce243fa9f331c6cee459e6f23f2832c9ac05d57f3ebf5ca21b83df7ec265",
-      "size": 23201,
-      "modified": 1792272524
+      "hash": "sha256:a7a7a158b37d1da6ca18bf345b9ff31140712995e61caa31c300e4d6fc37c5cd",
+      "size": 24196,
+      "modified": 1792277866
     },
     {
       "path": "/chat/modals.css",
@@ -1311,9 +1311,9 @@
     },
     {
       "path": "/download.html",
-      "hash": "sha256:467369debe43157f9c4465733e6eab49531d93cb6a3c30ba067a005eafa9364b",
+      "hash": "sha256:42590c5f7535f0cfb3ab520a17048484ff560d0bbb0357135f590499492b90fa",
       "size": 47278,
-      "modified": 1792273179
+      "modified": 1792279935
     },
     {
       "path": "/files.html",
@@ -1359,9 +1359,9 @@
     },
     {
       "path": "/index.html",
-      "hash": "sha256:2b4b1f35668f46a0d690e9638b89611e6f3964f73bdab851e3614f9a7789c8b7",
+      "hash": "sha256:62fa9af4b468eb2b039def312c92a8c47d28df3b370bbb436ab838fa2406f0cc",
       "size": 40209,
-      "modified": 1792273179
+      "modified": 1792279935
     },
     {
       "path": "/inventory.html",
@@ -1395,9 +1395,9 @@
     },
     {
       "path": "/media.html",
-      "hash": "sha256:bd9c655350f1e48a8b9a3e7a1fad1ecfecd2ea93484e49a50448470423823213",
-      "size": 4537,
-      "modified": 1792271148
+      "hash": "sha256:35a91c9fca150ae16a0b2b67a08c5939a3dbbe7ac13320e5af79eda21cff558b",
+      "size": 4938,
+      "modified": 1792278100
     },
     {
       "path": "/mission.html",
@@ -1419,9 +1419,9 @@
     },
     {
       "path": "/ops.html",
-      "hash": "sha256:43bdaa9b106503aa13a188ba6c976a483b919adc411fb5c8a8a8bc3cdbb31837",
+      "hash": "sha256:33384a0f380dc527840fc1c6824b9c1c93d2678544b6a13dfafcf313f04adcd5",
       "size": 22076,
-      "modified": 1792273179
+      "modified": 1792279935
     },
     {
       "path": "/pages/accord-app.js",
@@ -1497,21 +1497,21 @@
     },
     {
       "path": "/pages/media-app.js",
-      "hash": "sha256:ee92debbe28851451af5134c691d7b31db5c138dfde5a75d13c9e1f95369a97f",
-      "size": 128729,
-      "modified": 1792207881
+      "hash": "sha256:7abd322812a46ac3fce89fd484a7dd19ce7fda66b67fb378873ae29ce608600d",
+      "size": 130850,
+      "modified": 1792278082
     },
     {
       "path": "/pages/media-edit.js",
-      "hash": "sha256:902788b0d6608a86511561978c2772c8c56b62668faf6ef82a77a74522d03aad",
-      "size": 23678,
-      "modified": 1792183146
+      "hash": "sha256:88a6d3a7409ed1095d1b0ac4dd03307a9b140b1a91c39f7bb792ee3b7994c51f",
+      "size": 30304,
+      "modified": 1792278062
     },
     {
       "path": "/pages/media-item.js",
-      "hash": "sha256:05adde2d52d9d9c014bf64ea168e05753373e0821fc4cee8428061e09eb7e8dd",
-      "size": 44445,
-      "modified": 1792271120
+      "hash": "sha256:a317bfb446e3c402fb2d232e245a6969a7d497205ee48b2e2bbbaa279ec6456e",
+      "size": 44931,
+      "modified": 1792278004
     },
     {
       "path": "/pages/media-takedown.js",
@@ -1539,9 +1539,9 @@
     },
     {
       "path": "/pages/settings-app.js",
-      "hash": "sha256:8f30d75bab4ac8982f3a6a070fa0b8214be39fb020e6ab58d60de014fd0385d3",
+      "hash": "sha256:b3b3b62b54601e50b14c4bc11fe04110d3603b35bf6cdb679d98e361020ecc96",
       "size": 105274,
-      "modified": 1792273179
+      "modified": 1792279935
     },
     {
       "path": "/pages/tasks-app.js",
@@ -1611,9 +1611,9 @@
     },
     {
       "path": "/shared-files.html",
-      "hash": "sha256:0634d49062659f6b9fcde804fab0ad7f09d33194a2fbcfa044cbf6ebff22b052",
-      "size": 9254,
-      "modified": 1791709212
+      "hash": "sha256:9fb94d13cfe1c38aa2b85fc20cd7e06ef30c2be8c00c5b33c902ac28b1986f1b",
+      "size": 10189,
+      "modified": 1792278115
     },
     {
       "path": "/shared/accessibility.js",
@@ -1664,10 +1664,16 @@
       "modified": 1780697921
     },
     {
+      "path": "/shared/file-badge.css",
+      "hash": "sha256:020f955dbe7c9a3a09d1fa8f2502c615f002d709aec9b8a3654c45824361be7c",
+      "size": 2207,
+      "modified": 1792277739
+    },
+    {
       "path": "/shared/file-risk.js",
-      "hash": "sha256:cde96465a7ed00262af46be7063284b1010d4dfd6737ae36d42b58ede0641bea",
-      "size": 5183,
-      "modified": 1792270389
+      "hash": "sha256:bc5c52f916b4dff31ea520e2c403e15d256e4f2fae32f83844cd1999a1dc5bd5",
+      "size": 11263,
+      "modified": 1792279411
     },
     {
       "path": "/shared/file-transfer.js",
@@ -1797,9 +1803,9 @@
     },
     {
       "path": "/shared/media.css",
-      "hash": "sha256:485c0b9eef13161426eae4544d33a17c2afcbd834c0b6965b24a0305ce2048ca",
-      "size": 13372,
-      "modified": 1792272524
+      "hash": "sha256:1ed2384ed6cb6bcc2b7cb438bbb438fa793735b0de5045f573b640d8297d0ead",
+      "size": 13832,
+      "modified": 1792278088
     },
     {
       "path": "/shared/memory.json",
@@ -1899,9 +1905,9 @@
     },
     {
       "path": "/shared/shell.js",
-      "hash": "sha256:3d47198412444d2e588a8ea7f79b195cf8d05c56ae3b507bb0111fa9aaa468b8",
+      "hash": "sha256:10342088ab65f00e9f457d9f59b672cf8e094d5b79e2f3101cf93480a8f183de",
       "size": 99097,
-      "modified": 1792273179
+      "modified": 1792279935
     },
     {
       "path": "/shared/strip-metadata.js",
@@ -1911,15 +1917,21 @@
     },
     {
       "path": "/shared/sw.js",
-      "hash": "sha256:1b3bea2cf447d97263066fb5a0dc1ef817fe9af5625f3e1b88b970ea47fd8c43",
+      "hash": "sha256:219c655bb881e5ac3cce00c299ad365c57eeed1e414bc499690f1f1507317b88",
       "size": 5824,
-      "modified": 1792273179
+      "modified": 1792279935
     },
     {
       "path": "/shared/theme.css",
       "hash": "sha256:9156eddd219bf9914f91f5b49da80e3fafa634db7999c97c904381acc1a14486",
       "size": 13111,
       "modified": 1790514653
+    },
+    {
+      "path": "/shared/tint-section.css",
+      "hash": "sha256:06d3a483b26a35c567adcda0153df3c6ae1db68dcf1fe7b5f62e62790b8e91f0",
+      "size": 1433,
+      "modified": 1792277740
     },
     {
       "path": "/shared/upload-clean.js",
@@ -1991,9 +2003,9 @@
       "path": "/index.html",
       "hash": "sha256:807ef9ccfde6574793792f240c8ca2fbab9472f7b7c766a7804bff183fa12a23",
       "size": 208,
-      "modified": 1792273183
+      "modified": 1792279939
     }
   ],
-  "total_size": 16389509,
-  "file_count": 332
+  "total_size": 16418392,
+  "file_count": 334
 }

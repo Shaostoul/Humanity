@@ -16,6 +16,16 @@
  * HosFileRisk.load() fetches the list (once); HosFileRisk.assess(name, head)
  * answers {kind, disguised, words} or null (`head`: the first bytes as a
  * Uint8Array, or null when not known). Until the list is in, assess answers null.
+ *
+ * Every file also gets its TYPE shown, always (the operator, 2026-10-17: for
+ * "people inexperienced with technology and possibly illiterate people"): a
+ * badge with a drawing, a word and a colour. HosFileRisk.fileType(name, head)
+ * answers {id, label, icon, level, ending, disguised}, and HosFileRisk.badgeHtml
+ * (name, head) the badge itself (class `file-badge level-<level>`, its drawing
+ * an inline SVG built from the list's `icons`), the desktop app's
+ * gui/widgets/file_badge.rs. Before the list is in, the badge is a plain grey
+ * "File" with the file's ending, and `fillBadges(root)` redraws every
+ * `[data-file-badge]` once it is.
  */
 (function (root) {
   'use strict';
@@ -102,7 +112,89 @@
     return { kind: actual.id, disguised: false, words: actual.words.split('{ext}').join(shownEnding(lower)) };
   }
 
-  const api = { load, use, assess, ready: () => !!list, LIST_URL };
+  /**
+   * The type of a file named `name` whose first bytes are `head`, for its badge (always an
+   * answer): by its name (a kind that needs care first, the longest ending), then, when the bytes
+   * are known, what they say; a harmless name over a program's, a script's or an archive's bytes is
+   * that kind, disguised and `danger`. Anything else is the list's `unknown`. As
+   * src/net/file_risk.rs `file_type` does, in the same order.
+   */
+  function fileType(name, head, d) {
+    const data = d || list;
+    const lower = String(name || '').trim().toLowerCase();
+    const shown = shownEnding(lower);
+    const end = shown.startsWith('.') ? shown : '';
+    if (!data) return { id: 'unknown', label: 'File', icon: 'unknown', level: 'unknown', ending: end, disguised: false };
+    const ofKind = (k, disguised) => ({ id: k.id, label: k.label, icon: k.icon, level: disguised ? 'danger' : k.level, ending: end, disguised });
+    let byName = null;
+    for (const k of data.kinds) {
+      const e = ending(lower, k.extensions);
+      if (e && (!byName || e.length > byName.ext.length)) byName = { kind: k, ext: e };
+    }
+    if (byName) return ofKind(byName.kind, false);
+    const h = head && head.length ? head : null;
+    const actual = h ? data.kinds.find((k) => (k.magic || []).some((m) => startsWithHex(h, m))) : null;
+    let claimed = null;
+    for (const n of data.named_as || []) {
+      const e = ending(lower, n.extensions);
+      if (e && (!claimed || e.length > claimed.ext.length)) claimed = { named: n, ext: e };
+    }
+    if (claimed && actual && claimed.named.disguised_if.includes(actual.id)) return ofKind(actual, true);
+    if (claimed) return { id: claimed.named.id, label: claimed.named.label, icon: claimed.named.icon, level: claimed.named.level, ending: end, disguised: false };
+    if (actual) return ofKind(actual, false);
+    const u = data.unknown || {};
+    return { id: u.id || 'unknown', label: u.label || 'File', icon: u.icon || 'unknown', level: u.level || 'unknown', ending: end, disguised: false };
+  }
+
+  const escText = (t) => String(t == null ? '' : t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  /** The drawing named `icon` as SVG markup (`size` pixels), from the list's `icons`. */
+  function iconSvg(icon, size, d) {
+    const data = d || list;
+    const icons = (data && data.icons) || {};
+    const shapes = icons[icon] || icons[(data && data.unknown && data.unknown.icon) || 'unknown'] || [];
+    const n = (v) => Number(v) || 0;
+    const parts = shapes.map((sh) => {
+      const fill = sh.fill ? 'currentColor' : 'none';
+      if (sh.rect) return '<rect x="' + n(sh.rect[0]) + '" y="' + n(sh.rect[1]) + '" width="' + n(sh.rect[2]) + '" height="' + n(sh.rect[3]) + '" fill="' + fill + '"/>';
+      if (sh.line) return '<line x1="' + n(sh.line[0]) + '" y1="' + n(sh.line[1]) + '" x2="' + n(sh.line[2]) + '" y2="' + n(sh.line[3]) + '"/>';
+      if (sh.circle) return '<circle cx="' + n(sh.circle[0]) + '" cy="' + n(sh.circle[1]) + '" r="' + n(sh.circle[2]) + '" fill="' + fill + '"/>';
+      if (sh.poly) {
+        const pts = [];
+        for (let i = 0; i + 1 < sh.poly.length; i += 2) pts.push(n(sh.poly[i]) + ',' + n(sh.poly[i + 1]));
+        return sh.closed ? '<polygon points="' + pts.join(' ') + '" fill="' + fill + '"/>' : '<polyline points="' + pts.join(' ') + '" fill="none"/>';
+      }
+      return '';
+    }).join('');
+    const px = Number(size) || 16;
+    return '<svg class="file-badge-icon" viewBox="0 0 48 48" width="' + px + '" height="' + px + '" aria-hidden="true" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">' + parts + '</svg>';
+  }
+
+  /**
+   * The badge for a file named `name` (first bytes `head`, or null): its drawing, its type's word
+   * and its ending, coloured by its level. Carries `data-file-badge` (the name) and, when the
+   * bytes are known, `data-file-head` (them, in hex), so `fillBadges` redraws it from both: a
+   * disguised file stays red however often it is redrawn. Every text in it is escaped.
+   */
+  function badgeHtml(name, head, d) {
+    const t = fileType(name, head, d);
+    const hex = head && head.length ? Array.from(head.slice(0, 16), (b) => (b & 255).toString(16).padStart(2, '0')).join('') : '';
+    const end = t.ending ? '<span class="file-badge-ending">' + escText(t.ending) + '</span>' : '';
+    const title = t.disguised ? t.label + ', pretending to be something else' : t.label;
+    return '<span class="file-badge level-' + escText(t.level) + (t.disguised ? ' disguised' : '') + '" data-file-badge="' + escText(name) + '"' + (hex ? ' data-file-head="' + hex + '"' : '') + ' data-file-type="' + escText(t.id) + '" title="' + escText(title) + '">'
+      + iconSvg(t.icon, 16, d) + '<span class="file-badge-label">' + escText(t.label) + '</span>' + end + '</span>';
+  }
+
+  /** Redraw every `[data-file-badge]` under `root` from the list (a badge drawn before it was in). */
+  function fillBadges(root) {
+    if (!list || !root || typeof root.querySelectorAll !== 'function') return;
+    for (const el of Array.from(root.querySelectorAll('[data-file-badge]'))) {
+      const head = el.dataset.fileHead ? Uint8Array.from((el.dataset.fileHead.match(/../g) || []).map((b) => parseInt(b, 16))) : null;
+      el.outerHTML = badgeHtml(el.dataset.fileBadge, head);
+    }
+  }
+
+  const api = { load, use, assess, fileType, iconSvg, badgeHtml, fillBadges, ready: () => !!list, LIST_URL };
   root.HosFileRisk = api;
   if (typeof module === 'object' && module && module.exports) module.exports = api;
   // In a page, fetch the list as soon as the script loads, so it is in before any file is shown.

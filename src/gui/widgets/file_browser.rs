@@ -13,6 +13,7 @@
 //! unit-tested below.
 
 use std::path::{Path, PathBuf};
+use super::tint_section::Tint;
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use crate::gui::widgets::file_picker_memory as memory;
@@ -359,7 +360,7 @@ pub fn file_picker_modal(
         )
         .show(ctx, |ui| {
             // Places: the person's own folders, the app's, every drive (the DMs' red).
-            section(ui, theme, theme.dm_bg(), "Places", |ui| {
+            section(ui, theme, Tint::Red, "Places", |ui| {
                 ui.horizontal_wrapped(|ui| {
                     let extra: Vec<(String, PathBuf)> =
                         state.extra_roots.iter().filter(|(_, p)| p.is_dir()).cloned().collect();
@@ -377,7 +378,7 @@ pub fn file_picker_modal(
             let favorites = memory::favorite_labels(&memory::with(|m| m.favorites.clone()));
             if !favorites.is_empty() {
                 ui.add_space(theme.spacing_xs);
-                section(ui, theme, theme.group_bg(), "Favorites", |ui| {
+                section(ui, theme, Tint::Green, "Favorites", |ui| {
                     ui.horizontal_wrapped(|ui| {
                         for (label, path) in favorites {
                             let tip = path.display().to_string();
@@ -392,7 +393,7 @@ pub fn file_picker_modal(
             ui.add_space(theme.spacing_xs);
 
             // The open folder and what is in it (the servers' blue).
-            section(ui, theme, theme.server_bg(), "This folder", |ui| {
+            section(ui, theme, Tint::Blue, "This folder", |ui| {
             // Current path + up.
             ui.horizontal(|ui| {
                 if widgets::Button::secondary("Up").show(ui, theme) {
@@ -483,15 +484,26 @@ pub fn file_picker_modal(
                             // A tick, on the whole row; an oversized file shows its size, unticked.
                             let mut on = state.is_chosen(entry);
                             let tick = egui::Checkbox::new(&mut on, RichText::new(label).size(theme.font_size_small).color(color));
-                            if ui.add_enabled(!too_big, tick).changed() {
+                            // Its type first, always (widgets/file_badge.rs): by its name here.
+                            let changed = ui
+                                .horizontal(|ui| {
+                                    widgets::file_badge::show(ui, theme, &crate::net::file_risk::file_type(&entry.name, None));
+                                    ui.add_enabled(!too_big, tick).changed()
+                                })
+                                .inner;
+                            if changed {
                                 state.toggle(entry);
                             }
                             continue;
                         }
-                        let resp = ui.selectable_label(
-                            selected,
-                            RichText::new(label).size(theme.font_size_small).color(color),
-                        );
+                        let resp = ui
+                            .horizontal(|ui| {
+                                if !entry.is_dir {
+                                    widgets::file_badge::show(ui, theme, &crate::net::file_risk::file_type(&entry.name, None));
+                                }
+                                ui.selectable_label(selected, RichText::new(label).size(theme.font_size_small).color(color))
+                            })
+                            .inner;
                         if resp.clicked() {
                             if entry.is_dir {
                                 state.current_dir = entry.path.clone();
@@ -597,26 +609,9 @@ pub fn file_picker_modal(
 pub const PICKER_ID: &str = "file_picker_modal";
 /// How dark the screen behind the picker goes: the dialogs' own dimming (widgets/dialog.rs).
 const BACKDROP_ALPHA: u8 = 140;
-/// How much of a section colour's strength its fill keeps: darker than the chat sidebar's headers.
-const SECTION_SHADE: f32 = 0.7;
-
-/// One part of the picker on a darker shade of the chat sidebar's section colours (the DMs' red,
-/// the groups' green, the servers' blue), edged in the colour itself, with a small title, so the
-/// parts read apart at a glance (operator, 2026-10-17: "the RGB aesthetic ... but darker RGB").
-/// The colours are the theme's own tokens, so the Settings theme editor changes them here too.
-fn section<R>(ui: &mut egui::Ui, theme: &Theme, tint: egui::Color32, title: &str, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
-    egui::Frame::NONE
-        .fill(tint.gamma_multiply(SECTION_SHADE))
-        .stroke(egui::Stroke::new(1.0, tint))
-        .corner_radius(egui::CornerRadius::same(theme.border_radius as u8))
-        .inner_margin(egui::Margin::same(theme.spacing_sm as i8))
-        .show(ui, |ui| {
-            ui.set_width(ui.available_width());
-            ui.label(RichText::new(title).size(theme.font_size_small).color(theme.text_secondary()).strong());
-            ui.add_space(theme.spacing_xs);
-            add(ui)
-        })
-        .inner
+/// One part of the picker in the chat sidebar's colours, darker (widgets/tint_section.rs).
+fn section<R>(ui: &mut egui::Ui, theme: &Theme, tint: Tint, title: &str, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
+    super::tint_section::show(ui, theme, tint, title, add)
 }
 
 /// The button that ticks every file in the open folder (a `multiple` picker).

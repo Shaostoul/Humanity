@@ -36,6 +36,7 @@ use super::api::{self, Category, PublishFields};
 use super::{publishing, signer_here, spawn, uploading, Job};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
+use crate::gui::widgets::tint_section::{self, Tint};
 use crate::gui::{GuiPage, GuiState};
 
 /// Where the form's file is.
@@ -263,10 +264,9 @@ pub(crate) fn draw_dialogs(ctx: &egui::Context, theme: &Theme, state: &mut GuiSt
 }
 
 /// What the form says about the further files chosen with the first.
-pub(crate) fn more_line(more: &[super::resumable::MoreFile]) -> String {
-    let names: Vec<String> = more.iter().map(|m| format!("{} ({})", m.name, api::size_words(m.size as i64))).collect();
-    format!("Also on this item, each added once the item is up: {}", names.join(", "))
-}
+/// The line above the further files Add to Media holds, each then on its own row with its type
+/// (the website's `MORE_LEAD`).
+pub(crate) const MORE_LEAD: &str = "Also on this item, each added once the item is up:";
 
 /// The Add to Media or Put on Media form, while open.
 pub(crate) fn draw_form(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
@@ -291,82 +291,100 @@ pub(crate) fn draw_form(ctx: &egui::Context, theme: &Theme, state: &mut GuiState
     let mut cancel = false;
     widgets::dialog_scrolling(ctx, theme, "media_publish_form", title, &mut open, |ui| {
         ui.set_max_width(520.0);
-        let (name, len) = form.file();
-        ui.label(RichText::new(format!("{name} ({})", api::size_words(len as i64))).size(theme.font_size_body).color(theme.text_primary()).strong());
-        if !form.more.is_empty() {
-            ui.label(RichText::new(more_line(&form.more)).size(theme.font_size_small).color(theme.text_secondary()));
-        }
-        if let (true, Some((_, looking))) = (form.is_picked() && !form.sending, look.as_mut()) {
-            may_go = crate::gui::pages::chat::attach_step::draw_look(ui, theme, looking, &mut form.remove, protected, false).can_send;
-        }
-        // The person's share, above the form, as the server counts it.
-        let share_text = match (&mine, mine_failed) {
-            (Some(m), _) => api::share_line(m),
-            (None, true) => "Your share could not be checked here; the server checks it.".to_string(),
-            (None, false) => WORKING_OUT_LINE.to_string(),
-        };
-        ui.label(RichText::new(share_text).size(theme.font_size_small).color(theme.text_secondary()));
-        if let Some(p) = problem.as_deref() {
-            ui.label(RichText::new(p).size(theme.font_size_small).color(theme.danger()));
-        }
-        ui.add_space(theme.spacing_sm);
-        widgets::form_row(ui, theme, "Title (optional)", |ui| {
-            ui.add(egui::TextEdit::singleline(&mut form.title).desired_width(300.0).char_limit(120));
-        });
-        widgets::form_row(ui, theme, "Category", |ui| {
-            let (shown_id, shown) = shown_category(&form, &categories);
-            egui::ComboBox::from_id_salt("media_form_category").selected_text(shown).show_ui(ui, |ui| {
-                for c in &categories {
-                    if ui.selectable_label(c.id == shown_id, &c.name).on_hover_text(&c.description).clicked() {
-                        form.category = Some(c.id);
-                    }
-                }
-            });
-        });
-        ui.label(RichText::new("Description (optional)").size(theme.font_size_small).color(theme.text_secondary()));
-        ui.add(egui::TextEdit::multiline(&mut form.description).desired_rows(3).desired_width(480.0).char_limit(2000));
-        if !labels.is_empty() {
-            ui.add_space(theme.spacing_xs);
-            ui.label(RichText::new("Content labels: a labelled item stays hidden until someone clicks it.").size(theme.font_size_small).color(theme.text_secondary()));
+        // Three parts in the chat sidebar's colours, darker (widgets/tint_section.rs, 2026-10-17):
+        // the file first, what it is, then who can see it. The Edit window's parts, in this order.
+        tint_section::show(ui, theme, Tint::Blue, super::edit::FILES, |ui| {
+            let (name, len) = form.file();
             ui.horizontal_wrapped(|ui| {
-                for l in &labels {
-                    let mut on = form.labels.contains(&l.id);
-                    if ui.checkbox(&mut on, &l.label).on_hover_text(&l.desc).changed() {
-                        if on {
-                            form.labels.insert(l.id.clone());
-                        } else {
-                            form.labels.remove(&l.id);
+                // Its type first, always (widgets/file_badge.rs, 2026-10-17).
+                widgets::file_badge::show(ui, theme, &crate::net::file_risk::file_type(name, None));
+                ui.label(RichText::new(format!("{name} ({})", api::size_words(len as i64))).size(theme.font_size_body).color(theme.text_primary()).strong());
+            });
+            if !form.more.is_empty() {
+                ui.label(RichText::new(MORE_LEAD).size(theme.font_size_small).color(theme.text_secondary()));
+                for m in &form.more {
+                    ui.horizontal_wrapped(|ui| {
+                        widgets::file_badge::show(ui, theme, &crate::net::file_risk::file_type(&m.name, None));
+                        ui.label(RichText::new(format!("{} ({})", m.name, api::size_words(m.size as i64))).size(theme.font_size_small).color(theme.text_primary()));
+                    });
+                }
+            }
+            if let (true, Some((_, looking))) = (form.is_picked() && !form.sending, look.as_mut()) {
+                may_go = crate::gui::pages::chat::attach_step::draw_look(ui, theme, looking, &mut form.remove, protected, false).can_send;
+            }
+            // The person's share, above the form, as the server counts it.
+            let share_text = match (&mine, mine_failed) {
+                (Some(m), _) => api::share_line(m),
+                (None, true) => "Your share could not be checked here; the server checks it.".to_string(),
+                (None, false) => WORKING_OUT_LINE.to_string(),
+            };
+            ui.label(RichText::new(share_text).size(theme.font_size_small).color(theme.text_secondary()));
+            if let Some(p) = problem.as_deref() {
+                ui.label(RichText::new(p).size(theme.font_size_small).color(theme.danger()));
+            }
+        });
+        ui.add_space(theme.spacing_sm);
+        tint_section::show(ui, theme, Tint::Red, super::edit::ABOUT_IT, |ui| {
+            widgets::form_row(ui, theme, "Title (optional)", |ui| {
+                ui.add(egui::TextEdit::singleline(&mut form.title).desired_width(300.0).char_limit(120));
+            });
+            widgets::form_row(ui, theme, "Category", |ui| {
+                let (shown_id, shown) = shown_category(&form, &categories);
+                egui::ComboBox::from_id_salt("media_form_category").selected_text(shown).show_ui(ui, |ui| {
+                    for c in &categories {
+                        if ui.selectable_label(c.id == shown_id, &c.name).on_hover_text(&c.description).clicked() {
+                            form.category = Some(c.id);
                         }
                     }
-                }
+                });
             });
-        }
-        ui.add_space(theme.spacing_xs);
-        if !form.for_media() {
-            ui.label(RichText::new(ALREADY_PUBLIC_LINE).size(theme.font_size_small).color(theme.text_secondary()));
-        } else if members_server {
-            ui.label(RichText::new(MEMBERS_SERVER_LINE).size(theme.font_size_small).color(theme.text_secondary()));
-        } else {
-            ui.horizontal(|ui| {
-                ui.radio_value(&mut form.members_only, false, "Public");
-                ui.radio_value(&mut form.members_only, true, "Members only");
-            });
-        }
-        // The licence and the game tick (Media round 5), with the server's words beside them, and
-        // what putting a file on this server lets its people do (the hosting paragraph): all from
-        // the server's answer (data/media/licences.json on the relay), never a copy in this app.
-        ui.add_space(theme.spacing_xs);
-        let members = form.for_media() && (members_server || form.members_only);
-        let shown = shown_licence(&form, &licences);
-        let mut choice = super::edit::LicenceChoice { licence: shown.clone(), project_use: form.project_use };
-        super::edit::draw_licence_choice(ui, theme, &licences, &mut choice, members, None, None);
-        // Only a pick changes the form: the default shown stays "none picked" (sent as the
-        // default), so drawing the form never changes it.
-        if choice.licence != shown {
-            form.licence = choice.licence;
-        }
-        form.project_use = choice.project_use;
-        super::edit::draw_hosting(ui, theme, &licences);
+            ui.label(RichText::new("Description (optional)").size(theme.font_size_small).color(theme.text_secondary()));
+            ui.add(egui::TextEdit::multiline(&mut form.description).desired_rows(3).desired_width(480.0).char_limit(2000));
+            if !labels.is_empty() {
+                ui.add_space(theme.spacing_xs);
+                ui.label(RichText::new("Content labels: a labelled item stays hidden until someone clicks it.").size(theme.font_size_small).color(theme.text_secondary()));
+                ui.horizontal_wrapped(|ui| {
+                    for l in &labels {
+                        let mut on = form.labels.contains(&l.id);
+                        if ui.checkbox(&mut on, &l.label).on_hover_text(&l.desc).changed() {
+                            if on {
+                                form.labels.insert(l.id.clone());
+                            } else {
+                                form.labels.remove(&l.id);
+                            }
+                        }
+                    }
+                });
+            }
+        });
+        ui.add_space(theme.spacing_sm);
+        tint_section::show(ui, theme, Tint::Green, super::edit::WHO_CAN_SEE_IT, |ui| {
+            if !form.for_media() {
+                ui.label(RichText::new(ALREADY_PUBLIC_LINE).size(theme.font_size_small).color(theme.text_secondary()));
+            } else if members_server {
+                ui.label(RichText::new(MEMBERS_SERVER_LINE).size(theme.font_size_small).color(theme.text_secondary()));
+            } else {
+                ui.horizontal(|ui| {
+                    ui.radio_value(&mut form.members_only, false, "Public");
+                    ui.radio_value(&mut form.members_only, true, "Members only");
+                });
+            }
+            // The licence and the game tick (Media round 5), with the server's words beside them, and
+            // what putting a file on this server lets its people do (the hosting paragraph): all from
+            // the server's answer (data/media/licences.json on the relay), never a copy in this app.
+            ui.add_space(theme.spacing_xs);
+            let members = form.for_media() && (members_server || form.members_only);
+            let shown = shown_licence(&form, &licences);
+            let mut choice = super::edit::LicenceChoice { licence: shown.clone(), project_use: form.project_use };
+            super::edit::draw_licence_choice(ui, theme, &licences, &mut choice, members, None, None);
+            // Only a pick changes the form: the default shown stays "none picked" (sent as the
+            // default), so drawing the form never changes it.
+            if choice.licence != shown {
+                form.licence = choice.licence;
+            }
+            form.project_use = choice.project_use;
+            super::edit::draw_hosting(ui, theme, &licences);
+        });
         if !form.problem.is_empty() {
             ui.label(RichText::new(&form.problem).size(theme.font_size_small).color(theme.danger()));
         }

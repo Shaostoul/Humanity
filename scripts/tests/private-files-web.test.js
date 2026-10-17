@@ -64,6 +64,13 @@
 // 13. (2026-10-17) A private file says what kind of file it is: by its name on its card (before
 //     Accept, before anything is fetched), and from its first bytes once it is opened (a picture or
 //     Save), which calls out a file named like one kind over the bytes of another as disguised.
+// 14. (2026-10-17) Every file's type, always: a badge just before its name on a public file's card
+//     (which took the emoji icon's place) and a private file's card, exactly what
+//     HosFileRisk.badgeHtml draws; a grey "File" until the list is in, then drawn again; a private
+//     file's drawn again from its first bytes once opened, red when it is disguised.
+// 15. (2026-10-17) The attach step is "Send a file", in two tinted parts, "The file" (the badge, from
+//     the file's first bytes; its name; its size) and "Hidden details" (what was found, the switch
+//     and its lines), with the buttons outside them.
 //
 // Red first: see the end of this file for each deliberate break and the assertion it tripped.
 
@@ -993,7 +1000,8 @@ test("public file cards: a video, a sound and any other file each get a card wit
   assert.ok(video.html.includes(`<a href="${UP_VIDEO}" download="WH40K_Marriah_Carey.mp4"`) && video.html.endsWith(">Download</a></div>"), "Download, under that name");
   assert.ok(video.html.includes('<div class="file-note" hidden></div>'), "and a note line, hidden until the player cannot play");
   assert.ok(sound.html.includes(`<audio controls preload="metadata" src="${UP_SOUND}"></audio>`) && sound.dataset.fileName === "drum_loop.mp3", "a sound: its player and name");
-  assert.ok(zip.html.includes("📦") && zip.html.includes('download="maps.zip"') && !zip.html.includes("<video"), "an archive: a document card");
+  // Since 2026-10-17 a card's type is its badge (the next tests), which took the emoji icon's place.
+  assert.ok(zip.html.includes('class="file-badge') && !zip.html.includes("📦") && zip.html.includes('download="maps.zip"') && !zip.html.includes("<video"), "an archive: a document card");
   assert.ok(model.html.includes('download="staff.glb"') && model.className === "file-card", "a 3D model: a document card");
   assert.ok(elsewhere.html.includes(`<video controls preload="none" src="${ELSEWHERE_VIDEO}">`), "a video on another website: nothing read before a click");
 
@@ -1259,6 +1267,90 @@ test("a private file's word shows while it waits for Accept, and comes once the 
   await settle();
   assert.equal(line.textContent, riskOf("setup-tools.zip").words, "the archive's word, before Accept");
   assert.equal(gets(page, meta.url), 0, "and nothing was fetched to say it");
+});
+
+// ── 5c. Every file's type, always (2026-10-17) ──────────────────────────
+// The operator: "highlight the file type so people ALWAYS know what file type they're looking at"
+// (for "people inexperienced with technology and possibly illiterate people"). A badge just before
+// the file's name, on a public file's card and a private file's card: a drawing, a word and a
+// colour, exactly HosFileRisk.badgeHtml (/shared/file-risk.js), drawn in a slot that holds only it,
+// so it is drawn again once the list of kinds is in and once a file's first bytes are known.
+
+/** The badge the page should draw for `name` (first bytes `head`), from the shipped list. */
+const badgeOf = (name, head) => RISK.badgeHtml(name, head || null, FILE_RISKS);
+/** The badge before the list is in: a plain grey "File" with the file's ending. */
+const greyBadgeOf = (name) => RISK.badgeHtml(name, null, { kinds: [] });
+
+// Seen red 2026-10-17, each in a copy of web/ through HOS_WEB_DIR: with fileBadgeSlotHtml drawing an
+// empty slot: "maps.zip: the badge just before its name, in the card" (and the next test's "the
+// lock, then the badge by its name, then the name"); with fillFileCard not drawing the badge again:
+// "maps.zip, once the list is in: an archive" ('' against the archive's badge).
+test("public file cards: each shows its type's badge just before its name, a grey File until the list is in", async () => {
+  const fx = await fixture();
+  const page = await loadChat(fx.ann, { holdRiskList: true });
+  const row = postInRoom(page, fx.ben, `${UP_ZIP} ${UP_VIDEO} ${UP_MODEL}`, T0 + 930);
+  await settle();
+  const cards = cardsIn(row);
+  const names = ["maps.zip", "WH40K_Marriah_Carey.mp4", "staff.glb"];
+  assert.equal(cards.length, 3, "test setup: three cards");
+  cards.forEach((card, i) => {
+    const title = `<div class="file-title"><span class="file-badge-slot">${greyBadgeOf(names[i])}</span><div class="file-name">${escHtml(names[i])}</div></div>`;
+    assert.ok(card.html.includes(title), names[i] + ": the badge just before its name, in the card: " + card.html);
+    assert.ok(!card.html.includes("file-icon"), names[i] + ": no emoji icon beside it");
+  });
+  const slot = (card) => card.querySelector(".file-badge-slot").innerHTML;
+  page.releaseRiskList();
+  await settle();
+  assert.equal(slot(cards[0]), badgeOf("maps.zip"), "maps.zip, once the list is in: an archive");
+  assert.ok(slot(cards[0]).startsWith('<span class="file-badge level-care" data-file-badge="maps.zip" data-file-type="archive"'), "amber: take care");
+  assert.equal(slot(cards[1]), badgeOf("WH40K_Marriah_Carey.mp4"), "a video's card keeps its player and gets its badge");
+  assert.ok(slot(cards[1]).includes('level-view') && cards[1].player, "green, beside its player");
+  assert.equal(slot(cards[2]), badgeOf("staff.glb"), "a 3D model");
+  // A card drawn once the list is in holds its type at once.
+  const later = cardsIn(postInRoom(page, fx.ben, UP_BLEND, T0 + 931))[0];
+  assert.ok(later.html.includes(`<span class="file-badge-slot">${badgeOf("ship.blend")}</span><div class="file-name">ship.blend</div>`), "drawn after the list: its type at once");
+});
+
+// Seen red 2026-10-17, each in a copy of web/ through HOS_WEB_DIR: with privateFileHtml drawing no
+// badge: "the lock, then the badge by its name, then the name"; with privateFileCaution drawing the
+// badge by its name only (no first bytes): "the friend's 'picture', opened at once: red, its bytes
+// are a program" (the picture's green badge against the program's red one).
+test("a private file shows its type's badge before its name: by its name, then red once its bytes show it is disguised", async () => {
+  const fx = await fixture();
+  const page = await loadChat(fx.ann, { stored: ACCEPT_ANYONE });
+  befriend(page, fx.ben.key);
+  const archive = await fileInGroup(page, fx.ben, { name: "photos.zip", mime: "application/zip", bytes: ZIP_BYTES, at: T0 + 300 });
+  const fakePdf = await fileInGroup(page, fx.ben, { name: "invoice.pdf", mime: "application/pdf", bytes: PROGRAM_BYTES, at: T0 + 310 });
+  const fakePic = await fileInGroup(page, fx.ben, { name: "holiday.png", mime: "image/png", bytes: PROGRAM_BYTES, at: T0 + 320 });
+  const realPdf = await fileInGroup(page, fx.ben, { name: "notes.pdf", mime: "application/pdf", bytes: PDF, at: T0 + 330 });
+  page.relay.log = [fx.hello, archive.msg, fakePdf.msg, fakePic.msg, realPdf.msg];
+  await openGroup(page);
+  const [, zipRow, pdfRow, picRow, realRow] = rowsFrom(page, fx.ben);
+  const badge = (row) => row.querySelector(".enc-attach").querySelector(".enc-attach-badge").innerHTML;
+  const head16 = (b) => b.subarray(0, 16);
+
+  // In the card's HTML: the lock, then the badge (by its name), then the name.
+  assert.ok(zipRow.innerHTML.includes(`<span class="file-badge-slot enc-attach-badge">${badgeOf("photos.zip")}</span><span class="enc-attach-name">photos.zip</span>`),
+    "the lock, then the badge by its name, then the name: " + zipRow.innerHTML.slice(0, 400));
+  assert.equal(badge(zipRow), badgeOf("photos.zip"), "an archive, by its name, before anything is fetched");
+  assert.equal(gets(page, archive.meta.url), 0, "test setup: the archive was not fetched");
+  // The friend's "picture" is opened at once: its first bytes are a program's.
+  assert.equal(badge(picRow), badgeOf("holiday.png", head16(PROGRAM_BYTES)), "the friend's 'picture', opened at once: red, its bytes are a program");
+  assert.ok(badge(picRow).startsWith('<span class="file-badge level-danger disguised"'), "red, with a thicker edge");
+  assert.ok(badge(picRow).includes(">Program<") && badge(picRow).includes(">.png<"), "it says Program, and the ending it pretends with");
+  // A "PDF" by its name until Save opens it; then what is inside it.
+  assert.equal(badge(pdfRow), badgeOf("invoice.pdf"), "a PDF by its name");
+  assert.ok(badge(pdfRow).includes("level-view"), "green until it is opened");
+  await cardBody(pdfRow).querySelector(".enc-attach-dl").onclick({ stopPropagation() {} });
+  await cardBody(realRow).querySelector(".enc-attach-dl").onclick({ stopPropagation() {} });
+  await settle();
+  assert.equal(badge(pdfRow), badgeOf("invoice.pdf", head16(PROGRAM_BYTES)), "Save: a 'PDF' that is a program turns red");
+  assert.ok(badge(pdfRow).includes("level-danger disguised"));
+  assert.equal(badge(realRow), badgeOf("notes.pdf", head16(PDF)), "a real PDF, saved: still a PDF");
+  assert.ok(!badge(realRow).includes("disguised"));
+  // The card drawn again (a group redraws on every message): the bytes' badge at once.
+  const again = page.fn("privateFileHtml")(fakePic.meta, fx.ben.key);
+  assert.ok(again.includes(`<span class="file-badge-slot enc-attach-badge">${badgeOf("holiday.png", head16(PROGRAM_BYTES))}</span>`), "drawn again: red at once");
 });
 
 // ── 6. A file that cannot be opened ─────────────────────────────────────
@@ -2996,3 +3088,63 @@ test("BUG-200: a different person in this browser (a restore from another recove
 // Not covered by a test: ownProfileArrived's direct push for a choice that starts waiting after the
 // socket's one push has gone (only reachable when a copy repeats a word this device already saw
 // there after one it would not take, under the protected setup).
+
+// ── The attach step, "Send a file", in tinted parts (2026-10-17) ────────
+// The operator asked for "the RGB aesthetic for the different sections of the interface like how
+// the DMs, Groups, and servers in chat are but darker RGB in the pop up window". As the desktop's
+// "Send a file": "The file" (blue: its type's badge, its name and size) and "Hidden details" (green:
+// what was found, the switch and its lines); the buttons outside them. The badge is drawn by the
+// file's name, then from its first bytes, read on this device.
+
+/** The tinted parts of the attach step on screen, and what each holds. */
+function stepTint(page) {
+  const els = everyUnder(attachStep(page));
+  const has = (e, cls) => String(e.className).split(/\s+/).includes(cls);
+  const parts = els.filter((e) => has(e, "tint-section"));
+  const inPart = (cls) => {
+    const p = parts.find((x) => everyUnder(x).some((e) => has(e, cls)));
+    return p ? p.children[0].textContent : null;
+  };
+  const one = (cls) => els.find((e) => has(e, cls)) || null;
+  return { els, parts, inPart, one };
+}
+
+// Seen red 2026-10-17, each in a copy of web/ through HOS_WEB_DIR: with showAttachStep's parts made
+// as the dialog itself (everything straight into it): "the two parts, in order" (actual []); with
+// the file's first bytes never read, the next test: "never happened: a file named like a picture
+// over a program's bytes: red, from its first bytes" (its badge stayed the picture's green one).
+test("files: the attach step is Send a file, in two tinted parts: The file (its type's badge, name and size) and Hidden details; the buttons outside", async () => {
+  const fx = await fixture();
+  const page = await loadChat(fx.ann);
+  const { going } = await pasteToStep(page, photo());
+  const s = stepTint(page);
+  assert.equal((s.one("attach-step-heading") || {}).textContent, "Send a file", "its title");
+  assert.deepEqual(s.parts.map((p) => [p.className, p.children[0].className, p.children[0].textContent]), [
+    ["tint-section tint-blue", "tint-section-title", "The file"],
+    ["tint-section tint-green", "tint-section-title", "Hidden details"],
+  ], "the two parts, in order");
+  for (const cls of ["attach-step-badge", "attach-step-title", "attach-step-size"]) assert.equal(s.inPart(cls), "The file", cls + " is in The file");
+  for (const cls of ["attach-step-summary", "attach-step-details", "attach-step-switch", "attach-step-off", "attach-step-said"]) {
+    assert.equal(s.inPart(cls), "Hidden details", cls + " is in Hidden details");
+  }
+  for (const cls of ["attach-step-buttons", "attach-step-send", "attach-step-cancel"]) assert.equal(s.inPart(cls), null, cls + " is outside the parts");
+  const row = s.one("attach-step-file");
+  assert.deepEqual(row.children.map((c) => c.className), ["file-badge-slot attach-step-badge", "attach-step-title", "attach-step-size"], "the badge, then the name, then the size");
+  assert.equal(s.one("attach-step-title").textContent, "IMG_0001.jpg");
+  const slot = s.one("attach-step-badge");
+  await waitFor(() => slot.innerHTML === badgeOf("IMG_0001.jpg", PHOTO.subarray(0, 16)), "the photo's badge, from its first bytes");
+  assert.ok(slot.innerHTML.startsWith('<span class="file-badge level-view" data-file-badge="IMG_0001.jpg"') && slot.innerHTML.includes(' data-file-type="picture"'), "a picture: green");
+  await press(page, going, "cancel");
+});
+
+test("files: the attach step shows a file named like a picture over a program's bytes in red, from its first bytes", async () => {
+  const fx = await fixture();
+  const page = await loadChat(fx.ann);
+  const fake = new File([PROGRAM_BYTES], "holiday.png", { type: "image/png" });
+  const { going } = await pickToStep(page, fake);
+  const slot = stepTint(page).one("attach-step-badge");
+  await waitFor(() => slot.innerHTML === badgeOf("holiday.png", PROGRAM_BYTES.subarray(0, 16)), "a file named like a picture over a program's bytes: red, from its first bytes");
+  assert.ok(slot.innerHTML.startsWith('<span class="file-badge level-danger disguised"'), "red, with a thicker edge");
+  assert.ok(slot.innerHTML.includes(">Program<"), "it says Program");
+  await press(page, going, "cancel");
+});

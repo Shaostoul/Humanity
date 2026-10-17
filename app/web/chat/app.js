@@ -2612,8 +2612,10 @@ function isMessageContinuation(fromKey, timestamp) {
 // ── File cards (2026-10-17) ──
 // A file posted in a public room is just its address (`/uploads/<ms>_<name>.<ext>`,
 // from either app). formatBody turns each address of a kind below into a card:
-// a sound or a video gets its player, any other kind an icon; each card shows
-// the file's name, its size (filled in once the row is drawn, fillFileCards),
+// a sound or a video gets its player; each card shows the file's type (its
+// badge, just before its name, which took the place of an emoji icon on
+// 2026-10-17: fileBadgeSlotHtml below), the file's name, its size (filled in
+// once the row is drawn, fillFileCards),
 // what kind of file it is when that deserves a word (/shared/file-risk.js), and
 // Download. A video or a sound this browser cannot play says so on its card
 // (fileMediaTrouble) instead of leaving an empty player. Until 2026-10-17 a
@@ -2689,8 +2691,10 @@ function fileCardHtml(url, ext) {
   const video = FILE_CARD_VIDEO.includes(kind);
   const what = sound ? 'sound' : video ? 'video' : 'document';
   const head = `<div class="file-card${sound || video ? ' file-card-media' : ''}" data-file-url="${url}" data-file-name="${name}" data-file-kind="${what}">`;
+  // Its type, just before its name, always (fileBadgeSlotHtml): the drawing, word and colour that
+  // took the place of the card's old emoji icon.
   const info = '<div class="file-info">'
-    + `<div class="file-name">${name}</div>`
+    + `<div class="file-title">${fileBadgeSlotHtml(fileCardName(address), null)}<div class="file-name">${name}</div></div>`
     + '<div class="file-size"></div>'
     + '<div class="file-caution" hidden></div>'
     + (sound || video ? '<div class="file-note" hidden></div>' : '')
@@ -2705,10 +2709,50 @@ function fileCardHtml(url, ext) {
       : `<video controls preload="${preload}" src="${url}"></video>`;
     return head + player + info + download + '</div>';
   }
-  const icon = FILE_CARD_ARCHIVE.includes(kind) ? '📦'
-    : FILE_CARD_PICTURE.includes(kind) ? '🖼️'
-      : FILE_CARD_MODEL.includes(kind) ? '🧊' : '📄';
-  return head + `<span class="file-icon">${icon}</span>` + info + download + '</div>';
+  return head + info + download + '</div>';
+}
+
+// ── A file's type, always (2026-10-17) ──
+// The operator: "highlight the file type so people ALWAYS know what file type they're looking
+// at ... protect people inexperienced with technology and possibly illiterate people." Every file
+// the chat shows (a public file's card, a private file's card, a device-to-device row, the attach
+// step) has a badge just before its name: a drawing, a word and a colour (/shared/file-risk.js
+// HosFileRisk.badgeHtml, styled by /shared/file-badge.css; the desktop app's
+// gui/widgets/file_badge.rs). It is drawn in a slot that holds only the badge, so it can be drawn
+// again: the moment the list of kinds is in (before that it is a plain grey "File"), and with the
+// file's first bytes once they are known (a private file opened, a big file arrived, a file picked
+// to send), which turns a file named like a picture over the bytes of a program red.
+
+// The words a badge slot was last asked to show: slot -> {name, head}. A slot asked again before
+// the list is in shows the newest.
+const fileBadgeWanted = new WeakMap();
+
+/**
+ * A badge slot's HTML for a file named `name` (plain text), its first bytes `head` or null;
+ * `cls`: a further class for the slot (a fixed word, never text from a message).
+ */
+function fileBadgeSlotHtml(name, head, cls) {
+  const R = typeof window !== 'undefined' ? window.HosFileRisk : null;
+  const badge = R && typeof R.badgeHtml === 'function' ? R.badgeHtml(String(name == null ? '' : name), head || null) : '';
+  return '<span class="file-badge-slot' + (cls ? ' ' + cls : '') + '">' + badge + '</span>';
+}
+
+/**
+ * Draw the badge of a file named `name` (plain text; its first bytes `head`, a Uint8Array, or null)
+ * into `slot`, an element holding only its badge (HosFileRisk.badgeHtml escapes every text in it).
+ * Drawn now, and again the moment the list of kinds is in when it is not yet.
+ */
+function fileBadgeFill(slot, name, head) {
+  const R = typeof window !== 'undefined' ? window.HosFileRisk : null;
+  if (!slot || !R || typeof R.badgeHtml !== 'function') return;
+  const want = { name: String(name == null ? '' : name), head: head || null };
+  fileBadgeWanted.set(slot, want);
+  slot.innerHTML = R.badgeHtml(want.name, want.head);
+  if (R.ready()) return;
+  Promise.resolve(R.load()).then(() => {
+    const w = fileBadgeWanted.get(slot);
+    if (w && R.ready()) slot.innerHTML = R.badgeHtml(w.name, w.head);
+  }).catch(() => { /* no list: the grey "File" stays */ });
 }
 
 /** A size in words for a card ("3.2 MB"), as a private file's card says it (chat-dms.js). */
@@ -2768,6 +2812,8 @@ function fillFileCards(root) {
 function fillFileCard(card) {
   if (!card || !card.dataset || card.dataset.fileFilled === '1') return;
   card.dataset.fileFilled = '1';
+  // Its type, drawn again once the list of kinds is in (by its name: nothing is read before a click).
+  fileBadgeFill(card.querySelector('.file-badge-slot'), card.dataset.fileName || '', null);
   fileCautionFill(card.querySelector('.file-caution'), card.dataset.fileName || '', null);
   const address = card.dataset.fileUrl || '';
   const size = card.querySelector('.file-size');

@@ -232,7 +232,7 @@ fn an_item_edited_and_given_files_on_the_real_relay() {
     assert!(r.dirs.uploads.join(&added.filename).exists(), "in the public folder, with the item");
     assert_eq!(page_item(&state).files.len(), 2, "the page lists both files");
     // Its Download goes through the relay's counting route, and is counted.
-    assert_eq!(download_row(&ctx, &theme, &mut state, "textures.zip, file", added.file), bytes(3000), "the file, downloaded from its page");
+    assert_eq!(download_row(&ctx, &theme, &mut state, "textures.zip, ", added.file), bytes(3000), "the file, downloaded from its page");
     assert_eq!(r.state.db.media_item(id).unwrap().unwrap().downloads, 1, "counted once");
 
     // 3. A cover: a real picture, as the relay checks it.

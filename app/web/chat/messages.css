@@ -480,9 +480,10 @@
   font-size: var(--text-sm);
   max-width: 350px;
 }
-.file-card .file-icon { font-size: 1.3rem; }
 .file-card .file-info { flex: 1; min-width: 0; }
-.file-card .file-name { font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Its type (the badge, /shared/file-badge.css) just before its name (2026-10-17). */
+.file-card .file-title { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.file-card .file-name { font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .file-card .file-size { font-size: var(--text-xs); color: var(--text-muted); }
 .file-card .file-download { color: var(--accent); text-decoration: none; font-size: var(--text-sm); }
 .file-card .file-download:hover { text-decoration: underline; }
@@ -663,7 +664,8 @@
   color: var(--text-muted);
   border-bottom: 1px solid var(--border);
 }
-.enc-attach-head span:first-of-type { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The file's name (after its lock and its type's badge, 2026-10-17). */
+.enc-attach-head .enc-attach-name { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .enc-attach-size { margin-left: auto; opacity: 0.8; }
 .enc-attach-body { padding: 8px 10px; }
 .enc-attach-loading { font-size: var(--text-xs); color: var(--text-muted); }
@@ -715,3 +717,12 @@
 .ft-btn { text-decoration: none; }
 /* The attach step's lines for a file that goes device to device. */
 .attach-step-direct { font-size: var(--text-sm); color: var(--text-muted); margin: 4px 0; }
+/* The attach step, "Send a file" (2026-10-17): its title, then two tinted parts (/shared/tint-section.css),
+   "The file" (its type's badge, its name and size) and "Hidden details" (what was found, the switch,
+   its lines); the lines about who it goes to and the buttons stay outside them. */
+.attach-step-heading { margin: 0 0 var(--space-sm); }
+.attach-step-file { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.attach-step-file .attach-step-title { font-weight: 700; color: var(--text); overflow-wrap: anywhere; min-width: 0; }
+.attach-step-file .attach-step-size { font-size: var(--text-sm); color: var(--text-muted); }
+.attach-step .tint-section p { margin: 4px 0; }
+.attach-step .tint-section ul { margin: 4px 0 4px 1.2em; }

@@ -618,10 +618,18 @@ function acceptsFilesKnown(key) {
   return { value: known.accepts_files, friend, shown };
 }
 
+// The attach step's title and its two parts' titles (the desktop app's "Send a file",
+// src/gui/pages/chat/attach_step.rs).
+const ATTACH_STEP_TITLE = 'Send a file';
+const ATTACH_STEP_FILE = 'The file';
+const ATTACH_STEP_DETAILS = 'Hidden details';
+
 /**
- * The attach step: the file, what is hidden in it, the switch, and the question or the refusal.
- * Built with createElement and textContent. Resolves {send, remove}: send false when Cancel was
- * pressed or the file cannot go.
+ * The attach step: the file (its type's badge, its name and size: "The file", blue), what is hidden
+ * in it, the switch and its lines ("Hidden details", green), then the lines about the person it
+ * goes to and the buttons, outside the parts. Built with createElement and textContent (the badge
+ * is HosFileRisk.badgeHtml, every text in it escaped). Resolves {send, remove}: send false when
+ * Cancel was pressed or the file cannot go.
  */
 function showAttachStep(o) {
   const C = window.HosUploadClean;
@@ -640,19 +648,45 @@ function showAttachStep(o) {
     overlay.style.zIndex = '10000';
     const card = mk('div', 'profile-modal attach-step');
     card.setAttribute('role', 'dialog');
-    card.setAttribute('aria-label', 'Before the file is sent');
+    card.setAttribute('aria-label', ATTACH_STEP_TITLE);
+    card.appendChild(mk('h3', 'attach-step-heading', ATTACH_STEP_TITLE));
+    // Two parts in the chat sidebar's colours, darker (/shared/tint-section.css, 2026-10-17; the
+    // desktop app's "Send a file", gui/widgets/tint_section.rs): the file, and what is hidden in it.
+    const section = (tint, title) => {
+      const s = mk('div', 'tint-section tint-' + tint);
+      s.appendChild(mk('div', 'tint-section-title', title));
+      card.appendChild(s);
+      return s;
+    };
+    const fileSection = section('blue', ATTACH_STEP_FILE);
     const sizeMB = (Number(o.file.size) || 0) / 1024 / 1024;
-    card.appendChild(mk('h3', 'attach-step-title', o.file.name));
-    card.appendChild(mk('p', 'attach-step-size', sizeMB >= 0.1 ? sizeMB.toFixed(1) + ' MB' : Math.max(1, Math.round((Number(o.file.size) || 0) / 1024)) + ' KB'));
+    const fileRow = mk('div', 'attach-step-file');
+    // Its type, just before its name, always (app.js fileBadgeFill): by its name now, then from its
+    // first bytes, read on this device, so a file named like a picture over a program's shows red.
+    const badge = fileRow.appendChild(mk('span', 'file-badge-slot attach-step-badge'));
+    fileRow.appendChild(mk('span', 'attach-step-title', o.file.name));
+    fileRow.appendChild(mk('span', 'attach-step-size', sizeMB >= 0.1 ? sizeMB.toFixed(1) + ' MB' : Math.max(1, Math.round((Number(o.file.size) || 0) / 1024)) + ' KB'));
+    fileSection.appendChild(fileRow);
+    if (typeof fileBadgeFill === 'function') {
+      fileBadgeFill(badge, o.file.name, null);
+      try {
+        if (o.file && typeof o.file.slice === 'function') {
+          Promise.resolve(o.file.slice(0, 16).arrayBuffer())
+            .then((b) => fileBadgeFill(badge, o.file.name, new Uint8Array(b)))
+            .catch(() => { /* not readable: its name's badge stays */ });
+        }
+      } catch (e) { /* not readable: its name's badge stays */ }
+    }
+    const details = section('green', ATTACH_STEP_DETAILS);
     if (o.clean.summary) {
-      card.appendChild(mk('p', 'attach-step-summary', o.clean.summary));
+      details.appendChild(mk('p', 'attach-step-summary', o.clean.summary));
       const list = mk('ul', 'attach-step-details');
       for (const d of o.clean.details || []) list.appendChild(mk('li', null, d.words));
-      card.appendChild(list);
+      details.appendChild(list);
     }
     let box = null;
     if (o.ctx.protectedOn) {
-      card.appendChild(mk('p', 'attach-step-protected', W.protectedLine));
+      details.appendChild(mk('p', 'attach-step-protected', W.protectedLine));
     } else {
       const label = mk('label', 'attach-step-switch');
       box = document.createElement('input');
@@ -661,12 +695,12 @@ function showAttachStep(o) {
       box.dataset.attachStep = 'remove';
       label.appendChild(box);
       label.appendChild(mk('span', null, W.switchLabel));
-      card.appendChild(label);
+      details.appendChild(label);
     }
     const offLine = mk('p', 'attach-step-off', '');
     const said = mk('p', 'attach-step-said', '');
-    card.appendChild(offLine);
-    card.appendChild(said);
+    details.appendChild(offLine);
+    details.appendChild(said);
     if (o.extraLine) card.appendChild(mk('p', 'attach-step-recipient', o.extraLine));
     // A file over my private limit in a DM goes device to device (chat-file-transfer.js): why, and
     // that the page must stay open; and, when their published choice means their app will not ask

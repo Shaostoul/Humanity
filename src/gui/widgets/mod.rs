@@ -28,6 +28,10 @@ pub mod file_picker_memory;
 pub mod phrase_cover;
 // The word of caution under a file someone was sent, and Show in folder (2026-10-17).
 pub mod file_caution;
+// A file's type, always beside its name (2026-10-17).
+pub mod file_badge;
+// A window's parts in the chat sidebar's colours, darker (2026-10-17).
+pub mod tint_section;
 // The readable web view (2026-09-16): draws a `web_reader::Page` with
 // clickable links, history and a URL row. Used by the Browser page; the
 // in-world monitor surface is the next rung up.

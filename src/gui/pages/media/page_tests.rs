@@ -659,3 +659,36 @@ fn an_upload_a_restart_cut_off_is_offered_again() {
     assert!(fresh.s().cancelled, "and the server is told to drop what arrived");
     assert_eq!(state.media.status, format!("clip.webm: {} {}", resumable::FILE_CHANGED, resumable::NOTHING_STAYS));
 }
+
+/// ADD TO MEDIA IS IN THE EDIT WINDOW'S THREE PARTS, THE FILE FIRST, WITH ITS TYPE (2026-10-17):
+/// Files (blue) with the chosen file's badge before its name, then About it (red), then Who can see
+/// it (green). Seen red 2026-10-17 with the file's badge left out: "the chosen file's badge, under
+/// Files". A further file is on its own row with its badge, as on the website: seen red the same
+/// day with that row's badge left out, "the further file's badge".
+#[test]
+fn add_to_media_is_in_three_parts_the_file_first_with_its_type() {
+    use crate::gui::widgets::tint_section::{painted, text_starts_at, texts_at, Tint};
+    let (ctx, theme) = ctx_and_theme();
+    let mut state = page_state(demo_answer(), true);
+    state.media.mine = Some(Mine { share_bytes: 1 << 30, budget_left_bytes: 1 << 40, ..Default::default() });
+    let file = crate::test_temp::file("media_add_parts", "stl");
+    std::fs::write(&file, b"solid wedge\nendsolid wedge\n").unwrap();
+    let mut form = add::Form::new(add::Source::Picked { path: file.to_path_buf(), name: "wedge.stl".into(), len: 27 });
+    // A further file, on its own row with its type (the website's rows, 2026-10-17).
+    form.more = vec![super::resumable::MoreFile { path: file.with_extension("zip"), name: "wedge textures.zip".into(), size: 4000 }];
+    let look = crate::net::file_clean::look_file(&file, "wedge.stl").map_err(|e| e.to_string());
+    state.media.look = Some((form.id, crate::gui::pages::chat::attach_step::Looking::known(look)));
+    state.media.form = Some(form);
+    let out = settled(&ctx, &theme, &mut state);
+    let at = |t: &str| find_text_in_shapes(&out.shapes, t).map(|f| f.rect).unwrap_or_else(|| panic!("{t:?} is drawn"));
+    let (files, about, who) = (at(edit::FILES), at(edit::ABOUT_IT), at(edit::WHO_CAN_SEE_IT));
+    assert!(files.top() < about.top() && about.top() < who.top(), "Files, About it, Who can see it: {files:?} {about:?} {who:?}");
+    // The badge in the form, not the Media page's own "3D model" labels behind it.
+    let badge = texts_at(&out, "3D model").into_iter().find(|r| r.top() > files.top() && r.top() < about.top()).expect("the chosen file's badge, under Files");
+    let name = text_starts_at(&out, "wedge.stl (").expect("the name is drawn");
+    assert!(badge.top() > files.top() && badge.top() < about.top() && badge.right() < name, "the chosen file's type, before its name, under Files");
+    assert!(painted(&out, &theme, Tint::Blue) && painted(&out, &theme, Tint::Red) && painted(&out, &theme, Tint::Green), "each part in its colour");
+    let more = text_starts_at(&out, "wedge textures.zip (").expect("the further file, on its own row");
+    let archive = texts_at(&out, "Archive").into_iter().find(|r| r.top() > files.top() && r.top() < about.top()).expect("the further file's badge");
+    assert!(archive.right() < more && shows(&out, add::MORE_LEAD), "the further file: its type, then its name, under the lead line");
+}

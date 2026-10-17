@@ -9,7 +9,8 @@
 // web/shared/report.js (a report's words). The document is a small stand-in that holds ONLY what
 // the page built in it: getElementById answers null for anything that is not there, and reading
 // or setting innerHTML throws, so a test that finds a button proves the page made it, and the
-// page cannot slip server text in as HTML. The network is a stand-in that records every request
+// page cannot slip server text in as HTML. createElementNS (a file's type badge draws its picture
+// as SVG, 2026-10-17) makes the same kind of element, marked with its namespace. The network is a stand-in that records every request
 // (with its headers) and answers like src/relay/media.rs; signing is a stand-in that returns
 // "sig:" plus the words it signed, so each request shows exactly which purpose its signature
 // covers. Object URLs are a stand-in that records what was made and revoked; localStorage is a
@@ -146,6 +147,9 @@ function fakeDocument() {
   const doc = {
     readyState: "complete",
     createElement: (tag) => new FakeElement(doc, tag),
+    // A file's type badge draws its picture as SVG (2026-10-17, media-edit.js fileBadge): each
+    // element made in the SVG namespace is kept with that namespace, so a test can tell it was.
+    createElementNS: (ns, tag) => Object.assign(new FakeElement(doc, tag), { namespaceURI: String(ns) }),
     createTextNode: (t) => new FakeText(t),
     addEventListener() {},
     removeEventListener() {},

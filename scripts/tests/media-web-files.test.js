@@ -85,6 +85,12 @@ test("1. a phone photo: the form says what it holds, the switch is on, and the c
   assert.equal(text(byId(doc, "media-form-hidden")), "This photo says where it was taken and which camera took it.", "what it holds");
   assert.equal(byId(doc, "media-form-remove-details").checked, true, "the switch on");
   assert.ok(text(byId(doc, "media-form-details")).includes(UC.WORDS.switchLabel), "with its label");
+  // Since 2026-10-17 the form is in tinted parts (media-web.test.js 13): what the file holds and the
+  // switch are in its "Files" part, with the file. Seen red with detailsBox put after the parts:
+  // "what it holds is in the Files part" (actual null).
+  const partOf = (el) => { for (let n = el; n; n = n.parentNode) if (String(n.className).split(/\s+/).includes("tint-section")) return n; return null; };
+  const part = partOf(byId(doc, "media-form-details"));
+  assert.equal(part && part.className + ": " + text(part.children[0]), "tint-section tint-blue: Files", "what it holds is in the Files part");
   await upload(doc);
   const want = S.stripFile(PHOTO, "IMG_0001.jpg").bytes;
   assert.ok(same(sent(relay), want), "the cleaned photo went up, the strip's own bytes");

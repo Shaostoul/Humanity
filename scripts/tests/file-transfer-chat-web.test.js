@@ -92,7 +92,9 @@
 // 23. (2026-10-17) What kind of file it is (/shared/file-risk.js, served the shipped list): on the
 //     receiver's row by its name with the question (an archive's word before Accept), never on the
 //     sender's; a file named like a text file over an archive's bytes is called out as disguised
-//     once it has all arrived, its first 16 bytes kept with the transfer's record.
+//     once it has all arrived, its first 16 bytes kept with the transfer's record. And its type's
+//     badge, always, just before its name on both sides' rows: by its name, then red once its
+//     first bytes show it is disguised.
 //
 // Red first: see the end of this file for each deliberate break and the assertion it tripped.
 
@@ -114,6 +116,8 @@ const B3 = require(path.join(WEB, "shared", "blake3.js"));
 const RISK = require(path.join(WEB, "shared", "file-risk.js"));
 const FILE_RISKS = JSON.parse(fs.readFileSync(path.join(ROOT, "data", "safety", "file_risks.json"), "utf8"));
 const riskOf = (name, head) => RISK.assess(name, head || null, FILE_RISKS);
+/** The badge a row should show for a file (its type, always, 2026-10-17), from the shipped list. */
+const badgeOf = (name, head) => RISK.badgeHtml(name, head || null, FILE_RISKS);
 
 const hex = (u8) => Buffer.from(u8).toString("hex");
 const b64 = (s) => Buffer.from(s, "utf8").toString("base64");
@@ -816,6 +820,9 @@ function rowParts(row) {
     // What kind of file it is (2026-10-17): the line's words while it is shown, else undefined.
     caution: byClass("ft-caution") && byClass("ft-caution").hidden === false ? byClass("ft-caution").textContent : undefined,
     cautionDisguised: !!(byClass("ft-caution") && byClass("ft-caution").classList.contains("disguised")),
+    // Its type's badge (2026-10-17): what is drawn in its slot, and the head's parts in order.
+    badge: (byClass("ft-badge") || {}).innerHTML,
+    head: byClass("enc-attach-head") ? byClass("enc-attach-head").children.map((c) => String(c.className)) : [],
     button: (what) => buttons.find((e) => e.dataset.ft === what) || null,
     buttons: buttons.map((e) => e.dataset.ft),
   };
@@ -1724,8 +1731,11 @@ test("22. a channel Ben opens for a file Ann already cancelled, on a live connec
 // A file sent device to device never touches the server, so the receiving page's check is the only
 // one. Seen red 2026-10-17, each in a copy of web/ through HOS_WEB_DIR: with ftFill never calling
 // ftCaution: "the archive's word, with the question"; with ftSaveFile not reading the first bytes:
-// "once it has arrived: called out as disguised".
-test("23. a file sent to me says what kind of file it is: by its name with the question, and from its first bytes once it has arrived", async () => {
+// "once it has arrived: called out as disguised". The badge (2026-10-17), each in a copy of web/
+// through HOS_WEB_DIR: with ftFill not calling ftBadge: "Ben's row: an archive's badge" (actual '');
+// with ftBadge drawing by the name only: "once it has arrived: its badge red, from its first bytes"
+// (the text file's green badge against the archive's red one).
+test("23. a file sent to me says what kind of file it is: its badge on both rows, by its name with the question, and from its first bytes once it has arrived", async () => {
   const s = await pair();
   // An archive, by its name: said with the question, before Accept.
   const a = await offerFrom(s.ann, zipBytes(7 * MB, 231), "maps.zip");
@@ -1735,6 +1745,12 @@ test("23. a file sent to me says what kind of file it is: by its name with the q
   assert.ok(rowParts(rowOf(s.ben, a.id)).caution.startsWith("This is an archive (.zip)."), "in the list's words");
   assert.equal(rowParts(rowOf(s.ben, a.id)).cautionDisguised, false, "a warning, not a disguise");
   assert.equal(rowParts(rowOf(s.ann, a.id)).caution, undefined, "never on the sender's own row");
+  // Its type, always (2026-10-17): the badge just before its name, on both sides' rows.
+  for (const [who, page] of [["Ben's", s.ben], ["Ann's", s.ann]]) {
+    const p = rowParts(rowOf(page, a.id));
+    assert.deepEqual(p.head, ["file-badge-slot ft-badge", "enc-attach-name ft-name", "enc-attach-size ft-size"], who + " row: the badge, then the name, then the size");
+    assert.equal(p.badge, badgeOf("maps.zip"), who + " row: an archive's badge");
+  }
   await press(s.ben, a.id, "decline");
 
   // A "text file" whose bytes are an archive: no word by its name; once it has all arrived, its first
@@ -1744,6 +1760,8 @@ test("23. a file sent to me says what kind of file it is: by its name with the q
   await waitFor(() => transferOf(s.ben, b.id) && transferOf(s.ben, b.id).state === "asked", "asked about notes.txt");
   await settle();
   assert.equal(rowParts(rowOf(s.ben, b.id)).caution, undefined, "a text file by its name: no word");
+  assert.equal(rowParts(rowOf(s.ben, b.id)).badge, badgeOf("notes.txt"), "a text file by its name: green");
+  assert.ok(rowParts(rowOf(s.ben, b.id)).badge.includes("level-view"));
   await press(s.ben, b.id, "accept");
   await waitFor(() => transferOf(s.ben, b.id).state === "saved", "notes.txt arrives");
   await settle();
@@ -1753,6 +1771,8 @@ test("23. a file sent to me says what kind of file it is: by its name with the q
   assert.ok(said.words.startsWith("This file is named like a text file (.txt), but what is inside is an archive."));
   assert.equal(rowParts(rowOf(s.ben, b.id)).cautionDisguised, true, "in the danger colour");
   assert.equal(transferOf(s.ben, b.id).head, hex(bytes.subarray(0, 16)), "its first 16 bytes, kept with the transfer's record");
+  assert.equal(rowParts(rowOf(s.ben, b.id)).badge, badgeOf("notes.txt", bytes.subarray(0, 16)), "once it has arrived: its badge red, from its first bytes");
+  assert.ok(rowParts(rowOf(s.ben, b.id)).badge.startsWith('<span class="file-badge level-danger disguised"'), "red, with a thicker edge");
   assert.deepEqual([...(s.ann.errors || []), ...(s.ben.errors || [])], [], "no errors");
 });
 

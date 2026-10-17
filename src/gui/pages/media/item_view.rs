@@ -485,10 +485,18 @@ fn draw_files(ui: &mut egui::Ui, theme: &Theme, state: &GuiState, opened: &Opene
     let small = widgets::ButtonSize::Small;
     let rows = files.iter().map(|f| (f, false)).chain(item.cover.iter().map(|c| (c, true)));
     for (f, cover) in rows {
+        // Its type (the badge) and word of caution (net/file_risk.rs, 2026-10-17): by its name, then
+        // by what is inside once a Download saved it.
+        let name = name_of(item, f);
+        let saved = opened.saved_path(f.file).map(|p| (p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default(), p));
+        let (file_type, caution) = match &saved {
+            Some((saved_name, path)) => (crate::net::file_risk::file_type_saved(saved_name, path), crate::net::file_risk::assess_saved(saved_name, path)),
+            None => (crate::net::file_risk::file_type(&name, None), crate::net::file_risk::assess(&name, None)),
+        };
         ui.horizontal_wrapped(|ui| {
-            let name = name_of(item, f);
-            let what = if cover { "cover picture".to_string() } else { kinds::one_name(&f.kind).to_lowercase() };
-            ui.label(RichText::new(format!("{name}, {what}, {}", api::size_words(f.size_bytes))).size(theme.font_size_small).color(theme.text_primary()));
+            widgets::file_badge::show(ui, theme, &file_type);
+            let line = if cover { format!("{name}, cover picture, {}", api::size_words(f.size_bytes)) } else { format!("{name}, {}", api::size_words(f.size_bytes)) };
+            ui.label(RichText::new(line).size(theme.font_size_small).color(theme.text_primary()));
             if opened.downloading(f.file) {
                 ui.label(RichText::new("Downloading...").size(theme.font_size_small).color(theme.text_muted()));
             } else if widgets::Button::secondary("Download").size(small).tooltip("Save it in your downloads folder.").show(ui, theme) {
@@ -501,12 +509,6 @@ fn draw_files(ui: &mut egui::Ui, theme: &Theme, state: &GuiState, opened: &Opene
                 }
             }
         });
-        // The word of caution (net/file_risk.rs, 2026-10-17): by its name, then by what is inside
-        // once a Download saved it.
-        let caution = match opened.saved_caution(f.file) {
-            Some(saved) => saved.cloned(),
-            None => crate::net::file_risk::assess(&name_of(item, f), None),
-        };
         if let Some(caution) = caution {
             widgets::file_caution::show(ui, theme, &caution);
         }

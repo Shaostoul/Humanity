@@ -37,6 +37,7 @@ use super::{signer_or_say, spawn, Job};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use crate::gui::widgets::file_browser::FilePickerState;
+use crate::gui::widgets::tint_section::{self, Tint};
 use crate::gui::GuiState;
 
 /// A licence and the game tick, as a form shows them.
@@ -223,61 +224,67 @@ pub(crate) fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, pag
     let mut pressed = Pressed::default();
     widgets::dialog_scrolling(ctx, theme, EDIT_DIALOG_ID, &format!("Edit {}", item.display_title()), &mut open, |ui| {
         ui.set_max_width(560.0);
-        widgets::form_row(ui, theme, "Title", |ui| {
-            ui.add(egui::TextEdit::singleline(&mut form.title).desired_width(320.0).char_limit(120));
-        });
-        widgets::form_row(ui, theme, "Category", |ui| {
-            let shown = categories.iter().find(|c| c.id == form.category).map(|c| c.name.clone()).unwrap_or_else(|| item.category_name.clone());
-            egui::ComboBox::from_id_salt("media_edit_category").selected_text(shown).show_ui(ui, |ui| {
-                for c in &categories {
-                    if ui.selectable_label(c.id == form.category, &c.name).on_hover_text(&c.description).clicked() {
-                        form.category = c.id;
-                    }
-                }
+        // Three parts in the chat sidebar's colours, darker (widgets/tint_section.rs, 2026-10-17):
+        // what it is, who can see it, its files.
+        tint_section::show(ui, theme, Tint::Red, ABOUT_IT, |ui| {
+            widgets::form_row(ui, theme, "Title", |ui| {
+                ui.add(egui::TextEdit::singleline(&mut form.title).desired_width(320.0).char_limit(120));
             });
-        });
-        if let Some(about) = categories.iter().find(|c| c.id == form.category).map(|c| c.description.clone()).filter(|d| !d.trim().is_empty()) {
-            widgets::body_hint(ui, theme, &about);
-        }
-        ui.label(RichText::new("Description").size(theme.font_size_small).color(theme.text_secondary()));
-        ui.add(egui::TextEdit::multiline(&mut form.description).desired_rows(4).desired_width(520.0).char_limit(2000));
-        if !labels.is_empty() {
-            ui.label(RichText::new("Content labels: a labelled item stays hidden until someone clicks it.").size(theme.font_size_small).color(theme.text_secondary()));
-            ui.horizontal_wrapped(|ui| {
-                for l in &labels {
-                    let mut on = form.labels.contains(&l.id);
-                    if ui.checkbox(&mut on, &l.label).on_hover_text(&l.desc).changed() {
-                        if on {
-                            form.labels.insert(l.id.clone());
-                        } else {
-                            form.labels.remove(&l.id);
+            widgets::form_row(ui, theme, "Category", |ui| {
+                let shown = categories.iter().find(|c| c.id == form.category).map(|c| c.name.clone()).unwrap_or_else(|| item.category_name.clone());
+                egui::ComboBox::from_id_salt("media_edit_category").selected_text(shown).show_ui(ui, |ui| {
+                    for c in &categories {
+                        if ui.selectable_label(c.id == form.category, &c.name).on_hover_text(&c.description).clicked() {
+                            form.category = c.id;
                         }
                     }
-                }
+                });
             });
-        }
+            if let Some(about) = categories.iter().find(|c| c.id == form.category).map(|c| c.description.clone()).filter(|d| !d.trim().is_empty()) {
+                widgets::body_hint(ui, theme, &about);
+            }
+            ui.label(RichText::new("Description").size(theme.font_size_small).color(theme.text_secondary()));
+            ui.add(egui::TextEdit::multiline(&mut form.description).desired_rows(4).desired_width(520.0).char_limit(2000));
+            if !labels.is_empty() {
+                ui.label(RichText::new("Content labels: a labelled item stays hidden until someone clicks it.").size(theme.font_size_small).color(theme.text_secondary()));
+                ui.horizontal_wrapped(|ui| {
+                    for l in &labels {
+                        let mut on = form.labels.contains(&l.id);
+                        if ui.checkbox(&mut on, &l.label).on_hover_text(&l.desc).changed() {
+                            if on {
+                                form.labels.insert(l.id.clone());
+                            } else {
+                                form.labels.remove(&l.id);
+                            }
+                        }
+                    }
+                });
+            }
+        });
 
         // Who can see it: the same rules and words as Add to Media.
-        ui.add_space(theme.spacing_xs);
-        if item.keeps_file {
-            ui.label(RichText::new(super::add::ALREADY_PUBLIC_LINE).size(theme.font_size_small).color(theme.text_secondary()));
-        } else if members_server {
-            ui.label(RichText::new(super::add::MEMBERS_SERVER_LINE).size(theme.font_size_small).color(theme.text_secondary()));
-        } else {
-            ui.horizontal(|ui| {
-                ui.radio_value(&mut form.members_only, false, "Public");
-                ui.radio_value(&mut form.members_only, true, "Members only");
-            });
-        }
+        ui.add_space(theme.spacing_sm);
+        tint_section::show(ui, theme, Tint::Green, WHO_CAN_SEE_IT, |ui| {
+            if item.keeps_file {
+                ui.label(RichText::new(super::add::ALREADY_PUBLIC_LINE).size(theme.font_size_small).color(theme.text_secondary()));
+            } else if members_server {
+                ui.label(RichText::new(super::add::MEMBERS_SERVER_LINE).size(theme.font_size_small).color(theme.text_secondary()));
+            } else {
+                ui.horizontal(|ui| {
+                    ui.radio_value(&mut form.members_only, false, "Public");
+                    ui.radio_value(&mut form.members_only, true, "Members only");
+                });
+            }
 
-        ui.add_space(theme.spacing_xs);
-        let members = members_server || form.members_only;
-        let owner_only = (!own).then(|| item.by_name().to_string());
-        draw_licence_choice(ui, theme, &licences, &mut form.choice, members, Some(item.licence.as_str()), owner_only.as_deref());
-        draw_hosting(ui, theme, &licences);
+            ui.add_space(theme.spacing_xs);
+            let members = members_server || form.members_only;
+            let owner_only = (!own).then(|| item.by_name().to_string());
+            draw_licence_choice(ui, theme, &licences, &mut form.choice, members, Some(item.licence.as_str()), owner_only.as_deref());
+            draw_hosting(ui, theme, &licences);
+        });
 
         ui.add_space(theme.spacing_sm);
-        draw_files(ui, theme, &item, own, &uploads, &mut pressed);
+        tint_section::show(ui, theme, Tint::Blue, FILES, |ui| draw_files(ui, theme, &item, own, &uploads, &mut pressed));
 
         if !form.problem.is_empty() {
             ui.label(RichText::new(&form.problem).size(theme.font_size_small).color(theme.danger()));
@@ -318,22 +325,33 @@ pub(crate) fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, pag
 /// Save's label.
 pub const SAVE: &str = "Save";
 
+/// The three parts of the Edit window and of Add to Media (widgets/tint_section.rs), the website's
+/// too (web/pages/media-item.js).
+pub const ABOUT_IT: &str = "About it";
+pub const WHO_CAN_SEE_IT: &str = "Who can see it";
+pub const FILES: &str = "Files";
+
 /// The files part of the Edit window: each added file and the cover with Remove (file 0 is the
 /// item itself: never removed here), the uploads on their way to it, and, for the uploader, Add a
 /// file and Cover picture.
 fn draw_files(ui: &mut egui::Ui, theme: &Theme, item: &Item, own: bool, uploads: &[(String, String)], pressed: &mut Pressed) {
-    widgets::subsection_label(ui, theme, "Files");
     let small = widgets::ButtonSize::Small;
     let files = item_view::files_of(item);
+    // Each file's type first, always (widgets/file_badge.rs, 2026-10-17).
+    let badge = |ui: &mut egui::Ui, name: &str| widgets::file_badge::show(ui, theme, &crate::net::file_risk::file_type(name, None));
     if let Some(first) = files.first() {
         let name = super::open::file_download_name(item, first);
-        widgets::body_hint(ui, theme, &format!("{name}: the item itself. To take it away, remove the item."));
+        ui.horizontal_wrapped(|ui| {
+            badge(ui, &name);
+            widgets::body_hint(ui, theme, &format!("{name}: the item itself. To take it away, remove the item."));
+        });
     }
     for f in files.iter().skip(1).chain(item.cover.iter()) {
         ui.horizontal_wrapped(|ui| {
-            let what = if item.cover.as_ref() == Some(f) { "cover picture" } else { "file" };
             let name = super::open::file_download_name(item, f);
-            ui.label(RichText::new(format!("{name}, {what}, {}", api::size_words(f.size_bytes))).size(theme.font_size_small).color(theme.text_primary()));
+            badge(ui, &name);
+            let line = if item.cover.as_ref() == Some(f) { format!("{name}, cover picture, {}", api::size_words(f.size_bytes)) } else { format!("{name}, {}", api::size_words(f.size_bytes)) };
+            ui.label(RichText::new(line).size(theme.font_size_small).color(theme.text_primary()));
             if widgets::Button::danger("Remove").size(small).tooltip("Take it off this item. It is deleted from the server.").show(ui, theme) {
                 pressed.remove = Some(f.clone());
             }

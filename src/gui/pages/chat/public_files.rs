@@ -130,6 +130,14 @@ impl Card {
         self.other_site.is_none() && crate::gui::model_view::load::viewable(&self.name)
     }
 
+    /// Its type, for its badge: from what was saved once it is (its first bytes too), else by its name.
+    pub(crate) fn file_type(&self, saved: Option<&std::path::Path>) -> file_risk::FileType {
+        match saved {
+            Some(path) => file_risk::file_type_saved(&self.name, path),
+            None => file_risk::file_type(&self.name, None),
+        }
+    }
+
     /// The word of caution: from what was saved once it is (its first bytes too), else by its name.
     pub(crate) fn caution(&self, saved: Option<&std::path::Path>) -> Option<Caution> {
         match saved {
@@ -215,6 +223,8 @@ pub(crate) fn draw_card(ui: &mut egui::Ui, theme: &Theme, cache: &ImageCache, ca
                 .show(ui, |ui| {
                     ui.spacing_mut().item_spacing = Vec2::new(theme.spacing_sm, theme.spacing_xs);
                     ui.horizontal_wrapped(|ui| {
+                        // Its type first, always (widgets/file_badge.rs), from what is inside once saved.
+                        widgets::file_badge::show(ui, theme, &card.file_type(saved.as_deref()));
                         ui.label(text(&card.name, theme.text_primary()));
                         if let Some(size) = cache.size_of(&card.url) {
                             ui.label(text(&super::attach_view::size_words(size), theme.text_muted()));

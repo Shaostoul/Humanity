@@ -19,7 +19,9 @@
 // (with the words naming what happens to the file), Feature (main shelf, its
 // category's, or none) for admins, Keep on the server and Stop keeping for admins and moderators, Report,
 // Add to Media (the file picker, a short form with the licence and the hosting
-// paragraph, then a resumable upload with a progress bar, Pause and Resume; a file
+// paragraph, in three tinted parts since 2026-10-17: "Files" first, each chosen
+// file with its type's badge, then "About it" and "Who can see it", as the
+// desktop's; then a resumable upload with a progress bar, Pause and Resume; a file
 // picked in an item's Edit form is the same upload, attached to that item when it
 // is up instead of published), Put on Media for a Shared Files row (public
 // only), and Suggest a category. "Report a copyright problem" (2026-10-13,
@@ -259,9 +261,11 @@
     return null;
   }
 
-  /** What the Add to Media form says about the further files chosen with the first. */
+  /** What the Add to Media form says above the further files chosen with the first (each on its own row, with its type's badge). */
+  const MORE_LEAD = 'Also on this item, each added once the item is up:';
+  /** The same in one line. */
   function moreWords(more) {
-    return 'Also on this item, each added once the item is up: ' + more.map((m) => m.name + ' (' + sizeWords(m.size) + ')').join(', ');
+    return MORE_LEAD + ' ' + more.map((m) => m.name + ' (' + sizeWords(m.size) + ')').join(', ');
   }
 
   /** The stop when a file is bigger than what is left of the whole Media space, else null. */
@@ -1580,6 +1584,30 @@
       return JSON.stringify([st.categories.map((c) => [c.id, c.name]), st.labels.map((l) => l.id), membersOnlyServer()]);
     }
 
+    /**
+     * A chosen file's line in the form: its type's badge (media-edit.js fileBadge, 2026-10-17), then
+     * "name (size)" (the name alone when its size is not known).
+     */
+    function fileLine(name, size, cls) {
+      return h('div', { className: cls }, [
+        ED.fileBadge(h, doc, name),
+        h('span', { className: 'media-form-file-name', text: size != null ? name + ' (' + sizeWords(size) + ')' : name }),
+      ]);
+    }
+
+    // The list of kinds (/shared/file-risk.js), asked for once, the first time a form shows a file
+    // before it is in; each form's badges are drawn again when it comes (a plain grey "File" until then).
+    let typesAsked = false;
+    function askFileTypes() {
+      if (typesAsked || ED.fileTypesKnown()) return;
+      typesAsked = true;
+      ED.loadFileTypes(env.fetch).then((known) => {
+        if (!known) return;
+        ED.fillFileBadges(h, doc, els.form);
+        ED.fillFileBadges(h, doc, els.uploads);
+      });
+    }
+
     let formSeq = 0;
     function renderForm() {
       els.form.replaceChildren();
@@ -1589,10 +1617,21 @@
       f.formId = f.formId || ++formSeq;
       const put = f.mode === 'put';
       const kids = [h('h2', { text: put ? 'Put on Media' : f.mode === 'waiting' ? 'Publish an upload' : 'Add to Media' })];
+      // Three parts in the chat sidebar's colours, darker (2026-10-17, media-edit.js tintSection; the
+      // desktop's Add to Media): its files first (blue: each chosen file with its type's badge and
+      // size, what is hidden in it and the switch, the share left), then what it is (red), then
+      // who can see it (green). The buttons stay outside them, under them.
       const size = f.file ? f.file.size : f.size;
-      kids.push(h('p', { className: 'media-form-file', text: size != null ? f.name + ' (' + sizeWords(size) + ')' : f.name }));
-      if (f.more && f.more.length) kids.push(h('p', { id: 'media-form-more', className: 'media-hint', text: moreWords(f.more) }));
-      if (f.shareLine) kids.push(h('p', { id: 'media-share-line', className: 'media-share-line', text: f.shareLine }));
+      const fileParts = [fileLine(f.name, size, 'media-form-file')];
+      if (f.more && f.more.length) {
+        fileParts.push(h('div', { id: 'media-form-more', className: 'media-form-more' },
+          [h('p', { className: 'media-hint', text: MORE_LEAD })].concat(f.more.map((m) => fileLine(m.name, m.size, 'media-form-file media-form-more-file')))));
+      }
+      // What the file holds and the switch (part 1), before anything else is asked.
+      if (!f.stop && detailsShown(f)) fileParts.push(detailsBox(f));
+      if (f.shareLine) fileParts.push(h('p', { id: 'media-share-line', className: 'media-share-line', text: f.shareLine }));
+      kids.push(ED.tintSection(h, 'blue', ED.WORDS.files, fileParts));
+      askFileTypes();
       f.actionsEl = h('div', { id: 'media-form-actions', className: 'media-form-actions' });
       if (f.stop) {
         kids.push(h('p', { id: 'media-form-stop', className: 'media-warn', text: f.stop }));
@@ -1602,8 +1641,8 @@
         renderFormActions(f);
         return;
       }
-      // What the file holds and the switch (part 1), before anything else is asked.
-      if (detailsShown(f)) kids.push(detailsBox(f));
+      const aboutParts = [];
+      const whoParts = [];
       const title = h('input', { type: 'text', id: 'media-form-title', className: 'media-input', maxLength: 120, value: f.title || '' });
       const category = h('select', { id: 'media-form-category', className: 'media-select' },
         st.categories.map((c) => h('option', { value: String(c.id), text: c.name, selected: String(f.category || '') === String(c.id) })));
@@ -1613,9 +1652,9 @@
       title.addEventListener('input', () => { f.title = title.value; });
       category.addEventListener('change', () => { f.category = category.value; });
       description.addEventListener('input', () => { f.description = description.value; });
-      kids.push(h('label', { className: 'media-field' }, ['Title (optional)', title]));
-      if (st.categories.length) kids.push(h('label', { className: 'media-field' }, ['Category', category]));
-      kids.push(h('label', { className: 'media-field' }, ['Description (optional)', description]));
+      aboutParts.push(h('label', { className: 'media-field' }, ['Title (optional)', title]));
+      if (st.categories.length) aboutParts.push(h('label', { className: 'media-field' }, ['Category', category]));
+      aboutParts.push(h('label', { className: 'media-field' }, ['Description (optional)', description]));
       f.ticks = [];
       if (st.labels.length) {
         const box = h('fieldset', { className: 'media-field media-labels', id: 'media-form-labels' }, [h('legend', { text: 'Labels (the picture stays hidden until someone clicks it)' })]);
@@ -1626,16 +1665,16 @@
           box.appendChild(h('label', { className: 'media-check', title: l.desc || '' }, [tick, ' ' + l.label]));
           if (l.desc) box.appendChild(h('div', { className: 'media-hint', text: l.desc }));
         }
-        kids.push(box);
+        aboutParts.push(box);
       }
       // Who sees it: a file already public goes on Media as public only (the relay's
       // `was_public`), and a members-only server takes members only. Each form's choice is its
       // own group (its own name), so another form open beside an upload never changes it.
       f.visibilityEls = null;
       if (put) {
-        kids.push(h('p', { id: 'media-form-public-only', className: 'media-hint', text: MEDIA_WORDS.alreadyPublic }));
+        whoParts.push(h('p', { id: 'media-form-public-only', className: 'media-hint', text: MEDIA_WORDS.alreadyPublic }));
       } else if (membersOnlyServer()) {
-        kids.push(h('p', { id: 'media-form-members-only', className: 'media-hint', text: MEDIA_WORDS.serverMembersOnly }));
+        whoParts.push(h('p', { id: 'media-form-members-only', className: 'media-hint', text: MEDIA_WORDS.serverMembersOnly }));
       } else {
         const group = 'media-form-visibility-' + f.formId;
         const pub = h('input', { type: 'radio', name: group, value: 'public', id: 'media-form-vis-public', checked: f.visibility !== 'members' });
@@ -1644,7 +1683,7 @@
         const picked = () => { f.visibility = mem.checked ? 'members' : 'public'; if (f.licencePicker) f.licencePicker.refresh(); };
         pub.addEventListener('change', picked);
         mem.addEventListener('change', picked);
-        kids.push(h('fieldset', { className: 'media-field', id: 'media-form-visibility' }, [
+        whoParts.push(h('fieldset', { className: 'media-field', id: 'media-form-visibility' }, [
           h('legend', { text: 'Who sees it' }),
           h('label', { className: 'media-check' }, [pub, ' Public']),
           h('label', { className: 'media-check' }, [mem, ' Members only']),
@@ -1654,7 +1693,8 @@
       // as the desktop's Add to Media has them): the server's own words (media-edit.js).
       f.choice = f.choice || { licence: '', project_use: false };
       f.licencePicker = ED.licenceChoice(h, { licences: st.licences, choice: f.choice, id: 'media-form-licence', members: () => membersOnlyServer() || f.visibility === 'members' });
-      kids.push(f.licencePicker.el, ED.hostingBlock(h, st.licences));
+      whoParts.push(f.licencePicker.el, ED.hostingBlock(h, st.licences));
+      kids.push(ED.tintSection(h, 'red', ED.WORDS.aboutIt, aboutParts), ED.tintSection(h, 'green', ED.WORDS.whoCanSeeIt, whoParts));
       f.inputs = { title, category, description };
       kids.push(f.actionsEl);
       f.panel = h('div', { className: 'media-panel media-form' }, kids);
@@ -2395,7 +2435,7 @@
 
   const api = {
     MEDIA_WORDS, PAGE_SIZE, FEATURED_LIMIT, KINDS_URL, RESUME_KEY, parseKinds, kindWords, sizeWords, shareLeftWords,
-    shareStop, limitStop, budgetStop, togetherStop, moreWords, meterWords, keptMeterWords, removeWords, removedWords, resetsWords, ownFilePath,
+    shareStop, limitStop, budgetStop, togetherStop, MORE_LEAD, moreWords, meterWords, keptMeterWords, removeWords, removedWords, resetsWords, ownFilePath,
     fileRoute, storedName, itemFileName, itemName, downloadName, labelsOf, listParams, publicListUrl, purposes, jsonPost, isFeatured, itemIdOf, DEFAULT_LICENCE,
     refusalOf, refusalWords, answerOf, makeH, isAdminRole, isStaffRole, rememberUpload, findUpload, forgetUpload,
     createUploader, fingerprint, createMediaPage,

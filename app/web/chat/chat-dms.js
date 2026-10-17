@@ -458,8 +458,12 @@ function privateFileHtml(meta, fromKey) {
   // opened. The file is encrypted end to end, so the server never saw its real name or contents:
   // this check, on the receiving side, is the only one.
   const caution = '<div class="file-caution enc-attach-caution" hidden></div>';
+  // Its type, just before its name, always (app.js fileBadgeSlotHtml): by its name, or from its
+  // first bytes when it was opened here before; drawn again by privateFileCaution once it is opened.
+  const named = (meta && meta.name) || 'file';
+  const badge = fileBadgeSlotHtml(named, privateFileHeads.get(privateFileHeadKey(meta)) || null, 'enc-attach-badge');
   return `<div class="enc-attach" data-enc="1">
-    <div class="enc-attach-head">${hosIcon('lock', 12)} <span>${esc(meta.name || 'file')}</span>
+    <div class="enc-attach-head">${hosIcon('lock', 12)} ${badge}<span class="enc-attach-name">${esc(named)}</span>
       <span class="enc-attach-size">${_fmtBytes(meta.size)}</span></div>
     ${caution}${unchecked}<div class="enc-attach-body">${privateFileBodyHtml(meta, fromKey)}</div>
   </div>`;
@@ -481,15 +485,18 @@ function privateFileKeepHead(meta, bytes) {
 }
 
 /**
- * Say on a private file's card what kind of file it is (app.js fileCautionFill): by its name, and
- * with its first bytes once it has been opened here, so a file whose name says a picture over the
- * bytes of a program is called out as disguised.
+ * Say on a private file's card what kind of file it is: its type's badge, just before its name
+ * (app.js fileBadgeFill), and its word of caution when it deserves one (app.js fileCautionFill). By
+ * its name, and with its first bytes once it has been opened here, so a file whose name says a
+ * picture over the bytes of a program shows red and is called out as disguised.
  */
 function privateFileCaution(card, meta) {
-  if (!card || typeof card.querySelector !== 'function' || typeof fileCautionFill !== 'function') return;
+  if (!card || typeof card.querySelector !== 'function') return;
+  const head = privateFileHeads.get(privateFileHeadKey(meta)) || null;
+  if (typeof fileBadgeFill === 'function') fileBadgeFill(card.querySelector('.enc-attach-badge'), (meta && meta.name) || 'file', head);
   const line = card.querySelector('.enc-attach-caution');
-  if (!line) return;
-  fileCautionFill(line, (meta && meta.name) || '', privateFileHeads.get(privateFileHeadKey(meta)) || null);
+  if (!line || typeof fileCautionFill !== 'function') return;
+  fileCautionFill(line, (meta && meta.name) || '', head);
 }
 
 /** The inside of a file card: Accept (a file not allowed yet), the note, Save, the picture or its click. */

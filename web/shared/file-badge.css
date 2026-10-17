@@ -1,0 +1,41 @@
+/* file-badge.css: a file's TYPE, always shown just before its name (2026-10-17).
+   The operator: "Let's somehow highlight the file type so people ALWAYS know what file type
+   they're looking at ... protect people inexperienced with technology and possibly illiterate
+   people." A rounded chip with a drawing, a word and the file's ending, in a colour that says how
+   careful to be: green to look at (a picture, a video, a sound, a document, a 3D model), amber to
+   take care (an archive, a document that can carry macros, a web page), red for what can run
+   things on the computer or pretends to be something it is not (a thicker edge then), grey when
+   the type is not known.
+
+   The badge itself is drawn by /shared/file-risk.js (HosFileRisk.badgeHtml) on the chat page and
+   the Shared Files page, and by /pages/media-edit.js (fileBadge, the same shape built with
+   createElement) on the Media page. The desktop app's twin: src/gui/widgets/file_badge.rs.
+   Theme tokens only (theme.css, generated from data/gui/theme.ron). */
+.file-badge {
+  --badge: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 7px 1px 5px;
+  border-radius: 999px;
+  border: 1px solid var(--badge);
+  color: var(--badge);
+  background: color-mix(in srgb, var(--badge) 15%, transparent);
+  font-size: var(--text-xs);
+  line-height: 1.4;
+  white-space: nowrap;
+  vertical-align: middle;
+  flex: none;
+}
+.file-badge-icon { display: block; flex: none; }
+.file-badge-label { font-weight: 700; }
+.file-badge-ending { color: var(--text-secondary); font-weight: 400; }
+.file-badge.level-view { --badge: var(--success); }
+.file-badge.level-care { --badge: var(--warning); }
+.file-badge.level-danger { --badge: var(--danger); }
+.file-badge.level-unknown { --badge: var(--text-muted); }
+/* Named like one kind over the bytes of another: red, with a thicker edge. */
+.file-badge.disguised { border-width: 2px; padding: 0 6px 0 4px; }
+/* The place a badge is drawn into and drawn again (when the list of kinds comes, and when a file's
+   first bytes are known): it holds the badge only. */
+.file-badge-slot { display: inline-flex; align-items: center; vertical-align: middle; flex: none; }

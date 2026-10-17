@@ -37,6 +37,10 @@
 //     setup comes on closes. Your own items are never hidden.
 // 11. (2026-10-17) Under each file row whose kind deserves a word (an archive, a Blender file), that
 //     word from /shared/file-risk.js, by the file's name: the list asked for once, no file read.
+// 12. (2026-10-17) Each file row starts with its type's badge (a grey "File" until the list is in,
+//     then exactly what HosFileRisk.badgeHtml draws), and says "name, size".
+// 13. (2026-10-17) Edit is in three tinted parts, "About it", "Who can see it" and "Files", each
+//     holding its own fields, with Save and Cancel under them; its file rows show their types.
 //
 // Seen red 2026-10-12: each with one break made in a copy of web/ under HOS_WEB_DIR, then green
 // again on the real web/: see the note above each test.
@@ -92,8 +96,10 @@ test("1. a tile opens the item with its description, files, licence and counts, 
   assert.equal(licence.querySelector("a").href, L.offered[1].url, "linked to its deed");
   assert.equal(text(byId(doc, "media-item-licence-words")), L.offered[1].line, "with the server's own line for it");
   assert.equal(text(byId(doc, "media-item-game")), MI.WORDS.offeredForGame);
+  // Since 2026-10-17 each row's badge says what kind of file it is (test 12), so the row itself says
+  // only "name, size" ("name, cover picture, size" for the cover), as the desktop's does.
   const rows = byId(doc, "media-item-files").querySelectorAll(".media-item-file-name").map(text);
-  assert.deepEqual(rows.map((r) => r.split(", ").slice(0, 2).join(", ")), ["dusk.png, picture", "textures.zip, file", "1762_c.jpg, cover picture"]);
+  assert.deepEqual(rows, ["dusk.png, 1 KB", "textures.zip, 4 KB", "1762_c.jpg, cover picture, 5 KB"]);
   assert.equal(byId(doc, "media-item-files").querySelectorAll("[data-download]").length, 3, "each file has its own Download");
   assert.ok(byId(doc, "media-copy-link"), "Copy link for anyone");
   assert.equal(byId(doc, "media-item-edit-open"), null, "no Edit on someone else's item");
@@ -206,7 +212,7 @@ test("5. adding a file uploads, then attaches it; it is never published", async 
   await settle();
   assert.equal(notice(doc), 'Added to "Dusk".');
   const rows = byId(doc, "media-item-files").querySelectorAll(".media-item-file-name").map(text);
-  assert.ok(rows.some((r) => r.startsWith("clip.webm, video")), "the answer's item is the page's: " + rows.join(" | "));
+  assert.ok(rows.includes("clip.webm, 20 KB"), "the answer's item is the page's: " + rows.join(" | "));
 });
 
 // ── 6. Copy link ─────────────────────────────────────────────────────────
@@ -497,4 +503,141 @@ test("11. each file row says what kind of file it is when that deserves a word, 
   await settle();
   assert.equal(asked, 1, "drawn again: not asked again");
   assert.equal(text(caution(1)), riskOf("textures.zip").words);
+});
+
+// ── 12. Each file's type, always (2026-10-17) ────────────────────────────
+
+// The operator: "highlight the file type so people ALWAYS know what file type they're looking at"
+// (for "people inexperienced with technology and possibly illiterate people"). Each file row starts
+// with a badge (media-edit.js fileBadge): HosFileRisk.badgeHtml's shape built with createElement,
+// a drawing, the type's word and the file's ending, coloured by its level. Before the list of kinds
+// is in it is a plain grey "File"; the rows are drawn again when it comes.
+const FRISK = require(path.join(WEB, "shared", "file-risk.js"));
+const RISK_LIST = JSON.parse(fs.readFileSync(path.join(ROOT, "data", "safety", "file_risks.json"), "utf8"));
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+/** What HosFileRisk.badgeHtml draws for `name` (with the shipped list), read back into its parts. */
+function badgeHtmlParts(name) {
+  const html = FRISK.badgeHtml(name, null, RISK_LIST);
+  const attr = (k) => (new RegExp(" " + k + '="([^"]*)"').exec(html) || [])[1];
+  return {
+    className: attr("class"), name: attr("data-file-badge"), type: attr("data-file-type"), title: attr("title"),
+    label: (/class="file-badge-label">([^<]*)</.exec(html) || [])[1], ending: (/class="file-badge-ending">([^<]*)</.exec(html) || [])[1] || "",
+    shapes: (html.match(/<(rect|line|circle|polygon|polyline) /g) || []).length,
+  };
+}
+/** The same parts read off a badge the page built, its drawing made in the SVG namespace. */
+function badgeParts(el) {
+  const svg = el.children.find((c) => c.tagName === "SVG");
+  assert.ok(svg && svg.namespaceURI === SVG_NS, "the badge's drawing is SVG, made in its namespace");
+  return {
+    className: el.className, name: el.dataset.fileBadge, type: el.dataset.fileType, title: el.title,
+    label: text(el.querySelector(".file-badge-label")), ending: text(el.querySelector(".file-badge-ending")) || "",
+    shapes: svg.children.length,
+  };
+}
+/**
+ * A list route that answers only once `release()` is called (the list late, as on a slow line). Its
+ * hold ends with the test whatever happens (`t.after`): file-risk.js is one module for the whole
+ * file, and a load left hanging by a failed test would be joined by the next test's page.
+ */
+function lateList(t) {
+  let release = () => {};
+  const gate = new Promise((r) => { release = r; });
+  t.after(async () => { release(); for (let i = 0; i < 4; i++) await settle(); });
+  return { release, route: [at("/data/safety/file_risks.json"), async () => { await gate; return respond(200, RISK_LIST); }] };
+}
+
+// Seen red 2026-10-17, each in a copy of web/ through HOS_WEB_DIR: with media-item.js renderInfo's
+// row drawn without its badge: "each row starts with its badge: media-item-file-name"; with
+// media-edit.js fileBadge handed an empty list (every badge the grey File): "dusk.png: the badge
+// file-risk.js draws" (className 'file-badge level-unknown' against 'file-badge level-view').
+test("12. each file row starts with its type's badge: a grey File until the list is in, then the badge file-risk.js draws", async (t) => {
+  FRISK.use(null); // not in yet: the page asks for it
+  const late = lateList(t);
+  const { doc, page } = await openPage({ routes: listRoutes(answerOf([fxItem()]), [late.route]) });
+  page.openViewer(page.state.items[0]);
+  await settle();
+  const rows = () => byId(doc, "media-item-files").querySelectorAll(".media-item-file-row");
+  assert.equal(rows().length, 3, "test setup: three rows, the cover's included");
+  for (const row of rows()) {
+    assert.ok(row.children[0].className.startsWith("file-badge"), "each row starts with its badge: " + row.children[0].className);
+    assert.equal(row.children[0].className, "file-badge level-unknown", "before the list is in: grey");
+    assert.equal(text(row.children[0].querySelector(".file-badge-label")), "File", "and the word File");
+    assert.equal(row.children[1].className, "media-item-file-name", "then the name");
+  }
+  assert.equal(text(rows()[1].children[0].querySelector(".file-badge-ending")), ".zip", "with the file's own ending");
+  late.release();
+  for (let i = 0; i < 4; i++) await settle();
+  const names = ["dusk.png", "textures.zip", "1762_c.jpg"];
+  rows().forEach((row, i) => {
+    assert.deepEqual(badgeParts(row.children[0]), badgeHtmlParts(names[i]), names[i] + ": the badge file-risk.js draws");
+    assert.equal(row.children[1].className, "media-item-file-name", names[i] + ": just before its name");
+  });
+  assert.equal(rows()[0].children[0].className, "file-badge level-view", "a picture: fine to look at");
+  assert.equal(text(rows()[0].children[0]), "Picture.png");
+  assert.equal(rows()[1].children[0].className, "file-badge level-care", "an archive: take care");
+  assert.equal(text(rows()[1].children[0]), "Archive.zip");
+});
+
+// ── 13. Edit in three tinted parts (2026-10-17) ─────────────────────────
+
+/** The tinted parts directly in `el`. */
+const partsOf = (el) => el.children.filter((c) => c.className.split(/\s+/).includes("tint-section"));
+const partTitles = (el) => partsOf(el).map((p) => [p.className, text(p.children[0])]);
+/** Is `child` inside `el`? */
+const within = (el, child) => { for (let n = child; n; n = n.parentNode) if (n === el) return true; return false; };
+
+// The operator asked for "the RGB aesthetic for the different sections of the interface like how
+// the DMs, Groups, and servers in chat are but darker RGB in the pop up window", and noticed it
+// missing from Edit. As the desktop's Edit window (media/edit.rs): "About it" (red), "Who can see
+// it" (green), "Files" (blue), each holding exactly its fields; Save and Cancel under them, outside.
+// Its file rows show each file's type too, drawn again once the list of kinds is in, and say
+// "name, size" ("name, cover picture, size" for the cover).
+// Seen red 2026-10-17, each in a copy of web/ through HOS_WEB_DIR: with media-edit.js draw() putting
+// the fields straight into the form, no tintSection: "the three parts, in order" (actual []); with
+// the editor's rows drawn without their badge: "the cover's row: its badge first"; with media-item.js
+// riskOf not drawing an open Edit form's files again once the list is in: "the editor's archive,
+// once the list is in" ('file-badge level-unknown' against 'file-badge level-care').
+test("13. Edit is in three tinted parts (About it, Who can see it, Files) with Save and Cancel under them; its files show their types", async (t) => {
+  FRISK.use(null);
+  const late = lateList(t);
+  const mine = fxItem({ uploader_key: ME, uploader_name: "Me" });
+  const { doc, page } = await openPage({ routes: listRoutes(answerOf([mine]), [late.route]) });
+  page.openViewer(page.state.items[0]);
+  byId(doc, "media-item-edit-open").click();
+  const form = byId(doc, "media-edit");
+  assert.deepEqual(partTitles(form), [
+    ["tint-section tint-red", "About it"], ["tint-section tint-green", "Who can see it"], ["tint-section tint-blue", "Files"],
+  ], "the three parts, in order");
+  for (const p of partsOf(form)) assert.equal(p.children[0].className, "tint-section-title", "each with its title on top");
+  const [about, who, files] = partsOf(form);
+  for (const id of ["media-edit-title", "media-edit-category", "media-edit-category-desc", "media-edit-description", "media-edit-labels"]) {
+    assert.ok(within(about, byId(doc, id)), "About it holds #" + id);
+  }
+  for (const id of ["media-edit-visibility", "media-edit-licence"]) assert.ok(within(who, byId(doc, id)), "Who can see it holds #" + id);
+  assert.ok(within(who, form.querySelector("[data-hosting]")), "Who can see it holds the hosting paragraph");
+  for (const id of ["media-edit-files", "media-edit-add-file", "media-edit-cover"]) assert.ok(within(files, byId(doc, id)), "Files holds #" + id);
+  for (const id of ["media-edit-save", "media-edit-cancel", "media-edit-problem"]) {
+    const el = byId(doc, id);
+    assert.ok(el && partsOf(form).every((p) => !within(p, el)), "#" + id + " is outside the parts");
+  }
+  const kids = form.children;
+  assert.ok(kids.indexOf(files) < kids.findIndex((c) => within(c, byId(doc, "media-edit-save"))), "Save comes under them");
+  assert.equal(form.querySelectorAll("h4").length, 0, "the files part's own heading went: its part says Files");
+
+  // Its rows: the item itself, then the added file and the cover, each with its badge first.
+  const list = byId(doc, "media-edit-files");
+  const firstRow = list.children[0];
+  assert.equal(firstRow.children[0].className, "file-badge level-unknown", "the item itself: its badge first, grey before the list is in");
+  assert.equal(text(firstRow.children[1]), ED.firstFileWords("dusk.png"));
+  const editRows = list.querySelectorAll("[data-edit-file]");
+  assert.deepEqual(editRows.map((r) => text(r.querySelector(".media-item-file-name"))), ["textures.zip, 4 KB", "1762_c.jpg, cover picture, 5 KB"], "name, size; the cover says so");
+  assert.ok(editRows[1].children[0].className.startsWith("file-badge"), "the cover's row: its badge first");
+  late.release();
+  for (let i = 0; i < 4; i++) await settle();
+  const after = byId(doc, "media-edit-files");
+  assert.equal(after.querySelectorAll("[data-edit-file]")[0].children[0].className, "file-badge level-care", "the editor's archive, once the list is in");
+  assert.deepEqual(badgeParts(after.children[0].children[0]), badgeHtmlParts("dusk.png"), "the item itself: the badge file-risk.js draws");
+  assert.deepEqual(badgeParts(after.querySelectorAll("[data-edit-file]")[1].children[0]), badgeHtmlParts("1762_c.jpg"), "the cover: the badge file-risk.js draws");
 });

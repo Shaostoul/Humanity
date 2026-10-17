@@ -252,3 +252,11 @@ what we will say about it.
   it for games. GOG's rule 11.1(e) could be read to reach any program that
   touches a GOG game. Playnite's documentation as prior art. Extends the
   2026-09-25 launcher finding.
+- [`2026-10-17-windows-media-foundation-decoders.md`](2026-10-17-windows-media-foundation-decoders.md),
+  whether the desktop app can play an ordinary MP4 (H.264 video, AAC sound) by
+  asking Windows. Windows 7 and later carry both decoders in Media Foundation
+  for any desktop application, H.264 falling back to software without suitable
+  graphics hardware, so the September finding's missing sound was the browser
+  engine's limit, not Windows'. Not covered: Windows N editions (need the Media
+  Feature Pack), H.265 (a Store extension), macOS and Linux. Extends the
+  2026-09-19 codec finding; the legal reading is unchanged.

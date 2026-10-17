@@ -28,7 +28,11 @@
   <link rel="stylesheet" href="/chat/base.css?v=3">
   <link rel="stylesheet" href="/chat/layout.css?v=7">
   <link rel="stylesheet" href="/chat/sidebar.css?v=3">
-  <link rel="stylesheet" href="/chat/messages.css?v=7">
+  <link rel="stylesheet" href="/chat/messages.css?v=8">
+  <!-- A file's type, always shown just before its name (2026-10-17): the badge /shared/file-risk.js draws. -->
+  <link rel="stylesheet" href="/shared/file-badge.css?v=1">
+  <!-- The attach step's parts in the chat sidebar's colours, darker (2026-10-17). -->
+  <link rel="stylesheet" href="/shared/tint-section.css?v=1">
   <link rel="stylesheet" href="/chat/modals.css?v=4">
   <link rel="stylesheet" href="/chat/voice.css?v=3">
   <link rel="stylesheet" href="/chat/inputs.css?v=5">
@@ -726,9 +730,10 @@
   <!-- file-risk.js: what kind of file a file is, said on its card before it is opened (2026-10-17,
        from a suggestion in the project's Discord): a program, a script, an archive, a file named like
        a picture over a program's bytes. Reads /data/safety/file_risks.json, the list the desktop app's
-       twin (src/net/file_risk.rs) reads too. Before app.js, chat-dms.js and chat-file-transfer.js,
-       which use it (app.js fileCautionFill). -->
-  <script src="/shared/file-risk.js?v=1"></script>
+       twin (src/net/file_risk.rs) reads too. And every file's type, always, as a badge just before
+       its name (2026-10-17, /shared/file-badge.css). Before app.js, chat-dms.js and
+       chat-file-transfer.js, which use it (app.js fileCautionFill and fileBadgeFill). -->
+  <script src="/shared/file-risk.js?v=2"></script>
   <!-- Device-to-device big files (2026-10-11, docs/design/media-showcase.md, "Device-to-device big
        files: the shapes, exact"), shared with Node tests: blake3.js hashes a file a piece at a time
        (fast enough for gigabytes, which the noble bundle's is not); file-transfer.js holds the
@@ -756,9 +761,9 @@
        Load before app.js so its renderers can call them. -->
   <script src="/chat/view/timestampPill.js?v=1"></script>
   <script src="/chat/view/messageRow.js?v=1"></script>
-  <script src="/chat/app.js?v=29"></script>
-  <script src="/chat/chat-messages.js?v=18"></script>
-  <script src="/chat/chat-dms.js?v=18"></script>
+  <script src="/chat/app.js?v=30"></script>
+  <script src="/chat/chat-messages.js?v=19"></script>
+  <script src="/chat/chat-dms.js?v=19"></script>
   <script src="/chat/chat-social.js?v=20"></script>
   <script src="/chat/chat-groups-p2p.js?v=17"></script>
   <script src="/chat/chat-ui.js?v=18"></script>
@@ -787,7 +792,7 @@
   <!-- Device-to-device big files (2026-10-11): a file over my private limit in a DM goes straight to
        the other person's device once they say yes; the offer, the question, the rows and the
        connection. Wraps the frame handler, so before chat-protected.js, which stays the last. -->
-  <script src="/chat/chat-file-transfer.js?v=4"></script>
+  <script src="/chat/chat-file-transfer.js?v=5"></script>
   <!-- The protected setup (step G, 2026-10-10): the Safety section, its steps, the PIN prompt, the
        always-visible line, public rooms hidden and pictures from non-friends not shown. After
        chat-privacy.js (the Safety page it draws into) and chat-warnings.js (the recovery phrase

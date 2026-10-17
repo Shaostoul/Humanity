@@ -381,6 +381,18 @@ file or 3D model whose bytes are a program, a script or an archive is called out
 the danger colour). On public file cards, private files in DMs and P2P groups (the only check those
 get: they are encrypted before upload), device-to-device files (by name at the Accept question,
 then by bytes), and the Media item page's file rows. Cards offer Show in folder, never Open.
+**Every file shows its type, always (v0.1510.0).** For people new to technology and people who read
+little: a badge before every file's name, with a drawing, a word ("Video", "Archive", "Program") and
+the file's ending, coloured by how much care it needs (green to look at, amber for care, red for
+programs, scripts, shortcuts and anything disguised, grey when the type is not known). The drawings
+are shapes in the list itself (`icons`), so both apps draw the same ones. On the chat's public,
+private and device-to-device files, the Media item page and its Edit window, Add to Media, "Send a
+file", the Files page and the file picker's list; from what is inside once a file is saved here.
+Native `src/gui/widgets/file_badge.rs` (`show`, `paint_icon`, `level_color`) over
+`file_risk::file_type` / `file_type_saved`; web `HosFileRisk.fileType` / `badgeHtml` / `fillBadges`.
+The windows where people attach (the picker, Add to Media, Edit, "Send a file") are in tinted parts:
+`src/gui/widgets/tint_section.rs` (`Tint::Red/Green/Blue`, the sidebar's `dm_bg`/`group_bg`/
+`server_bg` at `SHADE`); web class `tint-section`.
 - Data: `data/safety/file_risks.json` (kinds, endings, first bytes, the words; read from the data
   folder first), shared cases `scripts/tests/fixtures/file-risk-cases.json`.
 - Native: `src/net/file_risk.rs` (`assess`, `assess_file`, `assess_saved`), `src/gui/widgets/file_caution.rs`

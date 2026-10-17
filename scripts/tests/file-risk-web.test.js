@@ -25,7 +25,32 @@ test("every shared case gets the same word as in the desktop app", () => {
     assert.equal(got ? got.kind : null, c.kind, `${JSON.stringify(c.name)} over ${c.head}`);
     assert.equal(!!(got && got.disguised), c.disguised, `${JSON.stringify(c.name)} over ${c.head}: disguised`);
     if (c.words) assert.equal(got && got.words, c.words, `${JSON.stringify(c.name)}: the words`);
+    const t = risk.fileType(c.name, hex(c.head));
+    assert.deepEqual([t.id, t.level], [c.type, c.level], `${JSON.stringify(c.name)} over ${c.head}: its badge`);
+    assert.equal(t.disguised, c.disguised, `${JSON.stringify(c.name)} over ${c.head}: the badge says disguised`);
   }
+});
+
+// The badge (2026-10-17): every file shows its type as a drawing, a word and a colour, in the
+// desktop app's shape (gui/widgets/file_badge.rs). Seen red 2026-10-17 with the label left unescaped:
+// "a name cannot break out of the badge"; and with the first bytes left off the badge (so a redraw
+// turned a disguised file's red badge back to its claimed type): "a badge drawn from the bytes keeps
+// them, so a redraw stays red".
+test("every file gets a badge: drawing, word, ending and colour, all escaped", () => {
+  risk.use(list);
+  const zip = risk.badgeHtml("maps.zip", null);
+  assert.match(zip, /^<span class="file-badge level-care" data-file-badge="maps.zip" data-file-type="archive"/);
+  assert.ok(zip.includes('<svg class="file-badge-icon" viewBox="0 0 48 48"') && zip.includes("<rect "), "its drawing, from the list");
+  assert.ok(zip.includes('<span class="file-badge-label">Archive</span><span class="file-badge-ending">.zip</span>'));
+  const fake = risk.badgeHtml("holiday.png", hex("4d5a9000"));
+  assert.ok(fake.startsWith('<span class="file-badge level-danger disguised"') && fake.includes(">Program<") && fake.includes(">.png<"), "a disguised file shows what it is, red: " + fake);
+  assert.ok(fake.includes('data-file-head="4d5a9000"'), "a badge drawn from the bytes keeps them, so a redraw stays red");
+  const odd = risk.badgeHtml('"><img src=x onerror=alert(1)>.txt', null);
+  assert.ok(!odd.includes("<img") && odd.includes("&quot;&gt;&lt;img"), "a name cannot break out of the badge");
+  assert.equal(risk.fileType("mystery.dat", null).label, "File");
+  risk.use(null);
+  assert.deepEqual(risk.fileType("setup.exe", null), { id: "unknown", label: "File", icon: "unknown", level: "unknown", ending: ".exe", disguised: false }, "before the list is in: a plain grey File");
+  risk.use(list);
 });
 
 test("before the list is in there is no word, and the list loads once", async () => {

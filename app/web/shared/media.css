@@ -46,7 +46,12 @@
 .media-field legend { font-size: var(--text-sm); margin-bottom: var(--space-xs); }
 .media-hint { color: var(--text-muted); font-size: var(--text-xs); margin-bottom: var(--space-sm); }
 .media-share-line { font-weight: 700; margin-bottom: var(--space-md); }
-.media-form-file { color: var(--text-secondary); margin-bottom: var(--space-md); word-break: break-all; }
+/* A chosen file in Add to Media: its type's badge (/shared/file-badge.css), then its name and size (2026-10-17). */
+.media-form-file { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-sm); color: var(--text-secondary); margin-bottom: var(--space-md); word-break: break-all; }
+.media-form-more { margin-bottom: var(--space-md); }
+.media-form-more .media-form-file { margin-bottom: var(--space-xs); }
+/* A part of Add to Media or Edit (/shared/tint-section.css): its files list sits flush in it. */
+.tint-section .media-item-files { margin: 0; }
 .media-form-buttons { display: flex; gap: var(--space-md); flex-wrap: wrap; margin-top: var(--space-md); }
 .media-featured { margin-bottom: var(--space-lg); }
 .media-featured-row { display: flex; gap: var(--space-lg); overflow-x: auto; padding-bottom: var(--space-sm); }

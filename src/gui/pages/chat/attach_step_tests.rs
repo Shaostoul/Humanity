@@ -118,3 +118,58 @@ fn the_member_answer_gives_the_word() {
     assert_eq!(accepts_from_answer(&a), Some(("Ann".to_string(), "nobody".to_string())));
     assert_eq!(accepts_from_answer(&serde_json::json!({ "name": "Ann" })), None, "an older server says nothing");
 }
+
+/// "SEND A FILE" SHOWS THE FILE WITH ITS TYPE, THEN WHAT IS HIDDEN IN IT, EACH IN ITS OWN PART
+/// (2026-10-17): The file (blue) with the badge before its name ("Picture" and ".jpg" for a phone
+/// photo), then Hidden details (green) with what was found. Seen red 2026-10-17 with the badge
+/// left out: "\"Picture\" is drawn" (nothing said what the file was).
+#[test]
+fn send_a_file_shows_the_file_with_its_type_then_what_is_hidden_in_it() {
+    use crate::gui::widgets::tint_section::{painted, text_starts_at, Tint};
+    let mut gs = app();
+    gs.settings.files_in_messages = FilesInMessages { remove_details: false, ..Default::default() };
+    let photo = fixture("jpeg-phone.jpg");
+    let job = attach_send::attach_file_job(&mut gs, &photo).expect("a job");
+    open(&mut gs, job, &photo);
+    frames_until_looked(&mut gs);
+    assert!(gs.files_flow.step.is_some(), "a phone photo waits for Send");
+    let ctx = egui::Context::default();
+    // No fade-in, so the colours read are the colours themselves.
+    ctx.all_styles_mut(|s| s.animation_time = 0.0);
+    let theme = crate::gui::theme::load_theme();
+    let mut out = ctx.run(egui::RawInput::default(), |ctx| draw(ctx, &theme, &mut gs));
+    for _ in 0..3 {
+        out = ctx.run(egui::RawInput::default(), |ctx| draw(ctx, &theme, &mut gs));
+    }
+    let at = |t: &str| crate::gui::screen_surface::find_text_in_shapes(&out.shapes, t).map(|f| f.rect).unwrap_or_else(|| panic!("{t:?} is drawn"));
+    let (file, hidden) = (at(THE_FILE), at(HIDDEN_DETAILS));
+    assert!(file.top() < hidden.top(), "The file, then Hidden details");
+    let (badge, ending) = (at("Picture"), at(".jpg"));
+    let name = text_starts_at(&out, "jpeg-phone.jpg (").expect("the name is drawn");
+    assert!(badge.right() < name && ending.right() < name && badge.top() < hidden.top(), "the photo's type, before its name");
+    assert!(painted(&out, &theme, Tint::Blue) && painted(&out, &theme, Tint::Green), "each part in its colour");
+}
+
+/// A FILE NAMED LIKE A PICTURE THAT IS A PROGRAM IS RED BEFORE IT GOES (2026-10-17, as the website's
+/// attach step does): "Send a file" reads its first bytes for the badge, which says Program, red,
+/// not Picture. Seen red 2026-10-17 with the badge drawn from the name alone: "\"Program\" is drawn".
+#[test]
+fn a_file_named_like_a_picture_that_is_a_program_is_red_before_it_goes() {
+    let mut gs = app();
+    let fake = crate::test_temp::file("attach_step_disguised", "jpg");
+    std::fs::write(&fake, [0x4d, 0x5a, 0x90, 0x00, 0x03, 0x00, 0x00, 0x00, 0x04, 0x00]).unwrap();
+    let job = attach_send::attach_file_job(&mut gs, &fake).expect("a job");
+    open(&mut gs, job, &fake);
+    frames_until_looked(&mut gs);
+    assert!(gs.files_flow.step.is_some(), "a picture that cannot be read as one waits for Send anyway");
+    let ctx = egui::Context::default();
+    ctx.all_styles_mut(|s| s.animation_time = 0.0);
+    let theme = crate::gui::theme::load_theme();
+    let mut out = ctx.run(egui::RawInput::default(), |ctx| draw(ctx, &theme, &mut gs));
+    for _ in 0..3 {
+        out = ctx.run(egui::RawInput::default(), |ctx| draw(ctx, &theme, &mut gs));
+    }
+    let program = crate::gui::widgets::tint_section::texts_at(&out, "Program");
+    assert!(!program.is_empty(), "\"Program\" is drawn");
+    assert!(crate::gui::widgets::tint_section::texts_at(&out, "Picture").is_empty(), "not Picture");
+}

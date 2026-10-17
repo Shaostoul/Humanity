@@ -427,6 +427,11 @@ fn draw_file(
 /// writes it to the downloads folder on a worker thread, then says where it went.
 fn draw_file_card(ui: &mut egui::Ui, theme: &Theme, cache: &mut ImageCache, att: &DmAttachment, plan: &Plan, row_bg: Color32) {
     let mut save = false;
+    // Its type first, always (widgets/file_badge.rs): from what is inside once saved, else its name.
+    let file_type = match cache.downloaded_path(&plan.key) {
+        Some(path) => crate::net::file_risk::file_type_saved(&att.name, path),
+        None => crate::net::file_risk::file_type(&att.name, None),
+    };
     Frame::NONE
         .fill(row_bg)
         .inner_margin(egui::Margin { left: INDENT as i8, right: 8, top: 2, bottom: 4 })
@@ -440,6 +445,7 @@ fn draw_file_card(ui: &mut egui::Ui, theme: &Theme, cache: &mut ImageCache, att:
                 .show(ui, |ui| {
                     ui.spacing_mut().item_spacing = Vec2::new(theme.spacing_sm, theme.spacing_xs);
                     ui.horizontal(|ui| {
+                        widgets::file_badge::show(ui, theme, &file_type);
                         ui.label(RichText::new(&att.name).size(theme.font_size_small).color(theme.text_primary()));
                         ui.label(RichText::new(size_words(att.size)).size(theme.font_size_small).color(theme.text_muted()));
                         if cache.is_saving(&plan.key) {

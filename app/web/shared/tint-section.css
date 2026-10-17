@@ -1,0 +1,28 @@
+/* tint-section.css: one part of a window on a darker shade of the chat sidebar's section colours
+   (the DMs' red, the groups' green, the servers' blue), edged in the colour itself, with a small
+   title, so a window's parts read apart at a glance (the operator, 2026-10-17: "the RGB aesthetic
+   for the different sections of the interface like how the DMs, Groups, and servers in chat are
+   but darker RGB in the pop up window"). Used by the windows where people attach files: the Media
+   page's Add to Media and an item's Edit, and the chat's attach step ("Send a file").
+
+   The colours are the theme's own tokens (--dm-bg, --group-bg, --server-bg, which the chat
+   sidebar's sections use: /chat/sidebar.css), so the Settings theme editor changes them here
+   too. The desktop app's twin: src/gui/widgets/tint_section.rs (the fill at 70% of the colour). */
+.tint-section {
+  --tint: var(--server-bg);
+  background: color-mix(in srgb, var(--tint) 70%, transparent);
+  border: 1px solid var(--tint);
+  border-radius: var(--radius-lg);
+  padding: 8px;
+  margin: 0 0 var(--space-sm);
+}
+.tint-section.tint-red { --tint: var(--dm-bg); }
+.tint-section.tint-green { --tint: var(--group-bg); }
+.tint-section.tint-blue { --tint: var(--server-bg); }
+.tint-section-title {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--text-secondary);
+  margin: 0 0 var(--space-xs);
+}
+.tint-section > :last-child { margin-bottom: 0; }

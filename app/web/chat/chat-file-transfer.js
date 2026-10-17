@@ -31,7 +31,9 @@
 //     resume, cancel. Pieces land in IndexedDB as they are checked; the file is
 //     saved (through the File System Access API where the browser has it,
 //     otherwise as a Blob download) only after the whole file's BLAKE3 matches.
-//  6. A row per transfer in the conversation, on both sides: the name, the
+//  6. A row per transfer in the conversation, on both sides: the file's type
+//     (its badge, just before its name: by its name, then from its first
+//     bytes once it has arrived; 2026-10-17, ftBadge), the name, the
 //     size, a progress bar, Pause, Resume and Cancel, and words for each state.
 //     On a file sent to me, a line saying what kind of file it is when that
 //     deserves a word (a program, a script, an archive: /shared/file-risk.js),
@@ -76,7 +78,8 @@
 // row asks for it to be chosen again, and checks it is the same file.
 //
 // Depends on: app.js (ws, myKey, myDilithiumSecret, peerData, activeDmPartner,
-//   appendMessage, addSystemMessage, shortKey, handleMessage, fileCautionFill), crypto.js
+//   appendMessage, addSystemMessage, shortKey, handleMessage, fileCautionFill,
+//   fileBadgeFill), crypto.js
 //   (pqBuildDmPuts, window.pqSignMessage, window.pqVerifyMessage), chat-dms.js
 //   (privateFilesSettings, privateFileSender, privateFileHidden,
 //   upsertDmConversation), chat-voice-rooms.js (requestCallCredentials,
@@ -1582,7 +1585,11 @@ function ftFill(el, t) {
     el.innerHTML = ''; // emptied once (no markup is ever written here: everything below is textContent)
     const card = mk('div', 'enc-attach ft-card');
     const head = mk('div', 'enc-attach-head');
-    p.name = head.appendChild(mk('span', 'ft-name', ''));
+    // Its type, just before its name, always (ftBadge, app.js fileBadgeFill): by its name, then
+    // from its first bytes once it has arrived.
+    p.badge = head.appendChild(mk('span', 'file-badge-slot ft-badge', ''));
+    p.badgeFor = null;
+    p.name = head.appendChild(mk('span', 'enc-attach-name ft-name', ''));
     p.size = head.appendChild(mk('span', 'enc-attach-size ft-size', ''));
     card.appendChild(head);
     // What kind of file it is, on a file sent to me (ftCaution): hidden until there is a word.
@@ -1647,6 +1654,7 @@ function ftFill(el, t) {
   el.dataset.state = t.state;
   p.name.textContent = t.name;
   p.size.textContent = F.sizeWords(t.size);
+  ftBadge(p, t);
   ftCaution(p, t);
   const finished = ftFinished(t);
   show(p.bar, !finished && t.state !== 'asked');
@@ -1663,6 +1671,25 @@ function ftFill(el, t) {
   show(p.row, wanted.size > 0);
 }
 
+/** A transfer's first bytes (kept as lowercase hex, `t.head`), or null when not known. */
+function ftHeadBytes(t) {
+  return typeof t.head === 'string' && /^(?:[0-9a-f]{2}){1,16}$/.test(t.head) ? ftHexBytes(t.head) : null;
+}
+
+/**
+ * Every row's file type, just before its name, always (2026-10-17; app.js fileBadgeFill,
+ * /shared/file-risk.js): by its name on the offer, and from its first bytes once it has all
+ * arrived, which turns a file named like a picture over the bytes of a program red. Drawn once per
+ * name and bytes, not on every redraw (a redraw comes with every piece). On both sides' rows.
+ */
+function ftBadge(p, t) {
+  if (!p.badge || typeof fileBadgeFill !== 'function') return;
+  const want = t.name + '\n' + (t.head || '');
+  if (p.badgeFor === want) return;
+  p.badgeFor = want;
+  fileBadgeFill(p.badge, t.name, ftHeadBytes(t));
+}
+
 /**
  * A file sent to me: what kind of file it is, when that deserves a word (a program, a script, an
  * archive; app.js fileCautionFill, /shared/file-risk.js). By its name on the offer, so the person
@@ -1676,8 +1703,7 @@ function ftCaution(p, t) {
   const want = t.name + '\n' + (t.head || '');
   if (p.cautionFor === want) return;
   p.cautionFor = want;
-  const head = typeof t.head === 'string' && /^(?:[0-9a-f]{2}){1,16}$/.test(t.head) ? ftHexBytes(t.head) : null;
-  fileCautionFill(p.caution, t.name, head);
+  fileCautionFill(p.caution, t.name, ftHeadBytes(t));
 }
 
 /** The open conversation's rows, drawn after its messages (chat-dms.js renderDmConversationFromStore). */

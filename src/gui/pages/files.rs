@@ -425,6 +425,8 @@ fn draw_shared_files_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSt
             }
             for row in &rows {
                 ui.horizontal(|ui| {
+                    // Its type first, always (widgets/file_badge.rs, 2026-10-17).
+                    widgets::file_badge::show(ui, theme, &crate::net::file_risk::file_type(&row.name, None));
                     ui.label(
                         RichText::new(&row.name)
                             .size(theme.font_size_small)

@@ -14,8 +14,9 @@
 // - the whole description, as plain text with its line breaks;
 // - the licence by name, linked to its deed, with the server's own line for it,
 //   and "Offered for the game." when it is;
-// - its files, the item's own first, each with its name, kind, size and
-//   Download. A Download goes through the relay's counting route,
+// - its files, the item's own first, each with its type's badge (2026-10-17,
+//   media-edit.js fileBadge: the kind's word left the row then), its name,
+//   size and Download. A Download goes through the relay's counting route,
 //   /api/media/download/<id>?file=<n>, never the file's own address, so it is
 //   counted; a members-only file's through a ticket asked for that route and
 //   that file (`download: true`), which the browser then saves itself; under
@@ -195,8 +196,10 @@
       if (!FR.ready()) {
         if (!riskAsked) {
           riskAsked = true;
+          // The rows drawn again once it is in: each line, and each file's badge (its type, which
+          // was a plain grey "File" until then), on this page and in an open Edit form.
           Promise.resolve(FR.load(env.fetch))
-            .then(() => { if (FR.ready()) renderInfo(); })
+            .then(() => { if (FR.ready()) { renderInfo(); if (page.edit) page.edit.drawFiles(); } })
             .catch(() => { /* no list: no line */ });
         }
         return null;
@@ -672,14 +675,17 @@
       const hidden = hiddenLine(item);
       for (const [f, cover] of rows) {
         const k = item.id + ':' + f.file;
-        const what = cover ? 'cover picture' : String(lib.kindWords(f.kind, st.kinds).one || f.kind || 'file').toLowerCase();
         const busy = asking.has(k);
         // View in 3D beside the Download of a .glb or .stl file on this server (never the cover).
         // Not where the protected setup leaves the item out: a model's textures are pictures too.
         const as = may && !cover && hidden === null ? modelName(f) : '';
         const fileAt = as ? lib.fileRoute(f, env.origin) : null;
+        // Its type first, always (2026-10-17, media-edit.js fileBadge): the badge says what kind of
+        // file it is, so the row says only "name, size" ("name, cover picture, size" for the cover).
+        const named = fileName(item, f);
         list.appendChild(h('div', { className: 'media-item-file-row', dataset: { file: f.file } }, [
-          h('span', { className: 'media-item-file-name', text: fileName(item, f) + ', ' + what + ', ' + lib.sizeWords(f.size_bytes) }),
+          ED.fileBadge(h, env.document, named),
+          h('span', { className: 'media-item-file-name', text: named + (cover ? ', cover picture, ' : ', ') + lib.sizeWords(f.size_bytes) }),
           may ? h('button', {
             type: 'button', className: 'media-btn media-btn-small media-btn-primary', id: f.file ? 'media-download-' + f.file : 'media-download',
             dataset: { download: f.file }, title: WORDS.downloadTip, text: busy ? W.loadingFile : WORDS.download,
@@ -692,7 +698,7 @@
           }) : null,
         ]));
         // What kind of file it is, under its row, when that deserves a word (by its name).
-        const risk = riskOf(fileName(item, f));
+        const risk = riskOf(named);
         if (risk) {
           list.appendChild(h('p', {
             className: 'file-caution' + (risk.disguised ? ' disguised' : ''), id: f.file ? 'media-file-caution-' + f.file : 'media-file-caution',

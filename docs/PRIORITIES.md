@@ -267,6 +267,25 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
 - **Released 2026-10-05:** v0.1459.0 to v0.1463.0 and v0.1464.0 (ship-homes increment 5, building
   only on your own plot; BUG-165 and BUG-166, the walking-backwards fixes; two new clips),
   all delivered to the taskbar exe.
+- NEXT (operator asked 2026-10-17, "How do we give users the ability to play MP4s in our
+  app/website?"): **play MP4 (H.264 video, AAC sound) in the desktop app by asking Windows.**
+  The website already plays MP4 (the browser's own decoders). Windows 7 and later carry both
+  decoders in Media Foundation for any desktop application, H.264 falling back to software, so a
+  player that calls Media Foundation itself gets the picture AND the sound (the September
+  finding's missing sound was the browser engine's limit): dated finding
+  `docs/reference/findings/2026-10-17-windows-media-foundation-decoders.md`, legal reading
+  unchanged from 2026-09-19. Build: a Media Foundation path in `src/media` (Source Reader opens
+  the MP4, decoded frames and sound into the existing `VideoPlayer`), used on Windows for any
+  file the AV1/Opus path cannot play, in chat cards ("Play here"), the Media page and in-world
+  screens; a plain sentence when the decoders are missing (Windows N without the Media Feature
+  Pack; H.265 without Microsoft's extension). macOS (AVFoundation) after; Linux keeps the
+  person's own ffmpeg.
+- DONE v0.1510.0: **every file shows its type, always** (operator, 2026-10-17: "so people ALWAYS
+  know what file type they're looking at ... protect people inexperienced with technology and
+  possibly illiterate people"): a badge with a drawing, a word and a colour (green to look at,
+  amber for care, red for programs, scripts, shortcuts and disguised files, grey when unknown) on
+  every file in both apps, from `data/safety/file_risks.json`; and the Edit window, Add to Media
+  and "Send a file" in the chat sidebar's colours, darker, the way the file picker already was.
 - DONE v0.1509.0: **a video attached in chat is a card, not a bare path (BUG-203).** Both apps show
   every public file that is not a picture as a card (name, size, Download, Show in folder); the
   website says when the browser cannot play a video; the desktop says a video plays in the

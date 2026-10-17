@@ -2,6 +2,12 @@
 //! the project's Discord: "something that says 'hey, this is an executable/script/zip/whatever,
 //! make sure you scan anything before opening it'").
 //!
+//! Every file a person sees also gets its TYPE shown (`file_type`, drawn by
+//! gui/widgets/file_badge.rs): a picture, a word and a colour, so that someone who reads little or
+//! nothing still knows what they are looking at (the operator, 2026-10-17: "people inexperienced
+//! with technology and possibly illiterate people"). Green to look at, amber to take care with, red
+//! for what can run things, grey when the type is not known.
+//!
 //! Not an antivirus. It reads the file's name and, when they are at hand, its first bytes, against
 //! one list (`data/safety/file_risks.json`, which the website reads too: web/shared/file-risk.js),
 //! and says what kind of thing the file is and what to be careful of: a program, a script, an
@@ -21,12 +27,17 @@ struct Data {
     kinds: Vec<Kind>,
     named_as: Vec<NamedAs>,
     disguised: String,
+    unknown: Look,
+    icons: std::collections::HashMap<String, Vec<Shape>>,
 }
 
 #[derive(Debug, Deserialize)]
 struct Kind {
     id: String,
     name: String,
+    label: String,
+    icon: String,
+    level: Level,
     words: String,
     extensions: Vec<String>,
     #[serde(default)]
@@ -35,9 +46,73 @@ struct Kind {
 
 #[derive(Debug, Deserialize)]
 struct NamedAs {
+    id: String,
     name: String,
+    label: String,
+    icon: String,
+    level: Level,
     extensions: Vec<String>,
     disguised_if: Vec<String>,
+}
+
+/// How a type looks with no more to it: the `unknown` entry.
+#[derive(Debug, Default, Deserialize)]
+struct Look {
+    id: String,
+    label: String,
+    icon: String,
+    level: Level,
+}
+
+/// How much care a type of file needs, shown as its badge's colour.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Level {
+    /// Fine to look at: a picture, a video, a sound, a document, a 3D model (green).
+    View,
+    /// Take care: an archive, a document that can carry macros, a web page (amber).
+    Care,
+    /// Can run things on the computer, or pretends to be something it is not (red).
+    Danger,
+    /// Not a type the list knows (grey).
+    #[default]
+    Unknown,
+}
+
+/// One shape of a type's drawing, on a 48 by 48 grid (y down): exactly one of `rect` [x, y, w, h],
+/// `line` [x1, y1, x2, y2], `poly` [x, y, ...] (open unless `closed`) or `circle` [cx, cy, r];
+/// `fill` fills a rect, a closed poly or a circle.
+#[derive(Debug, Clone, Default, PartialEq, Deserialize)]
+pub struct Shape {
+    #[serde(default)]
+    pub rect: Option<Vec<f32>>,
+    #[serde(default)]
+    pub line: Option<Vec<f32>>,
+    #[serde(default)]
+    pub poly: Option<Vec<f32>>,
+    #[serde(default)]
+    pub circle: Option<Vec<f32>>,
+    #[serde(default)]
+    pub closed: bool,
+    #[serde(default)]
+    pub fill: bool,
+}
+
+/// What type of file a file is, for its badge.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FileType {
+    /// The type's id in the list (`video`, `program`, `unknown`, ...).
+    pub id: String,
+    /// The word on the badge ("Video").
+    pub label: String,
+    /// The drawing's name in the list's `icons`.
+    pub icon: String,
+    pub level: Level,
+    /// The file's own ending as shown (".mp4"), or empty when it has none.
+    pub ending: String,
+    /// Named like a harmless type while its bytes are a program, a script or an archive: the badge
+    /// shows what it really is, in red.
+    pub disguised: bool,
 }
 
 /// A word of caution about one file.
@@ -74,7 +149,7 @@ fn starts_with_hex(head: &[u8], magic: &str) -> bool {
 }
 
 /// The longest of `endings` that `name` ends with (after a dot), if any.
-fn ending<'a>(name: &str, endings: impl Iterator<Item = &'a String>) -> Option<&'a String> {
+fn ending_of<'a>(name: &str, endings: impl Iterator<Item = &'a String>) -> Option<&'a String> {
     endings.filter(|e| name.ends_with(&format!(".{e}"))).max_by_key(|e| e.len())
 }
 
@@ -84,6 +159,46 @@ fn shown_ending(name: &str) -> String {
         Some((stem, ext)) if !stem.is_empty() && !ext.is_empty() && !ext.contains(['/', '\\', ' ']) => format!(".{ext}"),
         _ => "no ending".to_string(),
     }
+}
+
+/// The type of a file named `name` whose first bytes are `head` (None or empty: not known), for its
+/// badge: by its name (the longest matching ending; a kind that needs care before a harmless one),
+/// and, when the bytes are known, what they say: a harmless name over a program's, a script's or an
+/// archive's bytes is that, disguised and red; a name the list does not know over such bytes is
+/// that. Anything else is the list's `unknown` ("File", grey). Always an answer.
+pub fn file_type(name: &str, head: Option<&[u8]>) -> FileType {
+    let d = data();
+    let lower = name.trim().to_lowercase();
+    let ending = match shown_ending(&lower) {
+        e if e.starts_with('.') => e,
+        _ => String::new(),
+    };
+    let of_kind = |k: &Kind, disguised: bool| FileType {
+        id: k.id.clone(),
+        label: k.label.clone(),
+        icon: k.icon.clone(),
+        level: if disguised { Level::Danger } else { k.level },
+        ending: ending.clone(),
+        disguised,
+    };
+    if let Some((kind, _)) = d.kinds.iter().filter_map(|k| ending_of(&lower, k.extensions.iter()).map(|e| (k, e))).max_by_key(|(_, e)| e.len()) {
+        return of_kind(kind, false);
+    }
+    let head = head.filter(|h| !h.is_empty());
+    let actual = head.and_then(|h| d.kinds.iter().find(|k| k.magic.iter().any(|m| starts_with_hex(h, m))));
+    let claimed = d.named_as.iter().filter_map(|n| ending_of(&lower, n.extensions.iter()).map(|e| (n, e))).max_by_key(|(_, e)| e.len()).map(|(n, _)| n);
+    match (claimed, actual) {
+        (Some(named), Some(kind)) if named.disguised_if.contains(&kind.id) => of_kind(kind, true),
+        (Some(named), _) => FileType { id: named.id.clone(), label: named.label.clone(), icon: named.icon.clone(), level: named.level, ending, disguised: false },
+        (None, Some(kind)) => of_kind(kind, false),
+        (None, None) => FileType { id: d.unknown.id.clone(), label: d.unknown.label.clone(), icon: d.unknown.icon.clone(), level: d.unknown.level, ending, disguised: false },
+    }
+}
+
+/// The drawing named `icon` (the list's `icons`), or the unknown type's when there is none.
+pub fn icon(icon: &str) -> &'static [Shape] {
+    let d = data();
+    d.icons.get(icon).or_else(|| d.icons.get(&d.unknown.icon)).map(|v| v.as_slice()).unwrap_or(&[])
 }
 
 /// A word of caution about a file named `name` whose first bytes are `head` (None or empty: not
@@ -97,14 +212,14 @@ pub fn assess(name: &str, head: Option<&[u8]>) -> Option<Caution> {
     let by_name = d
         .kinds
         .iter()
-        .filter_map(|k| ending(&lower, k.extensions.iter()).map(|e| (k, e)))
+        .filter_map(|k| ending_of(&lower, k.extensions.iter()).map(|e| (k, e)))
         .max_by_key(|(_, e)| e.len());
     if let Some((kind, ext)) = by_name {
         return Some(Caution { kind: kind.id.clone(), disguised: false, words: kind.words.replace("{ext}", &format!(".{ext}")) });
     }
     let head = head.filter(|h| !h.is_empty())?;
     let actual = d.kinds.iter().find(|k| k.magic.iter().any(|m| starts_with_hex(head, m)))?;
-    let claimed = d.named_as.iter().filter_map(|n| ending(&lower, n.extensions.iter()).map(|e| (n, e))).max_by_key(|(_, e)| e.len());
+    let claimed = d.named_as.iter().filter_map(|n| ending_of(&lower, n.extensions.iter()).map(|e| (n, e))).max_by_key(|(_, e)| e.len());
     match claimed {
         Some((named, ext)) if named.disguised_if.contains(&actual.id) => Some(Caution {
             kind: actual.id.clone(),
@@ -124,21 +239,33 @@ pub fn assess_file(name: &str, path: &std::path::Path) -> Option<Caution> {
     assess(name, Some(&head[..n]))
 }
 
-/// [`assess_file`] for a file this app just saved, remembered per path for the rest of the run, so
-/// a card drawn every frame reads the file's first bytes once.
-pub fn assess_saved(name: &str, path: &std::path::Path) -> Option<Caution> {
+/// The first bytes of a file this app just saved, read once per path for the rest of the run, so a
+/// card drawn every frame does not read the disk every frame. Empty when it cannot be read.
+fn saved_head(path: &std::path::Path) -> Vec<u8> {
     use std::collections::HashMap;
     use std::sync::Mutex;
-    static SEEN: OnceLock<Mutex<HashMap<std::path::PathBuf, Option<Caution>>>> = OnceLock::new();
+    static SEEN: OnceLock<Mutex<HashMap<std::path::PathBuf, Vec<u8>>>> = OnceLock::new();
     let seen = SEEN.get_or_init(|| Mutex::new(HashMap::new()));
     if let Some(known) = seen.lock().ok().and_then(|m| m.get(path).cloned()) {
         return known;
     }
-    let caution = assess_file(name, path);
+    let mut head = [0u8; 16];
+    let n = std::fs::File::open(path).and_then(|mut f| std::io::Read::read(&mut f, &mut head)).unwrap_or(0);
+    let head = head[..n].to_vec();
     if let Ok(mut m) = seen.lock() {
-        m.insert(path.to_path_buf(), caution.clone());
+        m.insert(path.to_path_buf(), head.clone());
     }
-    caution
+    head
+}
+
+/// [`assess`] for a file this app just saved: its first bytes read once (`saved_head`).
+pub fn assess_saved(name: &str, path: &std::path::Path) -> Option<Caution> {
+    assess(name, Some(&saved_head(path)))
+}
+
+/// [`file_type`] for a file this app just saved: its first bytes read once (`saved_head`).
+pub fn file_type_saved(name: &str, path: &std::path::Path) -> FileType {
+    file_type(name, Some(&saved_head(path)))
 }
 
 #[cfg(test)]
@@ -156,6 +283,9 @@ mod tests {
         kind: Option<String>,
         disguised: bool,
         words: Option<String>,
+        #[serde(rename = "type")]
+        file_type: String,
+        level: Level,
     }
 
     fn hex(s: &str) -> Vec<u8> {
@@ -169,7 +299,8 @@ mod tests {
     /// alone (a text file starting "#!" included).
     ///
     /// Seen red 2026-10-17 with the disguise check left out: "holiday.png" over a program's bytes got
-    /// no word at all.
+    /// no word at all. Its badge half (every file's type and level), seen red the same day with
+    /// `file_type`'s disguise check left out: "\"holiday.png\" over 4d5a90000300: its badge".
     #[test]
     fn every_shared_case_gets_the_same_word_as_on_the_website() {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("scripts/tests/fixtures/file-risk-cases.json");
@@ -183,7 +314,41 @@ mod tests {
             if let Some(words) = c.words {
                 assert_eq!(got.map(|g| g.words), Some(words), "{:?}: the words", c.name);
             }
+            let t = file_type(&c.name, Some(&head));
+            assert_eq!((t.id.as_str(), t.level), (c.file_type.as_str(), c.level), "{:?} over {}: its badge", c.name, c.head);
+            assert_eq!(t.disguised, c.disguised, "{:?} over {}: the badge says disguised", c.name, c.head);
         }
+    }
+
+    /// EVERY TYPE HAS A WORD AND A DRAWING THAT CAN BE DRAWN (the badge, 2026-10-17): every kind,
+    /// every name a file can claim and the unknown type name a label and an icon the list draws, and
+    /// every shape of every drawing is one shape with the right count of numbers, on the 48 by 48
+    /// grid. Seen red 2026-10-17 with the archive's icon renamed "crate" in the list: "archive: its
+    /// icon is drawn".
+    #[test]
+    fn every_type_has_a_word_and_a_drawing_that_can_be_drawn() {
+        let d = data();
+        let looks = d.kinds.iter().map(|k| (&k.id, &k.label, &k.icon)).chain(d.named_as.iter().map(|n| (&n.id, &n.label, &n.icon))).chain([(&d.unknown.id, &d.unknown.label, &d.unknown.icon)]);
+        for (id, label, icon) in looks {
+            assert!(!label.is_empty() && label.chars().count() <= 14, "{id}: a short word for the badge: {label:?}");
+            assert!(d.icons.contains_key(icon), "{id}: its icon is drawn ({icon:?})");
+        }
+        for (name, shapes) in &d.icons {
+            assert!(!shapes.is_empty(), "{name}: a drawing with something in it");
+            for s in shapes {
+                let given: Vec<(&str, &Vec<f32>)> = [("rect", &s.rect), ("line", &s.line), ("poly", &s.poly), ("circle", &s.circle)].into_iter().filter_map(|(k, v)| v.as_ref().map(|v| (k, v))).collect();
+                assert_eq!(given.len(), 1, "{name}: each shape is exactly one of rect, line, poly, circle: {s:?}");
+                let (k, v) = given[0];
+                let right = match k {
+                    "rect" | "line" => v.len() == 4,
+                    "circle" => v.len() == 3,
+                    _ => v.len() >= 4 && v.len() % 2 == 0,
+                };
+                assert!(right, "{name}: a {k} with the right count of numbers: {v:?}");
+                assert!(v.iter().all(|n| (0.0..=48.0).contains(n)), "{name}: on the 48 by 48 grid: {v:?}");
+            }
+        }
+        assert_eq!(icon("no such drawing"), icon(&d.unknown.icon), "a missing drawing falls back to the unknown type's");
     }
 
     /// The list is well formed and every kind names its words; nothing in it is malformed hex.

@@ -67,9 +67,9 @@ pub(crate) struct Opened {
     saves: Vec<(i64, Receiver<Result<PathBuf, String>>)>,
     /// Where each finished Download put its file, or why it did not, by file number.
     pub saved: Vec<(i64, String)>,
-    /// The word of caution about each saved file, read from its first bytes once it was saved
-    /// (net/file_risk.rs, 2026-10-17), by file number. None: nothing to warn about.
-    pub saved_cautions: Vec<(i64, Option<crate::net::file_risk::Caution>)>,
+    /// Where each finished Download put its file, by file number: its type and word of caution
+    /// are read from its first bytes once it is here (net/file_risk.rs, 2026-10-17).
+    pub saved_paths: Vec<(i64, PathBuf)>,
     /// The temporary copy Play here fetched, deleted with the page.
     pub temp: Option<PathBuf>,
     /// A `.glb` or `.stl` file shown in 3D (View in 3D, docs/design/model-viewer.md).
@@ -78,7 +78,7 @@ pub(crate) struct Opened {
 
 impl Opened {
     pub(crate) fn new(item: Item) -> Self {
-        Opened { item, fetch_rx: None, player: None, texture: None, problem: String::new(), saves: Vec::new(), saved: Vec::new(), saved_cautions: Vec::new(), temp: None, viewer: None }
+        Opened { item, fetch_rx: None, player: None, texture: None, problem: String::new(), saves: Vec::new(), saved: Vec::new(), saved_paths: Vec::new(), temp: None, viewer: None }
     }
 
     /// Whether file `file` is being downloaded now.
@@ -91,10 +91,9 @@ impl Opened {
         self.saved.iter().find(|(f, _)| *f == file).map(|(_, w)| w.as_str())
     }
 
-    /// The word of caution about file `file` once a Download saved it: Some(None) when its bytes gave
-    /// nothing to warn about, None when it has not been saved.
-    pub(crate) fn saved_caution(&self, file: i64) -> Option<Option<&crate::net::file_risk::Caution>> {
-        self.saved_cautions.iter().find(|(f, _)| *f == file).map(|(_, c)| c.as_ref())
+    /// Where a Download saved file `file`, if one did.
+    pub(crate) fn saved_path(&self, file: i64) -> Option<&Path> {
+        self.saved_paths.iter().find(|(f, _)| *f == file).map(|(_, p)| p.as_path())
     }
 
     /// Whether something is still on its way (the page repaints until it is not).
@@ -314,14 +313,14 @@ pub(crate) fn poll(ctx: &egui::Context, opened: &mut Opened) {
         }
     });
     for (file, result) in finished {
-        opened.saved_cautions.retain(|(f, _)| *f != file);
+        opened.saved_paths.retain(|(f, _)| *f != file);
         let words = match result {
             Ok(path) => {
                 // What is inside, now that it is here: a file whose name says a video while its
-                // bytes say a program is called out (net/file_risk.rs).
-                let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-                opened.saved_cautions.push((file, crate::net::file_risk::assess_file(&name, &path)));
-                format!("Saved to {}", path.display())
+                // bytes say a program is called out (net/file_risk.rs, item_view.rs draw_files).
+                let words = format!("Saved to {}", path.display());
+                opened.saved_paths.push((file, path));
+                words
             }
             Err(e) => format!("Not saved: {e}"),
         };

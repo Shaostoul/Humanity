@@ -68,7 +68,7 @@ pub(super) fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, peer:
     egui::ScrollArea::vertical().id_salt("dm_transfer_rows").max_height(MAX_HEIGHT).show(ui, |ui| {
         for (id, file, size, done) in &preparing {
             card(ui, theme, |ui| {
-                title(ui, theme, file, *size);
+                title(ui, theme, &crate::net::file_risk::file_type(file, None), file, *size);
                 let pct = if *size > 0 { (*done as f64 / *size as f64 * 100.0).min(100.0) } else { 0.0 };
                 muted(ui, theme, &format!("Preparing {file} ({pct:.0}%): reading it for its checks before it is offered."));
                 widgets::progress_bar(ui, theme, (pct / 100.0) as f32, None);
@@ -109,11 +109,15 @@ pub(super) fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, peer:
 #[allow(clippy::too_many_arguments)]
 fn draw_row(ui: &mut egui::Ui, theme: &Theme, state: &GuiState, r: &OfferRecord, live: Option<&ft::Live>, name: &str, online: bool, acts: &mut Vec<Act>) {
     let id = r.offer.id.clone();
-    title(ui, theme, &r.offer.name, r.offer.size);
     // The word of caution about a file coming to this person (net/file_risk.rs, 2026-10-17): by its
     // name while they decide, then by what is inside once it is saved here. It never passes the
-    // server, so this is the only check it gets.
+    // server, so this is the only check it gets. Its type is shown first, always (the badge).
     let saved_here = (!r.outgoing && r.here && r.stage == Stage::Done && !r.path.is_empty()).then(|| std::path::PathBuf::from(&r.path));
+    let file_type = match &saved_here {
+        Some(path) => crate::net::file_risk::file_type_saved(&r.offer.name, path),
+        None => crate::net::file_risk::file_type(&r.offer.name, None),
+    };
+    title(ui, theme, &file_type, &r.offer.name, r.offer.size);
     if !r.outgoing {
         let caution = match &saved_here {
             Some(path) => crate::net::file_risk::assess_saved(&r.offer.name, path),
@@ -227,8 +231,9 @@ fn card(ui: &mut egui::Ui, theme: &Theme, add: impl FnOnce(&mut egui::Ui)) {
     ui.add_space(theme.spacing_xs);
 }
 
-fn title(ui: &mut egui::Ui, theme: &Theme, name: &str, size: u64) {
+fn title(ui: &mut egui::Ui, theme: &Theme, file_type: &crate::net::file_risk::FileType, name: &str, size: u64) {
     ui.horizontal(|ui| {
+        widgets::file_badge::show(ui, theme, file_type);
         ui.label(RichText::new(name).size(theme.font_size_body).color(theme.text_primary()).strong());
         ui.label(RichText::new(fo::size_words(size)).size(theme.font_size_small).color(theme.text_muted()));
     });

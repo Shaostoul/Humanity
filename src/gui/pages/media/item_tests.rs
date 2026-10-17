@@ -200,7 +200,7 @@ fn a_tile_opens_the_item_with_description_files_licence_and_counts() {
     assert!(state.media.jobs.iter().any(|(j, _)| *j == Job::Viewed { id: 7 }), "and counts a view");
     let out = settled(&ctx, &theme, &mut state);
     assert!(shows(&out, "The rest, on its own line"), "the whole description, its second line too");
-    for text in ["by Ann in Fire flow arts", "4 picks, 12 views, 3 downloads", "CC BY 4.0", "Anyone may copy, share and change it", "textures.zip, file", "dusk.glb, 3d model"] {
+    for text in ["by Ann in Fire flow arts", "4 picks, 12 views, 3 downloads", "CC BY 4.0", "Anyone may copy, share and change it", "textures.zip, ", "dusk.glb, ", "Archive"] {
         assert!(shows(&out, text), "the page shows {text:?}");
     }
     assert_eq!(every_exact(&out, "Download").len(), 2, "each file has its own Download");
@@ -451,7 +451,7 @@ fn download_goes_through_the_counting_route() {
     open(&mut state, &item);
     let out = settled(&ctx, &theme, &mut state);
     // The Download on the added file's row.
-    let row = find_text(&out, "textures.zip, file").expect("the added file's row");
+    let row = find_text(&out, "textures.zip, ").expect("the added file's row");
     let press = every_exact(&out, "Download").into_iter().min_by(|a, b| (a.center().y - row.center().y).abs().total_cmp(&(b.center().y - row.center().y).abs())).expect("its Download");
     // The mouse rests on it first, as a real one does: since the word of caution under this
     // archive's row made the page taller (2026-10-17), a press in the very next frame after the
@@ -599,4 +599,33 @@ fn view_in_3d_is_on_glb_and_stl_files_and_fetches_the_files_own_address() {
     assert!(shows(&out, crate::gui::model_view::CLOSE), "the view in the cover's place, with Close");
     click_top(&ctx, &theme, &mut state, crate::gui::model_view::CLOSE);
     assert!(state.media.open.as_ref().is_some_and(|o| o.viewer.is_none()), "Close the 3D view closes it");
+}
+
+/// THE EDIT WINDOW IS IN THREE COLOURED PARTS, AND EVERY FILE SHOWS ITS TYPE (operator, 2026-10-17:
+/// "I don't see the RGB areas in the edit page"; "ALWAYS know what file type they're looking at"):
+/// About it, Who can see it and Files, top to bottom, each filled in its chat colour (red, green,
+/// blue, darker), and the files list shows each file's badge before its name ("3D model" for the
+/// item's own .glb, "Archive" for the added .zip), the row saying "name, size" without the old kind
+/// word. Seen red 2026-10-17 with the Files part drawn without its section: "the Files part, in blue".
+#[test]
+fn the_edit_window_is_in_three_coloured_parts_and_every_file_shows_its_type() {
+    use crate::gui::widgets::tint_section::{painted, Tint};
+    let (ctx, theme) = ctx_and_theme();
+    let item = rich_item(("me", "Me"));
+    let mut state = page_on(SERVER, answer_of(vec![item.clone()]), "tok");
+    crate::gui::pages::media::item_view::open(&mut state, &item);
+    let before = settled(&ctx, &theme, &mut state);
+    let archives_on_page = every_exact(&before, "Archive").len();
+    assert!(archives_on_page >= 1, "the item's page shows the .zip's type too");
+    click_top(&ctx, &theme, &mut state, "Edit");
+    let out = settled(&ctx, &theme, &mut state);
+    let top = |t: &str| every_exact(&out, t).last().copied().unwrap_or_else(|| panic!("{t:?} is drawn"));
+    let (about, who, files) = (top(edit::ABOUT_IT), top(edit::WHO_CAN_SEE_IT), top(edit::FILES));
+    assert!(about.top() < who.top() && who.top() < files.top(), "About it, Who can see it, Files, in that order: {about:?} {who:?} {files:?}");
+    assert!(painted(&out, &theme, Tint::Red), "the About it part, in red");
+    assert!(painted(&out, &theme, Tint::Green), "the Who can see it part, in green");
+    assert!(painted(&out, &theme, Tint::Blue), "the Files part, in blue");
+    assert!(every_exact(&out, "Archive").len() > archives_on_page, "the Edit window's files list shows the .zip's badge");
+    assert!(every_exact(&out, "3D model").iter().any(|r| r.top() > files.top()), "and the .glb's, under Files");
+    assert!(shows(&out, "textures.zip, ") && !shows(&out, "textures.zip, file"), "the row says its name and size, not the old kind word");
 }

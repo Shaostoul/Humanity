@@ -21,11 +21,20 @@
 //   licence and the tick but cannot change them: "Only Ann can change these."
 //   (a licence is the rights holder's grant);
 // - the hosting paragraph ("Your uploads stay yours."), as the server words it;
-// - the files: Remove on each added file and the cover (the uploader and
+// - the files, each with its type's badge before its name (2026-10-17,
+//   `fileBadge`, which media-item.js and media-app.js draw with too): Remove
+//   on each added file and the cover (the uploader and
 //   admins), and, for the uploader, "Add a file" and "Cover picture". A picked
 //   file is the same resumable upload as Add to Media's, listed under Uploads
 //   in progress, and added to this item when it is up instead of published
 //   (media-app.js `startAttach`, media-upload.js `attachUpload`).
+//
+// The form is in three parts in the chat sidebar's colours, darker (2026-10-17,
+// `tintSection`, /shared/tint-section.css; the desktop's Edit window): "About
+// it" (red: the title, the category and its description, the description, the
+// content labels), "Who can see it" (green: who sees it, the licence and its
+// words, the hosting paragraph) and "Files" (blue). Save and Cancel stay under
+// them. Add to Media (media-app.js) uses the same three, its files first.
 //
 // Save sends the edit (POST /api/media/edit, every field) signed over
 // `media_edit:<id>:<BLAKE3 hex of the edit member's JSON text exactly as sent>`:
@@ -37,7 +46,7 @@
 // textContent.
 //
 // A classic script in the browser (loaded before media-item.js and
-// media-app.js; it needs /shared/blake3.js), a CommonJS module under Node,
+// media-app.js; it needs /shared/blake3.js and /shared/file-risk.js), a CommonJS module under Node,
 // where scripts/tests/media-web-item.test.js runs it.
 // ──────────────────────────────────────────────────────────────────────────
 (function (root) {
@@ -45,6 +54,10 @@
 
   // BLAKE3 in plain JavaScript (/shared/blake3.js): the edit's purpose names the hash of its text.
   const B3 = typeof module === 'object' && module && module.exports ? require('../shared/blake3.js') : root.HosBlake3;
+  // What kind of file a file is (/shared/file-risk.js, 2026-10-17): under Node its module; in the
+  // browser the page's HosFileRisk, looked up when a badge is drawn.
+  const FR_MODULE = typeof module === 'object' && module && module.exports ? require('../shared/file-risk.js') : null;
+  const fileRisk = () => FR_MODULE || root.HosFileRisk || null;
 
   const WORDS = Object.freeze({
     save: 'Save',
@@ -58,7 +71,98 @@
     uploadsHint: 'Each goes up under Uploads in progress on the Media page and is added here when it is up.',
     labelsLegend: 'Content labels: a labelled item stays hidden until someone clicks it.',
     noHash: 'This page could not load its hashing code, so the edit was not sent. Reload the page and try again.',
+    // The three parts of Edit and of Add to Media (the desktop's media/edit.rs ABOUT_IT,
+    // WHO_CAN_SEE_IT and FILES), each in one of the chat sidebar's colours, darker.
+    aboutIt: 'About it',
+    whoCanSeeIt: 'Who can see it',
+    files: 'Files',
   });
+
+  // ── A file's type, always, just before its name (2026-10-17) ──
+  // The operator: "highlight the file type so people ALWAYS know what file type they're looking
+  // at ... protect people inexperienced with technology and possibly illiterate people." The badge
+  // is HosFileRisk.badgeHtml's shape (/shared/file-risk.js; styled by /shared/file-badge.css; the
+  // desktop app's gui/widgets/file_badge.rs), built here with createElement and textContent, as
+  // everything on the Media page is: a drawing, the type's word and the file's ending, coloured by
+  // how careful to be. Before the list of kinds is in it is a plain grey "File"; fillFileBadges
+  // draws each one again once it is.
+
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+
+  /**
+   * A badge's drawing as SVG elements (createElementNS), from HosFileRisk.iconSvg: its own markup of
+   * numbers and fixed words, read tag by tag, never handed to an HTML parser. Null without SVG.
+   */
+  function badgeIcon(doc, FR, icon) {
+    if (!doc || typeof doc.createElementNS !== 'function' || !FR || typeof FR.iconSvg !== 'function') return null;
+    let svg = null;
+    for (const m of String(FR.iconSvg(icon, 16)).matchAll(/<(svg|rect|line|circle|polygon|polyline)\b([^>]*?)\/?>/g)) {
+      const el = doc.createElementNS(SVG_NS, m[1]);
+      for (const a of m[2].matchAll(/([\w:-]+)="([^"]*)"/g)) el.setAttribute(a[1], a[2]);
+      if (svg) svg.appendChild(el);
+      else if (m[1] === 'svg') svg = el;
+      else return null;
+    }
+    return svg;
+  }
+
+  /**
+   * The badge of a file named `name` (plain text; `head` its first bytes, or null): a span of class
+   * `file-badge level-<view|care|danger|unknown>` (and `disguised` for a file named like one kind
+   * over the bytes of another), carrying `data-file-badge` (its name) and `data-file-type`, holding
+   * its drawing, the type's word (`file-badge-label`) and the file's ending (`file-badge-ending`).
+   */
+  function fileBadge(h, doc, name, head) {
+    const FR = fileRisk();
+    const shown = String(name == null ? '' : name);
+    const t = FR && typeof FR.fileType === 'function'
+      ? FR.fileType(shown, head || null)
+      : { id: 'unknown', label: 'File', icon: 'unknown', level: 'unknown', ending: '', disguised: false };
+    const level = ['view', 'care', 'danger', 'unknown'].includes(t.level) ? t.level : 'unknown';
+    return h('span', {
+      className: 'file-badge level-' + level + (t.disguised ? ' disguised' : ''),
+      dataset: { fileBadge: shown, fileType: t.id },
+      title: t.disguised ? t.label + ', pretending to be something else' : t.label,
+    }, [
+      badgeIcon(doc, FR, t.icon),
+      h('span', { className: 'file-badge-label', text: t.label }),
+      t.ending ? h('span', { className: 'file-badge-ending', text: t.ending }) : null,
+    ]);
+  }
+
+  /** Draw every badge under `root` again, from the list of kinds (a badge drawn before it came in). */
+  function fillFileBadges(h, doc, root) {
+    if (!root || typeof root.querySelectorAll !== 'function') return;
+    for (const old of Array.from(root.querySelectorAll('[data-file-badge]'))) {
+      const parent = old.parentNode;
+      if (!parent) continue;
+      parent.insertBefore(fileBadge(h, doc, old.dataset.fileBadge), old);
+      old.remove();
+    }
+  }
+
+  /** Is the list of kinds in (so a badge drawn now is its type, not the grey "File")? */
+  function fileTypesKnown() {
+    const FR = fileRisk();
+    return !!(FR && typeof FR.ready === 'function' && FR.ready());
+  }
+
+  /** Ask for the list of kinds (`fetchFn`: the page's fetch); resolves true once it is in. */
+  function loadFileTypes(fetchFn) {
+    const FR = fileRisk();
+    if (!FR || typeof FR.load !== 'function') return Promise.resolve(false);
+    return Promise.resolve(FR.load(fetchFn)).then(() => fileTypesKnown(), () => false);
+  }
+
+  /**
+   * One part of a window in one of the chat sidebar's colours, darker (/shared/tint-section.css;
+   * the desktop's gui/widgets/tint_section.rs): `tint` red, green or blue, its `title` on top, then
+   * `kids`.
+   */
+  function tintSection(h, tint, title, kids) {
+    return h('div', { className: 'tint-section tint-' + tint, dataset: { tint } },
+      [h('div', { className: 'tint-section-title', text: title })].concat(kids || []));
+  }
   // The picture types a cover can be (the relay: "A cover must be a picture: PNG, JPEG, GIF or WebP.").
   const COVER_ACCEPT = 'image/png,image/jpeg,image/gif,image/webp';
 
@@ -231,8 +335,10 @@
       drawAbout();
       const description = h('textarea', { id: 'media-edit-description', className: 'media-input', maxLength: 2000, rows: 4, value: f.description });
       description.addEventListener('input', () => { f.description = description.value; });
-      const kids = [
-        h('h3', { text: 'Edit ' + c.lib.itemName(item, c.st.kinds) }),
+      // Three parts in the chat sidebar's colours, darker (2026-10-17, tintSection; the desktop's
+      // Edit window): what it is (red), who can see it (green), its files (blue). Save and Cancel
+      // stay outside them, under them.
+      const aboutParts = [
         h('label', { className: 'media-field' }, ['Title', title]),
         c.st.categories.length ? h('label', { className: 'media-field' }, ['Category', category]) : null,
         about,
@@ -245,21 +351,22 @@
           tick.addEventListener('change', () => { if (tick.checked) f.labels.add(l.id); else f.labels.delete(l.id); });
           ticks.appendChild(h('label', { className: 'media-check', title: l.desc || '' }, [tick, ' ' + l.label]));
         }
-        kids.push(ticks);
+        aboutParts.push(ticks);
       }
       // Who can see it: Add to Media's rules and words.
+      const who = [];
       let picker = null;
       if (item.keeps_file) {
-        kids.push(h('p', { className: 'media-hint', text: W.alreadyPublic }));
+        who.push(h('p', { className: 'media-hint', text: W.alreadyPublic }));
       } else if (c.membersOnlyServer()) {
-        kids.push(h('p', { className: 'media-hint', text: W.serverMembersOnly }));
+        who.push(h('p', { className: 'media-hint', text: W.serverMembersOnly }));
       } else {
         const group = 'media-edit-visibility-' + item.id;
         const pub = h('input', { type: 'radio', name: group, value: 'public', id: 'media-edit-vis-public', checked: !f.members });
         const mem = h('input', { type: 'radio', name: group, value: 'members', id: 'media-edit-vis-members', checked: f.members });
         pub.addEventListener('change', () => { if (pub.checked) { f.members = false; if (picker) picker.refresh(); } });
         mem.addEventListener('change', () => { if (mem.checked) { f.members = true; if (picker) picker.refresh(); } });
-        kids.push(h('fieldset', { className: 'media-field', id: 'media-edit-visibility' }, [
+        who.push(h('fieldset', { className: 'media-field', id: 'media-edit-visibility' }, [
           h('legend', { text: 'Who sees it' }),
           h('label', { className: 'media-check' }, [pub, ' Public']),
           h('label', { className: 'media-check' }, [mem, ' Members only']),
@@ -270,9 +377,14 @@
         members: () => c.membersOnlyServer() || f.members,
         ownerOnly: own ? null : (item.uploader_name || 'its uploader'),
       });
-      kids.push(picker.el, hostingBlock(h, L));
+      who.push(picker.el, hostingBlock(h, L));
       els.files = h('div', { id: 'media-edit-files', className: 'media-item-files' });
-      kids.push(els.files);
+      const kids = [
+        h('h3', { text: 'Edit ' + c.lib.itemName(item, c.st.kinds) }),
+        tintSection(h, 'red', WORDS.aboutIt, aboutParts),
+        tintSection(h, 'green', WORDS.whoCanSeeIt, who),
+        tintSection(h, 'blue', WORDS.files, [els.files]),
+      ];
       els.problem = h('p', { id: 'media-edit-problem', className: 'media-warn' });
       els.save = h('button', { type: 'button', id: 'media-edit-save', className: 'media-btn media-btn-primary', text: WORDS.save, on: { click: save } });
       kids.push(els.problem, h('div', { className: 'media-form-buttons' }, [
@@ -291,17 +403,31 @@
       els.save.textContent = f.saving ? WORDS.saving : WORDS.save;
     }
 
-    /** The files part: the item's own first file (never removed here), each added file and the cover with Remove, the uploads on their way to it, and the uploader's Add a file and Cover picture. */
+    /**
+     * The files part (titled "Files" by its section): the item's own first file (never removed
+     * here), each added file and the cover with Remove, the uploads on their way to it, and the
+     * uploader's Add a file and Cover picture. Each file's type first (its badge), so its row says
+     * only "name, size" ("name, cover picture, size" for the cover), as the desktop's does.
+     */
     function drawFiles() {
       if (!els.files) return;
       const now = view.current(item.id) || item;
       const files = view.filesOf(now);
-      const kids = [h('h4', { text: 'Files' })];
-      if (files[0]) kids.push(h('p', { className: 'media-hint', text: firstFileWords(view.fileName(now, files[0])) }));
-      const rows = files.slice(1).map((x) => [x, 'file']).concat(now.cover ? [[now.cover, 'cover picture']] : []);
-      for (const [x, what] of rows) {
+      const doc = c.env.document;
+      const kids = [];
+      if (files[0]) {
+        const first = view.fileName(now, files[0]);
+        kids.push(h('div', { className: 'media-item-file-row media-edit-first-file' }, [
+          fileBadge(h, doc, first),
+          h('span', { className: 'media-hint', text: firstFileWords(first) }),
+        ]));
+      }
+      const rows = files.slice(1).map((x) => [x, false]).concat(now.cover ? [[now.cover, true]] : []);
+      for (const [x, cover] of rows) {
+        const name = view.fileName(now, x);
         kids.push(h('div', { className: 'media-item-file-row', dataset: { editFile: x.file } }, [
-          h('span', { className: 'media-item-file-name', text: view.fileName(now, x) + ', ' + what + ', ' + c.lib.sizeWords(x.size_bytes) }),
+          fileBadge(h, doc, name),
+          h('span', { className: 'media-item-file-name', text: name + (cover ? ', cover picture, ' : ', ') + c.lib.sizeWords(x.size_bytes) }),
           h('button', { type: 'button', className: 'media-btn media-btn-small media-btn-danger', dataset: { removeFile: x.file }, text: WORDS.remove, title: WORDS.removeTip, on: { click: () => removeFile(now, x) } }),
         ]));
       }
@@ -403,7 +529,10 @@
     return { draw, drawFiles, state: f };
   }
 
-  const api = { WORDS, COVER_ACCEPT, ownerOnlyWords, removeFileWords, firstFileWords, editText, editPurpose, editBody, offeredLicence, licenceChoice, hostingBlock, createEditForm };
+  const api = {
+    WORDS, COVER_ACCEPT, ownerOnlyWords, removeFileWords, firstFileWords, editText, editPurpose, editBody, offeredLicence, licenceChoice, hostingBlock, createEditForm,
+    fileBadge, fillFileBadges, fileTypesKnown, loadFileTypes, tintSection,
+  };
   if (typeof module === 'object' && module && module.exports) module.exports = api;
   else root.MediaEdit = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

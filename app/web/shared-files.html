@@ -6,6 +6,8 @@
   <title>Shared Files, HumanityOS</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="stylesheet" href="/shared/theme.css">
+  <!-- Each file's type, always shown just before its name (2026-10-17): the badge /shared/file-risk.js draws. -->
+  <link rel="stylesheet" href="/shared/file-badge.css?v=1">
   <style>
     body { line-height: 1.6; min-height: 100vh; padding-bottom: 60px; }
     .container { max-width: 860px; margin: 0 auto; padding: 0 24px; }
@@ -38,14 +40,9 @@
       border-radius: var(--radius); padding: 14px 16px;
     }
     .sf-row:hover { border-color: rgba(255,136,17,0.4); }
-    .sf-icon {
-      flex-shrink: 0; width: 40px; height: 40px; border-radius: var(--radius);
-      background: var(--bg); display: flex; align-items: center; justify-content: center;
-      font-size: 0.62rem; font-weight: 700; color: var(--accent);
-      border: 1px solid var(--border); letter-spacing: 0.03em;
-    }
     .sf-meta { flex: 1; min-width: 0; }
-    .sf-name { font-weight: 700; font-size: 0.95rem; color: var(--text); word-break: break-all; }
+    /* The file's type (its badge, /shared/file-badge.css), then its name (2026-10-17). */
+    .sf-name { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-weight: 700; font-size: 0.95rem; color: var(--text); word-break: break-all; }
     .sf-sub { font-size: 0.78rem; color: var(--text-muted); margin-top: 2px; }
     .sf-dl {
       flex-shrink: 0; background: var(--accent); color: #000; font-weight: 700;
@@ -97,6 +94,9 @@
   <!-- The identity Chat keeps in this browser, for Put on Media on your own rows. -->
   <script src="/chat/pq.js?v=2"></script>
   <script src="/shared/pq-relay-auth.js?v=2"></script>
+  <!-- What kind of file each one is (2026-10-17): reads /data/safety/file_risks.json, the list the
+       desktop app reads too, for the badge before each file's name. -->
+  <script src="/shared/file-risk.js?v=2"></script>
   <script>
     (function () {
       var listEl = document.getElementById('sf-list');
@@ -124,9 +124,12 @@
         try { return new Date(ms).toLocaleDateString(); } catch (e) { return ''; }
       }
 
-      function extBadge(name) {
-        var ext = (name.split('.').pop() || '').toUpperCase();
-        return ext.length <= 5 ? ext : 'FILE';
+      // Each file's type, always, just before its name (2026-10-17): a drawing, a word and a colour
+      // from /shared/file-risk.js (every text in it escaped), the desktop app's file_badge.rs. A
+      // plain grey "File" until the list of kinds is in; the rows are drawn again when it comes.
+      function typeBadge(name) {
+        var R = window.HosFileRisk;
+        return R && typeof R.badgeHtml === 'function' ? R.badgeHtml(String(name || ''), null) : '';
       }
 
       function render(files) {
@@ -144,9 +147,8 @@
           var date = fmtDate(f.uploaded_at);
           var sub = by + [size, date].filter(Boolean).join(' · ');
           return '<div class="sf-row">' +
-            '<div class="sf-icon">' + escapeHtml(extBadge(f.name)) + '</div>' +
             '<div class="sf-meta">' +
-              '<div class="sf-name">' + escapeHtml(f.name) + '</div>' +
+              '<div class="sf-name">' + typeBadge(f.name) + '<span class="sf-name-text">' + escapeHtml(f.name) + '</span></div>' +
               '<div class="sf-sub">' + sub + '</div>' +
             '</div>' +
             '<a class="sf-dl" href="' + escapeHtml(f.url) + '" download>Download</a>' +
@@ -195,6 +197,13 @@
         });
 
       qEl.addEventListener('input', applyFilter);
+
+      // The rows drawn before the list of kinds came in are drawn again once it is in.
+      if (window.HosFileRisk && typeof window.HosFileRisk.load === 'function' && !window.HosFileRisk.ready()) {
+        Promise.resolve(window.HosFileRisk.load()).then(function () {
+          if (window.HosFileRisk.ready() && allFiles.length) applyFilter();
+        }).catch(function () {});
+      }
 
       if (typeof window.getPqIdentity === 'function') {
         window.getPqIdentity().then(function (id) {
