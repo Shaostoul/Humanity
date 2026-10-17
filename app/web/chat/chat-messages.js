@@ -193,6 +193,7 @@ function startEditMode(msgEl, originalBody, fromKey, timestamp) {
     }
     // Apply locally immediately.
     bodyEl.innerHTML = formatBody(newContent);
+    if (typeof fillFileCards === 'function') fillFileCards(bodyEl);
     if (!bodyEl.querySelector('.edited-marker')) {
       const marker = document.createElement('span');
       marker.className = 'edited-marker';
@@ -234,6 +235,7 @@ function applyEditToDOM(fromKey, timestamp, newContent) {
   // Who wrote it goes along, so an edit cannot bring back a picture the
   // protected setup does not show (10h).
   bodyEl.innerHTML = formatBody(newContent, fromKey);
+  if (typeof fillFileCards === 'function') fillFileCards(bodyEl);
   // Add (edited) marker if not present.
   if (!bodyEl.querySelector('.edited-marker')) {
     const marker = document.createElement('span');
@@ -1000,6 +1002,7 @@ function openThreadPanel(fromKey, timestamp, author, body) {
     <div class="thread-msg-body">${formatBody(body, fromKey)}</div>
   </div>
   <div style="font-size:0.72rem;color:var(--text-muted);margin-bottom:var(--space-md);">Loading replies...</div>`;
+  if (typeof fillFileCards === 'function') fillFileCards(messagesDiv);
   // Request thread from server.
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'thread_request', from: fromKey, timestamp: Number(timestamp) }));
@@ -1036,6 +1039,7 @@ function renderThreadMessages(messages) {
     }
   }
   messagesDiv.innerHTML = parentHtml + repliesHtml;
+  if (typeof fillFileCards === 'function') fillFileCards(messagesDiv);
   messagesDiv.scrollTop = messagesDiv.scrollHeight;
   if (window.twemoji) twemoji.parse(messagesDiv);
 }
@@ -1085,6 +1089,7 @@ async function sendThreadReply() {
     <span class="thread-msg-time">${formatTime(timestamp)}</span>
     <div class="thread-msg-body">${formatBody(content)}</div>
   </div>`;
+  if (typeof fillFileCards === 'function') fillFileCards(messagesDiv);
   messagesDiv.scrollTop = messagesDiv.scrollHeight;
   if (window.twemoji) twemoji.parse(messagesDiv);
 

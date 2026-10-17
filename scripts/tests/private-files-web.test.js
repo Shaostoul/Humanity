@@ -10,7 +10,9 @@
 // crypto.js, chat-dm-store.js (over a stand-in IndexedDB), app.js, chat-messages.js, chat-dms.js,
 // chat-social.js, chat-groups-p2p.js, chat-ui.js, chat-voice-rooms.js, chat-voice-calls.js,
 // chat-profile.js, chat-privacy.js, chat-reports.js, chat-warnings.js, chat-protected.js,
-// chat-onboarding.js and chat-p2p.js, in index.html's order.
+// chat-onboarding.js and chat-p2p.js, in index.html's order (with file-risk.js since 2026-10-17,
+// served the shipped data/safety/file_risks.json; the stand-in page finds the file cards app.js
+// draws, each with its data-* attributes and its player, as a browser's querySelectorAll would).
 //
 // What is REAL: the file encryption (WebCrypto AES-256-GCM, the page's own pqEncryptFile and
 // pqDecryptFile), the group's signed objects and its messages' encryption (pq-object.js and the
@@ -53,6 +55,15 @@
 //     that never got it (one holding no profile for me included); a word changed on a server since
 //     this device last saw it is taken; a device that never chose takes each server's word; two
 //     servers holding different words never flip it; the protected setup never takes a more open one.
+// 12. (2026-10-17) A public file's address is a card: a video or a sound with its player, any other
+//     kind the server takes (an archive, a 3D model, a HEIC picture) with its icon, each with its
+//     name (the server's time prefix taken off), its size (a HEAD on this server only: another
+//     website is never contacted before a click) and Download; what kind of file it is under its
+//     name (/shared/file-risk.js), also when the card was drawn before the list came; a player
+//     this browser cannot play says so in its card ("This browser cannot play this video. ...").
+// 13. (2026-10-17) A private file says what kind of file it is: by its name on its card (before
+//     Accept, before anything is fetched), and from its first bytes once it is opened (a picture or
+//     Save), which calls out a file named like one kind over the bytes of another as disguised.
 //
 // Red first: see the end of this file for each deliberate break and the assertion it tripped.
 
@@ -84,6 +95,11 @@ const escHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<"
 const sameBytes = (a, b) => Buffer.from(a).equals(Buffer.from(b));
 
 const FILE_MARKER = "[[hum:file:v1]]";
+// What kind of file a file is (2026-10-17, /shared/file-risk.js): the shipped list, served to the page.
+const FILE_RISKS = JSON.parse(fs.readFileSync(path.join(ROOT, "data", "safety", "file_risks.json"), "utf8"));
+const RISK = require(path.join(WEB, "shared", "file-risk.js"));
+/** The checker's answer for a name and bytes, from the shipped list, as the page should say it. */
+const riskOf = (name, head) => RISK.assess(name, head || null, FILE_RISKS);
 const FAILED = "This file could not be opened.";
 const SERVER = "did:hum:4dQe1bVHyiHm1Vh8rWbx2F";
 const T0 = 1760000000000;
@@ -227,6 +243,9 @@ function anything() {
 
 const escapeText = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const NOTHING_YET = new Set([".edit-area", ".edited-marker", ".block-indicator"]);
+// The file cards app.js formatBody draws (2026-10-17), as fillFileCards asks for them.
+const FILE_CARD_SELECTOR = ".file-card[data-file-url]";
+const unescHtml = (s) => String(s).replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&");
 
 // A document whose elements keep what is written to them, their class list, the listeners a
 // script adds, and one kept element per selector they are asked for (so a file card's body, and
@@ -262,8 +281,39 @@ function fakeDom(state) {
       if (!own.parts.has(sel)) own.parts.set(sel, el(sel));
       return own.parts.get(sel);
     };
-    own.querySelectorAll = () => [];
-    own.addEventListener = (type, fn) => { (own.listeners[type] = own.listeners[type] || []).push(fn); };
+    // The file cards in what was written here, as a browser would find them: one element per card,
+    // its data-* attributes in its dataset, and (a sound's or a video's) its player, whose
+    // closest('.file-card-media') is the card. The same elements while the HTML stays the same.
+    own.querySelectorAll = (sel) => {
+      if (sel !== FILE_CARD_SELECTOR || typeof own.innerHTML !== "string") return [];
+      if (own.cardsOf !== own.innerHTML) {
+        own.cardsOf = own.innerHTML;
+        own.cards = [];
+        for (const m of own.innerHTML.matchAll(/<div class="(file-card[^"]*)"([^>]*)>([\s\S]*?<\/a><\/div>)/g)) {
+          const card = el("file-card");
+          card.className = m[1];
+          for (const a of m[2].matchAll(/([\w-]+)="([^"]*)"/g)) {
+            if (a[1].startsWith("data-")) card.dataset[a[1].slice(5).replace(/-([a-z])/g, (_x, c) => c.toUpperCase())] = unescHtml(a[2]);
+          }
+          card.html = m[0];
+          const player = /<(video|audio)\b/.exec(m[3]);
+          if (player) {
+            card.player = el(player[1]);
+            card.player.tagName = player[1].toUpperCase();
+            card.player.videoWidth = 0;
+            card.player.closest = (s2) => (s2 === ".file-card-media" && m[1].split(/\s+/).includes("file-card-media") ? card : null);
+          }
+          if (/data-file-url=/.test(m[2])) own.cards.push(card);
+        }
+      }
+      return own.cards.slice();
+    };
+    // Each listener's capture flag too (a media element's error does not bubble: heard in capture).
+    own.captures = {};
+    own.addEventListener = (type, fn, opt) => {
+      (own.listeners[type] = own.listeners[type] || []).push(fn);
+      (own.captures[type] = own.captures[type] || []).push(opt === true || !!(opt && opt.capture));
+    };
     own.remove = () => { own.removed = true; };
     own.focus = () => {};
     own.after = () => {};
@@ -447,6 +497,10 @@ async function loadChat(me, opts = {}) {
   const notices = [];
   const systemLines = [];
   const relay = { log: opts.log || [fx.hello], hold: null };
+  // opts.holdRiskList: the file-kind list (/data/safety/file_risks.json) is not answered until
+  // page.releaseRiskList() (cards drawn before it is in must still get their line).
+  let releaseRiskList = () => {};
+  const riskListHeld = opts.holdRiskList ? new Promise((r) => { releaseRiskList = r; }) : null;
   const G = fx.G;
   let uploadCount = 0;
   const serviceWorker = { register: () => Promise.resolve({ scope: "/" }), ready: new Promise(() => {}), controller: null, addEventListener() {} };
@@ -516,6 +570,13 @@ async function loadChat(me, opts = {}) {
       const method = (init && init.method) || "GET";
       fetched.push(method + " " + u);
       if (u.startsWith("/api/upload") && method === "POST") return upload(u, init).then((json) => ok(json));
+      if (u === RISK.LIST_URL) return Promise.resolve(riskListHeld).then(() => ok(clone(FILE_RISKS)));
+      // A HEAD on a file here (a public file's card asks its size): its length, no body.
+      if (u.startsWith("/uploads/") && method === "HEAD") {
+        if (!files.has(u)) return answer(404, { text: "not found" });
+        const length = String(files.get(u).length);
+        return Promise.resolve({ ok: true, status: 200, headers: { get: (k) => (String(k).toLowerCase() === "content-length" ? length : null) } });
+      }
       if (u.startsWith("/uploads/")) return files.has(u) ? answer(200, { bytes: files.get(u) }) : answer(404, { text: "not found" });
       if (u.startsWith("/api/federation/servers")) return ok([]);
       if (u === P.PROTECTED_PRESETS_URL) return ok(clone(SHIPPED_PRESETS));
@@ -585,6 +646,7 @@ async function loadChat(me, opts = {}) {
   run("shared/upload-clean.js");
   run("shared/files-in-messages.js");
   run("shared/kept-files.js");
+  run("shared/file-risk.js"); // as web/chat/index.html loads it (2026-10-17)
   run("shared/blake3.js");
   run("shared/file-transfer.js");
   run("shared/profile-changes.js");
@@ -654,6 +716,7 @@ async function loadChat(me, opts = {}) {
   const set = (code, ...args) => vm.runInContext(code, ctx)(...args);
   const page = {
     ctx, fx, sock, store, state, relay, posted, fetched, uploads, files, blobs, notices, systemLines, handle, fn, set, xhrWords,
+    releaseRiskList: () => releaseRiskList(),
     el: (id) => ctx.document.getElementById(id),
     /** Hold every upload until release() (to leave the conversation while one is on its way). */
     holdUploads() {
@@ -861,6 +924,170 @@ test("a public channel still uploads the plain file and posts its address", asyn
   assert.equal(page.sock.sent.filter((m) => m.type === "chat").pop().content, page.uploads[1].url);
 });
 
+// ── 4b. A public file's card (2026-10-17) ───────────────────────────────
+// Both apps post a public file as just its address. A sound or a video used to be a bare player
+// (no name, size or Download), and a video the browser could not decode failed silently: a member
+// saw an empty player. Now every file kind the server takes that is not drawn in place is a card
+// (app.js fileCardHtml), its size read with a HEAD on this server only, what kind of file it is
+// said under its name (/shared/file-risk.js), and a player that cannot play says so.
+
+const VIDEO_CANNOT_PLAY = "This browser cannot play this video. Download it to watch it in another player.";
+const SOUND_CANNOT_PLAY = "This browser cannot play this sound. Download it to play it in another player.";
+const UP_VIDEO = "/uploads/1760000000000_WH40K_Marriah_Carey.mp4";
+const UP_SOUND = "/uploads/1760000000001_drum_loop.mp3";
+const UP_ZIP = "/uploads/1760000000002_maps.zip";
+const UP_MODEL = "/uploads/1760000000003_staff.glb";
+const UP_BLEND = "/uploads/1760000000004_ship.blend";
+const UP_HEIC = "/uploads/1760000000005_holiday.heic";
+const ELSEWHERE_VIDEO = "https://example.com/talk.webm";
+
+/** A post in the room from `who`, drawn as the page draws one; its row. */
+function postInRoom(page, who, body, ts) {
+  page.state.appended.length = 0;
+  page.fn("addChatMessage")(who.name, body, ts, who.key, true, false, null, null, false, null);
+  return page.state.appended[0];
+}
+/** The cards in a drawn row, found as a browser finds them (the stand-in page, above). */
+const cardsIn = (row) => row.querySelectorAll(".file-card[data-file-url]");
+
+// The name a card shows, held to the cases the desktop app answers too
+// (scripts/tests/fixtures/file-card-names.json; src/gui/pages/chat/public_files.rs shown_name).
+// Seen red 2026-10-17 with the %XX decoding left out: "https://example.com/files/My%20Song.mp3?x=1#t=3"
+// gave "My%20Song.mp3".
+test("a public file is shown by the name it was sent with, as in the desktop app", async () => {
+  const fx = await fixture();
+  const page = await loadChat(fx.ann);
+  const shared = JSON.parse(require("node:fs").readFileSync(require("node:path").join(__dirname, "fixtures", "file-card-names.json"), "utf8")).cases;
+  assert.ok(shared.length >= 6);
+  for (const c of shared) assert.equal(page.fn("fileCardName")(c.address), c.name, c.address);
+});
+
+// Seen red 2026-10-17, each in a copy of web/ through HOS_WEB_DIR: with fileCardHtml giving a video
+// its old bare player (`<video controls preload="none" src=...>`, no card): "a card for each of the
+// five files" (and the next two tests, which find no video card); with fillFileCard's HEAD taken
+// out: "the video's size, from a HEAD on this server"; with fileOnThisServer answering true for any
+// address: "a video on another website: nothing read before a click".
+test("public file cards: a video, a sound and any other file each get a card with its name, size and Download", async () => {
+  const fx = await fixture();
+  const page = await loadChat(fx.ann);
+  page.files.set(UP_VIDEO, new Uint8Array(3 * 1024 * 1024 + 200 * 1024));
+  page.files.set(UP_SOUND, new Uint8Array(2048));
+  page.files.set(UP_ZIP, new Uint8Array(500));
+  // UP_MODEL is not on the server: its HEAD answers 404, and its size line stays empty.
+  const body = `the clip ${UP_VIDEO} and ${UP_SOUND}, the maps ${UP_ZIP}, a model ${UP_MODEL} and elsewhere ${ELSEWHERE_VIDEO}`;
+  const row = postInRoom(page, fx.ben, body, T0 + 900);
+  await settle();
+  const h = row.innerHTML;
+  assert.equal(h.split('<div class="file-card').length - 1, 5, "a card for each of the five files");
+  const cards = cardsIn(row);
+  assert.equal(cards.length, 5);
+  assert.equal((h.match(/<(video|audio)\b/g) || []).length, 3, "no player outside a card");
+  const [video, sound, zip, model, elsewhere] = cards;
+
+  // The video: its player (reading its length on this server only), its name without the
+  // server's time in front, and Download under that name.
+  assert.equal(video.className, "file-card file-card-media");
+  assert.equal(video.dataset.fileName, "WH40K_Marriah_Carey.mp4", "the name without the server's time prefix");
+  assert.ok(video.html.includes(`<video controls preload="metadata" src="${UP_VIDEO}"></video>`), "the player, its details read on this server");
+  assert.ok(video.html.includes('<div class="file-name">WH40K_Marriah_Carey.mp4</div>'), "the name on the card");
+  assert.ok(video.html.includes(`<a href="${UP_VIDEO}" download="WH40K_Marriah_Carey.mp4"`) && video.html.endsWith(">Download</a></div>"), "Download, under that name");
+  assert.ok(video.html.includes('<div class="file-note" hidden></div>'), "and a note line, hidden until the player cannot play");
+  assert.ok(sound.html.includes(`<audio controls preload="metadata" src="${UP_SOUND}"></audio>`) && sound.dataset.fileName === "drum_loop.mp3", "a sound: its player and name");
+  assert.ok(zip.html.includes("📦") && zip.html.includes('download="maps.zip"') && !zip.html.includes("<video"), "an archive: a document card");
+  assert.ok(model.html.includes('download="staff.glb"') && model.className === "file-card", "a 3D model: a document card");
+  assert.ok(elsewhere.html.includes(`<video controls preload="none" src="${ELSEWHERE_VIDEO}">`), "a video on another website: nothing read before a click");
+
+  // Sizes, from a HEAD on this server only; nothing downloaded, nothing asked elsewhere.
+  const size = (card) => card.querySelector(".file-size").textContent;
+  assert.equal(size(video), "3.2 MB", "the video's size, from a HEAD on this server");
+  assert.equal(size(sound), "2 KB");
+  assert.equal(size(zip), "500 B");
+  assert.equal(size(model), "", "a file the server does not have: no size");
+  assert.equal(size(elsewhere), "", "a file on another website: no size");
+  for (const u of [UP_VIDEO, UP_SOUND, UP_ZIP, UP_MODEL]) assert.equal(page.fetched.filter((f) => f === "HEAD " + u).length, 1, "one HEAD for " + u);
+  assert.equal(page.fetched.filter((f) => f.startsWith("GET /uploads/")).length, 0, "nothing downloaded");
+  assert.equal(page.fetched.filter((f) => f.includes("example.com")).length, 0, "nothing is asked of another website before a click");
+  // The same row filled again (an edit, a held link opened) asks nothing more.
+  page.fn("fillFileCards")(row);
+  await settle();
+  assert.equal(page.fetched.filter((f) => f.startsWith("HEAD ")).length, 4, "no second HEAD");
+});
+
+// Seen red 2026-10-17 in a copy of web/ through HOS_WEB_DIR with fileCautionFill returning at once
+// when the list was not in (no waiting for it): "the archive's word, once the list is in" (and the
+// private file's "the archive's word, before Accept", in 5b).
+test("public file cards: what kind of file it is is said under its name, also when the card was drawn before the list came", async () => {
+  const fx = await fixture();
+  const page = await loadChat(fx.ann, { holdRiskList: true });
+  const row = postInRoom(page, fx.ben, `${UP_ZIP} ${UP_BLEND} ${UP_VIDEO} ${UP_HEIC}`, T0 + 910);
+  await settle();
+  const [zip, blend, video, heic] = cardsIn(row);
+  const line = (card) => card.querySelector(".file-caution");
+  assert.equal(line(zip).textContent, "", "nothing said before the list is in");
+  page.releaseRiskList();
+  await settle();
+  assert.equal(line(zip).textContent, riskOf("maps.zip").words, "the archive's word, once the list is in");
+  assert.ok(line(zip).textContent.startsWith("This is an archive (.zip)."), "in the list's words");
+  assert.equal(line(zip).hidden, false, "shown");
+  assert.ok(!line(zip).classList.contains("disguised"), "a warning, not a disguise");
+  assert.equal(line(blend).textContent, riskOf("ship.blend").words, "a Blender file's word");
+  for (const [card, what] of [[video, "a video"], [heic, "a picture"]]) {
+    assert.equal(line(card).textContent, "", `${what}: no word`);
+    assert.equal(line(card).hidden, true, `${what}: the line stays hidden`);
+  }
+  assert.ok(!row.innerHTML.includes("This is an archive"), "the words are written as text, never into the HTML");
+  // The page asked for the list as it loaded (before page.fetched starts); the cards waited for that
+  // same request instead of asking again.
+  assert.equal(page.fetched.filter((f) => f === "GET /data/safety/file_risks.json").length, 0, "drawing the cards does not ask for the list again");
+});
+
+// Seen red 2026-10-17 in a copy of web/ through HOS_WEB_DIR: with listenForFileTrouble adding its
+// listeners without `true`: "heard in the capture phase: error"; with fileMediaTrouble taking a
+// loadedmetadata for trouble whatever the picture's width: "a video whose picture is read: nothing
+// said".
+test("public file cards: a video or a sound this browser cannot play says so, and its empty player goes", async () => {
+  const fx = await fixture();
+  const page = await loadChat(fx.ann);
+  for (const id of ["messages", "thread-panel-messages"]) {
+    for (const type of ["error", "loadedmetadata"]) {
+      assert.ok((page.el(id).captures[type] || []).includes(true), `heard in the capture phase: ${type}, on #${id}`);
+    }
+  }
+  const fire = (type, target) => { for (const fn of page.el("messages").listeners[type]) fn({ type, target }); };
+  const row = postInRoom(page, fx.ben, `${UP_VIDEO} ${ELSEWHERE_VIDEO} ${UP_SOUND}`, T0 + 920);
+  const [video, video2, sound] = cardsIn(row);
+  const note = (card) => card.querySelector(".file-note");
+
+  // A video whose picture is read: nothing said, the player stays.
+  video.player.videoWidth = 640;
+  fire("loadedmetadata", video.player);
+  assert.equal(note(video).textContent, "", "a video whose picture is read: nothing said");
+  assert.notEqual(video.player.hidden, true, "and its player stays");
+  // A video whose picture has no width (its picture could not be decoded): said, the player goes.
+  video2.player.videoWidth = 0;
+  fire("loadedmetadata", video2.player);
+  assert.equal(note(video2).textContent, VIDEO_CANNOT_PLAY);
+  assert.equal(note(video2).hidden, false, "the note shows");
+  assert.equal(video2.player.hidden, true, "the empty player goes");
+  // An error on a video: the same.
+  fire("error", video.player);
+  assert.equal(note(video).textContent, VIDEO_CANNOT_PLAY);
+  assert.equal(video.player.hidden, true);
+  // A sound: its details read is no trouble; its error is, in a sound's words.
+  fire("loadedmetadata", sound.player);
+  assert.equal(note(sound).textContent, "", "a sound's details read: nothing said");
+  fire("error", sound.player);
+  assert.equal(note(sound).textContent, SOUND_CANNOT_PLAY);
+  assert.equal(sound.player.hidden, true);
+  // Something else that fails to load in the messages (a picture) is not a player's trouble.
+  const img = page.ctx.document.createElement("img");
+  img.tagName = "IMG";
+  img.hidden = false;
+  img.closest = () => video;
+  fire("error", img);
+  assert.equal(img.hidden, false, "a picture's error is left alone");
+});
+
 // Seen red 2026-10-12 with uploadPost's progress handler taken out: the upload line never had a number.
 test("an upload says how much of it has gone, in a public channel and in a DM (the phone check of 2026-10-12)", async () => {
   const fx = await fixture();
@@ -956,6 +1183,82 @@ test("a non-friend's DM picture waits for the click (the same rule as a group's)
   await settle();
   const pic = await shownPicture(page, cardBody(row));
   assert.ok(pic && sameBytes(pic.bytes, PNG), "after the click: shown");
+});
+
+// ── 5b. What kind of file a private file is (2026-10-17) ────────────────
+// A private file is encrypted before it is uploaded, so the server never saw its real name or
+// contents: the receiving page's check (/shared/file-risk.js) is the only one. By its name on the
+// card, before anything is fetched or accepted; again from its first bytes once it is opened, which
+// calls out a file named like one kind over the bytes of another.
+
+// The first bytes of a Windows program ("MZ") and of a zip archive ("PK\x03\x04"), then filler.
+const PROGRAM_BYTES = Uint8Array.from([0x4d, 0x5a, 0x90, 0x00, 0x03, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0xff, 0xff, 0x00, 0x00, 0xb8, 0x00, 0x00, 0x00]);
+const ZIP_BYTES = Uint8Array.from([0x50, 0x4b, 0x03, 0x04, 0x14, 0x00, 0x00, 0x00, 0x08, 0x00, 0x21, 0x00, 0x3c, 0x2a, 0x10, 0x5f, 0x00, 0x00]);
+
+// Seen red 2026-10-17, each in a copy of web/ through HOS_WEB_DIR: with privateFileCaution not
+// called by hydratePrivateFile: "by its name, before anything is fetched: an archive's word" (and
+// the next test's "the archive's word, before Accept"); with
+// privateFileKeepHead keeping nothing: "a 'picture' whose bytes are a program, opened: called out as
+// disguised"; with Save not saying it again once the file is opened: "Save: a 'PDF' that is a program
+// is called out".
+test("a private file says what kind of file it is: by its name on the card, and from its first bytes once opened", async () => {
+  const fx = await fixture();
+  const page = await loadChat(fx.ann, { stored: ACCEPT_ANYONE });
+  befriend(page, fx.ben.key);
+  const archive = await fileInGroup(page, fx.ben, { name: "photos.zip", mime: "application/zip", bytes: ZIP_BYTES, at: T0 + 300 });
+  const fakePdf = await fileInGroup(page, fx.ben, { name: "invoice.pdf", mime: "application/pdf", bytes: PROGRAM_BYTES, at: T0 + 310 });
+  const fakePic = await fileInGroup(page, fx.ben, { name: "holiday.png", mime: "image/png", bytes: PROGRAM_BYTES, at: T0 + 320 });
+  const realPdf = await fileInGroup(page, fx.ben, { name: "notes.pdf", mime: "application/pdf", bytes: PDF, at: T0 + 330 });
+  page.relay.log = [fx.hello, archive.msg, fakePdf.msg, fakePic.msg, realPdf.msg];
+  await openGroup(page);
+  const [, zipRow, pdfRow, picRow, realRow] = rowsFrom(page, fx.ben);
+  const caution = (row) => row.querySelector(".enc-attach").querySelector(".enc-attach-caution");
+
+  // By its name, before anything is fetched.
+  assert.ok(zipRow.innerHTML.includes('<div class="file-caution enc-attach-caution" hidden></div>'), "the card has the line's place");
+  assert.equal(gets(page, archive.meta.url), 0, "the archive is not fetched");
+  assert.equal(caution(zipRow).textContent, riskOf("photos.zip").words, "by its name, before anything is fetched: an archive's word");
+  assert.equal(caution(zipRow).hidden, false);
+  assert.ok(!zipRow.innerHTML.includes("This is an archive"), "written as text, never into the HTML");
+  assert.equal(caution(pdfRow).textContent, "", "a PDF by its name: no word");
+  assert.equal(caution(pdfRow).hidden, true);
+
+  // A friend's "picture" is opened at once: its bytes are a program, and the card says so.
+  assert.equal(gets(page, fakePic.meta.url), 1, "test setup: the friend's picture was opened");
+  const disguisedPic = riskOf("holiday.png", PROGRAM_BYTES);
+  assert.ok(disguisedPic && disguisedPic.disguised, "test setup: the list calls it disguised");
+  assert.equal(caution(picRow).textContent, disguisedPic.words, "a 'picture' whose bytes are a program, opened: called out as disguised");
+  assert.ok(caution(picRow).textContent.startsWith("This file is named like a picture (.png), but what is inside is a program."));
+  assert.ok(caution(picRow).classList.contains("disguised"), "in the danger colour");
+  assert.equal(caution(picRow).hidden, false);
+
+  // Save: once opened, a "PDF" that is a program is called out; a real PDF still has no word.
+  await cardBody(pdfRow).querySelector(".enc-attach-dl").onclick({ stopPropagation() {} });
+  await cardBody(realRow).querySelector(".enc-attach-dl").onclick({ stopPropagation() {} });
+  await settle();
+  assert.equal(caution(pdfRow).textContent, riskOf("invoice.pdf", PROGRAM_BYTES).words, "Save: a 'PDF' that is a program is called out");
+  assert.ok(caution(pdfRow).classList.contains("disguised") && caution(pdfRow).hidden === false);
+  assert.equal(caution(realRow).textContent, "", "a real PDF, saved: still no word");
+  assert.ok(page.el("__body").children.find((c) => c.tag === "a" && c.download === "invoice.pdf"), "the file is still saved: the word is a warning, not a lock");
+});
+
+test("a private file's word shows while it waits for Accept, and comes once the list is in", async () => {
+  const fx = await fixture();
+  // Cy is no friend, and by default a non-friend's file waits for Accept; the list is late.
+  const page = await loadChat(fx.ann, { holdRiskList: true });
+  const s = await seal(ZIP_BYTES);
+  page.files.set("/uploads/dm-cy-zip.enc", s.ct);
+  const meta = { url: "/uploads/dm-cy-zip.enc", k: s.k, n: s.n, name: "setup-tools.zip", mime: "application/zip", size: ZIP_BYTES.length };
+  page.fn("addDmMessage")("Cy", markerText(meta), T0 + 640, fx.cy.key, fx.ann.key, true);
+  await settle();
+  const row = page.state.appended[0];
+  assert.ok(row.innerHTML.includes("enc-attach-accept"), "test setup: it waits for Accept");
+  const line = row.querySelector(".enc-attach").querySelector(".enc-attach-caution");
+  assert.equal(line.textContent, "", "nothing before the list is in");
+  page.releaseRiskList();
+  await settle();
+  assert.equal(line.textContent, riskOf("setup-tools.zip").words, "the archive's word, before Accept");
+  assert.equal(gets(page, meta.url), 0, "and nothing was fetched to say it");
 });
 
 // ── 6. A file that cannot be opened ─────────────────────────────────────

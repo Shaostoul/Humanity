@@ -2212,6 +2212,8 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
   appendMessage(el);
   // A file: shown, offered or held back as its sender allows (chat-dms.js).
   if (fileMeta) hydratePrivateFile(el, fileMeta, fromKey);
+  // A public file's card: its size and what kind of file it is (fillFileCards above).
+  else fillFileCards(el);
   if (window.twemoji) twemoji.parse(el);
   // The row, so a P2P group can put its warnings under it (chat-groups-p2p.js, step F).
   return el;
@@ -2607,6 +2609,206 @@ function isMessageContinuation(fromKey, timestamp) {
   return dt < 5 * 60 * 1000;
 }
 
+// ── File cards (2026-10-17) ──
+// A file posted in a public room is just its address (`/uploads/<ms>_<name>.<ext>`,
+// from either app). formatBody turns each address of a kind below into a card:
+// a sound or a video gets its player, any other kind an icon; each card shows
+// the file's name, its size (filled in once the row is drawn, fillFileCards),
+// what kind of file it is when that deserves a word (/shared/file-risk.js), and
+// Download. A video or a sound this browser cannot play says so on its card
+// (fileMediaTrouble) instead of leaving an empty player. Until 2026-10-17 a
+// sound or a video was a bare player with no name, size or Download, and one
+// the browser could not decode failed silently: a member saw an empty player.
+//
+// The kinds are the desktop app's (src/net/protected.rs FILE_LINK_EXTS), kept in
+// step: pictures the apps draw in place (png, jpg, gif, webp) are not here, they
+// are the click-to-load picture. The card's shape is matched as one unit by
+// /shared/protected.js protectedHidePicturesHtml: it starts with
+// `<div class="file-card` and ends with its Download, `</a></div>`, the only
+// `</a></div>` in it.
+const FILE_CARD_SOUND = ['mp3', 'ogg', 'wav'];
+const FILE_CARD_VIDEO = ['mp4', 'webm'];
+const FILE_CARD_ARCHIVE = ['zip', 'tar.gz', 'gz'];
+const FILE_CARD_PICTURE = ['heic', 'heif', 'avif'];
+const FILE_CARD_MODEL = ['blend', 'stl', 'obj', 'gltf', 'glb'];
+const FILE_LINK_EXTS = FILE_CARD_SOUND.concat(FILE_CARD_VIDEO, ['pdf', 'txt', 'md', 'json'], FILE_CARD_ARCHIVE, FILE_CARD_PICTURE, FILE_CARD_MODEL);
+// An address (a web address, or a file on this server) whose path ends in one of
+// the kinds, with any query after it. Matched on the escaped message text. The
+// path must END there (the desktop's file_urls): `a.mp4x` or `a.mp4/b` is no file.
+const FILE_LINK_RE = new RegExp(
+  '((?:https?:\\/\\/[^\\s<]+|\\/uploads\\/[^\\s<]+)\\.(' + FILE_LINK_EXTS.map((e) => e.replace(/\./g, '\\.')).join('|') + ')(?:\\?[^\\s<]*)?)(?![A-Za-z0-9_\\/-])',
+  'gi'
+);
+
+// What a video or a sound card says when this browser cannot play it.
+const FILE_VIDEO_CANNOT_PLAY = 'This browser cannot play this video. Download it to watch it in another player.';
+const FILE_SOUND_CANNOT_PLAY = 'This browser cannot play this sound. Download it to play it in another player.';
+
+/** `s` with the five escapes esc() writes turned back into their characters. */
+function fileUnescape(s) {
+  return String(s == null ? '' : s)
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
+}
+
+/**
+ * The name a file's address is shown under: its last path part, without its query, and without
+ * the time the server put in front of the name it stores (`1760000000000_WH40K_Marriah_Carey.mp4`
+ * shows as `WH40K_Marriah_Carey.mp4`; a name that would then start with a dot is kept whole), with
+ * `%20` and the like read as what they spell. `address` is plain text (not escaped). The desktop
+ * app's twin: src/gui/pages/chat/public_files.rs `shown_name`.
+ */
+function fileCardName(address) {
+  const last = String(address == null ? '' : address).split(/[?#]/)[0].split('/').pop() || '';
+  const bare = last.replace(/^\d+_(?!\.)(?=.)/, '');
+  let name = bare || last || 'file';
+  try { name = decodeURIComponent(name); } catch (e) { /* not percent-encoded text: as it stands */ }
+  return name;
+}
+
+/** Is `address` (plain text) a file on this server, `/uploads/...` on this page's own origin? */
+function fileOnThisServer(address) {
+  try {
+    const here = typeof location !== 'undefined' && location && location.origin ? String(location.origin) : '';
+    if (!here) return false;
+    const u = new URL(String(address), here);
+    return u.origin === here && u.pathname.startsWith('/uploads/');
+  } catch (e) {
+    return false;
+  }
+}
+
+/**
+ * A file's card, for its address `url` as it stands in the ESCAPED message text, and `ext` its kind.
+ * The name, the size, the caution and the note are empty lines written with textContent later.
+ */
+function fileCardHtml(url, ext) {
+  const kind = String(ext || '').toLowerCase();
+  const address = fileUnescape(url);
+  const name = esc(fileCardName(address));
+  const sound = FILE_CARD_SOUND.includes(kind);
+  const video = FILE_CARD_VIDEO.includes(kind);
+  const what = sound ? 'sound' : video ? 'video' : 'document';
+  const head = `<div class="file-card${sound || video ? ' file-card-media' : ''}" data-file-url="${url}" data-file-name="${name}" data-file-kind="${what}">`;
+  const info = '<div class="file-info">'
+    + `<div class="file-name">${name}</div>`
+    + '<div class="file-size"></div>'
+    + '<div class="file-caution" hidden></div>'
+    + (sound || video ? '<div class="file-note" hidden></div>' : '')
+    + '</div>';
+  const download = `<a href="${url}" download="${name}" target="_blank" rel="noopener" class="file-download">Download</a>`;
+  if (sound || video) {
+    // Only a file on this server is read before the player is pressed (its length and first
+    // frame, as the Media page's player does): never another website before a click.
+    const preload = fileOnThisServer(address) ? 'metadata' : 'none';
+    const player = sound
+      ? `<audio controls preload="${preload}" src="${url}"></audio>`
+      : `<video controls preload="${preload}" src="${url}"></video>`;
+    return head + player + info + download + '</div>';
+  }
+  const icon = FILE_CARD_ARCHIVE.includes(kind) ? '📦'
+    : FILE_CARD_PICTURE.includes(kind) ? '🖼️'
+      : FILE_CARD_MODEL.includes(kind) ? '🧊' : '📄';
+  return head + `<span class="file-icon">${icon}</span>` + info + download + '</div>';
+}
+
+/** A size in words for a card ("3.2 MB"), as a private file's card says it (chat-dms.js). */
+function fileSizeWords(n) {
+  if (typeof _fmtBytes === 'function') return _fmtBytes(n);
+  return Number(n) + ' B';
+}
+
+// The words a caution line was last asked to say: line -> {name, head}. A line asked
+// again before the list is in says the newest (a private file's Save asks with its bytes).
+const fileCautionWanted = new WeakMap();
+
+/** Write the checker's answer `a` into a caution line (textContent only), or hide the line. */
+function fileCautionWrite(line, a) {
+  line.textContent = a ? a.words : '';
+  line.hidden = !a;
+  if (a && a.disguised) line.classList.add('disguised');
+  else line.classList.remove('disguised');
+}
+
+/**
+ * Say under a file what kind of thing it is when it deserves a word (/shared/file-risk.js):
+ * a program, a script, an archive, a file named like one kind over the bytes of another. `line`
+ * is the card's `.file-caution` element, `name` the file's name and `head` its first bytes (a
+ * Uint8Array) when they are known, else null. When the list is not in yet, the line is filled
+ * the moment it is. Answers the checker's answer now, or null.
+ */
+function fileCautionFill(line, name, head) {
+  const R = typeof window !== 'undefined' ? window.HosFileRisk : null;
+  if (!line || !R || typeof R.assess !== 'function') return null;
+  fileCautionWanted.set(line, { name: String(name == null ? '' : name), head: head || null });
+  if (!R.ready()) {
+    Promise.resolve(R.load()).then(() => {
+      const w = fileCautionWanted.get(line);
+      if (w && R.ready()) fileCautionWrite(line, R.assess(w.name, w.head));
+    }).catch(() => { /* no list: no word */ });
+    return null;
+  }
+  const a = R.assess(String(name == null ? '' : name), head || null);
+  fileCautionWrite(line, a);
+  return a;
+}
+
+/** The cards in a drawn row (or any element holding formatBody's HTML). */
+const FILE_CARD_SELECTOR = '.file-card[data-file-url]';
+
+/**
+ * Fill each file card under `root` once it is drawn: its caution, by its name, and its size, read
+ * with a HEAD request ONLY for a file on this server (another website is never contacted before a
+ * click). Written with textContent.
+ */
+function fillFileCards(root) {
+  if (!root || typeof root.querySelectorAll !== 'function') return;
+  for (const card of Array.from(root.querySelectorAll(FILE_CARD_SELECTOR))) fillFileCard(card);
+}
+
+function fillFileCard(card) {
+  if (!card || !card.dataset || card.dataset.fileFilled === '1') return;
+  card.dataset.fileFilled = '1';
+  fileCautionFill(card.querySelector('.file-caution'), card.dataset.fileName || '', null);
+  const address = card.dataset.fileUrl || '';
+  const size = card.querySelector('.file-size');
+  if (!size || !fileOnThisServer(address) || typeof fetch !== 'function') return;
+  Promise.resolve(fetch(address, { method: 'HEAD' })).then((res) => {
+    const said = res && res.ok && res.headers && typeof res.headers.get === 'function' ? res.headers.get('content-length') : null;
+    const n = said == null || said === '' ? NaN : Number(said);
+    if (Number.isFinite(n) && n >= 0) size.textContent = fileSizeWords(n);
+  }).catch(() => { /* no size: the line stays empty */ });
+}
+
+/**
+ * A video or a sound in a file card that this browser cannot play: its card says so and the empty
+ * player goes. Heard on the messages' container in the CAPTURE phase (a media element's `error`
+ * and `loadedmetadata` do not bubble): an `error`, or a video whose picture has no width once its
+ * details are read (a video track the browser cannot decode, with only its sound left).
+ */
+function fileMediaTrouble(e) {
+  const media = e && e.target;
+  const tag = media && media.tagName ? String(media.tagName).toLowerCase() : '';
+  if (tag !== 'video' && tag !== 'audio') return;
+  if (e.type === 'loadedmetadata' && !(tag === 'video' && media.videoWidth === 0)) return;
+  const card = typeof media.closest === 'function' ? media.closest('.file-card-media') : null;
+  if (!card) return;
+  const note = card.querySelector('.file-note');
+  if (note) {
+    note.textContent = tag === 'video' ? FILE_VIDEO_CANNOT_PLAY : FILE_SOUND_CANNOT_PLAY;
+    note.hidden = false;
+  }
+  media.hidden = true;
+}
+
+/** Hear the file cards' players under `container` (the messages, the thread panel). */
+function listenForFileTrouble(container) {
+  if (!container || typeof container.addEventListener !== 'function') return;
+  container.addEventListener('error', fileMediaTrouble, true);
+  container.addEventListener('loadedmetadata', fileMediaTrouble, true);
+}
+listenForFileTrouble(document.getElementById('messages'));
+listenForFileTrouble(document.getElementById('thread-panel-messages'));
+
 function formatBody(text, fromKey) {
   // Step 1: Extract code blocks BEFORE escaping (they get special treatment).
   const codeBlocks = [];
@@ -2619,27 +2821,16 @@ function formatBody(text, fromKey) {
   // Step 2: Escape HTML for the non-code parts.
   let safe = esc(processedText);
 
-  // Step 3: File URLs → inline players/file cards.
-  // Audio files
-  safe = safe.replace(
-    /((?:https?:\/\/[^\s<]+|\/uploads\/[^\s<]+)\.(?:mp3|ogg|wav)(?:\?[^\s<]*)?)/gi,
-    '<audio controls preload="none" src="$1"></audio>'
-  );
-  // Video files
-  safe = safe.replace(
-    /((?:https?:\/\/[^\s<]+|\/uploads\/[^\s<]+)\.(?:mp4|webm)(?:\?[^\s<]*)?)/gi,
-    '<video controls preload="none" src="$1" style="max-height:300px;"></video>'
-  );
-  // Document/archive files → file cards
-  safe = safe.replace(
-    /((?:https?:\/\/[^\s<]+|\/uploads\/[^\s<]+)\.(pdf|txt|md|json|zip|tar\.gz|gz)(?:\?[^\s<]*)?)/gi,
-    (match, url, ext) => {
-      const icon = ['zip','tar.gz','gz'].includes(ext.toLowerCase()) ? '📦' :
-                   ['mp3','ogg','wav'].includes(ext.toLowerCase()) ? '🎵' : '📄';
-      const fname = url.split('/').pop().split('?')[0];
-      return `<div class="file-card"><span class="file-icon">${icon}</span><div class="file-info"><div class="file-name">${esc(fname)}</div></div><a href="${url}" target="_blank" rel="noopener" class="file-download">Download</a></div>`;
-    }
-  );
+  // Step 3: File URLs → file cards (fileCardHtml): a sound or a video with its
+  // player, any other file kind with its icon, each with its name and Download.
+  // Each card is set aside behind a placeholder until the markdown below is done,
+  // so `__`, `*` or `@` in a file's name or address never reaches inside it.
+  const fileCards = [];
+  const FILE_CARD_PLACEHOLDER = '\x00FC';
+  safe = safe.replace(FILE_LINK_RE, (match, url, ext) => {
+    fileCards.push(fileCardHtml(url, ext));
+    return FILE_CARD_PLACEHOLDER + (fileCards.length - 1) + FILE_CARD_PLACEHOLDER;
+  });
 
   // Image URLs → collapsed image placeholders.
   safe = safe.replace(
@@ -2735,6 +2926,10 @@ function formatBody(text, fromKey) {
     const langLabel = block.lang ? `<span class="code-lang">${esc(block.lang)}</span>` : '';
     return `<div class="code-block-wrapper">${langLabel}<button class="code-copy" onclick="navigator.clipboard.writeText(this.parentElement.querySelector('code').textContent);this.innerHTML='✓ Copied';setTimeout(()=>this.innerHTML=hosIcon('copy',14)+' Copy',1500)">${hosIcon('copy', 14)} Copy</button><pre><code>${escapedCode}</code></pre></div>`;
   });
+  // And the file cards set aside in step 3 (a long quote's short preview may hold only part of
+  // one: that part goes, and the card shows in the quote's full text).
+  safe = safe.replace(/\x00FC(\d+)\x00FC/g, (match, idx) => fileCards[parseInt(idx, 10)] || '')
+    .replace(/\x00FC\d*/g, '');
 
   // Step 7: with the protected setup on, pictures and files from someone who is
   // not a friend are not shown at all, one line in place of each (10h,

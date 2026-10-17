@@ -453,6 +453,11 @@ fn download_goes_through_the_counting_route() {
     // The Download on the added file's row.
     let row = find_text(&out, "textures.zip, file").expect("the added file's row");
     let press = every_exact(&out, "Download").into_iter().min_by(|a, b| (a.center().y - row.center().y).abs().total_cmp(&(b.center().y - row.center().y).abs())).expect("its Download");
+    // The mouse rests on it first, as a real one does: since the word of caution under this
+    // archive's row made the page taller (2026-10-17), a press in the very next frame after the
+    // pointer arrives is missed headless, the quirk the takedown button's note in item_view.rs
+    // describes. With a frame of hover first it lands.
+    frame(&ctx, &theme, &mut state, vec![egui::Event::PointerMoved(press.center())]);
     click_at(&ctx, &theme, &mut state, press.center());
     let deadline = Instant::now() + Duration::from_secs(10);
     while !state.media.open.as_ref().is_some_and(|o| o.saved_words(1).is_some()) && Instant::now() < deadline {

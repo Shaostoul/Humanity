@@ -35,6 +35,8 @@
 //     show_of, Show::Hidden): under its pictures rule, or for a content label. A hidden item shows
 //     the setup's line on its tile and its page, offers no View in 3D, and a 3D view open when the
 //     setup comes on closes. Your own items are never hidden.
+// 11. (2026-10-17) Under each file row whose kind deserves a word (an archive, a Blender file), that
+//     word from /shared/file-risk.js, by the file's name: the list asked for once, no file read.
 //
 // Seen red 2026-10-12: each with one break made in a copy of web/ under HOS_WEB_DIR, then green
 // again on the real web/: see the note above each test.
@@ -453,4 +455,46 @@ test("10. the protected setup leaves out another person's model: no View in 3D, 
   assert.equal(MI.LABEL_HIDDEN_LINE, "Hidden: the protected setup leaves out items with a content label.");
   assert.equal(tileOf(l.doc, 2).querySelector("[data-hidden]"), null, "your own labelled item is not hidden");
   assert.equal(tileOf(l.doc, 3).querySelector("[data-hidden]"), null, "an unlabelled one shows when pictures come after a click");
+});
+
+// ── 11. What kind of file it is ──────────────────────────────────────────
+
+// 2026-10-17 (/shared/file-risk.js, the Discord suggestion): under each file row whose kind deserves
+// a word (an archive, a Blender file, a program, a script), that word, by the file's name: the page
+// never reads a file before its Download. The list (data/safety/file_risks.json, the desktop app's
+// too) is asked for once, the first time a file row is drawn before it is in, and the rows are drawn
+// again when it comes. Seen red 2026-10-17 in a copy of web/ through HOS_WEB_DIR with riskOf never
+// asking for the list: "the list is asked for once, when the rows are first drawn"; with the line
+// left out of renderInfo: "the archive's word, under its row".
+test("11. each file row says what kind of file it is when that deserves a word, by its name, once the list is in", async () => {
+  const FR = require(path.join(WEB, "shared", "file-risk.js"));
+  const RISKS = JSON.parse(fs.readFileSync(path.join(ROOT, "data", "safety", "file_risks.json"), "utf8"));
+  const riskOf = (name) => FR.assess(name, null, RISKS);
+  FR.use(null); // not in yet: the page asks for it
+  let asked = 0;
+  const riskRoute = [at("/data/safety/file_risks.json"), () => { asked++; return respond(200, RISKS); }];
+  const blend = { file: 3, filename: "1763_z.blend", kind: "file", original_name: "ship.blend", size_bytes: 5000, url: "/uploads/1763_z.blend" };
+  const item = fxItem({ files: FX.item_members_view.files.concat([blend]) });
+  const { doc, page, net } = await openPage({ routes: listRoutes(answerOf([item]), [riskRoute]) });
+  page.openViewer(page.state.items[0]);
+  await settle();
+  assert.equal(asked, 1, "the list is asked for once, when the rows are first drawn");
+  // The page's ids: file 0's line is `media-file-caution`, file n's `media-file-caution-<n>`.
+  const caution = (n) => byId(doc, n ? "media-file-caution-" + n : "media-file-caution");
+  assert.equal(text(caution(1)), riskOf("textures.zip").words, "the archive's word, under its row");
+  assert.ok(text(caution(1)).startsWith("This is an archive (.zip)."), "in the list's words");
+  assert.equal(caution(1).className, "file-caution", "the warning colour's class");
+  assert.equal(text(caution(3)), riskOf("ship.blend").words, "a Blender file's word");
+  assert.equal(caution(0), null, "a picture: no line");
+  assert.equal(caution(2), null, "the cover: no line");
+  // Each line comes right after its own row.
+  const kids = byId(doc, "media-item-files").children;
+  const rowAt = kids.findIndex((k) => k.dataset && k.dataset.file === "1");
+  assert.equal(kids[rowAt + 1], caution(1), "right under textures.zip's row");
+  // Nothing of any file was read to say it, and the page drawn again asks no more.
+  assert.ok(!net.calls.some((c) => c.url.startsWith("/uploads/1761_y") || c.url.startsWith("/uploads/1763_z")), "no file read to say it");
+  page.itemView.renderInfo();
+  await settle();
+  assert.equal(asked, 1, "drawn again: not asked again");
+  assert.equal(text(caution(1)), riskOf("textures.zip").words);
 });

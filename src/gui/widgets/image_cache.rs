@@ -56,6 +56,11 @@ enum BgResult {
         url: String,
         err: String,
     },
+    /// A public file's size from its server's answer to a HEAD request (None: not said).
+    Sized {
+        url: String,
+        size: Option<u64>,
+    },
 }
 
 pub struct ImageCache {
@@ -74,6 +79,9 @@ pub struct ImageCache {
     /// (`route_image` sends those to a click-to-load placeholder). This session
     /// only, one picture at a time, the way the web client's placeholder works.
     allowed: HashSet<String>,
+    /// Public files' sizes, asked once each (`request_size`): None while asking or when the
+    /// server did not say.
+    sizes: HashMap<String, Option<u64>>,
     /// Cap on max pixels per image to avoid blowing memory on a 10k×10k jpg.
     /// Default ~8 MP (3840×2160). Larger images are downsampled before upload.
     pub max_pixels: u32,
@@ -96,6 +104,7 @@ impl ImageCache {
             downloads: HashMap::new(),
             saving: HashSet::new(),
             allowed: HashSet::new(),
+            sizes: HashMap::new(),
             max_pixels: 8_294_400, // 3840x2160
             tx,
             rx,
@@ -230,6 +239,56 @@ impl ImageCache {
             .ok();
     }
 
+    /// Ask once, on a worker, how big the public file at `url` is (a HEAD request; the body is
+    /// never fetched). Only for a file on the message's own server: asking another website would
+    /// show it this device's network address before any click. Read with `size_of`.
+    pub fn request_size(&mut self, url: &str) {
+        if self.sizes.contains_key(url) {
+            return;
+        }
+        self.sizes.insert(url.to_string(), None);
+        let (url_owned, tx) = (url.to_string(), self.tx.clone());
+        thread::Builder::new()
+            .name("file-size".to_string())
+            .spawn(move || {
+                let agent = ureq::AgentBuilder::new()
+                    .timeout_connect(std::time::Duration::from_secs(15))
+                    .timeout_read(std::time::Duration::from_secs(30))
+                    .build();
+                let size = agent
+                    .head(&url_owned)
+                    .call()
+                    .ok()
+                    .and_then(|r| r.header("Content-Length").and_then(|v| v.trim().parse::<u64>().ok()));
+                let _ = tx.send(BgResult::Sized { url: url_owned, size });
+            })
+            .ok();
+    }
+
+    /// Put a public file's size in place, for the tests and the snapshots, which have no server
+    /// to ask (and so never ask).
+    #[cfg(test)]
+    pub fn set_size_for_test(&mut self, url: &str, size: Option<u64>) {
+        self.sizes.insert(url.to_string(), size);
+    }
+
+    /// Whether `request_size` has asked about `url` (or a size was put in place), for the tests.
+    #[cfg(test)]
+    pub fn size_asked(&self, url: &str) -> bool {
+        self.sizes.contains_key(url)
+    }
+
+    /// Mark a save of `key` finished at `path`, for the tests and the snapshots.
+    #[cfg(test)]
+    pub fn set_saved_for_test(&mut self, key: &str, path: std::path::PathBuf) {
+        self.downloads.insert(key.to_string(), path);
+    }
+
+    /// A public file's size, once `request_size` has it.
+    pub fn size_of(&self, url: &str) -> Option<u64> {
+        self.sizes.get(url).copied().flatten()
+    }
+
     /// Whether a `save_with` job for `key` is still running.
     pub fn is_saving(&self, key: &str) -> bool {
         self.saving.contains(key)
@@ -281,6 +340,9 @@ impl ImageCache {
                 BgResult::DownloadFailed { url, err } => {
                     self.saving.remove(&url);
                     self.errors.insert(format!("dl:{}", url), err);
+                }
+                BgResult::Sized { url, size } => {
+                    self.sizes.insert(url, size);
                 }
             }
         }

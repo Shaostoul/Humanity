@@ -220,6 +220,8 @@ pub const PROPOSAL_TYPES_RON: &str = include_str!("../data/governance/proposal_t
 /// desktop app can still offer Report when the data folder lacks the file; the relay builds in
 /// its own copy in src/relay/handlers/reports.rs.
 pub const REPORT_REASONS_JSON: &str = include_str!("../data/safety/report_reasons.json");
+/// What kinds of files get a word of caution before they are opened (src/net/file_risk.rs).
+pub const FILE_RISKS_JSON: &str = include_str!("../data/safety/file_risks.json");
 /// The warnings shown under received messages (design blocking-and-safe-mode.md 6.3 and 10g).
 /// Built in so the desktop app still warns when the data folder lacks the file (net/warnings.rs
 /// `load_warnings`); the web client reads the same file.
@@ -452,6 +454,7 @@ pub fn get_embedded(path: &str) -> Option<&'static str> {
         "economy.ron" => Some(ECONOMY_RON),
         "equipment.csv" => Some(EQUIPMENT_CSV),
         "safety/report_reasons.json" => Some(REPORT_REASONS_JSON),
+        "safety/file_risks.json" => Some(FILE_RISKS_JSON),
         "safety/warnings.json" => Some(WARNINGS_JSON),
         "safety/outside_help.json" => Some(OUTSIDE_HELP_JSON),
         "gui/safety_presets.json" => Some(SAFETY_PRESETS_JSON),
@@ -637,6 +640,14 @@ pub const EMBEDDED_KEYS: &[&str] = &[
     "milky-way.json",
     "stars-catalog.json",
     "stars-nearby.json",
+    // The safety lists (2026-10-17): read from the data folder first, so each ships into it like
+    // the rest. Until then they were never extracted, so every installed app served the built-in
+    // copy and logged that it had, the first time a report dialog, the warnings or a file card
+    // asked for one.
+    "safety/report_reasons.json",
+    "safety/warnings.json",
+    "safety/outside_help.json",
+    "safety/file_risks.json",
     // TOML
     "config.toml",
     "calendar.toml",

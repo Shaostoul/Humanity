@@ -2830,6 +2830,9 @@ pub struct GuiState {
     /// URL of the image currently shown full-screen in the viewer modal.
     /// `None` means the modal is closed.
     pub image_viewer_url: Option<String>,
+    /// A 3D model posted in chat, open in its own window (View in 3D on the file's card,
+    /// chat/public_files.rs). `None` means the window is closed.
+    pub chat_model_view: Option<crate::gui::model_view::Viewer>,
 
     // ── Studio state ──
     pub studio: StudioState,
@@ -4161,6 +4164,7 @@ impl Default for GuiState {
             onboarding_quest_progress: std::collections::HashMap::new(),
             image_cache: crate::gui::widgets::image_cache::ImageCache::new(),
             image_viewer_url: None,
+            chat_model_view: None,
             studio: StudioState::default(),
 
             // Chat panel collapse state (all expanded by default except connection)

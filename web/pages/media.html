@@ -12,7 +12,7 @@
   <!-- The Media page (docs/design/media-showcase.md, "Increment 2, exact"). Everything
        inside #media-root is built by /pages/media-app.js with createElement and
        textContent; its styles are /shared/media.css, theme tokens only. -->
-  <link rel="stylesheet" href="/shared/media.css?v=6">
+  <link rel="stylesheet" href="/shared/media.css?v=7">
   <style>
     body { background: var(--bg); color: var(--text); line-height: var(--line-height); min-height: 100vh; padding-bottom: 60px; }
   </style>
@@ -60,8 +60,12 @@
 <!-- The protected setup (2026-10-16): what it leaves out of this page, the desktop's rule (a person's
      pictures and files where its pictures rule is on, a labelled item); reach.js before protected.js. -->
 <script src="/shared/reach.js?v=4"></script>
-<script src="/shared/protected.js?v=3"></script>
-<script src="/pages/media-item.js?v=3"></script>
+<script src="/shared/protected.js?v=4"></script>
+<!-- What kind of file each one is, said under it on an item's page when that deserves a word (a program,
+     a script, an archive, a Blender file; 2026-10-17): reads /data/safety/file_risks.json, the list the
+     desktop app reads too; before media-item.js. -->
+<script src="/shared/file-risk.js?v=1"></script>
+<script src="/pages/media-item.js?v=4"></script>
 <script src="/pages/media-app.js?v=8"></script>
 <!-- The admins' Media section: this page's Admin tab, for admins (/media#admin; /admin points here). -->
 <script src="/pages/media-admin.js?v=3"></script>

@@ -356,6 +356,44 @@ Choose all here, Clear): Add to Media makes one item of them (the rest added onc
 `resumable::MoreFile`), Edit's Add a file adds each, chat attach and the Files page send them one
 at a time through the one-file step (chat only to the conversation they were chosen in); the website
 mirrors Add to Media, Edit and chat.
+Since v0.1509.0 the picker opens over a dimmed screen (a click on it cancels, `BACKDROP_ALPHA`, its
+window pinned above with `set_sublayer`) and its three parts are tinted like the chat sidebar, darker
+(`SECTION_SHADE`): Places in the DMs' red, Favorites in the groups' green, This folder in the servers'
+blue (`section`). Snapshot: `tests/snapshots/file_picker.png`.
+
+### Files posted in chat, and what kind of file it is (v0.1509.0)
+**Public files get a card (the "video attach" bug, BUG-203).** A file posted into a public channel is
+sent as its address; both apps now show it as a card: its name (the server's time prefix taken off,
+`%20` read as a space; the shared cases in `scripts/tests/fixtures/file-card-names.json`), its size
+(a HEAD asked of the message's own server only, never another website before a click), Download, and
+once saved, Show in folder. Sounds and videos keep their player on the website, and one the browser
+cannot play says so instead of an empty player; on the desktop a video says it plays in the
+computer's own player (the app's own plays WebM only: patents), and a .glb or .stl on the server gets
+View in 3D in its own window. The kinds: every one a server takes that is not a picture drawn in
+place (sounds, videos, documents, archives, HEIC/HEIF/AVIF, 3D models; `FILE_LINK_EXTS` and the
+web's `FILE_LINK_EXTS`, kept in step). The relay now stores `<ms>_<words of the name>.<ext>`
+(`upload_rules::safe_stem`), not the name with its dots and spaces squeezed out.
+**What kind of file it is (from a suggestion in the project's Discord).** Not an antivirus: under a
+file someone was sent, a line says when it is a program, a script, an archive, a document that can
+carry macros, a shortcut, a web page or a Blender file, and to scan it or trust its sender first;
+once saved, its first bytes are read too, and a file named like a picture, video, sound, PDF, text
+file or 3D model whose bytes are a program, a script or an archive is called out as disguised (in
+the danger colour). On public file cards, private files in DMs and P2P groups (the only check those
+get: they are encrypted before upload), device-to-device files (by name at the Accept question,
+then by bytes), and the Media item page's file rows. Cards offer Show in folder, never Open.
+- Data: `data/safety/file_risks.json` (kinds, endings, first bytes, the words; read from the data
+  folder first), shared cases `scripts/tests/fixtures/file-risk-cases.json`.
+- Native: `src/net/file_risk.rs` (`assess`, `assess_file`, `assess_saved`), `src/gui/widgets/file_caution.rs`
+  (`show`, `show_in_folder`), `src/gui/pages/chat/public_files.rs` (`Card`, `draw_all`,
+  `save_public`, `draw_model_window`), `attach_view.rs` (`caution`), `chat/transfer_rows.rs`,
+  `media/item_view.rs` + `media/open.rs` (`saved_cautions`), `ImageCache::request_size`.
+- Web: `web/shared/file-risk.js` (`HosFileRisk`), `web/chat/app.js` (`fileCardHtml`, `fillFileCards`,
+  `fileCautionFill`, `fileMediaTrouble`), `chat-dms.js` (`privateFileCaution`), `chat-file-transfer.js`
+  (`ftCaution`), `web/pages/media-item.js` (`riskOf`), `web/shared/protected.js` (a card hidden whole).
+- Tests: `src/gui/pages/chat/public_files_tests.rs`, `src/net/file_risk.rs`, `upload_rules_tests.rs`
+  (`the_stored_name_keeps_its_words_and_its_extension`), `scripts/tests/file-risk-web.test.js`,
+  `private-files-web.test.js`, `file-transfer-chat-web.test.js`, `media-web-item.test.js`,
+  `protected-web.test.js`. Snapshot: `tests/snapshots/chat_public_files.png`.
 - Native: `src/gui/widgets/file_browser.rs` (`FilePickerState`, `file_picker_modal`), `src/gui/widgets/file_picker_memory.rs` (`PickerMemory`, `with`), chat attach wiring in `src/gui/pages/chat.rs` (`ATTACH_EXTS`, `upload_file_blocking`)
 
 ### Unread Indicators (native, v0.715–v0.719)

@@ -89,6 +89,10 @@
 //     by then) does not.
 // 19. Rule 9, a dial is an answer: with Ben's answer to Ann lost, her row goes from waiting to
 //     sending when his channel opens, and to Sent on done.
+// 23. (2026-10-17) What kind of file it is (/shared/file-risk.js, served the shipped list): on the
+//     receiver's row by its name with the question (an archive's word before Accept), never on the
+//     sender's; a file named like a text file over an archive's bytes is called out as disguised
+//     once it has all arrived, its first 16 bytes kept with the transfer's record.
 //
 // Red first: see the end of this file for each deliberate break and the assertion it tripped.
 
@@ -106,6 +110,10 @@ const SHAPES_AT = SPEC.indexOf("## Device-to-device big files: the shapes, exact
 const SHAPES = SPEC.slice(SHAPES_AT, SPEC.indexOf("\n## ", SHAPES_AT + 10)).replace(/\s+/g, " ");
 const FT = require(path.join(WEB, "shared", "file-transfer.js"));
 const B3 = require(path.join(WEB, "shared", "blake3.js"));
+// What kind of file a file is (2026-10-17, /shared/file-risk.js): the shipped list, served to the pages.
+const RISK = require(path.join(WEB, "shared", "file-risk.js"));
+const FILE_RISKS = JSON.parse(fs.readFileSync(path.join(ROOT, "data", "safety", "file_risks.json"), "utf8"));
+const riskOf = (name, head) => RISK.assess(name, head || null, FILE_RISKS);
 
 const hex = (u8) => Buffer.from(u8).toString("hex");
 const b64 = (s) => Buffer.from(s, "utf8").toString("base64");
@@ -657,6 +665,7 @@ async function loadPage(relay, me, opts = {}) {
       if (u.startsWith(report.REPORT_REASONS_URL)) return ok(clone(SHIPPED_REASONS));
       if (u.startsWith("/api/v2/groups?pubkey=")) return ok({ groups: [] });
       if (u === "/api/turn-credentials") return ok({ iceServers: [{ urls: ["stun:relay.test:3478"] }] });
+      if (u === RISK.LIST_URL) return ok(clone(FILE_RISKS));
       return Promise.reject(new Error("no network in tests: " + u));
     },
     setTimeout: () => 0,
@@ -702,7 +711,7 @@ async function loadPage(relay, me, opts = {}) {
   for (const rel of [
     "shared/events.js", "chat/bip39-english.js", "shared/friend-pass.js", "shared/reach.js", "shared/block.js",
     "shared/report.js", "shared/group-report.js", "shared/warnings.js", "shared/protected.js", "shared/strip-metadata.js",
-    "shared/upload-clean.js", "shared/files-in-messages.js", "shared/kept-files.js", "shared/blake3.js",
+    "shared/upload-clean.js", "shared/files-in-messages.js", "shared/kept-files.js", "shared/file-risk.js", "shared/blake3.js",
     "shared/file-transfer.js", "shared/profile-changes.js", "shared/profile-copy.js", "chat/crypto.js", "chat/chat-dm-store.js",
     "chat/view/timestampPill.js", "chat/view/messageRow.js", "chat/app.js", "chat/chat-messages.js", "chat/chat-dms.js",
     "chat/chat-social.js",
@@ -804,6 +813,9 @@ function rowParts(row) {
     size: (byClass("ft-size") || {}).textContent,
     bar: byClass("ft-bar-fill"),
     note: seen(byClass("ft-note") || {}) ? (byClass("ft-note") || {}).textContent : undefined,
+    // What kind of file it is (2026-10-17): the line's words while it is shown, else undefined.
+    caution: byClass("ft-caution") && byClass("ft-caution").hidden === false ? byClass("ft-caution").textContent : undefined,
+    cautionDisguised: !!(byClass("ft-caution") && byClass("ft-caution").classList.contains("disguised")),
     button: (what) => buttons.find((e) => e.dataset.ft === what) || null,
     buttons: buttons.map((e) => e.dataset.ft),
   };
@@ -1705,6 +1717,42 @@ test("22. a channel Ben opens for a file Ann already cancelled, on a live connec
   const cancelsToBen = s.ann.sock.sent.filter((m) => m.type === "dm_put" && m.to === s.ppl.ben.key && noteText(m) === FT.cancelNoteText(x.id));
   assert.equal(cancelsToBen.length, 2, "the cancel note to Ben, then once more");
   await waitFor(() => transferOf(s.ben, y.id).state === "saved", "Y arrives");
+  assert.deepEqual([...(s.ann.errors || []), ...(s.ben.errors || [])], [], "no errors");
+});
+
+// ── 23. What kind of file it is (2026-10-17, /shared/file-risk.js) ──────────
+// A file sent device to device never touches the server, so the receiving page's check is the only
+// one. Seen red 2026-10-17, each in a copy of web/ through HOS_WEB_DIR: with ftFill never calling
+// ftCaution: "the archive's word, with the question"; with ftSaveFile not reading the first bytes:
+// "once it has arrived: called out as disguised".
+test("23. a file sent to me says what kind of file it is: by its name with the question, and from its first bytes once it has arrived", async () => {
+  const s = await pair();
+  // An archive, by its name: said with the question, before Accept.
+  const a = await offerFrom(s.ann, zipBytes(7 * MB, 231), "maps.zip");
+  await waitFor(() => transferOf(s.ben, a.id) && transferOf(s.ben, a.id).state === "asked", "asked about maps.zip");
+  await settle();
+  assert.equal(rowParts(rowOf(s.ben, a.id)).caution, riskOf("maps.zip").words, "the archive's word, with the question");
+  assert.ok(rowParts(rowOf(s.ben, a.id)).caution.startsWith("This is an archive (.zip)."), "in the list's words");
+  assert.equal(rowParts(rowOf(s.ben, a.id)).cautionDisguised, false, "a warning, not a disguise");
+  assert.equal(rowParts(rowOf(s.ann, a.id)).caution, undefined, "never on the sender's own row");
+  await press(s.ben, a.id, "decline");
+
+  // A "text file" whose bytes are an archive: no word by its name; once it has all arrived, its first
+  // bytes call it out as disguised.
+  const bytes = zipBytes(7 * MB + 77, 232);
+  const b = await offerFrom(s.ann, bytes, "notes.txt");
+  await waitFor(() => transferOf(s.ben, b.id) && transferOf(s.ben, b.id).state === "asked", "asked about notes.txt");
+  await settle();
+  assert.equal(rowParts(rowOf(s.ben, b.id)).caution, undefined, "a text file by its name: no word");
+  await press(s.ben, b.id, "accept");
+  await waitFor(() => transferOf(s.ben, b.id).state === "saved", "notes.txt arrives");
+  await settle();
+  const said = riskOf("notes.txt", bytes.subarray(0, 16));
+  assert.ok(said && said.disguised, "test setup: the list calls it disguised");
+  assert.equal(rowParts(rowOf(s.ben, b.id)).caution, said.words, "once it has arrived: called out as disguised");
+  assert.ok(said.words.startsWith("This file is named like a text file (.txt), but what is inside is an archive."));
+  assert.equal(rowParts(rowOf(s.ben, b.id)).cautionDisguised, true, "in the danger colour");
+  assert.equal(transferOf(s.ben, b.id).head, hex(bytes.subarray(0, 16)), "its first 16 bytes, kept with the transfer's record");
   assert.deepEqual([...(s.ann.errors || []), ...(s.ben.errors || [])], [], "no errors");
 });
 

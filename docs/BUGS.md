@@ -5913,3 +5913,34 @@ the fallback, was deleted; the website's list is held to the crate's by a pinned
 test vectors on both apps. Left by design: about 1 wrong word in 256 still passes the 8-bit check
 and restores a different, empty identity; that is the BIP39 standard's trade-off and why the restore screens say
 to check each word against the written copy.
+
+## BUG-203: a video attached in a public channel showed as a bare path, and its stored name lost its dots (FIXED v0.1509.0, found 2026-10-14)
+
+The operator attached "WH40K Marriah Carey.mp4" in #general with the desktop app's Attach; the chat
+showed only "/uploads/1792007203230_WH40KMarriahCareymp4.mp4", and another member said they saw no
+video. Three faults, found by a read-only diagnosis on 2026-10-17 (the file itself was served
+correctly: 200, video/mp4, 1,121,676 bytes, ranges accepted):
+
+1. Both apps post a public channel's file as nothing but its address. That is by design; the fault
+   was in showing it.
+2. The desktop app turned only pictures into anything. Every other public file (video, sound, PDF,
+   archive, 3D model, HEIC) stayed a bare path, and a relative `/uploads/` path was not even a link,
+   while the Attach button's tooltip promised video.
+3. The website made a bare `<video preload="none">` with no name, size or Download, which shows
+   nothing until pressed, and a video the browser could not decode failed with no word.
+4. The relay's `stored_name` filtered the WHOLE name, extension included, keeping only letters,
+   digits, `-` and `_`, then added the extension again: `...Careymp4.mp4`. Media uploads had the
+   same fault (`resumable.rs` uses it too).
+
+Fixed: both apps draw a card for every file kind a server takes that is not a picture drawn in
+place (name without the time prefix, size from a HEAD to the message's own server only, Download,
+Show in folder once saved; the website keeps its player and says when the browser cannot play it;
+the desktop says a video plays in the computer's own player, because the app's own plays WebM only,
+and offers View in 3D for a model). The relay stores `<ms>_<stem>.<ext>` with each run of spaces
+and dots in the stem turned into one `_` (`upload_rules::safe_stem`), so the file is now
+`<ms>_WH40K_Marriah_Carey.mp4`; no stem holds a space (both apps find links by splitting on
+spaces) or a dot. Not fixed by design: the desktop app does not play an MP4 in chat (patents on
+the common MP4 formats, docs/reference/media-stance.md); a "Play here" for WebM in chat is a later
+step. Tests: `src/gui/pages/chat/public_files_tests.rs` (the page itself, with the member's file
+name), `the_stored_name_keeps_its_words_and_its_extension`, the public-file section of
+`scripts/tests/private-files-web.test.js`, each seen red.

@@ -13,6 +13,9 @@ pub mod sync;
 pub mod ws_client;
 #[cfg(feature = "native")]
 pub mod identity;
+/// What a received file is, said before it is opened (data/safety/file_risks.json, 2026-10-17).
+#[cfg(feature = "native")]
+pub mod file_risk;
 /// Post-quantum DM envelope (pure ML-KEM-768 → BLAKE3-KDF →
 /// AES-256-GCM). Full-PQ replacement for the deleted ECDH `dm_crypto`;
 /// the recipient keypair is deterministic from the BIP39 seed so web

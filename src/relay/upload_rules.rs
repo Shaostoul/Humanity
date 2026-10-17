@@ -258,20 +258,50 @@ pub(crate) fn file_type(content_type: &str, stored_ext: &str, encrypted: bool) -
     }
 }
 
-/// The name a file is stored under: `<ms>_<safe name>.<ext>`, where the safe name is the first
-/// 32 letters, digits, `-` and `_` of the name it came with (`file` when none are left), and
-/// `<ms>` the time now in milliseconds.
+/// The name a file is stored under: `<ms>_<safe stem>.<ext>`, where `<ms>` is the time now in
+/// milliseconds and the safe stem is the name it came with, without its folder and its own
+/// extension (both parts of a `.tar.gz`), each run of spaces and dots turned into one `_`, only
+/// letters, digits, `-` and `_` kept, `_` and `-` trimmed from the ends, and at most 32 long
+/// (`file` when nothing is left).
+///
+/// `WH40K Marriah Carey.mp4` is stored as `<ms>_WH40K_Marriah_Carey.mp4`. Until 2026-10-17 the
+/// whole name went through the filter, extension included, so its spaces and the dot before
+/// `mp4` vanished and the extension was added again: `<ms>_WH40KMarriahCareymp4.mp4`. The stem
+/// never holds a space (both apps find links by splitting on spaces) nor a dot (a leading dot is a
+/// hidden file the server refuses, and `..` a folder escape).
 pub(crate) fn stored_name(filename: &str, stored_ext: &str) -> String {
     let ts = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_millis();
-    let safe_name: String = filename
-        .chars()
-        .filter(|c: &char| c.is_ascii_alphanumeric() || *c == '-' || *c == '_')
-        .take(32)
-        .collect();
-    format!("{}_{}.{}", ts, if safe_name.is_empty() { "file" } else { &safe_name }, stored_ext)
+    format!("{}_{}.{}", ts, safe_stem(filename), stored_ext)
+}
+
+/// [`stored_name`]'s safe stem of `filename`.
+pub(crate) fn safe_stem(filename: &str) -> String {
+    let last = filename.rsplit(['/', '\\']).next().unwrap_or("");
+    let cut = last.len().saturating_sub(".tar.gz".len());
+    let stem = if last.is_char_boundary(cut) && last[cut..].eq_ignore_ascii_case(".tar.gz") {
+        &last[..cut]
+    } else {
+        last.rsplit_once('.').map_or(last, |(stem, _)| stem)
+    };
+    let mut safe = String::new();
+    let mut gap = false;
+    for c in stem.chars() {
+        if c.is_whitespace() || c == '.' {
+            gap = true;
+        } else if c.is_ascii_alphanumeric() || c == '-' || c == '_' {
+            if gap && !safe.is_empty() {
+                safe.push('_');
+            }
+            gap = false;
+            safe.push(c);
+        }
+    }
+    let safe: String = safe.chars().take(32).collect();
+    let safe = safe.trim_matches(['_', '-']);
+    if safe.is_empty() { "file".to_string() } else { safe.to_string() }
 }
 
 /// A picture's last step before it is stored, given its bytes and its type (`picture`): the

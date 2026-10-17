@@ -3,7 +3,7 @@
 // private conversation (a DM or a P2P group) is drawn (10k, privateFileHtml).
 // Depends on: app.js (ws, myKey, myName, activeChannel, esc, formatBody,
 //   appendMessage, formatTime, generateIdenticon, shortKey, switchChannel,
-//   renderChannelList)
+//   renderChannelList, fillFileCards, fileCautionFill)
 // chat-ui.js (isMobile, closeSidebars, switchSidebarTab)
 // crypto.js (pqParseFileMarker, pqDecryptFile), chat-protected.js
 //   (protectedHidesPicturesFrom, protectedPictureHiddenHtml)
@@ -259,6 +259,8 @@ function addDmMessage(author, body, timestamp, fromKey, toKey, isEncrypted) {
     addMessageSafetyLines(el, { text: body, from: fromKey, ts: timestamp, context: 'dm', name: author, liveBodyHtml: holdLinks ? bodyHtml : null });
   }
   if (fileMeta) hydratePrivateFile(el, fileMeta, fromKey);
+  // A file's address in the words: its card's size and what kind of file it is (app.js).
+  else if (typeof fillFileCards === 'function') fillFileCards(el);
   if (window.twemoji) twemoji.parse(el);
   return el;
 }
@@ -450,11 +452,44 @@ function privateFileHtml(meta, fromKey) {
   if (privateFileHidden(fromKey) && typeof protectedPictureHiddenHtml === 'function') return protectedPictureHiddenHtml();
   // The line under a file its sender's app could not check, written by hydratePrivateFile with textContent.
   const unchecked = meta && meta.unchecked === true ? '<div class="enc-attach-unchecked"></div>' : '';
+  // What kind of file it is, when that deserves a word (a program, a script, an archive, a file
+  // named like a picture over a program's bytes: /shared/file-risk.js). Written by
+  // hydratePrivateFile with textContent, by its name, and again with its first bytes once it is
+  // opened. The file is encrypted end to end, so the server never saw its real name or contents:
+  // this check, on the receiving side, is the only one.
+  const caution = '<div class="file-caution enc-attach-caution" hidden></div>';
   return `<div class="enc-attach" data-enc="1">
     <div class="enc-attach-head">${hosIcon('lock', 12)} <span>${esc(meta.name || 'file')}</span>
       <span class="enc-attach-size">${_fmtBytes(meta.size)}</span></div>
-    ${unchecked}<div class="enc-attach-body">${privateFileBodyHtml(meta, fromKey)}</div>
+    ${caution}${unchecked}<div class="enc-attach-body">${privateFileBodyHtml(meta, fromKey)}</div>
   </div>`;
+}
+
+// The first bytes of each private file opened on this page (address + key -> up to 16 bytes),
+// so its caution line can be said again from what is inside it, not only its name.
+const privateFileHeads = new Map();
+const PRIVATE_FILE_HEAD_BYTES = 16;
+const privateFileHeadKey = (meta) => String(meta && meta.url) + '\n' + String(meta && meta.k);
+
+/** Keep the first bytes of a private file just opened (`bytes`: its plain bytes, a Uint8Array). */
+function privateFileKeepHead(meta, bytes) {
+  try {
+    if (bytes && typeof bytes.length === 'number') {
+      privateFileHeads.set(privateFileHeadKey(meta), new Uint8Array(bytes.slice(0, PRIVATE_FILE_HEAD_BYTES)));
+    }
+  } catch (e) { /* no head: the name's word stands */ }
+}
+
+/**
+ * Say on a private file's card what kind of file it is (app.js fileCautionFill): by its name, and
+ * with its first bytes once it has been opened here, so a file whose name says a picture over the
+ * bytes of a program is called out as disguised.
+ */
+function privateFileCaution(card, meta) {
+  if (!card || typeof card.querySelector !== 'function' || typeof fileCautionFill !== 'function') return;
+  const line = card.querySelector('.enc-attach-caution');
+  if (!line) return;
+  fileCautionFill(line, (meta && meta.name) || '', privateFileHeads.get(privateFileHeadKey(meta)) || null);
 }
 
 /** The inside of a file card: Accept (a file not allowed yet), the note, Save, the picture or its click. */
@@ -496,7 +531,10 @@ async function openPrivateFile(meta, max) {
     const store = (window.hosDmStore && hosDmStore.ready) ? hosDmStore : null;
     if (store && typeof store.keptFileGet === 'function') {
       const kept = await store.keptFileGet(meta);
-      if (kept && kept.length <= (Number(max) || PRIVATE_FILE_SAVE_MAX)) return new Blob([kept], { type });
+      if (kept && kept.length <= (Number(max) || PRIVATE_FILE_SAVE_MAX)) {
+        privateFileKeepHead(meta, kept);
+        return new Blob([kept], { type });
+      }
     }
     const limit = (Number(max) || PRIVATE_FILE_SAVE_MAX) + PRIVATE_FILE_SEAL_BYTES;
     const resp = await fetch(url);
@@ -511,6 +549,8 @@ async function openPrivateFile(meta, max) {
     const plain = await pqDecryptFile(ct, meta.k, meta.n);
     ct = null;
     if (!plain) return null;
+    // Its first bytes, for the card's caution line (privateFileCaution).
+    privateFileKeepHead(meta, plain);
     // Opened: kept on this device for when the server no longer has it (within the cap,
     // Settings > Storage). Never waited for: the file is shown or saved at once.
     if (store && typeof store.keptFilePut === 'function') store.keptFilePut(meta, plain).catch(() => {});
@@ -576,6 +616,8 @@ async function hydratePrivateFile(el, meta, fromKey) {
     const line = card.querySelector('.enc-attach-unchecked');
     if (line) line.textContent = PRIVATE_FILE_UNCHECKED;
   }
+  // What kind of file it is, by its name (and its first bytes, when it was opened here before).
+  privateFileCaution(card, meta);
   if (!privateFileAccepted(meta, fromKey)) {
     const ask = bodyEl.querySelector('.enc-attach-ask');
     if (ask) ask.textContent = privateFileAskWords(fromKey);
@@ -588,15 +630,19 @@ async function hydratePrivateFile(el, meta, fromKey) {
       privateFilesAccepted.add(meta.url);
       if (privateFileWay(meta) === 'picture') privateFilesLoaded.add(meta.url);
       bodyEl.innerHTML = privateFileBodyHtml(meta, fromKey);
-      await hydratePrivateFileBody(bodyEl, meta, fromKey);
+      await hydratePrivateFileBody(bodyEl, meta, fromKey, card);
     };
     return;
   }
-  await hydratePrivateFileBody(bodyEl, meta, fromKey);
+  await hydratePrivateFileBody(bodyEl, meta, fromKey, card);
 }
 
-/** Wire a card's body once the file is allowed: the note, Save, or the picture (now, or on its click). */
-async function hydratePrivateFileBody(bodyEl, meta, fromKey) {
+/**
+ * Wire a card's body once the file is allowed: the note, Save, or the picture (now, or on its
+ * click). `card`: the whole card, whose caution line is said again from the file's first bytes
+ * once it is opened.
+ */
+async function hydratePrivateFileBody(bodyEl, meta, fromKey, card) {
   const failed = () => { bodyEl.innerHTML = '<div class="enc-attach-failed">' + esc(PRIVATE_FILE_FAILED) + '</div>'; };
   const way = privateFileWay(meta);
   const words = privateFileNote(meta);
@@ -617,6 +663,8 @@ async function hydratePrivateFileBody(bodyEl, meta, fromKey) {
       btn.textContent = 'Saving…';
       const blob = await openPrivateFile(meta, PRIVATE_FILE_SAVE_MAX);
       if (!blob) { failed(); return; }
+      // Opened: what is inside it may say more than its name did (a "picture" that is a program).
+      privateFileCaution(card, meta);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -635,6 +683,7 @@ async function hydratePrivateFileBody(bodyEl, meta, fromKey) {
     bodyEl.innerHTML = '<div class="enc-attach-loading">Opening image…</div>';
     const url = await openPrivatePicture(meta);
     if (!url) { failed(); return; }
+    privateFileCaution(card, meta);
     const img = document.createElement('img');
     img.src = url;
     img.alt = meta.name || 'image';

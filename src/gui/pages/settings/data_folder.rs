@@ -146,15 +146,7 @@ fn count(n: usize, one: &str, many: &str) -> String {
 
 /// Show a file in the system's file manager, selected where it can be (Windows), else its folder.
 fn show_file(path: &std::path::Path) {
-    #[cfg(target_os = "windows")]
-    {
-        // Explorer reads its own command line, and wants `/select,"<path>"` exactly as written,
-        // which the usual argument quoting (the whole argument in quotes) does not give.
-        use std::os::windows::process::CommandExt;
-        let _ = std::process::Command::new("explorer").raw_arg(format!("/select,\"{}\"", path.display())).spawn();
-    }
-    #[cfg(not(target_os = "windows"))]
-    super::open_in_file_manager(path);
+    crate::gui::widgets::file_caution::show_in_folder(path);
 }
 
 #[cfg(test)]

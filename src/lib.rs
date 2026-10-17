@@ -15196,6 +15196,8 @@ mod native_app {
                                     &state.theme,
                                     &mut state.gui_state,
                                 );
+                                // A 3D model posted in chat, in its own window (View in 3D on its card).
+                                crate::gui::pages::chat::draw_model_window(ctx, &state.theme, &mut state.gui_state.chat_model_view);
 
                                 // Crew NPC nameplates (v0.667): rebuild every frame from the
                                 // live RemoteNpc components so the name + current chore label

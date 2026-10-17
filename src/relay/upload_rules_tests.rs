@@ -336,3 +336,39 @@ async fn a_heic_upload_is_stored_without_where_it_was_taken() {
     let done = send("IMG_0004.heic", "image/heic", &broken, true).await.expect("kept by choice, it is stored as sent");
     assert_eq!(std::fs::read(waiting.join(done["filename"].as_str().unwrap())).unwrap(), broken);
 }
+
+/// THE STORED NAME KEEPS ITS WORDS AND ITS EXTENSION (2026-10-17). A member's `WH40K Marriah
+/// Carey.mp4` was stored as `<ms>_WH40KMarriahCareymp4.mp4`, because the whole name, extension
+/// included, went through the filter. Now the stem alone does: spaces and dots become `_`, the
+/// folder and the extension (both parts of a `.tar.gz`) go, and nothing that could be a hidden
+/// file, a folder escape or a space ever stays.
+///
+/// Seen red 2026-10-17 against the old filter: `WH40K Marriah Carey.mp4` gave `WH40KMarriahCareymp4`.
+#[test]
+fn the_stored_name_keeps_its_words_and_its_extension() {
+    for (given, stem) in [
+        ("WH40K Marriah Carey.mp4", "WH40K_Marriah_Carey"),
+        ("clip.mp4", "clip"),
+        ("backup.2026.10.tar.gz", "backup_2026_10"),
+        ("Backup.TAR.GZ", "Backup"),
+        ("a.b.c.png", "a_b_c"),
+        ("README", "README"),
+        (".hidden", "file"),
+        ("..", "file"),
+        ("../../etc/passwd", "passwd"),
+        (r"C:\Users\x\My Photo.jpg", "My_Photo"),
+        ("日本の写真.jpg", "file"),
+        ("Café au lait.png", "Caf_au_lait"),
+        ("  -_spaced out_-  .txt", "spaced_out"),
+        ("", "file"),
+    ] {
+        let got = safe_stem(given);
+        assert_eq!(got, stem, "{given:?}");
+        assert!(!got.contains([' ', '.', '/', '\\']), "{given:?}: {got}");
+    }
+    let long = safe_stem(&format!("{}.mp4", "word ".repeat(20)));
+    assert!(long.len() <= 32 && !long.ends_with('_'), "at most 32 long, no trailing gap: {long}");
+    let name = stored_name("WH40K Marriah Carey.mp4", "mp4");
+    let (ms, rest) = name.split_once('_').unwrap();
+    assert!(ms.chars().all(|c| c.is_ascii_digit()) && rest == "WH40K_Marriah_Carey.mp4", "{name}");
+}

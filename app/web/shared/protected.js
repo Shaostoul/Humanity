@@ -469,8 +469,9 @@
 
   /**
    * A message body's HTML with every picture and file taken out and one line
-   * in place of each (10h): the image placeholders, audio and video players and
-   * file cards that app.js formatBody makes. The line is escaped here.
+   * in place of each (10h): the image placeholders and the file cards that
+   * app.js formatBody makes (a sound's or a video's card holds its player), and
+   * any bare audio or video player. The line is escaped here.
    */
   function protectedHidePicturesHtml(html, line) {
     const esc = String(line == null ? '' : line).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -478,11 +479,16 @@
     // The placeholder holds its icon (an <svg>, or an empty <span> for an icon
     // name the page does not know) and then its words, so the pattern names
     // that shape rather than stopping at the first </span>.
+    //
+    // A file card goes first, as ONE unit with the player inside it (2026-10-17:
+    // a sound or a video is a card too, `<div class="file-card file-card-media" ...>`),
+    // so one line stands for the whole file. A card ends with its Download,
+    // `</a></div>`, the only `</a></div>` in it (app.js fileCardHtml).
     return String(html == null ? '' : html)
+      .replace(/<div class="file-card(?: [^"]*)?"[^>]*>[\s\S]*?<\/a><\/div>/g, put)
       .replace(/<span class="img-placeholder"[^>]*>(?:<svg[\s\S]*?<\/svg>|<span[^>]*><\/span>)?[^<]*<\/span>/g, put)
       .replace(/<audio\b[^>]*>[\s\S]*?<\/audio>/gi, put)
-      .replace(/<video\b[^>]*>[\s\S]*?<\/video>/gi, put)
-      .replace(/<div class="file-card">[\s\S]*?<\/a><\/div>/g, put);
+      .replace(/<video\b[^>]*>[\s\S]*?<\/video>/gi, put);
   }
 
   // ── Forgot the PIN: the recovery phrase ──

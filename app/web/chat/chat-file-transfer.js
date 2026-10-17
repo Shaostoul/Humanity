@@ -33,6 +33,10 @@
 //     otherwise as a Blob download) only after the whole file's BLAKE3 matches.
 //  6. A row per transfer in the conversation, on both sides: the name, the
 //     size, a progress bar, Pause, Resume and Cancel, and words for each state.
+//     On a file sent to me, a line saying what kind of file it is when that
+//     deserves a word (a program, a script, an archive: /shared/file-risk.js),
+//     by its name on the offer and from its first bytes once it has arrived
+//     (2026-10-17, ftCaution).
 //
 // One connection with each person at a time, carrying several transfers (rule 2
 // of "Device-to-device big files: rules settled by the first review",
@@ -72,7 +76,7 @@
 // row asks for it to be chosen again, and checks it is the same file.
 //
 // Depends on: app.js (ws, myKey, myDilithiumSecret, peerData, activeDmPartner,
-//   appendMessage, addSystemMessage, shortKey, handleMessage), crypto.js
+//   appendMessage, addSystemMessage, shortKey, handleMessage, fileCautionFill), crypto.js
 //   (pqBuildDmPuts, window.pqSignMessage, window.pqVerifyMessage), chat-dms.js
 //   (privateFilesSettings, privateFileSender, privateFileHidden,
 //   upsertDmConversation), chat-voice-rooms.js (requestCallCredentials,
@@ -252,6 +256,7 @@ function ftRecordOf(t) {
     reason: t.reason || null, kept: t.kept || 0, done: t.done || 0, pausedHere: !!t.pausedHere,
     refusedAccept: t.refusedAccept || null, name: t.name, size: t.size, type: t.type,
     pendingNotes: (t.pendingNotes || []).slice(0, 8), created: t.created, updated: Date.now(),
+    head: t.head || null,
   };
 }
 
@@ -350,6 +355,9 @@ function ftNewTransfer(role, peer, id) {
     done: 0, kept: 0, pausedHere: false, pausedThere: false, noServer: false, path: null,
     file: null, pieceHashes: null, hashing: null, receiver: null, saveHandle: null, pendingNotes: [],
     created: Date.now(), name: '', size: 0, type: '',
+    // A received file's first bytes (lowercase hex, at most 16 bytes), once it has all arrived:
+    // its row's caution line is said again from what is inside it (ftCaution).
+    head: null,
   };
 }
 
@@ -1353,6 +1361,18 @@ function ftScheduleRetry() {
 async function ftSaveFile(t) {
   const n = t.offer.pieces;
   const piece = async (i) => ftIdb('pieces', 'readonly', (os) => os.get(ftPieceKey(t.id, i)));
+  // The whole file is here and checked: its first bytes say what is inside it, so its row can call
+  // out a file named like a picture over the bytes of a program (ftCaution).
+  if (!t.head) {
+    try {
+      const first = n > 0 ? await piece(0) : null;
+      if (first && typeof first.slice === 'function') {
+        const b = new Uint8Array(await first.slice(0, 16).arrayBuffer());
+        t.head = Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
+        ftDraw(t);
+      }
+    } catch (e) { /* no head: the name's word stands */ }
+  }
   if (t.savePicking) {
     // The save dialog Accept opened is still open: the file waits for the place (the row says so).
     t.awaitingPlace = true;
@@ -1565,6 +1585,10 @@ function ftFill(el, t) {
     p.name = head.appendChild(mk('span', 'ft-name', ''));
     p.size = head.appendChild(mk('span', 'enc-attach-size ft-size', ''));
     card.appendChild(head);
+    // What kind of file it is, on a file sent to me (ftCaution): hidden until there is a word.
+    p.caution = card.appendChild(mk('div', 'file-caution ft-caution', ''));
+    p.caution.hidden = true;
+    p.cautionFor = null;
     const body = mk('div', 'enc-attach-body');
     p.bar = body.appendChild(mk('div', 'ft-bar'));
     p.fill = p.bar.appendChild(mk('div', 'ft-bar-fill'));
@@ -1623,6 +1647,7 @@ function ftFill(el, t) {
   el.dataset.state = t.state;
   p.name.textContent = t.name;
   p.size.textContent = F.sizeWords(t.size);
+  ftCaution(p, t);
   const finished = ftFinished(t);
   show(p.bar, !finished && t.state !== 'asked');
   p.fill.style.width = Math.round(ftFraction(t) * 100) + '%';
@@ -1636,6 +1661,23 @@ function ftFill(el, t) {
     again.download = t.name;
   }
   show(p.row, wanted.size > 0);
+}
+
+/**
+ * A file sent to me: what kind of file it is, when that deserves a word (a program, a script, an
+ * archive; app.js fileCautionFill, /shared/file-risk.js). By its name on the offer, so the person
+ * knows before Accept, and again with its first bytes once it has all arrived, which call out a
+ * file whose name says a picture over the bytes of a program. Said once per name and bytes, not on
+ * every redraw (a redraw comes with every piece). Never on a file I send.
+ */
+function ftCaution(p, t) {
+  if (!p.caution) return;
+  if (t.role !== 'receive' || typeof fileCautionFill !== 'function') { p.caution.hidden = true; return; }
+  const want = t.name + '\n' + (t.head || '');
+  if (p.cautionFor === want) return;
+  p.cautionFor = want;
+  const head = typeof t.head === 'string' && /^(?:[0-9a-f]{2}){1,16}$/.test(t.head) ? ftHexBytes(t.head) : null;
+  fileCautionFill(p.caution, t.name, head);
 }
 
 /** The open conversation's rows, drawn after its messages (chat-dms.js renderDmConversationFromStore). */

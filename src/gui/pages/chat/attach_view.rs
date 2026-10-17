@@ -249,6 +249,15 @@ where
     plain.finish(dir, &save_name(name))
 }
 
+/// The word of caution about private file `att`: from what was saved once it is (its first bytes
+/// too, so a "picture" that is a program is called out), else by its name.
+pub(crate) fn caution(att: &DmAttachment, saved: Option<&std::path::Path>) -> Option<crate::net::file_risk::Caution> {
+    match saved {
+        Some(path) => crate::net::file_risk::assess_saved(&att.name, path),
+        None => crate::net::file_risk::assess(&att.name, None),
+    }
+}
+
 /// A file's size in plain words.
 pub(crate) fn size_words(bytes: u64) -> String {
     if bytes < 1024 {
@@ -441,15 +450,28 @@ fn draw_file_card(ui: &mut egui::Ui, theme: &Theme, cache: &mut ImageCache, att:
                             save = true;
                         }
                     });
+                    // The word of caution (net/file_risk.rs, 2026-10-17): by its name until it is
+                    // saved, then by what is inside too. A private file is encrypted before it is
+                    // uploaded, so the server never saw its real name or contents: this check, on the
+                    // receiving side, is the only one it gets.
+                    let saved = cache.downloaded_path(&plan.key).map(|p| p.to_path_buf());
+                    if let Some(caution) = caution(att, saved.as_deref()) {
+                        widgets::file_caution::show(ui, theme, &caution);
+                    }
                     if let Show::AskOtherWebsite(host) = &plan.show {
                         let note = format!("Saving this shows {host} your network address.");
                         ui.label(RichText::new(note).size(theme.font_size_small).color(theme.text_muted()));
                     }
                     if cache.save_failed(&plan.key) {
                         ui.label(RichText::new(CANNOT_OPEN).size(theme.font_size_small).color(theme.danger()));
-                    } else if let Some(path) = cache.downloaded_path(&plan.key) {
-                        let saved = format!("Saved to {}", path.display());
-                        ui.label(RichText::new(saved).size(theme.font_size_small).color(theme.success()));
+                    } else if let Some(path) = &saved {
+                        ui.horizontal_wrapped(|ui| {
+                            let words = format!("Saved to {}", path.display());
+                            ui.label(RichText::new(words).size(theme.font_size_small).color(theme.success()));
+                            if widgets::Button::secondary("Show in folder").size(widgets::ButtonSize::Small).tooltip("Open the folder it was saved in, with the file selected.").show(ui, theme) {
+                                crate::gui::widgets::file_caution::show_in_folder(path);
+                            }
+                        });
                     }
                 });
         });

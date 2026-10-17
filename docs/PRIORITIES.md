@@ -267,15 +267,18 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
 - **Released 2026-10-05:** v0.1459.0 to v0.1463.0 and v0.1464.0 (ship-homes increment 5, building
   only on your own plot; BUG-165 and BUG-166, the walking-backwards fixes; two new clips),
   all delivered to the taskbar exe.
-- **FIRST AFTER THE RESET (operator, 2026-10-14): attaching a video in chat does not work.** In
-  #general (desktop app v0.1498.0) he attached "WH40K Marriah Carey.mp4" with Attach and the chat
-  showed only the plain text "/uploads/1792007203230_WH40KMarriahCareymp4.mp4": no player, no card.
-  Pictures work; another member said "i dont see any videos". Find why a .mp4 is sent or shown as
-  a bare path (desktop `chat/attach_send.rs`, `attach_view.rs`; relay `api.rs` upload,
-  `upload_rules.rs`; web `chat-messages.js` `sendAttachment`, `view/messageRow.js`), and why the
-  stored name lost its dots (`...Careymp4.mp4`). Fix both apps with tests. A scheduled task,
-  `investigate-video-attach`, starts this at 8:15 PM on 2026-10-15, after the weekly reset.
-  The chat bar fix below is CONFIRMED by his screenshot of the same day: the message box sits
+- DONE v0.1509.0: **a video attached in chat is a card, not a bare path (BUG-203).** Both apps show
+  every public file that is not a picture as a card (name, size, Download, Show in folder); the
+  website says when the browser cannot play a video; the desktop says a video plays in the
+  computer's own player and offers View in 3D for a model; the relay keeps the name's words
+  (`<ms>_WH40K_Marriah_Carey.mp4`). Same release: **what kind of file it is** (a Discord
+  suggestion): a line under a received file saying it is a program, script, archive and so on, and
+  calling out a file whose name says a picture or video over a program's bytes (public cards,
+  private files, device-to-device files, Media rows; `data/safety/file_risks.json`). And the file
+  picker's dimmed backdrop and tinted sections. Follow-ups: "Play here" for a WebM video in chat on
+  the desktop (the Media page's player), and an MP4 there through the computer's own ffmpeg
+  (`transcode::begin_ingest`), as the Media page does.
+  The chat bar fix below is CONFIRMED by his screenshot of 2026-10-14: the message box sits
   fully above the taskbar.
 
 - DONE v0.1496.0: **the desktop chat's message bar no longer sits under the taskbar.** The bar

@@ -1,0 +1,25 @@
+{
+  "_doc": "Cases both apps' file-risk checks must agree on (data/safety/file_risks.json; src/net/file_risk.rs tests and scripts/tests/file-risk-web.test.js). `head` is the file's first bytes in hex (empty: not known). `kind` null: no word of caution. `words`, when given, is the exact text.",
+  "cases": [
+    { "name": "setup.exe", "head": "", "kind": "program", "disguised": false, "words": "This is a program (.exe). A program can do anything on your computer: only run it if you trust the person it came from, and scan it with your antivirus first." },
+    { "name": "Setup.EXE", "head": "4d5a90000300", "kind": "program", "disguised": false },
+    { "name": "tidy up.ps1", "head": "", "kind": "script", "disguised": false },
+    { "name": "backup.tar.gz", "head": "1f8b0800", "kind": "archive", "disguised": false, "words": "This is an archive (.tar.gz). What is inside it has not been checked: scan it with your antivirus before you open what it holds, and be careful with any program inside." },
+    { "name": "files.zip", "head": "504b0304", "kind": "archive", "disguised": false },
+    { "name": "report.docm", "head": "", "kind": "macro_document", "disguised": false },
+    { "name": "Open me.lnk", "head": "", "kind": "shortcut", "disguised": false },
+    { "name": "page.html", "head": "", "kind": "web_page", "disguised": false },
+    { "name": "part.blend", "head": "424c454e444552", "kind": "blend", "disguised": false, "words": "Blender files can carry scripts. If Blender asks whether to run them, say no unless you trust the person who shared it." },
+    { "name": "holiday.png", "head": "89504e470d0a1a0a", "kind": null, "disguised": false },
+    { "name": "holiday.png", "head": "4d5a90000300", "kind": "program", "disguised": true, "words": "This file is named like a picture (.png), but what is inside is a program. Do not open it: a file pretending to be something else is a common trick." },
+    { "name": "song.mp3", "head": "504b030414000000", "kind": "archive", "disguised": true },
+    { "name": "clip.MP4", "head": "7f454c46", "kind": "program", "disguised": true },
+    { "name": "notes.txt", "head": "2321202f62696e2f7368", "kind": null, "disguised": false },
+    { "name": "notes.txt", "head": "7f454c4602010100", "kind": "program", "disguised": true },
+    { "name": "model.stl", "head": "736f6c696420776564676500", "kind": null, "disguised": false },
+    { "name": "mystery", "head": "4d5a90", "kind": "program", "disguised": false, "words": "This is a program (no ending). A program can do anything on your computer: only run it if you trust the person it came from, and scan it with your antivirus first." },
+    { "name": "mystery.dat", "head": "", "kind": null, "disguised": false },
+    { "name": "photo.jpg", "head": "", "kind": null, "disguised": false },
+    { "name": "  spaced.ZIP  ", "head": "", "kind": "archive", "disguised": false }
+  ]
+}

@@ -1290,6 +1290,43 @@ fn snapshot_chat_click_to_load() {
     });
 }
 
+// Files posted into a public channel (2026-10-17, chat/public_files.rs): a video with its size and
+// the line about the computer's own player, an archive with its word of caution, and a 3D model on
+// the server with View in 3D. Sizes are put in place so nothing is asked of any server.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_chat_public_files() {
+    render_page_png("chat_public_files", 1280, 640, |ctx, theme, state| {
+        const SERVER: &str = "http://127.0.0.1:9";
+        if !state.chat_messages.iter().any(|m| m.sender_key == "ann0") {
+            state.chat_messages.retain(|m| m.channel != "general");
+            for (i, (text, size)) in [
+                ("Found this one /uploads/1760000000000_WH40K_Marriah_Carey.mp4", 1_121_676u64),
+                ("The maps from Saturday /uploads/1760000000001_maps.zip", 48_200_000),
+                ("And the staff I printed /uploads/1760000000002_fire_staff.glb", 2_400_000),
+            ]
+            .into_iter()
+            .enumerate()
+            {
+                let url = format!("{SERVER}{}", text.rsplit(' ').next().unwrap());
+                state.image_cache.set_size_for_test(&url, Some(size));
+                state.chat_messages.push(ChatMessage {
+                    sender_name: "Ann".into(),
+                    sender_key: "ann0".into(),
+                    content: text.into(),
+                    timestamp: format!("09:2{i}"),
+                    timestamp_ms: 1_791_481_200_000 + i as u64 * 60_000,
+                    channel: "general".into(),
+                    server: SERVER.into(),
+                    ..Default::default()
+                });
+            }
+            state.chat_active_channel = "general".into();
+        }
+        crate::gui::pages::chat::draw(ctx, theme, state);
+    });
+}
+
 /// Reasons for the report snapshots, built here (the real list is data/safety/report_reasons.json,
 /// written by the relay half of step D): enough to show the list and one help text.
 fn snapshot_report_reasons() -> Vec<crate::net::report::ReportReason> {
@@ -2096,6 +2133,32 @@ fn snapshot_nav_bar_icon_only() {
     render_page_png("nav_bar_icon_only", 720, 200, |ctx, theme, state| {
         state.nav_display_mode = crate::gui::NavDisplayMode::IconOnly;
         crate::gui::pages::escape_menu::draw_nav_bar(ctx, theme, state);
+    });
+}
+
+/// The file picker (widgets/file_browser.rs, 2026-10-17): Places, Favorites and This folder on
+/// darker shades of the chat sidebar's section colours, over a dimmed page; two files ticked.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_file_picker() {
+    use crate::gui::widgets::file_browser::{file_picker_modal, list_dir, FilePickerState};
+    let dir = crate::test_temp::dir("snapshot_picker");
+    std::fs::create_dir_all(dir.join("photos")).unwrap();
+    for (name, size) in [("bottleweight-top.stl", 121_000usize), ("Community Bottle Cutter - Middle.stl", 145_000), ("Fun Size - Base - Back.stl", 1_000_000), ("filament-shaper.glb", 300_000), ("assembly-notes.pdf", 302_000)] {
+        std::fs::write(dir.join(name), vec![0u8; size]).unwrap();
+    }
+    crate::gui::widgets::file_picker_memory::with(|m| m.add_favorite(&dir));
+    let mut picker = FilePickerState::new(&[], 500 * 1024 * 1024).with_pick_verb("Attach").multiple();
+    picker.current_dir = dir.to_path_buf();
+    picker.chosen = list_dir(&dir, &[]).into_iter().filter(|e| e.name.ends_with(".stl")).take(2).collect();
+    let picker = std::cell::RefCell::new(picker);
+    render_page_png("file_picker", 1100, 760, |ctx, theme, _state| {
+        egui::CentralPanel::default().show(ctx, |ui| {
+            for i in 0..30 {
+                ui.label(format!("A chat message behind the picker, line {i}"));
+            }
+        });
+        let _ = file_picker_modal(ctx, theme, &mut picker.borrow_mut(), "Attach files: choose one or more");
     });
 }
 

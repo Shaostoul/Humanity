@@ -328,42 +328,71 @@ pub fn file_picker_modal(
     let exts: Vec<&str> = state.allowed_exts.iter().map(|s| s.as_str()).collect();
     let entries = list_dir(&state.current_dir, &exts);
 
-    egui::Window::new(title)
+    // A dimmed screen behind the picker, so it reads as a window that is open (operator,
+    // 2026-10-17); a click on it is Cancel, as on the app's other dialogs (widgets/dialog.rs).
+    let backdrop = egui::Area::new(egui::Id::new(PICKER_ID).with("backdrop"))
+        .order(egui::Order::Middle)
+        .fixed_pos(egui::pos2(0.0, 0.0))
+        .show(ctx, |ui| {
+            let screen = ctx.screen_rect();
+            ui.painter().rect_filled(screen, 0.0, egui::Color32::from_black_alpha(BACKDROP_ALPHA));
+            ui.allocate_rect(screen, egui::Sense::click())
+        });
+    if backdrop.inner.clicked() {
+        return FilePickerResult::Cancelled;
+    }
+
+    let window = egui::Window::new(RichText::new(title).color(theme.text_primary()).strong())
+        .id(egui::Id::new(PICKER_ID))
         .collapsible(false)
         .resizable(true)
         .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
         .default_size(egui::Vec2::new(560.0, 460.0))
-        .frame(egui::Frame::window(&ctx.style()).fill(theme.bg_card()))
+        // The frame the app's dialogs wear (widgets/dialog.rs).
+        .frame(
+            egui::Frame::NONE
+                .fill(theme.bg_card())
+                .stroke(egui::Stroke::new(1.0, theme.border()))
+                .corner_radius(egui::CornerRadius::same(theme.border_radius as u8))
+                .inner_margin(theme.card_padding)
+                .shadow(egui::epaint::Shadow { offset: [0, 4], blur: 12, spread: 0, color: egui::Color32::from_black_alpha(64) }),
+        )
         .show(ctx, |ui| {
-            // Quick roots row.
-            ui.horizontal_wrapped(|ui| {
-                let extra: Vec<(String, PathBuf)> =
-                    state.extra_roots.iter().filter(|(_, p)| p.is_dir()).cloned().collect();
-                for (label, path) in quick_roots().into_iter().chain(extra) {
-                    if widgets::Button::secondary(&label).show(ui, theme) {
-                        state.current_dir = path;
-                        state.selected = None;
+            // Places: the person's own folders, the app's, every drive (the DMs' red).
+            section(ui, theme, theme.dm_bg(), "Places", |ui| {
+                ui.horizontal_wrapped(|ui| {
+                    let extra: Vec<(String, PathBuf)> =
+                        state.extra_roots.iter().filter(|(_, p)| p.is_dir()).cloned().collect();
+                    for (label, path) in quick_roots().into_iter().chain(extra) {
+                        if widgets::Button::secondary(&label).show(ui, theme) {
+                            state.current_dir = path;
+                            state.selected = None;
+                        }
                     }
-                }
+                });
             });
             // The person's own favorite folders, kept on this computer (`file_picker_memory`).
             // One that is not there right now (a drive unplugged) still opens, and the list says
             // why it is empty, so it can be taken out with the same button that put it in.
             let favorites = memory::favorite_labels(&memory::with(|m| m.favorites.clone()));
             if !favorites.is_empty() {
-                ui.horizontal_wrapped(|ui| {
-                    ui.label(RichText::new("Favorites").size(theme.font_size_small).color(theme.text_muted()));
-                    for (label, path) in favorites {
-                        let tip = path.display().to_string();
-                        if widgets::Button::secondary(&label).tooltip(&tip).show(ui, theme) {
-                            state.current_dir = path;
-                            state.selected = None;
+                ui.add_space(theme.spacing_xs);
+                section(ui, theme, theme.group_bg(), "Favorites", |ui| {
+                    ui.horizontal_wrapped(|ui| {
+                        for (label, path) in favorites {
+                            let tip = path.display().to_string();
+                            if widgets::Button::secondary(&label).tooltip(&tip).show(ui, theme) {
+                                state.current_dir = path;
+                                state.selected = None;
+                            }
                         }
-                    }
+                    });
                 });
             }
             ui.add_space(theme.spacing_xs);
 
+            // The open folder and what is in it (the servers' blue).
+            section(ui, theme, theme.server_bg(), "This folder", |ui| {
             // Current path + up.
             ui.horizontal(|ui| {
                 if widgets::Button::secondary("Up").show(ui, theme) {
@@ -478,6 +507,7 @@ pub fn file_picker_modal(
                         }
                     }
                 });
+            });
 
             ui.add_space(theme.spacing_xs);
             if state.max_size > 0 {
@@ -533,15 +563,8 @@ pub fn file_picker_modal(
                         state.selected.is_some(),
                     )
                 };
-                if ui
-                    .add_enabled(
-                        can_pick,
-                        egui::Button::new(
-                            RichText::new(pick_label).color(theme.text_primary()),
-                        ),
-                    )
-                    .clicked()
-                {
+                // The confirm button in the accent colour: the one thing to press once files are chosen.
+                if widgets::Button::primary(&pick_label).disabled(!can_pick).show(ui, theme) {
                     if state.dir_mode {
                         result = FilePickerResult::Picked(vec![state.current_dir.clone()]);
                     } else if state.multiple {
@@ -556,6 +579,10 @@ pub fn file_picker_modal(
             });
         });
 
+    if let Some(w) = window {
+        ctx.set_sublayer(backdrop.response.layer_id, w.response.layer_id);
+    }
+
     // A file was picked: the next picker opens in its folder. A folder pick (a folder picker, a
     // disc) leaves the memory alone.
     if let FilePickerResult::Picked(paths) = &result {
@@ -564,6 +591,32 @@ pub fn file_picker_modal(
         }
     }
     result
+}
+
+/// The picker window's id (its backdrop is `with("backdrop")`).
+pub const PICKER_ID: &str = "file_picker_modal";
+/// How dark the screen behind the picker goes: the dialogs' own dimming (widgets/dialog.rs).
+const BACKDROP_ALPHA: u8 = 140;
+/// How much of a section colour's strength its fill keeps: darker than the chat sidebar's headers.
+const SECTION_SHADE: f32 = 0.7;
+
+/// One part of the picker on a darker shade of the chat sidebar's section colours (the DMs' red,
+/// the groups' green, the servers' blue), edged in the colour itself, with a small title, so the
+/// parts read apart at a glance (operator, 2026-10-17: "the RGB aesthetic ... but darker RGB").
+/// The colours are the theme's own tokens, so the Settings theme editor changes them here too.
+fn section<R>(ui: &mut egui::Ui, theme: &Theme, tint: egui::Color32, title: &str, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
+    egui::Frame::NONE
+        .fill(tint.gamma_multiply(SECTION_SHADE))
+        .stroke(egui::Stroke::new(1.0, tint))
+        .corner_radius(egui::CornerRadius::same(theme.border_radius as u8))
+        .inner_margin(egui::Margin::same(theme.spacing_sm as i8))
+        .show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            ui.label(RichText::new(title).size(theme.font_size_small).color(theme.text_secondary()).strong());
+            ui.add_space(theme.spacing_xs);
+            add(ui)
+        })
+        .inner
 }
 
 /// The button that ticks every file in the open folder (a `multiple` picker).
@@ -860,4 +913,30 @@ mod tests {
         assert_eq!(click_text(&ctx, &theme, &mut single, "Add one.stl"), FilePickerResult::Picked(vec![parts.join("one.stl")]));
     }
 
+
+    /// THE PICKER OPENS OVER A DIMMED SCREEN (operator, 2026-10-17: "a faded background behind the
+    /// popup window to indicate that there is a window open"): the window is above its backdrop, and
+    /// a click on the dimmed screen is Cancel, as on the app's other dialogs.
+    ///
+    /// Seen red 2026-10-17 with the backdrop's click ignored: "a click on the dimmed screen cancels"
+    /// got Open.
+    #[test]
+    fn the_picker_opens_over_a_dimmed_screen_that_cancels_it() {
+        let ctx = egui::Context::default();
+        let theme = crate::gui::theme::load_theme();
+        theme.apply_to_egui(&ctx);
+        let mut picker = FilePickerState::new(&[], 0);
+        picker.current_dir = tmp("backdrop").to_path_buf();
+        picker_frame(&ctx, &theme, &mut picker, vec![]);
+        picker_frame(&ctx, &theme, &mut picker, vec![]);
+        let window = ctx.memory(|m| m.area_rect(egui::Id::new(PICKER_ID))).expect("drawn");
+        let top = ctx.layer_id_at(window.center()).map(|l| l.id);
+        assert_eq!(top, Some(egui::Id::new(PICKER_ID)), "the window is above its backdrop");
+        assert_eq!(ctx.layer_id_at(egui::pos2(5.0, 5.0)).map(|l| l.id), Some(egui::Id::new(PICKER_ID).with("backdrop")), "the screen around it is the backdrop");
+        let at = egui::pos2(5.0, 5.0);
+        let button = |pressed| egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: egui::Modifiers::default() };
+        picker_frame(&ctx, &theme, &mut picker, vec![egui::Event::PointerMoved(at), button(true)]);
+        let (_, result) = picker_frame(&ctx, &theme, &mut picker, vec![button(false)]);
+        assert_eq!(result, FilePickerResult::Cancelled, "a click on the dimmed screen cancels");
+    }
 }

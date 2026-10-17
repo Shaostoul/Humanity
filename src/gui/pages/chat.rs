@@ -84,6 +84,10 @@ pub(crate) mod attach_step;
 pub use attach_step::FilesFlow;
 /// Showing a private file (10k): the picture inline, or a card with Save. See `chat/attach_view.rs`.
 mod attach_view;
+/// Files posted into a public channel: a card with Download, and View in 3D for a model (2026-10-17).
+/// See `chat/public_files.rs`.
+mod public_files;
+pub(crate) use public_files::draw_model_window;
 /// Device-to-device big files (answer 10): a row per transfer at the top of a DM. See `chat/transfer_rows.rs`.
 mod transfer_rows;
 #[cfg(test)]
@@ -733,14 +737,21 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     // left out, one line instead (chat/protected.rs `withheld`).
                     let withheld = protected::withheld(state, msg);
                     let pictures_hidden = withheld.is_some();
+                    // Files posted into a public channel (a video, a song, a document, an archive,
+                    // a 3D model): a card each under the message, their bare addresses taken out of
+                    // its words (chat/public_files.rs, 2026-10-17).
+                    let public_files = if enc_att.is_some() || pictures_hidden {
+                        Vec::new()
+                    } else {
+                        public_files::files_in(&msg.content)
+                    };
                     let display_text = if let Some(rest) = withheld {
                         rest
                     } else if enc_att.is_some() {
                         String::new()
-                    } else if image_urls.is_empty() {
-                        msg.content.clone()
                     } else {
-                        crate::gui::widgets::image_cache::strip_image_urls(&msg.content)
+                        let text = if public_files.is_empty() { msg.content.clone() } else { crate::net::protected::strip_file_urls(&msg.content) };
+                        if image_urls.is_empty() { text } else { crate::gui::widgets::image_cache::strip_image_urls(&text) }
                     };
                     // Inline markdown + link detection (v0.702, parity with web:
                     // the help modal has advertised markdown all along). Markers
@@ -1119,7 +1130,8 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         let modal_blocking = state.chat_user_modal_open
                             || state.show_create_group_modal
                             || state.show_join_group_modal
-                            || state.image_viewer_url.is_some();
+                            || state.image_viewer_url.is_some()
+                            || state.chat_model_view.is_some();
                         // Þ-only hover detection — does NOT use the wider
                         // est_popup_rect because that overlaps the message
                         // text on the same line (operator feedback
@@ -1426,6 +1438,8 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             }
                         }
                     }
+                    // Public files: a card each, with Download (chat/public_files.rs).
+                    public_files::draw_all(ui, theme, &mut state.image_cache, &mut state.chat_model_view, &public_files, &msg.server, &state.server_url, row_bg);
                     // A private file (10k): its picture inline, or a card with Save.
                     if let Some(ref att) = enc_att {
                         let plan = attach_view::plan(state, msg, att);

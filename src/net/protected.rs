@@ -582,11 +582,15 @@ pub fn typed_command(text: &str) -> Option<ProtectedAction> {
 
 // ── Files a message links to ────────────────────────────────────────────────────────────────
 
-/// The kinds of file a link names that the web chat turns into a player or a file card
-/// (web/chat/app.js `formatBody`: audio, video, then documents and archives), and so hides from
-/// non-friends with pictures while the setup is on (web/shared/protected.js
-/// `protectedHidePicturesHtml`). Pictures are the image cache's own list.
-pub const FILE_LINK_EXTS: &[&str] = &["mp3", "ogg", "wav", "mp4", "webm", "pdf", "txt", "md", "json", "zip", "tar.gz", "gz"];
+/// The kinds of file a link names that both apps turn into a player or a file card (web/chat/app.js
+/// `formatBody`, this app's chat/public_files.rs): audio, video, documents, archives, the photos
+/// neither app draws in place (HEIC, HEIF, AVIF) and 3D models, every kind a server takes that is
+/// not a picture shown inline (since 2026-10-17); and so hides from non-friends with pictures while
+/// the setup is on (web/shared/protected.js `protectedHidePicturesHtml`). Pictures are the image
+/// cache's own list.
+pub const FILE_LINK_EXTS: &[&str] = &[
+    "mp3", "ogg", "wav", "mp4", "webm", "pdf", "txt", "md", "json", "zip", "tar.gz", "gz", "heic", "heif", "avif", "blend", "stl", "obj", "gltf", "glb",
+];
 
 /// The links in `text` to a file of one of `FILE_LINK_EXTS`: a web address (`http://` or
 /// `https://`) or a server path (`/uploads/`) whose path ends in one, with any query after it, as

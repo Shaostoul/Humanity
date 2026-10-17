@@ -110,6 +110,19 @@ pub(super) fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, peer:
 fn draw_row(ui: &mut egui::Ui, theme: &Theme, state: &GuiState, r: &OfferRecord, live: Option<&ft::Live>, name: &str, online: bool, acts: &mut Vec<Act>) {
     let id = r.offer.id.clone();
     title(ui, theme, &r.offer.name, r.offer.size);
+    // The word of caution about a file coming to this person (net/file_risk.rs, 2026-10-17): by its
+    // name while they decide, then by what is inside once it is saved here. It never passes the
+    // server, so this is the only check it gets.
+    let saved_here = (!r.outgoing && r.here && r.stage == Stage::Done && !r.path.is_empty()).then(|| std::path::PathBuf::from(&r.path));
+    if !r.outgoing {
+        let caution = match &saved_here {
+            Some(path) => crate::net::file_risk::assess_saved(&r.offer.name, path),
+            None => crate::net::file_risk::assess(&r.offer.name, None),
+        };
+        if let Some(caution) = caution {
+            widgets::file_caution::show(ui, theme, &caution);
+        }
+    }
     if !r.outgoing && r.stage == Stage::Offered && !r.here {
         let prefs = &state.settings.files_in_messages;
         let friend = crate::engine::protected::picture_friend(state, &r.peer);
@@ -169,6 +182,11 @@ fn draw_row(ui: &mut egui::Ui, theme: &Theme, state: &GuiState, r: &OfferRecord,
         muted(ui, theme, &line);
     }
     ui.horizontal(|ui| {
+        if let Some(path) = saved_here.as_ref().filter(|p| p.is_file()) {
+            if small(ui, theme, "Show in folder") {
+                crate::gui::widgets::file_caution::show_in_folder(path);
+            }
+        }
         if r.stage.ended() {
             if small(ui, theme, "Remove") {
                 acts.push(Act::Remove(id.clone()));

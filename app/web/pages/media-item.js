@@ -18,7 +18,9 @@
 //   Download. A Download goes through the relay's counting route,
 //   /api/media/download/<id>?file=<n>, never the file's own address, so it is
 //   counted; a members-only file's through a ticket asked for that route and
-//   that file (`download: true`), which the browser then saves itself;
+//   that file (`download: true`), which the browser then saves itself; under
+//   a file whose kind deserves a word (an archive, a Blender file, a program
+//   or a script), that word, by its name (2026-10-17, /shared/file-risk.js);
 // - Copy link (`https://<host>/media/<id>`, the page the relay serves with its
 //   preview for social sites), Edit (the uploader and admins: media-edit.js),
 //   and the tile's own actions (Pick, Remove, Feature, Keep, Report);
@@ -55,6 +57,9 @@
   // The protected setup's state and pictures rule (/shared/protected.js, loaded before this file,
   // which puts its names on the page).
   const PR = typeof module === 'object' && module && module.exports ? require('../shared/protected.js') : root;
+  // What kind of file each one is, when that deserves a word (/shared/file-risk.js, loaded before
+  // this file, 2026-10-17): a program, a script, an archive, a Blender file. Without it, no line.
+  const FR = typeof module === 'object' && module && module.exports ? require('../shared/file-risk.js') : root.HosFileRisk;
 
   // What an item hidden by the protected setup for its content label says (the desktop's
   // tiles.rs LABEL_HIDDEN_LINE). The pictures rule's own line is the preset's
@@ -177,6 +182,27 @@
     // What opens the 3D view: the page's own stand-in when it hands one in (the tests, which have no
     // WebGL), else /shared/model-view.js. Its words and limits are always that file's.
     const viewer = () => env.modelView || MV || null;
+
+    // ── What kind of file each one is (/shared/file-risk.js) ──
+    let riskAsked = false;
+    /**
+     * The word of caution for a file named `name` ({kind, disguised, words}), or null. By name only:
+     * the page never reads a file before its Download. The list is asked for once, the first time
+     * a file row is drawn before it is in; the rows are drawn again when it comes.
+     */
+    function riskOf(name) {
+      if (!FR || typeof FR.assess !== 'function') return null;
+      if (!FR.ready()) {
+        if (!riskAsked) {
+          riskAsked = true;
+          Promise.resolve(FR.load(env.fetch))
+            .then(() => { if (FR.ready()) renderInfo(); })
+            .catch(() => { /* no list: no line */ });
+        }
+        return null;
+      }
+      return FR.assess(name, null);
+    }
 
     // ── The protected setup (protected.js): what it leaves out of this page ──
     let presetAsked = false;
@@ -665,6 +691,14 @@
             text: MV.WORDS.view, disabled: !!fileAt.members && !c.token(), on: { click: () => openModel(item, f, as) },
           }) : null,
         ]));
+        // What kind of file it is, under its row, when that deserves a word (by its name).
+        const risk = riskOf(fileName(item, f));
+        if (risk) {
+          list.appendChild(h('p', {
+            className: 'file-caution' + (risk.disguised ? ' disguised' : ''), id: f.file ? 'media-file-caution-' + f.file : 'media-file-caution',
+            dataset: { fileRisk: risk.kind }, text: risk.words,
+          }));
+        }
         if (downloadErrors.has(k)) list.appendChild(h('p', { className: 'media-warn', id: f.file ? 'media-download-error-' + f.file : 'media-download-error', text: downloadErrors.get(k) }));
       }
       if (mayEdit(item) && (files.length > 1 || item.cover)) list.appendChild(h('p', { className: 'media-hint', text: WORDS.editHint }));

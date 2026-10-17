@@ -138,7 +138,7 @@ async fn a_file_sent_in_three_pieces_is_stored_on_the_media_shelf() {
     let done = r.send(&id, "tok_ann", 2000, &data[2000..]).await.unwrap();
     let name = done["filename"].as_str().unwrap().to_string();
     assert_eq!(done, crate::relay::upload_rules::upload_answer(&name, 2500, "video"), "the single request's answer");
-    assert!(name.ends_with("_clipmp4.mp4"), "the single request's naming rule: {name}");
+    assert!(name.ends_with("_clip.mp4"), "the single request's naming rule: {name}");
     assert_eq!(std::fs::read(r.waiting.join(&name)).unwrap(), data, "the stored file is the file that was sent");
     assert!(Rig::files_in(&r.uploads).is_empty(), "a Media upload is at no public address until it is published (R6)");
     let (shelf, size, original): (i64, i64, String) = r

@@ -1,0 +1,12 @@
+{
+  "_doc": "The name a public file's card shows for its address, which both apps must agree on (2026-10-17): the desktop's src/gui/pages/chat/public_files.rs `shown_name` (its test a_file_is_shown_by_the_name_it_was_sent_with) and the website's web/chat/app.js `fileCardName` (scripts/tests/private-files-web.test.js). The last path part without a query or a fragment, the server's `<ms>_` time prefix taken off unless the name would then start with a dot, and %XX read as what it spells when that is text.",
+  "cases": [
+    { "address": "/uploads/1760000000000_WH40K_Marriah_Carey.mp4", "name": "WH40K_Marriah_Carey.mp4" },
+    { "address": "https://example.com/files/My%20Song.mp3?x=1#t=3", "name": "My Song.mp3" },
+    { "address": "/uploads/notes_2026.txt", "name": "notes_2026.txt" },
+    { "address": "/uploads/_odd.pdf", "name": "_odd.pdf" },
+    { "address": "/uploads/123_.zip", "name": "123_.zip" },
+    { "address": "/uploads/50%_off.pdf", "name": "50%_off.pdf" },
+    { "address": "/uploads/1760000000006_Caf%C3%A9.pdf", "name": "Café.pdf" }
+  ]
+}

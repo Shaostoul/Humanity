@@ -1165,10 +1165,16 @@ test("public rooms: only read-only rooms are listed, the rest hidden with one li
 
 // ── 9. Pictures ──────────────────────────────────────────────────────────
 
+// Since 2026-10-17 a sound and a video are a card too (`<div class="file-card file-card-media">`
+// holding the player, its name and Download), and a .blend, .heic or .zip is a card: each card goes
+// as ONE unit, one line in its place, with no piece of it left behind. Seen red 2026-10-17 with
+// protectedHidePicturesHtml matching only the old `<div class="file-card">`: the players went to a
+// line each but their cards stayed, "on: a non-friend's pictures and files are gone".
 test("pictures and files from someone who is not a friend are not shown; a friend's and mine still click to load", async () => {
   const chat = await loadChat();
   befriend(chat, ANN, S1);
-  const body = "look https://example.com/a.png and https://example.com/b.mp3 and https://example.com/c.mp4 and https://example.com/d.pdf";
+  const body = "look https://example.com/a.png and https://example.com/b.mp3 and https://example.com/c.mp4 and https://example.com/d.pdf"
+    + " and /uploads/1760000000000_ship.blend and /uploads/1760000000001_holiday.heic and /uploads/1760000000002_maps.zip";
   const line = escHtml(PRESET.picture_hidden_line);
   const post = (from, ts) => {
     chat.appended.length = 0;
@@ -1177,10 +1183,13 @@ test("pictures and files from someone who is not a friend are not shown; a frien
   };
   let h = post(BEN, 100);
   assert.ok(h.includes("click to load") && h.includes("<audio") && h.includes("file-card"), "off: everyone's pictures click to load");
+  assert.equal(h.split('<div class="file-card').length - 1, 6, "off: a card for each file (the sound, the video, the PDF, the model, the picture, the archive)");
   await turnOn(chat);
   h = post(BEN, 101);
   assert.ok(!h.includes("img-placeholder") && !h.includes("<audio") && !h.includes("<video") && !h.includes("file-card"), "on: a non-friend's pictures and files are gone");
-  assert.equal(h.split(line).length - 1, 4, "one line in place of each");
+  assert.ok(!h.includes("Download") && !h.includes("file-name") && !h.includes("uploads/"), "with nothing of any card left behind");
+  assert.equal(h.split(line).length - 1, 7, "one line in place of each");
+  assert.equal(h.split("<div").length, h.split("</div>").length, "and the body's divs still balance");
   assert.ok(h.includes("look"), "the words stay");
   h = post(ANN, 102);
   assert.ok(h.includes("click to load") && !h.includes(line), "a friend's still click to load");

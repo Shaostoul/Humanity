@@ -142,6 +142,12 @@
 .media-item-files h3, .media-item-files h4 { font-size: var(--text-sm); margin-bottom: var(--space-xs); }
 .media-item-file-row { display: flex; flex-wrap: wrap; gap: var(--space-sm); align-items: center; }
 .media-item-file-name { flex: 1; min-width: 160px; font-size: var(--text-sm); word-break: break-all; }
+/* What kind of file it is, under its row (2026-10-17, /shared/file-risk.js): the warning colour, and
+   the danger colour for a file named like one kind over the bytes of another. The chat's twin is in
+   /chat/messages.css. */
+.file-caution { font-size: var(--text-xs); color: var(--warning); margin: 0; }
+.file-caution.disguised { color: var(--danger); font-weight: 600; }
+.file-caution::before { content: "\26A0  "; }
 .media-item-buttons { align-items: center; }
 .media-item-buttons .media-tile-actions { margin-top: 0; }
 .media-item-edit .media-edit { margin-top: var(--space-md); margin-bottom: 0; }

@@ -486,7 +486,7 @@ fn draw_files(ui: &mut egui::Ui, theme: &Theme, state: &GuiState, opened: &Opene
     let rows = files.iter().map(|f| (f, false)).chain(item.cover.iter().map(|c| (c, true)));
     for (f, cover) in rows {
         ui.horizontal_wrapped(|ui| {
-            let name = if f.file == 0 { open::download_name(item) } else { open::file_download_name(item, f) };
+            let name = name_of(item, f);
             let what = if cover { "cover picture".to_string() } else { kinds::one_name(&f.kind).to_lowercase() };
             ui.label(RichText::new(format!("{name}, {what}, {}", api::size_words(f.size_bytes))).size(theme.font_size_small).color(theme.text_primary()));
             if opened.downloading(f.file) {
@@ -501,6 +501,15 @@ fn draw_files(ui: &mut egui::Ui, theme: &Theme, state: &GuiState, opened: &Opene
                 }
             }
         });
+        // The word of caution (net/file_risk.rs, 2026-10-17): by its name, then by what is inside
+        // once a Download saved it.
+        let caution = match opened.saved_caution(f.file) {
+            Some(saved) => saved.cloned(),
+            None => crate::net::file_risk::assess(&name_of(item, f), None),
+        };
+        if let Some(caution) = caution {
+            widgets::file_caution::show(ui, theme, &caution);
+        }
         if let Some(words) = opened.saved_words(f.file) {
             let color = if words.starts_with("Saved") { theme.success() } else { theme.danger() };
             ui.label(RichText::new(words).size(theme.font_size_small).color(color));
@@ -509,6 +518,11 @@ fn draw_files(ui: &mut egui::Ui, theme: &Theme, state: &GuiState, opened: &Opene
     if may_edit(state, item) && (files.len() > 1 || item.cover.is_some()) {
         widgets::body_hint(ui, theme, "Add or remove files and the cover in Edit.");
     }
+}
+
+/// The name file `f` of `item` is shown and downloaded by.
+fn name_of(item: &Item, f: &ItemFile) -> String {
+    if f.file == 0 { open::download_name(item) } else { open::file_download_name(item, f) }
 }
 
 /// The page's buttons: Copy link for anyone; Edit for the uploader and admins; then, signed in,

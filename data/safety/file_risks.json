@@ -1,0 +1,64 @@
+{
+  "_doc": "Which files deserve a word of caution before someone opens one they were sent (2026-10-17, from a suggestion in the project's Discord: say when a file is a program, a script, an archive and so on, and to scan it first). Read by the desktop app (src/net/file_risk.rs) and the website (web/shared/file-risk.js), the same way, from this one list. Not an antivirus: it reads a file's name and its first bytes, and says what kind of thing it is and what to be careful of. `extensions` are lower case without the dot, longest first where one ends another (tar.gz before gz). `magic` is the file's first bytes, in lower-case hex: a file whose name says one kind and whose bytes say a program or an archive is called out as disguised (`named_as` lists the kinds a name can claim, and which kinds of contents would make it a disguise). Words: {ext} is the file's ending, {claimed} and {actual} are names from this file.",
+  "version": 1,
+  "kinds": [
+    {
+      "id": "program",
+      "name": "a program",
+      "words": "This is a program ({ext}). A program can do anything on your computer: only run it if you trust the person it came from, and scan it with your antivirus first.",
+      "extensions": ["exe", "msi", "msix", "appx", "com", "scr", "pif", "cpl", "app", "dmg", "pkg", "deb", "rpm", "apk", "appimage", "run", "jar"],
+      "magic": ["4d5a", "7f454c46", "feedface", "feedfacf", "cefaedfe", "cffaedfe", "cafebabe"]
+    },
+    {
+      "id": "script",
+      "name": "a script",
+      "words": "This is a script ({ext}). A script runs commands on your computer when it is opened: only run it if you trust the person it came from, and read it or scan it first.",
+      "extensions": ["bat", "cmd", "ps1", "psm1", "psd1", "vbs", "vbe", "js", "jse", "mjs", "wsf", "wsh", "hta", "sh", "bash", "zsh", "command", "py", "pyw", "rb", "pl", "php", "applescript", "scpt", "reg", "inf"],
+      "magic": ["2321"]
+    },
+    {
+      "id": "archive",
+      "name": "an archive",
+      "words": "This is an archive ({ext}). What is inside it has not been checked: scan it with your antivirus before you open what it holds, and be careful with any program inside.",
+      "extensions": ["tar.gz", "tar.bz2", "tar.xz", "zip", "rar", "7z", "tar", "gz", "tgz", "bz2", "xz", "zst", "cab", "iso", "img", "vhd", "vhdx"],
+      "magic": ["504b0304", "526172211a07", "377abcaf271c", "1f8b", "4d534346", "425a68", "fd377a585a00", "28b52ffd"]
+    },
+    {
+      "id": "macro_document",
+      "name": "a document that can carry macros",
+      "words": "This document can carry macros ({ext}). If it asks you to turn on macros or editing, do not, unless you trust the person it came from.",
+      "extensions": ["docm", "dotm", "xlsm", "xltm", "xlam", "pptm", "potm", "ppam", "sldm"],
+      "magic": []
+    },
+    {
+      "id": "shortcut",
+      "name": "a shortcut",
+      "words": "This is a shortcut ({ext}). A shortcut can start a program or open a website without saying which: do not open it unless you trust the person it came from.",
+      "extensions": ["lnk", "url", "scf", "desktop", "webloc", "inetloc"],
+      "magic": []
+    },
+    {
+      "id": "web_page",
+      "name": "a web page",
+      "words": "This is a web page or markup file ({ext}). Opened, it runs in your browser with its own scripts: do not open it unless you trust the person it came from.",
+      "extensions": ["html", "htm", "xhtml", "svg", "svgz", "xml", "mht", "mhtml"],
+      "magic": []
+    },
+    {
+      "id": "blend",
+      "name": "a Blender file",
+      "words": "Blender files can carry scripts. If Blender asks whether to run them, say no unless you trust the person who shared it.",
+      "extensions": ["blend"],
+      "magic": []
+    }
+  ],
+  "named_as": [
+    { "name": "a picture", "extensions": ["png", "jpg", "jpeg", "gif", "webp", "heic", "heif", "avif", "bmp", "tif", "tiff"], "disguised_if": ["program", "script", "archive"] },
+    { "name": "a video", "extensions": ["mp4", "webm", "mkv", "mov", "m4v", "avi", "ogv"], "disguised_if": ["program", "script", "archive"] },
+    { "name": "a sound", "extensions": ["mp3", "ogg", "oga", "opus", "wav", "flac", "m4a", "aac"], "disguised_if": ["program", "script", "archive"] },
+    { "name": "a PDF document", "extensions": ["pdf"], "disguised_if": ["program", "script", "archive"] },
+    { "name": "a text file", "extensions": ["txt", "md", "json", "csv"], "disguised_if": ["program", "archive"] },
+    { "name": "a 3D model", "extensions": ["stl", "obj", "glb", "gltf"], "disguised_if": ["program", "script", "archive"] }
+  ],
+  "disguised": "This file is named like {claimed} ({ext}), but what is inside is {actual}. Do not open it: a file pretending to be something else is a common trick."
+}
