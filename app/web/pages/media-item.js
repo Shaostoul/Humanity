@@ -23,7 +23,13 @@
 //   preview for social sites), Edit (the uploader and admins: media-edit.js),
 //   and the tile's own actions (Pick, Remove, Feature, Keep, Report);
 // - "Report a copyright problem" (2026-10-13), for anyone, signed in or not:
-//   media-takedown.js's form, about this item.
+//   media-takedown.js's form, about this item;
+// - View in 3D (2026-10-16, docs/design/model-viewer.md) beside the Download of
+//   each .glb or .stl file: the 3D viewer (/shared/model-view.js) takes the
+//   place of the cover with Close the 3D view. Nothing is fetched before it is
+//   pressed; then the file comes from its own address (`url`), fetched exactly
+//   as a members-only picture is, never through the counting route, so looking
+//   at a model is not a download.
 //
 // Opening it counts a view (POST /api/media/viewed, unsigned; the session's
 // upload token goes in its header only for a members-only item, which only a
@@ -44,6 +50,37 @@
   'use strict';
 
   const ED = typeof module === 'object' && module && module.exports ? require('./media-edit.js') : root.MediaEdit;
+  // The 3D viewer (/shared/model-view.js, loaded before this file). Without it, no View in 3D.
+  const MV = typeof module === 'object' && module && module.exports ? require('../shared/model-view.js') : root.HosModelView;
+  // The protected setup's state and pictures rule (/shared/protected.js, loaded before this file,
+  // which puts its names on the page).
+  const PR = typeof module === 'object' && module && module.exports ? require('../shared/protected.js') : root;
+
+  // What an item hidden by the protected setup for its content label says (the desktop's
+  // tiles.rs LABEL_HIDDEN_LINE). The pictures rule's own line is the preset's
+  // (data/gui/safety_presets.json, `picture_hidden_line`).
+  const LABEL_HIDDEN_LINE = 'Hidden: the protected setup leaves out items with a content label.';
+
+  /**
+   * Does the protected setup (`state`: protected.js's state, null when it is off) leave `item` out?
+   * The line to show in its place, or null when it shows as usual. The desktop's rule
+   * (src/gui/pages/media/tiles.rs `show_of`, its Hidden branch), in its order: a non-friend's
+   * pictures and files under the pictures rule (`pictureLine`), then any labelled item that is not
+   * your own. Your own items are never hidden. On this page nobody counts as a friend: the friend
+   * list is in Chat's encrypted store, which this page cannot open, so another person's items stay
+   * hidden while the rule is on (fail safe, as Chat itself does before its store has loaded).
+   */
+  function hiddenBy(state, item, myKey, pictureLine) {
+    if (!state || !item) return null;
+    const key = typeof item.uploader_key === 'string' ? item.uploader_key.trim().toLowerCase() : '';
+    const own = !!key && key === String(myKey || '').trim().toLowerCase();
+    const hidesPictures = typeof PR.protectedHidesPictures === 'function'
+      ? PR.protectedHidesPictures(state, { isMe: own, isFriend: false })
+      : true; // the rule could not be loaded: hidden (fail safe)
+    if (key && !own && hidesPictures) return pictureLine || '';
+    if (Array.isArray(item.labels) && item.labels.length && !own) return LABEL_HIDDEN_LINE;
+    return null;
+  }
 
   // A ticket is not used for a new request this close to its end (the relay's are ten minutes).
   const TICKET_MARGIN_MS = 30000;
@@ -135,7 +172,71 @@
     const tickets = new Map(); // item id -> {state: 'loading'|'ready'|'error', url, why, token, at, expiresAt, renewing}
     const asking = new Set(); // "<id>:<file>" while a Download's ticket is on its way
     const downloadErrors = new Map(); // "<id>:<file>" -> the words of a Download that could not start
-    const page = { status: '', copied: '', edit: null, editBox: null, infoBox: null };
+    // `model`: the open 3D view, {itemId, file, box, handle}, drawn in place of the cover.
+    const page = { status: '', copied: '', edit: null, editBox: null, infoBox: null, model: null };
+    // What opens the 3D view: the page's own stand-in when it hands one in (the tests, which have no
+    // WebGL), else /shared/model-view.js. Its words and limits are always that file's.
+    const viewer = () => env.modelView || MV || null;
+
+    // ── The protected setup (protected.js): what it leaves out of this page ──
+    let presetAsked = false;
+    /** The setup as this device keeps it (protected.js's reader: damaged counts as on); null when off. */
+    function protectedState() {
+      const store = env.storage || null;
+      if (typeof PR.protectedStateRead === 'function') return PR.protectedStateRead(store);
+      // protected.js could not be loaded: any setup kept on this device counts as on (fail safe).
+      let raw = null;
+      try { raw = store ? store.getItem('humanity_protected_setup') : null; } catch (e) { raw = null; }
+      if (raw == null || raw === '') return null;
+      try { const v = JSON.parse(raw); if (v && v.on === false) return null; } catch (e) { /* damaged: on */ }
+      return { on: true, pictures: 'never' };
+    }
+    /** The preset's line for a hidden picture, asked for once, the first time one is hidden ('' until it comes). */
+    function pictureLine() {
+      if (typeof st.protectedLine === 'string') return st.protectedLine;
+      if (!presetAsked && typeof PR.protectedPresetFrom === 'function' && PR.PROTECTED_PRESETS_URL) {
+        presetAsked = true;
+        Promise.resolve()
+          .then(() => env.fetch(PR.PROTECTED_PRESETS_URL))
+          .then((res) => (res && res.ok ? res.json() : null))
+          .then((data) => {
+            const preset = PR.protectedPresetFrom(data);
+            if (preset && typeof preset.picture_hidden_line === 'string') {
+              st.protectedLine = preset.picture_hidden_line;
+              protectionChanged();
+            }
+          })
+          .catch(() => { /* the line stays empty; the item stays hidden */ });
+      }
+      return '';
+    }
+    /** What the protected setup shows in place of `item` (its line), or null when it shows as usual. */
+    function hiddenLine(item) {
+      const state = protectedState();
+      if (!state || !item) return null;
+      return hiddenBy(state, item, c.myKey, pictureLine());
+    }
+    /** An open 3D view of an item the setup now hides is closed (a model's textures are pictures too). */
+    function closeIfHidden() {
+      const m = page.model;
+      if (!m || !st.viewer || m.itemId !== st.viewer.id || hiddenLine(st.viewer) === null) return false;
+      closeModel(true);
+      return true;
+    }
+    /** The setup changed (in Chat, in another tab): every part of the page follows. */
+    function protectionChanged() {
+      closeIfHidden();
+      renderIfChanged();
+      renderInfo();
+      c.rerender();
+    }
+    // Another tab turning the setup on or changing it reaches this page as a storage event.
+    const win = env.document && env.document.defaultView;
+    if (win && typeof win.addEventListener === 'function') {
+      win.addEventListener('storage', (e) => {
+        if (!e || !e.key || e.key === (PR.PROTECTED_STORAGE_KEY || 'humanity_protected_setup')) protectionChanged();
+      });
+    }
 
     /** The item as the page holds it now (the list's copy, the shelf's, or the one opened by number). */
     function current(id) {
@@ -266,6 +367,80 @@
       } catch (e) { /* a view that is not counted is not worth a word */ }
     }
 
+    // ── View in 3D (docs/design/model-viewer.md) ──
+    /**
+     * The name of file `f` that says it is a 3D model the viewer opens (`.glb` or `.stl`): the
+     * uploader's own name for it, its stored name, or the end of its address; '' when none does.
+     */
+    function modelName(f) {
+      if (!MV || !f) return '';
+      const last = String(f.url || '').split('?')[0].split('/').pop();
+      for (const n of [f.original_name, f.filename, last]) if (typeof n === 'string' && MV.isModelFile(n)) return n.trim();
+      return '';
+    }
+    /**
+     * File `f`'s bytes for the viewer, from the file's own address: a public file's /uploads/ one
+     * as it is, a members-only one from the members' file route with this session's token in its
+     * header (exactly as a members-only picture is fetched, `fetchBlob` in media-app.js). Never the
+     * counting route: looking at a model is not a download.
+     */
+    async function modelBytes(f, signal) {
+      const route = lib.fileRoute(f, env.origin);
+      if (route.why) throw new Error(route.why);
+      const init = signal ? { signal } : {};
+      if (route.members) {
+        const t = c.token();
+        if (!t) throw new Error('this page is not signed in to this server yet');
+        init.headers = { 'X-Upload-Token': t };
+      }
+      const res = await env.fetch(route.public || route.members, init);
+      if (!res || !res.ok) await lib.answerOf(res); // throws the relay's words
+      // At most 200 MB, refused while reading too (the page's size could be out of date).
+      return MV.readBody(res);
+    }
+    /** Open the 3D view of file `f` (whose model name is `as`) in place of the cover. */
+    function openModel(item, f, as) {
+      const V = viewer();
+      if (!V || typeof V.open !== 'function') return;
+      const m = page.model;
+      if (m && m.itemId === item.id && m.file === f.file) { reveal(m.box); return; } // already open: nothing fetched again
+      closeModel(true);
+      const name = fileName(item, f);
+      const host = h('div', { id: 'media-model-view', className: 'media-model-view' });
+      const box = h('div', {
+        id: 'media-model', className: 'media-viewer-model', dataset: { modelFile: f.file },
+        attrs: { style: 'clear:both;width:min(920px, calc(100vw - 6rem));max-width:100%;margin:0 auto var(--space-md)' },
+      }, [
+        h('div', { className: 'media-model-head', attrs: { style: 'display:flex;flex-wrap:wrap;gap:var(--space-sm);align-items:center;justify-content:space-between;margin-bottom:var(--space-sm)' } }, [
+          h('span', { className: 'media-viewer-name', text: name }),
+          h('button', { type: 'button', id: 'media-model-close', className: 'media-btn media-btn-small', text: MV.WORDS.close, on: { click: () => closeModel() } }),
+        ]),
+        host,
+      ]);
+      page.model = { itemId: item.id, file: f.file, box, handle: null };
+      // The face is drawn again with the view in it, then the viewer starts in its place.
+      renderIfChanged();
+      const handle = V.open(host, {
+        name, fileName: as, size: f.size_bytes, sizeWords: lib.sizeWords,
+        fetchBytes: (signal) => modelBytes(f, signal),
+      });
+      if (page.model && page.model.box === box) page.model.handle = handle;
+      else if (handle && typeof handle.close === 'function') handle.close();
+      reveal(box);
+    }
+    /** Close the 3D view (its fetch stopped, its GPU memory given back); the cover comes back. */
+    function closeModel(quiet) {
+      const m = page.model;
+      if (!m) return;
+      page.model = null;
+      if (m.handle && typeof m.handle.close === 'function') { try { m.handle.close(); } catch (e) { /* already closed */ } }
+      if (!quiet) renderIfChanged();
+    }
+    /** Scroll `el` into view: the button is further down the page than the view it opens. */
+    function reveal(el) {
+      try { if (el && typeof el.scrollIntoView === 'function') el.scrollIntoView({ block: 'nearest' }); } catch (e) { /* it is still there */ }
+    }
+
     /** A signed write on the item, naming its number and its file (W5): its answer, or throws Error(the relay's words). */
     async function send(path, purpose, item, body) {
       const filename = lib.itemFileName(item);
@@ -299,7 +474,7 @@
         if (!st.viewer) st.pushed = !!c.canPush;
         c.go('/media/' + item.id, !st.viewer);
       }
-      if (another) { page.status = ''; page.copied = ''; closeEdit(true); }
+      if (another) { page.status = ''; page.copied = ''; closeEdit(true); closeModel(true); }
       st.viewer = item;
       if (item && another) countView(item);
       renderIfChanged();
@@ -311,6 +486,7 @@
       }
       st.viewer = null;
       closeEdit(true);
+      closeModel(true);
       renderIfChanged();
       c.sweepBlobs();
     }
@@ -335,9 +511,14 @@
       // A file or a model shows its cover: where the cover's loading is, too.
       const cover = item.kind !== 'picture' && item.kind !== 'video' ? coverOf(item) : null;
       const coverAt = cover ? cover.url + ':' + ((c.blobs.get(cover.id) || {}).state || '') + ':' + ((c.blobs.get(cover.id) || {}).url || '') : '';
-      return [item.id, lib.itemFileName(item), veiled(item) ? 'veiled' : 'shown', file, coverAt].join('|');
+      // The 3D view open in the cover's place, and which file it shows.
+      const model = page.model && page.model.itemId === item.id ? 'model:' + page.model.file : '';
+      // Left out by the protected setup, and with which line.
+      const hid = hiddenLine(item);
+      return [item.id, lib.itemFileName(item), veiled(item) ? 'veiled' : 'shown', file, coverAt, model, hid === null ? '' : 'hidden:' + hid].join('|');
     }
     function renderIfChanged() {
+      closeIfHidden();
       const k = key();
       if (k === st.viewerKey) return;
       render();
@@ -347,6 +528,13 @@
 
     /** The picture, the video, or (for a file or a model) its cover, else its name and size. */
     function face(item) {
+      // The 3D view, when one is open: the same element each time, so the model drawn in it (and
+      // its WebGL context) stays while the rest of the page is drawn again around it.
+      // Left out by the protected setup: its line instead, and nothing fetched (the desktop's
+      // Show::Hidden). Checked before the 3D view, which a hidden item never shows.
+      const hid = hiddenLine(item);
+      if (hid !== null) return h('p', { className: 'media-hint media-viewer-hidden', id: 'media-viewer-hidden', text: hid, attrs: { style: 'clear:both' } });
+      if (page.model && page.model.itemId === item.id) return page.model.box;
       const name = lib.itemName(item, st.kinds);
       const route = lib.fileRoute(item, env.origin);
       if (route.why) return h('p', { className: 'media-warn', text: route.why });
@@ -417,6 +605,9 @@
       const box = page.infoBox;
       const item = st.viewer;
       if (!box || !item) return;
+      // An open 3D view the protected setup now hides is closed, and the face drawn again (which
+      // draws this part again too).
+      if (closeIfHidden()) { renderIfChanged(); return; }
       env.document.title = lib.itemName(item, st.kinds) + ', ' + c.mediaOn;
       const route = lib.fileRoute(item, env.origin);
       const L = st.licences || {};
@@ -452,16 +643,26 @@
       const list = h('div', { id: 'media-item-files', className: 'media-item-files' }, [h('h3', { text: files.length === 1 ? 'File' : 'Files' })]);
       const rows = files.map((f) => [f, false]).concat(item.cover ? [[item.cover, true]] : []);
       const may = !route.why && !veiled(item);
+      const hidden = hiddenLine(item);
       for (const [f, cover] of rows) {
         const k = item.id + ':' + f.file;
         const what = cover ? 'cover picture' : String(lib.kindWords(f.kind, st.kinds).one || f.kind || 'file').toLowerCase();
         const busy = asking.has(k);
+        // View in 3D beside the Download of a .glb or .stl file on this server (never the cover).
+        // Not where the protected setup leaves the item out: a model's textures are pictures too.
+        const as = may && !cover && hidden === null ? modelName(f) : '';
+        const fileAt = as ? lib.fileRoute(f, env.origin) : null;
         list.appendChild(h('div', { className: 'media-item-file-row', dataset: { file: f.file } }, [
           h('span', { className: 'media-item-file-name', text: fileName(item, f) + ', ' + what + ', ' + lib.sizeWords(f.size_bytes) }),
           may ? h('button', {
             type: 'button', className: 'media-btn media-btn-small media-btn-primary', id: f.file ? 'media-download-' + f.file : 'media-download',
             dataset: { download: f.file }, title: WORDS.downloadTip, text: busy ? W.loadingFile : WORDS.download,
             disabled: busy || (!!route.members && !c.token()), on: { click: () => download(item, f) },
+          }) : null,
+          fileAt && !fileAt.why ? h('button', {
+            type: 'button', className: 'media-btn media-btn-small', id: f.file ? 'media-view3d-' + f.file : 'media-view3d',
+            dataset: { view3d: f.file }, title: MV.fill(MV.WORDS.viewTip, { size: lib.sizeWords(f.size_bytes) }),
+            text: MV.WORDS.view, disabled: !!fileAt.members && !c.token(), on: { click: () => openModel(item, f, as) },
           }) : null,
         ]));
         if (downloadErrors.has(k)) list.appendChild(h('p', { className: 'media-warn', id: f.file ? 'media-download-error-' + f.file : 'media-download-error', text: downloadErrors.get(k) }));
@@ -520,12 +721,12 @@
 
     const view = {
       open, close, renderIfChanged, renderInfo, takeItem, mayEdit, own, openEdit, closeEdit, say, send, current,
-      fileName, filesOf, uploadsChanged, tickets, page,
+      fileName, filesOf, uploadsChanged, tickets, page, hiddenLine, protectionChanged,
     };
     return view;
   }
 
-  const api = { WORDS, CARD_LINE_MAX, countsLine, byLine, firstLine, filesBadge, itemLink, downloadPath, filesOf, coverOf, createItemView };
+  const api = { WORDS, LABEL_HIDDEN_LINE, hiddenBy, CARD_LINE_MAX, countsLine, byLine, firstLine, filesBadge, itemLink, downloadPath, filesOf, coverOf, createItemView };
   if (typeof module === 'object' && module && module.exports) module.exports = api;
   else root.MediaItem = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

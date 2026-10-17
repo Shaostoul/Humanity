@@ -1433,13 +1433,19 @@ mod native_app {
                 None,
                 None,
             );
-            let egui_renderer = egui_wgpu::Renderer::new(
+            let mut egui_renderer = egui_wgpu::Renderer::new(
                 &renderer.device,
                 renderer.surface_format(), // display-format: egui draws on the swapchain, after the present pass
                 None,
                 1,
                 false,
             );
+            // The 3D model viewer's pipelines (gui/model_view/gpu.rs): its paint callback finds them here.
+            egui_renderer.callback_resources.insert(crate::gui::model_view::gpu::Gpu::new(
+                &renderer.device,
+                &renderer.queue,
+                renderer.surface_format(), // display-format: the viewer's picture is copied into egui's pass on the swapchain
+            ));
             let theme = crate::gui::theme::load_theme();
             theme.apply_to_egui(&egui_ctx);
             // Install every font fallback chain: Hack into the Proportional

@@ -69,11 +69,13 @@ pub(crate) struct Opened {
     pub saved: Vec<(i64, String)>,
     /// The temporary copy Play here fetched, deleted with the page.
     pub temp: Option<PathBuf>,
+    /// A `.glb` or `.stl` file shown in 3D (View in 3D, docs/design/model-viewer.md).
+    pub viewer: Option<crate::gui::model_view::Viewer>,
 }
 
 impl Opened {
     pub(crate) fn new(item: Item) -> Self {
-        Opened { item, fetch_rx: None, player: None, texture: None, problem: String::new(), saves: Vec::new(), saved: Vec::new(), temp: None }
+        Opened { item, fetch_rx: None, player: None, texture: None, problem: String::new(), saves: Vec::new(), saved: Vec::new(), temp: None, viewer: None }
     }
 
     /// Whether file `file` is being downloaded now.

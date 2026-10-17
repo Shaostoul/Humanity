@@ -1008,6 +1008,10 @@
     }
 
     function thumb(item) {
+      // Left out by the protected setup (media-item.js hiddenBy, the desktop's Show::Hidden): its
+      // line in the picture's place, nothing fetched, and no click through to it.
+      const hidden = itemView.hiddenLine(item);
+      if (hidden !== null) return h('div', { className: 'media-thumb media-thumb-missing media-thumb-hidden', dataset: { hidden: item.id }, text: hidden });
       const labels = labelsOf(item, st.labels);
       if (labels.length && !st.revealed.has(item.id)) {
         // The label instead of the picture until clicked: nothing is fetched before then.

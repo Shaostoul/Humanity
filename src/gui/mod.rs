@@ -7,6 +7,8 @@
 pub mod theme;
 #[cfg(feature = "native")]
 pub mod widgets;
+// The 3D model viewer (2026-10-16, docs/design/model-viewer.md): .glb and .stl on the Media page.
+pub mod model_view;
 #[cfg(feature = "native")]
 pub mod pages;
 #[cfg(feature = "native")]

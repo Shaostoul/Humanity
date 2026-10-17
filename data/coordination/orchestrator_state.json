@@ -346,6 +346,11 @@
       "date": "2026-10-16",
       "decision": "Released v0.1507.0: the recovery phrase's and device-link code's show buttons are a 3-second hold (native hold_to_confirm_button, web holdToConfirm); a click does nothing; hide stays one click. On the web, a page without the hold helper disables the button rather than falling back to a click.",
       "why": "Operator, 2026-10-16: so it can't be an accidental click, like the other hold buttons. Fail safe on the web: no hold helper means no way to show, never a click fallback."
+    },
+    {
+      "date": "2026-10-16",
+      "decision": "Released v0.1508.0: a 3D model viewer for .glb and .stl on Media items, both apps, from one spec (docs/design/model-viewer.md). Desktop: src/gui/model_view (egui paint callback, own PBR pipeline, offscreen MSAA, draws only when changed; loader bounds-checks every glTF range before the gltf crate reads it, chunked under wgpu's 256 MiB buffer limit). Web: web/shared/model-view.js (WebGL 2, own parsers), built by a helper agent and reviewed. The web Media page gained the protected-setup hiding rule it had lacked.",
+      "why": "Operator asked after uploading a .glb. Realistic-first: real PBR with the file's own materials and samplers, not a flat preview. Safety: model files are untrusted input, so every range is checked and limits are counted before reading; the gltf crate's readers can panic or read outside a hostile file otherwise."
     }
   ],
   "active_scopes_to_avoid": [

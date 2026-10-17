@@ -550,3 +550,48 @@ fn add_a_file_takes_several_files_at_once() {
     assert!(state.media.status.starts_with("Uploading 2 files"), "{}", state.media.status);
     let _ = ctx;
 }
+
+/// VIEW IN 3D IS ON .GLB AND .STL FILES, AND FETCHES THE FILE'S OWN ADDRESS (2026-10-16,
+/// docs/design/model-viewer.md): the button sits beside Download on the .glb and the .stl rows only
+/// (not the .blend); nothing is fetched before it is pressed; pressed, the viewer opens in the cover's
+/// place and fetches the file from its own /uploads/ address, never the counting download route (a
+/// look is not a download); Close the 3D view closes it.
+///
+/// Seen red 2026-10-16 with `viewable` taking every model kind: "on the .glb and the .stl" found 3.
+#[test]
+fn view_in_3d_is_on_glb_and_stl_files_and_fetches_the_files_own_address() {
+    let (ctx, theme) = ctx_and_theme();
+    let (base, seen) = serve_routes(vec![("/uploads/", "not really a model")]);
+    let file = |n: i64, name: &str| ItemFile { file: n, filename: format!("9{n}_{name}"), original_name: name.into(), kind: "model".into(), size_bytes: 3000, url: format!("/uploads/9{n}_{name}") };
+    let item = Item {
+        url: "/uploads/90_part.blend".into(),
+        stored: "90_part.blend".into(),
+        original_name: "part.blend".into(),
+        files: vec![file(0, "part.blend"), file(1, "part.glb"), file(2, "part.stl")],
+        file_count: 3,
+        ..rich_item(("me", "Me"))
+    };
+    let mut state = page_on(&base, answer_of(vec![item.clone()]), TOKEN);
+    crate::gui::pages::media::item_view::open(&mut state, &item);
+    let out = settled(&ctx, &theme, &mut state);
+    assert_eq!(every_exact(&out, crate::gui::model_view::VIEW_IN_3D).len(), 2, "on the .glb and the .stl, not the .blend");
+    let fetched = |seen: &Arc<Mutex<Vec<String>>>, what: &str| seen.lock().unwrap().iter().any(|r| r.contains(what));
+    assert!(!fetched(&seen, "part.glb") && !fetched(&seen, "part.stl"), "nothing fetched before the press");
+
+    // Pressed on the .stl: the page's lower buttons take headless clicks reliably (the upper rows'
+    // can miss one, the known oddity noted in item_view.rs draw_actions).
+    click_top(&ctx, &theme, &mut state, crate::gui::model_view::VIEW_IN_3D);
+    let viewer = state.media.open.as_ref().and_then(|o| o.viewer.as_ref()).expect("the viewer opens");
+    assert_eq!(viewer.name, "part.stl");
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while !fetched(&seen, "GET /uploads/92_part.stl") {
+        settled(&ctx, &theme, &mut state);
+        assert!(Instant::now() < deadline, "the .stl is fetched from its own address: {:?}", seen.lock().unwrap());
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    assert!(!fetched(&seen, "/api/media/download"), "never the counting route: {:?}", seen.lock().unwrap());
+    let out = settled(&ctx, &theme, &mut state);
+    assert!(shows(&out, crate::gui::model_view::CLOSE), "the view in the cover's place, with Close");
+    click_top(&ctx, &theme, &mut state, crate::gui::model_view::CLOSE);
+    assert!(state.media.open.as_ref().is_some_and(|o| o.viewer.is_none()), "Close the 3D view closes it");
+}

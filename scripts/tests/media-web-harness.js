@@ -389,6 +389,9 @@ async function openPage(opts) {
     // cleaning rightly refuses as "not what it says". scripts/tests/media-web-files.test.js passes
     // the real module and real files.
     clean: o.clean === undefined ? null : o.clean,
+    // What opens an item's 3D view (2026-10-16, web/shared/model-view.js): a test's stand-in, which
+    // records what it was asked and fetches the bytes the way the real viewer would (Node has no WebGL).
+    modelView: o.modelView || null,
   });
   ctx.page = page;
   await page.start();

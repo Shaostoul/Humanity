@@ -54,8 +54,15 @@
 <!-- "Report a copyright problem" (2026-10-13): the form anyone may send, signed in or not, and the
      admins' view of the reports; before media-item.js and media-app.js, which use it. -->
 <script src="/pages/media-takedown.js?v=1"></script>
-<script src="/pages/media-item.js?v=2"></script>
-<script src="/pages/media-app.js?v=7"></script>
+<!-- The 3D model viewer (2026-10-16, docs/design/model-viewer.md): View in 3D beside a .glb or .stl
+     file's Download on an item's page, drawn with WebGL 2, no outside library; before media-item.js. -->
+<script src="/shared/model-view.js?v=1"></script>
+<!-- The protected setup (2026-10-16): what it leaves out of this page, the desktop's rule (a person's
+     pictures and files where its pictures rule is on, a labelled item); reach.js before protected.js. -->
+<script src="/shared/reach.js?v=4"></script>
+<script src="/shared/protected.js?v=3"></script>
+<script src="/pages/media-item.js?v=3"></script>
+<script src="/pages/media-app.js?v=8"></script>
 <!-- The admins' Media section: this page's Admin tab, for admins (/media#admin; /admin points here). -->
 <script src="/pages/media-admin.js?v=3"></script>
 </body>

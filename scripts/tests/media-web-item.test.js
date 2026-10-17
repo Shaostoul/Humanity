@@ -28,6 +28,13 @@
 //     one through a ticket made for that route and that file.
 //  8. The edit is signed over the BLAKE3 of its text exactly as sent: the fixture's purpose, and
 //     the fixture's body byte for byte.
+//  9. View in 3D (2026-10-16, docs/design/model-viewer.md) is beside the Download of a .glb or .stl
+//     file only, fetches nothing until pressed, then fetches the file's own address (never the
+//     counting route), and its view takes the cover's place until Close the 3D view.
+// 10. The protected setup leaves out another person's items the way the desktop does (tiles.rs
+//     show_of, Show::Hidden): under its pictures rule, or for a content label. A hidden item shows
+//     the setup's line on its tile and its page, offers no View in 3D, and a 3D view open when the
+//     setup comes on closes. Your own items are never hidden.
 //
 // Seen red 2026-10-12: each with one break made in a copy of web/ under HOS_WEB_DIR, then green
 // again on the real web/: see the note above each test.
@@ -276,4 +283,174 @@ test("8. the edit is signed over the exact text sent", async () => {
   await settle();
   assert.equal(byId(doc, "media-edit"), null, "Save closes the form");
   assert.equal(text(byId(doc, "media-item-status")), MI.WORDS.saved);
+});
+
+// ── 9. View in 3D ────────────────────────────────────────────────────────
+
+/** A stand-in for /shared/model-view.js's open (Node has no WebGL): it records what it was asked and fetches the bytes as the real viewer does. */
+function modelViewStandIn() {
+  const opened = [];
+  return {
+    opened,
+    open(container, o) {
+      const rec = { container, o, closed: false, bytes: null, error: null };
+      rec.done = o.fetchBytes(undefined).then((b) => { rec.bytes = b; }, (e) => { rec.error = e; });
+      opened.push(rec);
+      return { close() { rec.closed = true; } };
+    },
+  };
+}
+const MIB = 1024 * 1024;
+/** An item whose files are a .blend, a .glb and an .stl (its cover the fixture's picture). */
+function modelItem(over, url) {
+  const at = url || ((n, name) => "/uploads/" + name);
+  return fxItem(Object.assign({
+    kind: "model", url: at(0, "1760_ship.blend"), filename: "1760_ship.blend", original_name: "ship.blend", size_bytes: 5000, file_count: 3,
+    files: [
+      { file: 0, filename: "1760_ship.blend", original_name: "ship.blend", kind: "model", size_bytes: 5000, url: at(0, "1760_ship.blend") },
+      { file: 1, filename: "1761_ship.glb", original_name: "ship.glb", kind: "model", size_bytes: 2224, url: at(1, "1761_ship.glb") },
+      { file: 3, filename: "1763_part.stl", original_name: "Part.STL", kind: "model", size_bytes: 3 * MIB, url: at(3, "1763_part.stl") },
+    ],
+  }, over || {}));
+}
+const isModelFetch = (c) => /\.(glb|stl)$/i.test(path0(c.url)) || /^\/api\/media\/file\//.test(path0(c.url));
+
+// Seen red 2026-10-16 twice: with modelBytes() fetching through the counting route
+// (`env.fetch('/api/media/download/1?file=' + f.file, init)`), the viewer's fetch went there:
+// "Error: no route in the test for /api/media/download/1?file=1"; with the button offered on every
+// file (`modelName` answering any name), "the .glb and .stl rows only (not the .blend, not the cover)".
+test("9. View in 3D is beside a .glb or .stl file's Download, and fetches its own address only when pressed", async () => {
+  const MV = require(path.join(WEB, "shared", "model-view.js"));
+  const glb = fs.readFileSync(path.join(ROOT, "scripts", "tests", "fixtures", "model-cube.glb"));
+  const viewer = modelViewStandIn();
+  const { doc, page, net } = await openPage({ modelView: viewer, routes: listRoutes(answerOf([modelItem()]), [
+    [at("/uploads/1761_ship.glb"), () => respond(200, "", new Uint8Array(glb))],
+  ]) });
+  page.openViewer(page.state.items[0]);
+  await settle();
+  const files = byId(doc, "media-item-files");
+  const buttons = files.querySelectorAll("[data-view3d]");
+  assert.deepEqual(buttons.map((b) => b.dataset.view3d), ["1", "3"], "the .glb and .stl rows only (not the .blend, not the cover)");
+  assert.deepEqual(buttons.map(text), ["View in 3D", "View in 3D"]);
+  assert.equal(buttons[0].title, "Look at it here and turn it with the mouse. It is fetched from the server first (2 KB).", "the tooltip names its size");
+  assert.equal(buttons[1].title, MV.fill(MV.WORDS.viewTip, { size: "3 MB" }));
+  assert.ok(files.querySelector('[data-download="1"]'), "Download stays beside it");
+  assert.equal(viewer.opened.length, 0, "nothing opened");
+  assert.ok(!net.calls.some(isModelFetch), "nothing fetched before it is pressed: " + net.calls.map((c) => c.url).join(", "));
+  assert.ok(byId(doc, "media-viewer-open").querySelector(".media-viewer-img"), "the cover is shown at the top");
+
+  byId(doc, "media-view3d-1").click();
+  await settle();
+  assert.equal(viewer.opened.length, 1, "pressed: the viewer opens");
+  const rec = viewer.opened[0];
+  await rec.done;
+  assert.equal(rec.error, null, String(rec.error));
+  assert.deepEqual([rec.o.name, rec.o.fileName, rec.o.size], ["ship.glb", "ship.glb", 2224]);
+  const asked = net.calls.map((c) => (c.init.method || "GET") + " " + c.url);
+  assert.ok(net.calls.some((c) => c.url === "/uploads/1761_ship.glb"), "the file's own address: " + asked.join(", "));
+  assert.ok(!net.calls.some((c) => c.url.startsWith("/api/media/download")), "never the counting route: " + asked.join(", "));
+  assert.equal(rec.bytes.byteLength, glb.length, "its bytes, handed to the viewer");
+  const box = byId(doc, "media-model");
+  assert.ok(box && byId(doc, "media-viewer-open").children[0].children.includes(box), "the view takes the cover's place at the top");
+  assert.equal(byId(doc, "media-viewer-open").querySelector(".media-viewer-img"), null, "the cover is gone meanwhile");
+  assert.equal(text(byId(doc, "media-model-close")), "Close the 3D view");
+  assert.equal(box.querySelector(".media-viewer-name").textContent, "ship.glb", "with the file's name");
+  // The rest of the page drawn again (a reload of the item) keeps the same view.
+  page.itemView.renderInfo();
+  assert.equal(byId(doc, "media-model"), box, "the view stays while the page around it is drawn again");
+
+  byId(doc, "media-model-close").click();
+  assert.equal(rec.closed, true, "Close the 3D view closes the viewer");
+  assert.equal(byId(doc, "media-model"), null);
+  assert.ok(byId(doc, "media-viewer-open").querySelector(".media-viewer-img"), "and the cover is back");
+
+  // A members-only item: the members' file route with the token in its header, exactly as a
+  // picture is fetched; no ticket, no counting route.
+  const members = modelItem({ visibility: "members", cover: null }, (n) => "/api/media/file/1?file=" + n);
+  const v2 = modelViewStandIn();
+  const m = await openPage({ modelView: v2, routes: listRoutes(answerOf([members]), [
+    [at("/api/media/file/1"), () => respond(200, "", new Uint8Array(glb))],
+  ]) });
+  m.page.openViewer(m.page.state.items[0]);
+  await settle();
+  assert.ok(!m.net.calls.some(isModelFetch), "nothing fetched before it is pressed");
+  byId(m.doc, "media-view3d-3").click();
+  await v2.opened[0].done;
+  const got = m.net.calls.filter(isModelFetch);
+  assert.deepEqual(got.map((c) => [c.url, c.headers["X-Upload-Token"]]), [["/api/media/file/1?file=3", "tok-1"]], "the members' file route, the token in its header");
+  assert.ok(!m.net.calls.some((c) => c.url === "/api/media/ticket" || c.url.startsWith("/api/media/download")), "no ticket, no counting route");
+  assert.equal(v2.opened[0].o.fileName, "Part.STL", "read as STL");
+  // Closing the item closes its view.
+  m.page.closeViewer();
+  assert.equal(v2.opened[0].closed, true, "closing the item closes the 3D view");
+});
+
+// ── 10. The protected setup ──────────────────────────────────────────────
+
+const PROTECTED_KEY = "humanity_protected_setup";
+const SAFETY = JSON.parse(fs.readFileSync(path.join(ROOT, "data", "gui", "safety_presets.json"), "utf8"));
+const PICTURE_LINE = SAFETY.presets.find((p) => p.id === "protected").picture_hidden_line;
+const presetRoute = [at("/data/gui/safety_presets.json"), () => respond(200, SAFETY)];
+/** This device's storage with the setup on and its pictures rule `pictures` ("never" or "click"). */
+function setupOn(pictures) {
+  const storage = H.fakeStorage();
+  storage.setItem(PROTECTED_KEY, JSON.stringify({ on: true, pictures }));
+  return storage;
+}
+
+// Seen red 2026-10-16 twice: with hiddenBy() answering null always (the rule not applied), "the
+// preset's line where the cover was / actual: null"; with closeIfHidden() closing nothing, "the open
+// view closes / actual: false".
+test("10. the protected setup leaves out another person's model: no View in 3D, and an open view closes", async () => {
+  assert.equal(MI.hiddenBy(null, modelItem(), ME, "x"), null, "the setup off: nothing is hidden");
+  const anns = modelItem();
+  const mine = modelItem({ id: 2, uploader_key: ME, uploader_name: "Me" });
+  const viewer = modelViewStandIn();
+  const { doc, page, net } = await openPage({ storage: setupOn("never"), modelView: viewer, routes: listRoutes(answerOf([anns, mine]), [presetRoute]) });
+  await settle();
+  const tile = tileOf(doc, 1);
+  assert.equal(text(tile.querySelector("[data-hidden]")), PICTURE_LINE, "the preset's line where the cover was");
+  assert.equal(tile.querySelector("img"), null, "no cover on Ann's tile");
+  assert.equal(tileOf(doc, 2).querySelector("[data-hidden]"), null, "your own tile shows as usual");
+
+  page.openViewer(page.state.items[0]);
+  await settle();
+  assert.equal(text(byId(doc, "media-viewer-hidden")), PICTURE_LINE, "the item's page says so where the cover was");
+  assert.equal(byId(doc, "media-viewer-open").querySelector(".media-viewer-img"), null, "no cover on the page either");
+  assert.equal(byId(doc, "media-item-files").querySelectorAll("[data-view3d]").length, 0, "no View in 3D: a model's textures are pictures too");
+  assert.ok(byId(doc, "media-item-files").querySelector('[data-download="1"]'), "Download stays (as on the desktop)");
+  page.openViewer(page.state.items[1]);
+  await settle();
+  assert.equal(byId(doc, "media-viewer-hidden"), null, "your own model is never hidden");
+  assert.deepEqual(byId(doc, "media-item-files").querySelectorAll("[data-view3d]").map((b) => b.dataset.view3d), ["1", "3"]);
+  assert.equal(viewer.opened.length, 0);
+  assert.ok(!net.calls.some(isModelFetch), "nothing of the model fetched");
+
+  // A 3D view open when the setup is turned on (in Chat, in another tab): it closes, and says hidden.
+  const storage = H.fakeStorage();
+  const v2 = modelViewStandIn();
+  const m = await openPage({ storage, modelView: v2, routes: listRoutes(answerOf([modelItem()]), [presetRoute,
+    [at("/uploads/1761_ship.glb"), () => respond(200, "", new Uint8Array([1]))]]) });
+  m.page.openViewer(m.page.state.items[0]);
+  await settle();
+  byId(m.doc, "media-view3d-1").click();
+  await settle();
+  assert.ok(byId(m.doc, "media-model"), "open while the setup is off");
+  storage.setItem(PROTECTED_KEY, JSON.stringify({ on: true, pictures: "never" }));
+  m.page.itemView.protectionChanged();
+  await settle();
+  assert.equal(v2.opened[0].closed, true, "the open view closes");
+  assert.equal(byId(m.doc, "media-model"), null, "and is gone from the page");
+  assert.equal(text(byId(m.doc, "media-viewer-hidden")), PICTURE_LINE, "which says hidden where it was");
+  assert.equal(byId(m.doc, "media-item-files").querySelectorAll("[data-view3d]").length, 0, "with no View in 3D");
+
+  // The label rule: with pictures shown after a click, someone else's labelled item is still left
+  // out (the desktop's LABEL_HIDDEN_LINE); your own labelled item is not.
+  const l = await openPage({ storage: setupOn("click"), modelView: modelViewStandIn(), routes: listRoutes(answerOf([
+    modelItem({ labels: ["spoiler"] }), modelItem({ id: 2, uploader_key: ME, labels: ["spoiler"] }), modelItem({ id: 3 }),
+  ]), [presetRoute]) });
+  assert.equal(text(tileOf(l.doc, 1).querySelector("[data-hidden]")), MI.LABEL_HIDDEN_LINE);
+  assert.equal(MI.LABEL_HIDDEN_LINE, "Hidden: the protected setup leaves out items with a content label.");
+  assert.equal(tileOf(l.doc, 2).querySelector("[data-hidden]"), null, "your own labelled item is not hidden");
+  assert.equal(tileOf(l.doc, 3).querySelector("[data-hidden]"), null, "an unlabelled one shows when pictures come after a click");
 });

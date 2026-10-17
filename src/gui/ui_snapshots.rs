@@ -417,6 +417,8 @@ pub(crate) fn render_page_png(name: &str, w: u32, h: u32, frame: impl Fn(&egui::
         };
         // ── egui-wgpu renderer ──
         let mut renderer = egui_wgpu::Renderer::new(&device, format, None, 1, false);
+        // The 3D model viewer draws through a paint callback (gui/model_view/gpu.rs), as in the app.
+        renderer.callback_resources.insert(crate::gui::model_view::gpu::Gpu::new(&device, &queue, format));
         // egui Windows/Areas measure their size on the first frame and only settle
         // their position on the second, so a single-frame render leaves Window-based
         // pages (the main menu hub/onboarding, modals) blank. Run a warm-up frame,
@@ -2094,6 +2096,19 @@ fn snapshot_nav_bar_icon_only() {
     render_page_png("nav_bar_icon_only", 720, 200, |ctx, theme, state| {
         state.nav_display_mode = crate::gui::NavDisplayMode::IconOnly;
         crate::gui::pages::escape_menu::draw_nav_bar(ctx, theme, state);
+    });
+}
+
+/// The 3D model viewer (docs/design/model-viewer.md) drawing the shared test cube: its 2x2
+/// texture read with sharp pixels as the file asks, the studio lights, the fitted camera.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_model_viewer() {
+    let bytes = std::fs::read(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("scripts/tests/fixtures/model-cube.glb")).expect("the cube fixture");
+    let model = crate::gui::model_view::load::load("model-cube.glb", &bytes).expect("reads");
+    let viewer = std::cell::RefCell::new(crate::gui::model_view::Viewer::with_model("model-cube.glb", model));
+    render_page_png("model_viewer", 900, 640, |ctx, theme, _state| {
+        egui::CentralPanel::default().show(ctx, |ui| viewer.borrow_mut().show(ui, theme, 820.0));
     });
 }
 

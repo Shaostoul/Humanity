@@ -258,6 +258,9 @@ struct Pressed {
     remove: bool,
     /// "Report a copyright problem" (takedown.rs): for anyone, signed in or not.
     copyright: bool,
+    /// View in 3D on a `.glb` or `.stl` file, and Close the 3D view.
+    view_3d: Option<ItemFile>,
+    close_3d: bool,
 }
 
 /// The item's page and its windows (the Edit window, a file picker, the confirmations), while one
@@ -357,6 +360,16 @@ fn draw_page(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, page: &Item
 fn draw_face(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, opened: &mut Opened, item: &Item, pressed: &mut Pressed) {
     let show = tiles::show_of(state, item);
     let key = tiles::cache_key(state, item);
+    // A model shown in 3D takes the cover's place; its textures are pictures too, so where the
+    // protected setup hides this person's pictures it is not shown (and closes if it was open).
+    if matches!(show, tiles::Show::Hidden(_)) {
+        opened.viewer = None;
+    } else if let Some(viewer) = opened.viewer.as_mut() {
+        let width = ui.available_width().min(720.0);
+        viewer.show(ui, theme, width);
+        pressed.close_3d = widgets::Button::secondary(crate::gui::model_view::CLOSE).show(ui, theme);
+        return;
+    }
     match &show {
         tiles::Show::Hidden(line) => {
             widgets::body_hint(ui, theme, line);
@@ -466,6 +479,8 @@ pub const OFFERED_FOR_GAME: &str = "Offered for the game.";
 /// added file or the cover, Remove for the uploader and admins.
 fn draw_files(ui: &mut egui::Ui, theme: &Theme, state: &GuiState, opened: &Opened, item: &Item, pressed: &mut Pressed) {
     let files = files_of(item);
+    // View in 3D: not where the protected setup hides this person's pictures (draw_face).
+    let may_view_3d = !matches!(tiles::show_of(state, item), tiles::Show::Hidden(_));
     widgets::subsection_label(ui, theme, if files.len() == 1 { "File" } else { "Files" });
     let small = widgets::ButtonSize::Small;
     let rows = files.iter().map(|f| (f, false)).chain(item.cover.iter().map(|c| (c, true)));
@@ -478,6 +493,12 @@ fn draw_files(ui: &mut egui::Ui, theme: &Theme, state: &GuiState, opened: &Opene
                 ui.label(RichText::new("Downloading...").size(theme.font_size_small).color(theme.text_muted()));
             } else if widgets::Button::secondary("Download").size(small).tooltip("Save it in your downloads folder.").show(ui, theme) {
                 pressed.download = Some(f.clone());
+            }
+            if may_view_3d && !cover && crate::gui::model_view::load::viewable(&name) {
+                let tip = crate::gui::model_view::view_tip(&api::size_words(f.size_bytes));
+                if widgets::Button::secondary(crate::gui::model_view::VIEW_IN_3D).size(small).tooltip(&tip).show(ui, theme) {
+                    pressed.view_3d = Some(f.clone());
+                }
             }
         });
         if let Some(words) = opened.saved_words(f.file) {
@@ -541,6 +562,23 @@ fn draw_actions(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, item: &I
 pub const COPY_LINK: &str = "Copy link";
 
 /// Do what the page's buttons asked, once the window is drawn.
+/// View in 3D on file `f`: the viewer opens and fetches the file from the address the page has for
+/// it (`ItemFile::url`: public `/uploads/...`, or the members' route with this session's upload
+/// token in a header, as pictures are fetched). Not the counting download route: a look is not a
+/// download.
+pub(crate) fn open_3d(state: &GuiState, opened: &mut Opened, item: &Item, f: &ItemFile) {
+    let name = if f.file == 0 { open::download_name(item) } else { open::file_download_name(item, f) };
+    let url = if f.url.starts_with("http://") || f.url.starts_with("https://") {
+        f.url.clone()
+    } else {
+        format!("{}{}", super::base_of(state).trim_end_matches('/'), f.url)
+    };
+    let header = api::token_header(item, super::token_here(state).as_deref());
+    opened.viewer = Some(crate::gui::model_view::Viewer::open(&name, f.size_bytes, move || {
+        crate::gui::model_view::fetch(&url, header.as_ref().map(|(n, v)| (*n, v.as_str())))
+    }));
+}
+
 fn act(state: &mut GuiState, page: &mut ItemPage, opened: &mut Opened, item: &Item, pressed: Pressed) {
     if pressed.remove {
         page.confirm_remove = true;
@@ -556,6 +594,12 @@ fn act(state: &mut GuiState, page: &mut ItemPage, opened: &mut Opened, item: &It
     }
     if pressed.view_full {
         state.image_viewer_url = Some(tiles::cache_key(state, item));
+    }
+    if let Some(f) = pressed.view_3d {
+        open_3d(state, opened, item, &f);
+    }
+    if pressed.close_3d {
+        opened.viewer = None;
     }
     if pressed.edit {
         page.edit = Some(super::edit::EditForm::of(item));

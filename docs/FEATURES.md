@@ -279,6 +279,11 @@ own file; an admin can remove any (Dilithium-signed "delete_upload" request).
 - Native (v0.710): Files page "Shared files on the server" manager — list (auto-load + Refresh), Upload via the in-app file browser (share=1), per-row Remove (own files, or any as admin). `src/gui/pages/files.rs`
 
 ### Media Page (relay 2026-10-11, native page increment 2 and round 2 2026-10-11)
+**3D model viewer (v0.1508.0, docs/design/model-viewer.md):** View in 3D on an item's .glb or .stl
+files, both apps. Desktop `src/gui/model_view/` (loader with bounds checks and limits, camera, an egui
+paint callback drawing PBR into its own MSAA picture; pipelines registered in `lib.rs`), web
+`web/shared/model-view.js` (WebGL 2). Not shown where the protected setup hides the person's pictures
+(web `media-item.js` `hiddenBy`, which also made the website's Media page follow the setup at all).
 
 **Round 5 (2026-10-12, v0.1491.0 to v0.1493.0; plan `docs/design/media-round-5-plan.md`):**
 - Relay: an item edited in place, files and a cover added and removed (`src/relay/media_edit.rs`, signed, the edit over its JSON exactly as sent); members-only moves every file; removing an item removes them all; downloads and views counted once a person a UTC day (`src/relay/media_counts.rs`, X-Real-IP, a key for members-only); `/media/<id>` served by the relay with Open Graph tags (`src/relay/media_page.rs`, routed by nginx); a licence per item (`data/media/licences.json`, `src/relay/media_licences.rs`); a keep undone only by the same or a higher role.
