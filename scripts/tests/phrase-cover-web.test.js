@@ -4,7 +4,8 @@
 //
 // Seen red 2026-10-16: with the window's blur not covering the words, "switching to another
 // window covers them" found all 24 still in the page; with the intro's step 1 writing its own word
-// grid again, "the intro's step 1 holds none of the words" found them in its HTML.
+// grid again, "the intro's step 1 holds none of the words" found them in its HTML; with the show
+// button a plain click again, "a click does not show them" found 24.
 
 const test = require("node:test");
 const assert = require("node:assert");
@@ -35,6 +36,8 @@ function fakePage() {
       get isConnected() { let e = el; while (e.parent) e = e.parent; return e === doc.body; },
       set textContent(t) { el.ownText = String(t); el.children = []; },
       get textContent() { return el.ownText + el.children.map((c) => c.textContent).join(" "); },
+      attrs: {},
+      setAttribute(k, v) { el.attrs[k] = String(v); },
       appendChild(c) { c.parent = el; el.children.push(c); return c; },
       append(...cs) { cs.forEach((c) => el.appendChild(c)); },
       replaceChildren() { el.children.forEach((c) => { c.parent = null; }); el.children = []; },
@@ -50,7 +53,12 @@ function fakePage() {
 }
 
 const cover = require(path.join(repo, "web/shared/phrase-cover.js"));
-const button = (host, text) => host.all().find((e) => e.tagName === "BUTTON" && e.textContent === text);
+// /shared/hold-confirm.js's holdToConfirm, as a stand-in: it keeps the seconds asked for and the
+// action a completed hold runs (a real hold is pointer events over 3 seconds).
+globalThis.holdToConfirm = (el, o) => { el.holdSeconds = o.seconds; el.completeHold = o.onConfirm; };
+const button = (host, text) => host.all().find((e) => e.tagName === "BUTTON" && e.textContent.trim() === text);
+/** Hold a show button to the end. */
+const holdToShow = (host, text) => button(host, text).completeHold();
 const wordsShown = (host) => PHRASE.split(" ").filter((w) => host.all().some((e) => e.className === "phrase-cover-word" && e.textContent === w)).length;
 
 test("the words are covered until shown, and cover themselves again", () => {
@@ -62,18 +70,22 @@ test("the words are covered until shown, and cover themselves again", () => {
   assert.equal(host.all().filter((e) => e.textContent === cover.WORDS.coveredWord).length, 24, "24 covered places");
   assert.ok(host.textContent.includes(cover.WORDS.warning), "the line saying when it is safe");
 
-  button(host, cover.WORDS.show).click();
-  assert.equal(wordsShown(host), 24, "Show the words shows all 24");
+  const show = button(host, cover.WORDS.show);
+  show.click();
+  assert.equal(wordsShown(host), 0, "a click does not show them");
+  assert.equal(show.holdSeconds, 3, "the button is held for 3 seconds");
+  holdToShow(host, cover.WORDS.show);
+  assert.equal(wordsShown(host), 24, "a full hold shows all 24");
   page.fire("window", "blur");
   assert.equal(wordsShown(host), 0, "switching to another window covers them");
 
-  button(host, cover.WORDS.show).click();
+  holdToShow(host, cover.WORDS.show);
   page.doc.visibilityState = "hidden";
   page.fire("document", "visibilitychange");
   assert.equal(wordsShown(host), 0, "a hidden tab covers them");
   page.doc.visibilityState = "visible";
 
-  button(host, cover.WORDS.show).click();
+  holdToShow(host, cover.WORDS.show);
   button(host, cover.WORDS.hide).click();
   assert.equal(wordsShown(host), 0, "Hide the words covers them");
 
@@ -94,6 +106,8 @@ test("the device-link code is covered until shown, and drawn into the page", () 
   assert.equal(drawnInPage, null, "the code is not drawn while covered");
   assert.ok(host.textContent.includes(cover.WORDS.codeHidden) && host.textContent.includes(cover.WORDS.codeWarning));
   button(host, cover.WORDS.showCode).click();
+  assert.equal(drawnInPage, null, "a click does not show it");
+  holdToShow(host, cover.WORDS.showCode);
   assert.equal(drawnInPage, true, "Show the code draws it, already in the page (its QR is found by id)");
   page.fire("window", "blur");
   assert.ok(!host.all().some((e) => e.tagName === "CANVAS"), "switching windows takes it off the page");
@@ -115,6 +129,23 @@ test("the intro's step 1 holds none of the words until Show the words", () => {
   const overlay = { querySelector: (sel) => (sel === "#ob-phrase-cover" ? host : null) };
   ctx.wireStep1(overlay, PHRASE);
   assert.equal(host.all().filter((e) => e.textContent === cover.WORDS.coveredWord).length, 24, "covered in place");
-  button(host, cover.WORDS.show).click();
-  assert.equal(wordsShown(host), 24, "and shown on Show the words");
+  holdToShow(host, cover.WORDS.show);
+  assert.equal(wordsShown(host), 24, "and shown once the button is held");
+});
+
+test("without the hold helper the words cannot be shown at all", () => {
+  const kept = globalThis.holdToConfirm;
+  delete globalThis.holdToConfirm;
+  try {
+    const page = fakePage();
+    const host = page.doc.body.appendChild(page.doc.createElement("div"));
+    cover.words(host, PHRASE);
+    const show = button(host, cover.WORDS.show);
+    assert.equal(show.disabled, true, "the button is off");
+    assert.equal(show.title, cover.WORDS.holdMissing, "and says why");
+    show.click();
+    assert.equal(wordsShown(host), 0, "and nothing shows");
+  } finally {
+    globalThis.holdToConfirm = kept;
+  }
 });

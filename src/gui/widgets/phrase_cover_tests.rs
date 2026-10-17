@@ -59,14 +59,26 @@ fn click(pos: egui::Pos2) -> [Vec<egui::Event>; 2] {
     [vec![egui::Event::PointerMoved(pos), button(true)], vec![button(false)]]
 }
 
+/// Press at `pos`, keep holding for `seconds` of passes (egui's default 1/60 s each), let go.
+fn hold_for(ctx: &egui::Context, pos: egui::Pos2, seconds: f32, mut draw: impl FnMut(&egui::Context)) {
+    let button = |pressed| egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: egui::Modifiers::default() };
+    pass(ctx, true, vec![egui::Event::PointerMoved(pos), button(true)], &mut draw);
+    for _ in 0..(seconds * 60.0).ceil() as usize {
+        pass(ctx, true, vec![], &mut draw);
+    }
+    pass(ctx, true, vec![button(false)], &mut draw);
+}
+
 /// COVERED UNTIL SHOWN, AND COVERED AGAIN (operator, 2026-10-16: livestreamers and people signing
 /// up in public must not put their recovery phrase on screen by accident). The words start
 /// covered (not drawn at all: dots in their place, and the line saying when it is safe); Show the
-/// words shows them; they cover themselves when the window is no longer in front, when their
+/// words, held for 3 seconds (a click never), shows them; they cover themselves when the window is no longer in front, when their
 /// screen is left and comes back, and on Hide the words.
 ///
 /// Seen red 2026-10-16 with `lifted` ignoring the window's focus: "switching to another window
 /// covers them" found all 24 words still drawn.
+/// And with a plain click button in place of the 3-second hold: "a click does not show them"
+/// found 24.
 #[test]
 fn the_words_are_covered_until_shown_and_cover_themselves_again() {
     let ctx = egui::Context::default();
@@ -84,19 +96,22 @@ fn the_words_are_covered_until_shown_and_cover_themselves_again() {
     assert_eq!(texts(&out).iter().filter(|t| t.ends_with(COVERED_WORD)).count(), 24, "24 covered places");
     assert!(texts(&out).iter().any(|t| t == WARNING), "the line saying when it is safe");
 
+    // A click never shows them, nor a hold let go early: only the full 3-second hold.
     let [press, release] = click(at(&out, SHOW));
     pass(&ctx, true, press, draw);
     pass(&ctx, true, release, draw);
-    assert_eq!(shown_after(&ctx, true, vec![]), 24, "Show the words shows all 24");
+    assert_eq!(shown_after(&ctx, true, vec![]), 0, "a click does not show them");
+    hold_for(&ctx, at(&out, SHOW), 2.0, draw);
+    assert_eq!(shown_after(&ctx, true, vec![]), 0, "nor two seconds of holding");
+    hold_for(&ctx, at(&out, SHOW), HOLD_SECONDS + 0.2, draw);
+    assert_eq!(shown_after(&ctx, true, vec![]), 24, "holding for 3 seconds shows all 24");
 
     assert_eq!(shown_after(&ctx, false, vec![]), 0, "switching to another window covers them");
     assert_eq!(shown_after(&ctx, true, vec![]), 0, "and they stay covered when the window comes back");
 
     // Shown, then the screen is left for a pass and comes back: covered.
     let out = pass(&ctx, true, vec![], draw);
-    let [press, release] = click(at(&out, SHOW));
-    pass(&ctx, true, press, draw);
-    pass(&ctx, true, release, draw);
+    hold_for(&ctx, at(&out, SHOW), HOLD_SECONDS + 0.2, draw);
     assert_eq!(shown_after(&ctx, true, vec![]), 24);
     pass(&ctx, true, vec![], |ctx: &egui::Context| {
         egui::CentralPanel::default().show(ctx, |ui| ui.label("another screen"));
@@ -105,9 +120,7 @@ fn the_words_are_covered_until_shown_and_cover_themselves_again() {
 
     // Shown, then Hide the words.
     let out = pass(&ctx, true, vec![], draw);
-    let [press, release] = click(at(&out, SHOW));
-    pass(&ctx, true, press, draw);
-    pass(&ctx, true, release, draw);
+    hold_for(&ctx, at(&out, SHOW), HOLD_SECONDS + 0.2, draw);
     let out = pass(&ctx, true, vec![], draw);
     assert_eq!(words_on_screen(&out, &phrase), 24);
     let [press, release] = click(at(&out, HIDE));
@@ -142,8 +155,11 @@ fn the_device_link_code_is_covered_until_shown() {
     let [press, release] = click(at(&out, SHOW_CODE));
     pass(&ctx, true, press, draw);
     pass(&ctx, true, release, draw);
+    pass(&ctx, true, vec![], draw);
+    assert!(!drawn.get(), "a click does not show it");
+    hold_for(&ctx, at(&out, SHOW_CODE), HOLD_SECONDS + 0.2, draw);
     let out = pass(&ctx, true, vec![], draw);
-    assert!(drawn.get() && texts(&out).iter().any(|t| t == "THE CODE"), "Show the code shows it");
+    assert!(drawn.get() && texts(&out).iter().any(|t| t == "THE CODE"), "holding for 3 seconds shows it");
     drawn.set(false);
     pass(&ctx, false, vec![], draw);
     assert!(!drawn.get(), "and switching windows covers it");
@@ -175,5 +191,12 @@ fn first_run_shows_the_backup_card_with_the_words_covered() {
     let [press, release] = click(at(&out, SHOW));
     frame(press);
     frame(release);
-    assert_eq!(words_on_screen(&frame(vec![]), &phrase), 24, "until Show the words");
+    assert_eq!(words_on_screen(&frame(vec![]), &phrase), 0, "a click does not show them");
+    let [press, release] = click(at(&out, SHOW));
+    frame(press);
+    for _ in 0..((HOLD_SECONDS + 0.2) * 60.0).ceil() as usize {
+        frame(vec![]);
+    }
+    frame(release);
+    assert_eq!(words_on_screen(&frame(vec![]), &phrase), 24, "until held for 3 seconds");
 }

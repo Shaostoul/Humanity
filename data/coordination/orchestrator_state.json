@@ -341,6 +341,11 @@
       "date": "2026-10-16",
       "decision": "Released v0.1506.0: the recovery phrase and the device-link code start covered everywhere on both apps (shared widgets: src/gui/widgets/phrase_cover.rs, web/shared/phrase-cover.js), shown only on Show the words / Show the code under a streaming-and-onlookers line, covered again on window or tab switch and whenever their screen reopens; covered words are never drawn or put in the DOM.",
       "why": "Operator, 2026-10-16: livestreamers and people signing up in public could reveal their phrase by accident on first run. Safe by default (memory feedback_protect_users_safe_defaults): one rule everywhere rather than only the intro, and the device-link QR included because a QR on a stream is scannable from the recording."
+    },
+    {
+      "date": "2026-10-16",
+      "decision": "Released v0.1507.0: the recovery phrase's and device-link code's show buttons are a 3-second hold (native hold_to_confirm_button, web holdToConfirm); a click does nothing; hide stays one click. On the web, a page without the hold helper disables the button rather than falling back to a click.",
+      "why": "Operator, 2026-10-16: so it can't be an accidental click, like the other hold buttons. Fail safe on the web: no hold helper means no way to show, never a click fallback."
     }
   ],
   "active_scopes_to_avoid": [

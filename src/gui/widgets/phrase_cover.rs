@@ -17,16 +17,23 @@ use egui::{RichText, Ui};
 
 /// The line beside covered words.
 pub const WARNING: &str = "Only show these when nobody can see your screen: not while streaming, recording or sharing your screen, and not where people can look over your shoulder.";
-/// The button that shows the words.
-pub const SHOW: &str = "Show the words";
+/// The button that shows the words: held for `HOLD_SECONDS`, so a stray click never shows them
+/// (operator, 2026-10-16: "a 3 second hold", like the app's other hold-to-confirm buttons).
+pub const SHOW: &str = "Hold to show the words";
+/// What a show button says while it is held.
+pub const HOLDING: &str = "Keep holding...";
+/// How long a show button is held before it shows.
+pub const HOLD_SECONDS: f32 = 3.0;
+/// The show buttons' tooltip.
+pub const HOLD_TIP: &str = "Press and hold for 3 seconds, so a stray click never shows them.";
 /// The button that covers them again.
 pub const HIDE: &str = "Hide the words";
 /// The line under shown words or a shown code.
 pub const COVERS_ITSELF: &str = "They cover themselves again when you switch to another window.";
 /// The line beside a covered device-link code.
 pub const CODE_WARNING: &str = "Only show this code when nobody can see your screen or record it: anyone who scans it, even from a recording, gets your account.";
-/// The button that shows the code.
-pub const SHOW_CODE: &str = "Show the code";
+/// The button that shows the code, held like `SHOW`.
+pub const SHOW_CODE: &str = "Hold to show the code";
 /// The button that covers it again.
 pub const HIDE_CODE: &str = "Hide the code";
 /// What a covered word shows: as wide as the longest word on the list (8 letters).
@@ -40,6 +47,17 @@ fn lifted(ui: &Ui, id: egui::Id) -> bool {
     let pass = ui.ctx().cumulative_pass_nr();
     let (up, last) = ui.ctx().data(|d| d.get_temp::<(bool, u64)>(id)).unwrap_or((false, 0));
     up && ui.input(|i| i.focused) && last + 1 >= pass
+}
+
+/// A show button: press and hold for `HOLD_SECONDS` (the ring fills; letting go early starts
+/// over). True on the pass the hold completes. The same hold-to-confirm button the app's other
+/// guarded actions use (chat.rs `hold_to_confirm_button`), kept to a button's width.
+fn hold_to_show(ui: &mut Ui, theme: &Theme, id: egui::Id, label: &str) -> bool {
+    ui.scope(|ui| {
+        ui.set_max_width(280.0);
+        crate::gui::pages::chat::hold_to_confirm_button(ui, theme, id.with("hold"), label, HOLDING, HOLD_SECONDS, HOLD_TIP)
+    })
+    .inner
 }
 
 /// Keep the cover's state for the next pass.
@@ -74,7 +92,7 @@ pub fn words(ui: &mut Ui, theme: &Theme, id_salt: &str, phrase: &str) {
     } else {
         ui.label(RichText::new(WARNING).size(theme.font_size_small).color(theme.warning()));
         ui.add_space(theme.spacing_xs);
-        if widgets::primary_button(ui, theme, SHOW) {
+        if hold_to_show(ui, theme, id, SHOW) {
             up = true;
         }
     }
@@ -100,7 +118,7 @@ pub fn code(ui: &mut Ui, theme: &Theme, id_salt: &str, side: f32, draw: impl FnO
         ui.add_space(theme.spacing_xs);
         ui.label(RichText::new(CODE_WARNING).size(theme.font_size_small).color(theme.warning()));
         ui.add_space(theme.spacing_xs);
-        if widgets::primary_button(ui, theme, SHOW_CODE) {
+        if hold_to_show(ui, theme, id, SHOW_CODE) {
             up = true;
         }
     }

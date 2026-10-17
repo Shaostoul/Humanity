@@ -22,16 +22,23 @@
 
   const WORDS = Object.freeze({
     warning: 'Only show these when nobody can see your screen: not while streaming, recording or sharing your screen, and not where people can look over your shoulder.',
-    show: 'Show the words',
+    // Held for HOLD_SECONDS, so a stray click never shows them (2026-10-16: "a 3 second hold",
+    // like the other hold-to-confirm buttons, /shared/hold-confirm.js).
+    show: 'Hold to show the words',
     hide: 'Hide the words',
     coversItself: 'They cover themselves again when you switch to another window.',
     codeWarning: 'Only show this code when nobody can see your screen or record it: anyone who scans it, even from a recording, gets your account.',
-    showCode: 'Show the code',
+    showCode: 'Hold to show the code',
+    holdTip: 'Press and hold for 3 seconds, so a stray click never shows them.',
+    holdMissing: 'This page could not load its hold-to-show button, so nothing is shown. Reload the page.',
     hideCode: 'Hide the code',
     // As wide as the longest word on the list (8 letters).
     coveredWord: '••••••••',
     codeHidden: 'Code hidden',
   });
+
+  /** How long a show button is held before it shows. */
+  const HOLD_SECONDS = 3;
 
   const LINE_STYLE = 'font-size:.75rem;line-height:1.5;margin:var(--space-sm) 0;';
   const BUTTON_STYLE = 'border-radius:var(--radius);padding:var(--space-sm) var(--space-xl);font-size:.8rem;cursor:pointer;';
@@ -59,11 +66,26 @@
       const button = doc.createElement('button');
       button.type = 'button';
       button.className = up ? 'phrase-cover-hide' : 'phrase-cover-show';
-      button.textContent = up ? o.hideLabel : o.showLabel;
-      button.style.cssText = BUTTON_STYLE + (up
-        ? 'background:none;border:1px solid var(--border);color:var(--text-muted);'
-        : 'background:var(--accent);border:none;color:var(--text-on-accent);font-weight:700;');
-      button.addEventListener('click', () => { up = !up; render(); });
+      if (up) {
+        // Hiding is always safe: one click.
+        button.textContent = o.hideLabel;
+        button.style.cssText = BUTTON_STYLE + 'background:none;border:1px solid var(--border);color:var(--text-muted);';
+        button.addEventListener('click', () => { up = false; render(); });
+      } else {
+        // Showing is held for HOLD_SECONDS: the ring fills, letting go early starts over, and a
+        // click does nothing (holdToConfirm, /shared/hold-confirm.js, whose CSS draws the ring).
+        const ring = doc.createElement('span');
+        ring.className = 'hold-confirm-ring';
+        ring.setAttribute('aria-hidden', 'true');
+        const label = doc.createElement('span');
+        label.textContent = o.showLabel;
+        button.append(ring, label);
+        button.title = WORDS.holdTip;
+        button.style.cssText = BUTTON_STYLE + 'display:inline-flex;align-items:center;gap:8px;background:var(--accent);border:none;color:var(--text-on-accent);font-weight:700;user-select:none;-webkit-user-select:none;touch-action:none;';
+        const hold = root.holdToConfirm;
+        if (typeof hold === 'function') hold(button, { seconds: HOLD_SECONDS, onConfirm: () => { up = true; render(); } });
+        else { button.disabled = true; button.title = WORDS.holdMissing; }
+      }
       if (up) host.append(button, line);
       else host.append(line, button);
     }
@@ -129,7 +151,7 @@
     return cover(host, { covered, shown: draw, warning: WORDS.codeWarning, showLabel: WORDS.showCode, hideLabel: WORDS.hideCode });
   }
 
-  const api = { words, code, WORDS };
+  const api = { words, code, WORDS, HOLD_SECONDS };
   root.HosPhraseCover = api;
   if (typeof module === 'object' && module && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);
