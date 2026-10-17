@@ -578,6 +578,9 @@ fn indented_note(ui: &mut egui::Ui, text: RichText) {
     });
 }
 
+/// The button that closes the first-run backup card once the words are written down.
+pub(crate) const FIRST_RUN_DONE: &str = "I wrote them down";
+
 fn draw_step_identity(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     ui.vertical_centered(|ui| {
         ui.add_space(20.0);
@@ -624,7 +627,7 @@ fn draw_step_identity(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 // only backup of their account (first-run friction pass).
                 state.settings.seed_phrase_visible = true;
                 state.settings.seed_phrase_recovery_status =
-                    "Identity created. Your 24 recovery words are below -- write them down before you continue.".to_string();
+                    "Identity created. Your 24 recovery words are below, covered until you show them: write them down before you continue.".to_string();
                 state.passphrase_needed = true;
                 state.passphrase_mode = crate::gui::PassphraseMode::SetNew;
             }
@@ -668,26 +671,16 @@ fn draw_step_identity(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 .color(theme.text_secondary()),
             );
             ui.add_space(8.0);
+            // Covered until the person shows them (widgets/phrase_cover.rs): a streamer showing
+            // people what first run looks like must not put their words on screen by accident.
             ui.horizontal(|ui| {
                 ui.add_space(40.0);
-                egui::Grid::new("onboarding_seed_words").num_columns(4).spacing([18.0, 4.0]).show(ui, |ui| {
-                    for (i, w) in words.split_whitespace().enumerate() {
-                        ui.label(
-                            RichText::new(format!("{:>2}. {w}", i + 1))
-                                .monospace()
-                                .size(13.0)
-                                .color(theme.text_primary()),
-                        );
-                        if (i + 1) % 4 == 0 {
-                            ui.end_row();
-                        }
-                    }
-                });
+                ui.vertical(|ui| widgets::phrase_cover::words(ui, theme, "first_run_phrase", &words));
             });
             ui.add_space(8.0);
             ui.horizontal(|ui| {
                 ui.add_space(40.0);
-                if widgets::secondary_button(ui, theme, "I wrote them down -- hide the words") {
+                if widgets::secondary_button(ui, theme, FIRST_RUN_DONE) {
                     state.settings.seed_phrase_visible = false;
                     state.settings.seed_phrase_recovery_status =
                         "Good. Keep that paper somewhere safe -- you can see the words again any time in Settings -> Identity.".to_string();

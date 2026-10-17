@@ -406,12 +406,10 @@ async function openLinkDeviceModal() {
       <p style="font-size:.75rem;color:var(--accent);background:rgba(240,165,0,.08);border:1px solid rgba(240,165,0,.2);border-radius:var(--radius);padding:var(--space-xl) var(--space-lg);margin-bottom:var(--space-xl);line-height:1.55">
         ⚠️ <strong>Private:</strong> this QR code contains your private key. Only scan it in a physically private location. Close this modal immediately after use.
       </p>
-      <canvas id="link-device-qr" style="display:block;margin:0 auto var(--space-lg);border-radius:var(--radius);background:#fff;padding:6px;max-width:220px;width:100%;height:auto;"></canvas>
-      <p style="font-size:.72rem;color:var(--text-muted);text-align:center;margin-bottom:var(--space-lg)">Scan with your new device's camera. Or copy the JSON below.</p>
-      <textarea id="link-device-json" readonly rows="5"
-        style="width:100%;background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-xl);font-size:.7rem;color:var(--text-muted);font-family:monospace;resize:none;margin-bottom:var(--space-lg)">${json.replace(/</g,'&lt;')}</textarea>
+      <!-- The QR and its text carry the account: covered until Show the code (/shared/phrase-cover.js). -->
+      <div id="link-device-cover" style="margin-bottom:var(--space-lg)"></div>
       <div style="display:flex;gap:var(--space-xl);justify-content:flex-end">
-        <button onclick="navigator.clipboard.writeText(document.getElementById('link-device-json').value).then(()=>this.textContent='Copied!')"
+        <button id="link-device-copy"
           style="background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);padding:var(--space-md) var(--space-xl);font-size:.82rem;cursor:pointer;">📋 Copy JSON</button>
         <button onclick="document.getElementById('link-device-overlay').remove()"
           style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);padding:var(--space-md) var(--space-xl);font-size:.82rem;cursor:pointer;">Close</button>
@@ -419,6 +417,22 @@ async function openLinkDeviceModal() {
     </div>`;
   document.body.appendChild(overlay);
   overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  // Copy works covered or not: copying shows nothing on screen.
+  const copyBtn = overlay.querySelector('#link-device-copy');
+  copyBtn.addEventListener('click', () => navigator.clipboard.writeText(json).then(() => { copyBtn.textContent = 'Copied!'; }));
+  // The code, covered until Show the code (2026-10-16): a QR on a livestream can be scanned from
+  // the recording. Without the cover script nothing of it is drawn.
+  const host = overlay.querySelector('#link-device-cover');
+  if (window.HosPhraseCover) window.HosPhraseCover.code(host, (body) => drawLinkDeviceCode(body, json, linkUrl));
+}
+
+/** The device-link QR and its text, into `body` (shown only through the cover above). */
+function drawLinkDeviceCode(body, json, linkUrl) {
+  body.innerHTML = `
+      <canvas id="link-device-qr" style="display:block;margin:0 auto var(--space-lg);border-radius:var(--radius);background:#fff;padding:6px;max-width:220px;width:100%;height:auto;"></canvas>
+      <p style="font-size:.72rem;color:var(--text-muted);text-align:center;margin-bottom:var(--space-lg)">Scan with your new device's camera. Or copy the JSON below.</p>
+      <textarea id="link-device-json" readonly rows="5"
+        style="width:100%;background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-xl);font-size:.7rem;color:var(--text-muted);font-family:monospace;resize:none;margin-bottom:var(--space-sm)">${json.replace(/</g,'&lt;')}</textarea>`;
   // Render QR code using the shared qrcode.js helper from chat-p2p.js.
   // Falls back to text if qrcode.js isn't available (e.g. pages other than /chat).
   if (typeof renderQrCode === 'function') {

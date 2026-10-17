@@ -491,6 +491,10 @@ async function loadChat(opts = {}) {
   run("chat/chat-protected.js");
   run("chat/chat-onboarding.js");
   run("chat/chat-p2p.js");
+  // The cover the phrase goes through (/shared/phrase-cover.js, 2026-10-16), as a stand-in that
+  // keeps what it was handed: these tests are about when the phrase window opens; the cover itself
+  // (covered until Show the words) is tested in phrase-cover-web.test.js.
+  ctx.HosPhraseCover = { words: (host, phrase) => { host.coveredPhrase = phrase; }, code: (host) => { host.coveredCode = true; } };
   for (const name of ["hosIcon", "holdToConfirm", "holdConfirm", "updateStats"]) {
     if (typeof ctx[name] !== "function") ctx[name] = () => "";
   }
@@ -1490,10 +1494,14 @@ test("index.html loads protected.js before chat-privacy.js, and every gate sits 
 
 const OTHER_KEY = "e5".repeat(32);
 const bodyKids = (chat, id) => kidsOf(chat.el("__body")).filter((e) => e.id === id);
-/** How many times the 24 words of `seed` are on screen in the chat's recovery phrase box. */
+/** How many times the chat's recovery phrase box opened with the 24 words of `seed`: handed to
+ *  the cover, which shows them on Show the words (2026-10-16), and never written into the box's
+ *  own markup, where a screen capture would catch them. */
 function phraseShown(chat, seed) {
   const words = phraseOf(seed, chat.ctx.BIP39_ENGLISH);
-  return bodyKids(chat, "seed-phrase-overlay").filter((e) => words.every((w) => String(e.innerHTML).includes(">" + w + "</span>"))).length;
+  return bodyKids(chat, "seed-phrase-overlay").filter((e) =>
+    e.querySelector("#sp-phrase-cover").coveredPhrase === words.join(" ") &&
+    !words.some((w) => String(e.innerHTML).includes(">" + w + "</span>"))).length;
 }
 
 /** Reopen the onboarding guide (Help, Getting Started) and record what its steps were built with. */
@@ -1597,7 +1605,8 @@ test("showing the recovery phrase from the chat needs the PIN while it is on, an
   const guideOff = await reopenGuide(off);
   assert.equal(guideOff.first.locked, false, "off: the guide's phrase step is not locked");
   assert.equal(guideOff.first.mnemonic, phraseOf(SEED, off.ctx.BIP39_ENGLISH).join(" "), "off: it holds the phrase");
-  assert.ok(guideOff.step1.includes(">" + phraseOf(SEED, off.ctx.BIP39_ENGLISH)[5] + "</span>"), "off: and step 1 shows it");
+  assert.ok(guideOff.step1.includes('id="ob-phrase-cover"'), "off: step 1 has the place for the words, covered until shown");
+  for (const w of phraseOf(SEED, off.ctx.BIP39_ENGLISH)) assert.ok(!guideOff.step1.includes(">" + w + "</span>"), "off: and none of them in its markup");
   const guideOn = await reopenGuide(chat);
   assert.equal(guideOn.first.locked, true, "on: the guide's phrase step is locked");
   assert.equal(guideOn.first.mnemonic, null, "on: it holds no phrase");
@@ -1628,6 +1637,8 @@ function loadSettingsPage(storage, presets) {
     generateMnemonic: async () => { calls.mnemonic++; return PAGE_WORDS.join(" "); },
     exportEncryptedIdentityBackup: async () => { calls.backup++; },
     checkBackupStatus: () => {},
+    // The cover (/shared/phrase-cover.js), as a stand-in that keeps what it was handed.
+    HosPhraseCover: { words: (host, phrase) => { calls.covered = phrase; } },
     fetch: async (url) => { calls.fetches.push(String(url)); return { ok: true, json: async () => clone(presets || SHIPPED_PRESETS) }; },
   };
   vm.createContext(ctx);
@@ -1635,7 +1646,8 @@ function loadSettingsPage(storage, presets) {
   const body = () => kidsOf(ctx.document.getElementById("__body"));
   return {
     ctx, calls, body,
-    phraseShown: () => body().some((e) => String(e.innerHTML).includes(">" + PAGE_WORDS[7] + "</span>")),
+    // Opened with the words handed to the cover, and none of them in the window's own markup.
+    phraseShown: () => calls.covered === PAGE_WORDS.join(" ") && !body().some((e) => String(e.innerHTML).includes(">" + PAGE_WORDS[7] + "</span>")),
     backupAsked: () => body().some((e) => String(e.innerHTML).includes("set-bkp-pass")),
     lines: () => body().map((e) => e.textContent).filter(Boolean),
   };

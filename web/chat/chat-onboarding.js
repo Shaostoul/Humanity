@@ -170,15 +170,11 @@ function step1(mnemonic, phraseLocked) {
   `;
   }
   const words = mnemonic ? mnemonic.trim().split(/\s+/) : [];
+  // The words are never written into this HTML: wireStep1 puts them in #ob-phrase-cover, covered
+  // until the person presses Show the words (/shared/phrase-cover.js, 2026-10-16), so a
+  // livestream or a stranger looking on never sees them by accident.
   const wordGrid = words.length === 24
-    ? `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:var(--space-sm);margin:var(--space-lg) 0 var(--space-lg)">
-        ${words.map((w, i) => `
-          <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);
-                      padding:var(--space-sm) var(--space-md);display:flex;align-items:baseline;gap:var(--space-sm)">
-            <span style="font-size:.58rem;color:var(--text-muted);min-width:15px;text-align:right">${i+1}.</span>
-            <span style="font-size:.8rem;color:var(--accent);font-weight:600">${w}</span>
-          </div>`).join('')}
-      </div>`
+    ? `<div id="ob-phrase-cover" style="margin:var(--space-lg) 0"></div>`
     : `<div style="background:var(--bg-secondary);border:1px dashed var(--border);border-radius:var(--radius);padding:var(--space-xl);
                    font-size:.8rem;color:var(--text-muted);margin:var(--space-lg) 0;text-align:center">
          Recovery phrase unavailable in this browser. Use <strong>Encrypted Backup</strong> instead.
@@ -250,6 +246,9 @@ function step1(mnemonic, phraseLocked) {
 }
 
 function wireStep1(overlay, mnemonic) {
+  // The words, covered until shown (each time this step is drawn, so Back then Next covers them).
+  const coverHost = overlay.querySelector('#ob-phrase-cover');
+  if (coverHost && mnemonic && window.HosPhraseCover) window.HosPhraseCover.words(coverHost, mnemonic);
   // Paper copy
   const copyBtn = overlay.querySelector('#ob-copy-btn');
   const copyMsg = overlay.querySelector('#ob-copy-msg');

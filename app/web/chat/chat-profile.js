@@ -900,13 +900,8 @@ async function openSeedPhraseModal() {
         Store at least one copy somewhere safe. <strong style="color:var(--danger)">Never photograph this screen.</strong>
       </p>
 
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:var(--space-md);margin-bottom:var(--space-xl)">
-        ${words.map((w, i) => `
-          <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-md) var(--space-md);display:flex;align-items:baseline;gap:var(--space-sm)">
-            <span style="font-size:.6rem;color:var(--text-muted);min-width:16px;text-align:right">${i+1}.</span>
-            <span style="font-size:.86rem;color:var(--accent);font-weight:600">${w}</span>
-          </div>`).join('')}
-      </div>
+      <!-- The words go here covered, until Show the words (/shared/phrase-cover.js). -->
+      <div id="sp-phrase-cover" style="margin-bottom:var(--space-xl)"></div>
 
       <p style="font-size:.7rem;color:var(--text-muted);margin:0 0 var(--space-lg)">Pick at least one storage method:</p>
 
@@ -959,6 +954,8 @@ async function openSeedPhraseModal() {
   `;
   document.body.appendChild(overlay);
   overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  // The words, covered until Show the words (/shared/phrase-cover.js, 2026-10-16).
+  if (window.HosPhraseCover) window.HosPhraseCover.words(overlay.querySelector('#sp-phrase-cover'), words.join(' '));
 
   // Wire copy buttons and encrypted download
   const _mn = mnemonic;

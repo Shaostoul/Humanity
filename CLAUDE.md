@@ -653,7 +653,7 @@ which was split into five files, and omitted nine that exist). As of 2026-10-12 
 `/shared/shell.js` → `/shared/server-strip.js` → `/shared/defaults.js` → `/shared/settings.js` → `bip39-english.js` →
 `/shared/friend-pass.js` → `/shared/reach.js` → `/shared/block.js` → `/shared/report.js` →
 `/shared/group-report.js` →
-`/shared/warnings.js` → `/shared/protected.js` → `/shared/admin-erase.js` →
+`/shared/warnings.js` → `/shared/protected.js` → `/shared/phrase-cover.js` → `/shared/admin-erase.js` →
 `/shared/strip-metadata.js` → `/shared/upload-clean.js` → `/shared/files-in-messages.js` →
 `/shared/kept-files.js` → `/shared/blake3.js` → `/shared/file-transfer.js` →
 `/shared/profile-changes.js` → `/shared/profile-copy.js` → `crypto.js` →

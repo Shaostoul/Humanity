@@ -440,6 +440,11 @@ Post-quantum cryptographic keypair (Dilithium3 / ML-DSA-65, FIPS 204) IS your id
 - Server: `src/relay/relay.rs` (signature verification), `src/relay/core/pq_crypto.rs`
 
 ### BIP39 Recovery Phrase
+Since v0.1506.0 the 24 words, and the device-link code that carries the same key, start covered
+wherever they appear (first run, Settings, the chat, the settings page, the device-link window) and
+show only on "Show the words" / "Show the code", under a line about streaming and onlookers; they
+cover themselves again on switching windows or tabs and each time their screen opens. Covered words
+are never drawn. Native `src/gui/widgets/phrase_cover.rs`, web `web/shared/phrase-cover.js`.
 24-word backup phrase for identity recovery.
 - Web: `web/chat/crypto.js` (mnemonic generation/restoration)
 

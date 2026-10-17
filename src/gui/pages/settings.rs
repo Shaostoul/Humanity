@@ -649,7 +649,7 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
                 state.apply_pq_identity();
                 state.settings.seed_phrase_visible = true;
                 state.settings.seed_phrase_recovery_status =
-                    "New identity generated. WRITE DOWN the 24 words below, they are the ONLY way to recover this account.".to_string();
+                    "New identity generated. WRITE DOWN the 24 words below (covered until you show them), they are the ONLY way to recover this account.".to_string();
                 // Prompt to encrypt the new seed with a passphrase.
                 state.passphrase_needed = true;
                 state.passphrase_mode = crate::gui::PassphraseMode::SetNew;
@@ -684,10 +684,9 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
                     crate::config::decrypt_private_key(&enc, &salt, pass, iters).is_ok()
                 })
             } else {
-                if widgets::secondary_button(ui, theme, if state.settings.seed_phrase_visible { "Hide Recovery Phrase" } else { "Show Recovery Phrase" }) {
-                    state.settings.seed_phrase_visible = !state.settings.seed_phrase_visible;
-                }
-                state.settings.seed_phrase_visible
+                // No passphrase vault yet (a just-made identity): the box is shown, and the
+                // words in it stay covered until the person shows them (phrase_cover).
+                true
             };
             if reveal {
                 ui.add_space(theme.spacing_xs);
@@ -717,13 +716,9 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
                         // (letterform novelty is not: pooled effect g = -0.04
                         // across 15 studies), and egui has exposed it all
                         // along. See docs/design/typography.md.
-                        ui.label(
-                            RichText::new(&phrase)
-                                .monospace()
-                                .extra_letter_spacing(0.6)
-                                .color(theme.warning())
-                                .size(theme.font_size_small),
-                        );
+                        // Covered until the person shows them, every time this opens
+                        // (widgets/phrase_cover.rs, 2026-10-16: livestreams, public places).
+                        widgets::phrase_cover::words(ui, theme, "settings_phrase", &phrase);
                         ui.add_space(theme.spacing_xs);
                         if widgets::secondary_button(ui, theme, "Copy") {
                             ui.ctx().copy_text(phrase.clone());
@@ -779,7 +774,11 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
                         }
                         if let Some((_, tex)) = &state.link_device_qr {
                             ui.add_space(theme.spacing_xs);
-                            ui.image(egui::load::SizedTexture::from_handle(tex));
+                            // The code carries the account: covered until shown, like the words.
+                            let side = tex.size_vec2().x;
+                            widgets::phrase_cover::code(ui, theme, "link_device_qr", side, |ui| {
+                                ui.image(egui::load::SizedTexture::from_handle(tex));
+                            });
                             ui.add_space(theme.spacing_xs);
                             ui.label(RichText::new("Anyone who scans this becomes you. Only show it to your own devices, in private.").color(theme.warning()).size(theme.font_size_small));
                         } else {
@@ -818,7 +817,7 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
                     state.apply_pq_identity();
                     state.settings.seed_phrase_visible = true;
                     state.settings.seed_phrase_recovery_status =
-                        "New identity generated. WRITE DOWN the 24 words above -- they are the ONLY backup.".to_string();
+                        "New identity generated. WRITE DOWN the 24 words above (covered until you show them): they are the ONLY backup.".to_string();
                     state.passphrase_needed = true;
                     state.passphrase_mode = crate::gui::PassphraseMode::SetNew;
                     // Drop the cached device-link QR so it rebuilds for the NEW identity.

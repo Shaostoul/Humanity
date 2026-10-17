@@ -746,7 +746,7 @@ savePref = function() { _origSavePref(); updateRangeLabels(); };
 // Version tag
 try {
   const vEl = document.getElementById('version-tag');
-  if (vEl) vEl.textContent = 'HumanityOS, v0.1505.0 · ' + new Date().getFullYear();
+  if (vEl) vEl.textContent = 'HumanityOS, v0.1506.0 · ' + new Date().getFullYear();
 } catch(e) {}
 
 // Inject hosIcon SVGs into action bar buttons
@@ -2089,13 +2089,11 @@ async function settingsOpenSeed() {
   var words = mnemonic.trim().split(/\s+/);
   var overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:8000;display:flex;align-items:center;justify-content:center;padding:var(--space-xl);box-sizing:border-box;';
-  var grid = words.map(function(w, i) {
-    return '<div style="background:#0f0f0f;border:1px solid #2a2a2a;border-radius:7px;padding:var(--space-md) var(--space-md);display:flex;align-items:baseline;gap:var(--space-sm)"><span style="font-size:.6rem;color:#444;min-width:16px;text-align:right">' + (i+1) + '.</span><span style="font-size:.86rem;color:var(--accent);font-weight:600">' + w + '</span></div>';
-  }).join('');
   overlay.innerHTML = '<div style="background:#181818;border:1px solid #2a2a2a;border-radius:14px;padding:1.75rem;width:100%;max-width:600px;color:#e0e0e0;max-height:90vh;overflow-y:auto;">' +
     '<h2 style="font-size:1rem;font-weight:700;color:var(--accent);margin:0 0 var(--space-sm)">🔑 Your 24-Word Recovery Phrase</h2>' +
     '<p style="font-size:.78rem;color:#e55;line-height:1.5;margin:0 0 var(--space-md)"><strong>Never screenshot this. Never share it. Anyone who has these words IS you.</strong></p>' +
-    '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:var(--space-md);margin-bottom:var(--space-xl)">' + grid + '</div>' +
+    // The words go here covered, until Show the words (/shared/phrase-cover.js, 2026-10-16).
+    '<div id="set-seed-cover" style="margin-bottom:var(--space-xl)"></div>' +
     '<div style="display:flex;gap:var(--space-md);flex-wrap:wrap;margin-bottom:var(--space-xl);">' +
     '<button id="set-seed-copy" style="background:none;border:1px solid #333;color:#aaa;border-radius:6px;padding:var(--space-sm) var(--space-xl);font-size:.75rem;cursor:pointer">📋 Copy to clipboard</button>' +
     '<span id="set-seed-msg" style="font-size:.7rem;color:#4ec87a;align-self:center;"></span>' +
@@ -2103,6 +2101,7 @@ async function settingsOpenSeed() {
     '<div style="display:flex;justify-content:flex-end"><button id="set-seed-done" style="background:var(--accent);color:#000;border:none;border-radius:7px;padding:var(--space-md) 1.4rem;font-size:.82rem;font-weight:700;cursor:pointer">Done</button></div>' +
     '</div>';
   document.body.appendChild(overlay);
+  if (typeof HosPhraseCover !== 'undefined') HosPhraseCover.words(overlay.querySelector('#set-seed-cover'), words.join(' '));
   overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
   overlay.querySelector('#set-seed-done').addEventListener('click', function() { overlay.remove(); localStorage.setItem('hos_vault_seed_nudge_dismissed', '1'); checkBackupStatus(); });
   overlay.querySelector('#set-seed-copy').addEventListener('click', function() {

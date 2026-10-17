@@ -704,6 +704,10 @@
        Node tests. After reach.js (it builds the one reach_set), before chat-privacy.js and every
        other chat script that asks it before a locked action. -->
   <script src="/shared/protected.js?v=3"></script>
+  <!-- phrase-cover.js: the recovery phrase and the device-link code start covered wherever they
+       appear, until the person shows them (2026-10-16: livestreams, signing up in public). Before
+       crypto.js (the device-link code), chat-profile.js and chat-onboarding.js. -->
+  <script src="/shared/phrase-cover.js?v=1"></script>
   <!-- admin-erase.js: an admin erases another person's data (10i, 2026-10-10): who is offered
        it, the name check, the frame, the receipt and the erased person's words, shared with Node
        tests. Before app.js (account_erased) and chat-ui.js (the member menu and its confirm). -->

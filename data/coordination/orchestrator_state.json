@@ -336,6 +336,11 @@
       "date": "2026-10-16",
       "decision": "Released v0.1505.0 (BUG-202): the desktop app refuses a recovery phrase whose BIP39 check fails, as the website did; the checksum-less fallback and src/net/bip39_wordlist.rs (its only user) are deleted. The web list is held to the bip39 crate's by a pinned SHA-256 (identity.rs WORDLIST_SHA256, checked by scripts/check-bip39-wordlists.js in CI) plus the official vectors. Both apps say the same plain words.",
       "why": "Found while answering the operator's brute-force question; he asked for it to be done in this session. One mistyped word silently restored an empty identity on the desktop. The fallback's premise (web writes a different checksum) was false: web writes the standard one, now pinned."
+    },
+    {
+      "date": "2026-10-16",
+      "decision": "Released v0.1506.0: the recovery phrase and the device-link code start covered everywhere on both apps (shared widgets: src/gui/widgets/phrase_cover.rs, web/shared/phrase-cover.js), shown only on Show the words / Show the code under a streaming-and-onlookers line, covered again on window or tab switch and whenever their screen reopens; covered words are never drawn or put in the DOM.",
+      "why": "Operator, 2026-10-16: livestreamers and people signing up in public could reveal their phrase by accident on first run. Safe by default (memory feedback_protect_users_safe_defaults): one rule everywhere rather than only the intro, and the device-link QR included because a QR on a stream is scannable from the recording."
     }
   ],
   "active_scopes_to_avoid": [
