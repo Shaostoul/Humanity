@@ -305,6 +305,7 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
 - DONE v0.1511.0: **drag and drop onto the window, the upload window that posts in chat, and the
   picker's List / Details / Pictures views** (operator, 2026-10-17). Follow-ups: the web chat page
   gets the same upload window as the Media page (being built), video previews in the Pictures view
+  (DONE v0.1515.0 on Windows, through its own decoders; elsewhere still the person's ffmpeg)
   (a frame through the person's ffmpeg), and a folder drop that offers the files inside.
 - DONE v0.1510.0: **every file shows its type, always** (operator, 2026-10-17: "so people ALWAYS
   know what file type they're looking at ... protect people inexperienced with technology and

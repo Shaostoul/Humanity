@@ -391,6 +391,11 @@
       "date": "2026-10-18",
       "decision": "v0.1514.0: Play here on a desktop chat video card (WebM always; MP4 where Windows decodes it; never a file on another website before Download), in its own window with sound (chat/public_files.rs draw_video_window, sync_video_sound). The Media page player moved into one shared widget, src/gui/widgets/video_view.rs (VideoView), used by both.",
       "why": "After v0.1513.0 the chat video card still said the app plays WebM only because of patents, untrue on Windows. One widget so the Media page and the chat play a video the same way (universal widgets rule); the website already plays a posted video inline with the browser's own <video>."
+    },
+    {
+      "date": "2026-10-18",
+      "decision": "v0.1515.0: the file picker's Pictures view previews videos by a frame a tenth of the way in (at most 5 s) through Windows Media Foundation (media::system::still_of; widgets/thumbnails.rs is_previewable). Your folders dispatched to a worktree builder (Media tab, private on-this-computer record of what was published from which file).",
+      "why": "The v0.1511.0 follow-up wanted video previews through the person's ffmpeg; Windows's own decoders now give them with nothing installed. Your folders is the operator's 2026-10-13 request; fingerprints (phase 2) are not built, so a local record marks files already put on a server."
     }
   ],
   "active_scopes_to_avoid": [

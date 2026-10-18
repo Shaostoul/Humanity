@@ -255,7 +255,7 @@ pub fn pictures(ui: &mut egui::Ui, theme: &Theme, entries: &[FsEntry], look: &Lo
 fn cell(ui: &mut egui::Ui, theme: &Theme, e: &FsEntry, look: &Look, width: f32, name_h: f32, alone: bool) -> Option<Act> {
     let ctx = ui.ctx().clone();
     let px = width * ctx.pixels_per_point();
-    let picture = !e.is_dir && super::thumbnails::is_picture(&e.name);
+    let picture = !e.is_dir && super::thumbnails::is_previewable(&e.name);
     // The preview's height: square, or, one across, the picture's own shape (a little shorter while
     // it is read).
     let mut preview_h = if alone { width * 0.6 } else { width };

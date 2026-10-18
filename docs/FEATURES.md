@@ -447,6 +447,10 @@ page's video now has sound (it played silent), with
 Mute; the engine hands it the mixer each frame (`media::sync_sound`). A new player shows its first
 picture at once, paused or not. Tests: `src/media/system_tests.rs` on
 `tests/fixtures/media/moving-box-h264-aac.mp4`, two needing a sound device run by hand.
+**Video previews in the file picker (v0.1515.0).** The Pictures view previews a video by one of its
+frames (a tenth of the way in, at most 5 s, past a fade from black) where Windows decodes it
+(`media::system::still_of`, `widgets/thumbnails.rs` `is_previewable`), on the same preview workers
+as pictures.
 **Play here for a video posted in chat (v0.1514.0).** A video card in a desktop chat room has Play
 here (WebM always, an MP4 where Windows decodes it; never a file on another website before Download):
 it plays in its own window with Pause, Start again, Mute, its sound and Close, its temporary copy

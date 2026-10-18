@@ -439,6 +439,23 @@ fn probe_here(path: &Path) -> Result<MediaInfo, MediaError> {
     })
 }
 
+/// One picture from the video at `path`, for a preview (the file picker's Pictures view,
+/// 2026-10-18): the frame a tenth of the way in, at most five seconds (past a fade in from black),
+/// decoded by Windows on the calling thread, which joins the apartment for it. None when Windows
+/// cannot decode it.
+pub fn still_of(path: &Path) -> Option<VideoFrame> {
+    let _apartment = Apartment::join().ok()?;
+    let mut video = VideoReader::open(path).ok()?;
+    let at = (duration_s(&video.reader) * 0.1).clamp(0.0, 5.0);
+    video.seek(at).ok()?;
+    while let Some((pts, sample)) = video.next().ok()? {
+        if pts + 1.0e-6 >= at {
+            return video.picture(pts, &sample).ok();
+        }
+    }
+    None
+}
+
 // ---------------------------------------------------------------------------
 // The picture
 // ---------------------------------------------------------------------------
