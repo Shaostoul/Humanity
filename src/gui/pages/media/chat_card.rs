@@ -385,10 +385,19 @@ fn fetch(state: &mut GuiState, id: i64) {
 /// The server answered item `id` for a card.
 pub fn on_answer(state: &mut GuiState, id: i64, result: Result<Value, api::Refusal>) {
     let card = match result {
-        Ok(v) => match api::parse_list(&v).items.into_iter().find(|i| i.id == id) {
-            Some(item) => CardState::Ready(item),
-            None => CardState::Missing,
-        },
+        Ok(v) => {
+            let answer = api::parse_list(&v);
+            // The server's names for its content labels, so a labelled card says "Flashing
+            // lights", not "flashing", before the Media page has been opened (a review,
+            // 2026-10-17). The Media page's own answer replaces them when it comes.
+            if state.media.list.labels.is_empty() {
+                state.media.list.labels = answer.labels.clone();
+            }
+            match answer.items.into_iter().find(|i| i.id == id) {
+                Some(item) => CardState::Ready(item),
+                None => CardState::Missing,
+            }
+        }
         Err(e) => CardState::Failed(e.words),
     };
     state.media.cards.insert(id, card);

@@ -15596,6 +15596,8 @@ mod native_app {
 
                             // ── Game audio frame sync (v0.960, first CC0 sounds) ──
                             if let Some(audio) = state.audio.as_mut() {
+                                // The Media page's video (and its window over the chat) plays its sound here.
+                                crate::gui::pages::media::sync_sound(&mut state.gui_state, audio);
                                 // Honest volume sliders: push Settings values
                                 // into kira only when one actually moved. The
                                 // 4th slot is the independent interface-sound

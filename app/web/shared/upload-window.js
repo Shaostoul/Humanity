@@ -45,6 +45,21 @@
 // the page {event: 'open'}: it opens its item again, so the window is never
 // empty (2026-10-17, review).
 //
+// Signing for the item window (2026-10-18). The Media page signs its reads and
+// writes ("media_list\n<timestamp>" and the rest) with the copy of the key this
+// browser keeps (/shared/pq-relay-auth.js); a passphrase-wrapped identity keeps
+// no such copy, so a members-only item opened from a chat card listed unsigned
+// and read "not there". So a host given `sign` (the chat's item windows,
+// chat-media-card.js) signs for the page in its frame: the page asks
+// {event: 'identity', ask} and {event: 'sign', ask, purpose}; the host answers
+// {event: 'identity', ask, key} and {event: 'signed', ask, key, timestamp, sig},
+// or {..., ask, refused: true} when the chat has no unlocked identity either (or
+// the purpose is not one of the Media page's, or the frame has left the page it
+// was given). Only the frame this host made may ask, from this site, while it
+// is there; anyone else gets no answer at all. Only a Media purpose is signed (SIGNABLE):
+// the chat signs its messages over the same "<words>\n<timestamp>", so it never
+// signs words of the frame's choosing.
+//
 // A classic script in the browser (HosUploadWindow on window), a CommonJS module
 // under Node, where scripts/tests/post-in-chat-web.test.js drives both halves
 // with stand-in windows (and scripts/tests/media-card-web.test.js the item window).
@@ -62,6 +77,21 @@
     close: 'Close',
     closeTip: 'Close this window. An upload under way carries on, and what happens to it is said in the chat.',
   });
+
+  // What a host signs for the page in its frame: one of the Media page's purposes (media-app.js
+  // `purposes`, media-edit.js, media-upload.js attachPurpose): "media_<name>", then words after
+  // colons, none holding a space or a line break. Never a chat message's words.
+  const SIGNABLE = /^media_[a-z_]+(?::[^\s:]+)*$/;
+  const SIGNABLE_MAX = 512;
+  /** Would a host sign `purpose` for the page in its frame? */
+  function signable(purpose) {
+    return typeof purpose === 'string' && purpose.length <= SIGNABLE_MAX && SIGNABLE.test(purpose);
+  }
+  // How long the page in the frame waits for its host's answer before it goes on unsigned: to sign
+  // (a signature can take a moment on a slow device), and to be told who it signs as (answered at
+  // once; the page waits for it before it is drawn).
+  const ASK_WAIT_MS = 10000;
+  const IDENTITY_WAIT_MS = 3000;
 
   /** Is this the upload-window form of the Media page (its address's `window=upload`)? */
   function isWindowAddress(search) {
@@ -91,6 +121,10 @@
    *   page               the address the frame opens (PAGE when not given)
    *   label              what the window is called to a screen reader (WORDS.title when not given)
    *   onStatus(text)     a line the page in the frame said while the window was closed
+   *   sign(purpose)      -> Promise<{key, timestamp, sig}|null>: signs a Media purpose for the
+   *                      page in the frame (the item window); optional, without it every ask
+   *                      is refused
+   *   myKey()            the key `sign` signs as ('' when there is no unlocked identity)
    * Returns {show(files, postTo), showPage(page, label), close(), isOpen(), isBusy(), page(),
    * element(), frame(), pending()}.
    */
@@ -225,6 +259,50 @@
         if (!busy && !open) destroy();
       } else if (m.event === 'close') close();
       else if (m.event === 'status' && !open && typeof m.text === 'string' && m.text && typeof o.onStatus === 'function') o.onStatus(m.text);
+      else if (m.event === 'identity' || m.event === 'sign') answerAsk(e.source, m);
+    }
+
+    /** Is the frame still on the page this host put in it (not navigated somewhere else)? */
+    function onOwnPage(w) {
+      try {
+        const l = w && w.location;
+        return !!l && String(l.pathname || '') + String(l.search || '') === page;
+      } catch (e) {
+        return false; // another site's page: its address cannot be read
+      }
+    }
+
+    /**
+     * Answer the page in the frame (`from`) asking who it signs as, or to sign a purpose (see the
+     * file's head). Nothing at all when the frame has gone or been replaced by the time the answer
+     * is ready; a refusal when there is nothing to sign with, the purpose is not a Media one, or the
+     * frame is no longer on the page it was given (never silence to the frame itself: its page waits
+     * for the answer before it is drawn).
+     */
+    async function answerAsk(from, m) {
+      const ask = m.ask;
+      if (!origin || !Number.isSafeInteger(ask)) return;
+      let out = null;
+      try {
+        const me = typeof o.myKey === 'function' ? String(o.myKey() || '') : '';
+        if (!onOwnPage(from)) {
+          out = null; // the frame has left the page it was given: refused
+        } else if (m.event === 'identity') {
+          if (me && typeof o.sign === 'function') out = { key: me };
+        } else if (me && typeof o.sign === 'function' && signable(m.purpose)) {
+          const a = await o.sign(m.purpose);
+          if (a && typeof a.key === 'string' && a.key && typeof a.sig === 'string' && a.sig && Number.isFinite(a.timestamp)) {
+            out = { key: a.key, timestamp: a.timestamp, sig: a.sig };
+          }
+        }
+      } catch (e) {
+        out = null;
+      }
+      // Only while that frame is still there; refused when it left its page while this was signed.
+      if (!frame || frameWindow() !== from) return;
+      if (!onOwnPage(from)) out = null;
+      const reply = Object.assign({ kind: KIND, event: m.event === 'identity' ? 'identity' : 'signed', ask }, out || { refused: true });
+      try { from.postMessage(reply, origin); } catch (e) { /* the frame went away */ }
     }
     function onKey(e) {
       if (open && e && e.key === 'Escape') close();
@@ -253,7 +331,11 @@
    *   onFiles(files, postTo)   the files the host handed over
    *   onOpen()           the host brought the window back on this page: open its item again
    *                      (the item window; also set later with onOpen(fn))
-   * Returns {send(event, data), ready(), onOpen(fn)}, or null when the page is not in a frame.
+   *   setTimeout, clearTimeout   the window's own when not given (how long an ask waits)
+   * Returns {send(event, data), ready(), onOpen(fn), identity(), sign(purpose)}, or null when the
+   * page is not in a frame. identity() -> Promise<string>: the key the host signs as ('' when it
+   * refused, or did not answer within IDENTITY_WAIT_MS); sign(purpose) -> Promise<{key, timestamp,
+   * sig}|null>: the host's signature over "purpose\ntimestamp" (null when refused or unanswered).
    */
   function connectFrame(opts) {
     const o = opts || {};
@@ -266,21 +348,63 @@
     function send(event, data) {
       try { parent.postMessage(Object.assign({ kind: KIND, event }, data || {}), origin); } catch (e) { /* the host went away */ }
     }
+
+    // The asks waiting for the host's answer: ask number -> {event, done(answer), timer}.
+    const asking = new Map();
+    let lastAsk = 0;
+    const later = typeof o.setTimeout === 'function' ? o.setTimeout
+      : (win && typeof win.setTimeout === 'function' ? (fn, ms) => win.setTimeout(fn, ms) : null);
+    const unlater = typeof o.clearTimeout === 'function' ? o.clearTimeout
+      : (win && typeof win.clearTimeout === 'function' ? (t) => win.clearTimeout(t) : () => {});
+    /** Ask the host (`event`: 'identity' or 'sign'); the answer, or null when none came within `waitMs`. */
+    function askHost(event, data, waitMs) {
+      return new Promise((resolve) => {
+        const ask = ++lastAsk;
+        const entry = { event, done: resolve, timer: null };
+        asking.set(ask, entry);
+        if (later) entry.timer = later(() => answered(ask, null), waitMs);
+        send(event, Object.assign({ ask }, data || {}));
+      });
+    }
+    function answered(ask, m) {
+      const entry = asking.get(ask);
+      if (!entry) return;
+      asking.delete(ask);
+      if (entry.timer != null) unlater(entry.timer);
+      entry.done(m);
+    }
+    async function identity() {
+      const m = await askHost('identity', null, IDENTITY_WAIT_MS);
+      return m && !m.refused && typeof m.key === 'string' && /^[0-9a-f]+$/i.test(m.key) ? m.key : '';
+    }
+    async function sign(purpose) {
+      if (!signable(purpose)) return null;
+      const m = await askHost('sign', { purpose }, ASK_WAIT_MS);
+      if (!m || m.refused || typeof m.key !== 'string' || !m.key || typeof m.sig !== 'string' || !m.sig || !Number.isFinite(m.timestamp)) return null;
+      return { key: m.key, timestamp: m.timestamp, sig: m.sig };
+    }
+
     if (typeof win.addEventListener === 'function') {
       win.addEventListener('message', (e) => {
         if (!e || e.source !== parent || (origin && e.origin !== origin)) return;
         const m = e.data;
         if (!m || typeof m !== 'object' || m.kind !== KIND) return;
         if (m.event === 'open') { if (opened) opened(); return; }
+        // The host's answer to one of this page's asks, to the ask it names and of its kind.
+        if (m.event === 'identity' || m.event === 'signed') {
+          const entry = asking.get(m.ask);
+          if (entry && entry.event === (m.event === 'identity' ? 'identity' : 'sign')) answered(m.ask, m);
+          return;
+        }
         if (m.event !== 'files') return;
         const files = Array.prototype.slice.call(m.files || []).filter(Boolean);
         if (files.length && typeof o.onFiles === 'function') o.onFiles(files, typeof m.postTo === 'string' ? m.postTo : '');
       });
     }
-    return { send, ready: () => send('ready'), onOpen: (fn) => { opened = typeof fn === 'function' ? fn : null; } };
+    return { send, ready: () => send('ready'), onOpen: (fn) => { opened = typeof fn === 'function' ? fn : null; }, identity, sign };
   }
 
-  const api = { KIND, PAGE, WORDS, isWindowAddress, isItemWindowAddress, itemPage, createHost, connectFrame };
+  const api = { KIND, PAGE, WORDS, ASK_WAIT_MS, IDENTITY_WAIT_MS, isWindowAddress, isItemWindowAddress, itemPage, signable, createHost, connectFrame };
   if (typeof module === 'object' && module && module.exports) module.exports = api;
   else root.HosUploadWindow = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

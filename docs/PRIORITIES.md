@@ -267,7 +267,11 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
 - **Released 2026-10-05:** v0.1459.0 to v0.1463.0 and v0.1464.0 (ship-homes increment 5, building
   only on your own plot; BUG-165 and BUG-166, the walking-backwards fixes; two new clips),
   all delivered to the taskbar exe.
-- NEXT (operator asked 2026-10-17, "How do we give users the ability to play MP4s in our
+- DONE on Windows v0.1513.0 (src/media/system.rs; the Media page, items over the chat and in-world
+  screens, with sound; the Media page's video got its sound and Mute in the same release). Still to
+  do from this entry: "Play here" on a video card in chat (desktop), macOS through AVFoundation,
+  Linux through the person's own ffmpeg libraries, and the OpenH264 check below. The original entry:
+  (operator asked 2026-10-17, "How do we give users the ability to play MP4s in our
   app/website?"): **play MP4 (H.264 video, AAC sound) in the desktop app by asking Windows.**
   The website already plays MP4 (the browser's own decoders). Windows 7 and later carry both
   decoders in Media Foundation for any desktop application, H.264 falling back to software, so a
@@ -292,12 +296,12 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
 - DONE v0.1512.0: **rename a file of a Media item, and use a picture already on it as its cover**
   (operator, 2026-10-17: "I uploaded a png with the blend and STL files but, I can't seem to assign
   it as the preview photo"). The ending stays fixed on a rename.
-- Media card follow-ups (review, 2026-10-17, small): the desktop card shows a content label by its
-  id until the Media page has loaded its labels; the thread panel shows an item's address as a plain
-  link, no card; a members-only item opened from a card in the website's framed window cannot sign
-  in when the identity is passphrase-wrapped (the known Inc5c-tail gap); with the protected setup
-  on, a non-friend's message holding a bare word like "render.png" withholds its card on the
-  desktop (loose picture matcher) but not on the website.
+- DONE v0.1513.0: the Media card follow-ups (labels by name on the desktop, cards in the website's
+  thread panel, the framed item window signing through the chat, the desktop's picture-link rule,
+  sizes held to a shared fixture). Left: in that framed window a members-only item's FILES still
+  need the page's own upload token, which a passphrase-wrapped identity has not got (pass the
+  chat's token across, or give the frame a session); a report made from the framed window, and the
+  upload window a drop opens, are not bridged.
 - DONE v0.1511.0: **drag and drop onto the window, the upload window that posts in chat, and the
   picker's List / Details / Pictures views** (operator, 2026-10-17). Follow-ups: the web chat page
   gets the same upload window as the Media page (being built), video previews in the Pictures view

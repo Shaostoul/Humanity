@@ -3,9 +3,10 @@
 //! stays behind View full size), the video's Play here, the words and every file with its own
 //! Download. This file is what those buttons run: Play here fetches the video to a temporary file
 //! and plays it in the app's own media player (`crate::media::VideoPlayer`, the one in-world
-//! screens use: WebM with AV1 video plays; anything else says why it cannot and can still be
-//! downloaded; without sound for now, as this page has no audio mixer to hand it); Download saves
-//! one file of the item in the downloads folder.
+//! screens use: WebM with AV1 video, and on Windows an ordinary MP4 through the computer's own
+//! decoders, `media/system.rs`; anything else says why it cannot and can still be downloaded),
+//! with its sound through the app's mixer ([`sync_sound`], which the engine calls each frame);
+//! Download saves one file of the item in the downloads folder.
 //!
 //! DOWNLOADS ARE COUNTED (round 5, docs/design/media-round-5-plan.md 3.5): every Download goes
 //! through the relay's counting route, `/api/media/download/<id>?file=<n>` ([`download_origin`]),
@@ -72,13 +73,18 @@ pub(crate) struct Opened {
     pub saved_paths: Vec<(i64, PathBuf)>,
     /// The temporary copy Play here fetched, deleted with the page.
     pub temp: Option<PathBuf>,
+    /// Its sound: handed to the app's mixer once (`sync_sound`), muted with Mute, at the master
+    /// volume last sent (None until the first).
+    sound_attached: bool,
+    pub muted: bool,
+    volume_sent: Option<f64>,
     /// A `.glb` or `.stl` file shown in 3D (View in 3D, docs/design/model-viewer.md).
     pub viewer: Option<crate::gui::model_view::Viewer>,
 }
 
 impl Opened {
     pub(crate) fn new(item: Item) -> Self {
-        Opened { item, fetch_rx: None, player: None, texture: None, problem: String::new(), saves: Vec::new(), saved: Vec::new(), saved_paths: Vec::new(), temp: None, viewer: None }
+        Opened { item, fetch_rx: None, player: None, texture: None, problem: String::new(), saves: Vec::new(), saved: Vec::new(), saved_paths: Vec::new(), temp: None, viewer: None, sound_attached: false, muted: false, volume_sent: None }
     }
 
     /// Whether file `file` is being downloaded now.
@@ -314,6 +320,45 @@ fn clock(seconds: f64) -> String {
     format!("{}:{:02}", s / 60, s % 60)
 }
 
+#[cfg(all(test, windows))]
+#[path = "open_sound_tests.rs"]
+mod sound_tests;
+
+/// What the page says under a video whose sound the computer cannot play here.
+pub fn sound_lost_words(codec: &str) -> String {
+    format!("Its sound ({codec}) is in a format this computer cannot play here. Download it to hear it in another player.")
+}
+
+/// The player's sound buttons.
+pub const MUTE: &str = "Mute";
+pub const UNMUTE: &str = "Unmute";
+
+/// The video playing on an item's page (the page itself, or its window over the chat) gets its sound
+/// from the app's mixer: handed over once, then kept at the master volume, or silent while muted.
+/// The engine calls this each frame when there is a mixer (2026-10-18; it had played silent).
+pub(crate) fn sync_sound(opened: &mut Opened, audio: &mut crate::audio::AudioManager) {
+    let Some(player) = opened.player.as_mut() else { return };
+    if player.info().audio_track.is_none() {
+        return;
+    }
+    if !opened.sound_attached {
+        opened.sound_attached = true;
+        let volume = if opened.muted { 0.0 } else { audio.master_volume() };
+        let opts = crate::media::AudioAttach { looping: false, volume, panning: 0.5 };
+        if let Err(e) = player.attach_audio_with(audio, opts) {
+            log::warn!("media: the video's sound did not start: {e}");
+            return;
+        }
+        opened.volume_sent = Some(volume);
+        return;
+    }
+    let volume = if opened.muted { 0.0 } else { audio.master_volume() };
+    if opened.volume_sent != Some(volume) {
+        player.set_audio_mix(volume, 0.5, 30);
+        opened.volume_sent = Some(volume);
+    }
+}
+
 /// Read what the transfers of `opened` finished, and the video's next frame. Every frame its page
 /// is drawn.
 pub(crate) fn poll(ctx: &egui::Context, opened: &mut Opened) {
@@ -402,9 +447,16 @@ pub(crate) fn draw_player(ui: &mut egui::Ui, theme: &Theme, opened: &mut Opened)
             if widgets::Button::ghost("Start again").show(ui, theme) {
                 player.seek_to_start();
             }
+            // Sound once the mixer has it (`sync_sound`); an app started in the background by a
+            // script opens no sound device, so it has none to mute.
+            if player.has_audio() && widgets::Button::ghost(if opened.muted { UNMUTE } else { MUTE }).show(ui, theme) {
+                opened.muted = !opened.muted;
+            }
             ui.label(RichText::new(format!("{} of {}", clock(player.position_s()), clock(player.duration_s()))).size(theme.font_size_small).color(theme.text_muted()));
         });
-        widgets::body_hint(ui, theme, "Plays without sound here for now. Download it to hear it.");
+        if let Some(codec) = player.info().sound_lost.as_deref() {
+            widgets::body_hint(ui, theme, &sound_lost_words(codec));
+        }
     } else if opened.fetch_rx.is_some() {
         ui.label(RichText::new("Fetching the video...").size(theme.font_size_small).color(theme.text_muted()));
     } else if opened.player.is_some() {

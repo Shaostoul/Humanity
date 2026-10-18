@@ -476,17 +476,21 @@ pub fn parse_mine(v: &Value) -> Mine {
 pub fn size_words(bytes: i64) -> String {
     // The website's `sizeWords` (web/pages/media-app.js), word for word: a small file in KB or bytes,
     // never "0 MB" (operator's screenshot, 2026-10-17: "ClipOutsideB.stl, file, 0 MB").
+    // Held to the shared cases both apps read (scripts/tests/fixtures/size-words-cases.json).
     const MB: f64 = 1024.0 * 1024.0;
     let b = bytes.max(0) as f64;
-    let one_decimal = |x: f64| {
-        let shown = format!("{x:.1}");
-        shown.strip_suffix(".0").map(str::to_string).unwrap_or(shown)
+    // One decimal, an exact half rounding UP as the browser's toFixed does (1.25 MB reads
+    // "1.3 MB"; Rust's own {:.1} rounds a half to even, "1.2"). Counted in whole tenths of
+    // `unit`: floor((20 * bytes + unit) / (2 * unit)) is the nearest tenth, a tie taken up.
+    let one_decimal = |unit: i64| {
+        let tenths = (20 * bytes.max(0) as i128 + unit as i128) / (2 * unit as i128);
+        if tenths % 10 == 0 { format!("{}", tenths / 10) } else { format!("{}.{}", tenths / 10, tenths % 10) }
     };
     if b >= 1024.0 * MB {
-        format!("{} GB", one_decimal(b / (1024.0 * MB)))
+        format!("{} GB", one_decimal(1 << 30))
     } else if b >= MB {
         let n = b / MB;
-        format!("{} MB", if n >= 100.0 { format!("{}", n.round()) } else { one_decimal(n) })
+        format!("{} MB", if n >= 100.0 { format!("{}", n.round()) } else { one_decimal(1 << 20) })
     } else if b >= 1024.0 {
         format!("{} KB", (b / 1024.0).round())
     } else {

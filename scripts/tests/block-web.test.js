@@ -555,7 +555,9 @@ test("a blocked key's channel post is hidden, and so is the rest of what they do
   assert.ok(reply && !textOf(reply).includes("the words Ben wrote") && textOf(reply).includes("Someone you blocked"), "nor their words quoted in Cy's reply");
   vm.runInContext("(k) => { currentThread = { from: k, timestamp: 4, author: 'Cy', body: 'thread' }; }", ctx)(CY);
   fn("renderThreadMessages")([{ from: BEN, from_name: "Ben", content: "Ben in the thread", timestamp: 6 }, { from: ANN, from_name: "Ann", content: "Ann in the thread", timestamp: 7 }]);
-  const thread = el("thread-panel-messages").innerHTML;
+  // Each thread message is a row of its own in the panel since 2026-10-18 (chat-messages.js
+  // putThreadMessage): read the panel with its rows.
+  const thread = textOf(el("thread-panel-messages"));
   assert.ok(!thread.includes("Ben in the thread") && thread.includes("Ann in the thread"), "nor their thread replies");
   // The member list (as chat-voice-rooms.js draws it) marks them, and no one else.
   fn("updateUserList")([{ public_key: BEN, name: "Ben", role: "", online: true }, { public_key: CY, name: "Cy", role: "", online: true }]);

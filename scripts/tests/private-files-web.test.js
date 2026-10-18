@@ -86,7 +86,9 @@
 //     its badge HosFileRisk.badgeHtml's; its Open the upload window's frame on /media/7?window=item;
 //     another website's /media/ page stays a plain link. The "media card:" test. And (the review,
 //     the same day) a list at its bottom stays there as a card goes in and as it fills in, while one
-//     scrolled up is left where it is: "media card: the list stays at its bottom".
+//     scrolled up is left where it is: "media card: the list stays at its bottom". (2026-10-18) The
+//     thread panel draws its parent's and its replies' cards by the same rules, mine included, each
+//     message a row of its own: "media card: the thread panel".
 //
 // Red first: see the end of this file for each deliberate break and the assertion it tripped.
 
@@ -381,7 +383,15 @@ function fakeDom(state) {
       if (prop === "createElement") return el;
       if (prop === "getElementById") return kept;
       if (prop === "body") return kept("__body");
-      if (prop === "querySelector") return () => anything();
+      // `state.findRows` (2026-10-18): a drawn message row found by its sender and time, as a
+      // browser finds `.message[data-from="…"][data-timestamp="…"]` (null when it is not drawn).
+      if (prop === "querySelector") {
+        return (sel) => {
+          const row = state.findRows ? /^\.message\[data-from="([^"]*)"\]\[data-timestamp="([^"]*)"\]$/.exec(String(sel)) : null;
+          if (row) return state.appended.find((e) => e && e.dataset && e.dataset.from === row[1] && String(e.dataset.timestamp) === row[2]) || null;
+          return anything();
+        };
+      }
       if (prop === "querySelectorAll") {
         return (sel) => {
           if (sel === ".msg-warning") return all.filter((e) => String(e.className).split(/\s+/).includes("msg-warning"));
@@ -517,7 +527,7 @@ async function loadChat(me, opts = {}) {
   // opts.honest and opts.absentIds: the honest page (fakeDom). opts.timers: an array that collects
   // every setTimeout the page asks for, {cb, ms}, none of which runs by itself (a test may run one,
   // such as chat-ui.js initUnifiedLeftSidebar, which the page queues as it loads).
-  const state = { appended: [], honest: !!opts.honest, absent: new Set(opts.absentIds || []), realChildren: !!opts.realChildren };
+  const state = { appended: [], honest: !!opts.honest, absent: new Set(opts.absentIds || []), realChildren: !!opts.realChildren, findRows: !!opts.findRows };
   // opts.stored: what this browser's localStorage held before the page loaded ({key: text}).
   const local = fakeStorage();
   for (const [k, v] of Object.entries(opts.stored || {})) local.setItem(k, v);
@@ -3555,4 +3565,131 @@ test("media card: the list stays at its bottom as a card goes in and fills in; s
   await settle();
   assert.equal((mc.cache.get(8) || {}).state, "ready", "test setup: the second card is drawn");
   assert.equal(top, 100, "scrolled up while it was on its way: left where it is");
+});
+
+// THE THREAD PANEL SHOWED A MEDIA ITEM'S ADDRESS AS A PLAIN LINK (2026-10-18, the orchestrator):
+// renderThreadMessages and sendThreadReply drew a message with formatBody and fillFileCards only, so a
+// reply holding https://localhost/media/7 showed the bare address where the list shows a card. Now each
+// thread message gets the list's own treatment (chat-messages.js putThreadMessage): the address out of
+// its words by the same exact-word rule (chat-media-card.js mediaCardsPlan), its card just after them,
+// none where the protected setup holds a non-friend's picture or file link back, whether it is open kept
+// under the list's key (sender, time, item). Each message is a row of its own, so a reply put in no
+// longer writes the panel's HTML again (which drew the cards already there dead). And a thread opened by
+// a reply count that came later (updateThreadBadge) shows its parent as written, address included: it
+// read the row's text, the card's address already out of it. The desktop has no thread panel.
+// Seen red 2026-10-18 in a copy of web/ through HOS_WEB_DIR, each break: in chat/chat-messages.js,
+// putThreadMessage drawing the whole text with no card (the old way): "the address is out of the
+// parent's words"; renderThreadMessages writing the replies as HTML into the panel again: "a reply's
+// words, the address out of them" (no row of their own); sendThreadReply writing innerHTML += again:
+// "my reply is a row of its own" (actual 0: the rows already there were written over); threadMediaPlan
+// taking the item addresses alone, without mediaCardsPlan's protected-setup rule: "a non-friend's reply
+// holding a picture link draws no card"; updateThreadBadge opening the thread with the row's text: "the
+// parent's card, from the words it was written with"; in chat/app.js, the rememberThreadParent call taken
+// out: the same; in chat/chat-media-card.js, mediaCardsPut looking for `.body` only: "the card, just after
+// the words" (it went at the row's end).
+test("media card: the thread panel draws a message's card as the list does, the address out of its words; a reply's too, mine included; the protected setup's rule holds", async () => {
+  const fx = await fixture();
+  const MIB = 1024 * 1024;
+  const item = {
+    id: 7, url: "/uploads/7_dusk.glb", filename: "7_dusk.glb", original_name: "dusk.glb", title: "Dusk", description: "",
+    kind: "model", visibility: "public", labels: [], size_bytes: 2 * MIB, total_bytes: 2 * MIB, file_count: 1,
+    uploader_key: fx.ben.key, uploader_name: "Ben", category: null, cover: null, files: [],
+  };
+  const lists = [];
+  const page = await loadChat(fx.ann, {
+    honest: true, realChildren: true, findRows: true,
+    fetch: (u, init) => {
+      if (u !== "/api/media/list") return null;
+      lists.push(JSON.parse(init.body));
+      return ok({ items: [item], labels: [] });
+    },
+  });
+  const panel = page.el("thread-panel-messages");
+  const cardOf = (row) => {
+    const words = row.querySelector(".thread-msg-body");
+    const after = words && Array.isArray(words.afterNodes) ? words.afterNodes : [];
+    const box = after.find((n) => n && n.className === "media-cards");
+    return box ? box.children[0] : null;
+  };
+  const lineOf = (card) => card.children.find((c) => c.className === "media-card-line");
+  const cardsFor7 = () => (page.ctx.hosMediaCards.mounted.get(7) || new Set()).size;
+
+  // Ben's post in the list, its card opened out there.
+  const POST = "Here it is: https://localhost/media/7.";
+  const listRow = postInRoom(page, fx.ben, POST, T0 + 900);
+  await settle();
+  const listCard = (listRow.querySelector(".body").afterNodes || [])[0].children[0];
+  lineOf(listCard).children[0].listeners.click[0]({ stopPropagation() {} });
+  assert.ok(String(listCard.className).includes("open"), "test setup: opened out in the list");
+
+  // The thread opened on it: the parent's words without the address, its card just after them, open
+  // as it is in the list (the same key).
+  page.fn("openThreadPanel")(fx.ben.key, T0 + 900, "Ben", POST);
+  await settle();
+  const parent = panel.children[0];
+  assert.equal(parent.className, "thread-msg thread-parent");
+  assert.ok(!parent.innerHTML.includes("/media/7"), "the address is out of the parent's words");
+  assert.ok(parent.innerHTML.includes("Here it is: ."), "the rest of its words stay");
+  const parentCard = cardOf(parent);
+  assert.ok(parentCard, "the card, just after the words");
+  assert.equal(lineOf(parentCard).children[2].textContent, "Dusk", "the item's card");
+  assert.ok(String(parentCard.className).includes("open"), "open, as it is in the list: the same key");
+  assert.equal(lists.length, 1, "the item asked for once for the page");
+
+  // The replies: Cy's holds the item, Ben's another website's /media/ page.
+  page.fn("renderThreadMessages")([
+    { from: fx.cy.key, from_name: "Cy", content: "and again /media/7", timestamp: T0 + 910 },
+    { from: fx.ben.key, from_name: "Ben", content: "see https://other.example/media/9", timestamp: T0 + 920 },
+  ]);
+  await settle();
+  const [, cyRow, benRow] = panel.children;
+  assert.ok(cyRow && !cyRow.innerHTML.includes("/media/7") && cyRow.innerHTML.includes("and again"), "a reply's words, the address out of them");
+  const cyCard = cardOf(cyRow);
+  assert.ok(cyCard, "the cards, just after a reply's words");
+  assert.ok(!String(cyCard.className).includes("open"), "another message's card starts as one line");
+  assert.ok(benRow.innerHTML.includes('href="https://other.example/media/9"'), "another website's /media/ page stays a plain link");
+  assert.equal(cardOf(benRow), null, "and gets no card");
+  assert.equal(lists.length, 1, "nothing asked again");
+  // Open on a thread card brings up the item's full window, as the list's does.
+  lineOf(cyCard).children[4].listeners.click[0]({ stopPropagation() {} });
+  const dialog = page.el("__body").children.find((c) => c.className === "hos-upload-window");
+  assert.ok(dialog && dialog.children[0].children.find((c) => c.tag === "iframe").src === "/media/7?window=item", "Open: the item's window");
+
+  // My own reply with the item: a row of its own with its card; the rows already there are the same
+  // rows, their cards with them.
+  page.el("thread-input").value = "mine: https://localhost/media/7";
+  await page.fn("sendThreadReply")();
+  await settle();
+  assert.equal(panel.children.length, 4, "my reply is a row of its own");
+  assert.equal(panel.children[1], cyRow, "the rows already there stay as they are");
+  assert.equal(cardOf(cyRow), cyCard, "and so do their cards");
+  const mine = panel.children[3];
+  assert.ok(!mine.innerHTML.includes("/media/7") && mine.innerHTML.includes("mine:"), "my reply's words, the address out of them");
+  assert.ok(cardOf(mine), "and its card");
+  const sent = page.sock.sent.find((f) => f.type === "chat" && f.reply_to);
+  assert.equal(sent.content, "mine: https://localhost/media/7", "the reply itself goes as it was written");
+
+  // A thread opened by a reply count that came later: the parent as it was written, its card included.
+  const later = postInRoom(page, fx.ben, POST, T0 + 930);
+  let badge = null;
+  later.insertBefore = (b) => { badge = b; };
+  page.fn("updateThreadBadge")(fx.ben.key, T0 + 930);
+  assert.ok(badge, "test setup: the reply count put on the row");
+  badge.listeners.click[0]({ stopPropagation() {} });
+  await settle();
+  const reopened = panel.children[0];
+  assert.ok(cardOf(reopened), "the parent's card, from the words it was written with");
+  assert.ok(!reopened.innerHTML.includes("/media/7"), "its address out of the words");
+
+  // The protected setup on: a non-friend's reply holding a picture link draws no card (the list's
+  // rule, chat-media-card.js withheld).
+  await page.fn("loadProtectedPreset")();
+  await turnOn(page);
+  const before = cardsFor7();
+  page.fn("renderThreadMessages")([{ from: fx.cy.key, from_name: "Cy", content: "look https://localhost/uploads/x.png /media/7", timestamp: T0 + 940 }]);
+  await settle();
+  const held = panel.children[1];
+  assert.ok(held && held.innerHTML.includes("look"), "test setup: the reply is drawn");
+  assert.equal(cardOf(held), null, "a non-friend's reply holding a picture link draws no card");
+  assert.equal(cardsFor7(), before + 1, "only the parent's card was drawn again");
 });

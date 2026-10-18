@@ -72,6 +72,25 @@ fn a_strangers_dm_keeps_its_media_link_held_until_opened() {
     assert_eq!(posted.items, vec![7], "opened: its card");
 }
 
+/// A LABELLED CARD SAYS THE LABEL'S NAME BEFORE THE MEDIA PAGE IS OPENED (a review, 2026-10-17):
+/// the card's own answer carries the server's label names, so a labelled picture asks "Labelled:
+/// Flashing lights.", never the label's id. Seen red 2026-10-17 with the names left out of
+/// `on_answer`: "the label's name" (it said "Labelled: flashing.").
+#[test]
+fn a_labelled_card_says_the_labels_name_before_the_media_page_is_opened() {
+    let mut state = with_item();
+    state.media.cards.clear();
+    assert!(state.media.list.labels.is_empty(), "test setup: the Media page has not answered");
+    let answer = serde_json::json!({
+        "items": [{"id": 7, "title": "Dusk", "url": "/uploads/7_dusk.png", "filename": "7_dusk.png", "kind": "picture", "visibility": "public", "uploader_key": "ann", "uploader_name": "Ann", "labels": ["flashing"]}],
+        "labels": [{"id": "flashing", "label": "Flashing lights", "desc": "Fast flashing or strobing light"}]
+    });
+    on_answer(&mut state, 7, Ok(answer));
+    state.media.cards_open.insert(key_of("ann", 1000, 7));
+    let (views, _) = views(&state, "ann", 1000, &[7]);
+    assert!(matches!(&views[0].picture, Picture::Ask { line, .. } if line == "Labelled: Flashing lights."), "the label's name: {:?}", views[0].picture);
+}
+
 /// A FILE'S NAME IS SHOWN AS IT IS AND SAVED WITH ITS ENDING (a review, 2026-10-17): the card and
 /// the item page show the uploader's own name, only made plain (no direction marks), and the badge
 /// judges that; a name past 80 letters is saved shortened before its ending, never through it.

@@ -52,7 +52,17 @@
 // 10. A file's name cannot hide its real ending: no right-to-left override in the card, on the item's
 //     page (its rows, its Download's name) or in its Edit (its rows and rename box).
 // The list staying at its bottom as a card goes in and fills in is private-files-web.test.js's
-// "media card: the list stays at its bottom" test.
+// "media card: the list stays at its bottom" test; the thread panel's cards are its "media card: the
+// thread panel" test.
+// Since 2026-10-18:
+// 11. A members-only item opened from a card with a passphrase-wrapped identity: the item window's page,
+//     with no key of its own, is signed for by the chat that framed it (/shared/upload-window.js,
+//     media-app.js signerFor), its list and Pick going out with the chat's signature; nobody but that
+//     frame, from this site, while it is there, is answered; it is refused once it has left its page,
+//     and only a Media purpose is signed; with no identity in the chat either, a plain refusal.
+// 12. A card no longer in the document is let go when the next cards go in, never in the turn it is made.
+// 13. Size words: the Media page's, the chat card's and the 3D view's, held to the cases the desktop's
+//     api::size_words is held to (scripts/tests/fixtures/size-words-cases.json).
 //
 // Red first: each test names the break it was seen failing on.
 
@@ -671,4 +681,174 @@ test("10. a file's name cannot hide its real ending: a right-to-left override is
   const box = byId(m.doc, "media-edit-files").querySelector('[data-rename-input="1"]');
   assert.equal(box.value, "photognp", "the rename box starts with the plain name, its ending after it");
   assert.ok(!text(m.doc.body).includes(RLO), "nowhere on the page");
+});
+
+// ── 11. A members-only item opened from a card, with a passphrase-wrapped identity ──
+
+/**
+ * The chat (`host`) and the item window's page in the frame over it (`frame`, on /media/7?window=item),
+ * hearing each other: a message posted to one arrives a turn later, as a browser's does, from the
+ * other, with this site's origin, and only when it was posted to that origin.
+ */
+function linkedWindows() {
+  const host = fakeWindow(ORIGIN);
+  const frame = fakeWindow(ORIGIN, host);
+  Object.assign(frame.location, { pathname: "/media/7", search: "?window=item" });
+  const wire = (to, from) => {
+    to.postMessage = (data, target) => {
+      to.posted.push({ data, to: target });
+      if (target === to.location.origin) setImmediate(() => to.fire("message", { source: from, origin: ORIGIN, data }));
+    };
+  };
+  wire(host, frame);
+  wire(frame, host);
+  return { host, frame };
+}
+
+// THE ITEM WINDOW HAD NO KEY TO SIGN WITH (2026-10-18). A card's own request is signed with the chat's
+// unlocked identity, so a members-only item shows on it; its Open framed /media/7?window=item, whose page
+// takes its key from the copy this browser keeps (humanity_key_backup, /shared/pq-relay-auth.js). A
+// passphrase-wrapped identity keeps no such copy, so the framed page listed unsigned and said the item was
+// not there. Now the chat signs for the page in the frame it made (/shared/upload-window.js): only that
+// frame, from this site, on the page it was given, while it is there; only the Media page's purposes.
+// Seen red 2026-10-18 in a copy of web/ through HOS_WEB_DIR, each break: in shared/upload-window.js, the
+// host's 'sign' answer taken out of onMessage: "the item's own page, asked for signed by the chat" (the
+// page fell back to listing unsigned after its ask went unanswered: actual null); in pages/media-app.js,
+// signerFor ignoring the item window: "signed as the chat's identity" (actual 'none'); in
+// chat/chat-media-card.js, the opener not handing `sign` to its windows: the same (the identity ask was
+// refused); in shared/upload-window.js, both of the host's checks that the asker is its frame taken out
+// (onMessage's source check and answerAsk's frameWindow() !== from; either alone still holds): "a window
+// that is not the frame gets nothing" (actual 1: it was answered); onMessage without its origin check:
+// "another site gets nothing"; answerAsk without its onOwnPage checks: "a frame that left its page is
+// refused" (it was signed, 'sig:media_list'); without signable(): "a chat message's words are never
+// signed for it" (it was signed, 'sig:hello everyone').
+test("11. a members-only item opened from a card, the identity passphrase-wrapped: the chat signs for the page in its window; nobody else is answered", async () => {
+  const members = dusk({ visibility: "members", url: "/api/media/file/7" });
+  // The chat's half: its opener, its own signer (the identity unlocked in the chat).
+  const wins = linkedWindows();
+  const doc = fakeDocument();
+  const chat = fakeSigner(ME);
+  let chatKey = ME;
+  const open = MC.itemWindowOpener(UW, { window: wins.host, document: doc, sign: chat.sign, myKey: () => chatKey });
+  const host = open(7, members, "Dusk");
+  host.frame().contentWindow = wins.frame;
+
+  // The page's half: no key of its own, so it asks the chat who it signs as (an ask unanswered for a
+  // fifth of a second here goes on without: the chat's answer takes a few turns).
+  const conn = UW.connectFrame({ window: wins.frame, setTimeout: (fn) => setTimeout(fn, 200), clearTimeout: (t) => clearTimeout(t) });
+  const who = await H.media.signerFor({ identity: null, ownSign: async () => null, itemWindow: conn });
+  assert.equal(who.via, "chat", "signed as the chat's identity");
+  assert.equal(who.myKey, ME, "its key");
+  // The relay answers a members-only item to a signed list only, as media.rs does.
+  const onlySigned = [
+    [at("/api/media/list", "POST"), (c) => respond(200, listAnswer(c.body && c.body.sig ? [members] : []))],
+    [at("/api/media/pick", "POST"), () => respond(200, { ok: true, picks: 1 })],
+  ];
+  const m = await openPage({ path: "/media/7", itemWindow: conn, myKey: who.myKey, sign: who.sign, session: null, routes: listRoutes(listAnswer([]), onlySigned) });
+  await settle();
+  assert.ok(byId(m.doc, "media-viewer-open"), "the item's own page, asked for signed by the chat");
+  assert.equal(text(m.doc.body.querySelector(cls("media-viewer-title"))), "Dusk");
+  const list = m.net.calls.find((c) => c.url === "/api/media/list" && c.body && c.body.id === 7);
+  assert.deepEqual([list.body.key, list.body.sig], [ME, "sig:media_list"], "the list request carries the chat's signature");
+  assert.ok(!m.net.calls.some((c) => c.url.startsWith("/api/media?")), "never listed unsigned");
+  // Pick, through the same signing.
+  byId(m.doc, "media-viewer-open").querySelector('[data-action="pick"]').click();
+  await settle();
+  const picked = m.net.calls.find((c) => c.url === "/api/media/pick");
+  assert.ok(picked && picked.body.sig === "sig:media_pick:7" && picked.body.key === ME, "Pick signed by the chat too");
+  assert.ok(chat.signed.includes("media_pick:7"), "with the chat's own signer");
+
+  // Only the frame the chat made, from this site, on its page, while it is there.
+  const ask = async (from, origin, data) => {
+    wins.host.fire("message", { source: from, origin, data: Object.assign({ kind: UW.KIND }, data) });
+    await settle();
+  };
+  const answersTo = (w) => w.posted.filter((p) => p.data && (p.data.event === "signed" || p.data.event === "identity"));
+  const stranger = fakeWindow(ORIGIN);
+  Object.assign(stranger.location, { pathname: "/media/7", search: "?window=item" });
+  const before = chat.signed.length;
+  await ask(stranger, ORIGIN, { event: "sign", ask: 901, purpose: "media_list" });
+  assert.equal(answersTo(stranger).length, 0, "a window that is not the frame gets nothing");
+  await ask(wins.frame, "https://elsewhere.example", { event: "sign", ask: 902, purpose: "media_list" });
+  assert.ok(!answersTo(wins.frame).some((p) => p.data.ask === 902), "another site gets nothing");
+  assert.equal(chat.signed.length, before, "and nothing was signed for either");
+  // A purpose that is not the Media page's (the chat signs its messages over the same words): refused.
+  await ask(wins.frame, ORIGIN, { event: "sign", ask: 903, purpose: "hello everyone" });
+  assert.deepEqual(answersTo(wins.frame).find((p) => p.data.ask === 903).data, { kind: UW.KIND, event: "signed", ask: 903, refused: true }, "a chat message's words are never signed for it");
+  assert.equal(chat.signed.length, before, "nothing signed");
+  // The frame gone to another page of this site: refused (the page in it is not the one the chat
+  // framed), nothing signed for it.
+  wins.frame.location.pathname = "/chat";
+  await ask(wins.frame, ORIGIN, { event: "sign", ask: 904, purpose: "media_list" });
+  assert.deepEqual((answersTo(wins.frame).find((p) => p.data.ask === 904) || {}).data, { kind: UW.KIND, event: "signed", ask: 904, refused: true }, "a frame that left its page is refused");
+  assert.equal(chat.signed.length, before, "and nothing is signed for it");
+  wins.frame.location.pathname = "/media/7";
+  // No unlocked identity in the chat either: a plain refusal, and the page lists unsigned.
+  chatKey = "";
+  await ask(wins.frame, ORIGIN, { event: "identity", ask: 905 });
+  assert.deepEqual(answersTo(wins.frame).find((p) => p.data.ask === 905).data, { kind: UW.KIND, event: "identity", ask: 905, refused: true }, "refused when the chat has no identity either");
+  const none = await H.media.signerFor({ identity: null, ownSign: async () => null, itemWindow: conn });
+  assert.deepEqual([none.via, none.myKey], ["none", ""], "so the page goes on as one with no identity here");
+  chatKey = ME;
+  // The window closed with nothing going in it: its frame is gone, and so is the signing.
+  host.close();
+  assert.equal(host.frame(), null, "test setup: the frame is gone");
+  await ask(wins.frame, ORIGIN, { event: "sign", ask: 906, purpose: "media_list" });
+  assert.ok(!answersTo(wins.frame).some((p) => p.data.ask === 906), "a frame that is gone gets nothing");
+});
+
+// ── 12. A card no longer in the document is let go ────────────────────────
+
+// CARDS KEPT FOREVER (2026-10-18, the orchestrator): `mounted` was pruned only inside render(), which
+// runs for an item when it or its picture comes in; a card for an item already in the cache is never
+// drawn again, so every card ever put in stayed in memory with its message's element. Now the cards no
+// longer in the document are let go at the end of the turn new ones are put in.
+// Seen red 2026-10-18 in a copy of web/ through HOS_WEB_DIR, each break in chat/chat-media-card.js: with
+// attach's pruneSoon() call taken out: "the card removed from the document is let go" (actual 2); with the
+// prune run at once inside attach, not at the end of the turn: "test setup: one card for the item"
+// (actual 0: a card was let go before its caller put it in the document).
+test("12. a card removed from the document is let go when the next cards go in; the ones still shown stay", async () => {
+  const p = cardsPage({ friends: [ANN] });
+  const count = (id) => (p.cards.mounted.get(id) || new Set()).size;
+  const first = await p.post([7], ANN, 1000);
+  assert.equal(count(7), 1, "test setup: one card for the item");
+  assert.equal(first.children[0].isConnected, true, "test setup: it is in the document");
+  first.remove(); // its message left the page (another conversation opened)
+  // The item is in the cache, so nothing draws its cards again (render never runs for it).
+  const second = await p.post([7], BEN, 2000);
+  assert.equal(count(7), 1, "the card removed from the document is let go");
+  assert.equal([...p.cards.mounted.get(7)][0].el, second.children[0], "the one still shown stays");
+  // Every card of an item gone: the item itself is let go.
+  second.remove();
+  await p.post([8], BEN, 3000);
+  assert.equal(p.cards.mounted.has(7), false, "no card of it left: nothing kept for it");
+  // A card is never let go in the turn it is made, before its caller has put it in the document.
+  const made = p.cards.attach([7], { from: ANN, timestamp: 4000 });
+  assert.equal(made.children[0].isConnected, false, "test setup: made, not in the document yet");
+  p.doc.body.appendChild(made);
+  await settle();
+  assert.equal(count(7), 1, "made and put in within the turn: kept");
+});
+
+// ── 13. Size words, the desktop's and the website's, from one list ────────
+
+// HOW BIG A FILE IS, IN THE SAME WORDS ON BOTH (2026-10-18): the desktop's api::size_words and the
+// website's sizeWords are held to the same cases (scripts/tests/fixtures/size-words-cases.json; the
+// desktop reads it in its own test). The website keeps two copies, the Media page's (media-app.js) and the
+// chat card's (chat-media-card.js): one shared helper would need a new script on the chat page (its load
+// order changed) or a home in a file about something else. The 3D view keeps a third
+// (/shared/model-view.js). Each is held to the list.
+// Seen red 2026-10-18 in a copy of web/ through HOS_WEB_DIR: in chat/chat-media-card.js with oneDecimal
+// rounding a half down (Math.floor(x * 10 + 0.5 - 1e-9) / 10): "the chat card's: 1310720" ('1.2 MB' ==
+// '1.3 MB'); in pages/media-app.js with kilobytes rounded down (Math.floor): "the Media page's: 1536"
+// ('1 KB' == '2 KB').
+test("13. size words: the Media page's, the chat card's and the 3D view's all say the shared list's words", () => {
+  const fixture = JSON.parse(fs.readFileSync(path.join(__dirname, "fixtures", "size-words-cases.json"), "utf8"));
+  assert.ok(Array.isArray(fixture.cases) && fixture.cases.length >= 10, "test setup: the shared cases");
+  const MV = require(path.join(WEB, "shared", "model-view.js"));
+  for (const [bytes, words] of fixture.cases) {
+    assert.equal(H.media.sizeWords(bytes), words, "the Media page's: " + bytes);
+    assert.equal(MC.sizeWords(bytes), words, "the chat card's: " + bytes);
+    assert.equal(MV.sizeWords(bytes), words, "the 3D view's: " + bytes);
+  }
 });

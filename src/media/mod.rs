@@ -45,6 +45,10 @@
 pub mod audio;
 /// Video discs: choosing a disc's main title and converting it (2026-09-18).
 pub mod dvd;
+/// Every other file through the computer's own decoders (Windows Media Foundation, 2026-10-18):
+/// an ordinary MP4 above all.
+#[cfg(windows)]
+pub mod system;
 pub mod transcode;
 pub mod video;
 
@@ -119,6 +123,9 @@ pub enum MediaError {
     Decoder(String),
     /// The Opus track or its playback hookup failed.
     Audio(String),
+    /// The computer's own decoders (`system.rs`) could not play it, in a sentence a person reads
+    /// as it is ("This copy of Windows has no video decoders. ...").
+    System(String),
 }
 
 impl fmt::Display for MediaError {
@@ -134,6 +141,7 @@ impl fmt::Display for MediaError {
             ),
             MediaError::Decoder(e) => write!(f, "AV1 decode failed: {e}"),
             MediaError::Audio(e) => write!(f, "audio failed: {e}"),
+            MediaError::System(e) => write!(f, "{e}"),
         }
     }
 }
@@ -213,6 +221,12 @@ pub struct MediaInfo {
     pub audio_track: Option<u64>,
     /// Nanoseconds per timestamp tick (1_000_000 for the usual millisecond scale).
     pub timestamp_scale_ns: u64,
+    /// Decoded by the computer's own decoders (`system.rs`), not ours. Its tracks have no Matroska
+    /// numbers then (`video_track` 0, `audio_track` Some(0) when it has sound).
+    pub system: bool,
+    /// The file has sound the computer's own decoders cannot play (that codec's name, "Opus" for
+    /// instance): the picture plays silent unless converted (transcode.rs `begin_ingest`).
+    pub sound_lost: Option<String>,
 }
 
 /// Open the container with a buffered reader. Both the video thread and the
@@ -227,6 +241,49 @@ pub(crate) fn open_demuxer(path: &Path) -> Result<MatroskaFile<BufReader<File>>,
 /// is the ONLY place codec ids are checked, so the error a user sees always
 /// names the codec that stopped them.
 pub fn probe(path: &Path) -> Result<MediaInfo, MediaError> {
+    let ours = probe_matroska(path);
+    // Not ours to decode (not WebM, or not AV1 and Opus): ask the computer's own decoders. Their
+    // refusal is logged and ours stands, so a file goes on to be converted exactly as before;
+    // except a sentence about this computer itself (no decoders at all, no H.265 extension), which
+    // says more than "not a WebM file".
+    #[cfg(windows)]
+    if system_decoders_on() {
+        if let Err(MediaError::Demux(_) | MediaError::UnsupportedCodec { .. }) = &ours {
+            match system::probe(path) {
+                Ok(info) => return Ok(info),
+                Err(MediaError::System(s)) if s == system::NO_DECODERS || s == system::NO_HEVC => return Err(MediaError::System(s)),
+                Err(e) => log::info!("media: Windows cannot play {} either: {e}", path.display()),
+            }
+        }
+    }
+    ours
+}
+
+#[cfg(test)]
+thread_local! {
+    /// Tests of our own decoder's refusals and of the conversion path turn the computer's own
+    /// decoders off on their thread (`system_decoders_off_on_this_thread`), so a file Windows
+    /// plays still goes the way those tests are about.
+    static SYSTEM_DECODERS_OFF: Cell<bool> = const { Cell::new(false) };
+}
+
+/// Tests only: from here on, `probe` on this thread leaves the computer's own decoders out.
+#[cfg(test)]
+pub(crate) fn system_decoders_off_on_this_thread() {
+    SYSTEM_DECODERS_OFF.with(|off| off.set(true));
+}
+
+/// Whether `probe` may ask the computer's own decoders (always, outside tests).
+#[cfg(windows)]
+fn system_decoders_on() -> bool {
+    #[cfg(test)]
+    return !SYSTEM_DECODERS_OFF.with(|off| off.get());
+    #[cfg(not(test))]
+    true
+}
+
+/// `probe` for the files our own decoders play: WebM/Matroska with AV1 video and Opus sound.
+fn probe_matroska(path: &Path) -> Result<MediaInfo, MediaError> {
     let mkv = open_demuxer(path)?;
     let scale = mkv.info().timestamp_scale().get();
     // Matroska Duration is a float in timestamp-scale ticks.
@@ -298,6 +355,8 @@ pub fn probe(path: &Path) -> Result<MediaInfo, MediaError> {
         video_track,
         audio_track,
         timestamp_scale_ns: scale,
+        system: false,
+        sound_lost: None,
     })
 }
 
@@ -657,6 +716,13 @@ fn decode_pass(
 /// The decode thread body: decode the file from wherever the current
 /// generation starts, then wait for a restart or a stop.
 fn decode_thread(path: PathBuf, info: MediaInfo, shared: Arc<Shared>, threads: i32) {
+    drive(&shared, |generation, start_s, from_top| decode_pass(&path, &info, &shared, generation, threads, start_s, from_top));
+}
+
+/// Run decode passes (`pass(generation, start_s, from_top)`) for each generation the player asks
+/// for, idling between them, until told to stop: the loop both decoders share (ours,
+/// `decode_thread`; the computer's own, `system::decode_thread`).
+fn drive(shared: &Shared, mut pass: impl FnMut(u64, f64, bool) -> Result<PassEnd, MediaError>) {
     let _guard = AliveGuard(shared.alive.clone());
     // Set when a pass could not make its fast start; the next attempt at the
     // SAME generation decodes from the top. Cleared whenever the generation
@@ -670,7 +736,7 @@ fn decode_thread(path: PathBuf, info: MediaInfo, shared: Arc<Shared>, threads: i
         let generation = shared.generation.load(Ordering::SeqCst);
         let start_s = shared.seek_target_ns.load(Ordering::SeqCst) as f64 / 1.0e9;
         let from_top = from_start_generation == Some(generation);
-        match decode_pass(&path, &info, &shared, generation, threads, start_s, from_top) {
+        match pass(generation, start_s, from_top) {
             Ok(PassEnd::Stop) => return,
             Ok(PassEnd::Restart) => continue,
             Ok(PassEnd::RetryFromStart) => {
@@ -783,7 +849,14 @@ impl VideoPlayer {
             let (path, info, shared) = (path.clone(), info.clone(), shared.clone());
             std::thread::Builder::new()
                 .name("media-decode".into())
-                .spawn(move || decode_thread(path, info, shared, threads))
+                .spawn(move || {
+                    // A file the computer's own decoders play (an MP4) goes through them.
+                    #[cfg(windows)]
+                    if info.system {
+                        return system::decode_thread(path, shared);
+                    }
+                    decode_thread(path, info, shared, threads)
+                })
                 .map_err(MediaError::Io)?
         };
         Ok(Self {
@@ -794,7 +867,10 @@ impl VideoPlayer {
             thread: Some(thread),
             audio: None,
             last_delivered_pts: -1.0,
-            show_next_frame: false,
+            // A new player shows its first picture at once, paused or not, as after a seek: an
+            // MP4's first picture is often timed a hair after zero (Windows reports when its
+            // decoder places it), and a paused clock at 0 would never reach it (2026-10-18).
+            show_next_frame: true,
             last_error: None,
         })
     }
@@ -848,8 +924,14 @@ impl VideoPlayer {
         if let Some(mut old) = self.audio.take() {
             old.stop(zero_tween());
         }
-        let track = audio::OpusTrack::open(&self.path, &self.info)?;
-        let mut data = kira::sound::streaming::StreamingSoundData::from_decoder(track);
+        #[cfg(windows)]
+        let mut data = if self.info.system {
+            kira::sound::streaming::StreamingSoundData::from_decoder(system::SystemAudio::open(&self.path, &self.info)?)
+        } else {
+            kira::sound::streaming::StreamingSoundData::from_decoder(audio::OpusTrack::open(&self.path, &self.info)?)
+        };
+        #[cfg(not(windows))]
+        let mut data = kira::sound::streaming::StreamingSoundData::from_decoder(audio::OpusTrack::open(&self.path, &self.info)?);
         if opts.looping {
             data = data.loop_region(..);
         }

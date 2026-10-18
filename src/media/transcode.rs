@@ -648,6 +648,9 @@ fn why_convert(e: &MediaError) -> Result<String, String> {
         MediaError::UnsupportedCodec { kind, codec_id } => Ok(format!("uses the {kind} codec {codec_id}, which this player does not decode")),
         MediaError::Audio(a) => Ok(format!("has audio the player cannot take as it is ({a})")),
         MediaError::Decoder(d) => Ok(format!("could not be decoded as it is ({d})")),
+        // The computer's own decoders could not play it (no decoders at all on a Windows "N"
+        // edition, or H.265 without the extension): the person's own ffmpeg still can.
+        MediaError::System(s) => Ok(format!("cannot be played by this computer's own decoders ({s})")),
         MediaError::NoVideoTrack => Err("the file has no video track".to_string()),
         MediaError::Io(io) => Err(format!("could not read the file: {io}")),
     }
@@ -678,8 +681,17 @@ pub fn begin_ingest(src: &Path, ffmpeg_setting: &str, cache_dir: &Path) -> Inges
             super::dvd::VIDEO_TS
         ));
     }
+    // A file the computer's own decoders play only without its sound (2026-10-18): converted with
+    // its sound when ffmpeg is here, else played silent rather than not at all.
+    let mut silent_fallback = false;
     let why = match probe(src) {
-        Ok(_) => return Ingest::Direct(src.to_path_buf()),
+        Ok(info) => match info.sound_lost {
+            None => return Ingest::Direct(src.to_path_buf()),
+            Some(codec) => {
+                silent_fallback = true;
+                format!("has {codec} sound, which this computer's own decoders cannot play")
+            }
+        },
         Err(e) => match why_convert(&e) {
             Ok(why) => why,
             Err(fatal) => return Ingest::Failed(format!("{name}: {fatal}")),
@@ -694,10 +706,14 @@ pub fn begin_ingest(src: &Path, ffmpeg_setting: &str, cache_dir: &Path) -> Inges
         return Ingest::Cached(dst);
     }
     let Some(ffmpeg) = find_ffmpeg(ffmpeg_setting) else {
+        if silent_fallback {
+            return Ingest::Direct(src.to_path_buf());
+        }
         return Ingest::Failed(format!("{name} {why}; converting it needs ffmpeg, which was not found. {FFMPEG_HINT}"));
     };
     let encoder = match detect_encoder(&ffmpeg) {
         Ok(enc) => enc,
+        Err(_) if silent_fallback => return Ingest::Direct(src.to_path_buf()),
         Err(e) => return Ingest::Failed(format!("{name} {why}; {e} ({}). {FFMPEG_HINT}", ffmpeg.display())),
     };
     Ingest::Transcoding { job: TranscodeJob::spawn(ffmpeg, encoder, src.to_path_buf(), dst), why }
@@ -744,11 +760,13 @@ mod tests {
         crate::test_temp::dir(&format!("transcode_{name}"))
     }
 
-    /// The MP4 fixture (H.264 + AAC) is refused by the player's probe, and
+    /// The MP4 fixture (H.264 + AAC) is refused by the player's own probe, and
     /// the refusal names the container the player does read, so a person
-    /// reading the raw error knows what the file is not.
+    /// reading the raw error knows what the file is not. (Windows's own
+    /// decoders play it: media/system_tests.rs; they are off here.)
     #[test]
     fn probe_refuses_the_mp4_fixture_by_name() {
+        super::super::system_decoders_off_on_this_thread();
         let mp4 = fixtures().join("moving-box-h264-aac.mp4");
         assert!(mp4.is_file(), "{}", mp4.display());
         let err = probe(&mp4).expect_err("an MP4 must not probe as WebM");
@@ -910,6 +928,7 @@ mod tests {
     /// panics: an ffmpeg setting pointing at a text file that is not ffmpeg.
     #[test]
     fn a_broken_ffmpeg_setting_fails_with_the_hint() {
+        super::super::system_decoders_off_on_this_thread(); // the conversion path, not Windows's decoders
         let d = scratch("broken");
         let fake = d.join(FFMPEG_EXE);
         std::fs::write(&fake, b"echo").unwrap();
@@ -990,6 +1009,7 @@ mod tests {
             println!("skipped: no ffmpeg on this machine");
             return;
         }
+        super::super::system_decoders_off_on_this_thread(); // the conversion path, not Windows's decoders
         let d = scratch("ingest");
         let cache = d.join("cache");
         let mp4 = fixtures().join("moving-box-h264-aac.mp4");

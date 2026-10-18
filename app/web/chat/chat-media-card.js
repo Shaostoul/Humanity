@@ -29,7 +29,12 @@
 // - Open, the title and the picture bring up the item's FULL window over the
 //   chat: the Media page's own item page in a frame (/media/<id>?window=item,
 //   /shared/upload-window.js), the same page with its Download for each file,
-//   never a copy of it.
+//   never a copy of it. The chat signs for the page in that frame (2026-10-18):
+//   with a passphrase-wrapped identity the page has no key of its own, and a
+//   members-only item read "not there".
+// - The thread panel draws its messages' cards by the same rules (2026-10-18,
+//   chat-messages.js putThreadMessage); the website's own place, the desktop has
+//   no thread panel. Cards no longer in the document are let go (prune).
 // - The item is asked for once per page (the same request the Media page opens an
 //   item by its number with: POST /api/media/list signed over "media_list\n<ts>"
 //   when the person has an identity here, so members see members-only items; else
@@ -357,7 +362,7 @@
    *   openItem(id, item, title) (brings up the item's full window, named `title`; see itemWindowOpener),
    *   keepBottom(change) (runs `change`, which makes cards taller, keeping the message list at
    *   its bottom when it was there: chat-media-card.js keepAtBottom; optional).
-   * Returns {attach(ids, msg) -> element, cache, open, allowed, render(id), kinds()}.
+   * Returns {attach(ids, msg) -> element, cache, open, allowed, render(id), prune(), kinds()}.
    */
   function createMediaCards(env) {
     const doc = env.document;
@@ -369,7 +374,27 @@
     const pictures = new Map(); // a members-only picture's path -> {state: 'loading'|'ready'|'error', url, why}
     let kinds = null;           // the kinds file's [{id, one}] once it is in ([] when it could not be read)
     let kindsAsked = null;      // its request, made once for the page and only when a card needs it
+    let pruneAsked = false;     // a prune is queued for the end of this turn
     const keep = (change) => (typeof env.keepBottom === 'function' ? env.keepBottom(change) : change());
+
+    /**
+     * Let go of every card no longer in the document (2026-10-18): its message left the page
+     * (another conversation opened, the thread panel drawn again). render() prunes only the cards
+     * of an item it draws again, which never happens to an item already in the cache, so a long
+     * session kept every card ever drawn. Run once at the end of the turn cards were put in, when
+     * the ones just made are in the document: their callers put them there at once.
+     */
+    function prune() {
+      for (const [id, cards] of Array.from(mounted)) {
+        for (const card of Array.from(cards)) if (card.el.isConnected === false) cards.delete(card);
+        if (!cards.size) mounted.delete(id);
+      }
+    }
+    function pruneSoon() {
+      if (pruneAsked) return;
+      pruneAsked = true;
+      Promise.resolve().then(() => { pruneAsked = false; prune(); });
+    }
 
     function el(tag, cls, text) {
       const e = doc.createElement(tag);
@@ -588,10 +613,11 @@
         draw(card);
         if (!cache.has(id)) fetchItem(id);
       }
+      pruneSoon();
       return wrap;
     }
 
-    return { attach, render, cache, open, allowed, mounted, pictures, fetchItem, kinds: () => kinds };
+    return { attach, render, cache, open, allowed, mounted, pictures, fetchItem, prune, kinds: () => kinds };
   }
 
   /**
@@ -601,7 +627,9 @@
    * Opening an item whose window is kept that way brings THAT window back (never a second frame on
    * the same item), and upload-window.js tells the page in it to open its item again (its own
    * Close had closed it), with its Edit and the upload's progress when one is still going.
-   * `opts`: window, document, onStatus(text). Returns open(id, item, title).
+   * Each window signs for the page in it with the chat's own identity (`sign`, `myKey`; 2026-10-18,
+   * upload-window.js): the item page has no key of its own when the identity is passphrase-wrapped.
+   * `opts`: window, document, onStatus(text), sign(purpose), myKey(). Returns open(id, item, title).
    */
   function itemWindowOpener(UW, opts) {
     const o = opts || {};
@@ -613,7 +641,7 @@
       // nothing going in it, else a new one.
       let host = hosts.find((h) => h.page() === page && h.element()) || hosts.find((h) => !h.isBusy()) || null;
       if (!host) {
-        host = UW.createHost({ window: o.window, document: o.document, page, label, onStatus: o.onStatus });
+        host = UW.createHost({ window: o.window, document: o.document, page, label, onStatus: o.onStatus, sign: o.sign, myKey: o.myKey });
         hosts.push(host);
       }
       // One shown at a time: any other is closed (hidden and kept while something goes in it).
@@ -635,26 +663,35 @@
   // The chat's own globals (app.js, chat-dms.js, chat-protected.js, crypto.js), read only when a card
   // is drawn, so this file can load before them.
   let lastSigned = 0;
+  const chatKey = () => (typeof myKey === 'string' ? myKey : '');
+  /**
+   * A signed read or write, as the Media page signs one ("media_list\n<timestamp>"), with the
+   * chat's own identity, held unlocked in this page; never two with the same timestamp (the relay
+   * refuses a repeat). The cards' item requests, and the item windows' pages (upload-window.js,
+   * which signs only the Media page's purposes for them).
+   */
+  async function chatSign(purpose) {
+    const key = chatKey();
+    if (typeof pqSignChatMessage !== 'function' || !key) return null;
+    const timestamp = Math.max(Date.now(), lastSigned + 1);
+    lastSigned = timestamp;
+    const sig = await pqSignChatMessage(purpose, timestamp);
+    // Signed by the identity unlocked when it was asked: answered only if it is still the one.
+    return sig && chatKey() === key ? { key, timestamp, sig } : null;
+  }
   const openItemWindow = root.HosUploadWindow
     ? itemWindowOpener(root.HosUploadWindow, {
       window: root, document: root.document,
       onStatus: (text) => { if (typeof addNotice === 'function') addNotice(text, 'green', 10); },
+      sign: chatSign, myKey: chatKey,
     })
     : (id) => { try { root.open('/media/' + id, '_blank', 'noopener'); } catch (e) { /* no window */ } };
   const cards = createMediaCards({
     document: root.document,
     fetch: (u, i) => root.fetch(u, i),
     origin: () => (root.location && root.location.origin) || '',
-    myKey: () => (typeof myKey === 'string' ? myKey : ''),
-    // A signed read, as the Media page signs one ("media_list\n<timestamp>"), with the chat's own
-    // identity; never two with the same timestamp (the relay refuses a repeat).
-    sign: async (purpose) => {
-      if (typeof pqSignChatMessage !== 'function' || typeof myKey !== 'string' || !myKey) return null;
-      const timestamp = Math.max(Date.now(), lastSigned + 1);
-      lastSigned = timestamp;
-      const sig = await pqSignChatMessage(purpose, timestamp);
-      return sig ? { key: myKey, timestamp, sig } : null;
-    },
+    myKey: chatKey,
+    sign: chatSign,
     token: () => (typeof myUploadToken === 'string' ? myUploadToken : ''),
     URL: root.URL,
     badge: (slot, name) => { if (typeof fileBadgeFill === 'function') fileBadgeFill(slot, name, null); },
@@ -669,17 +706,20 @@
   });
   root.hosMediaCards = cards;
 
+  // The scrolled lists cards are drawn in: the messages, and the thread panel's (2026-10-18).
+  const CARD_LISTS = ['messages', 'thread-panel-messages'];
   /**
-   * Run `change` (a card going in, or filling in once its item comes), keeping the message list at
-   * its bottom when it was there (2026-10-17, review): a card is put in after appendMessage has
-   * scrolled, and grows again when its item arrives, which left a new message's card below the
-   * fold. Someone who has scrolled up is left where they are.
+   * Run `change` (a card going in, or filling in once its item comes), keeping each list cards are
+   * drawn in at its bottom when it was there (2026-10-17, review): a card is put in after
+   * appendMessage has scrolled, and grows again when its item arrives, which left a new message's
+   * card below the fold. Someone who has scrolled up is left where they are.
    */
   function keepAtBottom(change) {
-    const list = root.document && typeof root.document.getElementById === 'function' ? root.document.getElementById('messages') : null;
-    const was = !!list && atBottom(list);
+    const d = root.document;
+    const lists = d && typeof d.getElementById === 'function' ? CARD_LISTS.map((id) => d.getElementById(id)).filter(Boolean) : [];
+    const was = lists.filter((list) => atBottom(list));
     const out = change();
-    if (was) list.scrollTop = list.scrollHeight;
+    for (const list of was) list.scrollTop = list.scrollHeight;
     return out;
   }
 
@@ -704,7 +744,11 @@
 
   // The cards each message row holds, so a row drawn again (an edit) puts its new ones in their place.
   const boxes = new WeakMap();
-  /** Put the cards for `ids` under the words of message row `row` (by `fromKey` at `ts`), in place of any it had. */
+  /**
+   * Put the cards for `ids` under the words of message row `row` (by `fromKey` at `ts`), in place of
+   * any it had: a row of the message list (its words `.body`) or of the thread panel (its words
+   * `.thread-msg-body`, chat-messages.js putThreadMessage, 2026-10-18).
+   */
   root.mediaCardsPut = function mediaCardsPut(row, ids, fromKey, ts) {
     if (!row) return null;
     const old = boxes.get(row);
@@ -714,7 +758,7 @@
     // A list at its bottom (appendMessage has just scrolled it there) stays there with the card in.
     return keepAtBottom(() => {
       const box = cards.attach(ids, { from: fromKey, timestamp: ts });
-      const body = typeof row.querySelector === 'function' ? row.querySelector('.body') : null;
+      const body = typeof row.querySelector === 'function' ? row.querySelector('.body') || row.querySelector('.thread-msg-body') : null;
       if (body && typeof body.after === 'function') body.after(box);
       else row.appendChild(box);
       boxes.set(row, box);

@@ -1121,19 +1121,70 @@ if (window.HosDropOverlay) {
 // ── Thread panel functions ──
 let currentThread = null; // { from, timestamp, author, body }
 
+// The words each row of the message list was drawn from (app.js addChatMessage), so a thread
+// opened from a reply count that came later (updateThreadBadge) shows its parent as it was
+// written, a Media item's address included, not the row's text with the card's address taken
+// out of it (2026-10-18).
+const threadParentWords = new WeakMap();
+function rememberThreadParent(row, body) {
+  if (row && typeof row === 'object' && typeof body === 'string') threadParentWords.set(row, body);
+}
+
+/**
+ * The Media cards a thread message's text gets (2026-10-18), by the message list's own rule
+ * (app.js addChatMessage): chat-media-card.js mediaCardsPlan, which takes this site's item
+ * addresses out of the words and draws no card where the protected setup holds back a picture or
+ * file link from someone who is not a friend; none for Heron's lists in #todo, which the list
+ * draws as lists. Null when there is no card.
+ */
+function threadMediaPlan(body, fromKey, author) {
+  if (typeof mediaCardsPlan !== 'function' || typeof mediaCardsPut !== 'function') return null;
+  const heronList = activeChannel === 'todo' && !!fromKey && String(fromKey).startsWith('bot_') && (author === 'Heron 🪶' || author === 'Heron');
+  if (heronList) return null;
+  const plan = mediaCardsPlan(body, fromKey);
+  return plan && plan.ids && plan.ids.length ? plan : null;
+}
+
+/**
+ * Put one message at the end of the thread panel `panel` (2026-10-18): its author, time and
+ * words, then, as in the message list, a Media item's card just after the words with its address
+ * out of them, whether it is open remembered under the list's own key (the sender, the time, the
+ * item: a card opened in the list is open here too). A row of its own, so the cards already in the
+ * panel keep their buttons (the panel's HTML was written again for each reply, which drew them
+ * dead). `m`: {from, author, timestamp, body, parent}. Returns the row.
+ */
+function putThreadMessage(panel, m) {
+  const media = threadMediaPlan(m.body, m.from, m.author);
+  const row = document.createElement('div');
+  row.className = m.parent ? 'thread-msg thread-parent' : 'thread-msg';
+  row.innerHTML = `<span class="thread-msg-author">${esc(m.author)}</span>
+    <span class="thread-msg-time">${formatTime(m.timestamp)}</span>
+    <div class="thread-msg-body">${formatBody(media ? media.words : m.body, m.from)}</div>`;
+  panel.appendChild(row);
+  if (typeof fillFileCards === 'function') fillFileCards(row);
+  if (media) mediaCardsPut(row, media.ids, m.from, m.timestamp);
+  return row;
+}
+
+/** A line of the thread panel's own ("Loading replies...", "No replies yet. Be the first!"). */
+function threadNote(panel, text, css, cls) {
+  const note = document.createElement('div');
+  if (cls) note.className = cls;
+  note.style.cssText = css;
+  note.textContent = text;
+  panel.appendChild(note);
+  return note;
+}
+
 function openThreadPanel(fromKey, timestamp, author, body) {
   currentThread = { from: fromKey, timestamp: Number(timestamp), author, body };
   const panel = document.getElementById('thread-panel');
   panel.classList.add('open');
   // Show parent message.
   const messagesDiv = document.getElementById('thread-panel-messages');
-  messagesDiv.innerHTML = `<div class="thread-msg thread-parent">
-    <span class="thread-msg-author">${esc(author)}</span>
-    <span class="thread-msg-time">${formatTime(timestamp)}</span>
-    <div class="thread-msg-body">${formatBody(body, fromKey)}</div>
-  </div>
-  <div style="font-size:0.72rem;color:var(--text-muted);margin-bottom:var(--space-md);">Loading replies...</div>`;
-  if (typeof fillFileCards === 'function') fillFileCards(messagesDiv);
+  messagesDiv.innerHTML = '';
+  putThreadMessage(messagesDiv, { from: fromKey, author, timestamp: currentThread.timestamp, body, parent: true });
+  threadNote(messagesDiv, 'Loading replies...', 'font-size:0.72rem;color:var(--text-muted);margin-bottom:var(--space-md);');
   // Request thread from server.
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'thread_request', from: fromKey, timestamp: Number(timestamp) }));
@@ -1151,26 +1202,17 @@ function renderThreadMessages(messages) {
   if (!currentThread) return;
   // Replies from someone I blocked are not shown (by key, step C).
   messages = (messages || []).filter((m) => !(m && fromBlockedKey(m.from)));
-  // Keep parent, rebuild replies.
-  const parentHtml = `<div class="thread-msg thread-parent">
-    <span class="thread-msg-author">${esc(currentThread.author)}</span>
-    <span class="thread-msg-time">${formatTime(currentThread.timestamp)}</span>
-    <div class="thread-msg-body">${formatBody(currentThread.body, currentThread.from)}</div>
-  </div>`;
-  let repliesHtml = '';
+  // Keep parent, rebuild replies; each with its Media cards, as in the message list.
+  messagesDiv.innerHTML = '';
+  const t = currentThread;
+  putThreadMessage(messagesDiv, { from: t.from, author: t.author, timestamp: t.timestamp, body: t.body, parent: true });
   if (messages.length === 0) {
-    repliesHtml = '<div style="font-size:0.8rem;color:var(--text-muted);padding:var(--space-md);">No replies yet. Be the first!</div>';
+    threadNote(messagesDiv, 'No replies yet. Be the first!', 'font-size:0.8rem;color:var(--text-muted);padding:var(--space-md);', 'thread-none');
   } else {
     for (const m of messages) {
-      repliesHtml += `<div class="thread-msg">
-        <span class="thread-msg-author">${esc(m.from_name || 'Unknown')}</span>
-        <span class="thread-msg-time">${formatTime(m.timestamp)}</span>
-        <div class="thread-msg-body">${formatBody(m.content, m.from)}</div>
-      </div>`;
+      putThreadMessage(messagesDiv, { from: m.from, author: m.from_name || 'Unknown', timestamp: m.timestamp, body: m.content });
     }
   }
-  messagesDiv.innerHTML = parentHtml + repliesHtml;
-  if (typeof fillFileCards === 'function') fillFileCards(messagesDiv);
   messagesDiv.scrollTop = messagesDiv.scrollHeight;
   if (window.twemoji) twemoji.parse(messagesDiv);
 }
@@ -1213,16 +1255,14 @@ async function sendThreadReply() {
   if (pqSig) msg.pq_signature = pqSig;
   ws.send(JSON.stringify(msg));
 
-  // Add to thread panel immediately.
+  // Add to thread panel immediately, as a row of its own (with its Media cards): the rows already
+  // there, their cards included, stay as they are.
   const messagesDiv = document.getElementById('thread-panel-messages');
-  messagesDiv.innerHTML += `<div class="thread-msg">
-    <span class="thread-msg-author">${esc(myName)}</span>
-    <span class="thread-msg-time">${formatTime(timestamp)}</span>
-    <div class="thread-msg-body">${formatBody(content)}</div>
-  </div>`;
-  if (typeof fillFileCards === 'function') fillFileCards(messagesDiv);
+  const none = typeof messagesDiv.querySelector === 'function' ? messagesDiv.querySelector('.thread-none') : null;
+  if (none && typeof none.remove === 'function') none.remove();
+  const row = putThreadMessage(messagesDiv, { from: myKey, author: myName, timestamp, body: content });
   messagesDiv.scrollTop = messagesDiv.scrollHeight;
-  if (window.twemoji) twemoji.parse(messagesDiv);
+  if (window.twemoji) twemoji.parse(row);
 
   // Also add to main chat.
   const key = myKey + ':' + timestamp;
@@ -1252,10 +1292,12 @@ function updateThreadBadge(parentFrom, parentTimestamp) {
     badge.innerHTML = hosIcon('chat', 16) + ' 1 reply';
     badge.addEventListener('click', (e) => {
       e.stopPropagation();
-      // Find parent message content.
+      // Find parent message content: the words it was drawn from (a Media item's address
+      // included, so its card shows in the thread too), else its text as shown.
       const bodyEl = parentEl.querySelector('.body');
       const authorEl = parentEl.querySelector('.author');
-      openThreadPanel(parentFrom, parentTimestamp, authorEl ? authorEl.textContent : 'Unknown', bodyEl ? bodyEl.textContent : '');
+      const written = threadParentWords.get(parentEl);
+      openThreadPanel(parentFrom, parentTimestamp, authorEl ? authorEl.textContent : 'Unknown', typeof written === 'string' ? written : (bodyEl ? bodyEl.textContent : ''));
     });
     const actions = parentEl.querySelector('.msg-actions');
     if (actions) parentEl.insertBefore(badge, actions);

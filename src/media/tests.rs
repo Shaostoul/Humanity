@@ -95,6 +95,9 @@ fn probe_reports_tracks_codecs_and_duration() {
 
 #[test]
 fn refuses_unsupported_codec_naming_it() {
+    // Our own decoder's refusal. On Windows the computer's own decoders may play a VP8 WebM (the
+    // Web Media Extensions do), which is system_tests' business, not this test's.
+    super::system_decoders_off_on_this_thread();
     let err = match VideoPlayer::open(fixture(UNSUPPORTED)) {
         Ok(_) => panic!("a VP8 file must be refused"),
         Err(e) => e,

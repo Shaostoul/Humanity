@@ -2203,6 +2203,11 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
     });
   }
 
+  // The words it was drawn from, for a thread opened on it by a reply count that comes later
+  // (chat-messages.js updateThreadBadge): its Media card shows in the thread too (2026-10-18).
+  // A channel's post only: never a private row's words, nor a file's marker (it holds the key).
+  if (!privateRow && !fileMeta && typeof rememberThreadParent === 'function') rememberThreadParent(el, body);
+
   // Click thread badge → open thread panel.
   const threadBadge = el.querySelector('.thread-badge');
   if (threadBadge) {

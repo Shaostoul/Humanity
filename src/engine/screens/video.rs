@@ -1726,6 +1726,9 @@ mod tests {
     /// codec and the fix (`FFMPEG_HINT`). Both worlds are honest.
     #[test]
     fn the_screen_names_the_codec_of_an_unsupported_file() {
+        // Our own decoder's refusal and the conversion: Windows's own decoders may play VP8
+        // (media/system.rs), so they are off on this thread.
+        crate::media::system_decoders_off_on_this_thread();
         let mut state = GuiState::default();
         let theme = load_theme();
         let mut core = ScreenCore::new("s", "video:x", 640, 360, &theme);
@@ -2286,6 +2289,9 @@ mod tests {
             println!("skipped: no ffmpeg on this machine");
             return;
         }
+        // The conversion path: Windows plays this MP4 directly (media/system_tests.rs), so its
+        // own decoders are off on this thread.
+        crate::media::system_decoders_off_on_this_thread();
         let cache = scratch("mp4");
         let mp4 = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(MP4);
         let mut p = VideoProvider::new(DEMO).with_cache_dir(cache.to_path_buf());

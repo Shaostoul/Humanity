@@ -1,6 +1,6 @@
 [package]
 name = "humanity-engine"
-version = "0.1512.0"
+version = "0.1513.0"
 edition = "2021"
 
 [[bin]]
@@ -15,7 +15,7 @@ test = false
 
 [features]
 default = ["native"]
-native = ["winit", "relay", "dep:notify", "dep:pollster", "dep:env_logger", "dep:tokio", "dep:egui", "dep:egui-wgpu", "dep:egui-winit", "dep:tungstenite", "dep:kira", "dep:ureq", "dep:url", "dep:html5ever", "dep:bip39", "dep:qrcode", "dep:ed25519-dalek", "dep:hex", "dep:aes-gcm", "dep:ctr", "dep:ghash", "dep:pbkdf2", "dep:argon2", "dep:sha2", "dep:base64", "dep:bs58", "dep:p256", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem", "dep:arboard", "dep:keyring", "dep:str0m", "dep:hmac", "dep:sha1", "dep:md-5", "dep:memory-stats", "dep:cpal", "dep:rtrb", "dep:unsafe-libopus", "dep:nnnoiseless", "dep:matroska-demuxer", "dep:rav1d", "dep:libc"]
+native = ["winit", "relay", "dep:notify", "dep:pollster", "dep:env_logger", "dep:tokio", "dep:egui", "dep:egui-wgpu", "dep:egui-winit", "dep:tungstenite", "dep:kira", "dep:ureq", "dep:url", "dep:html5ever", "dep:bip39", "dep:qrcode", "dep:ed25519-dalek", "dep:hex", "dep:aes-gcm", "dep:ctr", "dep:ghash", "dep:pbkdf2", "dep:argon2", "dep:sha2", "dep:base64", "dep:bs58", "dep:p256", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem", "dep:arboard", "dep:keyring", "dep:str0m", "dep:hmac", "dep:sha1", "dep:md-5", "dep:memory-stats", "dep:cpal", "dep:rtrb", "dep:unsafe-libopus", "dep:nnnoiseless", "dep:matroska-demuxer", "dep:rav1d", "dep:libc", "dep:windows"]
 relay = ["dep:axum", "dep:tower-http", "dep:rusqlite", "dep:r2d2", "dep:r2d2_sqlite", "dep:tracing", "dep:tracing-subscriber", "dep:reqwest", "dep:tokio", "dep:ed25519-dalek", "dep:hex", "dep:sha2", "dep:sha1", "dep:hmac", "dep:web-push-native", "dep:base64", "dep:base64ct", "dep:bs58", "dep:tokio-stream", "dep:futures", "dep:regex", "dep:url", "dep:uuid", "dep:tokio-tungstenite", "dep:ciborium", "dep:blake3", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem", "dep:argon2", "dep:aes-gcm", "dep:md-5"]
 mesh = ["relay", "dep:serialport"]
 wasm = [
@@ -239,6 +239,15 @@ argon2 = { version = "0.6.0-rc.8", optional = true }
 # Cross-platform pure-Rust serial port access. The LoRa radio modules we
 # target (RFM95W, SX1262, etc.) expose a UART, so this is the canonical path.
 serialport = { version = "4.9", optional = true }
+
+# === Windows: the computer's own video decoders (2026-10-18) ===
+# Media Foundation, which every Windows 7+ desktop carries, plays an ordinary MP4 (H.264 video,
+# AAC sound) with no decoder of ours (src/media/system.rs; the finding is
+# docs/reference/findings/2026-10-17-windows-media-foundation-decoders.md). 0.62 is the version the
+# graphics stack already builds, so this adds only these bindings. Media Foundation's own functions
+# are LOADED AT RUN TIME there, never linked, so the app still starts on a Windows "N" edition.
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", optional = true, features = ["Win32_Foundation", "Win32_Media_MediaFoundation", "Win32_System_Com", "Win32_System_Com_StructuredStorage", "Win32_System_LibraryLoader", "Win32_System_Variant"] }
 
 [build-dependencies]
 winres = "0.1"

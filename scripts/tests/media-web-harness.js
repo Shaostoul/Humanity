@@ -67,6 +67,12 @@ class FakeElement {
     this.files = null;
   }
   get children() { return this.childNodes.filter((c) => c.nodeType === 1); }
+  // In the document: under its body, as a browser's isConnected answers (2026-10-18: the chat's Media
+  // cards let go of the ones no longer in it, media-card-web.test.js 12).
+  get isConnected() {
+    for (let n = this; n; n = n.parentNode) if (n === this.ownerDocument.body) return true;
+    return false;
+  }
   get textContent() { return this.childNodes.map((c) => c.textContent).join(""); }
   set textContent(v) { this.replaceChildren(); if (String(v)) this.appendChild(new FakeText(v)); }
   get innerHTML() { throw new Error("the page read innerHTML"); }

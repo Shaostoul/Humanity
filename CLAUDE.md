@@ -489,7 +489,7 @@ src/                        ← single crate, everything lives here
   ├ mods/                   ← mod manifest, load order, data override resolution
   ├ engine/                 ← THE FRAME. 25 files the main loop is made of: world_load,
   │                           home_meshes, screens, ipc (the dev IPC), frame_*.rs, editor
-  ├ media/                  ← AV1 + Opus player, playback clock, seek, ffmpeg ingest, discs
+  ├ media/                  ← AV1 + Opus player, MP4 via Windows (system.rs), clock, seek, ffmpeg ingest, discs
   ├ web_reader/             ← the readable-web fetcher behind `web:` wall screens
   ├ station/                ← orbital station frame + spin
   ├ input/, hot_reload/     ← input mapping; shader and data hot reload
@@ -604,7 +604,7 @@ When you change any of these in code, update this table + status in the same com
 | `src/net/` | Multiplayer networking: WebSocket client, protocol, ECS sync |
 | `src/mods/` | Mod manifest, load order, data override resolution |
 | `src/engine/` | **The frame.** 25 files: `world_load.rs`, `home_meshes.rs`, `screens.rs`, `ipc.rs` (the dev IPC), `frame_*.rs`, `launch_focus.rs`, `editor.rs`, `net_route.rs`. Most recent gameplay work lands here |
-| `src/media/` | Media player core: AV1 + Opus decode, playback clock, seek, ffmpeg ingest, video discs |
+| `src/media/` | Media player core: AV1 + Opus decode, playback clock, seek, ffmpeg ingest, video discs; `system.rs` plays an MP4 (H.264/AAC and more) through Windows Media Foundation, its functions LOADED AT RUN TIME (never linked: a Windows "N" edition must still start) |
 | `src/web_reader/` | The readable-web fetcher behind `web:` wall screens |
 | `src/station/`, `src/input/`, `src/hot_reload/` | Orbital station frame; input mapping; shader + data hot reload |
 | top-level `src/*.rs` | ~20 more beyond the six below, incl. `machines.rs`, `save_load.rs`, `storage.rs`, `showroom.rs`, `cosmos.rs`, `auto_unlock.rs`, `boot_timing.rs`, `debug.rs` |

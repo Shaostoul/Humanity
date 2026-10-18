@@ -23,6 +23,15 @@ can't watch my own movies on my own free open source software."
   shown on any screen in the world. A format our player cannot decode is
   converted once with the ffmpeg already installed on your machine, cached, and
   played. Your original file is never modified.
+- **Plays an ordinary MP4 with your computer's own decoders (Windows, since
+  v0.1513.0).** Windows 7 and later come with an H.264 video decoder and an AAC
+  sound decoder that any program may call, so the desktop app asks Windows to
+  decode an MP4 instead of shipping a decoder of its own: no ffmpeg, no
+  conversion, picture and sound. A Windows "N" edition has no such decoders
+  until you add Microsoft's free Media Feature Pack, and the app says so;
+  H.265 (HEVC) needs Microsoft's HEVC extension, sold separately because of
+  patent licensing, and the app says that too. The research behind this:
+  `docs/reference/findings/2026-10-17-windows-media-foundation-decoders.md`.
 - **Plays discs it can read.** A disc you burned, a camcorder disc, a data disc,
   an unprotected video disc: the app finds the main title and plays it.
 - **Uses what your machine already has.** If your computer already carries a

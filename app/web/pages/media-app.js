@@ -87,7 +87,9 @@
 //   media_publish:<file name>:<licence id>:<0|1> (round 5: the licence and the
 //   game tick are signed with it), media_remove:<item id or file name>,
 //   media_pick:<item id>, media_feature:<item id>:<main|category|none> (round
-//   5), media_keep:<item id>:<on|off>. A write on an item
+//   5), media_keep:<item id>:<on|off>. The item window over the chat, with no
+//   key of its own here (a passphrase-wrapped identity), is signed for by the
+//   chat that framed it (signerFor, /shared/upload-window.js, 2026-10-18). A write on an item
 //   also names the item's file (`filename`, the relay's W5), so a tile left on
 //   a page that is out of date never acts on another item: the relay answers
 //   409 and the page loads the list again.
@@ -2008,6 +2010,34 @@
     };
   }
 
+  /**
+   * Who the page signs as, and with what (2026-10-18). `o`: identity (getPqIdentity's, from the copy
+   * of the key this browser keeps, or null), ownSign (getPqSignedAuth), itemWindow (the item
+   * window's connector, /shared/upload-window.js connectFrame, or null).
+   * Its own identity when it has one. Else, as the item window over the chat, the chat that framed
+   * it: a passphrase-wrapped identity keeps no copy this page can read, but the chat holds it
+   * unlocked, so a members-only item opened from a chat card is asked for signed (and Pick, Keep,
+   * Edit and the rest), never listed unsigned as "not there". A signature in another key than the
+   * one the page started with is not used. Returns {myKey, sign, via: 'own' | 'chat' | 'none'}.
+   */
+  async function signerFor(o) {
+    const own = (o && o.ownSign) || (() => Promise.resolve(null));
+    if (o && o.identity && o.identity.dilithiumPublicHex) return { myKey: o.identity.dilithiumPublicHex, sign: own, via: 'own' };
+    const w = o && o.itemWindow;
+    if (w && typeof w.identity === 'function' && typeof w.sign === 'function') {
+      let key = '';
+      try { key = await w.identity(); } catch (e) { key = ''; }
+      if (key) {
+        const sign = async (purpose) => {
+          const a = await w.sign(purpose);
+          return a && a.key === key ? a : null;
+        };
+        return { myKey: key, sign, via: 'chat' };
+      }
+    }
+    return { myKey: '', sign: own, via: 'none' };
+  }
+
   // ── In the browser ──
   function bootInBrowser() {
     const doc = root.document;
@@ -2028,7 +2058,7 @@
           storage: root.localStorage,
         })
         : null;
-      const sign = (purpose) => (typeof root.getPqSignedAuth === 'function' ? root.getPqSignedAuth(purpose) : Promise.resolve(null));
+      const ownSign = (purpose) => (typeof root.getPqSignedAuth === 'function' ? root.getPqSignedAuth(purpose) : Promise.resolve(null));
       const confirm = (words) => (typeof root.holdConfirm === 'function'
         ? root.holdConfirm(words, { seconds: 2, confirmLabel: 'Hold to remove' })
         : Promise.resolve(root.confirm(words)));
@@ -2046,12 +2076,16 @@
       const itemWindow = !uploadWindow && UW && UW.isItemWindowAddress && UW.isItemWindowAddress(loc.search)
         ? UW.connectFrame({ window: root })
         : null;
+      // Signed as this browser's own identity, else (the item window, a passphrase-wrapped
+      // identity) by the chat that framed it (signerFor, 2026-10-18).
+      const who = await signerFor({ identity, ownSign, itemWindow });
+      const sign = who.sign;
       page = createMediaPage({
         document: doc,
         root: rootEl,
         fetch: (u, i) => root.fetch(u, i),
         origin: root.location.origin,
-        myKey: identity ? identity.dilithiumPublicHex : '',
+        myKey: who.myKey,
         sign,
         signBytes: (bytes) => (identity && typeof root.pqSignMessage === 'function' ? root.pqSignMessage(identity.dilithiumSecret, bytes) : Promise.resolve(null)),
         blake3: (bytes) => root.pqBlake3(bytes),
@@ -2108,7 +2142,7 @@
     shareStop, limitStop, budgetStop, togetherStop, MORE_LEAD, moreWords, meterWords, keptMeterWords, removeWords, removedWords, resetsWords, ownFilePath,
     fileRoute, storedName, itemFileName, itemName, downloadName, labelsOf, listParams, publicListUrl, purposes, jsonPost, isFeatured, itemIdOf, DEFAULT_LICENCE,
     refusalOf, refusalWords, answerOf, makeH, isAdminRole, isStaffRole, rememberUpload, findUpload, forgetUpload,
-    createUploader, fingerprint, createMediaPage,
+    createUploader, fingerprint, createMediaPage, signerFor,
     POST_WORDS, STAR, POST_FAVORITES_KEY, CHAT_CHANNEL_KEY, POST_GRACE_MS, postFavoriteKey, postFavorites, togglePostFavorite,
     postChoices, postText, postedIn, notPostedIn,
   };

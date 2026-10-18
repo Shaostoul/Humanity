@@ -428,6 +428,32 @@ and a mark after ".exe" hid the ending from the check), `src/net/file_risk.rs` `
 `scripts/tests/fixtures/file-risk-cases.json`; the relay refuses a new name holding one. A saved
 name past 80 letters is shortened before its ending, never through it, and Media shows each file's
 real name (Download saves the safe one).
+**MP4 plays in the desktop app, with sound, through Windows's own decoders (v0.1513.0).** An ordinary
+MP4 (H.264 video, AAC sound; also whatever else Windows can decode, VP9 or MPEG-2 for example) plays
+on the Media page, in an item's window over the chat and on in-world screens, with no ffmpeg and no
+conversion. `src/media/system.rs` asks Windows Media Foundation (Source Reader, colour conversion to
+RGB, float sound for kira); our own AV1/Opus path still plays WebM first. Media Foundation's five
+functions are LOADED AT RUN TIME (`LoadLibraryW`), never linked, so the app still starts on a Windows
+"N" edition, which then says "This copy of Windows has no video decoders. Microsoft's free Media
+Feature Pack adds them." (H.265 without Microsoft's extension gets its own sentence; both are the
+platform finding's words, and a screen still converts with the person's ffmpeg). Windows does not
+apply an MP4's edit list as the file means it (the fixture's first picture comes stamped 0.133 s), so
+each stream is counted from Windows's first time set to the start the MP4 declares for it (its edit
+list's leading empty edits, `declared_starts`), with silence before a sound that starts later. The
+decoder's real row layout is read after the first picture (an 854-wide H.264 picture drew skewed
+before). A file whose sound Windows cannot decode (Opus in an MP4, DTS) is converted with sound on a
+screen when ffmpeg is there, else plays silent, and the Media page says so (`sound_lost`). The Media
+page's video now has sound (it played silent), with
+Mute; the engine hands it the mixer each frame (`media::sync_sound`). A new player shows its first
+picture at once, paused or not. Tests: `src/media/system_tests.rs` on
+`tests/fixtures/media/moving-box-h264-aac.mp4`, two needing a sound device run by hand.
+**Media card follow-ups (v0.1513.0).** The desktop card names a content label before the Media page has
+loaded ("Labelled: Flashing lights."); the desktop takes only a link to a picture as a picture (a bare
+"render.png" in a non-friend's message no longer withholds its card) and removes it word by word;
+sizes round an exact half up on both apps, held to `scripts/tests/fixtures/size-words-cases.json`.
+Website: the thread panel shows cards; an item opened from a card in its framed window signs through
+the chat that opened it when the identity is passphrase-wrapped (`upload-window.js` `sign`, Media
+purposes only); cards no longer on the page are let go.
 **Rename a file, and choose a picture already on an item as its cover (v0.1512.0).** In an item's
 Edit window every file has Rename (the item's own file too): a box holding the name without its
 ending, the ending shown fixed after it, so a rename can never turn a model into something else.

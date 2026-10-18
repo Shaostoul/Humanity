@@ -656,6 +656,22 @@ mod route_tests {
     /// Seen red 2026-10-09 both ways: with every picture loaded (the tracker's
     /// came back `Load`) and with every picture asked first (our own came
     /// back `AskFirst`).
+    /// ONLY A PICTURE'S ADDRESS IS A PICTURE, AND IT IS TAKEN OUT AS A WHOLE WORD (a review,
+    /// 2026-10-17): a bare name is not a link; brackets around a link are not part of it; taking
+    /// one out never glues the words around it into a link. Seen red 2026-10-17 with the old
+    /// matcher: "a bare name is not a picture" (left: ["render.png"]); and with plain replacement:
+    /// "the glued word stays as it was" (left: "look https://evil.example/login").
+    #[test]
+    fn only_a_pictures_address_is_a_picture_and_it_goes_as_a_whole_word() {
+        use super::strip_image_urls;
+        assert!(extract_image_urls("render.png is ready").is_empty(), "a bare name is not a picture: {:?}", extract_image_urls("render.png is ready"));
+        assert_eq!(extract_image_urls("see (https://x.example/a.png), ok"), vec!["https://x.example/a.png".to_string()]);
+        assert_eq!(extract_image_urls("/uploads/1_cat.jpg"), vec!["/uploads/1_cat.jpg".to_string()]);
+        let crafted = "look /uploads/a.png htt/uploads/a.pngps://evil.example/login";
+        assert_eq!(strip_image_urls(crafted), "look htt/uploads/a.pngps://evil.example/login", "the glued word stays as it was");
+        assert_eq!(strip_image_urls("/uploads/1_cat.jpg"), "", "a message of only a picture leaves nothing");
+    }
+
     #[test]
     fn a_message_with_both_kinds_routes_each_picture_on_its_own() {
         let text = "look /uploads/cat.jpg and https://tracker.example/x.gif";
@@ -675,15 +691,8 @@ pub fn extract_image_urls(text: &str) -> Vec<String> {
     let lower = text.to_lowercase();
     // Simple token-based scan: iterate substrings that end in a recognized ext.
     for tok in text.split_whitespace() {
-        let tok_lower = tok.to_lowercase();
-        if is_image_url(&tok_lower) {
-            out.push(strip_trailing_punct(tok).to_string());
-        } else if tok_lower.contains("/uploads/") {
-            // Sometimes the URL has embedded extension differences; be lenient
-            // about known image extensions anywhere in the token.
-            if IMAGE_EXTS.iter().any(|e| tok_lower.contains(e)) {
-                out.push(strip_trailing_punct(tok).to_string());
-            }
+        if let Some(link) = image_link_of(tok) {
+            out.push(link.to_string());
         }
     }
     // Also scan for bare /uploads/... paths on their own line (common in
@@ -704,6 +713,20 @@ pub fn extract_image_urls(text: &str) -> Vec<String> {
 }
 
 const IMAGE_EXTS: &[&str] = &[".jpg", ".jpeg", ".png", ".webp", ".gif"];
+
+/// `tok` (one word of a message) as a picture's address: the word without the brackets and quotes
+/// around it and the punctuation after it, when that is a link (`http://`, `https://` or a path
+/// from `/`) to a picture. A bare name like "render.png" is not one (a review, 2026-10-17: the
+/// protected setup left out a non-friend's card for a message that only named a file), and
+/// neither is a link inside other letters.
+fn image_link_of(tok: &str) -> Option<&str> {
+    let link = strip_trailing_punct(tok.trim_start_matches(|c: char| matches!(c, '(' | '[' | '<' | '"' | '\'')));
+    let lower = link.to_lowercase();
+    let shaped = lower.starts_with("http://") || lower.starts_with("https://") || link.starts_with('/');
+    // An upload's name can carry its extension mid-name; be lenient there.
+    let picture = is_image_url(&lower) || (lower.contains("/uploads/") && IMAGE_EXTS.iter().any(|e| lower.contains(e)));
+    (shaped && picture).then_some(link)
+}
 
 fn is_image_url(s_lower: &str) -> bool {
     IMAGE_EXTS.iter().any(|e| s_lower.ends_with(e))
@@ -823,10 +846,25 @@ pub fn strip_image_urls(text: &str) -> String {
     if urls.is_empty() {
         return text.to_string();
     }
-    let mut out = text.to_string();
-    for url in &urls {
-        out = out.replace(url, "");
-    }
+    // Word by word, never by plain replacement (a review, 2026-10-17: taking "/uploads/a.png" out
+    // of "htt/uploads/a.pngps://evil.example/login" glued a live link together): a word that is a
+    // picture's address goes, the punctuation around it stays; a line that is one address goes.
+    let out = text
+        .split('\n')
+        .filter(|line| !urls.iter().any(|u| u == line.trim()))
+        .map(|line| {
+            line.split_inclusive(char::is_whitespace)
+                .map(|piece| {
+                    let word = piece.trim_end();
+                    match image_link_of(word) {
+                        Some(link) if urls.iter().any(|u| u == link) => piece.replacen(link, "", 1),
+                        _ => piece.to_string(),
+                    }
+                })
+                .collect::<String>()
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
     // Collapse repeated whitespace / empty lines that the removal left behind.
     let mut cleaned = String::with_capacity(out.len());
     let mut last_was_newline = false;

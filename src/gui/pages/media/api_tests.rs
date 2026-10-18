@@ -262,6 +262,16 @@ fn the_words_say_what_they_mean() {
     // same day with the KB step left out: 4000 bytes said "4000 bytes".
     assert_eq!((size_words(4000), size_words(300 * 1024), size_words(1), size_words(512)), ("4 KB".to_string(), "300 KB".to_string(), "1 byte".to_string(), "512 bytes".to_string()));
     assert_eq!(size_words(150 * MB), "150 MB");
+    // Every shared case, the website's too (2026-10-17). Seen red the same day with the
+    // half-to-even rounding of {:.1}: "1310720 bytes" (left: "1.2 MB", right: "1.3 MB").
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("scripts/tests/fixtures/size-words-cases.json");
+    let v: Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+    let cases = v["cases"].as_array().expect("the shared cases");
+    assert!(cases.len() >= 15);
+    for c in cases {
+        let bytes = c[0].as_i64().unwrap();
+        assert_eq!(size_words(bytes), c[1].as_str().unwrap(), "{bytes} bytes");
+    }
 
     assert_eq!(room_problem(10, Some(&mine)), None, "a file that fits goes");
     assert_eq!(room_problem(1 << 40, None), None, "unknown numbers stop nothing (the server checks them)");

@@ -78,6 +78,14 @@ mod publishing;
 mod waiting;
 /// An opened item: a video playing, a model's or file's card with Download.
 pub(crate) mod open;
+
+/// The open item's video gets its sound from the app's mixer (`open::sync_sound`); the engine calls
+/// this each frame it has a mixer.
+pub(crate) fn sync_sound(state: &mut GuiState, audio: &mut crate::audio::AudioManager) {
+    if let Some(opened) = state.media.open.as_mut() {
+        open::sync_sound(opened, audio);
+    }
+}
 /// The admins' section (moved from Server Settings, Media round 5): the settings, the categories,
 /// the suggestions and the meter.
 pub(crate) mod admin;
