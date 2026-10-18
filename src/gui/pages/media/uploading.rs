@@ -144,6 +144,7 @@ pub(crate) fn start_with(state: &mut GuiState, form: &Form, t: Arc<dyn Transport
         project_use: fields.project_use,
         attach: None,
         more: form.more.clone(),
+        post_to: if form.post_on { form.post_to.clone() } else { String::new() },
     };
     push_upload(state, record, form.remove, token, t);
     Ok(())
@@ -394,6 +395,10 @@ pub(crate) fn published(state: &mut GuiState, local: u64, filename: &str, result
                 super::refresh_mine(state);
             } else {
                 state.media.status = publishing::on_media_words(&v);
+                // "Also post in chat" (2026-10-17): its title, description and file, in the channel.
+                if let Some(g) = gone.as_ref().filter(|g| !g.record.post_to.is_empty()) {
+                    add::post_published(state, &v, &g.record.post_to, &g.record.server);
+                }
                 let more = gone.map(|g| g.record.more).unwrap_or_default();
                 if !more.is_empty() {
                     attach_more(state, &v, more);

@@ -12,13 +12,27 @@
   <!-- The Media page (docs/design/media-showcase.md, "Increment 2, exact"). Everything
        inside #media-root is built by /pages/media-app.js with createElement and
        textContent; its styles are /shared/media.css, theme tokens only. -->
-  <link rel="stylesheet" href="/shared/media.css?v=8">
+  <link rel="stylesheet" href="/shared/media.css?v=9">
   <!-- Each file's type, always shown just before its name (2026-10-17), and the tinted parts of
        Add to Media and an item's Edit, in the chat sidebar's colours, darker. -->
   <link rel="stylesheet" href="/shared/file-badge.css?v=1">
   <link rel="stylesheet" href="/shared/tint-section.css?v=1">
+  <!-- Files dragged from the computer onto the page: the dimmed overlay saying what a drop will do (2026-10-17). -->
+  <link rel="stylesheet" href="/shared/drop-overlay.css?v=2">
+  <!-- The upload window (2026-10-17, /shared/upload-window.js): this page at /media?window=upload in a
+       frame over the chat is its Add to Media alone, without the site's menu, footer and background.
+       Marked here, before anything is drawn, so the menu never shows in the frame. -->
+  <script>
+    (function () {
+      var framed = false;
+      try { framed = window.self !== window.top; } catch (e) { framed = true; }
+      if (framed && /(?:^|[?&])window=upload(?:&|$)/.test(location.search.slice(1))) document.documentElement.setAttribute('data-media-window', '');
+    })();
+  </script>
   <style>
     body { background: var(--bg); color: var(--text); line-height: var(--line-height); min-height: 100vh; padding-bottom: 60px; }
+    [data-media-window] body { min-height: 0; padding: 0; }
+    [data-media-window] body > :not(#media-root):not(.hos-drop-overlay) { display: none !important; }
   </style>
 </head>
 <body>
@@ -38,7 +52,12 @@
      pqDeriveIdentity, pqSignMessage and pqBlake3; `pq-relay-auth.js` installs
      getPqIdentity and getPqSignedAuth (every signed Media request goes through it). -->
 <script src="/chat/pq.js?v=2"></script>
-<script src="/shared/pq-relay-auth.js?v=3"></script>
+<!-- The recovery-phrase guard for "Also post in chat" (2026-10-17), the chat's own: the word list
+     the phrase is spelled with and the matcher (/shared/warnings.js); pq-relay-auth.js
+     pqRecoveryPhraseIn derives the phrase for each check and drops it. -->
+<script src="/chat/bip39-english.js?v=1"></script>
+<script src="/shared/warnings.js?v=3"></script>
+<script src="/shared/pq-relay-auth.js?v=4"></script>
 <!-- The page's own signed-in connection: the upload token and the server's settings. -->
 <script src="/shared/relay-session.js?v=2"></script>
 <!-- Report on a Media tile: the words a report signs and the reasons' help (context `media`). -->
@@ -59,7 +78,7 @@
      /data/safety/file_risks.json, the list the desktop app reads too; before media-edit.js, which draws
      the badges for media-item.js and media-app.js. -->
 <script src="/shared/file-risk.js?v=2"></script>
-<script src="/pages/media-edit.js?v=2"></script>
+<script src="/pages/media-edit.js?v=3"></script>
 <!-- "Report a copyright problem" (2026-10-13): the form anyone may send, signed in or not, and the
      admins' view of the reports; before media-item.js and media-app.js, which use it. -->
 <script src="/pages/media-takedown.js?v=1"></script>
@@ -71,7 +90,16 @@
 <script src="/shared/reach.js?v=4"></script>
 <script src="/shared/protected.js?v=4"></script>
 <script src="/pages/media-item.js?v=5"></script>
-<script src="/pages/media-app.js?v=9"></script>
+<!-- Files dragged from the computer onto the page (2026-10-17): the desktop's words while they are
+     over it ("Drop to upload to Media", "Drop to add to <the item>" with its Edit open) and its drop.
+     Before media-app.js, which puts it on the page. upload-window.js: this page as the upload window
+     over the chat (/media?window=upload in a frame), taking the files dropped there. -->
+<script src="/shared/drop-overlay.js?v=2"></script>
+<script src="/shared/upload-window.js?v=1"></script>
+<!-- Add to Media (the form, its uploads, publishing and "Also post in chat"), in its own file since
+     2026-10-17; media-app.js makes it, so it loads first. -->
+<script src="/pages/media-add.js?v=1"></script>
+<script src="/pages/media-app.js?v=11"></script>
 <!-- The admins' Media section: this page's Admin tab, for admins (/media#admin; /admin points here). -->
 <script src="/pages/media-admin.js?v=3"></script>
 </body>

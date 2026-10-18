@@ -15148,6 +15148,10 @@ mod native_app {
                                 if state.gui_state.active_page == GuiPage::Profile {
                                     state.gui_state.active_page = GuiPage::Real;
                                 }
+                                // Files dropped on the window this frame, held for whichever page or
+                                // window takes them (gui/drop_files.rs; routed at the frame's end).
+                                crate::gui::drop_files::begin_frame(ctx);
+                                crate::gui::pages::media::offer_drop_anywhere(ctx, &state.gui_state);
                                 // Show RGB nav bar on all pages except None and MainMenu
                                 match state.gui_state.active_page {
                                     GuiPage::None | GuiPage::MainMenu => {}
@@ -15198,6 +15202,11 @@ mod native_app {
                                 );
                                 // A 3D model posted in chat, in its own window (View in 3D on its card).
                                 crate::gui::pages::chat::draw_model_window(ctx, &state.theme, &mut state.gui_state.chat_model_view);
+                                // The upload window a drop opened from another page (Add to Media's form).
+                                crate::gui::pages::media::draw_upload_window(ctx, &state.theme, &mut state.gui_state);
+                                // Dropped files go to the page or window that took them, and while
+                                // files are dragged over the window, it says where they will go.
+                                crate::gui::drop_files::finish(ctx, &state.theme, &mut state.gui_state);
 
                                 // Crew NPC nameplates (v0.667): rebuild every frame from the
                                 // live RemoteNpc components so the name + current chore label

@@ -488,7 +488,11 @@ test("11. each file row says what kind of file it is when that deserves a word, 
   // The page's ids: file 0's line is `media-file-caution`, file n's `media-file-caution-<n>`.
   const caution = (n) => byId(doc, n ? "media-file-caution-" + n : "media-file-caution");
   assert.equal(text(caution(1)), riskOf("textures.zip").words, "the archive's word, under its row");
-  assert.ok(text(caution(1)).startsWith("This is an archive (.zip)."), "in the list's words");
+  // The words themselves are the data file's (the archive kind with its ending filled in), read from
+  // the file, never typed out: they are rewritten there from time to time.
+  // Seen red 2026-10-17: typed out as "This is an archive (.zip).", it failed with "in the list's
+  // words" once the data file's words were rewritten that day; read from the file, it passes.
+  assert.equal(text(caution(1)), RISKS.kinds.find((k) => k.id === "archive").words.replace("{ext}", ".zip"), "in the list's words");
   assert.equal(caution(1).className, "file-caution", "the warning colour's class");
   assert.equal(text(caution(3)), riskOf("ship.blend").words, "a Blender file's word");
   assert.equal(caution(0), null, "a picture: no line");

@@ -87,7 +87,7 @@ mod attach_view;
 /// Files posted into a public channel: a card with Download, and View in 3D for a model (2026-10-17).
 /// See `chat/public_files.rs`.
 mod public_files;
-pub(crate) use public_files::draw_model_window;
+pub(crate) use public_files::{draw_model_window, post_in};
 /// Device-to-device big files (answer 10): a row per transfer at the top of a DM. See `chat/transfer_rows.rs`.
 mod transfer_rows;
 #[cfg(test)]
@@ -137,6 +137,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         }
     }
     attach_step::draw(ctx, theme, state); // the picked file's attach step, until Send or Cancel
+    attach_send::offer_drop(ctx, state); // files dropped on the window go here (gui/drop_files.rs)
     attach_send::next_queued(state); // then the next of several chosen together
 
     if std::mem::take(&mut state.pending_clipboard_paste) {

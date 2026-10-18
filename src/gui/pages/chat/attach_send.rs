@@ -384,6 +384,59 @@ pub(super) fn start_attach(state: &mut GuiState, path: &std::path::Path) {
     }
 }
 
+/// How the chat names the open conversation in "Drop to send in ...": a DM by the person's name,
+/// a group by its name, a room as `#room`.
+pub(crate) fn conversation_name(state: &GuiState) -> String {
+    let ch = &state.chat_active_channel;
+    if let Some(pk) = ch.strip_prefix("dm:") {
+        state.chat_dms.iter().find(|d| d.user_key == pk).map(|d| d.user_name.clone()).unwrap_or_else(|| "this conversation".to_string())
+    } else if let Some(gid) = ch.strip_prefix("p2pgroup:") {
+        state.p2p_groups.iter().find(|g| g.group_id == gid).map(|g| g.name.clone()).unwrap_or_else(|| "this group".to_string())
+    } else {
+        format!("#{}", super::commons_room_of(ch).unwrap_or(ch))
+    }
+}
+
+/// The words over the window while files are dragged onto the chat.
+pub(crate) fn drop_words(state: &GuiState) -> String {
+    format!("Drop to send in {}", conversation_name(state))
+}
+
+/// Files dropped on the window over the chat (gui/drop_files.rs). Over one of this server's
+/// channels: the upload window (Add to Media, every control) with "Also post in chat" ticked for
+/// that channel. Over a private conversation (a direct message, a group, the scratch pad, or a
+/// room this server does not carry): sent as that conversation's Attach sends a file, each
+/// through its attach step, encrypted where the conversation is, and never made public. With no
+/// conversation open, the upload window (the app's own default) takes them.
+pub(super) fn offer_drop(ctx: &egui::Context, state: &GuiState) {
+    use crate::gui::drop_files::{self, Level};
+    let chosen_in = state.chat_active_channel.clone();
+    if chosen_in.is_empty() {
+        return;
+    }
+    if let Some(channel) = state.chat_channels.iter().find(|c| c.id == chosen_in) {
+        // A read-only channel (announcements) takes posts from admins only: for anyone else the
+        // upload window opens with nothing ticked, and says so before the drop (the website's rule).
+        if channel.read_only && !crate::gui::pages::media::is_admin(state) {
+            drop_files::register(ctx, Level::Page, crate::gui::pages::media::DROP_TO_UPLOAD, |state: &mut GuiState, paths| {
+                crate::gui::pages::media::upload_dropped(state, &paths, None);
+            });
+            return;
+        }
+        let words = crate::gui::pages::media::drop_and_post_words(&conversation_name(state));
+        drop_files::register(ctx, Level::Page, words, move |state: &mut GuiState, paths| {
+            crate::gui::pages::media::upload_dropped(state, &paths, Some(chosen_in));
+        });
+        return;
+    }
+    drop_files::register(ctx, Level::Page, drop_words(state), move |state: &mut GuiState, paths| {
+        // Only into the conversation that was open when they were let go.
+        if state.chat_active_channel == chosen_in {
+            start_attach_all(state, paths);
+        }
+    });
+}
+
 /// Files chosen together (operator, 2026-10-16: several files at once): the first starts now,
 /// the rest wait in `FilesFlow::queue` for the conversation they were chosen in.
 pub(super) fn start_attach_all(state: &mut GuiState, paths: Vec<std::path::PathBuf>) {

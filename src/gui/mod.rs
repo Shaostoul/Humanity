@@ -19,6 +19,10 @@ pub mod glossary;
 /// page's draw call, shared by the main UI and the world screens.
 #[cfg(feature = "native")]
 pub mod dispatch;
+/// Files dragged onto the window from the computer's file manager: where they go, and the
+/// overlay that says so (2026-10-17).
+#[cfg(feature = "native")]
+pub mod drop_files;
 /// An egui page rendered into its own texture for a screen placed in the
 /// 3D world (in-world screens, rung 1).
 #[cfg(feature = "native")]

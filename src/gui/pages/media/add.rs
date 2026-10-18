@@ -95,6 +95,10 @@ pub(crate) struct Form {
     /// More files chosen with the first (2026-10-16): uploaded and added to the item once it is
     /// published. Only for a picked file.
     pub more: Vec<super::resumable::MoreFile>,
+    /// "Also post in chat" (operator, 2026-10-17): ticked, and the channel id (`post_to`) it is
+    /// posted in once it is published. Only for a picked file.
+    pub post_on: bool,
+    pub post_to: String,
 }
 
 impl Form {
@@ -113,6 +117,8 @@ impl Form {
             licence: String::new(),
             project_use: false,
             more: Vec::new(),
+            post_on: false,
+            post_to: String::new(),
         }
     }
 
@@ -263,7 +269,6 @@ pub(crate) fn draw_dialogs(ctx: &egui::Context, theme: &Theme, state: &mut GuiSt
     draw_suggest(ctx, theme, state);
 }
 
-/// What the form says about the further files chosen with the first.
 /// The line above the further files Add to Media holds, each then on its own row with its type
 /// (the website's `MORE_LEAD`).
 pub(crate) const MORE_LEAD: &str = "Also on this item, each added once the item is up:";
@@ -285,6 +290,8 @@ pub(crate) fn draw_form(ctx: &egui::Context, theme: &Theme, state: &mut GuiState
         look = Some((form.id, crate::gui::pages::chat::attach_step::Looking::of_file(path.clone(), name.clone())));
     }
     let protected = crate::engine::protected::is_on(state);
+    let post_choices = post_choices(state);
+    let post_server = super::server_here(state);
     let mut may_go = !form.is_picked();
     let mut open = true;
     let mut submit = false;
@@ -384,6 +391,9 @@ pub(crate) fn draw_form(ctx: &egui::Context, theme: &Theme, state: &mut GuiState
             }
             form.project_use = choice.project_use;
             super::edit::draw_hosting(ui, theme, &licences);
+            if form.is_picked() && !form.sending {
+                draw_post_row(ui, theme, &mut form, &post_choices, &post_server);
+            }
         });
         if !form.problem.is_empty() {
             ui.label(RichText::new(&form.problem).size(theme.font_size_small).color(theme.danger()));
@@ -392,9 +402,13 @@ pub(crate) fn draw_form(ctx: &egui::Context, theme: &Theme, state: &mut GuiState
         ui.horizontal(|ui| {
             let waiting = mine.is_none() && !mine_failed && form.is_picked();
             let ready = problem.is_none() && !waiting && !form.sending && may_go;
-            ui.add_enabled_ui(ready, |ui| {
-                submit = widgets::Button::primary(submit_words(&form)).show(ui, theme);
-            });
+            let pressed = ui.add_enabled_ui(ready, |ui| widgets::Button::primary(submit_words(&form)).show(ui, theme));
+            submit = pressed.inner;
+            // The Upload button wears the nav bar's active border (operator, 2026-10-17: "Upload
+            // button with the RGB border effect"), following the same animation setting.
+            if ready && form.is_picked() {
+                crate::gui::widgets::tint_section::rgb_border(ui, theme, pressed.response.rect);
+            }
             if form.sending {
                 ui.label(RichText::new("Publishing...").size(theme.font_size_small).color(theme.text_muted()));
             }
@@ -422,6 +436,139 @@ pub(crate) fn draw_form(ctx: &egui::Context, theme: &Theme, state: &mut GuiState
     if open || form.sending {
         state.media.form = Some(form);
     }
+}
+
+/// The words over the window while files are dragged onto it with nothing more specific on screen,
+/// and over the Media page (gui/drop_files.rs).
+pub const DROP_TO_UPLOAD: &str = "Drop to upload to Media";
+
+/// The words over a channel of the chat: the upload window opens with "Also post in chat" ticked.
+pub(crate) fn drop_and_post_words(channel_name: &str) -> String {
+    format!("Drop to upload to Media and post in {channel_name}")
+}
+
+/// Files dropped on the window (gui/drop_files.rs) open this form with them, exactly as choosing
+/// them with Add to Media does (the first is the item, the rest added once it is up); with
+/// `post_in`, "Also post in chat" is ticked for that channel (a drop on a channel of the chat).
+pub(crate) fn upload_dropped(state: &mut GuiState, paths: &[std::path::PathBuf], post_in: Option<String>) {
+    // The Media state follows the server on screen; matched first, so the form opened here is not
+    // cleared by the match on the next frame.
+    super::sync_server(state);
+    // From another page the Media page's categories and licences may not be in yet.
+    if !state.media.requested && !super::server_here(state).is_empty() {
+        super::reload(state);
+    }
+    super::refresh_mine(state);
+    picked_many(state, paths);
+    if let (Some(form), Some(channel)) = (state.media.form.as_mut(), post_in) {
+        form.post_on = true;
+        form.post_to = channel;
+    }
+}
+
+/// How a channel favourite is kept (widgets/file_picker_memory.rs `post_favorites`).
+pub(crate) fn post_key(server: &str, channel: &str) -> String {
+    format!("{server}\n{channel}")
+}
+
+/// The channels an upload can be posted in, as (id, words shown): the one open in the chat first
+/// (when it is one of this server's channels), then the person's favourites, then the rest; a
+/// read-only channel only for an admin.
+pub(crate) fn post_choices(state: &GuiState) -> Vec<(String, String)> {
+    let server = super::server_here(state);
+    let admin = super::is_admin(state);
+    let usable: Vec<&crate::gui::ChatChannel> = state.chat_channels.iter().filter(|c| admin || !c.read_only).collect();
+    let fav = |id: &str| crate::gui::widgets::file_picker_memory::with(|m| m.is_post_favorite(&post_key(&server, id)));
+    let current = &state.chat_active_channel;
+    let mut out = Vec::new();
+    if let Some(c) = usable.iter().find(|c| &c.id == current) {
+        out.push((c.id.clone(), format!("#{} (open in the chat)", c.name)));
+    }
+    for c in usable.iter().filter(|c| &c.id != current && fav(&c.id)) {
+        out.push((c.id.clone(), format!("\u{2b50} #{}", c.name)));
+    }
+    for c in usable.iter().filter(|c| &c.id != current && !fav(&c.id)) {
+        out.push((c.id.clone(), format!("#{}", c.name)));
+    }
+    out
+}
+
+/// The words of "Also post in chat" and its tooltip.
+pub const POST_IN_CHAT: &str = "Also post in chat";
+pub const POST_IN_CHAT_TIP: &str = "When it is up, its title, description and file are posted in this channel.";
+
+/// "Also post in chat": a tick on the left, then the channel and Add to favorites, greyed out while
+/// the tick is off (operator, 2026-10-17).
+fn draw_post_row(ui: &mut egui::Ui, theme: &Theme, form: &mut Form, choices: &[(String, String)], server: &str) {
+    ui.add_space(theme.spacing_xs);
+    if choices.is_empty() {
+        form.post_on = false;
+        ui.label(RichText::new(format!("{POST_IN_CHAT}: this server has no channel to post in.")).size(theme.font_size_small).color(theme.text_muted()));
+        return;
+    }
+    // A channel no longer offered (gone, or read-only for this person) is never swapped for another
+    // behind the person's back: the tick goes off, and the first channel is shown for them to pick.
+    if !choices.iter().any(|(id, _)| *id == form.post_to) {
+        if !form.post_to.is_empty() {
+            form.post_on = false;
+        }
+        form.post_to = choices[0].0.clone();
+    }
+    ui.horizontal_wrapped(|ui| {
+        ui.checkbox(&mut form.post_on, POST_IN_CHAT).on_hover_text(POST_IN_CHAT_TIP);
+        ui.add_enabled_ui(form.post_on, |ui| {
+            let shown = choices.iter().find(|(id, _)| *id == form.post_to).map(|(_, w)| w.clone()).unwrap_or_default();
+            egui::ComboBox::from_id_salt("media_form_post_to").selected_text(shown).show_ui(ui, |ui| {
+                for (id, words) in choices {
+                    if ui.selectable_label(*id == form.post_to, words).clicked() {
+                        form.post_to = id.clone();
+                    }
+                }
+            });
+            let key = post_key(server, &form.post_to);
+            let fav = crate::gui::widgets::file_picker_memory::with(|m| m.is_post_favorite(&key));
+            let words = if fav { "Remove from favorites" } else { "Add to favorites" };
+            if widgets::Button::secondary(words).size(widgets::ButtonSize::Small).tooltip("Favorite channels are listed first, after the one open in the chat.").show(ui, theme) {
+                crate::gui::widgets::file_picker_memory::with(|m| m.toggle_post_favorite(&key));
+            }
+        });
+    });
+}
+
+/// What "Also post in chat" posts for a published item: its title and description when it has
+/// them, then its file's address (the chat shows a picture in place, any other file as its card),
+/// or, for a members-only item, its page, which only members can open.
+pub(crate) fn post_text(item: &api::Item, base: &str) -> String {
+    let mut lines: Vec<String> = Vec::new();
+    if !item.title.trim().is_empty() {
+        lines.push(item.title.trim().to_string());
+    }
+    if !item.description.trim().is_empty() {
+        lines.push(item.description.trim().to_string());
+    }
+    lines.push(if item.visibility == "members" { super::api_items::item_link(base, item.id) } else { item.url.clone() });
+    lines.join("\n")
+}
+
+/// A just-published item's "Also post in chat": posted in `channel` through the chat's own send, as
+/// if typed there, on the server it was uploaded to; said in the Media page's line either way.
+pub(crate) fn post_published(state: &mut GuiState, answer: &serde_json::Value, channel: &str, server: &str) {
+    let Some(item) = answer.get("item").and_then(api::Item::from_json) else { return };
+    let name = state.chat_channels.iter().find(|c| c.id == channel).map(|c| format!("#{}", c.name)).unwrap_or_else(|| format!("#{channel}"));
+    let here = crate::gui::pages::chat::norm_server_url(&state.server_url);
+    // The chat's own send echoes a message locally even with no connection, so the connection is
+    // checked first: "Posted" must mean the server has it.
+    let connected = state.ws_client.as_ref().is_some_and(|c| c.is_connected());
+    let words = if here != server {
+        format!("Not posted in {name}: the chat is on another server now.")
+    } else if !connected {
+        format!("Not posted in {name}: the chat is not connected to its server.")
+    } else if crate::gui::pages::chat::post_in(state, channel, &post_text(&item, &super::base_of(state))) {
+        format!("Posted in {name}.")
+    } else {
+        format!("Not posted in {name}: the chat could not send it.")
+    };
+    state.media.status = format!("{} {words}", state.media.status).trim().to_string();
 }
 
 /// The form's send button.

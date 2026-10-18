@@ -220,6 +220,13 @@ pub(crate) fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, pag
         .filter(|e| e.record.attach.as_ref().is_some_and(|a| a.id == item.id))
         .map(|e| (super::uploading::row_heading(state, &e.record), e.run.words()))
         .collect();
+    // Files dropped on the window while this is open are added to the item, as Add a file adds
+    // them (gui/drop_files.rs); only its uploader adds files.
+    if own {
+        crate::gui::drop_files::register(ctx, crate::gui::drop_files::Level::Window, drop_words(&item), |state: &mut GuiState, paths| add_dropped(state, &paths));
+    } else {
+        crate::gui::drop_files::refuse(ctx, crate::gui::drop_files::Level::Window, format!("Files cannot be dropped here: only {} can add files to this item.", item.by_name()));
+    }
     let mut open = true;
     let mut pressed = Pressed::default();
     widgets::dialog_scrolling(ctx, theme, EDIT_DIALOG_ID, &format!("Edit {}", item.display_title()), &mut open, |ui| {
@@ -390,6 +397,21 @@ fn draw_picker(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, form: &
         FilePickerResult::Cancelled => {}
         FilePickerResult::Picked(paths) => picked_all(state, form, role, &paths),
     }
+}
+
+/// The words over the window while files are dragged onto an item's Edit window.
+pub(crate) fn drop_words(item: &Item) -> String {
+    format!("Drop to add to {}", item.display_title())
+}
+
+/// Files dropped while the Edit window is open: added to the item as files, as Add a file adds them.
+pub(crate) fn add_dropped(state: &mut GuiState, paths: &[std::path::PathBuf]) {
+    let Some(mut page) = state.media.item.take() else { return };
+    if let Some(mut form) = page.edit.take() {
+        picked_all(state, &mut form, FileRole::File, paths);
+        page.edit = Some(form);
+    }
+    state.media.item = Some(page);
 }
 
 /// Every file chosen in the picker, checked together against the person's share first so nothing

@@ -260,3 +260,16 @@ what we will say about it.
   engine's limit, not Windows'. Not covered: Windows N editions (need the Media
   Feature Pack), H.265 (a Store extension), macOS and Linux. Extends the
   2026-09-19 codec finding; the legal reading is unchanged.
+- [`2026-10-17-platform-video-decoders.md`](2026-10-17-platform-video-decoders.md),
+  what macOS, iOS and iPadOS, Android and Linux give an app, with nothing
+  installed, to play an ordinary MP4 (H.264 and AAC) and H.265. Apple systems
+  carry all three (H.265 since iOS 11 and macOS 10.13), through AVFoundation;
+  the Android 17 CDD makes H.264, H.265 and AAC decoding a MUST on every
+  compatible phone and tablet, reached through MediaCodec. Linux promises
+  nothing: Fedora takes H.264 from Cisco's OpenH264 after its first update and
+  switched H.264 and H.265 off in its graphics drivers in 2022; Ubuntu leaves
+  them on in Mesa but puts the software decoders behind an installer tick-box;
+  Flatpak's 25.08 runtime brings them in an extension. Cisco's README and
+  release notes disagree on whether OpenH264 decodes Main and High Profile.
+  Apple's macOS licence carries the pool's consumer notice. Extends the Windows
+  finding of the same day; the legal reading is unchanged.

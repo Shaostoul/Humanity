@@ -279,7 +279,16 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
   file the AV1/Opus path cannot play, in chat cards ("Play here"), the Media page and in-world
   screens; a plain sentence when the decoders are missing (Windows N without the Media Feature
   Pack; H.265 without Microsoft's extension). macOS (AVFoundation) after; Linux keeps the
-  person's own ffmpeg.
+  person's own ffmpeg. Per platform, with the sentence to show when no decoder exists:
+  `docs/reference/findings/2026-10-17-platform-video-decoders.md` (macOS/iOS: AVFoundation, all
+  built in; Android: required by the CDD, AMediaCodec; Linux: nothing to count on, load the
+  person's own ffmpeg libraries at run time; the Microsoft Store only for H.265 on Windows). Its
+  open check: whether Cisco's OpenH264 now decodes Main and High (its README and its release notes
+  disagree), which decides how soft the Linux sentence can be on Fedora.
+- DONE v0.1511.0: **drag and drop onto the window, the upload window that posts in chat, and the
+  picker's List / Details / Pictures views** (operator, 2026-10-17). Follow-ups: the web chat page
+  gets the same upload window as the Media page (being built), video previews in the Pictures view
+  (a frame through the person's ffmpeg), and a folder drop that offers the files inside.
 - DONE v0.1510.0: **every file shows its type, always** (operator, 2026-10-17: "so people ALWAYS
   know what file type they're looking at ... protect people inexperienced with technology and
   possibly illiterate people"): a badge with a drawing, a word and a colour (green to look at,

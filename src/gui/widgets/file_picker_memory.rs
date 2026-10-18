@@ -1,6 +1,7 @@
 //! What the in-app file picker remembers on this computer (2026-10-16): the person's favorite
 //! folders, shown as their own row in every picker, and the folder a file was last picked from,
-//! where the next picker opens.
+//! where the next picker opens. And (2026-10-17) the chat channels the person favourites for Add to
+//! Media's "Also post in chat", listed first after the one open in the chat.
 //!
 //! The operator, on the Media Edit window: "I want to be able to add/remove favorites, like the
 //! E:/models/ folder. When I pick a file and go to pick another file the path it should have
@@ -29,6 +30,29 @@ pub struct PickerMemory {
     /// The folder the last file was picked from, where the next picker opens.
     #[serde(default)]
     pub last_folder: Option<PathBuf>,
+    /// Favourite chat channels to post uploads in, each as `<server>\n<channel id>`
+    /// (media/add.rs `post_key`).
+    #[serde(default)]
+    pub post_favorites: Vec<String>,
+    /// How the pickers show a folder (2026-10-17): a list, a table, or pictures `across` to a row.
+    #[serde(default)]
+    pub view: PickerView,
+    /// Pictures to a row in the Pictures view, 1 to 8 (None: 4).
+    #[serde(default)]
+    pub across: Option<u8>,
+}
+
+/// How the file pickers show a folder (widgets/file_views.rs).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum PickerView {
+    /// One row each: its type, its name, its size.
+    #[default]
+    List,
+    /// A table: type, name, size and date changed, sorted by a click on a heading.
+    Details,
+    /// A grid of previews, a picture's own and any other file's type.
+    Pictures,
 }
 
 /// One folder spelled the way it is compared: no trailing separator (a drive root keeps its own),
@@ -54,6 +78,20 @@ pub fn same_folder(a: &Path, b: &Path) -> bool {
 impl PickerMemory {
     pub fn is_favorite(&self, dir: &Path) -> bool {
         self.favorites.iter().any(|f| same_folder(f, dir))
+    }
+
+    /// Whether channel `key` (media/add.rs `post_key`) is a favourite to post uploads in.
+    pub fn is_post_favorite(&self, key: &str) -> bool {
+        self.post_favorites.iter().any(|k| k == key)
+    }
+
+    /// Make channel `key` a favourite, or stop it being one.
+    pub fn toggle_post_favorite(&mut self, key: &str) {
+        if let Some(i) = self.post_favorites.iter().position(|k| k == key) {
+            self.post_favorites.remove(i);
+        } else if self.post_favorites.len() < MAX_FAVORITES {
+            self.post_favorites.push(key.to_string());
+        }
     }
 
     /// Add `dir` to the favorites (at the end). False when it was one already, or the list is full.
@@ -214,7 +252,7 @@ mod tests {
         let dir = crate::test_temp::dir("fpm_save");
         let path = dir.join(FILE_NAME);
         assert_eq!(load(&path), PickerMemory::default(), "no file yet");
-        let m = PickerMemory { favorites: vec![dir.join("models")], last_folder: Some(dir.join("parts")) };
+        let m = PickerMemory { favorites: vec![dir.join("models")], last_folder: Some(dir.join("parts")), post_favorites: vec!["https://h\ngeneral".into()], view: PickerView::Pictures, across: Some(2) };
         save(&path, &m).expect("saved");
         assert_eq!(load(&path), m, "read back");
         assert!(!path.with_extension("json.tmp").exists(), "no temporary file left");

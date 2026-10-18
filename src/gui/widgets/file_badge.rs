@@ -35,32 +35,64 @@ pub fn hover_words(t: &FileType) -> String {
 
 /// Draw the badge for `t`: a rounded chip holding its drawing, its word and its ending.
 pub fn show(ui: &mut Ui, theme: &Theme, t: &FileType) -> egui::Response {
-    let color = level_color(theme, t.level);
-    let font = egui::FontId::proportional(theme.font_size_small);
-    let label = ui.painter().layout_no_wrap(t.label.clone(), egui::FontId::new(theme.font_size_small, egui::FontFamily::Proportional), color);
-    let ending = (!t.ending.is_empty()).then(|| ui.painter().layout_no_wrap(t.ending.clone(), font, theme.text_secondary()));
-    let icon = (theme.font_size_small + 3.0).round();
-    let (pad, gap) = (6.0, 4.0);
-    let text_h = label.size().y;
-    let h = icon.max(text_h) + 4.0;
-    let w = pad + icon + gap + label.size().x + ending.as_ref().map_or(0.0, |e| gap + e.size().x) + pad;
-    let (rect, resp) = ui.allocate_exact_size(Vec2::new(w, h), Sense::hover());
+    let size = measure(ui.painter(), theme, t);
+    let (rect, resp) = ui.allocate_exact_size(size, Sense::hover());
     if ui.is_rect_visible(rect) {
-        let painter = ui.painter();
-        let border = if t.disguised { 2.0 } else { 1.0 };
-        painter.rect(rect, h / 2.0, color.gamma_multiply(0.15), Stroke::new(border, color), egui::StrokeKind::Inside);
-        let icon_rect = Rect::from_min_size(Pos2::new(rect.left() + pad, rect.center().y - icon / 2.0), Vec2::splat(icon));
-        paint_icon(painter, icon_rect, &t.icon, color);
-        let mut x = icon_rect.right() + gap;
-        let lw = label.size().x;
-        painter.galley(Pos2::new(x, rect.center().y - text_h / 2.0), label, color);
-        x += lw;
-        if let Some(e) = ending {
-            let eh = e.size().y;
-            painter.galley(Pos2::new(x + gap, rect.center().y - eh / 2.0), e, theme.text_secondary());
-        }
+        paint(ui.painter(), theme, t, rect.min);
     }
     resp.on_hover_text(hover_words(t))
+}
+
+/// The badge's parts, laid out: its drawing's size, its word, its ending and the whole size.
+struct Laid {
+    icon: f32,
+    label: std::sync::Arc<egui::Galley>,
+    ending: Option<std::sync::Arc<egui::Galley>>,
+    size: Vec2,
+}
+
+const PAD: f32 = 6.0;
+const GAP: f32 = 4.0;
+
+fn lay_out(painter: &egui::Painter, theme: &Theme, t: &FileType) -> Laid {
+    let color = level_color(theme, t.level);
+    let font = egui::FontId::proportional(theme.font_size_small);
+    let label = painter.layout_no_wrap(t.label.clone(), font.clone(), color);
+    let ending = (!t.ending.is_empty()).then(|| painter.layout_no_wrap(t.ending.clone(), font, theme.text_secondary()));
+    let icon = (theme.font_size_small + 3.0).round();
+    let h = icon.max(label.size().y) + 4.0;
+    let w = PAD + icon + GAP + label.size().x + ending.as_ref().map_or(0.0, |e| GAP + e.size().x) + PAD;
+    Laid { icon, label, ending, size: Vec2::new(w, h) }
+}
+
+/// The size the badge for `t` takes.
+pub fn measure(painter: &egui::Painter, theme: &Theme, t: &FileType) -> Vec2 {
+    lay_out(painter, theme, t).size
+}
+
+/// Paint the badge for `t` with its top left at `at`, taking no space (the file picker's
+/// Pictures view draws it over a preview). Returns where it went.
+pub fn paint(painter: &egui::Painter, theme: &Theme, t: &FileType, at: Pos2) -> Rect {
+    let laid = lay_out(painter, theme, t);
+    let rect = Rect::from_min_size(at, laid.size);
+    let color = level_color(theme, t.level);
+    let border = if t.disguised { 2.0 } else { 1.0 };
+    painter.rect(rect, rect.height() / 2.0, color.gamma_multiply(0.15), Stroke::new(border, color), egui::StrokeKind::Inside);
+    let icon_rect = Rect::from_min_size(Pos2::new(rect.left() + PAD, rect.center().y - laid.icon / 2.0), Vec2::splat(laid.icon));
+    paint_icon(painter, icon_rect, &t.icon, color);
+    let x = icon_rect.right() + GAP;
+    let (lw, lh) = (laid.label.size().x, laid.label.size().y);
+    painter.galley(Pos2::new(x, rect.center().y - lh / 2.0), laid.label, color);
+    if let Some(e) = laid.ending {
+        let eh = e.size().y;
+        painter.galley(Pos2::new(x + lw + GAP, rect.center().y - eh / 2.0), e, theme.text_secondary());
+    }
+    rect
+}
+
+/// A folder's badge: its drawing and the word, grey (a folder is opened, never run).
+pub fn folder() -> FileType {
+    FileType { id: "folder".into(), label: "Folder".into(), icon: "folder".into(), level: Level::Unknown, ending: String::new(), disguised: false }
 }
 
 /// Paint the drawing named `icon` (the list's 48 by 48 shapes) into `rect`, in `color`.

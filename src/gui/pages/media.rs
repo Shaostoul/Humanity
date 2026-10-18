@@ -793,6 +793,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             });
         });
 
+    offer_drop(ctx, state);
     add::draw_dialogs(ctx, theme, state);
     tiles::draw_confirm_remove(ctx, theme, state);
     waiting::draw_confirm_waiting(ctx, theme, state);
@@ -802,6 +803,41 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     crate::gui::pages::chat::draw_report_dialog(ctx, theme, state);
     // "Report a copyright problem" and the public takedown log, over the page and an item's page.
     takedown::draw_windows(ctx, theme, state);
+}
+
+pub(crate) use add::{drop_and_post_words, post_key, upload_dropped, DROP_TO_UPLOAD};
+
+/// Files dropped on the window open the upload window (Add to Media, every control: the first is
+/// the item, the rest added once it is up), as choosing them with its button does; with no server
+/// or signed out, why not is said. At `level`: the Media page's own, or `Level::App` for anywhere
+/// in the app (gui/drop_files.rs).
+fn offer_drop_at(ctx: &egui::Context, state: &GuiState, level: crate::gui::drop_files::Level) {
+    use crate::gui::drop_files;
+    if server_here(state).is_empty() {
+        drop_files::refuse(ctx, level, "Files cannot be dropped here: connect to a server first, on the Chat page.");
+    } else if !signed_in_here(state) {
+        drop_files::refuse(ctx, level, "Files cannot be dropped here: sign in to this server first, on the Chat page.");
+    } else {
+        drop_files::register(ctx, level, DROP_TO_UPLOAD, |state: &mut GuiState, paths| upload_dropped(state, &paths, None));
+    }
+}
+
+fn offer_drop(ctx: &egui::Context, state: &GuiState) {
+    offer_drop_at(ctx, state, crate::gui::drop_files::Level::Page);
+}
+
+/// The app-wide default for dropped files: the upload window, from any page (src/lib.rs, each
+/// frame, before the pages draw).
+pub fn offer_drop_anywhere(ctx: &egui::Context, state: &GuiState) {
+    offer_drop_at(ctx, state, crate::gui::drop_files::Level::App);
+}
+
+/// The upload window opened by a drop on another page (it is the Media page's own form, drawn here
+/// while that page is not on screen).
+pub fn draw_upload_window(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
+    if state.active_page != GuiPage::Media && state.media.form.is_some() {
+        add::draw_form(ctx, theme, state);
+    }
 }
 
 /// Everything inside the page's scroll area.

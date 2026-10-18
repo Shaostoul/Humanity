@@ -2162,6 +2162,71 @@ fn snapshot_file_picker() {
     });
 }
 
+// The file picker's Pictures view (2026-10-17, widgets/file_views.rs): three across, a folder,
+// pictures with their own previews (read on workers while the frames run), a model and a document
+// drawn as their types, every cell with its badge, two ticked.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_file_picker_pictures() {
+    use crate::gui::widgets::file_browser::{file_picker_modal, list_dir, FilePickerState};
+    let dir = crate::test_temp::dir("snapshot_picker_pictures");
+    std::fs::create_dir_all(dir.join("trips")).unwrap();
+    for (i, name) in ["dawn.png", "noon.png", "dusk.png", "night.png"].iter().enumerate() {
+        let tone = [40u8, 120, 200, 90][i];
+        image::RgbaImage::from_fn(320, 200, |x, y| image::Rgba([(x as u8).wrapping_add(tone), (y as u8).wrapping_mul(2), 255 - tone, 255])).save(dir.join(name)).unwrap();
+    }
+    std::fs::write(dir.join("bracket.stl"), vec![0u8; 120_000]).unwrap();
+    std::fs::write(dir.join("assembly-notes.pdf"), vec![0u8; 300_000]).unwrap();
+    crate::gui::widgets::file_picker_memory::with(|m| {
+        m.view = crate::gui::widgets::file_picker_memory::PickerView::Pictures;
+        m.across = Some(3);
+    });
+    let mut picker = FilePickerState::new(&[], 500 * 1024 * 1024).with_pick_verb("Attach").multiple();
+    picker.current_dir = dir.to_path_buf();
+    picker.chosen = list_dir(&dir, &[]).into_iter().filter(|e| e.name == "noon.png" || e.name == "bracket.stl").collect();
+    let picker = std::cell::RefCell::new(picker);
+    render_page_png("file_picker_pictures", 1100, 860, |ctx, theme, _state| {
+        egui::CentralPanel::default().show(ctx, |_ui| {});
+        let _ = file_picker_modal(ctx, theme, &mut picker.borrow_mut(), "Attach files: choose one or more");
+        // The previews are read on workers: give them a moment between frames.
+        std::thread::sleep(std::time::Duration::from_millis(40));
+    });
+}
+
+// The upload window a drop opens (2026-10-17): Add to Media's three parts, "Also post in chat"
+// ticked for the channel open in the chat with a favourite listed, and Upload in the nav bar's
+// border. Built in memory; nothing is sent.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_media_upload_window() {
+    let dir = crate::test_temp::dir("snapshot_upload_window");
+    let file = dir.join("bracket.stl");
+    std::fs::write(&file, b"solid bracket
+endsolid bracket
+").unwrap();
+    render_page_png("media_upload_window", 1100, 1000, |ctx, theme, state| {
+        if !state.chat_channels.iter().any(|c| c.id == "3d-printing") {
+            state.chat_channels.clear();
+            for id in ["general", "3d-printing", "random"] {
+                state.chat_channels.push(crate::gui::ChatChannel { id: id.into(), name: id.into(), ..Default::default() });
+            }
+            state.chat_active_channel = "general".into();
+            // No list is asked of any server from a snapshot.
+            state.media.requested = true;
+            crate::gui::pages::media::sync_server(state);
+            state.media.requested = true;
+            let server = state.active_server();
+            crate::gui::widgets::file_picker_memory::with(|m| m.toggle_post_favorite(&crate::gui::pages::media::post_key(&server, "3d-printing")));
+            crate::gui::pages::media::upload_dropped(state, &[file.clone()], Some("general".into()));
+            if let Some(form) = state.media.form.as_mut() {
+                form.title = "Bottle cutter bracket".into();
+                form.description = "Holds the cutter steady on the bench.".into();
+            }
+        }
+        crate::gui::pages::media::draw(ctx, theme, state);
+    });
+}
+
 /// The 3D model viewer (docs/design/model-viewer.md) drawing the shared test cube: its 2x2
 /// texture read with sharp pixels as the file asks, the studio lights, the fitted camera.
 #[test]

@@ -213,7 +213,54 @@
     }
   }
 
+  /**
+   * The 24 words of the recovery phrase for `seed32`, as a list: BIP39, 256 bits of entropy and an
+   * 8-bit SHA-256 checksum, 11 bits a word (the same as mnemonicFromSeed in /chat/crypto.js, which
+   * the backup screen shows; scripts/tests/post-in-chat-web.test.js holds the two to each other).
+   * `words` is the 2048-word list (/chat/bip39-english.js).
+   */
+  async function _phraseWords(seed32, words) {
+    const hash = new Uint8Array(await crypto.subtle.digest('SHA-256', seed32));
+    const bits = [];
+    for (const byte of seed32) for (let i = 7; i >= 0; i--) bits.push((byte >> i) & 1);
+    for (let i = 7; i >= 0; i--) bits.push((hash[0] >> i) & 1);
+    const out = [];
+    for (let i = 0; i < 24; i++) {
+      let idx = 0;
+      for (let j = 0; j < 11; j++) idx = (idx << 1) | bits[i * 11 + j];
+      out.push(words[idx]);
+    }
+    return out;
+  }
+
+  /**
+   * The recovery-phrase guard for a standalone page that sends something the person wrote (the
+   * Media page's "Also post in chat", 2026-10-17): does any of `texts` hold 4 or more words of the
+   * person's recovery phrase in a row, in its order? The rule the chat's own guard applies
+   * (chat-warnings.js recoveryPhraseIn, over /shared/warnings.js phraseRunFound). The phrase is
+   * derived from the seed for this one check and dropped, never kept.
+   *
+   * @returns {Promise<boolean|null>} null when it cannot be checked here (no readable seed, the
+   *   word list or the matcher not loaded): the caller then sends nothing.
+   */
+  async function pqRecoveryPhraseIn(texts) {
+    const list = (Array.isArray(texts) ? texts : [texts]).filter((t) => typeof t === 'string' && t.trim());
+    if (!list.length) return false;
+    const words = window.BIP39_ENGLISH;
+    if (!Array.isArray(words) || words.length !== 2048 || typeof window.phraseRunFound !== 'function') return null;
+    const seed = await _loadSeed();
+    if (!seed || seed.length !== 32) return null;
+    try {
+      const phrase = await _phraseWords(seed, words);
+      return list.some((t) => window.phraseRunFound(t, phrase));
+    } catch (e) {
+      console.warn('pq-relay-auth: the recovery phrase could not be derived for the check', e);
+      return null;
+    }
+  }
+
   window.getPqSignedAuth = getPqSignedAuth;
   window.getPqIdentity = getPqIdentity;
   window.getPqDmStoreKey = getPqDmStoreKey;
+  window.pqRecoveryPhraseIn = pqRecoveryPhraseIn;
 })();

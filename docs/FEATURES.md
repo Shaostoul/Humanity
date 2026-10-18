@@ -390,6 +390,29 @@ private and device-to-device files, the Media item page and its Edit window, Add
 file", the Files page and the file picker's list; from what is inside once a file is saved here.
 Native `src/gui/widgets/file_badge.rs` (`show`, `paint_icon`, `level_color`) over
 `file_risk::file_type` / `file_type_saved`; web `HosFileRisk.fileType` / `badgeHtml` / `fillBadges`.
+**Drag and drop, and the upload window that posts in chat (v0.1511.0).** Files dragged from the
+computer's file manager onto the window: while they hover, a dimmed overlay says what letting go
+will do (with each file's badge); let go, they go where it said. By default the upload window opens:
+Add to Media with every control. Over a channel of the chat it opens with "Also post in chat" ticked
+for that channel (a tick on the left, then the channel, current first, then favourites, then the
+rest, and Add to favorites, greyed out while unticked); when the item is published its title,
+description and file are posted there through the chat's own send (a members-only item's page
+instead of its file; not posted, and said so, when the chat is on another server or not
+connected). Over a direct message, a group or the scratch pad: that conversation's private,
+encrypted Attach, never a public upload. Over Shared Files: Shared Files. Over an item's Edit
+window: that item. Over an open file picker: its choice. Folders are left out and named. The
+Upload button wears the nav bar's animated border. Native `src/gui/drop_files.rs` (`Level`,
+`register`, `refuse`, `take_for_picker`, `finish`), `media/add.rs` (`upload_dropped`,
+`post_choices`, `draw_post_row`, `post_text`, `post_published`), `chat/public_files.rs`
+(`post_in`), `widgets/tint_section.rs` (`rgb_border`); the upload record keeps `post_to`, so a
+post survives a restart mid-upload. Web: `web/shared/drop-overlay.js`, the Media page, the item
+editor, Shared Files (which gained its own Upload a file) and the chat.
+**The file picker's views (v0.1511.0).** List (a badge per row, folders with a folder drawing),
+Details (type, name, size, date changed; a click on a heading sorts, a second reverses; folders
+first) and Pictures (1 to 8 across with a slider: a picture's own preview, read and shrunk on
+worker threads, only what is on screen; any other file its type drawn large; one across shows one
+at a time at full width). Remembered on this computer. `src/gui/widgets/file_views.rs`,
+`widgets/thumbnails.rs`. Snapshot: `tests/snapshots/file_picker_pictures.png`.
 The windows where people attach (the picker, Add to Media, Edit, "Send a file") are in tinted parts:
 `src/gui/widgets/tint_section.rs` (`Tint::Red/Green/Blue`, the sidebar's `dm_bg`/`group_bg`/
 `server_bg` at `SHADE`); web class `tint-section`.

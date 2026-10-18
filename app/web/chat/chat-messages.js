@@ -832,7 +832,15 @@ async function uploadImage(file) {
 async function handleFileAttachment(event) {
   const files = Array.from(event.target.files || []);
   event.target.value = ''; // Reset for re-selection
-  if (!files.length) return;
+  await sendChosenFiles(files);
+}
+
+/**
+ * Files chosen together, by the attach button or dropped on the page (2026-10-17): the same
+ * path for both, one at a time, each its own message, to the conversation they were chosen in.
+ */
+async function sendChosenFiles(files) {
+  if (!files || !files.length) return;
   const chosenIn = conversationNow();
   for (let i = 0; i < files.length; i++) {
     if (conversationNow() !== chosenIn) {
@@ -1004,22 +1012,107 @@ document.getElementById('msg-input').addEventListener('paste', async (e) => {
   }
 });
 
-// Drag and drop image → upload and send.
-const chatArea = document.getElementById('chat-area');
-chatArea.addEventListener('dragover', (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; });
-chatArea.addEventListener('drop', async (e) => {
-  e.preventDefault();
-  const files = e.dataTransfer?.files;
-  if (!files) return;
+// ── Files dragged from the computer onto the page (2026-10-17) ──
+// The desktop app's drag and drop, in its words (/shared/drop-overlay.js; the desktop's
+// src/gui/pages/chat/attach_send.rs offer_drop). While files are dragged over the page it is
+// dimmed with one line saying what a drop will do:
+//   - one of this server's channels open: "Drop to upload to Media and post in #general", and the
+//     drop opens the upload window (/shared/upload-window.js): the Media page's own Add to Media,
+//     every control and check, in a window over the chat, "Also post in chat" ticked for that
+//     channel; nothing goes until its Upload (the operator, 2026-10-17: "First window popups with
+//     all the controls of what to do with the file ... upon clicking upload it also posts the image
+//     with the title and description to the general chat"). A read-only channel the person cannot
+//     post in: "Drop to upload to Media", nothing ticked.
+//   - a private conversation open (a direct message, a group, the scratch pad, or a room this
+//     server does not list): "Drop to send in Ben" (the group's name in a group), and the dropped
+//     files take the attach button's own path (sendChosenFiles): one at a time, each its own
+//     message, encrypted in a DM or a group. A private conversation's file is never offered to a
+//     public upload.
+// Where a drop would do nothing, the overlay says "Files cannot be dropped here." and why, and the
+// drop does nothing. A dragged link or text is left to the browser.
 
-  for (const file of files) {
-    if (file.type.startsWith('image/')) {
-      // To the conversation in view, never unconditionally to the public
-      // channel (privacy fix 2026-07-04), and encrypted in a DM or a group (10k).
-      await sendAttachment(file);
-    }
+/** Why a file cannot be dropped while this server has not signed you in (or the connection is down). */
+const DROP_NOT_SIGNED_IN = 'This server has not finished signing you in yet. Try again in a moment.';
+
+/**
+ * The channel a drop now would upload for and post in: {id, name, postable} when one of this
+ * server's channels is open (not a DM, a group, the scratch pad), else null. `postable`: the person
+ * may post there (a read-only channel only for an admin, as Add to Media's channel list has it).
+ */
+function dropChannelNow() {
+  if (privateConversationNow()) return null;
+  const ch = (typeof channelList !== 'undefined' && Array.isArray(channelList)) ? channelList.find((c) => c.id === activeChannel) : null;
+  if (!ch) return null;
+  const myRole = (typeof peerData === 'object' && peerData && peerData[myKey] && peerData[myKey].role) || '';
+  return { id: ch.id, name: '#' + ch.name, postable: !ch.read_only || myRole === 'admin' || myRole === 'owner' };
+}
+
+// The upload window over the chat (/shared/upload-window.js), made the first time a drop opens it.
+let chatUploadWindowHost = null;
+function chatUploadWindow() {
+  if (!chatUploadWindowHost && window.HosUploadWindow) {
+    chatUploadWindowHost = window.HosUploadWindow.createHost({
+      window,
+      document,
+      // What the window says while it is closed and an upload carries on in it (published, posted
+      // in #general): a notice here.
+      onStatus: (text) => { if (typeof addNotice === 'function') addNotice(text, 'green', 10); },
+    });
   }
-});
+  return chatUploadWindowHost;
+}
+
+/** How the chat names the conversation on screen: "#general", the person's name, the group's name. */
+function conversationLabel() {
+  if (typeof isScratchPad === 'function' && isScratchPad()) return '#scratch-pad';
+  if (typeof activeDmPartner !== 'undefined' && activeDmPartner) {
+    const known = typeof peerData === 'object' && peerData && peerData[activeDmPartner];
+    return (typeof activeDmPartnerName === 'string' && activeDmPartnerName) || (known && known.name) || activeDmPartner.slice(0, 8);
+  }
+  const group = window.activeP2pGroup;
+  if (group && group.id) return group.name || String(group.id).slice(0, 8);
+  const ch = (typeof channelList !== 'undefined' && Array.isArray(channelList)) ? channelList.find((c) => c.id === activeChannel) : null;
+  return '#' + (ch ? ch.name : activeChannel);
+}
+
+/** What a file dropped now would do: {take, line} or {take: false, reason} (drop-overlay.js). */
+function chatDropDecision() {
+  const D = window.HosDropOverlay;
+  const channel = dropChannelNow();
+  if (channel && window.HosUploadWindow) {
+    // The upload window signs in to this server itself; it needs the identity this browser keeps.
+    if (!myKey) return { take: false, reason: DROP_NOT_SIGNED_IN };
+    return { take: true, line: channel.postable ? D.uploadAndPostIn(channel.name) : D.WORDS.uploadToMedia };
+  }
+  const signedIn = identityConfirmed && !!myUploadToken && typeof ws !== 'undefined' && ws && ws.readyState === 1;
+  if (!signedIn) return { take: false, reason: DROP_NOT_SIGNED_IN };
+  const where = privateConversationNow();
+  // "Show the attach button in private conversations" turned off: its own words (Files in messages).
+  if ((where.startsWith('dm:') || where.startsWith('group:')) && !attachInPrivateAllowed()) {
+    return { take: false, reason: window.HosFilesInMessages.WORDS.attachOff };
+  }
+  return { take: true, line: D.sendIn(conversationLabel()) };
+}
+
+/** The dropped files: the upload window over a channel, the private send anywhere else (above). */
+function chatDropped(files) {
+  const channel = dropChannelNow();
+  const host = channel ? chatUploadWindow() : null;
+  if (host) {
+    host.show(files, channel.postable ? channel.id : '');
+    return;
+  }
+  sendChosenFiles(files);
+}
+
+if (window.HosDropOverlay) {
+  window.HosDropOverlay.attach({
+    window,
+    document,
+    decide: chatDropDecision,
+    onDrop: chatDropped,
+  });
+}
 
 // ── Thread panel functions ──
 let currentThread = null; // { from, timestamp, author, body }

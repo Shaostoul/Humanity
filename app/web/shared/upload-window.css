@@ -1,0 +1,49 @@
+/* upload-window.css: the upload window over a page (2026-10-17, /shared/upload-window.js): the
+   Media page's own Add to Media in a frame, over the chat when files are dropped on one of its
+   channels. The dialogs' dimming (var(--bg-modal)) behind a card with Close, and the frame filling
+   the card. Theme variables only. At a phone's width the card keeps a 16px gutter each side. */
+.hos-upload-window {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-lg) 16px;
+  background: var(--bg-modal);
+}
+.hos-upload-window[hidden] { display: none; }
+.hos-upload-window-panel {
+  display: flex;
+  flex-direction: column;
+  width: min(680px, 100%);
+  height: min(860px, 100%);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+.hos-upload-window-bar {
+  display: flex;
+  justify-content: flex-end;
+  padding: var(--space-xs) var(--space-sm);
+  border-bottom: 1px solid var(--border);
+}
+.hos-upload-window-close {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--space-xs) var(--space-md);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+.hos-upload-window-close:hover { border-color: var(--border-focus); }
+.hos-upload-window-frame {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  border: 0;
+  background: var(--bg);
+}

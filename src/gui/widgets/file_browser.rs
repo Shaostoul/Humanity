@@ -26,6 +26,8 @@ pub struct FsEntry {
     pub path: PathBuf,
     pub is_dir: bool,
     pub size: u64,
+    /// When it was last changed, when the system says (the Details view's date, and its sort).
+    pub modified: Option<std::time::SystemTime>,
 }
 
 /// List a directory: dirs first, then files, both alphabetical
@@ -52,12 +54,12 @@ pub fn list_dir(dir: &Path, allowed_exts: &[&str]) -> Vec<FsEntry> {
                 Err(_) => continue,
             };
             if meta.is_dir() {
-                dirs.push(FsEntry { name, path, is_dir: true, size: 0 });
+                dirs.push(FsEntry { name, path, is_dir: true, size: 0, modified: meta.modified().ok() });
             } else {
                 if !allowed_exts.is_empty() && !name_matches_ext(&name, allowed_exts) {
                     continue;
                 }
-                files.push(FsEntry { name, path, is_dir: false, size: meta.len() });
+                files.push(FsEntry { name, path, is_dir: false, size: meta.len(), modified: meta.modified().ok() });
             }
         }
     }
@@ -212,6 +214,9 @@ pub struct FilePickerState {
     pub multiple: bool,
     /// The files ticked so far, in the order they were ticked (only with `multiple`).
     pub chosen: Vec<FsEntry>,
+    /// The Details view's sort (widgets/file_views.rs), for this picker while it is open.
+    pub sort: super::file_views::SortBy,
+    pub sort_desc: bool,
 }
 
 impl FilePickerState {
@@ -240,6 +245,8 @@ impl FilePickerState {
             folder_pick_label: String::new(),
             multiple: false,
             chosen: Vec::new(),
+            sort: Default::default(),
+            sort_desc: false,
         }
     }
 
@@ -326,8 +333,29 @@ pub fn file_picker_modal(
     title: &str,
 ) -> FilePickerResult {
     let mut result = FilePickerResult::Open;
+    super::thumbnails::next_frame();
     let exts: Vec<&str> = state.allowed_exts.iter().map(|s| s.as_str()).collect();
     let entries = list_dir(&state.current_dir, &exts);
+
+    // Files dropped on the window while the picker is open are its choice (gui/drop_files.rs): the
+    // ones its kinds and size allow; a picker for one file takes the first of them.
+    if let Some(dropped) = crate::gui::drop_files::take_for_picker(ctx) {
+        let fits: Vec<PathBuf> = dropped
+            .into_iter()
+            .filter(|p| {
+                let name = p.file_name().and_then(|n| n.to_str()).unwrap_or("");
+                let size_ok = state.max_size == 0 || std::fs::metadata(p).map(|m| m.len() <= state.max_size).unwrap_or(false);
+                (exts.is_empty() || name_matches_ext(name, &exts)) && size_ok
+            })
+            .collect();
+        if state.dir_mode {
+            // A folder picker chooses folders, which are not dropped files.
+        } else if fits.is_empty() {
+            crate::gui::drop_files::say(ctx, DROPPED_NONE_FIT);
+        } else {
+            return FilePickerResult::Picked(if state.multiple { fits } else { fits.into_iter().take(1).collect() });
+        }
+    }
 
     // A dimmed screen behind the picker, so it reads as a window that is open (operator,
     // 2026-10-17); a click on it is Cancel, as on the app's other dialogs (widgets/dialog.rs).
@@ -348,7 +376,7 @@ pub fn file_picker_modal(
         .collapsible(false)
         .resizable(true)
         .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-        .default_size(egui::Vec2::new(560.0, 460.0))
+        .default_size(egui::Vec2::new(720.0, 560.0))
         // The frame the app's dialogs wear (widgets/dialog.rs).
         .frame(
             egui::Frame::NONE
@@ -442,10 +470,25 @@ pub fn file_picker_modal(
                 ui.add_space(theme.spacing_xs);
             }
 
+            // How to show the folder (widgets/file_views.rs), remembered on this computer.
+            let (mut view, mut across) = memory::with(|m| (m.view, m.across.unwrap_or(4)));
+            if super::file_views::toolbar(ui, theme, &mut view, &mut across) {
+                memory::with(|m| {
+                    m.view = view;
+                    m.across = Some(across);
+                });
+            }
+            ui.add_space(theme.spacing_xs);
+
             // Entry list.
+            // As tall as the screen leaves room for, so Choose stays on screen: the Pictures view up to
+            // 640 points, a list up to 300.
+            let room = ui.ctx().screen_rect().height() - 480.0;
+            let list_height = if view == memory::PickerView::Pictures { room.clamp(180.0, 640.0) } else { room.clamp(180.0, 300.0) };
             egui::ScrollArea::vertical()
                 .id_salt("file_picker_list")
-                .max_height(300.0)
+                .max_height(list_height)
+                .auto_shrink([false, true])
                 .show(ui, |ui| {
                     if !state.current_dir.is_dir() {
                         ui.label(
@@ -460,63 +503,27 @@ pub fn file_picker_modal(
                                 .color(theme.text_muted()),
                         );
                     }
-                    for entry in &entries {
-                        let selected = state
-                            .selected
-                            .as_ref()
-                            .map(|s| s.path == entry.path)
-                            .unwrap_or(false);
-                        let too_big =
-                            !entry.is_dir && state.max_size > 0 && entry.size > state.max_size;
-                        let label = if entry.is_dir {
-                            format!("[dir] {}", entry.name)
-                        } else {
-                            format!("{}  ({})", entry.name, human_size(entry.size))
-                        };
-                        let color = if too_big {
-                            theme.text_muted()
-                        } else if entry.is_dir {
-                            theme.accent()
-                        } else {
-                            theme.text_primary()
-                        };
-                        if state.multiple && !state.dir_mode && !entry.is_dir {
-                            // A tick, on the whole row; an oversized file shows its size, unticked.
-                            let mut on = state.is_chosen(entry);
-                            let tick = egui::Checkbox::new(&mut on, RichText::new(label).size(theme.font_size_small).color(color));
-                            // Its type first, always (widgets/file_badge.rs): by its name here.
-                            let changed = ui
-                                .horizontal(|ui| {
-                                    widgets::file_badge::show(ui, theme, &crate::net::file_risk::file_type(&entry.name, None));
-                                    ui.add_enabled(!too_big, tick).changed()
-                                })
-                                .inner;
-                            if changed {
-                                state.toggle(entry);
-                            }
-                            continue;
+                    let look = super::file_views::Look {
+                        selected: state.selected.as_ref().map(|e| e.path.as_path()),
+                        chosen: &state.chosen,
+                        multiple: state.multiple,
+                        dir_mode: state.dir_mode,
+                        max_size: state.max_size,
+                    };
+                    let act = match view {
+                        memory::PickerView::List => super::file_views::list(ui, theme, &entries, &look),
+                        memory::PickerView::Details => super::file_views::details(ui, theme, &entries, &look, &mut state.sort, &mut state.sort_desc),
+                        memory::PickerView::Pictures => super::file_views::pictures(ui, theme, &entries, &look, across),
+                    };
+                    match act {
+                        Some(super::file_views::Act::Open(dir)) => {
+                            state.current_dir = dir;
+                            state.selected = None;
                         }
-                        let resp = ui
-                            .horizontal(|ui| {
-                                if !entry.is_dir {
-                                    widgets::file_badge::show(ui, theme, &crate::net::file_risk::file_type(&entry.name, None));
-                                }
-                                ui.selectable_label(selected, RichText::new(label).size(theme.font_size_small).color(color))
-                            })
-                            .inner;
-                        if resp.clicked() {
-                            if entry.is_dir {
-                                state.current_dir = entry.path.clone();
-                                state.selected = None;
-                            } else if too_big {
-                                // Visible but not selectable; the footer explains.
-                            } else {
-                                state.selected = Some(entry.clone());
-                            }
-                        }
-                        if resp.double_clicked() && !entry.is_dir && !too_big {
-                            result = FilePickerResult::Picked(vec![entry.path.clone()]);
-                        }
+                        Some(super::file_views::Act::Select(e)) => state.selected = Some(e),
+                        Some(super::file_views::Act::Toggle(e)) => state.toggle(&e),
+                        Some(super::file_views::Act::Pick(path)) => result = FilePickerResult::Picked(vec![path]),
+                        None => {}
                     }
                 });
             });
@@ -604,6 +611,9 @@ pub fn file_picker_modal(
     }
     result
 }
+
+/// Said when files dropped on an open picker are all of kinds or sizes it does not take.
+pub const DROPPED_NONE_FIT: &str = "None of those files can be chosen here: this asks for other kinds of file, or smaller ones.";
 
 /// The picker window's id (its backdrop is `with("backdrop")`).
 pub const PICKER_ID: &str = "file_picker_modal";

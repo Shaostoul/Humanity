@@ -71,6 +71,14 @@
 // 15. (2026-10-17) The attach step is "Send a file", in two tinted parts, "The file" (the badge, from
 //     the file's first bytes; its name; its size) and "Hidden details" (what was found, the switch
 //     and its lines), with the buttons outside them.
+// 16. (2026-10-17) Files dragged from the computer onto the chat (/shared/drop-overlay.js, loaded
+//     here in index.html's order): over one of this server's channels "Drop to upload to Media and
+//     post in #general", and the drop opens the upload window (/shared/upload-window.js), the Media
+//     page's own Add to Media, posting ticked for the channel, nothing going until its Upload; in a
+//     DM or a group "Drop to send in Ben" (the group's name in a group), and the drop takes the attach
+//     button's own private path, never the upload window; where a drop would do nothing (sending
+//     files in private turned off, not signed in) "Files cannot be dropped here." and why, and
+//     nothing goes; a dragged link or text is left to the browser. The "drop:" tests.
 //
 // Red first: see the end of this file for each deliberate break and the assertion it tripped.
 
@@ -85,6 +93,9 @@ const ROOT = path.join(__dirname, "..", "..");
 const P = require(path.join(WEB, "shared", "protected.js"));
 const W = require(path.join(WEB, "shared", "warnings.js"));
 const report = require(path.join(WEB, "shared", "report.js"));
+// The upload window a drop on a channel opens (2026-10-17), and the Media page in it (its harness).
+const UW = require(path.join(WEB, "shared", "upload-window.js"));
+const MH = require("./media-web-harness.js");
 
 const SPEC = fs.readFileSync(path.join(ROOT, "docs", "design", "blocking-and-safe-mode.md"), "utf8");
 // 10k with its line wrapping undone (a sentence may wrap in the source).
@@ -107,6 +118,8 @@ const FILE_RISKS = JSON.parse(fs.readFileSync(path.join(ROOT, "data", "safety", 
 const RISK = require(path.join(WEB, "shared", "file-risk.js"));
 /** The checker's answer for a name and bytes, from the shipped list, as the page should say it. */
 const riskOf = (name, head) => RISK.assess(name, head || null, FILE_RISKS);
+/** A kind's words in the data file itself, its ending filled in (never typed out here: they change). */
+const kindWords = (id, ext) => FILE_RISKS.kinds.find((k) => k.id === id).words.replace("{ext}", ext);
 const FAILED = "This file could not be opened.";
 const SERVER = "did:hum:4dQe1bVHyiHm1Vh8rWbx2F";
 const T0 = 1760000000000;
@@ -538,6 +551,7 @@ async function loadChat(me, opts = {}) {
   // opts.xhr: the page gets a stand-in XMLHttpRequest that goes to the same stand-in relay, says
   // the upload is half way and then all there, and keeps the upload line's words after each step.
   const xhrWords = [];
+  const winListeners = {}; // the window's listeners, by event type
   class FakeXhr {
     constructor() { this.upload = { onprogress: null }; this.status = 0; this.responseText = ""; }
     open(method, url) { this.method = method; this.url = url; }
@@ -608,8 +622,10 @@ async function loadChat(me, opts = {}) {
     RTCSessionDescription: function (d) { return d; },
     RTCIceCandidate: function (c) { return c; },
     Audio: function () { return anything(); },
-    addEventListener: () => {},
-    removeEventListener: () => {},
+    // The window's listeners are kept (none runs by itself), so a test can drag files over the page
+    // (2026-10-17, /shared/drop-overlay.js: dragenter, dragover, dragleave and drop on the window).
+    addEventListener: (type, fn) => { (winListeners[type] = winListeners[type] || []).push(fn); },
+    removeEventListener: (type, fn) => { winListeners[type] = (winListeners[type] || []).filter((f) => f !== fn); },
     matchMedia: () => anything(),
     requestAnimationFrame: () => 0,
     Notification: anything(),
@@ -658,6 +674,8 @@ async function loadChat(me, opts = {}) {
   run("shared/file-transfer.js");
   run("shared/profile-changes.js");
   run("shared/profile-copy.js"); // as web/chat/index.html loads it (BUG-191)
+  run("shared/drop-overlay.js"); // files dragged from the computer onto the page (2026-10-17)
+  run("shared/upload-window.js"); // the window a drop on a channel opens (2026-10-17)
   run("chat/crypto.js");
   run("chat/chat-dm-store.js");
   run("chat/view/timestampPill.js");
@@ -722,7 +740,7 @@ async function loadChat(me, opts = {}) {
   const fn = (name) => vm.runInContext(name, ctx);
   const set = (code, ...args) => vm.runInContext(code, ctx)(...args);
   const page = {
-    ctx, fx, sock, store, state, relay, posted, fetched, uploads, files, blobs, notices, systemLines, handle, fn, set, xhrWords,
+    ctx, fx, sock, store, state, relay, posted, fetched, uploads, files, blobs, notices, systemLines, handle, fn, set, xhrWords, winListeners,
     releaseRiskList: () => releaseRiskList(),
     el: (id) => ctx.document.getElementById(id),
     /** Hold every upload until release() (to leave the conversation while one is on its way). */
@@ -1035,7 +1053,11 @@ test("public file cards: what kind of file it is is said under its name, also wh
   page.releaseRiskList();
   await settle();
   assert.equal(line(zip).textContent, riskOf("maps.zip").words, "the archive's word, once the list is in");
-  assert.ok(line(zip).textContent.startsWith("This is an archive (.zip)."), "in the list's words");
+  // The words themselves are the data file's (the archive kind with its ending filled in), read from
+  // the file, never typed out: they are rewritten there from time to time.
+  // Seen red 2026-10-17: typed out as "This is an archive (.zip).", it failed with "in the list's
+  // words" once the data file's words were rewritten that day; read from the file, it passes.
+  assert.equal(line(zip).textContent, kindWords("archive", ".zip"), "in the list's words");
   assert.equal(line(zip).hidden, false, "shown");
   assert.ok(!line(zip).classList.contains("disguised"), "a warning, not a disguise");
   assert.equal(line(blend).textContent, riskOf("ship.blend").words, "a Blender file's word");
@@ -3147,4 +3169,233 @@ test("files: the attach step shows a file named like a picture over a program's 
   assert.ok(slot.innerHTML.startsWith('<span class="file-badge level-danger disguised"'), "red, with a thicker edge");
   assert.ok(slot.innerHTML.includes(">Program<"), "it says Program");
   await press(page, going, "cancel");
+});
+
+// ── Files dragged from the computer onto the chat (2026-10-17) ──────────
+// The operator asked for drag and drop from the computer's file manager, and then redesigned what a
+// drop does (the desktop app's src/gui/pages/chat/attach_send.rs offer_drop, in its words): over one
+// of this server's channels the page is dimmed with "Drop to upload to Media and post in #general",
+// and the drop opens the upload window (/shared/upload-window.js: the Media page's own Add to Media,
+// every control, in a frame over the chat) with "Also post in chat" ticked for that channel, and
+// nothing goes until its Upload. Over a private conversation (a DM, a group, the scratch pad) it says
+// "Drop to send in Ben" and the dropped files take the attach button's own private, encrypted path
+// (chat-messages.js sendChosenFiles): a private conversation's file is never offered to a public
+// upload. Where a drop would do nothing, "Files cannot be dropped here." and why. A dragged link or
+// text is left to the browser. The events are a browser's, on the window (/shared/drop-overlay.js);
+// the files exist only at the drop, as in a browser, which hides them until then.
+
+/** A drag from the computer's file manager: "Files" among its types (its files only at the drop). */
+const filesDrag = (files) => ({ types: ["Files"], files: files || [], dropEffect: "none" });
+/** A dragged link or piece of text. */
+const textDrag = () => ({ types: ["text/plain", "text/uri-list"], files: [], dropEffect: "none" });
+/** Fire a drag event on the page's window, as a browser does; the event, to read what the page did. */
+function dragOn(page, type, dt) {
+  const ev = { type, dataTransfer: dt, relatedTarget: null, defaultPrevented: false, preventDefault() { this.defaultPrevented = true; } };
+  for (const fn of (page.winListeners[type] || []).slice()) fn(ev);
+  return ev;
+}
+/** The overlay as a person sees it ({line, reason, refused}), or null when it is not shown. */
+function dropOverlay(page) {
+  const el = (page.ctx.document.body.children || []).find((c) => String(c.className).split(/\s+/).includes("hos-drop-overlay"));
+  if (!el || el.hidden !== false) return null;
+  const [line, reason] = el.children;
+  return { line: line.textContent, reason: reason.hidden ? "" : reason.textContent, refused: String(el.className).includes("hos-drop-refused") };
+}
+/** Drag `files` in over the page and drop them; the drop's event. */
+async function dropFiles(page, files) {
+  dragOn(page, "dragenter", filesDrag());
+  dragOn(page, "dragover", filesDrag());
+  const ev = dragOn(page, "drop", filesDrag(files));
+  await settle();
+  return ev;
+}
+/** The upload window over the chat, if a drop opened one ({host, el, frame}), else null. */
+function uploadWindowOf(page) {
+  const host = page.fn("chatUploadWindowHost");
+  const el = host && host.element();
+  return el ? { host, el, frame: host.frame() } : null;
+}
+/** The page in the upload window says it is there; what it was handed then (and is handed later). */
+function frameReady(page, w) {
+  const inside = { posted: [], postMessage(data, to) { this.posted.push({ data, to }); } };
+  w.frame.contentWindow = inside;
+  for (const fn of (page.winListeners.message || []).slice()) fn({ source: inside, origin: page.ctx.location.origin, data: { kind: UW.KIND, event: "ready" } });
+  return inside.posted;
+}
+
+// Seen red 2026-10-17 in a copy of web/ through HOS_WEB_DIR: with chatDropDecision's channel line made
+// the private one (`D.sendIn(channel.name)`): "over #general: Drop to upload to Media and post in
+// #general" (actual { line: 'Drop to send in #general', ... }); with chatDropped sending a channel's
+// drop down the attach path (the window skipped): "nothing goes up until the window's Upload" (actual
+// 2); with chatDropped handing the window no channel (`host.show(files, '')`): "posting ticked for
+// #general" (actual ''); with media-add.js openAddForm ignoring postTo: "in the window: Also post in
+// chat ticked for #general" (actual false).
+test("drop: over #general it says the files go up to Media and are posted there; the drop opens the upload window, posting ticked, the Media page's own form", async () => {
+  const fx = await fixture();
+  const page = await loadChat(fx.ann);
+  const enter = dragOn(page, "dragenter", filesDrag());
+  assert.ok(enter.defaultPrevented, "a file drag is the page's, so the browser never opens the file in the tab");
+  assert.deepEqual(dropOverlay(page), { line: "Drop to upload to Media and post in #general", reason: "", refused: false }, "over #general: Drop to upload to Media and post in #general");
+  const over = dragOn(page, "dragover", filesDrag());
+  assert.ok(over.defaultPrevented && over.dataTransfer.dropEffect === "copy", "dragover says copy");
+  // Over a child element: its enter comes before the last one's leave.
+  dragOn(page, "dragenter", filesDrag());
+  dragOn(page, "dragleave", filesDrag());
+  assert.ok(dropOverlay(page), "leaving a child element keeps it");
+  dragOn(page, "dragleave", filesDrag());
+  assert.equal(dropOverlay(page), null, "leaving the window takes it away");
+
+  const png = picture("image.png");
+  const notes = pdf("notes.pdf");
+  const drop = await dropFiles(page, [png, notes]);
+  assert.ok(drop.defaultPrevented, "the drop is the page's");
+  assert.equal(dropOverlay(page), null, "and the overlay is gone");
+  assert.equal(page.uploads.length, 0, "nothing goes up until the window's Upload");
+  assert.equal(page.sock.sent.filter((m) => m.type === "chat").length, 0, "and nothing is posted yet");
+  const w = uploadWindowOf(page);
+  assert.ok(w && w.el.hidden === false && page.ctx.document.body.children.includes(w.el), "the upload window opened over the chat");
+  assert.equal(w.frame.src, "/media?window=upload", "with the Media page in it, in its upload-window form");
+  const handed = frameReady(page, w);
+  assert.equal(handed.length, 1, "once the page in it is there, the files are handed over");
+  assert.equal(handed[0].to, page.ctx.location.origin, "to this site only");
+  assert.deepEqual([handed[0].data.event, handed[0].data.files], ["files", [png, notes]], "the files dropped, as they are");
+  assert.equal(handed[0].data.postTo, "general", "posting ticked for #general");
+
+  // In the window: the Media page's own Add to Media (media-app.js, as /media?window=upload runs it),
+  // the first file the item and the other added once it is up, posting ticked for #general.
+  const storage = MH.fakeStorage();
+  storage.setItem("humanity_channel", "general");
+  const inWindow = await MH.openPage({ storage, uploadWindow: { send() {} }, routes: MH.listRoutes(MH.listAnswer([])) });
+  inWindow.session.emit({ type: "frame", msg: { type: "channel_list", channels: [{ id: "general", name: "general" }, { id: "random", name: "random" }] } });
+  inWindow.page.takeFiles(handed[0].data.files, handed[0].data.postTo);
+  await MH.settle();
+  const f = inWindow.page.state.form;
+  assert.ok(f && f.mode === "add" && f.file === png, "Add to Media opened with the first file as the item");
+  assert.deepEqual(f.more, [notes], "the other to be added once it is up");
+  const tick = MH.byId(inWindow.doc, "media-form-post-on");
+  assert.ok(tick && tick.checked, "in the window: Also post in chat ticked for #general");
+  assert.equal(MH.byId(inWindow.doc, "media-form-post-to").value, "general");
+  assert.ok(MH.byId(inWindow.doc, "media-form-go").className.split(/\s+/).includes("media-btn-rgb"), "its Upload wearing the RGB border");
+
+  // A second drop goes to the same window, at once.
+  await dropFiles(page, [pdf("more.pdf")]);
+  assert.equal(uploadWindowOf(page).el, w.el, "the same window");
+  assert.equal(handed.length, 2, "handed over at once");
+
+  // A read-only channel this person cannot post in: up to Media, nothing ticked.
+  const ro = await loadChat(fx.ann);
+  ro.fn("switchChannel")("announcements");
+  await settle();
+  dragOn(ro, "dragenter", filesDrag());
+  assert.deepEqual(dropOverlay(ro), { line: "Drop to upload to Media", reason: "", refused: false }, "a read-only channel: Drop to upload to Media");
+  await dropFiles(ro, [pdf("notes.pdf")]);
+  assert.equal(frameReady(ro, uploadWindowOf(ro))[0].data.postTo, "", "nothing ticked");
+  assert.equal(ro.uploads.length, 0);
+});
+
+// Seen red 2026-10-17 in a copy of web/ through HOS_WEB_DIR: with conversationLabel naming a DM by
+// its key ("dm:" + activeDmPartner): "over a DM: the person's name" (actual "Drop to send in dm:...");
+// and 2026-10-17 again, with dropChannelNow not asking privateConversationNow first (a DM open over
+// #general taken for the channel): "over a DM: the person's name" (actual { line: 'Drop to upload to
+// Media and post in #general', ... }).
+test("drop: in a DM it says the person's name, and the dropped file is encrypted and sealed to them, as a picked one is, never offered to a public upload", async () => {
+  const fx = await fixture();
+  const page = await loadChat(fx.ann);
+  page.fn("openDmConversation")(fx.ben.key, "Ben");
+  await settle();
+  page.sock.sent.length = 0;
+  page.sock.raw.length = 0;
+  dragOn(page, "dragenter", filesDrag());
+  assert.deepEqual(dropOverlay(page), { line: "Drop to send in Ben", reason: "", refused: false }, "over a DM: the person's name");
+  await dropFiles(page, [pdf("notes.pdf")]);
+  assert.equal(uploadWindowOf(page), null, "a private conversation's file is never offered to a public upload");
+  const up = oneEncryptedUpload(page, PDF);
+  const toBen = page.sock.sent.filter((m) => m.type === "dm_put" && opened(m).sealedTo === kyberOf(fx.ben.key));
+  assert.equal(toBen.length, 1, "one sealed DM to Ben");
+  const meta = markerMeta(opened(toBen[0]).inner.text);
+  assert.deepEqual([meta.name, meta.mime, meta.size], ["notes.pdf", "application/pdf", PDF.length], "a marker naming the file");
+  await markerOpensUpload(meta, up, PDF);
+  addressNowhereInTheClear(page, up.url);
+  assert.equal(page.sock.sent.filter((m) => m.type === "chat").length, 0, "never the public channel");
+});
+
+// Seen red 2026-10-17 in a copy of web/ through HOS_WEB_DIR: with conversationLabel leaving groups
+// out (a group falling through to its room): "over a group: its name" (actual { line: 'Drop to send
+// in #general', ... }).
+test("drop: in a group it says the group's name, and the dropped file goes inside the group's encrypted message", async () => {
+  const fx = await fixture();
+  const page = await loadChat(fx.ann);
+  await openGroup(page);
+  page.sock.sent.length = 0;
+  page.posted.length = 0;
+  dragOn(page, "dragenter", filesDrag());
+  assert.deepEqual(dropOverlay(page), { line: "Drop to send in Hikers", reason: "", refused: false }, "over a group: its name");
+  await dropFiles(page, [pdf("notes.pdf")]);
+  assert.equal(uploadWindowOf(page), null, "never the upload window");
+  oneEncryptedUpload(page, PDF);
+  await waitFor(() => page.posted.filter((o) => o.object_type === "group_msg_v1").length === 1, "one group message");
+  const meta = markerMeta(await groupText(fx, page.posted.find((o) => o.object_type === "group_msg_v1")));
+  assert.equal(meta && meta.name, "notes.pdf", "carrying the file's marker");
+  assert.equal(page.sock.sent.filter((m) => m.type === "chat").length, 0, "never the public channel");
+});
+
+// Seen red 2026-10-17 in a copy of web/ through HOS_WEB_DIR: with the attach-off check taken out of
+// chatDropDecision, and again with its identity check for a channel taken out: "the pointer says no,
+// and the browser does not open the file" (the drop was taken, dropEffect "copy").
+test("drop: where a drop would do nothing the page says so and why, and nothing goes", async () => {
+  const fx = await fixture();
+  const refused = (page) => {
+    dragOn(page, "dragenter", filesDrag());
+    const over = dragOn(page, "dragover", filesDrag());
+    assert.ok(over.defaultPrevented && over.dataTransfer.dropEffect === "none", "the pointer says no, and the browser does not open the file");
+    return dropOverlay(page);
+  };
+  // Sending files in DMs and groups turned off (Safety > Files in messages): its own words.
+  const off = await loadChat(fx.ann, { stored: { hos_files_in_messages: JSON.stringify({ attach: false }) } });
+  off.fn("openDmConversation")(fx.ben.key, "Ben");
+  await settle();
+  const offWords = off.ctx.HosFilesInMessages.WORDS.attachOff;
+  assert.deepEqual(refused(off), { line: "Files cannot be dropped here.", reason: offWords, refused: true }, "sending files in private turned off: its words");
+  await dropFiles(off, [pdf("notes.pdf")]);
+  assert.equal(off.uploads.length, 0, "and nothing goes");
+  assert.equal(dropOverlay(off), null, "the overlay goes at the drop");
+
+  // A DM while this server has not signed the chat in (the connection down): nothing can go.
+  const down = await loadChat(fx.ann);
+  down.fn("openDmConversation")(fx.ben.key, "Ben");
+  await settle();
+  down.sock.readyState = 3;
+  assert.deepEqual(refused(down), { line: "Files cannot be dropped here.", reason: "This server has not finished signing you in yet. Try again in a moment.", refused: true }, "a DM, not signed in: why not");
+  await dropFiles(down, [pdf("notes.pdf")]);
+  assert.equal(down.uploads.length, 0, "nothing goes");
+
+  // A channel: the upload window signs in by itself, so the chat's own connection does not matter;
+  // with no identity in this browser at all, nothing can sign in, and it says so.
+  const chanDown = await loadChat(fx.ann);
+  chanDown.sock.readyState = 3;
+  dragOn(chanDown, "dragenter", filesDrag());
+  assert.equal(dropOverlay(chanDown).line, "Drop to upload to Media and post in #general", "a channel with the chat's connection down: the window signs in itself");
+  dragOn(chanDown, "dragleave", filesDrag());
+  chanDown.set("(v) => { myKey = v; }", "");
+  assert.deepEqual(refused(chanDown), { line: "Files cannot be dropped here.", reason: "This server has not finished signing you in yet. Try again in a moment.", refused: true }, "no identity in this browser: why not");
+  await dropFiles(chanDown, [pdf("notes.pdf")]);
+  assert.equal(uploadWindowOf(chanDown), null, "no window");
+  assert.equal(chanDown.uploads.length, 0, "nothing goes");
+});
+
+// Seen red 2026-10-17 in a copy of web/ through HOS_WEB_DIR: with drop-overlay.js's carriesFiles
+// answering true for any drag: "a dragged link or text: no overlay".
+test("drop: a dragged link or piece of text is left to the browser", async () => {
+  const fx = await fixture();
+  const page = await loadChat(fx.ann);
+  const enter = dragOn(page, "dragenter", textDrag());
+  const over = dragOn(page, "dragover", textDrag());
+  assert.equal(dropOverlay(page), null, "a dragged link or text: no overlay");
+  assert.ok(!enter.defaultPrevented && !over.defaultPrevented, "and the browser's own handling (text into a box)");
+  const drop = dragOn(page, "drop", textDrag());
+  await settle();
+  assert.ok(!drop.defaultPrevented, "its drop is the browser's");
+  assert.equal(page.uploads.length, 0, "nothing uploaded");
+  assert.equal(uploadWindowOf(page), null, "no window");
+  assert.equal(page.sock.sent.filter((m) => m.type === "chat").length, 0, "nothing sent");
 });

@@ -116,6 +116,8 @@ const B3 = require(path.join(WEB, "shared", "blake3.js"));
 const RISK = require(path.join(WEB, "shared", "file-risk.js"));
 const FILE_RISKS = JSON.parse(fs.readFileSync(path.join(ROOT, "data", "safety", "file_risks.json"), "utf8"));
 const riskOf = (name, head) => RISK.assess(name, head || null, FILE_RISKS);
+/** A kind's words in the data file itself, its ending filled in (never typed out here: they change). */
+const kindWords = (id, ext) => FILE_RISKS.kinds.find((k) => k.id === id).words.replace("{ext}", ext);
 /** The badge a row should show for a file (its type, always, 2026-10-17), from the shipped list. */
 const badgeOf = (name, head) => RISK.badgeHtml(name, head || null, FILE_RISKS);
 
@@ -1742,7 +1744,11 @@ test("23. a file sent to me says what kind of file it is: its badge on both rows
   await waitFor(() => transferOf(s.ben, a.id) && transferOf(s.ben, a.id).state === "asked", "asked about maps.zip");
   await settle();
   assert.equal(rowParts(rowOf(s.ben, a.id)).caution, riskOf("maps.zip").words, "the archive's word, with the question");
-  assert.ok(rowParts(rowOf(s.ben, a.id)).caution.startsWith("This is an archive (.zip)."), "in the list's words");
+  // The words themselves are the data file's (data/safety/file_risks.json, the archive kind with its
+  // ending filled in), read here from the file, never typed out: they are rewritten there from time to time.
+  // Seen red 2026-10-17: typed out as "This is an archive (.zip).", it failed with "in the list's
+  // words" once the data file's words were rewritten that day; read from the file, it passes.
+  assert.equal(rowParts(rowOf(s.ben, a.id)).caution, kindWords("archive", ".zip"), "in the list's words");
   assert.equal(rowParts(rowOf(s.ben, a.id)).cautionDisguised, false, "a warning, not a disguise");
   assert.equal(rowParts(rowOf(s.ann, a.id)).caution, undefined, "never on the sender's own row");
   // Its type, always (2026-10-17): the badge just before its name, on both sides' rows.

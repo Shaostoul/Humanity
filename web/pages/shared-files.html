@@ -8,6 +8,8 @@
   <link rel="stylesheet" href="/shared/theme.css">
   <!-- Each file's type, always shown just before its name (2026-10-17): the badge /shared/file-risk.js draws. -->
   <link rel="stylesheet" href="/shared/file-badge.css?v=1">
+  <!-- Files dragged from the computer onto the page: the dimmed overlay saying what a drop will do (2026-10-17). -->
+  <link rel="stylesheet" href="/shared/drop-overlay.css?v=2">
   <style>
     body { line-height: 1.6; min-height: 100vh; padding-bottom: 60px; }
     .container { max-width: 860px; margin: 0 auto; padding: 0 24px; }
@@ -62,6 +64,38 @@
       text-align: center; color: var(--text-muted); padding: 40px 0;
       font-size: 0.9rem;
     }
+
+    /* Upload a file (2026-10-17, /pages/shared-files-upload.js): the desktop Files page's button,
+       its status, why it is not offered, and the step when a file has something hidden in it. */
+    .sf-upload { margin: 0 0 18px; }
+    .sf-upload-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+    .sf-upload-btn {
+      background: var(--accent); color: var(--text-on-accent); font-weight: 700; font-size: 0.85rem;
+      padding: 8px 16px; border: none; border-radius: var(--radius); cursor: pointer;
+    }
+    .sf-upload-btn:hover { background: var(--accent-hover); }
+    .sf-upload-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .sf-upload-btn[hidden] { display: none; }
+    .sf-upload-status { font-size: 0.85rem; color: var(--text-muted); }
+    .sf-upload-why { font-size: 0.85rem; color: var(--text-muted); margin: 0; }
+    .sf-upload-notice { font-size: 0.85rem; color: var(--warning); margin: 6px 0 0; }
+    .sf-upload-why[hidden], .sf-upload-notice[hidden] { display: none; }
+    .sf-step {
+      background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 14px 16px; margin-top: 12px; font-size: 0.88rem;
+    }
+    .sf-step-name { font-weight: 700; color: var(--text); word-break: break-all; margin: 0 0 6px; }
+    .sf-step-summary { margin: 0 0 4px; color: var(--text); }
+    .sf-step-details { margin: 0 0 8px 18px; color: var(--text-secondary); }
+    .sf-step-protected, .sf-step-off { color: var(--text-muted); margin: 6px 0 0; }
+    .sf-step-off:empty, .sf-step-refused:empty { display: none; }
+    .sf-step-refused { color: var(--danger); margin: 6px 0 0; }
+    .sf-step-switch { display: flex; align-items: center; gap: 6px; color: var(--text); }
+    .sf-step-buttons { display: flex; gap: 10px; margin-top: 12px; }
+    .sf-step-cancel {
+      background: transparent; color: var(--text); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 7px 14px; font-size: 0.85rem; cursor: pointer;
+    }
     @media (max-width: 560px) {
       .sf-row { flex-wrap: wrap; }
       .sf-dl, .sf-put { width: 100%; text-align: center; }
@@ -70,6 +104,9 @@
 </head>
 <body>
   <script src="/shared/shell.js" data-active="shared-files"></script>
+  <!-- settings.js reads its defaults from defaults.js, as on every other page (without it the page
+       threw at load and showed "Something went wrong"). -->
+  <script src="/shared/defaults.js"></script>
   <script src="/shared/settings.js"></script>
 
   <div class="container">
@@ -79,8 +116,11 @@
     </div>
 
     <div class="sf-how">
-      <strong>How to share your own:</strong> open the <a href="/chat">chat</a>, click the attach button, and pick your file. 3D and model files (<code>.blend</code>, <code>.stl</code>, <code>.obj</code>, <code>.gltf</code>, <code>.glb</code>) are listed here automatically; photos and other chat attachments stay private to the people you send them to. Sharing requires a verified account (ask an admin in chat). A file of yours here can also go on the <a href="/media">Media page</a>: press Put on Media on its row.
+      <strong>How to share your own:</strong> press Upload a file, or drop files on this page. Files here are public: anyone can download them. In the <a href="/chat">chat</a>, 3D and model files you attach (<code>.blend</code>, <code>.stl</code>, <code>.obj</code>, <code>.gltf</code>, <code>.glb</code>) are listed here too; photos and other chat attachments stay private to the people you send them to. Sharing requires a verified account (ask an admin in chat). A file of yours here can also go on the <a href="/media">Media page</a>: press Put on Media on its row.
     </div>
+
+    <!-- Upload a file, and files dropped on the page (/pages/shared-files-upload.js). -->
+    <div id="sf-upload" class="sf-upload"></div>
 
     <div class="sf-search">
       <input id="sf-q" type="search" placeholder="Search files by name (phone case, bushing, bracket...)" autocomplete="off">
@@ -97,6 +137,15 @@
   <!-- What kind of file each one is (2026-10-17): reads /data/safety/file_risks.json, the list the
        desktop app reads too, for the badge before each file's name. -->
   <script src="/shared/file-risk.js?v=2"></script>
+  <!-- Upload a file and files dropped on the page (2026-10-17), the desktop Files page's: the page's
+       own signed-in connection (the upload token, the person's limit and role), the cleaning of each
+       file on this device before it goes up (upload-clean.js after strip-metadata.js), the drop's
+       overlay, then the upload itself. -->
+  <script src="/shared/relay-session.js?v=2"></script>
+  <script src="/shared/strip-metadata.js?v=1"></script>
+  <script src="/shared/upload-clean.js?v=1"></script>
+  <script src="/shared/drop-overlay.js?v=2"></script>
+  <script src="/pages/shared-files-upload.js?v=1"></script>
   <script>
     (function () {
       var listEl = document.getElementById('sf-list');
@@ -181,20 +230,23 @@
         }));
       }
 
-      fetch('/api/uploads?limit=500')
-        .then(function (r) {
-          if (!r.ok) throw new Error('HTTP ' + r.status);
-          return r.json();
-        })
-        .then(function (d) {
-          allFiles = (d && d.files) || [];
-          render(allFiles);
-        })
-        .catch(function () {
-          listEl.innerHTML = '<div class="sf-empty">Could not reach the file library. ' +
-            'If you are hosting your own server, make sure it is running; ' +
-            'otherwise try again in a moment.</div>';
-        });
+      function loadList() {
+        fetch('/api/uploads?limit=500')
+          .then(function (r) {
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return r.json();
+          })
+          .then(function (d) {
+            allFiles = (d && d.files) || [];
+            applyFilter();
+          })
+          .catch(function () {
+            listEl.innerHTML = '<div class="sf-empty">Could not reach the file library. ' +
+              'If you are hosting your own server, make sure it is running; ' +
+              'otherwise try again in a moment.</div>';
+          });
+      }
+      loadList();
 
       qEl.addEventListener('input', applyFilter);
 
@@ -205,12 +257,21 @@
         }).catch(function () {});
       }
 
-      if (typeof window.getPqIdentity === 'function') {
-        window.getPqIdentity().then(function (id) {
-          if (!id || !id.dilithiumPublicHex) return;
-          myKey = id.dilithiumPublicHex;
-          applyFilter();
-        }).catch(function () {});
+      // The identity Chat keeps in this browser, asked for once: for Put on Media on the person's
+      // own rows, and for Upload a file's own signed-in connection.
+      var identity = typeof window.getPqIdentity === 'function'
+        ? Promise.resolve(window.getPqIdentity()).catch(function () { return null; })
+        : Promise.resolve(null);
+      identity.then(function (id) {
+        if (!id || !id.dilithiumPublicHex) return;
+        myKey = id.dilithiumPublicHex;
+        applyFilter();
+      });
+
+      // Upload a file, and files dropped on the page (/pages/shared-files-upload.js): the list is
+      // loaded again once one is up.
+      if (window.SharedFilesUpload && typeof window.SharedFilesUpload.boot === 'function') {
+        window.SharedFilesUpload.boot({ identity: identity, onUploaded: loadList });
       }
     })();
   </script>

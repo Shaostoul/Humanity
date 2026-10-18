@@ -396,6 +396,14 @@ async function openPage(opts) {
     // What opens an item's 3D view (2026-10-16, web/shared/model-view.js): a test's stand-in, which
     // records what it was asked and fetches the bytes the way the real viewer would (Node has no WebGL).
     modelView: o.modelView || null,
+    // Where files dragged from the computer are heard (2026-10-17, web/shared/drop-overlay.js): a
+    // test's stand-in window (drop-files-web.test.js); none by default, so nothing can be dropped.
+    window: o.window || null,
+    // "Also post in chat" (2026-10-17): the recovery-phrase guard (a test's stand-in; none by
+    // default, so nothing is posted: it cannot be checked), and the upload window's connector to the
+    // page it is over (post-in-chat-web.test.js; none by default: the Media page as usual).
+    phraseIn: o.phraseIn || null,
+    uploadWindow: o.uploadWindow || null,
   });
   ctx.page = page;
   await page.start();

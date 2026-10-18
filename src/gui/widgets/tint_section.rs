@@ -51,6 +51,20 @@ pub fn show<R>(ui: &mut egui::Ui, theme: &Theme, tint: Tint, title: &str, add: i
         .inner
 }
 
+/// The nav bar's active border around `rect` (an Upload button): the same colour and animation the
+/// theme gives the current page's tab (RGB cycle by default; pulse, solid or off as set), redrawn
+/// while it moves.
+pub fn rgb_border(ui: &egui::Ui, theme: &Theme, rect: egui::Rect) {
+    let time = ui.input(|i| i.time) as f32;
+    let color = crate::gui::pages::escape_menu::channeling_color(theme, time, false, theme.accent());
+    let width = theme.nav_active_border_width.max(1.5);
+    ui.painter().rect_stroke(rect.expand(width), egui::CornerRadius::same(theme.border_radius as u8 + 2), egui::Stroke::new(width, color), egui::StrokeKind::Middle);
+    let moving = theme.animations_enabled && matches!(theme.nav_active_border_animation, crate::gui::theme::anim::RGB_CYCLE | crate::gui::theme::anim::PULSE);
+    if moving {
+        ui.ctx().request_repaint_after(std::time::Duration::from_millis(33));
+    }
+}
+
 /// Whether a frame painted a section's fill in `tint` (its colour at [`SHADE`]), for the tests of
 /// the windows that use these sections.
 #[cfg(test)]

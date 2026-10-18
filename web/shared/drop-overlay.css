@@ -1,0 +1,42 @@
+/* drop-overlay.css: the full-page dimmed overlay while files from the computer are dragged over a
+   page that takes them (2026-10-17, /shared/drop-overlay.js). The dialogs' dimming
+   (var(--bg-modal)), one large line saying what a drop will do, and, where a drop would do
+   nothing, the page's reason under it. Theme variables only. It never takes the pointer, so the
+   drag's enter and leave events stay on the page's own elements. */
+.hos-drop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-md);
+  padding: var(--space-3xl) var(--space-xl);
+  background: var(--bg-modal);
+  pointer-events: none;
+  text-align: center;
+  outline: 3px dashed var(--accent);
+  outline-offset: calc(-1 * var(--space-xl));
+}
+.hos-drop-overlay[hidden] { display: none; }
+.hos-drop-overlay.hos-drop-refused { outline-color: var(--danger); }
+.hos-drop-line {
+  margin: 0;
+  max-width: 40ch;
+  font-size: var(--text-3xl);
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--text-strong);
+  overflow-wrap: anywhere;
+}
+.hos-drop-reason {
+  margin: 0;
+  max-width: 60ch;
+  font-size: var(--text-base);
+  color: var(--text-secondary);
+}
+.hos-drop-reason[hidden] { display: none; }
+@media (max-width: 560px) {
+  .hos-drop-line { font-size: var(--text-2xl); }
+}

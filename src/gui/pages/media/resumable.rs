@@ -89,6 +89,10 @@ pub struct Unfinished {
     /// More files chosen with this one in Add to Media (2026-10-16): each is uploaded and added
     /// to the item once it is published, as Edit's Add a file adds one.
     pub more: Vec<MoreFile>,
+    /// The chat channel to post it in once it is published (Add to Media's "Also post in chat",
+    /// 2026-10-17), or empty. Kept with the record, so an upload carried on after a restart posts too.
+    #[serde(default)]
+    pub post_to: String,
 }
 
 /// A file chosen beside an Add to Media upload's own, added to its item once it is up.

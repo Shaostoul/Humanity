@@ -27,7 +27,10 @@
 //   admins), and, for the uploader, "Add a file" and "Cover picture". A picked
 //   file is the same resumable upload as Add to Media's, listed under Uploads
 //   in progress, and added to this item when it is up instead of published
-//   (media-app.js `startAttach`, media-upload.js `attachUpload`).
+//   (media-app.js `startAttach`, media-upload.js `attachUpload`). Files
+//   dragged from the computer onto the page while the form is open go the same
+//   way (`addFiles`, 2026-10-17); under an admin's Edit of someone else's item,
+//   "Only Ann can add files to this item." stands where Add a file would be.
 //
 // The form is in three parts in the chat sidebar's colours, darker (2026-10-17,
 // `tintSection`, /shared/tint-section.css; the desktop's Edit window): "About
@@ -170,6 +173,10 @@
   function ownerOnlyWords(name) {
     return 'Only ' + name + ' can change these.';
   }
+  /** Under an admin's Edit of someone else's item, where Add a file would be (2026-10-17; the desktop's media/edit.rs words). */
+  function addFilesOwnerOnlyWords(name) {
+    return 'Only ' + name + ' can add files to this item.';
+  }
   /** What a file's Remove asks first. */
   function removeFileWords(name) {
     return 'Remove ' + name + ' from this item? It is deleted from the server.';
@@ -305,6 +312,8 @@
     const h = c.h;
     const W = c.W;
     const own = view.own(item);
+    // The uploader's name, for the words saying only they can change the licence or add files.
+    const ownerName = item.uploader_name || 'its uploader';
     const general = c.st.categories[0] ? c.st.categories[0].id : 1;
     const f = {
       was: item,
@@ -375,7 +384,7 @@
       picker = licenceChoice(h, {
         licences: L, choice: f.choice, id: 'media-edit-licence', was: item.licence || '',
         members: () => c.membersOnlyServer() || f.members,
-        ownerOnly: own ? null : (item.uploader_name || 'its uploader'),
+        ownerOnly: own ? null : ownerName,
       });
       who.push(picker.el, hostingBlock(h, L));
       els.files = h('div', { id: 'media-edit-files', className: 'media-item-files' });
@@ -432,28 +441,18 @@
         ]));
       }
       for (const u of c.uploadsFor(item.id)) kids.push(h('p', { className: 'media-hint', dataset: { attachRow: '' }, text: u.heading + ': ' + u.words }));
+      if (!own) {
+        // Only the uploader adds files (an admin edits the words, never the files' owner's set).
+        kids.push(h('p', { className: 'media-hint', id: 'media-edit-files-owner-only', text: addFilesOwnerOnlyWords(ownerName) }));
+      }
       if (own) {
         const pick = (as) => {
           // Several files at once (2026-10-16); a cover is one picture.
           const input = h('input', { type: 'file', hidden: true, multiple: as === 'cover' ? undefined : true, dataset: { attachInput: as }, accept: as === 'cover' ? COVER_ACCEPT : undefined });
-          input.addEventListener('change', async () => {
+          input.addEventListener('change', () => {
             const files = Array.from(input.files || []);
             try { input.value = ''; } catch (e) { /* some browsers refuse; harmless */ }
-            if (!files.length) return;
-            // All of them against the share together first, so nothing starts that cannot finish.
-            const together = c.together ? await c.together(files) : '';
-            if (together) {
-              f.problem = together;
-            } else {
-              const problems = [];
-              for (const file of files) {
-                const problem = await c.attach(file, now, as);
-                if (problem) problems.push(files.length > 1 ? file.name + ': ' + problem : problem);
-              }
-              f.problem = problems.join(' ');
-            }
-            drawProblem();
-            drawFiles();
+            addFiles(files, as);
           });
           return input;
         };
@@ -467,6 +466,30 @@
         kids.push(h('p', { className: 'media-hint', text: WORDS.uploadsHint }));
       }
       els.files.replaceChildren(...kids);
+    }
+
+    /**
+     * Add files to this item, as its Add a file (`as` 'file') or Cover picture ('cover') does: the
+     * chosen ones, and files dropped on the page while this form is open (2026-10-17,
+     * media-app.js dropped). All of them against the share together first, so nothing starts that
+     * cannot finish; then each the same resumable upload as Add to Media's, attached when it is up.
+     */
+    async function addFiles(files, as) {
+      if (!own || !files || !files.length) return;
+      const now = view.current(item.id) || item;
+      const together = c.together ? await c.together(files) : '';
+      if (together) {
+        f.problem = together;
+      } else {
+        const problems = [];
+        for (const file of files) {
+          const problem = await c.attach(file, now, as);
+          if (problem) problems.push(files.length > 1 ? file.name + ': ' + problem : problem);
+        }
+        f.problem = problems.join(' ');
+      }
+      drawProblem();
+      drawFiles();
     }
 
     /** Take file `x` off the item (POST /api/media/files/remove, by its number and its own stored name), once confirmed. */
@@ -526,11 +549,13 @@
     }
 
     draw();
-    return { draw, drawFiles, state: f };
+    // addFiles: what files dropped on the page do while this form is open (null when only the
+    // uploader could add them, with addFilesWhyNot saying so).
+    return { draw, drawFiles, state: f, addFiles: own ? addFiles : null, addFilesWhyNot: own ? '' : addFilesOwnerOnlyWords(ownerName) };
   }
 
   const api = {
-    WORDS, COVER_ACCEPT, ownerOnlyWords, removeFileWords, firstFileWords, editText, editPurpose, editBody, offeredLicence, licenceChoice, hostingBlock, createEditForm,
+    WORDS, COVER_ACCEPT, ownerOnlyWords, addFilesOwnerOnlyWords, removeFileWords, firstFileWords, editText, editPurpose, editBody, offeredLicence, licenceChoice, hostingBlock, createEditForm,
     fileBadge, fillFileBadges, fileTypesKnown, loadFileTypes, tintSection,
   };
   if (typeof module === 'object' && module && module.exports) module.exports = api;

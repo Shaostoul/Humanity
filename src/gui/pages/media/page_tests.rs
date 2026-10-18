@@ -692,3 +692,109 @@ fn add_to_media_is_in_three_parts_the_file_first_with_its_type() {
     let archive = texts_at(&out, "Archive").into_iter().find(|r| r.top() > files.top() && r.top() < about.top()).expect("the further file's badge");
     assert!(archive.right() < more && shows(&out, add::MORE_LEAD), "the further file: its type, then its name, under the lead line");
 }
+
+/// "ALSO POST IN CHAT": A TICK ON THE LEFT, THE CHANNEL GREYED OUT WHILE IT IS OFF, THE OPEN CHANNEL
+/// FIRST THEN FAVOURITES (operator, 2026-10-17: "a checkbox to the left of the channel info for
+/// toggling the channel posting on/off. Gray out the channel controls when they're disabled";
+/// "current first and then favorites"). The list: the channel open in the chat, a favourite with
+/// its star, then the rest, a read-only channel left out for a non-admin; the channel's words are
+/// drawn fainter while the tick is off. Seen red 2026-10-17 with the channel drawn enabled whatever
+/// the tick: "greyed out while the tick is off".
+#[test]
+fn post_in_chat_is_a_tick_then_the_channel_greyed_while_off() {
+    let (ctx, theme) = ctx_and_theme();
+    let mut state = page_state(demo_answer(), true);
+    state.media.mine = Some(Mine { share_bytes: 1 << 30, budget_left_bytes: 1 << 40, ..Default::default() });
+    for (id, ro) in [("general", false), ("random", false), ("printing", false), ("announcements", true)] {
+        state.chat_channels.push(crate::gui::ChatChannel { id: id.into(), name: id.into(), read_only: ro, ..Default::default() });
+    }
+    state.chat_active_channel = "random".into();
+    let server = super::server_here(&state);
+    crate::gui::widgets::file_picker_memory::with(|m| m.toggle_post_favorite(&add::post_key(&server, "printing")));
+    let choices = add::post_choices(&state);
+    let ids: Vec<&str> = choices.iter().map(|(id, _)| id.as_str()).collect();
+    assert_eq!(ids, vec!["random", "printing", "general"], "the open channel, the favourite, the rest; no read-only channel");
+    assert!(choices[0].1.contains("open in the chat") && choices[1].1.starts_with('\u{2b50}'));
+
+    let file = crate::test_temp::file("media_post_row", "stl");
+    std::fs::write(&file, b"solid w\nendsolid w\n").unwrap();
+    let form = add::Form::new(add::Source::Picked { path: file.to_path_buf(), name: "w.stl".into(), len: 19 });
+    let look = crate::net::file_clean::look_file(&file, "w.stl").map_err(|e| e.to_string());
+    state.media.look = Some((form.id, crate::gui::pages::chat::attach_step::Looking::known(look)));
+    state.media.form = Some(form);
+    let color_of = |out: &egui::FullOutput, text: &str| {
+        fn walk(s: &egui::Shape, text: &str) -> Option<egui::Color32> {
+            match s {
+                egui::Shape::Text(t) if t.galley.text() == text => t.galley.rows.first().and_then(|r| r.glyphs.first()).map(|_| t.fallback_color).or(Some(t.fallback_color)),
+                egui::Shape::Vec(v) => v.iter().find_map(|x| walk(x, text)),
+                _ => None,
+            }
+        }
+        out.shapes.iter().find_map(|c| walk(&c.shape, text))
+    };
+    let off = settled(&ctx, &theme, &mut state);
+    assert!(shows(&off, add::POST_IN_CHAT), "the tick is drawn");
+    let off_color = color_of(&off, "#random (open in the chat)").expect("the channel is drawn");
+    state.media.form.as_mut().unwrap().post_on = true;
+    let on = settled(&ctx, &theme, &mut state);
+    let on_color = color_of(&on, "#random (open in the chat)").expect("the channel is drawn");
+    assert!(off_color.a() < on_color.a() || off_color != on_color, "greyed out while the tick is off: {off_color:?} then {on_color:?}");
+    assert!(texts_left_to_right(&on, add::POST_IN_CHAT, "#random (open in the chat)"), "the tick is to the left of the channel");
+}
+
+/// Whether text `a` is drawn to the left of text `b` on the same line.
+fn texts_left_to_right(out: &egui::FullOutput, a: &str, b: &str) -> bool {
+    let (Some(ra), Some(rb)) = (find_text_in_shapes(&out.shapes, a).map(|f| f.rect), find_text_in_shapes(&out.shapes, b).map(|f| f.rect)) else { return false };
+    ra.right() <= rb.left() && (ra.center().y - rb.center().y).abs() < ra.height()
+}
+
+/// WHAT IS POSTED, AND WHERE (2026-10-17): a public item's title, description and file address,
+/// which the chat shows as its picture or card; a members-only item's page instead; and a post for
+/// another server than the chat's is not made, and says so; nor is one while the chat is not
+/// connected (the chat's own send would echo it locally and report it sent). Seen red 2026-10-17
+/// with the address left out: "the file's address, last"; and, before the connection check, the
+/// offline post said "Posted in #general.".
+#[test]
+fn what_is_posted_and_where() {
+    use serde_json::json;
+    let public = super::api::Item::from_json(&json!({"id": 7, "url": "/uploads/7_dusk.glb", "title": "Dusk", "description": "A walk at dusk.", "visibility": "public"})).unwrap();
+    assert_eq!(add::post_text(&public, "https://h.example"), "Dusk\nA walk at dusk.\n/uploads/7_dusk.glb", "the file's address, last");
+    let members = super::api::Item::from_json(&json!({"id": 9, "url": "/api/media/file/9", "title": "", "description": "", "visibility": "members"})).unwrap();
+    assert_eq!(add::post_text(&members, "https://h.example/"), "https://h.example/media/9", "a members-only item: its page");
+
+    let mut state = page_state(demo_answer(), true);
+    state.chat_channels.push(crate::gui::ChatChannel { id: "general".into(), name: "general".into(), ..Default::default() });
+    let answer = json!({"item": {"id": 7, "url": "/uploads/7_dusk.glb", "title": "Dusk", "description": "", "visibility": "public"}});
+    add::post_published(&mut state, &answer, "general", "https://another.example");
+    assert!(state.media.status.contains("Not posted in #general: the chat is on another server now."), "{}", state.media.status);
+    state.media.status.clear();
+    let here = crate::gui::pages::chat::norm_server_url(&state.server_url);
+    add::post_published(&mut state, &answer, "general", &here);
+    assert!(state.media.status.contains("Not posted in #general: the chat is not connected to its server."), "offline: {}", state.media.status);
+}
+
+/// A CHANNEL NO LONGER OFFERED IS NOT SWAPPED FOR ANOTHER (2026-10-17, the website's rule): a form
+/// ticked for a channel that is not in the list (gone, or read-only for this person) shows with the
+/// tick off and the first channel to pick, rather than posting in a different channel unasked. Seen
+/// red 2026-10-17 with the form silently switched to the first channel: "the tick goes off".
+#[test]
+fn a_channel_no_longer_offered_is_not_swapped_for_another() {
+    let (ctx, theme) = ctx_and_theme();
+    let mut state = page_state(demo_answer(), true);
+    state.media.mine = Some(Mine { share_bytes: 1 << 30, budget_left_bytes: 1 << 40, ..Default::default() });
+    state.chat_channels.push(crate::gui::ChatChannel { id: "general".into(), name: "general".into(), ..Default::default() });
+    let file = crate::test_temp::file("media_post_gone", "stl");
+    std::fs::write(&file, b"solid w
+endsolid w
+").unwrap();
+    let mut form = add::Form::new(add::Source::Picked { path: file.to_path_buf(), name: "w.stl".into(), len: 19 });
+    form.post_on = true;
+    form.post_to = "gone-channel".into();
+    let look = crate::net::file_clean::look_file(&file, "w.stl").map_err(|e| e.to_string());
+    state.media.look = Some((form.id, crate::gui::pages::chat::attach_step::Looking::known(look)));
+    state.media.form = Some(form);
+    let _ = settled(&ctx, &theme, &mut state);
+    let form = state.media.form.as_ref().expect("the form is still open");
+    assert!(!form.post_on, "the tick goes off");
+    assert_eq!(form.post_to, "general", "the first channel is shown to pick");
+}

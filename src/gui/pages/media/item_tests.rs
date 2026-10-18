@@ -629,3 +629,52 @@ fn the_edit_window_is_in_three_coloured_parts_and_every_file_shows_its_type() {
     assert!(every_exact(&out, "3D model").iter().any(|r| r.top() > files.top()), "and the .glb's, under Files");
     assert!(shows(&out, "textures.zip, ") && !shows(&out, "textures.zip, file"), "the row says its name and size, not the old kind word");
 }
+
+/// FILES DROPPED ON THE WINDOW GO TO ADD TO MEDIA, OR TO THE ITEM WHOSE EDIT WINDOW IS OPEN
+/// (operator, 2026-10-17: drag and drop from the file manager): on the Media page a dropped model
+/// opens Add to Media with it, the overlay saying "Drop to add to Media"; with an item's Edit window
+/// open, the overlay names the item and a dropped file starts uploading to it. Seen red 2026-10-17
+/// with the Edit window not offering itself: "the overlay names the item" (it said Add to Media).
+#[test]
+fn files_dropped_go_to_add_to_media_or_to_the_item_being_edited() {
+    use crate::gui::drop_files;
+    let (ctx, theme) = ctx_and_theme();
+    let item = rich_item(("me", "Me"));
+    let mut state = page_on(SERVER, answer_of(vec![item.clone()]), "tok");
+    state.media.mine = Some(super::super::api::Mine { share_bytes: 1 << 30, budget_left_bytes: 1 << 40, ..Default::default() });
+    let dir = crate::test_temp::dir("media_drop");
+    let model = dir.join("bracket.stl");
+    std::fs::write(&model, b"solid bracket
+endsolid bracket
+").unwrap();
+    let run = |state: &mut GuiState, dropped: &[std::path::PathBuf], over: &[std::path::PathBuf]| {
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(1280.0, 1000.0))),
+            dropped_files: dropped.iter().map(|p| egui::DroppedFile { path: Some(p.clone()), ..Default::default() }).collect(),
+            hovered_files: over.iter().map(|p| egui::HoveredFile { path: Some(p.clone()), ..Default::default() }).collect(),
+            ..Default::default()
+        };
+        ctx.run(input, |ctx| {
+            drop_files::begin_frame(ctx);
+            super::super::draw(ctx, &theme, state);
+            drop_files::finish(ctx, &theme, state);
+        })
+    };
+    let out = run(&mut state, &[], &[model.clone()]);
+    let out = if shows(&out, crate::gui::pages::media::DROP_TO_UPLOAD) { out } else { run(&mut state, &[], &[model.clone()]) };
+    assert!(shows(&out, crate::gui::pages::media::DROP_TO_UPLOAD), "the overlay says Drop to upload to Media");
+    let _ = run(&mut state, &[model.clone()], &[]);
+    assert!(state.media.form.is_some(), "a dropped model opens Add to Media with it");
+    state.media.form = None;
+    state.media.look = None;
+
+    crate::gui::pages::media::item_view::open(&mut state, &item);
+    click_top(&ctx, &theme, &mut state, "Edit");
+    let _ = run(&mut state, &[], &[model.clone()]);
+    let out = run(&mut state, &[], &[model.clone()]);
+    assert!(shows(&out, &edit::drop_words(&item)), "the overlay names the item");
+    let uploads = state.media.uploads.len();
+    let _ = run(&mut state, &[model], &[]);
+    assert!(state.media.uploads.len() > uploads || state.media.status.starts_with("Uploading"), "a dropped file starts uploading to the item: {}", state.media.status);
+    assert!(state.media.form.is_none(), "and Add to Media did not open");
+}

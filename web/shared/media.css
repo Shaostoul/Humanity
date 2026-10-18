@@ -53,6 +53,20 @@
 /* A part of Add to Media or Edit (/shared/tint-section.css): its files list sits flush in it. */
 .tint-section .media-item-files { margin: 0; }
 .media-form-buttons { display: flex; gap: var(--space-md); flex-wrap: wrap; margin-top: var(--space-md); }
+/* "Also post in chat" (2026-10-17): the tick on the left, then the channel and Add to favorites,
+   greyed out (disabled) while the tick is off, as the desktop's add_enabled_ui does. */
+.media-post-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-sm); }
+.media-post-row .media-check { margin-right: 0; }
+.media-post-row .media-select:disabled { opacity: 0.5; cursor: not-allowed; }
+/* The Upload button wears the nav bar's current-page border (/shared/shell.js .hub-nav .tab.active:
+   its `channeling` RGB cycle), and stops moving under reduced motion as the nav's does
+   ([data-reduced-motion] in theme.css, and the system's own setting here). Still, it keeps a ring
+   in the accent colour, as the desktop's rgb_border holds one when animations are off. */
+.media-btn-rgb { animation: channeling 3s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .media-btn-rgb { animation: none; outline: 2px solid var(--accent); outline-offset: 2px; } }
+[data-reduced-motion] .media-btn-rgb { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* The upload window (/media?window=upload, in a frame over the chat): Add to Media alone. */
+.media-window { padding-top: var(--space-md); }
 .media-featured { margin-bottom: var(--space-lg); }
 .media-featured-row { display: flex; gap: var(--space-lg); overflow-x: auto; padding-bottom: var(--space-sm); }
 .media-featured-row .media-tile { flex: 0 0 220px; }

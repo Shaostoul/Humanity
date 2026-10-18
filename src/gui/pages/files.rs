@@ -299,6 +299,14 @@ fn draw_shared_files_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSt
     // Admin = server-known role for my key (from the chat user list). Admins can
     // remove any file; everyone can remove their own. The server enforces this
     // regardless of what the button shows.
+    // Files dropped on the window go to Shared Files, as files chosen with its button go
+    // (gui/drop_files.rs).
+    if server.is_empty() {
+        crate::gui::drop_files::refuse(ui.ctx(), crate::gui::drop_files::Level::Page, "Files cannot be dropped here: connect to a server first, on the Chat page.");
+    } else {
+        let signed_in = upload_token.is_some();
+        crate::gui::drop_files::register(ui.ctx(), crate::gui::drop_files::Level::Page, DROP_TO_SHARE, move |state: &mut GuiState, paths| shared_picked(state, paths, signed_in, upload_limit));
+    }
     let is_admin = state
         .chat_users
         .iter()
@@ -487,23 +495,7 @@ fn draw_shared_files_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSt
                 with_state(|fs| fs.shared_picker = Some(picker));
             }
             FilePickerResult::Cancelled => {}
-            FilePickerResult::Picked(paths) => {
-                // Sizes first, for all of them: one too large is said now, by name, and the rest
-                // go; the first starts now and the others wait their turn (below).
-                let (paths, too_big): (Vec<_>, Vec<_>) = paths
-                    .into_iter()
-                    .partition(|p| std::fs::metadata(p).map(|m| m.len() <= upload_limit).unwrap_or(true));
-                if !too_big.is_empty() {
-                    let names: Vec<String> = too_big.iter().filter_map(|p| p.file_name().map(|n| n.to_string_lossy().to_string())).collect();
-                    let line = format!("Not uploaded, over the {} MB limit for you on this server: {}.", upload_limit / (1024 * 1024), names.join(", "));
-                    with_state(|fs| fs.shared_status = line);
-                }
-                let mut paths = std::collections::VecDeque::from(paths);
-                if let Some(first) = paths.pop_front() {
-                    with_state(|fs| fs.shared_queue = paths);
-                    start_shared_upload(state, first, upload_token.is_some(), upload_limit);
-                }
-            }
+            FilePickerResult::Picked(paths) => shared_picked(state, paths, upload_token.is_some(), upload_limit),
         }
     }
     // The next of several chosen together, once the one before is up or cancelled.
@@ -533,6 +525,28 @@ fn draw_shared_files_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSt
 /// Start one picked file's way to the server: its size checked now, then its step (what is hidden
 /// in it), read, cleaned and uploaded by a worker after its look (files_upload_step.rs,
 /// 2026-10-11), never on the frame.
+/// What the overlay says over the Files page while files are dragged onto it.
+pub const DROP_TO_SHARE: &str = "Drop to upload to Shared Files";
+
+/// Files chosen for Shared Files, in the picker or dropped on the window: sizes first, for all of
+/// them, one too large said now by name while the rest go; the first starts now and the others wait
+/// their turn.
+fn shared_picked(state: &mut GuiState, paths: Vec<std::path::PathBuf>, signed_in: bool, upload_limit: u64) {
+    let (paths, too_big): (Vec<_>, Vec<_>) = paths
+        .into_iter()
+        .partition(|p| std::fs::metadata(p).map(|m| m.len() <= upload_limit).unwrap_or(true));
+    if !too_big.is_empty() {
+        let names: Vec<String> = too_big.iter().filter_map(|p| p.file_name().map(|n| n.to_string_lossy().to_string())).collect();
+        let line = format!("Not uploaded, over the {} MB limit for you on this server: {}.", upload_limit / (1024 * 1024), names.join(", "));
+        with_state(|fs| fs.shared_status = line);
+    }
+    let mut paths = std::collections::VecDeque::from(paths);
+    if let Some(first) = paths.pop_front() {
+        with_state(|fs| fs.shared_queue = paths);
+        start_shared_upload(state, first, signed_in, upload_limit);
+    }
+}
+
 fn start_shared_upload(state: &mut GuiState, path: std::path::PathBuf, signed_in: bool, upload_limit: u64) {
     let filename = path.file_name().and_then(|n| n.to_str()).unwrap_or("file").to_string();
     match std::fs::metadata(&path).map(|m| m.len()) {

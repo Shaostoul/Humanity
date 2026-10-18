@@ -24,7 +24,20 @@
 // desktop's; then a resumable upload with a progress bar, Pause and Resume; a file
 // picked in an item's Edit form is the same upload, attached to that item when it
 // is up instead of published), Put on Media for a Shared Files row (public
-// only), and Suggest a category. "Report a copyright problem" (2026-10-13,
+// only), and Suggest a category. Files dragged from the computer onto the page
+// (2026-10-17, /shared/drop-overlay.js) go the same way as chosen ones: "Drop to
+// upload to Media" opens Add to Media with them, and with an item's Edit open
+// "Drop to add to <its title>" adds them as its Add a file does. Add to Media
+// ends with "Also post in chat" (2026-10-17, the desktop's media/add.rs): a
+// tick, the channel (the one open in the chat first, then favourites, then the
+// rest) and Add to favorites, greyed while the tick is off; once the item is
+// published its title, description and file are posted there, signed as the
+// chat signs, the chat's recovery-phrase guard first, and the line says
+// "Posted in #general." or why not. Its Upload button wears the nav bar's RGB
+// border. At /media?window=upload in a frame (/shared/upload-window.js) the
+// page is the upload window over the chat: Add to Media and its uploads alone,
+// opened with the files dropped on a channel there, posting ticked for it.
+// "Report a copyright problem" (2026-10-13,
 // /pages/media-takedown.js) is on every item's page and at the page's foot, for
 // anyone, signed in or not, and the reports waiting are on the Admin tab. The
 // relay half is src/relay/media.rs, src/relay/resumable.rs and
@@ -176,7 +189,13 @@
     reportNoAnswer: 'The server did not answer, so it is not known whether the report arrived. Try again in a moment.',
     reportReasonsFailed: 'The list of reasons could not be loaded from this server, so a report cannot be sent yet. Close this and try again in a moment.',
     checkerMissing: 'This page could not load its file checker, so nothing can be added. Reload the page and try again.',
+    // Why files dropped on the Admin tab do nothing (2026-10-17): Add to Media is not on it.
+    addOnMediaTab: 'Add to Media is on the Media tab.',
   });
+
+  // Add to Media, its uploads, publishing and "Also post in chat": /pages/media-add.js (2026-10-17).
+  const ADD = typeof module === 'object' && module && module.exports ? require('./media-add.js') : root.MediaAdd;
+  const { POST_WORDS, STAR, POST_FAVORITES_KEY, CHAT_CHANNEL_KEY, POST_GRACE_MS, postFavoriteKey, postFavorites, togglePostFavorite, postChoices, postText, postedIn, notPostedIn } = ADD;
 
   function num(x) {
     const n = Number(x);
@@ -509,6 +528,8 @@
   // "Report a copyright problem" (2026-10-13, /pages/media-takedown.js): the form anyone may send,
   // signed in or not, from an item's page and from the page's foot; and the admins' view of them.
   const TD = typeof module === 'object' && module && module.exports ? require('./media-takedown.js') : root.MediaTakedown;
+  // Files dragged from the computer onto the page (2026-10-17, /shared/drop-overlay.js).
+  const DROP = typeof module === 'object' && module && module.exports ? require('../shared/drop-overlay.js') : root.HosDropOverlay;
 
   // ── DOM ──
 
@@ -554,13 +575,25 @@
    *   Admin tab below it), optional,
    *   clean (/shared/upload-clean.js, which cleans each file before it goes up; that module when
    *   not given, and null for no cleaning at all: the older tests' stand-in files are zeros named
-   *   as videos, which the cleaning would rightly refuse).
+   *   as videos, which the cleaning would rightly refuse),
+   *   window (where files dragged from the computer are heard, /shared/drop-overlay.js; optional:
+   *   without it nothing can be dropped on the page),
+   *   phraseIn(texts) -> Promise<true|false|null> (the recovery-phrase guard for "Also post in chat",
+   *   /shared/pq-relay-auth.js pqRecoveryPhraseIn: null when it cannot be checked, and then nothing
+   *   is posted),
+   *   uploadWindow ({send(event, data)}, /shared/upload-window.js connectFrame: the page is the
+   *   upload window over another page, /media?window=upload. It shows only Add to Media and its
+   *   uploads, takes the files that page hands over (takeFiles), and tells it what it says and
+   *   whether something is going; optional).
    */
   function createMediaPage(env) {
     const doc = env.document;
     const h = makeH(doc);
     const myKey = env.myKey || '';
     const session = env.session || null;
+    // The upload window (2026-10-17): this page in a frame over the chat, Add to Media alone.
+    const upWin = env.uploadWindow || null;
+    const windowMode = !!upWin;
     const URLs = env.URL || (typeof URL !== 'undefined' ? URL : null);
     const R = env.report || null;
     const later = env.setTimeout || ((fn, ms) => setTimeout(fn, ms));
@@ -610,26 +643,37 @@
       adminMounted: false,
       filtersKey: '',
       lastStatus: '',
+      channels: [],             // this server's chat channels (its channel_list): "Also post in chat"
+      channelsKnown: false,     // a channel_list has come
+      pending: null,            // {files, postTo} handed to the upload window before it could take them
     };
     let loadSeq = 0;
     let featuredSeq = 0;
     let mineSeq = 0;
-    let uploadSeq = 0;
 
     // ── The page's fixed parts ──
     const els = {};
     const fileInput = h('input', { id: 'media-file-input', type: 'file', hidden: true, multiple: true, className: 'media-file-input' });
     fileInput.addEventListener('change', () => {
-      // Several at once (2026-10-16): one item holds them all; the first is its own file.
       const files = Array.from(fileInput.files || []);
-      if (files[0]) openAddForm(files[0], files.slice(1));
       try { fileInput.value = ''; } catch (e) { /* some browsers refuse; harmless */ }
+      chooseFiles(files);
     });
+    /**
+     * Files chosen with Add to Media, or dropped on the page (2026-10-17): the same path for both.
+     * Several at once (2026-10-16): one item holds them all; the first is its own file.
+     */
+    function chooseFiles(files) {
+      if (files && files[0]) openAddForm(files[0], files.slice(1));
+    }
     function build() {
       doc.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' && takedown && takedown.isOpen()) { takedown.close(); return; }
         if (e.key === 'Escape' && st.report) { closeReport(); return; }
-        if (e.key === 'Escape' && st.viewer) itemView.close();
+        if (e.key === 'Escape' && st.viewer) { itemView.close(); return; }
+        // The upload window: Escape closes it, as the page it is over does (it stays while
+        // something is going in it, and carries on).
+        if (e.key === 'Escape' && upWin) upWin.send('close');
       });
       els.status = h('div', { id: 'media-status', className: 'media-status' });
       els.notice = h('div', { id: 'media-notice', className: 'media-notice' });
@@ -663,6 +707,14 @@
       els.main = h('div', { id: 'media-main' }, [els.members, els.actions, els.form, els.uploads, els.waiting, els.suggest,
         els.featured, els.filters, els.catDesc, els.grid, els.more, els.sentinel, els.foot]);
       els.admin = h('div', { id: 'media-admin-wrap', className: 'media-admin-wrap', hidden: true });
+      if (windowMode) {
+        // The upload window (/shared/upload-window.js): Add to Media and its uploads, under the
+        // page's sign-in line and its notices, and nothing of the list, its tabs or its dialogs (the
+        // parts above are made, never shown, so everything that draws into them can stay as it is).
+        els.main = h('div', { id: 'media-main', className: 'media-window' }, [els.form, els.uploads]);
+        env.root.replaceChildren(els.status, els.notice, els.main, fileInput);
+        return;
+      }
       doc.title = mediaOn;
       env.root.replaceChildren(
         h('div', { className: 'media-head' }, [
@@ -744,26 +796,30 @@
       st.notice = text || '';
       st.noticeWarn = !!warn;
       renderNotice();
+      // The upload window tells the page it is over each line it says: shown there while the
+      // window is closed and an upload carries on (the chat's notices).
+      if (upWin && st.notice) upWin.send('status', { text: st.notice });
     }
     function renderNotice() {
       els.notice.replaceChildren();
       els.notice.className = 'media-notice' + (st.noticeWarn ? ' media-warn' : '');
       if (st.notice) els.notice.appendChild(h('p', { className: 'media-notice-text', text: st.notice }));
     }
+    /** The status line's words about signing in ('' once signed in), and its Try again (or null). */
+    function statusWords() {
+      const s = sessionState();
+      if (!myKey) return { words: MEDIA_WORDS.noIdentity, retry: env.retryIdentity || null };
+      if (s) {
+        if (s.status === 'connecting' || s.status === 'idle') return { words: MEDIA_WORDS.signingIn, retry: null };
+        if (s.status === 'refused') return { words: 'The server did not accept this page\'s sign-in: ' + s.refusal, retry: () => session.retry() };
+        if (s.status === 'closed') return { words: 'Lost the connection to the server. Trying again in ' + (s.retryInSeconds || 5) + ' seconds.', retry: null };
+        if (s.status === 'no_identity') return { words: MEDIA_WORDS.noIdentity, retry: env.retryIdentity || null };
+      }
+      return { words: '', retry: null };
+    }
     function renderStatus() {
       els.status.replaceChildren();
-      let words = '';
-      let retry = null;
-      const s = sessionState();
-      if (!myKey) {
-        words = MEDIA_WORDS.noIdentity;
-        retry = env.retryIdentity || null;
-      } else if (s) {
-        if (s.status === 'connecting' || s.status === 'idle') words = MEDIA_WORDS.signingIn;
-        else if (s.status === 'refused') { words = 'The server did not accept this page\'s sign-in: ' + s.refusal; retry = () => session.retry(); }
-        else if (s.status === 'closed') words = 'Lost the connection to the server. Trying again in ' + (s.retryInSeconds || 5) + ' seconds.';
-        else if (s.status === 'no_identity') { words = MEDIA_WORDS.noIdentity; retry = env.retryIdentity || null; }
-      }
+      const { words, retry } = statusWords();
       if (!words) return;
       const p = h('p', { className: 'media-status-text', text: words });
       if (retry) {
@@ -1069,6 +1125,8 @@
     }
 
     function renderFeatured() {
+      // The upload window shows no list (and so fetches none of its pictures).
+      if (windowMode) return;
       els.featured.replaceChildren();
       if (!st.featured.length) return;
       // The main shelf, or the shelf of the category it was asked for (3.9: "Featured in Fire flow arts").
@@ -1078,6 +1136,7 @@
     }
 
     function renderGrid() {
+      if (windowMode) return; // the upload window shows no list (renderFeatured)
       els.grid.replaceChildren();
       if (st.listError) {
         els.grid.appendChild(h('p', { className: 'media-empty media-warn', text: st.listError }));
@@ -1177,7 +1236,9 @@
       st.loading = true;
       st.listError = '';
       renderGrid();
-      const params = listParams(st.filters, reset ? null : st.nextCursor);
+      // The upload window reads the list only for what its answer carries besides the items (the
+      // categories, the labels, the licences, and whether this person sees the members' side): one item.
+      const params = listParams(st.filters, reset ? null : st.nextCursor, windowMode ? 1 : undefined);
       const fromPicks = !!(st.filters.picks && myKey);
       try {
         const res = fromPicks ? await fetchPicks(params) : await fetchList(params);
@@ -1201,6 +1262,7 @@
      * category picked, that category's shelf (`featured=1&category=c`, 3.3).
      */
     async function loadFeatured() {
+      if (windowMode) return; // the upload window shows no shelf
       const seq = ++featuredSeq;
       const shelf = st.filters.category || '';
       let featured = [];
@@ -1438,559 +1500,19 @@
       loadMine();
     }
 
-    // ── Add to Media, Put on Media, and publishing an upload that waits ──
-    //
-    // `st.form` is the one form not yet uploading. Pressing "Upload and add" moves that form,
-    // fields and all, into the uploads list (`st.uploads`, drawn in #media-uploads): there it
-    // shows its own bar, words, Pause, Resume and Cancel, and publishes ITSELF once its file is
-    // up, with what was typed in it (round 3, review 2). So the form area is free again at once,
-    // and opening another form never leaves an upload without the form that publishes it.
-
-    /** Phases in which an upload is still under way (not ended, not being cancelled). */
-    function uploadLive(f) {
-      const p = f && f.up ? f.up.state.phase : '';
-      return !!p && p !== 'failed' && p !== 'cancelling' && p !== 'cancelled' && p !== 'done';
-    }
-    const sameFile = (a, b) => !!(a && b && a.name === b.name && a.size === b.size && a.lastModified === b.lastModified);
-
-    /**
-     * What goes up for an Add to Media form, as its switch stands (part 1): {file, keepMetadata,
-     * refused}. The Media page is public, so a file that could not be checked is never added unless
-     * the person keeps its details by choice; `refused` holds the words saying so.
-     */
-    function sendingOf(f) {
-      if (!f || !f.clean || !cleaner) return { file: f ? f.file : null, keepMetadata: false, refused: null };
-      const d = cleaner.decide(f.clean, { where: 'public', remove: f.remove !== false, protectedOn: !!f.protectedOn });
-      if (d.action === 'send') return { file: d.file, keepMetadata: d.keepMetadata, refused: null };
-      return { file: null, keepMetadata: false, refused: d.words };
-    }
-
-    /** Does the form show what the file holds and the switch: a picture or a video, or a file that could not be checked. */
-    function detailsShown(f) {
-      const c = f && f.clean;
-      return !!(c && cleaner && f.mode === 'add' && (c.unchecked || c.summary || ['jpeg', 'png', 'webp', 'mp4', 'heif'].includes(c.kind)));
-    }
-
-    /** The form's part on what the file holds: its hidden details, the switch, and why it cannot go. */
-    function detailsBox(f) {
-      const W = cleaner.WORDS;
-      const c = f.clean;
-      const kids = [];
-      if (c.summary) {
-        kids.push(h('p', { id: 'media-form-hidden', className: 'media-hint', text: c.summary }));
-        kids.push(h('ul', { className: 'media-hidden-details' }, (c.details || []).map((d) => h('li', { text: d.words }))));
-      }
-      f.detailsSwitch = null;
-      if (f.protectedOn) {
-        kids.push(h('p', { id: 'media-form-protected', className: 'media-hint', text: W.protectedLine }));
-      } else {
-        const box = h('input', { type: 'checkbox', id: 'media-form-remove-details', checked: f.remove !== false, disabled: !!f.up });
-        box.addEventListener('change', () => {
-          if (f.up) return;
-          f.remove = !!box.checked;
-          drawDetailsWords(f);
-          renderFormActions(f);
-        });
-        f.detailsSwitch = box;
-        kids.push(h('label', { className: 'media-check' }, [box, ' ' + W.switchLabel]));
-      }
-      f.offEl = h('p', { id: 'media-form-details-off', className: 'media-hint' });
-      f.refusedEl = h('p', { id: 'media-form-unchecked', className: 'media-warn' });
-      kids.push(f.offEl, f.refusedEl);
-      drawDetailsWords(f);
-      return h('div', { id: 'media-form-details', className: 'media-field media-details' }, kids);
-    }
-
-    function drawDetailsWords(f) {
-      if (!f.offEl || !cleaner) return;
-      f.offEl.textContent = !f.protectedOn && f.remove === false ? cleaner.WORDS.switchOffLine : '';
-      f.refusedEl.textContent = sendingOf(f).refused || '';
-    }
-
-    async function openAddForm(file, more) {
-      const f = { mode: 'add', file, more: more || [], name: file.name, stop: null, shareLine: '', checking: true, busy: false, error: '', uploadedName: '', up: null, fp: '' };
-      st.form = f;
-      renderForm();
-      if (!canUpload()) {
-        f.checking = false;
-        f.stop = bound() ? MEDIA_WORDS.cannotUpload : MEDIA_WORDS.notSignedInUpload;
-        renderForm();
-        return;
-      }
-      // The same file already going up on this page: never two uploads of it at once.
-      if (st.uploads.some((u) => sameFile(u.file, file) && uploadLive(u))) {
-        f.checking = false;
-        f.stop = '"' + file.name + '"' + MEDIA_WORDS.alreadyUploading;
-        renderForm();
-        return;
-      }
-      // Cleaned on this device first (part 1): what it holds, for the form's words and switch.
-      if (cleaner === false) {
-        f.checking = false;
-        f.stop = MEDIA_WORDS.checkerMissing;
-        renderForm();
-        return;
-      }
-      if (cleaner) {
-        f.protectedOn = cleaner.protectedSetupOn(env.storage);
-        f.remove = cleaner.removeDetailsChosen(env.storage);
-        f.clean = await cleaner.cleanFile(file);
-        if (st.form !== f) return;
-      }
-      // Its fingerprint (the first and last megabyte), which a resume is matched by: of the file that
-      // goes up (the cleaned one, unless the details are kept).
-      f.fpFile = sendingOf(f).file || file;
-      try { f.fp = fingerprint ? await fingerprint(f.fpFile, env.digest) : ''; } catch (e) { f.fp = ''; }
-      if (st.form !== f) return;
-      // Until the relay has said what is left, nothing can be uploaded, so an upload over it never starts.
-      const mine = await loadMine();
-      if (st.form !== f) return;
-      f.checking = false;
-      if (mine) {
-        // An upload of this same file already part way up is counted by the relay as in progress
-        // already; its own bytes are not "more" on top of that.
-        const known = f.fp ? findUpload(env.storage, myKey, f.fpFile, f.fp, now()) : null;
-        const inProgress = Math.max(0, num(mine.in_progress_bytes) - (known ? file.size : 0));
-        const used = num(mine.used_bytes) + inProgress;
-        const share = num(mine.share_bytes);
-        if (share) f.shareLine = shareLeftWords(used, share);
-        const budget = Number.isFinite(Number(mine.budget_left_bytes)) ? Number(mine.budget_left_bytes) : NaN;
-        f.stop = limitStop(file, num(mine.file_limit_bytes)) || shareStop(file, used, share) ||
-          (Number.isFinite(budget) ? budgetStop(file, budget) : null) ||
-          f.more.map((m) => limitStop(m, num(mine.file_limit_bytes))).find(Boolean) ||
-          togetherStop([file].concat(f.more), used, share, budget);
-      }
-      renderForm();
-    }
-
-    function openPutForm(put) {
-      st.form = { mode: 'put', filename: storedName(put.filename), name: put.name || storedName(put.filename), stop: null, shareLine: '', busy: false, error: '', uploadedName: '' };
-      renderForm();
-    }
-
-    function openWaitingForm(w) {
-      st.form = { mode: 'waiting', filename: w.filename, name: w.original_name || w.filename, size: w.size_bytes, stop: null, shareLine: '', busy: false, error: '', uploadedName: w.filename };
-      renderForm();
-    }
-
-    /** Close the form not yet uploading (an upload in the list goes by its own Cancel or Close). */
-    function closeForm() {
-      st.form = null;
-      renderForm();
-    }
-
-    /** What the form is drawn from, so it is drawn again when that changes. */
-    function formKey() {
-      return JSON.stringify([st.categories.map((c) => [c.id, c.name]), st.labels.map((l) => l.id), membersOnlyServer()]);
-    }
-
-    /**
-     * A chosen file's line in the form: its type's badge (media-edit.js fileBadge, 2026-10-17), then
-     * "name (size)" (the name alone when its size is not known).
-     */
-    function fileLine(name, size, cls) {
-      return h('div', { className: cls }, [
-        ED.fileBadge(h, doc, name),
-        h('span', { className: 'media-form-file-name', text: size != null ? name + ' (' + sizeWords(size) + ')' : name }),
-      ]);
-    }
-
-    // The list of kinds (/shared/file-risk.js), asked for once, the first time a form shows a file
-    // before it is in; each form's badges are drawn again when it comes (a plain grey "File" until then).
-    let typesAsked = false;
-    function askFileTypes() {
-      if (typesAsked || ED.fileTypesKnown()) return;
-      typesAsked = true;
-      ED.loadFileTypes(env.fetch).then((known) => {
-        if (!known) return;
-        ED.fillFileBadges(h, doc, els.form);
-        ED.fillFileBadges(h, doc, els.uploads);
-      });
-    }
-
-    let formSeq = 0;
-    function renderForm() {
-      els.form.replaceChildren();
-      const f = st.form;
-      if (!f) return;
-      f.key = formKey();
-      f.formId = f.formId || ++formSeq;
-      const put = f.mode === 'put';
-      const kids = [h('h2', { text: put ? 'Put on Media' : f.mode === 'waiting' ? 'Publish an upload' : 'Add to Media' })];
-      // Three parts in the chat sidebar's colours, darker (2026-10-17, media-edit.js tintSection; the
-      // desktop's Add to Media): its files first (blue: each chosen file with its type's badge and
-      // size, what is hidden in it and the switch, the share left), then what it is (red), then
-      // who can see it (green). The buttons stay outside them, under them.
-      const size = f.file ? f.file.size : f.size;
-      const fileParts = [fileLine(f.name, size, 'media-form-file')];
-      if (f.more && f.more.length) {
-        fileParts.push(h('div', { id: 'media-form-more', className: 'media-form-more' },
-          [h('p', { className: 'media-hint', text: MORE_LEAD })].concat(f.more.map((m) => fileLine(m.name, m.size, 'media-form-file media-form-more-file')))));
-      }
-      // What the file holds and the switch (part 1), before anything else is asked.
-      if (!f.stop && detailsShown(f)) fileParts.push(detailsBox(f));
-      if (f.shareLine) fileParts.push(h('p', { id: 'media-share-line', className: 'media-share-line', text: f.shareLine }));
-      kids.push(ED.tintSection(h, 'blue', ED.WORDS.files, fileParts));
-      askFileTypes();
-      f.actionsEl = h('div', { id: 'media-form-actions', className: 'media-form-actions' });
-      if (f.stop) {
-        kids.push(h('p', { id: 'media-form-stop', className: 'media-warn', text: f.stop }));
-        kids.push(f.actionsEl);
-        f.panel = h('div', { className: 'media-panel media-form' }, kids);
-        els.form.appendChild(f.panel);
-        renderFormActions(f);
-        return;
-      }
-      const aboutParts = [];
-      const whoParts = [];
-      const title = h('input', { type: 'text', id: 'media-form-title', className: 'media-input', maxLength: 120, value: f.title || '' });
-      const category = h('select', { id: 'media-form-category', className: 'media-select' },
-        st.categories.map((c) => h('option', { value: String(c.id), text: c.name, selected: String(f.category || '') === String(c.id) })));
-      const description = h('textarea', { id: 'media-form-description', className: 'media-input', maxLength: 2000, rows: 3, value: f.description || '' });
-      // What is typed is kept as it is typed, so drawing the form again loses nothing, and an
-      // upload publishes with what its form says when its file is up.
-      title.addEventListener('input', () => { f.title = title.value; });
-      category.addEventListener('change', () => { f.category = category.value; });
-      description.addEventListener('input', () => { f.description = description.value; });
-      aboutParts.push(h('label', { className: 'media-field' }, ['Title (optional)', title]));
-      if (st.categories.length) aboutParts.push(h('label', { className: 'media-field' }, ['Category', category]));
-      aboutParts.push(h('label', { className: 'media-field' }, ['Description (optional)', description]));
-      f.ticks = [];
-      if (st.labels.length) {
-        const box = h('fieldset', { className: 'media-field media-labels', id: 'media-form-labels' }, [h('legend', { text: 'Labels (the picture stays hidden until someone clicks it)' })]);
-        for (const l of st.labels) {
-          const tick = h('input', { type: 'checkbox', value: l.id, dataset: { label: l.id }, checked: !!(f.labels && f.labels.includes(l.id)) });
-          tick.addEventListener('change', () => { f.labels = f.ticks.filter((t) => t.checked).map((t) => t.value); });
-          f.ticks.push(tick);
-          box.appendChild(h('label', { className: 'media-check', title: l.desc || '' }, [tick, ' ' + l.label]));
-          if (l.desc) box.appendChild(h('div', { className: 'media-hint', text: l.desc }));
-        }
-        aboutParts.push(box);
-      }
-      // Who sees it: a file already public goes on Media as public only (the relay's
-      // `was_public`), and a members-only server takes members only. Each form's choice is its
-      // own group (its own name), so another form open beside an upload never changes it.
-      f.visibilityEls = null;
-      if (put) {
-        whoParts.push(h('p', { id: 'media-form-public-only', className: 'media-hint', text: MEDIA_WORDS.alreadyPublic }));
-      } else if (membersOnlyServer()) {
-        whoParts.push(h('p', { id: 'media-form-members-only', className: 'media-hint', text: MEDIA_WORDS.serverMembersOnly }));
-      } else {
-        const group = 'media-form-visibility-' + f.formId;
-        const pub = h('input', { type: 'radio', name: group, value: 'public', id: 'media-form-vis-public', checked: f.visibility !== 'members' });
-        const mem = h('input', { type: 'radio', name: group, value: 'members', id: 'media-form-vis-members', checked: f.visibility === 'members' });
-        f.visibilityEls = { pub, mem };
-        const picked = () => { f.visibility = mem.checked ? 'members' : 'public'; if (f.licencePicker) f.licencePicker.refresh(); };
-        pub.addEventListener('change', picked);
-        mem.addEventListener('change', picked);
-        whoParts.push(h('fieldset', { className: 'media-field', id: 'media-form-visibility' }, [
-          h('legend', { text: 'Who sees it' }),
-          h('label', { className: 'media-check' }, [pub, ' Public']),
-          h('label', { className: 'media-check' }, [mem, ' Members only']),
-        ]));
-      }
-      // The licence, "All rights reserved" preselected, and the hosting paragraph beside it (round 5,
-      // as the desktop's Add to Media has them): the server's own words (media-edit.js).
-      f.choice = f.choice || { licence: '', project_use: false };
-      f.licencePicker = ED.licenceChoice(h, { licences: st.licences, choice: f.choice, id: 'media-form-licence', members: () => membersOnlyServer() || f.visibility === 'members' });
-      whoParts.push(f.licencePicker.el, ED.hostingBlock(h, st.licences));
-      kids.push(ED.tintSection(h, 'red', ED.WORDS.aboutIt, aboutParts), ED.tintSection(h, 'green', ED.WORDS.whoCanSeeIt, whoParts));
-      f.inputs = { title, category, description };
-      kids.push(f.actionsEl);
-      f.panel = h('div', { className: 'media-panel media-form' }, kids);
-      els.form.appendChild(f.panel);
-      renderFormActions(f);
-    }
-
-    /** Give every id inside a moved form a suffix of its own, so the next form's ids stay unique. */
-    function suffixIds(el, suffix) {
-      for (const c of Array.from(el.children || [])) {
-        if (c.id) c.id = c.id + suffix;
-        suffixIds(c, suffix);
-      }
-    }
-
-    /** The upload's words for where it is. */
-    function uploadWords(u) {
-      const s = u.state;
-      const sent = sizeWords(s.offset) + ' of ' + sizeWords(s.size) + ' sent';
-      const seconds = (n) => (n || 1) + (n === 1 ? ' second.' : ' seconds.');
-      switch (s.phase) {
-        case 'idle':
-        case 'starting': return MEDIA_WORDS.uploadStarting;
-        case 'sending': return (s.resumed ? MEDIA_WORDS.uploadResumed + ' ' : '') + sent + '.';
-        case 'finishing': return MEDIA_WORDS.uploadFinishing;
-        case 'pausing': return sent + '. ' + MEDIA_WORDS.uploadPausing;
-        case 'paused': return sent + '. ' + MEDIA_WORDS.uploadPaused;
-        case 'reconnecting': return sent + '. The connection dropped. Trying again in ' + seconds(s.retryIn);
-        case 'server_wait': return sent + '. ' + (s.error ? s.error + ' ' : '') + 'Trying again in ' + seconds(s.retryIn);
-        case 'waiting_connection': return sent + '. ' + MEDIA_WORDS.uploadWaitingConnection;
-        case 'allowance': return [s.error, resetsWords(s.resetsAt), MEDIA_WORDS.uploadAllowanceThen].filter(Boolean).join(' ');
-        case 'server_error': return s.error + MEDIA_WORDS.uploadServerErrorTail;
-        case 'no_room': return s.error;
-        case 'failed': return s.error;
-        case 'cancelling': return MEDIA_WORDS.uploadCancelling;
-        case 'cancelled': return MEDIA_WORDS.uploadCancelling;
-        case 'done': return MEDIA_WORDS.uploadPublishing;
-        default: return sent + '.';
-      }
-    }
-
-    /**
-     * The form's progress, words and buttons: drawn again on every change without touching the
-     * fields. A form in the uploads list names its controls by `data-upload-*` (there may be
-     * several); the form not yet uploading keeps its ids.
-     */
-    function renderFormActions(f) {
-      const box = f.actionsEl;
-      if (!box) return;
-      box.replaceChildren();
-      const listed = !!f.n;
-      const button = (action, text, onClick, cls) => h('button', {
-        type: 'button', id: listed ? undefined : 'media-form-' + action, dataset: listed ? { uploadAction: action } : undefined,
-        className: 'media-btn' + (cls ? ' ' + cls : ''), text, on: { click: onClick },
-      });
-      if (f.stop) {
-        box.appendChild(h('div', { className: 'media-form-buttons' }, [button('cancel', 'Close', closeForm)]));
-        return;
-      }
-      if (f.error) box.appendChild(h('p', { id: listed ? undefined : 'media-form-error', dataset: listed ? { uploadError: f.n } : undefined, className: 'media-warn', text: f.error }));
-      const u = f.up;
-      if (u) {
-        const s = u.state;
-        const pct = s.size > 0 ? Math.min(100, Math.round((s.offset / s.size) * 1000) / 10) : 0;
-        const fill = h('div', { className: 'media-meter-fill' });
-        fill.style.width = pct + '%';
-        box.appendChild(h('div', { className: 'media-meter', dataset: { uploadBar: f.n }, attrs: { role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': pct, 'aria-label': 'Upload of ' + f.name } }, [fill]));
-        const warn = s.phase === 'allowance' || s.phase === 'no_room' || s.phase === 'failed' || s.phase === 'server_error';
-        box.appendChild(h('p', { dataset: { uploadWords: f.n }, className: warn ? 'media-warn' : 'media-hint', text: uploadWords(u) }));
-        const buttons = [];
-        const p = s.phase;
-        if (p === 'starting' || p === 'sending' || p === 'finishing' || p === 'reconnecting' || p === 'server_wait' || p === 'waiting_connection' || p === 'allowance') {
-          // Pause stops it in every phase: the request on its way and every wait.
-          buttons.push(button('pause', 'Pause', () => u.pause()));
-        } else if (p === 'paused') {
-          buttons.push(button('resume', 'Resume', () => u.resume(), 'media-btn-primary'));
-        } else if (p === 'no_room' || p === 'server_error') {
-          buttons.push(button('retry', 'Retry', () => u.resume(), 'media-btn-primary'));
-        }
-        if (p === 'failed') {
-          // Close ends it on the server too: nothing is left holding part of the person's share.
-          buttons.push(button('close', 'Close', () => { u.cancel(); dropUpload(f); }));
-        } else if (p !== 'done' && p !== 'cancelling' && p !== 'cancelled') {
-          buttons.push(button('cancel', 'Cancel', () => u.cancel()));
-        }
-        box.appendChild(h('div', { className: 'media-form-buttons' }, buttons));
-        return;
-      }
-      const put = f.mode === 'put';
-      const go = h('button', {
-        type: 'button', id: listed ? undefined : 'media-form-go', dataset: listed ? { uploadAction: 'go' } : undefined,
-        className: 'media-btn media-btn-primary', disabled: f.busy || !!f.checking || !!(f.mode === 'add' && !f.uploadedName && sendingOf(f).refused),
-        text: f.checking ? 'Working out your share...' : f.busy ? 'Working...' : f.attach ? 'Add it to the item' : put || f.uploadedName ? 'Put on Media' : 'Upload and add',
-      });
-      go.addEventListener('click', () => {
-        // Keep what was typed for a second try.
-        if (f.inputs) {
-          f.title = f.inputs.title.value;
-          f.category = f.inputs.category.value;
-          f.description = f.inputs.description.value;
-        }
-        if (f.ticks) f.labels = f.ticks.filter((t) => t.checked).map((t) => t.value);
-        f.visibility = put ? 'public' : membersOnlyServer() ? 'members' : f.visibilityEls && f.visibilityEls.mem.checked ? 'members' : 'public';
-        submitForm(f);
-      });
-      // A form in the list whose publish failed: Close leaves its upload waiting (listed below with
-      // Publish and Remove); the form not yet uploading just closes.
-      const close = listed ? button('close', 'Close', () => dropUpload(f)) : button('cancel', 'Cancel', closeForm);
-      box.appendChild(h('div', { className: 'media-form-buttons' }, [go, close]));
-    }
-
-    function submitForm(f) {
-      if (!f || f.busy || f.stop || f.checking || f.up) return;
-      f.error = '';
-      if (f.mode === 'add' && !f.uploadedName) { startUpload(f); return; }
-      if (f.attach) { attachUp(f); return; }
-      publish(f);
-    }
-
-    /**
-     * A file picked in an item's Edit form ("Add a file", or "Cover picture" as `as` "cover"):
-     * checked and cleaned like Add to Media's, then the same resumable upload, listed under Uploads
-     * in progress, and added to the item when it is up instead of published (`attachUp`). Resolves
-     * to '' once it started, else the words saying why not (shown in the Edit form).
-     */
-    async function startAttach(file, item, as) {
-      const filename = itemFileName(item);
-      if (!filename) return MEDIA_WORDS.noFileName;
-      if (!canUpload()) return bound() ? MEDIA_WORDS.cannotUpload : MEDIA_WORDS.notSignedInUpload;
-      if (st.uploads.some((u) => sameFile(u.file, file) && uploadLive(u))) return '"' + file.name + '"' + MEDIA_WORDS.alreadyUploading;
-      if (cleaner === false) return MEDIA_WORDS.checkerMissing;
-      const title = itemName(item, st.kinds);
-      const f = { mode: 'add', file, name: file.name, attach: { id: item.id, filename, as: as === 'cover' ? 'cover' : 'file', title }, busy: false, error: '', uploadedName: '', up: null, fp: '' };
-      f.heading = file.name + ' (' + sizeWords(file.size) + '), to add to ' + title;
-      if (cleaner) {
-        f.protectedOn = cleaner.protectedSetupOn(env.storage);
-        f.remove = cleaner.removeDetailsChosen(env.storage);
-        f.clean = await cleaner.cleanFile(file);
-      }
-      const sending = sendingOf(f);
-      if (!sending.file) return sending.refused || '';
-      f.fpFile = sending.file;
-      try { f.fp = fingerprint ? await fingerprint(f.fpFile, env.digest) : ''; } catch (e) { f.fp = ''; }
-      // The person's share and the role's largest Media file, as Add to Media checks them.
-      const mine = await loadMine();
-      if (mine) {
-        const stop = limitStop(file, num(mine.file_limit_bytes)) || shareStop(file, num(mine.used_bytes) + num(mine.in_progress_bytes), num(mine.share_bytes));
-        if (stop) return stop;
-      }
-      f.actionsEl = h('div', { className: 'media-form-actions' });
-      f.panel = h('div', { className: 'media-panel media-form' }, [h('h2', { text: f.heading }), f.actionsEl]);
-      startUpload(f);
-      return '';
-    }
-
-    /** An item just published with more files chosen beside its own: each starts its own upload to
-     *  the new item, as Edit's Add a file does, and the line says so (uploading.rs attach_more). */
-    async function attachMore(answer, more) {
-      const item = answer && answer.item;
-      if (!item || !itemFileName(item)) {
-        say(MEDIA_WORDS.published + ' Its other files were not added: the server\'s answer did not say which item it made. Add them from the item\'s Edit window.');
-        return;
-      }
-      let started = 0;
-      const problems = [];
-      for (const file of more) {
-        const stop = await startAttach(file, item, 'file');
-        if (stop) problems.push(file.name + ': ' + stop); else started++;
-      }
-      let line = MEDIA_WORDS.published;
-      if (started) line += ' ' + (started === 1 ? 'Its other file is' : 'Its other ' + started + ' files are') + ' uploading under Uploads in progress, and added to it when up.';
-      if (problems.length) line += ' ' + problems.join(' ');
-      say(line);
-    }
-
-    /** An attaching upload is up: add it to its item (media-upload.js attachUpload), never publish it. */
-    async function attachUp(f) {
-      if (f.busy) return;
-      f.busy = true;
-      renderFormActions(f);
-      try {
-        const a = await U.attachUpload({ fetch: env.fetch, sign: env.sign, to: f.attach, add: f.uploadedName, cannotSign: MEDIA_WORDS.cannotSign });
-        if (st.uploads.includes(f)) dropUpload(f);
-        if (a && a.item) itemView.takeItem(a.item);
-        say('Added to "' + f.attach.title + '".');
-        itemView.uploadsChanged();
-        loadMine();
-        return;
-      } catch (e) {
-        f.error = (e && e.message ? e.message : String(e)) + MEDIA_WORDS.uploadWaits;
-        f.up = null;
-        loadMine();
-      }
-      f.busy = false;
-      if (st.uploads.includes(f)) renderFormActions(f);
-      itemView.uploadsChanged();
-    }
-
-    /** Take a form out of the uploads list (its upload ended, or it was published or closed). */
-    function dropUpload(f) {
-      st.uploads = st.uploads.filter((u) => u !== f);
-      if (f.panel) f.panel.remove();
-      renderWaiting();
-    }
-
-    /** Send the file in pieces (src/relay/resumable.rs), then publish it with its own form. */
-    function startUpload(f) {
-      if (!token()) {
-        f.error = MEDIA_WORDS.notSignedInUpload;
-        renderFormActions(f);
-        return;
-      }
-      // The cleaned file, or the file as picked when its details are kept by choice (keep_metadata).
-      const sending = sendingOf(f);
-      if (!sending.file) {
-        f.error = sending.refused || '';
-        renderFormActions(f);
-        return;
-      }
-      // The switch as it was sent is the last choice on this device.
-      if (cleaner && f.clean && !f.protectedOn) cleaner.rememberRemoveDetails(env.storage, f.remove !== false);
-      if (f.detailsSwitch) f.detailsSwitch.disabled = true;
-      // The form moves into the uploads list; the form area is free for another at once.
-      f.n = ++uploadSeq;
-      if (st.form === f) st.form = null;
-      st.uploads.push(f);
-      if (f.panel) {
-        suffixIds(f.panel, '-' + f.n);
-        f.panel.dataset.upload = String(f.n);
-        els.uploads.appendChild(f.panel);
-      }
-      renderForm();
-      f.up = createUploader({
-        fetch: env.fetch, token, file: sending.file, owner: myKey, storage: env.storage,
-        fp: sending.file === f.fpFile ? f.fp : '', keepMetadata: sending.keepMetadata,
-        sleep: env.sleep, now, digest: env.digest, AbortController: Abort,
-        onChange: (s) => {
-          if (s.phase === 'cancelled') {
-            // Deleted on the server now (Cancel, or Close on a failed one), a file its finish had
-            // stored with it (round 4's cancel answer): the page says what the server answered,
-            // and the share is asked again.
-            if (st.uploads.includes(f)) dropUpload(f);
-            sayCancelled(s.cancelAnswer, s.error);
-            loadMine();
-            return;
-          }
-          if (st.uploads.includes(f)) renderFormActions(f);
-          if (f.attach) itemView.uploadsChanged();
-        },
-        onDone: (answer) => {
-          f.uploadedName = storedName((answer && (answer.filename || answer.url)) || '');
-          loadMine();
-          // Round 5: a file for an item's Edit form is added to that item, never published.
-          if (f.attach) attachUp(f); else publish(f);
-        },
-      });
-      renderFormActions(f);
-      f.up.start();
-    }
-
-    async function publish(f) {
-      if (f.busy) return;
-      f.busy = true;
-      renderFormActions(f);
-      try {
-        const filename = f.mode === 'put' ? f.filename : f.uploadedName;
-        // The licence and the game tick (round 5): what the form's picker holds.
-        const licence = (f.choice && f.choice.licence) || DEFAULT_LICENCE;
-        const forGame = !!(f.choice && f.choice.project_use);
-        const auth = await env.sign(purposes.publish(filename, licence, forGame));
-        if (!auth) throw new Error(MEDIA_WORDS.cannotSign);
-        const body = Object.assign({
-          filename,
-          title: (f.title || '').trim(),
-          description: (f.description || '').trim(),
-          labels: f.labels || [],
-          visibility: f.visibility || 'public',
-          licence,
-          project_use: forGame,
-        }, f.category ? { category_id: Number(f.category) } : {}, auth);
-        const answer = await answerOf(await env.fetch('/api/media', jsonPost(body)));
-        if (st.form === f) closeForm();
-        if (st.uploads.includes(f)) dropUpload(f);
-        say(MEDIA_WORDS.published);
-        if (f.more && f.more.length) await attachMore(answer, f.more);
-        load(true);
-        loadMine();
-        return;
-      } catch (e) {
-        f.error = (e && e.message ? e.message : String(e)) + (f.uploadedName && f.mode !== 'put' ? MEDIA_WORDS.uploadWaits : '');
-        f.up = null;
-        loadMine();
-      }
-      f.busy = false;
-      if (st.form === f || st.uploads.includes(f)) renderFormActions(f);
-    }
+    // ── Add to Media, Put on Media, publishing, "Also post in chat" and the upload window's side ──
+    // In /pages/media-add.js (moved there 2026-10-17): made here with what it shares with the page.
+    const addForm = ADD.createAddForm({
+      st, els, h, doc, env, session, myKey, upWin, cleaner, later, cancelLater, now, Abort, itemView,
+      canUpload, bound, token, sessionState, knownCannotUpload, isAdmin, membersOnlyServer, loadMine, load, say, renderWaiting, sayCancelled,
+      lib: {
+        MEDIA_WORDS, MORE_LEAD, ANSWER_WAIT_MS, DEFAULT_LICENCE, num, sizeWords, shareLeftWords, limitStop, shareStop, budgetStop,
+        togetherStop, resetsWords, storedName, itemFileName, itemName, purposes, jsonPost, answerOf, findUpload, createUploader,
+        fingerprint, U, ED,
+      },
+    });
+    const { openAddForm, openPutForm, openWaitingForm, closeForm, formKey, renderForm, renderPostRow, takePending, reportBusy,
+      takeChannels, takeFiles, uploadWords, startAttach } = addForm;
 
     // ── Report a Media item (context `media`, evidence {kind: "media", id}; /shared/report.js) ──
     let reasonsCache = null;
@@ -2277,21 +1799,30 @@
     function renderAll() {
       renderStatus();
       renderNotice();
-      renderMembers();
-      renderActions();
-      renderFilters();
-      renderFeatured();
-      renderGrid();
-      itemView.renderIfChanged();
-      renderWaiting();
+      if (!windowMode) {
+        renderMembers();
+        renderActions();
+        renderFilters();
+        renderFeatured();
+        renderGrid();
+        itemView.renderIfChanged();
+        renderWaiting();
+      }
       if (st.form && !st.form.busy && !st.form.up && st.form.key !== formKey()) renderForm();
-      renderAdmin();
-      sweepBlobs();
-      pumpBlobs();
+      if (st.form) renderPostRow(st.form); // the person's role may have come (admins see read-only channels)
+      if (!windowMode) {
+        renderAdmin();
+        sweepBlobs();
+        pumpBlobs();
+      }
+      takePending();
+      reportBusy();
     }
 
     // ── The session's news ──
     function onSession(ev) {
+      // "Also post in chat" waiting for its answer hears everything first (media-add.js postPublished).
+      addForm.heard(ev);
       if (ev.type === 'state') {
         const was = st.lastStatus;
         st.lastStatus = session.state.status;
@@ -2306,6 +1837,8 @@
         return;
       }
       const m = ev.msg;
+      // This server's chat channels, as it lists them to every signed-in connection.
+      if (m && m.type === 'channel_list' && Array.isArray(m.channels)) { takeChannels(m.channels); return; }
       if (reportAnswer(m)) return;
       // The answer to a category suggestion comes as a notice (the relay's words).
       if (m && m.type === 'system' && typeof m.message === 'string' && m.message.startsWith('Your category suggestion')) {
@@ -2329,13 +1862,62 @@
       }
     }
 
+    // ── Files dragged from the computer onto the page (2026-10-17, /shared/drop-overlay.js) ──
+    // The desktop's words while they are over it: "Drop to upload to Media", which opens Add to
+    // Media with them exactly as choosing them does (chooseFiles); with an item's Edit open, "Drop
+    // to add to <its title>", which adds them as its Add a file does. Where a drop would do nothing,
+    // "Files cannot be dropped here." and the words the page shows for why its button is not there.
+    let drops = null;
+    /** Why Add to Media is not offered now: the page's own words for it. */
+    function whyNoAdd() {
+      const signIn = statusWords().words;
+      if (signIn) return signIn;
+      if (knownCannotUpload()) return MEDIA_WORDS.cannotUpload;
+      if (!st.membersView) return MEDIA_WORDS.membersLine;
+      return MEDIA_WORDS.signingIn; // signed in, the role list not here yet
+    }
+    /** What files dropped now would do: {take, line} or {take: false, reason}. */
+    function dropDecision() {
+      const edit = itemView.page.edit;
+      if (edit && st.viewer) {
+        if (edit.addFiles) return { take: true, line: DROP.addTo(itemName(itemView.current(st.viewer.id) || st.viewer, st.kinds)) };
+        return { take: false, reason: edit.addFilesWhyNot || '' };
+      }
+      if (isAdmin() && st.tab === 'admin') return { take: false, reason: MEDIA_WORDS.addOnMediaTab };
+      if (myKey && st.membersView && canUpload()) {
+        // The upload window over a channel of the chat: a drop on it posts there too, as one on the chat.
+        const ch = upWin && st.windowPostTo ? st.channels.find((c) => c.id === st.windowPostTo) : null;
+        return { take: true, line: ch ? DROP.uploadAndPostIn('#' + ch.name) : DROP.WORDS.uploadToMedia };
+      }
+      return { take: false, reason: whyNoAdd() };
+    }
+    function dropped(files) {
+      const edit = itemView.page.edit;
+      if (edit && st.viewer) {
+        if (edit.addFiles) edit.addFiles(files, 'file');
+        return;
+      }
+      // An item open (and not being edited) covers the page: it closes, so Add to Media is seen.
+      if (st.viewer) itemView.close();
+      if (upWin && st.windowPostTo && files && files[0]) { openAddForm(files[0], files.slice(1), st.windowPostTo); return; }
+      chooseFiles(files);
+    }
+
     async function start() {
       build();
+      if (DROP && env.window) drops = DROP.attach({ window: env.window, document: doc, decide: dropDecision, onDrop: dropped });
       if (session) {
         session.subscribe(onSession);
         if (myKey) session.start();
       }
       renderAll();
+      // The upload window: only what Add to Media needs (the list's categories, labels and
+      // licences, and the person's share).
+      if (windowMode) {
+        await load(true);
+        loadMine();
+        return;
+      }
       await loadKinds();
       loadFeatured();
       await load(true);
@@ -2348,6 +1930,7 @@
 
     /** Revoke every object URL (the page is going away). */
     function dispose() {
+      if (drops) { drops.detach(); drops = null; }
       for (const id of Array.from(blobs.keys())) dropBlob(id);
       itemView.tickets.clear();
     }
@@ -2355,6 +1938,7 @@
     return {
       start, state: st, load, loadFeatured, loadMine, openAddForm, openPutForm, removeItem: remove, pickItem: pick,
       featureItem: feature, keepItem: keep, openReport, openViewer: itemView.open, closeViewer: itemView.close, route, dispose, blobs, tickets: itemView.tickets, itemView,
+      takeFiles,
     };
   }
 
@@ -2385,6 +1969,13 @@
       let storage = null;
       try { storage = root.localStorage; } catch (e) { storage = null; }
       let page = null;
+      // The upload window (2026-10-17, /shared/upload-window.js): this page at /media?window=upload,
+      // in a frame over the chat, which hands it the files dropped on a channel. Opened any other way
+      // it is the Media page as usual.
+      const UW = root.HosUploadWindow || null;
+      const uploadWindow = UW && UW.isWindowAddress(loc.search)
+        ? UW.connectFrame({ window: root, onFiles: (files, postTo) => { if (page) page.takeFiles(files, postTo); } })
+        : null;
       page = createMediaPage({
         document: doc,
         root: rootEl,
@@ -2405,6 +1996,12 @@
         // /media/<n> opens item n (the relay serves this page there, 3.6); #admin the Admin tab.
         path: loc.pathname, hash: loc.hash, history: root.history,
         IntersectionObserver: root.IntersectionObserver || null,
+        // Where files dragged from the computer are heard (2026-10-17, /shared/drop-overlay.js).
+        window: root,
+        // "Also post in chat" never sends my recovery phrase: the chat's own guard
+        // (/shared/pq-relay-auth.js pqRecoveryPhraseIn, over /shared/warnings.js and the word list).
+        phraseIn: (texts) => (typeof root.pqRecoveryPhraseIn === 'function' ? root.pqRecoveryPhraseIn(texts) : Promise.resolve(null)),
+        uploadWindow,
         retryIdentity: () => root.location.reload(),
         // The admins' section on the Admin tab (/pages/media-admin.js, loaded after this file).
         mountAdmin: (container) => {
@@ -2428,6 +2025,8 @@
       // Back and Forward between /media and /media/<n> (and #admin) show what the address names.
       root.addEventListener('popstate', () => page.route(loc.pathname, loc.hash));
       page.start();
+      // Built now (start builds the page at once): the files can be handed over.
+      if (uploadWindow) uploadWindow.ready();
     };
     if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', go);
     else go();
@@ -2439,6 +2038,8 @@
     fileRoute, storedName, itemFileName, itemName, downloadName, labelsOf, listParams, publicListUrl, purposes, jsonPost, isFeatured, itemIdOf, DEFAULT_LICENCE,
     refusalOf, refusalWords, answerOf, makeH, isAdminRole, isStaffRole, rememberUpload, findUpload, forgetUpload,
     createUploader, fingerprint, createMediaPage,
+    POST_WORDS, STAR, POST_FAVORITES_KEY, CHAT_CHANNEL_KEY, POST_GRACE_MS, postFavoriteKey, postFavorites, togglePostFavorite,
+    postChoices, postText, postedIn, notPostedIn,
   };
   if (typeof module === 'object' && module && module.exports) module.exports = api;
   else {

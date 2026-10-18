@@ -270,6 +270,19 @@ pub(crate) fn draw_card(ui: &mut egui::Ui, theme: &Theme, cache: &ImageCache, ca
     pressed
 }
 
+/// Post `text` in channel `channel` as if typed there and sent (Add to Media's "Also post in chat",
+/// 2026-10-17): the chat's own send, with its guards and its routing, then the conversation that
+/// was open is open again. False when the send did not go.
+pub(crate) fn post_in(state: &mut GuiState, channel: &str, text: &str) -> bool {
+    // A reply being written in the open conversation is not this post's, and stays as it was.
+    let reply = state.chat_reply_to.take();
+    let was = std::mem::replace(&mut state.chat_active_channel, channel.to_string());
+    let sent = super::send_composed_content(state, text);
+    state.chat_active_channel = was;
+    state.chat_reply_to = reply;
+    sent
+}
+
 /// The window a 3D model posted in chat opens in (View in 3D on its card), with Close.
 pub(crate) fn draw_model_window(ctx: &egui::Context, theme: &Theme, model_view: &mut Option<crate::gui::model_view::Viewer>) {
     let Some(viewer) = model_view.as_mut() else { return };
