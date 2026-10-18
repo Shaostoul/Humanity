@@ -15202,6 +15202,7 @@ mod native_app {
                                 );
                                 // A 3D model posted in chat, in its own window (View in 3D on its card).
                                 crate::gui::pages::chat::draw_model_window(ctx, &state.theme, &mut state.gui_state.chat_model_view);
+                                crate::gui::pages::chat::draw_video_window(ctx, &state.theme, &mut state.gui_state.chat_video);
                                 // A Media item's window brought up from a chat card (media/chat_card.rs).
                                 crate::gui::pages::media::draw_item_window(ctx, &state.theme, &mut state.gui_state);
                                 // The upload window a drop opened from another page (Add to Media's form).
@@ -15596,8 +15597,10 @@ mod native_app {
 
                             // ── Game audio frame sync (v0.960, first CC0 sounds) ──
                             if let Some(audio) = state.audio.as_mut() {
-                                // The Media page's video (and its window over the chat) plays its sound here.
+                                // The Media page's video (and its window over the chat) and a video posted
+                                // in chat play their sound here.
                                 crate::gui::pages::media::sync_sound(&mut state.gui_state, audio);
+                                crate::gui::pages::chat::sync_video_sound(&mut state.gui_state.chat_video, audio);
                                 // Honest volume sliders: push Settings values
                                 // into kira only when one actually moved. The
                                 // 4th slot is the independent interface-sound

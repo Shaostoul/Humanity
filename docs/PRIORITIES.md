@@ -268,8 +268,8 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
   only on your own plot; BUG-165 and BUG-166, the walking-backwards fixes; two new clips),
   all delivered to the taskbar exe.
 - DONE on Windows v0.1513.0 (src/media/system.rs; the Media page, items over the chat and in-world
-  screens, with sound; the Media page's video got its sound and Mute in the same release). Still to
-  do from this entry: "Play here" on a video card in chat (desktop), macOS through AVFoundation,
+  screens, with sound; the Media page's video got its sound and Mute in the same release; "Play here"
+  on a video card in chat, v0.1514.0). Still to do from this entry: macOS through AVFoundation,
   Linux through the person's own ffmpeg libraries, and the OpenH264 check below. The original entry:
   (operator asked 2026-10-17, "How do we give users the ability to play MP4s in our
   app/website?"): **play MP4 (H.264 video, AAC sound) in the desktop app by asking Windows.**

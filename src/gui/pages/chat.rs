@@ -87,7 +87,7 @@ mod attach_view;
 /// Files posted into a public channel: a card with Download, and View in 3D for a model (2026-10-17).
 /// See `chat/public_files.rs`.
 pub(crate) mod public_files;
-pub(crate) use public_files::{draw_model_window, post_in};
+pub(crate) use public_files::{draw_model_window, draw_video_window, post_in, sync_video_sound};
 /// Device-to-device big files (answer 10): a row per transfer at the top of a DM. See `chat/transfer_rows.rs`.
 mod transfer_rows;
 #[cfg(test)]
@@ -1128,7 +1128,8 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             || state.show_create_group_modal
                             || state.show_join_group_modal
                             || state.image_viewer_url.is_some()
-                            || state.chat_model_view.is_some();
+                            || state.chat_model_view.is_some()
+                            || state.chat_video.is_some();
                         // Þ-only hover detection — does NOT use the wider
                         // est_popup_rect because that overlaps the message
                         // text on the same line (operator feedback
@@ -1436,7 +1437,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         }
                     }
                     // Public files and Media items: a card each (chat/public_files.rs, media/chat_card.rs).
-                    public_files::draw_all(ui, theme, &mut state.image_cache, &mut state.chat_model_view, &posted.files, &msg.server, &state.server_url, row_bg);
+                    public_files::draw_all(ui, theme, &mut state.image_cache, &mut state.chat_model_view, &mut state.chat_video, &posted.files, &msg.server, &state.server_url, row_bg);
                     let (cards, needs) = crate::gui::pages::media::chat_card::views(state, &msg.sender_key, msg.timestamp_ms, &posted.items);
                     state.media.card_acts.extend(needs);
                     crate::gui::pages::media::chat_card::draw_all(ui, theme, &cards, row_bg, &mut state.media.card_acts);

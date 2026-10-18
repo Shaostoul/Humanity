@@ -54,8 +54,10 @@ fn a_file_is_shown_by_the_name_it_was_sent_with() {
 
 /// A CARD KNOWS WHERE ITS FILE SITS: one on the message's own server loads (its size is asked, View
 /// in 3D is offered for a model), one on another website names that website and offers no 3D view,
-/// and a video carries the line about the computer's own player (with the patent reason for MP4).
-/// Seen red 2026-10-17 with `other_site` always None: "a file on another website names it".
+/// and a video either plays here (Play here: WebM always, MP4 where the computer's own decoders
+/// are, 2026-10-18) or carries the line about the computer's own player (with the patent reason
+/// for MP4 where they are not). Seen red 2026-10-17 with `other_site` always None: "a file on
+/// another website names it"; and 2026-10-18 with MP4 never offered: "an MP4 plays here".
 #[test]
 fn a_card_knows_where_its_file_sits_and_what_it_is() {
     let own = Card::of("/uploads/1760000000000_part.glb", SERVER);
@@ -66,9 +68,15 @@ fn a_card_knows_where_its_file_sits_and_what_it_is() {
     assert_eq!(theirs.other_site.as_deref(), Some("files.example.com"), "a file on another website names it");
     assert!(!theirs.viewable_in_3d(), "and is not fetched for a 3D view");
     let mp4 = Card::of("/uploads/1_clip.mp4", SERVER);
-    assert!(mp4.is_video() && mp4.video_line().is_some_and(|l| l.contains(VIDEO_ELSEWHERE) && l.contains("patents")));
+    if plays_mp4_here() {
+        assert!(mp4.is_video() && mp4.plays_here() && mp4.video_line().is_none(), "an MP4 plays here");
+    } else {
+        assert!(mp4.is_video() && mp4.video_line().is_some_and(|l| l.contains(VIDEO_ELSEWHERE) && l.contains("patents")));
+    }
     let webm = Card::of("/uploads/1_clip.webm", SERVER);
-    assert_eq!(webm.video_line().as_deref(), Some(VIDEO_ELSEWHERE));
+    assert!(webm.plays_here() && webm.video_line().is_none(), "a WebM plays here");
+    let theirs_mp4 = Card::of("https://files.example.com/clip.mp4", SERVER);
+    assert!(!theirs_mp4.plays_here(), "a video on another website is never fetched before Download");
     assert_eq!(Card::of("/uploads/1_a.pdf", SERVER).video_line(), None);
 }
 
@@ -110,12 +118,13 @@ fn a_file_on_another_website_is_not_contacted_before_a_click() {
     let theme = crate::gui::theme::load_theme();
     let mut cache = ImageCache::new();
     let mut viewer = None;
+    let mut video = None;
     let theirs = Card::of("https://files.example.com/notes.pdf", SERVER);
     let own = Card::of("/uploads/1_notes.pdf", SERVER);
     let out = ctx.run(egui::RawInput::default(), |ctx| {
         egui::CentralPanel::default().show(ctx, |ui| {
-            draw(ui, &theme, &mut cache, &mut viewer, &theirs, theme.bg_primary());
-            draw(ui, &theme, &mut cache, &mut viewer, &own, theme.bg_primary());
+            draw(ui, &theme, &mut cache, &mut viewer, &mut video, &theirs, theme.bg_primary());
+            draw(ui, &theme, &mut cache, &mut viewer, &mut video, &own, theme.bg_primary());
         });
     });
     let texts = texts_of(&out).join("
@@ -182,7 +191,54 @@ fn the_chat_page_shows_a_posted_video_as_a_card_not_a_bare_path() {
         texts = texts_of(&out).join("\n");
     }
     assert!(texts.contains("WH40K_Marriah_Carey.mp4"), "the video's name is shown: {texts}");
-    assert!(texts.contains("1.1 MB") && texts.contains("Download") && texts.contains(VIDEO_ELSEWHERE), "{texts}");
+    assert!(texts.contains("1.1 MB") && texts.contains("Download"), "{texts}");
+    if plays_mp4_here() {
+        assert!(texts.contains(crate::gui::widgets::video_view::PLAY_HERE) && !texts.contains(MP4_WHY), "Play here, not the patent line: {texts}");
+    } else {
+        assert!(texts.contains(VIDEO_ELSEWHERE), "{texts}");
+    }
     assert!(texts.contains("Found this one"), "the message's own words stay: {texts}");
     assert!(!texts.contains("/uploads/"), "the bare address is not drawn: {texts}");
+}
+
+/// PLAY HERE PLAYS A VIDEO POSTED IN CHAT IN ITS OWN WINDOW (2026-10-18; it had said to watch it in
+/// another player): the window fetches the video (here a copy of the H.264 fixture handed over in
+/// place of the network), plays it with Pause and Start again, and Close takes it away with its
+/// temporary copy. Seen red 2026-10-18 with the window not polling its view: "the video plays in its
+/// window" (it stayed at "Fetching the video..."; that run also showed its Close reading "Close the
+/// 3D view", the model window's words, now its own).
+#[cfg(windows)]
+#[test]
+fn play_here_plays_a_video_posted_in_chat_in_its_own_window() {
+    if !plays_mp4_here() {
+        println!("skipped: this copy of Windows has no Media Foundation");
+        return;
+    }
+    let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/media/moving-box-h264-aac.mp4");
+    let dir = crate::test_temp::dir("chat_play_here");
+    std::fs::create_dir_all(&dir).unwrap();
+    let copy = dir.join("clip.video");
+    std::fs::copy(&fixture, &copy).unwrap();
+    let mut view = crate::gui::widgets::video_view::VideoView::default();
+    let handed = copy.clone();
+    view.start(move || Ok(handed));
+    let mut video = Some(ChatVideo { name: "clip.mp4".into(), view });
+    let ctx = egui::Context::default();
+    let theme = crate::gui::theme::load_theme();
+    let input = || egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 900.0))), ..Default::default() };
+    let started = std::time::Instant::now();
+    let mut texts = Vec::new();
+    while started.elapsed() < std::time::Duration::from_secs(30) {
+        let out = ctx.run(input(), |ctx| draw_video_window(ctx, &theme, &mut video));
+        texts = texts_of(&out);
+        if texts.iter().any(|t| t == "Pause") {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    assert!(texts.iter().any(|t| t == "Pause") && texts.iter().any(|t| t == "Start again"), "the video plays in its window: {texts:?}");
+    assert!(texts.iter().any(|t| t == "clip.mp4"), "the window is named for it: {texts:?}");
+    assert!(texts.iter().any(|t| t == crate::gui::widgets::video_view::CLOSE), "its own Close: {texts:?}");
+    video = None;
+    assert!(video.is_none() && !copy.exists(), "Close takes the temporary copy with it");
 }

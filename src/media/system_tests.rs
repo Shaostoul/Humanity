@@ -276,7 +276,7 @@ fn a_video_whose_sound_windows_cannot_play_says_so() {
     let info = crate::media::probe(&path).expect("Windows plays its picture");
     assert!(info.system && info.audio_track.is_none());
     assert_eq!(info.sound_lost.as_deref(), Some("Opus"), "the lost sound is named");
-    assert!(crate::gui::pages::media::open::sound_lost_words("Opus").contains("Opus"));
+    assert!(crate::gui::widgets::video_view::sound_lost_words("Opus").contains("Opus"));
     // A setting naming a file that is not ffmpeg: the conversion cannot start, so it plays silent.
     let d = crate::test_temp::dir("system_sound_lost");
     let fake = d.join("ffmpeg.exe");

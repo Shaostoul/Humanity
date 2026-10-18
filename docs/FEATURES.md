@@ -447,6 +447,13 @@ page's video now has sound (it played silent), with
 Mute; the engine hands it the mixer each frame (`media::sync_sound`). A new player shows its first
 picture at once, paused or not. Tests: `src/media/system_tests.rs` on
 `tests/fixtures/media/moving-box-h264-aac.mp4`, two needing a sound device run by hand.
+**Play here for a video posted in chat (v0.1514.0).** A video card in a desktop chat room has Play
+here (WebM always, an MP4 where Windows decodes it; never a file on another website before Download):
+it plays in its own window with Pause, Start again, Mute, its sound and Close, its temporary copy
+going with the window. The player is one widget for the Media page and the chat,
+`src/gui/widgets/video_view.rs` (`VideoView`); the chat window is `chat/public_files.rs`
+`draw_video_window`, its sound `sync_video_sound`. The "WebM only, because of patents" line now shows
+only where the computer has no decoders to ask. The website plays a posted video in the page.
 **Media card follow-ups (v0.1513.0).** The desktop card names a content label before the Media page has
 loaded ("Labelled: Flashing lights."); the desktop takes only a link to a picture as a picture (a bare
 "render.png" in a non-friend's message no longer withholds its card) and removes it word by word;

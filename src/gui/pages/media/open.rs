@@ -58,12 +58,8 @@ pub(crate) fn temp_dir() -> PathBuf {
 /// The transfers of the item whose page is open: its video, playing here, and its downloads.
 pub(crate) struct Opened {
     pub item: Item,
-    /// A video being fetched to play here.
-    fetch_rx: Option<Receiver<Result<PathBuf, String>>>,
-    player: Option<crate::media::VideoPlayer>,
-    texture: Option<egui::TextureHandle>,
-    /// Why it cannot play, or the fetch failed.
-    pub problem: String,
+    /// Its video, fetched and played here (the shared widget, widgets/video_view.rs).
+    pub video: widgets::video_view::VideoView,
     /// The downloads on their way, by the number of the file each is of (0, the item's own).
     saves: Vec<(i64, Receiver<Result<PathBuf, String>>)>,
     /// Where each finished Download put its file, or why it did not, by file number.
@@ -71,20 +67,13 @@ pub(crate) struct Opened {
     /// Where each finished Download put its file, by file number: its type and word of caution
     /// are read from its first bytes once it is here (net/file_risk.rs, 2026-10-17).
     pub saved_paths: Vec<(i64, PathBuf)>,
-    /// The temporary copy Play here fetched, deleted with the page.
-    pub temp: Option<PathBuf>,
-    /// Its sound: handed to the app's mixer once (`sync_sound`), muted with Mute, at the master
-    /// volume last sent (None until the first).
-    sound_attached: bool,
-    pub muted: bool,
-    volume_sent: Option<f64>,
     /// A `.glb` or `.stl` file shown in 3D (View in 3D, docs/design/model-viewer.md).
     pub viewer: Option<crate::gui::model_view::Viewer>,
 }
 
 impl Opened {
     pub(crate) fn new(item: Item) -> Self {
-        Opened { item, fetch_rx: None, player: None, texture: None, problem: String::new(), saves: Vec::new(), saved: Vec::new(), saved_paths: Vec::new(), temp: None, viewer: None, sound_attached: false, muted: false, volume_sent: None }
+        Opened { item, video: Default::default(), saves: Vec::new(), saved: Vec::new(), saved_paths: Vec::new(), viewer: None }
     }
 
     /// Whether file `file` is being downloaded now.
@@ -104,22 +93,7 @@ impl Opened {
 
     /// Whether something is still on its way (the page repaints until it is not).
     pub(crate) fn busy(&self) -> bool {
-        self.fetch_rx.is_some() || !self.saves.is_empty()
-    }
-}
-
-impl Drop for Opened {
-    /// The page closed (or the Media page went): the player lets go of the file first, then the
-    /// temporary copy goes.
-    fn drop(&mut self) {
-        self.player = None;
-        if let Some(path) = self.temp.take() {
-            if let Err(e) = std::fs::remove_file(&path) {
-                if e.kind() != std::io::ErrorKind::NotFound {
-                    log::warn!("Media: a temporary video could not be deleted yet ({e}); it goes at the next start.");
-                }
-            }
-        }
+        self.video.fetching() || !self.saves.is_empty()
     }
 }
 
@@ -324,59 +298,16 @@ fn clock(seconds: f64) -> String {
 #[path = "open_sound_tests.rs"]
 mod sound_tests;
 
-/// What the page says under a video whose sound the computer cannot play here.
-pub fn sound_lost_words(codec: &str) -> String {
-    format!("Its sound ({codec}) is in a format this computer cannot play here. Download it to hear it in another player.")
-}
-
-/// The player's sound buttons.
-pub const MUTE: &str = "Mute";
-pub const UNMUTE: &str = "Unmute";
-
-/// The video playing on an item's page (the page itself, or its window over the chat) gets its sound
-/// from the app's mixer: handed over once, then kept at the master volume, or silent while muted.
-/// The engine calls this each frame when there is a mixer (2026-10-18; it had played silent).
+/// The page's video gets its sound from the app's mixer (the widget's `sync_sound`); the engine
+/// calls this each frame it has a mixer.
 pub(crate) fn sync_sound(opened: &mut Opened, audio: &mut crate::audio::AudioManager) {
-    let Some(player) = opened.player.as_mut() else { return };
-    if player.info().audio_track.is_none() {
-        return;
-    }
-    if !opened.sound_attached {
-        opened.sound_attached = true;
-        let volume = if opened.muted { 0.0 } else { audio.master_volume() };
-        let opts = crate::media::AudioAttach { looping: false, volume, panning: 0.5 };
-        if let Err(e) = player.attach_audio_with(audio, opts) {
-            log::warn!("media: the video's sound did not start: {e}");
-            return;
-        }
-        opened.volume_sent = Some(volume);
-        return;
-    }
-    let volume = if opened.muted { 0.0 } else { audio.master_volume() };
-    if opened.volume_sent != Some(volume) {
-        player.set_audio_mix(volume, 0.5, 30);
-        opened.volume_sent = Some(volume);
-    }
+    opened.video.sync_sound(audio);
 }
 
 /// Read what the transfers of `opened` finished, and the video's next frame. Every frame its page
 /// is drawn.
 pub(crate) fn poll(ctx: &egui::Context, opened: &mut Opened) {
-    if let Some(rx) = opened.fetch_rx.as_ref() {
-        if let Ok(result) = rx.try_recv() {
-            opened.fetch_rx = None;
-            if let Ok(path) = &result {
-                opened.temp = Some(path.clone()); // deleted with the page from here on
-            }
-            match result.and_then(|path| crate::media::VideoPlayer::open(&path).map_err(|e| format!("This video cannot play in the app: {e}. Download it to watch it in another player."))) {
-                Ok(mut player) => {
-                    player.play();
-                    opened.player = Some(player);
-                }
-                Err(e) => opened.problem = e,
-            }
-        }
-    }
+    opened.video.poll(ctx);
     let mut finished = Vec::new();
     opened.saves.retain(|(file, rx)| match rx.try_recv() {
         Ok(result) => {
@@ -404,21 +335,6 @@ pub(crate) fn poll(ctx: &egui::Context, opened: &mut Opened) {
         opened.saved.retain(|(f, _)| *f != file);
         opened.saved.push((file, words));
     }
-    if let Some(player) = opened.player.as_mut() {
-        if let Some(frame) = player.poll() {
-            let image = egui::ColorImage::from_rgba_unmultiplied([frame.width as usize, frame.height as usize], &frame.rgba);
-            match opened.texture.as_mut() {
-                Some(tex) => tex.set(image, egui::TextureOptions::LINEAR),
-                None => opened.texture = Some(ctx.load_texture("media_video_frame", image, egui::TextureOptions::LINEAR)),
-            }
-        }
-        if let Some(e) = player.take_error() {
-            opened.problem = format!("The video stopped: {e}");
-        }
-        if player.is_playing() {
-            ctx.request_repaint();
-        }
-    }
     if opened.busy() {
         ctx.request_repaint_after(Duration::from_millis(200));
     }
@@ -427,48 +343,7 @@ pub(crate) fn poll(ctx: &egui::Context, opened: &mut Opened) {
 /// The video area of an item's page: the playing video with Play, Pause and Start again, or Play
 /// here. Returns true when Play here was pressed (the page then calls [`start_play`]).
 pub(crate) fn draw_player(ui: &mut egui::Ui, theme: &Theme, opened: &mut Opened) -> bool {
-    let mut fetch = false;
-    if let (Some(tex), Some(player)) = (opened.texture.as_ref(), opened.player.as_mut()) {
-        let [w, h] = tex.size();
-        let aspect = w.max(1) as f32 / h.max(1) as f32;
-        let width = ui.available_width().min(640.0);
-        ui.add(egui::Image::new((tex.id(), egui::vec2(width, width / aspect))));
-        ui.horizontal(|ui| {
-            if player.is_playing() {
-                if widgets::Button::secondary("Pause").show(ui, theme) {
-                    player.pause();
-                }
-            } else if widgets::Button::secondary("Play").show(ui, theme) {
-                if player.at_end() {
-                    player.seek_to_start();
-                }
-                player.play();
-            }
-            if widgets::Button::ghost("Start again").show(ui, theme) {
-                player.seek_to_start();
-            }
-            // Sound once the mixer has it (`sync_sound`); an app started in the background by a
-            // script opens no sound device, so it has none to mute.
-            if player.has_audio() && widgets::Button::ghost(if opened.muted { UNMUTE } else { MUTE }).show(ui, theme) {
-                opened.muted = !opened.muted;
-            }
-            ui.label(RichText::new(format!("{} of {}", clock(player.position_s()), clock(player.duration_s()))).size(theme.font_size_small).color(theme.text_muted()));
-        });
-        if let Some(codec) = player.info().sound_lost.as_deref() {
-            widgets::body_hint(ui, theme, &sound_lost_words(codec));
-        }
-    } else if opened.fetch_rx.is_some() {
-        ui.label(RichText::new("Fetching the video...").size(theme.font_size_small).color(theme.text_muted()));
-    } else if opened.player.is_some() {
-        ui.label(RichText::new("Starting...").size(theme.font_size_small).color(theme.text_muted()));
-        ui.ctx().request_repaint_after(Duration::from_millis(100));
-    } else if opened.problem.is_empty() {
-        fetch = widgets::Button::primary("Play here").tooltip("Fetch the video and play it in the app.").show(ui, theme);
-    }
-    if !opened.problem.is_empty() {
-        ui.label(RichText::new(&opened.problem).size(theme.font_size_small).color(theme.danger()));
-    }
-    fetch
+    opened.video.draw(ui, theme, 640.0)
 }
 
 /// Play here was pressed: fetch the item's own file to a temporary copy on a worker, then play it.
@@ -477,18 +352,9 @@ pub(crate) fn start_play(state: &GuiState, opened: &mut Opened) {
     match origin_of(&super::base_of(state), &opened.item, token.as_deref()) {
         Ok(origin) => {
             let name = play_name(&state.media.server, opened.item.id);
-            let (tx, rx) = std::sync::mpsc::channel();
-            std::thread::spawn(move || {
-                let fetched = origin.address().and_then(|url| fetch_to(&transfer_agent(Duration::from_secs(60)), &url, None, &temp_dir(), &name, MAX_FETCH));
-                // The page closed while it was fetching: nobody will play it, so it goes now.
-                if let Err(std::sync::mpsc::SendError(Ok(path))) = tx.send(fetched) {
-                    let _ = std::fs::remove_file(path);
-                }
-            });
-            opened.fetch_rx = Some(rx);
-            opened.problem.clear();
+            opened.video.start(move || origin.address().and_then(|url| fetch_to(&transfer_agent(Duration::from_secs(60)), &url, None, &temp_dir(), &name, MAX_FETCH)));
         }
-        Err(words) => opened.problem = words,
+        Err(words) => opened.video.problem = words,
     }
 }
 

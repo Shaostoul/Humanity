@@ -2837,6 +2837,8 @@ pub struct GuiState {
     /// A 3D model posted in chat, open in its own window (View in 3D on the file's card,
     /// chat/public_files.rs). `None` means the window is closed.
     pub chat_model_view: Option<crate::gui::model_view::Viewer>,
+    /// A video posted in chat, playing in its own window (Play here, 2026-10-18).
+    pub chat_video: Option<crate::gui::pages::chat::public_files::ChatVideo>,
 
     // ── Studio state ──
     pub studio: StudioState,
@@ -4169,6 +4171,7 @@ impl Default for GuiState {
             image_cache: crate::gui::widgets::image_cache::ImageCache::new(),
             image_viewer_url: None,
             chat_model_view: None,
+            chat_video: None,
             studio: StudioState::default(),
 
             // Chat panel collapse state (all expanded by default except connection)

@@ -187,7 +187,7 @@ fn play_heres_copy_goes_with_its_card() {
     let copy = dest("media_open_temp");
     std::fs::write(&copy, b"video").unwrap();
     let mut card = Opened::new(Item { id: 1, kind: "video".into(), ..Default::default() });
-    card.temp = Some(copy.to_path_buf());
+    card.video.temp = Some(copy.to_path_buf());
     drop(card);
     assert!(!copy.exists(), "the copy goes with the card");
 

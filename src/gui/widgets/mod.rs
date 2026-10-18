@@ -35,6 +35,8 @@ pub mod tint_section;
 // The file picker's List, Details and Pictures views, and the pictures' previews (2026-10-17).
 pub mod file_views;
 pub mod thumbnails;
+// A video fetched and played in the app, with its sound (2026-10-18): the Media page and the chat.
+pub mod video_view;
 // The readable web view (2026-09-16): draws a `web_reader::Page` with
 // clickable links, history and a URL row. Used by the Browser page; the
 // in-world monitor surface is the next rung up.
