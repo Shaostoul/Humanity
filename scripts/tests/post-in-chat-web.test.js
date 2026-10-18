@@ -30,10 +30,11 @@
 //     ("⭐ #printing"), then the rest; a read-only channel only for an admin; favourites kept in
 //     this browser, by server and channel; with no channel, one line saying so; a form for a file
 //     already on the server has none.
-//  B. Once the item is published, its title, description and file's address, each on its own line,
-//     are posted in the channel ticked, as a chat message signed over "content\ntimestamp" the way
-//     the chat signs one, and the line says "Posted in #general." once the server's echo came back.
-//     A members-only item posts its page instead of its file.
+//  B. Once the item is published, its own address on this server's Media page ({origin}/media/{id},
+//     which the chat shows as the item's card, web/chat/chat-media-card.js) is posted in the
+//     channel ticked, as a chat message signed over "content\ntimestamp" the way the chat signs one,
+//     and the line says "Posted in #general." once the server's echo came back. A members-only item
+//     posts the same: its page (since 2026-10-17, the desktop's add.rs post_text).
 //  C. Where it is not posted, the line says why and nothing is sent: the connection gone, the
 //     server's refusal (its words), no answer, the recovery-phrase guard (its own sentence), the
 //     guard unable to run, the tick off; and never into a direct message, even when one is asked for.
@@ -136,7 +137,7 @@ test("A. Also post in chat: the tick on the left, the channel and Add to favorit
   assert.deepEqual(r.order, ["LABEL", "SELECT", "BUTTON"], "the tick on the left, then the channel, then Add to favorites");
   assert.equal(r.row.children[0].children[0], r.tick, "the tick is in the label");
   assert.equal(text(r.row.children[0]).trim(), "Also post in chat", "in the desktop's words");
-  assert.equal(r.row.children[0].title, "When it is up, its title, description and file are posted in this channel.", "its tooltip");
+  assert.equal(r.row.children[0].title, "When it is up, a card for it is posted in this channel: its title, then its picture, description and every file when opened.", "its tooltip");
   assert.equal(r.tick.checked, false, "off unless asked for");
   assert.ok(r.greyed, "greyed while the tick is off");
   assert.deepEqual(r.options, ["#random (open in the chat)", "#general", "#printing"], "the open channel first, then the rest; a read-only channel is not offered");
@@ -223,14 +224,14 @@ const echo = (p, m) => p.session.emit({ type: "frame", msg: { type: "chat", from
 const runTimer = (p, ms) => { for (const t of p.timers.filter((x) => x.ms === ms)) t.fn(); };
 
 // Seen red 2026-10-17 in a copy of web/ through HOS_WEB_DIR, each break in web/pages/media-add.js:
-// with postText leaving out the description: "its title, its description, then its file, each on its
-// own line" (actual 'Dusk\n/uploads/1760_dusk.mp4'); with the signature made over the content alone:
-// "signed over content\ntimestamp, as the chat signs" (actual 'sig:Dusk\nAt the beach, after the
-// rain.\n/uploads/1760_dusk.mp4'); with postPublished answering "Posted" as soon as it was sent (no
-// echo awaited): "not before the server has it" (actual 'It is on the Media page now. Posted in
-// #general.'); with postText giving a members-only item its file: "a members-only item: its page; no
-// title or description: no empty lines" (actual '/uploads/1760_dusk.mp4').
-test("B. once published, its title, description and file are posted in the channel ticked, signed as the chat signs, and the line says so once the server has it", async () => {
+// with postText back to the title, the description and the file, each on its own line: "its own
+// address on the Media page, nothing else" (actual 'Dusk\nAt the beach, after the rain.\n
+// /uploads/1760_dusk.mp4'); with postText giving a public item its file's address: the same assertion
+// (actual '/uploads/1760_dusk.mp4'). Seen red earlier the same day (before the post became the item's
+// address): with the signature made over the content alone: "signed over content\ntimestamp, as the
+// chat signs"; with postPublished answering "Posted" as soon as it was sent (no echo awaited): "not
+// before the server has it".
+test("B. once published, its own address on the Media page is posted in the channel ticked, signed as the chat signs, and the line says so once the server has it", async () => {
   const p = await readyToUpload();
   await tickOn(p.doc, true);
   assert.equal(postRow(p.doc).chosen, "general", "test setup: #general, the channel open in the chat");
@@ -240,8 +241,10 @@ test("B. once published, its title, description and file are posted in the chann
   assert.equal(sent.length, 1, "one chat message");
   const m = sent[0];
   assert.equal(m.channel, "general", "in the channel ticked");
-  assert.equal(m.content, "Dusk\nAt the beach, after the rain.\n/uploads/1760_dusk.mp4", "its title, its description, then its file, each on its own line");
-  assert.equal(m.content, M.postText({ title: "Dusk", description: "At the beach, after the rain.", url: "/uploads/1760_dusk.mp4", visibility: "public", id: 7 }, ORIGIN));
+  // The item's own page on this server, which both apps draw as its card: never its title,
+  // description or file's address (the desktop's add.rs post_text, 2026-10-17).
+  assert.equal(m.content, ORIGIN + "/media/7", "its own address on the Media page, nothing else");
+  assert.equal(m.content, M.postText({ title: "Dusk", description: "At the beach, after the rain.", url: "/uploads/1760_dusk.mp4", visibility: "public", id: 7 }, ORIGIN + "/"));
   assert.equal(m.from, ME);
   assert.ok(Number.isInteger(m.timestamp) && m.timestamp > 0);
   assert.equal(Buffer.from(m.pq_signature, "hex").toString("utf8"), "sig:" + m.content + "\n" + m.timestamp, "signed over content\\ntimestamp, as the chat signs");
@@ -250,13 +253,13 @@ test("B. once published, its title, description and file are posted in the chann
   await settle();
   assert.equal(notice(p.doc), M.MEDIA_WORDS.published + " Posted in #general.", "Posted in #general.");
 
-  // A members-only item: its page, which only members can open, never its file.
+  // A members-only item: the same, its page, which only members can open, never its file.
   const mem = await readyToUpload({ members: true, title: "", description: "" });
   await tickOn(mem.doc, true);
   await upload(mem);
   assert.equal(mem.published[0].visibility, "members", "test setup: published as members only");
   const mm = chats(mem.session)[0];
-  assert.equal(mm.content, ORIGIN + "/media/7", "a members-only item: its page; no title or description: no empty lines");
+  assert.equal(mm.content, ORIGIN + "/media/7", "a members-only item: its page, never its file");
   echo(mem, mm);
   await settle();
   assert.equal(notice(mem.doc), M.MEDIA_WORDS.published + " Posted in #general.");
@@ -632,7 +635,11 @@ test("the pages load the upload window and the guard, and its stylesheet uses th
   assert.ok(m.every((i) => i > 0), "pages/media.html loads the guard's parts and /shared/upload-window.js before /pages/media-app.js: " + m);
   assert.deepEqual(m.slice().sort((x, y) => x - y), m, "in order");
   assert.ok(/data-media-window/.test(media) && /window\.self !== window\.top/.test(media), "the menu is left out only in a frame");
-  assert.ok(/\[data-media-window\] body > :not\(#media-root\):not\(\.hos-drop-overlay\) \{ display: none !important; \}/.test(media), "everything but the page and the drop overlay is left out");
+  // In a frame, everything but the page and what its own parts put on the body is left out (which
+  // parts: media-card-web.test.js, "8. the framed windows show the page's own dialogs").
+  const hide = /\[data-media-window\] body > ((?::not\([^)]*\))+) \{ display: none !important; \}/.exec(media);
+  const kept = hide ? hide[1].match(/:not\(([^)]*)\)/g).map((s) => s.slice(5, -1)) : [];
+  assert.ok(kept.includes("#media-root") && kept.includes(".hos-drop-overlay"), "everything but the page and the drop overlay is left out: " + kept);
   const chat = page("chat/index.html");
   assert.ok(/<link rel="stylesheet" href="\/shared\/upload-window\.css\?v=\d+">/.test(chat), "the chat links /shared/upload-window.css");
   const c = order(chat, ["/shared/drop-overlay.js", "/shared/upload-window.js", "/chat/chat-messages.js"]);

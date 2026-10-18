@@ -495,7 +495,7 @@ pub(crate) fn post_choices(state: &GuiState) -> Vec<(String, String)> {
 
 /// The words of "Also post in chat" and its tooltip.
 pub const POST_IN_CHAT: &str = "Also post in chat";
-pub const POST_IN_CHAT_TIP: &str = "When it is up, its title, description and file are posted in this channel.";
+pub const POST_IN_CHAT_TIP: &str = "When it is up, a card for it is posted in this channel: its title, then its picture, description and every file when opened.";
 
 /// "Also post in chat": a tick on the left, then the channel and Add to favorites, greyed out while
 /// the tick is off (operator, 2026-10-17).
@@ -535,19 +535,14 @@ fn draw_post_row(ui: &mut egui::Ui, theme: &Theme, form: &mut Form, choices: &[(
     });
 }
 
-/// What "Also post in chat" posts for a published item: its title and description when it has
-/// them, then its file's address (the chat shows a picture in place, any other file as its card),
-/// or, for a members-only item, its page, which only members can open.
+/// What "Also post in chat" posts for a published item: its own address on this server's Media
+/// page, which both apps show as the item's card (chat_card.rs: its title, how many files and how
+/// much, opening out to its picture, description and every file, and its full window on a click;
+/// operator, 2026-10-17: "I'd rather people know exactly what they're downloading instead of
+/// guessing"). An app without cards shows a link to the item's page. A members-only item's page
+/// opens for members only.
 pub(crate) fn post_text(item: &api::Item, base: &str) -> String {
-    let mut lines: Vec<String> = Vec::new();
-    if !item.title.trim().is_empty() {
-        lines.push(item.title.trim().to_string());
-    }
-    if !item.description.trim().is_empty() {
-        lines.push(item.description.trim().to_string());
-    }
-    lines.push(if item.visibility == "members" { super::api_items::item_link(base, item.id) } else { item.url.clone() });
-    lines.join("\n")
+    super::api_items::item_link(base, item.id)
 }
 
 /// A just-published item's "Also post in chat": posted in `channel` through the chat's own send, as

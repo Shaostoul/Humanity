@@ -1327,6 +1327,63 @@ fn snapshot_chat_public_files() {
     });
 }
 
+// Media items posted in chat (2026-10-17, media/chat_card.rs): one card as the line it starts as,
+// one opened out to its by-line, description and every file with its type. The items are put in
+// place as if the server had answered; nothing is asked of any server.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_chat_media_card() {
+    use crate::gui::pages::media::{api::ItemFile, chat_card};
+    render_page_png("chat_media_card", 1280, 720, |ctx, theme, state| {
+        if !state.media.cards.contains_key(&41) {
+            const SERVER: &str = "http://127.0.0.1:9";
+            state.server_url = SERVER.into();
+            state.connected_server_url = SERVER.into();
+            crate::gui::pages::media::sync_server(state);
+            state.media.requested = true;
+            let file = |n: i64, name: &str, size: i64| ItemFile { file: n, filename: format!("{n}_{name}"), original_name: name.into(), kind: "file".into(), size_bytes: size, url: format!("/uploads/{n}_{name}") };
+            let staff = crate::gui::pages::media::api::Item {
+                id: 41,
+                url: "/uploads/41_dragonegg_staff_cap.blend".into(),
+                original_name: "dragonegg_staff_cap.blend".into(),
+                title: "Contact Staff Dragon Egg Wick v1".into(),
+                description: "A custom wick for a contact staff that could hold LEDs or other things inside. Printed, not yet mounted on the 19.5 mm dowel.".into(),
+                kind: "model".into(),
+                visibility: "public".into(),
+                size_bytes: 3_300_000,
+                total_bytes: 9_800_000,
+                uploader_key: "me".into(),
+                uploader_name: "Shaostoul".into(),
+                category_name: "3D printing".into(),
+                file_count: 3,
+                files: vec![file(0, "dragonegg_staff_cap.blend", 3_300_000), file(1, "dragonegg_staff_cap.stl", 5_900_000), file(2, "dragonegg_staff_cap.glb", 600_000)],
+                ..Default::default()
+            };
+            let shaper = crate::gui::pages::media::api::Item { id: 42, title: "Recreator3D MK5 Filament Shaper".into(), original_name: "RecreatorFilamentShaper.blend".into(), file_count: 5, total_bytes: 2_200_000, ..staff.clone() };
+            state.media.cards.insert(41, chat_card::CardState::Ready(staff));
+            state.media.cards.insert(42, chat_card::CardState::Ready(shaper));
+            state.media.cards_open.insert(chat_card::key_of("shao", 2_000, 41));
+            state.chat_messages.retain(|m| m.channel != "general");
+            for (ts, id) in [(1_000u64, 42), (2_000, 41)] {
+                state.chat_messages.push(ChatMessage {
+                    sender_name: "Shaostoul".into(),
+                    sender_key: "shao".into(),
+                    content: format!("{SERVER}/media/{id}"),
+                    timestamp: "04:13".into(),
+                    timestamp_ms: 1_792_000_000_000 + ts,
+                    channel: "general".into(),
+                    server: SERVER.into(),
+                    ..Default::default()
+                });
+            }
+            state.media.cards_open.clear();
+            state.media.cards_open.insert(chat_card::key_of("shao", 1_792_000_000_000 + 2_000, 41));
+            state.chat_active_channel = "general".into();
+        }
+        crate::gui::pages::chat::draw(ctx, theme, state);
+    });
+}
+
 /// Reasons for the report snapshots, built here (the real list is data/safety/report_reasons.json,
 /// written by the relay half of step D): enough to show the list and one help text.
 fn snapshot_report_reasons() -> Vec<crate::net::report::ReportReason> {
@@ -1931,14 +1988,18 @@ fn snapshot_media_item() {
 /// item's page: the title, the category with its description, the description, the two content
 /// labels, Public or Members only, the licence (CC BY 4.0) with the server's line for it, its
 /// warning that a Creative Commons licence cannot be taken back, and "Offer this for the game"
-/// ticked, the hosting paragraph in the server's words, the files with Remove on the added one and
-/// the cover, Add a file and Replace the cover picture, then Save and Cancel. The item's page shows
-/// behind it, as it does in the app.
+/// ticked, the hosting paragraph in the server's words, the files each with Rename (the model too),
+/// Remove on the added ones and the cover, and Use as cover on the photo added to it, Add a file and
+/// Replace the cover picture, then Save and Cancel. The item's page shows behind it, as it does in
+/// the app.
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
 fn snapshot_media_edit() {
     use crate::gui::pages::media::{self as media, edit::EditForm};
-    let item = media_snapshot_item(("me", "You"));
+    let mut item = media_snapshot_item(("me", "You"));
+    // A photo added among its files, which can become the cover (2026-10-17).
+    item.files.push(crate::gui::pages::media::api::ItemFile { file: 3, filename: "10_grip.png".into(), original_name: "grip.png".into(), kind: "picture".into(), size_bytes: 412_000, url: "/uploads/10_grip.png".into() });
+    item.file_count = 3;
     render_page_png("media_edit", 1280, 1120, |ctx, theme, state| {
         if state.media.server.is_empty() {
             *state = media_item_state(&item, false);

@@ -1318,6 +1318,8 @@ pub fn build_router(state: Arc<RelayState>) -> Router {
         .route("/api/media/edit", post(media_edit::edit))
         .route("/api/media/files/add", post(media_edit::files_add))
         .route("/api/media/files/remove", post(media_edit::files_remove))
+        .route("/api/media/files/rename", post(media_edit::files_rename))
+        .route("/api/media/files/cover", post(media_edit::files_cover))
         .route("/api/media/viewed", post(media_counts::viewed))
         .route("/api/media/download/{id}", get(media_counts::download))
         .route("/api/media/preview/{id}", get(media_page::preview))

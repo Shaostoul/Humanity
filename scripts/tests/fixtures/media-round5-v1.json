@@ -17,6 +17,7 @@
       "file": 2,
       "filename": "1762_c.jpg",
       "kind": "picture",
+      "original_name": "cover.jpg",
       "size_bytes": 4642,
       "url": "/api/media/file/1?file=2"
     },
@@ -75,6 +76,7 @@
       "file": 2,
       "filename": "1762_c.jpg",
       "kind": "picture",
+      "original_name": "cover.jpg",
       "size_bytes": 4642,
       "url": "/uploads/1762_c.jpg"
     },
@@ -210,6 +212,7 @@
           "file": 2,
           "filename": "1762_c.jpg",
           "kind": "picture",
+          "original_name": "cover.jpg",
           "size_bytes": 4642,
           "url": "/uploads/1762_c.jpg"
         },

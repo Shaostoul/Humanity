@@ -43,6 +43,38 @@ pub(crate) const VIDEO_ELSEWHERE: &str = "Download it to watch it in your comput
 /// Added under an MP4 video: why the app's own player does not play it.
 pub(crate) const MP4_WHY: &str = "The app's own player plays WebM video only, because the common MP4 formats are covered by patents.";
 
+/// What a message links to that is drawn under it as cards: files posted into a public channel
+/// (`files_in`) and items on the Media page of the server on screen (media/chat_card.rs).
+pub(crate) struct Posted {
+    pub files: Vec<String>,
+    pub items: Vec<i64>,
+    /// The server the message came through, whose Media items the cards are.
+    pub server: String,
+}
+
+impl Posted {
+    /// What `msg` links to (nothing when `skip`: a private file's message, or pictures left out).
+    /// Media items only for a message of the server whose Media page this app holds, and not while
+    /// a stranger's DM holds its links (chat/warnings.rs): the address stays a held link, the card
+    /// coming once the person presses the link line's Open (the website does the same).
+    pub(crate) fn of(state: &GuiState, msg: &ChatMessage, skip: bool) -> Posted {
+        let server = if msg.server.is_empty() { state.server_url.clone() } else { msg.server.clone() };
+        if skip {
+            return Posted { files: Vec::new(), items: Vec::new(), server };
+        }
+        let media_here = crate::gui::pages::chat::norm_server_url(&server) == state.media.server;
+        let held = crate::engine::warnings::links_held(state, msg);
+        let items = if media_here && !held { crate::gui::pages::media::chat_card::item_links(&msg.content, &server) } else { Vec::new() };
+        Posted { files: files_in(&msg.content), items, server }
+    }
+
+    /// `content` without what is drawn as cards.
+    pub(crate) fn words_of(&self, content: &str) -> String {
+        let text = if self.files.is_empty() { content.to_string() } else { crate::net::protected::strip_file_urls(content) };
+        crate::gui::pages::media::chat_card::without_links(&text, &self.server, &self.items)
+    }
+}
+
 /// The public files a message links to, in the order they appear.
 pub(crate) fn files_in(text: &str) -> Vec<String> {
     crate::net::protected::file_urls(text)

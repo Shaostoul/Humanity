@@ -41,6 +41,14 @@
 //     then exactly what HosFileRisk.badgeHtml draws), and says "name, size".
 // 13. (2026-10-17) Edit is in three tinted parts, "About it", "Who can see it" and "Files", each
 //     holding its own fields, with Save and Cancel under them; its file rows show their types.
+// 14. (2026-10-17) Every file row in Edit has Rename, the item's own file and the cover included;
+//     its box holds the name without its ending, the ending after it, one row at a time.
+// 15. (2026-10-17) Save name (or Enter) sends files/rename with the ending put back and both stored
+//     names, signed over the BLAKE3 of the name as sent (held to another BLAKE3); then "Renamed.".
+// 16. (2026-10-17) Use as cover is the uploader's, on a picture that is neither the item's own file
+//     nor the cover; it sends files/cover and the page says "That picture is the cover now."
+// 17. (2026-10-17) A refused rename or cover shows the relay's words in Edit's problem line, and a
+//     refused rename keeps its box.
 //
 // Seen red 2026-10-12: each with one break made in a copy of web/ under HOS_WEB_DIR, then green
 // again on the real web/: see the note above each test.
@@ -99,7 +107,9 @@ test("1. a tile opens the item with its description, files, licence and counts, 
   // Since 2026-10-17 each row's badge says what kind of file it is (test 12), so the row itself says
   // only "name, size" ("name, cover picture, size" for the cover), as the desktop's does.
   const rows = byId(doc, "media-item-files").querySelectorAll(".media-item-file-name").map(text);
-  assert.deepEqual(rows, ["dusk.png, 1 KB", "textures.zip, 4 KB", "1762_c.jpg, cover picture, 5 KB"]);
+  // The cover by the name it was uploaded with (the relay sends a cover's original_name since
+  // 2026-10-17, and the fixture carries it).
+  assert.deepEqual(rows, ["dusk.png, 1 KB", "textures.zip, 4 KB", "cover.jpg, cover picture, 5 KB"]);
   assert.equal(byId(doc, "media-item-files").querySelectorAll("[data-download]").length, 3, "each file has its own Download");
   assert.ok(byId(doc, "media-copy-link"), "Copy link for anyone");
   assert.equal(byId(doc, "media-item-edit-open"), null, "no Edit on someone else's item");
@@ -573,7 +583,7 @@ test("12. each file row starts with its type's badge: a grey File until the list
   assert.equal(text(rows()[1].children[0].querySelector(".file-badge-ending")), ".zip", "with the file's own ending");
   late.release();
   for (let i = 0; i < 4; i++) await settle();
-  const names = ["dusk.png", "textures.zip", "1762_c.jpg"];
+  const names = ["dusk.png", "textures.zip", "cover.jpg"];
   rows().forEach((row, i) => {
     assert.deepEqual(badgeParts(row.children[0]), badgeHtmlParts(names[i]), names[i] + ": the badge file-risk.js draws");
     assert.equal(row.children[1].className, "media-item-file-name", names[i] + ": just before its name");
@@ -636,12 +646,248 @@ test("13. Edit is in three tinted parts (About it, Who can see it, Files) with S
   assert.equal(firstRow.children[0].className, "file-badge level-unknown", "the item itself: its badge first, grey before the list is in");
   assert.equal(text(firstRow.children[1]), ED.firstFileWords("dusk.png"));
   const editRows = list.querySelectorAll("[data-edit-file]");
-  assert.deepEqual(editRows.map((r) => text(r.querySelector(".media-item-file-name"))), ["textures.zip, 4 KB", "1762_c.jpg, cover picture, 5 KB"], "name, size; the cover says so");
+  assert.deepEqual(editRows.map((r) => text(r.querySelector(".media-item-file-name"))), ["textures.zip, 4 KB", "cover.jpg, cover picture, 5 KB"], "name, size; the cover says so");
   assert.ok(editRows[1].children[0].className.startsWith("file-badge"), "the cover's row: its badge first");
   late.release();
   for (let i = 0; i < 4; i++) await settle();
   const after = byId(doc, "media-edit-files");
   assert.equal(after.querySelectorAll("[data-edit-file]")[0].children[0].className, "file-badge level-care", "the editor's archive, once the list is in");
   assert.deepEqual(badgeParts(after.children[0].children[0]), badgeHtmlParts("dusk.png"), "the item itself: the badge file-risk.js draws");
-  assert.deepEqual(badgeParts(after.querySelectorAll("[data-edit-file]")[1].children[0]), badgeHtmlParts("1762_c.jpg"), "the cover: the badge file-risk.js draws");
+  assert.deepEqual(badgeParts(after.querySelectorAll("[data-edit-file]")[1].children[0]), badgeHtmlParts("cover.jpg"), "the cover: the badge file-risk.js draws");
+});
+
+// ── 14 to 17. Rename and Use as cover in Edit (2026-10-17) ──────────────
+//
+// The operator: "Can we allow renaming of files in the edit window? Also, I uploaded a png with the
+// blend and STL files but, I can't seem to assign it as the preview photo." The desktop's Edit window
+// is the original (src/gui/pages/media/edit.rs draw_files; its words RENAME, RENAME_TIP, SAVE_NAME,
+// USE_AS_COVER, USE_AS_COVER_TIP, and item_view.rs FILE_RENAMED, COVER_CHOSEN), the relay's routes
+// src/relay/media_edit.rs files_rename and files_cover.
+
+/**
+ * The operator's kind of item: a Blender file, with its STL, a PNG and a tarball added (the STL's
+ * own name in capitals), and the fixture's cover.
+ */
+function partsItem(over) {
+  return fxItem(Object.assign({
+    kind: "model", url: "/uploads/1760_cap.blend", filename: "1760_cap.blend", original_name: "cap.blend", size_bytes: 5000, file_count: 4,
+    files: [
+      { file: 0, filename: "1760_cap.blend", original_name: "cap.blend", kind: "model", size_bytes: 5000, url: "/uploads/1760_cap.blend" },
+      { file: 1, filename: "1761_cap.stl", original_name: "Cap.STL", kind: "model", size_bytes: 3000, url: "/uploads/1761_cap.stl" },
+      { file: 3, filename: "1763_photo.png", original_name: "photo.png", kind: "picture", size_bytes: 2000, url: "/uploads/1763_photo.png" },
+      { file: 4, filename: "1764_src.tar.gz", original_name: "src.tar.gz", kind: "file", size_bytes: 1000, url: "/uploads/1764_src.tar.gz" },
+    ],
+  }, over || {}));
+}
+const mineParts = () => partsItem({ uploader_key: ME, uploader_name: "Me" });
+/** The page with `it` open and its Edit form open; `routes` answer first. */
+async function openEditOf(it, o) {
+  const opts = o || {};
+  const p = await openPage(Object.assign({ routes: listRoutes(answerOf([it]), opts.routes || []) }, opts.session ? { session: opts.session } : {}));
+  p.page.openViewer(p.page.state.items[0]);
+  byId(p.doc, "media-item-edit-open").click();
+  assert.ok(byId(p.doc, "media-edit"), "test setup: Edit is open");
+  return p;
+}
+const filesBox = (doc) => byId(doc, "media-edit-files");
+const renameButtons = (doc) => filesBox(doc).querySelectorAll("[data-rename-file]");
+const renameOf = (doc, n) => renameButtons(doc).find((b) => b.dataset.renameFile === String(n));
+const boxes = (doc) => filesBox(doc).querySelectorAll("[data-rename-input]");
+const renamingRow = (doc, n) => filesBox(doc).querySelectorAll("[data-renaming]").find((r) => r.dataset.renaming === String(n));
+const coverButtons = (doc) => filesBox(doc).querySelectorAll("[data-use-as-cover]");
+const typeInto = (el, v) => { el.value = v; el.dispatch("input"); };
+const statusLine = (doc) => text(byId(doc, "media-item-status"));
+/** BLAKE3 by another implementation than the page's: the vendored noble bundle (held to the Rust crate by scripts/pq-kat.mjs), from the real web/. */
+let NOBLE = null;
+async function nobleBlake3Hex(bytes) {
+  if (!NOBLE) {
+    const src = fs.readFileSync(path.join(ROOT, "web", "shared", "vendor", "noble-pq.bundle.js"));
+    NOBLE = await import("data:text/javascript;base64," + Buffer.from(src).toString("base64"));
+  }
+  return Buffer.from(NOBLE.blake3.create({ dkLen: 32 }).update(bytes).digest()).toString("hex");
+}
+
+// Every row of the Files part has Rename, the item's own file and the cover included, in the
+// desktop's words; pressed, the row becomes its badge, a box holding the name without its ending
+// (the stored file's ending, so "Cap.STL" over "1761_cap.stl" is "Cap"; a tarball's is "tar.gz"), the
+// ending right after it, fixed, then Save name and Cancel; one row at a time; an upload moving on
+// (which draws the part again) keeps what was typed; an admin's Edit renames too (the relay lets the
+// uploader or an admin).
+// Seen red 2026-10-17, each check by one break in a copy of web/pages/media-edit.js through
+// HOS_WEB_DIR: Rename left off the item's own row: "every row: the item's own file, each added file
+// and the cover" (['1','3','4','2']); RENAME_TIP's words changed: "the desktop's words"; the
+// renaming row unmarked: "Rename turns its row into the box"; the badge left out of it: "its badge
+// stays first"; stemOf answering the whole name: "the box holds the name without its ending"
+// ('cap.blend'); the ending's span left out: "the ending after it, fixed" (null); the ending put
+// before the box: "right after the box" (1 against 3); SAVE_NAME's word changed: "then Save name
+// and Cancel"; every row a box once one renames (`if (f.renaming)`): "the other rows keep their
+// Rename" (0 against 4); a second Rename keeping the first box (`f.renaming = f.renaming || ...`)
+// and stemOf matching the ending's case: "one row at a time" ([['0','cap']], then [['1','Cap.STL']]);
+// the box's input not kept: "an upload moving on keeps what was typed" (['Cap']); storedEnding
+// taking only the last part: "a tarball's ending is tar.gz" (['src.tar'], '.gz'); the cover never
+// made a box: "the cover too" ([], null); Cancel leaving the box: "Cancel puts the row back" ([1, 4]);
+// Rename only for the uploader: "an admin's Edit ... has Rename on every row too" (0).
+test("14. every file row in Edit has Rename; its box holds the name without its ending, the ending after it, one row at a time", async () => {
+  const { doc, page } = await openEditOf(mineParts());
+  assert.deepEqual(renameButtons(doc).map((b) => b.dataset.renameFile), ["0", "1", "3", "4", "2"], "every row: the item's own file, each added file and the cover");
+  assert.deepEqual([...new Set(renameButtons(doc).map((b) => text(b) + " / " + b.title))], ["Rename / Change the name people see and download it as. Its ending stays."], "the desktop's words");
+
+  renameOf(doc, 0).click();
+  const row0 = renamingRow(doc, 0);
+  assert.ok(row0, "Rename turns its row into the box");
+  assert.ok(row0.children[0].className.startsWith("file-badge"), "its badge stays first");
+  const box0 = row0.querySelector("[data-rename-input]");
+  assert.deepEqual([box0.tagName, box0.type, box0.value], ["INPUT", "text", "cap"], "the box holds the name without its ending");
+  const ending0 = row0.querySelector("[data-rename-ending]");
+  assert.equal(text(ending0), ".blend", "the ending after it, fixed");
+  assert.equal(row0.children.indexOf(ending0), row0.children.indexOf(box0) + 1, "right after the box");
+  assert.deepEqual(row0.querySelectorAll("button").map(text), ["Save name", "Cancel"], "then Save name and Cancel");
+  assert.equal(renameButtons(doc).length, 4, "the other rows keep their Rename");
+
+  renameOf(doc, 1).click();
+  assert.deepEqual(boxes(doc).map((b) => [b.dataset.renameInput, b.value]), [["1", "Cap"]], "one row at a time: the STL's now, its ending matched whatever its case");
+  typeInto(boxes(doc)[0], "Cap, printed");
+  page.itemView.uploadsChanged();
+  assert.deepEqual(boxes(doc).map((b) => b.value), ["Cap, printed"], "an upload moving on keeps what was typed");
+
+  renameOf(doc, 4).click();
+  assert.deepEqual([boxes(doc).map((b) => b.value), text(renamingRow(doc, 4).querySelector("[data-rename-ending]"))], [["src"], ".tar.gz"], "a tarball's ending is tar.gz");
+  renameOf(doc, 2).click();
+  assert.deepEqual([boxes(doc).map((b) => b.value), (renamingRow(doc, 2) ? text(renamingRow(doc, 2).querySelector("[data-rename-ending]")) : null)], [["cover"], ".jpg"], "the cover too");
+  renamingRow(doc, 2).querySelector("[data-cancel-rename]").click();
+  assert.deepEqual([boxes(doc).length, renameButtons(doc).length], [0, 5], "Cancel puts the row back");
+
+  const adm = await openEditOf(partsItem(), { session: fakeSession({ role: "admin" }) });
+  assert.equal(renameButtons(adm.doc).length, 5, "an admin's Edit of someone else's item has Rename on every row too");
+});
+
+// Save name sends POST /api/media/files/rename with the item's number and own stored name, the
+// file's number and ITS stored name, and the box's text trimmed with "." and the ending put back;
+// it is signed over media_file_rename:<id>:<file>:<BLAKE3 hex of that name's UTF-8 bytes>, checked
+// here against another BLAKE3 than the page's (a name with letters outside ASCII, so a hash over
+// anything but its UTF-8 bytes fails). Answered, the item is the answer's and the page says
+// "Renamed."; Enter in the box saves too, here on the item's own file.
+// Seen red 2026-10-17, each check by one break in a copy of web/pages/media-edit.js through
+// HOS_WEB_DIR: a press sending twice (the busy check gone, the click calling saveName twice): "one
+// request for one press" (2); file_name read off the wrong field: "the item's number and own stored
+// name, the file's number and its stored name" (undefined); nameWithEnding leaving the ending off:
+// "the name with its ending put back, trimmed" ('Dragon egg cap, été'); renamePurpose hashing each
+// character's code as one byte, not UTF-8: "signed over the BLAKE3 of the name exactly as sent"
+// (8391958b... against 42f528da...); the status saying the remove's words: "the page says Renamed.";
+// the box left open on success: "the box closes" (1); the answer's item not taken: "the answer's item
+// is the page's" ('Cap.STL, 3 KB'); the keydown listener gone: "Enter in the box saves too" (1
+// against 2); storedOf giving the item's own file no stored name: "the item's own file, by its own
+// stored name..." (file_name '', name 'Dragon egg').
+test("15. Save name sends the name with its ending put back, signed over the BLAKE3 of the name as sent; then Renamed.", async () => {
+  const mine = mineParts();
+  const renamed = (file, to) => Object.assign({}, mine, file === 0 ? { original_name: to } : {}, {
+    files: mine.files.map((x) => (x.file === file ? Object.assign({}, x, { original_name: to }) : x)),
+  });
+  const { doc, net } = await openEditOf(mine, { routes: [
+    [at("/api/media/files/rename", "POST"), (c) => respond(200, { ok: true, item: renamed(c.body.file, c.body.name) })],
+  ] });
+  renameOf(doc, 1).click();
+  typeInto(boxes(doc)[0], "  Dragon egg cap, été  ");
+  renamingRow(doc, 1).querySelector("[data-save-name]").click();
+  await settle();
+  const sent = () => net.calls.filter((c) => c.url === "/api/media/files/rename");
+  assert.equal(sent().length, 1, "one request for one press");
+  const b = sent()[0].body;
+  assert.deepEqual([b.id, b.filename, b.file, b.file_name], [1, "1760_cap.blend", 1, "1761_cap.stl"], "the item's number and own stored name, the file's number and its stored name");
+  assert.equal(b.name, "Dragon egg cap, été.stl", "the name with its ending put back, trimmed");
+  assert.equal(b.sig, "sig:media_file_rename:1:1:" + await nobleBlake3Hex(new TextEncoder().encode(b.name)), "signed over the BLAKE3 of the name exactly as sent");
+  assert.equal(statusLine(doc), "Renamed.", "the page says Renamed.");
+  assert.equal(boxes(doc).length, 0, "the box closes");
+  const named = filesBox(doc).querySelectorAll("[data-edit-file]").find((r) => r.dataset.editFile === "1");
+  assert.equal(text(named.querySelector(".media-item-file-name")), "Dragon egg cap, été.stl, 3 KB", "the answer's item is the page's");
+
+  // Enter in the box saves too: the item's own file this time.
+  renameOf(doc, 0).click();
+  typeInto(boxes(doc)[0], "Dragon egg");
+  boxes(doc)[0].dispatch("keydown", { key: "Enter" });
+  await settle();
+  assert.equal(sent().length, 2, "Enter in the box saves too");
+  const b0 = sent()[1].body;
+  assert.deepEqual(
+    [b0.file, b0.file_name, b0.name, b0.sig, text(filesBox(doc).children[0].children[1])],
+    [0, "1760_cap.blend", "Dragon egg.blend", "sig:media_file_rename:1:0:" + await nobleBlake3Hex(new TextEncoder().encode("Dragon egg.blend")), ED.firstFileWords("Dragon egg.blend")],
+    "the item's own file, by its own stored name, its ending put back; its row says its new name",
+  );
+});
+
+// "Use as cover" is the uploader's, on a picture already on the item, never on the item's own file
+// (a picture or not) or on the cover there now, in the desktop's words. Pressed, it sends POST
+// /api/media/files/cover signed over media_file_cover:<id>:<file>; answered, the picture is the
+// cover, the old cover one of the files (with Use as cover now), and the page says "That picture is
+// the cover now." An admin's Edit of someone else's item has none.
+// Seen red 2026-10-17, each check by one break in a copy of web/pages/media-edit.js through
+// HOS_WEB_DIR: the picture check gone: "only the PNG" (['1','3','4']); USE_AS_COVER_TIP's words
+// changed: "the desktop's words"; the purpose naming the stored name, not the number: "one request,
+// signed over media_file_cover:1:3" ('sig:media_file_cover:1:1763_photo.png'); the status saying
+// "Renamed.": "the page says so"; the answer's item not taken: "the answer's item: the picture the
+// cover..." (the old rows, ['3']); Use as cover on the item's own picture: "not on the item's own
+// picture, the zip or the cover" (['0']); the uploader check gone: "an admin's Edit has none" (['3']).
+test("16. Use as cover is on a picture that is not the cover, for the uploader; it makes it the cover", async () => {
+  const mine = mineParts();
+  // The relay's answer: the PNG the cover, keeping its own name (src/relay/media.rs item_json writes
+  // the cover as it writes its files), the old cover one of the files.
+  const swapped = Object.assign({}, mine, {
+    cover: { file: 3, filename: "1763_photo.png", original_name: "photo.png", kind: "picture", size_bytes: 2000, url: "/uploads/1763_photo.png" },
+    files: mine.files.filter((x) => x.file !== 3).concat([{ file: 2, filename: "1762_c.jpg", original_name: "", kind: "picture", size_bytes: 4642, url: "/uploads/1762_c.jpg" }]),
+  });
+  const { doc, net } = await openEditOf(mine, { routes: [[at("/api/media/files/cover", "POST"), () => respond(200, { ok: true, item: swapped })]] });
+  assert.deepEqual(coverButtons(doc).map((b) => b.dataset.useAsCover), ["3"], "only the PNG: not the Blender file, the STL, the tarball or the cover");
+  const use = coverButtons(doc)[0];
+  assert.deepEqual([text(use), use.title], ["Use as cover", "Show this picture on the item's card and page. The cover there now becomes one of its files."], "the desktop's words");
+  use.click();
+  await settle();
+  const sent = net.calls.filter((c) => c.url === "/api/media/files/cover").map((c) => [c.body.id, c.body.filename, c.body.file, c.body.file_name, c.body.sig]);
+  assert.deepEqual(sent, [[1, "1760_cap.blend", 3, "1763_photo.png", "sig:media_file_cover:1:3"]], "one request, signed over media_file_cover:1:3");
+  assert.equal(statusLine(doc), "That picture is the cover now.", "the page says so");
+  assert.deepEqual(
+    [filesBox(doc).querySelectorAll(".media-item-file-name").map(text), coverButtons(doc).map((b) => b.dataset.useAsCover)],
+    [["Cap.STL, 3 KB", "src.tar.gz, 1000 bytes", "1762_c.jpg, 5 KB", "photo.png, cover picture, 2 KB"], ["2"]],
+    "the answer's item: the picture the cover, the old cover one of its files, and may be the cover again",
+  );
+
+  // A picture as the item's own file: never on it (it is the item itself), nor on the cover.
+  const pic = await openEditOf(fxItem({ uploader_key: ME, uploader_name: "Me" }));
+  assert.deepEqual(coverButtons(pic.doc).map((b) => b.dataset.useAsCover), [], "not on the item's own picture, the zip or the cover");
+  const adm = await openEditOf(partsItem(), { session: fakeSession({ role: "admin" }) });
+  assert.deepEqual(coverButtons(adm.doc).map((b) => b.dataset.useAsCover), [], "an admin's Edit has none (only the uploader chooses the cover)");
+});
+
+// Refused, a rename or a Use as cover shows the relay's own words in the Edit window's problem line
+// (#media-edit-problem, as Save's refusals do), nothing is said to be done, and a refused rename
+// keeps its box open with what was typed, to be put right; either may be pressed again.
+// Seen red 2026-10-17, each check by one break in a copy of web/pages/media-edit.js through
+// HOS_WEB_DIR: saveName's refusal said on the status line: "the relay's words in the problem line"
+// (''); the box closed on a refusal: "the box stays with what was typed" ([]); the busy flag kept
+// after a refused rename: "and may be saved again" (disabled); "Renamed." said before the answer:
+// "nothing is said to be renamed"; useAsCover's refusal said on the status line: "a refused cover:
+// its words in the problem line" (the rename's words still there); the cover said before the answer:
+// "nothing is said to be the cover"; the busy flag kept after a refused cover: "Use as cover may be
+// pressed again" ([true]). The setup check (".png" sent) went red under the ending and input breaks.
+test("17. a refused rename or cover shows the relay's words in Edit's problem line, and a refused rename keeps its box", async () => {
+  const { doc, net } = await openEditOf(mineParts(), { routes: [
+    [at("/api/media/files/rename", "POST"), () => respond(400, "A file needs a name before its ending.")],
+    [at("/api/media/files/cover", "POST"), () => respond(409, "That is not the Media item you were looking at: the page is out of date. Load it again.")],
+  ] });
+  renameOf(doc, 3).click();
+  typeInto(boxes(doc)[0], "   ");
+  renamingRow(doc, 3).querySelector("[data-save-name]").click();
+  await settle();
+  const sent = net.calls.filter((c) => c.url === "/api/media/files/rename");
+  assert.deepEqual(sent.map((c) => c.body.name), [".png"], "test setup: the empty name went, with its ending");
+  assert.equal(text(byId(doc, "media-edit-problem")), "A file needs a name before its ending.", "the relay's words in the problem line");
+  assert.deepEqual(boxes(doc).map((b) => b.value), ["   "], "the box stays with what was typed");
+  assert.equal(renamingRow(doc, 3).querySelector("[data-save-name]").disabled, false, "and may be saved again");
+  assert.notEqual(statusLine(doc), "Renamed.", "nothing is said to be renamed");
+
+  renamingRow(doc, 3).querySelector("[data-cancel-rename]").click();
+  coverButtons(doc)[0].click();
+  await settle();
+  assert.equal(text(byId(doc, "media-edit-problem")), "That is not the Media item you were looking at: the page is out of date. Load it again.", "a refused cover: its words in the problem line");
+  assert.notEqual(statusLine(doc), "That picture is the cover now.", "nothing is said to be the cover");
+  assert.deepEqual(coverButtons(doc).map((b) => b.disabled), [false], "Use as cover may be pressed again");
 });

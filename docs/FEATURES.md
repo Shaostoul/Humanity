@@ -407,6 +407,37 @@ Upload button wears the nav bar's animated border. Native `src/gui/drop_files.rs
 (`post_in`), `widgets/tint_section.rs` (`rgb_border`); the upload record keeps `post_to`, so a
 post survives a restart mid-upload. Web: `web/shared/drop-overlay.js`, the Media page, the item
 editor, Shared Files (which gained its own Upload a file) and the chat.
+**A Media item posted in chat is a card (v0.1512.0).** Add to Media's "Also post in chat" posts the
+item's own address (`{server}/media/{id}`); both apps show a message holding one (of the server the
+message came through) as a card, the address taken out of its words. It starts as one line (a
+triangle to open it out, its type's badge, its title, "N files, SIZE", Open) and opens out to its
+cover or picture (under the Media page's picture rules), who put it there, its description and every
+file with its type and size, so people know what they are downloading. The title, the picture and
+Open bring up the item's full window over the chat, with a Download per file. Native
+`src/gui/pages/media/chat_card.rs` (`item_links`, `views`, `draw_all`, `apply`, `Job::Card`),
+`media::draw_item_window`; web `web/chat/chat-media-card.js` (the Media page's item view framed over
+the chat). Media sizes now read as the website's do: KB and bytes for small files, never "0 MB".
+Snapshot: `tests/snapshots/chat_media_card.png`. With the protected setup on, a card's picture is
+left out when the person who posted the link is not a friend, whoever put the item there. Only a
+whole address is taken out of the words (a line without one keeps its spacing), and a stranger's DM
+keeps its Media link held like any other link until the person presses Open.
+**A file's name cannot hide what it is (v0.1512.0).** Both apps show and judge a file name with its
+direction marks taken out (a right-to-left override made `photo<RLO>gnp.exe` read "photoexe.png",
+and a mark after ".exe" hid the ending from the check), `src/net/file_risk.rs` `plain_name` and
+`web/shared/file-risk.js` `plainName`, held to the shared `plain_names` in
+`scripts/tests/fixtures/file-risk-cases.json`; the relay refuses a new name holding one. A saved
+name past 80 letters is shortened before its ending, never through it, and Media shows each file's
+real name (Download saves the safe one).
+**Rename a file, and choose a picture already on an item as its cover (v0.1512.0).** In an item's
+Edit window every file has Rename (the item's own file too): a box holding the name without its
+ending, the ending shown fixed after it, so a rename can never turn a model into something else.
+Picture files on the item (png, jpg, gif, webp) have "Use as cover" for the uploader; the cover
+there before becomes one of its files, nothing is deleted. Relay `POST /api/media/files/rename`
+(purpose `media_file_rename:{id}:{file}:{BLAKE3 of the name}`; uploader or admin; the stored file's
+ending is put back by `shown_name_for`) and `POST /api/media/files/cover` (`media_file_cover:{id}:{file}`,
+uploader only) in `src/relay/media_edit.rs`, storage `rename_media_file` / `cover_from_file` in
+`src/relay/storage/media_files.rs`; native `src/gui/pages/media/edit.rs` (`draw_files`), web
+`web/pages/media-edit.js`.
 **The file picker's views (v0.1511.0).** List (a badge per row, folders with a folder drawing),
 Details (type, name, size, date changed; a click on a heading sorts, a second reverses; folders
 first) and Pictures (1 to 8 across with a slider: a picture's own preview, read and shrunk on

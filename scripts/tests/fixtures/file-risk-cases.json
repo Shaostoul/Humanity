@@ -1,4 +1,12 @@
 {
+  "_plain_doc": "plain_names: a name as it came, and as both apps show and judge it (src/net/file_risk.rs plain_name, web/shared/file-risk.js plainName): direction marks taken out (a right-to-left override shows photo<RLO>gnp.exe as photoexe.png), other control characters made spaces, trimmed.",
+  "plain_names": [
+    ["photo\u202Egnp.exe", "photognp.exe"],
+    ["evil.exe\u200F", "evil.exe"],
+    ["a\u2066b\u2069c\u061C.txt", "abc.txt"],
+    ["two\u0007words\u0085.zip", "two words .zip"],
+    ["  Ann's poi (v2).blend ", "Ann's poi (v2).blend"]
+  ],
   "_doc": "Cases both apps' file checks must agree on (data/safety/file_risks.json; src/net/file_risk.rs tests and scripts/tests/file-risk-web.test.js). `head` is the file's first bytes in hex (empty: not known). `kind` null: no word of caution. `words`, when given, is the exact text. `type` and `level` are the file's badge (file_type / fileType): every file has one.",
   "cases": [
     {"name": "setup.exe", "head": "", "kind": "program", "disguised": false, "words": "This is a program (.exe). A program can do anything on your computer, like stealing your passwords or locking your files until you pay. Only open it if you trust the person who sent it, and check it with your antivirus first.", "type": "program", "level": "danger"},
@@ -24,6 +32,9 @@
     {"name": "report.docx", "head": "504b030414000600", "kind": null, "disguised": false, "type": "document", "level": "view"},
     {"name": "old budget.xls", "head": "d0cf11e0a1b11ae1", "kind": "macro_document", "disguised": false, "type": "macro_document", "level": "care"},
     {"name": "README", "head": "", "kind": null, "disguised": false, "type": "unknown", "level": "unknown"},
-    {"name": "Lecture.PDF", "head": "255044462d", "kind": null, "disguised": false, "type": "pdf", "level": "view"}
+    {"name": "Lecture.PDF", "head": "255044462d", "kind": null, "disguised": false, "type": "pdf", "level": "view"},
+    {"name": "photo\u202Egnp.exe", "head": "", "kind": "program", "disguised": false, "type": "program", "level": "danger"},
+    {"name": "evil.exe\u200F", "head": "", "kind": "program", "disguised": false, "type": "program", "level": "danger"},
+    {"name": "tidy up.ps1\u2069", "head": "", "kind": "script", "disguised": false, "type": "script", "level": "danger"}
   ]
 }

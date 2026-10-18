@@ -285,6 +285,19 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
   person's own ffmpeg libraries at run time; the Microsoft Store only for H.265 on Windows). Its
   open check: whether Cisco's OpenH264 now decodes Main and High (its README and its release notes
   disagree), which decides how soft the Linux sentence can be on Fedora.
+- DONE v0.1512.0: **a Media item posted in chat is a card** (operator, 2026-10-17: "I'd rather people
+  know exactly what they're downloading instead of guessing"): one line that opens out to its
+  picture, description and every file, and its full window on a click. Posts made before this
+  linked one file and stay as they are.
+- DONE v0.1512.0: **rename a file of a Media item, and use a picture already on it as its cover**
+  (operator, 2026-10-17: "I uploaded a png with the blend and STL files but, I can't seem to assign
+  it as the preview photo"). The ending stays fixed on a rename.
+- Media card follow-ups (review, 2026-10-17, small): the desktop card shows a content label by its
+  id until the Media page has loaded its labels; the thread panel shows an item's address as a plain
+  link, no card; a members-only item opened from a card in the website's framed window cannot sign
+  in when the identity is passphrase-wrapped (the known Inc5c-tail gap); with the protected setup
+  on, a non-friend's message holding a bare word like "render.png" withholds its card on the
+  desktop (loose picture matcher) but not on the website.
 - DONE v0.1511.0: **drag and drop onto the window, the upload window that posts in chat, and the
   picker's List / Details / Pictures views** (operator, 2026-10-17). Follow-ups: the web chat page
   gets the same upload window as the Media page (being built), video previews in the Pictures view

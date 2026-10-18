@@ -351,6 +351,14 @@ function listRoutes(answer, more) {
 async function openPage(opts) {
   const o = opts || {};
   const doc = fakeDocument();
+  // o.keys: the document keeps its keydown listeners, in the order they were added, and
+  // doc.key(name) presses a key (2026-10-17: Escape over a confirmation, media-card-web.test.js).
+  if (o.keys) {
+    let keys = [];
+    doc.addEventListener = (t, f) => { if (t === "keydown") keys.push(f); };
+    doc.removeEventListener = (t, f) => { if (t === "keydown") keys = keys.filter((x) => x !== f); };
+    doc.key = (key) => { for (const f of keys.slice()) f({ key, preventDefault() {}, stopPropagation() {} }); };
+  }
   const root = doc.createElement("div");
   root.id = "media-root";
   doc.body.appendChild(root);
@@ -404,6 +412,9 @@ async function openPage(opts) {
     // page it is over (post-in-chat-web.test.js; none by default: the Media page as usual).
     phraseIn: o.phraseIn || null,
     uploadWindow: o.uploadWindow || null,
+    // The item window's connector (2026-10-17, a Media card's Open in the chat:
+    // media-card-web.test.js; none by default).
+    itemWindow: o.itemWindow || null,
   });
   ctx.page = page;
   await page.start();

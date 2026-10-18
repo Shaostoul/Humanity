@@ -11,7 +11,7 @@ use super::*;
 use crate::relay::core::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
 use crate::relay::media::{file_from, publish_core, remove_core, visibility_core, PublishBody, RemoveTarget, TokenQuery, UPLOAD_TOKEN_HEADER};
 use crate::relay::media_licences::{parse_licences, NOT_FOR_GAME, NOT_OFFERED};
-use crate::relay::storage::media::{MediaItem, ITEM_FILES_MAX, MEDIA_SHELF, OUT_OF_DATE};
+use crate::relay::storage::media::{shown_name_for, MediaItem, ITEM_FILES_MAX, MEDIA_SHELF, OUT_OF_DATE};
 
 /// A person: their key (the Dilithium public key in hex) and the key pair that signs for them.
 struct Person {
@@ -605,4 +605,125 @@ async fn the_members_route_serves_file_n_to_a_member() {
     assert_eq!(get(Some(0), "tok_bea").await.0, 200);
     assert_eq!(get(Some(n + 100), "tok_bea").await.0, 404, "a number the item does not have");
     assert_eq!(get(Some(n), "tok_cal").await.0, 403, "not a member");
+}
+
+/// `key` renames file `file` (stored as `name`) of `item` to `to`, through the route's core.
+fn rename(db: &Storage, key: &str, item: &MediaItem, file: i64, name: &str, to: &str) -> Answer {
+    let b = FileRenameBody { key: key.into(), id: item.id, filename: item.upload_filename.clone(), file, file_name: name.into(), name: to.into(), ..Default::default() };
+    files_rename_core(db, &b)
+}
+
+/// `key` makes file `file` (stored as `name`) `item`'s cover, through the route's core.
+fn cover(db: &Storage, key: &str, item: &MediaItem, file: i64, name: &str) -> Answer {
+    let b = FileCoverBody { key: key.into(), id: item.id, filename: item.upload_filename.clone(), file, file_name: name.into(), ..Default::default() };
+    files_cover_core(db, &b)
+}
+
+/// A FILE IS RENAMED, AND KEEPS ITS OWN ENDING (operator, 2026-10-17: "Can we allow renaming of
+/// files in the edit window?"): the uploader renames an added file and the item's own; a name left
+/// without its ending gets it back, and a Blender file named like a picture keeps ".blend" after it;
+/// an admin may rename, anyone else may not; an empty name, a slash, a hidden direction mark, a
+/// name of only its ending, an out-of-date file name (W5) are refused; the stored file is
+/// untouched. Seen red 2026-10-17 with the ending rule left out: "its ending put back" (the name
+/// came back as "Wick textures"); and with direction marks let through: "expected a refusal" (the
+/// item's own file came back named "photo\u{202e}gnp.blend").
+#[test]
+fn a_file_is_renamed_and_keeps_its_own_ending() {
+    let state = relay("me_rename");
+    let d = dirs("me_rename");
+    let db = &state.db;
+    db.join_server("ann", "Ann").unwrap();
+    db.join_server("bob", "Bob").unwrap();
+    db.set_role("root", "admin").unwrap();
+    let item = published(db, &d, "ann", "1_cap.blend", "public");
+    waiting(db, &d, "ann", "2_textures.zip", b"x");
+    add(db, &d, "ann", &item, "2_textures.zip", "file").expect("added");
+    let file_no = db.media_item(item.id).unwrap().unwrap().files[0].file;
+
+    let r = rename(db, "ann", &item, file_no, "2_textures.zip", "Wick textures").expect("renamed").0;
+    let shown = r["item"]["files"].as_array().unwrap().iter().find(|f| f["filename"] == "2_textures.zip").map(|f| f["original_name"].clone());
+    assert_eq!(shown, Some(serde_json::json!("Wick textures.zip")), "its ending put back");
+    let r = rename(db, "ann", &item, 0, "1_cap.blend", "Dragon egg cap.png").expect("the item's own file renamed").0;
+    assert_eq!(r["item"]["original_name"], "Dragon egg cap.png.blend", "a Blender file named like a picture stays a Blender file");
+    rename(db, "root", &item, 0, "1_cap.blend", "Cap").expect("an admin may rename");
+    assert_eq!(words(rename(db, "bob", &item, 0, "1_cap.blend", "Mine")).0, StatusCode::FORBIDDEN, "someone else may not");
+    for (bad, why) in [("   ", "A file needs a name."), ("a/b", "A file's name cannot hold a slash or a hidden character."), ("photo\u{202E}gnp", "A file's name cannot hold a slash or a hidden character."), (".blend", "A file needs a name before its ending.")] {
+        assert_eq!(words(rename(db, "ann", &item, 0, "1_cap.blend", bad)), (StatusCode::BAD_REQUEST, why.to_string()), "{bad:?}");
+    }
+    assert_eq!(words(rename(db, "ann", &item, 0, "9_other.blend", "X")).0, StatusCode::CONFLICT, "an out-of-date file name (W5)");
+    assert_eq!(words(rename(db, "ann", &item, 0, "1_cap.blend", &"a".repeat(130))).0, StatusCode::BAD_REQUEST, "too long");
+    assert!(d.spot("1_cap.blend").is_some(), "the stored file is untouched");
+    assert_eq!(shown_name_for("backup", "5_x.tar.gz").unwrap(), "backup.tar.gz");
+    assert_eq!(shown_name_for("Notes.ZIP", "6_n.zip").unwrap(), "Notes.ZIP");
+}
+
+/// A PICTURE ALREADY ON THE ITEM BECOMES ITS COVER (operator, 2026-10-17: "I uploaded a png with the
+/// blend and STL files but, I can't seem to assign it as the preview photo"): the PNG becomes the
+/// cover and leaves the files; a second picture made the cover sends the first back to the files,
+/// nothing deleted; an STL, the item's own file, the cover itself and someone else's choosing are
+/// refused. The cover keeps the name it was given, and a rename of it shows. Seen red 2026-10-17
+/// with the old cover deleted instead of kept: "the first cover is a file again"; and with the
+/// cover's JSON written without `original_name` (as it was): "the cover keeps its name" (left: Null).
+#[test]
+fn a_picture_already_on_the_item_becomes_its_cover() {
+    let state = relay("me_cover_from");
+    let d = dirs("me_cover_from");
+    let db = &state.db;
+    db.join_server("ann", "Ann").unwrap();
+    db.join_server("bob", "Bob").unwrap();
+    let item = published(db, &d, "ann", "1_cap.blend", "public");
+    for file in ["2_cap.stl", "3_photo.png", "4_side.jpg"] {
+        waiting(db, &d, "ann", file, b"x");
+        add(db, &d, "ann", &item, file, "file").expect("added");
+    }
+    let no = |name: &str| db.media_item(item.id).unwrap().unwrap().files.iter().chain(db.media_item(item.id).unwrap().unwrap().cover.iter()).find(|f| f.filename == name).map(|f| f.file).unwrap();
+    let r = cover(db, "ann", &item, no("3_photo.png"), "3_photo.png").expect("the PNG is the cover").0;
+    assert_eq!(r["item"]["cover"]["filename"], "3_photo.png");
+    assert!(!r["item"]["files"].as_array().unwrap().iter().any(|f| f["filename"] == "3_photo.png"), "and no longer one of its files");
+    let r = cover(db, "ann", &item, no("4_side.jpg"), "4_side.jpg").expect("another picture").0;
+    assert_eq!(r["item"]["cover"]["filename"], "4_side.jpg");
+    let files: Vec<&str> = r["item"]["files"].as_array().unwrap().iter().map(|f| f["filename"].as_str().unwrap()).collect();
+    assert!(files.contains(&"3_photo.png"), "the first cover is a file again: {files:?}");
+    assert!(d.spot("3_photo.png").is_some(), "nothing deleted");
+    assert_eq!(r["item"]["cover"]["original_name"], "own 4_side.jpg", "the cover keeps its name");
+    let r = rename(db, "ann", &item, no("4_side.jpg"), "4_side.jpg", "Side view").expect("the cover renamed").0;
+    assert_eq!(r["item"]["cover"]["original_name"], "Side view.jpg", "and its new name shows");
+    assert_eq!(words(cover(db, "ann", &item, no("2_cap.stl"), "2_cap.stl")), (StatusCode::BAD_REQUEST, "A cover must be a picture: PNG, JPEG, GIF or WebP.".to_string()));
+    assert_eq!(words(cover(db, "ann", &item, 0, "1_cap.blend")).0, StatusCode::BAD_REQUEST, "the item's own file");
+    assert_eq!(words(cover(db, "ann", &item, no("4_side.jpg"), "4_side.jpg")), (StatusCode::BAD_REQUEST, "That picture is the cover already.".to_string()));
+    assert_eq!(words(cover(db, "bob", &item, no("3_photo.png"), "3_photo.png")).0, StatusCode::FORBIDDEN, "someone else may not");
+}
+
+/// A RENAME'S SIGNATURE HOLDS THE NAME IT WAS SIGNED FOR, AND A COVER'S ITS FILE: Ann's app signs
+/// `media_file_rename:<id>:<file>:<BLAKE3 of the name>`; the same signature on another name is
+/// refused (401) and nothing changes; the name as signed goes. Her cover choice, signed for one
+/// file, does not choose another. Seen red 2026-10-17 with the name left out of the purpose: "the
+/// same signature on another name" was accepted.
+#[tokio::test]
+async fn a_renames_signature_holds_its_name_and_a_covers_its_file() {
+    let state = relay("me_rename_sig");
+    let d = dirs("me_rename_sig");
+    let ann = person(1);
+    state.db.join_server(&ann.key, "Ann").unwrap();
+    let item = published(&state.db, &d, &ann.key, "1_cap.blend", "public");
+    for file in ["2_a.png", "3_b.png"] {
+        waiting(&state.db, &d, &ann.key, file, b"x");
+        add(&state.db, &d, &ann.key, &item, file, "file").expect("added");
+    }
+    let files = state.db.media_item(item.id).unwrap().unwrap().files;
+    let (a, b) = (files[0].file, files[1].file);
+    let ts = now_ms();
+    let sig = ann.sign(&file_rename_purpose(item.id, 0, "Dragon egg cap"), ts);
+    let body = |name: &str| FileRenameBody { key: ann.key.clone(), timestamp: ts, sig: sig.clone(), id: item.id, filename: item.upload_filename.clone(), file: 0, file_name: "1_cap.blend".into(), name: name.into() };
+    assert_eq!(files_rename_in(&state, &body("Someone else's name")).await.map(|_| ()).map_err(|e| e.0.as_u16()), Err(401), "the same signature on another name");
+    assert_eq!(state.db.media_item(item.id).unwrap().unwrap().original_name, "own 1_cap.blend", "nothing changed");
+    let named = files_rename_in(&state, &body("Dragon egg cap")).await.map_err(|e| (e.0.as_u16(), e.1)).expect("the name as signed").0;
+    assert_eq!(named["item"]["original_name"], "Dragon egg cap.blend");
+
+    let ts = now_ms() + 1;
+    let sig = ann.sign(&file_cover_purpose(item.id, a), ts);
+    let cover_body = |file: i64, name: &str| FileCoverBody { key: ann.key.clone(), timestamp: ts, sig: sig.clone(), id: item.id, filename: item.upload_filename.clone(), file, file_name: name.into() };
+    assert_eq!(files_cover_in(&state, &cover_body(b, "3_b.png")).await.map(|_| ()).map_err(|e| e.0.as_u16()), Err(401), "a cover signed for one file does not choose another");
+    let chosen = files_cover_in(&state, &cover_body(a, "2_a.png")).await.map_err(|e| (e.0.as_u16(), e.1)).expect("the file as signed").0;
+    assert_eq!(chosen["item"]["cover"]["filename"], "2_a.png");
 }

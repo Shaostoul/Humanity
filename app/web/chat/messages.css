@@ -726,3 +726,29 @@
 .attach-step-file .attach-step-size { font-size: var(--text-sm); color: var(--text-muted); }
 .attach-step .tint-section p { margin: 4px 0; }
 .attach-step .tint-section ul { margin: 4px 0 4px 1.2em; }
+/* A Media item posted in chat (2026-10-17, chat-media-card.js; the desktop's media/chat_card.rs): a
+   card under the message's words that starts as one line (its triangle, its type's badge, its title,
+   how many files and how much, Open) and opens out to its picture, who put it there, its
+   description and every file it holds. Theme variables only. */
+.media-cards { display: flex; flex-direction: column; gap: var(--space-xs); margin: var(--space-xs) 0; white-space: normal; }
+.media-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-xs) var(--space-sm); max-width: 520px; font-size: var(--text-sm); min-width: 0; }
+.media-card-line { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-sm); min-width: 0; }
+.media-card-toggle { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; padding: 0; border: 0; background: transparent; cursor: pointer; }
+.media-card-triangle { width: 0; height: 0; border-top: 5px solid transparent; border-bottom: 5px solid transparent; border-left: 7px solid var(--text-secondary); transition: transform 0.15s; }
+.media-card.open .media-card-triangle { transform: rotate(90deg); }
+.media-card-title { padding: 0; border: 0; background: transparent; font: inherit; font-size: var(--text-base); font-weight: 700; color: var(--accent); cursor: pointer; text-align: left; overflow-wrap: anywhere; min-width: 0; }
+.media-card-title:hover { text-decoration: underline; }
+.media-card-count { color: var(--text-muted); }
+.media-card-btn { padding: 2px var(--space-sm); border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg); color: var(--text); font: inherit; font-size: var(--text-sm); cursor: pointer; }
+.media-card-btn:hover { border-color: var(--border-focus); background: var(--bg-hover); }
+.media-card-more { display: flex; flex-direction: column; gap: var(--space-xs); margin-top: var(--space-xs); }
+.media-card-picture { align-self: flex-start; padding: 0; border: 0; background: transparent; cursor: pointer; max-width: 100%; }
+.media-card-img { display: block; max-width: min(360px, 100%); max-height: 360px; border-radius: var(--radius-sm); }
+.media-card-ask { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-sm); }
+.media-card-by { color: var(--text-secondary); }
+.media-card-desc { color: var(--text); white-space: pre-wrap; overflow-wrap: anywhere; }
+.media-card-files { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.media-card-file { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+.media-card-file-name { color: var(--text); overflow-wrap: anywhere; min-width: 0; }
+.media-card-note { margin: 0; color: var(--text-muted); }
+.media-card-failed { color: var(--danger); }

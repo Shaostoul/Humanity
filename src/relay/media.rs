@@ -265,9 +265,9 @@ pub fn item_json(i: &MediaItem) -> Value {
     // File 0 is the item's own; then its added files, in their order (round 5).
     let own = ItemFile { file: 0, filename: i.upload_filename.clone(), original_name: i.original_name.clone(), kind: i.kind.clone(), size_bytes: i.size_bytes };
     let files: Vec<Value> = std::iter::once(&own).chain(i.files.iter()).map(|f| file_json(i, f)).collect();
-    let cover = i.cover.as_ref().map(|c| {
-        json!({ "file": c.file, "filename": c.filename, "kind": c.kind, "size_bytes": c.size_bytes, "url": file_url(i, c.file, &c.filename) })
-    });
+    // The cover as its files are, its uploader's own name for it included (2026-10-17: a picture
+    // made the cover from among its files, or a renamed cover, showed its stored name without it).
+    let cover = i.cover.as_ref().map(|c| file_json(i, c));
     json!({
         "id": i.id,
         "url": item_url(i),

@@ -285,7 +285,7 @@ fn a_file_over_the_share_is_stopped_before_it_starts() {
 
     add::picked(&mut state, &file);
     assert!(state.media.form.is_none() && state.media.uploads.is_empty(), "nothing is uploaded: an upload still arriving counts");
-    assert!(state.media.status.contains("This file is 0.3 MB, more than the 0.1 MB left of your share"), "it says why: {}", state.media.status);
+    assert!(state.media.status.contains("This file is 300 KB, more than the 124 KB left of your share"), "it says why: {}", state.media.status);
 
     // The form opened before the numbers were known; now they are, and too small.
     let form = add::Form::new(add::Source::Picked { path: file.to_path_buf(), name: "big.dat".into(), len: 300 * 1024 });
@@ -295,8 +295,8 @@ fn a_file_over_the_share_is_stopped_before_it_starts() {
     state.media.form = Some(form);
     state.private_key_bytes = Some(vec![7u8; 32]);
     let out = settled(&ctx, &theme, &mut state);
-    assert!(shows(&out, "You have 0.1 MB of your 1 MB left"), "the share is shown above the form");
-    assert!(shows(&out, "more than the 0.1 MB left of your share"), "the form says why it cannot go");
+    assert!(shows(&out, "You have 124 KB of your 1 MB left"), "the share is shown above the form");
+    assert!(shows(&out, "more than the 124 KB left of your share"), "the form says why it cannot go");
     click(&ctx, &theme, &mut state, "Upload and add to Media");
     assert!(state.media.uploads.is_empty(), "pressing it starts nothing");
 
@@ -748,17 +748,17 @@ fn texts_left_to_right(out: &egui::FullOutput, a: &str, b: &str) -> bool {
     ra.right() <= rb.left() && (ra.center().y - rb.center().y).abs() < ra.height()
 }
 
-/// WHAT IS POSTED, AND WHERE (2026-10-17): a public item's title, description and file address,
-/// which the chat shows as its picture or card; a members-only item's page instead; and a post for
-/// another server than the chat's is not made, and says so; nor is one while the chat is not
-/// connected (the chat's own send would echo it locally and report it sent). Seen red 2026-10-17
-/// with the address left out: "the file's address, last"; and, before the connection check, the
-/// offline post said "Posted in #general.".
+/// WHAT IS POSTED, AND WHERE (2026-10-17): the item's own address on the Media page, which both
+/// apps show as the item's card (media/chat_card.rs), members-only or not; a post for another
+/// server than the chat's is not made, and says so; nor is one while the chat is not connected (the
+/// chat's own send would echo it locally and report it sent). Seen red 2026-10-17 with the file's
+/// address posted instead (the card's first version): the item's own address was expected; and,
+/// before the connection check, the offline post said "Posted in #general.".
 #[test]
 fn what_is_posted_and_where() {
     use serde_json::json;
     let public = super::api::Item::from_json(&json!({"id": 7, "url": "/uploads/7_dusk.glb", "title": "Dusk", "description": "A walk at dusk.", "visibility": "public"})).unwrap();
-    assert_eq!(add::post_text(&public, "https://h.example"), "Dusk\nA walk at dusk.\n/uploads/7_dusk.glb", "the file's address, last");
+    assert_eq!(add::post_text(&public, "https://h.example"), "https://h.example/media/7", "the item's own address, which both apps show as its card");
     let members = super::api::Item::from_json(&json!({"id": 9, "url": "/api/media/file/9", "title": "", "description": "", "visibility": "members"})).unwrap();
     assert_eq!(add::post_text(&members, "https://h.example/"), "https://h.example/media/9", "a members-only item: its page");
 

@@ -86,7 +86,7 @@ pub use attach_step::FilesFlow;
 mod attach_view;
 /// Files posted into a public channel: a card with Download, and View in 3D for a model (2026-10-17).
 /// See `chat/public_files.rs`.
-mod public_files;
+pub(crate) mod public_files;
 pub(crate) use public_files::{draw_model_window, post_in};
 /// Device-to-device big files (answer 10): a row per transfer at the top of a DM. See `chat/transfer_rows.rs`.
 mod transfer_rows;
@@ -138,6 +138,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     }
     attach_step::draw(ctx, theme, state); // the picked file's attach step, until Send or Cancel
     attach_send::offer_drop(ctx, state); // files dropped on the window go here (gui/drop_files.rs)
+    crate::gui::pages::media::chat_card::apply(state); // what the Media cards asked last frame
     attach_send::next_queued(state); // then the next of several chosen together
 
     if std::mem::take(&mut state.pending_clipboard_paste) {
@@ -738,20 +739,15 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     // left out, one line instead (chat/protected.rs `withheld`).
                     let withheld = protected::withheld(state, msg);
                     let pictures_hidden = withheld.is_some();
-                    // Files posted into a public channel (a video, a song, a document, an archive,
-                    // a 3D model): a card each under the message, their bare addresses taken out of
-                    // its words (chat/public_files.rs, 2026-10-17).
-                    let public_files = if enc_att.is_some() || pictures_hidden {
-                        Vec::new()
-                    } else {
-                        public_files::files_in(&msg.content)
-                    };
+                    // Files posted into a public channel and Media items: a card each under the
+                    // message, their bare addresses taken out of its words (chat/public_files.rs).
+                    let posted = public_files::Posted::of(state, msg, enc_att.is_some() || pictures_hidden);
                     let display_text = if let Some(rest) = withheld {
                         rest
                     } else if enc_att.is_some() {
                         String::new()
                     } else {
-                        let text = if public_files.is_empty() { msg.content.clone() } else { crate::net::protected::strip_file_urls(&msg.content) };
+                        let text = posted.words_of(&msg.content);
                         if image_urls.is_empty() { text } else { crate::gui::widgets::image_cache::strip_image_urls(&text) }
                     };
                     // Inline markdown + link detection (v0.702, parity with web:
@@ -1439,8 +1435,11 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             }
                         }
                     }
-                    // Public files: a card each, with Download (chat/public_files.rs).
-                    public_files::draw_all(ui, theme, &mut state.image_cache, &mut state.chat_model_view, &public_files, &msg.server, &state.server_url, row_bg);
+                    // Public files and Media items: a card each (chat/public_files.rs, media/chat_card.rs).
+                    public_files::draw_all(ui, theme, &mut state.image_cache, &mut state.chat_model_view, &posted.files, &msg.server, &state.server_url, row_bg);
+                    let (cards, needs) = crate::gui::pages::media::chat_card::views(state, &msg.sender_key, msg.timestamp_ms, &posted.items);
+                    state.media.card_acts.extend(needs);
+                    crate::gui::pages::media::chat_card::draw_all(ui, theme, &cards, row_bg, &mut state.media.card_acts);
                     // A private file (10k): its picture inline, or a card with Save.
                     if let Some(ref att) = enc_att {
                         let plan = attach_view::plan(state, msg, att);

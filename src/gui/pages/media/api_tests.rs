@@ -258,6 +258,10 @@ fn the_words_say_what_they_mean() {
     let mine = Mine { used_bytes: 100 * MB, share_bytes: 512 * MB, budget_left_bytes: 40 * 1024 * MB, ..Default::default() };
     assert_eq!(share_line(&mine), "You have 412 MB of your 512 MB left");
     assert_eq!(size_words(1536 * 1024), "1.5 MB");
+    // A small file in KB or bytes, never "0 MB" (2026-10-17, as the website words it). Seen red the
+    // same day with the KB step left out: 4000 bytes said "4000 bytes".
+    assert_eq!((size_words(4000), size_words(300 * 1024), size_words(1), size_words(512)), ("4 KB".to_string(), "300 KB".to_string(), "1 byte".to_string(), "512 bytes".to_string()));
+    assert_eq!(size_words(150 * MB), "150 MB");
 
     assert_eq!(room_problem(10, Some(&mine)), None, "a file that fits goes");
     assert_eq!(room_problem(1 << 40, None), None, "unknown numbers stop nothing (the server checks them)");

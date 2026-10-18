@@ -33,7 +33,7 @@
   // channel controls when they're disabled."
   const POST_WORDS = Object.freeze({
     tick: 'Also post in chat',
-    tickTip: 'When it is up, its title, description and file are posted in this channel.',
+    tickTip: 'When it is up, a card for it is posted in this channel: its title, then its picture, description and every file when opened.',
     none: 'Also post in chat: this server has no channel to post in.',
     addFavorite: 'Add to favorites',
     removeFavorite: 'Remove from favorites',
@@ -94,21 +94,15 @@
     return out;
   }
   /**
-   * What "Also post in chat" posts for a published item (the desktop's post_text): its title and its
-   * description when it has them, then its file's address, each on its own line (the chat shows a
-   * picture in place, any other file as its card); for a members-only item, its page instead, which
-   * only members can open.
+   * What "Also post in chat" posts for a published item (the desktop's post_text, 2026-10-17): its
+   * own address on this server's Media page, `{origin}/media/{id}`, public and members-only alike.
+   * Both apps show it as the item's card (web/chat/chat-media-card.js): its title, how many files
+   * and how much, opening out to its picture, description and every file, and its full window on a
+   * click. The operator: "I'd rather people know exactly what they're downloading instead of
+   * guessing." A members-only item's page opens for members only.
    */
   function postText(item, origin) {
-    const lines = [];
-    const title = String((item && item.title) || '').trim();
-    const description = String((item && item.description) || '').trim();
-    if (title) lines.push(title);
-    if (description) lines.push(description);
-    lines.push(item && item.visibility === 'members'
-      ? String(origin || '').replace(/\/+$/, '') + '/media/' + item.id
-      : String((item && item.url) || ''));
-    return lines.join('\n');
+    return String(origin || '').replace(/\/+$/, '') + '/media/' + (item ? item.id : '');
   }
   /** "Posted in #general." and "Not posted in #general: why" (the desktop's words). */
   const postedIn = (name) => 'Posted in ' + name + '.';
@@ -117,13 +111,14 @@
   /**
    * The form, made by the Media page (media-app.js createMediaPage) with `c`: its state `st`, its
    * parts `els`, `h` and `doc`, its `env`, `session`, `myKey`, `upWin` (the upload window's
-   * connector, or null), `cleaner`, `later`, `cancelLater`, `now`, `Abort`, `itemView`; the page's
+   * connector, or null), `itemWin` (the item window's, or null: told only whether an upload is
+   * going, so it stays while an Edit's file goes up), `cleaner`, `later`, `cancelLater`, `now`, `Abort`, `itemView`; the page's
    * own functions it shares (canUpload, bound, token, sessionState, knownCannotUpload, isAdmin,
    * membersOnlyServer, loadMine, load, say, renderWaiting, sayCancelled); and `lib`, the page's
    * words and helpers (MEDIA_WORDS and the rest, named below).
    */
   function createAddForm(c) {
-    const { st, els, h, doc, env, session, myKey, upWin, cleaner, later, cancelLater, now, Abort, itemView } = c;
+    const { st, els, h, doc, env, session, myKey, upWin, itemWin, cleaner, later, cancelLater, now, Abort, itemView } = c;
     const { canUpload, bound, token, sessionState, knownCannotUpload, isAdmin, membersOnlyServer, loadMine, load, say, renderWaiting, sayCancelled } = c;
     const { MEDIA_WORDS, MORE_LEAD, ANSWER_WAIT_MS, DEFAULT_LICENCE, num, sizeWords, shareLeftWords, limitStop, shareStop, budgetStop,
       togetherStop, resetsWords, storedName, itemFileName, itemName, purposes, jsonPost, answerOf, findUpload, createUploader,
@@ -371,8 +366,8 @@
     }
 
     /**
-     * A just-published item's "Also post in chat" (the desktop's post_published): its title,
-     * description and file (postText) posted in `channel` as a chat message, signed with the person's
+     * A just-published item's "Also post in chat" (the desktop's post_published): its own address on
+     * this page (postText, which the chat shows as its card) posted in `channel` as a chat message, signed with the person's
      * identity over "content\ntimestamp" exactly as the chat signs one (crypto.js
      * pqSignChatMessage), on this page's own signed-in connection; the recovery-phrase guard first,
      * as for anything the chat sends (chat-warnings.js). Only ever one of this server's channels
@@ -470,11 +465,13 @@
     /** Tell the page this window is over whether something is going in it (it keeps it then). */
     let busyTold = null;
     function reportBusy() {
-      if (!upWin) return;
+      // The item window too: an Edit's file uploading keeps it (hidden) until it is up.
+      const win = upWin || itemWin;
+      if (!win) return;
       const busy = !!st.pending || !!(st.form && st.form.busy) || tails > 0 || st.uploads.some((u) => u.busy || uploadLive(u));
       if (busy === busyTold) return;
       busyTold = busy;
-      upWin.send('busy', { busy });
+      win.send('busy', { busy });
     }
 
     /** What the form is drawn from, so it is drawn again when that changes. */
@@ -912,7 +909,7 @@
           if (st.form === f) closeForm();
           if (st.uploads.includes(f)) dropUpload(f);
           say(MEDIA_WORDS.published);
-          // "Also post in chat" (2026-10-17): its title, description and file, in the channel.
+          // "Also post in chat" (2026-10-17): its own address on this page (its card), in the channel.
           if (f.postIn) {
             const words = await postPublished(answer, f.postIn);
             if (words) say((st.notice ? st.notice + ' ' : '') + words);

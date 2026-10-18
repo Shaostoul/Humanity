@@ -36,7 +36,7 @@ pub struct ItemFile {
     /// Its number on the item: 0 for the item's own file.
     pub file: i64,
     pub filename: String,
-    /// The uploader's own name for it ('' for a cover, which the server does not name).
+    /// The uploader's own name for it ('' when the server has none).
     pub original_name: String,
     /// `picture`, `video`, `model` or `file`.
     pub kind: String,
@@ -360,6 +360,33 @@ pub fn file_remove_request(signer: &Signer, item: &ItemRef, file: i64, file_name
     post("/api/media/files/remove", purpose.clone(), signer.signed(&purpose, body))
 }
 
+/// The purpose renaming file `file` of item `id` to `name` is signed over (relay/media_edit.rs
+/// `file_rename_purpose`): the name as its BLAKE3 hex, the name exactly as sent.
+pub fn file_rename_purpose(id: i64, file: i64, name: &str) -> String {
+    format!("media_file_rename:{id}:{file}:{}", blake3::hash(name.as_bytes()).to_hex())
+}
+
+/// `POST /api/media/files/rename` (2026-10-17): file `file` (0: the item's own) named `name`, named
+/// by its number and its own stored name (W5 for the file). The relay keeps the file's ending.
+pub fn file_rename_request(signer: &Signer, item: &ItemRef, file: i64, file_name: &str, name: &str) -> Request {
+    let purpose = file_rename_purpose(item.id, file, name);
+    let body = json!({ "id": item.id, "filename": bare_name(&item.filename), "file": file, "file_name": bare_name(file_name), "name": name });
+    post("/api/media/files/rename", purpose.clone(), signer.signed(&purpose, body))
+}
+
+/// The purpose making file `file` item `id`'s cover is signed over.
+pub fn file_cover_purpose(id: i64, file: i64) -> String {
+    format!("media_file_cover:{id}:{file}")
+}
+
+/// `POST /api/media/files/cover` (2026-10-17): picture file `file`, already on the item, made its
+/// cover; the old cover becomes one of its files.
+pub fn file_cover_request(signer: &Signer, item: &ItemRef, file: i64, file_name: &str) -> Request {
+    let purpose = file_cover_purpose(item.id, file);
+    let body = json!({ "id": item.id, "filename": bare_name(&item.filename), "file": file, "file_name": bare_name(file_name) });
+    post("/api/media/files/cover", purpose.clone(), signer.signed(&purpose, body))
+}
+
 /// `POST /api/media/viewed`: unsigned, the item's number alone (the session's upload token, needed
 /// only to count a members-only item, goes in the `X-Upload-Token` header where it is sent). The
 /// answer is always `{ok: true}`.
@@ -459,5 +486,25 @@ mod tests {
         let (_, _, relays) = crate::relay::media_edit::edit_request(body).expect("the relay reads the body");
         assert_eq!(Some(relays.as_str()), req.purpose.as_deref(), "the relay checks the same purpose for it");
         assert_eq!(ticket_request(&ItemRef { id: 1, filename: "1760_x.png".into() }, 1, true), json!({ "id": 1, "filename": "1760_x.png", "file": 1, "download": true }));
+    }
+
+    /// A RENAME'S AND A COVER'S PURPOSES ARE THE RELAY'S (2026-10-17): the relay reads each body
+    /// and rebuilds the same purpose from it, the new name's hash included, so a signature made
+    /// here is one it accepts. Seen red 2026-10-17 with the name left out of the desktop's purpose:
+    /// "the relay checks the same purpose for a rename" (left: "media_file_rename:7:1:<hash>").
+    #[test]
+    fn a_renames_and_a_covers_purposes_are_the_relays() {
+        let signer = Signer::new("a1".repeat(32).as_str(), &[7u8; 32]);
+        let item = ItemRef { id: 7, filename: "/uploads/7_dusk.glb".into() };
+        let rename = file_rename_request(&signer, &item, 1, "/uploads/8_textures.zip", "skin.zip");
+        let body: crate::relay::media_edit::FileRenameBody = serde_json::from_str(rename.body.as_deref().unwrap()).unwrap();
+        assert_eq!((body.id, body.filename.as_str(), body.file, body.file_name.as_str(), body.name.as_str()), (7, "7_dusk.glb", 1, "8_textures.zip", "skin.zip"), "the body names the item, the file and the name");
+        let relays = crate::relay::media_edit::file_rename_purpose(body.id, body.file, &body.name);
+        assert_eq!(Some(relays.as_str()), rename.purpose.as_deref(), "the relay checks the same purpose for a rename");
+        let cover = file_cover_request(&signer, &item, 2, "9_shot.png");
+        let body: crate::relay::media_edit::FileCoverBody = serde_json::from_str(cover.body.as_deref().unwrap()).unwrap();
+        assert_eq!((body.id, body.file, body.file_name.as_str()), (7, 2, "9_shot.png"), "the body names the picture");
+        let relays = crate::relay::media_edit::file_cover_purpose(body.id, body.file);
+        assert_eq!(Some(relays.as_str()), cover.purpose.as_deref(), "the relay checks the same purpose for a cover");
     }
 }

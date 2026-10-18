@@ -88,6 +88,8 @@ pub(crate) mod ticket;
 /// "Report a copyright problem", the admins' decisions on those reports, and the public takedown
 /// log (2026-10-13; the relay half is relay/media_takedown.rs, the website's media-takedown.js).
 pub(crate) mod takedown;
+/// A Media item posted in chat, shown as a card that opens its window (2026-10-17).
+pub(crate) mod chat_card;
 
 pub(crate) use add::put_on_media;
 pub(crate) use tiles::{KEEP as KEEP_LABEL, KEEP_TIP as KEEP_LABEL_TIP};
@@ -129,8 +131,14 @@ pub(crate) enum Job {
     /// any other, published onto the item as `Publish { of: Of::Attach, .. }` (publishing.rs
     /// `attach`), whose answer lands in publishing.rs `attach_answered`.
     Item { id: i64 },
+    /// One item read for a card in chat (chat_card.rs).
+    Card { id: i64 },
     Edit { id: i64 },
     FileRemove { id: i64, file: i64 },
+    /// A file renamed, or a picture already on the item made its cover (2026-10-17): each answers
+    /// the item as it now is.
+    FileRename { id: i64, file: i64 },
+    FileCover { id: i64, file: i64 },
     Viewed { id: i64 },
     /// "Report a copyright problem" (takedown.rs `on_answer`): the form sent (`who` is the form's
     /// number, so an answer for a form closed meanwhile is dropped), the public log read, the
@@ -249,6 +257,11 @@ pub struct MediaState {
     /// The uploads the server has named that did not finish, kept in the app's config (each says
     /// which server and person it is for, so it survives a change of either).
     pub unfinished: Vec<resumable::Unfinished>,
+    /// Items posted in chat, as their cards know them (chat_card.rs), the cards opened out by their
+    /// key, and what the cards asked for, done at the start of the chat's next frame.
+    pub cards: std::collections::HashMap<i64, chat_card::CardState>,
+    pub cards_open: std::collections::HashSet<String>,
+    pub card_acts: Vec<chat_card::Act>,
     /// The publishes on their way, by the number of the upload or form that asked: Cancel reaches
     /// them through this (publishing.rs).
     pub publishes: Vec<(u64, publishing::Fate)>,
@@ -595,7 +608,8 @@ pub(crate) fn on_done(state: &mut GuiState, job: Job, result: Result<Value, Refu
         (Job::AdminCategories | Job::SaveCategories | Job::Suggestions | Job::Decide | Job::Usage, Err(e)) => {
             state.media.admin.status = e.words;
         }
-        (job @ (Job::Item { .. } | Job::Edit { .. } | Job::FileRemove { .. } | Job::Viewed { .. }), result) => {
+        (Job::Card { id }, result) => chat_card::on_answer(state, id, result),
+        (job @ (Job::Item { .. } | Job::Edit { .. } | Job::FileRemove { .. } | Job::FileRename { .. } | Job::FileCover { .. } | Job::Viewed { .. }), result) => {
             item_view::on_answer(state, job, result)
         }
         (job @ (Job::TakedownSend { .. } | Job::TakedownLog | Job::TakedownOpen | Job::TakedownDecide { .. }), result) => {
@@ -830,6 +844,14 @@ fn offer_drop(ctx: &egui::Context, state: &GuiState) {
 /// frame, before the pages draw).
 pub fn offer_drop_anywhere(ctx: &egui::Context, state: &GuiState) {
     offer_drop_at(ctx, state, crate::gui::drop_files::Level::App);
+}
+
+/// An item's own window brought up from another page (a card in chat, chat_card.rs): drawn here
+/// while the Media page is not on screen, over whatever is.
+pub fn draw_item_window(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
+    if state.active_page != GuiPage::Media && state.media.item.is_some() {
+        item_view::draw(ctx, theme, state);
+    }
 }
 
 /// The upload window opened by a drop on another page (it is the Media page's own form, drawn here

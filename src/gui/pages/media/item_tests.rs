@@ -114,6 +114,27 @@ pub(crate) fn every_exact(out: &egui::FullOutput, text: &str) -> Vec<egui::Rect>
     found
 }
 
+/// Every drawn text starting with `text`, in paint order (bottom first): their rects.
+pub(crate) fn every_starting(out: &egui::FullOutput, text: &str) -> Vec<egui::Rect> {
+    fn walk(shape: &egui::Shape, clip: egui::Rect, text: &str, found: &mut Vec<egui::Rect>) {
+        match shape {
+            egui::Shape::Text(t) if t.galley.text().starts_with(text) => {
+                let rect = t.galley.rect.translate(t.pos.to_vec2()).intersect(clip);
+                if rect.is_positive() {
+                    found.push(rect);
+                }
+            }
+            egui::Shape::Vec(v) => v.iter().for_each(|s| walk(s, clip, text, found)),
+            _ => {}
+        }
+    }
+    let mut found = Vec::new();
+    for cs in &out.shapes {
+        walk(&cs.shape, cs.clip_rect, text, &mut found);
+    }
+    found
+}
+
 /// Press and release the pointer at `pos`; the release frame's output (where a click's effects,
 /// a copy among them, are).
 pub(crate) fn click_at(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, pos: egui::Pos2) -> egui::FullOutput {
@@ -398,7 +419,7 @@ fn add_a_file_uploads_then_attaches() {
     let to = AttachTo { id: 7, filename: "7_dusk.glb".into(), role: FileRole::File };
     uploading::start_attach_with(&mut state, &file, "clip.webm", 20_000, to, Fake::new(8192)).expect("it starts");
     // Read at once: the simulated server takes 20 KB faster than a frame, so the row is soon gone.
-    assert_eq!(uploading::row_heading(&state, &state.media.uploads[0].record), "clip.webm (0 MB), to add to Dusk", "its row names the item it goes to");
+    assert_eq!(uploading::row_heading(&state, &state.media.uploads[0].record), "clip.webm (20 KB), to add to Dusk", "its row names the item it goes to");
     until(&ctx, &theme, &mut state, "the upload is up and added", |s| s.media.uploads.is_empty() && s.media.jobs.iter().all(|(j, _)| !matches!(j, Job::Publish { .. })));
 
     let seen = seen.lock().unwrap().clone();
@@ -677,4 +698,75 @@ endsolid bracket
     let _ = run(&mut state, &[model], &[]);
     assert!(state.media.uploads.len() > uploads || state.media.status.starts_with("Uploading"), "a dropped file starts uploading to the item: {}", state.media.status);
     assert!(state.media.form.is_none(), "and Add to Media did not open");
+}
+
+/// RENAME KEEPS THE ENDING, AND A PICTURE ON THE ITEM CAN BE ITS COVER (operator, 2026-10-17: "Can
+/// we allow renaming of files in the edit window? Also, I uploaded a png with the blend and STL
+/// files but, I can't seem to assign it as the preview photo"): every file row has Rename, the
+/// item's own file too; it opens the name without its ending, the ending shown fixed after it, and
+/// Save name asks the server for the name with the ending put back. Use as cover is on the picture
+/// alone, never on the model or the archive, and asks the server for that file.
+///
+/// Seen red 2026-10-17 three ways: with `stem_of` keeping the ending, "the box holds the name
+/// without its ending" (left: Some((1, "textures.zip"))); with Use as cover on every file, "only on
+/// the picture" (left: 2); and with Save name sending the box's text alone, "the name with its
+/// ending put back" (the body said "name":"skin").
+#[test]
+fn rename_keeps_the_ending_and_a_picture_on_the_item_can_be_its_cover() {
+    let renamed = r#"{"ok":true,"item":{"id":7,"title":"Dusk","url":"/uploads/7_dusk.glb","filename":"7_dusk.glb","kind":"model","visibility":"public","uploader_key":"me","file_count":3,
+        "files":[{"file":0,"filename":"7_dusk.glb","original_name":"dusk.glb","kind":"model","size_bytes":2097152,"url":"/uploads/7_dusk.glb"},
+                 {"file":1,"filename":"8_textures.zip","original_name":"skin.zip","kind":"file","size_bytes":4000,"url":"/uploads/8_textures.zip"},
+                 {"file":2,"filename":"9_shot.png","original_name":"shot.png","kind":"picture","size_bytes":3000,"url":"/uploads/9_shot.png"}]}}"#;
+    let covered = r#"{"ok":true,"item":{"id":7,"title":"Dusk","url":"/uploads/7_dusk.glb","filename":"7_dusk.glb","kind":"model","visibility":"public","uploader_key":"me","file_count":2,
+        "files":[{"file":0,"filename":"7_dusk.glb","original_name":"dusk.glb","kind":"model","size_bytes":2097152,"url":"/uploads/7_dusk.glb"},
+                 {"file":1,"filename":"8_textures.zip","original_name":"skin.zip","kind":"file","size_bytes":4000,"url":"/uploads/8_textures.zip"}],
+        "cover":{"file":2,"filename":"9_shot.png","original_name":"shot.png","kind":"picture","size_bytes":3000,"url":"/uploads/9_shot.png"}}}"#;
+    let (base, seen) = serve_routes(vec![("/api/media/files/rename", renamed), ("/api/media/files/cover", covered)]);
+    let mut mine = rich_item(("me", "Me"));
+    mine.files.push(ItemFile { file: 2, filename: "9_shot.png".into(), original_name: "shot.png".into(), kind: "picture".into(), size_bytes: 3000, url: "/uploads/9_shot.png".into() });
+    mine.file_count = 3;
+    let (ctx, theme) = ctx_and_theme();
+    let mut state = page_on(&base, answer_of(vec![mine.clone()]), TOKEN);
+    crate::gui::pages::media::item_view::open(&mut state, &mine);
+    edit::open_edit(&mut state, &mine);
+    let out = settled(&ctx, &theme, &mut state);
+    assert_eq!(every_exact(&out, edit::RENAME).len(), 3, "every file has Rename, the item's own file too");
+    assert_eq!(every_exact(&out, edit::USE_AS_COVER).len(), 1, "only on the picture");
+    // The Edit window's row, drawn over the item page's row of the same file: the last drawn.
+    let last_row = |out: &egui::FullOutput, row: &str| every_starting(out, row).last().copied();
+    let press_near = |out: &egui::FullOutput, row: &str, button: &str| {
+        let row = last_row(out, row).unwrap_or_else(|| panic!("the {row:?} row"));
+        every_exact(out, button).into_iter().min_by(|a, b| (a.center().y - row.center().y).abs().total_cmp(&(b.center().y - row.center().y).abs())).unwrap_or_else(|| panic!("its {button}"))
+    };
+    let cover_at = press_near(&out, "shot.png, ", edit::USE_AS_COVER);
+    assert!((cover_at.center().y - last_row(&out, "shot.png, ").unwrap().center().y).abs() < 4.0, "on the picture's own row");
+
+    // Rename the archive: the box holds its name without the ending, the ending shown after it.
+    let at = press_near(&out, "textures.zip, ", edit::RENAME);
+    frame(&ctx, &theme, &mut state, vec![egui::Event::PointerMoved(at.center())]);
+    click_at(&ctx, &theme, &mut state, at.center());
+    let form = |s: &GuiState| s.media.item.as_ref().and_then(|p| p.edit.as_ref()).map(|f| f.renaming.clone()).expect("the Edit window");
+    assert_eq!(form(&state), Some((1, "textures".to_string())), "the box holds the name without its ending");
+    assert!(shows(&settled(&ctx, &theme, &mut state), ".zip"), "the ending is shown after the box");
+    state.media.item.as_mut().and_then(|p| p.edit.as_mut()).and_then(|f| f.renaming.as_mut()).unwrap().1 = "skin".into();
+    click_top(&ctx, &theme, &mut state, edit::SAVE_NAME);
+    until(&ctx, &theme, &mut state, "the rename is answered", |s| s.media.item.as_ref().is_some_and(|p| p.status == crate::gui::pages::media::item_view::FILE_RENAMED));
+    assert_eq!(form(&state), None, "the box closes");
+    let requests = seen.lock().unwrap().clone();
+    let rename = requests.iter().find(|r| r.starts_with("POST /api/media/files/rename ")).expect("asked");
+    assert!(rename.contains(r#""name":"skin.zip""#) && rename.contains(r#""file":1"#) && rename.contains(r#""file_name":"8_textures.zip""#), "the name with its ending put back: {}", &rename[..rename.len().min(300)]);
+    assert!(shows(&settled(&ctx, &theme, &mut state), "skin.zip, "), "the row shows the new name");
+
+    // The picture becomes the cover.
+    let out = settled(&ctx, &theme, &mut state);
+    let at = press_near(&out, "shot.png, ", edit::USE_AS_COVER);
+    frame(&ctx, &theme, &mut state, vec![egui::Event::PointerMoved(at.center())]);
+    click_at(&ctx, &theme, &mut state, at.center());
+    until(&ctx, &theme, &mut state, "the cover is answered", |s| s.media.item.as_ref().is_some_and(|p| p.status == crate::gui::pages::media::item_view::COVER_CHOSEN));
+    let requests = seen.lock().unwrap().clone();
+    let cover = requests.iter().find(|r| r.starts_with("POST /api/media/files/cover ")).expect("asked");
+    assert!(cover.contains(r#""file":2"#) && cover.contains(r#""file_name":"9_shot.png""#), "that picture: {}", &cover[..cover.len().min(300)]);
+    let out = settled(&ctx, &theme, &mut state);
+    assert!(shows(&out, "shot.png, cover picture, "), "it is the cover now");
+    assert!(every_exact(&out, edit::USE_AS_COVER).is_empty(), "and the cover has no Use as cover");
 }

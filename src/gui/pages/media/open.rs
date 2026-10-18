@@ -238,13 +238,45 @@ pub(crate) fn fetch_to(agent: &ureq::Agent, url: &str, header: Option<(&str, &st
 /// A file name safe to write: letters, digits, spaces, dots, dashes and underscores, at most 80
 /// characters, never empty.
 pub(crate) fn safe_name(name: &str) -> String {
-    let cleaned: String =
-        name.chars().map(|c| if c.is_alphanumeric() || matches!(c, ' ' | '.' | '-' | '_') { c } else { '_' }).take(80).collect();
+    let cleaned: String = crate::net::file_risk::plain_name(name).chars().map(|c| if c.is_alphanumeric() || matches!(c, ' ' | '.' | '-' | '_') { c } else { '_' }).collect();
     let cleaned = cleaned.trim().trim_matches('.').trim().to_string();
+    // Shortened before its ending, never through it (a review, 2026-10-17: a name past 80 letters
+    // lost its ending, so its badge said "File" and the saved file had no type).
+    let cleaned = if cleaned.chars().count() <= SAFE_NAME_MAX {
+        cleaned
+    } else {
+        let lower = cleaned.to_ascii_lowercase();
+        let ending = if lower.ends_with(".tar.gz") { Some("tar.gz".len()) } else { cleaned.rsplit_once('.').map(|(_, e)| e.chars().count()) };
+        match ending.filter(|n| (1..=16).contains(n)) {
+            Some(n) => {
+                let ending: String = cleaned.chars().skip(cleaned.chars().count() - n).collect();
+                let stem: String = cleaned.chars().take(SAFE_NAME_MAX - n - 1).collect();
+                format!("{}.{ending}", stem.trim_end().trim_end_matches('.'))
+            }
+            None => cleaned.chars().take(SAFE_NAME_MAX).collect(),
+        }
+    };
     if cleaned.is_empty() {
         "media".to_string()
     } else {
         cleaned
+    }
+}
+
+/// How many letters a saved file's name keeps at most.
+const SAFE_NAME_MAX: usize = 80;
+
+/// The name file `f` of `item` is SHOWN by (2026-10-17): the uploader's own name as given, else its
+/// stored name, made plain (`file_risk::plain_name`: no direction marks, no control characters),
+/// so people read the real name and its badge judges its real ending. Download saves it under
+/// [`file_download_name`].
+pub(crate) fn shown_file_name(item: &Item, f: &ItemFile) -> String {
+    let (own, stored) = if f.file == 0 { (item.original_name.as_str(), item.stored.as_str()) } else { (f.original_name.as_str(), f.filename.as_str()) };
+    let name = crate::net::file_risk::plain_name(if own.trim().is_empty() { stored } else { own });
+    if name.is_empty() {
+        file_download_name(item, f)
+    } else {
+        name
     }
 }
 

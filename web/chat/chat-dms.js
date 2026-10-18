@@ -237,30 +237,44 @@ function addDmMessage(author, body, timestamp, fromKey, toKey, isEncrypted) {
   // with the protected setup on, one from someone who is not a friend is not
   // shown and never fetched or opened: one line in its place (10h).
   const fileMeta = (typeof pqParseFileMarker === 'function') ? pqParseFileMarker(body) : null;
-  const bodyHtml = fileMeta ? privateFileHtml(fileMeta, fromKey) : formatBody(body, fromKey);
 
+  // A Media item's address on this site: its card under the words, the address out of them
+  // (chat-media-card.js).
+  const plan = (!fileMeta && typeof mediaCardsPlan === 'function') ? mediaCardsPlan(body, fromKey) : null;
+  const media = plan && plan.ids.length ? plan : null;
   // Step F (2026-10-10, chat-warnings.js): a stranger's links are held until
   // the line under the message's Open is pressed, and the warnings the message
-  // matches show under it. Never on my own messages.
+  // matches show under it. Never on my own messages. Held when the text holds a
+  // link, or the words drawn from it do (2026-10-17, review: taking a card's
+  // address out must never make a link the text did not hold).
   const received = !!fromKey && !isMe;
   const holdLinks = received && !fileMeta && typeof dmLinksHeld === 'function' && typeof holdLinksHtml === 'function'
-    && dmLinksHeld(fromKey, timestamp, body);
+    && (dmLinksHeld(fromKey, timestamp, body) || (!!media && dmLinksHeld(fromKey, timestamp, media.words)));
+  // The body as drawn with its links live: the card's addresses out of the words.
+  const liveHtml = fileMeta ? privateFileHtml(fileMeta, fromKey) : formatBody(media ? media.words : body, fromKey);
+  // Held: the text as it came, every link in it held (a Media address too) and no card, until Open.
+  const bodyHtml = holdLinks ? holdLinksHtml(formatBody(body, fromKey)) : liveHtml;
 
   el.innerHTML = messageRowHTML({
     isContinuation,
     identiconHtml,
     metaHtml,
     pillHtml: timestampPillHTML({ time: formatTimePill(timestamp), extra: e2eeBadge }),
-    bodyHtml: holdLinks ? holdLinksHtml(bodyHtml) : bodyHtml,
+    bodyHtml,
   });
 
   appendMessage(el);
   if (received && typeof addMessageSafetyLines === 'function') {
-    addMessageSafetyLines(el, { text: body, from: fromKey, ts: timestamp, context: 'dm', name: author, liveBodyHtml: holdLinks ? bodyHtml : null });
+    addMessageSafetyLines(el, {
+      text: body, from: fromKey, ts: timestamp, context: 'dm', name: author, liveBodyHtml: holdLinks ? liveHtml : null,
+      // Open on the held links: the words without the card's addresses (liveHtml), and the cards at once.
+      opened: holdLinks && media ? () => mediaCardsPut(el, media.ids, fromKey, timestamp) : null,
+    });
   }
   if (fileMeta) hydratePrivateFile(el, fileMeta, fromKey);
   // A file's address in the words: its card's size and what kind of file it is (app.js).
   else if (typeof fillFileCards === 'function') fillFileCards(el);
+  if (media && !holdLinks) mediaCardsPut(el, media.ids, fromKey, timestamp);
   if (window.twemoji) twemoji.parse(el);
   return el;
 }

@@ -31,6 +31,17 @@
 //   dragged from the computer onto the page while the form is open go the same
 //   way (`addFiles`, 2026-10-17); under an admin's Edit of someone else's item,
 //   "Only Ann can add files to this item." stands where Add a file would be.
+//   Every row, the item's own file included, has "Rename" (2026-10-17, the
+//   operator: "Can we allow renaming of files in the edit window?"): the row
+//   becomes a box holding the name without its ending, the ending after it,
+//   fixed, then "Save name" and "Cancel" (Enter saves too), one row at a time
+//   (POST /api/media/files/rename, signed over `media_file_rename:<id>:<file>:
+//   <BLAKE3 hex of the name exactly as sent>`; the relay keeps the ending). For
+//   the uploader, a picture already on the item has "Use as cover" (POST
+//   /api/media/files/cover, `media_file_cover:<id>:<file>`; the operator: "I
+//   uploaded a png with the blend and STL files but, I can't seem to assign it
+//   as the preview photo"), never on the item's own file or the cover there now.
+//   The desktop's media/edit.rs draw_files is the original, words and all.
 //
 // The form is in three parts in the chat sidebar's colours, darker (2026-10-17,
 // `tintSection`, /shared/tint-section.css; the desktop's Edit window): "About
@@ -79,6 +90,17 @@
     aboutIt: 'About it',
     whoCanSeeIt: 'Who can see it',
     files: 'Files',
+    // A file row's buttons and what the page says once they are answered (2026-10-17; the
+    // desktop's media/edit.rs RENAME, RENAME_TIP, SAVE_NAME, USE_AS_COVER, USE_AS_COVER_TIP and
+    // media/item_view.rs FILE_RENAMED, COVER_CHOSEN).
+    rename: 'Rename',
+    renameTip: 'Change the name people see and download it as. Its ending stays.',
+    saveName: 'Save name',
+    useAsCover: 'Use as cover',
+    useAsCoverTip: "Show this picture on the item's card and page. The cover there now becomes one of its files.",
+    renamed: 'Renamed.',
+    coverChosen: 'That picture is the cover now.',
+    noHashName: 'This page could not load its hashing code, so the name was not sent. Reload the page and try again.',
   });
 
   // ── A file's type, always, just before its name (2026-10-17) ──
@@ -184,6 +206,40 @@
   /** The line about the item's own first file, which is never removed here. */
   function firstFileWords(name) {
     return name + ': the item itself. To take it away, remove the item.';
+  }
+
+  // ── Renaming a file (2026-10-17) ──
+  /** ASCII letters to lower case and nothing else (Rust's to_ascii_lowercase): the length never changes. */
+  const asciiLower = (s) => String(s).replace(/[A-Z]/g, (ch) => ch.toLowerCase());
+  /**
+   * A stored file's ending, as the relay keeps it on a rename (storage/media_files.rs
+   * `shown_name_for`; the desktop's media/edit.rs `stored_ending`): "tar.gz" for a tarball, else its
+   * last, lower case; '' when it has none.
+   */
+  function storedEnding(stored) {
+    const lower = asciiLower(stored == null ? '' : stored);
+    if (lower.endsWith('.tar.gz')) return 'tar.gz';
+    const dot = lower.lastIndexOf('.');
+    return dot >= 0 ? lower.slice(dot + 1) : '';
+  }
+  /** `name` without its `ending`, for the rename box (the ending is shown after it, fixed; the desktop's `stem_of`). */
+  function stemOf(name, ending) {
+    const n = String(name == null ? '' : name);
+    return ending && asciiLower(n).endsWith('.' + ending) ? n.slice(0, n.length - ending.length - 1) : n;
+  }
+  /** What Save name sends: the box's text, trimmed, with "." and the ending put back. */
+  function nameWithEnding(typed, ending) {
+    const t = String(typed == null ? '' : typed).trim();
+    return ending ? t + '.' + ending : t;
+  }
+  /** `media_file_rename:<id>:<file>:<BLAKE3 hex of the name's UTF-8 bytes, exactly as sent>` (relay media_edit.rs). */
+  function renamePurpose(id, file, name) {
+    if (!B3) throw new Error(WORDS.noHashName);
+    return 'media_file_rename:' + id + ':' + file + ':' + B3.toHex(B3.hash(new TextEncoder().encode(name)));
+  }
+  /** `media_file_cover:<id>:<file>` (relay media_edit.rs). */
+  function coverPurpose(id, file) {
+    return 'media_file_cover:' + id + ':' + file;
   }
 
   /**
@@ -303,7 +359,8 @@
   /**
    * The Edit form for `item`, drawn into `box` (inside the item's page). `c` is the page's context
    * (media-item.js `createItemView`'s), `view` the item's page: `own(item)`, `takeItem(item)`,
-   * `say(words)` (its status line), `closeEdit()`, `fileName(item, f)`, `filesOf(item)`, `current(id)`
+   * `say(words)` (its status line), `closeEdit()`, `fileName(item, f)`, `shownName(item, f)` (the name a
+   * file is shown by: plain, so it cannot hide its ending), `filesOf(item)`, `current(id)`
    * and `send(path, purpose, item, body)` (a signed write that throws the relay's own words).
    * Returns {draw, drawFiles}: the form drawn once, and its files part drawn again as files are
    * added or taken off (the words being edited are the person's and stay as they are).
@@ -325,6 +382,10 @@
       members: item.visibility === 'members',
       problem: '',
       saving: false,
+      // The row being renamed: {file, typed (the box's text), fresh (just opened: focus it)}, or null.
+      renaming: null,
+      // A rename or a Use as cover on its way: their buttons wait for its answer.
+      fileBusy: false,
     };
     const els = {};
 
@@ -412,11 +473,45 @@
       els.save.textContent = f.saving ? WORDS.saving : WORDS.save;
     }
 
+    /** File `x`'s own stored name, bare (the item's own file: the item's). */
+    function storedOf(now, x) {
+      const s = String((x && x.filename) || (x && x.file === 0 ? c.lib.itemFileName(now) : '') || '').trim();
+      return s.replace(/^\/uploads\//, '');
+    }
+
+    /**
+     * File `x`'s row while it is being renamed: its badge, the box holding its name without its
+     * ending, the ending after it (fixed), Save name and Cancel. Enter in the box saves too.
+     */
+    function renameRow(now, x, name, first) {
+      const doc = c.env.document;
+      const ending = storedEnding(storedOf(now, x));
+      const box = h('input', {
+        type: 'text', className: 'media-input', maxLength: 120, value: f.renaming.typed,
+        dataset: { renameInput: x.file }, attrs: { 'aria-label': 'New name for ' + name },
+      });
+      box.addEventListener('input', () => { if (f.renaming) f.renaming.typed = box.value; });
+      box.addEventListener('keydown', (e) => {
+        if (!e || e.key !== 'Enter') return;
+        if (typeof e.preventDefault === 'function') e.preventDefault();
+        saveName(now, x);
+      });
+      const row = h('div', { className: 'media-item-file-row' + (first ? ' media-edit-first-file' : ''), dataset: first ? { renaming: x.file } : { editFile: x.file, renaming: x.file } }, [
+        fileBadge(h, doc, name),
+        box,
+        ending ? h('span', { className: 'media-hint', dataset: { renameEnding: '' }, text: '.' + ending }) : null,
+        h('button', { type: 'button', className: 'media-btn media-btn-small media-btn-primary', dataset: { saveName: x.file }, text: WORDS.saveName, disabled: f.fileBusy, on: { click: () => saveName(now, x) } }),
+        h('button', { type: 'button', className: 'media-btn media-btn-small', dataset: { cancelRename: x.file }, text: WORDS.cancel, on: { click: () => { f.renaming = null; drawFiles(); } } }),
+      ]);
+      return { row, box };
+    }
+
     /**
      * The files part (titled "Files" by its section): the item's own first file (never removed
      * here), each added file and the cover with Remove, the uploads on their way to it, and the
      * uploader's Add a file and Cover picture. Each file's type first (its badge), so its row says
-     * only "name, size" ("name, cover picture, size" for the cover), as the desktop's does.
+     * only "name, size" ("name, cover picture, size" for the cover), as the desktop's does. Every
+     * row has Rename; a picture that is not the cover has Use as cover, for the uploader.
      */
     function drawFiles() {
       if (!els.files) return;
@@ -424,19 +519,42 @@
       const files = view.filesOf(now);
       const doc = c.env.document;
       const kids = [];
-      if (files[0]) {
-        const first = view.fileName(now, files[0]);
-        kids.push(h('div', { className: 'media-item-file-row media-edit-first-file' }, [
-          fileBadge(h, doc, first),
-          h('span', { className: 'media-hint', text: firstFileWords(first) }),
-        ]));
-      }
-      const rows = files.slice(1).map((x) => [x, false]).concat(now.cover ? [[now.cover, true]] : []);
+      // The rename box drawn again (an upload moving on draws this part again) keeps its focus and
+      // where the cursor was in it.
+      const was = els.renameBox && doc && doc.activeElement === els.renameBox
+        ? [els.renameBox.selectionStart, els.renameBox.selectionEnd] : null;
+      els.renameBox = null;
+      const renameButton = (x) => h('button', {
+        type: 'button', className: 'media-btn media-btn-small', dataset: { renameFile: x.file }, text: WORDS.rename, title: WORDS.renameTip,
+        on: { click: () => { f.renaming = { file: x.file, typed: stemOf(view.shownName(now, x), storedEnding(storedOf(now, x))), fresh: true }; drawFiles(); } },
+      });
+      const rows = (files[0] ? [[files[0], false]] : []).concat(files.slice(1).map((x) => [x, false]), now.cover ? [[now.cover, true]] : []);
       for (const [x, cover] of rows) {
-        const name = view.fileName(now, x);
+        // Shown by its plain name (2026-10-17): a direction mark cannot hide its real ending.
+        const name = view.shownName(now, x);
+        const first = x.file === 0;
+        if (f.renaming && f.renaming.file === x.file) {
+          const r = renameRow(now, x, name, first);
+          els.renameBox = r.box;
+          kids.push(r.row);
+          continue;
+        }
+        if (first) {
+          kids.push(h('div', { className: 'media-item-file-row media-edit-first-file' }, [
+            fileBadge(h, doc, name),
+            h('span', { className: 'media-hint', text: firstFileWords(name) }),
+            renameButton(x),
+          ]));
+          continue;
+        }
         kids.push(h('div', { className: 'media-item-file-row', dataset: { editFile: x.file } }, [
           fileBadge(h, doc, name),
           h('span', { className: 'media-item-file-name', text: name + (cover ? ', cover picture, ' : ', ') + c.lib.sizeWords(x.size_bytes) }),
+          renameButton(x),
+          // A picture already on the item can be its cover: the uploader's, as adding a cover is.
+          own && !cover && x.kind === 'picture'
+            ? h('button', { type: 'button', className: 'media-btn media-btn-small', dataset: { useAsCover: x.file }, text: WORDS.useAsCover, title: WORDS.useAsCoverTip, disabled: f.fileBusy, on: { click: () => useAsCover(now, x) } })
+            : null,
           h('button', { type: 'button', className: 'media-btn media-btn-small media-btn-danger', dataset: { removeFile: x.file }, text: WORDS.remove, title: WORDS.removeTip, on: { click: () => removeFile(now, x) } }),
         ]));
       }
@@ -466,6 +584,78 @@
         kids.push(h('p', { className: 'media-hint', text: WORDS.uploadsHint }));
       }
       els.files.replaceChildren(...kids);
+      const box = els.renameBox;
+      if (box && (was || (f.renaming && f.renaming.fresh))) {
+        try {
+          box.focus();
+          if (was && typeof box.setSelectionRange === 'function') box.setSelectionRange(was[0], was[1]);
+          else if (!was && typeof box.select === 'function') box.select();
+        } catch (e) { /* the box is still there to click */ }
+        f.renaming.fresh = false;
+      }
+    }
+
+    /**
+     * Save name: file `x` named the box's text with its ending put back (POST
+     * /api/media/files/rename, signed over the BLAKE3 of the name exactly as sent). Answered, the
+     * item is the answer's and the page says "Renamed."; refused, the relay's words stand in the
+     * problem line and the box stays open with what was typed.
+     */
+    async function saveName(now, x) {
+      if (!f.renaming || f.renaming.file !== x.file || f.fileBusy) return;
+      const name = nameWithEnding(f.renaming.typed, storedEnding(storedOf(now, x)));
+      let purpose;
+      try {
+        purpose = renamePurpose(now.id, x.file, name);
+      } catch (e) {
+        f.problem = e.message;
+        drawProblem();
+        return;
+      }
+      f.fileBusy = true;
+      drawFiles();
+      let a;
+      try {
+        a = await view.send('/api/media/files/rename', purpose, now, { file: x.file, file_name: storedOf(now, x), name });
+      } catch (e) {
+        f.fileBusy = false;
+        f.problem = e && e.message ? e.message : String(e);
+        drawProblem();
+        drawFiles();
+        return;
+      }
+      f.fileBusy = false;
+      f.renaming = null;
+      f.problem = '';
+      drawProblem();
+      if (a && a.item) view.takeItem(a.item); else drawFiles();
+      view.say(WORDS.renamed);
+    }
+
+    /**
+     * Use as cover: picture file `x`, already on the item, made its cover (POST
+     * /api/media/files/cover); the cover there now becomes one of its files. Answered, the page says
+     * "That picture is the cover now."; refused, the relay's words stand in the problem line.
+     */
+    async function useAsCover(now, x) {
+      if (!own || f.fileBusy) return;
+      f.fileBusy = true;
+      drawFiles();
+      let a;
+      try {
+        a = await view.send('/api/media/files/cover', coverPurpose(now.id, x.file), now, { file: x.file, file_name: storedOf(now, x) });
+      } catch (e) {
+        f.fileBusy = false;
+        f.problem = e && e.message ? e.message : String(e);
+        drawProblem();
+        drawFiles();
+        return;
+      }
+      f.fileBusy = false;
+      f.problem = '';
+      drawProblem();
+      if (a && a.item) view.takeItem(a.item); else drawFiles();
+      view.say(WORDS.coverChosen);
     }
 
     /**
@@ -494,7 +684,7 @@
 
     /** Take file `x` off the item (POST /api/media/files/remove, by its number and its own stored name), once confirmed. */
     async function removeFile(now, x) {
-      if (!(await c.env.confirm(removeFileWords(view.fileName(now, x))))) return;
+      if (!(await c.env.confirm(removeFileWords(view.shownName(now, x))))) return;
       try {
         const a = await view.send('/api/media/files/remove', 'media_file_remove:' + now.id + ':' + x.file, now, { file: x.file, file_name: x.filename });
         if (a && a.item) view.takeItem(a.item);
@@ -557,6 +747,7 @@
   const api = {
     WORDS, COVER_ACCEPT, ownerOnlyWords, addFilesOwnerOnlyWords, removeFileWords, firstFileWords, editText, editPurpose, editBody, offeredLicence, licenceChoice, hostingBlock, createEditForm,
     fileBadge, fillFileBadges, fileTypesKnown, loadFileTypes, tintSection,
+    storedEnding, stemOf, nameWithEnding, renamePurpose, coverPurpose,
   };
   if (typeof module === 'object' && module && module.exports) module.exports = api;
   else root.MediaEdit = api;

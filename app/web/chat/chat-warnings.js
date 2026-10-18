@@ -176,7 +176,9 @@ function messageSafetySlot(el) {
  * Draw what goes under a received message: the stranger link line (a direct
  * message whose links were held: pass `liveBodyHtml`, the body as it would be
  * drawn with its links) and the warnings it matches. `opts`: {text, from, ts,
- * context ('dm' or 'group'), name, liveBodyHtml}.
+ * context ('dm' or 'group'), name, liveBodyHtml, opened}. `opened()`, when
+ * given, runs once the line's Open has put the live body back (chat-dms.js puts
+ * a Media item's card under it then, 2026-10-17).
  */
 function addMessageSafetyLines(el, opts) {
   const o = opts || {};
@@ -274,6 +276,7 @@ function drawStrangerLinkLine(el, o) {
     }
     line.style.display = 'none';
     if (typeof line.remove === 'function') line.remove();
+    if (typeof o.opened === 'function') o.opened();
   };
   line.appendChild(words);
   line.appendChild(open);

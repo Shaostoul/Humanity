@@ -62,6 +62,20 @@
     return n > 0;
   }
 
+  /**
+   * A file's name as it is shown and judged (2026-10-17): its direction marks taken out (U+200E,
+   * U+200F, U+061C, U+202A to U+202E, U+2066 to U+2069; a right-to-left override makes a browser
+   * show "photo<RLO>gnp.exe" as "photoexe.png", and a mark after ".exe" hid the ending from the
+   * check), every other control character made a space, and trimmed. The desktop's twin is
+   * src/net/file_risk.rs `plain_name`; both are held to the shared cases' plain_names.
+   */
+  function plainName(name) {
+    return String(name == null ? '' : name)
+      .replace(/[\u200E\u200F\u061C\u202A-\u202E\u2066-\u2069]/g, '')
+      .replace(/[\u0000-\u001F\u007F-\u009F]/g, ' ')
+      .trim();
+  }
+
   /** The longest of `endings` that `name` ends with (after a dot), or ''. */
   function ending(name, endings) {
     let best = '';
@@ -85,7 +99,7 @@
   function assess(name, head, d) {
     const data = d || list;
     if (!data) return null;
-    const lower = String(name || '').trim().toLowerCase();
+    const lower = plainName(name).toLowerCase();
     let byName = null;
     for (const k of data.kinds) {
       const e = ending(lower, k.extensions);
@@ -121,7 +135,7 @@
    */
   function fileType(name, head, d) {
     const data = d || list;
-    const lower = String(name || '').trim().toLowerCase();
+    const lower = plainName(name).toLowerCase();
     const shown = shownEnding(lower);
     const end = shown.startsWith('.') ? shown : '';
     if (!data) return { id: 'unknown', label: 'File', icon: 'unknown', level: 'unknown', ending: end, disguised: false };
@@ -194,7 +208,7 @@
     }
   }
 
-  const api = { load, use, assess, fileType, iconSvg, badgeHtml, fillBadges, ready: () => !!list, LIST_URL };
+  const api = { load, use, assess, fileType, plainName, iconSvg, badgeHtml, fillBadges, ready: () => !!list, LIST_URL };
   root.HosFileRisk = api;
   if (typeof module === 'object' && module && module.exports) module.exports = api;
   // In a page, fetch the list as soon as the script loads, so it is in before any file is shown.

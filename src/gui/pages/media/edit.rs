@@ -64,6 +64,8 @@ pub struct EditForm {
     pub problem: String,
     /// The file picker for Add a file or Cover picture, while open.
     pub picker: Option<(FileRole, FilePickerState)>,
+    /// The file being renamed (its number) and the name typed so far, without its ending.
+    pub renaming: Option<(i64, String)>,
 }
 
 impl EditForm {
@@ -79,6 +81,7 @@ impl EditForm {
             members_only: item.members_only(),
             problem: String::new(),
             picker: None,
+            renaming: None,
         }
     }
 
@@ -198,6 +201,9 @@ struct Pressed {
     cancel: bool,
     remove: Option<ItemFile>,
     add: Option<FileRole>,
+    /// Save name, with the file and the name typed; Use as cover, with the picture.
+    rename: Option<(ItemFile, String)>,
+    cover: Option<ItemFile>,
 }
 
 /// The Edit window's id (its dialog, and the dimmed backdrop behind it, `-backdrop`).
@@ -291,7 +297,7 @@ pub(crate) fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, pag
         });
 
         ui.add_space(theme.spacing_sm);
-        tint_section::show(ui, theme, Tint::Blue, FILES, |ui| draw_files(ui, theme, &item, own, &uploads, &mut pressed));
+        tint_section::show(ui, theme, Tint::Blue, FILES, |ui| draw_files(ui, theme, &item, own, &uploads, &mut form.renaming, &mut pressed));
 
         if !form.problem.is_empty() {
             ui.label(RichText::new(&form.problem).size(theme.font_size_small).color(theme.danger()));
@@ -310,6 +316,21 @@ pub(crate) fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, pag
 
     if let Some(f) = pressed.remove {
         page.confirm_file = Some(f);
+    }
+    if let Some((f, name)) = pressed.rename {
+        match item_view::rename_file(state, &item, &f, &name) {
+            Ok(()) => {
+                form.renaming = None;
+                form.problem.clear();
+            }
+            Err(words) => form.problem = words,
+        }
+    }
+    if let Some(f) = pressed.cover {
+        match item_view::cover_from_file(state, &item, &f) {
+            Ok(()) => form.problem.clear(),
+            Err(words) => form.problem = words,
+        }
     }
     if let Some(role) = pressed.add {
         let exts: &[&str] = if role == FileRole::Cover { COVER_EXTS } else { crate::gui::pages::chat::ATTACH_EXTS };
@@ -341,25 +362,55 @@ pub const FILES: &str = "Files";
 /// The files part of the Edit window: each added file and the cover with Remove (file 0 is the
 /// item itself: never removed here), the uploads on their way to it, and, for the uploader, Add a
 /// file and Cover picture.
-fn draw_files(ui: &mut egui::Ui, theme: &Theme, item: &Item, own: bool, uploads: &[(String, String)], pressed: &mut Pressed) {
+fn draw_files(ui: &mut egui::Ui, theme: &Theme, item: &Item, own: bool, uploads: &[(String, String)], renaming: &mut Option<(i64, String)>, pressed: &mut Pressed) {
     let small = widgets::ButtonSize::Small;
     let files = item_view::files_of(item);
     // Each file's type first, always (widgets/file_badge.rs, 2026-10-17).
     let badge = |ui: &mut egui::Ui, name: &str| widgets::file_badge::show(ui, theme, &crate::net::file_risk::file_type(name, None));
-    if let Some(first) = files.first() {
-        let name = super::open::file_download_name(item, first);
+    for f in files.iter().chain(item.cover.iter()) {
+        let name = super::open::shown_file_name(item, f);
+        let cover = item.cover.as_ref() == Some(f);
+        // Renaming this one: the name without its ending in a box, the ending after it, fixed
+        // (operator, 2026-10-17: "Can we allow renaming of files in the edit window?").
+        if let Some((_, typed)) = renaming.as_mut().filter(|(file, _)| *file == f.file) {
+            let ending = stored_ending(&f.filename);
+            let mut save = false;
+            let mut cancel = false;
+            ui.horizontal_wrapped(|ui| {
+                badge(ui, &name);
+                let resp = ui.add(egui::TextEdit::singleline(typed).desired_width(240.0).char_limit(120));
+                if !ending.is_empty() {
+                    ui.label(RichText::new(format!(".{ending}")).size(theme.font_size_small).color(theme.text_secondary()));
+                }
+                save = widgets::Button::primary(SAVE_NAME).size(small).show(ui, theme) || (resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)));
+                cancel = widgets::Button::secondary("Cancel").size(small).show(ui, theme);
+            });
+            if save {
+                let full = if ending.is_empty() { typed.trim().to_string() } else { format!("{}.{ending}", typed.trim()) };
+                pressed.rename = Some((f.clone(), full));
+            }
+            if cancel {
+                *renaming = None;
+            }
+            continue;
+        }
         ui.horizontal_wrapped(|ui| {
             badge(ui, &name);
-            widgets::body_hint(ui, theme, &format!("{name}: the item itself. To take it away, remove the item."));
-        });
-    }
-    for f in files.iter().skip(1).chain(item.cover.iter()) {
-        ui.horizontal_wrapped(|ui| {
-            let name = super::open::file_download_name(item, f);
-            badge(ui, &name);
-            let line = if item.cover.as_ref() == Some(f) { format!("{name}, cover picture, {}", api::size_words(f.size_bytes)) } else { format!("{name}, {}", api::size_words(f.size_bytes)) };
-            ui.label(RichText::new(line).size(theme.font_size_small).color(theme.text_primary()));
-            if widgets::Button::danger("Remove").size(small).tooltip("Take it off this item. It is deleted from the server.").show(ui, theme) {
+            if f.file == 0 {
+                widgets::body_hint(ui, theme, &format!("{name}: the item itself. To take it away, remove the item."));
+            } else {
+                let line = if cover { format!("{name}, cover picture, {}", api::size_words(f.size_bytes)) } else { format!("{name}, {}", api::size_words(f.size_bytes)) };
+                ui.label(RichText::new(line).size(theme.font_size_small).color(theme.text_primary()));
+            }
+            if widgets::Button::secondary(RENAME).size(small).tooltip(RENAME_TIP).show(ui, theme) {
+                *renaming = Some((f.file, stem_of(&name, &stored_ending(&f.filename))));
+            }
+            // A picture already on the item can be its cover (operator: "I uploaded a png with the
+            // blend and STL files but, I can't seem to assign it as the preview photo").
+            if own && !cover && f.file != 0 && f.kind == "picture" && widgets::Button::secondary(USE_AS_COVER).size(small).tooltip(USE_AS_COVER_TIP).show(ui, theme) {
+                pressed.cover = Some(f.clone());
+            }
+            if f.file != 0 && widgets::Button::danger("Remove").size(small).tooltip("Take it off this item. It is deleted from the server.").show(ui, theme) {
                 pressed.remove = Some(f.clone());
             }
         });
@@ -378,6 +429,33 @@ fn draw_files(ui: &mut egui::Ui, theme: &Theme, item: &Item, own: bool, uploads:
             }
         });
         widgets::body_hint(ui, theme, "Each goes up under Uploads in progress on the Media page and is added here when it is up.");
+    }
+}
+
+/// A file row's buttons (2026-10-17).
+pub const RENAME: &str = "Rename";
+pub const RENAME_TIP: &str = "Change the name people see and download it as. Its ending stays.";
+pub const SAVE_NAME: &str = "Save name";
+pub const USE_AS_COVER: &str = "Use as cover";
+pub const USE_AS_COVER_TIP: &str = "Show this picture on the item's card and page. The cover there now becomes one of its files.";
+
+/// A stored file's ending, as the relay keeps it on a rename (storage/media_files.rs
+/// `shown_name_for`): `tar.gz` for a tarball, else its last, lower case.
+pub(crate) fn stored_ending(stored: &str) -> String {
+    let lower = stored.to_ascii_lowercase();
+    if lower.ends_with(".tar.gz") {
+        "tar.gz".to_string()
+    } else {
+        lower.rsplit_once('.').map(|(_, e)| e.to_string()).unwrap_or_default()
+    }
+}
+
+/// `name` without its `ending`, for the rename box (the ending is shown after it, fixed).
+pub(crate) fn stem_of(name: &str, ending: &str) -> String {
+    if !ending.is_empty() && name.to_ascii_lowercase().ends_with(&format!(".{ending}")) {
+        name[..name.len() - ending.len() - 1].to_string()
+    } else {
+        name.to_string()
     }
 }
 

@@ -123,9 +123,13 @@
   function countsLine(item) {
     return [counted(item.picks, 'pick'), counted(item.views, 'view'), counted(item.downloads, 'download')].join(', ');
   }
-  /** "by Ann in Fire flow arts" (the category left out when the server named none). */
+  /**
+   * "by Ann in Fire flow arts" (the category left out when the server named none). The name
+   * trimmed, "someone" when it is blank (the desktop's by_name).
+   */
   function byLine(item) {
-    const by = 'by ' + ((item && item.uploader_name) || 'someone');
+    const name = item && typeof item.uploader_name === 'string' ? item.uploader_name.trim() : '';
+    const by = 'by ' + (name || 'someone');
     const cat = item && item.category && typeof item.category.name === 'string' ? item.category.name.trim() : '';
     return cat ? by + ' in ' + cat : by;
   }
@@ -170,8 +174,19 @@
    * The item's page. `c`: env, h, st, els, W (the page's words), lib (its helpers), token(), myKey,
    * isAdmin(), membersOnlyServer(), blobs, blobFor(item), sweepBlobs(), go(path, push), canPush,
    * back(), rerender() (the grid and the shelf), actions(item) (a tile's actions, for this page),
-   * attach(file, item, as) and uploadsFor(id) (media-app.js's resumable upload, attaching).
+   * attach(file, item, as) and uploadsFor(id) (media-app.js's resumable upload, attaching), and
+   * closed() (called once an open item is closed: the item window over the chat closes with it), or null.
    */
+  /**
+   * A file's name as it is shown (2026-10-17): /shared/file-risk.js plainName, its direction marks
+   * out (a right-to-left override makes "photo<RLO>gnp.exe" read as "photoexe.png"); should that
+   * file not have loaded, every format and control character goes.
+   */
+  function plainName(name) {
+    if (FR && typeof FR.plainName === 'function') return FR.plainName(name);
+    return String(name == null ? '' : name).replace(/[\p{Cc}\p{Cf}]/gu, '').trim();
+  }
+
   function createItemView(c) {
     const { env, h, st, els, W, lib } = c;
     const now = () => (typeof env.now === 'function' ? env.now() : Date.now());
@@ -279,6 +294,14 @@
       if (!f || !f.file) return lib.downloadName(item, st.kinds);
       return (f.original_name && f.original_name.trim()) || (f.filename && f.filename.trim()) || lib.itemName(item, st.kinds) + '-' + item.id + '-' + f.file;
     }
+    /**
+     * The name file `f` is shown and saved by (the desktop's open.rs shown_file_name): fileName
+     * made plain, so people read its real name and its badge judges its real ending; the item's
+     * own name when nothing is left of it.
+     */
+    function shownName(item, f) {
+      return plainName(fileName(item, f)) || plainName(lib.itemName(item, st.kinds)) || 'This item';
+    }
 
     // ── Tickets (the relay's R3-8): a members-only video or Download, streamed by the browser ──
     /** A ticket's address, when it is this server's route for this item (the file or the counting route) with a ticket. */
@@ -367,7 +390,8 @@
      */
     async function download(item, f) {
       const key = item.id + ':' + f.file;
-      const name = fileName(item, f);
+      // Saved under its plain name too: a direction mark in a saved file's name hides its ending there.
+      const name = shownName(item, f);
       if (!lib.fileRoute(item, env.origin).members) { saveFile(downloadPath(item.id, f.file), name); return; }
       const t = c.token();
       if (!t || asking.has(key)) return;
@@ -434,7 +458,7 @@
       const m = page.model;
       if (m && m.itemId === item.id && m.file === f.file) { reveal(m.box); return; } // already open: nothing fetched again
       closeModel(true);
-      const name = fileName(item, f);
+      const name = shownName(item, f);
       const host = h('div', { id: 'media-model-view', className: 'media-model-view' });
       const box = h('div', {
         id: 'media-model', className: 'media-viewer-model', dataset: { modelFile: f.file },
@@ -510,6 +534,7 @@
     }
     /** Close the item. Its address goes too: Back when it was pushed here, else replaced by /media. */
     function close(fromAddress) {
+      const was = !!st.viewer;
       if (st.viewer && fromAddress !== true) {
         if (st.pushed) { st.pushed = false; c.back(); } else c.go('/media', false);
       }
@@ -518,6 +543,7 @@
       closeModel(true);
       renderIfChanged();
       c.sweepBlobs();
+      if (was && typeof c.closed === 'function') c.closed();
     }
     /** A labelled item not yet clicked: its label instead of its file, nothing fetched. */
     function veiled(item) {
@@ -682,7 +708,8 @@
         const fileAt = as ? lib.fileRoute(f, env.origin) : null;
         // Its type first, always (2026-10-17, media-edit.js fileBadge): the badge says what kind of
         // file it is, so the row says only "name, size" ("name, cover picture, size" for the cover).
-        const named = fileName(item, f);
+        // Both by its plain name (shownName): a name cannot hide its real ending.
+        const named = shownName(item, f);
         list.appendChild(h('div', { className: 'media-item-file-row', dataset: { file: f.file } }, [
           ED.fileBadge(h, env.document, named),
           h('span', { className: 'media-item-file-name', text: named + (cover ? ', cover picture, ' : ', ') + lib.sizeWords(f.size_bytes) }),
@@ -761,12 +788,12 @@
 
     const view = {
       open, close, renderIfChanged, renderInfo, takeItem, mayEdit, own, openEdit, closeEdit, say, send, current,
-      fileName, filesOf, uploadsChanged, tickets, page, hiddenLine, protectionChanged,
+      fileName, shownName, filesOf, uploadsChanged, tickets, page, hiddenLine, protectionChanged,
     };
     return view;
   }
 
-  const api = { WORDS, LABEL_HIDDEN_LINE, hiddenBy, CARD_LINE_MAX, countsLine, byLine, firstLine, filesBadge, itemLink, downloadPath, filesOf, coverOf, createItemView };
+  const api = { WORDS, LABEL_HIDDEN_LINE, hiddenBy, CARD_LINE_MAX, countsLine, byLine, plainName, firstLine, filesBadge, itemLink, downloadPath, filesOf, coverOf, createItemView };
   if (typeof module === 'object' && module && module.exports) module.exports = api;
   else root.MediaItem = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

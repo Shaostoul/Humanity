@@ -31,12 +31,16 @@
 // ends with "Also post in chat" (2026-10-17, the desktop's media/add.rs): a
 // tick, the channel (the one open in the chat first, then favourites, then the
 // rest) and Add to favorites, greyed while the tick is off; once the item is
-// published its title, description and file are posted there, signed as the
+// published its own address on this page (/media/<id>, which the chat shows as
+// the item's card) is posted there, signed as the
 // chat signs, the chat's recovery-phrase guard first, and the line says
 // "Posted in #general." or why not. Its Upload button wears the nav bar's RGB
 // border. At /media?window=upload in a frame (/shared/upload-window.js) the
 // page is the upload window over the chat: Add to Media and its uploads alone,
-// opened with the files dropped on a channel there, posting ticked for it.
+// opened with the files dropped on a channel there, posting ticked for it. At
+// /media/<id>?window=item in a frame it is the item window over the chat (a
+// Media card's Open, /chat/chat-media-card.js): that item's own page alone, with
+// a Download for each file; its Close closes the window.
 // "Report a copyright problem" (2026-10-13,
 // /pages/media-takedown.js) is on every item's page and at the page's foot, for
 // anyone, signed in or not, and the reports waiting are on the Admin tab. The
@@ -584,7 +588,10 @@
    *   uploadWindow ({send(event, data)}, /shared/upload-window.js connectFrame: the page is the
    *   upload window over another page, /media?window=upload. It shows only Add to Media and its
    *   uploads, takes the files that page hands over (takeFiles), and tells it what it says and
-   *   whether something is going; optional).
+   *   whether something is going; optional),
+   *   itemWindow ({send(event, data)}, the same connector: the page is the item window over the
+   *   chat, /media/<id>?window=item. It shows only that item's own page, says close when its Close
+   *   or Escape is pressed, and busy while one of its files is uploading; optional).
    */
   function createMediaPage(env) {
     const doc = env.document;
@@ -594,6 +601,11 @@
     // The upload window (2026-10-17): this page in a frame over the chat, Add to Media alone.
     const upWin = env.uploadWindow || null;
     const windowMode = !!upWin;
+    // The item window (2026-10-17): this page in a frame over the chat, one item's page alone.
+    const itemWin = upWin ? null : env.itemWindow || null;
+    const itemMode = !!itemWin;
+    // Either window: no list, no shelf, no tabs.
+    const framed = windowMode || itemMode;
     const URLs = env.URL || (typeof URL !== 'undefined' ? URL : null);
     const R = env.report || null;
     const later = env.setTimeout || ((fn, ms) => setTimeout(fn, ms));
@@ -606,7 +618,8 @@
     let host = '';
     try { host = new URL(env.origin).host; } catch (e) { host = ''; }
     const mediaOn = 'Media on ' + host;
-    const hist = env.history || null;
+    // The item window keeps its address: a frame's steps would join the chat's own Back.
+    const hist = itemMode ? null : env.history || null;
     let watcher = null; // the IntersectionObserver on the sentinel after the grid
 
     const st = {
@@ -666,14 +679,25 @@
     function chooseFiles(files) {
       if (files && files[0]) openAddForm(files[0], files.slice(1));
     }
+    /** Is a press-and-hold confirmation (hold-confirm.js, which draws it on the body) open? */
+    function holdConfirmOpen() {
+      const body = doc.body || null;
+      return !!(body && typeof body.querySelector === 'function' && body.querySelector('.hold-confirm-overlay'));
+    }
     function build() {
       doc.addEventListener('keydown', (e) => {
+        // A press-and-hold confirmation open over the page (/shared/hold-confirm.js, Remove): its
+        // Escape is its own Cancel, and closes nothing under it (in the item window it would close
+        // the item and the window with it).
+        if (e.key === 'Escape' && holdConfirmOpen()) return;
         if (e.key === 'Escape' && takedown && takedown.isOpen()) { takedown.close(); return; }
         if (e.key === 'Escape' && st.report) { closeReport(); return; }
         if (e.key === 'Escape' && st.viewer) { itemView.close(); return; }
         // The upload window: Escape closes it, as the page it is over does (it stays while
         // something is going in it, and carries on).
         if (e.key === 'Escape' && upWin) upWin.send('close');
+        // The item window with no item in it (not found): Escape closes it too.
+        if (e.key === 'Escape' && itemWin) itemWin.send('close');
       });
       els.status = h('div', { id: 'media-status', className: 'media-status' });
       els.notice = h('div', { id: 'media-notice', className: 'media-notice' });
@@ -713,6 +737,12 @@
         // parts above are made, never shown, so everything that draws into them can stay as it is).
         els.main = h('div', { id: 'media-main', className: 'media-window' }, [els.form, els.uploads]);
         env.root.replaceChildren(els.status, els.notice, els.main, fileInput);
+        return;
+      }
+      if (itemMode) {
+        // The item window: the item's own page (els.viewer) with its report and copyright dialogs,
+        // under the sign-in line and the notices; nothing of the list, its tabs or Add to Media.
+        env.root.replaceChildren(els.status, els.notice, els.viewer, els.report, els.takedown);
         return;
       }
       doc.title = mediaOn;
@@ -797,8 +827,9 @@
       st.noticeWarn = !!warn;
       renderNotice();
       // The upload window tells the page it is over each line it says: shown there while the
-      // window is closed and an upload carries on (the chat's notices).
-      if (upWin && st.notice) upWin.send('status', { text: st.notice });
+      // window is closed and an upload carries on (the chat's notices). The item window too.
+      const win = upWin || itemWin;
+      if (win && st.notice) win.send('status', { text: st.notice });
     }
     function renderNotice() {
       els.notice.replaceChildren();
@@ -987,6 +1018,8 @@
       env, h, st, els, W: MEDIA_WORDS, myKey, mediaOn, token, isAdmin, membersOnlyServer, blobs, blobFor, sweepBlobs, pictureSource,
       lib: { fileRoute, itemName, downloadName, itemFileName, labelsOf, kindWords, sizeWords, num, answerOf, jsonPost },
       go, canPush: !!hist, back: () => hist.back(),
+      // The item window closes with its item (its Close, Escape, a click beside it).
+      closed: itemMode ? () => itemWin.send('close') : null,
       rerender: () => { renderGrid(); renderFeatured(); },
       actions: (item) => tileActions(item, true),
       openTakedown: TD ? (item) => openTakedown(item) : null,
@@ -1125,8 +1158,8 @@
     }
 
     function renderFeatured() {
-      // The upload window shows no list (and so fetches none of its pictures).
-      if (windowMode) return;
+      // The upload and item windows show no list (and so fetch none of its pictures).
+      if (framed) return;
       els.featured.replaceChildren();
       if (!st.featured.length) return;
       // The main shelf, or the shelf of the category it was asked for (3.9: "Featured in Fire flow arts").
@@ -1136,7 +1169,7 @@
     }
 
     function renderGrid() {
-      if (windowMode) return; // the upload window shows no list (renderFeatured)
+      if (framed) return; // the upload and item windows show no list (renderFeatured)
       els.grid.replaceChildren();
       if (st.listError) {
         els.grid.appendChild(h('p', { className: 'media-empty media-warn', text: st.listError }));
@@ -1236,9 +1269,9 @@
       st.loading = true;
       st.listError = '';
       renderGrid();
-      // The upload window reads the list only for what its answer carries besides the items (the
-      // categories, the labels, the licences, and whether this person sees the members' side): one item.
-      const params = listParams(st.filters, reset ? null : st.nextCursor, windowMode ? 1 : undefined);
+      // The upload and item windows read the list only for what its answer carries besides the items
+      // (the categories, the labels, the licences, and whether this person sees the members' side): one item.
+      const params = listParams(st.filters, reset ? null : st.nextCursor, framed ? 1 : undefined);
       const fromPicks = !!(st.filters.picks && myKey);
       try {
         const res = fromPicks ? await fetchPicks(params) : await fetchList(params);
@@ -1262,7 +1295,7 @@
      * category picked, that category's shelf (`featured=1&category=c`, 3.3).
      */
     async function loadFeatured() {
-      if (windowMode) return; // the upload window shows no shelf
+      if (framed) return; // the upload and item windows show no shelf
       const seq = ++featuredSeq;
       const shelf = st.filters.category || '';
       let featured = [];
@@ -1503,7 +1536,7 @@
     // ── Add to Media, Put on Media, publishing, "Also post in chat" and the upload window's side ──
     // In /pages/media-add.js (moved there 2026-10-17): made here with what it shares with the page.
     const addForm = ADD.createAddForm({
-      st, els, h, doc, env, session, myKey, upWin, cleaner, later, cancelLater, now, Abort, itemView,
+      st, els, h, doc, env, session, myKey, upWin, itemWin, cleaner, later, cancelLater, now, Abort, itemView,
       canUpload, bound, token, sessionState, knownCannotUpload, isAdmin, membersOnlyServer, loadMine, load, say, renderWaiting, sayCancelled,
       lib: {
         MEDIA_WORDS, MORE_LEAD, ANSWER_WAIT_MS, DEFAULT_LICENCE, num, sizeWords, shareLeftWords, limitStop, shareStop, budgetStop,
@@ -1800,18 +1833,21 @@
       renderStatus();
       renderNotice();
       if (!windowMode) {
-        renderMembers();
-        renderActions();
-        renderFilters();
-        renderFeatured();
-        renderGrid();
+        // The item window draws only the item's page (and its pictures, below).
+        if (!itemMode) {
+          renderMembers();
+          renderActions();
+          renderFilters();
+          renderFeatured();
+          renderGrid();
+        }
         itemView.renderIfChanged();
-        renderWaiting();
+        if (!itemMode) renderWaiting();
       }
       if (st.form && !st.form.busy && !st.form.up && st.form.key !== formKey()) renderForm();
       if (st.form) renderPostRow(st.form); // the person's role may have come (admins see read-only channels)
       if (!windowMode) {
-        renderAdmin();
+        if (!itemMode) renderAdmin();
         sweepBlobs();
         pumpBlobs();
       }
@@ -1862,6 +1898,26 @@
       }
     }
 
+    /**
+     * The item window brought back over the chat on its item (a card's Open while this frame was
+     * hidden, its upload going: /shared/upload-window.js tells it 'open', 2026-10-17, review). Its
+     * own Close had closed the item, so it opens it again, as /media/<n> opens it; and its Edit
+     * when one of its files is still uploading, where that upload's progress shows.
+     */
+    async function reopen() {
+      if (!itemMode) return;
+      const id = itemIdOf(env.path);
+      if (id == null) return;
+      if (!st.viewer || st.viewer.id !== id) {
+        const known = itemView.current(id);
+        if (known) itemView.open(known, true);
+        else await openById(id);
+      }
+      const item = st.viewer && st.viewer.id === id ? st.viewer : null;
+      if (item && !itemView.page.edit && st.uploads.some((u) => u.attach && u.attach.id === id)) itemView.openEdit(item);
+    }
+    if (itemWin && typeof itemWin.onOpen === 'function') itemWin.onOpen(() => { reopen(); });
+
     // ── Files dragged from the computer onto the page (2026-10-17, /shared/drop-overlay.js) ──
     // The desktop's words while they are over it: "Drop to upload to Media", which opens Add to
     // Media with them exactly as choosing them does (chooseFiles); with an item's Edit open, "Drop
@@ -1883,6 +1939,8 @@
         if (edit.addFiles) return { take: true, line: DROP.addTo(itemName(itemView.current(st.viewer.id) || st.viewer, st.kinds)) };
         return { take: false, reason: edit.addFilesWhyNot || '' };
       }
+      // The item window holds no Add to Media: a file goes onto the item only through its Edit.
+      if (itemMode) return { take: false, reason: '' };
       if (isAdmin() && st.tab === 'admin') return { take: false, reason: MEDIA_WORDS.addOnMediaTab };
       if (myKey && st.membersView && canUpload()) {
         // The upload window over a channel of the chat: a drop on it posts there too, as one on the chat.
@@ -1916,6 +1974,14 @@
       if (windowMode) {
         await load(true);
         loadMine();
+        return;
+      }
+      // The item window: the item its address names, opened as /media/<n> opens it, and nothing else.
+      if (itemMode) {
+        await loadKinds();
+        await load(true);
+        const one = itemIdOf(env.path);
+        if (one != null) await openById(one);
         return;
       }
       await loadKinds();
@@ -1976,6 +2042,10 @@
       const uploadWindow = UW && UW.isWindowAddress(loc.search)
         ? UW.connectFrame({ window: root, onFiles: (files, postTo) => { if (page) page.takeFiles(files, postTo); } })
         : null;
+      // The item window (2026-10-17): /media/<n>?window=item in a frame over the chat (a Media card's Open).
+      const itemWindow = !uploadWindow && UW && UW.isItemWindowAddress && UW.isItemWindowAddress(loc.search)
+        ? UW.connectFrame({ window: root })
+        : null;
       page = createMediaPage({
         document: doc,
         root: rootEl,
@@ -2002,6 +2072,7 @@
         // (/shared/pq-relay-auth.js pqRecoveryPhraseIn, over /shared/warnings.js and the word list).
         phraseIn: (texts) => (typeof root.pqRecoveryPhraseIn === 'function' ? root.pqRecoveryPhraseIn(texts) : Promise.resolve(null)),
         uploadWindow,
+        itemWindow,
         retryIdentity: () => root.location.reload(),
         // The admins' section on the Admin tab (/pages/media-admin.js, loaded after this file).
         mountAdmin: (container) => {

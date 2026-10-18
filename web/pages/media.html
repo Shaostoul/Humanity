@@ -21,18 +21,25 @@
   <link rel="stylesheet" href="/shared/drop-overlay.css?v=2">
   <!-- The upload window (2026-10-17, /shared/upload-window.js): this page at /media?window=upload in a
        frame over the chat is its Add to Media alone, without the site's menu, footer and background.
-       Marked here, before anything is drawn, so the menu never shows in the frame. -->
+       At /media/<id>?window=item (a Media card's Open in the chat) it is that item's own page alone,
+       drawn as the frame's page rather than a dimmed dialog over it.
+       Marked here, before anything is drawn, so the menu never shows in the frame. In the frame only
+       the page and what its own parts put on the body show: the drop overlay, the press-and-hold
+       confirmation Remove asks with (/shared/hold-confirm.js; hidden, its promise never settled and
+       Remove did nothing), and the tooltip /shared/shell.js draws in place of every title. -->
   <script>
     (function () {
       var framed = false;
       try { framed = window.self !== window.top; } catch (e) { framed = true; }
-      if (framed && /(?:^|[?&])window=upload(?:&|$)/.test(location.search.slice(1))) document.documentElement.setAttribute('data-media-window', '');
+      if (framed && /(?:^|[?&])window=(?:upload|item)(?:&|$)/.test(location.search.slice(1))) document.documentElement.setAttribute('data-media-window', '');
     })();
   </script>
   <style>
     body { background: var(--bg); color: var(--text); line-height: var(--line-height); min-height: 100vh; padding-bottom: 60px; }
     [data-media-window] body { min-height: 0; padding: 0; }
-    [data-media-window] body > :not(#media-root):not(.hos-drop-overlay) { display: none !important; }
+    [data-media-window] body > :not(#media-root):not(.hos-drop-overlay):not(.hold-confirm-overlay):not(#hos-rich-tooltip) { display: none !important; }
+    [data-media-window] #media-viewer .media-viewer { position: static; padding: 0; background: transparent; display: block; }
+    [data-media-window] #media-viewer .media-viewer-box { border: 0; border-radius: 0; max-width: none; }
   </style>
 </head>
 <body>
@@ -78,7 +85,7 @@
      /data/safety/file_risks.json, the list the desktop app reads too; before media-edit.js, which draws
      the badges for media-item.js and media-app.js. -->
 <script src="/shared/file-risk.js?v=2"></script>
-<script src="/pages/media-edit.js?v=3"></script>
+<script src="/pages/media-edit.js?v=4"></script>
 <!-- "Report a copyright problem" (2026-10-13): the form anyone may send, signed in or not, and the
      admins' view of the reports; before media-item.js and media-app.js, which use it. -->
 <script src="/pages/media-takedown.js?v=1"></script>
@@ -89,17 +96,17 @@
      pictures and files where its pictures rule is on, a labelled item); reach.js before protected.js. -->
 <script src="/shared/reach.js?v=4"></script>
 <script src="/shared/protected.js?v=4"></script>
-<script src="/pages/media-item.js?v=5"></script>
+<script src="/pages/media-item.js?v=6"></script>
 <!-- Files dragged from the computer onto the page (2026-10-17): the desktop's words while they are
      over it ("Drop to upload to Media", "Drop to add to <the item>" with its Edit open) and its drop.
      Before media-app.js, which puts it on the page. upload-window.js: this page as the upload window
      over the chat (/media?window=upload in a frame), taking the files dropped there. -->
 <script src="/shared/drop-overlay.js?v=2"></script>
-<script src="/shared/upload-window.js?v=1"></script>
+<script src="/shared/upload-window.js?v=2"></script>
 <!-- Add to Media (the form, its uploads, publishing and "Also post in chat"), in its own file since
      2026-10-17; media-app.js makes it, so it loads first. -->
-<script src="/pages/media-add.js?v=1"></script>
-<script src="/pages/media-app.js?v=11"></script>
+<script src="/pages/media-add.js?v=2"></script>
+<script src="/pages/media-app.js?v=12"></script>
 <!-- The admins' Media section: this page's Admin tab, for admins (/media#admin; /admin points here). -->
 <script src="/pages/media-admin.js?v=3"></script>
 </body>

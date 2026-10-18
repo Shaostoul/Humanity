@@ -474,12 +474,24 @@ pub fn parse_mine(v: &Value) -> Mine {
 /// A size in the words the page uses: megabytes below a gigabyte, else gigabytes, one decimal
 /// with a whole number shown whole ("412 MB", "12.4 GB", "50 GB").
 pub fn size_words(bytes: i64) -> String {
+    // The website's `sizeWords` (web/pages/media-app.js), word for word: a small file in KB or bytes,
+    // never "0 MB" (operator's screenshot, 2026-10-17: "ClipOutsideB.stl, file, 0 MB").
     const MB: f64 = 1024.0 * 1024.0;
     let b = bytes.max(0) as f64;
-    let (n, unit) = if b >= 1024.0 * MB { (b / (1024.0 * MB), "GB") } else { (b / MB, "MB") };
-    let shown = format!("{n:.1}");
-    let shown = shown.strip_suffix(".0").unwrap_or(&shown);
-    format!("{shown} {unit}")
+    let one_decimal = |x: f64| {
+        let shown = format!("{x:.1}");
+        shown.strip_suffix(".0").map(str::to_string).unwrap_or(shown)
+    };
+    if b >= 1024.0 * MB {
+        format!("{} GB", one_decimal(b / (1024.0 * MB)))
+    } else if b >= MB {
+        let n = b / MB;
+        format!("{} MB", if n >= 100.0 { format!("{}", n.round()) } else { one_decimal(n) })
+    } else if b >= 1024.0 {
+        format!("{} KB", (b / 1024.0).round())
+    } else {
+        format!("{} {}", b as i64, if b as i64 == 1 { "byte" } else { "bytes" })
+    }
 }
 
 /// The meter: "12.4 GB of 50 GB used".

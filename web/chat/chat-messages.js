@@ -191,9 +191,11 @@ function startEditMode(msgEl, originalBody, fromKey, timestamp) {
         channel: activeChannel,
       }));
     }
-    // Apply locally immediately.
-    bodyEl.innerHTML = formatBody(newContent);
+    // Apply locally immediately, its Media cards with it (chat-media-card.js).
+    const media = typeof mediaCardsPlan === 'function' ? mediaCardsPlan(newContent, fromKey) : null;
+    bodyEl.innerHTML = formatBody(media ? media.words : newContent);
     if (typeof fillFileCards === 'function') fillFileCards(bodyEl);
+    if (media) mediaCardsPut(msgEl, media.ids, fromKey, timestamp);
     if (!bodyEl.querySelector('.edited-marker')) {
       const marker = document.createElement('span');
       marker.className = 'edited-marker';
@@ -233,9 +235,11 @@ function applyEditToDOM(fromKey, timestamp, newContent) {
   const bodyEl = msgEl.querySelector('.body');
   if (!bodyEl) return;
   // Who wrote it goes along, so an edit cannot bring back a picture the
-  // protected setup does not show (10h).
-  bodyEl.innerHTML = formatBody(newContent, fromKey);
+  // protected setup does not show (10h). Its Media cards follow it (chat-media-card.js).
+  const media = typeof mediaCardsPlan === 'function' ? mediaCardsPlan(newContent, fromKey) : null;
+  bodyEl.innerHTML = formatBody(media ? media.words : newContent, fromKey);
   if (typeof fillFileCards === 'function') fillFileCards(bodyEl);
+  if (media) mediaCardsPut(msgEl, media.ids, fromKey, timestamp);
   // Add (edited) marker if not present.
   if (!bodyEl.querySelector('.edited-marker')) {
     const marker = document.createElement('span');

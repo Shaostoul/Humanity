@@ -389,6 +389,92 @@ impl Storage {
         })
     }
 
+    /// Give file `file_no` of item `id` (0: the item's own) the name `name` that people see and
+    /// download it as (operator, 2026-10-17: "Can we allow renaming of files in the edit window?"):
+    /// its uploader, or an admin. `file_name` must be that file's stored name (W5). The name keeps
+    /// the stored file's own ending, added when it is left off ([`shown_name_for`]), so a Blender
+    /// file can never be named to look like a picture. Only the shown name changes (its upload's
+    /// `original_name`); the stored file and its address stay. Returns the item as it now is.
+    pub fn rename_media_file(&self, requester: &str, is_admin: bool, id: i64, file_no: i64, file_name: &str, name: &str) -> Result<MediaItem, MediaError> {
+        self.with_conn_mut(|conn| {
+            let tx = conn.transaction()?;
+            let uploader: Option<String> =
+                tx.query_row("SELECT uploader_key FROM media_items WHERE id = ?1", params![id], |r| r.get(0)).optional()?;
+            let Some(uploader) = uploader else {
+                return refused(Refusal::NotFound, "There is no Media item with that number.");
+            };
+            if uploader != requester && !is_admin {
+                return refused(Refusal::NotAllowed, "Only the person who put it there, or an admin, can rename a file of a Media item.");
+            }
+            let stored: Option<String> = if file_no == 0 {
+                tx.query_row("SELECT upload_filename FROM media_items WHERE id = ?1", params![id], |r| r.get(0)).optional()?
+            } else {
+                tx.query_row("SELECT upload_filename FROM media_item_files WHERE id = ?1 AND item_id = ?2", params![file_no, id], |r| r.get(0)).optional()?
+            };
+            let Some(stored) = stored else {
+                return refused(Refusal::NotFound, "That Media item has no file with that number.");
+            };
+            if stored != file_name.trim().trim_start_matches("/uploads/") {
+                return refused(Refusal::Conflict, OUT_OF_DATE);
+            }
+            let shown = match shown_name_for(name, &stored) {
+                Ok(shown) => shown,
+                Err(words) => return refused(Refusal::Bad, words),
+            };
+            tx.execute("UPDATE user_uploads SET original_name = ?1 WHERE filename = ?2", params![shown, stored])?;
+            let item = item_by_id(&tx, id)?.ok_or(MediaError::Db(rusqlite::Error::QueryReturnedNoRows))?;
+            tx.commit()?;
+            Ok(item)
+        })
+    }
+
+    /// Make picture file `file_no` item `id`'s cover (operator, 2026-10-17: "I uploaded a png with
+    /// the blend and STL files but, I can't seem to assign it as the preview photo"): its uploader,
+    /// as with adding a cover. `file_name` must be that file's stored name (W5). Only a picture can
+    /// be the cover, and never file 0 (the item itself). The cover there was before becomes one of
+    /// its files, last: nothing is deleted. Returns the item as it now is.
+    pub fn cover_from_file(&self, requester: &str, id: i64, file_no: i64, file_name: &str) -> Result<MediaItem, MediaError> {
+        self.with_conn_mut(|conn| {
+            let tx = conn.transaction()?;
+            let uploader: Option<String> =
+                tx.query_row("SELECT uploader_key FROM media_items WHERE id = ?1", params![id], |r| r.get(0)).optional()?;
+            let Some(uploader) = uploader else {
+                return refused(Refusal::NotFound, "There is no Media item with that number.");
+            };
+            if uploader != requester {
+                return refused(Refusal::NotAllowed, "Only the person who put it on the Media page can choose its cover.");
+            }
+            if file_no == 0 {
+                return refused(Refusal::Bad, "The first file is the item itself: add a picture to it and use that as the cover.");
+            }
+            let row: Option<(String, String)> = tx
+                .query_row("SELECT upload_filename, role FROM media_item_files WHERE id = ?1 AND item_id = ?2", params![file_no, id], |r| Ok((r.get(0)?, r.get(1)?)))
+                .optional()?;
+            let Some((stored, role)) = row else {
+                return refused(Refusal::NotFound, "That Media item has no file with that number.");
+            };
+            if stored != file_name.trim().trim_start_matches("/uploads/") {
+                return refused(Refusal::Conflict, OUT_OF_DATE);
+            }
+            if role == ROLE_COVER {
+                return refused(Refusal::Bad, "That picture is the cover already.");
+            }
+            if kind_of(&stored) != "picture" {
+                return refused(Refusal::Bad, "A cover must be a picture: PNG, JPEG, GIF or WebP.");
+            }
+            let last: i64 = tx.query_row(
+                "SELECT COALESCE(MAX(position), 0) + 1 FROM media_item_files WHERE item_id = ?1 AND role = ?2",
+                params![id, ROLE_FILE],
+                |r| r.get(0),
+            )?;
+            tx.execute("UPDATE media_item_files SET role = ?1, position = ?2 WHERE item_id = ?3 AND role = ?4", params![ROLE_FILE, last, id, ROLE_COVER])?;
+            tx.execute("UPDATE media_item_files SET role = ?1, position = 1 WHERE id = ?2", params![ROLE_COVER, file_no])?;
+            let item = item_by_id(&tx, id)?.ok_or(MediaError::Db(rusqlite::Error::QueryReturnedNoRows))?;
+            tx.commit()?;
+            Ok(item)
+        })
+    }
+
     /// Take file `file_no` off item `id`: its uploader, or an admin. Never file 0, the item itself
     /// (remove the item instead); `file_name` must be that file's stored name (W5). The file was
     /// uploaded for Media, so its rows go; returns the item as it now is and the stored name, whose
@@ -516,3 +602,33 @@ impl Storage {
 #[cfg(test)]
 #[path = "media_files_tests.rs"]
 mod tests;
+
+/// The longest name a file of a Media item can be given, in characters.
+pub const FILE_NAME_MAX: usize = 120;
+
+/// The name `given` for a file stored as `stored`, as it is kept: trimmed, with the stored file's
+/// own ending (`tar.gz` for a tarball, else its last), added when left off; never empty, never a
+/// folder, never a hidden file, never a control character, at most [`FILE_NAME_MAX`] long. Err
+/// with the words when it cannot be.
+pub fn shown_name_for(given: &str, stored: &str) -> Result<String, String> {
+    let given = given.trim();
+    let lower_stored = stored.to_ascii_lowercase();
+    let ending = if lower_stored.ends_with(".tar.gz") { "tar.gz".to_string() } else { lower_stored.rsplit_once('.').map(|(_, e)| e.to_string()).unwrap_or_default() };
+    if given.is_empty() {
+        return Err("A file needs a name.".to_string());
+    }
+    // A direction mark is hidden too, and can make a browser show `photo<RLO>gnp.exe` as
+    // "photoexe.png" (2026-10-17; the apps also take them out of the names they show).
+    let hidden = |c: char| c.is_control() || matches!(c, '\u{200E}' | '\u{200F}' | '\u{061C}' | '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}');
+    if given.contains(['/', '\\']) || given.chars().any(hidden) {
+        return Err("A file's name cannot hold a slash or a hidden character.".to_string());
+    }
+    let named = if ending.is_empty() || given.to_ascii_lowercase().ends_with(&format!(".{ending}")) { given.to_string() } else { format!("{given}.{ending}") };
+    if named.starts_with('.') || named.trim_end_matches(&format!(".{ending}")).trim().is_empty() {
+        return Err("A file needs a name before its ending.".to_string());
+    }
+    if named.chars().count() > FILE_NAME_MAX {
+        return Err(format!("A file's name can be at most {FILE_NAME_MAX} letters long."));
+    }
+    Ok(named)
+}

@@ -12,7 +12,8 @@
 // chat-profile.js, chat-privacy.js, chat-reports.js, chat-warnings.js, chat-protected.js,
 // chat-onboarding.js and chat-p2p.js, in index.html's order (with file-risk.js since 2026-10-17,
 // served the shipped data/safety/file_risks.json; the stand-in page finds the file cards app.js
-// draws, each with its data-* attributes and its player, as a browser's querySelectorAll would).
+// draws, each with its data-* attributes and its player, as a browser's querySelectorAll would;
+// and chat-media-card.js, a Media item's card, since the same day).
 //
 // What is REAL: the file encryption (WebCrypto AES-256-GCM, the page's own pqEncryptFile and
 // pqDecryptFile), the group's signed objects and its messages' encryption (pq-object.js and the
@@ -79,6 +80,13 @@
 //     button's own private path, never the upload window; where a drop would do nothing (sending
 //     files in private turned off, not signed in) "Files cannot be dropped here." and why, and
 //     nothing goes; a dragged link or text is left to the browser. The "drop:" tests.
+// 17. (2026-10-17) A Media item's address on this site in a message is a card just after its words
+//     (chat-media-card.js; the card itself is scripts/tests/media-card-web.test.js), the address out
+//     of them; the item asked for once, signed with the chat's own identity over "media_list\n<ts>";
+//     its badge HosFileRisk.badgeHtml's; its Open the upload window's frame on /media/7?window=item;
+//     another website's /media/ page stays a plain link. The "media card:" test. And (the review,
+//     the same day) a list at its bottom stays there as a card goes in and as it fills in, while one
+//     scrolled up is left where it is: "media card: the list stays at its bottom".
 //
 // Red first: see the end of this file for each deliberate break and the assertion it tripped.
 
@@ -336,7 +344,11 @@ function fakeDom(state) {
     };
     own.remove = () => { own.removed = true; };
     own.focus = () => {};
-    own.after = () => {};
+    // What a script puts just after this element (a Media card under a message's words, 2026-10-17).
+    own.after = (...nodes) => { own.afterNodes = (own.afterNodes || []).concat(nodes); };
+    // `state.realChildren`: replaceChildren empties the element first, as a browser's does (for a
+    // page drawn again in place, the Media cards); otherwise it does nothing, as before.
+    if (state.realChildren) own.replaceChildren = (...cs) => { own.children = cs.slice(); };
     const p = new Proxy(own, {
       get(t, prop) {
         if (prop === "then") return undefined;
@@ -505,7 +517,7 @@ async function loadChat(me, opts = {}) {
   // opts.honest and opts.absentIds: the honest page (fakeDom). opts.timers: an array that collects
   // every setTimeout the page asks for, {cb, ms}, none of which runs by itself (a test may run one,
   // such as chat-ui.js initUnifiedLeftSidebar, which the page queues as it loads).
-  const state = { appended: [], honest: !!opts.honest, absent: new Set(opts.absentIds || []) };
+  const state = { appended: [], honest: !!opts.honest, absent: new Set(opts.absentIds || []), realChildren: !!opts.realChildren };
   // opts.stored: what this browser's localStorage held before the page loaded ({key: text}).
   const local = fakeStorage();
   for (const [k, v] of Object.entries(opts.stored || {})) local.setItem(k, v);
@@ -590,6 +602,9 @@ async function loadChat(me, opts = {}) {
       const u = String(url);
       const method = (init && init.method) || "GET";
       fetched.push(method + " " + u);
+      // opts.fetch(url, init): a test's own answer for an address (or nothing, for the stand-in's).
+      const own = opts.fetch ? opts.fetch(u, init) : null;
+      if (own) return own;
       if (u.startsWith("/api/upload") && method === "POST") return upload(u, init).then((json) => ok(json));
       if (u === RISK.LIST_URL) return Promise.resolve(riskListHeld).then(() => ok(clone(FILE_RISKS)));
       // A HEAD on a file here (a public file's card asks its size): its length, no body.
@@ -680,6 +695,7 @@ async function loadChat(me, opts = {}) {
   run("chat/chat-dm-store.js");
   run("chat/view/timestampPill.js");
   run("chat/view/messageRow.js");
+  run("chat/chat-media-card.js"); // a Media item posted in chat, as a card (2026-10-17)
   run("chat/app.js");
   run("chat/chat-messages.js");
   run("chat/chat-dms.js");
@@ -3398,4 +3414,145 @@ test("drop: a dragged link or piece of text is left to the browser", async () =>
   assert.equal(page.uploads.length, 0, "nothing uploaded");
   assert.equal(uploadWindowOf(page), null, "no window");
   assert.equal(page.sock.sent.filter((m) => m.type === "chat").length, 0, "nothing sent");
+});
+
+// ── 17. A Media item's card (2026-10-17) ────────────────────────────────
+// The operator: "when someone clicks on the file in chat it brings up the full popup window for that
+// item instead of just having truncated version ... I'd rather people know exactly what they're
+// downloading instead of guessing." Add to Media's "Also post in chat" posts the item's own address
+// (web/pages/media-add.js postText); the chat shows it as a card (web/chat/chat-media-card.js, whose
+// own test is scripts/tests/media-card-web.test.js). This test is the chat page's half: app.js
+// takes the address out of the words and puts the card just after them.
+// Seen red 2026-10-17 in a copy of web/ through HOS_WEB_DIR, each break: in chat/app.js, the whole text
+// formatted: "the address is out of the words"; in chat/app.js, the mediaCardsPut call taken out: "the
+// cards, just after the words"; in chat/chat-media-card.js, the chat's sign answering null: the card asked
+// the public list, which this stand-in server does not answer ("This Media item could not be loaded: no
+// network in tests: /api/media?id=7&limit=1"); the badge not drawn through fileBadgeFill: actual ''; every
+// host counted as this site: "a plain link"; Open not wired to the item window: "a window over the chat";
+// the signature made over "media_list_x": "a real signature over media_list\n<timestamp>".
+test("media card: a Media item's address on this site is a card just after the words, the address out of them; another website's stays a link", async () => {
+  const fx = await fixture();
+  const MIB = 1024 * 1024;
+  const item = {
+    id: 7, url: "/uploads/7_dusk.glb", filename: "7_dusk.glb", original_name: "dusk.glb", title: "Dusk", description: "First line of it",
+    kind: "model", visibility: "public", labels: [], size_bytes: 2 * MIB, total_bytes: 2 * MIB + 4000, file_count: 2,
+    uploader_key: fx.ben.key, uploader_name: "Ben", category: { id: 2, name: "Fire flow arts" }, cover: null,
+    files: [
+      { file: 0, filename: "7_dusk.glb", original_name: "dusk.glb", kind: "model", size_bytes: 2 * MIB, url: "/uploads/7_dusk.glb" },
+      { file: 1, filename: "8_textures.zip", original_name: "textures.zip", kind: "file", size_bytes: 4000, url: "/uploads/8_textures.zip" },
+    ],
+  };
+  const lists = [];
+  const page = await loadChat(fx.ann, {
+    realChildren: true,
+    fetch: (u, init) => {
+      if (u !== "/api/media/list") return null;
+      lists.push(JSON.parse(init.body));
+      return ok({ items: [item], labels: [] });
+    },
+  });
+  const row = postInRoom(page, fx.ben, "Here it is: https://localhost/media/7.", T0 + 950);
+  await settle();
+  assert.ok(!row.innerHTML.includes("/media/7"), "the address is out of the words");
+  assert.ok(row.innerHTML.includes("Here it is: ."), "the rest of the words stay");
+  const box = (row.querySelector(".body").afterNodes || [])[0];
+  assert.ok(box && box.className === "media-cards", "the cards, just after the words");
+  const card = box.children[0];
+  const line = card.children.find((c) => c.className === "media-card-line");
+  assert.ok(line, "the item's card, as one line: " + card.children.map((c) => c.className + ":" + c.textContent).join(" | "));
+  const [tri, badge, title, count, open] = line.children;
+  assert.equal(tri.title, "Show more");
+  assert.equal(badge.innerHTML, RISK.badgeHtml("dusk.glb", null, FILE_RISKS), "its own file's type badge, as HosFileRisk.badgeHtml draws it");
+  assert.equal(title.textContent, "Dusk");
+  assert.equal(count.textContent, "2 files, 2 MB");
+  assert.equal(open.textContent, "Open");
+  // Asked for once, signed with the chat's own identity, as the Media page signs a read.
+  assert.equal(lists.length, 1, "asked for once");
+  assert.deepEqual([lists[0].id, lists[0].limit, lists[0].key], [7, 1, fx.ann.key]);
+  const signed = new TextEncoder().encode("media_list\n" + lists[0].timestamp);
+  assert.ok(fx.m.noble.ml_dsa65.verify(Buffer.from(lists[0].sig, "hex"), signed, fx.ann.pub), "a real signature over media_list\n<timestamp>");
+  // The same item in another message: no second request.
+  postInRoom(page, fx.cy, "also https://localhost/media/7", T0 + 955);
+  await settle();
+  assert.equal(lists.length, 1, "asked for once for the page");
+  // Another website's /media/ page: a plain link, no card, nothing asked.
+  const other = postInRoom(page, fx.ben, "see https://other.example/media/9", T0 + 960);
+  await settle();
+  assert.ok(other.innerHTML.includes('href="https://other.example/media/9"'), "a plain link");
+  assert.equal((other.querySelector(".body").afterNodes || []).length, 0, "no card");
+  assert.equal(lists.length, 1, "nothing asked for it");
+  // Open: the item's full window over the chat, the upload window's frame on its own page.
+  open.listeners.click[0]({ stopPropagation() {} });
+  const dialog = page.el("__body").children.find((c) => c.className === "hos-upload-window");
+  assert.ok(dialog && dialog.hidden === false, "a window over the chat");
+  const frame = dialog.children[0].children.find((c) => c.tag === "iframe");
+  assert.equal(frame.src, "/media/7?window=item", "the Media page's own item page, in its item-window form");
+});
+
+// A NEW MESSAGE'S CARD LANDED BELOW THE FOLD (2026-10-17, review): mediaCardsPut ran after
+// appendMessage had scrolled the list to its bottom, and the card grew again when its item arrived.
+// Now a list at its bottom stays there as the card goes in and as it fills in (chat-media-card.js
+// keepAtBottom), the same for a direct message (chat-dms.js calls the same mediaCardsPut); someone
+// who has scrolled up is left where they are. The list here is a stand-in for the browser's layout:
+// each card is 40 px while it is drawn waiting for its item and 70 once it is drawn with it, and the scroll position is
+// clamped as a browser clamps it.
+// Seen red 2026-10-17 in a copy of web/ through HOS_WEB_DIR, each break in chat/chat-media-card.js:
+// with mediaCardsPut putting the card in without keepAtBottom: "at its bottom with the card in"
+// (actual 600, the list's end 640); with render drawing the cards without keep: "and still there once
+// it fills in" (actual 640, the end 670); with atBottom answering true whatever the position: "scrolled
+// up: left where it is" (actual 740, the end).
+test("media card: the list stays at its bottom as a card goes in and fills in; scrolled up, it is left where it is", async () => {
+  const fx = await fixture();
+  const itemOf = (id) => ({
+    id, url: "/uploads/" + id + "_dusk.glb", filename: id + "_dusk.glb", original_name: "dusk.glb", title: "Dusk " + id, description: "",
+    kind: "model", visibility: "public", labels: [], size_bytes: 4000, total_bytes: 4000, file_count: 1,
+    uploader_key: fx.ben.key, uploader_name: "Ben", category: null, cover: null, files: [],
+  });
+  const waiting = new Map(); // item id -> answer it
+  const page = await loadChat(fx.ann, {
+    realChildren: true,
+    fetch: (u, init) => {
+      if (u !== "/api/media/list") return null;
+      const id = JSON.parse(init.body).id;
+      return new Promise((r) => { waiting.set(id, () => r(ok({ items: [itemOf(id)], labels: [] }))); });
+    },
+  });
+  const mc = page.ctx.hosMediaCards;
+  const list = page.el("messages");
+  const SEEN = 400;
+  const height = () => 1000 + [...mc.mounted.values()].reduce((n, set) => n + [...set].reduce((m, c) => m + (String(c.el.className).split(/\s+/).includes("media-card-wait") ? 40 : 70), 0), 0);
+  let top = 600;
+  Object.defineProperty(list, "clientHeight", { value: SEEN, configurable: true, writable: true });
+  Object.defineProperty(list, "scrollHeight", { get: height, configurable: true });
+  Object.defineProperty(list, "scrollTop", { get: () => top, set: (v) => { top = Math.max(0, Math.min(Number(v), height() - SEEN)); }, configurable: true });
+  const end = () => height() - SEEN;
+  assert.equal(top, end(), "test setup: the list starts at its bottom");
+
+  // At its bottom (appendMessage has just scrolled it there): it stays there with the card in, and
+  // once the item comes and the card is drawn taller.
+  postInRoom(page, fx.ben, "Here it is: https://localhost/media/7", T0 + 1000);
+  assert.equal(height(), 1040, "test setup: the card is in, waiting for its item");
+  assert.equal(top, end(), "at its bottom with the card in");
+  await waitFor(() => waiting.has(7), "the item asked for");
+  waiting.get(7)();
+  await settle();
+  assert.equal(height(), 1070, "test setup: the card drawn with its item");
+  assert.equal(top, end(), "and still there once it fills in");
+
+  // Scrolled up: a new message's card does not move the list.
+  top = 200;
+  postInRoom(page, fx.cy, "again https://localhost/media/7", T0 + 1010);
+  assert.equal(height(), 1140, "test setup: its card is in");
+  assert.equal(top, 200, "scrolled up: left where it is");
+
+  // At its bottom when a card went in, then scrolled up before its item came: left where it is.
+  top = end();
+  postInRoom(page, fx.ben, "and https://localhost/media/8", T0 + 1020);
+  assert.equal(top, end(), "at its bottom with the card in");
+  top = 100;
+  await waitFor(() => waiting.has(8), "the second item asked for");
+  waiting.get(8)();
+  await settle();
+  assert.equal((mc.cache.get(8) || {}).state, "ready", "test setup: the second card is drawn");
+  assert.equal(top, 100, "scrolled up while it was on its way: left where it is");
 });

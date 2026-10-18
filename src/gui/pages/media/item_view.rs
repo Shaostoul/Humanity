@@ -58,6 +58,9 @@ pub struct ItemPage {
 
 /// What the page says when the item is not on the Media page, or this person may not see it.
 pub const NOT_THERE: &str = "That item is not on the Media page, or you may not see it.";
+/// What the page says once a file was renamed, and once a picture on the item became its cover.
+pub const FILE_RENAMED: &str = "Renamed.";
+pub const COVER_CHOSEN: &str = "That picture is the cover now.";
 /// What the page says once a file was taken off the item.
 pub const FILE_REMOVED: &str = "Removed from the item.";
 /// What the page says once an edit went.
@@ -146,6 +149,21 @@ pub(crate) fn on_answer(state: &mut GuiState, job: Job, result: Result<Value, Re
             }
             None => say(state, id, "The server's answer was not understood.".to_string()),
         },
+        (ref job @ (Job::FileRename { id, .. } | Job::FileCover { id, .. }), Ok(v)) => match v.get("item").and_then(Item::from_json) {
+            Some(item) => {
+                take_item(state, item);
+                let words = if matches!(job, Job::FileRename { .. }) { FILE_RENAMED } else { COVER_CHOSEN };
+                say(state, id, words.to_string());
+            }
+            None => say(state, id, "The server's answer was not understood.".to_string()),
+        },
+        (Job::FileRename { id, .. } | Job::FileCover { id, .. }, Err(e)) => {
+            // The relay's own words, in the Edit window when it is open.
+            match state.media.item.as_mut().filter(|p| p.id == id).and_then(|p| p.edit.as_mut()) {
+                Some(form) => form.problem = e.words,
+                None => say(state, id, e.words),
+            }
+        }
         (Job::Viewed { .. }, Ok(_)) => {}
         (Job::Viewed { id }, Err(e)) => log::warn!("Media: a view of item {id} was not counted: {e}"),
         (Job::Edit { id }, Err(e)) => {
@@ -522,9 +540,9 @@ fn draw_files(ui: &mut egui::Ui, theme: &Theme, state: &GuiState, opened: &Opene
     }
 }
 
-/// The name file `f` of `item` is shown and downloaded by.
+/// The name file `f` of `item` is shown by (Download saves it under `open::file_download_name`).
 fn name_of(item: &Item, f: &ItemFile) -> String {
-    if f.file == 0 { open::download_name(item) } else { open::file_download_name(item, f) }
+    open::shown_file_name(item, f)
 }
 
 /// The page's buttons: Copy link for anyone; Edit for the uploader and admins; then, signed in,
@@ -652,7 +670,7 @@ fn draw_confirmations(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, 
     if let Some(f) = page.confirm_file.clone() {
         let mut open = true;
         let (mut yes, mut no) = (false, false);
-        let name = open::file_download_name(&item, &f);
+        let name = open::shown_file_name(&item, &f);
         widgets::dialog(ctx, theme, "media_item_confirm_file", "Remove a file", &mut open, |ui| {
             ui.label(RichText::new(format!("Remove {name} from this item? It is deleted from the server.")).size(theme.font_size_body).color(theme.text_primary()));
             ui.horizontal(|ui| {
@@ -694,6 +712,24 @@ fn draw_confirmations(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, 
         }
     }
     false
+}
+
+/// Name file `f` of `item` `name` (`POST /api/media/files/rename`; the relay keeps its ending).
+pub(crate) fn rename_file(state: &mut GuiState, item: &Item, f: &ItemFile, name: &str) -> Result<(), String> {
+    let (Ok(r), Some(signer)) = (item.reference(), signer_or_say(state)) else {
+        return Err(super::UNLOCK_LINE.to_string());
+    };
+    spawn(state, Job::FileRename { id: item.id, file: f.file }, api_items::file_rename_request(&signer, &r, f.file, &f.filename, name));
+    Ok(())
+}
+
+/// Make picture file `f`, already on `item`, its cover (`POST /api/media/files/cover`).
+pub(crate) fn cover_from_file(state: &mut GuiState, item: &Item, f: &ItemFile) -> Result<(), String> {
+    let (Ok(r), Some(signer)) = (item.reference(), signer_or_say(state)) else {
+        return Err(super::UNLOCK_LINE.to_string());
+    };
+    spawn(state, Job::FileCover { id: item.id, file: f.file }, api_items::file_cover_request(&signer, &r, f.file, &f.filename));
+    Ok(())
 }
 
 /// Take file `f` off `item` (`POST /api/media/files/remove`, by its number and its own stored name).

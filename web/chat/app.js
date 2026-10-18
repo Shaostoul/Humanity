@@ -2040,13 +2040,16 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
   const isTodoChannel = activeChannel === 'todo';
   const isHeronBot = fromKey && fromKey.startsWith('bot_') && (author === 'Heron 🪶' || author === 'Heron');
   const fileMeta = (opts && opts.privateFiles && typeof pqParseFileMarker === 'function') ? pqParseFileMarker(body) : null;
+  // A Media item's address on this site: its card under the words, the address out of them
+  // (chat-media-card.js, 2026-10-17).
+  const media = (!fileMeta && !(isTodoChannel && isHeronBot) && typeof mediaCardsPlan === 'function') ? mediaCardsPlan(body, fromKey) : null;
   if (fileMeta) {
     bodyHtml = privateFileHtml(fileMeta, fromKey);
   } else if (isTodoChannel && isHeronBot) {
     const todoHtml = formatTodoMessage(body);
     bodyHtml = todoHtml || formatBody(body, fromKey);
   } else {
-    bodyHtml = formatBody(body, fromKey);
+    bodyHtml = formatBody(media ? media.words : body, fromKey);
   }
 
   // Reply indicator HTML.
@@ -2214,6 +2217,8 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
   if (fileMeta) hydratePrivateFile(el, fileMeta, fromKey);
   // A public file's card: its size and what kind of file it is (fillFileCards above).
   else fillFileCards(el);
+  // A Media item's card under the words (chat-media-card.js).
+  if (media && media.ids.length) mediaCardsPut(el, media.ids, fromKey, timestamp);
   if (window.twemoji) twemoji.parse(el);
   // The row, so a P2P group can put its warnings under it (chat-groups-p2p.js, step F).
   return el;

@@ -31,6 +31,16 @@ test("every shared case gets the same word as in the desktop app", () => {
   }
 });
 
+// A name cannot hide its ending (2026-10-17): every shared plain_names pair, the desktop's too
+// (src/net/file_risk.rs plain_name); the shared cases above hold a program whose ".exe" is
+// followed by a direction mark. Seen red 2026-10-17 with assess and fileType judging the name as it
+// came: the shared case for "evil.exe" followed by U+200F got no word (null, not "program").
+test("a name cannot hide its ending behind direction marks", () => {
+  const pairs = JSON.parse(fs.readFileSync(path.join(repo, "scripts/tests/fixtures/file-risk-cases.json"), "utf8")).plain_names;
+  assert.ok(pairs.length >= 5);
+  for (const [given, shown] of pairs) assert.equal(risk.plainName(given), shown, JSON.stringify(given));
+});
+
 // The badge (2026-10-17): every file shows its type as a drawing, a word and a colour, in the
 // desktop app's shape (gui/widgets/file_badge.rs). Seen red 2026-10-17 with the label left unescaped:
 // "a name cannot break out of the badge"; and with the first bytes left off the badge (so a redraw

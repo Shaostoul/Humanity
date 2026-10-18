@@ -34,9 +34,20 @@
 // one origin without reading it. The frame is the site's own page (the relay's
 // X-Frame-Options SAMEORIGIN and CSP frame-src 'self' allow exactly that).
 //
+// The item window (2026-10-17): the same window holding one Media item's own
+// page (/media/<id>?window=item, web/pages/media-app.js in its item-window form),
+// brought up over the chat by a Media card's Open (web/chat/chat-media-card.js;
+// the operator: "when someone clicks on the file in chat it brings up the full
+// popup window for that item"). The host is sent to it with showPage(page); the
+// page in the frame says busy while an Edit's file is uploading, and close when
+// its own Close (or Escape) is pressed. A window brought back on the page its
+// frame already holds (hidden while its upload goes, after that Close) tells
+// the page {event: 'open'}: it opens its item again, so the window is never
+// empty (2026-10-17, review).
+//
 // A classic script in the browser (HosUploadWindow on window), a CommonJS module
 // under Node, where scripts/tests/post-in-chat-web.test.js drives both halves
-// with stand-in windows.
+// with stand-in windows (and scripts/tests/media-card-web.test.js the item window).
 // ──────────────────────────────────────────────────────────────────────────
 (function (root) {
   'use strict';
@@ -47,6 +58,7 @@
   const PAGE = '/media?window=upload';
   const WORDS = Object.freeze({
     title: 'Add to Media',
+    itemTitle: 'Media item',
     close: 'Close',
     closeTip: 'Close this window. An upload under way carries on, and what happens to it is said in the chat.',
   });
@@ -54,6 +66,16 @@
   /** Is this the upload-window form of the Media page (its address's `window=upload`)? */
   function isWindowAddress(search) {
     try { return new URLSearchParams(String(search || '')).get('window') === 'upload'; } catch (e) { return false; }
+  }
+
+  /** Is this the item-window form of an item's page (its address's `window=item`)? */
+  function isItemWindowAddress(search) {
+    try { return new URLSearchParams(String(search || '')).get('window') === 'item'; } catch (e) { return false; }
+  }
+
+  /** Item `id`'s own page in its item-window form. */
+  function itemPage(id) {
+    return '/media/' + encodeURIComponent(String(id)) + '?window=item';
   }
 
   function originOf(win, given) {
@@ -67,14 +89,18 @@
    *                      window is drawn)
    *   origin             this site's origin (the window's own location.origin when not given)
    *   page               the address the frame opens (PAGE when not given)
+   *   label              what the window is called to a screen reader (WORDS.title when not given)
    *   onStatus(text)     a line the page in the frame said while the window was closed
-   * Returns {show(files, postTo), close(), isOpen(), isBusy(), element(), frame(), pending()}.
+   * Returns {show(files, postTo), showPage(page, label), close(), isOpen(), isBusy(), page(),
+   * element(), frame(), pending()}.
    */
   function createHost(opts) {
     const o = opts || {};
     const win = o.window || null;
     const doc = o.document || (win && win.document) || null;
     const origin = originOf(win, o.origin);
+    let page = o.page || PAGE;
+    let label = o.label || WORDS.title;
     let dialog = null;
     let frame = null;
     let ready = false;
@@ -90,7 +116,7 @@
       if (typeof dialog.setAttribute === 'function') {
         dialog.setAttribute('role', 'dialog');
         dialog.setAttribute('aria-modal', 'true');
-        dialog.setAttribute('aria-label', WORDS.title);
+        dialog.setAttribute('aria-label', label);
       }
       const panel = doc.createElement('div');
       panel.className = 'hos-upload-window-panel';
@@ -105,8 +131,8 @@
       bar.appendChild(shut);
       frame = doc.createElement('iframe');
       frame.className = 'hos-upload-window-frame';
-      if (typeof frame.setAttribute === 'function') frame.setAttribute('title', WORDS.title);
-      frame.src = o.page || PAGE;
+      if (typeof frame.setAttribute === 'function') frame.setAttribute('title', label);
+      frame.src = page;
       panel.appendChild(bar);
       panel.appendChild(frame);
       dialog.appendChild(panel);
@@ -139,6 +165,34 @@
       flush();
       try { if (frame && typeof frame.focus === 'function') frame.focus(); } catch (e) { /* not focusable yet */ }
       return true;
+    }
+
+    /**
+     * Open the window on another page of this site (`to`: an item's own page, itemPage), called
+     * `name`. A window showing another page is taken away first, unless something is going in
+     * it: then nothing changes and the answer is false (make another host for the new page).
+     */
+    function showPage(to, name) {
+      if (!to) return false;
+      if (dialog && to !== page) {
+        if (busy) return false;
+        destroy();
+      }
+      // The frame is on this page already (shown, or hidden while something goes in it).
+      const again = !!dialog;
+      page = to;
+      if (name) label = name;
+      const shown = show([], '');
+      // Its page may have closed what it showed (its own Close hid the window): open it again.
+      if (shown && again) tell('open');
+      return shown;
+    }
+
+    /** Tell the page in the frame `event` (it takes only its host's messages, from this site). */
+    function tell(event) {
+      const to = frameWindow();
+      if (!to) return;
+      try { to.postMessage({ kind: KIND, event }, origin); } catch (e) { /* the frame went away */ }
     }
 
     /** Take the window and its frame away (nothing is going in it). */
@@ -181,9 +235,11 @@
 
     return {
       show,
+      showPage,
       close,
       isOpen: () => open,
       isBusy: () => busy,
+      page: () => page,
       element: () => dialog,
       frame: () => frame,
       pending: () => queue.slice(),
@@ -195,7 +251,9 @@
    *   window             the page's own window (its parent is the host)
    *   origin             this site's origin (the window's own location.origin when not given)
    *   onFiles(files, postTo)   the files the host handed over
-   * Returns {send(event, data), ready()}, or null when the page is not in a frame.
+   *   onOpen()           the host brought the window back on this page: open its item again
+   *                      (the item window; also set later with onOpen(fn))
+   * Returns {send(event, data), ready(), onOpen(fn)}, or null when the page is not in a frame.
    */
   function connectFrame(opts) {
     const o = opts || {};
@@ -204,6 +262,7 @@
     try { parent = win ? win.parent : null; } catch (e) { parent = null; }
     if (!parent || parent === win) return null;
     const origin = originOf(win, o.origin);
+    let opened = typeof o.onOpen === 'function' ? o.onOpen : null;
     function send(event, data) {
       try { parent.postMessage(Object.assign({ kind: KIND, event }, data || {}), origin); } catch (e) { /* the host went away */ }
     }
@@ -211,15 +270,17 @@
       win.addEventListener('message', (e) => {
         if (!e || e.source !== parent || (origin && e.origin !== origin)) return;
         const m = e.data;
-        if (!m || typeof m !== 'object' || m.kind !== KIND || m.event !== 'files') return;
+        if (!m || typeof m !== 'object' || m.kind !== KIND) return;
+        if (m.event === 'open') { if (opened) opened(); return; }
+        if (m.event !== 'files') return;
         const files = Array.prototype.slice.call(m.files || []).filter(Boolean);
         if (files.length && typeof o.onFiles === 'function') o.onFiles(files, typeof m.postTo === 'string' ? m.postTo : '');
       });
     }
-    return { send, ready: () => send('ready') };
+    return { send, ready: () => send('ready'), onOpen: (fn) => { opened = typeof fn === 'function' ? fn : null; } };
   }
 
-  const api = { KIND, PAGE, WORDS, isWindowAddress, createHost, connectFrame };
+  const api = { KIND, PAGE, WORDS, isWindowAddress, isItemWindowAddress, itemPage, createHost, connectFrame };
   if (typeof module === 'object' && module && module.exports) module.exports = api;
   else root.HosUploadWindow = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

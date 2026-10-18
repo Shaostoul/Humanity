@@ -166,9 +166,23 @@ fn shown_ending(name: &str) -> String {
 /// and, when the bytes are known, what they say: a harmless name over a program's, a script's or an
 /// archive's bytes is that, disguised and red; a name the list does not know over such bytes is
 /// that. Anything else is the list's `unknown` ("File", grey). Always an answer.
+/// A file's name as it is shown and judged (2026-10-17): its direction marks taken out (U+200E,
+/// U+200F, U+061C, U+202A to U+202E, U+2066 to U+2069; a right-to-left override makes a browser
+/// show `photo<RLO>gnp.exe` as "photoexe.png", and a mark after ".exe" hid the ending from the
+/// check), every other control character made a space, and trimmed. The website's twin is
+/// web/shared/file-risk.js `plainName`; both are held to the shared cases' `plain_names`.
+pub fn plain_name(name: &str) -> String {
+    name.chars()
+        .filter(|c| !matches!(*c, '\u{200E}' | '\u{200F}' | '\u{061C}' | '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}'))
+        .map(|c| if c.is_control() { ' ' } else { c })
+        .collect::<String>()
+        .trim()
+        .to_string()
+}
+
 pub fn file_type(name: &str, head: Option<&[u8]>) -> FileType {
     let d = data();
-    let lower = name.trim().to_lowercase();
+    let lower = plain_name(name).to_lowercase();
     let ending = match shown_ending(&lower) {
         e if e.starts_with('.') => e,
         _ => String::new(),
@@ -208,7 +222,7 @@ pub fn icon(icon: &str) -> &'static [Shape] {
 /// a program, a script or an archive is warned as that.
 pub fn assess(name: &str, head: Option<&[u8]>) -> Option<Caution> {
     let d = data();
-    let lower = name.trim().to_lowercase();
+    let lower = plain_name(name).to_lowercase();
     let by_name = d
         .kinds
         .iter()
@@ -317,6 +331,21 @@ mod tests {
             let t = file_type(&c.name, Some(&head));
             assert_eq!((t.id.as_str(), t.level), (c.file_type.as_str(), c.level), "{:?} over {}: its badge", c.name, c.head);
             assert_eq!(t.disguised, c.disguised, "{:?} over {}: the badge says disguised", c.name, c.head);
+        }
+    }
+
+    /// A NAME CANNOT HIDE ITS ENDING (2026-10-17): every shared `plain_names` pair, the website's too;
+    /// and the shared cases above hold a program whose ".exe" is followed by a direction mark.
+    /// Seen red 2026-10-17 with `assess` judging the name as it came: the shared case for "evil.exe"
+    /// followed by U+200F, in the test above, got no word (left: None, right: Some("program")).
+    #[test]
+    fn a_name_cannot_hide_its_ending_behind_direction_marks() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("scripts/tests/fixtures/file-risk-cases.json");
+        let v: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        let pairs = v["plain_names"].as_array().expect("the shared plain_names");
+        assert!(pairs.len() >= 5);
+        for p in pairs {
+            assert_eq!(plain_name(p[0].as_str().unwrap()), p[1].as_str().unwrap(), "{:?}", p[0]);
         }
     }
 

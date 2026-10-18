@@ -18,6 +18,14 @@
 //!   over `media_file_remove:<id>:<file number>`. The uploader or an admin. The file was uploaded
 //!   for Media, so its row and its file go. Answer: `{ok: true, item, file_removed}`.
 //!
+//! - `POST /api/media/files/rename` (2026-10-17): a file's shown name changed, the item's own
+//!   (file 0) included; it keeps its stored ending. Signed over
+//!   `media_file_rename:<id>:<file number>:<BLAKE3 hex of the new name as sent>`. The uploader or an
+//!   admin. Answer: `{ok: true, item}`.
+//! - `POST /api/media/files/cover` (2026-10-17): a picture already on the item made its cover; the
+//!   old cover becomes one of its files. Signed over `media_file_cover:<id>:<file number>`. The
+//!   uploader only. Answer: `{ok: true, item}`.
+//!
 //! Each names the item's own file too (`filename`, the relay's W5, [`same_item`]), and the file
 //! remove names the file's own stored name too (`file_name`, the same rule for the file). The
 //! work after the signature is a plain function over the storage (`*_core`), which the tests call
@@ -251,6 +259,86 @@ pub fn files_remove_core(db: &Storage, folders: Folders, b: &FileRemoveBody) -> 
     let (item, name) = db.detach_media_file(&b.key, is_admin(db, &b.key), b.id, b.file, &b.file_name).map_err(refusal)?;
     let file_removed = folders.delete(&name);
     Ok(Json(json!({ "ok": true, "item": item_json(&item), "file_removed": file_removed })))
+}
+
+/// `POST /api/media/files/rename`'s body: the item, its own file name, the file's number, that
+/// file's stored name (W5), and the name it is to have.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct FileRenameBody {
+    pub key: String,
+    pub timestamp: u64,
+    pub sig: String,
+    pub id: i64,
+    #[serde(default)]
+    pub filename: String,
+    pub file: i64,
+    #[serde(default)]
+    pub file_name: String,
+    pub name: String,
+}
+
+/// The purpose renaming file `file` of item `id` to `name` is signed over: the name as its BLAKE3
+/// hex, so the signature holds that name and no other.
+pub fn file_rename_purpose(id: i64, file: i64, name: &str) -> String {
+    format!("media_file_rename:{id}:{file}:{}", blake3::hash(name.as_bytes()).to_hex())
+}
+
+/// `POST /api/media/files/rename`.
+pub async fn files_rename(State(state): State<Arc<RelayState>>, Json(b): Json<FileRenameBody>) -> Response {
+    files_rename_in(&state, &b).await.into_response()
+}
+
+/// [`files_rename`]: the signature, the item named by its own file (W5), then [`files_rename_core`].
+pub async fn files_rename_in(state: &RelayState, b: &FileRenameBody) -> Answer {
+    check_signed(state, &b.key, b.timestamp, &b.sig, &file_rename_purpose(b.id, b.file, &b.name)).await?;
+    same_item(&state.db, b.id, &b.filename)?;
+    files_rename_core(&state.db, b)
+}
+
+/// The proven `b.key`, the item's uploader or an admin, names file `b.file` of item `b.id` `b.name`
+/// (storage/media_files.rs `rename_media_file` holds the rules).
+pub fn files_rename_core(db: &Storage, b: &FileRenameBody) -> Answer {
+    let item = db.rename_media_file(&b.key, is_admin(db, &b.key), b.id, b.file, &b.file_name, &b.name).map_err(refusal)?;
+    Ok(Json(json!({ "ok": true, "item": item_json(&item) })))
+}
+
+/// `POST /api/media/files/cover`'s body: the item, its own file name, the picture's number and its
+/// stored name (W5).
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct FileCoverBody {
+    pub key: String,
+    pub timestamp: u64,
+    pub sig: String,
+    pub id: i64,
+    #[serde(default)]
+    pub filename: String,
+    pub file: i64,
+    #[serde(default)]
+    pub file_name: String,
+}
+
+/// The purpose making file `file` item `id`'s cover is signed over.
+pub fn file_cover_purpose(id: i64, file: i64) -> String {
+    format!("media_file_cover:{id}:{file}")
+}
+
+/// `POST /api/media/files/cover`.
+pub async fn files_cover(State(state): State<Arc<RelayState>>, Json(b): Json<FileCoverBody>) -> Response {
+    files_cover_in(&state, &b).await.into_response()
+}
+
+/// [`files_cover`]: the signature, the item named by its own file (W5), then [`files_cover_core`].
+pub async fn files_cover_in(state: &RelayState, b: &FileCoverBody) -> Answer {
+    check_signed(state, &b.key, b.timestamp, &b.sig, &file_cover_purpose(b.id, b.file)).await?;
+    same_item(&state.db, b.id, &b.filename)?;
+    files_cover_core(&state.db, b)
+}
+
+/// The proven `b.key`, the item's uploader, makes picture file `b.file` the cover of item `b.id`
+/// (storage/media_files.rs `cover_from_file` holds the rules).
+pub fn files_cover_core(db: &Storage, b: &FileCoverBody) -> Answer {
+    let item = db.cover_from_file(&b.key, b.id, b.file, &b.file_name).map_err(refusal)?;
+    Ok(Json(json!({ "ok": true, "item": item_json(&item) })))
 }
 
 #[cfg(test)]

@@ -647,7 +647,7 @@ When you change any of these in code, update this table + status in the same com
 
 READ THE ORDER OFF `web/chat/index.html`, never off this list: it is load-bearing
 for an IIFE shell and it has drifted before (this block named `chat-voice.js`,
-which was split into five files, and omitted nine that exist). As of 2026-10-17 (file-risk.js after kept-files.js; drop-overlay.js and upload-window.js after profile-copy.js):
+which was split into five files, and omitted nine that exist). As of 2026-10-17 (file-risk.js after kept-files.js; drop-overlay.js and upload-window.js after profile-copy.js; chat-media-card.js before app.js):
 
 `twemoji` → `/shared/icons.js` → `/shared/events.js` → `/shared/hold-confirm.js` →
 `/shared/shell.js` → `/shared/server-strip.js` → `/shared/defaults.js` → `/shared/settings.js` → `bip39-english.js` →
@@ -657,7 +657,7 @@ which was split into five files, and omitted nine that exist). As of 2026-10-17 
 `/shared/strip-metadata.js` → `/shared/upload-clean.js` → `/shared/files-in-messages.js` →
 `/shared/kept-files.js` → `/shared/file-risk.js` → `/shared/blake3.js` → `/shared/file-transfer.js` →
 `/shared/profile-changes.js` → `/shared/profile-copy.js` → `/shared/drop-overlay.js` → `/shared/upload-window.js` → `crypto.js` →
-`pq.js` → `chat-dm-store.js` → `view/timestampPill.js` → `view/messageRow.js` → `app.js` →
+`pq.js` → `chat-dm-store.js` → `view/timestampPill.js` → `view/messageRow.js` → `chat-media-card.js` → `app.js` →
 `chat-messages.js` → `chat-dms.js` → `chat-social.js` → `chat-groups-p2p.js` → `chat-ui.js` →
 `chat-voice-rooms.js` → `chat-voice-calls.js` → `chat-voice-webrtc.js` →
 `chat-voice-streaming.js` → `chat-live.js` → `chat-voice-modal.js` → `chat-profile.js` →

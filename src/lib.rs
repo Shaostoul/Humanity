@@ -15202,6 +15202,8 @@ mod native_app {
                                 );
                                 // A 3D model posted in chat, in its own window (View in 3D on its card).
                                 crate::gui::pages::chat::draw_model_window(ctx, &state.theme, &mut state.gui_state.chat_model_view);
+                                // A Media item's window brought up from a chat card (media/chat_card.rs).
+                                crate::gui::pages::media::draw_item_window(ctx, &state.theme, &mut state.gui_state);
                                 // The upload window a drop opened from another page (Add to Media's form).
                                 crate::gui::pages::media::draw_upload_window(ctx, &state.theme, &mut state.gui_state);
                                 // Dropped files go to the page or window that took them, and while
