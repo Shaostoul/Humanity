@@ -492,12 +492,12 @@ test("6. Watch, Chat and Admin load the strip after shell.js, and it mounts itse
     const stripAt = html.indexOf('src="/shared/server-strip.js?v=');
     assert.ok(shellAt > 0 && stripAt > shellAt, name + " loads the strip after shell.js");
   }
-  // Chat: right after shell.js, before the rest of the order (CLAUDE.md lists it there).
+  // Chat: right after shell.js, before the rest of the order. index.html is the only record of the
+  // order: CLAUDE.md's copy of the list was dropped on 2026-10-19 because it drifted, so this test
+  // no longer checks a copy.
   const chat = fs.readFileSync(path.join(WEB, "chat", "index.html"), "utf8");
   const srcs = [...chat.matchAll(/<script\s+src="([^"?]+)/g)].map((m) => m[1]);
   assert.equal(srcs[srcs.indexOf("/shared/shell.js") + 1], "/shared/server-strip.js", "Chat loads it right after shell.js");
-  const claude = fs.readFileSync(path.join(ROOT, "CLAUDE.md"), "utf8");
-  assert.ok(claude.includes("`/shared/shell.js` → `/shared/server-strip.js` → `/shared/defaults.js`"), "CLAUDE.md's load order says so");
 
   // In the browser the script mounts itself under the nav, with no module system.
   const doc = fakePage();

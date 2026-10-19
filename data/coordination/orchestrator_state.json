@@ -416,6 +416,16 @@
       "date": "2026-10-18",
       "decision": "Web Market: the dead listing-message box (its frames unhandled since the relay dropped marketplace messages on 2026-08-23) became Message Seller, as in the app: web chat opens the encrypted DM from /chat#dm=<key> with a first line from sessionStorage. A raw NUL byte in market-app.js (git saw it as binary) became the \\u0000 escape. Startup: a worktree builder is moving the two cloud pipelines (about 9 s of the 15.4 s boot) and the planet bake off the path to the first frame; not merged yet.",
       "why": "Found by the header-comment helper while reading market-app.js. The boot work answers the operator's \"why does HumanityOS take a long time\": renderer_init 11 s, of which pipeline_new 9 s wall, the long poles being Cloud Transparent (9.0 s) and Cloud Screen Temporal (8.2 s)."
+    },
+    {
+      "date": "2026-10-19",
+      "decision": "v0.1517.1: CLAUDE.md 92 KB to 77 KB with no rule lost (handbook keeper, reviewed: gotchas condensed with the full stories kept in docs/history/gotcha-incidents.md, file map cut to constraints because the code map lists locations, the script-order and route lists dropped because both said to read the real file); stale storage list corrected (no identity/ or settings/ folder exists; the vault is in config.json). BUG-204 recorded: launch-bg booted target/release without the DXC dlls, so FXC, ten minutes, then a stack overflow on the 2 MiB pipeline-compile threads. launch-bg now copies the pair in (scripts/dxc-beside-exe.js); the thread stacks go with the startup work.",
+      "why": "The operator restarted his PC mid-session on 2026-10-18; the startup-speed builder (cloud PSOs off the first-frame path, planet bake off entry) was resumed from its intact worktree. CLAUDE.md is loaded by every spawn, so its size is paid many times a day."
+    },
+    {
+      "date": "2026-10-19",
+      "decision": "v0.1518.0: startup 13.3 s to 8.4 s to playable (median of 3 boots each, same machine and day, DXC present). The two cloud PSOs (about 9 s while the other 18 took 3) compile on background threads one step above normal priority and are installed by Pipeline::poll_clouds; until then transparent_for(Cloud) and cloud_screen_pipeline() answer None and the draw loops skip clouds (renderer/deferred_build.rs holds the ready state; a hot reload supersedes an in-flight build, tested red). The planet bake runs on a boot thread and the first world entry only installs it. Merged from the worktree builder after a review; just verify, verify-runtime pass on the merged tree.",
+      "why": "The operator asked on 2026-10-18 why HumanityOS takes a long time to start. FXC cannot build the cloud march at any stack size (64 MiB and 1 GiB overflowed at the same point), so an FXC run leaves the clouds off and says so (BUG-204); HUMANITY_FXC_CLOUDS=1 tries anyway. Leads left: the cloud-noise upload still waits on its bake (0 to 0.8 s); the planet prebuild could start earlier."
     }
   ],
   "active_scopes_to_avoid": [
@@ -445,7 +455,7 @@
     "Trees have no materialised identity, so they cannot be felled. The key (cell_x, cell_y, item_index) already exists structurally; a sparse delta store is the shape."
   ],
   "how_to_resume": "1. `just brief` (version/CI/signing). 2. docs/PRIORITIES.md \"Active focus\" - the top item is fully specified, start implementing rather than investigating. 3. This file for WHY. Note the ONE-GPU rule: `tasklist //FI \"IMAGENAME eq HumanityOS.exe\"` before booting any rig, and never boot beside the operator instance.",
-  "last_updated": "2026-10-18",
+  "last_updated": "2026-10-19",
   "focus": "v0.1111.1 shipped (the 2026-08-03/04 vegetation marathon, v0.1109.4-v0.1111.1). Landed: leaf tufts stopped being cubes (golden-angle azimuths + solved per-card tilts, measured 100% parallel pairs on conifers and 67% perpendicular on broadleaves before); distant cards stopped out-shining mesh trees (4-8x, three multiplying causes, then the residual 28% conifer excess traced to the odd component of the shading normals and cancelled at source - all species now 1.00 flat across the sky); standing still stopped depending on the frame rate (the frame-lock sampled terrain one frame of planetary spin behind the player, 33,360 m/s of ground slip, so altitude read as a function of fps and flipped stand height by 2.45 m); the card-hide radius stopped promising models that never drew (BUG-068); forest density stopped being a process-global read separately by two streams (BUG-069); and the card cutoff is now clamped to the terrain reach that actually exists. Foliage-card arrangement extracted to renderer/tree_cards.rs under the size ratchet, and the ratchet budget came DOWN.",
   "overnight_plan_2026_08_01": {
     "directive": "Operator (heading to bed, full trust granted): PERMANENT versions only, no half fixes. Full PBR textures (not just diffuse). Real full canopies of leaves and flowers. Photorealism is the goal - screenshots good enough to land donations/grants; money is tight. 8-10 hours unattended.",

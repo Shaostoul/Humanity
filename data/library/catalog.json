@@ -2199,6 +2199,14 @@
       "name": "Project History",
       "docs": [
         {
+          "title": "Session history, 19 October 2026",
+          "src": "docs/history/2026-10-19.md",
+          "tags": [
+            "project",
+            "reference"
+          ]
+        },
+        {
           "title": "Session history, 17 and 18 October 2026",
           "src": "docs/history/2026-10-18.md",
           "tags": [

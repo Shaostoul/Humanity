@@ -5945,7 +5945,7 @@ step. Tests: `src/gui/pages/chat/public_files_tests.rs` (the page itself, with t
 name), `the_stored_name_keeps_its_words_and_its_extension`, the public-file section of
 `scripts/tests/private-files-web.test.js`, each seen red.
 
-## BUG-204: without the DXC shader-compiler dlls the game spends minutes compiling its pipelines, then dies of a stack overflow (OPEN, found 2026-10-18)
+## BUG-204: without the DXC shader-compiler dlls the game spends minutes compiling its pipelines, then dies of a stack overflow (FIXED v0.1518.0, found 2026-10-18)
 
 A boot check of v0.1517.0 through `just launch-bg` sat with its window "not responding" for about
 ten minutes (over 540 s of CPU by the second minute) and then died with only `thread '<unknown>'
@@ -5962,10 +5962,16 @@ Two faults:
    on FXC. FIXED 2026-10-18 (commit "launch-bg boots on the fast shader compiler"):
    `scripts/dxc-beside-exe.js` puts the pair beside the exe first; the same build then booted with
    "DX12 shader compiler: DXC", pipeline_new 10.7 s, 0 PANIC.
-2. The pipeline-compile threads in `build_all_pipelines` (`src/renderer/pipeline.rs`) are
-   `std::thread::scope` spawns with Rust's 2 MiB default stack, and FXC recurses deeper than that
-   on the cloud shaders. Being fixed with the cloud-startup work (a 64 MiB stack on every compile
-   thread); proof is a boot from a folder with no pair reaching its first frame.
+2. The crash itself: FXC cannot compile the cloud march at all. The pipeline-compile threads had
+   Rust's 2 MiB default stack, but a bigger stack is NOT the fix: with 64 MiB, and again with
+   1 GiB, an FXC boot reached the world at about 186 s and then died about 8.4 minutes into the
+   Cloud Transparent compile with `thread 'pso: PBR-lite Cloud Transparent Pipeline' has
+   overflowed its stack`, at the same point both times. FIXED v0.1518.0 with the startup work: an
+   FXC run builds the other 18 pipelines and leaves the clouds OFF, saying so once in run.log
+   (`[Pipelines] clouds are OFF for this run`; `HUMANITY_FXC_CLOUDS=1` tries anyway, a dev
+   switch), and every compile thread still gets a 64 MiB stack (`spawn_compile` in
+   `src/renderer/pipeline.rs`). Proof: an FXC boot of that build reached the world at 136 s and
+   ran 10 minutes with no overflow and no PANIC.
 
 Who it reaches: not the downloads (the Windows release bundles DXC: "Bundled DXC from
 .../10.0.26100.0/x64" in the v0.1516.0 build log) and not the operator's taskbar exe (the repo root

@@ -1045,6 +1045,16 @@ named gate; static verification cannot see a dark or mirrored screen.
 
 ### B. The frame cost arc, remaining rungs
 
+**Startup (the operator, 2026-10-18: "why HumanityOS seems to be taking a long time"): DONE
+v0.1518.0, 13.3 s to 8.4 s to playable** (median of 3 boots each, same machine and day, DXC
+present; `scripts/boot-timing.js`). The two cloud PSOs build in the background
+(`renderer/deferred_build.rs`, `Pipeline::poll_clouds`) and the planet bake runs while the menu
+shows. Leads left, each under a second: the cloud-noise upload still waits on its bake inside
+`shaders_and_pipelines` (0 to 0.8 s; nothing draws clouds before their pipelines exist, so it
+could upload when the bake lands), and the planet prebuild starts after renderer init (earlier
+would overlap the adapter request, which a past finding warns against). Without the DXC dlls the
+clouds stay off (BUG-204).
+
 **Open, measured 2026-09-24: `gpu.celestial_t` is 25.6 ms looking straight
 down from 600 km over the auroral oval** (`aurora-over-water`, about 20 fps on
 the rig), against 11.3 ms at an oblique 300 km view. Two suspects are already

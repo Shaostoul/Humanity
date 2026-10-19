@@ -6,7 +6,7 @@
 > `grep -i <word> docs/ai/code-map.md` before searching the source. Features (what a person can do)
 > are in `docs/FEATURES.md`; pages in `docs/PAGES.md`.
 
-845 Rust files (556,363 lines) under `src/`; 101 JavaScript files (64,830 lines) under `web/`.
+846 Rust files (557,224 lines) under `src/`; 101 JavaScript files (64,830 lines) under `web/`.
 
 ## Folders
 
@@ -38,7 +38,7 @@
 - `src/relay/handlers/` (39 files): Handler submodules for the relay server.
 - `src/relay/storage/` (70 files): SQLite persistence for relay message history and peers.
 - `src/relay/transport/` (2 files): Transport layer (Phase 7b, LoRa mesh stub).
-- `src/renderer/` (60 files): Renderer, the `Renderer` struct, its construction, and its registries.
+- `src/renderer/` (61 files): Renderer, the `Renderer` struct, its construction, and its registries.
 - `src/renderer/shader_loader/` (1 files): WGSL shader loading with optional hot-reload (native only).
 - `src/ship/` (23 files): Ship interior system, layout parsing and room mesh generation.
 - `src/station/` (3 files): Crewed stations: the player's homestead as a real orbiting, pointed object.
@@ -66,7 +66,7 @@
 ## src/
 
 - `auto_unlock.rs` (408): Auto-unlock: let the user opt into silent startup without typing the full BIP39-derived passphrase every launch. Main items: AutoUnlockMode, KeychainSlot, keychain_stash, keychain_load, keychain_clear, encrypt_seed_with_pin, decrypt_seed_with_pin, generate_device_key (+4 more).
-- `boot_timing.rs` (111): Boot-phase timing (2026-07-12 dev tooling). Main items: BootTimer.
+- `boot_timing.rs` (169): Boot-phase timing (2026-07-12 dev tooling). Main items: BootTimer.
 - `config.rs` (2854): Persistent configuration for the native desktop app. Main items: WindowMode, HudVitals, PlayMode, Capability, VoiceFilterMode, VoiceTransmitMode, SavedServer, AppConfig (+19 more).
 - `cosmetics.rs` (101): Cosmetic outfit catalog (v0.442): craftable/tradeable clothing items that tint the avatar's body slots. Main items: Cosmetic, OutfitColors, load_cosmetics, resolve_outfit_colors.
 - `cosmos.rs` (744): Canonical Sol-system model (v0.262.8, extracted from `gui/pages/cosmos.rs` so it is the SINGLE source of truth). Main items: SolBody, sol_bodies, find_body, kepler_solve, body_position_relative_au, body_world_position_3d_au, sample_orbit_points, KM_PER_AU (+1 more).
@@ -74,7 +74,7 @@
 - `debug.rs` (129): In-app debug console: captures log messages for display in an egui overlay. Main items: push_debug, drain_debug_log, draw_debug_console.
 - `dev_travel.rs` (438): Dev travel math (v0.791.x, Platform > Dev > Travel) - pure helpers for the teleport tool that lets the operator inspect any solar body up close. Main items: teleport_viewpoint, look_angles, look_dir, planet_spin_from_time, frame_lock_capture, frame_lock_ship_pos, format_multiplier, VIEW_DISTANCE_RADII.
 - `embedded_data.rs` (865): Compile-time embedded data files for offline operation. Main items: shipped_home_design, own_home_text, get_embedded, read_data_or_embedded, load_data_or_embedded, load_text_or_embedded, note_builtin_copy, builtin_copies_this_run (+131 more).
-- `lib.rs` (16401): HumanityOS Game Engine Main items: data_dir, drone_dock_visible, run, DATA_DIR.
+- `lib.rs` (16441): HumanityOS Game Engine Main items: data_dir, drone_dock_visible, run, DATA_DIR.
 - `lod_registry.rs` (89): Per-ITEM-TYPE LOD category registry (v0.971 generalization of the vegetation rung-2a registry): every kind of thing with detail stages - vegetation, creatures, water, planet terrain - gets a row in... Main items: LodCategory, categories, category.
 - `machines.rs` (5295): Data-driven machine layout for the 3D home (First-Playable groundwork, v0.427). Main items: MachineStat, MachinePower, MachineDef, CameraPose, ScreenDef, MachineStorage, MachineInstance, MachineArray (+31 more).
 - `main.rs` (225): HumanityOS, One binary to rule them all.
@@ -160,7 +160,7 @@
 - `move_check.rs` (644): The game's half of the relay's speed check (increment 4 of docs/design/ship-homes-and-logistics.md, "getting around at ship scale"; the relay's half is src/relay/handlers/move_check.rs). Main items: Correction, ScriptedWalk, WalkPose, ClientMoves, declare, teleport_rearm, teleporter_tick, stamp_fields (+12 more).
 - `movie.rs` (823): MOVIE MODE: record the live view to a video file, frame-exact (2026-09-30, the clip maker, `scripts/make-clips.js`). Main items: Key, RecordSpec, Recorder, Incoming, ease, pose_at, descend_mps, ffmpeg_args (+12 more).
 - `near_tree_models.rs` (454): Near-tree MODEL CACHE: the one-time build/parse of every tree mesh the near field can draw, plus the sprite-atlas bake that gives the far cards the same trees (extracted from lib.rs, v0.1108). Main items: ensure_near_tree_models.
-- `net_route.rs` (1607): Multiplayer glue between the relay socket and the world: routing `__game__:` messages, the figures and nameplates of other players and crew, and our own position updates. Main items: FigurePart, FigurePiece, route_game_message, view_change_messages, snapshot_entry_messages, host_clock_from, position_update_from, nameplate_labels (+16 more).
+- `net_route.rs` (1661): Multiplayer glue between the relay socket and the world: routing `__game__:` messages, the figures and nameplates of other players and crew, and our own position updates. Main items: FigurePart, FigurePiece, PlanetDefBake, route_game_message, view_change_messages, snapshot_entry_messages, host_clock_from, position_update_from (+19 more).
 - `own_home.rs` (638): The character's OWN home (2026-10-04): what the build editor changes outside the Dev mode is kept in the character's save, never in the shared data files. Main items: Kept, GaveBack, authors_data_files, in_effect, design_in_effect, capture, overlay_machines, keep_editor_edits (+11 more).
 - `pipe_markers.rs` (188): The pipes' marker bands in the 3D home (2026-10-04). Main items: PipeMarkerState, BandBatch, wanted_mode, rebuild_if_mode_changed.
 - `planet_build.rs` (997): Building where you stand, on the ship or on a planet (2026-09-27, the real fix for BUG-102). Main items: BodyFrame, PlayerView, Ground, CannotBuild, Ghost, PlayerFrame, note_body, body_render_rot (+11 more).
@@ -179,12 +179,12 @@
 - `save_slot.rs` (1019): Which save is live, and the home it builds (ship homes increment 6, docs/design/ship-homes-increment-6-plan.md sections 3.6 and 3.7). Main items: Look, Boot, TakenUp, Choice, AfterChoice, wanted, slot_for, server_slot (+43 more).
 - `screens.rs` (1047): In-world screens (rungs 1 and 2 of the screens ladder, docs/design/in-world-screens.md): the engine side of a native egui page shown on a flat display placed in the 3D world. Main items: QuadGeom, ScreenQuad, ScreenIpc, IpcStage, Screens, quad_from_placement, ray_hit_uv, screen_quad_mesh (+14 more).
 - `shared_build.rs` (1365): The pieces the server keeps, the game's side (ship homes increment 5, "building only on your own plot", 2026-10-05; docs/design/ship-homes-increment-5-plan.md sections 3.4 and 3.5). Main items: Gate, GateInput, Unbuild, SharedBuild, Ctx, ScreenView, kept_words, gate (+22 more).
-- `state.rs` (1184): `EngineState`, everything the native app keeps between frames (renderer, camera, ECS world, GUI state, audio, planets, home meshes), plus the build editor's grab, hover and undo types. Main items: GrowSpot, ConstructionGrab, GizmoRole, HoverGizmo, ObjectGrab, ConstructionGizmoGrab, EngineState, EditorSnapshot (+2 more).
+- `state.rs` (1197): `EngineState`, everything the native app keeps between frames (renderer, camera, ECS world, GUI state, audio, planets, home meshes), plus the build editor's grab, hover and undo types. Main items: GrowSpot, ConstructionGrab, GizmoRole, HoverGizmo, ObjectGrab, ConstructionGizmoGrab, EngineState, EditorSnapshot (+2 more).
 - `stock_piles.rs` (705): Visible storage (2026-09-26; the gameplay arc's step 4). Main items: kind_for_class, stored_volumes, unit_counts, assign_kinds, pile_positions, rack_slots, in_storage_room, receive_machine_outputs (+14 more).
 - `survival_env.rs` (1010): The survival environment context, published once a frame (moved out of lib.rs 2026-09-27, when it grew the body heat inputs). Main items: ExposedAir, Whereabouts, upwind_from, outside_context, warmed_by_fires, publish, whereabouts, refresh_ship_spaces (+2 more).
 - `tree_ground.rs` (241): THE GROUND UNDER THE NEAR TREES, read out for the rig (BUG-156, 2026-10-05). Main items: report, write_report, REPORT_PATH, FLOAT_TOLERANCE_M.
 - `warnings.rs` (329): Warnings, and the recovery-phrase guard (step F of docs/design/blocking-and-safe-mode.md, sections 6.3 and 10g, 2026-10-10): the native client's half that touches the app state. Main items: ensure_loaded, sender_of, checked_sender, shown_under, dismiss_key, message_key, links_held, holds_own_phrase (+1 more).
-- `world_load.rs` (1413): Entering the 3D world: `load_world` builds the player's home on its plot with what its start carries, and the star sky, planets, sun and home station. Main items: place_avatar, build_star_sky, load_world, spawn_herd, spawn_wilds, place_decorations, build_hologram, clear_hologram (+3 more).
+- `world_load.rs` (1436): Entering the 3D world: `load_world` builds the player's home on its plot with what its start carries, and the star sky, planets, sun and home station. Main items: place_avatar, build_star_sky, load_world, spawn_herd, spawn_wilds, place_decorations, build_hologram, clear_hologram (+3 more).
 - tests: `choice_tests.rs`, `death_pack_tests.rs`, `dm_pace_tests.rs`, `file_transfer_tests.rs`, `fleet_tests.rs`, `friend_code_tests.rs`, `group_report_tests.rs`, `home_meshes_tests.rs`, `household_tests.rs`, `mess_hall_tests.rs`, `parity_tests.rs`, `protected_tests.rs`, `put_answer_devices_tests.rs`, `put_answer_tests.rs`, `save_slot_home_tests.rs`, `save_slot_tests.rs`, `shared_build_tests.rs`, `world_load_tests.rs`
 
 ## src/engine/screens/
@@ -655,7 +655,7 @@
 - `camera.rs` (1707): Three-mode camera system: FirstPerson, ThirdPerson, Orbit. Main items: CameraUniforms, CameraMode, Projection, Camera, CameraController, celestial_projection, celestial_projection_f64, celestial_depth_at (+7 more).
 - `capture.rs` (300): Frame + texture CAPTURE: getting pixels back off the GPU and onto disk.
 - `celestial_order.rs` (159): The compositing order of the celestial TRANSPARENT list (2026-09-18). Main items: is_planet_layer, celestial_transparent_key, key_for, list_key.
-- `celestial.rs` (1908): The CELESTIAL pass: the far world at planet scale.
+- `celestial.rs` (1927): The CELESTIAL pass: the far world at planet scale.
 - `cloud_composite.rs` (303): Fullscreen depth-aware cloud composite (Wave D slice 1b, increment 12). Main items: CloudCompositeFrame, CloudCompositePass.
 - `cloud_noise.rs` (1630): Precomputed tiling 3D noise for the volumetric cloud system (clouds increment 3, the "photo-real puffy clouds" upgrade). Main items: worley3, perlin3, perlin_fbm3, remap, ridged3, filament_fbm3, shape_voxel, detail_voxel (+13 more).
 - `cloud_primitives.rs` (540): Cloud BODIES as constructed primitives (clouds v2). Main items: CloudArchetype, CloudArchetypes, CloudLobe, CloudInstance, build_cloud.
@@ -663,6 +663,7 @@
 - `cloud_resolve.rs` (300): Cloud temporal RESOLVE pass (12e, the march/resolve split). Main items: CloudResolveFrame, CloudResolveMotion, CloudResolvePass.
 - `cloud_temporal.rs` (2963): Temporal cloud accumulation (clouds phase 4). Main items: CloudTemporal, CloudScreen, CloudLightFrame, CloudLightPlan, CloudLightState, CloudLightCache, CloudProfileFrame, CloudProfileLevel (+84 more).
 - `clouds.rs` (2322): Procedural cloud layer: the Rust mirror of the WGSL math (increment 1). Main items: CloudRegime, cloud_seed, quality_param, advance_cloud_advect, cloud_rot_y, cloud_rot_x, hash13, cloud_noise (+84 more).
+- `deferred_build.rs` (211): A thing the renderer builds on a background thread and installs when it is ready (startup speed, 2026-10-18). Main items: Deferred, Polled.
 - `emission_pass.rs` (427): Light that lives ABOVE the cloud deck, and the fullscreen pass that adds it. Main items: EmissionPassUniforms, EmissionFrame, EmissionState, emitting_layer_fractions, camera_below_floor, is_emission_marker, aurora_marker, aurora_material (+1 more).
 - `env_regions.rs` (601): Environment regions: positioned, sized environmental effects the whole renderer and simulation can agree on. Main items: EnvRegion, RegionKind, RegionKinds, pack_all, influence_of_kind, storage_buffer, push_weather_region, push_auroral_ovals (+3 more).
 - `floating_origin.rs` (37): Floating origin system for large-scale rendering. Main items: FloatingOrigin.
@@ -678,17 +679,17 @@
 - `material_bind_groups.rs` (233): GROUP 3 BIND GROUPS: the entry lists that hand the shader its albedo and the engine-global texture set, and the ONE place a binding may be added.
 - `materials.rs` (409): Material registry: everything that creates, textures or rewrites the `Material` slots the render passes bind at group 2 (uniforms) and group 3 (albedo + the engine-global texture set). Main items: MATERIAL_TYPE_SCREEN.
 - `mesh.rs` (1124): Mesh primitives, vertex/index buffers for renderable geometry. Main items: Vertex, GrassInstance, Mesh, triangles_facing_against_their_normals, INSTANCE_STRIDE.
-- `mod.rs` (2676): Renderer, the `Renderer` struct, its construction, and its registries. Main items: PatchDraw, RenderObject, AlbedoBindGroup, Material, Renderer, SUN_SHADOW_MAP_SIZE, SUN_SHADOW_EXTENT_M, WEATHER_MAP_W (+2 more).
+- `mod.rs` (2723): Renderer, the `Renderer` struct, its construction, and its registries. Main items: PatchDraw, RenderObject, AlbedoBindGroup, Material, Renderer, SUN_SHADOW_MAP_SIZE, SUN_SHADOW_EXTENT_M, WEATHER_MAP_W (+2 more).
 - `multi_scale.rs` (30): Multi-scale rendering, AU, planet, habitat scale transitions. Main items: ScaleLevel, MultiScaleManager.
 - `overlay_draw.rs` (391): POST-PASSES: thin lines and particle billboards drawn ON TOP of a frame that has already been rendered.
 - `particles_gpu.rs` (393): GPU particle simulation (v0.1068). Main items: SimParams, GpuParticles.
 - `particles.rs` (767): GPU particle system with data-driven emitter definitions. Main items: EmitterDef, Emitter, ParticleVertexData, ParticleSystem, build_particle_pipelines.
 - `patch_arena.rs` (437): Terrain patch mega-buffer arena (draw-batching increment 1, v0.1001). Main items: PatchSlot, RangeAlloc, PatchInstance, IndirectArgs, PatchArena, MAX_PATCH_DRAWS.
-- `pipeline.rs` (3136): Render pipeline management, creates and caches wgpu render pipelines. Main items: ObjectUniforms, MaterialUniforms, Pipeline, RebuiltPipelines, ShaderClass, PsoRow, shader_class, pso_row (+13 more).
+- `pipeline.rs` (3529): Render pipeline management, creates and caches wgpu render pipelines. Main items: ObjectUniforms, MaterialUniforms, Pipeline, RebuiltPipelines, CloudPsos, CloudsReady, ShaderClass, PsoRow (+15 more).
 - `plant_mesh.rs` (1237): Procedural plant mesh generation (v0.862, 2026-07-16). Main items: PlantVisualDef, PlantVisualRegistry, FungusVisualDef, FungusSubstrate, BagCut, FungusFruit, FruitHabit, Organ (+7 more).
 - `room_probes_gpu.rs` (645): ROOM GI, RUNG 1, the GPU half (docs/design/room-gi.md; the what and the why are in `room_probes.rs`, whose CPU twin this mirrors). Main items: RoomGi, MAX_UPDATES_PER_FRAME, UPDATE_REACH_M, UPDATE_SHADER.
 - `room_probes.rs` (1275): ROOM GI, RUNG 1: per-room irradiance probes (docs/design/room-gi.md). Main items: RoomBox, AtlasLayout, Sun, GiHeaderGpu, GiRoomGpu, GiParamsGpu, DirectSource, TwinRoom (+50 more).
-- `scene_draw.rs` (616): The SCENE passes: the draw loops that put the near world (the ship, the home, props, vegetation, water, holograms) on a target, plus the two screen-space passes that finish that image.
+- `scene_draw.rs` (619): The SCENE passes: the draw loops that put the near world (the ship, the home, props, vegetation, water, holograms) on a target, plus the two screen-space passes that finish that image.
 - `scene_format_ab.rs` (87): THE SCENE FORMAT A/B SWITCH (HDR scene target, increment 3, 2026-09-27; docs/design/hdr-scene-target.md).
 - `scene_target.rs` (450): THE SCENE TARGET and THE PRESENT PASS (HDR scene target; the plan of record is docs/design/hdr-scene-target.md). Main items: SceneTarget, PresentPass, scene_format_for, dither_levels.
 - `shader_loader.rs` (809): WGSL shader loading with optional hot-reload (native only). Main items: ShaderLoader, required_entry_points, assembled_pbr_source, batched_variant_of, assembled_pbr_batch_source, boot_pbr_source, boot_pbr_source, boot_pbr_batch_source (+6 more).
