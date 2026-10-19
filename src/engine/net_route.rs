@@ -665,16 +665,137 @@ pub(crate) fn position_update_json(out: &crate::net::sync::OutgoingPosition) -> 
     })
 }
 
-/// Lazy-load the 3D world: homestead, hologram, stars, planet, CSV data.
-/// Called once on first Enter World. Keeps app startup instant (chat-first).
-/// (Re)load every data/planets/<body_id>.ron into state.planet_defs and
-/// drop the cached surface meshes + atmosphere materials so the next
-/// frame regenerates from the fresh values. Called at world load and by
-/// the hot-reload poll when a planet RON changes on disk (v0.764) - so
-/// palette/noise/sea-level tuning shows in the sky without a relaunch.
-/// The superseded GPU meshes stay resident until session end (bounded by
-/// how many edits a tuning session makes; eviction is a noted follow-up).
-pub(crate) fn reload_planet_defs(state: &mut EngineState) {
+/// One body's surface def as read and baked with NO GPU and NO engine state:
+/// the def itself, its elevation and colour grids, and the per-pixel surface
+/// texture baked from them. Everything `reload_planet_defs` used to compute
+/// on the main thread before touching the renderer, split out (2026-10-18) so
+/// the boot can do it on a background thread while the player is still on
+/// the menu, the way the star sky has been prebuilt since v0.865.
+pub(crate) struct PlanetDefBake {
+    id: String,
+    def: PlanetDef,
+    heightmap: Option<std::sync::Arc<crate::terrain::planet_heightmap::PlanetHeightmap>>,
+    albedo: Option<std::sync::Arc<crate::terrain::planet_albedo::PlanetAlbedo>>,
+    /// The per-pixel surface texture (RGBA8 at the albedo grid's size), when
+    /// BOTH grids loaded, with how long its bake took.
+    texture: Option<(Vec<u8>, std::time::Duration)>,
+}
+
+/// Every data/planets/<body_id>.ron read and baked: CPU only, safe on any
+/// thread (it reads files under `data_dir` and the process-wide Sol body
+/// list, and owns everything it returns). Logs the same per-planet lines the
+/// main-thread path always did. `install_planet_defs` then puts the result
+/// into the engine and uploads the textures.
+///
+/// The defs are read straight from disk rather than through the
+/// AssetManager's cache. That is the same content: the cache only ever held
+/// what the file said, and the hot-reload watcher dropped a planet's entry
+/// whenever its file changed, so every reload read the disk anyway.
+pub(crate) fn bake_planet_defs(data_dir: &std::path::Path) -> Vec<PlanetDefBake> {
+    let mut out = Vec::new();
+    for b in crate::cosmos::sol_bodies() {
+        let rel = format!("planets/{}.ron", b.id);
+        let path = data_dir.join(&rel);
+        if !path.exists() {
+            continue;
+        }
+        let parsed = std::fs::read(&path)
+            .map_err(|e| format!("Failed to read {}: {e}", path.display()))
+            .and_then(|bytes| crate::assets::loader::parse_ron::<PlanetDef>(&bytes));
+        let mut def = match parsed {
+            Ok(def) => def,
+            Err(e) => {
+                log::warn!("Could not load planet def {rel}: {e}");
+                continue;
+            }
+        };
+        log::info!("Loaded RON: {rel}");
+        // Sort + sanitize the optional gravity curve once here so gravity_at
+        // can assume ascending finite points even when the RON was just
+        // hand-edited mid-session.
+        def.normalize_gravity_curve();
+        let mut heightmap = None;
+        // Real-elevation grid (Earth: NOAA ETOPO1 via
+        // scripts/build-earth-heightmap.js). On success the RON's hand-tuned
+        // sea_level is OVERRIDDEN with the grid's true 0 m position so the
+        // real coastline is exact; on failure we warn and keep the noise path
+        // (a missing grid must never blank a planet).
+        if let Some(hm_rel) = def.heightmap.clone() {
+            let hm_path = data_dir.join(&hm_rel);
+            match crate::terrain::planet_heightmap::PlanetHeightmap::load(&hm_path) {
+                Ok(hm) => {
+                    def.sea_level = hm.sea_level_normalized();
+                    log::info!(
+                        "Planet '{}': heightmap {} ({}x{}, {:.0}..{:.0} m, sea at {:.3})",
+                        b.id, hm_rel, hm.width(), hm.height(),
+                        hm.min_meters(), hm.max_meters(),
+                        def.sea_level
+                    );
+                    heightmap = Some(std::sync::Arc::new(hm));
+                }
+                Err(e) => log::warn!(
+                    "Planet '{}': heightmap {hm_rel} failed to load ({e}); falling back to procedural noise",
+                    b.id
+                ),
+            }
+        } else {
+            // No measured grid shipped (Moon/Mars/Pluto/mods): synthesize one
+            // (v0.919) so the chunked-LOD ground + ground clamp + albedo
+            // texture bake all activate - without this the body renders as
+            // the bare uniform icosphere, kilometer-wide flat facets at
+            // walking height (the operator's "icosphere stepping"). RON
+            // sea_level is NOT overridden here: for an airless body it is a
+            // color-band threshold (the Moon's maria line), not a coastline.
+            let t0 = Instant::now();
+            let hm = crate::terrain::procedural_heightmap::synthesize(&def);
+            log::info!(
+                "Planet '{}': synthesized heightmap ({}x{}, {:.0}..{:.0} m) in {:.0?}",
+                b.id, hm.width(), hm.height(),
+                hm.min_meters(), hm.max_meters(), t0.elapsed()
+            );
+            heightmap = Some(std::sync::Arc::new(hm));
+        }
+        // Real surface-color grid (Earth: NASA Blue Marble via
+        // scripts/build-earth-albedo.js). On failure we warn and keep the
+        // elevation-band classifier (a missing grid must never blank a
+        // planet's colors).
+        let mut albedo = None;
+        if let Some(al_rel) = def.albedo.clone() {
+            let al_path = data_dir.join(&al_rel);
+            match crate::terrain::planet_albedo::PlanetAlbedo::load(&al_path) {
+                Ok(al) => {
+                    log::info!("Planet '{}': albedo {} ({}x{})", b.id, al_rel, al.width(), al.height());
+                    albedo = Some(std::sync::Arc::new(al));
+                }
+                Err(e) => log::warn!(
+                    "Planet '{}': albedo {al_rel} failed to load ({e}); falling back to band classifier",
+                    b.id
+                ),
+            }
+        }
+        // Per-pixel surface texture (v0.811): when BOTH real grids loaded,
+        // bake the imagery (grading applied per texel; the water/land split
+        // needs the elevation grid). The upload is the install's job.
+        let texture = match (heightmap.as_ref(), albedo.as_ref()) {
+            (Some(hm), Some(al)) => {
+                let t0 = Instant::now();
+                let rgba = crate::terrain::planet_surface::bake_albedo_rgba(&def, hm, al);
+                Some((rgba, t0.elapsed()))
+            }
+            _ => None,
+        };
+        out.push(PlanetDefBake { id: b.id.clone(), def, heightmap, albedo, texture });
+    }
+    out
+}
+
+/// Put a `bake_planet_defs` result into the engine: drop the cached surface
+/// meshes + atmosphere materials so the next frame regenerates from the fresh
+/// values, recycle the chunked-LOD patch slots, upload each baked surface
+/// texture onto its planet's material (swapping the texture on the EXISTING
+/// material index on a reload, so repeated RON tuning never piles 32 MB
+/// textures up in VRAM). Main thread: it touches the renderer.
+pub(crate) fn install_planet_defs(state: &mut EngineState, bakes: Vec<PlanetDefBake>) {
     state.planet_defs.clear();
     state.planet_heightmaps.clear();
     state.planet_albedos.clear();
@@ -696,137 +817,49 @@ pub(crate) fn reload_planet_defs(state: &mut EngineState) {
             state.planet_patch_free_slots.push(entry.mesh);
         }
     }
-    for b in crate::cosmos::sol_bodies() {
-        let rel = format!("planets/{}.ron", b.id);
-        if state.asset_manager.data_dir().join(&rel).exists() {
-            match state.asset_manager.load_ron::<PlanetDef>(&rel) {
-                Ok(def) => {
-                    let mut def = def.clone();
-                    // Sort + sanitize the optional gravity curve once here
-                    // so gravity_at can assume ascending finite points even
-                    // when the RON was just hand-edited mid-session.
-                    def.normalize_gravity_curve();
-                    // Real-elevation grid (Earth: NOAA ETOPO1 via
-                    // scripts/build-earth-heightmap.js). On success the
-                    // RON's hand-tuned sea_level is OVERRIDDEN with the
-                    // grid's true 0 m position so the real coastline is
-                    // exact; on failure we warn and keep the noise path
-                    // (a missing grid must never blank a planet).
-                    if let Some(hm_rel) = def.heightmap.clone() {
-                        let hm_path = state.asset_manager.data_dir().join(&hm_rel);
-                        match crate::terrain::planet_heightmap::PlanetHeightmap::load(&hm_path) {
-                            Ok(hm) => {
-                                def.sea_level = hm.sea_level_normalized();
-                                log::info!(
-                                    "Planet '{}': heightmap {} ({}x{}, {:.0}..{:.0} m, sea at {:.3})",
-                                    b.id, hm_rel, hm.width(), hm.height(),
-                                    hm.min_meters(), hm.max_meters(),
-                                    def.sea_level
-                                );
-                                state.planet_heightmaps.insert(b.id.clone(), std::sync::Arc::new(hm));
-                            }
-                            Err(e) => log::warn!(
-                                "Planet '{}': heightmap {hm_rel} failed to load ({e}); falling back to procedural noise",
-                                b.id
-                            ),
-                        }
-                    } else {
-                        // No measured grid shipped (Moon/Mars/Pluto/mods):
-                        // synthesize one (v0.919) so the chunked-LOD
-                        // ground + ground clamp + albedo texture bake all
-                        // activate — without this the body renders as the
-                        // bare uniform icosphere, kilometer-wide flat
-                        // facets at walking height (the operator's
-                        // "icosphere stepping"). RON sea_level is NOT
-                        // overridden here: for an airless body it is a
-                        // color-band threshold (the Moon's maria line),
-                        // not a coastline.
-                        let t0 = Instant::now();
-                        let hm =
-                            crate::terrain::procedural_heightmap::synthesize(&def);
-                        log::info!(
-                            "Planet '{}': synthesized heightmap ({}x{}, {:.0}..{:.0} m) in {:.0?}",
-                            b.id, hm.width(), hm.height(),
-                            hm.min_meters(), hm.max_meters(), t0.elapsed()
-                        );
-                        state.planet_heightmaps.insert(b.id.clone(), std::sync::Arc::new(hm));
-                    }
-                    // Real surface-color grid (Earth: NASA Blue Marble
-                    // via scripts/build-earth-albedo.js). On failure we
-                    // warn and keep the elevation-band classifier (a
-                    // missing grid must never blank a planet's colors).
-                    if let Some(al_rel) = def.albedo.clone() {
-                        let al_path = state.asset_manager.data_dir().join(&al_rel);
-                        match crate::terrain::planet_albedo::PlanetAlbedo::load(&al_path) {
-                            Ok(al) => {
-                                log::info!(
-                                    "Planet '{}': albedo {} ({}x{})",
-                                    b.id, al_rel, al.width(), al.height()
-                                );
-                                state.planet_albedos.insert(b.id.clone(), std::sync::Arc::new(al));
-                            }
-                            Err(e) => log::warn!(
-                                "Planet '{}': albedo {al_rel} failed to load ({e}); falling back to band classifier",
-                                b.id
-                            ),
-                        }
-                    }
-                    // Per-pixel surface texture (v0.811): when BOTH real
-                    // grids loaded, bake the imagery (grading applied per
-                    // texel; the water/land split needs the elevation
-                    // grid) and upload it on a per-planet textured
-                    // material. Hot-reload swaps the texture on the
-                    // EXISTING material index so repeated RON tuning
-                    // never piles 32 MB textures up in VRAM.
-                    if let (Some(hm), Some(al)) = (
-                        state.planet_heightmaps.get(&b.id),
-                        state.planet_albedos.get(&b.id),
-                    ) {
-                        let t0 = Instant::now();
-                        let rgba =
-                            crate::terrain::planet_surface::bake_albedo_rgba(&def, hm, al);
-                        if let Some(&mi) = state.planet_textured_materials.get(&b.id) {
-                            state.renderer.set_material_albedo_texture(
-                                mi,
-                                &rgba,
-                                al.width(),
-                                al.height(),
-                            );
-                        } else {
-                            let mi = state.renderer.add_textured_material(
-                                // base_color.xyz is overwritten every
-                                // frame with the planet center in render
-                                // space (see planet_textured_materials).
-                                [1.0, 1.0, 1.0, 1.0],
-                                0.0,
-                                0.9,
-                                12.0,
-                                // params.w = the type-12 bit field (NOT
-                                // emissive): bit 0 = albedo texture
-                                // present. The sky loop rewrites it
-                                // every frame with the Surface-detail
-                                // bit ORed in (v0.816), so 1.0 here
-                                // only covers the first frame.
-                                1.0,
-                                &rgba,
-                                al.width(),
-                                al.height(),
-                            );
-                            state.planet_textured_materials.insert(b.id.clone(), mi);
-                        }
-                        log::info!(
-                            "Planet '{}': per-pixel surface texture baked + uploaded ({}x{}, {} ms)",
-                            b.id,
-                            al.width(),
-                            al.height(),
-                            t0.elapsed().as_millis()
-                        );
-                    }
-                    state.planet_defs.insert(b.id.clone(), def);
-                }
-                Err(e) => log::warn!("Could not load planet def {rel}: {e}"),
-            }
+    for bake in bakes {
+        let PlanetDefBake { id, def, heightmap, albedo, texture } = bake;
+        if let Some(hm) = heightmap {
+            state.planet_heightmaps.insert(id.clone(), hm);
         }
+        if let Some(al) = albedo {
+            state.planet_albedos.insert(id.clone(), al);
+        }
+        if let (Some((rgba, baked_in)), Some(al)) = (texture, state.planet_albedos.get(&id)) {
+            let (w, h) = (al.width(), al.height());
+            let t0 = Instant::now();
+            if let Some(&mi) = state.planet_textured_materials.get(&id) {
+                state.renderer.set_material_albedo_texture(mi, &rgba, w, h);
+            } else {
+                let mi = state.renderer.add_textured_material(
+                    // base_color.xyz is overwritten every frame with the
+                    // planet center in render space (see
+                    // planet_textured_materials).
+                    [1.0, 1.0, 1.0, 1.0],
+                    0.0,
+                    0.9,
+                    12.0,
+                    // params.w = the type-12 bit field (NOT emissive): bit 0
+                    // = albedo texture present. The sky loop rewrites it
+                    // every frame with the Surface-detail bit ORed in
+                    // (v0.816), so 1.0 here only covers the first frame.
+                    1.0,
+                    &rgba,
+                    w,
+                    h,
+                );
+                state.planet_textured_materials.insert(id.clone(), mi);
+            }
+            log::info!(
+                "Planet '{}': per-pixel surface texture baked + uploaded ({}x{}, {} ms bake + {} ms upload)",
+                id,
+                w,
+                h,
+                baked_in.as_millis(),
+                t0.elapsed().as_millis()
+            );
+        }
+        state.planet_defs.insert(id, def);
     }
     // A def that LOST a grid on reload (operator removed the field) must
     // stop drawing through its stale texture; the orphaned material slot
@@ -843,6 +876,27 @@ pub(crate) fn reload_planet_defs(state: &mut EngineState) {
         state.planet_albedos.len(),
         state.planet_textured_materials.len()
     );
+}
+
+/// (Re)load every data/planets/<body_id>.ron into state.planet_defs and
+/// drop the cached surface meshes + atmosphere materials so the next
+/// frame regenerates from the fresh values: `bake_planet_defs` then
+/// `install_planet_defs`, both here on the main thread. Called by the
+/// hot-reload poll when a planet RON changes on disk (v0.764) - so
+/// palette/noise/sea-level tuning shows in the sky without a relaunch -
+/// and by world entry whenever the boot's background prebuild is not
+/// there to receive (a later entry, or one after a reload).
+///
+/// A reload SUPERSEDES the boot prebuild if it has not been received yet:
+/// that bake read the files before this change, so it is dropped here and
+/// world entry takes this path instead of installing stale defs over fresh
+/// ones.
+/// The superseded GPU meshes stay resident until session end (bounded by
+/// how many edits a tuning session makes; eviction is a noted follow-up).
+pub(crate) fn reload_planet_defs(state: &mut EngineState) {
+    state.planet_defs_preload_rx = None;
+    let bakes = bake_planet_defs(state.asset_manager.data_dir());
+    install_planet_defs(state, bakes);
 }
 
 /// Chat history fetch + drain, one call per frame (extracted from the

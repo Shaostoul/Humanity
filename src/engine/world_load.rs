@@ -554,8 +554,31 @@ pub(crate) fn load_world(state: &mut EngineState) {
     // planet look = a new data/planets/<body_id>.ron, no code change.
     // Bodies without a def fall back to smooth LOD spheres with the
     // coarse body-type materials.
+    //
+    // The CPU half (reading the RONs, loading or synthesizing each elevation
+    // grid, loading each colour grid, baking each surface texture: about
+    // 1.2 s measured 2026-10-18, 1.9 s once the boot no longer waited for the
+    // cloud PSOs and this ran beside them) is prebuilt on a boot thread like
+    // the star sky (`planet_defs_preload_rx`), so the FIRST entry only waits
+    // for whatever of it is unfinished and then installs and uploads. Any
+    // later entry, or one after a hot reload made the prebuild stale, takes
+    // the main-thread path exactly as before. The span keeps its name so the
+    // boot-timing history stays comparable; it now measures the wait plus
+    // the install, and the prebuild's own time is a BACKGROUND span.
     let t_planets = Instant::now();
-    reload_planet_defs(state);
+    if let Some(rx) = state.planet_defs_preload_rx.take() {
+        match rx.recv() {
+            Ok((bakes, prebuild)) => {
+                crate::engine::net_route::install_planet_defs(state, bakes);
+                state.boot_timer.record_background("planet_defs_prebuild", prebuild);
+            }
+            // The prebuild thread died (a panic, already in run.log): bake
+            // here instead, the way every later entry does.
+            Err(_) => reload_planet_defs(state),
+        }
+    } else {
+        reload_planet_defs(state);
+    }
     state.boot_timer.since("planet_defs_bake", t_planets);
 
     // ── Home station: load its orbit from data and place the ship frame on it ──

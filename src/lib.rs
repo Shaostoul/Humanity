@@ -1565,6 +1565,36 @@ mod native_app {
                 });
                 Some(rx)
             };
+            // ── Background planet-surface prebuild (2026-10-18 boot speed) ──
+            // planet_defs_bake measured 1.2 s on the world-entry path: reading
+            // data/planets/, loading or synthesizing each elevation grid,
+            // loading each colour grid and baking each surface texture. All of
+            // it is CPU work on files (net_route::bake_planet_defs), so it runs
+            // here beside the star sky while the player is still on the menu;
+            // the first world entry receives it and only installs and uploads
+            // (world_load.rs). A planet RON hot reload before world entry drops
+            // the receiver (reload_planet_defs), so a stale prebuild is never
+            // installed. The baked textures (about 100 MB of RGBA for the four
+            // textured bodies) wait in the channel until then.
+            let planet_defs_preload_rx = {
+                let (tx, rx) = std::sync::mpsc::channel();
+                let dir = data_dir.clone();
+                std::thread::Builder::new()
+                    .name("planet-defs".into())
+                    .spawn(move || {
+                        let t = std::time::Instant::now();
+                        let bakes = crate::engine::net_route::bake_planet_defs(&dir);
+                        let took = t.elapsed();
+                        log::info!(
+                            "[Boot] planet surfaces prebuilt in background: {} ms ({} bodies)",
+                            took.as_millis(),
+                            bakes.len()
+                        );
+                        let _ = tx.send((bakes, took));
+                    })
+                    .ok()
+                    .map(|_| rx)
+            };
             // STARTER VEHICLES (v0.694, operator: "update the player home to have
             // a prebuilt vehicle so I don't have to assemble the factory, mine
             // resources, etc." -- headlined by their 1975 Chevy Nova, the first
@@ -1799,6 +1829,7 @@ mod native_app {
                 // 3D world state: empty defaults, loaded lazily on first Enter World
                 star_renderer: None,
                 star_preload_rx,
+                planet_defs_preload_rx,
                 terrain_tiles: crate::terrain::terrain_tiles::TerrainTiles::new(
                     data_dir.join("planets/earth_tiles"),
                 ),

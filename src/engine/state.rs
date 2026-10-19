@@ -174,6 +174,19 @@ pub(crate) struct EngineState {
     /// None once consumed - a later world entry (tier change) rebuilds
     /// synchronously as before.
     pub(crate) star_preload_rx: Option<std::sync::mpsc::Receiver<Option<crate::renderer::stars::StarRenderer>>>,
+    /// Background planet-surface prebuild (2026-10-18 boot speed, the same
+    /// arrangement as `star_preload_rx`): a thread spawned at startup reads
+    /// every data/planets/<id>.ron, loads or synthesizes its elevation grid,
+    /// loads its colour grid and bakes its surface texture
+    /// (`net_route::bake_planet_defs`), with how long that took. The first
+    /// world entry receives it and only installs and uploads
+    /// (`net_route::install_planet_defs`). None once consumed, and set to
+    /// None by any `reload_planet_defs` (a hot reload before world entry
+    /// makes the prebuild stale), so a later entry bakes on the main thread
+    /// as before.
+    pub(crate) planet_defs_preload_rx: Option<
+        std::sync::mpsc::Receiver<(Vec<crate::engine::net_route::PlanetDefBake>, std::time::Duration)>,
+    >,
     /// Streamed high-detail terrain tiles for EARTH (the downloadable
     /// terrain tier, ~460 m cells): region residency follows the camera,
     /// deep patches + the ground clamp sample it via tile_or_base. An

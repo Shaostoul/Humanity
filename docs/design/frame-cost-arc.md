@@ -689,6 +689,18 @@ next step if boot time matters before launch.
 > compile, the overflow named on that thread, and a 1 GiB stack died at the
 > same moment, so the stack size is not the variable. An FXC run now leaves
 > the clouds off and says so (`HUMANITY_FXC_CLOUDS=1` tries anyway).
+>
+> The next item on the entry path, `planet_defs_bake` (1.2 s: the planet
+> RONs, the elevation and colour grids and the surface-texture bakes, all CPU
+> work on files), now runs on a boot thread beside the star-sky prebuild,
+> and the first world entry only installs and uploads (about 60 ms). On an
+> autopilot entry the step fell from 1.22 to 0.62 s (it waits out the rest
+> of the 1.29 s prebuild) and the boot to 8.4 s to playable (8.3 to 8.6):
+> 13.3 s to 8.4 s for the two changes together. What is left: the renderer's
+> own init (6.7 s, `pipeline_new` about 3 s of it), and the cloud-noise
+> upload waiting on its bake (0 to 0.8 s inside `shaders_and_pipelines`
+> across these six boots), which could become an upload when the bake lands,
+> since nothing draws clouds before their PSOs anyway.
 
 **Gate, `probe-sweep --operator-config`, the nine vantages in one boot per
 arm, same file order in both.** B0 = the P2 build (the exe from the P2
