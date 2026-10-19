@@ -125,8 +125,7 @@ pub fn program_icon(exe: &Path) -> Option<Icon> {
         }
         super::note_disk_read();
         let (group, images) = windows_icons::read(exe)?;
-        let ico = ico_of(&group, &images)?;
-        let img = image::load_from_memory_with_format(&ico, image::ImageFormat::Ico).ok()?;
+        let img = decode(&group, &images)?;
         let img = if img.width() > ICON_MAX || img.height() > ICON_MAX { img.thumbnail(ICON_MAX, ICON_MAX) } else { img };
         let rgba = img.to_rgba8();
         (rgba.width() > 0 && rgba.height() > 0).then(|| Icon { width: rgba.width(), height: rgba.height(), rgba: Arc::new(rgba.into_raw()) })
@@ -164,12 +163,41 @@ fn group_entries(group: &[u8]) -> Vec<GroupEntry> {
         .collect()
 }
 
+/// A group's pictures that are there, the largest and deepest first.
+fn ranked(group: &[u8], images: &[(u16, Vec<u8>)]) -> Vec<GroupEntry> {
+    let side = |w: u8| if w == 0 { 256u32 } else { w as u32 };
+    let mut entries: Vec<GroupEntry> = group_entries(group).into_iter().filter(|e| images.iter().any(|(id, _)| *id == e.id)).collect();
+    entries.sort_by_key(|e| std::cmp::Reverse((side(e.width) * side(e.height), e.bits)));
+    entries
+}
+
 /// The largest, deepest picture of a group (its id), as an .ico file in memory with that one
 /// picture, given each picture's bytes by id (`images`).
+#[cfg(test)]
 fn ico_of(group: &[u8], images: &[(u16, Vec<u8>)]) -> Option<Vec<u8>> {
-    let side = |w: u8| if w == 0 { 256u32 } else { w as u32 };
-    let best = group_entries(group).into_iter().filter(|e| images.iter().any(|(id, _)| *id == e.id)).max_by_key(|e| (side(e.width) * side(e.height), e.bits))?;
-    let data = &images.iter().find(|(id, _)| *id == best.id)?.1;
+    let best = *ranked(group, images).first()?;
+    ico_for(best, &images.iter().find(|(id, _)| *id == best.id)?.1)
+}
+
+/// The PNG file signature: a 256-pixel icon picture is often a whole PNG file.
+const PNG_SIGNATURE: [u8; 8] = [0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A];
+
+/// The group's picture decoded: the largest that decodes, a PNG one read as a PNG (the .ico reader
+/// takes only RGBA PNGs, and a program's may be RGB: Fortnite's is, seen 2026-10-19), any other
+/// through a one-picture .ico.
+fn decode(group: &[u8], images: &[(u16, Vec<u8>)]) -> Option<image::DynamicImage> {
+    ranked(group, images).into_iter().find_map(|e| {
+        let data = &images.iter().find(|(id, _)| *id == e.id)?.1;
+        if data.starts_with(&PNG_SIGNATURE) {
+            image::load_from_memory_with_format(data, image::ImageFormat::Png).ok()
+        } else {
+            image::load_from_memory_with_format(&ico_for(e, data)?, image::ImageFormat::Ico).ok()
+        }
+    })
+}
+
+/// One picture of a group as a one-picture .ico file in memory.
+fn ico_for(best: GroupEntry, data: &[u8]) -> Option<Vec<u8>> {
     let mut ico = Vec::with_capacity(22 + data.len());
     ico.extend_from_slice(&[0, 0, 1, 0, 1, 0]);
     ico.extend_from_slice(&[best.width, best.height, best.colors, 0]);
@@ -303,7 +331,7 @@ mod tests {
     /// a 256-pixel (written 0) 32-bit and a 256-pixel 8-bit picture, the 256-pixel 32-bit one.
     ///
     /// Seen red 2026-10-19 with the size read as written (0 for 256): the 32-pixel picture was
-    /// chosen (left: [32, 32, ..], right: [0, 0, ..]).
+    /// chosen, "the 256-pixel picture" (left: [32, 32], right: [0, 0]).
     #[test]
     fn an_icon_groups_largest_deepest_picture() {
         let entry = |w: u8, bits: u16, id: u16| {
@@ -326,11 +354,38 @@ mod tests {
         assert_eq!(u32::from_le_bytes([ico[14], ico[15], ico[16], ico[17]]), 20, "their length");
     }
 
+    /// A PNG PICTURE IN COLOUR WITHOUT SEE-THROUGH (RGB) IS READ AS A PNG: the .ico reader takes
+    /// only RGBA PNGs, and Fortnite's program icon (2026-10-19, on the operator's computer) is an
+    /// RGB one. Its group's 256-pixel picture here is such a PNG (40 by 20), its 32-pixel one is
+    /// not a picture at all: the PNG is the one read.
+    ///
+    /// Seen red 2026-10-19 with every picture read through a one-picture .ico (the PNG branch taken
+    /// out of `decode`): "the RGB PNG is read" got None.
+    #[test]
+    fn an_rgb_png_picture_is_read_as_a_png() {
+        let mut png = Vec::new();
+        image::RgbImage::from_pixel(40, 20, image::Rgb([200, 120, 40])).write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png).unwrap();
+        let entry = |w: u8, id: u16| {
+            let mut e = vec![w, w, 0, 0];
+            e.extend_from_slice(&1u16.to_le_bytes());
+            e.extend_from_slice(&32u16.to_le_bytes());
+            e.extend_from_slice(&100u32.to_le_bytes());
+            e.extend_from_slice(&id.to_le_bytes());
+            e
+        };
+        let mut group = vec![0, 0, 1, 0, 2, 0];
+        group.extend(entry(0, 1));
+        group.extend(entry(32, 2));
+        let images = vec![(1, png), (2, vec![0u8; 40])];
+        let img = decode(&group, &images).expect("the RGB PNG is read");
+        assert_eq!((img.width(), img.height()), (40, 20));
+    }
+
     /// A PROGRAM'S ICON, read from Windows' own Explorer (every Windows has it, and it has an icon);
     /// a file named .exe that is not a program has none.
     ///
-    /// Seen red 2026-10-19 with the group's first picture taken instead of its largest: "no larger
-    /// than kept, and not tiny" got Icon(16x16).
+    /// Seen red 2026-10-19 with the shrink to `ICON_MAX` left out: "no larger than kept, and not
+    /// tiny" got Icon(256x256).
     #[cfg(windows)]
     #[test]
     fn a_programs_icon() {

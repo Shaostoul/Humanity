@@ -376,13 +376,19 @@ mod this_computer {
         };
         let shots = d.screenshots.as_ref().map(|s| s.total.to_string()).unwrap_or_else(|| "-".into());
         let mods = d.workshop.as_ref().map(|w| format!("{} ({} bytes)", w.items.len(), w.total_size)).unwrap_or_else(|| "-".into());
+        let art = &d.art;
+        let has = |p: &Option<std::path::PathBuf>| if p.is_some() { "yes" } else { "-" };
+        let icon = art.icon.as_ref().map(|i| format!("{}x{}", i.width, i.height)).unwrap_or_else(|| "-".into());
         format!(
-            "size {} | updated {} | played {} min | last {} | version {} | achievements {ach} | screenshots {shots} | workshop {mods}",
+            "size {} | updated {} | played {} min | last {} | version {} | achievements {ach} | screenshots {shots} | workshop {mods} | cover {} hero {} logo {} icon {icon}",
             n(d.size),
             n(d.updated),
             n(d.played_minutes),
             n(d.last_played),
-            d.version.as_deref().unwrap_or("-")
+            d.version.as_deref().unwrap_or("-"),
+            has(&art.cover),
+            has(&art.hero),
+            has(&art.logo)
         )
     }
 

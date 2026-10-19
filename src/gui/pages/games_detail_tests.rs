@@ -121,8 +121,8 @@ fn the_view_and_the_sort_survive_a_restart() {
 /// game's version and no links; Close closes them.
 ///
 /// Seen red 2026-10-19 with the hidden achievement's description shown (`item.hidden && !unlocked`
-/// replaced by `false`): "a hidden one's description is kept hidden" failed (the waterfall line was
-/// drawn).
+/// replaced by `false`): "descriptions, a hidden one's replaced" failed (the line saying it is
+/// hidden was not drawn; the waterfall line was).
 #[test]
 fn a_games_details() {
     let (ctx, theme) = ctx_and_theme();
@@ -175,8 +175,8 @@ fn opened(out: &egui::FullOutput) -> Vec<(String, bool)> {
 /// folders. A web address on no listed host is refused.
 ///
 /// Seen red 2026-10-19 with the web links sent through the launcher (`Opens::Web(u) =>
-/// Act::Open(Launch::Link(u))`): "PCGamingWiki opens in the browser" got no open_url, the link
-/// recorded instead.
+/// Act::Open(Launch::Link(u))`): "Steam store on the web opens in the browser" (left: [], right:
+/// [("https://store.steampowered.com/app/1000010", true)]).
 #[test]
 fn every_link_in_the_details_opens_exactly_its_address() {
     let (ctx, theme) = ctx_and_theme();
@@ -351,7 +351,7 @@ fn an_epic_games_program_icon_on_its_plain_tile() {
 /// here moves it), so a quiet counter is the page reading nothing, not a counter that never moves.
 ///
 /// Seen red 2026-10-19 with the details listing the screenshots' folder each frame
-/// (`crate::games::list_dir(&s.folder)` in `screenshots`): "drawing reads nothing" (left: 70,
+/// (`crate::games::list_dir(&s.folder)` in `screenshots`): "drawing reads nothing" (left: 71,
 /// right: 0 more reads).
 #[test]
 fn drawing_the_page_reads_no_store_file() {

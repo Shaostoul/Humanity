@@ -348,8 +348,8 @@ fn add_rename_and_remove_survive_a_restart() {
 ///
 /// Seen red 2026-10-18 with every store's section drawn whether found or not (the `let Some(list)`
 /// replaced by an empty list): "no Epic Games Store section" failed. Seen red 2026-10-19 (pills)
-/// with every store's pill pushed whether found or not: "no Epic Games Store pill" failed on
-/// "Epic Games Store 0".
+/// with every store's pill pushed whether found or not: "no Epic Games Store pill" failed (its
+/// pill, "Epic Games Store 0", drawn).
 #[test]
 fn a_store_not_installed_has_no_pill() {
     let (ctx, theme) = ctx_and_theme();

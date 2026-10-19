@@ -412,7 +412,7 @@ Desktop only: a website cannot read the games installed on the computer it runs 
 `workshop.rs`, `art.rs`, `links.rs`, `epic.rs`, `gog.rs`, `other.rs`, `launch.rs`, `registry.rs`, `fixtures.rs` for
 tests), `src/gui/pages/games.rs` (the page), `games_library.rs` (toolbar, grid, list), `games_detail.rs` (details,
 screenshot viewer), `games_tests.rs`, `games_detail_tests.rs`, `src/gui/widgets/cover_tile.rs`, nav item in
-`src/gui/pages/escape_menu.rs`, icon `widgets::icons::paint_gamepad`; snapshot `games_library`.
+`src/gui/pages/escape_menu.rs`, icon `widgets::icons::paint_gamepad`; snapshots `games_library` (the Grid with a game's details) and `games_library_list`.
 
 ### In-App File Browser (native, v0.708)
 Universal file-picker widget (NOT the OS dialog — the all-in-one direction): quick

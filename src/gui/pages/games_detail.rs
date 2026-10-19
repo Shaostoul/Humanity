@@ -57,7 +57,7 @@ pub(super) fn panel(ctx: &egui::Context, theme: &Theme, state: &GuiState) -> Vec
         .resizable(true)
         .default_width(DETAILS_WIDTH)
         .width_range(340.0..=760.0)
-        .frame(egui::Frame::none().fill(theme.bg_secondary()).inner_margin(theme.panel_margin).stroke(Stroke::new(1.0, theme.border())))
+        .frame(egui::Frame::none().fill(theme.bg_card()).inner_margin(theme.spacing_lg).stroke(Stroke::new(1.0, theme.border())))
         .show(ctx, |ui| {
             egui::ScrollArea::vertical().id_salt("games_details_scroll").auto_shrink([false, false]).show(ui, |ui| {
                 body(ui, theme, page, game, &mut acts);
@@ -72,7 +72,7 @@ fn heading(ui: &mut egui::Ui, theme: &Theme, text: &str, note: Option<&str>) {
     ui.horizontal_wrapped(|ui| {
         ui.label(RichText::new(text).size(theme.font_size_heading).color(theme.text_primary()));
         if let Some(note) = note {
-            ui.label(RichText::new(note).size(theme.font_size_small).color(theme.text_muted()));
+            ui.label(RichText::new(note).size(theme.font_size_body).color(theme.text_secondary()));
         }
     });
     let y = ui.cursor().min.y + 1.0;
@@ -86,11 +86,14 @@ fn body(ui: &mut egui::Ui, theme: &Theme, page: &GamesState, game: &Game, acts: 
     // with the game's name.
     let (rect, _) = ui.allocate_exact_size(Vec2::new(width, (width / HERO_ASPECT).round().max(80.0)), Sense::hover());
     let art = &game.details.art;
-    let picture = art.hero.as_deref().or(art.cover.as_deref()).and_then(|p| thumbnails::get(ui.ctx(), p, width));
-    let has_picture = picture.is_some();
+    let banner = art.hero.as_deref().or(art.cover.as_deref());
+    let picture = banner.and_then(|p| thumbnails::get(ui.ctx(), p, width));
+    // Whether it HAS a picture, not whether it is read yet: the name's line under it is there from
+    // the first frame, so nothing below moves when the picture comes in.
+    let has_picture = banner.is_some();
     cover_tile::paint_cover(ui.painter(), theme, rect, picture, page.icon_of(game), &game.name, &game.id, theme.font_size_title, theme.border_radius_lg);
     // The game's own title lettering over its banner, as Steam's library shows it.
-    if has_picture {
+    if picture.is_some() {
         if let Some((logo, size)) = art.logo.as_deref().and_then(|p| thumbnails::get(ui.ctx(), p, width * 0.5)) {
             let pad = theme.spacing_md;
             let room = Vec2::new(rect.width() * 0.5, rect.height() * 0.6);
@@ -221,11 +224,11 @@ fn achievements(ui: &mut egui::Ui, theme: &Theme, page: &GamesState, game: &Game
     for item in &a.list[..shown] {
         let unlocked = item.unlocked == Some(true);
         ui.horizontal(|ui| {
-            let (icon, _) = ui.allocate_exact_size(Vec2::splat(theme.font_size_body), Sense::hover());
+            let (icon, _) = ui.allocate_exact_size(Vec2::splat(theme.font_size_body + theme.spacing_sm), Sense::hover());
             if unlocked {
                 icons::paint_check(ui.painter(), icon, theme.success());
             } else {
-                icons::paint_lock(ui.painter(), icon.shrink(1.0), theme.text_muted());
+                icons::paint_lock(ui.painter(), icon, theme.text_muted());
             }
             ui.vertical(|ui| {
                 ui.horizontal(|ui| {

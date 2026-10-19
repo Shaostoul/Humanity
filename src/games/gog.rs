@@ -143,7 +143,7 @@ mod tests {
     /// up Old Forge's files (its program and its .info); a game whose folder is gone has none.
     ///
     /// Seen red 2026-10-19 with `read_game` leaving the size out (`size: None`): "its folder added
-    /// up" (left: None, right: Some(..)).
+    /// up" (left: None, right: Some(391)).
     #[test]
     fn a_gog_games_size_is_its_folder_added_up() {
         let fx = fixtures::gog("gog_size");

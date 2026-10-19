@@ -180,8 +180,9 @@ mod tests {
     /// each game's minutes and last-played time, and nothing else of the file is kept; its
     /// screenshots are listed newest first, each with Steam's small copy where one is there.
     ///
-    /// Seen red 2026-10-19 with `most_recent_login` taking the latest Timestamp before MostRecent:
-    /// "the account marked MostRecent" (left: 2002, right: 1001).
+    /// Seen red 2026-10-19 with the account signed in now ignored (the `active_user` lines taken out
+    /// of `account`): "the account signed in now, while Steam runs" (left: Some(1001), right:
+    /// Some(2002)).
     #[test]
     fn the_account_its_playtimes_and_its_screenshots() {
         let fx = fixtures::steam("steam_user");

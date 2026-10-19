@@ -143,8 +143,8 @@ mod tests {
     /// reads as the version Windows says it is (10 on Windows 10 and 11); a text value, or one not
     /// there, is not a number.
     ///
-    /// Seen red 2026-10-19 with `dword` accepting any type (the `kind == REG_DWORD` check dropped):
-    /// "a text value is not a number" got Some(..) for SystemRoot's first four bytes.
+    /// Seen red 2026-10-19 with `dword` taking text for a number (`kind == REG_SZ`): "Windows 10
+    /// and 11 both say 10" (left: None, right: Some(10)).
     #[test]
     fn a_number_value() {
         let key = open(Root::LocalMachine, r"SOFTWARE\Microsoft\Windows NT\CurrentVersion").expect("Windows' version key is there");

@@ -665,7 +665,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // The details first, so the library takes the room that is left.
     let mut acts = detail::panel(ctx, theme, state);
     egui::CentralPanel::default()
-        .frame(egui::Frame::none().fill(theme.bg_panel()).inner_margin(theme.panel_margin))
+        .frame(egui::Frame::none().fill(theme.bg_panel()).inner_margin(theme.card_padding))
         .show(ctx, |ui| {
             egui::ScrollArea::vertical().id_salt("games_page").auto_shrink([false, false]).show(ui, |ui| {
                 draw_head(ui, theme, state);

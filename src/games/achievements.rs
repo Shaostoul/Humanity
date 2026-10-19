@@ -196,7 +196,8 @@ mod tests {
     /// first; a hidden one keeps its flag; a stat that is not achievements is left out.
     ///
     /// Seen red 2026-10-19 with the bit read from the block's key only (the `bit` entry ignored):
-    /// "First Harvest is unlocked" failed, the second block's bit 0 read as bit 7.
+    /// left: (5, Some(2)), right: (5, Some(3)), First Harvest (bit 0 of the second block) read as
+    /// bit 7.
     #[test]
     fn achievements_read_from_steams_two_files() {
         let fx = fixtures::steam("ach_two_files");
@@ -217,8 +218,9 @@ mod tests {
     /// read, or a schema that does not read, gives no achievements at all; a game with no schema
     /// has none.
     ///
-    /// Seen red 2026-10-19 with a record that does not read treated as no record (`.ok()` turned
-    /// into `Some(None)`): "a broken record shows nothing" got Some(Achievements { .. 5 .. }).
+    /// Seen red 2026-10-19 with a record that does not read treated as no record (its parse error
+    /// turned into `Some(None)`): "a broken record shows nothing" failed, the five listed as not
+    /// known.
     #[test]
     fn not_known_is_not_none_and_a_broken_file_shows_nothing() {
         let fx = fixtures::steam("ach_unknown");

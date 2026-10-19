@@ -16,6 +16,12 @@ pub(super) const TILE_W: f32 = 220.0;
 /// exactly the day the app may show it (games/art.rs).
 pub(super) const COVER_ASPECT: f32 = 460.0 / 215.0;
 
+/// Play's height on a tile and in a row (a button is as tall as its words and their padding), and
+/// the height of what stands in its place, so tiles and rows with and without it line up.
+fn play_height(theme: &Theme) -> f32 {
+    theme.font_size_body + 2.0 * theme.button_pad_y + theme.spacing_xs
+}
+
 /// The toolbar: search, sort, view, and one pill per store found with its count.
 pub(super) fn toolbar(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let Some(found) = state.games.found.as_ref() else { return };
@@ -191,11 +197,11 @@ fn tile(ui: &mut egui::Ui, theme: &Theme, game: &Game, icon: Option<(egui::Textu
                 }
                 ui.add_space(theme.spacing_xs);
                 if game.play.is_some() {
-                    if widgets::Button::primary(super::PLAY).full_width().tooltip(super::play_tip(game.store)).show(ui, theme) {
+                    if widgets::Button::primary(super::PLAY).full_width().min_height(play_height(theme)).tooltip(super::play_tip(game.store)).show(ui, theme) {
                         acts.push(Act::Play(game.clone()));
                     }
                 } else {
-                    let (rect, resp) = ui.allocate_exact_size(Vec2::new(w, theme.button_height), Sense::hover());
+                    let (rect, resp) = ui.allocate_exact_size(Vec2::new(w, play_height(theme)), Sense::hover());
                     let words = super::why_not_short(game).unwrap_or_default();
                     let galley = ui.painter().layout_no_wrap(words, egui::FontId::proportional(theme.font_size_small), theme.warning());
                     let at = egui::pos2(rect.min.x, rect.center().y - galley.size().y / 2.0);
@@ -296,11 +302,12 @@ fn list(ui: &mut egui::Ui, theme: &Theme, page: &GamesState, order: &[usize], so
     let gap = ui.spacing().item_spacing.x;
     let fixed: f32 = PLAY_W + columns.iter().map(|c| c.width()).sum::<f32>() + STORE_BUTTON_W + gap * (columns.len() as f32 + 3.0);
     let name_w = (width - fixed).max(NAME_MIN * 0.6);
-    let row_h = theme.button_height + theme.spacing_sm;
+    let row_h = play_height(theme) + theme.spacing_sm;
+    let head_h = theme.font_size_small + theme.spacing_md;
 
     // The headings.
     ui.horizontal(|ui| {
-        widgets::row_cell(ui, PLAY_W, |_| {});
+        cover_tile::fixed_cell(ui, PLAY_W, head_h, |_| {});
         let heading = |ui: &mut egui::Ui, text: &str, sorts: Option<SortBy>, acts: &mut Vec<Act>| {
             let on = sorts == Some(sort);
             let color = if on { theme.accent() } else { theme.text_muted() };
@@ -316,9 +323,9 @@ fn list(ui: &mut egui::Ui, theme: &Theme, page: &GamesState, order: &[usize], so
                 }
             }
         };
-        widgets::row_cell(ui, name_w, |ui| heading(ui, "Name", Some(SortBy::Name), acts));
+        cover_tile::fixed_cell(ui, name_w, head_h, |ui| heading(ui, "Name", Some(SortBy::Name), acts));
         for c in &columns {
-            widgets::row_cell(ui, c.width(), |ui| heading(ui, c.heading(), c.sort(), acts));
+            cover_tile::fixed_cell(ui, c.width(), head_h, |ui| heading(ui, c.heading(), c.sort(), acts));
         }
     });
     let line = ui.cursor().min.y;
@@ -343,9 +350,9 @@ fn list(ui: &mut egui::Ui, theme: &Theme, page: &GamesState, order: &[usize], so
         }
         ui.allocate_ui_with_layout(Vec2::new(width, row_h), egui::Layout::left_to_right(egui::Align::Center), |ui| {
             ui.set_min_height(row_h);
-            widgets::row_cell(ui, PLAY_W, |ui| {
+            cover_tile::fixed_cell(ui, PLAY_W, row_h, |ui| {
                 if game.play.is_some() {
-                    if widgets::Button::primary(super::PLAY).tooltip(super::play_tip(game.store)).show(ui, theme) {
+                    if widgets::Button::primary(super::PLAY).min_height(play_height(theme)).tooltip(super::play_tip(game.store)).show(ui, theme) {
                         acts.push(Act::Play(game.clone()));
                     }
                 } else if let Some(tag) = super::why_not_tag(game) {
@@ -355,7 +362,7 @@ fn list(ui: &mut egui::Ui, theme: &Theme, page: &GamesState, order: &[usize], so
                     }
                 }
             });
-            widgets::row_cell(ui, name_w, |ui| {
+            cover_tile::fixed_cell(ui, name_w, row_h, |ui| {
                 let name = ui.add(egui::Label::new(RichText::new(&game.name).size(theme.font_size_body).strong().color(theme.text_primary())).truncate().sense(Sense::click()));
                 if name.clicked() {
                     acts.push(Act::Select(game.store, game.id.clone()));
@@ -365,7 +372,7 @@ fn list(ui: &mut egui::Ui, theme: &Theme, page: &GamesState, order: &[usize], so
                 }
             });
             for c in &columns {
-                widgets::row_cell(ui, c.width(), |ui| {
+                cover_tile::fixed_cell(ui, c.width(), row_h, |ui| {
                     let color = if *c == Column::Store { theme.text_muted() } else { theme.text_secondary() };
                     ui.add(egui::Label::new(RichText::new(c.value(game)).size(theme.font_size_small).color(color)).truncate());
                 });
@@ -385,13 +392,16 @@ mod tests {
 
     /// THE LIST'S COLUMNS GIVE WAY WHEN THE ROOM DOES: all five on a wide page, in their order; on
     /// a narrow one the least wanted go first (Last played, then Achievements), Store last of all.
+    /// The narrow room here (336) would hold Store, Played and Last played if they were taken in
+    /// the order drawn, so it tells the two apart.
     ///
-    /// Seen red 2026-10-19 with the columns kept in the order drawn rather than wanted: on the
-    /// narrow page Store and Played were kept and Size was dropped before Last played.
+    /// A first version (room 320) stayed GREEN with the columns taken in the order drawn: that room
+    /// gave the same three either way. At 336 it went red, 2026-10-19: "the least wanted go first"
+    /// failed, Last played kept and Size dropped.
     #[test]
     fn the_lists_columns_give_way() {
-        assert_eq!(columns_for(1400.0).len(), 5);
-        let narrow = columns_for(PLAY_W + NAME_MIN + STORE_BUTTON_W + 130.0 + 96.0 + 84.0 + 10.0);
+        assert!(columns_for(1400.0) == vec![Column::Store, Column::Played, Column::LastPlayed, Column::Size, Column::Achievements], "all five, in their order");
+        let narrow = columns_for(PLAY_W + NAME_MIN + STORE_BUTTON_W + 130.0 + 96.0 + 110.0);
         assert!(narrow == vec![Column::Store, Column::Played, Column::Size], "the least wanted go first");
         assert!(columns_for(300.0).is_empty());
     }

@@ -9,6 +9,7 @@
 //!   tile changes.
 //! - [`thin_bar`]: a slim progress line (achievements on a tile).
 //! - [`choice_pills`]: a row of pills, one of them chosen (a view, a sort, a filter).
+//! - [`fixed_cell`]: a table cell of exactly its width, so a list's columns line up.
 //!
 //! Every colour and size comes from the theme. Native only for now: the Games page is
 //! desktop-only (a web page cannot read the games on the computer it runs on), so there is no web
@@ -108,6 +109,16 @@ pub fn thin_bar(ui: &mut Ui, theme: &Theme, fraction: f32, width: f32) {
     }
 }
 
+/// One cell of a table row, exactly `width` by `height` whatever it holds (its contents centred
+/// on the row's line and clipped to the cell), so a list's columns line up from row to row.
+/// (`widgets::row_cell` takes only the room its contents use, which lets columns drift.)
+pub fn fixed_cell(ui: &mut Ui, width: f32, height: f32, add: impl FnOnce(&mut Ui)) {
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(width, height), egui::Sense::hover());
+    let mut cell = ui.new_child(egui::UiBuilder::new().max_rect(rect).layout(egui::Layout::left_to_right(egui::Align::Center)));
+    cell.set_clip_rect(rect.intersect(ui.clip_rect()));
+    add(&mut cell);
+}
+
 /// A row of pills, `chosen` the one picked; returns the one clicked, when it is another.
 /// `tips` gives each pill's hover words (as many as there are pills, or none).
 pub fn choice_pills(ui: &mut Ui, theme: &Theme, options: &[String], chosen: usize, tips: &[&str]) -> Option<usize> {
@@ -138,7 +149,7 @@ mod tests {
     /// keeps its middle, a tall one keeps its middle band, one of the slot's own shape is whole.
     ///
     /// Seen red 2026-10-19 with the two cases swapped (`pic < want`): "a wide picture keeps its
-    /// middle" got a UV taller than the picture.
+    /// middle" got [[0.0 -0.5] - [1.0 1.5]], a UV taller than the picture.
     #[test]
     fn a_picture_is_cropped_to_fill() {
         let wide = fill_uv(Vec2::new(400.0, 100.0), Vec2::new(200.0, 100.0));

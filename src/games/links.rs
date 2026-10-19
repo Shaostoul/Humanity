@@ -120,7 +120,8 @@ mod tests {
     /// http, is refused.
     ///
     /// Seen red 2026-10-19 with SteamDB's line written "https://www.steamdb.info/app/{id}/" (a
-    /// host not on the list): "every web link is on the list of hosts" failed for it.
+    /// host not on the list): the addresses compared, left ending
+    /// Web("https://www.steamdb.info/app/1000010/").
     #[test]
     fn every_link_is_its_address_and_on_the_list() {
         let gog = links(&game(Store::Gog, "1207658924"));

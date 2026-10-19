@@ -1987,7 +1987,7 @@ fn snapshot_games_library() {
     if let Ok(root) = std::env::var("SystemRoot") {
         let _ = std::fs::copy(std::path::Path::new(&root).join("explorer.exe"), fx.gog.forge.join("bin").join("forge.exe"));
     }
-    render_page_png("games_library", 1440, 1320, |ctx, theme, state| {
+    render_page_png("games_library", 1440, 1560, |ctx, theme, state| {
         if state.games.found.is_none() {
             state.games.sources = games::Where::These(fx.sources());
             state.settings.added_games = vec![
@@ -2018,6 +2018,26 @@ fn snapshot_games_library() {
                 }
                 std::thread::sleep(std::time::Duration::from_millis(20));
             }
+        }
+        games::draw(ctx, theme, state);
+    });
+}
+
+/// The Games library as a List (2026-10-19, pages/games_library.rs), sorted by Most played, no
+/// game's details open: a row per game with Play (or why it cannot start, in a word or two), its
+/// name, store, time played, last played, size, achievements and the store's own button, the
+/// headings a click sorts by. The same scratch stores as `games_library`.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_games_library_list() {
+    use crate::gui::pages::games;
+    let fx = crate::games::fixtures::all("snapshot_games_list");
+    render_page_png("games_library_list", 1440, 640, |ctx, theme, state| {
+        if state.games.found.is_none() {
+            state.games.sources = games::Where::These(fx.sources());
+            state.settings.games_layout = games::Layout::List;
+            state.settings.games_sort = games::SortBy::MostPlayed;
+            games::read_now(state);
         }
         games::draw(ctx, theme, state);
     });
