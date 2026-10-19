@@ -10,12 +10,16 @@
 //! Play sends `steam://rungameid/<appid>`, which Valve's own documentation and its wiki describe
 //! (the finding, 1.2 and 1.3): Steam starts the game, updating it first if it has to. Nothing here
 //! talks to Steam's servers or drives Steam's client beyond that one link per click.
+//!
+//! A game's details (2026-10-19) are read with it: from its appmanifest `SizeOnDisk`,
+//! `LastUpdated` and `LastPlayed`; from the person's own records the rest (steam_user.rs for
+//! playtime and screenshots, achievements.rs, workshop.rs).
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 use super::keyvalues::{self, Value};
-use super::{on_disk, read_small, sort_by_name, Game, Launch, State, Store};
+use super::{on_disk, read_small, sort_by_name, Details, Game, Launch, State, Store};
 
 /// Steamworks Common Redistributables: installed beside games by Steam itself, not a game.
 pub const REDISTRIBUTABLES: &str = "228980";
@@ -83,22 +87,42 @@ fn manifest_appid(path: &Path) -> Option<String> {
     (!id.is_empty() && id.chars().all(|c| c.is_ascii_digit())).then(|| id.to_string())
 }
 
-/// Every Steam game installed in the libraries Steam's folder names, sorted by name.
-pub fn read(steam_root: &Path) -> Vec<Game> {
+/// Every Steam game installed in the libraries Steam's folder names, sorted by name, each with its
+/// details (2026-10-19): from its appmanifest its size and when Steam last updated it, and from
+/// the person's own records (steam_user.rs, achievements.rs, workshop.rs) their playtime, when
+/// they last played it, their achievements, their screenshots and their Workshop mods: those of
+/// ONE account only, `active_user` (signed in now) or the one Steam says signed in last
+/// (steam_user.rs `account`), never several people's mixed on a shared computer.
+pub fn read(steam_root: &Path, active_user: Option<u32>) -> Vec<Game> {
     let mut seen = HashSet::new();
     let mut out = Vec::new();
     for library in libraries(steam_root) {
         let apps = library.join("steamapps");
-        let Ok(dir) = std::fs::read_dir(&apps) else { continue };
-        let mut manifests: Vec<(String, PathBuf)> = dir.flatten().filter_map(|e| manifest_appid(&e.path()).map(|id| (id, e.path()))).collect();
+        let mut manifests: Vec<(String, PathBuf)> = super::list_dir(&apps).into_iter().filter_map(|e| manifest_appid(&e.path()).map(|id| (id, e.path()))).collect();
         manifests.sort();
         for (file_id, path) in manifests {
-            if let Some(game) = read_manifest(&path, &file_id, &apps) {
+            if let Some(mut game) = read_manifest(&path, &file_id, &apps) {
                 if seen.insert(game.id.clone()) {
+                    game.details.workshop = super::workshop::read(&apps, &game.id);
                     out.push(game);
                 }
             }
         }
+    }
+    let account = super::steam_user::account(steam_root, active_user);
+    let played = account.as_ref().map(super::steam_user::playtimes).unwrap_or_default();
+    let stats = steam_root.join("appcache").join("stats");
+    for game in &mut out {
+        if let Some(p) = played.get(&game.id) {
+            game.details.played_minutes = p.minutes;
+            // The person's own record of when they last played it, over the manifest's.
+            game.details.last_played = p.last.or(game.details.last_played);
+        }
+        if let Some(account) = &account {
+            game.details.screenshots = super::steam_user::screenshots(account, &game.id);
+        }
+        game.details.achievements = super::achievements::read(&stats, account.as_ref().map(|a| a.id), &game.id);
+        game.details.art = super::art::steam(steam_root, &game.id);
     }
     sort_by_name(&mut out);
     out
@@ -130,7 +154,9 @@ fn read_manifest(path: &Path, file_id: &str, steamapps: &Path) -> Option<Game> {
         other => other,
     };
     let play = (state == State::Ready).then(|| Launch::Link(play_link(appid)));
-    Some(Game { store: Store::Steam, id: appid.to_string(), name, show: folder.clone(), folder_here: folder.is_dir(), folder, state, play })
+    let number = |key: &str| keyvalues::find_text(app, key).and_then(|t| t.trim().parse::<u64>().ok()).filter(|n| *n > 0);
+    let details = Details { size: number("SizeOnDisk"), updated: number("LastUpdated"), last_played: number("LastPlayed"), ..Details::default() };
+    Some(Game { store: Store::Steam, id: appid.to_string(), name, show: folder.clone(), folder_here: folder.is_dir(), folder, state, play, details })
 }
 
 /// Steam's folder on this computer, from the registry (read only), when it is there. Steam writes
@@ -142,6 +168,15 @@ pub fn root_on_this_computer() -> Option<PathBuf> {
     let path = key.string("SteamPath")?;
     let path = PathBuf::from(path.trim().replace('/', "\\"));
     path.is_dir().then_some(path)
+}
+
+/// The Steam account signed in right now, from the registry (read only): Steam writes its account
+/// id to `HKCU\Software\Valve\Steam\ActiveProcess`, value `ActiveUser`, while it runs, and 0
+/// when nobody is signed in. `None` when Steam is not running.
+#[cfg(windows)]
+pub fn active_user_on_this_computer() -> Option<u32> {
+    let key = super::registry::open(super::registry::Root::CurrentUser, r"Software\Valve\Steam\ActiveProcess")?;
+    key.dword("ActiveUser").filter(|id| *id != 0)
 }
 
 #[cfg(test)]
@@ -160,7 +195,7 @@ mod tests {
     #[test]
     fn two_libraries_a_download_and_a_missing_folder() {
         let fx = fixtures::steam("steam_two_libs");
-        let games = read(&fx.root);
+        let games = read(&fx.root, None);
         let names: Vec<&str> = games.iter().map(|g| g.name.as_str()).collect();
         assert!(names.contains(&"Old Lighthouse"), "the second library's game is read: {names:?}");
         assert_eq!(names, vec!["Deep Rover", "Old Lighthouse", "Orbital Farmstead", "Sunken Archive"], "sorted by name, the redistributables left out");
@@ -181,6 +216,32 @@ mod tests {
         let old = games.iter().find(|g| g.name == "Old Lighthouse").unwrap();
         assert_eq!(old.folder, fx.second_library.join("steamapps").join("common").join("Lighthouse"));
         assert_eq!(old.store_button().map(|b| b.open), Some(Launch::Link("steam://nav/games/details/1000030".into())), "Open in Steam shows its page in Steam");
+    }
+
+    /// A GAME'S DETAILS READ WITH IT: Orbital Farmstead's size and last update from its manifest,
+    /// its playtime and last-played time from the person's record (which wins over the manifest's
+    /// older time), its achievements, screenshots and Workshop; Old Lighthouse, in the second
+    /// library, its size and playtime and nothing else; Deep Rover, never played, none of them.
+    ///
+    /// Seen red 2026-10-19 with the person's last-played time not read over the manifest's
+    /// (`p.last.or(..)` swapped to `game.details.last_played.or(p.last)`): "the person's record
+    /// wins" (left: Some(1789500000), right: Some(1790000000)).
+    #[test]
+    fn a_games_details_are_read_with_it() {
+        let fx = fixtures::steam("steam_details");
+        let games = read(&fx.root, None);
+        let farm = &games.iter().find(|g| g.name == "Orbital Farmstead").unwrap().details;
+        assert_eq!((farm.size, farm.updated), (Some(33_471_534_235), Some(1_791_000_000)));
+        assert_eq!(farm.last_played, Some(1_790_000_000), "the person's record wins");
+        assert_eq!(farm.played_minutes, Some(754));
+        assert_eq!(farm.achievements.as_ref().map(|a| (a.total(), a.unlocked())), Some((5, Some(3))));
+        assert_eq!(farm.screenshots.as_ref().map(|s| s.total), Some(3));
+        assert_eq!(farm.workshop.as_ref().map(|w| w.items.len()), Some(3));
+        let old = &games.iter().find(|g| g.name == "Old Lighthouse").unwrap().details;
+        assert_eq!((old.size, old.played_minutes, old.last_played), (Some(2_147_483_648), Some(42), None));
+        assert!(old.achievements.is_none() && old.screenshots.is_none() && old.workshop.is_none());
+        let rover = &games.iter().find(|g| g.name == "Deep Rover").unwrap().details;
+        assert_eq!((rover.played_minutes, rover.last_played), (None, None), "never played");
     }
 
     /// THE STATE FLAGS: fully installed is Ready even with an update waiting (Steam applies it when
@@ -212,6 +273,6 @@ mod tests {
         assert_eq!(libraries(&root).len(), 2, "the old format's numbered path is a library");
         std::fs::write(root.join("steamapps").join("appmanifest_5.acf"), "\"AppState\" { \"appid\" \"6\" \"name\" \"Wrong\" \"StateFlags\" \"4\" \"installdir\" \"W\" }").unwrap();
         std::fs::write(root.join("steamapps").join("appmanifest_x1.acf"), "\"AppState\" { \"appid\" \"x1\" \"name\" \"Letters\" \"StateFlags\" \"4\" \"installdir\" \"L\" }").unwrap();
-        assert!(read(&root).is_empty(), "neither is read");
+        assert!(read(&root, None).is_empty(), "neither is read");
     }
 }

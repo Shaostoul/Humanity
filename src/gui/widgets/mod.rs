@@ -35,6 +35,9 @@ pub mod tint_section;
 // The file picker's List, Details and Pictures views, and the pictures' previews (2026-10-17).
 pub mod file_views;
 pub mod thumbnails;
+// A cover slot (a picture, or a plain panel with the name), a thin progress line and choice pills
+// (2026-10-19): the Games page's tiles and toolbar.
+pub mod cover_tile;
 // A video fetched and played in the app, with its sound (2026-10-18): the Media page and the chat.
 pub mod video_view;
 // The readable web view (2026-09-16): draws a `web_reader::Page` with

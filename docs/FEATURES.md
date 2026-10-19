@@ -372,10 +372,46 @@ opens in the Library from its Why (a new "Research Findings" shelf in Reference 
   store, because the stores' terms keep those for their own software. That is a platform holder's rule, not a law." No
   store sign-in, no SteamCMD, no owned-but-not-installed games, no logos (plain "Steam", "Epic Games Store", "GOG",
   "Added by you").
+- **A library to look at (2026-10-19)**, as the second dated finding
+  `docs/reference/findings/2026-10-19-games-page-art-stats-and-links.md` allows (its own Why opens it; "Research
+  Findings"):
+  - **Grid or List**, search by name (every word, case aside), sort by Name, Recently played, Most played or Size (a
+    game with no such number last), and a pill per store found with its count. The view and the sort are kept in
+    config.json (`games_layout`, `games_sort`; guarded by `tests/settings_persistence_lint.rs`). A tile: its cover slot,
+    name, store and one number (the one sorted by), achievements with a thin bar, Play or why it cannot start. A row:
+    Play, name, store, played, last played, size, achievements, the store's button; columns give way when narrow; a
+    heading click sorts.
+  - **Pictures**: Steam's own client's cached pictures, read in place from `appcache\librarycache\<appid>\` (files
+    directly there, one per hash-named folder, or the old flat `<appid>_header.jpg`): the header for the tile, the hero
+    with the game's `logo.png` over it for the details. Decoded into memory only (`widgets/thumbnails.rs`), never copied,
+    cached on disk, sent or fetched, never on an in-world screen. Epic and GOG games: their program's own icon, read from
+    its resources with the program opened as data (`src/games/art.rs`). Otherwise a plain panel in the theme's colours
+    tinted by a hue of the game's own, its name on it (`widgets::cover_tile`).
+  - **Details** (a panel at the right, `games_detail.rs`): Play, the store's button, Show in folder (Rename and Remove for
+    an added game); time played, last played, size on disk, last updated, version, folder; achievements (N of M, the
+    unlocked first with the day, a hidden one's description kept hidden); the person's own screenshots (Steam's small
+    copies, a click shows one large with Previous, Next, the arrow keys and Show in folder); Workshop mods by number,
+    size and day, each with Open in Steam (`steam://url/CommunityFilePage/<id>`); links, on a click only: Store page
+    and Community hub in Steam, and on the web the Steam store page, PCGamingWiki (its redirect by App ID, or by GOG id
+    for a GOG game) and SteamDB, only on the hosts `games::links::WEB_HOSTS` lists.
+  - **Read on the same worker, read only**: size and last update (appmanifest `SizeOnDisk`, `LastUpdated`; Epic
+    `InstallSize`, `AppVersionString`; a GOG folder added up, none past 200,000 entries); playtime and last played
+    (`userdata\<id>\config\localconfig.vdf`, only those two numbers kept); achievements (`appcache\stats\` schema and
+    the person's record, binary KeyValues, `src/games/binary_keyvalues.rs`; a file that does not read exactly shows
+    none, never a wrong count; no record of the person's shows them as not known); screenshots
+    (`userdata\<id>\760\remote\<appid>\screenshots`); Workshop (`steamapps\workshop\appworkshop_<appid>.acf` and
+    `content\<appid>`). ONE Steam account's records: the one signed in now (registry `ActiveProcess` `ActiveUser`), else
+    loginusers.vdf's MostRecent, else the only account folder; none on a shared computer with no record of whose. GOG
+    GALAXY's database is never read. Drawing reads no file (a test counts the UI thread's reads).
+  - **Said on the screen**: covers come from each store's own app on this computer; store names are shown without their
+    logos, because the stores have not licensed them (a platform holder's rule); nothing about your games leaves this
+    computer except when a game's web link is opened; "HumanityOS is not affiliated with Valve, Epic Games or GOG."
 
 Desktop only: a website cannot read the games installed on the computer it runs on. Files: `src/games/` (`mod.rs`,
-`keyvalues.rs` Valve KeyValues parser, `steam.rs`, `epic.rs`, `gog.rs`, `other.rs`, `launch.rs`, `registry.rs`,
-`fixtures.rs` for tests), `src/gui/pages/games.rs` (the page), `src/gui/pages/games_tests.rs`, nav item in
+`keyvalues.rs` Valve KeyValues parser, `binary_keyvalues.rs`, `steam.rs`, `steam_user.rs`, `achievements.rs`,
+`workshop.rs`, `art.rs`, `links.rs`, `epic.rs`, `gog.rs`, `other.rs`, `launch.rs`, `registry.rs`, `fixtures.rs` for
+tests), `src/gui/pages/games.rs` (the page), `games_library.rs` (toolbar, grid, list), `games_detail.rs` (details,
+screenshot viewer), `games_tests.rs`, `games_detail_tests.rs`, `src/gui/widgets/cover_tile.rs`, nav item in
 `src/gui/pages/escape_menu.rs`, icon `widgets::icons::paint_gamepad`; snapshot `games_library`.
 
 ### In-App File Browser (native, v0.708)

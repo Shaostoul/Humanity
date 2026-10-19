@@ -81,6 +81,7 @@ Each widget below must exist in both native (`src/gui/widgets/`) and web (CSS cl
 | Help button (`?`) | (new, see below) | `.hos-help-btn` | `border`, `text_muted`, `accent` |
 | Help modal | (new, see below) | already done | same as modal |
 | Onboarding quest chain | (new, see below) | `.quest-chain` / `.quest-step` | card tokens + `accent`, `border`, `small_size` |
+| Cover slot, thin bar, choice pills (2026-10-19) | `widgets::cover_tile::{paint_cover, thin_bar, choice_pills}` | none yet: the Games page they serve is desktop-only | `bg_tertiary`, `bg_card`, `text_primary`, `text_strong`, `border`, `slider_track`, `accent`, `text_on_accent`, `bg_secondary`, `pill_radius`, spacing |
 
 ### Widgets planned but not yet shared
 

@@ -1,10 +1,12 @@
 //! Reading the Windows registry, and only reading: every key is opened with KEY_READ, and nothing
 //! here can create, change or delete a key or a value. Used to find where Steam is
-//! (`HKCU\Software\Valve\Steam`) and which games GOG installed (`HKLM\...\GOG.com\Games`).
+//! (`HKCU\Software\Valve\Steam`), which Steam account is signed in while Steam runs
+//! (`...\Steam\ActiveProcess`, `ActiveUser`), and which games GOG installed
+//! (`HKLM\...\GOG.com\Games`).
 
 use windows::core::{PCWSTR, PWSTR};
 use windows::Win32::Foundation::ERROR_SUCCESS;
-use windows::Win32::System::Registry::{RegCloseKey, RegEnumKeyExW, RegOpenKeyExW, RegQueryValueExW, HKEY, HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, KEY_READ, REG_EXPAND_SZ, REG_SZ, REG_VALUE_TYPE};
+use windows::Win32::System::Registry::{RegCloseKey, RegEnumKeyExW, RegOpenKeyExW, RegQueryValueExW, HKEY, HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, KEY_READ, REG_DWORD, REG_EXPAND_SZ, REG_SZ, REG_VALUE_TYPE};
 
 /// Which of the two roots a key is under.
 #[derive(Debug, Clone, Copy)]
@@ -80,6 +82,17 @@ impl Key {
         Some(String::from_utf16_lossy(&units[..end]))
     }
 
+    /// The number value `name` (REG_DWORD), when it is there.
+    pub fn dword(&self, name: &str) -> Option<u32> {
+        let name = wide(name);
+        let mut kind = REG_VALUE_TYPE::default();
+        let mut value: u32 = 0;
+        let mut size: u32 = 4;
+        // SAFETY: `value` holds the 4 bytes `size` says and outlives the call; `name` is NUL-ended.
+        let r = unsafe { RegQueryValueExW(self.0, PCWSTR(name.as_ptr()), None, Some(&mut kind), Some(&mut value as *mut u32 as *mut u8), Some(&mut size)) };
+        (r == ERROR_SUCCESS && kind == REG_DWORD && size == 4).then_some(value)
+    }
+
     /// The names of this key's sub-keys (at most 10,000).
     pub fn subkeys(&self) -> Vec<String> {
         let mut out = Vec::new();
@@ -124,5 +137,19 @@ mod tests {
         let hklm_software = open(Root::LocalMachine, "SOFTWARE").expect("SOFTWARE is there");
         assert!(hklm_software.subkeys().iter().any(|k| k.eq_ignore_ascii_case("Microsoft")), "SOFTWARE's sub-keys include Microsoft");
         assert!(open(Root::CurrentUser, r"Software\NoSuchKeyHumanityOS\Games").is_none(), "a key that is not there is nothing");
+    }
+
+    /// A NUMBER VALUE (2026-10-19, for Steam's ActiveUser): Windows' own CurrentMajorVersionNumber
+    /// reads as the version Windows says it is (10 on Windows 10 and 11); a text value, or one not
+    /// there, is not a number.
+    ///
+    /// Seen red 2026-10-19 with `dword` accepting any type (the `kind == REG_DWORD` check dropped):
+    /// "a text value is not a number" got Some(..) for SystemRoot's first four bytes.
+    #[test]
+    fn a_number_value() {
+        let key = open(Root::LocalMachine, r"SOFTWARE\Microsoft\Windows NT\CurrentVersion").expect("Windows' version key is there");
+        assert_eq!(key.dword("CurrentMajorVersionNumber"), Some(10), "Windows 10 and 11 both say 10");
+        assert_eq!(key.dword("SystemRoot"), None, "a text value is not a number");
+        assert_eq!(key.dword("NoSuchValueHumanityOS"), None);
     }
 }

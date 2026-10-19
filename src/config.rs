@@ -465,6 +465,14 @@ pub struct AppConfig {
     /// it existed has none.
     #[serde(default)]
     pub added_games: Vec<crate::games::AddedGame>,
+    /// The Games library's view, "grid" or "list" (2026-10-19, pages/games.rs). A config written
+    /// before it existed shows the grid.
+    #[serde(default)]
+    pub games_layout: crate::gui::pages::games::Layout,
+    /// The Games library's order (2026-10-19): "name", "recently_played", "most_played" or
+    /// "size". A config written before it existed sorts by name.
+    #[serde(default)]
+    pub games_sort: crate::gui::pages::games::SortBy,
     /// Settings > Safety, the protected setup (step G of blocking-and-safe-mode.md 10h,
     /// 2026-10-10), carried here only on its way to ITS OWN FILE beside config.json
     /// (net/protected_store.rs): never serialized into config.json. Kept apart because an
@@ -1521,6 +1529,8 @@ impl AppConfig {
             media_unfinished_uploads: state.media.unfinished.clone(),
             media_folders: state.settings.media_folders.clone(),
             added_games: state.settings.added_games.clone(),
+            games_layout: state.settings.games_layout,
+            games_sort: state.settings.games_sort,
             protected_setup: Some(state.protected.setup.clone()),
             font_size: state.settings.font_size,
             dark_mode: state.settings.dark_mode,
@@ -1706,6 +1716,8 @@ impl AppConfig {
         state.media.unfinished = self.media_unfinished_uploads.clone();
         state.settings.media_folders = self.media_folders.clone();
         state.settings.added_games = self.added_games.clone();
+        state.settings.games_layout = self.games_layout;
+        state.settings.games_sort = self.games_sort;
         // The protected setup is NOT applied from here: it lives in its own file, which boot reads
         // whether or not config.json exists or reads (`load_protected_setup`, lib.rs).
         // Clamp the ranges the UI enforces, so a hand-edited config cannot

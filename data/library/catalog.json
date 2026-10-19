@@ -2191,6 +2191,15 @@
             "real",
             "project"
           ]
+        },
+        {
+          "title": "Games Page: Artwork, Store Names, Play Records and Links (19 October 2026)",
+          "src": "docs/reference/findings/2026-10-19-games-page-art-stats-and-links.md",
+          "tags": [
+            "reference",
+            "real",
+            "project"
+          ]
         }
       ],
       "section": "Reference Library"

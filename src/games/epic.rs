@@ -13,7 +13,7 @@
 
 use std::path::{Path, PathBuf};
 
-use super::{on_disk, read_small, sort_by_name, Game, Launch, State, Store};
+use super::{on_disk, read_small, sort_by_name, Details, Game, Launch, State, Store};
 
 /// Play's link for an Epic game: the three ids, each percent-encoded, joined by an encoded colon.
 pub fn play_link(namespace: &str, catalog_item: &str, app_name: &str) -> String {
@@ -35,8 +35,7 @@ fn encode(s: &str) -> String {
 
 /// Every game the Epic Games Store has installed (or is installing), sorted by name.
 pub fn read(manifests: &Path) -> Vec<Game> {
-    let Ok(dir) = std::fs::read_dir(manifests) else { return Vec::new() };
-    let mut files: Vec<PathBuf> = dir.flatten().map(|e| e.path()).filter(|p| p.extension().is_some_and(|x| x.eq_ignore_ascii_case("item"))).collect();
+    let mut files: Vec<PathBuf> = super::list_dir(manifests).into_iter().map(|e| e.path()).filter(|p| p.extension().is_some_and(|x| x.eq_ignore_ascii_case("item"))).collect();
     files.sort();
     let mut out: Vec<Game> = Vec::new();
     for file in files {
@@ -79,7 +78,11 @@ fn read_item(path: &Path) -> Option<Game> {
     // Without its three ids there is no link to send: it is listed, and started from the store.
     let play = (state == State::Ready && !namespace.is_empty() && !catalog_item.is_empty()).then(|| Launch::Link(play_link(&namespace, &catalog_item, &app_name)));
     let name = Some(text("DisplayName")).filter(|n| !n.is_empty()).unwrap_or_else(|| app_name.clone());
-    Some(Game { store: Store::Epic, id: app_name, name, show: folder.clone(), folder_here: folder.is_dir(), folder, state, play })
+    // Its details (2026-10-19): the size Epic recorded for it and the version it names.
+    let size = json.get("InstallSize").and_then(|v| v.as_u64().or_else(|| v.as_str().and_then(|s| s.trim().parse().ok()))).filter(|n| *n > 0);
+    let version = Some(text("AppVersionString")).filter(|v| !v.is_empty());
+    let details = Details { size, version, art: super::art::program(Store::Epic, program.as_deref()), ..Details::default() };
+    Some(Game { store: Store::Epic, id: app_name, name, show: folder.clone(), folder_here: folder.is_dir(), folder, state, play, details })
 }
 
 /// The manifests folder on this computer, when the Epic Games Launcher has made it.
@@ -114,6 +117,25 @@ mod tests {
         let courier = &games[1];
         assert_eq!(courier.state, State::BeingInstalled, "bIsIncompleteInstall is still installing");
         assert_eq!(courier.play, None);
+    }
+
+    /// AN EPIC GAME'S DETAILS (2026-10-19): the size Epic recorded (`InstallSize`) and the version
+    /// it names (`AppVersionString`); a manifest without them has neither.
+    ///
+    /// Seen red 2026-10-19 with InstallSize read only as text (`as_str`): "its size" (left: None,
+    /// right: Some(8589934592)), Epic writing it as a number.
+    #[test]
+    fn an_epic_games_details() {
+        let fx = fixtures::epic("epic_details");
+        let games = read(&fx.manifests);
+        assert_eq!(games[0].details.size, Some(8_589_934_592), "its size");
+        assert_eq!(games[0].details.version.as_deref(), Some("2.4.1-CL-118"));
+        let bare = crate::test_temp::dir("epic_details_bare");
+        std::fs::create_dir_all(bare.join("game")).unwrap();
+        let item = serde_json::json!({ "AppName": "Bare", "DisplayName": "Bare", "InstallLocation": bare.join("game").to_string_lossy(), "AppCategories": ["games"] });
+        std::fs::write(bare.join("x.item"), item.to_string()).unwrap();
+        let bare_games = read(&bare);
+        assert_eq!((bare_games[0].details.size, bare_games[0].details.version.as_deref()), (None, None));
     }
 
     /// A PROGRAM GONE FROM ITS FOLDER, and an id with odd characters encoded, never passed raw into

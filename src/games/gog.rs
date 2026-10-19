@@ -14,7 +14,7 @@
 
 use std::path::{Path, PathBuf};
 
-use super::{on_disk, read_small, sort_by_name, Game, Launch, State, Store};
+use super::{on_disk, read_small, sort_by_name, Details, Game, Launch, State, Store};
 
 /// One game GOG's registry key names: its id, its folder, and the name the key gives it (used
 /// when the game's `.info` does not give one).
@@ -87,7 +87,10 @@ fn read_game(entry: &Installed) -> Game {
         (Some(t), State::Ready) => Some(Launch::Program { exe: t.exe.clone(), args: t.args.clone(), dir: t.dir.clone() }),
         _ => None,
     };
-    Game { store: Store::Gog, id: entry.id.clone(), name, show: folder.clone(), folder_here: folder.is_dir(), folder, state, play }
+    // Its details (2026-10-19): GOG records no size, so its folder is added up here, on the
+    // page's worker thread (none past `folder_size`'s limit, rather than a number cut short).
+    let details = Details { size: super::folder_size(&folder), art: super::art::program(Store::Gog, task.as_ref().map(|t| t.exe.as_path())), ..Details::default() };
+    Game { store: Store::Gog, id: entry.id.clone(), name, show: folder.clone(), folder_here: folder.is_dir(), folder, state, play, details }
 }
 
 /// GOG's installed games on this computer, from its registry key (read only); `None` when the key
@@ -134,6 +137,20 @@ mod tests {
         let gone = &games[0];
         assert_eq!(gone.state, State::FolderGone, "its folder is not there");
         assert_eq!(gone.play, None);
+    }
+
+    /// A GOG GAME'S SIZE IS ITS FOLDER ADDED UP (2026-10-19): GOG records none, so the reader adds
+    /// up Old Forge's files (its program and its .info); a game whose folder is gone has none.
+    ///
+    /// Seen red 2026-10-19 with `read_game` leaving the size out (`size: None`): "its folder added
+    /// up" (left: None, right: Some(..)).
+    #[test]
+    fn a_gog_games_size_is_its_folder_added_up() {
+        let fx = fixtures::gog("gog_size");
+        let games = read(&fx.installed);
+        let info = std::fs::metadata(fx.forge.join("goggame-1207658924.info")).unwrap().len();
+        assert_eq!(games[1].details.size, Some(1 + info), "its folder added up");
+        assert_eq!(games[0].details.size, None, "a folder gone has no size");
     }
 
     /// NO WORKING DIRECTORY NAMED: the game starts in its own folder. A game with no .info is

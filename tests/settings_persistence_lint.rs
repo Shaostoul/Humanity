@@ -72,6 +72,11 @@ const SETTINGS_FILES: &[&str] = &[
     // 2026-10-18 with its load leg removed from config.rs: "added_games: never read by
     // apply_to_state".
     "src/gui/pages/games.rs",
+    // The Games library's view and sort (2026-10-19): Grid or List and the order, picked on the
+    // page's toolbar (games_library.rs) and kept in AppConfig (`games_layout`, `games_sort`).
+    // Seen red 2026-10-19 with games_layout's load leg removed from config.rs: "games_layout:
+    // never read by apply_to_state".
+    "src/gui/pages/games_library.rs",
 ];
 
 /// Pull every `state.settings.<field>` that the Settings files bind to a widget

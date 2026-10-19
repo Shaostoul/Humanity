@@ -1952,18 +1952,24 @@ fn snapshot_media_your_folders() {
     });
 }
 
-/// The Games library (2026-10-18, pages/games.rs): the line about the stores with its Why; Steam
-/// with two libraries (Orbital Farmstead ready, Deep Rover still downloading, Sunken Archive whose
-/// folder is gone, Old Lighthouse in the second library), the Epic Games Store (Lantern Valley
-/// ready, Night Courier still installing), GOG (Old Forge ready, with no store button; Gone Valley,
-/// whose folder is gone), and Added by you (Dwarf Fortress Classic, and one whose program is gone,
-/// each with Rename and Remove). Built in scratch folders: nothing of this computer's stores is
-/// read, and nothing is started (a test build's launcher only records).
+/// The Games library (2026-10-18, pages/games.rs; a library since 2026-10-19): the lines about the
+/// stores and the pictures with their Whys; the toolbar (search, sort, Grid or List, a pill per
+/// store); the Grid, a tile per game: Steam's with the pictures Steam's client cached (Orbital
+/// Farmstead's in its folder, Old Lighthouse's one per hash-named folder, Deep Rover's in the old
+/// flat layout; Sunken Archive with none, on the plain panel), each with its store and one number,
+/// its achievements and Play, or why it cannot start in Play's place; Epic's and GOG's on the plain
+/// panel (Old Forge with its program's icon, here a copy of Windows' Explorer); the two added by
+/// hand. At the right, Orbital Farmstead's details: its banner with its lettering, Play, Open in
+/// Steam and Show in folder, its numbers, three of five achievements (a hidden one kept hidden),
+/// six screenshots, three Workshop mods by number, and its links. Built in scratch folders: nothing
+/// of this computer's stores is read, and nothing is started (a test build's launcher only
+/// records).
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
 fn snapshot_games_library() {
-    use crate::games::AddedGame;
+    use crate::games::{AddedGame, Store};
     use crate::gui::pages::games;
+    use crate::gui::widgets::thumbnails;
     let fx = crate::games::fixtures::all("snapshot_games");
     let scratch = crate::test_temp::dir("snapshot_games_added");
     let df = scratch.join("Dwarf Fortress").join("Dwarf Fortress.exe");
@@ -1971,7 +1977,17 @@ fn snapshot_games_library() {
     std::fs::write(&df, "x").unwrap();
     std::fs::create_dir_all(scratch.join("Old Racer")).unwrap();
     let racer = scratch.join("Old Racer").join("racer.exe");
-    render_page_png("games_library", 1280, 1240, |ctx, theme, state| {
+    // Three more screenshots of Orbital Farmstead (six in all), and a program with an icon for Old
+    // Forge.
+    let shots = fx.steam.root.join("userdata").join(crate::games::fixtures::ACCOUNT.to_string()).join("760").join("remote").join("1000010").join("screenshots");
+    for (name, tint) in [("20260920120000_1.jpg", [120, 90, 160]), ("20260919120000_1.jpg", [40, 120, 150]), ("20260918120000_1.jpg", [160, 140, 60])] {
+        crate::games::fixtures::screenshot_jpeg(&shots.join(name), tint);
+    }
+    #[cfg(windows)]
+    if let Ok(root) = std::env::var("SystemRoot") {
+        let _ = std::fs::copy(std::path::Path::new(&root).join("explorer.exe"), fx.gog.forge.join("bin").join("forge.exe"));
+    }
+    render_page_png("games_library", 1440, 1320, |ctx, theme, state| {
         if state.games.found.is_none() {
             state.games.sources = games::Where::These(fx.sources());
             state.settings.added_games = vec![
@@ -1979,6 +1995,29 @@ fn snapshot_games_library() {
                 AddedGame { name: "Old Racer".into(), exe: racer.clone() },
             ];
             games::read_now(state);
+            state.games.selected = Some((Store::Steam, "1000010".into()));
+            // The pictures are read on thumbnails' own workers: read them all now, at the sizes
+            // the page draws them, so the three frames show them rather than their placeholders.
+            let mut wanted = Vec::new();
+            for g in &state.games.all {
+                let art = &g.details.art;
+                for p in [&art.cover, &art.hero, &art.logo].into_iter().flatten() {
+                    wanted.push((p.clone(), 256.0));
+                    wanted.push((p.clone(), 512.0));
+                }
+                for s in g.details.screenshots.iter().flat_map(|s| s.shots.iter()) {
+                    let small = s.thumb.clone().unwrap_or_else(|| s.path.clone());
+                    wanted.push((small.clone(), 128.0));
+                    wanted.push((small, 256.0));
+                }
+            }
+            for _ in 0..300 {
+                let ready = wanted.iter().filter(|(p, px)| thumbnails::get(ctx, p, *px).is_some() || thumbnails::failed(p, *px)).count();
+                if ready == wanted.len() {
+                    break;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(20));
+            }
         }
         games::draw(ctx, theme, state);
     });

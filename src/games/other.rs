@@ -34,7 +34,9 @@ pub fn games(added: &[AddedGame]) -> Vec<Game> {
             let folder = a.exe.parent().map(Path::to_path_buf).unwrap_or_default();
             let state = on_disk(&folder, Some(&a.exe), State::Ready);
             let play = (state == State::Ready).then(|| Launch::Program { exe: a.exe.clone(), args: String::new(), dir: folder.clone() });
-            Game { store: Store::Added, id: a.exe.display().to_string(), name: a.name.clone(), show: a.exe.clone(), folder_here: folder.is_dir(), folder, state, play }
+            // No details: an added game's folder may hold anything (its size is not added up),
+            // and no store keeps a record of it.
+            Game { store: Store::Added, id: a.exe.display().to_string(), name: a.name.clone(), show: a.exe.clone(), folder_here: folder.is_dir(), folder, state, play, details: Default::default() }
         })
         .collect()
 }

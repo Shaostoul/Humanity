@@ -4617,6 +4617,10 @@ pub struct SettingsState {
     pub media_folders: Vec<std::path::PathBuf>,
     /// The Games library's games added by hand (pages/games.rs): each one's name and program. Kept on this device only.
     pub added_games: Vec<crate::games::AddedGame>,
+    /// The Games library's view, Grid or List (2026-10-19), kept so it survives a restart.
+    pub games_layout: crate::gui::pages::games::Layout,
+    /// The Games library's order (2026-10-19): by name, recently played, most played or size.
+    pub games_sort: crate::gui::pages::games::SortBy,
     // Data
     pub seed_phrase_visible: bool,
     // Restoring from the recovery phrase
@@ -4727,6 +4731,8 @@ impl Default for SettingsState {
             files_in_messages: Default::default(),
             media_folders: Vec::new(),
             added_games: Vec::new(),
+            games_layout: Default::default(),
+            games_sort: Default::default(),
             seed_phrase_visible: false,
             seed_phrase_input: String::new(),
             seed_phrase_recovery_status: String::new(),
