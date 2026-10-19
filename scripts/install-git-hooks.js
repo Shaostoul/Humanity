@@ -15,11 +15,27 @@
  *
  * Set GIT_HOOKS_DIR to write elsewhere (used to validate the generated hooks without
  * installing them).
+ *
+ * The folder comes from `git rev-parse --git-path hooks` (2026-10-19): it honours
+ * core.hooksPath, and in a worktree, where `.git` is a FILE pointing at the main
+ * repository, it names the shared hooks folder. The old `<checkout>/.git/hooks` guess
+ * failed in every worktree.
  */
 const fs = require('fs');
 const path = require('path');
+const { execFileSync } = require('child_process');
 
-const hooksDir = process.env.GIT_HOOKS_DIR || path.join(__dirname, '..', '.git', 'hooks');
+function gitHooksDir() {
+  const root = path.join(__dirname, '..');
+  try {
+    const p = execFileSync('git', ['rev-parse', '--git-path', 'hooks'], { cwd: root }).toString().trim();
+    return path.resolve(root, p);
+  } catch {
+    return path.join(root, '.git', 'hooks');
+  }
+}
+
+const hooksDir = process.env.GIT_HOOKS_DIR || gitHooksDir();
 if (!fs.existsSync(hooksDir)) {
   fs.mkdirSync(hooksDir, { recursive: true });
 }
@@ -30,6 +46,12 @@ const preCommit = `#!/usr/bin/env bash
 if git diff --cached --name-only | grep -qE '^(native/src|server/src|crates)/'; then
   echo "x Staged edits under native/src | server/src | crates/ -- those paths are GONE."
   echo "  An AI agent likely found a stale worktree. Run: just clean-worktrees, redo vs src/."
+  exit 1
+fi
+# 1b. Text garbled by a PowerShell round trip (Get-Content/Set-Content, > or Out-File):
+#     a byte-order mark the file did not have, UTF-16, or Windows-1252 mojibake in an
+#     added line. One git diff, well under a second. It prints its own fix command.
+if ! node scripts/check-encoding.js --staged; then
   exit 1
 fi
 # 2. cargo-fmt blast radius: a real change never touches 40+ .rs files at once.
@@ -46,9 +68,10 @@ if ! cargo check --features relay --no-default-features -q 2>&1; then
   echo "x Relay build failed (likely an ungated native module). Fix before committing."
   exit 1
 fi
-# 4. The src/gui + engine lints (standalone rustc; no native link, PDB-safe, fast).
+# 4. The src/gui + engine lints (standalone rustc; no native link, PDB-safe, fast), and
+#    the schema ALTER order (BUG-046: an index before its ALTER stopped the live relay).
 export CARGO_MANIFEST_DIR="$(pwd)"
-for t in emdash_lint theme_token_lint theme_editor_coverage icon_glyph_lint engine_wiring_lint; do
+for t in emdash_lint theme_token_lint theme_editor_coverage icon_glyph_lint engine_wiring_lint schema_alter_order_lint; do
   rustc --test --edition 2021 -A warnings "tests/\${t}.rs" -o "/tmp/\${t}.hook" 2>/dev/null \\
     && "/tmp/\${t}.hook" >/dev/null 2>&1 \\
     || { echo "x lint failed: \${t}"; "/tmp/\${t}.hook"; exit 1; }
