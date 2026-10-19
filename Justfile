@@ -582,6 +582,7 @@ lints:
 # runs `--staged`; `--all` reads every tracked file; `--fix <file>...` repairs.
 #   just check-encoding
 #   just check-encoding --fix src/gui/pages/chat.rs
+# Refuse (or --fix) text garbled by a PowerShell round trip: byte-order mark, UTF-16, mojibake
 check-encoding *ARGS:
     node scripts/check-encoding.js {{ARGS}}
 
@@ -666,9 +667,12 @@ check-encoding *ARGS:
 # And the encoding check (check-encoding.test.js, 2026-10-19): a PowerShell round trip of a tracked
 # file, a gained byte-order mark, UTF-16 and one garbled added line are each refused in a throwaway
 # repo, every character U+0080..U+FFFF garbled by ICU's decoder is caught, and --fix restores it.
+# And `just tag` (tag-release.test.js, 2026-10-19): an empty, malformed or uncommitted version, a tag
+# already here or on origin, origin unreachable, HEAD not on origin/main and a missing notes file each
+# REFUSE with nothing tagged; pushes and gh are recorded by an allowlist runner, never made.
 # Add a file here whenever a rig script grows a judgement of its own.
 rig-tests:
-    node --test scripts/tests/machine-guard.test.js scripts/tests/perf-report.test.js scripts/tests/terminator-grain.test.js scripts/tests/make-clips.test.js scripts/tests/voice-rejoin.test.js scripts/tests/p2p-sync-own-devices.test.js scripts/tests/p2p-direct-offers.test.js scripts/tests/link-preview-pictures.test.js scripts/tests/erase-sign-up-again.test.js scripts/tests/backup-rotate.test.js scripts/tests/second-player.test.js scripts/tests/sealed-dm.test.js scripts/tests/copresence-judge.test.js scripts/tests/dxc-dlls.test.js scripts/tests/station-park-check.test.js scripts/tests/check-fresh-exe.test.js scripts/tests/check-delivery.test.js scripts/tests/throwaway-relay.test.js scripts/tests/rig-boot.test.js scripts/tests/compiled-in.test.js scripts/tests/game-launch.test.js scripts/tests/rig-exe-copy.test.js scripts/tests/showcase-pins.test.js scripts/tests/rig-gameplay.test.js scripts/tests/clean-test-temp.test.js scripts/tests/shared-build-judge.test.js scripts/tests/household-judge.test.js scripts/tests/starts-judge.test.js scripts/tests/tree-ground-check.test.js scripts/tests/friend-pass.test.js scripts/tests/friend-pass-web.test.js scripts/tests/reach-web.test.js scripts/tests/block-web.test.js scripts/tests/server-list-backoff.test.js scripts/tests/report-web.test.js scripts/tests/outside-help-web.test.js scripts/tests/calls-through-server.test.js scripts/tests/warnings-web.test.js scripts/tests/protected-web.test.js scripts/tests/admin-erase-web.test.js scripts/tests/group-report-web.test.js scripts/tests/trade-page-web.test.js scripts/tests/private-files-web.test.js scripts/tests/media-web.test.js scripts/tests/media-web-round2.test.js scripts/tests/strip-metadata.test.js scripts/tests/media-web-round3.test.js scripts/tests/media-web-round4.test.js scripts/tests/upload-clean-web.test.js scripts/tests/files-in-messages-web.test.js scripts/tests/kept-files-web.test.js scripts/tests/media-web-files.test.js scripts/tests/describe-agree.test.js scripts/tests/relay-follow.test.js scripts/tests/file-transfer-web.test.js scripts/tests/file-transfer-chat-web.test.js scripts/tests/profile-copy-web.test.js scripts/tests/chat-home.test.js scripts/tests/choice-web.test.js scripts/tests/library-order-web.test.js scripts/tests/media-web-round5.test.js scripts/tests/server-strip-web.test.js scripts/tests/media-web-item.test.js scripts/tests/media-takedown-web.test.js scripts/tests/phrase-cover-web.test.js scripts/tests/model-view-web.test.js scripts/tests/file-risk-web.test.js scripts/tests/drop-files-web.test.js scripts/tests/post-in-chat-web.test.js scripts/tests/media-card-web.test.js scripts/tests/check-encoding.test.js
+    node --test scripts/tests/machine-guard.test.js scripts/tests/perf-report.test.js scripts/tests/terminator-grain.test.js scripts/tests/make-clips.test.js scripts/tests/voice-rejoin.test.js scripts/tests/p2p-sync-own-devices.test.js scripts/tests/p2p-direct-offers.test.js scripts/tests/link-preview-pictures.test.js scripts/tests/erase-sign-up-again.test.js scripts/tests/backup-rotate.test.js scripts/tests/second-player.test.js scripts/tests/sealed-dm.test.js scripts/tests/copresence-judge.test.js scripts/tests/dxc-dlls.test.js scripts/tests/station-park-check.test.js scripts/tests/check-fresh-exe.test.js scripts/tests/check-delivery.test.js scripts/tests/throwaway-relay.test.js scripts/tests/rig-boot.test.js scripts/tests/compiled-in.test.js scripts/tests/game-launch.test.js scripts/tests/rig-exe-copy.test.js scripts/tests/showcase-pins.test.js scripts/tests/rig-gameplay.test.js scripts/tests/clean-test-temp.test.js scripts/tests/shared-build-judge.test.js scripts/tests/household-judge.test.js scripts/tests/starts-judge.test.js scripts/tests/tree-ground-check.test.js scripts/tests/friend-pass.test.js scripts/tests/friend-pass-web.test.js scripts/tests/reach-web.test.js scripts/tests/block-web.test.js scripts/tests/server-list-backoff.test.js scripts/tests/report-web.test.js scripts/tests/outside-help-web.test.js scripts/tests/calls-through-server.test.js scripts/tests/warnings-web.test.js scripts/tests/protected-web.test.js scripts/tests/admin-erase-web.test.js scripts/tests/group-report-web.test.js scripts/tests/trade-page-web.test.js scripts/tests/private-files-web.test.js scripts/tests/media-web.test.js scripts/tests/media-web-round2.test.js scripts/tests/strip-metadata.test.js scripts/tests/media-web-round3.test.js scripts/tests/media-web-round4.test.js scripts/tests/upload-clean-web.test.js scripts/tests/files-in-messages-web.test.js scripts/tests/kept-files-web.test.js scripts/tests/media-web-files.test.js scripts/tests/describe-agree.test.js scripts/tests/relay-follow.test.js scripts/tests/file-transfer-web.test.js scripts/tests/file-transfer-chat-web.test.js scripts/tests/profile-copy-web.test.js scripts/tests/chat-home.test.js scripts/tests/choice-web.test.js scripts/tests/library-order-web.test.js scripts/tests/media-web-round5.test.js scripts/tests/server-strip-web.test.js scripts/tests/media-web-item.test.js scripts/tests/media-takedown-web.test.js scripts/tests/phrase-cover-web.test.js scripts/tests/model-view-web.test.js scripts/tests/file-risk-web.test.js scripts/tests/drop-files-web.test.js scripts/tests/post-in-chat-web.test.js scripts/tests/media-card-web.test.js scripts/tests/check-encoding.test.js scripts/tests/tag-release.test.js
 
 # The scripted second player (scripts/second-player.js) against a REAL relay.
 # NOT pure node, so NOT in rig-tests or `just verify` (rig-tests keeps the
@@ -1253,6 +1257,18 @@ release kind title notes:
     gh release create "v${VER}" --title "v${VER}" --notes-file "{{notes}}"
     rm -f "$MSG"
     echo "RELEASED v${VER}"
+
+# Tag HEAD v<version> with the version READ from Cargo.toml, and push the tag.
+# Refuses, before changing anything: an empty or non-X.Y.Z version, a bump not
+# committed yet (HEAD's Cargo.toml says another number), a tag that exists here
+# or on origin (or origin not answering), and HEAD not on origin/main. Never runs
+# git commit, never moves a tag. scripts/tag-release.js; its test runs in rig-tests.
+#   just tag                       tag + push the tag
+#   just tag --release notes.md    ... then gh release create v<version> --notes-file notes.md
+#   just tag --dry-run             every check, nothing changed
+# Tag HEAD v<Cargo.toml version> and push the tag, refusing unsafe states (never commits)
+tag *ARGS:
+    node scripts/tag-release.js {{ARGS}}
 
 # Fleet overview: every worktree + its branch, commits ahead of main, and
 # uncommitted-change count -- the at-a-glance answer to "is any agent work

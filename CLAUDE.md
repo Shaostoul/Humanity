@@ -287,6 +287,7 @@ Other things that follow from a shared checkout:
   git commit -F msg.txt && git push origin main
   [ -n "$V" ] || exit 1                       # an empty V tags a release named just "v"
   git tag "v$V" && git push origin "v$V"      # the number comes from the file, not from you
+  # `just tag` does the read-back, the guard and the tag push
   ```
   That guard line exists because it happened (2026-09-29): a `grep -c` with no
   matches exits 1, which stopped an `&&` chain before the bump and the `V=`
