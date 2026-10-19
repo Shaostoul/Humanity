@@ -1009,6 +1009,7 @@ launch:
 # Launch the freshly built exe behind your work, no focus steal, menu only.
 launch-bg:
     @node scripts/check-fresh-exe.js --quiet
+    @node scripts/dxc-beside-exe.js
     HUMANITY_NO_FOCUS=1 HUMANITY_NO_HANDOFF=1 ./target/release/HumanityOS.exe
 
 # Check game code for errors (fast, no binary)
