@@ -1952,6 +1952,38 @@ fn snapshot_media_your_folders() {
     });
 }
 
+/// The Games library (2026-10-18, pages/games.rs): the line about the stores with its Why; Steam
+/// with two libraries (Orbital Farmstead ready, Deep Rover still downloading, Sunken Archive whose
+/// folder is gone, Old Lighthouse in the second library), the Epic Games Store (Lantern Valley
+/// ready, Night Courier still installing), GOG (Old Forge ready, with no store button; Gone Valley,
+/// whose folder is gone), and Added by you (Dwarf Fortress Classic, and one whose program is gone,
+/// each with Rename and Remove). Built in scratch folders: nothing of this computer's stores is
+/// read, and nothing is started (a test build's launcher only records).
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_games_library() {
+    use crate::games::AddedGame;
+    use crate::gui::pages::games;
+    let fx = crate::games::fixtures::all("snapshot_games");
+    let scratch = crate::test_temp::dir("snapshot_games_added");
+    let df = scratch.join("Dwarf Fortress").join("Dwarf Fortress.exe");
+    std::fs::create_dir_all(df.parent().unwrap()).unwrap();
+    std::fs::write(&df, "x").unwrap();
+    std::fs::create_dir_all(scratch.join("Old Racer")).unwrap();
+    let racer = scratch.join("Old Racer").join("racer.exe");
+    render_page_png("games_library", 1280, 1240, |ctx, theme, state| {
+        if state.games.found.is_none() {
+            state.games.sources = games::Where::These(fx.sources());
+            state.settings.added_games = vec![
+                AddedGame { name: "Dwarf Fortress Classic".into(), exe: df.clone() },
+                AddedGame { name: "Old Racer".into(), exe: racer.clone() },
+            ];
+            games::read_now(state);
+        }
+        games::draw(ctx, theme, state);
+    });
+}
+
 /// The item the item-page and Edit snapshots show, put there by `by` (key, name): a 1:1 model of a
 /// contact staff in Fire flow arts, with a description of two lines, an added file (its textures),
 /// a cover picture, counts, CC BY 4.0, offered for the game and featured in its category. Built on

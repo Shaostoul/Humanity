@@ -343,6 +343,41 @@ fixture is the verdict proven able to fail). Design:
 - Data: `data/machines/home.ron` (`wall_screen_6`, `web:https://united-humanity.us`, console room east wall)
 - Tooling: `scripts/verify-screens.js` (`just verify-screens`; `--dry-verdict`, `--self-test`, wired into `just preflight`), `scripts/lib/png.js` (dependency-free PNG decode/encode/diff/colour stats), `tests/fixtures/screens/{green,red}/`
 
+### Games Library (v0.1517.0)
+
+A desktop page, "Games", beside Play and Characters in the nav: every game installed on this computer, started on the
+person's click through each store's own route, the stores keeping downloads, updates and licence checks. What may be
+done follows the dated finding `docs/reference/findings/2026-10-13-game-stores-and-a-games-library.md`, which the page
+opens in the Library from its Why (a new "Research Findings" shelf in Reference Library).
+
+- **Reading, never writing, the stores' records**: Steam (registry `HKCU\Software\Valve\Steam` `SteamPath`, then
+  `steamapps\libraryfolders.vdf` for every library, then each `appmanifest_<appid>.acf`: name, appid, installdir,
+  StateFlags; Steam's redistributables left out), the Epic Games Store (`%ProgramData%\Epic\EpicGamesLauncher\Data\Manifests\*.item`:
+  DisplayName, InstallLocation, LaunchExecutable, CatalogNamespace, CatalogItemId, AppName; DLC and Unreal Engine left
+  out), GOG (registry `HKLM\SOFTWARE\WOW6432Node\GOG.com\Games\<id>` `path`, then `goggame-<id>.info`'s primary play
+  task). The registry is opened with KEY_READ only (`src/games/registry.rs`, the `windows` crate's Win32_System_Registry).
+  Read on a worker thread when the page opens and on Refresh, never every frame and never on a timer.
+- **Play**, only on a click, through ONE launcher (`src/games/launch.rs`; a test build replaces it with a recorder and
+  compiles out the real one): `steam://rungameid/<appid>`; `com.epicgames.launcher://apps/<ns>%3A<item>%3A<app>?action=launch&silent=true`;
+  a GOG game's own primary program with its arguments in its working directory; an added game's own program. A second
+  Play straight after the first starts nothing more. "Open in Steam" (`steam://nav/games/details/<appid>`) and "Open in
+  the Epic Games Store" (`com.epicgames.launcher://store`) instead of Install or Update; none for GOG (GOG documents no link
+  to GOG GALAXY). Show in folder.
+- **States**: "Being installed by Steam" (StateFlags without fully installed) or by the Epic Games Store
+  (`bIsIncompleteInstall`), with no Play; a folder or program gone says so, with no Play.
+- **Added by you**: "Add a game" (the app's file picker, programs) adds any game by its own program, named by its file
+  name; Rename; Remove takes it off the list only. Kept in config.json as `added_games` (guarded by
+  `tests/settings_persistence_lint.rs`).
+- **Said on the screen**: "HumanityOS starts your games through each store's own app. Downloads and updates stay with the
+  store, because the stores' terms keep those for their own software. That is a platform holder's rule, not a law." No
+  store sign-in, no SteamCMD, no owned-but-not-installed games, no logos (plain "Steam", "Epic Games Store", "GOG",
+  "Added by you").
+
+Desktop only: a website cannot read the games installed on the computer it runs on. Files: `src/games/` (`mod.rs`,
+`keyvalues.rs` Valve KeyValues parser, `steam.rs`, `epic.rs`, `gog.rs`, `other.rs`, `launch.rs`, `registry.rs`,
+`fixtures.rs` for tests), `src/gui/pages/games.rs` (the page), `src/gui/pages/games_tests.rs`, nav item in
+`src/gui/pages/escape_menu.rs`, icon `widgets::icons::paint_gamepad`; snapshot `games_library`.
+
 ### In-App File Browser (native, v0.708)
 Universal file-picker widget (NOT the OS dialog — the all-in-one direction): quick
 roots (Home/Downloads/Documents/Desktop/Game data/App folder), dirs-first ci-alpha

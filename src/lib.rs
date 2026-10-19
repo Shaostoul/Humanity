@@ -151,6 +151,12 @@ pub mod web_reader;
 #[cfg(feature = "native")]
 pub mod config;
 
+// The Games library's readers (2026-10-18): the stores' install records, read only, and the one
+// launcher. Native-only: the relay never reads a computer's games. See
+// docs/reference/findings/2026-10-13-game-stores-and-a-games-library.md.
+#[cfg(feature = "native")]
+pub mod games;
+
 // v0.278.0: optional silent / quick-PIN unlock paths on top of the
 // passphrase-encrypted vault. Native-only — relay/wasm don't carry an
 // interactive identity.

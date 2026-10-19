@@ -2297,6 +2297,21 @@
       "section": "Reference Library"
     },
     {
+      "name": "Research Findings",
+      "docs": [
+        {
+          "title": "Game Stores and a Games Library (13 October 2026)",
+          "file": "2026-10-13-game-stores-and-a-games-library.md",
+          "tags": [
+            "reference",
+            "real",
+            "project"
+          ]
+        }
+      ],
+      "section": "Reference Library"
+    },
+    {
       "name": "Project History",
       "docs": [
         {

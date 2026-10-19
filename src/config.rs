@@ -460,6 +460,11 @@ pub struct AppConfig {
     /// file on this device and never sent anywhere. A config written before it existed has none.
     #[serde(default)]
     pub media_folders: Vec<std::path::PathBuf>,
+    /// The Games library's games added by hand (2026-10-18, pages/games.rs): each one's name and
+    /// program. Kept in this file on this device and never sent anywhere. A config written before
+    /// it existed has none.
+    #[serde(default)]
+    pub added_games: Vec<crate::games::AddedGame>,
     /// Settings > Safety, the protected setup (step G of blocking-and-safe-mode.md 10h,
     /// 2026-10-10), carried here only on its way to ITS OWN FILE beside config.json
     /// (net/protected_store.rs): never serialized into config.json. Kept apart because an
@@ -1515,6 +1520,7 @@ impl AppConfig {
             files_in_messages: state.settings.files_in_messages.clone(),
             media_unfinished_uploads: state.media.unfinished.clone(),
             media_folders: state.settings.media_folders.clone(),
+            added_games: state.settings.added_games.clone(),
             protected_setup: Some(state.protected.setup.clone()),
             font_size: state.settings.font_size,
             dark_mode: state.settings.dark_mode,
@@ -1699,6 +1705,7 @@ impl AppConfig {
         state.settings.files_in_messages = self.files_in_messages.clone();
         state.media.unfinished = self.media_unfinished_uploads.clone();
         state.settings.media_folders = self.media_folders.clone();
+        state.settings.added_games = self.added_games.clone();
         // The protected setup is NOT applied from here: it lives in its own file, which boot reads
         // whether or not config.json exists or reads (`load_protected_setup`, lib.rs).
         // Clamp the ranges the UI enforces, so a hand-edited config cannot

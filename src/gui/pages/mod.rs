@@ -69,6 +69,8 @@ pub mod studio;
 pub mod watch;
 /// The Media page (docs/design/media-showcase.md, increment 2, 2026-10-11).
 pub mod media;
+/// The Games library (2026-10-18, docs/reference/findings/2026-10-13-game-stores-and-a-games-library.md).
+pub mod games;
 /// The server strip under the top menu on Media, Watch, Chat and Server Settings, with Switch.
 pub mod server_strip;
 // passphrase_modal moved to widgets/ in v0.115.0 (it's a modal, not a page).

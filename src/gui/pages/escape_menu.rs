@@ -109,6 +109,8 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                 let play_items = [
                     NavItem { label: "Play", page: GuiPage::None, description: "" },
                     NavItem { label: "Characters", page: GuiPage::None, description: "Pick who you play as and where. Always opens the picker." },
+                    // The Games library beside Play (2026-10-18, pages/games.rs): the other games on this computer.
+                    NavItem { label: "Games", page: GuiPage::Games, description: "The games installed on this computer, from Steam, the Epic Games Store, GOG and anywhere else." },
                 ];
                 nav_group(ui, &play_items, theme.nav_sim(), text_muted, theme, state);
 

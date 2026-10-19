@@ -20,8 +20,8 @@
 //! either drawn by this table or explicitly listed as engine-bound.
 
 use super::pages::{
-    browser, bugs, calculator, calendar, chat, cosmos, crafting, donate, files, governance, guilds,
-    homes, humanity, identity, inventory, laws, library, market, notes, platform, profile, quests,
+    browser, bugs, calculator, calendar, chat, cosmos, crafting, donate, files, games, governance,
+    guilds, homes, humanity, identity, inventory, laws, library, market, notes, platform, profile, quests,
     media, real, recovery, relay_control, server_settings, settings, studio, tasks, testing, tools,
     trade, wallet, watch,
 };
@@ -69,6 +69,7 @@ pub fn draw_tool_page(ctx: &egui::Context, page: GuiPage, theme: &mut Theme, sta
         GuiPage::Studio => studio::draw(ctx, theme, state),
         GuiPage::Watch => watch::draw(ctx, theme, state),
         GuiPage::Media => media::draw(ctx, theme, state),
+        GuiPage::Games => games::draw(ctx, theme, state),
         GuiPage::Quests => quests::draw(ctx, theme, state),
         GuiPage::Homes => homes::draw(ctx, theme, state),
         GuiPage::ServerSettings => server_settings::draw(ctx, theme, state),
@@ -124,6 +125,7 @@ pub fn page_id(page: GuiPage) -> &'static str {
         GuiPage::Studio => "studio",
         GuiPage::Watch => "watch",
         GuiPage::Media => "media",
+        GuiPage::Games => "games",
         GuiPage::Quests => "quests",
         GuiPage::Homes => "homes",
         GuiPage::ServerSettings => "server_settings",
@@ -178,6 +180,7 @@ pub const ALL_PAGES: &[GuiPage] = &[
     GuiPage::Studio,
     GuiPage::Watch,
     GuiPage::Media,
+    GuiPage::Games,
     GuiPage::Quests,
     GuiPage::Homes,
     GuiPage::ServerSettings,

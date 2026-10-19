@@ -343,6 +343,8 @@ pub enum GuiPage {
     Watch,
     /// The Media page (docs/design/media-showcase.md): what people chose to show; pages/media.rs.
     Media,
+    /// The Games library (2026-10-18): the games installed on this computer, started through each store's own app; pages/games.rs.
+    Games,
     Quests,
     /// Server / group administration settings page. Opened from the cog
     /// menu on the server or group row in the chat sidebar.
@@ -1172,6 +1174,8 @@ pub struct GuiState {
     pub watch_input: String,
     /// The Media page (pages/media.rs) and its Server Settings section, for the server on screen.
     pub media: crate::gui::pages::media::MediaState,
+    /// The Games library page (pages/games.rs): what the stores had when last read, and its dialogs.
+    pub games: crate::gui::pages::games::GamesState,
 
     /// Top-nav button presentation (v0.859): icon+text / icon-only / text-only.
     /// Mirrors the web header's Aa toggle. Cycled by the nav's mode button.
@@ -3504,6 +3508,7 @@ impl Default for GuiState {
             watch_last_fetch: 0.0,
             watch_input: String::new(),
             media: Default::default(),
+            games: Default::default(),
             nav_display_mode: NavDisplayMode::default(),
             toasts: Vec::new(),
             underwater: false,
@@ -4610,6 +4615,8 @@ pub struct SettingsState {
     /// The Media page's Your folders (pages/media/your_folders.rs): folders on this computer the
     /// person added to look through. Kept on this device only; never sent anywhere.
     pub media_folders: Vec<std::path::PathBuf>,
+    /// The Games library's games added by hand (pages/games.rs): each one's name and program. Kept on this device only.
+    pub added_games: Vec<crate::games::AddedGame>,
     // Data
     pub seed_phrase_visible: bool,
     // Restoring from the recovery phrase
@@ -4719,6 +4726,7 @@ impl Default for SettingsState {
             outside_help_country: String::new(),
             files_in_messages: Default::default(),
             media_folders: Vec::new(),
+            added_games: Vec::new(),
             seed_phrase_visible: false,
             seed_phrase_input: String::new(),
             seed_phrase_recovery_status: String::new(),

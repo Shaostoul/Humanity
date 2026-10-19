@@ -515,6 +515,25 @@ pub fn paint_picture(painter: &egui::Painter, rect: Rect, color: Color32) {
     painter.circle_filled(Pos2::new(frame.right() - w * 0.18, frame.top() + w * 0.17), w * 0.07, color);
 }
 
+/// Gamepad (2026-10-18): a controller's rounded body with a cross on the left and two buttons on
+/// the right, the Games library's nav icon. Distinct from Play's triangle, which enters this
+/// game's world; this is the other games on the computer.
+pub fn paint_gamepad(painter: &egui::Painter, rect: Rect, color: Color32) {
+    let c = rect.center();
+    let w = rect.width().min(rect.height());
+    let stroke = Stroke::new((w * 0.09).max(1.0), color);
+    let body = Rect::from_center_size(c, Vec2::new(w * 0.9, w * 0.52));
+    painter.rect_stroke(body, egui::Rounding::same((w * 0.22) as u8), stroke, egui::StrokeKind::Inside);
+    // The cross, on the left.
+    let cross = Pos2::new(c.x - w * 0.22, c.y);
+    let arm = w * 0.12;
+    painter.line_segment([Pos2::new(cross.x - arm, cross.y), Pos2::new(cross.x + arm, cross.y)], stroke);
+    painter.line_segment([Pos2::new(cross.x, cross.y - arm), Pos2::new(cross.x, cross.y + arm)], stroke);
+    // Two buttons, on the right.
+    painter.circle_filled(Pos2::new(c.x + w * 0.15, c.y + w * 0.05), w * 0.055, color);
+    painter.circle_filled(Pos2::new(c.x + w * 0.27, c.y - w * 0.06), w * 0.055, color);
+}
+
 /// Play — a right-pointing filled triangle (the universal "play / start"
 /// glyph). Marks the dedicated nav button that drops into the 3D first-person
 /// game world (operator 2026-06-07: "add a dedicated button for the FPS game
@@ -895,6 +914,7 @@ pub fn paint_nav_icon(painter: &egui::Painter, rect: Rect, page: crate::gui::Gui
         // snapshot review).
         P::Watch       => { paint_watch(painter, rect, color); true }
         P::Media       => { paint_picture(painter, rect, color); true }
+        P::Games       => { paint_gamepad(painter, rect, color); true }
         // v0.415.0: Onboarding + Play variants removed with their pages.
         // v0.197.0: Agents + AiUsage variants removed. paint_robot and
         // paint_chart are kept (other future pages might use them).
