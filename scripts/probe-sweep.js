@@ -420,6 +420,26 @@ async function waitBoot(timeoutMs, game = null) {
   throw new Error("probe did not finish booting in time");
 }
 
+// The two cloud PSOs compile on a background thread since 2026-10-18 and the
+// frame draws NO clouds until they land (`[Pipelines] clouds ready after`).
+// A capture before that would show a cloudless sky and judge it as the
+// renderer's, so captures wait for the line. Only a build that announced the
+// background compile is waited for: an older exe (an A arm) builds the
+// clouds before its first frame and never prints either line.
+async function waitCloudsReady(timeoutMs) {
+  const t0 = Date.now();
+  const txt0 = fs.existsSync(LOG) ? fs.readFileSync(LOG, "utf8") : "";
+  if (!/cloud PSOs .* still\s+compiling in the background/.test(txt0)) return { waited_s: 0, deferred: false };
+  while (Date.now() - t0 < timeoutMs) {
+    const txt = fs.existsSync(LOG) ? fs.readFileSync(LOG, "utf8") : "";
+    const m = txt.match(/\[Pipelines\] clouds ready after ([\d.]+) s/);
+    if (m) return { waited_s: (Date.now() - t0) / 1000, deferred: true, ready_after_s: Number(m[1]) };
+    if (/PANIC/.test(txt)) throw new Error("probe PANIC while the cloud PSOs compiled (see run.log)");
+    await sleep(500);
+  }
+  return { waited_s: (Date.now() - t0) / 1000, deferred: true, timed_out: true };
+}
+
 // ── Graphics provenance ───────────────────────────────────────────────────
 // Runs once, before boot. Two jobs, and the first one is not optional:
 //   1. RECORD what this run will actually render at, into the manifest.
@@ -755,6 +775,15 @@ async function main() {
     req("camera_request.json", { body: "earth", lat: 23.0, lon: 13.0, altitude_km: 0.05, look_offset_deg: 80 });
     await waitFile("camera_done.json", 60000);
     await sleep(18000);
+    // No capture before the background cloud PSOs have landed (see
+    // waitCloudsReady). They normally land long before this point; the line
+    // says so either way, so a cloudless capture is never a silent mystery.
+    {
+      const cr = await waitCloudsReady(120000);
+      if (!cr.deferred) log("clouds: compiled before the first frame (this build does not defer them)");
+      else if (cr.timed_out) log(`  !! clouds: NOT ready ${cr.waited_s.toFixed(0)} s after the warm-up; cloud vantages will show no clouds`);
+      else log(`clouds: ready ${cr.ready_after_s.toFixed(1)} s after their build began (waited ${cr.waited_s.toFixed(1)} s more here)`);
+    }
 
     // ── THE DESCENT LADDER (environment program increment 1) ──
     // One boot, one fixed surface column, rungs orbit-to-ground. TWO

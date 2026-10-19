@@ -1,6 +1,7 @@
 //! Render pipeline management — creates and caches wgpu render pipelines.
 
 use super::camera::CameraUniforms;
+use super::deferred_build::{Deferred, Polled};
 use super::mesh::Vertex;
 use bytemuck::{Pod, Zeroable};
 use std::collections::HashMap;
@@ -92,11 +93,18 @@ pub struct Pipeline {
     /// nothing routes an atmosphere through an overlay list, and a PSO
     /// nothing draws with would cost a compile at every boot and reload.
     pub shell_transparent_pipeline: wgpu::RenderPipeline,
-    /// CLOUD class (15), transparent state, compiled with the cloud branch
-    /// kept (`HAS_CLOUD_BRANCH`): the ONE pipeline whose fragment entry
-    /// reaches the volumetric march, so the only one whose fragments pay
-    /// for the march's per-invocation tables (the P1 finding).
-    pub cloud_transparent_pipeline: wgpu::RenderPipeline,
+    /// The two PSOs that bake the volumetric cloud march, the slowest two
+    /// compiles of the set by far, built OFF the startup path since
+    /// 2026-10-18 (see `CloudPsos` and renderer::deferred_build): `None`
+    /// until a background thread finishes them, after which
+    /// `transparent_for(Cloud)` and `cloud_screen_pipeline()` answer. Never
+    /// read this directly from a draw loop; those two accessors are the API,
+    /// and a draw that gets `None` skips the clouds for that frame.
+    clouds: Deferred<CloudBuild>,
+    /// True when this process compiles shaders with FXC and was not asked to
+    /// try the cloud pair anyway (`fxc_clouds_requested`): the pair is never
+    /// built, at boot or on a hot reload, and the frame draws no clouds.
+    clouds_off: bool,
     /// Depth-only sun-shadow variant (v0.899): vs_main with no fragment,
     /// standard-z ortho depth into the 4096^2 shadow map. OPAQUE casters
     /// only - see `shadow_pipeline_alpha` and `shadow_for`.
@@ -131,9 +139,8 @@ pub struct Pipeline {
     /// layout changes anywhere. Replaced the dead octa pipeline, whose
     /// `fs_cloud_octa` entry this fragment replaces in the shader.
     pub cloud_light_bake_pipeline: wgpu::RenderPipeline,
-    /// Near-field screen cloud pass (12d): shell mesh at half res,
-    /// per-pixel march + screen-space reprojection.
-    pub cloud_screen_pipeline: wgpu::RenderPipeline,
+    // (The near-field screen cloud pass, "Cloud Screen Temporal", lives in
+    // `clouds` with the cloud shell's PSO: `cloud_screen_pipeline()`.)
     /// The cloud PROFILE bake (perf increment 4, the far rung): fullscreen
     /// triangle into the RGBA8 profile atlas (mip 0), scissored by Rust to
     /// the scroll / fill / refresh / global rows of the frame
@@ -205,15 +212,82 @@ impl RebuiltPipelines {
     }
 }
 
+/// The two PSOs that bake the volumetric cloud march, which are the two
+/// slowest compiles of the whole set (2026-10-18 boot rig, i7-8700K + RTX
+/// 4070, DX12 with DXC: Cloud Transparent 8.99 s and Cloud Screen Temporal
+/// 8.23 s, against 0.9 to 3.1 s for each of the other eighteen). They are the
+/// only programs whose fragment entry reaches the march, and the boot sat
+/// waiting about 6 s for them alone. Nothing on the way to a playable frame
+/// needs a cloud, so `Pipeline::new` builds them on a background thread
+/// started beside the others, and the frame draws no clouds until
+/// `Pipeline::poll_clouds` installs them. A shader hot reload still builds
+/// them inline, with the rest (see `recreate_pipelines` for why).
+pub struct CloudPsos {
+    /// CLOUD class (15), transparent state, compiled with the cloud branch
+    /// kept (`HAS_CLOUD_BRANCH`): the ONE class pipeline whose fragment entry
+    /// reaches the volumetric march, so the only one whose fragments pay for
+    /// the march's per-invocation tables (the P1 finding). Registry row
+    /// "PBR-lite Cloud Transparent Pipeline". Drawn through
+    /// `Pipeline::transparent_for(ShaderClass::Cloud)`.
+    transparent: wgpu::RenderPipeline,
+    /// Near-field screen cloud pass (12d): fullscreen triangle at quarter
+    /// res, per-pixel march + first-hit distance for the resolve pass's
+    /// reprojection ("Cloud Screen Temporal Pipeline", registry-exempt).
+    /// Drawn through `Pipeline::cloud_screen_pipeline()`.
+    screen: wgpu::RenderPipeline,
+}
+
+/// The pair as one build delivered it, with that build's own timings so the
+/// install can say what the compile cost.
+struct CloudBuild {
+    psos: CloudPsos,
+    /// (label, wall seconds) for each of the two PSOs.
+    timings: [(&'static str, f32); 2],
+    /// Wall seconds for the whole build (the two compile side by side).
+    wall_s: f32,
+}
+
+/// What `Pipeline::poll_clouds` reports on the frame it installs the pair:
+/// the boot timer records these as BACKGROUND spans, which are never added to
+/// the time to playable.
+#[derive(Debug, Clone, Copy)]
+pub struct CloudsReady {
+    /// From the build's start to the frame that installed it.
+    pub waited: std::time::Duration,
+    /// The background build's own wall time (the two compiles side by side).
+    pub compile: std::time::Duration,
+}
+
 impl Pipeline {
     /// Create the PBR-lite pipeline set from the classic shader module plus
     /// the terrain-batch variant module (same source, batch OBJECT-SOURCE).
+    ///
+    /// `background_clouds`: true on native, where the two cloud PSOs
+    /// (`CloudPsos`) compile on a background thread and this returns as soon
+    /// as the other eighteen are built; call `poll_clouds` once a frame to
+    /// install them. False where there are no threads (wasm): everything is
+    /// built here and the clouds are installed on return.
+    ///
+    /// `fxc`: this process compiles DX12 shaders with FXC (no DXC dlls beside
+    /// the exe). Then the cloud pair is not built at all, unless
+    /// `HUMANITY_FXC_CLOUDS=1` asks for it (see `fxc_clouds_requested`).
     pub fn new(
         device: &wgpu::Device,
         scene_format: wgpu::TextureFormat,
         shader: &wgpu::ShaderModule,
         batch_shader: &wgpu::ShaderModule,
+        background_clouds: bool,
+        fxc: bool,
     ) -> Self {
+        let clouds_off = fxc && !fxc_clouds_requested();
+        if clouds_off {
+            log::warn!(
+                "[Pipelines] clouds are OFF for this run: shaders compile with FXC here (no \
+                 dxcompiler.dll + dxil.dll beside the exe), and FXC cannot compile the cloud march \
+                 (it overflowed a 64 MiB thread stack after about 8 minutes, 2026-10-18). Put the \
+                 two DXC dlls beside the exe for clouds; HUMANITY_FXC_CLOUDS=1 tries FXC anyway."
+            );
+        }
         // Group 0: Camera uniforms + the UNCAPPED light list (v0.782). Lights
         // moved from fixed [8] uniform arrays to a read-only STORAGE buffer so
         // the count is data-driven -- no arbitrary light limit; the practical
@@ -637,31 +711,32 @@ impl Pipeline {
                 push_constant_ranges: &[],
             });
 
-        let MegashaderPsos {
-            surface_render: surface_render_pipeline,
-            surface_transparent: surface_transparent_pipeline,
-            surface_overlay: surface_overlay_pipeline,
-            terrain_render: terrain_render_pipeline,
-            vegetation_render: vegetation_render_pipeline,
-            water_transparent: water_transparent_pipeline,
-            water_overlay: water_overlay_pipeline,
-            shell_transparent: shell_transparent_pipeline,
-            cloud_transparent: cloud_transparent_pipeline,
-            shadow: shadow_pipeline,
-            shadow_alpha: shadow_pipeline_alpha,
-            patch_render: patch_render_pipeline,
-            patch_shadow: patch_shadow_pipeline,
-            // The six cloud fullscreen PSOs come out of the SAME parallel
-            // build as everything above (v0.1322). They used to be compiled
-            // serially right here, which was 4.4 s of every boot.
-            cloud_light_bake: cloud_light_bake_pipeline,
-            cloud_screen: cloud_screen_pipeline,
-            cloud_profile_bake: cloud_profile_bake_pipeline,
-            cloud_profile_mip: cloud_profile_mip_pipeline,
-            cloud_profile_calib: cloud_profile_calib_pipeline,
-            cloud_profile_calib_reduce: cloud_profile_calib_reduce_pipeline,
-            emission_pass: emission_pass_pipeline,
-        } = Self::build_all_pipelines(
+        let (
+            MegashaderPsos {
+                surface_render: surface_render_pipeline,
+                surface_transparent: surface_transparent_pipeline,
+                surface_overlay: surface_overlay_pipeline,
+                terrain_render: terrain_render_pipeline,
+                vegetation_render: vegetation_render_pipeline,
+                water_transparent: water_transparent_pipeline,
+                water_overlay: water_overlay_pipeline,
+                shell_transparent: shell_transparent_pipeline,
+                shadow: shadow_pipeline,
+                shadow_alpha: shadow_pipeline_alpha,
+                patch_render: patch_render_pipeline,
+                patch_shadow: patch_shadow_pipeline,
+                // The cloud fullscreen PSOs come out of the SAME parallel
+                // build as everything above (v0.1322). They used to be
+                // compiled serially right here, which was 4.4 s of every boot.
+                cloud_light_bake: cloud_light_bake_pipeline,
+                cloud_profile_bake: cloud_profile_bake_pipeline,
+                cloud_profile_mip: cloud_profile_mip_pipeline,
+                cloud_profile_calib: cloud_profile_calib_pipeline,
+                cloud_profile_calib_reduce: cloud_profile_calib_reduce_pipeline,
+                emission_pass: emission_pass_pipeline,
+            },
+            clouds,
+        ) = Self::build_all_pipelines(
             device,
             scene_format,
             shader,
@@ -669,6 +744,13 @@ impl Pipeline {
             &pipeline_layout,
             &patch_pipeline_layout,
             &emission_pipeline_layout,
+            if clouds_off {
+                CloudsWhen::Never
+            } else if background_clouds {
+                CloudsWhen::Background
+            } else {
+                CloudsWhen::Inline
+            },
         );
 
         Self {
@@ -680,13 +762,13 @@ impl Pipeline {
             water_transparent_pipeline,
             water_overlay_pipeline,
             shell_transparent_pipeline,
-            cloud_transparent_pipeline,
+            clouds,
+            clouds_off,
             shadow_pipeline,
             shadow_pipeline_alpha,
             patch_render_pipeline,
             patch_shadow_pipeline,
             cloud_light_bake_pipeline,
-            cloud_screen_pipeline,
             cloud_profile_bake_pipeline,
             cloud_profile_mip_pipeline,
             cloud_profile_calib_pipeline,
@@ -958,7 +1040,15 @@ impl Pipeline {
             &self.camera_bind_group_layout,
             &self.emission_bind_group_layout,
         );
-        let fresh = Self::build_all_pipelines(
+        // The reload builds the two cloud PSOs INLINE, with the other
+        // eighteen, rather than in the background the way the boot does. A
+        // reload is the shader A/B tool (scripts/probe-hot-ab.js captures on
+        // the `[HotReload] megashader reassembled` line), and a cloud PSO
+        // still compiling behind that line would be measured as the OLD
+        // shader, or as no clouds at all: a check that cannot fail. So the
+        // reload returns only once every PSO, the clouds included, is the
+        // new module's.
+        let (fresh, fresh_clouds) = Self::build_all_pipelines(
             device,
             scene_format,
             shader,
@@ -966,6 +1056,7 @@ impl Pipeline {
             &pipeline_layout,
             &patch_pipeline_layout,
             &emission_pipeline_layout,
+            if self.clouds_off { CloudsWhen::Never } else { CloudsWhen::Inline },
         );
         // Each fresh PSO is paired with the field it replaces, and the pair
         // tables are what the returned counts are read from. The `&mut`
@@ -981,28 +1072,46 @@ impl Pipeline {
             (&mut self.water_transparent_pipeline, fresh.water_transparent),
             (&mut self.water_overlay_pipeline, fresh.water_overlay),
             (&mut self.shell_transparent_pipeline, fresh.shell_transparent),
-            (&mut self.cloud_transparent_pipeline, fresh.cloud_transparent),
             (&mut self.shadow_pipeline, fresh.shadow),
             (&mut self.shadow_pipeline_alpha, fresh.shadow_alpha),
             (&mut self.patch_render_pipeline, fresh.patch_render),
             (&mut self.patch_shadow_pipeline, fresh.patch_shadow),
         ];
-        let megashader = megashader_slots.len();
+        let mut megashader = megashader_slots.len();
         for (slot, fresh) in megashader_slots {
             *slot = fresh;
         }
-        // The six cloud fullscreen PSOs follow the same hot-reload rule: new
+        // The cloud pair goes into its holder, and `install_now` CANCELS a
+        // boot build still in flight: its receiver is dropped here, so when
+        // that build finishes (from the OLD module) its result has nowhere to
+        // go and can never be installed over this one. A reload during the
+        // background build is therefore neither lost nor installed twice
+        // (renderer::deferred_build's tests pin both orders of the race).
+        // The pair is destructured by name so a third deferred PSO cannot be
+        // added without this count being revisited: one megashader PSO (the
+        // cloud shell's) and one cloud fullscreen PSO (the screen march).
+        let mut cloud = 0;
+        if let Some(build) = fresh_clouds.into_ready() {
+            let CloudPsos { transparent: _, screen: _ } = &build.psos;
+            megashader += 1;
+            cloud += 1;
+            if self.clouds.install_now(build) {
+                log::info!(
+                    "[Pipelines] a shader reload replaced the cloud PSOs still compiling in the \
+                     background; that older build will be dropped when it finishes"
+                );
+            }
+        }
+        // The cloud fullscreen PSOs follow the same hot-reload rule: new
         // module, same layouts, live bind groups intact. (They compile the
         // megashader module too, but through fs_cloud_* entries that are no
         // class entry and reach no material dispatch, so they take no
         // permutation: see the exemption note above PSO_REGISTRY.) They come
-        // out of the same parallel build as the thirteen above since
-        // v0.1322, so a reload no longer waits out six serial compiles after
-        // the scope has already closed; the single `[Pipelines]` line covers
-        // all nineteen.
+        // out of the same parallel build as the PSOs above since v0.1322, so
+        // a reload no longer waits out serial compiles after the scope has
+        // already closed; the single `[Pipelines]` line covers them all.
         let cloud_slots = [
             (&mut self.cloud_light_bake_pipeline, fresh.cloud_light_bake),
-            (&mut self.cloud_screen_pipeline, fresh.cloud_screen),
             (&mut self.cloud_profile_bake_pipeline, fresh.cloud_profile_bake),
             (&mut self.cloud_profile_mip_pipeline, fresh.cloud_profile_mip),
             (&mut self.cloud_profile_calib_pipeline, fresh.cloud_profile_calib),
@@ -1011,7 +1120,7 @@ impl Pipeline {
                 fresh.cloud_profile_calib_reduce,
             ),
         ];
-        let cloud = cloud_slots.len();
+        cloud += cloud_slots.len();
         for (slot, fresh) in cloud_slots {
             *slot = fresh;
         }
@@ -1102,19 +1211,77 @@ impl Pipeline {
     /// sky should be). Terrain and vegetation have no transparent PSO
     /// because no transparent list ever carries them; one there is a caller
     /// bug, handled like the opaque case above.
-    pub fn transparent_for(&self, class: ShaderClass) -> &wgpu::RenderPipeline {
+    ///
+    /// `None` for `Cloud` until the background cloud build is installed
+    /// (`poll_clouds`, 2026-10-18): the caller SKIPS that object for the
+    /// frame, so a cloud shell is simply not drawn until its PSO exists.
+    /// Every other class answers `Some` from the first frame.
+    pub fn transparent_for(&self, class: ShaderClass) -> Option<&wgpu::RenderPipeline> {
         match class {
-            ShaderClass::Surface => &self.surface_transparent_pipeline,
-            ShaderClass::Water => &self.water_transparent_pipeline,
-            ShaderClass::Shell => &self.shell_transparent_pipeline,
-            ShaderClass::Cloud => &self.cloud_transparent_pipeline,
+            ShaderClass::Surface => Some(&self.surface_transparent_pipeline),
+            ShaderClass::Water => Some(&self.water_transparent_pipeline),
+            ShaderClass::Shell => Some(&self.shell_transparent_pipeline),
+            ShaderClass::Cloud => self.clouds.ready().map(|b| &b.psos.transparent),
             ShaderClass::Terrain | ShaderClass::Vegetation => {
                 debug_assert!(
                     false,
                     "a {class:?}-class material was routed to a TRANSPARENT draw list; \
                      terrain and vegetation are opaque and draw through opaque_for"
                 );
-                &self.surface_transparent_pipeline
+                Some(&self.surface_transparent_pipeline)
+            }
+        }
+    }
+
+    /// The near-field screen cloud march PSO ("Cloud Screen Temporal"), or
+    /// `None` until the background cloud build is installed. A frame that gets
+    /// `None` runs NO near-field cloud pass and no cloud composite: the march
+    /// targets would be read without ever having been written.
+    pub fn cloud_screen_pipeline(&self) -> Option<&wgpu::RenderPipeline> {
+        self.clouds.ready().map(|b| &b.psos.screen)
+    }
+
+    /// Whether the two cloud PSOs are installed (the frame draws clouds).
+    pub fn clouds_ready(&self) -> bool {
+        self.clouds.ready().is_some()
+    }
+
+    /// Install the background cloud build if it has finished. Call once a
+    /// frame, before drawing; it never blocks (one `try_recv`). Returns the
+    /// timings on the frame it installs, for the boot timer, and logs one
+    /// `[Pipelines] clouds ready after N s, in the background` line then.
+    pub fn poll_clouds(&mut self) -> Option<CloudsReady> {
+        match self.clouds.poll() {
+            Polled::Idle | Polled::StillWaiting => None,
+            Polled::Installed { waited } => {
+                let build = self.clouds.ready().expect("poll just installed it");
+                let per_pso: Vec<String> = build
+                    .timings
+                    .iter()
+                    .map(|(label, s)| format!("{} {s:.2}s", short_pso_label(label)))
+                    .collect();
+                log::info!(
+                    "[Pipelines] clouds ready after {:.1} s, in the background ({:.1}s wall compiling: {})",
+                    waited.as_secs_f32(),
+                    build.wall_s,
+                    per_pso.join(", ")
+                );
+                Some(CloudsReady {
+                    waited,
+                    compile: std::time::Duration::from_secs_f32(build.wall_s),
+                })
+            }
+            Polled::Lost => {
+                // The build thread died before sending: a PSO compile
+                // panicked there (the panic hook has already written it to
+                // run.log). Say so in the pipeline log's own words, because
+                // the visible symptom is only "there are no clouds".
+                log::error!(
+                    "[Pipelines] the background cloud build ended without a result (a cloud PSO \
+                     compile panicked on its thread; see the PANIC above). No clouds will draw \
+                     until a shader hot reload rebuilds them."
+                );
+                None
             }
         }
     }
@@ -1280,22 +1447,177 @@ impl Pipeline {
         })
     }
 
-    /// ALL TWENTY PSO compiles (nineteen until the emission pass joined on
-    /// 2026-09-27) shared by `new` and hot-reload's
-    /// `recreate_pipelines`, in ONE thread scope (v0.1142). Measured
-    /// 2026-08-15: `Pipeline::new` was 3.9 s of the 4.1 s
-    /// shaders_and_pipelines boot span, because only the three PBR variants
-    /// compiled in parallel (the 2026-07-12 scope) while the two sun-shadow
-    /// and two terrain-patch PSOs compiled serially after them on the main
-    /// thread. Each PSO bakes its fragment entry through Naga->DXIL, they
-    /// are all independent, and `create_render_pipeline` takes `&self` on a
-    /// Send+Sync Device, so all of them belong in the same scope: wall time
-    /// falls toward the slowest single compile (the cloud transparent PSO,
-    /// the only one whose entry bakes the march). Since P3 each PSO compiles
-    /// only its class's entry, so every non-cloud compile is a fraction of
-    /// what the old whole-fs_main bake was; the per-PSO wall times are
-    /// logged after every build so the cost of the split is a reading, not
-    /// a guess (the P2 reload took 11.3 s for ten PSOs).
+    /// One CLASS PSO (a registry row with a colour target): the megashader's
+    /// `vs_main` and the class's own fragment entry, in one of the three
+    /// fixed-function states (`OPAQUE_STATE`, `TRANSPARENT_STATE`,
+    /// `OVERLAY_STATE`). A plain function rather than a closure inside
+    /// `build_all_pipelines` (2026-10-18) because the background cloud build
+    /// calls it too, from a thread that owns its handles.
+    fn build_class_pso(
+        device: &wgpu::Device,
+        scene_format: wgpu::TextureFormat,
+        shader: &wgpu::ShaderModule,
+        pipeline_layout: &wgpu::PipelineLayout,
+        label: &'static str,
+        (blend, cull, depth_write): PsoState,
+    ) -> wgpu::RenderPipeline {
+        // Both the fragment ENTRY this PSO compiles and the branch switches
+        // it compiles out are the registry's call (PSO_REGISTRY, keyed by
+        // label): a surface PSO bakes fs_surface with every shell switch off,
+        // the water PSO bakes fs_water with the ocean kept, the cloud PSO
+        // bakes fs_cloud with the march kept, and so on. Switches the map
+        // does not name keep the shader's `= true` default.
+        let constants = pso_constants(label);
+        let entry = pso_fragment_entry(label).expect("a colour PSO compiles a class entry");
+        device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some(label),
+            layout: Some(pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: shader,
+                entry_point: Some("vs_main"),
+                buffers: &[Vertex::layout(), Vertex::instance_layout()],
+                compilation_options: wgpu::PipelineCompilationOptions {
+                    constants: &constants,
+                    ..Default::default()
+                },
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: shader,
+                entry_point: Some(entry),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: scene_format,
+                    blend: Some(blend),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+                compilation_options: wgpu::PipelineCompilationOptions {
+                    constants: &constants,
+                    ..Default::default()
+                },
+            }),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                strip_index_format: None,
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: cull,
+                polygon_mode: wgpu::PolygonMode::Fill,
+                unclipped_depth: false,
+                conservative: false,
+            },
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: depth_write,
+                depth_compare: wgpu::CompareFunction::Greater, // reverse-Z for far-field precision
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            }),
+            multisample: wgpu::MultisampleState {
+                count: 1,
+                mask: !0,
+                alpha_to_coverage_enabled: false,
+            },
+            multiview: None,
+            cache: None,
+        })
+    }
+
+    /// The two cloud PSOs (`CloudPsos`), compiled side by side on two scoped
+    /// workers with the large compile stack (`spawn_compile`). Used by both
+    /// the inline path (inside `build_all_pipelines`' scope, as one of its
+    /// workers) and the background thread, which passes `above_normal` (see
+    /// `raise_this_threads_priority`) for both compiles.
+    fn build_cloud_pair(
+        device: &wgpu::Device,
+        scene_format: wgpu::TextureFormat,
+        shader: &wgpu::ShaderModule,
+        pipeline_layout: &wgpu::PipelineLayout,
+        above_normal: bool,
+    ) -> CloudBuild {
+        let t = std::time::Instant::now();
+        let (transparent, screen) = std::thread::scope(|s| {
+            let screen = spawn_compile(s, "Cloud Screen Temporal Pipeline", || {
+                if above_normal {
+                    raise_this_threads_priority();
+                }
+                timed("Cloud Screen Temporal Pipeline", |_| {
+                    Self::build_cloud_screen_pipeline(device, shader, pipeline_layout)
+                })
+            });
+            let transparent = spawn_compile(s, "PBR-lite Cloud Transparent Pipeline", || {
+                if above_normal {
+                    raise_this_threads_priority();
+                }
+                timed("PBR-lite Cloud Transparent Pipeline", |l| {
+                    Self::build_class_pso(device, scene_format, shader, pipeline_layout, l, TRANSPARENT_STATE)
+                })
+            });
+            let transparent =
+                transparent.join().unwrap_or_else(|_| panic!("cloud transparent PSO compile panicked"));
+            let screen = screen.join().unwrap_or_else(|_| panic!("cloud screen PSO compile panicked"));
+            (transparent, screen)
+        });
+        CloudBuild {
+            psos: CloudPsos { transparent: transparent.0, screen: screen.0 },
+            timings: [transparent.1, screen.1],
+            wall_s: t.elapsed().as_secs_f32(),
+        }
+    }
+
+    /// Start the two cloud PSOs on a BACKGROUND thread that outlives this
+    /// call (2026-10-18), and hand back the holder that will receive them.
+    /// The thread owns clones of the device, the module and the layout
+    /// (wgpu handles are reference-counted, so a clone is a pointer copy and
+    /// the compile sees exactly the objects the other eighteen use).
+    ///
+    /// If a shader hot reload installs its own pair first, the holder drops
+    /// this build's receiver; the thread notices when its send fails, logs it
+    /// and drops the stale PSOs, so they can never be installed.
+    fn spawn_cloud_build(
+        device: &wgpu::Device,
+        scene_format: wgpu::TextureFormat,
+        shader: &wgpu::ShaderModule,
+        pipeline_layout: &wgpu::PipelineLayout,
+    ) -> Deferred<CloudBuild> {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let device = device.clone();
+        let shader = shader.clone();
+        let pipeline_layout = pipeline_layout.clone();
+        std::thread::Builder::new()
+            .name("cloud-psos".into())
+            // The compiles run on its two scoped workers (each with the large
+            // compile stack); this thread only waits for them and sends.
+            .stack_size(COMPILE_STACK_BYTES)
+            .spawn(move || {
+                let build =
+                    Self::build_cloud_pair(&device, scene_format, &shader, &pipeline_layout, true);
+                let wall = build.wall_s;
+                if tx.send(build).is_err() {
+                    log::info!(
+                        "[Pipelines] background cloud build finished in {wall:.1}s, but a shader \
+                         reload had already installed newer cloud PSOs; this build was dropped"
+                    );
+                }
+            })
+            .expect("spawn the background cloud PSO build thread");
+        Deferred::waiting(rx)
+    }
+
+    /// EVERY PSO compile shared by `new` and hot-reload's
+    /// `recreate_pipelines`, in ONE thread scope (v0.1142): eighteen here
+    /// and the two cloud PSOs (`CloudPsos`) either here as well
+    /// (`CloudsWhen::Inline`: hot reload, and builds without threads) or on a
+    /// background thread started at the same moment (`CloudsWhen::Background`:
+    /// the boot, since 2026-10-18). Measured 2026-08-15: `Pipeline::new` was
+    /// 3.9 s of the 4.1 s shaders_and_pipelines boot span, because only the
+    /// three PBR variants compiled in parallel (the 2026-07-12 scope) while
+    /// the two sun-shadow and two terrain-patch PSOs compiled serially after
+    /// them on the main thread. Each PSO bakes its fragment entry through
+    /// Naga->DXIL, they are all independent, and `create_render_pipeline`
+    /// takes `&self` on a Send+Sync Device, so all of them belong in the same
+    /// scope: wall time falls toward the slowest single compile. Since P3
+    /// each PSO compiles only its class's entry, so every non-cloud compile
+    /// is a fraction of what the old whole-fs_main bake was; the per-PSO wall
+    /// times are logged after every build so the cost of the split is a
+    /// reading, not a guess (the P2 reload took 11.3 s for ten PSOs).
     ///
     /// The SAME mistake was still here for the six cloud fullscreen PSOs
     /// until v0.1322: they compiled one after another on the caller's thread
@@ -1304,10 +1626,14 @@ impl Pipeline {
     /// (i7-8700K, RTX 4070, DXC, 4 boots): the scope finished its thirteen
     /// in 4.3 s wall, and then `Pipeline::new` spent a further 4.4 s on
     /// those six. That was 26 percent of a 16.8 s boot, spent on work the
-    /// machine had eleven idle cores for. They are spawned here now. The
-    /// bound on this function is the longest SINGLE compile, which is and
-    /// was the cloud transparent PSO at about 4.3 s, so the six ride along
-    /// underneath it almost for free.
+    /// machine had eleven idle cores for. They are spawned here now.
+    ///
+    /// And once everything was in one scope, the bound was the longest
+    /// SINGLE compile, which was the cloud pair: on the 2026-10-18 boot rig
+    /// (three boots of v0.1516.0) the scope took 9.1 s wall, of which the
+    /// eighteen other PSOs needed at most 3.1 s and the boot waited the rest
+    /// for Cloud Transparent (8.99 s) and Cloud Screen Temporal (8.23 s). So
+    /// the boot no longer waits for those two at all.
     fn build_all_pipelines(
         device: &wgpu::Device,
         scene_format: wgpu::TextureFormat,
@@ -1316,7 +1642,8 @@ impl Pipeline {
         pipeline_layout: &wgpu::PipelineLayout,
         patch_pipeline_layout: &wgpu::PipelineLayout,
         emission_pipeline_layout: &wgpu::PipelineLayout,
-    ) -> MegashaderPsos {
+        clouds_when: CloudsWhen,
+    ) -> (MegashaderPsos, Deferred<CloudBuild>) {
         // ── Parallel PBR pipeline compile (boot-speed, 2026-07-12) ──
         // Every class PSO bakes its fragment entry into a backend PSO, which
         // on this GPU takes seconds of Naga->DXIL work apiece -- the dominant
@@ -1328,71 +1655,8 @@ impl Pipeline {
         // the serial sum down toward the slowest single compile.
         // `std::thread::scope` lets the worker threads borrow the shared
         // `&device` / `&pipeline_layout` / `shader` without any 'static bound.
-        let make_pbr = |label: &'static str,
-                        blend: wgpu::BlendState,
-                        cull: Option<wgpu::Face>,
-                        depth_write: bool|
-         -> wgpu::RenderPipeline {
-            // Both the fragment ENTRY this PSO compiles and the branch
-            // switches it compiles out are the registry's call (PSO_REGISTRY,
-            // keyed by label): a surface PSO bakes fs_surface with every
-            // shell switch off, the water PSO bakes fs_water with the ocean
-            // kept, the cloud PSO bakes fs_cloud with the march kept, and so
-            // on. Switches the map does not name keep the shader's `= true`
-            // default.
-            let constants = pso_constants(label);
-            let entry = pso_fragment_entry(label).expect("a colour PSO compiles a class entry");
-            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                label: Some(label),
-                layout: Some(pipeline_layout),
-                vertex: wgpu::VertexState {
-                    module: shader,
-                    entry_point: Some("vs_main"),
-                    buffers: &[Vertex::layout(), Vertex::instance_layout()],
-                    compilation_options: wgpu::PipelineCompilationOptions {
-                        constants: &constants,
-                        ..Default::default()
-                    },
-                },
-                fragment: Some(wgpu::FragmentState {
-                    module: shader,
-                    entry_point: Some(entry),
-                    targets: &[Some(wgpu::ColorTargetState {
-                        format: scene_format,
-                        blend: Some(blend),
-                        write_mask: wgpu::ColorWrites::ALL,
-                    })],
-                    compilation_options: wgpu::PipelineCompilationOptions {
-                        constants: &constants,
-                        ..Default::default()
-                    },
-                }),
-                primitive: wgpu::PrimitiveState {
-                    topology: wgpu::PrimitiveTopology::TriangleList,
-                    strip_index_format: None,
-                    front_face: wgpu::FrontFace::Ccw,
-                    cull_mode: cull,
-                    polygon_mode: wgpu::PolygonMode::Fill,
-                    unclipped_depth: false,
-                    conservative: false,
-                },
-                depth_stencil: Some(wgpu::DepthStencilState {
-                    format: wgpu::TextureFormat::Depth32Float,
-                    depth_write_enabled: depth_write,
-                    depth_compare: wgpu::CompareFunction::Greater, // reverse-Z for far-field precision
-                    stencil: wgpu::StencilState::default(),
-                    bias: wgpu::DepthBiasState::default(),
-                }),
-                multisample: wgpu::MultisampleState {
-                    count: 1,
-                    mask: !0,
-                    alpha_to_coverage_enabled: false,
-                },
-                multiview: None,
-                cache: None,
-            })
-        };
-        // Variant states:
+        //
+        // Variant states (the three `*_STATE` consts, see `PsoState`):
         //  - Render (opaque): REPLACE blend, back-face cull, depth WRITE.
         //  - Transparent (v0.456): alpha blend, double-sided (no cull), no depth
         //    WRITE (glass doesn't occlude) but still depth-TEST.
@@ -1466,88 +1730,93 @@ impl Pipeline {
                 cache: None,
             })
         };
-        // The three fixed-function states the class PSOs are built in. The
-        // SAME state for every class PSO of one flavour, by construction:
-        // only the label (and so the registry's entry and constant map)
-        // differs, which is what makes routing by class a pure perf change
-        // with no blend / cull / depth consequence.
-        //  - Opaque: REPLACE blend, back-face cull, depth write.
-        //  - Transparent: alpha blend, double-sided, depth test, no write.
-        //  - Overlay: alpha blend, double-sided, depth WRITE.
-        let opaque_state = (wgpu::BlendState::REPLACE, Some(wgpu::Face::Back), true);
-        let transparent_state = (wgpu::BlendState::ALPHA_BLENDING, None, false);
-        let overlay_state = (wgpu::BlendState::ALPHA_BLENDING, None, true);
-        let pbr = |label: &'static str, (blend, cull, depth_write): (wgpu::BlendState, Option<wgpu::Face>, bool)| {
-            make_pbr(label, blend, cull, depth_write)
+        // The class PSOs, each in one of the three states. The SAME state for
+        // every class PSO of one flavour, by construction: only the label
+        // (and so the registry's entry and constant map) differs, which is
+        // what makes routing by class a pure perf change with no blend /
+        // cull / depth consequence.
+        let pbr = |label: &'static str, state: PsoState| {
+            Self::build_class_pso(device, scene_format, shader, pipeline_layout, label, state)
         };
         // Wall time per PSO, so the boot and reload logs can say what each
         // class's entry costs to bake (the doc's compile-time table reads
         // these lines).
         let t_all = std::time::Instant::now();
-        let (psos, timings) = std::thread::scope(|s| {
+        // The background cloud build starts at the SAME moment as the scope
+        // below, so it competes for the cores on equal terms and finishes
+        // when it would have finished inside the scope; only now nothing
+        // waits for it.
+        let background_clouds = match clouds_when {
+            CloudsWhen::Background => {
+                Some(Self::spawn_cloud_build(device, scene_format, shader, pipeline_layout))
+            }
+            CloudsWhen::Inline | CloudsWhen::Never => None,
+        };
+        let (psos, inline_clouds, timings) = std::thread::scope(|s| {
             let surface_render =
-                s.spawn(|| timed("PBR-lite Surface Render Pipeline", |l| pbr(l, opaque_state)));
-            let surface_transparent = s.spawn(|| {
-                timed("PBR-lite Surface Transparent Pipeline", |l| pbr(l, transparent_state))
+                spawn_compile(s, "PBR-lite Surface Render Pipeline", || timed("PBR-lite Surface Render Pipeline", |l| pbr(l, OPAQUE_STATE)));
+            let surface_transparent = spawn_compile(s, "PBR-lite Surface Transparent Pipeline", || {
+                timed("PBR-lite Surface Transparent Pipeline", |l| pbr(l, TRANSPARENT_STATE))
             });
             let surface_overlay =
-                s.spawn(|| timed("PBR-lite Surface Overlay Pipeline", |l| pbr(l, overlay_state)));
+                spawn_compile(s, "PBR-lite Surface Overlay Pipeline", || timed("PBR-lite Surface Overlay Pipeline", |l| pbr(l, OVERLAY_STATE)));
             let terrain_render =
-                s.spawn(|| timed("PBR-lite Terrain Render Pipeline", |l| pbr(l, opaque_state)));
+                spawn_compile(s, "PBR-lite Terrain Render Pipeline", || timed("PBR-lite Terrain Render Pipeline", |l| pbr(l, OPAQUE_STATE)));
             let vegetation_render =
-                s.spawn(|| timed("PBR-lite Vegetation Render Pipeline", |l| pbr(l, opaque_state)));
-            let water_transparent = s.spawn(|| {
-                timed("PBR-lite Water Transparent Pipeline", |l| pbr(l, transparent_state))
+                spawn_compile(s, "PBR-lite Vegetation Render Pipeline", || timed("PBR-lite Vegetation Render Pipeline", |l| pbr(l, OPAQUE_STATE)));
+            let water_transparent = spawn_compile(s, "PBR-lite Water Transparent Pipeline", || {
+                timed("PBR-lite Water Transparent Pipeline", |l| pbr(l, TRANSPARENT_STATE))
             });
             let water_overlay =
-                s.spawn(|| timed("PBR-lite Water Overlay Pipeline", |l| pbr(l, overlay_state)));
-            let shell_transparent = s.spawn(|| {
-                timed("PBR-lite Shell Transparent Pipeline", |l| pbr(l, transparent_state))
+                spawn_compile(s, "PBR-lite Water Overlay Pipeline", || timed("PBR-lite Water Overlay Pipeline", |l| pbr(l, OVERLAY_STATE)));
+            let shell_transparent = spawn_compile(s, "PBR-lite Shell Transparent Pipeline", || {
+                timed("PBR-lite Shell Transparent Pipeline", |l| pbr(l, TRANSPARENT_STATE))
             });
-            let cloud_transparent = s.spawn(|| {
-                timed("PBR-lite Cloud Transparent Pipeline", |l| pbr(l, transparent_state))
-            });
-            // The six cloud FULLSCREEN PSOs (v0.1322). They used to compile
-            // one after another on the main thread AFTER this scope closed,
-            // which cost a measured 4.4 s of every boot -- half as much again
-            // as the thirteen parallel ones put together took in wall time.
-            // Nothing made them serial except where the code sat: they share
-            // the module and the layout with everything above, take no
+            // The cloud pair, when it is built inline (hot reload, or no
+            // threads to spare): one worker that compiles the two side by
+            // side. Otherwise it is already running on its own thread.
+            let inline_clouds = match clouds_when {
+                CloudsWhen::Inline => Some(spawn_compile(s, "cloud pair", || {
+                    Self::build_cloud_pair(device, scene_format, shader, pipeline_layout, false)
+                })),
+                CloudsWhen::Background | CloudsWhen::Never => None,
+            };
+            // The cloud FULLSCREEN PSOs (v0.1322). They used to compile one
+            // after another on the main thread AFTER this scope closed, which
+            // cost a measured 4.4 s of every boot -- half as much again as the
+            // thirteen parallel ones put together took in wall time. Nothing
+            // made them serial except where the code sat: they share the
+            // module and the layout with everything above, take no
             // permutation, and depend on none of the others. So they spawn
             // here, and the whole build is bounded by its slowest single
             // compile instead of by a sum.
-            let cloud_light_bake = s.spawn(|| {
+            let cloud_light_bake = spawn_compile(s, "Cloud Light Bake Pipeline", || {
                 timed("Cloud Light Bake Pipeline", |_| {
                     Self::build_cloud_light_bake_pipeline(device, shader, pipeline_layout)
                 })
             });
-            let cloud_screen = s.spawn(|| {
-                timed("Cloud Screen Temporal Pipeline", |_| {
-                    Self::build_cloud_screen_pipeline(device, shader, pipeline_layout)
-                })
-            });
-            let cloud_profile_bake = s.spawn(|| {
+            let cloud_profile_bake = spawn_compile(s, "Cloud Profile Bake Pipeline", || {
                 timed("Cloud Profile Bake Pipeline", |l| {
                     Self::build_cloud_profile_pipeline(
                         device, shader, pipeline_layout, l, "fs_cloud_profile_bake",
                     )
                 })
             });
-            let cloud_profile_mip = s.spawn(|| {
+            let cloud_profile_mip = spawn_compile(s, "Cloud Profile Mip Pipeline", || {
                 timed("Cloud Profile Mip Pipeline", |l| {
                     Self::build_cloud_profile_pipeline(
                         device, shader, pipeline_layout, l, "fs_cloud_profile_mip",
                     )
                 })
             });
-            let cloud_profile_calib = s.spawn(|| {
+            let cloud_profile_calib = spawn_compile(s, "Cloud Profile Calib Pipeline", || {
                 timed("Cloud Profile Calib Pipeline", |l| {
                     Self::build_cloud_profile_pipeline(
                         device, shader, pipeline_layout, l, "fs_cloud_profile_calib",
                     )
                 })
             });
-            let cloud_profile_calib_reduce = s.spawn(|| {
+            let cloud_profile_calib_reduce = spawn_compile(s, "Cloud Profile Calib Reduce Pipeline", || {
                 timed("Cloud Profile Calib Reduce Pipeline", |l| {
                     Self::build_cloud_profile_pipeline(
                         device, shader, pipeline_layout, l, "fs_cloud_profile_calib_reduce",
@@ -1555,8 +1824,8 @@ impl Pipeline {
                 })
             });
             // The emission pass (2026-09-27): a small entry, in the same scope
-            // for the same reason as the six above.
-            let emission_pass = s.spawn(|| {
+            // for the same reason as the five above.
+            let emission_pass = spawn_compile(s, "Emission Pass Pipeline", || {
                 timed("Emission Pass Pipeline", |_| {
                     Self::build_emission_pass_pipeline(
                         device,
@@ -1566,18 +1835,22 @@ impl Pipeline {
                     )
                 })
             });
-            let shadow = s.spawn(|| timed("Sun Shadow Pipeline", |l| make_shadow(l)));
-            let shadow_alpha = s.spawn(|| timed("Sun Shadow Alpha Pipeline", |l| make_shadow(l)));
-            let patch_render = s.spawn(|| {
+            let shadow = spawn_compile(s, "Sun Shadow Pipeline", || timed("Sun Shadow Pipeline", |l| make_shadow(l)));
+            let shadow_alpha = spawn_compile(s, "Sun Shadow Alpha Pipeline", || timed("Sun Shadow Alpha Pipeline", |l| make_shadow(l)));
+            let patch_render = spawn_compile(s, "Patch Batch Render Pipeline", || {
                 timed("Patch Batch Render Pipeline", |_| {
                     Self::build_patch_render(device, scene_format, batch_shader, patch_pipeline_layout)
                 })
             });
-            // The nineteenth compiles on THIS thread while the eighteen
-            // workers run: the calling thread would otherwise sit in join()
-            // doing nothing.
-            let patch_shadow = timed("Patch Batch Shadow Pipeline", |_| {
-                Self::build_patch_shadow(device, batch_shader, patch_pipeline_layout)
+            // The last one too gets a worker of its own (2026-10-18). It used
+            // to compile on THIS thread to keep it busy during the joins, but
+            // the calling thread is the main thread at boot, whose stack is
+            // the Windows default 1 MiB, and FXC recursion has overflowed even
+            // a 2 MiB one (see COMPILE_STACK_BYTES).
+            let patch_shadow = spawn_compile(s, "Patch Batch Shadow Pipeline", || {
+                timed("Patch Batch Shadow Pipeline", |_| {
+                    Self::build_patch_shadow(device, batch_shader, patch_pipeline_layout)
+                })
             });
             fn join<'s, T>(h: std::thread::ScopedJoinHandle<'s, T>, what: &str) -> T {
                 h.join().unwrap_or_else(|_| panic!("{what} PSO compile panicked"))
@@ -1590,9 +1863,8 @@ impl Pipeline {
             let water_transparent = join(water_transparent, "water transparent");
             let water_overlay = join(water_overlay, "water overlay");
             let shell_transparent = join(shell_transparent, "shell transparent");
-            let cloud_transparent = join(cloud_transparent, "cloud transparent");
+            let inline_clouds = inline_clouds.map(|h| join(h, "cloud pair"));
             let cloud_light_bake = join(cloud_light_bake, "cloud light bake");
-            let cloud_screen = join(cloud_screen, "cloud screen");
             let cloud_profile_bake = join(cloud_profile_bake, "cloud profile bake");
             let cloud_profile_mip = join(cloud_profile_mip, "cloud profile mip");
             let cloud_profile_calib = join(cloud_profile_calib, "cloud profile calib");
@@ -1602,7 +1874,8 @@ impl Pipeline {
             let shadow = join(shadow, "sun shadow");
             let shadow_alpha = join(shadow_alpha, "sun shadow alpha");
             let patch_render = join(patch_render, "patch render");
-            let timings = vec![
+            let patch_shadow = join(patch_shadow, "patch shadow");
+            let mut timings = vec![
                 surface_render.1,
                 surface_transparent.1,
                 surface_overlay.1,
@@ -1611,19 +1884,23 @@ impl Pipeline {
                 water_transparent.1,
                 water_overlay.1,
                 shell_transparent.1,
-                cloud_transparent.1,
                 shadow.1,
                 shadow_alpha.1,
                 patch_render.1,
                 patch_shadow.1,
                 cloud_light_bake.1,
-                cloud_screen.1,
                 cloud_profile_bake.1,
                 cloud_profile_mip.1,
                 cloud_profile_calib.1,
                 cloud_profile_calib_reduce.1,
                 emission_pass.1,
             ];
+            // An inline cloud pair is part of THIS build, so its two compiles
+            // go on this build's line; a background one logs its own line
+            // when it is installed (`poll_clouds`).
+            if let Some(c) = inline_clouds.as_ref() {
+                timings.extend_from_slice(&c.timings);
+            }
             let psos = MegashaderPsos {
                 surface_render: surface_render.0,
                 surface_transparent: surface_transparent.0,
@@ -1633,23 +1910,23 @@ impl Pipeline {
                 water_transparent: water_transparent.0,
                 water_overlay: water_overlay.0,
                 shell_transparent: shell_transparent.0,
-                cloud_transparent: cloud_transparent.0,
                 shadow: shadow.0,
                 shadow_alpha: shadow_alpha.0,
                 patch_render: patch_render.0,
                 patch_shadow: patch_shadow.0,
                 cloud_light_bake: cloud_light_bake.0,
-                cloud_screen: cloud_screen.0,
                 cloud_profile_bake: cloud_profile_bake.0,
                 cloud_profile_mip: cloud_profile_mip.0,
                 cloud_profile_calib: cloud_profile_calib.0,
                 cloud_profile_calib_reduce: cloud_profile_calib_reduce.0,
                 emission_pass: emission_pass.0,
             };
-            (psos, timings)
+            (psos, inline_clouds, timings)
         });
         // One line per build (boot and every hot reload): the wall time of
-        // the whole scope, the serial sum, and each PSO's own compile.
+        // the whole scope, the serial sum, and each PSO's own compile. On a
+        // boot the cloud pair is not on it (it is still compiling); its own
+        // `[Pipelines] clouds ready after` line follows when it lands.
         let sum: f32 = timings.iter().map(|(_, s)| *s).sum();
         let per_pso: Vec<String> = timings
             .iter()
@@ -1662,7 +1939,19 @@ impl Pipeline {
             sum,
             per_pso.join(", ")
         );
-        psos
+        if background_clouds.is_some() {
+            log::info!(
+                "[Pipelines] the 2 cloud PSOs (Cloud Transparent, Cloud Screen Temporal) are still \
+                 compiling in the background; no clouds draw until they land"
+            );
+        }
+        let clouds = match (background_clouds, inline_clouds) {
+            (Some(waiting), _) => waiting,
+            (None, Some(built)) => Deferred::installed(built),
+            // CloudsWhen::Never: nothing built, nothing pending, never ready.
+            (None, None) => Deferred::empty(),
+        };
+        (psos, clouds)
     }
 }
 
@@ -1679,6 +1968,81 @@ fn timed(
     (pso, (label, t.elapsed().as_secs_f32()))
 }
 
+/// Stack for every thread that compiles a PSO: 64 MiB (2026-10-18). Found
+/// that day: a release exe booted WITHOUT dxcompiler.dll + dxil.dll beside it
+/// falls back to FXC, and after about ten minutes of FXC work the parallel
+/// compile died with "thread '<unknown>' has overflowed its stack". A stack
+/// overflow aborts the process, so the panic hook never saw it. The workers
+/// had Rust's default 2 MiB. A bigger stack turned out NOT to be the fix for
+/// that one: the culprit is the Cloud Transparent compile, which overflowed
+/// at 64 MiB and at 1 GiB too, at the same point, so an FXC run no longer
+/// builds the cloud pair (`fxc_clouds_requested`). The 64 MiB stays for every
+/// compile thread as insurance for the deep-but-finite FXC compiles of the
+/// others: on Windows Rust asks for it as a RESERVATION, so a thread commits
+/// only what it touches, and the calling (main) thread compiles nothing. With
+/// DXC (the normal case: release zips bundle it and the archives sit beside
+/// it) nothing changes.
+const COMPILE_STACK_BYTES: usize = 64 * 1024 * 1024;
+
+/// `HUMANITY_FXC_CLOUDS=1`: compile the two cloud PSOs even when this
+/// process compiles shaders with FXC (no DXC dlls beside the exe). Without it
+/// an FXC run leaves the clouds OFF, because FXC cannot compile the cloud
+/// march: measured 2026-10-18, the Cloud Transparent compile overflowed its
+/// thread's stack about 8.4 minutes in, at 64 MiB and again at 1 GiB, at
+/// the same moment both times, so a bigger stack is not the fix (the 18
+/// other PSOs and the first frame were fine). The overflow aborts the
+/// process mid-play. A dev knob for retrying the FXC path after a shader or
+/// compiler change.
+fn fxc_clouds_requested() -> bool {
+    std::env::var_os("HUMANITY_FXC_CLOUDS").is_some_and(|v| v == "1")
+}
+
+/// Spawn one scoped PSO compile thread, named after its PSO and with the
+/// large compile stack (`COMPILE_STACK_BYTES`). Every compile in this file
+/// goes through here; `std::thread::Scope::spawn` would give it 2 MiB.
+fn spawn_compile<'scope, 'env, T, F>(
+    s: &'scope std::thread::Scope<'scope, 'env>,
+    name: &str,
+    f: F,
+) -> std::thread::ScopedJoinHandle<'scope, T>
+where
+    F: FnOnce() -> T + Send + 'scope,
+    T: Send + 'scope,
+{
+    std::thread::Builder::new()
+        .name(format!("pso: {name}"))
+        .stack_size(COMPILE_STACK_BYTES)
+        .spawn_scoped(s, f)
+        .unwrap_or_else(|e| panic!("could not start the compile thread for {name}: {e}"))
+}
+
+/// Run the calling thread one step above normal priority, for the background
+/// cloud PSO compiles only (2026-10-18). Measured on the boot rig: at normal
+/// priority the pair took 15.9 s instead of the 9 s it took inside the
+/// startup scope, because once nothing waited for it it shared the cores
+/// with the cloud-noise bake's twelve threads, the planet bakes and the first
+/// frames of the world, and the clouds appeared about 6 s after the world
+/// did. One step up (THREAD_PRIORITY_ABOVE_NORMAL) gives these two threads
+/// their two cores whenever they are runnable and leaves the other ten to
+/// everything else. A Windows call; a no-op elsewhere, and a failure to set it
+/// only means the compile shares the cores as before.
+fn raise_this_threads_priority() {
+    #[cfg(windows)]
+    {
+        #[link(name = "kernel32")]
+        extern "system" {
+            fn GetCurrentThread() -> isize;
+            fn SetThreadPriority(thread: isize, priority: i32) -> i32;
+        }
+        const THREAD_PRIORITY_ABOVE_NORMAL: i32 = 1;
+        // SAFETY: GetCurrentThread returns a pseudo-handle for the calling
+        // thread that needs no closing, and SetThreadPriority only reads it.
+        unsafe {
+            SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_ABOVE_NORMAL);
+        }
+    }
+}
+
 /// A PSO label without the "PBR-lite " prefix and " Pipeline" suffix, for
 /// the compile-time log line ("Surface Render", "Sun Shadow Alpha").
 fn short_pso_label(label: &str) -> &str {
@@ -1689,17 +2053,20 @@ fn short_pso_label(label: &str) -> &str {
         .unwrap_or(label)
 }
 
-/// Every PSO `build_all_pipelines` compiles from the megashader, by name.
-/// A named struct rather than a nineteen-element tuple so `new` and
+/// Every PSO `build_all_pipelines` compiles from the megashader in its own
+/// scope, by name: all of them but the two cloud PSOs (`CloudPsos`), which
+/// travel separately because they may still be compiling when this set is
+/// done. A named struct rather than an eighteen-element tuple so `new` and
 /// `recreate_pipelines` cannot pair a fresh PSO with the wrong slot: a tuple
-/// of nineteen identical types would let the water overlay land in the
+/// of eighteen identical types would let the water overlay land in the
 /// surface overlay's field with no error anywhere, and the sea would then
 /// draw through a pipeline whose entry has no ocean code.
 ///
-/// The first thirteen are the registry's class PSOs; the next six are the
-/// cloud fullscreen PSOs and the last is the emission pass, all seven
-/// registry-EXEMPT (their `fs_cloud_*` / `fs_emission_pass` entries are no
-/// class entry) but compiled from the same module in the
+/// The first twelve are registry class PSOs (the thirteenth, the cloud
+/// shell's, is in `CloudPsos`); the next five are cloud fullscreen PSOs (the
+/// sixth, the screen march, is in `CloudPsos`) and the last is the emission
+/// pass, those six registry-EXEMPT (their `fs_cloud_*` / `fs_emission_pass`
+/// entries are no class entry) but compiled from the same module in the
 /// same parallel scope, because a PSO compile is a PSO compile and the
 /// scheduler does not care which list a label came from. See the boot-cost
 /// note on `build_all_pipelines` for why they stopped being serial.
@@ -1712,13 +2079,11 @@ struct MegashaderPsos {
     water_transparent: wgpu::RenderPipeline,
     water_overlay: wgpu::RenderPipeline,
     shell_transparent: wgpu::RenderPipeline,
-    cloud_transparent: wgpu::RenderPipeline,
     shadow: wgpu::RenderPipeline,
     shadow_alpha: wgpu::RenderPipeline,
     patch_render: wgpu::RenderPipeline,
     patch_shadow: wgpu::RenderPipeline,
     cloud_light_bake: wgpu::RenderPipeline,
-    cloud_screen: wgpu::RenderPipeline,
     cloud_profile_bake: wgpu::RenderPipeline,
     cloud_profile_mip: wgpu::RenderPipeline,
     cloud_profile_calib: wgpu::RenderPipeline,
@@ -1726,6 +2091,31 @@ struct MegashaderPsos {
     /// The fullscreen additive emission pass (registry-exempt, 2026-09-27).
     emission_pass: wgpu::RenderPipeline,
 }
+
+/// When `build_all_pipelines` builds the two cloud PSOs (`CloudPsos`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CloudsWhen {
+    /// On a background thread started beside the scope; the frame draws no
+    /// clouds until `Pipeline::poll_clouds` installs them (the boot).
+    Background,
+    /// Inside the scope, with everything else (a hot reload, which must not
+    /// return before every PSO is the new module's; and builds without
+    /// threads).
+    Inline,
+    /// Not at all: this process compiles shaders with FXC, which cannot
+    /// compile the cloud march (see `fxc_clouds_requested`). The frame
+    /// draws no clouds for the whole run, and says so once in run.log.
+    Never,
+}
+
+/// A class PSO's fixed-function state: (blend, cull, depth write).
+type PsoState = (wgpu::BlendState, Option<wgpu::Face>, bool);
+/// REPLACE blend, back-face cull, depth write.
+const OPAQUE_STATE: PsoState = (wgpu::BlendState::REPLACE, Some(wgpu::Face::Back), true);
+/// Alpha blend, double-sided, depth test, no write.
+const TRANSPARENT_STATE: PsoState = (wgpu::BlendState::ALPHA_BLENDING, None, false);
+/// Alpha blend, double-sided, depth WRITE.
+const OVERLAY_STATE: PsoState = (wgpu::BlendState::ALPHA_BLENDING, None, true);
 
 // ── SHADER PERMUTATIONS (increment P1 of the frame-cost arc,
 //    docs/design/frame-cost-arc.md section 1) ──
@@ -2889,7 +3279,7 @@ mod permutation_tests {
     /// red by adding a builder spelled `compilation_options:
     /// Default::default()` with a class fragment entry (the reviewer's
     /// mutation), and again in P3 by typing `entry_point: Some("fs_surface")`
-    /// into make_pbr (the test named the literal and the line), then
+    /// into make_pbr (now build_class_pso; the test named the literal and the line), then
     /// restored.
     #[test]
     fn every_megashader_pso_builder_asks_the_registry() {
@@ -3032,7 +3422,10 @@ mod permutation_tests {
             code.matches(OPTIONS_KEY).count(),
             "a compilation_options site sits outside every PSO descriptor"
         );
-        for known in ["build_patch_render", "build_patch_shadow", "make_pbr", "make_shadow"] {
+        // `build_class_pso` was the `make_pbr` closure until 2026-10-18,
+        // when the background cloud build needed to call it from its own
+        // thread.
+        for known in ["build_patch_render", "build_patch_shadow", "build_class_pso", "make_shadow"] {
             assert!(
                 registry_builders.contains(&known),
                 "{known} no longer asks the registry (or was renamed; update this list)"

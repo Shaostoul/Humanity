@@ -14090,6 +14090,15 @@ mod native_app {
                     // free when idle (one try_recv); a saved shader edit
                     // swaps the PSOs in seconds with world state intact.
                     state.renderer.poll_shader_reload();
+                    // The two cloud PSOs compile in the background at boot
+                    // (2026-10-18): installed on the first frame after they
+                    // finish, and recorded as BACKGROUND spans, which the boot
+                    // timer never counts toward the time to playable.
+                    if let Some(c) = state.renderer.poll_deferred_pipelines() {
+                        let since_open = state.boot_timer.boot_start.elapsed();
+                        state.boot_timer.record_background("cloud_psos_compile", c.compile);
+                        state.boot_timer.record_background("clouds_ready_after_open", since_open);
+                    }
 
                     // Dev camera request (v0.813): the file-request sibling of the
                     // Dev page's Travel tool, for scripted visual verification --

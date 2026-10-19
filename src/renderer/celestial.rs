@@ -1308,7 +1308,16 @@ impl Renderer {
                 }
             }
         }
-        if self.cloud_mode_near {
+        // The screen march PSO compiles in the background at boot
+        // (2026-10-18, `Pipeline::cloud_screen_pipeline`). Until it lands NONE
+        // of the near-field cloud passes run: not the light bake, not the
+        // march, not the resolve. The composite below is gated the same way,
+        // so nothing ever reads a march target that was never written, and
+        // the screen pair's `fresh` flag stays set, so the first march after
+        // the PSO lands snaps the history instead of fading in from black.
+        if let (true, Some(screen_pso)) =
+            (self.cloud_mode_near, self.pipeline.cloud_screen_pipeline())
+        {
             if let (Some(cs), Some(mat_idx)) =
                 (self.cloud_screen.as_ref(), self.cloud_temporal_mat)
             {
@@ -1399,7 +1408,7 @@ impl Renderer {
                                 depth_stencil_attachment: None,
                                 ..Default::default()
                             });
-                        pass.set_pipeline(&self.pipeline.cloud_screen_pipeline);
+                        pass.set_pipeline(screen_pso);
                         pass.set_bind_group(0, &self.camera_bind_group, &[]);
                         pass.set_bind_group(
                             1,
@@ -1751,13 +1760,19 @@ impl Renderer {
                         continue;
                     }
                     let overlay = water_dw && self.water_caster_mats.contains(&obj.material);
+                    // `None` = the cloud shell's PSO is still compiling in
+                    // the background (2026-10-18): the shell is not drawn
+                    // this frame. Nothing is bound, so the next object binds
+                    // its own pipeline as usual.
+                    let pso = if overlay {
+                        Some(self.pipeline.overlay_for(class))
+                    } else {
+                        self.pipeline.transparent_for(class)
+                    };
+                    let Some(pso) = pso else { continue };
                     if bound_pipe != Some((class, overlay)) {
                         bound_pipe = Some((class, overlay));
-                        render_pass.set_pipeline(if overlay {
-                            self.pipeline.overlay_for(class)
-                        } else {
-                            self.pipeline.transparent_for(class)
-                        });
+                        render_pass.set_pipeline(pso);
                         render_pass
                             .set_vertex_buffer(1, self.dummy_instance_buf.slice(..));
                         bound_material = usize::MAX;
@@ -1860,10 +1875,14 @@ impl Renderer {
         // renderer since v0.1250. It used to be gated on the octa map's
         // existence, which is exactly why the retired map could not just
         // be deleted - the composite refused to run without it.
-        if let (Some(cs), Some(frame), true) = (
+        // 2026-10-18: and on the screen march PSO having landed. Until the
+        // background cloud build installs it no march has ever written the
+        // targets this pass reads, so it does not run at all.
+        if let (Some(cs), Some(frame), true, true) = (
             self.cloud_screen.as_ref(),
             self.cloud_composite_frame.as_ref(),
             self.cloud_temporal_mat.is_some(),
+            self.pipeline.clouds_ready(),
         ) {
             // The projection that WROTE the depth being read (one definition,
             // shared with the emission pass).

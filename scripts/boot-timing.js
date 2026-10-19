@@ -22,6 +22,7 @@
 //                               [--label NAME] [--out FILE]
 //                               [--cold] [--keep-cache] [--timeout-min N]
 //                               [--allow-other-build "<reason>"]
+//                               [--clouds-wait-s N]
 //
 //   --runs N        how many boots to average (default 3).
 //   --label NAME    a name for this arm, written into the JSON (e.g. "cold").
@@ -36,6 +37,10 @@
 //                   these runs are reported as a median with the spread.
 //   --keep-cache    leave the caches alone (the default).
 //   --out FILE      where to write the collected JSON (default: under the rig).
+//   --clouds-wait-s N  after "playable", how long to keep the instance up
+//                   waiting for the background cloud PSOs to land (default
+//                   90). Their compile and ready times are reported as
+//                   BACKGROUND, never as part of the time to playable.
 //   --allow-other-build "<reason>"
 //                   time a build that is NOT this tree's on purpose (an archive
 //                   as the A arm of an A/B). Without it the freshness gate
@@ -83,6 +88,9 @@ const TIMEOUT_MS = Number(opt("--timeout-min", "6")) * 60 * 1000;
 const DEBUG = path.join(RIG, "debug");
 const LOG = path.join(RIG, "logs", "run.log");
 const OUT = path.resolve(opt("--out", path.join(RIG, `boot-timing-${LABEL}.json`)));
+// How long to keep a booted instance up after "playable" waiting for the
+// background cloud PSOs to land (their numbers are part of the report).
+const CLOUDS_WAIT_MS = Number(opt("--clouds-wait-s", "90")) * 1000;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const log = (m) => console.log(`[boot-timing] ${m}`);
@@ -214,6 +222,7 @@ async function oneRun(n) {
 
   let timing = null;
   let earlyExit = null;
+  let cloudsSeen = false;
   while (Date.now() - t0 < TIMEOUT_MS) {
     if (fs.existsSync(LOG) && /PANIC/.test(fs.readFileSync(LOG, "utf8"))) {
       break;
@@ -234,6 +243,34 @@ async function oneRun(n) {
       }
     }
     await sleep(250);
+  }
+  // THE CLOUDS LAND AFTER "PLAYABLE" (2026-10-18). The two cloud PSOs compile
+  // on a background thread that nothing waits for, so they can finish after
+  // boot_timing.json is written. Their numbers are what tells you whether the
+  // boot merely moved the wait to the first seconds in the world, so keep the
+  // instance up (bounded) until the engine logs them, then re-read the JSON:
+  // the boot timer rewrites it with a `background` list when they land.
+  // Measured beside the boot, never added to the time to playable.
+  if (timing) {
+    const tWait = Date.now();
+    while (Date.now() - tWait < CLOUDS_WAIT_MS) {
+      const text = fs.existsSync(LOG) ? fs.readFileSync(LOG, "utf8") : "";
+      if (/\[Pipelines\] clouds ready after/.test(text) || /PANIC/.test(text) || game.exited()) {
+        cloudsSeen = /\[Pipelines\] clouds ready after/.test(text);
+        break;
+      }
+      await sleep(250);
+    }
+    if (cloudsSeen) {
+      await sleep(500); // the JSON rewrite follows the log line within the same frame
+      try {
+        timing = JSON.parse(fs.readFileSync(path.join(DEBUG, "boot_timing.json"), "utf8"));
+      } catch {
+        /* keep the first copy */
+      }
+    } else {
+      log(`  the clouds were not ready ${CLOUDS_WAIT_MS / 1000} s after playable (no "clouds ready" line)`);
+    }
   }
   const wallMs = Date.now() - t0;
   const logText = fs.existsSync(LOG) ? fs.readFileSync(LOG, "utf8") : "";
@@ -266,7 +303,23 @@ async function oneRun(n) {
     // Sub-spans the renderer logs but the BootTimer does not carry.
     phases: parseBootPhases(logText),
     pipelines: parsePipelines(logText),
+    clouds: parseCloudsReady(logText),
   };
+}
+
+/// `[Pipelines] clouds ready after 9.1 s, in the background (9.0s wall
+/// compiling: Cloud Transparent 8.99s, Cloud Screen Temporal 8.23s)`: the two
+/// cloud PSOs the boot no longer waits for (2026-10-18). null when the line
+/// never came (an older build, or a run that ended first).
+function parseCloudsReady(text) {
+  const m = text.match(/\[Pipelines\] clouds ready after ([\d.]+) s, in the background \(([\d.]+)s wall compiling: (.*)\)/);
+  if (!m) return null;
+  const per = {};
+  for (const part of m[3].split(", ")) {
+    const mm = part.match(/^(.*) ([\d.]+)s$/);
+    if (mm) per[mm[1]] = Number(mm[2]);
+  }
+  return { ready_after_build_start_s: Number(m[1]), compile_wall_s: Number(m[2]), per };
 }
 
 /// `[BootPhase] name: N ms`, including the two-space-indented sub-spans.
@@ -353,6 +406,43 @@ function report(runs) {
       `  [Pipelines] ${pl[0].count} PSOs: wall median ${med(pl.map((p) => p.wall_s)).toFixed(1)}s ` +
         `(runs: ${pl.map((p) => p.wall_s.toFixed(1)).join(", ")}), ` +
         `serial median ${med(pl.map((p) => p.serial_s)).toFixed(1)}s`
+    );
+  }
+  // Work that runs BESIDE the boot (the two cloud PSOs since 2026-10-18):
+  // never part of the time to playable above, reported so a faster boot that
+  // only moved the wait into the first seconds in the world shows as such.
+  const bgNames = [];
+  for (const r of ok) for (const b of r.timing.background || []) if (!bgNames.includes(b.name)) bgNames.push(b.name);
+  if (bgNames.length) {
+    console.log("  background (NOT in the time to playable):");
+    for (const n of bgNames) {
+      const vals = ok.map((r) => ((r.timing.background || []).find((b) => b.name === n) || { ms: NaN }).ms);
+      const good = vals.filter((v) => Number.isFinite(v));
+      console.log(
+        `    ${n.padEnd(24)} ${(good.length ? med(good) : NaN).toFixed(0).padStart(7)} ms   ` +
+          `[${vals.map((v) => (Number.isFinite(v) ? v.toFixed(0) : "-")).join(" ")}]`
+      );
+    }
+    const late = ok
+      .map((r) => {
+        const ready = (r.timing.background || []).find((b) => b.name === "clouds_ready_after_open");
+        return ready ? ready.ms - r.timing.total_ms : NaN;
+      })
+      .filter((v) => Number.isFinite(v));
+    if (late.length) {
+      console.log(
+        `    clouds landed ${med(late).toFixed(0)} ms after playable (median; negative = before) ` +
+          `[${late.map((v) => v.toFixed(0)).join(" ")}]`
+      );
+    }
+  }
+  const cl = ok.map((r) => r.clouds).filter(Boolean);
+  if (cl.length) {
+    const names = Object.keys(cl[0].per);
+    console.log(
+      `  [Pipelines] clouds: compile wall median ${med(cl.map((c) => c.compile_wall_s)).toFixed(1)}s ` +
+        `(runs: ${cl.map((c) => c.compile_wall_s.toFixed(1)).join(", ")}); ` +
+        names.map((n) => `${n} ${med(cl.map((c) => c.per[n] || 0)).toFixed(2)}s`).join(", ")
     );
   }
 }

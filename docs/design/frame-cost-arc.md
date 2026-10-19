@@ -650,6 +650,46 @@ next step if boot time matters before launch.
 > transparent PSO's own 4.3 s, which is the new floor and the only thing
 > worth attacking next.
 
+> **Second correction, 2026-10-18 (the cloud pair off the startup path).**
+> By v0.1516.0 the boot had grown back to 15.4 s to playable (median of
+> three, `scripts/boot-timing.js`), `pipeline_new` 9.1 s wall for twenty
+> PSOs (56.5 s serial), and the floor was exactly the one named above: Cloud
+> Transparent 8.99 s and Cloud Screen Temporal 8.23 s, the only two programs
+> that bake the march, while every other PSO took 0.9 to 3.1 s. The operator
+> does not want a pipeline cache during development, so the fix is the cold
+> path: those two compile on a background thread started beside the scope
+> (`Pipeline::spawn_cloud_build`), and the frame draws no clouds until they
+> land (`Pipeline::poll_clouds`, once a frame; `transparent_for(Cloud)` and
+> `cloud_screen_pipeline()` answer `None` until then, and the near-field
+> passes and the composite do not run). A hot reload still builds them
+> inline, because `probe-hot-ab.js` captures on the reload's log line, and
+> it supersedes a background build still in flight
+> (`renderer::deferred_build`).
+>
+> The first measurement taught the second step. At normal priority the pair
+> took 15.9 s instead of 9 s, because once nothing waited for it it shared
+> the cores with the cloud-noise bake's twelve threads, the planet bakes and
+> the world's first frames, and on an autopilot entry the clouds appeared
+> 6.3 s after the world did. One step above normal priority for the two
+> compile threads (`raise_this_threads_priority`) brought the pair back to
+> 10.2 s and the landing to a median 1.0 s after playable, and cost the
+> boot nothing measurable (10.6 s to playable that evening, on a machine
+> other sessions were building on). The clean comparison came the next day,
+> both arms on the same quiet machine, three boots each: the v0.1516.0
+> archive 13.3 s to playable (12.9 to 13.4), this change 8.7 s (8.6 to 8.9),
+> `pipeline_new` 8.3 s to 2.9 s, the pair compiling in 8.3 s and landing a
+> median 2.2 s after playable on an autopilot entry that skips the menu. The
+> boot timer reports the pair as BACKGROUND spans, never as part of the
+> time to playable. Every compile thread also got a 64 MiB stack the same day, and
+> none compiles on the main thread any more: an exe booted without the DXC
+> dlls falls back to FXC, and FXC's recursion on the cloud shaders
+> overflowed Rust's 2 MiB default, which aborts the process. 64 MiB was not
+> enough either: with the pair in the background an FXC boot reached the
+> world in 3 minutes and then died 8.4 minutes into the Cloud Transparent
+> compile, the overflow named on that thread, and a 1 GiB stack died at the
+> same moment, so the stack size is not the variable. An FXC run now leaves
+> the clouds off and says so (`HUMANITY_FXC_CLOUDS=1` tries anyway).
+
 **Gate, `probe-sweep --operator-config`, the nine vantages in one boot per
 arm, same file order in both.** B0 = the P2 build (the exe from the P2
 worktree, byte-identical to what main shipped, run from a scratch checkout

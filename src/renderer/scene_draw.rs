@@ -408,9 +408,12 @@ impl Renderer {
                 let mesh = match self.meshes.get(obj.mesh) { Some(m) => m, None => continue };
                 let material = match self.materials.get(obj.material) { Some(m) => m, None => continue };
                 let class = pipeline::shader_class(material.material_type);
+                // `None` = the cloud shell's PSO is still compiling in the
+                // background (2026-10-18): that object is skipped this frame.
+                let Some(pso) = self.pipeline.transparent_for(class) else { continue };
                 if bound_class != Some(class) {
                     bound_class = Some(class);
-                    render_pass.set_pipeline(self.pipeline.transparent_for(class));
+                    render_pass.set_pipeline(pso);
                     // Rebind slot 1 and force the material rebind after a
                     // pipeline switch, the same belt-and-braces the v0.1060
                     // water switch uses.

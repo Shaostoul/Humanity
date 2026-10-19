@@ -71,6 +71,9 @@ pub mod cloud_resolve;
 pub mod cloud_reference;
 pub mod cloud_temporal;
 pub mod clouds;
+/// A build the renderer runs on a background thread and installs when it is
+/// ready: the two cloud PSOs, off the startup path since 2026-10-18.
+pub mod deferred_build;
 /// Live per-pass / per-stage / per-allocation cost measurement (resource
 /// budgets increment 1). Ungated: `renderer` compiles in the relay build too.
 pub mod frame_costs;
@@ -916,6 +919,29 @@ pub struct Renderer {
     inventory_sampled: std::sync::Mutex<Option<std::time::Instant>>,
 }
 
+/// The DXC pair beside the running exe (dxcompiler.dll, dxil.dll), when both
+/// are there: the DX12 backend then compiles shaders with DXC, otherwise with
+/// FXC (see `new_native`).
+#[cfg(target_os = "windows")]
+fn dxc_dlls_beside_exe() -> Option<(std::path::PathBuf, std::path::PathBuf)> {
+    let dir = std::env::current_exe().ok()?.parent()?.to_path_buf();
+    let (dxc, dxil) = (dir.join("dxcompiler.dll"), dir.join("dxil.dll"));
+    (dxc.exists() && dxil.exists()).then_some((dxc, dxil))
+}
+
+/// Whether DX12 shaders compile with FXC in this process: Windows with no DXC
+/// pair beside the exe. Never on other platforms, which do not use DX12.
+fn dx12_uses_fxc() -> bool {
+    #[cfg(target_os = "windows")]
+    {
+        dxc_dlls_beside_exe().is_none()
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        false
+    }
+}
+
 impl Renderer {
     /// Create a new renderer attached to a native winit window.
     #[cfg(feature = "native")]
@@ -963,11 +989,8 @@ impl Renderer {
         // dir or a Microsoft DirectXShaderCompiler release (MIT licensed).
         #[cfg(target_os = "windows")]
         let backend_options = {
-            let dlls = std::env::current_exe()
-                .ok()
-                .and_then(|p| p.parent().map(|d| (d.join("dxcompiler.dll"), d.join("dxil.dll"))));
-            match dlls {
-                Some((dxc, dxil)) if dxc.exists() && dxil.exists() => {
+            match dxc_dlls_beside_exe() {
+                Some((dxc, dxil)) => {
                     log::info!("DX12 shader compiler: DXC ({})", dxc.display());
                     wgpu::BackendOptions {
                         dx12: wgpu::Dx12BackendOptions {
@@ -1261,7 +1284,22 @@ impl Renderer {
             Some((dir, mtime))
         });
         let t_unit = std::time::Instant::now();
-        let pipeline = Pipeline::new(&device, scene_format, &shader, &batch_shader);
+        // The two cloud PSOs compile on a background thread wherever the
+        // other bakes do (`background_bakes`, native): pipeline_new is now
+        // bounded by the slowest of the OTHER eighteen, and the frame draws
+        // no clouds until `poll_deferred_pipelines` installs the pair.
+        // Under FXC (no DXC dlls beside the exe) the cloud pair is not built
+        // at all: FXC overflows its thread stack on the cloud march whatever
+        // the stack size (pipeline.rs `fxc_clouds_requested`), which aborts
+        // the process mid-play.
+        let pipeline = Pipeline::new(
+            &device,
+            scene_format,
+            &shader,
+            &batch_shader,
+            background_bakes,
+            dx12_uses_fxc(),
+        );
         log::info!("[BootPhase]   pipeline_new: {:.0} ms", t_unit.elapsed().as_secs_f32() * 1000.0);
         // World-space thin-line pipeline — reuses the SAME camera BGL so
         // it can bind the existing camera_bind_group (full view-proj).
@@ -2196,6 +2234,15 @@ impl Renderer {
             rebuilt.emission,
             t0.elapsed().as_secs_f32()
         );
+    }
+
+    /// Install whatever the renderer has been building in the background,
+    /// if it has finished: today the two cloud PSOs (`Pipeline::poll_clouds`,
+    /// 2026-10-18), which the boot no longer waits for. Call once a frame,
+    /// before drawing; one `try_recv`, so effectively free. Returns the
+    /// clouds' timings on the frame they land, for the boot timer.
+    pub fn poll_deferred_pipelines(&mut self) -> Option<pipeline::CloudsReady> {
+        self.pipeline.poll_clouds()
     }
 
     /// Register a mesh and return its handle (index).
