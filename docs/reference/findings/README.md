@@ -273,3 +273,13 @@ what we will say about it.
   release notes disagree on whether OpenH264 decodes Main and High Profile.
   Apple's macOS licence carries the pool's consumer notice. Extends the Windows
   finding of the same day; the legal reading is unchanged.
+- [`2026-10-19-games-page-art-stats-and-links.md`](2026-10-19-games-page-art-stats-and-links.md),
+  what the desktop Games page may show beyond starting games. Artwork: show the
+  covers Steam's own client already cached on the computer, read in place, to
+  that person only, never copied, uploaded or shown to other players; fetch none
+  from store servers. Store names in plain words, no logos (Valve conveys no right
+  to its logo, Epic forbids altering its marks, GOG publishes no rules). Steam's
+  local playtime, screenshots and Workshop lists are unaddressed by its terms and
+  read-only is the reading (achievements too, by the session's own call); not GOG
+  GALAXY's database. Links out on a click only; no metadata fetched by default,
+  Wikidata (CC0) if ever. Extends the 2026-10-13 finding.

@@ -363,7 +363,11 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
       version, so every browser behaves the same).
     - DONE v0.1517.0 (src/games/ readers, src/gui/pages/games.rs; found this computer's 27 Steam
       games and Fortnite, `node scripts/lib-tests.js games::this_computer --ignored --nocapture`).
-      Open: GOG untried on a real install (none here); Play itself untried by a person.
+      Play and Open in Steam confirmed by the operator on 2026-10-19. Open: GOG untried on a
+      real install (none here). IN PROGRESS 2026-10-19: a richer page (grid/list, search, sort,
+      playtime, size, his own screenshots, Workshop mods, achievements from Steam's local files,
+      links out), with artwork and store logos waiting on a dated finding
+      (docs/reference/findings/2026-10-19-games-page-art-stats-and-links.md).
       **A Games library** (operator idea, 2026-10-13): list and launch every installed game
       (Steam, Epic, GOG, anything installed elsewhere), the stores still doing downloads and
       updates behind it. Findings: `docs/reference/findings/2026-10-13-game-stores-and-a-games-library.md`
