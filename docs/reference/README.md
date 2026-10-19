@@ -27,7 +27,7 @@ this fits the real storage layer.
 - `sqlite_save_backend.md`, SQLite as the persistence backend, in-game/CLI accessible
 - `backup_bundle_format.md`, portable encrypted backup bundle format
 - `recovery_and_backups.md`, multi-device recovery without server-side key decryption
-- `retention_and_deletion_semantics.md`, what "delete" means in a replicated system (referenced directly from `CLAUDE.md`'s Cryptography section)
+- `retention_and_deletion_semantics.md`, what "delete" means in a replicated system (referenced directly from `cryptography.md`)
 - `keys_and_sessions.md`, identity keys, device enrollment, sessions
 - `private_space_key_management.md`, key hierarchy and rotation for private spaces/DMs
 - `encryption_and_confidentiality.md`, what must be encrypted vs. what stays plaintext

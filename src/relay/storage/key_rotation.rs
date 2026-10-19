@@ -1,3 +1,7 @@
+//! Storage methods for the inert `key_rotations` table, which nothing calls any more: the
+//! key-rotation route and its handler were deleted in Inc5b (v0.265.0).
+//! What is left records a rotation, looks one up and follows a chain to the current key (at most
+//! 10 hops); the table stays in place rather than churn positional SQL.
 use rusqlite::params;
 use super::Storage;
 

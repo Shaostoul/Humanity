@@ -90,6 +90,8 @@ const NOT_A_RIG = {
     "boots a headless relay for a rig that already ran the gate; it verifies the copy it makes against the caller's expectSha256, which it requires (throwaway-relay.test.js)",
   "scripts/lib/game-launch.js": "spawnGame itself: the one place a rig starts the game (game-launch.test.js runs it)",
   "scripts/verify-runtime.js": "boots nothing itself: it gates, then runs probe-sweep (which gates again, see below)",
+  "scripts/brief.js":
+    "boots nothing: its one spawnSync runs scripts/code-map.js, and 'HumanityOS' is only the disk guard's folder under LOCALAPPDATA",
 };
 
 function scriptsThatSpawnTheGame() {

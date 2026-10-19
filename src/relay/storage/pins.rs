@@ -1,3 +1,5 @@
+//! Server storage for pinned messages (pin, unpin by position, list a channel's pins) and
+//! neighbours: message search, delete by row id, user status text, a channel's last message.
 use super::Storage;
 use super::PinnedMessageRecord;
 use rusqlite::params;

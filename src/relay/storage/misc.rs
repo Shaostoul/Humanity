@@ -1,3 +1,7 @@
+//! Server storage for small things with no file of their own: invite codes, server key-value
+//! state, user data sync, federated servers, channel flags, voice channels, categories.
+//! Also the link preview cache and the server's own Dilithium3 identity
+//! (`get_or_create_server_keypair`, `server_did`).
 use super::Storage;
 use rand::Rng;
 use rusqlite::params;

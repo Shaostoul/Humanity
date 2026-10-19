@@ -149,7 +149,7 @@
         {
           "status": "done",
           "version": null,
-          "text": "Post-quantum identity: a Dilithium3 / ML-DSA-65 key derived from a BIP39 24-word seed (which is also your Solana wallet). The canonical crypto details live in the Cryptography section of CLAUDE.md."
+          "text": "Post-quantum identity: a Dilithium3 / ML-DSA-65 key derived from a BIP39 24-word seed (which is also your Solana wallet). The canonical crypto details live in docs/reference/cryptography.md."
         },
         {
           "status": "done",

@@ -1,3 +1,5 @@
+//! Server storage for a person's notification preferences (`notification_prefs`): direct
+//! messages, mentions and tasks on or off, and the do-not-disturb hours, by public key.
 use super::Storage;
 use rusqlite::params;
 

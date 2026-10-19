@@ -1,3 +1,8 @@
+//! The game's small data registries (items, recipes, plants, status effects, skills, quests,
+//! containers), loaded into the DataStore at startup, before any world loads.
+//! So the menu's inventory, crafting, skills and quests work without the 3D world. Every file
+//! goes through `embedded_data::load_data_or_embedded` (BUG-163): the data folder's copy when
+//! this version can read it, else the copy built into the exe.
 use std::path::Path;
 
 use crate::embedded_data::load_data_or_embedded;

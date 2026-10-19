@@ -1,3 +1,6 @@
+//! HSV-to-RGB conversion for the build editor's rainbow colours: the selected connection's flow
+//! markers (`hsv_to_rgb`) and the grabbed gizmo's colour cycle (`hsv_rgb`).
+//! The two functions do identical arithmetic.
 /// HSV (h,s,v all 0..1) -> linear-ish RGB, for the selected line's rainbow flow markers. (v0.623)
 pub(crate) fn hsv_to_rgb(h: f32, s: f32, v: f32) -> (f32, f32, f32) {
     let i = (h * 6.0).floor();

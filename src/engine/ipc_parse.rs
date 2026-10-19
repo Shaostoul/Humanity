@@ -1,3 +1,6 @@
+//! Parsers and formatters lifted out of the dev IPC and the socket pump so they can be tested
+//! alone: screenshot request and done file, screen status, notification prefs, planet tooltip.
+//! Also the five-number camera pose the station camera verb reads.
 /// Parsed screenshot request size (v0.810).
 /// - Any non-JSON content, or JSON without width/height: window-size capture
 ///   (the original v0.639 "any content" contract).

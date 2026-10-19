@@ -1,3 +1,5 @@
+//! Server storage for projects, the board's grouping of tasks: create, list what a viewer may see
+//! (public ones and their own), update, and delete, which moves the project's tasks to `default`.
 use super::Storage;
 use rusqlite::params;
 

@@ -1,3 +1,6 @@
+//! Pure geometry for the build editor's gizmos: snapping a dragged corner or object, the light
+//! rotation rings' size and pick tolerance, the light range wireframe, and ray tests against a
+//! ring and a box.
 use glam::Vec3;
 
 /// Angular radius of a light gizmo ring as seen from the camera (moved with the ring math).

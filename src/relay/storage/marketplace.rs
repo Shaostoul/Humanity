@@ -1,3 +1,7 @@
+//! Server storage for the marketplace's classified listings: create, update, delete, list and
+//! full-text search them (FTS5, with a LIKE fallback), and up to 5 images per listing.
+//! Also friend codes: create, redeem, and clean up expired ones.
+//! Buyer-seller messages are not stored here: they ride sealed-sender DMs.
 use super::Storage;
 use super::{MarketplaceListing, ListingImage};
 use rusqlite::params;

@@ -1,3 +1,7 @@
+//! Server storage for reputation: events that add or take points (`points_for_event`), each
+//! person's score and level (one level per 50 points), their history, and the leaderboard.
+//! The read routes are live (`/api/reputation/...`), but nothing calls `add_reputation_event`
+//! yet, so no event is ever recorded.
 use super::Storage;
 use rusqlite::params;
 

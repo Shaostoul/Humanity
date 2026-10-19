@@ -1,3 +1,5 @@
+//! Server storage for the Asset Library (`assets`): create an asset record, list records with
+//! category, type, owner and text filters, and delete one (its owner, or an admin).
 use super::Storage;
 use rusqlite::params;
 

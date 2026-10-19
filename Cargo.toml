@@ -266,6 +266,63 @@ sha2 = "0.10"
 [profile.dev.package.rav1d]
 opt-level = 3
 
+# The libraries the test suite spends its time in, optimised in dev and test builds (2026-10-18):
+# post-quantum signatures and their hashes, PBKDF2 at 600,000 rounds, SQLite (built from C at the
+# profile's level), picture decoding. Our own code stays unoptimised (it is what is debugged and
+# rebuilt). Results do not change, only how long they take. Measured on the lib suite: 255 s with
+# none optimised, 229 s with EVERY library ("*"), 208 s with this list. A short list on purpose:
+# "*" also made each fresh worktree build all of wgpu, egui, rapier and tokio optimised, minutes
+# more for every helper agent's first build; these crates are small, so their optimised build is
+# quick.
+[profile.dev.package.ml-dsa]
+opt-level = 3
+[profile.dev.package.ml-kem]
+opt-level = 3
+[profile.dev.package.sha2]
+opt-level = 3
+[profile.dev.package.sha3]
+opt-level = 3
+[profile.dev.package.keccak]
+opt-level = 3
+[profile.dev.package.pbkdf2]
+opt-level = 3
+[profile.dev.package.hmac]
+opt-level = 3
+[profile.dev.package.aes]
+opt-level = 3
+[profile.dev.package.aes-gcm]
+opt-level = 3
+[profile.dev.package.ghash]
+opt-level = 3
+[profile.dev.package.polyval]
+opt-level = 3
+[profile.dev.package.argon2]
+opt-level = 3
+[profile.dev.package.blake2]
+opt-level = 3
+[profile.dev.package.blake3]
+opt-level = 3
+[profile.dev.package.curve25519-dalek]
+opt-level = 3
+[profile.dev.package.ed25519-dalek]
+opt-level = 3
+[profile.dev.package.libsqlite3-sys]
+opt-level = 3
+[profile.dev.package.image]
+opt-level = 3
+[profile.dev.package.png]
+opt-level = 3
+[profile.dev.package.zune-jpeg]
+opt-level = 3
+[profile.dev.package.zune-inflate]
+opt-level = 3
+[profile.dev.package.fdeflate]
+opt-level = 3
+[profile.dev.package.miniz_oxide]
+opt-level = 3
+[profile.dev.package.crc32fast]
+opt-level = 3
+
 # rav1d is built from vendor/rav1d: the published 1.1.0 with one fix to its CDEF
 # padding, which borrowed two columns more than it reads at the frame's left
 # edge and so overlapped another decode thread's write (BUG-093; the debug

@@ -1,3 +1,7 @@
+//! The construction (build) editor's viewport logic: picking, placing, dragging and duplicating
+//! rooms, walls, machines, lights and structures under the cursor, plus undo, redo and autosave.
+//! Placing a machine pays for it from the backpack or the home's storage (`pay_for_machine`);
+//! `toggle_build_editor` opens and shuts the editor (the B key).
 use glam::{Quat, Vec3};
 use crate::engine::geom::{light_ring_pick_tolerance, light_ring_radius, ray_aabb_hit, ray_ring_closest, snap_node_position, snap_to_alignment};
 use crate::engine::home_meshes::{rebuild_homestead, rebuild_machine_objects};

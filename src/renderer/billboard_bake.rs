@@ -4213,39 +4213,45 @@ mod tests {
         // Measure and PRINT every species before asserting anything: a table
         // that stops at the first failure hides whether the fault is one
         // species' data or the model itself.
-        let mut rows = Vec::new();
-        for t in tree_mesh::registry().trees.iter() {
-            if t.clusters.is_none() {
-                continue;
-            }
-            let Some(spr) = cpu_cluster_sprite(t, ClusterLayer::Leaf, bake, sprite) else {
-                continue;
-            };
-            // `HUMANITY_DUMP_LEAF_PNG=1` writes exactly what was measured, so
-            // the number and the picture can never be about different images.
-            // A rising distinct count is NOT evidence the crown looks better;
-            // the PNG is.
-            if std::env::var("HUMANITY_DUMP_LEAF_PNG").is_ok() {
-                let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("debug/leaf_shapes");
-                let _ = std::fs::create_dir_all(&dir);
-                // BOTH layers. The blossom sprite is not measured here (its
-                // spread is a bud-to-open population, not a leaf's), but the
-                // same jitter runs through `tree_mesh::flower`, so it has to
-                // be LOOKED at or that path ships unseen.
-                for layer in ClusterLayer::ALL {
-                    if layer == ClusterLayer::Blossom && t.blossom_frac <= 0.0 {
-                        continue;
-                    }
-                    let Some(s) = cpu_cluster_sprite(t, layer, bake, sprite) else {
-                        continue;
-                    };
-                    if let Some(i) = image::RgbaImage::from_raw(sprite, sprite, s.rgba) {
-                        let _ = i.save(dir.join(format!("colour_{}_{}.png", t.id, layer.key())));
-                    }
-                }
-            }
-            rows.push((t.id.clone(), leaf_colour::stats(&spr.rgba, CLUSTER_ALPHA_CUTOFF)));
-        }
+        // One thread a species: the same bakes and the same numbers, in the same order, with the
+        // wait spread over the cores. One after another, unoptimised, this took 336 s and was the
+        // whole suite's critical path (measured 2026-10-18; the suite took 240 to 300 s).
+        let species: Vec<_> = tree_mesh::registry().trees.iter().filter(|t| t.clusters.is_some()).collect();
+        let rows: Vec<_> = std::thread::scope(|scope| {
+            let bakes: Vec<_> = species
+                .iter()
+                .map(|t| {
+                    scope.spawn(move || {
+                        let spr = cpu_cluster_sprite(t, ClusterLayer::Leaf, bake, sprite)?;
+                        // `HUMANITY_DUMP_LEAF_PNG=1` writes exactly what was measured, so
+                        // the number and the picture can never be about different images.
+                        // A rising distinct count is NOT evidence the crown looks better;
+                        // the PNG is.
+                        if std::env::var("HUMANITY_DUMP_LEAF_PNG").is_ok() {
+                            let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("debug/leaf_shapes");
+                            let _ = std::fs::create_dir_all(&dir);
+                            // BOTH layers. The blossom sprite is not measured here (its
+                            // spread is a bud-to-open population, not a leaf's), but the
+                            // same jitter runs through `tree_mesh::flower`, so it has to
+                            // be LOOKED at or that path ships unseen.
+                            for layer in ClusterLayer::ALL {
+                                if layer == ClusterLayer::Blossom && t.blossom_frac <= 0.0 {
+                                    continue;
+                                }
+                                let Some(s) = cpu_cluster_sprite(t, layer, bake, sprite) else {
+                                    continue;
+                                };
+                                if let Some(i) = image::RgbaImage::from_raw(sprite, sprite, s.rgba) {
+                                    let _ = i.save(dir.join(format!("colour_{}_{}.png", t.id, layer.key())));
+                                }
+                            }
+                        }
+                        Some((t.id.clone(), leaf_colour::stats(&spr.rgba, CLUSTER_ALPHA_CUTOFF)))
+                    })
+                })
+                .collect();
+            bakes.into_iter().filter_map(|b| b.join().expect("a species' bake panicked")).collect()
+        });
         for (id, s) in &rows {
             eprintln!(
                 "[colour] {id:>7} leaf: {} covered, {} distinct, hue {:.0}+-{:.1} deg, sat \

@@ -1,3 +1,7 @@
+//! The home's machines as ECS entities: each machine's power and water roles and islands, the
+//! feed taps tying the home's power to the ship's bus, and the home's sealed air space.
+//! `spawn_home_power_entities` runs in the menu so the Home page reads live power; `load_world`
+//! spawns them again with meshes on Enter World.
 use glam::{Quat, Vec3};
 
 /// Spawn ONLY the electrical-role ECS entities for the home's machines (no meshes),

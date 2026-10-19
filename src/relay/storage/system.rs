@@ -1,3 +1,7 @@
+//! Server storage for a person's system profile (`system_profiles`): the JSON of their
+//! computer's specs (OS, CPU, GPU, RAM), stored, read and deleted by public key behind
+//! `/api/me/system`.
+//! Kept unencrypted: the specs are not treated as sensitive.
 use rusqlite::params;
 use super::Storage;
 

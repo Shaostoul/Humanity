@@ -1,3 +1,5 @@
+//! Server storage for marketplace listing reviews: one per listing per person, never on one's
+//! own, removable by the reviewer or an admin, and each seller's average rating.
 use super::Storage;
 use rusqlite::params;
 

@@ -1,3 +1,8 @@
+//! The 3D home's meshes, built and uploaded: homestead rooms, hull wrap, machines and their
+//! pipes, the garden's plants, door and window panels, and room lights.
+//! The plants are built on a worker and uploaded within a frame budget. Shared by the first world
+//! load and the build editor's live rebuild (`rebuild_homestead`, `rebuild_machine_objects`),
+//! which reuses the GPU mesh and material slots in place.
 use glam::{Quat, Vec3};
 use crate::engine::color::hsv_to_rgb;
 use crate::engine::home_spawn::spawn_home_machine_entity;

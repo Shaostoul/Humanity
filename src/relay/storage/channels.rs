@@ -1,3 +1,6 @@
+//! Server storage for chat channels and what grew beside them: channels, their messages and
+//! reply threads, registered names and device keys, roles, bans, mutes, wipes, expiry, counts.
+//! A mute is its own table (`muted_members`), independent of the person's role.
 use super::Storage;
 use rusqlite::params;
 

@@ -1,3 +1,7 @@
+//! Server storage for Skill DNA (`user_skills`): each person's reality and fantasy XP and level
+//! per skill, finding people by skill and level, and endorsements (`skill_verifications`) with
+//! their counts.
+//! `get_display_name` (a key's registered name) also lives here.
 use super::Storage;
 use rusqlite::params;
 

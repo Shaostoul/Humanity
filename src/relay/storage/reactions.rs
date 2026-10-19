@@ -1,3 +1,6 @@
+//! Server storage for message reactions: toggle one emoji reaction on or off, and load a
+//! channel's recent reactions.
+//! Also `edit_message`, which rewrites a stored message's content and its raw JSON.
 use super::Storage;
 use super::ReactionRecord;
 use rusqlite::params;

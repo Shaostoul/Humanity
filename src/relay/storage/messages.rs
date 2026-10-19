@@ -1,3 +1,5 @@
+//! Server storage for chat messages and name registration: storing and loading messages,
+//! federated messages, the FTS5 rebuild, peers' last seen, names, and device link codes.
 use super::Storage;
 use rand::Rng;
 use rusqlite::params;

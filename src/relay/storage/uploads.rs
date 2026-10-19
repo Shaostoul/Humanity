@@ -1,3 +1,6 @@
+//! Server storage for uploaded files (`user_uploads`): each upload on its shelf (chat media,
+//! Shared Files, Media), the per-person cap that prunes old chat media, and the shared files.
+//! Shared files and Media uploads are outside that cap; the caller deletes pruned files from disk.
 use super::Storage;
 use rusqlite::params;
 

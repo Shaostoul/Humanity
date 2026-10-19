@@ -1,3 +1,7 @@
+//! Server storage for the member directory (`server_members`): joining and leaving, the paged
+//! and searchable member list, presence hiding and last seen, and the name a key goes by now.
+//! New members join with presence hidden, and a profile marked `unlisted` stays out of the
+//! public directory.
 use super::Storage;
 use rusqlite::{params, OptionalExtension};
 

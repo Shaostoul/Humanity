@@ -1,3 +1,5 @@
+//! Server storage for live streams: a stream's record (streamer, title, category, start, end and
+//! viewer peak), its chat messages, and the recent streams for history.
 use super::Storage;
 use rusqlite::params;
 

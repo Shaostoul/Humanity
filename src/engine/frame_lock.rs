@@ -1,3 +1,8 @@
+//! The camera's frame lock to a planet: its altitude bands (surface walking below 10 km,
+//! co-rotation to 100 km, inertial flight by 1,000 km) and the sun, cloud and god-ray numbers
+//! that follow from it.
+//! Also the precision anchors, the body's environment snapshot, the Planet Tuner readout and the
+//! F6 location bookmarks.
 use glam::Vec3;
 use std::time::Instant;
 use crate::engine::state::EngineState;

@@ -180,7 +180,7 @@ server operator cannot read your private messages.
 
 - `[done]` Post-quantum identity: a Dilithium3 / ML-DSA-65 key derived from a BIP39
   24-word seed (which is also your Solana wallet). The canonical crypto details live
-  in the Cryptography section of `CLAUDE.md`.
+  in `docs/reference/cryptography.md`.
 - `[done]` End-to-end encrypted DMs: pure Kyber768 / ML-KEM-768 to BLAKE3-KDF to
   AES-256-GCM. The relay stores only ciphertext.
 - `[done]` Encrypted vault (PBKDF2 600k both clients) with three auto-unlock modes.

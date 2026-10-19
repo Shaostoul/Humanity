@@ -1,3 +1,6 @@
+//! Server storage for the encrypted vault backup (`vault_blobs`): store, fetch and delete one
+//! opaque blob per public key, behind `/api/vault/sync`.
+//! The person's app encrypts the blob (AES-256-GCM) before it arrives; the server cannot read it.
 use rusqlite::params;
 use super::Storage;
 

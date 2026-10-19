@@ -49,6 +49,26 @@ function upsertDmConversation(partnerKey, partnerName, lastMessage, lastTimestam
 }
 
 /** Switch to DM conversation view. */
+/** Open the conversation a `/chat#dm=<key>` link asked for (app.js `pendingDmFromLink`), with the
+ *  first line the Market left in sessionStorage for that same key (pages/market-app.js
+ *  `messageSeller`), so a buyer starts with "About your listing ..." as in the app. */
+function openDmFromLink() {
+  const key = pendingDmFromLink;
+  pendingDmFromLink = null;
+  if (!key) return;
+  openDmConversation(key);
+  let prefill = null;
+  try {
+    prefill = JSON.parse(sessionStorage.getItem('hos_dm_prefill') || 'null');
+    sessionStorage.removeItem('hos_dm_prefill');
+  } catch (e) { prefill = null; }
+  const input = document.getElementById('msg-input');
+  if (input && prefill && prefill.key === key && typeof prefill.text === 'string' && !input.value.trim()) {
+    input.value = prefill.text.slice(0, 500);
+    input.focus();
+  }
+}
+
 function openDmConversation(partnerKey, partnerName) {
   if (!partnerKey) return;
   // Resolve best display name: passed arg > peerData > short key

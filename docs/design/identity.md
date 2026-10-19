@@ -8,7 +8,7 @@
 > for chat/profile/message signing, read "Dilithium3 / ML-DSA-65" — the *mechanisms*
 > described (signed profiles, key rotation, name-uniqueness layers, P2P QR exchange)
 > are still architecturally accurate, only the specific algorithm changed. Always check
-> `CLAUDE.md`'s Cryptography section for the current, audited algorithm table before
+> `docs/reference/cryptography.md` for the current, audited algorithm table before
 > quoting one from this file.
 
 ## Core Principle

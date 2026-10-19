@@ -75,7 +75,7 @@ Spawn a dedicated **independent** AI session (or hire a human reviewer) with no 
 - A scope statement: "audit for security flaws, no feature work, no code rewrites without an identified flaw, report MUST/SHOULD/NICE findings with severity."
 - Output expected: written report committed to `docs/security-reviews/<date>-<scope>.md`.
 
-The reviewer must NOT have access to the development session's context, independence is the whole point. The PQ-cutover review captured in CLAUDE.md's Cryptography section is the template.
+The reviewer must NOT have access to the development session's context, independence is the whole point. The PQ-cutover review captured in `docs/reference/cryptography.md` is the template.
 
 ### Pass criteria
 - All HIGH and MEDIUM findings either fixed or explicitly accepted with documented rationale.
@@ -147,7 +147,7 @@ For each, see BUS-FACTOR.md "Secrets, locations, not values" section. Rotate, re
 ## 7. Threat-model review: annual or post-architecture-change
 
 ### Procedure
-Re-read `CLAUDE.md` Cryptography section + `docs/design/storage-architecture.md`. Ask:
+Re-read `docs/reference/cryptography.md` + `docs/design/storage-architecture.md`. Ask:
 1. What's our adversary model today? (Casual abuser? Nation-state? Operator-malicious?)
 2. What's changed in the architecture since the last review?
 3. Are there new attack surfaces?

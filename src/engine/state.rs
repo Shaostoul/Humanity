@@ -1,3 +1,6 @@
+//! `EngineState`, everything the native app keeps between frames (renderer, camera, ECS world,
+//! GUI state, audio, planets, home meshes), plus the build editor's grab, hover and undo types.
+//! Also the borrowed `SceneDrawLists` of one frame.
 use glam::{Quat, Vec3};
 use std::path::PathBuf;
 use std::sync::Arc;

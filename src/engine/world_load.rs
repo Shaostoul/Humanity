@@ -1,3 +1,7 @@
+//! Entering the 3D world: `load_world` builds the player's home on its plot with what its start
+//! carries, and the star sky, planets, sun and home station.
+//! A start can carry livestock, wild animals, decoration plants and the solar-system hologram;
+//! `refresh_home_content` builds those again when the home changes under a running world.
 use glam::Vec3;
 use std::time::Instant;
 use crate::ecs::components::{Controllable, Health, Name, Transform, Velocity};

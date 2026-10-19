@@ -1,3 +1,5 @@
+//! Server storage for the project board's tasks (`project_tasks`) and their comments: create,
+//! update, move between status columns, delete, and list tasks for every project or one.
 use super::Storage;
 use super::{TaskRecord, TaskCommentRecord};
 use rusqlite::params;

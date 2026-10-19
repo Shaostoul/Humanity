@@ -1,3 +1,7 @@
+//! Multiplayer glue between the relay socket and the world: routing `__game__:` messages, the
+//! figures and nameplates of other players and crew, and our own position updates.
+//! `route_game_message` tries the fleet ledger, shared building and the save slot before net
+//! sync. Also `reload_planet_defs` (world load and planet hot reload) and the chat history pump.
 use std::time::Instant;
 use crate::engine::state::EngineState;
 use crate::renderer::mesh::Mesh;

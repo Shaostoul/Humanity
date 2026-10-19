@@ -1,3 +1,5 @@
+//! Server storage for guilds: create, update and delete a guild (its owner only), join and leave,
+//! members and their roles, invite codes, and listing or searching guilds.
 use super::Storage;
 use rusqlite::{params, OptionalExtension};
 

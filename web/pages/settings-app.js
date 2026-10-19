@@ -1,3 +1,6 @@
+// The web Settings page's script (pages/settings.html): preferences, theme, accessibility, keybinds, devices, notifications, wallet, Vault and backup.
+// Preferences live in localStorage; the Vault (once vault.html) encrypts in the page and syncs through /api/vault/sync.
+// The version in its footer line is stamped by scripts/bump-version.js.
 const DEFAULTS = window.HOS_DEFAULTS || {};
 const STORAGE_KEY = window.HOS_STORAGE_KEY || 'humanity_settings';
 

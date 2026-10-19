@@ -164,6 +164,14 @@ try {
   }
   L.push(`DISK:     C: ${pct}% used, ${Math.round(s.bavail * s.bsize / 1e9)} GB free; ${guard}`);
 } catch { /* statfs unavailable */ }
+// The code map (docs/ai/code-map.md): one line per source file, refreshed here so a session never
+// reads one more than a session old (2026-10-18). Its Folders section is a 5 KB overview.
+try {
+  const r = require('child_process').spawnSync(process.execPath, [require('path').join(__dirname, 'code-map.js')], { encoding: 'utf8' });
+  L.push('CODE MAP: ' + (r.status === 0 ? 'docs/ai/code-map.md refreshed (read its Folders section first; grep it before the source)' : 'could not refresh: ' + String(r.stderr || '').trim().split('\n')[0]));
+} catch {
+  L.push('CODE MAP: could not refresh (run: just code-map)');
+}
 L.push('');
 L.push('CI DEPLOY (latest):');
 L.push(ci ? '  ' + ci.split('\n')[0] : '  (unavailable -- offline? check: just ci)');

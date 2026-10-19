@@ -3476,6 +3476,16 @@ restart.
 
 ## Developer Tooling
 
+### Code map for AI sessions (2026-10-18)
+One generated line per source file (every `.rs` under `src/`, every `.js` under `web/`): what its
+header comment says it is, and its main public items, with a one-line-per-folder index first. A
+session or helper agent reads the Folders section (about 5 KB) and greps the rest instead of
+opening hundreds of files to find where something lives. Never edited by hand; `just brief`
+refreshes it every session, and `--check` says whether it is stale. CLAUDE.md's START HERE points
+at it; the same day CLAUDE.md lost its 34 KB cryptography table to
+`docs/reference/cryptography.md` (122 KB to 89 KB, loaded by every session and every helper).
+- Generator: `scripts/code-map.js`; output `docs/ai/code-map.md`; recipe `just code-map`
+
 ### Headless UI Snapshots
 Renders native egui pages to PNGs via an offscreen egui-wgpu + wgpu pipeline (no extra dependency; egui_kittest was rejected over an accesskit / egui-winit 0.31.1 incompatibility), so the native UI can be reviewed without launching the app. Output lands in `tests/snapshots/`.
 - Native: `src/gui/ui_snapshots.rs`

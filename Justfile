@@ -269,6 +269,11 @@ status:
 brief:
     @node scripts/brief.js
 
+# The code map (docs/ai/code-map.md, 2026-10-18): one line per source file under src/ and web/,
+# what it is and its main items, with a folder index first. Generated; `just brief` refreshes it.
+code-map:
+    @node scripts/code-map.js
+
 # Clear build output before it fills C: (2026-09-29; C: reached 91% with 1.13 TB
 # of cargo caches). Idle worktree targets always; the main target's incremental
 # cache at 75% full; the whole main target at 85%; never while cargo, rustc or

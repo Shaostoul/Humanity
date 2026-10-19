@@ -42,6 +42,9 @@ window.addEventListener('hashchange', () => {
 let ws = null;
 let myKey = '';
 let dmFetchSent = false; // one-time mailbox fetch per socket (sealed-sender DMs)
+// A conversation to open once the DM store is loaded, from a `/chat#dm=<key>` link (the Market's
+// Message Seller, pages/market-app.js messageSeller). Read and cleared from the address at connect.
+let pendingDmFromLink = null;
 // True from a new socket until its mailbox fetch was read and applied (the
 // last dm_batch page carrying this page's own fetch ref, handleDmBatch, 10o
 // O1). The friendship-pass sweep waits for it
@@ -866,6 +869,13 @@ function onIdentityConfirmed() {
   // own fetched flag; calling it here is the reliable trigger.
   if (typeof window.loadP2pGroups === 'function') window.loadP2pGroups();
 
+  // A conversation link, /chat#dm=<public key hex>: opened when the DM store is loaded (channel_list).
+  if (location.hash.indexOf('#dm=') === 0) {
+    const dmKey = location.hash.slice(4);
+    history.replaceState(null, '', location.pathname); // clean the hash
+    if (/^[0-9a-fA-F]{16,8192}$/.test(dmKey) && dmKey !== myKey) pendingDmFromLink = dmKey;
+  }
+
   // ── URL hash channel navigation ──
   // If URL has #channelname, switch to that channel (e.g. /chat#dev -> dev)
   if (location.hash && location.hash !== '#profile') {
@@ -1261,6 +1271,7 @@ async function handleMessage(msg) {
         dmFetchSent = true;
         hosDmStore.init(myKey, location.host).then((ok) => {
           if (ok && typeof loadDmListFromStore === 'function') loadDmListFromStore();
+          if (pendingDmFromLink) openDmFromLink();
           // Social badges come from the local store now (follows
           // removal 2026-08-24).
           if (ok && typeof syncSocialFromStore === 'function') syncSocialFromStore();

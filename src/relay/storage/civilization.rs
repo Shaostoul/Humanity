@@ -1,3 +1,8 @@
+//! The Civilization dashboard's numbers (`get_civilization_stats`, served at `/api/civilization`):
+//! population, infrastructure, economy, resources, social and activity counts from the relay's
+//! tables.
+//! `total_follows` is always 0: there is no server-side follow graph to count, and a test keeps
+//! it that way.
 use super::Storage;
 use serde::Serialize;
 use std::collections::HashMap;

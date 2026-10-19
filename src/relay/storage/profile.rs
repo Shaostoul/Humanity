@@ -1,3 +1,7 @@
+//! Server storage for chat profiles (`profiles`, by name): bio, socials, avatar, banner, pronouns,
+//! location, website, the privacy map, and the `accepts_files` word.
+//! The privacy map keeps some fields for friends; `accepts_files` is nobody, friends or anyone.
+//! The signed copy other servers keep is storage/signed_profiles.rs.
 use super::Storage;
 use crate::relay::core::profile_copy::kept_for_friends;
 use rusqlite::params;

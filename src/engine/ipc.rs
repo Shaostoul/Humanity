@@ -1,3 +1,8 @@
+//! The dev IPC: file-drop requests under `debug/` (screenshot, showcase, camera, autopilot,
+//! screens, UI, cloud dumps, remote players, door points), each answered with a done file.
+//! They let a script or an AI session drive and inspect the running app; lib.rs polls each once
+//! a frame. Also the screenshot executor, `render_view_onto` and the Studio page's live
+//! broadcast pump.
 use glam::Vec3;
 use crate::engine::frame_lock::*;
 use crate::engine::ipc_parse::*;
