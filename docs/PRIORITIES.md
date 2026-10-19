@@ -371,8 +371,9 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
       store logos), all as the dated finding
       docs/reference/findings/2026-10-19-games-page-art-stats-and-links.md allows. Checked on
       the operator's real library (27 Steam games with covers, hours and achievements; Fortnite by
-      its icon). Open: the details panel's right-hand dates (achievement unlock dates) are
-      clipped by a few pixels at the panel's edge; Workshop
+      its icon). Open: in the details panel, right-aligned text (the achievement dates) and the
+      banner run flush against the scroll bar with no gap (cosmetic; not clipped, checked at full
+      resolution: a small right margin inside the ScrollArea would do); Workshop
       mod names live on Steam's servers (not fetched); Epic and GOG store pages need an address
       name their local records do not carry; descriptions or genres only ever from Wikidata, on a
       press, per the finding.
