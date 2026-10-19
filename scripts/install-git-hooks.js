@@ -69,9 +69,11 @@ if ! cargo check --features relay --no-default-features -q 2>&1; then
   exit 1
 fi
 # 4. The src/gui + engine lints (standalone rustc; no native link, PDB-safe, fast), and
-#    the schema ALTER order (BUG-046: an index before its ALTER stopped the live relay).
+#    the two that guard startup: the schema ALTER order (BUG-046: an index before its ALTER
+#    stopped the live relay) and the bind group entry counts (v0.1029-1038: a lazy bind
+#    group one binding short panicked every world entry).
 export CARGO_MANIFEST_DIR="$(pwd)"
-for t in emdash_lint theme_token_lint theme_editor_coverage icon_glyph_lint engine_wiring_lint schema_alter_order_lint; do
+for t in emdash_lint theme_token_lint theme_editor_coverage icon_glyph_lint engine_wiring_lint schema_alter_order_lint bind_group_entry_lint; do
   rustc --test --edition 2021 -A warnings "tests/\${t}.rs" -o "/tmp/\${t}.hook" 2>/dev/null \\
     && "/tmp/\${t}.hook" >/dev/null 2>&1 \\
     || { echo "x lint failed: \${t}"; "/tmp/\${t}.hook"; exit 1; }
