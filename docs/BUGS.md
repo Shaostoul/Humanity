@@ -5944,3 +5944,30 @@ the common MP4 formats, docs/reference/media-stance.md); a "Play here" for WebM 
 step. Tests: `src/gui/pages/chat/public_files_tests.rs` (the page itself, with the member's file
 name), `the_stored_name_keeps_its_words_and_its_extension`, the public-file section of
 `scripts/tests/private-files-web.test.js`, each seen red.
+
+## BUG-204: without the DXC shader-compiler dlls the game spends minutes compiling its pipelines, then dies of a stack overflow (OPEN, found 2026-10-18)
+
+A boot check of v0.1517.0 through `just launch-bg` sat with its window "not responding" for about
+ten minutes (over 540 s of CPU by the second minute) and then died with only `thread '<unknown>'
+has overflowed its stack` on its console: a stack overflow aborts the process, so the panic hook
+writes nothing to crash.log and run.log simply stops at the pipeline compile.
+
+Two faults:
+
+1. `just launch-bg` boots `target/release/HumanityOS.exe`, and target/release holds no
+   `dxcompiler.dll` + `dxil.dll` once the disk guard or `cargo clean` has emptied it, so the game
+   fell back to the old FXC compiler ("DX12 shader compiler: FXC" in run.log). The seven rigs copy
+   the pair in through `scripts/lib/dxc-dlls.js`; launch-bg, the boot check CLAUDE.md names for
+   every renderer change, did not, so every agent boot check since the folder was last emptied ran
+   on FXC. FIXED 2026-10-18 (commit "launch-bg boots on the fast shader compiler"):
+   `scripts/dxc-beside-exe.js` puts the pair beside the exe first; the same build then booted with
+   "DX12 shader compiler: DXC", pipeline_new 10.7 s, 0 PANIC.
+2. The pipeline-compile threads in `build_all_pipelines` (`src/renderer/pipeline.rs`) are
+   `std::thread::scope` spawns with Rust's 2 MiB default stack, and FXC recurses deeper than that
+   on the cloud shaders. Being fixed with the cloud-startup work (a 64 MiB stack on every compile
+   thread); proof is a boot from a folder with no pair reaching its first frame.
+
+Who it reaches: not the downloads (the Windows release bundles DXC: "Bundled DXC from
+.../10.0.26100.0/x64" in the v0.1516.0 build log) and not the operator's taskbar exe (the repo root
+holds the pair). Anyone running a bare exe with no dlls beside it, including the raw binary the
+in-app updater fetches if it ever lands in a folder without them.

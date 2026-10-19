@@ -46,7 +46,7 @@ When adding a new API endpoint:
 - [ ] Add storage module in `src/relay/storage/` if needed
 - [ ] Add `mod NAME;` to `src/relay/storage/mod.rs`
 - [ ] Run `cargo check --features relay --no-default-features`
-- [ ] Document in `CLAUDE.md` REST routes section
+- [ ] Nothing to copy into `CLAUDE.md`: `src/relay/mod.rs` is the route list (CLAUDE.md says to grep it)
 
 When adding a new game system:
 - [ ] Create in `src/systems/NAME/mod.rs`
@@ -88,7 +88,7 @@ If renaming directories, update ALL of these:
 - [ ] `.github/workflows/deploy.yml`
 - [ ] `.github/workflows/deploy-pages.yml`
 - [ ] `.github/workflows/build-desktop.yml`
-- [ ] `CLAUDE.md` (file map, REST routes)
+- [ ] `CLAUDE.md` only if a path it names as a rule moved (its file map lists constraints, not locations; `docs/ai/code-map.md` regenerates itself)
 - [ ] `docs/FEATURES.md` (all file paths)
 - [ ] `CONTRIBUTING.md` (project structure)
 - [ ] `docs/SOP.md` (code structure)
