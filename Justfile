@@ -412,7 +412,7 @@ validate-data:
 # on world entry (v0.1029-1038) - lives past the last line of this recipe.
 # `just verify-runtime` is the half that boots. Run both before a renderer push.
 #
-# Static gate: both feature builds + lib tests + the relay test build + 8 lints. Boot half: verify-runtime.
+# Static gate: both feature builds + lib tests + the relay test build + every lint in `just lints`. Boot half: verify-runtime.
 verify:
     cargo check --features native
     cargo check --features relay --no-default-features
