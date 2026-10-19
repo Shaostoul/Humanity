@@ -447,6 +447,25 @@ page's video now has sound (it played silent), with
 Mute; the engine hands it the mixer each frame (`media::sync_sound`). A new player shows its first
 picture at once, paused or not. Tests: `src/media/system_tests.rs` on
 `tests/fixtures/media/moving-box-h264-aac.mp4`, two needing a sound device run by hand.
+**Your folders (v0.1516.0).** A tab on the desktop Media page, beside Media (and Admin for admins):
+"Add a folder" (the app's folder picker) points HumanityOS at folders on this computer, such as a
+drive of pictures and videos; each is a row with its name, path and Remove (forgets it here, the
+disk untouched), kept in config.json as `media_folders` and so across a restart; a folder not there
+right now (a drive unplugged) says so and is not opened. The folder opened shows in the file
+picker's own List, Details and Pictures views with the across slider, every entry with its type's
+badge and pictures previewed; sub-folders open in place and Up never goes above the folder added.
+A click ticks a file ("2 chosen", Clear; the second click of a double-click on a folder is ignored),
+and Put on Media hands the ticked files to Add to Media exactly as a drop does (the first is the
+item, the rest added to it) on the Media tab: nothing leaves the computer until Upload is pressed
+there. A file this computer already put on a server's Media page is marked "On united-humanity.us
+as Dusk" ("On Media" with no title), a link that opens the item, from a private record on this
+computer only (`media_from_here.json` beside config.json, at most 5,000 rows, written when an
+upload's publish or add finishes, from the file it was picked from: `Unfinished::origin`), and only
+while the file's size and date are unchanged. Desktop only (operator, 2026-10-13: no website
+version, so every browser behaves the same). Native `src/gui/pages/media/your_folders.rs` (the tab),
+`src/gui/pages/media/from_here.rs` (the record), `src/gui/widgets/file_views.rs` (`Look::notes`,
+`Act::Note`: links beside files in all three views); tests `src/gui/pages/media/your_folders_tests.rs`;
+snapshot `media_your_folders`.
 **Video previews in the file picker (v0.1515.0).** The Pictures view previews a video by one of its
 frames (a tenth of the way in, at most 5 s, past a fade from black) where Windows decodes it
 (`media::system::still_of`, `widgets/thumbnails.rs` `is_previewable`), on the same preview workers

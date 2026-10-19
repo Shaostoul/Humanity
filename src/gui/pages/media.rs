@@ -3,9 +3,11 @@
 //! it (web/pages/media.html); the relay half is src/relay/media.rs.
 //!
 //! What it has, top to bottom: its heading, "Media on united-humanity.us" (the server it is for,
-//! Media round 5); for admins, two tabs, Media and Admin (the Admin tab is the admins' section,
-//! media/admin.rs, which was in Server Settings until round 5); the uploads in progress, each with
-//! its bar (media/uploading.rs), and the offers to carry on ones a restart or a switch cut off; the
+//! Media round 5); its tabs, Media and Your folders (folders on this computer to pick files from,
+//! media/your_folders.rs, 2026-10-18, desktop only), and for admins Admin (the admins' section,
+//! media/admin.rs, which was in Server Settings until round 5); on the Media tab the uploads in
+//! progress, each with its bar (media/uploading.rs), and the offers to carry on ones a restart or a
+//! switch cut off; the
 //! person's own uploads waiting to be published, and the server's unfinished ones this app lost
 //! track of (media/waiting.rs); the featured shelf (`featured=1`: the main shelf, or the picked
 //! category's shelf, "Featured in Fire flow arts"); the filters (category with its description
@@ -98,6 +100,12 @@ pub(crate) mod ticket;
 pub(crate) mod takedown;
 /// A Media item posted in chat, shown as a card that opens its window (2026-10-17).
 pub(crate) mod chat_card;
+/// The Your folders tab (2026-10-18, desktop only): folders on this computer to look through and
+/// pick files from for Add to Media.
+pub(crate) mod your_folders;
+/// The private record of what this computer put on Media pages, which marks those files in Your
+/// folders.
+pub(crate) mod from_here;
 
 pub(crate) use add::put_on_media;
 pub(crate) use tiles::{KEEP as KEEP_LABEL, KEEP_TIP as KEEP_LABEL_TIP};
@@ -191,12 +199,14 @@ pub struct MediaAdmin {
     pub status: String,
 }
 
-/// The Media page's tabs (round 5): the list, and for admins the section that was in Server
+/// The Media page's tabs (round 5): the list; Your folders, folders on this computer to pick from
+/// (2026-10-18, media/your_folders.rs, desktop only); and for admins the section that was in Server
 /// Settings (media/admin.rs).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum MediaTab {
     #[default]
     Media,
+    YourFolders,
     Admin,
 }
 
@@ -287,6 +297,9 @@ pub struct MediaState {
     /// "Report a copyright problem": its form, the public log's window, and the admins' open
     /// reports (takedown.rs).
     pub takedown: takedown::Takedowns,
+    /// The Your folders tab: the folder open in it and the files ticked (your_folders.rs). Kept when
+    /// the server or the person changes, since nothing in it belongs to a server.
+    pub folders: your_folders::Browse,
 }
 
 /// The server this page is for: the one the connection was dialled for and signs in to, never an
@@ -385,7 +398,9 @@ pub(crate) fn sync_server(state: &mut GuiState) -> bool {
     }
     let old = std::mem::take(&mut state.media);
     uploading::abandon_all(&old.uploads);
-    state.media = MediaState { server: here, key: state.profile_public_key.clone(), unfinished: old.unfinished, ..Default::default() };
+    // Your folders belongs to this computer, not to a server: it stays as it was, open if it was.
+    let tab = if old.tab == MediaTab::YourFolders { MediaTab::YourFolders } else { MediaTab::default() };
+    state.media = MediaState { server: here, key: state.profile_public_key.clone(), unfinished: old.unfinished, folders: old.folders, tab, ..Default::default() };
     true
 }
 
@@ -817,6 +832,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
     offer_drop(ctx, state);
     add::draw_dialogs(ctx, theme, state);
+    your_folders::draw_dialogs(ctx, theme, state);
     tiles::draw_confirm_remove(ctx, theme, state);
     waiting::draw_confirm_waiting(ctx, theme, state);
     open::draw(ctx, theme, state);
@@ -873,10 +889,11 @@ pub fn draw_upload_window(ctx: &egui::Context, theme: &Theme, state: &mut GuiSta
 /// Everything inside the page's scroll area.
 pub(crate) fn draw_body(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let no_server = server_here(state).is_empty();
-    // Only an admin has the Admin tab; anyone else always sees the list, whatever the state says
+    // Only an admin has the Admin tab; anyone else on it sees the list, whatever the state says
     // (an admin who lost the role, or a tab left set by Server Settings' "Open them").
     let admin = is_admin(state) && !no_server;
-    let on_list = !admin || state.media.tab == MediaTab::Media;
+    let tab = shown_tab(state.media.tab, admin);
+    let on_list = tab == MediaTab::Media;
     ui.horizontal_wrapped(|ui| {
         ui.label(RichText::new(heading(state)).size(theme.font_size_title).color(theme.text_primary()));
         // The list's actions belong to the Media tab; the Admin tab has its own Refresh.
@@ -897,26 +914,34 @@ pub(crate) fn draw_body(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
             }
         }
     });
-    widgets::body_hint(
-        ui,
-        theme,
-        "Pictures, videos, 3D models and files the people on this server chose to show. Nothing is here unless the person who uploaded it put it here, and nothing from a private conversation can be.",
-    );
-    // The tabs, for admins only (round 5): Media, the list; Admin, the section that was in Server
-    // Settings (media/admin.rs): who sees the page, its space, its categories and what to prune.
-    if admin {
-        let mut i = if state.media.tab == MediaTab::Admin { 1 } else { 0 };
-        if widgets::tab_bar(ui, theme, &TAB_NAMES, &mut i) {
-            state.media.tab = if i == 1 { MediaTab::Admin } else { MediaTab::Media };
-        }
+    if tab != MediaTab::YourFolders {
+        widgets::body_hint(
+            ui,
+            theme,
+            "Pictures, videos, 3D models and files the people on this server chose to show. Nothing is here unless the person who uploaded it put it here, and nothing from a private conversation can be.",
+        );
+    }
+    // The tabs: Media, the list; Your folders, folders on this computer to pick from (2026-10-18,
+    // media/your_folders.rs); and for admins Admin (round 5), the section that was in Server Settings
+    // (media/admin.rs): who sees the page, its space, its categories and what to prune.
+    let names = if admin { &TAB_NAMES[..] } else { &TAB_NAMES[..2] };
+    let mut i = TABS.iter().position(|t| *t == tab).unwrap_or(0);
+    if widgets::tab_bar(ui, theme, names, &mut i) {
+        state.media.tab = TABS[i];
     }
     ui.add_space(theme.spacing_sm);
 
+    // Your folders needs no server to look through this computer's folders (Put on Media says why
+    // it cannot go without one).
+    if shown_tab(state.media.tab, admin) == MediaTab::YourFolders {
+        your_folders::draw(ui, theme, state);
+        return;
+    }
     if no_server {
         ui.label(RichText::new("Connect to a server first (Chat page) to see its Media page.").size(theme.font_size_small).color(theme.warning()));
         return;
     }
-    if admin && state.media.tab == MediaTab::Admin {
+    if shown_tab(state.media.tab, admin) == MediaTab::Admin {
         admin::draw_admin(ui, theme, state);
         return;
     }
@@ -987,8 +1012,20 @@ pub(crate) fn draw_body(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
     takedown::draw_foot(ui, theme, state);
 }
 
-/// The tabs' names, in the order of [`MediaTab`] (the website's are the same: media-app.js).
-const TAB_NAMES: [&str; 2] = ["Media", "Admin"];
+/// The tabs, in the order they are drawn, and their names: Media and Your folders for everyone in
+/// the desktop app, and Admin for admins. The website has Media and Admin (media-app.js) and no Your
+/// folders (operator, 2026-10-13: no website version, so every browser behaves the same).
+const TABS: [MediaTab; 3] = [MediaTab::Media, MediaTab::YourFolders, MediaTab::Admin];
+const TAB_NAMES: [&str; 3] = ["Media", your_folders::TAB, "Admin"];
+
+/// The tab shown for `tab`: Admin is an admin's alone, and anyone else on it sees the list.
+fn shown_tab(tab: MediaTab, admin: bool) -> MediaTab {
+    if tab == MediaTab::Admin && !admin {
+        MediaTab::Media
+    } else {
+        tab
+    }
+}
 
 #[cfg(test)]
 #[path = "media/page_tests.rs"]

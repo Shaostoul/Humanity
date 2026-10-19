@@ -93,6 +93,12 @@ pub struct Unfinished {
     /// 2026-10-17), or empty. Kept with the record, so an upload carried on after a restart posts too.
     #[serde(default)]
     pub post_to: String,
+    /// The file on this computer it was picked from, as it was then (its path, size and date):
+    /// `path` above follows the cleaned copy when there is one, this never does. Once it is on
+    /// Media, the private record of what this computer put there notes it (from_here.rs), and the
+    /// Your folders tab marks the file. None for an upload of something not picked here.
+    #[serde(default)]
+    pub origin: Option<super::from_here::Local>,
 }
 
 /// A file chosen beside an Add to Media upload's own, added to its item once it is up.

@@ -212,7 +212,8 @@ fn the_heading_names_the_server() {
 /// THE ADMIN TAB IS FOR ADMINS AND HOLDS THE SETTINGS (3.9): an admin has two tabs, Media and
 /// Admin; Admin shows the section that was in Server Settings (who sees the page, its space, its
 /// categories, the suggestions, the meter) in place of the list, and Media goes back. A member
-/// has no tabs and always sees the list, even with the tab left set.
+/// has no Admin tab (only Media and, since 2026-10-18, Your folders) and sees the list, even with
+/// the Admin tab left set.
 ///
 /// Seen red 2026-10-12 with the tabs drawn for everyone: "a member has no Admin tab".
 #[test]

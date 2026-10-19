@@ -88,7 +88,9 @@
 //     the same day) a list at its bottom stays there as a card goes in and as it fills in, while one
 //     scrolled up is left where it is: "media card: the list stays at its bottom". (2026-10-18) The
 //     thread panel draws its parent's and its replies' cards by the same rules, mine included, each
-//     message a row of its own: "media card: the thread panel".
+//     message a row of its own: "media card: the thread panel". (2026-10-18) The item window's page
+//     is lent the chat's upload token only while the chat is signed in on an open connection:
+//     "media card: the item window's page is lent the chat's upload token".
 //
 // Red first: see the end of this file for each deliberate break and the assertion it tripped.
 
@@ -3497,6 +3499,57 @@ test("media card: a Media item's address on this site is a card just after the w
   assert.ok(dialog && dialog.hidden === false, "a window over the chat");
   const frame = dialog.children[0].children.find((c) => c.tag === "iframe");
   assert.equal(frame.src, "/media/7?window=item", "the Media page's own item page, in its item-window form");
+});
+
+// THE ITEM WINDOW'S PAGE HAD NO UPLOAD TOKEN (2026-10-18). A card's Open frames the Media page's item
+// page over the chat; with a passphrase-wrapped identity that page has no sign-in of its own, so no
+// upload token for a members-only item's files. The chat lends it its own (chat-media-card.js
+// chatToken, /shared/upload-window.js 'token'; the page's side is media-card-web.test.js 14): only
+// while its connection is open and signed in, since a token ends with its socket and the one app.js
+// kept from before a reconnect is no longer known to the server.
+// Seen red 2026-10-18 in a copy of web/ through HOS_WEB_DIR, each break: in chat/chat-media-card.js, the
+// opener not handed `token: chatToken`: "the chat's own token, to its frame, for this site only" (actual
+// { ..., refused: true }); in shared/upload-window.js, answerAsk's tokenShaped check taken out: "refused
+// when it holds no token" (actual token: ''); in chat/chat-media-card.js, chatToken without its
+// open-connection check: "refused while its connection is down" (actual token: 'tok-test'); without its
+// signed-in check: "refused before it is signed in" (the same).
+test("media card: the item window's page is lent the chat's upload token while the chat is signed in, and refused it otherwise", async () => {
+  const fx = await fixture();
+  const item = {
+    id: 7, url: "/api/media/file/7", filename: "7_dusk.glb", original_name: "dusk.glb", title: "Dusk", description: "",
+    kind: "model", visibility: "members", labels: [], size_bytes: 4000, total_bytes: 4000, file_count: 1,
+    uploader_key: fx.ben.key, uploader_name: "Ben", category: null, cover: null, files: [],
+  };
+  const page = await loadChat(fx.ann, { realChildren: true, fetch: (u) => (u === "/api/media/list" ? ok({ items: [item], labels: [] }) : null) });
+  const row = postInRoom(page, fx.ben, "Here: https://localhost/media/7", T0 + 970);
+  await settle();
+  const card = (row.querySelector(".body").afterNodes || [])[0].children[0];
+  const open = card.children.find((c) => c.className === "media-card-line").children[4];
+  assert.equal(open.textContent, "Open", "test setup: the card's Open");
+  open.listeners.click[0]({ stopPropagation() {} });
+  const dialog = page.el("__body").children.find((c) => c.className === "hos-upload-window");
+  const frame = dialog.children[0].children.find((c) => c.tag === "iframe");
+  assert.equal(frame.src, "/media/7?window=item", "test setup: the item window");
+  // The page in the frame, on the address the chat gave it.
+  const here = page.ctx.location.origin;
+  const inside = { location: { origin: here, pathname: "/media/7", search: "?window=item" }, posted: [], postMessage(data, to) { this.posted.push({ data, to }); } };
+  frame.contentWindow = inside;
+  const ask = async (n) => {
+    for (const fn of (page.winListeners.message || []).slice()) fn({ source: inside, origin: here, data: { kind: UW.KIND, event: "token", ask: n } });
+    await settle();
+    const a = inside.posted.find((p) => p.data && p.data.event === "token" && p.data.ask === n);
+    return a ? Object.assign({ to: a.to }, a.data) : null;
+  };
+  const refused = (n) => ({ to: here, kind: UW.KIND, event: "token", ask: n, refused: true });
+  assert.deepEqual(await ask(1), { to: here, kind: UW.KIND, event: "token", ask: 1, token: "tok-test" }, "the chat's own token, to its frame, for this site only");
+  page.set("() => { myUploadToken = ''; }"); // signed in, the peer list's token not here yet
+  assert.deepEqual(await ask(2), refused(2), "refused when it holds no token");
+  page.set("() => { myUploadToken = 'tok-test'; }");
+  page.sock.readyState = 3; // the connection down: the token kept from it ended with it
+  assert.deepEqual(await ask(3), refused(3), "refused while its connection is down");
+  page.sock.readyState = 1;
+  page.set("() => { identityConfirmed = false; }");
+  assert.deepEqual(await ask(4), refused(4), "refused before it is signed in");
 });
 
 // A NEW MESSAGE'S CARD LANDED BELOW THE FOLD (2026-10-17, review): mediaCardsPut ran after

@@ -4607,6 +4607,9 @@ pub struct SettingsState {
     pub outside_help_country: String,
     /// Files in messages, the attach step's switch, the kept files cap (net/files_policy.rs).
     pub files_in_messages: crate::net::files_policy::FilesInMessages,
+    /// The Media page's Your folders (pages/media/your_folders.rs): folders on this computer the
+    /// person added to look through. Kept on this device only; never sent anywhere.
+    pub media_folders: Vec<std::path::PathBuf>,
     // Data
     pub seed_phrase_visible: bool,
     // Restoring from the recovery phrase
@@ -4715,6 +4718,7 @@ impl Default for SettingsState {
             warnings_on_messages: true,
             outside_help_country: String::new(),
             files_in_messages: Default::default(),
+            media_folders: Vec::new(),
             seed_phrase_visible: false,
             seed_phrase_input: String::new(),
             seed_phrase_recovery_status: String::new(),

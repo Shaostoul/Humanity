@@ -62,6 +62,11 @@ const SETTINGS_FILES: &[&str] = &[
     // written by from_gui_state".
     "src/gui/pages/files_settings.rs",
     "src/gui/pages/chat/attach_step.rs",
+    // The Media page's Your folders (2026-10-18): the folders added there are a setting kept in
+    // AppConfig like the others (`media_folders`), changed on that tab, not on the Settings page.
+    // Seen red 2026-10-18 with its load leg removed from config.rs: "media_folders: never read by
+    // apply_to_state".
+    "src/gui/pages/media/your_folders.rs",
 ];
 
 /// Pull every `state.settings.<field>` that the Settings files bind to a widget

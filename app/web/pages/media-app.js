@@ -69,6 +69,11 @@
 //   A video that outlives its ticket gets a new one where it stopped; a new
 //   one refused (a ban, the item gone, too many open) puts the relay's words
 //   where the video was (round 4, W4-2), and opening it again asks afresh.
+// - The item window over the chat with no sign-in of its own (a passphrase-
+//   wrapped identity, signed for by the chat) uses the chat's upload token for
+//   those files, lent by /shared/upload-window.js (`fileToken`, 2026-10-18):
+//   held in memory for the frame's life, sent only where the page's own would
+//   go, and asked for again when the server says it no longer knows it.
 // - The viewer is drawn again only when what it shows changes, so a playing
 //   video keeps playing through a sign-in, a reconnect or a list reload.
 // - A labelled item (spoiler, flashing lights, graphic) shows its label
@@ -119,6 +124,9 @@
   const TICKET_RENEW_AFTER_MS = 60000;
   // How long a report waits for the server's answer before saying it did not come.
   const ANSWER_WAIT_MS = 15000;
+  // The item window over the chat, refused the chat's upload token (the chat not signed in, its
+  // connection down): how long before it asks again, while its item's files still need one.
+  const LEND_RETRY_MS = 5000;
   // How far below the screen the grid's end may still be when its next page is asked for.
   const SENTINEL_MARGIN = '600px';
   // The relay's sorts (3.3; newest first when none is sent) and where an admin may feature an
@@ -519,6 +527,17 @@
     return res.json();
   }
 
+  /**
+   * Is a refusal (its HTTP `status` and the relay's `words`) the server no longer knowing the upload
+   * token it was sent? A token ends with the socket that signed in for it (the relay's
+   * forget_upload_token), and media.rs file_core and media_ticket.rs ticket then answer 403 "That
+   * upload token is not a session signed in to this server." A member refused for being banned is
+   * told something else, so this never mistakes one for the other.
+   */
+  function tokenUnknown(status, words) {
+    return status === 403 && /upload token/i.test(String(words || ''));
+  }
+
   // The resumable upload and the uploads remembered in this browser: /pages/media-upload.js.
   const U = typeof module === 'object' && module && module.exports ? require('./media-upload.js') : root.MediaUpload;
   const { RESUME_KEY, rememberUpload, findUpload, forgetUpload, createUploader, fingerprint, cancelSession } = U || {};
@@ -774,6 +793,83 @@
       const s = sessionState();
       return s && s.status === 'bound' ? s.uploadToken || '' : '';
     }
+
+    // ── The chat's upload token, lent to the item window over it (2026-10-18) ──
+    // The item window signed for by the chat (signerFor: a passphrase-wrapped identity keeps no key
+    // this page can read) has no sign-in of its own, so no upload token, and a members-only item's
+    // files (its cover, the video's Play here, each Download, and the tickets those ask for) are
+    // fetched with one. The chat lends it its own (/shared/upload-window.js connectFrame token()).
+    // Kept here, in memory, for the frame's life: never stored, never put in an address, sent only in
+    // the X-Upload-Token header of this server's own file and ticket requests, exactly where the
+    // page's own would go (uploads keep needing the page's own sign-in). A request refused because the
+    // server no longer knows it (the chat signed in again) lets it go and asks the chat again.
+    const lent = { token: '', asking: null, given: new Set(), dead: new Set(), waitUntil: 0, retry: null };
+    /** Does this page borrow the chat's token: the item window, signed for by the chat, with no sign-in of its own? */
+    function borrows() {
+      return itemMode && !session && !!myKey && typeof itemWin.token === 'function';
+    }
+    /**
+     * The upload token a members-only file is fetched with: the page's own, else the one the chat
+     * lent it; '' when neither (the chat is then asked, and the page drawn again when it answers).
+     */
+    function fileToken() {
+      const own = token();
+      if (own) return own;
+      if (lent.token) return lent.token;
+      if (borrows()) borrowToken();
+      return '';
+    }
+    /** Is the item shown a members-only one (whose files need a token)? */
+    function needsToken() {
+      return !!st.viewer && !!fileRoute(st.viewer, env.origin).members;
+    }
+    /**
+     * Ask the chat for its token, one ask at a time: a promise of it ('' when refused). After a
+     * refusal it is not asked again for LEND_RETRY_MS, and then only while a members-only item is shown.
+     */
+    function borrowToken() {
+      if (!borrows()) return Promise.resolve('');
+      if (lent.token) return Promise.resolve(lent.token);
+      if (lent.asking) return lent.asking;
+      if (lent.waitUntil > now()) return Promise.resolve('');
+      lent.asking = Promise.resolve()
+        .then(() => itemWin.token())
+        .catch(() => '')
+        .then((t) => {
+          lent.asking = null;
+          // One the server has already said it does not know (the chat still holds it for a moment
+          // after it signs in again, until its new one comes) is as good as a refusal.
+          const got = typeof t === 'string' && t && !lent.dead.has(t) ? t : '';
+          if (got) {
+            lent.token = got;
+            lent.given.add(got);
+            renderAll(); // its pictures fetched, its tickets asked for, its Downloads pressable
+          } else {
+            lent.waitUntil = now() + LEND_RETRY_MS;
+            if (lent.retry == null) {
+              lent.retry = later(() => {
+                lent.retry = null;
+                if (!token() && !lent.token && needsToken()) { lent.waitUntil = 0; borrowToken(); }
+              }, LEND_RETRY_MS);
+            }
+          }
+          return got;
+        });
+      return lent.asking;
+    }
+    /**
+     * A request sent with token `t` was refused as one the server no longer knows (tokenUnknown).
+     * When `t` is one the chat lent, it is let go and the chat asked again: a promise of the new one
+     * ('' when the chat has none). null when `t` was the page's own (its own sign-in brings the next).
+     */
+    function tokenRefused(t) {
+      if (!t || !lent.given.has(t)) return null;
+      lent.dead.add(t);
+      if (lent.token === t) lent.token = '';
+      if (lent.token) return Promise.resolve(lent.token); // a newer one came meanwhile
+      lent.waitUntil = 0;
+      return borrowToken();
+    }
     function role() {
       const s = sessionState();
       return s && s.status === 'bound' ? s.role || '' : '';
@@ -956,8 +1052,8 @@
     }
     function pumpBlobs() {
       while (blobsActive < BLOB_FETCHES_AT_ONCE && blobQueue.length) {
-        const t = token();
-        if (!t) return; // signed in again later: renderAll pumps again
+        const t = fileToken();
+        if (!t) return; // signed in again later (or lent the chat's token): renderAll pumps again
         const { id, e } = blobQueue.shift();
         if (blobs.get(id) !== e || e.state !== 'waiting') continue;
         blobsActive++;
@@ -972,9 +1068,14 @@
         res = await env.fetch(e.path, Object.assign({ headers: { 'X-Upload-Token': t } }, e.ctl ? { signal: e.ctl.signal } : {}));
         if (blobs.get(id) !== e) return; // no longer shown (and stopped)
         if (!res || !res.ok) {
-          // A token from before the page signed in again: wait for the new one.
-          if (res && res.status === 403 && token() !== t) { e.state = 'waiting'; e.ctl = null; blobQueue.push({ id, e }); return; }
-          throw new Error(res ? await refusalWords(res) : 'The server could not be reached.');
+          const words = res ? await refusalWords(res) : 'The server could not be reached.';
+          if (blobs.get(id) !== e) return; // no longer shown
+          // A token from before the page signed in again, or one the chat lent that the server no
+          // longer knows (the chat signed in again: it is asked for its new one): wait for the new one.
+          const stale = res && res.status === 403
+            && ((token() !== t && !lent.given.has(t)) || (tokenUnknown(res.status, words) && !!tokenRefused(t)));
+          if (stale) { e.state = 'waiting'; e.ctl = null; blobQueue.push({ id, e }); return; }
+          throw new Error(words);
         }
         const blob = await res.blob();
         if (blobs.get(id) !== e) return; // no longer shown
@@ -1017,8 +1118,9 @@
 
     // ── The item's own page (/pages/media-item.js): the viewer, its tickets and counted downloads ──
     const itemView = MI.createItemView({
-      env, h, st, els, W: MEDIA_WORDS, myKey, mediaOn, token, isAdmin, membersOnlyServer, blobs, blobFor, sweepBlobs, pictureSource,
-      lib: { fileRoute, itemName, downloadName, itemFileName, labelsOf, kindWords, sizeWords, num, answerOf, jsonPost },
+      // A members-only file's token: the page's own, else the one the chat lent the item window (fileToken).
+      env, h, st, els, W: MEDIA_WORDS, myKey, mediaOn, token: fileToken, tokenRefused, isAdmin, membersOnlyServer, blobs, blobFor, sweepBlobs, pictureSource,
+      lib: { fileRoute, itemName, downloadName, itemFileName, labelsOf, kindWords, sizeWords, num, answerOf, jsonPost, tokenUnknown },
       go, canPush: !!hist, back: () => hist.back(),
       // The item window closes with its item (its Close, Escape, a click beside it).
       closed: itemMode ? () => itemWin.send('close') : null,
@@ -1042,7 +1144,7 @@
       const route = fileRoute(item, env.origin);
       if (route.why) return { why: route.why };
       if (route.public) return { src: route.public };
-      if (!token() && !(blobs.get(item.id) && blobs.get(item.id).state === 'ready')) return { why: MEDIA_WORDS.waitingToken };
+      if (!fileToken() && !(blobs.get(item.id) && blobs.get(item.id).state === 'ready')) return { why: MEDIA_WORDS.waitingToken };
       const e = blobFor(item);
       if (e.state === 'ready') return { src: e.url };
       if (e.state === 'error') return { why: e.why };
@@ -1910,6 +2012,8 @@
       if (!itemMode) return;
       const id = itemIdOf(env.path);
       if (id == null) return;
+      // Brought back by a card's Open: a chat that had no token to lend before is asked again at once.
+      if (!token() && !lent.token) { lent.waitUntil = 0; borrowToken(); }
       if (!st.viewer || st.viewer.id !== id) {
         const known = itemView.current(id);
         if (known) itemView.open(known, true);
@@ -1980,6 +2084,9 @@
       }
       // The item window: the item its address names, opened as /media/<n> opens it, and nothing else.
       if (itemMode) {
+        // No sign-in of its own (signed for by the chat): the chat's upload token, asked for at once,
+        // so a members-only item's files can be fetched when it is drawn.
+        borrowToken();
         await loadKinds();
         await load(true);
         const one = itemIdOf(env.path);
@@ -1999,6 +2106,8 @@
     /** Revoke every object URL (the page is going away). */
     function dispose() {
       if (drops) { drops.detach(); drops = null; }
+      lent.token = ''; // the chat's token, kept for the frame's life only
+      if (lent.retry != null) { cancelLater(lent.retry); lent.retry = null; }
       for (const id of Array.from(blobs.keys())) dropBlob(id);
       itemView.tickets.clear();
     }

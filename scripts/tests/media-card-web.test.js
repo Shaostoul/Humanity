@@ -63,6 +63,13 @@
 // 12. A card no longer in the document is let go when the next cards go in, never in the turn it is made.
 // 13. Size words: the Media page's, the chat card's and the 3D view's, held to the cases the desktop's
 //     api::size_words is held to (scripts/tests/fixtures/size-words-cases.json).
+// 14. That item window's page, with no sign-in of its own, is lent the chat's upload token for this
+//     server (/shared/upload-window.js 'token'): its members-only cover, each Download's ticket, View
+//     in 3D and a video's Play here go out with it in the X-Upload-Token header, never in an address or
+//     storage;
+//     a token the server no longer knows (the chat signed in again) is asked for again.
+// 14b. Only that frame, from this site, on its page, while it is there, is given it; a chat holding
+//     none refuses (and is asked again after a wait); a page signed in itself never asks.
 //
 // Red first: each test names the break it was seen failing on.
 
@@ -851,4 +858,243 @@ test("13. size words: the Media page's, the chat card's and the 3D view's all sa
     assert.equal(MC.sizeWords(bytes), words, "the chat card's: " + bytes);
     assert.equal(MV.sizeWords(bytes), words, "the 3D view's: " + bytes);
   }
+});
+
+// ── 14. The chat lends the item window its upload token ───────────────────
+
+/**
+ * Ann's members-only "Dusk" (a 3D model with an added file and a cover picture), every file of it on
+ * the members' route, as the relay lists it to a member.
+ */
+function membersDusk() {
+  return dusk({
+    visibility: "members", url: "/api/media/file/7",
+    files: [
+      { file: 0, filename: "7_dusk.glb", original_name: "dusk.glb", kind: "model", size_bytes: 2 * MIB, url: "/api/media/file/7" },
+      { file: 1, filename: "8_textures.zip", original_name: "textures.zip", kind: "file", size_bytes: 4000, url: "/api/media/file/7?file=1" },
+    ],
+    cover: { file: 2, filename: "9_cover.png", kind: "picture", size_bytes: 120 * 1024, url: "/api/media/file/7?file=2" },
+  });
+}
+const NOT_KNOWN = { error: "That upload token is not a session signed in to this server." };
+/**
+ * The relay's members' routes for `known` (the upload tokens of the sockets signed in now): a file
+ * and a ticket only with one of them in the X-Upload-Token header, else the relay's own 403 (media.rs
+ * file_core, media_ticket.rs ticket). The signed list answers the members-only items `items`.
+ */
+function membersRoutes(known, items) {
+  let n = 0;
+  const has = (c) => known.has(c.headers["X-Upload-Token"]);
+  return [
+    [at("/api/media/list", "POST"), (c) => respond(200, listAnswer(c.body && c.body.sig ? items : []))],
+    [(c) => c.url.startsWith("/api/media/file/"), (c) => (has(c) ? respond(200, {}, new Uint8Array([9, 9, 9])) : respond(403, NOT_KNOWN))],
+    [at("/api/media/ticket", "POST"), (c) => {
+      if (!has(c)) return respond(403, NOT_KNOWN);
+      n++;
+      const where = c.body.download ? "/api/media/download/" + c.body.id + "?file=" + c.body.file : "/api/media/file/" + c.body.id + "?file=" + (c.body.file || 0);
+      return respond(200, { url: where + "&ticket=t" + n, expires_in_s: 600 });
+    }],
+    [at("/api/media/viewed", "POST"), () => respond(200, { ok: true })],
+  ];
+}
+/**
+ * The chat's half (the opener a card's Open uses, with the chat's signer and its upload token
+ * `chatToken()`) and the item window's page for item `id` in the frame over it, with no key of its own
+ * and no sign-in of its own (a passphrase-wrapped identity: getPqIdentity found no copy, so the page
+ * made no relay session; `session` gives it one). `known`: the tokens the stand-in relay knows.
+ */
+async function lentPage(o) {
+  const wins = linkedWindows();
+  Object.assign(wins.frame.location, { pathname: "/media/" + o.id });
+  const chat = fakeSigner(ME);
+  const open = MC.itemWindowOpener(UW, { window: wins.host, document: fakeDocument(), sign: chat.sign, myKey: () => ME, token: o.chatToken });
+  const host = open(o.id, o.items[0], "Dusk");
+  host.frame().contentWindow = wins.frame;
+  const conn = UW.connectFrame({ window: wins.frame, setTimeout: (fn) => setTimeout(fn, 200), clearTimeout: (t) => clearTimeout(t) });
+  const who = await H.media.signerFor({ identity: null, ownSign: async () => null, itemWindow: conn });
+  assert.equal(who.via, "chat", "test setup: the page signs through the chat");
+  const m = await openPage({
+    path: "/media/" + o.id, itemWindow: conn, myKey: who.myKey, sign: who.sign, session: o.session === undefined ? null : o.session,
+    routes: listRoutes(listAnswer([]), membersRoutes(o.known, o.items)), modelView: o.modelView || null,
+  });
+  await settle();
+  /** What the page asked the chat for its token, and what the chat answered it. */
+  const asks = () => wins.host.posted.filter((x) => x.data && x.data.event === "token");
+  const answers = () => wins.frame.posted.filter((x) => x.data && x.data.event === "token");
+  return { wins, host, conn, m, asks, answers };
+}
+const headerOf = (c) => c.headers["X-Upload-Token"];
+const callsTo = (m, start) => m.net.calls.filter((c) => c.url.startsWith(start));
+
+// THE ITEM WINDOW HAD NO UPLOAD TOKEN (2026-10-18). Since v0.1513.0 the chat signs for the item window's
+// page when the identity is passphrase-wrapped, so the item shows; but its files (the cover, the video's
+// Play here, each Download) are fetched with the session's upload token, which a page gets only from its
+// own sign-in to the relay, and that page has none. The chat now lends it its own token for this server
+// (/shared/upload-window.js {event: 'token', ask} -> {event: 'token', ask, token} or refused), under the
+// signing's guards; the page keeps it in memory (media-app.js fileToken) and asks again when the server
+// no longer knows it.
+// Seen red 2026-10-18 in a copy of web/ through HOS_WEB_DIR, each break: in pages/media-app.js, start()
+// not asking and fileToken() not borrowing: "the page asked the chat for its token" (actual 0); in
+// shared/upload-window.js, the host's onMessage not passing 'token' on to answerAsk: "the chat answered
+// with its own" (actual undefined: no answer); in chat/chat-media-card.js, itemWindowOpener not handing
+// `token` to createHost: the same (actual {..., refused: true}); in shared/upload-window.js, the token's
+// answer posted for any site ('*'): "posted to that frame, for this site only" (actual '*'); in
+// pages/media-app.js, pumpBlobs back on the page's own token(): "the members-only cover, fetched with the
+// chat's token and shown" (actual { asked: [], shown: null }); the item view handed the page's own token
+// in place of fileToken: "the Download's ticket asked for with the chat's token" (actual { tickets: [],
+// saved: [], asks: 1 }); in pages/media-item.js, ticketWith not asking again: "the chat signed in again
+// ..." (actual { tickets: ['tok-chat-1', 'tok-chat-1'], saved: [one], asks: 2 }); modelBytes not asking
+// again: "View in 3D: ..." (actual { fetched: ['tok-chat-2', 'tok-chat-2'], errors: [null, 'That upload
+// token is not a session signed in to this server.'], bytes: [3, 0] }); the ticket's address
+// carrying `?token=`: "never in any address"; the lent token put in storage: "never in this browser's
+// storage"; in pages/media-app.js, fetchBlob's tokenRefused clause taken out: "the cover the server no
+// longer knew the token for ..." (actual { asked: ['tok-old'], shown: null }); in pages/media-item.js,
+// ticketFor asking with another token: "Play here: ..." (actual { tickets: ['xtok-chat-1'], src: null }).
+test("14.the item window over the chat, with no sign-in of its own, is lent the chat's upload token for a members-only item's cover, Play here and Downloads", async () => {
+  const items = [membersDusk()];
+  const known = new Set(["tok-chat-1"]);
+  let chatTok = "tok-chat-1";
+  // A stand-in for /shared/model-view.js's open (Node has no WebGL), fetching the bytes as it does.
+  const views = [];
+  const modelView = {
+    open(container, o) {
+      const rec = { o, error: null, bytes: null };
+      rec.done = o.fetchBytes(undefined).then((b) => { rec.bytes = b; }, (e) => { rec.error = e; });
+      views.push(rec);
+      return { close() {} };
+    },
+  };
+  const p = await lentPage({ id: 7, items, known, chatToken: () => chatTok, modelView });
+  const { m } = p;
+  assert.ok(byId(m.doc, "media-viewer-open"), "test setup: the item's own page");
+  assert.equal(p.asks().length, 1, "the page asked the chat for its token");
+  const answer = p.answers()[0];
+  assert.deepEqual(answer && answer.data, { kind: UW.KIND, event: "token", ask: answer && answer.data.ask, token: "tok-chat-1" }, "the chat answered with its own");
+  assert.equal(answer.to, ORIGIN, "posted to that frame, for this site only");
+  // The cover: fetched once from the members' route with the chat's token in its header, and shown
+  // through an address of the page's own (an object URL), never the route itself.
+  const coverOf = (page) => {
+    const img = byId(page.doc, "media-viewer-open").querySelector(".media-viewer-img");
+    return { asked: callsTo(page, "/api/media/file/7?file=2").map(headerOf), shown: img ? img.src.replace(/\d+$/, "") : null };
+  };
+  assert.deepEqual(coverOf(m), { asked: ["tok-chat-1"], shown: "blob:test/" }, "the members-only cover, fetched with the chat's token and shown");
+  // A Download: a ticket asked for with the same token, the file saved from the ticket's address.
+  const downloads = () => ({ tickets: callsTo(m, "/api/media/ticket").map(headerOf), saved: m.saved.map((s) => s.url), asks: p.asks().length });
+  byId(m.doc, "media-item-files").querySelector('[data-download="1"]').click();
+  await settle();
+  assert.deepEqual(downloads(), { tickets: ["tok-chat-1"], saved: ["/api/media/download/7?file=1&ticket=t1"], asks: 1 }, "the Download's ticket asked for with the chat's token, the file saved from its address");
+  // The chat signs in again: its old token ends with its socket, and the relay no longer knows it.
+  known.clear();
+  known.add("tok-chat-2");
+  chatTok = "tok-chat-2";
+  byId(m.doc, "media-item-files").querySelector('[data-download="1"]').click();
+  await settle();
+  assert.deepEqual(downloads(), {
+    tickets: ["tok-chat-1", "tok-chat-1", "tok-chat-2"],
+    saved: ["/api/media/download/7?file=1&ticket=t1", "/api/media/download/7?file=1&ticket=t2"],
+    asks: 2,
+  }, "the chat signed in again: the Download refused, the chat asked once more, the ticket asked again with its new token and the file saved");
+  // View in 3D of its own dusk.glb: the members' file route with the lent token in its header; the chat
+  // signing in again meanwhile is the same: asked once more, fetched again with the new one.
+  const modelFetches = () => m.net.calls.filter((c) => c.url === "/api/media/file/7").map(headerOf);
+  byId(m.doc, "media-view3d").click();
+  await settle();
+  await views[0].done;
+  byId(m.doc, "media-model-close").click();
+  known.clear();
+  known.add("tok-chat-3");
+  chatTok = "tok-chat-3";
+  byId(m.doc, "media-view3d").click();
+  await settle();
+  await views[1].done;
+  await settle();
+  assert.deepEqual({ fetched: modelFetches(), errors: views.map((v) => (v.error ? v.error.message : null)), bytes: views.map((v) => (v.bytes ? v.bytes.byteLength : 0)) },
+    { fetched: ["tok-chat-2", "tok-chat-2", "tok-chat-3"], errors: [null, null], bytes: [3, 3] }, "View in 3D: the model fetched with the lent token, and again with the chat's new one");
+  // The token is never in an address, and the page never keeps it anywhere but in memory.
+  assert.ok(!m.net.calls.some((c) => /tok-chat/.test(c.url)), "never in any address");
+  assert.ok(![...m.storage.m.values()].some((v) => /tok-chat/.test(v)), "never in this browser's storage");
+
+  // A page whose first borrowed token the server already does not know (the chat had signed in again
+  // just before): the cover's refusal lets it go, and the chat's new one fetches it.
+  let first = true;
+  const q = await lentPage({ id: 7, items, known: new Set(["tok-new"]), chatToken: () => { const t = first ? "tok-old" : "tok-new"; first = false; return t; } });
+  assert.deepEqual(coverOf(q.m), { asked: ["tok-old", "tok-new"], shown: "blob:test/" }, "the cover the server no longer knew the token for, fetched again with the chat's new one, and shown");
+
+  // A members-only video: its Play here streams from a ticket asked for with the chat's token.
+  const clip = H.item({ id: 8, kind: "video", visibility: "members", url: "/api/media/file/8", filename: "8_clip.mp4", original_name: "clip.mp4", title: "Clip", uploader_key: ANN });
+  const v = await lentPage({ id: 8, items: [clip], known: new Set(["tok-chat-1"]), chatToken: () => "tok-chat-1" });
+  const video = byId(v.m.doc, "media-viewer-open").querySelector(".media-viewer-video");
+  assert.deepEqual({ tickets: callsTo(v.m, "/api/media/ticket").map(headerOf), src: video ? video.src : null }, { tickets: ["tok-chat-1"], src: "/api/media/file/8?file=0&ticket=t1" }, "Play here: a ticket asked for with the chat's token, the video streamed from its address");
+});
+
+// The guards, and the asking again. Seen red 2026-10-18 in a copy of web/ through HOS_WEB_DIR, each
+// break: in shared/upload-window.js, both of the host's checks that the asker is its frame taken out
+// (onMessage's source check and answerAsk's frameWindow() !== from; either alone still holds): "a window
+// that is not the frame gets nothing" (actual 1); onMessage without its origin check: "another site gets
+// nothing"; answerAsk without its onOwnPage checks: "a frame that left its page is refused" (actual
+// token: 'tok-chat-2'); answerAsk's tokenShaped check taken out: "refused when the chat holds no token"
+// (actual token: ''); both `!frame` checks turned round so a host whose frame is gone still answers: "a
+// frame that is gone gets nothing"; in pages/media-app.js, pictureSource's no-token line and pumpBlobs'
+// `if (!t) return` taken out: "no members-only file asked for ..." (actual { asked: 1, cover: false });
+// borrowToken's refusal leaving no timer: "one ask again, after the wait" (actual 0); the timer not
+// asking: "asked again after the wait" (actual 1); no renderAll when the token comes: "then the cover,
+// with the chat's token" (actual []); borrows() without its `!session`: "a page signed in itself never
+// asks the chat" (actual 1); fileToken() skipping the page's own token: "its own token fetches the
+// cover" (actual []).
+test("14b.the chat's token goes to its own frame alone, on its page, from this site; a chat with no token, and a page signed in itself, give none", async () => {
+  const items = [membersDusk()];
+  let chatTok = "tok-chat-2";
+  const p = await lentPage({ id: 7, items, known: new Set(["tok-chat-2"]), chatToken: () => chatTok });
+  const ask = async (from, origin, n) => {
+    p.wins.host.fire("message", { source: from, origin, data: { kind: UW.KIND, event: "token", ask: n } });
+    await settle();
+  };
+  const tokensTo = (w) => w.posted.filter((x) => x.data && x.data.event === "token");
+  // A window of this site that is not the frame the chat made (even one on the same address): nothing.
+  const stranger = fakeWindow(ORIGIN);
+  Object.assign(stranger.location, { pathname: "/media/7", search: "?window=item" });
+  await ask(stranger, ORIGIN, 801);
+  assert.equal(tokensTo(stranger).length, 0, "a window that is not the frame gets nothing");
+  // The frame, but the message from another site: nothing.
+  await ask(p.wins.frame, "https://elsewhere.example", 802);
+  assert.ok(!tokensTo(p.wins.frame).some((x) => x.data.ask === 802), "another site gets nothing");
+  // The frame gone to another page of this site: refused, no token in the answer.
+  p.wins.frame.location.pathname = "/chat";
+  await ask(p.wins.frame, ORIGIN, 803);
+  assert.deepEqual((tokensTo(p.wins.frame).find((x) => x.data.ask === 803) || {}).data, { kind: UW.KIND, event: "token", ask: 803, refused: true }, "a frame that left its page is refused");
+  p.wins.frame.location.pathname = "/media/7";
+  // The chat holding no token (not signed in, its connection down): refused.
+  chatTok = "";
+  await ask(p.wins.frame, ORIGIN, 804);
+  assert.deepEqual((tokensTo(p.wins.frame).find((x) => x.data.ask === 804) || {}).data, { kind: UW.KIND, event: "token", ask: 804, refused: true }, "refused when the chat holds no token");
+  // The window closed: its frame is gone, and so is the lending.
+  chatTok = "tok-chat-2";
+  p.host.close();
+  assert.equal(p.host.frame(), null, "test setup: the frame is gone");
+  await ask(p.wins.frame, ORIGIN, 805);
+  assert.ok(!tokensTo(p.wins.frame).some((x) => x.data.ask === 805), "a frame that is gone gets nothing");
+
+  // A page opened while the chat holds no token: it waits for one and asks for no file; asked again
+  // after the wait (a message to the chat, nothing over the network), the chat's token fetches the cover.
+  let tok = "";
+  const q = await lentPage({ id: 7, items, known: new Set(["tok-chat-3"]), chatToken: () => tok });
+  assert.equal(q.asks().length, 1, "test setup: the page asked");
+  assert.equal(q.answers()[0].data.refused, true, "test setup: refused");
+  assert.deepEqual({
+    asked: callsTo(q.m, "/api/media/file/").length + callsTo(q.m, "/api/media/ticket").length,
+    cover: !!byId(q.m.doc, "media-viewer-open").querySelector(".media-viewer-img"),
+  }, { asked: 0, cover: false }, "no members-only file asked for, and no cover drawn, without a token");
+  tok = "tok-chat-3";
+  const retry = q.m.timers.filter((t) => t.ms === 5000);
+  assert.equal(retry.length, 1, "one ask again, after the wait");
+  retry[0].fn();
+  await settle();
+  assert.equal(q.asks().length, 2, "asked again after the wait");
+  assert.deepEqual(callsTo(q.m, "/api/media/file/7?file=2").map(headerOf), ["tok-chat-3"], "then the cover, with the chat's token");
+
+  // A page with a sign-in of its own (this browser keeps a copy of the key): its own token, and the
+  // chat never asked for one.
+  const own = await lentPage({ id: 7, items, known: new Set(["tok-1"]), chatToken: () => "tok-chat-9", session: H.fakeSession() });
+  assert.equal(own.asks().length, 0, "a page signed in itself never asks the chat");
+  assert.deepEqual(callsTo(own.m, "/api/media/file/7?file=2").map(headerOf), ["tok-1"], "its own token fetches the cover");
 });

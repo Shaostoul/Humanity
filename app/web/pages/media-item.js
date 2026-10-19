@@ -171,7 +171,10 @@
   }
 
   /**
-   * The item's page. `c`: env, h, st, els, W (the page's words), lib (its helpers), token(), myKey,
+   * The item's page. `c`: env, h, st, els, W (the page's words), lib (its helpers), token() (the
+   * token a members-only file is fetched with: in the item window over the chat with no sign-in of
+   * its own, the chat's, lent to it), tokenRefused(t) (a token the server no longer knows: a promise
+   * of the chat's new one when `t` was lent, else null; optional), myKey,
    * isAdmin(), membersOnlyServer(), blobs, blobFor(item), sweepBlobs(), go(path, push), canPush,
    * back(), rerender() (the grid and the shelf), actions(item) (a tile's actions, for this page),
    * attach(file, item, as) and uploadsFor(id) (media-app.js's resumable upload, attaching), and
@@ -326,6 +329,27 @@
       if (!path) throw new Error(W.ticketOdd);
       return { path, expiresIn: lib.num(a.expires_in_s) || 600 };
     }
+    /** Was `err` (a refusal, answerOf's) the server no longer knowing the upload token it was sent? */
+    function tokenUnknown(err) {
+      return !!err && typeof lib.tokenUnknown === 'function' && lib.tokenUnknown(err.status, err.message);
+    }
+    /**
+     * A ticket asked for with token `t` (fetchTicket's arguments). When the server no longer knows `t`
+     * and it was one the chat lent this page (the item window over the chat, media-app.js fileToken:
+     * the chat signed in again since), the chat is asked for its new one and the ticket asked for once
+     * more with that. Answers {got, token (the one it was given with)}, or throws the relay's words.
+     */
+    async function ticketWith(item, t, file) {
+      try {
+        return { got: await fetchTicket(item, t, file), token: t };
+      } catch (err) {
+        const again = tokenUnknown(err) && typeof c.tokenRefused === 'function' ? c.tokenRefused(t) : null;
+        if (!again) throw err;
+        const next = await again;
+        if (!next || next === t) throw err;
+        return { got: await fetchTicket(item, next, file), token: next };
+      }
+    }
     /** The viewer's ticket for a members-only video, asked for when there is none that can still be used. */
     function ticketFor(item) {
       let e = tickets.get(item.id);
@@ -336,12 +360,15 @@
       if (!t) return e || null;
       e = { state: 'loading', url: '', why: '', token: t, at: now(), expiresAt: 0, renewing: false };
       tickets.set(item.id, e);
-      fetchTicket(item, t).then((got) => {
+      ticketWith(item, t).then(({ got, token }) => {
         if (tickets.get(item.id) !== e) return;
-        Object.assign(e, { url: got.path, at: now(), expiresAt: now() + got.expiresIn * 1000, state: 'ready' });
+        Object.assign(e, { url: got.path, at: now(), expiresAt: now() + got.expiresIn * 1000, state: 'ready', token });
         renderIfChanged();
       }, (err) => {
         if (tickets.get(item.id) !== e) return;
+        // The token gone and none to take its place yet: waiting for one, not a failure (asked for
+        // afresh when it comes).
+        if (tokenUnknown(err) && !c.token()) { tickets.delete(item.id); renderIfChanged(); return; }
         e.state = 'error';
         e.why = W.fileFailed + (err && err.message ? err.message : String(err));
         renderIfChanged();
@@ -361,16 +388,18 @@
       let pos = 0;
       let playing = false;
       try { pos = Number(video.currentTime) || 0; playing = video.paused === false; } catch (err) { pos = 0; }
-      fetchTicket(item, t).then((got) => {
+      ticketWith(item, t).then(({ got, token }) => {
         e.renewing = false;
         if (tickets.get(item.id) !== e) return;
-        Object.assign(e, { url: got.path, at: now(), expiresAt: now() + got.expiresIn * 1000, token: t });
+        Object.assign(e, { url: got.path, at: now(), expiresAt: now() + got.expiresIn * 1000, token });
         video.src = got.path;
         try { video.currentTime = pos; } catch (err) { /* the browser seeks once it can */ }
         if (playing && typeof video.play === 'function') { try { Promise.resolve(video.play()).catch(() => {}); } catch (err) { /* it waits for a press */ } }
       }, (err) => {
         e.renewing = false;
         if (tickets.get(item.id) !== e) return;
+        // The token gone and none to take its place yet: waiting for one (ticketFor's rule).
+        if (tokenUnknown(err) && !c.token()) { tickets.delete(item.id); renderIfChanged(); return; }
         Object.assign(e, { state: 'error', token: t, why: W.fileFailed + (err && err.message ? err.message : String(err)) });
         renderIfChanged();
       });
@@ -400,7 +429,7 @@
       renderInfo();
       let got = null;
       try {
-        got = await fetchTicket(item, t, f.file);
+        got = (await ticketWith(item, t, f.file)).got;
       } catch (err) {
         downloadErrors.set(key, W.fileFailed + (err && err.message ? err.message : String(err)));
       }
@@ -440,14 +469,28 @@
     async function modelBytes(f, signal) {
       const route = lib.fileRoute(f, env.origin);
       if (route.why) throw new Error(route.why);
-      const init = signal ? { signal } : {};
-      if (route.members) {
+      const once = async (t) => {
+        const init = signal ? { signal } : {};
+        if (t) init.headers = { 'X-Upload-Token': t };
+        const res = await env.fetch(route.public || route.members, init);
+        if (!res || !res.ok) await lib.answerOf(res); // throws the relay's words
+        return res;
+      };
+      let res;
+      if (!route.members) res = await once('');
+      else {
         const t = c.token();
         if (!t) throw new Error('this page is not signed in to this server yet');
-        init.headers = { 'X-Upload-Token': t };
+        try {
+          res = await once(t);
+        } catch (err) {
+          // A token the chat lent that the server no longer knows: the chat's new one, tried once.
+          const again = tokenUnknown(err) && typeof c.tokenRefused === 'function' ? c.tokenRefused(t) : null;
+          const next = again ? await again : '';
+          if (!next || next === t) throw err;
+          res = await once(next);
+        }
       }
-      const res = await env.fetch(route.public || route.members, init);
-      if (!res || !res.ok) await lib.answerOf(res); // throws the relay's words
       // At most 200 MB, refused while reading too (the page's size could be out of date).
       return MV.readBody(res);
     }

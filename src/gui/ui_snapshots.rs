@@ -1910,6 +1910,48 @@ fn snapshot_media_admin_tab() {
     });
 }
 
+/// The Media page's Your folders tab (2026-10-18, pages/media/your_folders.rs): two folders added,
+/// "Media" open and one that is not there right now saying so; the open folder in the Pictures view
+/// six across (a sub-folder, a model, pictures with their own previews, a video and a document
+/// drawn as their types, every cell with its badge); two files ticked, "2 chosen" with Clear and
+/// Put on Media; and a picture this computer already put on Media marked "On 127.0.0.1:9 as Garden
+/// this morning". Built in memory and in a scratch folder; nothing is sent.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_media_your_folders() {
+    use crate::gui::pages::media::{self as media, from_here, tests as fixture};
+    use crate::gui::widgets::file_picker_memory as memory;
+    let scratch = crate::test_temp::dir("snapshot_your_folders");
+    let root = scratch.join("Media");
+    std::fs::create_dir_all(root.join("trips")).unwrap();
+    for (i, name) in ["dawn.png", "garden.png"].iter().enumerate() {
+        let tone = [40u8, 150][i];
+        image::RgbaImage::from_fn(320, 200, |x, y| image::Rgba([(x as u8).wrapping_add(tone), (y as u8).wrapping_mul(2), 255 - tone, 255])).save(root.join(name)).unwrap();
+    }
+    std::fs::write(root.join("fire-staff.mp4"), vec![0u8; 2_400_000]).unwrap();
+    std::fs::write(root.join("bracket.stl"), vec![0u8; 120_000]).unwrap();
+    std::fs::write(root.join("assembly-notes.pdf"), vec![0u8; 300_000]).unwrap();
+    memory::with(|m| {
+        m.view = memory::PickerView::Pictures;
+        m.across = Some(6);
+    });
+    render_page_png("media_your_folders", 1280, 860, |ctx, theme, state| {
+        if state.media.server.is_empty() {
+            *state = fixture::page_state(fixture::demo_answer(), true);
+            state.media.tab = media::MediaTab::YourFolders;
+            state.settings.media_folders = vec![root.clone(), scratch.join("Old drive")];
+            media::your_folders::add_folder(state, &root);
+            let server = state.media.server.clone();
+            from_here::with(|r| r.add(from_here::Sent { server, item: 1, title: "Garden this morning".into(), file: from_here::Local::of(&root.join("garden.png")), at_ms: 1 }));
+            let listed = crate::gui::widgets::file_browser::list_dir(&root, &[]);
+            state.media.folders.chosen = listed.into_iter().filter(|e| e.name == "dawn.png" || e.name == "bracket.stl").collect();
+        }
+        media::draw(ctx, theme, state);
+        // The previews are read on workers: give them a moment between frames.
+        std::thread::sleep(std::time::Duration::from_millis(40));
+    });
+}
+
 /// The item the item-page and Edit snapshots show, put there by `by` (key, name): a 1:1 model of a
 /// contact staff in Fire flow arts, with a description of two lines, an added file (its textures),
 /// a cover picture, counts, CC BY 4.0, offered for the game and featured in its category. Built on

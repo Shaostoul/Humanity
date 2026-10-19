@@ -455,6 +455,11 @@ pub struct AppConfig {
     /// a restart (only on the same server, by the same person, from the same file unchanged).
     #[serde(default)]
     pub media_unfinished_uploads: Vec<crate::gui::pages::media::resumable::Unfinished>,
+    /// The Media page's Your folders (2026-10-18, pages/media/your_folders.rs): the folders on this
+    /// computer the person added there to look through and pick from. Paths only, kept in this
+    /// file on this device and never sent anywhere. A config written before it existed has none.
+    #[serde(default)]
+    pub media_folders: Vec<std::path::PathBuf>,
     /// Settings > Safety, the protected setup (step G of blocking-and-safe-mode.md 10h,
     /// 2026-10-10), carried here only on its way to ITS OWN FILE beside config.json
     /// (net/protected_store.rs): never serialized into config.json. Kept apart because an
@@ -1509,6 +1514,7 @@ impl AppConfig {
             outside_help_country: state.settings.outside_help_country.clone(),
             files_in_messages: state.settings.files_in_messages.clone(),
             media_unfinished_uploads: state.media.unfinished.clone(),
+            media_folders: state.settings.media_folders.clone(),
             protected_setup: Some(state.protected.setup.clone()),
             font_size: state.settings.font_size,
             dark_mode: state.settings.dark_mode,
@@ -1692,6 +1698,7 @@ impl AppConfig {
         state.settings.outside_help_country = self.outside_help_country.clone();
         state.settings.files_in_messages = self.files_in_messages.clone();
         state.media.unfinished = self.media_unfinished_uploads.clone();
+        state.settings.media_folders = self.media_folders.clone();
         // The protected setup is NOT applied from here: it lives in its own file, which boot reads
         // whether or not config.json exists or reads (`load_protected_setup`, lib.rs).
         // Clamp the ranges the UI enforces, so a hand-edited config cannot

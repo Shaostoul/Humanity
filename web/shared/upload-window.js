@@ -60,6 +60,22 @@
 // the chat signs its messages over the same "<words>\n<timestamp>", so it never
 // signs words of the frame's choosing.
 //
+// The upload token for the item window (2026-10-18). A members-only item's files
+// (its cover, the video's Play here, each Download, and the tickets those ask
+// for) are fetched with the session's upload token, which a page gets from its
+// own sign-in to the relay; the item window signed for by the chat has no
+// sign-in of its own, so it saw the item and none of its files. So a host given
+// `token` lends the page in its frame the chat's own upload token for this
+// server (the chat signs in to the site it is on, and the frame is on that same
+// site): the page asks {event: 'token', ask}, the host answers {event: 'token',
+// ask, token}, or {..., ask, refused: true} when the chat holds no token (not
+// signed in, its connection down) or the frame has left the page it was given.
+// The same guards as signing: only the frame this host made, from this site,
+// while it is on its page; anyone else gets no answer. The token goes to that
+// frame alone (posted to it, for this origin only), never into an address; the
+// page keeps it in memory for its life and asks again when the server says it
+// no longer knows it (the chat signed in again: a token ends with its socket).
+//
 // A classic script in the browser (HosUploadWindow on window), a CommonJS module
 // under Node, where scripts/tests/post-in-chat-web.test.js drives both halves
 // with stand-in windows (and scripts/tests/media-card-web.test.js the item window).
@@ -92,6 +108,15 @@
   // once; the page waits for it before it is drawn).
   const ASK_WAIT_MS = 10000;
   const IDENTITY_WAIT_MS = 3000;
+  // How long it waits for the chat's upload token (answered at once, like who it signs as).
+  const TOKEN_WAIT_MS = 3000;
+  // What an upload token may look like to be used: the relay's are 32 hex characters; anything with a
+  // space, a line break or another character a header cannot carry is not one.
+  const TOKEN_SHAPE = /^[\x21-\x7e]{1,256}$/;
+  /** Could `t` be an upload token (one a request header can carry)? */
+  function tokenShaped(t) {
+    return typeof t === 'string' && TOKEN_SHAPE.test(t);
+  }
 
   /** Is this the upload-window form of the Media page (its address's `window=upload`)? */
   function isWindowAddress(search) {
@@ -125,6 +150,10 @@
    *                      page in the frame (the item window); optional, without it every ask
    *                      is refused
    *   myKey()            the key `sign` signs as ('' when there is no unlocked identity)
+   *   token()            the chat's own upload token for this server ('' when it holds none: not
+   *                      signed in, or its connection down), lent to the page in the frame for a
+   *                      members-only item's files (the item window); optional, without it every
+   *                      ask is refused
    * Returns {show(files, postTo), showPage(page, label), close(), isOpen(), isBusy(), page(),
    * element(), frame(), pending()}.
    */
@@ -259,7 +288,7 @@
         if (!busy && !open) destroy();
       } else if (m.event === 'close') close();
       else if (m.event === 'status' && !open && typeof m.text === 'string' && m.text && typeof o.onStatus === 'function') o.onStatus(m.text);
-      else if (m.event === 'identity' || m.event === 'sign') answerAsk(e.source, m);
+      else if (m.event === 'identity' || m.event === 'sign' || m.event === 'token') answerAsk(e.source, m);
     }
 
     /** Is the frame still on the page this host put in it (not navigated somewhere else)? */
@@ -273,11 +302,12 @@
     }
 
     /**
-     * Answer the page in the frame (`from`) asking who it signs as, or to sign a purpose (see the
-     * file's head). Nothing at all when the frame has gone or been replaced by the time the answer
-     * is ready; a refusal when there is nothing to sign with, the purpose is not a Media one, or the
-     * frame is no longer on the page it was given (never silence to the frame itself: its page waits
-     * for the answer before it is drawn).
+     * Answer the page in the frame (`from`) asking who it signs as, to sign a purpose, or for the
+     * chat's upload token (see the file's head). Nothing at all when the frame has gone or been
+     * replaced by the time the answer is ready; a refusal when there is nothing to sign with, the
+     * purpose is not a Media one, the chat holds no upload token, or the frame is no longer on the
+     * page it was given (never silence to the frame itself: its page waits for the answer before it
+     * is drawn).
      */
     async function answerAsk(from, m) {
       const ask = m.ask;
@@ -287,6 +317,10 @@
         const me = typeof o.myKey === 'function' ? String(o.myKey() || '') : '';
         if (!onOwnPage(from)) {
           out = null; // the frame has left the page it was given: refused
+        } else if (m.event === 'token') {
+          // The chat's own token for this server, read now (it changes each time the chat signs in).
+          const t = typeof o.token === 'function' ? String(o.token() || '') : '';
+          if (tokenShaped(t)) out = { token: t };
         } else if (m.event === 'identity') {
           if (me && typeof o.sign === 'function') out = { key: me };
         } else if (me && typeof o.sign === 'function' && signable(m.purpose)) {
@@ -301,7 +335,8 @@
       // Only while that frame is still there; refused when it left its page while this was signed.
       if (!frame || frameWindow() !== from) return;
       if (!onOwnPage(from)) out = null;
-      const reply = Object.assign({ kind: KIND, event: m.event === 'identity' ? 'identity' : 'signed', ask }, out || { refused: true });
+      const event = m.event === 'identity' ? 'identity' : m.event === 'token' ? 'token' : 'signed';
+      const reply = Object.assign({ kind: KIND, event, ask }, out || { refused: true });
       try { from.postMessage(reply, origin); } catch (e) { /* the frame went away */ }
     }
     function onKey(e) {
@@ -332,10 +367,13 @@
    *   onOpen()           the host brought the window back on this page: open its item again
    *                      (the item window; also set later with onOpen(fn))
    *   setTimeout, clearTimeout   the window's own when not given (how long an ask waits)
-   * Returns {send(event, data), ready(), onOpen(fn), identity(), sign(purpose)}, or null when the
-   * page is not in a frame. identity() -> Promise<string>: the key the host signs as ('' when it
-   * refused, or did not answer within IDENTITY_WAIT_MS); sign(purpose) -> Promise<{key, timestamp,
-   * sig}|null>: the host's signature over "purpose\ntimestamp" (null when refused or unanswered).
+   * Returns {send(event, data), ready(), onOpen(fn), identity(), sign(purpose), token()}, or null
+   * when the page is not in a frame. identity() -> Promise<string>: the key the host signs as ('' when
+   * it refused, or did not answer within IDENTITY_WAIT_MS); sign(purpose) -> Promise<{key, timestamp,
+   * sig}|null>: the host's signature over "purpose\ntimestamp" (null when refused or unanswered);
+   * token() -> Promise<string>: the chat's upload token for this server, lent to this page for a
+   * members-only item's files ('' when refused, or unanswered within TOKEN_WAIT_MS). The caller keeps
+   * it in memory only, and asks again when the server no longer knows it.
    */
   function connectFrame(opts) {
     const o = opts || {};
@@ -356,7 +394,7 @@
       : (win && typeof win.setTimeout === 'function' ? (fn, ms) => win.setTimeout(fn, ms) : null);
     const unlater = typeof o.clearTimeout === 'function' ? o.clearTimeout
       : (win && typeof win.clearTimeout === 'function' ? (t) => win.clearTimeout(t) : () => {});
-    /** Ask the host (`event`: 'identity' or 'sign'); the answer, or null when none came within `waitMs`. */
+    /** Ask the host (`event`: 'identity', 'sign' or 'token'); the answer, or null when none came within `waitMs`. */
     function askHost(event, data, waitMs) {
       return new Promise((resolve) => {
         const ask = ++lastAsk;
@@ -383,6 +421,10 @@
       if (!m || m.refused || typeof m.key !== 'string' || !m.key || typeof m.sig !== 'string' || !m.sig || !Number.isFinite(m.timestamp)) return null;
       return { key: m.key, timestamp: m.timestamp, sig: m.sig };
     }
+    async function token() {
+      const m = await askHost('token', null, TOKEN_WAIT_MS);
+      return m && !m.refused && tokenShaped(m.token) ? m.token : '';
+    }
 
     if (typeof win.addEventListener === 'function') {
       win.addEventListener('message', (e) => {
@@ -391,9 +433,9 @@
         if (!m || typeof m !== 'object' || m.kind !== KIND) return;
         if (m.event === 'open') { if (opened) opened(); return; }
         // The host's answer to one of this page's asks, to the ask it names and of its kind.
-        if (m.event === 'identity' || m.event === 'signed') {
+        if (m.event === 'identity' || m.event === 'signed' || m.event === 'token') {
           const entry = asking.get(m.ask);
-          if (entry && entry.event === (m.event === 'identity' ? 'identity' : 'sign')) answered(m.ask, m);
+          if (entry && entry.event === (m.event === 'signed' ? 'sign' : m.event)) answered(m.ask, m);
           return;
         }
         if (m.event !== 'files') return;
@@ -401,10 +443,10 @@
         if (files.length && typeof o.onFiles === 'function') o.onFiles(files, typeof m.postTo === 'string' ? m.postTo : '');
       });
     }
-    return { send, ready: () => send('ready'), onOpen: (fn) => { opened = typeof fn === 'function' ? fn : null; }, identity, sign };
+    return { send, ready: () => send('ready'), onOpen: (fn) => { opened = typeof fn === 'function' ? fn : null; }, identity, sign, token };
   }
 
-  const api = { KIND, PAGE, WORDS, ASK_WAIT_MS, IDENTITY_WAIT_MS, isWindowAddress, isItemWindowAddress, itemPage, signable, createHost, connectFrame };
+  const api = { KIND, PAGE, WORDS, ASK_WAIT_MS, IDENTITY_WAIT_MS, TOKEN_WAIT_MS, isWindowAddress, isItemWindowAddress, itemPage, signable, tokenShaped, createHost, connectFrame };
   if (typeof module === 'object' && module && module.exports) module.exports = api;
   else root.HosUploadWindow = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

@@ -145,6 +145,7 @@ pub(crate) fn start_with(state: &mut GuiState, form: &Form, t: Arc<dyn Transport
         attach: None,
         more: form.more.clone(),
         post_to: if form.post_on { form.post_to.clone() } else { String::new() },
+        origin: Some(super::from_here::Local { path: path.clone(), size: *len, modified_ms: resumable::modified_ms(path) }),
     };
     push_upload(state, record, form.remove, token, t);
     Ok(())
@@ -192,6 +193,7 @@ pub(crate) fn start_attach_with(state: &mut GuiState, path: &std::path::Path, na
         size: len,
         modified_ms: resumable::modified_ms(path),
         attach: Some(to),
+        origin: Some(super::from_here::Local { path: path.to_path_buf(), size: len, modified_ms: resumable::modified_ms(path) }),
         ..Default::default()
     };
     let clean = crate::gui::pages::chat::attach_step::remove_at_start(state);
@@ -389,6 +391,9 @@ pub(crate) fn published(state: &mut GuiState, local: u64, filename: &str, result
             let gone = drop_entry(state, local);
             if let Some(gone) = &gone {
                 forget_record(state, &gone.record.id);
+                // The file it came from is on that server's Media page now: noted in this
+                // computer's private record, so Your folders marks it (from_here.rs).
+                super::from_here::note_published(&gone.record, &v);
             }
             if attached {
                 state.media.status = publishing::attached_words(&v);

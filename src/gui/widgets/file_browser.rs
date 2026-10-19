@@ -509,6 +509,7 @@ pub fn file_picker_modal(
                         multiple: state.multiple,
                         dir_mode: state.dir_mode,
                         max_size: state.max_size,
+                        notes: None,
                     };
                     let act = match view {
                         memory::PickerView::List => super::file_views::list(ui, theme, &entries, &look),
@@ -523,7 +524,8 @@ pub fn file_picker_modal(
                         Some(super::file_views::Act::Select(e)) => state.selected = Some(e),
                         Some(super::file_views::Act::Toggle(e)) => state.toggle(&e),
                         Some(super::file_views::Act::Pick(path)) => result = FilePickerResult::Picked(vec![path]),
-                        None => {}
+                        // The picker draws no links beside its files.
+                        Some(super::file_views::Act::Note(..)) | None => {}
                     }
                 });
             });

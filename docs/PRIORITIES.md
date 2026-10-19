@@ -300,8 +300,9 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
   thread panel, the framed item window signing through the chat, the desktop's picture-link rule,
   sizes held to a shared fixture). Left: in that framed window a members-only item's FILES still
   need the page's own upload token, which a passphrase-wrapped identity has not got (pass the
-  chat's token across, or give the frame a session); a report made from the framed window, and the
-  upload window a drop opens, are not bridged.
+  chat's token across, or give the frame a session) DONE v0.1516.0 (the bridge lends the chat's upload
+  token too); a report made from the framed window, adding a file through Edit there, and the upload
+  window a drop opens, are not bridged.
 - DONE v0.1511.0: **drag and drop onto the window, the upload window that posts in chat, and the
   picker's List / Details / Pictures views** (operator, 2026-10-17). Follow-ups: the web chat page
   gets the same upload window as the Media page (being built), video previews in the Pictures view
@@ -355,7 +356,7 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
       admins decide in the Admin tab, the public takedown log (rules page, desktop window). Open:
       on the desktop item page a button placed on its own line under the actions stopped two
       tests' clicks registering (`media/item_view.rs` comment); worth a look.
-    - **Your folders**: point HumanityOS at folders (his E: "Media" drive), browse them like a
+    - DONE v0.1516.0 (media/your_folders.rs; marks from a private on-this-computer record, media/from_here.rs, until phase 2 fingerprints exist): **Your folders**: point HumanityOS at folders (his E: "Media" drive), browse them like a
       file explorer, pick files to put on a server's Media page; nothing leaves the computer
       unless picked. Builds on `src/gui/widgets/file_browser.rs`; marks which local files are
       already on which server (phase 2's fingerprints). Desktop only (operator, 2026-10-13: no website

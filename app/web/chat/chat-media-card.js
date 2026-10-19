@@ -31,7 +31,8 @@
 //   /shared/upload-window.js), the same page with its Download for each file,
 //   never a copy of it. The chat signs for the page in that frame (2026-10-18):
 //   with a passphrase-wrapped identity the page has no key of its own, and a
-//   members-only item read "not there".
+//   members-only item read "not there". It lends that page its upload token too
+//   (the same day), for the item's files: the cover, Play here and each Download.
 // - The thread panel draws its messages' cards by the same rules (2026-10-18,
 //   chat-messages.js putThreadMessage); the website's own place, the desktop has
 //   no thread panel. Cards no longer in the document are let go (prune).
@@ -629,7 +630,9 @@
    * Close had closed it), with its Edit and the upload's progress when one is still going.
    * Each window signs for the page in it with the chat's own identity (`sign`, `myKey`; 2026-10-18,
    * upload-window.js): the item page has no key of its own when the identity is passphrase-wrapped.
-   * `opts`: window, document, onStatus(text), sign(purpose), myKey(). Returns open(id, item, title).
+   * And lends it the chat's upload token (`token`; 2026-10-18), which a members-only item's files
+   * are fetched with: that page has no sign-in of its own then either.
+   * `opts`: window, document, onStatus(text), sign(purpose), myKey(), token(). Returns open(id, item, title).
    */
   function itemWindowOpener(UW, opts) {
     const o = opts || {};
@@ -641,7 +644,7 @@
       // nothing going in it, else a new one.
       let host = hosts.find((h) => h.page() === page && h.element()) || hosts.find((h) => !h.isBusy()) || null;
       if (!host) {
-        host = UW.createHost({ window: o.window, document: o.document, page, label, onStatus: o.onStatus, sign: o.sign, myKey: o.myKey });
+        host = UW.createHost({ window: o.window, document: o.document, page, label, onStatus: o.onStatus, sign: o.sign, myKey: o.myKey, token: o.token });
         hosts.push(host);
       }
       // One shown at a time: any other is closed (hidden and kept while something goes in it).
@@ -679,11 +682,23 @@
     // Signed by the identity unlocked when it was asked: answered only if it is still the one.
     return sig && chatKey() === key ? { key, timestamp, sig } : null;
   }
+  /**
+   * The chat's upload token for this server (app.js updatePeerList keeps it, from this connection's
+   * own sign-in to the site the chat is on), lent to the item windows' pages (2026-10-18,
+   * upload-window.js): only while that connection is open and signed in, since a token ends with its
+   * socket and the one kept from before a reconnect is no longer known to the server. '' otherwise.
+   */
+  function chatToken() {
+    const t = typeof myUploadToken === 'string' ? myUploadToken : '';
+    const signedIn = typeof identityConfirmed !== 'undefined' && identityConfirmed === true;
+    const open = typeof ws !== 'undefined' && !!ws && ws.readyState === 1;
+    return t && signedIn && open ? t : '';
+  }
   const openItemWindow = root.HosUploadWindow
     ? itemWindowOpener(root.HosUploadWindow, {
       window: root, document: root.document,
       onStatus: (text) => { if (typeof addNotice === 'function') addNotice(text, 'green', 10); },
-      sign: chatSign, myKey: chatKey,
+      sign: chatSign, myKey: chatKey, token: chatToken,
     })
     : (id) => { try { root.open('/media/' + id, '_blank', 'noopener'); } catch (e) { /* no window */ } };
   const cards = createMediaCards({

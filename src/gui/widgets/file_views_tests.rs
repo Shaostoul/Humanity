@@ -147,9 +147,9 @@ fn in_pictures_a_click_chooses_and_a_double_click_takes() {
     // The same rules, said by the views to the picker.
     let entries = list_dir(&dir, &[]);
     let (trips, noon) = (&entries[0], &entries[2]);
-    let look = Look { selected: None, chosen: &[], multiple: true, dir_mode: false, max_size: 0 };
+    let look = Look { selected: None, chosen: &[], multiple: true, dir_mode: false, max_size: 0, notes: None };
     assert_eq!(look.click(trips), Some(Act::Open(trips.path.clone())), "a folder opens");
     assert_eq!(look.click(noon), Some(Act::Toggle(noon.clone())), "in a picker for several, a click ticks");
-    let small = Look { selected: None, chosen: &[], multiple: false, dir_mode: false, max_size: 10 };
+    let small = Look { selected: None, chosen: &[], multiple: false, dir_mode: false, max_size: 10, notes: None };
     assert_eq!(small.click(noon), None, "a file over the size limit cannot be chosen");
 }

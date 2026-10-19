@@ -32,7 +32,13 @@ pub enum Act {
     Toggle(FsEntry),
     /// A file, double-clicked: chosen at once.
     Pick(PathBuf),
+    /// One of the links beside a file ([`Look::notes`]): the file, and which of its links.
+    Note(PathBuf, usize),
 }
+
+/// The links a view draws beside files (the Media page's Your folders: "On united-humanity.us as
+/// Dusk"), by the file's path: each its words and its hover words.
+pub type Notes = std::collections::HashMap<PathBuf, Vec<(String, String)>>;
 
 /// What the Details view is sorted by.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -51,9 +57,24 @@ pub struct Look<'a> {
     pub multiple: bool,
     pub dir_mode: bool,
     pub max_size: u64,
+    /// Links drawn beside files, each a click away ([`Act::Note`]), with the heading of their
+    /// column in the Details view: None in the file picker.
+    pub notes: Option<(&'a str, &'a Notes)>,
 }
 
 impl Look<'_> {
+    /// The links beside `e`, as link-styled buttons in a row; which was clicked, if one was.
+    fn note_links(&self, ui: &mut egui::Ui, theme: &Theme, e: &FsEntry) -> Option<Act> {
+        let notes = self.notes?.1.get(&e.path)?;
+        let mut act = None;
+        for (i, (words, tip)) in notes.iter().enumerate() {
+            if ui.link(RichText::new(words).size(theme.font_size_small).color(theme.accent())).on_hover_text(tip).clicked() {
+                act = Some(Act::Note(e.path.clone(), i));
+            }
+        }
+        act
+    }
+
     fn too_big(&self, e: &FsEntry) -> bool {
         !e.is_dir && self.max_size > 0 && e.size > self.max_size
     }
@@ -135,13 +156,16 @@ pub fn list(ui: &mut egui::Ui, theme: &Theme, entries: &[FsEntry], look: &Look) 
                 if ui.add_enabled(!too_big, tick).changed() {
                     act = look.click(e);
                 }
-                return;
+            } else {
+                let resp = ui.selectable_label(look.is_selected(e), RichText::new(&label).size(theme.font_size_small).color(color));
+                if resp.double_clicked() {
+                    act = look.double_click(e).or(act.take());
+                } else if resp.clicked() {
+                    act = look.click(e);
+                }
             }
-            let resp = ui.selectable_label(look.is_selected(e), RichText::new(&label).size(theme.font_size_small).color(color));
-            if resp.double_clicked() {
-                act = look.double_click(e).or(act.take());
-            } else if resp.clicked() {
-                act = look.click(e);
+            if let Some(a) = look.note_links(ui, theme, e) {
+                act = Some(a);
             }
         });
     }
@@ -184,7 +208,8 @@ pub fn changed_words(t: Option<std::time::SystemTime>) -> String {
 pub fn details(ui: &mut egui::Ui, theme: &Theme, entries: &[FsEntry], look: &Look, by: &mut SortBy, desc: &mut bool) -> Option<Act> {
     let mut act = None;
     let small = |t: &str| RichText::new(t).size(theme.font_size_small);
-    egui::Grid::new("file_picker_details").num_columns(4).striped(true).spacing([theme.spacing_md, theme.spacing_xs]).show(ui, |ui| {
+    let columns = if look.notes.is_some() { 5 } else { 4 };
+    egui::Grid::new("file_picker_details").num_columns(columns).striped(true).spacing([theme.spacing_md, theme.spacing_xs]).show(ui, |ui| {
         for (name, key) in [("Type", SortBy::Kind), ("Name", SortBy::Name), ("Size", SortBy::Size), ("Changed", SortBy::Changed)] {
             let on = *by == key;
             let text = if on { small(name).strong().color(theme.accent()) } else { small(name).color(theme.text_secondary()) };
@@ -201,6 +226,10 @@ pub fn details(ui: &mut egui::Ui, theme: &Theme, entries: &[FsEntry], look: &Loo
                     *desc = false;
                 }
             }
+        }
+        // The links' own column, where a view has them (not sortable).
+        if let Some((heading, _)) = look.notes {
+            ui.label(small(heading).color(theme.text_secondary()));
         }
         ui.end_row();
         for e in sorted(entries, *by, *desc) {
@@ -222,6 +251,12 @@ pub fn details(ui: &mut egui::Ui, theme: &Theme, entries: &[FsEntry], look: &Loo
             }
             ui.label(small(&if e.is_dir { String::new() } else { human_size(e.size) }).color(theme.text_secondary()));
             ui.label(small(&changed_words(e.modified)).color(theme.text_secondary()));
+            if look.notes.is_some() {
+                let clicked = ui.horizontal_wrapped(|ui| look.note_links(ui, theme, &e)).inner;
+                if clicked.is_some() {
+                    act = clicked;
+                }
+            }
             ui.end_row();
         }
     });
@@ -241,7 +276,18 @@ pub fn pictures(ui: &mut egui::Ui, theme: &Theme, entries: &[FsEntry], look: &Lo
         ui.horizontal_top(|ui| {
             ui.spacing_mut().item_spacing.x = gap;
             for e in row {
-                if let Some(a) = cell(ui, theme, e, look, width, name_h, across == 1) {
+                // A file with links has them under its cell, the cell's width wide.
+                let pressed = if look.notes.is_some_and(|(_, n)| n.contains_key(&e.path)) {
+                    ui.vertical(|ui| {
+                        ui.set_width(width);
+                        let a = cell(ui, theme, e, look, width, name_h, across == 1);
+                        ui.horizontal_wrapped(|ui| look.note_links(ui, theme, e)).inner.or(a)
+                    })
+                    .inner
+                } else {
+                    cell(ui, theme, e, look, width, name_h, across == 1)
+                };
+                if let Some(a) = pressed {
                     act = Some(a);
                 }
             }
