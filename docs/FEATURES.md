@@ -3532,6 +3532,26 @@ at it; the same day CLAUDE.md lost its 34 KB cryptography table to
 `docs/reference/cryptography.md` (122 KB to 89 KB, loaded by every session and every helper).
 - Generator: `scripts/code-map.js`; output `docs/ai/code-map.md`; recipe `just code-map`
 
+### Rules that check themselves (2026-10-19)
+Four of CLAUDE.md's "Known gotchas", each the cause of a past incident, turned into checks that
+fail on their own, each proven red against the original mistake:
+- `tests/schema_alter_order_lint.rs`: nothing in `Storage::open` names a column before the ALTER
+  that adds it (BUG-046 took the live relay down; the v0.262.2 crash loop was the same with an
+  INSERT). In `just lints` and CI.
+- `tests/bind_group_entry_lint.rs`: every `create_bind_group` site carries the same bindings as
+  the layout it is built from, followed through fields, functions and callers; a site it cannot
+  resolve fails (the v0.1029 to v0.1038 world-entry panic). In `just lints` and CI.
+- `scripts/check-encoding.js`: refuses a file that gains a byte-order mark or UTF-16, and
+  mojibake in added lines, the marks of a PowerShell `Get-Content`/`Set-Content` round trip;
+  `--fix <file>` repairs one. Pre-commit, `just lints`, CI, `just check-encoding`. Checked with a
+  real PowerShell round trip.
+- `scripts/tag-release.js` (`just tag`, `--release <notes>`, `--dry-run`): tags HEAD with the
+  version read from the committed Cargo.toml and refuses an empty version, an existing tag, an
+  uncommitted bump, or a HEAD not on origin/main (the stray `v` and `v0.1212.2` tags). `just
+  release` stages only the version stamps and tags through it.
+- Tests: `scripts/tests/check-encoding.test.js`, `scripts/tests/tag-release.test.js` (temporary
+  repos; push and gh are recorded, never run).
+
 ### Headless UI Snapshots
 Renders native egui pages to PNGs via an offscreen egui-wgpu + wgpu pipeline (no extra dependency; egui_kittest was rejected over an accesskit / egui-winit 0.31.1 incompatibility), so the native UI can be reviewed without launching the app. Output lands in `tests/snapshots/`.
 - Native: `src/gui/ui_snapshots.rs`

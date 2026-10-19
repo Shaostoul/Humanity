@@ -1250,14 +1250,15 @@ release kind title notes:
     cargo check --features relay --no-default-features -q 2>/dev/null || cargo check --features relay --no-default-features
     MSG=$(mktemp)
     { echo "v${VER} - {{title}}"; echo; cat "{{notes}}"; echo; echo "Co-Authored-By: Claude <noreply@anthropic.com>"; } > "$MSG"
-    # -u: stage tracked changes + deletions ONLY -- never silently scoop
-    # untracked files (git add any genuinely new files BEFORE calling this).
-    git add -u
+    # Stage ONLY the version stamps; stage your own files by name BEFORE calling this
+    # (just mine). It used `git add -u`, which in a shared checkout swept every other
+    # session's tracked edits into the release commit (flagged 2026-10-19).
+    git add -- Cargo.toml Cargo.lock web/shared/sw.js web/pages/settings-app.js web/pages/ops.html web/shared/shell.js web/pages/download.html web/pages/index.html
     git commit -F "$MSG"
     git push origin main
-    git tag "v${VER}"
-    git push origin "v${VER}"
-    gh release create "v${VER}" --title "v${VER}" --notes-file "{{notes}}"
+    # The tag through scripts/tag-release.js: it reads the version back from the committed
+    # Cargo.toml and refuses an empty version, an existing tag, or a HEAD not on origin/main.
+    node scripts/tag-release.js --release "{{notes}}"
     rm -f "$MSG"
     echo "RELEASED v${VER}"
 
