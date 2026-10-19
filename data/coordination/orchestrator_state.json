@@ -401,6 +401,21 @@
       "date": "2026-10-18",
       "decision": "v0.1516.0: Your folders (desktop Media tab; media/your_folders.rs, media/from_here.rs private record of what was published from which local file, file_views gained notes/Act::Note) merged from a worktree builder; website: the framed item window borrows the chat's upload token through the bridge (event token, same guards as sign) so members-only files load for a passphrase-wrapped identity.",
       "why": "Operator asked for Your folders on 2026-10-13 (his E: Media drive). Fingerprints (phase 2) are not built, so a local record marks files already on a server; it is never sent anywhere. The token gap was the last open item from the card review."
+    },
+    {
+      "date": "2026-10-18",
+      "decision": "v0.1517.0: the Games library (desktop page Games: Steam, Epic and GOG games read from each store's own install records, read only, started only on Play through the store's own link or the game's own program, plus games added by their program); built by a worktree builder, reviewed and merged, and its readers run against this computer (27 Steam games and Fortnite found, all playable; no GOG here).",
+      "why": "Operator idea 2026-10-13, scoped by the dated finding docs/reference/findings/2026-10-13-game-stores-and-a-games-library.md. Its tests read fixtures only, so an ignored test (games::this_computer) prints what the page would list on the machine it runs on."
+    },
+    {
+      "date": "2026-10-18",
+      "decision": "AI-efficiency pass, same release: docs/ai/code-map.md (scripts/code-map.js, one line per source file, folder index first, refreshed by just brief), header comments on the 36 files that had none, CLAUDE.md 122 KB to 92 KB (the cryptography table moved to docs/reference/cryptography.md; START HERE says search FEATURES/STATUS/BUGS, never read them whole). Test speed: the cluster-sprite test threaded (336 s to 30 s), and the heavy libraries (crypto, SQLite, image decoding) optimised in dev/test builds (lib suite 255 s to 208 s; optimising every library was 229 s and made worktree builds slower, so a short list).",
+      "why": "Operator asked 2026-10-18 for \"hyper efficient memory files for AI ... without having to scan the source files\" and for ways to make development faster. CLAUDE.md is loaded by every session and every helper agent, so each KB there is paid on every spawn; the code map replaces opening files to find where something lives."
+    },
+    {
+      "date": "2026-10-18",
+      "decision": "Web Market: the dead listing-message box (its frames unhandled since the relay dropped marketplace messages on 2026-08-23) became Message Seller, as in the app: web chat opens the encrypted DM from /chat#dm=<key> with a first line from sessionStorage. A raw NUL byte in market-app.js (git saw it as binary) became the \\u0000 escape. Startup: a worktree builder is moving the two cloud pipelines (about 9 s of the 15.4 s boot) and the planet bake off the path to the first frame; not merged yet.",
+      "why": "Found by the header-comment helper while reading market-app.js. The boot work answers the operator's \"why does HumanityOS take a long time\": renderer_init 11 s, of which pipeline_new 9 s wall, the long poles being Cloud Transparent (9.0 s) and Cloud Screen Temporal (8.2 s)."
     }
   ],
   "active_scopes_to_avoid": [
@@ -430,7 +445,7 @@
     "Trees have no materialised identity, so they cannot be felled. The key (cell_x, cell_y, item_index) already exists structurally; a sparse delta store is the shape."
   ],
   "how_to_resume": "1. `just brief` (version/CI/signing). 2. docs/PRIORITIES.md \"Active focus\" - the top item is fully specified, start implementing rather than investigating. 3. This file for WHY. Note the ONE-GPU rule: `tasklist //FI \"IMAGENAME eq HumanityOS.exe\"` before booting any rig, and never boot beside the operator instance.",
-  "last_updated": "2026-10-17",
+  "last_updated": "2026-10-18",
   "focus": "v0.1111.1 shipped (the 2026-08-03/04 vegetation marathon, v0.1109.4-v0.1111.1). Landed: leaf tufts stopped being cubes (golden-angle azimuths + solved per-card tilts, measured 100% parallel pairs on conifers and 67% perpendicular on broadleaves before); distant cards stopped out-shining mesh trees (4-8x, three multiplying causes, then the residual 28% conifer excess traced to the odd component of the shading normals and cancelled at source - all species now 1.00 flat across the sky); standing still stopped depending on the frame rate (the frame-lock sampled terrain one frame of planetary spin behind the player, 33,360 m/s of ground slip, so altitude read as a function of fps and flipped stand height by 2.45 m); the card-hide radius stopped promising models that never drew (BUG-068); forest density stopped being a process-global read separately by two streams (BUG-069); and the card cutoff is now clamped to the terrain reach that actually exists. Foliage-card arrangement extracted to renderer/tree_cards.rs under the size ratchet, and the ratchet budget came DOWN.",
   "overnight_plan_2026_08_01": {
     "directive": "Operator (heading to bed, full trust granted): PERMANENT versions only, no half fixes. Full PBR textures (not just diffuse). Real full canopies of leaves and flowers. Photorealism is the goal - screenshots good enough to land donations/grants; money is tight. 8-10 hours unattended.",

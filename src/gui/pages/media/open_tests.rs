@@ -135,8 +135,15 @@ fn a_download_has_its_name_only_when_complete() {
     let (url, _) = serve("Content-Length: 30\r\nConnection: close\r\n", vec![vec![b'a'; 10], vec![b'b'; 10], vec![b'c'; 10]], Duration::from_millis(300));
     let (dir, u) = (out.to_path_buf(), url.clone());
     let worker = std::thread::spawn(move || fetch_to(&transfer_agent(Duration::from_secs(5)), &u, None, &dir, "dusk.webm", 100));
-    std::thread::sleep(Duration::from_millis(450)); // the first piece is in, the rest not
-    let during = names_in(&out);
+    // Wait for the first piece to land, the rest 300 ms apart behind it. A fixed 450 ms sleep here
+    // failed under load on 2026-10-18 (left: [], the fetch not started yet), so the folder is
+    // watched instead, for up to 10 s.
+    let start = std::time::Instant::now();
+    let mut during = names_in(&out);
+    while during.is_empty() && start.elapsed() < Duration::from_secs(10) {
+        std::thread::sleep(Duration::from_millis(5));
+        during = names_in(&out);
+    }
     assert!(during.len() == 1 && crate::gui::widgets::part_file::is_part_name(&during[0]), "only a part file while it arrives (left: {during:?})");
     let path = worker.join().unwrap().expect("fetched");
     assert_eq!(names_in(&out), vec!["dusk.webm".to_string()], "only the file, under its name, once done");

@@ -1,3 +1,6 @@
+// The web Settings page's script (pages/settings.html): preferences, theme, accessibility, keybinds, devices, notifications, wallet, Vault and backup.
+// Preferences live in localStorage; the Vault (once vault.html) encrypts in the page and syncs through /api/vault/sync.
+// The version in its footer line is stamped by scripts/bump-version.js.
 const DEFAULTS = window.HOS_DEFAULTS || {};
 const STORAGE_KEY = window.HOS_STORAGE_KEY || 'humanity_settings';
 
@@ -746,7 +749,7 @@ savePref = function() { _origSavePref(); updateRangeLabels(); };
 // Version tag
 try {
   const vEl = document.getElementById('version-tag');
-  if (vEl) vEl.textContent = 'HumanityOS, v0.1516.1 · ' + new Date().getFullYear();
+  if (vEl) vEl.textContent = 'HumanityOS, v0.1517.0 · ' + new Date().getFullYear();
 } catch(e) {}
 
 // Inject hosIcon SVGs into action bar buttons

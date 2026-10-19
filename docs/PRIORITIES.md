@@ -361,7 +361,10 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
       unless picked. Builds on `src/gui/widgets/file_browser.rs`; marks which local files are
       already on which server (phase 2's fingerprints). Desktop only (operator, 2026-10-13: no website
       version, so every browser behaves the same).
-    - **A Games library** (operator idea, 2026-10-13): list and launch every installed game
+    - DONE v0.1517.0 (src/games/ readers, src/gui/pages/games.rs; found this computer's 27 Steam
+      games and Fortnite, `node scripts/lib-tests.js games::this_computer --ignored --nocapture`).
+      Open: GOG untried on a real install (none here); Play itself untried by a person.
+      **A Games library** (operator idea, 2026-10-13): list and launch every installed game
       (Steam, Epic, GOG, anything installed elsewhere), the stores still doing downloads and
       updates behind it. Findings: `docs/reference/findings/2026-10-13-game-stores-and-a-games-library.md`
       (no store's terms mention launchers; recommended first version: read the stores' install

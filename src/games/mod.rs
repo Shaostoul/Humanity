@@ -215,3 +215,27 @@ pub(crate) fn read_small(path: &Path) -> Option<String> {
 
 #[cfg(test)]
 pub(crate) mod fixtures;
+
+/// The readers against THIS computer's real stores, printed for a look by hand (2026-10-18; the
+/// other tests read only fixture folders):
+/// `node scripts/lib-tests.js games::this_computer --ignored --nocapture`. Ignored because what it
+/// finds depends on the machine. It reads only, as the page does, and starts nothing.
+#[cfg(test)]
+mod this_computer {
+    #[test]
+    #[ignore]
+    fn print_what_the_page_would_list_here() {
+        let found = super::read(&super::Sources::this_computer());
+        for (store, games) in [("Steam", &found.steam), ("Epic Games Store", &found.epic), ("GOG", &found.gog)] {
+            match games {
+                None => println!("{store}: not installed here"),
+                Some(list) => {
+                    println!("{store}: {} game(s)", list.len());
+                    for g in list {
+                        println!("  {} | {:?} | play: {} | {}", g.name, g.state, g.play.is_some(), g.folder.display());
+                    }
+                }
+            }
+        }
+    }
+}

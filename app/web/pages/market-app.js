@@ -1,3 +1,6 @@
+// The web Market page's script (pages/market.html): the signed Directory, the classified listings with reviews and ratings, and My Listings.
+// Listings ride the chat WebSocket; the Directory reads /api/v2/objects and decodes its CBOR here (native: market_directory.rs).
+// A buyer reaches a seller through an encrypted direct message in web chat (Message Seller), as in the app.
 const API_BASE = '';
 let marketWs = null;
 let marketListings = [];
@@ -230,17 +233,6 @@ function handleMarketMessage(msg) {
       }
       refreshDetailReviews(lid2);
     }
-  } else if (msg.type === 'listing_messages') {
-    if (msg.listing_id) {
-      listingMsgs[msg.listing_id] = msg.messages || [];
-      if (_detailListingId === msg.listing_id) renderListingMessages(msg.listing_id);
-    }
-  } else if (msg.type === 'listing_message_new') {
-    if (msg.listing_id && msg.message) {
-      if (!listingMsgs[msg.listing_id]) listingMsgs[msg.listing_id] = [];
-      listingMsgs[msg.listing_id].push(msg.message);
-      if (_detailListingId === msg.listing_id) renderListingMessages(msg.listing_id);
-    }
   } else if (msg.type === 'peer_list') {
     if (msg.peers && marketMyKey) {
       var me = msg.peers.find(function(p) { return p.public_key_hex === marketMyKey || p.public_key === marketMyKey; });
@@ -324,16 +316,14 @@ function showListingDetail(id) {
       '<button onclick="markListingSold(\'' + l.id + '\');closeListingDetail()" class="detail-action is-sold">' + hosIcon('check', 14) + ' Mark Sold</button>' +
       '<button onclick="deleteListing(\'' + l.id + '\');closeListingDetail()" class="detail-action is-delete">' + hosIcon('trash', 14) + ' Delete</button>' +
     '</div>' : '') +
-    '<div id="listing-messages-section" class="detail-section">' +
-      '<h4 class="detail-section-title">Messages</h4>' +
-      '<div id="listing-messages-list" class="lmsg-list"></div>' +
-      '<div id="listing-messages-empty" class="detail-empty">No messages yet. Ask a question or start a conversation.</div>' +
-      (marketMyKey && marketMyKey.indexOf('viewer_') !== 0 ?
-        '<div class="lmsg-compose">' +
-          '<input id="listing-msg-input" type="text" maxlength="2000" class="lmsg-input" aria-label="Message the seller" placeholder="Type a message..." onkeydown="if(event.key===\'Enter\')sendListingMessage(\'' + escHtml(l.id) + '\')">' +
-          '<button onclick="sendListingMessage(\'' + escHtml(l.id) + '\')" class="btn btn-clickable btn-sm">Send</button>' +
-        '</div>'
-      : '<div class="detail-empty">Sign in to send messages.</div>') +
+    '<div id="listing-contact-section" class="detail-section">' +
+      '<h4 class="detail-section-title">Contact</h4>' +
+      (isMine
+        ? '<div class="detail-empty">Buyers reach you through end-to-end encrypted direct messages: check your direct messages in Chat.</div>'
+        : marketMyKey && marketMyKey.indexOf('viewer_') !== 0
+          ? '<button onclick="messageSeller(\'' + escHtml(l.id) + '\')" class="btn btn-clickable btn-sm">Message Seller</button>' +
+            '<div class="detail-empty">Messages go directly to the seller, end-to-end encrypted. The server cannot read them and keeps no record of who contacted whom.</div>'
+          : '<div class="detail-empty">Sign in to message the seller.</div>') +
     '</div>' +
     '<div id="listing-reviews-section" class="detail-section">' +
       '<h4 class="detail-section-title">Reviews</h4>' +
@@ -343,7 +333,6 @@ function showListingDetail(id) {
 
   modal.style.display = '';
   fetchListingReviews(id).then(function(data) { renderDetailReviews(id, data); });
-  requestListingMessages(id);
 }
 
 /** Render the reviews section inside the detail modal. */
@@ -910,7 +899,7 @@ function loadDirectory(force) {
         var o = dirDecodeOffering(row, cbor);
         if (!o) return;
         var received = typeof row.received_at === 'number' ? row.received_at : 0;
-        var k = o.provider_root + ' ' + o.offering_key;
+        var k = o.provider_root + '\u0000' + o.offering_key;
         var old = byKey[k];
         if (!old || old.o.updated_at < o.updated_at
             || (old.o.updated_at === o.updated_at && old.received < received)) {
@@ -1228,58 +1217,22 @@ function dirLegacyCopy(text) {
   }
 }
 
-// ── Listing Messages (buyer-seller conversations) ──
+// ── Message Seller ──
 
-/** Cache of listing messages: { [listing_id]: MessageData[] } */
-var listingMsgs = {};
-
-/** Request message history for a listing */
-function requestListingMessages(listingId) {
-  if (marketWs && marketWs.readyState === 1) {
-    marketWs.send(JSON.stringify({ type: 'listing_message_history', listing_id: listingId }));
-  }
-}
-
-/** Send a message on a listing */
-function sendListingMessage(listingId) {
-  var input = document.getElementById('listing-msg-input');
-  if (!input) return;
-  var content = input.value.trim();
-  if (!content) return;
-  if (marketWs && marketWs.readyState === 1) {
-    marketWs.send(JSON.stringify({
-      type: 'listing_message_send',
-      listing_id: listingId,
-      content: content,
+/** Open an encrypted direct message with a listing's seller in web chat, with a first line
+ *  naming the listing, as the app's Market does (src/gui/pages/market.rs). The relay keeps no
+ *  marketplace messages (removed 2026-08-23); web chat reads `#dm=<key>` (app.js) and takes the
+ *  first line from sessionStorage, so nothing about the listing goes into the address. */
+function messageSeller(listingId) {
+  var l = marketListings.find(function(x) { return x.id === listingId; });
+  if (!l || !/^[0-9a-fA-F]{16,8192}$/.test(l.seller_key || '')) return;
+  try {
+    sessionStorage.setItem('hos_dm_prefill', JSON.stringify({
+      key: l.seller_key,
+      text: 'About your listing "' + (l.title || '') + '": ',
     }));
-  }
-  input.value = '';
-}
-
-/** Render listing messages inside the detail modal */
-function renderListingMessages(listingId) {
-  var container = document.getElementById('listing-messages-list');
-  var emptyEl = document.getElementById('listing-messages-empty');
-  if (!container) return;
-  var msgs = listingMsgs[listingId] || [];
-  if (msgs.length === 0) {
-    container.innerHTML = '';
-    if (emptyEl) emptyEl.style.display = '';
-    return;
-  }
-  if (emptyEl) emptyEl.style.display = 'none';
-  container.innerHTML = msgs.map(function(m) {
-    var isMine = m.sender_key === marketMyKey;
-    var time = new Date(m.timestamp).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-    return '<div class="lmsg' + (isMine ? ' mine' : '') + '">' +
-      '<div class="lmsg-head">' +
-        '<strong class="lmsg-author">' + escHtml(m.sender_name || 'Anonymous') + '</strong>' +
-        '<span class="lmsg-time">' + escHtml(time) + '</span>' +
-      '</div>' +
-      '<div class="lmsg-body">' + escHtml(m.content) + '</div>' +
-    '</div>';
-  }).join('');
-  container.scrollTop = container.scrollHeight;
+  } catch (e) { /* storage off: the conversation still opens, just empty */ }
+  location.href = '/chat#dm=' + l.seller_key;
 }
 
 document.addEventListener('DOMContentLoaded', function() {

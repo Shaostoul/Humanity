@@ -6,7 +6,7 @@
 > `grep -i <word> docs/ai/code-map.md` before searching the source. Features (what a person can do)
 > are in `docs/FEATURES.md`; pages in `docs/PAGES.md`.
 
-834 Rust files (553,940 lines) under `src/`; 101 JavaScript files (64,830 lines) under `web/`.
+845 Rust files (556,363 lines) under `src/`; 101 JavaScript files (64,830 lines) under `web/`.
 
 ## Folders
 
@@ -16,9 +16,10 @@
 - `src/ecs/` (4 files): ECS, thin wrapper around hecs::World with system scheduling.
 - `src/engine/` (83 files): Satellites of the native app's main module, extracted from lib.rs (v0.932, tiers A+B of docs/dev/code-structure-plan.md).
 - `src/engine/screens/` (4 files): In-world screens (rungs 1 and 2 of the screens ladder, docs/design/in-world-screens.md): the engine side of a native egui page shown on a...
+- `src/games/` (9 files): The Games library's readers (2026-10-18; the operator, docs/PRIORITIES.md 2026-10-13: "A Games library: list and launch every installed g...
 - `src/gui/` (19 files): egui GUI system for the native desktop client.
 - `src/gui/model_view/` (5 files): The 3D model viewer (docs/design/model-viewer.md): a `.glb` or `.stl` file, fetched when the person presses View in 3D, read on a worker,...
-- `src/gui/pages/` (79 files): GUI pages composing widgets into full screens.
+- `src/gui/pages/` (81 files): GUI pages composing widgets into full screens.
 - `src/gui/pages/chat/` (27 files): 3-panel chat page matching the website layout.
 - `src/gui/pages/construction/` (1 files): Construction editor (v0.455+).
 - `src/gui/pages/media/` (38 files): The Media page (increment 2 of docs/design/media-showcase.md, 2026-10-11): the pictures, videos, 3D models and files people on this serve...
@@ -66,14 +67,14 @@
 
 - `auto_unlock.rs` (408): Auto-unlock: let the user opt into silent startup without typing the full BIP39-derived passphrase every launch. Main items: AutoUnlockMode, KeychainSlot, keychain_stash, keychain_load, keychain_clear, encrypt_seed_with_pin, decrypt_seed_with_pin, generate_device_key (+4 more).
 - `boot_timing.rs` (111): Boot-phase timing (2026-07-12 dev tooling). Main items: BootTimer.
-- `config.rs` (2847): Persistent configuration for the native desktop app. Main items: WindowMode, HudVitals, PlayMode, Capability, VoiceFilterMode, VoiceTransmitMode, SavedServer, AppConfig (+19 more).
+- `config.rs` (2854): Persistent configuration for the native desktop app. Main items: WindowMode, HudVitals, PlayMode, Capability, VoiceFilterMode, VoiceTransmitMode, SavedServer, AppConfig (+19 more).
 - `cosmetics.rs` (101): Cosmetic outfit catalog (v0.442): craftable/tradeable clothing items that tint the avatar's body slots. Main items: Cosmetic, OutfitColors, load_cosmetics, resolve_outfit_colors.
 - `cosmos.rs` (744): Canonical Sol-system model (v0.262.8, extracted from `gui/pages/cosmos.rs` so it is the SINGLE source of truth). Main items: SolBody, sol_bodies, find_body, kepler_solve, body_position_relative_au, body_world_position_3d_au, sample_orbit_points, KM_PER_AU (+1 more).
 - `credits.rs` (146): Third-party attributions, loaded from `data/credits.ron`. Main items: CreditSource, Credits, OSM_NOTICE.
 - `debug.rs` (129): In-app debug console: captures log messages for display in an egui overlay. Main items: push_debug, drain_debug_log, draw_debug_console.
 - `dev_travel.rs` (438): Dev travel math (v0.791.x, Platform > Dev > Travel) - pure helpers for the teleport tool that lets the operator inspect any solar body up close. Main items: teleport_viewpoint, look_angles, look_dir, planet_spin_from_time, frame_lock_capture, frame_lock_ship_pos, format_multiplier, VIEW_DISTANCE_RADII.
 - `embedded_data.rs` (865): Compile-time embedded data files for offline operation. Main items: shipped_home_design, own_home_text, get_embedded, read_data_or_embedded, load_data_or_embedded, load_text_or_embedded, note_builtin_copy, builtin_copies_this_run (+131 more).
-- `lib.rs` (16395): HumanityOS Game Engine Main items: data_dir, drone_dock_visible, run, DATA_DIR.
+- `lib.rs` (16401): HumanityOS Game Engine Main items: data_dir, drone_dock_visible, run, DATA_DIR.
 - `lod_registry.rs` (89): Per-ITEM-TYPE LOD category registry (v0.971 generalization of the vegetation rung-2a registry): every kind of thing with detail stages - vegetation, creatures, water, planet terrain - gets a row in... Main items: LodCategory, categories, category.
 - `machines.rs` (5295): Data-driven machine layout for the 3D home (First-Playable groundwork, v0.427). Main items: MachineStat, MachinePower, MachineDef, CameraPose, ScreenDef, MachineStorage, MachineInstance, MachineArray (+31 more).
 - `main.rs` (225): HumanityOS, One binary to rule them all.
@@ -193,24 +194,36 @@
 - `video.rs` (2664): The video provider (in-world screens ladder, rung 5, integration): a `video:<path>` screen plays a clip through the purpose-built player in `src/media`, looping, with its sound placed in the world... Main items: Letterbox, Picture, SoundStep, SoundLink, StripTimer, FrameDraw, ScreenView, ScreenActions (+21 more).
 - `web.rs` (489): The web provider: a `web:<url>` screen shows the readable web view on a wall (in-world screens, rung 6 integration; the core reader is `src/web_reader/` and the widget is `src/gui/widgets/web_view.... Main items: WebProvider.
 
+## src/games/
+
+- `epic.rs` (135): The Epic Games Store's installed games, read from its own manifests and never written to. Main items: play_link, read, manifests_on_this_computer.
+- `fixtures.rs` (150): Test builds only (games/mod.rs): the stores' install records, written into a scratch folder the way each store writes them, for the readers' tests, the Games page's tests and its snapshot. Main items: SteamFixture, EpicFixture, GogFixture, AllFixture, steam, epic, gog, all.
+- `gog.rs` (153): GOG's installed games, read from GOG's own records and never written to. Main items: Installed, PlayTask, primary_task, read, installed_on_this_computer.
+- `keyvalues.rs` (220): Valve's KeyValues text format, the shape of Steam's own install records (`steamapps\libraryfolders.vdf` and each `steamapps\appmanifest_<appid>.acf`). Main items: Value, find, find_text, parse.
+- `launch.rs` (125): THE ONE way the Games library starts anything: a store's link, a game's own program, or the computer's file manager showing a game's folder. Main items: Launch, launch, LINK_SCHEMES.
+- `mod.rs` (242): The Games library's readers (2026-10-18; the operator, docs/PRIORITIES.md 2026-10-13: "A Games library: list and launch every installed game (Steam, Epic, GOG, anything installed elsewhere), the st... Main items: Store, State, Game, StoreButton, Found, Sources, read, on_disk (+4 more).
+- `other.rs` (70): Games from anywhere else: a game installed from its maker's own website (Dwarf Fortress Classic from Bay 12 Games, say), or any program the person wants on the list. Main items: AddedGame, name_from_file, games.
+- `registry.rs` (129): Reading the Windows registry, and only reading: every key is opened with KEY_READ, and nothing here can create, change or delete a key or a value. Main items: Root, Key, open.
+- `steam.rs` (218): Steam's installed games, read from Steam's own files and never written to. Main items: state_of, play_link, libraries, read, root_on_this_computer, REDISTRIBUTABLES.
+
 ## src/gui/
 
 - `connections.rs` (1481): The ACTIVE relay connection's life on the GUI side: parking it while another server is active, bringing a parked one back, closing it on purpose, and what an erased account does to it. Main items: EraseOutcome, Switched, connect_target, erased_entry, changed_under_edits, page_draft, draft_after_settings_arrive, should_ask_server_settings (+5 more).
-- `dispatch.rs` (257): THE ONE page dispatch table (in-world screens, rung 1). Main items: draw_tool_page, page_id, page_from_id, ALL_PAGES, ENGINE_BOUND_PAGES.
+- `dispatch.rs` (260): THE ONE page dispatch table (in-world screens, rung 1). Main items: draw_tool_page, page_id, page_from_id, ALL_PAGES, ENGINE_BOUND_PAGES.
 - `drop_files.rs` (264): Files dragged from the computer's file manager onto the window (operator, 2026-10-17: "Can we add drag and drop functionality like dragging a file on windows 10 file explorer into the humanityOS wi... Main items: Level, begin_frame, register, refuse, take_for_picker, hovering, words_now, finish (+5 more).
 - `first_steps.rs` (172): A new player's first steps in the world (first-hour audit 2026-10-04, docs/design/first-hour-audit-2026-10-04.md, Friction 1: nothing teaches the game). Main items: controls_hint.
 - `fonts.rs` (334): Font fallback chains for the native app. Main items: install_font_fallbacks.
 - `glossary.rs` (198): In-app glossary / dictionary (v0.195.0). Main items: GlossaryEntry, Glossary, install, glossary.
 - `laws.rs` (319): Location-aware rules ("Laws") loader (v0.496). Main items: Jurisdiction, Rule, Verified, Laws, install.
 - `loaders.rs` (1635): Every `data/` file the GUI reads, and the shapes it reads them into. Main items: StudioScenePreset, StudioSourcePreset, Place, HomesteadDesign, DesignRoom, Size3, RoomRequirements, DesignTier (+53 more).
-- `mod.rs` (4734): egui GUI system for the native desktop client. Main items: ToolEntry, DonateAddress, PassphraseMode, ServerInfo, LauncherWhere, LauncherHome, GuiPage, GuiState (+9 more).
+- `mod.rs` (4742): egui GUI system for the native desktop client. Main items: ToolEntry, DonateAddress, PassphraseMode, ServerInfo, LauncherWhere, LauncherHome, GuiPage, GuiState (+9 more).
 - `ops_registry.rs` (156): Server-owner action registry loader: `data/admin/ops_registry.json`, the data-driven map of EVERY admin/owner/moderator action and where it lives (this app, a /chat-command, a config file, or the V... Main items: OpsAction, OpsPlanned, OpsVpsOnly, OpsRegistry, surface_label, ops_registry, SURFACE_ORDER.
 - `organize.rs` (246): The organize layer's small pure helpers (2026-09-25), kept out of loaders.rs (which is at its file-size budget): putting items back into storage when a backpack cannot take them, and the Garden pan... Main items: place_path, built_store_place, sync_built_stores, machine_crop_groups, return_to_storage.
 - `screen_surface.rs` (1814): A native egui page rendered into its own texture, so a flat SCREEN placed in the 3D world can show it (in-world screens, rung 1; the design doc is docs/design/in-world-screens.md). Main items: ScreenTextures, ScreenSource, ScreenWorld, ScreenProvider, WorldRenderState, WorldRender, LoadState, FoundText (+5 more).
 - `state_types.rs` (1839): The VALUE TYPES the GUI passes around: one struct or enum per thing a page shows, and the small conversions that build them. Main items: GuiItemSlot, GuiGameTime, GuiWeather, TaskPriority, TaskStatus, GuiTask, GuiListing, GuiReview (+51 more).
 - `theme.rs` (881): Theme system loaded from data/gui/theme.ron. Main items: Theme, load_theme.
 - `trade_types.rs` (81): The P2P trade value types (moved out of `state_types.rs` 2026-09-29, when an offer line gained the item id a finished trade moves, and that file was at its size budget). Main items: GuiTradeItem, GuiTrade.
-- `ui_snapshots.rs` (3553): Headless UI snapshots (v0.495). Main items: render_page_png.
+- `ui_snapshots.rs` (3585): Headless UI snapshots (v0.495). Main items: render_page_png.
 - tests: `click_sound_tests.rs`, `donate_funding_tests.rs`, `drop_files_tests.rs`
 
 ## src/gui/model_view/
@@ -237,12 +250,13 @@
 - `dev.rs` (574): Dev page (v0.777) - operator-facing developer tools, under Platform > Dev. Main items: draw, draw_creature_editor.
 - `diagnostics.rs` (200): Diagnostics dev-HUD overlays (v0.482). Main items: draw.
 - `donate.rs` (683): Donations page: the hero, then the ways to give (data/donate/routes.json: the maintainer on Patreon, not tax-deductible, then the nonprofit Sponsor-a-Can, tax-deductible), then more direct links wi... Main items: draw.
-- `escape_menu.rs` (671): RGB-colored header nav bar for all tool pages. Main items: draw_nav_bar, hsv_to_rgb, channeling_color.
+- `escape_menu.rs` (673): RGB-colored header nav bar for all tool pages. Main items: draw_nav_bar, hsv_to_rgb, channeling_color.
 - `files_settings.rs` (239): Settings > Privacy, "Files in messages", and Settings > Data, "Kept files" (2026-10-11, docs/design/media-showcase.md, "Files on the sender's device and in messages, exact", parts 3 and 4; the oper... Main items: ServerProfile, sync_accepts, draw_files_in_messages, draw_kept_files.
 - `files_upload_step.rs` (115): The Files page's upload to the server's Shared Files, cleaned on this device first (2026-10-11, docs/design/media-showcase.md, "Files on the sender's device and in messages, exact", parts 1 and 2). Main items: UploadStep, Outcome, start, prepare, upload, draw.
 - `files.rs` (750): File Browser page, browse data/ directory, view and edit text files. Main items: FsNode, SharedFileRow, FileBrowserState, forget_other_server, draw, DROP_TO_SHARE.
 - `fleet_ledger.rs` (712): THE FLEET LEDGER in the game (2026-10-04): Inventory > The fleet, and Server Settings > ADMIN > Fleet supply. Main items: FleetStore, FleetKindLine, FleetLine, FleetLedger, FleetGive, FleetTotals, FleetView, CounterAsk (+21 more).
 - `game_admin.rs` (371): Game Admin page (v0.474) -- game-world moderation, kept STRUCTURALLY SEPARATE from chat moderation. Main items: draw_section, format_ban_date.
+- `games.rs` (502): The Games library (2026-10-18; the operator, docs/PRIORITIES.md 2026-10-13: "A Games library: list and launch every installed game (Steam, Epic, GOG, anything installed elsewhere), the stores still... Main items: Where, GamesState, start_reading, read_now, add_game, remove_game, rename_game, play (+23 more).
 - `governance.rs` (931): Governance page: LIVE proposals + weighted tallies + Dilithium-signed voting and proposal creation (v0.660). Main items: ProposalView, TallyView, draw.
 - `guilds.rs` (583): Guilds page - live guild browser against the connected relay's REST guild API (v0.757, closure ladder rung 10). Main items: draw.
 - `herd.rs` (40): Home > Animals (2026-10-12, first-hour audit S6): every farm animal the home keeps, how it is (fed, watered, hungry, sick) and what it needs a day, in plain words. Main items: draw_card.
@@ -261,7 +275,7 @@
 - `market_publish.rs` (1004): In-app Market publishing (v0.1143): create or update your shop (provider_v1) and publish offerings (offering_v1) without touching a terminal. Main items: is_open, open, take_published, sign_and_submit, draw.
 - `market.rs` (757): Marketplace, browse, search, and create listings. Main items: category_color, draw.
 - `media.rs` (1049): The Media page (increment 2 of docs/design/media-showcase.md, 2026-10-11): the pictures, videos, 3D models and files people on this server chose to show, in a grid. Main items: Job, MediaAdmin, MediaTab, MediaState, sync_sound, server_here, base_of, host_here (+36 more).
-- `mod.rs` (105): GUI pages composing widgets into full screens.
+- `mod.rs` (107): GUI pages composing widgets into full screens.
 - `notes.rs` (301): Notes page, full notes app with sidebar list, text editor, toolbar with bold/italic markers, word count, auto-save indicator, delete with confirmation. Main items: draw.
 - `onboarding.rs` (232): Learn-by-doing quest chains (the surviving core of the old onboarding page). Main items: QuestStep, QuestChain, load_quest_chains, draw_quests.
 - `own_profile.rs` (396): This person's own profile on each server they use (2026-10-11, BUG-193, BUG-194, BUG-196). Main items: OwnProfile, current_server, names_socket, own_copy, keep_copy, take_own_copy, take_own_copy_at, sign_frame (+11 more).
@@ -294,7 +308,7 @@
 - `weather_panel.rs` (622): Live weather panel (v0.1050, F11). Main items: WeatherPreset, test_stop_rect, sea_description, fmt_day_length, draw, PRESETS.
 - `where_you_live.rs` (477): "Choose where you live" (ship homes increment 6, lane 1E, 2026-10-12; docs/design/ship-homes-increment-6-plan.md section 3.9): the one widget that says where you live and lets you choose, drawn in... Main items: Choice, starts, a_or_an, row_name, shared_line, engagement_line, live_in_line, held_line (+25 more).
 - `world_clock_admin.rs` (386): Server Settings > ADMIN > Shared world clock (2026-10-04). Main items: draw, explainer, real_duration, crop_growth_days.
-- tests: `files_settings_tests.rs`, `files_upload_step_tests.rs`, `fleet_ledger_tests.rs`, `household_tests.rs`, `own_profile_tests.rs`, `server_strip_tests.rs`, `showroom_tests.rs`, `where_you_live_tests.rs`
+- tests: `files_settings_tests.rs`, `files_upload_step_tests.rs`, `fleet_ledger_tests.rs`, `games_tests.rs`, `household_tests.rs`, `own_profile_tests.rs`, `server_strip_tests.rs`, `showroom_tests.rs`, `where_you_live_tests.rs`
 
 ## src/gui/pages/chat/
 
@@ -375,7 +389,7 @@
 - `file_views.rs` (378): The file picker's ways to show a folder (operator, 2026-10-17: "different view modes kinda like windows file explorer but, better. Main items: Act, Notes, SortBy, Look, type_of, toolbar, list, sorted (+6 more).
 - `form_row.rs` (88): Form row widget, label + control pair with consistent label-column width and theme-driven spacing. Main items: form_row, form_row_wide, form_row_with_help.
 - `help_modal.rs` (319): Universal help modal. Main items: HelpTopic, HelpRegistry, load_help_registry, strip_html, help_button, draw.
-- `icons.rs` (995): Painter-drawn icons for egui. Main items: paint_moon, paint_cog, paint_bolt, paint_droplet, paint_flame, paint_leaf, paint_mic, paint_triangle_right (+40 more).
+- `icons.rs` (1015): Painter-drawn icons for egui. Main items: paint_moon, paint_cog, paint_bolt, paint_droplet, paint_flame, paint_leaf, paint_mic, paint_triangle_right (+41 more).
 - `image_cache_view.rs` (246): Full-screen image viewer for chat attachments. Main items: draw.
 - `image_cache.rs` (921): Chat image cache and fetcher. Main items: ImageStatus, ImageCache, ImageRoute, download_bytes, download_bytes_with, download_to, hide_token, extract_image_urls (+8 more).
 - `label_placer.rs` (237): Map label placement: the greedy collision pass cartography uses for point and line features, so the Maps views never print one name on top of another (2026-09-27 snapshot review: star names stacked... Main items: LabelPlacer, point_candidates, along_polyline, polyline_length, LABEL_GAP.
