@@ -6,7 +6,7 @@
 > `grep -i <word> docs/ai/code-map.md` before searching the source. Features (what a person can do)
 > are in `docs/FEATURES.md`; pages in `docs/PAGES.md`.
 
-846 Rust files (557,224 lines) under `src/`; 101 JavaScript files (64,830 lines) under `web/`.
+856 Rust files (560,843 lines) under `src/`; 101 JavaScript files (64,830 lines) under `web/`.
 
 ## Folders
 
@@ -16,17 +16,17 @@
 - `src/ecs/` (4 files): ECS, thin wrapper around hecs::World with system scheduling.
 - `src/engine/` (83 files): Satellites of the native app's main module, extracted from lib.rs (v0.932, tiers A+B of docs/dev/code-structure-plan.md).
 - `src/engine/screens/` (4 files): In-world screens (rungs 1 and 2 of the screens ladder, docs/design/in-world-screens.md): the engine side of a native egui page shown on a...
-- `src/games/` (9 files): The Games library's readers (2026-10-18; the operator, docs/PRIORITIES.md 2026-10-13: "A Games library: list and launch every installed g...
+- `src/games/` (15 files): The Games library's readers (2026-10-18; the operator, docs/PRIORITIES.md 2026-10-13: "A Games library: list and launch every installed g...
 - `src/gui/` (19 files): egui GUI system for the native desktop client.
 - `src/gui/model_view/` (5 files): The 3D model viewer (docs/design/model-viewer.md): a `.glb` or `.stl` file, fetched when the person presses View in 3D, read on a worker,...
-- `src/gui/pages/` (81 files): GUI pages composing widgets into full screens.
+- `src/gui/pages/` (84 files): GUI pages composing widgets into full screens.
 - `src/gui/pages/chat/` (27 files): 3-panel chat page matching the website layout.
 - `src/gui/pages/construction/` (1 files): Construction editor (v0.455+).
 - `src/gui/pages/media/` (38 files): The Media page (increment 2 of docs/design/media-showcase.md, 2026-10-11): the pictures, videos, 3D models and files people on this serve...
 - `src/gui/pages/server_settings/` (3 files): Server and group settings page.
 - `src/gui/pages/settings/` (1 files): Settings panel with sidebar navigation and category content panels.
 - `src/gui/state_types/` (1 files): The VALUE TYPES the GUI passes around: one struct or enum per thing a page shows, and the small conversions that build them.
-- `src/gui/widgets/` (32 files): Reusable egui widgets styled by the HumanityOS theme.
+- `src/gui/widgets/` (33 files): Reusable egui widgets styled by the HumanityOS theme.
 - `src/hot_reload/` (2 files): Hot-reload coordinator, watches data files and invalidates caches.
 - `src/input/` (2 files): Input types shared across the engine.
 - `src/media/` (8 files): Purpose-built media player core (in-world screens ladder, rung 5).
@@ -67,7 +67,7 @@
 
 - `auto_unlock.rs` (408): Auto-unlock: let the user opt into silent startup without typing the full BIP39-derived passphrase every launch. Main items: AutoUnlockMode, KeychainSlot, keychain_stash, keychain_load, keychain_clear, encrypt_seed_with_pin, decrypt_seed_with_pin, generate_device_key (+4 more).
 - `boot_timing.rs` (169): Boot-phase timing (2026-07-12 dev tooling). Main items: BootTimer.
-- `config.rs` (2854): Persistent configuration for the native desktop app. Main items: WindowMode, HudVitals, PlayMode, Capability, VoiceFilterMode, VoiceTransmitMode, SavedServer, AppConfig (+19 more).
+- `config.rs` (2866): Persistent configuration for the native desktop app. Main items: WindowMode, HudVitals, PlayMode, Capability, VoiceFilterMode, VoiceTransmitMode, SavedServer, AppConfig (+19 more).
 - `cosmetics.rs` (101): Cosmetic outfit catalog (v0.442): craftable/tradeable clothing items that tint the avatar's body slots. Main items: Cosmetic, OutfitColors, load_cosmetics, resolve_outfit_colors.
 - `cosmos.rs` (744): Canonical Sol-system model (v0.262.8, extracted from `gui/pages/cosmos.rs` so it is the SINGLE source of truth). Main items: SolBody, sol_bodies, find_body, kepler_solve, body_position_relative_au, body_world_position_3d_au, sample_orbit_points, KM_PER_AU (+1 more).
 - `credits.rs` (146): Third-party attributions, loaded from `data/credits.ron`. Main items: CreditSource, Credits, OSM_NOTICE.
@@ -196,15 +196,21 @@
 
 ## src/games/
 
-- `epic.rs` (135): The Epic Games Store's installed games, read from its own manifests and never written to. Main items: play_link, read, manifests_on_this_computer.
-- `fixtures.rs` (150): Test builds only (games/mod.rs): the stores' install records, written into a scratch folder the way each store writes them, for the readers' tests, the Games page's tests and its snapshot. Main items: SteamFixture, EpicFixture, GogFixture, AllFixture, steam, epic, gog, all.
-- `gog.rs` (153): GOG's installed games, read from GOG's own records and never written to. Main items: Installed, PlayTask, primary_task, read, installed_on_this_computer.
+- `achievements.rs` (238): A Steam game's achievements, read from the copies Steam keeps on this computer (2026-10-19), never written to and never asked of Steam: Main items: Achievement, Achievements, read.
+- `art.rs` (403): A game's pictures (2026-10-19), as the dated finding docs/reference/findings/2026-10-19-games-page-art-stats-and-links.md allows them (judgement call 1): ONLY what is already on this computer, read... Main items: Art, Icon, steam, program, program_icon.
+- `binary_keyvalues.rs` (218): Valve's BINARY KeyValues, the shape of Steam's local achievement records (2026-10-19): `appcache\stats\UserGameStatsSchema_<appid>.bin` (a game's achievements: their names and descriptions) and `ap... Main items: parse.
+- `epic.rs` (157): The Epic Games Store's installed games, read from its own manifests and never written to. Main items: play_link, read, manifests_on_this_computer.
+- `fixtures.rs` (371): Test builds only (games/mod.rs): the stores' install records, written into a scratch folder the way each store writes them, for the readers' tests, the Games page's tests and its snapshot. Main items: SteamFixture, B, EpicFixture, GogFixture, AllFixture, bkv, screenshot_jpeg, picture (+5 more).
+- `gog.rs` (170): GOG's installed games, read from GOG's own records and never written to. Main items: Installed, PlayTask, primary_task, read, installed_on_this_computer.
 - `keyvalues.rs` (220): Valve's KeyValues text format, the shape of Steam's own install records (`steamapps\libraryfolders.vdf` and each `steamapps\appmanifest_<appid>.acf`). Main items: Value, find, find_text, parse.
 - `launch.rs` (125): THE ONE way the Games library starts anything: a store's link, a game's own program, or the computer's file manager showing a game's folder. Main items: Launch, launch, LINK_SCHEMES.
-- `mod.rs` (242): The Games library's readers (2026-10-18; the operator, docs/PRIORITIES.md 2026-10-13: "A Games library: list and launch every installed game (Steam, Epic, GOG, anything installed elsewhere), the st... Main items: Store, State, Game, StoreButton, Found, Sources, read, on_disk (+4 more).
-- `other.rs` (70): Games from anywhere else: a game installed from its maker's own website (Dwarf Fortress Classic from Bay 12 Games, say), or any program the person wants on the list. Main items: AddedGame, name_from_file, games.
-- `registry.rs` (129): Reading the Windows registry, and only reading: every key is opened with KEY_READ, and nothing here can create, change or delete a key or a value. Main items: Root, Key, open.
-- `steam.rs` (218): Steam's installed games, read from Steam's own files and never written to. Main items: state_of, play_link, libraries, read, root_on_this_computer, REDISTRIBUTABLES.
+- `links.rs` (157): The links a game's details offer (2026-10-19), each opened only when the person clicks it: Main items: Opens, GameLink, web_allowed, links, workshop_item, WEB_HOSTS.
+- `mod.rs` (417): The Games library's readers (2026-10-18; the operator, docs/PRIORITIES.md 2026-10-13: "A Games library: list and launch every installed game (Steam, Epic, GOG, anything installed elsewhere), the st... Main items: Store, State, Game, Details, StoreButton, Found, Sources, read (+11 more).
+- `other.rs` (72): Games from anywhere else: a game installed from its maker's own website (Dwarf Fortress Classic from Bay 12 Games, say), or any program the person wants on the list. Main items: AddedGame, name_from_file, games.
+- `registry.rs` (156): Reading the Windows registry, and only reading: every key is opened with KEY_READ, and nothing here can create, change or delete a key or a value. Main items: Root, Key, open.
+- `steam_user.rs` (224): What Steam keeps on this computer about the PERSON, not the game (2026-10-19): how long they have played each game and when they last did, and the screenshots they took. Main items: Account, Played, Screenshot, Screenshots, account_id, account, playtimes, screenshots (+1 more).
+- `steam.rs` (279): Steam's installed games, read from Steam's own files and never written to. Main items: state_of, play_link, libraries, read, root_on_this_computer, active_user_on_this_computer, REDISTRIBUTABLES.
+- `workshop.rs` (102): A Steam game's mods from the Steam Workshop (2026-10-19), as Steam keeps them on this computer: read only, never written to. Main items: Item, Workshop, read.
 
 ## src/gui/
 
@@ -216,14 +222,14 @@
 - `glossary.rs` (198): In-app glossary / dictionary (v0.195.0). Main items: GlossaryEntry, Glossary, install, glossary.
 - `laws.rs` (319): Location-aware rules ("Laws") loader (v0.496). Main items: Jurisdiction, Rule, Verified, Laws, install.
 - `loaders.rs` (1635): Every `data/` file the GUI reads, and the shapes it reads them into. Main items: StudioScenePreset, StudioSourcePreset, Place, HomesteadDesign, DesignRoom, Size3, RoomRequirements, DesignTier (+53 more).
-- `mod.rs` (4742): egui GUI system for the native desktop client. Main items: ToolEntry, DonateAddress, PassphraseMode, ServerInfo, LauncherWhere, LauncherHome, GuiPage, GuiState (+9 more).
+- `mod.rs` (4748): egui GUI system for the native desktop client. Main items: ToolEntry, DonateAddress, PassphraseMode, ServerInfo, LauncherWhere, LauncherHome, GuiPage, GuiState (+9 more).
 - `ops_registry.rs` (156): Server-owner action registry loader: `data/admin/ops_registry.json`, the data-driven map of EVERY admin/owner/moderator action and where it lives (this app, a /chat-command, a config file, or the V... Main items: OpsAction, OpsPlanned, OpsVpsOnly, OpsRegistry, surface_label, ops_registry, SURFACE_ORDER.
 - `organize.rs` (246): The organize layer's small pure helpers (2026-09-25), kept out of loaders.rs (which is at its file-size budget): putting items back into storage when a backpack cannot take them, and the Garden pan... Main items: place_path, built_store_place, sync_built_stores, machine_crop_groups, return_to_storage.
 - `screen_surface.rs` (1814): A native egui page rendered into its own texture, so a flat SCREEN placed in the 3D world can show it (in-world screens, rung 1; the design doc is docs/design/in-world-screens.md). Main items: ScreenTextures, ScreenSource, ScreenWorld, ScreenProvider, WorldRenderState, WorldRender, LoadState, FoundText (+5 more).
 - `state_types.rs` (1839): The VALUE TYPES the GUI passes around: one struct or enum per thing a page shows, and the small conversions that build them. Main items: GuiItemSlot, GuiGameTime, GuiWeather, TaskPriority, TaskStatus, GuiTask, GuiListing, GuiReview (+51 more).
 - `theme.rs` (881): Theme system loaded from data/gui/theme.ron. Main items: Theme, load_theme.
 - `trade_types.rs` (81): The P2P trade value types (moved out of `state_types.rs` 2026-09-29, when an offer line gained the item id a finished trade moves, and that file was at its size budget). Main items: GuiTradeItem, GuiTrade.
-- `ui_snapshots.rs` (3585): Headless UI snapshots (v0.495). Main items: render_page_png.
+- `ui_snapshots.rs` (3644): Headless UI snapshots (v0.495). Main items: render_page_png.
 - tests: `click_sound_tests.rs`, `donate_funding_tests.rs`, `drop_files_tests.rs`
 
 ## src/gui/model_view/
@@ -256,7 +262,9 @@
 - `files.rs` (750): File Browser page, browse data/ directory, view and edit text files. Main items: FsNode, SharedFileRow, FileBrowserState, forget_other_server, draw, DROP_TO_SHARE.
 - `fleet_ledger.rs` (712): THE FLEET LEDGER in the game (2026-10-04): Inventory > The fleet, and Server Settings > ADMIN > Fleet supply. Main items: FleetStore, FleetKindLine, FleetLine, FleetLedger, FleetGive, FleetTotals, FleetView, CounterAsk (+21 more).
 - `game_admin.rs` (371): Game Admin page (v0.474) -- game-world moderation, kept STRUCTURALLY SEPARATE from chat moderation. Main items: draw_section, format_ban_date.
-- `games.rs` (502): The Games library (2026-10-18; the operator, docs/PRIORITIES.md 2026-10-13: "A Games library: list and launch every installed game (Steam, Epic, GOG, anything installed elsewhere), the stores still... Main items: Where, GamesState, start_reading, read_now, add_game, remove_game, rename_game, play (+23 more).
+- `games_detail.rs` (432): Child of pages/games.rs (#[path]): a game's details, at the right of the library while a game is chosen, and its screenshot shown large.
+- `games_library.rs` (409): Child of pages/games.rs (#[path]): the toolbar (search, sort, view, the stores' pills) and the library itself, a Grid of tiles or a List of rows.
+- `games.rs` (752): The Games library (2026-10-18; the operator, docs/PRIORITIES.md 2026-10-13: "A Games library: list and launch every installed game (Steam, Epic, GOG, anything installed elsewhere), the stores still... Main items: Layout, SortBy, Where, ShowAll, GamesState, Act, order_of, start_reading (+45 more).
 - `governance.rs` (931): Governance page: LIVE proposals + weighted tallies + Dilithium-signed voting and proposal creation (v0.660). Main items: ProposalView, TallyView, draw.
 - `guilds.rs` (583): Guilds page - live guild browser against the connected relay's REST guild API (v0.757, closure ladder rung 10). Main items: draw.
 - `herd.rs` (40): Home > Animals (2026-10-12, first-hour audit S6): every farm animal the home keeps, how it is (fed, watered, hungry, sick) and what it needs a day, in plain words. Main items: draw_card.
@@ -308,7 +316,7 @@
 - `weather_panel.rs` (622): Live weather panel (v0.1050, F11). Main items: WeatherPreset, test_stop_rect, sea_description, fmt_day_length, draw, PRESETS.
 - `where_you_live.rs` (477): "Choose where you live" (ship homes increment 6, lane 1E, 2026-10-12; docs/design/ship-homes-increment-6-plan.md section 3.9): the one widget that says where you live and lets you choose, drawn in... Main items: Choice, starts, a_or_an, row_name, shared_line, engagement_line, live_in_line, held_line (+25 more).
 - `world_clock_admin.rs` (386): Server Settings > ADMIN > Shared world clock (2026-10-04). Main items: draw, explainer, real_duration, crop_growth_days.
-- tests: `files_settings_tests.rs`, `files_upload_step_tests.rs`, `fleet_ledger_tests.rs`, `games_tests.rs`, `household_tests.rs`, `own_profile_tests.rs`, `server_strip_tests.rs`, `showroom_tests.rs`, `where_you_live_tests.rs`
+- tests: `files_settings_tests.rs`, `files_upload_step_tests.rs`, `fleet_ledger_tests.rs`, `games_detail_tests.rs`, `games_tests.rs`, `household_tests.rs`, `own_profile_tests.rs`, `server_strip_tests.rs`, `showroom_tests.rs`, `where_you_live_tests.rs`
 
 ## src/gui/pages/chat/
 
@@ -381,6 +389,7 @@
 - `alert.rs` (104): Alert/notification banner widget, themed inline messages for info, success, warning, and error states. Main items: AlertKind, alert, alert_with_title.
 - `body_pill.rs` (505): Universal "world object label" widget, a single widget that morphs through three visual states tied to the same anchor: Main items: BodyPill, PlacedPill, PillsLayout, BodyCardData, BodyCardResponse, compute_pill_layout, paint_pill_backgrounds, paint_pill_overlays (+1 more).
 - `button.rs` (444): Universal button widget, single source of truth for every button in the app. Main items: ButtonVariant, ButtonSize, Button, btn_primary, btn_secondary, btn_danger, btn_icon, compact_button (+1 more).
+- `cover_tile.rs` (164): A cover slot and the small pieces of a library shelf (2026-10-19, first used by the Games page, pages/games.rs): Main items: fill_uv, paint_cover, thin_bar, fixed_cell, choice_pills.
 - `dialog.rs` (299): Themed dialog (Window) wrapper, replaces the dozens of bare `egui::Window::new(...)` calls scattered across pages with a consistent frame, padding, title styling, and close behaviour. Main items: dialog, dialog_scrolling, dialog_anchored.
 - `file_badge.rs` (183): A file's type, always shown beside its name (2026-10-17): a drawing, a word and a colour, so that someone who reads little or nothing still knows what kind of file they are looking at (the operator... Main items: level_color, hover_words, show, measure, paint, folder, paint_icon.
 - `file_browser.rs` (950): Universal in-app file browser widget (v0.708). Main items: FsEntry, FilePickerState, FilePickerResult, list_dir, name_matches_ext, human_size, quick_roots, folder_offer (+9 more).
@@ -394,7 +403,7 @@
 - `image_cache.rs` (921): Chat image cache and fetcher. Main items: ImageStatus, ImageCache, ImageRoute, download_bytes, download_bytes_with, download_to, hide_token, extract_image_urls (+8 more).
 - `label_placer.rs` (237): Map label placement: the greedy collision pass cartography uses for point and line features, so the Maps views never print one name on top of another (2026-09-27 snapshot review: star names stacked... Main items: LabelPlacer, point_candidates, along_polyline, polyline_length, LABEL_GAP.
 - `markdown.rs` (904): Minimal markdown reader shared by the in-app doc surfaces: the Humanity Accord viewer modal (`pages/humanity.rs`) and the Library doc pane (`pages/library.rs`). Main items: Heading, heading_slug, headings, render_markdown, render_markdown_linked, render_markdown_linked_scrolled, render_markdown_defining, strip_html_comments (+3 more).
-- `mod.rs` (1970): Reusable egui widgets styled by the HumanityOS theme. Main items: TreeNode, LockState, SectionNavItem, draw_underwater_tint, draw_toasts, card, card_clickable, card_with_header (+46 more).
+- `mod.rs` (1973): Reusable egui widgets styled by the HumanityOS theme. Main items: TreeNode, LockState, SectionNavItem, draw_underwater_tint, draw_toasts, card, card_clickable, card_with_header (+46 more).
 - `msg_format.rs` (325): Inline chat-message formatting: minimal markdown + URL detection (v0.702). Main items: SpanKind, FormatSpan, parse.
 - `part_file.rs` (208): Files written a piece at a time (a download, a private file's Save, Play here's copy) go to a hidden PART file first and get their real name only when they are complete (round 3 of docs/design/medi... Main items: Part, is_part_name, claim_and_move, sweep_own, sweep_own_in, is_listed, sweep_stale, sweep_downloads_once (+3 more).
 - `passphrase_modal.rs` (733): Passphrase entry modal overlay. Main items: draw.

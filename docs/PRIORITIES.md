@@ -364,10 +364,18 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
     - DONE v0.1517.0 (src/games/ readers, src/gui/pages/games.rs; found this computer's 27 Steam
       games and Fortnite, `node scripts/lib-tests.js games::this_computer --ignored --nocapture`).
       Play and Open in Steam confirmed by the operator on 2026-10-19. Open: GOG untried on a
-      real install (none here). IN PROGRESS 2026-10-19: a richer page (grid/list, search, sort,
-      playtime, size, his own screenshots, Workshop mods, achievements from Steam's local files,
-      links out), with artwork and store logos waiting on a dated finding
-      (docs/reference/findings/2026-10-19-games-page-art-stats-and-links.md).
+      real install (none here). DONE v0.1519.0: a library to look at (Grid and List, search,
+      sort by name, recently played, most played or size, store filter; a details panel with
+      playtime, size, achievements, his own screenshots, Workshop mods by number and links out;
+      Steam covers read in place from Steam's own cache, Epic and GOG by their program's icon; no
+      store logos), all as the dated finding
+      docs/reference/findings/2026-10-19-games-page-art-stats-and-links.md allows. Checked on
+      the operator's real library (27 Steam games with covers, hours and achievements; Fortnite by
+      its icon). Open: the details panel's right-hand dates (achievement unlock dates) are
+      clipped by a few pixels at the panel's edge; Workshop
+      mod names live on Steam's servers (not fetched); Epic and GOG store pages need an address
+      name their local records do not carry; descriptions or genres only ever from Wikidata, on a
+      press, per the finding.
       **A Games library** (operator idea, 2026-10-13): list and launch every installed game
       (Steam, Epic, GOG, anything installed elsewhere), the stores still doing downloads and
       updates behind it. Findings: `docs/reference/findings/2026-10-13-game-stores-and-a-games-library.md`
