@@ -1,8 +1,8 @@
 /* Library page: the web mirror of the native Library (src/gui/pages/library.rs).
    Reads the SAME data/library/index.json manifest and the SAME markdown files
    the native app loads from disk, so the two clients cannot drift. The external
-   tools/services that used to share this page moved to /tools in v0.1063:
-   Library is what you READ, Tools is what you GO USE. */
+   tools/services that used to share this page moved to the Tools page in v0.1063,
+   part of /apps since 2026-10-20: Library is what you READ, Apps is what you GO USE. */
 (function() {
   'use strict';
 

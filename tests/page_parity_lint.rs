@@ -59,15 +59,35 @@ struct ParityPair {
 }
 
 const PARITY_PAIRS: &[ParityPair] = &[
-    // The external catalog, free software + real-world help services: the web Tools page, and on
-    // the desktop the Apps page's Other programs, Help and Services (2026-10-19).
-    // Merged from three divergent files into one on 2026-07-30.
+    // The external catalog, free software + real-world help services: the Apps page's Other
+    // programs, Help and Services on both apps (the desktop's 2026-10-19, the website's Tools page
+    // made its Apps page 2026-10-20). Merged from three divergent files into one on 2026-07-30.
     ParityPair {
-        page: "Tools (desktop: Apps)",
+        page: "Apps (Other programs, Help, Services)",
         native: &["src/gui/loaders.rs", "src/gui/mod.rs", "src/gui/pages/apps/programs.rs"],
-        web: &["web/pages/tools-app.js"],
+        web: &["web/pages/apps-app.js"],
         data_file: "external/catalog.json",
-        reads: &[],
+        reads: &[
+            ("web/pages/apps-app.js", "const CATALOG_URL = '/data/external/catalog.json';"),
+            ("web/pages/apps-app.js", "load(CATALOG_URL)"),
+        ],
+    },
+    // HumanityOS's own tools, the Apps page's green part (2026-10-19 on the desktop, 2026-10-20 on
+    // the website): both apps read the one list, each tool opening its page. Seen red 2026-10-20
+    // in a scratch copy with the web page's load line taken out (its TOOLS_URL constant stayed):
+    // "Apps (HumanityOS tools): web/pages/apps-app.js no longer reads `gui/humanityos_tools.json`
+    // (expected a line with `load(TOOLS_URL)`)".
+    ParityPair {
+        page: "Apps (HumanityOS tools)",
+        native: &["src/gui/pages/apps/own_tools.rs"],
+        web: &["web/pages/apps-app.js"],
+        data_file: "gui/humanityos_tools.json",
+        reads: &[
+            ("src/gui/pages/apps/own_tools.rs", "pub const FILE: [&str; 2] = [\"gui\", \"humanityos_tools.json\"];"),
+            ("src/lib.rs", "crate::gui::pages::apps::own_tools::load(&data_dir)"),
+            ("web/pages/apps-app.js", "const TOOLS_URL = '/data/gui/humanityos_tools.json';"),
+            ("web/pages/apps-app.js", "load(TOOLS_URL)"),
+        ],
     },
     // Library: the documents. Both sides read the same manifest; the web page
     // fetches the markdown the manifest lists from the same directory.

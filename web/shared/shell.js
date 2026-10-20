@@ -323,9 +323,9 @@
     else if (p.startsWith('/market'))    active = 'market';
     else if (p.startsWith('/wallet'))    active = 'wallet';
     else if (p.startsWith('/platform'))  active = 'platform';
-    // Tools is its own top-level tab as of v0.1063 (the external catalog:
-    // software + real-world help services), no longer a Platform section.
-    else if (p.startsWith('/tools'))     active = 'tools';
+    // Apps (2026-10-20): HumanityOS's own tools, the external catalog's free programs and
+    // real-world help, the website's mirror of the app's Apps page (was the Tools tab).
+    else if (p.startsWith('/apps'))      active = 'apps';
     else if (p.startsWith('/web'))       active = 'web';
     else if (p.startsWith('/settings'))  active = 'settings';
     else if (p.startsWith('/ops') || p.startsWith('/pages/ops'))  active = 'ops';
@@ -925,6 +925,9 @@
 
       '<span class="nav-group-sim">' +
         navTab('/download', 'games', 'Play', 'play') +
+        /* Apps beside Play, as in the app (2026-10-20; its Apps page, 2026-10-19, is the
+         * Games library and the Tools page made one, so the website's Tools page became it). */
+        navTab('/apps',     'apps',  'Apps', 'apps') +
       '</span>' +
 
       '<div class="nav-divider"></div>' +
@@ -976,7 +979,6 @@
 
       '<span class="nav-group-blue">' +
         navTab('/platform',  'grid',     'Platform', 'platform') +
-        navTab('/tools',     'tool',     'Tools',    'tools') +
       '</span>' +
 
       '<div class="nav-divider"></div>' +
@@ -1089,6 +1091,8 @@
       mobileLink('/humanity',  'Humanity') +
       mobileLink('/chat',      'Chat') +
       mobileLink('/download',  'Play (desktop app)') +
+      // Apps: HumanityOS's own tools, free programs and real-world help (2026-10-20).
+      mobileLink('/apps',      'Apps') +
       mobileLink('/profile',   'Profile') +
       mobileLink('/home',      'Home') +
       mobileLink('/onboarding','Onboarding') +
@@ -1097,9 +1101,6 @@
       mobileLink('/crafting',  'Crafting') +
       mobileLink('/maps',      'Maps') +
       mobileLink('/platform',  'Platform') +
-      // Tools = the external catalog (software + real-world help services).
-      // Library = everything we wrote. Split by what you DO with them (v0.1063).
-      mobileLink('/tools',     'Tools') +
       mobileLink('/library',   'Library') +
       mobileLink('/accord',    'Humanity Accord') +
       mobileLink('/settings',  'Settings') +

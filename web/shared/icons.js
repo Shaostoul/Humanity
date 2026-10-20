@@ -50,6 +50,9 @@
     dev: '<polyline points="18,10 6,24 18,38"/><polyline points="30,10 42,24 30,38"/><line x1="28" y1="6" x2="20" y2="42"/>',
     settings: '<circle cx="24" cy="24" r="7"/><path d="M21,10 L21,4 L27,4 L27,10 L32,12 L36,8 L40,12 L36,16 L38,21 L44,21 L44,27 L38,27 L36,32 L40,36 L36,40 L32,36 L27,38 L27,44 L21,44 L21,38 L16,36 L12,40 L8,36 L12,32 L10,27 L4,27 L4,21 L10,21 L12,16 L8,12 L12,8 L16,12 Z"/>',
     ops: '<path d="M34,8 A12,12 0 0 0 18,16 L10,34 A6,6 0 1 0 16,40 L34,26 A12,12 0 0 0 42,16 L36,16 L36,10 L30,10 L30,14" fill="none"/><circle cx="13" cy="37" r="2"/>',
+    // Apps (2026-10-20): four rounded squares, two by two, as the app's paint_apps draws the
+    // Apps page's nav icon (filled there, outlined here like every icon of this set).
+    apps: '<rect x="7" y="7" width="14" height="14" rx="3.5"/><rect x="27" y="7" width="14" height="14" rx="3.5"/><rect x="7" y="27" width="14" height="14" rx="3.5"/><rect x="27" y="27" width="14" height="14" rx="3.5"/>',
     games: '<path d="M10,16 A8,8 0 0 0 6,30 A6,6 0 0 0 14,34 L18,26 H30 L34,34 A6,6 0 0 0 42,30 A8,8 0 0 0 38,16 Z" fill="none"/><line x1="15" y1="20" x2="15" y2="26"/><line x1="12" y1="23" x2="18" y2="23"/><circle cx="31" cy="20" r="1.5"/><circle cx="35" cy="24" r="1.5"/>',
     journal: '<path d="M24,10 V40"/><path d="M24,10 C20,8 12,8 6,10 V40 C12,38 20,38 24,40" fill="none"/><path d="M24,10 C28,8 36,8 42,10 V40 C36,38 28,38 24,40" fill="none"/><line x1="12" y1="18" x2="20" y2="18"/><line x1="12" y1="24" x2="20" y2="24"/><line x1="12" y1="30" x2="18" y2="30"/><line x1="28" y1="18" x2="36" y2="18"/><line x1="28" y1="24" x2="36" y2="24"/>',
 

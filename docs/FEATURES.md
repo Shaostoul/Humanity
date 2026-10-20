@@ -469,12 +469,19 @@ Findings"): `docs/reference/findings/2026-10-13-game-stores-and-a-games-library.
   `epic_covers.rs`, `links.rs`, `epic.rs`, `gog.rs`, `other.rs`, `launch.rs`, `registry.rs`, `fixtures.rs`);
   `src/software/` (`catalog.rs`, `records.rs`, `shortcuts.rs`, `matcher.rs`, `install.rs`); `src/gui/widgets/shelf.rs`,
   `cover_tile.rs`, `tint_section.rs`; nav item in `src/gui/pages/escape_menu.rs`, icon `widgets::icons::paint_apps`.
-- Data: `data/external/catalog.json` (also read by the web Tools page, which ignores the desktop-only fields),
-  `data/gui/humanityos_tools.json`.
-- Web: `web/pages/tools.html` + `tools-app.js` still mirror the Tools page's shelf (Grid and List, search, sort by
-  name or category, kind and category filters, the details panel), the catalog only, until the web mirrors Apps.
-  Tests: `scripts/tests/tools-web.test.js` (reads the app's words from `apps.rs` and `apps/programs.rs`). Desktop
-  only for the rest: a website cannot read or start what is installed on the computer it runs on.
+- Data: `data/external/catalog.json` (also read by the website's Apps page, which ignores the desktop-only fields),
+  `data/gui/humanityos_tools.json` (also read by the website's Apps page); both pairs guarded by
+  `tests/page_parity_lint.rs`.
+- Web: `web/pages/apps.html` + `apps-app.js` (2026-10-20: the website's Tools page made its Apps page, every name
+  with it: `/apps`, `hos_apps_view`, the nav's Apps beside Play with a four-squares icon in `web/shared/icons.js`).
+  The same six parts in the same order under bands in their colours and names; RED Games and YELLOW Added by you are
+  one line each saying the desktop app does them, with a link to /download; GREEN HumanityOS tools open the
+  website's page for each (`TOOL_PAGES`; Quests and Studio say "In the desktop app"); BLUE, CYAN and MAGENTA show
+  the catalog split by each category's `section`. One toolbar (search, Sort by Name or Category, Grid or List, a chip
+  per part with its count), short tiles (the name once), the details panel. Tests:
+  `scripts/tests/apps-web.test.js` (reads the app's parts, words, sorts and lines out of `apps.rs`, `apps/library.rs`,
+  `apps/programs.rs` and `apps/games.rs`). Desktop only for the rest: a website cannot read or start what is
+  installed on the computer it runs on.
 
 ### In-App File Browser (native, v0.708)
 Universal file-picker widget (NOT the OS dialog — the all-in-one direction): quick
@@ -965,9 +972,10 @@ Monthly/weekly view with event creation, color coding, localStorage persistence.
 Local-first note editor with auto-save, search, markdown preview, export.
 - Web: `web/pages/notes.html`, `web/pages/notes-app.js`
 
-### Tools Catalog
-37 free open-source apps across 11 categories with search/filter.
-- Web: `web/pages/tools.html`, `web/pages/tools-app.js`
+### External Catalog (the Apps page's programs and help)
+Free open-source programs and real-world help services, with search and filters: the Apps page's Other programs,
+Help and Services on both apps (see Apps Page above).
+- Web: `web/pages/apps.html`, `web/pages/apps-app.js`
 - Data: `data/external/catalog.json` (tools+services merged 2026-07-30)
 
 ### Resources Page
