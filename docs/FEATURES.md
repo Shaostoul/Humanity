@@ -313,6 +313,9 @@ the heading (`files/how.rs`, `widgets/how_it_works.rs`, closed until opened, con
 `files_how_open`): the page's own line and each place's (Shared files', the HumanityOS folder's, Your
 folders'), word for word; outside it stay Shared files' line beside Upload a file (they are public)
 and the HumanityOS folder's caution beside the file. Snapshots `files_how`, `files_app_folder_guide`.
+The website has the same fold on its Apps and Files pages since 2026-10-20 (`web/shared/how-it-works.js`
++ `.css`; localStorage `hos_apps_how_open`, `hos_files_how_open`; the toggle's words read from the Rust
+by `scripts/tests/apps-web.test.js` and `files-web-places.test.js`).
 
 **Website mirror (v0.1522.0):** `web/pages/media-panes.js` and `media-sound.js` give the website
 the same three panes (side by side or stacked by the same rule, the split in localStorage

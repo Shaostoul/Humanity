@@ -25,10 +25,18 @@ rsync -a "$SRC/assets/" "$DST/assets/"
 # Orphaned pages from retired designs. The pages copy below has no --delete
 # (the web root also hosts releases/ and uploads/ that no rsync owns), so
 # retired filenames must be removed by name or they serve forever.
-for old in skills equipment quests logbook vault knowledge systems streams studio learn resources; do
+for old in skills equipment quests logbook vault knowledge systems streams studio learn resources agents; do
   rm -f "$DST/${old}.html"
 done
 rm -f "$DST/pages/resources-app.js"
+# Retired 2026-10-20: the Tools page became Apps (apps.html), the Media page became Files
+# (files.html) and the Shared Files page became one of its places. Without these lines the old
+# pages kept loading on the live site and called routes that no longer exist.
+for old in tools media shared-files; do
+  rm -f "$DST/${old}.html"
+done
+rm -f "$DST/pages/tools-app.js" "$DST/pages/shared-files-upload.js" "$DST/shared/media.css"
+rm -f "$DST"/pages/media-*.js
 # Retired 2026-07-30: three catalogs merged into data/external/catalog.json.
 rm -f "$DST/data/resources.json" "$DST/data/resources/catalog.json" "$DST/data/tools/catalog.json"
 
@@ -78,13 +86,20 @@ for dir in activities; do
   fi
 done
 
-# JSON anywhere under data/. --include='*/' lets rsync descend: without it
-# --exclude='*' prunes directories and nested files never sync (fixed
-# 2026-07-30).
+# The game data's JSON files, and ONLY those the repo tracks (2026-10-20). On the server $SRC/data
+# is also the RUNNING relay's data folder, so copying every *.json under it (as this did until
+# then) would publish anything the relay writes there as JSON: a members-only upload of a .json
+# file, an upload waiting to be published, a fresh server's files. The repo's list is the game
+# data the website is meant to show; nothing the server makes at run time is on it.
 mkdir -p "$DST/data"
-rsync -a --prune-empty-dirs \
-  --include='*/' --include='*.json' --exclude='*' \
-  "$SRC/data/" "$DST/data/"
+# safe.directory: on a self-hosted box the checkout can belong to the relay's user while this runs
+# as root, and git refuses such a checkout without it (relay-follow-releases.sh does the same).
+src_git() { git -c safe.directory="$SRC" -C "$SRC" "$@"; }
+if ! src_git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  echo "sync-web-root: $SRC is not a git checkout, so the game data's JSON cannot be told from the server's own files; refusing to copy data/" >&2
+  exit 1
+fi
+src_git ls-files -z -- 'data/*.json' | rsync -a --from0 --files-from=- "$SRC/" "$DST/"
 # The Library ships its markdown so the web library renders the SAME documents
 # the native Library reads from disk.
 rsync -a --delete "$SRC/data/library/" "$DST/data/library/"

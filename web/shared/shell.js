@@ -305,13 +305,11 @@
     // Media page at /media until 2026-10-19, when the data browser and Shared Files joined it.
     else if (p.startsWith('/files'))     active = 'files';
     else if (p.startsWith('/watch'))     active = 'watch';
-    else if (p.startsWith('/studio'))    active = 'studio';
     else if (p.startsWith('/profile'))   active = 'profile';
     else if (p.startsWith('/identity'))   active = 'identity';
     else if (p.startsWith('/governance')) active = 'governance';
     else if (p.startsWith('/laws'))       active = 'laws';
     else if (p.startsWith('/recovery'))   active = 'recovery';
-    else if (p.startsWith('/agents'))     active = 'agents';
     else if (p.startsWith('/home'))      active = 'home';
     else if (p.startsWith('/inventory')) active = 'gear';
     else if (p.startsWith('/onboarding')) active = 'quests';
@@ -1138,7 +1136,7 @@
     // Developer and operator surfaces: PERMANENT infrastructure (this project
     // is in perpetual development and these are load-bearing), but collapsed
     // by default (2026-09-06) so a first-time visitor's menu is not eleven
-    // pages of Ops/Admin/Agents/Dev. One click opens it, and the open state
+    // pages of Ops/Admin/Dev. One click opens it, and the open state
     // sticks, so anyone who works here opens it once and never again.
     '<details class="mobile-hub-group group-blue mobile-hub-dev"' + (devOpen ? ' open' : '') + '>' +
       '<summary>Developer and operator</summary>' +
@@ -1146,7 +1144,6 @@
       mobileLink('/bugs',      'Bug Reports') +
       mobileLink('/dev',       'Dev') +
       mobileLink('/admin',     'Admin') +
-      mobileLink('/agents',    'Agents') +
     '</details>' +
     '</div>'; // close .mobile-hub-scroll
   document.body.appendChild(mobileBackdrop);
@@ -1964,7 +1961,7 @@
   // WHY: Light up the download button with RGB when a new version is available
   // so the user knows at a glance. Checks GitHub releases once per session.
   (function updateChecker() {
-    var CURRENT_VERSION = '0.1526.0';
+    var CURRENT_VERSION = '0.1526.1';
     var CACHE_KEY = 'hos_latest_version';
     var CACHE_TS_KEY = 'hos_latest_version_ts';
     var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min

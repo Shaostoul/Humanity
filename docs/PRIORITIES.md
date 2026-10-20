@@ -1055,16 +1055,16 @@ them up.
    bill author's office. Until decided the button is fine to ship (the act is not in force).
    Detail: `docs/reference/findings/2026-10-19-tools-page-install-launch-and-icons.md`, 2.10.
    Told to the operator once, 2026-10-19.
-12. **OPEN, two edits on the VPS after v0.1524.0 (Media renamed Files), 2026-10-20.** The AI's
-   remote write was refused by the session's safety classifier, so these wait for the operator:
-   (a) in `/etc/nginx/sites-enabled/humanity`, change the line `location ~ ^/media/[0-9]+$ {` to
+12. **OPEN, one edit on the VPS after v0.1524.0 (Media renamed Files), 2026-10-20.** The AI's
+   remote write was refused by the session's safety classifier, so this waits for the operator:
+   in `/etc/nginx/sites-enabled/humanity`, change the line `location ~ ^/media/[0-9]+$ {` to
    `location ~ ^/files/[0-9]+$ {` (the block is otherwise the same), then `sudo nginx -t && sudo
    systemctl reload nginx`; until then an item's own address (`/files/<number>`, its link-preview
    page) does not reach the relay. A copy of the config as it was is at
-   `/root/nginx-humanity.bak-20261020`. (b) The deploy copies web files without deleting old ones,
-   so `/var/www/humanity/` still holds the retired `media.html`, `shared-files.html`,
-   `pages/media-*.js`, `chat/chat-media-card.js` and `shared/media.css`; move them aside (e.g.
-   into a dated folder) so nobody lands on a dead page. Detail: `docs/admin/SELF-HOSTING.md`.
+   `/root/nginx-humanity.bak-20261020`. The retired pages (`tools.html`, `media.html`,
+   `shared-files.html`, their scripts and `shared/media.css`) no longer need moving by hand:
+   `scripts/sync-web-root.sh` removes them on the next deploy (v0.1527.0). Detail:
+   `docs/admin/SELF-HOSTING.md`.
 
 ---
 
