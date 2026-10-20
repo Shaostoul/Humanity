@@ -69,6 +69,7 @@ const DXC = require("./lib/dxc-dlls.js");
 const { runFreshGate, requireBootCopy, bootRecord, otherBuildNotice } = require("./lib/src-fingerprint.js");
 // Starting the game, and what a run.log must not say (BUG-133).
 const GL = require("./lib/game-launch.js");
+const WR = require("./lib/write-request.js");
 
 const REPO = path.resolve(__dirname, "..");
 const args = process.argv.slice(2);
@@ -217,8 +218,9 @@ async function oneRun(n) {
   });
   const child = game.child;
   // The autopilot request is consumed on the first frame that finds it, so it
-  // can be dropped immediately: the engine polls until it appears.
-  fs.writeFileSync(path.join(DEBUG, "autopilot_request.json"), JSON.stringify({})); // no server_url: the pinned one stands. An empty one let the game fill in the live server and dial it (2026-10-05, BUG-160)
+  // can be dropped immediately: the engine polls until it appears. Written whole
+  // (scripts/lib/write-request.js), so that first frame never finds it empty.
+  WR.writeRequest(path.join(DEBUG, "autopilot_request.json"), {}); // no server_url: the pinned one stands. An empty one let the game fill in the live server and dial it (2026-10-05, BUG-160)
 
   let timing = null;
   let earlyExit = null;

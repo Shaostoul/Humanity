@@ -87,6 +87,7 @@ const { runFreshGate, otherBuildNotice, requireBootCopy, bootRecord } = require(
 // Starting the game (the copy checked again right before the spawn, no hand-off,
 // an early exit watched), and what a run.log must not say (BUG-133).
 const GL = require("./lib/game-launch.js");
+const WR = require("./lib/write-request.js");
 
 const REPO = path.resolve(__dirname, "..");
 const args = process.argv.slice(2);
@@ -482,7 +483,7 @@ function setupRig() {
   // found neither (the game then falls back to the much slower FXC).
   DXC.copyDxcDlls({ exe: EXE, repo: REPO, dest: RIG, log });
   for (const f of fs.readdirSync(DEBUG)) {
-    if (/\.png$/.test(f) || /_done\.json$/.test(f) || /_request\.json$/.test(f)) fs.unlinkSync(path.join(DEBUG, f));
+    if (/\.png$/.test(f) || /_done\.json$/.test(f) || WR.isRequestLeftover(f)) fs.unlinkSync(path.join(DEBUG, f));
   }
   if (fs.existsSync(LOG)) fs.truncateSync(LOG, 0);
 }
@@ -525,8 +526,11 @@ async function waitFile(name, timeoutMs, pollMs = 300) {
   }
   return null;
 }
+// Written whole, through the one shared writer (scripts/lib/write-request.js): a side file
+// renamed into place. A plain write can be read EMPTY by the game's next frame, which deletes
+// it, and the request is lost with no error (verify-falls lost one so on 2026-10-20).
 function req(name, body) {
-  fs.writeFileSync(path.join(DEBUG, name), JSON.stringify(body));
+  WR.writeRequest(path.join(DEBUG, name), body);
 }
 async function waitBoot(timeoutMs, game = null) {
   const t0 = Date.now();

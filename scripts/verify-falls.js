@@ -80,7 +80,8 @@
 //
 // A REQUEST LOST MID-WRITE. One run's planet Forgiving leg ran in Realistic: its `illness` request
 // was read while the rig was still writing it, empty, and deleted (run.log had no "Showcase:
-// illness" line). The rig now writes every request to a side name and renames it into place, and
+// illness" line). The rig now writes every request to a side name and renames it into place
+// (scripts/lib/write-request.js, the one writer every rig shares), and
 // the game leaves an empty showcase request for the next frame (engine/ipc.rs take_request_text).
 //
 // RED FIRST ON A PLANET (2026-10-20). Run against a build with lib.rs's `surface_step` call (the
@@ -175,6 +176,7 @@ const DXC = require("./lib/dxc-dlls.js");
 const { runFreshGate, requireBootCopy, bootRecord, otherBuildNotice } = require("./lib/src-fingerprint.js");
 const GL = require("./lib/game-launch.js");
 const FJ = require("./lib/falls-judge.js");
+const WR = require("./lib/write-request.js");
 
 const REPO = path.resolve(__dirname, "..");
 const args = process.argv.slice(2);
@@ -355,20 +357,20 @@ function setupRig() {
   requireBootCopy(path.join(RIG, "HumanityOS.exe"), FRESH, "verify-falls");
   DXC.copyDxcDlls({ exe: EXE, repo: REPO, dest: RIG, log });
   for (const f of fs.readdirSync(DEBUG)) {
-    if (/\.png$/.test(f) || /_done\.json$/.test(f) || /_request\.json(\.part)?$/.test(f)) fs.unlinkSync(path.join(DEBUG, f));
+    if (/\.png$/.test(f) || /_done\.json$/.test(f) || WR.isRequestLeftover(f)) fs.unlinkSync(path.join(DEBUG, f));
   }
   if (fs.existsSync(LOG)) fs.truncateSync(LOG, 0);
 }
 
-/** A request file, written whole: to a side name first, then renamed into place. The game polls
- *  for the file every frame and deletes it once read, so a plain write can be caught between
- *  creating the file and filling it: the game reads it empty, deletes it, and the request is lost
- *  with no error anywhere. That lost the planet Forgiving leg's `illness` verb on 2026-10-20 (the
- *  run.log has no "Showcase: illness -> Forgiving" line, and the leg ran in Realistic). */
+/** A request file, written whole: to a side name first, then renamed into place, by the one
+ *  writer every rig shares (scripts/lib/write-request.js; this rig's own copy moved there). The
+ *  game polls for the file every frame and deletes it once read, so a plain write can be caught
+ *  between creating the file and filling it: the game reads it empty, deletes it, and the request
+ *  is lost with no error anywhere. That lost the planet Forgiving leg's `illness` verb on
+ *  2026-10-20 (the run.log has no "Showcase: illness -> Forgiving" line, and the leg ran in
+ *  Realistic). */
 function req(name, body) {
-  const p = path.join(DEBUG, name);
-  fs.writeFileSync(`${p}.part`, JSON.stringify(body));
-  fs.renameSync(`${p}.part`, p);
+  WR.writeRequest(path.join(DEBUG, name), body);
 }
 function clearDone(name) {
   const p = path.join(DEBUG, name);

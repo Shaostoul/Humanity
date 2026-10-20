@@ -43,6 +43,7 @@
 const fs = require("fs");
 const path = require("path");
 const { STICKY_PIN_RESETS, DIAG_RESETS } = require("./lib/showcase-pins.js");
+const WR = require("./lib/write-request.js");
 
 const REPO = path.resolve(__dirname, "..");
 const RIG = path.join(REPO, ".probe-rig");
@@ -62,8 +63,11 @@ const vantages = plan.vantages.map((v) => {
   return f;
 });
 
+// Written whole, through the one shared writer (scripts/lib/write-request.js): a side file
+// renamed into place. A plain write can be read EMPTY by the game's next frame, which deletes
+// it, and the request is lost with no error (verify-falls lost one so on 2026-10-20).
 function req(name, body) {
-  fs.writeFileSync(path.join(DEBUG, name), JSON.stringify(body));
+  WR.writeRequest(path.join(DEBUG, name), body);
 }
 function clearDone(n) {
   const p = path.join(DEBUG, n);

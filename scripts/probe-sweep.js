@@ -147,6 +147,7 @@ const VANTAGES_FILE = path.resolve(opt("--vantages", path.join(REPO, "tests", "v
 // The ground_probe vantage check (BUG-156): where the near trees and the eye
 // stand against the ground drawn under them, judged from the game's readout.
 const TG = require("./lib/tree-ground-check.js");
+const WR = require("./lib/write-request.js");
 // The DESCENT LADDER (environment program increment 1): instead of the
 // vantage list, fly one fixed surface column down a rung list from orbit
 // to ground, capturing a PAIR at every rung. Score with
@@ -383,8 +384,11 @@ async function waitFile(name, timeoutMs, pollMs = 400) {
   }
   return null;
 }
+// Written whole, through the one shared writer (scripts/lib/write-request.js): a side file
+// renamed into place. A plain write can be read EMPTY by the game's next frame, which deletes
+// it, and the request is lost with no error (verify-falls lost one so on 2026-10-20).
 function req(name, body) {
-  fs.writeFileSync(path.join(DEBUG, name), JSON.stringify(body));
+  WR.writeRequest(path.join(DEBUG, name), body);
 }
 
 // Judge a vantage's camera_done against its station request (BUG-132; the
@@ -664,7 +668,9 @@ async function main() {
   // Fresh session: clear old screenshots + done-files + log so paths + boot
   // detection are unambiguous.
   for (const f of fs.readdirSync(DEBUG)) {
-    if (/^screenshot_\d+\.png$/.test(f) || /_done\.json$/.test(f)) fs.unlinkSync(path.join(DEBUG, f));
+    // And any request a crashed sweep left untaken (or its side file): the new boot's first frame
+    // would act on it before this sweep asked for anything.
+    if (/^screenshot_\d+\.png$/.test(f) || /_done\.json$/.test(f) || WR.isRequestLeftover(f)) fs.unlinkSync(path.join(DEBUG, f));
   }
   if (fs.existsSync(LOG)) fs.truncateSync(LOG, 0);
   fs.mkdirSync(OUT, { recursive: true });

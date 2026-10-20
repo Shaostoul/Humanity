@@ -58,6 +58,7 @@ const G = require("./rig-graphics.js");
 const { runFreshGate, requireBootCopy, bootRecord, otherBuildNotice } = require("./lib/src-fingerprint.js");
 // Starting the game, and what a run.log must not say (BUG-133).
 const GL = require("./lib/game-launch.js");
+const WR = require("./lib/write-request.js");
 
 const REPO = path.resolve(__dirname, "..");
 const args = process.argv.slice(2);
@@ -182,7 +183,7 @@ function setupRig() {
   // releases), and logs which folder it used or that it found neither.
   DXC.copyDxcDlls({ exe: EXE, repo: REPO, dest: RIG, log });
   for (const f of fs.readdirSync(DEBUG)) {
-    if (/\.(png|mp4)$/.test(f) || /_(done|request|cancel|rejected)\.json$/.test(f)) fs.unlinkSync(path.join(DEBUG, f));
+    if (/\.(png|mp4)$/.test(f) || /_(done|request|cancel|rejected)\.json$/.test(f) || WR.isRequestLeftover(f)) fs.unlinkSync(path.join(DEBUG, f));
   }
   if (fs.existsSync(LOG)) fs.truncateSync(LOG, 0);
   if (!RIG_DEFAULTS) mirrorGraphics();
@@ -203,8 +204,11 @@ function mirrorGraphics() {
   log(`graphics: your settings mirrored (${Object.keys(m.copied).length} changed from the rig's)`);
 }
 
+// Written whole, through the one shared writer (scripts/lib/write-request.js): a side file
+// renamed into place. A plain write can be read EMPTY by the game's next frame, which deletes
+// it, and the request is lost with no error (verify-falls lost one so on 2026-10-20).
 function req(name, body) {
-  fs.writeFileSync(path.join(DEBUG, name), JSON.stringify(body));
+  WR.writeRequest(path.join(DEBUG, name), body);
 }
 function clearDone(name) {
   try {
