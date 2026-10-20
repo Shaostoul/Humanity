@@ -51,20 +51,80 @@
 // the landing, at the gravity the planet walk itself pulled with (the `falls` block reports it on
 // a planet, and the judge checks it against data/planets/earth.ron). Last the player is PLACED
 // 3 m over the ground (`stand`) and must not be hurt. The height is the eye's distance from the
-// planet's centre (`planet_r`, every recorder frame), not the camera's y.
+// planet's centre (`planet_r`, every recorder frame), not the camera's y. The climb is the walk's
+// own speed, limp included: the sprained and broken ankles the legs aboard leave climb at 1.5 m/s,
+// not 5 (the first run with the hold timed for 5 m/s rose 0.7 m), so the rig reads the rate the
+// game reports (`falls.climb_m_s`) and holds Space as long as that needs (1.68 s).
 //
 // WHY NOT A DECK. The brief was a deck of known height built on the ground with the dev `build`
 // verb, walked off. The planet walk does not stand on built pieces: its floor is the terrain alone
 // (lib.rs feeds radial_step the drawn ground's radius; built pieces only stop a step sideways,
-// `planet_build::collide_on_site`), so there is no deck to stand on. See PLANET_DECK below for
-// what the running game showed when one was tried.
+// `planet_build::collide_on_site`). Tried in the running game on 2026-10-20: `build` stood up four
+// wood walls and a Wood Roof 40 m east of the legs' spot ("5 of 5 pieces stood up"), and the eye
+// put at standing height over the roof's top (3.11 m over the ground) came to rest 0.03 m BELOW
+// the ground's standing height beside the hut: straight through the roof to the ground inside.
+// So a player cannot stand on anything built on a planet, and the climb on Space is the one way
+// on foot to leave a planet's ground by metres.
 //
 // THE RIG QUIRK THIS FOUND AND FIXED. A camera park pins the eye (`probe_hold`) until movement
-// input arrives; a person's key press lets go of it, and the rig's `hold` did not. On a planet the
-// pin put the eye back every frame, so the held Space never lifted the body, and the pin is one
-// of surface_step's exemptions, so any fall would have been exempt too. Both key paths now go
-// through engine::input::apply_game_action, and the planet legs' `park_released` check fails if
-// a held key ever leaves the pin in place again.
+// input arrives; a person's key press lets go of it, and the rig's `hold` did not. The pin is one
+// of surface_step's exemptions, so every fall a rig made after a park was exempt. Seen in the
+// running game (2026-10-20, the build before the fix): `probe_hold` true before and after the held
+// Space on both planet fall legs, the climb's landing (3.5 m/s) never handed to the body, and the
+// rig said FAIL on planet_forgiving_fall.park_released, planet_realistic_fall.park_released and
+// planet_placed_drop.park_released (tests/fixtures/falls/red-park-held.json). On a planet the pin
+// did NOT stop the walk moving the body (the frame lock moves the body by its anchor, which the
+// pin does not hold): it only made the falls exempt. Both key paths now go through
+// engine::input::apply_game_action (src/engine/rig_walk.rs tests it, and that lib.rs's keyboard
+// arm and `hold_keys` both call it).
+//
+// A REQUEST LOST MID-WRITE. One run's planet Forgiving leg ran in Realistic: its `illness` request
+// was read while the rig was still writing it, empty, and deleted (run.log had no "Showcase:
+// illness" line). The rig now writes every request to a side name and renames it into place, and
+// the game leaves an empty showcase request for the next frame (engine/ipc.rs take_request_text).
+//
+// RED FIRST ON A PLANET (2026-10-20). Run against a build with lib.rs's `surface_step` call (the
+// planet hand-off) commented out, the quirk fixed: the eye rose 2.60 m and 2.63 m on Space and
+// fell back on Earth's 9.81 m/s^2, and the rig said (exit 2):
+//   FAIL  planet_forgiving_fall.landing_handed 0 landings reached the body for a 2.60 m drop
+//         (expected exactly 1). The planet walk's landing never got to player_landed: the lib.rs
+//         hand-off after radial_step (CameraController::surface_step), an exemption left on (dev
+//         flight, the flight band, the camera park, water), or radial_step reporting no impact
+//   FAIL  planet_realistic_fall.landing_handed (the same, 2.63 m)
+//   FAIL  planet_realistic_fall.wound      read at 7.19 m/s falls.ron gives Sprained Ankle
+//                                          (sprained_ankle); the body has no wound
+//   FAIL  planet_realistic_fall.health     health 78.81 -> 78.81, took -0.00; falls.ron at 7.19
+//                                          m/s takes 7.04 (tolerance 0.5)
+//   RESULT: FAIL  60/64 passed
+// With it back, 69/69 (76/76 once the stairs-down leg was added): both planet landings reached the
+// body at about 7.0 m/s, Forgiving took nothing, Realistic sprained the (already sprained) ankle
+// again and took 6.2 health. The red run is tests/fixtures/falls/red-surface-step-removed.json.
+//
+// THE PLANET LANDING READS ABOUT 2% SLOW. The game's planet landing was 7.03 m/s where the eye's
+// own 2.62 m drop at 9.81 gives 7.17: the planet walk integrates a fall frame by frame (v then r,
+// surface_walk::vertical_step), which loses speed in proportion to the frame (20 frames of 33 ms
+// fall: sqrt(20/21) = 0.976, measured 0.979), and `falls::landing_speed` corrects only the last
+// frame. Inside the judge's 3% at 30 frames a second; at 54 ms frames it would be about 4% and
+// `landing_speed` would fail. Not fixed here (it is the planet walk's integrator).
+//
+// DOWN THE STAIRS (BUG-208, 2026-10-20). Before BUG-208 nothing in the aboard walk followed the
+// floor down, so walking DOWN the homestead's stairs flew off the top tread and landed at the
+// bottom from 3.0 m at 7.67 m/s, a sprained ankle in Realistic, and no leg here walked down
+// stairs. The realistic_stairs_down leg (right after the Forgiving walk, so the body walks at the
+// full 5 m/s) walks up to one of the top treads (watched, not timed), is turned round there by a
+// placement onto the top tread, and walks down the whole flight: no landing may reach the body.
+// Red first (2026-10-20), on main with BUG-208's step down taken out (camera.rs's "Down a step,
+// or off an edge" block disabled), the rig said (exit 2):
+//   FAIL  realistic_stairs_down.no_landing a landing reached the body (1 -> 2, the last at 7.67
+//         m/s) walking DOWN the stairs: the walk left a tread instead of stepping down it (a 3.00 m
+//         flight lands at 7.67 m/s if it is all one fall). The aboard walk's step down (BUG-208,
+//         renderer/camera.rs, STEP_DOWN_M)
+//   FAIL  realistic_stairs_down.no_wound   new wound(s) sprained_ankle from walking down stairs
+//   FAIL  realistic_stairs_down.health     health 100.00 -> 90.32
+//   RESULT: FAIL  73/76 passed
+// (tests/fixtures/falls/red-stairs-down-before-bug208.json). With the step down back, 76/76: the
+// eye walked down all 3.00 m of the stairs, no landing reached the body, no wound, health 100 to
+// 100 (tests/fixtures/falls/green-with-planet.json, every leg of the rig).
 //
 // RED FIRST (2026-10-20). This rig was run against a build with lib.rs's hand-off commented out
 // (the `take_landing` -> `falls::player_landed` block after `death_pack::frame`), the state in
@@ -139,6 +199,16 @@ const HOLD_S = 2.0;
 const WALK_RECORD_S = 6;
 /** How long the placement's drop is recorded, seconds. */
 const DROP_RECORD_S = 4;
+/** The stairs-down leg (BUG-208): forward held first this long from the foot (about halfway up
+ *  at the walk's 5 m/s), then in short pulses until the body stands within STOP_BELOW_TOP_M of the
+ *  top, which a placement can step it up from onto the top tread (the floor sampler's step up is
+ *  0.6 m, engine/footing.rs STEP_UP_M). */
+const UP_FIRST_S = 0.55;
+const UP_PULSE_S = 0.05;
+const STOP_BELOW_TOP_M = 0.5;
+/** Then forward held this long from the top tread, facing down: past the stairs' foot at 5 m/s. */
+const DOWN_HOLD_S = 1.0;
+const DOWN_RECORD_S = 5;
 /** The ladder leg: Space held this long climbs the 3.2 m to the top at the climb's 3 m/s and
  *  waits there; then no key for HANG_S (the body must hold on); then back held for STEP_BACK_S,
  *  which takes the body out of the ladder's reach (1.2 m) and off it. */
@@ -396,6 +466,8 @@ async function main() {
     // Where the planet legs run: written before the boot, so a run that stopped before them is
     // judged as missing them (the judge requires the planet legs of any run that planned them).
     planet: DATA.planet,
+    // Every leg this rig runs: the judge requires them all of a run that carries a plan.
+    plan: FJ.ALL_LEGS,
     origin: null,
     legs: [],
     falls_log: [],
@@ -478,6 +550,47 @@ async function main() {
       log(`${id}: health ${fmt(before.vitals && before.vitals.health)} -> ${fmt(after.vitals && after.vitals.health)}, landings ${before.falls && before.falls.landings} -> ${after.falls && after.falls.landings}`);
     };
     await walkLeg("forgiving_walk", "forgiving");
+
+    // DOWN THE STAIRS (BUG-208), in Realistic, before anything has hurt the body (so it walks at
+    // the full 5 m/s, the speed that used to fly off the top tread). Up from the foot to one of
+    // the top treads (watched, not timed: a long frame walks further), turned round there by a
+    // placement onto the top tread (the watch starts over once standing), then forward held down
+    // the whole flight. Every riser must be a step down: no landing, no wound, no health lost.
+    {
+      const id = "realistic_stairs_down";
+      const r = (st.rot_deg * Math.PI) / 180;
+      const alongOf = (c) => (c[0] - o[0] - st.pos[0]) * Math.sin(r) + (c[2] - o[2] - st.pos[2]) * Math.cos(r);
+      await showcase({ illness: "realistic" });
+      await showcase({ walk: "1", cam: pose(foot) });
+      await sleep(1500);
+      await showcase({ hold: "forward", hold_s: String(UP_FIRST_S) });
+      await sleep(UP_FIRST_S * 1000 + 500);
+      for (let k = 0; ; k++) {
+        const s = await snapshot(`${id} (going up)`);
+        const c = s.camera_end && s.camera_end.pos;
+        if (!Array.isArray(c)) throw new Error(`${id}: the recorder gave no camera position`);
+        const ground = c[1] - o[1] - EYE_M;
+        if (alongOf(c) > st.size[2] / 2) throw new Error(`${id}: walked off the top of the stairs while stopping on them (along ${alongOf(c).toFixed(2)} m)`);
+        if (ground >= st.top_m - STOP_BELOW_TOP_M) {
+          log(`${id}: standing ${ground.toFixed(2)} m up the stairs after ${k} pulse(s)`);
+          break;
+        }
+        if (k >= 40) throw new Error(`${id}: still only ${ground.toFixed(2)} m up the stairs after ${k} pulses of forward`);
+        await showcase({ hold: "forward", hold_s: String(UP_PULSE_S) });
+        await sleep(350);
+      }
+      const top = at(st.top_tread_eye);
+      await showcase({ walk: "1", cam: `${top.map((v) => v.toFixed(3)).join(",")},${st.down_yaw.toFixed(4)},0` });
+      await sleep(1500);
+      const before = await snapshot(`${id} (before)`);
+      await startRecording(DOWN_RECORD_S);
+      await sleep(300);
+      await showcase({ hold: "forward", hold_s: String(DOWN_HOLD_S) });
+      const after = await finishRecording(DOWN_RECORD_S, `${id} (the walk down)`);
+      manifest.legs.push({ id, mode: "realistic", kind: "stairs_down", start: top, before, after });
+      save();
+      log(`${id}: health ${fmt(before.vitals && before.vitals.health)} -> ${fmt(after.vitals && after.vitals.health)}, landings ${before.falls && before.falls.landings} -> ${after.falls && after.falls.landings}`);
+    }
     await walkLeg("realistic_walk", "realistic");
 
     // The ladder: at its foot facing it, Space held climbs to the top; let go and hang there;

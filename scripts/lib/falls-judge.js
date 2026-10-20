@@ -29,7 +29,11 @@
 //   forgiving_walk  Illness and injury set to Forgiving; forward held: up the stairs and off the
 //                   top. A 3 m drop lands at 7.67 m/s, read at 70% (5.37), under the first harm
 //                   (6.26): a landing, and nothing else.
-//   realistic_walk  the same in Realistic: 7.67 m/s, past the sprain (6.26) and short of the
+//   realistic_stairs_down  (BUG-208, run right after forgiving_walk) Realistic, stood on the top
+//                   tread facing down, forward held down the whole flight: every riser is a step
+//                   down, so no landing reaches the body, no wound, no health lost. Before
+//                   BUG-208 the walk flew off the top tread and landed from 3.0 m at 7.67 m/s.
+//   realistic_walk  forgiving_walk again in Realistic: 7.67 m/s, past the sprain (6.26) and short of the
 //                   broken ankle (7.73): a Sprained Ankle and 9.7 health.
 //   realistic_ladder  still Realistic, at the foot of the homestead's 3 m ladder (ladder-1):
 //                   Space held climbs it to the top, where the eye stops 0.2 m over the top
@@ -232,7 +236,15 @@ function pickStairs(types, structures, eyeM = 1.7) {
   const r = (s.rot_deg * Math.PI) / 180;
   const along = (lz) => [s.pos[0] + lz * Math.sin(r), s.pos[2] + lz * Math.cos(r)];
   const [fx, fz] = along(-d / 2 - 1.0);
+  const tread = ty.steps > 0 ? d / ty.steps : d;
+  const [tx, tz] = along(d / 2 - tread / 2);
   return {
+    /// One tread's depth, metres (the stairs' depth over their steps).
+    tread_m: tread,
+    /// The stairs-down leg's start: the eye standing on the middle of the top tread.
+    top_tread_eye: [tx, s.pos[1] + h + eyeM, tz],
+    /// Facing DOWN the stairs (the opposite of `yaw`).
+    down_yaw: 0 - r,
     id: s.id,
     type_id: s.type_id,
     size: [w, h, d],
@@ -405,11 +417,17 @@ function dropOf(frames, how = ABOARD_DROP) {
  *  carry none). */
 const ABOARD_LEGS = ["forgiving_walk", "realistic_walk", "realistic_ladder", "placed_drop"];
 const PLANET_LEGS = ["planet_forgiving_fall", "planet_realistic_fall", "planet_placed_drop"];
+/** Walking DOWN the stairs (BUG-208, 2026-10-20). */
+const STAIRS_LEGS = ["realistic_stairs_down"];
+/** Every leg the rig runs now. A run whose manifest carries the rig's `plan` (every run since the
+ *  stairs-down leg) must have all of them; one without a plan is an older saved run, judged by the
+ *  legs that rig had. */
+const ALL_LEGS = [...ABOARD_LEGS.slice(0, 1), ...STAIRS_LEGS, ...ABOARD_LEGS.slice(1), ...PLANET_LEGS];
 
 /**
  * Judge one run. `run` = { data (readTreeData's), entry (the first look after world entry),
  * planet (where the planet legs ran, when they were planned), legs: [{ id, mode, kind:
- * "walk"|"ladder"|"placement"|"planet_fall"|"planet_placement", start [x, y, z] (aboard),
+ * "walk"|"stairs_down"|"ladder"|"placement"|"planet_fall"|"planet_placement", start [x, y, z] (aboard),
  * hang_s (a ladder's), body (a planet leg's), before, after }], panics, builtin_data [lines],
  * other_build }. Returns { checks: [{ id, ok, detail }], ok, observed: { <leg>: what was seen,
  * for the report } }.
@@ -426,7 +444,7 @@ function judgeFalls(run) {
   const gShip = num(data.gravity_m_s2);
   const effects = data.effects || {};
   const legs = Array.isArray(run.legs) ? run.legs : [];
-  for (const want of [...ABOARD_LEGS, ...(run.planet ? PLANET_LEGS : [])]) {
+  for (const want of Array.isArray(run.plan) ? ALL_LEGS : [...ABOARD_LEGS, ...(run.planet ? PLANET_LEGS : [])]) {
     if (!legs.some((l) => l && l.id === want)) check(`${want}.ran`, false, "this leg never ran (see the rig's output for where it stopped)");
   }
 
@@ -573,7 +591,9 @@ function judgeFalls(run) {
               : `: under ${f2(minDrop)} m, so ` +
                 (onPlanet
                   ? `the climb never lifted the body that high (Space held ${f2(leg.hold_s)} s at the ${f2(leg.climb_m_s)} m/s the game reported: a slower climb than reported, the key never reaching the walk, or a camera park's pin)`
-                  : "the walk never went off the top") +
+                  : leg.kind === "stairs_down"
+                    ? "the walk never went down the stairs (it never stood on the top tread, or never moved)"
+                    : "the walk never went off the top") +
                 " and this leg says nothing about falls")
     );
     if (!dropped) continue;
@@ -590,6 +610,22 @@ function judgeFalls(run) {
         `the eye stayed at the top (y ${f2(drop.peak_y)}) for ${f2(drop.peak_held_s)} s; the rig let go of the climb key ${f2(leg.hang_s)} s before stepping away (at least ${f2(need)} s needed): ` +
           (drop.peak_held_s >= need ? "it held on" : "it dropped when the key came up, so the ladder does not hold a body that stops climbing")
       );
+    }
+
+    if (leg.kind === "stairs_down") {
+      // Walked DOWN the stairs from the top tread: every riser is a step down, not a fall
+      // (BUG-208), so nothing lands hard enough to count, and nothing hurts.
+      check(
+        `${id}.no_landing`,
+        la === lb,
+        la === lb
+          ? `no landing reached the body (${lb} before and after) walking down ${f2(drop.drop_m)} m of stairs`
+          : `a landing reached the body (${lb} -> ${la}, the last at ${f2(last)} m/s) walking DOWN the stairs: the walk left a tread instead of stepping down it ` +
+              `(a ${f2(drop.drop_m)} m flight lands at ${f2(vCam)} m/s if it is all one fall). The aboard walk's step down (BUG-208, renderer/camera.rs, STEP_DOWN_M)`
+      );
+      check(`${id}.no_wound`, newWounds.length === 0, newWounds.length ? `new wound(s) ${newWounds.join(", ")} from walking down stairs` : "no new wound");
+      check(`${id}.health`, Math.abs(hb - ha) <= LIMITS.HEALTH_TOL, `health ${f2(hb)} -> ${f2(ha)}`);
+      continue;
     }
 
     if (isPlacement) {
@@ -696,6 +732,8 @@ module.exports = {
   PLANET,
   ABOARD_LEGS,
   PLANET_LEGS,
+  STAIRS_LEGS,
+  ALL_LEGS,
   ABOARD_DROP,
   PLANET_DROP,
   planetMinDrop,

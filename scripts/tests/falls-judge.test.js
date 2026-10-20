@@ -427,8 +427,103 @@ function goodPlanetRun() {
       },
     }
   );
+  // Down the stairs (BUG-208), right after the Forgiving walk: a healthy build steps down every
+  // riser and nothing lands. With a plan, the run must have every leg the rig runs.
+  run.plan = FJ.ALL_LEGS;
+  run.legs.splice(1, 0, stairsDownLeg(run.legs[0].after));
   return run;
 }
+
+/** The eye walking DOWN stairs-1 from its top tread at 5 m/s, 60 frames a second, through the
+ *  room past the stairs' foot. `flies`: the walk before BUG-208, which left the top tread and fell
+ *  the whole 3 m under G (landing at `landedT`); otherwise the eye follows every tread down. */
+function stairsDownTrack({ flies = false, health = () => 100 } = {}) {
+  const dt = 1 / 60;
+  const riser = ST.size[1] / 14;
+  const half = ST.size[2] / 2;
+  const floorAt = (z) => {
+    const along = z - ST.pos[2];
+    if (along < -half || along > half) return 0;
+    return Math.min(ST.top_m, (Math.floor((along + half) / ST.tread_m) + 1) * riser);
+  };
+  const frames = [];
+  let t = 0;
+  let [x, y, z] = ST.top_tread_eye;
+  let v = 0;
+  let landedT = Infinity;
+  const push = () => {
+    frames.push({ t, cam: [x, y, z, 0, 0], health: null });
+    t += dt;
+  };
+  for (let i = 0; i < 18; i++) push();
+  for (let i = 0; i < 60; i++) {
+    z -= 5 * dt;
+    if (flies && y > EYE) {
+      v += G * dt;
+      y = Math.max(EYE, y - v * dt);
+      if (y === EYE && landedT === Infinity) landedT = t;
+    } else if (!flies) {
+      y = floorAt(z) + EYE;
+    }
+    push();
+  }
+  for (let i = 0; i < 120; i++) {
+    if (flies && y > EYE) {
+      v += G * dt;
+      y = Math.max(EYE, y - v * dt);
+      if (y === EYE && landedT === Infinity) landedT = t;
+    }
+    push();
+  }
+  for (const f of frames) f.health = health(f.t, landedT);
+  return frames;
+}
+
+/** The stairs-down leg of a healthy build, between the records `prev` (the Forgiving walk's). */
+function stairsDownLeg(prev) {
+  return {
+    id: "realistic_stairs_down",
+    mode: "realistic",
+    kind: "stairs_down",
+    start: ST.top_tread_eye.slice(),
+    before: { falls: fallsBlock({ ...prev.falls, mode: "realistic" }), vitals: clone(prev.vitals), frames: [] },
+    after: { falls: fallsBlock({ ...prev.falls, mode: "realistic" }), vitals: clone(prev.vitals), frames: stairsDownTrack() },
+  };
+}
+
+test("a healthy walk down the stairs passes: every riser a step down, nothing landed", () => {
+  const r = FJ.judgeFalls(goodPlanetRun());
+  assert.deepStrictEqual(r.checks.filter((c) => !c.ok), []);
+  for (const want of ["realistic_stairs_down.dropped", "realistic_stairs_down.no_landing", "realistic_stairs_down.no_wound", "realistic_stairs_down.health"]) {
+    assert.ok(r.checks.some((c) => c.id === want), `${want} was never judged`);
+  }
+  assert.ok(Math.abs(r.observed.realistic_stairs_down.drop_m - 3.0) < 0.01);
+});
+
+test("RED: walking down the stairs flies off the top tread and lands (the walk before BUG-208)", () => {
+  const run = goodPlanetRun();
+  const l = leg(run, "realistic_stairs_down");
+  const h = l.before.vitals.health;
+  l.after.falls = fallsBlock({ ...l.before.falls, landings: l.before.falls.landings + 1, last_m_s: V3 });
+  l.after.vitals = vitals(h - HARM3, [sprain()]);
+  l.after.frames = stairsDownTrack({ flies: true, health: (t, landedT) => (t >= landedT + 2 / 60 ? h - HARM3 : h) });
+  assert.deepStrictEqual(failed(run), ["realistic_stairs_down.health", "realistic_stairs_down.no_landing", "realistic_stairs_down.no_wound"]);
+  const d = FJ.judgeFalls(run).checks.find((c) => c.id === "realistic_stairs_down.no_landing").detail;
+  assert.match(d, /walking DOWN the stairs.*BUG-208/);
+});
+
+test("RED: a walk down that never left the top, and a planned run without the stairs leg", () => {
+  const still = goodPlanetRun();
+  const l = leg(still, "realistic_stairs_down");
+  l.after.frames = l.after.frames.map((f) => ({ ...f, cam: [...ST.top_tread_eye, 0, 0] }));
+  assert.deepStrictEqual(failed(still), ["realistic_stairs_down.dropped"]);
+  const short = goodPlanetRun();
+  short.legs = short.legs.filter((x) => x.id !== "realistic_stairs_down");
+  assert.deepStrictEqual(failed(short), ["realistic_stairs_down.ran"]);
+  // An older saved run (no plan) is judged by the legs its rig had.
+  delete short.plan;
+  assert.deepStrictEqual(failed(short), []);
+});
 
 test("the planet's data: Earth's gravity from data/planets/earth.ron, and the climb's drop is a sprain in Realistic and nothing in Forgiving", () => {
   assert.deepStrictEqual(
@@ -631,18 +726,41 @@ test("the real run with the rig quirk (the camera park kept through a held key) 
   assert.match(r.checks.find((c) => c.id === "planet_realistic_fall.park_released").detail, /rig_walk\.rs `hold` must let go of the park/);
 });
 
-// GREEN WITH THE PLANET LEGS (2026-10-20): this tree's build, 69/69. On Earth's ground the climb
-// rose 2.62 m and 2.63 m, both landings reached the body at 7.03 m/s (the camera's drop says 7.17
-// and 7.18: the planet walk's integrator reads about 2% slow at 30 frames a second, inside the
-// judge's 3%), Forgiving took nothing and Realistic sprained the already sprained ankle again
-// (its healing started over) and took 6.20.
-test("the real green run with the planet legs passes every check", () => {
-  const r = FJ.judgeFalls(fixture("green-with-planet.json"));
+// GREEN, EVERY LEG (2026-10-20): this tree's build (main with BUG-207 and BUG-208), 76/76, its
+// plan naming all eight legs. Down the stairs from the top tread: 3.00 m of stairs and no landing.
+// On Earth's ground the climb rose 2.61 m and 2.63 m, both landings reached the body (6.99 and
+// 7.03 m/s; the eye's drop says 7.16 and 7.18: the planet walk's integrator reads about 2% slow at
+// 30 frames a second, inside the judge's 3%), Forgiving took nothing and Realistic sprained the
+// already sprained ankle again (its healing started over) and took 6.19.
+test("the real green run with every leg passes every check", () => {
+  const run = fixture("green-with-planet.json");
+  assert.deepStrictEqual(run.plan, FJ.ALL_LEGS, "the run planned every leg the rig has");
+  const r = FJ.judgeFalls(run);
   assert.deepStrictEqual(r.checks.filter((c) => !c.ok), []);
+  assert.ok(r.checks.some((c) => c.id === "realistic_stairs_down.no_landing"));
+  assert.ok(Math.abs(r.observed.realistic_stairs_down.drop_m - 3.0) < 0.02 && r.observed.realistic_stairs_down.landing_m_s === null);
   const p = r.observed.planet_realistic_fall;
   assert.deepStrictEqual(p.new_wounds, ["sprained_ankle"]);
-  assert.ok(Math.abs(p.landing_m_s - 7.03) < 0.01 && Math.abs(p.health_before - p.health_after - 6.2) < 0.05, JSON.stringify(p));
+  assert.ok(Math.abs(p.landing_m_s - 7.03) < 0.01 && Math.abs(p.health_before - p.health_after - 6.19) < 0.05, JSON.stringify(p));
   assert.strictEqual(r.observed.planet_forgiving_fall.health_before - r.observed.planet_forgiving_fall.health_after < 0.5, true);
+});
+
+test("the rig plans every leg the judge knows", () => {
+  const src = fs.readFileSync(path.join(REPO, "scripts", "verify-falls.js"), "utf8");
+  assert.match(src, /plan: FJ\.ALL_LEGS,/, "verify-falls.js no longer writes the plan the judge holds a run to");
+  for (const id of FJ.ALL_LEGS) assert.ok(src.includes(`"${id}"`), `verify-falls.js never runs ${id}`);
+});
+
+// RED FIRST DOWN THE STAIRS (2026-10-20): main with BUG-208's step down taken out (camera.rs's
+// "Down a step, or off an edge" block disabled), the walk before that fix. In the running game the
+// body walked off the top tread facing down, flew the flight and landed from 3.00 m at 7.67 m/s:
+// a Sprained Ankle and 9.68 health, from walking down stairs. Every other check passed.
+test("the real run before BUG-208 fails the walk down the stairs on exactly that", () => {
+  const run = fixture("red-stairs-down-before-bug208.json");
+  assert.deepStrictEqual(failed(run), ["realistic_stairs_down.health", "realistic_stairs_down.no_landing", "realistic_stairs_down.no_wound"]);
+  const o = FJ.judgeFalls(run).observed.realistic_stairs_down;
+  assert.ok(Math.abs(o.landing_m_s - 7.67) < 0.02 && Math.abs(o.drop_m - 3.0) < 0.02, JSON.stringify(o));
+  assert.deepStrictEqual(o.new_wounds, ["sprained_ankle"]);
 });
 
 // RED FIRST ON A PLANET (2026-10-20): a build with lib.rs's `surface_step` call commented out, the
