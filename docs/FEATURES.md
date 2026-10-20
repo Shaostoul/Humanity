@@ -1703,8 +1703,11 @@ the Library; the page's Why opens it).
 - Native: `src/gui/pages/tools.rs`, `tools_library.rs`, `tools_detail.rs`, `tools_tests.rs`;
   `src/software/` (`catalog.rs`, `records.rs`, `matcher.rs`, `install.rs`); `src/gui/widgets/shelf.rs`
 - Data: `data/external/catalog.json` (also read by the web page, which ignores the new fields)
-- Web: `web/pages/tools.html` + `tools-app.js` (the catalog only: a web page cannot see or start the
-  programs on the computer it runs on)
+- Web: `web/pages/tools.html` + `tools-app.js`, mirroring the app's shelf since v0.1521.1 (Grid and
+  List, search, sort by name or category, kind and category filters, the category colours, the
+  details panel, the same lines on the page, remembered in localStorage `hos_tools_view`). The
+  catalog only: a web page cannot see or start the programs on the computer it runs on, and says
+  so with a link to the desktop app. Tests: `scripts/tests/tools-web.test.js` (in `just rig-tests`)
 
 ### Resources Page
 Resources directory in native UI.
