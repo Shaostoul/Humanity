@@ -371,6 +371,81 @@ fn a_weak_fire_takes_its_share_exactly_at_any_frame_rate() {
     assert!(world.get::<&crate::systems::wounds::Injuries>(hen).is_err(), "a creature is not a body: no wound");
 }
 
+/// THE SAME SECONDS IN A FIRE DO THE SAME HARM AT 30 AND 240 FRAMES A SECOND (BUG-164's note on
+/// fire.rs, 2026-10-20). Each case runs at both rates and must come out at the value worked by
+/// hand, to a thousandth:
+/// - a weak fire (0.05) with 3,000 s of fuel, a minute: 3 health off a creature, and exactly 3 s
+///   of its fuel gone;
+/// - a full fire under a sprinkler taking 0.1 of its intensity a second, out at 10 s: the dose is
+///   the trapezoid, 5 health;
+/// - a fire at 0.5 under a sprinkler taking 0.02 a second, with 4 s of fuel, which runs out at
+///   exactly 10 s: 4 health, and the fire is gone;
+/// - a player standing in a full fire for 3.5 s: 3.5 s of the data's burn damage, and the same
+///   burn.
+///
+/// Seen red on the f32 per-frame fire (fire.rs before this change, 2026-10-20): "a weak fire,
+/// a minute at 30 frames a second: burned 3.0762 s of its fuel; 3.0000 is its share". The
+/// same run printed for every case: the weak fire's fuel went 3.08 s at 30 frames a second and
+/// 3.52 s at 240 (the fuel's f32 step at 3,000 is 0.000244 and a frame's share at 240 is
+/// 0.000208, so every frame took a whole step); the suppressed fire took 5.0167 health at 30
+/// and 5.0018 at 240 (each frame burned at its starting intensity); the fire burning out its
+/// fuel took 4.0033 and 4.0005 (it burned its whole last frame past its fuel). The player's
+/// 3.5 s and burn were already exact at both rates (S8); with the fix every case is exact.
+#[test]
+fn the_same_seconds_in_a_fire_do_the_same_harm_at_30_and_240_frames_a_second() {
+    use crate::ecs::components::FireSuppressor;
+    let w = shipped();
+    for fps in [30u32, 240] {
+        let dt = 1.0 / fps as f32;
+        // A fire beside a creature, with or without a sprinkler on it, for `secs`.
+        let creature = |intensity: f32, fuel: f32, sprinkler: f32, secs: u32| {
+            let mut fire = crate::systems::fire::FireSystem::new(data_dir());
+            let data = store(None);
+            let mut world = hecs::World::new();
+            let hen = world.spawn((Transform::default(), Health { current: 100.0, max: 100.0 }));
+            let f = world.spawn((Transform::default(), Fire { intensity, fuel_remaining: fuel }));
+            if sprinkler > 0.0 {
+                world.spawn((Transform::default(), FireSuppressor { range: 5.0, strength: sprinkler }));
+            }
+            for _ in 0..fps * secs {
+                fire.tick(&mut world, dt, &data);
+            }
+            let fuel_left = world.get::<&Fire>(f).ok().map(|f| f64::from(f.fuel_remaining));
+            (100.0 - health(&world, hen), fuel_left)
+        };
+
+        let (took, fuel_left) = creature(0.05, 3000.0, 0.0, 60);
+        let burned = 3000.0 - fuel_left.expect("still burning");
+        assert!((took - 3.0).abs() < 1e-3, "a weak fire, a minute at {fps} frames a second: took {took:.4} health; 3.0000 is its share");
+        assert!((burned - 3.0).abs() < 1e-3, "a weak fire, a minute at {fps} frames a second: burned {burned:.4} s of its fuel; 3.0000 is its share");
+
+        let (took, fuel_left) = creature(1.0, 1000.0, 0.1, 12);
+        assert!((took - 5.0).abs() < 1e-3, "a suppressed fire, out at 10 s, at {fps} frames a second: took {took:.4} health; 5.0000 is its share");
+        assert!(fuel_left.is_none(), "the sprinkler put it out at {fps} frames a second");
+
+        let (took, fuel_left) = creature(0.5, 4.0, 0.02, 12);
+        assert!((took - 4.0).abs() < 1e-3, "a fire burning out its 4 s of fuel at {fps} frames a second: took {took:.4} health; 4.0000 is its share");
+        assert!(fuel_left.is_none(), "its fuel ran out at {fps} frames a second");
+
+        // A player, through the food system that owns the body.
+        let mut fire = crate::systems::fire::FireSystem::new(data_dir());
+        let mut sys = FoodSystem::new(data_dir());
+        let data = store(Some(Mode::Realistic));
+        let mut world = hecs::World::new();
+        let p = player(&mut world);
+        world.spawn((Transform::default(), Fire { intensity: 1.0, fuel_remaining: 1.0e6 }));
+        for _ in 0..(fps as f32 * 3.5).round() as u32 {
+            fire.tick(&mut world, dt, &data);
+            sys.tick(&mut world, dt, &data);
+        }
+        let took = 100.0 - health(&world, p);
+        let want = 3.5 * f64::from(w.burns.health_per_s);
+        assert!((took - want).abs() < 1e-3, "a player 3.5 s in a fire at {fps} frames a second: took {took:.4} health; {want:.4} is its share");
+        let burns: Vec<String> = ids(&effects(&world, p)).into_iter().filter(|id| id.starts_with("burn_")).collect();
+        assert_eq!(burns, vec!["burn_partial"], "the same burn at {fps} frames a second");
+    }
+}
+
 // ── Going bad, and care ──
 
 /// The shipped data with every wound that can go bad certain to when nobody cared for it and

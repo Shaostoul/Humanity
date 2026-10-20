@@ -4770,11 +4770,25 @@ this does not start it over. It still passes on its own in about 2 hours.";
   `being_ill_again_is_told_in_plain_words` (the rule with an illness whose data adds six
   hours, both modes, the fresh-course cap); `save_load::body_tests::a_body_saved_with_f32_timers_still_loads`.
 
-**Left:**
-- `src/systems/fire.rs` takes a fire's damage from Health each frame in f32 (1 a second at
+**Left, and since fixed:**
+- `src/systems/fire.rs` took a fire's damage from Health each frame in f32 (1 a second at
   full intensity). At full intensity that is hundreds of f32 steps a frame, so the error is
   under 0.1 percent; on a fire burning down to a twentieth of its intensity it nears 2
-  percent. Not the body's own system, so left with this note.
+  percent. FIXED in two steps. The first-hour audit's S8 (2026-10-12,
+  `a_weak_fire_takes_its_share_exactly_at_any_frame_rate`) moved the harm to f64 with a carry,
+  and a body's burn to the food system. The rest on
+  2026-10-20: a fire's tick is now its exact dose, the integral of its intensity over the part
+  of the tick it burned (`fire::burn_step`: suppression takes the intensity down in a straight
+  line, and a fire whose fuel runs out or whose intensity reaches zero mid-tick burns only to
+  that moment), and its intensity and fuel take their changes through `change_exactly` with
+  the fire's own carry. Its spread chance follows the dose too (1 - e^(-rate x dose)). Seen red
+  on the old tick in `wounds_tests::the_same_seconds_in_a_fire_do_the_same_harm_at_30_and_240_frames_a_second`:
+  a weak fire's fuel went 3.08 s in a minute at 30 frames a second and 3.52 s at 240 (17% too
+  fast: the fuel's f32 step at 3,000 is larger than a frame's share), a fire put out by a
+  sprinkler at 10 s took 5.0167 health at 30 and 5.0018 at 240 against the 5.0000 worked by
+  hand (each frame burned at its starting intensity), and a fire burning out 4 s of fuel took
+  4.0033 and 4.0005 (it burned its whole last frame past its fuel). All exact now at both
+  rates, with `fire::tests::a_burn_split_into_many_steps_is_the_same_burn` on the step itself.
 - The whole-course runs are ignored by default; run them with
   `cargo test --features native --lib -- --ignored frame_rate_tests`.
 
