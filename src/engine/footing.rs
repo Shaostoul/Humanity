@@ -102,7 +102,7 @@ pub fn floor_along(
 mod tests {
     use super::*;
     use crate::input::bindings::GameAction as A;
-    use crate::renderer::camera::{Camera, CameraController, SPRINT_FACTOR, WALK_SPEED_MPS, WALK_SUBSTEP_M};
+    use crate::renderer::camera::{Camera, CameraController, SPRINT_FACTOR, STEP_DOWN_M, WALK_SPEED_MPS, WALK_SUBSTEP_M};
     use crate::ship::ship_structure::ShipZone;
     use crate::systems::falls::drop_height_m;
 
@@ -357,6 +357,129 @@ mod tests {
             checked += 1;
         }
         assert!(checked > 0, "no stair type was checked");
+    }
+
+    /// EVERY STAIR RISER IS A STEP DOWN (BUG-208). The walk follows a floor that drops no deeper
+    /// than `STEP_DOWN_M` and treats a deeper drop as an edge, so a stair type with taller risers
+    /// would make walking down it a run of falls again, and a ramp steep enough to drop more than
+    /// that over one walk substep would too. Holds data/blueprints/structure_types.ron to it, and
+    /// counts what it checked.
+    ///
+    /// Seen red 2026-10-20 with STEP_DOWN_M at 0.2 m: "walking down the stairs type drops 0.214 m
+    /// a step, deeper than the walk's 0.2 m step down" (and in the same run walking down the
+    /// stairs fell from the top again, each riser an edge).
+    #[test]
+    fn every_stair_riser_is_a_step_down() {
+        let mut checked = 0;
+        for ty in structure::structure_types() {
+            let (_, h, d) = ty.size;
+            let drop = match ty.shape {
+                structure::MeshShape::Steps => h / ty.steps.max(1) as f32,
+                structure::MeshShape::Ramp => h / d * WALK_SUBSTEP_M,
+                _ => continue,
+            };
+            assert!(
+                drop < STEP_DOWN_M,
+                "walking down the {} type drops {drop:.3} m a step, deeper than the walk's {STEP_DOWN_M} m step down",
+                ty.id
+            );
+            checked += 1;
+        }
+        assert!(checked >= 2, "only {checked} stair and ramp types were checked");
+    }
+
+    /// A walker standing on `floor` at `z`, facing down the stairs (-Z), W held (and Shift).
+    fn walker_down(z: f32, floor: f32, sprint: bool) -> (CameraController, Camera) {
+        let (mut ctl, mut cam) = walker(z, sprint);
+        ctl.set_ground_floor(floor);
+        cam.position.y = floor + ctl.eye_height();
+        cam.yaw = 0.0;
+        (ctl, cam)
+    }
+
+    /// SPACE MID-FALL DOES NOTHING (BUG-208). Walking on off the top of the 3.0 m stairs, an edge
+    /// with nothing beyond it, the body is in the air: Space pressed a few frames into the fall
+    /// and held must not launch a jump. The body keeps falling every frame and lands from 3.0 m
+    /// (7.67 m/s), at 60 frames a second and at 54 ms frames.
+    ///
+    /// Seen red 2026-10-20 on the walk before the fix (6cc5ad8c9): "at 17 ms frames, Space held
+    /// from 3 frames into the fall lifted the body 0.081 m on frame 0 of the fall". Walking off an
+    /// edge never cleared `is_grounded`, so the first Space of the fall launched a full jump.
+    #[test]
+    fn space_pressed_in_mid_fall_does_not_jump() {
+        for dt in [1.0 / 60.0, 0.054] {
+            let room = room_with_stairs();
+            let (mut ctl, mut cam) = walker(2.0, false);
+            let mut rested = Vec::new();
+            // Up the stairs until the floor has fallen away under the body past the top.
+            let mut n = 0;
+            while !(cam.position.z > 7.85 && ctl.ground_floor() == 0.0) {
+                frame(&mut ctl, &mut cam, dt, &room, &mut rested);
+                n += 1;
+                assert!(n < 1000, "never walked off the top of the stairs");
+            }
+            for _ in 0..3 {
+                frame(&mut ctl, &mut cam, dt, &room, &mut rested);
+            }
+            ctl.apply_action(A::Jump, true);
+            let mut landing = None;
+            for k in 0..(5.0 / dt) as usize {
+                let before = cam.position.y;
+                frame(&mut ctl, &mut cam, dt, &room, &mut rested);
+                landing = landing.or(ctl.take_landing());
+                if landing.is_some() {
+                    break;
+                }
+                assert!(
+                    cam.position.y < before,
+                    "at {:.0} ms frames, Space held from 3 frames into the fall lifted the body {:.3} m on frame {k} of the fall",
+                    dt * 1000.0,
+                    cam.position.y - before
+                );
+            }
+            let v = landing.expect("the fall lands");
+            let h = drop_height_m(v, G);
+            assert!((h - 3.0).abs() < 0.01, "at {:.0} ms frames the fall landed from {h:.3} m ({v:.2} m/s), not 3.0 m", dt * 1000.0);
+        }
+    }
+
+    /// WALKING DOWN THE STAIRS IS NOT A FALL (BUG-208). Down the 3.0 m stairs from the top
+    /// tread, walking and sprinting, at 60 frames a second and at 54 and 100 ms frames, the body
+    /// steps down each tread: its feet are on its floor at the end of every frame, and nothing
+    /// lands hard enough to count (`falls::LANDING_M_S`).
+    ///
+    /// Seen red 2026-10-20 on the walk before the fix (6cc5ad8c9): "walking down the stairs left
+    /// the floor: [\"walking at 17 ms: feet up to 0.972 m above the floor, landing
+    /// Some(7.672027)\", \"sprinting at 17 ms: feet up to 2.248 m above the floor, landing None\",
+    /// \"walking at 54 ms: feet up to 0.963 m above the floor, landing Some(7.672027)\", ...
+    /// \"walking at 100 ms: ... landing Some(7.672027)\", ...]". Nothing followed the floor down:
+    /// at 5 m/s a body leaving the top tread flew clear of the whole flight and landed at the
+    /// bottom from 3.0 m (a sprint flew on past the stairs' foot before landing).
+    #[test]
+    fn walking_down_the_stairs_is_not_a_fall() {
+        let room = room_with_stairs();
+        let mut wrong = Vec::new();
+        for dt in [1.0 / 60.0, 0.054, 0.1] {
+            for sprint in [false, true] {
+                let (mut ctl, mut cam) = walker_down(7.7, 3.0, sprint);
+                let mut rested = Vec::new();
+                let mut worst_above = 0.0_f32;
+                let mut landing = None;
+                while cam.position.z > 3.0 {
+                    frame(&mut ctl, &mut cam, dt, &room, &mut rested);
+                    worst_above = worst_above.max(cam.position.y - ctl.eye_height() - ctl.ground_floor());
+                    landing = landing.or(ctl.take_landing());
+                }
+                if worst_above > 1e-4 || landing.is_some() {
+                    wrong.push(format!(
+                        "{} at {:.0} ms: feet up to {worst_above:.3} m above the floor, landing {landing:?}",
+                        how(sprint),
+                        dt * 1000.0
+                    ));
+                }
+            }
+        }
+        assert!(wrong.is_empty(), "walking down the stairs left the floor: {wrong:#?}");
     }
 
     /// A LONG FRAME DOES NOT STEP ONTO A DECK BEHIND A WALL (BUG-207). The walls are swept after

@@ -181,8 +181,9 @@ pub fn landing_speed(v_up: f64, above_m: f64, g: f64) -> f64 {
     (v_up * v_up + 2.0 * g.max(0.0) * above_m.max(0.0)).sqrt()
 }
 
-/// Below this a landing is a step, not a fall, and is not reported: walking down a stair lands
-/// at about 2 m/s, standing still at 0. Well under every harm in falls.ron.
+/// Below this a landing is a step, not a fall, and is not reported: standing still lands at 0,
+/// and the aboard walk steps down a stair's riser without leaving the floor at all
+/// (`renderer::camera::STEP_DOWN_M`, BUG-208). Well under every harm in falls.ron.
 pub const LANDING_M_S: f64 = 1.0;
 
 /// One body's falls, between leaving the ground and landing again (the controller keeps one for

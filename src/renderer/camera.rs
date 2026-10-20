@@ -56,6 +56,22 @@ pub const WALK_SUBSTEP_M: f32 = 0.2;
 /// than this lengthens the steps instead of multiplying them.
 const MAX_WALK_SUBSTEPS: u32 = 16;
 
+/// The deepest drop the aboard walk steps down without leaving the floor, metres (BUG-208,
+/// 2026-10-20). When the floor under a body standing on it drops by no more than this (onto the
+/// next stair tread down, off a deck, with an elevator car going down), the body follows it down
+/// and stays on its feet. A deeper drop is an edge: the body is in the air until it lands, so
+/// Space does nothing there.
+///
+/// WHY 0.30 m. Deeper than the tallest stair riser any structure type has (the "stairs": 3.0 m in
+/// 14 steps, 0.214 m), so walking down stairs is walking: nothing used to follow the floor down,
+/// and at the walk's 5 m/s a body leaving the top tread flew clear of the whole 3.6 m flight and
+/// landed at the bottom from 3.0 m (7.67 m/s, a sprained ankle in Realistic). Shallower than the
+/// half-metre drop the falls rules count as a landing (3.1 m/s, harmless; systems/wounds_tests.rs
+/// `a_half_metre_step_and_a_jump_hurt_nobody`). The walk's substeps (`WALK_SUBSTEP_M`, shorter
+/// than any tread) cross at most one riser each, so this holds at any frame rate.
+/// `engine::footing::tests::every_stair_riser_is_a_step_down` holds the data to it.
+pub const STEP_DOWN_M: f32 = 0.3;
+
 /// The floor under a point, for the aboard walk's substeps (BUG-207): given the point the walk has
 /// reached and the height a step up is measured from (`CameraController::step_up_from`), the floor
 /// there, or None for none (the walk keeps the floor it has). The main loop's is
@@ -1446,6 +1462,22 @@ impl CameraController {
                 self.falls.supported();
                 self.fall_top = None;
                 return;
+            }
+        }
+
+        // ── Down a step, or off an edge (BUG-208, 2026-10-20) ── The floor under a body standing
+        // on it has dropped: the walk carried it onto the next tread down, off a deck, or past an
+        // edge (or an elevator car went down). A drop no deeper than STEP_DOWN_M is a step down:
+        // the body follows the floor and stays on its feet. A deeper one is an edge: the body is
+        // in the air, so Space does nothing until it lands. Before, nothing did either: walking
+        // down the stairs flew off the top tread and landed at the bottom from 3.0 m, and walking
+        // off an edge left `is_grounded` set all the way down, so Space mid-fall launched a jump.
+        if self.is_grounded {
+            let drop = camera.position.y - self.ground_y;
+            if drop > STEP_DOWN_M {
+                self.is_grounded = false;
+            } else if drop > 0.0 {
+                camera.position.y = self.ground_y;
             }
         }
 

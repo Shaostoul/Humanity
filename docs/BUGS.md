@@ -6208,3 +6208,51 @@ frame, takes four, about 0.16 ms (0.16%).
   Some(0.2), right: Some(0.0)".
 
 Not covered here: the running game (`just verify-falls` after the merge).
+
+## BUG-208: walking off an edge left the body "grounded", so Space mid-fall jumped; and walking down the stairs was a 3 m fall (FIXED 2026-10-20, found 2026-10-20)
+
+Found reading the aboard walk for BUG-207 (`CameraController::update_first_person`, now
+`walk_step`, src/renderer/camera.rs). Nothing in the walk ever followed the floor DOWN or noticed
+it falling away: `is_grounded` was set only by a landing and cleared only by a jump, a ladder,
+flight or the planet walk.
+
+1. **Space mid-fall jumped.** Walking off an edge left `is_grounded` set all the way down, so the
+   first Space press of the fall launched a full 5 m/s jump in mid-air (once: the jump clears it).
+   It never softened a fall, since a landing's speed is taken from the highest point reached, but
+   it was a jump from nothing.
+2. **Walking down the stairs was a 3 m fall.** A body leaving a tread simply fell, and at the
+   walk's 5 m/s the fall's arc (after x metres it has dropped 0.196 x^2 m) stays above the 0.833
+   slope of the homestead's stairs for 4.25 m, longer than the whole 3.6 m flight. So
+   walking down from the top tread flew clear of every tread and landed at the bottom from 3.0 m:
+   7.67 m/s, a sprained ankle in Realistic (from 6.26 m/s; Forgiving reads it at 5.37, under
+   that). Sprinting flew on past the stairs' foot.
+
+**Fix.** Each step of the walk now looks at how far the floor under a standing body has dropped.
+No deeper than `STEP_DOWN_M` (0.30 m) is a step down: the body follows the floor and stays on its
+feet. Deeper is an edge: `is_grounded` is cleared, so Space does nothing until the body lands. That
+is how walking down stairs is told apart from walking off an edge: by the size of the drop under
+the feet, in a walk whose substeps (BUG-207, 0.20 m, shorter than any tread) cross at most one
+riser each, so a stair's drop is always one riser (0.214 m) at any frame rate, and an edge's is the
+whole height. 0.30 m because it is deeper than the tallest riser any structure type has and
+shallower than the half-metre drop the falls rules count as a (harmless, 3.1 m/s) landing; a 0.2 m
+deck edge and an elevator car going down are steps too. Gravity, the jump and the falls rules are
+unchanged; a fall off an edge lands exactly as before (`a_landing_is_its_real_speed_at_any_frame_rate`
+and the other fall tests are unchanged and pass).
+
+**Tests** (`src/engine/footing.rs`, each seen red first on 6cc5ad8c9, the walk before the fix):
+- `space_pressed_in_mid_fall_does_not_jump`: walking on off the top of the 3.0 m stairs, Space
+  held from 3 frames into the fall, at 60 frames a second and at 54 ms: the body falls every frame
+  and lands from 3.0 m. Red: "at 17 ms frames, Space held from 3 frames into the fall lifted the
+  body 0.081 m on frame 0 of the fall".
+- `walking_down_the_stairs_is_not_a_fall`: down the stairs from the top tread, walking and
+  sprinting, at 60 frames a second and at 54 and 100 ms: the feet are on the floor at the end of
+  every frame and nothing lands. Red: "walking at 17 ms: feet up to 0.972 m above the floor, landing
+  Some(7.672027)", the same 7.67 m/s landing at 54 and 100 ms, and every sprint up to about 2.2 m
+  above the floor.
+- `every_stair_riser_is_a_step_down`: every stair type's riser, and a ramp's drop over one walk
+  substep, is under `STEP_DOWN_M`. Red with it at 0.2 m: "walking down the stairs type drops 0.214
+  m a step, deeper than the walk's 0.2 m step down" (and walking down the stairs fell from the top
+  again in that run).
+
+Not covered here: the running game. `just verify-falls` walks up and off the stairs and lets go of
+the ladder, both unchanged by this; nothing there walks down the stairs yet.
