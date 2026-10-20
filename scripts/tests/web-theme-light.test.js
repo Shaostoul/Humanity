@@ -400,3 +400,185 @@ test('every colour variable a page defines with a dark value has a light value',
     'A variable with a dark colour and no light value keeps the page dark under the light ' +
     'theme. Give it one in a :root[data-theme="light"] rule in the same file.\n' + hits.join('\n'));
 });
+
+// ── 7: text coloured with a literal is readable in the light theme ─────
+//
+// Found 2026-10-20 by the review of that night's merges, on the Files page's server data folder
+// (web/shared/files-folder.css): its JSON viewer's keys and strings (#7ec8e3, #a8d89a) read at
+// about 1.7:1 and 1.5:1 on the light page, and Save's black text on the light accent at about
+// 3.8:1. Check 5 cannot see either: a pale ink on a light page is the text side of a dark
+// surface. So: in every page stylesheet (CSS files and the <style> elements of HTML pages; a
+// colour a script writes is not a stylesheet and is not read here), each `color:` that names a
+// literal colour, or a variable the same file defines, must reach 4.5:1 (WCAG AA for body text)
+// in the light theme against its rule's own background (a theme variable's light value, or a
+// literal) or, when the rule sets none, the light page background. A rule only for a dark or
+// high-contrast theme is not read. Same escape as 5: `theme-exempt: <reason>` on the line, for
+// text that sits on a surface dark in both themes.
+//
+// OLDER_TEXT holds the lines that were already there when this check came, as a count per file:
+// a file may not gain one, and a file that loses one must lower its count (so the list only
+// shrinks, as tests/theme_token_lint.rs's LEGACY_OFFENDERS does). Many are white text on a
+// surface the rule does not paint (a badge drawn by another rule, a video's dark overlay), which
+// a person must look at; none is new. Black text on the accent, the review's Save button, was on
+// seven more pages: those 13 lines moved to var(--text-on-accent) the same day (its dark value is
+// #0d0d0d, so the dark theme looks the same).
+//
+// Red first, 2026-10-20, against files-folder.css as the review found it: "no page stylesheet
+// colours text with a literal that is unreadable in the light theme" listed its six lines
+// (shared/files-folder.css:15: #000 on var(--accent), 3.78:1; :46 #7ec8e3 on the page, 1.70:1;
+// :47 #a8d89a, 1.47:1; :48 #d4a0ff, 1.86:1; :49 #f0a500, 1.89:1; :50 #888, 3.22:1).
+
+/** The light theme's own colour variables: theme.css's generated light block. */
+const LIGHT_VARS = (() => {
+  const region = THEME_CSS.slice(THEME_CSS.indexOf(GEN.BEGIN), THEME_CSS.indexOf(GEN.END));
+  const block = /:root\[data-theme="light"\] \{([\s\S]*?)\n\}/.exec(region)[1];
+  const out = {};
+  for (const m of block.matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)) out[m[1]] = m[2].trim();
+  return out;
+})();
+const LIGHT_PAGE = literalColours(LIGHT_VARS['--bg'])[0];
+
+/** WCAG contrast ratio of two colours (alpha ignored: callers pass solid ones). */
+function contrast(a, b) {
+  const x = luminance(a.r, a.g, a.b), y = luminance(b.r, b.g, b.b);
+  return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+}
+
+/** A file's stylesheet text with line numbers kept: a CSS file whole, an HTML page's <style>
+ *  elements only (everything else blanked to spaces, its newlines kept). */
+function stylesheetText(file) {
+  const text = read(file);
+  if (!file.endsWith('.html')) return text;
+  const blank = (s) => s.replace(/[^\n]/g, ' ');
+  let out = '', at = 0;
+  for (const m of text.matchAll(/(<style\b[^>]*>)([\s\S]*?)<\/style>/gi)) {
+    const body = m.index + m[1].length;
+    out += blank(text.slice(at, body)) + m[2];
+    at = body + m[2].length;
+  }
+  return out + blank(text.slice(at));
+}
+
+/** The lines where `css` colours text below 4.5:1 in the light theme, as `<line>: <what>`. */
+function lowContrastText(css) {
+  const lines = css.split('\n');
+  // Where each line starts, so a block's line is found without counting from the top each time.
+  const starts = [0];
+  for (let i = css.indexOf('\n'); i >= 0; i = css.indexOf('\n', i + 1)) starts.push(i + 1);
+  const lineAt = (offset) => {
+    let lo = 0, hi = starts.length - 1;
+    while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (starts[mid] <= offset) lo = mid; else hi = mid - 1; }
+    return lo + 1;
+  };
+  // The innermost rule blocks, `selector { body }`, in one pass (a regular expression over a page
+  // of blanked HTML backtracks for minutes): an @media's own braces hold no declarations.
+  const blocks = [];
+  let boundary = 0, open = -1, selector = 0;
+  for (let i = 0; i < css.length; i++) {
+    if (css[i] === '{') { open = i; selector = boundary; boundary = i + 1; }
+    else if (css[i] === '}') {
+      if (open >= 0) blocks.push({ selector: css.slice(selector, open), body: css.slice(open + 1, i), at: open + 1 });
+      open = -1; boundary = i + 1;
+    }
+  }
+  // The variables this file defines: their light value (a light-theme rule's), else their value.
+  const plain = {}, light = {};
+  for (const b of blocks) {
+    const isLight = /\[data-theme=["']?light["']?\]/.test(b.selector);
+    for (const d of b.body.matchAll(/(--[\w-]+)\s*:\s*([^;]+)/g)) {
+      if (isLight) light[d[1]] = d[2];
+      else if (!(d[1] in plain)) plain[d[1]] = d[2];
+    }
+  }
+  const pageVar = (name) => light[name] || plain[name];
+  const solid = (value) => literalColours(value).find((c) => c.a >= 0.8) || null;
+  const hits = [];
+  for (const b of blocks) {
+    // A rule only for a dark or high-contrast theme is not what the light theme draws.
+    if (/data-theme=["']?(?!light\b)\w|high-contrast/i.test(b.selector)) continue;
+    let backdrop = LIGHT_PAGE, under = 'the page';
+    const bg = /(?<![\w-])background(?:-color)?\s*:\s*([^;]+)/.exec(b.body);
+    if (bg) {
+      const v = /var\((--[\w-]+)/.exec(bg[1]);
+      const value = v ? LIGHT_VARS[v[1]] || pageVar(v[1]) : bg[1];
+      const c = value ? solid(value) : null;
+      if (c) { backdrop = c; under = bg[1].trim(); }
+    }
+    for (const d of b.body.matchAll(/(?<![\w-])color\s*:\s*([^;]+)/g)) {
+      const line = lineAt(b.at + d.index);
+      if (EXEMPT.test(lines[line - 1] || '')) continue;
+      let inks = literalColours(d[1]).filter((c) => c.a >= 0.5);
+      if (!inks.length) {
+        const v = /^\s*var\((--[\w-]+)/.exec(d[1]);
+        const value = v && !(v[1] in LIGHT_VARS) ? pageVar(v[1]) : null;
+        inks = value ? literalColours(value).filter((c) => c.a >= 0.5) : [];
+      }
+      for (const ink of inks) {
+        const r = contrast(ink, backdrop);
+        if (r < 4.5) hits.push(`${line}: ${d[1].trim()} on ${under}, ${r.toFixed(2)}:1`);
+      }
+    }
+  }
+  return hits;
+}
+
+/** The lines each page stylesheet has, by file (only files that have some). */
+function lowContrastByFile() {
+  const out = {};
+  for (const file of FILES.filter((f) => /\.(css|html)$/.test(f))) {
+    const hits = lowContrastText(stylesheetText(file));
+    if (hits.length) out[rel(file)] = hits;
+  }
+  return out;
+}
+
+/** The lines that were there when check 7 came (2026-10-20), as a count per file: only shrinks. */
+const OLDER_TEXT = {
+  'chat/messages.css': 2, 'chat/modals.css': 1, 'chat/sidebar.css': 4, 'chat/voice.css': 8,
+  'pages/admin.html': 3, 'pages/bugs.html': 3, 'pages/dev.html': 4, 'pages/governance.html': 4,
+  'pages/guilds.html': 1, 'pages/home.html': 1, 'pages/inventory.html': 1, 'pages/library.html': 7,
+  'pages/ops.html': 1, 'pages/roadmap.html': 3, 'pages/watch.html': 2, 'pages/widgets.html': 2,
+};
+
+test('the text check catches what it is for (a check that cannot fail proves nothing)', () => {
+  const css = [
+    '.a { color: #7ec8e3; }',                                    // caught: pale ink on the light page
+    '.b { background: var(--accent); color: #000; }',            // caught: black on the light accent
+    '.c { --ink: #a8d89a; }',
+    '.d { color: var(--ink); }',                                 // caught: a page variable with no light value
+    ':root[data-theme="light"] .e { --ok: #2e6b1f; }',
+    '.e { --ok: #a8d89a; color: var(--ok); }',                   // fine: its light value reads
+    '.f { color: var(--text-muted, #888); }',                    // a theme variable (its fallback never paints): fine
+    '.g { color: #1a1a1a; }',                                    // dark ink: fine
+    '.h { background: var(--accent); color: var(--text-on-accent); }', // fine
+    '.i { color: #fff; } /* theme-exempt: on the video, dark in both themes */', // said so: fine
+    '.j { color: #fff; } /* theme-exempt: */',                   // no reason given: caught
+    ':root[data-theme="dark"] .k { color: #eee; }',              // a dark-only rule: not read
+    '.l { background-color: #222; color: #eee; }',               // its own dark surface: fine
+  ].join('\n');
+  const lines = lowContrastText(css).map((h) => +h.split(':')[0]);
+  assert.deepStrictEqual(lines, [1, 2, 4, 11]);
+  // An HTML page: its <style> only, its lines where they are in the page.
+  const html = '<p style="color:#fff">x</p>\n<style>\n.a { color: #fff; }\n</style>\n<script>const o = { color: "#fff" };</script>';
+  const tmp = path.join(require('node:os').tmpdir(), 'hos-text-lint-' + process.pid + '.html');
+  fs.writeFileSync(tmp, html);
+  try { assert.deepStrictEqual(lowContrastText(stylesheetText(tmp)).map((h) => +h.split(':')[0]), [3]); } finally { fs.unlinkSync(tmp); }
+});
+
+test('no page stylesheet colours text with a literal that is unreadable in the light theme', () => {
+  const byFile = lowContrastByFile();
+  const problems = [];
+  for (const [file, hits] of Object.entries(byFile)) {
+    if (hits.length > (OLDER_TEXT[file] || 0)) problems.push(...hits.map((h) => `${file}:${h}`));
+  }
+  for (const [file, count] of Object.entries(OLDER_TEXT)) {
+    const now = (byFile[file] || []).length;
+    if (now < count) problems.push(`${file}: ${now} of its ${count} older lines left: lower its count in OLDER_TEXT`);
+  }
+  assert.deepStrictEqual(problems, [],
+    'Text in a literal colour that is under 4.5:1 in the light theme (or a page variable whose ' +
+    'light value is). Use a theme variable (var(--text), var(--text-muted), var(--text-on-accent), ' +
+    'var(--info), var(--success), ...) or a page variable with a light value in a ' +
+    ':root[data-theme="light"] rule; or, for text on a surface dark in BOTH themes, say why on ' +
+    'the line with `theme-exempt: <reason>`.\n' + problems.join('\n'));
+});
