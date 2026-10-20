@@ -481,6 +481,21 @@
       "date": "2026-10-20",
       "decision": "Dispatched overnight: BUG-161 (copresence steady-speed judges report contaminated, not FAIL, on a starved machine; builds held at BelowNormal during a capture), falls (Injury::Fall by impact speed, cited thresholds, two modes), heat pump + wood stove machines (data/hvac.ron rows had none). The seam builder (seam review findings 1, 2, 5, 7, 8, 9, the files-app.js ratchet and BUG-206) was told to drop its sync-web-root.sh edit.",
       "why": "The next items on the follow-up list that touch disjoint files; at most two Rust builds at a time on this machine."
+    },
+    {
+      "date": "2026-10-20",
+      "decision": "v0.1527.0 released and delivered: food by weight (USDA portions and water), falls (Injury::Fall by impact speed, data/medical/falls.ron, Forgiving at 70% of the speed; wired into lib.rs by the orchestrator: surface_step after radial_step, take_landing -> falls::player_landed after death_pack::frame), ladders hold you, the diesel generator and the 6:4 refinery split, the seam fixes (BUG-206 data folder list/read admin-signed POST; relay labels from data/files/; installed-copy HumanityOS folder never above data/ unless it holds assets/; light-theme text check 7 with an OLDER_TEXT ratchet of 47 lines; files-space.js split), BUG-161 (contaminated verdict, builds held at BelowNormal), bundle-web. Checked together on main: 4,621 lib tests, 1,010 rig tests, all lints, both cargo checks, verify-runtime 3/3 world entries with panics=0 (fps contaminated by a concurrent builder, so no perf reading), check-delivery OK.",
+      "why": "One release for everything merged overnight, cut at 06:00 so it was built, booted and delivered before the operator wakes at 07:30; the heat pump and wood stove builder was still mid-work and ships separately."
+    },
+    {
+      "date": "2026-10-20",
+      "decision": "Caught my own mistake before it did harm: v0.1526.1's removal list named pages/shared-files-upload.js, which files.html still loads. It survived only because the removals run before the copy. Removed from the list, and web-root-retired.test.js check 4 now fails if any removal matches a shipped file (red on the v0.1526.1 script).",
+      "why": "A removal of a live file is a latent outage waiting on the copy order changing; the first test only checked retired files were removed, not that live ones were not."
+    },
+    {
+      "date": "2026-10-20",
+      "decision": "Falls are released but not yet tried by hand in the running game (walk off the homestead ladder top, drive and stop, world entry). Logged in PRIORITIES beside the falls line.",
+      "why": "The rig proves world entry without panics, not that a landing injures in play; player_landed logs nothing, so the rig's run.log cannot show it either."
     }
   ],
   "active_scopes_to_avoid": [
@@ -510,7 +525,7 @@
     "Trees have no materialised identity, so they cannot be felled. The key (cell_x, cell_y, item_index) already exists structurally; a sparse delta store is the shape."
   ],
   "how_to_resume": "1. `just brief` (version/CI/signing). 2. docs/PRIORITIES.md \"Active focus\" - the top item is fully specified, start implementing rather than investigating. 3. This file for WHY. Note the ONE-GPU rule: `tasklist //FI \"IMAGENAME eq HumanityOS.exe\"` before booting any rig, and never boot beside the operator instance.",
-  "last_updated": "2026-10-20T04:55-07:00",
+  "last_updated": "2026-10-20T06:10-07:00",
   "focus": "v0.1111.1 shipped (the 2026-08-03/04 vegetation marathon, v0.1109.4-v0.1111.1). Landed: leaf tufts stopped being cubes (golden-angle azimuths + solved per-card tilts, measured 100% parallel pairs on conifers and 67% perpendicular on broadleaves before); distant cards stopped out-shining mesh trees (4-8x, three multiplying causes, then the residual 28% conifer excess traced to the odd component of the shading normals and cancelled at source - all species now 1.00 flat across the sky); standing still stopped depending on the frame rate (the frame-lock sampled terrain one frame of planetary spin behind the player, 33,360 m/s of ground slip, so altitude read as a function of fps and flipped stand height by 2.45 m); the card-hide radius stopped promising models that never drew (BUG-068); forest density stopped being a process-global read separately by two streams (BUG-069); and the card cutoff is now clamped to the terrain reach that actually exists. Foliage-card arrangement extracted to renderer/tree_cards.rs under the size ratchet, and the ratchet budget came DOWN.",
   "overnight_plan_2026_08_01": {
     "directive": "Operator (heading to bed, full trust granted): PERMANENT versions only, no half fixes. Full PBR textures (not just diffuse). Real full canopies of leaves and flowers. Photorealism is the goal - screenshots good enough to land donations/grants; money is tight. 8-10 hours unattended.",
