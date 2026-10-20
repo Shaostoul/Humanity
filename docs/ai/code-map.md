@@ -6,7 +6,7 @@
 > `grep -i <word> docs/ai/code-map.md` before searching the source. Features (what a person can do)
 > are in `docs/FEATURES.md`; pages in `docs/PAGES.md`.
 
-865 Rust files (564,300 lines) under `src/`; 101 JavaScript files (64,830 lines) under `web/`.
+872 Rust files (567,149 lines) under `src/`; 101 JavaScript files (64,830 lines) under `web/`.
 
 ## Folders
 
@@ -22,11 +22,11 @@
 - `src/gui/pages/` (87 files): GUI pages composing widgets into full screens.
 - `src/gui/pages/chat/` (27 files): 3-panel chat page matching the website layout.
 - `src/gui/pages/construction/` (1 files): Construction editor (v0.455+).
-- `src/gui/pages/media/` (38 files): The Media page (increment 2 of docs/design/media-showcase.md, 2026-10-11): the pictures, videos, 3D models and files people on this serve...
+- `src/gui/pages/media/` (42 files): The Media page (increment 2 of docs/design/media-showcase.md, 2026-10-11): the pictures, videos, 3D models, sounds and files people on th...
 - `src/gui/pages/server_settings/` (3 files): Server and group settings page.
 - `src/gui/pages/settings/` (1 files): Settings panel with sidebar navigation and category content panels.
 - `src/gui/state_types/` (1 files): The VALUE TYPES the GUI passes around: one struct or enum per thing a page shows, and the small conversions that build them.
-- `src/gui/widgets/` (34 files): Reusable egui widgets styled by the HumanityOS theme.
+- `src/gui/widgets/` (37 files): Reusable egui widgets styled by the HumanityOS theme.
 - `src/hot_reload/` (2 files): Hot-reload coordinator, watches data files and invalidates caches.
 - `src/input/` (2 files): Input types shared across the engine.
 - `src/media/` (8 files): Purpose-built media player core (in-world screens ladder, rung 5).
@@ -68,7 +68,7 @@
 
 - `auto_unlock.rs` (408): Auto-unlock: let the user opt into silent startup without typing the full BIP39-derived passphrase every launch. Main items: AutoUnlockMode, KeychainSlot, keychain_stash, keychain_load, keychain_clear, encrypt_seed_with_pin, decrypt_seed_with_pin, generate_device_key (+4 more).
 - `boot_timing.rs` (169): Boot-phase timing (2026-07-12 dev tooling). Main items: BootTimer.
-- `config.rs` (2873): Persistent configuration for the native desktop app. Main items: WindowMode, HudVitals, PlayMode, Capability, VoiceFilterMode, VoiceTransmitMode, SavedServer, AppConfig (+19 more).
+- `config.rs` (2880): Persistent configuration for the native desktop app. Main items: WindowMode, HudVitals, PlayMode, Capability, VoiceFilterMode, VoiceTransmitMode, SavedServer, AppConfig (+19 more).
 - `cosmetics.rs` (101): Cosmetic outfit catalog (v0.442): craftable/tradeable clothing items that tint the avatar's body slots. Main items: Cosmetic, OutfitColors, load_cosmetics, resolve_outfit_colors.
 - `cosmos.rs` (744): Canonical Sol-system model (v0.262.8, extracted from `gui/pages/cosmos.rs` so it is the SINGLE source of truth). Main items: SolBody, sol_bodies, find_body, kepler_solve, body_position_relative_au, body_world_position_3d_au, sample_orbit_points, KM_PER_AU (+1 more).
 - `credits.rs` (146): Third-party attributions, loaded from `data/credits.ron`. Main items: CreditSource, Credits, OSM_NOTICE.
@@ -223,14 +223,14 @@
 - `glossary.rs` (198): In-app glossary / dictionary (v0.195.0). Main items: GlossaryEntry, Glossary, install, glossary.
 - `laws.rs` (319): Location-aware rules ("Laws") loader (v0.496). Main items: Jurisdiction, Rule, Verified, Laws, install.
 - `loaders.rs` (1606): Every `data/` file the GUI reads, and the shapes it reads them into. Main items: StudioScenePreset, StudioSourcePreset, Place, HomesteadDesign, DesignRoom, Size3, RoomRequirements, DesignTier (+53 more).
-- `mod.rs` (4733): egui GUI system for the native desktop client. Main items: DonateAddress, PassphraseMode, ServerInfo, LauncherWhere, LauncherHome, GuiPage, GuiState, SettingsCategory (+8 more).
+- `mod.rs` (4736): egui GUI system for the native desktop client. Main items: DonateAddress, PassphraseMode, ServerInfo, LauncherWhere, LauncherHome, GuiPage, GuiState, SettingsCategory (+8 more).
 - `ops_registry.rs` (156): Server-owner action registry loader: `data/admin/ops_registry.json`, the data-driven map of EVERY admin/owner/moderator action and where it lives (this app, a /chat-command, a config file, or the V... Main items: OpsAction, OpsPlanned, OpsVpsOnly, OpsRegistry, surface_label, ops_registry, SURFACE_ORDER.
 - `organize.rs` (246): The organize layer's small pure helpers (2026-09-25), kept out of loaders.rs (which is at its file-size budget): putting items back into storage when a backpack cannot take them, and the Garden pan... Main items: place_path, built_store_place, sync_built_stores, machine_crop_groups, return_to_storage.
 - `screen_surface.rs` (1814): A native egui page rendered into its own texture, so a flat SCREEN placed in the 3D world can show it (in-world screens, rung 1; the design doc is docs/design/in-world-screens.md). Main items: ScreenTextures, ScreenSource, ScreenWorld, ScreenProvider, WorldRenderState, WorldRender, LoadState, FoundText (+5 more).
 - `state_types.rs` (1841): The VALUE TYPES the GUI passes around: one struct or enum per thing a page shows, and the small conversions that build them. Main items: GuiItemSlot, GuiGameTime, GuiWeather, TaskPriority, TaskStatus, GuiTask, GuiListing, GuiReview (+51 more).
 - `theme.rs` (881): Theme system loaded from data/gui/theme.ron. Main items: Theme, load_theme.
 - `trade_types.rs` (81): The P2P trade value types (moved out of `state_types.rs` 2026-09-29, when an offer line gained the item id a finished trade moves, and that file was at its size budget). Main items: GuiTradeItem, GuiTrade.
-- `ui_snapshots.rs` (3715): Headless UI snapshots (v0.495). Main items: render_page_png.
+- `ui_snapshots.rs` (3960): Headless UI snapshots (v0.495). Main items: render_page_png.
 - tests: `click_sound_tests.rs`, `donate_funding_tests.rs`, `drop_files_tests.rs`
 
 ## src/gui/model_view/
@@ -238,7 +238,7 @@
 - `camera.rs` (107): The viewer's camera: fitted to the model, turned, moved and zoomed by the person, exactly as docs/design/model-viewer.md ("Camera and controls") gives it, so the website's (web/shared/model-view.js... Main items: Orbit, FOV_Y_DEG, TURN_PER_POINT, ZOOM_PER_POINT.
 - `gpu.rs` (536): The viewer's GPU half (docs/design/model-viewer.md): an egui paint callback. Main items: Gpu, Paint.
 - `load.rs` (769): Reading a 3D file into a [`Model`]: `.glb` (binary glTF 2.0) and `.stl` (binary or ASCII), as docs/design/model-viewer.md says. Main items: Alpha, Wrap, Sampling, Tex, Material, Image, Draw, Bounds (+18 more).
-- `mod.rs` (238): The 3D model viewer (docs/design/model-viewer.md): a `.glb` or `.stl` file, fetched when the person presses View in 3D, read on a worker, drawn with the app's own GPU, turned and zoomed with the mo... Main items: Viewer, view_tip, fetch, fetch_failed, VIEW_IN_3D, CLOSE, NO_GRAPHICS.
+- `mod.rs` (244): The 3D model viewer (docs/design/model-viewer.md): a `.glb` or `.stl` file, fetched when the person presses View in 3D, read on a worker, drawn with the app's own GPU, turned and zoomed with the mo... Main items: Viewer, view_tip, fetch, fetch_failed, VIEW_IN_3D, CLOSE, NO_GRAPHICS.
 - tests: `tests.rs`
 
 ## src/gui/pages/
@@ -283,7 +283,7 @@
 - `market_directory.rs` (1156): Market directory: the signed provider/offering catalog (v0.1141). Main items: DirProvider, DirOffering, seed_for_snapshot, draw.
 - `market_publish.rs` (1004): In-app Market publishing (v0.1143): create or update your shop (provider_v1) and publish offerings (offering_v1) without touching a terminal. Main items: is_open, open, take_published, sign_and_submit, draw.
 - `market.rs` (757): Marketplace, browse, search, and create listings. Main items: category_color, draw.
-- `media.rs` (1049): The Media page (increment 2 of docs/design/media-showcase.md, 2026-10-11): the pictures, videos, 3D models and files people on this server chose to show, in a grid. Main items: Job, MediaAdmin, MediaTab, MediaState, sync_sound, server_here, base_of, host_here (+36 more).
+- `media.rs` (1121): The Media page (increment 2 of docs/design/media-showcase.md, 2026-10-11): the pictures, videos, 3D models, sounds and files people on this server chose to show. Main items: Job, MediaAdmin, MediaTab, MediaState, sync_sound, server_here, base_of, host_here (+39 more).
 - `mod.rs` (107): GUI pages composing widgets into full screens.
 - `notes.rs` (301): Notes page, full notes app with sidebar list, text editor, toolbar with bold/italic markers, word count, auto-save indicator, delete with confirmation. Main items: draw.
 - `onboarding.rs` (232): Learn-by-doing quest chains (the surviving core of the old onboarding page). Main items: QuestStep, QuestChain, load_quest_chains, draw_quests.
@@ -353,25 +353,28 @@
 - `admin.rs` (342): The Media page's Admin tab (increment 2 of docs/design/media-showcase.md, 2026-10-11; on the Media page since Media round 5, 2026-10-12, docs/design/media-round-5-plan.md 3.9): everything an admin... Main items: draw_admin, POINTER_LINE.
 - `api_items.rs` (511): Media round 5's requests and answers (2026-10-12; docs/design/media-round-5-plan.md 3.2 to 3.5, with section 10's answers): an item's files and cover, the licences and the words beside them, the li... Main items: ItemFile, Licence, Licences, Sort, EditFields, FileRole, AttachTo, edit_text (+20 more).
 - `api.rs` (1035): The Media page's requests to its server (the relay half is src/relay/media.rs; the design is docs/design/media-showcase.md, "Increment 2, exact" and "Increment 2 follow-ups, exact"), and the server... Main items: Label, Category, Featured, Item, ItemRef, ListAnswer, Suggestion, Waiting (+60 more).
-- `chat_card.rs` (409): A Media item posted in chat, shown as a card (operator, 2026-10-17: "can we make it when someone clicks on the file in chat it brings up the full popup window for that item instead of just having t... Main items: CardState, Act, Picture, View, count_line, item_links, without_links, key_of (+10 more).
-- `edit.rs` (585): An item's Edit window (Media round 5, lane 1D; docs/design/media-round-5-plan.md 3.9, with the operator's answers in its section 10 and the orchestrator's decision 1 in section 9). Main items: LicenceChoice, EditForm, open_edit, draw_licence_choice, draw_hosting, draw, stored_ending, stem_of (+17 more).
-- `filters.rs` (169): The Media page's filters row (category, kind, person, Sort, My picks, the search box), the picked category's description under it, the featured shelf's heading, and the admins' three-way Feature ch... Main items: sort_words, feature_words, draw_filters, category_description, shelf_heading, draw_feature_choice, send_feature, SORTS (+2 more).
+- `chat_card.rs` (419): A Media item posted in chat, shown as a card (operator, 2026-10-17: "can we make it when someone clicks on the file in chat it brings up the full popup window for that item instead of just having t... Main items: CardState, Act, Picture, View, count_line, item_links, without_links, key_of (+10 more).
+- `edit.rs` (642): An item's edit form (Media round 5, lane 1D; docs/design/media-round-5-plan.md 3.9, with the operator's answers in its section 10 and the orchestrator's decision 1 in section 9), for the item's upl... Main items: LicenceChoice, EditForm, open_edit, draw_licence_choice, draw_hosting, editing_words, draw_in_place, stored_ending (+18 more).
+- `filters.rs` (188): The Media page's filters row (category, kind, person, Sort, My picks, the search box), the picked category's description under it, the featured shelf's heading, and the admins' three-way Feature ch... Main items: sort_words, feature_words, draw_filters, wrap_before, category_description, shelf_heading, draw_feature_choice, send_feature (+3 more).
 - `from_here.rs` (257): What this computer put on Media pages (2026-10-18, for the Media page's "Your folders" tab, media/your_folders.rs): a PRIVATE record, one row each time a file picked on this computer went onto a se... Main items: Local, Sent, Record, note_published, load, save, with, MAX_ROWS (+1 more).
-- `item_view.rs` (785): An item's own page (Media round 5, lane 1D; docs/design/media-round-5-plan.md 3.9). Main items: ItemPage, take_item, saving, on_answer, open, open_by_number, files_of, own (+15 more).
+- `item_view.rs` (930): An item shown on the Media page (Media round 5, lane 1D; the three panes since 2026-10-19, docs/design/media-showcase.md "The three panes"). Main items: ItemPage, Discard, Pressed, discard_words, take_item, saving, on_answer, unsaved (+36 more).
 - `kinds.rs` (97): The kinds of item on the Media page (pictures, videos, models, files), read from `data/media/kinds.json` so the list is data, not code (CLAUDE.md "Infinite-of-X"). Main items: Kind, parse_kinds, kinds, kind, one_name, mark, KINDS_FILE.
-- `open.rs` (387): Opening a Media item: the transfers behind its page. Main items: Opened, Origin, temp_dir, sweep_temp_once, sweep, forget_temp_files, play_name, origin_of (+14 more).
+- `list.rs` (173): The Media page's left pane (2026-10-19, the three panes: panes.rs): every item as a compact row, the one shown in the middle and on the right highlighted. Main items: draw, row, fit.
+- `open.rs` (412): Opening a Media item: the transfers behind it. Main items: Opened, Origin, temp_dir, sweep_temp_once, sweep, forget_temp_files, play_name, origin_of (+14 more).
+- `panes.rs` (202): The Media page in three panes (operator, 2026-10-19: "what if for the media page we have a left side card that is the list of all the media and right side is like viewing the in-depth details of on... Main items: Layout, defaults, arrange_of, draw_switch, set_gallery, draw, foot_row, edit_border (+8 more).
 - `publishing.rs` (337): Putting a file that is on the server on the Media page (`POST /api/media`), and undoing it when Cancel came while it was on its way (round 3 of docs/design/media-showcase.md, the 2026-10-11 review'... Main items: Undo, Fate, settle, publish, attach, attached_words, take_off_now, cancel (+6 more).
 - `resumable.rs` (895): Add to Media's upload, sent in pieces (the relay half is src/relay/resumable.rs; the design is docs/design/media-showcase.md, "Resumable uploads, exact", its As built notes and round 3). Main items: Unfinished, MoreFile, Event, Flags, Held, Control, Reply, Transport (+14 more).
 - `takedown.rs` (719): "Report a copyright problem" and the public takedown log on the desktop app (2026-10-13). Main items: Form, LogRow, LogView, OpenReport, Takedowns, item_number_from, form_problem, send_request (+56 more).
 - `ticket.rs` (151): Tickets (the relay's R3-8, round 3 of docs/design/media-showcase.md): a members-only file is watched (Play here) or downloaded through an address that opens that one file for ten minutes, instead o... Main items: ticket_address, ticket_address_for, ask, ask_for, TICKET_PATH.
-- `tiles.rs` (483): The Media page's grid: each tile (what it shows, and its actions), and the Remove confirmation. Main items: Show, too_big_words, cache_key, label_names, too_big, cover_too_big, face_too_big, cover_key (+18 more).
+- `tiles.rs` (485): The Media page's grid: each tile (what it shows, and its actions), and the Remove confirmation. Main items: Show, too_big_words, cache_key, label_names, too_big, cover_too_big, face_too_big, cover_key (+19 more).
 - `upload_cancel.rs` (180): Cancelling an upload on the server (round 4 of docs/design/media-showcase.md, "a cancel means nothing stays", and the review's D4-2). Main items: Told, settle, tell, not_cancelled_words, BUSY_ASKS, LOST_ASKS, CANCEL_PACE, STILL_STORING (+2 more).
 - `upload_run.rs` (160): The page's handle on one upload running on its worker thread (resumable.rs `work`): where it is, as the uploads list shows it (its bar and its words), read from what the worker reports. Main items: Phase, Run, stored_name_of.
 - `upload_waits.rs` (241): How Add to Media's upload waits (round 3 of docs/design/media-showcase.md, from the 2026-10-11 review of round 2). Main items: Allowance, Backoff, Streak, piece_size, now_ms, allowance_of, busy_words, hold (+9 more).
 - `uploading.rs` (732): The uploads in progress, as a list of their own (round 3 of docs/design/media-showcase.md, the 2026-10-11 review's finding 1). Main items: After, Entry, forget_record, start, start_with, start_attach, start_attach_with, poll (+20 more).
+- `viewer.rs` (251): The Media page's middle pane (2026-10-19, the three panes: panes.rs): the item shown to fit the area (operator: "middle is the fit to area picture, 3D model, sound/music visualizer"). Main items: is_sound, draw, kind_words, nothing_chosen, VIEW_FULL, VIEW_FULL_TIP.
 - `waiting.rs` (142): On the Media page, under the uploads in progress: the person's own uploads waiting to be put on Media (`/api/media/mine`'s `waiting`), with Put it on Media and Remove; and their unfinished uploads... Main items: InProgress, parse_in_progress, unknown_sessions, draw, draw_confirm_waiting, SESSIONS_LINE.
 - `your_folders.rs` (432): The Media page's "Your folders" tab (2026-10-18; the operator, docs/PRIORITIES.md "Next for Media": "point HumanityOS at folders (his E: 'Media' drive), browse them like a file explorer, pick files... Main items: Browse, mark_words, chosen_words, add_folder, remove_folder, why_not_put, put_on_media, draw_dialogs (+20 more).
-- tests: `admin_tests.rs`, `api_tests.rs`, `chat_card_tests.rs`, `item_tests.rs`, `open_sound_tests.rs`, `open_tests.rs`, `page_tests.rs`, `relay_round3_tests.rs`, `relay_round5_tests.rs`, `resumable_clean_tests.rs`, `resumable_tests.rs`, `round4_tests.rs`, `round5_list_tests.rs`, `takedown_tests.rs`, `uploads_tests.rs`, `your_folders_tests.rs`
+- tests: `admin_tests.rs`, `api_tests.rs`, `chat_card_tests.rs`, `item_tests.rs`, `open_sound_tests.rs`, `open_tests.rs`, `page_tests.rs`, `panes_tests.rs`, `relay_round3_tests.rs`, `relay_round5_tests.rs`, `resumable_clean_tests.rs`, `resumable_tests.rs`, `round4_tests.rs`, `round5_list_tests.rs`, `takedown_tests.rs`, `uploads_tests.rs`, `your_folders_tests.rs`
 
 ## src/gui/pages/server_settings/
 
@@ -406,8 +409,9 @@
 - `image_cache.rs` (921): Chat image cache and fetcher. Main items: ImageStatus, ImageCache, ImageRoute, download_bytes, download_bytes_with, download_to, hide_token, extract_image_urls (+8 more).
 - `label_placer.rs` (237): Map label placement: the greedy collision pass cartography uses for point and line features, so the Maps views never print one name on top of another (2026-09-27 snapshot review: star names stacked... Main items: LabelPlacer, point_candidates, along_polyline, polyline_length, LABEL_GAP.
 - `markdown.rs` (904): Minimal markdown reader shared by the in-app doc surfaces: the Humanity Accord viewer modal (`pages/humanity.rs`) and the Library doc pane (`pages/library.rs`). Main items: Heading, heading_slug, headings, render_markdown, render_markdown_linked, render_markdown_linked_scrolled, render_markdown_defining, strip_html_comments (+3 more).
-- `mod.rs` (1976): Reusable egui widgets styled by the HumanityOS theme. Main items: TreeNode, LockState, SectionNavItem, draw_underwater_tint, draw_toasts, card, card_clickable, card_with_header (+46 more).
+- `mod.rs` (1983): Reusable egui widgets styled by the HumanityOS theme. Main items: TreeNode, LockState, SectionNavItem, draw_underwater_tint, draw_toasts, card, card_clickable, card_with_header (+46 more).
 - `msg_format.rs` (325): Inline chat-message formatting: minimal markdown + URL detection (v0.702). Main items: SpanKind, FormatSpan, parse.
+- `panes.rs` (240): Panes beside each other or one above another, each a card, with a handle between each two that a drag moves (2026-10-19). Main items: Arrange, Moved, arrange_for, checked, lengths, drag, show.
 - `part_file.rs` (208): Files written a piece at a time (a download, a private file's Save, Play here's copy) go to a hidden PART file first and get their real name only when they are complete (round 3 of docs/design/medi... Main items: Part, is_part_name, claim_and_move, sweep_own, sweep_own_in, is_listed, sweep_stale, sweep_downloads_once (+3 more).
 - `passphrase_modal.rs` (733): Passphrase entry modal overlay. Main items: draw.
 - `phrase_cover.rs` (131): The recovery phrase, and the device-link code that carries the same key, covered until the person shows them (operator, 2026-10-16: "livestreamers may accidentally reveal their seed phrase while sh... Main items: words, code, WARNING, SHOW, HOLDING, HOLD_SECONDS, HOLD_TIP, HIDE (+6 more).
@@ -415,10 +419,12 @@
 - `row.rs` (571): Universal message/item row widget. Main items: MessageRowResponse, DeferredAvatar, message_row, append_formatted, paint_avatar, rgb_from_time, INTERPUNCT.
 - `search_bar.rs` (96): Universal search bar with optional filter chips. Main items: FilterChip, search_bar.
 - `shelf.rs` (308): A library shelf (2026-10-19): the parts the Games page (pages/games.rs) and the Tools page (pages/tools.rs) both draw, so the two look and behave alike and a fix to one reaches both. Main items: Layout, Picked, Heading, toolbar, grid, tile_frame, list_headings, list_row (+6 more).
+- `sound_view.rs` (636): A sound or a song played in the app (2026-10-19, the Media page's middle pane), the way a video is (video_view.rs): fetched first to a temporary copy on a worker, then, on that same worker, Main items: SoundView, cannot_play_words, analyse, PLAY_HERE, PLAY_HERE_TIP, FETCHING, READING, WAITING_FOR_SOUND (+2 more).
 - `thumbnails.rs` (257): Pictures on this computer shown small, for the file picker's Pictures view (2026-10-17), and videos by one of their frames where the computer's own decoders can give one (Windows, 2026-10-18, `medi... Main items: is_picture, is_previewable, size_for, get, failed, next_frame, WORKERS, KEPT (+1 more).
 - `tint_section.rs` (115): One part of a window on a darker shade of the chat sidebar's section colours (the DMs' red, the groups' green, the servers' blue), edged in the colour itself, with a small title, so a window's part... Main items: Tint, color, show, rgb_border, painted, texts_at, text_starts_at, SHADE.
 - `tree.rs` (227): Universal tree widget, themed expand/collapse rows with persistent state. Main items: TreeState, TreeNodeResponse, tree_node, tree_leaf, tree_leaf_colored.
-- `video_view.rs` (213): A video played in the app: fetched first to a temporary copy on a worker, then played by the app's own player (`crate::media::VideoPlayer`: WebM with AV1 video, and on Windows an ordinary MP4 throu... Main items: VideoView, sound_lost_words, cannot_play_words, clock, PLAY_HERE, PLAY_HERE_TIP, MUTE, UNMUTE (+3 more).
+- `video_view.rs` (227): A video played in the app: fetched first to a temporary copy on a worker, then played by the app's own player (`crate::media::VideoPlayer`: WebM with AV1 video, and on Windows an ordinary MP4 throu... Main items: VideoView, sound_lost_words, cannot_play_words, clock, PLAY_HERE, PLAY_HERE_TIP, MUTE, UNMUTE (+3 more).
+- `waveform.rs` (358): A sound's picture (2026-10-19, the Media page's middle pane for a sound or a song): the whole track's waveform, the part already played in the accent colour and the rest muted, the play position as... Main items: Analysis, Builder, band_edges_hz, seek_fraction, show, BUCKETS, BANDS, FFT (+3 more).
 - `web_view.rs` (857): The web view: draws a readable [`Page`] in egui with clickable links, back/forward history, an editable URL row, and an "open in system browser" escape hatch for pages the readable web cannot show. Main items: ViewStatus, WebViewResponse, WebViewState.
 - tests: `file_views_tests.rs`, `part_file_tests.rs`, `phrase_cover_tests.rs`
 

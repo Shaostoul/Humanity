@@ -436,6 +436,11 @@
       "date": "2026-10-19",
       "decision": "v0.1520.0: the Tools page as a library like Games, on shared widgets (widgets/shelf.rs, the Games page moved onto them, its details panel gaining a margin from the scroll bar). src/software/: installed programs found read-only from the Uninstall keys (both views, HKLM and HKCU), App Paths and Steam, matched by data fields in data/external/catalog.json; Launch through games::launch; Install through winget only after a consent step (licence, agreements, Microsoft's two lines, the permission and data notes), with --accept-package-agreements only after I agree, --accept-source-agreements never, --interactive for non-free licences, ids validated; website-only entries say why. Catalog licence labels corrected.",
       "why": "The operator asked for the Tools page to work like the Games page and to install, launch and open websites. Researched first: docs/reference/findings/2026-10-19-tools-page-install-launch-and-icons.md. The real winget install path has not run on a real machine yet. Open legal question for the operator before 2027-01-01: whether an Install button makes the page a California AB 1856 covered application store (PRIORITIES, Blocked on the operator, 11; told once)."
+    },
+    {
+      "date": "2026-10-19",
+      "decision": "v0.1521.0: the Media page in three panes (list, viewer fitted to the item, details), stacked top/middle/bottom on a tall window, the split remembered; Edit in place in the details pane with the tinted RGB parts and an RGB border, Save returns to view, unsaved edits ask before leaving; a sound visualiser widget (waveform with seek, live spectrum, from symphonia, the decoders kira already carries); tiles kept as Gallery; the chat card opens one window with the same parts. Merged from a worktree builder after review of its snapshots.",
+      "why": "The operator asked for a list/viewer/details layout like his three-monitor-wide screen and for editing without stacked windows ('we don't have to worry about layering so much'). Also in the session: the Library Genesis catalog entry removed in v0.1520.0 (Cengage v. LibGen, S.D.N.Y. 2024)."
     }
   ],
   "active_scopes_to_avoid": [

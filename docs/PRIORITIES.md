@@ -397,11 +397,17 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
       a tile for an installable program could offer Install directly (today it is in the
       details); the page's intro is five paragraphs and could fold behind a "How this page
       works"; the web Tools page should mirror the look (it cannot detect or launch).
-    - IN PROGRESS 2026-10-19: **the Media page in three panes, editing in place** (operator: a
+    - DONE v0.1521.0: **the Media page in three panes, editing in place** (operator: a
       list on the left, the item fitted to the middle (picture, 3D model, video, a sound
       visualiser), its details on the right; top, middle and bottom when the window is tall; Edit
       turns the details pane into the form, in the tinted parts so edit mode stands out, and
-      Save returns it to view, instead of a window on top). Web mirror after.
+      Save returns it to view, instead of a window on top). `media/panes.rs`, `widgets/panes.rs`,
+      `widgets/sound_view.rs` + `waveform.rs` (1024 peaks and a 24-band spectrum, computed once);
+      the tiles kept as a Gallery view; the chat card opens one window with the same viewer and
+      details. Open: a 3D model is fetched only on View in 3D (models can be 200 MB); nothing is
+      selected until a row is pressed (a selection counts a view); Opus, M4A and AAC sounds say
+      they cannot play here yet; leaving the page with unsaved edits asks on the next page (the
+      app changes page in about 50 places); the web Media page should mirror the panes.
     - DONE 2026-10-13 (v0.1495.1): **the project's history in the Library**, a "Project History"
       shelf with the 38 dated session histories and the 7 decision logs (catalog rows; re-run
       `node scripts/build-library.js` after a new history page).
