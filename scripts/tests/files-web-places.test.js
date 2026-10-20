@@ -4,17 +4,26 @@
 // /files). The desktop's twin is src/gui/pages/files/places.rs. The operator, 2026-10-19: "What's the
 // real difference between these two? Why would we not want to merge them?"
 //
+// And (5, 2026-10-20) the page's "How this page works" (web/shared/how-it-works.js, the desktop's
+// src/gui/pages/files/how.rs and widgets/how_it_works.rs): one small toggle beside the heading,
+// closed by default, folding the page's own line and each place's; outside it, where the person
+// acts, Shared files' line (they are public) and the HumanityOS folder's caution stay.
+//
 // Runs under Node's own test runner against the stand-in document of files-web-harness.js:
 //   node --test scripts/tests/files-web-places.test.js
 "use strict";
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
 const path = require("node:path");
 
 const H = require("./files-web-harness.js");
-const { WEB, ME, ANN, MIB, byId, text, respond, at, settle, listAnswer, listRoutes, openPage, aFile, fakeSession } = H;
+const { WEB, ROOT, ME, ANN, MIB, media, byId, text, respond, at, settle, listAnswer, listRoutes, openPage, aFile, fakeSession, fakeStorage } = H;
 const FPL = require(path.join(WEB, "pages", "files-places.js"));
+const FSH = require(path.join(WEB, "pages", "files-shared.js"));
+const FFO = require(path.join(WEB, "pages", "files-folder.js"));
+const HOW = require(path.join(WEB, "shared", "how-it-works.js"));
 
 /** A history that keeps what the page asked of it. */
 function fakeHistory() {
@@ -130,4 +139,132 @@ test("4. files dragged over Shared files go to Shared Files, not Add to Files; o
   win.fire("drop", filesDrag([aFile("part.stl", 1024)]));
   await settle();
   assert.equal(page.state.form, null, "and Add to Files did not open");
+});
+
+// ── 5. How this page works ───────────────────────────────────────────────
+
+const readText = (p) => fs.readFileSync(p, "utf8").replace(/\r\n/g, "\n");
+/** A `pub const NAME: &str = "...";` string out of one of the desktop's files. */
+function rustConst(name, ...file) {
+  const src = readText(path.join(ROOT, "src", "gui", ...file));
+  const m = src.match(new RegExp("pub const " + name + ': &str = "((?:[^"\\\\]|\\\\.)*)";'));
+  assert.ok(m, file.join("/") + " has " + name);
+  return m[1].replace(/\\"/g, '"').replace(/\\\\/g, "\\");
+}
+/** The words a person sees: every text not inside a hidden element. */
+function visibleText(n) {
+  if (n.nodeType === 3) return n.textContent;
+  if (n.hidden) return "";
+  return n.childNodes.map(visibleText).join("\n");
+}
+/** The fold's parts as [name, colour, [its lines]]. */
+function foldParts(fold) {
+  const out = [];
+  for (const c of fold.children) {
+    if (c.tagName === "H2") out.push([text(c), c.getAttribute("data-tint"), []]);
+    else if (c.tagName === "P" && out.length) out[out.length - 1][2].push(text(c));
+  }
+  return out;
+}
+const PAGE_LINE = rustConst("PAGE_LINE", "pages", "files", "how.rs");
+
+// Seen red 2026-10-20, each break made in a copy of web/ (HOS_WEB_DIR) with the other tests of
+// this file passing: with the page's line drawn under the heading again (where the short "chose to
+// share" line was), "closed, the page's line is nowhere on the page" failed (actual false); with
+// the Shared files place's left-pane line taken out (files-shared.js), "Shared files' line stays
+// where its files are: they are public" failed; with the folder place's caution left blank
+// (files-folder.js), "the folder's caution stays beside the file" failed; with the fold's
+// HumanityOS folder part left out, "open, each place's line under its name" failed (and 5b's
+// "open from the start, its parts drawn": actual 2, expected 3); with readOpen answering open
+// unless "0" is kept (how-it-works.js), "closed by default" failed (actual 'true').
+test("5a. How this page works: a toggle beside the heading, closed by default; Shared files' line and the folder's caution stay where they are acted on; opened, the page's line and each place's", async () => {
+  assert.equal(HOW.LABEL, rustConst("LABEL", "widgets", "how_it_works.rs"), "the desktop's LABEL");
+  assert.equal(HOW.TIP, rustConst("TIP", "widgets", "how_it_works.rs"), "the desktop's TIP");
+  assert.equal(media.FILES_WORDS.pageLine, PAGE_LINE, "the desktop's PAGE_LINE, word for word");
+  const storage = fakeStorage();
+  const { doc } = await openPage({ view: "panes", storage, routes: routes() });
+  const toggle = byId(doc, "files-how-toggle");
+  const fold = byId(doc, "files-how");
+  assert.ok(toggle && fold, "the toggle and its fold are on the page");
+  assert.equal(toggle.parentNode, byId(doc, "files-title").parentNode, "beside the heading");
+  assert.equal(toggle.tagName, "BUTTON", "a real button (Tab reaches it, Enter and Space press it)");
+  assert.equal(toggle.getAttribute("type"), "button");
+  assert.equal(text(toggle), HOW.LABEL);
+  assert.equal(toggle.getAttribute("title"), HOW.TIP);
+  assert.equal(toggle.getAttribute("aria-controls"), "files-how");
+
+  // Closed.
+  assert.equal(toggle.getAttribute("aria-expanded"), "false", "closed by default");
+  assert.equal(fold.hidden, true);
+  assert.equal(fold.children.length, 0, "closed, the fold holds nothing");
+  assert.ok(!visibleText(doc.body).includes(PAGE_LINE), "closed, the page's line is nowhere on the page");
+  assert.ok(!visibleText(doc.body).includes("chose to share"), "and the short line that was under the heading is gone");
+  byId(doc, "files-place-shared-files").click();
+  await settle();
+  assert.ok(visibleText(byId(doc, "files-place-left")).includes(FSH.WORDS.how), "Shared files' line stays where its files are: they are public");
+  assert.ok(FSH.WORDS.how.startsWith("Files here are public: anyone can download them."));
+  assert.ok(!byId(doc, "files-how-toggle").hidden && visibleText(doc.body).includes(HOW.LABEL), "the toggle on every place");
+  // The HumanityOS folder's caution stays on its right pane, beside the file (the place draws its
+  // parts with markup, so it is made here against a document that allows it).
+  const made = [];
+  const node = (tag) => { const n = { tagName: tag.toUpperCase(), className: "", id: "", textContent: "", kids: [], set innerHTML(v) { this.html = v; }, append(...k) { this.kids.push(...k); } }; made.push(n); return n; };
+  const before = globalThis.document;
+  globalThis.document = { createElement: node };
+  let place;
+  try { place = FFO.createFolderPlace(); } finally { globalThis.document = before; }
+  const caution = place.right.kids.find((k) => k.textContent === FFO.CAUTION);
+  assert.ok(caution && caution.className === "files-hint", "the folder's caution stays beside the file");
+  assert.match(FFO.CAUTION, /Changing one changes how the app works/);
+
+  // Opened.
+  toggle.click();
+  assert.equal(toggle.getAttribute("aria-expanded"), "true", "aria-expanded follows");
+  assert.equal(fold.hidden, false);
+  assert.deepEqual(foldParts(fold), [
+    ["Shared on united-humanity.us", "red", [PAGE_LINE]],
+    ["Shared files", "red", [FSH.WORDS.how]],
+    ["HumanityOS folder", "red", [FFO.CAUTION]],
+  ], "open, each place's line under its name");
+  assert.equal(storage.m.get(media.HOW_KEY), "1", "kept, under hos_files_how_open");
+  assert.equal(media.HOW_KEY, "hos_files_how_open");
+  toggle.click();
+  assert.equal(toggle.getAttribute("aria-expanded"), "false", "pressed again, it closes");
+  assert.equal(fold.hidden, true);
+  assert.equal(storage.m.get(media.HOW_KEY), "0");
+});
+
+// Seen red 2026-10-20 in a copy of web/ with files-app.js giving the fold no storage (`storage:
+// null`): "it survives a reload" failed (actual 'false', expected 'true'; and 5a's "kept, under
+// hos_files_how_open").
+test("5b. How this page works survives a reload; storage refused, the page still draws and the fold opens; a kept value that is not 1 is closed", async () => {
+  const storage = fakeStorage();
+  const first = await openPage({ view: "panes", storage, routes: routes() });
+  byId(first.doc, "files-how-toggle").click();
+  const again = await openPage({ view: "panes", storage, routes: routes() });
+  assert.equal(byId(again.doc, "files-how-toggle").getAttribute("aria-expanded"), "true", "it survives a reload");
+  assert.equal(byId(again.doc, "files-how").hidden, false);
+  assert.equal(foldParts(byId(again.doc, "files-how")).length, 3, "open from the start, its parts drawn");
+  byId(again.doc, "files-how-toggle").click();
+  const closed = await openPage({ view: "panes", storage, routes: routes() });
+  assert.equal(byId(closed.doc, "files-how-toggle").getAttribute("aria-expanded"), "false", "closed, and that is kept too");
+
+  const refused = await openPage({ view: "panes", storage: fakeStorage(true), routes: routes() });
+  const t = byId(refused.doc, "files-how-toggle");
+  assert.equal(t.getAttribute("aria-expanded"), "false", "storage refused: closed");
+  t.click();
+  assert.equal(t.getAttribute("aria-expanded"), "true", "and it still opens");
+  assert.ok(byId(refused.doc, "files-title"), "the page drew");
+
+  for (const kept of ["true", "open", "0"]) {
+    const s = fakeStorage();
+    s.setItem(media.HOW_KEY, kept);
+    const odd = await openPage({ view: "panes", storage: s, routes: routes() });
+    assert.equal(byId(odd.doc, "files-how-toggle").getAttribute("aria-expanded"), "false", JSON.stringify(kept) + " kept: closed");
+  }
+
+  // files.html links the styles and loads the script before files-app.js.
+  const html = readText(path.join(WEB, "pages", "files.html"));
+  assert.match(html, /<link rel="stylesheet" href="\/shared\/how-it-works\.css\?v=\d+">/, "files.html links how-it-works.css");
+  const s = html.indexOf('src="/shared/how-it-works.js'), a = html.indexOf('src="/pages/files-app.js');
+  assert.ok(s > 0 && s < a, "how-it-works.js loads before files-app.js");
 });

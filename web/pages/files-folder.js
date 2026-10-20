@@ -9,7 +9,8 @@
 //
 // The tree on the left under the places (Refresh above it), the file in the
 // middle (the bar with where it is, Wrap and Save above it), and on the right
-// what it is and what editing it means. FilesFolder on window; the inline
+// what it is and what editing it means (its CAUTION, which the page's "How this
+// page works" says too, 2026-10-20). FilesFolder on window; the inline
 // handlers (breadcrumb, JSON toggles) name it, so there is one on the page.
 // ──────────────────────────────────────────────────────────────────────────
 const FilesFolder = (function () {
@@ -699,3 +700,6 @@ const FilesFolder = (function () {
   };
 })();
 if (typeof window !== 'undefined') window.FilesFolder = FilesFolder;
+// Under Node (scripts/tests/files-web-places.test.js, and files-app.js for the caution its "How this
+// page works" says): nothing here reaches for the document until a place is made.
+if (typeof module === 'object' && module && module.exports) module.exports = FilesFolder;

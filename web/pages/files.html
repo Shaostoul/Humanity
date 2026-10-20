@@ -13,7 +13,9 @@
        (docs/design/files-showcase.md, "Increment 2, exact"). Everything
        inside #files-root is built by /pages/files-app.js with createElement and
        textContent; its styles are /shared/files.css, theme tokens only. -->
-  <link rel="stylesheet" href="/shared/files.css?v=11">
+  <link rel="stylesheet" href="/shared/files.css?v=12">
+  <!-- "How this page works" (2026-10-20, /shared/how-it-works.js): the toggle by the heading and its fold. -->
+  <link rel="stylesheet" href="/shared/how-it-works.css?v=1">
   <!-- The HumanityOS folder place (2026-10-19): the data browser's own styles, scoped to its parts. -->
   <link rel="stylesheet" href="/shared/files-folder.css?v=1">
   <link rel="stylesheet" href="/shared/files-places.css?v=1">
@@ -122,9 +124,11 @@
 <script src="/shared/markdown.js"></script>
 <script src="/pages/shared-files-upload.js?v=2"></script>
 <script src="/pages/files-shared.js?v=1"></script>
-<script src="/pages/files-folder.js?v=1"></script>
+<script src="/pages/files-folder.js?v=2"></script>
 <script src="/pages/files-places.js?v=2"></script>
-<script src="/pages/files-app.js?v=16"></script>
+<!-- "How this page works" (2026-10-20): the toggle beside the heading and its fold; before files-app.js. -->
+<script src="/shared/how-it-works.js?v=1"></script>
+<script src="/pages/files-app.js?v=17"></script>
 <!-- The admins' section (Files page settings): this page's Admin tab, for admins (/files#admin; /admin points here). -->
 <script src="/pages/files-admin.js?v=3"></script>
 </body>

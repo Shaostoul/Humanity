@@ -1,0 +1,50 @@
+/* how-it-works.css: "How this page works" (2026-10-20, /shared/how-it-works.js), the web twin of the
+   desktop app's src/gui/widgets/how_it_works.rs. The toggle is small, a pill with a triangle that
+   points right when closed and down when open, by the page's heading; the fold is a box the page's
+   width, a heading per part with a dot in the part's colour, and the part's lines. Theme variables
+   only (/shared/theme.css, generated from data/gui/theme.ron), so the light theme, the dark presets
+   and high contrast all reach it. */
+
+/* The toggle: the desktop's colours, its panel fill, its edge, and the secondary text, lit on hover
+   and while open. */
+.how-toggle {
+  display: inline-flex; align-items: center; gap: var(--space-xs);
+  padding: 2px var(--space-sm); margin: 0;
+  background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--pill-radius);
+  color: var(--text-secondary); font: inherit; font-size: var(--text-sm); line-height: 1.5;
+  cursor: pointer; white-space: nowrap; vertical-align: middle;
+}
+.how-toggle:hover { background: var(--bg-secondary); border-color: var(--accent); color: var(--text); }
+.how-toggle.how-open { background: var(--bg-secondary); color: var(--text); }
+.how-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* The triangle, drawn in the words' own colour: right when closed, turned down when open. */
+.how-mark {
+  display: inline-block; width: 0; height: 0; flex: none;
+  border-top: 0.32em solid transparent; border-bottom: 0.32em solid transparent; border-left: 0.5em solid currentColor;
+  transition: transform 0.12s ease;
+}
+.how-toggle.how-open .how-mark { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) { .how-mark { transition: none; } }
+
+/* The fold. */
+.how-panel {
+  margin: var(--space-sm) 0; padding: var(--space-sm) var(--space-md);
+  background: var(--bg-secondary); border: 1px solid var(--border); border-radius: var(--radius);
+}
+.how-panel[hidden] { display: none; }
+/* A part's heading: its name, and a dot in its colour when it has one (never the colour alone). */
+.how-part {
+  display: flex; align-items: center; gap: var(--space-sm);
+  margin: var(--space-sm) 0 2px; font-size: var(--text-base); font-weight: 700; line-height: 1.4; color: var(--text);
+}
+.how-part:first-child { margin-top: 0; }
+.how-part[data-tint]::before { content: ''; flex: none; width: 0.55em; height: 0.55em; border-radius: 50%; background: var(--how-dot, var(--text-muted)); }
+.how-part[data-tint="red"]     { --how-dot: var(--nav-red); }
+.how-part[data-tint="green"]   { --how-dot: var(--nav-green); }
+.how-part[data-tint="blue"]    { --how-dot: var(--nav-blue); }
+.how-part[data-tint="cyan"]    { --how-dot: var(--section-cyan); }
+.how-part[data-tint="magenta"] { --how-dot: var(--section-magenta); }
+.how-part[data-tint="yellow"]  { --how-dot: var(--section-yellow); }
+/* One line of explanation. */
+.how-line { margin: 0 0 var(--space-xs); max-width: 130ch; font-size: var(--text-sm); line-height: 1.5; color: var(--text-secondary); }
+.how-line:last-child { margin-bottom: 0; }

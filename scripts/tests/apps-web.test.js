@@ -38,11 +38,21 @@
 //     carries its page's icon. The details, Escape and Close.
 //  9. The page's lines are the app's, word for word: the safety line, both not-affiliated lines,
 //     Help's and Services' lines, the intro, the search hint, where programs come from (up to the
-//     Install a web page lacks) and its Why (the finding and the hover words).
+//     Install a web page lacks) and its Why (the finding and the hover words); under the parts
+//     stays only what the app keeps outside its fold.
 // 10. THE NAV ENTRY: Apps beside Play in the website's menu and in the phone menu, with a four
 //     squares icon, lit on /apps; nothing on the website links to /tools any more; the Justfile's
 //     rig-tests runs this file.
 // 11. A hue is the FNV-1a hash the app's swatch_color uses.
+// 12. HOW THIS PAGE WORKS (2026-10-20, the app's widgets/how_it_works.rs, apps.rs draw_head and
+//     apps/library.rs how_it_works; web/shared/how-it-works.js): one small toggle beside the
+//     heading, a real button whose words and hover words are the app's LABEL and TIP, closed by
+//     default; closed, where the programs come from and Services' line are nowhere on the page
+//     while the safety line, both not-affiliated lines and Help's line stay in their parts; open,
+//     the fold holds those two under their parts' names and colours, the Why with them;
+//     aria-expanded follows; it is kept under hos_apps_how_open and survives a reload, storage
+//     refused it still opens and closes, a kept value that is not "1" is closed; the fold follows
+//     the parts shown; its styles are theme variables only.
 //
 // Red first, 2026-10-19 (the Tools tests kept from tools-web.test.js) and 2026-10-20 (the Apps
 // tests): see the end of this file for each deliberate break and what it tripped.
@@ -843,15 +853,15 @@ test("9. the page's lines are the app's, word for word, and it says what only th
   }
   assert.ok(LIBRARY_RS.includes('["' + apps.LAYOUTS[0].tip + '", "' + apps.LAYOUTS[1].tip + '"]'), "Grid's and List's hover words");
 
-  // The page draws them where the app does: under Other programs, Help and Services.
+  // The page draws them where the app does: under Other programs and Help, what the app keeps
+  // outside "How this page works" (the safety line, not affiliated, Help's line); where the
+  // programs come from, with its Why, and Services' line are in the fold (12).
   const { host } = await boot(storage(), SAMPLE, SAMPLE_TOOLS);
   const lines = (id) => partEl(host, id).querySelectorAll(".apps-line").map((p) => p.textContent);
-  assert.deepStrictEqual(lines("programs"), [apps.WORDS.whereFrom + "Why", apps.LINES.safety, apps.WORDS.programsDesktop + " Get the desktop app", apps.LINES.notAffiliated]);
-  const why = partEl(host, "programs").querySelector(".apps-why");
-  assert.strictEqual(why.getAttribute("href"), "/library#" + apps.WHY.slug);
-  assert.strictEqual(why.getAttribute("title"), apps.WHY.tip);
+  assert.deepStrictEqual(lines("programs"), [apps.LINES.safety, apps.WORDS.programsDesktop + " Get the desktop app", apps.LINES.notAffiliated]);
+  assert.strictEqual(partEl(host, "programs").querySelector(".apps-why"), null, "the Why is in the fold");
   assert.deepStrictEqual(lines("help"), [apps.LINES.help]);
-  assert.deepStrictEqual(lines("services"), [apps.LINES.services]);
+  assert.deepStrictEqual(lines("services"), [], "Services' line is in the fold");
   assert.deepStrictEqual(lines("games"), [apps.WORDS.gamesLine + " Get the desktop app", apps.LINES.gamesNotAffiliated]);
 
   // The page's head: the app's title and intro.
@@ -938,6 +948,169 @@ test("11. a hue is the app's FNV-1a swatch hue", () => {
   assert.ok(hues.size > CATALOG.categories.length / 2, "the categories spread across the hues");
 });
 
+// ── 12. How this page works ─────────────────────────────────────────────
+
+const HOW = require(path.join(WEB, "shared", "how-it-works.js"));
+const WIDGET_RS = readText(path.join(ROOT, "src", "gui", "widgets", "how_it_works.rs"));
+const HOW_CSS = readText(path.join(WEB, "shared", "how-it-works.css"));
+
+/** Boot the page with its header, as apps.html has it: the title in .apps-title, then the line. */
+async function bootWithHead(ls, catalog, tools) {
+  const doc = fakeDocument();
+  const head = doc.createElement("header");
+  head.setAttribute("id", "apps-head");
+  const title = doc.createElement("div");
+  title.className = "apps-title";
+  const h1 = doc.createElement("h1");
+  h1.textContent = "Apps";
+  title.appendChild(h1);
+  const intro = doc.createElement("p");
+  intro.className = "apps-intro";
+  intro.textContent = rustConst("INTRO", APPS_RS);
+  head.append(title, intro);
+  const host = doc.createElement("div");
+  host.setAttribute("id", "apps-app");
+  doc.body.append(head, host);
+  const page = apps.createAppsPage({
+    document: doc, root: host, head, storage: ls,
+    fetch: async (url) => {
+      if (url === apps.CATALOG_URL) return { ok: true, json: async () => JSON.parse(JSON.stringify(catalog || CATALOG)) };
+      if (url === apps.TOOLS_URL) return { ok: true, json: async () => JSON.parse(JSON.stringify(tools || TOOLS)) };
+      return { ok: false, status: 404 };
+    },
+  });
+  await page.start();
+  return { doc, head, host, page, toggle: doc.getElementById("apps-how-toggle"), fold: doc.getElementById("apps-how") };
+}
+
+/** The words a person sees: every text not inside a hidden element. */
+function visibleText(n) {
+  if (n.nodeType === 3) return n.textContent;
+  if (n.hidden) return "";
+  return n.childNodes.map(visibleText).join("\n");
+}
+/** The fold's parts as [name, colour, [its lines]]. */
+function foldParts(fold) {
+  const out = [];
+  for (const c of fold.children) {
+    if (c.tagName === "H2") out.push([c.textContent, c.getAttribute("data-tint"), []]);
+    else if (c.tagName === "P" && out.length) out[out.length - 1][2].push(c.textContent);
+  }
+  return out;
+}
+
+// Seen red 2026-10-20, each break made in a copy of web/ (HOS_WEB_DIR): with readOpen answering
+// open unless "0" is kept, "closed by default" failed (actual 'true', expected 'false'); with
+// where the programs come from put back under Other programs, "closed, where the programs come
+// from is nowhere on the page" failed (and 9's lines under Other programs); with the fold filled
+// whatever its state (render's `open &&` taken out), "closed, the fold holds nothing" failed
+// (actual 4, expected 0); with render's aria-expanded line taken out, "closed by default" failed
+// (actual null).
+test("12a. How this page works: a toggle beside the heading, closed by default, the must-see lines in their parts; opened, the folded lines under their parts' names", async () => {
+  assert.strictEqual(HOW.LABEL, rustConst("LABEL", WIDGET_RS), "the app's LABEL");
+  assert.strictEqual(HOW.TIP, rustConst("TIP", WIDGET_RS), "the app's TIP");
+  const ls = storage();
+  const { doc, head, toggle, fold } = await bootWithHead(ls, SAMPLE, SAMPLE_TOOLS);
+  assert.ok(toggle && fold, "the toggle and its fold are on the page");
+  assert.strictEqual(toggle.parentNode, head.querySelector(".apps-title"), "beside the title");
+  assert.strictEqual(toggle.tagName, "BUTTON", "a real button (Tab reaches it, Enter and Space press it)");
+  assert.strictEqual(toggle.getAttribute("type"), "button");
+  assert.strictEqual(toggle.textContent, HOW.LABEL, "its words");
+  assert.strictEqual(toggle.getAttribute("title"), HOW.TIP, "its hover words");
+  assert.strictEqual(toggle.getAttribute("aria-controls"), "apps-how", "it names the fold it opens");
+  assert.strictEqual(fold.parentNode, head, "the fold in the header");
+  assert.ok(head.childNodes.indexOf(fold) > head.childNodes.indexOf(head.querySelector(".apps-intro")), "after the page's line, as the app's");
+
+  // Closed.
+  assert.strictEqual(toggle.getAttribute("aria-expanded"), "false", "closed by default");
+  assert.strictEqual(fold.hidden, true);
+  assert.strictEqual(fold.children.length, 0, "closed, the fold holds nothing");
+  const seen = visibleText(doc.body);
+  assert.ok(!seen.includes(apps.WORDS.whereFrom), "closed, where the programs come from is nowhere on the page");
+  assert.ok(!seen.includes(apps.LINES.services), "nor Services' line");
+  assert.strictEqual(doc.body.querySelectorAll(".apps-why").length, 0, "nor its Why");
+  for (const [words, what] of [[apps.LINES.safety, "the safety line"], [apps.LINES.notAffiliated, "not made by the programs' makers"],
+    [apps.LINES.gamesNotAffiliated, "not affiliated with the stores"], [apps.LINES.help, "Help's line (call the emergency number first)"]]) {
+    assert.ok(seen.includes(words), what + " stays on the page");
+  }
+  assert.strictEqual(ls.map.has(apps.HOW_KEY), false, "nothing kept until it is pressed");
+
+  // Opened.
+  toggle.click();
+  assert.strictEqual(toggle.getAttribute("aria-expanded"), "true", "aria-expanded follows");
+  assert.strictEqual(fold.hidden, false);
+  assert.deepStrictEqual(foldParts(fold), [
+    ["Other programs", "blue", [apps.WORDS.whereFrom + apps.WHY.words]],
+    ["Services", "magenta", [apps.LINES.services]],
+  ], "each part's explanations under its name and colour, word for word");
+  const why = fold.querySelector(".apps-why");
+  assert.strictEqual(why.getAttribute("href"), "/library#" + apps.WHY.slug, "the Why opens the finding");
+  assert.strictEqual(why.getAttribute("title"), apps.WHY.tip);
+  assert.ok(visibleText(doc.body).includes(apps.LINES.safety), "the safety line is still under Other programs");
+  assert.strictEqual(ls.map.get(apps.HOW_KEY), "1", "kept, under hos_apps_how_open");
+  assert.ok(toggle.className.includes("how-open"), "drawn open (the triangle turned down)");
+
+  toggle.click();
+  assert.strictEqual(toggle.getAttribute("aria-expanded"), "false", "pressed again, it closes");
+  assert.strictEqual(fold.hidden, true);
+  assert.strictEqual(ls.map.get(apps.HOW_KEY), "0");
+});
+
+// Seen red 2026-10-20 in a copy of web/: with writeOpen writing nothing, "it survives a reload"
+// failed (actual 'false', expected 'true'; 12a's "kept, under hos_apps_how_open" too); with
+// readOpen without its try/catch, the boot threw "SecurityError: storage is refused" (and 7b's);
+// with render's aria-expanded line taken out, "it survives a reload" failed (actual null).
+test("12b. How this page works survives a reload; storage refused, it still opens and closes; a kept value that is not 1 is closed", async () => {
+  const ls = storage();
+  const first = await bootWithHead(ls, SAMPLE, SAMPLE_TOOLS);
+  first.toggle.click();
+  const again = await bootWithHead(ls, SAMPLE, SAMPLE_TOOLS);
+  assert.strictEqual(again.toggle.getAttribute("aria-expanded"), "true", "it survives a reload");
+  assert.strictEqual(again.fold.hidden, false);
+  assert.deepStrictEqual(foldParts(again.fold).map((p) => p[0]), ["Other programs", "Services"], "open from the start, its parts drawn");
+  again.toggle.click();
+  const closed = await bootWithHead(ls, SAMPLE, SAMPLE_TOOLS);
+  assert.strictEqual(closed.toggle.getAttribute("aria-expanded"), "false", "closed, and that is kept too");
+  assert.strictEqual(closed.fold.hidden, true);
+
+  const refused = await bootWithHead(storage(null, true), SAMPLE, SAMPLE_TOOLS);
+  assert.strictEqual(refused.toggle.getAttribute("aria-expanded"), "false", "storage refused: closed");
+  refused.toggle.click();
+  assert.strictEqual(refused.toggle.getAttribute("aria-expanded"), "true", "and it still opens");
+  assert.strictEqual(refused.fold.children.length > 0, true);
+
+  for (const kept of ["true", "open", "", "2"]) {
+    const odd = await bootWithHead(storage({ [apps.HOW_KEY]: kept }), SAMPLE, SAMPLE_TOOLS);
+    assert.strictEqual(odd.toggle.getAttribute("aria-expanded"), "false", JSON.stringify(kept) + " kept: closed");
+  }
+  assert.strictEqual(HOW.readOpen(null, apps.HOW_KEY), false, "no storage at all: closed");
+});
+
+// Seen red 2026-10-20 in a copy of web/ with howPartsShown returning every part whatever the
+// view: "narrowed to Other programs, only its part" failed (["Other programs","Services"]).
+test("12c. the fold follows the parts shown; its styles are linked, loaded before the page and theme variables only", async () => {
+  const ls = storage({ [apps.HOW_KEY]: "1" });
+  const { page, fold } = await bootWithHead(ls, SAMPLE, SAMPLE_TOOLS);
+  page.setView({ section: "programs" });
+  assert.deepStrictEqual(foldParts(fold).map((p) => p[0]), ["Other programs"], "narrowed to Other programs, only its part");
+  page.setView({ section: "services" });
+  assert.deepStrictEqual(foldParts(fold).map((p) => p[0]), ["Services"]);
+  page.setView({ section: "help" });
+  assert.deepStrictEqual(foldParts(fold).map((p) => p[0]), ["Other programs", "Services"], "a part with nothing folded: every part, never an empty box");
+  assert.deepStrictEqual(apps.howPartsShown(apps.normalView({}), { programs: 0, services: 3 }), ["services"], "a part known to be empty is left out");
+
+  // The page links the styles and loads the script before apps-app.js.
+  assert.match(HTML, /<link rel="stylesheet" href="\/shared\/how-it-works\.css\?v=\d+">/, "apps.html links how-it-works.css");
+  const s = HTML.indexOf('<script src="/shared/how-it-works.js'), a = HTML.indexOf('<script src="/pages/apps-app.js');
+  assert.ok(s > 0 && s < a, "how-it-works.js loads before apps-app.js");
+  assert.match(HTML, /<header class="apps-head" id="apps-head">\s*<div class="apps-title"><h1>Apps<\/h1><\/div>/, "the header the toggle goes beside");
+  // Theme variables only: no hand-written colour; a hidden fold takes no room; a visible focus ring.
+  assert.ok(!/#[0-9a-f]{3,8}\b|rgba?\(|hsla?\(/i.test(HOW_CSS), "no hand-written colour in how-it-works.css");
+  assert.match(HOW_CSS, /\.how-panel\[hidden\]\s*\{\s*display:\s*none;/);
+  assert.match(HOW_CSS, /\.how-toggle:focus-visible\s*\{[^}]*outline:/);
+  for (const t of HOW.TINTS) assert.match(HOW_CSS, new RegExp('\\.how-part\\[data-tint="' + t + '"\\]\\s*\\{\\s*--how-dot: var\\(--'), t + "'s dot is a theme colour");
+});
+
 // Red first. The Tools tests kept from tools-web.test.js were each seen red on 2026-10-19, in a
 // copy of web/pages (HOS_WEB_DIR) with every other test passing, and the same breaks made again
 // on 2026-10-20 in apps-app.js trip them still: the catalog order sorting by name whatever the
@@ -955,4 +1128,6 @@ test("11. a hue is the app's FNV-1a swatch hue", () => {
 // /download, a page id missing from the table), 5 (Category always offered, the All count), 7a
 // (the old key, nothing written, the section dropped), 8a (the name twice), 9 (a word of the
 // safety line, the Why's slug), 10 (the tab in the wrong group, the old mobile link, the wrong
-// icon, the Justfile).
+// icon, the Justfile), 12a-c (How this page works: open by default, where the programs come from
+// left in its part, the fold filled while closed, aria-expanded never set, nothing kept, the read
+// without its try/catch, the fold blind to the view).

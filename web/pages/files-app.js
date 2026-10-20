@@ -113,6 +113,18 @@
 // Gallery comes back when it closes. A sound plays in the middle pane with its
 // waveform (/pages/files-sound.js), fetched only when Play here is pressed.
 //
+// HOW THIS PAGE WORKS (2026-10-20, the desktop's files/how.rs and
+// widgets/how_it_works.rs; /shared/how-it-works.js): one small toggle beside
+// the heading folds what the page and each place is, closed until the person
+// opens it, remembered in this browser (localStorage `hos_files_how_open`, the
+// desktop's config.json `files_how_open`). In it, under each place's name: the
+// page's own line (the desktop's PAGE_LINE, which took the place of the short
+// line that was under the heading), Shared files' line and the HumanityOS
+// folder's caution. Outside it, where the person acts, they stay: Shared files'
+// line (they are public for anyone to download) beside Upload a file, and the
+// folder's caution beside the file being edited. The desktop's Your folders has
+// no website version, so its line is not here.
+//
 // A classic script in the browser, a CommonJS module under Node, where
 // scripts/tests/files-web.test.js and files-web-round2.test.js run the page
 // against a stand-in document that has only what this file built in it
@@ -148,7 +160,8 @@
 
   // ── Words (the design's own, shared with the desktop page) ──
   const FILES_WORDS = Object.freeze({
-    lede: 'Pictures, videos, 3D models and files people on this server chose to share.',
+    // The page's own line, in "How this page works" (the desktop's files/how.rs PAGE_LINE).
+    pageLine: 'Pictures, videos, 3D models and files the people on this server chose to show. Nothing is here unless the person who uploaded it put it here, and nothing from a private conversation can be.',
     membersLine: "Sign in to this server to see its members' media.",
     membersOnlyServer: "This server's Files page is for its members.",
     alreadyPublic: 'This file is already public where it was shared.',
@@ -575,6 +588,13 @@
   // server's shared files (/pages/files-shared.js) and its data folder (/pages/files-folder.js).
   const FPL = typeof module === 'object' && module && module.exports ? require('./files-places.js') : root.FilesPlaces;
   const FSH = typeof module === 'object' && module && module.exports ? require('./files-shared.js') : root.FilesShared;
+  // The data folder's caution, said in "How this page works" too (the place itself is root.FilesFolder,
+  // made only in a browser: it draws its parts with markup).
+  const FFO = typeof module === 'object' && module && module.exports ? require('./files-folder.js') : root.FilesFolder;
+  // "How this page works" (2026-10-20, /shared/how-it-works.js): the toggle by the heading and its fold.
+  const HOW = typeof module === 'object' && module && module.exports ? require('../shared/how-it-works.js') : root.HosHowItWorks;
+  /** Where whether "How this page works" is open is kept in this browser. */
+  const HOW_KEY = 'hos_files_how_open';
 
   // ── DOM ──
 
@@ -839,10 +859,27 @@
         return;
       }
       doc.title = mediaOn;
+      // "How this page works": the toggle beside the heading, its fold under it, each place's line
+      // under the place's name (the desktop's files/how.rs panel), drawn while it is open.
+      how = HOW && typeof HOW.createFold === 'function' ? HOW.createFold({
+        document: doc, storage: env.storage || null, key: HOW_KEY, id: 'files-how',
+        fill: (f) => {
+          f.part(FPL ? FPL.labelOf('shared', host) : mediaOn, 'red');
+          f.line(FILES_WORDS.pageLine);
+          if (FSH) {
+            f.part(FPL ? FPL.WORDS.sharedFiles : 'Shared files', 'red');
+            f.line(FSH.WORDS.how);
+          }
+          if (FFO && FFO.CAUTION) {
+            f.part(FPL ? FPL.WORDS.folder : 'HumanityOS folder', 'red');
+            f.line(FFO.CAUTION);
+          }
+        },
+      }) : null;
       env.root.replaceChildren(
         els.head = h('div', { className: 'files-head' }, [
-          h('h1', { id: 'files-title', text: mediaOn }),
-          h('p', { className: 'files-lede', text: FILES_WORDS.lede }),
+          h('div', { className: 'files-title-row' }, [h('h1', { id: 'files-title', text: mediaOn }), how ? how.toggle : null]),
+          how ? how.panel : null,
         ]),
         ...[els.status, els.notice, els.tabs, els.main, els.admin, places ? places.area : null, panes ? null : els.viewer, els.report, els.takedown, els.ask, fileInput].filter(Boolean)
       );
@@ -858,6 +895,7 @@
     // ── The three panes (2026-10-19, /pages/files-panes.js) ──
     let panes = null;      // the Files page's panes: the list, the item, its details
     let places = null;     // the places (files-places.js), and the panes of the two that are not the list
+    let how = null;        // "How this page works" (/shared/how-it-works.js): its toggle and its fold
     let itemPanes = null;  // the item window's: the item and its details
     /** The area the panes share: the page's width, and the window's height (which way they go). */
     function viewport() {
@@ -2479,6 +2517,8 @@
     createUploader, fingerprint, createFilesPage, signerFor,
     // Where the view and the panes' split are kept in this browser (/pages/files-panes.js).
     LAYOUT_KEY: MP ? MP.LAYOUT_KEY : 'humanity_media_layout',
+    // Where whether "How this page works" is open is kept in this browser.
+    HOW_KEY,
     POST_WORDS, STAR, POST_FAVORITES_KEY, CHAT_CHANNEL_KEY, POST_GRACE_MS, postFavoriteKey, postFavorites, togglePostFavorite,
     postChoices, postText, postedIn, notPostedIn,
   };

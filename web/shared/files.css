@@ -10,8 +10,11 @@
 #files-root { max-width: 1100px; margin: 0 auto; padding: var(--space-xl) var(--space-xl) 0; }
 /* Text links only: a link styled as a button keeps the button's colours. */
 #files-root a:not(.files-btn) { color: var(--accent); }
-.files-head h1 { font-size: var(--text-xl); font-weight: 800; margin-bottom: var(--space-sm); }
-.files-lede { color: var(--text-muted); font-size: var(--text-sm); margin-bottom: var(--space-lg); }
+/* The heading with "How this page works" beside it, and its fold under them while it is open
+   (2026-10-20, /shared/how-it-works.css; the desktop's heading row and files/how.rs). */
+.files-head { margin-bottom: var(--space-md); }
+.files-title-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-xs) var(--space-md); }
+.files-head h1 { font-size: var(--text-xl); font-weight: 800; margin: 0; }
 .files-status-text, .files-notice-text, .files-members-line, .files-picks-note-text {
   background: var(--bg-card); border: 1px solid var(--border); border-left: 3px solid var(--accent);
   border-radius: var(--radius); padding: var(--space-md) var(--space-lg); margin-bottom: var(--space-md);
