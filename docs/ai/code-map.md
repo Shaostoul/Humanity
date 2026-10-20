@@ -6,7 +6,7 @@
 > `grep -i <word> docs/ai/code-map.md` before searching the source. Features (what a person can do)
 > are in `docs/FEATURES.md`; pages in `docs/PAGES.md`.
 
-886 Rust files (575,327 lines) under `src/`; 107 JavaScript files (67,773 lines) under `web/`.
+887 Rust files (575,799 lines) under `src/`; 107 JavaScript files (67,773 lines) under `web/`.
 
 ## Folders
 
@@ -14,7 +14,7 @@
 - `src/assets/` (4 files): Asset manager, loads and caches game data with hot-reload support.
 - `src/audio/` (3 files): Audio manager powered by kira.
 - `src/ecs/` (4 files): ECS, thin wrapper around hecs::World with system scheduling.
-- `src/engine/` (85 files): Satellites of the native app's main module, extracted from lib.rs (v0.932, tiers A+B of docs/dev/code-structure-plan.md).
+- `src/engine/` (86 files): Satellites of the native app's main module, extracted from lib.rs (v0.932, tiers A+B of docs/dev/code-structure-plan.md).
 - `src/engine/screens/` (4 files): In-world screens (rungs 1 and 2 of the screens ladder, docs/design/in-world-screens.md): the engine side of a native egui page shown on a...
 - `src/games/` (16 files): The Games library's readers (2026-10-18; the operator, docs/PRIORITIES.md 2026-10-13: "A Games library: list and launch every installed g...
 - `src/gui/` (19 files): egui GUI system for the native desktop client.
@@ -76,7 +76,7 @@
 - `debug.rs` (129): In-app debug console: captures log messages for display in an egui overlay. Main items: push_debug, drain_debug_log, draw_debug_console.
 - `dev_travel.rs` (438): Dev travel math (v0.791.x, Platform > Dev > Travel) - pure helpers for the teleport tool that lets the operator inspect any solar body up close. Main items: teleport_viewpoint, look_angles, look_dir, planet_spin_from_time, frame_lock_capture, frame_lock_ship_pos, format_multiplier, VIEW_DISTANCE_RADII.
 - `embedded_data.rs` (869): Compile-time embedded data files for offline operation. Main items: shipped_home_design, own_home_text, get_embedded, read_data_or_embedded, load_data_or_embedded, load_text_or_embedded, note_builtin_copy, builtin_copies_this_run (+132 more).
-- `lib.rs` (16446): HumanityOS Game Engine Main items: data_dir, drone_dock_visible, run, DATA_DIR.
+- `lib.rs` (16466): HumanityOS Game Engine Main items: data_dir, drone_dock_visible, run, DATA_DIR.
 - `lod_registry.rs` (89): Per-ITEM-TYPE LOD category registry (v0.971 generalization of the vegetation rung-2a registry): every kind of thing with detail stages - vegetation, creatures, water, planet terrain - gets a row in... Main items: LodCategory, categories, category.
 - `machines.rs` (5369): Data-driven machine layout for the 3D home (First-Playable groundwork, v0.427). Main items: MachineStat, MachinePower, MachineDef, FuelBurn, CameraPose, ScreenDef, MachineStorage, MachineInstance (+33 more).
 - `main.rs` (225): HumanityOS, One binary to rule them all.
@@ -89,7 +89,7 @@
 - `scenic_views.rs` (116): Scenic views (v0.825): curated named viewpoints on planet surfaces, the data foundation for the camera-hub arc (task #77). Main items: ScenicView, ScenicViews.
 - `showroom.rs` (56): Character-select showroom data (v0.441): the backdrops you can preview your avatar against. Main items: Backdrop, load_backdrops.
 - `storage.rs` (532): Storage-mode resolution (v0.707): WHERE HumanityOS keeps a user's files. Main items: StorageMode, exe_dir, os_root, mode, choose_installed, choose_portable, portable_config_path, portable_saves_dir (+6 more).
-- `surface_move.rs` (1257): THE PLAYER'S MOVEMENT MODEL on a planetary surface (v0.1109): which of the two control laws is running this frame, and the radial (vertical) motion each one produces. Main items: MoveMode, RadialStep, split_wish, carry_gated_radial, carry_walk_factor, radial_step, rest_height, ground_sample_dir (+4 more).
+- `surface_move.rs` (1273): THE PLAYER'S MOVEMENT MODEL on a planetary surface (v0.1109): which of the two control laws is running this frame, and the radial (vertical) motion each one produces. Main items: MoveMode, RadialStep, split_wish, carry_gated_radial, carry_walk_factor, radial_step, rest_height, walk_rest (+5 more).
 - `surface_walk.rs` (1122): Planetary surface FPS math (task #76 increment 1) - pure helpers for the surface-oriented camera and the stand/walk ground clamp. Main items: VerticalStep, walk_ground_radius, tangent_basis, surface_forward, surface_look_angles, world_look_angles, rest_radius, clamp_above_ground (+10 more).
 - `test_clock.rs` (65): A clock that a test moves by hand (BUG-152). Main items: ManualClock.
 - `test_log.rs` (83): The warnings a test's own code writes to the log, read back (BUG-163). Main items: capture.
@@ -167,7 +167,7 @@
 - `net_route.rs` (1661): Multiplayer glue between the relay socket and the world: routing `__game__:` messages, the figures and nameplates of other players and crew, and our own position updates. Main items: FigurePart, FigurePiece, PlanetDefBake, route_game_message, view_change_messages, snapshot_entry_messages, host_clock_from, position_update_from (+19 more).
 - `own_home.rs` (638): The character's OWN home (2026-10-04): what the build editor changes outside the Dev mode is kept in the character's save, never in the shared data files. Main items: Kept, GaveBack, authors_data_files, in_effect, design_in_effect, capture, overlay_machines, keep_editor_edits (+11 more).
 - `pipe_markers.rs` (188): The pipes' marker bands in the 3D home (2026-10-04). Main items: PipeMarkerState, BandBatch, wanted_mode, rebuild_if_mode_changed.
-- `planet_build.rs` (997): Building where you stand, on the ship or on a planet (2026-09-27, the real fix for BUG-102). Main items: BodyFrame, PlayerView, Ground, CannotBuild, Ghost, PlayerFrame, note_body, body_render_rot (+11 more).
+- `planet_build.rs` (1086): Building where you stand, on the ship or on a planet (2026-09-27, the real fix for BUG-102). Main items: BodyFrame, PlayerView, Ground, CannotBuild, Ghost, PlayerFrame, note_body, body_render_rot (+12 more).
 - `plant_layout.rs` (637): Where a grow machine's plants stand (2026-09-26). Main items: PlotRect, PlotPlants, plot_rects, plot_plants, plot_draw_cap, bake_copy, shelf_rack_geometry, tent_geometry (+2 more).
 - `plant_pass.rs` (741): The garden's plant geometry, built off the main thread (2026-09-27). Main items: Helix, GroupLayout, CropDraw, GroupJob, BuiltGroup, WorkerMsg, Job, spawn (+2 more).
 - `protected.rs` (572): The protected setup (step G of docs/design/blocking-and-safe-mode.md, section 10h, 2026-10-10): the native client's half that touches the app state and the socket. Main items: now_secs, ensure_preset, is_on, allows, allows_typed, forget, pass_allowed, try_pin (+21 more).
@@ -189,7 +189,7 @@
 - `tree_ground.rs` (241): THE GROUND UNDER THE NEAR TREES, read out for the rig (BUG-156, 2026-10-05). Main items: report, write_report, REPORT_PATH, FLOAT_TOLERANCE_M.
 - `warnings.rs` (329): Warnings, and the recovery-phrase guard (step F of docs/design/blocking-and-safe-mode.md, sections 6.3 and 10g, 2026-10-10): the native client's half that touches the app state. Main items: ensure_loaded, sender_of, checked_sender, shown_under, dismiss_key, message_key, links_held, holds_own_phrase (+1 more).
 - `world_load.rs` (1436): Entering the 3D world: `load_world` builds the player's home on its plot with what its start carries, and the star sky, planets, sun and home station. Main items: place_avatar, build_star_sky, load_world, spawn_herd, spawn_wilds, place_decorations, build_hologram, clear_hologram (+3 more).
-- tests: `choice_tests.rs`, `death_pack_tests.rs`, `dm_pace_tests.rs`, `file_transfer_tests.rs`, `fleet_tests.rs`, `friend_code_tests.rs`, `group_report_tests.rs`, `home_meshes_tests.rs`, `household_tests.rs`, `mess_hall_tests.rs`, `parity_tests.rs`, `protected_tests.rs`, `put_answer_devices_tests.rs`, `put_answer_tests.rs`, `save_slot_home_tests.rs`, `save_slot_tests.rs`, `shared_build_tests.rs`, `world_load_tests.rs`
+- tests: `choice_tests.rs`, `death_pack_tests.rs`, `dm_pace_tests.rs`, `file_transfer_tests.rs`, `fleet_tests.rs`, `friend_code_tests.rs`, `group_report_tests.rs`, `home_meshes_tests.rs`, `household_tests.rs`, `mess_hall_tests.rs`, `parity_tests.rs`, `planet_floor_tests.rs`, `protected_tests.rs`, `put_answer_devices_tests.rs`, `put_answer_tests.rs`, `save_slot_home_tests.rs`, `save_slot_tests.rs`, `shared_build_tests.rs`, `world_load_tests.rs`
 
 ## src/engine/screens/
 
