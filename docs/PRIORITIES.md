@@ -433,16 +433,25 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
 - **Follow-ups found today (not started):** BUG-161 (the copresence rig's steady-speed
   judges fail a starved machine); BUG-163 part 2 (refresh a stale data folder on update:
   docs/design/data-folder-updates.md: DONE v0.1490.0); no gasoline or diesel
-  item (Refined Fuel stands in for the generator's gasoline); the refinery's drum accepts
-  any liquid; campfire light (point lights in the celestial pass); heaters aboard only, and
+  item (Refined Fuel stands in for the generator's gasoline; DONE 2026-10-20, f4562e2c3:
+  gasoline_0 and diesel_0, the refinery's refine_crude makes both, the generator burns
+  gasoline, Refined Fuel retired); the refinery's drum accepts any liquid (DONE 2026-10-20,
+  c4bb04a13: the drum is its crude-oil feed, takes only what its recipe runs on, and its
+  card says why); campfire light (point lights in the celestial pass); heaters aboard only, and
   data/hvac.ron's heat pump and wood stove have no machine; inside survey regions without
   terrain tiles the ground draws at 54 m triangles while buildings stand on the finest
   ground (BUG-156's note); far trees should re-ground on the patch drawn under them;
-  src/systems/fire.rs takes fire damage per frame in f32 (BUG-164's note); every drink
-  gives 30 points whatever its volume; (Bleeding, bites and burns are wounds since S8,
+  src/systems/fire.rs takes fire damage per frame in f32 (BUG-164's note; DONE 2026-10-20,
+  acd8a17e2: a fire's tick is its exact dose, the same at 30 and 240 frames a second); every
+  drink gives 30 points whatever its volume (DONE 2026-10-20, 0800f1a5b: a drink puts back
+  the water it carries, from its litres in item_profiles.ron); (Bleeding, bites and burns are wounds since S8,
   2026-10-12; falls hurt nobody yet, and nothing spawns fires); a
   second mess hall along First Street (fold into increment 6); the backpack-overflow toast
-  (DONE 2026-10-12: it names the item and says it went to home storage).
+  (DONE 2026-10-12: it names the item and says it went to home storage). Found with the
+  2026-10-20 four (not started): nothing burns diesel yet (data/electrical.ron's diesel
+  generator has no machine); food still gives a flat 10 Hydration for produce and 3 for the
+  rest, and its satiation is per item whatever the item weighs (src/systems/food.rs
+  `consume`), the same defect the drinks had.
 - **A gap the Normal-mode default exposes (found 2026-10-05 by the Library sweep):** in
   Normal mode NOBODY CAN LEAVE THE SHIP. The Dev page's travel and Land buttons and F9 flight are
   the only ways off it, all Dev-only, and no vehicle or route goes down. So by default a
