@@ -2797,6 +2797,7 @@ dependencies = [
  "sha1",
  "sha2",
  "str0m",
+ "symphonia",
  "thiserror 2.0.18",
  "tiff 0.9.1",
  "tokio",

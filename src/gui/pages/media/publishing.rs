@@ -182,7 +182,7 @@ pub(crate) fn attach(state: &mut GuiState, local: u64, signer: &Signer, to: &Att
 /// names the file's number). Blocking: on the worker.
 fn take_off_item(base: &str, signer: &Signer, item: &api::ItemRef, added: &Value, name: &str) -> Result<Value, Refusal> {
     let Some(file) = added.get("item").and_then(api::Item::from_json).and_then(|i| file_number_of(&i, name)) else {
-        return Err(Refusal::new(0, "The server's answer did not name the file, so it could not be taken off the item. Remove it in the item's Edit window."));
+        return Err(Refusal::new(0, "The server's answer did not name the file, so it could not be taken off the item. Remove it with Edit on the item."));
     };
     let result = api::send(base, &file_remove_request(signer, item, file, name));
     if let Err(e) = &result {

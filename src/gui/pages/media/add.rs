@@ -3,7 +3,7 @@
 //! ADD TO MEDIA: the file picker, then a short form (title, category, description, labels,
 //! visibility, and since Media round 5 the licence, "All rights reserved" preselected, with the
 //! server's own words beside it and its hosting paragraph, "Your uploads stay yours.": edit.rs
-//! `draw_licence_choice` and `draw_hosting`, the same as the Edit window's). Sending it closes the
+//! `draw_licence_choice` and `draw_hosting`, the same as the edit form's). Sending it closes the
 //! form: the file joins the uploads in progress on the page
 //! (media/uploading.rs, each with its bar, Pause, Resume and Cancel), goes up in pieces
 //! (media/resumable.rs) and is then published with `POST /api/media`, signed then, with what this
@@ -59,7 +59,7 @@ pub(crate) enum Of {
     Waiting,
     /// A file already public in Shared Files or a chat.
     Shared,
-    /// Uploaded here just now from an item's Edit window (Media round 5, lane 1D): added to that
+    /// Uploaded here just now from an item's edit form (Media round 5, lane 1D): added to that
     /// item as a file or its cover (`POST /api/media/files/add`) instead of published. The same
     /// upload, the same row under "Uploads in progress", the same Cancel.
     Attach { item: api::ItemRef, role: super::api_items::FileRole },
@@ -299,7 +299,7 @@ pub(crate) fn draw_form(ctx: &egui::Context, theme: &Theme, state: &mut GuiState
     widgets::dialog_scrolling(ctx, theme, "media_publish_form", title, &mut open, |ui| {
         ui.set_max_width(520.0);
         // Three parts in the chat sidebar's colours, darker (widgets/tint_section.rs, 2026-10-17):
-        // the file first, what it is, then who can see it. The Edit window's parts, in this order.
+        // the file first, what it is, then who can see it. The edit form's parts, in this order.
         tint_section::show(ui, theme, Tint::Blue, super::edit::FILES, |ui| {
             let (name, len) = form.file();
             ui.horizontal_wrapped(|ui| {

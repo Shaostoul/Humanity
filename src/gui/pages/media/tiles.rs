@@ -17,7 +17,9 @@
 //! A cover is a picture from the uploader too, so it follows rules 2 to 4 the same way. Under the
 //! picture (round 5): the title, the description's first line (at most 120 characters, cut at a
 //! word), who put it there, the picks and downloads, "3 files" when it holds several, and
-//! "Featured" or "Featured in its category". A click opens the item's own page (item_view.rs).
+//! "Featured" or "Featured in its category". A click shows the item in the panes (item_view.rs).
+//! The tiles are the Gallery view since the three panes (2026-10-19); the panes' list draws its
+//! rows by the same rules (list.rs).
 //!
 //! A click on a Label or Ask tile is remembered in the image cache's "allowed" set, as the chat's
 //! click-to-load is: for this session, one item at a time. A picture that could not be loaded
@@ -377,7 +379,7 @@ fn draw_face(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, item: &Item
 
 /// Paint a kind's mark (data/media/kinds.json `mark`) with the shared icon painters, never a font
 /// glyph (CLAUDE.md, icon_glyph_lint).
-fn paint_mark(painter: &egui::Painter, rect: egui::Rect, mark: &str, color: Color32) {
+pub(crate) fn paint_mark(painter: &egui::Painter, rect: egui::Rect, mark: &str, color: Color32) {
     use crate::gui::widgets::icons;
     match mark {
         "play" => icons::paint_play(painter, rect, color),
@@ -398,8 +400,8 @@ fn reference_or_say(state: &mut GuiState, item: &Item) -> Option<api::ItemRef> {
     }
 }
 
-/// A tile's buttons: Edit (yours, or any as an admin: round 5, it opens the item's page with its
-/// Edit window), Pick or Unpick (not on your own), Remove (yours, or any as an admin), the three
+/// A tile's buttons: Edit (yours, or any as an admin: round 5; it shows the item in the panes
+/// with its edit form in place), Pick or Unpick (not on your own), Remove (yours, or any as an admin), the three
 /// Feature choices (admins: filters.rs `draw_feature_choice`), Keep on the server or Stop keeping
 /// (admins and moderators), Report (not on your own).
 fn draw_actions(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, item: &Item) {

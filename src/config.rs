@@ -460,6 +460,11 @@ pub struct AppConfig {
     /// file on this device and never sent anywhere. A config written before it existed has none.
     #[serde(default)]
     pub media_folders: Vec<std::path::PathBuf>,
+    /// The Media page's view (the three panes, or the gallery) and the split of its panes, side by
+    /// side and stacked (2026-10-19, pages/media/panes.rs). A config written before it existed
+    /// shows the panes at their default split; a split that is not usable is the default too.
+    #[serde(default)]
+    pub media_layout: crate::gui::pages::media::panes::Layout,
     /// The Games library's games added by hand (2026-10-18, pages/games.rs): each one's name and
     /// program. Kept in this file on this device and never sent anywhere. A config written before
     /// it existed has none.
@@ -1533,6 +1538,7 @@ impl AppConfig {
             files_in_messages: state.settings.files_in_messages.clone(),
             media_unfinished_uploads: state.media.unfinished.clone(),
             media_folders: state.settings.media_folders.clone(),
+            media_layout: state.settings.media_layout.clone(),
             added_games: state.settings.added_games.clone(),
             games_layout: state.settings.games_layout,
             games_sort: state.settings.games_sort,
@@ -1721,6 +1727,7 @@ impl AppConfig {
         state.settings.files_in_messages = self.files_in_messages.clone();
         state.media.unfinished = self.media_unfinished_uploads.clone();
         state.settings.media_folders = self.media_folders.clone();
+        state.settings.media_layout = self.media_layout.checked();
         state.settings.added_games = self.added_games.clone();
         state.settings.games_layout = self.games_layout;
         state.settings.games_sort = self.games_sort;

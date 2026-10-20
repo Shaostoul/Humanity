@@ -1,29 +1,40 @@
-//! An item's own page (Media round 5, lane 1D; docs/design/media-round-5-plan.md 3.9). A click on
-//! any tile opens it, as a window over the Media page:
+//! An item shown on the Media page (Media round 5, lane 1D; the three panes since 2026-10-19,
+//! docs/design/media-showcase.md "The three panes"). A press on a row in the list (or a tile in the
+//! Gallery) makes it the item shown: the middle pane shows it to fit (viewer.rs), and the right
+//! pane, drawn here ([`draw_details`]), holds everything about it:
 //!
-//! - the picture (View full size opens the app's image viewer), the video with Play here, or the
-//!   cover; a labelled item or a stranger's picture keeps the tiles' rules (tiles.rs `show_of`):
-//!   its label, or a press, first;
 //! - the title; "by Ann in Fire flow arts"; its labels; "Kept by the server"; "Members only";
-//! - "4 picks, 12 views, 3 downloads";
+//! - "4 picks, 12 views, 3 downloads", and the day it was put on the page;
+//! - its buttons: Copy link (`https://<host>/media/<id>`, the page the relay serves, never
+//!   `/media?id=`), Edit (the uploader and admins), Pick, Keep (admins and moderators), Report and
+//!   Remove item, and, for anyone signed in or not, Report a copyright problem (takedown.rs); the
+//!   admins' three Feature choices under them;
 //! - the whole description, as plain text with its line breaks;
 //! - the licence by name, linked to its deed, with the server's own line for it, and a line when
 //!   it is offered for the game;
-//! - its files, the item's own first, each with its name, kind, size and Download (counted by the
-//!   relay: open.rs `download_origin`), and Remove on an added one or the cover for the uploader
-//!   and admins (never on the first: that is the item itself);
-//! - Copy link (`https://<host>/media/<id>`, the page the relay serves, never `/media?id=`), Edit
-//!   (the uploader and admins: edit.rs), Pick, the three Feature choices (admins), Keep (admins
-//!   and moderators), Report and Remove item, and, for anyone signed in or not, Report a copyright
-//!   problem (takedown.rs, 2026-10-13).
+//! - its files, the item's own first, each with its type, name, size and Download (counted by the
+//!   relay: open.rs `download_origin`), and View in 3D on a `.glb` or `.stl`.
 //!
-//! Opening it counts a view (`POST /api/media/viewed`; the relay counts a person once a day).
+//! EDIT IS IN PLACE (operator, 2026-10-19: "When clicking edit, instead of popping up another
+//! window, just change the details panel on the right to accept edits. Once done clicking save
+//! undoes the GUI changes for edit mode."): Edit turns this pane into the edit form (edit.rs
+//! `draw_in_place`), in its three coloured parts with the pane's border in the nav bar's moving
+//! colours, so edit mode stands out at a glance; Save sends it and, once answered, the pane is the
+//! item's details again. Cancel with nothing changed goes straight back; with changes it asks
+//! first ([`Discard`]), and so does pressing another item, closing the item's window, or leaving
+//! the page ([`draw_leave_question`]).
+//!
+//! An item posted in chat opens in a window of its own over the chat ([`draw_window`]): the same
+//! two parts, the item to fit and its details, side by side, with the same edit in place. The
+//! Media page itself is never pushed in front of the conversation the person is reading.
+//!
+//! Opening an item counts a view (`POST /api/media/viewed`; the relay counts a person once a day).
 //!
 //! What lands here from the server ([`on_answer`]): one item read by its number ([`Job::Item`], a
 //! list read with `id`), the item as an edit, a visibility change or a file taken off left it (each
 //! answers `{ok, item}`), and a view counted (always `{ok: true}`). An item that changed is changed
-//! wherever the page shows it: on its own page, in the grid and on the featured shelf
-//! ([`take_item`]); and the page follows the grid's copy, where a Pick, Keep or Feature lands.
+//! wherever the page shows it: here, in the list and on the featured shelf ([`take_item`]); and
+//! the pane follows the list's copy, where a Pick, Keep or Feature lands.
 
 use egui::RichText;
 use serde_json::Value;
@@ -31,12 +42,12 @@ use serde_json::Value;
 use super::api::{self, Item, ItemFile, Refusal};
 use super::api_items;
 use super::open::{self, Opened};
-use super::{kinds, signed_in_here, signer_or_say, spawn, spawn_with, tiles, Job};
+use super::{signed_in_here, signer_or_say, spawn, spawn_with, tiles, Job};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use crate::gui::GuiState;
 
-/// An item's page, while it is open.
+/// The item shown, while there is one.
 #[derive(Debug, Clone, Default)]
 pub struct ItemPage {
     /// The item's number.
@@ -44,9 +55,9 @@ pub struct ItemPage {
     /// The item as the server last gave it; None until it has answered, or when it is not there
     /// for this person.
     pub item: Option<Item>,
-    /// One line about the last thing done or refused on this page.
+    /// One line about the last thing done or refused on it.
     pub status: String,
-    /// The Edit window, while open (edit.rs).
+    /// The edit form, while the details pane is in edit mode (edit.rs).
     pub edit: Option<super::edit::EditForm>,
     /// A file's Remove, waiting for its confirmation.
     pub confirm_file: Option<ItemFile>,
@@ -54,19 +65,52 @@ pub struct ItemPage {
     pub confirm_remove: bool,
     /// The address Copy link last copied, shown under it.
     pub copied: Option<String>,
+    /// Shown in a window of its own (opened from a card in chat while the Media page is not on
+    /// screen). On the Media page it is the item in the panes, whatever this says.
+    pub window: bool,
+    /// The edit form holds changes and something would leave it: asked first.
+    pub confirm_discard: Option<Discard>,
 }
 
-/// What the page says when the item is not on the Media page, or this person may not see it.
+/// What would leave an edit form that holds changes, waiting for the person's answer.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Discard {
+    /// Cancel was pressed.
+    Cancel,
+    /// Another item was pressed in the list (or a tile in the Gallery): it is shown once the
+    /// changes are let go.
+    Open(Item),
+    /// The item's window was closed.
+    Close,
+}
+
+/// What the pane says when the item is not on the Media page, or this person may not see it.
 pub const NOT_THERE: &str = "That item is not on the Media page, or you may not see it.";
-/// What the page says once a file was renamed, and once a picture on the item became its cover.
+/// What the pane says once a file was renamed, and once a picture on the item became its cover.
 pub const FILE_RENAMED: &str = "Renamed.";
 pub const COVER_CHOSEN: &str = "That picture is the cover now.";
-/// What the page says once a file was taken off the item.
+/// What the pane says once a file was taken off the item.
 pub const FILE_REMOVED: &str = "Removed from the item.";
-/// What the page says once an edit went.
+/// What the pane says once an edit went.
 pub const SAVED: &str = "Saved.";
+/// The question when an edit form with changes would be left, and its two answers.
+pub const DISCARD_TITLE: &str = "Unsaved changes";
+pub const DISCARD_THEM: &str = "Discard the changes";
+pub const KEEP_EDITING: &str = "Keep editing";
+/// The question when the page was left with an edit unsaved, and its first answer.
+pub const GO_BACK: &str = "Go back to them";
+/// The middle and right panes while nothing is chosen.
+pub const CHOOSE_LINE: &str = "Choose something in the list to see it here.";
+pub const DETAILS_LINE: &str = "Its details, licence and files show here, with Edit for your own.";
+/// The id of an item's window over the chat.
+pub const WINDOW_ID: &str = "media_item_page";
 
-/// Put `item` wherever the page shows it: its own page (when it is that item's), the grid and the
+/// The question's words for item `title`.
+pub fn discard_words(title: &str) -> String {
+    format!("Your changes to \"{title}\" are not saved.")
+}
+
+/// Put `item` wherever the page shows it: the pane (when it is that item's), the list and the
 /// featured shelf.
 pub(crate) fn take_item(state: &mut GuiState, item: Item) {
     for shown in state.media.list.items.iter_mut().chain(state.media.featured.iter_mut()).filter(|i| i.id == item.id) {
@@ -74,7 +118,7 @@ pub(crate) fn take_item(state: &mut GuiState, item: Item) {
     }
     if let Some(page) = state.media.item.as_mut().filter(|p| p.id == item.id) {
         if let Some(form) = page.edit.as_mut() {
-            // The Edit window's files follow the item (a file added or taken off while it is open);
+            // The edit form's files follow the item (a file added or taken off while it is open);
             // the words being edited are the person's and stay as they are.
             form.was.files = item.files.clone();
             form.was.cover = item.cover.clone();
@@ -83,7 +127,7 @@ pub(crate) fn take_item(state: &mut GuiState, item: Item) {
     }
 }
 
-/// Say `words` on the item's page when it is item `id`'s, else on the Media page.
+/// Say `words` on the item when it is item `id`, else on the Media page.
 fn say(state: &mut GuiState, id: i64, words: String) {
     match state.media.item.as_mut().filter(|p| p.id == id) {
         Some(page) => page.status = words,
@@ -96,13 +140,13 @@ pub(crate) fn saving(state: &GuiState, id: i64) -> bool {
     state.media.jobs.iter().any(|(j, _)| *j == Job::Edit { id })
 }
 
-/// An answer for the item's page (pages/media.rs `on_done` hands these over).
+/// An answer for the item shown (pages/media.rs `on_done` hands these over).
 pub(crate) fn on_answer(state: &mut GuiState, job: Job, result: Result<Value, Refusal>) {
     match (job, result) {
         (Job::Item { id }, Ok(v)) => {
             let answer = api::parse_list(&v);
-            // The labels' names, as the website's `openById` takes them: a page opened by its number
-            // before the list ever answered still names a labelled item's labels.
+            // The labels' names, as the website's `openById` takes them: an item opened by its
+            // number before the list ever answered still names a labelled item's labels.
             if state.media.list.labels.is_empty() && !answer.labels.is_empty() {
                 state.media.list.labels = answer.labels;
             }
@@ -111,8 +155,8 @@ pub(crate) fn on_answer(state: &mut GuiState, job: Job, result: Result<Value, Re
             if page.id != id {
                 return;
             }
-            // The page had nothing yet: it was opened by its number (`open_by_number`), and this is
-            // the opening, so it counts a view the way a tile's click does.
+            // It had nothing yet: it was opened by its number (`open_by_number`), and this is the
+            // opening, so it counts a view the way a row's press does.
             let first = page.item.is_none();
             page.status = if found.is_some() { String::new() } else { NOT_THERE.to_string() };
             match found {
@@ -128,14 +172,15 @@ pub(crate) fn on_answer(state: &mut GuiState, job: Job, result: Result<Value, Re
         (Job::Edit { id }, Ok(v)) => match v.get("item").and_then(Item::from_json) {
             Some(item) => {
                 take_item(state, item);
-                // The Edit window closes once everything it sent is answered (the edit, and the
-                // visibility when that changed too).
-                // A refusal of the other half keeps the window open with its words, and nothing
-                // is said to be saved.
+                // The edit form closes, and the pane is the item's details again, once everything
+                // it sent is answered (the edit, and the visibility when that changed too). A
+                // refusal of the other half keeps the form with its words, and nothing is said to
+                // be saved.
                 let refused = state.media.item.as_ref().filter(|p| p.id == id).and_then(|p| p.edit.as_ref()).is_some_and(|f| !f.problem.is_empty());
                 if !saving(state, id) && !refused {
                     if let Some(page) = state.media.item.as_mut().filter(|p| p.id == id) {
                         page.edit = None;
+                        page.confirm_discard = None;
                     }
                     say(state, id, SAVED.to_string());
                 }
@@ -158,7 +203,7 @@ pub(crate) fn on_answer(state: &mut GuiState, job: Job, result: Result<Value, Re
             None => say(state, id, "The server's answer was not understood.".to_string()),
         },
         (Job::FileRename { id, .. } | Job::FileCover { id, .. }, Err(e)) => {
-            // The relay's own words, in the Edit window when it is open.
+            // The relay's own words, in the edit form when it is open.
             match state.media.item.as_mut().filter(|p| p.id == id).and_then(|p| p.edit.as_mut()) {
                 Some(form) => form.problem = e.words,
                 None => say(state, id, e.words),
@@ -167,38 +212,68 @@ pub(crate) fn on_answer(state: &mut GuiState, job: Job, result: Result<Value, Re
         (Job::Viewed { .. }, Ok(_)) => {}
         (Job::Viewed { id }, Err(e)) => log::warn!("Media: a view of item {id} was not counted: {e}"),
         (Job::Edit { id }, Err(e)) => {
-            // The relay's own words, shown as they come, in the Edit window when it is open.
+            // The relay's own words, shown as they come, in the edit form when it is open.
             match state.media.item.as_mut().filter(|p| p.id == id).and_then(|p| p.edit.as_mut()) {
                 Some(form) => form.problem = e.words,
                 None => say(state, id, e.words),
             }
         }
         (Job::Item { id } | Job::FileRemove { id, .. }, Err(e)) => say(state, id, e.words),
-        (other, _) => log::warn!("Media: {other:?} is not an item page's answer"),
+        (other, _) => log::warn!("Media: {other:?} is not an item's answer"),
     }
 }
 
-/// Open `item`'s page: the page and its transfers, and a view counted.
+/// Whether the item shown holds an edit with changes not saved.
+pub(crate) fn unsaved(state: &GuiState) -> bool {
+    state.media.item.as_ref().and_then(|p| p.edit.as_ref()).is_some_and(|f| f.changed())
+}
+
+/// Show `item`: in the panes, with its transfers, and a view counted. The item already shown is
+/// left as it is (a playing video plays on). Another item, while the edit form holds changes,
+/// waits for the person's answer first ([`Discard::Open`]).
 pub(crate) fn open(state: &mut GuiState, item: &Item) {
+    if let Some(page) = state.media.item.as_mut() {
+        if page.id == item.id && page.item.is_some() {
+            return;
+        }
+        if page.edit.as_ref().is_some_and(|f| f.changed()) {
+            page.confirm_discard = Some(Discard::Open(item.clone()));
+            return;
+        }
+    }
     state.media.item = Some(ItemPage { id: item.id, item: Some(item.clone()), ..Default::default() });
     state.media.open = Some(Opened::new(item.clone()));
     count_view(state, item);
 }
 
-/// Open item `id`'s page by its number (the Reports page's Open, through media.rs
-/// `open_item_by_number`). An item the list or the featured shelf holds opens as it is, as a tile's
-/// click opens it. Any other is asked for by its number, a list read with `id` ([`Job::Item`]),
-/// the way the website's `route` asks (media-app.js `openById`): the page opens at once saying
-/// "Loading...", and [`on_answer`] puts the item in it (counting the view then), or says it is not
-/// there for this person.
+/// Show `item` in a window of its own over the page that asked (a card in chat).
+pub(crate) fn open_in_window(state: &mut GuiState, item: &Item) {
+    open(state, item);
+    if let Some(page) = state.media.item.as_mut().filter(|p| p.id == item.id) {
+        page.window = true;
+    }
+}
+
+/// Show item `id` by its number (the Reports page's Open, through media.rs `open_item_by_number`).
+/// An item the list or the featured shelf holds opens as it is, as a row's press opens it. Any
+/// other is asked for by its number, a list read with `id` ([`Job::Item`]), the way the website's
+/// `route` asks (media-app.js `openById`): it is shown at once saying "Loading...", and
+/// [`on_answer`] puts the item in (counting the view then), or says it is not there for this person.
 pub(crate) fn open_by_number(state: &mut GuiState, id: i64) {
+    // An edit with changes is never dropped for another item: it stays, and says why.
+    if unsaved(state) && state.media.item.as_ref().is_some_and(|p| p.id != id) {
+        if let Some(form) = state.media.item.as_mut().and_then(|p| p.edit.as_mut()) {
+            form.problem = format!("Save or cancel the changes here first, then open item {id} again.");
+        }
+        return;
+    }
     let known = state.media.list.items.iter().chain(state.media.featured.iter()).find(|i| i.id == id).cloned();
     if let Some(item) = known {
         open(state, &item);
         return;
     }
     state.media.item = Some(ItemPage { id, ..Default::default() });
-    // Another item's transfers go with its page (`Drop for Opened` removes a video's copy).
+    // Another item's transfers go with it (`Drop for Opened` removes a video's copy).
     state.media.open = None;
     if super::server_here(state).is_empty() {
         if let Some(page) = state.media.item.as_mut() {
@@ -260,35 +335,63 @@ pub(crate) fn by_line(item: &Item) -> String {
     }
 }
 
-/// What the page's buttons asked for, done once the window is drawn.
-#[derive(Default)]
-struct Pressed {
-    play: bool,
-    download: Option<ItemFile>,
-    view_full: bool,
-    copy_link: bool,
-    /// The address Copy link put on the clipboard.
-    copied: Option<String>,
-    edit: bool,
-    pick: bool,
-    keep: bool,
-    report: bool,
-    remove: bool,
-    /// "Report a copyright problem" (takedown.rs): for anyone, signed in or not.
-    copyright: bool,
-    /// View in 3D on a `.glb` or `.stl` file, and Close the 3D view.
-    view_3d: Option<ItemFile>,
-    close_3d: bool,
+/// "On Media since 12 October 2026" (UTC), from the server's time in milliseconds; empty when it
+/// gave none.
+pub(crate) fn since_line(item: &Item) -> String {
+    let ms = if item.published_at > 0 { item.published_at } else { item.uploaded_at };
+    if ms <= 0 {
+        return String::new();
+    }
+    format!("On Media since {}", day_words(ms))
 }
 
-/// The item's page and its windows (the Edit window, a file picker, the confirmations), while one
-/// is open. Drawn after the Media page (open.rs `draw`).
-pub(crate) fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
+/// A day in words, "12 October 2026", from a time in milliseconds (UTC; the same civil-date
+/// reckoning as game_admin.rs `format_ban_date`).
+pub(crate) fn day_words(ms: i64) -> String {
+    const MONTHS: [&str; 12] = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    let days = (ms / 1000).div_euclid(86_400);
+    let z = days + 719_468;
+    let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = yoe + era * 400 + if m <= 2 { 1 } else { 0 };
+    format!("{d} {} {year}", MONTHS[(m - 1).clamp(0, 11) as usize])
+}
+
+/// What the item's parts asked for this frame, done once they are drawn ([`act`]).
+#[derive(Default)]
+pub(crate) struct Pressed {
+    pub play: bool,
+    /// Play here on a sound (the middle pane's waveform).
+    pub play_sound: bool,
+    pub download: Option<ItemFile>,
+    pub view_full: bool,
+    /// The address Copy link put on the clipboard.
+    pub copied: Option<String>,
+    pub edit: bool,
+    pub pick: bool,
+    pub keep: bool,
+    pub report: bool,
+    pub remove: bool,
+    /// "Report a copyright problem" (takedown.rs): for anyone, signed in or not.
+    pub copyright: bool,
+    /// View in 3D on a `.glb` or `.stl` file, and Close the 3D view.
+    pub view_3d: Option<ItemFile>,
+    pub close_3d: bool,
+}
+
+/// The item shown and its transfers, taken out of the state to be drawn (put back by [`finish`]),
+/// the item made the list's copy first (where a Pick, Keep or Feature lands). None with nothing
+/// shown.
+pub(crate) fn take(state: &mut GuiState) -> Option<(ItemPage, Option<Opened>)> {
     let Some(mut page) = state.media.item.take() else {
         state.media.open = None;
-        return;
+        return None;
     };
-    // The page follows the grid's copy of the item, where a Pick, Keep or Feature lands.
     if let Some(fresh) = state.media.list.items.iter().chain(state.media.featured.iter()).find(|i| i.id == page.id) {
         if page.item.as_ref() != Some(fresh) {
             page.item = Some(fresh.clone());
@@ -298,167 +401,75 @@ pub(crate) fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     if let Some(item) = page.item.clone() {
         let o = opened.get_or_insert_with(|| Opened::new(item.clone()));
         o.item = item;
-        open::poll(ctx, o);
     }
+    Some((page, opened))
+}
 
-    let mut open = true;
-    let mut pressed = Pressed::default();
-    let title = page.item.as_ref().map(|i| i.display_title()).unwrap_or_else(|| "Media item".to_string());
-    widgets::dialog_scrolling(ctx, theme, "media_item_page", &title, &mut open, |ui| {
-        ui.set_max_width(720.0);
-        match (page.item.clone(), opened.as_mut()) {
-            (Some(item), Some(o)) => draw_page(ui, theme, state, &page, o, &item, &mut pressed),
-            _ => {
-                let words = if page.status.is_empty() { "Loading..." } else { page.status.as_str() };
-                ui.label(RichText::new(words).size(theme.font_size_body).color(theme.text_muted()));
-            }
-        }
-    });
-
+/// Do what was pressed and put the item back.
+pub(crate) fn finish(state: &mut GuiState, mut page: ItemPage, mut opened: Option<Opened>, pressed: Pressed) {
     if let (Some(item), Some(o)) = (page.item.clone(), opened.as_mut()) {
         act(state, &mut page, o, &item, pressed);
     }
-    super::edit::draw(ctx, theme, state, &mut page);
-    let removed = draw_confirmations(ctx, theme, state, &mut page);
-
-    // Closed (its X, a click beside it, or the item removed): the page and its transfers go, and
-    // a video's temporary copy with them (`Drop for Opened`).
-    if open && !removed {
+    // Something done while it was out (a Remove that answered at once) may have chosen another.
+    if state.media.item.is_none() {
         state.media.item = Some(page);
         state.media.open = opened;
     }
 }
 
-/// Everything inside the page's window.
-fn draw_page(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, page: &ItemPage, opened: &mut Opened, item: &Item, pressed: &mut Pressed) {
-    draw_face(ui, theme, state, opened, item, pressed);
-    ui.add_space(theme.spacing_sm);
-
-    ui.label(RichText::new(item.display_title()).size(theme.font_size_heading).color(theme.text_primary()).strong());
-    ui.horizontal_wrapped(|ui| {
-        ui.label(RichText::new(by_line(item)).size(theme.font_size_small).color(theme.text_secondary()));
-        for name in tiles::label_names(state, item) {
-            ui.label(RichText::new(name).size(theme.font_size_small).color(theme.warning()));
+/// The right pane: the edit form while editing (edit.rs), else everything about the item.
+pub(crate) fn draw_details(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, page: &mut ItemPage, opened: Option<&Opened>, pressed: &mut Pressed) {
+    let Some(item) = page.item.clone() else {
+        let words = if page.status.is_empty() { "Loading..." } else { page.status.as_str() };
+        ui.label(RichText::new(words).size(theme.font_size_body).color(theme.text_muted()));
+        return;
+    };
+    if page.edit.is_some() {
+        super::edit::draw_in_place(ui, theme, state, page);
+        return;
+    }
+    egui::ScrollArea::vertical().id_salt(("media_details", item.id)).auto_shrink([false, false]).show(ui, |ui| {
+        ui.label(RichText::new(item.display_title()).size(theme.font_size_heading).color(theme.text_primary()).strong());
+        ui.horizontal_wrapped(|ui| {
+            ui.label(RichText::new(by_line(&item)).size(theme.font_size_small).color(theme.text_secondary()));
+            for name in tiles::label_names(state, &item) {
+                ui.label(RichText::new(name).size(theme.font_size_small).color(theme.warning()));
+            }
+            if item.kept {
+                ui.label(RichText::new(tiles::KEPT_BADGE).size(theme.font_size_small).color(theme.success()));
+            }
+            if item.members_only() {
+                ui.label(RichText::new("Members only").size(theme.font_size_small).color(theme.info()));
+            }
+            if item.featured.is_on() {
+                ui.label(RichText::new(super::filters::feature_words(item.featured)).size(theme.font_size_small).color(theme.accent()));
+            }
+        });
+        ui.label(RichText::new(counts_line(&item)).size(theme.font_size_small).color(theme.text_muted()));
+        let since = since_line(&item);
+        if !since.is_empty() {
+            ui.label(RichText::new(since).size(theme.font_size_small).color(theme.text_muted()));
         }
-        if item.kept {
-            ui.label(RichText::new(tiles::KEPT_BADGE).size(theme.font_size_small).color(theme.success()));
+        ui.add_space(theme.spacing_sm);
+        draw_actions(ui, theme, state, &item, pressed);
+        if let Some(link) = &page.copied {
+            ui.label(RichText::new(format!("Copied: {link}")).size(theme.font_size_small).color(theme.success()));
         }
-        if item.members_only() {
-            ui.label(RichText::new("Members only").size(theme.font_size_small).color(theme.info()));
+        if !page.status.is_empty() {
+            ui.label(RichText::new(&page.status).size(theme.font_size_small).color(theme.text_secondary()));
         }
-        if item.featured.is_on() {
-            ui.label(RichText::new(super::filters::feature_words(item.featured)).size(theme.font_size_small).color(theme.accent()));
+        if !item.description.trim().is_empty() {
+            ui.add_space(theme.spacing_sm);
+            // The whole description, as plain text: its own line breaks are kept.
+            ui.add(egui::Label::new(RichText::new(item.description.trim()).size(theme.font_size_body).color(theme.text_primary())).wrap());
+        }
+        ui.add_space(theme.spacing_sm);
+        draw_licence(ui, theme, state, &item);
+        ui.add_space(theme.spacing_sm);
+        if let Some(o) = opened {
+            draw_files(ui, theme, state, o, &item, pressed);
         }
     });
-    ui.label(RichText::new(counts_line(item)).size(theme.font_size_small).color(theme.text_muted()));
-    if !item.description.trim().is_empty() {
-        ui.add_space(theme.spacing_xs);
-        // The whole description, as plain text: its own line breaks are kept.
-        ui.label(RichText::new(item.description.trim()).size(theme.font_size_body).color(theme.text_primary()));
-    }
-
-    ui.add_space(theme.spacing_sm);
-    draw_licence(ui, theme, state, item);
-
-    ui.add_space(theme.spacing_sm);
-    draw_files(ui, theme, state, opened, item, pressed);
-
-    ui.add_space(theme.spacing_sm);
-    draw_actions(ui, theme, state, item, pressed);
-    if let Some(link) = &page.copied {
-        ui.label(RichText::new(format!("Copied: {link}")).size(theme.font_size_small).color(theme.success()));
-    }
-    if !page.status.is_empty() {
-        ui.label(RichText::new(&page.status).size(theme.font_size_small).color(theme.text_secondary()));
-    }
-}
-
-/// The picture, the video, or the cover, under the tiles' rules (a label first, then a press for a
-/// stranger's picture).
-fn draw_face(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, opened: &mut Opened, item: &Item, pressed: &mut Pressed) {
-    let show = tiles::show_of(state, item);
-    let key = tiles::cache_key(state, item);
-    // A model shown in 3D takes the cover's place; its textures are pictures too, so where the
-    // protected setup hides this person's pictures it is not shown (and closes if it was open).
-    if matches!(show, tiles::Show::Hidden(_)) {
-        opened.viewer = None;
-    } else if let Some(viewer) = opened.viewer.as_mut() {
-        let width = ui.available_width().min(720.0);
-        viewer.show(ui, theme, width);
-        pressed.close_3d = widgets::Button::secondary(crate::gui::model_view::CLOSE).show(ui, theme);
-        return;
-    }
-    match &show {
-        tiles::Show::Hidden(line) => {
-            widgets::body_hint(ui, theme, line);
-            return;
-        }
-        tiles::Show::Label(names) => {
-            ui.label(RichText::new(format!("Labelled: {}.", names.join(", "))).size(theme.font_size_body).color(theme.warning()));
-            if widgets::Button::secondary("Show it").tooltip("Show what the label covers, on this item only.").show(ui, theme) {
-                state.image_cache.allow(&key);
-            }
-            return;
-        }
-        tiles::Show::Ask => {
-            ui.label(RichText::new(format!("{} is not your friend. Pictures show only when you choose.", item.by_name())).size(theme.font_size_body).color(theme.text_primary()));
-            if widgets::Button::secondary("Show it").show(ui, theme) {
-                state.image_cache.allow(&key);
-            }
-            return;
-        }
-        tiles::Show::TooBig | tiles::Show::Load => {}
-    }
-    if item.kind == "picture" {
-        if tiles::too_big(item) {
-            widgets::body_hint(ui, theme, &format!("This picture is {}, larger than this app shows in place. Download it to see it.", api::size_words(item.size_bytes)));
-        } else {
-            tiles::request_picture(state, item);
-            if picture(ui, theme, state, &key) {
-                pressed.view_full = widgets::Button::secondary("View full size").show(ui, theme);
-            }
-        }
-        return;
-    }
-    // A video, a model or a file: its cover when it has one, else its kind's name.
-    match item.cover.as_ref() {
-        Some(_) if !tiles::cover_too_big(item) => {
-            tiles::request_cover(state, item);
-            picture(ui, theme, state, &tiles::cover_key(state, item));
-        }
-        _ => {
-            ui.label(RichText::new(kinds::one_name(&item.kind)).size(theme.font_size_small).color(theme.text_muted()));
-        }
-    }
-    if item.kind == "video" {
-        pressed.play = open::draw_player(ui, theme, opened);
-    }
-}
-
-/// Draw the picture the image cache holds under `key`, fitted to the window (at most 640 wide); a
-/// line while it loads or when it could not. True when it was drawn.
-fn picture(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, key: &str) -> bool {
-    use crate::gui::widgets::image_cache::ImageStatus;
-    if let Some(tex) = state.image_cache.get_texture(key) {
-        let [w, h] = tex.size();
-        let aspect = w.max(1) as f32 / h.max(1) as f32;
-        let width = ui.available_width().min(640.0);
-        ui.add(egui::Image::new((tex.id(), egui::vec2(width, width / aspect))));
-        return true;
-    }
-    match state.image_cache.status(key) {
-        ImageStatus::Failed(_) => {
-            ui.label(RichText::new(tiles::COULD_NOT_LOAD).size(theme.font_size_small).color(theme.danger()));
-            if widgets::Button::ghost("Try again").show(ui, theme) {
-                state.image_cache.retry(key);
-            }
-        }
-        _ => {
-            ui.label(RichText::new("Loading...").size(theme.font_size_small).color(theme.text_muted()));
-            ui.ctx().request_repaint_after(std::time::Duration::from_millis(200));
-        }
-    }
-    false
 }
 
 /// The licence by name (linked to its deed, with the server's own line for it), and a line when
@@ -493,11 +504,11 @@ fn draw_licence(ui: &mut egui::Ui, theme: &Theme, state: &GuiState, item: &Item)
 /// (the line above it), never a sentence written here.
 pub const OFFERED_FOR_GAME: &str = "Offered for the game.";
 
-/// The item's files, the item's own first, each with its name, kind, size, Download and, for an
-/// added file or the cover, Remove for the uploader and admins.
+/// The item's files, the item's own first, each with its name, kind, size, Download and, on a
+/// `.glb` or `.stl`, View in 3D.
 fn draw_files(ui: &mut egui::Ui, theme: &Theme, state: &GuiState, opened: &Opened, item: &Item, pressed: &mut Pressed) {
     let files = files_of(item);
-    // View in 3D: not where the protected setup hides this person's pictures (draw_face).
+    // View in 3D: not where the protected setup hides this person's pictures (viewer.rs).
     let may_view_3d = !matches!(tiles::show_of(state, item), tiles::Show::Hidden(_));
     widgets::subsection_label(ui, theme, if files.len() == 1 { "File" } else { "Files" });
     let small = widgets::ButtonSize::Small;
@@ -536,7 +547,7 @@ fn draw_files(ui: &mut egui::Ui, theme: &Theme, state: &GuiState, opened: &Opene
         }
     }
     if may_edit(state, item) && (files.len() > 1 || item.cover.is_some()) {
-        widgets::body_hint(ui, theme, "Add or remove files and the cover in Edit.");
+        widgets::body_hint(ui, theme, "Add, rename or remove files and the cover in Edit.");
     }
 }
 
@@ -545,18 +556,20 @@ fn name_of(item: &Item, f: &ItemFile) -> String {
     open::shown_file_name(item, f)
 }
 
-/// The page's buttons: Copy link for anyone; Edit for the uploader and admins; then, signed in,
-/// Pick (not on your own), Feature's three choices (admins), Keep (admins and moderators), Report
-/// (not on your own) and Remove item (your own, or any as an admin).
+/// The item's buttons: Copy link for anyone; Edit for the uploader and admins; then, signed in,
+/// Pick (not on your own), Keep (admins and moderators), Report (not on your own) and Remove item
+/// (your own, or any as an admin); Report a copyright problem for anyone; and under them the
+/// admins' three Feature choices.
 fn draw_actions(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, item: &Item, pressed: &mut Pressed) {
     let signed_in = signed_in_here(state);
     let mine = own(state, item);
     let admin = super::is_admin(state);
+    let mut copy_link = false;
     ui.horizontal_wrapped(|ui| {
-        pressed.copy_link = widgets::Button::secondary(COPY_LINK).tooltip("Copy this item's own address, to share it.").show(ui, theme);
         if may_edit(state, item) {
-            pressed.edit = widgets::Button::primary("Edit").tooltip("Change its words, licence, files and cover.").show(ui, theme);
+            pressed.edit = widgets::Button::primary(EDIT).tooltip(EDIT_TIP).show(ui, theme);
         }
+        copy_link = widgets::Button::secondary(COPY_LINK).tooltip("Copy this item's own address, to share it.").show(ui, theme);
         if signed_in && !mine {
             let label = if item.picked_by_me { "Unpick" } else { "Pick" };
             pressed.pick = widgets::Button::secondary(label).show(ui, theme);
@@ -572,12 +585,10 @@ fn draw_actions(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, item: &I
         // The confirmation is drawn over the page (draw_confirmations).
         pressed.remove = signed_in && (mine || admin) && widgets::Button::danger("Remove item").show(ui, theme);
         // "Report a copyright problem" (2026-10-13, takedown.rs): for anyone, signed in or not, a
-        // member or not. In this row rather than a line of its own (the website's place): a row
-        // added under the actions made the page taller, and two older headless click tests on this
-        // page (a Download, the Edit window's Save) then lost their clicks; why is not yet known.
+        // member or not.
         pressed.copyright = super::takedown::item_button(ui, theme);
     });
-    if pressed.copy_link {
+    if copy_link {
         // Copied here, where the frame's context is: the item's own page on this server.
         let link = api_items::item_link(&super::base_of(state), item.id);
         ui.ctx().copy_text(link.clone());
@@ -592,10 +603,11 @@ fn draw_actions(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, item: &I
     }
 }
 
-/// Copy link's label.
+/// Copy link's and Edit's labels.
 pub const COPY_LINK: &str = "Copy link";
+pub const EDIT: &str = "Edit";
+pub const EDIT_TIP: &str = "Change its words, licence, files and cover, here in this pane.";
 
-/// Do what the page's buttons asked, once the window is drawn.
 /// View in 3D on file `f`: the viewer opens and fetches the file from the address the page has for
 /// it (`ItemFile::url`: public `/uploads/...`, or the members' route with this session's upload
 /// token in a header, as pictures are fetched). Not the counting download route: a look is not a
@@ -613,6 +625,7 @@ pub(crate) fn open_3d(state: &GuiState, opened: &mut Opened, item: &Item, f: &It
     }));
 }
 
+/// Do what the item's buttons asked, once its parts are drawn.
 fn act(state: &mut GuiState, page: &mut ItemPage, opened: &mut Opened, item: &Item, pressed: Pressed) {
     if pressed.remove {
         page.confirm_remove = true;
@@ -623,11 +636,15 @@ fn act(state: &mut GuiState, page: &mut ItemPage, opened: &mut Opened, item: &It
     if pressed.play {
         open::start_play(state, opened);
     }
+    if pressed.play_sound {
+        open::start_sound(state, opened);
+    }
     if let Some(f) = pressed.download {
         open::start_download(state, opened, &f);
     }
     if pressed.view_full {
-        state.image_viewer_url = Some(tiles::cache_key(state, item));
+        let key = if item.kind == "picture" { tiles::cache_key(state, item) } else { tiles::cover_key(state, item) };
+        state.image_viewer_url = Some(key);
     }
     if let Some(f) = pressed.view_3d {
         open_3d(state, opened, item, &f);
@@ -637,6 +654,7 @@ fn act(state: &mut GuiState, page: &mut ItemPage, opened: &mut Opened, item: &It
     }
     if pressed.edit {
         page.edit = Some(super::edit::EditForm::of(item));
+        page.status.clear();
     }
     if pressed.report {
         crate::engine::report::open_for_media(state, item);
@@ -663,10 +681,126 @@ fn act(state: &mut GuiState, page: &mut ItemPage, opened: &mut Opened, item: &It
     }
 }
 
-/// The confirmations over the page: removing a file from the item, and removing the item. True
-/// when the item's removal was sent: its page closes, and the Media page says how it went.
+/// An item posted in chat, in a window of its own over the chat (media.rs `draw_item_window`):
+/// the item to fit and its details side by side (stacked on a tall screen), the same parts the
+/// Media page's panes draw, with the same edit in place; and its confirmations. Closing it with an
+/// edit unsaved asks first.
+pub(crate) fn draw_window(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
+    let Some((mut page, mut opened)) = take(state) else { return };
+    let screen = ctx.screen_rect().size();
+    let size = egui::vec2((screen.x - 80.0).clamp(320.0, 1200.0), (screen.y - 140.0).clamp(240.0, 780.0));
+    let arrange = widgets::panes::arrange_for(size, 2, super::panes::MIN_PANE, theme.spacing_md);
+    let shares_id = egui::Id::new("media_item_window_shares");
+    let defaults = [0.55f32, 0.45];
+    let mut shares: Vec<f32> = ctx.data(|d| d.get_temp::<Vec<f32>>(shares_id)).unwrap_or_else(|| defaults.to_vec());
+    let min = if arrange == widgets::panes::Arrange::Across { super::panes::MIN_PANE } else { super::panes::MIN_PANE_DOWN };
+    let mut pressed = Pressed::default();
+    let mut open = true;
+    let title = page.item.as_ref().map(|i| i.display_title()).unwrap_or_else(|| "Media item".to_string());
+    widgets::dialog(ctx, theme, WINDOW_ID, &title, &mut open, |ui| {
+        ui.allocate_ui(size, |ui| {
+            ui.set_min_size(size);
+            widgets::panes::show(ui, theme, egui::Id::new("media_item_window"), arrange, &mut shares, &defaults, min, |ui, i, card| {
+                if i == 0 {
+                    super::viewer::draw(ui, theme, state, &page, opened.as_mut(), &mut pressed);
+                } else {
+                    if page.edit.is_some() {
+                        super::panes::edit_border(ui, theme, card);
+                    }
+                    draw_details(ui, theme, state, &mut page, opened.as_ref(), &mut pressed);
+                }
+            });
+        });
+    });
+    ctx.data_mut(|d| d.insert_temp(shares_id, shares));
+    let removed = draw_confirmations(ctx, theme, state, &mut page);
+    let closing = !open;
+    if closing && page.edit.as_ref().is_some_and(|f| f.changed()) {
+        page.confirm_discard = Some(Discard::Close);
+    }
+    finish(state, page, opened, pressed);
+    // Closed (its X, a click beside it, or the item removed) with nothing unsaved: the item and its
+    // transfers go, and a video's temporary copy with them (`Drop for Opened`).
+    let keep = state.media.item.as_ref().is_some_and(|p| p.confirm_discard.is_some() || p.edit.as_ref().is_some_and(|f| f.changed()));
+    if removed || (closing && !keep) {
+        state.media.item = None;
+        state.media.open = None;
+    }
+}
+
+/// The confirmations over the Media page (a file's Remove, the item's Remove, the question before
+/// changes are let go), drawn after the page.
+pub(crate) fn draw_page_dialogs(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
+    let Some(mut page) = state.media.item.take() else { return };
+    let removed = draw_confirmations(ctx, theme, state, &mut page);
+    if state.media.item.is_none() {
+        state.media.item = Some(page);
+    }
+    if removed {
+        state.media.item = None;
+        state.media.open = None;
+    }
+}
+
+/// The page was left (the nav bar, Esc, a link: any way) while the item's edit form holds changes:
+/// asked over whatever page it is now, "Go back to them" or "Discard the changes". Nothing is lost
+/// while it waits; with no page on screen (the world), it waits for the next one.
+pub(crate) fn draw_leave_question(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
+    if state.active_page == crate::gui::GuiPage::None || !unsaved(state) {
+        return;
+    }
+    let title = state.media.item.as_ref().and_then(|p| p.item.as_ref()).map(|i| i.display_title()).unwrap_or_default();
+    let mut open = true;
+    let (mut back, mut discard) = (false, false);
+    widgets::dialog(ctx, theme, "media_leave_unsaved", DISCARD_TITLE, &mut open, |ui| {
+        ui.label(RichText::new(discard_words(&title)).size(theme.font_size_body).color(theme.text_primary()));
+        ui.horizontal(|ui| {
+            back = widgets::Button::primary(GO_BACK).tooltip("The Media page, with the changes as they were.").show(ui, theme);
+            discard = widgets::Button::danger(DISCARD_THEM).show(ui, theme);
+        });
+    });
+    if back || !open {
+        state.media.tab = super::MediaTab::Media;
+        state.settings.media_layout.gallery = false;
+        state.push_nav_to(crate::gui::GuiPage::Media);
+    } else if discard {
+        if let Some(page) = state.media.item.as_mut() {
+            page.edit = None;
+            page.confirm_discard = None;
+        }
+    }
+}
+
+/// The confirmations over the item: removing a file from it, removing it, and letting go of an
+/// edit's changes. True when the item's removal was sent: it goes, and the Media page says how it
+/// went.
 fn draw_confirmations(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, page: &mut ItemPage) -> bool {
     let Some(item) = page.item.clone() else { return false };
+    if let Some(why) = page.confirm_discard.clone() {
+        let mut open = true;
+        let (mut discard, mut keep) = (false, false);
+        widgets::dialog(ctx, theme, "media_item_confirm_discard", DISCARD_TITLE, &mut open, |ui| {
+            ui.label(RichText::new(discard_words(&item.display_title())).size(theme.font_size_body).color(theme.text_primary()));
+            ui.horizontal(|ui| {
+                discard = widgets::Button::danger(DISCARD_THEM).show(ui, theme);
+                keep = widgets::Button::secondary(KEEP_EDITING).show(ui, theme);
+            });
+        });
+        if discard {
+            page.edit = None;
+            page.confirm_discard = None;
+            match why {
+                Discard::Cancel => {}
+                Discard::Open(next) => {
+                    // The next item, shown once this one is put back (media.rs reads it from here).
+                    state.media.open_next = Some(next);
+                }
+                Discard::Close => state.media.close_window = true,
+            }
+        } else if keep || !open {
+            page.confirm_discard = None;
+        }
+    }
     if let Some(f) = page.confirm_file.clone() {
         let mut open = true;
         let (mut yes, mut no) = (false, false);
@@ -749,9 +883,9 @@ pub(crate) fn remove_file(state: &mut GuiState, page: &mut ItemPage, item: &Item
 mod tests {
     use super::*;
 
-    /// AN ANSWER FOR AN ITEM'S PAGE LANDS IN ITS PLACE: a read by number opens the page with the item,
-    /// or says it is not there; an edit's `{ok, item}` changes the item on its page and in the grid;
-    /// a refusal is said on the page it was for.
+    /// AN ANSWER FOR AN ITEM LANDS IN ITS PLACE: a read by number shows the item, or says it is not
+    /// there; an edit's `{ok, item}` changes the item in the pane and in the list; a refusal is said
+    /// on the item it was for.
     ///
     /// Seen red 2026-10-12 with `take_item` changing only the page and not the grid: "the grid shows
     /// the edited title / left: \"Old\" / right: \"New\"".
@@ -772,6 +906,17 @@ mod tests {
         state.media.item = None;
         on_answer(&mut state, Job::Item { id: 9 }, Ok(serde_json::json!({ "items": [] })));
         assert_eq!(state.media.item.as_ref().map(|p| (p.id, p.status.as_str(), p.item.is_none())), Some((9, NOT_THERE, true)));
+    }
+
+    /// The day an item was put on the page reads as a person writes it.
+    ///
+    /// Seen red 2026-10-19 with the month counted one on: (left: "9 November 2025", right: "9
+    /// October 2025").
+    #[test]
+    fn the_day_reads_as_a_person_writes_it() {
+        assert_eq!(day_words(1_760_000_000_000), "9 October 2025");
+        assert_eq!(day_words(0), "1 January 1970");
+        assert_eq!(since_line(&Item::default()), "");
     }
 }
 

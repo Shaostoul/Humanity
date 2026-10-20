@@ -81,6 +81,8 @@ Each widget below must exist in both native (`src/gui/widgets/`) and web (CSS cl
 | Help button (`?`) | (new, see below) | `.hos-help-btn` | `border`, `text_muted`, `accent` |
 | Help modal | (new, see below) | already done | same as modal |
 | Onboarding quest chain | (new, see below) | `.quest-chain` / `.quest-step` | card tokens + `accent`, `border`, `small_size` |
+| Panes (2026-10-19) | `widgets::panes::{arrange_for, show}` | none yet: the website's Media page is one column | `bg_card`, `border`, `border_radius`, `accent`, `spacing_sm/md/lg` |
+| Waveform and sound player (2026-10-19) | `widgets::waveform::show`, `widgets::sound_view::SoundView` | the browser's `<audio>` | `bg_tertiary`, `accent`, `text_muted`, `text_primary`, `border`, `border_radius`, `spacing_xs/sm`, `font_size_small`, `button_height` |
 | Cover slot, thin bar, choice pills, fixed table cell (2026-10-19) | `widgets::cover_tile::{paint_cover, thin_bar, choice_pills, fixed_cell}` | none yet: the Games page they serve is desktop-only | `bg_tertiary`, `bg_card`, `text_primary`, `text_strong`, `border`, `slider_track`, `accent`, `text_on_accent`, `bg_secondary`, `pill_radius`, spacing |
 
 ### Widgets planned but not yet shared

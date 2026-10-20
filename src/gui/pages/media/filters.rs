@@ -49,6 +49,7 @@ pub(crate) fn draw_filters(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiStat
     ui.horizontal_wrapped(|ui| {
         let m = &mut state.media;
         let cat_name = m.filters.category.and_then(|c| m.list.categories.iter().find(|x| x.id == c)).map(|c| c.name.clone()).unwrap_or_else(|| "All categories".into());
+        wrap_before(ui, &cat_name);
         egui::ComboBox::from_id_salt("media_category").selected_text(cat_name).show_ui(ui, |ui| {
             ui.selectable_value(&mut m.filters.category, None, "All categories");
             for c in &m.list.categories {
@@ -56,6 +57,7 @@ pub(crate) fn draw_filters(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiStat
             }
         });
         let kind_name = m.filters.kind.as_deref().and_then(kinds::kind).map(|k| k.label.clone()).unwrap_or_else(|| "All kinds".into());
+        wrap_before(ui, &kind_name);
         egui::ComboBox::from_id_salt("media_kind").selected_text(kind_name).show_ui(ui, |ui| {
             ui.selectable_value(&mut m.filters.kind, None, "All kinds");
             for k in kinds::kinds() {
@@ -63,6 +65,7 @@ pub(crate) fn draw_filters(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiStat
             }
         });
         let person = m.filters.by.as_ref().and_then(|k| m.people.iter().find(|(key, _)| key == k)).map(|(_, n)| n.clone()).unwrap_or_else(|| "Everyone".into());
+        wrap_before(ui, &person);
         egui::ComboBox::from_id_salt("media_person").selected_text(person).show_ui(ui, |ui| {
             ui.selectable_value(&mut m.filters.by, None, "Everyone");
             for (key, name) in &m.people {
@@ -71,6 +74,7 @@ pub(crate) fn draw_filters(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiStat
         });
         // The order (round 5). Newest is the server's own order and is not sent; the other two
         // are, and a new order starts the list afresh from its first page (no cursor).
+        wrap_before(ui, sort_words(m.filters.sort));
         egui::ComboBox::from_id_salt("media_sort")
             .selected_text(sort_words(m.filters.sort))
             .show_ui(ui, |ui| {
@@ -102,6 +106,21 @@ pub(crate) fn draw_filters(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiStat
         if category_changed {
             super::reload_featured(state);
         }
+    }
+}
+
+/// In a wrapping row, start a new line when a list choice showing `text` would not fit on this
+/// one. A list choice's button lays itself out inside a frame, so the row cannot see its width
+/// and would let it run past the edge (the Media page's list pane is narrow since the three
+/// panes, 2026-10-19: the Sort choice ran off its right edge).
+pub(crate) fn wrap_before(ui: &mut egui::Ui, text: &str) {
+    let font = egui::TextStyle::Button.resolve(ui.style());
+    let color = ui.visuals().text_color();
+    let text_w = ui.fonts(|f| f.layout_no_wrap(text.to_string(), font, color)).size().x;
+    let s = ui.spacing();
+    let need = (text_w + s.icon_spacing + s.icon_width).max(s.combo_width) + 2.0 * s.button_padding.x + s.item_spacing.x;
+    if ui.available_size_before_wrap().x < need {
+        ui.end_row();
     }
 }
 

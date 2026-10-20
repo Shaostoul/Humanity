@@ -43,6 +43,13 @@ pub mod cover_tile;
 pub mod shelf;
 // A video fetched and played in the app, with its sound (2026-10-18): the Media page and the chat.
 pub mod video_view;
+// A sound played in the app with its waveform and spectrum, and the waveform itself (2026-10-19):
+// the Media page's middle pane.
+pub mod sound_view;
+pub mod waveform;
+// Panes side by side or stacked, each a card, with handles to drag between them (2026-10-19): the
+// Media page's list, viewer and details.
+pub mod panes;
 // The readable web view (2026-09-16): draws a `web_reader::Page` with
 // clickable links, history and a URL row. Used by the Browser page; the
 // in-world monitor surface is the next rung up.

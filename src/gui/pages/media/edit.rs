@@ -1,7 +1,15 @@
-//! An item's Edit window (Media round 5, lane 1D; docs/design/media-round-5-plan.md 3.9, with the
-//! operator's answers in its section 10 and the orchestrator's decision 1 in section 9). It opens
-//! over the item's page (item_view.rs), from Edit there or on a tile, for the item's uploader and
-//! for admins:
+//! An item's edit form (Media round 5, lane 1D; docs/design/media-round-5-plan.md 3.9, with the
+//! operator's answers in its section 10 and the orchestrator's decision 1 in section 9), for the
+//! item's uploader and for admins. Since 2026-10-19 it is drawn IN PLACE of the item's details, in
+//! the right pane (operator: "When clicking edit, instead of popping up another window, just
+//! change the details panel on the right to accept edits. Once done clicking save undoes the GUI
+//! changes for edit mode. ... when we switch to edit mode, add the RGB boxed areas so edit mode
+//! stands out."): "Editing <title>" at the top, the three parts in the chat sidebar's colours
+//! (widgets/tint_section.rs) scrolling under it, Save and Cancel always in view at the foot, and
+//! the pane's border in the nav bar's moving colours (panes.rs `edit_border`). No window opens for
+//! it; the file picker for Add a file and the questions (Remove a file, unsaved changes) are the
+//! only things drawn over the page. Edit on the item's details, or on a tile in the Gallery, opens
+//! it:
 //!
 //! - the title, the description, the category (its description under it), the content labels;
 //! - who can see it, under the same rules and words as Add to Media (a file already public where
@@ -21,10 +29,11 @@
 //!
 //! Save sends the edit (`POST /api/media/edit`, every field, signed over the BLAKE3 of the edit
 //! exactly as sent: api_items.rs `edit_request`) and, apart from it, the visibility when that
-//! changed (`POST /api/media/visibility`). The window closes when both are answered; a refusal is
-//! shown in it in the relay's own words. Cancel throws the changes away. Every word about a
-//! licence comes from the server's answer (data/media/licences.json on the relay), never from a
-//! copy in this app.
+//! changed (`POST /api/media/visibility`). The pane is the item's details again when both are
+//! answered; a refusal is shown in the form in the relay's own words. Cancel with nothing changed
+//! goes straight back; with changes it asks first (item_view.rs `Discard`), as pressing another
+//! item, closing the item's window or leaving the page does. Every word about a licence comes from
+//! the server's answer (data/media/licences.json on the relay), never from a copy in this app.
 
 use std::collections::BTreeSet;
 
@@ -47,7 +56,7 @@ pub struct LicenceChoice {
     pub project_use: bool,
 }
 
-/// The Edit window's working copy of an item.
+/// The edit form's working copy of an item.
 #[derive(Debug, Clone)]
 pub struct EditForm {
     /// The item as it was when Edit opened: what Save compares with (the visibility is sent only
@@ -66,6 +75,10 @@ pub struct EditForm {
     pub picker: Option<(FileRole, FilePickerState)>,
     /// The file being renamed (its number) and the name typed so far, without its ending.
     pub renaming: Option<(i64, String)>,
+    /// The licence choice as the form first showed it (the server's default put in for an item
+    /// with none, the game tick taken off where the licence does not allow it): what Cancel
+    /// compares with, so a form nobody touched never asks about changes.
+    pub shown_choice: Option<LicenceChoice>,
 }
 
 impl EditForm {
@@ -82,7 +95,27 @@ impl EditForm {
             problem: String::new(),
             picker: None,
             renaming: None,
+            shown_choice: None,
         }
+    }
+
+    /// Whether the person changed anything in the form that Save would send (or a file's new name
+    /// typed and not yet saved): what Cancel, another item, closing the window and leaving the
+    /// page ask about first.
+    pub fn changed(&self) -> bool {
+        let was = EditForm::of(&self.was);
+        let choice = self.shown_choice.as_ref().unwrap_or(&was.choice);
+        let renamed = self.renaming.as_ref().is_some_and(|(file, typed)| {
+            let f = item_view::files_of(&self.was).into_iter().chain(self.was.cover.clone()).find(|f| f.file == *file);
+            f.is_some_and(|f| stem_of(&super::open::shown_file_name(&self.was, &f), &stored_ending(&f.filename)) != *typed)
+        });
+        self.title != was.title
+            || self.description != was.description
+            || self.category != was.category
+            || self.labels != was.labels
+            || self.choice != *choice
+            || self.members_only != was.members_only
+            || renamed
     }
 
     /// What the edit sends: every field the form shows. Someone who is not the uploader (an admin)
@@ -100,13 +133,17 @@ impl EditForm {
     }
 }
 
-/// Open the Edit window for `item`, over its page (opened first when another item's, or none, is).
+/// Turn `item`'s details pane into its edit form (the item shown first when another, or none, is;
+/// from the Gallery, the panes are shown).
 pub(crate) fn open_edit(state: &mut GuiState, item: &Item) {
     if state.media.item.as_ref().map(|p| p.id) != Some(item.id) {
         item_view::open(state, item);
     }
-    if let Some(page) = state.media.item.as_mut() {
-        page.edit = Some(EditForm::of(item));
+    super::panes::set_gallery(state, false);
+    if let Some(page) = state.media.item.as_mut().filter(|p| p.id == item.id) {
+        if page.edit.is_none() {
+            page.edit = Some(EditForm::of(item));
+        }
     }
 }
 
@@ -194,7 +231,7 @@ pub(crate) fn draw_hosting(ui: &mut egui::Ui, theme: &Theme, licences: &Licences
 /// The picture types a cover can be (the relay: "A cover must be a picture: PNG, JPEG, GIF or WebP.").
 pub const COVER_EXTS: &[&str] = &["png", "jpg", "jpeg", "gif", "webp"];
 
-/// What the Edit window's buttons asked for, done once it is drawn.
+/// What the edit form's buttons asked for, done once it is drawn.
 #[derive(Default)]
 struct Pressed {
     save: bool,
@@ -206,12 +243,17 @@ struct Pressed {
     cover: Option<ItemFile>,
 }
 
-/// The Edit window's id (its dialog, and the dimmed backdrop behind it, `-backdrop`).
-pub(crate) const EDIT_DIALOG_ID: &str = "media_item_edit";
+/// The words over the form, and what Cancel says when hovered.
+pub fn editing_words(title: &str) -> String {
+    format!("Editing \"{title}\"")
+}
+pub const CANCEL_TIP: &str = "Go back to its details without changing anything (asks first when something was changed).";
 
-/// The Edit window over the item's page, and its file picker, while open.
-pub(crate) fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, page: &mut ItemPage) {
+/// The item's edit form, in place of its details in the right pane (the item's window, from a
+/// card in chat, has the same pane), and its file picker while open.
+pub(crate) fn draw_in_place(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, page: &mut ItemPage) {
     let Some(mut form) = page.edit.take() else { return };
+    let ctx = ui.ctx().clone();
     let item = form.was.clone();
     let own = item_view::own(state, &item);
     let members_server = super::members_only_server(state);
@@ -229,88 +271,96 @@ pub(crate) fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, pag
     // Files dropped on the window while this is open are added to the item, as Add a file adds
     // them (gui/drop_files.rs); only its uploader adds files.
     if own {
-        crate::gui::drop_files::register(ctx, crate::gui::drop_files::Level::Window, drop_words(&item), |state: &mut GuiState, paths| add_dropped(state, &paths));
+        crate::gui::drop_files::register(&ctx, crate::gui::drop_files::Level::Window, drop_words(&item), |state: &mut GuiState, paths| add_dropped(state, &paths));
     } else {
-        crate::gui::drop_files::refuse(ctx, crate::gui::drop_files::Level::Window, format!("Files cannot be dropped here: only {} can add files to this item.", item.by_name()));
+        crate::gui::drop_files::refuse(&ctx, crate::gui::drop_files::Level::Window, format!("Files cannot be dropped here: only {} can add files to this item.", item.by_name()));
     }
-    let mut open = true;
     let mut pressed = Pressed::default();
-    widgets::dialog_scrolling(ctx, theme, EDIT_DIALOG_ID, &format!("Edit {}", item.display_title()), &mut open, |ui| {
-        ui.set_max_width(560.0);
-        // Three parts in the chat sidebar's colours, darker (widgets/tint_section.rs, 2026-10-17):
-        // what it is, who can see it, its files.
-        tint_section::show(ui, theme, Tint::Red, ABOUT_IT, |ui| {
-            widgets::form_row(ui, theme, "Title", |ui| {
-                ui.add(egui::TextEdit::singleline(&mut form.title).desired_width(320.0).char_limit(120));
-            });
-            widgets::form_row(ui, theme, "Category", |ui| {
-                let shown = categories.iter().find(|c| c.id == form.category).map(|c| c.name.clone()).unwrap_or_else(|| item.category_name.clone());
-                egui::ComboBox::from_id_salt("media_edit_category").selected_text(shown).show_ui(ui, |ui| {
-                    for c in &categories {
-                        if ui.selectable_label(c.id == form.category, &c.name).on_hover_text(&c.description).clicked() {
-                            form.category = c.id;
-                        }
-                    }
-                });
-            });
-            if let Some(about) = categories.iter().find(|c| c.id == form.category).map(|c| c.description.clone()).filter(|d| !d.trim().is_empty()) {
-                widgets::body_hint(ui, theme, &about);
-            }
-            ui.label(RichText::new("Description").size(theme.font_size_small).color(theme.text_secondary()));
-            ui.add(egui::TextEdit::multiline(&mut form.description).desired_rows(4).desired_width(520.0).char_limit(2000));
-            if !labels.is_empty() {
-                ui.label(RichText::new("Content labels: a labelled item stays hidden until someone clicks it.").size(theme.font_size_small).color(theme.text_secondary()));
-                ui.horizontal_wrapped(|ui| {
-                    for l in &labels {
-                        let mut on = form.labels.contains(&l.id);
-                        if ui.checkbox(&mut on, &l.label).on_hover_text(&l.desc).changed() {
-                            if on {
-                                form.labels.insert(l.id.clone());
-                            } else {
-                                form.labels.remove(&l.id);
-                            }
-                        }
-                    }
-                });
-            }
-        });
-
-        // Who can see it: the same rules and words as Add to Media.
-        ui.add_space(theme.spacing_sm);
-        tint_section::show(ui, theme, Tint::Green, WHO_CAN_SEE_IT, |ui| {
-            if item.keeps_file {
-                ui.label(RichText::new(super::add::ALREADY_PUBLIC_LINE).size(theme.font_size_small).color(theme.text_secondary()));
-            } else if members_server {
-                ui.label(RichText::new(super::add::MEMBERS_SERVER_LINE).size(theme.font_size_small).color(theme.text_secondary()));
-            } else {
-                ui.horizontal(|ui| {
-                    ui.radio_value(&mut form.members_only, false, "Public");
-                    ui.radio_value(&mut form.members_only, true, "Members only");
-                });
-            }
-
-            ui.add_space(theme.spacing_xs);
-            let members = members_server || form.members_only;
-            let owner_only = (!own).then(|| item.by_name().to_string());
-            draw_licence_choice(ui, theme, &licences, &mut form.choice, members, Some(item.licence.as_str()), owner_only.as_deref());
-            draw_hosting(ui, theme, &licences);
-        });
-
-        ui.add_space(theme.spacing_sm);
-        tint_section::show(ui, theme, Tint::Blue, FILES, |ui| draw_files(ui, theme, &item, own, &uploads, &mut form.renaming, &mut pressed));
-
-        if !form.problem.is_empty() {
-            ui.label(RichText::new(&form.problem).size(theme.font_size_small).color(theme.danger()));
-        }
-        ui.add_space(theme.spacing_sm);
-        ui.horizontal(|ui| {
+    ui.label(RichText::new(editing_words(&item.display_title())).size(theme.font_size_heading).color(theme.text_primary()).strong());
+    ui.add_space(theme.spacing_xs);
+    // Save and Cancel stay in view at the foot (laid out first, from the bottom up); the parts
+    // scroll in what is left above them.
+    ui.with_layout(egui::Layout::bottom_up(egui::Align::Min), |ui| {
+        super::panes::foot_row(ui, egui::Id::new(("media_edit_foot", item.id)), false, |ui| {
             ui.add_enabled_ui(!saving, |ui| {
                 pressed.save = widgets::Button::primary(SAVE).show(ui, theme);
             });
             if saving {
                 ui.label(RichText::new("Saving...").size(theme.font_size_small).color(theme.text_muted()));
             }
-            pressed.cancel = widgets::Button::secondary("Cancel").tooltip("Close this without changing anything.").show(ui, theme);
+            pressed.cancel = widgets::Button::secondary("Cancel").tooltip(CANCEL_TIP).show(ui, theme);
+        });
+        if !form.problem.is_empty() {
+            ui.add(egui::Label::new(RichText::new(&form.problem).size(theme.font_size_small).color(theme.danger())).wrap());
+        }
+        ui.add_space(theme.spacing_sm);
+        ui.with_layout(egui::Layout::top_down(egui::Align::Min), |ui| {
+            egui::ScrollArea::vertical().id_salt(("media_edit", item.id)).auto_shrink([false, false]).show(ui, |ui| {
+                // Three parts in the chat sidebar's colours, darker (widgets/tint_section.rs, 2026-10-17):
+                // what it is, who can see it, its files.
+                tint_section::show(ui, theme, Tint::Red, ABOUT_IT, |ui| {
+                    widgets::form_row(ui, theme, "Title", |ui| {
+                        ui.add(egui::TextEdit::singleline(&mut form.title).desired_width(320.0).char_limit(120));
+                    });
+                    widgets::form_row(ui, theme, "Category", |ui| {
+                        let shown = categories.iter().find(|c| c.id == form.category).map(|c| c.name.clone()).unwrap_or_else(|| item.category_name.clone());
+                        egui::ComboBox::from_id_salt("media_edit_category").selected_text(shown).show_ui(ui, |ui| {
+                            for c in &categories {
+                                if ui.selectable_label(c.id == form.category, &c.name).on_hover_text(&c.description).clicked() {
+                                    form.category = c.id;
+                                }
+                            }
+                        });
+                    });
+                    if let Some(about) = categories.iter().find(|c| c.id == form.category).map(|c| c.description.clone()).filter(|d| !d.trim().is_empty()) {
+                        widgets::body_hint(ui, theme, &about);
+                    }
+                    ui.label(RichText::new("Description").size(theme.font_size_small).color(theme.text_secondary()));
+                    ui.add(egui::TextEdit::multiline(&mut form.description).desired_rows(4).desired_width(ui.available_width()).char_limit(2000));
+                    if !labels.is_empty() {
+                        ui.label(RichText::new("Content labels: a labelled item stays hidden until someone clicks it.").size(theme.font_size_small).color(theme.text_secondary()));
+                        ui.horizontal_wrapped(|ui| {
+                            for l in &labels {
+                                let mut on = form.labels.contains(&l.id);
+                                if ui.checkbox(&mut on, &l.label).on_hover_text(&l.desc).changed() {
+                                    if on {
+                                        form.labels.insert(l.id.clone());
+                                    } else {
+                                        form.labels.remove(&l.id);
+                                    }
+                                }
+                            }
+                        });
+                    }
+                });
+
+                // Who can see it: the same rules and words as Add to Media.
+                ui.add_space(theme.spacing_sm);
+                tint_section::show(ui, theme, Tint::Green, WHO_CAN_SEE_IT, |ui| {
+                    if item.keeps_file {
+                        ui.label(RichText::new(super::add::ALREADY_PUBLIC_LINE).size(theme.font_size_small).color(theme.text_secondary()));
+                    } else if members_server {
+                        ui.label(RichText::new(super::add::MEMBERS_SERVER_LINE).size(theme.font_size_small).color(theme.text_secondary()));
+                    } else {
+                        ui.horizontal(|ui| {
+                            ui.radio_value(&mut form.members_only, false, "Public");
+                            ui.radio_value(&mut form.members_only, true, "Members only");
+                        });
+                    }
+
+                    ui.add_space(theme.spacing_xs);
+                    let members = members_server || form.members_only;
+                    let owner_only = (!own).then(|| item.by_name().to_string());
+                    draw_licence_choice(ui, theme, &licences, &mut form.choice, members, Some(item.licence.as_str()), owner_only.as_deref());
+                    if form.shown_choice.is_none() {
+                        form.shown_choice = Some(form.choice.clone());
+                    }
+                    draw_hosting(ui, theme, &licences);
+                });
+
+                ui.add_space(theme.spacing_sm);
+                tint_section::show(ui, theme, Tint::Blue, FILES, |ui| draw_files(ui, theme, &item, own, &uploads, &mut form.renaming, &mut pressed));
+            });
         });
     });
 
@@ -341,25 +391,32 @@ pub(crate) fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, pag
         form.picker = Some((role, picker));
         super::refresh_mine(state);
     }
-    draw_picker(ctx, theme, state, &mut form);
+    draw_picker(&ctx, theme, state, &mut form);
     if pressed.save && !saving {
         save(state, &mut form, own);
     }
-    if open && !pressed.cancel {
-        page.edit = Some(form);
+    if pressed.cancel {
+        if form.changed() {
+            // Asked first (item_view.rs draws the question); the form stays until it is answered.
+            page.confirm_discard = Some(item_view::Discard::Cancel);
+        } else {
+            page.status.clear();
+            return;
+        }
     }
+    page.edit = Some(form);
 }
 
 /// Save's label.
 pub const SAVE: &str = "Save";
 
-/// The three parts of the Edit window and of Add to Media (widgets/tint_section.rs), the website's
+/// The three parts of the edit form and of Add to Media (widgets/tint_section.rs), the website's
 /// too (web/pages/media-item.js).
 pub const ABOUT_IT: &str = "About it";
 pub const WHO_CAN_SEE_IT: &str = "Who can see it";
 pub const FILES: &str = "Files";
 
-/// The files part of the Edit window: each added file and the cover with Remove (file 0 is the
+/// The files part of the edit form: each added file and the cover with Remove (file 0 is the
 /// item itself: never removed here), the uploads on their way to it, and, for the uploader, Add a
 /// file and Cover picture.
 fn draw_files(ui: &mut egui::Ui, theme: &Theme, item: &Item, own: bool, uploads: &[(String, String)], renaming: &mut Option<(i64, String)>, pressed: &mut Pressed) {
@@ -477,12 +534,12 @@ fn draw_picker(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, form: &
     }
 }
 
-/// The words over the window while files are dragged onto an item's Edit window.
+/// The words over the window while files are dragged onto an item's edit form.
 pub(crate) fn drop_words(item: &Item) -> String {
     format!("Drop to add to {}", item.display_title())
 }
 
-/// Files dropped while the Edit window is open: added to the item as files, as Add a file adds them.
+/// Files dropped while the edit form is open: added to the item as files, as Add a file adds them.
 pub(crate) fn add_dropped(state: &mut GuiState, paths: &[std::path::PathBuf]) {
     let Some(mut page) = state.media.item.take() else { return };
     if let Some(mut form) = page.edit.take() {

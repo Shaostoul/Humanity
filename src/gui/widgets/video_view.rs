@@ -121,13 +121,27 @@ impl VideoView {
     /// The video at most `max_width` wide, with its buttons; Play here while nothing is fetched.
     /// Returns true when Play here was pressed (the caller then calls [`VideoView::start`]).
     pub fn draw(&mut self, ui: &mut egui::Ui, theme: &Theme, max_width: f32) -> bool {
+        self.draw_fit(ui, theme, egui::vec2(max_width, f32::INFINITY))
+    }
+
+    /// The video fitted inside `max` (its buttons included), centred across the width it has
+    /// (the Media page's middle pane, 2026-10-19); as [`VideoView::draw`] otherwise.
+    pub fn draw_fit(&mut self, ui: &mut egui::Ui, theme: &Theme, max: egui::Vec2) -> bool {
         let mut play_here = false;
         let small = |s: &str| RichText::new(s).size(theme.font_size_small).color(theme.text_muted());
         if let (Some(tex), Some(player)) = (self.texture.as_ref(), self.player.as_mut()) {
             let [w, h] = tex.size();
             let aspect = w.max(1) as f32 / h.max(1) as f32;
-            let width = ui.available_width().min(max_width);
-            ui.add(egui::Image::new((tex.id(), egui::vec2(width, width / aspect))));
+            let room = ui.available_width().min(max.x);
+            let controls = theme.button_height + theme.spacing_sm * 2.0;
+            let tallest = (max.y - controls).max(theme.button_height);
+            let (mut width, mut height) = (room, room / aspect);
+            if height > tallest {
+                height = tallest;
+                width = height * aspect;
+            }
+            let (row, _) = ui.allocate_exact_size(egui::vec2(room, height), egui::Sense::hover());
+            egui::Image::new((tex.id(), egui::vec2(width, height))).paint_at(ui, egui::Rect::from_center_size(row.center(), egui::vec2(width, height)));
             ui.horizontal(|ui| {
                 if player.is_playing() {
                     if widgets::Button::secondary("Pause").show(ui, theme) {

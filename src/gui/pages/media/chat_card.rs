@@ -13,8 +13,11 @@
 //! - expanded: also its cover or picture (under the Media page's own rules for pictures: the
 //!   protected setup, content labels, a non-friend's picture waiting for a click), who put it there,
 //!   its description and every file it holds, each with its type's badge and size.
-//! The title, the picture and Open bring up the item's full window (item_view.rs) over the chat,
-//! with a Download for each file.
+//! The title, the picture and Open bring up the item's full window (item_view.rs `draw_window`)
+//! over the chat, with a Download for each file: since 2026-10-19 the Media page's own two right
+//! panes, the item to fit and its details, side by side, with Edit in place for its uploader. A
+//! window rather than a jump to the Media page, so the person stays in the conversation they were
+//! reading.
 //!
 //! The item is asked for once (a `Job::Card` through the Media page's own requests), signed when
 //! this person is signed in so a member sees members-only items. The chat draws its messages while
@@ -349,12 +352,19 @@ pub fn apply(state: &mut GuiState) {
                     state.media.cards_open.insert(key);
                 }
             }
+            // In a window of its own over the chat (item_view.rs `draw_window`): the person stays in
+            // the conversation they were reading, with the item to fit and its details beside it.
             Act::Open(id) => match state.media.cards.get(&id) {
                 Some(CardState::Ready(item)) => {
                     let item = item.clone();
-                    item_view::open(state, &item);
+                    item_view::open_in_window(state, &item);
                 }
-                _ => item_view::open_by_number(state, id),
+                _ => {
+                    item_view::open_by_number(state, id);
+                    if let Some(page) = state.media.item.as_mut().filter(|p| p.id == id) {
+                        page.window = true;
+                    }
+                }
             },
             Act::Picture(id) => {
                 if let Some(CardState::Ready(item)) = state.media.cards.get(&id).cloned() {

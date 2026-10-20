@@ -160,6 +160,12 @@ impl Viewer {
     /// Draw the viewer `width` points wide: the words while it loads or if it cannot, else the
     /// view (drag, right-drag, scroll, double-click) and the line under it.
     pub fn show(&mut self, ui: &mut Ui, theme: &Theme, width: f32) {
+        self.show_sized(ui, theme, width, (width * 0.62).clamp(160.0, 480.0));
+    }
+
+    /// The viewer drawn `width` by `height` points, as [`Viewer::show`] (the Media page's middle
+    /// pane fits it to its area, 2026-10-19). The line under it is extra.
+    pub fn show_sized(&mut self, ui: &mut Ui, theme: &Theme, width: f32, height: f32) {
         self.poll();
         let size_words = crate::gui::pages::media::api::size_words(self.size);
         let (model, key) = match &self.stage {
@@ -180,7 +186,7 @@ impl Viewer {
             Stage::Ready { model, key } => (model.clone(), *key),
         };
         let Some(orbit) = self.orbit.as_mut() else { return };
-        let height = (width * 0.62).clamp(160.0, 480.0);
+        let height = height.max(80.0);
         let (rect, resp) = ui.allocate_exact_size(egui::vec2(width, height), egui::Sense::click_and_drag());
 
         // The person's hands on it.

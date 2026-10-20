@@ -74,6 +74,11 @@ pub(crate) fn page_state(answer: ListAnswer, signed_in: bool) -> GuiState {
     state
 }
 
+/// Show the Gallery (every item as a tile with its buttons) instead of the three panes.
+pub(crate) fn gallery(state: &mut GuiState) {
+    state.settings.media_layout.gallery = true;
+}
+
 pub(crate) fn item(id: i64, title: &str, kind: &str, by: (&str, &str)) -> Item {
     Item {
         id,
@@ -142,6 +147,9 @@ fn an_empty_page_says_so() {
 fn the_tiles_show_what_they_are() {
     let (ctx, theme) = ctx_and_theme();
     let mut state = page_state(demo_answer(), true);
+    // The tiles, with their buttons and their faces' words, are the Gallery view since the three
+    // panes (2026-10-19): the panes' rows have neither.
+    gallery(&mut state);
     let out = settled(&ctx, &theme, &mut state);
     for text in ["Featured", "Contact staff, slow spin", "by Shaostoul", "3 picks", "1 pick", "Fibonacci homestead", "3D model", "Pick", "Report"] {
         assert!(shows(&out, text), "the page shows {text:?}");
@@ -191,6 +199,9 @@ fn the_featured_strip_is_every_featured_item() {
 fn a_labelled_tile_is_hidden_until_clicked() {
     let (ctx, theme) = ctx_and_theme();
     let mut state = page_state(demo_answer(), true);
+    // The tiles, with their buttons and their faces' words, are the Gallery view since the three
+    // panes (2026-10-19): the panes' rows have neither.
+    gallery(&mut state);
     let labelled = state.media.list.items.iter().find(|i| i.id == 2).cloned().unwrap();
     assert_eq!(tiles::show_of(&state, &labelled), tiles::Show::Label(vec!["Spoiler".into()]), "the labelled picture shows its label first");
     let out = settled(&ctx, &theme, &mut state);
@@ -236,6 +247,9 @@ fn a_picture_too_large_to_show_opens_its_card() {
     let (ctx, theme) = ctx_and_theme();
     let big = Item { size_bytes: 20 * 1024 * 1024, ..item(6, "Panorama", "picture", ("me", "Me")) };
     let mut state = page_state(ListAnswer { items: vec![big.clone()], members_view: true, media_visibility: "public".into(), ..Default::default() }, true);
+    // The tiles, with their buttons and their faces' words, are the Gallery view since the three
+    // panes (2026-10-19): the panes' rows have neither.
+    gallery(&mut state);
     assert_eq!(tiles::show_of(&state, &big), tiles::Show::TooBig, "a 20 MB picture says it is too large");
     let out = settled(&ctx, &theme, &mut state);
     assert!(shows(&out, "This picture is 20 MB, larger than this app shows in place (16 MB)"));
@@ -418,6 +432,9 @@ fn my_picks_come_from_the_items_themselves() {
     answer.items[1].picked_by_me = true;
     answer.items[1].visibility = "members".into();
     let mut state = page_state(answer, true);
+    // The tiles, with their buttons and their faces' words, are the Gallery view since the three
+    // panes (2026-10-19): the panes' rows have neither.
+    gallery(&mut state);
     let out = settled(&ctx, &theme, &mut state);
     assert!(exact(&out, "Unpick"), "a picked members-only item says Unpick");
     on_done(&mut state, Job::Pick { id: 4, on: true }, Ok(serde_json::json!({ "ok": true, "id": 4, "picked": true, "picks": 4 })));
@@ -455,6 +472,9 @@ fn a_refused_members_only_picture_is_tried_again_with_a_new_token() {
     let (ctx, theme) = ctx_and_theme();
     let members = Item { visibility: "members".into(), url: "/api/media/file/8".into(), ..item(8, "Night", "picture", ("me", "Me")) };
     let mut state = page_state(ListAnswer { items: vec![members.clone()], members_view: true, media_visibility: "public".into(), ..Default::default() }, true);
+    // The tiles, with their buttons and their faces' words, are the Gallery view since the three
+    // panes (2026-10-19): the panes' rows have neither.
+    gallery(&mut state);
     let key = tiles::cache_key(&state, &members);
     state.image_cache.fail_for_test(&key, "GET .../api/media/file/8: HTTP 403");
     let out = settled(&ctx, &theme, &mut state);
@@ -531,6 +551,9 @@ fn kept_items_say_so_and_moderators_may_keep() {
     let mut answer = demo_answer();
     answer.items[1].kept = true;
     let mut state = page_state(answer, true);
+    // The tiles, with their buttons and their faces' words, are the Gallery view since the three
+    // panes (2026-10-19): the panes' rows have neither.
+    gallery(&mut state);
     let out = settled(&ctx, &theme, &mut state);
     assert!(shows(&out, tiles::KEPT_BADGE), "a kept tile says so");
     assert!(!shows(&out, tiles::KEEP) && !shows(&out, tiles::STOP_KEEPING), "a member may not keep");

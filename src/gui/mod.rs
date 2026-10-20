@@ -4597,6 +4597,8 @@ pub struct SettingsState {
     /// The Media page's Your folders (pages/media/your_folders.rs): folders on this computer the
     /// person added to look through. Kept on this device only; never sent anywhere.
     pub media_folders: Vec<std::path::PathBuf>,
+    /// The Media page's view and the split of its three panes (2026-10-19, pages/media/panes.rs).
+    pub media_layout: crate::gui::pages::media::panes::Layout,
     /// The Games library's games added by hand (pages/games.rs): each one's name and program. Kept on this device only.
     pub added_games: Vec<crate::games::AddedGame>,
     /// The Games library's view, Grid or List (2026-10-19), kept so it survives a restart.
@@ -4714,6 +4716,7 @@ impl Default for SettingsState {
             outside_help_country: String::new(),
             files_in_messages: Default::default(),
             media_folders: Vec::new(),
+            media_layout: Default::default(),
             added_games: Vec::new(),
             games_layout: Default::default(),
             games_sort: Default::default(),

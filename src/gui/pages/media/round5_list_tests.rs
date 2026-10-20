@@ -165,10 +165,11 @@ fn long_list() -> ListAnswer {
     ListAnswer { items, next_cursor: Some("1.1".into()), members_view: true, media_visibility: "public".into(), ..Default::default() }
 }
 
-/// Scroll the Media page to its end with the mouse wheel over the list (egui eases a wheel's
-/// scroll over a few frames, so it is turned for sixty).
+/// Scroll the Media page's list to its end with the mouse wheel over it (egui eases a wheel's
+/// scroll over a few frames, so it is turned for sixty). The list is the left pane since the three
+/// panes (2026-10-19), so the wheel turns over the left of the page.
 fn scroll_to_the_end(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
-    media_frame(ctx, theme, state, vec![egui::Event::PointerMoved(egui::pos2(640.0, 600.0))]);
+    media_frame(ctx, theme, state, vec![egui::Event::PointerMoved(egui::pos2(150.0, 600.0))]);
     for _ in 0..60 {
         let wheel = egui::Event::MouseWheel { unit: egui::MouseWheelUnit::Point, delta: egui::vec2(0.0, -400.0), modifiers: egui::Modifiers::default() };
         media_frame(ctx, theme, state, vec![wheel]);
@@ -316,7 +317,9 @@ fn the_end_of_the_list_coming_into_view_asks_for_one_more_page() {
 /// replaces the list.
 ///
 /// Seen red 2026-10-12 with the sort left out of the public list request: "with its sort" (the
-/// request was "GET /api/media?limit=48 HTTP/1.1").
+/// request was "GET /api/media?limit=48 HTTP/1.1"). Red again 2026-10-19 in the three panes'
+/// narrow list, before filters.rs `wrap_before`: the Sort choice was laid past the pane's right
+/// edge, so its press missed and "\"Most picked\" is drawn" failed (its list never opened).
 #[test]
 fn a_new_sort_asks_afresh_with_its_sort() {
     let (ctx, theme) = ctx_and_theme();

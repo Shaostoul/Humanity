@@ -279,6 +279,34 @@ own file; an admin can remove any (Dilithium-signed "delete_upload" request).
 - Native (v0.710): Files page "Shared files on the server" manager — list (auto-load + Refresh), Upload via the in-app file browser (share=1), per-row Remove (own files, or any as admin). `src/gui/pages/files.rs`
 
 ### Media Page (relay 2026-10-11, native page increment 2 and round 2 2026-10-11)
+**Three panes, edit in place, sounds with a waveform (desktop, 2026-10-19; design
+`docs/design/media-showcase.md` "The three panes"):** the Media tab is a list, the item to fit and its
+details, side by side on a wide window and stacked top, middle, bottom on a tall or narrow one
+(`src/gui/pages/media/panes.rs`, the widget `src/gui/widgets/panes.rs`: resizable, the split and the
+view kept in config.json `media_layout`, a double-click on a handle puts two panes back). Left
+(`media/list.rs`): the uploads, the featured shelf, the filters (they wrap in a narrow pane:
+`filters.rs` `wrap_before`) and every item as a row, the one shown highlighted, a file's row drawn
+with its type (a song's note). Middle (`media/viewer.rs`): a picture fitted (a press or View full size
+opens the viewer), a video in the shared player, a model's cover with View in 3D (the viewer fills the
+pane), a sound's waveform and spectrum, any other file a large card with Download. Right
+(`media/item_view.rs` `draw_details`): everything about the item and its buttons, the day it was put
+on the page. Edit no longer opens a window: the right pane becomes the form (`media/edit.rs`
+`draw_in_place`) in its red, green and blue parts with the nav bar's moving border round the pane,
+Save and Cancel always at its foot; Save returns to the details once answered; Cancel, another item,
+closing the window or leaving the page with changes ask first (`item_view::Discard`,
+`draw_leave_question`). The Gallery (the old full-width tiles with their buttons) is the other view;
+a press on a tile shows that item in the panes. A card in chat opens the same two parts in one
+window over the chat (`item_view::draw_window`). Sounds: `src/gui/widgets/sound_view.rs` (fetch,
+play through the mixer as a stream, Play, Pause, Start again, Mute, the time) and
+`src/gui/widgets/waveform.rs` (the peaks and a 24-band spectrum read once on a worker by symphonia,
+the decoders kira carries, in a fixed amount of memory; a press on the waveform goes there; nothing
+read or decoded while it draws). A sound is any item whose own file the file-type list calls one
+(`data/safety/file_risks.json`). Tests: `media/panes_tests.rs`, the widgets' own, the updated
+`item_tests.rs` (`edit_is_in_place_and_opens_every_time`), fixture
+`tests/fixtures/media/two-tones-440-then-2000.wav`. Snapshots: `media_three_pane`,
+`media_three_pane_tall`, `media_sound`, `media_edit_in_place`, `media_item_window` (`media` is the
+Gallery). The website's Media page is unchanged (still one column with its item window).
+
 **3D model viewer (v0.1508.0, docs/design/model-viewer.md):** View in 3D on an item's .glb or .stl
 files, both apps. Desktop `src/gui/model_view/` (loader with bounds checks and limits, camera, an egui
 paint callback drawing PBR into its own MSAA picture; pipelines registered in `lib.rs`), web

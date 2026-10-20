@@ -1,24 +1,32 @@
 //! The Media page (increment 2 of docs/design/media-showcase.md, 2026-10-11): the pictures,
-//! videos, 3D models and files people on this server chose to show, in a grid. The web mirrors
-//! it (web/pages/media.html); the relay half is src/relay/media.rs.
+//! videos, 3D models, sounds and files people on this server chose to show. The web mirrors it
+//! (web/pages/media.html); the relay half is src/relay/media.rs.
 //!
 //! What it has, top to bottom: its heading, "Media on united-humanity.us" (the server it is for,
-//! Media round 5); its tabs, Media and Your folders (folders on this computer to pick files from,
-//! media/your_folders.rs, 2026-10-18, desktop only), and for admins Admin (the admins' section,
-//! media/admin.rs, which was in Server Settings until round 5); on the Media tab the uploads in
-//! progress, each with its bar (media/uploading.rs), and the offers to carry on ones a restart or a
-//! switch cut off; the
-//! person's own uploads waiting to be published, and the server's unfinished ones this app lost
-//! track of (media/waiting.rs); the featured shelf (`featured=1`: the main shelf, or the picked
-//! category's shelf, "Featured in Fire flow arts"); the filters (category with its description
-//! under them, kind, person, Sort, My picks, a search over titles: media/filters.rs); the grid, in
-//! the order picked (Newest, Most picked, Most downloaded), whose next page is asked for once when
-//! the list's end comes into view, with More under it as well for keyboards; each tile's actions
-//! (Pick, Remove, Feature, Keep on the server, Report). Add to Media (a file from this computer,
-//! sent in pieces: media/resumable.rs) and Put on Media (a file already in Shared Files, from the
-//! Files page) open the same short form. Suggest a category sends the admins a name and a note.
-//! At its foot, for anyone: Report a copyright problem and the public takedown log
-//! (media/takedown.rs; an item's own page has the same Report a copyright problem).
+//! Media round 5), with the page's buttons and the view, Panes or Gallery; its tabs, Media and Your
+//! folders (folders on this computer to pick files from, media/your_folders.rs, 2026-10-18, desktop
+//! only), and for admins Admin (the admins' section, media/admin.rs, which was in Server Settings
+//! until round 5).
+//!
+//! THE MEDIA TAB IS THREE PANES (2026-10-19, media/panes.rs): on the left the list
+//! (media/list.rs): the uploads in progress, each with its bar (media/uploading.rs), and the
+//! offers to carry on ones a restart or a switch cut off; the person's own uploads waiting to be
+//! published, and the server's unfinished ones this app lost track of (media/waiting.rs); the
+//! featured shelf (`featured=1`: the main shelf, or the picked category's shelf, "Featured in Fire
+//! flow arts"); the filters (category with its description under them, kind, person, Sort, My
+//! picks, a search over titles: media/filters.rs); every item as a row, in the order picked
+//! (Newest, Most picked, Most downloaded), whose next page is asked for once when the list's end
+//! comes into view, with More under it as well for keyboards; and the foot. In the middle the
+//! item pressed, to fit (media/viewer.rs: a picture, a video, a sound's waveform, a model in 3D,
+//! a file's card); on the right everything about it and its buttons, or its edit form in place
+//! (media/item_view.rs, media/edit.rs). Side by side on a wide window, stacked on a tall one. The
+//! GALLERY is the other view: the page as it was before the panes, every item a tile with its
+//! actions (Pick, Remove, Feature, Keep on the server, Report: media/tiles.rs); a press on a tile
+//! shows that item in the panes. Add to Media (a file from this computer, sent in pieces:
+//! media/resumable.rs) and Put on Media (a file already in Shared Files, from the Files page) open
+//! the same short form. Suggest a category sends the admins a name and a note. At the list's foot,
+//! for anyone: Report a copyright problem and the public takedown log (media/takedown.rs; an item's
+//! details have the same Report a copyright problem).
 //!
 //! WHO SEES WHAT is the relay's to decide: a signed list from a member gets members-only items
 //! too, anyone else the public ones, and on a members-only server nothing. Someone not signed in
@@ -54,9 +62,10 @@ use crate::gui::{GuiPage, GuiState};
 pub(crate) mod api;
 /// Media round 5's requests and answers: an item's files, the licences, the order, the edit.
 pub(crate) mod api_items;
-/// An item's own page: where the answers for it land (its window is round 5's lane 1D).
+/// The item shown: its details pane, its window over the chat, and where the answers for it land
+/// (round 5's lane 1D; in the panes since 2026-10-19).
 pub(crate) mod item_view;
-/// An item's Edit window (round 5, lane 1D): its words, licence, who can see it, files and cover.
+/// An item's edit form (round 5, lane 1D): its words, licence, who can see it, files and cover.
 pub(crate) mod edit;
 /// The kinds of item, from data/media/kinds.json.
 pub(crate) mod kinds;
@@ -80,9 +89,15 @@ mod publishing;
 mod waiting;
 /// An opened item: a video playing, a model's or file's card with Download.
 pub(crate) mod open;
+/// The three panes (2026-10-19): the list, the item to fit, its details; and the view kept.
+pub(crate) mod panes;
+/// The left pane: every item as a row.
+mod list;
+/// The middle pane: the item shown to fit (a picture, a video, a sound's waveform, a model).
+mod viewer;
 
-/// The open item's video gets its sound from the app's mixer (`open::sync_sound`); the engine calls
-/// this each frame it has a mixer.
+/// The open item's video or sound gets its sound from the app's mixer (`open::sync_sound`); the
+/// engine calls this each frame it has a mixer.
 pub(crate) fn sync_sound(state: &mut GuiState, audio: &mut crate::audio::AudioManager) {
     if let Some(opened) = state.media.open.as_mut() {
         open::sync_sound(opened, audio);
@@ -216,8 +231,12 @@ pub enum MediaTab {
 pub struct MediaState {
     /// Which tab is shown (round 5).
     pub tab: MediaTab,
-    /// An item's own page, while one is open (round 5, item_view.rs).
+    /// The item shown in the panes, or in its window over the chat (round 5, item_view.rs).
     pub item: Option<item_view::ItemPage>,
+    /// Answered questions about an edit's changes: the item to show next once they were let go,
+    /// or the item's window to close (media.rs `after_questions`).
+    pub open_next: Option<Item>,
+    pub close_window: bool,
     /// The server (normalised address) this state is for.
     pub server: String,
     /// The identity (public key) this state is for.
@@ -439,6 +458,10 @@ pub(crate) fn poll_upload(ctx: &egui::Context, state: &mut GuiState) {
     poll(ctx, state);
     note_token(state);
     uploading::poll(ctx, state);
+    // The item shown: its downloads finish, and its video or sound plays on, whatever is on screen.
+    if let Some(opened) = state.media.open.as_mut() {
+        open::poll(ctx, opened);
+    }
 }
 
 /// Read every answer that has come back. Called every frame by [`poll_upload`], and by the Media
@@ -781,8 +804,8 @@ pub(crate) fn refresh_usage(state: &mut GuiState) {
     }
 }
 
-/// Open the Media page on one item's own page, by its number (the Reports page's Open: the relay's
-/// A5). The page an item's tile opens (item_view.rs), never the list filtered down to it: an item
+/// Open the Media page on one item, by its number (the Reports page's Open: the relay's A5), shown
+/// in the panes as a press on its row shows it (item_view.rs), never the list filtered down to it: an item
 /// the list or the shelf holds opens as it is, any other is asked for by its number, the way the
 /// website's `route` does (media-app.js `openById`). Until it comes the page says "Loading...", and
 /// if this person may not see it, that it is not there.
@@ -796,6 +819,8 @@ pub(crate) fn open_item_by_number(state: &mut GuiState, id: i64) {
     // The list, not the Admin tab an admin may have left open: the item is what was asked for.
     state.media.tab = MediaTab::Media;
     item_view::open_by_number(state, id);
+    // Shown in the panes, wherever the page was left.
+    panes::set_gallery(state, false);
     state.push_nav_to(GuiPage::Media);
 }
 
@@ -825,9 +850,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     egui::CentralPanel::default()
         .frame(egui::Frame::none().fill(theme.bg_panel()).inner_margin(theme.panel_margin))
         .show(ctx, |ui| {
-            egui::ScrollArea::vertical().id_salt("media_page").auto_shrink([false, false]).show(ui, |ui| {
-                draw_body(ui, theme, state);
-            });
+            draw_page(ui, theme, state);
         });
 
     offer_drop(ctx, state);
@@ -835,12 +858,31 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     your_folders::draw_dialogs(ctx, theme, state);
     tiles::draw_confirm_remove(ctx, theme, state);
     waiting::draw_confirm_waiting(ctx, theme, state);
-    open::draw(ctx, theme, state);
+    // The item's questions: Remove a file, Remove item, and changes not saved.
+    item_view::draw_page_dialogs(ctx, theme, state);
+    after_questions(state);
     // A Report pressed on a tile opens the existing report dialog, drawn here while this page is
     // on screen (the chat page draws it on its own).
     crate::gui::pages::chat::draw_report_dialog(ctx, theme, state);
-    // "Report a copyright problem" and the public takedown log, over the page and an item's page.
+    // "Report a copyright problem" and the public takedown log, over the page.
     takedown::draw_windows(ctx, theme, state);
+}
+
+/// What an answered question asked for: another item shown once the changes were let go, or the
+/// item's window closed.
+pub(crate) fn after_questions(state: &mut GuiState) {
+    if let Some(next) = state.media.open_next.take() {
+        let window = state.media.item.as_ref().is_some_and(|p| p.window);
+        if window {
+            item_view::open_in_window(state, &next);
+        } else {
+            item_view::open(state, &next);
+        }
+    }
+    if std::mem::take(&mut state.media.close_window) {
+        state.media.item = None;
+        state.media.open = None;
+    }
 }
 
 pub(crate) use add::{drop_and_post_words, post_key, upload_dropped, DROP_TO_UPLOAD};
@@ -870,11 +912,18 @@ pub fn offer_drop_anywhere(ctx: &egui::Context, state: &GuiState) {
     offer_drop_at(ctx, state, crate::gui::drop_files::Level::App);
 }
 
-/// An item's own window brought up from another page (a card in chat, chat_card.rs): drawn here
-/// while the Media page is not on screen, over whatever is.
+/// While the Media page is not on screen (src/lib.rs, each frame): an item brought up from another
+/// page (a card in chat, chat_card.rs) in its window over whatever is; or, when the page was left
+/// with an item's edit unsaved, the question about it.
 pub fn draw_item_window(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
-    if state.active_page != GuiPage::Media && state.media.item.is_some() {
-        item_view::draw(ctx, theme, state);
+    if state.active_page == GuiPage::Media || state.media.item.is_none() {
+        return;
+    }
+    if state.media.item.as_ref().is_some_and(|p| p.window) {
+        item_view::draw_window(ctx, theme, state);
+        after_questions(state);
+    } else {
+        item_view::draw_leave_question(ctx, theme, state);
     }
 }
 
@@ -886,8 +935,9 @@ pub fn draw_upload_window(ctx: &egui::Context, theme: &Theme, state: &mut GuiSta
     }
 }
 
-/// Everything inside the page's scroll area.
-pub(crate) fn draw_body(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+/// The page: its heading row, its line, its tabs, then the tab: on the Media tab the three panes
+/// (panes.rs) or the Gallery (every item as a tile, [`draw_gallery`]).
+pub(crate) fn draw_page(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let no_server = server_here(state).is_empty();
     // Only an admin has the Admin tab; anyone else on it sees the list, whatever the state says
     // (an admin who lost the role, or a tab left set by Server Settings' "Open them").
@@ -912,6 +962,10 @@ pub(crate) fn draw_body(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
             if widgets::Button::ghost("Refresh").show(ui, theme) {
                 reload(state);
             }
+            if !no_server {
+                ui.add_space(theme.spacing_md);
+                panes::draw_switch(ui, theme, state);
+            }
         }
     });
     if tab != MediaTab::YourFolders {
@@ -933,18 +987,27 @@ pub(crate) fn draw_body(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
 
     // Your folders needs no server to look through this computer's folders (Put on Media says why
     // it cannot go without one).
-    if shown_tab(state.media.tab, admin) == MediaTab::YourFolders {
-        your_folders::draw(ui, theme, state);
-        return;
+    match shown_tab(state.media.tab, admin) {
+        MediaTab::YourFolders => {
+            egui::ScrollArea::vertical().id_salt("media_page").auto_shrink([false, false]).show(ui, |ui| your_folders::draw(ui, theme, state));
+        }
+        _ if no_server => {
+            ui.label(RichText::new("Connect to a server first (Chat page) to see its Media page.").size(theme.font_size_small).color(theme.warning()));
+        }
+        MediaTab::Admin => {
+            egui::ScrollArea::vertical().id_salt("media_page").auto_shrink([false, false]).show(ui, |ui| admin::draw_admin(ui, theme, state));
+        }
+        MediaTab::Media if state.settings.media_layout.gallery => {
+            egui::ScrollArea::vertical().id_salt("media_page").auto_shrink([false, false]).show(ui, |ui| draw_gallery(ui, theme, state));
+        }
+        MediaTab::Media => panes::draw(ui, theme, state),
     }
-    if no_server {
-        ui.label(RichText::new("Connect to a server first (Chat page) to see its Media page.").size(theme.font_size_small).color(theme.warning()));
-        return;
-    }
-    if shown_tab(state.media.tab, admin) == MediaTab::Admin {
-        admin::draw_admin(ui, theme, state);
-        return;
-    }
+}
+
+/// The Gallery (the page as it was before the panes, kept as the other view): the status, the
+/// uploads, the featured shelf, the filters and every item as a tile with its buttons, then More and
+/// the page's foot. A press on a tile shows that item in the panes.
+pub(crate) fn draw_gallery(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     if !state.media.status.is_empty() {
         ui.label(RichText::new(&state.media.status).size(theme.font_size_small).color(theme.text_secondary()));
     }
@@ -955,8 +1018,6 @@ pub(crate) fn draw_body(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
     waiting::draw(ui, theme, state);
     ui.add_space(theme.spacing_sm);
 
-    // (An item opened by its number, from a report, opens its own page over this one:
-    // item_view.rs `open_by_number`. The list is never filtered down to it.)
     let featured = state.media.featured.clone();
     if !featured.is_empty() {
         // "Featured", or "Featured in Fire flow arts" when it is a category's shelf (3.9).
@@ -986,33 +1047,40 @@ pub(crate) fn draw_body(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
     } else {
         tiles::draw_grid(ui, theme, state, &items);
     }
-    if state.media.list.next_cursor.is_some() {
-        ui.add_space(theme.spacing_sm);
-        let next_on_its_way = state.media.jobs.iter().any(|(j, _)| matches!(j, Job::List { append: true, .. }));
-        // While a fresh first page is on its way (the filters changed), More is not offered: that
-        // page brings its own cursor.
-        if next_on_its_way {
-            ui.label(RichText::new("Loading more...").size(theme.font_size_small).color(theme.text_muted()));
-        } else if !page_on_its_way(state)
-            && widgets::Button::secondary("More").tooltip("The next page. It also comes by itself as the end of the list scrolls into view.").show(ui, theme) {
-            // Pressed: asked whatever happened to the last one (a failure waits for this press).
-            state.media.more_paused = false;
-            more(state);
-        }
-        // The end of the list (3.9): a strip one point high under the grid and More. When the
-        // scroll area shows it, the next page is asked for, once (`more` asks nothing while a
-        // page is on its way); a short page that shows its end at once fills itself the same way.
-        let (sentinel, _) = ui.allocate_exact_size(egui::vec2(ui.available_width().max(1.0), 1.0), egui::Sense::hover());
-        if ui.is_rect_visible(sentinel) {
-            more_when_seen(state);
-        }
-    }
+    draw_more(ui, theme, state);
     // The page's foot (2026-10-13, takedown.rs): "Report a copyright problem" for anyone, signed in
     // or not, and the public takedown log, as the website's Media page has them.
     takedown::draw_foot(ui, theme, state);
 }
 
-/// The tabs, in the order they are drawn, and their names: Media and Your folders for everyone in
+/// Under the list (the panes' and the Gallery's): More while there is a next page, and the strip
+/// whose coming into view asks for it.
+pub(crate) fn draw_more(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    if state.media.list.next_cursor.is_none() {
+        return;
+    }
+    ui.add_space(theme.spacing_sm);
+    let next_on_its_way = state.media.jobs.iter().any(|(j, _)| matches!(j, Job::List { append: true, .. }));
+    // While a fresh first page is on its way (the filters changed), More is not offered: that
+    // page brings its own cursor.
+    if next_on_its_way {
+        ui.label(RichText::new("Loading more...").size(theme.font_size_small).color(theme.text_muted()));
+    } else if !page_on_its_way(state)
+        && widgets::Button::secondary("More").tooltip("The next page. It also comes by itself as the end of the list scrolls into view.").show(ui, theme) {
+        // Pressed: asked whatever happened to the last one (a failure waits for this press).
+        state.media.more_paused = false;
+        more(state);
+    }
+    // The end of the list (3.9): a strip one point high under the list and More. When the
+    // scroll area shows it, the next page is asked for, once (`more` asks nothing while a
+    // page is on its way); a short page that shows its end at once fills itself the same way.
+    let (sentinel, _) = ui.allocate_exact_size(egui::vec2(ui.available_width().max(1.0), 1.0), egui::Sense::hover());
+    if ui.is_rect_visible(sentinel) {
+        more_when_seen(state);
+    }
+}
+
+// The tabs, in the order they are drawn, and their names: Media and Your folders for everyone in
 /// the desktop app, and Admin for admins. The website has Media and Admin (media-app.js) and no Your
 /// folders (operator, 2026-10-13: no website version, so every browser behaves the same).
 const TABS: [MediaTab; 3] = [MediaTab::Media, MediaTab::YourFolders, MediaTab::Admin];
@@ -1046,3 +1114,7 @@ mod round4_tests;
 #[cfg(test)]
 #[path = "media/round5_list_tests.rs"]
 mod round5_list_tests;
+
+#[cfg(test)]
+#[path = "media/panes_tests.rs"]
+mod panes_tests;

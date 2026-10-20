@@ -168,7 +168,7 @@ fn push_upload(state: &mut GuiState, record: Unfinished, clean: bool, token: Str
     state.media.uploads.push(Entry { local: super::next_id(), run, record, after: After::Uploading, cancelling: false, transport: t });
 }
 
-/// Start uploading the file at `path` (named `name`, `len` bytes) for an item's Edit window (Media
+/// Start uploading the file at `path` (named `name`, `len` bytes) for an item's edit form (Media
 /// round 5, lane 1D): the same upload in pieces and the same row under "Uploads in progress" as
 /// Add to Media's, added to the item `to` names as a file or its cover once it is up, instead of
 /// published. Cleaned on this device first under the person's own switch ("Remove location and
@@ -288,7 +288,7 @@ pub(crate) fn on_event(state: &mut GuiState, local: u64, e: Event) {
 }
 
 /// Upload `local`'s file is up as `filename`: publish it with what its own form said, signed now;
-/// or, made from an item's Edit window (round 5), add it to that item instead.
+/// or, made from an item's edit form (round 5), add it to that item instead.
 fn publish_entry(state: &mut GuiState, local: u64, filename: String) {
     let Some(record) = entry(state, local).map(|e| e.record.clone()) else { return };
     match signer_here(state) {
@@ -316,7 +316,7 @@ fn publish_entry(state: &mut GuiState, local: u64, filename: String) {
 /// What an upload made for an item says when it is up but there is no signature to add it with.
 pub(crate) const UNLOCK_TO_ATTACH: &str = "Uploaded, but not added to the item yet: unlock your identity, then press Add it to the item. It waits a day.";
 /// The button that adds an upload that is up to its item (the "Put it on Media" of one made from
-/// an item's Edit window).
+/// an item's edit form).
 pub(crate) const ADD_TO_ITEM: &str = "Add it to the item";
 
 /// An item just published with more files chosen beside its own (Add to Media, several files):
@@ -324,7 +324,7 @@ pub(crate) const ADD_TO_ITEM: &str = "Add it to the item";
 fn attach_more(state: &mut GuiState, published: &Value, more: Vec<resumable::MoreFile>) {
     let item = published.get("item").and_then(api::Item::from_json).and_then(|i| i.reference().ok());
     let Some(item) = item else {
-        state.media.status.push_str(" Its other files were not added: the server's answer did not say which item it made. Add them from the item's Edit window.");
+        state.media.status.push_str(" Its other files were not added: the server's answer did not say which item it made. Add them with Edit on the item.");
         return;
     };
     let mut started = 0;
@@ -384,7 +384,7 @@ pub(crate) fn published(state: &mut GuiState, local: u64, filename: &str, result
         }
         Undo::None => {}
     }
-    // Made from an item's Edit window (round 5): added to that item, not published.
+    // Made from an item's edit form (round 5): added to that item, not published.
     let attached = entry(state, local).is_some_and(|e| e.record.attach.is_some());
     match result {
         Ok(v) => {
@@ -625,7 +625,7 @@ pub(crate) fn draw_list(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
     }
 }
 
-/// What a row is headed: the file and its size, and for one made from an item's Edit window what
+/// What a row is headed: the file and its size, and for one made from an item's edit form what
 /// it goes to ("textures.zip (4 MB), to add to Dusk", "dusk.jpg (1 MB), the cover for Dusk"), the
 /// item named by its title wherever this page shows it, else by its number.
 pub(crate) fn row_heading(state: &GuiState, record: &Unfinished) -> String {

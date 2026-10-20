@@ -1868,9 +1868,10 @@ fn media_snapshot_png() -> Vec<u8> {
     out
 }
 
-/// The Media page (2026-10-11, pages/media.rs), signed in as a member: the featured strip, the
-/// filters, and four tiles: a video, a model, a picture labelled Spoiler (its label instead of its
-/// picture) and a picture of your own; a stranger's picture asks first.
+/// The Media page's Gallery (2026-10-11, pages/media.rs; the other view beside the three panes
+/// since 2026-10-19), signed in as a member: the featured strip, the filters, and four tiles: a
+/// video, a model, a picture labelled Spoiler (its label instead of its picture) and a picture of
+/// your own; a stranger's picture asks first.
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
 fn snapshot_media() {
@@ -1878,6 +1879,7 @@ fn snapshot_media() {
     render_page_png("media", 1280, 900, |ctx, theme, state| {
         if state.media.server.is_empty() {
             *state = fixture::page_state(fixture::demo_answer(), true);
+            fixture::gallery(state);
             let own = media::api::Item { uploader_key: "me".into(), uploader_name: "You".into(), ..fixture::item(5, "Seedlings, day 12", "picture", ("me", "You")) };
             state.media.list.items.insert(0, own);
         }
@@ -2166,11 +2168,13 @@ fn media_item_state(item: &crate::gui::pages::media::api::Item, admin: bool) -> 
     state
 }
 
-/// An item's own page (Media round 5, pages/media/item_view.rs), as an admin sees someone else's
-/// item: its cover picture, the title, "by Ann in Fire flow arts" with "Featured in its category",
-/// the counts, the whole two-line description, the licence by name with the server's own line for
-/// it and "Offered for the game", the files (the model, its textures, the cover) each with
-/// Download, then Copy link, Edit, Pick, Keep, Report, Remove item and the admins' Feature choice.
+/// An item shown in the panes (Media round 5, pages/media/item_view.rs; in the three panes since
+/// 2026-10-19), as an admin sees someone else's item on an ordinary window: its cover in the middle
+/// with View in 3D and Download, and on the right the title, "by Ann in Fire flow arts" with
+/// "Featured in its category", the counts, Edit, Copy link, Pick, Keep, Report, Remove item and the
+/// admins' Feature choice, the whole two-line description, the licence by name with the server's
+/// own line for it and "Offered for the game", and the files (the model, its textures, the cover)
+/// each with Download.
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
 fn snapshot_media_item() {
@@ -2188,14 +2192,14 @@ fn snapshot_media_item() {
     });
 }
 
-/// An item's Edit window (Media round 5, pages/media/edit.rs), as its uploader sees it over the
-/// item's page: the title, the category with its description, the description, the two content
-/// labels, Public or Members only, the licence (CC BY 4.0) with the server's line for it, its
-/// warning that a Creative Commons licence cannot be taken back, and "Offer this for the game"
-/// ticked, the hosting paragraph in the server's words, the files each with Rename (the model too),
-/// Remove on the added ones and the cover, and Use as cover on the photo added to it, Add a file and
-/// Replace the cover picture, then Save and Cancel. The item's page shows behind it, as it does in
-/// the app.
+/// An item's edit form (Media round 5, pages/media/edit.rs; in place of its details since
+/// 2026-10-19), as its uploader sees it on an ordinary window: the title, the category with its
+/// description, the description, the two content labels, Public or Members only, the licence (CC BY
+/// 4.0) with the server's line for it, its warning that a Creative Commons licence cannot be taken
+/// back, and "Offer this for the game" ticked, the hosting paragraph in the server's words, the
+/// files each with Rename (the model too), Remove on the added ones and the cover, and Use as cover
+/// on the photo added to it, Add a file and Replace the cover picture (the form scrolls to them),
+/// then Save and Cancel at the pane's foot.
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
 fn snapshot_media_edit() {
@@ -2216,6 +2220,247 @@ fn snapshot_media_edit() {
             state.image_cache.insert_for_test(ctx, &key, &media_snapshot_png()).expect("the cover decodes");
         }
         media::draw(ctx, theme, state);
+    });
+}
+
+/// A made-up landscape for the Media snapshots (2026-10-19): an evening sky over three ridges and a
+/// low sun, `w` by `h`. Drawn by arithmetic: nothing recorded or downloaded.
+fn media_snapshot_landscape(w: u32, h: u32) -> Vec<u8> {
+    let img = image::RgbaImage::from_fn(w, h, |x, y| {
+        let (fx, fy) = (x as f32 / w as f32, y as f32 / h as f32);
+        // The sky, deep blue at the top to orange at the horizon.
+        let t = (fy / 0.62).min(1.0);
+        let mut c = [24.0 + t * 226.0, 36.0 + t * 120.0, 92.0 - t * 30.0];
+        // The sun, low on the right, with a soft glow.
+        let (dx, dy) = ((fx - 0.68) * w as f32 / h as f32, fy - 0.5);
+        let d = (dx * dx + dy * dy).sqrt();
+        if d < 0.07 {
+            c = [255.0, 236.0, 190.0];
+        } else if d < 0.3 {
+            let g = 1.0 - (d - 0.07) / 0.23;
+            c = [c[0] + (255.0 - c[0]) * g * 0.5, c[1] + (200.0 - c[1]) * g * 0.4, c[2] * (1.0 - g * 0.3)];
+        }
+        // Three ridges, nearer ones darker.
+        for (i, (base, amp, freq, shade)) in [(0.6, 0.05, 7.0, 0.55), (0.7, 0.06, 4.0, 0.35), (0.82, 0.05, 2.5, 0.18)].iter().enumerate() {
+            let ridge = base + amp * (fx * freq + i as f32).sin() + amp * 0.4 * (fx * freq * 3.1).cos();
+            if fy > ridge {
+                c = [c[0] * shade * 0.6 + 20.0, c[1] * shade * 0.7 + 18.0, c[2] * shade * 0.5 + 30.0];
+            }
+        }
+        image::Rgba([c[0].clamp(0.0, 255.0) as u8, c[1].clamp(0.0, 255.0) as u8, c[2].clamp(0.0, 255.0) as u8, 255])
+    });
+    let mut out = Vec::new();
+    image::DynamicImage::ImageRgba8(img).write_to(&mut std::io::Cursor::new(&mut out), image::ImageFormat::Png).expect("encode");
+    out
+}
+
+/// A made-up song's waveform and spectrum for the sound snapshot: forty seconds of a drum on the
+/// beat, a bass line and a melody, made by arithmetic and read by the same builder a real sound is
+/// read by (widgets/waveform.rs `Builder`).
+fn media_snapshot_song() -> crate::gui::widgets::waveform::Analysis {
+    let rate = 22_050u32;
+    let mut b = crate::gui::widgets::waveform::Builder::new(rate);
+    let mut seed = 0x2545_f491u32;
+    let notes = [220.0f32, 261.6, 293.7, 329.6, 392.0, 329.6, 293.7, 261.6];
+    for n in 0..(rate * 40) {
+        let t = n as f32 / rate as f32;
+        // Louder in the middle of the song, quiet at its start and end.
+        let shape = (std::f32::consts::PI * t / 40.0).sin().powf(0.6);
+        let beat = t % 0.5;
+        seed ^= seed << 13;
+        seed ^= seed >> 17;
+        seed ^= seed << 5;
+        let noise = (seed as f32 / u32::MAX as f32) * 2.0 - 1.0;
+        let drum = noise * (-beat * 18.0).exp() * 0.5 + (std::f32::consts::TAU * 60.0 * beat).sin() * (-beat * 9.0).exp() * 0.6;
+        let bass = (std::f32::consts::TAU * notes[((t / 2.0) as usize) % 4] / 2.0 * t).sin() * 0.25;
+        let note = notes[((t * 2.0) as usize) % notes.len()];
+        let melody = (std::f32::consts::TAU * note * 2.0 * t).sin() * 0.18 * (1.0 - (t * 2.0).fract() * 0.7);
+        let s = ((drum + bass + melody) * shape).clamp(-1.0, 1.0);
+        b.push_frame(&[s, s * 0.9]);
+    }
+    b.finish()
+}
+
+/// The Media page's items for the three-pane snapshots: a landscape of your own (its picture
+/// shows), the contact staff model with its cover, a song, and the demo page's items (a featured
+/// video, a model, a picture labelled Spoiler, a stranger's picture that waits for a press).
+fn media_snapshot_items() -> Vec<crate::gui::pages::media::api::Item> {
+    use crate::gui::pages::media::api::{Item, ItemFile};
+    use crate::gui::pages::media::tests as fixture;
+    let landscape = Item {
+        id: 21,
+        title: "Dusk over the homestead".into(),
+        description: "From the ridge behind the greenhouse, ten minutes before the sun went down.\nShot on the old phone; no filter.".into(),
+        kind: "picture".into(),
+        url: "/uploads/21_dusk.png".into(),
+        stored: "21_dusk.png".into(),
+        original_name: "dusk.png".into(),
+        size_bytes: 2_800_000,
+        total_bytes: 2_800_000,
+        uploader_key: "me".into(),
+        uploader_name: "You".into(),
+        category_id: 1,
+        category_name: "General".into(),
+        visibility: "public".into(),
+        picks: 7,
+        views: 41,
+        downloads: 5,
+        licence: "cc_by_4".into(),
+        published_at: 1_760_400_000_000,
+        files: vec![ItemFile { file: 0, filename: "21_dusk.png".into(), original_name: "dusk.png".into(), kind: "picture".into(), size_bytes: 2_800_000, url: "/uploads/21_dusk.png".into() }],
+        file_count: 1,
+        ..Default::default()
+    };
+    let song = Item {
+        id: 22,
+        title: "Fire circle drums".into(),
+        description: "Recorded at the solstice fire. Free to use for practice.".into(),
+        kind: "file".into(),
+        url: "/uploads/22_drums.mp3".into(),
+        stored: "22_drums.mp3".into(),
+        original_name: "fire-circle-drums.mp3".into(),
+        size_bytes: 3_900_000,
+        total_bytes: 3_900_000,
+        uploader_key: "k2".into(),
+        uploader_name: "Ann".into(),
+        category_id: 2,
+        category_name: "Fire flow arts".into(),
+        visibility: "public".into(),
+        picks: 12,
+        views: 88,
+        downloads: 19,
+        licence: "cc_by_4".into(),
+        published_at: 1_760_300_000_000,
+        files: vec![ItemFile { file: 0, filename: "22_drums.mp3".into(), original_name: "fire-circle-drums.mp3".into(), kind: "file".into(), size_bytes: 3_900_000, url: "/uploads/22_drums.mp3".into() }],
+        file_count: 1,
+        ..Default::default()
+    };
+    let mut items = vec![landscape, media_snapshot_item(("k2", "Ann")), song];
+    items.extend(fixture::demo_answer().items);
+    items
+}
+
+/// An app on the test server showing the snapshot items, signed in as "me", with `selected` shown in
+/// the panes (by its number), its picture and the staff's cover in the image cache.
+fn media_panes_state(ctx: &egui::Context, selected: i64) -> GuiState {
+    use crate::gui::pages::media::{self as media, api, item_view};
+    use crate::gui::pages::media::item_view::item_tests::{answer_of, page_on};
+    let mut answer = answer_of(media_snapshot_items());
+    answer.labels = vec![api::Label { id: "spoiler".into(), label: "Spoiler".into(), desc: "Shows the ending".into() }];
+    let mut state = page_on(media::tests::SERVER, answer, "tok");
+    state.media.featured = state.media.list.items.iter().filter(|i| i.featured == api::Featured::Main).cloned().collect();
+    // The staff's maker is a friend's press away: shown as if pressed, so its cover shows.
+    let staff = state.media.list.items.iter().find(|i| i.id == 7).cloned().unwrap();
+    let base = media::base_of(&state);
+    state.image_cache.allow(&api::file_url(&base, &staff));
+    let item = state.media.list.items.iter().find(|i| i.id == selected).cloned().unwrap();
+    item_view::open(&mut state, &item);
+    media_snapshot_pictures(ctx, &mut state);
+    state
+}
+
+/// The snapshot items' pictures, put in the image cache (nothing is fetched).
+fn media_snapshot_pictures(ctx: &egui::Context, state: &mut GuiState) {
+    let server = crate::gui::pages::media::tests::SERVER;
+    for (key, bytes) in [(format!("{server}/uploads/21_dusk.png"), media_snapshot_landscape(1600, 1000)), (format!("{server}/uploads/9_cover.png"), media_snapshot_landscape(900, 600))] {
+        if state.image_cache.get_texture(&key).is_none() {
+            state.image_cache.insert_for_test(ctx, &key, &bytes).expect("the picture decodes");
+        }
+    }
+}
+
+/// THE MEDIA PAGE IN THREE PANES (2026-10-19, pages/media/panes.rs), on the operator's own monitor
+/// (2560 by 1387): the list on the left (the featured shelf, the filters, every item as a row, the
+/// one shown highlighted), a landscape of your own fitted to the middle pane with View full size
+/// under it, and its details on the right (title, who and where, counts, the day, its buttons, the
+/// description, the licence and its file).
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_media_three_pane() {
+    use crate::gui::pages::media as media;
+    render_page_png("media_three_pane", 2560, 1387, |ctx, theme, state| {
+        if state.media.server.is_empty() {
+            *state = media_panes_state(ctx, 21);
+        }
+        media_snapshot_pictures(ctx, state);
+        media::draw(ctx, theme, state);
+    });
+}
+
+/// The same page on a window taller than it is wide (1100 by 1500): the list, the picture and its
+/// details stacked top, middle and bottom.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_media_three_pane_tall() {
+    use crate::gui::pages::media as media;
+    render_page_png("media_three_pane_tall", 1100, 1500, |ctx, theme, state| {
+        if state.media.server.is_empty() {
+            *state = media_panes_state(ctx, 21);
+        }
+        media_snapshot_pictures(ctx, state);
+        media::draw(ctx, theme, state);
+    });
+}
+
+/// A song on the Media page (2026-10-19, widgets/sound_view.rs and widgets/waveform.rs): the middle
+/// pane holds its waveform, the first part played in the accent colour with the line where it is,
+/// and the spectrum of that moment above it; Play, Start again, Mute and its time under it; its
+/// details on the right.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_media_sound() {
+    use crate::gui::pages::media as media;
+    let song = media_snapshot_song();
+    render_page_png("media_sound", 1920, 1080, |ctx, theme, state| {
+        if state.media.server.is_empty() {
+            *state = media_panes_state(ctx, 22);
+            if let Some(opened) = state.media.open.as_mut() {
+                opened.sound = crate::gui::widgets::sound_view::SoundView::with_analysis(song.clone(), 15.2);
+                opened.sound.set_temp_for_test(std::env::temp_dir().join("HumanityOS-snapshot-not-a-real-copy.mp3"));
+            }
+        }
+        media_snapshot_pictures(ctx, state);
+        media::draw(ctx, theme, state);
+    });
+}
+
+/// EDIT MODE IN PLACE (2026-10-19, pages/media/edit.rs `draw_in_place`), on the operator's monitor:
+/// the right pane is the edit form, headed "Editing", its three parts in the chat sidebar's colours
+/// (About it red, Who can see it green, Files blue) with the pane's border in the nav bar's moving
+/// colours, Save and Cancel at its foot; the list and the item stay where they were.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_media_edit_in_place() {
+    use crate::gui::pages::media::{self as media, edit::EditForm};
+    render_page_png("media_edit_in_place", 2560, 1387, |ctx, theme, state| {
+        if state.media.server.is_empty() {
+            *state = media_panes_state(ctx, 21);
+            let item = state.media.list.items.iter().find(|i| i.id == 21).cloned().unwrap();
+            if let Some(page) = state.media.item.as_mut() {
+                page.edit = Some(EditForm::of(&item));
+            }
+        }
+        media_snapshot_pictures(ctx, state);
+        media::draw(ctx, theme, state);
+    });
+}
+
+/// A Media item posted in chat, opened from its card (2026-10-19, item_view.rs `draw_window`): one
+/// window over the chat holding the item to fit and its details side by side.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_media_item_window() {
+    use crate::gui::pages::media::{self as media, item_view};
+    render_page_png("media_item_window", 1600, 1000, |ctx, theme, state| {
+        if state.media.server.is_empty() {
+            *state = media_panes_state(ctx, 7);
+            state.media.item = None;
+            state.active_page = crate::gui::GuiPage::Chat;
+            let staff = state.media.list.items.iter().find(|i| i.id == 7).cloned().unwrap();
+            item_view::open_in_window(state, &staff);
+        }
+        media_snapshot_pictures(ctx, state);
+        media::draw_item_window(ctx, theme, state);
     });
 }
 

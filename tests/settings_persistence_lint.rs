@@ -67,6 +67,11 @@ const SETTINGS_FILES: &[&str] = &[
     // Seen red 2026-10-18 with its load leg removed from config.rs: "media_folders: never read by
     // apply_to_state".
     "src/gui/pages/media/your_folders.rs",
+    // The Media page's view (Panes or Gallery) and the split of its three panes (2026-10-19,
+    // pages/media/panes.rs), changed on the page, kept in AppConfig (`media_layout`). Seen red
+    // 2026-10-19 with its load leg removed from config.rs: "media_layout: never read by
+    // apply_to_state".
+    "src/gui/pages/media/panes.rs",
     // The Games library's games added by hand (2026-10-18): Add a game, Rename and Remove keep them
     // in AppConfig (`added_games`), changed on the Games page, not on the Settings page. Seen red
     // 2026-10-18 with its load leg removed from config.rs: "added_games: never read by

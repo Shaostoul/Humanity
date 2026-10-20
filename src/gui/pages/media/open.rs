@@ -1,12 +1,15 @@
-//! Opening a Media item: the transfers behind its page. Since Media round 5 (lane 1D) a click on
-//! any tile opens the item's own page (item_view.rs), which draws the picture (the image viewer
-//! stays behind View full size), the video's Play here, the words and every file with its own
-//! Download. This file is what those buttons run: Play here fetches the video to a temporary file
-//! and plays it in the app's own media player (`crate::media::VideoPlayer`, the one in-world
-//! screens use: WebM with AV1 video, and on Windows an ordinary MP4 through the computer's own
-//! decoders, `media/system.rs`; anything else says why it cannot and can still be downloaded),
-//! with its sound through the app's mixer ([`sync_sound`], which the engine calls each frame);
-//! Download saves one file of the item in the downloads folder.
+//! Opening a Media item: the transfers behind it. A press on a row in the list (or a tile in the
+//! Gallery) shows the item in the panes (2026-10-19: viewer.rs draws it to fit, item_view.rs its
+//! details): the picture (the image viewer stays behind View full size), the video's Play here, a
+//! sound's Play here and waveform, the words and every file with its own Download. This file is
+//! what those buttons run: Play here fetches the video to a temporary file and plays it in the
+//! app's own media player (`crate::media::VideoPlayer`, the one in-world screens use: WebM with
+//! AV1 video, and on Windows an ordinary MP4 through the computer's own decoders,
+//! `media/system.rs`; anything else says why it cannot and can still be downloaded), a sound the
+//! same way through widgets/sound_view.rs ([`start_sound`]), each with its sound through the
+//! app's mixer ([`sync_sound`], which the engine calls each frame); Download saves one file of the
+//! item in the downloads folder. The item's transfers are read every frame whatever page is open
+//! (media.rs `poll_upload`), so a song plays on while the person looks elsewhere.
 //!
 //! DOWNLOADS ARE COUNTED (round 5, docs/design/media-round-5-plan.md 3.5): every Download goes
 //! through the relay's counting route, `/api/media/download/<id>?file=<n>` ([`download_origin`]),
@@ -60,6 +63,9 @@ pub(crate) struct Opened {
     pub item: Item,
     /// Its video, fetched and played here (the shared widget, widgets/video_view.rs).
     pub video: widgets::video_view::VideoView,
+    /// Its sound or song, fetched, played and drawn as a waveform here (the shared widget,
+    /// widgets/sound_view.rs, 2026-10-19).
+    pub sound: widgets::sound_view::SoundView,
     /// The downloads on their way, by the number of the file each is of (0, the item's own).
     saves: Vec<(i64, Receiver<Result<PathBuf, String>>)>,
     /// Where each finished Download put its file, or why it did not, by file number.
@@ -73,7 +79,7 @@ pub(crate) struct Opened {
 
 impl Opened {
     pub(crate) fn new(item: Item) -> Self {
-        Opened { item, video: Default::default(), saves: Vec::new(), saved: Vec::new(), saved_paths: Vec::new(), viewer: None }
+        Opened { item, video: Default::default(), sound: Default::default(), saves: Vec::new(), saved: Vec::new(), saved_paths: Vec::new(), viewer: None }
     }
 
     /// Whether file `file` is being downloaded now.
@@ -93,7 +99,7 @@ impl Opened {
 
     /// Whether something is still on its way (the page repaints until it is not).
     pub(crate) fn busy(&self) -> bool {
-        self.video.fetching() || !self.saves.is_empty()
+        self.video.fetching() || self.sound.fetching() || !self.saves.is_empty()
     }
 }
 
@@ -173,10 +179,11 @@ pub(crate) fn download_origin(base: &str, item: &Item, file: i64, token: Option<
     Ok(Origin::Ticket { base: base.to_string(), token: token.to_string(), item: item.reference()?, file, download: true })
 }
 
-/// A tile was clicked: the item's own page opens (round 5; item_view.rs). A public picture's full
-/// size is one press away there (View full size), in the app's image viewer.
+/// A tile in the Gallery was clicked: the panes show it (2026-10-19; item_view.rs). A public
+/// picture's full size is one press away there (View full size), in the app's image viewer.
 pub(crate) fn open_item(state: &mut GuiState, item: &Item) {
     super::item_view::open(state, item);
+    super::panes::set_gallery(state, false);
 }
 
 /// A client for whole files: no limit on a whole transfer's time (a big file on a slow line
@@ -302,12 +309,14 @@ mod sound_tests;
 /// calls this each frame it has a mixer.
 pub(crate) fn sync_sound(opened: &mut Opened, audio: &mut crate::audio::AudioManager) {
     opened.video.sync_sound(audio);
+    opened.sound.sync_sound(audio);
 }
 
 /// Read what the transfers of `opened` finished, and the video's next frame. Every frame its page
 /// is drawn.
 pub(crate) fn poll(ctx: &egui::Context, opened: &mut Opened) {
     opened.video.poll(ctx);
+    opened.sound.poll(ctx);
     let mut finished = Vec::new();
     opened.saves.retain(|(file, rx)| match rx.try_recv() {
         Ok(result) => {
@@ -340,10 +349,31 @@ pub(crate) fn poll(ctx: &egui::Context, opened: &mut Opened) {
     }
 }
 
-/// The video area of an item's page: the playing video with Play, Pause and Start again, or Play
-/// here. Returns true when Play here was pressed (the page then calls [`start_play`]).
-pub(crate) fn draw_player(ui: &mut egui::Ui, theme: &Theme, opened: &mut Opened) -> bool {
-    opened.video.draw(ui, theme, 640.0)
+/// The name of one Play here copy of a sound: as [`play_name`], ending as the file does (the
+/// decoders read the ending as a hint).
+pub(crate) fn sound_name(server: &str, item: &Item) -> String {
+    let own = super::item_view::files_of(item)[0].clone();
+    let ending = super::edit::stored_ending(&shown_file_name(item, &own));
+    let base = play_name(server, item.id);
+    let stem = base.trim_end_matches(".video");
+    if ending.is_empty() || !ending.chars().all(|c| c.is_ascii_alphanumeric()) {
+        format!("{stem}.sound")
+    } else {
+        format!("{stem}.{ending}")
+    }
+}
+
+/// Play here on a sound: fetch the item's own file to a temporary copy on a worker, then play it
+/// and read its waveform (widgets/sound_view.rs). Watching is not downloading: not counted.
+pub(crate) fn start_sound(state: &GuiState, opened: &mut Opened) {
+    let token = super::token_here(state);
+    match origin_of(&super::base_of(state), &opened.item, token.as_deref()) {
+        Ok(origin) => {
+            let name = sound_name(&state.media.server, &opened.item);
+            opened.sound.start(move || origin.address().and_then(|url| fetch_to(&transfer_agent(Duration::from_secs(60)), &url, None, &temp_dir(), &name, MAX_FETCH)));
+        }
+        Err(words) => opened.sound.problem = words,
+    }
 }
 
 /// Play here was pressed: fetch the item's own file to a temporary copy on a worker, then play it.
@@ -374,11 +404,6 @@ pub(crate) fn start_download(state: &GuiState, opened: &mut Opened, f: &ItemFile
         }
         Err(words) => opened.saved.push((f.file, format!("Not saved: {words}"))),
     }
-}
-
-/// The item's page and its windows, while one is open (media.rs draws this after the page).
-pub(crate) fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
-    super::item_view::draw(ctx, theme, state);
 }
 
 #[cfg(test)]

@@ -1,8 +1,8 @@
-//! The desktop's item page and Edit window against the REAL relay's round 5 routes (Media round 5,
+//! The desktop's item page and edit form against the REAL relay's round 5 routes (Media round 5,
 //! lane 1D; the relay half is lane 1A's src/relay/media_edit.rs): the relay's own route functions
 //! served over HTTP on this machine's loopback address, over a temporary database and folders of
 //! the test's own (nothing lands in the checkout's data folder, nothing leaves the machine), and
-//! the app driven the way a person drives it: Save pressed in the Edit window, files picked for
+//! the app driven the way a person drives it: Save pressed in the edit form, files picked for
 //! the item uploaded through the app's own resumable client and added to it, a file's Remove
 //! confirmed. relay_round3_tests.rs is the pattern. Seen failing once before it passed; what it saw
 //! red is in its comment.
@@ -153,7 +153,7 @@ fn download_row(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, row: &
 }
 
 /// AN ITEM EDITED AND GIVEN FILES ON THE REAL RELAY: Ann's model, published on the relay, is edited
-/// from her Edit window (Save: the relay checks her signature over the edit's text exactly as sent,
+/// from her edit form (Save: the relay checks her signature over the edit's text exactly as sent,
 /// and keeps the new words), and opening the page counted a view; a file and a cover picked for it
 /// go up through the app's resumable client and are added to it (the relay holds them on the item,
 /// in its public folder), and the file's Download on the page comes through the relay's counting
@@ -204,10 +204,10 @@ fn an_item_edited_and_given_files_on_the_real_relay() {
     let window_done = |s: &GuiState| !saving(s, id) && s.media.item.as_ref().is_some_and(|p| p.edit.as_ref().map_or(true, |f| !f.problem.is_empty()));
     let problem = |s: &GuiState| s.media.item.as_ref().and_then(|p| p.edit.as_ref()).map(|f| f.problem.clone()).unwrap_or_default();
 
-    // 1. The words, from the Edit window: Save.
+    // 1. The words, from the edit form: Save.
     edit::open_edit(&mut state, &item);
     {
-        let form = state.media.item.as_mut().and_then(|p| p.edit.as_mut()).expect("the Edit window");
+        let form = state.media.item.as_mut().and_then(|p| p.edit.as_mut()).expect("the edit form");
         form.title = "Dusk at the beach".into();
         form.description = "First line\nSecond line".into();
     }
@@ -250,7 +250,7 @@ fn an_item_edited_and_given_files_on_the_real_relay() {
     // 4. Members only, from the same window: every file moves out of the public folder.
     let now = page_item(&state);
     edit::open_edit(&mut state, &now);
-    state.media.item.as_mut().and_then(|p| p.edit.as_mut()).expect("the Edit window").members_only = true;
+    state.media.item.as_mut().and_then(|p| p.edit.as_mut()).expect("the edit form").members_only = true;
     click_top(&ctx, &theme, &mut state, edit::SAVE);
     until(&ctx, &theme, &mut state, "the visibility is answered", window_done);
     let held = r.state.db.media_item(id).unwrap().unwrap();

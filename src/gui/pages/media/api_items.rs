@@ -1,6 +1,6 @@
 //! Media round 5's requests and answers (2026-10-12; docs/design/media-round-5-plan.md 3.2 to 3.5,
 //! with section 10's answers): an item's files and cover, the licences and the words beside them,
-//! the list's order, and the requests the item's page and its Edit window send. The relay half is
+//! the list's order, and the requests the item's page and its edit form send. The relay half is
 //! src/relay/media_edit.rs, media_counts.rs and media_wire.rs; the shapes are held to the relay's
 //! own by the shared fixture, scripts/tests/fixtures/media-round5-v1.json
 //! (`the_desktop_reads_and_signs_the_shared_fixture` below).
@@ -174,7 +174,7 @@ impl Sort {
 
 // ── Requests ───────────────────────────────────────────────────────────────────────────────
 
-/// What an edit sets: every field, as the Edit window shows it (the relay takes nothing less).
+/// What an edit sets: every field, as the edit form shows it (the relay takes nothing less).
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct EditFields {
     pub title: String,
@@ -272,7 +272,7 @@ pub fn visibility_purpose(id: i64, members: bool) -> String {
     format!("media_visibility:{id}:{}", if members { "members" } else { "public" })
 }
 
-/// `POST /api/media/visibility`: who can see item `item`, sent by the Edit window apart from the
+/// `POST /api/media/visibility`: who can see item `item`, sent by the edit form apart from the
 /// edit and only when it changed. The relay moves every one of the item's files with it.
 pub fn visibility_request(signer: &Signer, item: &ItemRef, members: bool) -> Request {
     let purpose = visibility_purpose(item.id, members);

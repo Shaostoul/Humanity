@@ -1,4 +1,4 @@
-//! Headless tests of an item's page and its Edit window (Media round 5, lane 1D;
+//! Headless tests of an item's page and its edit form (Media round 5, lane 1D;
 //! docs/design/media-round-5-plan.md 3.9): the Media page drawn into an egui context with no window,
 //! clicked the way a person clicks it (ui-system.md's headless pattern), and what it drew and sent
 //! read back. Nothing here reaches past this machine: requests go to a closed port, or to a small
@@ -152,6 +152,17 @@ pub(crate) fn click_top(ctx: &egui::Context, theme: &Theme, state: &mut GuiState
     click_at(ctx, theme, state, rect.center())
 }
 
+/// Scroll the right pane (the details, or the edit form) to its end with the mouse wheel over it
+/// (egui eases a wheel's scroll over a few frames, so it is turned for sixty).
+pub(crate) fn scroll_details_to_end(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
+    let over = egui::pos2(1280.0 * 0.85, 600.0);
+    frame(ctx, theme, state, vec![egui::Event::PointerMoved(over)]);
+    for _ in 0..60 {
+        let wheel = egui::Event::MouseWheel { unit: egui::MouseWheelUnit::Point, delta: egui::vec2(0.0, -400.0), modifiers: egui::Modifiers::default() };
+        frame(ctx, theme, state, vec![wheel]);
+    }
+}
+
 /// Draw and read answers until `done` says so (ten seconds at most).
 pub(crate) fn until(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, what: &str, done: impl Fn(&GuiState) -> bool) {
     let deadline = Instant::now() + Duration::from_secs(10);
@@ -224,7 +235,10 @@ fn a_tile_opens_the_item_with_description_files_licence_and_counts() {
     for text in ["by Ann in Fire flow arts", "4 picks, 12 views, 3 downloads", "CC BY 4.0", "Anyone may copy, share and change it", "textures.zip, ", "dusk.glb, ", "Archive"] {
         assert!(shows(&out, text), "the page shows {text:?}");
     }
-    assert_eq!(every_exact(&out, "Download").len(), 2, "each file has its own Download");
+    // In the details (the right pane); the middle pane's card for the model has the item's own
+    // Download too (2026-10-19).
+    let in_details = every_exact(&out, "Download").into_iter().filter(|r| r.left() > 1280.0 * 0.6).count();
+    assert_eq!(in_details, 2, "each file has its own Download");
     assert!(shows(&out, COPY_LINK) && shows(&out, "Report") && !shows(&out, "Remove item"), "a member's buttons on someone else's item");
 }
 
@@ -308,6 +322,8 @@ fn the_card_shows_the_first_line_and_the_file_count() {
         ..rich_item(("k2", "Ann"))
     };
     let mut state = page_on(SERVER, answer_of(vec![item]), "tok");
+    // The card is the Gallery's tile (2026-10-19: the panes' rows show the title alone).
+    crate::gui::pages::media::tests::gallery(&mut state);
     let out = settled(&ctx, &theme, &mut state);
     assert!(!shows(&out, "The second line stays on the page"), "the second line stays on the page");
     assert!(shows(&out, &cut), "the first line, cut");
@@ -317,7 +333,7 @@ fn the_card_shows_the_first_line_and_the_file_count() {
 }
 
 /// A CREATIVE COMMONS LICENCE SHOWS ITS WARNING BEFORE SAVE (section 10: the editor states the facts
-/// plainly): on the uploader's own item, picking CC BY 4.0 in the Edit window shows that it cannot
+/// plainly): on the uploader's own item, picking CC BY 4.0 in the edit form shows that it cannot
 /// be taken back for copies already taken, above Save; "All rights reserved" shows no warning; on a
 /// members-only item the second fact shows too; and the game tick is there with CC BY, gone with
 /// CC BY-NC.
@@ -337,7 +353,7 @@ fn a_creative_commons_licence_shows_its_warning_before_save() {
 
     click_top(&ctx, &theme, &mut state, "All rights reserved");
     click_top(&ctx, &theme, &mut state, "CC BY 4.0");
-    let form = state.media.item.as_ref().and_then(|p| p.edit.as_ref()).expect("the Edit window");
+    let form = state.media.item.as_ref().and_then(|p| p.edit.as_ref()).expect("the edit form");
     assert_eq!(form.choice.licence, "cc_by_4", "CC BY 4.0 is picked");
     let out = settled(&ctx, &theme, &mut state);
     let warning = find_text(&out, &licences.cc_warning).expect("the warning shows once CC BY 4.0 is picked");
@@ -384,14 +400,14 @@ fn an_admin_sees_the_licence_but_cannot_change_it() {
     let out = settled(&ctx, &theme, &mut state);
     assert!(!shows(&out, "CC0 1.0"), "a press on the licence opens no list");
     click_top(&ctx, &theme, &mut state, &fixture_licences().game_label);
-    let form = state.media.item.as_ref().and_then(|p| p.edit.clone()).expect("the Edit window");
+    let form = state.media.item.as_ref().and_then(|p| p.edit.clone()).expect("the edit form");
     assert!(form.choice.project_use, "the tick does not move");
     let changed = edit::EditForm { choice: edit::LicenceChoice { licence: "cc0_1".into(), project_use: false }, ..form };
     let sent = changed.fields(false);
     assert_eq!((sent.licence.as_str(), sent.project_use), ("cc_by_4", true), "the edit sends them as they were");
 }
 
-/// ADD A FILE UPLOADS, THEN ATTACHES (3.9, `Of::Attach`): Add a file in the Edit window opens the
+/// ADD A FILE UPLOADS, THEN ATTACHES (3.9, `Of::Attach`): Add a file in the edit form opens the
 /// picker; the picked file is the same upload in pieces, a row under "Uploads in progress" naming
 /// the item it goes to, and once it is up it is added to the item (`POST /api/media/files/add`,
 /// signed over `media_file_add:<id>:<upload>:file`), never published as an item of its own. The
@@ -411,7 +427,7 @@ fn add_a_file_uploads_then_attaches() {
     let mut state = page_on(&base, answer_of(vec![mine.clone()]), TOKEN);
     edit::open_edit(&mut state, &mine);
     click_top(&ctx, &theme, &mut state, edit::ADD_FILE);
-    let form = state.media.item.as_ref().and_then(|p| p.edit.as_ref()).expect("the Edit window");
+    let form = state.media.item.as_ref().and_then(|p| p.edit.as_ref()).expect("the edit form");
     assert!(matches!(form.picker, Some((FileRole::File, _))), "Add a file opens the picker");
 
     let file = crate::test_temp::file("media_attach", "webm");
@@ -503,43 +519,42 @@ fn download_goes_through_the_counting_route() {
     );
 }
 
-/// EDIT OPENS IN FRONT OF THE ITEM'S PAGE, EVERY TIME (operator, 2026-10-15: "the initial detailed
-/// media window ... stays layered on top of it preventing me from being able to interact with it").
-/// Every dialog asked for the top on every frame, so egui kept their earlier order, and the Edit
-/// window, once opened and closed, kept a place under the page: opened again, it stayed behind.
-/// Opened, cancelled and opened again from the page, the Edit window must be the layer on top where
-/// the two windows overlap.
+/// EDIT IS IN PLACE, AND OPENS EVERY TIME (operator, 2026-10-19: "When clicking edit, instead of
+/// popping up another window, just change the details panel on the right to accept edits."). This
+/// replaced the 2026-10-15 test that the Edit window opened in front of the item's page every time
+/// ("the initial detailed media window ... stays layered on top of it preventing me from being able
+/// to interact with it"), and still proves what that one did: nothing lies over the form. Edit
+/// turns the right pane into the form; no window opens (the page's own layer is the one at Save);
+/// Save is in the right pane, where the details were, and the details' Copy link is gone; Cancel
+/// with nothing changed is the details again; and Edit opens the form again the second time.
 ///
-/// Seen red 2026-10-15 with the dialog's every-frame raise put back (widgets/dialog.rs): "the Edit
-/// window opened again is in front of the item's page: where they overlap" found the page's window.
+/// Seen red 2026-10-19 with the form drawn in a dialog over the page again (`draw_details` drawing
+/// it through `widgets::dialog`): "no window: the page's own layer at Save (time 0)" (left: the
+/// dialog's Middle layer, right: the Background).
 #[test]
-fn edit_opens_in_front_of_the_items_page_every_time() {
+fn edit_is_in_place_and_opens_every_time() {
     let (ctx, theme) = ctx_and_theme();
     let item = rich_item(("me", "Me"));
     let mut state = page_on(SERVER, answer_of(vec![item.clone()]), "tok");
     crate::gui::pages::media::item_view::open(&mut state, &item);
-    let edit_layer = egui::LayerId::new(egui::Order::Middle, egui::Id::new(edit::EDIT_DIALOG_ID));
     let edit_open = |state: &GuiState| state.media.item.as_ref().and_then(|p| p.edit.as_ref()).is_some();
-    for (time, words) in ["the Edit window is in front of the item's page", "the Edit window opened again is in front of the item's page"].iter().enumerate() {
-        click_top(&ctx, &theme, &mut state, "Edit");
-        assert!(edit_open(&state), "Edit opened its window (time {time})");
+    for time in 0..2 {
+        assert!(shows(&settled(&ctx, &theme, &mut state), COPY_LINK), "the details show first (time {time})");
+        click_top(&ctx, &theme, &mut state, EDIT);
+        assert!(edit_open(&state), "Edit opened the form (time {time})");
         let out = settled(&ctx, &theme, &mut state);
         let save = *every_exact(&out, edit::SAVE).last().expect("Save");
-        assert_eq!(ctx.layer_id_at(save.center()), Some(edit_layer), "{words}: at its Save");
-        // Where the two windows overlap (Save can sit below a short page, where only Edit is).
-        let rect_of = |id: &str| ctx.memory(|m| m.area_rect(egui::Id::new(id))).expect("drawn");
-        let both = rect_of("media_item_page").intersect(rect_of(edit::EDIT_DIALOG_ID));
-        assert!(both.is_positive(), "the two windows overlap");
-        assert_eq!(ctx.layer_id_at(both.center()), Some(edit_layer), "{words}: where they overlap");
-        if time == 0 {
-            click_top(&ctx, &theme, &mut state, "Cancel");
-            assert!(!edit_open(&state), "Cancel closed the Edit window");
-            assert!(state.media.item.is_some(), "the item's page is still open");
-        }
+        assert_eq!(ctx.layer_id_at(save.center()), Some(egui::LayerId::background()), "no window: the page's own layer at Save (time {time})");
+        assert!(save.left() > 1280.0 * 0.6, "in the right pane: {save:?}");
+        assert!(!shows(&out, COPY_LINK), "the details are replaced by the form");
+        assert!(shows(&out, &edit::editing_words("Dusk")), "headed Editing");
+        click_top(&ctx, &theme, &mut state, "Cancel");
+        assert!(!edit_open(&state), "Cancel with nothing changed is the details again (time {time})");
+        assert!(state.media.item.as_ref().is_some_and(|p| p.confirm_discard.is_none()), "and asked nothing");
     }
 }
 
-/// ADD A FILE TAKES SEVERAL AT ONCE (2026-10-16): Edit's Add a file opens a picker that ticks
+// ADD A FILE TAKES SEVERAL AT ONCE (2026-10-16): Edit's Add a file opens a picker that ticks
 /// several files (the cover picture's stays one picture); the files chosen are checked against the
 /// share together first, so a batch that does not fit starts nothing and says so; one that fits
 /// starts an upload to the item for each.
@@ -553,7 +568,7 @@ fn add_a_file_takes_several_files_at_once() {
     let mut state = page_on(SERVER, answer_of(vec![mine.clone()]), TOKEN);
     edit::open_edit(&mut state, &mine);
     click_top(&ctx, &theme, &mut state, edit::ADD_FILE);
-    let form = state.media.item.as_ref().and_then(|p| p.edit.as_ref()).expect("the Edit window");
+    let form = state.media.item.as_ref().and_then(|p| p.edit.as_ref()).expect("the edit form");
     assert!(matches!(&form.picker, Some((FileRole::File, p)) if p.multiple), "Add a file's picker ticks several");
 
     let dir = crate::test_temp::dir("media_edit_several");
@@ -646,16 +661,18 @@ fn the_edit_window_is_in_three_coloured_parts_and_every_file_shows_its_type() {
     assert!(painted(&out, &theme, Tint::Red), "the About it part, in red");
     assert!(painted(&out, &theme, Tint::Green), "the Who can see it part, in green");
     assert!(painted(&out, &theme, Tint::Blue), "the Files part, in blue");
-    assert!(every_exact(&out, "Archive").len() > archives_on_page, "the Edit window's files list shows the .zip's badge");
+    // The form takes the details' place (2026-10-19): the .zip's badge under its own Files part.
+    let _ = archives_on_page;
+    assert!(every_exact(&out, "Archive").iter().any(|r| r.top() > files.top()), "the edit form's files list shows the .zip's badge");
     assert!(every_exact(&out, "3D model").iter().any(|r| r.top() > files.top()), "and the .glb's, under Files");
     assert!(shows(&out, "textures.zip, ") && !shows(&out, "textures.zip, file"), "the row says its name and size, not the old kind word");
 }
 
 /// FILES DROPPED ON THE WINDOW GO TO ADD TO MEDIA, OR TO THE ITEM WHOSE EDIT WINDOW IS OPEN
 /// (operator, 2026-10-17: drag and drop from the file manager): on the Media page a dropped model
-/// opens Add to Media with it, the overlay saying "Drop to add to Media"; with an item's Edit window
+/// opens Add to Media with it, the overlay saying "Drop to add to Media"; with an item's edit form
 /// open, the overlay names the item and a dropped file starts uploading to it. Seen red 2026-10-17
-/// with the Edit window not offering itself: "the overlay names the item" (it said Add to Media).
+/// with the edit form not offering itself: "the overlay names the item" (it said Add to Media).
 #[test]
 fn files_dropped_go_to_add_to_media_or_to_the_item_being_edited() {
     use crate::gui::drop_files;
@@ -729,10 +746,12 @@ fn rename_keeps_the_ending_and_a_picture_on_the_item_can_be_its_cover() {
     let mut state = page_on(&base, answer_of(vec![mine.clone()]), TOKEN);
     crate::gui::pages::media::item_view::open(&mut state, &mine);
     edit::open_edit(&mut state, &mine);
+    // The form is in the right pane, its Files part at the foot: scrolled to, as a person does.
+    scroll_details_to_end(&ctx, &theme, &mut state);
     let out = settled(&ctx, &theme, &mut state);
     assert_eq!(every_exact(&out, edit::RENAME).len(), 3, "every file has Rename, the item's own file too");
     assert_eq!(every_exact(&out, edit::USE_AS_COVER).len(), 1, "only on the picture");
-    // The Edit window's row, drawn over the item page's row of the same file: the last drawn.
+    // The edit form's row of the file (the details it took the place of are not drawn): the last drawn.
     let last_row = |out: &egui::FullOutput, row: &str| every_starting(out, row).last().copied();
     let press_near = |out: &egui::FullOutput, row: &str, button: &str| {
         let row = last_row(out, row).unwrap_or_else(|| panic!("the {row:?} row"));
@@ -745,7 +764,7 @@ fn rename_keeps_the_ending_and_a_picture_on_the_item_can_be_its_cover() {
     let at = press_near(&out, "textures.zip, ", edit::RENAME);
     frame(&ctx, &theme, &mut state, vec![egui::Event::PointerMoved(at.center())]);
     click_at(&ctx, &theme, &mut state, at.center());
-    let form = |s: &GuiState| s.media.item.as_ref().and_then(|p| p.edit.as_ref()).map(|f| f.renaming.clone()).expect("the Edit window");
+    let form = |s: &GuiState| s.media.item.as_ref().and_then(|p| p.edit.as_ref()).map(|f| f.renaming.clone()).expect("the edit form");
     assert_eq!(form(&state), Some((1, "textures".to_string())), "the box holds the name without its ending");
     assert!(shows(&settled(&ctx, &theme, &mut state), ".zip"), "the ending is shown after the box");
     state.media.item.as_mut().and_then(|p| p.edit.as_mut()).and_then(|f| f.renaming.as_mut()).unwrap().1 = "skin".into();

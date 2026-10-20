@@ -81,7 +81,7 @@ pub struct Unfinished {
     pub labels: Vec<String>,
     pub members_only: bool,
     /// Media round 5: the licence and the game tick the form chose, published with it; and, for an
-    /// upload made from an item's Edit window, the item it is added to when it is up instead of
+    /// upload made from an item's edit form, the item it is added to when it is up instead of
     /// being published (api_items.rs `AttachTo`).
     pub licence: String,
     pub project_use: bool,

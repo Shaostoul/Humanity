@@ -3048,3 +3048,69 @@ The plan is `docs/design/media-round-5-plan.md`; what shipped of it:
 - **1A** relay item writes (`media_edit.rs`), **1B** counts and the item page for social sites (`media_counts.rs`, `media_page.rs`; the live nginx routes `/media/<number>` to the relay), **1C** the desktop list and Admin tab, **1D** the desktop item page and editor, **1E** the desktop strip, **1F** the web strip, **1G** the web list. Each lane's tests were seen red against their named breaks.
 - **The operator's answers** (plan section 10) are built in: the editor states that a Creative Commons licence cannot be taken back and what it means on a members-only item; "Offer this for the game" only for CC0 and CC BY 4.0; the hosting paragraph ("Your uploads stay yours.") beside Add to Media, in Edit and as rule 7 of web/pages/rules.html (a relay test holds the two copies equal).
 - **Next:** 2A (the website's item page and editor), 2B (the proof and snapshots), then phase 2 ("Also put this on..." other servers). public.guide's nginx needs the `/media/<number>` block by hand.
+
+## The three panes (desktop, 2026-10-19)
+
+**The ask** (operator, 2026-10-19): "what if for the media page we have a left side card that is the
+list of all the media and right side is like viewing the in-depth details of one media item. Maybe
+into thirds? Left side is the list of all of them, middle is the fit to area picture, 3D model,
+sound/music visualizer, then right side is data/details/info. We could do that top, middle bottom
+too. ... When clicking edit, instead of popping up another window, just change the details panel on
+the right to accept edits. Once done clicking save undoes the GUI changes for edit mode. I figure
+then we don't have to worry about layering so much. ... when we switch to edit mode, add the RGB
+boxed areas so edit mode stands out." His monitor is 2560 by 1387: three columns fit comfortably.
+
+**As built.**
+- `src/gui/widgets/panes.rs`: panes that are cards, side by side when the area is at least as wide
+  as tall and each fits at its narrowest (280 points), else stacked (170 points each at least); a
+  handle between each two, dragged to move the split, double-clicked to put two back. The shares
+  are the caller's; the Media page keeps them in config.json (`media_layout`, with the view), side
+  by side and stacked apart. Both arrangements are drawn by one closure per pane, so they cannot
+  show different things.
+- `src/gui/pages/media/panes.rs` lays out the Media tab: `list.rs` (left), `viewer.rs` (middle),
+  `item_view.rs` `draw_details` (right). The item shown is still `state.media.item`, so everything
+  that already opened an item (a tile, the Reports page's Open, a chat card) shows it here.
+- The middle pane fits the item to the area: a picture as large as fits (a press or View full size
+  opens the image viewer), a video in the shared player, a sound's waveform and spectrum, a model's
+  cover with View in 3D (pressed, the viewer fills the pane), a file's type drawn large with its
+  name, size, word of caution and Download. The tiles' picture rules come first (protected setup,
+  content labels, a stranger's picture waits for a press), as they did on the item's window.
+- EDIT IN PLACE: the details pane becomes the form, headed "Editing ...", in the three tinted parts
+  of 2026-10-17 (about it red, who can see it green, files blue), the pane edged with the nav bar's
+  active border in its moving colours; Save and Cancel are laid out first, from the pane's foot up,
+  so they are always in view while the parts scroll above them. Save sends exactly what the window
+  sent and the pane is the details again once answered. Cancel with nothing changed goes straight
+  back; with changes it asks (Discard the changes / Keep editing), and so does pressing another
+  row, closing the item's window, or leaving the page: the last is asked over whatever page comes
+  next ("Go back to them" returns to the Media page with the form as it was), since the app has
+  over fifty ways to change page and none passes one gate. The only things still drawn over the
+  page for editing are the file picker (Add a file, Cover picture) and the small questions.
+- THE GALLERY is the other view (Panes / Gallery beside the page's buttons): the full-width tiles
+  with their buttons, exactly as the page was. A press on a tile, or its Edit, shows the item in
+  the panes. Kept as the view for browsing many pictures at once, and because its tiles carry
+  actions the rows deliberately do not.
+- THE CHAT CARD opens the item in one window over the chat holding the middle and right panes side
+  by side (stacked on a tall screen), with the same edit in place. A window rather than taking the
+  person to the Media page: they were reading a conversation and stay in it, which is what the card
+  was built for (2026-10-17: "brings up the full popup window for that item").
+- SOUNDS: an item whose own file the file-type list calls a sound (`data/safety/file_risks.json`:
+  mp3, ogg, oga, opus, wav, flac, m4a, aac). Play here fetches it as Play here fetches a video, then
+  on the same worker opens it as a stream for kira (the mixer reads and decodes it a piece at a time
+  while it plays) and reads it whole once with symphonia (the decoders kira carries: MP3, Ogg Vorbis,
+  FLAC, WAV) into 1024 peaks and a 24-band spectrum every 50 ms, in a fixed amount of memory (lists
+  that fill merge neighbours). Drawing looks those up by the play position; nothing is read or
+  decoded while it draws. A press on the waveform seeks. Opus, M4A and AAC sound files say they
+  cannot play here and keep Download.
+
+**Choices made without asking** (each easy to turn round):
+- A model is not fetched until View in 3D is pressed (a model can be 200 MB; the counting-route
+  test also holds that nothing fetches a file's own address unasked). Opening small models by
+  themselves is a candidate follow-up.
+- Nothing is shown in the middle and right until a row is pressed: opening counts a view, so no
+  item is chosen for the person.
+- A playing song or video plays on while the person looks at another page or the Gallery; pressing
+  another item, or closing its window, stops it.
+
+**Not built.** The website's Media page (still one column with its item window): the same three
+panes there are the next increment for parity. Live spectrum from the mixer's own output (the
+spectrum is the decoded file's, looked up by the play position).
