@@ -170,9 +170,11 @@ test("3. a Creative Commons licence shows its warning before Save", async () => 
 test("4. an admin sees the licence but cannot change it; a moderator gets no Edit", async () => {
   const anns = fxItem({ uploader_key: ANN });
   const mod = await openPage({ session: fakeSession({ role: "mod" }), routes: listRoutes(answerOf([anns])) });
+  // The card first: since 2026-10-19 an item opened from the Gallery shows in the panes (as on the
+  // desktop), so its tile is not on the page while it is open.
+  assert.equal(tileOf(mod.doc, 1).querySelector('[data-action="edit"]'), null, "nor from the card");
   mod.page.openViewer(mod.page.state.items[0]);
   assert.equal(byId(mod.doc, "media-item-edit-open"), null, "a moderator edits nothing");
-  assert.equal(tileOf(mod.doc, 1).querySelector('[data-action="edit"]'), null, "nor from the card");
 
   const { doc, page, net } = await openPage({ session: fakeSession({ role: "admin" }), routes: listRoutes(answerOf([anns]), [
     [at("/api/media/edit", "POST"), () => respond(200, { ok: true, item: anns })],

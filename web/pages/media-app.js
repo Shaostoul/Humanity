@@ -102,9 +102,21 @@
 //   reads (tests/page_parity_lint.rs holds both to it). The labels come from
 //   the server's answers.
 //
+// IN THREE PANES SINCE 2026-10-19 (the desktop's of v0.1521.0, media/panes.rs;
+// /pages/media-panes.js, docs/design/media-showcase.md "The three panes"): the
+// list on the left (the featured shelf, the filters and every item as a row,
+// More and the page's foot), the item to fit in the middle and its details on
+// the right, where Edit opens in place (/pages/media-item.js). Side by side on
+// a wide window, one above another on a tall or narrow one; the split kept in
+// this browser. The grid of tiles is the Gallery view (Panes / Gallery beside
+// the page's buttons); a tile's press shows its item in the panes, and the
+// Gallery comes back when it closes. A sound plays in the middle pane with its
+// waveform (/pages/media-sound.js), fetched only when Play here is pressed.
+//
 // A classic script in the browser, a CommonJS module under Node, where
 // scripts/tests/media-web.test.js and media-web-round2.test.js run the page
-// against a stand-in document that has only what this file built in it.
+// against a stand-in document that has only what this file built in it
+// (media-web-panes.test.js the panes).
 // ──────────────────────────────────────────────────────────────────────────
 (function (root) {
   'use strict';
@@ -555,6 +567,10 @@
   const TD = typeof module === 'object' && module && module.exports ? require('./media-takedown.js') : root.MediaTakedown;
   // Files dragged from the computer onto the page (2026-10-17, /shared/drop-overlay.js).
   const DROP = typeof module === 'object' && module && module.exports ? require('../shared/drop-overlay.js') : root.HosDropOverlay;
+  // The three panes (2026-10-19, /pages/media-panes.js): which way they go, their split and its handles.
+  const MP = typeof module === 'object' && module && module.exports ? require('./media-panes.js') : root.MediaPanes;
+  // What kind of file each one is (/shared/file-risk.js): a row names a file item by its type.
+  const FRK = typeof module === 'object' && module && module.exports ? require('../shared/file-risk.js') : root.HosFileRisk;
 
   // ── DOM ──
 
@@ -680,6 +696,12 @@
       channels: [],             // this server's chat channels (its channel_list): "Also post in chat"
       channelsKnown: false,     // a channel_list has come
       pending: null,            // {files, postTo} handed to the upload window before it could take them
+      // The three panes (2026-10-19): the view and its split as this browser keeps them ({gallery,
+      // across, down}, media-panes.js readLayout), what is placed on the page now ('panes' or
+      // 'gallery'), and the item window's own split (kept for its life only, as the desktop's).
+      layout: MP ? MP.readLayout(env.storage) : { gallery: true },
+      placed: '',
+      windowSplit: MP ? { across: MP.WINDOW_SPLIT.slice(), down: MP.WINDOW_SPLIT.slice() } : null,
     };
     let loadSeq = 0;
     let featuredSeq = 0;
@@ -711,6 +733,8 @@
         // Escape is its own Cancel, and closes nothing under it (in the item window it would close
         // the item and the window with it).
         if (e.key === 'Escape' && holdConfirmOpen()) return;
+        // The question before an edit's changes are let go: Escape keeps editing, and closes nothing under it.
+        if (e.key === 'Escape' && itemView.asking()) { itemView.answer(false); return; }
         if (e.key === 'Escape' && takedown && takedown.isOpen()) { takedown.close(); return; }
         if (e.key === 'Escape' && st.report) { closeReport(); return; }
         if (e.key === 'Escape' && st.viewer) { itemView.close(); return; }
@@ -735,7 +759,10 @@
       els.more = h('div', { id: 'media-more-wrap', className: 'media-more-wrap' });
       // Comes into view just after the grid's end: the next page is asked for then (3.10).
       els.sentinel = h('div', { id: 'media-sentinel', className: 'media-sentinel', attrs: { 'aria-hidden': 'true' } });
-      els.viewer = h('div', { id: 'media-viewer', className: 'media-viewer-wrap' });
+      // The item's two panes, the middle and the right (media-item.js), placed in the page's panes.
+      els.viewer = h('div', { id: 'media-viewer', className: 'media-viewer-wrap media-viewer-panes' });
+      // The question before an edit's changes are let go (media-item.js renderAsk).
+      els.ask = h('div', { id: 'media-ask', className: 'media-viewer-wrap' });
       els.report = h('div', { id: 'media-report', className: 'media-viewer-wrap' });
       // The copyright form's dialog, and the page's foot with its button and the public log's link.
       els.takedown = h('div', { id: 'media-takedown', className: 'media-viewer-wrap' });
@@ -748,9 +775,27 @@
         h('a', { href: TD.LOG_PAGE, id: 'media-foot-takedown-log', text: TD.WORDS.logLink }),
       ] : []);
       els.tabs = h('div', { id: 'media-tabs-wrap' });
+      // The view switch, Panes or Gallery (the desktop's panes.rs draw_switch), at the end of the actions row.
+      els.viewSwitch = h('div', { id: 'media-view-switch', className: 'media-view-switch', attrs: { role: 'group', 'aria-label': MP ? MP.WORDS.viewLabel : 'View' } });
+      // The three panes (2026-10-19): the list on the left (the featured shelf, the filters and every
+      // item as a row, More and the page's foot: placeView puts them there), the item to fit in the
+      // middle and its details on the right (els.viewer, media-item.js).
+      els.listPane = h('div', { id: 'media-list-pane', className: 'media-pane media-list-pane', attrs: { role: 'region', 'aria-label': 'Every item' } });
+      // A long list loads on as its end comes near in the pane, as the page's sentinel does.
+      els.listPane.addEventListener('scroll', () => {
+        const p = els.listPane;
+        if (Number(p.scrollHeight) - Number(p.scrollTop) - Number(p.clientHeight) < 600) more();
+      });
+      // `measure`: the grid's size when the element cannot say (a stand-in document): the area's.
+      panes = MP && !framed ? MP.createPanes({
+        h, id: 'media-panes', count: 3, viewport, measure: viewport, win: env.window || null,
+        shares: (way) => st.layout[way], defaults: (way) => (way === 'across' ? MP.ACROSS : MP.DOWN),
+        setShares: (way, shares, settled) => { st.layout[way] = shares; if (settled) MP.saveLayout(env.storage, st.layout); },
+      }) : null;
+      if (panes) panes.el.append(els.listPane, panes.handle(0), els.viewer);
       // The Media tab, and the Admin tab (the admins' section, mounted in renderAdmin).
       els.main = h('div', { id: 'media-main' }, [els.members, els.actions, els.form, els.uploads, els.waiting, els.suggest,
-        els.featured, els.filters, els.catDesc, els.grid, els.more, els.sentinel, els.foot]);
+        els.featured, els.filters, els.catDesc, els.grid, els.more, els.sentinel, els.foot, panes ? panes.el : null]);
       els.admin = h('div', { id: 'media-admin-wrap', className: 'media-admin-wrap', hidden: true });
       if (windowMode) {
         // The upload window (/shared/upload-window.js): Add to Media and its uploads, under the
@@ -763,12 +808,21 @@
       if (itemMode) {
         // The item window: the item's own page (els.viewer) with its report and copyright dialogs,
         // under the sign-in line and the notices; nothing of the list, its tabs or Add to Media.
-        env.root.replaceChildren(els.status, els.notice, els.viewer, els.report, els.takedown);
+        // Since 2026-10-19 the item in two panes, as the desktop's window over the chat holds the
+        // middle and right panes: side by side, or one above the other in a tall window.
+        itemPanes = MP ? MP.createPanes({
+          h, id: 'media-item-panes', className: 'media-panes-window', count: 2, viewport, measure: viewport, win: env.window || null,
+          shares: (way) => st.windowSplit[way], defaults: () => MP.WINDOW_SPLIT,
+          setShares: (way, shares) => { st.windowSplit[way] = shares; },
+        }) : null;
+        if (itemPanes) itemPanes.el.appendChild(els.viewer);
+        env.root.replaceChildren(els.status, els.notice, itemPanes ? itemPanes.el : els.viewer, els.report, els.takedown, els.ask);
+        watchSize();
         return;
       }
       doc.title = mediaOn;
       env.root.replaceChildren(
-        h('div', { className: 'media-head' }, [
+        els.head = h('div', { className: 'media-head' }, [
           h('h1', { id: 'media-title', text: mediaOn }),
           h('p', { className: 'media-lede' }, [
             MEDIA_WORDS.lede + ' Files people share for download are in ',
@@ -776,13 +830,118 @@
             '.',
           ]),
         ]),
-        els.status, els.notice, els.tabs, els.main, els.admin, els.viewer, els.report, els.takedown, fileInput
+        ...[els.status, els.notice, els.tabs, els.main, els.admin, panes ? null : els.viewer, els.report, els.takedown, els.ask, fileInput].filter(Boolean)
       );
       const Watch = env.IntersectionObserver || null;
       if (Watch) {
         watcher = new Watch((seen) => { if (seen.some((e) => e.isIntersecting)) more(); }, { rootMargin: SENTINEL_MARGIN });
         watcher.observe(els.sentinel);
       }
+      watchSize();
+      placeView();
+    }
+
+    // ── The three panes (2026-10-19, /pages/media-panes.js) ──
+    let panes = null;      // the Media page's panes: the list, the item, its details
+    let itemPanes = null;  // the item window's: the item and its details
+    /** The area the panes share: the page's width, and the window's height (which way they go). */
+    function viewport() {
+      const win = env.window || null;
+      const w = Number(env.root && env.root.clientWidth) > 0 ? Number(env.root.clientWidth) : Number(win && win.innerWidth) || 1280;
+      const ht = Number(win && win.innerHeight) || 900;
+      return { width: w, height: ht };
+    }
+    /** A window resized (or a phone turned): which way the panes go is decided again. */
+    function resized() {
+      if (panes && st.placed === 'panes') panes.layout();
+      if (itemPanes) itemPanes.layout();
+    }
+    /** The page left while an edit holds changes: the browser asks first (its own words; a page cannot set them). */
+    function leaving(e) {
+      if (!itemView.unsaved()) return undefined;
+      if (e && typeof e.preventDefault === 'function') e.preventDefault();
+      if (e) e.returnValue = '';
+      return '';
+    }
+    let sizeWatched = false;
+    let above = null; // the ResizeObserver on what is above the panes
+    /** The panes as tall as the window has room for below them (media-panes.js fill), once laid out. */
+    function fillPanes() {
+      if (panes && st.placed === 'panes') panes.fill();
+      if (itemPanes) itemPanes.fill();
+    }
+    function watchSize() {
+      const win = env.window || null;
+      if (sizeWatched || !win || typeof win.addEventListener !== 'function') return;
+      sizeWatched = true;
+      win.addEventListener('resize', resized);
+      win.addEventListener('beforeunload', leaving);
+      // What is above the panes growing or shrinking (a form opening, a notice, an upload's row)
+      // moves their top: they are made as tall as the room left again.
+      const RO = win.ResizeObserver || null;
+      if (RO) {
+        above = new RO(() => fillPanes());
+        for (const el of [els.head, els.status, els.notice, els.tabs, els.members, els.actions, els.form, els.uploads, els.waiting, els.suggest]) {
+          if (el) { try { above.observe(el); } catch (e) { /* the panes keep their height */ } }
+        }
+      }
+    }
+    /** What the page shows now: the Gallery while it is chosen and no item is shown, else the panes. */
+    function viewNow() {
+      return st.layout.gallery && !st.viewer ? 'gallery' : 'panes';
+    }
+    /**
+     * Put the list's parts where the view wants them: in the left pane for the panes, on the page for
+     * the Gallery (as the page was). Drawn again as rows or as tiles. False when nothing moved.
+     */
+    function placeView() {
+      if (framed || !panes) return false;
+      const v = viewNow();
+      if (v === st.placed) return false;
+      st.placed = v;
+      const parts = [els.featured, els.filters, els.catDesc, els.grid, els.more, els.sentinel, els.foot];
+      if (v === 'panes') {
+        els.listPane.replaceChildren(...parts);
+      } else {
+        for (const p of parts) els.main.insertBefore(p, panes.el);
+      }
+      panes.el.hidden = v !== 'panes';
+      // The panes use the window's whole width; the Gallery keeps the page's own.
+      env.root.className = v === 'panes' ? 'media-root-panes' : '';
+      els.grid.className = v === 'panes' ? 'media-rows' : 'media-grid';
+      renderSwitch();
+      renderFeatured();
+      renderGrid();
+      panes.layout(); // and as tall as the room below their top (media-panes.js fill)
+      return true;
+    }
+    /** The view switch, Panes or Gallery; the one showing is pressed. */
+    function renderSwitch() {
+      if (!MP || framed) return;
+      const v = viewNow();
+      const button = (id, gallery, words, tip) => h('button', {
+        type: 'button', id, className: 'media-btn media-btn-small' + ((v === 'gallery') === gallery ? ' media-btn-primary' : ''),
+        text: words, title: tip, attrs: { 'aria-pressed': String((v === 'gallery') === gallery) },
+        on: { click: () => setView(gallery) },
+      });
+      els.viewSwitch.replaceChildren(
+        button('media-view-panes', false, MP.WORDS.panes, MP.WORDS.panesTip),
+        button('media-view-gallery', true, MP.WORDS.gallery, MP.WORDS.galleryTip),
+      );
+    }
+    /** Show the panes or the Gallery, and keep the choice. The Gallery shows no item: one shown closes (asked first when its Edit holds changes). */
+    function setView(gallery) {
+      st.layout.gallery = !!gallery;
+      if (MP) MP.saveLayout(env.storage, st.layout);
+      if (gallery && st.viewer) itemView.close();
+      if (!placeView()) renderSwitch();
+    }
+    /** The item shown changed: the list marks it (the rows drawn again only when the view changed too). */
+    function selected() {
+      if (placeView() || !MP) return;
+      const id = st.viewer ? st.viewer.id : null;
+      MP.markChosen(els.grid, id);
+      MP.markChosen(els.featured, id);
     }
 
     // ── Who the person is here ──
@@ -966,7 +1125,10 @@
     // ── Actions bar ──
     function renderActions() {
       els.actions.replaceChildren();
-      if (!myKey) return;
+      // The view switch, Panes or Gallery, for anyone (signed in or not), after the page's buttons
+      // (the desktop's heading row) and before the line under them.
+      const withSwitch = () => { if (!framed && MP) { renderSwitch(); els.actions.appendChild(els.viewSwitch); } };
+      if (!myKey) { withSwitch(); return; }
       if (st.membersView && canUpload()) {
         els.actions.appendChild(h('button', {
           type: 'button', id: 'media-add-btn', className: 'media-btn media-btn-primary', text: 'Add to Media',
@@ -979,6 +1141,7 @@
           on: { click: openSuggest },
         }));
       }
+      withSwitch();
       if (st.membersView && knownCannotUpload()) {
         els.actions.appendChild(h('p', { id: 'media-cannot-upload', className: 'media-hint media-actions-line', text: MEDIA_WORDS.cannotUpload }));
       }
@@ -1117,6 +1280,8 @@
     }
 
     // ── The item's own page (/pages/media-item.js): the viewer, its tickets and counted downloads ──
+    // What the item's page calls once Add to Media's part is made (its busy report, below).
+    const hooks = { busy: null };
     const itemView = MI.createItemView({
       // A members-only file's token: the page's own, else the one the chat lent the item window (fileToken).
       env, h, st, els, W: MEDIA_WORDS, myKey, mediaOn, token: fileToken, tokenRefused, isAdmin, membersOnlyServer, blobs, blobFor, sweepBlobs, pictureSource,
@@ -1137,6 +1302,14 @@
         return togetherStop(files, num(mine.used_bytes) + num(mine.in_progress_bytes), num(mine.share_bytes), budget) || '';
       },
       uploadsFor: (id) => st.uploads.filter((u) => u.attach && u.attach.id === id).map((u) => ({ heading: u.heading, words: u.up ? uploadWords(u.up) : u.error })),
+      // The panes (2026-10-19): the handle between the item and its details, the two panes' lines
+      // while nothing is chosen (the Media page's, not the item window's), the list marking the item
+      // shown, and the item window telling the chat whether its Edit holds changes (it keeps the
+      // window then, hidden, as it does while a file is uploading).
+      handle: () => (itemPanes ? itemPanes.handle(0) : panes ? panes.handle(1) : null),
+      placeholders: !framed,
+      selected: () => selected(),
+      editChanged: () => { if (hooks.busy) hooks.busy(); },
     });
 
     /** Where a picture is drawn from now: {src} or {why} (or {wait} while it loads). */
@@ -1261,6 +1434,17 @@
       ]);
     }
 
+    // ── Rows: the list pane's items (2026-10-19, the desktop's media/list.rs; media-panes.js listRow) ──
+    const rowCtx = {
+      h, st, MI, FR: FRK, keptBadge: MEDIA_WORDS.keptBadge,
+      lib: { kindWords, labelsOf, itemName, downloadName, sizeWords, num, isFeatured },
+      hiddenLine: (item) => itemView.hiddenLine(item), pictureSource: (pic) => pictureSource(pic), open: (item) => itemView.open(item),
+    };
+    /** One item as a row; pressed, it shows in the middle and on the right. */
+    const row = (item, where) => MP.listRow(rowCtx, item, where);
+    /** The list as rows (the panes) or as tiles (the Gallery). */
+    const panesShown = () => !!panes && st.placed === 'panes';
+
     function renderFeatured() {
       // The upload and item windows show no list (and so fetch none of its pictures).
       if (framed) return;
@@ -1269,7 +1453,9 @@
       // The main shelf, or the shelf of the category it was asked for (3.9: "Featured in Fire flow arts").
       const cat = st.shelfOf ? st.categories.find((c) => String(c.id) === String(st.shelfOf)) : null;
       els.featured.appendChild(h('h2', { id: 'media-featured-title', text: cat ? 'Featured in ' + cat.name : 'Featured' }));
-      els.featured.appendChild(h('div', { id: 'media-featured-row', className: 'media-featured-row' }, st.featured.map(tile)));
+      els.featured.appendChild(panesShown()
+        ? h('div', { id: 'media-featured-row', className: 'media-rows' }, st.featured.map((i) => row(i, 'featured')))
+        : h('div', { id: 'media-featured-row', className: 'media-featured-row' }, st.featured.map(tile)));
     }
 
     function renderGrid() {
@@ -1284,6 +1470,8 @@
           words = st.membersOnlyForYou ? MEDIA_WORDS.membersOnlyServer : filtered ? MEDIA_WORDS.emptyFiltered : MEDIA_WORDS.empty;
         }
         els.grid.appendChild(h('p', { className: 'media-empty', text: words }));
+      } else if (panesShown()) {
+        for (const item of st.items) els.grid.appendChild(row(item, 'list'));
       } else {
         for (const item of st.items) els.grid.appendChild(tile(item));
       }
@@ -1476,7 +1664,8 @@
         const words = await refusalWords(res);
         if (/not the Media item you were looking at/i.test(words)) {
           say(MEDIA_WORDS.reloaded, true);
-          if (st.viewer && st.viewer.id === item.id) itemView.close();
+          // Out of date: it closes whatever its Edit holds (Save would be refused the same way).
+          if (st.viewer && st.viewer.id === item.id) itemView.close(false, true);
           load(true);
           loadFeatured();
           return null;
@@ -1510,7 +1699,8 @@
       if (!a) return;
       st.items = st.items.filter((i) => i.id !== item.id);
       st.featured = st.featured.filter((i) => i.id !== item.id);
-      if (st.viewer && st.viewer.id === item.id) itemView.close();
+      // Removed: nothing is left for its Edit to save to.
+      if (st.viewer && st.viewer.id === item.id) itemView.close(false, true);
       say(removedWords(a));
       renderAll();
       loadMine();
@@ -1650,6 +1840,7 @@
     });
     const { openAddForm, openPutForm, openWaitingForm, closeForm, formKey, renderForm, renderPostRow, takePending, reportBusy,
       takeChannels, takeFiles, uploadWords, startAttach } = addForm;
+    hooks.busy = reportBusy;
 
     // ── Report a Media item (context `media`, evidence {kind: "media", id}; /shared/report.js) ──
     let reasonsCache = null;
@@ -2106,6 +2297,13 @@
     /** Revoke every object URL (the page is going away). */
     function dispose() {
       if (drops) { drops.detach(); drops = null; }
+      const win = env.window || null;
+      if (sizeWatched && win && typeof win.removeEventListener === 'function') {
+        win.removeEventListener('resize', resized);
+        win.removeEventListener('beforeunload', leaving);
+        sizeWatched = false;
+      }
+      if (above) { try { above.disconnect(); } catch (e) { /* already gone */ } above = null; }
       lent.token = ''; // the chat's token, kept for the frame's life only
       if (lent.retry != null) { cancelLater(lent.retry); lent.retry = null; }
       for (const id of Array.from(blobs.keys())) dropBlob(id);
@@ -2252,6 +2450,8 @@
     fileRoute, storedName, itemFileName, itemName, downloadName, labelsOf, listParams, publicListUrl, purposes, jsonPost, isFeatured, itemIdOf, DEFAULT_LICENCE,
     refusalOf, refusalWords, answerOf, makeH, isAdminRole, isStaffRole, rememberUpload, findUpload, forgetUpload,
     createUploader, fingerprint, createMediaPage, signerFor,
+    // Where the view and the panes' split are kept in this browser (/pages/media-panes.js).
+    LAYOUT_KEY: MP ? MP.LAYOUT_KEY : 'humanity_media_layout',
     POST_WORDS, STAR, POST_FAVORITES_KEY, CHAT_CHANNEL_KEY, POST_GRACE_MS, postFavoriteKey, postFavorites, togglePostFavorite,
     postChoices, postText, postedIn, notPostedIn,
   };

@@ -39,6 +39,31 @@
 // member's view counts). An item that changed (an edit, a file added or taken
 // off) is changed wherever the page shows it (`takeItem`).
 //
+// IN TWO PANES SINCE 2026-10-19 (the desktop's three panes, src/gui/pages/
+// media/panes.rs, viewer.rs and item_view.rs draw_details; docs/design/
+// media-showcase.md "The three panes"). It is no longer a window over the page:
+// the item is drawn into the Media page's middle and right panes, beside the
+// list (/pages/media-panes.js), and in the item window over the chat into the
+// same two panes, side by side or one above the other:
+// - THE MIDDLE PANE (#media-face) shows the item to fit: a picture as large as
+//   fits (with View full size), a video in the browser's player, a sound with
+//   Play here and then its waveform (/pages/media-sound.js: nothing is fetched
+//   before the press), a model's cover with View in 3D (the model fetched only
+//   when pressed) and Download, any other file as its type, name, size, word of
+//   caution and Download;
+// - THE RIGHT PANE (#media-details) holds everything about it, as above.
+// EDIT IS IN PLACE (the operator, 2026-10-19: "When clicking edit, instead of
+// popping up another window, just change the details panel on the right to
+// accept edits. Once done clicking save undoes the GUI changes for edit mode.
+// ... when we switch to edit mode, add the RGB boxed areas so edit mode stands
+// out."): Edit turns the right pane into the form (media-edit.js), in its three
+// tinted parts, the pane edged in the nav bar's moving colours, Save and Cancel
+// always in view at its foot; Save sends it and the pane is the details again.
+// Cancel with changes asks first ("Discard the changes" or "Keep editing"), and
+// so does anything that would leave the form: another item pressed, Close,
+// Escape, Back or Forward, the Gallery; the browser asks itself before the page
+// is left (media-app.js beforeunload).
+//
 // The page is drawn in two parts: the face (the picture or a playing video) is
 // drawn again only when what it shows changes, so a video keeps playing
 // through a sign-in, a reload or an edit; the rest (`renderInfo`) is drawn
@@ -61,6 +86,9 @@
   // What kind of file each one is, when that deserves a word (/shared/file-risk.js, loaded before
   // this file, 2026-10-17): a program, a script, an archive, a Blender file. Without it, no line.
   const FR = typeof module === 'object' && module && module.exports ? require('../shared/file-risk.js') : root.HosFileRisk;
+  // A sound's view in the middle pane (/pages/media-sound.js), and the panes' words (/pages/media-panes.js).
+  const MS = typeof module === 'object' && module && module.exports ? require('./media-sound.js') : root.MediaSound;
+  const MP = typeof module === 'object' && module && module.exports ? require('./media-panes.js') : root.MediaPanes;
 
   // What an item hidden by the protected setup for its content label says (the desktop's
   // tiles.rs LABEL_HIDDEN_LINE). The pictures rule's own line is the preset's
@@ -110,7 +138,33 @@
     takedown: 'Report a copyright problem',
     takedownTip: 'Is this your work, put here without your permission? Tell the admins.',
     saved: 'Saved.',
+    // The two panes (2026-10-19; the desktop's viewer.rs VIEW_FULL, item_view.rs DISCARD_TITLE,
+    // DISCARD_THEM, KEEP_EDITING and discard_words).
+    close: 'Close',
+    closeTip: 'Close this item.',
+    viewFull: 'View full size',
+    viewFullTip: 'Open it at its own size, in a new tab.',
+    discardTitle: 'Unsaved changes',
+    discardThem: 'Discard the changes',
+    keepEditing: 'Keep editing',
+    faceLabel: 'The item',
+    detailsLabel: 'Its details',
   });
+
+  /** The question when an edit with changes would be left (the desktop's discard_words). */
+  function discardWords(title) {
+    return 'Your changes to "' + title + '" are not saved.';
+  }
+
+  /** "On Media since 9 October 2025" (UTC), from the server's time in milliseconds; '' when it gave none (the desktop's since_line). */
+  const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  function sinceLine(item) {
+    const ms = Number(item && item.published_at) > 0 ? Number(item.published_at) : Number(item && item.uploaded_at) || 0;
+    if (!(ms > 0)) return '';
+    const d = new Date(ms);
+    if (Number.isNaN(d.getTime())) return '';
+    return 'On Media since ' + d.getUTCDate() + ' ' + MONTHS[d.getUTCMonth()] + ' ' + d.getUTCFullYear();
+  }
 
   // ── What the item's page and its card say (the desktop's words) ──
 
@@ -179,6 +233,11 @@
    * back(), rerender() (the grid and the shelf), actions(item) (a tile's actions, for this page),
    * attach(file, item, as) and uploadsFor(id) (media-app.js's resumable upload, attaching), and
    * closed() (called once an open item is closed: the item window over the chat closes with it), or null.
+   * Since the panes (2026-10-19): handle() (the handle between the middle and right panes, from
+   * media-panes.js), placeholders (draw the two panes' lines while nothing is chosen: the Media page,
+   * not the item window), selected() (the item shown changed: the list marks it) and editChanged()
+   * (the Edit form opened, closed or was typed in: the item window tells the chat), each optional;
+   * els.ask, where the question before letting changes go is drawn.
    */
   /**
    * A file's name as it is shown (2026-10-17): /shared/file-risk.js plainName, its direction marks
@@ -197,7 +256,9 @@
     const asking = new Set(); // "<id>:<file>" while a Download's ticket is on its way
     const downloadErrors = new Map(); // "<id>:<file>" -> the words of a Download that could not start
     // `model`: the open 3D view, {itemId, file, box, handle}, drawn in place of the cover.
-    const page = { status: '', copied: '', edit: null, editBox: null, infoBox: null, model: null };
+    // `sound`: a sound's view in the middle pane, {itemId, view} (media-sound.js).
+    // `asking`: the question before an edit's changes are let go, {then, keep}, while it is open.
+    const page = { status: '', copied: '', edit: null, editBox: null, infoBox: null, model: null, sound: null, asking: null, facePane: null, detailsPane: null };
     // What opens the 3D view: the page's own stand-in when it hands one in (the tests, which have no
     // WebGL), else /shared/model-view.js. Its words and limits are always that file's.
     const viewer = () => env.modelView || MV || null;
@@ -211,18 +272,23 @@
      */
     function riskOf(name) {
       if (!FR || typeof FR.assess !== 'function') return null;
-      if (!FR.ready()) {
-        if (!riskAsked) {
-          riskAsked = true;
-          // The rows drawn again once it is in: each line, and each file's badge (its type, which
-          // was a plain grey "File" until then), on this page and in an open Edit form.
-          Promise.resolve(FR.load(env.fetch))
-            .then(() => { if (FR.ready()) { renderInfo(); if (page.edit) page.edit.drawFiles(); } })
-            .catch(() => { /* no list: no line */ });
-        }
-        return null;
-      }
+      if (!typesReady()) return null;
       return FR.assess(name, null);
+    }
+    /** Is the list of kinds in? Asked for once, the first time it is wanted before it is. */
+    function typesReady() {
+      if (!FR || typeof FR.ready !== 'function') return false;
+      if (FR.ready()) return true;
+      if (!riskAsked && typeof FR.load === 'function') {
+        riskAsked = true;
+        // The rows drawn again once it is in: each line, and each file's badge (its type, which
+        // was a plain grey "File" until then), on this page and in an open Edit form; and the
+        // middle pane, which shows a sound by its type (its waveform, 2026-10-19).
+        Promise.resolve(FR.load(env.fetch))
+          .then(() => { if (FR.ready()) { renderIfChanged(); renderInfo(); c.rerender(); if (page.edit) page.edit.drawFiles(); } })
+          .catch(() => { /* no list: no line */ });
+      }
+      return false;
     }
 
     // ── The protected setup (protected.js): what it leaves out of this page ──
@@ -461,12 +527,12 @@
       return '';
     }
     /**
-     * File `f`'s bytes for the viewer, from the file's own address: a public file's /uploads/ one
-     * as it is, a members-only one from the members' file route with this session's token in its
-     * header (exactly as a members-only picture is fetched, `fetchBlob` in media-app.js). Never the
-     * counting route: looking at a model is not a download.
+     * File `f`'s answer from the file's own address: a public file's /uploads/ one as it is, a
+     * members-only one from the members' file route with this session's token in its header
+     * (exactly as a members-only picture is fetched, `fetchBlob` in media-app.js). Never the
+     * counting route: looking at a model, or listening to a sound here, is not a download.
      */
-    async function modelBytes(f, signal) {
+    async function ownFileAnswer(f, signal) {
       const route = lib.fileRoute(f, env.origin);
       if (route.why) throw new Error(route.why);
       const once = async (t) => {
@@ -491,8 +557,20 @@
           res = await once(next);
         }
       }
-      // At most 200 MB, refused while reading too (the page's size could be out of date).
-      return MV.readBody(res);
+      return res;
+    }
+    /** File `f`'s bytes for the 3D viewer: at most 200 MB, refused while reading too (the page's size could be out of date). */
+    async function modelBytes(f, signal) {
+      return MV.readBody(await ownFileAnswer(f, signal));
+    }
+    /** A sound's bytes for its view in the middle pane (media-sound.js), as a Blob: its own address, as a model's. */
+    async function soundBlob(f, signal) {
+      const res = await ownFileAnswer(f, signal);
+      let declared = NaN;
+      try { if (res.headers && typeof res.headers.get === 'function') declared = Number(res.headers.get('content-length')); } catch (e) { declared = NaN; }
+      // Larger than the view plays: its size alone, which the view refuses in its own words, unread.
+      if (MS && Number.isFinite(declared) && declared > MS.MAX_SOUND_BYTES) return { size: declared };
+      return res.blob();
     }
     /** Open the 3D view of file `f` (whose model name is `as`) in place of the cover. */
     function openModel(item, f, as) {
@@ -503,9 +581,10 @@
       closeModel(true);
       const name = shownName(item, f);
       const host = h('div', { id: 'media-model-view', className: 'media-model-view' });
+      // In the middle pane, as wide as it is (2026-10-19; it was a window's width).
       const box = h('div', {
         id: 'media-model', className: 'media-viewer-model', dataset: { modelFile: f.file },
-        attrs: { style: 'clear:both;width:min(920px, calc(100vw - 6rem));max-width:100%;margin:0 auto var(--space-md)' },
+        attrs: { style: 'width:100%;max-width:100%;margin:0 auto' },
       }, [
         h('div', { className: 'media-model-head', attrs: { style: 'display:flex;flex-wrap:wrap;gap:var(--space-sm);align-items:center;justify-content:space-between;margin-bottom:var(--space-sm)' } }, [
           h('span', { className: 'media-viewer-name', text: name }),
@@ -559,8 +638,26 @@
     }
 
     // ── Opening and closing ──
+    /** Does the Edit form hold changes Save would send, or a file's new name typed and not saved? */
+    function unsaved() {
+      return !!(page.edit && typeof page.edit.changed === 'function' && page.edit.changed());
+    }
+    /**
+     * Back or Forward took the open item's address away while its Edit held changes, and the person
+     * chose to keep them: its address put back, as a new step (so closing it later goes Back there).
+     */
+    function addressBack() {
+      if (!st.viewer || !c.canPush) return;
+      c.go('/media/' + st.viewer.id, true);
+      st.pushed = true;
+    }
     /** Open an item. `fromAddress`: the address names it already (a load of /media/<id>, Back, Forward). */
     function open(item, fromAddress) {
+      // Another item while the Edit form holds changes: asked first (the desktop's Discard::Open).
+      if (item && st.viewer && st.viewer.id !== item.id && unsaved()) {
+        ask(() => open(item, fromAddress), fromAddress === true ? addressBack : null);
+        return;
+      }
       // A ticket refused earlier is asked for afresh when the item is opened again.
       const was = item && tickets.get(item.id);
       if (was && was.state === 'error') tickets.delete(item.id);
@@ -570,13 +667,21 @@
         if (!st.viewer) st.pushed = !!c.canPush;
         c.go('/media/' + item.id, !st.viewer);
       }
-      if (another) { page.status = ''; page.copied = ''; closeEdit(true); closeModel(true); }
+      if (another) { page.status = ''; page.copied = ''; closeEdit(true); closeModel(true); closeSound(); }
       st.viewer = item;
       if (item && another) countView(item);
       renderIfChanged();
+      if (typeof c.selected === 'function') c.selected();
     }
-    /** Close the item. Its address goes too: Back when it was pushed here, else replaced by /media. */
-    function close(fromAddress) {
+    /**
+     * Close the item. Its address goes too: Back when it was pushed here, else replaced by /media.
+     * With the Edit form holding changes it asks first, unless `force` (the item was removed).
+     */
+    function close(fromAddress, force) {
+      if (!force && st.viewer && unsaved()) {
+        ask(() => close(fromAddress, true), fromAddress === true ? addressBack : null);
+        return;
+      }
       const was = !!st.viewer;
       if (st.viewer && fromAddress !== true) {
         if (st.pushed) { st.pushed = false; c.back(); } else c.go('/media', false);
@@ -584,18 +689,74 @@
       st.viewer = null;
       closeEdit(true);
       closeModel(true);
+      closeSound();
       renderIfChanged();
       c.sweepBlobs();
+      if (typeof c.selected === 'function') c.selected();
       if (was && typeof c.closed === 'function') c.closed();
     }
+
+    // ── The question before an edit's changes are let go (the desktop's Discard) ──
+    /** Ask before letting the Edit form's changes go: `then` once they are discarded, `keep` (optional) once kept. */
+    function ask(then, keep) {
+      page.asking = { then, keep: keep || null };
+      renderAsk();
+    }
+    /** The person's answer: discard the changes (true), or keep editing (false). */
+    function answer(discard) {
+      const a = page.asking;
+      if (!a) return;
+      page.asking = null;
+      renderAsk();
+      if (discard) {
+        closeEdit();
+        if (typeof a.then === 'function') a.then();
+      } else if (typeof a.keep === 'function') a.keep();
+    }
+    function renderAsk() {
+      const box = els.ask;
+      if (!box) return;
+      box.replaceChildren();
+      if (!page.asking) return;
+      const now = st.viewer ? current(st.viewer.id) || st.viewer : null;
+      const title = now ? lib.itemName(now, st.kinds) : '';
+      const keep = h('button', { type: 'button', id: 'media-discard-keep', className: 'media-btn', text: WORDS.keepEditing, on: { click: () => answer(false) } });
+      const overlay = h('div', {
+        id: 'media-discard', className: 'media-viewer',
+        attrs: { role: 'alertdialog', 'aria-modal': 'true', 'aria-labelledby': 'media-discard-title', 'aria-describedby': 'media-discard-words' },
+      }, [
+        h('div', { className: 'media-viewer-box media-ask-box' }, [
+          h('h2', { id: 'media-discard-title', className: 'media-ask-title', text: WORDS.discardTitle }),
+          h('p', { id: 'media-discard-words', className: 'media-ask-words', text: discardWords(title) }),
+          h('div', { className: 'media-form-buttons' }, [
+            h('button', { type: 'button', id: 'media-discard-yes', className: 'media-btn media-btn-danger', text: WORDS.discardThem, on: { click: () => answer(true) } }),
+            keep,
+          ]),
+        ]),
+      ]);
+      // A click beside it keeps editing, as Escape does (media-app.js): nothing is lost by a slip.
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) answer(false); });
+      box.appendChild(overlay);
+      try { keep.focus(); } catch (e) { /* it can still be clicked */ }
+    }
+
     /** A labelled item not yet clicked: its label instead of its file, nothing fetched. */
     function veiled(item) {
       return lib.labelsOf(item, st.labels).length > 0 && !st.revealed.has(item.id);
     }
+    /**
+     * Is the item a sound or a song: its own file's type, by the file-type list
+     * (data/safety/file_risks.json names the endings; the desktop's viewer.rs is_sound)? The list is
+     * asked for the first time it is needed; until it is in, no.
+     */
+    function isSound(item) {
+      if (!MS || !typesReady()) return false;
+      return FR.fileType(shownName(item, filesOf(item)[0]), null).id === 'sound';
+    }
     /** What the face shows, as a key: the item, whether it is veiled, and where a members-only file's loading is. */
     function key() {
       const item = st.viewer;
-      if (!item) return '';
+      if (!item) return 'none';
       const route = lib.fileRoute(item, env.origin);
       let file = route.why ? 'missing' : route.public || '';
       if (route.members) {
@@ -613,7 +774,8 @@
       const model = page.model && page.model.itemId === item.id ? 'model:' + page.model.file : '';
       // Left out by the protected setup, and with which line.
       const hid = hiddenLine(item);
-      return [item.id, lib.itemFileName(item), veiled(item) ? 'veiled' : 'shown', file, coverAt, model, hid === null ? '' : 'hidden:' + hid].join('|');
+      // A sound (by its type, once the list is in) shows its waveform's view.
+      return [item.id, lib.itemFileName(item), veiled(item) ? 'veiled' : 'shown', file, coverAt, model, hid === null ? '' : 'hidden:' + hid, isSound(item) ? 'sound' : ''].join('|');
     }
     function renderIfChanged() {
       closeIfHidden();
@@ -624,28 +786,56 @@
       st.viewerKey = key();
     }
 
-    /** The picture, the video, or (for a file or a model) its cover, else its name and size. */
-    function face(item) {
-      // The 3D view, when one is open: the same element each time, so the model drawn in it (and
-      // its WebGL context) stays while the rest of the page is drawn again around it.
+    // ── The middle pane: the item to fit (the desktop's viewer.rs) ──
+    /** A sound's view for `item` (media-sound.js): the same one while it is shown, so it plays on through a redraw. */
+    function soundFor(item) {
+      if (page.sound && page.sound.itemId === item.id) return page.sound.view;
+      closeSound();
+      const own = filesOf(item)[0];
+      const view = MS.createSoundView({
+        h, doc: env.document, win: env.window || null, URL: env.URL || (typeof URL !== 'undefined' ? URL : null),
+        name: shownName(item, own), size: Number(own.size_bytes) || Number(item.size_bytes) || 0, sizeWords: lib.sizeWords,
+        fetchSound: (signal) => soundBlob(own, signal),
+        decode: typeof env.decodeAudio === 'function' ? env.decodeAudio : undefined,
+        AudioContext: env.AudioContext, Abort: env.AbortController,
+      });
+      page.sound = { itemId: item.id, view };
+      return view;
+    }
+    /** Stop the sound shown and let it go (its fetch, its sound, its address). */
+    function closeSound() {
+      const s = page.sound;
+      if (!s) return;
+      page.sound = null;
+      try { s.view.close(); } catch (e) { /* already closed */ }
+    }
+
+    /**
+     * The middle pane's parts: the picture or the video to fit; a sound's cover and its waveform's
+     * view; a model's or another file's cover (or its type), its name and size, its word of caution,
+     * View in 3D and Download; the 3D view in the cover's place while it is open.
+     */
+    function faceParts(item) {
       // Left out by the protected setup: its line instead, and nothing fetched (the desktop's
       // Show::Hidden). Checked before the 3D view, which a hidden item never shows.
       const hid = hiddenLine(item);
-      if (hid !== null) return h('p', { className: 'media-hint media-viewer-hidden', id: 'media-viewer-hidden', text: hid, attrs: { style: 'clear:both' } });
-      if (page.model && page.model.itemId === item.id) return page.model.box;
+      if (hid !== null) return [h('p', { className: 'media-hint media-viewer-hidden', id: 'media-viewer-hidden', text: hid })];
+      // The 3D view, when one is open: the same element each time, so the model drawn in it (and
+      // its WebGL context) stays while the rest of the page is drawn again around it.
+      if (page.model && page.model.itemId === item.id) return [page.model.box];
       const name = lib.itemName(item, st.kinds);
       const route = lib.fileRoute(item, env.origin);
-      if (route.why) return h('p', { className: 'media-warn', text: route.why });
+      if (route.why) return [h('p', { className: 'media-warn', text: route.why })];
       if (veiled(item)) {
         // The label cover, as on its tile (/media/<n> opens the page directly): nothing is fetched
         // until it is clicked.
-        return h('button', {
+        return [h('button', {
           type: 'button', id: 'media-viewer-veil', className: 'media-thumb media-veil media-viewer-veil', dataset: { veil: item.id },
           on: { click: () => { st.revealed.add(item.id); renderIfChanged(); renderInfo(); c.rerender(); } },
         }, [
           h('span', { className: 'media-veil-labels', text: lib.labelsOf(item, st.labels).map((l) => l.label).join(', ') }),
           h('span', { className: 'media-veil-show', text: W.clickToShow }),
-        ]);
+        ])];
       }
       if (item.kind === 'picture' || item.kind === 'video') {
         let src = route.public || '';
@@ -657,44 +847,118 @@
           if (e && e.state === 'ready') { src = e.url; ticketed = item.kind === 'video'; } else if (e && e.state === 'error') why = e.why;
           else why = c.token() ? W.loadingFile + ' ' + lib.sizeWords(item.size_bytes) : W.waitingToken;
         }
-        if (!src) return h('p', { className: 'media-viewer-wait', id: 'media-viewer-wait', text: why });
-        if (item.kind === 'picture') return h('img', { className: 'media-viewer-img', src, alt: name });
+        if (!src) return [h('p', { className: 'media-viewer-wait', id: 'media-viewer-wait', text: why })];
+        if (item.kind === 'picture') {
+          // As large as fits, its whole self; View full size opens it at its own size.
+          return [
+            h('img', { className: 'media-viewer-img media-face-fit', src, alt: name }),
+            h('div', { className: 'media-face-buttons' }, [h('a', {
+              href: src, target: '_blank', rel: 'noopener', id: 'media-view-full', className: 'media-btn media-btn-small',
+              text: WORDS.viewFull, title: WORDS.viewFullTip,
+            })]),
+          ];
+        }
         // A public cover is the video's poster.
         const cover = coverOf(item);
         const poster = cover && lib.fileRoute(cover, env.origin).public;
-        const video = h('video', { className: 'media-viewer-video', src, controls: true, preload: 'metadata', poster: poster || undefined });
+        const video = h('video', { className: 'media-viewer-video media-face-fit', src, controls: true, preload: 'metadata', poster: poster || undefined });
         if (ticketed) video.addEventListener('error', () => renewTicket(item, video));
-        return video;
+        return [video];
       }
       const cover = coverOf(item);
       const where = cover ? c.pictureSource(cover) : null;
-      return h('div', { className: 'media-viewer-file' }, [
-        where && where.src ? h('img', { className: 'media-viewer-img', src: where.src, alt: name }) : null,
-        h('div', { className: 'media-viewer-name', text: name }),
-        h('div', { className: 'media-viewer-size', text: lib.sizeWords(item.size_bytes) }),
-      ]);
+      const coverImg = where && where.src ? h('img', { className: 'media-viewer-img media-face-fit', src: where.src, alt: name }) : null;
+      // A sound or a song: its cover above, then Play here (and, once pressed, its waveform).
+      if (isSound(item)) {
+        if (coverImg) coverImg.className = 'media-viewer-img media-face-cover';
+        return [coverImg, soundFor(item).el].filter(Boolean);
+      }
+      // A model or any other file: its cover (or its type, large), what it is, its name and size, its
+      // word of caution, then View in 3D (a model the viewer opens) and Download.
+      const own = filesOf(item)[0];
+      const ownName = shownName(item, own);
+      const typed = FR && typeof FR.fileType === 'function' && typesReady() ? FR.fileType(ownName, null) : null;
+      const kind = item.kind === 'file' ? (typed ? typed.label : 'File') : lib.kindWords(item.kind, st.kinds).one;
+      const ownAt = lib.fileRoute(own, env.origin);
+      const as = modelName(own);
+      const risk = riskOf(ownName);
+      const buttons = [];
+      if (as && !ownAt.why) {
+        buttons.push(h('button', {
+          type: 'button', id: 'media-face-view3d', className: 'media-btn media-btn-primary',
+          title: MV.fill(MV.WORDS.viewTip, { size: lib.sizeWords(own.size_bytes) }), text: MV.WORDS.view,
+          disabled: !!ownAt.members && !c.token(), on: { click: () => openModel(item, own, as) },
+        }));
+      }
+      buttons.push(h('button', {
+        type: 'button', id: 'media-face-download', className: 'media-btn', title: WORDS.downloadTip, text: WORDS.download,
+        disabled: !!route.members && !c.token(), on: { click: () => download(item, own) },
+      }));
+      return [h('div', { className: 'media-viewer-file media-face-file' }, [
+        coverImg || h('div', { className: 'media-face-mark' }, [ED.fileBadge(h, env.document, ownName)]),
+        h('div', { className: 'media-face-kind', text: kind }),
+        h('div', { className: 'media-viewer-name', text: ownName + ', ' + lib.sizeWords(own.size_bytes || item.size_bytes) }),
+        risk ? h('p', { className: 'file-caution' + (risk.disguised ? ' disguised' : ''), id: 'media-face-caution', text: risk.words }) : null,
+        h('div', { className: 'media-form-buttons media-face-buttons' }, buttons),
+      ])];
+    }
+
+    /** The handle between the two panes, from the page's panes (none without them). */
+    function handle() {
+      return typeof c.handle === 'function' ? c.handle() : null;
+    }
+
+    /** Edit mode drawn on the right pane: the details hidden, the form shown, the pane's moving border. */
+    function editMode() {
+      const editing = !!page.edit;
+      if (page.infoBox) page.infoBox.hidden = editing;
+      const pane = page.detailsPane;
+      if (pane) {
+        pane.className = 'media-pane media-details-pane' + (editing ? ' media-pane-editing' : '');
+        if (editing) pane.dataset.editing = '1'; else delete pane.dataset.editing;
+      }
+      if (typeof c.editChanged === 'function') c.editChanged();
     }
 
     function render() {
       els.viewer.replaceChildren();
       page.infoBox = null;
+      page.facePane = null;
+      page.detailsPane = null;
       // The tab's title as the relay writes it for the item's page: "Dusk, Media on <host>".
       env.document.title = (st.viewer ? lib.itemName(st.viewer, st.kinds) + ', ' : '') + c.mediaOn;
       const item = st.viewer;
-      if (!item) return;
-      const name = lib.itemName(item, st.kinds);
+      if (!item) {
+        // Nothing chosen: the two panes say what they will hold (the Media page's; the item window
+        // shows nothing then, and closes).
+        if (c.placeholders) {
+          els.viewer.append(...[
+            h('div', { id: 'media-choose', className: 'media-pane media-face-pane media-pane-empty', attrs: { role: 'region', 'aria-label': WORDS.faceLabel } }, [
+              h('p', { className: 'media-hint media-pane-line', text: MP ? MP.WORDS.choose : '' }),
+            ]),
+            handle(),
+            h('div', { id: 'media-details-empty', className: 'media-pane media-details-pane media-pane-empty', attrs: { role: 'region', 'aria-label': WORDS.detailsLabel } }, [
+              h('p', { className: 'media-hint media-pane-line', text: MP ? MP.WORDS.details : '' }),
+            ]),
+          ].filter(Boolean));
+        }
+        return;
+      }
       page.infoBox = h('div', { id: 'media-item-info', className: 'media-item-info' });
       page.editBox = page.editBox || h('div', { id: 'media-item-edit', className: 'media-item-edit' });
-      const overlay = h('div', { id: 'media-viewer-open', className: 'media-viewer', attrs: { role: 'dialog', 'aria-label': name } }, [
-        h('div', { className: 'media-viewer-box' }, [
-          h('button', { type: 'button', id: 'media-viewer-close', className: 'media-btn media-viewer-close', text: 'Close', on: { click: () => close() } }),
-          face(item),
-          page.infoBox,
-          page.editBox,
+      // The middle pane: the item to fit.
+      page.facePane = h('div', { id: 'media-face', className: 'media-pane media-face-pane', attrs: { role: 'region', 'aria-label': WORDS.faceLabel } }, faceParts(item));
+      // The right pane: Close, then everything about it, or its Edit form in its place.
+      page.detailsPane = h('div', { id: 'media-details', className: 'media-pane media-details-pane', attrs: { role: 'region', 'aria-label': WORDS.detailsLabel } }, [
+        h('div', { className: 'media-details-head' }, [
+          h('button', { type: 'button', id: 'media-viewer-close', className: 'media-btn media-btn-small media-viewer-close', text: WORDS.close, title: WORDS.closeTip, on: { click: () => close() } }),
         ]),
+        page.infoBox,
+        page.editBox,
       ]);
-      overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
-      els.viewer.appendChild(overlay);
+      els.viewer.appendChild(h('div', { id: 'media-viewer-open', className: 'media-item-panes', dataset: { item: item.id } },
+        [page.facePane, handle(), page.detailsPane].filter(Boolean)));
+      editMode();
       renderInfo();
     }
 
@@ -718,6 +982,8 @@
         h('p', { className: 'media-viewer-meta', id: 'media-item-by', text: byLine(item) }),
         badges.length ? h('div', { className: 'media-badges' }, badges) : null,
         h('p', { className: 'media-viewer-meta', id: 'media-item-counts', text: countsLine(item) }),
+        // The day it was put on the page (the desktop's since_line), when the server said.
+        sinceLine(item) ? h('p', { className: 'media-viewer-meta', id: 'media-item-since', text: sinceLine(item) }) : null,
         // The whole description, as plain text: its own line breaks are kept (white-space: pre-wrap).
         item.description && item.description.trim() ? h('p', { className: 'media-viewer-desc', id: 'media-item-description', text: item.description.trim() }) : null,
       ];
@@ -809,16 +1075,35 @@
       renderInfo();
     }
 
-    // ── Edit (media-edit.js) ──
+    // ── Edit (media-edit.js), in place of the details (2026-10-19) ──
+    /** Turn the right pane into `item`'s Edit form (the item shown first when another, or none, is). */
     function openEdit(item) {
       if (!st.viewer || st.viewer.id !== item.id) open(item);
+      // Another item's Edit holds changes: asked about first, and this one is shown once answered.
+      if (!st.viewer || st.viewer.id !== item.id) return;
       if (!page.editBox || !mayEdit(item)) return;
+      // Already editing it: the form stays as it is, with what was typed (the desktop's open_edit).
+      if (page.edit) return;
+      page.status = '';
       page.edit = ED.createEditForm(c, view, current(item.id) || item, page.editBox);
+      editMode();
     }
+    /** The pane is the item's details again (after Save, or the changes let go). */
     function closeEdit(quiet) {
+      const was = !!page.edit;
       page.edit = null;
       if (page.editBox) page.editBox.replaceChildren();
+      if (was) editMode();
       if (!quiet) renderInfo();
+    }
+    /** Cancel: straight back with nothing changed; with changes, asked first. */
+    function cancelEdit() {
+      if (unsaved()) ask(null, null);
+      else closeEdit();
+    }
+    /** The form was typed in (media-edit.js): the item window tells the chat whether it holds changes. */
+    function edited() {
+      if (typeof c.editChanged === 'function') c.editChanged();
     }
     function say(words) {
       page.status = words || '';
@@ -830,13 +1115,15 @@
     }
 
     const view = {
-      open, close, renderIfChanged, renderInfo, takeItem, mayEdit, own, openEdit, closeEdit, say, send, current,
+      open, close, renderIfChanged, renderInfo, takeItem, mayEdit, own, openEdit, closeEdit, cancelEdit, edited, unsaved, say, send, current,
       fileName, shownName, filesOf, uploadsChanged, tickets, page, hiddenLine, protectionChanged,
+      // The question before changes are let go: open now, and its answer (Escape keeps editing).
+      asking: () => !!page.asking, answer,
     };
     return view;
   }
 
-  const api = { WORDS, LABEL_HIDDEN_LINE, hiddenBy, CARD_LINE_MAX, countsLine, byLine, plainName, firstLine, filesBadge, itemLink, downloadPath, filesOf, coverOf, createItemView };
+  const api = { WORDS, LABEL_HIDDEN_LINE, hiddenBy, CARD_LINE_MAX, countsLine, byLine, plainName, firstLine, filesBadge, itemLink, downloadPath, filesOf, coverOf, createItemView, discardWords, sinceLine };
   if (typeof module === 'object' && module && module.exports) module.exports = api;
   else root.MediaItem = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

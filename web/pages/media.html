@@ -12,7 +12,7 @@
   <!-- The Media page (docs/design/media-showcase.md, "Increment 2, exact"). Everything
        inside #media-root is built by /pages/media-app.js with createElement and
        textContent; its styles are /shared/media.css, theme tokens only. -->
-  <link rel="stylesheet" href="/shared/media.css?v=9">
+  <link rel="stylesheet" href="/shared/media.css?v=10">
   <!-- Each file's type, always shown just before its name (2026-10-17), and the tinted parts of
        Add to Media and an item's Edit, in the chat sidebar's colours, darker. -->
   <link rel="stylesheet" href="/shared/file-badge.css?v=1">
@@ -38,8 +38,8 @@
     body { background: var(--bg); color: var(--text); line-height: var(--line-height); min-height: 100vh; padding-bottom: 60px; }
     [data-media-window] body { min-height: 0; padding: 0; }
     [data-media-window] body > :not(#media-root):not(.hos-drop-overlay):not(.hold-confirm-overlay):not(#hos-rich-tooltip) { display: none !important; }
-    [data-media-window] #media-viewer .media-viewer { position: static; padding: 0; background: transparent; display: block; }
-    [data-media-window] #media-viewer .media-viewer-box { border: 0; border-radius: 0; max-width: none; }
+    /* The item window: the item and its details in two panes filling the frame (media.css .media-panes-window). */
+    [data-media-window] #media-root { padding: var(--space-sm); max-width: none; }
   </style>
 </head>
 <body>
@@ -85,7 +85,7 @@
      /data/safety/file_risks.json, the list the desktop app reads too; before media-edit.js, which draws
      the badges for media-item.js and media-app.js. -->
 <script src="/shared/file-risk.js?v=2"></script>
-<script src="/pages/media-edit.js?v=4"></script>
+<script src="/pages/media-edit.js?v=5"></script>
 <!-- "Report a copyright problem" (2026-10-13): the form anyone may send, signed in or not, and the
      admins' view of the reports; before media-item.js and media-app.js, which use it. -->
 <script src="/pages/media-takedown.js?v=1"></script>
@@ -96,7 +96,12 @@
      pictures and files where its pictures rule is on, a labelled item); reach.js before protected.js. -->
 <script src="/shared/reach.js?v=4"></script>
 <script src="/shared/protected.js?v=4"></script>
-<script src="/pages/media-item.js?v=7"></script>
+<!-- The three panes (2026-10-19, the desktop's media/panes.rs): which way they go, their split kept in
+     this browser, and the handles between them; and a sound's view in the middle pane (Play here, then
+     its waveform drawn from the decoded file, the spectrum while it plays). Before media-item.js. -->
+<script src="/pages/media-panes.js?v=1"></script>
+<script src="/pages/media-sound.js?v=1"></script>
+<script src="/pages/media-item.js?v=8"></script>
 <!-- Files dragged from the computer onto the page (2026-10-17): the desktop's words while they are
      over it ("Drop to upload to Media", "Drop to add to <the item>" with its Edit open) and its drop.
      Before media-app.js, which puts it on the page. upload-window.js: this page as the upload window
@@ -105,8 +110,8 @@
 <script src="/shared/upload-window.js?v=4"></script>
 <!-- Add to Media (the form, its uploads, publishing and "Also post in chat"), in its own file since
      2026-10-17; media-app.js makes it, so it loads first. -->
-<script src="/pages/media-add.js?v=2"></script>
-<script src="/pages/media-app.js?v=14"></script>
+<script src="/pages/media-add.js?v=3"></script>
+<script src="/pages/media-app.js?v=15"></script>
 <!-- The admins' Media section: this page's Admin tab, for admins (/media#admin; /admin points here). -->
 <script src="/pages/media-admin.js?v=3"></script>
 </body>

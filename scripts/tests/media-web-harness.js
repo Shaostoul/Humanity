@@ -375,6 +375,14 @@ async function openPage(opts) {
   const timers = [];
   const urls = fakeURLs();
   const storage = o.storage || fakeStorage();
+  // The page's view (2026-10-19, web/pages/media-panes.js): the older tests' tiles and their buttons
+  // are the Gallery's, so their page opens in the Gallery (an item they open shows in the panes, as
+  // on the desktop, and the Gallery is back once it closes). `view: "panes"` opens the page as a
+  // browser with nothing kept does, in the panes (media-web-panes.test.js). A view the test's own
+  // storage keeps already is left as it is.
+  if (o.view !== "panes") {
+    try { if (storage.getItem(media.LAYOUT_KEY) == null) storage.setItem(media.LAYOUT_KEY, JSON.stringify({ gallery: true })); } catch (e) { /* storage that refuses: the page's default */ }
+  }
   const session = o.session === undefined ? fakeSession() : o.session;
   // What a test's mountAdmin is handed with the container: the page (set before it starts), the network.
   const ctx = { page: null, net, doc };
@@ -421,6 +429,10 @@ async function openPage(opts) {
     // The item window's connector (2026-10-17, a Media card's Open in the chat:
     // media-card-web.test.js; none by default).
     itemWindow: o.itemWindow || null,
+    // A sound in the middle pane (2026-10-19, web/pages/media-sound.js): the decoder (the browser's
+    // decodeAudioData there; a test's own here, none by default) and no AudioContext (Node has none).
+    decodeAudio: o.decodeAudio || undefined,
+    AudioContext: o.AudioContext === undefined ? null : o.AudioContext,
   });
   ctx.page = page;
   await page.start();
