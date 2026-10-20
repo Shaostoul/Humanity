@@ -431,7 +431,83 @@ function goodPlanetRun() {
   // riser and nothing lands. With a plan, the run must have every leg the rig runs.
   run.plan = FJ.ALL_LEGS;
   run.legs.splice(1, 0, stairsDownLeg(run.legs[0].after));
+  // The deck (2026-10-20): stood on the 3.2 m deck built on the sand, walked off its open edge.
+  run.legs.push(deckLeg(run.legs.at(-1).after));
   return run;
+}
+
+/** The deck's height (data/blueprints/basic.ron: the Wood Wall's 3.0 m and the Wood Roof's 0.2). */
+const DECK_M = DATA.planet.deck.top_m;
+/** The sand's clearance under a standing eye (src/surface_walk.rs DRAWN_CLEARANCE_M). */
+const SAND_CLEARANCE_M = 0.05;
+
+/** The planet walk at 60 frames a second, standing on the deck and walking off its edge: the eye
+ *  stands DECK_M - SAND_CLEARANCE_M over its standing height on the sand (R0), then falls under G
+ *  the way radial_step runs it, the settle glue catching it within 0.5 m of the floor (the landing,
+ *  at the speed falls::landing_speed gives) and easing it down at 4/s; then standing on the sand.
+ *  `through`: the walk before 2026-10-20, whose floor was the terrain alone, so the eye stands on
+ *  the sand under the deck the whole time and walks out from under it. Returns { frames, impact }
+ *  (impact null if nothing landed). */
+function planetDeckTrack({ through = false, health = () => 100 } = {}) {
+  const dt = 1 / 60;
+  const frames = [];
+  let t = 0;
+  let r = through ? R0 : R0 + DECK_M - SAND_CLEARANCE_M;
+  let v = 0;
+  let impact = null;
+  let landedT = Infinity;
+  let z = 1.0;
+  const push = () => {
+    frames.push({ t, cam: [40, 1.7, z, Math.PI, -0.087], health: null, planet_r: r });
+    t += dt;
+  };
+  for (let i = 0; i < 18; i++) push();
+  // To the edge 1 m away at the limping 1.5 m/s, then the fall.
+  for (let k = 0; k < 40; k++) {
+    z += 1.5 * dt;
+    push();
+  }
+  for (let k = 0; k < 240; k++) {
+    z += k < 60 ? 1.5 * dt : 0;
+    if (v <= 0 && r - R0 < 0.5) {
+      if (impact === null && v < 0) {
+        impact = Math.sqrt(v * v + 2 * G * (r - R0));
+        landedT = t;
+      }
+      v = 0;
+      r = R0 + (r - R0) * Math.exp(-4 * dt);
+    } else {
+      v -= G * dt;
+      r = Math.max(R0, r + v * dt);
+    }
+    push();
+  }
+  for (const f of frames) f.health = health(f.t, landedT);
+  return { frames, impact };
+}
+
+/** The deck leg of a healthy build, after the record `prev` (the planet placement's): one landing
+ *  at the drop's speed, what falls.ron says of it in Realistic (on a body the legs before already
+ *  sprained and broke an ankle, so a wound it already has starts its healing over). */
+function deckLeg(prev) {
+  const h0 = prev.vitals.health;
+  const n0 = prev.falls.landings;
+  const { impact } = planetDeckTrack();
+  const e = FJ.expectFall(DATA.falls, impact, "realistic");
+  const frames = planetDeckTrack({ health: (t, landedT) => (t >= landedT + 2 / 60 ? h0 - e.harm : h0) }).frames;
+  const wounds = prev.vitals.wounds.map((w) => ({ ...w, remaining_s: w.id === e.wound ? w.remaining_s + 50 : w.remaining_s - 10 }));
+  if (e.wound && !wounds.some((w) => w.id === e.wound)) wounds.push({ id: e.wound, name: DATA.effects[e.wound].name, remaining_s: 1e7 });
+  return {
+    id: "planet_deck_fall",
+    mode: "realistic",
+    kind: "planet_deck",
+    body: "earth",
+    deck_m: DECK_M,
+    walk_m_s: 1.5,
+    hold_s: 2.5 / 1.5,
+    before: { falls: planetFalls({ landings: n0, last_m_s: prev.falls.last_m_s }), vitals: clone(prev.vitals), frames: [] },
+    after: { falls: planetFalls({ landings: n0 + 1, last_m_s: impact }), vitals: vitals(h0 - e.harm, wounds), frames },
+  };
 }
 
 /** The eye walking DOWN stairs-1 from its top tread at 5 m/s, 60 frames a second, through the
@@ -589,7 +665,11 @@ function surfaceStepRemoved() {
 }
 
 test("RED: a planet landing never reaches the body (lib.rs's surface_step hand-off taken out)", () => {
+  // The deck's landing (2026-10-20) goes the same way: it is a planet walk's landing too.
   assert.deepStrictEqual(failed(surfaceStepRemoved()), [
+    "planet_deck_fall.health",
+    "planet_deck_fall.landing_handed",
+    "planet_deck_fall.wound",
     "planet_forgiving_fall.landing_handed",
     "planet_realistic_fall.health",
     "planet_realistic_fall.landing_handed",
@@ -671,7 +751,69 @@ test("the planet legs are judged with the game's own gravity there (a curved wor
 test("RED: a run that planned the planet legs and stopped before them", () => {
   const run = goodPlanetRun();
   run.legs = run.legs.filter((l) => !l.id.startsWith("planet_"));
-  assert.deepStrictEqual(failed(run), ["planet_forgiving_fall.ran", "planet_placed_drop.ran", "planet_realistic_fall.ran"]);
+  assert.deepStrictEqual(failed(run), ["planet_deck_fall.ran", "planet_forgiving_fall.ran", "planet_placed_drop.ran", "planet_realistic_fall.ran"]);
+});
+
+// ── The deck (2026-10-20) ─────────────────────────────────────────────────────────────────────────
+// A Wood Roof on three Wood Walls built on the sand, the player stood on the roof and walked off
+// its edge. Before 2026-10-20 the planet walk's floor was the terrain alone and went through it.
+
+test("the deck is the tree's: a Wood Roof on three Wood Walls, 3.2 m, open to the south, 40 m east of the spot", () => {
+  const d = DATA.planet.deck;
+  assert.ok(Math.abs(d.top_m - 3.2) < 1e-9, `the deck is ${d.top_m} m`);
+  assert.strictEqual(d.spec, "wood_wall@40,-2,0;wood_wall@38,0,1;wood_wall@42,0,1;roof@40,0,0");
+  assert.deepStrictEqual([d.stand, d.edge_m, d.heading_deg], [[40, 1], 1, 180]);
+  assert.strictEqual(FJ.pickDeck({ wood_wall: { size: [4, 3, 0.2] } }), null, "no roof, no deck");
+});
+
+test("a healthy deck leg passes: stood on the deck, walked off it, one landing at the drop's speed and its wound", () => {
+  const r = FJ.judgeFalls(goodPlanetRun());
+  assert.deepStrictEqual(r.checks.filter((c) => !c.ok), []);
+  for (const want of [
+    "planet_deck_fall.mode",
+    "planet_deck_fall.on_foot_on_planet",
+    "planet_deck_fall.park_released",
+    "planet_deck_fall.gravity",
+    "planet_deck_fall.stood_on_deck",
+    "planet_deck_fall.dropped",
+    "planet_deck_fall.landing_handed",
+    "planet_deck_fall.landing_speed",
+    "planet_deck_fall.wound",
+    "planet_deck_fall.wound_named",
+    "planet_deck_fall.health",
+    "planet_deck_fall.harm_at_landing",
+  ]) {
+    assert.ok(r.checks.some((c) => c.id === want), `${want} was never judged`);
+  }
+  const o = r.observed.planet_deck_fall;
+  assert.ok(Math.abs(o.drop_m - (DECK_M - SAND_CLEARANCE_M)) < 1e-6, JSON.stringify(o));
+  assert.strictEqual(o.deck_m, DECK_M);
+});
+
+test("RED: the walk goes through the deck to the ground (the planet walk before 2026-10-20)", () => {
+  const run = goodPlanetRun();
+  const l = leg(run, "planet_deck_fall");
+  l.after.falls = { ...l.before.falls };
+  l.after.vitals = clone(l.before.vitals);
+  l.after.frames = planetDeckTrack({ through: true, health: () => l.before.vitals.health }).frames;
+  assert.deepStrictEqual(failed(run), ["planet_deck_fall.dropped", "planet_deck_fall.stood_on_deck"]);
+  const d = FJ.judgeFalls(run).checks.find((c) => c.id === "planet_deck_fall.stood_on_deck").detail;
+  assert.match(d, /went through it to the ground .*built_floor_radius/);
+});
+
+test("RED: a deck landing that never reaches the body, and a planned run without the deck leg", () => {
+  const run = goodPlanetRun();
+  const l = leg(run, "planet_deck_fall");
+  l.after.falls = { ...l.after.falls, landings: l.before.falls.landings, last_m_s: l.before.falls.last_m_s };
+  l.after.vitals = clone(l.before.vitals);
+  for (const f of l.after.frames) f.health = l.before.vitals.health;
+  assert.deepStrictEqual(failed(run), ["planet_deck_fall.health", "planet_deck_fall.landing_handed", "planet_deck_fall.wound"]);
+  const short = goodPlanetRun();
+  short.legs = short.legs.filter((x) => x.id !== "planet_deck_fall");
+  assert.deepStrictEqual(failed(short), ["planet_deck_fall.ran"]);
+  // A run saved before the deck leg is judged by the plan its rig wrote.
+  short.plan = FJ.ALL_LEGS.filter((id) => id !== "planet_deck_fall");
+  assert.deepStrictEqual(failed(short), []);
 });
 
 // ── Real captures from the running game (tests/fixtures/falls/) ──────────────────────────────────
@@ -734,7 +876,9 @@ test("the real run with the rig quirk (the camera park kept through a held key) 
 // already sprained ankle again (its healing started over) and took 6.19.
 test("the real green run with every leg passes every check", () => {
   const run = fixture("green-with-planet.json");
-  assert.deepStrictEqual(run.plan, FJ.ALL_LEGS, "the run planned every leg the rig has");
+  // Saved before the deck leg (2026-10-20): its rig planned every leg but that one, and a run is
+  // held to the plan its rig wrote.
+  assert.deepStrictEqual(run.plan, FJ.ALL_LEGS.filter((id) => !FJ.DECK_LEGS.includes(id)), "the run planned every leg its rig had");
   const r = FJ.judgeFalls(run);
   assert.deepStrictEqual(r.checks.filter((c) => !c.ok), []);
   assert.ok(r.checks.some((c) => c.id === "realistic_stairs_down.no_landing"));
@@ -778,6 +922,35 @@ test("the real run with the planet hand-off taken out fails the planet falls on 
   const o = FJ.judgeFalls(run).observed.planet_realistic_fall;
   assert.ok(o.drop_m > 2.5 && o.drop_m < 2.8 && o.landing_m_s === null, JSON.stringify(o));
   assert.ok(Math.abs(o.gravity_m_s2 - 9.81) < 1e-3);
+});
+
+// RED FIRST ON THE DECK (2026-10-20): a build of the planet-floor tree with lib.rs passing no built
+// floor, so the planet walk's floor was the terrain alone, as before that day. In the running game
+// the dev `build` verb stood the deck up ("4 of 4 pieces stood up"), the eye stood on the sand under
+// it (-0.01 m over the ground it ended on) and walking off the edge dropped nothing. Every other leg
+// passed, 80/82.
+test("the real run with the built floor disabled fails the deck leg on exactly that", () => {
+  const run = fixture("red-deck-floor-disabled.json");
+  assert.deepStrictEqual(run.plan, FJ.ALL_LEGS, "the run planned every leg the rig has");
+  assert.deepStrictEqual(failed(run), ["planet_deck_fall.dropped", "planet_deck_fall.stood_on_deck"]);
+  const o = FJ.judgeFalls(run).observed.planet_deck_fall;
+  assert.ok(Math.abs(o.drop_m) < 0.05 && o.landing_m_s === null && Math.abs(o.deck_m - 3.2) < 1e-9, JSON.stringify(o));
+});
+
+// GREEN, EVERY LEG WITH THE DECK (2026-10-20): this tree's build, 88/88. On the deck the eye stood
+// 3.12 m over the sand it came to rest on (the deck is 3.20 m; the sand's 0.05 m clearance and the
+// ground between), walking off its edge fell 3.12 m, and one landing reached the body at 7.67 m/s
+// (the drop says 7.82: the planet walk's integrator about 2% slow): a Sprained Ankle again, just
+// under falls.ron's 7.73 m/s broken ankle, and 9.70 health.
+test("the real green run with the deck passes every check", () => {
+  const run = fixture("green-with-deck.json");
+  assert.deepStrictEqual(run.plan, FJ.ALL_LEGS, "the run planned every leg the rig has");
+  const r = FJ.judgeFalls(run);
+  assert.deepStrictEqual(r.checks.filter((c) => !c.ok), []);
+  const o = r.observed.planet_deck_fall;
+  assert.ok(Math.abs(o.drop_m - 3.12) < 0.01 && Math.abs(o.landing_m_s - 7.67) < 0.01, JSON.stringify(o));
+  assert.deepStrictEqual(o.new_wounds, ["sprained_ankle"]);
+  assert.ok(Math.abs(o.health_before - o.health_after - 9.7) < 0.05, JSON.stringify(o));
 });
 
 test("RED: the walk lands at a speed its own drop does not give", () => {

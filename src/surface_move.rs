@@ -337,6 +337,22 @@ pub fn rest_height(ground_r: f64, clearance: f64) -> f64 {
     rest_radius(ground_r, EYE_HEIGHT_M, clearance)
 }
 
+/// THE PLANET WALK'S FLOOR (2026-10-20): the standing height over the higher of the terrain
+/// (`ground_r` with its `clearance`, `walk_ground_radius`'s pair) and the top of a built piece
+/// under the body (`built_top_r`, `engine::planet_build::built_floor_radius`, None when there is
+/// none). A built top is an exact surface, the box the player built, so it takes no clearance.
+/// With nothing built it is `rest_height(ground_r, clearance)` to the bit. It is also the ground
+/// clamp, like `rest` everywhere in `radial_step`, so standing on a roof is the same thing as
+/// standing on the ground, walking off its edge is the same fall as off a cliff, and the landing
+/// reaches the falls code the same way (`CameraController::surface_step`).
+pub fn walk_rest(ground_r: f64, clearance: f64, built_top_r: Option<f64>) -> f64 {
+    let terrain = rest_height(ground_r, clearance);
+    match built_top_r {
+        Some(top) => terrain.max(rest_height(top, 0.0)),
+        None => terrain,
+    }
+}
+
 /// Past this much disagreement the carried anchor is not the same place as the
 /// camera: a teleport, a body swap, or a fresh session. One frame of planetary
 /// spin cannot move the sample point anywhere near this far (see

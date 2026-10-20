@@ -712,6 +712,90 @@ pub(crate) fn collide_on_site(
     site.to_body(resolved)
 }
 
+/// The floor a built piece gives the planet walk under the unit direction `dir` of `body`'s
+/// frame (2026-10-20): the radius, metres from the body's centre, of the highest top surface of
+/// a finished piece the radial line through `dir` crosses, among those no higher than
+/// [`footing::STEP_UP_M`](crate::engine::footing::STEP_UP_M) over the feet (`feet_r`, the
+/// radius of the body's feet). None when no such piece is under the body: the walk's floor is
+/// then the terrain alone, exactly as before.
+///
+/// Before this the planet walk stood on the terrain only (lib.rs fed `radial_step` the drawn
+/// ground's radius), and built pieces only stopped a step sideways ([`collide_on_site`]), so the
+/// eye put at standing height over a Wood Roof on Sahara sand came to rest 0.03 m below standing
+/// height on the ground: straight through the roof (`just verify-falls`, 2026-10-20). Now the
+/// walk's floor is the higher of the two (`surface_move::walk_rest`), and every finished piece's
+/// top is a floor: a roof, a wall's top, a foundation, a chest. A wall with a door or a window
+/// counts as its parts (`doorway::piece_parts`, the same boxes that block the walk), so a
+/// doorway has no floor in it and its lintel does.
+///
+/// THE REACH IS MEASURED FROM THE FEET AS THEY ARE, not from the floor last stood on as aboard
+/// (`CameraController::step_up_from`). Aboard Space is a jump, so the rest floor keeps a jump
+/// from lifting a body up the side of a tall box. On a planet Space is a held climb at walking
+/// speed with no top, so a body climbed above a roof and over it must land on it; measured from
+/// the floor it left, the roof would be out of reach and the body would fall through it again.
+/// What the reach still does is keep a body inside a piece's footprint from being lifted up its
+/// side: standing in a hut, the roof 3.2 m over the feet is not a floor, and a box built around
+/// a standing body is not stood on. Walking onto anything taller than the walk's step over
+/// (0.4 m, `build_place::built_piece_segments`) is stopped sideways first, so in practice the
+/// walk steps up only onto foundations and the like.
+///
+/// THE FRAME. The pieces stand in the build site the body is at (the site of the nearest piece
+/// within reach, [`site::nearest_site`], the same frame [`collide_on_site`] resolves the step
+/// in), each a box in the site's flat Y-up metres. A box's top is the plane y = top there, and
+/// the radial line meets it at `r = (|origin| + top) / (dir . up)` (up = the site's local up,
+/// the radial at its origin): f64 from the body's centre to the answer, so nothing at planet
+/// scale passes through f32 (CLAUDE.md, "f32 at planet scale"). Only the point where the line
+/// meets the plane is taken into site-local metres (small numbers, good to a tenth of a
+/// millimetre across a site) to test whether it lies inside the box's footprint, the same
+/// narrowing the site's own pieces already live in. The body is a point there, as aboard
+/// (`structure::walk_surface`): walking off a roof's edge leaves it when the body's centre does.
+pub(crate) fn built_floor_radius(
+    world: &hecs::World,
+    registry: Option<&BlueprintRegistry>,
+    body: &str,
+    dir: DVec3,
+    feet_r: f64,
+) -> Option<f64> {
+    let dir = dir.normalize_or_zero();
+    if dir.length_squared() < 0.5 {
+        return None;
+    }
+    let site = site::nearest_site(world, body, dir * feet_r, site::SITE_JOIN_M)?;
+    let up = site.origin.normalize_or_zero();
+    // Within a site's reach the radial line leans from the site's up by under 0.01 degrees on
+    // Earth; a line nearly in the site's plane (a body on another side of a tiny moon) meets
+    // no top worth standing on.
+    let cos = dir.dot(up);
+    if cos < 0.5 {
+        return None;
+    }
+    let base = site.origin.length();
+    let reach = feet_r + f64::from(crate::engine::footing::STEP_UP_M);
+    let mut best: Option<f64> = None;
+    let mut q = world.query::<(&Structure, &Transform, &PlanetSite, Option<&crate::systems::construction::DoorOpen>)>();
+    for (_e, (s, tf, piece_site, open)) in q.iter() {
+        if piece_site != &site {
+            continue;
+        }
+        let parts = registry.and_then(|r| r.get(&s.blueprint_id)).and_then(|bp| crate::systems::construction::doorway::piece_parts(bp, tf, open.is_some()));
+        let boxes: Vec<(Vec3, Vec3)> = match parts {
+            Some(parts) => parts.iter().map(|(p, _)| placement::world_aabb(p)).collect(),
+            None => vec![placement::world_aabb(tf)],
+        };
+        for (lo, hi) in boxes {
+            let top_r = (base + f64::from(hi.y)) / cos;
+            if top_r > reach || best.is_some_and(|b| top_r <= b) {
+                continue;
+            }
+            let at = site.to_local(dir * top_r);
+            if at.x >= lo.x && at.x <= hi.x && at.z >= lo.z && at.z <= hi.z {
+                best = Some(top_r);
+            }
+        }
+    }
+    best
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -952,6 +1036,11 @@ mod tests {
         assert!(depth(chest) > depth(wall) && depth(chest) <= 1.0, "one pass, nearer wins: {} vs {}", depth(chest), depth(wall));
     }
 }
+
+/// The planet walk stands on what was built (`built_floor_radius`, 2026-10-20).
+#[cfg(test)]
+#[path = "planet_floor_tests.rs"]
+mod floor_tests;
 
 #[cfg(test)]
 mod site_collision_tests {

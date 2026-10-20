@@ -2572,7 +2572,13 @@ above the knee to the eye (a wall, a bed, a chest, a machine) joins the home's o
 wall resolver (`engine::build_place::built_piece_segments` into `ship::wall_collision::resolve`), so you no longer
 walk through what you built; roofs overhead, floors underfoot and scaffolds still going up do not block. On a planet's
 ground the player moves by the frame lock's anchor, so the walk's step is resolved in the build site's own frame
-against that site's pieces (`engine::planet_build::collide_on_site`); dev fly mode stays noclip. So nobody can be walled
+against that site's pieces (`engine::planet_build::collide_on_site`); dev fly mode stays noclip. On a planet the walk
+also STANDS on them (2026-10-20): its floor is the higher of the terrain and the top of a finished piece under the body
+within a 0.6 m step up of its feet (`engine::planet_build::built_floor_radius`, the aboard walk's `footing::STEP_UP_M`,
+taken into `surface_move::walk_rest`), in the build site's frame and in f64 to the answer, so a roof, a wall's top or a
+foundation holds a player up, a body climbed over a roof lands on it, and walking off one's edge is a fall like any other,
+its landing hurting the way data/medical/falls.ron says (proven in the running game by `just verify-falls`' planet deck
+leg). Before, the planet walk's floor was the terrain alone and a player went straight through a roof. So nobody can be walled
 in, a piece can be TAKEN DOWN: with a piece in hand, the Swing tool key (F) takes down the finished piece in view
 within 8 m and puts all its materials back in the pack (what does not fit goes to storage, through the "Take to
 backpack" channel; on a planet that storage is the home's, in orbit); a chest that still holds anything is refused until it
@@ -2626,8 +2632,11 @@ capture can ARRIVE on foot the way a player does instead of by teleport (`engine
 ground drawn under them, the finest ground and the surface the harvest sampled (`engine/tree_ground.rs`).
 A vantage with `ground_probe` has probe-sweep read it after the capture and fail the vantage when an
 on-screen tree floats or the eye is not standing on the drawn ground (`scripts/lib/tree-ground-check.js`).
-Still missing: a door or window set INTO a wall (they sit on the floor); a second storey (nothing stands on a
-roof yet); collision for built pieces (you walk through walls); the one canonical layout schema (built
+Still missing: a door or window set INTO a wall (they sit on the floor); a second storey (on a planet a player
+stands on a roof since 2026-10-20, but pieces are placed only from the ground, and aboard nothing stands on a built
+roof or foundation yet: the aboard walk's floor is the rooms and the ship's own structures, `engine::footing`); a
+built roof that stops a climb from below (on a planet Space climbs up through one, and once the feet are within a
+step of its top the body is stood on it); the one canonical layout schema (built
 pieces, the home editor's `InteriorWall`s and the ship structure pieces are three different shapes); pieces
 on a planet stand at the drawn ground's height where they were built, so far off, where the terrain draws at
 a coarser level, they can sit a little high or low; a planet piece's face turned from the sun reads near

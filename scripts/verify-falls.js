@@ -56,15 +56,39 @@
 // not 5 (the first run with the hold timed for 5 m/s rose 0.7 m), so the rig reads the rate the
 // game reports (`falls.climb_m_s`) and holds Space as long as that needs (1.68 s).
 //
-// WHY NOT A DECK. The brief was a deck of known height built on the ground with the dev `build`
-// verb, walked off. The planet walk does not stand on built pieces: its floor is the terrain alone
-// (lib.rs feeds radial_step the drawn ground's radius; built pieces only stop a step sideways,
-// `planet_build::collide_on_site`). Tried in the running game on 2026-10-20: `build` stood up four
-// wood walls and a Wood Roof 40 m east of the legs' spot ("5 of 5 pieces stood up"), and the eye
-// put at standing height over the roof's top (3.11 m over the ground) came to rest 0.03 m BELOW
-// the ground's standing height beside the hut: straight through the roof to the ground inside.
-// So a player cannot stand on anything built on a planet, and the climb on Space is the one way
-// on foot to leave a planet's ground by metres.
+// THE DECK (2026-10-20, the third increment). The brief for the planet legs was a deck of known
+// height built on the ground with the dev `build` verb, walked off, and it could not be done then:
+// the planet walk did not stand on built pieces (its floor was the terrain alone; built pieces
+// only stopped a step sideways, `planet_build::collide_on_site`). Tried in the running game that
+// day, `build` stood up four wood walls and a Wood Roof 40 m east of the legs' spot ("5 of 5
+// pieces stood up"), and the eye put at standing height over the roof's top (3.11 m over the
+// ground) came to rest 0.03 m BELOW the ground's standing height beside the hut: straight through
+// the roof to the ground inside. The walk's floor is now the higher of the terrain and the top of
+// a built piece under the body within a step up of its feet (`planet_build::built_floor_radius`,
+// `surface_move::walk_rest`), and the planet_deck_fall leg, the last, holds it to that: `build`
+// puts up a Wood Roof on three Wood Walls (3.2 m, open to the south: scripts/lib/falls-judge.js
+// DECK, its sizes read from data/blueprints/basic.ron) 40 m east of the spot, `stand` puts the
+// eye 0.3 m over standing height on the roof 1 m from its south edge, facing south, and forward
+// is held, at the walk speed the game reports, to the edge and 1.5 m past it. The eye must stand
+// on the roof (`stood_on_deck`: the deck's height over the sand it comes to rest on), and the
+// landing must reach the body at the speed of that drop with what falls.ron says of it in
+// Realistic (a 3.15 m drop lands at about 7.8 m/s, a hair either side of the Broken Ankle's
+// 7.73 m/s, so the judge works the wound out from the game's own landing, as for every leg).
+// RED FIRST (2026-10-20), a build of this tree with lib.rs passing no built floor (the walk as
+// it was), the rig said (exit 2):
+//   FAIL  planet_deck_fall.stood_on_deck   before walking off, the eye stood -0.01 m over the ground
+//         it came to rest on (the deck is 3.20 m, at most 0.3 off): the walk did not stand on the
+//         built deck, it went through it to the ground (the planet walk's floor:
+//         planet_build::built_floor_radius, surface_move::walk_rest)
+//   FAIL  planet_deck_fall.dropped         the eye fell 0.00 m (from r 6371692.40 to 6371692.40)
+//   RESULT: FAIL  80/82 passed
+// The run.log said "Showcase: build -> 4 of 4 pieces stood up", so the deck was there; every other
+// leg passed (tests/fixtures/falls/red-deck-floor-disabled.json). With the floor, this tree's
+// build, 88/88: the eye stood 3.12 m over the sand it later came to rest on (the deck's 3.20 m,
+// less the sand's 0.05 m clearance and the ground between), walked off the edge, fell 3.12 m, and
+// one landing reached the body at 7.67 m/s (the drop says 7.82, the integrator's 2%): a Sprained
+// Ankle in Realistic (falls.ron's broken ankle starts at 7.73) and 9.70 health, falling 0.03 s
+// after the eye landed (tests/fixtures/falls/green-with-deck.json).
 //
 // THE RIG QUIRK THIS FOUND AND FIXED. A camera park pins the eye (`probe_hold`) until movement
 // input arrives; a person's key press lets go of it, and the rig's `hold` did not. The pin is one
@@ -255,6 +279,13 @@ const PLANET_PLACED_M = 3.0;
 /** After the camera park, seconds for the ground under it to stream in before the stand (the
  *  probe sweep's own settle for this vantage). */
 const PLANET_SETTLE_S = 10;
+/** The deck leg (scripts/lib/falls-judge.js DECK): the eye is stood this much over standing height
+ *  on the deck's roof, so it settles onto the roof (a placement: it hurts nobody) whatever the sand
+ *  under the stand point does; forward is then held long enough to walk the metre to the deck's
+ *  south edge and DECK_WALK_ON_M past it, at the walk speed the game reports. */
+const DECK_GAP_M = 0.3;
+const DECK_WALK_ON_M = 1.5;
+const DECK_RECORD_AFTER_S = 4;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const log = (m) => console.log(`[falls] ${m}`);
@@ -689,6 +720,36 @@ async function main() {
         manifest.legs.push({ id, mode: "realistic", kind: "planet_placement", body: P.body, placed_m: PLANET_PLACED_M, before, after });
         save();
         log(`${id}: health ${fmt(before.vitals && before.vitals.health)} -> ${fmt(after.vitals && after.vitals.health)}, landings ${before.falls && before.falls.landings} -> ${after.falls && after.falls.landings}`);
+      }
+      // THE DECK (2026-10-20): a Wood Roof on three Wood Walls built on the sand by the dev
+      // `build` verb DECK.dx m east of the spot (open to the south), the player stood on its roof
+      // 1 m from its south edge facing south, and forward held: off the edge, a 3.2 m fall. Last,
+      // so nothing built stands where the legs before it ran.
+      if (P.deck) {
+        const id = "planet_deck_fall";
+        const D = P.deck;
+        await showcase({ illness: "realistic" });
+        await showcase({ build: D.spec, build_at: at });
+        await sleep(1000);
+        await showcase({ stand: `${D.stand[0]},${(EYE_M + D.top_m + DECK_GAP_M).toFixed(2)},${D.stand[1]},${D.heading_deg},-5`, stand_at: at, walk: "1" });
+        await sleep(3000); // settles onto the roof; the watch starts over on the first frame standing
+        const before = await snapshot(`${id} (before)`);
+        const rate = before.falls ? Number(before.falls.climb_m_s) : NaN;
+        if (!(rate > 0.1)) throw new Error(`${id}: the game reports no walk speed (climb_m_s ${rate}): is the body overloaded?`);
+        // climb_m_s is the walk's speed times a load's share of a jump, never more than the walk's,
+        // so this hold walks at least as far as asked.
+        const holdS = (D.edge_m + DECK_WALK_ON_M) / rate;
+        const recordS = holdS + DECK_RECORD_AFTER_S;
+        log(`${id}: on a ${D.top_m.toFixed(2)} m deck, walking at ${rate.toFixed(2)} m/s, so forward is held ${holdS.toFixed(2)} s to go ${D.edge_m} m to its edge and ${DECK_WALK_ON_M} m on`);
+        await startRecording(recordS);
+        await sleep(300);
+        await showcase({ hold: "forward", hold_s: holdS.toFixed(3) });
+        const after = await finishRecording(recordS, `${id} (the walk off the deck)`);
+        manifest.legs.push({ id, mode: "realistic", kind: "planet_deck", body: P.body, deck_m: D.top_m, walk_m_s: rate, hold_s: holdS, before, after });
+        save();
+        log(`${id}: health ${fmt(before.vitals && before.vitals.health)} -> ${fmt(after.vitals && after.vitals.health)}, landings ${before.falls && before.falls.landings} -> ${after.falls && after.falls.landings}`);
+      } else {
+        log("no deck in data/blueprints/basic.ron (wood_wall and roof): the deck leg cannot run (the judge says so)");
       }
     }
   } catch (e) {

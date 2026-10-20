@@ -67,13 +67,22 @@
 //   planet_placed_drop  still Realistic, the player PLACED 3 m over the ground (`stand`, a
 //                   teleport) and left to fall: no landing may reach the body (`surface_step`'s
 //                   placement test, the planet's twin of FallWatch's).
-// WHY NOT A DECK. The task was to build a deck of known height on the ground (the dev `build`
-// verb exists) and walk off its edge. The planet walk does not stand on built pieces: its floor is
-// the terrain alone (lib.rs feeds `radial_step` the drawn ground's radius, and built pieces only
-// stop a step sideways, `planet_build::collide_on_site`), so a player stood on a built deck sinks
-// through it to the ground. The climb on Space is the one way a player on foot leaves a planet's
-// ground by metres, so it is the fall these legs make; the judge reads the drop from the eye's
-// distance from the planet's centre (`planet_r`, every recorder frame) whatever the climb did.
+//   planet_deck_fall  (2026-10-20, the third increment) still Realistic: a deck BUILT on the sand
+//                   (`DECK`: a Wood Roof on three Wood Walls, 3.2 m, put up by the dev `build` verb
+//                   40 m east of the spot, open to the south), the player stood on its roof and
+//                   walked off its open edge: the eye must stand on the roof (`stood_on_deck`, the
+//                   deck's height over the ground it lands on), and the landing must reach the body
+//                   at the speed of that drop with what falls.ron says of it (about 7.8 m/s, a hair
+//                   either side of falls.ron's 7.73 m/s Broken Ankle, so the wound is worked out from
+//                   the game's own landing, as for every leg).
+// THE DECK. Until 2026-10-20 the planet walk did not stand on built pieces: its floor was the
+// terrain alone (lib.rs fed `radial_step` the drawn ground's radius, and built pieces only stopped
+// a step sideways, `planet_build::collide_on_site`), so a player stood on a built deck sank through
+// it to the ground, and the first planet legs fell from the climb on Space instead. The walk's floor
+// is now the higher of the terrain and a built piece's top under the body
+// (`planet_build::built_floor_radius`, `surface_move::walk_rest`), and the deck leg holds it to
+// that. The judge reads every planet drop from the eye's distance from the planet's centre
+// (`planet_r`, every recorder frame).
 // The game's own gravity on the planet (the `falls` block's, the planet walk's this frame) is the
 // one the camera's speed is computed with, checked against the body's data file.
 //
@@ -128,12 +137,42 @@ const LIMITS = {
   /// Within this of the rest height the planet walk counts as standing
   /// (`surface_move::GROUNDED_REACH_M`): a planet fall must start there, on the ground.
   PLANET_STAND_M: 0.35,
+  /// How far the eye's standing height on the deck, over where it came to rest on the ground after
+  /// walking off, may be from the deck's own height, metres: the sand's clearance under a standing
+  /// eye (`surface_walk::DRAWN_CLEARANCE_M`, 0.05 m) and the ground's own rise between the hut and
+  /// where the walk ends. A walk that goes through the deck stands on the ground, 3 m off.
+  DECK_TOL_M: 0.3,
 };
 
 /// The planet ground the planet legs stand on: open Sahara sand at the probe sweep's own walk
 /// vantage (tests/visual/vantages.json `planet-open-noon-walk`), flat, dry and with nothing
 /// built, parked at 30 m and stood on by the dev `stand` verb.
 const PLANET = { body: "earth", lat: 23.5, lon: 13.08, park_altitude_km: 0.03 };
+
+/// The deck the planet deck leg is stood on and walks off (2026-10-20): `roof` resting on three
+/// `wall`s (north, west and east: open to the south), built by the dev `build` verb `dx` metres
+/// east of the planet legs' spot (so nothing built stands where they ran), the player stood on its
+/// roof `stand_from_edge_m` north of its south edge, facing south.
+const DECK = { wall: "wood_wall", roof: "roof", dx: 40, stand_from_edge_m: 1.0 };
+
+/** The deck from data/blueprints/basic.ron (`readStructureTypes` reads its sizes too): the dev
+ *  `build` verb's spec, its height (the walls' and the roof's, metres: what the roof rests on and
+ *  how thick it is), and where the player is stood on it (site metres east and south of the spot,
+ *  facing south). null if either blueprint is missing. */
+function pickDeck(blueprints) {
+  const wall = blueprints[DECK.wall];
+  const roof = blueprints[DECK.roof];
+  if (!wall || !roof || !Array.isArray(wall.size) || !Array.isArray(roof.size)) return null;
+  const half = roof.size[0] / 2;
+  const x = DECK.dx;
+  return {
+    spec: [`${DECK.wall}@${x},${-half},0`, `${DECK.wall}@${x - half},0,1`, `${DECK.wall}@${x + half},0,1`, `${DECK.roof}@${x},0,0`].join(";"),
+    top_m: wall.size[1] + roof.size[1],
+    stand: [x, half - DECK.stand_from_edge_m],
+    edge_m: DECK.stand_from_edge_m,
+    heading_deg: 180,
+  };
+}
 
 // ── Reading the tree's data (pure: each reader takes a file's text) ─────────────────────────────
 
@@ -312,7 +351,11 @@ function readTreeData(repo, readFile = (p) => require("fs").readFileSync(p, "utf
     effects: readEffects(rd("data", "status_effects.csv")),
     stairs: pickStairs(types, placed),
     ladder: pickLadder(types, placed),
-    planet: { ...PLANET, ...readPlanetGravity(rd("data", "planets", `${PLANET.body}.ron`)) },
+    planet: {
+      ...PLANET,
+      ...readPlanetGravity(rd("data", "planets", `${PLANET.body}.ron`)),
+      deck: pickDeck(readStructureTypes(rd("data", "blueprints", "basic.ron"))),
+    },
   };
 }
 
@@ -419,10 +462,13 @@ const ABOARD_LEGS = ["forgiving_walk", "realistic_walk", "realistic_ladder", "pl
 const PLANET_LEGS = ["planet_forgiving_fall", "planet_realistic_fall", "planet_placed_drop"];
 /** Walking DOWN the stairs (BUG-208, 2026-10-20). */
 const STAIRS_LEGS = ["realistic_stairs_down"];
+/** Standing on a deck built on a planet's ground and walking off it (2026-10-20). */
+const DECK_LEGS = ["planet_deck_fall"];
 /** Every leg the rig runs now. A run whose manifest carries the rig's `plan` (every run since the
- *  stairs-down leg) must have all of them; one without a plan is an older saved run, judged by the
- *  legs that rig had. */
-const ALL_LEGS = [...ABOARD_LEGS.slice(0, 1), ...STAIRS_LEGS, ...ABOARD_LEGS.slice(1), ...PLANET_LEGS];
+ *  stairs-down leg) must have every leg of that plan; one without a plan is an older saved run,
+ *  judged by the legs that rig had. The rig plans all of these (scripts/tests/falls-judge.test.js
+ *  holds it to that), so only a run saved before the deck leg is judged by fewer. */
+const ALL_LEGS = [...ABOARD_LEGS.slice(0, 1), ...STAIRS_LEGS, ...ABOARD_LEGS.slice(1), ...PLANET_LEGS, ...DECK_LEGS];
 
 /**
  * Judge one run. `run` = { data (readTreeData's), entry (the first look after world entry),
@@ -444,7 +490,7 @@ function judgeFalls(run) {
   const gShip = num(data.gravity_m_s2);
   const effects = data.effects || {};
   const legs = Array.isArray(run.legs) ? run.legs : [];
-  for (const want of Array.isArray(run.plan) ? ALL_LEGS : [...ABOARD_LEGS, ...(run.planet ? PLANET_LEGS : [])]) {
+  for (const want of Array.isArray(run.plan) ? run.plan : [...ABOARD_LEGS, ...(run.planet ? PLANET_LEGS : [])]) {
     if (!legs.some((l) => l && l.id === want)) check(`${want}.ran`, false, "this leg never ran (see the rig's output for where it stopped)");
   }
 
@@ -472,7 +518,8 @@ function judgeFalls(run) {
       check(`${id}.recorded`, false, `no ${!before ? "before" : "after"} record: the game never answered the recorder`);
       continue;
     }
-    const onPlanet = leg.kind === "planet_fall" || leg.kind === "planet_placement";
+    const onPlanet = leg.kind === "planet_fall" || leg.kind === "planet_placement" || leg.kind === "planet_deck";
+    const deckM = leg.kind === "planet_deck" ? num(leg.deck_m) : NaN;
     const isPlacement = leg.kind === "placement" || leg.kind === "planet_placement";
     const drop = dropOf(after.frames, onPlanet ? PLANET_DROP : ABOARD_DROP);
     const hb = healthOf(before);
@@ -496,6 +543,7 @@ function judgeFalls(run) {
       mode: after.falls && after.falls.mode,
       where: onPlanet ? `on ${leg.body}` : "aboard",
       ...(leg.kind === "planet_fall" ? { climb_m_s: num(leg.climb_m_s), hold_s: num(leg.hold_s) } : {}),
+      ...(leg.kind === "planet_deck" ? { deck_m: deckM, walk_m_s: num(leg.walk_m_s), hold_s: num(leg.hold_s) } : {}),
       gravity_m_s2: gGame,
       health_before: hb,
       health_after: ha,
@@ -571,7 +619,27 @@ function judgeFalls(run) {
     const dropped = drop && drop.drop_m >= minDrop;
     let startOk = isPlacement;
     let startNote = "";
-    if (drop && !isPlacement && onPlanet) {
+    if (leg.kind === "planet_deck") {
+      // Stood ON the deck before walking off it: the eye began at its highest (standing, not
+      // falling), the deck's height over the ground it came to rest on after. The drop itself is
+      // judged below like any planet fall's.
+      const over = drop ? drop.first_y - drop.rest_y : NaN;
+      const standing = drop && Math.abs(drop.peak_y - drop.first_y) <= LIMITS.PLANET_STAND_M;
+      const onDeck = standing && Number.isFinite(deckM) && Math.abs(over - deckM) <= LIMITS.DECK_TOL_M;
+      check(
+        `${id}.stood_on_deck`,
+        onDeck,
+        !drop
+          ? "the recording has under two frames on the planet walk: no camera track to read"
+          : `before walking off, the eye stood ${f2(over)} m over the ground it came to rest on (the deck is ${f2(deckM)} m, at most ${LIMITS.DECK_TOL_M} off)` +
+              (onDeck
+                ? ": on the deck"
+                : !standing
+                  ? `, but it was not standing there: it rose ${f2(drop.peak_y - drop.first_y)} m after the recording began`
+                  : ": the walk did not stand on the built deck, it went through it to the ground (the planet walk's floor: planet_build::built_floor_radius, surface_move::walk_rest)")
+      );
+      startOk = true;
+    } else if (drop && !isPlacement && onPlanet) {
       // Standing on the ground when the key went down, and back on the same ground after.
       startOk = Math.abs(drop.first_y - drop.rest_y) <= LIMITS.PLANET_STAND_M;
       startNote = `, from standing ${f2(drop.first_y - drop.rest_y)} m off where it came to rest (at most ${LIMITS.PLANET_STAND_M})`;
@@ -590,7 +658,9 @@ function judgeFalls(run) {
               ? ""
               : `: under ${f2(minDrop)} m, so ` +
                 (onPlanet
-                  ? `the climb never lifted the body that high (Space held ${f2(leg.hold_s)} s at the ${f2(leg.climb_m_s)} m/s the game reported: a slower climb than reported, the key never reaching the walk, or a camera park's pin)`
+                  ? leg.kind === "planet_deck"
+                    ? "the walk never went off the deck from standing on it (it stood on the ground under the deck, or never reached its edge)"
+                    : `the climb never lifted the body that high (Space held ${f2(leg.hold_s)} s at the ${f2(leg.climb_m_s)} m/s the game reported: a slower climb than reported, the key never reaching the walk, or a camera park's pin)`
                   : leg.kind === "stairs_down"
                     ? "the walk never went down the stairs (it never stood on the top tread, or never moved)"
                     : "the walk never went off the top") +
@@ -733,6 +803,8 @@ module.exports = {
   ABOARD_LEGS,
   PLANET_LEGS,
   STAIRS_LEGS,
+  DECK_LEGS,
+  DECK,
   ALL_LEGS,
   ABOARD_DROP,
   PLANET_DROP,
@@ -745,6 +817,7 @@ module.exports = {
   readHomeStructures,
   pickStairs,
   pickLadder,
+  pickDeck,
   readTreeData,
   readSpeed,
   harmAt,

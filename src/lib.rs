@@ -5018,11 +5018,31 @@ mod native_app {
                                 state.last_clearance += d.clamp(-step, step);
                                 state.last_clearance
                             };
+                            let r0 = anchor.length();
+                            // Built pieces are floors too (2026-10-20): a roof,
+                            // a wall's top, a foundation under the body within a
+                            // step up of its feet (planet_build::built_floor_radius,
+                            // in the build site's frame, f64). Before, the floor
+                            // was the terrain alone and the walk went straight
+                            // through a roof. Fly mode stays noclip, as it does
+                            // for the walls (collide_on_site above).
+                            let built_top = if state.controller.fly_mode {
+                                None
+                            } else {
+                                let reg = state.data_store.get::<crate::systems::construction::BlueprintRegistry>("blueprint_registry");
+                                crate::engine::planet_build::built_floor_radius(
+                                    &state.game_world.world,
+                                    reg,
+                                    &lock_body,
+                                    dir1,
+                                    r0 - crate::surface_walk::EYE_HEIGHT_M,
+                                )
+                            };
                             // Standing height AND the ground clamp - they are
                             // the same floor by construction, so radial_step
-                            // only needs this one number.
-                            let rest = crate::surface_move::rest_height(g, clearance);
-                            let r0 = anchor.length();
+                            // only needs this one number: over the terrain, or
+                            // over the built top when that is higher.
+                            let rest = crate::surface_move::walk_rest(g, clearance, built_top);
                             // Band entry / teleport never inherits a stale
                             // fall speed from a previous surface session.
                             if just_engaged {

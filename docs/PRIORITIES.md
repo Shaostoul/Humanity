@@ -459,16 +459,23 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
   nobody in Forgiving and sprains an ankle in Realistic, letting go at the ladder's top (3.2 m)
   breaks one, and a body placed in the air is not hurt. Since v0.1531.0 (76/76) it also falls on
   planet ground (Sahara at noon, 9.81 m/s^2: Forgiving unhurt, Realistic a sprained ankle, a
-  placed body unhurt) by Space's climb, since nothing built on a planet can be stood on (being
-  fixed: "Stand on built pieces on a planet", then a deck leg), and walks DOWN the stairs (no
-  landing; red with BUG-208's step-down removed); the rig's held key now releases a camera park
-  like a key press; a planet fall lands at its real speed at any frame rate (BUG-209); every rig
-  writes requests through scripts/lib/write-request.js. Not yet covered: a vehicle stopping.
-  Open from that work: (1) ten of the game's request readers (camera, screen, ui, autopilot,
-  remote_players, door_points, screenshot, cloudmap, cloud_profile_dump, record, cancel) still
-  delete a request they find empty, so a hand-dropped `debug/screenshot_request.json` written
-  non-atomically can be lost; the docs say "any content", so either take an empty file after a
-  few frames or document `{}` (src/engine/ipc.rs, movie.rs); (2) GAMEPLAY, the operator's call:
+  placed body unhurt) and walks DOWN the stairs (no landing; red with BUG-208's step-down
+  removed); the rig's held key now releases a camera park like a key press; a planet fall lands
+  at its real speed at any frame rate (BUG-209); every rig writes requests through
+  scripts/lib/write-request.js. The built deck: DONE 2026-10-20, commit "The planet walk stands
+  on built pieces": the planet walk's floor was the terrain alone, so a player went straight
+  through a roof; now it is the higher of the terrain and a finished piece's top under the body
+  within a 0.6 m step up of the feet (`planet_build::built_floor_radius`), and verify-falls'
+  planet deck leg walks off a 3.2 m Wood Roof built on the sand (88/88), red with the floor
+  disabled (tests/fixtures/falls/red-deck-floor-disabled.json). Not yet covered: a vehicle
+  stopping. Left from it: a built roof does not stop a climb from below; on a planet pieces are
+  placed only from the ground (no second storey); aboard, nothing stands on a built piece yet
+  (the aboard walk's floor is the rooms and the ship's own structures). Open from that work:
+  (1) ten of the game's request readers (camera, screen, ui, autopilot, remote_players,
+  door_points, screenshot, cloudmap, cloud_profile_dump, record, cancel) still delete a request
+  they find empty, so a hand-dropped `debug/screenshot_request.json` written non-atomically can
+  be lost; the docs say "any content", so either take an empty file after a few frames or
+  document `{}` (src/engine/ipc.rs, movie.rs; being fixed); (2) GAMEPLAY, the operator's call:
   on a planet Space is a climb at walking speed, so a 0.35 s tap lifts you about 2.6 m and the
   fall back sprains an ankle in Realistic (a real jump is about half a metre); (3)
   machine-guard.test.js "the real PowerShell lowers a real rustc" fails on a loaded machine (its
