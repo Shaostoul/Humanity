@@ -2,11 +2,13 @@
 //! here can create, change or delete a key or a value. Used to find where Steam is
 //! (`HKCU\Software\Valve\Steam`), which Steam account is signed in while Steam runs
 //! (`...\Steam\ActiveProcess`, `ActiveUser`), and which games GOG installed
-//! (`HKLM\...\GOG.com\Games`).
+//! (`HKLM\...\GOG.com\Games`). Since 2026-10-19 the Tools page reads Windows' own
+//! installed-programs list and App Paths through it too (software/records.rs), in both the 64-bit
+//! and the 32-bit view of the registry ([`View`]): still KEY_READ, only the view chosen.
 
 use windows::core::{PCWSTR, PWSTR};
 use windows::Win32::Foundation::ERROR_SUCCESS;
-use windows::Win32::System::Registry::{RegCloseKey, RegEnumKeyExW, RegOpenKeyExW, RegQueryValueExW, HKEY, HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, KEY_READ, REG_DWORD, REG_EXPAND_SZ, REG_SZ, REG_VALUE_TYPE};
+use windows::Win32::System::Registry::{RegCloseKey, RegEnumKeyExW, RegOpenKeyExW, RegQueryValueExW, HKEY, HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, KEY_READ, KEY_WOW64_32KEY, KEY_WOW64_64KEY, REG_DWORD, REG_EXPAND_SZ, REG_SAM_FLAGS, REG_SZ, REG_VALUE_TYPE};
 
 /// Which of the two roots a key is under.
 #[derive(Debug, Clone, Copy)]
@@ -15,8 +17,31 @@ pub enum Root {
     LocalMachine,
 }
 
-/// An open key, closed when dropped.
-pub struct Key(HKEY);
+/// Which view of the registry a key is read in. A 64-bit Windows keeps a 32-bit program's
+/// machine-wide settings apart (under WOW6432Node); a 32-bit installer writes its program there.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum View {
+    /// The view this program reads by default (64-bit, as HumanityOS is).
+    Default,
+    /// The 64-bit view, asked for by name.
+    Bits64,
+    /// The 32-bit view (WOW6432Node).
+    Bits32,
+}
+
+impl View {
+    /// What RegOpenKeyExW is asked for: reading, in this view.
+    fn access(self) -> REG_SAM_FLAGS {
+        match self {
+            View::Default => KEY_READ,
+            View::Bits64 => KEY_READ | KEY_WOW64_64KEY,
+            View::Bits32 => KEY_READ | KEY_WOW64_32KEY,
+        }
+    }
+}
+
+/// An open key, closed when dropped, and the view its sub-keys are opened in.
+pub struct Key(HKEY, View);
 
 impl Drop for Key {
     fn drop(&mut self) {
@@ -32,22 +57,27 @@ fn wide(s: &str) -> Vec<u16> {
     s.encode_utf16().chain(std::iter::once(0)).collect()
 }
 
-/// Open `path` under `under` for reading.
-fn open_under(under: HKEY, path: &str) -> Option<Key> {
+/// Open `path` under `under` for reading, in `view`.
+fn open_under(under: HKEY, path: &str, view: View) -> Option<Key> {
     let path = wide(path);
     let mut key = HKEY::default();
     // SAFETY: `path` is NUL-ended and outlives the call; `key` is written only on success.
-    let r = unsafe { RegOpenKeyExW(under, PCWSTR(path.as_ptr()), None, KEY_READ, &mut key) };
-    (r == ERROR_SUCCESS).then_some(Key(key))
+    let r = unsafe { RegOpenKeyExW(under, PCWSTR(path.as_ptr()), None, view.access(), &mut key) };
+    (r == ERROR_SUCCESS).then_some(Key(key, view))
 }
 
 /// Open `path` under `root` for reading; `None` when it is not there (or cannot be read).
 pub fn open(root: Root, path: &str) -> Option<Key> {
+    open_view(root, path, View::Default)
+}
+
+/// Open `path` under `root` for reading in `view` (its sub-keys are opened in the same view).
+pub fn open_view(root: Root, path: &str, view: View) -> Option<Key> {
     let hkey = match root {
         Root::CurrentUser => HKEY_CURRENT_USER,
         Root::LocalMachine => HKEY_LOCAL_MACHINE,
     };
-    open_under(hkey, path)
+    open_under(hkey, path, view)
 }
 
 /// The longest value read: a folder's path is far shorter, so anything longer is not one.
@@ -56,7 +86,7 @@ const MAX_VALUE_BYTES: u32 = 64 * 1024;
 impl Key {
     /// The sub-key `name` of this key, for reading.
     pub fn open(&self, name: &str) -> Option<Key> {
-        open_under(self.0, name)
+        open_under(self.0, name, self.1)
     }
 
     /// The text value `name` (REG_SZ, or REG_EXPAND_SZ read as written), when it is there.
@@ -137,6 +167,22 @@ mod tests {
         let hklm_software = open(Root::LocalMachine, "SOFTWARE").expect("SOFTWARE is there");
         assert!(hklm_software.subkeys().iter().any(|k| k.eq_ignore_ascii_case("Microsoft")), "SOFTWARE's sub-keys include Microsoft");
         assert!(open(Root::CurrentUser, r"Software\NoSuchKeyHumanityOS\Games").is_none(), "a key that is not there is nothing");
+    }
+
+    /// THE TWO VIEWS (2026-10-19, for the Tools page): HKLM\SOFTWARE in the 64-bit view holds
+    /// WOW6432Node (the 32-bit programs' part), and in the 32-bit view it IS that part, so it does
+    /// not hold it again; a sub-key opened from a key in the 32-bit view stays in it (its Uninstall
+    /// list is read where 32-bit installers write).
+    ///
+    /// Seen red 2026-10-19 with every view read as the default (`access` always KEY_READ): "the
+    /// 32-bit view is WOW6432Node itself" failed.
+    #[test]
+    fn the_two_views() {
+        let has_wow = |view: View| open_view(Root::LocalMachine, "SOFTWARE", view).expect("SOFTWARE is there").subkeys().iter().any(|k| k.eq_ignore_ascii_case("WOW6432Node"));
+        assert!(has_wow(View::Bits64) && has_wow(View::Default), "the 64-bit view holds WOW6432Node");
+        assert!(!has_wow(View::Bits32), "the 32-bit view is WOW6432Node itself");
+        let microsoft = open_view(Root::LocalMachine, "SOFTWARE", View::Bits32).and_then(|k| k.open("Microsoft")).expect("its Microsoft key");
+        assert!(microsoft.open("Windows").is_some_and(|w| w.open("CurrentVersion").is_some()), "a sub-key stays in its view and opens");
     }
 
     /// A NUMBER VALUE (2026-10-19, for Steam's ActiveUser): Windows' own CurrentMajorVersionNumber

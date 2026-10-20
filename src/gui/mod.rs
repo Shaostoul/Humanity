@@ -109,31 +109,10 @@ pub fn ui_click_should_sound(
         })
 }
 
-/// An external entry loaded from `data/external/catalog.json`: either free
-/// software you install (`kind == "software"`) or a real-world help service
-/// (`kind == "service"`). One catalog, one renderer, both clients (v0.1063).
+/// An external entry loaded from `data/external/catalog.json` (software/catalog.rs since
+/// 2026-10-19, where its detection, Steam and winget fields are read with it).
 #[cfg(feature = "native")]
-#[derive(Debug, Clone, serde::Deserialize)]
-pub struct ToolEntry {
-    pub name: String,
-    pub description: String,
-    pub url: String,
-    /// Software only; services leave this empty.
-    #[serde(default)]
-    pub license: String,
-    /// Software only; services leave this empty.
-    #[serde(default)]
-    pub platforms: Vec<String>,
-    /// Optional download size hint (e.g. "~350MB"). Software only.
-    #[serde(default)]
-    pub size: String,
-    /// Category name, populated during loading from the parent category.
-    #[serde(skip)]
-    pub category: String,
-    /// Kind id from the parent category: "software" or "service".
-    #[serde(skip)]
-    pub kind: String,
-}
+pub use crate::software::catalog::ToolEntry;
 
 /// A single donation address entry (for the dynamic addresses array).
 #[cfg(feature = "native")]
@@ -1176,6 +1155,8 @@ pub struct GuiState {
     pub media: crate::gui::pages::media::MediaState,
     /// The Games library page (pages/games.rs): what the stores had when last read, and its dialogs.
     pub games: crate::gui::pages::games::GamesState,
+    /// The Tools page (pages/tools.rs): which catalog programs were found installed, and its details.
+    pub tools: crate::gui::pages::tools::ToolsState,
 
     /// Top-nav button presentation (v0.859): icon+text / icon-only / text-only.
     /// Mirrors the web header's Aa toggle. Cycled by the nav's mode button.
@@ -3509,6 +3490,7 @@ impl Default for GuiState {
             watch_input: String::new(),
             media: Default::default(),
             games: Default::default(),
+            tools: Default::default(),
             nav_display_mode: NavDisplayMode::default(),
             toasts: Vec::new(),
             underwater: false,
@@ -4621,6 +4603,8 @@ pub struct SettingsState {
     pub games_layout: crate::gui::pages::games::Layout,
     /// The Games library's order (2026-10-19): by name, recently played, most played or size.
     pub games_sort: crate::gui::pages::games::SortBy,
+    /// The Tools page's view, order, kind and category (2026-10-19), kept so they survive a restart.
+    pub tools_view: crate::gui::pages::tools::View,
     // Data
     pub seed_phrase_visible: bool,
     // Restoring from the recovery phrase
@@ -4733,6 +4717,7 @@ impl Default for SettingsState {
             added_games: Vec::new(),
             games_layout: Default::default(),
             games_sort: Default::default(),
+            tools_view: Default::default(),
             seed_phrase_visible: false,
             seed_phrase_input: String::new(),
             seed_phrase_recovery_status: String::new(),

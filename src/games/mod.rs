@@ -52,8 +52,9 @@ pub mod keyvalues;
 pub mod launch;
 pub mod links;
 pub mod other;
+// The Tools page reads Windows' installed-programs list through it too (software/records.rs).
 #[cfg(windows)]
-mod registry;
+pub(crate) mod registry;
 pub mod steam;
 pub mod steam_user;
 pub mod workshop;

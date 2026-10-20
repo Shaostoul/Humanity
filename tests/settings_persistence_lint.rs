@@ -77,6 +77,10 @@ const SETTINGS_FILES: &[&str] = &[
     // Seen red 2026-10-19 with games_layout's load leg removed from config.rs: "games_layout:
     // never read by apply_to_state".
     "src/gui/pages/games_library.rs",
+    // The Tools page's view, order, kind and category (2026-10-19): picked on its toolbar
+    // (tools_library.rs) and kept in AppConfig as one setting (`tools_view`). Seen red 2026-10-19
+    // with its load leg removed from config.rs: "tools_view: never read by apply_to_state".
+    "src/gui/pages/tools_library.rs",
 ];
 
 /// Pull every `state.settings.<field>` that the Settings files bind to a widget

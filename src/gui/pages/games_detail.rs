@@ -16,7 +16,7 @@ use super::{Act, GamesState, ShowAll};
 use crate::games::links::{self, Opens};
 use crate::games::{Game, State, Store};
 use crate::gui::theme::Theme;
-use crate::gui::widgets::{self, cover_tile, icons, thumbnails};
+use crate::gui::widgets::{self, cover_tile, icons, shelf, thumbnails};
 use crate::gui::GuiState;
 
 /// The details' width when they open (the person can drag their edge).
@@ -53,31 +53,17 @@ pub(super) fn panel(ctx: &egui::Context, theme: &Theme, state: &GuiState) -> Vec
     let mut acts = Vec::new();
     let page = &state.games;
     let Some(game) = page.selected_game() else { return acts };
-    egui::SidePanel::right("games_details")
-        .resizable(true)
-        .default_width(DETAILS_WIDTH)
-        .width_range(340.0..=760.0)
-        .frame(egui::Frame::none().fill(theme.bg_card()).inner_margin(theme.spacing_lg).stroke(Stroke::new(1.0, theme.border())))
-        .show(ctx, |ui| {
-            egui::ScrollArea::vertical().id_salt("games_details_scroll").auto_shrink([false, false]).show(ui, |ui| {
-                body(ui, theme, page, game, &mut acts);
-            });
-        });
+    // The details panel the Tools page shares (widgets/shelf.rs), its contents clear of its scroll
+    // bar since 2026-10-19 (the operator's library at 2560 wide: dates and the banner touched it).
+    shelf::details_panel(ctx, theme, "games_details", DETAILS_WIDTH, |ui| {
+        body(ui, theme, page, game, &mut acts);
+    });
     acts
 }
 
-/// A section's heading, a note beside it, and a line under it.
+/// A section's heading, a note beside it, and a line under it (the shelf's).
 fn heading(ui: &mut egui::Ui, theme: &Theme, text: &str, note: Option<&str>) {
-    ui.add_space(theme.spacing_md);
-    ui.horizontal_wrapped(|ui| {
-        ui.label(RichText::new(text).size(theme.font_size_heading).color(theme.text_primary()));
-        if let Some(note) = note {
-            ui.label(RichText::new(note).size(theme.font_size_body).color(theme.text_secondary()));
-        }
-    });
-    let y = ui.cursor().min.y + 1.0;
-    ui.painter().hline(ui.max_rect().x_range(), y, Stroke::new(1.0, theme.border()));
-    ui.add_space(theme.spacing_sm);
+    shelf::section_heading(ui, theme, text, note);
 }
 
 fn body(ui: &mut egui::Ui, theme: &Theme, page: &GamesState, game: &Game, acts: &mut Vec<Act>) {
@@ -196,13 +182,7 @@ fn about(ui: &mut egui::Ui, theme: &Theme, game: &Game) {
     }
     rows.push(("Installed in", game.folder.display().to_string()));
     heading(ui, theme, ABOUT, None);
-    egui::Grid::new(("games_about", &game.id)).num_columns(2).spacing(Vec2::new(theme.spacing_md, theme.spacing_xs)).show(ui, |ui| {
-        for (label, value) in rows {
-            ui.label(RichText::new(label).size(theme.font_size_small).color(theme.text_muted()));
-            ui.add(egui::Label::new(RichText::new(value).size(theme.font_size_small).color(theme.text_primary())).wrap());
-            ui.end_row();
-        }
-    });
+    shelf::facts(ui, theme, ("games_about", &game.id), &rows);
 }
 
 /// Its achievements: how many of how many, a bar, and the list (the unlocked first, with the day).

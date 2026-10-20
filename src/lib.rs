@@ -157,6 +157,11 @@ pub mod config;
 #[cfg(feature = "native")]
 pub mod games;
 
+// The Tools page's readers (2026-10-19): which catalog programs are installed (Windows' own
+// records and Steam's, read only), the catalog's entries, and the install seam. Native-only.
+#[cfg(feature = "native")]
+pub mod software;
+
 // v0.278.0: optional silent / quick-PIN unlock paths on top of the
 // passphrase-encrypted vault. Native-only — relay/wasm don't carry an
 // interactive identity.

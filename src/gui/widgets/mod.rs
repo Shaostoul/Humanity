@@ -38,6 +38,9 @@ pub mod thumbnails;
 // A cover slot (a picture, or a plain panel with the name), a thin progress line and choice pills
 // (2026-10-19): the Games page's tiles and toolbar.
 pub mod cover_tile;
+// A library shelf (2026-10-19): the toolbar, the Grid and its tiles, the List, and the details panel
+// the Games page and the Tools page share.
+pub mod shelf;
 // A video fetched and played in the app, with its sound (2026-10-18): the Media page and the chat.
 pub mod video_view;
 // The readable web view (2026-09-16): draws a `web_reader::Page` with

@@ -473,6 +473,11 @@ pub struct AppConfig {
     /// "size". A config written before it existed sorts by name.
     #[serde(default)]
     pub games_sort: crate::gui::pages::games::SortBy,
+    /// The Tools page's view (2026-10-19, pages/tools.rs): Grid or List, the order ("name",
+    /// "installed_first" or "category"), and the kind and category it is narrowed to. A config
+    /// written before it existed shows every entry in a Grid by name.
+    #[serde(default)]
+    pub tools_view: crate::gui::pages::tools::View,
     /// Settings > Safety, the protected setup (step G of blocking-and-safe-mode.md 10h,
     /// 2026-10-10), carried here only on its way to ITS OWN FILE beside config.json
     /// (net/protected_store.rs): never serialized into config.json. Kept apart because an
@@ -1531,6 +1536,7 @@ impl AppConfig {
             added_games: state.settings.added_games.clone(),
             games_layout: state.settings.games_layout,
             games_sort: state.settings.games_sort,
+            tools_view: state.settings.tools_view.clone(),
             protected_setup: Some(state.protected.setup.clone()),
             font_size: state.settings.font_size,
             dark_mode: state.settings.dark_mode,
@@ -1718,6 +1724,7 @@ impl AppConfig {
         state.settings.added_games = self.added_games.clone();
         state.settings.games_layout = self.games_layout;
         state.settings.games_sort = self.games_sort;
+        state.settings.tools_view = self.tools_view.clone();
         // The protected setup is NOT applied from here: it lives in its own file, which boot reads
         // whether or not config.json exists or reads (`load_protected_setup`, lib.rs).
         // Clamp the ranges the UI enforces, so a hand-edited config cannot

@@ -2043,6 +2043,77 @@ fn snapshot_games_library_list() {
     });
 }
 
+/// The Tools page as a library (2026-10-19, pages/tools.rs): the lines about where the programs
+/// come from and how what is installed is found; the toolbar (search, sort, Grid or List, the kind
+/// pills with their counts, the category pills); the Grid of the software, sorted Installed first:
+/// GIMP (its program here a copy of Windows' Explorer, so its icon shows), Notepad++ (a copy of
+/// Notepad, known to App Paths), Blender (installed by Steam, a copy of Calculator in its Steam
+/// folder) each with Launch and "Installed"; DaVinci Resolve installed with no program recorded;
+/// the rest with Download, or Open website for those that run in a browser. At the right, GIMP's
+/// details: its banner, installed and its version, Launch, Show in folder, Website and Download
+/// page, its description and its facts (licence, platforms, size, the file types it opens, where
+/// it is). Built from the shipped catalog and fixture records in scratch folders: this computer's
+/// registry is not read, and nothing is started.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_tools() {
+    use crate::gui::pages::tools;
+    let fx = tools::tests::fixture("snapshot_tools");
+    #[cfg(windows)]
+    if let Ok(root) = std::env::var("SystemRoot") {
+        let root = std::path::PathBuf::from(root);
+        let _ = std::fs::copy(root.join("explorer.exe"), &fx.gimp);
+        let _ = std::fs::copy(root.join("System32").join("notepad.exe"), &fx.notepad);
+        if let Some(steam) = &fx.sources.steam_root {
+            let _ = std::fs::copy(root.join("System32").join("calc.exe"), steam.join("steamapps").join("common").join("Blender").join("blender.exe"));
+        }
+    }
+    render_page_png("tools", 1440, 1560, |ctx, theme, state| {
+        if state.tools.found.is_none() {
+            state.tools_catalog = tools::tests::shipped_catalog();
+            state.tools.sources = tools::Where::These(fx.sources.clone());
+            state.settings.tools_view = tools::View { kind: Some("software".into()), sort: tools::SortBy::InstalledFirst, ..tools::View::default() };
+            tools::read_now(state);
+            state.tools.selected = state.tools_catalog.iter().position(|e| e.name == "GIMP");
+        }
+        tools::draw(ctx, theme, state);
+    });
+}
+
+/// The Tools page as a List (2026-10-19, pages/tools_library.rs), sorted by category, narrowed to
+/// nothing: a row per entry with its main button (Launch, Download or Open website), its name (and
+/// an installed program's icon), category, installed version, licence, platforms and size, the
+/// headings a click sorts by. At the right, Krita's details with Install pressed: the consent step,
+/// with what winget says of its package (here as winget printed it on 19 October 2026: Krita
+/// Foundation, GPL-3.0), that it lists no agreements, Microsoft's two lines as winget prints them,
+/// Windows' permission prompt, winget's usage data, what agreeing means, and "I agree, install" and
+/// Cancel. Nothing is run: a test build's winget runner only records. The same fixture as `tools`.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_tools_list() {
+    use crate::gui::pages::tools;
+    let fx = tools::tests::fixture("snapshot_tools_list");
+    #[cfg(windows)]
+    if let Ok(root) = std::env::var("SystemRoot") {
+        let _ = std::fs::copy(std::path::Path::new(&root).join("explorer.exe"), &fx.gimp);
+    }
+    render_page_png("tools_list", 1440, 1100, |ctx, theme, state| {
+        if state.tools.found.is_none() {
+            state.tools_catalog = tools::tests::shipped_catalog();
+            state.tools.sources = tools::Where::These(fx.sources.clone());
+            state.settings.tools_view = tools::View { layout: tools::Layout::List, sort: tools::SortBy::Category, kind: Some("software".into()), ..tools::View::default() };
+            tools::read_now(state);
+            let krita = state.tools_catalog.iter().position(|e| e.name == "Krita");
+            state.tools.selected = krita;
+            crate::software::install::recorder::answer_show(Some(Ok("Found Krita [KDE.Krita]\nVersion: 5.3.4.1\nPublisher: Krita Foundation\nLicense: GPL-3.0\nLicense Url: https://krita.org/en/about/license/\n".into())));
+            if let Some(k) = krita {
+                tools::install_pressed(state, k);
+            }
+        }
+        tools::draw(ctx, theme, state);
+    });
+}
+
 /// The item the item-page and Edit snapshots show, put there by `by` (key, name): a 1:1 model of a
 /// contact staff in Fire flow arts, with a description of two lines, an added file (its textures),
 /// a cover picture, counts, CC BY 4.0, offered for the game and featured in its category. Built on

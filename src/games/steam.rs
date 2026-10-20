@@ -94,20 +94,10 @@ fn manifest_appid(path: &Path) -> Option<String> {
 /// ONE account only, `active_user` (signed in now) or the one Steam says signed in last
 /// (steam_user.rs `account`), never several people's mixed on a shared computer.
 pub fn read(steam_root: &Path, active_user: Option<u32>) -> Vec<Game> {
-    let mut seen = HashSet::new();
     let mut out = Vec::new();
-    for library in libraries(steam_root) {
-        let apps = library.join("steamapps");
-        let mut manifests: Vec<(String, PathBuf)> = super::list_dir(&apps).into_iter().filter_map(|e| manifest_appid(&e.path()).map(|id| (id, e.path()))).collect();
-        manifests.sort();
-        for (file_id, path) in manifests {
-            if let Some(mut game) = read_manifest(&path, &file_id, &apps) {
-                if seen.insert(game.id.clone()) {
-                    game.details.workshop = super::workshop::read(&apps, &game.id);
-                    out.push(game);
-                }
-            }
-        }
+    for (apps, mut game) in manifests(steam_root) {
+        game.details.workshop = super::workshop::read(&apps, &game.id);
+        out.push(game);
     }
     let account = super::steam_user::account(steam_root, active_user);
     let played = account.as_ref().map(super::steam_user::playtimes).unwrap_or_default();
@@ -124,6 +114,35 @@ pub fn read(steam_root: &Path, active_user: Option<u32>) -> Vec<Game> {
         game.details.achievements = super::achievements::read(&stats, account.as_ref().map(|a| a.id), &game.id);
         game.details.art = super::art::steam(steam_root, &game.id);
     }
+    sort_by_name(&mut out);
+    out
+}
+
+/// Every app Steam has installed in the libraries Steam's folder names, each once, with its
+/// `steamapps` folder: its appmanifest only, none of the person's records.
+fn manifests(steam_root: &Path) -> Vec<(PathBuf, Game)> {
+    let mut seen = HashSet::new();
+    let mut out = Vec::new();
+    for library in libraries(steam_root) {
+        let apps = library.join("steamapps");
+        let mut manifests: Vec<(String, PathBuf)> = super::list_dir(&apps).into_iter().filter_map(|e| manifest_appid(&e.path()).map(|id| (id, e.path()))).collect();
+        manifests.sort();
+        for (file_id, path) in manifests {
+            if let Some(game) = read_manifest(&path, &file_id, &apps) {
+                if seen.insert(game.id.clone()) {
+                    out.push((apps.clone(), game));
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Every app Steam has installed, from its appmanifests alone (2026-10-19, for the Tools page: a
+/// program Steam installed, Blender say, counts as installed). None of the person's own records
+/// (playtime, achievements, screenshots, mods) and none of the pictures are read.
+pub fn installed(steam_root: &Path) -> Vec<Game> {
+    let mut out: Vec<Game> = manifests(steam_root).into_iter().map(|(_, g)| g).collect();
     sort_by_name(&mut out);
     out
 }
@@ -242,6 +261,22 @@ mod tests {
         assert!(old.achievements.is_none() && old.screenshots.is_none() && old.workshop.is_none());
         let rover = &games.iter().find(|g| g.name == "Deep Rover").unwrap().details;
         assert_eq!((rover.played_minutes, rover.last_played), (None, None), "never played");
+    }
+
+    /// WHAT STEAM INSTALLED, AND NOTHING OF THE PERSON'S (2026-10-19, for the Tools page): the same
+    /// games as `read`, by name, from the same two libraries, with none of the person's records
+    /// (playtime, achievements, mods) and no pictures read.
+    ///
+    /// Seen red 2026-10-19 with `installed` returning `read(steam_root, None)`: "none of the
+    /// person's records" failed.
+    #[test]
+    fn what_steam_installed_and_nothing_of_the_persons() {
+        let fx = fixtures::steam("steam_installed");
+        let all = installed(&fx.root);
+        let names: Vec<&str> = all.iter().map(|g| g.name.as_str()).collect();
+        assert_eq!(names, vec!["Deep Rover", "Old Lighthouse", "Orbital Farmstead", "Sunken Archive"]);
+        assert!(all.iter().all(|g| g.details.played_minutes.is_none() && g.details.achievements.is_none() && g.details.workshop.is_none() && g.details.art == Default::default()), "none of the person's records");
+        assert_eq!(all.iter().find(|g| g.name == "Orbital Farmstead").map(|g| g.play.clone()), Some(Some(Launch::Link("steam://rungameid/1000010".into()))));
     }
 
     /// THE STATE FLAGS: fully installed is Ready even with an update waiting (Steam applies it when

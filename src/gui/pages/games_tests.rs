@@ -15,7 +15,7 @@ use crate::games::fixtures;
 use crate::games::launch::recorder;
 use crate::gui::screen_surface::find_text_in_shapes;
 
-pub(super) fn ctx_and_theme() -> (egui::Context, Theme) {
+pub(crate) fn ctx_and_theme() -> (egui::Context, Theme) {
     let ctx = egui::Context::default();
     crate::gui::fonts::install_font_fallbacks(&ctx);
     let theme = crate::gui::theme::load_theme();
@@ -51,7 +51,7 @@ pub(super) fn read_in(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) 
 }
 
 /// Every text drawn, with where.
-pub(super) fn texts(out: &egui::FullOutput) -> Vec<(String, egui::Rect)> {
+pub(crate) fn texts(out: &egui::FullOutput) -> Vec<(String, egui::Rect)> {
     fn visit(shape: &egui::Shape, clip: egui::Rect, out: &mut Vec<(String, egui::Rect)>) {
         match shape {
             egui::Shape::Text(t) => {
@@ -72,21 +72,21 @@ pub(super) fn texts(out: &egui::FullOutput) -> Vec<(String, egui::Rect)> {
 }
 
 /// How many times exactly `text` is drawn.
-pub(super) fn count(out: &egui::FullOutput, text: &str) -> usize {
+pub(crate) fn count(out: &egui::FullOutput, text: &str) -> usize {
     texts(out).iter().filter(|(t, _)| t == text).count()
 }
 
-pub(super) fn exact(out: &egui::FullOutput, text: &str) -> bool {
+pub(crate) fn exact(out: &egui::FullOutput, text: &str) -> bool {
     count(out, text) > 0
 }
 
 /// Where exactly `text` is drawn (the first).
-pub(super) fn at(out: &egui::FullOutput, text: &str) -> Option<egui::Rect> {
+pub(crate) fn at(out: &egui::FullOutput, text: &str) -> Option<egui::Rect> {
     texts(out).into_iter().find(|(t, _)| t == text).map(|(_, r)| r)
 }
 
 /// The `button` drawn on the same line as the text `row` (the nearest one on that line).
-pub(super) fn in_row(out: &egui::FullOutput, row: &str, button: &str) -> Option<egui::Rect> {
+pub(crate) fn in_row(out: &egui::FullOutput, row: &str, button: &str) -> Option<egui::Rect> {
     let y = at(out, row)?.center().y;
     texts(out).into_iter().filter(|(t, r)| t == button && (r.center().y - y).abs() < 14.0).map(|(_, r)| r).next()
 }

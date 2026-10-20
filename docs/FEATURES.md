@@ -1614,9 +1614,69 @@ Notes/journal in native UI.
 File browser in native UI.
 - Native: `src/gui/pages/files.rs`
 
-### Tools Page
-Tools catalog in native UI.
-- Native: `src/gui/pages/tools.rs`
+### Tools Page (a library like the Games page, 2026-10-19)
+
+Everything you GO USE: the 40 free programs and 60 real-world help services of the single external
+catalog `data/external/catalog.json`, as a library to look at, launch from and install from. The
+operator, 2026-10-19: "What if we make the tools page like the games page? Then what if through that
+interface users can install/launch/go to the website(s) for the various non-game apps?" What may be
+done follows the dated finding
+`docs/reference/findings/2026-10-19-tools-page-install-launch-and-icons.md` ("Research Findings" in
+the Library; the page's Why opens it).
+
+- **The shelf the Games page uses** (`src/gui/widgets/shelf.rs`, shared, so the two look and behave
+  alike): Grid or List, search (every word, in the name, category or description), sort by Name,
+  Installed first or Category (the Grid then shows each category under its name), the kind pills
+  (Everything, Software, Help and services, each with its count) and the category pills of the kind
+  chosen. The view, the sort and both filters are one setting kept in config.json (`tools_view`,
+  guarded by `tests/settings_persistence_lint.rs`).
+- **A tile**: a panel tinted in its category's hue (`swatch_color` of the category id over the
+  theme's colours) with its name; an installed program's own icon and an "Installed" mark; its
+  name, category and licence; one more line (installed and its version, else where it runs and its
+  size, or a service's website); and the main button: Launch when installed, otherwise Download (the
+  maker's own download page) or Open website. The List: the main button, name (and icon), Category,
+  Installed, Licence, Runs on, Size, the headings a click sorts by.
+- **Finding what is installed** (Windows, `src/software/`, read only, on a worker thread when the
+  page opens and on Refresh, never every frame): Windows' installed-programs list (the Uninstall
+  keys in HKLM and HKCU, 64-bit and 32-bit views, DisplayName, DisplayVersion, InstallLocation,
+  DisplayIcon; SystemComponent entries skipped) and App Paths (`src/software/records.rs`, through
+  `src/games/registry.rs`, now with a `View`), and Steam's own records (`games::steam::installed`, the
+  Games page's reader: Blender from Steam counts). Matched by DATA in the catalog
+  (`src/software/matcher.rs`): `detect.display_name` (a regular expression, case ignored),
+  `detect.exe` (the program inside its folder, one path or a list), `steam_appid`. Says "Installed"
+  or "Not found on this computer", never "not installed" (Windows has no sure way to find every
+  program). The ignored test `software::this_computer` prints what it finds here.
+- **Launch**, on a click only, through the Games page's one launcher (`games::launch`): the program
+  itself in its own folder, or Steam's own link for a copy Steam installed. Show in folder.
+- **The details** at the right (the shelf's panel): the banner, installed and its version (or why it
+  cannot be started from here), Launch, Show in folder, Install, Website, Download page, the
+  description, and its facts (licence, runs on, download size, the file types its category opens,
+  version, install folder, program, where it was found, winget package, website).
+- **Install through winget**, Windows' own package manager (`src/software/install.rs`), for an entry
+  with a `winget` package id that is not found: Install first reads `winget show` (on a worker) and
+  opens a consent step in the details (the package and its publisher, its licence with its page,
+  its agreements if winget lists any, Microsoft's two lines exactly as winget prints them, that
+  Windows may ask for permission, that winget sends Microsoft usage data, and what pressing "I agree,
+  install" means). Only "I agree, install" runs `winget install --id <id> --exact --source winget
+  --accept-package-agreements --no-upgrade --disable-interactivity`, plus `--interactive` for a
+  program whose licence is not free software (`install_interactive`: VS Code, Paint.NET, Zed). Never
+  `--accept-source-agreements`. Progress (winget's latest line, a spinner on the tile), one install at
+  a time, each winget return code in plain words with winget's own, then the page looks again so the
+  tile turns to Launch. Test builds never run winget (its runner records).
+- **Website only, saying why** (`website_only` in the catalog, naming whose rule): DaVinci Resolve
+  (its maker's registration form), Aseprite, Ardour, Vectr, Boxy SVG. A program winget does not have
+  says that instead.
+- **Said on the page**: where the programs come from (their makers), the safety line (get programs
+  from their makers, never from an advert; anyone else asking you to pay for a free one is not the
+  maker), how what is installed is found and why there are no logos (no logo is shipped or fetched;
+  each maker sets its own rules), and that HumanityOS is not made by or affiliated with the makers.
+- **Snapshots**: `just snapshot tools` (the Grid, installed first, with GIMP's details) and
+  `tools_list` (the List by category, with Krita's consent step).
+- Native: `src/gui/pages/tools.rs`, `tools_library.rs`, `tools_detail.rs`, `tools_tests.rs`;
+  `src/software/` (`catalog.rs`, `records.rs`, `matcher.rs`, `install.rs`); `src/gui/widgets/shelf.rs`
+- Data: `data/external/catalog.json` (also read by the web page, which ignores the new fields)
+- Web: `web/pages/tools.html` + `tools-app.js` (the catalog only: a web page cannot see or start the
+  programs on the computer it runs on)
 
 ### Resources Page
 Resources directory in native UI.

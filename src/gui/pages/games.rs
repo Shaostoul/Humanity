@@ -96,26 +96,15 @@ pub const PROGRAM_GONE: &str = "Its program is not in its folder, so it cannot b
 pub const SEARCH_HINT: &str = "Search by name";
 /// The pill for every store.
 pub const ALL: &str = "All";
-/// The views' names.
-pub const GRID: &str = "Grid";
-pub const LIST: &str = "List";
+/// The views' names, and how the library is shown (kept in the settings, config.json
+/// `games_layout`): the shelf the Tools page shares (widgets/shelf.rs).
+pub use crate::gui::widgets::shelf::{Layout, GRID, LIST};
 /// At most this many games can be added by hand.
 pub const MAX_ADDED: usize = 500;
 /// A page not drawn for longer than this was closed: drawing it again is opening it.
 const OPEN_GAP: Duration = Duration::from_secs(2);
 /// A second Play on the same game this soon after the first is the same press (a double-click).
 const AGAIN_AFTER: Duration = Duration::from_secs(2);
-
-/// How the library is shown: kept in the settings (config.json `games_layout`).
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum Layout {
-    /// A tile per game.
-    #[default]
-    Grid,
-    /// A row per game, its numbers in columns.
-    List,
-}
 
 /// The order the library is shown in: kept in the settings (config.json `games_sort`).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -742,9 +731,10 @@ fn draw_picker(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     }
 }
 
+// pub(crate): the Tools page's tests use its text helpers (at, count, exact, in_row, texts).
 #[cfg(test)]
 #[path = "games_tests.rs"]
-mod tests;
+pub(crate) mod tests;
 
 #[cfg(test)]
 #[path = "games_detail_tests.rs"]

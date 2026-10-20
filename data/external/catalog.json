@@ -1,5 +1,5 @@
 {
-  "_comment": "The single catalog of EXTERNAL things: free software you install (kind \"software\") and real-world help services/websites (kind \"service\"). Rendered identically by the native Tools page (src/gui/pages/tools.rs) and the web Tools page (web/pages/tools.html). Add entries here, never in code (Infinite-of-X). Replaced data/tools/catalog.json, data/resources/catalog.json and data/resources.json on 2026-07-30.",
+  "_comment": "The single catalog of EXTERNAL things: free software you install (kind \"software\") and real-world help services/websites (kind \"service\"). Rendered identically by the native Tools page (src/gui/pages/tools.rs) and the web Tools page (web/pages/tools.html). Add entries here, never in code (Infinite-of-X). Replaced data/tools/catalog.json, data/resources/catalog.json and data/resources.json on 2026-07-30. Since 2026-10-19 a software entry may also carry, as data: \"detect\" (\"display_name\", a regular expression for the name Windows keeps for the installed program, letter case ignored; \"exe\", its program file inside its install folder, one path or a list), \"steam_appid\" (a copy Steam installed counts), \"winget\" (its package id in Windows' package manager, for Install) and \"download\" (the project's own download page). Also \"license_url\" (the licence's own page), \"install_interactive\" (true for a program whose licence is not a free-software licence: its own installer, with its own licence page, is shown) and \"website_only\" (why there is no Install, in plain words naming whose rule it is). Leave a field out when it is not known for certain: the entry is then simply never found installed.",
   "version": 1,
   "kinds": [
     {
@@ -39,7 +39,14 @@
             "mac",
             "linux"
           ],
-          "size": "~350MB"
+          "size": "~350MB",
+          "download": "https://www.blender.org/download/",
+          "detect": {
+            "display_name": "^Blender( \\d|$)",
+            "exe": "blender.exe"
+          },
+          "steam_appid": 365670,
+          "winget": "BlenderFoundation.Blender"
         },
         {
           "name": "FreeCAD",
@@ -51,11 +58,17 @@
             "mac",
             "linux"
           ],
-          "size": "~500MB"
+          "size": "~500MB",
+          "download": "https://www.freecad.org/downloads.php",
+          "detect": {
+            "display_name": "^FreeCAD\\b",
+            "exe": "bin/FreeCAD.exe"
+          },
+          "winget": "FreeCAD.FreeCAD"
         },
         {
           "name": "Wings 3D",
-          "url": "http://www.wings3d.com",
+          "url": "https://www.wings3d.com",
           "description": "Lightweight subdivision modeler. Great for organic shapes and low-poly work.",
           "license": "BSD",
           "platforms": [
@@ -63,7 +76,13 @@
             "mac",
             "linux"
           ],
-          "size": "~30MB"
+          "size": "~30MB",
+          "download": "https://www.wings3d.com/download-2/",
+          "detect": {
+            "display_name": "^Wings 3D\\b",
+            "exe": "Wings3D.exe"
+          },
+          "winget": "Wings3D.Wings3D"
         },
         {
           "name": "MeshLab",
@@ -75,7 +94,12 @@
             "mac",
             "linux"
           ],
-          "size": "~50MB"
+          "size": "~50MB",
+          "detect": {
+            "display_name": "^MeshLab\\b",
+            "exe": "meshlab.exe"
+          },
+          "winget": "CNRISTI.MeshLab"
         }
       ]
     },
@@ -107,7 +131,16 @@
             "mac",
             "linux"
           ],
-          "size": "~300MB"
+          "size": "~300MB",
+          "download": "https://www.gimp.org/downloads/",
+          "detect": {
+            "display_name": "^GIMP \\d",
+            "exe": [
+              "bin/gimp-3.exe",
+              "bin/gimp-2.10.exe"
+            ]
+          },
+          "winget": "GIMP.GIMP.3"
         },
         {
           "name": "Krita",
@@ -119,17 +152,32 @@
             "mac",
             "linux"
           ],
-          "size": "~200MB"
+          "size": "~200MB",
+          "download": "https://krita.org/en/download/",
+          "detect": {
+            "display_name": "^Krita\\b",
+            "exe": "bin/krita.exe"
+          },
+          "steam_appid": 280680,
+          "winget": "KDE.Krita"
         },
         {
           "name": "Paint.NET",
           "url": "https://getpaint.net",
           "description": "Fast, intuitive image editor for Windows. Layers, effects, plugins.",
-          "license": "MIT",
+          "license": "Freeware (proprietary)",
+          "license_url": "https://www.getpaint.net/license.html",
           "platforms": [
             "windows"
           ],
-          "size": "~10MB"
+          "size": "~10MB",
+          "download": "https://www.getpaint.net/download.html",
+          "detect": {
+            "display_name": "^paint\\.net\\b",
+            "exe": "paintdotnet.exe"
+          },
+          "winget": "dotPDN.PaintDotNet",
+          "install_interactive": true
         },
         {
           "name": "Photopea",
@@ -163,7 +211,13 @@
             "mac",
             "linux"
           ],
-          "size": "~120MB"
+          "size": "~120MB",
+          "download": "https://inkscape.org/release/",
+          "detect": {
+            "display_name": "^Inkscape\\b",
+            "exe": "bin/inkscape.exe"
+          },
+          "winget": "Inkscape.Inkscape"
         },
         {
           "name": "Vectr",
@@ -176,7 +230,8 @@
             "linux",
             "web"
           ],
-          "size": "~60MB"
+          "size": "~60MB",
+          "website_only": "Its maker offers it only from its own site, under its own terms of use, and not through winget: the maker's own terms."
         },
         {
           "name": "Boxy SVG",
@@ -189,7 +244,8 @@
             "linux",
             "web"
           ],
-          "size": "~20MB"
+          "size": "~20MB",
+          "website_only": "It is not free software, and its maker offers it only from its own site and app stores, not through winget: the maker's own terms."
         }
       ]
     },
@@ -221,7 +277,13 @@
             "mac",
             "linux"
           ],
-          "size": "~350MB"
+          "size": "~350MB",
+          "download": "https://www.libreoffice.org/download/",
+          "detect": {
+            "display_name": "^LibreOffice \\d+(\\.\\d+)*$",
+            "exe": "program/soffice.exe"
+          },
+          "winget": "TheDocumentFoundation.LibreOffice"
         },
         {
           "name": "OnlyOffice",
@@ -234,7 +296,13 @@
             "linux",
             "web"
           ],
-          "size": "~300MB"
+          "size": "~300MB",
+          "download": "https://www.onlyoffice.com/download-desktop",
+          "detect": {
+            "display_name": "^ONLYOFFICE( Desktop Editors)? \\d",
+            "exe": "DesktopEditors.exe"
+          },
+          "winget": "ONLYOFFICE.DesktopEditors"
         },
         {
           "name": "CryptPad",
@@ -283,7 +351,13 @@
             "mac",
             "linux"
           ],
-          "size": "~200MB"
+          "size": "~200MB",
+          "download": "https://kdenlive.org/en/download/",
+          "detect": {
+            "display_name": "^Kdenlive\\b",
+            "exe": "bin/kdenlive.exe"
+          },
+          "winget": "KDE.Kdenlive"
         },
         {
           "name": "Shotcut",
@@ -295,7 +369,13 @@
             "mac",
             "linux"
           ],
-          "size": "~100MB"
+          "size": "~100MB",
+          "download": "https://shotcut.org/download/",
+          "detect": {
+            "display_name": "^Shotcut\\b",
+            "exe": "shotcut.exe"
+          },
+          "winget": "Meltytech.Shotcut"
         },
         {
           "name": "DaVinci Resolve",
@@ -307,7 +387,12 @@
             "mac",
             "linux"
           ],
-          "size": "~2GB"
+          "size": "~2GB",
+          "website_only": "Blackmagic Design offers the free DaVinci Resolve only from its own site, after a form asking for your name, email, phone number and address, and not through winget: the maker's own rule.",
+          "detect": {
+            "display_name": "^DaVinci Resolve$",
+            "exe": "Resolve.exe"
+          }
         },
         {
           "name": "OpenShot",
@@ -319,7 +404,13 @@
             "mac",
             "linux"
           ],
-          "size": "~100MB"
+          "size": "~100MB",
+          "download": "https://www.openshot.org/download/",
+          "detect": {
+            "display_name": "^OpenShot\\b",
+            "exe": "openshot-qt.exe"
+          },
+          "winget": "OpenShot.OpenShot"
         }
       ]
     },
@@ -349,7 +440,13 @@
             "mac",
             "linux"
           ],
-          "size": "~40MB"
+          "size": "~40MB",
+          "download": "https://www.audacityteam.org/download/",
+          "detect": {
+            "display_name": "^Audacity( \\d|$)",
+            "exe": "Audacity.exe"
+          },
+          "winget": "Audacity.Audacity"
         },
         {
           "name": "LMMS",
@@ -361,7 +458,13 @@
             "mac",
             "linux"
           ],
-          "size": "~60MB"
+          "size": "~60MB",
+          "download": "https://lmms.io/download",
+          "detect": {
+            "display_name": "^LMMS\\b",
+            "exe": "lmms.exe"
+          },
+          "winget": "LMMS.LMMS"
         },
         {
           "name": "Ardour",
@@ -373,7 +476,9 @@
             "mac",
             "linux"
           ],
-          "size": "~50MB"
+          "size": "~50MB",
+          "download": "https://community.ardour.org/download",
+          "website_only": "Its makers ask you to pay what you can for the ready-made program and offer it only from their own site, not through winget: the makers' own terms."
         },
         {
           "name": "MuseScore",
@@ -385,7 +490,16 @@
             "mac",
             "linux"
           ],
-          "size": "~100MB"
+          "size": "~100MB",
+          "download": "https://musescore.org/en/download",
+          "detect": {
+            "display_name": "^MuseScore( Studio)? \\d",
+            "exe": [
+              "bin/MuseScore4.exe",
+              "bin/MuseScore3.exe"
+            ]
+          },
+          "winget": "Musescore.Musescore"
         }
       ]
     },
@@ -415,24 +529,41 @@
           "name": "VS Code",
           "url": "https://code.visualstudio.com",
           "description": "Lightweight but powerful code editor with massive extensions ecosystem.",
-          "license": "MIT",
+          "license": "Microsoft Software License (source: MIT)",
+          "license_url": "https://code.visualstudio.com/license",
           "platforms": [
             "windows",
             "mac",
             "linux"
           ],
-          "size": "~100MB"
+          "size": "~100MB",
+          "download": "https://code.visualstudio.com/download",
+          "detect": {
+            "display_name": "^Microsoft Visual Studio Code\\b",
+            "exe": "Code.exe"
+          },
+          "winget": "Microsoft.VisualStudioCode",
+          "install_interactive": true
         },
         {
           "name": "Zed",
           "url": "https://zed.dev",
           "description": "High-performance editor built in Rust. Multiplayer editing, AI integration.",
-          "license": "GPL/AGPL",
+          "license": "GPL source; app under Zed's terms",
+          "license_url": "https://zed.dev/terms",
           "platforms": [
+            "windows",
             "mac",
             "linux"
           ],
-          "size": "~80MB"
+          "size": "~80MB",
+          "download": "https://zed.dev/download",
+          "detect": {
+            "display_name": "^Zed( \\d|$)",
+            "exe": "Zed.exe"
+          },
+          "winget": "ZedIndustries.Zed",
+          "install_interactive": true
         },
         {
           "name": "Lapce",
@@ -444,7 +575,12 @@
             "mac",
             "linux"
           ],
-          "size": "~30MB"
+          "size": "~30MB",
+          "detect": {
+            "display_name": "^Lapce\\b",
+            "exe": "lapce.exe"
+          },
+          "winget": "Lapce.Lapce"
         },
         {
           "name": "Notepad++",
@@ -454,7 +590,13 @@
           "platforms": [
             "windows"
           ],
-          "size": "~5MB"
+          "size": "~5MB",
+          "download": "https://notepad-plus-plus.org/downloads/",
+          "detect": {
+            "display_name": "^Notepad\\+\\+",
+            "exe": "notepad++.exe"
+          },
+          "winget": "Notepad++.Notepad++"
         }
       ]
     },
@@ -477,7 +619,13 @@
           "platforms": [
             "windows"
           ],
-          "size": "~6MB"
+          "size": "~6MB",
+          "download": "https://www.sumatrapdfreader.org/download-free-pdf-viewer",
+          "detect": {
+            "display_name": "^SumatraPDF\\b",
+            "exe": "SumatraPDF.exe"
+          },
+          "winget": "SumatraPDF.SumatraPDF"
         },
         {
           "name": "Okular",
@@ -489,7 +637,13 @@
             "mac",
             "linux"
           ],
-          "size": "~50MB"
+          "size": "~50MB",
+          "download": "https://okular.kde.org/download/",
+          "detect": {
+            "display_name": "^Okular\\b",
+            "exe": "bin/okular.exe"
+          },
+          "winget": "KDE.Okular"
         },
         {
           "name": "Stirling PDF",
@@ -517,13 +671,19 @@
           "name": "Aseprite",
           "url": "https://aseprite.org",
           "description": "Professional pixel art and animation. Compile from source for free.",
-          "license": "GPL (source)",
+          "license": "Paid EULA (source available)",
+          "license_url": "https://github.com/aseprite/aseprite/blob/main/EULA.txt",
           "platforms": [
             "windows",
             "mac",
             "linux"
           ],
-          "size": "~15MB"
+          "size": "~15MB",
+          "website_only": "Its maker sells the ready-made program (you may build it yourself from its source for your own use) and offers it only from its own site and stores, not through winget: the maker's own terms.",
+          "detect": {
+            "exe": "Aseprite.exe"
+          },
+          "steam_appid": 431730
         },
         {
           "name": "LibreSprite",
@@ -565,7 +725,14 @@
             "mac",
             "linux"
           ],
-          "size": "~150MB"
+          "size": "~150MB",
+          "download": "https://obsproject.com/download",
+          "detect": {
+            "display_name": "^OBS Studio\\b",
+            "exe": "bin/64bit/obs64.exe"
+          },
+          "steam_appid": 1905180,
+          "winget": "OBSProject.OBSStudio"
         },
         {
           "name": "HandBrake",
@@ -577,7 +744,13 @@
             "mac",
             "linux"
           ],
-          "size": "~20MB"
+          "size": "~20MB",
+          "download": "https://handbrake.fr/downloads.php",
+          "detect": {
+            "display_name": "^HandBrake\\b",
+            "exe": "HandBrake.exe"
+          },
+          "winget": "HandBrake.HandBrake"
         },
         {
           "name": "ShareX",
@@ -587,7 +760,14 @@
           "platforms": [
             "windows"
           ],
-          "size": "~10MB"
+          "size": "~10MB",
+          "download": "https://getsharex.com/downloads",
+          "detect": {
+            "display_name": "^ShareX\\b",
+            "exe": "ShareX.exe"
+          },
+          "steam_appid": 400040,
+          "winget": "ShareX.ShareX"
         }
       ]
     },
@@ -610,11 +790,18 @@
           "url": "https://7-zip.org",
           "description": "High compression ratio archiver. 7z, ZIP, GZIP, TAR, and more.",
           "license": "LGPL",
+          "license_url": "https://www.7-zip.org/license.txt",
           "platforms": [
             "windows",
             "linux"
           ],
-          "size": "~2MB"
+          "size": "~2MB",
+          "download": "https://www.7-zip.org/download.html",
+          "detect": {
+            "display_name": "^7-Zip\\b",
+            "exe": "7zFM.exe"
+          },
+          "winget": "7zip.7zip"
         },
         {
           "name": "KeePassXC",
@@ -626,17 +813,30 @@
             "mac",
             "linux"
           ],
-          "size": "~30MB"
+          "size": "~30MB",
+          "download": "https://keepassxc.org/download/",
+          "detect": {
+            "display_name": "^KeePassXC\\b",
+            "exe": "KeePassXC.exe"
+          },
+          "winget": "KeePassXCTeam.KeePassXC"
         },
         {
           "name": "Everything",
           "url": "https://voidtools.com",
           "description": "Instant file search. Indexes entire drive in seconds.",
           "license": "MIT",
+          "license_url": "https://www.voidtools.com/License.txt",
           "platforms": [
             "windows"
           ],
-          "size": "~2MB"
+          "size": "~2MB",
+          "download": "https://www.voidtools.com/downloads/",
+          "detect": {
+            "display_name": "^Everything( \\d| \\(|$)",
+            "exe": "Everything.exe"
+          },
+          "winget": "voidtools.Everything"
         },
         {
           "name": "WinSCP",
@@ -646,7 +846,13 @@
           "platforms": [
             "windows"
           ],
-          "size": "~15MB"
+          "size": "~15MB",
+          "download": "https://winscp.net/eng/download.php",
+          "detect": {
+            "display_name": "^WinSCP\\b",
+            "exe": "WinSCP.exe"
+          },
+          "winget": "WinSCP.WinSCP"
         }
       ]
     },
@@ -927,11 +1133,6 @@
       "entries": [
         {
           "name": "Coursera",
-          "url": "https://coursera.org",
-          "description": "Online courses from top universities worldwide."
-        },
-        {
-          "name": "Coursera",
           "url": "https://www.coursera.org",
           "description": "University-level courses from top institutions, many available for free."
         },
@@ -944,11 +1145,6 @@
           "name": "Internet Archive",
           "url": "https://archive.org",
           "description": "Free books, audio, video, and the web's library."
-        },
-        {
-          "name": "Khan Academy",
-          "url": "https://khanacademy.org",
-          "description": "Free courses in math, science, computing, and more."
         },
         {
           "name": "Khan Academy",
@@ -1028,11 +1224,6 @@
           "name": "EveryoneOn",
           "url": "https://www.everyoneon.org",
           "description": "Low-cost internet and affordable computers for qualifying households."
-        },
-        {
-          "name": "freeCodeCamp",
-          "url": "https://freecodecamp.org",
-          "description": "Learn to code for free with interactive lessons."
         },
         {
           "name": "freeCodeCamp",

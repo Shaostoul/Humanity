@@ -45,28 +45,6 @@ use crate::systems::inventory::placed::PlacedItem;
 /// Returns an empty Vec on any error (graceful degradation).
 #[cfg(feature = "native")]
 pub fn load_tools_catalog(data_dir: &std::path::Path) -> Vec<ToolEntry> {
-    /// JSON shape for `data/external/catalog.json`: categories, each tagged
-    /// with a kind, each holding entries.
-    #[derive(serde::Deserialize)]
-    struct Catalog {
-        categories: Vec<CatalogCategory>,
-    }
-    #[derive(serde::Deserialize)]
-    struct CatalogCategory {
-        name: String,
-        /// "software" or "service"; see the `kinds` array in the file.
-        #[serde(default)]
-        kind: String,
-        #[serde(default)]
-        entries: Vec<ToolEntry>,
-        #[allow(dead_code)]
-        #[serde(default)]
-        id: String,
-        #[allow(dead_code)]
-        #[serde(default)]
-        extensions: Vec<String>,
-    }
-
     let path = data_dir.join("external").join("catalog.json");
     let bytes = match std::fs::read_to_string(&path) {
         Ok(b) => b,
@@ -75,22 +53,15 @@ pub fn load_tools_catalog(data_dir: &std::path::Path) -> Vec<ToolEntry> {
             return Vec::new();
         }
     };
-    let catalog: Catalog = match serde_json::from_str(&bytes) {
-        Ok(c) => c,
+    // The shape (categories, each with its id, kind and file types, holding entries) is read in
+    // software/catalog.rs, with each entry's detection, Steam and winget fields.
+    match crate::software::catalog::parse(&bytes) {
+        Ok(entries) => entries,
         Err(e) => {
             eprintln!("[external] Failed to parse external/catalog.json: {}", e);
-            return Vec::new();
-        }
-    };
-    let mut out = Vec::new();
-    for cat in catalog.categories {
-        for mut entry in cat.entries {
-            entry.category = cat.name.clone();
-            entry.kind = cat.kind.clone();
-            out.push(entry);
+            Vec::new()
         }
     }
-    out
 }
 
 /// Build the Maps page's planet list from the cosmos catalog.
