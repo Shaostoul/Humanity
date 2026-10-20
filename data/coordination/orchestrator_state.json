@@ -496,6 +496,16 @@
       "date": "2026-10-20",
       "decision": "Falls are released but not yet tried by hand in the running game (walk off the homestead ladder top, drive and stop, world entry). Logged in PRIORITIES beside the falls line.",
       "why": "The rig proves world entry without panics, not that a landing injures in play; player_landed logs nothing, so the rig's run.log cannot show it either."
+    },
+    {
+      "date": "2026-10-20",
+      "decision": "v0.1528.0 released and delivered: heat pump (Mitsubishi MSZ-FS09NA, 620 W x COP 4.54 = 2,815 W into the air, charged only its draw) and wood stove (Drolet Escape 1800, 13.04 kW, 4.07 kg/h of Wood Logs from its own stove_firebox box, 1.094 kg O2 per kg of wood from the home's air, exhaust up the flue), both workbench-built and placed from Life support; the light theme's 47 older faint text lines fixed and OLDER_TEXT deleted. Checked on main: 4,627 lib tests, 1,011 rig tests, all lints, relay check, verify-runtime 3/3 panics=0, check-delivery OK.",
+      "why": "The last two overnight builders; merged and released before the operator woke so the taskbar exe carries everything from the night."
+    },
+    {
+      "date": "2026-10-20",
+      "decision": "Open from the heating builder: a wood stove does not balance in a sealed hull (107 kg O2 a day at full burn against about 2,900 kg in a home's air, no makeup air in either life-support mode); the generators' fuel drum still accumulates in f32 (ElectricalSystem::fuel_accum, the frame-rate class fire.rs fixed today); data/hvac.ron's original heat pump and stove rows are unsourced (left, with pointers to the machines). From the light-theme builder: check 7 does not measure a page variable defined in another file or whose light value is itself a variable.",
+      "why": "Logged so the next session finds them; none blocks play."
     }
   ],
   "active_scopes_to_avoid": [
@@ -525,7 +535,7 @@
     "Trees have no materialised identity, so they cannot be felled. The key (cell_x, cell_y, item_index) already exists structurally; a sparse delta store is the shape."
   ],
   "how_to_resume": "1. `just brief` (version/CI/signing). 2. docs/PRIORITIES.md \"Active focus\" - the top item is fully specified, start implementing rather than investigating. 3. This file for WHY. Note the ONE-GPU rule: `tasklist //FI \"IMAGENAME eq HumanityOS.exe\"` before booting any rig, and never boot beside the operator instance.",
-  "last_updated": "2026-10-20T06:10-07:00",
+  "last_updated": "2026-10-20T07:20-07:00",
   "focus": "v0.1111.1 shipped (the 2026-08-03/04 vegetation marathon, v0.1109.4-v0.1111.1). Landed: leaf tufts stopped being cubes (golden-angle azimuths + solved per-card tilts, measured 100% parallel pairs on conifers and 67% perpendicular on broadleaves before); distant cards stopped out-shining mesh trees (4-8x, three multiplying causes, then the residual 28% conifer excess traced to the odd component of the shading normals and cancelled at source - all species now 1.00 flat across the sky); standing still stopped depending on the frame rate (the frame-lock sampled terrain one frame of planetary spin behind the player, 33,360 m/s of ground slip, so altitude read as a function of fps and flipped stand height by 2.45 m); the card-hide radius stopped promising models that never drew (BUG-068); forest density stopped being a process-global read separately by two streams (BUG-069); and the card cutoff is now clamped to the terrain reach that actually exists. Foliage-card arrangement extracted to renderer/tree_cards.rs under the size ratchet, and the ratchet budget came DOWN.",
   "overnight_plan_2026_08_01": {
     "directive": "Operator (heading to bed, full trust granted): PERMANENT versions only, no half fixes. Full PBR textures (not just diffuse). Real full canopies of leaves and flowers. Photorealism is the goal - screenshots good enough to land donations/grants; money is tight. 8-10 hours unattended.",

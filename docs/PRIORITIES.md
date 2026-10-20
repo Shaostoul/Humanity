@@ -473,7 +473,14 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
   Found in the v0.1527.0 seam fixes: 47 older website text colours in 16 files (4 chat
   stylesheets, 12 pages) are too faint on the light theme; `web-theme-light.test.js` check 7
   holds them in a per-file count (`OLDER_TEXT`) that can only shrink, so fixing them is
-  shrinking that list to zero.
+  shrinking that list to zero (DONE v0.1528.0: all 47 fixed, `OLDER_TEXT` deleted; left: check 7
+  does not measure a page variable defined in another file, or one whose light value is itself a
+  variable). Found with the heat pump and wood stove (v0.1528.0): the generators' fuel drum still
+  accumulates in f32 (`ElectricalSystem::fuel_accum`, the frame-rate class fire.rs fixed on
+  2026-10-20); a wood stove does not balance in a sealed hull (about 107 kg of oxygen a day at
+  full burn against about 2,900 kg in a home's air, and no makeup air in either life-support
+  mode: a design question, whether a ship home's stove needs an outside air feed or should be a
+  planet-only heater); data/hvac.ron's original heat pump and stove rows are unsourced.
 - **A gap the Normal-mode default exposes (found 2026-10-05 by the Library sweep):** in
   Normal mode NOBODY CAN LEAVE THE SHIP. The Dev page's travel and Land buttons and F9 flight are
   the only ways off it, all Dev-only, and no vehicle or route goes down. So by default a
