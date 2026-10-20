@@ -461,6 +461,11 @@
       "date": "2026-10-20",
       "decision": "v0.1525.0: four gameplay follow-ups from PRIORITIES fixed by a worktree builder and merged: drinks hydrate by litres times water share (HYDRATION_PER_LITRE 20, from the 2.5 L/day loss, EFSA intake), fire burn steps integrated exactly per tick (fuel, intensity, harm the same at 30 and 240 fps), gasoline_0 and diesel_0 replace Refined Fuel everywhere (refine_crude 10 crude to 5 gasoline + 3 diesel, EIA split), and one vessel rule (containers::vessel_takes): a machine vessel takes only its recipe feed or generator fuels; the refinery drum became its feed tank, products to home storage.",
       "why": "Small, verifiable game-sim gaps listed as not started; good overnight work with the operator asleep. New gaps logged: nothing burns diesel yet; food hydration and satiation are still per item regardless of weight."
+    },
+    {
+      "date": "2026-10-20",
+      "decision": "v0.1526.0: Apps/Files polish from a worktree builder: Library guides in Files open in the Library reader (files/app_folder.rs open_in_library, loaders::library_slug_of_file), Install on program tiles (opens the consent step; nothing runs before I agree, tested), a How this page works fold per page (widgets/how_it_works.rs; safety, not-affiliated and Help lines stay visible), Microsoft Store packages found read-only (src/software/store.rs, PackageManager, store_family data for 11 programs, Launch::StoreApp via shell:AppsFolder with a strict id check).",
+      "why": "Follow-ups the operator raised or the earlier builders logged; the operator wanted the long intros condensed and the Library connected to Files while kept separate."
     }
   ],
   "active_scopes_to_avoid": [

@@ -392,11 +392,10 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
       only after a consent step in the details (per
       docs/reference/findings/2026-10-19-tools-page-install-launch-and-icons.md). Open: the REAL
       winget install has never run (test builds compile it out; the operator's first Install is
-      the first real one); programs from the Microsoft Store are not found yet
-      (`PackageManager.FindPackagesForUser`, with each program's Store package name as data);
-      a tile for an installable program could offer Install directly (today it is in the
-      details); the page's intro is five paragraphs and could fold behind a "How this page
-      works"; the web Tools page should mirror the look (it cannot detect or launch).
+      the first real one). DONE v0.1526.0: Microsoft Store programs found
+      (`src/software/store.rs`, `store_family` data for 11 programs), Install on the tile, the
+      intro folded behind "How this page works" (website mirror in progress). DONE v0.1523.1: the
+      website's page mirrors the look as its Apps page.
     - DONE v0.1523.0 (operator, 2026-10-19): **Games and Tools merged into one Apps page** in six
       coloured parts (red Games, green HumanityOS tools from data/gui/humanityos_tools.json, blue
       Other programs, cyan Help, magenta Services, yellow Added by you), tiles a third shorter
