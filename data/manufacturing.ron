@@ -622,7 +622,7 @@
             id: "chemical_pipeline",
             name: "Chemical Production",
             stages: ["raw_extraction", "sorting", "chemical_processing", "quality_inspection", "packaging"],
-            typical_products: ["fuel_refined", "medicine", "fertilizer", "explosives"],
+            typical_products: ["gasoline", "diesel", "medicine", "fertilizer", "explosives"],
         ),
         (
             id: "construction_material_pipeline",

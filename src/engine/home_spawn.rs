@@ -570,16 +570,17 @@ mod tests {
 
     /// BUG-154: the shipped backup generator names the fuel its engine burns,
     /// and the game holds it to that from the data file to the drum. In either
-    /// home `generator_portable` names Refined Fuel, the refinery's product and
-    /// the game's stand-in for the gasoline its model (a Honda EU2200i class
-    /// inverter set) runs on; every fuelled generator in either catalog names
+    /// home `generator_portable` names Gasoline, which its model (a Honda
+    /// EU2200i class inverter set) runs on (Refined Fuel stood in for it until
+    /// 2026-10-20); every fuelled generator in either catalog names
     /// fuels that are items its drum's class takes, and a free source names
     /// none. Spawned the way the game spawns it, it carries that list
-    /// (`BurnsFuels`) beside its drum: the drum offers Refined Fuel and not
-    /// Paint, and on a short island it runs on Refined Fuel and not on Paint.
+    /// (`BurnsFuels`) beside its drum: the drum offers Gasoline and not
+    /// Paint or Diesel, and on a short island it runs on Gasoline and not on
+    /// Paint or Diesel.
     /// Seen red on the old code twice: before the data named a fuel (the
     /// generator named none), and with the data in (its drum offered Paint);
-    /// and red against a rule that burns nothing (Refined Fuel did not run it).
+    /// and red against a rule that burns nothing (the fuel it names did not run it).
     #[test]
     fn the_shipped_generator_burns_its_own_fuel_and_not_paint() {
         use crate::ecs::components::{BurnsFuels, PowerCircuit, PowerConsumer, PowerGenerator};
@@ -618,7 +619,7 @@ mod tests {
                 }
             }
             let def = &home.catalog["generator_portable"];
-            assert_eq!(def.fuels(), ["fuel_refined_0".to_string()], "{file}: the backup generator burns Refined Fuel");
+            assert_eq!(def.fuels(), ["gasoline_0".to_string()], "{file}: the backup generator burns Gasoline");
 
             // Spawned as the game spawns it, on a short island: a 100 W load and nothing else.
             let mut world = hecs::World::new();
@@ -641,19 +642,19 @@ mod tests {
                 .next()
                 .unwrap_or_else(|| panic!("{file}: the generator carries its fuels beside its drum"));
             let pack: std::collections::HashMap<String, u32> =
-                [("paint_0".to_string(), 3), ("fuel_refined_0".to_string(), 5)].into_iter().collect();
+                [("paint_0".to_string(), 3), ("diesel_0".to_string(), 4), ("gasoline_0".to_string(), 5)].into_iter().collect();
             let offered: Vec<String> = {
                 let burns = world.get::<&BurnsFuels>(gen).unwrap();
                 let drum = world.get::<&Container>(gen).unwrap();
                 store_offers(&containers, Some(&items), &*drum, Some(&*burns), &pack).into_iter().map(|(id, _, _)| id).collect()
             };
-            assert_eq!(offered, vec!["fuel_refined_0".to_string()], "{file}: its drum offers its fuel, not Paint");
+            assert_eq!(offered, vec!["gasoline_0".to_string()], "{file}: its drum offers its fuel, not Paint or Diesel");
 
             let mut data = crate::hot_reload::data_store::DataStore::new();
             data.insert("power_status", std::sync::Mutex::new(PowerStatus::default()));
             data.insert("item_registry", items.clone());
             let mut sys = ElectricalSystem::new(&data_dir);
-            for (item, runs) in [("paint_0", false), ("fuel_refined_0", true)] {
+            for (item, runs) in [("paint_0", false), ("diesel_0", false), ("gasoline_0", true)] {
                 {
                     let mut drum = world.get::<&mut Container>(gen).unwrap();
                     drum.spill();

@@ -2536,21 +2536,65 @@ mod auto_refine_tests {
             .expect("container registry"),
         );
         data.insert("xp_grants", std::sync::Mutex::new(Vec::<SkillXPEvent>::new()));
-        stock_home(&mut data, &[("oil_crude_0", 2)]);
+        stock_home(&mut data, &[("oil_crude_0", 10)]);
         let mut world = hecs::World::new();
         world.spawn((Inventory::new(16), Controllable));
         let refinery = world.spawn((
-            AutoRefine { recipe_id: "refine_fuel".to_string(), keep: None },
+            AutoRefine { recipe_id: "refine_crude".to_string(), keep: None },
             Container::new("steel_fuel_drum", 200.0),
         ));
         let mut sys = CraftingSystem::new();
-        for _ in 0..40 {
-            sys.tick(&mut world, 1.0, &data); // refine_fuel is a 30 s recipe
+        for _ in 0..160 {
+            sys.tick(&mut world, 1.0, &data); // refine_crude is a 150 s recipe
         }
         let drum = world.get::<&Container>(refinery).unwrap();
-        assert_eq!(drum.current_content_item.as_deref(), Some("fuel_refined_0"), "the drum kept the fuel");
+        assert_eq!(drum.current_content_item.as_deref(), Some("gasoline_0"), "the drum kept the gasoline");
         let grants = data.get::<std::sync::Mutex<Vec<SkillXPEvent>>>("xp_grants").unwrap().lock().unwrap().clone();
         assert_eq!(grants.len(), 1, "the craft still trained a skill");
+    }
+
+    /// GASOLINE AND DIESEL (2026-10-20). The fuel refinery's recipe distils
+    /// crude oil into both at EIA's split (10 crude, 5 gasoline and 3 diesel),
+    /// they are litre items at their cited densities, and the backup generator
+    /// in both homes burns the gasoline. "Refined Fuel" stood in for both and
+    /// is gone from the data.
+    ///
+    /// Seen red on the data before (2026-10-20): "the fuel refinery's recipe
+    /// makes [(\"fuel_refined_0\", 2)]: gasoline and diesel" (and items.csv had no
+    /// gasoline_0).
+    #[test]
+    fn the_refinery_makes_gasoline_and_diesel_and_the_generator_burns_the_gasoline() {
+        let data = real_data();
+        let recipes = data.get::<RecipeRegistry>("recipe_registry").unwrap();
+        let items = data.get::<ItemRegistry>("item_registry").unwrap();
+        let home = crate::machines::MachineHome::load(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/machines/home.ron"),
+        )
+        .expect("home.ron");
+        let auto = home.catalog["fuel_refinery"].auto_recipe.clone().expect("the refinery runs by itself");
+        let r = &recipes.recipes[&auto];
+        let mut made = r.outputs.clone();
+        made.sort();
+        assert_eq!(
+            made,
+            vec![("diesel_0".to_string(), 3), ("gasoline_0".to_string(), 5)],
+            "the fuel refinery's recipe makes {:?}: gasoline and diesel",
+            r.outputs
+        );
+        assert_eq!(r.inputs, vec![("oil_crude_0".to_string(), 10)], "from ten crude oil");
+        for (id, kg) in [("gasoline_0", 0.745), ("diesel_0", 0.847)] {
+            let d = items.items.get(id).unwrap_or_else(|| panic!("{id} is an item"));
+            assert!((d.mass_kg - kg).abs() < 1e-6 && (d.volume_l - 1.0).abs() < 1e-6, "{id}: a litre at {kg} kg");
+            assert_eq!(d.content_class, "flammable", "{id}");
+        }
+        assert!(!items.items.contains_key("fuel_refined_0"), "Refined Fuel is retired");
+        for file in ["home.ron", "home_solo.ron"] {
+            let h = crate::machines::MachineHome::load(
+                &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/machines").join(file),
+            )
+            .expect("home");
+            assert_eq!(h.catalog["generator_portable"].fuels(), ["gasoline_0".to_string()], "{file}");
+        }
     }
 
     /// Economy automation Phase 1 (v0.663): a smelter machine with an AutoRefine

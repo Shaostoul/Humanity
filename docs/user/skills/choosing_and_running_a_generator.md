@@ -616,10 +616,10 @@ one thing: a generator is a backstop, not a source.
   backstop generator, with the watts it supplies while it runs and the
   fuel it burns an hour.
 - **Its own fuel and nothing else.** The data file names the fuel its
-  engine is built for, Refined Fuel, which the home's fuel refinery
-  makes and which stands in for gasoline (the generator's own item calls
-  it a gasoline generator, `data/items.csv`). Only that fuel runs it,
-  and its drum takes, and its Store button offers, nothing else: Paint,
+  engine is built for, Gasoline, which the home's fuel refinery makes
+  from crude oil along with diesel (the generator's own item calls it a
+  gasoline generator, `data/items.csv`). Only that fuel runs it, and its
+  drum takes, and its Store button offers, nothing else: Diesel, Paint,
   Glue and Crude Oil are flammable too, and none of them runs it
   (`fuels` in the data file, `src/systems/electrical.rs`). A real engine
   is the same: it runs on the fuel its maker built it for (general
@@ -808,7 +808,7 @@ were read on 4 October 2026; the Washington rule was read the same day.
   Plant room; the maker's figures it rests on are recorded in the file);
   the Construction page's description (`src/gui/pages/construction.rs`);
   the backstop rule, the fed islands that never start it, and the drum
-  burn (`src/systems/electrical.rs`); the one fuel it names, Refined Fuel
+  burn (`src/systems/electrical.rs`); the one fuel it names, Gasoline
   (`fuels` in both data files), the only one that runs it and the only
   one its drum takes and its Store button offers
   (`src/systems/inventory/containers.rs`), and its item's description as

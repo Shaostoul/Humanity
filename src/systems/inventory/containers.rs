@@ -1178,18 +1178,18 @@ mod tests {
     fn a_container_that_held_fuel_never_holds_water_again() {
         let reg = load_registry();
         let mut tote = Container::from_type(reg.container_type("ibc_tote").unwrap());
-        assert_eq!(reg.try_store(&mut tote, "fuel_refined_0", "flammable", 1.0, 10), StoreOutcome::Stored { quantity: 10 });
-        assert_eq!(tote.toxic_from.as_deref(), Some("fuel_refined_0"));
+        assert_eq!(reg.try_store(&mut tote, "gasoline_0", "flammable", 1.0, 10), StoreOutcome::Stored { quantity: 10 });
+        assert_eq!(tote.toxic_from.as_deref(), Some("gasoline_0"));
         tote.spill();
         assert!(tote.needs_cleaning(), "the residue stays after emptying");
         assert!(tote.clean().is_some());
         match reg.try_store(&mut tote, "water_purified_0", "water", 1.0, 1) {
-            StoreOutcome::Contaminated { toxic_from } => assert_eq!(toxic_from, "fuel_refined_0"),
+            StoreOutcome::Contaminated { toxic_from } => assert_eq!(toxic_from, "gasoline_0"),
             other => panic!("expected Contaminated, got {other:?}"),
         }
         assert!(reg.would_accept(&tote, "water_purified_0", "water").is_err());
         assert_eq!(
-            reg.try_store(&mut tote, "fuel_refined_0", "flammable", 1.0, 1),
+            reg.try_store(&mut tote, "gasoline_0", "flammable", 1.0, 1),
             StoreOutcome::Stored { quantity: 1 },
             "it can still hold fuel"
         );
@@ -1358,40 +1358,42 @@ mod tests {
 
     /// BUG-154: the Store buttons at a generator's drum offer the fuel its
     /// engine burns and nothing else. The player carries Paint, Glue, Crude
-    /// Oil and Refined Fuel, all "flammable" in data/items.csv, and Shampoo, a
+    /// Oil, Diesel and Gasoline, all "flammable" in data/items.csv, and Shampoo, a
     /// "liquid": the steel fuel drum's class whitelist (liquid|flammable) takes
     /// every one, and the buttons offered by class alone, so the genset's drum
-    /// offered Paint. A drum whose genset burns Refined Fuel offers only that,
+    /// offered Paint. A drum whose genset burns Gasoline offers only that,
     /// one whose genset names no fuel offers nothing, and a drum that feeds no
     /// engine (the refinery's) still offers by class. Seen red on the old rule
-    /// (the genset's drum offered Crude Oil, Glue, Paint and Refined Fuel).
+    /// (the genset's drum offered Crude Oil, Glue, Paint and Refined Fuel,
+    /// which Gasoline and Diesel replaced on 2026-10-20).
     #[test]
     fn a_generators_drum_offers_only_its_fuel() {
         let reg = load_registry();
         let csv = std::fs::read(format!("{}/data/items.csv", env!("CARGO_MANIFEST_DIR"))).expect("data/items.csv");
         let items = crate::systems::inventory::ItemRegistry::from_csv(&csv).expect("item registry");
         let pack: std::collections::HashMap<String, u32> =
-            [("paint_0", 3), ("glue_0", 2), ("oil_crude_0", 4), ("fuel_refined_0", 5), ("shampoo_bottle_0", 1)]
+            [("paint_0", 3), ("glue_0", 2), ("oil_crude_0", 4), ("diesel_0", 2), ("gasoline_0", 5), ("shampoo_bottle_0", 1)]
                 .into_iter()
                 .map(|(id, n)| (id.to_string(), n))
                 .collect();
-        for id in ["paint_0", "glue_0", "oil_crude_0", "fuel_refined_0"] {
+        for id in ["paint_0", "glue_0", "oil_crude_0", "diesel_0", "gasoline_0"] {
             assert_eq!(items.class_for(id), "flammable", "{id}: the class the old rule burned");
         }
         let drum = Container::from_type(reg.container_type("steel_fuel_drum").expect("steel_fuel_drum"));
         let offered = |fuels: Option<&BurnsFuels>| -> Vec<String> {
             store_offers(&reg, Some(&items), &drum, fuels, &pack).into_iter().map(|(id, _, _)| id).collect()
         };
-        let genset = BurnsFuels(vec!["fuel_refined_0".to_string()]);
-        assert_eq!(offered(Some(&genset)), vec!["fuel_refined_0".to_string()], "the genset's drum");
+        let genset = BurnsFuels(vec!["gasoline_0".to_string()]);
+        assert_eq!(offered(Some(&genset)), vec!["gasoline_0".to_string()], "the genset's drum");
         let offers = store_offers(&reg, Some(&items), &drum, Some(&genset), &pack);
-        assert_eq!((offers[0].1.as_str(), offers[0].2), ("Refined Fuel", 5), "named, with all five in the pack");
+        assert_eq!((offers[0].1.as_str(), offers[0].2), ("Gasoline", 5), "named, with all five in the pack");
         assert!(offered(Some(&BurnsFuels::default())).is_empty(), "a genset that names no fuel");
         let plain = offered(None);
-        assert!(plain.contains(&"paint_0".to_string()), "a drum that feeds no engine offers by class: {plain:?}");
+        assert!(plain.contains(&"glue_0".to_string()), "a drum that feeds no engine offers by class: {plain:?}");
         // The Store itself asks the same question, whatever asks it to store.
         assert!(!vessel_takes_item(Some(&genset), "paint_0"));
-        assert!(vessel_takes_item(Some(&genset), "fuel_refined_0"));
+        assert!(vessel_takes_item(Some(&genset), "gasoline_0"));
+        assert!(!vessel_takes_item(Some(&genset), "diesel_0"));
         assert!(vessel_takes_item(None, "paint_0"));
     }
 }

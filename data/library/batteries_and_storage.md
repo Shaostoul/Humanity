@@ -565,7 +565,7 @@ The homes in this project run on real battery banks, and since 27 September
 - **The backstop.** A home's fuelled generator starts only when its circuit's
   free sources fall short of the load, its batteries are below a quarter full,
   and its fuel drum holds the fuel its engine is built for (its data names it:
-  Refined Fuel for the homes' generator, and nothing else runs it); an empty
+  Gasoline for the homes' generator, and nothing else runs it); an empty
   drum means no power. That is the hybrid system DOE's small wind guidebook
   describes.
 - **What you see.** The Homes page's Live power card shows the batteries'

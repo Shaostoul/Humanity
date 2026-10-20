@@ -872,7 +872,7 @@
             power: None,
             ports: [],
             storage: [],
-            auto_recipe: Some("refine_fuel"),
+            auto_recipe: Some("refine_crude"),
             container_type: Some("steel_fuel_drum"),
             level_gauge: true,
             model: None,
@@ -908,14 +908,14 @@
             // 2,000 W on 1.5 L an hour from no source. THE FUEL (BUG-154, 2026-10-05): its engine
             // runs on gasoline (its own item, generator_portable_0 in data/items.csv, is a
             // "Gasoline electric generator 2kW"), and on nothing else. It used to burn any item of
-            // the "flammable" class, so Paint, Glue and Crude Oil ran the house. The game has no
-            // gasoline item: `fuels` names Refined Fuel, the fuel refinery's product, which stands
-            // for it. Only a fuel named here runs it, goes into its 200 L drum, or is offered by
-            // the drum's Store button.
+            // the "flammable" class, so Paint, Glue and Crude Oil ran the house. `fuels` names
+            // Gasoline (gasoline_0, since 2026-10-20; Refined Fuel stood in for it until the game
+            // had a gasoline item), which the fuel refinery makes with diesel. Only a fuel named
+            // here runs it, goes into its 200 L drum, or is offered by the drum's Store button.
             power: Some(Generator(
                 watts: 1800.0,
                 fuel_lph: 1.125,
-                fuels: ["fuel_refined_0"],
+                fuels: ["gasoline_0"],
             )),
             ports: [],
             storage: [],

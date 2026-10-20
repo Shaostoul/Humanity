@@ -59,8 +59,8 @@
                 objective: Travel(destination: "wolf_ridge"),
             ),
             (
-                description: "Stock refined fuel for the long journey (5)",
-                objective: Gather(item_id: "fuel_refined_0", quantity: 5),
+                description: "Stock diesel for the long journey (5)",
+                objective: Gather(item_id: "diesel_0", quantity: 5),
             ),
             (
                 description: "Recover rare ore deposits (3)",

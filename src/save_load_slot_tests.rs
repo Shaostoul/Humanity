@@ -98,11 +98,11 @@ fn a_fresh_save_resets_every_machines_level() {
     ));
     world.spawn((HomeMachine, MachineInstanceId("water_tank_0".into()), WaterTank { liters: 900.0, capacity_l: 1_000.0 }));
     let mut drum = Container::new("steel_fuel_drum", 200.0);
-    drum.current_content_item = Some("fuel_refined_0".into());
+    drum.current_content_item = Some("gasoline_0".into());
     drum.current_qty = 20;
     drum.used_liters = 20.0;
-    drum.last_content = Some("fuel_refined_0".into());
-    drum.toxic_from = Some("fuel_refined_0".into());
+    drum.last_content = Some("gasoline_0".into());
+    drum.toxic_from = Some("gasoline_0".into());
     world.spawn((HomeMachine, MachineInstanceId("generator_0".into()), drum));
     let mut grain = Container::new("grain_silo_bin", 5_000.0);
     grain.current_content_item = Some("wheat_grain_0".into());

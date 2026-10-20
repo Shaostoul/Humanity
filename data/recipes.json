@@ -573,28 +573,33 @@
       "tools": []
     },
     {
-      "id": "refine_fuel",
-      "name": "Refine Fuel",
+      "id": "refine_crude",
+      "name": "Refine Crude Oil",
       "category": "refining",
       "inputs": [
         {
           "id": "oil_crude_0",
           "label": "Oil Crude",
-          "qty": 2
+          "qty": 10
         }
       ],
       "outputs": [
         {
-          "id": "fuel_refined_0",
-          "label": "Fuel Refined",
-          "qty": 2
+          "id": "gasoline_0",
+          "label": "Gasoline",
+          "qty": 5
+        },
+        {
+          "id": "diesel_0",
+          "label": "Diesel",
+          "qty": 3
         }
       ],
-      "craft_time_sec": 30,
+      "craft_time_sec": 150,
       "station": "Fuel Refinery",
       "skill": "Engineering",
       "skill_level": 2,
-      "description": "Distill crude oil into refined fuel",
+      "description": "Distill crude oil into gasoline and diesel",
       "tools": []
     },
     {

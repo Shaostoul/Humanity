@@ -547,7 +547,7 @@ mod tests {
         let mut data = DataStore::new();
         data.insert("power_status", std::sync::Mutex::new(PowerStatus::default()));
         let reg = crate::systems::inventory::ItemRegistry::from_csv(
-            b"id,name,weight_kg,stack_size,volume_l,content_class\nfuel_refined_0,Refined Fuel,0.8,10,1.0,flammable\n",
+            b"id,name,weight_kg,stack_size,volume_l,content_class\ngasoline_0,Gasoline,0.745,10,1.0,flammable\n",
         )
         .expect("registry");
         data.insert("item_registry", reg);
@@ -555,14 +555,14 @@ mod tests {
         let mut world = hecs::World::new();
         world.spawn((PowerConsumer { draw_watts: 100.0, priority: 1, enabled: true },));
         let mut drum = Container::new("steel_fuel_drum", 200.0);
-        drum.current_content_item = Some("fuel_refined_0".to_string());
+        drum.current_content_item = Some("gasoline_0".to_string());
         drum.current_qty = 2;
         drum.used_liters = 2.0;
         // 1 L/s burn for test speed (real gensets are fuel_lph / 3600).
         let gen = world.spawn((
             PowerGenerator { output_watts: 2000.0, fuel_per_second: 1.0, active: false },
             drum,
-            crate::ecs::components::BurnsFuels(vec!["fuel_refined_0".to_string()]),
+            crate::ecs::components::BurnsFuels(vec!["gasoline_0".to_string()]),
         ));
 
         let mut sys = ElectricalSystem::new(std::path::Path::new("data"));
@@ -597,7 +597,7 @@ mod tests {
         let mut data = DataStore::new();
         data.insert("power_status", std::sync::Mutex::new(PowerStatus::default()));
         let reg = crate::systems::inventory::ItemRegistry::from_csv(
-            b"id,name,weight_kg,stack_size,volume_l,content_class\nfuel_refined_0,Refined Fuel,0.8,10,1.0,flammable\n",
+            b"id,name,weight_kg,stack_size,volume_l,content_class\ngasoline_0,Gasoline,0.745,10,1.0,flammable\n",
         )
         .expect("registry");
         data.insert("item_registry", reg);
@@ -611,14 +611,14 @@ mod tests {
             max_discharge_w: 2000.0,
         },));
         let mut drum = Container::new("steel_fuel_drum", 200.0);
-        drum.current_content_item = Some("fuel_refined_0".to_string());
+        drum.current_content_item = Some("gasoline_0".to_string());
         drum.current_qty = 2;
         drum.used_liters = 2.0;
         // Its own fuel, so it idles for the batteries and not for want of fuel.
         let gen = world.spawn((
             PowerGenerator { output_watts: 2000.0, fuel_per_second: 1.0, active: false },
             drum,
-            crate::ecs::components::BurnsFuels(vec!["fuel_refined_0".to_string()]),
+            crate::ecs::components::BurnsFuels(vec!["gasoline_0".to_string()]),
         ));
 
         let mut sys = ElectricalSystem::new(std::path::Path::new("data"));
@@ -635,7 +635,7 @@ mod tests {
     /// shipped one burns 1.125 L an hour) and has `qty` units of `item` in its
     /// 200 L drum. `burns`: the fuels its data names (`BurnsFuels`), or None
     /// for no list at all. Items are the shipped data/items.csv, where Paint,
-    /// Glue, Crude Oil and Refined Fuel are all "flammable".
+    /// Glue, Crude Oil, Gasoline and Diesel are all "flammable".
     fn backstop_island(
         item: &str,
         qty: u32,
@@ -680,48 +680,49 @@ mod tests {
         (running, left, generation)
     }
 
-    /// BUG-154: a generator built for Refined Fuel does not run on Paint.
+    /// BUG-154: a generator built for Gasoline does not run on Paint.
     /// Paint is "flammable" in data/items.csv, the class the old rule burned,
     /// so the genset ran the house on it and used the cans up. Seen red on
     /// the old rule: the genset ran on the Paint.
     #[test]
     fn paint_in_the_drum_makes_no_power() {
-        let (mut world, gen, data) = backstop_island("paint_0", 2, Some(vec!["fuel_refined_0"]));
+        let (mut world, gen, data) = backstop_island("paint_0", 2, Some(vec!["gasoline_0"]));
         let (running, left, generation) = after_two_seconds(&mut world, gen, &data);
-        assert!(!running, "Paint does not run a generator built for Refined Fuel");
+        assert!(!running, "Paint does not run a generator built for Gasoline");
         assert_eq!(left, 2, "and none of the paint is burned");
         assert_eq!(generation, 0.0, "the island gets no power from it");
-        // Nor do Glue and Crude Oil, the other two "flammable" items it burned.
-        for other in ["glue_0", "oil_crude_0"] {
-            let (mut world, gen, data) = backstop_island(other, 2, Some(vec!["fuel_refined_0"]));
+        // Nor do Glue and Crude Oil, the other two "flammable" items it burned, or Diesel,
+        // a fuel for another kind of engine.
+        for other in ["glue_0", "oil_crude_0", "diesel_0"] {
+            let (mut world, gen, data) = backstop_island(other, 2, Some(vec!["gasoline_0"]));
             assert_eq!(after_two_seconds(&mut world, gen, &data), (false, 2, 0.0), "{other}");
         }
     }
 
     /// BUG-154, the positive control for the test above: the same genset on
-    /// the same short island, with Refined Fuel, the fuel it names, in its
-    /// drum, runs, makes its 1,800 W and burns one 1.11 L unit in the 2 s. So
+    /// the same short island, with Gasoline, the fuel it names, in its
+    /// drum, runs, makes its 1,800 W and burns two 1 L units in the 2 s. So
     /// the Paint test passes because Paint is refused, not because this genset
     /// cannot run. Seen red against a rule that burns nothing.
     #[test]
     fn the_generators_own_fuel_runs_it() {
-        let (mut world, gen, data) = backstop_island("fuel_refined_0", 2, Some(vec!["fuel_refined_0"]));
+        let (mut world, gen, data) = backstop_island("gasoline_0", 3, Some(vec!["gasoline_0"]));
         let (running, left, generation) = after_two_seconds(&mut world, gen, &data);
         assert!(running, "its own fuel runs it");
-        assert_eq!(left, 1, "2 L at 1 L a second burns one 1.11 L unit");
+        assert_eq!(left, 1, "2 L at 1 L a second burns two of its three 1 L units");
         assert!((generation - 1800.0).abs() < 1e-3, "and the island gets its 1,800 W: {generation}");
     }
 
     /// BUG-154: a fuelled generator whose data names no fuel burns nothing,
-    /// not even Refined Fuel: there is no fuel it can safely be assumed to run
+    /// not even Gasoline: there is no fuel it can safely be assumed to run
     /// on, and guessing from a broad class is what ran the house on paint.
     /// Both ways it can name none: no `BurnsFuels` at all, and an empty list.
-    /// Seen red on the old rule (with no list at all it ran on the Refined
-    /// Fuel).
+    /// Seen red on the old rule (with no list at all it ran on Refined Fuel,
+    /// which Gasoline replaced on 2026-10-20).
     #[test]
     fn a_generator_that_names_no_fuel_burns_nothing() {
         for burns in [None, Some(Vec::new())] {
-            let (mut world, gen, data) = backstop_island("fuel_refined_0", 2, burns.clone());
+            let (mut world, gen, data) = backstop_island("gasoline_0", 2, burns.clone());
             assert_eq!(after_two_seconds(&mut world, gen, &data), (false, 2, 0.0), "names {burns:?}");
         }
     }

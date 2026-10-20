@@ -3808,7 +3808,7 @@ mod tests {
         let mut catalog = BTreeMap::new();
         catalog.insert("panel".to_string(), def_with_power(Some(MachinePower::Solar { peak_watts: 400.0, average_watts: Some(45.3) })));
         catalog.insert("wind".to_string(), def_with_power(Some(MachinePower::Generator { watts: 4.4, fuel_lph: 0.0, fuels: Vec::new() })));
-        catalog.insert("genset".to_string(), def_with_power(Some(MachinePower::Generator { watts: 1800.0, fuel_lph: 1.125, fuels: vec!["fuel_refined_0".into()] })));
+        catalog.insert("genset".to_string(), def_with_power(Some(MachinePower::Generator { watts: 1800.0, fuel_lph: 1.125, fuels: vec!["gasoline_0".into()] })));
         catalog.insert("batt".to_string(), def_with_power(Some(MachinePower::Battery { capacity_wh: 4000.0, max_charge_w: 2000.0, max_discharge_w: 2000.0 })));
         catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 1000.0, priority: 1, idle_watts: None, average_watts: None })));
         catalog.insert("big_load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 3000.0, priority: 1, idle_watts: None, average_watts: None })));

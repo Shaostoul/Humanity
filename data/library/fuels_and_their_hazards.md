@@ -537,17 +537,22 @@ The game has fuels to make and burn, and models what a liquid fuel can
 be stored in and how much a generator burns. It models none of the
 hazards.
 
-- **Refined Fuel.** The home has a fuel refinery in its forge room that
-  turns crude oil into Refined Fuel (its recipe: two crude oil into two
-  Refined Fuel, 30 seconds). It runs by itself, takes its crude oil from
-  home storage only, never from your backpack, and fills its own 200
-  litre drum. The recipe asks for Engineering level 2, but a machine
-  that runs by itself skips that check: owning the machine is enough
-  (`data/recipes.csv`, `data/machines/home.ron`,
-  `src/systems/crafting/mod.rs`). The home's backup generator has a 200
-  litre drum of its own, and you move fuel from one drum to the other
-  through your backpack, with the Take and Store buttons on each
-  machine's card.
+- **Gasoline and diesel.** The home has a fuel refinery in its forge
+  room that distils crude oil into both at once, the way a real refinery
+  does (its recipe: ten crude oil into five litres of Gasoline and three
+  of Diesel, 150 seconds, from the US Energy Information Administration's
+  figures for what a barrel of crude yields; the rest of the barrel is
+  not modelled). It runs by itself, takes its crude oil from home storage
+  only, never from your backpack, and fills its own 200 litre drum with
+  the gasoline; the diesel goes to home storage. The recipe asks for
+  Engineering level 2, but a machine that runs by itself skips that
+  check: owning the machine is enough (`data/recipes.csv`,
+  `data/machines/home.ron`, `src/systems/crafting/mod.rs`). Each is a
+  litre at its real density, 0.745 kg for gasoline and 0.847 kg for
+  diesel (`data/items.csv`, which cites them). The home's backup
+  generator has a 200 litre drum of its own, and you move fuel from one
+  drum to the other through your backpack, with the Take and Store
+  buttons on each machine's card. Nothing in the home burns diesel yet.
 - **Charcoal.** Coal, the game's charcoal, is listed as a fuel too, and
   recipes at the smelter, kiln and forge use it up, several of them
   leaving wood ash (`data/items.csv`, `data/recipes.csv`); [Making and
@@ -567,10 +572,10 @@ hazards.
   while it runs, and it runs only when its circuit is short of power and
   the batteries on that circuit are below a quarter full, or there are
   none (`data/machines/home.ron`, `src/systems/electrical.rs`). Its data
-  names the one fuel its engine is built for, Refined Fuel, the game's
-  stand-in for the gasoline a real set like it runs on, and nothing else
-  runs it: its drum takes nothing else and its Store button offers
-  nothing else. Crude Oil, Glue and Paint are in the same flammable class
+  names the one fuel its engine is built for, Gasoline, as a real set
+  like it runs on, and nothing else runs it: its drum takes nothing else
+  and its Store button offers nothing else. Diesel, Crude Oil, Glue and
+  Paint are in the same flammable class
   (`data/items.csv`), and none of them runs it: a real engine runs only
   on the fuel it was made for (general knowledge). Under Settings >
   Gameplay > "Ship life support", the default, Station-supplied, ties a
@@ -757,12 +762,12 @@ October 2026.
 
 ### Inside this project
 
-- The Refine Fuel and Make Fuel Drum recipes (`data/recipes.csv`); the
+- The Refine Crude Oil and Make Fuel Drum recipes (`data/recipes.csv`); the
   fuel refinery and the backup generator, their drums and the
   generator's 1.8 kW and 1.125 litres an hour (`data/machines/home.ron`);
   the refinery running by itself on crude oil from home storage only,
   skipping the skill check (`src/systems/crafting/mod.rs`); Coal, Crude
-  Oil, Refined Fuel, Glue and Paint and their content classes
+  Oil, Gasoline, Diesel, Glue and Paint and their content classes
   (`data/items.csv`), and the recipes that use Coal up
   (`data/recipes.csv`); the backstop rule, the fed circuit and the
   generator burning only the fuel its data names (`fuels` in

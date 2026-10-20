@@ -228,7 +228,8 @@
         personality: ["boisterous", "confident", "persuasive"],
         services: ["trade", "repair", "customize"],
         shop_items: [
-            ("fuel_refined_0", 30, 300),
+            ("gasoline_0", 30, 300),
+            ("diesel_0", 30, 300),
             ("rubber_sheet_0", 10, 1200),
             ("battery_0", 5, 3600),
         ],
@@ -385,7 +386,7 @@
         personality: ["laid_back", "reliable", "adventurous"],
         services: ["fast_travel", "cargo_delivery"],
         shop_items: [
-            ("fuel_refined_0", 20, 300),
+            ("diesel_0", 20, 300),
         ],
         dialogue_intro: "Need to get somewhere fast? Hop in. I know every road on this rock.",
         essential: false,

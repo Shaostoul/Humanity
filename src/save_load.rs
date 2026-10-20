@@ -3410,11 +3410,11 @@ mod tests {
         let mut drum = None;
         for (_e, (id, c)) in world.query_mut::<(&MachineInstanceId, &mut Container)>() {
             if id.0 == "genset_0" {
-                c.current_content_item = Some("fuel_refined_0".into());
+                c.current_content_item = Some("gasoline_0".into());
                 c.current_qty = 20;
                 c.used_liters = 20.0;
-                c.last_content = Some("fuel_refined_0".into());
-                c.toxic_from = Some("fuel_refined_0".into());
+                c.last_content = Some("gasoline_0".into());
+                c.toxic_from = Some("gasoline_0".into());
                 drum = Some(c.clone());
             }
         }

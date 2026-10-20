@@ -116,7 +116,7 @@
             id: "diesel_generator",
             name: "Diesel Generator",
             output_watts: 50000,
-            fuel_type: "fuel_refined",
+            fuel_type: "diesel",
             fuel_consumption: 0.004,
             weight_kg: 850.0,
             noise_level_db: 95,

@@ -242,7 +242,23 @@ silver_ingot_0,Silver Ingot,material,ingot,silver,3.0,10,0,Refined silver bar,so
 coal_0,Coal,material,fuel,charcoal,1.3,30,0,Combustible carbon lump,dry_goods,5.42
 graphite_0,Graphite,material,fuel,carbon,1.1,30,0,Crystalline carbon from carbonaceous asteroids. Works as a smelting reducing agent like coal,dry_goods,0.87
 oil_crude_0,Crude Oil,material,fuel,tar,0.9,10,0,Unrefined petroleum barrel,flammable,1.25
-fuel_refined_0,Refined Fuel,material,fuel,tar,0.8,10,0,Processed combustible liquid,flammable,1.11
+# Gasoline and diesel (2026-10-20): one litre each, so volume_l is 1.0 and a generator's
+# litres an hour (fuel_lph in data/machines) burns that many. They replace Refined Fuel,
+# which stood in for both. weight_kg is a litre at the density GREET 1.8d.1 (Argonne
+# National Laboratory, released 26 August 2010) gives, as tabled in ORNL's Biomass Energy
+# Data Book 2011, Appendix A, "Lower and Higher Heating Values of Gas, Liquid and Solid
+# Fuels" (https://courses.grainger.illinois.edu/npre470/sp2018/web/Lower_and_Higher_Heating_Values_of_Gas_Liquid_and_Solid_Fuels.pdf,
+# read 2026-10-20): conventional gasoline 2819 g per US gallon (0.745 kg a litre) and
+# low-sulfur diesel 3206 g per gallon (0.847 kg a litre). The same table gives their
+# energy: lower heating value 43.448 MJ/kg for gasoline (32.4 MJ a litre) and 42.612 MJ/kg
+# for diesel (36.1 MJ a litre). Flash points: gasoline -45 F (-43 C), NIOSH Pocket Guide,
+# https://www.cdc.gov/niosh/npg/npgd0299.html; diesel 125 F (52 C), NOAA CAMEO Chemicals
+# "Fuel Oil, Diesel", https://cameochemicals.noaa.gov/chemical/11452 (the US DOE's
+# Alternative Fuels Data Center lists 165 F for low-sulfur diesel). items.csv has no
+# columns for energy or flash point; the content class "flammable" is what the game reads.
+# materials.csv has no liquids, so they share crude oil's "tar" row as base_material.
+gasoline_0,Gasoline,material,fuel,tar,0.745,10,0,One litre of gasoline (petrol) for spark-ignition engines,flammable,1.0
+diesel_0,Diesel,material,fuel,tar,0.847,10,0,One litre of diesel fuel for compression-ignition engines,flammable,1.0
 clay_raw_0,Raw Clay,material,raw_stone,clay,1.8,20,0,Moldable wet mineral earth,dry_goods,1.67
 sand_0,Sand,material,aggregate,sand,1.6,20,0,Loose silica granules,dry_goods,1.67
 gravel_0,Gravel,material,aggregate,gravel,1.8,20,0,Coarse crushed rock,dry_goods,1.67

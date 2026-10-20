@@ -2338,7 +2338,10 @@ Store buttons; harvest overflow and refinery output fill them; the backstop
 genset burns only the fuels its data names (`fuels` on its `Generator` power
 role, spawned as `BurnsFuels`; BUG-154), and its drum takes and offers only
 those (`vessel_takes_item`, `store_offers` in `containers.rs`;
-`src/systems/electrical.rs`).
+`src/systems/electrical.rs`). The homes' genset names Gasoline, which the fuel
+refinery distils from crude oil along with Diesel at EIA's split (`refine_crude`:
+10 crude oil into 5 L of gasoline and 3 L of diesel; both are litre items at their
+GREET densities, cited in `data/items.csv`; 2026-10-20, replacing "Refined Fuel").
 Always pre-check `registry.check().is_accepted()` before `try_store` — a
 wrong-class store DAMAGES the vessel by design.
 Content memory and materials (v0.1345.0): a vessel remembers its last

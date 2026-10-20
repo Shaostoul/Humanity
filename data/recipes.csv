@@ -68,7 +68,18 @@ fire_porcelain,Fire Porcelain,smelting,clay_raw_0:2|sand_0:1|coal_0:1,glass_pane
 saw_planks,Saw Planks,refining,wood_log_0:2,wood_plank_0:4|sawdust_0:2|wood_slab_0:2|bark_0:1,5,sawmill_0,,0,Cut logs into flat lumber boards and keep the sawdust slabs and bark
 saw_planks_hand,Saw Planks by Hand,refining,wood_log_0:1,wood_plank_0:2|sawdust_0:1|bark_0:1,15,,woodworking,1,Hand-saw a log into planks and keep the sawdust and bark
 cut_stone,Cut Stone,refining,stone_raw_0:1,stone_brick_0:2,10,workbench_0,woodworking,1,Shape raw stone into building blocks
-refine_fuel,Refine Fuel,refining,oil_crude_0:2,fuel_refined_0:2,30,fuel_refinery_0,engineering,2,Distill crude oil into refined fuel
+# Crude oil into gasoline and diesel (2026-10-20; it made "Refined Fuel", which stood in for both). A
+# refinery makes both from the same crude at once: from one 42-gallon barrel of crude oil, US refineries
+# made 19.57 gallons of finished motor gasoline and 12.47 of distillate fuel oil, mostly diesel, in 2023
+# (US EIA, "Oil and petroleum products explained: Refining crude oil", table "Petroleum products produced
+# from one 42-gallon barrel of oil input at U.S. refineries, 2023", last updated 20 June 2024,
+# https://www.eia.gov/energyexplained/oil-and-petroleum-products/refining-crude-oil-inputs-and-outputs.php,
+# read 2026-10-20): 46.6% and 29.7% of the crude's volume. A crude oil unit is about a litre (its 0.9 kg
+# is 1.06 L at the 3205 g a gallon GREET gives crude oil in the table items.csv's gasoline note cites),
+# so 10 of them give 5 litres of
+# gasoline and 3 of diesel, the nearest whole litres; the rest of the barrel (jet fuel, heavy oils, gases,
+# asphalt) is not modelled. 150 s keeps the 15 s a unit of crude the refinery took before.
+refine_crude,Refine Crude Oil,refining,oil_crude_0:10,gasoline_0:5|diesel_0:3,150,fuel_refinery_0,engineering,2,Distill crude oil into gasoline and diesel
 # Milling: efficient mills extract 72-76% of the wheat as white flour (BAKERpedia, "Extraction
 # rate"; Kansas Wheat: a 60 lb bushel gives about 42 lb of white flour). The rest is bran, germ and
 # shorts. 4 wheat (2.0 kg) -> 3 flour (1.5 kg, 75%) + 1 bran (0.5 kg). flour_0 is wheat flour; this
