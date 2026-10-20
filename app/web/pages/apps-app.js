@@ -30,7 +30,20 @@
    computer, start a program or install one, so there is no Launch, no Install, no "Installed
    first" sort, no "Only what is on this computer" and no games list. The desktop app does those
    (the dated finding docs/reference/findings/2026-10-19-tools-page-install-launch-and-icons.md,
-   which the Other programs part's Why opens in the Library).
+   which the Why after where the programs come from opens in the Library).
+
+   HOW THIS PAGE WORKS (2026-10-20, the app's apps.rs draw_head and apps/library.rs
+   `how_it_works`): one small toggle beside the heading (/shared/how-it-works.js) folds the
+   parts' explanations, closed until the person opens it, remembered in this browser
+   (localStorage `hos_apps_how_open`, the app's config.json `apps_how_open`). In it, word for word
+   and under each part's name: where the other programs come from, with its Why, and Services'
+   line (HOW_PARTS). Outside it stays only what a person must see before acting, as on the
+   desktop: the other programs' safety line, the two short not-affiliated lines, and Help's line,
+   which says to call the local emergency number first. The lines that say what only the desktop
+   app does (its games, its programs on the computer, what you added) stay in their parts too:
+   they are what those parts hold on a web page. The desktop fold's lines about the games (the
+   stores' terms, the covers and their switch "below", nothing done until you press Play) are
+   not here: they describe a games list, a switch and a Play this page does not have.
 
    No logo is shown or fetched: each maker sets its own rules for its logo (the finding's judgement
    call 6), so every program and service has the plain cover. HumanityOS's own tools carry their
@@ -41,10 +54,20 @@
 (function (root) {
   'use strict';
 
+  const NODE = typeof module === 'object' && module && module.exports;
+  /** "How this page works": the toggle and its fold (/shared/how-it-works.js). */
+  const HOW = NODE ? require('../shared/how-it-works.js') : root.HosHowItWorks;
+
   const CATALOG_URL = '/data/external/catalog.json';
   const TOOLS_URL = '/data/gui/humanityos_tools.json';
   /** Where the view is kept in this browser. */
   const VIEW_KEY = 'hos_apps_view';
+  /** Where whether "How this page works" is open is kept in this browser. */
+  const HOW_KEY = 'hos_apps_how_open';
+  /** The fold's element id. */
+  const HOW_ID = 'apps-how';
+  /** The parts whose explanations are in the fold, in the app's order. */
+  const HOW_PARTS = ['programs', 'services'];
   const DETAILS_ID = 'apps-details';
   const DETAILS_TITLE_ID = 'apps-details-title';
   /** Below this width the details sit under the parts (the page's CSS uses the same width). */
@@ -446,6 +469,15 @@
   /** Whether `view` shows part `id`. */
   const shows = (view, id) => view.section == null || view.section === id;
 
+  /** The parts "How this page works" explains, in the app's order: those of HOW_PARTS the view
+      shows and that are not known to be empty (the app's: a part shown, with something in it);
+      when the view shows none of them (narrowed to Help, say), all of them, so the fold is never
+      an empty box. `counts`: a part's id to how many it holds (null: not known yet). */
+  function howPartsShown(view, counts) {
+    const shown = HOW_PARTS.filter((id) => shows(view, id) && counts[id] !== 0);
+    return shown.length ? shown : HOW_PARTS.slice();
+  }
+
   /** The sorts offered: those that order a part shown (Name always; Category with a catalog
       part), as the app's sorts_for. */
   function sortsFor(view) {
@@ -458,11 +490,14 @@
   /**
    * The page, drawn into `opts.root` (#apps-app): the toolbar, the chips and the six parts, with
    * the details beside them. `opts`: document, root, fetch, storage (null when refused), window
-   * (for the phone-width check; optional), icon (hosIcon from /shared/icons.js; optional).
+   * (for the phone-width check; optional), icon (hosIcon from /shared/icons.js; optional), head
+   * (the page's header, #apps-head: "How this page works" goes beside its title, .apps-title, and
+   * its fold after the header's line; without one, both go at the top of the parts).
    */
   function createAppsPage(opts) {
     const doc = opts.document;
     const host = opts.root;
+    const head = opts.head || null;
     const storage = opts.storage || null;
     const win = opts.window || null;
     const icon = typeof opts.icon === 'function' ? opts.icon : null;
@@ -510,6 +545,22 @@
     const parts = el('div', { class: 'apps-parts', id: 'apps-parts' });
     const main = el('div', { class: 'apps-main' }, [toolbar, chipsRow, status, parts]);
     const details = el('aside', { class: 'apps-details', id: DETAILS_ID, 'aria-labelledby': DETAILS_TITLE_ID, tabindex: '-1', hidden: true });
+
+    // "How this page works": the toggle and its fold, the parts' explanations drawn in it while it
+    // is open (the app's library::how_it_works), each under its part's name and colour.
+    const how = HOW && typeof HOW.createFold === 'function' ? HOW.createFold({
+      document: doc, storage, key: HOW_KEY, id: HOW_ID,
+      fill: (f) => {
+        const counts = {};
+        for (const id of HOW_PARTS) counts[id] = countOf(st, sectionOf(id));
+        for (const id of howPartsShown(st.view, counts)) {
+          const s = sectionOf(id);
+          f.part(s.words, s.tint);
+          if (id === 'programs') f.line([WORDS.whereFrom, whyLink()]);
+          else if (id === 'services') f.line(LINES.services);
+        }
+      },
+    }) : null;
 
     // ── Pills: rebuilt only when the choices change, so a pressed pill keeps its focus.
     const pillKeys = new Map();
@@ -570,6 +621,11 @@
 
     function desktopLine(text) {
       return el('p', { class: 'apps-line apps-desktop' }, [text + ' ', el('a', { href: DOWNLOAD_URL, text: WORDS.getDesktopApp })]);
+    }
+
+    /** The Why after where the programs come from: the dated finding, in the Library. */
+    function whyLink() {
+      return el('a', { class: 'apps-why', href: '/library#' + WHY.slug, title: WHY.tip, text: WHY.words });
     }
 
     function cover(name, seed, cls, iconName) {
@@ -744,14 +800,15 @@
       } else {
         out.push(grid(order.map((i) => entryTile(st.entries[i]))));
       }
-      // Its lines below, as the app's.
+      // Its lines below, as the app's: only what a person must see before acting. Where the programs
+      // come from (with its Why) and Services' line are in "How this page works".
       if (section.id === 'programs') {
-        out.push(el('p', { class: 'apps-line apps-where' }, [WORDS.whereFrom, el('a', { class: 'apps-why', href: '/library#' + WHY.slug, title: WHY.tip, text: WHY.words })]));
         out.push(line(LINES.safety, 'apps-safety'));
         out.push(desktopLine(WORDS.programsDesktop));
         out.push(line(LINES.notAffiliated, 'apps-muted'));
-      } else {
-        out.push(line(section.id === 'help' ? LINES.help : LINES.services));
+      } else if (section.id === 'help') {
+        // Help's line stays under Help: in danger, call the local emergency number first.
+        out.push(line(LINES.help));
       }
       return out;
     }
@@ -851,6 +908,8 @@
       renderToolbar();
       renderParts();
       renderDetails();
+      // The fold follows the view: the parts it explains are the parts shown.
+      if (how) how.render();
     }
 
     function isNarrow() {
@@ -896,8 +955,22 @@
         });
     }
 
+    /** "How this page works" beside the page's title, and its fold after the header's line (at the
+        top of the parts when the page has no header). */
+    function placeHow() {
+      if (!how) return;
+      const title = head && head.querySelector ? head.querySelector('.apps-title') : null;
+      if (title) {
+        title.appendChild(how.toggle);
+        head.appendChild(how.panel);
+      } else {
+        main.replaceChildren(how.toggle, how.panel, toolbar, chipsRow, status, parts);
+      }
+    }
+
     function start() {
       host.replaceChildren(main, details);
+      placeHow();
       search.addEventListener('input', () => { st.search = search.value; renderParts(); });
       doc.addEventListener('keydown', onKey);
       render();
@@ -915,7 +988,7 @@
       ]).then(() => render());
     }
 
-    return { start, select, close, setView, state: st, parts: { search, parts, details, sortGroup, layoutGroup, chipsRow, status } };
+    return { start, select, close, setView, state: st, how, parts: { search, parts, details, sortGroup, layoutGroup, chipsRow, status } };
   }
 
   // ── In the browser ──
@@ -927,19 +1000,19 @@
       if (!host) return;
       let storage = null;
       try { storage = root.localStorage; } catch (e) { storage = null; }
-      createAppsPage({ document: doc, root: host, fetch: (u, i) => root.fetch(u, i), storage, window: root, icon: root.hosIcon }).start();
+      createAppsPage({ document: doc, root: host, head: doc.getElementById('apps-head'), fetch: (u, i) => root.fetch(u, i), storage, window: root, icon: root.hosIcon }).start();
     };
     if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', go);
     else go();
   }
 
   const api = {
-    CATALOG_URL, TOOLS_URL, VIEW_KEY, DOWNLOAD_URL, WORDS, LINES, WHY, SECTIONS, SORTS, LAYOUTS, TOOL_PAGES,
+    CATALOG_URL, TOOLS_URL, VIEW_KEY, HOW_KEY, HOW_PARTS, DOWNLOAD_URL, WORDS, LINES, WHY, SECTIONS, SORTS, LAYOUTS, TOOL_PAGES,
     entriesOf, toolsOf, inPart, isSoftware, webOnly, downloadPage, safeUrl, hostOf, platformWords, platformsWords,
     metaLine, entryFact, mainLink, categoriesOf, catalogOrder, toolsOrder, groupsOf, detailsOf, hueOf, monogram,
-    iconImage, normalView, readView, writeView, fitView, sortsFor, createAppsPage,
+    iconImage, normalView, readView, writeView, fitView, sortsFor, howPartsShown, createAppsPage,
   };
-  if (typeof module === 'object' && module && module.exports) module.exports = api;
+  if (NODE) module.exports = api;
   else {
     root.HosApps = api;
     bootInBrowser();

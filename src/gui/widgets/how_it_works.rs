@@ -11,7 +11,7 @@
 //! when open, and [`panel`], the box the explanations are drawn in, under a heading per part of the
 //! page ([`part_heading`]). Theme tokens only.
 //!
-//! Web twin: none yet (the website's Apps and Files pages show their lines in place).
+//! Web twin: web/shared/how-it-works.js (+ .css), used by web/pages/apps-app.js and files-app.js.
 
 use egui::{Rect, RichText, Sense, Stroke, Ui, Vec2};
 

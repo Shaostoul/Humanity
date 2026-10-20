@@ -112,7 +112,7 @@
     .asset-view-btn.active { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
     .asset-upload-btn {
       padding: 6px 14px; font-size: 0.78rem; font-weight: 600;
-      background: var(--accent); color: #000; border: none; border-radius: var(--radius-sm);
+      background: var(--accent); color: var(--text-on-accent); border: none; border-radius: var(--radius-sm);
       cursor: pointer; font-family: inherit; transition: all 0.15s;
       display: inline-flex; align-items: center; gap: 4px;
     }
@@ -163,7 +163,7 @@
       background: var(--accent-dim); color: var(--accent); cursor: pointer;
       display: flex; align-items: center; justify-content: center; transition: all 0.15s;
     }
-    .asset-preview .audio-play-btn:hover { background: var(--accent); color: #000; }
+    .asset-preview .audio-play-btn:hover { background: var(--accent); color: var(--text-on-accent); }
     .asset-preview .font-preview {
       font-size: 1.4rem; color: var(--text); letter-spacing: 1px;
     }
@@ -193,7 +193,7 @@
       font-size: 0.7rem; transition: all 0.15s; padding: 0;
       background: rgba(0,0,0,0.7); color: #fff;
     }
-    .asset-act-btn:hover { background: var(--accent); color: #000; }
+    .asset-act-btn:hover { background: var(--accent); color: var(--text-on-accent); }
     .asset-act-btn.del:hover { background: var(--danger); color: #fff; }
 
     /* List view */
@@ -279,7 +279,7 @@
       font-family: inherit;
     }
     .demo-btn:hover { border-color: var(--accent); color: var(--accent); }
-    .demo-btn.primary { background: var(--accent); color: #000; border-color: var(--accent); }
+    .demo-btn.primary { background: var(--accent); color: var(--text-on-accent); border-color: var(--accent); }
     .demo-btn.primary:hover { background: var(--accent-hover); }
     .demo-btn.success { background: rgba(42,102,68,0.2); color: var(--success); border-color: var(--success); }
     .demo-btn.danger { background: rgba(204,68,68,0.15); color: var(--danger); border-color: var(--danger); }

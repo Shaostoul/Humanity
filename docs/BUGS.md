@@ -6087,7 +6087,7 @@ checks off (the unsigned write answered 200 and really wrote the file). Reading 
 `/api/data-files/read`) was left open that night, on the belief that it served only the game data
 the website shows. It did not: see BUG-206, which closed it the same day.
 
-## BUG-206: anyone could list and read a server's data/ folder, its first-admin claim code included (FIXED 2026-10-20, found 2026-10-20)
+## BUG-206: anyone could list and read a server's data/ folder, its first-admin claim code included (FIXED v0.1527.0, 2026-10-20, found 2026-10-20)
 
 `GET /api/data-files` and `GET /api/data-files/read` (`src/relay/api.rs` `list_files`,
 `read_file`; `src/relay/storage/data_files.rs`) needed no sign-in and listed and served any text

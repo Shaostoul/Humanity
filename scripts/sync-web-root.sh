@@ -36,7 +36,7 @@ rm -f "$DST/pages/resources-app.js"
 for old in tools media shared-files; do
   rm -f "$DST/${old}.html"
 done
-rm -f "$DST/pages/tools-app.js" "$DST/pages/shared-files-upload.js" "$DST/shared/media.css"
+rm -f "$DST/pages/tools-app.js" "$DST/shared/media.css"
 rm -f "$DST"/pages/media-*.js
 # Retired 2026-07-30: three catalogs merged into data/external/catalog.json.
 rm -f "$DST/data/resources.json" "$DST/data/resources/catalog.json" "$DST/data/tools/catalog.json"

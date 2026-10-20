@@ -113,6 +113,18 @@
 // Gallery comes back when it closes. A sound plays in the middle pane with its
 // waveform (/pages/files-sound.js), fetched only when Play here is pressed.
 //
+// HOW THIS PAGE WORKS (2026-10-20, the desktop's files/how.rs and
+// widgets/how_it_works.rs; /shared/how-it-works.js): one small toggle beside
+// the heading folds what the page and each place is, closed until the person
+// opens it, remembered in this browser (localStorage `hos_files_how_open`, the
+// desktop's config.json `files_how_open`). In it, under each place's name: the
+// page's own line (the desktop's PAGE_LINE, which took the place of the short
+// line that was under the heading), Shared files' line and, for an admin, the
+// server's data folder's caution. Outside it, where the person acts, they stay: Shared files'
+// line (they are public for anyone to download) beside Upload a file, and the
+// folder's caution beside the file being edited. The desktop's Your folders has
+// no website version, so its line is not here.
+//
 // A classic script in the browser, a CommonJS module under Node, where
 // scripts/tests/files-web.test.js and files-web-round2.test.js run the page
 // against a stand-in document that has only what this file built in it
@@ -148,7 +160,8 @@
 
   // ── Words (the design's own, shared with the desktop page) ──
   const FILES_WORDS = Object.freeze({
-    lede: 'Pictures, videos, 3D models and files people on this server chose to share.',
+    // The page's own line, in "How this page works" (the desktop's files/how.rs PAGE_LINE).
+    pageLine: 'Pictures, videos, 3D models and files the people on this server chose to show. Nothing is here unless the person who uploaded it put it here, and nothing from a private conversation can be.',
     membersLine: "Sign in to this server to see its members' media.",
     membersOnlyServer: "This server's Files page is for its members.",
     alreadyPublic: 'This file is already public where it was shared.',
@@ -228,6 +241,10 @@
     return Number.isFinite(n) && n > 0 ? n : 0;
   }
 
+  // Sizes, a person's share and the server's file space in words (/pages/files-space.js, 2026-10-20).
+  const SP = typeof module === 'object' && module && module.exports ? require('./files-space.js') : root.FilesSpace;
+  const { sizeWords, shareLeftWords, shareStop, limitStop, togetherStop, MORE_LEAD, moreWords, budgetStop, meterWords, keptMeterWords, resetsWords } = SP;
+
   // ── The kinds (data/files/kinds.json) ──
 
   /** The kinds file read into [{id, label, one, mark}]; an empty list when it is not one. */
@@ -250,86 +267,6 @@
     return { one: String(kind || ''), many: String(kind || ''), mark: 'page' };
   }
 
-  function oneDecimal(x) {
-    return x.toFixed(1).replace(/\.0$/, '');
-  }
-
-  /** Bytes as people read them: "412 MB", "12.4 GB", "50 GB", "900 KB". */
-  function sizeWords(bytes) {
-    const b = Math.max(0, Number(bytes) || 0);
-    if (b >= 1024 * MIB) return oneDecimal(b / (1024 * MIB)) + ' GB';
-    if (b >= MIB) return (b / MIB >= 100 ? String(Math.round(b / MIB)) : oneDecimal(b / MIB)) + ' MB';
-    if (b >= 1024) return Math.round(b / 1024) + ' KB';
-    return b + (b === 1 ? ' byte' : ' bytes');
-  }
-
-  /** "You have 412 MB of your 512 MB left". */
-  function shareLeftWords(usedBytes, shareBytes) {
-    const left = Math.max(0, shareBytes - usedBytes);
-    return 'You have ' + sizeWords(left) + ' of your ' + sizeWords(shareBytes) + ' left';
-  }
-
-  /** The stop when a file is bigger than what is left of the person's share, else null. */
-  function shareStop(file, usedBytes, shareBytes) {
-    if (!file || !Number.isFinite(shareBytes) || shareBytes <= 0 || !Number.isFinite(usedBytes)) return null;
-    const left = Math.max(0, shareBytes - usedBytes);
-    if (file.size <= left) return null;
-    return '"' + file.name + '" is ' + sizeWords(file.size) + ', more than the ' + sizeWords(left) +
-      ' you have left of your ' + sizeWords(shareBytes) + ' share, so it was not uploaded. Remove one of your items, or ask an admin to raise each person\'s share.';
-  }
-
-  /** The stop when a file is over the role's largest Media file on this server (0: none), else null. */
-  function limitStop(file, limitBytes) {
-    if (!file || !Number.isFinite(limitBytes) || limitBytes <= 0 || file.size <= limitBytes) return null;
-    return '"' + file.name + '" is ' + sizeWords(file.size) + ', over your role\'s ' + sizeWords(limitBytes) +
-      ' limit for one file on this server\'s Files page, so it was not uploaded. An admin can raise it in Server Settings > Roles.';
-  }
-
-  /** Several files going up together (2026-10-16): the stop when all of them together are more
-   *  than what is left of the person's share or of the server's Media space, else null. Each file
-   *  on its own is checked as one is. The desktop app's words (api.rs room_problem_together). */
-  function togetherStop(files, usedBytes, shareBytes, budgetLeft) {
-    if (!files || files.length < 2) return null;
-    const total = files.reduce((n, f) => n + ((f && f.size) || 0), 0);
-    const n = files.length;
-    if (Number.isFinite(shareBytes) && shareBytes > 0 && Number.isFinite(usedBytes)) {
-      const left = Math.max(0, shareBytes - usedBytes);
-      if (total > left) {
-        return 'These ' + n + ' files come to ' + sizeWords(total) + ', more than the ' + sizeWords(left) +
-          ' left of your share of this server\'s file space, so none was uploaded. Choose fewer, remove one of your items, or ask an admin to raise each person\'s share.';
-      }
-    }
-    if (Number.isFinite(budgetLeft) && budgetLeft >= 0 && total > budgetLeft) {
-      return 'These ' + n + ' files come to ' + sizeWords(total) + ', more than the ' + sizeWords(budgetLeft) +
-        ' left in this server\'s whole file space, so none was uploaded. Choose fewer, or its admins can make more room.';
-    }
-    return null;
-  }
-
-  /** What the Add to Files form says above the further files chosen with the first (each on its own row, with its type's badge). */
-  const MORE_LEAD = 'Also on this item, each added once the item is up:';
-  /** The same in one line. */
-  function moreWords(more) {
-    return MORE_LEAD + ' ' + more.map((m) => m.name + ' (' + sizeWords(m.size) + ')').join(', ');
-  }
-
-  /** The stop when a file is bigger than what is left of the whole Media space, else null. */
-  function budgetStop(file, leftBytes) {
-    if (!file || !Number.isFinite(leftBytes) || leftBytes < 0 || file.size <= leftBytes) return null;
-    return '"' + file.name + '" is ' + sizeWords(file.size) + ', more than the ' + sizeWords(leftBytes) +
-      ' left in this server\'s file space, so it was not uploaded. An admin can make room, or make the file space larger.';
-  }
-
-  /** The admins' meter: "12.4 GB of 50 GB used". */
-  function meterWords(usedBytes, budgetBytes) {
-    return sizeWords(usedBytes) + ' of ' + sizeWords(budgetBytes) + ' used';
-  }
-
-  /** The meter's own line for what the server keeps (inside "used", in nobody's share). */
-  function keptMeterWords(keptBytes) {
-    return 'Kept by the server: ' + sizeWords(keptBytes) + ' of that, counted in the budget and in nobody\'s share';
-  }
-
   /**
    * The confirmation for Remove, naming what happens to the file: each item
    * says whether Remove gives its file back to chat or Shared Files
@@ -346,16 +283,6 @@
     if (answer && answer.file_kept === true) return FILES_WORDS.removedKept;
     if (answer && answer.file_removed === true) return FILES_WORDS.removedDeleted;
     return FILES_WORDS.removed;
-  }
-
-  /** When an upload allowance resets, in this device's own time, or ''. */
-  function resetsWords(ms) {
-    const n = Number(ms);
-    if (!Number.isFinite(n) || n <= 0) return '';
-    let when = '';
-    try { when = new Date(n).toLocaleString(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' }); } catch (e) { when = ''; }
-    if (!when) { try { when = new Date(n).toISOString().slice(0, 16).replace('T', ' ') + ' UTC'; } catch (e) { when = ''; } }
-    return when ? 'That is ' + when + ' here.' : '';
   }
 
   // ── Addresses ──
@@ -575,6 +502,13 @@
   // server's shared files (/pages/files-shared.js) and its data folder (/pages/files-folder.js).
   const FPL = typeof module === 'object' && module && module.exports ? require('./files-places.js') : root.FilesPlaces;
   const FSH = typeof module === 'object' && module && module.exports ? require('./files-shared.js') : root.FilesShared;
+  // The data folder's caution, said in "How this page works" too (the place itself is root.FilesFolder,
+  // made only in a browser: it draws its parts with markup).
+  const FFO = typeof module === 'object' && module && module.exports ? require('./files-folder.js') : root.FilesFolder;
+  // "How this page works" (2026-10-20, /shared/how-it-works.js): the toggle by the heading and its fold.
+  const HOW = typeof module === 'object' && module && module.exports ? require('../shared/how-it-works.js') : root.HosHowItWorks;
+  /** Where whether "How this page works" is open is kept in this browser. */
+  const HOW_KEY = 'hos_files_how_open';
 
   // ── DOM ──
 
@@ -839,10 +773,28 @@
         return;
       }
       doc.title = mediaOn;
+      // "How this page works": the toggle beside the heading, its fold under it, each place's line
+      // under the place's name (the desktop's files/how.rs panel), drawn while it is open.
+      how = HOW && typeof HOW.createFold === 'function' ? HOW.createFold({
+        document: doc, storage: env.storage || null, key: HOW_KEY, id: 'files-how',
+        fill: (f) => {
+          f.part(FPL ? FPL.labelOf('shared', host) : mediaOn, 'red');
+          f.line(FILES_WORDS.pageLine);
+          if (FSH) {
+            f.part(FPL ? FPL.WORDS.sharedFiles : 'Shared files', 'red');
+            f.line(FSH.WORDS.how);
+          }
+          // The server's data folder is an admin's alone (BUG-206), and so is its line.
+          if (FFO && FFO.CAUTION && isAdmin()) {
+            f.part(FPL ? FPL.WORDS.folder : FFO.PLACE, 'red');
+            f.line(FFO.CAUTION);
+          }
+        },
+      }) : null;
       env.root.replaceChildren(
         els.head = h('div', { className: 'files-head' }, [
-          h('h1', { id: 'files-title', text: mediaOn }),
-          h('p', { className: 'files-lede', text: FILES_WORDS.lede }),
+          h('div', { className: 'files-title-row' }, [h('h1', { id: 'files-title', text: mediaOn }), how ? how.toggle : null]),
+          how ? how.panel : null,
         ]),
         ...[els.status, els.notice, els.tabs, els.main, els.admin, places ? places.area : null, panes ? null : els.viewer, els.report, els.takedown, els.ask, fileInput].filter(Boolean)
       );
@@ -858,6 +810,8 @@
     // ── The three panes (2026-10-19, /pages/files-panes.js) ──
     let panes = null;      // the Files page's panes: the list, the item, its details
     let places = null;     // the places (files-places.js), and the panes of the two that are not the list
+    let how = null;        // "How this page works" (/shared/how-it-works.js): its toggle and its fold
+    let howAdmin = null;   // whether the fold was last drawn for an admin (renderTabs)
     let itemPanes = null;  // the item window's: the item and its details
     /** The area the panes share: the page's width, and the window's height (which way they go). */
     function viewport() {
@@ -2130,6 +2084,9 @@
      */
     function renderTabs() {
       const admin = isAdmin();
+      // The fold names the places this person has: drawn again when the role that decides it comes.
+      if (how && how.isOpen() && howAdmin !== admin) how.render();
+      howAdmin = admin;
       const tab = FPL ? FPL.shownPlace(st.tab, admin) : admin && st.tab === 'admin' ? 'admin' : 'shared';
       els.main.hidden = tab !== 'shared';
       els.admin.hidden = tab !== 'admin';
@@ -2272,7 +2229,7 @@
     }
     function dropped(files) {
       if (places && !st.viewer && places.takesDrops(st.tab)) { places.takeFiles(st.tab, files); return; }
-      // From the HumanityOS folder: Add to Files opens where it lives, with what is shared.
+      // From the server's data folder: Add to Files opens where it lives, with what is shared.
       if (places && st.tab === 'folder') { st.tab = 'shared'; go('/files', false); renderTabs(); }
       const edit = itemView.page.edit;
       if (edit && st.viewer) {
@@ -2479,6 +2436,8 @@
     createUploader, fingerprint, createFilesPage, signerFor,
     // Where the view and the panes' split are kept in this browser (/pages/files-panes.js).
     LAYOUT_KEY: MP ? MP.LAYOUT_KEY : 'humanity_media_layout',
+    // Where whether "How this page works" is open is kept in this browser.
+    HOW_KEY,
     POST_WORDS, STAR, POST_FAVORITES_KEY, CHAT_CHANNEL_KEY, POST_GRACE_MS, postFavoriteKey, postFavorites, togglePostFavorite,
     postChoices, postText, postedIn, notPostedIn,
   };

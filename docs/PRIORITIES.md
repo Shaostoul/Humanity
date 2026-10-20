@@ -447,8 +447,9 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
   the water it carries, from its litres in item_profiles.ron); (Bleeding, bites and burns are wounds since S8,
   2026-10-12; falls hurt nobody yet (DONE 2026-10-20, 5e5ba96e6: a landing hurts by its
   speed, data/medical/falls.ron, a sprained ankle from about 2 m on Earth up to death
-  from about 15 m in Realistic, softer in Forgiving; live once lib.rs hands the landing
-  over, two lines), and nothing spawns fires); a
+  from about 15 m in Realistic, softer in Forgiving; wired into lib.rs and released in
+  v0.1527.0; not yet tried by hand in the running game: walk off the homestead ladder's top,
+  drive a vehicle and stop, and check no landing hurts at world entry), and nothing spawns fires); a
   second mess hall along First Street (fold into increment 6); the backpack-overflow toast
   (DONE 2026-10-12: it names the item and says it went to home storage). Found with the
   2026-10-20 four: nothing burns diesel yet (data/electrical.ron's diesel
@@ -463,6 +464,10 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
   weight less USDA SR28's refuse; each profile's USDA water_g; Satiation at a day's 2,000 kcal
   for a day's hunger). Left from it: water and kcal are per profile, so a cucumber reads its
   group's 92% water, not its own 95% (per-item nutrition is its own step).
+  Found in the v0.1527.0 seam fixes: 47 older website text colours in 16 files (4 chat
+  stylesheets, 12 pages) are too faint on the light theme; `web-theme-light.test.js` check 7
+  holds them in a per-file count (`OLDER_TEXT`) that can only shrink, so fixing them is
+  shrinking that list to zero.
 - **A gap the Normal-mode default exposes (found 2026-10-05 by the Library sweep):** in
   Normal mode NOBODY CAN LEAVE THE SHIP. The Dev page's travel and Land buttons and F9 flight are
   the only ways off it, all Dev-only, and no vehicle or route goes down. So by default a

@@ -22,6 +22,10 @@
 //     the file that would stay live.
 //  3. The data step publishes git's list of tracked JSON, not a wildcard over data/, and refuses
 //     a folder that is not a git checkout.
+//  4. No removal names a file the website still ships. The removals run before the copy, so such
+//     a file survives only by being copied back. Red, 2026-10-20, on the script as v0.1526.1
+//     shipped it: "these files are shipped AND removed: + 'pages/shared-files-upload.js'" (the
+//     old Shared Files page's upload script, which files.html still loads; listed by mistake).
 //
 // HOS_SYNC_SCRIPT points the checks at another copy of the script (used to see them red).
 //
@@ -119,6 +123,31 @@ test('every page and page file ever removed from web/ is removed from the live s
   const files = retiredFiles();
   assert.ok(files.length >= 20, `expected the known retirements in history, found ${files.length}`);
   assert.deepStrictEqual(stillLive(scriptText(), files), [], 'these retired files would stay live');
+});
+
+// Every file the deploy ships, at the path it puts it (the same rules as servedAt).
+function shippedFiles() {
+  const out = [];
+  for (const [dir, under] of [['web/pages', 'pages'], ['web/shared', 'shared']]) {
+    for (const name of fs.readdirSync(path.join(REPO, dir))) {
+      if (!/\.(html|js|css)$/.test(name)) continue;
+      out.push(servedAt(`${dir}/${name}`));
+    }
+  }
+  return out.sort();
+}
+
+// The shipped files a removal line matches. The removals run before the copy, so such a file
+// survives the deploy only by being copied back, and goes the day the copy order changes.
+function removesShipped(text) {
+  const pats = removals(text);
+  return shippedFiles().filter((rel) => covered(rel, pats));
+}
+
+test('no removal names a file the website still ships', () => {
+  assert.deepStrictEqual(removesShipped(scriptText()), [], 'these files are shipped AND removed');
+  // A check that cannot fail proves nothing: name a shipped page and it must be caught.
+  assert.deepStrictEqual(removesShipped(scriptText().replace('for old in tools ', 'for old in tools files ')), ['files.html']);
 });
 
 test('the check names the file a missing removal would leave live (a check that cannot fail proves nothing)', () => {

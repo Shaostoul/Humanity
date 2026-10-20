@@ -1,7 +1,7 @@
 /* The Files page's places (2026-10-19, /pages/files-places.js), the desktop's places.rs: at the top
    of the left pane, a group heading then one row per place, the one shown filled in the accent, as
    the desktop's section list draws them. Then the panes of a place that is not the page's own list
-   (Shared files, the HumanityOS folder), and the Shared files place's own parts (the Shared Files
+   (Shared files, the server's data folder), and the Shared files place's own parts (the Shared Files
    page's styles until it became a place). Theme tokens only. */
 .files-places { display: flex; flex-direction: column; gap: 2px; margin: 0 0 var(--space-md); padding-bottom: var(--space-sm); border-bottom: 1px solid var(--border); }
 .files-places-group { margin: 0 0 var(--space-xs); font-size: var(--text-sm); font-weight: 700; color: var(--accent); }

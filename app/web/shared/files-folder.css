@@ -1,4 +1,4 @@
-/* The Files page's HumanityOS folder place (2026-10-19, /pages/files-folder.js): the data browser's
+/* The Files page's server data folder place (2026-10-19, /pages/files-folder.js): the data browser's
    own page styles until it became a place, scoped to its parts. The tree on the left, the file in the
    middle (its bar above it), what it is on the right. */
 .files-folder.fd-tree { display: flex; flex-direction: column; min-height: 0; }
@@ -12,7 +12,7 @@
 .files-folder .breadcrumb-seg.active { color: var(--text); cursor: default; }
 .files-folder .breadcrumb-sep { color: var(--text-dim); font-size: 0.75rem; }
 .files-folder .file-info { font-size: 0.72rem; color: var(--text-muted); white-space: nowrap; }
-.files-folder .btn-save { background: var(--accent); color: #000; border: none; border-radius: var(--radius-sm); padding: var(--space-sm) var(--space-xl); font-size: 0.78rem; font-weight: 700; cursor: pointer; transition: opacity 0.12s; display: none; }
+.files-folder .btn-save { background: var(--accent); color: var(--text-on-accent); border: none; border-radius: var(--radius-sm); padding: var(--space-sm) var(--space-xl); font-size: 0.78rem; font-weight: 700; cursor: pointer; transition: opacity 0.12s; display: none; }
 .files-folder .btn-save:hover { opacity: 0.85; }
 .files-folder .btn-save.visible { display: inline-block; }
 .files-folder .btn-wrap { background: var(--bg-secondary); color: var(--text-muted); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: var(--space-xs) var(--space-md); font-size: 0.72rem; cursor: pointer; display: none; white-space: nowrap; }
@@ -43,11 +43,16 @@
 .files-folder .editor-textarea { flex: 1; background: transparent; color: var(--text); font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace; font-size: 0.82rem; line-height: 1.55; padding: var(--space-lg); border: none; outline: none; resize: none; overflow: auto; tab-size: 4; white-space: pre; }
 .files-folder .editor-textarea.wrap { white-space: pre-wrap; word-wrap: break-word; }
 .files-folder .json-viewer { flex: 1; overflow: auto; padding: var(--space-lg) var(--space-xl); font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 0.82rem; line-height: 1.55; }
-.files-folder .json-key { color: #7ec8e3; }
-.files-folder .json-str { color: #a8d89a; }
-.files-folder .json-num { color: #d4a0ff; }
-.files-folder .json-bool { color: #f0a500; }
-.files-folder .json-null { color: #888; }
+/* The JSON viewer's inks, one value per theme: the dark theme's as they were, the light theme's
+   at 5:1 or more on its page background (--bg, #f4f4f4; the review of 2026-10-20 found the dark
+   ones at 1.5:1 to 1.9:1 there). scripts/tests/web-theme-light.test.js check 7 holds them to it. */
+.files-folder { --json-key: #7ec8e3; --json-str: #a8d89a; --json-num: #d4a0ff; --json-bool: #f0a500; }
+:root[data-theme="light"] .files-folder { --json-key: #1f5fbf; --json-str: #2e6b1f; --json-num: #7a3fb0; --json-bool: #8a5a00; }
+.files-folder .json-key { color: var(--json-key); }
+.files-folder .json-str { color: var(--json-str); }
+.files-folder .json-num { color: var(--json-num); }
+.files-folder .json-bool { color: var(--json-bool); }
+.files-folder .json-null { color: var(--text-muted); }
 .files-folder .json-toggle { cursor: pointer; color: var(--text-dim); user-select: none; display: inline-block; width: 16px; text-align: center; }
 .files-folder .json-toggle:hover { color: var(--text); }
 .files-folder .json-collapsed { display: none; }
