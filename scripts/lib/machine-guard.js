@@ -37,9 +37,15 @@
 // manifest and perf-report.js REFUSES to grade it. Refusing is the point: the
 // failure this closes is not "a slow reading", it is "a wrong reading that
 // reads as a real one".
+//
+// And a fourth job, for rigs whose checks are about behaviour rather than
+// timings (BUG-161):
+//   4. holdBuilds()    - for the length of a capture, hold every running build
+//                        at BelowNormal priority and put each back afterwards.
+//                        See the section above it for what it may and may not do.
 
 const fs = require("fs");
-const { execSync } = require("child_process");
+const { execSync, execFileSync } = require("child_process");
 
 /// Processes that make a frame-time reading meaningless.
 ///
@@ -69,6 +75,11 @@ const GAME = "HumanityOS.exe";
 /// wait could boot a rig beside his game. Any name ending in HumanityOS.exe,
 /// case-insensitive, counts.
 const isGameName = (name) => /humanityos\.exe$/i.test(String(name || ""));
+
+/// The build tools among WATCHED: everything watched that is not the game. One
+/// list of what a build is, so a build added to WATCHED is also held back by
+/// holdBuilds (BUG-161), and nothing else ever is.
+const BUILDS = WATCHED.filter((n) => !isGameName(n));
 
 // Windows query. ExecutablePath matters as much as the pid for the game: it is
 // what separates our own rig copy (ours by construction - only sweeps launch
@@ -269,6 +280,323 @@ function markCapture(rec, before, after, log = console.log) {
   return true;
 }
 
+// ── HOLDING BUILDS BACK DURING A CAPTURE (BUG-161) ──────────────────────────
+//
+// Waiting for builds to finish (waitForFree) is right for a frame-time reading
+// and wrong for a rig whose checks are about BEHAVIOUR: in a shared checkout
+// somebody is nearly always compiling, and a rig that waited would never run.
+// But a rig that ignores them reads a starved machine as a regression: on
+// 2026-10-05 v0.1459.0's first co-presence --plots runs, with ten agents
+// compiling, drew the game at 6 to 16 fps and failed the steady-speed checks in
+// three of six orders. The rerun with every cargo, rustc and link process held
+// at BelowNormal priority (a hand-run scratchpad loop, deprioritize-builds.ps1)
+// drew 16 to 24 fps and passed 88/88. holdBuilds() is that loop, in the guard.
+//
+// What it may do, and all it may do:
+//   - LOWER the priority class of a BUILD process (BUILDS) to BelowNormal. The
+//     builds keep running; they just yield the CPU to the game while it is
+//     recorded. Each pid is re-checked to still be a build, by the same name the
+//     listing used, in the same PowerShell call that lowers it, because a pid
+//     listed a moment ago may belong to something else by then.
+//   - Leave a build that is already at BelowNormal or Idle as it is. Never raise.
+//   - On release(), put back exactly what it lowered (matched by pid AND start
+//     time, so a reused pid is never touched), plus the children a lowered build
+//     started meanwhile, which Windows starts at their parent's BelowNormal (the
+//     only way a child of a build becomes BelowNormal without anyone asking).
+//     A priority someone else changed in the meantime is left as they set it.
+//   - release() also runs when the process exits (an error, Ctrl+C, the rig's
+//     own process.exit). A hard kill of the rig (taskkill /F) cannot run any code:
+//     the builds then finish at BelowNormal, slower and otherwise unharmed.
+// It never kills or suspends anything and changes no system setting. PowerShell
+// is called with -NoProfile and -NonInteractive, and its script carries only
+// process ids, start times (digits) and priority-class names from a fixed list:
+// nothing a process list or a person typed ever reaches it.
+
+/// The priority classes, lowest first.
+const PRIORITY_CLASSES = ["Idle", "BelowNormal", "Normal", "AboveNormal", "High", "RealTime"];
+/// What the hold lowers a build to.
+const HELD_CLASS = "BelowNormal";
+
+const asPid = (v) => {
+  const n = Number(v);
+  if (!Number.isInteger(n) || n <= 0 || String(v).trim() !== String(n)) throw new Error(`machine-guard: not a process id: ${JSON.stringify(v)}`);
+  return n;
+};
+
+/// The PowerShell that looks at (and, with lower, lowers) the given pids. Prints
+/// one line per pid: `pid|name|parent pid|start time|class|what`, where `what` is
+/// lowered, left (not lowered: already at or below BelowNormal, or only looking),
+/// notbuild (that pid is something else now), gone, or denied. The name is the
+/// Win32_Process name, the one the guard's own listing used (a rustup proxy says
+/// "rustup" to Get-Process and "rustc.exe" to the process list); the class and the
+/// start time come from Get-Process. Single-quoted throughout, no double quotes,
+/// so nothing in it needs escaping on its way through a command line.
+function priorityScript(pids, { lower = true } = {}) {
+  const ids = (Array.isArray(pids) ? pids : []).map(asPid);
+  if (!ids.length) throw new Error("machine-guard: no process id to look at");
+  const names = BUILDS.map((n) => `'${n.toLowerCase()}'`).join(",");
+  const above = PRIORITY_CLASSES.slice(PRIORITY_CLASSES.indexOf("Normal")).map((c) => `'${c}'`).join(",");
+  const out = (tail) => `[string]$id + '|' + $n + '|' + $i[1] + '|' + $s + '|' + $c + '|${tail}'`;
+  return [
+    `$names = @(${names})`,
+    `$ids = @(${ids.join(",")})`,
+    `$info = @{}`,
+    `Get-CimInstance Win32_Process -Filter '${ids.map((i) => `ProcessId=${i}`).join(" OR ")}' | ForEach-Object { $info[[int]$_.ProcessId] = @([string]$_.Name, [int]$_.ParentProcessId) }`,
+    `foreach ($id in $ids) { ` +
+      `$i = $info[$id]; ` +
+      `if ($null -eq $i) { [string]$id + '|||||gone'; continue }; ` +
+      `$n = $i[0].ToLower(); ` +
+      `if ($names -notcontains $n) { [string]$id + '|' + $n + '||||notbuild'; continue }; ` +
+      `try { ` +
+      `$p = Get-Process -Id $id -ErrorAction Stop; ` +
+      `$c = [string]$p.PriorityClass; ` +
+      `$s = $p.StartTime.ToFileTimeUtc(); ` +
+      (lower
+        ? `if (@(${above}) -contains $c) { $p.PriorityClass = '${HELD_CLASS}'; ${out("lowered")} } else { ${out("left")} } `
+        : `${out("left")} `) +
+      `} catch { [string]$id + '|' + $n + '||||denied' } }`,
+  ].join("; ");
+}
+
+/// The PowerShell that puts held processes back. `entries`: [{ pid, start, to }].
+/// Each is set to `to` only if it is still the same process (its start time) and
+/// still at BelowNormal (what the hold set); otherwise it is left alone. Prints
+/// `pid|restored|class`, `pid|changed|class`, `pid|other` or `pid|gone`.
+function restoreScript(entries) {
+  const list = (Array.isArray(entries) ? entries : []).map((e) => {
+    const pid = asPid(e.pid);
+    if (!/^\d+$/.test(String(e.start))) throw new Error(`machine-guard: not a start time: ${JSON.stringify(e.start)}`);
+    if (!PRIORITY_CLASSES.includes(e.to)) throw new Error(`machine-guard: not a priority class: ${JSON.stringify(e.to)}`);
+    return `'${pid}:${e.start}:${e.to}'`;
+  });
+  if (!list.length) throw new Error("machine-guard: no process id to put back");
+  return [
+    `$want = @(${list.join(",")})`,
+    `foreach ($e in $want) { ` +
+      `$f = $e.Split(':'); $id = [int]$f[0]; ` +
+      `try { ` +
+      `$p = Get-Process -Id $id -ErrorAction Stop; ` +
+      `if ([string]$p.StartTime.ToFileTimeUtc() -ne $f[1]) { [string]$id + '|other'; continue }; ` +
+      `$c = [string]$p.PriorityClass; ` +
+      `if ($c -ne '${HELD_CLASS}') { [string]$id + '|changed|' + $c; continue }; ` +
+      `$p.PriorityClass = $f[2]; ` +
+      `[string]$id + '|restored|' + $f[2] ` +
+      `} catch { [string]$id + '|gone' } }`,
+  ].join("; ");
+}
+
+/// The arguments PowerShell is started with: no profile, no prompts, the script.
+const powerShellArgs = (script) => ["-NoProfile", "-NonInteractive", "-Command", script];
+
+/// The real runner: one PowerShell call, its output, or "" when it could not run
+/// (not Windows, no PowerShell). Hidden window: never a console flash, never focus.
+function runPowerShell(req) {
+  try {
+    return execFileSync("powershell", powerShellArgs(req.script), { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], windowsHide: true, timeout: 60000 });
+  } catch {
+    return "";
+  }
+}
+
+/// Parse priorityScript's output into rows.
+function parsePriorityRows(text) {
+  return String(text || "")
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((l) => {
+      const [pid, name, ppid, start, cls, what] = l.split("|");
+      return { pid: Number(pid), name: name || "", ppid: ppid ? Number(ppid) : null, start: start || "", cls: cls || "", what: what || "" };
+    })
+    .filter((r) => Number.isInteger(r.pid) && r.pid > 0);
+}
+
+/// Parse restoreScript's output into rows.
+function parseRestoreRows(text) {
+  return String(text || "")
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((l) => {
+      const [pid, what, cls] = l.split("|");
+      return { pid: Number(pid), what: what || "", cls: cls || "" };
+    })
+    .filter((r) => Number.isInteger(r.pid) && r.pid > 0);
+}
+
+const isBuildName = (name) => BUILDS.some((b) => b.toLowerCase() === String(name || "").toLowerCase());
+
+/// One line for a hold's record (the manifest's builds_held), for a verdict.
+function describeHold(h) {
+  if (!h) return "(no record)";
+  const lowered = h.lowered || [];
+  const inherited = h.inherited || [];
+  const restored = h.restored || [];
+  const notBack = h.not_restored || [];
+  if (!lowered.length && !inherited.length) {
+    const low = (h.left_low || []).length;
+    return `${h.label}: no build was running at a priority above ${HELD_CLASS}${low ? ` (${low} already at ${HELD_CLASS} or Idle, left as they were)` : ""}`;
+  }
+  const names = lowered.map((x) => `${x.name} pid ${x.pid} (was ${x.from})`).join(", ");
+  return (
+    `${h.label}: ${lowered.length} lowered, ${inherited.length} started at ${HELD_CLASS} by one of them, ${restored.length} put back` +
+    (notBack.length ? `; not put back: ${notBack.map((x) => `pid ${x.pid} ${x.why}`).join(", ")}` : "") +
+    ` [${names}]`
+  );
+}
+
+/// Hold every running build at BelowNormal until release() (BUG-161).
+///
+/// opt.label      what the capture is, for the log and the record
+/// opt.log        line logger (console.log)
+/// opt.resweepMs  how often to look again for builds started since (10 s; 0 = never).
+///                Children of a held build need no look: Windows starts them at
+///                BelowNormal already. The look is for brand-new builds.
+/// opt.run        the priority runner (runPowerShell). With a FAKE process list
+///                (setLister or HUMANITY_MACHINE_GUARD_FAKE) the real runner is
+///                only used when handed in on purpose: a fake list's pids are
+///                invented, and a real process could own one.
+///
+/// Returns { release(), sweep() }. release() is safe to call any number of times
+/// and returns the hold's record: { label, lowered, inherited, left_low,
+/// restored, not_restored }. It never throws.
+function holdBuilds(opt = {}) {
+  const label = opt.label || "capture";
+  const log = opt.log || ((m) => console.log(m));
+  const resweepMs = opt.resweepMs != null ? opt.resweepMs : 10 * 1000;
+  const fakeList = !!lister || !!process.env.HUMANITY_MACHINE_GUARD_FAKE;
+  const run = opt.run || (fakeList ? null : runPowerShell);
+  const held = new Map(); // pid -> { pid, name, start, from, how, parent }
+  const seen = new Set(); // pids already looked at, so each is inspected once
+  const leftLow = [];
+  let released = false;
+  let record = null;
+  let timer = null; // the periodic look, set at the end
+
+  const builds = () => listProcs().filter((p) => isBuildName(p.name));
+  // Look at builds not seen before; with `lower`, lower those above BelowNormal.
+  // A row at BelowNormal whose parent is held (or is itself such a child, found in
+  // this same look: a link.exe under an inherited rustc) inherited the hold. A
+  // parent lowered in THIS look does not count: its BelowNormal children were
+  // BelowNormal before we touched it, so they are not ours to put back.
+  const look = (lower) => {
+    const fresh = builds().filter((p) => !seen.has(p.pid));
+    if (!fresh.length || !run) return [];
+    for (const p of fresh) seen.add(p.pid);
+    const rows = parsePriorityRows(run({ kind: lower ? "lower" : "inspect", lower, pids: fresh.map((p) => p.pid), script: priorityScript(fresh.map((p) => p.pid), { lower }) }));
+    const added = [];
+    // Inherited first, while `held` holds only what earlier looks held plus the
+    // children found here: this look's own lowered builds are added after.
+    const low = rows.filter((r) => r.what === "left" && r.cls === HELD_CLASS);
+    for (let grew = true; grew; ) {
+      grew = false;
+      for (const r of low) {
+        const parent = held.get(r.ppid);
+        if (held.has(r.pid) || !parent) continue;
+        const e = { pid: r.pid, name: r.name, start: r.start, from: parent.from, how: "inherited", parent: r.ppid };
+        held.set(r.pid, e);
+        added.push(e);
+        grew = true;
+      }
+    }
+    for (const r of rows) {
+      if (r.what === "lowered") {
+        const e = { pid: r.pid, name: r.name, start: r.start, from: r.cls, how: "lowered" };
+        held.set(r.pid, e);
+        added.push(e);
+      } else if (r.what === "left" && lower && !held.has(r.pid)) {
+        leftLow.push({ pid: r.pid, name: r.name, cls: r.cls });
+      }
+    }
+    return added;
+  };
+  const sweep = () => {
+    if (released) return [];
+    let added = [];
+    try {
+      added = look(true);
+    } catch (e) {
+      log(`[machine-guard] ${label}: could not look at the builds (${e.message}); the capture runs without holding them`);
+    }
+    const lowered = added.filter((e) => e.how === "lowered");
+    if (lowered.length) log(`[machine-guard] ${label}: holding ${lowered.length} build process(es) at ${HELD_CLASS} for the capture (they keep building, behind the game): ${lowered.map((e) => `${e.name} pid ${e.pid} (was ${e.from})`).join(", ")}`);
+    return added;
+  };
+  const putBack = (entries) => {
+    const want = entries.filter((e) => /^\d+$/.test(String(e.start)) && PRIORITY_CLASSES.includes(e.from));
+    if (!want.length || !run) return [];
+    return parseRestoreRows(run({ kind: "restore", entries: want.map((e) => ({ pid: e.pid, start: e.start, to: e.from })), script: restoreScript(want.map((e) => ({ pid: e.pid, start: e.start, to: e.from }))) }));
+  };
+
+  const onExit = () => release();
+  const signals = [["SIGINT", 130], ["SIGTERM", 143], ["SIGBREAK", 149], ["SIGHUP", 129]];
+  const onSignal = {};
+  for (const [sig, code] of signals) {
+    onSignal[sig] = () => {
+      release();
+      // Nobody else listening: end the process the way the signal would have,
+      // rather than swallow it (a listener stops Node's own default exit).
+      if (process.listenerCount(sig) === 0) process.exit(code);
+    };
+  }
+
+  function release() {
+    if (released) return record;
+    released = true;
+    if (timer) clearInterval(timer);
+    process.removeListener("exit", onExit);
+    for (const [sig] of signals) process.removeListener(sig, onSignal[sig]);
+    const rows = [];
+    try {
+      // 1. Everything held goes back to what it was.
+      rows.push(...putBack([...held.values()]));
+      // 2. Children a held build started since the last look were born at
+      //    BelowNormal: find them and put them back too. Their parents are back
+      //    already, so anything started from now on starts at their own class;
+      //    a few rounds catch a child's child.
+      for (let round = 0; round < 3; round++) {
+        const kids = look(false);
+        if (!kids.length) break;
+        rows.push(...putBack(kids));
+      }
+    } catch (e) {
+      log(`[machine-guard] ${label}: putting the builds back failed part way (${e.message})`);
+    }
+    const values = [...held.values()];
+    const restored = rows.filter((r) => r.what === "restored").map((r) => r.pid);
+    const notRestored = rows
+      .filter((r) => r.what !== "restored")
+      .map((r) => ({ pid: r.pid, why: r.what === "changed" ? `its priority had been changed to ${r.cls} meanwhile, left as set` : r.what === "other" ? "its pid now belongs to another process, left alone" : "it had finished" }));
+    record = {
+      label,
+      lowered: values.filter((e) => e.how === "lowered").map(({ pid, name, from }) => ({ pid, name, from })),
+      inherited: values.filter((e) => e.how === "inherited").map(({ pid, name, parent }) => ({ pid, name, parent })),
+      left_low: leftLow,
+      restored,
+      not_restored: notRestored,
+    };
+    if (values.length) {
+      const gone = notRestored.filter((x) => x.why === "it had finished").length;
+      log(`[machine-guard] ${label} over: put back ${restored.length} build process(es) to their own priority` + (gone ? ` (${gone} had finished)` : "") + (notRestored.length - gone ? `; ${notRestored.length - gone} left alone (changed by someone else, or a reused pid)` : ""));
+    }
+    return record;
+  }
+
+  if (!run) {
+    log(`[machine-guard] ${label}: FAKE process list in use: build priorities left alone (no runner handed in)`);
+  } else {
+    process.on("exit", onExit);
+    for (const [sig] of signals) process.on(sig, onSignal[sig]);
+  }
+  const first = sweep();
+  if (run && !first.length) {
+    log(`[machine-guard] ${label}: no build running above ${HELD_CLASS}; nothing to hold` + (leftLow.length ? ` (${leftLow.length} already at ${HELD_CLASS} or Idle, left as they are)` : ""));
+  }
+  timer = run && resweepMs > 0 ? setInterval(sweep, resweepMs) : null;
+  if (timer && timer.unref) timer.unref(); // the hold never keeps a finished script alive
+  return { release, sweep };
+}
+
 module.exports = {
   WATCHED,
   GAME,
@@ -283,4 +611,13 @@ module.exports = {
   describe,
   setLister,
   psQuery,
+  // BUG-161: builds held at BelowNormal for the length of a capture.
+  BUILDS,
+  PRIORITY_CLASSES,
+  holdBuilds,
+  describeHold,
+  priorityScript,
+  restoreScript,
+  powerShellArgs,
+  runPowerShell,
 };

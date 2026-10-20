@@ -102,6 +102,25 @@ const LIMITS = {
   /// reached it, up to one 90 ms step past the start). Drawing ahead of
   /// the real walker would mean extrapolating past it.
   EARLY_TOL_M: 0.25,
+  /// A frame of the recording longer than this, seconds, is a STALL (BUG-161): the machine went
+  /// longer without drawing a frame than the drawing keeps in hand. src/net/sync.rs draws every
+  /// other player INTERP_DELAY_S (0.150 s) behind the newest update it holds, so the figure walks
+  /// at its real speed only while the update after the drawn moment reaches the game within that
+  /// time; the game, the relay and the scripted walker all share this one computer, and a frame
+  /// this long means it was not getting the CPU to do any of that. The 2026-10-05 runs that
+  /// FAILED steady_speed while ten builds compiled had 6 to 11 such frames inside each judged
+  /// pass (the longest 199 to 488 ms); the reruns with the builds held at BelowNormal had none
+  /// (14 to 24 fps, longest 143 ms) and passed. scripts/tests/copresence-judge.test.js reads
+  /// this number out of sync.rs, so the two cannot drift apart.
+  STALL_FRAME_S: 0.15,
+  /// How long after a stall, seconds, the drawing may still be catching up (BUG-161). What
+  /// sync.rs does across one: the buffer runs dry and the figure walks on along its last
+  /// velocity for at most MAX_EXTRAPOLATION_S (0.25 s), then holds; when updates resume, the
+  /// gap is blended out with a BLEND_BACK_S (0.1 s) time constant, 95% gone after three of them
+  /// (0.3 s). 0.25 + 0.3 = 0.55 s. Measured on the four starved captures of 2026-10-05: every
+  /// frame outside SPEED_BAND came within 0.32 s after a stall. An out-of-band frame inside
+  /// this window is the machine; one outside every such window is the drawing, and FAILS.
+  STALL_RECOVERY_S: 0.55,
 };
 
 const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
@@ -138,6 +157,50 @@ function viewAngle(cam, p) {
   return { deg: (Math.abs(Math.atan2(side, ahead)) * 180) / Math.PI, ahead };
 }
 
+// ── What a list of checks adds up to (BUG-161) ──────────────────────────────
+//
+// A check is { id, ok, detail }, and one the machine kept from being judged (steady_speed on a
+// starved capture) also carries `contaminated: true`, with ok false. Three outcomes, so a
+// contaminated check can never be read as a pass AND never be mistaken for a regression:
+//   pass          every check passed (exit 0)
+//   fail          at least one check failed outright (exit 2), whatever else was contaminated
+//   contaminated  nothing failed, but at least one check could not be judged (exit 3)
+// verify-copresence.js prints the co-presence and --plots verdicts (the two that run
+// judgeCopresence) through these, so their PASS/FAIL words, last line and exit code all come
+// from one place.
+
+/** "pass", "fail" or "contaminated" for a list of checks. No checks at all is a "fail". */
+function outcomeOf(checks) {
+  const list = Array.isArray(checks) ? checks : [];
+  if (!list.length) return "fail";
+  if (list.every((c) => c.ok)) return "pass";
+  return list.some((c) => !c.ok && !c.contaminated) ? "fail" : "contaminated";
+}
+
+/** The rig's exit code for each outcome (1 is the rig refusing to run at all). */
+const OUTCOME_EXIT = { pass: 0, fail: 2, contaminated: 3 };
+
+/** The word printed in front of one check. */
+const checkWord = (c) => (c.ok ? "PASS" : c.contaminated ? "CONTAMINATED" : "FAIL");
+
+/** A verdict's last line: `${prefix}PASS  n/n <noun> passed`, or FAIL with what failed (and what
+ *  could not be judged), or CONTAMINATED with what could not be judged and that it is no pass.
+ *  `suffix` goes after the counts (the --plots order, " (walker-first)"). */
+function outcomeLine(prefix, checks, noun, suffix = "") {
+  const list = Array.isArray(checks) ? checks : [];
+  const n = list.length;
+  const passed = list.filter((c) => c.ok).length;
+  const failed = list.filter((c) => !c.ok && !c.contaminated).map((c) => c.id);
+  const starved = list.filter((c) => !c.ok && c.contaminated).map((c) => c.id);
+  const outcome = outcomeOf(list);
+  if (outcome === "pass") return `${prefix}PASS  ${n}/${n} ${noun} passed${suffix}`;
+  if (outcome === "fail") return `${prefix}FAIL  ${passed}/${n} passed${suffix}; failed: ${failed.join(", ") || "(no checks)"}` + (starved.length ? `; not judged (machine starved): ${starved.join(", ")}` : "");
+  return (
+    `${prefix}CONTAMINATED  ${passed}/${n} passed${suffix}; NOT a pass: ${starved.join(", ")} could not be judged, the machine was starved ` +
+    `during the capture (its CONTAMINATED line above says how). Nothing failed; run it again with the machine quieter.`
+  );
+}
+
 /**
  * Judge one recording.
  *   frames  the recorder's frames (see the top of this file).
@@ -165,7 +228,9 @@ function judgeCopresence({ frames, walker, line, speed, onLineEpochMs, fromEpoch
   const add = (id, ok, detail) => checks.push({ id, ok: !!ok, detail });
   const stats = { frames_total: Array.isArray(frames) ? frames.length : 0 };
   const who = `${walker.name || "the walker"}${walker.id !== null && walker.id !== undefined ? ` (id ${walker.id})` : ""}`;
-  const done = () => ({ pass: checks.length > 0 && checks.every((c) => c.ok), checks, stats });
+  // `contaminated`: nothing failed, but a check could not be judged because the machine was
+  // starved during the capture (BUG-161, steady_speed). It is NOT a pass: `pass` stays false.
+  const done = () => ({ pass: checks.length > 0 && checks.every((c) => c.ok), contaminated: outcomeOf(checks) === "contaminated", checks, stats });
 
   // 1. SEEN: the walker is drawn on some frame.
   const track = [];
@@ -296,19 +361,62 @@ function judgeCopresence({ frames, walker, line, speed, onLineEpochMs, fromEpoch
       : `no frame moved back along the line (largest backward step ${f(maxBack * 1000, 2)} mm, rounding allowance ${f(L0.BACK_TOL_M * 1000, 0)} mm)`,
   );
   const worstSlow = slow.slice().sort((x, y) => Math.abs(y.v - speed) - Math.abs(x.v - speed));
-  add(
-    "steady_speed",
-    speeds.length > 0 && slow.length === 0,
-    stats.speed
-      ? `per-frame speed ${f(stats.speed.min, 3)} to ${f(stats.speed.max, 3)} m/s (median ${f(stats.speed.median, 3)}), walker ${f(speed, 3)} m/s, allowed ${f(lo, 3)} to ${f(hi, 3)}` +
-          (slow.length
-            ? `; ${slow.length} of ${speeds.length} frames outside, worst ${worstSlow
-                .slice(0, 3)
-                .map((x) => `${f(x.v, 3)} m/s at t ${f(x.t)} s over ${f(x.dt * 1000, 1)} ms (${x.phase})`)
-                .join("; ")}`
-            : "")
-      : "no frame pairs to measure",
-  );
+  // THE MACHINE, OR THE DRAWING? (BUG-161) A machine starved by a dozen builds stalls the game,
+  // the relay and the walker alike, and the drawing then catches up at 1.1 to 2.4 m/s for a
+  // 1.4 m/s walk: out of the band, through no fault of the drawing. Every frame of the WHOLE
+  // recording longer than STALL_FRAME_S is a stall (one just before the judged leg still
+  // disturbs its first frames); an out-of-band frame within STALL_RECOVERY_S after one is the
+  // drawing catching up. When EVERY out-of-band frame is one of those, this capture cannot say
+  // whether the drawing is right, and steady_speed is CONTAMINATED: not judged, never a pass.
+  // When any is not, it is the drawing, and the check FAILS as it always did. A capture whose
+  // frames all stayed in the band PASSES however starved the machine was: contamination only
+  // ever stands in for a FAIL it can explain.
+  const stalls = [];
+  const clock = (frames || []).map((fr) => Number(fr.t));
+  for (let i = 1; i < clock.length; i++) {
+    const dt = clock[i] - clock[i - 1];
+    if (dt > L0.STALL_FRAME_S) stalls.push({ t: clock[i], dt });
+  }
+  const afterStall = (t) => stalls.some((s) => s.t <= t + 1e-9 && t - s.t <= L0.STALL_RECOVERY_S);
+  const explained = slow.filter((x) => afterStall(x.t));
+  // The stalls that can reach the pass, the frame rate over it, and its longest frame: the
+  // machine's own numbers, which the verdict prints.
+  const near = stalls.filter((s) => s.t >= pass[0].t - L0.STALL_RECOVERY_S && s.t <= pass[pass.length - 1].t);
+  const passS = dts.reduce((a, b) => a + b, 0);
+  const longestS = Math.max(stats.frame_dt ? stats.frame_dt.max : 0, ...near.map((s) => s.dt));
+  stats.machine = { frames_per_s: passS > 0 ? dts.length / passS : null, longest_frame_s: longestS, stalls: near.length, stall_frame_s: L0.STALL_FRAME_S };
+  const fps = stats.machine.frames_per_s;
+  const speedText = stats.speed
+    ? `per-frame speed ${f(stats.speed.min, 3)} to ${f(stats.speed.max, 3)} m/s (median ${f(stats.speed.median, 3)}), walker ${f(speed, 3)} m/s, allowed ${f(lo, 3)} to ${f(hi, 3)}` +
+      (slow.length
+        ? `; ${slow.length} of ${speeds.length} frames outside, worst ${worstSlow
+            .slice(0, 3)
+            .map((x) => `${f(x.v, 3)} m/s at t ${f(x.t)} s over ${f(x.dt * 1000, 1)} ms (${x.phase})`)
+            .join("; ")}`
+        : "")
+    : "no frame pairs to measure";
+  const stallMs = f(L0.STALL_FRAME_S * 1000, 0);
+  if (slow.length > 0 && explained.length === slow.length) {
+    checks.push({
+      id: "steady_speed",
+      ok: false,
+      contaminated: true,
+      detail:
+        `NOT JUDGED, the machine was starved: the game drew ${f(fps, 1)} frames a second, longest frame ${f(longestS * 1000, 0)} ms, ` +
+        `with ${near.length} frame(s) over the ${stallMs} ms the drawing keeps in hand (src/net/sync.rs INTERP_DELAY_S), and every one of the ` +
+        `${slow.length} frames outside the band came within ${f(L0.STALL_RECOVERY_S, 2)} s after one: the drawing catching up after the machine stalled, not walking. ` +
+        `${speedText}. NOT a pass: run it again with the machine quieter (the rig holds builds at BelowNormal during each capture, so look for other heavy work).`,
+    });
+  } else {
+    add(
+      "steady_speed",
+      speeds.length > 0 && slow.length === 0,
+      speedText +
+        (explained.length
+          ? `; ${explained.length} of them came within ${f(L0.STALL_RECOVERY_S, 2)} s after a frame over ${stallMs} ms (the machine stalled), ${slow.length - explained.length} did not: the drawing, not the machine`
+          : ""),
+    );
+  }
   add(
     "no_jump",
     jumps.length === 0,
@@ -2083,6 +2191,10 @@ module.exports = {
   JUMP_STAND_TOL_M,
   LIMITS,
   judgeCopresence,
+  outcomeOf,
+  OUTCOME_EXIT,
+  checkWord,
+  outcomeLine,
   judgeCrew,
   isFigureAmber,
   crewPixels,

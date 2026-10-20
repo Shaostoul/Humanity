@@ -240,6 +240,14 @@
 //        [--allow-other-build "<reason>"]
 //   node scripts/verify-copresence.js --dry-verdict <manifest.json>
 // Exit 0 = every check passed. Exit 1 = refused to run. Exit 2 = failed.
+// Exit 3 = CONTAMINATED: nothing failed, but the walk's speed could not be judged because the
+// machine was starved during the capture (BUG-161; the CONTAMINATED line says how). Not a pass.
+//
+// THE MACHINE DURING A CAPTURE (BUG-161): for the length of each recording the steady-speed
+// judges read (the walk past the camera, the walk at home, the meeting), every cargo, rustc,
+// link and cl process running on this computer is held at BelowNormal priority and put back
+// afterwards, on an error or Ctrl+C too (scripts/lib/machine-guard.js holdBuilds). The builds
+// keep building, behind the game. What was held is in the manifest's builds_held.
 
 "use strict";
 
@@ -260,6 +268,12 @@ const loopbackNote = (relay) =>
     : "its listening addresses were not checked";
 const {
   judgeCopresence,
+  // BUG-161: a check the machine kept from being judged (steady_speed on a starved capture) is
+  // CONTAMINATED: printed as such, never counted as a pass, and its own exit code (3).
+  outcomeOf,
+  OUTCOME_EXIT,
+  checkWord,
+  outcomeLine,
   LIMITS,
   figurePixels,
   FIGURE_MIN_PX,
@@ -490,11 +504,26 @@ function verdict(m, dir) {
   return { checks, pass: checks.every((c) => c.ok), stats: judged ? judged.stats : null };
 }
 
+/** The machine during a judged walk, from the judge's stats (BUG-161): how fast the game drew
+ *  and its longest frame, the numbers that say whether the speed could be judged at all. */
+function machineNote(stats) {
+  const mc = stats && stats.machine;
+  if (!mc || !Number.isFinite(mc.frames_per_s)) return null;
+  return `machine: the game drew ${mc.frames_per_s.toFixed(1)} frames a second over the judged walk, longest frame ${(mc.longest_frame_s * 1000).toFixed(0)} ms, ${mc.stalls} frame(s) over ${(mc.stall_frame_s * 1000).toFixed(0)} ms`;
+}
+
+/** What the guard held at BelowNormal for each capture (BUG-161, the manifest's builds_held). */
+function heldNotes(m) {
+  const list = Array.isArray(m.builds_held) ? m.builds_held : m.builds_held ? [m.builds_held] : [];
+  return list.map((h) => `builds held: ${MG.describeHold(h)}`);
+}
+
 function printVerdict(prefix, m, dir) {
-  const { checks, pass, stats } = verdict(m, dir);
+  const { checks, stats } = verdict(m, dir);
+  const outcome = outcomeOf(checks);
   console.log("");
   console.log("-".repeat(72));
-  for (const c of checks) console.log(`${c.ok ? "PASS" : "FAIL"}  ${pad(c.id, 21)} ${c.detail}`);
+  for (const c of checks) console.log(`${checkWord(c)}  ${pad(c.id, 21)} ${c.detail}`);
   console.log("-".repeat(72));
   if (stats && stats.speed) {
     console.log(
@@ -503,17 +532,21 @@ function printVerdict(prefix, m, dir) {
         `${(stats.frame_dt.min * 1000).toFixed(1)} to ${(stats.frame_dt.max * 1000).toFixed(1)} ms`,
     );
   }
+  const machine = machineNote(stats);
+  if (machine) console.log(machine);
+  for (const l of heldNotes(m)) console.log(l);
   if (m.other_build) console.log(otherBuildNotice(m.other_build));
-  if (pass) console.log(`${prefix}PASS  ${checks.length}/${checks.length} co-presence checks passed`);
-  else {
-    const failed = checks.filter((c) => !c.ok).map((c) => c.id);
-    console.log(`${prefix}FAIL  ${checks.length - failed.length}/${checks.length} passed; failed: ${failed.join(", ")}`);
-  }
+  console.log(outcomeLine(prefix, checks, "co-presence checks"));
   console.log(`        evidence ${rel(dir)}`);
   console.log("-".repeat(72));
   console.log("");
-  return pass;
+  return outcome;
 }
+
+/** The exit code for what a printer returned: the co-presence and --plots printers return an
+ *  outcome ("pass", "fail", "contaminated"), the --build, --household and --starts ones a
+ *  boolean (none of their checks can be contaminated). */
+const exitFor = (result) => (result === true ? 0 : result === false ? 2 : OUTCOME_EXIT[result] !== undefined ? OUTCOME_EXIT[result] : 2);
 
 if (DRY) {
   const manifest = path.resolve(DRY);
@@ -530,8 +563,8 @@ if (DRY) {
           : m.kind === "verify-copresence-plots"
             ? printPlotsVerdict
             : printVerdict;
-  const pass = printer("DRY VERDICT (nothing was booted): ", m, path.dirname(manifest));
-  process.exit(pass ? 0 : 2);
+  const result = printer("DRY VERDICT (nothing was booted): ", m, path.dirname(manifest));
+  process.exit(exitFor(result));
 }
 
 // ── Preconditions ────────────────────────────────────────────────────────────
@@ -760,6 +793,9 @@ async function main() {
   let gamePid = null;
   let game = null;
   let walker = null;
+  // The builds held at BelowNormal for the capture (BUG-161). Put back when the recording comes
+  // back, after an abort below, and by the guard itself on any exit (an error, Ctrl+C).
+  let heldBuilds = null;
   let killed = false;
   const killAll = () => {
     if (killed) return;
@@ -917,7 +953,10 @@ async function main() {
     manifest.steps_ok.view = await clearFirstRunWindows();
     step("view", manifest.steps_ok.view.ok, manifest.steps_ok.view.detail);
 
-    // ── 6 + 7. Start recording, then start the walker.
+    // ── 6 + 7. Start recording, then start the walker. Every build on this computer is held
+    // at BelowNormal until the recording comes back (BUG-161: a dozen compiles starved the game
+    // to 6 fps and the walk read as a regression).
+    heldBuilds = MG.holdBuilds({ label: "the walk past the camera" });
     clearDone("remote_players_done.json");
     req("remote_players_request.json", { seconds: RECORD_S });
     step("record", true, `recording every frame for ${RECORD_S} s of the game's frame clock`);
@@ -1008,6 +1047,7 @@ async function main() {
     };
     step("walked", code === 0, manifest.steps_ok.walker.detail);
     const rec = await waitFile("remote_players_done.json", (RECORD_S + 60) * 1000);
+    manifest.builds_held = heldBuilds.release();
     if (!rec || rec.ok !== true) {
       step("samples", false, `no recording came back: ${JSON.stringify(rec && rec.error)}`);
     } else {
@@ -1026,6 +1066,9 @@ async function main() {
     manifest.steps.push({ id: "abort", ok: false, detail: String(e.message || e) });
     log(`ABORT ${e.message || e}`);
   }
+  // An abort mid-capture: put the builds back now (release is idempotent; a finished hold
+  // just hands back its record).
+  if (heldBuilds) manifest.builds_held = heldBuilds.release();
   clearTimeout(watchdog);
   manifest.foreign_after = MG.foreignProcs({ pids: [gamePid, relay && relay.pid].filter(Boolean), exe: RIG_EXE, gameOnly: true }).map(MG.describe);
   manifest.panics = panicCount();
@@ -1051,8 +1094,9 @@ async function main() {
       `--keep-open: the game (pid ${gamePid}) is still running; the relay stopped with this script (its helper cleans it up on exit), ` +
         `so the game shows no other player now. taskkill //PID ${gamePid} //T //F`,
     );
-  const pass = printVerdict("RESULT: ", manifest, OUT);
-  if (!pass) {
+  const outcome = printVerdict("RESULT: ", manifest, OUT);
+  if (outcome === "contaminated") contaminatedHelp(OUT);
+  else if (outcome !== "pass") {
     console.log("What to do:");
     console.log(`  1. read the first FAIL line above and the step log above it: each says what it saw`);
     if (fs.existsSync(path.join(OUT, "shot_a.png"))) console.log(`  2. look at ${rel(path.join(OUT, "shot_a.png"))} and shot_b.png: is the teal figure there?`);
@@ -1061,7 +1105,20 @@ async function main() {
     console.log(`  5. re-judge without booting: node scripts/verify-copresence.js --dry-verdict ${rel(path.join(OUT, "manifest.json"))}`);
     console.log("");
   }
-  process.exit(pass ? 0 : 2);
+  process.exit(OUTCOME_EXIT[outcome]);
+}
+
+/** What to do about a CONTAMINATED run (BUG-161): nothing failed, and nothing passed either. */
+function contaminatedHelp(out) {
+  console.log("What to do (CONTAMINATED: this is NOT a pass, and nothing failed):");
+  console.log("  1. the CONTAMINATED line above names the frame rate and the longest frame: the machine was starved");
+  console.log("     while the walk was recorded, so whether the drawing keeps the walker's speed could not be told");
+  console.log("  2. the rig already held every cargo, rustc, link and cl at BelowNormal during the capture (builds held,");
+  console.log("     above); look for what else was busy: tasklist /v, Task Manager's CPU column, another rig");
+  console.log("  3. run it again when the machine is quieter. A FAIL is still a FAIL: only a speed check whose every");
+  console.log("     off-pace frame came right after a stalled frame reads CONTAMINATED");
+  console.log(`  4. re-judge without booting: node scripts/verify-copresence.js --dry-verdict ${rel(path.join(out, "manifest.json"))}`);
+  console.log("");
 }
 
 // ── --plots: homes on plots, in both join orders (increments 1b and 2) ───────
@@ -1645,12 +1702,15 @@ function guestVerdict(m, dir) {
   return { checks, pass: checks.every((c) => c.ok), stats: null };
 }
 
+/** Prints one --plots order's verdict; returns its outcome: "pass", "fail" or "contaminated"
+ *  (BUG-161: steady_speed or meet_steady_speed not judged on a starved machine; never a pass). */
 function printPlotsVerdict(prefix, m, dir) {
-  const { checks, pass, stats } = m.order === "guest" ? guestVerdict(m, dir) : plotsVerdict(m, dir);
+  const { checks, stats } = m.order === "guest" ? guestVerdict(m, dir) : plotsVerdict(m, dir);
+  const outcome = outcomeOf(checks);
   console.log("");
   console.log("-".repeat(72));
   console.log(`--plots, ${m.order}`);
-  for (const c of checks) console.log(`${c.ok ? "PASS" : "FAIL"}  ${pad(c.id, 25)} ${c.detail}`);
+  for (const c of checks) console.log(`${checkWord(c)}  ${pad(c.id, 25)} ${c.detail}`);
   console.log("-".repeat(72));
   if (stats && stats.speed) {
     console.log(
@@ -1658,16 +1718,15 @@ function printPlotsVerdict(prefix, m, dir) {
         `(median ${stats.speed.median.toFixed(3)}) for a ${stats.speed.walker} m/s walk`,
     );
   }
+  const machine = machineNote(stats);
+  if (machine) console.log(`${machine} (the walk at home)`);
+  for (const l of heldNotes(m)) console.log(l);
   if (m.other_build) console.log(otherBuildNotice(m.other_build));
-  if (pass) console.log(`${prefix}PASS  ${checks.length}/${checks.length} plot checks passed (${m.order})`);
-  else {
-    const failed = checks.filter((c) => !c.ok).map((c) => c.id);
-    console.log(`${prefix}FAIL  ${checks.length - failed.length}/${checks.length} passed (${m.order}); failed: ${failed.join(", ")}`);
-  }
+  console.log(outcomeLine(prefix, checks, "plot checks", ` (${m.order})`));
   console.log(`        evidence ${rel(dir)}`);
   console.log("-".repeat(72));
   console.log("");
-  return pass;
+  return outcome;
 }
 
 /** Forget every server save the rig sandbox's game kept from earlier runs, so each run's first
@@ -1744,6 +1803,18 @@ async function runPlotsOnce(order, runStamp, cleanups) {
   let walker = null;
   // Every walker this run started (the guest order runs two at once), for the cleanup.
   const walkers = [];
+  // BUG-161: the builds held at BelowNormal for the capture under way (the walk at home, then the
+  // meeting), and how each hold went, for the manifest. letGo() puts them back; an abort lets go
+  // after the catch below, and the guard itself lets go on any exit (an error, Ctrl+C).
+  let holding = null;
+  const holdBuildsFor = (label) => {
+    holding = MG.holdBuilds({ label });
+  };
+  const letGo = () => {
+    if (!holding) return;
+    (manifest.builds_held = manifest.builds_held || []).push(holding.release());
+    holding = null;
+  };
   let killed = false;
   // PANIC lines of a first session's run.log, kept when the second boot starts a fresh one.
   let earlierPanics = 0;
@@ -2318,10 +2389,13 @@ async function runPlotsOnce(order, runStamp, cleanups) {
 
       if (order === "game-first") await startWalker();
 
+      // The builds held back for the length of the recording (BUG-161).
+      holdBuildsFor(`the walk at home (${order})`);
       clearDone("remote_players_done.json");
       req("remote_players_request.json", { seconds: PLOTS_RECORD_S });
       step("record", true, `recording every frame for ${PLOTS_RECORD_S} s of the game's frame clock (one walk cycle is ${CYCLE_S.toFixed(2)} s)`);
       const rec = await waitFile("remote_players_done.json", (PLOTS_RECORD_S + 60) * 1000);
+      letGo();
       if (!rec || rec.ok !== true) {
         step("samples", false, `no recording came back: ${JSON.stringify(rec && rec.error)}`);
       } else {
@@ -2420,6 +2494,8 @@ async function runPlotsOnce(order, runStamp, cleanups) {
       // Sign-in, the route, the first pass (the pictures), back, and the forward leg after it
       // that the walk is judged on (meetChecks), with margins.
       const meetRecordS = Math.min(115, Math.ceil(10 + routeLen / MEET_ROUTE_SPEED + CYCLE_S + (2 * RADIUS) / SPEED + 8));
+      // The builds held back for the length of the recording (BUG-161).
+      holdBuildsFor(`the meeting in the Commons (${order})`);
       clearDone("remote_players_done.json");
       req("remote_players_request.json", { seconds: meetRecordS });
       step("meet_record", true, `recording ${meetRecordS} s: the walker's ${routeLen.toFixed(1)} m route through ${wRoute.doors.join(", ")} at ${MEET_ROUTE_SPEED} m/s, then the line`);
@@ -2444,6 +2520,7 @@ async function runPlotsOnce(order, runStamp, cleanups) {
       step("meet_shots", shots.length === 2 && shots.every((s) => s.file), onPath2 ? shots.map((s) => (s.file ? `${s.file} at ${s.s_after_reaching_line} s into the line` : `failed: ${s.error}`)).join("; ") : "the walker never reached the line");
       const presentRe = /player present: entity (\d+) "[^"]*" at \(([-\d.]+), ([-\d.]+), ([-\d.]+)\)/;
       const recM = await waitFile("remote_players_done.json", (meetRecordS + 60) * 1000);
+      letGo();
       if (recM && recM.ok === true) {
         fs.copyFileSync(path.join(DEBUG, "remote_players_done.json"), path.join(out, "meet_samples.json"));
         step("meet_samples", true, `${recM.frame_count} frames over ${recM.recorded_s.toFixed(2)} s of frame clock`);
@@ -2888,6 +2965,8 @@ async function runPlotsOnce(order, runStamp, cleanups) {
     manifest.steps.push({ id: "abort", ok: false, detail: String(e.message || e) });
     log(`ABORT ${e.message || e}`);
   }
+  // An abort mid-capture: the builds go back now, not when the last order ends (BUG-161).
+  letGo();
   clearTimeout(watchdog);
   manifest.panics = earlierPanics + panicCount();
   // BUILT-IN DATA (BUG-133): both boots' run.logs and the relay's log, each line where a
@@ -2935,8 +3014,13 @@ async function mainPlots() {
     results.push([order, await runPlotsOnce(order, stamp, cleanups)]);
   }
   console.log("");
-  for (const [order, ok] of results) console.log(`${ok ? "PASS" : "FAIL"}  --plots ${order}`);
-  process.exit(results.every(([, ok]) => ok) ? 0 : 2);
+  // Each order's outcome; the run's is the same sum as one order's checks (BUG-161): any FAIL
+  // fails it (exit 2), else any CONTAMINATED order leaves it not judged and not passed (exit 3).
+  const asChecks = results.map(([order, outcome]) => ({ id: `--plots ${order}`, ok: outcome === "pass", contaminated: outcome === "contaminated" }));
+  for (const c of asChecks) console.log(`${checkWord(c)}  ${c.id}`);
+  const outcome = outcomeOf(asChecks);
+  if (outcome === "contaminated") contaminatedHelp(path.join(RIG, "runs", `${stamp}-plots-${results.find(([, o]) => o === "contaminated")[0]}`));
+  process.exit(OUTCOME_EXIT[outcome]);
 }
 
 // ── --build: building only on your own plot (ship homes increment 5) ─────────────────────────

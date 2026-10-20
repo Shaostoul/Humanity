@@ -225,3 +225,362 @@ test("the live query matches the game by suffix, so an archive is listed at all"
   const src = require("node:fs").readFileSync(require.resolve("../lib/machine-guard.js"), "utf8");
   assert.ok(/Name LIKE '%\$\{n\}'/.test(src), "the game is matched with LIKE '%HumanityOS.exe'");
 });
+
+// ── HOLDING BUILDS BACK DURING A CAPTURE (BUG-161) ──────────────────────────
+//
+// v0.1459.0's first co-presence --plots runs, with ten agents compiling, drew the game at 6 to
+// 16 fps and failed the steady-speed checks in three of six orders; the rerun with every cargo,
+// rustc and link process held at BelowNormal by a hand-run scratchpad loop passed 88/88.
+// holdBuilds() is that loop inside the guard, and these tests hold it to its promises: it only
+// ever LOWERS, only build processes, puts back exactly what it lowered (and the children that
+// inherited the lower priority from it), and does so on an error or Ctrl+C too.
+//
+// The process table below is a fake Windows: the guard's runner is handed a function that
+// answers its priority requests the way its PowerShell does, so no real process is touched.
+// Every fake pid is ODD: Windows process ids are multiples of 4, so even a guard whose safety
+// broke could not reach a real process from these tests. One test at the end does use the real
+// PowerShell, on a rustc this test starts itself and on nothing else.
+//
+// Red, run 2026-10-20. Before holdBuilds existed every test below failed ("MG.holdBuilds is not
+// a function", "MG.priorityScript is not a function", BUILDS undefined, and the exit-path test
+// "restored on an uncaught error: " with no restore at all). Then against the finished guard,
+// one property broken at a time in a scratch copy (the worktree untouched), each went red:
+//   no exit hook             -> "restored on an uncaught error: lower" (lowered, never put back)
+//   release does not look for children started since the last look -> "a child a held build
+//                               starts after the last look ..." (BelowNormal !== Normal)
+//   a fake list reaching the real runner -> "a fake process list never reaches ..."
+//   no name re-check in the script -> "each pid is checked to still be a build before it is
+//                               touched", and the real-PowerShell test: the node child listed
+//                               as cargo.exe was lowered
+//   inheritance through a parent lowered in the same look -> "low before the hold: left low,
+//                               even though its parent was held" (Normal !== BelowNormal)
+//   no start-time check in the restore -> "a reused pid is never touched: the start time is
+//                               compared", and the real-PowerShell test: a wrong start time
+//                               restored the rustc anyway
+// The first run of those found three of them going UNNOTICED (the script-text test matched
+// the names list rather than the check, and nothing exercised a pre-hold low child or a real
+// wrong start time); the assertions above were tightened until each went red.
+
+const RANK = ["Idle", "BelowNormal", "Normal", "AboveNormal", "High", "RealTime"];
+/** A fake Windows process table and a runner that answers the guard's requests as its
+ *  PowerShell does. `procs`: [{ pid, name, cls, ppid, start }]. */
+function fakeWindows(procs) {
+  const table = new Map(procs.map((p) => [p.pid, { ...p }]));
+  const calls = [];
+  const stem = (n) => String(n).toLowerCase();
+  const run = (req) => {
+    calls.push(req);
+    if (req.kind === "restore") {
+      return req.entries
+        .map((e) => {
+          const p = table.get(e.pid);
+          if (!p) return `${e.pid}|gone`;
+          if (String(p.start) !== String(e.start)) return `${e.pid}|other`;
+          if (p.cls !== "BelowNormal") return `${e.pid}|changed|${p.cls}`;
+          p.cls = e.to;
+          return `${e.pid}|restored|${e.to}`;
+        })
+        .join("\n");
+    }
+    return req.pids
+      .map((id) => {
+        const p = table.get(id);
+        if (!p) return `${id}|||||gone`;
+        const n = stem(p.name);
+        if (!["cargo.exe", "rustc.exe", "link.exe", "cl.exe"].includes(n)) return `${id}|${n}||||notbuild`;
+        const was = p.cls;
+        if (req.lower && RANK.indexOf(was) > RANK.indexOf("BelowNormal")) {
+          p.cls = "BelowNormal";
+          return `${id}|${n}|${p.ppid}|${p.start}|${was}|lowered`;
+        }
+        return `${id}|${n}|${p.ppid}|${p.start}|${was}|left`;
+      })
+      .join("\n");
+  };
+  const listing = () => [...table.values()].map((p) => `${p.pid}|${p.name}|C:\\fake\\${p.name}`).join("\n");
+  /** A process starting while the hold is on: Windows gives a child of a BelowNormal (or Idle)
+   *  parent its parent's class, and Normal otherwise. */
+  const spawn = (p) => {
+    const parent = table.get(p.ppid);
+    const cls = p.cls || (parent && (parent.cls === "BelowNormal" || parent.cls === "Idle") ? parent.cls : "Normal");
+    table.set(p.pid, { start: 900 + p.pid, ...p, cls });
+  };
+  return { table, calls, run, listing, spawn, cls: (pid) => (table.get(pid) || {}).cls };
+}
+const GAME_ROW = { pid: 4243, name: "HumanityOS.exe", cls: "Normal", ppid: 1, start: 1 };
+const ARCHIVE_ROW = { pid: 8889, name: "v0.1459.0_HumanityOS.exe", cls: "Normal", ppid: 1, start: 2 };
+const holdIn = (win, extra = {}) => {
+  MG.setLister(() => win.listing());
+  const lines = [];
+  const h = MG.holdBuilds({ label: "test capture", run: win.run, resweepMs: 0, log: (m) => lines.push(m), ...extra });
+  return { h, lines };
+};
+
+test("BUILDS: the build tools the guard watches, and never the game", () => {
+  assert.ok(Array.isArray(MG.BUILDS) && MG.BUILDS.length >= 3);
+  for (const n of ["cargo.exe", "rustc.exe", "link.exe"]) assert.ok(MG.BUILDS.includes(n), `${n} is a build`);
+  for (const n of MG.BUILDS) {
+    assert.ok(MG.WATCHED.includes(n), `${n} is watched: one list of what a build is`);
+    assert.ok(!MG.isGameName(n), `${n} is not the game`);
+  }
+});
+
+test("RED: the priority script names only the pids it is given, re-checks each is a build, and stops nothing", () => {
+  const s = MG.priorityScript([5151, 5153], { lower: true });
+  assert.ok(s.includes("$ids = @(5151,5153)"), s);
+  assert.ok(s.includes("ProcessId=5151 OR ProcessId=5153"), "the process list is asked for these pids only");
+  assert.ok(s.includes("Get-Process -Id $id"), "each process is opened by its id, never by a name");
+  assert.ok(/\$names = @\('cargo\.exe','rustc\.exe','link\.exe'/.test(s), "the build names it checks against");
+  // The re-check itself, and BEFORE anything is changed: a pid that is no longer a build is
+  // skipped (continue) ahead of the line that lowers.
+  const check = s.indexOf("if ($names -notcontains $n) {");
+  const setAt = s.indexOf("$p.PriorityClass = 'BelowNormal'");
+  assert.ok(check > 0, "each pid is checked to still be a build before it is touched");
+  assert.ok(setAt > check, "lowering sets BelowNormal, after the build check");
+  assert.ok(/notbuild'; continue }/.test(s.slice(check, setAt)), "a pid that is no longer a build is skipped");
+  for (const bad of [/Stop-Process/i, /\.Kill\(/i, /taskkill/i, /Set-ItemProperty|Set-Service|powercfg|bcdedit|reg add/i, /"/]) {
+    assert.ok(!bad.test(s), `the script must not contain ${bad}`);
+  }
+  assert.ok(!MG.priorityScript([5151], { lower: false }).includes("= 'BelowNormal'"), "an inspection changes nothing");
+  // Only numbers reach the script: anything else is refused before PowerShell sees it.
+  assert.throws(() => MG.priorityScript(["5151; Stop-Process -Name *"]), /process id/);
+  assert.throws(() => MG.priorityScript([]), /process id/);
+  const r = MG.restoreScript([{ pid: 5151, start: "133000000000000000", to: "Normal" }]);
+  assert.ok(r.includes("'5151:133000000000000000:Normal'"), r);
+  // Both guards come before the one line that changes anything: the same process (its start
+  // time; a reused pid is someone else), and still at what the hold set.
+  const startAt = r.indexOf("if ([string]$p.StartTime.ToFileTimeUtc() -ne $f[1]) { [string]$id + '|other'; continue }");
+  const changedAt = r.indexOf("if ($c -ne 'BelowNormal') { [string]$id + '|changed|' + $c; continue }");
+  const restoreAt = r.indexOf("$p.PriorityClass = $f[2]");
+  assert.ok(startAt > 0, "a reused pid is never touched: the start time is compared");
+  assert.ok(changedAt > 0, "a priority someone else changed meanwhile is left as they set it");
+  assert.ok(restoreAt > startAt && restoreAt > changedAt, "both checks come before the restore");
+  assert.throws(() => MG.restoreScript([{ pid: 5151, start: "1", to: "Normal; Stop-Process" }]), /priority/);
+  assert.throws(() => MG.restoreScript([{ pid: 5151, start: "x", to: "Normal" }]), /start/);
+  // PowerShell is called with -NoProfile, and the script is its only other input.
+  const args = MG.powerShellArgs(s);
+  assert.deepStrictEqual(args.slice(0, 2), ["-NoProfile", "-NonInteractive"]);
+  assert.strictEqual(args[args.length - 1], s);
+});
+
+test("RED: a hold lowers the running builds and nothing else: not the game, not a build already low", () => {
+  const win = fakeWindows([
+    GAME_ROW,
+    ARCHIVE_ROW,
+    { pid: 5151, name: "cargo.exe", cls: "Normal", ppid: 1, start: 10 },
+    { pid: 5153, name: "rustc.exe", cls: "AboveNormal", ppid: 5151, start: 11 },
+    { pid: 5155, name: "link.exe", cls: "Normal", ppid: 5153, start: 12 },
+    { pid: 5157, name: "cargo.exe", cls: "Idle", ppid: 1, start: 13 },
+    { pid: 5159, name: "rustc.exe", cls: "BelowNormal", ppid: 5157, start: 14 },
+    // Somebody lowered this rustc by hand BEFORE the hold, under a cargo that was still Normal.
+    // The hold lowers its cargo, but this one was low already, and is not the hold's to raise.
+    { pid: 5163, name: "rustc.exe", cls: "BelowNormal", ppid: 5151, start: 15 },
+  ]);
+  try {
+    const { h, lines } = holdIn(win);
+    assert.strictEqual(win.cls(5151), "BelowNormal");
+    assert.strictEqual(win.cls(5153), "BelowNormal");
+    assert.strictEqual(win.cls(5155), "BelowNormal");
+    assert.strictEqual(win.cls(5157), "Idle", "a build already at Idle is never raised");
+    assert.strictEqual(win.cls(5159), "BelowNormal");
+    assert.strictEqual(win.cls(4243), "Normal", "the game is never touched");
+    assert.strictEqual(win.cls(8889), "Normal", "nor the operator's archive of it");
+    // The game never even reaches the priority script.
+    for (const c of win.calls) for (const id of c.pids || []) assert.ok(![4243, 8889].includes(id), `pid ${id} was handed to the priority script`);
+    assert.ok(lines.some((l) => /holding 3 build process\(es\) at BelowNormal/.test(l)), lines.join("\n"));
+    assert.ok(lines.some((l) => l.includes("rustc.exe pid 5153 (was AboveNormal)")), "each one is named with what it was");
+    const s = h.release();
+    assert.deepStrictEqual([5151, 5153, 5155].map(win.cls), ["Normal", "AboveNormal", "Normal"], "each put back to what it was");
+    assert.strictEqual(win.cls(5157), "Idle", "never raised");
+    assert.strictEqual(win.cls(5159), "BelowNormal", "never raised");
+    assert.strictEqual(win.cls(5163), "BelowNormal", "low before the hold: left low, even though its parent was held");
+    assert.deepStrictEqual(s.inherited, [], "nothing here inherited the hold");
+  } finally {
+    MG.setLister(null);
+  }
+});
+
+test("RED: release puts back what it lowered and the children that inherited it, and nothing else", () => {
+  const win = fakeWindows([
+    GAME_ROW,
+    { pid: 5151, name: "cargo.exe", cls: "Normal", ppid: 1, start: 10 },
+    { pid: 5153, name: "rustc.exe", cls: "High", ppid: 1, start: 11 },
+    { pid: 5161, name: "cargo.exe", cls: "Normal", ppid: 1, start: 20 },
+    { pid: 5171, name: "cargo.exe", cls: "Normal", ppid: 1, start: 30 },
+    { pid: 5181, name: "cargo.exe", cls: "Idle", ppid: 1, start: 40 },
+  ]);
+  try {
+    const { h, lines } = holdIn(win);
+    // While the capture runs: cargo 5151 starts a rustc, which Windows starts at BelowNormal
+    // (its parent's); that rustc starts a link. A low build of someone else's starts a rustc at
+    // Idle. Somebody raises 5161 to High by hand. 5171 exits, and its pid is taken by another
+    // cargo (a different process: a different start time).
+    win.spawn({ pid: 5191, name: "rustc.exe", ppid: 5151 });
+    win.spawn({ pid: 5193, name: "link.exe", ppid: 5191 });
+    win.spawn({ pid: 5195, name: "rustc.exe", ppid: 5181 });
+    assert.strictEqual(win.cls(5191), "BelowNormal", "precondition: the child inherited the hold");
+    assert.strictEqual(win.cls(5193), "BelowNormal");
+    win.table.get(5161).cls = "High";
+    win.table.set(5171, { pid: 5171, name: "cargo.exe", cls: "BelowNormal", ppid: 1, start: 31 });
+    h.sweep(); // the hold's periodic look: finds the new ones
+    const s = h.release();
+    assert.strictEqual(win.cls(5151), "Normal", "put back");
+    assert.strictEqual(win.cls(5153), "High", "put back to what it was, not to Normal");
+    assert.strictEqual(win.cls(5191), "Normal", "a child that inherited the hold is put back to its parent's own priority");
+    assert.strictEqual(win.cls(5193), "Normal", "and its child");
+    assert.strictEqual(win.cls(5161), "High", "a priority someone else set meanwhile is left as they set it");
+    assert.strictEqual(win.cls(5171), "BelowNormal", "a reused pid is a different process: never touched");
+    assert.strictEqual(win.cls(5181), "Idle", "never raised");
+    assert.strictEqual(win.cls(5195), "Idle", "a low build's own child is not ours to raise");
+    assert.strictEqual(win.cls(4243), "Normal");
+    assert.deepStrictEqual(s.lowered.map((x) => x.pid).sort(), [5151, 5153, 5161, 5171]);
+    assert.deepStrictEqual(s.inherited.map((x) => x.pid).sort(), [5191, 5193]);
+    assert.deepStrictEqual(s.restored.sort(), [5151, 5153, 5191, 5193]);
+    assert.ok(lines.some((l) => /put back 4 build process\(es\)/.test(l)), lines.join("\n"));
+    // Once only: a second release hands back the same record and runs nothing.
+    const callsBefore = win.calls.length;
+    assert.strictEqual(h.release(), s);
+    assert.strictEqual(win.calls.length, callsBefore);
+  } finally {
+    MG.setLister(null);
+  }
+});
+
+test("RED: a child a held build starts after the last look is still found and put back", () => {
+  // The periodic look runs every few seconds; a rustc started between the last look and the
+  // release is BelowNormal by inheritance too, and release must find it rather than leave it low.
+  const win = fakeWindows([{ pid: 5151, name: "cargo.exe", cls: "Normal", ppid: 1, start: 10 }]);
+  try {
+    const { h } = holdIn(win);
+    win.spawn({ pid: 5197, name: "rustc.exe", ppid: 5151 });
+    const s = h.release();
+    assert.strictEqual(win.cls(5197), "Normal");
+    assert.deepStrictEqual(s.inherited.map((x) => x.pid), [5197]);
+  } finally {
+    MG.setLister(null);
+  }
+});
+
+test("a fake process list never reaches a real process's priority", () => {
+  // Other rig tests feed the guard a made-up process list (HUMANITY_MACHINE_GUARD_FAKE or
+  // setLister). Their pids are invented, so the real PowerShell must never be pointed at them:
+  // without a runner handed in on purpose, a hold over a fake list touches nothing.
+  MG.setLister(() => "5151|cargo.exe|C:\\fake\\cargo.exe");
+  try {
+    const lines = [];
+    const h = MG.holdBuilds({ label: "fake", resweepMs: 0, log: (m) => lines.push(m) });
+    const s = h.release();
+    assert.deepStrictEqual(s.lowered, []);
+    assert.ok(lines.some((l) => /fake process list/i.test(l)), lines.join("\n"));
+  } finally {
+    MG.setLister(null);
+  }
+});
+
+test("describeHold says what a hold did in one line", () => {
+  const d = MG.describeHold({ label: "the walk at home", lowered: [{ pid: 5151, name: "cargo.exe", from: "Normal" }], inherited: [{ pid: 5191, name: "rustc.exe", parent: 5151 }], left_low: [], restored: [5151, 5191], not_restored: [] });
+  assert.match(d, /the walk at home: 1 lowered, 1 started at BelowNormal by one of them, 2 put back/);
+  assert.match(MG.describeHold({ label: "x", lowered: [], inherited: [], left_low: [], restored: [], not_restored: [] }), /no build was running/);
+});
+
+// The exit paths run in a child process, because the point is what happens when a process
+// ENDS: the rig's own Ctrl+C handler exits through process.exit, an uncaught error exits with
+// code 1, and a plain end of the script exits normally. Each must put the build back first.
+function childExit(how) {
+  const os = require("node:os");
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const { spawnSync } = require("node:child_process");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "mg-hold-"));
+  const logFile = path.join(dir, "calls.txt");
+  const script = path.join(dir, "child.js");
+  fs.writeFileSync(
+    script,
+    `const MG = require(${JSON.stringify(require.resolve("../lib/machine-guard.js"))});
+const fs = require("fs");
+let cls = "Normal";
+MG.setLister(() => "5151|cargo.exe|C:\\\\fake\\\\cargo.exe");
+const run = (req) => {
+  fs.appendFileSync(${JSON.stringify(logFile)}, req.kind + "\\n");
+  if (req.kind === "restore") { cls = "Normal"; return "5151|restored|Normal"; }
+  if (req.lower && cls === "Normal") { cls = "BelowNormal"; return "5151|cargo.exe|1|10|Normal|lowered"; }
+  return "5151|cargo.exe|1|10|" + cls + "|left";
+};
+MG.holdBuilds({ label: "child", run, resweepMs: 0, log: () => {} });
+${how}
+`,
+  );
+  const r = spawnSync(process.execPath, [script], { encoding: "utf8", windowsHide: true });
+  const calls = fs.existsSync(logFile) ? fs.readFileSync(logFile, "utf8").trim().split(/\r?\n/) : [];
+  fs.rmSync(dir, { recursive: true, force: true });
+  return { code: r.status, calls };
+}
+
+test("RED: the hold puts the builds back on an uncaught error, on Ctrl+C and on a plain exit", () => {
+  const thrown = childExit(`throw new Error("the rig hit a bug mid-capture");`);
+  assert.strictEqual(thrown.code, 1, "an uncaught error still ends the process");
+  assert.ok(thrown.calls.includes("restore"), `restored on an uncaught error: ${thrown.calls}`);
+  // Ctrl+C with nobody else listening: the guard puts the builds back and ends the process the
+  // way Ctrl+C would (130), rather than swallowing it.
+  const ctrlC = childExit(`setInterval(() => {}, 1000); process.emit("SIGINT");`);
+  assert.strictEqual(ctrlC.code, 130, "Ctrl+C still ends the process");
+  assert.ok(ctrlC.calls.includes("restore"), `restored on Ctrl+C: ${ctrlC.calls}`);
+  // Ctrl+C under the rig's own handler (process.exit(130)): the exit hook puts them back.
+  const rigCtrlC = childExit(`process.on("SIGINT", () => process.exit(130)); process.emit("SIGINT");`);
+  assert.strictEqual(rigCtrlC.code, 130);
+  assert.ok(rigCtrlC.calls.includes("restore"), `restored under the rig's Ctrl+C handler: ${rigCtrlC.calls}`);
+  const plain = childExit("");
+  assert.strictEqual(plain.code, 0, "the hold keeps nothing alive: the script ends");
+  assert.ok(plain.calls.includes("restore"), `restored on a plain exit: ${plain.calls}`);
+});
+
+test("on Windows, the real PowerShell lowers a real rustc this test started, and puts it back", (t) => {
+  if (process.platform !== "win32") return t.skip("Windows only");
+  const { spawn, execFileSync } = require("node:child_process");
+  // The toolchain's own rustc.exe, not the rustup proxy on PATH: the process list names the
+  // proxy rustup.exe, so the guard (rightly) refuses it as not a build.
+  let rustcExe = null;
+  try {
+    rustcExe = require("node:path").join(execFileSync("rustc", ["--print", "sysroot"], { encoding: "utf8", windowsHide: true }).trim(), "bin", "rustc.exe");
+  } catch {}
+  if (!rustcExe || !require("node:fs").existsSync(rustcExe)) return t.skip("no Rust toolchain on PATH");
+  // `rustc -` waits for its source on stdin: a real rustc.exe that does nothing until told.
+  const child = spawn(rustcExe, ["-"], { stdio: ["pipe", "ignore", "ignore"], windowsHide: true });
+  let failed = null;
+  child.on("error", (e) => (failed = e));
+  const priorityOf = (pid) =>
+    execFileSync("powershell", ["-NoProfile", "-NonInteractive", "-Command", `[string](Get-Process -Id ${pid}).PriorityClass`], { encoding: "utf8", windowsHide: true }).trim();
+  // A second child that is NOT a build (node, waiting a few seconds), which the made-up list
+  // below calls cargo.exe: the script's own look at the process list must refuse it.
+  const notBuild = spawn(process.execPath, ["-e", "setTimeout(() => {}, 15000)"], { stdio: "ignore", windowsHide: true });
+  return new Promise((resolve) => setTimeout(resolve, 500)).then(() => {
+    if (failed || !child.pid) {
+      notBuild.kill();
+      return t.skip(`no rustc to start (${failed && failed.message})`);
+    }
+    // Only this test's own two children are listed, so the real runner cannot reach any other
+    // process; the node one under a build's name, as a pid reused by a non-build would be.
+    MG.setLister(() => `${child.pid}|rustc.exe|\n${notBuild.pid}|cargo.exe|`);
+    try {
+      assert.strictEqual(priorityOf(child.pid), "Normal", "precondition");
+      assert.strictEqual(priorityOf(notBuild.pid), "Normal", "precondition");
+      const lines = [];
+      const h = MG.holdBuilds({ label: "real", run: MG.runPowerShell, resweepMs: 0, log: (m) => lines.push(m) });
+      assert.strictEqual(priorityOf(child.pid), "BelowNormal", `held: ${lines.join(" | ")}`);
+      assert.strictEqual(priorityOf(notBuild.pid), "Normal", "a process that is not a build is never touched, whatever the list called it");
+      // The start-time check, for real: told to put back this pid with another process's start
+      // time (a reused pid), the restore leaves it alone.
+      const other = MG.runPowerShell({ script: MG.restoreScript([{ pid: child.pid, start: "1", to: "Normal" }]) }).trim();
+      assert.strictEqual(other, `${child.pid}|other`, "a different start time is a different process");
+      assert.strictEqual(priorityOf(child.pid), "BelowNormal", "and it is left as it was");
+      const s = h.release();
+      assert.strictEqual(priorityOf(child.pid), "Normal", `put back: ${lines.join(" | ")}`);
+      assert.deepStrictEqual(s.restored, [child.pid]);
+      assert.deepStrictEqual(s.lowered.map((x) => x.pid), [child.pid], "only the real build was lowered");
+    } finally {
+      MG.setLister(null);
+      child.stdin.end(); // empty source: rustc reports it has no main and exits on its own
+      notBuild.kill(); // this test's own child
+    }
+  });
+});

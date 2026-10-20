@@ -3684,7 +3684,7 @@ In a checkout (the rigs' data folder is the checkout) that rewrote four tracked 
 rebuild (755018fa0). Test `engine::editor::autosave_tests::opening_the_editor_is_not_an_edit`,
 seen red: "the editor's own rebuild as it opens armed the autosave".
 
-## BUG-152: three tests fail under machine load, not on their code (FIXED next release, found 2026-10-04; the rig judges of the same class split out as BUG-161)
+## BUG-152: three tests fail under machine load, not on their code (FIXED next release, found 2026-10-04; the rig judges of the same class split out as BUG-161, FIXED 2026-10-20)
 
 **Seen:** while increment 4's fixes were checked, with other builds running: the media
 seek tests `a_seek_lands_where_it_was_asked_and_the_picture_agrees`,
@@ -3707,7 +3707,7 @@ until it is green, which is how a real failure gets waved through.
   every cargo, rustc and link process held at BelowNormal priority (a scratchpad
   loop, deprioritize-builds.ps1) drew 16 to 24 fps and passed 88/88 in every
   order. The judge cannot tell a starved machine from a regression. (Split out
-  2026-10-05 as BUG-161, still OPEN: they are a rig's judges, not cargo tests.)
+  2026-10-05 as BUG-161, FIXED 2026-10-20: they are a rig's judges, not cargo tests.)
 
 **Causes (found 2026-10-05, each reproduced under a deliberate load:** CPU-burning
 node threads, and for the relay three copies of its 556-test suite running at once):
@@ -3794,7 +3794,9 @@ These loops ran before the review's changes (the picture cap, the backstop, the 
 seek at 1.21 s, the pool's two tests), which were checked idle only.
 
 **Split out:** the co-presence rig's steady-speed judges above are a rig's judges, not
-cargo tests, and this fix does not touch them: BUG-161, OPEN.
+cargo tests, and this fix does not touch them: BUG-161, FIXED 2026-10-20 (a starved capture
+now reads CONTAMINATED, never a pass and never a FAIL, and the rig holds builds at
+BelowNormal for the length of each capture).
 
 **Seen while measuring:** the test runs' temporary databases piling up in the temp
 folder, filed as BUG-159. Not the cause here (opening a file there took the same 42
@@ -4400,7 +4402,7 @@ loopback port (http://127.0.0.1:9; scripts/lib/rig-gameplay.js). Two faults toge
 Checked 2026-10-05 (read-only): no member has joined the live server since 2026-10-01, so
 today's rig visits left no rows in its member list.
 
-## BUG-161: the co-presence rig's steady-speed judges fail a starved machine as a regression (OPEN, found 2026-10-04; split from BUG-152 2026-10-05)
+## BUG-161: the co-presence rig's steady-speed judges fail a starved machine as a regression (FIXED next release, 2026-10-20; found 2026-10-04; split from BUG-152 2026-10-05)
 
 **Seen (first filed under BUG-152):** v0.1459.0's first `--plots` runs of the co-presence
 rig, with ten agents compiling, drew the game at 6 to 16 fps with single frames of 160 to
@@ -4413,11 +4415,83 @@ teaches people to rerun it until it is green. BUG-152 fixed the cargo tests of t
 class; these judges are a rig's (scripts/lib/copresence-judge.js), and nothing changed
 for them.
 
-**Fix (not started):** the machine guard holds builds at BelowNormal priority for the
+**The plan as filed:** the machine guard holds builds at BelowNormal priority for the
 length of a capture (what the scratchpad loop did), and the steady-speed judges report the
 frame rate and refuse to judge, as "contaminated" rather than FAIL, when frames run long
 enough to break the interpolation the check measures. A judge test feeds a capture with
 400 ms frames and expects "contaminated", not a FAIL.
+
+**What the recordings show (2026-10-20, all 140 saved runs re-judged):** the four judged
+legs that failed (three orders; one order failed both its walk at home and its meeting)
+each had 6 to 11 frames over 150 ms in the leg, and EVERY frame outside the speed band came
+within 0.32 s after one of them. The reruns with the builds held had none over 150 ms
+(14 to 24 fps, longest 143 ms). So a single long frame is not enough to call a capture
+starved (a rig's own screenshot takes 300 ms on a slow machine and the walk still passes);
+what marks the machine is an off-pace frame that comes right after a stalled one.
+
+**Fix (2026-10-20), both halves:**
+- The judge (`scripts/lib/copresence-judge.js`). Every frame of the recording longer than
+  `STALL_FRAME_S` is a stall, and an off-pace frame within `STALL_RECOVERY_S` after a stall
+  is the drawing catching up. When EVERY off-pace frame is one of those, `steady_speed` (and
+  so `meet_steady_speed`) is **CONTAMINATED**: `ok` false, `contaminated` true, and a detail
+  that starts "NOT JUDGED, the machine was starved" and gives the frame rate, the longest
+  frame and the number of stalls. When any off-pace frame is not one of those, it FAILS as
+  before, and its detail says how many came after a stall and how many did not. A capture
+  that stayed in the band PASSES however starved the machine was: CONTAMINATED only ever
+  replaces a FAIL that the stalls explain.
+  - The two numbers are the drawing's own (`src/net/sync.rs`): `STALL_FRAME_S` 0.15 s is
+    `INTERP_DELAY_S`, how far behind the newest update every other player is drawn, so a
+    frame that long means the machine (game, relay and scripted walker alike) went longer
+    without the CPU than the drawing keeps in hand. `STALL_RECOVERY_S` 0.55 s is
+    `MAX_EXTRAPOLATION_S` (0.25 s of walking on) plus three `BLEND_BACK_S` time constants
+    (0.3 s, 95% of the gap blended out). A judge test reads all three out of sync.rs, so the
+    numbers cannot drift apart.
+  - `outcomeOf`, `OUTCOME_EXIT`, `checkWord` and `outcomeLine` sum the checks: pass (exit 0),
+    fail (exit 2, whatever else was contaminated), or contaminated (exit 3, nothing failed).
+    `scripts/verify-copresence.js` prints every co-presence and `--plots` check through them
+    (a line reads `CONTAMINATED  steady_speed  NOT JUDGED, ...`, the last line
+    `RESULT: CONTAMINATED  87/88 passed (game-first); NOT a pass: ...`), prints the game's
+    frame rate and longest frame beside the measured speed, exits 3, and prints its own
+    "What to do". `--plots` sums its orders the same way. `--dry-verdict` exits the same.
+- The guard (`scripts/lib/machine-guard.js` `holdBuilds`). For the length of each recording
+  the steady-speed judges read (the walk past the camera, the walk at home, the meeting),
+  every cargo, rustc, link and cl running on the computer is held at BelowNormal and put back
+  afterwards; what was held goes in the manifest's `builds_held` and the verdict. It only
+  ever lowers, and only build processes: each pid is checked to still be a build, by the
+  process list's own name, in the same PowerShell call that lowers it (a rustup proxy is
+  `rustup.exe` there and is left alone). A build already at BelowNormal or Idle is never
+  raised. Release puts back exactly what it lowered (matched by pid and start time, so a
+  reused pid is never touched) plus the children a held build started meanwhile, which
+  Windows starts at their parent's BelowNormal; a priority someone else changed meanwhile is
+  left as they set it. It also runs on the process's exit, so an uncaught error or Ctrl+C
+  puts the builds back (a hard `taskkill /F` of the rig cannot run any code; the builds then
+  finish at BelowNormal, slower and otherwise unharmed). It kills nothing and changes no
+  system setting; PowerShell gets `-NoProfile -NonInteractive` and a script carrying only
+  pids, start times and priority-class names. With a made-up process list (other rig
+  tests) it touches nothing unless a runner is handed in on purpose.
+
+**Red first, recorded in the tests:** against the judge before the fix, "a capture with
+400 ms frames (a starved machine) is CONTAMINATED, not FAIL" failed ("a starved capture must
+read contaminated, not FAIL: per-frame speed 1.190 to 2.154 m/s ..."), and so did the real
+recordings (`scripts/tests/fixtures/copresence-starved-2026-10-05.json`, the four failing
+legs and the held rerun cut from the rig's own runs: "20261005-055745-plots-game-first home:
+contaminated, not FAIL: per-frame speed 1.157 to 2.448 m/s ..."). The other direction is
+held by "a normal capture with a genuinely wrong speed still FAILS" and "a starved capture
+whose speed is wrong away from every stall still FAILS", each seen red against the fix with
+the limits sabotaged (every frame a stall; a recovery window of forever). The guard's tests
+were red before it existed, then went red one at a time against six sabotaged copies (no
+exit hook, no look for late children, a fake list reaching the real runner, no name
+re-check, inheritance through a parent lowered in the same look, no start-time check); the
+first round found three of those unnoticed, and the tests were tightened until each was
+caught. One test uses the real PowerShell on a rustc.exe it starts itself: it is lowered and
+put back, a node process the made-up list calls cargo.exe is left alone, and a restore with
+the wrong start time is refused.
+
+**Re-judged:** `--dry-verdict` over all 140 saved runs, HEAD against the fix: exactly the
+three starved orders changed, each from FAIL (exit 2) to CONTAMINATED (exit 3); the other 137
+are judged identically, every other failure included. `just rig-tests`: 1,000 passed.
+Not run: the rig itself (it boots the game; the fix was checked on saved runs only), so the
+hold's effect on a live capture is unmeasured until the next `--plots` run with builds going.
 
 ## BUG-162: medicine cures nothing, and food poisoning kills in about 8 minutes (FIXED (merging in v0.1463.0), found 2026-10-05)
 

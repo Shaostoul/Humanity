@@ -1619,3 +1619,176 @@ test("teleporter: a relay that corrects the declared jump FAILS, and so does eve
   assert.equal(teleCheck(near, "tele_far_enough").ok, false, "a jump the allowance would have taken means nothing");
   assert.equal(judgeTeleporter({}).pass, false, "nothing recorded fails");
 });
+
+// ── A STARVED MACHINE IS NOT A REGRESSION (BUG-161) ─────────────────────────
+//
+// v0.1459.0's first --plots runs, with ten agents compiling, drew the game at 6 to 16 fps with
+// single frames of 160 to 488 ms, and three of six orders FAILED steady_speed or
+// meet_steady_speed (1.1 to 2.4 m/s for 1.4). Rerun with the builds held at BelowNormal, 88/88.
+// A check that fails on a busy machine teaches people to rerun it until it is green, so the
+// judge now tells the two apart: an out-of-band frame that comes right after a frame longer than
+// the drawing keeps in hand is the machine (the drawing catching up), and when EVERY
+// out-of-band frame is one of those, steady_speed is CONTAMINATED: not judged, and never a pass.
+// One out-of-band frame away from every stall, and it is still a FAIL.
+//
+// Red, run 2026-10-20 against the judge before the fix, each test exactly as it stands:
+//   "a capture with 400 ms frames" FAILED: "a starved capture must read contaminated, not FAIL:
+//     per-frame speed 1.190 to 2.154 m/s (median 1.410), walker 1.400 m/s, allowed 1.260 to
+//     1.540; 19 of 66 frames outside, ..." (undefined == true)
+//   "the real starved captures of 2026-10-05" FAILED: "20261005-055745-plots-game-first home:
+//     contaminated, not FAIL: per-frame speed 1.157 to 2.448 m/s (median 1.468), ...; 12 of 31
+//     frames outside, ..."
+//   "the stall limits are src/net/sync.rs's own numbers" FAILED: "a stall is a frame longer than
+//     the drawing keeps in hand" (undefined == 0.15)
+//   "what a verdict adds up to" FAILED: "TypeError: outcomeOf is not a function"
+//   The two that guard the other direction failed then only on what did not exist yet
+//   (outcomeOf, the "did not: the drawing" wording); their steady_speed assertions (ok false,
+//   not contaminated) held, as they must.
+// Red against the FIX, with the limits sabotaged through a --require preload (source untouched):
+//   STALL_RECOVERY_S = Infinity: "a starved capture whose speed is wrong away from every stall"
+//     FAILED "a real regression on a busy machine must still FAIL, not hide as contaminated:
+//     NOT JUDGED, ... every one of the 63 frames outside the band came within Infinity s ..."
+//   STALL_FRAME_S = 0: "a normal capture with a genuinely wrong speed" FAILED "a real regression
+//     on a quiet machine must FAIL, not read contaminated: NOT JUDGED, ... 100 frame(s) over the
+//     0 ms the drawing keeps in hand ..."
+//   (and the sync.rs test with each: the judge's numbers no longer the drawing's.)
+
+const { outcomeOf, OUTCOME_EXIT, checkWord, outcomeLine } = require("../lib/copresence-judge.js");
+
+/** Frame times like `frameTimes` (20 to 45 ms), but with a `stallS` frame every `everyS`
+ *  seconds from `fromS` on: a machine starved by a dozen builds, the way the 2026-10-05
+ *  recordings go (frames of 160 to 488 ms between runs of ordinary ones). */
+function starvedTimes(seconds, { fromS = APPEAR_S + 1, everyS = 0.9, stallS = 0.4, seed = 11 } = {}) {
+  const r = rng(seed);
+  const out = [];
+  let next = fromS;
+  for (let t = 0; t < seconds; ) {
+    let dt = 0.02 + 0.025 * r();
+    if (t >= next) {
+      dt = stallS;
+      next = t + stallS + everyS;
+    }
+    t += dt;
+    out.push(t);
+  }
+  return out;
+}
+
+/** What src/net/sync.rs draws across a stall of the whole machine: the buffer runs dry, the
+ *  figure walks on for at most MAX_EXTRAPOLATION_S and then holds, so the frame that ends the
+ *  stall shows it `catchS` of walking behind; the frames after it blend that back with
+ *  BLEND_BACK_S (0.1 s), running fast while they do. `rate` scales the whole drawing (1 = the
+ *  walker's real speed): a real regression on top of the stalls. */
+function drawnAcrossStalls(times, { catchS = 0.06, rate = 1 } = {}) {
+  const ends = [];
+  for (let i = 1; i < times.length; i++) if (times[i] - times[i - 1] > 0.15) ends.push(times[i]);
+  const lag = (t) => ends.filter((e) => e <= t).reduce((acc, e) => acc + catchS * Math.exp(-(t - e) / 0.1), 0);
+  return (t) => (t < APPEAR_S ? null : walkerAt(rate * (t - APPEAR_S) - DELAY_S - lag(t)));
+}
+
+test("RED: a capture with 400 ms frames (a starved machine) is CONTAMINATED, not FAIL", () => {
+  const times = starvedTimes(RECORD_S);
+  const r = judge(framesFrom(times, drawnAcrossStalls(times)));
+  const c = check(r, "steady_speed");
+  assert.equal(c.contaminated, true, `a starved capture must read contaminated, not FAIL: ${c.detail}`);
+  assert.equal(c.ok, false, "contaminated is never a pass");
+  assert.equal(r.pass, false, "the run is not a pass");
+  assert.equal(r.contaminated, true, explain(r));
+  // Only the speed was disturbed: the other checks still judge, and pass.
+  assert.deepEqual(r.checks.filter((x) => !x.ok).map((x) => x.id), ["steady_speed"], explain(r));
+  // The reader is told why, in the machine's own numbers: the frame rate and the longest frame.
+  assert.match(c.detail, /frames a second/, c.detail);
+  assert.match(c.detail, /longest frame 400 ms/, c.detail);
+  assert.match(c.detail, /^NOT JUDGED/, c.detail);
+  assert.equal(outcomeOf(r.checks), "contaminated");
+  assert.notEqual(OUTCOME_EXIT[outcomeOf(r.checks)], 0, "a contaminated run never exits 0");
+});
+
+test("a normal capture with a genuinely wrong speed still FAILS steady_speed (never contaminated)", () => {
+  // The drawing 15% fast, on the ordinary frames of a background game (none over 150 ms):
+  // exactly what steady_speed exists to catch.
+  const r = judge(framesFrom(frameTimes(RECORD_S), (t) => (t < APPEAR_S ? null : walkerAt(1.15 * (t - APPEAR_S) - DELAY_S))));
+  const c = check(r, "steady_speed");
+  assert.equal(c.ok, false, c.detail);
+  assert.ok(!c.contaminated, `a real regression on a quiet machine must FAIL, not read contaminated: ${c.detail}`);
+  assert.equal(outcomeOf(r.checks), "fail");
+});
+
+test("a starved capture whose speed is wrong away from every stall still FAILS", () => {
+  // The same 400 ms stalls, and the drawing 15% fast everywhere: most of its out-of-band frames
+  // are nowhere near a stall, so this is the drawing, whatever the machine was doing.
+  const times = starvedTimes(RECORD_S);
+  const r = judge(framesFrom(times, drawnAcrossStalls(times, { rate: 1.15 })));
+  const c = check(r, "steady_speed");
+  assert.equal(c.ok, false, c.detail);
+  assert.equal(!!c.contaminated, false, `a real regression on a busy machine must still FAIL, not hide as contaminated: ${c.detail}`);
+  assert.match(c.detail, /did not: the drawing, not the machine/, c.detail);
+  assert.equal(outcomeOf(r.checks), "fail");
+});
+
+test("a starved capture whose drawing kept the walker's speed still PASSES", () => {
+  // Contamination only ever stands in for a FAIL: frames that stayed in the band through the
+  // stalls passed the harder test, and a pass is a pass.
+  const times = starvedTimes(RECORD_S);
+  const r = judge(framesFrom(times, smooth));
+  assert.equal(check(r, "steady_speed").ok, true, explain(r));
+  assert.ok(!check(r, "steady_speed").contaminated);
+  assert.ok(r.pass, explain(r));
+});
+
+test("RED: the real starved captures of 2026-10-05 are contaminated; the rerun with builds held passes", () => {
+  // scripts/tests/fixtures/copresence-starved-2026-10-05.json: the four legs that failed
+  // steady_speed while ten builds compiled (the BUG-161 report), and the rerun with every build
+  // held at BelowNormal, cut from the rig's own recordings and judged exactly as the rig does.
+  const fx = JSON.parse(require("node:fs").readFileSync(require("node:path").join(__dirname, "fixtures", "copresence-starved-2026-10-05.json"), "utf8"));
+  assert.equal(fx.legs.length, 5);
+  for (const leg of fx.legs) {
+    const r = judgeCopresence({ frames: leg.frames, walker: leg.walker, line: leg.line, speed: leg.speed, onLineEpochMs: leg.leg_start_epoch_ms, fromEpochMs: leg.leg_start_epoch_ms, checkView: leg.check_view });
+    const c = check(r, "steady_speed");
+    const name = `${leg.run} ${leg.leg}`;
+    if (leg.note === "starved") {
+      assert.equal(c.contaminated, true, `${name}: contaminated, not FAIL: ${c.detail}`);
+      assert.equal(c.ok, false, `${name}: never a pass`);
+      assert.deepEqual(r.checks.filter((x) => !x.ok).map((x) => x.id), ["steady_speed"], `${name}\n${explain(r)}`);
+      assert.match(c.detail, /frames a second, longest frame \d+ ms/, `${name}: ${c.detail}`);
+    } else {
+      assert.ok(r.pass, `${name} (builds held at BelowNormal) passes\n${explain(r)}`);
+    }
+  }
+});
+
+test("RED: the stall limits are src/net/sync.rs's own numbers", () => {
+  // The judge's idea of "a frame long enough to break the interpolation" is the drawing's own
+  // numbers, read from the Rust source, so a change there turns this red instead of leaving the
+  // judge measuring against a buffer that no longer exists.
+  const src = require("node:fs").readFileSync(require("node:path").join(__dirname, "..", "..", "src", "net", "sync.rs"), "utf8");
+  const num = (name) => {
+    const m = src.match(new RegExp(`const ${name}: f(?:32|64) = ([0-9.]+);`));
+    assert.ok(m, `src/net/sync.rs no longer declares ${name}`);
+    return Number(m[1]);
+  };
+  assert.equal(LIMITS.STALL_FRAME_S, num("INTERP_DELAY_S"), "a stall is a frame longer than the drawing keeps in hand");
+  assert.ok(Math.abs(LIMITS.STALL_RECOVERY_S - (num("MAX_EXTRAPOLATION_S") + 3 * num("BLEND_BACK_S"))) < 1e-9, "the recovery is the extrapolation cap plus three blend-back time constants");
+});
+
+test("RED: what a verdict adds up to: contaminated is shown as such and is never a pass", () => {
+  const ok = { id: "seen", ok: true, detail: "" };
+  const bad = { id: "on_time", ok: false, detail: "" };
+  const starved = { id: "steady_speed", ok: false, contaminated: true, detail: "NOT JUDGED ..." };
+  assert.equal(outcomeOf([ok]), "pass");
+  assert.equal(outcomeOf([ok, starved]), "contaminated");
+  assert.equal(outcomeOf([ok, starved, bad]), "fail", "a real failure beside a starved check is a failure");
+  assert.equal(outcomeOf([]), "fail", "no checks at all is not a pass");
+  assert.deepEqual(OUTCOME_EXIT, { pass: 0, fail: 2, contaminated: 3 });
+  assert.equal(checkWord(ok), "PASS");
+  assert.equal(checkWord(bad), "FAIL");
+  assert.equal(checkWord(starved), "CONTAMINATED");
+  const line = outcomeLine("RESULT: ", [ok, starved], "co-presence checks");
+  assert.match(line, /^RESULT: CONTAMINATED {2}1\/2 passed/);
+  assert.match(line, /NOT a pass/);
+  assert.match(line, /steady_speed/);
+  assert.doesNotMatch(line, /PASS {2}/, "never printed as a pass");
+  assert.match(outcomeLine("RESULT: ", [ok], "co-presence checks"), /^RESULT: PASS {2}1\/1 co-presence checks passed$/);
+  const both = outcomeLine("RESULT: ", [ok, starved, bad], "co-presence checks");
+  assert.match(both, /^RESULT: FAIL {2}1\/3 passed; failed: on_time; not judged \(machine starved\): steady_speed$/);
+});

@@ -613,7 +613,12 @@ check-encoding *ARGS:
 # back, a snap, a drift off the line, a walk out of view and a figure covered
 # by a window in the screenshot each FAIL; and its plot checks (increment 1b):
 # the 1a shape (no plots handed out, the game's camera still on p1), two
-# players on one plot, and a walker drawn outside its plot each FAIL.
+# players on one plot, and a walker drawn outside its plot each FAIL. BUG-161:
+# a capture starved by builds (400 ms frames, and the four real 2026-10-05
+# recordings) reads CONTAMINATED, never PASS and never FAIL, while a wrong
+# speed on a quiet or a busy machine still FAILS; and the guard's build hold
+# lowers only builds, puts each back (on an error and Ctrl+C too), and is
+# proven once on a real rustc it starts itself (Windows; about a second).
 # And the station park check (scripts/lib/station-park-check.js, BUG-132): a
 # {"station":"home"} park on its pose passes, and the two misses BUG-132
 # wrote (the pose plus the Earth-to-home offset, and a kilometre out), a camera
@@ -705,7 +710,12 @@ verify-second-player:
 # backwards, per-frame speed near the walker's by the recorded frame times, no
 # jump, on its line, in view, and VISIBLE in both screenshots (its teal body
 # counted under its nameplate). Refuses (exit 1) while ANY HumanityOS.exe runs (one
-# GPU) or when the exe is older than the source; exit 2 = a check failed. About a
+# GPU) or when the exe is older than the source; exit 2 = a check failed; exit 3 =
+# CONTAMINATED: nothing failed, but the walk's speed could not be judged because the
+# machine was starved (frames over 150 ms, every off-pace frame right after one;
+# BUG-161). That is NOT a pass: run it again on a quieter machine. For the length of
+# each recording it judges, every cargo, rustc, link and cl on the computer is held
+# at BelowNormal priority and put back after (the manifest's builds_held). About a
 # minute. Evidence in .probe-rig/copresence/runs/<stamp>/.
 #   just verify-copresence --plots    homes on plots (increments 1b and 2 of
 #     docs/design/ship-homes-and-logistics.md): runs, walker first then game

@@ -430,7 +430,8 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
     the takedown section (v0.1491.0).
   Day 5 (a real two-person session on the VPS) is unblocked whenever the operator has a partner.
 - **Follow-ups found today (not started):** BUG-161 (the copresence rig's steady-speed
-  judges fail a starved machine); BUG-163 part 2 (refresh a stale data folder on update:
+  judges fail a starved machine: DONE 2026-10-20, a starved capture reads CONTAMINATED, exit
+  3, and the rig holds builds at BelowNormal during each capture); BUG-163 part 2 (refresh a stale data folder on update:
   docs/design/data-folder-updates.md: DONE v0.1490.0); no gasoline or diesel
   item (Refined Fuel stands in for the generator's gasoline; DONE 2026-10-20, f4562e2c3:
   gasoline_0 and diesel_0, the refinery's refine_crude makes both, the generator burns
