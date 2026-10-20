@@ -521,6 +521,16 @@
       "date": "2026-10-20",
       "decision": "v0.1530.0 released and delivered: BUG-207 (the aboard walk substeps at WALK_SUBSTEP_M 0.20 m, shorter than any tread, floor read between steps through footing::floor_along, which honours the walls; the floor sampler moved from lib.rs to src/engine/footing.rs; bit-identical at 60 fps), BUG-208 (a standing body follows a drop of up to STEP_DOWN_M 0.30 m as a step; deeper is an edge that clears grounded; walking down the homestead's stairs had landed at 7.67 m/s since v0.1527.0, and Space mid-fall jumped), and the wood stove's outside air kit (CombustionAir in the machine data, the shipped stove Outside; its oxygen on the ship's supply ledger as an 'oxygen' line, since the ship's air keeps no oxygen accounts; finding docs/reference/findings/2026-10-20-stove-combustion-air.md quoting 24 CFR 3280.709(g) and the Drolet manuals). Checked: 4,641 lib tests, 1,027 rig tests, 21 lints, relay check, verify-runtime 3/3, verify-falls 40/40, check-delivery OK.",
       "why": "The operator's 'proceed with recommendations'. Released without waiting for the planet leg because walking down stairs was hurting Realistic players; the planet leg and a walk-down-stairs leg follow from the toolsmith."
+    },
+    {
+      "date": "2026-10-20",
+      "decision": "v0.1531.0 released and delivered: verify-falls 76/76 with planet legs (Sahara ground, 9.81, Space's climb then the fall) and a walk-down-the-stairs leg (red with BUG-208 removed); rig_walk::hold releases a camera park like a key press through input::apply_game_action (before, every planet fall in a rig run was exempt); an empty showcase request waits a frame (ipc::take_request_text); BUG-209, the planet free fall's semi-implicit Euler (a landing read sqrt(N/(N+1)) of its speed) replaced by the exact parabola per frame with the terminal clamp entered at its moment; scripts/lib/write-request.js for all nine rigs (88 writes) with a scan test. Then (local, ships next) the machine-guard real-PowerShell test's helper lives until killed.",
+      "why": "The recommendations' third item, plus what the toolsmith found on the way. Released before the planet-deck builder finished because the falls check and the exact fall stand on their own."
+    },
+    {
+      "date": "2026-10-20",
+      "decision": "Left for the operator, stated once in the reply: on a planet Space is a climb at walking speed, so a 0.35 s tap lifts about 2.6 m and the fall back sprains an ankle in Realistic (a real jump is about half a metre). Left as a follow-up: ten game request readers still delete a request they find empty (the screenshot request docs say 'any content').",
+      "why": "The Space behaviour is a feel and design choice the operator plays with daily; changing it unasked could break his flying and building habits. The reader fix waits for the deck builder, who may be in ipc.rs."
     }
   ],
   "active_scopes_to_avoid": [
@@ -550,7 +560,7 @@
     "Trees have no materialised identity, so they cannot be felled. The key (cell_x, cell_y, item_index) already exists structurally; a sparse delta store is the shape."
   ],
   "how_to_resume": "1. `just brief` (version/CI/signing). 2. docs/PRIORITIES.md \"Active focus\" - the top item is fully specified, start implementing rather than investigating. 3. This file for WHY. Note the ONE-GPU rule: `tasklist //FI \"IMAGENAME eq HumanityOS.exe\"` before booting any rig, and never boot beside the operator instance.",
-  "last_updated": "2026-10-20T14:10-07:00",
+  "last_updated": "2026-10-20T15:05-07:00",
   "focus": "v0.1111.1 shipped (the 2026-08-03/04 vegetation marathon, v0.1109.4-v0.1111.1). Landed: leaf tufts stopped being cubes (golden-angle azimuths + solved per-card tilts, measured 100% parallel pairs on conifers and 67% perpendicular on broadleaves before); distant cards stopped out-shining mesh trees (4-8x, three multiplying causes, then the residual 28% conifer excess traced to the odd component of the shading normals and cancelled at source - all species now 1.00 flat across the sky); standing still stopped depending on the frame rate (the frame-lock sampled terrain one frame of planetary spin behind the player, 33,360 m/s of ground slip, so altitude read as a function of fps and flipped stand height by 2.45 m); the card-hide radius stopped promising models that never drew (BUG-068); forest density stopped being a process-global read separately by two streams (BUG-069); and the card cutoff is now clamped to the terrain reach that actually exists. Foliage-card arrangement extracted to renderer/tree_cards.rs under the size ratchet, and the ratchet budget came DOWN.",
   "overnight_plan_2026_08_01": {
     "directive": "Operator (heading to bed, full trust granted): PERMANENT versions only, no half fixes. Full PBR textures (not just diffuse). Real full canopies of leaves and flowers. Photorealism is the goal - screenshots good enough to land donations/grants; money is tight. 8-10 hours unattended.",
