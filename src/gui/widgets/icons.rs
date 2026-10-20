@@ -906,62 +906,70 @@ pub fn paint_server(painter: &egui::Painter, rect: Rect, color: Color32) {
 /// Add new nav items here — one match arm + one paint helper above and
 /// the nav bar picks it up automatically.
 pub fn paint_nav_icon(painter: &egui::Painter, rect: Rect, page: crate::gui::GuiPage, color: Color32) -> bool {
+    match nav_icon(page) {
+        Some(paint) => {
+            paint(painter, rect, color);
+            true
+        }
+        None => false,
+    }
+}
+
+/// The painter of `page`'s nav icon, when it has one (2026-10-19: the Apps page's HumanityOS tools
+/// draw it on their covers, and leave out the large first letter when there is one).
+pub fn nav_icon(page: crate::gui::GuiPage) -> Option<fn(&egui::Painter, Rect, Color32)> {
     use crate::gui::GuiPage as P;
-    match page {
-        P::Chat        => { paint_chat(painter, rect, color); true }
-        P::Wallet      => { paint_wallet(painter, rect, color); true }
-        P::Donate      => { paint_heart(painter, rect, color); true }
-        P::Profile     => { paint_person(painter, rect, color); true }
-        P::Identity    => { paint_key(painter, rect, color); true }
-        P::Governance  => { paint_scroll(painter, rect, color); true }
-        P::Recovery    => { paint_lifebuoy(painter, rect, color); true }
-        P::Tasks       => { paint_checklist(painter, rect, color); true }
-        P::Inventory   => { paint_box(painter, rect, color); true }
-        P::Maps        => { paint_pin(painter, rect, color); true }
-        P::Market      => { paint_bag(painter, rect, color); true }
-        P::Crafting    => { paint_hammer(painter, rect, color); true }
+    Some(match page {
+        P::Chat        => paint_chat,
+        P::Wallet      => paint_wallet,
+        P::Donate      => paint_heart,
+        P::Profile     => paint_person,
+        P::Identity    => paint_key,
+        P::Governance  => paint_scroll,
+        P::Recovery    => paint_lifebuoy,
+        P::Tasks       => paint_checklist,
+        P::Inventory   => paint_box,
+        P::Maps        => paint_pin,
+        P::Market      => paint_bag,
+        P::Crafting    => paint_hammer,
         // v0.1147: Civilization variant merged into Humanity (paint_building
         // stays for future use).
-        P::Studio      => { paint_palette(painter, rect, color); true }
+        P::Studio      => paint_palette,
         // Watch had no arm, so its nav button was an empty square in the
         // icon-only bar and a gap before the label in the others (2026-09-27
         // snapshot review).
-        P::Watch       => { paint_watch(painter, rect, color); true }
-        P::Media       => { paint_picture(painter, rect, color); true }
-        P::Apps        => { paint_apps(painter, rect, color); true }
+        P::Watch       => paint_watch,
+        P::Media       => paint_picture,
+        P::Apps        => paint_apps,
         // v0.415.0: Onboarding + Play variants removed with their pages.
         // v0.197.0: Agents + AiUsage variants removed. paint_robot and
         // paint_chart are kept (other future pages might use them).
         // v0.1145: Cosmos variant merged into Maps (which pays paint_globe
         // via its own arm above).
-        P::Settings    => { paint_cog(painter, rect, color); true }
-        P::RelayControl => { paint_server(painter, rect, color); true }
-        P::BugReport   => { paint_bug(painter, rect, color); true }
-        P::Testing     => { paint_clipboard(painter, rect, color); true }
-        P::Browser     => { paint_globe(painter, rect, color); true }
+        P::Settings    => paint_cog,
+        P::RelayControl => paint_server,
+        P::BugReport   => paint_bug,
+        P::Testing     => paint_clipboard,
+        P::Browser     => paint_globe,
         // Folded carve tabs (v0.363). Humanity's icon IS the brand "H" — the H
         // is the icon, "Humanity" is the label, so the old separate brand button
         // is retired (operator: "only have a single H/Humanity page").
-        P::Humanity => {
-            painter.text(
-                rect.center(),
-                egui::Align2::CENTER_CENTER,
-                "H",
-                egui::FontId::proportional(rect.height()),
-                color,
-            );
-            true
-        }
-        P::Real     => { paint_person(painter, rect, color); true }
-        P::Platform => { paint_wrench(painter, rect, color); true }
-        P::Library  => { paint_scroll(painter, rect, color); true }
-        P::Quests   => { paint_compass(painter, rect, color); true }
+        P::Humanity => paint_humanity,
+        P::Real     => paint_person,
+        P::Platform => paint_wrench,
+        P::Library  => paint_scroll,
+        P::Quests   => paint_compass,
         // None = FPS game mode; the "Play" nav button carries this page and gets
         // the play-triangle glyph.
-        P::None     => { paint_play(painter, rect, color); true }
-        P::Homes    => { paint_house(painter, rect, color); true }
-        _ => false,
-    }
+        P::None     => paint_play,
+        P::Homes    => paint_house,
+        _ => return None,
+    })
+}
+
+/// The Humanity tab's icon: the brand "H" itself.
+fn paint_humanity(painter: &egui::Painter, rect: Rect, color: Color32) {
+    painter.text(rect.center(), egui::Align2::CENTER_CENTER, "H", egui::FontId::proportional(rect.height()), color);
 }
 
 /// Eye — "read-only / view-only" channel marker (operator-requested

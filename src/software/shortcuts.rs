@@ -199,7 +199,8 @@ mod tests {
     /// there lists nothing.
     ///
     /// Seen red 2026-10-19 with the folders inside the Start menu not looked into (`depth <
-    /// DEEPEST` as `depth < 0`): "listed by its name" found [] (the shortcut is one folder down).
+    /// DEEPEST` turned round): "listed by its name" found only ["Not a shortcut"] (Resolve's is two
+    /// folders down).
     #[test]
     fn a_start_menu_shortcut_reads_back_as_written() {
         let dir = crate::test_temp::dir("sw_shortcut");

@@ -2042,7 +2042,8 @@ fn apps_fill(ctx: &egui::Context, state: &mut GuiState, fx: &AppsSnapshot, view:
 /// the pictures with their Whys; the Epic covers switch, off), GREEN HumanityOS tools (each with
 /// its page's mark and Open), BLUE Other programs (GIMP, Notepad++ and Blender with their own icons
 /// and Launch, DaVinci Resolve with no program to start in this fixture, the rest with Download or
-/// Open website), CYAN Help, MAGENTA Services, YELLOW Added by you (Launch, and Add a program on its
+/// Open website), CYAN Help and MAGENTA Services (each narrowed to one category, Emergency and
+/// Water, so every part fits), YELLOW Added by you (Launch, and Add a program on its
 /// band). At the right, Orbital Farmstead's details: its banner with its lettering, Play, Open in
 /// Steam and Show in folder, its numbers, achievements, screenshots, mods and links.
 #[test]
@@ -2050,9 +2051,10 @@ fn apps_fill(ctx: &egui::Context, state: &mut GuiState, fx: &AppsSnapshot, view:
 fn snapshot_apps() {
     use crate::gui::pages::apps;
     let fx = apps_snapshot("snapshot_apps");
-    render_page_png("apps", 1440, 4200, |ctx, theme, state| {
+    render_page_png("apps", 1440, 3800, |ctx, theme, state| {
         if state.apps.games.found.is_none() {
-            apps_fill(ctx, state, &fx, apps::View::default());
+            // Help and Services narrowed to one category each (Emergency, Water), so every part fits.
+            apps_fill(ctx, state, &fx, apps::View { help_category: Some("emergency".into()), services_category: Some("water".into()), ..apps::View::default() });
             state.apps.selected = Some(apps::Picked::Game(crate::games::Store::Steam, "1000010".into()));
         }
         apps::draw(ctx, theme, state);
@@ -2074,7 +2076,7 @@ fn snapshot_apps() {
 fn snapshot_apps_list() {
     use crate::gui::pages::apps;
     let fx = apps_snapshot("snapshot_apps_list");
-    render_page_png("apps_list", 1440, 2600, |ctx, theme, state| {
+    render_page_png("apps_list", 1440, 2900, |ctx, theme, state| {
         if state.apps.games.found.is_none() {
             let view = apps::View {
                 layout: apps::Layout::List,

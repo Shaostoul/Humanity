@@ -49,6 +49,18 @@ fn monogram(title: &str) -> String {
 /// size on the panel; `radius` its corners. Clipped to `rect`.
 #[allow(clippy::too_many_arguments)]
 pub fn paint_cover(painter: &Painter, theme: &Theme, rect: Rect, picture: Option<(TextureId, Vec2)>, mark: Option<(TextureId, Vec2)>, title: &str, seed: &str, title_size: f32, radius: f32) {
+    paint(painter, theme, rect, picture, mark, title, seed, title_size, radius, true);
+}
+
+/// [`paint_cover`] without the large faint first letter: for a plain cover the caller marks with
+/// something of its own (the Apps page's HumanityOS tools: their page's icon).
+#[allow(clippy::too_many_arguments)]
+pub fn paint_cover_without_letter(painter: &Painter, theme: &Theme, rect: Rect, title: &str, seed: &str, title_size: f32, radius: f32) {
+    paint(painter, theme, rect, None, None, title, seed, title_size, radius, false);
+}
+
+#[allow(clippy::too_many_arguments)]
+fn paint(painter: &Painter, theme: &Theme, rect: Rect, picture: Option<(TextureId, Vec2)>, mark: Option<(TextureId, Vec2)>, title: &str, seed: &str, title_size: f32, radius: f32, letter: bool) {
     let painter = painter.with_clip_rect(rect.intersect(painter.clip_rect()));
     let corners = CornerRadius::same(radius.round().clamp(0.0, 255.0) as u8);
     if let Some((tex, size)) = picture {
@@ -75,13 +87,14 @@ pub fn paint_cover(painter: &Painter, theme: &Theme, rect: Rect, picture: Option
             painter.image(tex, at, Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)), Color32::WHITE);
         }
         // The first letter, large and faint, at the right.
-        None => {
+        None if letter => {
             let letter = monogram(title);
             if !letter.is_empty() {
                 let size = rect.height() * 0.95;
                 painter.text(egui::pos2(rect.right() - rect.height() * 0.08, rect.center().y), Align2::RIGHT_CENTER, letter, FontId::proportional(size), theme.text_primary().gamma_multiply(0.09));
             }
         }
+        None => {}
     }
     // No title: the plain panel alone (a picture still being read, whose name is drawn under it:
     // a name is drawn once, never twice, 2026-10-19).

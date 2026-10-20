@@ -229,8 +229,8 @@ pub(crate) mod tests {
     /// id is left out; a file that is not the catalog's shape reads as nothing; and the host list
     /// refuses plain http, another host, a host that only starts like Epic's, and a user name.
     ///
-    /// Seen red 2026-10-19 with `host_allowed` taking any https address: "Lantern Valley's picture
-    /// on another host is left out" got Some("https://evil.example/lantern-wide").
+    /// Seen red 2026-10-19 with the host check taken out of `parse` (every picture kept): "Lantern
+    /// Valley's picture on another host is left out" got Some("https://evil.example/lantern-wide").
     #[test]
     fn the_launchers_catalog_and_epics_own_hosts() {
         let catalog = parse(&catalog_bytes());
@@ -253,8 +253,8 @@ pub(crate) mod tests {
     /// FETCH ASKS ONLY FOR AN ADDRESS ON EPIC'S HOSTS (the test build's fetch records): an address
     /// on another host is refused before anything is asked.
     ///
-    /// Seen red 2026-10-19 with the host check taken out of `fetch`: "another host is never asked"
-    /// got ["https://evil.example/x"].
+    /// Seen red 2026-10-19 with the host check taken out of `fetch`: `fetch("https://evil.example/x")
+    /// .is_err()` failed (the address was asked for, and answered).
     #[test]
     fn fetch_asks_only_epics_hosts() {
         let _ = recorder::recorded();

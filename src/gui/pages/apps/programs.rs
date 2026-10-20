@@ -1,4 +1,4 @@
-//! The Apps page's other programs, its blue part, and the help services on its second tab (the
+//! The Apps page's other programs, its blue part, and its help services, cyan and magenta (the
 //! Tools page until 2026-10-19; the operator: "How can we beautify this tools page? What if we
 //! make the tools page like the games page? Then what if through that interface users can
 //! install/launch/go to the website(s) for the various non-game apps?"; part of the Apps page since
@@ -7,7 +7,8 @@
 //! Both come from the single external catalog, data/external/catalog.json, via
 //! `state.external_catalog`, loaded at startup (software/catalog.rs): `software`, free programs you
 //! download and run yourself (Blender, GIMP...), here; `service`, real-world help websites and
-//! organizations, on the Help and services tab. The website's Tools page (web/pages/tools.html)
+//! organizations, in the Help and Services parts (each category's "section" in the data). The
+//! website's Tools page (web/pages/tools.html)
 //! reads the same file.
 //!
 //! What is installed is read by src/software/ on a worker thread when the page opens and on

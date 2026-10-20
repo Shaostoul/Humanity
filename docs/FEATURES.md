@@ -379,76 +379,102 @@ fixture is the verdict proven able to fail). Design:
 - Data: `data/machines/home.ron` (`wall_screen_6`, `web:https://united-humanity.us`, console room east wall)
 - Tooling: `scripts/verify-screens.js` (`just verify-screens`; `--dry-verdict`, `--self-test`, wired into `just preflight`), `scripts/lib/png.js` (dependency-free PNG decode/encode/diff/colour stats), `tests/fixtures/screens/{green,red}/`
 
-### Games Library (v0.1517.0)
+### Apps Page (the Games Library and the Tools Page as one page, 2026-10-19)
 
-A desktop page, "Games", beside Play and Characters in the nav: every game installed on this computer, started on the
-person's click through each store's own route, the stores keeping downloads, updates and licence checks. What may be
-done follows the dated finding `docs/reference/findings/2026-10-13-game-stores-and-a-games-library.md`, which the page
-opens in the Library from its Why (a new "Research Findings" shelf in Reference Library).
+A desktop page, "Apps", beside Play and Characters in the nav (`GuiPage::Apps`, page id "apps"; the Games
+library of v0.1517.0 and the Tools page of v0.1063 made one, and `GuiPage::Games`/`GuiPage::Tools` are gone).
+The operator, 2026-10-19: "What do you think about changing the name of ... games to apps. Then merge tools with
+games/apps. Like an offline recommended list that also tracks installs, launches, and what not. Red section could
+be games. Green could be humanityOS tools. Blue could be third party tools." and, the same day, "What do you think
+extending the RGB style to CMY for beyond 3 options. In this case what if help is C and services is M and then we
+still have Y." What may be done follows three dated findings, each opened from its Why in the Library ("Research
+Findings"): `docs/reference/findings/2026-10-13-game-stores-and-a-games-library.md`,
+`2026-10-19-games-page-art-stats-and-links.md` and `2026-10-19-tools-page-install-launch-and-icons.md`.
 
-- **Reading, never writing, the stores' records**: Steam (registry `HKCU\Software\Valve\Steam` `SteamPath`, then
-  `steamapps\libraryfolders.vdf` for every library, then each `appmanifest_<appid>.acf`: name, appid, installdir,
-  StateFlags; Steam's redistributables left out), the Epic Games Store (`%ProgramData%\Epic\EpicGamesLauncher\Data\Manifests\*.item`:
-  DisplayName, InstallLocation, LaunchExecutable, CatalogNamespace, CatalogItemId, AppName; DLC and Unreal Engine left
-  out), GOG (registry `HKLM\SOFTWARE\WOW6432Node\GOG.com\Games\<id>` `path`, then `goggame-<id>.info`'s primary play
-  task). The registry is opened with KEY_READ only (`src/games/registry.rs`, the `windows` crate's Win32_System_Registry).
-  Read on a worker thread when the page opens and on Refresh, never every frame and never on a timer.
-- **Play**, only on a click, through ONE launcher (`src/games/launch.rs`; a test build replaces it with a recorder and
-  compiles out the real one): `steam://rungameid/<appid>`; `com.epicgames.launcher://apps/<ns>%3A<item>%3A<app>?action=launch&silent=true`;
-  a GOG game's own primary program with its arguments in its working directory; an added game's own program. A second
-  Play straight after the first starts nothing more. "Open in Steam" (`steam://nav/games/details/<appid>`) and "Open in
-  the Epic Games Store" (`com.epicgames.launcher://store`) instead of Install or Update; none for GOG (GOG documents no link
-  to GOG GALAXY). Show in folder.
-- **States**: "Being installed by Steam" (StateFlags without fully installed) or by the Epic Games Store
-  (`bIsIncompleteInstall`), with no Play; a folder or program gone says so, with no Play.
-- **Added by you**: "Add a game" (the app's file picker, programs) adds any game by its own program, named by its file
-  name; Rename; Remove takes it off the list only. Kept in config.json as `added_games` (guarded by
-  `tests/settings_persistence_lint.rs`).
-- **Said on the screen**: "HumanityOS starts your games through each store's own app. Downloads and updates stay with the
-  store, because the stores' terms keep those for their own software. That is a platform holder's rule, not a law." No
-  store sign-in, no SteamCMD, no owned-but-not-installed games, no logos (plain "Steam", "Epic Games Store", "GOG",
-  "Added by you").
-- **A library to look at (2026-10-19)**, as the second dated finding
-  `docs/reference/findings/2026-10-19-games-page-art-stats-and-links.md` allows (its own Why opens it; "Research
-  Findings"):
-  - **Grid or List**, search by name (every word, case aside), sort by Name, Recently played, Most played or Size (a
-    game with no such number last), and a pill per store found with its count. The view and the sort are kept in
-    config.json (`games_layout`, `games_sort`; guarded by `tests/settings_persistence_lint.rs`). A tile: its cover slot,
-    name, store and one number (the one sorted by), achievements with a thin bar, Play or why it cannot start. A row:
-    Play, name, store, played, last played, size, achievements, the store's button; columns give way when narrow; a
-    heading click sorts.
-  - **Pictures**: Steam's own client's cached pictures, read in place from `appcache\librarycache\<appid>\` (files
-    directly there, one per hash-named folder, or the old flat `<appid>_header.jpg`): the header for the tile, the hero
-    with the game's `logo.png` over it for the details. Decoded into memory only (`widgets/thumbnails.rs`), never copied,
-    cached on disk, sent or fetched, never on an in-world screen. Epic and GOG games: their program's own icon, read from
-    its resources with the program opened as data (`src/games/art.rs`). Otherwise a plain panel in the theme's colours
-    tinted by a hue of the game's own, its name on it (`widgets::cover_tile`).
-  - **Details** (a panel at the right, `games_detail.rs`): Play, the store's button, Show in folder (Rename and Remove for
-    an added game); time played, last played, size on disk, last updated, version, folder; achievements (N of M, the
-    unlocked first with the day, a hidden one's description kept hidden); the person's own screenshots (Steam's small
-    copies, a click shows one large with Previous, Next, the arrow keys and Show in folder); Workshop mods by number,
-    size and day, each with Open in Steam (`steam://url/CommunityFilePage/<id>`); links, on a click only: Store page
-    and Community hub in Steam, and on the web the Steam store page, PCGamingWiki (its redirect by App ID, or by GOG id
-    for a GOG game) and SteamDB, only on the hosts `games::links::WEB_HOSTS` lists.
-  - **Read on the same worker, read only**: size and last update (appmanifest `SizeOnDisk`, `LastUpdated`; Epic
-    `InstallSize`, `AppVersionString`; a GOG folder added up, none past 200,000 entries); playtime and last played
-    (`userdata\<id>\config\localconfig.vdf`, only those two numbers kept); achievements (`appcache\stats\` schema and
-    the person's record, binary KeyValues, `src/games/binary_keyvalues.rs`; a file that does not read exactly shows
-    none, never a wrong count; no record of the person's shows them as not known); screenshots
-    (`userdata\<id>\760\remote\<appid>\screenshots`); Workshop (`steamapps\workshop\appworkshop_<appid>.acf` and
-    `content\<appid>`). ONE Steam account's records: the one signed in now (registry `ActiveProcess` `ActiveUser`), else
-    loginusers.vdf's MostRecent, else the only account folder; none on a shared computer with no record of whose. GOG
-    GALAXY's database is never read. Drawing reads no file (a test counts the UI thread's reads).
-  - **Said on the screen**: covers come from each store's own app on this computer; store names are shown without their
-    logos, because the stores have not licensed them (a platform holder's rule); nothing about your games leaves this
-    computer except when a game's web link is opened; "HumanityOS is not affiliated with Valve, Epic Games or GOG."
-
-Desktop only: a website cannot read the games installed on the computer it runs on. Files: `src/games/` (`mod.rs`,
-`keyvalues.rs` Valve KeyValues parser, `binary_keyvalues.rs`, `steam.rs`, `steam_user.rs`, `achievements.rs`,
-`workshop.rs`, `art.rs`, `links.rs`, `epic.rs`, `gog.rs`, `other.rs`, `launch.rs`, `registry.rs`, `fixtures.rs` for
-tests), `src/gui/pages/games.rs` (the page), `games_library.rs` (toolbar, grid, list), `games_detail.rs` (details,
-screenshot viewer), `games_tests.rs`, `games_detail_tests.rs`, `src/gui/widgets/cover_tile.rs`, nav item in
-`src/gui/pages/escape_menu.rs`, icon `widgets::icons::paint_gamepad`; snapshots `games_library` (the Grid with a game's details) and `games_library_list`.
+- **Six parts, each under a band in its colour and its name** (never the colour alone, for colour-blind people):
+  RED Games, GREEN HumanityOS tools, BLUE Other programs, CYAN Help, MAGENTA Services, YELLOW Added by you. Red,
+  green and blue are the chat sidebar's section tints (`dm_bg`, `group_bg`, `server_bg`) with the nav's group
+  colours for their edges; cyan, magenta and yellow are new theme tokens (`section_cyan_bg`/`section_cyan` and their
+  magenta and yellow kin, editable in Settings > Appearance, mirrored in `web/shared/theme.css`;
+  `widgets::tint_section::Tint` grew the three).
+- **One toolbar** across the parts: search (every word, case aside), sort (Name; Recently played, Most played, Size
+  for the games; Installed first for the programs; Category for the programs, Help and Services; only the sorts that
+  order a part shown are offered), Grid or List, a chip per part with its count (and All), and "Only what is on this
+  computer". Kept in config.json as `apps_view` (with each catalog part's category), `apps_added` and
+  `apps_epic_covers`, guarded by `tests/settings_persistence_lint.rs`. Nothing migrated from the old fields.
+- **Short tiles** (the operator: "the app tiles are too big. The titles are stated twice"): a name is drawn once, on
+  the plain cover when there is no picture, else in one small line under the picture (tiles in a part with pictures
+  keep that line's room so a row's buttons line up); one line of where it is from and one fact; a small main button
+  with one more fact at its right (achievements, an installed version, a download size, a website). Tiles are 168
+  px at the least, so more fit to a row (`widgets/shelf.rs`, `widgets/cover_tile.rs`).
+- **RED, Games** (`apps/games.rs`; readers `src/games/`): Steam (registry `SteamPath`, `libraryfolders.vdf`, each
+  `appmanifest_<appid>.acf`), the Epic Games Store (`%ProgramData%\Epic\EpicGamesLauncher\Data\Manifests\*.item`; DLC
+  and Unreal Engine left out) and GOG (registry `GOG.com\Games\<id>`, then `goggame-<id>.info`), read only (KEY_READ)
+  on a worker when the page opens and on Refresh. Play, only on a click, through ONE launcher (`src/games/launch.rs`;
+  a test build records instead): `steam://rungameid/<appid>`, Epic's documented `?action=launch` link, a GOG game's
+  own primary program. "Open in Steam" and "Open in the Epic Games Store" instead of Install or Update (none for GOG).
+  A pill per store found. Being installed, folder gone or program gone say so in Play's place. Pictures: Steam's own
+  client's cached pictures read in place (never copied or sent), an Epic or GOG game's program icon, else a plain
+  panel. **Epic covers, opt-in**: the launcher's own catalog (`Data\Catalog\catcache.bin`, base64 of JSON, read
+  only, `src/games/epic_covers.rs`) gives the addresses of each installed Epic game's box art; only when the person
+  turns on "Get covers for Epic games from Epic's servers (this tells Epic which of your games' pictures were looked
+  up)" (off by default) are those pictures fetched, from `cdn1.epicgames.com` only, no redirect followed, on a
+  worker, through the one recorded `fetch`, decoded into memory for the session and never written anywhere
+  (`apps/covers.rs`). Details (`apps/game_detail.rs`): numbers (played, last played, size, last updated, version,
+  folder), achievements (binary KeyValues, `binary_keyvalues.rs`), the person's screenshots (shown large), Workshop
+  mods by number, links (Steam store page and community hub in Steam; on the web the Steam store, PCGamingWiki,
+  SteamDB, only on `games::links::WEB_HOSTS`). ONE Steam account's records; GOG GALAXY's database never read. Said on
+  the screen: the stores keep downloads and updates (a platform holder's rule), no store logos (a platform holder's
+  rule), nothing leaves the computer except a web link opened or Epic's covers turned on, "HumanityOS is not
+  affiliated with Valve, Epic Games or GOG."
+- **GREEN, HumanityOS tools** (`apps/own_tools.rs`): the app's own pages a person uses (Maps, Tasks, Inventory,
+  Crafting, Quests, Home, Library, Notes, Calendar, Calculator, Chat, Studio, Watch, Media, Market, Wallet,
+  Browser), as DATA in `data/gui/humanityos_tools.json` (name, page id, one line; dev-only pages left out), loaded
+  at startup; each tile shows its page's nav icon (`widgets::icons::nav_icon`) and Open goes to its page.
+- **BLUE, Other programs** (`apps/programs.rs`; readers `src/software/`): the catalog's 40 free programs. Which are
+  installed: Windows' installed-programs list (Uninstall keys, both hives, both views) and App Paths
+  (`software/records.rs`), **the Start menu's shortcuts** for a program whose record names no program file
+  (`software/shortcuts.rs`: the two Start-menu folders listed by name, a matching shortcut read with Windows' own
+  IShellLinkW, loaded read-only, never saved or resolved; its program, arguments and folder; a shortcut naming no
+  program is opened itself through `Launch::Shortcut`; DaVinci Resolve, `detect.shortcut` in the catalog), and
+  Steam's records (Blender from Steam). Matched by DATA (`detect.display_name`, `detect.exe`, `detect.shortcut`,
+  `steam_appid`). Says "Installed" or "Not found on this computer", never "not installed". Launch through the one
+  launcher; Show in folder; Install through winget after a consent step in the details (the package, publisher,
+  licence and agreements, Microsoft's two lines exactly, Windows' permission prompt, winget's usage data, what "I
+  agree, install" means; `--accept-package-agreements` for that one package, `--interactive` for a program whose
+  licence is not free software, never `--accept-source-agreements`; one at a time; return codes in plain words;
+  then it looks again). Website only, saying whose rule (DaVinci Resolve, Aseprite, Ardour, Vectr, Boxy SVG). **A
+  copy Steam installed** gets Open in Steam, its store page and community hub in Steam and its store page on the web
+  (`games::links::steam_program_links`), beside its maker's website (no Download page: Steam keeps it up to date).
+  Said on the screen: where programs come from, the safety line, how what is installed is found, no logos, not
+  affiliated with the makers.
+- **CYAN, Help, and MAGENTA, Services**: the catalog's real-world help websites ("service"), split by each
+  category's `section` in `data/external/catalog.json`: Help for urgent and protective needs (Emergency, Health,
+  Mental Health, Legal), Services for everyday ones (Water, Energy, Food, Housing, Money and Benefits, Employment,
+  Skills and Repair, Education, Technology). Each opens its own website on a click.
+- **YELLOW, Added by you**: "Add a program" (the app's file picker, programs) adds any game or program by its own
+  program, named by its file name; Launch starts it in its own folder; Rename; Remove takes it off the list only.
+- Tests: `src/gui/pages/apps/tests.rs` (the six parts, a name once and short tiles, Epic covers only when turned on,
+  a fetched cover kept small, HumanityOS tools opening their pages), `games_tests.rs`, `game_detail_tests.rs`,
+  `programs_tests.rs` (incl. Blender's Steam links, Resolve from its shortcut, Help and Services split by the data),
+  `library.rs` (columns, sorts offered, every part its own colour), `own_tools.rs`, `src/games/epic_covers.rs`,
+  `src/software/shortcuts.rs` and `matcher.rs` (real `.lnk` fixtures written with IShellLinkW). The ignored
+  `games::this_computer` and `software::this_computer` print what this computer has (Resolve's launch path,
+  Fortnite's cover addresses).
+- Snapshots: `apps` (the Grid, every part, a game's details), `apps_list` (the List, each catalog part narrowed to
+  one category, Krita's consent step), `apps_help` (the Help part, a service's details).
+- Files: `src/gui/pages/apps.rs` and `apps/` (`games.rs`, `own_tools.rs`, `programs.rs`, `library.rs` toolbar,
+  parts, tiles and lists, `covers.rs`, `detail.rs`, `game_detail.rs`, `entry_detail.rs`); `src/games/` (`mod.rs`,
+  `keyvalues.rs`, `binary_keyvalues.rs`, `steam.rs`, `steam_user.rs`, `achievements.rs`, `workshop.rs`, `art.rs`,
+  `epic_covers.rs`, `links.rs`, `epic.rs`, `gog.rs`, `other.rs`, `launch.rs`, `registry.rs`, `fixtures.rs`);
+  `src/software/` (`catalog.rs`, `records.rs`, `shortcuts.rs`, `matcher.rs`, `install.rs`); `src/gui/widgets/shelf.rs`,
+  `cover_tile.rs`, `tint_section.rs`; nav item in `src/gui/pages/escape_menu.rs`, icon `widgets::icons::paint_apps`.
+- Data: `data/external/catalog.json` (also read by the web Tools page, which ignores the desktop-only fields),
+  `data/gui/humanityos_tools.json`.
+- Web: `web/pages/tools.html` + `tools-app.js` still mirror the Tools page's shelf (Grid and List, search, sort by
+  name or category, kind and category filters, the details panel), the catalog only, until the web mirrors Apps.
+  Tests: `scripts/tests/tools-web.test.js` (reads the app's words from `apps.rs` and `apps/programs.rs`). Desktop
+  only for the rest: a website cannot read or start what is installed on the computer it runs on.
 
 ### In-App File Browser (native, v0.708)
 Universal file-picker widget (NOT the OS dialog — the all-in-one direction): quick
@@ -1650,73 +1676,6 @@ Notes/journal in native UI.
 File browser in native UI.
 - Native: `src/gui/pages/files.rs`
 
-### Tools Page (a library like the Games page, 2026-10-19)
-
-Everything you GO USE: the 40 free programs and 60 real-world help services of the single external
-catalog `data/external/catalog.json`, as a library to look at, launch from and install from. The
-operator, 2026-10-19: "What if we make the tools page like the games page? Then what if through that
-interface users can install/launch/go to the website(s) for the various non-game apps?" What may be
-done follows the dated finding
-`docs/reference/findings/2026-10-19-tools-page-install-launch-and-icons.md` ("Research Findings" in
-the Library; the page's Why opens it).
-
-- **The shelf the Games page uses** (`src/gui/widgets/shelf.rs`, shared, so the two look and behave
-  alike): Grid or List, search (every word, in the name, category or description), sort by Name,
-  Installed first or Category (the Grid then shows each category under its name), the kind pills
-  (Everything, Software, Help and services, each with its count) and the category pills of the kind
-  chosen. The view, the sort and both filters are one setting kept in config.json (`tools_view`,
-  guarded by `tests/settings_persistence_lint.rs`).
-- **A tile**: a panel tinted in its category's hue (`swatch_color` of the category id over the
-  theme's colours) with its name; an installed program's own icon and an "Installed" mark; its
-  name, category and licence; one more line (installed and its version, else where it runs and its
-  size, or a service's website); and the main button: Launch when installed, otherwise Download (the
-  maker's own download page) or Open website. The List: the main button, name (and icon), Category,
-  Installed, Licence, Runs on, Size, the headings a click sorts by.
-- **Finding what is installed** (Windows, `src/software/`, read only, on a worker thread when the
-  page opens and on Refresh, never every frame): Windows' installed-programs list (the Uninstall
-  keys in HKLM and HKCU, 64-bit and 32-bit views, DisplayName, DisplayVersion, InstallLocation,
-  DisplayIcon; SystemComponent entries skipped) and App Paths (`src/software/records.rs`, through
-  `src/games/registry.rs`, now with a `View`), and Steam's own records (`games::steam::installed`, the
-  Games page's reader: Blender from Steam counts). Matched by DATA in the catalog
-  (`src/software/matcher.rs`): `detect.display_name` (a regular expression, case ignored),
-  `detect.exe` (the program inside its folder, one path or a list), `steam_appid`. Says "Installed"
-  or "Not found on this computer", never "not installed" (Windows has no sure way to find every
-  program). The ignored test `software::this_computer` prints what it finds here.
-- **Launch**, on a click only, through the Games page's one launcher (`games::launch`): the program
-  itself in its own folder, or Steam's own link for a copy Steam installed. Show in folder.
-- **The details** at the right (the shelf's panel): the banner, installed and its version (or why it
-  cannot be started from here), Launch, Show in folder, Install, Website, Download page, the
-  description, and its facts (licence, runs on, download size, the file types its category opens,
-  version, install folder, program, where it was found, winget package, website).
-- **Install through winget**, Windows' own package manager (`src/software/install.rs`), for an entry
-  with a `winget` package id that is not found: Install first reads `winget show` (on a worker) and
-  opens a consent step in the details (the package and its publisher, its licence with its page,
-  its agreements if winget lists any, Microsoft's two lines exactly as winget prints them, that
-  Windows may ask for permission, that winget sends Microsoft usage data, and what pressing "I agree,
-  install" means). Only "I agree, install" runs `winget install --id <id> --exact --source winget
-  --accept-package-agreements --no-upgrade --disable-interactivity`, plus `--interactive` for a
-  program whose licence is not free software (`install_interactive`: VS Code, Paint.NET, Zed). Never
-  `--accept-source-agreements`. Progress (winget's latest line, a spinner on the tile), one install at
-  a time, each winget return code in plain words with winget's own, then the page looks again so the
-  tile turns to Launch. Test builds never run winget (its runner records).
-- **Website only, saying why** (`website_only` in the catalog, naming whose rule): DaVinci Resolve
-  (its maker's registration form), Aseprite, Ardour, Vectr, Boxy SVG. A program winget does not have
-  says that instead.
-- **Said on the page**: where the programs come from (their makers), the safety line (get programs
-  from their makers, never from an advert; anyone else asking you to pay for a free one is not the
-  maker), how what is installed is found and why there are no logos (no logo is shipped or fetched;
-  each maker sets its own rules), and that HumanityOS is not made by or affiliated with the makers.
-- **Snapshots**: `just snapshot tools` (the Grid, installed first, with GIMP's details) and
-  `tools_list` (the List by category, with Krita's consent step).
-- Native: `src/gui/pages/tools.rs`, `tools_library.rs`, `tools_detail.rs`, `tools_tests.rs`;
-  `src/software/` (`catalog.rs`, `records.rs`, `matcher.rs`, `install.rs`); `src/gui/widgets/shelf.rs`
-- Data: `data/external/catalog.json` (also read by the web page, which ignores the new fields)
-- Web: `web/pages/tools.html` + `tools-app.js`, mirroring the app's shelf since v0.1521.1 (Grid and
-  List, search, sort by name or category, kind and category filters, the category colours, the
-  details panel, the same lines on the page, remembered in localStorage `hos_tools_view`). The
-  catalog only: a web page cannot see or start the programs on the computer it runs on, and says
-  so with a link to the desktop app. Tests: `scripts/tests/tools-web.test.js` (in `just rig-tests`)
-
 ### Resources Page
 Resources directory in native UI.
 - Native: `src/gui/pages/resources.rs`
@@ -2090,8 +2049,9 @@ Restore and "Snapshot now" (v0.1442.0, BUG-129).
   never reaches 24 C.
 
 ### Data-Driven Tools (v0.90.7)
-tools.rs loads tool catalog from external JSON instead of hardcoded data.
-- Native: `src/gui/pages/tools.rs`
+The tool catalog loads from external JSON instead of hardcoded data (the Apps page's Other programs,
+Help and Services since 2026-10-19).
+- Native: `src/gui/loaders.rs` (`load_external_catalog`), `src/software/catalog.rs`, `src/gui/pages/apps/programs.rs`
 - Data: `data/external/catalog.json` (tools+services merged 2026-07-30)
 
 ### Data-Driven Sounds (v0.90.7)

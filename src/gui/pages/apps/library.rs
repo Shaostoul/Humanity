@@ -328,8 +328,11 @@ fn games_part(ui: &mut Ui, theme: &Theme, state: &GuiState, acts: &mut Vec<Act>)
 fn games_shelf(ui: &mut Ui, theme: &Theme, state: &GuiState, order: &[usize], acts: &mut Vec<Act>) {
     let page = &state.apps;
     let sort = state.settings.apps_view.sort;
+    // When some of these tiles have a picture (and so a name line under it), the others keep that
+    // line's room empty, so the buttons of a row line up.
+    let any_art = order.iter().any(|&i| has_art(page, &page.games.all[i]));
     match state.settings.apps_view.layout {
-        Layout::Grid => shelf::grid(ui, theme, order, TILE_W, |ui, i, w| game_tile(ui, theme, page, &page.games.all[i], w, sort, acts)),
+        Layout::Grid => shelf::grid(ui, theme, order, TILE_W, |ui, i, w| game_tile(ui, theme, page, &page.games.all[i], w, sort, any_art, acts)),
         Layout::List => games_list(ui, theme, page, &state.settings.apps_view, order, acts),
     }
 }
@@ -436,8 +439,15 @@ fn cover_bar(ui: &Ui, theme: &Theme, cover: Rect, fraction: f32) {
     }
 }
 
-/// One game's tile.
-fn game_tile(ui: &mut Ui, theme: &Theme, page: &AppsState, game: &Game, width: f32, sort: SortBy, acts: &mut Vec<Act>) {
+/// Whether `game` has a picture for its tile (Epic's cover, when the person turned those on, or one
+/// Steam's client cached), read or still being read.
+fn has_art(page: &AppsState, game: &Game) -> bool {
+    page.covers.tile_of(game).is_some() || game.details.art.cover.is_some()
+}
+
+/// One game's tile. `line_room`: keep the room of the name line under a picture when it has none.
+#[allow(clippy::too_many_arguments)]
+fn game_tile(ui: &mut Ui, theme: &Theme, page: &AppsState, game: &Game, width: f32, sort: SortBy, line_room: bool, acts: &mut Vec<Act>) {
     let picked = Picked::Game(game.store, game.id.clone());
     shelf::tile_frame(ui, theme, width, page.selected.as_ref() == Some(&picked), |ui, w| {
         // Epic's cover (only when the person turned that on, apps/covers.rs), else the picture
@@ -445,7 +455,7 @@ fn game_tile(ui: &mut Ui, theme: &Theme, page: &AppsState, game: &Game, width: f
         let remote = page.covers.tile_of(game);
         let cached = game.details.art.cover.as_deref();
         let picture = remote.or_else(|| cached.and_then(|p| thumbnails::get(ui.ctx(), p, w)));
-        let has_art = remote.is_some() || cached.is_some();
+        let has_art = has_art(page, game);
         let (rect, cover_resp) = cover(ui, theme, w, &game.name, &game.id, picture, has_art, page.games.icon_of(game));
         let mut clicked = cover_resp.clicked();
         let mut hovered = cover_resp.hovered();
@@ -456,6 +466,9 @@ fn game_tile(ui: &mut Ui, theme: &Theme, page: &AppsState, game: &Game, width: f
             let name = name_line(ui, theme, &game.name);
             clicked |= name.clicked();
             hovered |= name.hovered();
+        } else if line_room {
+            let row = ui.fonts(|f| f.row_height(&egui::FontId::proportional(theme.font_size_small)));
+            ui.allocate_exact_size(Vec2::new(w, row), Sense::hover());
         }
         // Where it is from and one number; for what was added (its part says it was), its program.
         let meta = match (game.store, tile_number(game, sort)) {
@@ -660,13 +673,8 @@ fn open_button(ui: &mut Ui, theme: &Theme, tool: &own_tools::OwnTool, size: widg
 fn tool_tile(ui: &mut Ui, theme: &Theme, page: &AppsState, i: usize, width: f32, acts: &mut Vec<Act>) {
     let tool = &page.own_tools[i];
     shelf::tile_frame(ui, theme, width, page.selected == Some(Picked::Tool(i)), |ui, w| {
-        let (rect, cover_resp) = cover(ui, theme, w, &tool.name, &tool.page, None, false, None);
-        if let Some(gp) = tool.gui_page() {
-            let side = (rect.height() * 0.34).round();
-            let pad = (rect.height() * 0.09).clamp(theme.spacing_xs, theme.spacing_md);
-            let at = Rect::from_min_size(egui::pos2(rect.right() - pad - side, rect.top() + pad), Vec2::splat(side));
-            icons::paint_nav_icon(ui.painter(), at, gp, theme.text_strong().gamma_multiply(0.85));
-        }
+        let (rect, cover_resp) = ui.allocate_exact_size(Vec2::new(w, (w / COVER_ASPECT).round()), Sense::click());
+        paint_tool_cover(ui.painter(), theme, rect, tool, theme.font_size_body, theme.border_radius);
         meta_line(ui, theme, &tool.line, theme.text_muted()).on_hover_text(&tool.line);
         button_row(ui, theme, w, |ui| open_button(ui, theme, tool, widgets::ButtonSize::Small, acts), None);
         if cover_resp.clicked() {
@@ -676,6 +684,21 @@ fn tool_tile(ui: &mut Ui, theme: &Theme, page: &AppsState, i: usize, width: f32,
             ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
         }
     });
+}
+
+/// One of HumanityOS's own tools' plain cover: its name, and its page's own icon where the large
+/// first letter would be (the letter, when its page has no icon).
+pub(super) fn paint_tool_cover(painter: &egui::Painter, theme: &Theme, rect: Rect, tool: &own_tools::OwnTool, title_size: f32, radius: f32) {
+    match tool.gui_page().and_then(icons::nav_icon) {
+        Some(paint) => {
+            cover_tile::paint_cover_without_letter(painter, theme, rect, &tool.name, &tool.page, title_size, radius);
+            let side = (rect.height() * 0.34).round();
+            let pad = (rect.height() * 0.09).clamp(theme.spacing_xs, theme.spacing_md);
+            let at = Rect::from_min_size(egui::pos2(rect.right() - pad - side, rect.top() + pad), Vec2::splat(side));
+            paint(&painter.with_clip_rect(rect), at, theme.text_strong().gamma_multiply(0.85));
+        }
+        None => cover_tile::paint_cover(painter, theme, rect, None, None, &tool.name, &tool.page, title_size, radius),
+    }
 }
 
 /// HumanityOS's own tools as a List: Open, its name, its line.
@@ -795,7 +818,7 @@ fn entry_fact(state: &GuiState, theme: &Theme, i: usize) -> Option<(String, Colo
         return Some((e.host(), theme.text_secondary()));
     }
     if e.web_only() {
-        return Some(("In your browser".to_string(), theme.text_secondary()));
+        return Some(("In browser".to_string(), theme.text_secondary()));
     }
     (!e.size.is_empty()).then(|| (e.size.clone(), theme.text_secondary()))
 }

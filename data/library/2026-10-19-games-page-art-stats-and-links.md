@@ -832,6 +832,27 @@ endpoints) is exactly what the stores' words above do not cover.
   nothing for that game rather than a wrong count, and nothing ever writes to the
   files.
 
+- **Decision taken 2026-10-19, later the same day (the session's own call on the
+  operator's request that day, "can we not find an image for fortnite so it's not
+  just simple text?"; not the operator's ruling on judgement call 1):** Epic covers
+  may be fetched, opt-in only. The Epic Games Launcher's own catalog on this
+  computer (`%ProgramData%\Epic\EpicGamesLauncher\Data\Catalog\catcache.bin`,
+  base64 of JSON, read only) lists for each store entry the ADDRESSES of its
+  pictures on Epic's servers ("keyImages"); the pictures themselves are not on the
+  computer. The Apps page carries a switch, off by default, worded "Get covers for
+  Epic games from Epic's servers (this tells Epic which of your games' pictures
+  were looked up)". Only when the person turns it on, and only for the Epic games
+  installed on this computer, is each game's wide box art ("DieselGameBox", else
+  "DieselGameBoxTall") fetched: from `cdn1.epicgames.com` only (the one host the
+  catalog used on 19 October 2026; any other is refused and no redirect is
+  followed), on a worker thread, once per address per session. It is decoded into
+  memory for that session and NEVER written anywhere (no cache, no copy), never sent
+  on, and never put on an in-world screen; turning the switch off lets it go. This
+  follows 1.5's negative finding (Epic documents no store art for third parties, and
+  nothing read forbids this either) and judgement call 1's own shape for Steam: the
+  person's own choice, their installed games only, saying what the request tells
+  the store. Read Epic's terms again before widening it to anything more.
+
 ---
 
 This document is a reading of public sources on 19 October 2026. It is not

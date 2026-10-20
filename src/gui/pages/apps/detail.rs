@@ -7,7 +7,7 @@ use egui::{RichText, Sense, Vec2};
 
 use super::{entry_detail, game_detail, own_tools, Act, Picked};
 use crate::gui::theme::Theme;
-use crate::gui::widgets::{self, cover_tile, icons, shelf};
+use crate::gui::widgets::{self, shelf};
 use crate::gui::GuiState;
 
 /// The details' width when they open (the person can drag their edge).
@@ -39,13 +39,7 @@ pub(super) fn panel(ctx: &egui::Context, theme: &Theme, state: &GuiState) -> Vec
 fn tool_body(ui: &mut egui::Ui, theme: &Theme, tool: &own_tools::OwnTool, acts: &mut Vec<Act>) {
     let width = ui.available_width();
     let (rect, _) = ui.allocate_exact_size(Vec2::new(width, (width / 3.1).round().max(80.0)), Sense::hover());
-    cover_tile::paint_cover(ui.painter(), theme, rect, None, None, &tool.name, &tool.page, theme.font_size_title, theme.border_radius_lg);
-    if let Some(page) = tool.gui_page() {
-        let side = (rect.height() * 0.4).round();
-        let pad = theme.spacing_md;
-        let at = egui::Rect::from_min_size(egui::pos2(rect.right() - pad - side, rect.top() + pad), Vec2::splat(side));
-        icons::paint_nav_icon(ui.painter(), at, page, theme.text_strong().gamma_multiply(0.85));
-    }
+    super::library::paint_tool_cover(ui.painter(), theme, rect, tool, theme.font_size_title, theme.border_radius_lg);
     ui.add_space(theme.spacing_sm);
     ui.horizontal(|ui| {
         ui.label(RichText::new(super::Section::Tools.words()).size(theme.font_size_small).color(theme.text_secondary()));

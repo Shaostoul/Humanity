@@ -6,7 +6,7 @@
 //! 1. ASK WINGET ABOUT THE PACKAGE first (`winget show`, [`show_plan`]): its publisher, its
 //!    licence and licence page, and any agreements its manifest carries ([`parse_show`]). Reading
 //!    is not installing.
-//! 2. THE CONSENT STEP (the Tools page's details, tools_detail.rs) shows the licence, those
+//! 2. THE CONSENT STEP (an entry's details on the Apps page, apps/entry_detail.rs) shows the licence, those
 //!    agreements, Microsoft's two lines exactly as winget prints them ([`DISCLAIMER_OWNER`],
 //!    [`DISCLAIMER_MICROSOFT`]), that Windows may ask for permission, and that winget sends
 //!    Microsoft usage data; and says that pressing "I agree, install" means agreeing.
@@ -144,7 +144,7 @@ pub fn show_plan(id: &str) -> Option<Plan> {
 
 /// What the person agreed to in HumanityOS's own window: one package, by its id, and whether its
 /// maker's installer is to be shown. Made by the consent step's "I agree, install" and nowhere
-/// else (pages/tools.rs `agree`).
+/// else (pages/apps/programs.rs `agree`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Agreed {
     pub id: String,

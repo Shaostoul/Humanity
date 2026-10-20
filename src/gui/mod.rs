@@ -1051,7 +1051,7 @@ pub struct GuiState {
     /// "tasks"/"maps"/"market"). Drives `real::draw`'s delegate.
     pub active_real_section: String,
     /// Selected section for the folded Platform tab ("settings"/"recovery"/
-    /// "tools"/"bugs"/"testing"/"browser").
+    /// "bugs"/"testing"/"browser").
     pub active_platform_section: String,
     /// Selected section for the folded Humanity tab ("civilization"/
     /// "governance"/"identity"/"onboarding"/"donate"/"resources").

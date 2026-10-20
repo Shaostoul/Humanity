@@ -1,4 +1,4 @@
-//! One entry of the external catalog (`data/external/catalog.json`), as the Tools page reads it:
+//! One entry of the external catalog (`data/external/catalog.json`), as the Apps page reads it:
 //! a free program (`kind == "software"`) or a real-world help service (`kind == "service"`). One
 //! catalog, both clients: the web Tools page reads the same file (v0.1063).
 //!
@@ -194,7 +194,9 @@ mod tests {
     /// id and every name pattern is well formed; and no entry is listed twice.
     ///
     /// Seen red 2026-10-19 with the category's file types not carried onto its entries (`parse`
-    /// leaving `entry.extensions` empty): "its category's file types" failed.
+    /// leaving `entry.extensions` empty): "its category's file types" failed. Its Help and Services
+    /// half (the same day) seen red with `parse` not carrying the category's `section`:
+    /// "Appropedia (Water): section \"\"".
     #[test]
     fn the_catalogs_new_fields_load() {
         let text = std::fs::read_to_string("data/external/catalog.json").expect("the catalog is there");

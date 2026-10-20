@@ -232,8 +232,8 @@ fn six_parts_each_under_its_name_and_in_its_colour() {
 /// picture; a tile is its cover and at most three short lines (about a third shorter than the
 /// tiles before); and five or more fit in a row of the page at 1400 wide.
 ///
-/// Seen red 2026-10-19 with the name line drawn under every tile (`has_art` always true in
-/// `game_tile`): "Sunken Archive's name, once" (left: 2, right: 1).
+/// Seen red 2026-10-19 with the name line drawn under every tile (its `if has_art` in `game_tile`
+/// always true), as the tiles were before: "Sunken Archive's name, once" (left: 2, right: 1).
 #[test]
 fn a_name_is_drawn_once_and_a_tile_is_short() {
     let (ctx, theme) = ctx_and_theme();
@@ -278,7 +278,7 @@ fn a_name_is_drawn_once_and_a_tile_is_short() {
 /// more is asked. Every request goes through the one recorded fetch.
 ///
 /// Seen red 2026-10-19 with `covers::update` not looking at the switch (fetching whenever there was
-/// something to fetch): "switch off, nothing is asked" got ["https://cdn1.epicgames.com/item/ns1/lantern-tall"].
+/// something to fetch): "switch off, nothing is asked" failed (Lantern Valley's cover was asked for).
 #[test]
 fn epic_covers_only_when_turned_on() {
     use crate::games::epic_covers::recorder as epic;

@@ -139,7 +139,7 @@ fn the_shelf_shows_what_is_installed_and_what_is_not() {
     assert_eq!(count(&out, INSTALLED), 1, "\"Installed\" on its cover");
     assert_eq!(count(&out, DOWNLOAD), 2, "Krita and Paint.NET have Download");
     assert_eq!(count(&out, OPEN_WEBSITE), 1, "Photopea, which runs in the browser, has Open website");
-    assert!(exact(&out, "In your browser"));
+    assert!(exact(&out, "In browser"), "a program that runs in the browser says so");
 
     state.settings.apps_view = category("video-editing");
     let out = settled(&ctx, &theme, &mut state);

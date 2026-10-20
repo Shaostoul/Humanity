@@ -7,7 +7,7 @@
 //! Two things were deliberately pulled out. Settings went to its own top-level
 //! tab (operator 2026-06-04: "have settings as its own top level page ... never
 //! buried in another menu"), which is why this no longer needs `&mut Theme`.
-//! Tools went to its own top-level tab in v0.1063, because it is a catalog of
+//! Tools went to its own top-level tab in v0.1063 (part of the Apps page since 2026-10-19), as a catalog of
 //! EXTERNAL software and services, not part of the app's machinery. The web
 //! mirror is `web/pages/platform.html`.
 

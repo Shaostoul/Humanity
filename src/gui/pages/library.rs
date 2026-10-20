@@ -155,7 +155,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         .show(ctx, |ui| {
             ui.label(RichText::new("Library").size(theme.font_size_title).color(theme.text_primary()));
             ui.label(
-                RichText::new("The Humanity Accord, the reference it rests on, and a dictionary for every term. Looking for software or help services? Those live on the Tools page.")
+                RichText::new("The Humanity Accord, the reference it rests on, and a dictionary for every term. Looking for software or help services? Those are on the Apps page.")
                     .size(theme.font_size_small)
                     .color(theme.text_muted()),
             );

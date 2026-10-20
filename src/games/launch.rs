@@ -10,7 +10,7 @@
 
 use std::path::{Path, PathBuf};
 
-/// Something the Games page asks the computer to start or show.
+/// Something the Apps page asks the computer to start or show.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Launch {
     /// A store's own link: `steam://...` or `com.epicgames.launcher://...`, handed to whatever the

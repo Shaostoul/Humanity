@@ -1,6 +1,6 @@
 //! Which catalog programs are installed: each entry's `detect` and `steam_appid` (data, in
 //! data/external/catalog.json) matched against what Windows and Steam record (records.rs, and the
-//! Games page's Steam reader). Runs on the Tools page's worker thread; the only disk work here is
+//! games' Steam reader). Runs on the Apps page's worker thread; the only disk work here is
 //! asking whether a file is there, and reading an installed program's icon from its own file
 //! (games/art.rs, the program opened as data, never run).
 //!
@@ -463,7 +463,7 @@ mod tests {
     /// start, as before.
     ///
     /// Seen red 2026-10-19 with `find` never reading the Start menu (the `program.is_none()` branch
-    /// taken out): "its program, from its shortcut" got None.
+    /// never taken): "its program, from its shortcut" got None.
     #[cfg(windows)]
     #[test]
     fn davinci_resolve_starts_from_its_start_menu_shortcut() {
