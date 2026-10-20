@@ -3622,7 +3622,7 @@ mod native_app {
                     // lives in `elevator_state` keyed by (zone index, structure index) (not saved).
                     // First person, not build. Every ZONE's elevators run, at world positions (v0.754).
                     // The footing sampler below reads the updated car height so the rider rides.
-                    const ELEVATOR_TRAVEL: f32 = 3.0; // one storey
+                    const ELEVATOR_TRAVEL: f32 = crate::engine::footing::ELEVATOR_TRAVEL_M; // one storey
                     const ELEVATOR_RATE: f32 = 0.5; // anim units / s (0..1 over the full travel ~2 s)
                     if state.camera.mode == crate::renderer::camera::CameraMode::FirstPerson
                         && !state.gui_state.construction_active
@@ -3680,68 +3680,23 @@ mod native_app {
                     }
 
                     // Keep the player grounded on the floor of whatever room they are in
-                    // (so gravity + jump land on the right deck). Falls back to the last
-                    // floor when outside every room. Room floors are coplanar in the home.
+                    // (so gravity + jump land on the right deck), raised to the stair tread,
+                    // ramp, platform or elevator car under them that they can step onto
+                    // (engine::footing: a STEP_UP cap means a tall solid box can't yank you up
+                    // its side, you use the stairs). Falls back to the last floor when outside
+                    // every room. The walk asks the same again between a long frame's
+                    // substeps (BUG-207, `update_camera_with_floor` below).
                     // v0.881: only ABOARD - on a planet the surface branch owns
                     // footing, and in free space there is no home floor below.
                     if state.aboard_station {
                         let p = state.camera.position;
-                        if let Some(mut floor) = state
-                            .gui_state
-                            .room_bounds
-                            .iter()
-                            .find(|r| {
-                                p.x >= r.min.x && p.x <= r.max.x && p.z >= r.min.z && p.z <= r.max.z
-                            })
-                            .map(|r| r.min.y)
-                        {
-                            // Walk UP stairs / ramps + ONTO platforms (v0.584): raise the ground to the
-                            // highest reachable structure surface under the player. A STEP_UP cap means a
-                            // tall solid box can't yank you up its side -- you use the stairs. Descending
-                            // is always allowed (a lower surface just lowers the floor next frame).
-                            // `feet` for the STEP_UP cap: the lagging REST floor normally (so a jump
-                            // can't cheese you onto a tall box -- the v0.584 intent), but the player's
-                            // LIVE height while at a ladder, so a deck at the ladder top is reachable as
-                            // you climb (the rest floor lags at the base). `max` never lowers it.
-                            // Stairs need neither -- you are grounded on each step, so the rest floor
-                            // already tracks them. (v0.589, gated after a movement review.)
-                            // v0.754: EVERY zone's structures, at world positions.
-                            if let Some(ship) = state.gui_state.ship_structure.as_ref() {
-                                let feet = if state.controller.in_climb_zone() {
-                                    (p.y - state.controller.eye_height()).max(state.controller.ground_floor())
-                                } else {
-                                    state.controller.ground_floor()
-                                };
-                                const STEP_UP: f32 = 0.6;
-                                for (zi, zone) in ship.zones.iter().enumerate() {
-                                    let o = zone.origin;
-                                    for (i, ps) in zone.body.structures.iter().enumerate() {
-                                        if let Some(ty) = crate::ship::structure::structure_type(&ps.type_id) {
-                                            let wpos = (ps.pos.0 + o.0, ps.pos.1 + o.1, ps.pos.2 + o.2);
-                                            // An ELEVATOR's footing is its MOVING car (v0.590): the car floor
-                                            // = base + anim*travel, so standing on it rides you up/down. Other
-                                            // pieces use the static walk_surface.
-                                            let surf = if ty.kind == crate::ship::structure::StructureKind::Elevator {
-                                                if crate::ship::structure::in_footprint(ty, wpos, ps.rot_deg.to_radians(), p.x, p.z) {
-                                                    let anim = state.elevator_state.get(&(zi, i)).map_or(0.0, |e| e.0);
-                                                    Some(wpos.1 + anim * ELEVATOR_TRAVEL)
-                                                } else {
-                                                    None
-                                                }
-                                            } else {
-                                                crate::ship::structure::walk_surface(
-                                                    ty, wpos, ps.rot_deg.to_radians(), p.x, p.z,
-                                                )
-                                            };
-                                            if let Some(top) = surf {
-                                                if top <= feet + STEP_UP && top > floor {
-                                                    floor = top;
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
+                        if let Some(floor) = crate::engine::footing::floor_under(
+                            &state.gui_state.room_bounds,
+                            state.gui_state.ship_structure.as_ref(),
+                            &state.elevator_state,
+                            p,
+                            state.controller.step_up_from(p.y),
+                        ) {
                             state.controller.set_ground_floor(floor);
                         }
                     }
@@ -3793,7 +3748,23 @@ mod native_app {
                     // surface_mode is on but nothing owns translation, and the
                     // controller used to freeze all below-FTL-cap movement.
                     state.controller.surface_translation_owned = state.surface_owns_translation;
-                    state.controller.update_camera(&mut state.camera, dt);
+                    if state.aboard_station {
+                        // The floor between a long frame's substeps (BUG-207): the same footing
+                        // as above, read where the walls will have held the body
+                        // (`footing::floor_along`), with the walls only where the sweep below
+                        // applies them (not in the build editor).
+                        let walls: &[crate::ship::wall_collision::WallSegment] =
+                            if state.gui_state.construction_active { &[] } else { &state.wall_colliders[..] };
+                        let rooms = &state.gui_state.room_bounds;
+                        let ship = state.gui_state.ship_structure.as_ref();
+                        let cars = &state.elevator_state;
+                        let mut floor_at = |at: Vec3, step_from: f32| {
+                            crate::engine::footing::floor_along(rooms, ship, cars, walls, prev_cam_pos, at, step_from)
+                        };
+                        state.controller.update_camera_with_floor(&mut state.camera, dt, Some(&mut floor_at));
+                    } else {
+                        state.controller.update_camera(&mut state.camera, dt);
+                    }
 
                     // PROBE HOLD (environment program increment 2): a
                     // scripted camera park re-asserts its pose every frame

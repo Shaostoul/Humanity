@@ -6144,3 +6144,67 @@ Fixed:
 The comments in `src/relay/storage/files.rs` that said nothing but `/api/files/file/{id}` serves a
 members-only file, and that a waiting upload is never at a public address, were false while this
 was open; they now name the admin-only data-file routes and the tracked-only deploy.
+
+## BUG-207: at a low frame rate the aboard walk skipped stair treads, and fell off the top of the stairs from the tread below (FIXED 2026-10-20, found 2026-10-20)
+
+Found by `just verify-falls` (scripts/verify-falls.js): walking up the homestead's `stairs-1` (3.0 m,
+14 steps up 3.6 m, so 0.214 m risers on 0.257 m treads) and on off the top, a run at about 54 ms
+frames dropped 2.79 m instead of 3.00 m, so it landed at 7.39 m/s instead of 7.67. Near a wound
+threshold the frame rate could decide which wound you get.
+
+**Cause.** The main loop asked for the floor under the body once a frame, before the walk moved it
+(`src/lib.rs`, the room floor raised to the highest stair tread, deck or elevator car within the
+0.6 m step up), and the walk (`CameraController::update_first_person`, src/renderer/camera.rs) then
+moved the body the whole frame's stride. A stride longer than a tread could land beyond a tread and
+never stand on it. Walking off the top, the body fell from the tread below the top whenever a frame
+passed over the top tread, which is 0.307 m deep with the 0.05 m a footprint reaches past its end
+(`structure::walk_surface`): a frame of 62 ms or more walking, or a sprint (0.51 m a frame at
+54 ms). On the way up a long frame skipped interior treads, and at 100 ms frames a sprint (0.95 m a
+frame) rose past the 0.6 m step up on every stride, so it could not climb the stairs at all and
+walked on through them at floor level.
+
+**Fix.** The floor sampler moved out of the main loop into `src/engine/footing.rs` (`floor_under`,
+unchanged), and the main loop now also hands it to the walk (`update_camera_with_floor`). A frame
+that would carry the body further than `WALK_SUBSTEP_M` (0.20 m, src/renderer/camera.rs) is walked
+as that many shorter steps, each what a frame used to be (move, ladder, jump, gravity, land) on its
+share of `dt`, with the floor asked again between them. 0.20 m because it is shorter than the
+shallowest tread any structure type has (0.257 m), so no step can pass over a tread, and long
+enough that a walk (0.083 m) or a sprint (0.158 m) at 60 frames a second is still one step, so the
+walk there is bit for bit what it was; a walk is split only below 25 frames a second, a sprint
+below 47.5. The jump, gravity and the falls rules are unchanged. A substep's floor is read where
+the wall sweep (which runs after the walk) will hold the body (`footing::floor_along`), so a long
+frame walking into a wall does not step onto a deck behind it.
+
+**Cost.** Nothing at normal frame rates (one step, no extra floor sample). Below them, one more
+floor sample per extra step. Measured on the shipped ship (7 structure pieces in 5 zones, 148
+wall segments) in the test build, where our own code is unoptimised, so an upper bound: 12.1
+microseconds a sample, 1.65 of them the floor itself and the rest the wall sweep. A 54 ms walking
+frame takes one extra sample (12 microseconds, 0.02% of the frame); the worst, a 100 ms sprinting
+frame, takes four, about 0.16 ms (0.16%).
+
+**Tests** (`src/engine/footing.rs`, each seen red first):
+- `walking_off_the_top_of_the_stairs_falls_the_same_height_at_any_frame_rate`: at 4 ms frames,
+  and from 12 starting points each at 54 ms walking and sprinting and 100 ms walking, the walk off
+  the top falls 3.000 m (7.67 m/s). Red before the fix: "at 4 ms frames the walk fell 3.000 m (7.67
+  m/s); 10 slow walks did not", each "fell 2.786 m (7.39 m/s)" (5 of the 12 sprints at 54 ms, 5 of
+  the 12 walks at 100 ms). Walking at a steady 54 ms was never short off the top: its 0.27 m
+  stride cannot pass over the 0.307 m top tread, so the rig's 2.79 m came from a longer frame.
+- `walking_up_the_stairs_at_a_low_frame_rate_stands_on_every_tread`: at 54 ms and 100 ms frames,
+  walking and sprinting, from 12 starting points each, the body stands on all 14 treads. Red before
+  the fix: "43 slow walks up the stairs skipped a tread", among them 7 of the 12 walks at 54 ms
+  (one tread each) and every sprint at 100 ms (all 14).
+- `at_sixty_frames_a_second_the_walk_is_unchanged`: at 60 frames a second, walking and sprinting
+  up and off the stairs, the body is at the same place to the bit every frame as with the walk in
+  one step, with the same landing. Red with `WALK_SUBSTEP_M` at 0.1 m (a 60-a-second sprint then
+  cut in two): "sprinting at 60 frames a second, frame 13: the substepped walk left the body
+  somewhere else; left: Vec3(10.0, 1.7, 4.2166667), right: Vec3(10.0, 1.7, 4.216666)".
+- `every_stair_tread_is_deeper_than_a_walk_substep`: holds data/blueprints/structure_types.ron to
+  `WALK_SUBSTEP_M`. Red with it at 0.3 m: "the stairs type's treads are 0.257 m deep, shallower
+  than a 0.3 m walk substep"; in the same run a 54 ms walk was one step again and the up-the-stairs
+  test failed with "7 slow walks up the stairs skipped a tread".
+- `a_substep_reads_the_floor_where_the_walls_hold_the_body`: a substep's point past a wall, over a
+  deck on the wall's far side, reads the floor on the near side. Red with `floor_along` reading
+  the point itself: "a substep through the wall stood the body on the deck behind it; left:
+  Some(0.2), right: Some(0.0)".
+
+Not covered here: the running game (`just verify-falls` after the merge).

@@ -160,6 +160,9 @@ pub mod survival_env;
 /// The player's carried load: the walking speed and jump it allows, and the
 /// Weight tile and HUD line it publishes (BUG-136, 2026-10-04).
 pub mod carry_load;
+/// The floor under a body aboard: its room's, raised to the stair tread, deck or elevator car it
+/// can step onto. Asked before the walk and between a long frame's substeps (BUG-207).
+pub mod footing;
 /// The mining drone's engine half (first-hour audit S5, 2026-10-12): its Settings mode,
 /// the Mining panel's Repair and Cancel, and its battery, wear and service onto the panel.
 pub mod drone;

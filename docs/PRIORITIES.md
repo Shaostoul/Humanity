@@ -462,7 +462,12 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
   rig quirk (`rig_walk::hold` does not release a camera park's `probe_hold` the way a key press
   does). Found by it: the aboard walk can skip the stairs' 0.26 m top step at low frame rates
   (54 ms frames dropped 2.79 m instead of 3.00 m), so near a wound threshold the frame rate can
-  decide which wound you get; and the homestead's stairs and ladder lead to no upper floor, so
+  decide which wound you get (DONE 2026-10-20, commit "A long frame walks every stair tread",
+  BUG-207: a frame that would carry the body more than 0.20 m, shorter than any tread, is walked
+  in steps no longer than that with the floor asked between them, so a slow frame stands on
+  every tread and falls off the top from 3.00 m; bit for bit unchanged at 60 frames a second,
+  walking or sprinting; the running game still to be re-checked by `just verify-falls`); and the
+  homestead's stairs and ladder lead to no upper floor, so
   their tops are a fall), and nothing spawns fires); a
   second mess hall along First Street (fold into increment 6); the backpack-overflow toast
   (DONE 2026-10-12: it names the item and says it went to home storage). Found with the

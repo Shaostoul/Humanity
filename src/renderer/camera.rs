@@ -34,6 +34,34 @@ pub const SPRINT_FACTOR: f32 = 1.9;
 /// this number by a test in engine/survival_env.rs).
 pub const JUMP_SPEED_MPS: f32 = 5.0;
 
+/// The longest single step of the aboard walk, metres (BUG-207, 2026-10-20). A frame that would
+/// carry the body further is walked as several steps no longer than this, with the floor under the
+/// body asked again between them (`CameraController::update_camera_with_floor`), so a slow frame
+/// stands on every stair tread a fast one does.
+///
+/// WHY 0.20 m. Shorter than the shallowest tread any structure type has: the "stairs" climb 3.6 m
+/// in 14 steps, so 0.257 m treads (data/blueprints/structure_types.ron; the ramp is a smooth slope
+/// and the ladder is climbed, not walked). A stride no longer than a tread cannot pass over one, so
+/// every tread a walk crosses gets a floor sample, the top one included; a longer stride could land
+/// beyond a tread and never stand on it, which is how a walk off the top of the 3.0 m stairs at a
+/// low frame rate fell from the tread below the top (2.79 m) instead of 3.00 m. And as long as that
+/// allows, because a frame that moves the body no further is one step, exactly as before: at 60
+/// frames a second a walk moves 0.083 m a frame and a sprint 0.158 m, so neither is split; a walk
+/// is split only below 25 frames a second (40 ms), a sprint below 47.5 (21 ms).
+/// `engine::footing::tests::every_stair_tread_is_deeper_than_a_walk_substep` holds the data to it.
+pub const WALK_SUBSTEP_M: f32 = 0.2;
+
+/// The most steps one frame of the aboard walk is cut into (`WALK_SUBSTEP_M`): 3.2 m of stride.
+/// The main loop clamps a frame to 0.1 s, where a sprint moves 0.95 m (5 steps); a longer stride
+/// than this lengthens the steps instead of multiplying them.
+const MAX_WALK_SUBSTEPS: u32 = 16;
+
+/// The floor under a point, for the aboard walk's substeps (BUG-207): given the point the walk has
+/// reached and the height a step up is measured from (`CameraController::step_up_from`), the floor
+/// there, or None for none (the walk keeps the floor it has). The main loop's is
+/// `engine::footing::floor_along`.
+pub type FloorAt<'a> = &'a mut dyn FnMut(Vec3, f32) -> Option<f32>;
+
 /// Flight roll rate (rad/s) for the Q/E bank keys in dev fly mode (v0.890).
 /// ~80 deg/s: a full barrel roll in ~4.5 s, fast enough to frame a shot,
 /// slow enough to stop level by eye.
@@ -1016,8 +1044,20 @@ impl CameraController {
         self.scroll_delta += delta;
     }
 
-    /// Apply accumulated input to the camera. Call once per frame with dt in seconds.
+    /// Apply accumulated input to the camera. Call once per frame with dt in seconds. The aboard
+    /// walk stands on the floor last given to `set_ground_floor`, as one step however long the
+    /// frame: the main loop uses `update_camera_with_floor` instead.
     pub fn update_camera(&mut self, camera: &mut Camera, dt: f32) {
+        self.update_camera_with_floor(camera, dt, None);
+    }
+
+    /// `update_camera`, with the floor under the body for the aboard walk (BUG-207): `floor_at` is
+    /// the floor under a point (`FloorAt`). The main loop gives the floor before the walk moves the
+    /// body (`set_ground_floor`), as it always did; with `floor_at`, a frame that would carry the
+    /// body further than [`WALK_SUBSTEP_M`] is walked as that many shorter steps, asking `floor_at`
+    /// between them, so a slow frame walks over every stair tread a fast one does. Without it, or
+    /// for a frame that moves the body no further, one step: the walk exactly as it was.
+    pub fn update_camera_with_floor(&mut self, camera: &mut Camera, dt: f32, floor_at: Option<FloorAt<'_>>) {
         // Handle mode switch requests
         if self.switch_to_next {
             self.switch_to_next = false;
@@ -1077,7 +1117,7 @@ impl CameraController {
                     self.falls.exempt();
                     self.fall_top = None;
                 }
-                self.update_first_person(camera, dt, dx, dy);
+                self.update_first_person(camera, dt, dx, dy, floor_at);
                 self.body_y = Some(camera.position.y);
             }
             CameraMode::ThirdPerson => {
@@ -1130,6 +1170,20 @@ impl CameraController {
     /// climbed height, so a deck at a ladder top is reachable. (v0.589)
     pub fn eye_height(&self) -> f32 {
         self.eye_height
+    }
+
+    /// The height a step up is measured from (`engine::footing::STEP_UP_M`), for a body whose eye is
+    /// at `eye_y`: the floor it rests on, so a JUMP cannot carry it onto a tall box (v0.584); but
+    /// at a ladder its live feet, so the deck at the ladder's top is reachable as it climbs (the
+    /// rest floor lags at the base, v0.589). `max` never lowers it. Stairs need neither: a body is
+    /// grounded on each tread, so the rest floor already tracks them. The main loop asks it before
+    /// the walk and the walk between its substeps (BUG-207).
+    pub fn step_up_from(&self, eye_y: f32) -> f32 {
+        if self.in_climb_zone() {
+            (eye_y - self.eye_height).max(self.ground_floor())
+        } else {
+            self.ground_floor()
+        }
     }
 
     /// Is the player currently at a ladder (climb zone set)? The footing sampler uses LIVE height for
@@ -1205,13 +1259,15 @@ impl CameraController {
 
     /// First-person: WASD walks (Shift = sprint), Space = jump, gravity pulls you to the
     /// floor. Mouse rotates the view. (Was free-fly noclip: Shift floated you down and
-    /// Space up with no sprint, the operator's BUG-039.)
+    /// Space up with no sprint, the operator's BUG-039.) `floor_at`: the floor under a point, for
+    /// a long frame's substeps (`update_camera_with_floor`, BUG-207).
     fn update_first_person(
         &mut self,
         camera: &mut Camera,
         dt: f32,
         mouse_dx: f64,
         mouse_dy: f64,
+        mut floor_at: Option<FloorAt<'_>>,
     ) {
         // Mouse look (always active in FP mode — cursor is grabbed)
         let dy_sign = if self.invert_y { 1.0 } else { -1.0 };
@@ -1302,9 +1358,48 @@ impl CameraController {
         // `carry_speed_factor` the carried load's (BUG-136, walking only).
         let sprint = if self.descend { SPRINT_FACTOR } else { 1.0 };
         let move_speed = self.speed * sprint * self.speed_multiplier * self.carry_speed_factor;
+        // The way the keys point, unit length; None when they point nowhere.
+        let wish = if velocity.length_squared() > 0.0 { Some(velocity.normalize()) } else { None };
 
-        if velocity.length_squared() > 0.0 {
-            velocity = velocity.normalize() * move_speed * dt;
+        // ── Substeps (BUG-207, 2026-10-20) ── A frame that would carry the body further than
+        // WALK_SUBSTEP_M is walked as that many shorter steps, with the floor under the body asked
+        // again between them (`floor_at`, the main loop's footing). The floor used to be asked
+        // once a frame, before the move, so a stride longer than a stair tread could land past a
+        // tread and never stand on it: a low frame rate skipped treads on the way up (and at
+        // 100 ms frames a sprint, each stride rising past the 0.6 m step-up, could not climb the
+        // stairs at all), and walking on off the top fell from the tread below it, landing slower
+        // than at a high frame rate. Each step is what a frame used to be (move, ladder, jump,
+        // gravity, land) on its share of `dt`, so a slow frame walks the way a fast machine's
+        // frames do. The rules are untouched; only the step is shorter. A frame that moves the
+        // body no further than one step, every frame at 60 a second walking or sprinting, is that
+        // one step exactly as before (`dt / 1` is `dt`).
+        let stride = if wish.is_some() { move_speed * dt } else { 0.0 };
+        let steps = if floor_at.is_some() && stride > WALK_SUBSTEP_M {
+            ((stride / WALK_SUBSTEP_M).ceil() as u32).clamp(1, MAX_WALK_SUBSTEPS)
+        } else {
+            1
+        };
+        let step_dt = dt / steps as f32;
+        for i in 0..steps {
+            if i > 0 {
+                if let Some(f) = floor_at.as_deref_mut() {
+                    let step_from = self.step_up_from(camera.position.y);
+                    if let Some(floor) = f(camera.position, step_from) {
+                        self.set_ground_floor(floor);
+                    }
+                }
+            }
+            self.walk_step(camera, wish, move_speed, step_dt);
+        }
+    }
+
+    /// One step of the aboard walk, `dt` seconds of it: a whole frame, or a share of a long one
+    /// (`update_first_person`'s substeps, BUG-207). WASD moves the body along `wish` at
+    /// `move_speed`; then a ladder holds it, or Space jumps and gravity brings it down onto the
+    /// floor (`ground_y`).
+    fn walk_step(&mut self, camera: &mut Camera, wish: Option<Vec3>, move_speed: f32, dt: f32) {
+        if let Some(wish) = wish {
+            let velocity = wish * move_speed * dt;
             // Horizontal only — gravity owns Y so a sprint can't cancel a jump.
             camera.position.x += velocity.x;
             camera.position.z += velocity.z;
@@ -1335,7 +1430,7 @@ impl CameraController {
                 self.is_grounded = false;
                 self.falls.supported();
                 self.fall_top = None;
-                return; // skip gravity this frame -- the ladder holds you
+                return; // skip gravity this step -- the ladder holds you
             }
             // HANGING ON (falls, 2026-10-20). Let go of the climb keys part way up and you hold
             // on where you are, as on a real ladder, instead of dropping to the floor: since
