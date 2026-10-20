@@ -626,6 +626,18 @@ one thing: a generator is a backstop, not a source.
   knowledge), and [Fuels and Their Hazards](fuels_and_their_hazards.md)
   has how to keep each fuel in its own labelled can so the wrong one
   never goes in.
+- **A diesel generator you can build.** The refinery's diesel has its
+  own engine: "Generator (diesel)", `generator_diesel` in the same two
+  files, modelled on a small water-cooled diesel set that supplies 6,500
+  watts while it runs on 2.6 litres of diesel an hour (its maker's
+  specification page is quoted in the data file). That is about 0.4
+  litres for each kilowatt-hour, where the gasoline set burns about 0.63:
+  a litre of diesel holds more energy, and a diesel engine turns more of
+  it into work. It weighs 235 kg, so it is no carry-along set. Neither
+  home places one: you build it at a workbench (Build Diesel Generator in
+  `data/recipes.csv`) and place it from the Construction page's Power
+  tab, and like the gasoline set it is a backstop that burns only its
+  own fuel, Diesel, from its own 200-litre drum.
 - **It runs only when it has to.** Under Settings > Gameplay > Ship life
   support, the default, Station-supplied, ties the home to the ship's
   reactor, which covers whatever shortfall the home's own sources and

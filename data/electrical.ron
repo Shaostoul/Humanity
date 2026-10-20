@@ -112,6 +112,9 @@
             lifetime_hours: 876000,
             description: "Tokamak-based deuterium-tritium reactor with near-limitless fuel supply",
         ),
+        // A reference row, not a machine. The diesel generator a player builds and places is
+        // generator_diesel in data/machines/home.ron and home_solo.ron (2026-10-20): a 6.5 kW
+        // Kubota GL-7000 class set on 2.6 L of diesel an hour, its spec page quoted there.
         (
             id: "diesel_generator",
             name: "Diesel Generator",

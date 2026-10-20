@@ -447,8 +447,12 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
   2026-10-12; falls hurt nobody yet, and nothing spawns fires); a
   second mess hall along First Street (fold into increment 6); the backpack-overflow toast
   (DONE 2026-10-12: it names the item and says it went to home storage). Found with the
-  2026-10-20 four (not started): nothing burns diesel yet (data/electrical.ron's diesel
-  generator has no machine); food still gives a flat 10 Hydration for produce and 3 for the
+  2026-10-20 four: nothing burns diesel yet (data/electrical.ron's diesel
+  generator has no machine; DONE 2026-10-20, commit "A diesel generator burns the refinery's
+  diesel": generator_diesel in both homes' catalogs, a Kubota GL-7000 class set, 6.5 kW on
+  2.6 L an hour, built at a workbench and placed from the Power tab, its drum taking only
+  Diesel; no design doc named another consumer, and a diesel tractor or boat waits on vehicles
+  burning fuel at all); food still gives a flat 10 Hydration for produce and 3 for the
   rest, and its satiation is per item whatever the item weighs (src/systems/food.rs
   `consume`), the same defect the drinks had (DONE 2026-10-20, commit "Food feeds and waters
   by what it weighs": each food's grams eaten in item_profiles.ron `portions`, its items.csv

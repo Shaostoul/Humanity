@@ -341,6 +341,11 @@ wood_ash_0,Wood Ash,material,byproduct,ash_ite,0.039,100,0,Fine grey ash raked f
 #
 # === MACHINES / APPLIANCES ===
 generator_portable_0,Portable Generator,machine,power,steel,25.0,1,300,Gasoline electric generator 2kW,solid,7.96
+# Diesel generator (2026-10-20): a Kubota GL-7000 class set, "Approx. Net Weight" "235 (518)" kg
+# (https://generator.kubota.com/products/60hz/gl_7000.html, read 2026-10-20); its figures and fuel
+# are on generator_diesel in data/machines/home.ron. volume_l at the 3.14 kg a litre the machines
+# above carry.
+generator_diesel_0,Diesel Generator,machine,power,steel,235.0,1,300,Diesel electric generator 6.5kW,solid,74.84
 solar_panel_0,Solar Panel,machine,power,glass,12.0,1,250,Photovoltaic electricity panel,solid,12.0
 wind_turbine_small_0,Small Wind Turbine,machine,power,aluminum,20.0,1,300,Rooftop wind generator 1kW,solid,18.5
 water_pump_0,Water Pump,machine,fluid,steel,8.0,1,200,Electric water extraction pump,solid,2.55

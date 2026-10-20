@@ -667,4 +667,100 @@ mod tests {
             }
         }
     }
+
+    /// SOMETHING BURNS DIESEL (2026-10-20). Both homes' catalogs carry a
+    /// diesel generator (a Kubota GL-7000 class set: 6.5 kW on 2.6 L an hour,
+    /// its spec page quoted in home.ron), placed from one `generator_diesel_0`
+    /// that a workbench recipe builds. It burns less fuel for each kWh than the
+    /// gasoline set (0.40 L against 0.63). Spawned the way the game spawns it,
+    /// its drum takes and offers only Diesel (`vessel_takes`), and on a short
+    /// island Diesel runs it at 6.5 kW and Gasoline and Paint do not.
+    ///
+    /// Seen red before the data had it: "home.ron has no diesel generator"
+    /// (2026-10-20).
+    #[test]
+    fn the_diesel_generator_burns_diesel_and_nothing_else() {
+        use crate::ecs::components::{PowerCircuit, PowerConsumer, PowerGenerator};
+        use crate::ecs::systems::System;
+        use crate::systems::electrical::{ElectricalSystem, PowerStatus};
+        use crate::systems::inventory::containers::{store_offers, vessel_takes, Container, ContainerRegistry, VesselTakes};
+        use crate::systems::inventory::ItemRegistry;
+        let data_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let read = |rel: &str| std::fs::read(data_dir.join(rel)).unwrap_or_else(|_| panic!("data/{rel}"));
+        let items = ItemRegistry::from_csv(&read("items.csv")).expect("items.csv");
+        let containers = ContainerRegistry::from_bytes(&read("containers/types.csv"), &read("containers/content_classes.ron"))
+            .expect("container types")
+            .with_contact_rules(
+                &read("containers/materials.csv"),
+                &read("containers/content_traits.ron"),
+                &read("food/item_profiles.ron"),
+            )
+            .expect("contact rules");
+        let recipes = crate::systems::crafting::RecipeRegistry::from_csv(&read("recipes.csv")).expect("recipes.csv");
+        assert!(
+            recipes.recipes.values().any(|r| r.outputs.iter().any(|(id, _)| id == "generator_diesel_0")),
+            "a recipe builds the diesel generator"
+        );
+        for file in ["home.ron", "home_solo.ron"] {
+            let home = crate::machines::MachineHome::load(&data_dir.join("machines").join(file))
+                .unwrap_or_else(|| panic!("{file} parses"));
+            let def = home.catalog.get("generator_diesel").unwrap_or_else(|| panic!("{file} has no diesel generator"));
+            assert_eq!(def.fuels(), ["diesel_0".to_string()], "{file}: the diesel generator burns Diesel");
+            assert!(
+                crate::engine::editor::machine_item("generator_diesel", Some(&items)).is_some(),
+                "{file}: it is placed from an item"
+            );
+            let (w, lph) = def.backstop_watts();
+            assert_eq!((w, lph), (6500.0, 2.6), "{file}: the GL-7000's prime output and full-load fuel");
+            let (gw, glph) = home.catalog["generator_portable"].backstop_watts();
+            assert!(lph / w < glph / gw, "{file}: diesel {:.2} L a kWh, gasoline {:.2}", lph / w * 1000.0, glph / gw * 1000.0);
+
+            let mut world = hecs::World::new();
+            let empty = std::collections::HashMap::new();
+            let inst = crate::machines::MachineInstance {
+                id: "diesel_t".to_string(),
+                machine: "generator_diesel".to_string(),
+                room: "room-plant".to_string(),
+                offset: (0.0, 0.0, 0.0),
+                rotation: 0.0,
+                zone: "home".to_string(),
+                screen_source: None,
+            };
+            spawn_home_machine_entity(&mut world, &inst, def, &empty, &empty, None, Some(&containers));
+            world.spawn((PowerConsumer { draw_watts: 100.0, priority: 1, enabled: true }, PowerCircuit { island: 0 }));
+            let gen = world
+                .query::<(&PowerGenerator, &Container)>()
+                .iter()
+                .map(|(e, _)| e)
+                .next()
+                .unwrap_or_else(|| panic!("{file}: the diesel generator has its drum"));
+            let takes = vessel_takes(&world, &crate::hot_reload::data_store::DataStore::new(), gen);
+            assert_eq!(takes, Some(VesselTakes::Fuels(vec!["diesel_0".to_string()])), "{file}: its drum takes Diesel");
+            let pack: std::collections::HashMap<String, u32> =
+                [("paint_0".to_string(), 3), ("gasoline_0".to_string(), 5), ("diesel_0".to_string(), 4)].into_iter().collect();
+            let offered: Vec<String> = {
+                let drum = world.get::<&Container>(gen).unwrap();
+                store_offers(&containers, Some(&items), &*drum, takes.as_ref(), &pack).into_iter().map(|(id, _, _)| id).collect()
+            };
+            assert_eq!(offered, vec!["diesel_0".to_string()], "{file}: its drum offers Diesel, not Gasoline or Paint");
+
+            let mut data = crate::hot_reload::data_store::DataStore::new();
+            data.insert("power_status", std::sync::Mutex::new(PowerStatus::default()));
+            data.insert("item_registry", items.clone());
+            let mut sys = ElectricalSystem::new(&data_dir);
+            for (item, runs) in [("paint_0", false), ("gasoline_0", false), ("diesel_0", true)] {
+                {
+                    let mut drum = world.get::<&mut Container>(gen).unwrap();
+                    drum.spill();
+                    drum.current_content_item = Some(item.to_string());
+                    drum.current_qty = 3;
+                    drum.used_liters = 3.0 * items.volume_for(item);
+                }
+                sys.tick(&mut world, 1.0, &data);
+                let g = world.get::<&PowerGenerator>(gen).unwrap();
+                assert_eq!(g.active, runs, "{file}: {item} in its drum");
+                assert_eq!(g.output_watts, 6500.0, "{file}: it makes 6.5 kW while it runs");
+            }
+        }
+    }
 }

@@ -928,6 +928,56 @@
             level_gauge: true,
             model: None,
         ),
+        "generator_diesel": (
+            shape: "box",
+            size: (1.07, 0.70, 0.62),
+            color: (0.85, 0.45, 0.12),
+            label: "Generator (diesel)",
+            category: "Power",
+            stats: [
+                (
+                    kind: "fuel",
+                    value: "200 L drum of diesel",
+                    status: "ok",
+                ),
+                (
+                    kind: "power",
+                    value: "backstop 6.5 kW while it runs, 2.6 L of diesel an hour",
+                    status: "off",
+                ),
+            ],
+            // What burns the refinery's diesel (2026-10-20; until then nothing did). Not placed in
+            // the home: built at a workbench (build_generator_diesel, data/recipes.csv) and placed
+            // from the Construction page's Power tab with one generator_diesel_0, the way any
+            // machine is. A backstop like the gasoline set above, and the meter shows it apart in
+            // the same way. THE MACHINE: a Kubota GL-7000 class diesel generator. Kubota's
+            // specification page (https://generator.kubota.com/products/60hz/gl_7000.html, read
+            // 2026-10-20, "(c) 1996-2018 KUBOTA Corporation"): "Prime output" "6.5 kVA (6.5 kW)",
+            // "Standby output" "7.0 kVA (7.0 kW)", fuel consumption at full load "2.6 (0.69)" L/h
+            // (gal./h), at 3/4 load 2.1, at 1/2 load 1.7, at 1/4 load 1.4; a "28.0 (7.4)" L tank,
+            // "10.0" h at full load; a "Vertical, water-cooled, 4-cycle diesel engine", the Z482;
+            // "Approx. Net Weight" "235 (518)" kg (lbs.); "1066 x 618 x 698" mm (the box above:
+            // length, height, width); "66" dB(A) at 7 m. So 6,500 W while it runs on 2.6 L an
+            // hour, 0.40 L a kWh, where the gasoline inverter set above burns 0.63: a litre of
+            // diesel carries 36.1 MJ against gasoline's 32.4 (data/items.csv), and a diesel engine,
+            // compression-ignited, turns more of it into work. At a quarter load it is 0.86 L a kWh, so
+            // like the gasoline set it is cheapest run near full, charging the batteries. Its fuel
+            // is Diesel (diesel_0), which the fuel refinery makes 3 L of from each 10 crude oil
+            // (refine_crude), and nothing else: its drum takes, offers and burns only that (BUG-154,
+            // `fuels`; src/systems/inventory/containers.rs, `vessel_takes`). Its own 28 L tank is
+            // not modelled apart: the game gives it the same 200 L drum as the gasoline set.
+            power: Some(Generator(
+                watts: 6500.0,
+                fuel_lph: 2.6,
+                fuels: ["diesel_0"],
+            )),
+            ports: [],
+            storage: [],
+            auto_recipe: None,
+            container_type: Some("steel_fuel_drum"),
+            level_gauge: true,
+            model: None,
+        ),
         "grain_field": (
             shape: "box",
             size: (2.4, 0.18, 2.4),

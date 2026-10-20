@@ -1,5 +1,5 @@
 {
-  "count": 383,
+  "count": 384,
   "categories": [
     "assembly",
     "chemistry",
@@ -6508,6 +6508,60 @@
       "skill": "Engineering",
       "skill_level": 4,
       "description": "Assemble a 2kW gasoline generator",
+      "tools": [
+        {
+          "id": "wrench_adjustable_0",
+          "label": "Wrench Adjustable"
+        },
+        {
+          "id": "screwdriver_flat_0",
+          "label": "Screwdriver Flat"
+        }
+      ]
+    },
+    {
+      "id": "build_generator_diesel",
+      "name": "Build Diesel Generator",
+      "category": "assembly",
+      "inputs": [
+        {
+          "id": "steel_ingot_0",
+          "label": "Steel Ingot",
+          "qty": 57
+        },
+        {
+          "id": "copper_ingot_0",
+          "label": "Copper Ingot",
+          "qty": 8
+        },
+        {
+          "id": "aluminum_ingot_0",
+          "label": "Aluminum Ingot",
+          "qty": 10
+        },
+        {
+          "id": "wire_0",
+          "label": "Wire",
+          "qty": 10
+        },
+        {
+          "id": "rubber_sheet_0",
+          "label": "Rubber Sheet",
+          "qty": 3
+        }
+      ],
+      "outputs": [
+        {
+          "id": "generator_diesel_0",
+          "label": "Generator Diesel",
+          "qty": 1
+        }
+      ],
+      "craft_time_sec": 180,
+      "station": "Workbench",
+      "skill": "Engineering",
+      "skill_level": 5,
+      "description": "Assemble a 6.5kW diesel generator",
       "tools": [
         {
           "id": "wrench_adjustable_0",

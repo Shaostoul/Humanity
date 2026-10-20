@@ -380,6 +380,10 @@ build_stove,Build Stove,assembly,steel_ingot_0:4|wire_0:2|copper_ingot_0:1,stove
 build_oven,Build Oven,assembly,steel_ingot_0:5|stone_brick_0:4|wire_0:2,oven_0:1,40,workbench_0,shelter_building,3,Construct an enclosed baking oven
 build_fridge,Build Fridge,assembly,steel_ingot_0:4|wire_0:3|copper_ingot_0:2|rubber_sheet_0:1,fridge_0:1,50,workbench_0,engineering,3,Assemble a refrigerated storage unit
 build_generator,Build Portable Generator,assembly,steel_ingot_0:5|copper_ingot_0:3|wire_0:4|rubber_sheet_0:1,generator_portable_0:1,60,workbench_0,engineering,4,Assemble a 2kW gasoline generator
+# The diesel generator (2026-10-20): a game estimate of its metals, weighing 237.9 kg against the set's
+# 235 (57 steel ingots at 3.5 kg, 8 copper at 2.8, 10 aluminium at 1.0 for the engine's head and
+# radiator, 10 wire at 0.3, 3 rubber sheet at 1.0); no source gives a genset's bill of materials.
+build_generator_diesel,Build Diesel Generator,assembly,steel_ingot_0:57|copper_ingot_0:8|aluminum_ingot_0:10|wire_0:10|rubber_sheet_0:3,generator_diesel_0:1,180,workbench_0,engineering,5,Assemble a 6.5kW diesel generator
 build_solar_panel,Build Solar Panel,assembly,glass_pane_0:4|wire_0:3|aluminum_ingot_0:2,solar_panel_0:1,40,electronics_bench_0,engineering,3,Assemble a photovoltaic panel
 build_wind_turbine,Build Wind Turbine,assembly,aluminum_ingot_0:4|wire_0:4|steel_ingot_0:3|fiberglass_sheet_0:2,wind_turbine_small_0:1,60,workbench_0,engineering,4,Construct a rooftop wind generator
 build_water_pump,Build Water Pump,assembly,steel_ingot_0:3|rubber_sheet_0:1|wire_0:2|copper_ingot_0:1,water_pump_0:1,30,workbench_0,engineering,2,Assemble an electric water pump

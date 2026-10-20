@@ -2384,6 +2384,14 @@ products go to home storage; so the drum takes and offers only the feedstock its
 recipe names (`VesselTakes::Feed`, `vessel_takes`, `feed_items`), where it took any
 liquid, and the card's note says why the rest have no Store button (`refused_note`;
 a generator's drum says the same of its fuel).
+The diesel burns (2026-10-20): both homes' catalogs carry `generator_diesel`,
+"Generator (diesel)", a Kubota GL-7000 class set (6.5 kW prime output on 2.6 L of
+diesel an hour at full load, 0.40 L a kWh against the gasoline set's 0.63, 235 kg;
+its spec page quoted in `data/machines/home.ron`). Not placed by default: built at a
+workbench (`build_generator_diesel` in `data/recipes.csv`) as `generator_diesel_0`
+and placed from the Construction page's Power tab like any machine; a backstop whose
+drum takes, offers and burns only Diesel (`fuels: ["diesel_0"]`, `vessel_takes`).
+Test: `engine::home_spawn::tests::the_diesel_generator_burns_diesel_and_nothing_else`.
 Always pre-check `registry.check().is_accepted()` before `try_store` — a
 wrong-class store DAMAGES the vessel by design.
 Content memory and materials (v0.1345.0): a vessel remembers its last
