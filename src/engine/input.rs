@@ -100,6 +100,27 @@ pub fn mouse_look_allowed(gui: &GuiState, alt_held: bool) -> bool {
         && gui.player_death_cause.is_none()
 }
 
+/// A movement or camera key going down or coming up, after the keymap resolved it to `act`: what
+/// lib.rs's keyboard arm does with a person's key, and what a rig's held key does
+/// (engine/rig_walk.rs `hold`, the showcase `hold` verb), so the two cannot drift apart
+/// (2026-10-20). The controller takes the action; and a key going down lets go of a camera park's
+/// pin (`EngineState::probe_hold`), because the pin exists only to hold a scripted capture still
+/// and anyone at the keys wins at once. The rig's `hold` used to press its keys straight into the
+/// controller and leave the pin in place, so a rig that parked on a planet and then held a key
+/// never moved the body, and every fall it made was exempt (the pin is one of the planet walk's
+/// exemptions, `CameraController::surface_step`; found by scripts/verify-falls.js's planet legs).
+pub(crate) fn apply_game_action(
+    controller: &mut crate::renderer::camera::CameraController,
+    probe_hold: &mut Option<(glam::Vec3, std::time::Instant)>,
+    act: crate::input::bindings::GameAction,
+    pressed: bool,
+) {
+    controller.apply_action(act, pressed);
+    if pressed {
+        *probe_hold = None;
+    }
+}
+
 /// Read one of the F10 sidebar's flags by its `GuiState` field name, as JSON
 /// (a bool, or a number for the sliders and pickers), for the dev IPC's
 /// before/after report. `None` for a name that is not a sidebar flag. Rust

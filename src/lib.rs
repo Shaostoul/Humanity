@@ -2950,14 +2950,12 @@ mod native_app {
                         // W/A/S/D/F/V/M/O/Q/E match in camera.rs.
                         let key_action = state.gui_state.keybinds.action_for(&key_name);
                         if let Some(act) = key_action {
-                            state.controller.apply_action(act, pressed);
-                            // Any real movement input releases the probe
-                            // hold - the pin exists only for scripted
-                            // captures, and a human at the keys always
-                            // wins instantly.
-                            if pressed && state.probe_hold.is_some() {
-                                state.probe_hold = None;
-                            }
+                            // The controller takes it, and a key going down
+                            // releases the probe hold (the pin exists only for
+                            // scripted captures; a human at the keys wins at
+                            // once). One function with the rig's held keys
+                            // (engine/rig_walk.rs), so the two cannot drift.
+                            crate::engine::input::apply_game_action(&mut state.controller, &mut state.probe_hold, act, pressed);
                         }
 
                         // Update InputState in DataStore for game systems

@@ -439,6 +439,24 @@ pub(crate) fn poll_screenshot_request(
     execute_screenshot_capture(state, frame_texture, size, lists);
 }
 
+/// Take a dropped request file's text, consuming the file (2026-10-20). A file that reads EMPTY
+/// is left where it is for the next frame: a rig writing it may have created it and not yet
+/// filled it, and consuming it then lost the request with no word anywhere (verify-falls' planet
+/// Forgiving leg ran in Realistic because its `illness` verb was read empty and deleted; the
+/// run.log had no "Showcase: illness" line). An empty showcase request asks for nothing, so
+/// waiting a frame for its text costs nothing. None when there is no file, or it is still empty.
+pub(crate) fn take_request_text(path: &std::path::Path) -> Option<String> {
+    if !path.exists() {
+        return None;
+    }
+    let text = std::fs::read_to_string(path).unwrap_or_default();
+    if text.trim().is_empty() {
+        return None;
+    }
+    let _ = std::fs::remove_file(path);
+    Some(text)
+}
+
 /// Showcase-tower dev trigger (v0.862, same file-drop pattern as screenshots):
 /// drop `debug/showcase_request.json` containing `{"tower":"nutrition",
 /// "plant":"strawberry"}` while the game runs and FarmingSystem replants that
@@ -450,11 +468,9 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     // before the no-request early return (engine/rig_walk.rs).
     crate::engine::rig_walk::tick(state);
     const REQ: &str = "debug/showcase_request.json";
-    if !std::path::Path::new(REQ).exists() {
+    let Some(text) = take_request_text(std::path::Path::new(REQ)) else {
         return;
-    }
-    let text = std::fs::read_to_string(REQ).unwrap_or_default();
-    let _ = std::fs::remove_file(REQ);
+    };
     // Delegates to the named, unit-tested extractor above; the closure stays so
     // the ~60 call sites below read unchanged.
     let grab = |key: &str| -> Option<String> { showcase_value(&text, key) };
@@ -3844,6 +3860,9 @@ pub(crate) fn poll_remote_players_request(state: &mut EngineState, clock_dt: f32
             // The player's health this frame, null with no living player (2026-10-20,
             // engine/body_probe.rs): verify-falls sees it fall on the frame the camera lands.
             "health": crate::engine::body_probe::health(&state.game_world.world).map(|h| h.0),
+            // On a planet's ground, the eye's distance from the body's centre, metres (null
+            // aboard): the height verify-falls' planet legs read a drop in.
+            "planet_r": crate::engine::body_probe::planet_walk(state).map(|p| p.1),
         }));
     } else {
         rec.truncated = true;
@@ -4282,6 +4301,26 @@ mod remote_player_recorder_tests {
 #[cfg(test)]
 mod showcase_pin_tests {
     use super::*;
+
+    /// A REQUEST CAUGHT MID-WRITE IS NOT LOST (2026-10-20). A rig creates the file and then
+    /// fills it, and the game polls every frame: read between the two, the file is empty, and
+    /// consuming it then threw the request away with no word anywhere (a verify-falls run lost its
+    /// `illness` verb that way and ran a Forgiving leg in Realistic). Empty: left for the next
+    /// frame. Filled: taken and the file gone. No file: nothing.
+    #[test]
+    fn an_empty_request_file_waits_for_its_text() {
+        let dir = std::env::temp_dir().join(format!("hos-take-request-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let p = dir.join("showcase_request.json");
+        assert_eq!(take_request_text(&p), None, "no file");
+        std::fs::write(&p, "").unwrap();
+        assert_eq!(take_request_text(&p), None, "an empty file is not taken");
+        assert!(p.exists(), "and it is left for its text");
+        std::fs::write(&p, r#"{"illness":"forgiving"}"#).unwrap();
+        assert_eq!(take_request_text(&p).as_deref(), Some(r#"{"illness":"forgiving"}"#));
+        assert!(!p.exists(), "a filled request is consumed");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     /// A plain unit wind direction, the shape WeatherSystem always publishes
     /// (`Vec3::new(angle.cos(), 0.0, angle.sin()).normalize()`).

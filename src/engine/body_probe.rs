@@ -11,7 +11,12 @@
 //!     drop on the same frame clock;
 //!   - the recorder's done JSON carries `falls`: how many landings lib.rs took from the walk and
 //!     handed to the body (`CameraController::take_landing`), the last one's speed, the Illness
-//!     and injury mode, the walk's gravity, and whether dev flight was on;
+//!     and injury mode, the walk's gravity, and whether dev flight was on; on a planet's ground
+//!     also the body's name, with the gravity the PLANET walk pulled with (not the ship's), and
+//!     whether a camera park still pins the eye (`probe_hold`, one of the planet exemptions);
+//!   - every recorder frame on a planet's ground carries `planet_r`, the eye's distance from the
+//!     body's centre (f64 metres): the height a planet fall is measured in, since the camera's y
+//!     is not "up" there;
 //!   - the showcase `illness` verb sets Settings > Gameplay > Illness and injury, as its radio does.
 //!
 //! The ECS is read, not the HUD's copy: the HUD can lag a frame or be fed by another path, and
@@ -74,8 +79,22 @@ pub(crate) fn vitals_json(
     })
 }
 
-/// The recorder's `falls` block (pure): `landings` is `CameraController::landings_taken`.
-pub(crate) fn falls_core(landings: (u32, Option<f32>), realistic: bool, gravity_m_s2: f32, flying: bool, aboard: bool) -> serde_json::Value {
+/// The recorder's `falls` block (pure): `landings` is `CameraController::landings_taken`;
+/// `gravity_m_s2` the gravity of the walk the player is on (the planet's when `planet` names
+/// one); `probe_hold` whether a camera park still pins the eye (one of the planet walk's
+/// exemptions, so a rig must see it gone before a planet fall can count); `climb_m_s`
+/// [`planet_climb_m_s`].
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn falls_core(
+    landings: (u32, Option<f32>),
+    realistic: bool,
+    gravity_m_s2: f32,
+    flying: bool,
+    aboard: bool,
+    planet: Option<&str>,
+    probe_hold: bool,
+    climb_m_s: f32,
+) -> serde_json::Value {
     serde_json::json!({
         "landings": landings.0,
         "last_m_s": landings.1,
@@ -83,18 +102,53 @@ pub(crate) fn falls_core(landings: (u32, Option<f32>), realistic: bool, gravity_
         "gravity_m_s2": gravity_m_s2,
         "flying": flying,
         "aboard": aboard,
+        "planet": planet,
+        "probe_hold": probe_hold,
+        "climb_m_s": climb_m_s,
     })
 }
 
-/// The recorder's `falls` block for the running game (see the module doc).
+/// How fast holding Space lifts the player off a planet's ground, m/s: on a planet Space is a
+/// climb at the walk's own speed (lib.rs `walk_speed`: the controller's speed and its multiplier,
+/// which carries every wound's limp and the gear worn, the wheel's gear, a carried load's share of
+/// walking) times a load's share of the jump (`surface_move::carry_gated_radial`). A rig reads it
+/// to hold Space long enough to rise a given height: a sprained and a broken ankle together climb
+/// at 30% of an unhurt body (verify-falls' planet legs come after the legs aboard that broke them).
+pub(crate) fn planet_climb_m_s(c: &crate::renderer::camera::CameraController) -> f32 {
+    let gear = (c.fly_speed_mult as f64).clamp(1.0, crate::engine::frame_lock::SURFACE_SPEED_MULT_MAX) as f32;
+    (c.speed * c.speed_multiplier).max(0.0) * gear * c.carry_speed_factor.clamp(0.0, 1.0) * c.jump_scale.clamp(0.0, 1.0)
+}
+
+/// Where the planet walk has the player this frame (2026-10-20, verify-falls' planet legs): the
+/// body, the eye's distance from its centre (the frame lock's anchor, metres, f64: the height a
+/// fall on a planet is measured in) and the gravity the walk pulled with this frame (lib.rs
+/// `g_now`, `PlanetDef::gravity_at`). None aboard and off a planet's walk band: lib.rs clears
+/// `surface_gravity_now` every frame and only the planet walk sets it, so Some means the planet
+/// walk ran this frame.
+pub(crate) fn planet_walk(state: &crate::engine::state::EngineState) -> Option<(String, f64, f32)> {
+    let g = state.gui_state.surface_gravity_now?;
+    if state.aboard_station || !state.surface_walk_band {
+        return None;
+    }
+    let body = state.frame_lock_body.clone()?;
+    Some((body, state.frame_lock_anchor.length(), g))
+}
+
+/// The recorder's `falls` block for the running game (see the module doc). On a planet the
+/// gravity is the planet walk's own this frame, not the ship's (`interior_gravity`), so a rig
+/// judges a planet landing against the gravity that made it.
 pub(crate) fn falls_json(state: &crate::engine::state::EngineState) -> serde_json::Value {
     let flying = state.controller.fly_mode || state.gui_state.dev_fly_mode || state.gui_state.dev_hover;
+    let planet = planet_walk(state);
     falls_core(
         state.controller.landings_taken(),
         state.gui_state.settings.illness_realistic,
-        state.controller.interior_gravity(),
+        planet.as_ref().map_or_else(|| state.controller.interior_gravity(), |p| p.2),
         flying,
         state.aboard_station,
+        planet.as_ref().map(|p| p.0.as_str()),
+        state.probe_hold.is_some(),
+        planet_climb_m_s(&state.controller),
     )
 }
 
@@ -159,6 +213,7 @@ mod tests {
         for wired in [
             "\"vitals\": crate::engine::body_probe::vitals_json(gs.vitals.satiation, gs.vitals.hydration, world, data)",
             "\"health\": crate::engine::body_probe::health(&state.game_world.world)",
+            "\"planet_r\": crate::engine::body_probe::planet_walk(state).map(|p| p.1)",
             "\"falls\": crate::engine::body_probe::falls_json(state)",
             "grab(\"illness\")",
             "crate::engine::body_probe::parse_illness_mode(&raw)",
@@ -170,11 +225,22 @@ mod tests {
     /// The `falls` block and the `illness` verb's words.
     #[test]
     fn the_falls_block_and_the_illness_words() {
-        let v = falls_core((2, Some(7.67)), true, 9.81, false, true);
+        let v = falls_core((2, Some(7.67)), true, 9.81, false, true, None, false, 5.0);
         assert_eq!((v["landings"].as_u64(), v["mode"].as_str(), v["aboard"].as_bool()), (Some(2), Some("realistic"), Some(true)));
         assert!((v["last_m_s"].as_f64().unwrap() - 7.67).abs() < 1e-4);
-        assert_eq!(falls_core((0, None), false, 9.81, true, false)["last_m_s"], serde_json::Value::Null);
-        assert_eq!(falls_core((0, None), false, 9.81, true, false)["mode"], "forgiving");
+        assert_eq!((v["planet"].clone(), v["probe_hold"].as_bool(), v["climb_m_s"].as_f64()), (serde_json::Value::Null, Some(false), Some(5.0)));
+        let p = falls_core((1, Some(7.0)), true, 9.81, false, false, Some("earth"), true, 1.5);
+        assert_eq!((p["planet"].as_str(), p["probe_hold"].as_bool()), (Some("earth"), Some(true)));
+        assert_eq!(falls_core((0, None), false, 9.81, true, false, None, false, 5.0)["last_m_s"], serde_json::Value::Null);
+        assert_eq!(falls_core((0, None), false, 9.81, true, false, None, false, 5.0)["mode"], "forgiving");
+        // The planet climb: the walk's speed with its limp, the gear (at least 1) and a load's
+        // shares. A sprained (0.75) and a broken (0.4) ankle climb at 1.5 m/s.
+        let mut c = crate::renderer::camera::CameraController::new(5.0, 1.0);
+        assert!((planet_climb_m_s(&c) - 5.0).abs() < 1e-6);
+        c.speed_multiplier = 0.75 * 0.4;
+        assert!((planet_climb_m_s(&c) - 1.5).abs() < 1e-5);
+        c.jump_scale = 0.0;
+        assert_eq!(planet_climb_m_s(&c), 0.0, "an overloaded body cannot climb");
         assert_eq!(parse_illness_mode(" Realistic "), Some(true));
         assert_eq!(parse_illness_mode("forgiving"), Some(false));
         for bad in ["", "real", "1", "on"] {

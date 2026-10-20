@@ -23,6 +23,7 @@
 
 use crate::engine::state::EngineState;
 use crate::input::bindings::GameAction;
+use crate::renderer::camera::CameraController;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
@@ -54,10 +55,25 @@ pub(crate) fn parse_keys(spec: &str) -> Option<Vec<GameAction>> {
 /// Press `keys` for `secs` seconds. A new hold lets go of the previous one
 /// first. Returns the line for the log.
 pub(crate) fn hold(state: &mut EngineState, keys: Vec<GameAction>, secs: f32) -> String {
-    release(state);
+    hold_keys(&mut state.controller, &mut state.probe_hold, keys, secs)
+}
+
+/// [`hold`] on the two things a key press touches: the controller and the
+/// camera park's pin. Each key goes down through the same function a
+/// person's key does (`engine::input::apply_game_action`), so a held key
+/// lets go of a camera park exactly as a key press does (2026-10-20: it
+/// used to press the controller directly and leave the pin in place, so a
+/// rig parked on a planet never moved and every fall it made was exempt).
+fn hold_keys(
+    controller: &mut CameraController,
+    probe_hold: &mut Option<(glam::Vec3, Instant)>,
+    keys: Vec<GameAction>,
+    secs: f32,
+) -> String {
+    release(controller);
     let secs = if secs.is_finite() { secs.clamp(0.0, MAX_HOLD_S) } else { 0.0 };
     for k in &keys {
-        state.controller.apply_action(*k, true);
+        crate::engine::input::apply_game_action(controller, probe_hold, *k, true);
     }
     let note = format!("holding {keys:?} for {secs} s");
     if let Ok(mut h) = HELD.lock() {
@@ -74,16 +90,18 @@ pub(crate) fn tick(state: &mut EngineState) {
         .and_then(|h| h.as_ref().map(|(until, _)| Instant::now() >= *until))
         .unwrap_or(false);
     if due {
-        release(state);
+        release(&mut state.controller);
         log::info!("Showcase: hold -> released");
     }
 }
 
 /// Let go of whatever is held now.
-fn release(state: &mut EngineState) {
+fn release(controller: &mut CameraController) {
     let keys = HELD.lock().ok().and_then(|mut h| h.take()).map(|(_, k)| k).unwrap_or_default();
+    // A key coming up touches no pin, so there is none to hand over.
+    let mut no_pin = None;
     for k in keys {
-        state.controller.apply_action(k, false);
+        crate::engine::input::apply_game_action(controller, &mut no_pin, k, false);
     }
 }
 
@@ -100,5 +118,50 @@ mod tests {
         assert_eq!(parse_keys("back,left,right,jump").map(|k| k.len()), Some(4));
         assert_eq!(parse_keys(""), None, "an empty hold presses nothing");
         assert_eq!(parse_keys("forward,interact"), None, "only the movement keys");
+    }
+
+    /// A RIG'S HELD KEY LETS GO OF THE CAMERA PARK, AS A PERSON'S KEY DOES (2026-10-20). A
+    /// camera park (`camera_request`) pins the eye where it was parked (`probe_hold`) until
+    /// real movement input arrives, and lib.rs's keyboard arm lets go of that pin on any key
+    /// press. `hold` pressed the keys and left the pin in place, so a rig that parked on a
+    /// planet and then held forward or Space never moved the body (the pin put the eye back
+    /// every frame), and every fall it made was exempt: the probe hold is one of the
+    /// exemptions `CameraController::surface_step` is handed (verify-falls' planet legs).
+    #[test]
+    fn a_held_key_releases_the_camera_park_as_a_key_press_does() {
+        let mut controller = CameraController::new(5.0, 1.0);
+        let mut probe_hold = Some((glam::Vec3::new(1.0, 2.0, 3.0), Instant::now()));
+        let note = hold_keys(&mut controller, &mut probe_hold, vec![GameAction::Jump], 0.4);
+        assert!(note.contains("Jump"), "{note}");
+        assert!(
+            probe_hold.is_none(),
+            "a rig holding Space after a camera park must let go of the park, as a person's key press does: {probe_hold:?}"
+        );
+        // And the key is down: the walk's wish has the climb in it; let go, and it has none.
+        let camera = crate::renderer::camera::Camera::new();
+        assert!(controller.surface_wish_dir(&camera).dot(camera.up) > 0.5, "Space is held");
+        release(&mut controller);
+        assert_eq!(controller.surface_wish_dir(&camera), glam::Vec3::ZERO, "and let go");
+        // A key coming up leaves a park alone, as a person's does.
+        let mut park = Some((glam::Vec3::ONE, Instant::now()));
+        crate::engine::input::apply_game_action(&mut controller, &mut park, GameAction::Jump, false);
+        assert!(park.is_some(), "a key coming up does not release a park");
+    }
+
+    /// "EXACTLY AS A KEY PRESS DOES" stays true only while both paths are one function: lib.rs's
+    /// keyboard arm hands a person's key to `engine::input::apply_game_action`, and `hold_keys`
+    /// hands the rig's to the same, with no other press into the controller in either.
+    #[test]
+    fn a_held_key_and_a_key_press_go_through_one_function() {
+        let lib = include_str!("../lib.rs").replace("\r\n", "\n");
+        assert!(
+            lib.contains("crate::engine::input::apply_game_action(&mut state.controller, &mut state.probe_hold, act, pressed);"),
+            "lib.rs's keyboard arm no longer hands a key to engine::input::apply_game_action"
+        );
+        assert!(!lib.contains("state.controller.apply_action("), "lib.rs presses the controller directly again, past the probe-hold rule");
+        let this = include_str!("rig_walk.rs").replace("\r\n", "\n");
+        let body = &this[this.find("fn hold_keys(").unwrap()..this.find("/// Let go of the held keys once").unwrap()];
+        assert!(body.contains("crate::engine::input::apply_game_action(controller, probe_hold, *k, true);"), "hold_keys must press through apply_game_action");
+        assert!(!body.contains(".apply_action("), "hold_keys presses the controller directly again");
     }
 }

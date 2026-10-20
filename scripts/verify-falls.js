@@ -38,6 +38,34 @@
 // injury as its radio does. The run.log's "[Falls]" lines (src/systems/falls.rs player_landed)
 // are kept in the manifest.
 //
+// ON A PLANET'S GROUND (the second increment, 2026-10-20). A planet has its own walk
+// (`surface_move::radial_step`, which lib.rs hands to the body through
+// `CameraController::surface_step` right after `state.on_ground_planet = vs.grounded;`), its own
+// gravity (the body's data file) and its own exemptions (dev flight, the flight band, water, a
+// camera park's pin), and nothing aboard touches any of them. So after the legs aboard the rig
+// parks over open Sahara sand at 23.5 N, 13.08 E (the probe sweep's walk vantage,
+// planet-open-noon-walk: flat, dry, nothing built, reachable on foot), lets the ground stream in,
+// stands the player on it on foot (`stand`, `walk`), and twice holds Space and lets go: on a
+// planet Space is a climb at walking speed, so the body rises about 2.6 m (the climb and its
+// coast) and falls back. Forgiving must hurt nobody; Realistic must give what falls.ron says of
+// the landing, at the gravity the planet walk itself pulled with (the `falls` block reports it on
+// a planet, and the judge checks it against data/planets/earth.ron). Last the player is PLACED
+// 3 m over the ground (`stand`) and must not be hurt. The height is the eye's distance from the
+// planet's centre (`planet_r`, every recorder frame), not the camera's y.
+//
+// WHY NOT A DECK. The brief was a deck of known height built on the ground with the dev `build`
+// verb, walked off. The planet walk does not stand on built pieces: its floor is the terrain alone
+// (lib.rs feeds radial_step the drawn ground's radius; built pieces only stop a step sideways,
+// `planet_build::collide_on_site`), so there is no deck to stand on. See PLANET_DECK below for
+// what the running game showed when one was tried.
+//
+// THE RIG QUIRK THIS FOUND AND FIXED. A camera park pins the eye (`probe_hold`) until movement
+// input arrives; a person's key press lets go of it, and the rig's `hold` did not. On a planet the
+// pin put the eye back every frame, so the held Space never lifted the body, and the pin is one
+// of surface_step's exemptions, so any fall would have been exempt too. Both key paths now go
+// through engine::input::apply_game_action, and the planet legs' `park_released` check fails if
+// a held key ever leaves the pin in place again.
+//
 // RED FIRST (2026-10-20). This rig was run against a build with lib.rs's hand-off commented out
 // (the `take_landing` -> `falls::player_landed` block after `death_pack::frame`), the state in
 // which every unit test of falls stays green. In the running game the camera fell 3.00 m off the
@@ -97,7 +125,7 @@ const opt = (name, def) => {
 const EXE = path.resolve(opt("--exe", path.join(REPO, "target", "release", "HumanityOS.exe")));
 const KEEP_OPEN = args.includes("--keep-open");
 const DRY = opt("--dry-verdict", null);
-const TIMEOUT_MS = Number(opt("--timeout-min", "8")) * 60 * 1000;
+const TIMEOUT_MS = Number(opt("--timeout-min", "10")) * 60 * 1000;
 
 const RIG = path.join(REPO, ".probe-rig", "falls");
 const DEBUG = path.join(RIG, "debug");
@@ -120,6 +148,41 @@ const STEP_BACK_S = 1.2;
 const LADDER_RECORD_S = LADDER_CLIMB_S + HANG_S + STEP_BACK_S + 3;
 /** Eye height above the feet, metres (src/renderer/camera.rs, `eye_height`). */
 const EYE_M = 1.7;
+/** The planet legs (scripts/lib/falls-judge.js PLANET: open Sahara sand) climb this high, metres
+ *  over the ground, and fall back: at Earth's 9.81 a 7.1 m/s landing, past falls.ron's sprain
+ *  (6.26) and short of its broken ankle (7.73) in Realistic, under its first harm at 70% in
+ *  Forgiving (4.97). */
+const PLANET_RISE_M = 2.6;
+/** The planet climb's thrust (src/surface_walk.rs `vertical_step`): it ramps to the climb rate at
+ *  max(3 g, 20 m/s^2, rate / 1.5 s). */
+const THRUST_ACCEL_G_MULT = 3.0;
+const THRUST_ACCEL_MIN = 20.0;
+const THRUST_RAMP_S = 1.5;
+/**
+ * How long to hold Space on a planet to rise `rise` metres. On a planet Space is a climb at the
+ * walk's own speed (`surface_move::radial_step`'s walking branch), so the rate is whatever the
+ * body walks at now: 5 m/s unhurt, 1.5 m/s with the sprained and broken ankles the legs aboard
+ * leave (the game reports it, `falls.climb_m_s`). The thrust ramps to that rate, holds it, and when
+ * the key comes up the body coasts up another v^2 / 2 g before it falls. Unhurt at 9.81 that is
+ * 0.35 s for 2.6 m; with both ankles hurt, 1.68 s. A frame late letting go adds a few centimetres,
+ * and the judge reads the drop the eye really made.
+ */
+function climbHoldS(rate, g, rise) {
+  const a = Math.max(THRUST_ACCEL_G_MULT * g, THRUST_ACCEL_MIN, rate / THRUST_RAMP_S);
+  const rampS = rate / a;
+  const rampM = (rate * rate) / (2 * a);
+  const coastM = (rate * rate) / (2 * g);
+  return rampS + Math.max(0, rise - rampM - coastM) / rate;
+}
+/** How long each planet leg is recorded after Space goes down, seconds, beyond the hold: about
+ *  1.5 s of coast and fall, most of a second for the settle glue to set the eye down, and the
+ *  body pass. */
+const PLANET_RECORD_AFTER_S = 4;
+/** The planet placement: the eye put this many metres over its standing height, then let fall. */
+const PLANET_PLACED_M = 3.0;
+/** After the camera park, seconds for the ground under it to stream in before the stand (the
+ *  probe sweep's own settle for this vantage). */
+const PLANET_SETTLE_S = 10;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const log = (m) => console.log(`[falls] ${m}`);
@@ -137,7 +200,7 @@ function printVerdict(run, prefix) {
   for (const [id, o] of Object.entries(result.observed)) {
     const wounds = (o.wounds_after || []).map((w) => `${w.name} (${w.id})`).join(", ") || "none";
     console.log(
-      `${id.padEnd(15)} mode ${String(o.mode).padEnd(9)} health ${fmt(o.health_before)} -> ${fmt(o.health_after)}  ` +
+      `${id.padEnd(22)} ${String(o.where).padEnd(8)} g ${fmt(o.gravity_m_s2)}  mode ${String(o.mode).padEnd(9)} health ${fmt(o.health_before)} -> ${fmt(o.health_after)}  ` +
         `drop ${fmt(o.drop_m)} m  landing ${o.landing_m_s === null ? "none handed to the body" : `${fmt(o.landing_m_s)} m/s`}  wounds ${wounds}`
     );
   }
@@ -222,13 +285,20 @@ function setupRig() {
   requireBootCopy(path.join(RIG, "HumanityOS.exe"), FRESH, "verify-falls");
   DXC.copyDxcDlls({ exe: EXE, repo: REPO, dest: RIG, log });
   for (const f of fs.readdirSync(DEBUG)) {
-    if (/\.png$/.test(f) || /_done\.json$/.test(f) || /_request\.json$/.test(f)) fs.unlinkSync(path.join(DEBUG, f));
+    if (/\.png$/.test(f) || /_done\.json$/.test(f) || /_request\.json(\.part)?$/.test(f)) fs.unlinkSync(path.join(DEBUG, f));
   }
   if (fs.existsSync(LOG)) fs.truncateSync(LOG, 0);
 }
 
+/** A request file, written whole: to a side name first, then renamed into place. The game polls
+ *  for the file every frame and deletes it once read, so a plain write can be caught between
+ *  creating the file and filling it: the game reads it empty, deletes it, and the request is lost
+ *  with no error anywhere. That lost the planet Forgiving leg's `illness` verb on 2026-10-20 (the
+ *  run.log has no "Showcase: illness -> Forgiving" line, and the leg ran in Realistic). */
 function req(name, body) {
-  fs.writeFileSync(path.join(DEBUG, name), JSON.stringify(body));
+  const p = path.join(DEBUG, name);
+  fs.writeFileSync(`${p}.part`, JSON.stringify(body));
+  fs.renameSync(`${p}.part`, p);
 }
 function clearDone(name) {
   const p = path.join(DEBUG, name);
@@ -279,7 +349,9 @@ function trim(done) {
     falls: done.falls || null,
     vitals: hs.vitals || null,
     home_box: hs.home && hs.home.box ? hs.home.box : null,
-    frames: (done.frames || []).map((f) => ({ t: f.t, cam: f.cam, health: f.health })),
+    // planet_r: on a planet's ground, the eye's distance from the body's centre (the height a
+    // planet fall is read in; null aboard).
+    frames: (done.frames || []).map((f) => ({ t: f.t, cam: f.cam, health: f.health, ...(f.planet_r !== undefined ? { planet_r: f.planet_r } : {}) })),
     camera_end: done.camera_end || null,
     notices: done.notices || [],
   };
@@ -321,6 +393,9 @@ async function main() {
     binary: bootRecord(FRESH, path.join(RIG, "HumanityOS.exe")),
     ...(OTHER_BUILD ? { other_build: OTHER_BUILD } : {}),
     data: DATA,
+    // Where the planet legs run: written before the boot, so a run that stopped before them is
+    // judged as missing them (the judge requires the planet legs of any run that planned them).
+    planet: DATA.planet,
     origin: null,
     legs: [],
     falls_log: [],
@@ -444,6 +519,62 @@ async function main() {
       manifest.legs.push({ id, mode: "realistic", kind: "placement", start: high, before, after });
       save();
       log(`${id}: health ${fmt(before.vitals && before.vitals.health)} -> ${fmt(after.vitals && after.vitals.health)}, landings ${before.falls && before.falls.landings} -> ${after.falls && after.falls.landings}`);
+    }
+
+    // ── THE PLANET LEGS ── Parked over open Sahara sand (the camera park pins the eye there,
+    // `probe_hold`), the ground left to stream in, then stood on it on foot (`stand`, `walk`).
+    // Each fall leg stands the player afresh (a placement: the watch starts over once standing),
+    // holds Space long enough to rise PLANET_RISE_M and lets the body fall back. The first held
+    // key must let go of the park, as a person's does (engine/rig_walk.rs `hold`).
+    {
+      const P = DATA.planet;
+      const at = `${P.lat},${P.lon}`;
+      const stand = (h) => ({ stand: `0,${h.toFixed(2)},0,0,-5`, stand_at: at, walk: "1" });
+      log(`planet: parking over ${P.body} at ${at} (the probe sweep's planet-open-noon-walk ground)`);
+      clearDone("camera_done.json");
+      req("camera_request.json", { body: P.body, lat: P.lat, lon: P.lon, altitude_km: P.park_altitude_km, look_offset_deg: 60 });
+      const cam = await waitFile("camera_done.json", 60000);
+      if (!cam || cam.ok !== true) throw new Error(`the planet park failed: ${JSON.stringify(cam)}`);
+      await sleep(PLANET_SETTLE_S * 1000);
+      await showcase(stand(EYE_M));
+      await sleep(3000);
+      const planetLeg = async (id, mode) => {
+        await showcase({ illness: mode });
+        await showcase(stand(EYE_M));
+        await sleep(2000); // the stand settles; the watch starts over on the first frame standing
+        const before = await snapshot(`${id} (before)`);
+        const rate = before.falls ? Number(before.falls.climb_m_s) : NaN;
+        const g = before.falls ? Number(before.falls.gravity_m_s2) : NaN;
+        if (!(rate > 0.1) || !(g > 0)) {
+          throw new Error(`${id}: the game reports no climb (climb_m_s ${rate}, gravity ${g}): is the build older than the planet legs, or is the body overloaded?`);
+        }
+        const holdS = climbHoldS(rate, g, PLANET_RISE_M);
+        const recordS = holdS + PLANET_RECORD_AFTER_S;
+        log(`${id}: climbing at ${rate.toFixed(2)} m/s, so Space is held ${holdS.toFixed(2)} s to rise about ${PLANET_RISE_M} m`);
+        await startRecording(recordS);
+        await sleep(300);
+        await showcase({ hold: "jump", hold_s: holdS.toFixed(3) });
+        const after = await finishRecording(recordS, `${id} (the climb and the fall)`);
+        manifest.legs.push({ id, mode, kind: "planet_fall", body: P.body, climb_m_s: rate, hold_s: holdS, before, after });
+        save();
+        log(`${id}: health ${fmt(before.vitals && before.vitals.health)} -> ${fmt(after.vitals && after.vitals.health)}, landings ${before.falls && before.falls.landings} -> ${after.falls && after.falls.landings}, park ${before.falls && before.falls.probe_hold} -> ${after.falls && after.falls.probe_hold}`);
+      };
+      await planetLeg("planet_forgiving_fall", "forgiving");
+      await planetLeg("planet_realistic_fall", "realistic");
+      {
+        const id = "planet_placed_drop";
+        await showcase({ illness: "realistic" });
+        await showcase(stand(EYE_M));
+        await sleep(2000);
+        const before = await snapshot(`${id} (before)`);
+        await startRecording(DROP_RECORD_S);
+        await sleep(300);
+        await showcase(stand(EYE_M + PLANET_PLACED_M));
+        const after = await finishRecording(DROP_RECORD_S, `${id} (the drop)`);
+        manifest.legs.push({ id, mode: "realistic", kind: "planet_placement", body: P.body, placed_m: PLANET_PLACED_M, before, after });
+        save();
+        log(`${id}: health ${fmt(before.vitals && before.vitals.health)} -> ${fmt(after.vitals && after.vitals.health)}, landings ${before.falls && before.falls.landings} -> ${after.falls && after.falls.landings}`);
+      }
     }
   } catch (e) {
     log(`ERROR: ${e.message}`);
