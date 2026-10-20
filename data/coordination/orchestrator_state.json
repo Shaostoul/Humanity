@@ -506,6 +506,11 @@
       "date": "2026-10-20",
       "decision": "Open from the heating builder: a wood stove does not balance in a sealed hull (107 kg O2 a day at full burn against about 2,900 kg in a home's air, no makeup air in either life-support mode); the generators' fuel drum still accumulates in f32 (ElectricalSystem::fuel_accum, the frame-rate class fire.rs fixed today); data/hvac.ron's original heat pump and stove rows are unsourced (left, with pointers to the machines). From the light-theme builder: check 7 does not measure a page variable defined in another file or whose light value is itself a variable.",
       "why": "Logged so the next session finds them; none blocks play."
+    },
+    {
+      "date": "2026-10-20",
+      "decision": "v0.1529.0 released and delivered: just verify-falls (scripts/verify-falls.js, scripts/lib/falls-judge.js with 16 tests, src/engine/body_probe.rs: health and wounds in the home session's vitals, a falls block in the recorder, an illness showcase verb; one log line per landing) passes 40/40 on the release build; red 25/32 with the lib.rs take_landing hand-off removed. The generator fuel carry is f64 (240 fps had burned 0.4% less; red then green). starts-judge's field scan now reads body_probe.rs's vitals_json too (the merge had moved satiation out of ipc.rs). Checked: 4,631 lib tests, 1,027 rig tests, all lints, relay check, verify-runtime 3/3, verify-falls 40/40, check-delivery OK.",
+      "why": "Falls shipped in v0.1527.0 proven only by unit tests, which stay green with the hand-off missing; the house rule is to verify on the state the player reaches. Found by it and logged in PRIORITIES: planet falls, vehicles and the rig hold quirk are not covered; at low frame rates the aboard walk can skip the stairs' top step, so near a threshold the frame rate can pick the wound; the homestead's stairs and ladder lead to no upper floor."
     }
   ],
   "active_scopes_to_avoid": [
@@ -535,7 +540,7 @@
     "Trees have no materialised identity, so they cannot be felled. The key (cell_x, cell_y, item_index) already exists structurally; a sparse delta store is the shape."
   ],
   "how_to_resume": "1. `just brief` (version/CI/signing). 2. docs/PRIORITIES.md \"Active focus\" - the top item is fully specified, start implementing rather than investigating. 3. This file for WHY. Note the ONE-GPU rule: `tasklist //FI \"IMAGENAME eq HumanityOS.exe\"` before booting any rig, and never boot beside the operator instance.",
-  "last_updated": "2026-10-20T07:20-07:00",
+  "last_updated": "2026-10-20T07:58-07:00",
   "focus": "v0.1111.1 shipped (the 2026-08-03/04 vegetation marathon, v0.1109.4-v0.1111.1). Landed: leaf tufts stopped being cubes (golden-angle azimuths + solved per-card tilts, measured 100% parallel pairs on conifers and 67% perpendicular on broadleaves before); distant cards stopped out-shining mesh trees (4-8x, three multiplying causes, then the residual 28% conifer excess traced to the odd component of the shading normals and cancelled at source - all species now 1.00 flat across the sky); standing still stopped depending on the frame rate (the frame-lock sampled terrain one frame of planetary spin behind the player, 33,360 m/s of ground slip, so altitude read as a function of fps and flipped stand height by 2.45 m); the card-hide radius stopped promising models that never drew (BUG-068); forest density stopped being a process-global read separately by two streams (BUG-069); and the card cutoff is now clamped to the terrain reach that actually exists. Foliage-card arrangement extracted to renderer/tree_cards.rs under the size ratchet, and the ratchet budget came DOWN.",
   "overnight_plan_2026_08_01": {
     "directive": "Operator (heading to bed, full trust granted): PERMANENT versions only, no half fixes. Full PBR textures (not just diffuse). Real full canopies of leaves and flowers. Photorealism is the goal - screenshots good enough to land donations/grants; money is tight. 8-10 hours unattended.",
