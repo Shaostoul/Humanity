@@ -6,7 +6,7 @@
 > `grep -i <word> docs/ai/code-map.md` before searching the source. Features (what a person can do)
 > are in `docs/FEATURES.md`; pages in `docs/PAGES.md`.
 
-885 Rust files (574,149 lines) under `src/`; 107 JavaScript files (67,773 lines) under `web/`.
+886 Rust files (575,077 lines) under `src/`; 107 JavaScript files (67,773 lines) under `web/`.
 
 ## Folders
 
@@ -14,7 +14,7 @@
 - `src/assets/` (4 files): Asset manager, loads and caches game data with hot-reload support.
 - `src/audio/` (3 files): Audio manager powered by kira.
 - `src/ecs/` (4 files): ECS, thin wrapper around hecs::World with system scheduling.
-- `src/engine/` (84 files): Satellites of the native app's main module, extracted from lib.rs (v0.932, tiers A+B of docs/dev/code-structure-plan.md).
+- `src/engine/` (85 files): Satellites of the native app's main module, extracted from lib.rs (v0.932, tiers A+B of docs/dev/code-structure-plan.md).
 - `src/engine/screens/` (4 files): In-world screens (rungs 1 and 2 of the screens ladder, docs/design/in-world-screens.md): the engine side of a native egui page shown on a...
 - `src/games/` (16 files): The Games library's readers (2026-10-18; the operator, docs/PRIORITIES.md 2026-10-13: "A Games library: list and launch every installed g...
 - `src/gui/` (19 files): egui GUI system for the native desktop client.
@@ -76,9 +76,9 @@
 - `debug.rs` (129): In-app debug console: captures log messages for display in an egui overlay. Main items: push_debug, drain_debug_log, draw_debug_console.
 - `dev_travel.rs` (438): Dev travel math (v0.791.x, Platform > Dev > Travel) - pure helpers for the teleport tool that lets the operator inspect any solar body up close. Main items: teleport_viewpoint, look_angles, look_dir, planet_spin_from_time, frame_lock_capture, frame_lock_ship_pos, format_multiplier, VIEW_DISTANCE_RADII.
 - `embedded_data.rs` (869): Compile-time embedded data files for offline operation. Main items: shipped_home_design, own_home_text, get_embedded, read_data_or_embedded, load_data_or_embedded, load_text_or_embedded, note_builtin_copy, builtin_copies_this_run (+132 more).
-- `lib.rs` (16477): HumanityOS Game Engine Main items: data_dir, drone_dock_visible, run, DATA_DIR.
+- `lib.rs` (16448): HumanityOS Game Engine Main items: data_dir, drone_dock_visible, run, DATA_DIR.
 - `lod_registry.rs` (89): Per-ITEM-TYPE LOD category registry (v0.971 generalization of the vegetation rung-2a registry): every kind of thing with detail stages - vegetation, creatures, water, planet terrain - gets a row in... Main items: LodCategory, categories, category.
-- `machines.rs` (5359): Data-driven machine layout for the 3D home (First-Playable groundwork, v0.427). Main items: MachineStat, MachinePower, MachineDef, FuelBurn, CameraPose, ScreenDef, MachineStorage, MachineInstance (+33 more).
+- `machines.rs` (5369): Data-driven machine layout for the 3D home (First-Playable groundwork, v0.427). Main items: MachineStat, MachinePower, MachineDef, FuelBurn, CameraPose, ScreenDef, MachineStorage, MachineInstance (+33 more).
 - `main.rs` (225): HumanityOS, One binary to rule them all.
 - `persistence.rs` (1707): World persistence, save/load game state to JSON files. Main items: WorldSave, SavedHome, BodySave, ShipPlace, ShipMeals, SaveSlot, VehicleSave, ConstructionSave (+27 more).
 - `platform.rs` (81): Platform abstraction for native vs WASM. Main items: log_info, current_time_secs, current_time_secs, load_asset_bytes_sync, load_asset_bytes_async.
@@ -115,7 +115,7 @@
 
 ## src/ecs/
 
-- `components.rs` (1696): Core ECS components shared across all game systems. Main items: Transform, Velocity, PhysicsBody, Renderable, Name, Health, Vitals, EnvironmentContext (+82 more).
+- `components.rs` (1729): Core ECS components shared across all game systems. Main items: Transform, Velocity, PhysicsBody, Renderable, Name, Health, Vitals, EnvironmentContext (+83 more).
 - `cosmos.rs` (498): Cosmos position model, Phase 2 of the cosmos architecture (v0.202.0). Main items: VesselId, PocketId, ContainerRef, PositionInUniverse, VesselMeta, VesselRegistry, SystemPositions, world_position_ly (+4 more).
 - `mod.rs` (19): ECS, thin wrapper around hecs::World with system scheduling. Main items: GameWorld.
 - `systems.rs` (183): System runner, executes registered systems each frame. Main items: System, SystemRunner.
@@ -138,6 +138,7 @@
 - `editor.rs` (2204): The construction (build) editor's viewport logic: picking, placing, dragging and duplicating rooms, walls, machines, lights and structures under the cursor, plus undo, redo and autosave. Main items: light_ring_under_cursor, unique_corners, editor_snapshot, editor_restore, arms_autosave, construction_history_tick, history_start_from, history_checkpoint (+47 more).
 - `file_transfer.rs` (1271): Device-to-device big files, the app's half (docs/design/files-showcase.md, "Device-to-device big files, exact" and "...: the shapes, exact", parts 3, 4 and 6; the operator's answer 10 of 2026-10-11... Main items: Phase, Pair, Live, Preparing, Prepared, Transfers, offered_dir, cannot_offer (+29 more).
 - `fleet.rs` (500): The fleet ledger's engine half (2026-10-04): the server's answers into the Inventory page's fleet panel, a give's items out of the backpack, a meal eaten, and the home's reactor power reported whil... Main items: settled_id, home_id, on_game_message, on_meal, feed, meal_sentence, on_give_result, on_gives (+12 more).
+- `footing.rs` (510): Where the floor is under a body aboard: the room it stands in, raised to the highest stair tread, ramp, deck, platform or elevator car it can step onto (v0.584, v0.589, v0.590). Main items: ElevatorCars, floor_under, floor_along, STEP_UP_M, ELEVATOR_TRAVEL_M.
 - `frame_lock.rs` (859): The camera's frame lock to a planet: its altitude bands (surface walking below 10 km, co-rotation to 100 km, inertial flight by 1,000 km) and the sun, cloud and god-ray numbers that follow from it. Main items: ground_radius_m, current_planet_spin, sun_azimuth, ground_anchor, ocean_anchor256, cloud_ground_params, godray_scale, sun_occlusion_factor (+13 more).
 - `frame_near_trees.rs` (669): NEAR-FIELD TREES: deciding which real 3D trees stand around the player this frame, and where the far cards must stop so the two never overlap or leave a gap (extracted from lib.rs, v0.1320). Main items: NearTreeState, NearTreeView, draw_near_trees.
 - `frame_shells.rs` (1299): A planet's SHELLS: the cloud deck and the atmosphere dome, built once per frame for any body large enough on screen to be worth them, and pushed into the transparent celestial list in the order the... Main items: ShellState, ShellView, push_planet_shells.
@@ -150,7 +151,7 @@
 - `group_report.rs` (409): A report about a group reaches the group's creator (section 10j of docs/design/blocking-and-safe-mode.md, 2026-10-10): the desktop app's half that touches the app state, the socket and the server. Main items: Outgoing, target_for, start_finding, creator_found, creator_put, prepare, note_sent, refused (+10 more).
 - `home_meshes.rs` (2565): The 3D home's meshes, built and uploaded: homestead rooms, hull wrap, machines and their pipes, the garden's plants, door and window panels, and room lights. Main items: GardenDraw, PlantPass, apply_homestead_meshes, rebuild_hull, rebuild_homestead, auto_room_lights, open_plots_changed, machine_mesh (+15 more).
 - `home_plot.rs` (3398): Your home on the shared ship (increment 1b of docs/design/ship-homes-and-logistics.md). Main items: PlotBox, WelcomeHome, WelcomeContext, OtherKind, JoinGate, JoinStep, ServerFollow, HomeBoxChange (+69 more).
-- `home_spawn.rs` (919): The home's machines as ECS entities: each machine's power and water roles and islands, the feed taps tying the home's power to the ship's bus, and the home's sealed air space. Main items: spawn_home_power_entities, respawn_home_power_entities, spawn_home_power_entities_for, own_home_air_m3, spawn_home_feed_taps, home_metabolic_kcal, spawn_home_air_space, spawn_home_machine_entity.
+- `home_spawn.rs` (924): The home's machines as ECS entities: each machine's power and water roles and islands, the feed taps tying the home's power to the ship's bus, and the home's sealed air space. Main items: spawn_home_power_entities, respawn_home_power_entities, spawn_home_power_entities_for, own_home_air_m3, spawn_home_feed_taps, home_metabolic_kcal, spawn_home_air_space, spawn_home_machine_entity.
 - `household.rs` (1178): Household permits travel between devices (ship homes increment 5b, lane 1A, 2026-10-12; docs/design/ship-homes-increment-5b-plan.md sections 3.1 to 3.4 and 3.6, with the orchestrator's amendments i... Main items: Dropped, Arrived, Standing, FriendRow, HeldRow, PlotPermit, length_days, days_left (+39 more).
 - `input.rs` (365): Key rules for the F10 Cloud dev sidebar, extracted from lib.rs's raw winit keyboard arm (2026-09-18) so that the key, the headless tests and the dev IPC (`debug/ui_request.json`, see `engine::ipc`)... Main items: toggle_cloud_dev_panel, escape_closes_cloud_dev, cursor_want_free, cursor_free_for, mouse_look_allowed, cloud_dev_flag.
 - `ipc_parse.rs` (370): Parsers and formatters lifted out of the dev IPC and the socket pump so they can be tested alone: screenshot request and done file, screen status, notification prefs, planet tooltip. Main items: ScreenshotSize, NotifPrefsPayload, parse_screenshot_request, screenshot_output_path, screenshot_done_json, merge_provider_status, planet_tooltip_info, parse_notification_prefs (+1 more).
@@ -159,7 +160,7 @@
 - `launch_focus.rs` (352): Launch-focus policy: does this boot deserve the foreground? Main items: launch_audio, open_audio_on_click, launch_in_background, show_window_behind, show_window_behind.
 - `mailbox.rs` (119): The sealed-sender mailbox of the server we are on, page by page and live (10n N7 and 10o O1 of docs/design/blocking-and-safe-mode.md, 2026-10-10): the `dm_fetch` that goes out once per connection,... Main items: begin_fetch, on_batch, on_new.
 - `mess_hall.rs` (206): THE MESS HALL SERVES (ship homes increment 6, lane 1D, docs/design/ship-homes-increment-6-plan.md 3.8): E at the mess hall's serving counter opens its card, which offers a free crew meal and drinki... Main items: Counter, Meal, card_offers_meal, nearest_counter_m, take_meal, fill_bottles, take_meal_at, fill_bottles_at (+3 more).
-- `mod.rs` (175): Satellites of the native app's main module, extracted from lib.rs (v0.932, tiers A+B of docs/dev/code-structure-plan.md).
+- `mod.rs` (178): Satellites of the native app's main module, extracted from lib.rs (v0.932, tiers A+B of docs/dev/code-structure-plan.md).
 - `move_check.rs` (644): The game's half of the relay's speed check (increment 4 of docs/design/ship-homes-and-logistics.md, "getting around at ship scale"; the relay's half is src/relay/handlers/move_check.rs). Main items: Correction, ScriptedWalk, WalkPose, ClientMoves, declare, teleport_rearm, teleporter_tick, stamp_fields (+12 more).
 - `movie.rs` (823): MOVIE MODE: record the live view to a video file, frame-exact (2026-09-30, the clip maker, `scripts/make-clips.js`). Main items: Key, RecordSpec, Recorder, Incoming, ease, pose_at, descend_mps, ffmpeg_args (+12 more).
 - `near_tree_models.rs` (454): Near-tree MODEL CACHE: the one-time build/parse of every tree mesh the near field can draw, plus the sprite-atlas bake that gives the far cards the same trees (extracted from lib.rs, v0.1108). Main items: ensure_near_tree_models.
@@ -685,7 +686,7 @@
 - `atmosphere.rs` (629): Analytic atmosphere scattering: the Rust mirror of the WGSL math. Main items: atmo_exposure, near_haze_scale, shell_packing, erfcx, chapman, od_to_space, rayleigh_phase, hg_phase (+13 more).
 - `billboard_bake.rs` (4895): Automated billboard sprite baker (v0.959, operator call 2026-07-25: "bake our own... Main items: BakeMode, BakePart, BakeCpuModel, ClusterSpriteImage, BakeReport, CpuSprite, proc_key, crown_depth_extinction (+17 more).
 - `bloom.rs` (397): Bloom post-process effect. Main items: BloomPass.
-- `camera.rs` (1829): Three-mode camera system: FirstPerson, ThirdPerson, Orbit. Main items: CameraUniforms, CameraMode, Projection, Camera, CameraController, celestial_projection, celestial_projection_f64, celestial_depth_at (+7 more).
+- `camera.rs` (1956): Three-mode camera system: FirstPerson, ThirdPerson, Orbit. Main items: FloorAt, CameraUniforms, CameraMode, Projection, Camera, CameraController, celestial_projection, celestial_projection_f64 (+10 more).
 - `capture.rs` (300): Frame + texture CAPTURE: getting pixels back off the GPU and onto disk.
 - `celestial_order.rs` (159): The compositing order of the celestial TRANSPARENT list (2026-09-18). Main items: is_planet_layer, celestial_transparent_key, key_for, list_key.
 - `celestial.rs` (1927): The CELESTIAL pass: the far world at planet scale.
@@ -812,7 +813,7 @@
 - `electrical.rs` (949): Electrical system, power generation, distribution, and consumption. Main items: PowerStatus, ShipFeedReading, ElectricalData, ElectricalSystem, integrate_battery.
 - `encumbrance.rs` (431): CARRYING WEIGHT (BUG-136, 2026-10-04): how much the player can carry where they stand, and what carrying more than that does to them. Main items: CarryMode, CarryInput, CarryState, limit_here_kg, overload_ratio, walk_speed_factor, mass_jump_scale, evaluate (+6 more).
 - `env_layer1.rs` (436): Environment LAYER 1: each world's analytic climate, the continuous base field under all weather (docs/design/environment-fields.md, "The layering" and "Layer 1 as built"). Main items: ClimateRow, ClimateTable, AirAt, sine_series_basis, land_fraction_around, east_north, wind_body, DATA_FILE (+6 more).
-- `falls.rs` (255): Falls: how hard a body lands, and what that does to it (2026-10-20). Main items: ForgivingFalls, HarmPoint, FallStep, Falls, FallWatch, drop_height_m, landing_speed, player_landed (+1 more).
+- `falls.rs` (256): Falls: how hard a body lands, and what that does to it (2026-10-20). Main items: ForgivingFalls, HarmPoint, FallStep, Falls, FallWatch, drop_height_m, landing_speed, player_landed (+1 more).
 - `fire.rs` (284): Fire system, fire ignition, intensity, spread, suppression. Main items: FireData, Burn, FireSystem, burn_step.
 - `flight.rs` (505): Fleet flight state and felt gravity. Main items: DriveDef, DampenerDef, GToleranceDef, FlightData, FlightState, FeltGravity, felt_gravity, harm_per_sec (+1 more).
 - `fluids.rs` (372): Fluids are litres (2026-09-26; the containers arc, increment 3d, docs/design/containers.md). Main items: Fillable, FluidTable, FluidAction, tank_litres, draw_from_tanks, tap_units, card_actions, apply_action.
@@ -837,7 +838,7 @@
 - `precipitation.rs` (347): What falls from the sky, and in which phase (2026-09-27). Main items: Falling, snow_share, falling, SEA_LEVEL_KPA.
 - `self_sufficiency.rs` (387): Self-sufficiency data layer (v0.663) -- the per-crop nutrition bridge + the editable component-output / location tables that turn the homestead design from prose into a computable score. Main items: CropNutritionEntry, CropNutrition, ComponentOutput, ComponentOutputs, Location, food_supply_kcal_per_day, crop_is_tabulated, household_energy_balance.
 - `ship_meals.rs` (235): THE MESS HALL'S COUNTER ON THIS COMPUTER (ship homes increment 6, lane 1D, docs/design/ship-homes-increment-6-plan.md 3.8): a free crew meal, one a meal time, and drinking water, when no server is... Main items: MealRules, Served, Filled, serve, not_yet_sentence, litres_text, fill_vessels, STORES_FILE (+1 more).
-- `ship_power.rs` (218): The ship's reactor as the homes' baseline supply, and the ledger of what each home draws from the ship (2026-09-27, the operator's decision in docs/PRIORITIES.md Blocked 3b: "base power budget on n... Main items: ShipPowerData, ShipFeed, SupplyTally, ShipSupplyLedger, register, feed_watts, record, tally (+10 more).
+- `ship_power.rs` (230): The ship's reactor as the homes' baseline supply, and the ledger of what each home draws from the ship (2026-09-27, the operator's decision in docs/PRIORITIES.md Blocked 3b: "base power budget on n... Main items: ShipPowerData, ShipFeed, SupplyTally, ShipSupplyLedger, register, feed_watts, record, tally (+11 more).
 - `sleep.rs` (388): Sleeping in a bed (2026-09-27): the night passes and the body wakes rested. Main items: Asleep, request, short_rest, nap_holds_off_fatigue, notice, tick, SLEEP_HOURS, SLEEP_TIME_SCALE (+5 more).
 - `solar.rs` (175): Solar system, drives solar `PowerGenerator` output from the time of day. Main items: SolarSystem, sun_factor, site_longitude_deg, cloud_light_share.
 - `status_effects.rs` (252): Status-effect registry, buffs, debuffs, conditions, diseases, and environmental effects loaded from `data/status_effects.csv`. Main items: StatusEffectDef, StatusEffectRegistry, with_old_dispel_type_column.
@@ -895,10 +896,10 @@
 
 - `automation.rs` (15): Off-screen farming autonomy, simulates crop growth while player is away. Main items: FarmAutomation.
 - `crops.rs` (18): Crop types, definitions loaded from `data/plants.csv`. Main items: CropDef.
-- `heat.rs` (417): Space heaters and the air they warm (2026-10-05, BUG-155). Main items: HeaterKind, Heater, AirHeat, Warmth, heaters, stoke, burn, stove_fuel_kg (+7 more).
-- `humidity.rs` (1946): Greenhouse humidity (2026-09-26, gardening depth: the air the crops grow in). Main items: HumidityData, FungusBreath, GrowRoom, AirMap, AirStep, AirOut, GuiView, step_vapour (+14 more).
+- `heat.rs` (468): Space heaters and the air they warm (2026-10-05, BUG-155). Main items: HeaterKind, Heater, StoveOxygen, AirHeat, Warmth, heaters, stoke, burn (+8 more).
+- `humidity.rs` (1986): Greenhouse humidity (2026-09-26, gardening depth: the air the crops grow in). Main items: HumidityData, FungusBreath, GrowRoom, AirMap, AirStep, AirOut, GuiView, step_vapour (+14 more).
 - `lighting.rs` (511): Grow lights light the plots near them (2026-09-26, gardening depth). Main items: LightingData, GrowPlot, LightNow, powered_lights, light_cover, light_at, light_now, area_needs (+3 more).
-- `mod.rs` (4160): Farming system -- crop growth simulation driven by time, water, and plant data. Main items: PlantDef, PlantRegistry, FarmingSystem, is_field_area, light_growth_rate, stage_from_progress, season_health, crop_season_need (+5 more).
+- `mod.rs` (4174): Farming system -- crop growth simulation driven by time, water, and plant data. Main items: PlantDef, PlantRegistry, FarmingSystem, is_field_area, light_growth_rate, stage_from_progress, season_health, crop_season_need (+5 more).
 - `outlook.rs` (281): A crop's wait and its water, in plain words (2026-10-12, first-hour audit F11). Main items: WaterSupply, CropOutlook, OutlookView, ripe_in_game_s, duration_words, wait_words, outlook, clock.
 - `pests.rs` (1603): Garden pests and integrated pest management (2026-09-26, gardening depth). Main items: ControlKind, Condition, PestDef, ControlDef, PestData, CropConditions, ControlOutcome, CoverRow (+18 more).
 - `picking.rs` (676): Crops picked over a season, not harvested once (2026-09-26, gardening depth). Main items: Harvest, CropHarvest, HarvestWindows, Plan, Taken, Leaving, Picking, PickRow (+22 more).

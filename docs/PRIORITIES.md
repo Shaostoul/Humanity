@@ -466,9 +466,13 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
   BUG-207: a frame that would carry the body more than 0.20 m, shorter than any tread, is walked
   in steps no longer than that with the floor asked between them, so a slow frame stands on
   every tread and falls off the top from 3.00 m; bit for bit unchanged at 60 frames a second,
-  walking or sprinting; the running game still to be re-checked by `just verify-falls`); and the
-  homestead's stairs and ladder lead to no upper floor, so
-  their tops are a fall), and nothing spawns fires); a
+  walking or sprinting; the running game still to be re-checked by `just verify-falls`). Also
+  found and fixed the same day (BUG-208, commit "The walk steps down stairs and leaves the floor
+  at an edge"): walking DOWN the homestead's stairs had landed at 7.67 m/s, a 3 m fall and a
+  sprained ankle in Realistic, since v0.1527.0, and Space mid-fall launched a jump. And the
+  homestead's stairs, ladder and elevator climb a storey into a 3 m ceiling with no upper floor,
+  so their tops are a fall: the upper floor is ship-homes increment 7, "stacked homes and
+  decks" (docs/design/ship-homes-and-logistics.md), not patched here), and nothing spawns fires); a
   second mess hall along First Street (fold into increment 6); the backpack-overflow toast
   (DONE 2026-10-12: it names the item and says it went to home storage). Found with the
   2026-10-20 four: nothing burns diesel yet (data/electrical.ron's diesel
