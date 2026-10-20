@@ -130,7 +130,7 @@ test("A. Also post in chat: the tick on the left, the channel and Add to favorit
   listChannels(p.session);
   await pick(p.doc, [aFile("dusk.mp4", 3 * MIB)]);
   let r = postRow(p.doc);
-  assert.ok(r, "Add to Media has the post row");
+  assert.ok(r, "Add to Files has the post row");
   // In the green "Who can see it" part, at its foot.
   const green = byId(p.doc, "media-form").querySelectorAll(".tint-section").find((s) => s.className.split(/\s+/).includes("tint-green"));
   assert.ok(green && green.children[green.children.length - 1] === byId(p.doc, "media-form-post"), "at the foot of Who can see it");
@@ -181,7 +181,7 @@ test("A. Also post in chat: the tick on the left, the channel and Add to favorit
   const put = await openPage({ routes: listRoutes(listAnswer([])) });
   listChannels(put.session);
   put.page.openPutForm({ filename: "1700_part.stl", name: "bushing.stl" });
-  assert.ok(byId(put.doc, "media-form-public-only"), "test setup: Put on Media is open");
+  assert.ok(byId(put.doc, "media-form-public-only"), "test setup: Put on the Files page is open");
   assert.equal(byId(put.doc, "media-form-post"), null, "no post row for a file already on the server");
 });
 
@@ -231,7 +231,7 @@ const runTimer = (p, ms) => { for (const t of p.timers.filter((x) => x.ms === ms
 // address): with the signature made over the content alone: "signed over content\ntimestamp, as the
 // chat signs"; with postPublished answering "Posted" as soon as it was sent (no echo awaited): "not
 // before the server has it".
-test("B. once published, its own address on the Media page is posted in the channel ticked, signed as the chat signs, and the line says so once the server has it", async () => {
+test("B. once published, its own address on the Files page is posted in the channel ticked, signed as the chat signs, and the line says so once the server has it", async () => {
   const p = await readyToUpload();
   await tickOn(p.doc, true);
   assert.equal(postRow(p.doc).chosen, "general", "test setup: #general, the channel open in the chat");
@@ -243,7 +243,7 @@ test("B. once published, its own address on the Media page is posted in the chan
   assert.equal(m.channel, "general", "in the channel ticked");
   // The item's own page on this server, which both apps draw as its card: never its title,
   // description or file's address (the desktop's add.rs post_text, 2026-10-17).
-  assert.equal(m.content, ORIGIN + "/media/7", "its own address on the Media page, nothing else");
+  assert.equal(m.content, ORIGIN + "/media/7", "its own address on the Files page, nothing else");
   assert.equal(m.content, M.postText({ title: "Dusk", description: "At the beach, after the rain.", url: "/uploads/1760_dusk.mp4", visibility: "public", id: 7 }, ORIGIN + "/"));
   assert.equal(m.from, ME);
   assert.ok(Number.isInteger(m.timestamp) && m.timestamp > 0);
@@ -361,12 +361,12 @@ test("D. the Upload button wears the nav bar's RGB border when it would upload a
   assert.ok(checking.disabled && !checking.className.split(/\s+/).includes("media-btn-rgb"), "not while it cannot be pressed");
   await settle();
   const go = byId(p.doc, "media-form-go");
-  assert.equal(text(go), "Upload and add to Media", "the desktop's words");
+  assert.equal(text(go), "Upload and add to Files", "the desktop's words");
   assert.ok(!go.disabled && go.className.split(/\s+/).includes("media-btn-rgb"), "ready, for a file picked here: the RGB border");
   const put = await openPage({ routes: listRoutes(listAnswer([])) });
   put.page.openPutForm({ filename: "1700_part.stl", name: "bushing.stl" });
-  assert.equal(text(byId(put.doc, "media-form-go")), "Put on Media");
-  assert.ok(!byId(put.doc, "media-form-go").className.includes("media-btn-rgb"), "Put on Media uploads nothing: no border");
+  assert.equal(text(byId(put.doc, "media-form-go")), "Put on the Files page");
+  assert.ok(!byId(put.doc, "media-form-go").className.includes("media-btn-rgb"), "Put on the Files page uploads nothing: no border");
 
   const css = fs.readFileSync(path.join(WEB, "shared", "media.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
   const shell = fs.readFileSync(path.join(WEB, "shared", "shell.js"), "utf8");
@@ -409,7 +409,7 @@ function idsIn(el) {
 // window whatever channel it was opened for: "over the window: the chat's channel's words" (actual
 // 'Drop to upload to Media'); with dropped() not posting a drop on the window in that channel: "and
 // the drop opens Add to Media posting in #general" (actual false).
-test("E. the upload window shows Add to Media alone, takes the files handed over once it may, posting ticked, and tells the page it is over what goes on", async () => {
+test("E. the upload window shows Add to Files alone, takes the files handed over once it may, posting ticked, and tells the page it is over what goes on", async () => {
   const relay = resumableRelay();
   const win = windowConnector();
   const session = fakeSession({ status: "connecting", role: "", roles: null, uploadToken: "" });
@@ -422,7 +422,7 @@ test("E. the upload window shows Add to Media alone, takes the files handed over
       [at("/api/media/files/add", "POST"), () => respond(200, { ok: true, item: H.item({ id: 7 }) })],
     ])),
   });
-  assert.deepEqual(p.root.children.map((c) => c.id), ["media-status", "media-notice", "media-main", "media-file-input"], "Add to Media and its uploads alone, under the sign-in line and the notices");
+  assert.deepEqual(p.root.children.map((c) => c.id), ["media-status", "media-notice", "media-main", "media-file-input"], "Add to Files and its uploads alone, under the sign-in line and the notices");
   assert.deepEqual(idsIn(byId(p.doc, "media-main")), ["media-form", "media-uploads"]);
   for (const id of ["media-title", "media-tabs-wrap", "media-grid", "media-featured", "media-actions", "media-foot"]) assert.equal(byId(p.doc, id), null, id + " is not in the window");
   const lists = p.net.calls.filter((c) => c.url === "/api/media/list");
@@ -442,7 +442,7 @@ test("E. the upload window shows Add to Media alone, takes the files handed over
   listChannels(session);
   await settle();
   const f = p.page.state.form;
-  assert.ok(f && f.file === dusk, "signed in: Add to Media opens with the first file as the item");
+  assert.ok(f && f.file === dusk, "signed in: Add to Files opens with the first file as the item");
   assert.deepEqual(f.more, [dawn], "the rest to be added once it is up");
   const r = postRow(p.doc);
   assert.ok(r && r.tick.checked && r.chosen === "general", "posting ticked, for #general");
@@ -473,11 +473,11 @@ test("E. the upload window shows Add to Media alone, takes the files handed over
   const drag = (files) => ({ dataTransfer: { types: ["Files"], files: files || [], dropEffect: "none" }, preventDefault() {} });
   dropWin.fire("dragenter", drag());
   const overlay = p.doc.body.querySelector(".hos-drop-overlay");
-  assert.equal(text(overlay.children[0]), "Drop to upload to Media and post in #general", "over the window: the chat's channel's words");
+  assert.equal(text(overlay.children[0]), "Drop to upload to Files and post in #general", "over the window: the chat's channel's words");
   const again = aFile("again.mp4", MIB);
   dropWin.fire("drop", drag([again]));
   await settle();
-  assert.ok(p.page.state.form && p.page.state.form.file === again && postRow(p.doc).tick.checked && postRow(p.doc).chosen === "general", "and the drop opens Add to Media posting in #general");
+  assert.ok(p.page.state.form && p.page.state.form.file === again && postRow(p.doc).tick.checked && postRow(p.doc).chosen === "general", "and the drop opens Add to Files posting in #general");
 
   // Cancel on a form with nothing going closes the window.
   p.page.takeFiles([aFile("other.mp4", MIB)], "");
@@ -532,7 +532,7 @@ test("F. the two halves: files wait until the frame is there; only its own messa
   assert.equal(el.getAttribute("role"), "dialog");
   const frame = w.frame();
   assert.equal(frame.tagName, "IFRAME");
-  assert.equal(frame.src, "/media?window=upload", "the Media page itself, in its upload-window form");
+  assert.equal(frame.src, "/media?window=upload", "the Files page itself, in its upload-window form");
   assert.equal(UW.isWindowAddress("?window=upload"), true);
   assert.equal(UW.isWindowAddress("?put=1"), false);
   const inside = fakeWindow(ORIGIN, host);
@@ -557,8 +557,8 @@ test("F. the two halves: files wait until the frame is there; only its own messa
   doc.key("Escape");
   assert.ok(w.element() === el && el.hidden === true && doc.body.children.includes(el), "closed with an upload going: hidden, kept");
   assert.equal(w.isOpen(), false);
-  host.fire("message", { source: inside, origin: ORIGIN, data: { kind: UW.KIND, event: "status", text: "It is on the Media page now. Posted in #general." } });
-  assert.deepEqual(said, ["It is on the Media page now. Posted in #general."], "closed: its lines go to the chat");
+  host.fire("message", { source: inside, origin: ORIGIN, data: { kind: UW.KIND, event: "status", text: "It is on the Files page now. Posted in #general." } });
+  assert.deepEqual(said, ["It is on the Files page now. Posted in #general."], "closed: its lines go to the chat");
   host.fire("message", { source: inside, origin: ORIGIN, data: { kind: UW.KIND, event: "busy", busy: false } });
   assert.equal(w.element(), null, "nothing going: removed");
   assert.ok(!doc.body.children.includes(el));

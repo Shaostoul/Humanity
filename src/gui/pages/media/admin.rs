@@ -38,7 +38,7 @@ const PRUNE_TABS: [&str; 4] = ["Largest", "Oldest", "Least viewed", "Waiting to 
 
 /// What Server Settings > ADMIN says where the section went, beside its "Open them" (the
 /// website's /admin says the same words: web/pages/admin.html).
-pub(crate) const POINTER_LINE: &str = "This server's Media settings, categories and space are on the Media page, under Admin.";
+pub(crate) const POINTER_LINE: &str = "This server's Files page settings, categories and space are on the Files page, under Admin.";
 
 /// The section. Asks the server for the categories, suggestions and usage the first time it is
 /// drawn for a server, and reads their answers every frame. The tab it sits under names it, so it
@@ -52,7 +52,7 @@ pub(crate) fn draw_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState)
     widgets::body_hint(
         ui,
         theme,
-        "The Media page shows the pictures, videos, models and files people chose to put there. Here you choose who sees it, how much space it has, its categories, and what to prune.",
+        "The Files page shows the pictures, videos, models and files people chose to put there. Here you choose who sees it, how much space it has, its categories, and what to prune.",
     );
     ui.add_space(theme.spacing_sm);
     draw_settings(ui, theme, state);
@@ -80,7 +80,7 @@ fn draw_settings(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     };
     let mut draft = crate::gui::connections::page_draft(state.server_settings_draft.as_ref(), Some(&cached)).unwrap_or_else(|| cached.clone());
     ui.horizontal(|ui| {
-        ui.label(RichText::new("Who sees the Media page").size(theme.font_size_body).color(theme.text_primary()));
+        ui.label(RichText::new("Who sees the Files page").size(theme.font_size_body).color(theme.text_primary()));
         ui.radio_value(&mut draft.media_visibility, "public".to_string(), "Public");
         ui.radio_value(&mut draft.media_visibility, "members".to_string(), "Members only");
     });
@@ -89,7 +89,7 @@ fn draw_settings(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     ui.label(RichText::new(note).size(theme.font_size_small).color(theme.text_muted()));
     ui.add_space(theme.spacing_xs);
     let (min, max) = crate::relay::storage::MEDIA_MB_RANGE;
-    widgets::form_row_wide(ui, theme, "Media space (MB)", |ui| {
+    widgets::form_row_wide(ui, theme, "File space (MB)", |ui| {
         crate::gui::pages::server_settings::int_input(ui, &mut draft.media_budget_mb, min, max);
     });
     widgets::form_row_wide(ui, theme, "Each person's share (MB)", |ui| {
@@ -104,7 +104,7 @@ fn draw_settings(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     crate::gui::pages::server_settings::draw_changed_underneath_note(ui, theme, state, dirty);
     ui.horizontal(|ui| {
         ui.add_enabled_ui(dirty, |ui| {
-            save = widgets::Button::primary("Save Media settings")
+            save = widgets::Button::primary("Save Files page settings")
                 .tooltip("Sends this server's settings, with any unsaved edits on the Server Settings page too.")
                 .show(ui, theme);
         });
@@ -117,7 +117,7 @@ fn draw_settings(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         crate::gui::pages::server_settings::send_server_settings_update(state, &draft);
         state.discard_server_settings_draft();
         let now = ui.ctx().input(|i| i.time);
-        state.toast("Media settings sent to the relay", crate::gui::ToastKind::Success, now);
+        state.toast("Files page settings sent to the relay", crate::gui::ToastKind::Success, now);
     }
 }
 
@@ -235,13 +235,13 @@ fn draw_suggestions(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 /// The meter and the prune lists.
 fn draw_meter(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     ui.horizontal(|ui| {
-        ui.label(RichText::new("Media space").size(theme.font_size_body).color(theme.text_primary()).strong());
+        ui.label(RichText::new("File space").size(theme.font_size_body).color(theme.text_primary()).strong());
         if widgets::Button::ghost("Refresh").size(widgets::ButtonSize::Small).show(ui, theme) {
             page::refresh_admin(state);
         }
     });
     let Some(usage) = state.media.admin.usage.clone() else {
-        widgets::body_hint(ui, theme, if page::signed_in_here(state) { "Asking the server..." } else { "Sign in to this server to see how its Media space is used." });
+        widgets::body_hint(ui, theme, if page::signed_in_here(state) { "Asking the server..." } else { "Sign in to this server to see how its file space is used." });
         return;
     };
     let words = api::meter_words(usage.used_bytes, usage.budget_bytes);
@@ -304,7 +304,7 @@ fn draw_meter(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         }
     } else {
         if items.is_empty() {
-            widgets::body_hint(ui, theme, "Nothing on the Media page yet.");
+            widgets::body_hint(ui, theme, "Nothing on the Files page yet.");
         }
         for item in items {
             let text = format!("{} by {}, {}, {} views", item.display_title(), item.by_name(), api::size_words(item.size_bytes), item.views);

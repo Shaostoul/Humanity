@@ -485,7 +485,7 @@ fn draw_files(ui: &mut egui::Ui, theme: &Theme, item: &Item, own: bool, uploads:
                 pressed.add = Some(FileRole::Cover);
             }
         });
-        widgets::body_hint(ui, theme, "Each goes up under Uploads in progress on the Media page and is added here when it is up.");
+        widgets::body_hint(ui, theme, "Each goes up under Uploads in progress on the Files page and is added here when it is up.");
     }
 }
 

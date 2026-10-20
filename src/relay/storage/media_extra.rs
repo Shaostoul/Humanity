@@ -43,7 +43,7 @@ impl Storage {
                 None => conn.execute("UPDATE media_items SET kept_by = NULL, kept_at = NULL WHERE id = ?1", params![id])?,
             };
             if n == 0 {
-                return Err(super::MediaError::Refused(super::Refusal::NotFound, "There is no Media item with that number.".into()));
+                return Err(super::MediaError::Refused(super::Refusal::NotFound, "There is no item with that number on the Files page.".into()));
             }
             Ok(())
         })

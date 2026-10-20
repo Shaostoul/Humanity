@@ -881,7 +881,7 @@ mod tests {
         assert_eq!((got.media_visibility.as_str(), got.media_budget_mb, got.media_per_person_mb, got.media_public_previews_only), ("public", 2048, 512, true));
         assert_eq!(got.max_total_upload_mb, 777, "the owner's settings are kept");
         let names: Vec<String> = db.media_categories().expect("the Media tables are made").into_iter().map(|c| c.name).collect();
-        assert_eq!(names, vec!["General".to_string()], "an older server starts its Media page with General");
+        assert_eq!(names, vec!["General".to_string()], "an older server starts its Files page with General");
     }
 
     /// Incident-class regression (2026-05-17 lesson): a relay whose DB

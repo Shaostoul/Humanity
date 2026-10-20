@@ -39,7 +39,7 @@ pub(crate) fn feature_words(featured: Featured) -> &'static str {
 
 /// What the Feature choice says when hovered.
 pub(crate) const FEATURE_TIP: &str =
-    "Featured items lead the Media page. \"Featured in its category\" shows it only on its category's shelf, when someone picks that category.";
+    "Featured items lead the Files page. \"Featured in its category\" shows it only on its category's shelf, when someone picks that category.";
 
 /// The filters row: category, kind, person, Sort, My picks, and the search box; under it, the
 /// picked category's description.

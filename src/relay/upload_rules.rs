@@ -470,7 +470,7 @@ pub(crate) fn media_file_limit(role: &RoleDef) -> Option<u64> {
 /// The words for a Media file over a role's own limit of `mb` MB (B1), the same at an upload and at
 /// a publish (R3-3).
 pub(crate) fn media_file_limit_words(mb: i64) -> String {
-    format!("Media files are limited to {mb} MB for your role on this server.")
+    format!("Files on the Files page are limited to {mb} MB for your role on this server.")
 }
 
 /// The refusal for a Media file over the role's own limit (B1).

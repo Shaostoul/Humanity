@@ -171,7 +171,7 @@ fn cancelling_an_upload_that_is_up_needs_no_signature() {
     let fake = Fake::new(8192);
     let (_f, form) = picked("r4_up", 10_000, "Up");
     uploading::start_with(&mut state, &form, fake.clone()).expect("it starts");
-    poll_until(&ctx, &mut state, "it is up, not on Media", |s| s.media.uploads.iter().all(|e| matches!(e.after, After::NotPublished { .. })));
+    poll_until(&ctx, &mut state, "it is up, not on the Files page", |s| s.media.uploads.iter().all(|e| matches!(e.after, After::NotPublished { .. })));
     let local = state.media.uploads[0].local;
     uploading::cancel(&mut state, local);
     assert_ne!(state.media.status, uploading::CANCELLED_LINE, "nothing is said done before the server answers");

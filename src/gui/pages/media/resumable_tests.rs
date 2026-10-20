@@ -104,7 +104,7 @@ impl Transport for Fake {
         }
         // The relay's own StartBody reads what is sent.
         let b: crate::relay::resumable::StartBody = serde_json::from_value(body.clone()).expect("the relay reads the start");
-        assert_eq!(b.media, Some(1), "a resumable upload is for the Media page");
+        assert_eq!(b.media, Some(1), "a resumable upload is for the Files page");
         s.size = b.size;
         s.blake3 = b.blake3.unwrap_or_default();
         s.id = Some("0123456789abcdef0123456789abcdef".into());
@@ -183,7 +183,7 @@ impl Transport for Fake {
         // The finish.
         if s.finish_trick == Some(Trick::NoRoom) {
             s.finish_trick = None;
-            return refuse(507, "This server's Media space is full. The file you sent is kept here for a day, so once there is room it can be finished without sending it again.");
+            return refuse(507, "This server's file space is full. The file you sent is kept here for a day, so once there is room it can be finished without sending it again.");
         }
         if blake3::hash(&s.data).to_hex().to_string() != s.blake3 {
             return refuse(422, "The file that arrived does not match the file you sent (its BLAKE3 hash differs), so nothing was kept. Send it again from the start.");

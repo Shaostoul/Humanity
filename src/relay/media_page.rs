@@ -45,7 +45,7 @@ use crate::relay::storage::media::{MediaItem, Spot};
 pub const OG_MARKER: &str = "<!-- media:og -->";
 
 /// What a server that cannot find its Media page answers (503), in words its operator can act on.
-pub const NO_MEDIA_HTML: &str = "This server cannot find its Media page (media.html in its web root). Its operator can set WEB_ROOT.";
+pub const NO_MEDIA_HTML: &str = "This server cannot find its Files page (media.html in its web root). Its operator can set WEB_ROOT.";
 
 /// What every refused preview is told, whatever was wrong, so a guess learns nothing.
 pub const NO_PREVIEW: &str = "No preview.";
@@ -249,7 +249,7 @@ fn fill(template: &str, title: &str, tags: &str) -> String {
 
 /// The bare page every hidden case gets: the same bytes for the same site, whatever the number.
 pub fn hidden_page(template: &str, origin: &str) -> String {
-    let site = escape(&format!("Media on {}", host_of(origin)));
+    let site = escape(&format!("Files on {}", host_of(origin)));
     let tags = format!("<meta property=\"og:title\" content=\"{site}\">\n  <meta name=\"robots\" content=\"noindex\">");
     fill(template, &format!("{site}, HumanityOS"), &tags)
 }
@@ -290,7 +290,7 @@ fn item_page(template: &str, item: &MediaItem, origin: &str, site_name: &str, ha
         tags.push(format!("<meta property=\"og:image\" content=\"{}\">", escape(&format!("{origin}/api/media/preview/{}", item.id))));
     }
     tags.push(format!("<meta name=\"twitter:card\" content=\"{}\">", if has_preview { "summary_large_image" } else { "summary" }));
-    fill(template, &escape(&format!("{title}, Media on {host}")), &tags.join("\n  "))
+    fill(template, &escape(&format!("{title}, Files on {host}")), &tags.join("\n  "))
 }
 
 /// The page's Content-Security-Policy: the relay's own (relay/mod.rs `csp_value`, whose

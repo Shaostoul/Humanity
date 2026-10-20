@@ -1071,13 +1071,13 @@ fn draw_admin_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         ui.separator();
         ui.add_space(theme.spacing_sm);
 
-        // ── Media: one line pointing to the Media page's Admin tab (Media round 5, 2026-10-12) ──
+        // ── The Files page (Media until 2026-10-19): one line pointing to its Admin tab (Media round 5, 2026-10-12) ──
         // Who sees it, its space, categories, suggestions and the meter moved there whole
         // (pages/media/admin.rs); "Open them" lands on the Media page with Admin selected.
-        widgets::subsection_label(ui, theme, "Media");
+        widgets::subsection_label(ui, theme, "Files page");
         ui.horizontal_wrapped(|ui| {
             widgets::body_hint(ui, theme, crate::gui::pages::media::admin::POINTER_LINE);
-            if widgets::Button::secondary("Open them").tooltip("The Media page, on its Admin tab.").show(ui, theme) {
+            if widgets::Button::secondary("Open them").tooltip("The Files page, on its Admin tab.").show(ui, theme) {
                 crate::gui::pages::media::open_admin_tab(state);
             }
         });

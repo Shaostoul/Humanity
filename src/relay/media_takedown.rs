@@ -98,11 +98,11 @@ pub const NEEDS_GOOD_FAITH: &str = "Tick the box to say you believe in good fait
 /// The answer to a form with no statement.
 pub const NEEDS_STATEMENT: &str = "Say why the work is yours: that part of the form is needed. The report was not sent.";
 /// The answer to a form that names no item.
-pub const NAME_THE_ITEM: &str = "Give the number of the Media item (the number at the end of its address, /media/12). The report was not sent.";
+pub const NAME_THE_ITEM: &str = "Give the number of the item on the Files page (the number at the end of its address, /media/12). The report was not sent.";
 /// The answer to a form that is not a form at all.
 pub const NOT_A_FORM: &str = "That is not a copyright report form. The report was not sent.";
 /// The answer to a form naming an item this server does not have.
-pub const NO_SUCH_ITEM: &str = "There is no Media item with that number on this server. The report was not sent.";
+pub const NO_SUCH_ITEM: &str = "There is no item with that number on this server's Files page. The report was not sent.";
 /// The answer when this server has taken in its day's reports from everyone.
 pub const SERVER_FULL: &str = "This server has taken in as many copyright reports today as it takes in one day, so this one was not sent. Try again after midnight UTC.";
 /// The answer to a report that was kept.
@@ -292,7 +292,7 @@ pub async fn takedown_core(state: &RelayState, headers: &HeaderMap, text: &str, 
     let title = if item.title.trim().is_empty() { String::new() } else { format!(" \"{}\"", item.title.trim()) };
     tell_admins(
         state,
-        &format!("New copyright report #{id} about Media item {}{title}. Open the Media page's Admin tab to decide it.", item.id),
+        &format!("New copyright report #{id} about item {}{title} on the Files page. Open its Admin tab to decide it.", item.id),
     )
     .await;
     Ok(Json(json!({ "ok": true, "id": id, "words": RECEIVED })))

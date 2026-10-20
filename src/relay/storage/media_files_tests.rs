@@ -135,7 +135,7 @@ fn a_published_upload_or_an_attached_one_is_never_published_again() {
     assert_eq!(why(publish(&db, "ann", "2_extra.zip")), (Refusal::Conflict, ALREADY_ON_AN_ITEM.to_string()), "an added file");
     let (w, words) = why(publish(&db, "ann", "1_main.png"));
     assert_eq!(w, Refusal::Conflict);
-    assert!(words.contains("already on the Media page"), "{words}");
+    assert!(words.contains("already on the Files page"), "{words}");
     assert_eq!(why(attach(&db, "ann", item.id, "2_extra.zip", ROLE_FILE)).0, Refusal::Conflict, "added twice");
     assert_eq!(why(attach(&db, "ann", item.id, "1_main.png", ROLE_FILE)).0, Refusal::Conflict, "an item's own file added to it");
 }

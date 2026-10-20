@@ -115,14 +115,14 @@ async function until(done, turns) {
 test("1. the overlay: one line while files are over the page, gone when they leave or drop; refused says why; text is ignored", async () => {
   const doc = fakeDocument();
   const win = fakeWindow();
-  let decision = { take: true, line: "Drop to upload to Media" };
+  let decision = { take: true, line: "Drop to upload to Files" };
   const got = [];
   const o = D.attach({ window: win, document: doc, decide: () => decision, onDrop: (files) => got.push(files) });
   assert.equal(overlayOf(doc), null, "nothing before a drag");
 
   const enter = win.fire("dragenter", filesDrag());
   assert.ok(enter.defaultPrevented, "a file drag is the page's");
-  assert.deepEqual(overlayOf(doc), { line: "Drop to upload to Media", reason: "", refused: false }, "the line, and nothing else");
+  assert.deepEqual(overlayOf(doc), { line: "Drop to upload to Files", reason: "", refused: false }, "the line, and nothing else");
   const over = win.fire("dragover", filesDrag());
   assert.ok(over.defaultPrevented && over.dataTransfer.dropEffect === "copy", "dragover: the page's, copy");
   win.fire("dragenter", filesDrag()); // a child element
@@ -159,7 +159,7 @@ test("1. the overlay: one line while files are over the page, gone when they lea
   assert.equal(got.length, 1, "a refused drop hands nothing over");
   assert.equal(overlayOf(doc), null);
 
-  decision = { take: true, line: "Drop to upload to Media" };
+  decision = { take: true, line: "Drop to upload to Files" };
   const t1 = win.fire("dragenter", textDrag());
   const t2 = win.fire("dragover", textDrag());
   const t3 = win.fire("drop", textDrag());
@@ -172,8 +172,8 @@ test("1. the overlay: one line while files are over the page, gone when they lea
   assert.equal(overlayOf(doc), null, "detached: gone, and no longer listening");
   assert.equal(D.sendIn("#general"), "Drop to send in #general");
   assert.equal(D.addTo("Dusk"), "Drop to add to Dusk");
-  assert.equal(D.WORDS.uploadToMedia, "Drop to upload to Media");
-  assert.equal(D.uploadAndPostIn("#general"), "Drop to upload to Media and post in #general");
+  assert.equal(D.WORDS.uploadToMedia, "Drop to upload to Files");
+  assert.equal(D.uploadAndPostIn("#general"), "Drop to upload to Files and post in #general");
   assert.equal(D.WORDS.sharedFiles, "Drop to upload to Shared Files");
 });
 
@@ -189,12 +189,12 @@ const formRows = (doc) => [text(byId(doc, "media-form").querySelector(".media-fo
 // "Drop to upload to Media", 2026-10-17). Seen red again that day with the line put back to
 // 'Drop to add to Media': "over the page: Drop to upload to Media" (actual { line: 'Drop to add to
 // Media', ... }).
-test("2. the Media page: Drop to upload to Media opens Add to Media with the dropped files, as choosing them does", async () => {
+test("2. the Files page: Drop to upload to Files opens Add to Files with the dropped files, as choosing them does", async () => {
   const win = fakeWindow();
   const { doc, page } = await openPage({ window: win, routes: listRoutes(listAnswer([])) });
-  assert.ok(byId(doc, "media-add-btn"), "test setup: signed in, Add to Media offered");
+  assert.ok(byId(doc, "media-add-btn"), "test setup: signed in, Add to Files offered");
   win.fire("dragenter", filesDrag());
-  assert.deepEqual(overlayOf(doc), { line: "Drop to upload to Media", reason: "", refused: false }, "over the page: Drop to upload to Media");
+  assert.deepEqual(overlayOf(doc), { line: "Drop to upload to Files", reason: "", refused: false }, "over the page: Drop to upload to Files");
   const dusk = aFile("dusk.mp4", 3 * MIB);
   const dawn = aFile("dawn.mp4", 2 * MIB);
   const drop = win.fire("drop", filesDrag([dusk, dawn]));
@@ -202,7 +202,7 @@ test("2. the Media page: Drop to upload to Media opens Add to Media with the dro
   assert.ok(drop.defaultPrevented);
   assert.equal(overlayOf(doc), null, "gone at the drop");
   const f = page.state.form;
-  assert.ok(f && f.mode === "add", "Add to Media opened");
+  assert.ok(f && f.mode === "add", "Add to Files opened");
   assert.equal(f.file, dusk, "the first dropped file is the item");
   assert.deepEqual(f.more, [dawn], "the rest, to be added once it is up");
 
@@ -223,10 +223,10 @@ test("2. the Media page: Drop to upload to Media opens Add to Media with the dro
   viewing.page.openViewer(viewing.page.state.items[0]);
   assert.ok(byId(viewing.doc, "media-viewer-open"), "test setup: an item is open");
   w2.fire("dragenter", filesDrag());
-  assert.equal(overlayOf(viewing.doc).line, "Drop to upload to Media", "an item open without its Edit: still Add to Media");
+  assert.equal(overlayOf(viewing.doc).line, "Drop to upload to Files", "an item open without its Edit: still Add to Files");
   await dropOn(w2, [dusk]);
   assert.equal(byId(viewing.doc, "media-viewer-open"), null, "the item closed");
-  assert.equal(viewing.page.state.form && viewing.page.state.form.file, dusk, "and Add to Media opened with the file");
+  assert.equal(viewing.page.state.form && viewing.page.state.form.file, dusk, "and Add to Files opened with the file");
 });
 
 // ── 3. The Media item's Edit ─────────────────────────────────────────────
@@ -259,7 +259,7 @@ test("3. with an item's Edit open: Drop to add to Dusk, and the drop adds the fi
   assert.ok(relay.log.some((l) => l.kind === "start" && l.c.body.media === 1 && l.c.body.filename === "clip.webm"), "the same resumable upload as Add a file's");
   assert.deepEqual([add.body.id, add.body.add, add.body.as], [1, "1760_clip.webm", "file"], "as one of its files");
   assert.ok(!net.calls.some((c) => c.url === "/api/media" && (c.init.method || "GET") === "POST"), "never published");
-  assert.equal(page.state.form, null, "Add to Media was not opened");
+  assert.equal(page.state.form, null, "Add to Files was not opened");
 });
 
 // ── 4. The Media page where a drop would do nothing ─────────────────────
@@ -268,7 +268,7 @@ test("3. with an item's Edit open: Drop to add to Dusk, and the drop adds the fi
 // whenever the person has a key (`if (myKey)`): "a role that cannot upload: its words"; with
 // media-edit.js giving an admin's Edit of someone else's item addFiles: "only its uploader adds
 // files: the desktop's words" (it said "Drop to add to Dusk").
-test("4. the Media page says why a drop would do nothing, in its own words, and nothing happens", async () => {
+test("4. the Files page says why a drop would do nothing, in its own words, and nothing happens", async () => {
   const refusedOn = async (opts, setup) => {
     const win = fakeWindow();
     const p = await openPage(Object.assign({ window: win }, opts));
@@ -284,11 +284,11 @@ test("4. the Media page says why a drop would do nothing, in its own words, and 
 
   const cannot = await refusedOn({ session: fakeSession({ role: "unverified" }), routes: listRoutes(listAnswer([])) });
   assert.deepEqual(cannot.seen, { line: "Files cannot be dropped here.", reason: MEDIA_WORDS.cannotUpload, refused: true }, "a role that cannot upload: its words");
-  assert.equal(text(byId(cannot.p.doc, "media-cannot-upload")), MEDIA_WORDS.cannotUpload, "the same words the page shows where Add to Media would be");
+  assert.equal(text(byId(cannot.p.doc, "media-cannot-upload")), MEDIA_WORDS.cannotUpload, "the same words the page shows where Add to Files would be");
   assert.equal(cannot.p.page.state.form, null);
 
   const adminTab = await refusedOn({ session: fakeSession({ role: "admin" }), hash: "#admin", routes: listRoutes(listAnswer([])) });
-  assert.deepEqual(adminTab.seen, { line: "Files cannot be dropped here.", reason: "Add to Media is on the Media tab.", refused: true }, "the Admin tab: Add to Media is not on it");
+  assert.deepEqual(adminTab.seen, { line: "Files cannot be dropped here.", reason: "Add to Files is on the Files tab.", refused: true }, "the Admin tab: Add to Files is not on it");
   assert.equal(adminTab.p.page.state.form, null);
 
   const anns = fxItem({ uploader_key: ANN });

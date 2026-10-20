@@ -263,7 +263,7 @@ fn the_reports_open_opens_the_items_own_page() {
 
     crate::gui::pages::media::open_item_by_number(&mut state, 12);
     assert_eq!(state.media.item.as_ref().map(|p| p.id), Some(12), "Open opens item 12's own page");
-    assert_eq!(state.active_page, crate::gui::GuiPage::Media, "on the Media page");
+    assert_eq!(state.active_page, crate::gui::GuiPage::Media, "on the Files page");
     assert_eq!(state.media.filters, kept, "the list keeps the filters the person had");
     assert!(state.media.jobs.iter().any(|(j, _)| *j == Job::Item { id: 12 }), "the list does not hold it: it is asked for by its number");
     // Nothing on the page yet, so its window says "Loading..." (item_view.rs `draw`) until it comes.
@@ -700,9 +700,9 @@ endsolid bracket
     };
     let out = run(&mut state, &[], &[model.clone()]);
     let out = if shows(&out, crate::gui::pages::media::DROP_TO_UPLOAD) { out } else { run(&mut state, &[], &[model.clone()]) };
-    assert!(shows(&out, crate::gui::pages::media::DROP_TO_UPLOAD), "the overlay says Drop to upload to Media");
+    assert!(shows(&out, crate::gui::pages::media::DROP_TO_UPLOAD), "the overlay says Drop to upload to Files");
     let _ = run(&mut state, &[model.clone()], &[]);
-    assert!(state.media.form.is_some(), "a dropped model opens Add to Media with it");
+    assert!(state.media.form.is_some(), "a dropped model opens Add to Files with it");
     state.media.form = None;
     state.media.look = None;
 
@@ -714,7 +714,7 @@ endsolid bracket
     let uploads = state.media.uploads.len();
     let _ = run(&mut state, &[model], &[]);
     assert!(state.media.uploads.len() > uploads || state.media.status.starts_with("Uploading"), "a dropped file starts uploading to the item: {}", state.media.status);
-    assert!(state.media.form.is_none(), "and Add to Media did not open");
+    assert!(state.media.form.is_none(), "and Add to Files did not open");
 }
 
 /// RENAME KEEPS THE ENDING, AND A PICTURE ON THE ITEM CAN BE ITS COVER (operator, 2026-10-17: "Can

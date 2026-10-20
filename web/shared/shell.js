@@ -301,7 +301,8 @@
     // exact mirror of the app header. Web-only pages still light up where sensible.
     if (p === '/') active = 'humanity';
     else if (p.startsWith('/chat'))      active = 'chat';
-    // Watch and Media have their own tabs beside Chat, as in the app (2026-10-12).
+    // Watch and Files (the Media page, renamed 2026-10-19, still at /media) have their own tabs
+    // beside Chat, as in the app (2026-10-12).
     else if (p.startsWith('/media'))     active = 'media';
     else if (p.startsWith('/watch'))     active = 'watch';
     else if (p.startsWith('/studio'))    active = 'studio';
@@ -945,10 +946,11 @@
 
       '<span class="nav-group-red">' +
         navTab('/chat',     'chat',  'Chat',   'chat') +
-        /* Watch and Media beside Chat, as in the desktop app's menu (2026-10-12: on a desktop
-         * browser the Media page had no link at all, only the phone menu listed it). */
+        /* Watch and Files beside Chat, as in the desktop app's menu (2026-10-12: on a desktop
+         * browser the page had no link at all, only the phone menu listed it). Files is the page
+         * people put their files on, called Media until 2026-10-19 and still at /media. */
         navTab('/watch',    'video', 'Watch',  'watch') +
-        navTab('/media',    'image', 'Media',  'media') +
+        navTab('/media',    'image', 'Files',  'media') +
         /* Studio dropped from the web header (operator, 2026-08-17): it is
          * a native feature today, and two tabs opening /download read as a
          * bug. The streaming surface's future home is the Chat page (see
@@ -1109,9 +1111,10 @@
       // Live streams broadcast from the desktop app's Studio page, fanned out by our
       // own relay. No third-party platform, and no sign-up needed to watch. (v0.855)
       mobileLink('/watch',   'Watch') +
-      // The Media page (2026-10-11): pictures, videos, 3D models and files people
-      // on this server chose to share; beside Watch, as on the desktop app.
-      mobileLink('/media',   'Media') +
+      // The Files page (2026-10-11, called Media until 2026-10-19, still at /media): pictures,
+      // videos, 3D models, sounds and any other files people on this server chose to share;
+      // beside Watch, as on the desktop app.
+      mobileLink('/media',   'Files') +
       mobileLink('/wallet',    'Wallet') +
       mobileLink('/market',    'Market') +
       mobileLink('/trade',     'Trade') +
@@ -1131,7 +1134,9 @@
       mobileLink('/calendar',  'Calendar') +
       mobileLink('/notes',     'Notes') +
       mobileLink('/web',       'Bookmarks') +
-      mobileLink('/files',     'Files') +
+      // The developer's browser for data/: Data files since 2026-10-19, when the name Files went
+      // to the page at /media (the desktop app's Platform > Data files).
+      mobileLink('/files',     'Data files') +
       mobileLink('/devlog',    'Devlog') +
     '</div>' +
     // Developer and operator surfaces: PERMANENT infrastructure (this project

@@ -210,7 +210,7 @@ fn take_off(base: &str, signer: &Signer, filename: &str) -> Result<Value, Refusa
 }
 
 /// What is said when something on Media cannot be taken off for want of a signature.
-pub(crate) const NO_SIGNATURE_TO_TAKE_OFF: &str = "Not taken off the server: there is no signature to send it with. Unlock your identity, then press Remove on it on the Media page.";
+pub(crate) const NO_SIGNATURE_TO_TAKE_OFF: &str = "Not taken off the server: there is no signature to send it with. Unlock your identity, then press Remove on it on the Files page.";
 
 /// Take `filename` off the server now, from the page (a publish whose answer is already in). False,
 /// with the reason said on the page, when there is no signature to send it with: round 3 sent
@@ -279,21 +279,21 @@ fn attach_answered(state: &mut GuiState, item: &api::ItemRef, who: u64, filename
 /// server; a shared file was only kept off the Media page.
 pub(crate) fn cancelled_words(of: &Of) -> &'static str {
     match of {
-        Of::Shared => "Cancelled: it is not on the Media page.",
+        Of::Shared => "Cancelled: it is not on the Files page.",
         Of::Upload | Of::Waiting | Of::Attach { .. } => super::uploading::CANCELLED_LINE,
     }
 }
 
 /// What is said when undoing a cancelled publish was refused or got no answer.
 pub(crate) fn not_taken_off_words(why: &str) -> String {
-    format!("Not taken off the server: {why} Remove it from the Media page, or from your uploads waiting to be put on it.")
+    format!("Not taken off the server: {why} Remove it from the Files page, or from your uploads waiting to be put on it.")
 }
 
 /// The words for a publish that went: the item's title from the answer, when it has one.
 pub(crate) fn on_media_words(v: &Value) -> String {
     match v.get("item").and_then(api::Item::from_json) {
-        Some(i) => format!("\"{}\" is on the Media page now.", i.display_title()),
-        None => "It is on the Media page now.".to_string(),
+        Some(i) => format!("\"{}\" is on the Files page now.", i.display_title()),
+        None => "It is on the Files page now.".to_string(),
     }
 }
 
@@ -327,7 +327,7 @@ pub(crate) fn published(state: &mut GuiState, of: Of, who: u64, filename: &str, 
         (Undo::None, Err(e)) => match state.media.form.as_mut().filter(|f| f.id == who) {
             Some(f) => {
                 f.sending = false;
-                f.problem = if of == Of::Waiting { format!("Not put on the Media page: {} The file waits a day: press the button again.", e.words) } else { e.words };
+                f.problem = if of == Of::Waiting { format!("Not put on the Files page: {} The file waits a day: press the button again.", e.words) } else { e.words };
             }
             None => state.media.status = e.words,
         },

@@ -180,7 +180,7 @@ test("2a. another form opened while an upload runs leaves it running; each uploa
   assert.equal(byId(doc, "media-form").childNodes.length, 0, "and the form area is free again");
   // Another file picked while the first is on its way: a new form, the first untouched.
   await pickFile(doc, aFile("second.mp4", 4 * MIB, { fill: 2 }));
-  assert.equal(text(byId(doc, "media-form").querySelector("h2")), "Add to Media");
+  assert.equal(text(byId(doc, "media-form").querySelector("h2")), "Add to Files");
   byId(doc, "media-form-title").value = "The second one";
   byId(doc, "media-form-title").dispatch("input");
   byId(doc, "media-form-go").click();
@@ -194,7 +194,7 @@ test("2a. another form opened while an upload runs leaves it running; each uploa
   assert.deepEqual(published.map((p) => p.title), ["The second one"], "the second is published by its own form");
   // Put on Media opened meanwhile changes nothing either.
   page.openPutForm({ filename: "1700_part.stl", name: "bushing.stl" });
-  assert.equal(text(byId(doc, "media-form").querySelector("h2")), "Put on Media");
+  assert.equal(text(byId(doc, "media-form").querySelector("h2")), "Put on the Files page");
   assert.equal(entries(doc).length, 1, "the first upload is still in the list");
   hold.first();
   await settle();

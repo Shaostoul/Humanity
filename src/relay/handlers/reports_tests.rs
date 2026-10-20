@@ -244,7 +244,7 @@ fn each_refusal_says_why_and_keeps_nothing() {
         }, "longer than 500 characters"),
         ("21 pieces of evidence", frame(&rae, &tom.key, "spam", "dm", Value::Array(vec![serde_json::json!({ "kind": "group_text", "from": "x", "ts": 1, "text": "x" }); 21])), "more than 20 pieces"),
         ("more than 64 KB", frame(&rae, &tom.key, "spam", "dm", serde_json::json!([{ "kind": "group_text", "from": "x", "ts": 1, "text": "y".repeat(EVIDENCE_MAX_BYTES) }])), "more than 64 KB"),
-        ("an unknown kind", frame(&rae, &tom.key, "spam", "dm", serde_json::json!([{ "kind": "photo", "from": "x" }])), "is not a direct message, a post, a group message or a Media item"),
+        ("an unknown kind", frame(&rae, &tom.key, "spam", "dm", serde_json::json!([{ "kind": "photo", "from": "x" }])), "is not a direct message, a post, a group message or an item on the Files page"),
         ("a field missing", frame(&rae, &tom.key, "spam", "dm", serde_json::json!([{ "kind": "dm", "from": "x" }])), "missing a field"),
         ("no target", frame(&rae, "", "spam", "dm", one()), "does not say who"),
         ("a target that is no key", frame(&rae, "a\u{e9}\u{e9}\u{e9}\u{e9}", "spam", "dm", one()), "does not say who"),

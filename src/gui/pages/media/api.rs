@@ -505,7 +505,7 @@ pub fn meter_words(used: i64, budget: i64) -> String {
 
 /// The meter's line for the items the server keeps.
 pub fn kept_words(kept: i64) -> String {
-    format!("{} of it kept by the server: counted in the Media space, in nobody's share.", size_words(kept))
+    format!("{} of it kept by the server: counted in the file space, in nobody's share.", size_words(kept))
 }
 
 /// The line above the Add to Media form: "You have 412 MB of your 512 MB left".
@@ -534,7 +534,7 @@ pub fn room_problem_together(files: &[(&str, u64)], mine: Option<&Mine>) -> Opti
     let total: i64 = files.iter().map(|(_, len)| *len as i64).sum();
     if total > mine.share_left() {
         return Some(format!(
-            "These {} files come to {}, more than the {} left of your share of this server's Media space, so none was uploaded. Choose fewer, remove one of your items, or ask an admin to raise each person's share.",
+            "These {} files come to {}, more than the {} left of your share of this server's file space, so none was uploaded. Choose fewer, remove one of your items, or ask an admin to raise each person's share.",
             files.len(),
             size_words(total),
             size_words(mine.share_left())
@@ -542,7 +542,7 @@ pub fn room_problem_together(files: &[(&str, u64)], mine: Option<&Mine>) -> Opti
     }
     if total > mine.budget_left_bytes.max(0) {
         return Some(format!(
-            "These {} files come to {}, more than the {} left in this server's whole Media space, so none was uploaded. Choose fewer, or its admins can make more room.",
+            "These {} files come to {}, more than the {} left in this server's whole file space, so none was uploaded. Choose fewer, or its admins can make more room.",
             files.len(),
             size_words(total),
             size_words(mine.budget_left_bytes)
@@ -556,21 +556,21 @@ pub fn room_problem(len: u64, mine: Option<&Mine>) -> Option<String> {
     let len = len as i64;
     if mine.file_limit_bytes > 0 && len > mine.file_limit_bytes {
         return Some(format!(
-            "This file is {}, over the largest Media file your role may send on this server ({}). An admin can raise it in Server Settings > Roles.",
+            "This file is {}, over the largest file your role may put on this server's Files page ({}). An admin can raise it in Server Settings > Roles.",
             size_words(len),
             size_words(mine.file_limit_bytes)
         ));
     }
     if len > mine.share_left() {
         return Some(format!(
-            "This file is {}, more than the {} left of your share of this server's Media space, so it was not uploaded. Remove one of your items, or ask an admin to raise each person's share.",
+            "This file is {}, more than the {} left of your share of this server's file space, so it was not uploaded. Remove one of your items, or ask an admin to raise each person's share.",
             size_words(len),
             size_words(mine.share_left())
         ));
     }
     if len > mine.budget_left_bytes.max(0) {
         return Some(format!(
-            "This file is {}, more than the {} left in this server's whole Media space, so it was not uploaded. Its admins can make more room.",
+            "This file is {}, more than the {} left in this server's whole file space, so it was not uploaded. Its admins can make more room.",
             size_words(len),
             size_words(mine.budget_left_bytes)
         ));
@@ -579,9 +579,9 @@ pub fn room_problem(len: u64, mine: Option<&Mine>) -> Option<String> {
 }
 
 /// The confirmation when a Remove takes the file away with the item.
-pub const REMOVE_DELETES: &str = "Remove from Media and delete the file.";
+pub const REMOVE_DELETES: &str = "Remove from Files and delete the file.";
 /// The confirmation when the file stays where it came from (a chat or Shared Files).
-pub const REMOVE_KEEPS: &str = "Remove from Media. The file stays where it came from.";
+pub const REMOVE_KEEPS: &str = "Remove from Files. The file stays where it came from.";
 
 /// What Remove does to `item`'s file, in the words the confirmation shows: the item's own
 /// `keeps_file`, which the server sends with every item (A1).

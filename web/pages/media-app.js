@@ -150,18 +150,18 @@
   const MEDIA_WORDS = Object.freeze({
     lede: 'Pictures, videos, 3D models and files people on this server chose to share.',
     membersLine: "Sign in to this server to see its members' media.",
-    membersOnlyServer: "This server's Media page is for its members.",
+    membersOnlyServer: "This server's Files page is for its members.",
     alreadyPublic: 'This file is already public where it was shared.',
-    serverMembersOnly: "This server's Media page is for its members, so this goes on it as members only.",
-    removeKeeps: 'Remove from Media. The file stays where it came from.',
-    removeDeletes: 'Remove from Media and delete the file.',
-    removeEither: 'Remove from Media. A file shared in a chat or in Shared Files stays there; a file uploaded on this page is deleted.',
-    removedKept: 'Removed from Media. The file stays where it came from.',
-    removedDeleted: 'Removed from Media, and the file was deleted.',
-    removed: 'Removed from Media.',
+    serverMembersOnly: "This server's Files page is for its members, so this goes on it as members only.",
+    removeKeeps: 'Remove from Files. The file stays where it came from.',
+    removeDeletes: 'Remove from Files and delete the file.',
+    removeEither: 'Remove from Files. A file shared in a chat or in Shared Files stays there; a file uploaded on this page is deleted.',
+    removedKept: 'Removed from Files. The file stays where it came from.',
+    removedDeleted: 'Removed from Files, and the file was deleted.',
+    removed: 'Removed from Files.',
     removeWaiting: 'Remove this upload and delete the file.',
     removedWaiting: 'Removed, and the file was deleted.',
-    empty: 'Nothing is on the Media page yet.',
+    empty: 'Nothing is on the Files page yet.',
     emptyFiltered: 'Nothing here matches these filters.',
     notThisServer: 'Not shown: this file is not on this server.',
     waitingToken: 'This members-only file shows once this page is signed in to the server.',
@@ -171,8 +171,8 @@
     signingIn: 'Signing in to this server...',
     cannotSign: 'This page could not sign the request with your identity. Open Chat in this browser first, then try again.',
     notSignedInUpload: 'This page is not signed in to this server yet, so nothing was uploaded. Try again in a moment.',
-    cannotUpload: 'Your role on this server cannot upload files, so Add to Media is not offered. An admin can change that in Server Settings > Roles.',
-    published: 'It is on the Media page now.',
+    cannotUpload: 'Your role on this server cannot upload files, so Add to Files is not offered. An admin can change that in Server Settings > Roles.',
+    published: 'It is on the Files page now.',
     suggestSent: 'Suggestion sent. You are told here, and in Chat, when an admin decides.',
     clickToShow: 'Click to show',
     loading: 'Loading...',
@@ -181,30 +181,30 @@
     keptBadge: 'Kept by the server',
     keptNow: "Kept on the server: it no longer counts against its uploader's share.",
     keptStopped: "No longer kept by the server: it counts against its uploader's share again.",
-    reloaded: 'That was not the Media item you were looking at: the page was out of date, so it has been loaded again. Nothing was changed.',
+    reloaded: 'That was not the item you were looking at: the page was out of date, so it has been loaded again. Nothing was changed.',
     noFileName: "The server's answer does not name this item's file, so this page will not act on it. Load the page again later.",
-    notFound: 'That Media item is not there, or this page cannot show it to you.',
+    notFound: 'That item is not there, or this page cannot show it to you.',
     waitingTitle: 'Your uploads waiting to be published',
-    waitingHint: 'Uploaded, but not on the Media page yet. Publish one, or remove it: an upload nobody publishes is deleted a day after it was uploaded.',
+    waitingHint: 'Uploaded, but not on the Files page yet. Publish one, or remove it: an upload nobody publishes is deleted a day after it was uploaded.',
     uploadStarting: 'Starting the upload...',
     uploadPausing: 'Pausing once this piece has arrived...',
     uploadPaused: 'Paused. Resume carries on from here.',
     uploadWaitingConnection: 'Waiting for this page to be signed in to the server again...',
     uploadResumed: 'This file was part way up already, so it carries on from where it stopped.',
     uploadFinishing: 'All sent. The server is storing it...',
-    uploadPublishing: 'Uploaded. Putting it on the Media page...',
+    uploadPublishing: 'Uploaded. Putting it on the Files page...',
     uploadWaits: ' The file is uploaded and waits a day for you to try again; after that it is deleted.',
     uploadCancelling: 'Cancelling...',
     uploadAllowanceThen: 'It carries on by itself then.',
     uploadServerErrorTail: ' The server gave this answer ten times running, so the upload waits for you: Retry carries on from where it stopped.',
     alreadyUploading: ' is uploading already: its progress is below.',
     unfinishedTitle: 'Unfinished uploads on the server',
-    unfinishedHint: 'These stopped part way. Add to Media with the same file carries one on from where it stopped; Cancel deletes what arrived. Each is deleted a day after its last piece arrived.',
+    unfinishedHint: 'These stopped part way. Add to Files with the same file carries one on from where it stopped; Cancel deletes what arrived. Each is deleted a day after its last piece arrived.',
     unfinishedCancel: 'Cancel this upload and delete what arrived.',
     unfinishedCancelled: 'Cancelled, and what arrived was deleted.',
     notSignedInCancel: 'This page is not signed in to this server yet, so nothing was cancelled. Try again in a moment.',
     cancelledStored: 'Cancelled. The file had already been stored, so it was deleted too.',
-    cancelledPublished: 'Cancelled, but the file was already on the Media page, so it stays there. Remove on its tile takes it off.',
+    cancelledPublished: 'Cancelled, but the file was already on the Files page, so it stays there. Remove on its tile takes it off.',
     cancelUnconfirmed: 'The cancel could not reach the server, so what arrived may still be there. It is listed on this page with Cancel or Remove once the server answers again, and the server deletes it by itself within a day.',
     cancelNotFinished: 'The server could not finish the cancel, so what arrived may still be there. It is listed on this page with Cancel or Remove, to try again. The server said: ',
     cancellingUnfinished: 'Cancelling...',
@@ -216,7 +216,7 @@
     reportReasonsFailed: 'The list of reasons could not be loaded from this server, so a report cannot be sent yet. Close this and try again in a moment.',
     checkerMissing: 'This page could not load its file checker, so nothing can be added. Reload the page and try again.',
     // Why files dropped on the Admin tab do nothing (2026-10-17): Add to Media is not on it.
-    addOnMediaTab: 'Add to Media is on the Media tab.',
+    addOnMediaTab: 'Add to Files is on the Files tab.',
   });
 
   // Add to Media, its uploads, publishing and "Also post in chat": /pages/media-add.js (2026-10-17).
@@ -282,7 +282,7 @@
   function limitStop(file, limitBytes) {
     if (!file || !Number.isFinite(limitBytes) || limitBytes <= 0 || file.size <= limitBytes) return null;
     return '"' + file.name + '" is ' + sizeWords(file.size) + ', over your role\'s ' + sizeWords(limitBytes) +
-      ' limit for one Media file on this server, so it was not uploaded. An admin can raise it in Server Settings > Roles.';
+      ' limit for one file on this server\'s Files page, so it was not uploaded. An admin can raise it in Server Settings > Roles.';
   }
 
   /** Several files going up together (2026-10-16): the stop when all of them together are more
@@ -296,12 +296,12 @@
       const left = Math.max(0, shareBytes - usedBytes);
       if (total > left) {
         return 'These ' + n + ' files come to ' + sizeWords(total) + ', more than the ' + sizeWords(left) +
-          ' left of your share of this server\'s Media space, so none was uploaded. Choose fewer, remove one of your items, or ask an admin to raise each person\'s share.';
+          ' left of your share of this server\'s file space, so none was uploaded. Choose fewer, remove one of your items, or ask an admin to raise each person\'s share.';
       }
     }
     if (Number.isFinite(budgetLeft) && budgetLeft >= 0 && total > budgetLeft) {
       return 'These ' + n + ' files come to ' + sizeWords(total) + ', more than the ' + sizeWords(budgetLeft) +
-        ' left in this server\'s whole Media space, so none was uploaded. Choose fewer, or its admins can make more room.';
+        ' left in this server\'s whole file space, so none was uploaded. Choose fewer, or its admins can make more room.';
     }
     return null;
   }
@@ -317,7 +317,7 @@
   function budgetStop(file, leftBytes) {
     if (!file || !Number.isFinite(leftBytes) || leftBytes < 0 || file.size <= leftBytes) return null;
     return '"' + file.name + '" is ' + sizeWords(file.size) + ', more than the ' + sizeWords(leftBytes) +
-      ' left in this server\'s Media space, so it was not uploaded. An admin can make room, or raise the Media budget.';
+      ' left in this server\'s file space, so it was not uploaded. An admin can make room, or make the file space larger.';
   }
 
   /** The admins' meter: "12.4 GB of 50 GB used". */
@@ -651,10 +651,10 @@
     const Abort = env.AbortController || (typeof AbortController !== 'undefined' ? AbortController : null);
     // The cleaning (part 1): false when the page could not load it, so nothing goes up unchecked.
     const cleaner = env.clean !== undefined ? env.clean : (C || false);
-    // The heading and the tab's title name the server (3.10): "Media on united-humanity.us".
+    // The heading and the tab's title name the server (3.10): "Files on united-humanity.us".
     let host = '';
     try { host = new URL(env.origin).host; } catch (e) { host = ''; }
-    const mediaOn = 'Media on ' + host;
+    const mediaOn = 'Files on ' + host;
     // The item window keeps its address: a frame's steps would join the chat's own Back.
     const hist = itemMode ? null : env.history || null;
     let watcher = null; // the IntersectionObserver on the sentinel after the grid
@@ -685,7 +685,7 @@
       viewer: null,
       viewerKey: '',
       reloadKeep: null,         // the items shown before a list loaded afresh: their pictures stay until it answers
-      form: null,               // the form not yet uploading (Add to Media, Put on Media, Publish an upload)
+      form: null,               // the form not yet uploading (Add to Files, Put on the Files page, Publish an upload)
       uploads: [],              // forms whose file is uploading or publishing, each with its own `up`
       suggest: null,
       report: null,
@@ -842,7 +842,7 @@
     }
 
     // ── The three panes (2026-10-19, /pages/media-panes.js) ──
-    let panes = null;      // the Media page's panes: the list, the item, its details
+    let panes = null;      // the Files page's panes: the list, the item, its details
     let itemPanes = null;  // the item window's: the item and its details
     /** The area the panes share: the page's width, and the window's height (which way they go). */
     function viewport() {
@@ -1131,7 +1131,7 @@
       if (!myKey) { withSwitch(); return; }
       if (st.membersView && canUpload()) {
         els.actions.appendChild(h('button', {
-          type: 'button', id: 'media-add-btn', className: 'media-btn media-btn-primary', text: 'Add to Media',
+          type: 'button', id: 'media-add-btn', className: 'media-btn media-btn-primary', text: 'Add to Files',
           on: { click: () => fileInput.click() },
         }));
       }
@@ -1572,7 +1572,7 @@
         takeAnswer(a);
       } catch (e) {
         if (seq !== loadSeq) return;
-        st.listError = 'The Media list could not be loaded: ' + (e && e.message ? e.message : String(e));
+        st.listError = 'The list of files could not be loaded: ' + (e && e.message ? e.message : String(e));
       }
       st.loading = false;
       st.reloadKeep = null;
@@ -1662,7 +1662,7 @@
       }
       if (res && res.status === 409) {
         const words = await refusalWords(res);
-        if (/not the Media item you were looking at/i.test(words)) {
+        if (/not the item you were looking at/i.test(words)) {
           say(MEDIA_WORDS.reloaded, true);
           // Out of date: it closes whatever its Edit holds (Save would be refused the same way).
           if (st.viewer && st.viewer.id === item.id) itemView.close(false, true);
@@ -1711,7 +1711,7 @@
       const a = await act('/api/media/feature', purposes.feature(item.id, to), item, { featured: to });
       if (a) {
         for (const c of copiesOf(item.id)) c.featured = to;
-        say(to === 'main' ? 'Featured: it leads the Media page now.'
+        say(to === 'main' ? 'Featured: it leads the Files page now.'
           : to === 'category' ? "Featured in its category: it leads that category's shelf now." : 'Taken off the featured shelves.');
         loadFeatured();
       }
@@ -2092,7 +2092,7 @@
         st.adminMounted = true;
         const body = h('div', { id: 'media-admin-body', className: 'media-admin-body' });
         els.admin.appendChild(h('div', { className: 'media-panel media-admin', id: 'media-admin' }, [
-          h('h2', { text: 'Media settings, categories and space' }),
+          h('h2', { text: 'Files page settings, categories and space' }),
           body,
         ]));
         env.mountAdmin(body);
@@ -2108,7 +2108,7 @@
       }
       renderTabs();
     }
-    /** The tabs, for admins only: Media (the list) and Admin (the section above). */
+    /** The tabs, for admins only: Files (the list; Media until 2026-10-19) and Admin (the section above). */
     function renderTabs() {
       const admin = isAdmin();
       const tab = admin && st.tab === 'admin' ? 'admin' : 'media';
@@ -2121,7 +2121,7 @@
         attrs: { role: 'tab', 'aria-selected': String(tab === id) },
         on: { click: () => { st.tab = id; go(id === 'admin' ? '/media#admin' : '/media', false); renderTabs(); } },
       });
-      els.tabs.appendChild(h('div', { id: 'media-tabs', className: 'media-tabs', attrs: { role: 'tablist' } }, [button('media', 'Media'), button('admin', 'Admin')]));
+      els.tabs.appendChild(h('div', { id: 'media-tabs', className: 'media-tabs', attrs: { role: 'tablist' } }, [button('media', 'Files'), button('admin', 'Admin')]));
     }
 
     function renderAll() {
@@ -2216,7 +2216,7 @@
     if (itemWin && typeof itemWin.onOpen === 'function') itemWin.onOpen(() => { reopen(); });
 
     // ── Files dragged from the computer onto the page (2026-10-17, /shared/drop-overlay.js) ──
-    // The desktop's words while they are over it: "Drop to upload to Media", which opens Add to
+    // The desktop's words while they are over it: "Drop to upload to Files", which opens Add to
     // Media with them exactly as choosing them does (chooseFiles); with an item's Edit open, "Drop
     // to add to <its title>", which adds them as its Add a file does. Where a drop would do nothing,
     // "Files cannot be dropped here." and the words the page shows for why its button is not there.

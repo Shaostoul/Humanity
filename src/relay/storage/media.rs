@@ -289,7 +289,7 @@ pub fn mb(bytes: i64) -> String {
 /// The refusal when the Media space has no room: what is used, the budget, and the file.
 pub fn budget_full_words(used: i64, budget: i64, size: i64) -> String {
     format!(
-        "The Media space on this server is full: {} of {} used, and this file is {}. An admin can remove items or raise the Media budget in Server Settings.",
+        "The file space on this server is full: {} of {} used, and this file is {}. An admin can remove items, or make the file space larger on the Files page's Admin tab.",
         mb(used),
         mb(budget),
         mb(size)
@@ -299,7 +299,7 @@ pub fn budget_full_words(used: i64, budget: i64, size: i64) -> String {
 /// The refusal when the person's share of the Media space has no room for the file.
 pub fn share_full_words(mine: i64, share: i64, size: i64) -> String {
     format!(
-        "Your share of the Media space is used up: {} of your {} used, and this file is {}. Remove one of your items, or ask an admin to raise each person's share in Server Settings.",
+        "Your share of the file space is used up: {} of your {} used, and this file is {}. Remove one of your items, or ask an admin to raise each person's share on the Files page's Admin tab.",
         mb(mine),
         mb(share),
         mb(size)
@@ -522,7 +522,7 @@ pub fn was_public(shelf: i64) -> bool {
 }
 
 /// What is said when a file that is already public is asked to be members only.
-pub const ALREADY_PUBLIC: &str = "That file is already public where it was shared (in a chat or the Shared Files list), so it can only go on the Media page as public. To share something with members only, upload it on the Media page itself.";
+pub const ALREADY_PUBLIC: &str = "That file is already public where it was shared (in a chat or the Shared Files list), so it can only go on the Files page as public. To share something with members only, upload it on the Files page itself.";
 
 /// The shelf an upload from `from_shelf` sits on while it is published with `visibility`: a
 /// Shared Files file stays listed there (it is always public: [`was_public`]); everything else is
@@ -743,17 +743,17 @@ impl Storage {
                 return refused(Refusal::NotFound, "There is no upload with that name on this server.");
             };
             if owner != signer {
-                return refused(Refusal::NotAllowed, "You can only put your own uploads on the Media page.");
+                return refused(Refusal::NotAllowed, "You can only put your own uploads on the Files page.");
             }
             if p.filename.to_ascii_lowercase().ends_with(".enc") {
                 return refused(
                     Refusal::NotAllowed,
-                    "That file is encrypted for a private conversation, so it can never be shown on the Media page.",
+                    "That file is encrypted for a private conversation, so it can never be shown on the Files page.",
                 );
             }
             // An item's own file, or one added to an item (round 5): never published again.
             match files::holding(&tx, p.filename)? {
-                Some((_, 0)) => return refused(Refusal::Conflict, "That upload is already on the Media page."),
+                Some((_, 0)) => return refused(Refusal::Conflict, "That upload is already on the Files page."),
                 Some(_) => return refused(Refusal::Conflict, files::ALREADY_ON_AN_ITEM),
                 None => {}
             }
@@ -842,10 +842,10 @@ impl Storage {
                 )
                 .optional()?;
             let Some((uploader, filename, from_shelf, now)) = found else {
-                return refused(Refusal::NotFound, "There is no Media item with that number.");
+                return refused(Refusal::NotFound, "There is no item with that number on the Files page.");
             };
             if uploader != requester && !is_admin {
-                return refused(Refusal::NotAllowed, "Only the person who put it there, or an admin, can change who sees a Media item.");
+                return refused(Refusal::NotAllowed, "Only the person who put it there, or an admin, can change who sees an item.");
             }
             let to = stored_visibility(visibility);
             if to == "members" && was_public(from_shelf) {
@@ -927,10 +927,10 @@ impl Storage {
                 })
                 .optional()?;
             let Some((uploader, filename, from_shelf)) = found else {
-                return refused(Refusal::NotFound, "There is no Media item with that number.");
+                return refused(Refusal::NotFound, "There is no item with that number on the Files page.");
             };
             if uploader != requester && !is_admin {
-                return refused(Refusal::NotAllowed, "Only the person who put it there, or an admin, can remove a Media item.");
+                return refused(Refusal::NotAllowed, "Only the person who put it there, or an admin, can remove an item.");
             }
             // Round 5: the added files and the cover go with it (uploads made for Media, so their
             // rows go and the route deletes their files), and so do its licence choices (decision 8).
@@ -977,10 +977,10 @@ impl Storage {
                 )
                 .optional()?;
             let Some(owner) = owner else {
-                return refused(Refusal::NotFound, "There is no Media upload waiting to be published with that name.");
+                return refused(Refusal::NotFound, "There is no upload with that name waiting to be put on the Files page.");
             };
             if owner != requester && !is_admin {
-                return refused(Refusal::NotAllowed, "Only the person who uploaded it, or an admin, can remove a Media upload.");
+                return refused(Refusal::NotAllowed, "Only the person who uploaded it, or an admin, can remove an upload waiting for the Files page.");
             }
             conn.execute("DELETE FROM user_uploads WHERE filename = ?1 AND shared = ?2", params![filename, MEDIA_SHELF])?;
             Ok(())
@@ -1021,7 +1021,7 @@ impl Storage {
                 .query_row("SELECT uploader_key FROM media_items WHERE id = ?1", params![id], |r| r.get(0))
                 .optional()?;
             let Some(uploader) = uploader else {
-                return refused(Refusal::NotFound, "There is no Media item with that number.");
+                return refused(Refusal::NotFound, "There is no item with that number on the Files page.");
             };
             if uploader == picker {
                 return refused(Refusal::Bad, "Picks are for other people's items; yours are already listed under your name.");
@@ -1053,7 +1053,7 @@ impl Storage {
         self.with_conn(|conn| {
             let n = conn.execute("UPDATE media_items SET featured = ?1 WHERE id = ?2", params![featured.stored(), id])?;
             if n == 0 {
-                return refused(Refusal::NotFound, "There is no Media item with that number.");
+                return refused(Refusal::NotFound, "There is no item with that number on the Files page.");
             }
             Ok(())
         })

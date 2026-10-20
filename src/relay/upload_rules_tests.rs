@@ -89,7 +89,7 @@ async fn a_media_file_in_one_request_is_held_to_the_roles_media_limit() {
     .await;
     let media = UploadQuery { token: Some("tok".into()), media: Some(1), ..Default::default() };
     match upload(&state, media, 3 * MIB).await {
-        Err((code, words)) if code == StatusCode::PAYLOAD_TOO_LARGE => assert_eq!(words, "Media files are limited to 2 MB for your role on this server."),
+        Err((code, words)) if code == StatusCode::PAYLOAD_TOO_LARGE => assert_eq!(words, "Files on the Files page are limited to 2 MB for your role on this server."),
         other => panic!("a 3 MB Media file over the role's 2 MB Media limit is refused: {other:?}"),
     }
     let role = state.db.role_def("verified");

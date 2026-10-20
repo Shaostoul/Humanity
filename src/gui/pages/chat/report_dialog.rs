@@ -149,7 +149,7 @@ pub(crate) fn draw_report_dialog(ctx: &egui::Context, theme: &Theme, state: &mut
                     widgets::body_hint(ui, theme, "The server already has this post, signed by its author, and finds it from its author and time.");
                 }
                 Some(ReportContext::Media) => {
-                    widgets::subsection_label(ui, theme, "The Media item");
+                    widgets::subsection_label(ui, theme, "The item on the Files page");
                     widgets::card(ui, theme, |ui| {
                         ui.label(RichText::new(one_line(&d.fixed_text, 300)).color(theme.text_secondary()));
                     });

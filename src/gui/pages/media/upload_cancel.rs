@@ -46,7 +46,7 @@ pub const STILL_STORING: &str = "the server was still storing the file each time
 /// Said when there is no upload token for this server to send the cancel with.
 pub const NOT_SIGNED_IN: &str = "this server has not signed you in on this connection yet.";
 /// What is said when the upload's file was already on the Media page.
-pub const ALREADY_ON_MEDIA: &str = "It was already on the Media page, so it stays there: Remove on its tile takes it off.";
+pub const ALREADY_ON_MEDIA: &str = "It was already on the Files page, so it stays there: Remove on its tile takes it off.";
 
 /// What one answer to a cancel means: Some when it settles the cancel, None when it is asked again
 /// (busy, a server error, a 429).

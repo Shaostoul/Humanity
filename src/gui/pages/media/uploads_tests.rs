@@ -100,7 +100,7 @@ fn put_on_media_during_an_upload_never_touches_it() {
     // Put on Media before the page reads what the workers reported: whatever they did meanwhile,
     // the page learns of it (Done included) with this other form open.
     put_on_media(&mut state, "/uploads/1700_homestead.glb", "homestead.glb", 1000);
-    let form_now = state.media.form.clone().expect("the Put on Media form is open");
+    let form_now = state.media.form.clone().expect("the Put on the Files page form is open");
     until(&ctx, &mut state, "both uploads finish", |s| s.media.uploads.iter().all(|e| !matches!(e.after, uploading::After::Uploading)));
     let removals = state.media.jobs.iter().filter(|(j, _)| matches!(j, Job::Remove { .. })).count();
     assert_eq!(removals, 0, "the finished uploads are never deleted (left: removals sent / right: none)");
@@ -159,10 +159,10 @@ fn a_publish_already_on_media_counts_as_done() {
     until(&ctx, &mut state, "it goes to be published", publishing);
     let local = state.media.uploads[0].local;
     assert_eq!(state.media.unfinished.len(), 1, "its record is kept until it is on Media");
-    on_done(&mut state, Job::Publish { of: add::Of::Upload, filename: "1700_clip.webm".into(), who: local }, Err(Refusal::new(409, "That upload is already on the Media page.")));
+    on_done(&mut state, Job::Publish { of: add::Of::Upload, filename: "1700_clip.webm".into(), who: local }, Err(Refusal::new(409, "That upload is already on the Files page.")));
     assert!(state.media.uploads.is_empty(), "already on Media is done: {:?}", state.media.uploads.iter().map(|e| e.after.clone()).collect::<Vec<_>>());
     assert!(state.media.unfinished.is_empty(), "and its record goes");
-    assert_eq!(state.media.status, "It is on the Media page now.");
+    assert_eq!(state.media.status, "It is on the Files page now.");
 }
 
 /// CANCEL DURING A PUBLISH, THEN A SWITCH, STILL TAKES IT OFF (finding 11): the publish's worker

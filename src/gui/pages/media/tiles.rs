@@ -271,7 +271,7 @@ pub(crate) fn draw_tile(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, 
                     }
                     if item.kept {
                         ui.label(RichText::new(KEPT_BADGE).size(theme.font_size_small).color(theme.success()))
-                            .on_hover_text("This server keeps it: it counts against the Media space, not against its uploader's share.");
+                            .on_hover_text("This server keeps it: it counts against the file space, not against its uploader's share.");
                     }
                     if item.members_only() {
                         ui.label(RichText::new("Members only").size(theme.font_size_small).color(theme.info()));
@@ -449,7 +449,7 @@ fn draw_actions(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, item: &I
 
 /// Keep on the server, and what it does.
 pub(crate) const KEEP: &str = "Keep on the server";
-pub(crate) const KEEP_TIP: &str = "This server carries it from now on: it stops counting against its uploader's share, so they can upload something new. It still counts against the Media space.";
+pub(crate) const KEEP_TIP: &str = "This server carries it from now on: it stops counting against its uploader's share, so they can upload something new. It still counts against the file space.";
 pub(crate) const STOP_KEEPING: &str = "Stop keeping";
 pub(crate) const STOP_KEEPING_TIP: &str = "It counts against its uploader's share again, even past it; nothing is deleted for that.";
 
@@ -463,7 +463,7 @@ pub(crate) fn draw_confirm_remove(ctx: &egui::Context, theme: &Theme, state: &mu
     let mut confirmed = false;
     let mut cancelled = false;
     let words = api::remove_words(&item);
-    widgets::dialog(ctx, theme, "media_confirm_remove", "Remove from Media", &mut open, |ui| {
+    widgets::dialog(ctx, theme, "media_confirm_remove", "Remove from Files", &mut open, |ui| {
         ui.label(RichText::new(item.display_title()).size(theme.font_size_body).color(theme.text_primary()).strong());
         ui.label(RichText::new(words).size(theme.font_size_body).color(theme.text_secondary()));
         ui.add_space(theme.spacing_sm);

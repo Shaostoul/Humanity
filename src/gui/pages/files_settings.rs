@@ -191,7 +191,7 @@ pub(crate) fn draw_files_in_messages(ui: &mut egui::Ui, theme: &Theme, state: &m
         ui,
         theme,
         hint,
-        "Every file you send starts with this, in chat, Shared Files and Media, and the attach step \
+        "Every file you send starts with this, in chat, Shared Files and the Files page, and the attach step \
          remembers your last choice. Groups have no file rules of their own yet; these apply there too.",
     );
 }

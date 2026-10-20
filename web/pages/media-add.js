@@ -514,7 +514,7 @@
       if (!f) {
         // Files handed to the upload window while this page signs in: named, with why they wait.
         if (st.pending) {
-          els.form.appendChild(h('div', { id: 'media-form-pending', className: 'media-panel media-form' }, [h('h2', { text: 'Add to Media' })]
+          els.form.appendChild(h('div', { id: 'media-form-pending', className: 'media-panel media-form' }, [h('h2', { text: 'Add to Files' })]
             .concat(st.pending.files.map((x) => fileLine(x.name, x.size, 'media-form-file')))
             .concat([h('p', { className: 'media-hint', text: MEDIA_WORDS.signingIn })])));
         }
@@ -523,7 +523,7 @@
       f.key = formKey();
       f.formId = f.formId || ++formSeq;
       const put = f.mode === 'put';
-      const kids = [h('h2', { text: put ? 'Put on Media' : f.mode === 'waiting' ? 'Publish an upload' : 'Add to Media' })];
+      const kids = [h('h2', { text: put ? 'Put on the Files page' : f.mode === 'waiting' ? 'Publish an upload' : 'Add to Files' })];
       // Three parts in the chat sidebar's colours, darker (2026-10-17, media-edit.js tintSection; the
       // desktop's Add to Media): its files first (blue: each chosen file with its type's badge and
       // size, what is hidden in it and the switch, the share left), then what it is (red), then
@@ -709,7 +709,7 @@
       const go = h('button', {
         type: 'button', id: listed ? undefined : 'media-form-go', dataset: listed ? { uploadAction: 'go' } : undefined,
         className: 'media-btn media-btn-primary' + (rgb ? ' media-btn-rgb' : ''), disabled: goOff,
-        text: f.checking ? 'Working out your share...' : f.busy ? 'Working...' : f.attach ? 'Add it to the item' : put || f.uploadedName ? 'Put on Media' : 'Upload and add to Media',
+        text: f.checking ? 'Working out your share...' : f.busy ? 'Working...' : f.attach ? 'Add it to the item' : put || f.uploadedName ? 'Put on the Files page' : 'Upload and add to Files',
       });
       go.addEventListener('click', () => {
         // Keep what was typed for a second try.

@@ -477,7 +477,7 @@ pub fn start_body(plan: &Plan, blake3: &str) -> Value {
 
 /// Why a Media upload was not sent: its file could not be checked for hidden location, and Media is
 /// a public shelf (the relay would refuse it too).
-pub const NOT_CHECKED_MEDIA: &str = "This file could not be read all the way through, so where it was taken may still be in it. It was not sent: Media is public. To send it exactly as it is, turn off \"Remove location and camera details\".";
+pub const NOT_CHECKED_MEDIA: &str = "This file could not be read all the way through, so where it was taken may still be in it. It was not sent: the Files page is public. To send it exactly as it is, turn off \"Remove location and camera details\".";
 
 /// The cleaning step of `work`: a cleaned copy to upload instead of `plan.path` (its path, size and
 /// modification time), None to upload the file itself, or Err with the words to stop with.

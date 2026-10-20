@@ -230,7 +230,7 @@ fn a_kept_item_leaves_its_uploaders_share() {
     assert_eq!(keep_core(db, &bea.key, item.id, true).unwrap_err().0, StatusCode::FORBIDDEN, "a member cannot keep");
     keep_core(db, &mo.key, item.id, true).expect("a moderator keeps it");
     assert_eq!(db.media_bytes(Some(&ann.key)), 0, "a kept item stops counting against its uploader's share");
-    assert_eq!(db.media_bytes(None), 6 * MIB, "it still counts against the Media budget");
+    assert_eq!(db.media_bytes(None), 6 * MIB, "it still counts against the file space");
     assert!(db.media_item(item.id).unwrap().unwrap().kept);
     let usage = db.media_usage().unwrap();
     assert_eq!(usage.kept_bytes, 6 * MIB, "the usage shows it as its own line");

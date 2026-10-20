@@ -86,10 +86,10 @@
     openTip: 'See everything about it, with a Download for each file.',
     moreTip: 'Show more',
     lessTip: 'Show less',
-    loading: 'Loading the Media item...',
+    loading: 'Loading the item from the Files page...',
     loadingPicture: 'Loading the picture...',
-    notThere: 'That item is not on the Media page, or you may not see it.',
-    failed: 'This Media item could not be loaded: ',
+    notThere: 'That item is not on the Files page, or you may not see it.',
+    failed: 'This item from the Files page could not be loaded: ',
     showPicture: 'Show the picture',
     labelHidden: 'Hidden: the protected setup leaves out items with a content label.',
     // The Media page's own words for a members-only picture (web/pages/media-app.js MEDIA_WORDS).

@@ -247,7 +247,7 @@ fn the_servers_answers_read() {
 ///
 /// Seen red 2026-10-11 with `size_words` keeping ".0": "left: \"50.0 GB\" / right: \"50 GB\"".
 /// Seen red again 2026-10-11 (round 2) with `remove_words` still guessing from this session's own
-/// uploads: an item the server says keeps its file read "Remove from Media and delete the file."
+/// uploads: an item the server says keeps its file read "Remove from Files and delete the file."
 /// ("the server's word decides").
 #[test]
 fn the_words_say_what_they_mean() {
@@ -281,10 +281,10 @@ fn the_words_say_what_they_mean() {
     assert!(room_problem(20 * MB as u64, Some(&arriving)).is_some(), "an upload still arriving counts against the share");
     let limited = Mine { file_limit_bytes: 25 * MB, ..mine.clone() };
     let over_limit = room_problem(30 * MB as u64, Some(&limited)).expect("over the role's Media file limit is stopped");
-    assert!(over_limit.contains("over the largest Media file your role may send on this server (25 MB)"), "{over_limit}");
+    assert!(over_limit.contains("over the largest file your role may put on this server's Files page (25 MB)"), "{over_limit}");
     let full = Mine { budget_left_bytes: 5 * MB, ..mine };
     let over_space = room_problem(10 * MB as u64, Some(&full)).expect("over the whole space is stopped");
-    assert!(over_space.contains("more than the 5 MB left in this server's whole Media space"), "{over_space}");
+    assert!(over_space.contains("more than the 5 MB left in this server's whole file space"), "{over_space}");
 
     let public = Item { id: 1, visibility: "public".into(), url: "/uploads/x.png".into(), ..Default::default() };
     assert_eq!(remove_words(&Item { keeps_file: true, ..public.clone() }), REMOVE_KEEPS, "the server's word decides");
@@ -319,7 +319,7 @@ fn a_members_only_file_is_fetched_with_the_token_in_a_header() {
 /// (left: "GET https://h/x?token=SECRET: refused" ...).
 #[test]
 fn a_refusal_keeps_its_status_and_never_carries_a_token() {
-    let r = Refusal::new(409, "That is not the Media item you were looking at: the page is out of date. Load it again.");
+    let r = Refusal::new(409, "That is not the item you were looking at: the page is out of date. Load it again.");
     assert!(r.stale());
     assert!(!Refusal::new(403, "no").stale());
     let leaky = Refusal::new(0, "GET https://h/x?token=SECRET: refused");
@@ -348,7 +348,7 @@ fn several_files_must_fit_the_share_together_not_only_one_by_one() {
     assert!(named.starts_with("big.mkv: "), "it is named: {named}");
     let space = Mine { budget_left_bytes: 50, ..mine.clone() };
     let whole = room_problem_together(&[("a.stl", 30), ("b.stl", 30)], Some(&space)).expect("more than the whole space has left");
-    assert!(whole.contains("whole Media space"), "{whole}");
+    assert!(whole.contains("whole file space"), "{whole}");
     assert_eq!(room_problem_together(&[("a.stl", 50)], Some(&mine)), room_problem(50, Some(&mine)), "one file is checked as one always was");
     assert_eq!(room_problem_together(&[("a.stl", 50), ("b.stl", 50)], None), None, "with nothing known, the server checks");
 }

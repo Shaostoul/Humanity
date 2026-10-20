@@ -181,39 +181,39 @@ fn list_jobs(state: &GuiState, next: bool) -> usize {
     state.media.jobs.iter().filter(|(j, _)| matches!(j, Job::List { append, .. } if *append == next)).count()
 }
 
-/// THE HEADING NAMES THE SERVER (3.9): "Media on <host>", its port included when it has one (as
+/// THE HEADING NAMES THE SERVER (3.9): "Files on <host>", its port included when it has one (as
 /// the website's `location.host` writes it), whatever form the app holds the address in, and
 /// always the host the server strip names.
 ///
 /// Seen red 2026-10-12 with the heading drawn as plain "Media" again: "the heading names the
-/// server it is for" (no shape was exactly "Media on 127.0.0.1:9").
+/// server it is for" (no shape was exactly "Files on 127.0.0.1:9").
 #[test]
 fn the_heading_names_the_server() {
     let (ctx, theme) = ctx_and_theme();
     let mut state = state_on(SERVER, demo_answer(), false);
     let out = settle(media_frame, &ctx, &theme, &mut state);
-    assert!(exact(&out, "Media on 127.0.0.1:9"), "the heading names the server it is for");
+    assert!(exact(&out, "Files on 127.0.0.1:9"), "the heading names the server it is for");
 
     // Whatever form the address is held in, the heading names the host the server strip under
     // the top menu names (lane 1E's `host_of`, over the same connected server).
     for (address, words) in [
-        ("wss://united-humanity.us/ws", "Media on united-humanity.us"),
-        ("https://public.guide/", "Media on public.guide"),
-        ("http://localhost:8099", "Media on localhost:8099"),
-        ("united-humanity.us", "Media on united-humanity.us"),
-        ("", "Media"),
+        ("wss://united-humanity.us/ws", "Files on united-humanity.us"),
+        ("https://public.guide/", "Files on public.guide"),
+        ("http://localhost:8099", "Files on localhost:8099"),
+        ("united-humanity.us", "Files on united-humanity.us"),
+        ("", "Files"),
     ] {
         state.server_url = address.to_string();
         assert_eq!(heading(&state), words, "{address:?}");
         let strip = crate::gui::pages::server_strip::host_of(&state.active_server());
-        assert!(strip.is_empty() || heading(&state) == format!("Media on {strip}"), "the strip and the heading name one host: {address:?}");
+        assert!(strip.is_empty() || heading(&state) == format!("Files on {strip}"), "the strip and the heading name one host: {address:?}");
     }
 }
 
-/// THE ADMIN TAB IS FOR ADMINS AND HOLDS THE SETTINGS (3.9): an admin has two tabs, Media and
-/// Admin; Admin shows the section that was in Server Settings (who sees the page, its space, its
-/// categories, the suggestions, the meter) in place of the list, and Media goes back. A member
-/// has no Admin tab (only Media and, since 2026-10-18, Your folders) and sees the list, even with
+/// THE ADMIN TAB IS FOR ADMINS AND HOLDS THE SETTINGS (3.9): an admin has two tabs, Files (Media
+/// until 2026-10-19) and Admin; Admin shows the section that was in Server Settings (who sees the
+/// page, its space, its categories, the suggestions, the meter) in place of the list, and Files goes
+/// back. A member has no Admin tab (only Files and, since 2026-10-18, Your folders) and sees the list, even with
 /// the Admin tab left set.
 ///
 /// Seen red 2026-10-12 with the tabs drawn for everyone: "a member has no Admin tab".
@@ -225,25 +225,28 @@ fn the_admin_tab_is_for_admins_and_holds_the_settings() {
     let out = settle(media_frame, &ctx, &theme, &mut member);
     assert!(!exact(&out, "Admin"), "a member has no Admin tab");
     assert!(shows(&out, "Contact staff, slow spin"), "a member sees the list");
-    assert!(!shows(&out, "Who sees the Media page"), "and never the settings");
+    assert!(!shows(&out, "Who sees the Files page"), "and never the settings");
 
     let mut state = state_on(SERVER, demo_answer(), true);
     let out = settle(media_frame, &ctx, &theme, &mut state);
-    assert!(exact(&out, "Media") && exact(&out, "Admin"), "an admin has the two tabs");
-    assert!(shows(&out, "Contact staff, slow spin") && !shows(&out, "Who sees the Media page"), "the list first");
+    assert!(exact(&out, "Files") && exact(&out, "Admin"), "an admin has the two tabs");
+    // The Files that is a tab: in the tab row, beside Admin (an item's details can say Files too).
+    let tab_row = |t: &str| find_text_in_shapes(&out.shapes, t).map(|f| f.rect.center().y);
+    assert!(tab_row("Files").zip(tab_row("Admin")).is_some_and(|(a, b)| (a - b).abs() < 2.0), "Files and Admin side by side, as tabs");
+    assert!(shows(&out, "Contact staff, slow spin") && !shows(&out, "Who sees the Files page"), "the list first");
 
     click(media_frame, &ctx, &theme, &mut state, "Admin");
     assert_eq!(state.media.tab, MediaTab::Admin, "Admin is picked");
     let out = settle(media_frame, &ctx, &theme, &mut state);
-    for text in ["Who sees the Media page", "Media space (MB)", "Each person's share (MB)", "Categories", "Category suggestions", "Save Media settings"] {
+    for text in ["Who sees the Files page", "File space (MB)", "Each person's share (MB)", "Categories", "Category suggestions", "Save Files page settings"] {
         assert!(shows(&out, text), "the Admin tab shows {text:?}");
     }
     assert!(!shows(&out, "Contact staff, slow spin"), "in place of the list");
-    assert!(!shows(&out, "Add to Media"), "the list's own actions stay on the Media tab");
-    assert!(exact(&out, "Media on 127.0.0.1:9"), "under the same heading");
+    assert!(!shows(&out, "Add to Files"), "the list's own actions stay on the Files tab");
+    assert!(exact(&out, "Files on 127.0.0.1:9"), "under the same heading");
 
-    click(media_frame, &ctx, &theme, &mut state, "Media");
-    assert_eq!(state.media.tab, MediaTab::Media, "Media goes back");
+    click(media_frame, &ctx, &theme, &mut state, "Files");
+    assert_eq!(state.media.tab, MediaTab::Media, "Files goes back");
     assert!(shows(&settle(media_frame, &ctx, &theme, &mut state), "Contact staff, slow spin"), "to the list");
 }
 
@@ -258,14 +261,14 @@ fn server_settings_points_to_the_admin_tab() {
     let mut state = state_on(SERVER, demo_answer(), true);
     state.active_page = GuiPage::ServerSettings;
     let out = settle(settings_frame, &ctx, &theme, &mut state);
-    assert!(shows(&out, admin::POINTER_LINE), "Server Settings says where the Media settings are");
+    assert!(shows(&out, admin::POINTER_LINE), "Server Settings says where the Files page settings are");
     assert!(!shows(&out, "Each person's share (MB)"), "and no longer holds them");
 
     click(settings_frame, &ctx, &theme, &mut state, "Open them");
-    assert_eq!(state.active_page, GuiPage::Media, "Open them goes to the Media page");
+    assert_eq!(state.active_page, GuiPage::Media, "Open them goes to the Files page");
     assert_eq!(state.media.tab, MediaTab::Admin, "with Admin selected");
     let out = settle(media_frame, &ctx, &theme, &mut state);
-    assert!(shows(&out, "Each person's share (MB)"), "where the Media settings are");
+    assert!(shows(&out, "Each person's share (MB)"), "where the Files page settings are");
 }
 
 /// THE END OF THE LIST COMING INTO VIEW ASKS FOR ONE MORE PAGE (3.9, decision 13): at the top of

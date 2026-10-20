@@ -47,7 +47,7 @@ use crate::gui::GuiState;
 /// What is said when an upload, or its publish, was cancelled, once the server confirmed it.
 pub(crate) const CANCELLED_LINE: &str = "Cancelled: nothing of it stays on the server.";
 /// What an upload that is up says when there is no signature to publish it with.
-pub(crate) const UNLOCK_TO_PUBLISH: &str = "Uploaded, but not on the Media page yet: unlock your identity, then press Put it on Media. It waits a day.";
+pub(crate) const UNLOCK_TO_PUBLISH: &str = "Uploaded, but not on the Files page yet: unlock your identity, then press Put it on the Files page. It waits a day.";
 
 /// What happens to an upload after its file is up.
 #[derive(Debug, Clone, PartialEq)]
@@ -315,7 +315,7 @@ fn publish_entry(state: &mut GuiState, local: u64, filename: String) {
 
 /// What an upload made for an item says when it is up but there is no signature to add it with.
 pub(crate) const UNLOCK_TO_ATTACH: &str = "Uploaded, but not added to the item yet: unlock your identity, then press Add it to the item. It waits a day.";
-/// The button that adds an upload that is up to its item (the "Put it on Media" of one made from
+/// The button that adds an upload that is up to its item (the "Put it on the Files page" of one made from
 /// an item's edit form).
 pub(crate) const ADD_TO_ITEM: &str = "Add it to the item";
 
@@ -415,7 +415,7 @@ pub(crate) fn published(state: &mut GuiState, local: u64, filename: &str, result
             let words = if attached {
                 format!("Not added to the item: {} The file is uploaded and waits a day.", e.words)
             } else {
-                format!("Not put on the Media page: {} The file is uploaded and waits a day.", e.words)
+                format!("Not put on the Files page: {} The file is uploaded and waits a day.", e.words)
             };
             match entry(state, local) {
                 Some(entry) => entry.after = After::NotPublished { filename: filename.to_string(), words },
@@ -649,7 +649,7 @@ pub(crate) fn row_heading(state: &GuiState, record: &Unfinished) -> String {
 pub(crate) fn press_on(state: &mut GuiState, local: u64, press: &str) {
     match press {
         "Cancel" => cancel(state, local),
-        "Put it on Media" | ADD_TO_ITEM => {
+        "Put it on the Files page" | ADD_TO_ITEM => {
             if let Some(After::NotPublished { filename, .. }) = entry(state, local).map(|e| e.after.clone()) {
                 publish_entry(state, local, filename);
             }
@@ -708,7 +708,7 @@ fn draw_row(ui: &mut egui::Ui, theme: &Theme, e: &Entry) -> Option<&'static str>
             });
         }
         After::Publishing { .. } => {
-            let words = if e.record.attach.is_some() { "Uploaded. Adding it to the item..." } else { "Uploaded. Putting it on the Media page..." };
+            let words = if e.record.attach.is_some() { "Uploaded. Adding it to the item..." } else { "Uploaded. Putting it on the Files page..." };
             ui.label(RichText::new(words).size(theme.font_size_small).color(theme.text_secondary()));
             if widgets::Button::secondary("Cancel").size(small).tooltip("Take it off again: nothing of it stays on the server.").show(ui, theme) {
                 pressed = Some("Cancel");
@@ -717,7 +717,7 @@ fn draw_row(ui: &mut egui::Ui, theme: &Theme, e: &Entry) -> Option<&'static str>
         After::NotPublished { words, .. } => {
             ui.label(RichText::new(words).size(theme.font_size_small).color(theme.warning()));
             ui.horizontal(|ui| {
-                let again = if e.record.attach.is_some() { ADD_TO_ITEM } else { "Put it on Media" };
+                let again = if e.record.attach.is_some() { ADD_TO_ITEM } else { "Put it on the Files page" };
                 if widgets::Button::primary(again).size(small).show(ui, theme) {
                     pressed = Some(again);
                 }

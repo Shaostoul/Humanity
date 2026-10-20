@@ -98,13 +98,13 @@ pub(crate) fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     if waiting.is_empty() {
         return;
     }
-    widgets::subsection_label(ui, theme, "Your uploads waiting to be put on Media");
-    widgets::body_hint(ui, theme, "Each is deleted a day after it was uploaded, unless it is put on the Media page.");
+    widgets::subsection_label(ui, theme, "Your uploads waiting to be put on the Files page");
+    widgets::body_hint(ui, theme, "Each is deleted a day after it was uploaded, unless it is put on the Files page.");
     let sending = state.media.form.as_ref().is_some_and(|f| f.sending);
     for w in waiting {
         ui.horizontal_wrapped(|ui| {
             ui.label(RichText::new(format!("{}, {}", w.shown_name(), api::size_words(w.size_bytes))).size(theme.font_size_small).color(theme.text_primary()));
-            if widgets::Button::secondary("Put it on Media").size(small).disabled(sending).show(ui, theme) {
+            if widgets::Button::secondary("Put it on the Files page").size(small).disabled(sending).show(ui, theme) {
                 let source = Source::Waiting { filename: w.filename.clone(), name: w.shown_name().to_string(), len: w.size_bytes.max(0) as u64 };
                 state.media.form = Some(Form::new(source));
             }

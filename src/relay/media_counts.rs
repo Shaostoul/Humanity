@@ -235,7 +235,7 @@ fn now_ms() -> i64 {
 /// What every refused download is told, whatever was wrong: no such item, no such file, a
 /// members-only item without a ticket or a token, a ticket that ran out. One sentence, so a guess
 /// learns nothing about which.
-pub const NO_SUCH_FILE: &str = "There is no such file on the Media page, or it is not yours to open.";
+pub const NO_SUCH_FILE: &str = "There is no such file on the Files page, or it is not yours to open.";
 
 fn no_such_file() -> Response {
     (StatusCode::NOT_FOUND, NO_SUCH_FILE).into_response()

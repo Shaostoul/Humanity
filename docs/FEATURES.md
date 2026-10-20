@@ -276,9 +276,18 @@ Removal (v0.709): signed `POST /api/uploads/delete` — the uploader can remove 
 own file; an admin can remove any (Dilithium-signed "delete_upload" request).
 - Server: `src/relay/api.rs` (`GET /api/uploads`, `share` query param on upload, `POST /api/uploads/delete`), `src/relay/storage/uploads.rs` (`list_shared_uploads`, `delete_shared_upload`, FIFO exemption + tests), schema `user_uploads` (+`shared`, `original_name`, `size_bytes`)
 - Web: `web/pages/shared-files.html` (browse/search/download), `web/chat/chat-messages.js` (auto-share on attach)
-- Native (v0.710): Files page "Shared files on the server" manager — list (auto-load + Refresh), Upload via the in-app file browser (share=1), per-row Remove (own files, or any as admin). `src/gui/pages/files.rs`
+- Native (v0.710): Data files page (called Files until 2026-10-19) "Shared files on the server" manager — list (auto-load + Refresh), Upload via the in-app file browser (share=1), per-row Remove (own files, or any as admin). `src/gui/pages/files.rs`
 
-### Media Page (relay 2026-10-11, native page increment 2 and round 2 2026-10-11)
+### Files Page, formerly the Media Page (relay 2026-10-11, native page increment 2 and round 2 2026-10-11)
+**Renamed Files (2026-10-19; the operator: "What do you think about changing the name of media to
+files").** The page holds every kind of file, so the menu, the heading ("Files on {host}"), its
+first tab and its words say Files in both apps: Add to Files, Put on the Files page, Remove from
+Files, "On the Files page since", "File space (MB)". The code keeps its names (`media.rs`,
+`GuiPage::Media`, page id `media`, `/api/media`, and the `/media` address that chat cards and link
+previews use). The developer's data browser that was called Files is now Data files (see "Data
+Files Page"). `tests/terminology_lint.rs` fails on the old action words as quoted text. The entries
+below keep the names they were written with.
+
 **Website mirror (v0.1522.0):** `web/pages/media-panes.js` and `media-sound.js` give the website
 the same three panes (side by side or stacked by the same rule, the split in localStorage
 `humanity_media_layout`), edit in place with the coloured parts and border and the same
@@ -1680,9 +1689,12 @@ Calendar/planner in native UI.
 Notes/journal in native UI.
 - Native: `src/gui/pages/notes.rs`
 
-### Files Page
-File browser in native UI.
+### Data Files Page (called the Files Page until 2026-10-19)
+The developer's browser and editor for `data/` (Platform > Data files; `GuiPage::DataFiles`, page id
+`data_files`), with the server's Shared Files above it. Renamed when the name Files went to the page
+people put their files on (see "Files Page, formerly the Media Page"). Dev tooling: kept as it is.
 - Native: `src/gui/pages/files.rs`
+- Web: `web/pages/files.html` + `files-app.js` at `/files`, "Data files" in the menu
 
 ### Resources Page
 Resources directory in native UI.

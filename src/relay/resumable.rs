@@ -242,7 +242,7 @@ pub async fn start_core(state: &Arc<RelayState>, folders: Folders<'_>, token: Op
     if b.media != Some(1) {
         return Err(words(
             StatusCode::BAD_REQUEST,
-            "A resumable upload is for the Media page: send media: 1. Chat and Shared Files files go in one request (POST /api/upload).",
+            "A resumable upload is for the Files page: send media: 1. Chat and Shared Files files go in one request (POST /api/upload).",
         ));
     }
     let settings = state.db.get_server_settings().unwrap_or_default();

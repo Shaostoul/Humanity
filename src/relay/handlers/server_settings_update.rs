@@ -268,7 +268,7 @@ mod tests {
 
         super::handle(&state, "member", frame(update.clone())).await;
         let s = state.db.get_server_settings().unwrap();
-        assert_eq!((s.media_visibility.as_str(), s.media_budget_mb), ("public", 2048), "a member who is not an admin changed the Media settings");
+        assert_eq!((s.media_visibility.as_str(), s.media_budget_mb), ("public", 2048), "a member who is not an admin changed the Files page settings");
 
         super::handle(&state, "op", frame(update)).await;
         let s = state.db.get_server_settings().unwrap();

@@ -1,9 +1,10 @@
-//! The Media page (increment 2 of docs/design/media-showcase.md, 2026-10-11): the pictures,
+//! The Files page (called the Media page until 2026-10-19; increment 2 of
+//! docs/design/media-showcase.md, 2026-10-11): the pictures,
 //! videos, 3D models, sounds and files people on this server chose to show. The web mirrors it
 //! (web/pages/media.html); the relay half is src/relay/media.rs.
 //!
-//! What it has, top to bottom: its heading, "Media on united-humanity.us" (the server it is for,
-//! Media round 5), with the page's buttons and the view, Panes or Gallery; its tabs, Media and Your
+//! What it has, top to bottom: its heading, "Files on united-humanity.us" (the server it is for,
+//! Media round 5), with the page's buttons and the view, Panes or Gallery; its tabs, Files and Your
 //! folders (folders on this computer to pick files from, media/your_folders.rs, 2026-10-18, desktop
 //! only), and for admins Admin (the admins' section, media/admin.rs, which was in Server Settings
 //! until round 5).
@@ -342,14 +343,14 @@ pub(crate) fn host_here(state: &GuiState) -> String {
     crate::gui::pages::server_strip::host_of(&server_here(state))
 }
 
-/// The page's heading (round 5, 3.9 of docs/design/media-round-5-plan.md): "Media on
-/// united-humanity.us", so nobody wonders whose Media page this is; plain "Media" with no server.
+/// The page's heading (round 5, 3.9 of docs/design/media-round-5-plan.md): "Files on
+/// united-humanity.us", so nobody wonders whose Files page this is; plain "Files" with no server.
 pub(crate) fn heading(state: &GuiState) -> String {
     let host = host_here(state);
     if host.is_empty() {
-        "Media".to_string()
+        "Files".to_string()
     } else {
-        format!("Media on {host}")
+        format!("Files on {host}")
     }
 }
 
@@ -575,7 +576,7 @@ pub(crate) fn on_done(state: &mut GuiState, job: Job, result: Result<Value, Refu
                 state.media.admin.status = "Removed.".to_string();
                 refresh_usage(state);
             } else {
-                state.media.status = "Removed from Media.".to_string();
+                state.media.status = "Removed from Files.".to_string();
             }
             refresh_mine(state);
         }
@@ -787,7 +788,7 @@ pub(crate) fn open_admin_tab(state: &mut GuiState) {
 /// The admins' section asks again for the categories, the suggestions and the usage.
 pub(crate) fn refresh_admin(state: &mut GuiState) {
     let Some(signer) = signer_here(state) else {
-        state.media.admin.status = "Sign in to this server to manage its Media page.".to_string();
+        state.media.admin.status = "Sign in to this server to manage its Files page.".to_string();
         return;
     };
     state.media.admin.requested = true;
@@ -836,7 +837,7 @@ pub(crate) fn members_only_server(state: &GuiState) -> bool {
 /// The line for someone who gets only the public view.
 pub(crate) const SIGN_IN_LINE: &str = "Sign in to this server to see its members' media.";
 /// The line when the list is empty.
-pub(crate) const EMPTY_LINE: &str = "Nothing is on this server's Media page yet.";
+pub(crate) const EMPTY_LINE: &str = "Nothing is on this server's Files page yet.";
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     poll_upload(ctx, state);
@@ -950,14 +951,14 @@ pub(crate) fn draw_page(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
         if on_list {
             ui.add_space(theme.spacing_md);
             let signed_in = signed_in_here(state);
-            if signed_in && widgets::Button::primary("Add to Media").tooltip("Upload a picture, video, model or file and show it here.").show(ui, theme) {
+            if signed_in && widgets::Button::primary("Add to Files").tooltip("Upload a picture, video, model or file and show it here.").show(ui, theme) {
                 add::begin_add(state);
             }
             if signed_in && widgets::Button::secondary("Suggest a category").tooltip("Ask this server's admins for a new category.").show(ui, theme) {
                 state.media.suggest = Some((String::new(), String::new()));
             }
-            if widgets::Button::secondary("Shared Files").tooltip("The server's public file library, on the Files page.").show(ui, theme) {
-                state.push_nav_to(GuiPage::Files);
+            if widgets::Button::secondary("Shared Files").tooltip("The server's public file library, on the Data files page.").show(ui, theme) {
+                state.push_nav_to(GuiPage::DataFiles);
             }
             if widgets::Button::ghost("Refresh").show(ui, theme) {
                 reload(state);
@@ -992,7 +993,7 @@ pub(crate) fn draw_page(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
             egui::ScrollArea::vertical().id_salt("media_page").auto_shrink([false, false]).show(ui, |ui| your_folders::draw(ui, theme, state));
         }
         _ if no_server => {
-            ui.label(RichText::new("Connect to a server first (Chat page) to see its Media page.").size(theme.font_size_small).color(theme.warning()));
+            ui.label(RichText::new("Connect to a server first (Chat page) to see its Files page.").size(theme.font_size_small).color(theme.warning()));
         }
         MediaTab::Admin => {
             egui::ScrollArea::vertical().id_salt("media_page").auto_shrink([false, false]).show(ui, |ui| admin::draw_admin(ui, theme, state));
@@ -1080,11 +1081,11 @@ pub(crate) fn draw_more(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
     }
 }
 
-// The tabs, in the order they are drawn, and their names: Media and Your folders for everyone in
-/// the desktop app, and Admin for admins. The website has Media and Admin (media-app.js) and no Your
+// The tabs, in the order they are drawn, and their names: Files and Your folders for everyone in
+/// the desktop app, and Admin for admins. The website has Files and Admin (media-app.js) and no Your
 /// folders (operator, 2026-10-13: no website version, so every browser behaves the same).
 const TABS: [MediaTab; 3] = [MediaTab::Media, MediaTab::YourFolders, MediaTab::Admin];
-const TAB_NAMES: [&str; 3] = ["Media", your_folders::TAB, "Admin"];
+const TAB_NAMES: [&str; 3] = ["Files", your_folders::TAB, "Admin"];
 
 /// The tab shown for `tab`: Admin is an admin's alone, and anyone else on it sees the list.
 fn shown_tab(tab: MediaTab, admin: bool) -> MediaTab {

@@ -52,7 +52,7 @@
       text-decoration: none; transition: all 0.15s;
     }
     .sf-dl:hover { background: var(--accent-hover); }
-    /* Put on Media: only on the person's own rows (2026-10-11, docs/design/media-showcase.md). */
+    /* Put on the Files page (Put on Media until 2026-10-19): only on the person's own rows (2026-10-11, docs/design/media-showcase.md). */
     .sf-put {
       flex-shrink: 0; background: transparent; color: var(--accent); font-weight: 700;
       font-size: 0.8rem; padding: 7px 14px; border-radius: var(--radius);
@@ -116,7 +116,7 @@
     </div>
 
     <div class="sf-how">
-      <strong>How to share your own:</strong> press Upload a file, or drop files on this page. Files here are public: anyone can download them. In the <a href="/chat">chat</a>, 3D and model files you attach (<code>.blend</code>, <code>.stl</code>, <code>.obj</code>, <code>.gltf</code>, <code>.glb</code>) are listed here too; photos and other chat attachments stay private to the people you send them to. Sharing requires a verified account (ask an admin in chat). A file of yours here can also go on the <a href="/media">Media page</a>: press Put on Media on its row.
+      <strong>How to share your own:</strong> press Upload a file, or drop files on this page. Files here are public: anyone can download them. In the <a href="/chat">chat</a>, 3D and model files you attach (<code>.blend</code>, <code>.stl</code>, <code>.obj</code>, <code>.gltf</code>, <code>.glb</code>) are listed here too; photos and other chat attachments stay private to the people you send them to. Sharing requires a verified account (ask an admin in chat). A file of yours here can also go on the <a href="/media">Files page</a>: press Put on the Files page on its row.
     </div>
 
     <!-- Upload a file, and files dropped on the page (/pages/shared-files-upload.js). -->
@@ -216,7 +216,7 @@
           var a = document.createElement('a');
           a.className = 'sf-put';
           a.href = '/media?put=' + encodeURIComponent(f.url.slice('/uploads/'.length)) + '&name=' + encodeURIComponent(f.name || '');
-          a.textContent = 'Put on Media';
+          a.textContent = 'Put on the Files page';
           rows[i].insertBefore(a, rows[i].querySelector('.sf-dl'));
         });
       }

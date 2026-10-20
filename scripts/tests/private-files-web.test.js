@@ -3258,12 +3258,12 @@ function frameReady(page, w) {
 // 2); with chatDropped handing the window no channel (`host.show(files, '')`): "posting ticked for
 // #general" (actual ''); with media-add.js openAddForm ignoring postTo: "in the window: Also post in
 // chat ticked for #general" (actual false).
-test("drop: over #general it says the files go up to Media and are posted there; the drop opens the upload window, posting ticked, the Media page's own form", async () => {
+test("drop: over #general it says the files go up to Files and are posted there; the drop opens the upload window, posting ticked, the Files page's own form", async () => {
   const fx = await fixture();
   const page = await loadChat(fx.ann);
   const enter = dragOn(page, "dragenter", filesDrag());
   assert.ok(enter.defaultPrevented, "a file drag is the page's, so the browser never opens the file in the tab");
-  assert.deepEqual(dropOverlay(page), { line: "Drop to upload to Media and post in #general", reason: "", refused: false }, "over #general: Drop to upload to Media and post in #general");
+  assert.deepEqual(dropOverlay(page), { line: "Drop to upload to Files and post in #general", reason: "", refused: false }, "over #general: Drop to upload to Files and post in #general");
   const over = dragOn(page, "dragover", filesDrag());
   assert.ok(over.defaultPrevented && over.dataTransfer.dropEffect === "copy", "dragover says copy");
   // Over a child element: its enter comes before the last one's leave.
@@ -3282,7 +3282,7 @@ test("drop: over #general it says the files go up to Media and are posted there;
   assert.equal(page.sock.sent.filter((m) => m.type === "chat").length, 0, "and nothing is posted yet");
   const w = uploadWindowOf(page);
   assert.ok(w && w.el.hidden === false && page.ctx.document.body.children.includes(w.el), "the upload window opened over the chat");
-  assert.equal(w.frame.src, "/media?window=upload", "with the Media page in it, in its upload-window form");
+  assert.equal(w.frame.src, "/media?window=upload", "with the Files page in it, in its upload-window form");
   const handed = frameReady(page, w);
   assert.equal(handed.length, 1, "once the page in it is there, the files are handed over");
   assert.equal(handed[0].to, page.ctx.location.origin, "to this site only");
@@ -3298,7 +3298,7 @@ test("drop: over #general it says the files go up to Media and are posted there;
   inWindow.page.takeFiles(handed[0].data.files, handed[0].data.postTo);
   await MH.settle();
   const f = inWindow.page.state.form;
-  assert.ok(f && f.mode === "add" && f.file === png, "Add to Media opened with the first file as the item");
+  assert.ok(f && f.mode === "add" && f.file === png, "Add to Files opened with the first file as the item");
   assert.deepEqual(f.more, [notes], "the other to be added once it is up");
   const tick = MH.byId(inWindow.doc, "media-form-post-on");
   assert.ok(tick && tick.checked, "in the window: Also post in chat ticked for #general");
@@ -3315,7 +3315,7 @@ test("drop: over #general it says the files go up to Media and are posted there;
   ro.fn("switchChannel")("announcements");
   await settle();
   dragOn(ro, "dragenter", filesDrag());
-  assert.deepEqual(dropOverlay(ro), { line: "Drop to upload to Media", reason: "", refused: false }, "a read-only channel: Drop to upload to Media");
+  assert.deepEqual(dropOverlay(ro), { line: "Drop to upload to Files", reason: "", refused: false }, "a read-only channel: Drop to upload to Files");
   await dropFiles(ro, [pdf("notes.pdf")]);
   assert.equal(frameReady(ro, uploadWindowOf(ro))[0].data.postTo, "", "nothing ticked");
   assert.equal(ro.uploads.length, 0);
@@ -3402,7 +3402,7 @@ test("drop: where a drop would do nothing the page says so and why, and nothing 
   const chanDown = await loadChat(fx.ann);
   chanDown.sock.readyState = 3;
   dragOn(chanDown, "dragenter", filesDrag());
-  assert.equal(dropOverlay(chanDown).line, "Drop to upload to Media and post in #general", "a channel with the chat's connection down: the window signs in itself");
+  assert.equal(dropOverlay(chanDown).line, "Drop to upload to Files and post in #general", "a channel with the chat's connection down: the window signs in itself");
   dragOn(chanDown, "dragleave", filesDrag());
   chanDown.set("(v) => { myKey = v; }", "");
   assert.deepEqual(refused(chanDown), { line: "Files cannot be dropped here.", reason: "This server has not finished signing you in yet. Try again in a moment.", refused: true }, "no identity in this browser: why not");
@@ -3498,7 +3498,7 @@ test("media card: a Media item's address on this site is a card just after the w
   const dialog = page.el("__body").children.find((c) => c.className === "hos-upload-window");
   assert.ok(dialog && dialog.hidden === false, "a window over the chat");
   const frame = dialog.children[0].children.find((c) => c.tag === "iframe");
-  assert.equal(frame.src, "/media/7?window=item", "the Media page's own item page, in its item-window form");
+  assert.equal(frame.src, "/media/7?window=item", "the Files page's own item page, in its item-window form");
 });
 
 // THE ITEM WINDOW'S PAGE HAD NO UPLOAD TOKEN (2026-10-18). A card's Open frames the Media page's item

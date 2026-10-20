@@ -73,7 +73,7 @@ struct Note {
 }
 
 /// Said over the window when nothing on screen takes files, and after such a drop.
-pub const NOTHING_HERE: &str = "Files cannot be dropped here. Drop them on a chat, the Media page or Shared Files.";
+pub const NOTHING_HERE: &str = "Files cannot be dropped here. Drop them on a chat, the Files page or Shared Files.";
 /// Said when only folders were dropped.
 pub const FOLDERS_LEFT_OUT: &str = "Folders cannot be sent. Open the folder and drop the files inside it.";
 /// How long a note stays, in seconds.

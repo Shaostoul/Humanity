@@ -225,7 +225,7 @@ fn an_admin_edits_the_words_but_not_the_licence() {
     match edit("root", "An admin's title with a new licence", "cc0_1", false) {
         Err((code, w)) => {
             assert_eq!(code, StatusCode::FORBIDDEN);
-            assert_eq!(w, "Only the person who put it on the Media page can change its licence or offer it for the game.");
+            assert_eq!(w, "Only the person who put it on the Files page can change its licence or offer it for the game.");
         }
         Ok(answer) => panic!("an admin cannot change the licence: {answer:?}"),
     }
@@ -234,7 +234,7 @@ fn an_admin_edits_the_words_but_not_the_licence() {
     assert_eq!((now.title.as_str(), now.licence.as_str(), now.project_use), ("Fire staff, tidied by an admin", "cc_by_4", false), "nothing changed");
 
     let mo = words(edit("mo", "A moderator's title", "cc_by_4", false));
-    assert_eq!(mo, (StatusCode::FORBIDDEN, "Only the person who put it there, or an admin, can edit a Media item.".to_string()), "moderators edit nothing");
+    assert_eq!(mo, (StatusCode::FORBIDDEN, "Only the person who put it there, or an admin, can edit an item.".to_string()), "moderators edit nothing");
     assert_eq!(words(edit("cal", "Cal's title", "cc_by_4", false)).0, StatusCode::FORBIDDEN, "nor does another member");
     assert_eq!(words(edit("stranger", "x", "cc_by_4", false)), (StatusCode::FORBIDDEN, MEMBERS_ONLY.to_string()));
 
@@ -558,7 +558,7 @@ fn someone_elses_upload_cannot_be_attached() {
     assert_eq!(words(add(db, &d, "ann", &item, "3_chat.png", "file")).0, StatusCode::NOT_FOUND, "a chat upload is not waiting on the Media shelf");
     assert_eq!(
         words(add(db, &d, "bea", &item, "2_beas.zip", "file")),
-        (StatusCode::FORBIDDEN, "Only the person who put it on the Media page can add files to it.".to_string())
+        (StatusCode::FORBIDDEN, "Only the person who put it on the Files page can add files to it.".to_string())
     );
     assert_eq!(words(add(db, &d, "stranger", &item, "2_beas.zip", "file")), (StatusCode::FORBIDDEN, MEMBERS_ONLY.to_string()));
     assert_eq!((d.spot("2_beas.zip"), d.spot("3_chat.png")), (Some(Spot::Waiting), Some(Spot::Public)), "nothing moved");

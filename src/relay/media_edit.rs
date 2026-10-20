@@ -55,7 +55,7 @@ type Answer = Result<Json<Value>, Refused>;
 
 /// What someone who is not a member of this server (or is banned from it) is told when they try
 /// to change a Media item or add to one.
-pub const MEMBERS_ONLY: &str = "Only members of this server can change Media items.";
+pub const MEMBERS_ONLY: &str = "Only members of this server can change items on the Files page.";
 
 /// What an edit sets: every field, required.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -133,7 +133,7 @@ pub fn edit_core(db: &Storage, known: &[MediaLabel], offered: &LicencesFile, b: 
         return Err((StatusCode::BAD_REQUEST, format!("A description can be at most {} characters.", store::MEDIA_DESCRIPTION_MAX)));
     }
     let labels = normalize_labels(&e.labels, known).map_err(|w| (StatusCode::BAD_REQUEST, w))?;
-    let now = db.media_item(b.id).map_err(db_err)?.ok_or_else(|| (StatusCode::NOT_FOUND, "There is no Media item with that number.".to_string()))?;
+    let now = db.media_item(b.id).map_err(db_err)?.ok_or_else(|| (StatusCode::NOT_FOUND, "There is no item with that number on the Files page.".to_string()))?;
     if e.licence != now.licence || e.project_use != now.project_use {
         offered.check_choice(&e.licence, e.project_use).map_err(|w| (StatusCode::BAD_REQUEST, w))?;
     }

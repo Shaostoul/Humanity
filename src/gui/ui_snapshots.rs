@@ -1893,7 +1893,7 @@ fn snapshot_media() {
 
 /// The Media page's Admin tab (Media round 5: the admins' section moved here from Server Settings,
 /// pages/media/admin.rs; this snapshot was `media_settings`, drawn bare, until 2026-10-12). The
-/// whole page as an admin sees it on that tab: "Media on 127.0.0.1:9", the Media and Admin tabs with
+/// whole page as an admin sees it on that tab: "Files on 127.0.0.1:9", the Media and Admin tabs with
 /// Admin picked, then who sees the page with the relay's line under it, the space and the share,
 /// the categories (General stays), a suggestion, and the meter with its prune lists.
 #[test]

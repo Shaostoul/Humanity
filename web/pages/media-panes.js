@@ -53,7 +53,7 @@
     panesTip: 'The list, the item and its details side by side (one above another on a tall window).',
     gallery: 'Gallery',
     galleryTip: 'Every item as a tile across the page. Press one to see it in the panes.',
-    viewLabel: 'How the Media page is shown',
+    viewLabel: 'How the Files page is shown',
     choose: 'Choose something in the list to see it here.',
     details: 'Its details, licence and files show here, with Edit for your own.',
     handle: 'Drag to change the size of the panes beside it. Double-click to put them back.',

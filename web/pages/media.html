@@ -3,24 +3,25 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Media, HumanityOS</title>
+  <title>Files, HumanityOS</title>
   <!-- An item's own page, /media/<id>, is this file with the item's Open Graph tags written
        at the next line by the relay (src/relay/media_page.rs). Keep that line as it is. -->
   <!-- media:og -->
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="stylesheet" href="/shared/theme.css">
-  <!-- The Media page (docs/design/media-showcase.md, "Increment 2, exact"). Everything
+  <!-- The Files page, called the Media page until 2026-10-19 and still at /media
+       (docs/design/media-showcase.md, "Increment 2, exact"). Everything
        inside #media-root is built by /pages/media-app.js with createElement and
        textContent; its styles are /shared/media.css, theme tokens only. -->
   <link rel="stylesheet" href="/shared/media.css?v=10">
   <!-- Each file's type, always shown just before its name (2026-10-17), and the tinted parts of
-       Add to Media and an item's Edit, in the chat sidebar's colours, darker. -->
+       Add to Files and an item's Edit, in the chat sidebar's colours, darker. -->
   <link rel="stylesheet" href="/shared/file-badge.css?v=1">
   <link rel="stylesheet" href="/shared/tint-section.css?v=1">
   <!-- Files dragged from the computer onto the page: the dimmed overlay saying what a drop will do (2026-10-17). -->
   <link rel="stylesheet" href="/shared/drop-overlay.css?v=2">
   <!-- The upload window (2026-10-17, /shared/upload-window.js): this page at /media?window=upload in a
-       frame over the chat is its Add to Media alone, without the site's menu, footer and background.
+       frame over the chat is its Add to Files alone, without the site's menu, footer and background.
        At /media/<id>?window=item (a Media card's Open in the chat) it is that item's own page alone,
        drawn as the frame's page rather than a dimmed dialog over it.
        Marked here, before anything is drawn, so the menu never shows in the frame. In the frame only
@@ -103,7 +104,7 @@
 <script src="/pages/media-sound.js?v=1"></script>
 <script src="/pages/media-item.js?v=8"></script>
 <!-- Files dragged from the computer onto the page (2026-10-17): the desktop's words while they are
-     over it ("Drop to upload to Media", "Drop to add to <the item>" with its Edit open) and its drop.
+     over it ("Drop to upload to Files", "Drop to add to <the item>" with its Edit open) and its drop.
      Before media-app.js, which puts it on the page. upload-window.js: this page as the upload window
      over the chat (/media?window=upload in a frame), taking the files dropped there. -->
 <script src="/shared/drop-overlay.js?v=2"></script>

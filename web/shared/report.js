@@ -53,7 +53,7 @@
     post: 'A public post',
     group: 'A group',
     profile: 'Their profile',
-    media: 'The Media page',
+    media: 'The Files page',
   });
   const REPORT_MAX_ITEMS = 20;
   const REPORT_MAX_EVIDENCE_BYTES = 64 * 1024;
@@ -94,7 +94,7 @@
   }
   /** The badge on a Media item the server found, put there by the person reported. */
   function reportMediaFoundBadge(name) {
-    return 'Checked: on the Media page, put there by ' + name;
+    return 'Checked: on the Files page, put there by ' + name;
   }
   /**
    * Where the Reports view opens a reported Media item: its own page, /media/<n> (Media round 5,
@@ -192,7 +192,7 @@
       } else if (it.kind === 'group_text') {
         if (typeof it.from !== 'string' || typeof it.text !== 'string' || typeof it.ts !== 'number') return 'The group message is not named.';
       } else if (it.kind === 'media') {
-        if (!Number.isSafeInteger(it.id) || it.id <= 0) return 'The Media item is not named.';
+        if (!Number.isSafeInteger(it.id) || it.id <= 0) return 'The item on the Files page is not named.';
       } else {
         return 'An item of evidence is of a kind this server does not take.';
       }

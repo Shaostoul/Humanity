@@ -156,9 +156,9 @@ pub const ROLE_FILE: &str = "file";
 pub const ROLE_COVER: &str = "cover";
 
 /// What publishing, or adding, an upload that is already on an item is told (409).
-pub const ALREADY_ON_AN_ITEM: &str = "That upload is already part of a Media item.";
+pub const ALREADY_ON_AN_ITEM: &str = "That upload is already part of an item on the Files page.";
 /// An action naming an item's file by a name that is not that file's (409): the W5 words.
-pub const OUT_OF_DATE: &str = "That is not the Media item you were looking at: the page is out of date. Load it again.";
+pub const OUT_OF_DATE: &str = "That is not the item you were looking at: the page is out of date. Load it again.";
 
 /// One of an item's added files, or its cover, as the item carries it. Its size and the name it
 /// had on its uploader's device are its `user_uploads` row's.
@@ -324,10 +324,10 @@ impl Storage {
                 .query_row("SELECT uploader_key, visibility FROM media_items WHERE id = ?1", params![id], |r| Ok((r.get(0)?, r.get(1)?)))
                 .optional()?;
             let Some((uploader, visibility)) = found else {
-                return refused(Refusal::NotFound, "There is no Media item with that number.");
+                return refused(Refusal::NotFound, "There is no item with that number on the Files page.");
             };
             if uploader != signer {
-                return refused(Refusal::NotAllowed, "Only the person who put it on the Media page can add files to it.");
+                return refused(Refusal::NotAllowed, "Only the person who put it on the Files page can add files to it.");
             }
             let row: Option<(String, i64, i64)> = tx
                 .query_row(
@@ -340,7 +340,7 @@ impl Storage {
                 return refused(Refusal::NotFound, "There is no upload of yours waiting with that name.");
             };
             if upload.to_ascii_lowercase().ends_with(".enc") {
-                return refused(Refusal::NotAllowed, "That file is encrypted for a private conversation, so it can never be shown on the Media page.");
+                return refused(Refusal::NotAllowed, "That file is encrypted for a private conversation, so it can never be shown on the Files page.");
             }
             if holding(&tx, upload)?.is_some() {
                 return refused(Refusal::Conflict, ALREADY_ON_AN_ITEM);
@@ -401,10 +401,10 @@ impl Storage {
             let uploader: Option<String> =
                 tx.query_row("SELECT uploader_key FROM media_items WHERE id = ?1", params![id], |r| r.get(0)).optional()?;
             let Some(uploader) = uploader else {
-                return refused(Refusal::NotFound, "There is no Media item with that number.");
+                return refused(Refusal::NotFound, "There is no item with that number on the Files page.");
             };
             if uploader != requester && !is_admin {
-                return refused(Refusal::NotAllowed, "Only the person who put it there, or an admin, can rename a file of a Media item.");
+                return refused(Refusal::NotAllowed, "Only the person who put it there, or an admin, can rename an item's file.");
             }
             let stored: Option<String> = if file_no == 0 {
                 tx.query_row("SELECT upload_filename FROM media_items WHERE id = ?1", params![id], |r| r.get(0)).optional()?
@@ -412,7 +412,7 @@ impl Storage {
                 tx.query_row("SELECT upload_filename FROM media_item_files WHERE id = ?1 AND item_id = ?2", params![file_no, id], |r| r.get(0)).optional()?
             };
             let Some(stored) = stored else {
-                return refused(Refusal::NotFound, "That Media item has no file with that number.");
+                return refused(Refusal::NotFound, "That item has no file with that number.");
             };
             if stored != file_name.trim().trim_start_matches("/uploads/") {
                 return refused(Refusal::Conflict, OUT_OF_DATE);
@@ -439,10 +439,10 @@ impl Storage {
             let uploader: Option<String> =
                 tx.query_row("SELECT uploader_key FROM media_items WHERE id = ?1", params![id], |r| r.get(0)).optional()?;
             let Some(uploader) = uploader else {
-                return refused(Refusal::NotFound, "There is no Media item with that number.");
+                return refused(Refusal::NotFound, "There is no item with that number on the Files page.");
             };
             if uploader != requester {
-                return refused(Refusal::NotAllowed, "Only the person who put it on the Media page can choose its cover.");
+                return refused(Refusal::NotAllowed, "Only the person who put it on the Files page can choose its cover.");
             }
             if file_no == 0 {
                 return refused(Refusal::Bad, "The first file is the item itself: add a picture to it and use that as the cover.");
@@ -451,7 +451,7 @@ impl Storage {
                 .query_row("SELECT upload_filename, role FROM media_item_files WHERE id = ?1 AND item_id = ?2", params![file_no, id], |r| Ok((r.get(0)?, r.get(1)?)))
                 .optional()?;
             let Some((stored, role)) = row else {
-                return refused(Refusal::NotFound, "That Media item has no file with that number.");
+                return refused(Refusal::NotFound, "That item has no file with that number.");
             };
             if stored != file_name.trim().trim_start_matches("/uploads/") {
                 return refused(Refusal::Conflict, OUT_OF_DATE);
@@ -485,10 +485,10 @@ impl Storage {
             let uploader: Option<String> =
                 tx.query_row("SELECT uploader_key FROM media_items WHERE id = ?1", params![id], |r| r.get(0)).optional()?;
             let Some(uploader) = uploader else {
-                return refused(Refusal::NotFound, "There is no Media item with that number.");
+                return refused(Refusal::NotFound, "There is no item with that number on the Files page.");
             };
             if uploader != requester && !is_admin {
-                return refused(Refusal::NotAllowed, "Only the person who put it there, or an admin, can remove a file from a Media item.");
+                return refused(Refusal::NotAllowed, "Only the person who put it there, or an admin, can remove a file from an item.");
             }
             if file_no == 0 {
                 return refused(Refusal::Bad, "The first file is the item itself: remove the item instead.");
@@ -497,7 +497,7 @@ impl Storage {
                 .query_row("SELECT upload_filename FROM media_item_files WHERE id = ?1 AND item_id = ?2", params![file_no, id], |r| r.get(0))
                 .optional()?;
             let Some(name) = name else {
-                return refused(Refusal::NotFound, "That Media item has no file with that number.");
+                return refused(Refusal::NotFound, "That item has no file with that number.");
             };
             if name != file_name.trim().trim_start_matches("/uploads/") {
                 return refused(Refusal::Conflict, OUT_OF_DATE);
@@ -523,16 +523,16 @@ impl Storage {
                 })
                 .optional()?;
             let Some((uploader, licence, project_use)) = found else {
-                return refused(Refusal::NotFound, "There is no Media item with that number.");
+                return refused(Refusal::NotFound, "There is no item with that number on the Files page.");
             };
             if uploader != requester && !is_admin {
-                return refused(Refusal::NotAllowed, "Only the person who put it there, or an admin, can edit a Media item.");
+                return refused(Refusal::NotAllowed, "Only the person who put it there, or an admin, can edit an item.");
             }
             let licence_changes = e.licence != licence || e.project_use != (project_use != 0);
             if licence_changes && uploader != requester {
                 return refused(
                     Refusal::NotAllowed,
-                    "Only the person who put it on the Media page can change its licence or offer it for the game.",
+                    "Only the person who put it on the Files page can change its licence or offer it for the game.",
                 );
             }
             let category_exists: bool =

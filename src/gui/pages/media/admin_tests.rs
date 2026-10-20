@@ -98,7 +98,7 @@ fn the_section_shows_the_media_settings_in_the_relays_words() {
     let mut state = admin_state();
     frame(&ctx, &theme, &mut state, Vec::new());
     let out = frame(&ctx, &theme, &mut state, Vec::new());
-    for text in ["Who sees the Media page", "Public", "Members only", "Media space (MB)", "Each person's share (MB)", "Public visitors get previews only"] {
+    for text in ["Who sees the Files page", "Public", "Members only", "File space (MB)", "Each person's share (MB)", "Public visitors get previews only"] {
         assert!(shows(&out, text), "the section shows {text:?}");
     }
     assert!(shows(&out, "The relay's own words about members."), "the relay's words are under the switch");
@@ -227,7 +227,7 @@ fn the_media_settings_say_when_the_server_changed_underneath() {
     state.server_settings_draft = Some(draft);
     state.server_settings_changed_underneath = true;
     let out = frame(&ctx, &theme, &mut state, Vec::new());
-    assert!(shows(&out, "This server's settings changed while you were editing"), "the Media settings say so");
+    assert!(shows(&out, "This server's settings changed while you were editing"), "the Files page settings say so");
     state.server_settings_changed_underneath = false;
     let out = frame(&ctx, &theme, &mut state, Vec::new());
     assert!(!shows(&out, "This server's settings changed while you were editing"), "and only then");

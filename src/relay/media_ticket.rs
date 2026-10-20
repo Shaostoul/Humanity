@@ -208,7 +208,7 @@ const _: fn() = || {
 
 /// What a refused ticket is told: one sentence, the same whatever was wrong with it, so a guess
 /// learns nothing.
-pub const TICKET_REFUSED: &str = "That link to a members-only file has run out (links last ten minutes) or is not for this file. Open the file again from the Media page.";
+pub const TICKET_REFUSED: &str = "That link to a members-only file has run out (links last ten minutes) or is not for this file. Open the file again from the Files page.";
 
 /// The item `ticket` opens at `now` as its file `file`, if it does: live, given for item `id`,
 /// that file's stored name still the one the ticket was given for (round 5: a ticket opens the one
@@ -275,7 +275,7 @@ pub async fn ticket(State(state): State<Arc<RelayState>>, headers: HeaderMap, Js
 /// members' file route, `/api/media/file/<id>?file=<n>&ticket=...`, or with `download` the counted
 /// download route, `/api/media/download/<id>?file=<n>&ticket=...` (round 5).
 pub fn ticket_core(state: &RelayState, key: &str, b: &TicketBody, now: Instant) -> Result<Json<Value>, Refused> {
-    let not_member = || (StatusCode::FORBIDDEN, "Only members of this server who are not banned can open members-only Media files.".to_string());
+    let not_member = || (StatusCode::FORBIDDEN, "Only members of this server who are not banned can open members-only files on the Files page.".to_string());
     if !is_member(&state.db, key) {
         return Err(not_member());
     }
@@ -286,8 +286,8 @@ pub fn ticket_core(state: &RelayState, key: &str, b: &TicketBody, now: Instant) 
         .db
         .media_item(id)
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("storage: {e}")))?
-        .ok_or_else(|| (StatusCode::NOT_FOUND, "There is no Media item with that number.".to_string()))?;
-    let name = item.file_name(b.file).ok_or_else(|| (StatusCode::NOT_FOUND, "That Media item has no file with that number.".to_string()))?;
+        .ok_or_else(|| (StatusCode::NOT_FOUND, "There is no item with that number on the Files page.".to_string()))?;
+    let name = item.file_name(b.file).ok_or_else(|| (StatusCode::NOT_FOUND, "That item has no file with that number.".to_string()))?;
     let ticket = state.media_tickets.issue(key, member_row, id, name, now)?;
     let route = if b.download { "download" } else { "file" };
     Ok(Json(json!({ "url": format!("/api/media/{route}/{id}?file={}&ticket={ticket}", b.file), "expires_in_s": TICKET_LIFE.as_secs() })))

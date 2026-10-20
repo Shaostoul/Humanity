@@ -73,7 +73,7 @@ async fn a_cancel_that_races_the_finish_leaves_nothing_stored() {
     publish(&r, &name);
     let answer = cancel_core(&r.state, r.folders(), &kept, Some("tok_ann")).await.unwrap().0;
     assert_eq!(answer, json!({ "ok": true, "published": true }), "a published upload is said to be so");
-    assert!(r.db().media_item_for_upload(&name).unwrap().is_some(), "and stays on the Media page");
+    assert!(r.db().media_item_for_upload(&name).unwrap().is_some(), "and stays on the Files page");
     assert!(r.uploads.join(&name).is_file(), "with its file");
     assert!(r.session(&kept).is_none(), "the session is gone");
 

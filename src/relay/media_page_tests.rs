@@ -128,7 +128,7 @@ async fn a_public_items_page_carries_its_open_graph_tags_escaped() {
     let shown = "&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt;";
     let id = item.id;
     for tag in [
-        format!("<title>{shown}, Media on united-humanity.us</title>"),
+        format!("<title>{shown}, Files on united-humanity.us</title>"),
         format!("<link rel=\"canonical\" href=\"https://united-humanity.us/media/{id}\">"),
         "<meta property=\"og:type\" content=\"website\">".to_string(),
         "<meta property=\"og:site_name\" content=\"Ann&#39;s &lt;Place&gt;\">".to_string(),
@@ -184,8 +184,8 @@ async fn a_members_only_item_a_members_only_page_and_a_missing_item_answer_the_s
         assert_eq!(page_of(&state, &d, not_a_number).await, bare, "{not_a_number:?}");
     }
     let (_, _, text) = &bare;
-    assert!(text.contains("<title>Media on united-humanity.us, HumanityOS</title>"), "{text}");
-    assert!(text.contains("<meta property=\"og:title\" content=\"Media on united-humanity.us\">"));
+    assert!(text.contains("<title>Files on united-humanity.us, HumanityOS</title>"), "{text}");
+    assert!(text.contains("<meta property=\"og:title\" content=\"Files on united-humanity.us\">"));
     assert!(text.contains("<meta name=\"robots\" content=\"noindex\">"));
     for nothing in ["Secret", "dawn", "og:image", "og:description", "og:url", "canonical", "twitter:card"] {
         assert!(!text.contains(nothing), "the bare page says nothing of the item: {nothing}");
@@ -267,8 +267,8 @@ async fn a_forged_host_never_reaches_the_tags() {
     assert!(!text.contains("evil.example"), "a forged Host appears nowhere in the page\n{text}");
     // The route serves the website's real Media page, which reads the item's number from the
     // address and opens it (lane 1G), with the item's tags added.
-    for part in ["<div id=\"media-root\"></div>", "<script src=\"/pages/media-app.js", "<title>Dusk, Media on "] {
-        assert!(text.contains(part), "the real Media page, with the item's tags: {part}");
+    for part in ["<div id=\"media-root\"></div>", "<script src=\"/pages/media-app.js", "<title>Dusk, Files on "] {
+        assert!(text.contains(part), "the real Files page, with the item's tags: {part}");
     }
     let at = text.find("og:url\" content=\"").expect("an og:url") + "og:url\" content=\"".len();
     let url = &text[at..at + text[at..].find('"').unwrap()];

@@ -85,7 +85,7 @@ pub enum Discard {
 }
 
 /// What the pane says when the item is not on the Media page, or this person may not see it.
-pub const NOT_THERE: &str = "That item is not on the Media page, or you may not see it.";
+pub const NOT_THERE: &str = "That item is not on the Files page, or you may not see it.";
 /// What the pane says once a file was renamed, and once a picture on the item became its cover.
 pub const FILE_RENAMED: &str = "Renamed.";
 pub const COVER_CHOSEN: &str = "That picture is the cover now.";
@@ -335,14 +335,14 @@ pub(crate) fn by_line(item: &Item) -> String {
     }
 }
 
-/// "On Media since 12 October 2026" (UTC), from the server's time in milliseconds; empty when it
+/// "On the Files page since 12 October 2026" (UTC), from the server's time in milliseconds; empty when it
 /// gave none.
 pub(crate) fn since_line(item: &Item) -> String {
     let ms = if item.published_at > 0 { item.published_at } else { item.uploaded_at };
     if ms <= 0 {
         return String::new();
     }
-    format!("On Media since {}", day_words(ms))
+    format!("On the Files page since {}", day_words(ms))
 }
 
 /// A day in words, "12 October 2026", from a time in milliseconds (UTC; the same civil-date
@@ -696,7 +696,7 @@ pub(crate) fn draw_window(ctx: &egui::Context, theme: &Theme, state: &mut GuiSta
     let min = if arrange == widgets::panes::Arrange::Across { super::panes::MIN_PANE } else { super::panes::MIN_PANE_DOWN };
     let mut pressed = Pressed::default();
     let mut open = true;
-    let title = page.item.as_ref().map(|i| i.display_title()).unwrap_or_else(|| "Media item".to_string());
+    let title = page.item.as_ref().map(|i| i.display_title()).unwrap_or_else(|| "Item on the Files page".to_string());
     widgets::dialog(ctx, theme, WINDOW_ID, &title, &mut open, |ui| {
         ui.allocate_ui(size, |ui| {
             ui.set_min_size(size);
@@ -755,7 +755,7 @@ pub(crate) fn draw_leave_question(ctx: &egui::Context, theme: &Theme, state: &mu
     widgets::dialog(ctx, theme, "media_leave_unsaved", DISCARD_TITLE, &mut open, |ui| {
         ui.label(RichText::new(discard_words(&title)).size(theme.font_size_body).color(theme.text_primary()));
         ui.horizontal(|ui| {
-            back = widgets::Button::primary(GO_BACK).tooltip("The Media page, with the changes as they were.").show(ui, theme);
+            back = widgets::Button::primary(GO_BACK).tooltip("The Files page, with the changes as they were.").show(ui, theme);
             discard = widgets::Button::danger(DISCARD_THEM).show(ui, theme);
         });
     });
@@ -822,7 +822,7 @@ fn draw_confirmations(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, 
     if page.confirm_remove {
         let mut open = true;
         let (mut yes, mut no) = (false, false);
-        widgets::dialog(ctx, theme, "media_item_confirm_remove", "Remove from Media", &mut open, |ui| {
+        widgets::dialog(ctx, theme, "media_item_confirm_remove", "Remove from Files", &mut open, |ui| {
             ui.label(RichText::new(item.display_title()).size(theme.font_size_body).color(theme.text_primary()).strong());
             ui.label(RichText::new(api::remove_words(&item)).size(theme.font_size_body).color(theme.text_secondary()));
             ui.horizontal(|ui| {

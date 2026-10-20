@@ -80,7 +80,7 @@ fn a_strangers_dm_keeps_its_media_link_held_until_opened() {
 fn a_labelled_card_says_the_labels_name_before_the_media_page_is_opened() {
     let mut state = with_item();
     state.media.cards.clear();
-    assert!(state.media.list.labels.is_empty(), "test setup: the Media page has not answered");
+    assert!(state.media.list.labels.is_empty(), "test setup: the Files page has not answered");
     let answer = serde_json::json!({
         "items": [{"id": 7, "title": "Dusk", "url": "/uploads/7_dusk.png", "filename": "7_dusk.png", "kind": "picture", "visibility": "public", "uploader_key": "ann", "uploader_name": "Ann", "labels": ["flashing"]}],
         "labels": [{"id": "flashing", "label": "Flashing lights", "desc": "Fast flashing or strobing light"}]

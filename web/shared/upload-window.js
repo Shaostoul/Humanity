@@ -85,11 +85,11 @@
 
   /** Every message between the two halves carries this. */
   const KIND = 'hos-upload-window';
-  /** The Media page in its upload-window form. */
+  /** The Files page (the Media page until 2026-10-19, still at /media) in its upload-window form. */
   const PAGE = '/media?window=upload';
   const WORDS = Object.freeze({
-    title: 'Add to Media',
-    itemTitle: 'Media item',
+    title: 'Add to Files',
+    itemTitle: 'Item on the Files page',
     close: 'Close',
     closeTip: 'Close this window. An upload under way carries on, and what happens to it is said in the chat.',
   });

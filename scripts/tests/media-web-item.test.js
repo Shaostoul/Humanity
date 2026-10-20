@@ -218,7 +218,7 @@ test("5. adding a file uploads, then attaches it; it is never published", async 
   const asked = net.calls.map((c) => (c.init.method || "GET") + " " + path0(c.url));
   const add = net.calls.find((c) => c.url === "/api/media/files/add");
   assert.ok(add, "added, never published: " + asked.join(", "));
-  assert.ok(relay.log.some((l) => l.kind === "start" && l.c.body.media === 1), "the same resumable upload as Add to Media's, on the Media shelf");
+  assert.ok(relay.log.some((l) => l.kind === "start" && l.c.body.media === 1), "the same resumable upload as Add to Files uses, on the Media shelf");
   assert.deepEqual([add.body.id, add.body.filename, add.body.add, add.body.as, add.body.sig], [1, "1760_x.png", "1760_clip.webm", "file", "sig:" + "media_file_add:1:1760_clip.webm:file"]);
   assert.ok(!net.calls.some((c) => c.url === "/api/media" && (c.init.method || "GET") === "POST"), "never published: " + asked.join(", "));
   await settle();
@@ -873,7 +873,7 @@ test("16. Use as cover is on a picture that is not the cover, for the uploader; 
 test("17. a refused rename or cover shows the relay's words in Edit's problem line, and a refused rename keeps its box", async () => {
   const { doc, net } = await openEditOf(mineParts(), { routes: [
     [at("/api/media/files/rename", "POST"), () => respond(400, "A file needs a name before its ending.")],
-    [at("/api/media/files/cover", "POST"), () => respond(409, "That is not the Media item you were looking at: the page is out of date. Load it again.")],
+    [at("/api/media/files/cover", "POST"), () => respond(409, "That is not the item you were looking at: the page is out of date. Load it again.")],
   ] });
   renameOf(doc, 3).click();
   typeInto(boxes(doc)[0], "   ");
@@ -889,7 +889,7 @@ test("17. a refused rename or cover shows the relay's words in Edit's problem li
   renamingRow(doc, 3).querySelector("[data-cancel-rename]").click();
   coverButtons(doc)[0].click();
   await settle();
-  assert.equal(text(byId(doc, "media-edit-problem")), "That is not the Media item you were looking at: the page is out of date. Load it again.", "a refused cover: its words in the problem line");
+  assert.equal(text(byId(doc, "media-edit-problem")), "That is not the item you were looking at: the page is out of date. Load it again.", "a refused cover: its words in the problem line");
   assert.notEqual(statusLine(doc), "That picture is the cover now.", "nothing is said to be the cover");
   assert.deepEqual(coverButtons(doc).map((b) => b.disabled), [false], "Use as cover may be pressed again");
 });

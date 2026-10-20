@@ -284,7 +284,7 @@ async fn removed_removes_the_item() {
 
     let answer = decide_core(&state.db, d.folders(), OPERATOR, 1, Outcome::Removed, "Not theirs to share.", NOON).unwrap().0;
     assert_eq!((answer["outcome"].as_str(), answer["item_removed"].as_bool()), (Some("removed"), Some(true)));
-    assert_eq!(state.db.media_item(dusk.id).unwrap().is_some(), false, "the item is still on the Media page after removed");
+    assert_eq!(state.db.media_item(dusk.id).unwrap().is_some(), false, "the item is still on the Files page after removed");
     assert!(!d.uploads.join("1_dusk.png").exists(), "its file, uploaded for Media, is deleted");
 
     let again = decide_core(&state.db, d.folders(), OPERATOR, 1, Outcome::Kept, "", NOON);
@@ -337,7 +337,7 @@ async fn the_admins_signed_in_now_are_told() {
     assert!(!who.contains(&"member_key") && !who.contains(&"mod_key"), "a member was told of a copyright report: {who:?}");
     assert_eq!(who, [OPERATOR, "owner_key"]);
     for (_, words) in &told {
-        assert_eq!(words, "New copyright report #1 about Media item 1 \"Dusk\". Open the Media page's Admin tab to decide it.");
+        assert_eq!(words, "New copyright report #1 about item 1 \"Dusk\" on the Files page. Open its Admin tab to decide it.");
     }
 }
 

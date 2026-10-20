@@ -146,7 +146,7 @@ async fn a_file_sent_in_three_pieces_is_stored_on_the_media_shelf() {
         .with_conn(|c| c.query_row("SELECT shared, size_bytes, original_name FROM user_uploads WHERE filename = ?1", [&name], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?))))
         .unwrap();
     assert_eq!((shelf, size, original.as_str()), (MEDIA_SHELF, 2500, "clip.mp4"), "the file is on the Media shelf with its size");
-    assert_eq!(r.db().media_bytes(Some("ann")), 2500, "the Media budget counts it");
+    assert_eq!(r.db().media_bytes(Some("ann")), 2500, "the file space counts it");
     assert!(r.session(&id).is_some_and(|s| s.finished()), "the session stays, finished, until the idle expiry (R2)");
     assert!(Rig::files_in(&r.resume).is_empty(), "its pieces' file is gone");
     assert_eq!(status_core(&r.state, &id, Some("tok_ann")).await.unwrap().0["done"], done, "and the status says it is done");
@@ -235,7 +235,7 @@ async fn a_file_over_the_share_is_refused_at_start_with_the_share_words() {
     let refused = r.start("tok_ann", file("clip.mp4", MIB * 6 / 10, "video/mp4")).await.expect_err("a file over the share is refused at the start");
     assert_eq!(refused.status(), StatusCode::INSUFFICIENT_STORAGE);
     assert!(
-        refused.words().contains("Your share of the Media space is used up: 0.5 MB of your 1.0 MB used, and this file is 0.6 MB"),
+        refused.words().contains("Your share of the file space is used up: 0.5 MB of your 1.0 MB used, and this file is 0.6 MB"),
         "{}",
         refused.words()
     );
@@ -274,7 +274,7 @@ async fn two_uploads_that_fit_alone_but_not_together_cannot_both_start() {
     assert!(budget.is_none(), "a small one still fits both: {budget:?}");
     r.settings(|s| s.media_budget_mb = 1);
     let full = r.start("tok_bea", file("e.mp4", 1000, "video/mp4")).await.expect_err("the budget counts everyone's uploads in progress");
-    assert!(full.words().contains("The Media space on this server is full") && full.words().contains("still in progress"), "{}", full.words());
+    assert!(full.words().contains("The file space on this server is full") && full.words().contains("still in progress"), "{}", full.words());
 
     cancel_core(&r.state, r.folders(), &first, Some("tok_ann")).await.unwrap();
     r.settings(|s| s.media_budget_mb = 2);

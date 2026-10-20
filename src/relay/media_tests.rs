@@ -325,7 +325,7 @@ fn an_upload_is_held_to_its_own_shelfs_room() {
     let mib = |x: f64| (x * MIB as f64) as u64;
 
     let chat_ok = upload_room(db, &s, "cal", 0, folder, mib(0.4));
-    assert!(chat_ok.is_ok(), "a chat file was refused for the Media space's bytes: {:?}", chat_ok.err().map(|(c, w)| (c.as_u16(), w)));
+    assert!(chat_ok.is_ok(), "a chat file was refused for the file space's bytes: {:?}", chat_ok.err().map(|(c, w)| (c.as_u16(), w)));
     let (code, words) = upload_room(db, &s, "cal", 0, folder, mib(0.6)).unwrap_err();
     assert_eq!(code, StatusCode::INSUFFICIENT_STORAGE);
     assert!(words.contains("(0.5 MB / 1 MB)"), "{words}");
@@ -763,7 +763,7 @@ fn a_file_already_public_goes_on_media_as_public_only() {
         let refused = publish_core(db, &s, &[], folders, &body(file, "members"));
         let (code, words) = refused.err().unwrap_or_else(|| panic!("a chat file was published as members only: {file}"));
         assert_eq!(code, StatusCode::BAD_REQUEST, "{file}");
-        assert!(words.contains("already public") && words.contains("upload it on the Media page"), "{words}");
+        assert!(words.contains("already public") && words.contains("upload it on the Files page"), "{words}");
         assert!(uploads.join(file).exists() && !members.join(file).exists(), "the refusal moved {file}");
     }
     assert_eq!(shared_list(db), vec!["2_shared.glb".to_string()], "the Shared Files file is still listed");

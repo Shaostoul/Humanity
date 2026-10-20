@@ -1,6 +1,6 @@
 //! Platform — the software-itself tab (page carve, v0.360; trimmed v0.361).
 //!
-//! Folds Recovery + Calculator + Notes + Calendar + Files + Bugs + Testing +
+//! Folds Recovery + Calculator + Notes + Calendar + Data files + Bugs + Testing +
 //! Dev + Browser into one tab via a `section_nav` sidebar, delegating content to
 //! each page's `draw`. Everything here is the app's OWN machinery.
 //!
@@ -35,7 +35,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 SectionNavItem::new("calculator", "Calculator", c),
                 SectionNavItem::new("notes", "Notes", c),
                 SectionNavItem::new("calendar", "Calendar", c),
-                SectionNavItem::new("files", "Files", c),
+                SectionNavItem::new("data_files", "Data files", c),
                 SectionNavItem::new("bugs", "Bugs", c),
                 SectionNavItem::new("testing", "Testing", c),
                 SectionNavItem::new("performance", "Performance", c),
@@ -59,7 +59,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         "calculator" => calculator::draw(ctx, theme, state),
         "notes" => notes::draw(ctx, theme, state),
         "calendar" => calendar::draw(ctx, theme, state),
-        "files" => files::draw(ctx, theme, state),
+        "data_files" => files::draw(ctx, theme, state),
         "bugs" => bugs::draw(ctx, theme, state),
         "testing" => testing::draw(ctx, theme, state),
         // Resource budgets increment 1: live GPU/CPU/VRAM/RAM pies.

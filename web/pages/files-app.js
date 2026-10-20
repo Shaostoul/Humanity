@@ -264,7 +264,7 @@ const FilesApp = (function () {
     $('btn-save').classList.remove('visible');
     $('btn-wrap').classList.remove('visible');
     $('unsaved-dot').classList.remove('visible');
-    document.title = 'Files \u2014 HumanityOS';
+    document.title = 'Data files \u2014 HumanityOS';
   }
 
   function showFileInfo(size, modified) {
@@ -326,7 +326,7 @@ const FilesApp = (function () {
     $('btn-save').classList.add('visible');
     $('btn-wrap').classList.add('visible');
     $('unsaved-dot').classList.remove('visible');
-    document.title = filePath.split('/').pop() + ' \u2014 Files \u2014 HumanityOS';
+    document.title = filePath.split('/').pop() + ' \u2014 Data files \u2014 HumanityOS';
   }
 
   function updateLineNumbers() {
@@ -360,7 +360,7 @@ const FilesApp = (function () {
     // Also show editor button.
     $('btn-save').classList.add('visible');
     $('btn-wrap').classList.remove('visible');
-    document.title = filePath.split('/').pop() + ' \u2014 Files \u2014 HumanityOS';
+    document.title = filePath.split('/').pop() + ' \u2014 Data files \u2014 HumanityOS';
 
     // Add a toggle to switch to raw editor.
     const toggle = document.createElement('button');
@@ -483,7 +483,7 @@ const FilesApp = (function () {
     // Add edit raw button.
     $('btn-save').classList.add('visible');
     $('btn-wrap').classList.remove('visible');
-    document.title = filePath.split('/').pop() + ' \u2014 Files \u2014 HumanityOS';
+    document.title = filePath.split('/').pop() + ' \u2014 Data files \u2014 HumanityOS';
 
     const toggle = document.createElement('button');
     toggle.textContent = 'Edit Raw';
@@ -503,7 +503,7 @@ const FilesApp = (function () {
 
     $('btn-save').classList.add('visible');
     $('btn-wrap').classList.remove('visible');
-    document.title = filePath.split('/').pop() + ' \u2014 Files \u2014 HumanityOS';
+    document.title = filePath.split('/').pop() + ' \u2014 Data files \u2014 HumanityOS';
 
     const toggle = document.createElement('button');
     toggle.textContent = 'Edit Raw';
@@ -542,7 +542,7 @@ const FilesApp = (function () {
     $('btn-wrap').classList.remove('visible');
     $('unsaved-dot').classList.remove('visible');
     if (entry) showFileInfo(entry.size, entry.modified);
-    document.title = filePath.split('/').pop() + ' \u2014 Files \u2014 HumanityOS';
+    document.title = filePath.split('/').pop() + ' \u2014 Data files \u2014 HumanityOS';
   }
 
   function showUnknownViewer(filePath, entry) {
@@ -560,7 +560,7 @@ const FilesApp = (function () {
     $('btn-wrap').classList.remove('visible');
     $('unsaved-dot').classList.remove('visible');
     if (entry) showFileInfo(entry.size, entry.modified);
-    document.title = name + ' \u2014 Files \u2014 HumanityOS';
+    document.title = name + ' \u2014 Data files \u2014 HumanityOS';
   }
 
   // ── Dirty state ──
@@ -573,8 +573,8 @@ const FilesApp = (function () {
   function updateDirtyState() {
     const dirty = isDirty();
     $('unsaved-dot').classList.toggle('visible', dirty);
-    const name = currentPath ? currentPath.split('/').pop() : 'Files';
-    document.title = (dirty ? '* ' : '') + name + ' \u2014 Files \u2014 HumanityOS';
+    const name = currentPath ? currentPath.split('/').pop() : 'Data files';
+    document.title = (dirty ? '* ' : '') + name + ' \u2014 Data files \u2014 HumanityOS';
   }
 
   // ── Save ──

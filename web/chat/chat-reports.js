@@ -802,7 +802,7 @@ function reportMediaEvidenceView(ev) {
   const w = reportMediaWords || { kinds: {}, labels: {} };
   const visibility = ev.visibility === 'members' ? 'Members only' : ev.visibility === 'public' ? 'Public' : '';
   return {
-    mediaTitle: ev.title || (ev.checked ? 'Untitled' : 'Media item ' + (ev.mediaId == null ? '' : ev.mediaId)),
+    mediaTitle: ev.title || (ev.checked ? 'Untitled' : 'Item ' + (ev.mediaId == null ? '' : ev.mediaId + ' ') + 'on the Files page'),
     mediaFacts: [
       ev.mediaKind ? (w.kinds[ev.mediaKind] || ev.mediaKind) : '',
       ev.labels.length ? 'Labels: ' + ev.labels.map((l) => w.labels[l] || l).join(', ') : '',

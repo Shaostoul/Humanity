@@ -1,4 +1,5 @@
-//! File Browser page — browse data/ directory, view and edit text files.
+//! The Data files page (Platform > Data files; "Files" until 2026-10-19): browse the data/
+//! directory, view and edit text files, with the server's Shared Files above it.
 
 use egui::{Color32, Frame, RichText, ScrollArea, Vec2};
 use crate::gui::GuiState;
@@ -417,7 +418,7 @@ fn draw_shared_files_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSt
     // The file list.
     let rows = with_state(|fs| fs.shared_files.clone());
     let mut remove_filename: Option<String> = None;
-    // A row of your own pressed "Put on Media": the Media page's form opens for it, public only
+    // A row of your own pressed "Put on the Files page": the Files page's form opens for it, public only
     // (it is already public here; docs/design/media-showcase.md, increment 2).
     let mut put_on_media: Option<SharedFileRow> = None;
     egui::ScrollArea::vertical()
@@ -455,8 +456,8 @@ fn draw_shared_files_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSt
                     }
                     if !my_key.is_empty()
                         && row.uploader_key == my_key
-                        && widgets::Button::secondary("Put on Media")
-                            .tooltip("Show this file on the server's Media page too.")
+                        && widgets::Button::secondary("Put on the Files page")
+                            .tooltip("Show this file on the server's Files page too.")
                             .show(ui, theme)
                     {
                         put_on_media = Some(row.clone());
@@ -590,8 +591,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     egui::CentralPanel::default()
         .frame(Frame::none().fill(theme.bg_panel()).inner_margin(16.0))
         .show(ctx, |ui| {
-            // Heading matches the Platform sidebar label ("Files").
-            ui.label(RichText::new("Files").size(theme.font_size_title).color(theme.text_primary()));
+            // Heading matches the Platform sidebar label ("Data files"; "Files" until 2026-10-19, when
+            // that name went to the page people put their files on, pages/media.rs).
+            ui.label(RichText::new("Data files").size(theme.font_size_title).color(theme.text_primary()));
             ui.add_space(theme.spacing_xs);
 
             // ── Shared files ON THE SERVER (v0.710): add + remove files that

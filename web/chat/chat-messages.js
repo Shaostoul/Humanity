@@ -1020,13 +1020,13 @@ document.getElementById('msg-input').addEventListener('paste', async (e) => {
 // The desktop app's drag and drop, in its words (/shared/drop-overlay.js; the desktop's
 // src/gui/pages/chat/attach_send.rs offer_drop). While files are dragged over the page it is
 // dimmed with one line saying what a drop will do:
-//   - one of this server's channels open: "Drop to upload to Media and post in #general", and the
+//   - one of this server's channels open: "Drop to upload to Files and post in #general", and the
 //     drop opens the upload window (/shared/upload-window.js): the Media page's own Add to Media,
 //     every control and check, in a window over the chat, "Also post in chat" ticked for that
 //     channel; nothing goes until its Upload (the operator, 2026-10-17: "First window popups with
 //     all the controls of what to do with the file ... upon clicking upload it also posts the image
 //     with the title and description to the general chat"). A read-only channel the person cannot
-//     post in: "Drop to upload to Media", nothing ticked.
+//     post in: "Drop to upload to Files", nothing ticked.
 //   - a private conversation open (a direct message, a group, the scratch pad, or a room this
 //     server does not list): "Drop to send in Ben" (the group's name in a group), and the dropped
 //     files take the attach button's own path (sendChosenFiles): one at a time, each its own

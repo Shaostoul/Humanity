@@ -100,7 +100,7 @@ test("the form posts the right body, signed out, from an item's page and from th
   byId(p.doc, "media-takedown-ok").click();
   assert.strictEqual(byId(p.doc, "media-takedown-open"), null, "closed");
   const foot = byId(p.doc, "media-foot-takedown");
-  assert.ok(foot, "the Media page's foot has the button, signed out");
+  assert.ok(foot, "the Files page's foot has the button, signed out");
   foot.click();
   type(p.doc, "media-takedown-item-input", "https://united-humanity.us/media/7?x=1");
   type(p.doc, "media-takedown-statement", STATEMENT);
@@ -230,7 +230,7 @@ test("the admins' view lists the open reports and decides them, on the Admin tab
   assert.match(text(rows[0]), /Report #3 about Item 12, "Dusk"/);
   assert.match(text(rows[0]), /Name: Rosa/);
   assert.match(text(rows[0]), /Contact: rosa@example\.org/);
-  assert.match(text(rows[1]), /no longer on the Media page/);
+  assert.match(text(rows[1]), /no longer on the Files page/);
   assert.ok(signer.signed.includes("media_takedowns"), "the open list is a signed read");
 
   const note = rows[0].querySelector("textarea");

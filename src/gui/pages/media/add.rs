@@ -151,7 +151,7 @@ impl Form {
 /// The line for a file already public where it was shared.
 pub(crate) const ALREADY_PUBLIC_LINE: &str = "This file is already public where it was shared.";
 /// The line where a members-only server leaves no choice.
-pub(crate) const MEMBERS_SERVER_LINE: &str = "This server's Media page is for members only, so this item is too.";
+pub(crate) const MEMBERS_SERVER_LINE: &str = "This server's Files page is for members only, so this item is too.";
 /// While the share's use is being asked for.
 pub(crate) const WORKING_OUT_LINE: &str = "Working out how much of your share is left...";
 
@@ -178,7 +178,7 @@ pub(crate) fn form_problem(state: &GuiState, form: &Form) -> Option<String> {
 /// Add to Media was pressed: the file picker opens, and the person's own use is asked for.
 pub(crate) fn begin_add(state: &mut GuiState) {
     if signer_here(state).is_none() {
-        state.media.status = "Unlock your identity and sign in to this server to add to its Media page.".to_string();
+        state.media.status = "Unlock your identity and sign in to this server to add to its Files page.".to_string();
         return;
     }
     // The role's largest Media file, when the server has said and there is one (0: no limit).
@@ -259,7 +259,7 @@ pub(crate) fn put_on_media(state: &mut GuiState, filename: &str, name: &str, len
 pub(crate) fn draw_dialogs(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     if let Some(mut picker) = state.media.picker.take() {
         use crate::gui::widgets::file_browser::{file_picker_modal, FilePickerResult};
-        match file_picker_modal(ctx, theme, &mut picker, "Add to Media: choose one or more files") {
+        match file_picker_modal(ctx, theme, &mut picker, "Add to Files: choose one or more files") {
             FilePickerResult::Open => state.media.picker = Some(picker),
             FilePickerResult::Cancelled => {}
             FilePickerResult::Picked(paths) => picked_many(state, &paths),
@@ -283,7 +283,7 @@ pub(crate) fn draw_form(ctx: &egui::Context, theme: &Theme, state: &mut GuiState
     let categories = state.media.list.categories.clone();
     let labels = state.media.list.labels.clone();
     let licences = state.media.list.licences.clone();
-    let title = if form.is_picked() { "Add to Media" } else { "Put on Media" };
+    let title = if form.is_picked() { "Add to Files" } else { "Put on the Files page" };
     // A picked file's look (what is hidden in it), its switch, and whether it may go (2026-10-11).
     let mut look = state.media.look.take().filter(|(id, _)| *id == form.id);
     if let (None, Source::Picked { path, name, .. }) = (&look, &form.source) {
@@ -412,7 +412,7 @@ pub(crate) fn draw_form(ctx: &egui::Context, theme: &Theme, state: &mut GuiState
             if form.sending {
                 ui.label(RichText::new("Publishing...").size(theme.font_size_small).color(theme.text_muted()));
             }
-            let tip = if form.sending { "Stop the publish: it is taken off again as soon as it lands." } else { "Close this without putting anything on Media." };
+            let tip = if form.sending { "Stop the publish: it is taken off again as soon as it lands." } else { "Close this without putting anything on the Files page." };
             cancel = widgets::Button::secondary("Cancel").tooltip(tip).show(ui, theme);
         });
     });
@@ -440,11 +440,11 @@ pub(crate) fn draw_form(ctx: &egui::Context, theme: &Theme, state: &mut GuiState
 
 /// The words over the window while files are dragged onto it with nothing more specific on screen,
 /// and over the Media page (gui/drop_files.rs).
-pub const DROP_TO_UPLOAD: &str = "Drop to upload to Media";
+pub const DROP_TO_UPLOAD: &str = "Drop to upload to Files";
 
 /// The words over a channel of the chat: the upload window opens with "Also post in chat" ticked.
 pub(crate) fn drop_and_post_words(channel_name: &str) -> String {
-    format!("Drop to upload to Media and post in {channel_name}")
+    format!("Drop to upload to Files and post in {channel_name}")
 }
 
 /// Files dropped on the window (gui/drop_files.rs) open this form with them, exactly as choosing
@@ -569,9 +569,9 @@ pub(crate) fn post_published(state: &mut GuiState, answer: &serde_json::Value, c
 /// The form's send button.
 pub(crate) fn submit_words(form: &Form) -> &'static str {
     if form.is_picked() {
-        "Upload and add to Media"
+        "Upload and add to Files"
     } else {
-        "Put it on Media"
+        "Put it on the Files page"
     }
 }
 
@@ -627,7 +627,7 @@ fn send_form(state: &mut GuiState, form: &mut Form, members_server: bool) -> boo
         }
         None => match uploading::start(state, form) {
             Ok(()) => {
-                state.media.status = format!("Uploading {name}: it is in the list on this page, and goes on the Media page when it is up.");
+                state.media.status = format!("Uploading {name}: it is in the list on this page, and goes on the Files page when it is up.");
                 true
             }
             Err(words) => {

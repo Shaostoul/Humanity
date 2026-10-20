@@ -158,8 +158,8 @@ test("W4-1b. Pause while the start is on its way, or on a piece whose answer was
 // opening it again asks afresh" (the refusal was shown again without asking).
 test("W4-2. a ticket renewal the relay refuses puts its words where the video was; opening the item again asks afresh", async () => {
   const refusals = [
-    [403, "Only members of this server who are not banned can open members-only Media files."],
-    [404, "That Media item is not there any more."],
+    [403, "Only members of this server who are not banned can open members-only files on the Files page."],
+    [404, "That item is not there any more."],
     [429, "Too many members-only files have been opened from this account in the last ten minutes. Wait a few minutes and open it again."],
   ];
   for (const [status, words] of refusals) {

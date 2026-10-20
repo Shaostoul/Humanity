@@ -359,7 +359,7 @@ impl Item {
                 text: s("text").ok_or_else(missing)?,
             }),
             Some("media") => Ok(Item::Media { id: v.get("id").and_then(Value::as_i64).ok_or_else(missing)? }),
-            _ => Err(format!("evidence item {n} is not a direct message, a post, a group message or a Media item.")),
+            _ => Err(format!("evidence item {n} is not a direct message, a post, a group message or an item on the Files page.")),
         }
     }
 
@@ -492,7 +492,7 @@ fn check_report(state: &RelayState, reporter: &str, raw: &Value, text: &str, now
     }
     let context = field("context").unwrap_or("");
     if !CONTEXTS.contains(&context) {
-        return Err("it does not say where it happened (a direct message, a post, a group, a profile or the Media page).".to_string());
+        return Err("it does not say where it happened (a direct message, a post, a group, a profile or the Files page).".to_string());
     }
     let note = match raw.get("note") {
         None | Some(Value::Null) => "",

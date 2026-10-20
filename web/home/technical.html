@@ -287,7 +287,7 @@
           <li><a href="#messages">Direct messages and groups</a></li>
           <li><a href="#passes">Friendship passes and who can reach you</a></li>
           <li><a href="#safety">Block, reports and the protected setup</a></li>
-          <li><a href="#files">Files and the Media page</a></li>
+          <li><a href="#files">Files, private and public</a></li>
           <li><a href="#calls">Calls and network addresses</a></li>
           <li><a href="#server-data">What a server holds</a></li>
           <li><a href="#federation">Federation</a></li>
@@ -533,7 +533,7 @@ pass     = {"v":2, "serial", "may", "sig": ML-DSA-65 over the preimage}</pre>
 
     <!-- ══ Files + media ══ -->
     <section class="t-sec" id="files">
-      <h2>Files and the Media page</h2>
+      <h2>Files, private and public</h2>
 
       <h3>Files in private conversations</h3>
       <ul>
@@ -554,19 +554,19 @@ pass     = {"v":2, "serial", "may", "sig": ML-DSA-65 over the preimage}</pre>
         with the same rules, losslessly for pictures.
       </p>
 
-      <h3>The Media page</h3>
+      <h3>The Files page</h3>
       <p>
         <span class="t-st done">Shipped</span> The pictures, videos, 3D models and files the people
         on a server chose to show. Nothing is on it unless its uploader put it there, and nothing
         from a private conversation can be. Admins set the categories and members suggest them;
         content labels (Spoiler, Flashing lights, Graphic) hide an item until it is clicked; there
         are personal Picks and admin Featured items; the page and each item can be public or
-        members only; and Media has its own storage budget, a per-person share and a meter with
+        members only; and the page has its own storage budget, a per-person share and a meter with
         prune lists. Every write is signed with ML-DSA-65. Adult content is not allowed until its
         legal question has been researched and decided.
       </p>
       <p>
-        <b>Resumable uploads.</b> A Media file goes up in pieces of up to 8 MiB, each written and
+        <b>Resumable uploads.</b> A file for the Files page goes up in pieces of up to 8 MiB, each written and
         counted before the next. After a dropped connection the app asks the server how far it got
         and carries on; the server checks the whole file's BLAKE3 at the end. The approach is the
         tus protocol's, with a small wire format of our own, so neither app needs a library. Each

@@ -156,14 +156,14 @@
     return 'Your changes to "' + title + '" are not saved.';
   }
 
-  /** "On Media since 9 October 2025" (UTC), from the server's time in milliseconds; '' when it gave none (the desktop's since_line). */
+  /** "On the Files page since 9 October 2025" (UTC), from the server's time in milliseconds; '' when it gave none (the desktop's since_line). */
   const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
   function sinceLine(item) {
     const ms = Number(item && item.published_at) > 0 ? Number(item.published_at) : Number(item && item.uploaded_at) || 0;
     if (!(ms > 0)) return '';
     const d = new Date(ms);
     if (Number.isNaN(d.getTime())) return '';
-    return 'On Media since ' + d.getUTCDate() + ' ' + MONTHS[d.getUTCMonth()] + ' ' + d.getUTCFullYear();
+    return 'On the Files page since ' + d.getUTCDate() + ' ' + MONTHS[d.getUTCMonth()] + ' ' + d.getUTCFullYear();
   }
 
   // ── What the item's page and its card say (the desktop's words) ──

@@ -58,7 +58,7 @@ pub(crate) const FORWARDED_LINE: &str =
 /// The table's columns, after the role's name.
 pub(crate) const COLUMNS: [&str; 7] = [
     "Per file (MB)",
-    "Media file (MB, 0 = up to the share)",
+    "File on the Files page (MB, 0 = up to the share)",
     "Private file (MB)",
     "Private held (MB, 0 = no limit)",
     "A day (MB, 0 = no limit)",
@@ -77,7 +77,7 @@ pub(crate) fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) -> Op
     widgets::body_hint(
         ui,
         theme,
-        "How large and how much each role may upload, counted by the server over every upload: chat, Shared Files, the Media page and files in private conversations. \
+        "How large and how much each role may upload, counted by the server over every upload: chat, Shared Files, the Files page and files in private conversations. \
          A day is the UTC day, an hour the clock hour. Save sends the whole role.",
     );
     let mut save = None;

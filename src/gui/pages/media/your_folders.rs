@@ -19,12 +19,12 @@
 //!   videos) with previews (widgets/thumbnails.rs). Sub-folders open in place; Up goes back but
 //!   never above the folder added, so the tab stays inside the folders the person chose.
 //! - CHOOSING: a click on a file ticks or unticks it (a folder opens instead); "N chosen" with
-//!   Clear, and "Put on Media", which hands the ticked files to Add to Media exactly as dropping
-//!   them on the window does (add.rs `upload_dropped`: the first ticked is the item, the rest its
-//!   added files) and goes to the Media tab, where its form is open. NOTHING IS SENT until the
-//!   person presses Upload on that form.
-//! - MARKS: beside a file this computer already put on a server's Media page, "On
-//!   united-humanity.us as Dusk" (or "On Media" when the item's title is not known), a link that
+//!   Clear, and "Add to Files" (named Put on Media until the page's rename, 2026-10-19), which hands
+//!   the ticked files to Add to Files exactly as dropping them on the window does (add.rs
+//!   `upload_dropped`: the first ticked is the item, the rest its added files) and goes to the
+//!   Files tab, where its form is open. NOTHING IS SENT until the person presses Upload on that form.
+//! - MARKS: beside a file this computer already put on a server's Files page, "On
+//!   united-humanity.us as Dusk" (or "On a Files page" when the item's title is not known), a link that
 //!   opens the item. From the private record kept on this computer (from_here.rs), only while the
 //!   file is the same size and date it was when picked.
 
@@ -55,10 +55,10 @@ pub const REMOVE: &str = "Remove";
 pub const UP: &str = "Up";
 /// Untick every file.
 pub const CLEAR: &str = "Clear";
-/// Hand the ticked files to Add to Media.
-pub const PUT_ON_MEDIA: &str = "Put on Media";
+/// Hand the ticked files to Add to Files (the same form the page's own Add to Files opens).
+pub const PUT_ON_MEDIA: &str = "Add to Files";
 /// The tab's promise, under the page's heading.
-pub const HINT: &str = "Folders on this computer, to look through and pick from. Nothing in them leaves this computer unless you tick it, press Put on Media, and then press Upload.";
+pub const HINT: &str = "Folders on this computer, to look through and pick from. Nothing in them leaves this computer unless you tick it, press Add to Files, and then press Upload.";
 /// With no folder added yet.
 pub const NONE_YET: &str = "No folders yet. Press Add a folder to choose one, such as a drive of pictures and videos.";
 /// A folder that is not there right now (the file picker's own words).
@@ -66,18 +66,18 @@ pub const MISSING: &str = "This folder is not there right now: its drive may be 
 /// With folders added and none open.
 pub const PICK_ONE: &str = "Click one of your folders to see what is in it.";
 /// How choosing works, above the folder's files.
-pub const HOW_TO_PICK: &str = "Click files to tick them, then press Put on Media. The first one ticked is the item; the others are added to it.";
+pub const HOW_TO_PICK: &str = "Click files to tick them, then press Add to Files. The first one ticked is the item; the others are added to it.";
 /// Nothing ticked yet.
 pub const NOTHING_CHOSEN: &str = "Nothing chosen yet.";
-/// Why Put on Media cannot go: no server, or not signed in to it.
-pub const NEED_SERVER: &str = "To put files on a Media page, connect to a server first, on the Chat page.";
-pub const NEED_SIGN_IN: &str = "To put files on this server's Media page, sign in to it first, on the Chat page.";
+/// Why Add to Files cannot go: no server, or not signed in to it.
+pub const NEED_SERVER: &str = "To put files on a server's Files page, connect to the server first, on the Chat page.";
+pub const NEED_SIGN_IN: &str = "To put files on this server's Files page, sign in to it first, on the Chat page.";
 /// An open folder with nothing in it.
 pub const EMPTY_FOLDER: &str = "Nothing is in this folder.";
 /// The Details view's column of marks.
-pub const MARKS_HEADING: &str = "On Media";
+pub const MARKS_HEADING: &str = "On a Files page";
 /// A mark whose item's title is not known.
-pub const ON_MEDIA: &str = "On Media";
+pub const ON_MEDIA: &str = "On a Files page";
 /// At most this many folders are kept here.
 pub const MAX_FOLDERS: usize = 100;
 /// How long the open folder's listing is reused before it is read again: a file changed meanwhile
@@ -117,7 +117,7 @@ struct Listing {
     notes: Notes,
 }
 
-/// A mark's words: "On united-humanity.us as Dusk", or "On Media" when the title is not known.
+/// A mark's words: "On united-humanity.us as Dusk", or "On a Files page" when the title is not known.
 pub fn mark_words(s: &Sent) -> String {
     if s.title.trim().is_empty() {
         ON_MEDIA.to_string()
@@ -128,7 +128,7 @@ pub fn mark_words(s: &Sent) -> String {
 
 /// A mark's hover words.
 fn mark_tip(s: &Sent) -> String {
-    format!("This file was put on {}'s Media page from this computer. Click to open it.", crate::gui::pages::server_strip::host_of(&s.server))
+    format!("This file was put on {}'s Files page from this computer. Click to open it.", crate::gui::pages::server_strip::host_of(&s.server))
 }
 
 /// "2 chosen (3.1 MB)".
@@ -361,7 +361,7 @@ fn draw_browser(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             }
             let can = !b.chosen.is_empty() && why_not.is_none();
             put = ui
-                .add_enabled_ui(can, |ui| widgets::Button::primary(PUT_ON_MEDIA).size(widgets::ButtonSize::Large).tooltip("Open Add to Media with these files. Nothing is sent until you press Upload there.").show(ui, theme))
+                .add_enabled_ui(can, |ui| widgets::Button::primary(PUT_ON_MEDIA).size(widgets::ButtonSize::Large).tooltip("Open Add to Files with these files. Nothing is sent until you press Upload there.").show(ui, theme))
                 .inner;
         });
         if let (false, Some(why)) = (b.chosen.is_empty(), why_not) {

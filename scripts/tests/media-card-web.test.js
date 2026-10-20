@@ -221,7 +221,7 @@ test("1b. only an exact address of this site comes out: nothing inside a word, n
 // members' list, signed" (actual '/api/media?id=7&limit=1'); with attach asking for an item again: "asked for
 // once for the page" (actual 2); with a card starting opened out: "the triangle opens it out" (actual
 // 'Show less').
-test("2. the card starts as one line: the triangle, its own file's badge, its title, how many files and how much, Open; the item asked for once, as the Media page asks", async () => {
+test("2. the card starts as one line: the triangle, its own file's badge, its title, how many files and how much, Open; the item asked for once, as the Files page asks", async () => {
   const p = cardsPage();
   const box = await p.post([7]);
   const card = box.children[0];
@@ -243,14 +243,14 @@ test("2. the card starts as one line: the triangle, its own file's badge, its ti
   const call = p.net.calls[0];
   assert.equal(call.url, "/api/media/list", "the members' list, signed");
   assert.deepEqual({ id: call.body.id, limit: call.body.limit, key: call.body.key, sig: call.body.sig }, { id: 7, limit: 1, key: ME, sig: "sig:media_list" });
-  assert.deepEqual(Object.keys(call.body).sort(), Object.keys(Object.assign(H.media.listParams({ id: 7 }, null, 1), { key: 1, timestamp: 1, sig: 1 })).sort(), "the Media page's own fields");
+  assert.deepEqual(Object.keys(call.body).sort(), Object.keys(Object.assign(H.media.listParams({ id: 7 }, null, 1), { key: 1, timestamp: 1, sig: 1 })).sort(), "the Files page's own fields");
   // Another message with the same item: no second request.
   await p.post([7], BEN, 2000);
   assert.equal(p.net.calls.length, 1, "asked for once for the page");
   // Without an identity here: the public list.
   const anon = cardsPage({ myKey: "" });
   await anon.post([7]);
-  assert.deepEqual(anon.net.calls.map((c) => c.url), ["/api/media?id=7&limit=1"], "unsigned, the public list, as the Media page asks");
+  assert.deepEqual(anon.net.calls.map((c) => c.url), ["/api/media?id=7&limit=1"], "unsigned, the public list, as the Files page asks");
 });
 
 // ── 3. Opened out ─────────────────────────────────────────────────────────
@@ -270,7 +270,7 @@ test("3. opened out: who put it there, its description and every file with its b
   assert.equal(tri.getAttribute("aria-expanded"), "true");
   const more = moreOf(card);
   assert.ok(more, "opened out");
-  assert.equal(text(more.querySelector(cls("media-card-by"))), "by Ann in Fire flow arts", "the Media page's by-line");
+  assert.equal(text(more.querySelector(cls("media-card-by"))), "by Ann in Fire flow arts", "the Files page's by-line");
   assert.equal(text(more.querySelector(cls("media-card-desc"))), "First line of it\nThe rest, on its own line", "its whole description");
   const rows = more.querySelectorAll(cls("media-card-file"));
   assert.deepEqual(rows.map((r) => text(r.querySelector(cls("media-card-file-name")))), ["dusk.glb, 2 MB", "textures.zip, 4 KB", "9_cover.png, cover picture, 120 KB"], "every file, the cover last");
@@ -294,7 +294,7 @@ test("3. opened out: who put it there, its description and every file with its b
 // closed() call: "its Close closes the window" (actual 0); in shared/upload-window.js, showPage keeping
 // a frame on another page: '/media/7?window=item' == '/media/9?window=item'; in chat/chat-media-card.js, the
 // title's click doing nothing: "the title opens it too" (actual null).
-test("4. Open, the title and the picture bring up the item's full window: the Media page's own item page in a frame, with a Download for each file, whose Close closes it", async () => {
+test("4. Open, the title and the picture bring up the item's full window: the Files page's own item page in a frame, with a Download for each file, whose Close closes it", async () => {
   // The chat's half: the window over the chat (a stand-in window that hears messages).
   const heard = {};
   const win = { location: { origin: ORIGIN }, addEventListener: (t, f) => { (heard[t] = heard[t] || []).push(f); } };
@@ -313,7 +313,7 @@ test("4. Open, the title and the picture bring up the item's full window: the Me
   const dialog = () => p.doc.body.querySelector(cls("hos-upload-window"));
   assert.ok(dialog() && dialog().hidden === false, "a window over the chat");
   const frame = dialog().querySelector("iframe");
-  assert.equal(frame.src, "/media/7?window=item", "the Media page's own item page, in its item-window form");
+  assert.equal(frame.src, "/media/7?window=item", "the Files page's own item page, in its item-window form");
   assert.equal(frame.src, UW.itemPage(7));
   assert.equal(dialog().getAttribute("aria-label"), "Dusk", "named for the item");
   dialog().querySelector(cls("hos-upload-window-close")).click();
@@ -353,15 +353,15 @@ test("4. Open, the title and the picture bring up the item's full window: the Me
 test("5. the words when the server does not have it for this person, and when the request fails", async () => {
   const gone = cardsPage({ item: null });
   const g = await gone.post([7]);
-  assert.equal(text(g), "That item is not on the Media page, or you may not see it.");
+  assert.equal(text(g), "That item is not on the Files page, or you may not see it.");
   assert.equal(text(g), W.notThere);
   const busy = cardsPage({ routes: [[at("/api/media/list", "POST"), () => respond(503, "The server is busy. Try again in a moment.")]] });
-  assert.equal(text(await busy.post([7])), "This Media item could not be loaded: The server is busy. Try again in a moment.");
+  assert.equal(text(await busy.post([7])), "This item from the Files page could not be loaded: The server is busy. Try again in a moment.");
   const proxy = cardsPage({ routes: [[at("/api/media/list", "POST"), () => respond(502, "<html>Bad gateway</html>")]] });
-  assert.equal(text(await proxy.post([7])), "This Media item could not be loaded: The server answered 502.");
+  assert.equal(text(await proxy.post([7])), "This item from the Files page could not be loaded: The server answered 502.");
   // While it is on its way.
   const slow = cardsPage({ routes: [[at("/api/media/list", "POST"), () => new Promise(() => {})]] });
-  assert.equal(text(await slow.post([7])), "Loading the Media item...");
+  assert.equal(text(await slow.post([7])), "Loading the item from the Files page...");
 });
 
 // ── 6. The picture ────────────────────────────────────────────────────────
@@ -387,7 +387,7 @@ async function pictureIn(o, it, from) {
 // setup's label rule taken out: 'Labelled: Spoiler.' == 'Hidden: the protected setup leaves out items with a
 // content label.'; with ownPath's same-site check taken out: "a cover named on another website: not loaded,
 // not even its path here".
-test("6. the picture follows the Media page's rules: a friend's at once, a non-friend's on a click, labels, the protected setup, too large, members only", async () => {
+test("6. the picture follows the Files page's rules: a friend's at once, a non-friend's on a click, labels, the protected setup, too large, members only", async () => {
   // A friend's cover: at once, from this server's own address; a click opens the item.
   const f = await pictureIn({ friends: [ANN] }, dusk({ cover: COVER }));
   assert.ok(f.img, "a friend's picture shows");
@@ -849,12 +849,12 @@ test("12. a card removed from the document is let go when the next cards go in; 
 // rounding a half down (Math.floor(x * 10 + 0.5 - 1e-9) / 10): "the chat card's: 1310720" ('1.2 MB' ==
 // '1.3 MB'); in pages/media-app.js with kilobytes rounded down (Math.floor): "the Media page's: 1536"
 // ('1 KB' == '2 KB').
-test("13. size words: the Media page's, the chat card's and the 3D view's all say the shared list's words", () => {
+test("13. size words: the Files page's, the chat card's and the 3D view's all say the shared list's words", () => {
   const fixture = JSON.parse(fs.readFileSync(path.join(__dirname, "fixtures", "size-words-cases.json"), "utf8"));
   assert.ok(Array.isArray(fixture.cases) && fixture.cases.length >= 10, "test setup: the shared cases");
   const MV = require(path.join(WEB, "shared", "model-view.js"));
   for (const [bytes, words] of fixture.cases) {
-    assert.equal(H.media.sizeWords(bytes), words, "the Media page's: " + bytes);
+    assert.equal(H.media.sizeWords(bytes), words, "the Files page's: " + bytes);
     assert.equal(MC.sizeWords(bytes), words, "the chat card's: " + bytes);
     assert.equal(MV.sizeWords(bytes), words, "the 3D view's: " + bytes);
   }

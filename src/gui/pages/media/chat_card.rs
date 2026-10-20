@@ -65,7 +65,7 @@ pub const OPEN: &str = "Open";
 pub const OPEN_TIP: &str = "See everything about it, with a Download for each file.";
 pub const MORE_TIP: &str = "Show more";
 pub const LESS_TIP: &str = "Show less";
-pub const LOADING: &str = "Loading the Media item...";
+pub const LOADING: &str = "Loading the item from the Files page...";
 pub const SHOW_PICTURE: &str = "Show the picture";
 
 /// "3 files, 4.1 MB" (one file: "1 file, 2.0 MB").
@@ -267,7 +267,7 @@ fn draw_card(ui: &mut egui::Ui, theme: &Theme, view: &View, acts: &mut Vec<Act>)
             return;
         }
         CardState::Failed(words) => {
-            ui.label(small(&format!("This Media item could not be loaded: {words}")).color(theme.danger()));
+            ui.label(small(&format!("This item from the Files page could not be loaded: {words}")).color(theme.danger()));
             return;
         }
     };

@@ -91,15 +91,15 @@ test("1. the h1 and the tab's title name the host", async () => {
   const { doc } = await openPage({ routes: listRoutes(listAnswer([item({ id: 1 })])) });
   const h1 = byId(doc, "media-title");
   assert.equal(h1 && h1.tagName, "H1");
-  assert.equal(text(h1), "Media on united-humanity.us", "the h1 names the host");
-  assert.equal(doc.title, "Media on united-humanity.us", "and so does the tab's title");
+  assert.equal(text(h1), "Files on united-humanity.us", "the h1 names the host");
+  assert.equal(doc.title, "Files on united-humanity.us", "and so does the tab's title");
 });
 
 // ── 2. The Admin tab, for admins only ────────────────────────────────────
 
 // Seen red 2026-10-12 with renderTabs drawing the tabs for anyone (`const admin = true`): "a
 // member gets no tabs / actual: [FakeElement] / expected: null".
-test("2. the Media and Admin tabs are an admin's alone; Admin holds the section, /media#admin opens it", async () => {
+test("2. the Files and Admin tabs are an admin's alone; Admin holds the section, /media#admin opens it", async () => {
   const mounted = [];
   const member = await openPage({ hash: "#admin", mountAdmin: (c) => mounted.push(c), routes: listRoutes(listAnswer([])) });
   assert.equal(byId(member.doc, "media-tabs"), null, "a member gets no tabs");
@@ -112,8 +112,8 @@ test("2. the Media and Admin tabs are an admin's alone; Admin holds the section,
   const op = await openPage({ session: fakeSession({ role: "admin" }), history, mountAdmin: (c) => mounted.push(c), routes: listRoutes(listAnswer([])) });
   const tabs = byId(op.doc, "media-tabs");
   assert.ok(tabs, "an admin gets the tabs");
-  assert.deepEqual(tabs.children.map((t) => t.textContent), ["Media", "Admin"]);
-  assert.equal(byId(op.doc, "media-tab-media").getAttribute("aria-selected"), "true", "Media first");
+  assert.deepEqual(tabs.children.map((t) => t.textContent), ["Files", "Admin"]);
+  assert.equal(byId(op.doc, "media-tab-media").getAttribute("aria-selected"), "true", "Files first");
   assert.equal(byId(op.doc, "media-main").hidden, false);
   assert.equal(byId(op.doc, "media-admin-wrap").hidden, true, "Admin waits behind its tab");
   assert.equal(mounted.length, 1, "the section is mounted once");
@@ -280,11 +280,11 @@ test("7. /media/12 opens item 12, and pushes nothing", async () => {
   assert.ok(ask, "the list route is asked for item 12");
   assert.equal(ask.body.limit, 1);
   assert.equal(text(byId(doc, "media-viewer-open").querySelector("h2")), "Dusk", "and its viewer opens");
-  assert.equal(doc.title, "Dusk, Media on united-humanity.us", "the title names it, as the relay's page does");
+  assert.equal(doc.title, "Dusk, Files on united-humanity.us", "the title names it, as the relay's page does");
   assert.deepEqual(history.calls, [], "the address names it already: nothing pushed");
   byId(doc, "media-viewer-close").click();
   assert.deepEqual(history.calls, [["replace", "/media"]], "closing it leaves /media in its place (there is no step to go Back to)");
-  assert.equal(doc.title, "Media on united-humanity.us");
+  assert.equal(doc.title, "Files on united-humanity.us");
   // Only that shape is an item's address; `?id=` is gone.
   assert.deepEqual(["/media/12", "/media/12/", "/media/x", "/media", "/media/", "/pages/media/3"].map(media.itemIdOf), [12, null, null, null, null, null]);
   const old = await openPage({ path: "/media", routes: listRoutes(listAnswer([])) });
@@ -305,7 +305,7 @@ test("8. opening a tile pushes /media/<id>; Close goes Back; Back and Forward sh
   const byNumber = (id) => net.calls.filter((c) => c.url === "/api/media/list" && c.body.id === id).length;
   tileOf(doc, 9).querySelector(".media-thumb").click();
   assert.deepEqual(history.calls, [["push", "/media/9"]], "opening a tile pushes its address");
-  assert.equal(doc.title, "Contact staff, Media on united-humanity.us");
+  assert.equal(doc.title, "Contact staff, Files on united-humanity.us");
   byId(doc, "media-viewer-close").click();
   assert.deepEqual(history.calls.at(-1), ["back"], "Close goes Back to /media");
   assert.equal(byId(doc, "media-viewer-open"), null);
@@ -323,7 +323,7 @@ test("8. opening a tile pushes /media/<id>; Close goes Back; Back and Forward sh
   await page.route("/media", "");
   assert.equal(byId(doc, "media-viewer-open"), null);
   assert.equal(history.calls.length, 2);
-  assert.equal(doc.title, "Media on united-humanity.us");
+  assert.equal(doc.title, "Files on united-humanity.us");
   // An address naming an item the list does not hold: asked for by its number.
   await page.route("/media/3", "");
   await settle();
@@ -338,7 +338,7 @@ test("8. opening a tile pushes /media/<id>; Close goes Back; Back and Forward sh
 // item's own page / actual: '/media?id=12'".
 test("9. Report links a Media item as /media/<n>, which the page opens", () => {
   assert.equal(report.reportMediaHref(12), "/media/12", "Report links the item's own page");
-  assert.equal(media.itemIdOf(report.reportMediaHref(12)), 12, "an address the Media page opens");
+  assert.equal(media.itemIdOf(report.reportMediaHref(12)), 12, "an address the Files page opens");
 });
 
 // ── 10. Feature, three ways ──────────────────────────────────────────────

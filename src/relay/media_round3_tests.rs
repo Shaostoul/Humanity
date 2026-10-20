@@ -77,7 +77,7 @@ fn the_roles_media_file_limit_holds_at_a_publish_too() {
     match publish("1_big.mp4") {
         Err((code, words)) => {
             assert_eq!(code, StatusCode::PAYLOAD_TOO_LARGE);
-            assert_eq!(words, "Media files are limited to 2 MB for your role on this server.");
+            assert_eq!(words, "Files on the Files page are limited to 2 MB for your role on this server.");
         }
         Ok(answer) => panic!("a 3 MB chat file is not published past the role's 2 MB Media limit: {answer:?}"),
     }

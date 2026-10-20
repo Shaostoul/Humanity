@@ -128,7 +128,7 @@ impl Run {
             Phase::NoRoom { words } => words.clone(),
             Phase::Reconnecting { words } => words.clone(),
             Phase::Stuck { words } => format!("The server keeps refusing it: {words} Press Retry to try again."),
-            Phase::Done { .. } => "Uploaded. Putting it on the Media page...".to_string(),
+            Phase::Done { .. } => "Uploaded. Putting it on the Files page...".to_string(),
             Phase::Failed { words } => words.clone(),
             Phase::Cancelled => "Cancelled.".to_string(),
         }

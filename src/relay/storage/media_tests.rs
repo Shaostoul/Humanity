@@ -278,7 +278,7 @@ fn the_usage_numbers_add_up() {
     upload(&db, "ann", "2_b.png", 0, MIB);
     upload(&db, "bea", "3_c.png", 0, 2 * MIB);
     upload(&db, "bea", "4_pending.png", MEDIA_SHELF, MIB / 2);
-    upload(&db, "cal", "5_chat.png", 0, 7 * MIB); // chat media: not the Media space's
+    upload(&db, "cal", "5_chat.png", 0, 7 * MIB); // chat media: not the file space's
     for (k, f) in [("ann", "1_a.png"), ("ann", "2_b.png"), ("bea", "3_c.png")] {
         publish(&db, k, f).unwrap();
     }

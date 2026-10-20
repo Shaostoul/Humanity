@@ -90,7 +90,7 @@
     replaceCover: 'Replace the cover picture',
     remove: 'Remove',
     removeTip: 'Take it off this item. It is deleted from the server.',
-    uploadsHint: 'Each goes up under Uploads in progress on the Media page and is added here when it is up.',
+    uploadsHint: 'Each goes up under Uploads in progress on the Files page and is added here when it is up.',
     labelsLegend: 'Content labels: a labelled item stays hidden until someone clicks it.',
     noHash: 'This page could not load its hashing code, so the edit was not sent. Reload the page and try again.',
     // The three parts of Edit and of Add to Media (the desktop's media/edit.rs ABOUT_IT,

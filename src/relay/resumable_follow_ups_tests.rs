@@ -187,7 +187,7 @@ async fn a_roles_media_file_limit_holds_at_the_start() {
     let refused = r.start("tok_ann", file("big.mp4", 2 * MIB, "video/mp4")).await;
     let refused = refused.err().unwrap_or_else(|| panic!("a 2 MB file over the role's 1 MB Media limit is refused"));
     assert_eq!(refused.status(), StatusCode::PAYLOAD_TOO_LARGE);
-    assert_eq!(refused.words(), "Media files are limited to 1 MB for your role on this server.");
+    assert_eq!(refused.words(), "Files on the Files page are limited to 1 MB for your role on this server.");
     assert!(r.start("tok_ann", file("small.mp4", MIB / 2, "video/mp4")).await.is_ok());
 }
 

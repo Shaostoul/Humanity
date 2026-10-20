@@ -132,7 +132,7 @@ fn an_empty_page_says_so() {
     state.media.answered = true;
     let out = settled(&ctx, &theme, &mut state);
     assert!(shows(&out, EMPTY_LINE), "the empty page says so");
-    assert!(shows(&out, "Add to Media"), "a signed-in member is offered Add to Media");
+    assert!(shows(&out, "Add to Files"), "a signed-in member is offered Add to Files");
 }
 
 /// THE TILES SHOW WHAT THEY ARE: the featured strip, each title, who put it there, the pick
@@ -272,7 +272,7 @@ fn someone_not_signed_in_is_told_to_sign_in() {
     let mut public = page_state(ListAnswer { members_view: false, media_visibility: "public".into(), ..demo_answer() }, false);
     let out = settled(&ctx, &theme, &mut public);
     assert!(shows(&out, SIGN_IN_LINE), "the public view says to sign in");
-    assert!(!shows(&out, "Add to Media"), "and offers no Add to Media");
+    assert!(!shows(&out, "Add to Files"), "and offers no Add to Files");
     assert!(!shows(&out, "Pick"), "nor Pick");
     let mut member = page_state(demo_answer(), true);
     assert!(!shows(&settled(&ctx, &theme, &mut member), SIGN_IN_LINE), "a member's view has no such line");
@@ -311,13 +311,13 @@ fn a_file_over_the_share_is_stopped_before_it_starts() {
     let out = settled(&ctx, &theme, &mut state);
     assert!(shows(&out, "You have 124 KB of your 1 MB left"), "the share is shown above the form");
     assert!(shows(&out, "more than the 124 KB left of your share"), "the form says why it cannot go");
-    click(&ctx, &theme, &mut state, "Upload and add to Media");
+    click(&ctx, &theme, &mut state, "Upload and add to Files");
     assert!(state.media.uploads.is_empty(), "pressing it starts nothing");
 
     // The control: with room the same press starts the upload, so the press above did land on
     // the button (it goes nowhere here: nothing listens at the test's address).
     state.media.mine.as_mut().unwrap().share_bytes = 10 * 1024 * 1024;
-    click(&ctx, &theme, &mut state, "Upload and add to Media");
+    click(&ctx, &theme, &mut state, "Upload and add to Files");
     assert_eq!(state.media.uploads.len(), 1, "with room, the press starts the upload (form: {:?})", state.media.form);
     assert_eq!(state.media.uploads[0].record.size, 300 * 1024, "carrying what its form said");
     assert!(state.media.form.is_none(), "and the form is done: the upload is in the list");
@@ -335,9 +335,9 @@ fn put_on_media_offers_public_only() {
     let (ctx, theme) = ctx_and_theme();
     let mut state = page_state(demo_answer(), true);
     put_on_media(&mut state, "/uploads/1700_homestead.glb", "homestead.glb", 1000);
-    assert_eq!(state.active_page, crate::gui::GuiPage::Media, "it opens the Media page");
+    assert_eq!(state.active_page, crate::gui::GuiPage::Media, "it opens the Files page");
     let out = settled(&ctx, &theme, &mut state);
-    assert!(shows(&out, "Put it on Media"), "the form is open");
+    assert!(shows(&out, "Put it on the Files page"), "the form is open");
     assert!(shows(&out, add::ALREADY_PUBLIC_LINE), "it says why");
     assert!(!shows(&out, "Members only"), "no Members only for a file already public");
     let mut form = state.media.form.clone().expect("the form");
@@ -411,13 +411,13 @@ fn a_report_names_the_item() {
 #[test]
 fn a_stale_tile_reloads_and_says_so() {
     let mut state = page_state(demo_answer(), true);
-    let refused = Refusal::new(409, "That is not the Media item you were looking at: the page is out of date. Load it again.");
+    let refused = Refusal::new(409, "That is not the item you were looking at: the page is out of date. Load it again.");
     on_done(&mut state, Job::Pick { id: 3, on: true }, Err(refused));
     assert_eq!(state.media.status, STALE_LINE, "the page says the item changed");
     assert!(state.media.jobs.iter().any(|(j, _)| matches!(j, Job::List { append: false, .. })), "and loads the list again");
     // Any other refusal is said as the server said it.
-    on_done(&mut state, Job::Pick { id: 3, on: true }, Err(Refusal::new(403, "Only members of this server can pick Media items.")));
-    assert_eq!(state.media.status, "Only members of this server can pick Media items.");
+    on_done(&mut state, Job::Pick { id: 3, on: true }, Err(Refusal::new(403, "Only members of this server can pick items on the Files page.")));
+    assert_eq!(state.media.status, "Only members of this server can pick items on the Files page.");
 }
 
 /// MY PICKS ARE THE ITEMS' OWN `picked_by_me` (the relay's A3): a picked item, members-only or
@@ -507,7 +507,7 @@ fn the_waiting_uploads_are_listed_with_their_actions() {
     });
     let out = settled(&ctx, &theme, &mut state);
     assert!(shows(&out, "Clip from the beach.mp4, 40 MB"), "the waiting upload is listed");
-    click(&ctx, &theme, &mut state, "Put it on Media");
+    click(&ctx, &theme, &mut state, "Put it on the Files page");
     assert_eq!(state.media.form.as_ref().map(|f| f.source.clone()), Some(add::Source::Waiting { filename: "2_wait.mp4".into(), name: "Clip from the beach.mp4".into(), len: 40 << 20 }));
     state.media.form = None;
 

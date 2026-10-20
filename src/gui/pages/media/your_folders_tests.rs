@@ -167,8 +167,8 @@ fn two_files_ticked_and_put_on_media_open_add_to_media() {
     assert!(shows(&settled(&ctx, &theme, &mut state), "2 chosen"), "the line says how many");
 
     tap(&ctx, &theme, &mut state, PUT_ON_MEDIA);
-    assert_eq!(state.media.tab, MediaTab::Media, "the Media tab is shown");
-    let form = state.media.form.clone().expect("Add to Media is open");
+    assert_eq!(state.media.tab, MediaTab::Media, "the Files tab is shown");
+    let form = state.media.form.clone().expect("Add to Files is open");
     assert_eq!(form.source, add::Source::Picked { path: root.join("first.webm"), name: "first.webm".into(), len: 4000 }, "the first ticked is the item");
     assert_eq!(form.more.iter().map(|m| m.path.clone()).collect::<Vec<_>>(), vec![root.join("second.stl")], "the second is added to it");
     assert!(state.media.uploads.is_empty(), "nothing is uploaded before Upload is pressed");
@@ -231,7 +231,7 @@ fn a_file_put_on_media_from_here_is_marked_until_it_changes() {
     assert_eq!(find_text_in_shapes(&out.shapes, &format!("On {host}")).map(|f| f.matches), Some(1), "and only that file");
 
     tap(&ctx, &theme, &mut state, &mark);
-    assert_eq!(state.media.tab, MediaTab::Media, "the mark goes to the Media tab");
+    assert_eq!(state.media.tab, MediaTab::Media, "the mark goes to the Files tab");
     assert_eq!(state.media.item.as_ref().map(|p| p.id), Some(51), "and opens the item");
 
     state.media.item = None;

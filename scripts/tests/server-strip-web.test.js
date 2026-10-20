@@ -473,7 +473,7 @@ test("5. /admin's Media panel is one line linking /media#admin", () => {
   const links = [...panel.matchAll(/<a\b[^>]*href="([^"]*)"/g)].map((m) => m[1]);
   assert.deepEqual(links, ["/media#admin"], "the Media panel holds one link, to /media#admin");
   assert.equal((panel.match(/<p\b/g) || []).length, 1, "one line");
-  assert.ok(panel.includes("This server's Media settings, categories and space are on the Media page, under Admin."), "the line's words");
+  assert.ok(panel.includes("This server's Files page settings, categories and space are on the Files page, under Admin."), "the line's words");
   assert.ok(!html.includes("media-admin-root"), "nothing is mounted there any more");
   for (const gone of ["/pages/media-admin.js", "/pages/media-app.js", "/pages/media-upload.js", "/shared/relay-session.js", "/shared/media.css"]) {
     assert.ok(!html.includes(gone), "/admin no longer loads " + gone);

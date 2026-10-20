@@ -305,7 +305,11 @@ pub enum GuiPage {
     Wallet,
     Guilds,
     Trade,
-    Files,
+    /// "Data files" (Platform > Data files; `pages/files.rs`): the developer's browser and editor
+    /// for `data/`, with the server's Shared Files above it. Called "Files" until 2026-10-19, when
+    /// that name went to the page people put their files on (`GuiPage::Media`, still `media`
+    /// in code; operator: "What do you think about changing the name of media to files").
+    DataFiles,
     BugReport,
     // v0.415.0: removed the Resources and Onboarding GuiPage variants. The
     // Resources directory was retired into the Library (v0.374-375) and the
@@ -319,7 +323,9 @@ pub enum GuiPage {
     /// lists what is live from /api/live and plays a selected MJPEG stream.
     /// Mirrors the web `/watch` page.
     Watch,
-    /// The Media page (docs/design/media-showcase.md): what people chose to show; pages/media.rs.
+    /// The Files page, called "Media" until 2026-10-19 and still `media` in code (its module, its
+    /// state, its page id and the relay's /api/media routes; docs/design/media-showcase.md): what
+    /// people chose to show, every kind of file; pages/media.rs.
     Media,
     /// Apps (2026-10-19): games, HumanityOS's own tools, other programs, help, services and what you added, one page; pages/apps.rs (was Games and Tools).
     Apps,

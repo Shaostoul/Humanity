@@ -560,7 +560,7 @@ pub fn badge(e: &ListedEvidence, name: &str) -> String {
     match (e.checked, e.kind.as_str()) {
         (true, "dm") => format!("Signature checked: sent by {name} to the reporter"),
         (true, "post") => format!("Found on this server: posted by {name}"),
-        (true, "media") => format!("Found on this server: put on its Media page by {name}"),
+        (true, "media") => format!("Found on this server: put on its Files page by {name}"),
         (true, _) => "Checked by the server".to_string(),
         (false, _) => "Not proven".to_string(),
     }

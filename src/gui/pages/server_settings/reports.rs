@@ -27,7 +27,7 @@ fn context_words(context: &str) -> &str {
         "post" => "Public post",
         "group" => "Group message",
         "profile" => "Profile",
-        "media" => "Media item",
+        "media" => "Item on the Files page",
         other => other,
     }
 }
@@ -51,7 +51,7 @@ pub(crate) fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, is_ad
     widgets::body_hint(
         ui,
         theme,
-        "Reports members sent from a message, a conversation, a person's profile or a Media item, with the evidence they chose. \
+        "Reports members sent from a message, a conversation, a person's profile or an item on the Files page, with the evidence they chose. \
          The person reported is never told who reported them, and moderators see the reporter only as a member.",
     );
     ui.add_space(theme.spacing_xs);
@@ -231,7 +231,7 @@ fn draw_evidence(ui: &mut egui::Ui, theme: &Theme, state: &GuiState, r: &ListedR
             // Label ids by the names the Media page knows them by, when it has them.
             let label_name = |id: &str| state.media.list.labels.iter().find(|l| l.id == id).map(|l| l.label.clone()).unwrap_or_else(|| id.to_string());
             ui.label(RichText::new(media_words(m, label_name)).color(theme.text_primary()));
-            if widgets::Button::secondary(OPEN_ITEM).tooltip("Show this item on the Media page, if it is still there.").show(ui, theme) {
+            if widgets::Button::secondary(OPEN_ITEM).tooltip("Show this item on the Files page, if it is still there.").show(ui, theme) {
                 open = Some(m.id);
             }
             return;
@@ -250,10 +250,10 @@ fn draw_evidence(ui: &mut egui::Ui, theme: &Theme, state: &GuiState, r: &ListedR
 /// The button on a reported Media item (the list's own Open tab is another thing).
 pub(crate) const OPEN_ITEM: &str = "Open the item";
 
-/// A reported Media item in words: "Media item 12: "Dusk", a video, labelled Flashing lights,
+/// A reported item of the Files page in words: "Item 12 on the Files page: "Dusk", a video, labelled Flashing lights,
 /// members only". Only its number when the server could not check it.
 pub(crate) fn media_words(m: &report::ListedMedia, label_name: impl Fn(&str) -> String) -> String {
-    let mut words = format!("Media item {}", m.id);
+    let mut words = format!("Item {} on the Files page", m.id);
     if !m.title.trim().is_empty() {
         words.push_str(&format!(": \"{}\"", m.title.trim()));
     }
@@ -310,16 +310,16 @@ mod tests {
             })
         };
         let out = run(&mut state, Vec::new());
-        let out = if find_text_in_shapes(&out.shapes, "Media item 12").is_some() { out } else { run(&mut state, Vec::new()) };
-        assert!(find_text_in_shapes(&out.shapes, "Media item 12: \"Dusk\", a video, labelled flashing, members only").is_some(), "the item is described");
-        assert!(find_text_in_shapes(&out.shapes, "Found on this server: put on its Media page by Ann").is_some(), "with the checked badge");
-        assert!(find_text_in_shapes(&out.shapes, "Media item").is_some_and(|f| f.matches >= 2), "and the context says Media item");
+        let out = if find_text_in_shapes(&out.shapes, "Item 12 on the Files page").is_some() { out } else { run(&mut state, Vec::new()) };
+        assert!(find_text_in_shapes(&out.shapes, "Item 12 on the Files page: \"Dusk\", a video, labelled flashing, members only").is_some(), "the item is described");
+        assert!(find_text_in_shapes(&out.shapes, "Found on this server: put on its Files page by Ann").is_some(), "with the checked badge");
+        assert!(find_text_in_shapes(&out.shapes, "Item on the Files page").is_some(), "and the context says Item on the Files page");
         let open = find_text_in_shapes(&out.shapes, OPEN_ITEM).expect("an Open the item").rect.center();
         let m = egui::Modifiers::default();
         run(&mut state, vec![egui::Event::PointerMoved(open)]);
         run(&mut state, vec![egui::Event::PointerButton { pos: open, button: egui::PointerButton::Primary, pressed: true, modifiers: m }]);
         run(&mut state, vec![egui::Event::PointerButton { pos: open, button: egui::PointerButton::Primary, pressed: false, modifiers: m }]);
-        assert_eq!(state.active_page, crate::gui::GuiPage::Media, "Open goes to the Media page");
+        assert_eq!(state.active_page, crate::gui::GuiPage::Media, "Open goes to the Files page");
         assert_eq!(state.media.item.as_ref().map(|p| p.id), Some(12), "Open opens item 12's own page");
         assert!(
             state.media.jobs.iter().any(|(j, _)| *j == crate::gui::pages::media::Job::Item { id: 12 }),

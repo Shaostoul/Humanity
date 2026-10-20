@@ -304,7 +304,7 @@ changes nothing. Set a feature to `false` and restart the relay to switch it off
 | `game` | Running the shared game world (a 20-per-second simulation that runs whether or not anyone is playing) | Every `game_*` and `trade_*` socket message. The simulation, world save, ambient chatter and time-sync loops never start at all |
 | `market` | The market: offerings, listings, reviews, seller ratings and the order book | `/api/listings*`, `/api/sellers/*`, `/api/trade/*` |
 | `vault_backup` | Letting other people store their encrypted backups on your disk | `/api/vault/sync` (read, write and delete) and the `sync_save` / `sync_load` socket messages |
-| `uploads` | Being a file host: uploads, the shared-file library, the asset library, the Media page | `/api/upload` (resumable uploads included), `/api/uploads*`, `/api/assets*`, `/api/media*`, and serving `/uploads/*` |
+| `uploads` | Being a file host: uploads, the shared-file library, the asset library, the Files page (called the Media page until 2026-10-19; still at `/media`) | `/api/upload` (resumable uploads included), `/api/uploads*`, `/api/assets*`, `/api/media*`, and serving `/uploads/*` |
 | `tasks` | The task board and projects | `/api/tasks*`, `/api/projects*`, and the `task_*` socket messages |
 | `voice` | Voice channels | `/api/turn-credentials` and the `voice_*` / `webrtc_signal` socket messages |
 | `live_video` | Live video fanout | `/api/live` and `/ws/live/*` |
@@ -632,7 +632,8 @@ sudo nginx -t && sudo systemctl restart nginx
 ```
 
 **A server set up before 2026-10-12** needs two edits to its nginx config for
-the Media page's item pages and counts. Make them by hand in the config the
+the Files page's item pages and counts (the page at `/media`, called the Media page until
+2026-10-19). Make them by hand in the config the
 server runs (`/etc/nginx/sites-enabled/humanity` or wherever yours is). If that
 config has ever been changed by hand, do not copy `scripts/nginx/humanity.conf`
 over it: the copy would throw those changes away.
@@ -667,7 +668,7 @@ loopback, so nothing changes for users, and the relay then does not listen on
 the network at all, so 3210 stays closed even if the firewall is ever changed
 by mistake. It also matters for one detail: the relay takes a client's address
 for rate limiting from the `X-Forwarded-For` header nginx sets, which is only
-trustworthy when nginx is the only thing that can reach it. The Media page's
+trustworthy when nginx is the only thing that can reach it. The Files page's
 view and download counts read `X-Real-IP` instead, the one header nginx writes
 from the connection itself and a client cannot add to (a client can put
 anything at the front of `X-Forwarded-For`); they hold an address in memory for
@@ -840,7 +841,7 @@ newer), `sqlite3` and `flock`, all packaged in Debian and Ubuntu.
 - Check the role's upload limit and the server-wide upload storage cap in Server Settings
 - Check data/uploads/ directory permissions
 - Users must be verified to upload
-- A big Media upload that stalls with 503 errors from nginx (not the relay's own words): the
+- A big upload to the Files page that stalls with 503 errors from nginx (not the relay's own words): the
   `/api/upload/resumable` location is missing `limit_req_status 429;`, so a refused rate looks like
   a server that is down. With it, the apps see 429 and wait before trying again. The relay's own
   429s (a role's day or hour allowance) carry when the allowance resets.

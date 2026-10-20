@@ -232,7 +232,7 @@ fn switching_with_uploads_running_asks_first() {
 
     // The Media page's own step when the server changed: the upload stops where it is, its
     // record kept for Carry on when the person comes back.
-    assert!(crate::gui::pages::media::sync_server(&mut state), "the Media page saw no change of server");
+    assert!(crate::gui::pages::media::sync_server(&mut state), "the Files page saw no change of server");
     assert!(state.media.unfinished.iter().any(|u| u.id == "up1"), "the upload's record went with the switch");
     // The plural, for two or more.
     assert_eq!(

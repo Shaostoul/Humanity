@@ -190,7 +190,7 @@
       };
     }
     function renderSettings() {
-      els.settings.replaceChildren(h('h3', { text: 'Who sees the Media page' }));
+      els.settings.replaceChildren(h('h3', { text: 'Who sees the Files page' }));
       const s = settingsNow();
       if (!session || !session.state || session.state.status !== 'bound') {
         els.settings.appendChild(h('p', { className: 'media-hint', text: ADMIN_WORDS.noSession }));
@@ -224,7 +224,7 @@
         typeof s.media_members_note === 'string' && s.media_members_note
           ? h('p', { id: 'media-admin-members-note', className: 'media-hint', text: s.media_members_note })
           : null,
-        h('label', { className: 'media-field' }, ['Media budget (MB)', budget]),
+        h('label', { className: 'media-field' }, ['File space (MB)', budget]),
         h('label', { className: 'media-field' }, ["Each person's share (MB)", share]),
         h('label', { className: 'media-check' }, [previews, ' Public visitors get previews only']),
         h('div', { className: 'media-form-buttons' }, [save]),
@@ -431,7 +431,7 @@
       try {
         return await signedPost(url, purpose, Object.assign({ id: item.id, filename }, body || {}));
       } catch (e) {
-        if (e && e.status === 409 && /not the Media item you were looking at/i.test(e.message)) throw new Error(ADMIN_WORDS.outOfDate);
+        if (e && e.status === 409 && /not the item you were looking at/i.test(e.message)) throw new Error(ADMIN_WORDS.outOfDate);
         throw e;
       }
     }

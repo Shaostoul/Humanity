@@ -150,7 +150,7 @@ pub fn normalize_labels(given: &[String], known: &[MediaLabel]) -> Result<String
     let given: Vec<String> = given.iter().map(|g| g.trim().to_ascii_lowercase()).filter(|g| !g.is_empty()).collect();
     for g in &given {
         if matches!(g.as_str(), "nsfw" | "adult" | "explicit" | "porn") {
-            return Err("Adult content is not allowed on the Media page of this server.".into());
+            return Err("Adult content is not allowed on the Files page of this server.".into());
         }
         if !known.iter().any(|l| &l.id == g) {
             let list: Vec<String> = known.iter().map(|l| format!("{} ({})", l.label, l.id)).collect();
@@ -325,7 +325,7 @@ pub fn upload_shelf(share: Option<u8>, media: Option<u8>, encrypted: Option<u8>)
         if encrypted == Some(1) {
             return Err((
                 StatusCode::BAD_REQUEST,
-                "An encrypted file is for a private conversation and can never go on the Media page.".into(),
+                "An encrypted file is for a private conversation and can never go on the Files page.".into(),
             ));
         }
         return Ok(MEDIA_SHELF);
@@ -881,7 +881,7 @@ pub async fn publish(State(state): State<Arc<RelayState>>, Json(b): Json<Publish
 /// licence log.
 pub fn publish_core(db: &Storage, s: &ServerSettings, known: &[MediaLabel], folders: Folders, b: &PublishBody) -> Answer {
     if !is_member(db, &b.key) {
-        return Err(forbidden("Only members of this server can put things on its Media page."));
+        return Err(forbidden("Only members of this server can put things on its Files page."));
     }
     let filename = stored_name(&b.filename)?;
     let licence = b.licence();
@@ -961,7 +961,7 @@ pub fn same_item(db: &Storage, id: i64, filename: &str) -> Result<(), Refused> {
     }
     let name = stored_name(filename)?;
     match db.media_item(id).map_err(db_err)? {
-        None => Err((StatusCode::NOT_FOUND, "There is no Media item with that number.".to_string())),
+        None => Err((StatusCode::NOT_FOUND, "There is no item with that number on the Files page.".to_string())),
         Some(item) if item.upload_filename != name => Err((StatusCode::CONFLICT, store::OUT_OF_DATE.to_string())),
         Some(_) => Ok(()),
     }
@@ -1077,7 +1077,7 @@ pub async fn unpick(State(state): State<Arc<RelayState>>, Json(b): Json<ItemBody
 /// A member picks item `id` (`on`) or takes the pick back; answers with its pick count.
 pub fn pick_core(db: &Storage, key: &str, id: i64, on: bool) -> Answer {
     if !is_member(db, key) {
-        return Err(forbidden("Only members of this server can pick Media items."));
+        return Err(forbidden("Only members of this server can pick items on the Files page."));
     }
     let picks = if on { db.pick_media(key, id) } else { db.unpick_media(key, id) }.map_err(refusal)?;
     Ok(Json(json!({ "ok": true, "id": id, "picked": on, "picks": picks })))
@@ -1154,7 +1154,7 @@ pub fn keep_core(db: &Storage, key: &str, id: i64, kept: bool) -> Answer {
     };
     let mine = rank(key);
     if mine == 0 {
-        return Err(forbidden("Only an admin or a moderator can keep Media items on the server."));
+        return Err(forbidden("Only an admin or a moderator can keep items on the server."));
     }
     let keeper = db.media_kept_by(id).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     if keeper.as_deref().is_some_and(|k| k != key && rank(k) > mine) {
@@ -1171,7 +1171,7 @@ pub fn keep_core(db: &Storage, key: &str, id: i64, kept: bool) -> Answer {
 /// Admins only: the main shelf, its category's shelf only, or neither.
 pub fn feature_core(db: &Storage, key: &str, id: i64, featured: Featured) -> Answer {
     if !is_admin(db, key) {
-        return Err(forbidden("Only an admin can feature Media items."));
+        return Err(forbidden("Only an admin can feature items on the Files page."));
     }
     db.set_media_featured(id, featured).map_err(refusal)?;
     Ok(Json(json!({ "ok": true, "id": id, "featured": featured.word() })))
@@ -1313,7 +1313,7 @@ pub fn decide_core(db: &Storage, key: &str, id: i64, accept: bool) -> Result<(Js
     }
     let (s, category) = db.decide_media_suggestion(id, accept).map_err(refusal)?;
     let words = if accept {
-        format!("Your category suggestion \"{}\" was accepted: it is now a category on the Media page.", s.name)
+        format!("Your category suggestion \"{}\" was accepted: it is now a category on the Files page.", s.name)
     } else {
         format!("Your category suggestion \"{}\" was declined by an admin.", s.name)
     };
@@ -1351,7 +1351,7 @@ pub async fn set_categories(State(state): State<Arc<RelayState>>, text: String) 
 /// to General.
 pub fn categories_core(db: &Storage, key: &str, list: &[CategoryEdit]) -> Answer {
     if !is_admin(db, key) {
-        return Err(forbidden("Only an admin can change the Media categories."));
+        return Err(forbidden("Only an admin can change the Files page's categories."));
     }
     let list = db.replace_media_categories(list).map_err(refusal)?;
     Ok(Json(json!({ "ok": true, "categories": list })))
@@ -1374,7 +1374,7 @@ pub async fn usage_post(State(state): State<Arc<RelayState>>, Json(b): Json<Sign
 /// when the expiry pass deletes them (F1).
 pub fn usage_core(db: &Storage, s: &ServerSettings, key: &str) -> Answer {
     if !is_admin(db, key) {
-        return Err(forbidden("Only an admin can see how the Media space is used."));
+        return Err(forbidden("Only an admin can see how the file space is used."));
     }
     let u = db.media_usage().map_err(db_err)?;
     let budget = s.media_budget_mb.max(1) * MIB;
@@ -1418,7 +1418,7 @@ pub async fn mine_post(State(state): State<Arc<RelayState>>, Json(b): Json<Signe
 /// cancel one it lost track of; a finished one is in `waiting` instead).
 pub fn mine_core(db: &Storage, s: &ServerSettings, key: &str) -> Answer {
     if !is_member(db, key) {
-        return Err(forbidden("Only members of this server have a share of its Media space."));
+        return Err(forbidden("Only members of this server have a share of its file space."));
     }
     let budget = s.media_budget_mb.max(1) * MIB;
     let sessions: Vec<_> = db.upload_sessions_of(key).map_err(db_err)?.into_iter().filter(|s| !s.finished()).collect();
@@ -1517,9 +1517,9 @@ pub async fn file_core(
         .cloned()
         .ok_or_else(|| forbidden("That upload token is not a session signed in to this server."))?;
     if !is_member(&state.db, &key) {
-        return Err(forbidden("Only members of this server who are not banned can open members-only Media files."));
+        return Err(forbidden("Only members of this server who are not banned can open members-only files on the Files page."));
     }
-    let item = state.db.media_item(id).map_err(db_err)?.ok_or_else(|| (StatusCode::NOT_FOUND, "There is no Media item with that number.".to_string()))?;
+    let item = state.db.media_item(id).map_err(db_err)?.ok_or_else(|| (StatusCode::NOT_FOUND, "There is no item with that number on the Files page.".to_string()))?;
     serve_item_file(folders, &item, file_no, req, HeaderValue::from_static("attachment")).await
 }
 
@@ -1534,8 +1534,8 @@ pub(crate) async fn serve_item_file(
     req: axum::extract::Request,
     disposition: HeaderValue,
 ) -> Result<Response, Refused> {
-    let name = item.file_name(file_no).ok_or_else(|| (StatusCode::NOT_FOUND, "That Media item has no file with that number.".to_string()))?;
-    let path = folders.find(name).ok_or_else(|| (StatusCode::NOT_FOUND, "That Media item's file is missing.".to_string()))?;
+    let name = item.file_name(file_no).ok_or_else(|| (StatusCode::NOT_FOUND, "That item has no file with that number.".to_string()))?;
+    let path = folders.find(name).ok_or_else(|| (StatusCode::NOT_FOUND, "That item's file is missing.".to_string()))?;
     let res = tower_http::services::ServeFile::new(path)
         .try_call(req)
         .await

@@ -61,7 +61,7 @@ const {
 // ── 1. Empty ─────────────────────────────────────────────────────────────
 
 // Seen red with renderGrid's empty branch drawing nothing: "the empty words / actual: null".
-test("1. an empty Media page says so and draws no tile, strip or More", async () => {
+test("1. an empty Files page says so and draws no tile, strip or More", async () => {
   const { doc } = await openPage({ routes: listRoutes(listAnswer([])) });
   const grid = byId(doc, "media-grid");
   assert.equal(text(grid.querySelector(".media-empty")), media.MEDIA_WORDS.empty, "the empty words");
@@ -156,7 +156,7 @@ test("4. the members-only line, the public list unsigned, the members' list sign
   assert.equal(lists.length, 2, "the list and the featured strip");
   for (const l of lists) assert.equal(l.init.method, undefined, "the public list is a plain GET");
   assert.equal(out.signer.signed.length, 0, "nothing is signed without an identity");
-  assert.equal(byId(out.doc, "media-add-btn"), null, "no Add to Media");
+  assert.equal(byId(out.doc, "media-add-btn"), null, "no Add to Files");
   assert.equal(byId(out.doc, "media-filter-picks"), null, "no My picks");
   assert.equal(out.doc.body.querySelectorAll("[data-action]").length, 0, "no Pick, Remove, Feature or Report");
   assert.equal(text(byId(out.doc, "media-status").querySelector(".media-status-text")).startsWith("Not signed in on this page."), true);
@@ -175,7 +175,7 @@ test("4. the members-only line, the public list unsigned, the members' list sign
   assert.equal(file.init.headers["X-Upload-Token"], "tok-1", "the token goes in a header");
   const img = byId(inside.doc, "media-grid").querySelector(".media-tile").querySelector("img");
   assert.equal(img.src, "blob:test/1", "a members-only file is shown through the page's own address");
-  assert.ok(byId(inside.doc, "media-add-btn"), "Add to Media for a signed-in member");
+  assert.ok(byId(inside.doc, "media-add-btn"), "Add to Files for a signed-in member");
 
   // Without the session's token yet, the members-only file is not requested at all.
   const early = await openPage({ session: fakeSession({ status: "connecting", uploadToken: "" }), routes: listRoutes(membersAnswer) });
@@ -236,7 +236,7 @@ function aFile(name, size, type) {
 // while the share is being worked out / actual: false"; and with shareLeftWords showing the whole
 // share as left: "'You have 512 MB of your 512 MB left' == 'You have 412 MB of your 512 MB left'".
 // Round 2: the share now comes from POST /api/media/mine (seen red in media-web-round2.test.js).
-test("6. Add to Media shows the share, stops an upload over it before it starts, uploads one within it", async () => {
+test("6. Add to Files shows the share, stops an upload over it before it starts, uploads one within it", async () => {
   let open;
   const gate = new Promise((r) => { open = r; });
   const { doc, net, signer } = await openPage({ routes: listRoutes(listAnswer([]), [
@@ -309,7 +309,7 @@ test("6. Add to Media shows the share, stops an upload over it before it starts,
 // (round4_tests.rs files_chosen_with_the_first_are_added_to_the_item_once_it_is_published).
 // Seen red with attachMore not called: "the other file is added to the new item / 0 !== 1"; with
 // togetherStop left out: "two that fit alone but not together are stopped / actual: null".
-test("6b. Add to Media takes several files: one item, the others added to it once it is up", async () => {
+test("6b. Add to Files takes several files: one item, the others added to it once it is up", async () => {
   const { doc, net } = await openPage({ routes: listRoutes(listAnswer([]), [
     [at("/api/media/mine", "POST"), () => respond(200, mineAnswer())],
     ...resumableRoutes("1760_new.png"),
@@ -347,18 +347,18 @@ test("6b. Add to Media takes several files: one item, the others added to it onc
 test("6c. several files are checked together: words and limits", () => {
   const files = [{ name: "a", size: 300 * MIB }, { name: "b", size: 300 * MIB }];
   assert.equal(media.togetherStop(files, 100 * MIB, 512 * MIB, NaN).startsWith("These 2 files come to 600 MB, more than the 412 MB left of your share"), true);
-  assert.equal(media.togetherStop(files, 0, 1024 * MIB, 500 * MIB).startsWith("These 2 files come to 600 MB, more than the 500 MB left in this server's whole Media space"), true);
+  assert.equal(media.togetherStop(files, 0, 1024 * MIB, 500 * MIB).startsWith("These 2 files come to 600 MB, more than the 500 MB left in this server's whole file space"), true);
   assert.equal(media.togetherStop(files, 0, 1024 * MIB, NaN), null, "they fit");
   assert.equal(media.togetherStop([files[0]], 500 * MIB, 512 * MIB, NaN), null, "one file is checked as one always was");
   assert.equal(media.moreWords([{ name: "x.png", size: 2 * MIB }]), "Also on this item, each added once the item is up: x.png (2 MB)");
 });
 
-test("7. Put on Media from a Shared Files row offers public only and says why; a members-only server offers no choice", async () => {
+test("7. Put on the Files page from a Shared Files row offers public only and says why; a members-only server offers no choice", async () => {
   const { doc, net } = await openPage({
     put: { filename: "1700_part.stl", name: "bushing.stl" },
     routes: listRoutes(listAnswer([]), [[at("/api/media", "POST"), () => respond(200, { ok: true, item: item() })]]),
   });
-  assert.equal(text(byId(doc, "media-form").querySelector("h2")), "Put on Media");
+  assert.equal(text(byId(doc, "media-form").querySelector("h2")), "Put on the Files page");
   assert.equal(text(byId(doc, "media-form-public-only")), "This file is already public where it was shared.");
   assert.equal(byId(doc, "media-form-visibility"), null, "the visibility choice is not offered");
   assert.equal(byId(doc, "media-form-vis-members"), null);
@@ -438,7 +438,7 @@ test("8. pick, unpick, remove and feature are each signed over their own item, n
   assert.equal(rm.body.filename, "6_mine.png");
   assert.equal(tileOf(6), undefined, "the tile is gone");
   assert.equal(text(byId(doc, "media-notice").querySelector(".media-notice-text")), media.MEDIA_WORDS.removedDeleted);
-  assert.equal(media.removedWords({ file_kept: true }), "Removed from Media. The file stays where it came from.");
+  assert.equal(media.removedWords({ file_kept: true }), "Removed from Files. The file stays where it came from.");
 });
 
 // Seen red with remove() not waiting for the confirmation: "a cancelled Remove sends nothing /
@@ -541,7 +541,7 @@ test("9b. the admins' writes are each signed over their own target", async () =>
 
 // Seen red with renderAdmin mounting for any signed-in person: "a member who is not an admin
 // gets no admins' section / actual: [object]".
-test("9c. the Media page shows the admins' section to admins only", async () => {
+test("9c. the Files page shows the admins' section to admins only", async () => {
   const mounted = [];
   const member = await openPage({ mountAdmin: (c) => mounted.push(c), routes: listRoutes(listAnswer([])) });
   assert.equal(byId(member.doc, "media-admin"), null, "a member who is not an admin gets no admins' section");
@@ -652,7 +652,7 @@ test("11. sizes, the share and the meter read as the design writes them", () => 
   assert.equal(media.sizeWords(1.5 * MIB), "1.5 MB");
   assert.equal(media.sizeWords(900 * 1024), "900 KB");
   assert.equal(media.shareStop({ name: "a", size: 10 }, 0, 512 * MIB), null);
-  assert.equal(media.limitStop({ name: "a", size: 2 * MIB }, MIB).startsWith('"a" is 2 MB, over your role\'s 1 MB limit for one Media file'), true);
+  assert.equal(media.limitStop({ name: "a", size: 2 * MIB }, MIB).startsWith('"a" is 2 MB, over your role\'s 1 MB limit for one file on this server\'s Files page'), true);
   assert.equal(media.limitStop({ name: "a", size: 2 * MIB }, 0), null, "0 is no limit: up to the share");
   // No em dash in anything the page or the section says.
   for (const w of Object.values(media.MEDIA_WORDS).concat(Object.values(admin.ADMIN_WORDS))) assert.ok(!w.includes("—"), w);
@@ -660,9 +660,14 @@ test("11. sizes, the share and the meter read as the design writes them", () => 
 
 // The page is wired in: the nav beside Watch, its scripts in order, the Shared Files row link.
 // Seen red with the /media link taken out of shell.js: "the nav links the page / false".
+// Named Files since 2026-10-19 (still at /media); the developer's data browser at /files is
+// "Data files", so the menus never show two "Files".
 test("12. the page is in the nav beside Watch and loads its scripts in order", () => {
   const shell = fs.readFileSync(path.join(WEB, "shared", "shell.js"), "utf8");
-  assert.ok(/mobileLink\('\/watch',\s*'Watch'\)\s*\+[\s\S]{0,300}?mobileLink\('\/media',\s*'Media'\)/.test(shell), "the nav links the page");
+  assert.ok(/mobileLink\('\/watch',\s*'Watch'\)\s*\+[\s\S]{0,300}?mobileLink\('\/media',\s*'Files'\)/.test(shell), "the nav links the page");
+  assert.ok(/navTab\('\/media',\s*'image',\s*'Files',\s*'media'\)/.test(shell), "the top nav names it Files");
+  assert.ok(/mobileLink\('\/files',\s*'Data files'\)/.test(shell), "the data browser is Data files");
+  assert.ok(!/mobileLink\('\/media',\s*'Media'\)|navTab\('\/media',\s*'image',\s*'Media'/.test(shell), "and no menu still says Media for it");
   assert.ok(/p\.startsWith\('\/media'\)/.test(shell), "the page lights its tab");
   const html = fs.readFileSync(path.join(WEB, "pages", "media.html"), "utf8");
   const order = ["/shared/hold-confirm.js", "/chat/pq.js", "/shared/pq-relay-auth.js", "/shared/relay-session.js", "/shared/report.js", "/pages/media-upload.js", "/pages/media-app.js", "/pages/media-admin.js"];
@@ -673,7 +678,7 @@ test("12. the page is in the nav beside Watch and loads its scripts in order", (
   // The Admin page no longer mounts the section (round 5, lane 1F): its Media panel is one line
   // linking /media#admin and it loads none of these scripts, which server-strip-web.test.js checks.
   const shared = fs.readFileSync(path.join(WEB, "pages", "shared-files.html"), "utf8");
-  assert.ok(shared.includes("'/media?put=' + encodeURIComponent("), "a Shared Files row links to Put on Media");
+  assert.ok(shared.includes("'/media?put=' + encodeURIComponent("), "a Shared Files row links to Put on the Files page");
   assert.ok(/f\.uploader_key !== myKey/.test(shared), "on the person's own rows only");
 });
 
@@ -708,7 +713,7 @@ function lateList(t) {
 // "the chosen file: its badge first"; with About it and Who can see it put before Files: "the three
 // parts, Files first" (red, green, blue against blue, red, green); with askFileTypes never asking:
 // "the list is asked for once" (0 against 1).
-test("13. Add to Media is in three tinted parts, its files first; each chosen file shows its type", async (t) => {
+test("13. Add to Files is in three tinted parts, its files first; each chosen file shows its type", async (t) => {
   FRISK.use(null); // not in yet: the form asks for it
   const late = lateList(t);
   const { doc } = await openPage({ routes: listRoutes(listAnswer([], { licences: LICENCES }), [

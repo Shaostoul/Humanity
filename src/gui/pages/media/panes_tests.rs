@@ -228,7 +228,7 @@ fn edit_in_place_saves_cancels_and_asks_before_changes_are_lost() {
     away(&mut state, vec![egui::Event::PointerMoved(go)]);
     away(&mut state, vec![egui::Event::PointerButton { pos: go, button: egui::PointerButton::Primary, pressed: true, modifiers: Default::default() }]);
     away(&mut state, vec![egui::Event::PointerButton { pos: go, button: egui::PointerButton::Primary, pressed: false, modifiers: Default::default() }]);
-    assert_eq!(state.active_page, crate::gui::GuiPage::Media, "Go back to them returns to the Media page");
+    assert_eq!(state.active_page, crate::gui::GuiPage::Media, "Go back to them returns to the Files page");
     assert!(state.media.item.as_ref().is_some_and(|p| p.edit.as_ref().is_some_and(|f| f.title == "Half typed")), "with the change still in the form");
 }
 

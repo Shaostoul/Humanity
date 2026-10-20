@@ -15,6 +15,15 @@
 //!     account" also hides the one thing they must know, that only their
 //!     recovery phrase gets them back in.
 //!
+//! And one page name (operator, 2026-10-19: "What do you think about changing the name of media
+//! to files"): the page people put their pictures, videos, models, sounds and other files on is
+//! **Files**, no longer Media. Its old action words are retired as quoted text (right after a
+//! quote mark or a tag's `>`): "Add to Media", "Put on Media", "Remove from Media", "Media on
+//! <host>" and the like. Only quoted, because the code keeps its names (`media.rs`,
+//! `GuiPage::Media`, `/api/media`, the `/media` address) and comments may say how things were.
+//! The developer's data browser that was called Files is "Data files" since the same day.
+//! "Settings > Media" (video on in-world screens) is another thing and keeps its name.
+//!
 //! Scans what people read: the native UI (`src/gui/`), the website (`web/`),
 //! the help, dictionary, onboarding and wallet data, the user, website,
 //! mission and outreach docs (not posts already published or applications
@@ -67,6 +76,18 @@ const ACCOUNT_SEED: &[&str] = &[
     "back up your seed",
     "backup your seed",
 ];
+/// The Files page's old words (Media until 2026-10-19), each with the words that replaced it.
+/// Matched only as quoted text: see [`quotes_retired_media_words`].
+const RETIRED_MEDIA_PAGE: &[(&str, &str)] = &[
+    ("Add to Media", "Add to Files"),
+    ("Put on Media", "Put on the Files page"),
+    ("Put it on Media", "Put it on the Files page"),
+    ("Remove from Media", "Remove from Files"),
+    ("Removed from Media", "Removed from Files"),
+    ("On Media since", "On the Files page since"),
+    ("Drop to upload to Media", "Drop to upload to Files"),
+    ("Media on ", "Files on "),
+];
 /// Records, not copy: what was posted or sent stays as it was.
 const SKIP: &[&str] = &["docs/outreach/posts", "docs/outreach/applications"];
 
@@ -95,6 +116,13 @@ fn walk(root: &Path, p: &Path, out: &mut Vec<PathBuf>) {
     } else if wanted(p) {
         out.push(p.to_path_buf());
     }
+}
+
+/// The first retired Files-page phrase `line` shows as quoted text, with its replacement: the
+/// phrase right after `"`, `'`, a backtick or a tag's `>` (a string in the code, or text in a
+/// page). A comment naming `media.rs` or the `/media` address never matches.
+fn quotes_retired_media_words(line: &str) -> Option<(&'static str, &'static str)> {
+    RETIRED_MEDIA_PAGE.iter().copied().find(|(old, _)| ['"', '\'', '`', '>'].iter().any(|q| line.contains(&format!("{q}{old}"))))
 }
 
 /// "no account" or "no accounts" as words (not "no accountability").
@@ -150,17 +178,31 @@ fn account_words_are_the_plain_ones() {
             if says_no_account(&lower) {
                 bad.push(format!("{rel}:{}: \"no account\" -> say \"no sign-up\" (people do have an account; it is theirs)", n + 1));
             }
+            if let Some((old, new)) = quotes_retired_media_words(line) {
+                bad.push(format!("{rel}:{}: \"{old}\" -> say \"{new}\" (the Media page is the Files page since 2026-10-19)", n + 1));
+            }
         }
     }
     assert!(
         bad.is_empty(),
-        "\n\n[FAIL] {} line(s) use account words the operator retired (2026-09-29):\n  {}\n\n\
+        "\n\n[FAIL] {} line(s) use words the operator retired (2026-09-29, 2026-10-19):\n  {}\n\n\
          \"recovery phrase\", never \"seed phrase\" (seed means plant and world seeds);\n\
-         \"no sign-up\", never \"no account\". A genuine quotation or an unrelated use:\n\
-         put `terminology-exempt` on the line.\n",
+         \"no sign-up\", never \"no account\"; the Files page, never the Media page.\n\
+         A genuine quotation or an unrelated use: put `terminology-exempt` on the line.\n",
         bad.len(),
         bad.join("\n  ")
     );
+}
+
+#[test]
+fn the_media_page_matcher_reads_quoted_words_only() {
+    assert_eq!(quotes_retired_media_words(r#"Button::primary("Add to Media")"#), Some(("Add to Media", "Add to Files")));
+    assert_eq!(quotes_retired_media_words("a.textContent = 'Put on Media';"), Some(("Put on Media", "Put on the Files page")));
+    assert_eq!(quotes_retired_media_words("<h2>Media on united-humanity.us</h2>"), Some(("Media on ", "Files on ")));
+    assert_eq!(quotes_retired_media_words(r#"format!("Media on {host}")"#), Some(("Media on ", "Files on ")));
+    assert_eq!(quotes_retired_media_words(r#""Add to Files""#), None, "the new words pass");
+    assert_eq!(quotes_retired_media_words("// media.rs draws the page; GuiPage::Media"), None, "code names pass");
+    assert_eq!(quotes_retired_media_words(r#"("Settings > Media", SettingsCategory::Media)"#), None, "Settings > Media is another thing");
 }
 
 #[test]

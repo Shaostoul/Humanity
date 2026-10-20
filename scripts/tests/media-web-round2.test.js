@@ -178,7 +178,7 @@ test("B. a write names the item's file; a page out of date is loaded again; an u
     [at("/api/media/file/7"), () => respond(200, "")],
     [at("/api/media/file/8"), () => respond(200, "")],
     [at("/api/media/pick", "POST"), () => (stale
-      ? respond(409, "That is not the Media item you were looking at: the page is out of date. Load it again.")
+      ? respond(409, "That is not the item you were looking at: the page is out of date. Load it again.")
       : respond(200, { ok: true, id: 5, picked: true, picks: 1 }))],
     [at("/api/media/feature", "POST"), (c) => respond(200, { ok: true, id: c.body.id, featured: c.body.featured })],
   ]) });
@@ -243,12 +243,12 @@ test("C. the share is the relay's own count, uploads waiting are listed with Rem
   // The role's largest Media file.
   mine = mineAnswer({ file_limit_bytes: 50 * MIB });
   await pickFile(doc, aFile("clip.mp4", 60 * MIB));
-  assert.match(text(byId(doc, "media-form-stop")), /over your role's 50 MB limit for one Media file/);
+  assert.match(text(byId(doc, "media-form-stop")), /over your role's 50 MB limit for one file on this server's Files page/);
   byId(doc, "media-form-cancel").click();
   // What is left of the whole Media space.
   mine = mineAnswer({ budget_left_bytes: 30 * MIB });
   await pickFile(doc, aFile("clip.mp4", 40 * MIB));
-  assert.match(text(byId(doc, "media-form-stop")), /more than the 30 MB left in this server's Media space/);
+  assert.match(text(byId(doc, "media-form-stop")), /more than the 30 MB left in this server's file space/);
 });
 
 // Seen red 2026-10-11 with openWaitingForm leaving the upload's stored name out of the form:
@@ -435,12 +435,12 @@ test("G. the admins' Save ends on any refusal, on a dropped connection or with n
 
 // Seen red 2026-10-11 with renderActions offering Add to Media to any signed-in member (round 1):
 // "a role that cannot upload is not offered Add to Media".
-test("H. Add to Media is offered only to a role that may upload", async () => {
+test("H. Add to Files is offered only to a role that may upload", async () => {
   const cannot = await openPage({ session: fakeSession({ role: "unverified" }), routes: listRoutes(listAnswer([])) });
-  assert.equal(byId(cannot.doc, "media-add-btn"), null, "a role that cannot upload is not offered Add to Media");
+  assert.equal(byId(cannot.doc, "media-add-btn"), null, "a role that cannot upload is not offered Add to Files");
   assert.equal(text(byId(cannot.doc, "media-cannot-upload")), media.MEDIA_WORDS.cannotUpload, "and is told why");
   const none = await openPage({ session: fakeSession({ role: "" }), routes: listRoutes(listAnswer([])) });
-  assert.equal(byId(none.doc, "media-add-btn"), null, "no role at all: no Add to Media");
+  assert.equal(byId(none.doc, "media-add-btn"), null, "no role at all: no Add to Files");
   const unknown = await openPage({ session: fakeSession({ roles: null }), routes: listRoutes(listAnswer([])) });
   assert.equal(byId(unknown.doc, "media-add-btn"), null, "the role list not here yet: not offered yet");
   assert.equal(byId(unknown.doc, "media-cannot-upload"), null, "and nothing said yet");
@@ -521,8 +521,8 @@ test("K. Remove's words come from each item's keeps_file", () => {
   assert.equal(media.removeWords(item({ keeps_file: true, visibility: "public" })), media.MEDIA_WORDS.removeKeeps, "an item from chat keeps its file");
   assert.equal(media.removeWords(item({ keeps_file: false, visibility: "public" })), media.MEDIA_WORDS.removeDeletes);
   assert.equal(media.removeWords(item({ keeps_file: undefined })), media.MEDIA_WORDS.removeEither, "unknown: words that cover both");
-  assert.equal(media.MEDIA_WORDS.removeKeeps, "Remove from Media. The file stays where it came from.");
-  assert.equal(media.MEDIA_WORDS.removeDeletes, "Remove from Media and delete the file.");
+  assert.equal(media.MEDIA_WORDS.removeKeeps, "Remove from Files. The file stays where it came from.");
+  assert.equal(media.MEDIA_WORDS.removeDeletes, "Remove from Files and delete the file.");
 });
 
 // ── L. Report on a tile ───────────────────────────────────────────────────
@@ -598,7 +598,7 @@ test("L. Report on a Media tile sends report_v2 with context media and the item 
   assert.deepEqual(report.mediaEvidenceItem("7"), { kind: "media", id: 7 });
   assert.equal(report.mediaEvidenceItem(0), null);
   assert.equal(report.reportEvidenceProblem([{ kind: "media", id: 5 }]), null);
-  assert.equal(report.reportEvidenceProblem([{ kind: "media", id: "5" }]), "The Media item is not named.");
+  assert.equal(report.reportEvidenceProblem([{ kind: "media", id: "5" }]), "The item on the Files page is not named.");
 });
 
 // ── M. The admins' Reports view and /media?id=<n> ─────────────────────────
@@ -642,12 +642,12 @@ test("M. the admins' Reports view shows a reported Media item with Open, and /me
   assert.ok(html.includes("Video · Labels: Flashing lights · Members only"), "its kind, labels and who can see it, by their names: " + html.slice(html.indexOf("report-media-facts"), html.indexOf("report-media-facts") + 160));
   assert.ok(html.includes('href="/media/42"'), "Open loads it by its number, at its own page");
   assert.ok(/data-report-media-open="42"[^>]*target="_blank" rel="noopener noreferrer"/.test(html), "in a new tab");
-  assert.ok(html.includes("Checked: on the Media page, put there by"), "the checked badge");
-  assert.ok(html.includes("The Media page"), "where it happened");
+  assert.ok(html.includes("Checked: on the Files page, put there by"), "the checked badge");
+  assert.ok(html.includes("The Files page"), "where it happened");
   // An item the relay could not find: its number, not proven.
   set([{ id: 2, target: ANN, context: "media", reason: "spam", evidence: [{ kind: "media", id: 43, checked: false }] }]);
   const h2 = view();
-  assert.ok(h2.includes("Media item 43") && h2.includes(report.REPORT_NOT_PROVEN));
+  assert.ok(h2.includes("Item 43 on the Files page") && h2.includes(report.REPORT_NOT_PROVEN));
 
   // The Media page opened at /media/42: the list route asked for that item, and the viewer shows it.
   const it = item({ id: 42, title: "Fire show", kind: "video", url: "/uploads/42_f.mp4" });
@@ -826,7 +826,7 @@ test("N4. the role's allowance (429): the relay's words, when it resets, and it 
 // again before the empty one): "Retry sends only the empty piece at the end, nothing again".
 test("N5. no room at the finish (507): the relay's words, and Retry sends the empty piece that finishes it", async () => {
   let full = true;
-  const words = "There is no room left in this server's Media space for it. The file you sent is kept here for a day, so once there is room it can be finished without sending it again.";
+  const words = "There is no room left in this server's file space for it. The file you sent is kept here for a day, so once there is room it can be finished without sending it again.";
   const server = resumableServer(20 * MIB, {
     finish: async () => (full ? respond(507, words) : null),
     piece: async (c, off) => {

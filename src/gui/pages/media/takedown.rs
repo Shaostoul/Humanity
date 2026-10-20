@@ -51,7 +51,7 @@ pub const BUTTON: &str = "Report a copyright problem";
 pub const BUTTON_TIP: &str = "Is this your work, put here without your permission? Tell the admins.";
 pub const TITLE: &str = "Report a copyright problem";
 pub const LEAD: &str =
-    "If something on this Media page is your work and it was put here without your permission, tell this server's admins. You do not need to be signed in.";
+    "If something on this Files page is your work and it was put here without your permission, tell this server's admins. You do not need to be signed in.";
 /// The one sentence on what happens next (the operator's design, 2026-10-13).
 pub const NEXT: &str =
     "An admin looks at it and removes the item or keeps it; the outcome appears in the public takedown log, without your name or contact.";
@@ -86,8 +86,8 @@ pub const ADMIN_NONE: &str = "No copyright reports are waiting.";
 pub const ADMIN_NOTE_HINT: &str = "A note for the public log (optional). Do not put the person's name or contact in it.";
 pub const REMOVE_ITEM: &str = "Remove item";
 pub const KEEP: &str = "Keep";
-pub const GONE: &str = "(no longer on the Media page)";
-pub const REMOVE_CONFIRM: &str = "Remove this item from the Media page? The decision and your note go into the public takedown log.";
+pub const GONE: &str = "(no longer on the Files page)";
+pub const REMOVE_CONFIRM: &str = "Remove this item from the Files page? The decision and your note go into the public takedown log.";
 /// The confirmation's own buttons (the prune lists' words, media/admin.rs).
 pub const YES_REMOVE: &str = "Yes, remove";
 /// What the section says to an admin who is not signed in to this server (nothing can be signed).

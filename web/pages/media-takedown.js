@@ -49,7 +49,7 @@
     button: 'Report a copyright problem',
     buttonTip: 'Is this your work, put here without your permission? Tell the admins.',
     title: 'Report a copyright problem',
-    lead: "If something on this Media page is your work and it was put here without your permission, tell this server's admins. You do not need to be signed in.",
+    lead: "If something on this Files page is your work and it was put here without your permission, tell this server's admins. You do not need to be signed in.",
     // The one sentence on what happens next (the operator's design, 2026-10-13).
     next: 'An admin looks at it and removes the item or keeps it; the outcome appears in the public takedown log, without your name or contact.',
     itemLabel: "The item's number or address",
@@ -80,8 +80,8 @@
     adminNotePlaceholder: 'A note for the public log (optional). Do not put the person\'s name or contact in it.',
     removeItem: 'Remove item',
     keep: 'Keep',
-    gone: '(no longer on the Media page)',
-    removeConfirm: 'Remove this item from the Media page? The decision and your note go into the public takedown log.',
+    gone: '(no longer on the Files page)',
+    removeConfirm: 'Remove this item from the Files page? The decision and your note go into the public takedown log.',
     cannotSign: 'This page could not sign the request with your identity. Open Chat in this browser first, then try again.',
   });
 
