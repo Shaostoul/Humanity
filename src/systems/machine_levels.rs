@@ -400,7 +400,7 @@ mod tests {
     /// world entry the front log has 0 kg burned".
     #[test]
     fn a_stoves_half_burned_log_survives_a_restart_and_world_entry() {
-        let stove = |burned_kg: f64| FuelStove { kg_per_h: 4.07, o2_kg_per_kg: 1.094, burned_kg };
+        let stove = |burned_kg: f64| FuelStove { kg_per_h: 4.07, o2_kg_per_kg: 1.094, burned_kg, ..Default::default() };
         let mut logs = Container::new("stove_firebox", 68.0);
         logs.current_content_item = Some("wood_log_0".into());
         logs.current_qty = 2;

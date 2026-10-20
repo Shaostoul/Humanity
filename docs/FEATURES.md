@@ -2281,13 +2281,22 @@ heat, its COP read off its spec sheet's table at the station air's temperature,
 `heat_cop` / `HeatPump`, charged only its draw by the meter and the time away); and
 the wood stove (`wood_stove`, an EPA-certified Drolet Escape 1800: 13,040 W, no power,
 4.07 kg of Wood Logs an hour from its own 68 L `stove_firebox`, which takes only Wood
-Logs, `VesselTakes::Firewood`; burned exactly in f64 at any frame rate; its fire takes
-1.094 kg of the home's oxygen per kilogram, its exhaust goes up the flue; a half-burned
-log is saved, `MachineLevels::stove_burned_kg`; `FuelStove`, `burns_fuel`). Each is
+Logs, `VesselTakes::Firewood`; burned exactly in f64 at any frame rate; its fire burns
+1.094 kg of oxygen per kilogram, its exhaust goes up the flue; a half-burned log is saved,
+`MachineLevels::stove_burned_kg`; `FuelStove`, `burns_fuel`). Where a stove's fire gets
+its air is data (2026-10-20, `burns_fuel.combustion_air`, `CombustionAir`): the shipped
+stove has its maker's outside air kit (`Outside`, per 24 CFR 3280.709(g) and Drolet's
+manual, docs/reference/findings/2026-10-20-stove-combustion-air.md), so it takes none of
+the home's oxygen and the ship's supply ledger meters it on an "oxygen" line in kg
+(`ship_power::OXYGEN`, both Ship life support modes); a stove with `Room` takes it from
+the home's air as before. Each is
 built at a workbench (`build_heater`, `build_heat_pump`, `build_wood_stove`) and placed
 from the Construction page's Life support tab; neither home places one. The Garden panel
-names each kind ("heat pump flat out, 2,815 W of heat on 620 W", "stove off (no wood)")
-and keeps the stove's oxygen apart from breathing. Tests: `farming::heat_tests` and
+names each kind ("heat pump flat out, 2,815 W of heat on 620 W", "stove off (no wood)"),
+says where a burning stove's air comes from ("and its air from outside through its kit" /
+"from this room"), keeps a room-air stove's oxygen apart from breathing, and gives an
+outside-air stove's day from the ship's air apart from the home's balance. Tests:
+`farming::heat_tests` and
 `engine::home_spawn::tests::the_heat_pump_and_wood_stove_are_built_and_placed_and_the_stoves_box_takes_only_wood`.
 Greenhouse air (v0.1370.0): each grow room gains the water its crops breathe out and
 loses it to leakage and an exhaust fan (`exhaust_fan_1`, humidity-triggered, cube-law

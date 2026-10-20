@@ -919,15 +919,23 @@
             // The same wood stove as home.ron's `wood_stove` (2026-10-20), whose comment quotes
             // and works its figures: an EPA-certified Drolet Escape 1800, "Maximum overall heat
             // output rate" "44,500 BTU/h (13.04 kW)" at "72 %" (HHV), so 4.07 kg an hour of
-            // air-dried Wood Log, burning 1.094 kg of the home's oxygen for each kilogram; its
-            // carbon dioxide, water and carbon monoxide go up its flue. Its 68 L firebox takes
-            // only Wood Logs, two to a load. Not placed in the seed design: built at a workbench
-            // (build_wood_stove) and placed from the Construction page. It draws no power; at full
-            // it burns about 98 kg of wood and 107 kg of the home's oxygen a day.
+            // air-dried Wood Log, burning 1.094 kg of oxygen for each kilogram; its carbon
+            // dioxide, water and carbon monoxide go up its flue. Its 68 L firebox takes only Wood
+            // Logs, two to a load. combustion_air Outside (2026-10-20): it has its maker's outside
+            // air kit fitted, which Drolet's manual requires in a mobile home and the US
+            // manufactured-home standard requires of any solid-fuel stove (24 CFR 3280.709(g);
+            // home.ron's comment quotes both, and the dated finding is
+            // docs/reference/findings/2026-10-20-stove-combustion-air.md), so its fire takes none
+            // of the home's oxygen: it comes from the ship's air beyond the home, which the ship's
+            // life support keeps and the game does not model, metered against the home in the
+            // ship's supply ledger in either Ship life support mode. Not placed in the seed
+            // design: built at a workbench (build_wood_stove) and placed from the Construction
+            // page. It draws no power; at full it burns about 98 kg of wood a day and 107 kg of the
+            // ship's oxygen. A stove with combustion_air Room would burn the home's instead.
             heats_w: 13040.0,
             heat_setpoint_c: 24.0,
-            burns_fuel: Some((kg_per_h: 4.07, o2_kg_per_kg: 1.094, fuels: ["wood_log_0"])),
-            stats: [(kind: "fuel", value: "Wood Logs from its box, two to a load: 4.07 kg an hour at full", status: "ok"), (kind: "air", value: "13,040 W of heat into the air it stands in, up to 24 C; its fire burns the home's oxygen", status: "warn")],
+            burns_fuel: Some((kg_per_h: 4.07, o2_kg_per_kg: 1.094, fuels: ["wood_log_0"], combustion_air: Outside)),
+            stats: [(kind: "fuel", value: "Wood Logs from its box, two to a load: 4.07 kg an hour at full", status: "ok"), (kind: "air", value: "13,040 W of heat into the air it stands in, up to 24 C; its fire's air comes from outside through its kit", status: "ok")],
             container_type: Some("stove_firebox"),
         ),
         "composter": (

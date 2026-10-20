@@ -737,22 +737,51 @@ carbon monoxide this guide is about.
   generator's fuel drum is not burned while you are away. The Garden
   panel says what it is doing, and "stove off (no wood)" when the box is
   empty.
-- **A stove's fire breathes your home's air.** Fire needs oxygen, and in
-  a sealed home aboard a ship the only oxygen is the home's own air. The
-  stove takes about 1.1 kg of oxygen out of it for each kilogram of wood
-  it burns, about 107 kg a day at full, against the roughly 2,900 kg in
-  the home's air, and the Garden panel's day line for the home's air says
-  how much the stove burned beside what is breathed in. Its carbon
-  dioxide, water, smoke and carbon monoxide go up its flue, out of the
-  home: none of them enter the home's air. The game does not model the
-  flue itself (it never blocks, spills smoke back into the room or catches
-  fire), the extra air a real stove pulls through its fire and up the
-  chimney and the outside air that has to come in to replace it (why a
-  tight house may need a dedicated outside air supply for the stove, as
-  [Firewood](/library#firewood) explains), or a fire burning lower as the air
-  thins. In life, a stove in a sealed space is the danger this guide is
-  about: it is safe only with a sound, drawing flue and air to replace
-  what it burns.
+- **The stove breathes air from outside your home, through its kit.**
+  Fire needs oxygen: about 1.1 kg for each kilogram of wood, about 107 kg
+  a day at full, against the roughly 2,900 kg in a home's air, and a
+  sealed home aboard a ship has nothing coming in to replace it. The US
+  federal standard for manufactured homes allows a wood stove only with
+  "a combustion air inlet" that
+  "shall conduct the air directly into the fire chamber" (24 CFR
+  3280.709(g)), and Drolet says its Escape 1800 "REQUIRES THE
+  INSTALLATION OF A FRESH AIR KIT, SOLD SEPARATELY" in a mobile home: a
+  duct that brings outside air straight into the firebox (kit AC01211
+  for the model on legs, in its 2024 manual). So the game's stove has
+  that kit fitted, and its fire takes none of your home's oxygen. Aboard,
+  "outside" is the ship's air beyond your home, which the ship's life
+  support keeps and the game does not model, so the ship never runs
+  short; what the fire burns is counted against your home in the ship's
+  supply ledger. That is the same under both Ship life support settings
+  (Settings > Gameplay): they decide who powers your home, and the
+  ship's air is the ship's either way. The Garden panel says "its air
+  from outside through its kit", and its day line says how much the
+  stove burned from the ship's air, apart from your home's own balance.
+  The research, with every quotation, is
+  `docs/reference/findings/2026-10-20-stove-combustion-air.md`.
+- **A stove without the kit burns your home's air.** The game can still
+  hold a stove that takes its air from the room it stands in (most
+  stoves in ordinary houses are fitted that way, and Drolet calls room
+  air the safest supply there, because a house leaks enough air to
+  replace what the fire burns). Such a stove, set in a stove's data with
+  `combustion_air: Room`, takes its oxygen out of your sealed home's air
+  with nothing to replace it, and the Garden panel says "its air from
+  this room" and counts what the stove burned beside what is breathed
+  in. In life that is the danger this guide is about: a fire in a sealed
+  space is safe only with a sound, drawing flue and air to replace what
+  it burns.
+- **What the stove's air leaves out.** Its carbon dioxide, water, smoke
+  and carbon monoxide go up its flue, out of the home: none of them enter
+  the home's air. The game does not model the flue itself (it never
+  blocks, spills smoke back into the room or catches fire), where its
+  exhaust goes aboard, the rest of the air a real stove pulls through its
+  fire and up the chimney (the nitrogen that comes with the oxygen, and
+  the excess air beyond what the fire burns), the room air a
+  real kitted stove still draws past its door and whenever you open it to
+  load, wind upsetting the kit's duct (Drolet warns it can draw exhaust
+  backwards through it; aboard there is no wind), or a fire burning lower
+  as the air thins. [Firewood](/library#firewood) has why a tight house may
+  need a dedicated outside air supply for its stove.
 - **What reads the warmer air.** A room's humidity: warmer air holds more
   water, so the same damp reads drier, and its fans, humidifiers and air
   handlers work to their setpoints at the new temperature
@@ -1123,7 +1152,16 @@ used here and the wording is not.
   https://www.epa.gov/sites/default/files/2016-06/documents/m-28.pdf; and
   the Forest Products Laboratory's "Cell wall chemistry", Rowell and
   others, 2005, for dry wood's 50% carbon, 6% hydrogen and 44% oxygen,
-  read 2026-10-20 at https://research.fs.usda.gov/treesearch/22043), their
+  read 2026-10-20 at https://research.fs.usda.gov/treesearch/22043); where
+  the stove's fire gets its air (`combustion_air` in its `burns_fuel`, and
+  the dated finding `docs/reference/findings/2026-10-20-stove-combustion-air.md`,
+  which quotes 24 CFR 3280.709(g), read 2026-10-20 in the eCFR at
+  https://www.ecfr.gov/current/title-24/subtitle-B/chapter-XX/part-3280/subpart-H/section-3280.709,
+  and Drolet's Escape 1800 manuals 45930A of 20 March 2019,
+  https://www.drolet.ca/file/45930a_20-03-2019.pdf, and 46240_IA of
+  29 February 2024, linked from the product page above), and the ship's
+  supply ledger that meters the oxygen it burns (`OXYGEN` in
+  `src/systems/ship_power.rs`); their
   recipes, items and firebox (`data/recipes.csv`, `data/items.csv`,
   `stove_firebox` in `data/containers/types.csv`), and the tests that
   measure the heat pump's heat and bill, the stove's burn, its oxygen and

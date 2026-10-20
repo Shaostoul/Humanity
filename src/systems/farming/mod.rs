@@ -2490,6 +2490,20 @@ impl System for FarmingSystem {
             .unwrap_or_default();
         let air_out = humidity::step_rooms(world, air_data, life, pest_data, &air_map, &mut room_air, &mut home_air, &air_step);
         heat::burn_stoves(world, item_registry, &air_out.stove_burned_kg);
+        // The oxygen a stove fed from outside through its kit burned came out
+        // of the ship's air beyond the home (2026-10-20, heat.rs): metered
+        // against the home in the ship's supply ledger, kg, in either Ship
+        // life support mode (the modes decide who powers the home; the ship's
+        // air is the ship's in both).
+        if air_out.stove_ship_o2_g > 0.0 {
+            crate::systems::ship_power::record(
+                data,
+                crate::systems::ship_power::PLAYER_HOME,
+                crate::systems::ship_power::OXYGEN,
+                air_out.stove_ship_o2_g / 1000.0,
+                0.0,
+            );
+        }
         for n in air_out.notices {
             push_notice(data, n);
         }

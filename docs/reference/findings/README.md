@@ -299,3 +299,12 @@ what we will say about it.
   each installed program's own icon in place and ship no logos (OBS forbids
   its logo without authorization, Blackmagic publishes no rules). Projects
   and Microsoft say: get software from its maker, never from an advert.
+- [`2026-10-20-stove-combustion-air.md`](2026-10-20-stove-combustion-air.md),
+  where a wood stove in a tight home should get the air its fire burns. The US
+  manufactured-home standard (24 CFR 3280.709(g)) admits a solid-fuel stove only
+  with a combustion air inlet leading outside air straight into the fire
+  chamber; the Drolet Escape 1800's manuals (2019 and 2024) require its fresh
+  air kit in a mobile home (kit AC01211 for the model on legs, AC01316 in the
+  older manual) and prefer room air in an ordinary house; EPA's archived Burn
+  Wise says nothing on it; NFPA 211 not read. The basis for the game's stove
+  taking its fire's air from outside the home through its kit.

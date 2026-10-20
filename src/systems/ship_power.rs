@@ -21,8 +21,9 @@
 //! returns, is added to `ShipSupplyLedger` in the DataStore (f64 watt-hours:
 //! an f32 total loses the per-frame increment once it passes about 100 kWh,
 //! the tank-level bug of `docs/design/ship-life-support.md` section 1). It is
-//! keyed by home, then by utility (`Utility::id`: "power" today; water and
-//! air when the ship supplies them), so a fleet ledger is the same map summed
+//! keyed by home, then by utility (`Utility::id`: "power"; "oxygen", kg, for
+//! what a stove fed from outside burns of the ship's air, since 2026-10-20,
+//! `OXYGEN`; water and air when the ship supplies them), so a fleet ledger is the same map summed
 //! over homes (`fleet_total`). It is saved with the home
 //! (`WorldSave::ship_supply`).
 
@@ -43,6 +44,17 @@ pub const LEDGER_KEY: &str = "ship_supply";
 pub const PLAYER_HOME: &str = "home";
 /// The ledger's line for electricity (`Utility::Electricity.id()`), in Wh.
 pub const POWER: &str = "power";
+/// The ledger's line for oxygen the home's fires burned out of the ship's air,
+/// in kg (2026-10-20): a stove fed from outside through its outside air kit
+/// (`ecs::components::CombustionAir::Outside`, `farming::heat`) takes the
+/// oxygen it burns from the ship's air beyond the home, which the ship's life
+/// support keeps and the game does not model, so this is the home's account
+/// of what the ship would have to make up. Kept in both Ship life support
+/// modes: the modes decide who powers the home, and the ship's air is the
+/// ship's in either. Not `Utility::Air`, because it counts kilograms of
+/// oxygen, not of air (the nitrogen and the excess air a fire pulls through
+/// are not counted, and where the flue's exhaust goes aboard is not modelled).
+pub const OXYGEN: &str = "oxygen";
 
 /// The ship's reactor (data/ship_power.ron).
 #[derive(Debug, Clone, Deserialize)]

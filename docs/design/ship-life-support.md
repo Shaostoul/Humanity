@@ -585,7 +585,15 @@ today), each a `{drawn, returned}` tally. Water and air are not drawn from a
 ship supply in either mode yet (the home's tanks and air are its own closed
 loops; the 0.46 kg a day of air leaked overboard is lost, not replaced), so
 the ledger has no lines for them; when the ship supplies them they are two
-more lines in the same map.
+more lines in the same map. One exception since 2026-10-20: a wood stove fed
+from outside through its outside air kit (`CombustionAir::Outside`, the
+shipped stove; docs/reference/findings/2026-10-20-stove-combustion-air.md)
+burns the ship's air beyond the home, not the home's, and the oxygen it burns
+is metered on an "oxygen" line in kilograms (`ship_power::OXYGEN`), in both
+modes, since the modes decide who powers the home and the ship's air is the
+ship's in either. It counts oxygen, not air: the ship's air has no model, so
+the nitrogen and excess air the fire pulls through, and where its flue's
+exhaust goes aboard, are not counted.
 
 **Next: the fleet ledger (not built).** The operator's "track a whole fleets
 worth of supplies" is the same ledger summed across homes

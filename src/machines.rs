@@ -231,7 +231,9 @@ pub struct MachineDef {
     ///   rating point, and the air step works it out again from the
     ///   temperature it draws from (`heat_cop`);
     /// - a stove (2026-10-20, `burns_fuel`) draws no power and runs while its
-    ///   box holds fuel; this is its heat output while it burns at full.
+    ///   box holds fuel; this is its heat output while it burns at full. Its
+    ///   `burns_fuel` also says where its fire's air comes from
+    ///   (`FuelBurn::combustion_air`).
     #[serde(default)]
     pub heats_w: f32,
     /// With `heats_w`: the temperature, C, its thermostat holds the air at;
@@ -312,7 +314,7 @@ pub struct MachineDef {
 /// its own box, at `kg_per_h` while it gives its full heat (`heats_w`) and in
 /// proportion to the share of the time its thermostat runs it
 /// (`farming::heat`). Each kilogram burned takes `o2_kg_per_kg` of oxygen out
-/// of the air it stands in (the home's, which keeps the oxygen); everything it
+/// of the air its fire draws on, which `combustion_air` names; everything it
 /// burns into goes up its flue, out of the home. The data carries each
 /// figure's source.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -321,6 +323,14 @@ pub struct FuelBurn {
     pub o2_kg_per_kg: f32,
     /// The item ids (`data/items.csv`) it burns; only these go into its box.
     pub fuels: Vec<String>,
+    /// Where its fire gets the air it burns (2026-10-20): `Room`, the room it
+    /// stands in, so its oxygen comes out of the home's air; or `Outside`,
+    /// through an outside air kit, so it takes none of the home's (aboard, the
+    /// ship's air beyond the home supplies it). Every stove must say which:
+    /// there is no default, because the answer decides whether a sealed home
+    /// loses its oxygen to the fire. See `ecs::components::CombustionAir` and
+    /// docs/reference/findings/2026-10-20-stove-combustion-air.md.
+    pub combustion_air: crate::ecs::components::CombustionAir,
 }
 
 /// A heat pump's coefficient of performance at `source_c`, the temperature of

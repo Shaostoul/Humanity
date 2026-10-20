@@ -489,7 +489,18 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
   a wood stove does not balance in a sealed hull (about 107 kg of oxygen a day at
   full burn against about 2,900 kg in a home's air, and no makeup air in either life-support
   mode: a design question, whether a ship home's stove needs an outside air feed or should be a
-  planet-only heater); data/hvac.ron's original heat pump and stove rows are unsourced.
+  planet-only heater; DONE 2026-10-20, commit "A wood stove takes its fire's air from outside
+  through its kit": the dated finding docs/reference/findings/2026-10-20-stove-combustion-air.md
+  quotes 24 CFR 3280.709(g), which admits a solid-fuel stove to a manufactured home only with "a
+  combustion air inlet" that "shall conduct the air directly into the fire chamber", and Drolet's
+  Escape 1800 manuals, which require its fresh air kit in a mobile home (AC01211 for the model on
+  legs) and prefer room air only in an ordinary house that leaks; so `burns_fuel.combustion_air`
+  is data, the shipped stove is `Outside` and takes none of the home's oxygen, the ship's supply
+  ledger meters it on an "oxygen" line in kg in both modes, a `Room` stove keeps the old
+  behaviour, and the Garden panel says which. Left from it: the ship's air beyond the home has
+  no model, so nothing aboard runs short of what the kit draws; the fire's excess air and where
+  its flue's exhaust goes aboard are not modelled; NFPA 211 was not read); data/hvac.ron's
+  original heat pump and stove rows are unsourced.
 - **A gap the Normal-mode default exposes (found 2026-10-05 by the Library sweep):** in
   Normal mode NOBODY CAN LEAVE THE SHIP. The Dev page's travel and Land buttons and F9 flight are
   the only ways off it, all Dev-only, and no vehicle or route goes down. So by default a

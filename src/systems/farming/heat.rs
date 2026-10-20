@@ -67,13 +67,33 @@
 //! its kilograms an hour at its full heat, for the share of the time its
 //! thermostat runs it (`stoke`, `burn`), the box losing each piece once it has
 //! burned through (`burn_stoves`), all of it exact in f64 so the same game
-//! hours burn the same wood at any frame rate. Its fire takes the oxygen it
-//! burns out of the home's air (the one air that keeps oxygen), and its smoke,
-//! carbon dioxide, water and carbon monoxide go up its flue, out of the home.
-//! Not modelled: the excess air a real stove pulls through its fire and sends
-//! up the flue with the smoke, and the air that has to come in to replace it
+//! hours burn the same wood at any frame rate. Its smoke, carbon dioxide,
+//! water and carbon monoxide go up its flue, out of the home.
+//!
+//! WHERE A STOVE'S FIRE GETS ITS AIR (2026-10-20, `CombustionAir`, its
+//! machine's `burns_fuel.combustion_air`; the dated finding is
+//! docs/reference/findings/2026-10-20-stove-combustion-air.md). A stove that
+//! takes its ROOM's air takes the oxygen it burns out of the home's air (the
+//! one air that keeps oxygen, even where the stove stands in a grow room),
+//! about 107 kg a day at full against about 2,900 kg in a home's air, and
+//! nothing replaces it: in a sealed home that is a real danger, and the game
+//! keeps it. A stove fed from OUTSIDE through an outside air kit (a sealed duct
+//! into its firebox; the US manufactured-home standard, 24 CFR 3280.709(g),
+//! requires one of a solid-fuel stove, and the shipped wood stove's maker
+//! requires its kit in a mobile home) takes none of the home's oxygen. Aboard,
+//! outside is the ship's air beyond the home, which the ship's life support
+//! keeps at the standard a home starts at and the game does not model
+//! (ship/ship_space.rs), so nothing aboard runs short of it; what the fire
+//! burns is metered against the home in the ship's supply ledger
+//! (`ship_power::OXYGEN`, kg), in both Ship life support modes, because the
+//! modes decide only who powers the home and the ship's air is the ship's in
+//! either. Not modelled: the excess air a real stove pulls through its fire
+//! and sends up the flue with the smoke (the nitrogen that comes with the
+//! oxygen, and the excess air beyond what the fire burns),
+//! and the air that has to come in to replace it from a room-air stove's home
 //! (the home's air keeps no pressure, so it cannot lose or take in air as a
-//! whole), a flue that blocks or spills back, and carbon monoxide in the
+//! whole); where the flue's exhaust goes aboard and what the ship's air system
+//! does with it; a flue that blocks or spills back; and carbon monoxide in the
 //! home's air (nothing tracks it there). The thermostat stands in for the air
 //! control a person turns down on a real stove.
 //!
@@ -89,7 +109,7 @@
 
 use std::collections::HashMap;
 
-use crate::ecs::components::{BurnsFuels, FuelStove, HeatPump, PowerConsumer, SpaceHeater, Transform};
+use crate::ecs::components::{BurnsFuels, CombustionAir, FuelStove, HeatPump, PowerConsumer, SpaceHeater, Transform};
 use crate::systems::inventory::containers::Container;
 use crate::systems::inventory::ItemRegistry;
 use crate::systems::life_support;
@@ -134,7 +154,10 @@ impl HeaterKind {
 /// current slice that fuel lasts at full (`avail`, `stoke`): its `heat_w` for
 /// the slice is `full_heat_w` times that, so a box that runs out part-way
 /// through a slice gives exactly the heat and burns exactly the fuel it had,
-/// whatever the slice's length.
+/// whatever the slice's length. `outside_air` is true for a stove whose fire
+/// takes its air from outside the home through its kit
+/// (`CombustionAir::Outside`): its oxygen is the ship's, not the home's
+/// (`burn`).
 #[derive(Debug, Clone, Copy)]
 pub struct Heater {
     pub entity: hecs::Entity,
@@ -149,6 +172,7 @@ pub struct Heater {
     pub o2_kg_per_kg: f64,
     pub fuel_kg: f64,
     pub avail: f64,
+    pub outside_air: bool,
 }
 
 /// The placed heaters, by the air they stand in. A heat pump's heat is its
@@ -177,12 +201,14 @@ pub fn heaters(world: &hecs::World, map: &AirMap, fuel_kg: &HashMap<hecs::Entity
                 o2_kg_per_kg: 0.0,
                 fuel_kg: 0.0,
                 avail: 1.0,
+                outside_air: false,
             };
             if let Some(s) = stove {
                 out.kind = HeaterKind::Stove;
                 out.watts = 0.0;
                 out.kg_per_h = f64::from(s.kg_per_h).max(0.0);
                 out.o2_kg_per_kg = f64::from(s.o2_kg_per_kg).max(0.0);
+                out.outside_air = s.combustion_air == CombustionAir::Outside;
                 out.fuel_kg = fuel_kg.get(&e).copied().filter(|f| f.is_finite()).unwrap_or(0.0).max(0.0);
                 out.powered = out.fuel_kg > 0.0;
             } else if let Some(p) = pump {
@@ -214,22 +240,47 @@ pub fn stoke(heaters: &mut [Heater], hours: f64) {
     }
 }
 
+/// The oxygen a slice's stoves burned, g, by where their fires took their air
+/// (2026-10-20, `CombustionAir`).
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct StoveOxygen {
+    /// Stoves that take their room's air: out of the home's air.
+    pub home_g: f64,
+    /// Stoves fed from outside through their kits: out of the ship's air
+    /// beyond the home.
+    pub ship_g: f64,
+}
+
+impl std::ops::AddAssign for StoveOxygen {
+    fn add_assign(&mut self, o: Self) {
+        self.home_g += o.home_g;
+        self.ship_g += o.ship_g;
+    }
+}
+
 /// What the stoves of one air (`room`) burned over a slice of `hours` while
 /// their thermostat ran them `duty` of it (2026-10-20): each burns its
 /// `kg_per_h` for the share of the slice its fuel lasted at full and its
 /// thermostat ran it, never more than its box held; its box's fuel goes down
 /// by that and `burned` (kg, by entity) up. Returns the grams of oxygen they
-/// burned, all of it out of the air they stand in. What they burn into goes up
-/// the flue: none of it enters the home's air.
-pub fn burn(heaters: &mut [Heater], room: Option<usize>, duty: f64, hours: f64, burned: &mut HashMap<hecs::Entity, f64>) -> f64 {
-    let mut o2_g = 0.0;
+/// burned, by the air each fire drew on: the home's for a stove that takes its
+/// room's air, the ship's for one fed from outside through its kit
+/// (`Heater::outside_air`). What they burn into goes up the flue: none of it
+/// enters the home's air.
+pub fn burn(heaters: &mut [Heater], room: Option<usize>, duty: f64, hours: f64, burned: &mut HashMap<hecs::Entity, f64>) -> StoveOxygen {
+    let mut o2 = StoveOxygen::default();
     for h in heaters.iter_mut().filter(|h| h.kind == HeaterKind::Stove && h.room == room && h.powered) {
         let kg = (h.kg_per_h * h.avail * duty.clamp(0.0, 1.0) * hours.max(0.0)).min(h.fuel_kg).max(0.0);
         h.fuel_kg -= kg;
         *burned.entry(h.entity).or_insert(0.0) += kg;
-        o2_g += kg * h.o2_kg_per_kg * 1000.0;
+        let g = kg * h.o2_kg_per_kg * 1000.0;
+        if h.outside_air {
+            o2.ship_g += g;
+        } else {
+            o2.home_g += g;
+        }
     }
-    o2_g
+    o2
 }
 
 /// The fuel in each stove's box now, kg, by entity (2026-10-20): its pieces

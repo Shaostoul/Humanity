@@ -753,9 +753,16 @@ pub struct HomeAirState {
     #[serde(default)]
     pub heater: f64,
     /// The oxygen the stoves' fires took out of it at the last step, kg a day
-    /// (2026-10-20, `farming::heat`), part of `o2_used_kg_day`.
+    /// (2026-10-20, `farming::heat`), part of `o2_used_kg_day`: only stoves
+    /// that take their room's air (`CombustionAir::Room`). A stove fed from
+    /// outside through its kit takes none of it (`stove_ship_o2_kg_day`).
     #[serde(default)]
     pub stove_o2_kg_day: f64,
+    /// The oxygen the stoves fed from outside burned at the last step, kg a day
+    /// (2026-10-20, `CombustionAir::Outside`): taken from the ship's air beyond
+    /// the home, not from this air, so it is not in `o2_used_kg_day`.
+    #[serde(default)]
+    pub stove_ship_o2_kg_day: f64,
 }
 
 /// One soil unit's pH (2026-09-26): what it is now, and what is still
@@ -1281,16 +1288,42 @@ pub struct HeatPump {
 /// box takes only those fuels by. It runs while its box holds fuel, burning
 /// `kg_per_h` at its full heat and in proportion to the share of the time its
 /// thermostat runs it, and each kilogram takes `o2_kg_per_kg` of oxygen out of
-/// the home's air (`farming::heat`). `burned_kg` is how much of the piece at
-/// the front of its box has burned: a whole piece leaves the box as this
-/// passes its mass, so the box counts the pieces not yet burned through. It is
-/// kept in f64 and changed exactly, so the same game hours burn the same wood
-/// at any frame rate.
+/// the air its fire draws on, which `combustion_air` names (`farming::heat`):
+/// the home's own air for a stove that takes its room's air, the ship's air
+/// beyond the home for one fed from outside through a duct. `burned_kg` is how
+/// much of the piece at the front of its box has burned: a whole piece leaves
+/// the box as this passes its mass, so the box counts the pieces not yet
+/// burned through. It is kept in f64 and changed exactly, so the same game
+/// hours burn the same wood at any frame rate.
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
 pub struct FuelStove {
     pub kg_per_h: f32,
     pub o2_kg_per_kg: f32,
     pub burned_kg: f64,
+    pub combustion_air: CombustionAir,
+}
+
+/// Where a stove's fire gets the air it burns (2026-10-20,
+/// `machines::FuelBurn::combustion_air`; the dated finding is
+/// docs/reference/findings/2026-10-20-stove-combustion-air.md).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CombustionAir {
+    /// From the room it stands in: a stove with no outside air kit, the way
+    /// most stoves in ordinary houses are fitted. Its fire takes its oxygen out
+    /// of the home's own air (the one air that keeps oxygen, even where the
+    /// stove stands in a grow room). The default, because a stove takes its
+    /// room's air unless a duct brings it other air.
+    #[default]
+    Room,
+    /// From outside the home, through an outside air kit: a sealed duct that
+    /// takes air from outside and leads it straight into the firebox, as the
+    /// US manufactured-home standard requires of a solid-fuel stove (24 CFR
+    /// 3280.709(g)) and its maker requires of this one in a mobile home. Aboard,
+    /// outside is the ship's air beyond the home, which the ship's life support
+    /// keeps and the game does not model, so the fire takes none of the home's
+    /// oxygen; what it burns is metered against the home in the ship's supply
+    /// ledger (`ship_power::OXYGEN`).
+    Outside,
 }
 
 /// An air handler (2026-09-26, `MachineDef::dehumidifies_m3_h`, ship life

@@ -550,7 +550,14 @@ fn shipped_containers() -> crate::systems::inventory::containers::ContainerRegis
 /// it, a stove with its box.
 #[cfg(feature = "native")]
 fn spawn_shipped(world: &mut hecs::World, machine: &str, id: &str, at: [f32; 3]) -> hecs::Entity {
-    let def = shipped("home.ron", machine);
+    spawn_def(world, &shipped("home.ron", machine), machine, id, at)
+}
+
+/// `def` (catalogued as `machine`) placed at `at` and spawned the way the
+/// engine spawns it, a stove with its box: for a shipped machine whose data a
+/// test changes first.
+#[cfg(feature = "native")]
+fn spawn_def(world: &mut hecs::World, def: &crate::machines::MachineDef, machine: &str, id: &str, at: [f32; 3]) -> hecs::Entity {
     let inst = crate::machines::MachineInstance {
         id: id.into(),
         machine: machine.into(),
@@ -562,7 +569,7 @@ fn spawn_shipped(world: &mut hecs::World, machine: &str, id: &str, at: [f32; 3])
     };
     let empty = std::collections::HashMap::new();
     let reg = shipped_containers();
-    crate::engine::home_spawn::spawn_home_machine_entity(world, &inst, &def, &empty, &empty, None, Some(&reg));
+    crate::engine::home_spawn::spawn_home_machine_entity(world, &inst, def, &empty, &empty, None, Some(&reg));
     world
         .query::<&crate::ecs::components::MachineInstanceId>()
         .iter()
@@ -774,42 +781,51 @@ fn a_wood_stove_burns_the_same_wood_at_30_and_240_frames_a_second() {
     assert_eq!((qty30, qty240, end30, end240), (0, 0, 0.0, 0.0), "five hours burn both boxes empty");
 }
 
-/// A STOVE BURNS THE HOME'S OXYGEN AND SENDS ITS CARBON DIOXIDE UP THE FLUE
-/// (2026-10-20). Two sealed 1,000 m3 homes with nobody breathing in them and
-/// the life-support data, one with the wood stove and a Wood Log in its own
-/// air: after an hour the stove's home has lost, beyond the other, exactly
-/// 1.094 kg of oxygen for each kilogram it burned (the oxygen dry wood's
-/// carbon and hydrogen take, at 20% moisture: data/machines/home.ron), and
-/// counts it in the day's oxygen used (flat out, 4.07 x 1.094 x 24 = 106.9 kg
-/// a day: it cannot warm 3,447 W a degree to 24 C); its carbon dioxide and
-/// water are not in the home's air, which differs from the other's only by
-/// the leak's share of a warmer air (under a millionth of a gram a cubic
-/// metre).
-///
-/// Seen red (2026-10-20) with the step's oxygen never taken from the home's
-/// air: "the stove's home lost 0.000002104627526477998 g/m3 more oxygen, by
-/// its burn 4.452580114049909 g/m3" (that 2.1 millionths is the leak's share
-/// of the warmer air); and with the fire's carbon dioxide put into the home's
-/// air (1.466 kg for each kilogram of wood): "no carbon dioxide in the home's
-/// air: 6.698622774424283 against 0.7320045079894062"; and with the stove's
-/// share not kept apart (`HomeAirState::stove_o2_kg_day` left 0), the Garden
-/// panel's day line credited the fire to breathing: "the crops give out 0.0
-/// kg of oxygen and 106.9 kg is breathed in, so the home's oxygen loses
-/// 106.86 kg a day". The Garden panel's own heater line reads, green: "Home
-/// air: stove flat out, 13,040 W of heat from 4.1 kg of wood an hour, the air
-/// at 23.6 °C, short of the 24 °C it is set to".
+// -- Where a stove's fire gets its air (2026-10-20) -------------------------------
+//
+// docs/reference/findings/2026-10-20-stove-combustion-air.md: the US
+// manufactured-home standard (24 CFR 3280.709(g)) lets a solid-fuel stove in
+// only with a combustion air inlet that leads outside air straight into the
+// fire chamber, and the Drolet Escape 1800's manual requires its outside air
+// kit in a mobile home. The shipped wood stove has it fitted
+// (`combustion_air: Outside`); a stove with no kit (`Room`) stays possible as
+// data and keeps the earlier behaviour.
+
+/// Two sealed homes, one with no stove and one with a stove fitted for one
+/// kind of combustion air, after the same hour (`burn_a_log_in_a_sealed_home`).
 #[cfg(feature = "native")]
-#[test]
-fn a_stove_burns_the_homes_oxygen_and_sends_its_carbon_dioxide_up_the_flue() {
+struct SealedHomes {
+    plain: crate::ecs::components::HomeAirState,
+    stoved: crate::ecs::components::HomeAirState,
+    /// The wood the stove burned, kg.
+    burned: f64,
+    /// The Garden panel's home lines, joined by " / ".
+    plain_panel: String,
+    panel: String,
+    /// The oxygen the ship's supply ledger metered against the stove's home, kg.
+    ship_o2_kg: f64,
+}
+
+/// Two sealed 1,000 m3 homes with nobody breathing in them, the life-support
+/// data and the ship's supply ledger, one with home.ron's wood stove fitted
+/// for `air` and one Wood Log in its own air, each run an hour (ten 5 s
+/// ticks, six game minutes each). The stove burns flat out: the home loses
+/// 3,447 W a degree, so 13,040 W never brings it to 24 C.
+#[cfg(feature = "native")]
+fn burn_a_log_in_a_sealed_home(air: crate::ecs::components::CombustionAir) -> SealedHomes {
     use crate::systems::life_support::{LifeSupportData, DATA_KEY, LIFE_SUPPORT_RON};
+    use crate::systems::ship_power::{ShipSupplyLedger, LEDGER_KEY, OXYGEN, PLAYER_HOME};
+    let mut def = shipped("home.ron", "wood_stove");
+    def.burns_fuel.as_mut().expect("the wood stove burns fuel").combustion_air = air;
     let mut homes = Vec::new();
     for with_stove in [false, true] {
         let mut data = store(Vec::new(), Vec::new());
         data.insert(DATA_KEY, LifeSupportData::parse(LIFE_SUPPORT_RON).expect("life_support.ron parses"));
+        data.insert(LEDGER_KEY, Mutex::new(ShipSupplyLedger::default()));
         let mut world = hecs::World::new();
         world.spawn((HomeAir { metabolic_kcal_per_day: 0.0, ..Default::default() }, EnclosedSpace::new_sealed(1000.0)));
         let stove = with_stove.then(|| {
-            let s = spawn_shipped(&mut world, "wood_stove", "wood_stove_t", [50.0, 0.5, 50.0]);
+            let s = spawn_def(&mut world, &def, "wood_stove", "wood_stove_t", [50.0, 0.5, 50.0]);
             load_logs(&mut world, &data, s, 1);
             s
         });
@@ -817,24 +833,159 @@ fn a_stove_burns_the_homes_oxygen_and_sends_its_carbon_dioxide_up_the_flue() {
         run(&mut sys, &mut world, &data, 10, 5.0);
         let burned = stove.map_or(0.0, |s| 8.0 - wood_kg(&world, s));
         let panel = humidity::GuiView::new(&world, &data).home.into_iter().map(|(l, _)| l).collect::<Vec<_>>().join(" / ");
-        homes.push((memory(&world).home_air, burned, panel));
+        let ship = crate::systems::ship_power::tally(&data, PLAYER_HOME, OXYGEN).drawn;
+        homes.push((memory(&world).home_air, burned, panel, ship));
     }
-    let ((plain, _, plain_panel), (stoved, burned, panel)) = (homes[0].clone(), homes[1].clone());
-    // The Garden panel's day line says the fire burned it, not that it was breathed.
-    assert!(panel.contains("0.0 kg is breathed in and 106.9 kg burned by the stove"), "{panel}");
-    assert!(!plain_panel.contains("stove"), "{plain_panel}");
-    // The data's figures, as its f32 carries them.
-    let (rate, o2_per_kg) = (f64::from(4.07_f32), f64::from(1.094_f32));
-    assert!((burned - rate).abs() < 1e-9, "flat out, an hour burned {burned} kg");
-    let lost = plain.o2_g_m3 - stoved.o2_g_m3;
-    let by_burn = burned * o2_per_kg * 1000.0 / 1000.0;
+    let (stoved, burned, panel, ship_o2_kg) = homes.pop().unwrap();
+    let (plain, _, plain_panel, plain_ship) = homes.pop().unwrap();
+    assert_eq!(plain_ship, 0.0, "no stove, nothing metered");
+    SealedHomes { plain, stoved, burned, plain_panel, panel, ship_o2_kg }
+}
+
+/// The data's figures, as its f32 carries them: the stove's kilograms of wood
+/// an hour, and the oxygen each kilogram burns.
+fn stove_rates() -> (f64, f64) {
+    (f64::from(4.07_f32), f64::from(1.094_f32))
+}
+
+/// THE SHIPPED WOOD STOVE TAKES NONE OF THE HOME'S OXYGEN: ITS FIRE'S AIR COMES
+/// FROM OUTSIDE THROUGH ITS KIT (2026-10-20). home.ron's wood stove as shipped
+/// (`combustion_air: Outside`), flat out for an hour in a sealed 1,000 m3
+/// home, burns 4.07 kg of wood and 4.07 x 1.094 = 4.453 kg of oxygen, all of
+/// it from the ship's air beyond the home: the stove's home has the same
+/// oxygen as the home with no stove but for the leak's share of a warmer air
+/// (a few millionths of a gram a cubic metre, where its burn is 4.45 g), the
+/// same oxygen used a day, and none of it counted as the stove's in the home's
+/// air; the ship's supply ledger meters the 4.453 kg against the home, and the
+/// home keeps the stove's 106.9 kg a day apart as the ship's. Its carbon
+/// dioxide and water go up the flue, as before, and it still warms the home.
+///
+/// Seen red (2026-10-20) with the code before the fix in effect (`heat::burn`
+/// sending every stove's oxygen to the home's air whatever its data, and the
+/// panel's words for a stove's air left out): "the stove's home lost
+/// 4.452580815071769 g/m3 more oxygen than the home with no stove; its fire's
+/// air comes from outside".
+#[cfg(feature = "native")]
+#[test]
+fn the_shipped_stove_takes_none_of_the_homes_oxygen_its_air_comes_from_outside() {
+    use crate::ecs::components::CombustionAir;
+    let def = shipped("home.ron", "wood_stove");
+    assert_eq!(def.burns_fuel.as_ref().map(|b| b.combustion_air), Some(CombustionAir::Outside), "home.ron's stove has its kit");
+    let solo = shipped("home_solo.ron", "wood_stove");
+    assert_eq!(solo.burns_fuel.as_ref().map(|b| b.combustion_air), Some(CombustionAir::Outside), "home_solo.ron's stove has its kit");
+
+    let h = burn_a_log_in_a_sealed_home(CombustionAir::Outside);
+    let (rate, o2_per_kg) = stove_rates();
+    assert!((h.burned - rate).abs() < 1e-9, "flat out, an hour burned {} kg", h.burned);
+    let lost = h.plain.o2_g_m3 - h.stoved.o2_g_m3;
+    assert!(lost.abs() < 1e-4, "the stove's home lost {lost} g/m3 more oxygen than the home with no stove; its fire's air comes from outside");
+    assert!(
+        (h.stoved.o2_used_kg_day - h.plain.o2_used_kg_day).abs() < 1e-9,
+        "the home's oxygen used a day is not the fire's: {} kg a day more",
+        h.stoved.o2_used_kg_day - h.plain.o2_used_kg_day
+    );
+    assert_eq!(h.stoved.stove_o2_kg_day, 0.0, "none of the home's air burned by the stove");
+    assert!(
+        (h.stoved.stove_ship_o2_kg_day - rate * o2_per_kg * 24.0).abs() < 1e-6,
+        "the ship's air feeds it {} kg a day, flat out 106.9",
+        h.stoved.stove_ship_o2_kg_day
+    );
+    assert!((h.ship_o2_kg - h.burned * o2_per_kg).abs() < 1e-9, "the ship's ledger meters {} kg of oxygen, by its burn {}", h.ship_o2_kg, h.burned * o2_per_kg);
+    assert!((h.stoved.co2_g_m3 - h.plain.co2_g_m3).abs() < 1e-6, "no carbon dioxide in the home's air: {} against {}", h.stoved.co2_g_m3, h.plain.co2_g_m3);
+    assert!((h.stoved.vapour_g_m3 - h.plain.vapour_g_m3).abs() < 1e-6, "nor the fire's water: {} against {}", h.stoved.vapour_g_m3, h.plain.vapour_g_m3);
+    assert!(h.stoved.warmed_k > 3.0, "and it warmed the home: {} K", h.stoved.warmed_k);
+}
+
+/// A STOVE WITH NO OUTSIDE AIR KIT STILL BURNS THE HOME'S OXYGEN, AT THE RATE IT
+/// ALWAYS DID (2026-10-20): the danger the heating guide teaches stays real in
+/// the game. The same stove with `combustion_air: Room`, flat out for an hour
+/// in the same sealed home: the stove's home has lost, beyond the other,
+/// exactly 1.094 kg of oxygen for each kilogram it burned (the oxygen dry
+/// wood's carbon and hydrogen take, at 20% moisture: data/machines/home.ron),
+/// 4.453 g a cubic metre, and counts it in the day's oxygen used (flat out,
+/// 4.07 x 1.094 x 24 = 106.9 kg a day), kept apart as the stove's; the ship
+/// meters nothing; its carbon dioxide and water are not in the home's air,
+/// which differs from the other's only by the leak's share of a warmer air.
+/// These are the figures v0.1528.0's test held for the shipped stove before
+/// it had its kit, and with the code before the fix in effect this test
+/// passed: a room-air stove behaves exactly as every stove did then.
+///
+/// Seen red (2026-10-20) with the fix applied to every stove whatever its
+/// data (`heat::burn` sending every stove's oxygen to the ship's air): "the
+/// stove's home lost 0.000002104627526477998 g/m3 more oxygen, by its burn
+/// 4.452580114049909 g/m3" (the 2.1 millionths is the leak's share of the
+/// warmer air). The v0.1528.0 test of the same figures was seen red with the
+/// step's oxygen never taken from the home's air, with the fire's carbon
+/// dioxide put into the home's air ("no carbon dioxide in the home's air:
+/// 6.698622774424283 against 0.7320045079894062"), and with the stove's share
+/// not kept apart.
+#[cfg(feature = "native")]
+#[test]
+fn a_stove_with_no_kit_still_burns_the_homes_oxygen_at_the_rate_it_always_did() {
+    let h = burn_a_log_in_a_sealed_home(crate::ecs::components::CombustionAir::Room);
+    let (rate, o2_per_kg) = stove_rates();
+    assert!((h.burned - rate).abs() < 1e-9, "flat out, an hour burned {} kg", h.burned);
+    let lost = h.plain.o2_g_m3 - h.stoved.o2_g_m3;
+    let by_burn = h.burned * o2_per_kg * 1000.0 / 1000.0;
     assert!((lost - by_burn).abs() < 1e-3, "the stove's home lost {lost} g/m3 more oxygen, by its burn {by_burn} g/m3");
     assert!(
-        (stoved.o2_used_kg_day - plain.o2_used_kg_day - rate * o2_per_kg * 24.0).abs() < 1e-6,
+        (h.stoved.o2_used_kg_day - h.plain.o2_used_kg_day - rate * o2_per_kg * 24.0).abs() < 1e-6,
         "the day's oxygen used counts the fire: {} kg a day more",
-        stoved.o2_used_kg_day - plain.o2_used_kg_day
+        h.stoved.o2_used_kg_day - h.plain.o2_used_kg_day
     );
-    assert!((stoved.co2_g_m3 - plain.co2_g_m3).abs() < 1e-6, "no carbon dioxide in the home's air: {} against {}", stoved.co2_g_m3, plain.co2_g_m3);
-    assert!((stoved.vapour_g_m3 - plain.vapour_g_m3).abs() < 1e-6, "nor the fire's water: {} against {}", stoved.vapour_g_m3, plain.vapour_g_m3);
-    assert!(stoved.warmed_k > 3.0, "and it warmed the home: {} K", stoved.warmed_k);
+    assert!((h.stoved.stove_o2_kg_day - rate * o2_per_kg * 24.0).abs() < 1e-6, "kept apart as the stove's: {}", h.stoved.stove_o2_kg_day);
+    assert_eq!((h.stoved.stove_ship_o2_kg_day, h.ship_o2_kg), (0.0, 0.0), "the ship's air feeds it nothing, and nothing is metered");
+    assert!((h.stoved.co2_g_m3 - h.plain.co2_g_m3).abs() < 1e-6, "no carbon dioxide in the home's air: {} against {}", h.stoved.co2_g_m3, h.plain.co2_g_m3);
+    assert!((h.stoved.vapour_g_m3 - h.plain.vapour_g_m3).abs() < 1e-6, "nor the fire's water: {} against {}", h.stoved.vapour_g_m3, h.plain.vapour_g_m3);
+    assert!(h.stoved.warmed_k > 3.0, "and it warmed the home: {} K", h.stoved.warmed_k);
+}
+
+/// THE GARDEN PANEL SAYS WHERE A STOVE'S AIR COMES FROM (2026-10-20). The two
+/// stoves above, through the Garden panel's home lines: the shipped one's
+/// heater line says its air comes from outside through its kit, and its day
+/// line keeps the fire out of the home's balance and says what the ship's air
+/// gave it; the one with no kit says its air comes from this room, and its
+/// day line says what the stove burned beside what is breathed in. With no
+/// stove, neither line mentions one.
+///
+/// Seen red (2026-10-20) with the code before the fix in effect (no words for
+/// a stove's air, and every stove's oxygen taken from the home's air): the
+/// shipped stove's lines read "... the crops give out 0.0 kg of oxygen and
+/// 0.0 kg is breathed in and 106.9 kg burned by the stove, so the home's
+/// oxygen loses 106.86 kg a day / ... / Home air: stove flat out, 13,040 W of
+/// heat from 4.1 kg of wood an hour, the air at 23.6 °C, short of the 24 °C it
+/// is set to", with no word of where its air comes from. And red with the fix
+/// applied to every stove whatever its data (the words right, the oxygen sent
+/// to the ship's air for both): the stove with no kit read "Home air: stove
+/// flat out, 13,040 W of heat from 4.1 kg of wood an hour and its air from
+/// this room" while its day line said "0.0 kg is breathed in, so the home's
+/// oxygen gains 0.00 kg a day; the stove burns 106.9 kg more from the ship's
+/// air, through its outside air kit".
+#[cfg(feature = "native")]
+#[test]
+fn the_garden_panel_says_where_a_stoves_air_comes_from() {
+    use crate::ecs::components::CombustionAir;
+    let outside = burn_a_log_in_a_sealed_home(CombustionAir::Outside);
+    assert!(
+        outside.panel.contains("Home air: stove flat out, 13,040 W of heat from 4.1 kg of wood an hour and its air from outside through its kit, the air at"),
+        "{}",
+        outside.panel
+    );
+    assert!(
+        outside.panel.contains("0.0 kg is breathed in, so the home's oxygen gains 0.00 kg a day; the stove burns 106.9 kg more from the ship's air, through its outside air kit"),
+        "{}",
+        outside.panel
+    );
+    assert!(!outside.panel.contains("burned by the stove"), "{}", outside.panel);
+    assert!(!outside.plain_panel.contains("stove"), "{}", outside.plain_panel);
+
+    let room = burn_a_log_in_a_sealed_home(CombustionAir::Room);
+    assert!(
+        room.panel.contains("Home air: stove flat out, 13,040 W of heat from 4.1 kg of wood an hour and its air from this room, the air at"),
+        "{}",
+        room.panel
+    );
+    // The day line says the fire burned it, not that it was breathed.
+    assert!(room.panel.contains("0.0 kg is breathed in and 106.9 kg burned by the stove"), "{}", room.panel);
+    assert!(!room.panel.contains("ship's air"), "{}", room.panel);
 }

@@ -837,19 +837,26 @@ recipe and what its heat does).
   the wood's gross heat, which is 4.07 kg of it, 3.26 kg dry. Two logs
   fill its firebox, about four hours at full; the firebox takes Wood Logs
   and nothing else (`data/machines/home.ron`, `wood_stove`).
-- **Its fire takes oxygen, and its smoke goes up the flue.** The stove
-  takes the oxygen it burns out of your home's sealed air, about 1.1 kg
-  for each kilogram of wood, worked from dry wood's 50 percent carbon,
-  6 percent hydrogen and 44 percent oxygen (the Forest Products
-  Laboratory's "Cell wall chemistry", 2005). Its carbon dioxide, water,
-  smoke and carbon monoxide leave through the flue, so none of them reach
-  the home's air.
+- **Its fire takes oxygen from outside your home, and its smoke goes up
+  the flue.** The stove burns about 1.1 kg of oxygen for each kilogram of
+  wood, worked from dry wood's 50 percent carbon, 6 percent hydrogen and
+  44 percent oxygen (the Forest Products Laboratory's "Cell wall
+  chemistry", 2005). A sealed home has no air leaking in to replace that,
+  so the stove has its maker's outside air kit fitted, the duct the US
+  manufactured-home standard and Drolet's manual require in a mobile home
+  ("Where this meets the insulation guide", above, has why a tight house
+  may need one). Its fire takes its air from the ship's
+  air beyond your home, never your home's own, and the Garden panel says
+  so ([Heating a Home Safely](heating_a_home_safely.md) has the rules
+  quoted and what a stove without the kit does). Its carbon dioxide,
+  water, smoke and carbon monoxide leave through the flue, so none of them
+  reach the home's air.
 - **Not in the game:** creosote and chimney fires, a flue that blocks or
-  backdrafts into the room, carbon monoxide from a starved fire, the
-  air a stove pulls from a tight house, wood smoke as a health problem,
-  burn bans, ash, and the work of cutting, splitting, stacking and
-  seasoning. Those are this guide's real lessons, and they are yours to
-  learn outside.
+  backdrafts into the room, carbon monoxide from a starved fire, wind
+  upsetting the outside air duct, the extra air a stove pulls through its
+  fire, wood smoke as a health problem, burn bans, ash, and the work of
+  cutting, splitting, stacking and seasoning. Those are this guide's real
+  lessons, and they are yours to learn outside.
 
 ## You own this when
 
@@ -1096,8 +1103,11 @@ or reproduced here.
   `data/locales/silverdale_wa/climate.json` for the monthly precipitation
   normals quoted here, which come from NOAA NCEI station USC00450872.
 - `wood_stove` in `data/machines/home.ron` for the game's wood stove: its
-  maker's figures, its burn rate and oxygen worked out, and what it leaves
-  out; `src/systems/farming/heat.rs` for the model, and
+  maker's figures, its burn rate and oxygen worked out, its outside air kit
+  (`combustion_air`), and what it leaves out;
+  `docs/reference/findings/2026-10-20-stove-combustion-air.md` for the
+  dated research on where a stove's combustion air should come from (24 CFR
+  3280.709(g) and Drolet's manuals); `src/systems/farming/heat.rs` for the model, and
   `src/systems/farming/heat_tests.rs` for the tests that measure it.
 
 ### Labelled in the text as rules of thumb or arithmetic, not as sourced values

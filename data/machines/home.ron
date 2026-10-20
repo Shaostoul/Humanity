@@ -425,31 +425,62 @@
             // keeps its last content until it is cleaned, so a box that took both would refuse
             // slabs after logs. THE BOX: stove_firebox (data/containers/types.csv), its 2.4 ft³,
             // 68 L: two Wood Logs, 16 kg, about four hours at full.
+            // combustion_air Outside: ITS FIRE TAKES ITS AIR FROM OUTSIDE THE HOME, THROUGH ITS
+            // OUTSIDE AIR KIT (2026-10-20; the dated finding with every quotation is
+            // docs/reference/findings/2026-10-20-stove-combustion-air.md). A ship home is sealed,
+            // with no leakage bringing air in to replace what a fire burns, and the US federal
+            // standard for manufactured homes says what to do: it lets a solid-fuel stove in only
+            // with "a combustion air inlet" that "shall conduct the air directly into the fire
+            // chamber" (24 CFR 3280.709(g)(1) and (g)(1)(iii), eCFR up to date as of 2026-10-16).
+            // Drolet's own manual says of this stove: "THIS MOBILE HOME APPROVED STOVE REQUIRES THE
+            // INSTALLATION OF A FRESH AIR KIT, SOLD SEPARATELY" and "Wood stoves installed in mobile
+            // homes must have a ducted supply of combustion air from outdoors" (Installation and
+            // Operation Manual 45930A, 2019-03-20, sections 6.1 and 8.5.1); its current manual
+            // (46240_IA, 2024-02-29, section 6.3) still "requires the installation of a fresh air
+            // intake kit (A) and an insulated fresh air intake pipe (HVAC type, must meet ULC S110
+            // or UL 181 class 0 or class 1) (B)", and lists the kit for this model on legs as
+            // AC01211, "5"Ø FRESH AIR INTAKE KIT FOR WOOD STOVE ON LEGS" (AC01316 in the 2019
+            // manual). So the stove built here has that kit and its duct fitted: its fire takes
+            // none of the home's oxygen. Aboard, outside is the ship's air beyond the home, which
+            // the ship's life support keeps at the standard a home starts at and the game does not
+            // model (src/ship/ship_space.rs), so nothing aboard runs short of it; the oxygen the
+            // fire burns, 1.094 kg for each kilogram of wood, about 107 kg a day at full, is
+            // metered against the home in the ship's supply ledger ("oxygen", kg,
+            // src/systems/ship_power.rs), and the Garden panel says the stove's air comes from
+            // outside through its kit. Neither Ship life support mode changes this: the modes
+            // decide who powers the home, and the ship's air is the ship's in both, so Realistic
+            // meters it the same. The recipe's steel stands for the kit's collar; the insulated
+            // duct is not a separate material. A stove with combustion_air Room (no kit, as most
+            // stoves in ordinary houses are fitted) takes the oxygen it burns out of the home's
+            // air instead, with nothing to replace it: that is still possible as data, and in a
+            // sealed home it is the danger the Library's heating guide teaches.
             // THE MODEL (src/systems/farming/heat.rs): it runs while its box holds wood, on the
             // heater's thermostat at 24 C (standing in for the air control a person turns down on
             // a real stove), burning 4.07 kg an hour at its full heat and in proportion to the
             // share of the time its thermostat runs it, into the air it stands in like the space
             // heater. A log leaves the box once it has burned through. Its fire takes the oxygen
-            // it burns out of the home's air; its carbon dioxide, water, smoke and its 69 g of
-            // carbon monoxide an hour go up its flue, out of the home. NOT MODELLED: the flue
-            // itself (assumed sound and drawing: no blocked flue, no smoke or carbon monoxide
-            // spilling into the room, no chimney fire); the excess air a real stove pulls through
-            // its fire and up the flue, and the outside air that has to come in to replace it in a
-            // tight home (the home's air keeps no pressure, so it cannot lose or take in air as a
-            // whole); a fire dimming as the air thins (it burns on as if the air were fresh); its
-            // hot metal warming a body beside it; its ash. The air system's carbon monoxide line
-            // (src/systems/atmosphere.rs) reads nothing a stove makes.
+            // it burns from outside through its kit (above); its carbon dioxide, water, smoke and
+            // its 69 g of carbon monoxide an hour go up its flue, out of the home. NOT MODELLED:
+            // the flue itself (assumed sound and drawing: no blocked flue, no smoke or carbon
+            // monoxide spilling into the room, no chimney fire); the excess air a real stove pulls
+            // through its fire and up the flue (the nitrogen with the oxygen, and the excess air
+            // beyond what the fire burns), and where the
+            // flue's exhaust goes aboard and what the ship's air system does with it; a fire
+            // dimming as the air thins (it burns on as if the air were fresh); wind pressure on
+            // the duct's hood, which Drolet's manual warns can draw exhaust backwards through it
+            // (aboard, no wind); its hot metal warming a body beside it; its ash. The air system's
+            // carbon monoxide line (src/systems/atmosphere.rs) reads nothing a stove makes.
             // Not placed in either home: built at a workbench (build_wood_stove, data/recipes.csv)
             // and placed from the Construction page's Life support tab with one wood_stove_0. It
-            // draws no power, so no power meter and neither Ship life support mode touches it (the
-            // air it burns is modelled the same in both); while the player is away it burns
-            // nothing, as a generator's drum is not burned then (src/systems/machine_levels.rs).
+            // draws no power, so no power meter; while the player is away it burns nothing, as a
+            // generator's drum is not burned then (src/systems/machine_levels.rs).
             heats_w: 13040.0,
             heat_setpoint_c: 24.0,
             burns_fuel: Some((
                 kg_per_h: 4.07,
                 o2_kg_per_kg: 1.094,
                 fuels: ["wood_log_0"],
+                combustion_air: Outside,
             )),
             stats: [
                 (
@@ -459,8 +490,8 @@
                 ),
                 (
                     kind: "air",
-                    value: "13,040 W of heat into the air it stands in, up to 24 C; its fire burns the home's oxygen",
-                    status: "warn",
+                    value: "13,040 W of heat into the air it stands in, up to 24 C; its fire's air comes from outside through its kit",
+                    status: "ok",
                 ),
             ],
             power: None,

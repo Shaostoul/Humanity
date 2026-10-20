@@ -950,8 +950,14 @@ pub struct AirOut {
     /// the caller takes it out of their boxes (`heat::burn_stoves`).
     pub stove_burned_kg: HashMap<hecs::Entity, f64>,
     /// The oxygen the stoves' fires took out of the home's air over the step,
-    /// g (taken there already; none when the step keeps no home air).
+    /// g (taken there already; none when the step keeps no home air): only
+    /// stoves that take their room's air (`CombustionAir::Room`).
     pub stove_o2_g: f64,
+    /// The oxygen the stoves fed from outside through their kits burned over
+    /// the step, g (2026-10-20, `CombustionAir::Outside`): taken from the
+    /// ship's air beyond the home, never the home's. The caller meters it
+    /// against the home in the ship's supply ledger (`ship_power::OXYGEN`).
+    pub stove_ship_o2_g: f64,
 }
 
 /// Step every air of the home `step.hours` game hours: each grow room's and
@@ -1087,9 +1093,10 @@ pub fn step_rooms(
         let mut heat_in_j = vec![0.0f64; n_rooms];
         let mut home_heat_in_j = 0.0f64;
         // Each stove's heat for this slice, from what its box still holds, and
-        // the oxygen the stoves burn over it, g (2026-10-20, farming::heat).
+        // the oxygen the stoves burn over it, g, by the air each fire draws on
+        // (2026-10-20, farming::heat).
         super::heat::stoke(&mut heaters, sh);
-        let mut stove_o2_g = 0.0f64;
+        let mut stove_o2 = super::heat::StoveOxygen::default();
         // The home's own air's warmth at the slice's start, what a room's warmth
         // relaxes toward (none without a home air space).
         let home_k = if map.home_known { home.warmed_k.max(0.0) } else { 0.0 };
@@ -1302,7 +1309,7 @@ pub fn step_rooms(
             st.heater = w.duty;
             heat_duty[i] = w.duty;
             heat_req[i] = w.duty_req;
-            stove_o2_g += super::heat::burn(&mut heaters, Some(i), w.duty, sh, &mut out.stove_burned_kg);
+            stove_o2 += super::heat::burn(&mut heaters, Some(i), w.duty, sh, &mut out.stove_burned_kg);
             match map.parent[i] {
                 Some(p) => heat_in_j[p] += w.passed_j,
                 None => home_heat_in_j += w.passed_j,
@@ -1374,17 +1381,20 @@ pub fn step_rooms(
             home.heater = w.duty;
             home_heat_duty = w.duty;
             home_heat_req = w.duty_req;
-            stove_o2_g += super::heat::burn(&mut heaters, None, w.duty, sh, &mut out.stove_burned_kg);
+            stove_o2 += super::heat::burn(&mut heaters, None, w.duty, sh, &mut out.stove_burned_kg);
         }
-        // The oxygen the stoves burned this slice comes out of the home's air,
-        // the one air that keeps oxygen (a grow room's stove draws on it through
-        // the room's exchange with the home), and counts in the day's oxygen
-        // used (2026-10-20). Their carbon dioxide and water go up the flue.
+        // The oxygen the room-air stoves burned this slice comes out of the
+        // home's air, the one air that keeps oxygen (a grow room's stove draws
+        // on it through the room's exchange with the home), and counts in the
+        // day's oxygen used (2026-10-20). A stove fed from outside through its
+        // kit takes none of it: its oxygen is the ship's air's, metered by the
+        // caller. Their carbon dioxide and water go up the flue.
+        out.stove_ship_o2_g += stove_o2.ship_g;
         if runs_home {
             let mut kg_day = 0.0;
-            if stove_o2_g > 0.0 {
+            if stove_o2.home_g > 0.0 {
                 let volume = map.home_volume_m3.max(1.0);
-                let taken = stove_o2_g.min(home.o2_g_m3.max(0.0) * volume);
+                let taken = stove_o2.home_g.min(home.o2_g_m3.max(0.0) * volume);
                 home.o2_g_m3 = (home.o2_g_m3 - taken / volume).max(0.0);
                 if sh > 0.0 {
                     kg_day = taken * 24.0 / sh / 1000.0;
@@ -1393,6 +1403,7 @@ pub fn step_rooms(
             }
             home.o2_used_kg_day += kg_day;
             home.stove_o2_kg_day = kg_day;
+            home.stove_ship_o2_kg_day = if sh > 0.0 { stove_o2.ship_g * 24.0 / sh / 1000.0 } else { 0.0 };
         }
     }
     // Each heater draws its watts for the share of the time its thermostat
@@ -1618,9 +1629,18 @@ fn home_lines(
     } else {
         format!("{:.1} kg is breathed in", h.o2_used_kg_day)
     };
+    // A stove fed from outside through its kit (2026-10-20) burns the ship's
+    // air's oxygen, not the home's: said after the home's balance, which it is
+    // not part of.
+    let ship = h.stove_ship_o2_kg_day.max(0.0);
+    let from_ship = if ship >= 0.05 {
+        format!("; the stove burns {ship:.1} kg more from the ship's air, through its outside air kit")
+    } else {
+        String::new()
+    };
     lines.push((
         format!(
-            "A day: the household and the mushrooms breathe out {:.1} kg of CO2 and the crops take up {:.1} kg; the crops give out {:.1} kg of oxygen and {used}, so the home's oxygen {} {:.2} kg a day",
+            "A day: the household and the mushrooms breathe out {:.1} kg of CO2 and the crops take up {:.1} kg; the crops give out {:.1} kg of oxygen and {used}, so the home's oxygen {} {:.2} kg a day{from_ship}",
             h.co2_out_kg_day,
             h.co2_uptake_kg_day,
             h.o2_made_kg_day,
@@ -1642,6 +1662,24 @@ fn home_lines(
         0,
     ));
     lines
+}
+
+/// Where the burning stoves' fires take their air from (2026-10-20,
+/// `CombustionAir`), for the Garden panel's heater line: " and its air from
+/// outside through its kit" for a stove fed from outside the home, " and its
+/// air from this room" for one that takes the room's air (and so the home's
+/// oxygen). Empty with no stove.
+fn stove_air_words(stoves: &[&&super::heat::Heater]) -> String {
+    let outside = stoves.iter().filter(|h| h.outside_air).count();
+    let room = stoves.len() - outside;
+    match (stoves.len(), outside, room) {
+        (0, _, _) => String::new(),
+        (1, 1, _) => " and its air from outside through its kit".to_string(),
+        (1, _, _) => " and its air from this room".to_string(),
+        (_, _, 0) => " and their air from outside through their kits".to_string(),
+        (_, 0, _) => " and their air from this room".to_string(),
+        (_, o, r) => format!(" and their air from this room ({r} of them) and from outside through a kit ({o})"),
+    }
 }
 
 /// The Garden panel's words for the space heaters of one air (2026-10-05,
@@ -1693,6 +1731,8 @@ fn heater_part(heaters: &[super::heat::Heater], room: Option<usize>, duty: f64, 
         }
         if wood > 0.0 {
             s.push_str(&format!(" from {wood:.1} kg of wood an hour"));
+            let burning: Vec<&&super::heat::Heater> = on().filter(|h| h.kind == HeaterKind::Stove).collect();
+            s.push_str(&stove_air_words(&burning));
         }
         s
     };

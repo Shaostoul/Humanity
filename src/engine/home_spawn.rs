@@ -354,7 +354,12 @@ pub(crate) fn spawn_home_machine_entity(
             }
             let _ = world.insert_one(
                 e,
-                crate::ecs::components::FuelStove { kg_per_h: b.kg_per_h, o2_kg_per_kg: b.o2_kg_per_kg, burned_kg: 0.0 },
+                crate::ecs::components::FuelStove {
+                    kg_per_h: b.kg_per_h,
+                    o2_kg_per_kg: b.o2_kg_per_kg,
+                    burned_kg: 0.0,
+                    combustion_air: b.combustion_air,
+                },
             );
             let _ = world.insert_one(e, crate::ecs::components::BurnsFuels(b.fuels.clone()));
         }
