@@ -2476,20 +2476,24 @@ mod auto_refine_tests {
         assert_eq!(drum.current_content_item, None, "and the drum holds no product");
         let mut filed = data.get::<std::sync::Mutex<Vec<(String, u32)>>>("home_stock_outputs").unwrap().lock().unwrap().clone();
         filed.sort();
-        assert_eq!(filed, vec![("diesel_0".to_string(), 3), ("gasoline_0".to_string(), 5)], "its fuels went to home storage");
+        assert_eq!(filed, vec![("diesel_0".to_string(), 4), ("gasoline_0".to_string(), 6)], "its fuels went to home storage");
         let grants = data.get::<std::sync::Mutex<Vec<SkillXPEvent>>>("xp_grants").unwrap().lock().unwrap().clone();
         assert_eq!(grants.len(), 1, "the craft still trained a skill");
     }
 
     /// GASOLINE AND DIESEL (2026-10-20). The fuel refinery's recipe distils
-    /// crude oil into both at EIA's split (10 crude, 5 gasoline and 3 diesel),
-    /// they are litre items at their cited densities, and the backup generator
-    /// in both homes burns the gasoline. "Refined Fuel" stood in for both and
-    /// is gone from the data.
+    /// crude oil into both at EIA's split of a barrel's volume (46.6% gasoline,
+    /// 29.7% diesel), each the nearest whole litre to that share of the crude's
+    /// own items.csv volume (10 crude of 1.25 L: 6 gasoline and 4 diesel), they
+    /// are litre items at their cited densities, and the backup generator in
+    /// both homes burns the gasoline. "Refined Fuel" stood in for both and is
+    /// gone from the data.
     ///
     /// Seen red on the data before (2026-10-20): "the fuel refinery's recipe
     /// makes [(\"fuel_refined_0\", 2)]: gasoline and diesel" (and items.csv had no
-    /// gasoline_0).
+    /// gasoline_0). The split, seen red on the first gasoline recipe, which took
+    /// a crude unit as about a litre: "gasoline_0: 5 L from 12.5 L of crude oil,
+    /// where EIA's 46.6% is 5.82 L" (2026-10-20).
     #[test]
     fn the_refinery_makes_gasoline_and_diesel_and_the_generator_burns_the_gasoline() {
         let data = real_data();
@@ -2501,15 +2505,25 @@ mod auto_refine_tests {
         .expect("home.ron");
         let auto = home.catalog["fuel_refinery"].auto_recipe.clone().expect("the refinery runs by itself");
         let r = &recipes.recipes[&auto];
+        assert_eq!(r.inputs, vec![("oil_crude_0".to_string(), 10)], "from ten crude oil");
+        let crude_l = 10.0 * items.volume_for("oil_crude_0");
+        for (id, share) in [("gasoline_0", 0.466_f32), ("diesel_0", 0.297)] {
+            let made_l = r.outputs.iter().find(|(o, _)| o == id).map_or(0.0, |(_, n)| *n as f32 * items.volume_for(id));
+            let want = crude_l * share;
+            assert!(
+                (made_l - want).abs() <= 0.5,
+                "{id}: {made_l} L from {crude_l} L of crude oil, where EIA's {:.1}% is {want:.2} L",
+                share * 100.0
+            );
+        }
         let mut made = r.outputs.clone();
         made.sort();
         assert_eq!(
             made,
-            vec![("diesel_0".to_string(), 3), ("gasoline_0".to_string(), 5)],
+            vec![("diesel_0".to_string(), 4), ("gasoline_0".to_string(), 6)],
             "the fuel refinery's recipe makes {:?}: gasoline and diesel",
             r.outputs
         );
-        assert_eq!(r.inputs, vec![("oil_crude_0".to_string(), 10)], "from ten crude oil");
         for (id, kg) in [("gasoline_0", 0.745), ("diesel_0", 0.847)] {
             let d = items.items.get(id).unwrap_or_else(|| panic!("{id} is an item"));
             assert!((d.mass_kg - kg).abs() < 1e-6 && (d.volume_l - 1.0).abs() < 1e-6, "{id}: a litre at {kg} kg");

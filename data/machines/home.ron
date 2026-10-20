@@ -962,7 +962,7 @@
             // diesel carries 36.1 MJ against gasoline's 32.4 (data/items.csv), and a diesel engine,
             // compression-ignited, turns more of it into work. At a quarter load it is 0.86 L a kWh, so
             // like the gasoline set it is cheapest run near full, charging the batteries. Its fuel
-            // is Diesel (diesel_0), which the fuel refinery makes 3 L of from each 10 crude oil
+            // is Diesel (diesel_0), which the fuel refinery makes 4 L of from each 10 crude oil
             // (refine_crude), and nothing else: its drum takes, offers and burns only that (BUG-154,
             // `fuels`; src/systems/inventory/containers.rs, `vessel_takes`). Its own 28 L tank is
             // not modelled apart: the game gives it the same 200 L drum as the gasoline set.

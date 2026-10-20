@@ -93,7 +93,7 @@
     (id: "obsidian_0",        name: "Obsidian",           category: "raw_material",    base_value: 6,    weight_kg: 2.5,   description: "Volcanic glass, razor-sharp when knapped"),
     (id: "marble_0",          name: "Marble",             category: "raw_material",    base_value: 5,    weight_kg: 3.0,   description: "Metamorphic limestone for building and sculpture"),
     (id: "raw_rubber_0",      name: "Raw Rubber",         category: "raw_material",    base_value: 4,    weight_kg: 1.0,   description: "Sheet of set latex, soft until cured with sulfur and heat"),
-    (id: "oil_crude_0",       name: "Crude Oil",          category: "raw_material",    base_value: 8,    weight_kg: 0.9,   description: "Unrefined petroleum for fuel and plastics"),
+    (id: "oil_crude_0",       name: "Crude Oil",          category: "raw_material",    base_value: 8,    weight_kg: 1.06,  description: "Unrefined petroleum for fuel and plastics"),
     (id: "ice_block_0",       name: "Ice Block",          category: "raw_material",    base_value: 2,    weight_kg: 5.0,   description: "Frozen water block, melts outside cold biomes"),
 
     // =========================================================================

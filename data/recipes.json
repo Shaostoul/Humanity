@@ -587,12 +587,12 @@
         {
           "id": "gasoline_0",
           "label": "Gasoline",
-          "qty": 5
+          "qty": 6
         },
         {
           "id": "diesel_0",
           "label": "Diesel",
-          "qty": 3
+          "qty": 4
         }
       ],
       "craft_time_sec": 150,

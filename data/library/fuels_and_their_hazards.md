@@ -539,7 +539,7 @@ hazards.
 
 - **Gasoline and diesel.** The home has a fuel refinery in its forge
   room that distils crude oil into both at once, the way a real refinery
-  does (its recipe: ten crude oil into five litres of Gasoline and three
+  does (its recipe: ten crude oil, 12.5 litres, into six litres of Gasoline and four
   of Diesel, 150 seconds, from the US Energy Information Administration's
   figures for what a barrel of crude yields; the rest of the barrel is
   not modelled). It runs by itself, never from your backpack. Its 200

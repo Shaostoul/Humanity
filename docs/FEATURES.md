@@ -2376,7 +2376,7 @@ role, spawned as `BurnsFuels`; BUG-154), and its drum takes and offers only
 those (`vessel_takes_item`, `store_offers` in `containers.rs`;
 `src/systems/electrical.rs`). The homes' genset names Gasoline, which the fuel
 refinery distils from crude oil along with Diesel at EIA's split (`refine_crude`:
-10 crude oil into 5 L of gasoline and 3 L of diesel; both are litre items at their
+10 crude oil of 1.25 L into 6 L of gasoline and 4 L of diesel; both are litre items at their
 GREET densities, cited in `data/items.csv`; 2026-10-20, replacing "Refined Fuel").
 The refinery's drum is its feed (2026-10-20): it draws its recipe's crude oil from
 the drum first, then home storage, in a session and through the time away, and its

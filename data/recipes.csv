@@ -74,12 +74,12 @@ cut_stone,Cut Stone,refining,stone_raw_0:1,stone_brick_0:2,10,workbench_0,woodwo
 # (US EIA, "Oil and petroleum products explained: Refining crude oil", table "Petroleum products produced
 # from one 42-gallon barrel of oil input at U.S. refineries, 2023", last updated 20 June 2024,
 # https://www.eia.gov/energyexplained/oil-and-petroleum-products/refining-crude-oil-inputs-and-outputs.php,
-# read 2026-10-20): 46.6% and 29.7% of the crude's volume. A crude oil unit is about a litre (its 0.9 kg
-# is 1.06 L at the 3205 g a gallon GREET gives crude oil in the table items.csv's gasoline note cites),
-# so 10 of them give 5 litres of
-# gasoline and 3 of diesel, the nearest whole litres; the rest of the barrel (jet fuel, heavy oils, gases,
-# asphalt) is not modelled. 150 s keeps the 15 s a unit of crude the refinery took before.
-refine_crude,Refine Crude Oil,refining,oil_crude_0:10,gasoline_0:5|diesel_0:3,150,fuel_refinery_0,engineering,2,Distill crude oil into gasoline and diesel
+# read 2026-10-20): 46.6% and 29.7% of the crude's volume. A crude oil unit is 1.25 L (its items.csv
+# volume_l, what a vessel holds of it), so 10 of them are 12.5 L and give 5.8 L of gasoline and 3.7 of
+# diesel: 6 and 4, the nearest whole litres (the recipe first gave 5 and 3, taking a unit as about a
+# litre from its old 0.9 kg). The rest of the barrel (jet fuel, heavy oils, gases, asphalt) is not
+# modelled. 150 s keeps the 15 s a unit of crude the refinery took before.
+refine_crude,Refine Crude Oil,refining,oil_crude_0:10,gasoline_0:6|diesel_0:4,150,fuel_refinery_0,engineering,2,Distill crude oil into gasoline and diesel
 # Milling: efficient mills extract 72-76% of the wheat as white flour (BAKERpedia, "Extraction
 # rate"; Kansas Wheat: a 60 lb bushel gives about 42 lb of white flour). The rest is bran, germ and
 # shorts. 4 wheat (2.0 kg) -> 3 flour (1.5 kg, 75%) + 1 bran (0.5 kg). flour_0 is wheat flour; this

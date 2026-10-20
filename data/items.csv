@@ -241,7 +241,11 @@ gold_ingot_0,Gold Ingot,material,ingot,gold,5.0,10,0,Refined gold bar,solid,0.43
 silver_ingot_0,Silver Ingot,material,ingot,silver,3.0,10,0,Refined silver bar,solid,0.48
 coal_0,Coal,material,fuel,charcoal,1.3,30,0,Combustible carbon lump,dry_goods,5.42
 graphite_0,Graphite,material,fuel,carbon,1.1,30,0,Crystalline carbon from carbonaceous asteroids. Works as a smelting reducing agent like coal,dry_goods,0.87
-oil_crude_0,Crude Oil,material,fuel,tar,0.9,10,0,Unrefined petroleum barrel,flammable,1.25
+# Crude oil (2026-10-20): 1.25 L a unit (volume_l, what a vessel holds and what the refinery's recipe
+# splits), weighing 1.06 kg at the 3205 g a US gallon (0.847 kg a litre) GREET 1.8d.1 gives crude oil,
+# in the ORNL table the gasoline note below cites. It said 0.9 kg, 0.72 kg a litre, which disagreed with
+# its own volume.
+oil_crude_0,Crude Oil,material,fuel,tar,1.06,10,0,Unrefined petroleum barrel,flammable,1.25
 # Gasoline and diesel (2026-10-20): one litre each, so volume_l is 1.0 and a generator's
 # litres an hour (fuel_lph in data/machines) burns that many. They replace Refined Fuel,
 # which stood in for both. weight_kg is a litre at the density GREET 1.8d.1 (Argonne
