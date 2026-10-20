@@ -282,16 +282,24 @@ fn while_ill_oral_rehydration_solution_puts_back_more_than_water() {
     let juice = from_20(&mut sys, &mut world, "juice_0");
     assert!(ors > water, "while ill, oral rehydration solution put back {ors:.1} points and water {water:.1}: the solution must put back more");
     assert!(water > juice && juice > 0.0, "while ill, water put back {water:.1} and juice {juice:.1}: a sugary drink helps least");
-    assert!((well_water - DRINK_HYDRATION).abs() < 0.01, "a well person keeps all of a drink: {well_water:.1}");
-    assert!((ors - DRINK_HYDRATION).abs() < 0.01, "oral rehydration solution keeps all of its water: {ors:.1}");
+    // What each drink carries (2026-10-20, `FoodSystem::drink_points`: its
+    // litres and its water, no longer a flat 30 points a drink).
+    let carries = |item: &str| sys.drink_points(item).expect("a drink");
+    assert!((well_water - carries("water_bottle_0")).abs() < 0.01, "a well person keeps all of a drink: {well_water:.1}");
+    assert!((ors - carries("ors_solution_0")).abs() < 0.01, "oral rehydration solution keeps all of its water: {ors:.1}");
 }
 
 /// Harm comes only from not drinking. Through the whole Realistic course, an adult who drinks
-/// a bottle of water every six hours never runs dry and keeps every point of health; one who
-/// drinks nothing runs dry within about a day and is hurt by the end.
+/// a litre of oral rehydration solution every six hours never runs dry and keeps every point of
+/// health; one who drinks nothing runs dry within about a day and is hurt by the end.
 ///
 /// Seen red on the old code: "the adult who drank was hurt: health 0.0" (the illness drained
 /// health whatever anyone drank).
+///
+/// The drink was a 500 mL bottle of water every six hours until drinks carried their real
+/// water (2026-10-20): that is 2 L a day, three quarters of it kept while ill, against the
+/// 2.5 L a body loses anyway and the illness's 1.5 L, so it ran dry, as it would. Four litres
+/// of the solution a day is what the losses take.
 #[test]
 fn drinking_through_food_poisoning_keeps_a_body_from_harm() {
     let run = |drinks: bool| {
@@ -303,7 +311,7 @@ fn drinking_through_food_poisoning_keeps_a_body_from_harm() {
         let mut lowest = f32::MAX;
         let hours = until_well(&mut sys, &mut world, &data, p, |step, sys, world| {
             if drinks && step % (6 * STEPS_PER_HOUR) == 0 {
-                drink(sys, world, &data, p, "water_bottle_0");
+                drink(sys, world, &data, p, "ors_solution_0");
             }
             lowest = lowest.min(hydration(world, p));
         });

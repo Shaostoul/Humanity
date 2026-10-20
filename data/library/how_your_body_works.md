@@ -643,8 +643,13 @@ timescales, and leaves out nearly everything that can go wrong inside one.
   Hungry, which slows you. Only when one is completely empty does your
   health start to drain: over about a day for thirst and about two weeks
   for hunger, so thirst is by far the faster killer, as it is in life.
-  Sweating in the heat costs extra water. The numbers are in
-  `src/systems/food.rs`, and the slowdowns in `data/status_effects.csv`.
+  Sweating in the heat costs extra water. A drink puts back the water it
+  carries: the bar holds about five litres, the 2.5 litres a resting adult
+  loses each day is half of it, so a 500 mL bottle of water puts back a
+  tenth, a litre of milk a little less than a litre of water, and a cup
+  of coffee under a twentieth (`data/food/item_profiles.ron`, `drinks`).
+  The numbers are in `src/systems/food.rs`, and the slowdowns in
+  `data/status_effects.csv`.
 - **Tiredness and sleep.** Energy runs down through the waking day, and
   after about sixteen waking hours it falls below a quarter and you are
   Fatigued and slower. A night in a bed restores it, the bedroom's own or

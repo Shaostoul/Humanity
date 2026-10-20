@@ -252,4 +252,26 @@
         ("rotten_flesh_0", "decomposing meat; not food at any stage"),
 
     ],
+
+    // HOW MUCH ONE DRINK IS (2026-10-20): (item id, litres). A drink puts back
+    // the water it carries: these litres, times the share of the drink that is
+    // water (worked out from its profile in data/food_system.ron), at 20
+    // Hydration points a litre (src/systems/food.rs, HYDRATION_PER_LITRE: the
+    // bar empties in two days at the 2.5 L a day a resting adult loses). So a
+    // 500 mL bottle of water puts back 10 points and a litre of milk about 18.
+    // Until then every drink gave 30 points, 1.5 L, whatever it was.
+    //
+    // Every item above whose profile is a beverage needs a row here, and a
+    // vessel in data/containers/fluids.ron drinks the litres it is filled with
+    // (the coverage test in src/systems/food.rs checks both).
+    drinks: [
+        ("water_bottle_0", 0.5),     // items.csv "Purified drinking water 500ml"; fluids.ron fills it with 0.5 L
+        ("water_purified_0", 1.0),   // items.csv "Filtered clean water jug", 1.0 kg: a litre
+        ("juice_0", 0.5),            // items.csv "Fruit juice bottle 500ml"
+        ("energy_drink_0", 0.33),    // a 330 mL can: items.csv's 0.35 kg is that much drink and its can
+        ("coffee_0", 0.237),         // one cup brewed: USDA's cup of brewed coffee, 8 fl oz, 237 g (SR Legacy NDB 14209)
+        ("tea_0", 0.237),            // one cup brewed: USDA's cup of brewed black tea, 8 fl oz, 237 g (SR Legacy NDB 14355)
+        ("milk_0", 1.0),             // items.csv "Fresh whole milk 1L"
+        ("ors_solution_0", 1.0),     // items.csv "Oral Rehydration Solution (1 L)"
+    ],
 )

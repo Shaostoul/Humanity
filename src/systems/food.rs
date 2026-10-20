@@ -34,6 +34,16 @@ pub struct NutritionProfile {
     /// Energy density (kcal / 100 g) — drives satiation gain.
     #[serde(default)]
     pub calories_per_100g: u32,
+    /// Grams per 100 g of protein, carbohydrate, fat and fibre. Read for a
+    /// drink's water (`water_share`, 2026-10-20).
+    #[serde(default)]
+    pub protein_g: f32,
+    #[serde(default)]
+    pub carbs_g: f32,
+    #[serde(default)]
+    pub fat_g: f32,
+    #[serde(default)]
+    pub fiber_g: f32,
     /// Hours the food stays safe under the storage it normally gets (see the
     /// header of food_system.ron). Drives the spoilage timer, in real seconds
     /// like every other survival clock here.
@@ -42,6 +52,20 @@ pub struct NutritionProfile {
     /// Probability (0..1) of illness when eaten raw. 0 for cooked/preserved food.
     #[serde(default)]
     pub raw_consumption_risk: f32,
+}
+
+impl NutritionProfile {
+    /// The share of this food's mass that is water, 0 to 1 (2026-10-20): what
+    /// is left of 100 g once its protein, carbohydrate, fat and fibre are
+    /// taken off. The rest of a food is ash, its minerals, under a gram per
+    /// 100 g in every drink here, so this reads at most a gram high: whole
+    /// milk comes to 88.8 g against USDA's 88.13 g of water (SR Legacy NDB
+    /// 1077), apple juice 88.3 against 88.24 (NDB 9016). The profiles' own
+    /// numbers carry their sources in data/food_system.ron.
+    pub fn water_share(&self) -> f32 {
+        let solids = self.protein_g.max(0.0) + self.carbs_g.max(0.0) + self.fat_g.max(0.0) + self.fiber_g.max(0.0);
+        ((100.0 - solids) / 100.0).clamp(0.0, 1.0)
+    }
 }
 
 /// `data/food/item_profiles.ron`: which items are food, and the nutrition
@@ -55,6 +79,12 @@ pub struct ItemProfiles {
     /// coverage test insist that every food-category item was decided.
     #[serde(default)]
     pub not_food: Vec<(String, String)>,
+    /// (item id, litres) for every item a person drinks (2026-10-20): how much
+    /// one Drink of it is, so a drink puts back the water it carries
+    /// (`FoodSystem::drink_points`). Every beverage item must have a row (the
+    /// coverage test in food.rs insists).
+    #[serde(default)]
+    pub drinks: Vec<(String, f32)>,
 }
 
 impl ItemProfiles {
@@ -205,14 +235,28 @@ const SATIATION_PER_CALORIE: f32 = 0.15;
 /// Hydration restored by eating watery produce vs. everything else.
 const PRODUCE_HYDRATION: f32 = 10.0;
 const BASE_HYDRATION: f32 = 3.0;
-/// Hydration restored per drink consumed (water/juice/etc. via the Drink action).
-const DRINK_HYDRATION: f32 = 30.0;
 /// Hydration points a litre of water is worth (2026-09-28), read off the
 /// clock above: it empties 100 points in two days, at the roughly 2.5 L a day
 /// a resting adult loses (urine, breath and skin: Jequier and Constant 2010,
 /// "Water as an essential nutrient", Eur. J. Clin. Nutr. 64), so a point is
 /// about 50 mL. What sweat costs on top (`body_heat::HeatOutcome::sweat_l`).
+///
+/// A DRINK PUTS BACK THE WATER IT CARRIES (2026-10-20): its litres
+/// (`drinks` in data/food/item_profiles.ron) times the share of it that is
+/// water (`NutritionProfile::water_share`) times this. So the 2.5 L a day the
+/// body loses is five 500 mL bottles of water, which is the scale people
+/// live on: the European Food Safety Authority sets an adult's adequate
+/// intake of water from all sources, food included, at 2.0 L a day for women
+/// and 2.5 L for men (EFSA NDA Panel, "Scientific Opinion on Dietary
+/// reference values for water", EFSA Journal 2010; 8(3):1459). Until then
+/// every drink gave 30 points, 1.5 L, whatever it was: a cup of coffee
+/// equalled a litre of milk and three of them a day kept anyone watered.
 pub(crate) const HYDRATION_PER_LITRE: f32 = 20.0;
+/// One drink of a beverage that has no row in item_profiles.ron's `drinks`:
+/// a cup, 8 US fluid ounces (237 g in USDA FoodData Central's portion for
+/// brewed coffee, SR Legacy NDB 14209). Said loudly in the log at load; the
+/// coverage test keeps every shipped beverage from needing it.
+const FALLBACK_DRINK_L: f32 = 0.237;
 /// Health drained per second while fully starved / dehydrated (real scale,
 /// v0.1005: an empty tank kills over ~2 weeks starved / ~1 day dehydrated,
 /// so dehydration stays the far deadlier clock, matching human biology).
@@ -411,6 +455,9 @@ pub struct FoodSystem {
     /// Edible item id -> index into `data.nutrition_profiles`, built from
     /// `data/food/item_profiles.ron`. An item absent from this map is not food.
     item_profile: HashMap<String, usize>,
+    /// Litres in one drink of each beverage (item_profiles.ron `drinks`,
+    /// 2026-10-20; `drink_points`).
+    drink_l: HashMap<String, f32>,
     /// A night's sleep in a bed while it runs (2026-09-27, `systems::sleep`).
     asleep: Option<crate::systems::sleep::Asleep>,
     /// Each living body's heat state (2026-09-27, `systems::body_heat`). Only
@@ -461,6 +508,16 @@ impl FoodSystem {
             }
         }
         log::info!("Loaded {} edible items from {}", item_profile.len(), ItemProfiles::FILE);
+        let drink_l: HashMap<String, f32> =
+            list.drinks.iter().filter(|(_, l)| l.is_finite() && *l > 0.0).cloned().collect();
+        for (item_id, &idx) in &item_profile {
+            if data.nutrition_profiles[idx].category == "beverage" && !drink_l.contains_key(item_id) {
+                log::warn!(
+                    "{}: {item_id} is drunk but has no row in `drinks`, so one drink of it is taken as a {FALLBACK_DRINK_L} L cup",
+                    ItemProfiles::FILE
+                );
+            }
+        }
         let illnesses = crate::systems::illness::Illnesses::load(data_dir);
         let treatments = crate::systems::treatment::Treatments::load(data_dir);
         let wounds = crate::systems::wounds::Wounds::load(data_dir);
@@ -473,6 +530,7 @@ impl FoodSystem {
         Self {
             data,
             item_profile,
+            drink_l,
             asleep: None,
             body_heat: HashMap::new(),
             carry: HashMap::new(),
@@ -487,6 +545,15 @@ impl FoodSystem {
         self.item_profile
             .get(item_id)
             .map(|&idx| &self.data.nutrition_profiles[idx])
+    }
+
+    /// The Hydration points one drink of `item_id` puts back in a well body
+    /// (2026-10-20): the water it carries, its litres times the share of it
+    /// that is water, at `HYDRATION_PER_LITRE`. None when it is not a drink.
+    pub(crate) fn drink_points(&self, item_id: &str) -> Option<f32> {
+        let profile = self.profile_for(item_id).filter(|p| p.category == "beverage")?;
+        let litres = self.drink_l.get(item_id).copied().unwrap_or(FALLBACK_DRINK_L);
+        Some(litres * profile.water_share() * HYDRATION_PER_LITRE)
     }
 
     /// How long (game seconds at room temperature) this item stays fresh, or None
@@ -526,9 +593,10 @@ impl FoodSystem {
         }
         let calories = profile.calories_per_100g as f32;
         let risk = profile.raw_consumption_risk;
-        // Drinks hydrate most, watery produce some, everything else barely.
+        // A drink puts back the water it carries (2026-10-20, `drink_points`):
+        // a cup is not a jug. Watery produce gives some, everything else barely.
         let hydration_gain = if is_beverage {
-            DRINK_HYDRATION
+            self.drink_points(item_id).unwrap_or(0.0)
         } else if profile.category == "produce" {
             PRODUCE_HYDRATION
         } else {
@@ -2101,6 +2169,79 @@ mod nutrition_tests {
             });
             assert!(p.spoilage_rate_hours > 0.0, "profile '{}' has no spoilage time", p.id);
         }
+    }
+
+    /// Every drink says how much it is (2026-10-20): each item whose profile is
+    /// a beverage has a row in item_profiles.ron's `drinks`, each row names a
+    /// beverage, once, with a real amount, and a vessel that is filled at a tank
+    /// (data/containers/fluids.ron) drinks the litres it was filled with.
+    #[test]
+    fn every_drink_says_how_many_litres_it_is() {
+        use std::collections::HashSet;
+        let sys = FoodSystem::new(data_dir());
+        let list = ItemProfiles::load(data_dir());
+        let beverages: Vec<&str> = list
+            .items
+            .iter()
+            .map(|(id, _)| id.as_str())
+            .filter(|id| sys.profile_for(id).is_some_and(|p| p.category == "beverage"))
+            .collect();
+        assert!(beverages.len() >= 8, "the shipped data has its drinks: {beverages:?}");
+        let mut seen = HashSet::new();
+        for (id, litres) in &list.drinks {
+            assert!(seen.insert(id.as_str()), "{id} is listed twice in `drinks`");
+            assert!(beverages.contains(&id.as_str()), "`drinks` names {id}, which is not a drink");
+            assert!(*litres > 0.0 && *litres <= 25.0, "{id}: one drink of {litres} L");
+        }
+        let missing: Vec<&&str> = beverages.iter().filter(|id| !seen.contains(**id)).collect();
+        assert!(missing.is_empty(), "drinks with no litres in item_profiles.ron `drinks`: {missing:?}");
+        let fluids = crate::systems::fluids::FluidTable::load(data_dir());
+        for f in &fluids.fillables {
+            if let Some((_, l)) = list.drinks.iter().find(|(id, _)| *id == f.full) {
+                assert!((l - f.litres).abs() < 1e-6, "{} is filled with {} L and drunk as {l} L", f.full, f.litres);
+            }
+        }
+    }
+
+    /// A CUP IS NOT A JUG (2026-10-20). A drink puts back the water it carries:
+    /// a 500 mL bottle of water 10 points, a litre jug 20, a litre of whole
+    /// milk its 88.8% water, a cup of coffee 237 mL of it, each at
+    /// HYDRATION_PER_LITRE, through the real Drink action.
+    ///
+    /// Seen red on the old rule (every drink 30 points, `DRINK_HYDRATION`):
+    /// "Water Bottle (0.5 L) put back 30.00 points; the water it carries is
+    /// 10.00" (2026-10-20, the fixed rule swapped back for a flat 30).
+    #[test]
+    fn a_drink_puts_back_the_water_it_carries() {
+        let sys_for = || FoodSystem::new(data_dir());
+        let drink = |item: &str| -> f32 {
+            let mut sys = sys_for();
+            let data = make_store();
+            let mut world = hecs::World::new();
+            let mut inv = Inventory::new(8);
+            inv.add_item(item, 1, 99);
+            let p = world.spawn((inv, vitals(80.0, 10.0), StatusEffects::default(), Health::default()));
+            request(&data, "drink_request", item);
+            sys.tick(&mut world, 0.0, &data);
+            assert_eq!(world.get::<&Inventory>(p).unwrap().count_item(item), 0, "{item} was drunk");
+            let now = world.get::<&Vitals>(p).unwrap().hydration;
+            now - 10.0
+        };
+        for (item, name, litres, water) in [
+            ("water_bottle_0", "Water Bottle", 0.5, 1.0),
+            ("water_purified_0", "Purified Water", 1.0, 1.0),
+            ("milk_0", "Milk", 1.0, 1.0 - (3.15 + 4.8 + 3.25) / 100.0),
+            ("coffee_0", "Coffee", 0.237, 1.0 - (0.12 + 0.02) / 100.0),
+        ] {
+            let want = litres * water * HYDRATION_PER_LITRE;
+            let got = drink(item);
+            assert!(
+                (got - want).abs() < 0.01,
+                "{name} ({litres} L) put back {got:.2} points; the water it carries is {want:.2}"
+            );
+        }
+        let (bottle, jug, cup) = (drink("water_bottle_0"), drink("water_purified_0"), drink("coffee_0"));
+        assert!(jug > bottle && bottle > cup, "a jug {jug:.1}, a bottle {bottle:.1}, a cup {cup:.1}");
     }
 
     /// Everything the cooking recipes make is either food with a profile or

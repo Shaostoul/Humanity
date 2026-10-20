@@ -2600,6 +2600,10 @@ and measured human trials (Helland et al. 2025; Thompson and Hayward 1996).
 - **Sweat costs water** (v0.1422.0): the sweat the model evaporates comes out of hydration, about 50 mL a
   point (an hour walking in dry 35 C air, about 0.2 L; hard work in heat several times that), scaled by the
   Vitals drain slider (`BodyHeat::sweat_litres`, `HeatOutcome::sweat_l`, `food::HYDRATION_PER_LITRE`).
+- **A drink puts back the water it carries** (2026-10-20): its litres (`drinks` in
+  `data/food/item_profiles.ron`) times the share of it that is water (its profile's macros) at 20 points a
+  litre, so a 500 mL bottle of water puts back 10 points, a litre jug 20, a litre of milk about 18 and a cup of
+  coffee under 5 (`FoodSystem::drink_points`). Every drink gave 30 points before, whatever it was.
 - Native: `src/systems/body_heat.rs` (model, tests in `body_heat_tests.rs`), `src/systems/food.rs` (the vitals
   pass), `src/engine/survival_env.rs` (inputs), `src/gui/pages/settings.rs` (mode)
 - Data: `data/equipment.csv` (`clo`), `data/status_effects.csv` (the four conditions)
