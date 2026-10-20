@@ -170,7 +170,7 @@ pub trait System: Send + Sync {
 | pages/files.rs | 289 | **Working** | File browser |
 | pages/trade.rs | 348 | **Working** | P2P trading |
 | pages/donate.rs | 414 | **Working** | Donation page |
-| pages/tools.rs | 249 | **Working** | Tools catalog |
+| pages/apps.rs | | **Working** | Apps: games, HumanityOS tools, other programs, help and services |
 | pages/bugs.rs | 245 | **Working** | Bug reporter |
 | pages/escape_menu.rs | 230 | **Working** | Escape/pause menu |
 | pages/civilization.rs | 230 | **Working** | Civilization dashboard |

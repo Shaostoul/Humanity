@@ -931,7 +931,7 @@ advice.
   (`src/gui/pages/profile.rs`, `src/systems/skills/mod.rs`) sets every
   skill to its top level, shown in Dev play mode with dev cheats on
   (`src/config.rs`, `cheats_enabled` in `data/gui/theme.ron`).
-- The Tools page's Help and services: `src/gui/pages/tools.rs`, reading
+- The Apps page's Help part: `src/gui/pages/apps.rs`, reading
   `data/external/catalog.json`.
 - [How Your Body Works](/library#how-your-body-works), [First Aid Until Help
   Arrives](/library#first-aid-until-help-arrives), [Handling
