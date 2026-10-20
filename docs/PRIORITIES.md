@@ -384,14 +384,19 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
       records without writing to them, start a game only on a person's click through the store's
       own link or the game's exe, Install/Update open the store's app, no SteamCMD, no store
       sign-in, no logos yet, an on-screen note saying why).
-    - IN PROGRESS 2026-10-19: **the Tools page like the Games page** (operator: "What if we make
+    - DONE v0.1520.0: **the Tools page like the Games page** (operator: "What if we make
       the tools page like the games page? Then what if through that interface users can
-      install/launch/go to the website(s) for the various non-game apps?"). Grid and List, the
-      installed programs found from Windows' own records and launched on a click, a details
-      panel, the Games page's widgets shared. Install through winget waits on a dated finding
-      (docs/reference/findings/2026-10-19-tools-page-install-launch-and-icons.md): who may accept
-      a package's agreements, verification, admin prompts, icons and logos. The web Tools page
-      mirrors the look after (it cannot detect or launch).
+      install/launch/go to the website(s) for the various non-game apps?"). Grid and List on the
+      shared `widgets/shelf.rs`; installed programs found from Windows' records, App Paths and
+      Steam (7 of 40 on the operator's machine) and launched on a click; Install through winget
+      only after a consent step in the details (per
+      docs/reference/findings/2026-10-19-tools-page-install-launch-and-icons.md). Open: the REAL
+      winget install has never run (test builds compile it out; the operator's first Install is
+      the first real one); programs from the Microsoft Store are not found yet
+      (`PackageManager.FindPackagesForUser`, with each program's Store package name as data);
+      a tile for an installable program could offer Install directly (today it is in the
+      details); the page's intro is five paragraphs and could fold behind a "How this page
+      works"; the web Tools page should mirror the look (it cannot detect or launch).
     - IN PROGRESS 2026-10-19: **the Media page in three panes, editing in place** (operator: a
       list on the left, the item fitted to the middle (picture, 3D model, video, a sound
       visualiser), its details on the right; top, middle and bottom when the window is tall; Edit

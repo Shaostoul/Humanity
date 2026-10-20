@@ -1152,9 +1152,19 @@
           "description": "Free courses in math, science, computing, history, and more for all ages."
         },
         {
-          "name": "Library Genesis",
-          "url": "https://libgen.is",
-          "description": "Search engine for free access to academic papers, books, and articles."
+          "name": "Unpaywall",
+          "url": "https://unpaywall.org",
+          "description": "Finds the free, legal copy of a research paper when one exists: authors and libraries publish millions of them."
+        },
+        {
+          "name": "arXiv",
+          "url": "https://arxiv.org",
+          "description": "Free research papers in physics, mathematics, computer science, biology and more, posted by their authors."
+        },
+        {
+          "name": "DOAJ",
+          "url": "https://doaj.org",
+          "description": "The Directory of Open Access Journals: peer-reviewed journals that anyone may read free."
         },
         {
           "name": "MIT OpenCourseWare",
