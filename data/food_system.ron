@@ -9,6 +9,21 @@
 //
 // Nutrition profiles carry macro and micronutrients per 100 g.
 //   calories_per_100g, protein_g, carbs_g, fat_g, fiber_g: per 100 g.
+//     In the rows copied from USDA, carbs_g is USDA's "carbohydrate, by
+//     difference", which already includes the fibre: never subtract both from
+//     100 g to find the water (it gave dry beans -9 g). water_g says it.
+//   water_g: grams of water per 100 g (2026-10-20), USDA's own figure for the
+//     row's base food, named on its line. Eating or drinking puts back this
+//     water (src/systems/food.rs: the item's grams in data/food/item_profiles.ron
+//     times this, at 20 Hydration points a litre), so a cucumber waters you
+//     and a cookie barely does. Every profile must carry it (the coverage test
+//     every_profile_says_how_much_water_it_carries). Read 2026-10-20 from the
+//     SR28 page reports by food group (USDA ARS, "USDA National Nutrient
+//     Database for Standard Reference, Release 28", https://www.ars.usda.gov/
+//     ARSUserFiles/80400535/Data/SR/SR28/reports/sr28fgNN.pdf, NN the food
+//     group), whose figures SR Legacy carries, and for the three FNDDS rows
+//     from FoodData Central's API. The first twelve rows had no base food;
+//     each now names the SR28 row whose numbers it carries, or the nearest one.
 //   minerals: milligrams per 100 g.
 //   vitamins: fraction of the US FDA Daily Value per 100 g (1.0 = 100% DV).
 //     For the rows added 2026-09-25 "B" is the mean %DV of six B vitamins
@@ -73,6 +88,7 @@
             carbs_g: 0.0,
             fat_g: 7.0,
             fiber_g: 0.0,
+            water_g: 71.79, // SR28 NDB 13520 "Beef, shoulder top blade steak, boneless, separable lean only, trimmed to 0" fat, choice, raw", the SR28 row with this row's 143 kcal, 20 g protein and 7 g fat
             vitamins: (A: 0.01, B: 0.15, C: 0.0, D: 0.02, E: 0.01, K: 0.0),
             minerals: (iron: 2.6, calcium: 12.0, zinc: 4.5, potassium: 310.0),
             spoilage_rate_hours: 24.0,
@@ -89,6 +105,7 @@
             carbs_g: 0.0,
             fat_g: 8.0,
             fiber_g: 0.0,
+            water_g: 67.86, // SR28 NDB 05683 "Chicken, dark meat, thigh, meat only, with added solution, cooked, roasted" (164 kcal, 24.2 g protein, 7.7 g fat), the nearest SR28 row to this one
             vitamins: (A: 0.01, B: 0.12, C: 0.0, D: 0.02, E: 0.01, K: 0.0),
             minerals: (iron: 2.2, calcium: 10.0, zinc: 4.0, potassium: 290.0),
             spoilage_rate_hours: 72.0,
@@ -105,6 +122,7 @@
             carbs_g: 0.0,
             fat_g: 1.0,
             fiber_g: 0.0,
+            water_g: 81.22, // SR28 NDB 15015 "Fish, cod, Atlantic, raw", whose 82 kcal and 17.8 g protein this row carries
             vitamins: (A: 0.01, B: 0.10, C: 0.0, D: 0.08, E: 0.02, K: 0.0),
             minerals: (iron: 0.5, calcium: 15.0, zinc: 0.5, potassium: 350.0),
             spoilage_rate_hours: 18.0,
@@ -121,6 +139,7 @@
             carbs_g: 5.0,
             fat_g: 0.2,
             fiber_g: 2.5,
+            water_g: 92.18, // SR28 NDB 11109 "Cabbage, raw", whose 25 kcal and 2.5 g fibre this row carries; cucumber is 95.23, moringa leaves 78.66
             vitamins: (A: 0.15, B: 0.05, C: 0.20, D: 0.0, E: 0.04, K: 0.10),
             minerals: (iron: 0.8, calcium: 30.0, zinc: 0.3, potassium: 250.0),
             spoilage_rate_hours: 168.0,
@@ -137,6 +156,7 @@
             carbs_g: 6.0,
             fat_g: 0.5,
             fiber_g: 2.0,
+            water_g: 89.25, // SR28 NDB 11091 "Broccoli, cooked, boiled, drained, without salt", whose 35 kcal this row carries
             vitamins: (A: 0.18, B: 0.04, C: 0.10, D: 0.0, E: 0.03, K: 0.12),
             minerals: (iron: 0.9, calcium: 35.0, zinc: 0.3, potassium: 230.0),
             spoilage_rate_hours: 48.0,
@@ -153,6 +173,7 @@
             carbs_g: 14.0,
             fat_g: 0.2,
             fiber_g: 2.4,
+            water_g: 85.56, // SR28 NDB 09003 "Apples, raw, with skin", whose numbers this row carries; watermelon is 91.45, banana 74.91
             vitamins: (A: 0.05, B: 0.03, C: 0.25, D: 0.0, E: 0.02, K: 0.02),
             minerals: (iron: 0.2, calcium: 6.0, zinc: 0.1, potassium: 107.0),
             spoilage_rate_hours: 120.0,
@@ -169,6 +190,7 @@
             carbs_g: 72.0,
             fat_g: 2.0,
             fiber_g: 6.0,
+            water_g: 10.74, // SR28 NDB 20080 "Wheat flour, whole-grain", whose 340 kcal and 72 g carbohydrate this row carries
             vitamins: (A: 0.0, B: 0.12, C: 0.0, D: 0.0, E: 0.03, K: 0.0),
             minerals: (iron: 3.5, calcium: 25.0, zinc: 2.5, potassium: 280.0),
             spoilage_rate_hours: 8760.0,
@@ -185,6 +207,7 @@
             carbs_g: 4.8,
             fat_g: 6.0,
             fiber_g: 0.0,
+            water_g: 83.39, // SR28 NDB 01108 "Milk, indian buffalo, fluid" (97 kcal), the nearest SR28 row to this one
             vitamins: (A: 0.05, B: 0.08, C: 0.01, D: 0.05, E: 0.01, K: 0.01),
             minerals: (iron: 0.1, calcium: 120.0, zinc: 0.4, potassium: 150.0),
             spoilage_rate_hours: 72.0,
@@ -201,6 +224,7 @@
             carbs_g: 1.1,
             fat_g: 11.0,
             fiber_g: 0.0,
+            water_g: 74.62, // SR28 NDB 01129 "Egg, whole, cooked, hard-boiled", whose numbers this row carries
             vitamins: (A: 0.06, B: 0.10, C: 0.0, D: 0.04, E: 0.05, K: 0.01),
             minerals: (iron: 1.8, calcium: 56.0, zinc: 1.3, potassium: 138.0),
             spoilage_rate_hours: 504.0,
@@ -217,6 +241,7 @@
             carbs_g: 12.0,
             fat_g: 4.0,
             fiber_g: 1.5,
+            water_g: 75.69, // SR28 NDB 22904 "Chili con carne with beans, canned entree" (107 kcal), the nearest canned meal in SR28
             vitamins: (A: 0.03, B: 0.05, C: 0.02, D: 0.01, E: 0.01, K: 0.01),
             minerals: (iron: 1.5, calcium: 20.0, zinc: 1.0, potassium: 180.0),
             spoilage_rate_hours: 87600.0,
@@ -233,6 +258,7 @@
             carbs_g: 50.0,
             fat_g: 3.0,
             fiber_g: 4.0,
+            water_g: 14.56, // SR28 NDB 11955 "Tomatoes, sun-dried" (258 kcal, 14 g protein, 56 g carbohydrate), the nearest SR28 row to this one
             vitamins: (A: 0.02, B: 0.08, C: 0.01, D: 0.01, E: 0.02, K: 0.01),
             minerals: (iron: 2.0, calcium: 15.0, zinc: 1.5, potassium: 200.0),
             spoilage_rate_hours: 17520.0,
@@ -249,6 +275,7 @@
             carbs_g: 15.0,
             fat_g: 5.0,
             fiber_g: 2.0,
+            water_g: 70.87, // SR28 NDB 22977 "Lasagna with meat sauce, frozen, prepared" (135 kcal), the nearest SR28 row to this one
             vitamins: (A: 0.04, B: 0.07, C: 0.05, D: 0.02, E: 0.02, K: 0.02),
             minerals: (iron: 1.2, calcium: 18.0, zinc: 1.0, potassium: 190.0),
             spoilage_rate_hours: 2628.0,
@@ -283,6 +310,7 @@
             carbs_g: 9.58,
             fat_g: 0.24,
             fiber_g: 2.8,
+            water_g: 88.29, // SR28 NDB 11124, the base above
             vitamins: (A: 0.93, B: 0.05, C: 0.07, D: 0.0, E: 0.04, K: 0.11),
             minerals: (iron: 0.3, calcium: 33.0, zinc: 0.24, potassium: 320.0),
             spoilage_rate_hours: 336.0,
@@ -308,6 +336,7 @@
             carbs_g: 27.88,
             fat_g: 0.17,
             fiber_g: 4.1,
+            water_g: 69.60, // SR28 NDB 11601, the base above; potato is 79.25, garlic 58.58
             vitamins: (A: 0.01, B: 0.06, C: 0.19, D: 0.0, E: 0.02, K: 0.02),
             minerals: (iron: 0.54, calcium: 17.0, zinc: 0.24, potassium: 816.0),
             spoilage_rate_hours: 336.0,
@@ -330,6 +359,7 @@
             carbs_g: 38.06,
             fat_g: 0.28,
             fiber_g: 1.8,
+            water_g: 59.68, // SR28 NDB 11134, the base above
             vitamins: (A: 0.0, B: 0.05, C: 0.23, D: 0.0, E: 0.01, K: 0.02),
             minerals: (iron: 0.27, calcium: 16.0, zinc: 0.34, potassium: 271.0),
             spoilage_rate_hours: 168.0,
@@ -355,6 +385,7 @@
             carbs_g: 60.01,
             fat_g: 0.83,
             fiber_g: 24.9,
+            water_g: 11.75, // SR28 NDB 16027, the base above
             vitamins: (A: 0.0, B: 0.33, C: 0.05, D: 0.0, E: 0.01, K: 0.16),
             minerals: (iron: 8.2, calcium: 143.0, zinc: 2.79, potassium: 1406.0),
             spoilage_rate_hours: 8760.0,
@@ -373,6 +404,7 @@
             carbs_g: 14.45,
             fat_g: 0.4,
             fiber_g: 5.7,
+            water_g: 78.86, // SR28 NDB 11304, the base above
             vitamins: (A: 0.04, B: 0.12, C: 0.44, D: 0.0, E: 0.01, K: 0.21),
             minerals: (iron: 1.47, calcium: 25.0, zinc: 1.24, potassium: 244.0),
             spoilage_rate_hours: 72.0,
@@ -395,6 +427,7 @@
             carbs_g: 22.42,
             fat_g: 53.5,
             fiber_g: 6.4,
+            water_g: 2.13, // SR28 NDB 12135, the base above (dry roasted); raw kernels carry 4 to 7 g (walnut 4.07, hazelnut 5.31, peanut 6.50)
             vitamins: (A: 0.0, B: 0.22, C: 0.01, D: 0.0, E: 0.41, K: 0.1),
             minerals: (iron: 3.73, calcium: 87.0, zinc: 4.06, potassium: 643.0),
             spoilage_rate_hours: 2880.0,
@@ -413,6 +446,7 @@
             carbs_g: 15.23,
             fat_g: 33.49,
             fiber_g: 9.0,
+            water_g: 46.99, // SR28 NDB 12104, the base above
             vitamins: (A: 0.0, B: 0.03, C: 0.04, D: 0.0, E: 0.02, K: 0.0),
             minerals: (iron: 2.43, calcium: 14.0, zinc: 1.1, potassium: 356.0),
             spoilage_rate_hours: 168.0,
@@ -436,6 +470,7 @@
             carbs_g: 6.33,
             fat_g: 0.79,
             fiber_g: 3.3,
+            water_g: 87.71, // SR28 NDB 11297, the base above
             vitamins: (A: 0.47, B: 0.11, C: 1.48, D: 0.0, E: 0.05, K: 13.67),
             minerals: (iron: 6.2, calcium: 138.0, zinc: 1.07, potassium: 554.0),
             spoilage_rate_hours: 168.0,
@@ -457,6 +492,7 @@
             carbs_g: 3.37,
             fat_g: 33.31,
             fiber_g: 0.0,
+            water_g: 37.02, // SR28 NDB 01009, the base above
             vitamins: (A: 0.37, B: 0.15, C: 0.0, D: 0.03, E: 0.05, K: 0.02),
             minerals: (iron: 0.14, calcium: 710.0, zinc: 3.64, potassium: 76.0),
             spoilage_rate_hours: 504.0,
@@ -478,6 +514,7 @@
             carbs_g: 4.8,
             fat_g: 3.25,
             fiber_g: 0.0,
+            water_g: 88.13, // SR28 NDB 01077, the base above
             vitamins: (A: 0.05, B: 0.07, C: 0.0, D: 0.07, E: 0.0, K: 0.0),
             minerals: (iron: 0.03, calcium: 113.0, zinc: 0.37, potassium: 132.0),
             spoilage_rate_hours: 168.0,
@@ -499,6 +536,7 @@
             carbs_g: 0.0,
             fat_g: 100.0,
             fiber_g: 0.0,
+            water_g: 0.00, // SR28 NDB 04002 lard, the base above; butter carries 15.87 (NDB 01001)
             vitamins: (A: 0.0, B: 0.0, C: 0.0, D: 0.13, E: 0.04, K: 0.0),
             minerals: (iron: 0.0, calcium: 0.0, zinc: 0.11, potassium: 0.0),
             spoilage_rate_hours: 720.0,
@@ -517,6 +555,7 @@
             carbs_g: 82.4,
             fat_g: 0.0,
             fiber_g: 0.2,
+            water_g: 17.10, // SR28 NDB 19296, the base above
             vitamins: (A: 0.0, B: 0.01, C: 0.01, D: 0.0, E: 0.0, K: 0.0),
             minerals: (iron: 0.42, calcium: 6.0, zinc: 0.22, potassium: 52.0),
             spoilage_rate_hours: 17520.0,
@@ -536,6 +575,7 @@
             carbs_g: 99.98,
             fat_g: 0.0,
             fiber_g: 0.0,
+            water_g: 0.02, // SR28 NDB 19335, the base above
             vitamins: (A: 0.0, B: 0.0, C: 0.0, D: 0.0, E: 0.0, K: 0.0),
             minerals: (iron: 0.05, calcium: 1.0, zinc: 0.01, potassium: 2.0),
             spoilage_rate_hours: 87600.0,
@@ -557,6 +597,7 @@
             carbs_g: 0.0,
             fat_g: 0.0,
             fiber_g: 0.0,
+            water_g: 99.98, // SR28 NDB 14555, the base above
             vitamins: (A: 0.0, B: 0.0, C: 0.0, D: 0.0, E: 0.0, K: 0.0),
             minerals: (iron: 0.0, calcium: 10.0, zinc: 0.0, potassium: 0.0),
             spoilage_rate_hours: 87600.0,
@@ -583,6 +624,7 @@
             carbs_g: 1.35,
             fat_g: 0.0,
             fiber_g: 0.0,
+            water_g: 98.00, // one litre of water (1,000 g) and one sachet's 20.5 g of salts and glucose (WHO/FCH/CAH/06.1, Table 1), 1,020.5 g in all: items.csv weighs it 1.02 kg
             vitamins: (A: 0.0, B: 0.0, C: 0.0, D: 0.0, E: 0.0, K: 0.0),
             minerals: (iron: 0.0, calcium: 0.0, zinc: 0.0, potassium: 78.0),
             spoilage_rate_hours: 24.0,
@@ -604,6 +646,7 @@
             carbs_g: 11.3,
             fat_g: 0.13,
             fiber_g: 0.2,
+            water_g: 88.24, // SR28 NDB 09016, the base above
             vitamins: (A: 0.0, B: 0.01, C: 0.01, D: 0.0, E: 0.0, K: 0.0),
             minerals: (iron: 0.12, calcium: 8.0, zinc: 0.02, potassium: 101.0),
             spoilage_rate_hours: 144.0,
@@ -623,6 +666,7 @@
             carbs_g: 15.0,
             fat_g: 0.0,
             fiber_g: 0.0,
+            water_g: 84.52, // SR28 NDB 14060, the base above
             vitamins: (A: 0.0, B: 0.37, C: 0.28, D: 0.0, E: 0.0, K: 0.0),
             minerals: (iron: 0.0, calcium: 0.0, zinc: 0.63, potassium: 10.0),
             spoilage_rate_hours: 8760.0,
@@ -644,6 +688,7 @@
             carbs_g: 0.0,
             fat_g: 0.02,
             fiber_g: 0.0,
+            water_g: 99.39, // SR28 NDB 14209, the base above
             vitamins: (A: 0.0, B: 0.01, C: 0.0, D: 0.0, E: 0.0, K: 0.0),
             minerals: (iron: 0.01, calcium: 2.0, zinc: 0.02, potassium: 49.0),
             spoilage_rate_hours: 2160.0,
@@ -663,6 +708,7 @@
             carbs_g: 0.3,
             fat_g: 0.0,
             fiber_g: 0.0,
+            water_g: 99.70, // SR28 NDB 14355, the base above
             vitamins: (A: 0.0, B: 0.0, C: 0.0, D: 0.0, E: 0.0, K: 0.0),
             minerals: (iron: 0.02, calcium: 0.0, zinc: 0.02, potassium: 37.0),
             spoilage_rate_hours: 17520.0,
@@ -683,6 +729,7 @@
             carbs_g: 49.42,
             fat_g: 3.33,
             fiber_g: 2.7,
+            water_g: 36.42, // SR28 NDB 18069, the base above
             vitamins: (A: 0.0, B: 0.23, C: 0.0, D: 0.0, E: 0.01, K: 0.0),
             minerals: (iron: 3.61, calcium: 144.0, zinc: 0.74, potassium: 126.0),
             spoilage_rate_hours: 72.0,
@@ -702,6 +749,7 @@
             carbs_g: 53.0,
             fat_g: 14.6,
             fiber_g: 0.7,
+            water_g: 25.10, // SR28 NDB 18146, the base above
             vitamins: (A: 0.04, B: 0.11, C: 0.0, D: 0.0, E: 0.0, K: 0.0),
             minerals: (iron: 1.64, calcium: 146.0, zinc: 0.45, potassium: 91.0),
             spoilage_rate_hours: 72.0,
@@ -721,6 +769,7 @@
             carbs_g: 67.34,
             fat_g: 19.55,
             fiber_g: 1.3,
+            water_g: 6.29, // SR28 NDB 18204, the base above
             vitamins: (A: 0.01, B: 0.15, C: 0.0, D: 0.0, E: 0.2, K: 0.07),
             minerals: (iron: 2.24, calcium: 35.0, zinc: 0.43, potassium: 87.0),
             spoilage_rate_hours: 1440.0,
@@ -741,6 +790,7 @@
             carbs_g: 34.0,
             fat_g: 11.0,
             fiber_g: 1.6,
+            water_g: 52.20, // SR28 NDB 18301, the base above
             vitamins: (A: 0.04, B: 0.03, C: 0.04, D: 0.0, E: 0.1, K: 0.03),
             minerals: (iron: 0.45, calcium: 11.0, zinc: 0.16, potassium: 65.0),
             spoilage_rate_hours: 168.0,
@@ -761,6 +811,7 @@
             carbs_g: 7.9,
             fat_g: 0.36,
             fiber_g: 1.1,
+            water_g: 89.53, // SR28 NDB 06067, the base above
             vitamins: (A: 0.06, B: 0.02, C: 0.01, D: 0.0, E: 0.01, K: 0.07),
             minerals: (iron: 0.51, calcium: 18.0, zinc: 0.23, potassium: 180.0),
             spoilage_rate_hours: 72.0,
@@ -778,6 +829,7 @@
             carbs_g: 6.29,
             fat_g: 5.07,
             fiber_g: 1.3,
+            water_g: 78.58, // FNDDS 2021-2023 27311410, the base above (FDC 2706592)
             vitamins: (A: 0.14, B: 0.12, C: 0.08, D: 0.0, E: 0.02, K: 0.05),
             minerals: (iron: 0.97, calcium: 17.0, zinc: 2.03, potassium: 254.0),
             spoilage_rate_hours: 72.0,
@@ -796,6 +848,7 @@
             carbs_g: 29.95,
             fat_g: 16.11,
             fiber_g: 1.4,
+            water_g: 36.07, // FNDDS 2021-2023 14640008, the base above (FDC 2705797)
             vitamins: (A: 0.14, B: 0.2, C: 0.0, D: 0.01, E: 0.03, K: 0.01),
             minerals: (iron: 2.04, calcium: 415.0, zinc: 2.03, potassium: 101.0),
             spoilage_rate_hours: 72.0,
@@ -814,6 +867,7 @@
             carbs_g: 17.77,
             fat_g: 1.89,
             fiber_g: 1.7,
+            water_g: 75.56, // SR28 NDB 36046, the base above
             vitamins: (A: 0.01, B: 0.06, C: 0.01, D: 0.0, E: 0.05, K: 0.03),
             minerals: (iron: 0.9, calcium: 15.0, zinc: 0.35, potassium: 140.0),
             spoilage_rate_hours: 72.0,
@@ -832,6 +886,7 @@
             carbs_g: 29.02,
             fat_g: 12.28,
             fiber_g: 2.2,
+            water_g: 46.28, // SR28 NDB 21224, the base above
             vitamins: (A: 0.07, B: 0.17, C: 0.01, D: 0.0, E: 0.07, K: 0.06),
             minerals: (iron: 2.27, calcium: 179.0, zinc: 1.32, potassium: 152.0),
             spoilage_rate_hours: 72.0,
@@ -849,6 +904,7 @@
             carbs_g: 0.64,
             fat_g: 11.66,
             fiber_g: 0.0,
+            water_g: 76.13, // SR28 NDB 01130, the base above
             vitamins: (A: 0.19, B: 0.14, C: 0.0, D: 0.09, E: 0.09, K: 0.04),
             minerals: (iron: 1.48, calcium: 48.0, zinc: 1.09, potassium: 117.0),
             spoilage_rate_hours: 72.0,
@@ -868,6 +924,7 @@
             carbs_g: 18.39,
             fat_g: 2.15,
             fiber_g: 0.3,
+            water_g: 75.15, // SR28 NDB 19193, the base above
             vitamins: (A: 0.02, B: 0.05, C: 0.01, D: 0.0, E: 0.0, K: 0.0),
             minerals: (iron: 0.11, calcium: 95.0, zinc: 0.43, potassium: 125.0),
             spoilage_rate_hours: 72.0,
@@ -892,6 +949,7 @@
             carbs_g: 28.17,
             fat_g: 0.28,
             fiber_g: 0.4,
+            water_g: 68.44, // SR28 NDB 20445, the base above
             vitamins: (A: 0.0, B: 0.02, C: 0.0, D: 0.0, E: 0.0, K: 0.0),
             minerals: (iron: 0.2, calcium: 10.0, zinc: 0.49, potassium: 35.0),
             spoilage_rate_hours: 96.0,
@@ -909,6 +967,7 @@
             carbs_g: 0.0,
             fat_g: 0.86,
             fiber_g: 0.0,
+            water_g: 75.92, // SR28 NDB 15016, the base above
             vitamins: (A: 0.02, B: 0.15, C: 0.01, D: 0.06, E: 0.05, K: 0.0),
             minerals: (iron: 0.49, calcium: 14.0, zinc: 0.58, potassium: 244.0),
             spoilage_rate_hours: 72.0,
@@ -929,6 +988,7 @@
             carbs_g: 11.0,
             fat_g: 25.6,
             fiber_g: 1.8,
+            water_g: 23.36, // SR28 NDB 19002, the base above
             vitamins: (A: 0.0, B: 0.2, C: 0.0, D: 0.02, E: 0.03, K: 0.02),
             minerals: (iron: 5.42, calcium: 20.0, zinc: 8.11, potassium: 597.0),
             spoilage_rate_hours: 720.0,
@@ -948,6 +1008,7 @@
             carbs_g: 65.89,
             fat_g: 0.32,
             fiber_g: 8.7,
+            water_g: 31.76, // SR28 NDB 09011, the base above; medjool dates 21.32
             vitamins: (A: 0.0, B: 0.04, C: 0.04, D: 0.0, E: 0.04, K: 0.03),
             minerals: (iron: 1.4, calcium: 14.0, zinc: 0.2, potassium: 450.0),
             spoilage_rate_hours: 720.0,
@@ -972,6 +1033,7 @@
             carbs_g: 25.5,
             fat_g: 8.0,
             fiber_g: 2.0,
+            water_g: 45.00, // FLAGGED ESTIMATE per 100 g packed, like the rest of the row: its protein, carbohydrate and fat are 40 g of each 100 g, and the other 60 g is water, minerals and the packaging, which no source here weighs. 45 is a judgement: the entree pouch is mostly water, the crackers, spread and drink powder nearly none
             vitamins: (A: 0.05, B: 0.05, C: 0.05, D: 0.05, E: 0.05, K: 0.05),
             minerals: (iron: 1.0, calcium: 70.0, zinc: 0.6, potassium: 250.0),
             spoilage_rate_hours: 26280.0,
@@ -991,6 +1053,7 @@
             carbs_g: 55.22,
             fat_g: 9.94,
             fiber_g: 4.7,
+            water_g: 9.00, // FNDDS 2021-2023 53729000, the base above (FDC 2708127)
             vitamins: (A: 0.58, B: 0.75, C: 1.16, D: 0.0, E: 0.81, K: 0.16),
             minerals: (iron: 5.11, calcium: 284.0, zinc: 5.96, potassium: 331.0),
             spoilage_rate_hours: 4380.0,

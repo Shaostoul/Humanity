@@ -274,4 +274,228 @@
         ("milk_0", 1.0),             // items.csv "Fresh whole milk 1L"
         ("ors_solution_0", 1.0),     // items.csv "Oral Rehydration Solution (1 L)"
     ],
+
+    // HOW MUCH FOOD ONE ITEM IS (2026-10-20): (item id, grams eaten). Eating
+    // one puts back what those grams carry: their food energy (the profile's
+    // kcal per 100 g in data/food_system.ron) as Satiation, a day's 2,000 kcal
+    // for a day's hunger, and their water (the profile's water_g) as
+    // Hydration, at 20 points a litre (src/systems/food.rs, SATIATION_PER_KCAL
+    // and HYDRATION_PER_LITRE). Until then an item gave the same whatever it
+    // weighed: 0.15 Satiation for each kcal in 100 g of its food, so a 50 g
+    // bunch of basil fed like 100 g of it and a 300 g loaf of bread gave 40
+    // points, nearly three days of hunger; and 10 Hydration for any produce,
+    // 3 for anything else.
+    //
+    // THE GRAMS are what is eaten of the item as data/items.csv weighs it
+    // (weight_kg): the whole item, less the part USDA counts as refuse, the
+    // peel, core, pits, shell, rind, husk, cob or bone. Farming and the
+    // harvest count an item at its items.csv weight, so a 0.3 kg "Fresh
+    // harvested strawberry" is a picking of 300 g, and 282 g of it is eaten.
+    // The refuse figures are USDA's, read 2026-10-20 from the SR28 page
+    // reports by food group (USDA ARS, "USDA National Nutrient Database for
+    // Standard Reference, Release 28", https://www.ars.usda.gov/ARSUserFiles/
+    // 80400535/Data/SR/SR28/reports/sr28fgNN.pdf, NN the food group: 09 fruit,
+    // 11 vegetables, 12 nuts, 02 herbs, 01 eggs, 05 poultry), cited by NDB
+    // number on each line. Where an item is one natural thing (an apple, an
+    // egg, an ear of corn) the line also gives USDA's household portion of it
+    // (the same report, or FoodData Central's portions for the same food), and
+    // the two land within a tenth or so of each other.
+    //
+    // Packaging is not weighed apart anywhere in the game (a 500 mL water
+    // bottle weighs 0.5 kg in items.csv and is drunk as 0.5 L), so a packed
+    // food's grams are its items.csv weight. A drink is not listed here: one
+    // drink is its `drinks` litres, taken as that many kilograms (a cup of
+    // whole milk is 244 g against 236.6 mL, so milk and juice read 3 to 5%
+    // light). Meat is boneless: a carcass drops its bones as their own item
+    // (data/creatures.csv).
+    //
+    // Every item in `items` that is not a drink needs a row, and no row may
+    // say more grams than items.csv weighs the item (the coverage test
+    // every_food_says_how_much_of_it_is_eaten in src/systems/food.rs).
+    portions: [
+        // --- Meat, fish, eggs, dairy, fats ---
+        ("raw_meat_0", 600.0),       // items.csv 0.6 kg of butchered meat, the bones apart
+        ("raw_beef_0", 600.0),
+        ("raw_pork_0", 600.0),
+        ("raw_mutton_0", 600.0),
+        ("raw_venison_0", 600.0),
+        ("raw_poultry_0", 600.0),
+        ("alien_meat_0", 600.0),
+        ("raw_fish_0", 600.0),
+        ("roast_chicken_0", 1005.0), // a 1.5 kg whole roast bird less USDA's 33% bone (NDB 05009, broiler meat and skin, roasted)
+        ("fish_grilled_0", 400.0),   // a 0.4 kg fillet
+        ("egg_0", 52.8),             // 60 g in the shell less USDA's 12% shell (NDB 01123); USDA's large egg is 50 g, extra large 56 g
+        ("cheese_0", 300.0),
+        ("butter_0", 250.0),
+        ("cooking_oil_0", 461.0),    // 500 mL at USDA's 218 g a cup (NDB 04582, canola oil; a cup is 236.6 mL); the 0.5 kg is that and its bottle
+        ("animal_fat_0", 500.0),
+        ("blubber_0", 500.0),
+        ("sky_blubber_0", 500.0),
+
+        // --- Preserved and packaged ---
+        ("canned_food_0", 400.0),
+        ("mre_0", 500.0),            // field_ration is per 100 g of PACKED ration, so all 0.5 kg
+        ("ration_basic_0", 400.0),   // the same
+        ("jerky_0", 100.0),
+        ("dried_meat_0", 100.0),
+        ("dried_fruit_0", 150.0),
+        ("fruit_date_palm_0", 276.0), // 0.3 kg less USDA's 8% pits (NDB 09421, medjool, the 277 kcal date)
+        ("protein_bar_0", 80.0),
+        ("honey_0", 500.0),
+        ("sugar_0", 500.0),
+
+        // --- Baked goods and cooked dishes: the whole item ---
+        ("bread_0", 300.0),          // a 300 g loaf, about ten of USDA's 29 g slices (NDB 18069)
+        ("cake_0", 1000.0),
+        ("cookies_batch_0", 300.0),
+        ("pie_0", 800.0),
+        ("soup_vegetable_0", 600.0),
+        ("stew_meat_0", 700.0),
+        ("sandwich_0", 300.0),
+        ("pasta_cooked_0", 400.0),
+        ("pizza_slice_0", 250.0),
+        ("omelette_0", 300.0),
+        ("porridge_0", 400.0),
+        ("cooked_rice_0", 350.0),
+        ("salad_0", 400.0),
+
+        // --- Grains, flour and dry legumes: 500 g and 300 g bags, no refuse ---
+        ("rice_0", 500.0),
+        ("flour_0", 500.0),
+        ("grain_wheat_0", 500.0),
+        ("grain_corn_0", 500.0),
+        ("barley_dehulled_0", 500.0),
+        ("oat_groats_0", 500.0),
+        ("spelt_dehulled_0", 500.0),
+        ("grain_rye_0", 500.0),
+        ("grain_sorghum_0", 500.0),
+        ("grain_millet_0", 500.0),
+        ("grain_amaranth_0", 500.0),
+        ("grain_quinoa_0", 500.0),
+        ("grain_buckwheat_0", 500.0),
+        ("grain_teff_0", 500.0),
+        ("grain_finger_millet_0", 500.0),
+        ("grain_triticale_0", 500.0),
+        ("legume_bean_0", 300.0),
+        ("legume_soybean_0", 300.0),
+        ("legume_lentil_0", 300.0),
+        ("legume_chickpea_0", 300.0),
+        ("legume_cowpea_0", 300.0),
+        ("legume_fava_bean_0", 300.0),
+        ("legume_pigeon_pea_0", 300.0),
+        ("legume_lupin_0", 300.0),
+        ("legume_mung_bean_0", 300.0),
+        ("legume_bambara_groundnut_0", 300.0),
+        ("legume_pea_0", 300.0),     // already shelled (USDA's 62% refuse for green peas is the pods, NDB 11304)
+
+        // --- Nuts and seeds: the kernel of what is weighed in the shell ---
+        // The edible shares are the ones data/food/crop_nutrition.ron uses for
+        // the same harvest items, sourced there.
+        ("legume_peanut_0", 200.1),  // 0.3 kg in the shell x 0.667 kernel (Alternative Field Crops Manual, "Peanut")
+        ("fruit_hazelnut_0", 123.0), // 0.3 kg less USDA's 59% shells (NDB 12120)
+        ("fruit_walnut_0", 135.0),   // 0.3 kg less USDA's 55% shells (NDB 12155)
+        ("fruit_sunflower_0", 375.0), // 0.5 kg of oil-type seed less a 25% hull (Feedipedia; USDA's 46% is the thick-hulled confection seed, NDB 12036)
+        ("grain_sesame_0", 500.0),   // eaten whole, no refuse (NDB 12023)
+        ("fruit_coconut_0", 156.0),  // 0.3 kg husked coconut less USDA's 48% "Shells (brown), skin, water" (NDB 12104): the meat
+
+        // --- Fruit: items.csv weight less USDA's refuse ---
+        ("fruit_apple_0", 180.0),    // 0.2 kg less 10% core and stem (NDB 09003); USDA's medium apple is 182 g
+        ("fruit_banana_0", 96.0),    // 0.15 kg less 36% skin (NDB 09040); USDA's small banana is 101 g
+        ("fruit_orange_0", 146.0),   // 0.2 kg less 27% peel and seeds (NDB 09200); USDA's small orange 96 g, large 184 g
+        ("fruit_lemon_0", 159.0),    // 0.3 kg less 47%, 45% peel and 2% seeds (NDB 09150)
+        ("fruit_berries_0", 96.0),   // 0.1 kg less 4% caps and spoiled berries (raspberries NDB 09302, blackberries 09042)
+        ("fruit_strawberry_0", 282.0), // 0.3 kg less 6% caps and stems (NDB 09316)
+        ("fruit_blueberry_0", 285.0), // 0.3 kg less 5% stems and spoiled berries (NDB 09050)
+        ("fruit_cranberry_0", 294.0), // 0.3 kg less 2% stems and spoiled berries (NDB 09078)
+        ("fruit_grape_0", 288.0),    // 0.3 kg less 4% stems (NDB 09132)
+        ("fruit_cherry_0", 276.0),   // 0.3 kg less 8% pits and stems (NDB 09070, sweet)
+        ("fruit_watermelon_0", 156.0), // 0.3 kg less 48% rind, seeds and cutting loss (NDB 09326)
+        ("fruit_peach_0", 288.0),    // 0.3 kg less 4% pit (NDB 09236)
+        ("fruit_pear_0", 270.0),     // 0.3 kg less 10% stem, core and seeds (NDB 09252)
+        ("fruit_plum_0", 282.0),     // 0.3 kg less 6% pits (NDB 09279)
+        ("fruit_mango_0", 213.0),    // 0.3 kg less 29% seeds and skin (NDB 09176)
+        ("fruit_pineapple_0", 153.0), // 0.3 kg less 49%: core, crown and parings (NDB 09266)
+        ("fruit_fig_0", 297.0),      // 0.3 kg less 1% stems (NDB 09089)
+        ("fruit_pomegranate_0", 168.0), // 0.3 kg less 44% skin and membrane (NDB 09286)
+        ("fruit_prickly_pear_0", 225.0), // 0.3 kg less 25% seeds, skin and bud end (NDB 09287)
+
+        // --- Vegetables (fresh) ---
+        ("vegetable_tomato_0", 182.0), // 0.2 kg less 9% core and stem ends (NDB 11529)
+        ("fruit_pepper_0", 246.0),   // 0.3 kg less 18% stem ends, seeds and core (NDB 11821)
+        ("fruit_eggplant_0", 243.0), // 0.3 kg less 19% ends, parings and trimmings (NDB 11209)
+        ("fruit_pumpkin_0", 210.0),  // 0.3 kg less 30% seeds, rind and stem (NDB 11422)
+        ("vegetable_cucumber_0", 291.0), // 0.3 kg less 3% ends (NDB 11205, with peel)
+        ("vegetable_zucchini_0", 285.0), // 0.3 kg less 5% ends (NDB 11477)
+        ("vegetable_squash_0", 285.0), // 0.3 kg less 5% ends (NDB 11641, summer squash)
+        ("vegetable_okra_0", 258.0), // 0.3 kg less 14% crown and tips (NDB 11278)
+        ("vegetable_lettuce_0", 192.0), // 0.3 kg less 36% outer leaves, core and trimmings (NDB 11253, green leaf)
+        ("vegetable_spinach_0", 216.0), // 0.3 kg less 28% large stems and roots (NDB 11457)
+        ("vegetable_kale_0", 216.0), // 0.3 kg less 28% stem ends, tough stems and midribs (NDB 11233)
+        ("vegetable_collard_0", 171.0), // 0.3 kg less 43% stems (NDB 11161)
+        ("vegetable_chard_0", 276.0), // 0.3 kg less 8% tough stems and damaged leaves (NDB 11147)
+        ("vegetable_mustard_greens_0", 279.0), // 0.3 kg less 7% bases (NDB 11270)
+        ("vegetable_arugula_0", 120.0), // 0.2 kg less 40% roots, stems and yellowed leaves (NDB 11959)
+        ("vegetable_mache_0", 200.0), // SR28 gives cornsalad no refuse (NDB 11190)
+        ("vegetable_chicory_0", 273.0), // 0.3 kg less 9% core and leaf ends (NDB 11952, radicchio, crop_nutrition's row)
+        ("vegetable_bok_choy_0", 352.0), // 0.4 kg less 12% base and damaged leaves (NDB 11116)
+        ("vegetable_cabbage_0", 640.0), // 0.8 kg less 20% outer leaves and core (NDB 11109)
+        ("vegetable_brussels_sprout_0", 450.0), // 0.5 kg less 10% outer leaves (NDB 11098)
+        ("vegetable_broccoli_0", 183.0), // 0.3 kg less 39% leaves and tough stalks (NDB 11090)
+        ("vegetable_cauliflower_0", 117.0), // 0.3 kg less 61% leaf stalks, cores and trimmings (NDB 11135)
+        ("vegetable_celery_0", 267.0), // 0.3 kg less 11% roots and trimmings (NDB 11143)
+        ("vegetable_fennel_0", 288.0), // 0.4 kg less 28% stalk, leaves and core (NDB 11957)
+        ("vegetable_asparagus_0", 159.0), // 0.3 kg less 47% butt ends (NDB 11011)
+        ("vegetable_artichoke_0", 120.0), // 0.3 kg less 60% stem and the inedible parts of bracts and flower (NDB 11007)
+        ("vegetable_rhubarb_0", 450.0), // 0.6 kg less 25%, 19% ends and 6% leaves (NDB 09307)
+        ("vegetable_radish_0", 270.0), // 0.3 kg less 10% stem ends, rootlets and trimmings (NDB 11429)
+        ("vegetable_moringa_0", 186.0), // 0.3 kg less 38% stems (NDB 11222, drumstick leaves)
+        ("herb_dandelion_0", 50.0),  // no refuse (NDB 11207)
+        ("vegetable_oyster_mushroom_0", 267.0), // 0.3 kg less 11% stems (NDB 11987)
+        ("vegetable_shiitake_0", 300.0), // no refuse (NDB 11238)
+        ("vegetable_button_mushroom_0", 291.0), // 0.3 kg less 3% trimmings (NDB 11260)
+        ("vegetable_runner_bean_0", 264.0), // 0.3 kg less 12% ends, strings and trimmings (NDB 11052, green snap beans)
+
+        // --- Roots and bulbs ---
+        ("vegetable_carrot_0", 133.5), // 0.15 kg less 11% crown, tops and scrapings (NDB 11124)
+        ("vegetable_beet_0", 201.0), // 0.3 kg less 33% parings and part tops (NDB 11080)
+        ("vegetable_turnip_0", 243.0), // 0.3 kg less 19% parings (NDB 11564)
+        ("vegetable_rutabaga_0", 255.0), // 0.3 kg less 15% parings (NDB 11435)
+        ("vegetable_parsnip_0", 255.0), // 0.3 kg less 15% parings (NDB 11298)
+        ("vegetable_sugar_beet_0", 201.0), // no SR28 row: the table beet's 33% (NDB 11080)
+        ("vegetable_horseradish_0", 340.0), // SR28 has only the prepared root: peeled like a parsnip, 15% (NDB 11298)
+        ("vegetable_onion_0", 135.0), // 0.15 kg less 10% stem ends, sprouts and defects (NDB 11282)
+        ("vegetable_leek_0", 132.0), // 0.3 kg less 56% tops, root end and skin (NDB 11246)
+        ("herb_ginger_0", 46.5),     // 50 g less 7% scrapings (NDB 11216)
+        ("herb_turmeric_0", 46.5),   // no SR28 row: ginger's 7%, the rhizome crop_nutrition stands it on
+
+        // --- Starchy staples ---
+        ("vegetable_potato_0", 225.0), // 0.3 kg less 25% parings and trimmings (NDB 11352, flesh and skin)
+        ("vegetable_sweet_potato_0", 216.0), // 0.3 kg less 28% parings and trimmings (NDB 11507)
+        ("vegetable_yam_0", 258.0),  // 0.3 kg less 14% skin (NDB 11601)
+        ("vegetable_taro_0", 258.0), // 0.3 kg less 14% ends and skin (NDB 11518)
+        ("vegetable_jerusalem_artichoke_0", 207.0), // 0.3 kg less 31% parings (NDB 11226)
+        ("vegetable_oca_0", 225.0),  // no SR28 row: the potato's 25%, the nearest tuber
+        ("vegetable_corn_0", 90.0),  // a 0.25 kg ear less 64%, 35% husk and silk, 29% cob (NDB 11167); USDA's medium ear yields 102 g
+        ("vegetable_garlic_0", 261.0), // 0.3 kg less 13% knob and skin (NDB 11215)
+        ("fruit_plantain_0", 162.5), // 0.25 kg less 35% skin and stems (NDB 09277); USDA's medium plantain is 179 g
+        ("fruit_breadfruit_0", 234.0), // 0.3 kg less 22%, 9% core and 13% skin (NDB 09059)
+        ("fruit_chestnut_0", 222.0), // 0.3 kg less 26% shells (NDB 12097, european, unpeeled)
+        ("vegetable_cassava_0", 252.0), // 0.3 kg less 16% skin (NDB 11134)
+
+        // --- Culinary herbs: 50 g bunches less their stems ---
+        ("herb_basil_0", 32.0),      // 36% tough stems, flower heads and trimmings (NDB 02044)
+        ("herb_mint_0", 30.5),       // 39% stems (NDB 02064, peppermint, crop_nutrition's row)
+        ("herb_parsley_0", 47.5),    // 5% tough stems (NDB 11297)
+        ("herb_cilantro_0", 42.5),   // 15% roots, old and bruised leaves (NDB 11165)
+        ("herb_dill_0", 29.5),       // 41% tough stems and trimmings (NDB 02045)
+        ("herb_chive_0", 50.0),      // no refuse (NDB 11156)
+        ("herb_rosemary_0", 32.5),   // 35% stems (NDB 02063)
+        ("herb_thyme_0", 34.0),      // 32% stems (NDB 02049)
+        ("herb_oregano_0", 34.0),    // no fresh SR28 row: thyme's 32%, the herb crop_nutrition stands it on
+        ("herb_sage_0", 32.5),       // no fresh SR28 row: rosemary's 35%, as in crop_nutrition
+        ("herb_lemongrass_0", 32.5), // 35% tough stem (NDB 11972)
+        ("herb_lavender_0", 50.0),   // no SR28 row: the whole bunch
+        ("herb_chamomile_0", 50.0),  // no SR28 row: the whole bunch
+        ("herb_tea_0", 50.0),        // no SR28 row: the whole bunch of fresh leaves
+    ],
 )

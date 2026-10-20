@@ -2646,9 +2646,18 @@ and measured human trials (Helland et al. 2025; Thompson and Hayward 1996).
   point (an hour walking in dry 35 C air, about 0.2 L; hard work in heat several times that), scaled by the
   Vitals drain slider (`BodyHeat::sweat_litres`, `HeatOutcome::sweat_l`, `food::HYDRATION_PER_LITRE`).
 - **A drink puts back the water it carries** (2026-10-20): its litres (`drinks` in
-  `data/food/item_profiles.ron`) times the share of it that is water (its profile's macros) at 20 points a
-  litre, so a 500 mL bottle of water puts back 10 points, a litre jug 20, a litre of milk about 18 and a cup of
-  coffee under 5 (`FoodSystem::drink_points`). Every drink gave 30 points before, whatever it was.
+  `data/food/item_profiles.ron`) times the share of it that is water (its profile's `water_g`, USDA's figure) at
+  20 points a litre, so a 500 mL bottle of water puts back 10 points, a litre jug 20, a litre of milk about 18
+  and a cup of coffee under 5 (`FoodSystem::drink_points`). Every drink gave 30 points before, whatever it was.
+- **Food feeds and waters by what it weighs** (2026-10-20): every food says how many grams of it are eaten
+  (`portions` in `data/food/item_profiles.ron`: its items.csv weight less the peel, core, shell, rind or bone
+  USDA's SR28 counts as refuse, cited per row), and those grams put back their food energy at a day's 2,000 kcal
+  (21 CFR 101.9(d)(9)) for a day's hunger (`SATIATION_PER_KCAL`) and their water at 20 points a litre (each
+  profile's `water_g` in `data/food_system.ron`, USDA's figure). A 300 g loaf of bread 5.7 Satiation and 2.2
+  Hydration, a cucumber 0.5 and 5.4 (`FoodSystem::portion_g`, `satiation_points`, `water_points`). It was 0.15
+  points per kcal in 100 g whatever the item weighed (a loaf 40, nearly three days) and 10 Hydration for produce,
+  3 for the rest. Coverage tests: `every_food_says_how_much_of_it_is_eaten`,
+  `every_profile_says_how_much_water_it_carries`.
 - Native: `src/systems/body_heat.rs` (model, tests in `body_heat_tests.rs`), `src/systems/food.rs` (the vitals
   pass), `src/engine/survival_env.rs` (inputs), `src/gui/pages/settings.rs` (mode)
 - Data: `data/equipment.csv` (`clo`), `data/status_effects.csv` (the four conditions)

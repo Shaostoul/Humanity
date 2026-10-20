@@ -1114,7 +1114,16 @@ The game models going without food, and nothing finer, and its limits are
 worth knowing so you do not mistake the game for the world.
 
 Your Satiation bar empties over about a week; below a quarter you are
-Hungry, which slows you, and at empty your health starts to fall. Since 12
+Hungry, which slows you, and at empty your health starts to fall. What
+you eat fills it by its energy and its weight, the way this guide asks
+you to count: every food in the game says how many grams of it are eaten
+(its weight less the peel, core, shell or bone USDA counts as waste,
+`portions` in `data/food/item_profiles.ron`), and a day's 2,000 kcal, the
+figure the US Nutrition Facts label is written for, fills a day's worth.
+So a 300 g loaf of bread is two fifths of a day and a 300 g cucumber a
+thirtieth, the density problem below in miniature. Until 20 October 2026
+every item of a food gave the same whatever it weighed, and a loaf filled
+nearly three days. Since 12
 October 2026 a body that is Hungry or Thirsty also heals at half its usual
 rate, and one that is starving does not heal at all
 (`data/medical/wounds.ron`): a nod to how much going short slows wound

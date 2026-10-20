@@ -648,6 +648,12 @@ timescales, and leaves out nearly everything that can go wrong inside one.
   loses each day is half of it, so a 500 mL bottle of water puts back a
   tenth, a litre of milk a little less than a litre of water, and a cup
   of coffee under a twentieth (`data/food/item_profiles.ron`, `drinks`).
+  Food puts back what it carries too, by what it weighs: a day's food,
+  about 2,000 kcal, puts back a day's hunger, so a 300 g loaf of bread is
+  about two fifths of a day and a cucumber almost nothing, and the water
+  in food counts toward thirst, about a quarter of a litre in that
+  cucumber and a tenth in the loaf (`portions` in the same file: each
+  item's weight less the peel, core, shell or bone USDA counts as waste).
   The numbers are in `src/systems/food.rs`, and the slowdowns in
   `data/status_effects.csv`.
 - **Tiredness and sleep.** Energy runs down through the waking day, and

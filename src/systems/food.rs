@@ -34,8 +34,10 @@ pub struct NutritionProfile {
     /// Energy density (kcal / 100 g) — drives satiation gain.
     #[serde(default)]
     pub calories_per_100g: u32,
-    /// Grams per 100 g of protein, carbohydrate, fat and fibre. Read for a
-    /// drink's water (`water_share`, 2026-10-20).
+    /// Grams per 100 g of protein, carbohydrate, fat and fibre. In the rows
+    /// copied from USDA the carbohydrate is "by difference" and already holds
+    /// the fibre, which is why the water is its own field (`water_g`) and not
+    /// what is left over.
     #[serde(default)]
     pub protein_g: f32,
     #[serde(default)]
@@ -44,6 +46,13 @@ pub struct NutritionProfile {
     pub fat_g: f32,
     #[serde(default)]
     pub fiber_g: f32,
+    /// Grams of water per 100 g, USDA's own figure for the row's base food
+    /// (2026-10-20, `water_share`). None means the row does not say, which
+    /// the load warns about and the coverage test refuses: such a food puts
+    /// back no water. Written as a plain number (`water_g: 88.13`), not
+    /// `Some(..)`: RON wants the wrapper for an Option unless told otherwise.
+    #[serde(default, deserialize_with = "plain_some")]
+    pub water_g: Option<f32>,
     /// Hours the food stays safe under the storage it normally gets (see the
     /// header of food_system.ron). Drives the spoilage timer, in real seconds
     /// like every other survival clock here.
@@ -54,17 +63,22 @@ pub struct NutritionProfile {
     pub raw_consumption_risk: f32,
 }
 
+/// An optional number written plainly in the data (`water_g: 88.13`): present
+/// is Some, absent (with `#[serde(default)]`) is None.
+fn plain_some<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<f32>, D::Error> {
+    f32::deserialize(d).map(Some)
+}
+
 impl NutritionProfile {
-    /// The share of this food's mass that is water, 0 to 1 (2026-10-20): what
-    /// is left of 100 g once its protein, carbohydrate, fat and fibre are
-    /// taken off. The rest of a food is ash, its minerals, under a gram per
-    /// 100 g in every drink here, so this reads at most a gram high: whole
-    /// milk comes to 88.8 g against USDA's 88.13 g of water (SR Legacy NDB
-    /// 1077), apple juice 88.3 against 88.24 (NDB 9016). The profiles' own
-    /// numbers carry their sources in data/food_system.ron.
+    /// The share of this food's mass that is water, 0 to 1: its `water_g`
+    /// over 100 (2026-10-20, USDA's figure, cited on each row of
+    /// data/food_system.ron). A cucumber's group is 92% water, bread 36%,
+    /// a cookie 6%. It was first worked out as what is left of 100 g once the
+    /// protein, carbohydrate, fat and fibre are off, which suits a drink but
+    /// not a food: USDA's carbohydrate already holds the fibre and a food's
+    /// minerals are not small, so dry beans came to minus 9 g.
     pub fn water_share(&self) -> f32 {
-        let solids = self.protein_g.max(0.0) + self.carbs_g.max(0.0) + self.fat_g.max(0.0) + self.fiber_g.max(0.0);
-        ((100.0 - solids) / 100.0).clamp(0.0, 1.0)
+        self.water_g.filter(|w| w.is_finite()).map_or(0.0, |w| (w / 100.0).clamp(0.0, 1.0))
     }
 }
 
@@ -85,6 +99,13 @@ pub struct ItemProfiles {
     /// coverage test in food.rs insists).
     #[serde(default)]
     pub drinks: Vec<(String, f32)>,
+    /// (item id, grams eaten) for every item a person eats (2026-10-20): the
+    /// food in one item, its items.csv weight less USDA's refuse (peel, core,
+    /// shell, bone), so eating puts back what that much food carries
+    /// (`FoodSystem::portion_g`). Every food that is not a drink must have a
+    /// row (the coverage test in food.rs insists).
+    #[serde(default)]
+    pub portions: Vec<(String, f32)>,
 }
 
 impl ItemProfiles {
@@ -230,11 +251,27 @@ const HUNGRY_THRESHOLD: f32 = 25.0;
 const THIRSTY_THRESHOLD: f32 = 25.0;
 /// At/above this satiation after a meal, the `well_fed` buff applies.
 const WELL_FED_THRESHOLD: f32 = 70.0;
-/// kcal/100g -> satiation points (so dense staples fill far more than veg).
-const SATIATION_PER_CALORIE: f32 = 0.15;
-/// Hydration restored by eating watery produce vs. everything else.
-const PRODUCE_HYDRATION: f32 = 10.0;
-const BASE_HYDRATION: f32 = 3.0;
+/// The food energy a day of living takes, in kcal (2026-10-20): the 2,000 the
+/// US Nutrition Facts label is written against, "2,000 calories a day is used
+/// for general nutrition advice" (21 CFR 101.9(d)(9)). The vitamins in
+/// data/food_system.ron are fractions of the FDA Daily Values, which assume
+/// the same 2,000. The homes plan their Food loop at 2,200 a person
+/// (data/machines/home_solo.ron), so a home that meets its loop feeds its
+/// resident with a tenth to spare.
+pub(crate) const DAILY_KCAL: f32 = 2000.0;
+/// Satiation points one kcal eaten is worth (2026-10-20), read off the clock
+/// above the way HYDRATION_PER_LITRE is: the bar loses 100 points in a week,
+/// 14.3 a day, so a day's food (DAILY_KCAL) puts back a day's hunger and a
+/// point is 140 kcal. A food puts back its grams (`FoodSystem::portion_g`)
+/// times its kcal per 100 g, at this. Until then an item gave 0.15 points
+/// for each kcal in 100 g of its food whatever it weighed: a 300 g loaf of
+/// bread 40 points, nearly three days of hunger, and a 50 g bunch of basil
+/// as much as 100 g of it.
+pub(crate) const SATIATION_PER_KCAL: f32 = SATIATION_DECAY_PER_SEC * 86_400.0 / DAILY_KCAL;
+/// The food in one item that has no row in item_profiles.ron's `portions`:
+/// 100 g, the amount every profile is written for. Said loudly in the log at
+/// load; the coverage test keeps every shipped food from needing it.
+const FALLBACK_PORTION_G: f32 = 100.0;
 /// Hydration points a litre of water is worth (2026-09-28), read off the
 /// clock above: it empties 100 points in two days, at the roughly 2.5 L a day
 /// a resting adult loses (urine, breath and skin: Jequier and Constant 2010,
@@ -251,6 +288,13 @@ const BASE_HYDRATION: f32 = 3.0;
 /// reference values for water", EFSA Journal 2010; 8(3):1459). Until then
 /// every drink gave 30 points, 1.5 L, whatever it was: a cup of coffee
 /// equalled a litre of milk and three of them a day kept anyone watered.
+///
+/// FOOD PUTS BACK THE WATER IT CARRIES TOO (2026-10-20): its grams
+/// (`portions` in item_profiles.ron) times its water share, a kilogram of
+/// water a litre. EFSA's intakes above count food's water, which the opinion
+/// takes as 20 to 30% of the total. A 300 g cucumber is 0.27 L of water, 5.4
+/// points; a 300 g loaf of bread 0.11 L, 2.2. It used to be 10 points for
+/// any produce and 3 for anything else.
 pub(crate) const HYDRATION_PER_LITRE: f32 = 20.0;
 /// One drink of a beverage that has no row in item_profiles.ron's `drinks`:
 /// a cup, 8 US fluid ounces (237 g in USDA FoodData Central's portion for
@@ -458,6 +502,9 @@ pub struct FoodSystem {
     /// Litres in one drink of each beverage (item_profiles.ron `drinks`,
     /// 2026-10-20; `drink_points`).
     drink_l: HashMap<String, f32>,
+    /// Grams of food in one of each food that is not a drink (item_profiles.ron
+    /// `portions`, 2026-10-20; `portion_g`).
+    portion_g: HashMap<String, f32>,
     /// A night's sleep in a bed while it runs (2026-09-27, `systems::sleep`).
     asleep: Option<crate::systems::sleep::Asleep>,
     /// Each living body's heat state (2026-09-27, `systems::body_heat`). Only
@@ -510,12 +557,26 @@ impl FoodSystem {
         log::info!("Loaded {} edible items from {}", item_profile.len(), ItemProfiles::FILE);
         let drink_l: HashMap<String, f32> =
             list.drinks.iter().filter(|(_, l)| l.is_finite() && *l > 0.0).cloned().collect();
+        let portion_g: HashMap<String, f32> =
+            list.portions.iter().filter(|(_, g)| g.is_finite() && *g > 0.0).cloned().collect();
         for (item_id, &idx) in &item_profile {
-            if data.nutrition_profiles[idx].category == "beverage" && !drink_l.contains_key(item_id) {
+            let profile = &data.nutrition_profiles[idx];
+            if profile.category == "beverage" && !drink_l.contains_key(item_id) {
                 log::warn!(
                     "{}: {item_id} is drunk but has no row in `drinks`, so one drink of it is taken as a {FALLBACK_DRINK_L} L cup",
                     ItemProfiles::FILE
                 );
+            }
+            if profile.category != "beverage" && !portion_g.contains_key(item_id) {
+                log::warn!(
+                    "{}: {item_id} is eaten but has no row in `portions`, so one of it is taken as {FALLBACK_PORTION_G} g",
+                    ItemProfiles::FILE
+                );
+            }
+        }
+        for p in &data.nutrition_profiles {
+            if p.water_g.is_none() {
+                log::warn!("food_system.ron: profile '{}' has no water_g, so it puts back no water", p.id);
             }
         }
         let illnesses = crate::systems::illness::Illnesses::load(data_dir);
@@ -531,6 +592,7 @@ impl FoodSystem {
             data,
             item_profile,
             drink_l,
+            portion_g,
             asleep: None,
             body_heat: HashMap::new(),
             carry: HashMap::new(),
@@ -547,13 +609,40 @@ impl FoodSystem {
             .map(|&idx| &self.data.nutrition_profiles[idx])
     }
 
-    /// The Hydration points one drink of `item_id` puts back in a well body
-    /// (2026-10-20): the water it carries, its litres times the share of it
-    /// that is water, at `HYDRATION_PER_LITRE`. None when it is not a drink.
+    /// Grams of food in one `item_id` (2026-10-20), or None when it is not
+    /// food. A food's row in item_profiles.ron `portions`; a drink's litres
+    /// (`drinks`) taken as that many kilograms, which reads milk and juice 3
+    /// to 5% light (a cup of whole milk is 244 g).
+    pub(crate) fn portion_g(&self, item_id: &str) -> Option<f32> {
+        let profile = self.profile_for(item_id)?;
+        Some(if profile.category == "beverage" {
+            self.drink_l.get(item_id).copied().unwrap_or(FALLBACK_DRINK_L) * 1000.0
+        } else {
+            self.portion_g.get(item_id).copied().unwrap_or(FALLBACK_PORTION_G)
+        })
+    }
+
+    /// The Hydration points eating or drinking one `item_id` puts back in a
+    /// well body (2026-10-20): the water it carries, its grams times the
+    /// share of it that is water, a kilogram a litre, at `HYDRATION_PER_LITRE`.
+    pub(crate) fn water_points(&self, item_id: &str) -> Option<f32> {
+        let profile = self.profile_for(item_id)?;
+        Some(self.portion_g(item_id)? * profile.water_share() / 1000.0 * HYDRATION_PER_LITRE)
+    }
+
+    /// The Hydration points one drink of `item_id` puts back (2026-10-20):
+    /// `water_points`, for a drink only. None when it is not a drink.
     pub(crate) fn drink_points(&self, item_id: &str) -> Option<f32> {
-        let profile = self.profile_for(item_id).filter(|p| p.category == "beverage")?;
-        let litres = self.drink_l.get(item_id).copied().unwrap_or(FALLBACK_DRINK_L);
-        Some(litres * profile.water_share() * HYDRATION_PER_LITRE)
+        self.profile_for(item_id).filter(|p| p.category == "beverage")?;
+        self.water_points(item_id)
+    }
+
+    /// The Satiation points eating or drinking one fresh `item_id` puts back
+    /// (2026-10-20): the food energy in its grams, at `SATIATION_PER_KCAL`.
+    pub(crate) fn satiation_points(&self, item_id: &str) -> Option<f32> {
+        let profile = self.profile_for(item_id)?;
+        let kcal = self.portion_g(item_id)? / 100.0 * profile.calories_per_100g as f32;
+        Some(kcal * SATIATION_PER_KCAL)
     }
 
     /// How long (game seconds at room temperature) this item stays fresh, or None
@@ -593,15 +682,11 @@ impl FoodSystem {
         }
         let calories = profile.calories_per_100g as f32;
         let risk = profile.raw_consumption_risk;
-        // A drink puts back the water it carries (2026-10-20, `drink_points`):
-        // a cup is not a jug. Watery produce gives some, everything else barely.
-        let hydration_gain = if is_beverage {
-            self.drink_points(item_id).unwrap_or(0.0)
-        } else if profile.category == "produce" {
-            PRODUCE_HYDRATION
-        } else {
-            BASE_HYDRATION
-        };
+        // What one of it carries (2026-10-20): its grams' food energy and
+        // water (`portion_g`). A cup is not a jug, a cucumber waters you more
+        // than a loaf, and a loaf feeds you more than a cucumber.
+        let satiation_gain = self.satiation_points(item_id).unwrap_or(0.0);
+        let hydration_gain = self.water_points(item_id).unwrap_or(0.0);
 
         // Spoiled = the stack's own clock past the food's time (§3).
         let keeps = self.freshness_secs(item_id).unwrap_or(f64::INFINITY);
@@ -642,8 +727,7 @@ impl FoodSystem {
             // caffeinated drink's (BUG-162, data/medical/illnesses.ron).
             // Decided before this meal can make anyone ill.
             let kept = if is_beverage { self.illnesses.drink_kept(effects, item_id) } else { 1.0 };
-            vitals.satiation = (vitals.satiation + calories * SATIATION_PER_CALORIE * nutrition_mult)
-                .min(vitals.satiation_max);
+            vitals.satiation = (vitals.satiation + satiation_gain * nutrition_mult).min(vitals.satiation_max);
             vitals.hydration =
                 (vitals.hydration + hydration_gain * nutrition_mult * kept).min(vitals.hydration_max);
             // Eating solid food leaves a little organic waste (scraps) to
@@ -1709,9 +1793,9 @@ mod nutrition_tests {
             effects.has("food_poisoning"),
             "spoiled cooked_meat (own risk=0) still poisons once spoiled"
         );
-        // 165 kcal/100g * SATIATION_PER_CALORIE (0.15) = 24.75 fresh, so a full
-        // gain would land near 64.75; the 0.25x spoiled multiplier caps it well
-        // under 50.
+        // The bird's 1,005 g of meat at 165 kcal/100 g is 1,658 kcal, 11.8
+        // points fresh, which would land near 51.8; the 0.25x spoiled
+        // multiplier holds it near 43.
         assert!(
             v.satiation < 50.0,
             "spoiled food gives much less satiation than fresh (got {})",
@@ -2092,12 +2176,14 @@ mod nutrition_tests {
     // Each test below failed against the old id-prefix logic (same data files,
     // prefix functions still deciding); see the commit message for the run.
 
-    /// The two columns of items.csv these tests need.
+    /// The columns of items.csv these tests need.
     #[derive(serde::Deserialize)]
     struct ItemRow {
         id: String,
         #[serde(default)]
         category: String,
+        #[serde(default)]
+        weight_kg: f32,
     }
 
     fn items_csv() -> Vec<ItemRow> {
@@ -2205,8 +2291,9 @@ mod nutrition_tests {
 
     /// A CUP IS NOT A JUG (2026-10-20). A drink puts back the water it carries:
     /// a 500 mL bottle of water 10 points, a litre jug 20, a litre of whole
-    /// milk its 88.8% water, a cup of coffee 237 mL of it, each at
-    /// HYDRATION_PER_LITRE, through the real Drink action.
+    /// milk its 88.13% water (USDA's figure, the profile's water_g), a cup of
+    /// coffee 237 mL of it, each at HYDRATION_PER_LITRE, through the real
+    /// Drink action.
     ///
     /// Seen red on the old rule (every drink 30 points, `DRINK_HYDRATION`):
     /// "Water Bottle (0.5 L) put back 30.00 points; the water it carries is
@@ -2228,10 +2315,10 @@ mod nutrition_tests {
             now - 10.0
         };
         for (item, name, litres, water) in [
-            ("water_bottle_0", "Water Bottle", 0.5, 1.0),
-            ("water_purified_0", "Purified Water", 1.0, 1.0),
-            ("milk_0", "Milk", 1.0, 1.0 - (3.15 + 4.8 + 3.25) / 100.0),
-            ("coffee_0", "Coffee", 0.237, 1.0 - (0.12 + 0.02) / 100.0),
+            ("water_bottle_0", "Water Bottle", 0.5, 0.9998),
+            ("water_purified_0", "Purified Water", 1.0, 0.9998),
+            ("milk_0", "Milk", 1.0, 0.8813),
+            ("coffee_0", "Coffee", 0.237, 0.9939),
         ] {
             let want = litres * water * HYDRATION_PER_LITRE;
             let got = drink(item);
@@ -2305,8 +2392,8 @@ mod nutrition_tests {
     }
 
     /// A cooked dish a recipe makes actually feeds you: the meat stew raises
-    /// satiation by exactly its calories (107 kcal/100 g, USDA FNDDS "Stew,
-    /// beef") times SATIATION_PER_CALORIE, and is used up.
+    /// satiation by exactly the food energy in its 700 g pot (107 kcal/100 g,
+    /// USDA FNDDS "Stew, beef": 749 kcal) at SATIATION_PER_KCAL, and is used up.
     #[test]
     fn eating_the_meat_stew_raises_satiation() {
         let data = make_store();
@@ -2322,12 +2409,119 @@ mod nutrition_tests {
         );
         let satiation = world.get::<&Vitals>(player).unwrap().satiation;
         assert!(satiation > 40.0, "eating the stew raised satiation (40 -> {satiation})");
-        let kcal = sys.profile_for("stew_meat_0").expect("stew has a profile").calories_per_100g as f32;
+        let per_100g = sys.profile_for("stew_meat_0").expect("stew has a profile").calories_per_100g as f32;
+        let grams = ItemProfiles::load(data_dir()).portions.iter().find(|(id, _)| id == "stew_meat_0").expect("the stew's portion").1;
+        let kcal = grams / 100.0 * per_100g;
         assert!(
-            (satiation - (40.0 + kcal * SATIATION_PER_CALORIE)).abs() < 1e-3,
-            "stew gave {} satiation, expected {kcal} kcal x {SATIATION_PER_CALORIE}",
+            (satiation - (40.0 + kcal * SATIATION_PER_KCAL)).abs() < 1e-3,
+            "stew gave {} satiation, expected its {kcal} kcal x {SATIATION_PER_KCAL}",
             satiation - 40.0
         );
+    }
+
+    /// Every food says how much of it is eaten (2026-10-20): each item in
+    /// item_profiles.ron's `items` that is not a drink has one row in
+    /// `portions`, no row names a drink or anything that is not food, and no
+    /// row says more grams than items.csv weighs the item or under a third of
+    /// it (USDA's largest refuse here, sweet corn's husk and cob, leaves 36%).
+    ///
+    /// Seen red with sweet corn's row taken out of the data: "foods with no
+    /// grams in item_profiles.ron `portions`: [\"vegetable_corn_0\"]"
+    /// (2026-10-20).
+    #[test]
+    fn every_food_says_how_much_of_it_is_eaten() {
+        use std::collections::{HashMap, HashSet};
+        let sys = FoodSystem::new(data_dir());
+        let list = ItemProfiles::load(data_dir());
+        let weight_g: HashMap<String, f32> = items_csv().into_iter().map(|r| (r.id, r.weight_kg * 1000.0)).collect();
+        let foods: Vec<&str> = list
+            .items
+            .iter()
+            .map(|(id, _)| id.as_str())
+            .filter(|id| sys.profile_for(id).is_some_and(|p| p.category != "beverage"))
+            .collect();
+        assert!(foods.len() >= 150, "the shipped data has its foods: {}", foods.len());
+        let mut seen = HashSet::new();
+        for (id, grams) in &list.portions {
+            assert!(seen.insert(id.as_str()), "{id} is listed twice in `portions`");
+            assert!(foods.contains(&id.as_str()), "`portions` names {id}, which is not a food that is eaten");
+            let w = weight_g.get(id).copied().unwrap_or(0.0);
+            assert!(w > 0.0, "{id} has no weight in items.csv");
+            assert!(grams.is_finite() && *grams <= w + 0.01, "{id}: {grams} g eaten of an item items.csv weighs {w} g");
+            assert!(*grams >= w / 3.0, "{id}: {grams} g eaten of {w} g, under a third of it");
+        }
+        let missing: Vec<&&str> = foods.iter().filter(|id| !seen.contains(**id)).collect();
+        assert!(missing.is_empty(), "foods with no grams in item_profiles.ron `portions`: {missing:?}");
+    }
+
+    /// Every profile says how much water it carries (2026-10-20): a water_g
+    /// that, with the protein, fat and carbohydrate (USDA's by difference,
+    /// fibre inside it), comes to no more than 100 g of each 100 g and leaves
+    /// at most 20 g for the minerals (and the field ration's packaging).
+    ///
+    /// Seen red with the bread row's water_g taken out: "profile 'bread' has no
+    /// water_g" (2026-10-20).
+    #[test]
+    fn every_profile_says_how_much_water_it_carries() {
+        let sys = FoodSystem::new(data_dir());
+        assert!(sys.data.nutrition_profiles.len() >= 40, "the profiles loaded");
+        for p in &sys.data.nutrition_profiles {
+            let w = p.water_g.unwrap_or_else(|| panic!("profile '{}' has no water_g", p.id));
+            assert!((0.0..=100.0).contains(&w), "profile '{}': {w} g of water in 100 g", p.id);
+            let total = w + p.protein_g + p.fat_g + p.carbs_g;
+            assert!(
+                (80.0..=101.5).contains(&total),
+                "profile '{}': water, protein, fat and carbohydrate come to {total} g of 100 g",
+                p.id
+            );
+        }
+    }
+
+    /// EATING FOLLOWS THE FOOD'S PORTION (2026-10-20), through the real Eat
+    /// action. A 300 g cucumber (291 g eaten) is mostly water and a 300 g loaf
+    /// of bread little: each puts back its grams' water at HYDRATION_PER_LITRE
+    /// and its grams' food energy at SATIATION_PER_KCAL, so the cucumber waters
+    /// you more and the loaf feeds you more. A day's 2,000 kcal puts back what
+    /// the bar loses in a day.
+    ///
+    /// Seen red on the old rule (0.15 Satiation per kcal in 100 g, 10
+    /// Hydration for produce and 3 for the rest): "Cucumber put back 3.75
+    /// Satiation and 10.00 Hydration; its 291 g carry 0.52 and 5.36"
+    /// (2026-10-20, the old rule swapped back in; the stew test went red
+    /// with it).
+    #[test]
+    fn eating_follows_the_food_s_portion() {
+        let list = ItemProfiles::load(data_dir());
+        let eat = |item: &str| -> (f32, f32) {
+            let mut sys = FoodSystem::new(data_dir());
+            let data = make_store();
+            let (mut world, p) = player_with(item, 10.0, 10.0);
+            request(&data, "consume_request", item);
+            sys.tick(&mut world, 0.0, &data);
+            assert_eq!(world.get::<&Inventory>(p).unwrap().count_item(item), 0, "{item} was eaten");
+            let v = world.get::<&Vitals>(p).unwrap();
+            (v.satiation - 10.0, v.hydration - 10.0)
+        };
+        let sys = FoodSystem::new(data_dir());
+        let mut got = std::collections::HashMap::new();
+        for (item, name) in [("vegetable_cucumber_0", "Cucumber"), ("bread_0", "Bread"), ("fruit_banana_0", "Banana")] {
+            let profile = sys.profile_for(item).expect("food");
+            let grams = list.portions.iter().find(|(id, _)| id == item).expect("a portion").1;
+            let water = profile.water_g.expect("its water") / 100.0;
+            let want_sat = grams / 100.0 * profile.calories_per_100g as f32 * SATIATION_PER_KCAL;
+            let want_hyd = grams * water / 1000.0 * HYDRATION_PER_LITRE;
+            let (sat, hyd) = eat(item);
+            assert!(
+                (sat - want_sat).abs() < 0.01 && (hyd - want_hyd).abs() < 0.01,
+                "{name} put back {sat:.2} Satiation and {hyd:.2} Hydration; its {grams} g carry {want_sat:.2} and {want_hyd:.2}"
+            );
+            got.insert(item, (sat, hyd));
+        }
+        let (cucumber, bread) = (got["vegetable_cucumber_0"], got["bread_0"]);
+        assert!(cucumber.1 > 2.0 * bread.1, "a cucumber waters {:.2}, a loaf {:.2}", cucumber.1, bread.1);
+        assert!(bread.0 > 10.0 * cucumber.0, "a loaf feeds {:.2}, a cucumber {:.2}", bread.0, cucumber.0);
+        let day = SATIATION_DECAY_PER_SEC * 86_400.0;
+        assert!((DAILY_KCAL * SATIATION_PER_KCAL - day).abs() < 1e-4, "a day's food puts back a day's hunger, {day:.2} points");
     }
 
     /// Every item on the list can really be consumed through the button the

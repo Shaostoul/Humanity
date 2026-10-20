@@ -450,7 +450,11 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
   2026-10-20 four (not started): nothing burns diesel yet (data/electrical.ron's diesel
   generator has no machine); food still gives a flat 10 Hydration for produce and 3 for the
   rest, and its satiation is per item whatever the item weighs (src/systems/food.rs
-  `consume`), the same defect the drinks had.
+  `consume`), the same defect the drinks had (DONE 2026-10-20, commit "Food feeds and waters
+  by what it weighs": each food's grams eaten in item_profiles.ron `portions`, its items.csv
+  weight less USDA SR28's refuse; each profile's USDA water_g; Satiation at a day's 2,000 kcal
+  for a day's hunger). Left from it: water and kcal are per profile, so a cucumber reads its
+  group's 92% water, not its own 95% (per-item nutrition is its own step).
 - **A gap the Normal-mode default exposes (found 2026-10-05 by the Library sweep):** in
   Normal mode NOBODY CAN LEAVE THE SHIP. The Dev page's travel and Land buttons and F9 flight are
   the only ways off it, all Dev-only, and no vehicle or route goes down. So by default a
