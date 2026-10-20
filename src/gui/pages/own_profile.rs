@@ -51,7 +51,7 @@ use std::time::{Duration, Instant};
 
 use serde_json::Value;
 
-use crate::gui::pages::files_settings::ServerProfile;
+use crate::gui::pages::media::in_messages::ServerProfile;
 use crate::gui::GuiState;
 use crate::relay::core::profile_copy;
 
@@ -366,7 +366,7 @@ pub(crate) fn pump(state: &mut GuiState) {
     if state.own_profile.shown.as_ref().is_none_or(|(s, p)| *s != server || *p != copy) {
         show(state, &server, &copy);
     }
-    crate::gui::pages::files_settings::sync_accepts(state);
+    crate::gui::pages::media::in_messages::sync_accepts(state);
     if state.own_profile.wanted.is_none() || !connected {
         return;
     }

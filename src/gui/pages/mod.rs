@@ -18,13 +18,9 @@ pub mod cloud_dev;
 pub mod placeholder;
 pub mod tasks;
 pub mod privacy;
-/// Settings > Privacy, Files in messages, and Settings > Data, Kept files (2026-10-11).
-pub mod files_settings;
 /// This person's own profile on their server: which copy is theirs, and the whole profile every
 /// save sends (2026-10-11, BUG-193 and BUG-194).
 pub mod own_profile;
-/// The Files page's upload to Shared Files, cleaned on this device first (2026-10-11).
-pub mod files_upload_step;
 /// Settings > Safety: who can reach me, People I choose, contact requests (step B, 2026-10-09).
 pub mod safety;
 /// Settings > Safety > Protected setup, and the PIN prompt its locked actions open (step G,
@@ -60,7 +56,6 @@ pub mod wallet;
 pub mod crafting;
 pub mod guilds;
 pub mod trade;
-pub mod files;
 pub mod bugs;
 // v0.415.0: resources module removed (retired into the Library, v0.374-375).
 pub mod donate;

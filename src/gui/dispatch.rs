@@ -20,7 +20,7 @@
 //! either drawn by this table or explicitly listed as engine-bound.
 
 use super::pages::{
-    apps, browser, bugs, calculator, calendar, chat, cosmos, crafting, donate, files, governance,
+    apps, browser, bugs, calculator, calendar, chat, cosmos, crafting, donate, governance,
     guilds, homes, humanity, identity, inventory, laws, library, market, notes, platform, profile, quests,
     media, real, recovery, relay_control, server_settings, settings, studio, tasks, testing,
     trade, wallet, watch,
@@ -62,7 +62,6 @@ pub fn draw_tool_page(ctx: &egui::Context, page: GuiPage, theme: &mut Theme, sta
         GuiPage::Wallet => wallet::draw(ctx, theme, state),
         GuiPage::Guilds => guilds::draw(ctx, theme, state),
         GuiPage::Trade => trade::draw(ctx, theme, state),
-        GuiPage::DataFiles => files::draw(ctx, theme, state),
         GuiPage::BugReport => bugs::draw(ctx, theme, state),
         GuiPage::Donate => donate::draw(ctx, theme, state),
         GuiPage::Studio => studio::draw(ctx, theme, state),
@@ -117,7 +116,6 @@ pub fn page_id(page: GuiPage) -> &'static str {
         GuiPage::Wallet => "wallet",
         GuiPage::Guilds => "guilds",
         GuiPage::Trade => "trade",
-        GuiPage::DataFiles => "data_files",
         GuiPage::BugReport => "bugs",
         GuiPage::Donate => "donate",
         GuiPage::Studio => "studio",
@@ -171,7 +169,6 @@ pub const ALL_PAGES: &[GuiPage] = &[
     GuiPage::Wallet,
     GuiPage::Guilds,
     GuiPage::Trade,
-    GuiPage::DataFiles,
     GuiPage::BugReport,
     GuiPage::Donate,
     GuiPage::Studio,

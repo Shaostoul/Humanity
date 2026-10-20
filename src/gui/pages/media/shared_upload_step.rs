@@ -110,5 +110,5 @@ pub(crate) fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, step:
 }
 
 #[cfg(test)]
-#[path = "files_upload_step_tests.rs"]
+#[path = "shared_upload_step_tests.rs"]
 mod tests;

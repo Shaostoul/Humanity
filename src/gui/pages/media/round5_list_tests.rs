@@ -210,43 +210,44 @@ fn the_heading_names_the_server() {
     }
 }
 
-/// THE ADMIN TAB IS FOR ADMINS AND HOLDS THE SETTINGS (3.9): an admin has two tabs, Files (Media
-/// until 2026-10-19) and Admin; Admin shows the section that was in Server Settings (who sees the
-/// page, its space, its categories, the suggestions, the meter) in place of the list, and Files goes
-/// back. A member has no Admin tab (only Files and, since 2026-10-18, Your folders) and sees the list, even with
-/// the Admin tab left set.
+/// THE ADMIN PLACE IS FOR ADMINS AND HOLDS THE SETTINGS (3.9; a tab until the places of
+/// 2026-10-19): an admin's places include Admin beside "Shared on <server>"; Admin shows the section
+/// that was in Server Settings (who sees the page, its space, its categories, the suggestions, the
+/// meter) in place of the list, and Shared on goes back. A member has no Admin place and sees the
+/// list, even with the Admin place left set.
 ///
 /// Seen red 2026-10-12 with the tabs drawn for everyone: "a member has no Admin tab".
 #[test]
 fn the_admin_tab_is_for_admins_and_holds_the_settings() {
     let (ctx, theme) = ctx_and_theme();
     let mut member = state_on(SERVER, demo_answer(), false);
-    member.media.tab = MediaTab::Admin;
+    member.media.place = Place::Admin;
     let out = settle(media_frame, &ctx, &theme, &mut member);
-    assert!(!exact(&out, "Admin"), "a member has no Admin tab");
+    assert!(!exact(&out, "Admin"), "a member has no Admin place");
     assert!(shows(&out, "Contact staff, slow spin"), "a member sees the list");
     assert!(!shows(&out, "Who sees the Files page"), "and never the settings");
 
     let mut state = state_on(SERVER, demo_answer(), true);
     let out = settle(media_frame, &ctx, &theme, &mut state);
-    assert!(exact(&out, "Files") && exact(&out, "Admin"), "an admin has the two tabs");
-    // The Files that is a tab: in the tab row, beside Admin (an item's details can say Files too).
-    let tab_row = |t: &str| find_text_in_shapes(&out.shapes, t).map(|f| f.rect.center().y);
-    assert!(tab_row("Files").zip(tab_row("Admin")).is_some_and(|(a, b)| (a - b).abs() < 2.0), "Files and Admin side by side, as tabs");
+    assert!(exact(&out, "Shared on 127.0.0.1:9") && exact(&out, "Admin"), "an admin has both places");
+    // Both in the places list, one above the other at the top of the left pane.
+    let at = |t: &str| find_text_in_shapes(&out.shapes, t).map(|f| f.rect);
+    let (shared, admin_at) = (at("Shared on 127.0.0.1:9").unwrap(), at("Admin").unwrap());
+    assert!(shared.top() < admin_at.top() && (shared.left() - admin_at.left()).abs() < 2.0, "Shared on, then Admin, in one column: {shared:?} {admin_at:?}");
     assert!(shows(&out, "Contact staff, slow spin") && !shows(&out, "Who sees the Files page"), "the list first");
 
     click(media_frame, &ctx, &theme, &mut state, "Admin");
-    assert_eq!(state.media.tab, MediaTab::Admin, "Admin is picked");
+    assert_eq!(state.media.place, Place::Admin, "Admin is picked");
     let out = settle(media_frame, &ctx, &theme, &mut state);
     for text in ["Who sees the Files page", "File space (MB)", "Each person's share (MB)", "Categories", "Category suggestions", "Save Files page settings"] {
         assert!(shows(&out, text), "the Admin tab shows {text:?}");
     }
     assert!(!shows(&out, "Contact staff, slow spin"), "in place of the list");
-    assert!(!shows(&out, "Add to Files"), "the list's own actions stay on the Files tab");
+    assert!(!shows(&out, "Add to Files"), "the list's own actions stay with what is shared");
     assert!(exact(&out, "Files on 127.0.0.1:9"), "under the same heading");
 
-    click(media_frame, &ctx, &theme, &mut state, "Files");
-    assert_eq!(state.media.tab, MediaTab::Media, "Files goes back");
+    click(media_frame, &ctx, &theme, &mut state, "Shared on 127.0.0.1:9");
+    assert_eq!(state.media.place, Place::Shared, "Shared on goes back");
     assert!(shows(&settle(media_frame, &ctx, &theme, &mut state), "Contact staff, slow spin"), "to the list");
 }
 
@@ -266,7 +267,7 @@ fn server_settings_points_to_the_admin_tab() {
 
     click(settings_frame, &ctx, &theme, &mut state, "Open them");
     assert_eq!(state.active_page, GuiPage::Media, "Open them goes to the Files page");
-    assert_eq!(state.media.tab, MediaTab::Admin, "with Admin selected");
+    assert_eq!(state.media.place, Place::Admin, "with Admin selected");
     let out = settle(media_frame, &ctx, &theme, &mut state);
     assert!(shows(&out, "Each person's share (MB)"), "where the Files page settings are");
 }

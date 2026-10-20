@@ -116,12 +116,78 @@ pub(crate) fn set_gallery(state: &mut GuiState, on: bool) {
     }
 }
 
-/// The three panes in the space left on the page.
-pub(crate) fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    let arrange = arrange_of(ui.available_size(), theme);
+/// A place's panes in the space left on the page, `n` of them (two or three), the places at the
+/// top of the first (places.rs); `add` draws each pane's own part (the first's under the places).
+/// The split is the three panes' own, kept in the settings: two panes take the first pane's share
+/// and the other two's together, and moving their handle moves the first share, the other two
+/// keeping their proportion.
+pub(crate) fn show_place(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, n: usize, mut add: impl FnMut(&mut egui::Ui, &mut GuiState, usize, egui::Rect)) {
+    let arrange = widgets::panes::arrange_for(ui.available_size(), n, MIN_PANE, theme.spacing_md);
     let min = if arrange == Arrange::Across { MIN_PANE } else { MIN_PANE_DOWN };
-    let defaults = defaults(arrange);
-    let mut shares = state.settings.media_layout.shares(arrange);
+    let three = state.settings.media_layout.shares(arrange);
+    let d3 = defaults(arrange);
+    let (mut shares, defs) = if n == 3 { (three.clone(), d3.to_vec()) } else { (vec![three[0], three[1] + three[2]], vec![d3[0], d3[1] + d3[2]]) };
+    let moved = widgets::panes::show(ui, theme, egui::Id::new("media_panes"), arrange, &mut shares, &defs, min, |ui, i, card| {
+        if i == 0 {
+            super::places::draw(ui, theme, state);
+        }
+        add(ui, state, i, card);
+    });
+    if moved.changed {
+        let new3 = if n == 3 {
+            shares
+        } else {
+            let rest = three[1] + three[2];
+            let k = if rest > 0.0 { shares[1] / rest } else { 1.0 };
+            vec![shares[0], three[1] * k, three[2] * k]
+        };
+        let mut layout = state.settings.media_layout.clone();
+        layout.set(arrange, &new3);
+        state.settings.media_layout = layout;
+    }
+    if moved.settled {
+        state.settings_dirty = true;
+    }
+}
+
+/// A place in two panes: the places and `left` under them, and `right` beside (the Gallery, the
+/// admins' section, Your folders' open folder).
+pub(crate) fn draw_two(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    state: &mut GuiState,
+    left: impl FnOnce(&mut egui::Ui, &Theme, &mut GuiState),
+    right: impl FnOnce(&mut egui::Ui, &Theme, &mut GuiState),
+) {
+    let (mut left, mut right) = (Some(left), Some(right));
+    show_place(ui, theme, state, 2, |ui, state, i, _card| {
+        let f = if i == 0 { left.take().map(|f| Box::new(f) as Box<dyn FnOnce(&mut egui::Ui, &Theme, &mut GuiState)>) } else { right.take().map(|f| Box::new(f) as Box<dyn FnOnce(&mut egui::Ui, &Theme, &mut GuiState)>) };
+        if let Some(f) = f {
+            f(ui, theme, state);
+        }
+    });
+}
+
+/// A place in three panes, as Shared on <server> is: the places and `left` under them, `middle`,
+/// and `right` (Shared files, the HumanityOS folder).
+pub(crate) fn draw_three(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    state: &mut GuiState,
+    left: fn(&mut egui::Ui, &Theme, &mut GuiState),
+    middle: fn(&mut egui::Ui, &Theme, &mut GuiState),
+    right: fn(&mut egui::Ui, &Theme, &mut GuiState),
+) {
+    show_place(ui, theme, state, 3, |ui, state, i, _card| match i {
+        0 => left(ui, theme, state),
+        1 => middle(ui, theme, state),
+        _ => right(ui, theme, state),
+    });
+}
+
+/// What is shared on the server, in three panes: the places and the list, the item to fit, its
+/// details.
+pub(crate) fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let selected = state.media.item.as_ref().map(|p| p.id);
     // Shown on the page now, whatever opened it.
     if let Some(page) = state.media.item.as_mut() {
@@ -131,7 +197,7 @@ pub(crate) fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     // The item shown, taken out once the list is drawn (the list's rows read the state as it is).
     let mut taken: Option<Option<(item_view::ItemPage, Option<super::open::Opened>)>> = None;
     let mut pressed = Pressed::default();
-    let moved = widgets::panes::show(ui, theme, egui::Id::new("media_panes"), arrange, &mut shares, &defaults, min, |ui, i, card| {
+    show_place(ui, theme, state, 3, |ui, state, i, card| {
         if i == 0 {
             picked = list::draw(ui, theme, state, selected);
             return;
@@ -149,14 +215,6 @@ pub(crate) fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             (_, None) => viewer::nothing_chosen(ui, theme, DETAILS_LINE),
         }
     });
-    if moved.changed {
-        let mut layout = state.settings.media_layout.clone();
-        layout.set(arrange, &shares);
-        state.settings.media_layout = layout;
-    }
-    if moved.settled {
-        state.settings_dirty = true;
-    }
     if let Some(Some((page, opened))) = taken {
         item_view::finish(state, page, opened, pressed);
     }

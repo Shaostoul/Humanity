@@ -1906,7 +1906,7 @@ fn snapshot_media_admin_tab() {
             // The list counts as asked and answered, so the page asks nothing of the network.
             state.media.requested = true;
             state.media.answered = true;
-            state.media.tab = media::MediaTab::Admin;
+            state.media.place = media::Place::Admin;
         }
         media::draw(ctx, theme, state);
     });
@@ -1940,7 +1940,7 @@ fn snapshot_media_your_folders() {
     render_page_png("media_your_folders", 1280, 860, |ctx, theme, state| {
         if state.media.server.is_empty() {
             *state = fixture::page_state(fixture::demo_answer(), true);
-            state.media.tab = media::MediaTab::YourFolders;
+            state.media.place = media::Place::YourFolders;
             state.settings.media_folders = vec![root.clone(), scratch.join("Old drive")];
             media::your_folders::add_folder(state, &root);
             let server = state.media.server.clone();
@@ -1951,6 +1951,68 @@ fn snapshot_media_your_folders() {
         media::draw(ctx, theme, state);
         // The previews are read on workers: give them a moment between frames.
         std::thread::sleep(std::time::Duration::from_millis(40));
+    });
+}
+
+/// The Files page's Shared files place (2026-10-19, pages/media/shared_files.rs; the top half of
+/// the developer's Files page until then): the places at the top of the left pane with Shared
+/// files picked, the server's shared files under them with a model of your own chosen, its card in
+/// the middle (Download, View in 3D) and on the right what it is, with Remove and Put on the Files
+/// page. Built in memory; the list counts as answered, so nothing is asked of the network.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_media_shared_files() {
+    use crate::gui::pages::media::{self as media, shared_files::SharedFileRow, tests as fixture};
+    render_page_png("media_shared_files", 1280, 820, |ctx, theme, state| {
+        if state.media.server.is_empty() {
+            *state = fixture::page_state(fixture::demo_answer(), true);
+            state.media.place = media::Place::SharedFiles;
+            let shared = &mut state.media.shared;
+            shared.shared_server = crate::gui::pages::chat::norm_server_url(&state.server_url);
+            shared.shared_loaded = true;
+            shared.shared_status = "3 file(s) on the server".into();
+            let row = |url: &str, name: &str, size: i64, key: &str, who: &str| SharedFileRow { url: url.into(), name: name.into(), size_bytes: size, uploader_key: key.into(), uploader_name: who.into() };
+            shared.shared_files = vec![
+                row("/uploads/1760_bracket.glb", "bracket.glb", 812_000, "me", "You"),
+                row("/uploads/1761_staff-head.stl", "staff-head.stl", 2_400_000, "ann", "Ann"),
+                row("/uploads/1762_wick-guide.pdf", "wick-guide.pdf", 310_000, "ann", "Ann"),
+            ];
+            shared.selected = Some("/uploads/1760_bracket.glb".into());
+        }
+        media::draw(ctx, theme, state);
+    });
+}
+
+/// The Files page's HumanityOS folder place (2026-10-19, pages/media/app_folder.rs; the
+/// developer's Files page until then, which started at data/): the app's folder as a tree with
+/// data/, assets/ and mods/ at the top and data/ open, data/plants.csv chosen and its text in the
+/// middle with Save, and on the right where it is, its size, what editing it means and Put back
+/// (a previous version is beside it). Built in a scratch folder; nothing of the app's own is read.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_media_app_folder() {
+    use crate::gui::pages::media::{self as media, app_folder, tests as fixture};
+    let scratch = crate::test_temp::dir("snapshot_app_folder");
+    let root = scratch.join("HumanityOS");
+    for d in ["data/quests", "assets/icons", "mods"] {
+        std::fs::create_dir_all(root.join(d)).unwrap();
+    }
+    std::fs::write(root.join("data/plants.csv"), "id,name,days_to_harvest\nbean,Bush bean,55\npea,Garden pea,60\nkale,Kale,50\n").unwrap();
+    std::fs::write(root.join("data/plants.csv.bak"), "id,name,days_to_harvest\nbean,Bush bean,55\n").unwrap();
+    std::fs::write(root.join("data/glossary.json"), "{}").unwrap();
+    std::fs::write(root.join("HumanityOS.exe"), vec![0u8; 4096]).unwrap();
+    render_page_png("media_app_folder", 1280, 820, |ctx, theme, state| {
+        if state.media.server.is_empty() {
+            *state = fixture::page_state(fixture::demo_answer(), true);
+            state.media.place = media::Place::AppFolder;
+            let af = &mut state.media.app_folder;
+            af.root = Some(root.clone());
+            af.tree.expand(&root.to_string_lossy());
+            af.tree.expand(&root.join("data").to_string_lossy());
+            app_folder::choose(af, &root.join("data").join("plants.csv"));
+            af.tree.select(&root.join("data").join("plants.csv").to_string_lossy());
+        }
+        media::draw(ctx, theme, state);
     });
 }
 

@@ -4,12 +4,17 @@
 //! (web/pages/media.html); the relay half is src/relay/media.rs.
 //!
 //! What it has, top to bottom: its heading, "Files on united-humanity.us" (the server it is for,
-//! Media round 5), with the page's buttons and the view, Panes or Gallery; its tabs, Files and Your
-//! folders (folders on this computer to pick files from, media/your_folders.rs, 2026-10-18, desktop
-//! only), and for admins Admin (the admins' section, media/admin.rs, which was in Server Settings
-//! until round 5).
+//! Media round 5), with the page's buttons and the view, Panes or Gallery; then three panes, whose
+//! left one starts with the PLACES (2026-10-19, media/places.rs): on the server, "Shared on
+//! <server>" (what follows), "Shared files" (the server's public file library,
+//! media/shared_files.rs) and for admins "Admin" (the admins' section, media/admin.rs, which was in
+//! Server Settings until round 5); on this computer, "HumanityOS folder" (the app's own folder, to
+//! read and edit: media/app_folder.rs) and "Your folders" (folders on this computer to pick files
+//! from, media/your_folders.rs, 2026-10-18, desktop only). The developer's Files page and the Media
+//! page became this one page on 2026-10-19 (operator: "What's the real difference between these
+//! two? Why would we not want to merge them?").
 //!
-//! THE MEDIA TAB IS THREE PANES (2026-10-19, media/panes.rs): on the left the list
+//! SHARED ON <SERVER> IS THREE PANES (2026-10-19, media/panes.rs): on the left the list
 //! (media/list.rs): the uploads in progress, each with its bar (media/uploading.rs), and the
 //! offers to carry on ones a restart or a switch cut off; the person's own uploads waiting to be
 //! published, and the server's unfinished ones this app lost track of (media/waiting.rs); the
@@ -116,6 +121,19 @@ pub(crate) mod ticket;
 pub(crate) mod takedown;
 /// A Media item posted in chat, shown as a card that opens its window (2026-10-17).
 pub(crate) mod chat_card;
+/// The places at the top of the left pane (2026-10-19): Shared on <server>, Shared files, Admin,
+/// HumanityOS folder, Your folders.
+pub(crate) mod places;
+/// The "Shared files" place: the server's public file library, with Upload and Remove (the top
+/// half of the developer's Files page until 2026-10-19).
+pub(crate) mod shared_files;
+/// A file picked for Shared files, cleaned on this device first (2026-10-11).
+pub(crate) mod shared_upload_step;
+/// The "HumanityOS folder" place: the app's own folder, to read and edit (the developer's Files
+/// page until 2026-10-19).
+pub(crate) mod app_folder;
+/// Settings > Privacy, Files in messages, and Settings > Data, Kept files (2026-10-11).
+pub(crate) mod in_messages;
 /// The Your folders tab (2026-10-18, desktop only): folders on this computer to look through and
 /// pick files from for Add to Media.
 pub(crate) mod your_folders;
@@ -215,23 +233,33 @@ pub struct MediaAdmin {
     pub status: String,
 }
 
-/// The Media page's tabs (round 5): the list; Your folders, folders on this computer to pick from
-/// (2026-10-18, media/your_folders.rs, desktop only); and for admins the section that was in Server
-/// Settings (media/admin.rs).
+/// The page's places (2026-10-19, media/places.rs; they were its tabs since round 5): what people
+/// chose to show on the server; the server's shared files; for admins the section that was in
+/// Server Settings (media/admin.rs); the app's own folder; and Your folders, folders on this
+/// computer to pick from (2026-10-18, media/your_folders.rs, desktop only).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum MediaTab {
+pub enum Place {
     #[default]
-    Media,
-    YourFolders,
+    Shared,
+    SharedFiles,
     Admin,
+    AppFolder,
+    YourFolders,
+}
+
+impl Place {
+    /// A place on this computer, which no server's state belongs to.
+    pub fn on_this_computer(self) -> bool {
+        matches!(self, Place::AppFolder | Place::YourFolders)
+    }
 }
 
 /// The Media page's state, kept in `GuiState::media`. It belongs to one server and one person:
 /// when either changes, all of it is forgotten ([`sync_server`]) but `unfinished`.
 #[derive(Default)]
 pub struct MediaState {
-    /// Which tab is shown (round 5).
-    pub tab: MediaTab,
+    /// Which place is shown (2026-10-19; the tab, since round 5).
+    pub place: Place,
     /// The item shown in the panes, or in its window over the chat (round 5, item_view.rs).
     pub item: Option<item_view::ItemPage>,
     /// Answered questions about an edit's changes: the item to show next once they were let go,
@@ -317,9 +345,14 @@ pub struct MediaState {
     /// "Report a copyright problem": its form, the public log's window, and the admins' open
     /// reports (takedown.rs).
     pub takedown: takedown::Takedowns,
-    /// The Your folders tab: the folder open in it and the files ticked (your_folders.rs). Kept when
-    /// the server or the person changes, since nothing in it belongs to a server.
+    /// The Your folders place: the folder open in it and the files ticked (your_folders.rs). Kept
+    /// when the server or the person changes, since nothing in it belongs to a server.
     pub folders: your_folders::Browse,
+    /// The Shared files place: the server's public file library (shared_files.rs).
+    pub shared: shared_files::SharedFiles,
+    /// The HumanityOS folder place: the app's own folder (app_folder.rs). Kept when the server or
+    /// the person changes, as Your folders is.
+    pub app_folder: app_folder::AppFolder,
 }
 
 /// The server this page is for: the one the connection was dialled for and signs in to, never an
@@ -418,9 +451,10 @@ pub(crate) fn sync_server(state: &mut GuiState) -> bool {
     }
     let old = std::mem::take(&mut state.media);
     uploading::abandon_all(&old.uploads);
-    // Your folders belongs to this computer, not to a server: it stays as it was, open if it was.
-    let tab = if old.tab == MediaTab::YourFolders { MediaTab::YourFolders } else { MediaTab::default() };
-    state.media = MediaState { server: here, key: state.profile_public_key.clone(), unfinished: old.unfinished, folders: old.folders, tab, ..Default::default() };
+    // Your folders and the HumanityOS folder belong to this computer, not to a server: they stay as
+    // they were, shown if one was.
+    let place = if old.place.on_this_computer() { old.place } else { Place::default() };
+    state.media = MediaState { server: here, key: state.profile_public_key.clone(), unfinished: old.unfinished, folders: old.folders, app_folder: old.app_folder, place, ..Default::default() };
     true
 }
 
@@ -781,7 +815,7 @@ pub(crate) fn more_when_seen(state: &mut GuiState) {
 /// forgetting another server's state on its next frame.
 pub(crate) fn open_admin_tab(state: &mut GuiState) {
     sync_server(state);
-    state.media.tab = MediaTab::Admin;
+    state.media.place = Place::Admin;
     state.push_nav_to(GuiPage::Media);
 }
 
@@ -817,8 +851,9 @@ pub(crate) fn open_item_by_number(state: &mut GuiState, id: i64) {
     // The page's state brought to this server and person first, so the item page opened here is
     // never forgotten by the page catching up with another server's state on its next frame.
     sync_server(state);
-    // The list, not the Admin tab an admin may have left open: the item is what was asked for.
-    state.media.tab = MediaTab::Media;
+    // What is shared, not another place the person may have left open: the item is what was
+    // asked for.
+    state.media.place = Place::Shared;
     item_view::open_by_number(state, id);
     // Shown in the panes, wherever the page was left.
     panes::set_gallery(state, false);
@@ -854,7 +889,11 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             draw_page(ui, theme, state);
         });
 
-    offer_drop(ctx, state);
+    // Shared files takes dropped files itself (to Shared Files); everywhere else on the page a
+    // drop opens Add to Files.
+    if places::shown_place(state.media.place, places::admin_here(state)) != Place::SharedFiles {
+        offer_drop(ctx, state);
+    }
     add::draw_dialogs(ctx, theme, state);
     your_folders::draw_dialogs(ctx, theme, state);
     tiles::draw_confirm_remove(ctx, theme, state);
@@ -936,18 +975,19 @@ pub fn draw_upload_window(ctx: &egui::Context, theme: &Theme, state: &mut GuiSta
     }
 }
 
-/// The page: its heading row, its line, its tabs, then the tab: on the Media tab the three panes
-/// (panes.rs) or the Gallery (every item as a tile, [`draw_gallery`]).
+/// The page: its heading row, its line, then the place shown (media/places.rs) in its panes: what
+/// is shared on the server (the three panes, panes.rs, or the Gallery, every item as a tile,
+/// [`draw_gallery`]), the server's shared files, the admins' section, the app's own folder or Your
+/// folders. The places are at the top of the left pane whichever is shown.
 pub(crate) fn draw_page(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let no_server = server_here(state).is_empty();
-    // Only an admin has the Admin tab; anyone else on it sees the list, whatever the state says
-    // (an admin who lost the role, or a tab left set by Server Settings' "Open them").
-    let admin = is_admin(state) && !no_server;
-    let tab = shown_tab(state.media.tab, admin);
-    let on_list = tab == MediaTab::Media;
+    // Only an admin has the Admin place; anyone else on it sees what is shared, whatever the state
+    // says (an admin who lost the role, or a place left set by Server Settings' "Open them").
+    let place = places::shown_place(state.media.place, places::admin_here(state));
+    let on_list = place == Place::Shared;
     ui.horizontal_wrapped(|ui| {
         ui.label(RichText::new(heading(state)).size(theme.font_size_title).color(theme.text_primary()));
-        // The list's actions belong to the Media tab; the Admin tab has its own Refresh.
+        // The list's actions belong to what is shared; the other places have their own.
         if on_list {
             ui.add_space(theme.spacing_md);
             let signed_in = signed_in_here(state);
@@ -956,9 +996,6 @@ pub(crate) fn draw_page(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
             }
             if signed_in && widgets::Button::secondary("Suggest a category").tooltip("Ask this server's admins for a new category.").show(ui, theme) {
                 state.media.suggest = Some((String::new(), String::new()));
-            }
-            if widgets::Button::secondary("Shared Files").tooltip("The server's public file library, on the Data files page.").show(ui, theme) {
-                state.push_nav_to(GuiPage::DataFiles);
             }
             if widgets::Button::ghost("Refresh").show(ui, theme) {
                 reload(state);
@@ -969,39 +1006,39 @@ pub(crate) fn draw_page(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
             }
         }
     });
-    if tab != MediaTab::YourFolders {
+    if matches!(place, Place::Shared | Place::Admin) {
         widgets::body_hint(
             ui,
             theme,
             "Pictures, videos, 3D models and files the people on this server chose to show. Nothing is here unless the person who uploaded it put it here, and nothing from a private conversation can be.",
         );
     }
-    // The tabs: Media, the list; Your folders, folders on this computer to pick from (2026-10-18,
-    // media/your_folders.rs); and for admins Admin (round 5), the section that was in Server Settings
-    // (media/admin.rs): who sees the page, its space, its categories and what to prune.
-    let names = if admin { &TAB_NAMES[..] } else { &TAB_NAMES[..2] };
-    let mut i = TABS.iter().position(|t| *t == tab).unwrap_or(0);
-    if widgets::tab_bar(ui, theme, names, &mut i) {
-        state.media.tab = TABS[i];
-    }
     ui.add_space(theme.spacing_sm);
 
-    // Your folders needs no server to look through this computer's folders (Put on Media says why
-    // it cannot go without one).
-    match shown_tab(state.media.tab, admin) {
-        MediaTab::YourFolders => {
-            egui::ScrollArea::vertical().id_salt("media_page").auto_shrink([false, false]).show(ui, |ui| your_folders::draw(ui, theme, state));
-        }
-        _ if no_server => {
+    // The places that need a server say so without one; Your folders and the HumanityOS folder need
+    // none (Add to Files says why it cannot go without one).
+    let needs_server = matches!(place, Place::Shared | Place::Admin);
+    match place {
+        _ if no_server && needs_server => panes::draw_two(ui, theme, state, |ui, theme, _state| {
             ui.label(RichText::new("Connect to a server first (Chat page) to see its Files page.").size(theme.font_size_small).color(theme.warning()));
-        }
-        MediaTab::Admin => {
+        }, |ui, theme, _state| {
+            viewer::nothing_chosen(ui, theme, "Connect to a server first (Chat page) to see what is shared on it.");
+        }),
+        Place::Admin => panes::draw_two(ui, theme, state, |_ui, _theme, _state| {}, |ui, theme, state| {
             egui::ScrollArea::vertical().id_salt("media_page").auto_shrink([false, false]).show(ui, |ui| admin::draw_admin(ui, theme, state));
-        }
-        MediaTab::Media if state.settings.media_layout.gallery => {
+        }),
+        Place::Shared if state.settings.media_layout.gallery => panes::draw_two(ui, theme, state, |_ui, _theme, _state| {}, |ui, theme, state| {
             egui::ScrollArea::vertical().id_salt("media_page").auto_shrink([false, false]).show(ui, |ui| draw_gallery(ui, theme, state));
+        }),
+        Place::Shared => panes::draw(ui, theme, state),
+        Place::SharedFiles => panes::draw_three(ui, theme, state, shared_files::draw_list, shared_files::draw_file, shared_files::draw_details),
+        Place::AppFolder => panes::draw_three(ui, theme, state, app_folder::draw_tree, app_folder::draw_editor, app_folder::draw_details),
+        Place::YourFolders => {
+            widgets::thumbnails::next_frame();
+            panes::draw_two(ui, theme, state, |ui, theme, state| your_folders::draw_side(ui, theme, state), |ui, theme, state| {
+                egui::ScrollArea::vertical().id_salt("media_page").auto_shrink([false, false]).show(ui, |ui| your_folders::draw_open(ui, theme, state));
+            })
         }
-        MediaTab::Media => panes::draw(ui, theme, state),
     }
 }
 
@@ -1078,21 +1115,6 @@ pub(crate) fn draw_more(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
     let (sentinel, _) = ui.allocate_exact_size(egui::vec2(ui.available_width().max(1.0), 1.0), egui::Sense::hover());
     if ui.is_rect_visible(sentinel) {
         more_when_seen(state);
-    }
-}
-
-// The tabs, in the order they are drawn, and their names: Files and Your folders for everyone in
-/// the desktop app, and Admin for admins. The website has Files and Admin (media-app.js) and no Your
-/// folders (operator, 2026-10-13: no website version, so every browser behaves the same).
-const TABS: [MediaTab; 3] = [MediaTab::Media, MediaTab::YourFolders, MediaTab::Admin];
-const TAB_NAMES: [&str; 3] = ["Files", your_folders::TAB, "Admin"];
-
-/// The tab shown for `tab`: Admin is an admin's alone, and anyone else on it sees the list.
-fn shown_tab(tab: MediaTab, admin: bool) -> MediaTab {
-    if tab == MediaTab::Admin && !admin {
-        MediaTab::Media
-    } else {
-        tab
     }
 }
 

@@ -35,7 +35,7 @@ use std::time::{Duration, Instant};
 use egui::RichText;
 
 use super::from_here::{self, Sent};
-use super::MediaTab;
+use super::Place;
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use crate::gui::widgets::file_browser::{file_picker_modal, human_size, list_dir, FilePickerResult, FilePickerState, FsEntry};
@@ -228,7 +228,7 @@ pub(crate) fn put_on_media(state: &mut GuiState) {
         state.media.folders.chosen.clear();
         state.media.folders.status.clear();
     }
-    state.media.tab = MediaTab::Media;
+    state.media.place = Place::Shared;
 }
 
 /// A mark was clicked: its item opens on the Media page, when it is on the server this page is
@@ -242,7 +242,7 @@ fn open_mark(state: &mut GuiState, s: &Sent) {
     if s.item > 0 {
         super::open_item_by_number(state, s.item);
     } else {
-        state.media.tab = MediaTab::Media;
+        state.media.place = Place::Shared;
     }
 }
 
@@ -260,16 +260,21 @@ pub(crate) fn draw_dialogs(ctx: &egui::Context, theme: &Theme, state: &mut GuiSt
     }
 }
 
-/// The tab, inside the page's scroll area.
-pub(crate) fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    widgets::thumbnails::next_frame();
-    widgets::body_hint(ui, theme, HINT);
-    if !state.media.folders.status.is_empty() {
-        ui.label(RichText::new(&state.media.folders.status).size(theme.font_size_small).color(theme.warning()));
-    }
-    ui.add_space(theme.spacing_sm);
-    draw_folder_list(ui, theme, state);
-    ui.add_space(theme.spacing_sm);
+/// The left pane's part, under the places (2026-10-19; the tab's top until then): the promise,
+/// what was last refused, and the folders added with Add a folder.
+pub(crate) fn draw_side(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    egui::ScrollArea::vertical().id_salt("your_folders_side").auto_shrink([false, false]).show(ui, |ui| {
+        widgets::body_hint(ui, theme, HINT);
+        if !state.media.folders.status.is_empty() {
+            ui.label(RichText::new(&state.media.folders.status).size(theme.font_size_small).color(theme.warning()));
+        }
+        ui.add_space(theme.spacing_sm);
+        draw_folder_list(ui, theme, state);
+    });
+}
+
+/// The right pane, inside its scroll area: the folder open, its files to tick, and Add to Files.
+pub(crate) fn draw_open(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     draw_browser(ui, theme, state);
 }
 

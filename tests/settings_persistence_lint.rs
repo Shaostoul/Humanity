@@ -60,7 +60,7 @@ const SETTINGS_FILES: &[&str] = &[
     // attach step's remembered switch, all one `files_in_messages` setting. Without these two the
     // scan never saw it: with its save leg removed, it then failed "files_in_messages: never
     // written by from_gui_state".
-    "src/gui/pages/files_settings.rs",
+    "src/gui/pages/media/in_messages.rs",
     "src/gui/pages/chat/attach_step.rs",
     // The Media page's Your folders (2026-10-18): the folders added there are a setting kept in
     // AppConfig like the others (`media_folders`), changed on that tab, not on the Settings page.

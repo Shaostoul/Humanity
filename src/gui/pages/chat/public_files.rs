@@ -257,7 +257,7 @@ pub(super) fn draw_all(ui: &mut egui::Ui, theme: &Theme, cache: &mut ImageCache,
 
 /// Draw `card` under its message and do what its buttons asked. The size is asked for a file on
 /// the message's own server only; a Download runs on the image cache's worker.
-pub(super) fn draw(ui: &mut egui::Ui, theme: &Theme, cache: &mut ImageCache, model_view: &mut Option<crate::gui::model_view::Viewer>, video: &mut Option<ChatVideo>, card: &Card, row_bg: Color32) {
+pub(crate) fn draw(ui: &mut egui::Ui, theme: &Theme, cache: &mut ImageCache, model_view: &mut Option<crate::gui::model_view::Viewer>, video: &mut Option<ChatVideo>, card: &Card, row_bg: Color32) {
     if card.other_site.is_none() {
         cache.request_size(&card.url);
     }

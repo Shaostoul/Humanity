@@ -4023,7 +4023,7 @@ pub(crate) fn draw_privacy_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
     });
     ui.add_space(theme.spacing_sm);
     // Files in messages (2026-10-11): who files are taken from, pictures, the attach button.
-    widgets::card(ui, theme, |ui| crate::gui::pages::files_settings::draw_files_in_messages(ui, theme, state));
+    widgets::card(ui, theme, |ui| crate::gui::pages::media::in_messages::draw_files_in_messages(ui, theme, state));
     ui.add_space(theme.spacing_sm);
     widgets::card(ui, theme, |ui| {
         if widgets::toggle(ui, theme, "Profile Visible to Others", &mut state.settings.profile_visible) {
@@ -4490,7 +4490,7 @@ pub(crate) fn draw_data_content(ui: &mut egui::Ui, theme: &Theme, state: &mut Gu
         draw_save_snapshots(ui, theme, state);
 
         ui.add_space(theme.spacing_lg);
-        crate::gui::pages::files_settings::draw_kept_files(ui, theme, state);
+        crate::gui::pages::media::in_messages::draw_kept_files(ui, theme, state);
 
         ui.add_space(theme.spacing_lg);
         // (Home Design moved to Settings > Gameplay in v0.791, and became Where you live, the

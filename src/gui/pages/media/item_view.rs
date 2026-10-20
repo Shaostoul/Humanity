@@ -760,7 +760,7 @@ pub(crate) fn draw_leave_question(ctx: &egui::Context, theme: &Theme, state: &mu
         });
     });
     if back || !open {
-        state.media.tab = super::MediaTab::Media;
+        state.media.place = super::Place::Shared;
         state.settings.media_layout.gallery = false;
         state.push_nav_to(crate::gui::GuiPage::Media);
     } else if discard {

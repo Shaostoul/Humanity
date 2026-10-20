@@ -211,7 +211,7 @@ mod native_app {
     use crate::gui::pages::{
         main_menu, escape_menu, settings, inventory, chat, hud, placeholder,
         tasks, profile, market, calculator, calendar, notes, civilization,
-        wallet, crafting, guilds, trade, files, bugs, donate, studio,
+        wallet, crafting, guilds, trade, bugs, donate, studio,
         onboarding, server_settings, identity, governance, recovery, testing,
         browser, cosmos, real,
         platform, humanity, library, quests, homes,

@@ -234,5 +234,5 @@ pub(crate) fn draw_kept_files(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiS
 }
 
 #[cfg(test)]
-#[path = "files_settings_tests.rs"]
+#[path = "in_messages_tests.rs"]
 mod tests;

@@ -305,11 +305,6 @@ pub enum GuiPage {
     Wallet,
     Guilds,
     Trade,
-    /// "Data files" (Platform > Data files; `pages/files.rs`): the developer's browser and editor
-    /// for `data/`, with the server's Shared Files above it. Called "Files" until 2026-10-19, when
-    /// that name went to the page people put their files on (`GuiPage::Media`, still `media`
-    /// in code; operator: "What do you think about changing the name of media to files").
-    DataFiles,
     BugReport,
     // v0.415.0: removed the Resources and Onboarding GuiPage variants. The
     // Resources directory was retired into the Library (v0.374-375) and the

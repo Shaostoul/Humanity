@@ -8,7 +8,7 @@
 use super::*;
 use crate::gui::pages::media::item_view::item_tests::{answer_of, click_top, every_exact, frame, rich_item, serve_routes, until};
 use crate::gui::pages::media::tests::{ctx_and_theme, settled, shows, SERVER};
-use crate::gui::pages::media::{apply_list, item_view, sync_server, MediaTab};
+use crate::gui::pages::media::{apply_list, item_view, sync_server, Place};
 use crate::gui::ChatUser;
 use std::time::{Duration, Instant};
 
@@ -143,7 +143,7 @@ fn an_admins_remove_sends_the_signed_decide_with_the_right_purpose() {
     let decided = r#"{"ok":true,"id":5,"outcome":"removed","item_id":12,"item_removed":true,"item_already_gone":false}"#;
     let (base, seen) = serve_routes(vec![("/api/media/takedowns/open", open), ("/api/media/takedown/decide", decided)]);
     let mut state = signed_in_on(&base, "admin");
-    state.media.tab = MediaTab::Admin;
+    state.media.place = Place::Admin;
 
     until(&ctx, &theme, &mut state, "the open reports arrive", |s| s.media.takedown.open.as_ref().is_some_and(|o| o.len() == 1));
     let out = settled(&ctx, &theme, &mut state);
@@ -241,7 +241,7 @@ fn the_admin_tabs_copyright_section_is_for_admins_only() {
 
     // A member, signed in with an identity (so a section that forgot to check could ask).
     let mut member = signed_in_on(SERVER, "member");
-    member.media.tab = MediaTab::Admin;
+    member.media.place = Place::Admin;
     let out = settled(&ctx, &theme, &mut member);
     assert!(!shows(&out, ADMIN_HEADING), "the page gives a member no copyright reports");
     let out = draw_section(&ctx, &mut member);

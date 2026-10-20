@@ -13,7 +13,7 @@ use std::time::Duration;
 /// A signed-in member on the test server, on the Your folders tab.
 fn on_the_tab() -> GuiState {
     let mut state = page_state(demo_answer(), true);
-    state.media.tab = MediaTab::YourFolders;
+    state.media.place = Place::YourFolders;
     state
 }
 
@@ -167,7 +167,7 @@ fn two_files_ticked_and_put_on_media_open_add_to_media() {
     assert!(shows(&settled(&ctx, &theme, &mut state), "2 chosen"), "the line says how many");
 
     tap(&ctx, &theme, &mut state, PUT_ON_MEDIA);
-    assert_eq!(state.media.tab, MediaTab::Media, "the Files tab is shown");
+    assert_eq!(state.media.place, Place::Shared, "the Files tab is shown");
     let form = state.media.form.clone().expect("Add to Files is open");
     assert_eq!(form.source, add::Source::Picked { path: root.join("first.webm"), name: "first.webm".into(), len: 4000 }, "the first ticked is the item");
     assert_eq!(form.more.iter().map(|m| m.path.clone()).collect::<Vec<_>>(), vec![root.join("second.stl")], "the second is added to it");
@@ -183,7 +183,7 @@ fn two_files_ticked_and_put_on_media_open_add_to_media() {
     tap(&ctx, &theme, &mut out_of_it, "first.webm");
     assert!(shows(&settled(&ctx, &theme, &mut out_of_it), NEED_SIGN_IN), "signed out, it says to sign in first");
     tap(&ctx, &theme, &mut out_of_it, PUT_ON_MEDIA);
-    assert!(out_of_it.media.form.is_none() && out_of_it.media.tab == MediaTab::YourFolders, "and nothing opens");
+    assert!(out_of_it.media.form.is_none() && out_of_it.media.place == Place::YourFolders, "and nothing opens");
 }
 
 /// A FILE PUT ON MEDIA FROM HERE IS MARKED UNTIL IT CHANGES: an Add to Media upload from a file on
@@ -222,7 +222,7 @@ fn a_file_put_on_media_from_here_is_marked_until_it_changes() {
     assert_eq!(rows.len(), 1, "the publish is noted (left: rows / right: 1): {}", state.media.status);
     assert_eq!((rows[0].item, rows[0].title.as_str(), rows[0].file.path.clone(), rows[0].file.size), (51, "Dusk", file.clone(), 20_000), "with its item and its file");
 
-    state.media.tab = MediaTab::YourFolders;
+    state.media.place = Place::YourFolders;
     add_folder(&mut state, &root);
     let host = crate::gui::pages::server_strip::host_of(&base);
     let mark = format!("On {host} as Dusk");
@@ -231,12 +231,12 @@ fn a_file_put_on_media_from_here_is_marked_until_it_changes() {
     assert_eq!(find_text_in_shapes(&out.shapes, &format!("On {host}")).map(|f| f.matches), Some(1), "and only that file");
 
     tap(&ctx, &theme, &mut state, &mark);
-    assert_eq!(state.media.tab, MediaTab::Media, "the mark goes to the Files tab");
+    assert_eq!(state.media.place, Place::Shared, "the mark goes to the Files tab");
     assert_eq!(state.media.item.as_ref().map(|p| p.id), Some(51), "and opens the item");
 
     state.media.item = None;
     state.media.open = None;
-    state.media.tab = MediaTab::YourFolders;
+    state.media.place = Place::YourFolders;
     std::fs::write(&file, vec![9u8; 20_001]).unwrap();
     std::thread::sleep(RELIST + Duration::from_millis(100));
     let out = settled(&ctx, &theme, &mut state);
