@@ -305,3 +305,26 @@ fn the_notice_names_what_was_made() {
     assert_eq!(away::notice(&away::AwayReport::default(), Some(&items)), None);
     assert_eq!(away::join_list(&["a".into(), "b".into(), "c".into()]), "a, b and c");
 }
+
+/// The refinery draws the crude oil in its own drum through the time away
+/// (2026-10-20), as it does in a session, and its products are filed for home
+/// storage: 25 crude oil in the drum and none in the Barn make two batches in
+/// an hour, and 5 stay in the drum. Seen red with the time away counting home
+/// storage only, as before, 2026-10-20: "two batches from its drum" made
+/// (0, 0) against (10, 6).
+#[test]
+fn a_machine_draws_its_feed_from_its_own_drum_while_away() {
+    use crate::systems::inventory::containers::Container;
+    let (data, mut world, _player) = home("refine,Refine,refining,crude_0:10,gas_0:5|diesel_0:3,150,,,0,test\n", &[]);
+    let refinery = machine(&mut world, "refinery_1", "refine", None);
+    let mut drum = Container::new("steel_fuel_drum", 200.0);
+    drum.current_content_item = Some("crude_0".to_string());
+    drum.current_qty = 25;
+    drum.used_liters = 25.0;
+    world.insert_one(refinery, drum).unwrap();
+    away::hand_over(&data, Some(away_for(3600.0)));
+    CraftingSystem::new().tick(&mut world, 0.0, &data);
+    assert_eq!((filed(&data, "gas_0"), filed(&data, "diesel_0")), (10, 6), "two batches from its drum: {:?}", notices(&data));
+    let left = world.get::<&Container>(refinery).unwrap().current_qty;
+    assert_eq!(left, 5, "the odd five stay in the drum");
+}

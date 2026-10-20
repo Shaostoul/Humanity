@@ -2334,7 +2334,7 @@ capacity_liters, no-mixing, wrong-class damage/breakage) with registry +
 tests. WIRED (v0.728+): `MachineDef.container_type` in home.ron spawns a
 `Container` component on the machine entity (grain silo bin, steel fuel
 drum); the walk-up machine card shows "Holds: Nx item" + Take + per-item
-Store buttons; harvest overflow and refinery output fill them; the backstop
+Store buttons; harvest overflow fills them; the backstop
 genset burns only the fuels its data names (`fuels` on its `Generator` power
 role, spawned as `BurnsFuels`; BUG-154), and its drum takes and offers only
 those (`vessel_takes_item`, `store_offers` in `containers.rs`;
@@ -2342,6 +2342,12 @@ those (`vessel_takes_item`, `store_offers` in `containers.rs`;
 refinery distils from crude oil along with Diesel at EIA's split (`refine_crude`:
 10 crude oil into 5 L of gasoline and 3 L of diesel; both are litre items at their
 GREET densities, cited in `data/items.csv`; 2026-10-20, replacing "Refined Fuel").
+The refinery's drum is its feed (2026-10-20): it draws its recipe's crude oil from
+the drum first, then home storage, in a session and through the time away, and its
+products go to home storage; so the drum takes and offers only the feedstock its
+recipe names (`VesselTakes::Feed`, `vessel_takes`, `feed_items`), where it took any
+liquid, and the card's note says why the rest have no Store button (`refused_note`;
+a generator's drum says the same of its fuel).
 Always pre-check `registry.check().is_accepted()` before `try_store` — a
 wrong-class store DAMAGES the vessel by design.
 Content memory and materials (v0.1345.0): a vessel remembers its last

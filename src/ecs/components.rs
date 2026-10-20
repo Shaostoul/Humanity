@@ -1074,7 +1074,7 @@ impl Default for PowerGenerator {
 /// any item of the "flammable" class, so Paint, Glue and Crude Oil ran the
 /// house, its drum took them and its Store button offered them. Now only
 /// these run it (`systems::electrical`), and the drum on the same entity takes
-/// and offers only these (`containers::vessel_takes_item`), the way a real
+/// and offers only these (`containers::vessel_takes`), the way a real
 /// engine runs on the fuel it was made for and nothing else.
 ///
 /// Empty = it burns nothing. A machine that names no fuel never runs and its

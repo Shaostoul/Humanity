@@ -860,7 +860,7 @@
             stats: [
                 (
                     kind: "fuel",
-                    value: "200 L drum",
+                    value: "200 L drum of crude oil",
                     status: "ok",
                 ),
                 (
@@ -873,6 +873,10 @@
             ports: [],
             storage: [],
             auto_recipe: Some("refine_crude"),
+            // Its drum is its FEED (2026-10-20): it draws the recipe's crude oil from the drum
+            // first, then from home storage, and its gasoline and diesel go to home storage. So
+            // the drum takes and offers only what the recipe runs on, read from the recipe
+            // (src/systems/inventory/containers.rs, `vessel_takes`); it used to take any liquid.
             container_type: Some("steel_fuel_drum"),
             level_gauge: true,
             model: None,

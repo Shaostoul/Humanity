@@ -1857,8 +1857,16 @@ impl System for FarmingSystem {
         // wrong-class vessel (try_store on an incompatible container damages
         // it by design — we don't want grain denting the fuel drum).
         if !vessel_routes.is_empty() {
-            use crate::systems::inventory::containers::{vessel_takes_item, Container, ContainerRegistry, StoreOutcome};
+            use crate::systems::inventory::containers::{vessel_takes, vessel_takes_item, Container, ContainerRegistry, StoreOutcome};
             let containers_reg = data.get::<ContainerRegistry>("container_registry");
+            // What each machine's own vessel takes: a generator's drum only its
+            // fuels (BUG-154) and the refinery's only its crude oil (2026-10-20).
+            // A rubber tree's latex is a "liquid", which both drums' class
+            // whitelist would otherwise let in.
+            let vessels: Vec<(hecs::Entity, Option<crate::systems::inventory::containers::VesselTakes>)> = {
+                let ids: Vec<hecs::Entity> = world.query::<&Container>().iter().map(|(e, _)| e).collect();
+                ids.into_iter().map(|e| (e, vessel_takes(world, data, e))).collect()
+            };
             for (item_id, qty) in vessel_routes {
                 let class = item_registry
                     .map(|r| r.class_for(&item_id).to_string())
@@ -1866,23 +1874,19 @@ impl System for FarmingSystem {
                 let unit_vol = item_registry.map(|r| r.volume_for(&item_id)).unwrap_or(0.0);
                 let mut remaining = qty;
                 if let Some(reg) = containers_reg {
-                    for (_e, (c, fuels)) in
-                        world.query_mut::<(&mut Container, Option<&crate::ecs::components::BurnsFuels>)>()
-                    {
+                    for (e, takes) in &vessels {
                         if remaining == 0 {
                             break;
                         }
-                        // A generator's drum takes only its fuels (BUG-154):
-                        // a rubber tree's latex is a "liquid", which the
-                        // drum's class whitelist would otherwise let in.
-                        if !vessel_takes_item(fuels, &item_id) {
+                        if !vessel_takes_item(takes.as_ref(), &item_id) {
                             continue;
                         }
+                        let Ok(mut c) = world.get::<&mut Container>(*e) else { continue };
                         if !reg.check(&c.container_type_id, &class).is_accepted() {
                             continue;
                         }
                         if let StoreOutcome::Stored { quantity } =
-                            reg.try_store(c, &item_id, &class, unit_vol, remaining)
+                            reg.try_store(&mut c, &item_id, &class, unit_vol, remaining)
                         {
                             remaining -= quantity;
                             log::info!(

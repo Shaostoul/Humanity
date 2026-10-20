@@ -13838,15 +13838,16 @@ mod native_app {
                                 break;
                             }
                             // When this vessel is a generator's fuel drum, the
-                            // fuels its engine burns: it takes and offers only
-                            // those (BUG-154).
+                            // fuels its engine burns (BUG-154), and when it is
+                            // the feed of a machine that runs a recipe by itself
+                            // (the refinery's drum, 2026-10-20), that recipe's
+                            // feedstock: it takes and offers only those.
                             let fuels = cont_entity.and_then(|e| {
-                                state
-                                    .game_world
-                                    .world
-                                    .get::<&crate::ecs::components::BurnsFuels>(e)
-                                    .ok()
-                                    .map(|f| (*f).clone())
+                                crate::systems::inventory::containers::vessel_takes(
+                                    &state.game_world.world,
+                                    &state.data_store,
+                                    e,
+                                )
                             });
                             // Clean (2026-09-26): wash an emptied vessel of its
                             // residue with water from the home tanks.
@@ -13909,12 +13910,12 @@ mod native_app {
                                 }
                             }
                             // Store (v0.733): move a chosen pack item into the
-                            // vessel — the deposit path that completes the
-                            // refinery -> pack -> genset-drum fuel handoff.
-                            // Compatibility is guaranteed by construction (the
-                            // Store buttons only list accepted items), and a
-                            // generator's drum takes only its fuels whatever
-                            // asks (BUG-154).
+                            // vessel: crude oil into the refinery's drum, its
+                            // gasoline into the genset's. Compatibility is
+                            // guaranteed by construction (the Store buttons only
+                            // list accepted items), and a generator's drum takes
+                            // only its fuels (BUG-154), the refinery's only its
+                            // crude oil (2026-10-20), whatever asks.
                             let store = state
                                 .gui_state
                                 .machine_card_store_pending
@@ -13979,8 +13980,12 @@ mod native_app {
                             }
                             // Storable pack items (for the per-item Store buttons):
                             // what this vessel would take now, a generator's drum
-                            // only its fuels (BUG-154). See `store_offers`.
+                            // only its fuels (BUG-154), the refinery's only its
+                            // crude oil (2026-10-20). See `store_offers`. And why
+                            // what its class would take has no button
+                            // (`refused_note`), for the card's note below.
                             let mut storable: Vec<(String, String, u32)> = Vec::new();
+                            let mut refused: Option<String> = None;
                             if let (Some(c), Some(creg)) = (
                                 cont_snapshot.as_ref(),
                                 state
@@ -13993,12 +13998,20 @@ mod native_app {
                                     &crate::systems::inventory::Inventory,
                                     &crate::ecs::components::Controllable,
                                 )>().iter() {
+                                    let pack = inv.summary();
                                     storable = crate::systems::inventory::containers::store_offers(
                                         creg,
                                         item_reg,
                                         c,
                                         fuels.as_ref(),
-                                        &inv.summary(),
+                                        &pack,
+                                    );
+                                    refused = crate::systems::inventory::containers::refused_note(
+                                        creg,
+                                        item_reg,
+                                        c,
+                                        fuels.as_ref(),
+                                        &pack,
                                     );
                                     break;
                                 }
@@ -14022,6 +14035,9 @@ mod native_app {
                                 }
                                 if let Some(t) = &c.toxic_from {
                                     parts.push(format!("Held {}: never food or drinking water again.", name_of(t)));
+                                }
+                                if let Some(r) = refused.take() {
+                                    parts.push(r);
                                 }
                                 if parts.is_empty() { None } else { Some(parts.join(" ")) }
                             });

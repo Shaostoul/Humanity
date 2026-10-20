@@ -20,6 +20,7 @@ use std::collections::HashMap;
 
 use crate::ecs::systems::System;
 use crate::hot_reload::data_store::DataStore;
+use crate::systems::inventory::containers;
 use crate::systems::inventory::Inventory;
 
 /// A crafting recipe parsed from CSV.
@@ -1099,18 +1100,26 @@ impl System for CraftingSystem {
                 let blocked: Option<String> = match world.get::<&Inventory>(player_e) {
                     Ok(inv) => {
                         // First missing input, by name, with the shortfall.
-                        // Counts home storage and, for tap water, the tanks:
-                        // never the backpack (BUG-150), and the line says
-                        // where the machine looks, so logs in the backpack
-                        // beside an idle sawmill are never a mystery.
+                        // Counts the machine's own feed vessel (the refinery's
+                        // drum of crude oil, 2026-10-20), home storage and, for
+                        // tap water, the tanks: never the backpack (BUG-150),
+                        // and the line says where the machine looks, so logs in
+                        // the backpack beside an idle sawmill are never a mystery.
+                        let feed = containers::vessel_takes(world, data, machine);
                         let missing = recipe.inputs.iter().find_map(|(id, qty)| {
-                            let have = home_count(id)
+                            let have = containers::vessel_units(world, machine, id)
+                                + home_count(id)
                                 + fluids.map_or(0, |t| crate::systems::fluids::tap_units(t, world, id));
                             (have < *qty).then(|| {
                                 let name = item_registry
                                     .and_then(|r| r.items.get(id).map(|d| d.name.clone()))
                                     .unwrap_or_else(|| id.clone());
-                                format!("waiting for {name} x{} in home storage", qty - have)
+                                let where_ = if feed.as_ref().is_some_and(|f| f.takes(id)) {
+                                    "in its drum or home storage"
+                                } else {
+                                    "in home storage"
+                                };
+                                format!("waiting for {name} x{} {where_}", qty - have)
                             })
                         });
                         // Enough on hand (2026-09-26): the machine rests. On
@@ -1137,43 +1146,6 @@ impl System for CraftingSystem {
                     }
                     Err(_) => Some("no home inventory".to_string()),
                 };
-                // Vessel escape (v0.732): a machine whose OWN vessel can take
-                // every output (right class + enough room) may start even when
-                // the pack is full — the outputs stay in the vessel, not the
-                // inventory (deliver_outputs' outputs-to-own-vessel rule).
-                let blocked = if matches!(blocked.as_deref(), Some("inventory full")) {
-                    let vessel_takes_all = data
-                        .get::<crate::systems::inventory::containers::ContainerRegistry>(
-                            "container_registry",
-                        )
-                        .and_then(|creg| {
-                            world
-                                .get::<&crate::systems::inventory::containers::Container>(machine)
-                                .ok()
-                                .map(|c| {
-                                    let need: f32 = recipe
-                                        .outputs
-                                        .iter()
-                                        .map(|(id, qty)| {
-                                            item_registry.map(|r| r.volume_for(id)).unwrap_or(0.0)
-                                                * *qty as f32
-                                        })
-                                        .sum();
-                                    recipe.outputs.iter().all(|(id, _)| {
-                                        let class = item_registry
-                                            .map(|r| r.class_for(id).to_string())
-                                            .unwrap_or_else(|| "solid".to_string());
-                                        creg.check(&c.container_type_id, &class).is_accepted()
-                                            && (c.current_content_item.is_none()
-                                                || c.current_content_item.as_deref() == Some(id))
-                                    }) && c.remaining_liters() >= need
-                                })
-                        })
-                        .unwrap_or(false);
-                    if vessel_takes_all { None } else { blocked }
-                } else {
-                    blocked
-                };
                 if let Some(why) = blocked {
                     statuses.push(format!("{} — {why}", recipe.name));
                     continue;
@@ -1196,16 +1168,19 @@ impl System for CraftingSystem {
                         continue;
                     }
                 }
-                // Consume from home storage (the map decrement is drained from
-                // the GUI's placed containers by lib.rs right after this tick).
-                // The backpack is never touched (BUG-150).
+                // Consume from the machine's own feed vessel first (2026-10-20:
+                // the refinery draws the crude oil put into its drum), then
+                // home storage (the map decrement is drained from the GUI's
+                // placed containers by lib.rs right after this tick). The
+                // backpack is never touched (BUG-150).
                 let mut owed_l = 0.0_f32;
                 for (id, qty) in &recipe.inputs {
+                    let from_vessel = containers::take_from_vessel(world, machine, id, *qty);
                     let mut from_home = 0;
                     if let Some(m) = home_stock.as_ref() {
                         if let Ok(mut s) = m.lock() {
                             if let Some(c) = s.get_mut(id) {
-                                from_home = (*c).min(*qty);
+                                from_home = (*c).min(qty - from_vessel);
                                 *c -= from_home;
                             }
                         }
@@ -1213,7 +1188,7 @@ impl System for CraftingSystem {
                     // What storage lacked of a measure of tap water comes
                     // from the tanks (2026-09-26).
                     if let Some(l) = fluids.and_then(|t| t.tap_litres(id)) {
-                        owed_l += (qty - from_home) as f32 * l;
+                        owed_l += (qty - from_vessel - from_home) as f32 * l;
                     }
                 }
                 if owed_l > 0.0 {
@@ -1446,9 +1421,6 @@ impl System for CraftingSystem {
                         pad,
                         item_registry,
                         vehicle_kits,
-                        // Manual/instant crafts: the crafter IS the player; a
-                        // player has no Container, so the vessel pass no-ops.
-                        Some(request.crafter),
                         false,
                         to_home,
                     );
@@ -1549,8 +1521,6 @@ impl System for CraftingSystem {
                     // outputs will not fit the backpack WAITS for room, with
                     // one notice, instead of being added with the overflow
                     // discarded (the inputs were already spent at the start).
-                    // A machine with its own vessel still delivers: the vessel
-                    // takes what it can and the start-time check covered it.
                     // A hand craft finished where the home's storage is sends
                     // there what the backpack cannot take (BUG-147); away from
                     // it (a planet, or a guest on a shared ship) it waits.
@@ -1563,11 +1533,7 @@ impl System for CraftingSystem {
                         }))
                         .unwrap_or(true)
                     };
-                    let has_vessel = craft.auto
-                        && world
-                            .get::<&crate::systems::inventory::containers::Container>(craft.crafter)
-                            .is_ok();
-                    if !target_fits && !has_vessel {
+                    if !target_fits {
                         if !craft.waiting_notified {
                             craft.waiting_notified = true;
                             // A hand craft says what will deliver it (the
@@ -1610,9 +1576,6 @@ impl System for CraftingSystem {
                             craft.pad,
                             item_registry,
                             vehicle_kits,
-                            // Auto crafts: the crafter is the MACHINE — its own
-                            // vessel gets first claim on the outputs (v0.732).
-                            Some(craft.crafter),
                             craft.auto && to_storage,
                             hand_to_home,
                         );
@@ -1725,10 +1688,6 @@ impl CraftingSystem {
         pad: Option<(glam::Vec3, glam::Quat)>,
         item_registry: Option<&crate::systems::inventory::ItemRegistry>,
         vehicle_kits: Option<&crate::systems::vehicles::VehicleKitRegistry>,
-        // The MACHINE that crafted this (auto crafts) — a machine with its own
-        // compatible vessel keeps the output there (v0.732, fuel loop: the
-        // refinery's product fills its drum). None/player for manual crafts.
-        crafter_vessel: Option<hecs::Entity>,
         // An automated machine's outputs go to home storage (the Barn) via
         // the "home_stock_outputs" channel instead of the backpack.
         to_storage: bool,
@@ -1736,7 +1695,7 @@ impl CraftingSystem {
         // to home storage with their grade (BUG-147, crafting::home_store).
         overflow_home: bool,
     ) {
-        Self::deliver_goods(world, data, recipe, target, pad, item_registry, vehicle_kits, crafter_vessel, to_storage, overflow_home);
+        Self::deliver_goods(world, data, recipe, target, pad, item_registry, vehicle_kits, to_storage, overflow_home);
         Self::on_craft_complete(data, recipe);
     }
 
@@ -1750,7 +1709,6 @@ impl CraftingSystem {
         pad: Option<(glam::Vec3, glam::Quat)>,
         item_registry: Option<&crate::systems::inventory::ItemRegistry>,
         vehicle_kits: Option<&crate::systems::vehicles::VehicleKitRegistry>,
-        crafter_vessel: Option<hecs::Entity>,
         to_storage: bool,
         overflow_home: bool,
     ) {
@@ -1812,69 +1770,17 @@ impl CraftingSystem {
             }
         }
 
-        // Non-vehicle outputs land in the inventory — unless the crafting
-        // MACHINE carries its own compatible vessel, which keeps them first
-        // (v0.732, fuel loop slice 1: the refinery's refined fuel fills its
-        // steel drum; the walk-up card shows the drum filling live).
-        // Compatibility is PRE-checked (try_store damages wrong-class vessels
-        // by design); vessel overflow falls through to the inventory.
+        // Non-vehicle outputs land in home storage (an automated machine's)
+        // or the inventory. A machine's own vessel never keeps them
+        // (2026-10-20): it is the feed its recipe draws on (the refinery's
+        // drum of crude oil, `containers::vessel_takes`), or a generator's
+        // fuel tank. Until then the refinery's product filled its drum (v0.732),
+        // which held one content and so could not keep both gasoline and diesel.
         if vehicle_outputs.len() < recipe.outputs.len() {
             let mut inv_recipe = recipe.clone();
             inv_recipe
                 .outputs
                 .retain(|(id, _)| !vehicle_outputs.iter().any(|(vid, _)| vid == id));
-            if let Some(machine) = crafter_vessel {
-                if let Some(creg) = data
-                    .get::<crate::systems::inventory::containers::ContainerRegistry>(
-                        "container_registry",
-                    )
-                {
-                    // A generator's drum takes only its fuels (BUG-154).
-                    let fuels = world
-                        .get::<&crate::ecs::components::BurnsFuels>(machine)
-                        .ok()
-                        .map(|f| (*f).clone());
-                    if let Ok(mut c) = world
-                        .get::<&mut crate::systems::inventory::containers::Container>(machine)
-                    {
-                        use crate::systems::inventory::containers::StoreOutcome;
-                        for (id, qty) in inv_recipe.outputs.iter_mut() {
-                            if *qty == 0
-                                || !crate::systems::inventory::containers::vessel_takes_item(fuels.as_ref(), id)
-                            {
-                                continue;
-                            }
-                            // A vessel keeps a count, not each item's wear and
-                            // grade, so durable goods skip it (2026-09-26).
-                            if item_registry.map_or(false, |r| r.durability_for(id) > 0) {
-                                continue;
-                            }
-                            let class = item_registry
-                                .map(|r| r.class_for(id).to_string())
-                                .unwrap_or_else(|| "solid".to_string());
-                            if !creg.check(&c.container_type_id, &class).is_accepted() {
-                                continue;
-                            }
-                            let unit_vol =
-                                item_registry.map(|r| r.volume_for(id)).unwrap_or(0.0);
-                            if let StoreOutcome::Stored { quantity } =
-                                creg.try_store(&mut c, id, &class, unit_vol, *qty)
-                            {
-                                *qty -= quantity;
-                                log::info!(
-                                    "[Crafting] {} kept {}x {} in its own vessel",
-                                    recipe.id, quantity, id
-                                );
-                            }
-                        }
-                        inv_recipe.outputs.retain(|(_, qty)| *qty > 0);
-                    }
-                }
-            }
-            // (No early return when the vessel took everything: that used to
-            // skip on_craft_complete, so the craft gave no XP and no quest
-            // event. 2026-09-25. The hooks now run in deliver_outputs, after
-            // this returns.)
             if !inv_recipe.outputs.is_empty() && to_storage {
                 if let Some(slot) = data.get::<std::sync::Mutex<Vec<(String, u32)>>>("home_stock_outputs") {
                     if let Ok(mut out) = slot.lock() {
@@ -2519,11 +2425,20 @@ mod auto_refine_tests {
             .unwrap_or(0)
     }
 
-    /// A machine whose own vessel takes EVERY output still counts the craft
-    /// (2026-09-25): the refinery filling its fuel drum used to return before
-    /// the completion hook, so it gave no skill XP and no quest event.
+    /// THE REFINERY RUNS ON THE CRUDE OIL IN ITS DRUM (2026-10-20). Its drum
+    /// is its feed: with ten crude oil Stored in it and none in home storage it
+    /// draws them, and its gasoline and diesel go to home storage, not into the
+    /// drum (which holds one content at a time). The craft still trains a skill
+    /// (2026-09-25: the refinery filling its drum used to skip the completion
+    /// hook). Until then it took crude oil from home storage only and filled
+    /// its drum with its product, so crude oil Stored in the drum sat there.
+    ///
+    /// Seen red with the machine's own vessel left out of its inputs and its
+    /// feed list (as they were before), 2026-10-20: "the crude oil in its drum
+    /// was used: 10 left (the card read [\"Refine Crude Oil — waiting for Crude
+    /// Oil x10 in home storage\"])", while ten sat in the drum.
     #[test]
-    fn a_craft_kept_in_the_machines_own_vessel_still_awards_xp() {
+    fn the_refinery_runs_on_the_crude_oil_in_its_drum() {
         use crate::systems::inventory::containers::{Container, ContainerRegistry};
         use crate::systems::skills::SkillXPEvent;
         let mut data = real_data();
@@ -2536,19 +2451,32 @@ mod auto_refine_tests {
             .expect("container registry"),
         );
         data.insert("xp_grants", std::sync::Mutex::new(Vec::<SkillXPEvent>::new()));
-        stock_home(&mut data, &[("oil_crude_0", 10)]);
+        data.insert("home_stock_outputs", std::sync::Mutex::new(Vec::<(String, u32)>::new()));
+        data.insert("auto_craft_status", std::sync::Mutex::new(Vec::<String>::new()));
+        stock_home(&mut data, &[]);
         let mut world = hecs::World::new();
         world.spawn((Inventory::new(16), Controllable));
-        let refinery = world.spawn((
-            AutoRefine { recipe_id: "refine_crude".to_string(), keep: None },
-            Container::new("steel_fuel_drum", 200.0),
-        ));
+        // Ten crude oil in its drum, Stored the way the machine card's Store does.
+        let mut drum = Container::new("steel_fuel_drum", 200.0);
+        let creg = data.get::<ContainerRegistry>("container_registry").unwrap();
+        let unit_l = data.get::<ItemRegistry>("item_registry").unwrap().volume_for("oil_crude_0");
+        assert_eq!(
+            creg.try_store(&mut drum, "oil_crude_0", "flammable", unit_l, 10),
+            crate::systems::inventory::containers::StoreOutcome::Stored { quantity: 10 }
+        );
+        let refinery = world.spawn((AutoRefine { recipe_id: "refine_crude".to_string(), keep: None }, drum));
         let mut sys = CraftingSystem::new();
+        sys.tick(&mut world, 1.0, &data);
+        let status = data.get::<std::sync::Mutex<Vec<String>>>("auto_craft_status").unwrap().lock().unwrap().clone();
         for _ in 0..160 {
             sys.tick(&mut world, 1.0, &data); // refine_crude is a 150 s recipe
         }
         let drum = world.get::<&Container>(refinery).unwrap();
-        assert_eq!(drum.current_content_item.as_deref(), Some("gasoline_0"), "the drum kept the gasoline");
+        assert_eq!(drum.current_qty, 0, "the crude oil in its drum was used: {} left (the card read {status:?})", drum.current_qty);
+        assert_eq!(drum.current_content_item, None, "and the drum holds no product");
+        let mut filed = data.get::<std::sync::Mutex<Vec<(String, u32)>>>("home_stock_outputs").unwrap().lock().unwrap().clone();
+        filed.sort();
+        assert_eq!(filed, vec![("diesel_0".to_string(), 3), ("gasoline_0".to_string(), 5)], "its fuels went to home storage");
         let grants = data.get::<std::sync::Mutex<Vec<SkillXPEvent>>>("xp_grants").unwrap().lock().unwrap().clone();
         assert_eq!(grants.len(), 1, "the craft still trained a skill");
     }

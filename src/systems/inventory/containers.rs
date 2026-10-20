@@ -280,39 +280,193 @@ pub fn clean_container(
     Ok((litres, agent.map(|a| name_of(&a))))
 }
 
+/// What a MACHINE'S OWN vessel may take, whatever asks: the Store buttons and
+/// the Store itself (src/lib.rs), harvest surplus (farming) and a machine's
+/// own craft output (crafting). Its class whitelist and history are judged
+/// after this (`ContainerRegistry::would_accept`, `try_store`). A vessel that
+/// is no machine's fuel tank or feed has none (`vessel_takes` gives None) and
+/// is left to its class.
+#[derive(Debug, Clone, PartialEq)]
+pub enum VesselTakes {
+    /// A generator's drum (BUG-154, 2026-10-05): only the fuels its engine is
+    /// built to burn (`BurnsFuels`). Paint, Glue and Crude Oil are all
+    /// "flammable", a class the drum's whitelist accepts, and not one of them
+    /// runs an engine built for gasoline.
+    Fuels(Vec<String>),
+    /// The vessel of a machine that runs a recipe by itself (2026-10-20, the
+    /// fuel refinery's drum, which took any liquid): the feedstock it draws
+    /// that recipe's inputs from, so only those of the recipe's inputs its
+    /// class can hold (`feed_items`). `recipe` is the recipe's name, for the
+    /// words a refusal gives.
+    Feed { recipe: String, items: Vec<String> },
+}
+
+impl VesselTakes {
+    /// The items it takes.
+    pub fn items(&self) -> &[String] {
+        match self {
+            Self::Fuels(items) | Self::Feed { items, .. } => items,
+        }
+    }
+
+    /// True when it takes `item_id`.
+    pub fn takes(&self, item_id: &str) -> bool {
+        self.items().iter().any(|i| i == item_id)
+    }
+}
+
 /// May `item_id` go into a vessel at all, before its class and history are
-/// judged (BUG-154, 2026-10-05)? A vessel that is a machine's fuel tank, whose
-/// entity carries `BurnsFuels` (a generator's drum), takes only what that
-/// machine burns: Paint, Glue and Crude Oil are all "flammable", a class the
-/// drum's whitelist accepts, and not one of them runs an engine built for
-/// fuel. Any other vessel (`fuels` None) leaves it to its class whitelist and
-/// history (`ContainerRegistry::would_accept`, `try_store`). Every path that
-/// puts goods into a machine's vessel asks this: the Store buttons
-/// (`store_offers`) and the Store itself (src/lib.rs), harvest surplus
-/// (farming) and a machine's own craft output (crafting).
-pub fn vessel_takes_item(fuels: Option<&BurnsFuels>, item_id: &str) -> bool {
-    fuels.map_or(true, |f| f.burns(item_id))
+/// judged (BUG-154, 2026-10-05; a feed vessel, 2026-10-20)? A machine's own
+/// vessel (`takes` Some) takes only what `VesselTakes` names; any other vessel
+/// (None) leaves it to its class whitelist and history.
+pub fn vessel_takes_item(takes: Option<&VesselTakes>, item_id: &str) -> bool {
+    takes.map_or(true, |t| t.takes(item_id))
+}
+
+/// The feedstock a vessel of type `vessel_type` holds for `recipe` (2026-10-20):
+/// the recipe's inputs whose content class the vessel's type accepts, in the
+/// recipe's order. For the fuel refinery's steel drum (liquid and flammable)
+/// and its refine_crude recipe, Crude Oil. Read from the recipe data, so a
+/// change of recipe changes what the drum takes.
+pub fn feed_items(
+    recipe: &crate::systems::crafting::Recipe,
+    vessel_type: &str,
+    reg: &ContainerRegistry,
+    items: Option<&super::ItemRegistry>,
+) -> Vec<String> {
+    recipe
+        .inputs
+        .iter()
+        .map(|(id, _)| id)
+        .filter(|id| reg.check(vessel_type, items.map_or("solid", |r| r.class_for(id))).is_accepted())
+        .cloned()
+        .collect()
+}
+
+/// What the vessel on `machine` may take (`VesselTakes`), or None when it is
+/// no machine's fuel tank or feed. A generator's drum: its `BurnsFuels`. A
+/// machine running a recipe by itself (`AutoRefine`) with a vessel: that
+/// recipe's feedstock (`feed_items`), read from `data`'s recipe, container and
+/// item registries; with no recipe to read it takes nothing, rather than
+/// whatever its class allows.
+pub fn vessel_takes(world: &hecs::World, data: &DataStore, machine: hecs::Entity) -> Option<VesselTakes> {
+    if let Ok(f) = world.get::<&BurnsFuels>(machine) {
+        return Some(VesselTakes::Fuels(f.0.clone()));
+    }
+    let recipe_id = world.get::<&crate::ecs::components::AutoRefine>(machine).ok()?.recipe_id.clone();
+    let vessel_type = world.get::<&Container>(machine).ok()?.container_type_id.clone();
+    let recipe = data
+        .get::<crate::systems::crafting::RecipeRegistry>("recipe_registry")
+        .and_then(|r| r.recipes.get(&recipe_id));
+    let reg = data.get::<ContainerRegistry>("container_registry");
+    let items = data.get::<super::ItemRegistry>("item_registry");
+    Some(match (recipe, reg) {
+        (Some(r), Some(reg)) => VesselTakes::Feed { recipe: r.name.clone(), items: feed_items(r, &vessel_type, reg, items) },
+        _ => VesselTakes::Feed { recipe: recipe_id, items: Vec::new() },
+    })
+}
+
+/// Units of `item_id` in the vessel on `machine`: what a machine running a
+/// recipe by itself can draw from its own feed (2026-10-20). 0 when it has no
+/// vessel or the vessel holds something else.
+pub fn vessel_units(world: &hecs::World, machine: hecs::Entity, item_id: &str) -> u32 {
+    world
+        .get::<&Container>(machine)
+        .ok()
+        .filter(|c| c.current_content_item.as_deref() == Some(item_id))
+        .map_or(0, |c| c.current_qty)
+}
+
+/// Take up to `qty` of `item_id` from the vessel on `machine` (2026-10-20), the
+/// way the card's Take empties it: its litres go with the units, and once it is
+/// empty the residue stays (`last_content`) until it is cleaned. Returns how
+/// many it gave.
+pub fn take_from_vessel(world: &mut hecs::World, machine: hecs::Entity, item_id: &str, qty: u32) -> u32 {
+    let Ok(mut c) = world.get::<&mut Container>(machine) else { return 0 };
+    if c.current_content_item.as_deref() != Some(item_id) || c.current_qty == 0 {
+        return 0;
+    }
+    let n = qty.min(c.current_qty);
+    let per_unit = c.used_liters / c.current_qty as f32;
+    c.current_qty -= n;
+    c.used_liters = (c.used_liters - per_unit * n as f32).max(0.0);
+    if c.current_qty == 0 {
+        c.current_content_item = None;
+        c.used_liters = 0.0;
+        c.content_age_s = 0.0;
+    }
+    n
+}
+
+/// Why a machine's vessel does not offer what the player carries that its
+/// class would take (2026-10-20), in plain words for its card, or None when it
+/// refuses nothing that way: "Takes only Crude Oil, which Refine Crude Oil
+/// runs on: not Glue or Paint." / "Takes only Gasoline, the fuel its engine
+/// burns: not Diesel or Paint." So a can of paint in the pack with no Store
+/// button beside the drum is never a mystery. `pack` is item id -> count.
+pub fn refused_note(
+    reg: &ContainerRegistry,
+    items: Option<&super::ItemRegistry>,
+    vessel: &Container,
+    takes: Option<&VesselTakes>,
+    pack: &HashMap<String, u32>,
+) -> Option<String> {
+    let takes = takes?;
+    let name_of = |id: &str| items.and_then(|r| r.items.get(id)).map(|d| d.name.clone()).unwrap_or_else(|| id.to_string());
+    let mut refused: Vec<String> = pack
+        .iter()
+        .filter(|(id, qty)| **qty > 0 && !takes.takes(id))
+        .filter(|(id, _)| !items.map_or(false, |r| r.durability_for(id) > 0))
+        .filter(|(id, _)| reg.would_accept(vessel, id, items.map_or("solid", |r| r.class_for(id))).is_ok())
+        .map(|(id, _)| name_of(id))
+        .collect();
+    if refused.is_empty() {
+        return None;
+    }
+    refused.sort();
+    refused.dedup();
+    let not = if refused.len() > 3 {
+        format!("{}, or anything else", refused[..3].join(", "))
+    } else if refused.len() == 1 {
+        refused[0].clone()
+    } else {
+        format!("{} or {}", refused[..refused.len() - 1].join(", "), refused[refused.len() - 1])
+    };
+    let names: Vec<String> = takes.items().iter().map(|i| name_of(i)).collect();
+    let only = match names.len() {
+        0 => None,
+        1 => Some(names[0].clone()),
+        _ => Some(format!("{} and {}", names[..names.len() - 1].join(", "), names[names.len() - 1])),
+    };
+    Some(match (takes, only) {
+        (VesselTakes::Fuels(_), Some(only)) => format!("Takes only {only}, the fuel its engine burns: not {not}."),
+        (VesselTakes::Fuels(_), None) => format!("Takes nothing: its engine names no fuel. Not {not}."),
+        (VesselTakes::Feed { recipe, .. }, Some(only)) => format!("Takes only {only}, which {recipe} runs on: not {not}."),
+        (VesselTakes::Feed { recipe, .. }, None) => format!("Takes nothing: none of what {recipe} runs on fits it. Not {not}."),
+    })
 }
 
 /// The Store buttons a vessel's machine card offers (src/lib.rs, the walk-up
 /// card): each item of the player's pack (`pack`: item id -> count) this
 /// vessel would take now, as (id, display name, count), sorted by name, at
-/// most four. A generator's drum offers only its fuels (`vessel_takes_item`,
-/// BUG-154: it offered Paint, Glue and Crude Oil); durable goods are left out,
+/// most four. A machine's own vessel offers only what it takes
+/// (`vessel_takes_item`: a generator's drum its fuels, BUG-154, where it
+/// offered Paint, Glue and Crude Oil; the refinery's drum its crude oil,
+/// 2026-10-20, where it offered any liquid); durable goods are left out,
 /// because a vessel keeps a count, not each tool's wear and grade
 /// (2026-09-26); the rest is the class whitelist and what the vessel
 /// remembers (`would_accept`), so no button is offered that the Store would
-/// refuse.
+/// refuse. What it will not take, `refused_note` says why.
 pub fn store_offers(
     reg: &ContainerRegistry,
     items: Option<&super::ItemRegistry>,
     vessel: &Container,
-    fuels: Option<&BurnsFuels>,
+    takes: Option<&VesselTakes>,
     pack: &HashMap<String, u32>,
 ) -> Vec<(String, String, u32)> {
     let mut out: Vec<(String, String, u32)> = pack
         .iter()
-        .filter(|(id, qty)| **qty > 0 && vessel_takes_item(fuels, id))
+        .filter(|(id, qty)| **qty > 0 && vessel_takes_item(takes, id))
         .filter(|(id, _)| !items.map_or(false, |r| r.durability_for(id) > 0))
         .filter(|(id, _)| reg.would_accept(vessel, id, items.map_or("solid", |r| r.class_for(id))).is_ok())
         .map(|(id, qty)| {
@@ -1362,38 +1516,112 @@ mod tests {
     /// "liquid": the steel fuel drum's class whitelist (liquid|flammable) takes
     /// every one, and the buttons offered by class alone, so the genset's drum
     /// offered Paint. A drum whose genset burns Gasoline offers only that,
-    /// one whose genset names no fuel offers nothing, and a drum that feeds no
-    /// engine (the refinery's) still offers by class. Seen red on the old rule
-    /// (the genset's drum offered Crude Oil, Glue, Paint and Refined Fuel,
+    /// one whose genset names no fuel offers nothing, and a vessel that is no
+    /// machine's fuel tank or feed still offers by class. Seen red on the old
+    /// rule (the genset's drum offered Crude Oil, Glue, Paint and Refined Fuel,
     /// which Gasoline and Diesel replaced on 2026-10-20).
     #[test]
     fn a_generators_drum_offers_only_its_fuel() {
         let reg = load_registry();
-        let csv = std::fs::read(format!("{}/data/items.csv", env!("CARGO_MANIFEST_DIR"))).expect("data/items.csv");
-        let items = crate::systems::inventory::ItemRegistry::from_csv(&csv).expect("item registry");
-        let pack: std::collections::HashMap<String, u32> =
-            [("paint_0", 3), ("glue_0", 2), ("oil_crude_0", 4), ("diesel_0", 2), ("gasoline_0", 5), ("shampoo_bottle_0", 1)]
-                .into_iter()
-                .map(|(id, n)| (id.to_string(), n))
-                .collect();
+        let items = shipped_items();
+        let pack = carried(&[("paint_0", 3), ("glue_0", 2), ("oil_crude_0", 4), ("diesel_0", 2), ("gasoline_0", 5), ("shampoo_bottle_0", 1)]);
         for id in ["paint_0", "glue_0", "oil_crude_0", "diesel_0", "gasoline_0"] {
             assert_eq!(items.class_for(id), "flammable", "{id}: the class the old rule burned");
         }
         let drum = Container::from_type(reg.container_type("steel_fuel_drum").expect("steel_fuel_drum"));
-        let offered = |fuels: Option<&BurnsFuels>| -> Vec<String> {
-            store_offers(&reg, Some(&items), &drum, fuels, &pack).into_iter().map(|(id, _, _)| id).collect()
+        let offered = |takes: Option<&VesselTakes>| -> Vec<String> {
+            store_offers(&reg, Some(&items), &drum, takes, &pack).into_iter().map(|(id, _, _)| id).collect()
         };
-        let genset = BurnsFuels(vec!["gasoline_0".to_string()]);
+        // As the game reads it off a generator's entity.
+        let mut world = hecs::World::new();
+        let gen = world.spawn((BurnsFuels(vec!["gasoline_0".to_string()]), drum.clone()));
+        let genset = vessel_takes(&world, &DataStore::new(), gen).expect("a generator's drum has a list");
         assert_eq!(offered(Some(&genset)), vec!["gasoline_0".to_string()], "the genset's drum");
         let offers = store_offers(&reg, Some(&items), &drum, Some(&genset), &pack);
         assert_eq!((offers[0].1.as_str(), offers[0].2), ("Gasoline", 5), "named, with all five in the pack");
-        assert!(offered(Some(&BurnsFuels::default())).is_empty(), "a genset that names no fuel");
+        assert!(offered(Some(&VesselTakes::Fuels(Vec::new()))).is_empty(), "a genset that names no fuel");
         let plain = offered(None);
-        assert!(plain.contains(&"glue_0".to_string()), "a drum that feeds no engine offers by class: {plain:?}");
+        assert!(plain.contains(&"glue_0".to_string()), "a vessel that is no machine's fuel or feed offers by class: {plain:?}");
         // The Store itself asks the same question, whatever asks it to store.
         assert!(!vessel_takes_item(Some(&genset), "paint_0"));
         assert!(vessel_takes_item(Some(&genset), "gasoline_0"));
         assert!(!vessel_takes_item(Some(&genset), "diesel_0"));
         assert!(vessel_takes_item(None, "paint_0"));
+        // And its card says why the rest have no button (2026-10-20).
+        assert_eq!(
+            refused_note(&reg, Some(&items), &drum, Some(&genset), &pack).as_deref(),
+            Some("Takes only Gasoline, the fuel its engine burns: not Crude Oil, Diesel, Glue, or anything else."),
+        );
+        assert_eq!(refused_note(&reg, Some(&items), &drum, None, &pack), None, "a vessel with no list refuses nothing that way");
+    }
+
+    fn shipped_items() -> crate::systems::inventory::ItemRegistry {
+        let csv = std::fs::read(format!("{}/data/items.csv", env!("CARGO_MANIFEST_DIR"))).expect("data/items.csv");
+        crate::systems::inventory::ItemRegistry::from_csv(&csv).expect("item registry")
+    }
+
+    fn carried(list: &[(&str, u32)]) -> HashMap<String, u32> {
+        list.iter().map(|(id, n)| (id.to_string(), *n)).collect()
+    }
+
+    /// THE REFINERY'S DRUM TAKES ONLY ITS FEEDSTOCK (2026-10-20). The fuel
+    /// refinery draws the crude oil its recipe runs on from its own steel drum,
+    /// so the drum takes and offers only that. Its class whitelist
+    /// (liquid|flammable) would take every liquid in the pack, and it did: the
+    /// Store offered Gasoline, Glue and Paint, and harvest surplus could pour
+    /// latex in. What it refuses, its card says why. The list comes from the
+    /// recipe the shipped refinery runs (home.ron's `auto_recipe`, recipes.csv),
+    /// not from this test.
+    ///
+    /// Seen red on the old rule (a list only for a generator's drum, so
+    /// `vessel_takes` gave the refinery none), 2026-10-20: "the refinery's drum
+    /// offers [\"oil_crude_0\", \"gasoline_0\", \"glue_0\", \"latex_0\"]: only the
+    /// crude oil Refine Crude Oil runs on" (Paint too, past the four buttons).
+    #[test]
+    fn the_refinerys_drum_takes_only_the_crude_oil_its_recipe_runs_on() {
+        let root = env!("CARGO_MANIFEST_DIR");
+        let reg = load_registry();
+        let items = shipped_items();
+        let recipes = crate::systems::crafting::RecipeRegistry::from_csv(&std::fs::read(format!("{root}/data/recipes.csv")).expect("recipes.csv"))
+            .expect("recipe registry");
+        let home = crate::machines::MachineHome::load(&std::path::Path::new(root).join("data/machines/home.ron")).expect("home.ron");
+        let def = &home.catalog["fuel_refinery"];
+        let recipe_id = def.auto_recipe.clone().expect("the refinery runs a recipe by itself");
+        let drum_type = def.container_type.clone().expect("the refinery has a drum");
+        let recipe_name = recipes.recipes[&recipe_id].name.clone();
+        let mut data = DataStore::new();
+        data.insert("recipe_registry", recipes);
+        data.insert("container_registry", reg.clone());
+        data.insert("item_registry", items.clone());
+        let mut world = hecs::World::new();
+        let refinery = world.spawn((
+            crate::ecs::components::AutoRefine { recipe_id, keep: None },
+            Container::from_type(reg.container_type(&drum_type).expect("its drum type")),
+        ));
+        let takes = vessel_takes(&world, &data, refinery);
+        let drum = world.get::<&Container>(refinery).unwrap().clone();
+        let pack = carried(&[("paint_0", 3), ("glue_0", 2), ("oil_crude_0", 4), ("gasoline_0", 5), ("latex_0", 2)]);
+        let offered: Vec<String> =
+            store_offers(&reg, Some(&items), &drum, takes.as_ref(), &pack).into_iter().map(|(id, _, _)| id).collect();
+        assert_eq!(offered, vec!["oil_crude_0".to_string()], "the refinery's drum offers {offered:?}: only the crude oil {recipe_name} runs on");
+        assert_eq!(
+            takes,
+            Some(VesselTakes::Feed { recipe: recipe_name.clone(), items: vec!["oil_crude_0".to_string()] }),
+            "read from the recipe"
+        );
+        for id in ["paint_0", "glue_0", "gasoline_0", "latex_0"] {
+            assert!(!vessel_takes_item(takes.as_ref(), id), "the Store refuses {id} whatever asks");
+        }
+        let note = refused_note(&reg, Some(&items), &drum, takes.as_ref(), &pack).expect("its card says why");
+        assert_eq!(
+            note,
+            format!("Takes only Crude Oil, which {recipe_name} runs on: not Gasoline, Glue, Natural Rubber Latex, or anything else."),
+        );
+        // With no recipe to read, it takes nothing rather than whatever its class allows.
+        assert_eq!(
+            vessel_takes(&world, &DataStore::new(), refinery).map(|t| t.items().len()),
+            Some(0),
+            "no recipe data: no feed"
+        );
     }
 }

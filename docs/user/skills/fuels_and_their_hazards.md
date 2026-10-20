@@ -542,17 +542,20 @@ hazards.
   does (its recipe: ten crude oil into five litres of Gasoline and three
   of Diesel, 150 seconds, from the US Energy Information Administration's
   figures for what a barrel of crude yields; the rest of the barrel is
-  not modelled). It runs by itself, takes its crude oil from home storage
-  only, never from your backpack, and fills its own 200 litre drum with
-  the gasoline; the diesel goes to home storage. The recipe asks for
-  Engineering level 2, but a machine that runs by itself skips that
-  check: owning the machine is enough (`data/recipes.csv`,
-  `data/machines/home.ron`, `src/systems/crafting/mod.rs`). Each is a
-  litre at its real density, 0.745 kg for gasoline and 0.847 kg for
-  diesel (`data/items.csv`, which cites them). The home's backup
-  generator has a 200 litre drum of its own, and you move fuel from one
-  drum to the other through your backpack, with the Take and Store
-  buttons on each machine's card. Nothing in the home burns diesel yet.
+  not modelled). It runs by itself, never from your backpack. Its 200
+  litre drum is its feed: it draws crude oil from the drum first, then
+  from home storage, so the drum takes only crude oil, and its card says
+  so when you carry something else it might have taken (Gasoline, Glue,
+  Paint). The gasoline and diesel it makes go to home storage. The
+  recipe asks for Engineering level 2, but a machine that runs by itself
+  skips that check: owning the machine is enough (`data/recipes.csv`,
+  `data/machines/home.ron`, `src/systems/crafting/mod.rs`,
+  `src/systems/inventory/containers.rs`). Each is a litre at its real
+  density, 0.745 kg for gasoline and 0.847 kg for diesel
+  (`data/items.csv`, which cites them). The home's backup generator has
+  a 200 litre drum of its own: take gasoline from home storage into your
+  backpack and pour it in with the Store button on the generator's card.
+  Nothing in the home burns diesel yet.
 - **Charcoal.** Coal, the game's charcoal, is listed as a fuel too, and
   recipes at the smelter, kiln and forge use it up, several of them
   leaving wood ash (`data/items.csv`, `data/recipes.csv`); [Making and
@@ -765,8 +768,10 @@ October 2026.
 - The Refine Crude Oil and Make Fuel Drum recipes (`data/recipes.csv`); the
   fuel refinery and the backup generator, their drums and the
   generator's 1.8 kW and 1.125 litres an hour (`data/machines/home.ron`);
-  the refinery running by itself on crude oil from home storage only,
-  skipping the skill check (`src/systems/crafting/mod.rs`); Coal, Crude
+  the refinery running by itself on crude oil from its drum and home
+  storage, skipping the skill check (`src/systems/crafting/mod.rs`), and
+  its drum taking only that (`vessel_takes` in
+  `src/systems/inventory/containers.rs`); Coal, Crude
   Oil, Gasoline, Diesel, Glue and Paint and their content classes
   (`data/items.csv`), and the recipes that use Coal up
   (`data/recipes.csv`); the backstop rule, the fed circuit and the

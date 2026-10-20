@@ -586,7 +586,7 @@ mod tests {
         use crate::ecs::components::{BurnsFuels, PowerCircuit, PowerConsumer, PowerGenerator};
         use crate::ecs::systems::System;
         use crate::systems::electrical::{ElectricalSystem, PowerStatus};
-        use crate::systems::inventory::containers::{store_offers, Container, ContainerRegistry};
+        use crate::systems::inventory::containers::{store_offers, vessel_takes, Container, ContainerRegistry};
         use crate::systems::inventory::ItemRegistry;
         let data_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
         let read = |rel: &str| std::fs::read(data_dir.join(rel)).unwrap_or_else(|_| panic!("data/{rel}"));
@@ -644,9 +644,9 @@ mod tests {
             let pack: std::collections::HashMap<String, u32> =
                 [("paint_0".to_string(), 3), ("diesel_0".to_string(), 4), ("gasoline_0".to_string(), 5)].into_iter().collect();
             let offered: Vec<String> = {
-                let burns = world.get::<&BurnsFuels>(gen).unwrap();
+                let takes = vessel_takes(&world, &crate::hot_reload::data_store::DataStore::new(), gen);
                 let drum = world.get::<&Container>(gen).unwrap();
-                store_offers(&containers, Some(&items), &*drum, Some(&*burns), &pack).into_iter().map(|(id, _, _)| id).collect()
+                store_offers(&containers, Some(&items), &*drum, takes.as_ref(), &pack).into_iter().map(|(id, _, _)| id).collect()
             };
             assert_eq!(offered, vec!["gasoline_0".to_string()], "{file}: its drum offers its fuel, not Paint or Diesel");
 

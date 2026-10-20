@@ -468,7 +468,7 @@ impl CraftingSystem {
                 m.batch = None;
                 m.free_at = done;
                 if let Some(recipe) = recipes.recipes.get(&rid) {
-                    Self::deliver_goods(world, data, recipe, player, m.pad, items, kits, Some(m.entity), true, false);
+                    Self::deliver_goods(world, data, recipe, player, m.pad, items, kits, true, false);
                     ledger.collect_filed(data);
                     Self::credit_craft(data, recipe);
                     for (id, q) in &recipe.outputs {
@@ -500,8 +500,11 @@ impl CraftingSystem {
                     let energy_wh = f64::from(m.working_extra_w) * f64::from(recipe.craft_time.max(0.0)) / 3600.0;
                     match Self::away_start(m, recipe, now, world, &ledger, kits, balance_w, spare_w, used_wh, energy_wh) {
                         Start::Now => {
+                            // Its own feed vessel first (the refinery's drum of
+                            // crude oil, 2026-10-20), as a session draws.
                             for (id, q) in &recipe.inputs {
-                                ledger.spend(world, id, *q);
+                                let from_vessel = crate::systems::inventory::containers::take_from_vessel(world, m.entity, id, *q);
+                                ledger.spend(world, id, *q - from_vessel);
                             }
                             used_wh += energy_wh;
                             m.batch = Some((now + f64::from(recipe.craft_time.max(0.01)), m.recipe.clone()));
@@ -585,7 +588,8 @@ impl CraftingSystem {
         used_wh: f64,
         energy_wh: f64,
     ) -> Start {
-        if recipe.inputs.iter().any(|(id, q)| ledger.available(world, id) < *q) {
+        let in_vessel = |id: &str| crate::systems::inventory::containers::vessel_units(world, m.entity, id);
+        if recipe.inputs.iter().any(|(id, q)| ledger.available(world, id) + in_vessel(id) < *q) {
             return Start::Blocked;
         }
         if let (Some(k), Some((out, _))) = (m.keep, recipe.outputs.first()) {
