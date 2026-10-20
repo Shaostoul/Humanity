@@ -456,6 +456,11 @@
       "date": "2026-10-20",
       "decision": "v0.1523.1: the website Tools page became its Apps page (six parts). v0.1524.0: Media renamed Files everywhere (code, routes, web, data, docs) and merged with the developer Files page (places: Shared on host, Shared files, Admin; HumanityOS folder, Your folders), the old /api/files data routes renamed /api/data-files first. BUG-205 fixed: POST /api/data-files/write took no signature; now an admin Dilithium signature over the path and the content BLAKE3, fresh and single-use (test seen red: the unsigned write landed). The merge with Apps was resolved by hand (10 conflicts: both renames kept, Games/Tools leftovers dropped); just lints now builds into a per-run temp folder (a shared /tmp exe raced between worktrees).",
       "why": "Operator 2026-10-19: rename Media to Files, merge the dev Files page into it, sync names everywhere now. The write route was found by the rename builder; fixed the same night since it was live."
+    },
+    {
+      "date": "2026-10-20",
+      "decision": "v0.1525.0: four gameplay follow-ups from PRIORITIES fixed by a worktree builder and merged: drinks hydrate by litres times water share (HYDRATION_PER_LITRE 20, from the 2.5 L/day loss, EFSA intake), fire burn steps integrated exactly per tick (fuel, intensity, harm the same at 30 and 240 fps), gasoline_0 and diesel_0 replace Refined Fuel everywhere (refine_crude 10 crude to 5 gasoline + 3 diesel, EIA split), and one vessel rule (containers::vessel_takes): a machine vessel takes only its recipe feed or generator fuels; the refinery drum became its feed tank, products to home storage.",
+      "why": "Small, verifiable game-sim gaps listed as not started; good overnight work with the operator asleep. New gaps logged: nothing burns diesel yet; food hydration and satiation are still per item regardless of weight."
     }
   ],
   "active_scopes_to_avoid": [
