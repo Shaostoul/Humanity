@@ -373,7 +373,7 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
       the operator's real library (27 Steam games with covers, hours and achievements; Fortnite by
       its icon). Open: in the details panel, right-aligned text (the achievement dates) and the
       banner run flush against the scroll bar with no gap (cosmetic; not clipped, checked at full
-      resolution: a small right margin inside the ScrollArea would do); Workshop
+      resolution; being fixed with the Tools page's shared panel); Workshop
       mod names live on Steam's servers (not fetched); Epic and GOG store pages need an address
       name their local records do not carry; descriptions or genres only ever from Wikidata, on a
       press, per the finding.
@@ -384,6 +384,19 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
       records without writing to them, start a game only on a person's click through the store's
       own link or the game's exe, Install/Update open the store's app, no SteamCMD, no store
       sign-in, no logos yet, an on-screen note saying why).
+    - IN PROGRESS 2026-10-19: **the Tools page like the Games page** (operator: "What if we make
+      the tools page like the games page? Then what if through that interface users can
+      install/launch/go to the website(s) for the various non-game apps?"). Grid and List, the
+      installed programs found from Windows' own records and launched on a click, a details
+      panel, the Games page's widgets shared. Install through winget waits on a dated finding
+      (docs/reference/findings/2026-10-19-tools-page-install-launch-and-icons.md): who may accept
+      a package's agreements, verification, admin prompts, icons and logos. The web Tools page
+      mirrors the look after (it cannot detect or launch).
+    - IN PROGRESS 2026-10-19: **the Media page in three panes, editing in place** (operator: a
+      list on the left, the item fitted to the middle (picture, 3D model, video, a sound
+      visualiser), its details on the right; top, middle and bottom when the window is tall; Edit
+      turns the details pane into the form, in the tinted parts so edit mode stands out, and
+      Save returns it to view, instead of a window on top). Web mirror after.
     - DONE 2026-10-13 (v0.1495.1): **the project's history in the Library**, a "Project History"
       shelf with the 38 dated session histories and the 7 decision logs (catalog rows; re-run
       `node scripts/build-library.js` after a new history page).
@@ -998,6 +1011,16 @@ them up.
    the same day as a pull mirror of GitHub (Forgejo v16.0.5, syncs every 8
    hours by itself; `docs/admin/forgejo-setup.md`). The operator made the
    admin account through an SSH tunnel and set up the mirror.
+11. **OPEN, decide before 1 January 2027: is the Tools page's Install button a "covered
+   application store" under California's AB 1856?** The act defines one as a program that
+   "distributes and facilitates the download of applications from third-party developers"
+   and from that date gives it duties (asking the operating system for an age signal and
+   passing it to developers). A Tools page that only links distributes nothing; one that runs
+   winget facilitates a download, and whether it also "distributes" is not answered by the
+   text. Settled by a lawyer, guidance from the California Attorney General, or asking the
+   bill author's office. Until decided the button is fine to ship (the act is not in force).
+   Detail: `docs/reference/findings/2026-10-19-tools-page-install-launch-and-icons.md`, 2.10.
+   Told to the operator once, 2026-10-19.
 
 ---
 

@@ -283,3 +283,19 @@ what we will say about it.
   read-only is the reading (achievements too, by the session's own call); not GOG
   GALAXY's database. Links out on a click only; no metadata fetched by default,
   Wikidata (CC0) if ever. Extends the 2026-10-13 finding.
+- [`2026-10-19-tools-page-install-launch-and-icons.md`](2026-10-19-tools-page-install-launch-and-icons.md),
+  whether the desktop Tools page may find installed programs, install them through
+  winget on a click, start them, and show their icons. The Uninstall and App Paths
+  keys are documented for installers and read by Microsoft's own scripts, and
+  nothing read forbids another program reading them (per-user, 32-bit and Store
+  installs each need their own look). winget and its repository are MIT; Microsoft welcomes other package
+  managers; the accept switches skip a prompt meant for the person, the COM
+  interface accepts by default, and most packages carry no agreement while
+  installers run silently, so the page must show each licence and get the
+  person's own "I agree" (Berman, 9th Cir. 2022). DaVinci Resolve, Aseprite and
+  Ardour are not in winget; Resolve needs Blackmagic's registration form; the
+  catalog mislabels Paint.NET, Aseprite and VS Code. An Install button may make
+  the page a California "covered application store" from 2027 (open). Show
+  each installed program's own icon in place and ship no logos (OBS forbids
+  its logo without authorization, Blackmagic publishes no rules). Projects
+  and Microsoft say: get software from its maker, never from an advert.
