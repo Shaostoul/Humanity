@@ -2217,6 +2217,14 @@
       "name": "Project History",
       "docs": [
         {
+          "title": "Session history, 20 October 2026 (overnight)",
+          "src": "docs/history/2026-10-20.md",
+          "tags": [
+            "project",
+            "reference"
+          ]
+        },
+        {
           "title": "Session history, 19 October 2026",
           "src": "docs/history/2026-10-19.md",
           "tags": [
