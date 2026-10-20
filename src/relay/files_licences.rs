@@ -164,11 +164,18 @@ pub fn load_licences(path: &std::path::Path) -> LicencesFile {
     })
 }
 
+/// Where the licences file is in the data folder `data`: `files/licences.json`, the folder the
+/// built-in copy comes from too (read from `media/` until 2026-10-20, a day after it moved, so
+/// every relay served the built-in copy; relay/files.rs `labels_path` is its twin).
+pub fn licences_path(data: &std::path::Path) -> std::path::PathBuf {
+    data.join("files").join("licences.json")
+}
+
 /// The licences this relay knows, read once from the data folder (`crate::data_dir`, which is
 /// "data" for the headless relay).
 pub fn licences() -> &'static LicencesFile {
     static LICENCES: std::sync::OnceLock<LicencesFile> = std::sync::OnceLock::new();
-    LICENCES.get_or_init(|| load_licences(&crate::data_dir().join("media").join("licences.json")))
+    LICENCES.get_or_init(|| load_licences(&licences_path(&crate::data_dir())))
 }
 
 /// What is said when a licence is chosen that this server does not offer.
@@ -246,6 +253,40 @@ mod tests {
     fn shipped_text() -> String {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/files/licences.json");
         std::fs::read_to_string(&path).expect("data/files/licences.json is shipped")
+    }
+
+    /// THE RELAY READS THE LABELS AND LICENCES FROM data/files/ (2026-10-20). Both files moved from
+    /// data/media/ to data/files/ with the page's name on 2026-10-19, but the loaders kept reading
+    /// data/media/, so every relay served its built-in copies, an edit to either file did nothing,
+    /// and each start logged "[built-in data copy] data/files/labels.json: data\media\labels.json
+    /// could not be read", which scripts/verify-copresence.js refuses. Here a data folder whose
+    /// files/ holds changed copies: the relay's paths find them, and what is read is the change.
+    ///
+    /// Seen red 2026-10-20 with both paths back on `media/`: "the labels come from data/files/, not
+    /// the built-in copy" failed (the built-in spoiler, flashing and graphic, no only_here).
+    #[test]
+    fn the_labels_and_licences_are_read_from_the_files_folder() {
+        let data = crate::test_temp::dir("relay_files_folder");
+        std::fs::create_dir_all(data.join("files")).unwrap();
+
+        let labels = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/files/labels.json");
+        let changed = std::fs::read_to_string(labels).unwrap().replacen(
+            "\"labels\": [",
+            "\"labels\": [\n    { \"id\": \"only_here\", \"label\": \"Only here\", \"desc\": \"In the test's data folder alone\" },",
+            1,
+        );
+        // Written where the files are shipped (data/files/), read through the relay's own path.
+        std::fs::write(data.join("files").join("labels.json"), changed).unwrap();
+        let read = crate::relay::files::load_labels(&crate::relay::files::labels_path(&data));
+        assert!(read.iter().any(|l| l.id == "only_here"), "the labels come from data/files/, not the built-in copy: {:?}", read.iter().map(|l| &l.id).collect::<Vec<_>>());
+
+        // The shipped licences with the Creative Commons warning emptied: only All rights reserved.
+        let mut file: serde_json::Value = serde_json::from_str(&shipped_text()).unwrap();
+        file["cc_warning"] = serde_json::json!("");
+        std::fs::write(data.join("files").join("licences.json"), file.to_string()).unwrap();
+        let read = load_licences(&licences_path(&data));
+        let ids: Vec<&str> = read.offered().iter().map(|l| l.id.as_str()).collect();
+        assert_eq!(ids, vec!["all_rights_reserved"], "the licences come from data/files/, not the built-in copy");
     }
 
     /// THE LICENCES FILE PARSES AND OFFERS A CREATIVE COMMONS LICENCE ONLY WITH ITS WARNING: the

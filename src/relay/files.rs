@@ -136,11 +136,18 @@ pub fn load_labels(path: &std::path::Path) -> Vec<FilesLabel> {
     })
 }
 
+/// Where the labels file is in the data folder `data`: `files/labels.json`, the folder the built-in
+/// copy comes from too. It moved from `media/` with the page's name on 2026-10-19, and this read
+/// `media/` until 2026-10-20, so every relay served the built-in copy and said so in its log.
+pub fn labels_path(data: &std::path::Path) -> std::path::PathBuf {
+    data.join("files").join("labels.json")
+}
+
 /// The labels this relay accepts, read once from the data folder (`crate::data_dir`, which is
 /// "data" for the headless relay), at start (relay/mod.rs `run_relay`).
 pub fn labels() -> &'static [FilesLabel] {
     static LABELS: std::sync::OnceLock<Vec<FilesLabel>> = std::sync::OnceLock::new();
-    LABELS.get_or_init(|| load_labels(&crate::data_dir().join("media").join("labels.json")))
+    LABELS.get_or_init(|| load_labels(&labels_path(&crate::data_dir())))
 }
 
 /// The labels someone chose, checked against `known` and joined as they are stored: ids in the
