@@ -5,7 +5,9 @@
 //! for file browsing then we automatically have 'data' files and we even have mods at the top too."
 //!
 //! The folder is found the way the app finds its data (`crate::data_dir()`, `data` beside the app
-//! unless set otherwise) and is the one above it. In the three panes: on the left, under the
+//! unless set otherwise) and is the one above it when that one holds the app's `assets/` too; a
+//! copy installed to the person's own folder (`%APPDATA%\HumanityOS`, where their settings, saves
+//! and messages live) starts at its data folder instead ([`app_folder_for`]). In the three panes: on the left, under the
 //! places, the folder as a tree (a folder's contents are read when it is opened, never all at
 //! once: in a developer's copy this folder holds the build output too); in the middle the file
 //! chosen, its text to read and edit, with Save; on the right where it is, its size, and what
@@ -87,13 +89,44 @@ pub struct AppFolder {
     pub status: String,
 }
 
-/// The app's own folder: the one above its data folder.
+/// The app's own folder, as this run found its data ([`app_folder_for`]).
 pub fn root_folder() -> PathBuf {
     let data = crate::data_dir();
     let data = if data.is_absolute() { data } else { std::env::current_dir().unwrap_or_default().join(data) };
+    app_folder_for(&data, &own_files_folders())
+}
+
+/// The folders that hold the person's own files (settings with the encrypted identity, saves,
+/// messages, the local server's keys, logs), which this place never shows: the per-user folder
+/// (`%APPDATA%\HumanityOS` on Windows) and, for a portable copy, the program's own folder.
+pub fn own_files_folders() -> Vec<PathBuf> {
+    let mut out: Vec<PathBuf> = crate::storage::os_root().into_iter().collect();
+    if crate::storage::mode() == crate::storage::StorageMode::Portable {
+        out.push(crate::storage::exe_dir());
+    }
+    out
+}
+
+/// The app's own folder for the data folder `data` (found as the app finds it, lib.rs
+/// `find_data_dir`): the folder above it when that folder holds the app's `assets/` too and is not
+/// one of `own` ([`own_files_folders`]); otherwise `data` itself.
+///
+/// So in a developer's checkout it is the checkout (data/, assets/, mods/, as the operator chose on
+/// 2026-10-19), and in the folder the downloaded zip unpacked it is that folder, the program, data/
+/// and assets/ side by side, which is where the game reads them from. A copy installed to the
+/// person's folder runs its data from `%APPDATA%\HumanityOS\data` (storage.rs, Installed): the
+/// folder above that holds their settings, saves, messages and the local server's keys, so the
+/// place starts at the data folder. Until 2026-10-20 it always started one folder up, and such a
+/// copy showed config.json, dms/, relay/ (with its key files), saves/ and logs/ under a caution
+/// that called them the files HumanityOS runs on.
+pub fn app_folder_for(data: &Path, own: &[PathBuf]) -> PathBuf {
+    let same = |a: &Path, b: &Path| match (a.canonicalize(), b.canonicalize()) {
+        (Ok(a), Ok(b)) => a == b,
+        _ => a == b,
+    };
     match data.parent() {
-        Some(p) if !p.as_os_str().is_empty() => p.to_path_buf(),
-        _ => std::env::current_dir().unwrap_or_default(),
+        Some(above) if !above.as_os_str().is_empty() && above.join("assets").is_dir() && !own.iter().any(|o| same(o, above)) => above.to_path_buf(),
+        _ => data.to_path_buf(),
     }
 }
 
@@ -553,7 +586,54 @@ mod tests {
         assert!(state.files.app_folder.guide.is_none() && drawn_at(&out, OPEN_IN_LIBRARY).is_empty(), "and has no Open in the Library");
     }
 
-    /// THE FOLDER IS THE ONE ABOVE THE DATA FOLDER, read folders first.
+    /// THE HUMANITYOS FOLDER IS THE APP'S OWN, NEVER THE PERSON'S FILES (2026-10-20). In a
+    /// checkout or the folder the downloaded zip unpacked, data/ and assets/ sit side by side and
+    /// the place starts at the folder holding both. A copy installed to the person's folder runs
+    /// its data from `%APPDATA%\HumanityOS\data`, whose folder above holds config.json (the
+    /// encrypted identity), dms/, relay/ with its key files, saves/ and logs/: the place starts at
+    /// the data folder and none of those is in it. A portable copy keeps the person's files beside
+    /// the program, so it starts at its data folder too, and so does a data folder with no assets/
+    /// beside it.
+    ///
+    /// Seen red 2026-10-20 with `app_folder_for` answering the folder above every time (as it was):
+    /// "an installed copy starts at its data folder, not the person's own" (left: ...AppData\
+    /// HumanityOS, right: ...AppData\HumanityOS\data).
+    #[test]
+    fn the_folder_is_the_apps_own_never_the_persons_files() {
+        let t = crate::test_temp::dir("app_folder_where");
+        let mk = |p: &Path| std::fs::create_dir_all(p).unwrap();
+        // The person's own folder, as an installed copy fills it.
+        let own = t.join("AppData").join("HumanityOS");
+        for d in ["data", "dms", "relay", "saves", "logs"] {
+            mk(&own.join(d));
+        }
+        std::fs::write(own.join("config.json"), "{}").unwrap();
+        std::fs::write(own.join("relay").join("vapid_private.key"), "k").unwrap();
+        // A checkout, or the unpacked zip: the program's folder with data/ and assets/.
+        let unpacked = t.join("Downloads").join("HumanityOS");
+        mk(&unpacked.join("data"));
+        mk(&unpacked.join("assets"));
+
+        assert_eq!(app_folder_for(&unpacked.join("data"), std::slice::from_ref(&own)), unpacked, "the unpacked folder: data/ and assets/ side by side");
+        let installed = app_folder_for(&own.join("data"), std::slice::from_ref(&own));
+        assert_eq!(installed, own.join("data"), "an installed copy starts at its data folder, not the person's own");
+        let shown: Vec<String> = read_folder(&installed).into_iter().map(|e| e.name).collect();
+        for private in ["config.json", "dms", "relay", "saves", "logs"] {
+            assert!(!shown.contains(&private.to_string()), "{private} is not in the place: {shown:?}");
+        }
+        // Even with assets/ in the person's folder, it is still theirs.
+        mk(&own.join("assets"));
+        assert_eq!(app_folder_for(&own.join("data"), std::slice::from_ref(&own)), own.join("data"), "the person's folder is never the place");
+        // A portable copy: the program's folder holds the person's files, so its data folder.
+        std::fs::write(unpacked.join("config.json"), "{}").unwrap();
+        assert_eq!(app_folder_for(&unpacked.join("data"), &[own.clone(), unpacked.clone()]), unpacked.join("data"), "a portable copy starts at its data folder");
+        // A data folder with no assets/ beside it: the data folder.
+        let bare = t.join("bare");
+        mk(&bare.join("data"));
+        assert_eq!(app_folder_for(&bare.join("data"), &[]), bare.join("data"));
+    }
+
+    /// THIS RUN'S FOLDER HOLDS data/ (here, a developer's checkout), read folders first.
     #[test]
     fn the_folder_is_the_one_above_data_and_folders_come_first() {
         let root = root_folder();

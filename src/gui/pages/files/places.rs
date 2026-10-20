@@ -9,7 +9,8 @@
 //! categories and what to prune: admin.rs).
 //!
 //! ON THIS COMPUTER: "HumanityOS folder" (the app's own folder, data/, assets/ and mods/ in it, to
-//! read and edit: app_folder.rs) and "Your folders" (folders added to look through and pick files
+//! read and edit; for a copy installed to the person's folder its data folder, never the person's
+//! own files: app_folder.rs `app_folder_for`) and "Your folders" (folders added to look through and pick files
 //! from for Add to Files: your_folders.rs). Neither needs a server.
 
 use super::{app_folder, shared_files, your_folders, Place};

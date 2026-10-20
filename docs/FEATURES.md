@@ -287,7 +287,7 @@ no one is using HOS". So the Media page and the developer's Files page are one p
 PLACES at the top of its left pane (`src/gui/pages/files/places.rs`; web `files-places.js`): Shared
 on <server> (the Media list, item and details below), Shared files (the server's public library),
 Admin (admins), the HumanityOS folder (`files/app_folder.rs`: the app's own folder, the one holding
-data/, assets/ and mods/, as a tree read folder by folder; a text file read and edited in the
+data/, assets/ and mods/, or for a copy installed to the person's folder its data folder, never their own files (`app_folder_for`, 2026-10-20), as a tree read folder by folder; a text file read and edited in the
 middle; Save keeps `<name>.bak` beside it and Put back the previous version restores it; the web's
 is the server's data/ through `/api/data-files`, for the server's admins only, BUG-206, `files-folder.js`) and Your folders (desktop
 only). The words say Files: the heading "Files on {host}", Add to Files, Put on the Files page,
