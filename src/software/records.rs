@@ -10,6 +10,8 @@
 //! - APP PATHS (`SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\<program>.exe`), where an
 //!   installer tells Windows where its program is so that Run and the Start menu can find it by its
 //!   file name.
+//! - THE START MENU'S SHORTCUTS (2026-10-19, shortcuts.rs), by name only: a shortcut is opened
+//!   only when a program's record gives no program file (software/matcher.rs).
 //!
 //! Read on the Tools page's worker thread when the page opens and on Refresh, never every frame.
 //! The page's tests never read the real registry: they hand the matcher a [`Records`] of their
@@ -59,6 +61,8 @@ pub struct AppPath {
 pub struct Records {
     pub uninstall: Vec<Uninstall>,
     pub app_paths: Vec<AppPath>,
+    /// The Start menu's shortcuts, by name (shortcuts.rs).
+    pub shortcuts: Vec<super::shortcuts::Shortcut>,
 }
 
 /// A path as an installer wrote it: quotes taken off, a trailing ",0" (an icon's index) taken off,
@@ -112,7 +116,9 @@ fn expand_env(s: &str) -> String {
 pub fn this_computer() -> Records {
     #[cfg(windows)]
     {
-        windows_read::read()
+        let mut records = windows_read::read();
+        records.shortcuts = super::shortcuts::list(&super::shortcuts::start_menu_folders());
+        records
     }
     #[cfg(not(windows))]
     {

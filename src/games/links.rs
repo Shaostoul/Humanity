@@ -12,6 +12,9 @@
 //! Steam App ID or GOG ID, and SteamDB; links only, never fetched, previewed or read in the
 //! background (SteamDB and PCGamingWiki ask programs not to).
 //!
+//! A program from the external catalog that Steam installed (Blender) gets the same Steam links,
+//! [`steam_program_links`] and [`open_in_steam`] (2026-10-19), beside its maker's own website.
+//!
 //! Epic and GOG store pages are not linked: they are addressed by a name ("slug") the stores'
 //! local records do not carry, and a guessed address could open the wrong game. An Epic game's
 //! "Open in the Epic Games Store" (games/mod.rs) opens the store's front page instead.
@@ -86,10 +89,15 @@ pub fn links(game: &Game) -> Vec<GameLink> {
     if !digits(&game.id) {
         return Vec::new();
     }
+    build(lines, &game.id)
+}
+
+/// `lines` with `id` put in.
+fn build(lines: &[(&'static str, &'static str, Kind, &str)], id: &str) -> Vec<GameLink> {
     lines
         .iter()
-        .map(|(label, tip, kind, address)| {
-            let address = address.replace("{id}", &game.id);
+        .map(|&(label, tip, kind, address)| {
+            let address = address.replace("{id}", id);
             let opens = match kind {
                 Kind::InSteam => Opens::InStore(Launch::Link(address)),
                 Kind::Web => Opens::Web(address),
@@ -97,6 +105,24 @@ pub fn links(game: &Game) -> Vec<GameLink> {
             GameLink { label, tip, opens }
         })
         .collect()
+}
+
+/// The links a program installed through Steam gets beside its maker's own website (2026-10-19,
+/// the operator: "blender shows it is through Steam but, it doesn't have a link to the steam
+/// page"): its store page in Steam and on the web, and its community hub. `appid` is its Steam app
+/// id; one that is not a number has none.
+pub fn steam_program_links(appid: &str) -> Vec<GameLink> {
+    if !digits(appid) {
+        return Vec::new();
+    }
+    let wanted = ["Store page", "Community hub", "Steam store on the web"];
+    build(&STEAM_LINKS.iter().filter(|l| wanted.contains(&l.0)).copied().collect::<Vec<_>>(), appid)
+}
+
+/// "Open in Steam" for Steam app `appid`: its page in the person's Steam library, as a Steam game's
+/// own button opens (games/mod.rs `store_button`).
+pub fn open_in_steam(appid: &str) -> Option<Launch> {
+    digits(appid).then(|| Launch::Link(format!("steam://nav/games/details/{appid}")))
 }
 
 /// A Workshop item's own page in Steam, when its id is a number.
@@ -152,5 +178,33 @@ mod tests {
         assert!(!web_allowed("https://evil.example/app/1") && !web_allowed("http://steamdb.info/app/1/") && !web_allowed("https://steamdb.info.evil.example/"));
         assert_eq!(workshop_item("3000001"), Some(Launch::Link("steam://url/CommunityFilePage/3000001".into())));
         assert_eq!(workshop_item("../x"), None);
+    }
+
+    /// A PROGRAM STEAM INSTALLED GETS STEAM'S LINKS (2026-10-19, Blender, app 365670): Open in Steam
+    /// is its page in the Steam library, and its links are its store page in Steam, its community
+    /// hub and its store page on the web, each exactly a Steam game's address and every web one on
+    /// the list of hosts; an id that is not a number has none.
+    ///
+    /// Seen red 2026-10-19 with the links filtered by a label no line has ("Store" for "Store
+    /// page"): "Blender's Steam links" got two of the three.
+    #[test]
+    fn a_program_steam_installed_gets_steams_links() {
+        assert_eq!(open_in_steam("365670"), Some(Launch::Link("steam://nav/games/details/365670".into())));
+        let opens: Vec<Opens> = steam_program_links("365670").into_iter().map(|l| l.opens).collect();
+        assert_eq!(
+            opens,
+            vec![
+                Opens::InStore(Launch::Link("steam://store/365670".into())),
+                Opens::InStore(Launch::Link("steam://url/GameHub/365670".into())),
+                Opens::Web("https://store.steampowered.com/app/365670".into()),
+            ],
+            "Blender's Steam links"
+        );
+        assert!(opens.iter().all(|o| match o {
+            Opens::Web(u) => web_allowed(u),
+            Opens::InStore(Launch::Link(l)) => LINK_SCHEMES.iter().any(|s| l.starts_with(s)),
+            _ => false,
+        }));
+        assert!(steam_program_links("36 OR 1").is_empty() && open_in_steam("x").is_none());
     }
 }

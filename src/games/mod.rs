@@ -1,7 +1,7 @@
 //! The Games library's readers (2026-10-18; the operator, docs/PRIORITIES.md 2026-10-13: "A Games
 //! library: list and launch every installed game (Steam, Epic, GOG, anything installed elsewhere),
-//! the stores still doing downloads and updates behind it"). The page is
-//! src/gui/pages/games.rs.
+//! the stores still doing downloads and updates behind it"). The page is the Apps page's red part
+//! since 2026-10-19: src/gui/pages/apps.rs, its games in apps/games.rs.
 //!
 //! WHAT MAY BE DONE is set by the dated finding
 //! docs/reference/findings/2026-10-13-game-stores-and-a-games-library.md, "What it means for
@@ -38,6 +38,9 @@
 //! - `links`: the store-app and web links a game's details offer, each opened only on a click.
 //! - `art`: a game's pictures: the ones Steam's own client cached on this computer, read in place,
 //!   and an Epic or GOG game's program icon; never copied, sent or fetched (see its header).
+//! - `epic_covers` (2026-10-19): the addresses of an Epic game's covers, from the launcher's own
+//!   catalog on this computer, and the one function that fetches one, used only when the person
+//!   turns on the Apps page's switch (off by default); nothing fetched is ever written anywhere.
 //! - `launch`: the ONE way anything here is started or shown in a folder. Test builds replace it
 //!   with a recorder, so no test can start a game, a store or a link.
 //!
@@ -47,6 +50,7 @@ pub mod achievements;
 pub mod art;
 pub mod binary_keyvalues;
 pub mod epic;
+pub mod epic_covers;
 pub mod gog;
 pub mod keyvalues;
 pub mod launch;
@@ -62,7 +66,7 @@ pub mod workshop;
 use std::path::{Path, PathBuf};
 
 pub use launch::{launch, Launch};
-pub use other::AddedGame;
+pub use other::AddedApp;
 
 /// Where a game came from. Named in plain words only: no store's logo or branding is used (the
 /// finding: trademarks were not researched, and a plain name describes where a game came from
@@ -380,8 +384,9 @@ mod this_computer {
         let art = &d.art;
         let has = |p: &Option<std::path::PathBuf>| if p.is_some() { "yes" } else { "-" };
         let icon = art.icon.as_ref().map(|i| format!("{}x{}", i.width, i.height)).unwrap_or_else(|| "-".into());
+        let epic = art.epic_covers.as_ref().map(|c| format!("{:?}", c.urls())).unwrap_or_else(|| "-".into());
         format!(
-            "size {} | updated {} | played {} min | last {} | version {} | achievements {ach} | screenshots {shots} | workshop {mods} | cover {} hero {} logo {} icon {icon}",
+            "size {} | updated {} | played {} min | last {} | version {} | achievements {ach} | screenshots {shots} | workshop {mods} | cover {} hero {} logo {} icon {icon} | Epic covers (addresses only) {epic}",
             n(d.size),
             n(d.updated),
             n(d.played_minutes),

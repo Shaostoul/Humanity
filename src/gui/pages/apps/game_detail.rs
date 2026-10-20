@@ -1,26 +1,26 @@
-// Child of pages/games.rs (#[path]): a game's details, at the right of the library while a game is
-// chosen, and its screenshot shown large. Drawn from what the page's worker read (games/), so
-// nothing here reads a file: the screenshots are shrunk for drawing by widgets/thumbnails.rs on
-// its own workers.
-//
-// Top to bottom: its banner slot (games/art.rs: Steam's cached banner with the game's lettering
-// over it, else a plain panel with its name and its program's icon), where it came
-// from and Close; why it cannot start, when it cannot; Play, the store's own button and Show in
-// folder (Rename and Remove for a game added by hand); its numbers (time played, last played, size
-// on the disk, last updated, version, the folder it is in); its achievements, unlocked first with
-// the day; the person's screenshots; its Workshop mods; and its links, in Steam and on the web.
+//! A game's details on the Apps page (and those of a thing added by hand), at the right of the
+//! parts while it is chosen, and its screenshot shown large (the Games library's, 2026-10-19).
+//! Drawn from what the page's worker read (src/games/), so nothing here reads a file: the
+//! screenshots are shrunk for drawing by widgets/thumbnails.rs on its own workers.
+//!
+//! Top to bottom: its banner slot (games/art.rs: Steam's cached banner with the game's lettering
+//! over it, or Epic's cover when the person turned those on, else a plain panel with its name and
+//! its program's icon), where it came from and Close; why it cannot start, when it cannot; Play
+//! (Launch for a thing added), the store's own button and Show in folder (Rename and Remove for a
+//! thing added by hand); its numbers (time played, last played, size on the disk, last updated,
+//! version, the folder it is in); its achievements, unlocked first with the day; the person's
+//! screenshots; its Workshop mods; and its links, in Steam and on the web.
 
 use egui::{Rect, RichText, Sense, Stroke, Vec2};
 
-use super::{Act, GamesState, ShowAll};
+use super::games::{self as g, ShowAll};
+use super::{Act, AppsState};
 use crate::games::links::{self, Opens};
 use crate::games::{Game, State, Store};
 use crate::gui::theme::Theme;
 use crate::gui::widgets::{self, cover_tile, icons, shelf, thumbnails};
 use crate::gui::GuiState;
 
-/// The details' width when they open (the person can drag their edge).
-pub(super) const DETAILS_WIDTH: f32 = 440.0;
 /// The banner slot's shape (Steam's library banner is about 3.1 to 1).
 const HERO_ASPECT: f32 = 3.1;
 /// How many achievements, screenshots and mods show before "Show all".
@@ -48,36 +48,26 @@ pub(super) const HIDDEN: &str = "Hidden: its description shows once you unlock i
 pub(super) const ON_THE_WEB: &str = "On the web";
 pub(super) const IN_STEAM: &str = "In Steam";
 
-/// The details, when a game is chosen. Returns what was clicked.
-pub(super) fn panel(ctx: &egui::Context, theme: &Theme, state: &GuiState) -> Vec<Act> {
-    let mut acts = Vec::new();
-    let page = &state.games;
-    let Some(game) = page.selected_game() else { return acts };
-    // The details panel the Tools page shares (widgets/shelf.rs), its contents clear of its scroll
-    // bar since 2026-10-19 (the operator's library at 2560 wide: dates and the banner touched it).
-    shelf::details_panel(ctx, theme, "games_details", DETAILS_WIDTH, |ui| {
-        body(ui, theme, page, game, &mut acts);
-    });
-    acts
-}
-
 /// A section's heading, a note beside it, and a line under it (the shelf's).
 fn heading(ui: &mut egui::Ui, theme: &Theme, text: &str, note: Option<&str>) {
     shelf::section_heading(ui, theme, text, note);
 }
 
-fn body(ui: &mut egui::Ui, theme: &Theme, page: &GamesState, game: &Game, acts: &mut Vec<Act>) {
+/// The game's details, in the details panel (apps/detail.rs).
+pub(super) fn body(ui: &mut egui::Ui, theme: &Theme, page: &AppsState, game: &Game, acts: &mut Vec<Act>) {
     let width = ui.available_width();
-    // The banner slot: a picture when the app may show one (games/art.rs), else the plain panel
-    // with the game's name.
+    // The banner slot: a picture when the app may show one (games/art.rs; Epic's cover when the
+    // person turned those on), else the plain panel with the game's name.
     let (rect, _) = ui.allocate_exact_size(Vec2::new(width, (width / HERO_ASPECT).round().max(80.0)), Sense::hover());
     let art = &game.details.art;
     let banner = art.hero.as_deref().or(art.cover.as_deref());
-    let picture = banner.and_then(|p| thumbnails::get(ui.ctx(), p, width));
+    let remote = page.covers.banner_of(game);
+    let picture = remote.or_else(|| banner.and_then(|p| thumbnails::get(ui.ctx(), p, width)));
     // Whether it HAS a picture, not whether it is read yet: the name's line under it is there from
     // the first frame, so nothing below moves when the picture comes in.
-    let has_picture = banner.is_some();
-    cover_tile::paint_cover(ui.painter(), theme, rect, picture, page.icon_of(game), &game.name, &game.id, theme.font_size_title, theme.border_radius_lg);
+    let has_picture = banner.is_some() || remote.is_some();
+    let title = if has_picture { "" } else { game.name.as_str() };
+    cover_tile::paint_cover(ui.painter(), theme, rect, picture, page.games.icon_of(game), title, &game.id, theme.font_size_title, theme.border_radius_lg);
     // The game's own title lettering over its banner, as Steam's library shows it.
     if picture.is_some() {
         if let Some((logo, size)) = art.logo.as_deref().and_then(|p| thumbnails::get(ui.ctx(), p, width * 0.5)) {
@@ -101,23 +91,24 @@ fn body(ui: &mut egui::Ui, theme: &Theme, page: &GamesState, game: &Game, acts: 
             }
         });
     });
-    if let Some(words) = super::why_not_words(game) {
+    if let Some(words) = g::why_not_words(game) {
         ui.label(RichText::new(words).size(theme.font_size_small).color(theme.warning()));
     }
     ui.add_space(theme.spacing_xs);
-    actions(ui, theme, page, game, acts);
+    let part = &page.games;
+    actions(ui, theme, part, game, acts);
     about(ui, theme, game);
-    achievements(ui, theme, page, game, acts);
-    screenshots(ui, theme, page, game, acts);
-    mods(ui, theme, page, game, acts);
+    achievements(ui, theme, part, game, acts);
+    screenshots(ui, theme, part, game, acts);
+    mods(ui, theme, part, game, acts);
     links_section(ui, theme, game, acts);
     ui.add_space(theme.spacing_lg);
 }
 
-/// Play, the store's own button, Show in folder; Rename and Remove for a game added by hand.
-fn actions(ui: &mut egui::Ui, theme: &Theme, page: &GamesState, game: &Game, acts: &mut Vec<Act>) {
+/// Play (Launch for a thing added), the store's own button, Show in folder; Rename and Remove for a thing added by hand.
+fn actions(ui: &mut egui::Ui, theme: &Theme, page: &g::GamesPart, game: &Game, acts: &mut Vec<Act>) {
     ui.horizontal_wrapped(|ui| {
-        if game.play.is_some() && widgets::Button::primary(super::PLAY).size(widgets::ButtonSize::Large).tooltip(super::play_tip(game.store)).show(ui, theme) {
+        if game.play.is_some() && widgets::Button::primary(g::play_words(game.store)).size(widgets::ButtonSize::Large).tooltip(g::play_tip(game.store)).show(ui, theme) {
             acts.push(Act::Play(game.clone()));
         }
         if let Some(b) = game.store_button() {
@@ -134,7 +125,7 @@ fn actions(ui: &mut egui::Ui, theme: &Theme, page: &GamesState, game: &Game, act
     if game.store != Store::Added {
         return;
     }
-    let editing = page.renaming.as_ref().filter(|(p, _)| super::same_file(p, &game.show)).map(|(_, n)| n.clone());
+    let editing = page.renaming.as_ref().filter(|(p, _)| g::same_file(p, &game.show)).map(|(_, n)| n.clone());
     ui.horizontal_wrapped(|ui| match editing {
         Some(typed) => {
             let mut typed = typed;
@@ -143,7 +134,7 @@ fn actions(ui: &mut egui::Ui, theme: &Theme, page: &GamesState, game: &Game, act
             if edit.changed() {
                 acts.push(Act::StartRename(game.show.clone(), typed.clone()));
             }
-            if widgets::Button::primary(super::SAVE).size(widgets::ButtonSize::Small).show(ui, theme) || enter {
+            if widgets::Button::primary(g::SAVE).size(widgets::ButtonSize::Small).show(ui, theme) || enter {
                 acts.push(Act::Rename(game.show.clone(), typed.clone()));
             }
             if widgets::Button::secondary(super::CANCEL).size(widgets::ButtonSize::Small).show(ui, theme) {
@@ -151,10 +142,10 @@ fn actions(ui: &mut egui::Ui, theme: &Theme, page: &GamesState, game: &Game, act
             }
         }
         None => {
-            if widgets::Button::ghost(super::RENAME).size(widgets::ButtonSize::Small).tooltip("Change the name it shows here.").show(ui, theme) {
+            if widgets::Button::ghost(g::RENAME).size(widgets::ButtonSize::Small).tooltip("Change the name it shows here.").show(ui, theme) {
                 acts.push(Act::StartRename(game.show.clone(), game.name.clone()));
             }
-            if widgets::Button::ghost(super::REMOVE).size(widgets::ButtonSize::Small).tooltip("Take it off this list. The game itself is not touched.").show(ui, theme) {
+            if widgets::Button::ghost(g::REMOVE).size(widgets::ButtonSize::Small).tooltip("Take it off this list. The program itself is not touched.").show(ui, theme) {
                 acts.push(Act::Remove(game.show.clone()));
             }
         }
@@ -166,27 +157,27 @@ fn about(ui: &mut egui::Ui, theme: &Theme, game: &Game) {
     let d = &game.details;
     let mut rows: Vec<(&str, String)> = Vec::new();
     if let Some(m) = d.played_minutes.filter(|m| *m > 0) {
-        rows.push(("Played", super::played_words(m)));
+        rows.push(("Played", g::played_words(m)));
     }
     if let Some(t) = d.last_played {
-        rows.push(("Last played", super::day_words(t, false)));
+        rows.push(("Last played", g::day_words(t, false)));
     }
     if let Some(s) = d.size {
-        rows.push(("Size on disk", super::size_words(s)));
+        rows.push(("Size on disk", g::size_words(s)));
     }
     if let Some(t) = d.updated {
-        rows.push(("Last updated", super::day_words(t, false)));
+        rows.push(("Last updated", g::day_words(t, false)));
     }
     if let Some(v) = &d.version {
         rows.push(("Version", v.clone()));
     }
     rows.push(("Installed in", game.folder.display().to_string()));
     heading(ui, theme, ABOUT, None);
-    shelf::facts(ui, theme, ("games_about", &game.id), &rows);
+    shelf::facts(ui, theme, ("apps_game_about", &game.id), &rows);
 }
 
 /// Its achievements: how many of how many, a bar, and the list (the unlocked first, with the day).
-fn achievements(ui: &mut egui::Ui, theme: &Theme, page: &GamesState, game: &Game, acts: &mut Vec<Act>) {
+fn achievements(ui: &mut egui::Ui, theme: &Theme, page: &g::GamesPart, game: &Game, acts: &mut Vec<Act>) {
     let Some(a) = &game.details.achievements else { return };
     let count = match a.unlocked() {
         Some(n) => format!("{n} of {}", a.total()),
@@ -216,7 +207,7 @@ fn achievements(ui: &mut egui::Ui, theme: &Theme, page: &GamesState, game: &Game
                     ui.label(RichText::new(&item.name).size(theme.font_size_body).color(color));
                     if let Some(at) = item.unlocked_at {
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            ui.label(RichText::new(super::day_words(at, true)).size(theme.font_size_small).color(theme.text_muted()));
+                            ui.label(RichText::new(g::day_words(at, true)).size(theme.font_size_small).color(theme.text_muted()));
                         });
                     }
                 });
@@ -237,7 +228,7 @@ fn achievements(ui: &mut egui::Ui, theme: &Theme, page: &GamesState, game: &Game
 }
 
 /// The person's screenshots: small, newest first; a click shows one large.
-fn screenshots(ui: &mut egui::Ui, theme: &Theme, page: &GamesState, game: &Game, acts: &mut Vec<Act>) {
+fn screenshots(ui: &mut egui::Ui, theme: &Theme, page: &g::GamesPart, game: &Game, acts: &mut Vec<Act>) {
     let Some(s) = &game.details.screenshots else { return };
     heading(ui, theme, SCREENSHOTS, Some(&s.total.to_string()));
     let gap = theme.spacing_sm;
@@ -296,10 +287,10 @@ fn paint_shot(ui: &egui::Ui, theme: &Theme, rect: Rect, picture: Option<(egui::T
 }
 
 /// Its Workshop mods: how many and how large, then each by its number, its size and its day.
-fn mods(ui: &mut egui::Ui, theme: &Theme, page: &GamesState, game: &Game, acts: &mut Vec<Act>) {
+fn mods(ui: &mut egui::Ui, theme: &Theme, page: &g::GamesPart, game: &Game, acts: &mut Vec<Act>) {
     let Some(w) = &game.details.workshop else { return };
     let n = w.items.len();
-    let note = format!("Steam Workshop: {n} {}, {}", if n == 1 { "item" } else { "items" }, super::size_words(w.total_size));
+    let note = format!("Steam Workshop: {n} {}, {}", if n == 1 { "item" } else { "items" }, g::size_words(w.total_size));
     heading(ui, theme, MODS, Some(&note));
     let shown = if page.show_all.mods { n } else { FIRST_MODS.min(n) };
     for item in &w.items[..shown] {
@@ -309,10 +300,10 @@ fn mods(ui: &mut egui::Ui, theme: &Theme, page: &GamesState, game: &Game, acts: 
             ui.label(RichText::new(format!("Item {}", item.id)).size(theme.font_size_body).color(theme.text_primary()));
             let mut facts = Vec::new();
             if let Some(size) = item.size {
-                facts.push(super::size_words(size));
+                facts.push(g::size_words(size));
             }
             if let Some(t) = item.updated {
-                facts.push(format!("updated {}", super::day_words(t, true)));
+                facts.push(format!("updated {}", g::day_words(t, true)));
             }
             if !facts.is_empty() {
                 ui.label(RichText::new(facts.join(", ")).size(theme.font_size_small).color(theme.text_muted()));
@@ -371,15 +362,14 @@ fn links_section(ui: &mut egui::Ui, theme: &Theme, game: &Game, acts: &mut Vec<A
 /// A screenshot shown large, over the page: Previous, Next (and the arrow keys), Show in folder.
 pub(super) fn viewer(ctx: &egui::Context, theme: &Theme, state: &GuiState) -> Vec<Act> {
     let mut acts = Vec::new();
-    let page = &state.games;
-    let (Some(index), Some(game)) = (page.viewer, page.selected_game()) else { return acts };
+    let (Some(index), Some(game)) = (state.apps.games.viewer, state.apps.selected_game()) else { return acts };
     let Some(shots) = &game.details.screenshots else { return acts };
     let Some(shot) = shots.shots.get(index) else { return acts };
     let mut open = true;
     let title = format!("{}: screenshot {} of {}", game.name, index + 1, shots.shots.len());
     let screen = ctx.screen_rect().size();
     let max = Vec2::new((screen.x * 0.8).max(320.0), (screen.y * 0.7).max(200.0));
-    widgets::dialog(ctx, theme, "games_screenshot", &title, &mut open, |ui| {
+    widgets::dialog(ctx, theme, "apps_screenshot", &title, &mut open, |ui| {
         let picture = thumbnails::get(ui.ctx(), &shot.path, max.x);
         let size = match picture {
             Some((_, s)) => {

@@ -1954,165 +1954,163 @@ fn snapshot_media_your_folders() {
     });
 }
 
-/// The Games library (2026-10-18, pages/games.rs; a library since 2026-10-19): the lines about the
-/// stores and the pictures with their Whys; the toolbar (search, sort, Grid or List, a pill per
-/// store); the Grid, a tile per game: Steam's with the pictures Steam's client cached (Orbital
-/// Farmstead's in its folder, Old Lighthouse's one per hash-named folder, Deep Rover's in the old
-/// flat layout; Sunken Archive with none, on the plain panel), each with its store and one number,
-/// its achievements and Play, or why it cannot start in Play's place; Epic's and GOG's on the plain
-/// panel (Old Forge with its program's icon, here a copy of Windows' Explorer); the two added by
-/// hand. At the right, Orbital Farmstead's details: its banner with its lettering, Play, Open in
-/// Steam and Show in folder, its numbers, three of five achievements (a hidden one kept hidden),
-/// six screenshots, three Workshop mods by number, and its links. Built in scratch folders: nothing
-/// of this computer's stores is read, and nothing is started (a test build's launcher only
-/// records).
-#[test]
-#[ignore = "GPU snapshot; run via `just snapshots`"]
-fn snapshot_games_library() {
-    use crate::games::{AddedGame, Store};
-    use crate::gui::pages::games;
-    use crate::gui::widgets::thumbnails;
-    let fx = crate::games::fixtures::all("snapshot_games");
-    let scratch = crate::test_temp::dir("snapshot_games_added");
+/// The Apps page and its fixtures (2026-10-19, pages/apps.rs): the games' scratch stores (Steam's
+/// cached pictures read in place, Old Forge's program a copy of Windows' Explorer for its icon, six
+/// screenshots of Orbital Farmstead), the programs' fixture records over the shipped catalog (GIMP
+/// a copy of Explorer, Notepad++ of Notepad, Blender from Steam a copy of Calculator, so their
+/// icons show), HumanityOS's own tools from data/gui/humanityos_tools.json, and two things added by
+/// hand. Nothing of this computer's stores, registry or Start menu is read, and nothing is started
+/// (a test build's launcher only records).
+struct AppsSnapshot {
+    games: crate::games::fixtures::AllFixture,
+    programs: crate::gui::pages::apps::programs_tests::Fixture,
+    _scratch: crate::test_temp::TempPath,
+    added: Vec<crate::games::AddedApp>,
+}
+
+fn apps_snapshot(tag: &str) -> AppsSnapshot {
+    use crate::games::AddedApp;
+    let games = crate::games::fixtures::all(&format!("{tag}_games"));
+    let programs = crate::gui::pages::apps::programs_tests::fixture(&format!("{tag}_programs"));
+    let scratch = crate::test_temp::dir(&format!("{tag}_added"));
     let df = scratch.join("Dwarf Fortress").join("Dwarf Fortress.exe");
     std::fs::create_dir_all(df.parent().unwrap()).unwrap();
     std::fs::write(&df, "x").unwrap();
     std::fs::create_dir_all(scratch.join("Old Racer")).unwrap();
     let racer = scratch.join("Old Racer").join("racer.exe");
-    // Three more screenshots of Orbital Farmstead (six in all), and a program with an icon for Old
-    // Forge.
-    let shots = fx.steam.root.join("userdata").join(crate::games::fixtures::ACCOUNT.to_string()).join("760").join("remote").join("1000010").join("screenshots");
+    let shots = games.steam.root.join("userdata").join(crate::games::fixtures::ACCOUNT.to_string()).join("760").join("remote").join("1000010").join("screenshots");
     for (name, tint) in [("20260920120000_1.jpg", [120, 90, 160]), ("20260919120000_1.jpg", [40, 120, 150]), ("20260918120000_1.jpg", [160, 140, 60])] {
         crate::games::fixtures::screenshot_jpeg(&shots.join(name), tint);
     }
     #[cfg(windows)]
     if let Ok(root) = std::env::var("SystemRoot") {
-        let _ = std::fs::copy(std::path::Path::new(&root).join("explorer.exe"), fx.gog.forge.join("bin").join("forge.exe"));
-    }
-    render_page_png("games_library", 1440, 1560, |ctx, theme, state| {
-        if state.games.found.is_none() {
-            state.games.sources = games::Where::These(fx.sources());
-            state.settings.added_games = vec![
-                AddedGame { name: "Dwarf Fortress Classic".into(), exe: df.clone() },
-                AddedGame { name: "Old Racer".into(), exe: racer.clone() },
-            ];
-            games::read_now(state);
-            state.games.selected = Some((Store::Steam, "1000010".into()));
-            // The pictures are read on thumbnails' own workers: read them all now, at the sizes
-            // the page draws them, so the three frames show them rather than their placeholders.
-            let mut wanted = Vec::new();
-            for g in &state.games.all {
-                let art = &g.details.art;
-                for p in [&art.cover, &art.hero, &art.logo].into_iter().flatten() {
-                    wanted.push((p.clone(), 256.0));
-                    wanted.push((p.clone(), 512.0));
-                }
-                for s in g.details.screenshots.iter().flat_map(|s| s.shots.iter()) {
-                    let small = s.thumb.clone().unwrap_or_else(|| s.path.clone());
-                    wanted.push((small.clone(), 128.0));
-                    wanted.push((small, 256.0));
-                }
-            }
-            for _ in 0..300 {
-                let ready = wanted.iter().filter(|(p, px)| thumbnails::get(ctx, p, *px).is_some() || thumbnails::failed(p, *px)).count();
-                if ready == wanted.len() {
-                    break;
-                }
-                std::thread::sleep(std::time::Duration::from_millis(20));
-            }
-        }
-        games::draw(ctx, theme, state);
-    });
-}
-
-/// The Games library as a List (2026-10-19, pages/games_library.rs), sorted by Most played, no
-/// game's details open: a row per game with Play (or why it cannot start, in a word or two), its
-/// name, store, time played, last played, size, achievements and the store's own button, the
-/// headings a click sorts by. The same scratch stores as `games_library`.
-#[test]
-#[ignore = "GPU snapshot; run via `just snapshots`"]
-fn snapshot_games_library_list() {
-    use crate::gui::pages::games;
-    let fx = crate::games::fixtures::all("snapshot_games_list");
-    render_page_png("games_library_list", 1440, 640, |ctx, theme, state| {
-        if state.games.found.is_none() {
-            state.games.sources = games::Where::These(fx.sources());
-            state.settings.games_layout = games::Layout::List;
-            state.settings.games_sort = games::SortBy::MostPlayed;
-            games::read_now(state);
-        }
-        games::draw(ctx, theme, state);
-    });
-}
-
-/// The Tools page as a library (2026-10-19, pages/tools.rs): the lines about where the programs
-/// come from and how what is installed is found; the toolbar (search, sort, Grid or List, the kind
-/// pills with their counts, the category pills); the Grid of the software, sorted Installed first:
-/// GIMP (its program here a copy of Windows' Explorer, so its icon shows), Notepad++ (a copy of
-/// Notepad, known to App Paths), Blender (installed by Steam, a copy of Calculator in its Steam
-/// folder) each with Launch and "Installed"; DaVinci Resolve installed with no program recorded;
-/// the rest with Download, or Open website for those that run in a browser. At the right, GIMP's
-/// details: its banner, installed and its version, Launch, Show in folder, Website and Download
-/// page, its description and its facts (licence, platforms, size, the file types it opens, where
-/// it is). Built from the shipped catalog and fixture records in scratch folders: this computer's
-/// registry is not read, and nothing is started.
-#[test]
-#[ignore = "GPU snapshot; run via `just snapshots`"]
-fn snapshot_tools() {
-    use crate::gui::pages::tools;
-    let fx = tools::tests::fixture("snapshot_tools");
-    #[cfg(windows)]
-    if let Ok(root) = std::env::var("SystemRoot") {
         let root = std::path::PathBuf::from(root);
-        let _ = std::fs::copy(root.join("explorer.exe"), &fx.gimp);
-        let _ = std::fs::copy(root.join("System32").join("notepad.exe"), &fx.notepad);
-        if let Some(steam) = &fx.sources.steam_root {
+        let _ = std::fs::copy(root.join("explorer.exe"), games.gog.forge.join("bin").join("forge.exe"));
+        let _ = std::fs::copy(root.join("explorer.exe"), &programs.gimp);
+        let _ = std::fs::copy(root.join("System32").join("notepad.exe"), &programs.notepad);
+        if let Some(steam) = &programs.sources.steam_root {
             let _ = std::fs::copy(root.join("System32").join("calc.exe"), steam.join("steamapps").join("common").join("Blender").join("blender.exe"));
         }
     }
-    render_page_png("tools", 1440, 1560, |ctx, theme, state| {
-        if state.tools.found.is_none() {
-            state.tools_catalog = tools::tests::shipped_catalog();
-            state.tools.sources = tools::Where::These(fx.sources.clone());
-            state.settings.tools_view = tools::View { kind: Some("software".into()), sort: tools::SortBy::InstalledFirst, ..tools::View::default() };
-            tools::read_now(state);
-            state.tools.selected = state.tools_catalog.iter().position(|e| e.name == "GIMP");
+    let added = vec![AddedApp { name: "Dwarf Fortress Classic".into(), exe: df }, AddedApp { name: "Old Racer".into(), exe: racer }];
+    AppsSnapshot { games, programs, _scratch: scratch, added }
+}
+
+/// Fill `state` from the snapshot's fixtures (once), read them now, and wait for the pictures
+/// thumbnails' own workers read, at the sizes the page draws them.
+fn apps_fill(ctx: &egui::Context, state: &mut GuiState, fx: &AppsSnapshot, view: crate::gui::pages::apps::View) {
+    use crate::gui::pages::apps;
+    use crate::gui::widgets::thumbnails;
+    if state.apps.games.found.is_some() {
+        return;
+    }
+    state.apps.games.sources = apps::games::Where::These(fx.games.sources());
+    state.apps.programs.sources = apps::programs::Where::These(fx.programs.sources.clone());
+    state.external_catalog = apps::programs_tests::shipped_catalog();
+    state.apps.own_tools = apps::own_tools::shipped();
+    state.settings.apps_added = fx.added.clone();
+    state.settings.apps_view = view;
+    apps::read_now(state);
+    let mut wanted = Vec::new();
+    for g in &state.apps.games.all {
+        let art = &g.details.art;
+        for p in [&art.cover, &art.hero, &art.logo].into_iter().flatten() {
+            for px in [128.0, 256.0, 512.0] {
+                wanted.push((p.clone(), px));
+            }
         }
-        tools::draw(ctx, theme, state);
+        for s in g.details.screenshots.iter().flat_map(|s| s.shots.iter()) {
+            let small = s.thumb.clone().unwrap_or_else(|| s.path.clone());
+            wanted.push((small.clone(), 128.0));
+            wanted.push((small, 256.0));
+        }
+    }
+    for _ in 0..300 {
+        let ready = wanted.iter().filter(|(p, px)| thumbnails::get(ctx, p, *px).is_some() || thumbnails::failed(p, *px)).count();
+        if ready == wanted.len() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+}
+
+/// The Apps page (2026-10-19, pages/apps.rs; the Games library and the Tools page made one), in its
+/// Grid: the toolbar (search, sort, Grid or List, a chip per part with its count, only what is on
+/// this computer), then its six parts each under its band, in its colour and with its name: RED
+/// Games (Steam's cached pictures on Orbital Farmstead, Old Lighthouse and Deep Rover, the others
+/// on their plain covers, each name drawn once; a pill per store; the lines about the stores and
+/// the pictures with their Whys; the Epic covers switch, off), GREEN HumanityOS tools (each with
+/// its page's mark and Open), BLUE Other programs (GIMP, Notepad++ and Blender with their own icons
+/// and Launch, DaVinci Resolve with no program to start in this fixture, the rest with Download or
+/// Open website), CYAN Help, MAGENTA Services, YELLOW Added by you (Launch, and Add a program on its
+/// band). At the right, Orbital Farmstead's details: its banner with its lettering, Play, Open in
+/// Steam and Show in folder, its numbers, achievements, screenshots, mods and links.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_apps() {
+    use crate::gui::pages::apps;
+    let fx = apps_snapshot("snapshot_apps");
+    render_page_png("apps", 1440, 4200, |ctx, theme, state| {
+        if state.apps.games.found.is_none() {
+            apps_fill(ctx, state, &fx, apps::View::default());
+            state.apps.selected = Some(apps::Picked::Game(crate::games::Store::Steam, "1000010".into()));
+        }
+        apps::draw(ctx, theme, state);
     });
 }
 
-/// The Tools page as a List (2026-10-19, pages/tools_library.rs), sorted by category, narrowed to
-/// nothing: a row per entry with its main button (Launch, Download or Open website), its name (and
-/// an installed program's icon), category, installed version, licence, platforms and size, the
-/// headings a click sorts by. At the right, Krita's details with Install pressed: the consent step,
-/// with what winget says of its package (here as winget printed it on 19 October 2026: Krita
-/// Foundation, GPL-3.0), that it lists no agreements, Microsoft's two lines as winget prints them,
-/// Windows' permission prompt, winget's usage data, what agreeing means, and "I agree, install" and
-/// Cancel. Nothing is run: a test build's winget runner only records. The same fixture as `tools`.
+/// The Apps page as a List (2026-10-19), sorted by Most played, each catalog part narrowed to one
+/// category (Image Editing, Health, Water) so every part's rows fit: the games' rows with Play (or
+/// why not, in a word or two), their numbers and the store's own button; HumanityOS's own tools
+/// with Open and their line; the programs with their main button, icon, category, installed
+/// version, licence, platforms and size; Help's and Services' rows with Open website, category and
+/// website; what was added, with Launch. At the right, Krita's details with Install pressed: the
+/// consent step, with what winget says of its package (as winget printed it on 19 October 2026:
+/// Krita Foundation, GPL-3.0), that it lists no agreements, Microsoft's two lines as winget prints
+/// them, Windows' permission prompt, winget's usage data, what agreeing means, and "I agree,
+/// install" and Cancel. Nothing is run: a test build's winget runner only records.
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
-fn snapshot_tools_list() {
-    use crate::gui::pages::tools;
-    let fx = tools::tests::fixture("snapshot_tools_list");
-    #[cfg(windows)]
-    if let Ok(root) = std::env::var("SystemRoot") {
-        let _ = std::fs::copy(std::path::Path::new(&root).join("explorer.exe"), &fx.gimp);
-    }
-    render_page_png("tools_list", 1440, 1100, |ctx, theme, state| {
-        if state.tools.found.is_none() {
-            state.tools_catalog = tools::tests::shipped_catalog();
-            state.tools.sources = tools::Where::These(fx.sources.clone());
-            state.settings.tools_view = tools::View { layout: tools::Layout::List, sort: tools::SortBy::Category, kind: Some("software".into()), ..tools::View::default() };
-            tools::read_now(state);
-            let krita = state.tools_catalog.iter().position(|e| e.name == "Krita");
-            state.tools.selected = krita;
+fn snapshot_apps_list() {
+    use crate::gui::pages::apps;
+    let fx = apps_snapshot("snapshot_apps_list");
+    render_page_png("apps_list", 1440, 2600, |ctx, theme, state| {
+        if state.apps.games.found.is_none() {
+            let view = apps::View {
+                layout: apps::Layout::List,
+                sort: apps::SortBy::MostPlayed,
+                programs_category: Some("image-editing".into()),
+                help_category: Some("health".into()),
+                services_category: Some("water".into()),
+                ..apps::View::default()
+            };
+            apps_fill(ctx, state, &fx, view);
+            let krita = state.external_catalog.iter().position(|e| e.name == "Krita");
+            state.apps.selected = krita.map(apps::Picked::Entry);
             crate::software::install::recorder::answer_show(Some(Ok("Found Krita [KDE.Krita]\nVersion: 5.3.4.1\nPublisher: Krita Foundation\nLicense: GPL-3.0\nLicense Url: https://krita.org/en/about/license/\n".into())));
             if let Some(k) = krita {
-                tools::install_pressed(state, k);
+                apps::programs::install_pressed(state, k);
             }
         }
-        tools::draw(ctx, theme, state);
+        apps::draw(ctx, theme, state);
+    });
+}
+
+/// The Apps page narrowed to its cyan Help (2026-10-19): the Help chip chosen, its band in cyan with
+/// its name, its categories (Health, Mental Health, Emergency, Legal), its tiles with Open website
+/// and each one's website, and its line ("in danger, call your local emergency number first"). At
+/// the right, the 988 Lifeline's details: its description, Open website, and its website.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_apps_help() {
+    use crate::gui::pages::apps;
+    let fx = apps_snapshot("snapshot_apps_help");
+    render_page_png("apps_help", 1440, 1300, |ctx, theme, state| {
+        if state.apps.games.found.is_none() {
+            apps_fill(ctx, state, &fx, apps::View { section: Some(apps::Section::Help), ..apps::View::default() });
+            state.apps.selected = state.external_catalog.iter().position(|e| e.name == "988 Lifeline").map(apps::Picked::Entry);
+        }
+        apps::draw(ctx, theme, state);
     });
 }
 

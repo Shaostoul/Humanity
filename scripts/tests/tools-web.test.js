@@ -1,7 +1,7 @@
 // The web Tools page mirrors the desktop app's Tools page (2026-10-19, v0.1520.0): a library
 // shelf in Grid or List, search, sort by Name or Category, the kind and category pills, a plain
-// tile per entry, and an entry's details beside the shelf. The app's page is
-// src/gui/pages/tools.rs (with tools_library.rs and tools_detail.rs); the web's is
+// tile per entry, and an entry's details beside the shelf. The app's page became its Apps page the
+// same day (src/gui/pages/apps.rs, its programs and help services in apps/programs.rs); the web's is
 // web/pages/tools.html and web/pages/tools-app.js. Both read data/external/catalog.json.
 //
 // Run: node --test scripts/tests/tools-web.test.js
@@ -33,7 +33,7 @@
 //  7. Tiles are buttons that open the details; the main button is Download (the download page)
 //     or Open website, a link that opens in a new tab and sends no referrer. Escape closes the
 //     details and gives the focus back to the tile.
-//  8. The page's lines are the app's (read out of src/gui/pages/tools.rs), and it says plainly
+//  8. The page's lines are the app's (read out of src/gui/pages/apps.rs and apps/programs.rs), and it says plainly
 //     what only the desktop app can do, with a link to /download. No logo: no image anywhere.
 //  9. A category's hue is the FNV-1a hash the app's swatch_color uses, worked out here in BigInt
 //     arithmetic as a second statement of it.
@@ -51,12 +51,13 @@ const tools = require(path.join(WEB, "pages", "tools-app.js"));
 
 const CATALOG = JSON.parse(fs.readFileSync(path.join(ROOT, "data", "external", "catalog.json"), "utf8"));
 const HTML = fs.readFileSync(path.join(WEB, "pages", "tools.html"), "utf8");
-const RUST = fs.readFileSync(path.join(ROOT, "src", "gui", "pages", "tools.rs"), "utf8");
+// The desktop app's words: its Apps page (2026-10-19) and that page's programs part.
+const RUST = [path.join(ROOT, "src", "gui", "pages", "apps.rs"), path.join(ROOT, "src", "gui", "pages", "apps", "programs.rs")].map((f) => fs.readFileSync(f, "utf8")).join("\n");
 
-/** A `pub const NAME: &str = "...";` string out of the app's tools.rs. */
+/** A `pub const NAME: &str = "...";` string out of the app's Apps page. */
 function rustConst(name) {
   const m = RUST.match(new RegExp("pub const " + name + ': &str = "((?:[^"\\\\]|\\\\.)*)";'));
-  assert.ok(m, "tools.rs has " + name);
+  assert.ok(m, "the Apps page has " + name);
   return m[1].replace(/\\"/g, '"');
 }
 
@@ -552,7 +553,10 @@ test("7c. a catalog that will not load says so", async () => {
 test("8. the page's lines are the app's, and it says what only the desktop app can do", () => {
   const text = (s) => s.replace(/<[^>]+>/g, "").replace(/&#39;/g, "'").replace(/\s+/g, " ");
   const page = text(HTML);
-  for (const name of ["INTRO", "SAFETY_LINE", "NOT_AFFILIATED"]) {
+  // The app's Tools page became its Apps page on 2026-10-19: its intro line, its search hint and
+  // its "Everything" pill went with it, and the web page keeps its own until it mirrors the Apps
+  // page. The rest are still the app's own words.
+  for (const name of ["SAFETY_LINE", "NOT_AFFILIATED"]) {
     assert.ok(page.includes(rustConst(name)), "tools.html says the app's " + name);
   }
   assert.ok(page.includes("The desktop app can also find the programs on your computer, start them, and install them after you agree to their licence."), "the line about the desktop app");
@@ -564,7 +568,7 @@ test("8. the page's lines are the app's, and it says what only the desktop app c
   const style = HTML.slice(HTML.indexOf("<style>"), HTML.indexOf("</style>"));
   assert.ok(!/#[0-9a-f]{3,8}\b|rgba?\(/i.test(style), "no hand-written colour in tools.html");
   // The words on the tiles and in the details are the app's.
-  for (const [k, name] of [["download", "DOWNLOAD"], ["openWebsite", "OPEN_WEBSITE"], ["website", "WEBSITE"], ["downloadPage", "DOWNLOAD_PAGE"], ["close", "CLOSE"], ["searchHint", "SEARCH_HINT"], ["everything", "EVERYTHING"], ["all", "ALL"]]) {
+  for (const [k, name] of [["download", "DOWNLOAD"], ["openWebsite", "OPEN_WEBSITE"], ["website", "WEBSITE"], ["downloadPage", "DOWNLOAD_PAGE"], ["close", "CLOSE"], ["all", "ALL"]]) {
     assert.strictEqual(tools.WORDS[k], rustConst(name), name);
   }
   assert.ok(!/Install/.test(tools.SORTS.map((s) => s.words).join(" ")), "no Installed first on the web");

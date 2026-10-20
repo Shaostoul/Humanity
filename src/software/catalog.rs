@@ -10,6 +10,8 @@
 //!   program's own file as a path inside its install folder ("blender.exe", "bin/krita.exe"), or a
 //!   list when its versions name it differently. The file name is also looked up in Windows' App
 //!   Paths. Left out when its installer's naming is not known: the entry is then never "installed".
+//!   And `shortcut` (2026-10-19), a regular expression for its Start-menu shortcut's name, for a
+//!   program whose installed-programs record does not say where its program is (DaVinci Resolve).
 //! - `steam_appid`: the program's Steam app id, when it is also sold or given away on Steam, so a
 //!   copy Steam installed counts (read with the Games page's Steam reader, games/steam.rs).
 //! - `winget`: its package id in winget, Windows' own package manager ("BlenderFoundation.Blender"),
@@ -27,6 +29,11 @@ pub struct Detect {
     /// The program's own file, inside its install folder: one path or several.
     #[serde(default, deserialize_with = "one_or_many")]
     pub exe: Vec<String>,
+    /// A regular expression for the name of its Start-menu shortcut, letter case ignored, read
+    /// when Windows' record gives no program file (2026-10-19, software/shortcuts.rs). Left out,
+    /// `display_name` is used.
+    #[serde(default)]
+    pub shortcut: Option<String>,
 }
 
 /// `"a"` or `["a", "b"]`, read as a list.
@@ -46,7 +53,7 @@ fn one_or_many<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<String>, D:
 
 /// An external entry loaded from `data/external/catalog.json`.
 #[derive(Debug, Clone, Default, PartialEq, Deserialize)]
-pub struct ToolEntry {
+pub struct CatalogEntry {
     pub name: String,
     pub description: String,
     /// The project's (or the service's) own website.
@@ -96,9 +103,14 @@ pub struct ToolEntry {
     /// Kind id from the parent category: "software" or "service".
     #[serde(skip)]
     pub kind: String,
+    /// A help service's part of the Apps page, from the parent category (2026-10-19): "help" for
+    /// urgent and protective needs (emergency, health, legal), "services" for everyday ones (food,
+    /// housing, work, learning). Empty for software.
+    #[serde(skip)]
+    pub section: String,
 }
 
-impl ToolEntry {
+impl CatalogEntry {
     /// Whether it is a program (rather than a help service).
     pub fn is_software(&self) -> bool {
         self.kind == "software"
@@ -146,13 +158,16 @@ struct CatalogCategory {
     kind: String,
     #[serde(default)]
     extensions: Vec<String>,
+    /// A service category's part of the Apps page: "help" or "services".
     #[serde(default)]
-    entries: Vec<ToolEntry>,
+    section: String,
+    #[serde(default)]
+    entries: Vec<CatalogEntry>,
 }
 
 /// The catalog's entries in one flat list, each tagged with its category and kind. `Err` carries
 /// the parser's words.
-pub fn parse(text: &str) -> Result<Vec<ToolEntry>, String> {
+pub fn parse(text: &str) -> Result<Vec<CatalogEntry>, String> {
     let catalog: Catalog = serde_json::from_str(text).map_err(|e| e.to_string())?;
     let mut out = Vec::new();
     for cat in catalog.categories {
@@ -161,6 +176,7 @@ pub fn parse(text: &str) -> Result<Vec<ToolEntry>, String> {
             entry.category_id = if cat.id.is_empty() { cat.name.to_lowercase() } else { cat.id.clone() };
             entry.extensions = cat.extensions.clone();
             entry.kind = cat.kind.clone();
+            entry.section = cat.section.clone();
             out.push(entry);
         }
     }
@@ -212,11 +228,20 @@ mod tests {
         let service = all.iter().find(|e| e.name == "Feeding America").unwrap();
         assert!(service.detect.is_none() && service.winget.is_none() && service.steam_appid.is_none() && !service.is_software());
         assert_eq!(service.host(), "feedingamerica.org");
+        // Every help service is in the Apps page's Help or its Services (2026-10-19), as data:
+        // urgent and protective needs in Help, everyday ones in Services; software in neither.
+        for e in &all {
+            let want: &[&str] = if e.is_software() { &[""] } else { &["help", "services"] };
+            assert!(want.contains(&e.section.as_str()), "{} ({}): section {:?}", e.name, e.category, e.section);
+        }
+        assert_eq!((by("Crisis Text Line").section.as_str(), by("FEMA").section.as_str(), by("Legal Aid").section.as_str()), ("help", "help", "help"));
+        assert_eq!((service.section.as_str(), by("Khan Academy").section.as_str()), ("services", "services"));
+        assert!(by("DaVinci Resolve").detect.as_ref().is_some_and(|d| d.shortcut.is_some()), "Resolve is found by its Start-menu shortcut");
         for e in &all {
             if let Some(id) = &e.winget {
                 assert!(crate::software::install::package_id_ok(id), "{}: winget id {id:?}", e.name);
             }
-            if let Some(re) = e.detect.as_ref().and_then(|d| d.display_name.as_ref()) {
+            for re in e.detect.iter().flat_map(|d| d.display_name.iter().chain(d.shortcut.iter())) {
                 assert!(regex::RegexBuilder::new(re).case_insensitive(true).build().is_ok(), "{}: pattern {re:?}", e.name);
             }
             assert!(!(e.winget.is_some() && e.web_only()), "{}: a web app has nothing to install", e.name);

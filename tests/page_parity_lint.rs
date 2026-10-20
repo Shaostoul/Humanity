@@ -59,11 +59,12 @@ struct ParityPair {
 }
 
 const PARITY_PAIRS: &[ParityPair] = &[
-    // Tools: the external catalog, free software + real-world help services.
+    // The external catalog, free software + real-world help services: the web Tools page, and on
+    // the desktop the Apps page's Other programs, Help and Services (2026-10-19).
     // Merged from three divergent files into one on 2026-07-30.
     ParityPair {
-        page: "Tools",
-        native: &["src/gui/loaders.rs", "src/gui/mod.rs", "src/gui/pages/tools.rs"],
+        page: "Tools (desktop: Apps)",
+        native: &["src/gui/loaders.rs", "src/gui/mod.rs", "src/gui/pages/apps/programs.rs"],
         web: &["web/pages/tools-app.js"],
         data_file: "external/catalog.json",
         reads: &[],

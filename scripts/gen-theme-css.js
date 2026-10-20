@@ -218,6 +218,15 @@ function buildCss(tokens) {
   lines.push(`  --server-bg: ${c('server_bg')};`);
   lines.push(`  --server-row-bg: ${c('server_row_bg')};`);
   lines.push(`  --server-row-hover: ${c('server_row_hover')};`);
+  lines.push('');
+  lines.push('  /* Section colours past red, green and blue (the Apps page, 2026-10-19): cyan, magenta,');
+  lines.push('     yellow, each a dark fill and a bright edge: the native section_* tokens. */');
+  lines.push(`  --section-cyan-bg: ${c('section_cyan_bg')};`);
+  lines.push(`  --section-cyan: ${c('section_cyan')};`);
+  lines.push(`  --section-magenta-bg: ${c('section_magenta_bg')};`);
+  lines.push(`  --section-magenta: ${c('section_magenta')};`);
+  lines.push(`  --section-yellow-bg: ${c('section_yellow_bg')};`);
+  lines.push(`  --section-yellow: ${c('section_yellow')};`);
   lines.push('}');
   lines.push('');
   lines.push(...buildLight(lines));

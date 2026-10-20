@@ -1,0 +1,22 @@
+{
+  "_comment": "HumanityOS's own tools on the Apps page's green part (2026-10-19, src/gui/pages/apps/own_tools.rs): the app's own pages a person uses, each opening its page in the app. One entry each: its name, its page (the page id src/gui/dispatch.rs page_id gives), and one plain line about it. Dev-only pages (Testing, Files, Dev, the planet tuner) are not listed. A new tool is a new entry here, never code.",
+  "tools": [
+    { "name": "Maps", "page": "maps", "line": "Every map in one place, from the solar system down to the ground." },
+    { "name": "Tasks", "page": "tasks", "line": "Your own tasks on a board: to do, in progress, done." },
+    { "name": "Inventory", "page": "inventory", "line": "What you have, where it is kept, and what you wear." },
+    { "name": "Crafting", "page": "crafting", "line": "Recipes, and making things from what you have." },
+    { "name": "Quests", "page": "quests", "line": "Quests in the game, step by step." },
+    { "name": "Home", "page": "homes", "line": "Your homestead: its rooms, what it needs and what it makes." },
+    { "name": "Library", "page": "library", "line": "The Humanity Accord, guides and the dictionary, to read." },
+    { "name": "Notes", "page": "notes", "line": "Notes, written and kept here." },
+    { "name": "Calendar", "page": "calendar", "line": "A month at a glance, with your events." },
+    { "name": "Calculator", "page": "calculator", "line": "A calculator, with scientific functions and a history." },
+    { "name": "Chat", "page": "chat", "line": "Messages with people, groups and servers." },
+    { "name": "Studio", "page": "studio", "line": "Stream live from this computer." },
+    { "name": "Watch", "page": "watch", "line": "Watch the live streams on a server." },
+    { "name": "Media", "page": "media", "line": "The pictures, videos, sounds and models people chose to show." },
+    { "name": "Market", "page": "market", "line": "Offer things and find what others offer." },
+    { "name": "Wallet", "page": "wallet", "line": "Your wallet: its balance, its address and sending." },
+    { "name": "Browser", "page": "browser", "line": "Websites, read here or opened in your browser." }
+  ]
+}

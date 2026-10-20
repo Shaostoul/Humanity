@@ -203,6 +203,15 @@
   --server-bg: #0f0f2d;
   --server-row-bg: #141437;
   --server-row-hover: #191946;
+
+  /* Section colours past red, green and blue (the Apps page, 2026-10-19): cyan, magenta,
+     yellow, each a dark fill and a bright edge: the native section_* tokens. */
+  --section-cyan-bg: #0c2a2d;
+  --section-cyan: #1ac2d4;
+  --section-magenta-bg: #2d0f2a;
+  --section-magenta: #d641c6;
+  --section-yellow-bg: #2d280a;
+  --section-yellow: #f1c40f;
 }
 
 /* The website's light theme (web-only: the desktop app has none). shell.js sets

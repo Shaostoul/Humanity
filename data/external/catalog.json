@@ -1,5 +1,5 @@
 {
-  "_comment": "The single catalog of EXTERNAL things: free software you install (kind \"software\") and real-world help services/websites (kind \"service\"). Rendered identically by the native Tools page (src/gui/pages/tools.rs) and the web Tools page (web/pages/tools.html). Add entries here, never in code (Infinite-of-X). Replaced data/tools/catalog.json, data/resources/catalog.json and data/resources.json on 2026-07-30. Since 2026-10-19 a software entry may also carry, as data: \"detect\" (\"display_name\", a regular expression for the name Windows keeps for the installed program, letter case ignored; \"exe\", its program file inside its install folder, one path or a list), \"steam_appid\" (a copy Steam installed counts), \"winget\" (its package id in Windows' package manager, for Install) and \"download\" (the project's own download page). Also \"license_url\" (the licence's own page), \"install_interactive\" (true for a program whose licence is not a free-software licence: its own installer, with its own licence page, is shown) and \"website_only\" (why there is no Install, in plain words naming whose rule it is). Leave a field out when it is not known for certain: the entry is then simply never found installed.",
+  "_comment": "The single catalog of EXTERNAL things: free software you install (kind \"software\") and real-world help services/websites (kind \"service\"). Rendered by the native Apps page (src/gui/pages/apps.rs: software as its Other programs, services as its Help and its Services, by each service category's \"section\", \"help\" for urgent and protective needs or \"services\" for everyday ones, 2026-10-19) and the web Tools page (web/pages/tools.html). Add entries here, never in code (Infinite-of-X). Replaced data/tools/catalog.json, data/resources/catalog.json and data/resources.json on 2026-07-30. Since 2026-10-19 a software entry may also carry, as data: \"detect\" (\"display_name\", a regular expression for the name Windows keeps for the installed program, letter case ignored; \"exe\", its program file inside its install folder, one path or a list; \"shortcut\", a regular expression for its Start-menu shortcut's name, read when Windows' record names no program file), \"steam_appid\" (a copy Steam installed counts), \"winget\" (its package id in Windows' package manager, for Install) and \"download\" (the project's own download page). Also \"license_url\" (the licence's own page), \"install_interactive\" (true for a program whose licence is not a free-software licence: its own installer, with its own licence page, is shown) and \"website_only\" (why there is no Install, in plain words naming whose rule it is). Leave a field out when it is not known for certain: the entry is then simply never found installed.",
   "version": 1,
   "kinds": [
     {
@@ -391,7 +391,8 @@
           "website_only": "Blackmagic Design offers the free DaVinci Resolve only from its own site, after a form asking for your name, email, phone number and address, and not through winget: the maker's own rule.",
           "detect": {
             "display_name": "^DaVinci Resolve$",
-            "exe": "Resolve.exe"
+            "exe": "Resolve.exe",
+            "shortcut": "^DaVinci Resolve$"
           }
         },
         {
@@ -860,6 +861,7 @@
       "id": "water",
       "name": "Water",
       "kind": "service",
+      "section": "services",
       "entries": [
         {
           "name": "Appropedia",
@@ -882,6 +884,7 @@
       "id": "energy",
       "name": "Energy",
       "kind": "service",
+      "section": "services",
       "entries": [
         {
           "name": "DOE Energy Saver",
@@ -904,6 +907,7 @@
       "id": "food",
       "name": "Food",
       "kind": "service",
+      "section": "services",
       "entries": [
         {
           "name": "Feeding America",
@@ -941,6 +945,7 @@
       "id": "housing",
       "name": "Housing",
       "kind": "service",
+      "section": "services",
       "entries": [
         {
           "name": "211",
@@ -973,6 +978,7 @@
       "id": "health",
       "name": "Health",
       "kind": "service",
+      "section": "help",
       "entries": [
         {
           "name": "988 Lifeline",
@@ -1015,6 +1021,7 @@
       "id": "mental",
       "name": "Mental Health",
       "kind": "service",
+      "section": "help",
       "entries": [
         {
           "name": "BetterHelp",
@@ -1042,6 +1049,7 @@
       "id": "emergency",
       "name": "Emergency",
       "kind": "service",
+      "section": "help",
       "entries": [
         {
           "name": "Disaster Distress Helpline",
@@ -1059,6 +1067,7 @@
       "id": "money",
       "name": "Money and Benefits",
       "kind": "service",
+      "section": "services",
       "entries": [
         {
           "name": "Benefits.gov",
@@ -1086,6 +1095,7 @@
       "id": "employment",
       "name": "Employment",
       "kind": "service",
+      "section": "services",
       "entries": [
         {
           "name": "CareerOneStop",
@@ -1113,6 +1123,7 @@
       "id": "skills",
       "name": "Skills and Repair",
       "kind": "service",
+      "section": "services",
       "entries": [
         {
           "name": "iFixit",
@@ -1130,6 +1141,7 @@
       "id": "education",
       "name": "Education",
       "kind": "service",
+      "section": "services",
       "entries": [
         {
           "name": "Coursera",
@@ -1187,6 +1199,7 @@
       "id": "legal",
       "name": "Legal",
       "kind": "service",
+      "section": "help",
       "entries": [
         {
           "name": "ACLU",
@@ -1219,6 +1232,7 @@
       "id": "technology",
       "name": "Technology",
       "kind": "service",
+      "section": "services",
       "entries": [
         {
           "name": "Digital Literacy Resources",

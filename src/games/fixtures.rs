@@ -314,6 +314,10 @@ pub(crate) fn epic(tag: &str) -> EpicFixture {
     write(manifests.join("C3.item"), &item("Lantern Valley: Night Market", &lantern, "", "ns1", "dlc1", "LanternDLC", "Lantern", false, "public,addons"));
     write(manifests.join("D4.item"), &item("Unreal Engine", &scratch.join("UE_5.3"), "Engine/Binaries/Win64/UnrealEditor.exe", "ue", "ue1", "UE_5.3", "UE_5.3", false, "public,engines"));
     write(manifests.join("E5.item"), "{ this is not JSON");
+    // The launcher's catalog beside the manifests (epic_covers.rs): Lantern Valley's covers'
+    // addresses, and Fortnite's.
+    let catalog = String::from_utf8(super::epic_covers::tests::catalog_bytes()).unwrap();
+    write(scratch.join("Epic").join("EpicGamesLauncher").join("Data").join("Catalog").join("catcache.bin"), &catalog);
     EpicFixture { _scratch: scratch, manifests, lantern }
 }
 

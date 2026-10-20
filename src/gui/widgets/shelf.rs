@@ -1,7 +1,9 @@
-//! A library shelf (2026-10-19): the parts the Games page (pages/games.rs) and the Tools page
-//! (pages/tools.rs) both draw, so the two look and behave alike and a fix to one reaches both. The
-//! Games page drew these first; they were lifted out unchanged when the Tools page became a library
-//! like it (the operator: "What if we make the tools page like the games page?").
+//! A library shelf (2026-10-19): the parts the Apps page (pages/apps.rs) draws for each of its
+//! parts, so they look and behave alike and a fix to one reaches all. The Games page drew these
+//! first; they were lifted out when the Tools page became a library like it, and the two pages
+//! became the one Apps page the same day. A tile's card is snug (its margin the theme's
+//! spacing_xs plus a pixel): the Apps page's tiles are short, the operator's "remove some
+//! superfluousness/spacing".
 //!
 //! - [`Layout`]: Grid or List, kept in the settings by each page (its own field).
 //! - [`toolbar`]: the search field, the Sort pills and the Show (Grid or List) pills, on one line.
@@ -13,7 +15,7 @@
 //!   their section headings, and their label-and-value rows.
 //!
 //! The covers and the small pieces (a cover slot, a thin bar, pills, a fixed table cell) are in
-//! cover_tile.rs. Every colour and size comes from the theme. The Games page is desktop-only; the web
+//! cover_tile.rs. Every colour and size comes from the theme. The Apps page is desktop-only; the web
 //! Tools page mirrors this shelf in HTML (web/pages/tools-app.js, since v0.1521.1).
 
 use egui::{Rect, RichText, Sense, Stroke, Ui, Vec2};
@@ -93,7 +95,7 @@ pub fn grid(ui: &mut Ui, theme: &Theme, items: &[usize], min_tile_w: f32, mut ti
 /// One tile's card, `width` wide: the card colour, its edge in the accent when `selected`, lit on
 /// hover. `add` draws its contents top to bottom at the inner width it is given.
 pub fn tile_frame(ui: &mut Ui, theme: &Theme, width: f32, selected: bool, add: impl FnOnce(&mut Ui, f32)) {
-    let margin = theme.spacing_sm;
+    let margin = theme.spacing_xs + 1.0;
     let inner = egui::Frame::none()
         .fill(theme.bg_card())
         .stroke(Stroke::new(1.0, if selected { theme.accent() } else { theme.border() }))

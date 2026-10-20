@@ -1,15 +1,18 @@
-//! The Tools page's readers (2026-10-19; the operator: "What if we make the tools page like the
-//! games page? Then what if through that interface users can install/launch/go to the website(s)
-//! for the various non-game apps?"). The page is src/gui/pages/tools.rs.
+//! The readers of the Apps page's "Other programs" (2026-10-19; the operator: "What if we make the
+//! tools page like the games page? Then what if through that interface users can install/launch/go
+//! to the website(s) for the various non-game apps?"). The Tools page became the Apps page's blue
+//! part the same day: src/gui/pages/apps.rs, its programs in apps/programs.rs.
 //!
 //! WHAT IS DONE HERE, and no more:
 //! - READ which catalog programs are installed on this computer, from what Windows records about
-//!   installed programs (its installed-programs list and App Paths, `records`) and from Steam's own
-//!   install records (the Games page's Steam reader, games/steam.rs), matched to the catalog's
-//!   entries by their DATA fields (`catalog`: `detect`, `steam_appid`). Read only: no key or file is
-//!   written. Read on the page's worker thread when the page opens and on Refresh, never every frame.
-//! - LAUNCH an installed program only when the person presses Launch, through the Games page's one
-//!   launcher (games/launch.rs: its own program, or Steam's own link for a copy Steam installed).
+//!   installed programs (its installed-programs list and App Paths, `records`), the Start menu's
+//!   shortcuts for a program whose record names no program file (`shortcuts`), and Steam's own
+//!   install records (the games' Steam reader, games/steam.rs), matched to the catalog's entries by
+//!   their DATA fields (`catalog`: `detect`, `steam_appid`). Read only: no key or file is written.
+//!   Read on the page's worker thread when the page opens and on Refresh, never every frame.
+//! - LAUNCH an installed program only when the person presses Launch, through the games' one
+//!   launcher (games/launch.rs: its own program, Steam's own link for a copy Steam installed, or
+//!   its Start-menu shortcut when that is all there is).
 //! - INSTALL through winget, Windows' own package manager (`install`): on a click, only after the
 //!   person agrees to the package's licence and agreements in HumanityOS's own window, that exact
 //!   package from winget's own source, never accepting a source agreement for anyone. The rules are
@@ -26,10 +29,11 @@ pub mod catalog;
 pub mod install;
 pub mod matcher;
 pub mod records;
+pub mod shortcuts;
 
 use std::path::PathBuf;
 
-pub use catalog::ToolEntry;
+pub use catalog::CatalogEntry;
 pub use matcher::{Installed, Via};
 
 /// Where the readers look: this computer's records (`Sources::this_computer`, on the worker), or a
@@ -75,7 +79,7 @@ impl Found {
 }
 
 /// Which of `catalog`'s programs are installed, by `sources`. Help services are never installed.
-pub fn read(sources: &Sources, catalog: &[ToolEntry]) -> Found {
+pub fn read(sources: &Sources, catalog: &[CatalogEntry]) -> Found {
     let steam = sources.steam_root.as_deref().filter(|p| p.is_dir()).map(crate::games::steam::installed).unwrap_or_default();
     let installed = catalog.iter().map(|e| if e.is_software() { matcher::find_with_icon(e, &sources.records, &steam) } else { None }).collect();
     Found { installed }
@@ -92,7 +96,13 @@ mod this_computer {
     fn print_what_the_tools_page_would_find_here() {
         let catalog = super::catalog::parse(&std::fs::read_to_string("data/external/catalog.json").unwrap()).unwrap();
         let sources = super::Sources::this_computer();
-        println!("Windows' installed-programs list: {} programs; App Paths: {} programs; Steam: {:?}", sources.records.uninstall.len(), sources.records.app_paths.len(), sources.steam_root);
+        println!(
+            "Windows' installed-programs list: {} programs; App Paths: {} programs; Start-menu shortcuts: {}; Steam: {:?}",
+            sources.records.uninstall.len(),
+            sources.records.app_paths.len(),
+            sources.records.shortcuts.len(),
+            sources.steam_root
+        );
         let found = super::read(&sources, &catalog);
         let software: Vec<_> = catalog.iter().enumerate().filter(|(_, e)| e.is_software()).collect();
         println!("{} of {} catalog programs installed here:", found.count(), software.len());
@@ -100,13 +110,14 @@ mod this_computer {
             match found.get(*i) {
                 None => println!("  -  {}{}", e.name, if e.detect.is_none() && e.steam_appid.is_none() { "  (nothing to recognise it by)" } else { "" }),
                 Some(f) => println!(
-                    "  OK {} | via {:?} | Windows' name {:?} | version {:?} | folder {:?} | program {:?} | launch {:?} | icon {}",
+                    "  OK {} | via {:?} | Windows' name {:?} | version {:?} | folder {:?} | program {:?} | shortcut {:?} | launch {:?} | icon {}",
                     e.name,
                     f.via,
                     f.name_in_windows,
                     f.version,
                     f.folder,
                     f.program,
+                    f.shortcut,
                     f.launch,
                     f.icon.as_ref().map(|i| format!("{}x{}", i.width, i.height)).unwrap_or_else(|| "-".into())
                 ),

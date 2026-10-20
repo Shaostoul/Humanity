@@ -72,20 +72,19 @@ const SETTINGS_FILES: &[&str] = &[
     // 2026-10-19 with its load leg removed from config.rs: "media_layout: never read by
     // apply_to_state".
     "src/gui/pages/media/panes.rs",
-    // The Games library's games added by hand (2026-10-18): Add a game, Rename and Remove keep them
-    // in AppConfig (`added_games`), changed on the Games page, not on the Settings page. Seen red
-    // 2026-10-18 with its load leg removed from config.rs: "added_games: never read by
-    // apply_to_state".
-    "src/gui/pages/games.rs",
-    // The Games library's view and sort (2026-10-19): Grid or List and the order, picked on the
-    // page's toolbar (games_library.rs) and kept in AppConfig (`games_layout`, `games_sort`).
-    // Seen red 2026-10-19 with games_layout's load leg removed from config.rs: "games_layout:
-    // never read by apply_to_state".
-    "src/gui/pages/games_library.rs",
-    // The Tools page's view, order, kind and category (2026-10-19): picked on its toolbar
-    // (tools_library.rs) and kept in AppConfig as one setting (`tools_view`). Seen red 2026-10-19
-    // with its load leg removed from config.rs: "tools_view: never read by apply_to_state".
-    "src/gui/pages/tools_library.rs",
+    // The Apps page (2026-10-19; the Games library and the Tools page made one), whose remembered
+    // choices are AppConfig settings changed on the page, not on the Settings page:
+    // - what was added by hand (`apps_added`): Add a program, Rename and Remove, in apps/games.rs.
+    //   Seen red 2026-10-18 (as the Games page's `added_games`) with its load leg removed from
+    //   config.rs: "added_games: never read by apply_to_state".
+    // - its view (`apps_view`: Grid or List, the order, the part, the categories), kept by
+    //   `keep_view` in apps.rs. Seen red 2026-10-19 (as `games_layout`, then `tools_view`) with
+    //   its load leg removed: "games_layout: never read by apply_to_state".
+    // - Epic's covers switch (`apps_epic_covers`), in apps/covers.rs. Seen red 2026-10-19 with its
+    //   load leg removed from config.rs: "apps_epic_covers: never read by apply_to_state".
+    "src/gui/pages/apps.rs",
+    "src/gui/pages/apps/games.rs",
+    "src/gui/pages/apps/covers.rs",
 ];
 
 /// Pull every `state.settings.<field>` that the Settings files bind to a widget

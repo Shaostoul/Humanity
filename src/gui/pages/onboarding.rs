@@ -217,7 +217,7 @@ fn page_from_link(link: &str) -> Option<GuiPage> {
         // tab's Mission Dashboard; the link lands on the hub that holds it.
         "civilization" => Some(GuiPage::Humanity),
         "guilds" => Some(GuiPage::Guilds),
-        "tools" => Some(GuiPage::Tools),
+        "apps" => Some(GuiPage::Apps),
         // Library and Platform became top-level tabs in v0.1063; without these
         // a quest step pointing at either would silently do nothing.
         "library" => Some(GuiPage::Library),

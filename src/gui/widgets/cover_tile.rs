@@ -1,5 +1,5 @@
 //! A cover slot and the small pieces of a library shelf (2026-10-19, first used by the Games
-//! page, pages/games.rs):
+//! page; the Apps page's since, pages/apps.rs):
 //!
 //! - [`paint_cover`]: a picture filling a rounded slot, cropped to fill it, when there is one;
 //!   otherwise a plain panel in the theme's own colours, tinted toward a hue of the thing's own
@@ -11,9 +11,9 @@
 //! - [`choice_pills`]: a row of pills, one of them chosen (a view, a sort, a filter).
 //! - [`fixed_cell`]: a table cell of exactly its width, so a list's columns line up.
 //!
-//! Every colour and size comes from the theme. Native only for now: the Games page is
-//! desktop-only (a web page cannot read the games on the computer it runs on), so there is no web
-//! page to mirror these on yet; the shapes are plain enough to be a CSS class each when one is.
+//! Every colour and size comes from the theme. The web Tools page mirrors the plain cover in CSS
+//! (web/pages/tools-app.js); the Apps page as a whole is desktop-only (a web page cannot read what
+//! is installed on the computer it runs on).
 
 use egui::{Align2, Color32, CornerRadius, FontId, Painter, Rect, RichText, Stroke, TextureId, Ui, Vec2};
 
@@ -82,6 +82,12 @@ pub fn paint_cover(painter: &Painter, theme: &Theme, rect: Rect, picture: Option
                 painter.text(egui::pos2(rect.right() - rect.height() * 0.08, rect.center().y), Align2::RIGHT_CENTER, letter, FontId::proportional(size), theme.text_primary().gamma_multiply(0.09));
             }
         }
+    }
+    // No title: the plain panel alone (a picture still being read, whose name is drawn under it:
+    // a name is drawn once, never twice, 2026-10-19).
+    if title.trim().is_empty() {
+        painter.rect_stroke(rect, corners, Stroke::new(1.0, theme.border()), egui::StrokeKind::Inside);
+        return;
     }
     // A darker band along the bottom holding the name.
     let galley = painter.layout(title.to_string(), FontId::proportional(title_size), theme.text_strong(), rect.width() - 2.0 * pad);

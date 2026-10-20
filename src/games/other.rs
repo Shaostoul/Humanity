@@ -1,9 +1,11 @@
-//! Games from anywhere else: a game installed from its maker's own website (Dwarf Fortress Classic
-//! from Bay 12 Games, say), or any program the person wants on the list. The person adds it by its
-//! program with "Add a game"; it is kept in the app's settings (config.json, `added_games`) on this
-//! computer only, and Remove takes it off the list without touching the game. No store is involved:
-//! Play starts its own program in its own folder, which is what its desktop shortcut does (the
-//! finding, section 5).
+//! What the person added themselves, the Apps page's "Added by you" (2026-10-19): a game installed
+//! from its maker's own website (Dwarf Fortress Classic from Bay 12 Games, say), or any other
+//! program the person wants on the list. The person adds it by its program with "Add a program";
+//! it is kept in the app's settings (config.json, `apps_added`) on this computer only, and Remove
+//! takes it off the list without touching the program. No store is involved: Launch starts its own
+//! program in its own folder, which is what its desktop shortcut does (the 2026-10-13 finding,
+//! section 5). Each is listed as a `Game` from `Store::Added`, so it starts through the one
+//! launcher like the rest.
 
 use std::path::{Path, PathBuf};
 
@@ -11,23 +13,23 @@ use serde::{Deserialize, Serialize};
 
 use super::{on_disk, Game, Launch, State, Store};
 
-/// A game the person added: the name it shows (its program's file name until renamed) and its
+/// A game or program the person added: the name it shows (its program's file name until renamed) and its
 /// program.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct AddedGame {
+pub struct AddedApp {
     pub name: String,
     pub exe: PathBuf,
 }
 
-/// The name an added game starts with: its program's file name without `.exe`.
+/// The name a thing added starts with: its program's file name without `.exe`.
 pub fn name_from_file(exe: &Path) -> String {
     exe.file_stem().map(|s| s.to_string_lossy().trim().to_string()).filter(|s| !s.is_empty()).unwrap_or_else(|| exe.display().to_string())
 }
 
-/// The added games as the page shows them, in the order added. Reads whether each program and its
-/// folder are there (two checks per game, done when the list changes and when the page reads the
+/// What was added, as the page shows it, in the order added. Reads whether each program and its
+/// folder are there (two checks each, done when the list changes and when the page reads the
 /// stores, never every frame).
-pub fn games(added: &[AddedGame]) -> Vec<Game> {
+pub fn games(added: &[AddedApp]) -> Vec<Game> {
     added
         .iter()
         .map(|a| {
@@ -57,9 +59,9 @@ mod tests {
         std::fs::write(&exe, "x").unwrap();
         assert_eq!(name_from_file(&exe), "Dwarf Fortress");
         let added = vec![
-            AddedGame { name: "Dwarf Fortress Classic".into(), exe: exe.clone() },
-            AddedGame { name: "Gone".into(), exe: dir.join("gone.exe") },
-            AddedGame { name: "Unplugged".into(), exe: dir.join("no such folder").join("x.exe") },
+            AddedApp { name: "Dwarf Fortress Classic".into(), exe: exe.clone() },
+            AddedApp { name: "Gone".into(), exe: dir.join("gone.exe") },
+            AddedApp { name: "Unplugged".into(), exe: dir.join("no such folder").join("x.exe") },
         ];
         let games = games(&added);
         assert_eq!(games[0].play, Some(Launch::Program { exe: exe.clone(), args: String::new(), dir: dir.to_path_buf() }));

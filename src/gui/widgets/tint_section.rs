@@ -6,12 +6,17 @@
 //! Media, a Media item's Edit, and the chat's "Send a file". The colours are the theme's own tokens,
 //! so the Settings theme editor changes them here too.
 //!
-//! Web mirror: the `tint-section` class (`tint-red`, `tint-green`, `tint-blue`).
+//! Web mirror: the `tint-section` class (`tint-red`, `tint-green`, `tint-blue`); cyan, magenta and
+//! yellow have their colours in web/shared/theme.css (`--section-cyan` and its kin) for when the
+//! website's Apps page mirrors the desktop one.
 
 use crate::gui::theme::Theme;
 use egui::RichText;
 
-/// Which of the three colours a section takes.
+/// Which colour a section takes: red, green and blue, and (2026-10-19, the operator: "extending
+/// the RGB style to CMY for beyond 3 options") cyan, magenta and yellow, first used by the Apps
+/// page's Help, Services and Added by you. A section always carries its name too: the colour is
+/// never the only way to tell one from another.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Tint {
     /// The DMs' red (`dm_bg`).
@@ -20,6 +25,12 @@ pub enum Tint {
     Green,
     /// The servers' blue (`server_bg`).
     Blue,
+    /// `section_cyan_bg`.
+    Cyan,
+    /// `section_magenta_bg`.
+    Magenta,
+    /// `section_yellow_bg`.
+    Yellow,
 }
 
 /// How much of a section colour's strength its fill keeps: darker than the chat sidebar's headers.
@@ -31,6 +42,22 @@ pub fn color(theme: &Theme, tint: Tint) -> egui::Color32 {
         Tint::Red => theme.dm_bg(),
         Tint::Green => theme.group_bg(),
         Tint::Blue => theme.server_bg(),
+        Tint::Cyan => theme.section_cyan_bg(),
+        Tint::Magenta => theme.section_magenta_bg(),
+        Tint::Yellow => theme.section_yellow_bg(),
+    }
+}
+
+/// The bright edge of `tint`: the nav bar's group colour for red, green and blue, and the
+/// section tokens' own for cyan, magenta and yellow.
+pub fn edge(theme: &Theme, tint: Tint) -> egui::Color32 {
+    match tint {
+        Tint::Red => theme.nav_legacy_red(),
+        Tint::Green => theme.nav_legacy_green(),
+        Tint::Blue => theme.nav_legacy_blue(),
+        Tint::Cyan => theme.section_cyan(),
+        Tint::Magenta => theme.section_magenta(),
+        Tint::Yellow => theme.section_yellow(),
     }
 }
 

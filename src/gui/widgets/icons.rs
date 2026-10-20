@@ -534,6 +534,20 @@ pub fn paint_gamepad(painter: &egui::Painter, rect: Rect, color: Color32) {
     painter.circle_filled(Pos2::new(c.x + w * 0.27, c.y - w * 0.06), w * 0.055, color);
 }
 
+/// Apps (2026-10-19): four rounded squares, two by two, the usual mark for "all your apps"; the
+/// Apps page's nav icon (games, HumanityOS's own tools, other programs, help and services).
+pub fn paint_apps(painter: &egui::Painter, rect: Rect, color: Color32) {
+    let c = rect.center();
+    let w = rect.width().min(rect.height());
+    let side = w * 0.34;
+    let gap = w * 0.1;
+    let corner = egui::Rounding::same((side * 0.25) as u8);
+    for (dx, dy) in [(-1.0, -1.0), (1.0, -1.0), (-1.0, 1.0), (1.0, 1.0)] {
+        let at = Pos2::new(c.x + dx * (side + gap) / 2.0, c.y + dy * (side + gap) / 2.0);
+        painter.rect_filled(Rect::from_center_size(at, Vec2::splat(side)), corner, color);
+    }
+}
+
 /// Play — a right-pointing filled triangle (the universal "play / start"
 /// glyph). Marks the dedicated nav button that drops into the 3D first-person
 /// game world (operator 2026-06-07: "add a dedicated button for the FPS game
@@ -914,7 +928,7 @@ pub fn paint_nav_icon(painter: &egui::Painter, rect: Rect, page: crate::gui::Gui
         // snapshot review).
         P::Watch       => { paint_watch(painter, rect, color); true }
         P::Media       => { paint_picture(painter, rect, color); true }
-        P::Games       => { paint_gamepad(painter, rect, color); true }
+        P::Apps        => { paint_apps(painter, rect, color); true }
         // v0.415.0: Onboarding + Play variants removed with their pages.
         // v0.197.0: Agents + AiUsage variants removed. paint_robot and
         // paint_chart are kept (other future pages might use them).
@@ -922,7 +936,6 @@ pub fn paint_nav_icon(painter: &egui::Painter, rect: Rect, page: crate::gui::Gui
         // via its own arm above).
         P::Settings    => { paint_cog(painter, rect, color); true }
         P::RelayControl => { paint_server(painter, rect, color); true }
-        P::Tools       => { paint_wrench(painter, rect, color); true }
         P::BugReport   => { paint_bug(painter, rect, color); true }
         P::Testing     => { paint_clipboard(painter, rect, color); true }
         P::Browser     => { paint_globe(painter, rect, color); true }

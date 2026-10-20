@@ -109,8 +109,9 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                 let play_items = [
                     NavItem { label: "Play", page: GuiPage::None, description: "" },
                     NavItem { label: "Characters", page: GuiPage::None, description: "Pick who you play as and where. Always opens the picker." },
-                    // The Games library beside Play (2026-10-18, pages/games.rs): the other games on this computer.
-                    NavItem { label: "Games", page: GuiPage::Games, description: "The games installed on this computer, from Steam, the Epic Games Store, GOG and anywhere else." },
+                    // Apps beside Play (2026-10-19, pages/apps.rs; the Games library and the Tools page made one):
+                    // the games on this computer, HumanityOS's own tools, other programs, help and services.
+                    NavItem { label: "Apps", page: GuiPage::Apps, description: "Your games, HumanityOS's own tools, other programs, real-world help and what you added, in one place." },
                 ];
                 nav_group(ui, &play_items, theme.nav_sim(), text_muted, theme, state);
 
@@ -280,19 +281,8 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                 separator_dot(ui, border);
                 ui.add_space(6.0);
 
-                // Tools — the external catalog (free software + real-world help
-                // services), promoted to its own top-level tab in v0.1063 when it
-                // moved out of Platform's sidebar. Sits beside Library because the
-                // two are the peer pair: Library is what you READ, Tools is what
-                // you GO USE.
-                let tools_items = [
-                    NavItem { label: "Tools", page: GuiPage::Tools, description: "Free software and real-world help services" },
-                ];
-                nav_group(ui, &tools_items, theme.nav_tools(), text_muted, theme, state);
-
-                ui.add_space(6.0);
-                separator_dot(ui, border);
-                ui.add_space(6.0);
+                // (The Tools tab became part of Apps, beside Play, on 2026-10-19:
+                // its free software and real-world help services are Apps' parts.)
 
                 let settings_items = [
                     NavItem { label: "Settings", page: GuiPage::Settings, description: "" },

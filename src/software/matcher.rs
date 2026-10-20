@@ -12,12 +12,14 @@
 //!
 //! Its program (what Launch starts) is looked for in its install folder (each `exe` path), then
 //! as its DisplayIcon (when that names one of its programs; with no `exe` in the data, any program
-//! DisplayIcon names that is not an uninstaller), then in App Paths. A program that cannot be
-//! found is still installed, just not startable from here.
+//! DisplayIcon names that is not an uninstaller), then in App Paths, then (2026-10-19) as the
+//! program its Start-menu shortcut names (shortcuts.rs: DaVinci Resolve's record names none), or
+//! that shortcut itself when it names no program. A program that cannot be found is still
+//! installed, just not startable from here.
 
 use std::path::{Path, PathBuf};
 
-use super::catalog::ToolEntry;
+use super::catalog::{Detect, CatalogEntry};
 use super::records::{clean_path, Records, Uninstall};
 use crate::games::art::Icon;
 use crate::games::{Game, Launch, State};
@@ -56,16 +58,19 @@ pub struct Installed {
     pub folder: Option<PathBuf>,
     /// Its program file, when found on the disk.
     pub program: Option<PathBuf>,
-    /// What Launch does: its program, or Steam's own link for a copy Steam installed.
+    /// The Start-menu shortcut its program was found through, when that is how (2026-10-19).
+    pub shortcut: Option<PathBuf>,
+    /// What Launch does: its program, Steam's own link for a copy Steam installed, or its
+    /// Start-menu shortcut when the shortcut names no program file.
     pub launch: Option<Launch>,
     /// Its program's icon, read from the program's own file.
     pub icon: Option<Icon>,
 }
 
 impl Installed {
-    /// What Show in folder shows: its program in its folder, else its folder.
+    /// What Show in folder shows: its program in its folder, else its folder, else its shortcut.
     pub fn show(&self) -> Option<PathBuf> {
-        self.program.clone().or_else(|| self.folder.clone())
+        self.program.clone().or_else(|| self.folder.clone()).or_else(|| self.shortcut.clone())
     }
 }
 
@@ -155,35 +160,93 @@ fn launch_of(program: &Path) -> Launch {
     Launch::Program { exe: program.to_path_buf(), args: String::new(), dir: program.parent().map(Path::to_path_buf).unwrap_or_default() }
 }
 
-/// Whether `entry` is installed, by `records` and Steam's installed games (`steam`), and how.
-/// The icon is not read here (see [`find_with_icon`]).
-pub fn find(entry: &ToolEntry, records: &Records, steam: &[Game]) -> Option<Installed> {
-    let detect = entry.detect.clone().unwrap_or_default();
-    // 1. Windows' installed-programs list.
-    if let Some(pattern) = detect.display_name.as_deref().filter(|p| !p.trim().is_empty()) {
-        // A pattern that does not compile matches nothing (the catalog test checks every one).
-        if let Ok(re) = regex::RegexBuilder::new(pattern).case_insensitive(true).size_limit(1 << 20).build() {
-            let mut best: Option<(bool, Vec<u64>, Installed)> = None;
-            for record in records.uninstall.iter().filter(|u| re.is_match(&u.display_name)) {
-                let program = program_of(record, &detect.exe, records);
-                let folder = record.location.clone().or_else(|| program.as_deref().and_then(|p| folder_of(p, &detect.exe)));
-                let found = Installed {
-                    via: Via::Windows,
-                    name_in_windows: Some(record.display_name.clone()),
-                    version: record.version.clone(),
-                    launch: program.as_deref().map(launch_of),
-                    folder,
-                    program,
-                    icon: None,
-                };
-                let rank = (found.program.is_some(), version_key(record.version.as_deref()));
-                if best.as_ref().is_none_or(|(p, v, _)| rank > (*p, v.clone())) {
-                    best = Some((rank.0, rank.1, found));
+/// A program found through its Start-menu shortcut: the shortcut, its program, and what Launch does.
+#[derive(Clone)]
+struct FromMenu {
+    shortcut: PathBuf,
+    program: Option<PathBuf>,
+    launch: Launch,
+}
+
+/// A pattern, compiled (letter case ignored); `None` for one that does not compile or is empty.
+fn pattern(p: Option<&str>) -> Option<regex::Regex> {
+    let p = p.filter(|p| !p.trim().is_empty())?;
+    regex::RegexBuilder::new(p).case_insensitive(true).size_limit(1 << 20).build().ok()
+}
+
+/// The entry's program as its Start-menu shortcut names it (shortcuts.rs), read only when its
+/// record names no program file: of the shortcuts whose name matches its `shortcut` pattern (else
+/// its `display_name` one), the first whose program is there (one of its `exe` files when the data
+/// names any, never an uninstaller), started with the shortcut's own arguments and folder; else
+/// the first that names no program file at all, which is started itself.
+fn from_start_menu(detect: &Detect, records: &Records) -> Option<FromMenu> {
+    let re = pattern(detect.shortcut.as_deref().or(detect.display_name.as_deref()))?;
+    // Read lazily: `choose` stops at the first that will do.
+    let read = records.shortcuts.iter().filter(|s| re.is_match(&s.name)).filter_map(|s| Some((s.path.clone(), super::shortcuts::target(&s.path)?)));
+    choose(detect, read)
+}
+
+/// Of the shortcuts read (each with what it starts), the one [`from_start_menu`] takes.
+fn choose(detect: &Detect, read: impl Iterator<Item = (PathBuf, super::shortcuts::Target)>) -> Option<FromMenu> {
+    let mut bare: Option<FromMenu> = None;
+    for (lnk, target) in read {
+        match target.program {
+            Some(program) => {
+                let name = program.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+                let named = if detect.exe.is_empty() { name.to_ascii_lowercase().ends_with(".exe") && !looks_like_installer(&name) } else { detect.exe.iter().any(|e| file_name(e).eq_ignore_ascii_case(&name)) };
+                if named && is_file(&program) {
+                    let dir = target.dir.filter(|d| d.is_dir()).or_else(|| program.parent().map(Path::to_path_buf)).unwrap_or_default();
+                    let launch = Launch::Program { exe: program.clone(), args: target.args, dir };
+                    return Some(FromMenu { shortcut: lnk, program: Some(program), launch });
                 }
             }
-            if let Some((_, _, found)) = best {
-                return Some(found);
+            None if bare.is_none() => bare = Some(FromMenu { launch: Launch::Shortcut(lnk.clone()), shortcut: lnk, program: None }),
+            None => {}
+        }
+    }
+    bare
+}
+
+/// Whether `entry` is installed, by `records` and Steam's installed games (`steam`), and how.
+/// The icon is not read here (see [`find_with_icon`]).
+pub fn find(entry: &CatalogEntry, records: &Records, steam: &[Game]) -> Option<Installed> {
+    let detect = entry.detect.clone().unwrap_or_default();
+    // 1. Windows' installed-programs list.
+    // A pattern that does not compile matches nothing (the catalog test checks every one).
+    if let Some(re) = pattern(detect.display_name.as_deref()) {
+        let mut best: Option<(bool, Vec<u64>, Installed)> = None;
+        // The Start menu is read once, and only when a record names no program file.
+        let mut menu: Option<Option<FromMenu>> = None;
+        for record in records.uninstall.iter().filter(|u| re.is_match(&u.display_name)) {
+            let mut program = program_of(record, &detect.exe, records);
+            let mut launch = program.as_deref().map(launch_of);
+            let mut shortcut = None;
+            if program.is_none() {
+                if let Some(m) = menu.get_or_insert_with(|| from_start_menu(&detect, records)).clone() {
+                    program = m.program;
+                    launch = Some(m.launch);
+                    shortcut = Some(m.shortcut);
+                }
             }
+            let folder = record.location.clone().or_else(|| program.as_deref().and_then(|p| folder_of(p, &detect.exe)));
+            let found = Installed {
+                via: Via::Windows,
+                name_in_windows: Some(record.display_name.clone()),
+                version: record.version.clone(),
+                launch,
+                folder,
+                program,
+                shortcut,
+                icon: None,
+            };
+            // Startable first (its program found, or its shortcut), then the newest.
+            let rank = (found.launch.is_some(), version_key(record.version.as_deref()));
+            if best.as_ref().is_none_or(|(p, v, _)| rank > (*p, v.clone())) {
+                best = Some((rank.0, rank.1, found));
+            }
+        }
+        if let Some((_, _, found)) = best {
+            return Some(found);
         }
     }
     // 2. App Paths.
@@ -195,6 +258,7 @@ pub fn find(entry: &ToolEntry, records: &Records, steam: &[Game]) -> Option<Inst
             folder: folder_of(&program, &detect.exe),
             launch: Some(launch_of(&program)),
             program: Some(program),
+            shortcut: None,
             icon: None,
         });
     }
@@ -208,13 +272,14 @@ pub fn find(entry: &ToolEntry, records: &Records, steam: &[Game]) -> Option<Inst
         version: None,
         folder: Some(game.folder.clone()),
         program,
+        shortcut: None,
         launch: game.play.clone(),
         icon: None,
     })
 }
 
 /// [`find`], and the icon of the program found, read from its own file.
-pub fn find_with_icon(entry: &ToolEntry, records: &Records, steam: &[Game]) -> Option<Installed> {
+pub fn find_with_icon(entry: &CatalogEntry, records: &Records, steam: &[Game]) -> Option<Installed> {
     let mut found = find(entry, records, steam)?;
     found.icon = found.program.as_deref().and_then(crate::games::art::program_icon);
     Some(found)
@@ -226,13 +291,13 @@ mod tests {
     use super::super::records::{AppPath, Hive};
     use super::*;
 
-    fn entry(name: &str, display_name: Option<&str>, exe: &[&str], steam: Option<u32>) -> ToolEntry {
-        ToolEntry {
+    fn entry(name: &str, display_name: Option<&str>, exe: &[&str], steam: Option<u32>) -> CatalogEntry {
+        CatalogEntry {
             name: name.into(),
             kind: "software".into(),
-            detect: Some(Detect { display_name: display_name.map(str::to_string), exe: exe.iter().map(|s| s.to_string()).collect() }),
+            detect: Some(Detect { display_name: display_name.map(str::to_string), exe: exe.iter().map(|s| s.to_string()).collect(), shortcut: None }),
             steam_appid: steam,
-            ..ToolEntry::default()
+            ..CatalogEntry::default()
         }
     }
 
@@ -278,6 +343,7 @@ mod tests {
                 record("FFmpeg 5.0.0 for Audacity - x86_64", None, Some(&dir.join("ffmpeg")), None),
             ],
             app_paths: vec![AppPath { exe_name: "notepad++.exe".into(), path: npp.clone() }],
+            shortcuts: vec![],
         };
         let gimp = find(&entry("GIMP", Some(r"^GIMP \d"), &["bin/gimp-3.exe", "bin/gimp-2.10.exe"], None), &records, &[]).expect("GIMP is installed");
         assert_eq!((gimp.version.as_deref(), gimp.program.as_ref()), (Some("3.2.4.0"), Some(&g3)), "the newer of the two");
@@ -296,7 +362,7 @@ mod tests {
         assert_eq!((resolve.program.as_ref(), resolve.launch.as_ref(), resolve.folder.as_ref()), (None, None, None), "installed, with nothing to start from here");
 
         assert_eq!(find(&entry("Audacity", Some(r"^Audacity( \d|$)"), &["Audacity.exe"], None), &records, &[]), None, "FFmpeg for Audacity is not Audacity");
-        let none = ToolEntry { name: "Photopea".into(), ..ToolEntry::default() };
+        let none = CatalogEntry { name: "Photopea".into(), ..CatalogEntry::default() };
         assert_eq!(find(&none, &records, &[]), None, "no detect, never installed");
 
         // The red run's case: GIMP 3 listed, its program gone; GIMP 2's there.
@@ -333,7 +399,7 @@ mod tests {
         assert_eq!(find(&blender, &Records::default(), &[game(State::BeingInstalled)]), None, "one Steam is still downloading does not count");
         let own = dir.join("Blender Foundation");
         let own_exe = program(&own, "blender.exe");
-        let records = Records { uninstall: vec![record("Blender", Some("5.2.2"), Some(&own), None)], app_paths: vec![] };
+        let records = Records { uninstall: vec![record("Blender", Some("5.2.2"), Some(&own), None)], app_paths: vec![], shortcuts: vec![] };
         let found = find(&blender, &records, &[game(State::Ready)]).unwrap();
         assert_eq!((found.via, found.program.as_ref()), (Via::Windows, Some(&own_exe)), "Windows' own copy wins");
     }
@@ -349,8 +415,74 @@ mod tests {
         let unins = program(&dir, "unins000.exe");
         let app = program(&dir, "wings3d.exe");
         let e = entry("Wings 3D", Some("^Wings 3D"), &[], None);
-        let with = |icon: &Path| Records { uninstall: vec![record("Wings 3D 2.4.1", Some("2.4.1"), None, Some(&icon.display().to_string()))], app_paths: vec![] };
+        let with = |icon: &Path| Records { uninstall: vec![record("Wings 3D 2.4.1", Some("2.4.1"), None, Some(&icon.display().to_string()))], app_paths: vec![], shortcuts: vec![] };
         assert_eq!(find(&e, &with(&unins), &[]).unwrap().program, None, "an uninstaller is not the program");
         assert_eq!(find(&e, &with(&app), &[]).unwrap().program, Some(app));
+    }
+
+    /// WHICH START-MENU SHORTCUT IS TAKEN (2026-10-19): of the shortcuts read, the first whose
+    /// program is there and is one of the entry's programs, started with the shortcut's own
+    /// arguments in its own folder; a shortcut to another program, or to a program not on the disk,
+    /// is passed over; with no `exe` in the data, an uninstaller is passed over; and a shortcut that
+    /// names no program file is started itself, when no other will do.
+    ///
+    /// Seen red 2026-10-19 with the shortcut that names no program never kept (`bare` left `None`):
+    /// "a shortcut naming no program is started itself" got None.
+    #[test]
+    fn which_start_menu_shortcut_is_taken() {
+        use super::super::shortcuts::Target;
+        let dir = crate::test_temp::dir("sw_choose");
+        let resolve = program(&dir, "DaVinci/Resolve.exe");
+        let proxy = program(&dir, "DaVinci/ProxyGenerator.exe");
+        let unins = program(&dir, "DaVinci/unins000.exe");
+        let detect = Detect { display_name: Some("^DaVinci Resolve$".into()), exe: vec!["Resolve.exe".into()], shortcut: None };
+        let t = |p: Option<&Path>, args: &str| Target { program: p.map(Path::to_path_buf), args: args.into(), dir: Some(dir.join("DaVinci")) };
+        let lnk = |n: &str| dir.join(format!("{n}.lnk"));
+        let read = vec![
+            (lnk("proxy"), t(Some(&proxy), "")),
+            (lnk("advertised"), t(None, "")),
+            (lnk("gone"), t(Some(&dir.join("Old").join("Resolve.exe")), "")),
+            (lnk("resolve"), t(Some(&resolve), "-nosplash")),
+        ];
+        let got = choose(&detect, read.clone().into_iter()).expect("one is taken");
+        assert_eq!((got.shortcut, got.program.as_ref()), (lnk("resolve"), Some(&resolve)), "the one whose program is there and is its own");
+        assert_eq!(got.launch, Launch::Program { exe: resolve.clone(), args: "-nosplash".into(), dir: dir.join("DaVinci") }, "with the shortcut's arguments, in its folder");
+        let bare = choose(&detect, read[..3].to_vec().into_iter()).map(|m| m.launch);
+        assert_eq!(bare, Some(Launch::Shortcut(lnk("advertised"))), "a shortcut naming no program is started itself");
+        let any = Detect { exe: vec![], ..detect.clone() };
+        assert_eq!(choose(&any, vec![(lnk("unins"), t(Some(&unins), ""))].into_iter()).map(|m| m.program), None, "an uninstaller is passed over");
+        assert!(choose(&detect, read[2..3].to_vec().into_iter()).is_none(), "a program not on the disk is passed over");
+    }
+
+    /// DAVINCI RESOLVE STARTS FROM ITS START-MENU SHORTCUT (2026-10-19, the operator's computer:
+    /// Resolve installed in C:\Apps\DaVinci, its record naming no folder and no program): with a
+    /// real shortcut written by Windows' own writer into a scratch Start menu, in Blackmagic
+    /// Design's folder beside the Control Panels' installer's, Resolve is installed, its program is
+    /// the one the shortcut names, Launch starts it with the shortcut's arguments in its folder, and
+    /// its folder is that program's. Its record alone, without the shortcut, still gives nothing to
+    /// start, as before.
+    ///
+    /// Seen red 2026-10-19 with `find` never reading the Start menu (the `program.is_none()` branch
+    /// taken out): "its program, from its shortcut" got None.
+    #[cfg(windows)]
+    #[test]
+    fn davinci_resolve_starts_from_its_start_menu_shortcut() {
+        use super::super::shortcuts;
+        let dir = crate::test_temp::dir("sw_resolve_menu");
+        let resolve = program(&dir, "Apps/DaVinci/Resolve.exe");
+        let setup = program(&dir, "Apps/DaVinci/Setup Control Panels.exe");
+        let menu = dir.join("Start Menu").join("Programs");
+        let folder = menu.join("Blackmagic Design").join("DaVinci Resolve");
+        shortcuts::write_for_test(&folder.join("DaVinci Resolve.lnk"), &resolve, "", resolve.parent().unwrap());
+        shortcuts::write_for_test(&folder.join("DaVinci Resolve Control Panels Setup.lnk"), &setup, "", setup.parent().unwrap());
+        let mut records = Records { uninstall: vec![record("DaVinci Resolve", Some("20.0.00049"), None, None)], app_paths: vec![], shortcuts: shortcuts::list(&[menu]) };
+        let e = CatalogEntry { detect: Some(Detect { display_name: Some("^DaVinci Resolve$".into()), exe: vec!["Resolve.exe".into()], shortcut: Some("^DaVinci Resolve$".into()) }), ..entry("DaVinci Resolve", None, &[], None) };
+        let found = find(&e, &records, &[]).expect("installed");
+        assert_eq!(found.program.as_ref(), Some(&resolve), "its program, from its shortcut");
+        assert_eq!(found.launch, Some(Launch::Program { exe: resolve.clone(), args: String::new(), dir: resolve.parent().unwrap().to_path_buf() }), "Launch starts it in its folder");
+        assert_eq!(found.shortcut.as_ref(), Some(&folder.join("DaVinci Resolve.lnk")), "found through its shortcut");
+        assert_eq!((found.via, found.version.as_deref(), found.folder.as_deref()), (Via::Windows, Some("20.0.00049"), resolve.parent()));
+        records.shortcuts.clear();
+        assert_eq!(find(&e, &records, &[]).map(|f| f.launch), Some(None), "its record alone gives nothing to start");
     }
 }

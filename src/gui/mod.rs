@@ -112,7 +112,7 @@ pub fn ui_click_should_sound(
 /// An external entry loaded from `data/external/catalog.json` (software/catalog.rs since
 /// 2026-10-19, where its detection, Steam and winget fields are read with it).
 #[cfg(feature = "native")]
-pub use crate::software::catalog::ToolEntry;
+pub use crate::software::catalog::CatalogEntry;
 
 /// A single donation address entry (for the dynamic addresses array).
 #[cfg(feature = "native")]
@@ -314,7 +314,6 @@ pub enum GuiPage {
     // ("resources" / "onboarding") migrate in config_str_to_page below.
     Library,
     Donate,
-    Tools,
     Studio,
     /// Watch live streams inside the app (v0.857). The viewer half of Studio:
     /// lists what is live from /api/live and plays a selected MJPEG stream.
@@ -322,8 +321,8 @@ pub enum GuiPage {
     Watch,
     /// The Media page (docs/design/media-showcase.md): what people chose to show; pages/media.rs.
     Media,
-    /// The Games library (2026-10-18): the games installed on this computer, started through each store's own app; pages/games.rs.
-    Games,
+    /// Apps (2026-10-19): games, HumanityOS's own tools, other programs, help, services and what you added, one page; pages/apps.rs (was Games and Tools).
+    Apps,
     Quests,
     /// Server / group administration settings page. Opened from the cog
     /// menu on the server or group row in the chat sidebar.
@@ -371,7 +370,7 @@ pub enum GuiPage {
     // Crafting + Studio). Both are top-level tabs now and nothing navigated to
     // it; the nav's Play button is GuiPage::None (FPS mode), unrelated.
     /// Platform — the software-itself tab (v0.360): section_nav folds Settings,
-    /// Recovery, Tools, Bugs, Testing, Browser.
+    /// Recovery, Bugs, Testing, Browser.
     Platform,
     /// Humanity — the collective / mission tab (v0.360): section_nav folds the
     /// Community/Mission Dashboard (Civilization) + Governance, Directory
@@ -1153,10 +1152,8 @@ pub struct GuiState {
     pub watch_input: String,
     /// The Media page (pages/media.rs) and its Server Settings section, for the server on screen.
     pub media: crate::gui::pages::media::MediaState,
-    /// The Games library page (pages/games.rs): what the stores had when last read, and its dialogs.
-    pub games: crate::gui::pages::games::GamesState,
-    /// The Tools page (pages/tools.rs): which catalog programs were found installed, and its details.
-    pub tools: crate::gui::pages::tools::ToolsState,
+    /// The Apps page (pages/apps.rs): the games read, the programs found, its details and its dialogs.
+    pub apps: crate::gui::pages::apps::AppsState,
 
     /// Top-nav button presentation (v0.859): icon+text / icon-only / text-only.
     /// Mirrors the web header's Aa toggle. Cycled by the nav's mode button.
@@ -2702,8 +2699,8 @@ pub struct GuiState {
     pub debug_log: Vec<String>,
 
     // ── External catalog (loaded from data/external/catalog.json): free
-    //    software plus real-world help services, rendered by the Tools page ──
-    pub tools_catalog: Vec<ToolEntry>,
+    //    software plus real-world help services, rendered by the Apps page ──
+    pub external_catalog: Vec<CatalogEntry>,
 
     // ── Page taxonomies (Infinite-of-X migrations, v0.123.0) ──
     /// Equipment slots for the inventory page (`data/inventory/equipment_slots.json`).
@@ -3489,8 +3486,7 @@ impl Default for GuiState {
             watch_last_fetch: 0.0,
             watch_input: String::new(),
             media: Default::default(),
-            games: Default::default(),
-            tools: Default::default(),
+            apps: Default::default(),
             nav_display_mode: NavDisplayMode::default(),
             toasts: Vec::new(),
             underwater: false,
@@ -4115,7 +4111,7 @@ impl Default for GuiState {
             show_help_modal: false,
             debug_console_visible: false,
             debug_log: Vec::new(),
-            tools_catalog: Vec::new(),
+            external_catalog: Vec::new(),
             equipment_slots: Vec::new(),
             bug_severities: Vec::new(),
             bug_categories: Vec::new(),
@@ -4599,14 +4595,12 @@ pub struct SettingsState {
     pub media_folders: Vec<std::path::PathBuf>,
     /// The Media page's view and the split of its three panes (2026-10-19, pages/media/panes.rs).
     pub media_layout: crate::gui::pages::media::panes::Layout,
-    /// The Games library's games added by hand (pages/games.rs): each one's name and program. Kept on this device only.
-    pub added_games: Vec<crate::games::AddedGame>,
-    /// The Games library's view, Grid or List (2026-10-19), kept so it survives a restart.
-    pub games_layout: crate::gui::pages::games::Layout,
-    /// The Games library's order (2026-10-19): by name, recently played, most played or size.
-    pub games_sort: crate::gui::pages::games::SortBy,
-    /// The Tools page's view, order, kind and category (2026-10-19), kept so they survive a restart.
-    pub tools_view: crate::gui::pages::tools::View,
+    /// The Apps page's Added by you (pages/apps/games.rs): each game or program's name and program. Kept on this device only.
+    pub apps_added: Vec<crate::games::AddedApp>,
+    /// The Apps page's view (2026-10-19): Grid or List, the order, the part and categories shown.
+    pub apps_view: crate::gui::pages::apps::View,
+    /// The Apps page's "Get covers for Epic games from Epic's servers" (2026-10-19, off unless turned on).
+    pub apps_epic_covers: bool,
     // Data
     pub seed_phrase_visible: bool,
     // Restoring from the recovery phrase
@@ -4717,10 +4711,9 @@ impl Default for SettingsState {
             files_in_messages: Default::default(),
             media_folders: Vec::new(),
             media_layout: Default::default(),
-            added_games: Vec::new(),
-            games_layout: Default::default(),
-            games_sort: Default::default(),
-            tools_view: Default::default(),
+            apps_added: Vec::new(),
+            apps_view: Default::default(),
+            apps_epic_covers: false,
             seed_phrase_visible: false,
             seed_phrase_input: String::new(),
             seed_phrase_recovery_status: String::new(),

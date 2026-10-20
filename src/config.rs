@@ -465,24 +465,20 @@ pub struct AppConfig {
     /// shows the panes at their default split; a split that is not usable is the default too.
     #[serde(default)]
     pub media_layout: crate::gui::pages::media::panes::Layout,
-    /// The Games library's games added by hand (2026-10-18, pages/games.rs): each one's name and
-    /// program. Kept in this file on this device and never sent anywhere. A config written before
-    /// it existed has none.
+    /// The Apps page's Added by you (2026-10-19, pages/apps/games.rs): each game or program the
+    /// person added, its name and its program. Kept in this file on this device and never sent
+    /// anywhere. A config without it has none.
     #[serde(default)]
-    pub added_games: Vec<crate::games::AddedGame>,
-    /// The Games library's view, "grid" or "list" (2026-10-19, pages/games.rs). A config written
-    /// before it existed shows the grid.
+    pub apps_added: Vec<crate::games::AddedApp>,
+    /// The Apps page's view (2026-10-19, pages/apps.rs): Grid or List, the order, the part shown,
+    /// only what is on this computer, and each catalog part's category. A config without it shows
+    /// every part in a Grid by name.
     #[serde(default)]
-    pub games_layout: crate::gui::pages::games::Layout,
-    /// The Games library's order (2026-10-19): "name", "recently_played", "most_played" or
-    /// "size". A config written before it existed sorts by name.
+    pub apps_view: crate::gui::pages::apps::View,
+    /// The Apps page's "Get covers for Epic games from Epic's servers" (2026-10-19,
+    /// pages/apps/covers.rs): off unless the person turns it on.
     #[serde(default)]
-    pub games_sort: crate::gui::pages::games::SortBy,
-    /// The Tools page's view (2026-10-19, pages/tools.rs): Grid or List, the order ("name",
-    /// "installed_first" or "category"), and the kind and category it is narrowed to. A config
-    /// written before it existed shows every entry in a Grid by name.
-    #[serde(default)]
-    pub tools_view: crate::gui::pages::tools::View,
+    pub apps_epic_covers: bool,
     /// Settings > Safety, the protected setup (step G of blocking-and-safe-mode.md 10h,
     /// 2026-10-10), carried here only on its way to ITS OWN FILE beside config.json
     /// (net/protected_store.rs): never serialized into config.json. Kept apart because an
@@ -1539,10 +1535,9 @@ impl AppConfig {
             media_unfinished_uploads: state.media.unfinished.clone(),
             media_folders: state.settings.media_folders.clone(),
             media_layout: state.settings.media_layout.clone(),
-            added_games: state.settings.added_games.clone(),
-            games_layout: state.settings.games_layout,
-            games_sort: state.settings.games_sort,
-            tools_view: state.settings.tools_view.clone(),
+            apps_added: state.settings.apps_added.clone(),
+            apps_view: state.settings.apps_view.clone(),
+            apps_epic_covers: state.settings.apps_epic_covers,
             protected_setup: Some(state.protected.setup.clone()),
             font_size: state.settings.font_size,
             dark_mode: state.settings.dark_mode,
@@ -1728,10 +1723,9 @@ impl AppConfig {
         state.media.unfinished = self.media_unfinished_uploads.clone();
         state.settings.media_folders = self.media_folders.clone();
         state.settings.media_layout = self.media_layout.checked();
-        state.settings.added_games = self.added_games.clone();
-        state.settings.games_layout = self.games_layout;
-        state.settings.games_sort = self.games_sort;
-        state.settings.tools_view = self.tools_view.clone();
+        state.settings.apps_added = self.apps_added.clone();
+        state.settings.apps_view = self.apps_view.clone();
+        state.settings.apps_epic_covers = self.apps_epic_covers;
         // The protected setup is NOT applied from here: it lives in its own file, which boot reads
         // whether or not config.json exists or reads (`load_protected_setup`, lib.rs).
         // Clamp the ranges the UI enforces, so a hand-edited config cannot

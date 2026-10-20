@@ -1438,6 +1438,13 @@ pub(crate) fn draw_appearance_content(ui: &mut egui::Ui, theme: &mut Theme, stat
                     ("Nav legacy: red group",   &mut theme.nav_legacy_red as *mut _),
                     ("Nav legacy: green group", &mut theme.nav_legacy_green as *mut _),
                     ("Nav legacy: blue group",  &mut theme.nav_legacy_blue as *mut _),
+                    // The Apps page's cyan, magenta and yellow parts (2026-10-19).
+                    ("Section: cyan",            &mut theme.section_cyan as *mut _),
+                    ("Section: cyan background", &mut theme.section_cyan_bg as *mut _),
+                    ("Section: magenta",         &mut theme.section_magenta as *mut _),
+                    ("Section: magenta background", &mut theme.section_magenta_bg as *mut _),
+                    ("Section: yellow",          &mut theme.section_yellow as *mut _),
+                    ("Section: yellow background", &mut theme.section_yellow_bg as *mut _),
                 ];
                 for (label, ptr) in labels_right {
                     let ui_r = &mut cols[1];

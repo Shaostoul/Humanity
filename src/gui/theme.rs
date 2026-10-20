@@ -291,6 +291,22 @@ pub struct Theme {
     pub nav_legacy_green: C,
     #[serde(default = "default_nav_legacy_blue")]
     pub nav_legacy_blue: C,
+    // The section colours past red, green and blue (2026-10-19, the operator: "extending the RGB
+    // style to CMY for beyond 3 options"): cyan, magenta and yellow, each a dark fill (`_bg`, as
+    // dm_bg / group_bg / server_bg are for red, green, blue) and a bright edge (as nav_legacy_*).
+    // The Apps page's Help, Services and Added by you (widgets/tint_section.rs).
+    #[serde(default = "default_section_cyan_bg")]
+    pub section_cyan_bg: C,
+    #[serde(default = "default_section_cyan")]
+    pub section_cyan: C,
+    #[serde(default = "default_section_magenta_bg")]
+    pub section_magenta_bg: C,
+    #[serde(default = "default_section_magenta")]
+    pub section_magenta: C,
+    #[serde(default = "default_section_yellow_bg")]
+    pub section_yellow_bg: C,
+    #[serde(default = "default_section_yellow")]
+    pub section_yellow: C,
 
     // Nav sizing knobs. Pulled out of the hardcoded constants so the
     // operator can tune nav presence without recompiling.
@@ -407,6 +423,12 @@ impl Theme {
     pub fn nav_legacy_red(&self) -> Color32 { Self::c32(&self.nav_legacy_red) }
     pub fn nav_legacy_green(&self) -> Color32 { Self::c32(&self.nav_legacy_green) }
     pub fn nav_legacy_blue(&self) -> Color32 { Self::c32(&self.nav_legacy_blue) }
+    pub fn section_cyan_bg(&self) -> Color32 { Self::c32(&self.section_cyan_bg) }
+    pub fn section_cyan(&self) -> Color32 { Self::c32(&self.section_cyan) }
+    pub fn section_magenta_bg(&self) -> Color32 { Self::c32(&self.section_magenta_bg) }
+    pub fn section_magenta(&self) -> Color32 { Self::c32(&self.section_magenta) }
+    pub fn section_yellow_bg(&self) -> Color32 { Self::c32(&self.section_yellow_bg) }
+    pub fn section_yellow(&self) -> Color32 { Self::c32(&self.section_yellow) }
     pub fn slider_track(&self) -> Color32 { Self::c32(&self.slider_track) }
     pub fn bg_panel(&self) -> Color32 { Self::c32(&self.bg_panel) }
     pub fn bg_sidebar(&self) -> Color32 { Self::c32(&self.bg_sidebar) }
@@ -727,6 +749,12 @@ fn default_nav_dev()      -> C { (0.953, 0.612, 0.071, 1.0) } // #F39C12 — amb
 fn default_nav_legacy_red()   -> C { (0.906, 0.298, 0.235, 1.0) } // #E74C3C
 fn default_nav_legacy_green() -> C { (0.180, 0.800, 0.443, 1.0) } // #2ECC71
 fn default_nav_legacy_blue()  -> C { (0.204, 0.596, 0.859, 1.0) } // #3498DB
+fn default_section_cyan_bg()    -> C { (0.047, 0.165, 0.176, 1.0) }
+fn default_section_cyan()       -> C { (0.102, 0.761, 0.831, 1.0) } // #1AC2D4
+fn default_section_magenta_bg() -> C { (0.176, 0.059, 0.165, 1.0) }
+fn default_section_magenta()    -> C { (0.839, 0.255, 0.776, 1.0) } // #D641C6
+fn default_section_yellow_bg()  -> C { (0.176, 0.157, 0.039, 1.0) }
+fn default_section_yellow()     -> C { (0.945, 0.769, 0.059, 1.0) } // #F1C40F
 fn default_nav_separator_height() -> f32 { 3.0 }
 fn default_nav_active_border_width() -> f32 { 2.0 }
 fn default_nav_hover_border_width() -> f32 { 2.0 }
@@ -865,6 +893,12 @@ fn default_theme() -> Theme {
         nav_legacy_red: default_nav_legacy_red(),
         nav_legacy_green: default_nav_legacy_green(),
         nav_legacy_blue: default_nav_legacy_blue(),
+        section_cyan_bg: default_section_cyan_bg(),
+        section_cyan: default_section_cyan(),
+        section_magenta_bg: default_section_magenta_bg(),
+        section_magenta: default_section_magenta(),
+        section_yellow_bg: default_section_yellow_bg(),
+        section_yellow: default_section_yellow(),
         nav_separator_height: default_nav_separator_height(),
         nav_active_border_width: default_nav_active_border_width(),
         nav_hover_border_width: default_nav_hover_border_width(),

@@ -33,13 +33,16 @@ fn encode(s: &str) -> String {
     out
 }
 
-/// Every game the Epic Games Store has installed (or is installing), sorted by name.
+/// Every game the Epic Games Store has installed (or is installing), sorted by name. The
+/// launcher's catalog beside the manifests is read too, for the ADDRESSES of each game's covers on
+/// Epic's servers (epic_covers.rs): nothing is fetched here.
 pub fn read(manifests: &Path) -> Vec<Game> {
     let mut files: Vec<PathBuf> = super::list_dir(manifests).into_iter().map(|e| e.path()).filter(|p| p.extension().is_some_and(|x| x.eq_ignore_ascii_case("item"))).collect();
     files.sort();
+    let catalog = super::epic_covers::catalog_beside(manifests).map(|p| super::epic_covers::read(&p)).unwrap_or_default();
     let mut out: Vec<Game> = Vec::new();
     for file in files {
-        if let Some(game) = read_item(&file) {
+        if let Some(game) = read_item(&file, &catalog) {
             if !out.iter().any(|g| g.id == game.id) {
                 out.push(game);
             }
@@ -50,7 +53,7 @@ pub fn read(manifests: &Path) -> Vec<Game> {
 }
 
 /// One manifest. `None` for a file that does not read, DLC, or an Unreal Engine install.
-fn read_item(path: &Path) -> Option<Game> {
+fn read_item(path: &Path, catalog: &[super::epic_covers::CatalogItem]) -> Option<Game> {
     let json: serde_json::Value = serde_json::from_str(&read_small(path)?).ok()?;
     let text = |key: &str| json.get(key).and_then(|v| v.as_str()).map(str::trim).unwrap_or("").to_string();
     let app_name = text("AppName");
@@ -81,7 +84,11 @@ fn read_item(path: &Path) -> Option<Game> {
     // Its details (2026-10-19): the size Epic recorded for it and the version it names.
     let size = json.get("InstallSize").and_then(|v| v.as_u64().or_else(|| v.as_str().and_then(|s| s.trim().parse().ok()))).filter(|n| *n > 0);
     let version = Some(text("AppVersionString")).filter(|v| !v.is_empty());
-    let details = Details { size, version, art: super::art::program(Store::Epic, program.as_deref()), ..Details::default() };
+    let mut art = super::art::program(Store::Epic, program.as_deref());
+    // The addresses of its covers on Epic's servers, from the launcher's catalog (fetched only when
+    // the person turns that on, gui/pages/apps/covers.rs).
+    art.epic_covers = super::epic_covers::covers_for(catalog, &namespace, &catalog_item);
+    let details = Details { size, version, art, ..Details::default() };
     Some(Game { store: Store::Epic, id: app_name, name, show: folder.clone(), folder_here: folder.is_dir(), folder, state, play, details })
 }
 
@@ -136,6 +143,28 @@ mod tests {
         std::fs::write(bare.join("x.item"), item.to_string()).unwrap();
         let bare_games = read(&bare);
         assert_eq!((bare_games[0].details.size, bare_games[0].details.version.as_deref()), (None, None));
+    }
+
+    /// AN EPIC GAME'S COVERS' ADDRESSES COME FROM THE LAUNCHER'S CATALOG BESIDE ITS MANIFESTS
+    /// (2026-10-19): Lantern Valley (ns1, item1) gets its tall box art's address for its tile, on
+    /// Epic's own host, and no banner (its wide picture is on a host not on the list); Night
+    /// Courier, not in the catalog, gets none; with no catalog file, none at all. Addresses only:
+    /// reading them fetches nothing.
+    ///
+    /// Seen red 2026-10-19 with the catalog never read (`read_item` handed an empty catalog):
+    /// "Lantern Valley's tile, from the catalog" got None.
+    #[test]
+    fn an_epic_games_covers_come_from_the_catalog() {
+        let fx = fixtures::epic("epic_covers_catalog");
+        let _ = crate::games::epic_covers::recorder::recorded();
+        let games = read(&fx.manifests);
+        let covers = games[0].details.art.epic_covers.clone().unwrap_or_default();
+        assert_eq!(covers.tile.as_deref(), Some("https://cdn1.epicgames.com/item/ns1/lantern-tall"), "Lantern Valley's tile, from the catalog");
+        assert_eq!(covers.banner, None);
+        assert_eq!(games[1].details.art.epic_covers, None, "Night Courier is not in the catalog");
+        assert!(crate::games::epic_covers::recorder::recorded().is_empty(), "reading them fetches nothing");
+        std::fs::remove_file(fx.manifests.parent().unwrap().join("Catalog").join("catcache.bin")).unwrap();
+        assert_eq!(read(&fx.manifests)[0].details.art.epic_covers, None, "with no catalog, none");
     }
 
     /// A PROGRAM GONE FROM ITS FOLDER, and an id with odd characters encoded, never passed raw into

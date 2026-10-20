@@ -151,14 +151,14 @@ pub mod web_reader;
 #[cfg(feature = "native")]
 pub mod config;
 
-// The Games library's readers (2026-10-18): the stores' install records, read only, and the one
+// The Apps page's game readers (2026-10-18): the stores' install records, read only, and the one
 // launcher. Native-only: the relay never reads a computer's games. See
 // docs/reference/findings/2026-10-13-game-stores-and-a-games-library.md.
 #[cfg(feature = "native")]
 pub mod games;
 
-// The Tools page's readers (2026-10-19): which catalog programs are installed (Windows' own
-// records and Steam's, read only), the catalog's entries, and the install seam. Native-only.
+// The Apps page's program readers (2026-10-19): which catalog programs are installed (Windows' own
+// records, the Start menu and Steam's, read only), the catalog's entries, and the install seam.
 #[cfg(feature = "native")]
 pub mod software;
 
@@ -211,7 +211,7 @@ mod native_app {
     use crate::gui::pages::{
         main_menu, escape_menu, settings, inventory, chat, hud, placeholder,
         tasks, profile, market, calculator, calendar, notes, civilization,
-        wallet, crafting, guilds, trade, files, bugs, donate, tools, studio,
+        wallet, crafting, guilds, trade, files, bugs, donate, studio,
         onboarding, server_settings, identity, governance, recovery, testing,
         browser, cosmos, real,
         platform, humanity, library, quests, homes,
@@ -1476,7 +1476,8 @@ mod native_app {
             let mut gui_state = GuiState::default();
 
             // Load data-driven catalogs into GUI state
-            gui_state.tools_catalog = crate::gui::load_tools_catalog(&data_dir);
+            gui_state.external_catalog = crate::gui::load_external_catalog(&data_dir);
+            gui_state.apps.own_tools = crate::gui::pages::apps::own_tools::load(&data_dir);
             gui_state.help_registry = help_modal::load_help_registry(&data_dir);
             // Keymaps used to load lazily on the first F1 press. The top-right help
             // button can open the same panel without F1 ever being touched, so they

@@ -29,7 +29,7 @@
 //!     config-string helpers belong beside it.
 //!   * `PassphraseMode`, `ServerInfo`, `LauncherWhere`, `LauncherHome` and
 //!     `DonateAddress`: app-shell types rather than page vocabulary, and they
-//!     sit with the module-level helpers that use them. (`ToolEntry` stayed too
+//!     sit with the module-level helpers that use them. (`CatalogEntry` stayed too
 //!     until 2026-10-19, when it moved to software/catalog.rs with the Tools
 //!     page's detection fields; gui/mod.rs re-exports it.)
 //!   * `GuiState` itself, its `impl`, and `SettingsState`. `src/engine/input.rs`

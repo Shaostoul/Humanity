@@ -31,7 +31,7 @@
 //! change rather than a motion.
 //!
 //! Takes `use super::*` the way the chat page's children do, so the GUI value
-//! types these loaders fill in (`ToolEntry`, `GuiPlanet`, `GuiRecipe`, the
+//! types these loaders fill in (`CatalogEntry`, `GuiPlanet`, `GuiRecipe`, the
 //! studio types) arrive without a single one of them being widened.
 
 use super::*;
@@ -44,7 +44,7 @@ use crate::systems::inventory::placed::PlacedItem;
 /// `data_dir` is the root data directory (e.g. from AssetManager).
 /// Returns an empty Vec on any error (graceful degradation).
 #[cfg(feature = "native")]
-pub fn load_tools_catalog(data_dir: &std::path::Path) -> Vec<ToolEntry> {
+pub fn load_external_catalog(data_dir: &std::path::Path) -> Vec<CatalogEntry> {
     let path = data_dir.join("external").join("catalog.json");
     let bytes = match std::fs::read_to_string(&path) {
         Ok(b) => b,

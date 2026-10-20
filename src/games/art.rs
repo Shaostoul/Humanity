@@ -13,6 +13,10 @@
 //!   resources (the program is opened as data, never run).
 //! - A game added by hand, or with none of these: no picture. The page draws a plain panel with its
 //!   name (widgets/cover_tile.rs).
+//! - AN EPIC GAME'S STORE COVERS, OPT-IN (2026-10-19, epic_covers.rs): the addresses on Epic's
+//!   servers that the launcher's own catalog lists; fetched only when the person turns on the Apps
+//!   page's switch (off by default), into memory for that session, never written anywhere. The
+//!   one exception to "nothing is fetched", and the person's own choice.
 //!
 //! THE RULES THE FINDING SETS, kept here: the pictures are read where Steam put them, when the
 //! page's worker reads the stores, and decoded into memory for drawing (widgets/thumbnails.rs);
@@ -38,6 +42,9 @@ pub struct Art {
     pub logo: Option<PathBuf>,
     /// The icon of the game's own program (Epic and GOG games), already read.
     pub icon: Option<Icon>,
+    /// An Epic game's covers on Epic's servers (2026-10-19, epic_covers.rs): ADDRESSES only, from
+    /// the launcher's catalog on this computer, fetched only when the person turns that on.
+    pub epic_covers: Option<super::epic_covers::Covers>,
 }
 
 /// A program's icon, read into memory: its size and its pixels (RGBA, 8 bits each).
@@ -103,7 +110,7 @@ pub fn steam(steam_root: &Path, appid: &str) -> Art {
         }
     }
     let first = |names: &[&str]| names.iter().find_map(|n| found.iter().find(|(f, _)| f == n).map(|(_, p)| p.clone()));
-    Art { cover: first(&COVER_NAMES), hero: first(&HERO_NAMES), logo: first(&[LOGO_NAME]), icon: None }
+    Art { cover: first(&COVER_NAMES), hero: first(&HERO_NAMES), logo: first(&[LOGO_NAME]), icon: None, epic_covers: None }
 }
 
 /// The pictures for a game from `store` whose program is `program`: its icon, for Epic and GOG.

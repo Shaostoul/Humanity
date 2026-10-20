@@ -1,6 +1,7 @@
-//! THE ONE way the Games library starts anything: a store's link, a game's own program, or the
-//! computer's file manager showing a game's folder. Everything on the Games page that leaves the
-//! app goes through [`launch`], and only when the person clicks.
+//! THE ONE way the Apps page (its games and its other programs) starts anything: a store's link, a
+//! game's or a program's own program, a program's Start-menu shortcut, or the computer's file
+//! manager showing a folder. Everything on the Apps page that leaves the app goes through
+//! [`launch`], and only when the person clicks (web pages open in the browser through egui).
 //!
 //! TEST BUILDS NEVER START ANYTHING. In a test build `launch` records what it was asked and returns
 //! (`recorded` reads the record back), and the code that talks to the computer is not even
@@ -19,6 +20,10 @@ pub enum Launch {
     Program { exe: PathBuf, args: String, dir: PathBuf },
     /// Show this file or folder in the computer's file manager (selected, on Windows).
     ShowInFolder(PathBuf),
+    /// Open a program's Start-menu shortcut (a `.lnk` file), as a click on it in the Start menu
+    /// does: for a program whose shortcut names no program file to start directly (2026-10-19,
+    /// software/shortcuts.rs).
+    Shortcut(PathBuf),
 }
 
 /// The links the page may send: only the two stores' own, so nothing else can ever be opened here.
@@ -46,6 +51,24 @@ fn real(what: &Launch) -> Result<(), String> {
             crate::gui::widgets::file_caution::show_in_folder(path);
             Ok(())
         }
+        Launch::Shortcut(lnk) => open_shortcut(lnk),
+    }
+}
+
+/// Open a Start-menu shortcut with Explorer, as a double-click on it does. Only a `.lnk` file that
+/// is there; no shell runs, so nothing in its name is read as a command.
+#[cfg(not(test))]
+fn open_shortcut(lnk: &Path) -> Result<(), String> {
+    if !lnk.extension().is_some_and(|x| x.eq_ignore_ascii_case("lnk")) || !lnk.is_file() {
+        return Err("its Start-menu shortcut is not there".to_string());
+    }
+    #[cfg(windows)]
+    {
+        std::process::Command::new("explorer").arg(lnk).spawn().map(|_| ()).map_err(|e| format!("Windows could not open its shortcut ({e})"))
+    }
+    #[cfg(not(windows))]
+    {
+        Err("a Windows shortcut opens only on Windows".to_string())
     }
 }
 
