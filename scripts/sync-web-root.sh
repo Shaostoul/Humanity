@@ -25,7 +25,8 @@ rsync -a "$SRC/assets/" "$DST/assets/"
 # Orphaned pages from retired designs. The pages copy below has no --delete
 # (the web root also hosts releases/ and uploads/ that no rsync owns), so
 # retired filenames must be removed by name or they serve forever.
-for old in skills equipment quests logbook vault knowledge systems streams studio learn resources agents; do
+for old in skills equipment quests logbook vault knowledge systems streams studio learn resources agents \
+           ai-usage audit dashboard data landing projects; do
   rm -f "$DST/${old}.html"
 done
 rm -f "$DST/pages/resources-app.js"
