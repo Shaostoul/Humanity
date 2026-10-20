@@ -488,14 +488,20 @@ test("the relay's home-chosen line is read as the relay writes it", () => {
   assert.equal("x INFO r: Game: home chosen (cabin)".match(SJ.RELAY_HOME_CHOSEN_RE)[1], "cabin");
 });
 
-// The probe's field names live in one place in the game (src/engine/ipc.rs home_session_core and
-// save_file_json); every one the judge reads must be written there by that name.
+// The probe's field names live in src/engine/ipc.rs (home_session_core and save_file_json) and,
+// since 2026-10-20, the vitals block in src/engine/body_probe.rs (vitals_json, which added health
+// and wounds for verify-falls); every one the judge reads must be written there by that name.
 test("every home_session field the judge reads is one the probe writes", () => {
   const ipc = fs.readFileSync(path.join(REPO, "src", "engine", "ipc.rs"), "utf8");
   const from = ipc.indexOf("fn save_file_json(");
   const to = ipc.indexOf("// ── Door points", from);
   assert.ok(from > 0 && to > from, "ipc.rs has save_file_json and home_session_core before the door points");
-  const body = ipc.slice(from, to);
+  const probe = fs.readFileSync(path.join(REPO, "src", "engine", "body_probe.rs"), "utf8");
+  const vFrom = probe.indexOf("fn vitals_json(");
+  const vTo = probe.indexOf("fn falls_core(", vFrom);
+  assert.ok(vFrom > 0 && vTo > vFrom, "body_probe.rs has vitals_json before falls_core");
+  assert.ok(ipc.slice(from, to).includes("body_probe::vitals_json("), "home_session_core no longer takes its vitals from body_probe::vitals_json");
+  const body = ipc.slice(from, to) + probe.slice(vFrom, vTo);
   for (const f of ["slot", "start", "household", "ship_place", "home", "kind", "plot", "away", "box", "backpack", "skills", "credits", "quests", "active", "completed", "id", "step", "look", "name", "appearance", "outfit", "vitals", "satiation", "counter", "fleet_meals", "direction", "quantity", "answer", "server_save", "exists", "last_verb"]) {
     assert.ok(body.includes(`"${f}"`), `the probe no longer writes "${f}" (ipc.rs home_session_core / save_file_json)`);
   }

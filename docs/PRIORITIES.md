@@ -454,8 +454,16 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
   2026-10-12; falls hurt nobody yet (DONE 2026-10-20, 5e5ba96e6: a landing hurts by its
   speed, data/medical/falls.ron, a sprained ankle from about 2 m on Earth up to death
   from about 15 m in Realistic, softer in Forgiving; wired into lib.rs and released in
-  v0.1527.0; not yet tried by hand in the running game: walk off the homestead ladder's top,
-  drive a vehicle and stop, and check no landing hurts at world entry), and nothing spawns fires); a
+  v0.1527.0; proven in the running game by `just verify-falls` (2026-10-20, 40/40, red with the
+  lib.rs hand-off removed): world entry hurts nobody, a 3 m walk off the stairs' top hurts
+  nobody in Forgiving and sprains an ankle in Realistic, letting go at the ladder's top (3.2 m)
+  breaks one, and a body placed in the air is not hurt. Not yet covered: planet falls in the
+  running game (needs a built deck of known height on the ground), a vehicle stopping, and a
+  rig quirk (`rig_walk::hold` does not release a camera park's `probe_hold` the way a key press
+  does). Found by it: the aboard walk can skip the stairs' 0.26 m top step at low frame rates
+  (54 ms frames dropped 2.79 m instead of 3.00 m), so near a wound threshold the frame rate can
+  decide which wound you get; and the homestead's stairs and ladder lead to no upper floor, so
+  their tops are a fall), and nothing spawns fires); a
   second mess hall along First Street (fold into increment 6); the backpack-overflow toast
   (DONE 2026-10-12: it names the item and says it went to home storage). Found with the
   2026-10-20 four: nothing burns diesel yet (data/electrical.ron's diesel
