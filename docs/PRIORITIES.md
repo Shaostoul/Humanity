@@ -475,7 +475,14 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
   door_points, screenshot, cloudmap, cloud_profile_dump, record, cancel) still delete a request
   they find empty, so a hand-dropped `debug/screenshot_request.json` written non-atomically can
   be lost; the docs say "any content", so either take an empty file after a few frames or
-  document `{}` (src/engine/ipc.rs, movie.rs; being fixed); (2) GAMEPLAY, the operator's call:
+  document `{}` (src/engine/ipc.rs, movie.rs) (DONE 2026-10-20, commit "Every dev request
+  survives being read while it is still being written": all eleven readers, the showcase one
+  included, take their file through `take_request_text`, which leaves an EMPTY file for 250 ms
+  (`REQUEST_EMPTY_GRACE`, wall-clock time from the first sighting) and takes it the moment it
+  has text; still empty after that, it is taken anyway: "any content" stays true for
+  screenshot, cloudmap, cloud_profile_dump, door_points and cancel, while camera, screen, ui,
+  autopilot, remote_players and record answer it as malformed JSON and showcase does nothing
+  with it); (2) GAMEPLAY, the operator's call:
   on a planet Space is a climb at walking speed, so a 0.35 s tap lifts you about 2.6 m and the
   fall back sprains an ankle in Realistic (a real jump is about half a metre); (3)
   machine-guard.test.js "the real PowerShell lowers a real rustc" fails on a loaded machine (its

@@ -75,6 +75,11 @@
 //!     cancel is consumed either way). The clip maker sends it when it gives
 //!     up on a shot, so the next shot does not start beside a recording still
 //!     running, and reads those two lines to know how long to wait.
+//!   - Both files are read through the dev requests' shared reader
+//!     (`engine::ipc::take_request_text`): a file caught EMPTY is left for a
+//!     quarter of a second (`REQUEST_EMPTY_GRACE`) in case its text is still
+//!     being written. Still empty after that, a cancel still stops the
+//!     recording, and a record request is refused as malformed JSON.
 
 use std::io::Write;
 use std::path::Path;
@@ -372,21 +377,23 @@ pub(crate) enum Incoming {
 /// files whatever can be answered without the engine. A cancel is read first,
 /// so a cancel and a fresh request landing in the same frame stop the old
 /// recording now and start the new one on the next frame.
-pub(crate) fn take_requests(root: &Path, running: bool, world_loaded: bool) -> Incoming {
+pub(crate) fn take_requests(root: &Path, running: bool, world_loaded: bool, now: Instant) -> Incoming {
+    // Both files through the one reader every dev request shares
+    // (`ipc::take_request_text_at`, `now` being the frame's clock): a file
+    // caught empty waits out the grace in case its text is still being
+    // written. A cancel's content is optional, so an empty one still stops the
+    // recording; a record request needs its JSON (`{}` at the least).
     let cancel = root.join(CANCEL_PATH);
-    if cancel.exists() {
-        let _ = std::fs::remove_file(&cancel);
+    if crate::engine::ipc::take_request_text_at(&cancel, now).is_some() {
         if running {
             return Incoming::Cancel;
         }
         log::info!("[Movie] cancel requested with no recording running: nothing to stop");
     }
     let request = root.join(REQUEST_PATH);
-    if !request.exists() {
+    let Some(text) = crate::engine::ipc::take_request_text_at(&request, now) else {
         return Incoming::Nothing;
-    }
-    let text = std::fs::read_to_string(&request).unwrap_or_default();
-    let _ = std::fs::remove_file(&request);
+    };
     if running {
         // NOT the done file: the running recording writes that when it ends,
         // and its requester is waiting on it (see THE PROTOCOL above).
@@ -411,10 +418,11 @@ pub(crate) fn take_requests(root: &Path, running: bool, world_loaded: bool) -> I
 }
 
 /// Start a recording when `debug/record_request.json` appears, or stop one when
-/// `debug/record_cancel.json` does (both consumed either way). Called once a
+/// `debug/record_cancel.json` does (both consumed either way, an empty one
+/// after its grace: see THE PROTOCOL). Called once a
 /// frame beside the camera request.
 pub(crate) fn poll_request(state: &mut EngineState) {
-    let spec = match take_requests(Path::new("."), state.movie.is_some(), state.world_loaded) {
+    let spec = match take_requests(Path::new("."), state.movie.is_some(), state.world_loaded, Instant::now()) {
         Incoming::Nothing => return,
         Incoming::Cancel => {
             if let Some(rec) = state.movie.take() {
@@ -731,7 +739,7 @@ mod tests {
     fn a_second_request_is_refused_without_touching_the_done_file() {
         let root = scratch("second");
         std::fs::write(root.join(REQUEST_PATH), "{}").unwrap();
-        assert_eq!(take_requests(&root, true, true), Incoming::Nothing);
+        assert_eq!(take_requests(&root, true, true, Instant::now()), Incoming::Nothing);
         assert!(!root.join(REQUEST_PATH).exists(), "the request is consumed");
         assert!(!root.join(DONE_PATH).exists(), "the running recording owns the done file");
         let rejected = std::fs::read_to_string(root.join(REJECTED_PATH)).expect("the refusal is written somewhere");
@@ -739,14 +747,14 @@ mod tests {
         // With nothing running the same request starts, and clears a stale
         // refusal so a requester watching for one is not misled.
         std::fs::write(root.join(REQUEST_PATH), r#"{"seconds":3}"#).unwrap();
-        match take_requests(&root, false, true) {
+        match take_requests(&root, false, true, Instant::now()) {
             Incoming::Start(s) => assert_eq!(s.seconds, 3.0),
             other => panic!("expected a start, got {other:?}"),
         }
         assert!(!root.join(REJECTED_PATH).exists());
         // Refusals that are the requester's own answer still go in done.
         std::fs::write(root.join(REQUEST_PATH), "{}").unwrap();
-        assert_eq!(take_requests(&root, false, false), Incoming::Nothing);
+        assert_eq!(take_requests(&root, false, false, Instant::now()), Incoming::Nothing);
         assert!(std::fs::read_to_string(root.join(DONE_PATH)).unwrap().contains("world not loaded"));
     }
 
@@ -761,19 +769,51 @@ mod tests {
     fn a_cancel_stops_the_running_recording_only() {
         let root = scratch("cancel");
         std::fs::write(root.join(CANCEL_PATH), "{}").unwrap();
-        assert_eq!(take_requests(&root, true, true), Incoming::Cancel);
+        assert_eq!(take_requests(&root, true, true, Instant::now()), Incoming::Cancel);
         assert!(!root.join(CANCEL_PATH).exists(), "the cancel is consumed");
 
         std::fs::write(root.join(CANCEL_PATH), "{}").unwrap();
-        assert_eq!(take_requests(&root, false, true), Incoming::Nothing);
+        assert_eq!(take_requests(&root, false, true, Instant::now()), Incoming::Nothing);
         assert!(!root.join(CANCEL_PATH).exists(), "a cancel with nothing to stop is consumed too");
         assert!(!root.join(DONE_PATH).exists() && !root.join(REJECTED_PATH).exists());
 
         std::fs::write(root.join(CANCEL_PATH), "{}").unwrap();
         std::fs::write(root.join(REQUEST_PATH), "{}").unwrap();
-        assert_eq!(take_requests(&root, true, true), Incoming::Cancel);
+        assert_eq!(take_requests(&root, true, true, Instant::now()), Incoming::Cancel);
         assert!(root.join(REQUEST_PATH).exists(), "the new request waits for the next frame");
-        assert!(matches!(take_requests(&root, false, true), Incoming::Start(_)));
+        assert!(matches!(take_requests(&root, false, true, Instant::now()), Incoming::Start(_)));
+    }
+
+    /// AN EMPTY CANCEL OR RECORD REQUEST IS NOT LOST MID-WRITE (2026-10-20). Both files go
+    /// through `ipc::take_request_text`. A cancel caught empty waits out the grace, and then still
+    /// stops the recording: its content is optional ("any content"). A record request needs its
+    /// JSON (`{}` at the least), so one still empty after the grace is refused in the done file
+    /// as malformed JSON, the answer bad JSON already got; inside the grace it is neither taken
+    /// nor refused.
+    ///
+    /// Seen red 2026-10-20 both ways. Against the old reader body: "a cancel caught empty is left
+    /// for its text", left `Cancel`, right `Nothing`. With an empty file left forever (the
+    /// showcase reader's first fix applied here): "an empty cancel still stops the recording",
+    /// left `Nothing`, right `Cancel`.
+    #[test]
+    fn an_empty_cancel_waits_out_the_grace_and_an_empty_record_request_is_refused() {
+        let root = scratch("empty");
+        let grace = crate::engine::ipc::REQUEST_EMPTY_GRACE;
+        let t0 = Instant::now();
+        std::fs::write(root.join(CANCEL_PATH), "").unwrap();
+        assert_eq!(take_requests(&root, true, true, t0), Incoming::Nothing, "a cancel caught empty is left for its text");
+        assert!(root.join(CANCEL_PATH).exists());
+        assert_eq!(take_requests(&root, true, true, t0 + grace), Incoming::Cancel, "an empty cancel still stops the recording");
+        assert!(!root.join(CANCEL_PATH).exists(), "and is consumed");
+
+        std::fs::write(root.join(REQUEST_PATH), "").unwrap();
+        assert_eq!(take_requests(&root, false, true, t0 + grace), Incoming::Nothing);
+        assert!(root.join(REQUEST_PATH).exists(), "a record request caught empty is left for its text");
+        assert!(!root.join(DONE_PATH).exists(), "and not refused yet");
+        assert_eq!(take_requests(&root, false, true, t0 + grace * 2), Incoming::Nothing);
+        assert!(!root.join(REQUEST_PATH).exists(), "taken once the grace has passed");
+        let done = std::fs::read_to_string(root.join(DONE_PATH)).expect("refused in the done file");
+        assert!(done.contains("malformed JSON"), "{done}");
     }
 
     /// FFMPEG'S OWN WORDS SURVIVE (2026-10-02 review). When ffmpeg dies, the

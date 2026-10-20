@@ -6,7 +6,9 @@
 // record_cancel.json, ...) every frame, reads it, and deletes it. A plain fs.writeFileSync
 // creates the file EMPTY and then fills it, so a frame in between reads nothing, deletes it, and
 // the request is lost with no error anywhere. On 2026-10-20 that lost verify-falls' `illness`
-// request, and a Forgiving leg ran in Realistic. writeRequest writes a side file and renames it
+// request, and a Forgiving leg ran in Realistic. (The game now leaves an EMPTY request for a
+// 250 ms grace, engine/ipc.rs take_request_text, but it still cannot tell a half-filled request
+// from a whole one, so writing by rename stays the rule.) writeRequest writes a side file and renames it
 // into place (scripts/tests/write-request.test.js proves it against a racing reader). This test
 // keeps every rig on it: a new rig that hand-rolls `fs.writeFileSync(path.join(DEBUG,
 // "x_request.json"))` fails here, not in a sweep three weeks later.

@@ -413,48 +413,153 @@ pub(crate) fn auto_seed_showcase(state: &mut EngineState) {
 /// Live in-game screenshot command (v0.639): an AI session (or anyone else with no eyes on the
 /// running game) drops `debug/screenshot_request.json` and gets back a real capture of the
 /// current 3D viewport -- no separate offscreen render, just the frame that was ALREADY drawn
-/// this tick, captured right before it hits the screen. Checked once per frame via a plain
-/// existence check (cheap on the common absent path -- no read/parse happens unless the file
-/// is actually there). The request file is consumed (deleted) whether the capture succeeds or
-/// fails, so a failure can never spin retrying forever with no request file and no done file.
+/// this tick, captured right before it hits the screen. Checked once per frame through
+/// `take_screenshot_request` (one existence check on the common absent path). Any content asks
+/// for a capture, an empty file included: that one is taken once `REQUEST_EMPTY_GRACE` has
+/// passed, in case its text is still being written. The request file is consumed before the
+/// capture, so a failure can never spin retrying forever with no request file and no done file.
 pub(crate) fn poll_screenshot_request(
     state: &mut EngineState,
     frame_texture: &wgpu::Texture,
     lists: &SceneDrawLists,
 ) {
     const REQUEST_PATH: &str = "debug/screenshot_request.json";
-    if !std::path::Path::new(REQUEST_PATH).exists() {
-        return;
-    }
     // v0.810: the request MAY carry {"width":W,"height":H} for a hi-res
-    // offscreen capture; any other content keeps the original v0.639
-    // contract (window-size swapchain grab). Parsed BEFORE the delete so a
-    // read failure degrades to the window capture, never a lost request.
-    let size = std::fs::read_to_string(REQUEST_PATH)
-        .map(|t| parse_screenshot_request(&t))
-        .unwrap_or(ScreenshotSize::Window);
-    // Consumed either way: a failed capture must not leave the request file in place, or the
-    // next frame (and every frame after) would just retry forever.
-    let _ = std::fs::remove_file(REQUEST_PATH);
+    // offscreen capture; any other content, an empty file included, keeps
+    // the original v0.639 contract (window-size swapchain grab).
+    let Some(size) = take_screenshot_request(std::path::Path::new(REQUEST_PATH), std::time::Instant::now()) else {
+        return;
+    };
     execute_screenshot_capture(state, frame_texture, size, lists);
 }
 
-/// Take a dropped request file's text, consuming the file (2026-10-20). A file that reads EMPTY
-/// is left where it is for the next frame: a rig writing it may have created it and not yet
-/// filled it, and consuming it then lost the request with no word anywhere (verify-falls' planet
-/// Forgiving leg ran in Realistic because its `illness` verb was read empty and deleted; the
-/// run.log had no "Showcase: illness" line). An empty showcase request asks for nothing, so
-/// waiting a frame for its text costs nothing. None when there is no file, or it is still empty.
+/// The screenshot request, if one is ready to take this frame, as the size it asks for. Any
+/// content works, an empty drop included: once `REQUEST_EMPTY_GRACE` has passed, an empty file
+/// is a window-size capture (the v0.639 "any content" contract CLAUDE.md documents). Text that
+/// lands inside the grace is read, so a hi-res size written a moment after the file appeared is
+/// honoured rather than lost to a window grab. Pulled out of `poll_screenshot_request`, which
+/// needs a GPU, so the rule is testable.
+pub(crate) fn take_screenshot_request(path: &std::path::Path, now: std::time::Instant) -> Option<ScreenshotSize> {
+    take_request_text_at(path, now).map(|text| parse_screenshot_request(&text))
+}
+
+/// How long a dev request file that reads EMPTY is left where it is before it is taken anyway
+/// (2026-10-20). 250 ms, of wall-clock time from the frame that first saw it empty.
+///
+/// Why it exists: a file written by a plain write exists EMPTY for a moment (created, then
+/// filled), and the game polls its request files every frame. A frame that landed in between
+/// read nothing and consumed the request, which was then gone with no word anywhere (one
+/// verify-falls run's planet Forgiving leg ran in Realistic: its `illness` showcase verb was read
+/// empty and deleted). The rigs now write whole files by renaming onto the name
+/// (scripts/lib/write-request.js), but people and agents still drop these files by hand.
+///
+/// Why 250 ms: it has to outlast a writer's create-to-fill gap, which is microseconds for one
+/// write call (`echo {...} > file`, Set-Content, an editor's save, Node's writeFileSync) but can
+/// stretch to tens of milliseconds on Windows when a virus scanner holds a just-created file, or
+/// when the writing process loses the processor for a scheduler tick or two (15.6 ms each at the
+/// default timer). 250 ms is about sixteen such ticks, and fifteen frames at 60 fps. And it has
+/// to be short enough that a deliberately empty drop is not noticeably late: a screenshot taken a
+/// quarter of a second after the drop shows the same scene, and every rig waits seconds for a
+/// done file anyway (and writes at least `{}`, so it never waits out the grace at all).
+///
+/// Why time and not frames: the frame rate is not the writer's clock. A loading frame can take
+/// seconds and a background instance renders slowly, so a few frames could be anything from 30 ms
+/// to several seconds. Why counted from the first sighting, in memory, and not from the file's
+/// modified time: FAT and exFAT drives (a portable install on a USB stick) store that time in
+/// 2 s steps, so a file written a moment ago can look two seconds old, and a clock change would
+/// move it too; `Instant` is monotonic.
+///
+/// The grace covers an EMPTY file only. A file caught half-filled (some text, not all of it) is
+/// taken as it is, because it cannot be told from a whole one; that is what writing by rename is
+/// for.
+pub(crate) const REQUEST_EMPTY_GRACE: std::time::Duration = std::time::Duration::from_millis(250);
+
+/// A request file the readers are waiting on (see `take_request_text_at`).
+#[derive(Default)]
+struct RequestWait {
+    /// When the file was first seen empty; None until it is.
+    empty_since: Option<std::time::Instant>,
+    /// A delete that failed has been named in the log, so a file that cannot be deleted is
+    /// reported once, not every frame.
+    delete_failure_logged: bool,
+}
+
+thread_local! {
+    /// The request files being waited on, by path. Every reader polls from the main loop's
+    /// thread, and each test thread gets its own (so tests cannot see each other's waits).
+    static REQUEST_WAITS: std::cell::RefCell<std::collections::HashMap<std::path::PathBuf, RequestWait>> =
+        std::cell::RefCell::new(std::collections::HashMap::new());
+}
+
+/// Take a dropped dev request file's text, consuming the file: the ONE way every request reader
+/// in the game reads its file (engine/ipc.rs and engine/movie.rs; the test
+/// `every_request_reader_takes_its_file_through_take_request_text` holds them to it). A file that
+/// reads EMPTY (or only whitespace) is left where it is for `REQUEST_EMPTY_GRACE`, because a
+/// writer may have created it and not yet filled it; text that arrives inside the grace is taken
+/// whole the frame it is seen. Once the grace has passed, the file is taken empty and the text is
+/// `""`: for a request whose content is optional (screenshot, cloudmap, cloud profile dump, door
+/// points, record cancel) an empty file still means "do it", and a reader that needs its JSON
+/// fails to parse `""` and answers exactly as it answers malformed JSON today.
+///
+/// None when there is no file, when it is still empty inside its grace, or when it cannot be
+/// deleted: a request that cannot be consumed would otherwise run again every frame (a screenshot
+/// every frame fills the disk), so it is not taken at all and the log names it once.
 pub(crate) fn take_request_text(path: &std::path::Path) -> Option<String> {
-    if !path.exists() {
-        return None;
-    }
-    let text = std::fs::read_to_string(path).unwrap_or_default();
-    if text.trim().is_empty() {
-        return None;
-    }
-    let _ = std::fs::remove_file(path);
-    Some(text)
+    take_request_text_at(path, std::time::Instant::now())
+}
+
+/// `take_request_text` with the clock passed in, for the tests.
+pub(crate) fn take_request_text_at(path: &std::path::Path, now: std::time::Instant) -> Option<String> {
+    REQUEST_WAITS.with(|waits| {
+        let mut waits = waits.borrow_mut();
+        if !path.exists() {
+            // Gone (taken, or cleared by whoever wrote it): forget any wait, so the next empty
+            // drop gets a whole grace of its own.
+            if !waits.is_empty() {
+                waits.remove(path);
+            }
+            return None;
+        }
+        // Bytes, not text: a file that is not UTF-8 still has content (PowerShell's `>` writes
+        // UTF-16), so it is taken, and a reader that needs JSON refuses it as before. A read that
+        // fails (the writer still holds the file without sharing it) counts as nothing written
+        // yet.
+        let bytes = std::fs::read(path).unwrap_or_default();
+        let empty = bytes.iter().all(|b| b.is_ascii_whitespace());
+        {
+            let wait = waits.entry(path.to_path_buf()).or_default();
+            if empty {
+                let since = *wait.empty_since.get_or_insert(now);
+                if now.saturating_duration_since(since) < REQUEST_EMPTY_GRACE {
+                    return None;
+                }
+            }
+            match std::fs::remove_file(path) {
+                // NotFound: someone else removed it after it was read; what was read is whole.
+                Ok(()) => {}
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                Err(e) => {
+                    if !wait.delete_failure_logged {
+                        wait.delete_failure_logged = true;
+                        log::warn!(
+                            "Dev request {}: it cannot be deleted ({e}), so it is not taken: a request that is never consumed would run again every frame",
+                            path.display()
+                        );
+                    }
+                    return None;
+                }
+            }
+        }
+        waits.remove(path);
+        if empty {
+            log::info!(
+                "Dev request {}: taken EMPTY (nothing was written into it within {} ms)",
+                path.display(),
+                REQUEST_EMPTY_GRACE.as_millis()
+            );
+        }
+        Some(String::from_utf8_lossy(&bytes).into_owned())
+    })
 }
 
 /// Showcase-tower dev trigger (v0.862, same file-drop pattern as screenshots):
@@ -2086,10 +2191,10 @@ fn apply_far_frame(state: &mut EngineState, v: &serde_json::Value) {
 pub(crate) fn poll_cloudmap_request(state: &mut EngineState) {
     const REQUEST_PATH: &str = "debug/cloudmap_request.json";
     const DONE_PATH: &str = "debug/cloudmap_done.json";
-    if !std::path::Path::new(REQUEST_PATH).exists() {
+    // Any content, an empty file included (once its grace has passed).
+    if take_request_text(std::path::Path::new(REQUEST_PATH)).is_none() {
         return;
     }
-    let _ = std::fs::remove_file(REQUEST_PATH);
     state.screenshot_counter += 1;
     let out = format!("debug/cloudmap_{}.png", state.screenshot_counter);
     let done = match state
@@ -2115,10 +2220,10 @@ pub(crate) fn poll_cloudmap_request(state: &mut EngineState) {
 pub(crate) fn poll_cloud_profile_dump_request(state: &mut EngineState) {
     const REQUEST_PATH: &str = "debug/cloud_profile_dump_request.json";
     const DONE_PATH: &str = "debug/cloud_profile_done.json";
-    if !std::path::Path::new(REQUEST_PATH).exists() {
+    // Any content, an empty file included (once its grace has passed).
+    if take_request_text(std::path::Path::new(REQUEST_PATH)).is_none() {
         return;
     }
-    let _ = std::fs::remove_file(REQUEST_PATH);
     let dir = std::path::Path::new("debug");
     let done = match state.renderer.dump_cloud_profile_pngs(dir) {
         Ok(files) => {
@@ -2212,14 +2317,16 @@ pub(crate) fn poll_cloud_profile_dump_request(state: &mut EngineState) {
 /// drawn surface once the stage is `Complete`.
 pub(crate) fn poll_screen_request(state: &mut EngineState) {
     const REQUEST_PATH: &str = "debug/screen_request.json";
-    if state.screens.ipc.is_some() || !std::path::Path::new(REQUEST_PATH).exists() {
+    if state.screens.ipc.is_some() {
         return;
     }
-    let parsed = std::fs::read_to_string(REQUEST_PATH)
-        .ok()
-        .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok());
-    // Consumed either way (same rule as the other debug polls).
-    let _ = std::fs::remove_file(REQUEST_PATH);
+    // Consumed either way, through the rule every debug poll shares
+    // (`take_request_text`); a file still empty after its grace is answered
+    // as malformed JSON.
+    let Some(text) = take_request_text(std::path::Path::new(REQUEST_PATH)) else {
+        return;
+    };
+    let parsed = serde_json::from_str::<serde_json::Value>(&text).ok();
     let fail = |msg: String| {
         log::warn!("Screen request: {msg}");
         write_screen_done(serde_json::json!({"ok": false, "error": msg}));
@@ -2656,14 +2763,13 @@ pub(crate) fn poll_ui_request(state: &mut EngineState) {
         }
         return;
     }
-    if !std::path::Path::new(REQUEST_PATH).exists() {
+    // Consumed either way, through the rule every debug poll shares
+    // (`take_request_text`); a file still empty after its grace is answered
+    // as malformed JSON.
+    let Some(text) = take_request_text(std::path::Path::new(REQUEST_PATH)) else {
         return;
-    }
-    let parsed = std::fs::read_to_string(REQUEST_PATH)
-        .ok()
-        .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok());
-    // Consumed either way (same rule as the other debug polls).
-    let _ = std::fs::remove_file(REQUEST_PATH);
+    };
+    let parsed = serde_json::from_str::<serde_json::Value>(&text).ok();
     let fail = |msg: String| {
         log::warn!("UI request: {msg}");
         write_ui_done(serde_json::json!({"ok": false, "error": msg}));
@@ -2983,14 +3089,13 @@ pub(crate) fn advance_station_park(state: &mut EngineState) {
 pub(crate) fn poll_camera_request(state: &mut EngineState) {
     const REQUEST_PATH: &str = "debug/camera_request.json";
     const DONE_PATH: &str = CAMERA_DONE_PATH;
-    if !std::path::Path::new(REQUEST_PATH).exists() {
+    // Consumed either way, through the rule every debug poll shares
+    // (`take_request_text`); a file still empty after its grace is answered
+    // as malformed JSON.
+    let Some(text) = take_request_text(std::path::Path::new(REQUEST_PATH)) else {
         return;
-    }
-    let parsed = std::fs::read_to_string(REQUEST_PATH)
-        .ok()
-        .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok());
-    // Consumed either way (same rule as the other debug polls).
-    let _ = std::fs::remove_file(REQUEST_PATH);
+    };
+    let parsed = serde_json::from_str::<serde_json::Value>(&text).ok();
     // A station park still waiting to report belongs to the request this one
     // replaces. Drop it: reporting it later would overwrite THIS request's
     // camera_done with a reading of a park nobody is waiting for.
@@ -3551,15 +3656,14 @@ pub(crate) fn poll_camera_request(state: &mut EngineState) {
 pub(crate) fn poll_autopilot_request(state: &mut EngineState) {
     const REQUEST_PATH: &str = "debug/autopilot_request.json";
     const DONE_PATH: &str = "debug/autopilot_done.json";
-    if !std::path::Path::new(REQUEST_PATH).exists() {
+    // Consumed either way, through the rule every debug poll shares
+    // (`take_request_text`): a malformed request must not retry every frame
+    // forever. Every field is optional but the JSON is not (`{}` at the
+    // least), so a file still empty after its grace is invalid JSON.
+    let Some(text) = take_request_text(std::path::Path::new(REQUEST_PATH)) else {
         return;
-    }
-    let parsed = std::fs::read_to_string(REQUEST_PATH)
-        .ok()
-        .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok());
-    // Consumed either way (same rule as the screenshot poll): a malformed
-    // request must not retry every frame forever.
-    let _ = std::fs::remove_file(REQUEST_PATH);
+    };
+    let parsed = serde_json::from_str::<serde_json::Value>(&text).ok();
     let _ = std::fs::create_dir_all("debug");
     let Some(req) = parsed else {
         let _ = std::fs::write(
@@ -3800,9 +3904,10 @@ pub(crate) fn poll_remote_players_request(state: &mut EngineState, clock_dt: f32
     const REQUEST_PATH: &str = "debug/remote_players_request.json";
     const DONE_PATH: &str = "debug/remote_players_done.json";
     let Ok(mut slot) = REMOTE_RECORDING.lock() else { return };
-    if std::path::Path::new(REQUEST_PATH).exists() {
-        let text = std::fs::read_to_string(REQUEST_PATH).unwrap_or_default();
-        let _ = std::fs::remove_file(REQUEST_PATH);
+    // Taken through the rule every debug poll shares (`take_request_text`): a
+    // file caught empty waits out its grace (the recording in flight carries
+    // on meanwhile), and one still empty then is refused as invalid JSON.
+    if let Some(text) = take_request_text(std::path::Path::new(REQUEST_PATH)) {
         match parse_remote_players_request(&text) {
             Ok(seconds) => {
                 if slot.is_some() {
@@ -4094,10 +4199,10 @@ pub(crate) fn door_points_json(ship: Option<&crate::ship::ship_structure::ShipSt
 pub(crate) fn poll_door_points_request(state: &EngineState) {
     const REQUEST_PATH: &str = "debug/door_points_request.json";
     const DONE_PATH: &str = "debug/door_points_done.json";
-    if !std::path::Path::new(REQUEST_PATH).exists() {
+    // Any content, an empty file included (once its grace has passed).
+    if take_request_text(std::path::Path::new(REQUEST_PATH)).is_none() {
         return;
     }
-    let _ = std::fs::remove_file(REQUEST_PATH);
     write_done_atomically(DONE_PATH, &door_points_json(state.gui_state.ship_structure.as_ref()));
     log::info!("Door points: wrote {DONE_PATH}");
 }
@@ -4286,6 +4391,226 @@ mod remote_player_recorder_tests {
     }
 }
 
+#[cfg(test)]
+mod request_take_tests {
+    //! Dev requests survive being read while they are still being written (2026-10-20). A file
+    //! written by a plain write exists EMPTY for a moment, and the game polls every frame; ten
+    //! of its eleven request readers used to delete whatever they read, so a frame in between
+    //! lost the request with no error. Every reader now takes its file through
+    //! `take_request_text` (see `REQUEST_EMPTY_GRACE` for the grace and why it is 250 ms). The
+    //! clock is passed in (`take_request_text_at`), so no test sleeps or races a real timer.
+    //!
+    //! Each test was seen red against the two rules it replaces: RED-A, the old consume-on-sight
+    //! read ten readers had (`exists`, read, delete, act); RED-B, the showcase reader's first fix
+    //! extended to everyone (an empty file is left forever). The output is in each test.
+    use super::*;
+    use std::time::{Duration, Instant};
+
+    /// A scratch folder with a `debug/` in it, deleted when the guard drops (BUG-159).
+    fn scratch(tag: &str) -> crate::test_temp::TempPath {
+        let d = crate::test_temp::dir(&format!("request_take_{tag}"));
+        std::fs::create_dir_all(d.join("debug")).unwrap();
+        d
+    }
+
+    fn ms(n: u64) -> Duration {
+        Duration::from_millis(n)
+    }
+
+    /// AN EMPTY REQUEST IS NOT TAKEN, OR DELETED, INSIDE ITS GRACE. Whitespace counts as empty
+    /// (`echo. > file` writes a bare line break).
+    ///
+    /// Seen red 2026-10-20 under RED-A: "camera_request.json: taken empty 0ns after it was first
+    /// seen", left `Some("")`, right `None`. (RED-B passes it: the showcase rule already left an
+    /// empty file alone. It is the ten other readers this catches.)
+    #[test]
+    fn an_empty_request_is_left_alone_within_the_grace() {
+        let root = scratch("left");
+        for (name, blank) in [("camera_request.json", ""), ("ui_request.json", "\r\n ")] {
+            let p = root.join("debug").join(name);
+            let t0 = Instant::now();
+            assert_eq!(take_request_text_at(&p, t0), None, "{name}: no file, nothing taken");
+            std::fs::write(&p, blank).unwrap();
+            for at in [Duration::ZERO, ms(16), ms(100), REQUEST_EMPTY_GRACE - ms(1)] {
+                assert_eq!(take_request_text_at(&p, t0 + at), None, "{name}: taken empty {at:?} after it was first seen");
+                assert!(p.exists(), "{name}: deleted {at:?} after it was first seen");
+            }
+        }
+    }
+
+    /// TEXT WRITTEN INSIDE THE GRACE IS TAKEN WHOLE, the frame it is seen, and the file is
+    /// consumed. A request that has its text from the start is taken on sight: the grace never
+    /// slows a rig.
+    ///
+    /// Seen red 2026-10-20 under RED-A: "caught empty: left for its text", left `Some("")`,
+    /// right `None`: the old read consumed the empty file, so the text written next went
+    /// nowhere. (RED-B passes it.)
+    #[test]
+    fn text_written_within_the_grace_is_taken_whole() {
+        let root = scratch("whole");
+        let p = root.join("debug").join("showcase_request.json");
+        let body = r#"{"illness":"forgiving"}"#;
+        let t0 = Instant::now();
+        std::fs::write(&p, "").unwrap(); // the writer has created the file...
+        assert_eq!(take_request_text_at(&p, t0), None, "caught empty: left for its text");
+        assert_eq!(take_request_text_at(&p, t0 + ms(16)), None, "still empty the next frame");
+        std::fs::write(&p, body).unwrap(); // ...and only now filled it
+        assert_eq!(
+            take_request_text_at(&p, t0 + REQUEST_EMPTY_GRACE - ms(1)).as_deref(),
+            Some(body),
+            "the text that landed inside the grace is taken whole"
+        );
+        assert!(!p.exists(), "and the file is consumed");
+        assert_eq!(take_request_text_at(&p, t0 + REQUEST_EMPTY_GRACE), None, "taken once");
+        std::fs::write(&p, body).unwrap();
+        assert_eq!(take_request_text_at(&p, t0 + ms(400)).as_deref(), Some(body), "a whole request is taken on sight");
+        assert!(!p.exists());
+    }
+
+    /// AN EMPTY "ANY CONTENT" REQUEST IS TAKEN ONCE THE GRACE HAS PASSED: it still means "do
+    /// it", and its text is "". The wait is forgotten with the file, so the next empty drop, or
+    /// one dropped after a rig cleared its folder, waits a whole grace of its own.
+    ///
+    /// Seen red 2026-10-20 both ways. RED-A: "first seen empty: left for its text", left
+    /// `Some("")`, right `None`. RED-B: "once the grace has passed an empty request is taken",
+    /// left `None`, right `Some("")`: an empty drop would never be taken at all.
+    #[test]
+    fn an_empty_any_content_request_is_taken_after_the_grace() {
+        let root = scratch("after");
+        let p = root.join("debug").join("cloudmap_request.json");
+        let t0 = Instant::now();
+        std::fs::write(&p, "").unwrap();
+        assert_eq!(take_request_text_at(&p, t0), None, "first seen empty: left for its text");
+        assert_eq!(
+            take_request_text_at(&p, t0 + REQUEST_EMPTY_GRACE).as_deref(),
+            Some(""),
+            "once the grace has passed an empty request is taken"
+        );
+        assert!(!p.exists(), "and consumed");
+        assert_eq!(take_request_text_at(&p, t0 + REQUEST_EMPTY_GRACE + ms(16)), None, "taken once");
+
+        let t1 = t0 + Duration::from_secs(5);
+        std::fs::write(&p, "").unwrap();
+        assert_eq!(take_request_text_at(&p, t1), None, "the next empty drop waits its own grace");
+        std::fs::remove_file(&p).unwrap(); // a rig clears its folder before the game took it
+        assert_eq!(take_request_text_at(&p, t1 + ms(16)), None);
+        std::fs::write(&p, "").unwrap();
+        assert_eq!(
+            take_request_text_at(&p, t1 + REQUEST_EMPTY_GRACE),
+            None,
+            "a cleared file's wait does not carry over to the next drop"
+        );
+        assert_eq!(take_request_text_at(&p, t1 + REQUEST_EMPTY_GRACE * 2).as_deref(), Some(""));
+    }
+
+    /// THE SCREENSHOT REQUEST STILL WORKS WITH AN EMPTY DROP (CLAUDE.md documents
+    /// `debug/screenshot_request.json` "(any content)"): a window-size capture once the grace has
+    /// passed. A hi-res size written a frame after the file appeared is honoured, where the old
+    /// reader read the file empty and took a window grab instead.
+    ///
+    /// Seen red 2026-10-20 both ways. RED-A (the old screenshot reader): "caught empty: text may
+    /// be coming", left `Some(Window)`, right `None`. RED-B: "an empty drop is a window-size
+    /// capture once the grace has passed", left `None`, right `Some(Window)`: the documented
+    /// empty drop would never take a screenshot.
+    #[test]
+    fn an_empty_screenshot_drop_still_takes_a_window_capture() {
+        let root = scratch("shot");
+        let p = root.join("debug").join("screenshot_request.json");
+        let t0 = Instant::now();
+        std::fs::write(&p, "").unwrap();
+        assert_eq!(take_screenshot_request(&p, t0), None, "caught empty: text may be coming");
+        assert!(p.exists());
+        assert_eq!(
+            take_screenshot_request(&p, t0 + REQUEST_EMPTY_GRACE),
+            Some(ScreenshotSize::Window),
+            "an empty drop is a window-size capture once the grace has passed"
+        );
+        assert!(!p.exists(), "and consumed");
+
+        let t1 = t0 + Duration::from_secs(1);
+        std::fs::write(&p, "").unwrap();
+        assert_eq!(take_screenshot_request(&p, t1), None);
+        std::fs::write(&p, r#"{"width":3840,"height":2160}"#).unwrap();
+        assert_eq!(
+            take_screenshot_request(&p, t1 + ms(16)),
+            Some(ScreenshotSize::Custom(3840, 2160)),
+            "the size written a frame late is the size captured"
+        );
+        std::fs::write(&p, "x").unwrap();
+        assert_eq!(take_screenshot_request(&p, t1 + ms(32)), Some(ScreenshotSize::Window), "any other content: at once");
+    }
+
+    /// EVERY REQUEST READER TAKES ITS FILE THROUGH `take_request_text`, and none deletes a
+    /// request file itself. Every `debug/..._request.json` constant in this file must sit in a
+    /// reader listed here, so a new reader has to be added (and wired) to pass.
+    ///
+    /// Seen red 2026-10-20 before the readers were converted: "request readers not on the shared
+    /// helper:", naming all ten readers in this file ("ipc.rs poll_camera_request does not call
+    /// take_request_text(", "... deletes its request itself: let _ =
+    /// std::fs::remove_file(REQUEST_PATH);", and the same for screenshot, cloudmap,
+    /// cloud_profile_dump, screen, ui, autopilot, remote_players and door_points) and movie.rs
+    /// take_requests (`remove_file(&cancel)`, `remove_file(&request)`).
+    #[test]
+    fn every_request_reader_takes_its_file_through_take_request_text() {
+        let ipc = include_str!("ipc.rs").replace("\r\n", "\n");
+        let movie = include_str!("movie.rs").replace("\r\n", "\n");
+        let body_at = |src: &str, at: usize| -> String { src[at..at + src[at..].find("\n}\n").expect("its end")].to_string() };
+        let fn_start = |src: &str, name: &str| -> usize {
+            src.find(&format!("pub(crate) fn {name}(")).unwrap_or_else(|| panic!("fn {name}"))
+        };
+        // (file, reader, the helper it must call)
+        let readers: [(&str, &str, &str); 12] = [
+            ("ipc", "poll_screenshot_request", "take_screenshot_request("),
+            ("ipc", "poll_showcase_request", "take_request_text("),
+            ("ipc", "poll_cloudmap_request", "take_request_text("),
+            ("ipc", "poll_cloud_profile_dump_request", "take_request_text("),
+            ("ipc", "poll_screen_request", "take_request_text("),
+            ("ipc", "poll_ui_request", "take_request_text("),
+            ("ipc", "poll_camera_request", "take_request_text("),
+            ("ipc", "poll_autopilot_request", "take_request_text("),
+            ("ipc", "poll_remote_players_request", "take_request_text("),
+            ("ipc", "poll_door_points_request", "take_request_text("),
+            ("movie", "take_requests", "take_request_text_at(&cancel"),
+            ("movie", "take_requests", "take_request_text_at(&request"),
+        ];
+        let delete = concat!("remove_", "file(");
+        let mut wrong = Vec::new();
+        let mut scanned = std::collections::HashSet::new();
+        for (file, name, call) in readers {
+            let src: &str = if file == "ipc" { &ipc } else { &movie };
+            let body = body_at(src, fn_start(src, name));
+            if !body.contains(call) {
+                wrong.push(format!("{file}.rs {name} does not call {call}"));
+            }
+            if !scanned.insert((file, name)) {
+                continue; // a reader of two files is listed twice; its deletes are checked once
+            }
+            for line in body.lines().filter(|l| l.contains(delete)) {
+                let l = line.to_lowercase();
+                if ["request", "req)", "cancel"].iter().any(|w| l.contains(w)) {
+                    wrong.push(format!("{file}.rs {name} deletes its request itself: {}", line.trim()));
+                }
+            }
+        }
+        // Every request constant in ipc.rs belongs to a listed reader.
+        for (at, _) in ipc.match_indices("_request.json\";") {
+            let line_start = ipc[..at].rfind('\n').map_or(0, |i| i + 1);
+            if !ipc[line_start..at].contains("const ") {
+                continue;
+            }
+            let owner = ipc[..at].rfind("\npub(crate) fn ").map(|i| {
+                let rest = &ipc[i + "\npub(crate) fn ".len()..];
+                rest[..rest.find('(').unwrap()].to_string()
+            });
+            let owner = owner.unwrap_or_default();
+            if !readers.iter().any(|(f, n, _)| *f == "ipc" && *n == owner) {
+                wrong.push(format!("ipc.rs: a request constant in {owner:?} is not in this test's list: {}", ipc[line_start..at].trim()));
+            }
+        }
+        assert!(wrong.is_empty(), "request readers not on the shared helper:\n  {}", wrong.join("\n  "));
+    }
+}
+
 // ── Rig determinism pins: the tests ──────────────────────────────────────────
 //
 // These pin the two rules that are easy to get silently wrong and impossible to
@@ -4301,26 +4626,6 @@ mod remote_player_recorder_tests {
 #[cfg(test)]
 mod showcase_pin_tests {
     use super::*;
-
-    /// A REQUEST CAUGHT MID-WRITE IS NOT LOST (2026-10-20). A rig creates the file and then
-    /// fills it, and the game polls every frame: read between the two, the file is empty, and
-    /// consuming it then threw the request away with no word anywhere (a verify-falls run lost its
-    /// `illness` verb that way and ran a Forgiving leg in Realistic). Empty: left for the next
-    /// frame. Filled: taken and the file gone. No file: nothing.
-    #[test]
-    fn an_empty_request_file_waits_for_its_text() {
-        let dir = std::env::temp_dir().join(format!("hos-take-request-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
-        let p = dir.join("showcase_request.json");
-        assert_eq!(take_request_text(&p), None, "no file");
-        std::fs::write(&p, "").unwrap();
-        assert_eq!(take_request_text(&p), None, "an empty file is not taken");
-        assert!(p.exists(), "and it is left for its text");
-        std::fs::write(&p, r#"{"illness":"forgiving"}"#).unwrap();
-        assert_eq!(take_request_text(&p).as_deref(), Some(r#"{"illness":"forgiving"}"#));
-        assert!(!p.exists(), "a filled request is consumed");
-        let _ = std::fs::remove_dir_all(&dir);
-    }
 
     /// A plain unit wind direction, the shape WeatherSystem always publishes
     /// (`Vec3::new(angle.cos(), 0.0, angle.sin()).normalize()`).

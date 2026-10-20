@@ -9,9 +9,10 @@
 //
 // That happened on 2026-10-20. One `just verify-falls` run's planet Forgiving leg ran in
 // Realistic: its `illness` showcase request was read empty and deleted (run.log had no
-// "Showcase: illness" line). The game side now leaves an empty showcase request for the next
-// frame (engine/ipc.rs take_request_text), but most of the game's request readers do not, and
-// a reader that waits for "not empty" still cannot tell a half-filled file from a whole one.
+// "Showcase: illness" line). Every one of the game's request readers now leaves an EMPTY
+// request where it is for 250 ms in case its text is still coming (engine/ipc.rs
+// take_request_text, REQUEST_EMPTY_GRACE), but a reader that waits for "not empty" still
+// cannot tell a half-filled file from a whole one.
 //
 // So the rig side writes every request to a side name in the SAME folder and renames it onto
 // the request name. A rename within one folder is one step: the request name either does not
