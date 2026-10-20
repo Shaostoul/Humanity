@@ -1,5 +1,7 @@
 // ── files-folder.js ───────────────────────────────────────────────────────
-// The Files page's "HumanityOS folder" place on the website (2026-10-19): the
+// The Files page's "The server's data folder" place on the website (2026-10-19;
+// called "HumanityOS folder" until 2026-10-20, the desktop's name for the app's
+// own folder on the computer, a different thing): the
 // data folder of the server this website runs on, as a tree, with built-in
 // views for its common formats and a text editor with line numbers. It was the
 // data browser at /files (its own page, "Files") until the Files page took it in
@@ -22,6 +24,8 @@
 const FilesFolder = (function () {
   'use strict';
 
+  /** The place's name: its heading here and its name in the places (files-places.js WORDS.folder). */
+  const PLACE = 'The server\'s data folder';
   /** What the place says about editing these files. */
   const CAUTION = 'The data folder of the server this website runs on: the files HumanityOS reads for its plants, recipes, maps and the rest. Changing one changes how the app works for everyone on this server.';
   /** Said when this browser holds no identity to sign with: the folder is for this server's admins. */
@@ -612,7 +616,7 @@ const FilesFolder = (function () {
   function updateDirtyState() {
     const dirty = isDirty();
     $('unsaved-dot').classList.toggle('visible', dirty);
-    const name = currentPath ? currentPath.split('/').pop() : 'HumanityOS folder';
+    const name = currentPath ? currentPath.split('/').pop() : PLACE;
   }
 
   // ── Save ──
@@ -679,7 +683,7 @@ const FilesFolder = (function () {
     const left = document.createElement('div');
     left.className = 'files-folder fd-tree';
     left.innerHTML =
-      '<div class="tree-header"><h2 class="files-place-heading">HumanityOS folder</h2>' +
+      '<div class="tree-header"><h2 class="files-place-heading">' + PLACE + '</h2>' +
       '<button class="btn-refresh-tree" onclick="FilesFolder.refreshTree()" title="Read the folder again">Refresh</button></div>' +
       '<div class="tree-list" id="tree-list"><div class="loading">Loading...</div></div>';
     const middle = document.createElement('div');
@@ -713,6 +717,7 @@ const FilesFolder = (function () {
 
   // ── Public API ──
   return {
+    PLACE,
     CAUTION,
     createFolderPlace,
     refreshTree,

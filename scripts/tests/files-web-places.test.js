@@ -1,13 +1,13 @@
 // The Files page's places on the website (2026-10-19): web/pages/files-places.js, with the two
 // places that are not the page's own list, Shared files (web/pages/files-shared.js, the Shared Files
-// page until then) and the HumanityOS folder (web/pages/files-folder.js, the data browser that was at
+// page until then) and the server's data folder (web/pages/files-folder.js, the data browser that was at
 // /files). The desktop's twin is src/gui/pages/files/places.rs. The operator, 2026-10-19: "What's the
 // real difference between these two? Why would we not want to merge them?"
 //
 // And (5, 2026-10-20) the page's "How this page works" (web/shared/how-it-works.js, the desktop's
 // src/gui/pages/files/how.rs and widgets/how_it_works.rs): one small toggle beside the heading,
 // closed by default, folding the page's own line and each place's; outside it, where the person
-// acts, Shared files' line (they are public) and the HumanityOS folder's caution stay.
+// acts, Shared files' line (they are public) and the server's data folder's caution stay.
 //
 // Runs under Node's own test runner against the stand-in document of files-web-harness.js:
 //   node --test scripts/tests/files-web-places.test.js
@@ -62,9 +62,13 @@ const routes = () => listRoutes(listAnswer([]), [[at("/api/uploads"), () => resp
 // ── 1. The places, their names and addresses ─────────────────────────────
 
 // Seen red 2026-10-19 with shownPlace letting a member keep #admin: "Admin is an admin's alone".
-test("1. the places: two for everyone, the data folder and Admin for an admin, each at its own address", () => {
+// Seen red 2026-10-20 with the server's data folder listed before Admin again: "in the desktop's
+// order: Shared on, Shared files, Admin, then the rest" (and files-web-round5 2, "an admin's
+// places, in the desktop's order"); with only its old name back: "not the desktop's HumanityOS
+// folder, which is the app's own folder on the computer" (actual 'HumanityOS folder').
+test("1. the places: two for everyone, Admin and the data folder for an admin, in the desktop's order, each at its own address", () => {
   assert.deepEqual(FPL.listed(false), ["shared", "shared-files"]);
-  assert.deepEqual(FPL.listed(true), ["shared", "shared-files", "folder", "admin"]);
+  assert.deepEqual(FPL.listed(true), ["shared", "shared-files", "admin", "folder"], "in the desktop's order: Shared on, Shared files, Admin, then the rest");
   for (const place of FPL.listed(true)) assert.equal(FPL.placeOf(FPL.addressOf(place).replace("/files", "")), place, "the address names the place: " + place);
   assert.equal(FPL.addressOf("shared"), "/files", "what is shared is the page itself");
   assert.equal(FPL.placeOf("#nothing"), "shared", "an unknown hash shows what is shared");
@@ -73,7 +77,8 @@ test("1. the places: two for everyone, the data folder and Admin for an admin, e
   assert.equal(FPL.shownPlace("folder", true), "folder");
   assert.equal(FPL.labelOf("shared", "united-humanity.us"), "Shared on united-humanity.us", "the desktop's words");
   assert.equal(FPL.labelOf("shared-files"), "Shared files");
-  assert.equal(FPL.labelOf("folder"), "HumanityOS folder");
+  assert.equal(FPL.labelOf("folder"), "The server's data folder", "not the desktop's HumanityOS folder, which is the app's own folder on the computer");
+  assert.equal(FFO.PLACE, FPL.labelOf("folder"), "the place's heading is its name in the places");
 });
 
 // ── 2. Shared files, a place of the page ─────────────────────────────────
@@ -118,7 +123,7 @@ test("3. the page opened at a place's address shows that place", async () => {
   assert.equal(byId(shared.doc, "files-place-area").hidden, false, "/files#shared-files opens Shared files");
   assert.equal(byId(shared.doc, "files-place-shared-files").getAttribute("aria-current"), "page");
   const folder = await openPage({ view: "panes", hash: "#folder", session: fakeSession({ role: "admin" }), routes: routes() });
-  assert.equal(byId(folder.doc, "files-place-folder").getAttribute("aria-current"), "page", "/files#folder opens the HumanityOS folder for an admin");
+  assert.equal(byId(folder.doc, "files-place-folder").getAttribute("aria-current"), "page", "/files#folder opens the server's data folder for an admin");
   assert.equal(byId(folder.doc, "files-main").hidden, true);
 });
 
@@ -206,7 +211,7 @@ test("5a. How this page works: a toggle beside the heading, closed by default; S
   assert.ok(visibleText(byId(doc, "files-place-left")).includes(FSH.WORDS.how), "Shared files' line stays where its files are: they are public");
   assert.ok(FSH.WORDS.how.startsWith("Files here are public: anyone can download them."));
   assert.ok(!byId(doc, "files-how-toggle").hidden && visibleText(doc.body).includes(HOW.LABEL), "the toggle on every place");
-  // The HumanityOS folder's caution stays on its right pane, beside the file (the place draws its
+  // The server's data folder's caution stays on its right pane, beside the file (the place draws its
   // parts with markup, so it is made here against a document that allows it).
   const made = [];
   const node = (tag) => { const n = { tagName: tag.toUpperCase(), className: "", id: "", textContent: "", kids: [], set innerHTML(v) { this.html = v; }, append(...k) { this.kids.push(...k); } }; made.push(n); return n; };

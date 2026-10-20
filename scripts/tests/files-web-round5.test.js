@@ -113,7 +113,7 @@ test("2. the Admin place is an admin's alone; Admin holds the section, /files#ad
 
   const history = fakeHistory();
   const op = await openPage({ session: fakeSession({ role: "admin" }), history, mountAdmin: (c) => mounted.push(c), routes: listRoutes(listAnswer([])) });
-  assert.deepEqual(placeNames(op.doc), ["Shared on united-humanity.us", "Shared files", "HumanityOS folder", "Admin"], "an admin's places end with Admin");
+  assert.deepEqual(placeNames(op.doc), ["Shared on united-humanity.us", "Shared files", "Admin", "The server's data folder"], "an admin's places, in the desktop's order");
   assert.equal(byId(op.doc, "files-place-shared").getAttribute("aria-current"), "page", "what is shared first");
   assert.equal(byId(op.doc, "files-main").hidden, false);
   assert.equal(byId(op.doc, "files-admin-wrap").hidden, true, "Admin waits behind its place");

@@ -8,16 +8,19 @@
 // On the server: "Shared on <server>" (what people chose to show: the list,
 // the featured shelf, the filters, then an item and its details; the page's own
 // list), "Shared files" (the server's public file library: /pages/files-shared.js),
-// and for an admin of the server "HumanityOS folder" (the server's data folder,
-// read and edited as the data browser did: /pages/files-folder.js; the server
-// serves it to its admins alone, BUG-206) and "Admin" (who sees the page, its
-// space, its categories and what to prune). The desktop's Your folders
+// and for an admin of the server "Admin" (who sees the page, its space, its
+// categories and what to prune) and "The server's data folder" (read and edited
+// as the data browser did: /pages/files-folder.js; the server serves it to its
+// admins alone, BUG-206). In the desktop's order (places.rs `listed`: Shared on
+// <server>, Shared files, Admin, then the computer's places). The desktop's
+// "HumanityOS folder" is the app's own folder on the computer, so the server's
+// is not called that here (2026-10-20: one name, one thing); its Your folders
 // (folders on the computer) has no website version (operator, 2026-10-13: a web
 // page cannot look through a folder the same way in every browser).
 //
 // The places are at the top of the left pane: in the list's pane while Shared
 // on <server> is shown in the panes, at the top of the place's own left pane for
-// Shared files and the HumanityOS folder, and above the page otherwise (the
+// Shared files and the server's data folder, and above the page otherwise (the
 // Gallery, Admin). Each has its own address, so Back and a link name it:
 // /files, /files#shared-files, /files#folder, /files#admin.
 //
@@ -33,17 +36,17 @@
     onServer: 'On the server',
     sharedOn: (host) => (host ? 'Shared on ' + host : 'Shared on this server'),
     sharedFiles: 'Shared files',
-    folder: 'HumanityOS folder',
+    folder: 'The server\'s data folder',
     admin: 'Admin',
     label: 'Places',
   });
 
   /**
-   * The places listed, in order: the server's data folder and Admin for an admin of the server
-   * only (the server lists and reads its data folder for its admins alone, BUG-206).
+   * The places listed, in the desktop's order: Admin and the server's data folder for an admin of
+   * the server only (the server lists and reads its data folder for its admins alone, BUG-206).
    */
   function listed(admin) {
-    return admin ? ['shared', 'shared-files', 'folder', 'admin'] : ['shared', 'shared-files'];
+    return admin ? ['shared', 'shared-files', 'admin', 'folder'] : ['shared', 'shared-files'];
   }
   /** The place an address's hash names (the page's own list for any other). */
   function placeOf(hash) {
@@ -142,7 +145,7 @@
         leftTop.replaceChildren(el, ...(parts[0] ? [parts[0]] : []));
         area.slots.middle.replaceChildren(...(parts[1] ? [parts[1]] : []));
         area.slots.right.replaceChildren(...(parts[2] ? [parts[2]] : []));
-        // Started once, after its parts are on the page (the HumanityOS folder finds its own by id).
+        // Started once, after its parts are on the page (the server's data folder finds its own by id).
         if (place && !place.started && typeof place.start === 'function') { place.started = true; place.start(); }
         if (panes && typeof panes.layout === 'function') panes.layout();
         return;

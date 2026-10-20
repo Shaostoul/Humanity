@@ -1,4 +1,4 @@
-/* The Files page's HumanityOS folder place (2026-10-19, /pages/files-folder.js): the data browser's
+/* The Files page's server data folder place (2026-10-19, /pages/files-folder.js): the data browser's
    own page styles until it became a place, scoped to its parts. The tree on the left, the file in the
    middle (its bar above it), what it is on the right. */
 .files-folder.fd-tree { display: flex; flex-direction: column; min-height: 0; }

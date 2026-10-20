@@ -120,7 +120,7 @@
 // desktop's config.json `files_how_open`). In it, under each place's name: the
 // page's own line (the desktop's PAGE_LINE, which took the place of the short
 // line that was under the heading), Shared files' line and, for an admin, the
-// HumanityOS folder's caution. Outside it, where the person acts, they stay: Shared files'
+// server's data folder's caution. Outside it, where the person acts, they stay: Shared files'
 // line (they are public for anyone to download) beside Upload a file, and the
 // folder's caution beside the file being edited. The desktop's Your folders has
 // no website version, so its line is not here.
@@ -872,7 +872,7 @@
           }
           // The server's data folder is an admin's alone (BUG-206), and so is its line.
           if (FFO && FFO.CAUTION && isAdmin()) {
-            f.part(FPL ? FPL.WORDS.folder : 'HumanityOS folder', 'red');
+            f.part(FPL ? FPL.WORDS.folder : FFO.PLACE, 'red');
             f.line(FFO.CAUTION);
           }
         },
@@ -2315,7 +2315,7 @@
     }
     function dropped(files) {
       if (places && !st.viewer && places.takesDrops(st.tab)) { places.takeFiles(st.tab, files); return; }
-      // From the HumanityOS folder: Add to Files opens where it lives, with what is shared.
+      // From the server's data folder: Add to Files opens where it lives, with what is shared.
       if (places && st.tab === 'folder') { st.tab = 'shared'; go('/files', false); renderTabs(); }
       const edit = itemView.page.edit;
       if (edit && st.viewer) {
