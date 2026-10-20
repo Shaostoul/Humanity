@@ -6,6 +6,17 @@
   <title>Bug Reports, HumanityOS</title>
   <link rel="stylesheet" href="/shared/theme.css">
   <style>
+    /* Colours this page uses that have no theme token. The dark values are
+       exactly the page's look before the light theme reached its text
+       (2026-10-20); the light ones are the theme's own danger and success. */
+    :root {
+      --pg-error-ink: #e55;
+      --pg-ok-ink: #4a9;
+    }
+    :root[data-theme="light"] {
+      --pg-error-ink: var(--danger);
+      --pg-ok-ink: var(--success);
+    }
     body { background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }
     #page-app { flex: 1; max-width: 900px; margin: 0 auto; padding: 1.5rem 1rem; width: 100%; box-sizing: border-box; }
 
@@ -20,7 +31,7 @@
     .form-row.full { flex-direction: column; }
     .form-group { display: flex; flex-direction: column; flex: 1; }
     .form-group label { font-size: 0.75rem; font-weight: 600; color: var(--text-muted); margin-bottom: 0.3rem; text-transform: uppercase; letter-spacing: 0.05em; }
-    .form-group label .req { color: #e55; }
+    .form-group label .req { color: var(--pg-error-ink); }
     .form-group input, .form-group textarea, .form-group select {
       background: var(--bg); border: 1px solid var(--border); color: var(--text);
       padding: 0.5rem 0.65rem; border-radius: 6px; font: inherit; font-size: 0.85rem;
@@ -41,8 +52,8 @@
     .btn-submit:hover { opacity: 0.85; }
     .btn-submit:disabled { opacity: 0.4; cursor: not-allowed; }
     .form-status { font-size: 0.8rem; color: var(--text-muted); }
-    .form-status.error { color: #e55; }
-    .form-status.success { color: #4a9; }
+    .form-status.error { color: var(--pg-error-ink); }
+    .form-status.success { color: var(--pg-ok-ink); }
 
     .auto-captured { font-size: 0.72rem; color: var(--text-dim, #555); margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid var(--border); }
 

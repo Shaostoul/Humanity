@@ -719,7 +719,7 @@
 .vmodal .vmodal-tier-mod { border-left-color: var(--success); }
 .vmodal .vmodal-tier-mod h3 { color: var(--success); }
 .vmodal .vmodal-tier-admin { border-left-color: #56b; }
-.vmodal .vmodal-tier-admin h3 { color: #88f; }
+.vmodal .vmodal-tier-admin h3 { color: var(--chat-admin-tier-ink); }
 .vmodal .vmodal-action {
   display: block; width: 100%; text-align: left;
   background: var(--bg-input); color: var(--text);

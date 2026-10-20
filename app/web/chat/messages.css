@@ -113,7 +113,7 @@
 }
 /* Signature present but verification failed, possible tampering */
 .sig-badge.invalid {
-  color: #e55;
+  color: var(--chat-danger-ink);
   background: rgba(220,60,60,0.15);
   cursor: help;
 }
@@ -425,7 +425,7 @@
   transition: opacity 0.15s;
 }
 .code-block-wrapper:hover .code-copy { opacity: 1; }
-.code-block-wrapper .code-copy:hover { color: #fff; border-color: var(--accent); }
+.code-block-wrapper .code-copy:hover { color: #fff; border-color: var(--accent); } /* theme-exempt: on the copy button's #333, over the always-dark code block */
 
 /* ── Blockquote (from markdown) ── */
 .body blockquote {

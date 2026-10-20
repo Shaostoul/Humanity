@@ -14,6 +14,11 @@
        renders (src/gui/pages/homes.rs). One data file, two faithful surfaces.
        The old localStorage room-decorator that used to live here diverged from
        the native homestead system and was replaced by this outline (v0.700). */
+    /* Colours this page uses that have no theme token. The dark value is
+       exactly the page's look before the light theme reached its text
+       (2026-10-20); the light one is the theme's own info blue. */
+    :root { --pg-luxury-ink: #48f; }
+    :root[data-theme="light"] { --pg-luxury-ink: var(--info); }
     body { min-height: 100vh; }
     .container { max-width: 900px; margin: 0 auto; padding: 0 24px 80px; }
 
@@ -48,7 +53,7 @@
     .req .gid { display: block; font-size: 0.68rem; color: var(--text-muted); opacity: 0.7; font-family: monospace; }
     .tier-label { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin: 14px 0 2px; }
     .tier-label.baseline { color: var(--text); }
-    .tier-label.luxury { color: #48f; }
+    .tier-label.luxury { color: var(--pg-luxury-ink); }
     .notgame { display: inline-block; font-size: 0.66rem; font-weight: 700; padding: 1px 8px; border-radius: var(--radius-lg); background: rgba(255,136,17,0.15); color: var(--accent); margin-left: 6px; }
 
     .panel {

@@ -43,7 +43,7 @@
   border: 1px solid var(--border) !important;
 }
 .btn-mute:hover { background: var(--bg-hover); }
-.btn-mute.muted { background: var(--warning); color: #000; }
+.btn-mute.muted { background: var(--warning); color: var(--text-on-accent); }
 .btn-hangup {
   background: #dc3232;
   color: #fff;
@@ -161,7 +161,7 @@
   white-space: nowrap;
 }
 #voice-control-bar button:hover { background: var(--bg-hover); }
-#voice-control-bar button.vc-muted { background: var(--warning); color: #000; }
+#voice-control-bar button.vc-muted { background: var(--warning); color: var(--text-on-accent); }
 #voice-control-bar .vc-vol-label {
   font-size: 0.6rem;
   color: var(--text-muted);
@@ -227,7 +227,7 @@
   background: rgba(0,0,0,0.7);
   padding: 1px 4px;
   border-radius: 2px;
-  color: #fff;
+  color: #fff; /* theme-exempt: a label on the video, dark in both themes */
 }
 #video-panel .video-pip-btn {
   position: absolute;
@@ -235,7 +235,7 @@
   right: 4px;
   background: rgba(0,0,0,0.6);
   border: none;
-  color: #fff;
+  color: #fff; /* theme-exempt: a button on the video, dark in both themes */
   font-size: var(--text-xs);
   padding: 2px 5px;
   border-radius: var(--radius-sm);
@@ -325,7 +325,7 @@
 #video-panel .stream-chat-overlay .stream-chat-overlay-body {
   padding: var(--space-sm) var(--space-md);
   font-size: var(--text-xs);
-  color: #94949f; /* over the video: the dark theme's muted ink in both themes */
+  color: #94949f; /* theme-exempt: over the video, the dark theme's muted ink in both themes */
   line-height: 1.35;
 }
 /* Camera selector dropdown */
@@ -364,7 +364,7 @@
   border: 1px solid var(--border) !important;
 }
 .btn-video:hover { background: var(--bg-hover); }
-.btn-video.active { background: var(--success); color: #000; }
+.btn-video.active { background: var(--success); color: var(--text-on-accent); }
 
 /* Stream studio preview (right sidebar) */
 .stream-studio-preview {
@@ -401,7 +401,7 @@
   left: 6px;
   bottom: 6px;
   font-size: 0.63rem;
-  color: #fff;
+  color: #fff; /* theme-exempt: a label on the stream preview, black in both themes */
   background: rgba(0,0,0,0.6);
   padding: 1px 4px;
   border-radius: var(--radius-sm);
@@ -412,7 +412,7 @@
   top: 8px;
   right: 8px;
   font-size: 0.62rem;
-  color: #cfd7e3;
+  color: #cfd7e3; /* theme-exempt: over the stream preview, black in both themes */
   background: rgba(8,8,10,0.62);
   border: 1px solid rgba(120,130,150,0.35);
   padding: 2px 5px;
