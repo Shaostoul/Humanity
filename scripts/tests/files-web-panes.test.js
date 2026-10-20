@@ -493,3 +493,26 @@ test("6. a drag on a handle moves the split, is kept when it ends, and the next 
   rh.dispatch("pointerup", { pointerId: 1 });
   assert.ok(byId(refused.doc, "files-panes").style.gridTemplateColumns.includes("34.33fr"), "the drag holds for this visit");
 });
+
+// ── 7. The desktop's setting each mirror names is a real one ─────────────
+
+// These scripts say which desktop setting each of their browser keys mirrors ("the desktop's
+// config.json `files_layout`"). The review of 2026-10-20 found files-panes.js still naming
+// `media_layout`, the field's name before the page was the Files page. Seen red the same day
+// against it as it was: "files-panes.js names config.json `media_layout`, a field the desktop's
+// settings (src/config.rs AppConfig) have".
+test("7. every config.json setting the Files page's scripts name is a field of the desktop's settings", () => {
+  const config = fs.readFileSync(path.join(ROOT, "src", "config.rs"), "utf8");
+  const fields = new Set([...config.matchAll(/^\s*pub (\w+):/gm)].map((m) => m[1]));
+  const files = fs.readdirSync(path.join(WEB, "pages")).filter((f) => /^files-.*\.js$/.test(f)).map((f) => path.join("pages", f));
+  files.push(path.join("shared", "how-it-works.js"));
+  let named = 0;
+  for (const f of files) {
+    const text = fs.readFileSync(path.join(WEB, f), "utf8");
+    for (const m of text.matchAll(/config\.json `(\w+)`/g)) {
+      named++;
+      assert.ok(fields.has(m[1]), `${path.basename(f)} names config.json \`${m[1]}\`, a field the desktop's settings (src/config.rs AppConfig) have`);
+    }
+  }
+  assert.ok(named >= 2, "the check found the names it is for: " + named);
+});

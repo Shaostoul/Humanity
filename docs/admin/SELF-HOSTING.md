@@ -635,8 +635,9 @@ sudo nginx -t && sudo systemctl restart nginx
 was the Media page at `/media` until then, and its item pages moved to `/files/<number>` with
 it. Change the pattern in that location to `^/files/[0-9]+$` (the block is otherwise the same),
 then `sudo nginx -t && sudo systemctl reload nginx`. Until then an item's page at
-`/files/<number>` falls through to the site's front page. The old `/media` addresses are not
-kept: nobody used them yet.
+`/files/<number>` reaches the site's catch-all location (`try_files $uri $uri.html $uri/ =404`),
+which has no such file and answers with nginx's own "404 Not Found" page. The old `/media`
+addresses are not kept: nobody used them yet.
 
 **A server set up before 2026-10-12** needs two edits to its nginx config for
 the Files page's item pages and counts. Make them by hand in the config the

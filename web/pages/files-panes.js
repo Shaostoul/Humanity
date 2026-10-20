@@ -12,7 +12,7 @@
 //   side when the page is at least as wide as the window is tall and every pane fits at its
 //   narrowest (280 px), else one above another (each at least 170 px tall). A phone stacks them.
 // - THE SPLIT is each pane's share of the area along the way they go, summing to one, kept in this
-//   browser (localStorage `humanity_media_layout`, the desktop's config.json `media_layout` with its
+//   browser (localStorage `humanity_media_layout`, the desktop's config.json `files_layout` with its
 //   field names: `gallery`, `across`, `down`), side by side and stacked apart. A drag on a handle
 //   moves the boundary between its two panes, never past either one's narrowest (`drag`); a
 //   double-click puts those two back; the arrow keys move it too. Storage that refuses (a private

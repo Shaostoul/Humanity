@@ -372,3 +372,23 @@ test("10. an admin features an item on the main shelf, on its category's only, o
   const member = await openPage({ routes: listRoutes(listAnswer([one])) });
   assert.equal(tileOf(member.doc, 1).querySelector('[data-action="feature"]'), null);
 });
+
+// ── 11. What the self-hosting guide says an old nginx does with /files/<n> ──
+
+// A server whose nginx still has the location for /media/<n> sends /files/<n> to its catch-all,
+// `try_files $uri $uri.html $uri/ =404`: nginx's own "not found", which is what the live server
+// answered on 2026-10-20 (`curl https://united-humanity.us/files/1`: 404 from nginx). The guide
+// said it "falls through to the site's front page" (found by the review of 2026-10-20). Seen red
+// the same day against the guide as it was: "the guide says what that catch-all does: a 404".
+test("11. the self-hosting guide says an old nginx answers /files/<n> with its 404, as its catch-all does", () => {
+  const conf = fs.readFileSync(path.join(ROOT, "scripts", "nginx", "humanity.conf"), "utf8");
+  const catchAll = [...conf.matchAll(/location \/ \{\s*([^}]*)\}/g)].map((m) => m[1].trim());
+  assert.ok(catchAll.some((body) => /^try_files [^;]*=404;$/.test(body)), "the site's catch-all answers what it has no file for with 404: " + JSON.stringify(catchAll));
+  for (const copy of [["docs", "admin", "SELF-HOSTING.md"], ["data", "library", "SELF-HOSTING.md"]]) {
+    const guide = fs.readFileSync(path.join(ROOT, ...copy), "utf8").replace(/\r\n/g, "\n");
+    const at = guide.indexOf("**A server set up before 2026-10-19**");
+    assert.ok(at >= 0, copy.join("/") + " has the paragraph for a server set up before 2026-10-19");
+    const para = guide.slice(at, guide.indexOf("\n\n", at));
+    assert.ok(/404/.test(para) && !/front page/.test(para), copy.join("/") + ": the guide says what that catch-all does: a 404\n" + para);
+  }
+});

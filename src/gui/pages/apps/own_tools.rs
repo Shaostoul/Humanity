@@ -4,9 +4,9 @@
 //!
 //! The list is DATA, data/gui/humanityos_tools.json (Infinite-of-X: a new tool is a new entry
 //! there, never code): each entry's name, its page (the id gui/dispatch.rs gives it) and one plain
-//! line. Dev-only pages (Testing, Files, Dev) are left out of it. Loaded once at startup (lib.rs);
-//! an entry whose page id is not a page shows no Open, and the test below keeps the shipped file
-//! free of such entries.
+//! line. Dev-only pages (Testing, Dev, the planet tuner) are left out of it. Loaded once at
+//! startup (lib.rs); an entry whose page id is not a page shows no Open, and the test below keeps
+//! the shipped file free of such entries.
 
 use serde::Deserialize;
 
@@ -87,7 +87,7 @@ mod tests {
 
     /// THE SHIPPED LIST OPENS REAL PAGES, NONE OF THEM DEV-ONLY: every entry of
     /// data/gui/humanityos_tools.json names a page the app draws (not the in-game view, not the Apps
-    /// page itself, not Testing, Files or the Platform tab's dev tools), has a name and a line, and
+    /// page itself, not Testing or the Platform tab's dev tools), has a name and a line, and
     /// is listed once; the ones the operator named are there.
     ///
     /// Seen red 2026-10-19 with "maps" written "map" in the file: "Maps opens a page" failed (no
@@ -123,5 +123,34 @@ mod tests {
         assert!(all.windows(2).all(|w| w[0].to_lowercase() <= w[1].to_lowercase()), "by name: {all:?}");
         assert_eq!(names("THIS COMPUTER"), vec!["Studio"], "by its line");
         assert_eq!(names("maps"), vec!["Maps"]);
+    }
+
+    /// The names in the first "Dev-only pages (...)" of `text`, "the" taken off each.
+    fn left_out_in(text: &str) -> Vec<String> {
+        let start = text.find("Dev-only pages (").expect("it says which pages are left out") + "Dev-only pages (".len();
+        let end = start + text[start..].find(')').unwrap();
+        text[start..end].split(&[','][..]).flat_map(|s| s.split(" and ")).map(|s| s.trim().trim_start_matches("the ").to_string()).filter(|s| !s.is_empty()).collect()
+    }
+
+    /// WHAT THE LIST SAYS IT LEAVES OUT, IT LEAVES OUT (2026-10-20). The data file's `_comment` and
+    /// this module's own words name the dev-only pages that are not listed; a page they name may
+    /// not be in the list. Both still named Files after Files was added to it (the review of
+    /// 2026-10-20 found them).
+    ///
+    /// Seen red 2026-10-20 against both as they were: "data/gui/humanityos_tools.json's _comment
+    /// says Files is left out, and it is listed".
+    #[test]
+    fn what_the_list_says_it_leaves_out_it_leaves_out() {
+        let tools = shipped();
+        let listed = |name: &str| tools.iter().any(|t| t.name.eq_ignore_ascii_case(name) || t.page.eq_ignore_ascii_case(name));
+        let text = std::fs::read_to_string(std::path::Path::new("data").join(FILE[0]).join(FILE[1])).unwrap();
+        let comment = serde_json::from_str::<serde_json::Value>(&text).unwrap()["_comment"].as_str().unwrap_or("").to_string();
+        for (whose, words) in [("data/gui/humanityos_tools.json's _comment", comment.as_str()), ("src/gui/pages/apps/own_tools.rs's own words", include_str!("own_tools.rs"))] {
+            let left_out = left_out_in(words);
+            assert!(!left_out.is_empty(), "{whose} names the pages it leaves out");
+            for name in &left_out {
+                assert!(!listed(name), "{whose} says {name} is left out, and it is listed");
+            }
+        }
     }
 }

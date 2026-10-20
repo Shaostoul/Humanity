@@ -1,5 +1,5 @@
 {
-  "_comment": "HumanityOS's own tools on the Apps page's green part (2026-10-19, src/gui/pages/apps/own_tools.rs): the app's own pages a person uses, each opening its page in the app. One entry each: its name, its page (the page id src/gui/dispatch.rs page_id gives), and one plain line about it. Dev-only pages (Testing, Files, Dev, the planet tuner) are not listed. A new tool is a new entry here, never code.",
+  "_comment": "HumanityOS's own tools on the Apps page's green part (2026-10-19, src/gui/pages/apps/own_tools.rs): the app's own pages a person uses, each opening its page in the app. One entry each: its name, its page (the page id src/gui/dispatch.rs page_id gives), and one plain line about it. Dev-only pages (Testing, Dev, the planet tuner) are not listed (a test in own_tools.rs holds this list to the entries). A new tool is a new entry here, never code.",
   "tools": [
     { "name": "Maps", "page": "maps", "line": "Every map in one place, from the solar system down to the ground." },
     { "name": "Tasks", "page": "tasks", "line": "Your own tasks on a board: to do, in progress, done." },
