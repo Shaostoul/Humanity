@@ -445,7 +445,10 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
   acd8a17e2: a fire's tick is its exact dose, the same at 30 and 240 frames a second); every
   drink gives 30 points whatever its volume (DONE 2026-10-20, 0800f1a5b: a drink puts back
   the water it carries, from its litres in item_profiles.ron); (Bleeding, bites and burns are wounds since S8,
-  2026-10-12; falls hurt nobody yet, and nothing spawns fires); a
+  2026-10-12; falls hurt nobody yet (DONE 2026-10-20, 5e5ba96e6: a landing hurts by its
+  speed, data/medical/falls.ron, a sprained ankle from about 2 m on Earth up to death
+  from about 15 m in Realistic, softer in Forgiving; live once lib.rs hands the landing
+  over, two lines), and nothing spawns fires); a
   second mess hall along First Street (fold into increment 6); the backpack-overflow toast
   (DONE 2026-10-12: it names the item and says it went to home storage). Found with the
   2026-10-20 four: nothing burns diesel yet (data/electrical.ron's diesel
