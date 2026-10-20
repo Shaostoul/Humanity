@@ -531,6 +531,11 @@
       "date": "2026-10-20",
       "decision": "Left for the operator, stated once in the reply: on a planet Space is a climb at walking speed, so a 0.35 s tap lifts about 2.6 m and the fall back sprains an ankle in Realistic (a real jump is about half a metre). Left as a follow-up: ten game request readers still delete a request they find empty (the screenshot request docs say 'any content').",
       "why": "The Space behaviour is a feel and design choice the operator plays with daily; changing it unasked could break his flying and building habits. The reader fix waits for the deck builder, who may be in ipc.rs."
+    },
+    {
+      "date": "2026-10-20",
+      "decision": "v0.1532.0 released and delivered: the planet walk stands on built pieces (planet_build::built_floor_radius: the higher of the terrain and a finished piece's top under the body within footing::STEP_UP_M of the feet, in the nearest site, f64 to the meeting point; walk_rest in surface_move; nothing built is bit-identical); verify-falls' planet deck leg walks off a 3.2 m Wood Roof on Sahara sand, 88/88, red with the floor disabled. v0.1533.0 released and delivered: all eleven dev request readers through take_request_text (an empty file waits REQUEST_EMPTY_GRACE 250 ms, then is taken; an undeletable file is not re-run every frame); CLAUDE.md's screenshot sentence gained one clause on the grace. Both: full lib tests (4,649 / 4,654), relay check, rig tests 1,060, 21 lints, verify-runtime 3/3, verify-falls 88/88, check-delivery OK.",
+      "why": "The follow-ups the falls work surfaced, each shipped as soon as it was verified. Left open in PRIORITIES: a built roof does not stop a climb from below, no building from a roof, nothing aboard stands on a built piece, a vehicle stopping is not checked, and the operator's call on Space being a climb on a planet."
     }
   ],
   "active_scopes_to_avoid": [
@@ -560,7 +565,7 @@
     "Trees have no materialised identity, so they cannot be felled. The key (cell_x, cell_y, item_index) already exists structurally; a sparse delta store is the shape."
   ],
   "how_to_resume": "1. `just brief` (version/CI/signing). 2. docs/PRIORITIES.md \"Active focus\" - the top item is fully specified, start implementing rather than investigating. 3. This file for WHY. Note the ONE-GPU rule: `tasklist //FI \"IMAGENAME eq HumanityOS.exe\"` before booting any rig, and never boot beside the operator instance.",
-  "last_updated": "2026-10-20T15:05-07:00",
+  "last_updated": "2026-10-20T16:05-07:00",
   "focus": "v0.1111.1 shipped (the 2026-08-03/04 vegetation marathon, v0.1109.4-v0.1111.1). Landed: leaf tufts stopped being cubes (golden-angle azimuths + solved per-card tilts, measured 100% parallel pairs on conifers and 67% perpendicular on broadleaves before); distant cards stopped out-shining mesh trees (4-8x, three multiplying causes, then the residual 28% conifer excess traced to the odd component of the shading normals and cancelled at source - all species now 1.00 flat across the sky); standing still stopped depending on the frame rate (the frame-lock sampled terrain one frame of planetary spin behind the player, 33,360 m/s of ground slip, so altitude read as a function of fps and flipped stand height by 2.45 m); the card-hide radius stopped promising models that never drew (BUG-068); forest density stopped being a process-global read separately by two streams (BUG-069); and the card cutoff is now clamped to the terrain reach that actually exists. Foliage-card arrangement extracted to renderer/tree_cards.rs under the size ratchet, and the ratchet budget came DOWN.",
   "overnight_plan_2026_08_01": {
     "directive": "Operator (heading to bed, full trust granted): PERMANENT versions only, no half fixes. Full PBR textures (not just diffuse). Real full canopies of leaves and flowers. Photorealism is the goal - screenshots good enough to land donations/grants; money is tight. 8-10 hours unattended.",
