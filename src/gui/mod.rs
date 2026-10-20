@@ -4603,6 +4603,10 @@ pub struct SettingsState {
     pub apps_view: crate::gui::pages::apps::View,
     /// The Apps page's "Get covers for Epic games from Epic's servers" (2026-10-19, off unless turned on).
     pub apps_epic_covers: bool,
+    /// Whether the Apps page's "How this page works" is open (2026-10-20, closed until opened).
+    pub apps_how_open: bool,
+    /// Whether the Files page's "How this page works" is open (2026-10-20, closed until opened).
+    pub files_how_open: bool,
     // Data
     pub seed_phrase_visible: bool,
     // Restoring from the recovery phrase
@@ -4716,6 +4720,8 @@ impl Default for SettingsState {
             apps_added: Vec::new(),
             apps_view: Default::default(),
             apps_epic_covers: false,
+            apps_how_open: false,
+            files_how_open: false,
             seed_phrase_visible: false,
             seed_phrase_input: String::new(),
             seed_phrase_recovery_status: String::new(),

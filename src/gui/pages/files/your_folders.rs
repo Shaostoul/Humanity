@@ -260,11 +260,11 @@ pub(crate) fn draw_dialogs(ctx: &egui::Context, theme: &Theme, state: &mut GuiSt
     }
 }
 
-/// The left pane's part, under the places (2026-10-19; the tab's top until then): the promise,
-/// what was last refused, and the folders added with Add a folder.
+/// The left pane's part, under the places (2026-10-19; the tab's top until then): what was last
+/// refused, and the folders added with Add a folder. The promise ([`HINT`]) is in the page's "How
+/// this page works" (files/how.rs, 2026-10-20).
 pub(crate) fn draw_side(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     egui::ScrollArea::vertical().id_salt("your_folders_side").auto_shrink([false, false]).show(ui, |ui| {
-        widgets::body_hint(ui, theme, HINT);
         if !state.files.folders.status.is_empty() {
             ui.label(RichText::new(&state.files.folders.status).size(theme.font_size_small).color(theme.warning()));
         }

@@ -8,7 +8,9 @@
 //! 1. a program in Windows' installed-programs list has a name its `display_name` pattern matches
 //!    (of several, the one whose program is found on the disk, then the newest version);
 //! 2. else Windows' App Paths knows one of its programs by file name;
-//! 3. else Steam has its `steam_appid` fully installed.
+//! 3. else Steam has its `steam_appid` fully installed;
+//! 4. else (2026-10-20) this person has a Microsoft Store package of one of its `store_family`
+//!    (store.rs), started by its app id, never by a program file.
 //!
 //! Its program (what Launch starts) is looked for in its install folder (each `exe` path), then
 //! as its DisplayIcon (when that names one of its programs; with no `exe` in the data, any program
@@ -33,6 +35,8 @@ pub enum Via {
     AppPaths,
     /// Steam's install records.
     Steam,
+    /// Windows' list of this person's Microsoft Store apps (2026-10-20, store.rs).
+    Store,
 }
 
 impl Via {
@@ -42,6 +46,7 @@ impl Via {
             Via::Windows => "Windows' list of installed programs",
             Via::AppPaths => "Windows' list of programs it can start by name (App Paths)",
             Via::Steam => "Steam",
+            Via::Store => "Windows' list of your Microsoft Store apps",
         }
     }
 }
@@ -69,7 +74,11 @@ pub struct Installed {
 
 impl Installed {
     /// What Show in folder shows: its program in its folder, else its folder, else its shortcut.
+    /// Nothing for a Store copy: Windows keeps the Store's apps in a folder people are not let into.
     pub fn show(&self) -> Option<PathBuf> {
+        if self.via == Via::Store {
+            return None;
+        }
         self.program.clone().or_else(|| self.folder.clone()).or_else(|| self.shortcut.clone())
     }
 }
@@ -263,17 +272,38 @@ pub fn find(entry: &CatalogEntry, records: &Records, steam: &[Game]) -> Option<I
         });
     }
     // 3. Steam.
-    let appid = entry.steam_appid?.to_string();
-    let game = steam.iter().find(|g| g.id == appid && g.state == State::Ready)?;
-    let program = detect.exe.iter().map(|rel| under(&game.folder, rel)).find(|p| is_file(p));
+    if let Some(appid) = entry.steam_appid.map(|id| id.to_string()) {
+        if let Some(game) = steam.iter().find(|g| g.id == appid && g.state == State::Ready) {
+            let program = detect.exe.iter().map(|rel| under(&game.folder, rel)).find(|p| is_file(p));
+            return Some(Installed {
+                via: Via::Steam,
+                name_in_windows: None,
+                version: None,
+                folder: Some(game.folder.clone()),
+                program,
+                shortcut: None,
+                launch: game.play.clone(),
+                icon: None,
+            });
+        }
+    }
+    // 4. The Microsoft Store (2026-10-20): a package of one of its families, the catalog's order
+    //    first (its maker's main listing before an older version's), started by its app id.
+    store_copy(entry, records)
+}
+
+/// A copy of `entry` installed from the Microsoft Store: the first of its `store_family` this
+/// person has, started through its first app (its main one) by its app id.
+fn store_copy(entry: &CatalogEntry, records: &Records) -> Option<Installed> {
+    let package = entry.store_family.iter().find_map(|f| records.store.iter().find(|p| p.family.eq_ignore_ascii_case(f)))?;
     Some(Installed {
-        via: Via::Steam,
-        name_in_windows: None,
-        version: None,
-        folder: Some(game.folder.clone()),
-        program,
+        via: Via::Store,
+        name_in_windows: package.name.clone(),
+        version: package.version.clone(),
+        folder: package.folder.clone(),
+        program: None,
         shortcut: None,
-        launch: game.play.clone(),
+        launch: package.apps.first().filter(|id| super::store::app_id_ok(id)).map(|id| Launch::StoreApp(id.clone())),
         icon: None,
     })
 }
@@ -344,6 +374,7 @@ mod tests {
             ],
             app_paths: vec![AppPath { exe_name: "notepad++.exe".into(), path: npp.clone() }],
             shortcuts: vec![],
+            store: vec![],
         };
         let gimp = find(&entry("GIMP", Some(r"^GIMP \d"), &["bin/gimp-3.exe", "bin/gimp-2.10.exe"], None), &records, &[]).expect("GIMP is installed");
         assert_eq!((gimp.version.as_deref(), gimp.program.as_ref()), (Some("3.2.4.0"), Some(&g3)), "the newer of the two");
@@ -399,9 +430,54 @@ mod tests {
         assert_eq!(find(&blender, &Records::default(), &[game(State::BeingInstalled)]), None, "one Steam is still downloading does not count");
         let own = dir.join("Blender Foundation");
         let own_exe = program(&own, "blender.exe");
-        let records = Records { uninstall: vec![record("Blender", Some("5.2.2"), Some(&own), None)], app_paths: vec![], shortcuts: vec![] };
+        let records = Records { uninstall: vec![record("Blender", Some("5.2.2"), Some(&own), None)], app_paths: vec![], shortcuts: vec![], store: vec![] };
         let found = find(&blender, &records, &[game(State::Ready)]).unwrap();
         assert_eq!((found.via, found.program.as_ref()), (Via::Windows, Some(&own_exe)), "Windows' own copy wins");
+    }
+
+    /// A COPY FROM THE MICROSOFT STORE COUNTS (2026-10-20): Paint.NET installed from the Store (a
+    /// package of its `store_family` in this person's Store apps, which Windows' installed-programs
+    /// list does not hold) is installed through the Store, with the package's version and folder,
+    /// and Launch starts its main app by its app id; it has no program file and no Show in folder;
+    /// of Blender's listings, the first the catalog names that the person has is the one taken; a
+    /// package of another family, or one whose app id is not well formed, is not taken as Launch;
+    /// and a copy in Windows' own list wins over the Store's.
+    ///
+    /// Seen red 2026-10-20 with step 4 left out of `find` (`store_copy` never asked, `None`
+    /// returned): "Paint.NET from the Store" failed.
+    #[test]
+    fn a_copy_from_the_store_counts() {
+        use super::super::records::StorePackage;
+        let pkg = |family: &str, app: &str| StorePackage {
+            family: family.into(),
+            name: Some("paint.net".into()),
+            version: Some("5.1.12.0".into()),
+            folder: Some(PathBuf::from(r"C:\Program Files\WindowsApps\dotPDNLLC.paint.net_5.1.12.0_x64__h55e3w7q8jbva")),
+            apps: vec![format!("{family}!{app}")],
+        };
+        let paint = CatalogEntry { store_family: vec!["dotPDNLLC.paint.net_h55e3w7q8jbva".into()], ..entry("Paint.NET", Some("^paint\\.net"), &["paintdotnet.exe"], None) };
+        let records = Records { store: vec![pkg("Other.App_aaaaaaaaaaaaa", "App"), pkg("dotPDNLLC.paint.net_h55e3w7q8jbva", "dotPDNLLC.paint.net")], ..Records::default() };
+        let found = find(&paint, &records, &[]).expect("Paint.NET from the Store");
+        assert_eq!((found.via, found.version.as_deref()), (Via::Store, Some("5.1.12.0")));
+        assert_eq!(found.launch, Some(Launch::StoreApp("dotPDNLLC.paint.net_h55e3w7q8jbva!dotPDNLLC.paint.net".into())), "started by its app id");
+        assert_eq!((found.program.as_ref(), found.show()), (None, None), "no program file, no Show in folder");
+        assert!(found.folder.is_some(), "its folder, said in its details");
+
+        let blender = CatalogEntry { store_family: vec!["BlenderFoundation.Blender_ppwjx1n5r4v9t".into(), "BlenderFoundation.Blender4.5LTS_ppwjx1n5r4v9t".into()], ..entry("Blender", Some(r"^Blender( \d|$)"), &["blender.exe"], None) };
+        let both = Records { store: vec![pkg("BlenderFoundation.Blender4.5LTS_ppwjx1n5r4v9t", "Blender"), pkg("BlenderFoundation.Blender_ppwjx1n5r4v9t", "Blender")], ..Records::default() };
+        assert_eq!(find(&blender, &both, &[]).and_then(|f| f.launch), Some(Launch::StoreApp("BlenderFoundation.Blender_ppwjx1n5r4v9t!Blender".into())), "its maker's main listing first");
+
+        let mut odd = pkg("dotPDNLLC.paint.net_h55e3w7q8jbva", "x");
+        odd.apps = vec!["dotPDNLLC.paint.net_h55e3w7q8jbva!paint & calc".into()];
+        let found = find(&paint, &Records { store: vec![odd], ..Records::default() }, &[]).expect("installed");
+        assert_eq!(found.launch, None, "an app id not well formed is never handed on");
+        assert_eq!(find(&paint, &Records { store: vec![pkg("Other.App_aaaaaaaaaaaaa", "App")], ..Records::default() }, &[]), None, "another family's package is not Paint.NET");
+
+        let dir = crate::test_temp::dir("sw_store_own");
+        let own = program(&dir, "paint.net/paintdotnet.exe");
+        let with_own = Records { uninstall: vec![record("paint.net", Some("5.1.12"), Some(&dir.join("paint.net")), None)], ..records };
+        let found = find(&paint, &with_own, &[]).unwrap();
+        assert_eq!((found.via, found.program.as_ref()), (Via::Windows, Some(&own)), "Windows' own copy wins");
     }
 
     /// A DISPLAYICON THAT IS AN UNINSTALLER IS NOT THE PROGRAM: with no `exe` in the data, a
@@ -415,7 +491,7 @@ mod tests {
         let unins = program(&dir, "unins000.exe");
         let app = program(&dir, "wings3d.exe");
         let e = entry("Wings 3D", Some("^Wings 3D"), &[], None);
-        let with = |icon: &Path| Records { uninstall: vec![record("Wings 3D 2.4.1", Some("2.4.1"), None, Some(&icon.display().to_string()))], app_paths: vec![], shortcuts: vec![] };
+        let with = |icon: &Path| Records { uninstall: vec![record("Wings 3D 2.4.1", Some("2.4.1"), None, Some(&icon.display().to_string()))], app_paths: vec![], shortcuts: vec![], store: vec![] };
         assert_eq!(find(&e, &with(&unins), &[]).unwrap().program, None, "an uninstaller is not the program");
         assert_eq!(find(&e, &with(&app), &[]).unwrap().program, Some(app));
     }
@@ -475,7 +551,7 @@ mod tests {
         let folder = menu.join("Blackmagic Design").join("DaVinci Resolve");
         shortcuts::write_for_test(&folder.join("DaVinci Resolve.lnk"), &resolve, "", resolve.parent().unwrap());
         shortcuts::write_for_test(&folder.join("DaVinci Resolve Control Panels Setup.lnk"), &setup, "", setup.parent().unwrap());
-        let mut records = Records { uninstall: vec![record("DaVinci Resolve", Some("20.0.00049"), None, None)], app_paths: vec![], shortcuts: shortcuts::list(&[menu]) };
+        let mut records = Records { uninstall: vec![record("DaVinci Resolve", Some("20.0.00049"), None, None)], app_paths: vec![], shortcuts: shortcuts::list(&[menu]), store: vec![] };
         let e = CatalogEntry { detect: Some(Detect { display_name: Some("^DaVinci Resolve$".into()), exe: vec!["Resolve.exe".into()], shortcut: Some("^DaVinci Resolve$".into()) }), ..entry("DaVinci Resolve", None, &[], None) };
         let found = find(&e, &records, &[]).expect("installed");
         assert_eq!(found.program.as_ref(), Some(&resolve), "its program, from its shortcut");

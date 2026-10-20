@@ -856,6 +856,14 @@ pub struct LibraryEntry {
     pub tags: Vec<String>,
 }
 
+/// A Library document's slug from its file's name in data/library/, exactly the way
+/// `web/pages/library-app.js` derives it: the name without `.md`, underscores to hyphens,
+/// lowercased ("04-CONTRIBUTING.md" is "04-contributing"). The one place it is worked out, so the
+/// Library and the Files page's "Open in the Library" (pages/files/app_folder.rs) agree.
+pub fn library_slug_of_file(file: &str) -> String {
+    file.trim_end_matches(".md").trim_end_matches(".MD").replace('_', "-").to_lowercase()
+}
+
 /// One tag in the Library's vocabulary.
 pub struct LibraryTag {
     pub id: String,
@@ -1079,12 +1087,7 @@ pub fn load_library(data_dir: &std::path::Path) -> LibraryData {
                             std::fs::read_to_string(dir.join(&d.file))
                                 .ok()
                                 .map(|body| LibraryEntry {
-                                    slug: d
-                                        .file
-                                        .trim_end_matches(".md")
-                                        .trim_end_matches(".MD")
-                                        .replace('_', "-")
-                                        .to_lowercase(),
+                                    slug: library_slug_of_file(&d.file),
                                     title: d.title,
                                     body,
                                     tags: d.tags,

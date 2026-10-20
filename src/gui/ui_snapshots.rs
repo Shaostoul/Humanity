@@ -2016,6 +2016,61 @@ fn snapshot_files_app_folder() {
     });
 }
 
+/// The Files page with "How this page works" open (2026-10-20, pages/files/how.rs): under the
+/// heading, the box with the page's own line and each place's (Shared files', the HumanityOS
+/// folder's, Your folders'), each under the place's name, over what is shared in the three panes.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_files_how() {
+    use crate::gui::pages::files::{self as media, tests as fixture};
+    render_page_png("files_how", 1280, 820, |ctx, theme, state| {
+        if state.files.server.is_empty() {
+            *state = fixture::page_state(fixture::demo_answer(), true);
+            state.settings.files_how_open = true;
+        }
+        media::draw(ctx, theme, state);
+    });
+}
+
+/// The Files page's HumanityOS folder with a Library guide chosen (2026-10-20,
+/// pages/files/app_folder.rs): data/library/ open in the tree and Starting Seeds chosen (the
+/// Library's own copy of it, put in a scratch HumanityOS folder); in the middle the line "A guide
+/// in the Library: Starting Seeds." with its "Open in the Library" link over its text; on the right
+/// its title and the "Open in the Library" button, then what editing it means.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_files_app_folder_guide() {
+    use crate::gui::pages::files::{self as media, app_folder, tests as fixture};
+    let scratch = crate::test_temp::dir("snapshot_app_folder_guide");
+    let root = scratch.join("HumanityOS");
+    let library = root.join("data").join("library");
+    for d in ["assets", "mods"] {
+        std::fs::create_dir_all(root.join(d)).unwrap();
+    }
+    std::fs::create_dir_all(&library).unwrap();
+    for name in ["starting_seeds.md", "saving_your_own_seeds.md", "your_first_tomato.md", "index.json"] {
+        std::fs::copy(std::path::Path::new("data/library").join(name), library.join(name)).unwrap();
+    }
+    let guide = library.join("starting_seeds.md");
+    render_page_png("files_app_folder_guide", 1280, 820, |ctx, theme, state| {
+        if state.files.server.is_empty() {
+            *state = fixture::page_state(fixture::demo_answer(), true);
+            state.library = crate::gui::load_library(std::path::Path::new("data")).sections;
+            state.files.place = media::Place::AppFolder;
+            let found = app_folder::guide_of(&guide, &library, &state.library);
+            let af = &mut state.files.app_folder;
+            af.root = Some(root.clone());
+            for d in [root.clone(), root.join("data"), library.clone()] {
+                af.tree.expand(&d.to_string_lossy());
+            }
+            app_folder::choose(af, &guide);
+            af.guide = found;
+            af.tree.select(&guide.to_string_lossy());
+        }
+        media::draw(ctx, theme, state);
+    });
+}
+
 /// The Apps page and its fixtures (2026-10-19, pages/apps.rs): the games' scratch stores (Steam's
 /// cached pictures read in place, Old Forge's program a copy of Windows' Explorer for its icon, six
 /// screenshots of Orbital Farmstead), the programs' fixture records over the shipped catalog (GIMP
@@ -2100,14 +2155,18 @@ fn apps_fill(ctx: &egui::Context, state: &mut GuiState, fx: &AppsSnapshot, view:
 /// Grid: the toolbar (search, sort, Grid or List, a chip per part with its count, only what is on
 /// this computer), then its six parts each under its band, in its colour and with its name: RED
 /// Games (Steam's cached pictures on Orbital Farmstead, Old Lighthouse and Deep Rover, the others
-/// on their plain covers, each name drawn once; a pill per store; the lines about the stores and
-/// the pictures with their Whys; the Epic covers switch, off), GREEN HumanityOS tools (each with
-/// its page's mark and Open), BLUE Other programs (GIMP, Notepad++ and Blender with their own icons
-/// and Launch, DaVinci Resolve with no program to start in this fixture, the rest with Download or
-/// Open website), CYAN Help and MAGENTA Services (each narrowed to one category, Emergency and
-/// Water, so every part fits), YELLOW Added by you (Launch, and Add a program on its
-/// band). At the right, Orbital Farmstead's details: its banner with its lettering, Play, Open in
-/// Steam and Show in folder, its numbers, achievements, screenshots, mods and links.
+/// on their plain covers, each name drawn once; a pill per store; that HumanityOS is not affiliated
+/// with the stores; the Epic covers switch, off), GREEN HumanityOS tools (each with its page's mark
+/// and Open), BLUE Other programs (GIMP, Notepad++ and Blender with their own icons and Launch,
+/// DaVinci Resolve with no program to start in this fixture, Install on each program winget has
+/// (2026-10-20), Download or Open website on the rest; the safety line and the not-affiliated
+/// line), CYAN Help (its line, which says to call the emergency number first) and MAGENTA Services
+/// (each narrowed to one category, Emergency and Water, so every part fits), YELLOW Added by you
+/// (Launch, and Add a program on its band). "How this page works" is closed, by the heading
+/// (2026-10-20: the lines about the stores and the pictures, with their Whys, are in it; the
+/// `apps_how` snapshot opens it). At the right, Orbital Farmstead's details: its banner with its
+/// lettering, Play, Open in Steam and Show in folder, its numbers, achievements, screenshots, mods
+/// and links.
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
 fn snapshot_apps() {
@@ -2155,6 +2214,25 @@ fn snapshot_apps_list() {
             if let Some(k) = krita {
                 apps::programs::install_pressed(state, k);
             }
+        }
+        apps::draw(ctx, theme, state);
+    });
+}
+
+/// The Apps page with "How this page works" open (2026-10-20, widgets/how_it_works.rs): under the
+/// heading, the box of the parts' explanations, word for word, each under its part's name and
+/// colour: the games' (the stores' terms with its Why, the covers and logos with its Why, what is
+/// never done by itself), the other programs' (where they come from with its Why, how what is
+/// installed is found) and Services'; then the toolbar and the parts as in `apps`.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_apps_how() {
+    use crate::gui::pages::apps;
+    let fx = apps_snapshot("snapshot_apps_how");
+    render_page_png("apps_how", 1440, 1300, |ctx, theme, state| {
+        if state.apps.games.found.is_none() {
+            apps_fill(ctx, state, &fx, apps::View { help_category: Some("emergency".into()), services_category: Some("water".into()), ..apps::View::default() });
+            state.settings.apps_how_open = true;
         }
         apps::draw(ctx, theme, state);
     });

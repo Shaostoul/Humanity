@@ -7,12 +7,14 @@
 //! - READ which catalog programs are installed on this computer, from what Windows records about
 //!   installed programs (its installed-programs list and App Paths, `records`), the Start menu's
 //!   shortcuts for a program whose record names no program file (`shortcuts`), and Steam's own
-//!   install records (the games' Steam reader, games/steam.rs), matched to the catalog's entries by
-//!   their DATA fields (`catalog`: `detect`, `steam_appid`). Read only: no key or file is written.
+//!   install records (the games' Steam reader, games/steam.rs), and (2026-10-20, `store`) this
+//!   person's Microsoft Store apps of the package families the catalog names, matched to the
+//!   catalog's entries by their DATA fields (`catalog`: `detect`, `steam_appid`, `store_family`).
+//!   Read only: no key or file is written.
 //!   Read on the page's worker thread when the page opens and on Refresh, never every frame.
 //! - LAUNCH an installed program only when the person presses Launch, through the games' one
-//!   launcher (games/launch.rs: its own program, Steam's own link for a copy Steam installed, or
-//!   its Start-menu shortcut when that is all there is).
+//!   launcher (games/launch.rs: its own program, Steam's own link for a copy Steam installed, its
+//!   Start-menu shortcut when that is all there is, or a Store copy's own app id).
 //! - INSTALL through winget, Windows' own package manager (`install`): on a click, only after the
 //!   person agrees to the package's licence and agreements in HumanityOS's own window, that exact
 //!   package from winget's own source, never accepting a source agreement for anyone. The rules are
@@ -30,6 +32,7 @@ pub mod install;
 pub mod matcher;
 pub mod records;
 pub mod shortcuts;
+pub mod store;
 
 use std::path::PathBuf;
 
@@ -47,14 +50,18 @@ pub struct Sources {
 }
 
 impl Sources {
-    /// Read this computer's records (the registry, read only). Slow enough to belong on a worker.
-    pub fn this_computer() -> Self {
+    /// Read this computer's records (the registry, the Start menu and, of the Store package
+    /// families `catalog` names, this person's Store apps; read only). Slow enough to belong on a
+    /// worker.
+    pub fn this_computer(catalog: &[CatalogEntry]) -> Self {
         #[cfg(windows)]
         {
-            Self { records: records::this_computer(), steam_root: crate::games::steam::root_on_this_computer() }
+            let families: Vec<String> = catalog.iter().flat_map(|e| e.store_family.iter().cloned()).collect();
+            Self { records: records::this_computer(&families), steam_root: crate::games::steam::root_on_this_computer() }
         }
         #[cfg(not(windows))]
         {
+            let _ = catalog;
             Self::default()
         }
     }
@@ -95,14 +102,18 @@ mod this_computer {
     #[ignore]
     fn print_what_the_tools_page_would_find_here() {
         let catalog = super::catalog::parse(&std::fs::read_to_string("data/external/catalog.json").unwrap()).unwrap();
-        let sources = super::Sources::this_computer();
+        let sources = super::Sources::this_computer(&catalog);
         println!(
-            "Windows' installed-programs list: {} programs; App Paths: {} programs; Start-menu shortcuts: {}; Steam: {:?}",
+            "Windows' installed-programs list: {} programs; App Paths: {} programs; Start-menu shortcuts: {}; Store apps of the catalog's families: {}; Steam: {:?}",
             sources.records.uninstall.len(),
             sources.records.app_paths.len(),
             sources.records.shortcuts.len(),
+            sources.records.store.len(),
             sources.steam_root
         );
+        for p in &sources.records.store {
+            println!("  Store: {} | {:?} | {:?} | {:?} | {:?}", p.family, p.name, p.version, p.folder, p.apps);
+        }
         let found = super::read(&sources, &catalog);
         let software: Vec<_> = catalog.iter().enumerate().filter(|(_, e)| e.is_software()).collect();
         println!("{} of {} catalog programs installed here:", found.count(), software.len());

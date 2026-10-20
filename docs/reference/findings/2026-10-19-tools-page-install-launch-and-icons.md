@@ -1585,6 +1585,38 @@ winget's HandBrake package downloads from that GitHub, 2.5).
   (a maker's rule), and no project logos because each project sets its own
   rules for them (the makers' rules).
 
+## Addendum, 20 October 2026: which catalog programs are Store packages
+
+**Looked up 20 October 2026.** Judgement call 1's Store route was built
+(`src/software/store.rs`), so each catalog program needed the package family
+name of its maker's own Microsoft Store listing, if it has one, as data
+(`store_family` in `data/external/catalog.json`). Read from the Store's own
+manifest API, the one winget's `msstore` source reads (1.7 and 2.1 above):
+`https://storeedgefd.dsx.mp.microsoft.com/v9.0/packageManifests/<product id>`
+(no date on its responses), each answer's `PackageFamilyName` and publisher.
+
+- **Store packages by the program's own maker** (installer type `msstore`):
+  Blender (`BlenderFoundation.Blender_ppwjx1n5r4v9t`, and its LTS listings
+  4.5, 4.2, 3.6, 3.3 and 2.93, each a family of its own with the same
+  publisher id), GIMP (publisher "GIMP"), Krita, Paint.NET (dotPDN LLC),
+  Inkscape, MeshLab (Visual Computing Lab, ISTI-CNR), Shotcut (Meltytech),
+  MuseScore 3 (MuseScore BVBA), Okular (KDE e.V.), ShareX (ShareX Team) and
+  WinSCP (the Store's own spelling of the family is `MartinPikryl.WinSCP_
+  tvv458r3h9r5m`).
+- **Store listings that install an ordinary installer** (installer type `msi`
+  or `exe`, no package family): VS Code, OBS Studio, Audacity, KeePassXC,
+  ONLYOFFICE, MuseScore Studio. A copy from these is found in Windows' own
+  installed-programs list like any other, so they name no `store_family`.
+- **Negative findings:** the Store's search returned no Kdenlive listing by
+  KDE (the one found, "Firawynix - Kdenlive", is a third party's), and press
+  reports from 2018 and 2019 call the Notepad++ Store listings unofficial
+  clones; neither names a family. A paid LibreOffice Store listing by The
+  Document Foundation is reported (its forum, ask.libreoffice.org, 2022, and
+  section 6.3 above), but its product id could not be read (the
+  libreoffice.org pages tried answered 404), so it names none for now. The
+  Store's search is unreliable as evidence of absence: it found nothing for
+  Krita, Paint.NET or WinSCP, whose products were read by id.
+
 ---
 
 This document is a reading of public sources on 19 October 2026. It is not

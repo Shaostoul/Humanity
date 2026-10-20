@@ -50,6 +50,9 @@ pub mod waveform;
 // Panes side by side or stacked, each a card, with handles to drag between them (2026-10-19): the
 // Media page's list, viewer and details.
 pub mod panes;
+// "How this page works" (2026-10-20): a page's explanations folded behind one small toggle, the
+// reasons kept one click away (the Apps and Files pages).
+pub mod how_it_works;
 // The readable web view (2026-09-16): draws a `web_reader::Page` with
 // clickable links, history and a URL row. Used by the Browser page; the
 // in-world monitor surface is the next rung up.

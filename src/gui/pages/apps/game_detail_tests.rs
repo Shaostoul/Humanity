@@ -321,6 +321,8 @@ fn the_second_why_opens_the_pictures_finding() {
     let fx = fixtures::all("gd_why2");
     let mut state = page_with(&fx, Vec::new());
     state.library = crate::gui::load_library(std::path::Path::new("data")).sections;
+    // The Whys are in "How this page works" (2026-10-20).
+    state.settings.apps_how_open = true;
     read_in(&ctx, &theme, &mut state);
     let out = settled(&ctx, &theme, &mut state);
     let mut whys: Vec<egui::Rect> = texts(&out).into_iter().filter(|(t, _)| t == WHY).map(|(_, r)| r).collect();

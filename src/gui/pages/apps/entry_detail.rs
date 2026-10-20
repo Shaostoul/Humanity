@@ -33,6 +33,10 @@ pub(super) const INSTALL_TIP: &str = "Install it with winget, Windows' own packa
 pub(super) const COMES_FROM: &str = "It comes from its own project: Download page and Website open the project's own pages in your browser.";
 /// Said over a Steam copy's links.
 pub(super) const STEAM_COPY: &str = "This copy came through Steam, so Steam keeps it up to date. Its own website is its maker's.";
+/// Said for a copy installed from the Microsoft Store (2026-10-20).
+pub(super) const STORE_COPY: &str = "This copy came from the Microsoft Store, so the Store keeps it up to date.";
+/// Said for a Store copy whose package lists no app to start.
+pub(super) const STORE_NO_APP: &str = "Windows lists no app in it to start from here, so start it from the Start menu.";
 
 /// The entry's details, in the details panel (apps/detail.rs).
 pub(super) fn body(ui: &mut egui::Ui, theme: &Theme, page: &ProgramsPart, i: usize, e: &CatalogEntry, acts: &mut Vec<Act>) {
@@ -58,7 +62,10 @@ pub(super) fn body(ui: &mut egui::Ui, theme: &Theme, page: &ProgramsPart, i: usi
             icons::paint_check(ui.painter(), mark, theme.success());
             ui.label(RichText::new(installed_words(found)).size(theme.font_size_small).color(theme.success()));
         });
-        if found.launch.is_none() {
+        if found.via == Via::Store {
+            let words = if found.launch.is_some() { STORE_COPY.to_string() } else { format!("{STORE_COPY} {STORE_NO_APP}") };
+            ui.add(egui::Label::new(RichText::new(words).size(theme.font_size_small).color(theme.text_muted())).wrap());
+        } else if found.launch.is_none() {
             ui.add(egui::Label::new(RichText::new(p::NO_PROGRAM).size(theme.font_size_small).color(theme.text_muted())).wrap());
         }
     } else if e.is_software() && !e.web_only() {
@@ -82,6 +89,8 @@ pub(super) fn body(ui: &mut egui::Ui, theme: &Theme, page: &ProgramsPart, i: usi
 /// "Installed, version 3.2.4.0", or through Steam.
 fn installed_words(found: &Installed) -> String {
     match (&found.version, found.via) {
+        (Some(v), Via::Store) => format!("Installed from the Microsoft Store, version {v}"),
+        (None, Via::Store) => "Installed from the Microsoft Store".to_string(),
         (Some(v), _) => format!("Installed, version {v}"),
         (None, Via::Steam) => "Installed through Steam".to_string(),
         (None, _) => "Installed".to_string(),
@@ -124,7 +133,8 @@ fn actions(ui: &mut egui::Ui, theme: &Theme, page: &ProgramsPart, i: usize, e: &
         if widgets::Button::secondary(website_label).tooltip("Opens its website in your browser.").show(ui, theme) {
             acts.push(Act::Web(e.url.clone()));
         }
-        let has_download = e.is_software() && !e.web_only() && e.download_page() != e.url && steam.is_none();
+        let kept_by_a_store = steam.is_some() || installed.is_some_and(|f| f.via == Via::Store);
+        let has_download = e.is_software() && !e.web_only() && e.download_page() != e.url && !kept_by_a_store;
         if has_download && widgets::Button::secondary(p::DOWNLOAD_PAGE).tooltip("Opens the project's own download page in your browser.").show(ui, theme) {
             acts.push(Act::Web(e.download_page().to_string()));
         }

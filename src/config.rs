@@ -479,6 +479,14 @@ pub struct AppConfig {
     /// pages/apps/covers.rs): off unless the person turns it on.
     #[serde(default)]
     pub apps_epic_covers: bool,
+    /// Whether the Apps page's "How this page works" is open (2026-10-20, pages/apps.rs): its
+    /// parts' explanations, folded until the person opens them. A config without it has it closed.
+    #[serde(default)]
+    pub apps_how_open: bool,
+    /// Whether the Files page's "How this page works" is open (2026-10-20, pages/files/how.rs): what
+    /// each place is, folded until the person opens it. A config without it has it closed.
+    #[serde(default)]
+    pub files_how_open: bool,
     /// Settings > Safety, the protected setup (step G of blocking-and-safe-mode.md 10h,
     /// 2026-10-10), carried here only on its way to ITS OWN FILE beside config.json
     /// (net/protected_store.rs): never serialized into config.json. Kept apart because an
@@ -1538,6 +1546,8 @@ impl AppConfig {
             apps_added: state.settings.apps_added.clone(),
             apps_view: state.settings.apps_view.clone(),
             apps_epic_covers: state.settings.apps_epic_covers,
+            apps_how_open: state.settings.apps_how_open,
+            files_how_open: state.settings.files_how_open,
             protected_setup: Some(state.protected.setup.clone()),
             font_size: state.settings.font_size,
             dark_mode: state.settings.dark_mode,
@@ -1726,6 +1736,8 @@ impl AppConfig {
         state.settings.apps_added = self.apps_added.clone();
         state.settings.apps_view = self.apps_view.clone();
         state.settings.apps_epic_covers = self.apps_epic_covers;
+        state.settings.apps_how_open = self.apps_how_open;
+        state.settings.files_how_open = self.files_how_open;
         // The protected setup is NOT applied from here: it lives in its own file, which boot reads
         // whether or not config.json exists or reads (`load_protected_setup`, lib.rs).
         // Clamp the ranges the UI enforces, so a hand-edited config cannot

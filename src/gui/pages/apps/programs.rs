@@ -215,7 +215,7 @@ pub(crate) fn start_reading(state: &mut GuiState) {
     let (tx, rx) = std::sync::mpsc::channel();
     let spawned = std::thread::Builder::new().name("apps-programs-read".into()).spawn(move || {
         let sources = match sources {
-            Where::ThisComputer => software::Sources::this_computer(),
+            Where::ThisComputer => software::Sources::this_computer(&catalog),
             Where::These(s) => s,
         };
         let _ = tx.send(software::read(&sources, &catalog));
@@ -305,6 +305,7 @@ pub(crate) fn web_button(e: &CatalogEntry) -> &'static str {
 pub(crate) fn launch_tip(found: &Installed) -> &'static str {
     match (found.via, &found.launch) {
         (Via::Steam, _) => "Asks Steam to start it.",
+        (Via::Store, _) => "Starts it as the Start menu starts a Microsoft Store app.",
         (_, Some(games::Launch::Shortcut(_))) => "Opens its Start-menu shortcut, as a click on it in the Start menu does.",
         _ => "Starts its program.",
     }
@@ -370,6 +371,34 @@ pub(crate) fn install_pressed(state: &mut GuiState, i: usize) {
     };
     state.apps.programs.install_note = None;
     state.apps.programs.install = Some(Installing::Reading { entry: i, rx: start_job(plan) });
+}
+
+/// Install's hover words on a tile.
+pub const TILE_INSTALL_TIP: &str = "Opens its details with its licence and agreements, for you to agree to first. Nothing is installed until you press I agree, install.";
+
+/// Whether entry `i`'s tile (and its List row) has Install as its main button (2026-10-20): on
+/// Windows, a program not found on this computer that winget has and that is not website only, on
+/// the same terms as its details' Install; while another program's install is under way it keeps
+/// Download (one install at a time), and while its own is being asked about it keeps Install,
+/// which shows its details.
+pub(crate) fn tile_installs(page: &ProgramsPart, e: &CatalogEntry, i: usize) -> bool {
+    let free = match &page.install {
+        None => true,
+        Some(Installing::Running { .. }) => false,
+        Some(busy) => busy.entry() == i,
+    };
+    cfg!(windows) && page.installed(i).is_none() && e.installable() && free
+}
+
+/// Install, pressed on a tile: the program's details open with the consent step that their own
+/// Install starts (winget is only asked about the package; nothing is installed before "I agree,
+/// install"). Pressed again while its consent step is showing, it only shows the details.
+pub(crate) fn install_from_tile(state: &mut GuiState, i: usize) {
+    super::select(&mut state.apps, super::Picked::Entry(i));
+    if state.apps.programs.install.as_ref().is_some_and(|busy| busy.entry() == i) {
+        return;
+    }
+    install_pressed(state, i);
 }
 
 /// "I agree, install", pressed in the consent step for entry `i`: only now is winget asked to

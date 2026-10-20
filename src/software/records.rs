@@ -12,6 +12,8 @@
 //!   file name.
 //! - THE START MENU'S SHORTCUTS (2026-10-19, shortcuts.rs), by name only: a shortcut is opened
 //!   only when a program's record gives no program file (software/matcher.rs).
+//! - THIS PERSON'S MICROSOFT STORE APPS (2026-10-20, store.rs), only of the package families the
+//!   catalog names, through Windows' `PackageManager` (asked only to find).
 //!
 //! Read on the Tools page's worker thread when the page opens and on Refresh, never every frame.
 //! The page's tests never read the real registry: they hand the matcher a [`Records`] of their
@@ -56,6 +58,22 @@ pub struct AppPath {
     pub path: PathBuf,
 }
 
+/// One of this person's Microsoft Store apps (2026-10-20, store.rs): a package of a family the
+/// catalog names, as Windows' `PackageManager` lists it for the person using this computer.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct StorePackage {
+    /// Its package family name ("BlenderFoundation.Blender_ppwjx1n5r4v9t").
+    pub family: String,
+    /// The name it shows, when it says one.
+    pub name: Option<String>,
+    /// Its version ("5.2.2.0").
+    pub version: Option<String>,
+    /// The folder Windows installed it in.
+    pub folder: Option<PathBuf>,
+    /// Its apps' ids, `<family>!<app>`, the first its main one: what Windows starts it by.
+    pub apps: Vec<String>,
+}
+
 /// What Windows records, read once.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Records {
@@ -63,6 +81,8 @@ pub struct Records {
     pub app_paths: Vec<AppPath>,
     /// The Start menu's shortcuts, by name (shortcuts.rs).
     pub shortcuts: Vec<super::shortcuts::Shortcut>,
+    /// This person's Microsoft Store apps of the families the catalog names (store.rs).
+    pub store: Vec<StorePackage>,
 }
 
 /// A path as an installer wrote it: quotes taken off, a trailing ",0" (an icon's index) taken off,
@@ -112,16 +132,19 @@ fn expand_env(s: &str) -> String {
     out
 }
 
-/// This computer's records (Windows only; elsewhere none).
-pub fn this_computer() -> Records {
+/// This computer's records (Windows only; elsewhere none), with this person's Store apps of
+/// `store_families` (the catalog's `store_family` fields).
+pub fn this_computer(store_families: &[String]) -> Records {
     #[cfg(windows)]
     {
         let mut records = windows_read::read();
         records.shortcuts = super::shortcuts::list(&super::shortcuts::start_menu_folders());
+        records.store = super::store::this_computer(store_families);
         records
     }
     #[cfg(not(windows))]
     {
+        let _ = store_families;
         Records::default()
     }
 }

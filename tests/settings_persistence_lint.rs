@@ -82,9 +82,16 @@ const SETTINGS_FILES: &[&str] = &[
     //   its load leg removed: "games_layout: never read by apply_to_state".
     // - Epic's covers switch (`apps_epic_covers`), in apps/covers.rs. Seen red 2026-10-19 with its
     //   load leg removed from config.rs: "apps_epic_covers: never read by apply_to_state".
+    // - whether its "How this page works" is open (`apps_how_open`, 2026-10-20), its toggle in
+    //   apps.rs `draw_head`. Seen red 2026-10-20 with its load leg removed from config.rs:
+    //   "apps_how_open: never read by apply_to_state".
     "src/gui/pages/apps.rs",
     "src/gui/pages/apps/games.rs",
     "src/gui/pages/apps/covers.rs",
+    // The Files page's "How this page works" (`files_how_open`, 2026-10-20), its toggle in
+    // pages/files/how.rs. Seen red 2026-10-20 with its save leg removed from config.rs:
+    // "files_how_open: never written by from_gui_state".
+    "src/gui/pages/files/how.rs",
 ];
 
 /// Pull every `state.settings.<field>` that the Settings files bind to a widget

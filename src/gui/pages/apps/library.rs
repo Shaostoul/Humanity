@@ -305,12 +305,10 @@ fn games_part(ui: &mut Ui, theme: &Theme, state: &GuiState, acts: &mut Vec<Act>)
     } else {
         games_shelf(ui, theme, state, order, acts);
     }
-    // Its lines: what may be done and why, each with its Why; what is never done; the covers
-    // switch, when there is an Epic game.
+    // What stays outside "How this page works" (how_it_works, below): that HumanityOS is not
+    // affiliated with the stores, and the covers switch with its words, when there is an Epic game.
+    // The lines about what may be done and why, with their Whys, are in the fold.
     ui.add_space(theme.spacing_xs);
-    line_with_why(ui, theme, games::STORES_LINE, "What Steam's, Epic's and GOG's own terms say, as researched on 13 October 2026, in the Library.", (games::FINDING_SLUG, games::FINDING_PATH), acts);
-    line_with_why(ui, theme, games::PICTURES_LINE, "What the stores and the law say about game pictures, store names and logos, play records and links, as researched on 19 October 2026, in the Library.", (games::PICTURES_FINDING_SLUG, games::PICTURES_FINDING_PATH), acts);
-    widgets::body_hint(ui, theme, games::NOTHING_BY_ITSELF);
     ui.label(RichText::new(games::NOT_AFFILIATED).size(theme.font_size_small).color(theme.text_muted()));
     if page.games.all.iter().any(super::covers::EpicCovers::has_covers) {
         let mut on = state.settings.apps_epic_covers;
@@ -748,16 +746,60 @@ fn catalog_part(ui: &mut Ui, theme: &Theme, state: &GuiState, section: Section, 
     }
     entries(ui, theme, state, section, page.orders.of(section), acts);
     ui.add_space(theme.spacing_xs);
+    // Outside "How this page works" (how_it_works, below) stays only what a person must see
+    // before acting: the other programs' safety line and that HumanityOS is not their maker, and
+    // Help's line, which says to call the local emergency number first when in danger. Where the
+    // programs come from, how what is installed is found, and Services' line are in the fold.
     match section {
         Section::Programs => {
-            line_with_why(ui, theme, programs::WHERE_FROM, "What Microsoft, the makers and the law say about finding, installing and starting programs, their licences and their logos, as researched on 19 October 2026, in the Library.", (programs::FINDING_SLUG, programs::FINDING_PATH), acts);
             ui.label(RichText::new(programs::SAFETY_LINE).size(theme.font_size_small).color(theme.text_primary()));
-            widgets::body_hint(ui, theme, if cfg!(windows) { programs::FOUND_LINE } else { programs::WINDOWS_ONLY });
             ui.label(RichText::new(programs::NOT_AFFILIATED).size(theme.font_size_small).color(theme.text_muted()));
         }
         Section::Help => widgets::body_hint(ui, theme, programs::HELP_LINE),
-        _ => widgets::body_hint(ui, theme, programs::SERVICES_LINE),
+        _ => {}
     }
+}
+
+/// "How this page works", open (2026-10-20, widgets/how_it_works.rs): the explanations of each part
+/// shown, word for word, each line with its Why where it has one (a dated finding in the Library):
+/// the games' (what the stores' terms keep for the stores, what the covers are and why there are no
+/// logos, what is never done by itself); the other programs' (where they come from, and how what is
+/// installed is found); Services'. (Help's line stays under Help, outside the fold: it says to
+/// call the local emergency number first.)
+pub(super) fn how_it_works(ui: &mut Ui, theme: &Theme, state: &GuiState) -> Vec<Act> {
+    use crate::gui::widgets::how_it_works as how;
+    let mut acts = Vec::new();
+    let view = &state.settings.apps_view;
+    how::panel(ui, theme, |ui| {
+        for section in Section::ALL {
+            let shown = view.shows(section) && (section == Section::Games || count(state, section) > 0);
+            if !shown {
+                continue;
+            }
+            let heading = |ui: &mut Ui| how::part_heading(ui, theme, section.words(), Some(colours(theme, section).1));
+            match section {
+                Section::Games => {
+                    heading(ui);
+                    let acts = &mut acts;
+                    line_with_why(ui, theme, games::STORES_LINE, "What Steam's, Epic's and GOG's own terms say, as researched on 13 October 2026, in the Library.", (games::FINDING_SLUG, games::FINDING_PATH), acts);
+                    line_with_why(ui, theme, games::PICTURES_LINE, "What the stores and the law say about game pictures, store names and logos, play records and links, as researched on 19 October 2026, in the Library.", (games::PICTURES_FINDING_SLUG, games::PICTURES_FINDING_PATH), acts);
+                    how::line(ui, theme, games::NOTHING_BY_ITSELF);
+                }
+                Section::Programs => {
+                    heading(ui);
+                    let acts = &mut acts;
+                    line_with_why(ui, theme, programs::WHERE_FROM, "What Microsoft, the makers and the law say about finding, installing and starting programs, their licences and their logos, as researched on 19 October 2026, in the Library.", (programs::FINDING_SLUG, programs::FINDING_PATH), acts);
+                    how::line(ui, theme, if cfg!(windows) { programs::FOUND_LINE } else { programs::WINDOWS_ONLY });
+                }
+                Section::Services => {
+                    heading(ui);
+                    how::line(ui, theme, programs::SERVICES_LINE);
+                }
+                Section::Help | Section::Tools | Section::Added => {}
+            }
+        }
+    });
+    acts
 }
 
 /// Catalog entries (other programs, or help services), in `order`, as tiles or rows; sorted by
@@ -847,7 +889,7 @@ fn entry_tile(ui: &mut Ui, theme: &Theme, state: &GuiState, i: usize, width: f32
         }
         let meta = if e.license.is_empty() { e.category.clone() } else { format!("{} \u{b7} {}", e.category, e.license) };
         meta_line(ui, theme, &meta, theme.text_muted());
-        button_row(ui, theme, w, |ui| main_button(ui, theme, e, i, installed, page.programs.installing(i), widgets::ButtonSize::Small, acts), entry_fact(state, theme, i));
+        button_row(ui, theme, w, |ui| main_button(ui, theme, e, i, &page.programs, widgets::ButtonSize::Small, acts), entry_fact(state, theme, i));
         if cover_resp.clicked() {
             acts.push(Act::Select(Picked::Entry(i)));
         }
@@ -870,10 +912,13 @@ fn installed_mark(ui: &Ui, theme: &Theme, cover: Rect) {
 }
 
 /// The main button: Launch when installed (or, installed with nothing to start, the few words that
-/// say so), otherwise Download or Open website; "Installing..." while winget installs it.
-#[allow(clippy::too_many_arguments)]
-fn main_button(ui: &mut Ui, theme: &Theme, e: &CatalogEntry, i: usize, installed: Option<&crate::software::Installed>, busy: bool, size: widgets::ButtonSize, acts: &mut Vec<Act>) {
-    if busy {
+/// say so); Install (2026-10-20) for a program not found that winget has and that is not website
+/// only, which opens its details with the consent step (programs.rs `tile_installs`; Download and
+/// Website stay in the details); otherwise Download or Open website; "Installing..." while winget
+/// installs it.
+fn main_button(ui: &mut Ui, theme: &Theme, e: &CatalogEntry, i: usize, page: &programs::ProgramsPart, size: widgets::ButtonSize, acts: &mut Vec<Act>) {
+    let installed = page.installed(i);
+    if page.installing(i) {
         ui.add(egui::Spinner::new().size(theme.font_size_small));
         ui.label(RichText::new("Installing...").size(theme.font_size_small).color(theme.text_secondary()));
         return;
@@ -885,6 +930,11 @@ fn main_button(ui: &mut Ui, theme: &Theme, e: &CatalogEntry, i: usize, installed
             }
         }
         Some(_) => in_buttons_place(ui, theme, programs::NO_PROGRAM_SHORT, Some(programs::NO_PROGRAM.to_string()), theme.text_muted()),
+        None if programs::tile_installs(page, e, i) => {
+            if widgets::Button::primary(programs::INSTALL).size(size).tooltip(programs::TILE_INSTALL_TIP).show(ui, theme) {
+                acts.push(Act::InstallFromTile(i));
+            }
+        }
         None => {
             let label = programs::web_button(e);
             let tip = if label == programs::DOWNLOAD { "Opens the project's own download page in your browser." } else { "Opens its website in your browser." };
@@ -1001,7 +1051,7 @@ fn entries_list(ui: &mut Ui, theme: &Theme, state: &GuiState, section: Section, 
     for (n, &i) in order.iter().enumerate() {
         let e = &state.external_catalog[i];
         shelf::list_row(ui, theme, n, width, row_h, page.selected == Some(Picked::Entry(i)), |ui| {
-            cover_tile::fixed_cell(ui, ACTION_W, row_h, |ui| main_button(ui, theme, e, i, page.programs.installed(i), page.programs.installing(i), widgets::ButtonSize::Medium, acts));
+            cover_tile::fixed_cell(ui, ACTION_W, row_h, |ui| main_button(ui, theme, e, i, &page.programs, widgets::ButtonSize::Medium, acts));
             cover_tile::fixed_cell(ui, name_w, row_h, |ui| {
                 if let Some((tex, size)) = page.programs.icon_of(i) {
                     let side = theme.font_size_body + theme.spacing_xs;

@@ -252,8 +252,11 @@ serialport = { version = "4.9", optional = true }
 # are LOADED AT RUN TIME there, never linked, so the app still starts on a Windows "N" edition.
 # Win32_UI_Shell and Win32_Storage_FileSystem (2026-10-19): the Apps page reads a Start-menu
 # shortcut's program through Windows' own IShellLinkW (src/software/shortcuts.rs), read only.
+# ApplicationModel, ApplicationModel_Core and Management_Deployment (2026-10-20): the Apps page
+# finds a program installed from the Microsoft Store through Windows' own PackageManager, asked
+# only to find this person's packages of the families the catalog names (src/software/store.rs).
 [target.'cfg(windows)'.dependencies]
-windows = { version = "0.62", optional = true, features = ["Win32_Foundation", "Win32_Media_MediaFoundation", "Win32_Storage_FileSystem", "Win32_System_Com", "Win32_System_Com_StructuredStorage", "Win32_System_LibraryLoader", "Win32_System_Registry", "Win32_System_Variant", "Win32_UI_Shell"] }
+windows = { version = "0.62", optional = true, features = ["ApplicationModel", "ApplicationModel_Core", "Management_Deployment", "Win32_Foundation", "Win32_Media_MediaFoundation", "Win32_Storage_FileSystem", "Win32_System_Com", "Win32_System_Com_StructuredStorage", "Win32_System_LibraryLoader", "Win32_System_Registry", "Win32_System_Variant", "Win32_UI_Shell"] }
 
 [build-dependencies]
 winres = "0.1"

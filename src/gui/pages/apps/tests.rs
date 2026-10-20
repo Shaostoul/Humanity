@@ -368,3 +368,71 @@ fn humanityos_tools_open_their_pages() {
     assert_eq!(state.active_page, GuiPage::Studio, "its details' Open goes to its page");
     assert!(recorder::recorded().is_empty(), "nothing started outside the app");
 }
+
+/// HOW THIS PAGE WORKS, FOLDED (2026-10-20, the operator: the page showed four to five lines of
+/// explanation around its parts): closed as the page starts, the parts' explanations are not
+/// drawn and neither is any Why, while what a person must see before acting is: the other
+/// programs' safety line, Help's line, Epic's covers switch with its words and the two short
+/// not-affiliated lines. Opened, kept in the settings, every explanation is there word for word
+/// with its three Whys, and the other programs' Why opens their finding in the Library; it
+/// survives a restart (config.json `apps_how_open`), a config without it has it closed, and
+/// pressed again it closes.
+///
+/// Seen red 2026-10-20 with the fold drawn whatever the setting said (`if true` for
+/// `apps_how_open` in `draw_head`): "closed, no explanation is drawn" found the stores' line.
+#[test]
+fn how_this_page_works_is_folded() {
+    use crate::gui::widgets::how_it_works;
+    let (ctx, theme) = ctx_and_theme();
+    let (_fx, _pfx, _dir, mut state) = whole_page("ap_how");
+    state.library = crate::gui::load_library(std::path::Path::new("data")).sections;
+    read_in(&ctx, &theme, &mut state);
+    let tall = |ctx: &egui::Context, state: &mut GuiState| {
+        for _ in 0..3 {
+            frame_sized(ctx, &theme, state, 0.0, Vec::new(), egui::vec2(1400.0, 9000.0));
+        }
+        frame_sized(ctx, &theme, state, 0.0, Vec::new(), egui::vec2(1400.0, 9000.0))
+    };
+    let folded = [games::STORES_LINE, games::PICTURES_LINE, games::NOTHING_BY_ITSELF, programs::WHERE_FROM, if cfg!(windows) { programs::FOUND_LINE } else { programs::WINDOWS_ONLY }, programs::SERVICES_LINE];
+    let outside = [programs::SAFETY_LINE, programs::NOT_AFFILIATED, games::NOT_AFFILIATED, programs::HELP_LINE, covers::SWITCH];
+
+    assert!(!state.settings.apps_how_open, "closed as the page starts");
+    let out = tall(&ctx, &mut state);
+    assert!(exact(&out, how_it_works::LABEL), "the toggle, by the heading");
+    for line in folded {
+        assert!(!exact(&out, line), "closed, no explanation is drawn: {line}");
+    }
+    assert_eq!(count(&out, WHY), 0, "and no Why");
+    for line in outside {
+        assert!(exact(&out, line), "what a person must see before acting stays: {line}");
+    }
+
+    state.settings_dirty = false;
+    click(&ctx, &theme, &mut state, how_it_works::LABEL);
+    assert!(state.settings.apps_how_open && state.settings_dirty, "opened, and kept");
+    let out = tall(&ctx, &mut state);
+    for line in folded.iter().chain(outside.iter()) {
+        assert_eq!(count(&out, line), 1, "open, every line once, word for word: {line}");
+    }
+    assert_eq!(count(&out, WHY), 3, "the stores', the pictures' and the programs' Whys");
+
+    let json = serde_json::to_string(&crate::config::AppConfig::from_gui_state(&state)).unwrap();
+    let mut fresh = GuiState::default();
+    serde_json::from_str::<crate::config::AppConfig>(&json).unwrap().apply_to_gui_state(&mut fresh);
+    assert!(fresh.settings.apps_how_open, "it survives a restart");
+    let mut old: serde_json::Value = serde_json::from_str(&json).unwrap();
+    old.as_object_mut().unwrap().retain(|k, _| k != "apps_how_open");
+    assert!(!serde_json::from_value::<crate::config::AppConfig>(old).unwrap().apps_how_open, "a config without it has it closed");
+
+    let out = settled(&ctx, &theme, &mut state);
+    let mut whys: Vec<egui::Rect> = texts(&out).into_iter().filter(|(t, _)| t == WHY).map(|(_, r)| r).collect();
+    whys.sort_by(|a, b| a.center().y.total_cmp(&b.center().y));
+    click_at(&ctx, &theme, &mut state, whys[2].center());
+    assert_eq!(state.active_page, GuiPage::Library, "the programs' Why opens the Library: {:?}", state.apps.status);
+    assert_eq!(crate::gui::pages::library::shown_doc(&state).as_deref(), Some(programs::FINDING_SLUG), "at their finding");
+
+    state.active_page = GuiPage::Apps;
+    click(&ctx, &theme, &mut state, how_it_works::LABEL);
+    assert!(!state.settings.apps_how_open, "pressed again, it closes");
+    assert!(!exact(&tall(&ctx, &mut state), games::STORES_LINE));
+}

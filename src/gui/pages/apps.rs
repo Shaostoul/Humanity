@@ -27,6 +27,15 @@
 //! - YELLOW, Added by you: whatever the person added by its program, a game or any other program
 //!   (config.json `apps_added`), started as its own program; Rename and Remove in its details.
 //!
+//! HOW THIS PAGE WORKS (2026-10-20): the parts' explanations (what the stores' terms keep for the
+//! stores, what the covers are and why there are no logos, what is never done by itself, where the
+//! other programs come from and how what is installed is found, Services' line), each sentence and
+//! each Why word for word, are folded behind one small toggle by the heading (widgets/
+//! how_it_works.rs; apps/library.rs `how_it_works`), closed until the person opens it, remembered
+//! in config.json `apps_how_open`. Outside it stays only what a person must see before acting: the
+//! other programs' safety line, Help's line (in danger, call the local emergency number first),
+//! Epic's covers switch with its words, and the two short not-affiliated lines.
+//!
 //! The toolbar (apps/library.rs) searches, sorts, shows a Grid or a List, and narrows to one part
 //! (a chip each) or to what is on this computer, across the parts; the choices are kept in the
 //! settings (config.json `apps_view`). A tile is short: its cover (the name on it when there is no
@@ -336,6 +345,8 @@ pub(crate) enum Act {
     Launch(usize),
     /// Install, pressed (the consent step follows).
     Install(usize),
+    /// Install, pressed on a tile: its details open with the consent step (2026-10-20).
+    InstallFromTile(usize),
     /// "I agree, install", pressed in the consent step.
     Agree(usize),
     /// Cancel, in the consent step.
@@ -374,6 +385,7 @@ fn apply(ctx: &egui::Context, state: &mut GuiState, act: Act) {
         Act::ShowAll(all) => state.apps.games.show_all = all,
         Act::Launch(i) => programs::launch(state, i),
         Act::Install(i) => programs::install_pressed(state, i),
+        Act::InstallFromTile(i) => programs::install_from_tile(state, i),
         Act::Agree(i) => programs::agree(state, i),
         Act::CancelInstall => programs::cancel_install(state),
         Act::OpenPage(page) => state.push_nav_to(page),
@@ -441,7 +453,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         .frame(egui::Frame::none().fill(theme.bg_panel()).inner_margin(theme.card_padding))
         .show(ctx, |ui| {
             egui::ScrollArea::vertical().id_salt("apps_page").auto_shrink([false, false]).show(ui, |ui| {
-                draw_head(ui, theme, state);
+                acts.extend(draw_head(ui, theme, state));
                 acts.extend(library::toolbar(ui, theme, state));
                 library::ensure_orders(state);
                 acts.extend(library::parts(ui, theme, state));
@@ -454,15 +466,25 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     games::draw_picker(ctx, theme, state);
 }
 
-/// The heading and Refresh, the page's line, and the status line.
-fn draw_head(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+/// The heading, Refresh and "How this page works" (2026-10-20: the parts' explanations, with their
+/// Whys, folded behind it, closed until the person opens it, remembered in config.json
+/// `apps_how_open`), the page's line, the fold when open, and the status line.
+fn draw_head(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) -> Vec<Act> {
     let mut refresh = false;
+    let mut how = false;
     ui.horizontal_wrapped(|ui| {
         ui.label(RichText::new(TITLE).size(theme.font_size_title).color(theme.text_primary()));
         ui.add_space(theme.spacing_md);
         refresh = widgets::Button::ghost(REFRESH).tooltip("Look again for the games and programs installed on this computer.").show(ui, theme);
+        ui.add_space(theme.spacing_sm);
+        how = widgets::how_it_works::toggle(ui, theme, state.settings.apps_how_open);
     });
     ui.label(RichText::new(INTRO).size(theme.font_size_small).color(theme.text_secondary()));
+    if how {
+        state.settings.apps_how_open = !state.settings.apps_how_open;
+        state.settings_dirty = true;
+    }
+    let acts = if state.settings.apps_how_open { library::how_it_works(ui, theme, state) } else { Vec::new() };
     if let Some((words, problem)) = &state.apps.status {
         let color = if *problem { theme.warning() } else { theme.text_secondary() };
         ui.label(RichText::new(words).size(theme.font_size_small).color(color));
@@ -473,6 +495,7 @@ fn draw_head(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         games::start_reading(state);
         programs::start_reading(state);
     }
+    acts
 }
 
 #[cfg(test)]

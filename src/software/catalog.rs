@@ -17,6 +17,11 @@
 //! - `winget`: its package id in winget, Windows' own package manager ("BlenderFoundation.Blender"),
 //!   checked with `winget show --id <id> --exact`. Install is drawn only for an entry that has one.
 //! - `download`: the project's own download page, when it has one apart from its home page.
+//! - `store_family` (2026-10-20): the Microsoft Store package family name of its maker's own Store
+//!   listing (one, or a list), read from the Store's own manifest API; a copy installed from the
+//!   Store is found by it (store.rs) and started through its own app id. Left out where the maker
+//!   has no Store listing of its own (a Store listing that installs an ordinary installer, as VS
+//!   Code's and OBS Studio's do, is found in Windows' own list like any other copy).
 
 use serde::Deserialize;
 
@@ -91,6 +96,11 @@ pub struct CatalogEntry {
     /// the maker's own registration form). Shown in its details.
     #[serde(default)]
     pub website_only: Option<String>,
+    /// The Microsoft Store package family name of its maker's own Store listing, or several (2026-
+    /// 10-20; Blender's LTS versions are listings of their own): a copy installed from the Store
+    /// is found by it (store.rs) and started through its own app id. One string or a list.
+    #[serde(default, deserialize_with = "one_or_many")]
+    pub store_family: Vec<String>,
     /// Category name, populated during loading from the parent category.
     #[serde(skip)]
     pub category: String,
@@ -252,6 +262,35 @@ mod tests {
         for e in &all {
             assert!(seen.insert((e.category_id.clone(), e.name.clone())), "{} is listed twice in {}", e.name, e.category);
         }
+    }
+
+    /// THE STORE'S PACKAGE FAMILIES LOAD (2026-10-20): Blender names its own Store listing and its
+    /// LTS versions' (a list), GIMP one (a string); every family is well formed and belongs to a
+    /// program to download, never to a help service or a program that runs in the browser; no
+    /// family is named by two programs; a program the Store sells only as an ordinary installer
+    /// (VS Code, OBS Studio) names none.
+    ///
+    /// Seen red 2026-10-20 with the field read without `one_or_many` (a plain `Vec<String>`): the
+    /// shipped catalog did not parse ("invalid type: string \"VisualComputingLab-ISTI-C.MeshLab_
+    /// c8c2mafe4x7s8\", expected a sequence", MeshLab's one family being the first string met).
+    #[test]
+    fn the_stores_package_families_load() {
+        let all = parse(&std::fs::read_to_string("data/external/catalog.json").unwrap()).expect("the shipped catalog parses");
+        let by = |n: &str| all.iter().find(|e| e.name == n).unwrap_or_else(|| panic!("{n} is in the catalog"));
+        assert!(by("Blender").store_family.len() >= 2 && by("Blender").store_family[0] == "BlenderFoundation.Blender_ppwjx1n5r4v9t", "Blender's listing and its LTS versions'");
+        assert_eq!(by("GIMP").store_family, vec!["GIMP.43237F745459_nq49gba4h4mx8".to_string()], "one string is one family");
+        for name in ["VS Code", "OBS Studio", "Photopea"] {
+            assert!(by(name).store_family.is_empty(), "{name} names no Store package");
+        }
+        let mut seen = std::collections::HashSet::new();
+        for e in &all {
+            for f in &e.store_family {
+                assert!(crate::software::store::family_ok(f), "{}: family {f:?}", e.name);
+                assert!(e.is_software() && !e.web_only(), "{}: only a program to download has a Store package", e.name);
+                assert!(seen.insert(f.clone()), "{f} is named twice");
+            }
+        }
+        assert!(seen.len() >= 10, "the families researched on 2026-10-20 are there: {}", seen.len());
     }
 
     /// ONE PROGRAM OR SEVERAL: "exe" as one string or a list; left out, none.

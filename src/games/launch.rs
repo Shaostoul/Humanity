@@ -1,6 +1,6 @@
 //! THE ONE way the Apps page (its games and its other programs) starts anything: a store's link, a
-//! game's or a program's own program, a program's Start-menu shortcut, or the computer's file
-//! manager showing a folder. Everything on the Apps page that leaves the app goes through
+//! game's or a program's own program, a program's Start-menu shortcut, a Microsoft Store app by its
+//! app id, or the computer's file manager showing a folder. Everything on the Apps page that leaves the app goes through
 //! [`launch`], and only when the person clicks (web pages open in the browser through egui).
 //!
 //! TEST BUILDS NEVER START ANYTHING. In a test build `launch` records what it was asked and returns
@@ -24,6 +24,10 @@ pub enum Launch {
     /// does: for a program whose shortcut names no program file to start directly (2026-10-19,
     /// software/shortcuts.rs).
     Shortcut(PathBuf),
+    /// Start a Microsoft Store app by its app id, `<package family name>!<app>` (2026-10-20,
+    /// software/store.rs), as the Start menu starts it: Explorer opens
+    /// `shell:AppsFolder\<app id>`. A Store app is not started by its program file.
+    StoreApp(String),
 }
 
 /// The links the page may send: only the two stores' own, so nothing else can ever be opened here.
@@ -52,6 +56,25 @@ fn real(what: &Launch) -> Result<(), String> {
             Ok(())
         }
         Launch::Shortcut(lnk) => open_shortcut(lnk),
+        Launch::StoreApp(id) => open_store_app(id),
+    }
+}
+
+/// Start a Store app by its app id, as the Start menu does: Explorer opens
+/// `shell:AppsFolder\<app id>`. Only an id shaped like one (software/store.rs `app_id_ok`); no shell
+/// runs, so nothing in it is read as a command.
+#[cfg(not(test))]
+fn open_store_app(id: &str) -> Result<(), String> {
+    if !crate::software::store::app_id_ok(id) {
+        return Err("that is not a Microsoft Store app's id".to_string());
+    }
+    #[cfg(windows)]
+    {
+        std::process::Command::new("explorer").arg(format!("shell:AppsFolder\\{id}")).spawn().map(|_| ()).map_err(|e| format!("Windows could not start it ({e})"))
+    }
+    #[cfg(not(windows))]
+    {
+        Err("a Microsoft Store app starts only on Windows".to_string())
     }
 }
 

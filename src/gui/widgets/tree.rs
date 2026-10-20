@@ -91,6 +91,9 @@ pub struct TreeNodeResponse {
     pub toggled: bool,
     /// Whether the node is currently open after this frame.
     pub is_expanded: bool,
+    /// True if a leaf's row was double-clicked this frame (to open what it stands for, as a
+    /// double-click opens a file in a file manager; the first click of the two selected it).
+    pub double_clicked: bool,
 }
 
 /// Render a tree node with children. The `add_children` closure receives the
@@ -190,6 +193,10 @@ pub fn tree_leaf(
         state.select(id);
         resp.clicked = true;
     }
+    if row.double_clicked() {
+        state.select(id);
+        resp.double_clicked = true;
+    }
 
     resp
 }
@@ -220,6 +227,10 @@ pub fn tree_leaf_colored(
     if row.clicked() {
         state.select(id);
         resp.clicked = true;
+    }
+    if row.double_clicked() {
+        state.select(id);
+        resp.double_clicked = true;
     }
 
     resp

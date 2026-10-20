@@ -73,6 +73,7 @@ pub(crate) fn fixture(tag: &str) -> Fixture {
         ],
         app_paths: vec![AppPath { exe_name: "notepad++.exe".into(), path: notepad.clone() }],
         shortcuts: vec![],
+        store: vec![],
     };
     Fixture { _dir: dir, sources: software::Sources { records, steam_root: Some(steam) }, gimp_folder, gimp, notepad }
 }
@@ -109,6 +110,35 @@ fn entry(state: &GuiState, name: &str) -> usize {
     state.external_catalog.iter().position(|e| e.name == name).unwrap_or_else(|| panic!("{name} is in the catalog"))
 }
 
+/// The details' left edge in a test's frame (1400 wide, the details at their opening width): what
+/// is drawn right of it is in the details, not on a tile.
+fn details_left() -> f32 {
+    1400.0 - super::detail::DETAILS_WIDTH - 1.0
+}
+
+/// Whether the details draw exactly `text`.
+fn in_details(out: &egui::FullOutput, text: &str) -> bool {
+    texts(out).iter().any(|(t, r)| t == text && r.left() >= details_left())
+}
+
+/// The `button` on the tile named `name` (tests.rs `on_tile`, the name looked for left of the
+/// details, which draw it too when they are open).
+fn tile_button(out: &egui::FullOutput, name: &str, button: &str) -> Option<egui::Rect> {
+    let n = texts(out).into_iter().find(|(t, r)| t == name && r.left() < details_left()).map(|(_, r)| r)?;
+    texts(out)
+        .into_iter()
+        .filter(|(t, r)| t == button && r.center().y > n.center().y && r.center().y - n.center().y < 120.0 && r.left() >= n.left() - 30.0 && r.left() < n.left() + 120.0)
+        .map(|(_, r)| r)
+        .min_by(|a, b| a.center().y.total_cmp(&b.center().y))
+}
+
+/// Click exactly `text` in the details (a tile may have the same words: Install, say).
+fn click_in_details(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, text: &str) -> egui::FullOutput {
+    let out = settled(ctx, theme, state);
+    let at = texts(&out).into_iter().find(|(t, r)| t == text && r.left() >= details_left()).map(|(_, r)| r.center()).unwrap_or_else(|| panic!("{text:?} is drawn in the details"));
+    click_at(ctx, theme, state, at)
+}
+
 /// THE OTHER PROGRAMS SHOW WHAT IS INSTALLED AND WHAT IS NOT: in Image Editing, GIMP (installed,
 /// its version beside Launch, "Installed" on its cover) has Launch and Krita, Paint.NET (not
 /// installed) have Download, and Photopea (it runs in the browser) has Open website; in Video
@@ -126,9 +156,15 @@ fn the_shelf_shows_what_is_installed_and_what_is_not() {
     let mut state = page_with(&fx, category("image-editing"));
     found_in(&ctx, &theme, &mut state);
     let out = settled(&ctx, &theme, &mut state);
-    assert!(exact(&out, TITLE) && exact(&out, INTRO) && exact(&out, WHERE_FROM), "the heading, the page's line and where the programs come from");
+    assert!(exact(&out, TITLE) && exact(&out, INTRO) && exact(&out, SAFETY_LINE), "the heading, the page's line and the safety line");
+    // Where they come from and how what is installed is found are in "How this page works".
+    state.settings.apps_how_open = true;
+    let out = settled(&ctx, &theme, &mut state);
+    assert!(exact(&out, WHERE_FROM), "where the programs come from");
     #[cfg(windows)]
     assert!(exact(&out, FOUND_LINE), "how what is installed is found");
+    state.settings.apps_how_open = false;
+    let out = settled(&ctx, &theme, &mut state);
     let n = state.external_catalog.len();
     for chip in [format!("{} {n}", super::ALL), format!("Other programs {}", library::count(&state, Section::Programs)), format!("Help {}", library::count(&state, Section::Help)), format!("Services {}", library::count(&state, Section::Services))] {
         assert!(exact(&out, &chip), "the {chip} chip");
@@ -137,14 +173,18 @@ fn the_shelf_shows_what_is_installed_and_what_is_not() {
     assert_eq!(count(&out, LAUNCH), 1, "GIMP has Launch");
     assert!(in_row(&out, LAUNCH, "3.2.4.0").is_some(), "its version, beside Launch");
     assert_eq!(count(&out, INSTALLED), 1, "\"Installed\" on its cover");
-    assert_eq!(count(&out, DOWNLOAD), 2, "Krita and Paint.NET have Download");
+    // Krita and Paint.NET, not found and in winget, have Install on Windows (2026-10-20), Download
+    // elsewhere.
+    let (install, download) = if cfg!(windows) { (2, 0) } else { (0, 2) };
+    assert_eq!((count(&out, INSTALL), count(&out, DOWNLOAD)), (install, download), "Krita and Paint.NET have Install (Windows) or Download");
     assert_eq!(count(&out, OPEN_WEBSITE), 1, "Photopea, which runs in the browser, has Open website");
     assert!(exact(&out, "In browser"), "a program that runs in the browser says so");
 
     state.settings.apps_view = category("video-editing");
     let out = settled(&ctx, &theme, &mut state);
     assert!(exact(&out, "20.0.00049") && exact(&out, NO_PROGRAM_SHORT), "DaVinci Resolve is installed, with no program to start");
-    assert_eq!((count(&out, LAUNCH), count(&out, DOWNLOAD)), (0, 3), "no Launch, and Download only on the three not installed");
+    let (install, download) = if cfg!(windows) { (3, 0) } else { (0, 3) };
+    assert_eq!((count(&out, LAUNCH), count(&out, INSTALL), count(&out, DOWNLOAD)), (0, install, download), "no Launch, and Install or Download only on the three not installed");
 
     state.settings.apps_view = services("water");
     let out = settled(&ctx, &theme, &mut state);
@@ -224,7 +264,7 @@ fn an_entrys_details() {
     for b in [LAUNCH, SHOW_IN_FOLDER, WEBSITE, DOWNLOAD_PAGE] {
         assert!(exact(&out, b), "{b} in its details");
     }
-    assert!(!exact(&out, INSTALL), "no Install for a program already installed");
+    assert!(!in_details(&out, INSTALL), "no Install for a program already installed");
     assert!(!exact(&out, crate::games::OPEN_IN_STEAM) && !exact(&out, "Store page"), "no Steam links for a copy Steam did not install");
     let gimp = state.external_catalog.iter().find(|e| e.name == "GIMP").unwrap().clone();
     assert!(exact(&out, &gimp.description), "its description");
@@ -346,7 +386,11 @@ fn help_and_services_are_split_by_the_data() {
     assert!(!exact(&out, "Feeding America"), "Feeding America is not in Help");
     state.settings.apps_view = View { section: Some(Section::Services), ..View::default() };
     let out = settled(&ctx, &theme, &mut state);
-    assert!(exact(&out, "Services") && exact(&out, SERVICES_LINE));
+    assert!(exact(&out, "Services") && !exact(&out, SERVICES_LINE), "Services' band; its line is in How this page works (2026-10-20)");
+    state.settings.apps_how_open = true;
+    assert!(exact(&settled(&ctx, &theme, &mut state), SERVICES_LINE), "and there, opened");
+    state.settings.apps_how_open = false;
+    let out = settled(&ctx, &theme, &mut state);
     for name in ["Feeding America", "Khan Academy", "Appropedia"] {
         assert!(exact(&out, name), "{name} is in Services");
     }
@@ -387,7 +431,7 @@ fn the_consent_step_comes_before_any_install() {
     let _ = winget_asked();
     let _ = recorder::recorded();
     click(&ctx, &theme, &mut state, "Krita");
-    click(&ctx, &theme, &mut state, INSTALL);
+    click_in_details(&ctx, &theme, &mut state, INSTALL);
     assert_eq!(winget_asked(), vec!["winget show --id KDE.Krita --exact --source winget --disable-interactivity".to_string()], "pressing Install only asks winget about it");
     let out = settled(&ctx, &theme, &mut state);
     assert!(exact(&out, "Install Krita") && exact(&out, AGREE_INSTALL) && exact(&out, CANCEL), "the consent step, with its two buttons");
@@ -403,7 +447,7 @@ fn the_consent_step_comes_before_any_install() {
     assert!(state.apps.programs.install.is_none() && winget_asked().is_empty(), "Cancel installs nothing");
     assert!(exact(&settled(&ctx, &theme, &mut state), "Cancelled. Nothing was installed."));
 
-    click(&ctx, &theme, &mut state, INSTALL);
+    click_in_details(&ctx, &theme, &mut state, INSTALL);
     let _ = winget_asked();
     click(&ctx, &theme, &mut state, AGREE_INSTALL);
     let asked = winget_asked();
@@ -412,11 +456,102 @@ fn the_consent_step_comes_before_any_install() {
 
     for name in ["GIMP", "Photopea"] {
         click(&ctx, &theme, &mut state, name);
-        assert!(!exact(&settled(&ctx, &theme, &mut state), INSTALL), "{name} has no Install");
+        assert!(!in_details(&settled(&ctx, &theme, &mut state), INSTALL), "{name} has no Install");
     }
     state.settings.apps_view = services("water");
     click(&ctx, &theme, &mut state, "Appropedia");
     assert!(!exact(&settled(&ctx, &theme, &mut state), INSTALL), "a service has no Install");
+}
+
+/// INSTALL ON THE TILE OPENS THE CONSENT STEP, AND RUNS NOTHING (2026-10-20): Krita's and
+/// Paint.NET's tiles (not found here, in winget, not website only) have Install as their main
+/// button and no Download, while Krita's details keep its Website and Download page; GIMP's tile
+/// (installed) has Launch and Photopea's (in the browser) Open website. Pressing Krita's Install
+/// opens its details with the consent step showing (its licence, Microsoft's lines, "I agree,
+/// install"), having only asked winget about the package; pressed again it asks nothing more; while
+/// its consent step shows, Paint.NET's tile keeps Download (one install at a time). Nothing is ever
+/// installed and nothing goes through the program launcher. In the List, Krita's row has Install too.
+///
+/// Seen red 2026-10-20 with the tile's Install pushing `Act::Install` alone (no `select`): "its
+/// details open" got None.
+#[cfg(windows)]
+#[test]
+fn install_on_the_tile_opens_the_consent_step_and_runs_nothing() {
+    use crate::software::install::{self, recorder as winget};
+    let (ctx, theme) = ctx_and_theme();
+    let fx = fixture("tl_tile_install");
+    let mut state = page_with(&fx, category("image-editing"));
+    found_in(&ctx, &theme, &mut state);
+    winget::answer_show(None);
+    let _ = winget_asked();
+    let _ = recorder::recorded();
+    let out = settled(&ctx, &theme, &mut state);
+    for name in ["Krita", "Paint.NET"] {
+        assert!(tile_button(&out, name, INSTALL).is_some(), "{name}'s tile has Install");
+        assert!(tile_button(&out, name, DOWNLOAD).is_none(), "{name}'s tile has no Download");
+    }
+    assert!(tile_button(&out, "GIMP", LAUNCH).is_some() && tile_button(&out, "Photopea", OPEN_WEBSITE).is_some(), "GIMP has Launch, Photopea Open website");
+
+    let krita = entry(&state, "Krita");
+    let press = tile_button(&out, "Krita", INSTALL).unwrap().center();
+    click_at(&ctx, &theme, &mut state, press);
+    assert_eq!(state.apps.selected, Some(Picked::Entry(krita)), "its details open");
+    assert_eq!(winget_asked(), vec!["winget show --id KDE.Krita --exact --source winget --disable-interactivity".to_string()], "only winget show was asked");
+    let out = settled(&ctx, &theme, &mut state);
+    assert!(in_details(&out, "Install Krita") && in_details(&out, AGREE_INSTALL) && in_details(&out, CANCEL), "the consent step is showing");
+    assert!(in_details(&out, &format!("\"{}\"", install::DISCLAIMER_MICROSOFT)), "with Microsoft's lines");
+    assert!(in_details(&out, WEBSITE) && in_details(&out, DOWNLOAD_PAGE), "its Website and Download page stay in its details");
+    assert!(tile_button(&out, "Paint.NET", DOWNLOAD).is_some() && tile_button(&out, "Paint.NET", INSTALL).is_none(), "one install at a time: Paint.NET keeps Download");
+
+    let again = tile_button(&out, "Krita", INSTALL).expect("Krita's tile keeps Install while its consent step shows").center();
+    click_at(&ctx, &theme, &mut state, again);
+    assert!(winget_asked().is_empty(), "pressed again, nothing more is asked");
+    assert!(matches!(state.apps.programs.install, Some(Installing::Asking { entry, .. }) if entry == krita), "the consent step still showing");
+
+    click_in_details(&ctx, &theme, &mut state, CANCEL);
+    state.settings.apps_view.layout = Layout::List;
+    let out = settled(&ctx, &theme, &mut state);
+    let name = texts(&out).into_iter().find(|(t, r)| t == "Krita" && r.left() < details_left()).map(|(_, r)| r).expect("Krita's row");
+    let row = texts(&out).into_iter().find(|(t, r)| t == INSTALL && r.left() < details_left() && (r.center().y - name.center().y).abs() < 14.0).map(|(_, r)| r).expect("Install on Krita's row");
+    click_at(&ctx, &theme, &mut state, row.center());
+    let asked = winget_asked();
+    assert!(asked.len() == 1 && asked[0].starts_with("winget show"), "the row's Install asks winget about it only: {asked:?}");
+    assert!(recorder::recorded().is_empty(), "nothing went through the program launcher");
+    click_in_details(&ctx, &theme, &mut state, CANCEL);
+    assert!(!winget_asked().iter().any(|l| l.starts_with("winget install")), "nothing was ever installed");
+}
+
+/// A PROGRAM FROM THE MICROSOFT STORE IS FOUND AND LAUNCHED BY ITS APP ID (2026-10-20): with
+/// Paint.NET in this person's Store apps (its catalog `store_family`), its tile has Launch with its
+/// version beside it; Launch asks the one launcher to start its app id; its details say it came
+/// from the Microsoft Store, with its version, that the Store keeps it up to date, where it was
+/// found, and have no Show in folder and no Download page.
+///
+/// Seen red 2026-10-20 with the matcher's step 4 left out (software/matcher.rs, `store_copy` never
+/// asked): "Paint.NET's tile has Launch" failed.
+#[test]
+fn a_program_from_the_store_is_launched_by_its_app_id() {
+    use crate::software::records::StorePackage;
+    let (ctx, theme) = ctx_and_theme();
+    let mut fx = fixture("tl_store");
+    let family = "dotPDNLLC.paint.net_h55e3w7q8jbva";
+    fx.sources.records.store = vec![StorePackage { family: family.into(), name: Some("paint.net".into()), version: Some("5.1.12.0".into()), folder: Some(PathBuf::from(r"C:\Program Files\WindowsApps\dotPDNLLC.paint.net_5.1.12.0_x64__h55e3w7q8jbva")), apps: vec![format!("{family}!dotPDNLLC.paint.net")] }];
+    let mut state = page_with(&fx, category("image-editing"));
+    found_in(&ctx, &theme, &mut state);
+    let _ = recorder::recorded();
+    let out = settled(&ctx, &theme, &mut state);
+    let launch = tile_button(&out, "Paint.NET", LAUNCH).expect("Paint.NET's tile has Launch");
+    assert!(in_row(&out, LAUNCH, "5.1.12.0").is_some(), "its version beside Launch");
+    click_at(&ctx, &theme, &mut state, launch.center());
+    assert_eq!(recorder::recorded(), vec![Launch::StoreApp(format!("{family}!dotPDNLLC.paint.net"))], "its app id, through the one launcher");
+    assert_eq!(state.apps.status, Some(("Started Paint.NET.".into(), false)));
+
+    click(&ctx, &theme, &mut state, "Paint.NET");
+    let out = settled(&ctx, &theme, &mut state);
+    assert!(in_details(&out, "Installed from the Microsoft Store, version 5.1.12.0") && in_details(&out, detail::STORE_COPY), "from the Store, kept up to date by it");
+    assert!(in_row(&out, "Found in", crate::software::Via::Store.words()).is_some(), "where it was found");
+    assert!(!in_details(&out, SHOW_IN_FOLDER) && !in_details(&out, DOWNLOAD_PAGE), "no Show in folder, no Download page");
+    assert!(in_details(&out, LAUNCH) && in_details(&out, WEBSITE), "Launch and its maker's Website");
 }
 
 /// A PROGRAM WHOSE LICENCE IS NOT FREE SOFTWARE SHOWS ITS MAKER'S INSTALLER: VS Code's consent step
@@ -437,7 +572,7 @@ fn a_program_not_free_shows_its_makers_installer() {
     winget::answer_show(Some(Ok("Found Microsoft Visual Studio Code [Microsoft.VisualStudioCode]\nVersion: 1.142.0\nPublisher: Microsoft Corporation\nLicense: Microsoft Software License\nLicense Url: https://code.visualstudio.com/license\nAgreements:\n  Terms of use: https://example.org/terms\nTags:\n  editor\n".into())));
     let _ = winget_asked();
     click(&ctx, &theme, &mut state, "VS Code");
-    click(&ctx, &theme, &mut state, INSTALL);
+    click_in_details(&ctx, &theme, &mut state, INSTALL);
     let out = settled(&ctx, &theme, &mut state);
     assert!(exact(&out, detail::OWN_INSTALLER_LINE), "its maker's own installer and licence page");
     assert!(exact(&out, "Terms of use: https://example.org/terms") && !exact(&out, detail::NO_AGREEMENTS), "its agreements, line by line");
@@ -487,7 +622,7 @@ fn after_winget_installs_it_the_page_looks_again() {
     state.apps.programs.sources = Where::These(fx.sources.clone());
     winget::answer_install(Ok("Successfully installed".into()));
     click(&ctx, &theme, &mut state, "Krita");
-    click(&ctx, &theme, &mut state, INSTALL);
+    click_in_details(&ctx, &theme, &mut state, INSTALL);
     let reads = state.apps.programs.reads_started;
     click(&ctx, &theme, &mut state, AGREE_INSTALL);
     frame(&ctx, &theme, &mut state, 0.0, Vec::new());
@@ -516,7 +651,7 @@ fn a_failure_is_shown_in_words() {
     let words = install::failure_words(Some(0x8A15_0011), "Installer hash does not match");
     winget::answer_install(Err(install::Failure { code: Some(0x8A15_0011), words: words.clone() }));
     click(&ctx, &theme, &mut state, "Krita");
-    click(&ctx, &theme, &mut state, INSTALL);
+    click_in_details(&ctx, &theme, &mut state, INSTALL);
     let reads = state.apps.programs.reads_started;
     click(&ctx, &theme, &mut state, AGREE_INSTALL);
     let out = settled(&ctx, &theme, &mut state);
@@ -526,7 +661,7 @@ fn a_failure_is_shown_in_words() {
 
     winget::answer_show(Some(Err(install::Failure { code: None, words: install::WINGET_MISSING.into() })));
     click(&ctx, &theme, &mut state, "Paint.NET");
-    click(&ctx, &theme, &mut state, INSTALL);
+    click_in_details(&ctx, &theme, &mut state, INSTALL);
     assert!(exact(&settled(&ctx, &theme, &mut state), install::WINGET_MISSING), "winget missing says so");
     assert!(state.apps.programs.install.is_none());
     winget::answer_show(None);

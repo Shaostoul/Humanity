@@ -40,6 +40,8 @@ fn the_three_stores_and_an_added_game_with_their_buttons() {
     let fx = fixtures::all("gp_rows");
     let (_dir, exe) = a_program("gp_rows_added");
     let mut state = list_page_with(&fx, vec![AddedApp { name: "Dwarf Fortress Classic".into(), exe }]);
+    // The lines and their Whys are in "How this page works" (2026-10-20): open, as the person can.
+    state.settings.apps_how_open = true;
     read_in(&ctx, &theme, &mut state);
     let out = settled(&ctx, &theme, &mut state);
 
@@ -300,6 +302,8 @@ fn why_opens_the_finding_in_the_library() {
     let fx = fixtures::all("gp_why");
     let mut state = page_with(&fx, Vec::new());
     state.library = crate::gui::load_library(std::path::Path::new("data")).sections;
+    // The Whys are in "How this page works" (2026-10-20).
+    state.settings.apps_how_open = true;
     read_in(&ctx, &theme, &mut state);
     click(&ctx, &theme, &mut state, WHY);
     assert_eq!(state.active_page, GuiPage::Library, "Why opens the Library: {:?}", state.apps.status);

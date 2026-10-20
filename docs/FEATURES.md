@@ -301,6 +301,19 @@ columns (`media_items` and the rest, kept on the live server) and the JSON field
 relay exchange, and the playback engine `src/media/`. `tests/terminology_lint.rs` fails on the old
 action words as quoted text. The entries below keep the names they were written with.
 
+**Library guides open in the Library; How this page works (desktop, 2026-10-20).** In the HumanityOS
+folder, a file in `data/library/` that the Library catalogs (`app_folder::guide_of`, the slug worked
+out by the one `loaders::library_slug_of_file`) gets "Open in the Library": a button in the details,
+a line with a link over its text in the middle, and a double-click on it in the tree (the tree
+widget's leaves now report `double_clicked`); all three go through `app_folder::open_in_library`,
+which opens the Library page with that guide in its reader (`library::show_doc`; the operator chose
+on 2026-10-19 to keep the Library a separate reading room and connect the two). Its text can still be
+edited there. And the page's explanations are folded behind one small "How this page works" toggle by
+the heading (`files/how.rs`, `widgets/how_it_works.rs`, closed until opened, config.json
+`files_how_open`): the page's own line and each place's (Shared files', the HumanityOS folder's, Your
+folders'), word for word; outside it stay Shared files' line beside Upload a file (they are public)
+and the HumanityOS folder's caution beside the file. Snapshots `files_how`, `files_app_folder_guide`.
+
 **Website mirror (v0.1522.0):** `web/pages/media-panes.js` and `media-sound.js` give the website
 the same three panes (side by side or stacked by the same rule, the split in localStorage
 `humanity_media_layout`), edit in place with the coloured parts and border and the same
@@ -459,17 +472,32 @@ Findings"): `docs/reference/findings/2026-10-13-game-stores-and-a-games-library.
   (`software/shortcuts.rs`: the two Start-menu folders listed by name, a matching shortcut read with Windows' own
   IShellLinkW, loaded read-only, never saved or resolved; its program, arguments and folder; a shortcut naming no
   program is opened itself through `Launch::Shortcut`; DaVinci Resolve, `detect.shortcut` in the catalog), and
-  Steam's records (Blender from Steam). Matched by DATA (`detect.display_name`, `detect.exe`, `detect.shortcut`,
-  `steam_appid`). Says "Installed" or "Not found on this computer", never "not installed". Launch through the one
-  launcher; Show in folder; Install through winget after a consent step in the details (the package, publisher,
+  Steam's records (Blender from Steam), and (2026-10-20) **this person's Microsoft Store apps** (`software/store.rs`:
+  Windows' `PackageManager`, asked only to find the current user's packages of the families the catalog's
+  `store_family` names, read only; windows crate features `ApplicationModel`, `ApplicationModel_Core`,
+  `Management_Deployment`; a Store copy launches by its own app id, `shell:AppsFolder\<family>!<app>`, through
+  `Launch::StoreApp`, says it came from the Microsoft Store, and has no Show in folder or Download page; 11 programs
+  name their makers' own Store packages, researched 2026-10-20 from the Store's own manifest API). Matched by DATA
+  (`detect.display_name`, `detect.exe`, `detect.shortcut`, `steam_appid`, `store_family`). Says "Installed" or "Not
+  found on this computer", never "not installed". Launch through the one launcher; Show in folder; **Install on the
+  tile** (2026-10-20: a program not found that winget has and that is not website only has Install as its tile's
+  and its List row's main button, its Download and Website staying in its details; pressing it opens its details
+  with the consent step showing, having only asked `winget show`; while another program's install is under way the
+  tiles keep Download); Install through winget after a consent step in the details (the package, publisher,
   licence and agreements, Microsoft's two lines exactly, Windows' permission prompt, winget's usage data, what "I
   agree, install" means; `--accept-package-agreements` for that one package, `--interactive` for a program whose
   licence is not free software, never `--accept-source-agreements`; one at a time; return codes in plain words;
   then it looks again). Website only, saying whose rule (DaVinci Resolve, Aseprite, Ardour, Vectr, Boxy SVG). **A
   copy Steam installed** gets Open in Steam, its store page and community hub in Steam and its store page on the web
   (`games::links::steam_program_links`), beside its maker's website (no Download page: Steam keeps it up to date).
-  Said on the screen: where programs come from, the safety line, how what is installed is found, no logos, not
-  affiliated with the makers.
+  Said on the screen: the safety line and not affiliated with the makers; where programs come from (with its Why)
+  and how what is installed is found, no logos, are in "How this page works".
+- **How this page works** (2026-10-20, `widgets/how_it_works.rs`, `apps/library.rs` `how_it_works`): one small toggle
+  by the heading folds the parts' explanations, word for word with their Whys (the stores' terms, covers and logos,
+  nothing done by itself, where the programs come from, how what is installed is found, Services' line); closed
+  until opened, kept in config.json `apps_how_open`. Outside it stays only what must be seen before acting: the
+  programs' safety line, Help's line (call the emergency number first), Epic's covers switch, and the two short
+  not-affiliated lines.
 - **CYAN, Help, and MAGENTA, Services**: the catalog's real-world help websites ("service"), split by each
   category's `section` in `data/external/catalog.json`: Help for urgent and protective needs (Emergency, Health,
   Mental Health, Legal), Services for everyday ones (Water, Energy, Food, Housing, Money and Benefits, Employment,
@@ -477,20 +505,24 @@ Findings"): `docs/reference/findings/2026-10-13-game-stores-and-a-games-library.
 - **YELLOW, Added by you**: "Add a program" (the app's file picker, programs) adds any game or program by its own
   program, named by its file name; Launch starts it in its own folder; Rename; Remove takes it off the list only.
 - Tests: `src/gui/pages/apps/tests.rs` (the six parts, a name once and short tiles, Epic covers only when turned on,
-  a fetched cover kept small, HumanityOS tools opening their pages), `games_tests.rs`, `game_detail_tests.rs`,
-  `programs_tests.rs` (incl. Blender's Steam links, Resolve from its shortcut, Help and Services split by the data),
+  a fetched cover kept small, HumanityOS tools opening their pages, How this page works folded), `games_tests.rs`,
+  `game_detail_tests.rs`, `programs_tests.rs` (incl. Blender's Steam links, Resolve from its shortcut, Help and
+  Services split by the data, Install on the tile running nothing but `winget show`, a Store copy launched by its
+  app id), `src/software/store.rs` (only an app id handed to Explorer; the ignored `print_this_persons_store_apps`),
   `library.rs` (columns, sorts offered, every part its own colour), `own_tools.rs`, `src/games/epic_covers.rs`,
   `src/software/shortcuts.rs` and `matcher.rs` (real `.lnk` fixtures written with IShellLinkW). The ignored
   `games::this_computer` and `software::this_computer` print what this computer has (Resolve's launch path,
   Fortnite's cover addresses).
 - Snapshots: `apps` (the Grid, every part, a game's details), `apps_list` (the List, each catalog part narrowed to
-  one category, Krita's consent step), `apps_help` (the Help part, a service's details).
+  one category, Krita's consent step), `apps_help` (the Help part, a service's details), `apps_how` (How this page
+  works open).
 - Files: `src/gui/pages/apps.rs` and `apps/` (`games.rs`, `own_tools.rs`, `programs.rs`, `library.rs` toolbar,
   parts, tiles and lists, `covers.rs`, `detail.rs`, `game_detail.rs`, `entry_detail.rs`); `src/games/` (`mod.rs`,
   `keyvalues.rs`, `binary_keyvalues.rs`, `steam.rs`, `steam_user.rs`, `achievements.rs`, `workshop.rs`, `art.rs`,
   `epic_covers.rs`, `links.rs`, `epic.rs`, `gog.rs`, `other.rs`, `launch.rs`, `registry.rs`, `fixtures.rs`);
-  `src/software/` (`catalog.rs`, `records.rs`, `shortcuts.rs`, `matcher.rs`, `install.rs`); `src/gui/widgets/shelf.rs`,
-  `cover_tile.rs`, `tint_section.rs`; nav item in `src/gui/pages/escape_menu.rs`, icon `widgets::icons::paint_apps`.
+  `src/software/` (`catalog.rs`, `records.rs`, `shortcuts.rs`, `store.rs`, `matcher.rs`, `install.rs`);
+  `src/gui/widgets/shelf.rs`, `cover_tile.rs`, `tint_section.rs`, `how_it_works.rs`; nav item in
+  `src/gui/pages/escape_menu.rs`, icon `widgets::icons::paint_apps`.
 - Data: `data/external/catalog.json` (also read by the website's Apps page, which ignores the desktop-only fields),
   `data/gui/humanityos_tools.json` (also read by the website's Apps page); both pairs guarded by
   `tests/page_parity_lint.rs`.
@@ -1706,6 +1738,7 @@ Notes/journal in native UI.
 The developer's browser and editor for `data/` was its own Files page (Platform > Files) until
 2026-10-19, when it became the Files page's "HumanityOS folder" place (see "Files Page, formerly the
 Media Page"), starting one folder up so assets/ and mods/ show too. Dev tooling: kept, nothing lost.
+A Library guide in `data/library/` opens in the Library from there (2026-10-20, "Open in the Library").
 - Native: `src/gui/pages/files/app_folder.rs`
 - Web: `web/pages/files-folder.js` (the server's data/ through `/api/data-files`), a place of `/files`
 

@@ -1,5 +1,5 @@
 {
-  "_comment": "The single catalog of EXTERNAL things: free software you install (kind \"software\") and real-world help services/websites (kind \"service\"). Rendered by the native Apps page (src/gui/pages/apps.rs: software as its Other programs, services as its Help and its Services, by each service category's \"section\", \"help\" for urgent and protective needs or \"services\" for everyday ones, 2026-10-19) and the website's Apps page (web/pages/apps.html, 2026-10-20), which shows them the same way. Add entries here, never in code (Infinite-of-X). Replaced data/tools/catalog.json, data/resources/catalog.json and data/resources.json on 2026-07-30. Since 2026-10-19 a software entry may also carry, as data: \"detect\" (\"display_name\", a regular expression for the name Windows keeps for the installed program, letter case ignored; \"exe\", its program file inside its install folder, one path or a list; \"shortcut\", a regular expression for its Start-menu shortcut's name, read when Windows' record names no program file), \"steam_appid\" (a copy Steam installed counts), \"winget\" (its package id in Windows' package manager, for Install) and \"download\" (the project's own download page). Also \"license_url\" (the licence's own page), \"install_interactive\" (true for a program whose licence is not a free-software licence: its own installer, with its own licence page, is shown) and \"website_only\" (why there is no Install, in plain words naming whose rule it is). Leave a field out when it is not known for certain: the entry is then simply never found installed.",
+  "_comment": "The single catalog of EXTERNAL things: free software you install (kind \"software\") and real-world help services/websites (kind \"service\"). Rendered by the native Apps page (src/gui/pages/apps.rs: software as its Other programs, services as its Help and its Services, by each service category's \"section\", \"help\" for urgent and protective needs or \"services\" for everyday ones, 2026-10-19) and the website's Apps page (web/pages/apps.html, 2026-10-20), which shows them the same way. Add entries here, never in code (Infinite-of-X). Replaced data/tools/catalog.json, data/resources/catalog.json and data/resources.json on 2026-07-30. Since 2026-10-19 a software entry may also carry, as data: \"detect\" (\"display_name\", a regular expression for the name Windows keeps for the installed program, letter case ignored; \"exe\", its program file inside its install folder, one path or a list; \"shortcut\", a regular expression for its Start-menu shortcut's name, read when Windows' record names no program file), \"steam_appid\" (a copy Steam installed counts), \"winget\" (its package id in Windows' package manager, for Install) and \"download\" (the project's own download page). Also \"license_url\" (the licence's own page), \"install_interactive\" (true for a program whose licence is not a free-software licence: its own installer, with its own licence page, is shown) and \"website_only\" (why there is no Install, in plain words naming whose rule it is). And \"store_family\" (2026-10-20): the Microsoft Store package family name of the program's own Store listing, or a list when its maker has several (Blender's LTS versions), read from the Store's own manifest API; a copy installed from the Store is found by it (Windows' list of the person's Store apps, read only) and started through its own app id. Left out where the maker has no Store listing of its own. Leave a field out when it is not known for certain: the entry is then simply never found installed.",
   "version": 1,
   "kinds": [
     {
@@ -46,7 +46,15 @@
             "exe": "blender.exe"
           },
           "steam_appid": 365670,
-          "winget": "BlenderFoundation.Blender"
+          "winget": "BlenderFoundation.Blender",
+          "store_family": [
+            "BlenderFoundation.Blender_ppwjx1n5r4v9t",
+            "BlenderFoundation.Blender4.5LTS_ppwjx1n5r4v9t",
+            "BlenderFoundation.Blender4.2LTS_ppwjx1n5r4v9t",
+            "BlenderFoundation.Blender3.6LTS_ppwjx1n5r4v9t",
+            "BlenderFoundation.Blender3.3LTS_ppwjx1n5r4v9t",
+            "BlenderFoundation.Blender2.93LTS_ppwjx1n5r4v9t"
+          ]
         },
         {
           "name": "FreeCAD",
@@ -99,7 +107,8 @@
             "display_name": "^MeshLab\\b",
             "exe": "meshlab.exe"
           },
-          "winget": "CNRISTI.MeshLab"
+          "winget": "CNRISTI.MeshLab",
+          "store_family": "VisualComputingLab-ISTI-C.MeshLab_c8c2mafe4x7s8"
         }
       ]
     },
@@ -140,7 +149,8 @@
               "bin/gimp-2.10.exe"
             ]
           },
-          "winget": "GIMP.GIMP.3"
+          "winget": "GIMP.GIMP.3",
+          "store_family": "GIMP.43237F745459_nq49gba4h4mx8"
         },
         {
           "name": "Krita",
@@ -159,7 +169,8 @@
             "exe": "bin/krita.exe"
           },
           "steam_appid": 280680,
-          "winget": "KDE.Krita"
+          "winget": "KDE.Krita",
+          "store_family": "49800KritaProject.Krita_n3kgb906j1zjg"
         },
         {
           "name": "Paint.NET",
@@ -177,6 +188,7 @@
             "exe": "paintdotnet.exe"
           },
           "winget": "dotPDN.PaintDotNet",
+          "store_family": "dotPDNLLC.paint.net_h55e3w7q8jbva",
           "install_interactive": true
         },
         {
@@ -217,7 +229,8 @@
             "display_name": "^Inkscape\\b",
             "exe": "bin/inkscape.exe"
           },
-          "winget": "Inkscape.Inkscape"
+          "winget": "Inkscape.Inkscape",
+          "store_family": "25415Inkscape.Inkscape_9waqn51p1ttv2"
         },
         {
           "name": "Vectr",
@@ -375,7 +388,8 @@
             "display_name": "^Shotcut\\b",
             "exe": "shotcut.exe"
           },
-          "winget": "Meltytech.Shotcut"
+          "winget": "Meltytech.Shotcut",
+          "store_family": "63764Meltytech.Shotcut_n3ep7ff047466"
         },
         {
           "name": "DaVinci Resolve",
@@ -500,7 +514,8 @@
               "bin/MuseScore3.exe"
             ]
           },
-          "winget": "Musescore.Musescore"
+          "winget": "Musescore.Musescore",
+          "store_family": "64051MuseScoreBVBA.MuseScoreNotationSoftware_pz631wrhsw9tj"
         }
       ]
     },
@@ -644,7 +659,8 @@
             "display_name": "^Okular\\b",
             "exe": "bin/okular.exe"
           },
-          "winget": "KDE.Okular"
+          "winget": "KDE.Okular",
+          "store_family": "KDEe.V.Okular_7vt06qxq7ptv8"
         },
         {
           "name": "Stirling PDF",
@@ -768,7 +784,8 @@
             "exe": "ShareX.exe"
           },
           "steam_appid": 400040,
-          "winget": "ShareX.ShareX"
+          "winget": "ShareX.ShareX",
+          "store_family": "19568ShareX.ShareX_egrzcvs15399j"
         }
       ]
     },
@@ -853,7 +870,8 @@
             "display_name": "^WinSCP\\b",
             "exe": "WinSCP.exe"
           },
-          "winget": "WinSCP.WinSCP"
+          "winget": "WinSCP.WinSCP",
+          "store_family": "MartinPikryl.WinSCP_tvv458r3h9r5m"
         }
       ]
     },

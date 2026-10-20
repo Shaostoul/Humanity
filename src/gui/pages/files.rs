@@ -132,6 +132,8 @@ pub(crate) mod shared_upload_step;
 /// The "HumanityOS folder" place: the app's own folder, to read and edit (the developer's Files
 /// page until 2026-10-19).
 pub(crate) mod app_folder;
+// "How this page works" (2026-10-20): what the page and each place is, folded behind one toggle.
+pub(crate) mod how;
 /// Settings > Privacy, Files in messages, and Settings > Data, Kept files (2026-10-11).
 pub(crate) mod in_messages;
 /// The Your folders tab (2026-10-18, desktop only): folders on this computer to look through and
@@ -1005,14 +1007,11 @@ pub(crate) fn draw_page(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                 panes::draw_switch(ui, theme, state);
             }
         }
+        ui.add_space(theme.spacing_md);
+        how::toggle(ui, theme, state);
     });
-    if matches!(place, Place::Shared | Place::Admin) {
-        widgets::body_hint(
-            ui,
-            theme,
-            "Pictures, videos, 3D models and files the people on this server chose to show. Nothing is here unless the person who uploaded it put it here, and nothing from a private conversation can be.",
-        );
-    }
+    // The page's line and each place's, folded until the person opens them (files/how.rs).
+    how::panel(ui, theme, state);
     ui.add_space(theme.spacing_sm);
 
     // The places that need a server say so without one; Your folders and the HumanityOS folder need

@@ -110,6 +110,16 @@ pub fn show_doc(state: &GuiState, slug: &str) -> bool {
     false
 }
 
+/// The slug of the document open in the reader, when a document is open (not the Dictionary or
+/// the Curriculum). Read by the pages that open a document here (the Files page's "Open in the
+/// Library", 2026-10-20) to check where they sent the reader.
+pub fn shown_doc(state: &GuiState) -> Option<String> {
+    lib_state(|s| match s.sel {
+        Sel::Doc(si, ci, di) if s.initialized => state.library.get(si)?.categories.get(ci)?.entries.get(di).map(|e| e.slug.clone()),
+        _ => None,
+    })
+}
+
 /// Open the Curriculum view.
 ///
 /// Exists because two callers need to reach it without a click: the
