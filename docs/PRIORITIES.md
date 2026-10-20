@@ -457,10 +457,22 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
   v0.1527.0; proven in the running game by `just verify-falls` (2026-10-20, 40/40, red with the
   lib.rs hand-off removed): world entry hurts nobody, a 3 m walk off the stairs' top hurts
   nobody in Forgiving and sprains an ankle in Realistic, letting go at the ladder's top (3.2 m)
-  breaks one, and a body placed in the air is not hurt. Not yet covered: planet falls in the
-  running game (needs a built deck of known height on the ground), a vehicle stopping, and a
-  rig quirk (`rig_walk::hold` does not release a camera park's `probe_hold` the way a key press
-  does). Found by it: the aboard walk can skip the stairs' 0.26 m top step at low frame rates
+  breaks one, and a body placed in the air is not hurt. Since v0.1531.0 (76/76) it also falls on
+  planet ground (Sahara at noon, 9.81 m/s^2: Forgiving unhurt, Realistic a sprained ankle, a
+  placed body unhurt) by Space's climb, since nothing built on a planet can be stood on (being
+  fixed: "Stand on built pieces on a planet", then a deck leg), and walks DOWN the stairs (no
+  landing; red with BUG-208's step-down removed); the rig's held key now releases a camera park
+  like a key press; a planet fall lands at its real speed at any frame rate (BUG-209); every rig
+  writes requests through scripts/lib/write-request.js. Not yet covered: a vehicle stopping.
+  Open from that work: (1) ten of the game's request readers (camera, screen, ui, autopilot,
+  remote_players, door_points, screenshot, cloudmap, cloud_profile_dump, record, cancel) still
+  delete a request they find empty, so a hand-dropped `debug/screenshot_request.json` written
+  non-atomically can be lost; the docs say "any content", so either take an empty file after a
+  few frames or document `{}` (src/engine/ipc.rs, movie.rs); (2) GAMEPLAY, the operator's call:
+  on a planet Space is a climb at walking speed, so a 0.35 s tap lifts you about 2.6 m and the
+  fall back sprains an ankle in Realistic (a real jump is about half a metre); (3)
+  machine-guard.test.js "the real PowerShell lowers a real rustc" fails on a loaded machine (its
+  15 s helper exits first), the BUG-152 class. Found by it: the aboard walk can skip the stairs' 0.26 m top step at low frame rates
   (54 ms frames dropped 2.79 m instead of 3.00 m), so near a wound threshold the frame rate can
   decide which wound you get (DONE 2026-10-20, commit "A long frame walks every stair tread",
   BUG-207: a frame that would carry the body more than 0.20 m, shorter than any tread, is walked
