@@ -99,13 +99,13 @@ test("1. the h1 and the tab's title name the host", async () => {
 
 // Seen red 2026-10-12 with renderTabs drawing the tabs for anyone (`const admin = true`): "a
 // member gets no tabs / actual: [FakeElement] / expected: null". The tabs are places since
-// 2026-10-19 (files-places.js): everyone has Shared on <server>, Shared files and the HumanityOS
-// folder; Admin is an admin's alone.
+// 2026-10-19 (files-places.js): everyone has Shared on <server> and Shared files; the server's
+// data folder (since 2026-10-20, BUG-206) and Admin are an admin's alone.
 test("2. the Admin place is an admin's alone; Admin holds the section, /files#admin opens it", async () => {
   const mounted = [];
   const placeNames = (doc) => byId(doc, "files-places").children.filter((c) => c.tagName === "BUTTON").map((t) => t.textContent);
   const member = await openPage({ hash: "#admin", mountAdmin: (c) => mounted.push(c), routes: listRoutes(listAnswer([])) });
-  assert.deepEqual(placeNames(member.doc), ["Shared on united-humanity.us", "Shared files", "HumanityOS folder"], "a member's places: no Admin");
+  assert.deepEqual(placeNames(member.doc), ["Shared on united-humanity.us", "Shared files"], "a member's places: no data folder, no Admin");
   assert.equal(byId(member.doc, "files-place-admin"), null, "and no Admin place, even at /files#admin");
   assert.equal(byId(member.doc, "files-main").hidden, false, "the list shows");
   assert.equal(byId(member.doc, "files-admin"), null, "and no admins' section");

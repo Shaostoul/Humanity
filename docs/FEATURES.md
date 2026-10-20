@@ -289,7 +289,7 @@ on <server> (the Media list, item and details below), Shared files (the server's
 Admin (admins), the HumanityOS folder (`files/app_folder.rs`: the app's own folder, the one holding
 data/, assets/ and mods/, as a tree read folder by folder; a text file read and edited in the
 middle; Save keeps `<name>.bak` beside it and Put back the previous version restores it; the web's
-is the server's data/ through `/api/data-files`, `files-folder.js`) and Your folders (desktop
+is the server's data/ through `/api/data-files`, for the server's admins only, BUG-206, `files-folder.js`) and Your folders (desktop
 only). The words say Files: the heading "Files on {host}", Add to Files, Put on the Files page,
 Remove from Files, "On the Files page since", "File space (MB)". The names followed: `GuiPage::Files`
 (page id `files`), `src/gui/pages/files.rs` + `files/`, `FilesState`, the relay's
@@ -1743,7 +1743,7 @@ The developer's browser and editor for `data/` was its own Files page (Platform 
 Media Page"), starting one folder up so assets/ and mods/ show too. Dev tooling: kept, nothing lost.
 A Library guide in `data/library/` opens in the Library from there (2026-10-20, "Open in the Library").
 - Native: `src/gui/pages/files/app_folder.rs`
-- Web: `web/pages/files-folder.js` (the server's data/ through `/api/data-files`), a place of `/files`
+- Web: `web/pages/files-folder.js` (the server's data/ through `/api/data-files`, signed POSTs for the server's admins only since BUG-206), a place of `/files` shown to admins alone
 
 ### Resources Page
 Resources directory in native UI.

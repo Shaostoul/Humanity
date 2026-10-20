@@ -5446,4 +5446,94 @@ mod tests {
         assert_eq!(admin.status().as_u16(), 200, "an admin's signed write lands");
         assert_eq!(written.unwrap(), content);
     }
+
+    /// THE SERVER'S DATA FOLDER IS LISTED AND READ ONLY BY ITS ADMINS (BUG-206, 2026-10-20). Until
+    /// then GET /api/data-files and /api/data-files/read needed no sign-in and served any text file
+    /// under data/, the claim code a fresh server writes among them (`data/owner-claim-code.txt`:
+    /// typed as `/claim <code>`, it makes its reader the admin), and members-only uploads and
+    /// uploads waiting to be published. Now both are signed POSTs, as the write is (BUG-205): no
+    /// signature, a signature over another path, a GET, and a signed request from someone who is
+    /// not an admin are all refused; an admin lists and reads.
+    ///
+    /// Seen red 2026-10-20 with `data_files_admin` answering Ok for the list and the read (the
+    /// routes as open as they were, by POST): "no signature, no listing / left: 200 / right: 401".
+    /// That run left its scratch file and the claim code in data/, which is why both now go in a
+    /// guard that removes them however the test ends.
+    #[tokio::test]
+    async fn only_an_admin_with_a_signature_may_list_or_read_the_data_folder() {
+        /// Removes the files it holds when dropped, a failed assertion included.
+        struct Scratch(Vec<String>);
+        impl Drop for Scratch {
+            fn drop(&mut self) {
+                for f in &self.0 {
+                    let _ = std::fs::remove_file(f);
+                }
+            }
+        }
+        let (state, port) = spawn_relay("dataread", Features::all_enabled()).await;
+        let client = reqwest::Client::new();
+        let list_url = format!("http://127.0.0.1:{port}/api/data-files");
+        let read_url = format!("http://127.0.0.1:{port}/api/data-files/read");
+        // A scratch file of this test's own under the working folder's data/, removed at the end.
+        let rel = format!("data/_test_data_read_{}.txt", std::process::id());
+        let content = "read by the test";
+        std::fs::write(&rel, content).unwrap();
+        let mut scratch = Scratch(vec![rel.clone()]);
+        // A fresh server's claim code, written the way run_relay writes it, unless this checkout's
+        // data/ already holds one from a relay run here: then that one, left as it is.
+        let claim = crate::relay::CLAIM_CODE_FILE;
+        if !std::path::Path::new(claim).exists() {
+            crate::relay::write_claim_code_file("0123456789ABCDEF").unwrap();
+            scratch.0.push(claim.to_string());
+        }
+        let claim_text = std::fs::read_to_string(claim).unwrap();
+        let code = claim_text.split_whitespace().nth(4).unwrap_or("0123456789ABCDEF").to_string();
+
+        let dil = crate::relay::core::pq_crypto::DilithiumKeypair::from_seed(&crate::relay::core::pq_crypto::derive_dilithium_seed(&[8u8; 32]));
+        let key = hex::encode(dil.public_key());
+        let now = || std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as u64;
+        let sign = |purpose: String, ts: u64| hex::encode(dil.sign(format!("{purpose}\n{ts}").as_bytes()));
+        let post = |url: &str, body: serde_json::Value| client.post(url).json(&body).send();
+        let body_of = |r: reqwest::Response| async move { (r.status().as_u16(), r.text().await.unwrap_or_default()) };
+
+        let (status, body) = body_of(post(&list_url, serde_json::json!({ "path": "data" })).await.unwrap()).await;
+        assert_eq!(status, 401, "no signature, no listing");
+        assert!(!body.contains("owner-claim-code"), "and no names: {body}");
+        let (status, body) = body_of(post(&read_url, serde_json::json!({ "path": claim })).await.unwrap()).await;
+        assert_eq!(status, 401, "no signature, no reading the claim code");
+        assert!(!body.contains(&code), "and not its code: {body}");
+        let (status, body) = body_of(client.get(format!("{list_url}?path=data")).send().await.unwrap()).await;
+        assert_ne!(status, 200, "the listing is no longer a GET");
+        assert!(!body.contains("owner-claim-code"));
+        let (status, body) = body_of(client.get(format!("{read_url}?path={claim}")).send().await.unwrap()).await;
+        assert_ne!(status, 200, "nor the reading");
+        assert!(!body.contains(&code));
+
+        let ts = now();
+        let other = post(&read_url, serde_json::json!({ "path": claim, "key": key, "timestamp": ts, "sig": sign(crate::relay::api::read_purpose(&rel), ts) })).await.unwrap();
+        assert_eq!(other.status().as_u16(), 401, "a signature over another file does not count");
+
+        let ts = now() + 1;
+        let (status, body) = body_of(post(&list_url, serde_json::json!({ "path": "data", "key": key, "timestamp": ts, "sig": sign(crate::relay::api::list_purpose("data"), ts) })).await.unwrap()).await;
+        assert_eq!(status, 403, "a signed listing by someone who is not an admin is refused");
+        assert!(!body.contains("owner-claim-code"));
+        let ts = now() + 2;
+        let (status, body) = body_of(post(&read_url, serde_json::json!({ "path": claim, "key": key, "timestamp": ts, "sig": sign(crate::relay::api::read_purpose(claim), ts) })).await.unwrap()).await;
+        assert_eq!(status, 403, "a fresh server's claim code cannot be read without being its admin");
+        assert!(!body.contains(&code), "and its code is nowhere in the answer: {body}");
+
+        state.db.set_role(&key, "admin").unwrap();
+        let ts = now() + 3;
+        let (list_status, listed) = body_of(post(&list_url, serde_json::json!({ "path": "data", "key": key, "timestamp": ts, "sig": sign(crate::relay::api::list_purpose("data"), ts) })).await.unwrap()).await;
+        let ts = now() + 4;
+        let read = post(&read_url, serde_json::json!({ "path": rel, "key": key, "timestamp": ts, "sig": sign(crate::relay::api::read_purpose(&rel), ts) })).await.unwrap();
+        let (read_status, read_body) = body_of(read).await;
+        let again = post(&read_url, serde_json::json!({ "path": rel, "key": key, "timestamp": ts, "sig": sign(crate::relay::api::read_purpose(&rel), ts) })).await.unwrap();
+        assert_eq!(list_status, 200, "an admin lists the folder");
+        assert!(listed.contains(rel.trim_start_matches("data/")), "with the scratch file in it");
+        assert_eq!(read_status, 200, "and reads a file");
+        let read: serde_json::Value = serde_json::from_str(&read_body).unwrap();
+        assert_eq!(read["content"], content);
+        assert_eq!(again.status().as_u16(), 401, "a signed request is used once");
+    }
 }

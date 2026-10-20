@@ -573,6 +573,22 @@ pub fn validate_environment() -> (String, std::net::SocketAddr) {
     (db_path, listen_addr)
 }
 
+/// Where a fresh server with no admin keeps its first-admin claim code (`run_relay`), beside its
+/// database. Whoever reads it can make themselves the admin with `/claim <code>`, so it is for the
+/// host's eyes alone: the data-file routes serve nothing under data/ to anyone but an admin
+/// (BUG-206), and the website's copy of data/ takes only JSON (scripts/sync-web-root.sh).
+pub const CLAIM_CODE_FILE: &str = "data/owner-claim-code.txt";
+
+/// Write the claim code file ([`CLAIM_CODE_FILE`]) for `code`.
+pub fn write_claim_code_file(code: &str) -> std::io::Result<()> {
+    std::fs::write(
+        CLAIM_CODE_FILE,
+        format!(
+            "HumanityOS server claim code: {code}\nThis server has no admin yet. In the app or web chat, type:\n  /claim {code}\nto become the first admin. The code burns on use and this file is deleted.\n"
+        ),
+    )
+}
+
 /// Run the relay server. Contains all startup logic from main().
 /// Call after initializing logging and validating the environment.
 /// Boot a relay on an explicit database + an already-bound listener, with
@@ -845,13 +861,8 @@ pub async fn run_relay() {
             // 64 bits from the CSPRNG as 16 hex chars: unguessable over the
             // rate-limited chat path, short enough to type from the console.
             let code = format!("{:016X}", rand::rng().random::<u64>());
-            let path = "data/owner-claim-code.txt";
-            if let Err(e) = std::fs::write(
-                path,
-                format!(
-                    "HumanityOS server claim code: {code}\nThis server has no admin yet. In the app or web chat, type:\n  /claim {code}\nto become the first admin. The code burns on use and this file is deleted.\n"
-                ),
-            ) {
+            let path = CLAIM_CODE_FILE;
+            if let Err(e) = write_claim_code_file(&code) {
                 tracing::warn!("Could not write {path}: {e} (the console line below still works)");
             }
             tracing::info!("==========================================================");
@@ -863,7 +874,7 @@ pub async fn run_relay() {
         }
         Ok(_) => {
             // Owned server: make sure no stale code file lingers from before.
-            let _ = std::fs::remove_file("data/owner-claim-code.txt");
+            let _ = std::fs::remove_file(CLAIM_CODE_FILE);
         }
         Err(e) => tracing::error!("admin_count failed ({e}); claim-code bootstrap skipped"),
     }
@@ -1381,8 +1392,9 @@ pub fn build_router(state: Arc<RelayState>) -> Router {
         .route("/api/push/subscribe", post(api::push_subscribe))
         .route("/api/push/unsubscribe", post(api::push_unsubscribe))
         .route("/api/vapid-public-key", get(api::get_vapid_public_key))
-        .route("/api/data-files", get(api::list_files))
-        .route("/api/data-files/read", get(api::read_file))
+        // The server's data folder, for its admins only (BUG-205, BUG-206): every one a signed POST.
+        .route("/api/data-files", post(api::list_files))
+        .route("/api/data-files/read", post(api::read_file))
         .route("/api/data-files/write", post(api::write_file))
         .route("/api/docs/accord", get(api::list_accord_docs))
         .route("/api/docs/accord/{slug}", get(api::get_accord_doc))

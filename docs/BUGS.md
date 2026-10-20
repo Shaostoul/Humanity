@@ -6084,4 +6084,57 @@ cannot be reused for another file or other content), that timestamp unused by th
 signs through `getPqSignedAuth` and says plainly that only admins can save. Test:
 `relay::features::tests::only_an_admin_with_a_signature_may_write_a_data_file`, seen red with the
 checks off (the unsigned write answered 200 and really wrote the file). Reading (`/api/data-files`,
-`/api/data-files/read`) stays open: it serves the game data the website shows.
+`/api/data-files/read`) was left open that night, on the belief that it served only the game data
+the website shows. It did not: see BUG-206, which closed it the same day.
+
+## BUG-206: anyone could list and read a server's data/ folder, its first-admin claim code included (FIXED 2026-10-20, found 2026-10-20)
+
+`GET /api/data-files` and `GET /api/data-files/read` (`src/relay/api.rs` `list_files`,
+`read_file`; `src/relay/storage/data_files.rs`) needed no sign-in and listed and served any text
+file under the server's `data/`. That folder is also the running relay's, so it held more than game
+data:
+
+- `data/owner-claim-code.txt`, which a fresh server with no admin writes at start (`src/relay/mod.rs`,
+  `CLAIM_CODE_FILE`). Its code typed as `/claim <code>` in chat makes that person the server's admin,
+  so anyone who found a new server before its owner could have read the code and taken the server.
+  The reviewer reproduced reading it on a scratch relay.
+- members-only uploads (`data/media-members/`) and uploads waiting to be published
+  (`data/media-waiting/`) of a text type (the route reads `.txt`, `.json`, `.csv`, `.md` and the like).
+
+Separately, every deploy copied each `*.json` under the server's `data/` to the public web root
+(`scripts/sync-web-root.sh`), so a JSON upload in either folder would have been public there too.
+
+Found 2026-10-20 by the review of that night's merges (v0.1522.0 to v0.1526.0). Checked on the live
+server the same day: no claim code file (it has an admin), no `data/media-members/` folder, and
+`data/media-waiting/` empty, nor any of them in the web root's copy of `data/`; so nothing was
+exposed there. Every self-hosted server that started without an admin was exposed until its owner
+claimed it.
+
+Fixed:
+
+1. The deploy publishes only the JSON files git tracks under `data/` (v0.1526.1, commit cd3ba3e72,
+   `git ls-files` into rsync; it refuses a folder that is not a git checkout), and
+   `scripts/tests/web-root-retired.test.js` holds it to that. A test on the relay's side,
+   `relay::storage::files::tests::git_tracks_nothing_in_the_relays_file_folders`, keeps git from
+   tracking anything in the relay's file folders (seen red with a scratch file added to
+   `data/media-waiting/` in the index).
+2. Listing and reading are for this server's admins only, exactly as writing is (BUG-205): both are
+   now POSTs with a JSON body carrying the key, the timestamp and a Dilithium3 signature over
+   `data_files_list\n{path}` or `data_files_read\n{path}` then `\n{timestamp}` (`list_purpose`,
+   `read_purpose`), fresh (5 minutes), used once (`auth_nonce_fresh`), and the admin role
+   (`data_files_admin`, which the write uses too). POST, not GET: a key and signature in an address
+   is about 10 KB, past nginx's limits. On a fresh server there is no admin, so nobody can read the
+   claim code through the server; only the host, from its disk or console, as intended. Test:
+   `relay::features::tests::only_an_admin_with_a_signature_may_list_or_read_the_data_folder`
+   (unsigned, a signature over another file, the old GETs and a non-admin all refused, the claim
+   code never in an answer, an admin lists and reads), seen red with the check answering Ok for the
+   list and the read ("no signature, no listing / left: 200 / right: 401").
+3. The website's Files page shows the server's data folder only to the server's admins, like its
+   Admin place, and signs each request through `getPqSignedAuth` (`web/pages/files-places.js`
+   `listed`, `web/pages/files-folder.js` `signedPost`); "How this page works" names it only for an
+   admin. Test: `scripts/tests/files-web-places.test.js` 6, seen red with a member's places listing
+   it and with the listing back on the unsigned GET.
+
+The comments in `src/relay/storage/files.rs` that said nothing but `/api/files/file/{id}` serves a
+members-only file, and that a waiting upload is never at a public address, were false while this
+was open; they now name the admin-only data-file routes and the tracked-only deploy.

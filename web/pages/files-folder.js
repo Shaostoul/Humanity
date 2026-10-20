@@ -7,6 +7,12 @@
 // starts one folder up (the app's own folder, so mods/ shows too). A website can
 // only reach the server's data/ through /api/data-files, so this one starts there.
 //
+// FOR THIS SERVER'S ADMINS ONLY (BUG-206, 2026-10-20): data/ holds more than game
+// data (a fresh server's first-admin claim code, members-only uploads, uploads
+// waiting to be published), so the server lists, reads and writes it only for a
+// signed request from one of its admins, each a POST (`signedPost`), and the page
+// shows this place to admins alone (files-places.js `listed`).
+//
 // The tree on the left under the places (Refresh above it), the file in the
 // middle (the bar with where it is, Wrap and Save above it), and on the right
 // what it is and what editing it means (its CAUTION, which the page's "How this
@@ -18,6 +24,8 @@ const FilesFolder = (function () {
 
   /** What the place says about editing these files. */
   const CAUTION = 'The data folder of the server this website runs on: the files HumanityOS reads for its plants, recipes, maps and the rest. Changing one changes how the app works for everyone on this server.';
+  /** Said when this browser holds no identity to sign with: the folder is for this server's admins. */
+  const SIGN_IN = 'Only this server\'s admins can open or change its data folder. Sign in via Chat first, as an admin.';
   let mounted = false;
 
   // ── State ──
@@ -88,15 +96,36 @@ const FilesFolder = (function () {
     bc.innerHTML = html;
   }
 
+  // ── The server's routes, signed ──
+  /**
+   * POST `body` to one of the data-folder routes with this person's signature over `purpose`: the
+   * server lists, reads and writes its data folder for its admins only (BUG-205 the write, BUG-206
+   * the list and the read, 2026-10-20). src/relay/api.rs builds the same words (`list_purpose`,
+   * `read_purpose`, `write_purpose`), then the timestamp. The answer, or an Error with the reason.
+   * POST, never GET: a Dilithium key and signature in an address is about 10 KB, past nginx's limits.
+   */
+  async function signedPost(url, purpose, body) {
+    const auth = typeof window.getPqSignedAuth === 'function' ? await window.getPqSignedAuth(purpose) : null;
+    if (!auth) throw new Error(SIGN_IN);
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Object.assign({}, body, { key: auth.key, timestamp: auth.timestamp, sig: auth.sig })),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    return data;
+  }
+
   // ── File tree ──
+  let treeError = '';   // why the last folder could not be listed, said in the tree
   async function fetchDir(dirPath) {
     try {
-      const res = await fetch('/api/data-files?path=' + encodeURIComponent(dirPath));
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
+      const data = await signedPost('/api/data-files', 'data_files_list\n' + dirPath, { path: dirPath });
       return data.entries || [];
     } catch (e) {
       console.error('[Files] fetchDir error:', e);
+      treeError = e.message;
       return [];
     }
   }
@@ -186,8 +215,13 @@ const FilesFolder = (function () {
     const treeList = $('tree-list');
     treeList.innerHTML = '<div class="loading">Loading...</div>';
 
+    treeError = '';
     const entries = await fetchDir('data');
     treeList.innerHTML = '';
+    if (!entries.length && treeError) {
+      treeList.innerHTML = '<div class="viewer-empty"><p>' + escapeHtml(treeError) + '</p></div>';
+      return;
+    }
     renderTreeLevel(entries, treeList, 0);
   }
 
@@ -241,9 +275,7 @@ const FilesFolder = (function () {
     if (TEXT_EXTS.has(ext)) {
       viewer.innerHTML = '<div class="loading">Loading...</div>';
       try {
-        const res = await fetch('/api/data-files/read?path=' + encodeURIComponent(filePath));
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
+        const data = await signedPost('/api/data-files/read', 'data_files_read\n' + filePath, { path: filePath });
 
         showFileInfo(data.size, data.modified);
 
@@ -597,17 +629,8 @@ const FilesFolder = (function () {
       // signature before). The signature covers the path and the BLAKE3 of the exact content,
       // the words the relay rebuilds in src/relay/api.rs `write_purpose`.
       const hash = typeof window.pqBlake3 === 'function' ? await window.pqBlake3(new TextEncoder().encode(content)) : null;
-      const auth = hash && typeof window.getPqSignedAuth === 'function'
-        ? await window.getPqSignedAuth('data_files_write\n' + currentPath + '\n' + Array.from(hash, (b) => b.toString(16).padStart(2, '0')).join(''))
-        : null;
-      if (!auth) throw new Error('Only this server\'s admins can change its data files. Sign in via Chat first, as an admin.');
-      const res = await fetch('/api/data-files/write', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path: currentPath, content, key: auth.key, timestamp: auth.timestamp, sig: auth.sig }),
-      });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
+      if (!hash) throw new Error(SIGN_IN);
+      await signedPost('/api/data-files/write', 'data_files_write\n' + currentPath + '\n' + Array.from(hash, (b) => b.toString(16).padStart(2, '0')).join(''), { path: currentPath, content });
 
       originalContent = content;
       updateDirtyState();

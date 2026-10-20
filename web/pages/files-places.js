@@ -8,9 +8,10 @@
 // On the server: "Shared on <server>" (what people chose to show: the list,
 // the featured shelf, the filters, then an item and its details; the page's own
 // list), "Shared files" (the server's public file library: /pages/files-shared.js),
-// "HumanityOS folder" (the server's data folder, read and edited as the data
-// browser did: /pages/files-folder.js), and for an admin "Admin" (who sees the
-// page, its space, its categories and what to prune). The desktop's Your folders
+// and for an admin of the server "HumanityOS folder" (the server's data folder,
+// read and edited as the data browser did: /pages/files-folder.js; the server
+// serves it to its admins alone, BUG-206) and "Admin" (who sees the page, its
+// space, its categories and what to prune). The desktop's Your folders
 // (folders on the computer) has no website version (operator, 2026-10-13: a web
 // page cannot look through a folder the same way in every browser).
 //
@@ -37,9 +38,12 @@
     label: 'Places',
   });
 
-  /** The places listed, in order: Admin for an admin of the server only. */
+  /**
+   * The places listed, in order: the server's data folder and Admin for an admin of the server
+   * only (the server lists and reads its data folder for its admins alone, BUG-206).
+   */
   function listed(admin) {
-    return admin ? ['shared', 'shared-files', 'folder', 'admin'] : ['shared', 'shared-files', 'folder'];
+    return admin ? ['shared', 'shared-files', 'folder', 'admin'] : ['shared', 'shared-files'];
   }
   /** The place an address's hash names (the page's own list for any other). */
   function placeOf(hash) {
@@ -53,10 +57,12 @@
   function addressOf(place) {
     return place === 'shared' ? '/files' : '/files#' + place;
   }
-  /** The place shown for `place`: Admin is an admin's alone, anyone else on it sees what is shared. */
+  /**
+   * The place shown for `place`: Admin and the server's data folder are an admin's alone, and
+   * anyone else on one of them sees what is shared.
+   */
   function shownPlace(place, admin) {
-    if (place === 'admin' && !admin) return 'shared';
-    return listed(true).includes(place) ? place : 'shared';
+    return listed(admin).includes(place) ? place : 'shared';
   }
   /** A place's name in the list. */
   function labelOf(place, host) {

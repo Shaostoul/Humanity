@@ -23,8 +23,11 @@
 //! - `media_licence_log`: every licence choice with the signature over it (round 5).
 //!
 //! THE FILES live in two folders ([`Folders`]): the public one, served at `/uploads`, and
-//! `data/media-members/`, which nothing serves but `GET /api/files/file/{id}` to a member. A
-//! members-only item's file is in the second (F3).
+//! `data/media-members/`, which nothing serves but `GET /api/files/file/{id}` to a member and the
+//! data-file routes to this server's admins (members too; relay/api.rs, BUG-206). A members-only
+//! item's file is in the second (F3). The website publishes only the JSON files git tracks under
+//! data/ (scripts/sync-web-root.sh, since v0.1526.1), and git tracks nothing in the folders named
+//! here (a test in files_tests.rs), so none of them reaches the website's copy.
 //!
 //! Every refusal says what to do in words a person can act on ([`FilesError::Refused`]); the
 //! routes turn its [`Refusal`] into the HTTP status.
@@ -35,13 +38,15 @@ use std::path::{Path, PathBuf};
 
 /// The public uploads folder, served at `/uploads` (relay/mod.rs).
 pub const UPLOADS_DIR: &str = "data/uploads";
-/// The members-only Media folder: nothing serves it but `GET /api/files/file/{id}` (relay/files.rs).
+/// The members-only Media folder: nothing serves it but `GET /api/files/file/{id}` to a member
+/// (relay/files.rs) and the data-file routes to an admin (relay/api.rs, BUG-206).
 pub const MEMBERS_DIR: &str = "data/media-members";
 /// Where a resumable upload's pieces gather (`<session id>.part`) until the file is whole
 /// (relay/resumable.rs, storage/upload_sessions.rs). Nothing serves it, and `clear_part_files`
 /// never touches it: a session survives a restart, which is the point of it.
 pub const RESUME_DIR: &str = "data/uploads-resume";
-/// Where a Media upload waits until it is published (R6, 2026-10-11): nothing serves it, so an
+/// Where a Media upload waits until it is published (R6, 2026-10-11): nothing serves it but the
+/// data-file routes to this server's admins (relay/api.rs; open to anyone until BUG-206), so an
 /// upload meant for members only, or any upload on a members-only server, is never at a public
 /// address before it is published. Publishing moves the file to the public folder or the
 /// members-only one; the unpublished expiry and a removal by name delete it from here.

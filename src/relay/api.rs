@@ -2437,21 +2437,84 @@ pub async fn get_signed_profile(
 }
 
 // ── File browser API ───────────────────────────────────────────────────
+//
+// The server's data/ folder, listed, read and written for THIS SERVER'S ADMINS ONLY: the website's
+// Files page shows it as "The server's data folder" (web/pages/files-folder.js) to admins alone.
+// Writing needed no signature until 2026-10-20 (BUG-205); listing and reading needed none until
+// the same night's review (BUG-206), and data/ holds more than game data: the first-admin claim
+// code a fresh server writes (`data/owner-claim-code.txt`, relay/mod.rs, whose code typed as
+// `/claim <code>` makes its reader the admin), members-only uploads (`data/media-members`) and
+// uploads waiting to be published (`data/media-waiting`). The website's own pages read game data
+// from the static /data/ copy (scripts/sync-web-root.sh), never through these routes.
+//
+// All three are POSTs with the signature in a JSON body, never in the address: a Dilithium3 key
+// and signature in a URL is about 10 KB, which trips nginx's header limits (see get_admin_stats).
 
-/// Query params for GET /api/data-files.
-#[derive(Debug, Deserialize)]
-pub struct FilesListQuery {
-    /// Directory path to list (must be within data/).
-    pub path: Option<String>,
+/// The words signed to list the folder `path` (web/pages/files-folder.js signs the same).
+pub fn list_purpose(path: &str) -> String {
+    format!("data_files_list\n{path}")
 }
 
-/// GET /api/data-files — list files in a directory within data/.
-pub async fn list_files(
-    Query(params): Query<FilesListQuery>,
-) -> impl IntoResponse {
-    let dir_path = params.path.as_deref().unwrap_or("data");
+/// The words signed to read the file `path` (web/pages/files-folder.js signs the same).
+pub fn read_purpose(path: &str) -> String {
+    format!("data_files_read\n{path}")
+}
 
-    match crate::relay::storage::data_files::list_directory(dir_path) {
+/// Whether `key` may use the data-file routes now, or the refusal to answer with: a key and a
+/// signature at all, a fresh timestamp (5 minutes), a Dilithium3 signature from `key` over
+/// `purpose` then `\n{timestamp}`, that timestamp not used before by that key for `tag`
+/// (`auth_nonce_fresh`), and the admin role for that key.
+async fn data_files_admin(state: &RelayState, key: &str, timestamp: u64, sig: &str, tag: &str, purpose: String) -> Result<(), axum::response::Response> {
+    use crate::relay::handlers::broadcast::verify_dilithium_signature;
+    let refuse = |status: StatusCode, why: &str| (status, Json(serde_json::json!({ "error": why }))).into_response();
+    if key.is_empty() || sig.is_empty() {
+        return Err(refuse(StatusCode::UNAUTHORIZED, "Only this server's admins can open or change its data folder: sign in to the chat as an admin first."));
+    }
+    let now_ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
+    if now_ms.saturating_sub(timestamp) > 5 * 60 * 1000 || timestamp > now_ms + 60_000 {
+        return Err(refuse(StatusCode::BAD_REQUEST, "The request is too old or from the future: check this computer's clock and try again."));
+    }
+    let (vk, vsig) = (key.to_string(), sig.to_string());
+    // CPU-bound: off the async executor, failing closed if the check panics.
+    let sig_ok = tokio::task::spawn_blocking(move || verify_dilithium_signature(&vk, &purpose, timestamp, &vsig)).await.unwrap_or(false);
+    if !sig_ok {
+        return Err(refuse(StatusCode::UNAUTHORIZED, "The signature does not match this request."));
+    }
+    if !state.auth_nonce_fresh(key, tag, timestamp) {
+        return Err(refuse(StatusCode::UNAUTHORIZED, "That request was already used: try again."));
+    }
+    if state.db.get_role(key).unwrap_or_default() != "admin" {
+        return Err(refuse(StatusCode::FORBIDDEN, "Only this server's admins can open or change its data folder."));
+    }
+    Ok(())
+}
+
+/// Request body for POST /api/data-files: the folder, and an admin's signed say-so.
+#[derive(Debug, Deserialize)]
+pub struct FilesListRequest {
+    /// Directory path to list (must be within data/; "data" when none is given).
+    pub path: Option<String>,
+    /// The reader's Dilithium3 public key (hex): must belong to one of this server's admins.
+    #[serde(default)]
+    pub key: String,
+    /// Milliseconds since 1970 when signed: fresh (5 minutes) and used once.
+    #[serde(default)]
+    pub timestamp: u64,
+    /// Dilithium3 signature (hex) over `data_files_list\n{path}\n{timestamp}` ([`list_purpose`]).
+    #[serde(default)]
+    pub sig: String,
+}
+
+/// POST /api/data-files: list a folder within data/, for this server's admins only.
+pub async fn list_files(
+    State(state): State<Arc<RelayState>>,
+    Json(req): Json<FilesListRequest>,
+) -> impl IntoResponse {
+    let dir_path = req.path.as_deref().unwrap_or("data").to_string();
+    if let Err(refused) = data_files_admin(&state, &req.key, req.timestamp, &req.sig, "data_files_list", list_purpose(&dir_path)).await {
+        return refused;
+    }
+    match crate::relay::storage::data_files::list_directory(&dir_path) {
         Ok(entries) => (StatusCode::OK, Json(serde_json::json!({
             "path": dir_path,
             "entries": entries,
@@ -2462,20 +2525,33 @@ pub async fn list_files(
     }
 }
 
-/// Query params for GET /api/data-files/read.
+/// Request body for POST /api/data-files/read: the file, and an admin's signed say-so.
 #[derive(Debug, Deserialize)]
-pub struct FileReadQuery {
+pub struct FileReadRequest {
     /// File path to read (must be within data/).
     pub path: String,
+    /// The reader's Dilithium3 public key (hex): must belong to one of this server's admins.
+    #[serde(default)]
+    pub key: String,
+    /// Milliseconds since 1970 when signed: fresh (5 minutes) and used once.
+    #[serde(default)]
+    pub timestamp: u64,
+    /// Dilithium3 signature (hex) over `data_files_read\n{path}\n{timestamp}` ([`read_purpose`]).
+    #[serde(default)]
+    pub sig: String,
 }
 
-/// GET /api/data-files/read — read a text file's contents.
+/// POST /api/data-files/read: read a text file's contents within data/, for this server's admins only.
 pub async fn read_file(
-    Query(params): Query<FileReadQuery>,
+    State(state): State<Arc<RelayState>>,
+    Json(req): Json<FileReadRequest>,
 ) -> impl IntoResponse {
-    match crate::relay::storage::data_files::read_file(&params.path) {
+    if let Err(refused) = data_files_admin(&state, &req.key, req.timestamp, &req.sig, "data_files_read", read_purpose(&req.path)).await {
+        return refused;
+    }
+    match crate::relay::storage::data_files::read_file(&req.path) {
         Ok(content) => {
-            let abs_path = crate::relay::storage::data_files::validate_path(&params.path);
+            let abs_path = crate::relay::storage::data_files::validate_path(&req.path);
             let (size, modified) = abs_path.ok()
                 .and_then(|p| std::fs::metadata(&p).ok())
                 .map(|m| {
@@ -2490,7 +2566,7 @@ pub async fn read_file(
                 .unwrap_or((0, 0));
 
             (StatusCode::OK, Json(serde_json::json!({
-                "path": params.path,
+                "path": req.path,
                 "content": content,
                 "size": size,
                 "modified": modified,
@@ -2530,34 +2606,15 @@ pub fn write_purpose(path: &str, content: &str) -> String {
 /// POST /api/data-files/write: write a text file under data/, for this server's admins only.
 ///
 /// Until 2026-10-20 this route took no signature at all, so anyone who could reach the server
-/// could rewrite its text files under data/ (found while the Files pages were merged). Now it
-/// needs, like the admin stats: a fresh timestamp (5 minutes), a Dilithium3 signature from the
-/// sender's key over the path and the content's hash, that timestamp not used before by that key
-/// (`auth_nonce_fresh`), and the admin role for that key.
+/// could rewrite its text files under data/ (BUG-205, found while the Files pages were merged).
+/// Now it needs what listing and reading need ([`data_files_admin`]), its signature over the
+/// path and the content's hash.
 pub async fn write_file(
     State(state): State<Arc<RelayState>>,
     Json(req): Json<FileWriteRequest>,
 ) -> impl IntoResponse {
-    use crate::relay::handlers::broadcast::verify_dilithium_signature;
-    let refuse = |status: StatusCode, why: &str| (status, Json(serde_json::json!({ "error": why }))).into_response();
-    if req.key.is_empty() || req.sig.is_empty() {
-        return refuse(StatusCode::UNAUTHORIZED, "Only this server's admins can change its data files: sign in to the chat as an admin first.");
-    }
-    let now_ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
-    if now_ms.saturating_sub(req.timestamp) > 5 * 60 * 1000 || req.timestamp > now_ms + 60_000 {
-        return refuse(StatusCode::BAD_REQUEST, "The request is too old or from the future: check this computer's clock and try again.");
-    }
-    let (vk, vsig, vts, purpose) = (req.key.clone(), req.sig.clone(), req.timestamp, write_purpose(&req.path, &req.content));
-    // CPU-bound: off the async executor, failing closed if the check panics.
-    let sig_ok = tokio::task::spawn_blocking(move || verify_dilithium_signature(&vk, &purpose, vts, &vsig)).await.unwrap_or(false);
-    if !sig_ok {
-        return refuse(StatusCode::UNAUTHORIZED, "The signature does not match this file and content.");
-    }
-    if !state.auth_nonce_fresh(&req.key, "data_files_write", req.timestamp) {
-        return refuse(StatusCode::UNAUTHORIZED, "That request was already used: try again.");
-    }
-    if state.db.get_role(&req.key).unwrap_or_default() != "admin" {
-        return refuse(StatusCode::FORBIDDEN, "Only this server's admins can change its data files.");
+    if let Err(refused) = data_files_admin(&state, &req.key, req.timestamp, &req.sig, "data_files_write", write_purpose(&req.path, &req.content)).await {
+        return refused;
     }
     match crate::relay::storage::data_files::write_file(&req.path, &req.content) {
         Ok(()) => (StatusCode::OK, Json(serde_json::json!({

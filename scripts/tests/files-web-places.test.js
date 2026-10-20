@@ -62,14 +62,15 @@ const routes = () => listRoutes(listAnswer([]), [[at("/api/uploads"), () => resp
 // ── 1. The places, their names and addresses ─────────────────────────────
 
 // Seen red 2026-10-19 with shownPlace letting a member keep #admin: "Admin is an admin's alone".
-test("1. the places: three for everyone and Admin for an admin, each at its own address", () => {
-  assert.deepEqual(FPL.listed(false), ["shared", "shared-files", "folder"]);
+test("1. the places: two for everyone, the data folder and Admin for an admin, each at its own address", () => {
+  assert.deepEqual(FPL.listed(false), ["shared", "shared-files"]);
   assert.deepEqual(FPL.listed(true), ["shared", "shared-files", "folder", "admin"]);
   for (const place of FPL.listed(true)) assert.equal(FPL.placeOf(FPL.addressOf(place).replace("/files", "")), place, "the address names the place: " + place);
   assert.equal(FPL.addressOf("shared"), "/files", "what is shared is the page itself");
   assert.equal(FPL.placeOf("#nothing"), "shared", "an unknown hash shows what is shared");
   assert.equal(FPL.shownPlace("admin", false), "shared", "Admin is an admin's alone");
-  assert.equal(FPL.shownPlace("folder", false), "folder");
+  assert.equal(FPL.shownPlace("folder", false), "shared", "and so is the server's data folder (BUG-206)");
+  assert.equal(FPL.shownPlace("folder", true), "folder");
   assert.equal(FPL.labelOf("shared", "united-humanity.us"), "Shared on united-humanity.us", "the desktop's words");
   assert.equal(FPL.labelOf("shared-files"), "Shared files");
   assert.equal(FPL.labelOf("folder"), "HumanityOS folder");
@@ -116,8 +117,8 @@ test("3. the page opened at a place's address shows that place", async () => {
   const shared = await openPage({ view: "panes", hash: "#shared-files", routes: routes() });
   assert.equal(byId(shared.doc, "files-place-area").hidden, false, "/files#shared-files opens Shared files");
   assert.equal(byId(shared.doc, "files-place-shared-files").getAttribute("aria-current"), "page");
-  const folder = await openPage({ view: "panes", hash: "#folder", routes: routes() });
-  assert.equal(byId(folder.doc, "files-place-folder").getAttribute("aria-current"), "page", "/files#folder opens the HumanityOS folder");
+  const folder = await openPage({ view: "panes", hash: "#folder", session: fakeSession({ role: "admin" }), routes: routes() });
+  assert.equal(byId(folder.doc, "files-place-folder").getAttribute("aria-current"), "page", "/files#folder opens the HumanityOS folder for an admin");
   assert.equal(byId(folder.doc, "files-main").hidden, true);
 });
 
@@ -176,7 +177,8 @@ const PAGE_LINE = rustConst("PAGE_LINE", "pages", "files", "how.rs");
 // (files-folder.js), "the folder's caution stays beside the file" failed; with the fold's
 // HumanityOS folder part left out, "open, each place's line under its name" failed (and 5b's
 // "open from the start, its parts drawn": actual 2, expected 3); with readOpen answering open
-// unless "0" is kept (how-it-works.js), "closed by default" failed (actual 'true').
+// unless "0" is kept (how-it-works.js), "closed by default" failed (actual 'true'). Since
+// 2026-10-20 the folder and its part in the fold are an admin's (BUG-206): 6 holds them.
 test("5a. How this page works: a toggle beside the heading, closed by default; Shared files' line and the folder's caution stay where they are acted on; opened, the page's line and each place's", async () => {
   assert.equal(HOW.LABEL, rustConst("LABEL", "widgets", "how_it_works.rs"), "the desktop's LABEL");
   assert.equal(HOW.TIP, rustConst("TIP", "widgets", "how_it_works.rs"), "the desktop's TIP");
@@ -223,8 +225,7 @@ test("5a. How this page works: a toggle beside the heading, closed by default; S
   assert.deepEqual(foldParts(fold), [
     ["Shared on united-humanity.us", "red", [PAGE_LINE]],
     ["Shared files", "red", [FSH.WORDS.how]],
-    ["HumanityOS folder", "red", [FFO.CAUTION]],
-  ], "open, each place's line under its name");
+  ], "open, each place's line under its name (a member's: the data folder is an admin's, 6)");
   assert.equal(storage.m.get(media.HOW_KEY), "1", "kept, under hos_files_how_open");
   assert.equal(media.HOW_KEY, "hos_files_how_open");
   toggle.click();
@@ -243,7 +244,7 @@ test("5b. How this page works survives a reload; storage refused, the page still
   const again = await openPage({ view: "panes", storage, routes: routes() });
   assert.equal(byId(again.doc, "files-how-toggle").getAttribute("aria-expanded"), "true", "it survives a reload");
   assert.equal(byId(again.doc, "files-how").hidden, false);
-  assert.equal(foldParts(byId(again.doc, "files-how")).length, 3, "open from the start, its parts drawn");
+  assert.equal(foldParts(byId(again.doc, "files-how")).length, 2, "open from the start, its parts drawn");
   byId(again.doc, "files-how-toggle").click();
   const closed = await openPage({ view: "panes", storage, routes: routes() });
   assert.equal(byId(closed.doc, "files-how-toggle").getAttribute("aria-expanded"), "false", "closed, and that is kept too");
@@ -267,4 +268,91 @@ test("5b. How this page works survives a reload; storage refused, the page still
   assert.match(html, /<link rel="stylesheet" href="\/shared\/how-it-works\.css\?v=\d+">/, "files.html links how-it-works.css");
   const s = html.indexOf('src="/shared/how-it-works.js'), a = html.indexOf('src="/pages/files-app.js');
   assert.ok(s > 0 && s < a, "how-it-works.js loads before files-app.js");
+});
+
+// ── 6. The server's data folder is an admin's alone (BUG-206) ─────────────
+
+/**
+ * A document of plain nodes for files-folder.js, which draws with markup: each element asked for
+ * by id is made the first time and kept, with what was written into it (innerHTML reads back the
+ * escaped textContent until markup is written, as a browser's does).
+ */
+function folderDocument() {
+  const node = () => ({
+    textContent: "", style: {}, dataset: {}, className: "", children: [],
+    get innerHTML() { return this.html != null ? this.html : String(this.textContent).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); },
+    set innerHTML(v) { this.html = v; },
+    classList: { add() {}, remove() {}, toggle() {} },
+    appendChild(c) { this.children.push(c); return c; },
+    append(...k) { this.children.push(...k); },
+    insertAdjacentElement() {}, addEventListener() {}, querySelector: () => null, remove() {},
+  });
+  const ids = new Map();
+  return {
+    getElementById(id) { if (!ids.has(id)) ids.set(id, node()); return ids.get(id); },
+    createElement: () => node(),
+    querySelectorAll: () => [],
+  };
+}
+/**
+ * files-folder.js run with `signer` as this browser's getPqSignedAuth and `answer(url, body)` as
+ * the server, `then(doc)` after its tree is read: what it asked of the server, and its tree.
+ */
+async function withFolder(signer, answer, then) {
+  const calls = [];
+  const names = ["document", "window", "fetch", "CSS", "confirm"];
+  const before = names.map((n) => [n, Object.getOwnPropertyDescriptor(globalThis, n)]);
+  const doc = folderDocument();
+  Object.assign(globalThis, {
+    document: doc, window: { getPqSignedAuth: signer }, CSS: { escape: (s) => s }, confirm: () => true,
+    fetch: async (url, init) => { calls.push({ url, init }); return { json: async () => answer(url, init && init.body ? JSON.parse(init.body) : null) }; },
+  });
+  try {
+    await FFO.refreshTree();
+    if (then) await then(doc);
+  } finally {
+    for (const [n, d] of before) { if (d) Object.defineProperty(globalThis, n, d); else delete globalThis[n]; }
+  }
+  return { calls, tree: doc.getElementById("tree-list").innerHTML };
+}
+
+// Found 2026-10-20 by the review of that night's merges: GET /api/data-files and /read served any
+// text file under the server's data/ to anyone, a fresh server's claim code among them, and this
+// place was listed for everyone. Seen red the same day: with a member's places listing the folder
+// again (files-places.js `listed`), "a member has no data folder place" failed (actual
+// [FakeElement], expected null); with the listing back on the unsigned GET (fetchDir), "no
+// identity: nothing is asked of the server" failed (actual 1, expected 0).
+test("6. the server's data folder is an admin's alone: a member has no such place, even at /files#folder, nor its line; it lists and reads by a signed POST", async () => {
+  const member = await openPage({ view: "panes", hash: "#folder", routes: routes() });
+  assert.equal(byId(member.doc, "files-place-folder"), null, "a member has no data folder place");
+  assert.equal(byId(member.doc, "files-main").hidden, false, "at /files#folder a member sees what is shared");
+  assert.equal(byId(member.doc, "files-place-area").hidden, true);
+  const storage = fakeStorage();
+  storage.setItem(media.HOW_KEY, "1");
+  const admin = await openPage({ view: "panes", storage, session: fakeSession({ role: "admin" }), routes: routes() });
+  assert.ok(byId(admin.doc, "files-place-folder"), "an admin has it");
+  assert.deepEqual(foldParts(byId(admin.doc, "files-how")).map((p) => p[0]), ["Shared on united-humanity.us", "Shared files", FPL.WORDS.folder], "and its line in the fold");
+
+  // No identity in this browser: the server is not asked, and the tree says why.
+  const none = await withFolder(async () => null, () => ({}));
+  assert.equal(none.calls.length, 0, "no identity: nothing is asked of the server");
+  assert.ok(none.tree.includes("admins can open or change its data folder"), "the tree says the folder is for admins: " + none.tree);
+
+  // The server refusing: its own words in the tree.
+  const signer = async (purpose) => ({ key: "kkkk", timestamp: 1760000000123, sig: "sig:" + purpose });
+  const refused = await withFolder(signer, () => ({ error: "Only this server's admins can open or change its data folder." }));
+  assert.ok(refused.tree.includes("open or change its data folder"), "the server's refusal in the tree");
+
+  // An admin's identity: the list and the read are POSTs, signed over the path, with no path or
+  // signature in the address.
+  const entries = [{ name: "notes.txt", path: "data/notes.txt", is_directory: false, extension: "txt", size: 5, modified: 0 }];
+  const asked = await withFolder(signer, (url, body) => (url === "/api/data-files" ? { path: body.path, entries } : { path: body.path, content: "notes", size: 5, modified: 0 }), async (doc) => {
+    const row = doc.getElementById("tree-list").children[0];
+    assert.ok(row && typeof row.onclick === "function", "the file is in the tree");
+    row.onclick();
+    await settle();
+  });
+  assert.deepEqual(asked.calls.map((c) => [c.url, c.init && c.init.method]), [["/api/data-files", "POST"], ["/api/data-files/read", "POST"]], "a POST to list, then one to read, the addresses bare");
+  assert.deepEqual(JSON.parse(asked.calls[0].init.body), { path: "data", key: "kkkk", timestamp: 1760000000123, sig: "sig:data_files_list\ndata" }, "the listing signed over its folder (src/relay/api.rs list_purpose)");
+  assert.deepEqual(JSON.parse(asked.calls[1].init.body), { path: "data/notes.txt", key: "kkkk", timestamp: 1760000000123, sig: "sig:data_files_read\ndata/notes.txt" }, "the read signed over its file (read_purpose)");
 });

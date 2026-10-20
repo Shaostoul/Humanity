@@ -119,8 +119,8 @@
 // opens it, remembered in this browser (localStorage `hos_files_how_open`, the
 // desktop's config.json `files_how_open`). In it, under each place's name: the
 // page's own line (the desktop's PAGE_LINE, which took the place of the short
-// line that was under the heading), Shared files' line and the HumanityOS
-// folder's caution. Outside it, where the person acts, they stay: Shared files'
+// line that was under the heading), Shared files' line and, for an admin, the
+// HumanityOS folder's caution. Outside it, where the person acts, they stay: Shared files'
 // line (they are public for anyone to download) beside Upload a file, and the
 // folder's caution beside the file being edited. The desktop's Your folders has
 // no website version, so its line is not here.
@@ -870,7 +870,8 @@
             f.part(FPL ? FPL.WORDS.sharedFiles : 'Shared files', 'red');
             f.line(FSH.WORDS.how);
           }
-          if (FFO && FFO.CAUTION) {
+          // The server's data folder is an admin's alone (BUG-206), and so is its line.
+          if (FFO && FFO.CAUTION && isAdmin()) {
             f.part(FPL ? FPL.WORDS.folder : 'HumanityOS folder', 'red');
             f.line(FFO.CAUTION);
           }
@@ -896,6 +897,7 @@
     let panes = null;      // the Files page's panes: the list, the item, its details
     let places = null;     // the places (files-places.js), and the panes of the two that are not the list
     let how = null;        // "How this page works" (/shared/how-it-works.js): its toggle and its fold
+    let howAdmin = null;   // whether the fold was last drawn for an admin (renderTabs)
     let itemPanes = null;  // the item window's: the item and its details
     /** The area the panes share: the page's width, and the window's height (which way they go). */
     function viewport() {
@@ -2168,6 +2170,9 @@
      */
     function renderTabs() {
       const admin = isAdmin();
+      // The fold names the places this person has: drawn again when the role that decides it comes.
+      if (how && how.isOpen() && howAdmin !== admin) how.render();
+      howAdmin = admin;
       const tab = FPL ? FPL.shownPlace(st.tab, admin) : admin && st.tab === 'admin' ? 'admin' : 'shared';
       els.main.hidden = tab !== 'shared';
       els.admin.hidden = tab !== 'admin';

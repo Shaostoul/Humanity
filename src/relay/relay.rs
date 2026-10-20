@@ -4256,7 +4256,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                                         match state_clone.db.set_role(&my_key_for_recv, "admin") {
                                                             Ok(()) => {
                                                                 *slot = None; // burn the code
-                                                                let _ = std::fs::remove_file("data/owner-claim-code.txt");
+                                                                let _ = std::fs::remove_file(crate::relay::CLAIM_CODE_FILE);
                                                                 tracing::info!("Server claimed: {my_key_for_recv} is now the first admin.");
                                                                 "You are now this server's first admin. The claim code is burned. Open Server Settings to manage the server; grant more admins/mods with /mod.".to_string()
                                                             }

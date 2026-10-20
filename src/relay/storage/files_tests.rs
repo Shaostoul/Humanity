@@ -312,3 +312,24 @@ fn a_shared_file_deleted_from_the_library_leaves_the_media_page() {
     assert_eq!(db.media_item(item.id).unwrap(), None, "the item left with its file");
     assert_eq!(count(&db, "SELECT COUNT(*) FROM media_picks"), 0);
 }
+
+/// GIT TRACKS NOTHING IN THE RELAY'S FILE FOLDERS (BUG-206, 2026-10-20). The deploy publishes the
+/// JSON files git tracks under data/ to the public web root (scripts/sync-web-root.sh since
+/// v0.1526.1; until then every JSON file there, so a JSON upload kept for members only or waiting
+/// to be published was public at /data/media-members/<name>). On the server those folders are the
+/// running relay's, so a file committed into one would be published to everyone, and a
+/// developer's test upload committed by mistake would land on every server's website.
+///
+/// Seen red 2026-10-20 with a scratch file `data/media-waiting/_red.json` added to the index (then
+/// taken out again): "git tracks nothing in data/media-waiting, which the deploy would publish:
+/// data/media-waiting/_red.json".
+#[test]
+fn git_tracks_nothing_in_the_relays_file_folders() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    for dir in [UPLOADS_DIR, MEMBERS_DIR, RESUME_DIR, WAITING_DIR] {
+        let out = std::process::Command::new("git").current_dir(root).args(["ls-files", "--", dir]).output().expect("git, to read what the repo tracks");
+        assert!(out.status.success(), "git ls-files ran in {root:?}: {}", String::from_utf8_lossy(&out.stderr));
+        let tracked = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        assert!(tracked.is_empty(), "git tracks nothing in {dir}, which the deploy would publish: {tracked}");
+    }
+}
