@@ -19,11 +19,12 @@
     .badge-viewers{background:var(--bg-tertiary);color:var(--text-secondary)}
 
     /* The stage keeps a 16:9 box even before the first frame lands, so the page
-       does not jump when video starts. */
-    .stage{position:relative;width:100%;aspect-ratio:16/9;background:#000;border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;display:flex;align-items:center;justify-content:center}
+       does not jump when video starts. It is black in both themes, as a video
+       player is, so the words on it keep the dark theme's inks. */
+    .stage{position:relative;width:100%;aspect-ratio:16/9;background:#000;border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;display:flex;align-items:center;justify-content:center} /* theme-exempt: a video player is black in both themes */
     .stage canvas{width:100%;height:100%;object-fit:contain;display:block}
-    .stage-msg{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:var(--space-sm);color:var(--text-muted);font-size:var(--text-base);text-align:center;padding:var(--space-xl)}
-    .stage-msg strong{color:var(--text);font-size:var(--text-lg)}
+    .stage-msg{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:var(--space-sm);color:#94949f;font-size:var(--text-base);text-align:center;padding:var(--space-xl)}
+    .stage-msg strong{color:#e8e8ea;font-size:var(--text-lg)}
     .stage-msg.hidden{display:none}
 
     .watch-stats{display:flex;flex-wrap:wrap;gap:var(--space-lg);font-size:var(--text-xs);color:var(--text-muted);margin-top:var(--space-md)}

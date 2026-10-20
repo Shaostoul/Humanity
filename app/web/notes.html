@@ -6,6 +6,27 @@
   <title>Notes, HumanityOS</title>
   <link rel="stylesheet" href="/shared/theme.css">
   <style>
+    /* Colours this page uses that have no theme token. The dark values are
+       exactly the page's look before the light theme worked (2026-10-19);
+       the light ones serve the light theme. */
+    :root {
+      --pg-blue-ink: #4cf;
+      --pg-blue-line: #1a3a5a;
+      --pg-blue-bg: #0a1520;
+      --pg-accent-line: #553300;
+      --pg-accent-bg: #1a1000;
+      --pg-note-ink: #d0d0d0;
+      --pg-log-ink: #d8d8d8;
+    }
+    :root[data-theme="light"] {
+      --pg-blue-ink: #0b6e99;
+      --pg-blue-line: #9cc4e0;
+      --pg-blue-bg: #e0eef8;
+      --pg-accent-line: #d9a97a;
+      --pg-accent-bg: var(--accent-dim);
+      --pg-note-ink: var(--text);
+      --pg-log-ink: var(--text);
+    }
 
 
     body {
@@ -214,8 +235,8 @@
     }
     .toolbar-btn:hover { color: var(--text); background: var(--bg-input); }
     .toolbar-btn.danger:hover { color: var(--danger); border-color: #500; }
-    .toolbar-btn.active-toggle { color: #4cf; border-color: #1a3a5a; background: #0a1520; }
-    .toolbar-btn.encrypt-on { color: var(--accent); border-color: #553300; background: #1a1000; }
+    .toolbar-btn.active-toggle { color: var(--pg-blue-ink); border-color: var(--pg-blue-line); background: var(--pg-blue-bg); }
+    .toolbar-btn.encrypt-on { color: var(--accent); border-color: var(--pg-accent-line); background: var(--pg-accent-bg); }
 
     #note-body {
       flex: 1;
@@ -228,7 +249,7 @@
       height: 100%;
       background: transparent;
       border: none;
-      color: #d0d0d0;
+      color: var(--pg-note-ink);
       font-size: 0.9rem;
       font-family: 'Segoe UI', system-ui, sans-serif;
       line-height: 1.75;
@@ -246,7 +267,7 @@
       padding: 0;
       font-size: 0.9rem;
       line-height: 1.75;
-      color: #d0d0d0;
+      color: var(--pg-note-ink);
       overflow-y: auto;
     }
     #md-preview h1 { font-size: 1.5rem; margin: 0.6em 0 0.3em; color: var(--text); border-bottom: 1px solid var(--bg-hover); padding-bottom: 0.2em; }
@@ -540,7 +561,7 @@
       flex: 1;
       background: transparent;
       border: none;
-      color: #d8d8d8;
+      color: var(--pg-log-ink);
       font-size: 0.95rem;
       line-height: 1.7;
       padding: 1.2rem var(--space-2xl);

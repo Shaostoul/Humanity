@@ -51,7 +51,7 @@ function buildScopeTabs() {
     <button class="scope-tab${s.key === activeScope ? ' active' : ''}"
             data-key="${s.key}" onclick="setScope('${s.key}')"
             title="${s.desc}">
-      <span class="scope-fib" style="color:${s.color}">${s.n}</span>
+      <span class="scope-fib scope-ink" style="--scope-c:${s.color}">${s.n}</span>
       <span class="scope-label">${s.label}</span>
       <span class="scope-tab-dot" style="background:${s.color}"></span>
     </button>`).join('');
@@ -160,7 +160,7 @@ function renderBoard() {
 function renderControls() {
   const scope = SCOPES.find(s => s.key === activeScope) || defaultScope();
   document.getElementById('scope-desc').innerHTML =
-    `<strong style="color:${scope.color}">${scope.n}·${scope.label}</strong>: ${scope.desc}`;
+    `<strong class="scope-ink" style="--scope-c:${scope.color}">${scope.n}·${scope.label}</strong>: ${scope.desc}`;
   const tasks = scopedTasks();
   const ip = allTasks.filter(t => t.status === 'in_progress').length;
   const projLabel = activeProject === null ? 'all projects'
@@ -194,7 +194,7 @@ function renderCard(task) {
       <span class="card-sep">·</span>
       <span>${timeAgo(task.created_at)}</span>
       <span class="card-sep">·</span>
-      <span class="scope-badge" style="color:${scope.color}">${scope.n}·${scope.label}</span>
+      <span class="scope-badge scope-ink" style="--scope-c:${scope.color}">${scope.n}·${scope.label}</span>
       ${labels.slice(0,3).map(l=>`<span class="label-tag">${esc(l)}</span>`).join('')}
       ${testTally}
     </div>
@@ -515,7 +515,8 @@ function openDetail(id) {
 
   const scopeBadge = document.getElementById('detail-scope-badge');
   scopeBadge.textContent = scope.n + '·' + scope.label;
-  scopeBadge.style.color = scope.color;
+  scopeBadge.classList.add('scope-ink');
+  scopeBadge.style.setProperty('--scope-c', scope.color);
 
   const statusLabel = task.status.replace(/_/g, ' ');
   document.getElementById('detail-badges').innerHTML =
@@ -1384,7 +1385,7 @@ function quest_showToast(msg, duration) {
   if (!el) {
     el = document.createElement('div');
     el.id = 'quest-toast';
-    el.style.cssText = 'position:fixed;bottom:3rem;left:50%;transform:translateX(-50%);background:#222;border:1px solid #f0a500;color:#e0e0e0;padding:var(--space-lg) 1.2rem;border-radius:8px;font-size:0.82rem;z-index:9999;max-width:340px;text-align:center;transition:opacity .3s;';
+    el.style.cssText = 'position:fixed;bottom:3rem;left:50%;transform:translateX(-50%);background:var(--tk-toast-bg);border:1px solid #f0a500;color:var(--tk-toast-ink);padding:var(--space-lg) 1.2rem;border-radius:8px;font-size:0.82rem;z-index:9999;max-width:340px;text-align:center;transition:opacity .3s;';
     document.body.appendChild(el);
   }
   el.textContent = msg;

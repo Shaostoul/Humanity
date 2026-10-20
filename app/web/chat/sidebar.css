@@ -415,7 +415,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: var(--space-xs);
-  background: #000;
+  background: #000; /* theme-exempt: a video surface is black in both themes */
 }
 .unified-stream-preview video {
   width: 100%;

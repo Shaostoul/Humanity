@@ -6,6 +6,33 @@
   <title>Calculator, HumanityOS</title>
   <link rel="stylesheet" href="/shared/theme.css">
   <style>
+    /* Colours this page uses that have no theme token. The dark values are
+       exactly the page's look before the light theme worked (2026-10-19);
+       the light ones serve the light theme. */
+    :root {
+      --pg-accent-bg: #1f1508;
+      --pg-accent-line: #553300;
+      --pg-blue-ink: #4cf;
+      --pg-green-ink: #4caf50;
+      --pg-green-bg: #1a3a1a;
+      --pg-green-line: #2a5a2a;
+      --pg-green-hover: #1e481e;
+      --pg-red-bg: #2a1010;
+      --pg-red-line: #5a2a2a;
+      --pg-red-hover: #381010;
+    }
+    :root[data-theme="light"] {
+      --pg-accent-bg: var(--accent-dim);
+      --pg-accent-line: #d9a97a;
+      --pg-blue-ink: #0b6e99;
+      --pg-green-ink: #1a6e2e;
+      --pg-green-bg: #e2f2e4;
+      --pg-green-line: #a9d4b1;
+      --pg-green-hover: #d2ead6;
+      --pg-red-bg: #f8e4e2;
+      --pg-red-line: #e2b0ac;
+      --pg-red-hover: #f0d2ce;
+    }
     body {
       min-height: 100vh;
       display: flex;
@@ -40,7 +67,7 @@
       transition: all 0.15s;
     }
     .calc-tab:hover { background: var(--bg-input); color: var(--text); }
-    .calc-tab.active { background: #1f1508; border-color: #553300; color: var(--accent); }
+    .calc-tab.active { background: var(--pg-accent-bg); border-color: var(--pg-accent-line); color: var(--accent); }
 
     /* ── Calculator container ── */
     .calc-container {
@@ -119,19 +146,19 @@
     .calc-btn:hover { background: var(--bg-input); }
     .calc-btn:active { transform: scale(0.96); }
     .calc-btn.op { color: var(--accent); }
-    .calc-btn.fn { color: #4cf; font-size: 0.82rem; }
+    .calc-btn.fn { color: var(--pg-blue-ink); font-size: 0.82rem; }
     .calc-btn.eq {
-      background: #1a3a1a;
-      border-color: #2a5a2a;
-      color: #4caf50;
+      background: var(--pg-green-bg);
+      border-color: var(--pg-green-line);
+      color: var(--pg-green-ink);
     }
-    .calc-btn.eq:hover { background: #1e481e; }
+    .calc-btn.eq:hover { background: var(--pg-green-hover); }
     .calc-btn.clr {
-      background: #2a1010;
-      border-color: #5a2a2a;
+      background: var(--pg-red-bg);
+      border-color: var(--pg-red-line);
       color: var(--danger);
     }
-    .calc-btn.clr:hover { background: #381010; }
+    .calc-btn.clr:hover { background: var(--pg-red-hover); }
     .calc-btn.wide { grid-column: span 2; }
 
     /* ── History panel ── */
@@ -203,7 +230,7 @@
       cursor: pointer;
       transition: all 0.15s;
     }
-    .conv-cat-btn.active { background: #1f1508; border-color: #553300; color: var(--accent); }
+    .conv-cat-btn.active { background: var(--pg-accent-bg); border-color: var(--pg-accent-line); color: var(--accent); }
     .conv-cat-btn:hover:not(.active) { background: var(--bg-input); }
 
     .conv-row {

@@ -1258,7 +1258,7 @@ async function scanQrWithCamera(onResult) {
   }
   const overlay = document.createElement('div');
   overlay.id = 'qr-scan-overlay';
-  overlay.style.cssText = 'position:fixed;inset:0;background:#000;z-index:8000;display:flex;flex-direction:column;align-items:center;justify-content:center;';
+  overlay.style.cssText = 'position:fixed;inset:0;background:#000;z-index:8000;display:flex;flex-direction:column;align-items:center;justify-content:center;'; // theme-exempt: the camera view for scanning a code is black in both themes
   overlay.innerHTML = `
     <video id="qr-scan-video" playsinline muted style="width:100%;max-width:480px;max-height:70vh;border-radius:var(--radius);object-fit:cover"></video>
     <p style="color:#fff;font-size:.85rem;margin:var(--space-lg);text-align:center">Point your camera at the QR code on your other device</p>

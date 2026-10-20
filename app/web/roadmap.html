@@ -6,6 +6,15 @@
   <title>Roadmap, HumanityOS</title>
   <link rel="stylesheet" href="/shared/theme.css">
   <style>
+    /* Colours this page uses that have no theme token. The dark values are
+       exactly the page's look before the light theme worked (2026-10-19);
+       the light ones serve the light theme. */
+    :root {
+      --pg-planned-ink: #8aa0d8;
+    }
+    :root[data-theme="light"] {
+      --pg-planned-ink: #3d4f8a;
+    }
     body { background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }
     main { flex: 1; max-width: 960px; width: 100%; margin: 0 auto; padding: var(--space-xl) var(--space-xl) var(--space-3xl); }
 
@@ -70,7 +79,7 @@
     .status-badge.done { background: rgba(68,170,153,0.15); color: var(--success); }
     .status-badge.building { background: rgba(255,170,50,0.18); color: var(--warning); }
     .status-badge.next { background: var(--accent-dim); color: var(--accent); }
-    .status-badge.planned { background: rgba(120,140,200,0.15); color: #8aa0d8; }
+    .status-badge.planned { background: rgba(120,140,200,0.15); color: var(--pg-planned-ink); }
     .status-badge.future { background: rgba(136,136,136,0.15); color: var(--text-muted); }
     /* legacy aliases (kept so nothing breaks if an old status sneaks in) */
     .status-badge.in-progress { background: rgba(255,170,50,0.15); color: var(--warning); }

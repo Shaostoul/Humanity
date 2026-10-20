@@ -6,11 +6,24 @@
   <title>Admin, HumanityOS</title>
   <link rel="stylesheet" href="/shared/theme.css">
   <style>
+    /* Colours this page uses that have no theme token. The dark values are
+       exactly the page's look before the light theme worked (2026-10-19);
+       the light ones serve the light theme. */
     :root {
-      --bg: #0d0d0d;
+      --pg-raised: #1a1a1a;
+      --pg-row-line: #1a1a1a;
+      --pg-tip-bg: #222;
+    }
+    :root[data-theme="light"] {
+      --pg-raised: var(--bg-secondary);
+      --pg-row-line: var(--border);
+      --pg-tip-bg: var(--bg-card);
+    }
+    /* Page-only variables. The theme's own (--bg, --border, --accent, ...)
+       come from theme.css and are not redefined here, so the light theme
+       reaches this page. */
+    :root {
       --bg-panel: #141414;
-      --border: #222;
-      --accent: #22aa66;
       --error: var(--danger, #e55);
     }
     body { background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }
@@ -33,22 +46,22 @@
     .chart-bar-row { display: flex; align-items: flex-end; gap: var(--space-xs); height: 120px; padding: 0 var(--space-sm); }
     .chart-bar { flex: 1; background: var(--accent); min-width: 4px; border-radius: 2px 2px 0 0; transition: height 0.3s; position: relative; }
     .chart-bar:hover { background: #33cc77; }
-    .chart-bar:hover::after { content: attr(data-count); position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); font-size: var(--text-xs); color: var(--text); background: #222; padding: var(--space-xs) var(--space-sm); border-radius: var(--radius); white-space: nowrap; }
+    .chart-bar:hover::after { content: attr(data-count); position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); font-size: var(--text-xs); color: var(--text); background: var(--pg-tip-bg); padding: var(--space-xs) var(--space-sm); border-radius: var(--radius); white-space: nowrap; }
     .chart-labels { display: flex; justify-content: space-between; padding: var(--space-sm) var(--space-sm) 0; font-size: var(--text-xs); color: var(--text-muted); }
 
     /* Table */
     table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
     th { text-align: left; color: var(--text-muted); font-weight: 600; padding: var(--space-md) var(--space-lg); border-bottom: 1px solid var(--border); }
-    td { padding: var(--space-md) var(--space-lg); border-bottom: 1px solid #1a1a1a; color: var(--text); }
-    tr:hover td { background: #1a1a1a; }
+    td { padding: var(--space-md) var(--space-lg); border-bottom: 1px solid var(--pg-row-line); color: var(--text); }
+    tr:hover td { background: var(--pg-raised); }
 
     /* Search */
     .search-box { display: flex; gap: var(--space-md); margin-bottom: var(--space-xl); }
-    .search-box input { flex: 1; background: #1a1a1a; border: 1px solid var(--border); color: var(--text); padding: var(--space-md) var(--space-lg); border-radius: 6px; font-size: 0.85rem; }
+    .search-box input { flex: 1; background: var(--pg-raised); border: 1px solid var(--border); color: var(--text); padding: var(--space-md) var(--space-lg); border-radius: 6px; font-size: 0.85rem; }
     .search-box input::placeholder { color: var(--text-muted); }
 
     /* Federation */
-    .fed-card { display: flex; align-items: center; gap: var(--space-lg); padding: var(--space-lg); background: #1a1a1a; border-radius: 6px; margin-bottom: var(--space-md); }
+    .fed-card { display: flex; align-items: center; gap: var(--space-lg); padding: var(--space-lg); background: var(--pg-raised); border-radius: 6px; margin-bottom: var(--space-md); }
     .fed-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
     .fed-dot.online { background: var(--success); }
     .fed-dot.offline { background: var(--text-muted); }
@@ -56,12 +69,12 @@
     .fed-url { font-size: var(--text-sm); color: var(--text-muted); }
     .fed-card .fed-actions { margin-left: auto; display: flex; align-items: center; gap: var(--space-md); }
     .fed-card select, .fed-add-row input {
-      background: #1a1a1a; border: 1px solid var(--border); color: var(--text);
+      background: var(--pg-raised); border: 1px solid var(--border); color: var(--text);
       padding: var(--space-sm) var(--space-md); border-radius: 6px; font-size: var(--text-sm);
     }
     .fed-add-row input { flex: 1; min-width: 140px; }
     .fed-card button, .fed-add-row button {
-      background: #1a1a1a; border: 1px solid var(--border); color: var(--text);
+      background: var(--pg-raised); border: 1px solid var(--border); color: var(--text);
       padding: var(--space-sm) var(--space-lg); border-radius: 6px; font-size: var(--text-sm); cursor: pointer;
     }
     .fed-card button:hover, .fed-add-row button:hover { border-color: var(--accent); color: var(--accent); }

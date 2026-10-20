@@ -355,11 +355,30 @@
   // ── Inject CSS ──
   const style = document.createElement('style');
   style.textContent = `
+    /* ── Shell chrome colours (nav bar, footer, its toggle, the tab strip).
+       Shell-only values with no theme.ron token, so each is defined here for
+       BOTH themes: the dark ones are the look the shell always had, the light
+       ones replace the old hard-coded [data-theme="light"] .hub-nav rules. ── */
+    :root {
+      --hos-chrome-bg: rgba(13, 13, 13, 0.95);
+      --hos-toggle-bg: rgba(18, 18, 18, 0.97);
+      --hos-toggle-hover-bg: rgba(30, 20, 10, 0.98);
+      --hos-nav-divider: rgba(255, 255, 255, 0.15);
+      --hos-ink-bright: #fff;
+    }
+    :root[data-theme="light"] {
+      --hos-chrome-bg: rgba(244, 244, 244, 0.95);
+      --hos-toggle-bg: rgba(255, 255, 255, 0.97);
+      --hos-toggle-hover-bg: rgba(250, 236, 220, 0.98);
+      --hos-nav-divider: #c8c8d0;
+      --hos-ink-bright: #1a1a1a;
+    }
+
     /* ── Hub Nav ── */
     .hub-nav {
       display: flex;
       align-items: center;
-      background: rgba(13, 13, 13, 0.95);
+      background: var(--hos-chrome-bg);
       backdrop-filter: blur(12px);
       padding: 0 0.5rem;
       /* min-height (not height) so a wrapped multi-row nav grows instead of the
@@ -475,7 +494,7 @@
       top: calc(100% + 10px);
       left: 50%;
       transform: translateX(-50%);
-      background: rgba(8,8,10,0.97);
+      background: var(--bg-card);
       color: var(--text);
       border: 1px solid var(--border);
       border-radius: var(--radius);
@@ -493,7 +512,7 @@
       width: auto;
       padding: 0 0.5rem;
       gap: 0.3rem; /* match the base tab gap now that all tabs show icon+label */
-      color: #fff;
+      color: var(--hos-ink-bright);
       background: rgba(var(--tab-cat-rgb, 148, 148, 159), 0.12);
       animation: channeling 3s linear infinite;
     }
@@ -525,16 +544,13 @@
       50% { transform: scale(1.2); }
     }
 
-    [data-theme="light"] .hub-nav { background: rgba(244,244,244,0.95); border-bottom-color: #ccc; }
-    [data-theme="light"] .hub-nav .tab { color: var(--text-muted); }
-    [data-theme="light"] .hub-nav .tab.active { color: #1a1a1a; }
-    [data-theme="light"] .hub-nav .nav-divider { background: #ccc; }
+    [data-theme="light"] .hub-nav { border-bottom-color: var(--border); }
 
     /* ── Divider between nav groups, negative margin cancels the double flex-gap ── */
     .hub-nav .nav-divider {
       width: 1px;
       height: 18px;
-      background: rgba(255,255,255,0.15);
+      background: var(--hos-nav-divider);
       flex-shrink: 0;
       margin: 0 -0.1rem; /* gap is 0.2rem; -0.1rem each side keeps visual spacing even */
     }
@@ -566,7 +582,7 @@
     }
     .hub-nav .mobile-menu-btn:hover {
       box-shadow: inset 0 0 0 2px #48f, 0 0 8px rgba(68,136,255,0.3);
-      color: #fff;
+      color: var(--hos-ink-bright);
     }
 
     /* ── RGB animations ── */
@@ -601,7 +617,7 @@
       bottom: 0;
       left: 0;
       right: 0;
-      background: rgba(13, 13, 13, 0.95);
+      background: var(--hos-chrome-bg);
       backdrop-filter: blur(12px);
       border-top: 1px solid var(--border);
       z-index: 2100;
@@ -644,7 +660,7 @@
       top: auto;
       left: 50%;
       transform: translateX(-50%);
-      background: rgba(18, 18, 18, 0.97);
+      background: var(--hos-toggle-bg);
       border: 1px solid #f44; /* start of RGB cycle */
       border-bottom: none;
       border-radius: var(--radius) var(--radius) 0 0;
@@ -664,7 +680,7 @@
     .site-footer:not(.collapsed) .footer-toggle {
       animation-duration: 3s;
     }
-    .footer-toggle:hover { color: #fff; background: rgba(30,20,10,0.98); }
+    .footer-toggle:hover { color: var(--hos-ink-bright); background: var(--hos-toggle-hover-bg); }
 
     /* ── Mobile / More menu: clean FULL-SCREEN popup ──
        The hamburger opens this as a full-screen overlay that fully covers the page
@@ -984,7 +1000,7 @@
       /* Mobile hamburger, only visible on small screens */
       '<button class="mobile-menu-btn" id="mobile-hub-menu-btn" type="button" aria-label="More pages" title="More pages" data-tip="More pages">' + (window.hosIcon ? hosIcon('menu', 18) : '☰') + '</button>' +
     '</nav>' +
-    '<div id="webview-tabs-bar" style="display:none;height:32px;background:rgba(13,13,13,0.95);border-bottom:1px solid var(--border);align-items:center;padding:0 var(--space-xl);gap:var(--space-sm);overflow-x:auto;"></div>' +
+    '<div id="webview-tabs-bar" style="display:none;height:32px;background:var(--hos-chrome-bg);border-bottom:1px solid var(--border);align-items:center;padding:0 var(--space-xl);gap:var(--space-sm);overflow-x:auto;"></div>' +
     '<div class="nav-separator"></div>';
   document.body.prepend(nav);
   // Spacer so fixed nav doesn't overlap page content
@@ -1256,7 +1272,7 @@
 
     var tip = document.createElement('div');
     tip.id = 'hos-rich-tooltip';
-    tip.style.cssText = 'position:fixed;z-index:9000;pointer-events:none;max-width:300px;background:rgba(8,8,10,0.97);border:1px solid rgba(130,130,140,0.35);border-radius:var(--radius);padding:8px 11px;color:var(--text);font-size:12px;line-height:1.4;box-shadow:0 8px 24px rgba(0,0,0,0.55);display:none;';
+    tip.style.cssText = 'position:fixed;z-index:9000;pointer-events:none;max-width:300px;background:rgba(8,8,10,0.97);border:1px solid rgba(130,130,140,0.35);border-radius:var(--radius);padding:8px 11px;color:#e8e8ea;font-size:12px;line-height:1.4;box-shadow:0 8px 24px rgba(0,0,0,0.55);display:none;'; // theme-exempt: the hover tooltip is dark in both themes, as on most light sites; its inks are set for that ground
     document.body.appendChild(tip);
 
     /** Strip native title to prevent browser double-tooltip. */
@@ -1283,7 +1299,7 @@
       var html = '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:' + (desc ? '4' : '0') + 'px;">' +
         '<span style="font-weight:600;color:#fff;font-size:12.5px;">' + esc(name) + '</span>';
       if (hotkey) {
-        html += '<kbd style="font-size:10px;background:#0e2010;border:1px solid #2a4a2a;border-radius:var(--radius-sm);padding:1px 6px;color:#5d5;white-space:nowrap;flex-shrink:0;">' + esc(hotkey) + '</kbd>';
+        html += '<kbd style="font-size:10px;background:#0e2010;border:1px solid #2a4a2a;border-radius:var(--radius-sm);padding:1px 6px;color:#5d5;white-space:nowrap;flex-shrink:0;">' + esc(hotkey) + '</kbd>'; // theme-exempt: inside the always-dark tooltip
       }
       html += '</div>';
       if (desc) {
@@ -1847,7 +1863,7 @@
 
     var dbg = document.createElement('div');
     dbg.id = 'hos-debug-overlay';
-    dbg.style.cssText = 'position:fixed;bottom:48px;right:10px;z-index:8800;background:rgba(0,4,0,0.93);border:1px solid #1a4a1a;border-radius:var(--radius);padding:6px 10px;font-size:11px;font-family:monospace;color:#3d3;line-height:1.6;pointer-events:none;width:210px;box-shadow:0 4px 14px rgba(0,0,0,0.5);white-space:nowrap;overflow:hidden;';
+    dbg.style.cssText = 'position:fixed;bottom:48px;right:10px;z-index:8800;background:rgba(0,4,0,0.93);border:1px solid #1a4a1a;border-radius:var(--radius);padding:6px 10px;font-size:11px;font-family:monospace;color:#3d3;line-height:1.6;pointer-events:none;width:210px;box-shadow:0 4px 14px rgba(0,0,0,0.5);white-space:nowrap;overflow:hidden;'; // theme-exempt: the debug overlay is a green-on-black terminal readout in both themes
     document.body.appendChild(dbg);
 
     var WS_LABELS = ['CONNECTING','OPEN','CLOSING','CLOSED'];
@@ -1872,41 +1888,81 @@
     setInterval(update, 2000);
   })();
 
-  // ── Theme toggle (light/dark) ──
+  // ── Theme (light / dark) ──
+  // ONE choice, the `theme` field of the humanity_settings blob, which the
+  // Settings page's Color Scheme select and the settings panel both write:
+  // dark (the default), light, system (follow the device), or the dark
+  // presets midnight and oled (settings.js paints those). Light sets
+  // data-theme="light" on <html>, and theme.css's light palette does the rest.
+  // Until 2026-10-19 this read a second key (hos_theme) that no control wrote
+  // and the Settings select never reached, so the two disagreed.
   (function () {
-    var THEME_KEY = 'hos_theme';
     var root = document.documentElement;
+    var KEY = window.HOS_STORAGE_KEY || 'humanity_settings';
 
-    function applyTheme(theme) {
-      var btn = document.getElementById('hos-theme-toggle');
-      var mobileLink = document.getElementById('mobile-theme-link');
-      if (theme === 'light') {
-        root.setAttribute('data-theme', 'light');
-        if (btn) btn.textContent = '☀️ Theme';
-        if (mobileLink) mobileLink.textContent = '☀️ Toggle Theme';
-      } else {
-        root.removeAttribute('data-theme');
-        if (btn) btn.textContent = '🌙 Theme';
-        if (mobileLink) mobileLink.textContent = '🌙 Toggle Theme';
-      }
-      localStorage.setItem(THEME_KEY, theme);
+    function storedTheme() {
+      try {
+        var s = JSON.parse(localStorage.getItem(KEY) || '{}');
+        return (s && s.theme) || 'dark';
+      } catch (e) { return 'dark'; }
+    }
+    function systemLight() {
+      return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches);
+    }
+    // High contrast (accessibility.js, on <body>) is a palette of its own:
+    // black ground, white ink, yellow accent. It redefines only those, so under
+    // the light theme the white cards would carry its white ink. While it is on,
+    // it wins and the page stays dark.
+    function highContrast() {
+      try { return localStorage.getItem('a11y_high_contrast') === 'true'; } catch (e) { return false; }
     }
 
-    // Expose globally so the onclick="hosToggleTheme()" in the nav can reach it
-    window.hosToggleTheme = function () {
-      var current = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
-      applyTheme(current);
+    // Apply a theme choice (or the stored one) and return what it resolved
+    // to, 'light' or 'dark'. settings.js calls this from applySettings.
+    window.hosApplyTheme = function (theme) {
+      var t = theme || storedTheme();
+      var light = t === 'light' || (t === 'system' && systemLight());
+      var resolved = light && !highContrast() ? 'light' : 'dark';
+      if (resolved === 'light') root.setAttribute('data-theme', 'light');
+      else root.removeAttribute('data-theme');
+      return resolved;
     };
 
-    // Apply saved preference immediately on page load
-    applyTheme(localStorage.getItem(THEME_KEY) || 'dark');
+    // Flip between light and dark and remember it.
+    window.hosToggleTheme = function () {
+      var next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+      try {
+        var s = JSON.parse(localStorage.getItem(KEY) || '{}') || {};
+        s.theme = next;
+        localStorage.setItem(KEY, JSON.stringify(s));
+      } catch (e) {}
+      reapply();
+    };
+
+    // Re-run the whole appearance pass when settings.js is on the page (it
+    // also decides the accent per theme), else just the theme.
+    function reapply() {
+      if (typeof window.hosApplySettings === 'function') window.hosApplySettings();
+      else window.hosApplyTheme();
+    }
+
+    window.hosApplyTheme();
+    // Follow the device when the choice is "system", and follow a change made
+    // in another tab.
+    if (window.matchMedia) {
+      var mq = window.matchMedia('(prefers-color-scheme: light)');
+      var onChange = function () { if (storedTheme() === 'system') reapply(); };
+      if (mq.addEventListener) mq.addEventListener('change', onChange);
+      else if (mq.addListener) mq.addListener(onChange);
+    }
+    window.addEventListener('storage', function (e) { if (e.key === KEY) reapply(); });
   })();
 
   // ── Update Checker ─────────────────────────────────────────────────────────
   // WHY: Light up the download button with RGB when a new version is available
   // so the user knows at a glance. Checks GitHub releases once per session.
   (function updateChecker() {
-    var CURRENT_VERSION = '0.1522.0';
+    var CURRENT_VERSION = '0.1522.1';
     var CACHE_KEY = 'hos_latest_version';
     var CACHE_TS_KEY = 'hos_latest_version_ts';
     var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min

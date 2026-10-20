@@ -84,6 +84,10 @@
       } else {
         document.body.removeAttribute('data-high-contrast');
       }
+      // High contrast wins over the light theme while it is on (shell.js), so
+      // re-apply the theme now rather than at the next page load.
+      if (typeof window.hosApplySettings === 'function') window.hosApplySettings();
+      else if (typeof window.hosApplyTheme === 'function') window.hosApplyTheme();
     },
 
     /** @returns {boolean} */
