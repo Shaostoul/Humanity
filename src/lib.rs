@@ -5102,6 +5102,16 @@ mod native_app {
                             // (jump thrust, falling, swimming, hovering in dev
                             // flight) is silent - radial_step decides.
                             state.on_ground_planet = vs.grounded;
+                            // Falls (2026-10-20, systems::falls): what the ground stopped
+                            // this frame, to the controller's watch. Water, dev flight (fly
+                            // mode, F9's hover, the flight band) and the rig's camera hold
+                            // hurt nobody.
+                            state.controller.surface_step(
+                                r0,
+                                &vs,
+                                move_mode.is_flight() || state.controller.fly_mode || !in_walk_band || state.probe_hold.is_some(),
+                                wave_float || submerged,
+                            );
                             // Any has_water world tints when submerged (the
                             // old earth-only gate predates per-body oceans;
                             // Agartha's seas are as wet as the Pacific).
@@ -5726,6 +5736,10 @@ mod native_app {
                     crate::engine::quest_hooks::frame(state);
                     // A pack left where you fell, in reach: its prompt (2026-10-04).
                     crate::engine::death_pack::frame(state);
+                    // A landing hard enough to hurt becomes the player's injury (falls, 2026-10-20).
+                    if let Some(impact) = state.controller.take_landing() {
+                        crate::systems::falls::player_landed(&mut state.game_world.world, impact);
+                    }
 
                     // Per-body environment snapshot (artificial-planet
                     // increment 4): publish which world the player is on so
