@@ -1,4 +1,4 @@
-// Device-to-device big files, the website's shared half (2026-10-11, docs/design/media-showcase.md,
+// Device-to-device big files, the website's shared half (2026-10-11, docs/design/files-showcase.md,
 // "Device-to-device big files: the shapes, exact", sections 1, 3 and 5): web/shared/file-transfer.js
 // (the pass, the notes, the channel protocol, the Sender and the Receiver) and web/shared/blake3.js
 // (the BLAKE3 both ends hash with). The chat page's use of them (the attach step, the notes sent and
@@ -64,7 +64,7 @@ const FT = require(path.join(WEB, "shared", "file-transfer.js"));
 const B3 = require(path.join(WEB, "shared", "blake3.js"));
 
 // Line endings undone (the working copy may have CRLF), so the spec's blocks read as written.
-const SPEC = fs.readFileSync(path.join(ROOT, "docs", "design", "media-showcase.md"), "utf8").replace(/\r\n/g, "\n");
+const SPEC = fs.readFileSync(path.join(ROOT, "docs", "design", "files-showcase.md"), "utf8").replace(/\r\n/g, "\n");
 // The shapes section alone, up to the next heading (never the As built notes after it, which quote it).
 const SHAPES_AT = SPEC.indexOf("## Device-to-device big files: the shapes, exact");
 const SHAPES = SPEC.slice(SHAPES_AT, SPEC.indexOf("\n## ", SHAPES_AT + 10));
@@ -641,7 +641,7 @@ test("10. hashing and sending a 40 MB file read it a piece at a time, in message
 });
 
 // ── 11 to 13. Rule 1: a get adds; the receiver asks for a piece once ─────────
-// docs/design/media-showcase.md, "Device-to-device big files: rules settled by the first review"
+// docs/design/files-showcase.md, "Device-to-device big files: rules settled by the first review"
 // (2026-10-12), rule 1. The desktop app's receiver keeps its window of 16 full by asking for one
 // more piece each time one arrives, and the web Sender took each get as the whole new window: the
 // rest of the window was never sent, so 200 pieces took 188 round trips and 30-second stalls.

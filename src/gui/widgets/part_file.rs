@@ -1,6 +1,6 @@
 //! Files written a piece at a time (a download, a private file's Save, Play here's copy) go to a
 //! hidden PART file first and get their real name only when they are complete (round 3 of
-//! docs/design/media-showcase.md, the 2026-10-11 review's finding 6: a download cut off by the
+//! docs/design/files-showcase.md, the 2026-10-11 review's finding 6: a download cut off by the
 //! app quitting left a partial file under its final name, and a private file's Save left its
 //! `.humanityos-*.part` in the downloads folder).
 //!

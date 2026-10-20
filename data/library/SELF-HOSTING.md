@@ -304,7 +304,7 @@ changes nothing. Set a feature to `false` and restart the relay to switch it off
 | `game` | Running the shared game world (a 20-per-second simulation that runs whether or not anyone is playing) | Every `game_*` and `trade_*` socket message. The simulation, world save, ambient chatter and time-sync loops never start at all |
 | `market` | The market: offerings, listings, reviews, seller ratings and the order book | `/api/listings*`, `/api/sellers/*`, `/api/trade/*` |
 | `vault_backup` | Letting other people store their encrypted backups on your disk | `/api/vault/sync` (read, write and delete) and the `sync_save` / `sync_load` socket messages |
-| `uploads` | Being a file host: uploads, the shared-file library, the asset library, the Files page (called the Media page until 2026-10-19; still at `/media`) | `/api/upload` (resumable uploads included), `/api/uploads*`, `/api/assets*`, `/api/media*`, and serving `/uploads/*` |
+| `uploads` | Being a file host: uploads, the shared-file library, the asset library, the Files page (`/files`; the Media page at `/media` until 2026-10-19) | `/api/upload` (resumable uploads included), `/api/uploads*`, `/api/assets*`, `/api/files*`, and serving `/uploads/*` |
 | `tasks` | The task board and projects | `/api/tasks*`, `/api/projects*`, and the `task_*` socket messages |
 | `voice` | Voice channels | `/api/turn-credentials` and the `voice_*` / `webrtc_signal` socket messages |
 | `live_video` | Live video fanout | `/api/live` and `/ws/live/*` |
@@ -596,14 +596,14 @@ server {
         add_header X-Content-Type-Options nosniff;
     }
 
-    # One Media item's own page, /media/12: the relay answers it, with the item's title,
-    # description and picture written in for social sites, and with nothing about the item when
-    # it is members only or not there. A regular-expression location wins over `location /`
-    # below, so /media itself stays the static page from disk. (A regular-expression location's
+    # One item's own page on the Files page, /files/12: the relay answers it, with the item's
+    # title, description and picture written in for social sites, and with nothing about the item
+    # when it is members only or not there. A regular-expression location wins over `location /`
+    # below, so /files itself stays the static page from disk. (A regular-expression location's
     # proxy_pass cannot carry a path, so it names the relay alone.) It replaces the static
-    # stand-in `location ~ ^/media/[0-9]+$ { try_files /media.html =404; }` on a server that has
+    # stand-in `location ~ ^/files/[0-9]+$ { try_files /files.html =404; }` on a server that has
     # one: keep only one location for this pattern (see "A server set up before 2026-10-12").
-    location ~ ^/media/[0-9]+$ {
+    location ~ ^/files/[0-9]+$ {
         limit_req zone=general burst=10 nodelay;
         limit_req_status 429;
         proxy_pass http://127.0.0.1:3210;
@@ -631,9 +631,15 @@ sudo certbot --nginx -d your-domain.com
 sudo nginx -t && sudo systemctl restart nginx
 ```
 
+**A server set up before 2026-10-19** has this location for `^/media/[0-9]+$`: the Files page
+was the Media page at `/media` until then, and its item pages moved to `/files/<number>` with
+it. Change the pattern in that location to `^/files/[0-9]+$` (the block is otherwise the same),
+then `sudo nginx -t && sudo systemctl reload nginx`. Until then an item's page at
+`/files/<number>` falls through to the site's front page. The old `/media` addresses are not
+kept: nobody used them yet.
+
 **A server set up before 2026-10-12** needs two edits to its nginx config for
-the Files page's item pages and counts (the page at `/media`, called the Media page until
-2026-10-19). Make them by hand in the config the
+the Files page's item pages and counts. Make them by hand in the config the
 server runs (`/etc/nginx/sites-enabled/humanity` or wherever yours is). If that
 config has ever been changed by hand, do not copy `scripts/nginx/humanity.conf`
 over it: the copy would throw those changes away.
@@ -641,9 +647,9 @@ over it: the copy would throw those changes away.
 1. In the `/api/` location, add `proxy_set_header X-Real-IP $remote_addr;`.
    Without it every visitor counts as the same one person, so the view and
    download counts read low.
-2. Add the `location ~ ^/media/[0-9]+$ { ... }` block shown above, inside the
+2. Add the `location ~ ^/files/[0-9]+$ { ... }` block shown above, inside the
    `server` block that serves the website. If the config already has the static
-   stand-in for item pages, `location ~ ^/media/[0-9]+$ { try_files /media.html =404; }`,
+   stand-in for item pages, `location ~ ^/files/[0-9]+$ { try_files /files.html =404; }`,
    replace that line with the block rather than adding the block beside it:
    nginx uses the first regular-expression location that matches, so with both
    in place one of them is never reached, and if it is the relay's, social sites

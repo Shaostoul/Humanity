@@ -1,6 +1,6 @@
 //! The 3D model viewer (docs/design/model-viewer.md): a `.glb` or `.stl` file, fetched when the
 //! person presses View in 3D, read on a worker, drawn with the app's own GPU, turned and zoomed
-//! with the mouse. Used by the Media item page (media/item_view.rs). The website mirrors it in
+//! with the mouse. Used by the Media item page (files/item_view.rs). The website mirrors it in
 //! web/shared/model-view.js.
 
 pub mod camera;
@@ -167,7 +167,7 @@ impl Viewer {
     /// pane fits it to its area, 2026-10-19). The line under it is extra.
     pub fn show_sized(&mut self, ui: &mut Ui, theme: &Theme, width: f32, height: f32) {
         self.poll();
-        let size_words = crate::gui::pages::media::api::size_words(self.size);
+        let size_words = crate::gui::pages::files::api::size_words(self.size);
         let (model, key) = match &self.stage {
             Stage::Fetching(_) => {
                 ui.label(RichText::new(format!("Fetching {} ({size_words})...", self.name)).size(theme.font_size_body).color(theme.text_muted()));

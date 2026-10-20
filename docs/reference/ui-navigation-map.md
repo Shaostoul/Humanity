@@ -36,7 +36,8 @@ HumanityOS (native top nav)
 |   |- right rail: Studio / Friends (n) / <server> members
 |- Studio          -> Studio page (streaming; no page title - see OPEN-5)
 |- Watch           -> Watch page
-|- Files           -> Files page (media.rs; called Media until 2026-10-19, web at /media)
+|- Files           -> Files page (files.rs; places: Shared on <server>, Shared files, Admin,
+|   |                  HumanityOS folder, Your folders; the Media page and Platform > Files until 2026-10-19)
 |- Profile         -> Real page (sidebar "Profile")
 |   |- PRIVATE:  Body & Measurements | Identity | Private Notes
 |   |- PERSONAL: Network Profile | Interests | Skills
@@ -52,7 +53,7 @@ HumanityOS (native top nav)
 |   |- views: System | Galactic | Night Sky
 |- Platform        -> Platform page (sidebar)
 |   |- Recovery ("Social Key Recovery") | Calculator | Notes | Calendar
-|   |- Data files (Files until 2026-10-19) | Bugs ("Report a Bug") | Testing | Performance | Dev
+|   |- Bugs ("Report a Bug") | Testing | Performance | Dev (Files left for the Files page, 2026-10-19)
 |   |- Planet Tuner | Browser
 |- Library         -> Library page (document tree + Dictionary)
 |- Tools           -> Tools page (external catalog)
@@ -79,8 +80,8 @@ united-humanity.us / public.guide (web)
 |   | Tools | Library | Settings          (*see OPEN items)
 |- mobile drawer
 |   |- Main (mirrors the app): the header list + Humanity Accord
-|   |- Community and trade: Watch | Files (/media) | Wallet | Market | Trade | Guilds
-|   |   | Donate | Civilization | Governance | Laws | Shared Files
+|   |- Community and trade: Watch | Files | Wallet | Market | Trade | Guilds
+|   |   | Donate | Civilization | Governance | Laws
 |   |   | Identity | Recovery | Roadmap
 |   |- Tools, system and dev: Calculator | Calendar | Notes | Bookmarks
 |   |   | Data files (/files) | Ops | Bug Reports | Dev

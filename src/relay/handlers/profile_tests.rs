@@ -1,6 +1,6 @@
 // Child of profile.rs (#[path], so `use super::*` reaches everything it has): the profile
 // field `accepts_files`, who a person accepts files in messages from (2026-10-11,
-// docs/design/media-showcase.md "Files on the sender's device and in messages, exact", part 3),
+// docs/design/files-showcase.md "Files on the sender's device and in messages, exact", part 3),
 // the person's own copy, and what the lookups show. Was msg_handlers_profile_tests.rs, a child of
 // msg_handlers.rs, until the profile handlers moved to profile.rs (2026-10-12, BUG-191 Wave 0).
 //

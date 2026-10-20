@@ -1,4 +1,4 @@
-//! Device-to-device big files, the connection (docs/design/media-showcase.md, "Device-to-device
+//! Device-to-device big files, the connection (docs/design/files-showcase.md, "Device-to-device
 //! big files: the shapes, exact", part 4): ONE WebRTC connection per pair of people at a time,
 //! on its own thread, carrying one data channel per transfer, each labelled `file:<id>` (ordered,
 //! reliable), going ONLY through the server's call forwarder (relay-only ICE), so neither person
@@ -7,7 +7,7 @@
 //! THE SHAPE BOTH APPS KEEP. The receiver of a transfer dials the sender: its `dc_offer` carries
 //! the file pass of the transfer whose forwarder credentials it dialled with (`file_pass`, which the
 //! relay checks with the sender as issuer and the receiver as grantee). RULE 7 OF THE SECOND REVIEW
-//! (media-showcase.md, "a dial names its transfer"): the relay hands that `dc_offer` to the sender
+//! (files-showcase.md, "a dial names its transfer"): the relay hands that `dc_offer` to the sender
 //! with the pass's id as `file`, and the sender asks the forwarder for that one transfer's
 //! credentials. Each side makes ONE allocation for the connection, so the forwarder joins the two
 //! in that transfer's scope, and every other transfer between the two people rides the same
@@ -27,7 +27,7 @@
 //! both turned direct connections on is not built: the app has no such setting yet
 //! (`webrtc::DIRECT_CONNECTIONS` is false), so every transfer goes through the forwarder.
 //!
-//! ONE ENGINE PER CHANNEL (rule 2 of the first review, media-showcase.md "Device-to-device big
+//! ONE ENGINE PER CHANNEL (rule 2 of the first review, files-showcase.md "Device-to-device big
 //! files: rules settled by the first review"). Each transfer is its own leg with its own
 //! `Receiving` or `Sending`, on the dialling side and the answering side alike; one leg ending
 //! (done, cancelled, failed) leaves the others as they are, and the connection closes when its

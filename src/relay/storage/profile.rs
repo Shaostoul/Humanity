@@ -7,7 +7,7 @@ use crate::relay::core::profile_copy::kept_for_friends;
 use rusqlite::params;
 use std::collections::HashMap;
 
-/// The three words `accepts_files` may hold (2026-10-11, docs/design/media-showcase.md "Files on
+/// The three words `accepts_files` may hold (2026-10-11, docs/design/files-showcase.md "Files on
 /// the sender's device and in messages", part 3): who the person accepts files in messages from.
 /// Protocol words, read by both apps: the receiving app enforces them, and a sender's app reads
 /// them from the profile to say "Ann accepts files only from friends." before sending.

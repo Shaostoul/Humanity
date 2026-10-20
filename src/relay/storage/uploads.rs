@@ -32,7 +32,7 @@ impl Storage {
     /// vanish because its uploader posted four chat photos. The server-wide
     /// disk cap (checked at upload time) still bounds total storage. It is the
     /// shelf: false/0 chat media (this FIFO), true/1 the Shared Files library,
-    /// 2 a Media upload (`storage::media::MEDIA_SHELF`, 2026-10-11: out of this
+    /// 2 a Media upload (`storage::files::MEDIA_SHELF`, 2026-10-11: out of this
     /// FIFO and out of the Shared Files list, held to the Media budget instead).
     pub fn record_upload(
         &self,
@@ -141,7 +141,7 @@ impl Storage {
                 params![filename],
             )?;
             // A shared file published on the Media page leaves it too, picks and all: the file
-            // is gone, so the item would point at nothing (2026-10-11, storage/media.rs).
+            // is gone, so the item would point at nothing (2026-10-11, storage/files.rs).
             conn.execute(
                 "DELETE FROM media_picks WHERE item_id IN (SELECT id FROM media_items WHERE upload_filename = ?1)",
                 params![filename],

@@ -222,7 +222,7 @@ fn notes_move_a_transfer_forward_only() {
     assert_eq!(advance(&Stage::Accepted, &Happened::Done), Some(Stage::Done));
 }
 
-/// RULE 9 OF THE SECOND REVIEW (media-showcase.md, "a dial is an answer"): `done` on the channel
+/// RULE 9 OF THE SECOND REVIEW (files-showcase.md, "a dial is an answer"): `done` on the channel
 /// ends a transfer as Done even while its record still waits for the answer note (Offered), so a
 /// sender whose answer note was lost is Sent, not left to end as "did not answer in time". Nothing
 /// else about an ended transfer changes, and an answer note arriving after it changes nothing.

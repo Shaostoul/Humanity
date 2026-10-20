@@ -61,8 +61,9 @@ pub mod bugs;
 pub mod donate;
 pub mod studio;
 pub mod watch;
-/// The Media page (docs/design/media-showcase.md, increment 2, 2026-10-11).
-pub mod media;
+/// The Files page (docs/design/files-showcase.md, increment 2, 2026-10-11; the Media page until
+/// 2026-10-19, when the developer's Files page joined it).
+pub mod files;
 /// Apps (2026-10-19): the Games library and the Tools page as one page, in six coloured parts.
 pub mod apps;
 /// The server strip under the top menu on Media, Watch, Chat and Server Settings, with Switch.

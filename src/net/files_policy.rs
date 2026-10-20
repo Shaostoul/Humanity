@@ -1,7 +1,7 @@
 //! Files in messages: who a person takes files from, whose pictures show by themselves, whether
 //! the attach button shows in private conversations, the remembered "Remove location and camera
 //! details" switch and how much of opened private files this device keeps (docs/design/
-//! media-showcase.md, "Files on the sender's device and in messages, exact", parts 1, 3 and 4;
+//! files-showcase.md, "Files on the sender's device and in messages, exact", parts 1, 3 and 4;
 //! the operator's answers 4, 6 and 9 of 2026-10-11).
 //!
 //! THE RECEIVING APP ENFORCES IT. The relay cannot and must not: with sealed sender it cannot tell

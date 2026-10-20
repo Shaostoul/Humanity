@@ -1,0 +1,291 @@
+/* files.css: the Files page and its admins' section (the Media page until 2026-10-19; 2026-10-11,
+   docs/design/files-showcase.md "Increment 2, exact"; round 5, docs/design/
+   media-round-5-plan.md 3.10: the tabs, Sort, the category's description and
+   the sentinel; 2026-10-19: the three panes and the Edit in place, at the end).
+   Used by /files (files.html), whose Admin tab holds the admins'
+   Media section. Theme tokens only: every colour and
+   size here is a variable from theme.css, generated from data/gui/theme.ron,
+   so the Settings theme editor restyles it. */
+[hidden] { display: none !important; }
+#files-root { max-width: 1100px; margin: 0 auto; padding: var(--space-xl) var(--space-xl) 0; }
+/* Text links only: a link styled as a button keeps the button's colours. */
+#files-root a:not(.files-btn) { color: var(--accent); }
+.files-head h1 { font-size: var(--text-xl); font-weight: 800; margin-bottom: var(--space-sm); }
+.files-lede { color: var(--text-muted); font-size: var(--text-sm); margin-bottom: var(--space-lg); }
+.files-status-text, .files-notice-text, .files-members-line, .files-picks-note-text {
+  background: var(--bg-card); border: 1px solid var(--border); border-left: 3px solid var(--accent);
+  border-radius: var(--radius); padding: var(--space-md) var(--space-lg); margin-bottom: var(--space-md);
+  font-size: var(--text-sm); color: var(--text-secondary);
+}
+.files-warn, .files-notice.files-warn .files-notice-text { color: var(--danger); border-left-color: var(--danger); }
+.files-actions, .files-filters { display: flex; flex-wrap: wrap; gap: var(--space-md); align-items: center; margin-bottom: var(--space-lg); }
+.files-btn {
+  font-family: inherit; cursor: pointer; background: var(--bg-card); color: var(--text);
+  border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-sm) var(--space-lg);
+  font-size: var(--text-sm); text-decoration: none; display: inline-block;
+}
+.files-btn:hover { border-color: var(--accent); }
+.files-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.files-btn-primary { background: var(--accent); color: var(--text-on-accent); border-color: var(--accent); font-weight: 700; }
+.files-btn-primary:hover { background: var(--accent-hover); }
+.files-btn-danger { color: var(--danger); border-color: var(--danger); }
+.files-btn-small { padding: var(--space-xs) var(--space-md); font-size: var(--text-xs); }
+.files-select, .files-input, .files-search {
+  font-family: inherit; color: var(--text); background: var(--bg-input); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: var(--space-sm) var(--space-md); font-size: var(--text-sm);
+}
+.files-select:focus, .files-input:focus, .files-search:focus { outline: none; border-color: var(--border-focus); }
+/* A select is as wide as its longest option: a long category or person name must not
+   push the filters past a phone's width (checked at 375 px). */
+.files-select { max-width: 100%; min-width: 0; text-overflow: ellipsis; }
+.files-filters .files-select { max-width: min(16rem, 100%); }
+.files-search { flex: 1; min-width: 160px; }
+.files-check { display: inline-flex; align-items: center; gap: var(--space-xs); font-size: var(--text-sm); margin-right: var(--space-lg); }
+.files-panel { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--space-xl); margin-bottom: var(--space-lg); }
+.files-form h2, .files-featured h2, .files-panel h2 { font-size: var(--text-lg); margin-bottom: var(--space-md); }
+.files-field { display: flex; flex-direction: column; gap: var(--space-xs); margin-bottom: var(--space-md); font-size: var(--text-sm); border: none; }
+.files-field legend { font-size: var(--text-sm); margin-bottom: var(--space-xs); }
+.files-hint { color: var(--text-muted); font-size: var(--text-xs); margin-bottom: var(--space-sm); }
+.files-share-line { font-weight: 700; margin-bottom: var(--space-md); }
+/* A chosen file in Add to Files: its type's badge (/shared/file-badge.css), then its name and size (2026-10-17). */
+.files-form-file { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-sm); color: var(--text-secondary); margin-bottom: var(--space-md); word-break: break-all; }
+.files-form-more { margin-bottom: var(--space-md); }
+.files-form-more .files-form-file { margin-bottom: var(--space-xs); }
+/* A part of Add to Files or Edit (/shared/tint-section.css): its files list sits flush in it. */
+.tint-section .files-item-files { margin: 0; }
+.files-form-buttons { display: flex; gap: var(--space-md); flex-wrap: wrap; margin-top: var(--space-md); }
+/* "Also post in chat" (2026-10-17): the tick on the left, then the channel and Add to favorites,
+   greyed out (disabled) while the tick is off, as the desktop's add_enabled_ui does. */
+.files-post-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-sm); }
+.files-post-row .files-check { margin-right: 0; }
+.files-post-row .files-select:disabled { opacity: 0.5; cursor: not-allowed; }
+/* The Upload button wears the nav bar's current-page border (/shared/shell.js .hub-nav .tab.active:
+   its `channeling` RGB cycle), and stops moving under reduced motion as the nav's does
+   ([data-reduced-motion] in theme.css, and the system's own setting here). Still, it keeps a ring
+   in the accent colour, as the desktop's rgb_border holds one when animations are off. */
+.files-btn-rgb { animation: channeling 3s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .files-btn-rgb { animation: none; outline: 2px solid var(--accent); outline-offset: 2px; } }
+[data-reduced-motion] .files-btn-rgb { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* The upload window (/files?window=upload, in a frame over the chat): Add to Files alone. */
+.files-window { padding-top: var(--space-md); }
+.files-featured { margin-bottom: var(--space-lg); }
+.files-featured-row { display: flex; gap: var(--space-lg); overflow-x: auto; padding-bottom: var(--space-sm); }
+.files-featured-row .files-tile { flex: 0 0 220px; }
+.files-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: var(--space-lg); }
+.files-tile { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--space-md); display: flex; flex-direction: column; gap: var(--space-xs); min-width: 0; }
+.files-thumb {
+  width: 100%; aspect-ratio: 4 / 3; border-radius: var(--radius); border: 1px solid var(--border);
+  background: var(--bg-secondary); color: var(--text-muted); overflow: hidden; cursor: pointer; padding: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-xs);
+  font-family: inherit; font-size: var(--text-sm);
+}
+.files-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* A labelled item's cover in the viewer (/files/<n> included), until it is clicked. */
+.files-viewer-veil { clear: both; max-width: min(640px, 100%); margin: 0 auto var(--space-md); }
+.files-thumb-missing { cursor: default; padding: var(--space-md); text-align: center; font-size: var(--text-xs); }
+.files-veil { border-color: var(--warning); }
+.files-veil-labels { color: var(--warning); font-weight: 700; }
+.files-veil-show { font-size: var(--text-xs); text-decoration: underline; }
+.files-mark-word { font-weight: 700; color: var(--text); }
+.files-mark-size { font-size: var(--text-xs); }
+.files-thumb-loading { font-size: var(--text-xs); }
+/* The kinds file's marks (data/files/kinds.json `mark`): play draws a play triangle. */
+.files-mark-play .files-mark-word::before {
+  content: ''; display: inline-block; width: 0; height: 0; margin-right: var(--space-sm); vertical-align: middle;
+  border-top: 7px solid transparent; border-bottom: 7px solid transparent; border-left: 11px solid var(--accent);
+}
+.files-badges { display: flex; flex-wrap: wrap; gap: var(--space-xs); }
+.files-badge { font-size: var(--text-xs); border: 1px solid var(--border); border-radius: var(--badge-radius); padding: 0 var(--space-sm); color: var(--text-secondary); }
+.files-badge-label { border-color: var(--warning); color: var(--warning); }
+.files-badge-kept { border-color: var(--accent); color: var(--accent); }
+.files-actions-line { flex-basis: 100%; margin: 0; }
+.files-form-actions { margin-top: var(--space-md); }
+.files-report-box { max-width: min(640px, 100%); }
+.files-report-box h3 { font-size: var(--text-sm); margin: var(--space-md) 0 var(--space-xs); }
+/* "Report a copyright problem" (2026-10-13, /pages/files-takedown.js): the ticked box's sentence
+   wraps beside its tick, and the page's foot sits clear of the grid. */
+.files-takedown-check { display: flex; align-items: flex-start; margin: var(--space-sm) 0; }
+.files-foot { margin-top: var(--space-xl); }
+.files-report-reason-help { border-left: 3px solid var(--warning); background: var(--bg-secondary); padding: var(--space-sm) var(--space-md); font-size: var(--text-sm); margin: var(--space-sm) 0; }
+.files-report-help { border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-sm) var(--space-md); margin: var(--space-sm) 0; font-size: var(--text-sm); }
+.files-report-emergency { font-size: var(--text-lg); font-weight: 700; margin: var(--space-xs) 0; }
+.files-report-child { margin-top: var(--space-sm); }
+.files-tile-title { font-weight: 700; font-size: var(--text-sm); word-break: break-word; }
+.files-tile-meta { color: var(--text-muted); font-size: var(--text-xs); }
+.files-tile-actions { display: flex; flex-wrap: wrap; gap: var(--space-xs); margin-top: var(--space-xs); }
+.files-empty { color: var(--text-muted); padding: var(--space-xl) 0; text-align: center; grid-column: 1 / -1; }
+.files-more-wrap { text-align: center; margin: var(--space-lg) 0; }
+.files-viewer {
+  position: fixed; inset: 0; z-index: 9000; background: var(--bg-modal);
+  display: flex; align-items: center; justify-content: center; padding: var(--space-xl);
+}
+.files-viewer-box { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--space-lg); max-width: min(1000px, 100%); max-height: 100%; overflow: auto; }
+.files-viewer-close { float: right; margin-bottom: var(--space-md); }
+.files-viewer-img, .files-viewer-video { display: block; max-width: 100%; max-height: 70vh; margin: 0 auto var(--space-md); clear: both; }
+.files-viewer-file { clear: both; display: flex; flex-direction: column; gap: var(--space-sm); align-items: flex-start; margin-bottom: var(--space-md); }
+.files-viewer-name { font-weight: 700; word-break: break-all; }
+.files-viewer-title { font-size: var(--text-lg); }
+.files-viewer-desc { white-space: pre-wrap; margin: var(--space-sm) 0; }
+.files-viewer-meta { color: var(--text-muted); font-size: var(--text-xs); }
+.files-list { margin-left: var(--space-xl); font-size: var(--text-sm); }
+/* The Media and Admin tabs, for admins (round 5). */
+.files-tabs { display: flex; gap: var(--space-xs); border-bottom: 1px solid var(--border); margin-bottom: var(--space-lg); }
+.files-tab {
+  font-family: inherit; cursor: pointer; background: none; color: var(--text-secondary); font-size: var(--text-sm);
+  border: none; border-bottom: 2px solid transparent; padding: var(--space-sm) var(--space-lg); margin-bottom: -1px;
+}
+.files-tab:hover { color: var(--text); }
+.files-tab-active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 700; }
+/* The picked category's description, under the filters. */
+.files-category-desc { margin: calc(-1 * var(--space-sm)) 0 var(--space-lg); white-space: pre-wrap; }
+/* Just after the grid: the next page is asked for as it comes into view. */
+.files-sentinel { height: 1px; }
+.files-select-small { padding: var(--space-xs) var(--space-sm); font-size: var(--text-xs); }
+.files-admin-block { margin-top: var(--space-lg); }
+.files-admin-block h3 { font-size: var(--text-base); margin-bottom: var(--space-sm); }
+.files-admin-block h4 { font-size: var(--text-sm); margin: var(--space-md) 0 var(--space-xs); }
+.files-admin-rows { display: flex; flex-direction: column; gap: var(--space-sm); }
+.files-admin-row { display: flex; flex-wrap: wrap; gap: var(--space-sm); align-items: center; }
+.files-admin-row-text { flex: 1; min-width: 180px; font-size: var(--text-sm); word-break: break-word; }
+.files-input-number { max-width: 160px; }
+.files-meter { height: 12px; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: var(--pill-radius); overflow: hidden; margin-bottom: var(--space-md); }
+.files-meter-fill { height: 100%; background: var(--accent); }
+.files-meter-words { font-weight: 700; margin-bottom: var(--space-xs); }
+/* Round 5, lane 2A: the card's first line, the item's own page (files-item.js) and its Edit form
+   with the licence picker and the hosting paragraph (files-edit.js). */
+.files-tile-line { color: var(--text-secondary); font-size: var(--text-xs); word-break: break-word; }
+.files-item-info { clear: both; display: flex; flex-direction: column; gap: var(--space-xs); }
+.files-item-info .files-badges { margin-bottom: var(--space-xs); }
+.files-licence-line { font-size: var(--text-sm); margin-top: var(--space-sm); }
+.files-item-game { color: var(--success); }
+.files-item-files { margin: var(--space-md) 0; display: flex; flex-direction: column; gap: var(--space-xs); }
+.files-item-files h3, .files-item-files h4 { font-size: var(--text-sm); margin-bottom: var(--space-xs); }
+.files-item-file-row { display: flex; flex-wrap: wrap; gap: var(--space-sm); align-items: center; }
+.files-item-file-name { flex: 1; min-width: 160px; font-size: var(--text-sm); word-break: break-all; }
+/* What kind of file it is, under its row (2026-10-17, /shared/file-risk.js): the warning colour, and
+   the danger colour for a file named like one kind over the bytes of another. The chat's twin is in
+   /chat/messages.css. */
+.file-caution { font-size: var(--text-xs); color: var(--warning); margin: 0; }
+.file-caution.disguised { color: var(--danger); font-weight: 600; }
+.file-caution::before { content: "\26A0  "; }
+.files-item-buttons { align-items: center; }
+.files-item-buttons .files-tile-actions { margin-top: 0; }
+.files-item-edit .files-edit { margin-top: var(--space-md); margin-bottom: 0; }
+.files-edit h3 { font-size: var(--text-base); margin-bottom: var(--space-md); }
+.files-licence-row { display: flex; flex-wrap: wrap; gap: var(--space-sm); align-items: center; }
+.files-licence-name { font-weight: 700; }
+.files-licence-more { display: flex; flex-direction: column; gap: var(--space-xs); align-items: flex-start; }
+.files-cc-warning { margin: 0; }
+.files-hosting { border-left: 3px solid var(--border); padding-left: var(--space-md); margin-bottom: var(--space-md); }
+.files-hosting-heading { font-weight: 700; font-size: var(--text-sm); }
+@media (max-width: 560px) {
+  .files-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+  .files-featured-row .files-tile { flex-basis: 170px; }
+}
+
+/* ── The three panes (2026-10-19, /pages/files-panes.js; the desktop's files/panes.rs) ──
+   The list on the left, the item to fit in the middle, its details on the right: a grid whose
+   tracks files-panes.js writes (each pane at least 280 px across or 170 px stacked, then its share,
+   with the handle's track between), side by side or one above another. The item's two panes come
+   from #files-viewer and #files-viewer-open, which take no box of their own (display: contents), so
+   they sit in the same grid. The panes view uses the window's whole width. */
+#files-root.files-root-panes { max-width: none; }
+.files-panes {
+  display: grid; gap: 0; margin-bottom: var(--space-lg);
+  height: max(480px, calc(100vh - var(--hos-nav-h, 48px) - var(--space-xl)));
+}
+.files-panes-down { height: max(560px, calc(100vh - var(--hos-nav-h, 48px) - var(--space-xl))); }
+.files-viewer-panes, .files-item-panes { display: contents; }
+.files-pane {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
+  padding: var(--space-md); overflow: auto; min-width: 0; min-height: 0; position: relative;
+}
+/* The handle between two panes: a short grip in the middle of the gap, the accent while held or pointed at. */
+.files-pane-handle { display: flex; align-items: center; justify-content: center; cursor: col-resize; touch-action: none; user-select: none; -webkit-user-select: none; }
+.files-panes-down .files-pane-handle { cursor: row-resize; }
+.files-pane-handle:focus { outline: none; }
+.files-pane-grip { display: block; width: 2px; height: calc(2 * var(--space-xl)); border-radius: var(--pill-radius); background: var(--border); }
+.files-panes-down .files-pane-grip { width: calc(2 * var(--space-xl)); height: 2px; }
+.files-pane-handle:hover .files-pane-grip, .files-pane-handle-held .files-pane-grip, .files-pane-handle:focus-visible .files-pane-grip { background: var(--accent); width: 3px; }
+.files-panes-down .files-pane-handle:hover .files-pane-grip, .files-panes-down .files-pane-handle-held .files-pane-grip,
+.files-panes-down .files-pane-handle:focus-visible .files-pane-grip { width: calc(2 * var(--space-xl)); height: 3px; }
+/* While nothing is chosen, the middle and right panes say what they will hold. */
+.files-pane-empty { display: flex; align-items: center; justify-content: center; text-align: center; }
+.files-pane-line { font-size: var(--text-sm); max-width: 28rem; margin: 0; }
+.files-view-switch { display: inline-flex; gap: var(--space-xs); align-items: center; }
+
+/* The left pane: the featured shelf, the filters, every item as a row, More and the page's foot. */
+.files-list-pane .files-featured { margin-bottom: var(--space-md); }
+.files-list-pane .files-featured h2 { font-size: var(--text-base); margin-bottom: var(--space-sm); }
+.files-list-pane .files-filters { gap: var(--space-sm); margin-bottom: var(--space-md); }
+.files-list-pane .files-filters .files-select { max-width: 100%; }
+.files-list-pane .files-search { min-width: 120px; }
+.files-list-pane .files-more-wrap { margin: var(--space-md) 0; }
+.files-list-pane .files-foot { margin-top: var(--space-lg); }
+.files-rows { display: flex; flex-direction: column; gap: var(--space-xs); }
+.files-row {
+  display: flex; gap: var(--space-sm); align-items: center; width: 100%; text-align: left; cursor: pointer;
+  font-family: inherit; color: var(--text); background: transparent; border: 1px solid transparent;
+  border-radius: var(--radius); padding: var(--space-xs);
+}
+.files-row:hover { background: var(--bg-tertiary); }
+.files-row:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 1px; }
+.files-row-chosen, .files-row-chosen:hover { background: color-mix(in srgb, var(--accent) 18%, transparent); border-color: var(--accent); }
+.files-row-thumb {
+  flex: 0 0 88px; width: 88px; height: 62px; border-radius: var(--radius); background: var(--bg-tertiary);
+  overflow: hidden; display: flex; align-items: center; justify-content: center;
+}
+.files-row-img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.files-row-mark .files-mark-word { font-size: var(--text-xs); color: var(--text-secondary); padding: 0 var(--space-xs); text-align: center; }
+.files-row-text { display: flex; flex-direction: column; min-width: 0; flex: 1; gap: 1px; }
+.files-row-title, .files-row-by, .files-row-facts { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.files-row-title { font-size: var(--text-sm); color: var(--text-strong); }
+.files-row-by { font-size: var(--text-xs); color: var(--text-secondary); }
+.files-row-facts { font-size: var(--text-xs); color: var(--text-muted); }
+.files-row-labelled { color: var(--warning); }
+
+/* The middle pane: the item to fit (the desktop's files/viewer.rs). */
+.files-face-pane { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-sm); }
+.files-face-pane .files-face-fit {
+  flex: 1 1 auto; min-height: 0; width: 100%; height: 100%; max-width: 100%; max-height: none;
+  object-fit: contain; margin: 0; display: block;
+}
+.files-face-pane .files-viewer-video.files-face-fit { background: var(--bg-tertiary); border-radius: var(--radius); }
+.files-face-buttons { display: flex; flex-wrap: wrap; gap: var(--space-sm); justify-content: center; margin-top: 0; }
+.files-face-file { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: var(--space-sm); width: 100%; height: 100%; min-height: 0; }
+.files-face-file .files-viewer-name { word-break: break-word; font-weight: 400; color: var(--text-secondary); font-size: var(--text-sm); }
+.files-face-kind { font-size: var(--text-lg); font-weight: 700; color: var(--text); }
+.files-face-mark { display: flex; align-items: center; justify-content: center; flex: 1 1 auto; min-height: 0; }
+.files-face-mark .file-badge { transform: scale(2); transform-origin: center; }
+.files-face-pane .files-face-cover { flex: 0 1 40%; min-height: 0; width: 100%; object-fit: contain; margin: 0; max-height: 40%; }
+.files-face-pane .files-viewer-model { align-self: stretch; }
+.files-face-pane .files-viewer-veil { width: min(640px, 100%); }
+/* A sound: Play here, then its waveform (and its spectrum while it plays) over the browser's player. */
+.files-sound { width: 100%; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: var(--space-sm); align-items: center; justify-content: center; }
+.files-sound-line { font-size: var(--text-sm); color: var(--text-secondary); margin: 0; text-align: center; word-break: break-word; }
+.files-sound-wave { width: 100%; flex: 1 1 auto; min-height: 120px; display: block; border-radius: var(--radius); cursor: pointer; touch-action: none; }
+.files-sound-audio { width: 100%; }
+.files-sound-note { margin: 0; }
+
+/* The right pane: Close, then the details, or the Edit form in their place. */
+.files-details-head { display: flex; justify-content: flex-end; margin-bottom: var(--space-xs); }
+.files-details-head .files-viewer-close { float: none; margin: 0; }
+.files-details-pane .files-edit { border: 0; border-radius: 0; background: transparent; padding: 0; margin: 0; }
+.files-edit-heading { font-size: var(--text-lg); }
+/* Save and Cancel stay in view at the pane's foot while the parts scroll above them. */
+.files-edit-foot { position: sticky; bottom: calc(-1 * var(--space-md)); z-index: 1; background: var(--bg-card); border-top: 1px solid var(--border); padding: var(--space-sm) 0; margin-top: var(--space-sm); }
+.files-edit-foot .files-form-buttons { margin-top: 0; }
+.files-edit-foot .files-warn:empty { display: none; }
+/* Edit mode stands out: the pane edged with the nav bar's active border in its moving colours (the
+   `channeling` cycle /shared/shell.js defines), still under reduced motion or with RGB effects off,
+   where it keeps a ring in the accent colour (the desktop's rgb_border does the same). */
+.files-pane-editing { animation: channeling 3s linear infinite; border-color: transparent; }
+@media (prefers-reduced-motion: reduce) { .files-pane-editing { animation: none; outline: 2px solid var(--accent); outline-offset: -2px; } }
+[data-reduced-motion] .files-pane-editing, [data-no-rgb] .files-pane-editing { animation: none !important; outline: 2px solid var(--accent); outline-offset: -2px; }
+/* The question before an edit's changes are let go. */
+.files-ask-box { max-width: min(480px, 100%); }
+.files-ask-title { font-size: var(--text-lg); margin-bottom: var(--space-sm); }
+.files-ask-words { margin-bottom: var(--space-sm); }
+/* The item window over the chat (/files/<id>?window=item): its two panes fill the frame. */
+.files-panes-window { height: calc(100vh - 2 * var(--space-sm)); margin: 0; }
+.files-panes-window.files-panes-down { height: max(400px, calc(100vh - 2 * var(--space-sm))); }

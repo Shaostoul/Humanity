@@ -445,7 +445,7 @@ gifts to a person. That makes the "not-for-profit" argument weaker still.
    the uploader owns the item, the server's own hosting licence (section 5)
    covers it anyway, so the server never needs to rely on this reading.
 2. **Featuring items on the server's front page "for visitors and the donation
-   story"** (`docs/design/media-showcase.md`, "Featured"). Less clear: a page
+   story"** (`docs/design/files-showcase.md`, "Featured"). Less clear: a page
    that asks for money and uses the item to draw people to it could be
    "directed towards ... monetary compensation". Covered if the server's
    hosting licence names featuring on that server.
@@ -1004,7 +1004,7 @@ said whether donation-driven promotion is commercial.
 
 Read, not changed, while writing this; a reviewer should confirm.
 
-- `docs/design/media-showcase.md` plans a per-item "public" or "members" choice
+- `docs/design/files-showcase.md` plans a per-item "public" or "members" choice
   and an admin "Featured" list described as "the "showcase" for visitors and
   the donation story". It says nothing about licences.
 - `web/pages/rules.html`, the only rules page found, has no copyright, licence

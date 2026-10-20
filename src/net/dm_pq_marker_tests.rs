@@ -1,4 +1,4 @@
-//! The `unchecked` field of a file marker (docs/design/media-showcase.md, the files section, part
+//! The `unchecked` field of a file marker (docs/design/files-showcase.md, the files section, part
 //! 2), held to the shared fixture both apps read: scripts/tests/fixtures/file-marker-unchecked.json
 //! (the web wrote it the way its `pqBuildFileMarker` builds). `built`: a meta, its exact JSON text
 //! and the exact marker text both apps must build; `read`: marker texts and whether each says

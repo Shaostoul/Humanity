@@ -276,17 +276,30 @@ Removal (v0.709): signed `POST /api/uploads/delete` — the uploader can remove 
 own file; an admin can remove any (Dilithium-signed "delete_upload" request).
 - Server: `src/relay/api.rs` (`GET /api/uploads`, `share` query param on upload, `POST /api/uploads/delete`), `src/relay/storage/uploads.rs` (`list_shared_uploads`, `delete_shared_upload`, FIFO exemption + tests), schema `user_uploads` (+`shared`, `original_name`, `size_bytes`)
 - Web: `web/pages/shared-files.html` (browse/search/download), `web/chat/chat-messages.js` (auto-share on attach)
-- Native (v0.710): Data files page (called Files until 2026-10-19) "Shared files on the server" manager — list (auto-load + Refresh), Upload via the in-app file browser (share=1), per-row Remove (own files, or any as admin). `src/gui/pages/files.rs`
+- Native (v0.710): the Files page's "Shared files" place since 2026-10-19 (the developer's Files page's top half until then): list (auto-load + Refresh), Upload via the in-app file browser (share=1), Remove (own files, or any as admin), Put on the Files page; a file chosen shows in the middle as the chat shows a public file. `src/gui/pages/files/shared_files.rs`. Web: the Shared files place, `web/pages/files-shared.js` (the Shared Files page until then).
 
 ### Files Page, formerly the Media Page (relay 2026-10-11, native page increment 2 and round 2 2026-10-11)
-**Renamed Files (2026-10-19; the operator: "What do you think about changing the name of media to
-files").** The page holds every kind of file, so the menu, the heading ("Files on {host}"), its
-first tab and its words say Files in both apps: Add to Files, Put on the Files page, Remove from
-Files, "On the Files page since", "File space (MB)". The code keeps its names (`media.rs`,
-`GuiPage::Media`, page id `media`, `/api/media`, and the `/media` address that chat cards and link
-previews use). The developer's data browser that was called Files is now Data files (see "Data
-Files Page"). `tests/terminology_lint.rs` fails on the old action words as quoted text. The entries
-below keep the names they were written with.
+**One Files page (2026-10-19).** The operator: "What do you think about changing the name of media
+to files", then "What's the real difference between these two? Why would we not want to merge
+them? ... If we just start at the root HumanityOS folder for file browsing then we automatically
+have 'data' files and we even have mods at the top too", and "I'd rather sync the names now while
+no one is using HOS". So the Media page and the developer's Files page are one page, Files, with
+PLACES at the top of its left pane (`src/gui/pages/files/places.rs`; web `files-places.js`): Shared
+on <server> (the Media list, item and details below), Shared files (the server's public library),
+Admin (admins), the HumanityOS folder (`files/app_folder.rs`: the app's own folder, the one holding
+data/, assets/ and mods/, as a tree read folder by folder; a text file read and edited in the
+middle; Save keeps `<name>.bak` beside it and Put back the previous version restores it; the web's
+is the server's data/ through `/api/data-files`, `files-folder.js`) and Your folders (desktop
+only). The words say Files: the heading "Files on {host}", Add to Files, Put on the Files page,
+Remove from Files, "On the Files page since", "File space (MB)". The names followed: `GuiPage::Files`
+(page id `files`), `src/gui/pages/files.rs` + `files/`, `FilesState`, the relay's
+`src/relay/files*.rs` and `storage/files*.rs` with its `/api/files/*` routes (an item's own files at
+`/api/files/item-files/*`; the data-file routes moved to `/api/data-files`), `/files/<id>` item
+pages, `web/pages/files.html` + `files-*.js`, `data/files/` (kinds, labels, licences), config.json
+`files_layout`, `files_folders`, `files_unfinished_uploads`. Not renamed: the SQLite tables and
+columns (`media_items` and the rest, kept on the live server) and the JSON fields both apps and the
+relay exchange, and the playback engine `src/media/`. `tests/terminology_lint.rs` fails on the old
+action words as quoted text. The entries below keep the names they were written with.
 
 **Website mirror (v0.1522.0):** `web/pages/media-panes.js` and `media-sound.js` give the website
 the same three panes (side by side or stacked by the same rule, the split in localStorage
@@ -297,7 +310,7 @@ here), and the Gallery; chat's framed item window holds the item and its details
 `scripts/tests/media-web-panes.test.js` (in `just rig-tests`).
 
 **Three panes, edit in place, sounds with a waveform (desktop, 2026-10-19; design
-`docs/design/media-showcase.md` "The three panes"):** the Media tab is a list, the item to fit and its
+`docs/design/files-showcase.md` "The three panes"):** the Media tab is a list, the item to fit and its
 details, side by side on a wide window and stacked top, middle, bottom on a tall or narrow one
 (`src/gui/pages/media/panes.rs`, the widget `src/gui/widgets/panes.rs`: resizable, the split and the
 view kept in config.json `media_layout`, a double-click on a handle puts two panes back). Left
@@ -334,7 +347,7 @@ paint callback drawing PBR into its own MSAA picture; pipelines registered in `l
 - Relay: an item edited in place, files and a cover added and removed (`src/relay/media_edit.rs`, signed, the edit over its JSON exactly as sent); members-only moves every file; removing an item removes them all; downloads and views counted once a person a UTC day (`src/relay/media_counts.rs`, X-Real-IP, a key for members-only); `/media/<id>` served by the relay with Open Graph tags (`src/relay/media_page.rs`, routed by nginx); a licence per item (`data/media/licences.json`, `src/relay/media_licences.rs`); a keep undone only by the same or a higher role.
 - Native: "Media on {host}", Media and Admin tabs (the Media settings moved out of Server Settings, `media/admin.rs`), Sort, scroll paging, the shelf per category (`media/filters.rs`), the item's page (`media/item_view.rs`), Edit with the licence and its warnings, files and cover (`media/edit.rs`), counted downloads (`media/open.rs`), the hosting paragraph beside Add to Media; the server strip on the server pages (`src/gui/pages/server_strip.rs`, `GuiState::switch_to_server`).
 - Web: "Media on {host}", the Admin tab, Sort, scroll paging, the shelf per category, `/media/<id>` addresses (`web/pages/media-app.js`); the server strip (`web/shared/server-strip.js`). The website's item page and editor (lane 2A) is next.
-The pictures, videos, 3D models and files people on a server chose to show (design: `docs/design/media-showcase.md`). Nothing is on it unless its uploader put it there, nothing from a private conversation can be, and an item can be members only (only a file uploaded for Media; a file already public in a chat or Shared Files goes on as public only). Categories are the server's (admins set them, members suggest); content labels (Spoiler, Flashing lights, Graphic) hide an item until clicked; Picks (yours) and Featured (the admins'); its own storage budget, each person's share, and a meter with prune lists. Every write is Dilithium-signed with a purpose that names its target.
+The pictures, videos, 3D models and files people on a server chose to show (design: `docs/design/files-showcase.md`). Nothing is on it unless its uploader put it there, nothing from a private conversation can be, and an item can be members only (only a file uploaded for Media; a file already public in a chat or Shared Files goes on as public only). Categories are the server's (admins set them, members suggest); content labels (Spoiler, Flashing lights, Graphic) hide an item until clicked; Picks (yours) and Featured (the admins'); its own storage budget, each person's share, and a meter with prune lists. Every write is Dilithium-signed with a purpose that names its target.
 - Server: `src/relay/media.rs` (routes under `/api/media`, signed purposes, the members' file route `GET /api/media/file/{id}?token=`), `src/relay/storage/media.rs` (tables `media_items`, `media_categories`, `media_category_suggestions`, `media_picks`), `POST /api/upload?media=1`, server settings `media_visibility`, `media_budget_mb`, `media_per_person_mb`, `media_public_previews_only`
 - Native: the Media page beside Watch, `src/gui/pages/media.rs` (state for one server and one identity, jobs off the frame, `poll_upload` every frame from src/lib.rs, the page, a 409 to an action on a tile reloads and says so), `media/api.rs` (requests, signing, answers; every action names the item's file, `filename`; the members' file fetched with the token in an `X-Upload-Token` header; `/api/media/mine` for the share; `featured=1`; picks by signed POST and `picked_by_me`; Keep on the server), `media/tiles.rs` (filters, tiles, what a tile shows: protected setup, label, click-to-load for non-friends, too large to show in place, the picture; Kept badge; Pick, Remove, Feature, Keep, Report with the `media` context), `media/add.rs` (Add to Media with the server's own share count and an over-share upload stopped before it starts, Put on Media, a waiting upload's publish, the category shown is the category sent, Suggest a category), `media/resumable.rs` (the upload in pieces: hash, start, pieces, Pause and Resume, resume after a dropped connection, the 429 allowance waited out, Retry after no room at the finish, `done` when the answer was lost; the unfinished upload kept in config.json `media_unfinished_upload`), `media/uploading.rs` (the page's side: progress bar, Cancel stops the upload and the publish, the person's waiting uploads with Put it on Media and Remove, Carry on after a restart), `media/open.rs` (public picture to the image viewer; card with Download for everything else, a picture inside; video in `crate::media::VideoPlayer` without sound for now; no whole-transfer timeout; Play here's temporary copy deleted on close, at exit and at the next start; Download named by the uploader's own file name), `media/kinds.rs`; Put on Media on your own Shared Files rows (`src/gui/pages/files.rs`, its list forgotten on a server switch); Server Settings > ADMIN > Media (`src/gui/pages/server_settings/media.rs`: unsaved category edits kept until Save or Discard, the changed-underneath note, the kept line on the meter, Keep in the prune lists); Server Settings > Roles' upload limits per role (`src/gui/pages/server_settings/role_limits.rs`: Media file, private file, private held, a day, an hour, sent with every role save); the Reports page shows a reported Media item with Open the item (`src/gui/pages/server_settings/reports.rs`); the chat's private-file limit from the server (`src/gui/pages/chat/attach_send.rs` `Limits`, `private_limit_mb`) and a private file's Save streamed and decrypted a megabyte at a time (`src/gui/pages/chat/attach_view.rs` `save_file`, `src/net/dm_file_stream.rs`); no upload token in any error words (`src/gui/widgets/image_cache.rs` `hide_token`)
 - Data: `data/media/labels.json` (the content labels, read by the relay), `data/media/kinds.json` (the kinds' names and marks)
@@ -1689,12 +1702,12 @@ Calendar/planner in native UI.
 Notes/journal in native UI.
 - Native: `src/gui/pages/notes.rs`
 
-### Data Files Page (called the Files Page until 2026-10-19)
-The developer's browser and editor for `data/` (Platform > Data files; `GuiPage::DataFiles`, page id
-`data_files`), with the server's Shared Files above it. Renamed when the name Files went to the page
-people put their files on (see "Files Page, formerly the Media Page"). Dev tooling: kept as it is.
-- Native: `src/gui/pages/files.rs`
-- Web: `web/pages/files.html` + `files-app.js` at `/files`, "Data files" in the menu
+### The data/ browser (the HumanityOS folder place of the Files page since 2026-10-19)
+The developer's browser and editor for `data/` was its own Files page (Platform > Files) until
+2026-10-19, when it became the Files page's "HumanityOS folder" place (see "Files Page, formerly the
+Media Page"), starting one folder up so assets/ and mods/ show too. Dev tooling: kept, nothing lost.
+- Native: `src/gui/pages/files/app_folder.rs`
+- Web: `web/pages/files-folder.js` (the server's data/ through `/api/data-files`), a place of `/files`
 
 ### Resources Page
 Resources directory in native UI.

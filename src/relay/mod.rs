@@ -10,23 +10,23 @@ pub mod upload_limits;
 /// The rules every upload is held to (type lists, sharing switches, the picture strip, the
 /// stored name), shared by the single request and the resumable upload (2026-10-11).
 pub mod upload_rules;
-/// Resumable uploads: a big Media file sent in pieces (2026-10-11, docs/design/media-showcase.md
+/// Resumable uploads: a big Media file sent in pieces (2026-10-11, docs/design/files-showcase.md
 /// "Resumable uploads, exact"); storage in storage/upload_sessions.rs.
 pub mod resumable;
-/// The Media page's routes (2026-10-11, docs/design/media-showcase.md); storage in storage/media.rs.
-pub mod media;
+/// The Media page's routes (2026-10-11, docs/design/files-showcase.md); storage in storage/files.rs.
+pub mod files;
 /// Ten-minute tickets that open one members-only Media file without the session's token in the
 /// address (R3-8, 2026-10-11).
-pub mod media_ticket;
+pub mod files_ticket;
 /// Media round 5 (2026-10-12, docs/design/media-round-5-plan.md): the licences an item can carry
-/// (data/media/licences.json), views and downloads counted once a person a day, editing an item
+/// (data/files/licences.json), views and downloads counted once a person a day, editing an item
 /// and its other files, and an item's own page for social sites.
-pub mod media_licences;
-pub mod media_counts;
-pub mod media_edit;
-pub mod media_page;
+pub mod files_licences;
+pub mod files_counts;
+pub mod files_edit;
+pub mod files_page;
 // "Report a copyright problem" and the public takedown log (2026-10-13).
-pub mod media_takedown;
+pub mod files_takedown;
 pub mod api_v2_agents;
 pub mod api_v2_ai;
 pub mod api_v2_announce;
@@ -247,7 +247,7 @@ async fn security_headers(
     // 2026-06-12.)
     let is_upload = req.uri().path().starts_with("/uploads");
     // A name that starts with a dot under /uploads is never served (R5, 2026-10-11): an upload
-    // being copied into place has one (storage/media.rs `STAGED_PREFIX`) until it is whole and
+    // being copied into place has one (storage/files.rs `STAGED_PREFIX`) until it is whole and
     // counted. Matched before the path is decoded too (`%2e` is a dot).
     if is_upload && hidden_upload_path(req.uri().path()) {
         return (axum::http::StatusCode::NOT_FOUND, "Not found").into_response();
@@ -660,9 +660,9 @@ pub async fn run_relay() {
     // doesn't wait 6 hours for the periodic pass.
     db.run_expiry_sweeps();
 
-    // The Media page's content labels (data/media/labels.json), read now rather than at the
+    // The Media page's content labels (data/files/labels.json), read now rather than at the
     // first publish, so a broken file is in the log from the start (media.rs `labels`).
-    tracing::info!("Media content labels: {}", media::labels().iter().map(|l| l.id.as_str()).collect::<Vec<_>>().join(", "));
+    tracing::info!("Files content labels: {}", files::labels().iter().map(|l| l.id.as_str()).collect::<Vec<_>>().join(", "));
 
     // Owner-is-admin (v0.1134): a self-hosted node grants its OWNER the
     // admin role at startup. The in-app Host Node page sets this env var to
@@ -733,7 +733,7 @@ pub async fn run_relay() {
     // the resume folder's files and the sessions' rows are made to agree (a piece counted and
     // never stored gives its bytes back, R4-3; a file with no session goes, a session with no file
     // goes, a file longer than its stored offset is cut back).
-    match db.settle_uploads_at_start(storage::media::Folders::live()) {
+    match db.settle_uploads_at_start(storage::files::Folders::live()) {
         Ok(s) if s == storage::upload_sessions::Settled::default() => {}
         Ok(storage::upload_sessions::Settled { restored, staged_cleared, reconciled: r }) => tracing::info!(
             "Uploads at start: put {restored} pieces file(s) back with their sessions, removed {staged_cleared} half-copied file(s); resumable uploads: removed {} stray file(s) and {} session(s) with no file, cut {} file(s) back to their offset, lowered {} offset(s), gave back the count of {} piece(s) never stored",
@@ -1282,55 +1282,55 @@ pub fn build_router(state: Arc<RelayState>) -> Router {
         .route("/api/uploads", get(api::list_shared_uploads))
         // Remove a shared file (owner or admin), v0.709.
         .route("/api/uploads/delete", post(api::delete_shared_upload))
-        // The Media page (2026-10-11, media.rs; docs/design/media-showcase.md "Increment 1,
+        // The Media page (2026-10-11, media.rs; docs/design/files-showcase.md "Increment 1,
         // exact"). A signed READ also has a POST form (`/list`, and POST on `/suggestions` and
         // `/usage`): a Dilithium key and signature make a URL of about 10 KB, which a proxy
         // refuses with 414 (the admin-stats lesson, v0.851).
-        .route("/api/media", get(media::list).post(media::publish))
-        .route("/api/media/list", post(media::list_post))
-        .route("/api/media/categories", get(media::categories).post(media::set_categories))
-        .route("/api/media/remove", post(media::remove))
+        .route("/api/files", get(files::list).post(files::publish))
+        .route("/api/files/list", post(files::list_post))
+        .route("/api/files/categories", get(files::categories).post(files::set_categories))
+        .route("/api/files/remove", post(files::remove))
         // A members-only item's file, to a member with the session's upload token (F3): it is
         // not in data/uploads, so the /uploads service below never has it. Or with a ticket for
         // that one file (R3-8), which the ticket route gives a member for ten minutes.
-        .route("/api/media/file/{id}", get(media::file))
-        .route("/api/media/ticket", post(media_ticket::ticket))
-        .route("/api/media/visibility", post(media::visibility))
-        .route("/api/media/pick", post(media::pick))
-        .route("/api/media/unpick", post(media::unpick))
-        .route("/api/media/picks/{key}", get(media::picks_of))
+        .route("/api/files/file/{id}", get(files::file))
+        .route("/api/files/ticket", post(files_ticket::ticket))
+        .route("/api/files/visibility", post(files::visibility))
+        .route("/api/files/pick", post(files::pick))
+        .route("/api/files/unpick", post(files::unpick))
+        .route("/api/files/picks/{key}", get(files::picks_of))
         // The increment 2 follow-ups (2026-10-11): one person's picks with the list's signed
         // body (A3), a member's own use of the Media space (A4), and keeping an item on the
         // server (A7).
-        .route("/api/media/picks", post(media::picks_post))
-        .route("/api/media/mine", get(media::mine).post(media::mine_post))
-        .route("/api/media/keep", post(media::keep))
-        .route("/api/media/feature", post(media::feature))
-        .route("/api/media/suggest", post(media::suggest))
-        .route("/api/media/suggestions", get(media::suggestions).post(media::suggestions_post))
-        .route("/api/media/suggestions/decide", post(media::decide))
-        .route("/api/media/usage", get(media::usage).post(media::usage_post))
+        .route("/api/files/picks", post(files::picks_post))
+        .route("/api/files/mine", get(files::mine).post(files::mine_post))
+        .route("/api/files/keep", post(files::keep))
+        .route("/api/files/feature", post(files::feature))
+        .route("/api/files/suggest", post(files::suggest))
+        .route("/api/files/suggestions", get(files::suggestions).post(files::suggestions_post))
+        .route("/api/files/suggestions/decide", post(files::decide))
+        .route("/api/files/usage", get(files::usage).post(files::usage_post))
         // Media round 5 (2026-10-12, docs/design/media-round-5-plan.md): an item edited where it
         // is, and its other files (media_edit.rs); views and counted downloads (media_counts.rs);
         // an item's own page and its picture for social sites (media_page.rs). nginx sends
-        // ^/media/[0-9]+$ here; /media itself stays a static page. `/api/media/file/{id}` above
+        // ^/files/[0-9]+$ here; /files itself stays a static page. `/api/files/file/{id}` above
         // takes `?file=<n>` for an added file or the cover.
-        .route("/api/media/edit", post(media_edit::edit))
-        .route("/api/media/files/add", post(media_edit::files_add))
-        .route("/api/media/files/remove", post(media_edit::files_remove))
-        .route("/api/media/files/rename", post(media_edit::files_rename))
-        .route("/api/media/files/cover", post(media_edit::files_cover))
-        .route("/api/media/viewed", post(media_counts::viewed))
-        .route("/api/media/download/{id}", get(media_counts::download))
-        .route("/api/media/preview/{id}", get(media_page::preview))
+        .route("/api/files/edit", post(files_edit::edit))
+        .route("/api/files/item-files/add", post(files_edit::files_add))
+        .route("/api/files/item-files/remove", post(files_edit::files_remove))
+        .route("/api/files/item-files/rename", post(files_edit::files_rename))
+        .route("/api/files/item-files/cover", post(files_edit::files_cover))
+        .route("/api/files/viewed", post(files_counts::viewed))
+        .route("/api/files/download/{id}", get(files_counts::download))
+        .route("/api/files/preview/{id}", get(files_page::preview))
         // "Report a copyright problem" (2026-10-13, media_takedown.rs): the form anyone may send,
         // signed in or not (a small body, limited per address a day); the public takedown log;
         // and the admins' open list and decision.
-        .route("/api/media/takedown", post(media_takedown::takedown).layer(axum::extract::DefaultBodyLimit::max(media_takedown::TAKEDOWN_BODY_LIMIT)))
-        .route("/api/media/takedown/decide", post(media_takedown::decide))
-        .route("/api/media/takedowns", get(media_takedown::public_log))
-        .route("/api/media/takedowns/open", get(media_takedown::open_list).post(media_takedown::open_list_post))
-        .route("/media/{id}", get(media_page::page))
+        .route("/api/files/takedown", post(files_takedown::takedown).layer(axum::extract::DefaultBodyLimit::max(files_takedown::TAKEDOWN_BODY_LIMIT)))
+        .route("/api/files/takedown/decide", post(files_takedown::decide))
+        .route("/api/files/takedowns", get(files_takedown::public_log))
+        .route("/api/files/takedowns/open", get(files_takedown::open_list).post(files_takedown::open_list_post))
+        .route("/files/{id}", get(files_page::page))
         .route("/api/github-webhook", post(api::github_webhook))
         .route("/api/tasks", get(api::get_tasks).post(api::create_task))
         .route("/api/tasks/{id}", patch(api::update_task).delete(api::delete_task))
@@ -1381,9 +1381,9 @@ pub fn build_router(state: Arc<RelayState>) -> Router {
         .route("/api/push/subscribe", post(api::push_subscribe))
         .route("/api/push/unsubscribe", post(api::push_unsubscribe))
         .route("/api/vapid-public-key", get(api::get_vapid_public_key))
-        .route("/api/files", get(api::list_files))
-        .route("/api/files/read", get(api::read_file))
-        .route("/api/files/write", post(api::write_file))
+        .route("/api/data-files", get(api::list_files))
+        .route("/api/data-files/read", get(api::read_file))
+        .route("/api/data-files/write", post(api::write_file))
         .route("/api/docs/accord", get(api::list_accord_docs))
         .route("/api/docs/accord/{slug}", get(api::get_accord_doc))
         // POST form carries the ~10KB Dilithium key+signature in the body so it

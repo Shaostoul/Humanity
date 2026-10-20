@@ -1052,7 +1052,7 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                     }
                     // A file connection's signal (a dial from someone we offered files to, or the
                     // answer and candidates of one that stands) is engine/file_transfer.rs's
-                    // (media-showcase.md, device-to-device big files); anything else goes on below.
+                    // (files-showcase.md, device-to-device big files); anything else goes on below.
                     Some("webrtc_signal") if crate::engine::file_transfer::on_signal(&mut state.gui_state, &val) => {}
                     #[cfg(feature = "native")]
                     Some("webrtc_signal") => {

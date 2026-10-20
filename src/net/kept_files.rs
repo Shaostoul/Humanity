@@ -1,4 +1,4 @@
-//! Keeping a copy of the private files a person opened (docs/design/media-showcase.md, "Files on
+//! Keeping a copy of the private files a person opened (docs/design/files-showcase.md, "Files on
 //! the sender's device and in messages, exact", part 4; the operator's answer 9 of 2026-10-11).
 //!
 //! WHY: a private file (an encrypted upload sent in a DM or a group) leaves the server with the DM

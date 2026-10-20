@@ -3,264 +3,129 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Data files, HumanityOS</title>
+  <title>Files, HumanityOS</title>
+  <!-- An item's own page, /files/<id>, is this file with the item's Open Graph tags written
+       at the next line by the relay (src/relay/files_page.rs). Keep that line as it is. -->
+  <!-- files:og -->
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="stylesheet" href="/shared/theme.css">
+  <!-- The Files page, called the Media page (at /media) until 2026-10-19
+       (docs/design/files-showcase.md, "Increment 2, exact"). Everything
+       inside #files-root is built by /pages/files-app.js with createElement and
+       textContent; its styles are /shared/files.css, theme tokens only. -->
+  <link rel="stylesheet" href="/shared/files.css?v=11">
+  <!-- The HumanityOS folder place (2026-10-19): the data browser's own styles, scoped to its parts. -->
+  <link rel="stylesheet" href="/shared/files-folder.css?v=1">
+  <link rel="stylesheet" href="/shared/files-places.css?v=1">
+  <!-- Each file's type, always shown just before its name (2026-10-17), and the tinted parts of
+       Add to Files and an item's Edit, in the chat sidebar's colours, darker. -->
+  <link rel="stylesheet" href="/shared/file-badge.css?v=1">
+  <link rel="stylesheet" href="/shared/tint-section.css?v=1">
+  <!-- Files dragged from the computer onto the page: the dimmed overlay saying what a drop will do (2026-10-17). -->
+  <link rel="stylesheet" href="/shared/drop-overlay.css?v=2">
+  <!-- The upload window (2026-10-17, /shared/upload-window.js): this page at /files?window=upload in a
+       frame over the chat is its Add to Files alone, without the site's menu, footer and background.
+       At /files/<id>?window=item (a Media card's Open in the chat) it is that item's own page alone,
+       drawn as the frame's page rather than a dimmed dialog over it.
+       Marked here, before anything is drawn, so the menu never shows in the frame. In the frame only
+       the page and what its own parts put on the body show: the drop overlay, the press-and-hold
+       confirmation Remove asks with (/shared/hold-confirm.js; hidden, its promise never settled and
+       Remove did nothing), and the tooltip /shared/shell.js draws in place of every title. -->
+  <script>
+    (function () {
+      var framed = false;
+      try { framed = window.self !== window.top; } catch (e) { framed = true; }
+      if (framed && /(?:^|[?&])window=(?:upload|item)(?:&|$)/.test(location.search.slice(1))) document.documentElement.setAttribute('data-files-window', '');
+    })();
+  </script>
   <style>
-    body { min-height: 100vh; display: flex; flex-direction: column; }
-    #page-app { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
-
-    /* ── Top bar ── */
-    .files-topbar {
-      display: flex; align-items: center; gap: var(--space-lg);
-      padding: var(--space-md) var(--space-xl);
-      background: var(--bg); border-bottom: 1px solid var(--bg-secondary);
-      flex-shrink: 0; min-height: 42px;
-    }
-    .breadcrumb { display: flex; align-items: center; gap: var(--space-xs); flex: 1; overflow-x: auto; }
-    .breadcrumb-seg {
-      font-size: 0.82rem; color: var(--text-muted); cursor: pointer;
-      background: none; border: none; padding: var(--space-xs) var(--space-sm);
-      border-radius: var(--radius-sm); transition: color 0.12s;
-    }
-    .breadcrumb-seg:hover { color: var(--text); }
-    .breadcrumb-seg.active { color: var(--text); cursor: default; }
-    .breadcrumb-sep { color: var(--text-dim); font-size: 0.75rem; }
-    .file-info { font-size: 0.72rem; color: var(--text-muted); white-space: nowrap; }
-    .btn-save {
-      background: var(--accent); color: #000; border: none;
-      border-radius: var(--radius-sm); padding: var(--space-sm) var(--space-xl);
-      font-size: 0.78rem; font-weight: 700; cursor: pointer;
-      transition: opacity 0.12s; display: none;
-    }
-    .btn-save:hover { opacity: 0.85; }
-    .btn-save.visible { display: inline-block; }
-    .btn-wrap {
-      background: var(--bg-secondary); color: var(--text-muted); border: 1px solid var(--border);
-      border-radius: var(--radius-sm); padding: var(--space-xs) var(--space-md);
-      font-size: 0.72rem; cursor: pointer; display: none; white-space: nowrap;
-    }
-    .btn-wrap:hover { color: var(--text); border-color: var(--text-muted); }
-    .btn-wrap.visible { display: inline-block; }
-    .unsaved-dot { color: var(--accent); font-weight: 700; display: none; margin-right: var(--space-xs); }
-    .unsaved-dot.visible { display: inline; }
-
-    /* ── Main layout ── */
-    .files-main {
-      display: flex; flex: 1; overflow: hidden;
-      height: calc(100vh - 42px - 42px);
-    }
-
-    /* ── File tree (left panel) ── */
-    .file-tree {
-      width: 260px; min-width: 180px;
-      background: var(--bg); border-right: 1px solid var(--bg-secondary);
-      display: flex; flex-direction: column; flex-shrink: 0; overflow: hidden;
-    }
-    .tree-header {
-      padding: var(--space-lg) var(--space-xl);
-      border-bottom: 1px solid var(--bg-secondary);
-      display: flex; align-items: center; gap: var(--space-md);
-    }
-    .tree-header h2 {
-      font-size: 0.78rem; font-weight: 700; text-transform: uppercase;
-      letter-spacing: 0.08em; color: var(--text-muted); flex: 1; margin: 0;
-    }
-    .btn-refresh-tree {
-      background: transparent; border: 1px solid var(--border);
-      color: var(--text-muted); border-radius: var(--radius-sm);
-      padding: var(--space-xs) var(--space-sm); font-size: 0.72rem;
-      cursor: pointer;
-    }
-    .btn-refresh-tree:hover { color: var(--text); border-color: var(--text-muted); }
-    .tree-list { flex: 1; overflow-y: auto; padding: var(--space-sm) 0; }
-    .tree-item {
-      display: flex; align-items: center; gap: var(--space-sm);
-      padding: var(--space-xs) var(--space-lg);
-      font-size: 0.82rem; color: var(--text-muted);
-      cursor: pointer; transition: background 0.1s; border: none;
-      background: none; width: 100%; text-align: left;
-    }
-    .tree-item:hover { background: var(--bg-secondary); color: var(--text); }
-    .tree-item.active { background: var(--bg-hover); color: var(--text); }
-    .tree-item .icon { width: 16px; text-align: center; flex-shrink: 0; font-size: 0.75rem; }
-    .tree-item .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .tree-item .size { font-size: 0.68rem; color: var(--text-dim); }
-    .tree-item.dir .icon { color: var(--accent); }
-    .tree-children { display: none; }
-    .tree-children.open { display: block; }
-
-    /* ── Viewer (right panel) ── */
-    .file-viewer {
-      flex: 1; display: flex; flex-direction: column; overflow: hidden;
-      background: var(--bg);
-    }
-    .viewer-empty {
-      flex: 1; display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      color: var(--text-muted); gap: var(--space-lg);
-    }
-    .viewer-empty .empty-icon { font-size: 3rem; opacity: 0.3; }
-    .viewer-empty p { font-size: 0.88rem; }
-
-    /* ── Code editor ── */
-    .editor-wrap {
-      flex: 1; display: flex; overflow: hidden; position: relative;
-    }
-    .line-numbers {
-      background: var(--bg-panel, #0d0d0d); color: var(--text-dim);
-      font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
-      font-size: 0.82rem; line-height: 1.55;
-      padding: var(--space-lg) var(--space-md);
-      text-align: right; user-select: none;
-      overflow: hidden; flex-shrink: 0; min-width: 48px;
-      border-right: 1px solid var(--bg-secondary);
-    }
-    .editor-textarea {
-      flex: 1; background: transparent; color: var(--text);
-      font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
-      font-size: 0.82rem; line-height: 1.55;
-      padding: var(--space-lg);
-      border: none; outline: none; resize: none;
-      overflow: auto; tab-size: 4; white-space: pre;
-    }
-    .editor-textarea.wrap { white-space: pre-wrap; word-wrap: break-word; }
-
-    /* ── Media viewers ── */
-    .media-viewer {
-      flex: 1; display: flex; align-items: center; justify-content: center;
-      padding: var(--space-2xl); overflow: auto;
-    }
-    .media-viewer img {
-      max-width: 100%; max-height: 100%; object-fit: contain;
-      border-radius: var(--radius);
-    }
-    .media-viewer audio, .media-viewer video {
-      max-width: 100%; border-radius: var(--radius);
-    }
-
-    /* ── JSON viewer ── */
-    .json-viewer {
-      flex: 1; overflow: auto; padding: var(--space-lg) var(--space-xl);
-      font-family: 'JetBrains Mono', 'Fira Code', monospace;
-      font-size: 0.82rem; line-height: 1.55;
-    }
-    .json-key { color: #7ec8e3; }
-    .json-str { color: #a8d89a; }
-    .json-num { color: #d4a0ff; }
-    .json-bool { color: #f0a500; }
-    .json-null { color: #888; }
-    .json-toggle {
-      cursor: pointer; color: var(--text-dim); user-select: none;
-      display: inline-block; width: 16px; text-align: center;
-    }
-    .json-toggle:hover { color: var(--text); }
-    .json-collapsed { display: none; }
-
-    /* ── CSV table ── */
-    .csv-viewer {
-      flex: 1; overflow: auto; padding: var(--space-lg);
-    }
-    .csv-table {
-      border-collapse: collapse; width: 100%; font-size: 0.8rem;
-    }
-    .csv-table th {
-      background: var(--bg-secondary); color: var(--text);
-      padding: var(--space-sm) var(--space-lg);
-      text-align: left; font-weight: 700; position: sticky; top: 0;
-      border-bottom: 2px solid var(--accent);
-    }
-    .csv-table td {
-      padding: var(--space-sm) var(--space-lg);
-      border-bottom: 1px solid var(--bg-secondary); color: var(--text-muted);
-    }
-    .csv-table tr:hover td { background: var(--bg-secondary); color: var(--text); }
-
-    /* ── Markdown ── */
-    .md-viewer {
-      flex: 1; overflow: auto; padding: var(--space-xl) var(--space-2xl);
-      line-height: 1.7; color: var(--text-muted); max-width: 800px;
-    }
-    .md-viewer h1 { font-size: 1.5rem; color: var(--text); margin: var(--space-xl) 0 var(--space-lg); border-bottom: 1px solid var(--bg-secondary); padding-bottom: var(--space-md); }
-    .md-viewer h2 { font-size: 1.2rem; color: var(--text); margin: var(--space-xl) 0 var(--space-md); }
-    .md-viewer h3 { font-size: 1rem; color: var(--text); margin: var(--space-lg) 0 var(--space-sm); }
-    .md-viewer p { margin: var(--space-md) 0; }
-    .md-viewer code {
-      background: var(--bg-secondary); padding: 2px 6px; border-radius: 3px;
-      font-family: 'JetBrains Mono', monospace; font-size: 0.85em;
-    }
-    .md-viewer pre {
-      background: var(--bg-secondary); padding: var(--space-lg);
-      border-radius: var(--radius); overflow-x: auto;
-    }
-    .md-viewer pre code { background: none; padding: 0; }
-    .md-viewer a { color: var(--accent); }
-    .md-viewer ul, .md-viewer ol { padding-left: var(--space-2xl); }
-    .md-viewer li { margin: var(--space-xs) 0; }
-    .md-viewer strong { color: var(--text); }
-    .md-viewer blockquote {
-      border-left: 3px solid var(--accent); padding-left: var(--space-lg);
-      color: var(--text-dim); margin: var(--space-lg) 0;
-    }
-
-    /* ── Unknown file ── */
-    .unknown-viewer {
-      flex: 1; display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      gap: var(--space-xl); color: var(--text-muted);
-    }
-    .unknown-viewer .file-icon { font-size: 4rem; opacity: 0.3; }
-    .unknown-viewer .file-name { font-size: 1.1rem; color: var(--text); }
-    .unknown-viewer .file-meta { font-size: 0.82rem; }
-    .unknown-viewer .note { font-size: 0.78rem; color: var(--text-dim); margin-top: var(--space-lg); }
-
-    /* ── Loading ── */
-    .loading { color: var(--text-dim); font-size: 0.85rem; padding: var(--space-xl); text-align: center; }
-
-    @media (max-width: 600px) {
-      .file-tree { width: 180px; min-width: 140px; }
-      .files-topbar { padding: var(--space-sm) var(--space-md); }
-    }
+    body { background: var(--bg); color: var(--text); line-height: var(--line-height); min-height: 100vh; padding-bottom: 60px; }
+    [data-files-window] body { min-height: 0; padding: 0; }
+    [data-files-window] body > :not(#files-root):not(.hos-drop-overlay):not(.hold-confirm-overlay):not(#hos-rich-tooltip) { display: none !important; }
+    /* The item window: the item and its details in two panes filling the frame (files.css .files-panes-window). */
+    [data-files-window] #files-root { padding: var(--space-sm); max-width: none; }
   </style>
 </head>
 <body>
 <script src="/shared/events.js?v=1"></script>
-<script src="/shared/shell.js" data-active="files"></script>
+<script src="/shared/shell.js"></script>
 <script src="/shared/defaults.js"></script>
 <script src="/shared/settings.js"></script>
+<!-- Which server this is (Media round 5, docs/design/media-round-5-plan.md 3.11): a strip under
+     the top menu naming it, with Switch. After shell.js, which sets the menu's height it sits under. -->
+<script src="/shared/server-strip.js?v=1"></script>
+
+<div id="files-root"></div>
+
+<!-- Remove asks with a press-and-hold confirmation. -->
+<script src="/shared/hold-confirm.js?v=1"></script>
+<!-- The person's Dilithium identity, kept by Chat in this browser: `pq.js` installs
+     pqDeriveIdentity, pqSignMessage and pqBlake3; `pq-relay-auth.js` installs
+     getPqIdentity and getPqSignedAuth (every signed Media request goes through it). -->
+<script src="/chat/pq.js?v=2"></script>
+<!-- The recovery-phrase guard for "Also post in chat" (2026-10-17), the chat's own: the word list
+     the phrase is spelled with and the matcher (/shared/warnings.js); pq-relay-auth.js
+     pqRecoveryPhraseIn derives the phrase for each check and drops it. -->
+<script src="/chat/bip39-english.js?v=1"></script>
+<script src="/shared/warnings.js?v=3"></script>
+<script src="/shared/pq-relay-auth.js?v=4"></script>
+<!-- The page's own signed-in connection: the upload token and the server's settings. -->
+<script src="/shared/relay-session.js?v=2"></script>
+<!-- Report on a Media tile: the words a report signs and the reasons' help (context `media`). -->
+<script src="/shared/report.js?v=4"></script>
+<!-- Every file is cleaned on this device before it goes up (2026-10-11, docs/design/files-showcase.md,
+     part 1): where it was taken and which camera took it are removed, unless the person turns off
+     "Remove location and camera details". upload-clean.js after strip-metadata.js. -->
+<script src="/shared/strip-metadata.js?v=1"></script>
+<script src="/shared/upload-clean.js?v=1"></script>
+<!-- Add to Files's resumable upload (pieces, Pause and Resume, carrying on after a drop); since
+     round 5 it also attaches an upload to an item instead of publishing it. -->
+<script src="/pages/files-upload.js?v=4"></script>
+<!-- An item's own page and its Edit form (round 5, lane 2A): blake3.js hashes the edit's text,
+     which its signature names; files-edit.js before files-item.js, both before files-app.js. -->
+<script src="/shared/blake3.js?v=2"></script>
+<!-- What kind of file each one is (2026-10-17): every file's type as a badge before its name, and under it
+     a word when it deserves one (a program, a script, an archive, a Blender file). Reads
+     /data/safety/file_risks.json, the list the desktop app reads too; before files-edit.js, which draws
+     the badges for files-item.js and files-app.js. -->
+<script src="/shared/file-risk.js?v=2"></script>
+<script src="/pages/files-edit.js?v=5"></script>
+<!-- "Report a copyright problem" (2026-10-13): the form anyone may send, signed in or not, and the
+     admins' view of the reports; before files-item.js and files-app.js, which use it. -->
+<script src="/pages/files-takedown.js?v=1"></script>
+<!-- The 3D model viewer (2026-10-16, docs/design/model-viewer.md): View in 3D beside a .glb or .stl
+     file's Download on an item's page, drawn with WebGL 2, no outside library; before files-item.js. -->
+<script src="/shared/model-view.js?v=1"></script>
+<!-- The protected setup (2026-10-16): what it leaves out of this page, the desktop's rule (a person's
+     pictures and files where its pictures rule is on, a labelled item); reach.js before protected.js. -->
+<script src="/shared/reach.js?v=4"></script>
+<script src="/shared/protected.js?v=4"></script>
+<!-- The three panes (2026-10-19, the desktop's files/panes.rs): which way they go, their split kept in
+     this browser, and the handles between them; and a sound's view in the middle pane (Play here, then
+     its waveform drawn from the decoded file, the spectrum while it plays). Before files-item.js. -->
+<script src="/pages/files-panes.js?v=1"></script>
+<script src="/pages/files-sound.js?v=1"></script>
+<script src="/pages/files-item.js?v=8"></script>
+<!-- Files dragged from the computer onto the page (2026-10-17): the desktop's words while they are
+     over it ("Drop to upload to Files", "Drop to add to <the item>" with its Edit open) and its drop.
+     Before files-app.js, which puts it on the page. upload-window.js: this page as the upload window
+     over the chat (/files?window=upload in a frame), taking the files dropped there. -->
+<script src="/shared/drop-overlay.js?v=2"></script>
+<script src="/shared/upload-window.js?v=4"></script>
+<!-- Add to Files (the form, its uploads, publishing and "Also post in chat"), in its own file since
+     2026-10-17; files-app.js makes it, so it loads first. -->
+<script src="/pages/files-add.js?v=3"></script>
+<!-- The places (2026-10-19): Shared on <server> is this page's own list; Shared files is the Shared
+     Files page that was (its Upload a file, shared-files-upload.js, before files-shared.js); the
+     HumanityOS folder is the data browser that was at /files (markdown.js draws its .md files). All
+     before files-app.js, which shows them. -->
 <script src="/shared/markdown.js"></script>
-
-<div id="page-app">
-  <!-- Top bar -->
-  <div class="files-topbar">
-    <span class="unsaved-dot" id="unsaved-dot" title="Unsaved changes">*</span>
-    <div class="breadcrumb" id="breadcrumb"></div>
-    <span class="file-info" id="file-info"></span>
-    <button class="btn-wrap" id="btn-wrap" onclick="FilesApp.toggleWrap()">Wrap</button>
-    <button class="btn-save" id="btn-save" onclick="FilesApp.save()">Save</button>
-  </div>
-
-  <div class="files-main">
-    <!-- File tree -->
-    <div class="file-tree">
-      <div class="tree-header">
-        <h2>Data files</h2>
-        <button class="btn-refresh-tree" onclick="FilesApp.refreshTree()" title="Refresh">Refresh</button>
-      </div>
-      <div class="tree-list" id="tree-list">
-        <div class="loading">Loading...</div>
-      </div>
-    </div>
-
-    <!-- Viewer -->
-    <div class="file-viewer" id="file-viewer">
-      <div class="viewer-empty">
-        <div class="empty-icon">&#128193;</div>
-        <p>Select a file to view or edit</p>
-      </div>
-    </div>
-  </div>
-</div>
-
-<script src="/pages/files-app.js"></script>
+<script src="/pages/shared-files-upload.js?v=2"></script>
+<script src="/pages/files-shared.js?v=1"></script>
+<script src="/pages/files-folder.js?v=1"></script>
+<script src="/pages/files-places.js?v=2"></script>
+<script src="/pages/files-app.js?v=16"></script>
+<!-- The admins' section (Files page settings): this page's Admin tab, for admins (/files#admin; /admin points here). -->
+<script src="/pages/files-admin.js?v=3"></script>
 </body>
 </html>

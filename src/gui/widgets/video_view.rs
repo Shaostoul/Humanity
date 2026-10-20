@@ -5,7 +5,7 @@
 //! engine calls each frame it has a mixer). The temporary copy goes with the view.
 //!
 //! One widget, so a Media item's video and a video posted in chat play the same way (2026-10-18;
-//! the Media page's player moved here from `pages/media/open.rs`). The website's twin is the
+//! the Media page's player moved here from `pages/files/open.rs`). The website's twin is the
 //! browser's own `<video>` element.
 
 use std::path::PathBuf;

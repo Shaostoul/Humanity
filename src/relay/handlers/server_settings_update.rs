@@ -178,7 +178,7 @@ pub async fn handle(state: &Arc<RelayState>, my_key: &str, upd: RelayMessage) {
         if let Some(v) = fleet_supply_mode.as_deref().and_then(crate::relay::storage::fleet_supply_mode_of) {
             current.fleet_supply_mode = v.to_string();
         }
-        // The Media page (2026-10-11, relay/media.rs): "public" or "members" (anything else
+        // The Media page (2026-10-11, relay/files.rs): "public" or "members" (anything else
         // changes nothing), and its two sizes held to 1 MB .. a million MB.
         if let Some(v) = media_visibility.as_deref().and_then(crate::relay::storage::media_visibility_of) {
             current.media_visibility = v.to_string();

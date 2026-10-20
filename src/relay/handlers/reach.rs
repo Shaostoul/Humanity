@@ -23,7 +23,7 @@
 //!   room, or from the target's own key (their other devices) ([`dc_offer_may_pass`]). This
 //!   backs up the clients' own gate (BUG-171, BUG-173). For one big file sent device to device,
 //!   also from someone holding the target's FILE PASS for it (pq_crypto `verify_file_pass`,
-//!   [`file_pass_of`]; docs/design/media-showcase.md, device-to-device big files).
+//!   [`file_pass_of`]; docs/design/files-showcase.md, device-to-device big files).
 //!
 //! What a refused sender learns: a refused message or trade request gets
 //! `{"type":"reach_refused","kind":"message"|"trade","to":"<target key>"}`, the same for
@@ -437,7 +437,7 @@ pub fn dm_gate(
     }
     let pass = friend_pass(state, to, sender, cert);
     // A file pass the recipient gave the sender lets their answer and cancel notes in (the
-    // review's rule 4, media-showcase.md), unless the recipient takes messages from nobody; it
+    // review's rule 4, files-showcase.md), unless the recipient takes messages from nobody; it
     // still costs a stranger's knock (an admin or moderator pays nothing, as for any DM). The
     // relay cannot see what such a DM holds, and keeps no block list, so for the pass's life
     // (at most 7 days) a person the issuer later blocked can still send up to the stranger's
@@ -592,7 +592,7 @@ pub async fn signal_may_pass(
 /// May `sender` offer `to` a direct connection (which hands over a network address)? Only from
 /// `to`'s own key (their other devices), a holder of a valid pass from `to`, someone sharing a
 /// P2P group with them, or someone in the same voice room (10c); or, for one file, someone `to`
-/// gave a file pass (device-to-device big files, docs/design/media-showcase.md, the shapes part
+/// gave a file pass (device-to-device big files, docs/design/files-showcase.md, the shapes part
 /// 2): the pass must check with `to` as its issuer and `sender` as its grantee, so the receiver
 /// of a file dials its sender, the way round in which the relay can check it. The file pass is
 /// not forwarded (handle_webrtc_signal sends the offer on without it).

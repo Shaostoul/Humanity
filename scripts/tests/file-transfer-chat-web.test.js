@@ -1,4 +1,4 @@
-// Device-to-device big files in the web chat (2026-10-11, docs/design/media-showcase.md,
+// Device-to-device big files in the web chat (2026-10-11, docs/design/files-showcase.md,
 // "Device-to-device big files, exact" and "...: the shapes, exact", parts 3 to 6, the website's
 // half): web/chat/chat-file-transfer.js and the lines it changed in chat-messages.js (the attach
 // step), chat-social.js (the notes), chat-voice-rooms.js (the file credentials), chat-voice-calls.js
@@ -106,7 +106,7 @@ const vm = require("node:vm");
 
 const WEB = process.env.HOS_WEB_DIR || path.join(__dirname, "..", "..", "web");
 const ROOT = path.join(__dirname, "..", "..");
-const SPEC = fs.readFileSync(path.join(ROOT, "docs", "design", "media-showcase.md"), "utf8").replace(/\r\n/g, "\n");
+const SPEC = fs.readFileSync(path.join(ROOT, "docs", "design", "files-showcase.md"), "utf8").replace(/\r\n/g, "\n");
 // The shapes section alone, up to the next heading (never the As built notes after it, which quote it).
 const SHAPES_AT = SPEC.indexOf("## Device-to-device big files: the shapes, exact");
 const SHAPES = SPEC.slice(SHAPES_AT, SPEC.indexOf("\n## ", SHAPES_AT + 10)).replace(/\s+/g, " ");
@@ -1305,7 +1305,7 @@ test("12. direct connections: off by default; on, a friend's file may go direct;
 });
 
 // ── 13 to 15. The rules settled by the first review (2026-10-12) ───────────
-// docs/design/media-showcase.md, "Device-to-device big files: rules settled by the first review":
+// docs/design/files-showcase.md, "Device-to-device big files: rules settled by the first review":
 // rule 2 (one connection, several transfers), rule 4 (answers reach a sender who takes messages
 // only from friends), and the Accept click the review's real-browser run found doing nothing.
 
@@ -1497,7 +1497,7 @@ test("16. a file that arrived whole but could not be saved says so, and can be s
 });
 
 // ── 17 to 19. The rules settled by the second review (2026-10-12) ─────────
-// docs/design/media-showcase.md, "Settled by the second review": rule 7 (a dial names its
+// docs/design/files-showcase.md, "Settled by the second review": rule 7 (a dial names its
 // transfer), rule 8 (an end is always said) and rule 9 (a dial is an answer).
 
 /** Keep a page's timers instead of dropping them (the pages' setTimeout does nothing by default); `fire(ms)` runs those set for `ms`. */

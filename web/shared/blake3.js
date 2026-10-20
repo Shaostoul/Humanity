@@ -1,7 +1,7 @@
 // ── blake3.js ─────────────────────────────────────────────────────────────
 // BLAKE3 (the plain hash, 32-byte output) in plain JavaScript, written for
 // speed, for hashing big files a piece at a time in the browser: device-to-
-// device big files (2026-10-11, docs/design/media-showcase.md, "Device-to-
+// device big files (2026-10-11, docs/design/files-showcase.md, "Device-to-
 // device big files: the shapes, exact") hash every 256 KiB piece and the
 // whole file on both ends.
 //

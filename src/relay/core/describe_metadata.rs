@@ -1,5 +1,5 @@
 //! What a picture's or a video's hidden information says, in plain words (2026-10-11,
-//! docs/design/media-showcase.md, "Files on the sender's device and in messages, exact", part 1).
+//! docs/design/files-showcase.md, "Files on the sender's device and in messages, exact", part 1).
 //!
 //! Before a file leaves the device, the attach step shows what is in it: "This photo says where it
 //! was taken and which camera took it." Then one switch, "Remove location and camera details". This

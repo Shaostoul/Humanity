@@ -82,7 +82,7 @@ A self-hoster opens the same UDP port on their own firewall or router, the same 
 ## Files sent device to device
 
 Since 2026-10-12 the same forwarder carries big files sent straight from one person's device to
-another's (`docs/design/media-showcase.md`, "Device-to-device big files"). The file never lands on
+another's (`docs/design/files-showcase.md`, "Device-to-device big files"). The file never lands on
 the server: it passes through the forwarder encrypted, as a call does, and both people see only
 the server's address (unless they are friends who both turned on direct connections, when it may
 go straight between them). What that means for an operator:

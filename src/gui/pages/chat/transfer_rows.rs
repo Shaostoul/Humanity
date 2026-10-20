@@ -1,4 +1,4 @@
-//! Device-to-device big files in the conversation (docs/design/media-showcase.md, "Device-to-device
+//! Device-to-device big files in the conversation (docs/design/files-showcase.md, "Device-to-device
 //! big files: the shapes, exact", part 6): one row per transfer with the other person, at the top of
 //! the DM, on both sides. Each row: the file's name and size, the words for where it stands
 //! (engine/file_transfer.rs `status_words`), a progress bar while it goes, Pause, Resume and Cancel,

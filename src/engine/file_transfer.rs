@@ -1,4 +1,4 @@
-//! Device-to-device big files, the app's half (docs/design/media-showcase.md, "Device-to-device
+//! Device-to-device big files, the app's half (docs/design/files-showcase.md, "Device-to-device
 //! big files, exact" and "...: the shapes, exact", parts 3, 4 and 6; the operator's answer 10 of
 //! 2026-10-11): offering a file, the notes as they arrive, the receiver's Accept and Decline,
 //! asking the server for the forwarder's credentials, the one connection per person that carries
@@ -29,7 +29,7 @@
 //! Either side may Cancel (on the channel when it is open, and always with the cancel note, so the
 //! other side's row says so even when no connection stands), Pause and Resume.
 //!
-//! THE RULES SETTLED BY THE FIRST REVIEW (media-showcase.md, 2026-10-12) that live here:
+//! THE RULES SETTLED BY THE FIRST REVIEW (files-showcase.md, 2026-10-12) that live here:
 //! - Rule 3: while S waits for its credentials to answer R's dial, R's `dc_ice` are kept for R
 //!   ([`Pair::early_ice`]) and handed to the connection, which applies them once its allocation
 //!   exists; none is dropped or handed to the call code ([`on_signal`]).
@@ -255,7 +255,7 @@ fn send_frame(gs: &GuiState, frame: &str) -> bool {
 /// cannot go now (not connected, locked, or no DM key for them yet).
 ///
 /// `file_pass`: the offer's pass, which the RECEIVER's answer and cancel notes carry on the
-/// `dm_put` to the sender (rule 4 of the first review, media-showcase.md): the relay lets such a
+/// `dm_put` to the sender (rule 4 of the first review, files-showcase.md): the relay lets such a
 /// put through the sender's "who can reach me" gate when the pass verifies with the sender as its
 /// issuer and this person as its grantee, so the answer reaches a sender who takes messages only
 /// from friends. The self-copy never carries it.

@@ -1,4 +1,4 @@
-//! Device-to-device big files, the words (docs/design/media-showcase.md, "Device-to-device big
+//! Device-to-device big files, the words (docs/design/files-showcase.md, "Device-to-device big
 //! files, exact" and "Device-to-device big files: the shapes, exact", parts 1, 3 and 6; the
 //! operator's answer 10 of 2026-10-11): the file pass, the offer and its answer and cancel notes,
 //! the piece hashes, the receiver's question, and the record each device keeps of a transfer.
@@ -451,7 +451,7 @@ pub enum Happened {
 /// transfer never changes again (a late note from a relay that delivers twice cannot bring back a
 /// cancelled one), and an answer counts only while the offer waits for one.
 ///
-/// RULE 9 OF THE SECOND REVIEW (media-showcase.md, "a dial is an answer"): `done` ends a transfer
+/// RULE 9 OF THE SECOND REVIEW (files-showcase.md, "a dial is an answer"): `done` ends a transfer
 /// as Done from Offered too. Only the channel reports `done`, and a channel exists only once the
 /// receiver opened it, so a sender whose answer note was lost (its record still Offered) is Sent
 /// when the receiver says `done`, never left waiting to end as "did not answer in time". (A

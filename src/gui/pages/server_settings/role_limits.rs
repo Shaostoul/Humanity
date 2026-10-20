@@ -1,5 +1,5 @@
 //! Server Settings > Roles: each role's upload limits, in a table under the roles table, beside
-//! the per-file upload limit (docs/design/media-showcase.md, follow-ups B1 to B5, and the
+//! the per-file upload limit (docs/design/files-showcase.md, follow-ups B1 to B5, and the
 //! operator's answers of 2026-10-11, numbers 2, 3 and 10: "make it configurable in the server
 //! menu? Like the file size limits?").
 //!
@@ -14,7 +14,7 @@
 //!   every upload route; 0 means no limit.
 //! - Forwarded a day (MB): `max_forwarded_mb_per_day`, how much of one person's big files sent
 //!   straight to another device may pass through this server's call relay in a UTC day (counted
-//!   there, never stored; device-to-device big files, docs/design/media-showcase.md); 0 means no
+//!   there, never stored; device-to-device big files, docs/design/files-showcase.md); 0 means no
 //!   limit.
 //!
 //! Every role save sends the whole role, these six included (the relay keeps the stored value of

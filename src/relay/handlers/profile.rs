@@ -204,7 +204,7 @@ pub async fn handle_profile_update(
             return;
         }
 
-        // Who they accept files in messages from (media-showcase.md, 2026-10-11): a word that is
+        // Who they accept files in messages from (files-showcase.md, 2026-10-11): a word that is
         // not one of the three REFUSES the whole update, as an unknown audience refuses a whole
         // `reach_set` (handlers/reach.rs): saving the rest would leave the person believing their
         // choice was kept, and dropping the word quietly would hide a broken app. Not sent at all
@@ -613,7 +613,7 @@ pub async fn withdraw_on_erase(state: &Arc<RelayState>, my_key: &str, withdrawal
     }
 }
 
-/// The profile handlers' tests: the field `accepts_files` (2026-10-11, docs/design/media-showcase.md),
+/// The profile handlers' tests: the field `accepts_files` (2026-10-11, docs/design/files-showcase.md),
 /// the person's own copy, and what the lookups show.
 #[cfg(test)]
 #[path = "profile_tests.rs"]

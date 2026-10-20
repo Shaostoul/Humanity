@@ -1,5 +1,5 @@
 // Child of chat/attach_send.rs (#[path]): every chat file is cleaned on this device before it is
-// encrypted or uploaded (2026-10-11, docs/design/media-showcase.md, the files section, parts 1 and
+// encrypted or uploaded (2026-10-11, docs/design/files-showcase.md, the files section, parts 1 and
 // 2), with the network replaced by a recorder.
 
 use super::*;

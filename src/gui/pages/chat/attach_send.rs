@@ -18,7 +18,7 @@
 //! The upload itself always runs on a worker thread; `run` takes the uploader as an argument so
 //! the tests can see exactly what would be posted without a network. A picked file is read there
 //! too, never on the frame, and kept to one copy in memory (chat/attach_body.rs, round 3 of
-//! docs/design/media-showcase.md).
+//! docs/design/files-showcase.md).
 //!
 //! Takes `use super::*` like the page's other children.
 
@@ -123,7 +123,7 @@ impl Limits {
 
 /// The upload limits a server told this person (`GuiState::upload_limits`), with the server and
 /// the identity they were told to, so they never outlive either (round 3 of
-/// docs/design/media-showcase.md, the review's finding 10: the private-file limit of one server
+/// docs/design/files-showcase.md, the review's finding 10: the private-file limit of one server
 /// was kept after a switch to another, or after a restore from a recovery phrase).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct UploadLimits {
@@ -312,7 +312,7 @@ where
         return Err(format!("the file is {} bytes, over the {limit} limit", job.body.len()));
     }
     let mut bytes = attach_body::read(job.body, limit)?;
-    // Part 1 of the files section of docs/design/media-showcase.md: the file is cleaned HERE, on the
+    // Part 1 of the files section of docs/design/files-showcase.md: the file is cleaned HERE, on the
     // sender's device, before it is encrypted or uploaded, so a DM's or a group's file (which the
     // server only ever sees sealed) leaves without where it was taken too.
     let mut unchecked = false;
@@ -372,7 +372,7 @@ pub(super) fn start(state: &mut GuiState, job: AttachJob) {
 /// hidden in it and sends it on Send (the worker reads it).
 pub(super) fn start_attach(state: &mut GuiState, path: &std::path::Path) {
     // A DM file over the person's private file limit goes straight to the other person's device
-    // instead of being refused (device-to-device big files, media-showcase.md answer 10).
+    // instead of being refused (device-to-device big files, files-showcase.md answer 10).
     match super::attach_step::route_pick(state, path) {
         super::attach_step::Picked::Direct(job, direct) => super::attach_step::open_direct(state, job, direct),
         super::attach_step::Picked::Stopped => {}
@@ -417,15 +417,15 @@ pub(super) fn offer_drop(ctx: &egui::Context, state: &GuiState) {
     if let Some(channel) = state.chat_channels.iter().find(|c| c.id == chosen_in) {
         // A read-only channel (announcements) takes posts from admins only: for anyone else the
         // upload window opens with nothing ticked, and says so before the drop (the website's rule).
-        if channel.read_only && !crate::gui::pages::media::is_admin(state) {
-            drop_files::register(ctx, Level::Page, crate::gui::pages::media::DROP_TO_UPLOAD, |state: &mut GuiState, paths| {
-                crate::gui::pages::media::upload_dropped(state, &paths, None);
+        if channel.read_only && !crate::gui::pages::files::is_admin(state) {
+            drop_files::register(ctx, Level::Page, crate::gui::pages::files::DROP_TO_UPLOAD, |state: &mut GuiState, paths| {
+                crate::gui::pages::files::upload_dropped(state, &paths, None);
             });
             return;
         }
-        let words = crate::gui::pages::media::drop_and_post_words(&conversation_name(state));
+        let words = crate::gui::pages::files::drop_and_post_words(&conversation_name(state));
         drop_files::register(ctx, Level::Page, words, move |state: &mut GuiState, paths| {
-            crate::gui::pages::media::upload_dropped(state, &paths, Some(chosen_in));
+            crate::gui::pages::files::upload_dropped(state, &paths, Some(chosen_in));
         });
         return;
     }
@@ -565,9 +565,9 @@ pub(crate) fn upload_file_blocking_ext(
     upload_flagged(server_url, token, filename, mime, bytes, UploadFlags { share, encrypted, keep_metadata: false })
 }
 
-/// Which shelf an upload goes on, as `/api/upload`'s query names it (relay/media.rs
+/// Which shelf an upload goes on, as `/api/upload`'s query names it (relay/files.rs
 /// `upload_shelf`): `share` the public Shared Files list, `encrypted` an opaque private file.
-/// Neither: a chat file. (A Media file goes in pieces instead: media/resumable.rs.)
+/// Neither: a chat file. (A Media file goes in pieces instead: files/resumable.rs.)
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct UploadFlags {
     pub share: bool,

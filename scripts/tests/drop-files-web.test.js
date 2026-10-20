@@ -5,8 +5,8 @@
 // Run: node --test scripts/tests/drop-files-web.test.js   (in `just rig-tests`)
 //
 // What runs: web/shared/drop-overlay.js (the overlay and the drag events), the Media page
-// (web/pages/media-app.js with media-edit.js and media-item.js, on the stand-ins of
-// scripts/tests/media-web-harness.js: a document holding only what the page built, where reading or
+// (web/pages/files-app.js with files-edit.js and files-item.js, on the stand-ins of
+// scripts/tests/files-web-harness.js: a document holding only what the page built, where reading or
 // setting innerHTML throws, and a network that records every request), and the Shared Files
 // upload (web/pages/shared-files-upload.js) with the REAL cleaning (/shared/upload-clean.js) and
 // real Files. The window is a stand-in that keeps its listeners and its timers (none runs by
@@ -46,17 +46,17 @@ const assert = require("node:assert");
 const fs = require("node:fs");
 const path = require("node:path");
 
-const H = require("./media-web-harness.js");
+const H = require("./files-web-harness.js");
 const { ROOT, WEB, ME, ANN, MIB, byId, text, fakeDocument, respond, at, path0, fakeFetch, fakeSession, fakeStorage, settle, listAnswer, listRoutes, openPage, resumableRelay, aFile } = H;
 const D = require(path.join(WEB, "shared", "drop-overlay.js"));
 const SFU = require(path.join(WEB, "pages", "shared-files-upload.js"));
 const UC = require(path.join(WEB, "shared", "upload-clean.js"));
 const B = require("./file-bytes.js");
 
-const FX = JSON.parse(fs.readFileSync(path.join(ROOT, "scripts", "tests", "fixtures", "media-round5-v1.json"), "utf8"));
+const FX = JSON.parse(fs.readFileSync(path.join(ROOT, "scripts", "tests", "fixtures", "files-round5-v1.json"), "utf8"));
 const CATS = FX.list_by_downloads.categories;
 const L = FX.licences;
-const MEDIA_WORDS = H.media.MEDIA_WORDS;
+const FILES_WORDS = H.media.FILES_WORDS;
 
 // ── The window, the drags and the overlay ────────────────────────────────
 
@@ -110,7 +110,7 @@ async function until(done, turns) {
 // dragleave (no count): "crossing a child element keeps it"; with the stale timer never armed:
 // "a drag that left without a last dragleave: gone once no dragover comes"; with onDrop handing
 // over the files before asking again: "a refused drop hands nothing over" (2 handed over against 1).
-// Seen red again 2026-10-17 after the desktop's words changed, with WORDS.uploadToMedia put back to
+// Seen red again 2026-10-17 after the desktop's words changed, with WORDS.uploadToFiles put back to
 // 'Drop to add to Media': "'Drop to add to Media' == 'Drop to upload to Media'".
 test("1. the overlay: one line while files are over the page, gone when they leave or drop; refused says why; text is ignored", async () => {
   const doc = fakeDocument();
@@ -172,7 +172,7 @@ test("1. the overlay: one line while files are over the page, gone when they lea
   assert.equal(overlayOf(doc), null, "detached: gone, and no longer listening");
   assert.equal(D.sendIn("#general"), "Drop to send in #general");
   assert.equal(D.addTo("Dusk"), "Drop to add to Dusk");
-  assert.equal(D.WORDS.uploadToMedia, "Drop to upload to Files");
+  assert.equal(D.WORDS.uploadToFiles, "Drop to upload to Files");
   assert.equal(D.uploadAndPostIn("#general"), "Drop to upload to Files and post in #general");
   assert.equal(D.WORDS.sharedFiles, "Drop to upload to Shared Files");
 });
@@ -180,9 +180,9 @@ test("1. the overlay: one line while files are over the page, gone when they lea
 // ── 2. The Media page: Add to Media ─────────────────────────────────────
 
 /** What the Add to Media form shows: its chosen file's row and the further files' rows. */
-const formRows = (doc) => [text(byId(doc, "media-form").querySelector(".media-form-file")), byId(doc, "media-form-more").querySelectorAll(".media-form-more-file").map(text)];
+const formRows = (doc) => [text(byId(doc, "files-form").querySelector(".files-form-file")), byId(doc, "files-form-more").querySelectorAll(".files-form-more-file").map(text)];
 
-// Seen red 2026-10-17 in a copy of web/ through HOS_WEB_DIR: with media-app.js dropped() opening
+// Seen red 2026-10-17 in a copy of web/ through HOS_WEB_DIR: with files-app.js dropped() opening
 // the form with the first file only (`openAddForm(files[0])`): "the rest, to be added once it is up"
 // (actual [] against [dawn.mp4]); with dropDecision's line for the page made Shared Files' one
 // (DROP.WORDS.sharedFiles): "over the page: Drop to add to Media" (the words then; the desktop's now are
@@ -192,7 +192,7 @@ const formRows = (doc) => [text(byId(doc, "media-form").querySelector(".media-fo
 test("2. the Files page: Drop to upload to Files opens Add to Files with the dropped files, as choosing them does", async () => {
   const win = fakeWindow();
   const { doc, page } = await openPage({ window: win, routes: listRoutes(listAnswer([])) });
-  assert.ok(byId(doc, "media-add-btn"), "test setup: signed in, Add to Files offered");
+  assert.ok(byId(doc, "files-add-btn"), "test setup: signed in, Add to Files offered");
   win.fire("dragenter", filesDrag());
   assert.deepEqual(overlayOf(doc), { line: "Drop to upload to Files", reason: "", refused: false }, "over the page: Drop to upload to Files");
   const dusk = aFile("dusk.mp4", 3 * MIB);
@@ -208,7 +208,7 @@ test("2. the Files page: Drop to upload to Files opens Add to Files with the dro
 
   // Chosen with the button instead: the same form.
   const picked = await openPage({ routes: listRoutes(listAnswer([])) });
-  const input = byId(picked.doc, "media-file-input");
+  const input = byId(picked.doc, "files-file-input");
   input.files = [dusk, dawn];
   input.dispatch("change");
   await settle();
@@ -221,11 +221,11 @@ test("2. the Files page: Drop to upload to Files opens Add to Files with the dro
   const w2 = fakeWindow();
   const viewing = await openPage({ window: w2, routes: listRoutes(listAnswer([item])) });
   viewing.page.openViewer(viewing.page.state.items[0]);
-  assert.ok(byId(viewing.doc, "media-viewer-open"), "test setup: an item is open");
+  assert.ok(byId(viewing.doc, "files-viewer-open"), "test setup: an item is open");
   w2.fire("dragenter", filesDrag());
   assert.equal(overlayOf(viewing.doc).line, "Drop to upload to Files", "an item open without its Edit: still Add to Files");
   await dropOn(w2, [dusk]);
-  assert.equal(byId(viewing.doc, "media-viewer-open"), null, "the item closed");
+  assert.equal(byId(viewing.doc, "files-viewer-open"), null, "the item closed");
   assert.equal(viewing.page.state.form && viewing.page.state.form.file, dusk, "and Add to Files opened with the file");
 });
 
@@ -244,21 +244,21 @@ test("3. with an item's Edit open: Drop to add to Dusk, and the drop adds the fi
   const added = Object.assign({}, mine, { file_count: 3, files: mine.files.concat([{ file: 5, filename: "1760_clip.webm", original_name: "clip.webm", kind: "video", size_bytes: 20000, url: "/uploads/1760_clip.webm" }]) });
   const win = fakeWindow();
   const { doc, page, net } = await openPage({ window: win, routes: listRoutes(answerOf([mine]), relay.routes.concat([
-    [at("/api/media/files/add", "POST"), () => respond(200, { ok: true, item: added })],
+    [at("/api/files/item-files/add", "POST"), () => respond(200, { ok: true, item: added })],
   ])) });
   page.openViewer(page.state.items[0]);
-  byId(doc, "media-item-edit-open").click();
-  assert.ok(byId(doc, "media-edit-add-file"), "test setup: Edit is open, with Add a file");
+  byId(doc, "files-item-edit-open").click();
+  assert.ok(byId(doc, "files-edit-add-file"), "test setup: Edit is open, with Add a file");
   win.fire("dragenter", filesDrag());
   assert.deepEqual(overlayOf(doc), { line: "Drop to add to Dusk", reason: "", refused: false }, "with Edit open: Drop to add to Dusk");
   await dropOn(win, [aFile("clip.webm", 20000, { type: "video/webm" })]);
-  await until(() => net.calls.some((c) => c.url === "/api/media/files/add"));
+  await until(() => net.calls.some((c) => c.url === "/api/files/item-files/add"));
   const asked = net.calls.map((c) => (c.init.method || "GET") + " " + path0(c.url));
-  const add = net.calls.find((c) => c.url === "/api/media/files/add");
+  const add = net.calls.find((c) => c.url === "/api/files/item-files/add");
   assert.ok(add, "added to the item, never published: " + asked.join(", "));
   assert.ok(relay.log.some((l) => l.kind === "start" && l.c.body.media === 1 && l.c.body.filename === "clip.webm"), "the same resumable upload as Add a file's");
   assert.deepEqual([add.body.id, add.body.add, add.body.as], [1, "1760_clip.webm", "file"], "as one of its files");
-  assert.ok(!net.calls.some((c) => c.url === "/api/media" && (c.init.method || "GET") === "POST"), "never published");
+  assert.ok(!net.calls.some((c) => c.url === "/api/files" && (c.init.method || "GET") === "POST"), "never published");
   assert.equal(page.state.form, null, "Add to Files was not opened");
 });
 
@@ -266,7 +266,7 @@ test("3. with an item's Edit open: Drop to add to Dusk, and the drop adds the fi
 
 // Seen red 2026-10-17 in a copy of web/ through HOS_WEB_DIR: with dropDecision taking the files
 // whenever the person has a key (`if (myKey)`): "a role that cannot upload: its words"; with
-// media-edit.js giving an admin's Edit of someone else's item addFiles: "only its uploader adds
+// files-edit.js giving an admin's Edit of someone else's item addFiles: "only its uploader adds
 // files: the desktop's words" (it said "Drop to add to Dusk").
 test("4. the Files page says why a drop would do nothing, in its own words, and nothing happens", async () => {
   const refusedOn = async (opts, setup) => {
@@ -279,26 +279,26 @@ test("4. the Files page says why a drop would do nothing, in its own words, and 
     return { seen, p };
   };
   const signedOut = await refusedOn({ myKey: "", session: null, routes: listRoutes(listAnswer([])) });
-  assert.deepEqual(signedOut.seen, { line: "Files cannot be dropped here.", reason: MEDIA_WORDS.noIdentity, refused: true }, "signed out: why");
+  assert.deepEqual(signedOut.seen, { line: "Files cannot be dropped here.", reason: FILES_WORDS.noIdentity, refused: true }, "signed out: why");
   assert.equal(signedOut.p.page.state.form, null, "and the drop does nothing");
 
   const cannot = await refusedOn({ session: fakeSession({ role: "unverified" }), routes: listRoutes(listAnswer([])) });
-  assert.deepEqual(cannot.seen, { line: "Files cannot be dropped here.", reason: MEDIA_WORDS.cannotUpload, refused: true }, "a role that cannot upload: its words");
-  assert.equal(text(byId(cannot.p.doc, "media-cannot-upload")), MEDIA_WORDS.cannotUpload, "the same words the page shows where Add to Files would be");
+  assert.deepEqual(cannot.seen, { line: "Files cannot be dropped here.", reason: FILES_WORDS.cannotUpload, refused: true }, "a role that cannot upload: its words");
+  assert.equal(text(byId(cannot.p.doc, "files-cannot-upload")), FILES_WORDS.cannotUpload, "the same words the page shows where Add to Files would be");
   assert.equal(cannot.p.page.state.form, null);
 
   const adminTab = await refusedOn({ session: fakeSession({ role: "admin" }), hash: "#admin", routes: listRoutes(listAnswer([])) });
-  assert.deepEqual(adminTab.seen, { line: "Files cannot be dropped here.", reason: "Add to Files is on the Files tab.", refused: true }, "the Admin tab: Add to Files is not on it");
+  assert.deepEqual(adminTab.seen, { line: "Files cannot be dropped here.", reason: "Add to Files is with what is shared on this server, the first place.", refused: true }, "the Admin place: Add to Files is not on it");
   assert.equal(adminTab.p.page.state.form, null);
 
   const anns = fxItem({ uploader_key: ANN });
   const admin = await refusedOn({ session: fakeSession({ role: "admin" }), routes: listRoutes(answerOf([anns])) }, (p) => {
     p.page.openViewer(p.page.state.items[0]);
-    byId(p.doc, "media-item-edit-open").click();
+    byId(p.doc, "files-item-edit-open").click();
   });
   assert.deepEqual(admin.seen, { line: "Files cannot be dropped here.", reason: "Only Ann can add files to this item.", refused: true }, "only its uploader adds files: the desktop's words");
-  assert.equal(text(byId(admin.p.doc, "media-edit-files-owner-only")), "Only Ann can add files to this item.", "said in the Edit form's Files part too");
-  assert.equal(byId(admin.p.doc, "media-edit-add-file"), null, "where no Add a file is offered");
+  assert.equal(text(byId(admin.p.doc, "files-edit-files-owner-only")), "Only Ann can add files to this item.", "said in the Edit form's Files part too");
+  assert.equal(byId(admin.p.doc, "files-edit-add-file"), null, "where no Add a file is offered");
   assert.ok(!admin.p.net.calls.some((c) => c.url.startsWith("/api/upload")), "nothing uploaded");
   assert.equal(admin.p.page.state.form, null);
 });
@@ -428,25 +428,25 @@ test("7. Shared Files cleans a file before it goes: a phone photo shows the step
 
 // ── 8. The pages load it ─────────────────────────────────────────────────
 
-// Seen red 2026-10-17 in a copy of web/ through HOS_WEB_DIR: with media.html's drop-overlay.js
-// line taken out: "pages/media.html loads /shared/drop-overlay.js before its page script"; with a
+// Seen red 2026-10-17 in a copy of web/ through HOS_WEB_DIR: with files.html's drop-overlay.js
+// line taken out: "pages/files.html loads /shared/drop-overlay.js before its page script"; with a
 // hand-written colour in drop-overlay.css (`color: #fff`): "theme variables only".
 test("8. every page that takes files loads the overlay before its own script; the stylesheet uses the theme only", () => {
   const page = (rel) => fs.readFileSync(path.join(WEB, rel), "utf8");
-  for (const [rel, own] of [["chat/index.html", "/chat/chat-messages.js"], ["pages/media.html", "/pages/media-app.js"], ["pages/shared-files.html", "/pages/shared-files-upload.js"]]) {
+  for (const [rel, own] of [["chat/index.html", "/chat/chat-messages.js"], ["pages/files.html", "/pages/files-app.js"]]) {
     const html = page(rel);
     assert.ok(/<link rel="stylesheet" href="\/shared\/drop-overlay\.css\?v=\d+">/.test(html), rel + " links /shared/drop-overlay.css");
     const at1 = html.search(/<script src="\/shared\/drop-overlay\.js\?v=\d+"><\/script>/);
     const at2 = html.indexOf('src="' + own);
     assert.ok(at1 > 0 && at2 > at1, rel + " loads /shared/drop-overlay.js before its page script");
   }
-  const shared = page("pages/shared-files.html");
-  const order = ["/shared/relay-session.js", "/shared/strip-metadata.js", "/shared/upload-clean.js", "/shared/drop-overlay.js", "/pages/shared-files-upload.js"].map((s) => shared.indexOf('src="' + s));
-  assert.ok(order.every((i) => i > 0), "Shared Files loads its upload's scripts: " + order);
+  // Shared Files is the Files page's "Shared files" place since 2026-10-19 (its own page until
+  // then): the Files page loads its upload's scripts in order, before the place and the page.
+  const shared = page("pages/files.html");
+  const order = ["/shared/relay-session.js", "/shared/strip-metadata.js", "/shared/upload-clean.js", "/shared/drop-overlay.js", "/pages/shared-files-upload.js", "/pages/files-shared.js", "/pages/files-app.js"].map((s) => shared.indexOf('src="' + s));
+  assert.ok(order.every((i) => i > 0), "the Files page loads Shared files' upload scripts: " + order);
   assert.deepEqual(order.slice().sort((a, b) => a - b), order, "in order");
-  assert.ok(order[order.length - 1] < shared.indexOf("<script>"), "before the page's own script, which boots the upload");
-  assert.ok(shared.includes('id="sf-upload"'), "and holds the place it is drawn in");
-  assert.ok(/SharedFilesUpload\.boot\(\{ identity: identity, onUploaded: loadList \}\)/.test(shared), "the page's script boots it, the list loaded again after an upload");
+  assert.ok(!fs.existsSync(path.join(WEB, "pages", "shared-files.html")), "and the Shared Files page that was is gone");
 
   const css = page("shared/drop-overlay.css");
   const values = css.replace(/\/\*[\s\S]*?\*\//g, "");

@@ -418,7 +418,7 @@ fn the_part_file_is_named_only_after_the_whole_file_matches() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
-// ── The rules settled by the first review (media-showcase.md, 2026-10-12, rule 1) ──────────────
+// ── The rules settled by the first review (files-showcase.md, 2026-10-12, rule 1) ──────────────
 
 /// The `(piece, offset)` of a data message.
 fn header(m: &[u8]) -> (u64, u64) {

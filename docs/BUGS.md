@@ -5579,7 +5579,7 @@ The relay strips location and camera data from pictures before they are stored
 recording's location into an MP4's metadata (Apple's `com.apple.quicktime.location.ISO6709` key in
 `moov/meta`, the `©xyz` atom in `moov/udta` on Android and others, the 3GPP `loci` box, XMP in a
 `uuid` box), so a phone video sent to a public channel, Shared Files or the Media page publishes
-where it was filmed. Found while writing the resumable-upload spec (docs/design/media-showcase.md).
+where it was filmed. Found while writing the resumable-upload spec (docs/design/files-showcase.md).
 Fixed: an in-place strip (src/relay/core/strip_video_metadata.rs) zeroes those boxes, syncs, then renames them
 `free`, the same size (no re-encode, nothing moves, so the sample offsets stay right), in both upload
 routes (upload_rules.rs `finish_video`, later `finish_file_as`); a video whose boxes cannot be read through

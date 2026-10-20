@@ -1,0 +1,363 @@
+{
+  "about": "Media round 5's contract (docs/design/media-round-5-plan.md 3.2 to 3.4 and 3.12, with section 10's answers). Made by the relay's own code from fixed rows (src/relay/files_round5_tests.rs, write_the_files_round5_fixture; checked by the_shared_fixture_is_what_the_relay_makes); read by both apps' tests. `item_members_view` is one item as a member sees it in the list (picked_by_me included); `item_members_only` the same item once it is members only (every url through /api/files/file/<id>?file=<n>); `list_by_downloads` the list's answer to `list_request` (sort downloads, one to a page) with its next_cursor and the server's licences; `licences` that answer's licences on their own (the offered licences, the game tick, the two warnings and the hosting paragraph shown beside Add to Files); `edit` an edit request's body exactly as sent, its `edit` member's text (keys in name order) and the purpose signed over its BLAKE3; `purposes` the other writes' purposes. Keys are stand-ins and `SIG` stands for a Dilithium3 signature over `purpose\\ntimestamp`.",
+  "edit": {
+    "body": "{\"key\":\"a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1\",\"timestamp\":1760000003000,\"sig\":\"SIG\",\"id\":1,\"filename\":\"1760_x.png\",\"edit\":{\"category_id\":2,\"description\":\"First line\\nThe rest\",\"labels\":[\"flashing\"],\"licence\":\"cc_by_4\",\"project_use\":true,\"title\":\"Dusk\"}}",
+    "filename": "1760_x.png",
+    "id": 1,
+    "purpose": "media_edit:1:2cbdf899e7ba48da3de9f1431e3f6e06e85790e093f0db6faa02eaf1d1018de9",
+    "text": "{\"category_id\":2,\"description\":\"First line\\nThe rest\",\"labels\":[\"flashing\"],\"licence\":\"cc_by_4\",\"project_use\":true,\"title\":\"Dusk\"}",
+    "timestamp": 1760000003000
+  },
+  "item_members_only": {
+    "category": {
+      "id": 2,
+      "name": "Fire flow arts"
+    },
+    "cover": {
+      "file": 2,
+      "filename": "1762_c.jpg",
+      "kind": "picture",
+      "original_name": "cover.jpg",
+      "size_bytes": 4642,
+      "url": "/api/files/file/1?file=2"
+    },
+    "description": "First line\nThe rest",
+    "downloads": 3,
+    "featured": "category",
+    "file_count": 2,
+    "filename": "1760_x.png",
+    "files": [
+      {
+        "file": 0,
+        "filename": "1760_x.png",
+        "kind": "picture",
+        "original_name": "dusk.png",
+        "size_bytes": 1234,
+        "url": "/api/files/file/1?file=0"
+      },
+      {
+        "file": 1,
+        "filename": "1761_y.zip",
+        "kind": "file",
+        "original_name": "textures.zip",
+        "size_bytes": 4000,
+        "url": "/api/files/file/1?file=1"
+      }
+    ],
+    "id": 1,
+    "keeps_file": false,
+    "kept": false,
+    "kind": "picture",
+    "labels": [
+      "flashing"
+    ],
+    "licence": "cc_by_4",
+    "link": "/files/1",
+    "original_name": "dusk.png",
+    "picks": 1,
+    "project_use": true,
+    "published_at": 1760000001001,
+    "size_bytes": 1234,
+    "title": "Dusk",
+    "total_bytes": 9876,
+    "uploaded_at": 1760000000000,
+    "uploader_key": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+    "uploader_name": "Ann",
+    "url": "/api/files/file/1",
+    "views": 5,
+    "visibility": "members"
+  },
+  "item_members_view": {
+    "category": {
+      "id": 2,
+      "name": "Fire flow arts"
+    },
+    "cover": {
+      "file": 2,
+      "filename": "1762_c.jpg",
+      "kind": "picture",
+      "original_name": "cover.jpg",
+      "size_bytes": 4642,
+      "url": "/uploads/1762_c.jpg"
+    },
+    "description": "First line\nThe rest",
+    "downloads": 3,
+    "featured": "category",
+    "file_count": 2,
+    "filename": "1760_x.png",
+    "files": [
+      {
+        "file": 0,
+        "filename": "1760_x.png",
+        "kind": "picture",
+        "original_name": "dusk.png",
+        "size_bytes": 1234,
+        "url": "/uploads/1760_x.png"
+      },
+      {
+        "file": 1,
+        "filename": "1761_y.zip",
+        "kind": "file",
+        "original_name": "textures.zip",
+        "size_bytes": 4000,
+        "url": "/uploads/1761_y.zip"
+      }
+    ],
+    "id": 1,
+    "keeps_file": false,
+    "kept": false,
+    "kind": "picture",
+    "labels": [
+      "flashing"
+    ],
+    "licence": "cc_by_4",
+    "link": "/files/1",
+    "original_name": "dusk.png",
+    "picked_by_me": true,
+    "picks": 1,
+    "project_use": true,
+    "published_at": 1760000001001,
+    "size_bytes": 1234,
+    "title": "Dusk",
+    "total_bytes": 9876,
+    "uploaded_at": 1760000000000,
+    "uploader_key": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+    "uploader_name": "Ann",
+    "url": "/uploads/1760_x.png",
+    "views": 5,
+    "visibility": "public"
+  },
+  "licences": {
+    "cc_members_warning": "On a members-only item, a Creative Commons licence lets every member who receives it republish it publicly.",
+    "cc_warning": "A Creative Commons licence cannot be taken back for copies already taken.",
+    "default": "all_rights_reserved",
+    "game_offer": {
+      "label": "Offer this for the game",
+      "line": ""
+    },
+    "hosting": {
+      "heading": "Your uploads stay yours.",
+      "text": "When you put a file on this server, you keep every right you have in it. You give the people who run this server, and anyone who runs it after them, a free, non-exclusive permission to store your file, keep backup copies, make previews and smaller copies of it, and show it and offer it for download to the people you chose (everyone, or this server's members), on this server only, for as long as you leave it here. When you remove the file or your account, the permission ends, apart from backup copies, which age out on the server's own schedule. This permission lets no one else use your file: what others may do with it is set by the licence you chose. Only upload what you have the right to share."
+    },
+    "offered": [
+      {
+        "cc": false,
+        "game": false,
+        "id": "all_rights_reserved",
+        "line": "You keep every right: people may see it here, but need your permission to copy, share or change it.",
+        "name": "All rights reserved",
+        "official_name": "",
+        "url": ""
+      },
+      {
+        "cc": true,
+        "game": true,
+        "id": "cc_by_4",
+        "line": "Anyone may copy, share and change it, for any purpose, even commercially, if they credit you.",
+        "name": "CC BY 4.0",
+        "official_name": "Attribution 4.0 International",
+        "url": "https://creativecommons.org/licenses/by/4.0/deed.en"
+      },
+      {
+        "cc": true,
+        "game": false,
+        "id": "cc_by_sa_4",
+        "line": "Anyone may copy, share and change it, even commercially, if they credit you and share their changes under this same licence.",
+        "name": "CC BY-SA 4.0",
+        "official_name": "Attribution-ShareAlike 4.0 International",
+        "url": "https://creativecommons.org/licenses/by-sa/4.0/deed.en"
+      },
+      {
+        "cc": true,
+        "game": false,
+        "id": "cc_by_nc_4",
+        "line": "Anyone may copy, share and change it if they credit you, but not for commercial purposes.",
+        "name": "CC BY-NC 4.0",
+        "official_name": "Attribution-NonCommercial 4.0 International",
+        "url": "https://creativecommons.org/licenses/by-nc/4.0/deed.en"
+      },
+      {
+        "cc": true,
+        "game": true,
+        "id": "cc0_1",
+        "line": "You give up your rights in it: anyone may copy, share and change it, for any purpose, without credit.",
+        "name": "CC0 1.0",
+        "official_name": "CC0 1.0 Universal",
+        "url": "https://creativecommons.org/publicdomain/zero/1.0/deed.en"
+      }
+    ]
+  },
+  "list_by_downloads": {
+    "categories": [
+      {
+        "description": "",
+        "id": 1,
+        "name": "General",
+        "position": 0
+      },
+      {
+        "description": "Staff, poi, fans and the rest",
+        "id": 2,
+        "name": "Fire flow arts",
+        "position": 1
+      }
+    ],
+    "items": [
+      {
+        "category": {
+          "id": 2,
+          "name": "Fire flow arts"
+        },
+        "cover": {
+          "file": 2,
+          "filename": "1762_c.jpg",
+          "kind": "picture",
+          "original_name": "cover.jpg",
+          "size_bytes": 4642,
+          "url": "/uploads/1762_c.jpg"
+        },
+        "description": "First line\nThe rest",
+        "downloads": 3,
+        "featured": "category",
+        "file_count": 2,
+        "filename": "1760_x.png",
+        "files": [
+          {
+            "file": 0,
+            "filename": "1760_x.png",
+            "kind": "picture",
+            "original_name": "dusk.png",
+            "size_bytes": 1234,
+            "url": "/uploads/1760_x.png"
+          },
+          {
+            "file": 1,
+            "filename": "1761_y.zip",
+            "kind": "file",
+            "original_name": "textures.zip",
+            "size_bytes": 4000,
+            "url": "/uploads/1761_y.zip"
+          }
+        ],
+        "id": 1,
+        "keeps_file": false,
+        "kept": false,
+        "kind": "picture",
+        "labels": [
+          "flashing"
+        ],
+        "licence": "cc_by_4",
+        "link": "/files/1",
+        "original_name": "dusk.png",
+        "picked_by_me": true,
+        "picks": 1,
+        "project_use": true,
+        "published_at": 1760000001001,
+        "size_bytes": 1234,
+        "title": "Dusk",
+        "total_bytes": 9876,
+        "uploaded_at": 1760000000000,
+        "uploader_key": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+        "uploader_name": "Ann",
+        "url": "/uploads/1760_x.png",
+        "views": 5,
+        "visibility": "public"
+      }
+    ],
+    "labels": [
+      {
+        "desc": "Shows something people may want to find out for themselves",
+        "id": "spoiler",
+        "label": "Spoiler"
+      },
+      {
+        "desc": "Rapid flashes or strobing that can affect people with photosensitive epilepsy",
+        "id": "flashing",
+        "label": "Flashing lights"
+      },
+      {
+        "desc": "Injury, blood or other content some people would rather not see unwarned",
+        "id": "graphic",
+        "label": "Graphic"
+      }
+    ],
+    "licences": {
+      "cc_members_warning": "On a members-only item, a Creative Commons licence lets every member who receives it republish it publicly.",
+      "cc_warning": "A Creative Commons licence cannot be taken back for copies already taken.",
+      "default": "all_rights_reserved",
+      "game_offer": {
+        "label": "Offer this for the game",
+        "line": ""
+      },
+      "hosting": {
+        "heading": "Your uploads stay yours.",
+        "text": "When you put a file on this server, you keep every right you have in it. You give the people who run this server, and anyone who runs it after them, a free, non-exclusive permission to store your file, keep backup copies, make previews and smaller copies of it, and show it and offer it for download to the people you chose (everyone, or this server's members), on this server only, for as long as you leave it here. When you remove the file or your account, the permission ends, apart from backup copies, which age out on the server's own schedule. This permission lets no one else use your file: what others may do with it is set by the licence you chose. Only upload what you have the right to share."
+      },
+      "offered": [
+        {
+          "cc": false,
+          "game": false,
+          "id": "all_rights_reserved",
+          "line": "You keep every right: people may see it here, but need your permission to copy, share or change it.",
+          "name": "All rights reserved",
+          "official_name": "",
+          "url": ""
+        },
+        {
+          "cc": true,
+          "game": true,
+          "id": "cc_by_4",
+          "line": "Anyone may copy, share and change it, for any purpose, even commercially, if they credit you.",
+          "name": "CC BY 4.0",
+          "official_name": "Attribution 4.0 International",
+          "url": "https://creativecommons.org/licenses/by/4.0/deed.en"
+        },
+        {
+          "cc": true,
+          "game": false,
+          "id": "cc_by_sa_4",
+          "line": "Anyone may copy, share and change it, even commercially, if they credit you and share their changes under this same licence.",
+          "name": "CC BY-SA 4.0",
+          "official_name": "Attribution-ShareAlike 4.0 International",
+          "url": "https://creativecommons.org/licenses/by-sa/4.0/deed.en"
+        },
+        {
+          "cc": true,
+          "game": false,
+          "id": "cc_by_nc_4",
+          "line": "Anyone may copy, share and change it if they credit you, but not for commercial purposes.",
+          "name": "CC BY-NC 4.0",
+          "official_name": "Attribution-NonCommercial 4.0 International",
+          "url": "https://creativecommons.org/licenses/by-nc/4.0/deed.en"
+        },
+        {
+          "cc": true,
+          "game": true,
+          "id": "cc0_1",
+          "line": "You give up your rights in it: anyone may copy, share and change it, for any purpose, without credit.",
+          "name": "CC0 1.0",
+          "official_name": "CC0 1.0 Universal",
+          "url": "https://creativecommons.org/publicdomain/zero/1.0/deed.en"
+        }
+      ]
+    },
+    "media_visibility": "public",
+    "members_only_for_you": false,
+    "members_view": true,
+    "next_cursor": "3.1"
+  },
+  "list_request": {
+    "limit": 1,
+    "sort": "downloads"
+  },
+  "purposes": {
+    "cover_add": "media_file_add:1:1762_c.jpg:cover",
+    "feature_category": "media_feature:1:category",
+    "feature_main": "media_feature:1:main",
+    "feature_none": "media_feature:1:none",
+    "file_add": "media_file_add:1:1761_y.zip:file",
+    "file_remove": "media_file_remove:1:1",
+    "publish": "media_publish:1760_x.png:cc_by_4:1",
+    "publish_default": "media_publish:1763_z.glb:all_rights_reserved:0"
+  }
+}

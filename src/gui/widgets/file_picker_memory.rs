@@ -31,7 +31,7 @@ pub struct PickerMemory {
     #[serde(default)]
     pub last_folder: Option<PathBuf>,
     /// Favourite chat channels to post uploads in, each as `<server>\n<channel id>`
-    /// (media/add.rs `post_key`).
+    /// (files/add.rs `post_key`).
     #[serde(default)]
     pub post_favorites: Vec<String>,
     /// How the pickers show a folder (2026-10-17): a list, a table, or pictures `across` to a row.
@@ -80,7 +80,7 @@ impl PickerMemory {
         self.favorites.iter().any(|f| same_folder(f, dir))
     }
 
-    /// Whether channel `key` (media/add.rs `post_key`) is a favourite to post uploads in.
+    /// Whether channel `key` (files/add.rs `post_key`) is a favourite to post uploads in.
     pub fn is_post_favorite(&self, key: &str) -> bool {
         self.post_favorites.iter().any(|k| k == key)
     }

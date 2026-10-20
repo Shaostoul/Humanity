@@ -3,7 +3,7 @@
 // .test.js). The builders are scripts/tests/strip-metadata.test.js's own, which are the relay's
 // Rust tests' (src/relay/core/strip_metadata.rs, strip_video_metadata.rs), copied line for line,
 // so the files the upload tests send are the files the strip is held to. Used by
-// upload-clean-web.test.js, media-web-files.test.js and private-files-web.test.js.
+// upload-clean-web.test.js, files-web-files.test.js and private-files-web.test.js.
 
 /** Bytes from a string (one byte per character, so "\xA9xyz" is the Rust b"\xA9xyz"), an array or bytes. */
 function bytes(x) {

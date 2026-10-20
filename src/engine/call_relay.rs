@@ -61,7 +61,7 @@ pub(crate) fn on_frame(gs: &mut GuiState, frame: &serde_json::Value) -> bool {
     if frame.get("type").and_then(|t| t.as_str()) != Some("call_credentials") {
         return false;
     }
-    // A file transfer's credentials (`"file"`, media-showcase.md answer 10) are the transfer's own.
+    // A file transfer's credentials (`"file"`, files-showcase.md answer 10) are the transfer's own.
     if crate::engine::file_transfer::on_credentials(gs, frame) {
         return true;
     }

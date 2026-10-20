@@ -1,5 +1,5 @@
 // ── file-transfer.js ──────────────────────────────────────────────────────
-// Device-to-device big files (2026-10-11, docs/design/media-showcase.md,
+// Device-to-device big files (2026-10-11, docs/design/files-showcase.md,
 // "Device-to-device big files, exact" and "Device-to-device big files: the
 // shapes, exact"): a file bigger than the person's private file limit never
 // goes to the server's disk. It goes from one device to the other over a

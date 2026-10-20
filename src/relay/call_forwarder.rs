@@ -49,7 +49,7 @@
 //! # Files sent device to device
 //!
 //! A big file goes from one device to the other over a WebRTC data channel, and by default
-//! through here (docs/design/media-showcase.md, "Device-to-device big files: the shapes, exact").
+//! through here (docs/design/files-showcase.md, "Device-to-device big files: the shapes, exact").
 //! Its credentials are scoped to the one transfer, like a call's to the one call, and carry a
 //! keyed tag of the person they were issued to and that person's role limit,
 //! `max_forwarded_mb_per_day` (call_credentials.rs `Meter`). The forwarder counts the bytes each

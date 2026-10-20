@@ -202,7 +202,7 @@ pub fn load(name: &str, bytes: &[u8]) -> Result<Model, String> {
 pub fn too_large_words(size: i64) -> String {
     format!(
         "This model is {}, larger than the 200 MB the viewer opens. Download it to see it.",
-        crate::gui::pages::media::api::size_words(size)
+        crate::gui::pages::files::api::size_words(size)
     )
 }
 

@@ -382,9 +382,9 @@ fn repo() -> &'static Path {
 ///   second monolith.
 /// - 2026-10-12 (Media round 5, Wave 0; docs/design/media-round-5-plan.md): the
 ///   Media page's two big files join the list, so neither can quietly grow
-///   while seven lanes fill round 5 in parallel. `relay/media.rs` was 1_559
-///   after Wave 0 (its new wire helpers went to `relay/media_wire.rs`, and every
-///   new route to a file of its own) and `web/pages/media-app.js` 2_338; the
+///   while seven lanes fill round 5 in parallel. `relay/files.rs` was 1_559
+///   after Wave 0 (its new wire helpers went to `relay/files_wire.rs`, and every
+///   new route to a file of its own) and `web/pages/files-app.js` (then media-app.js) 2_338; the
 ///   budgets are the plan's, 1_650 and 2_500, which leave the lanes that must
 ///   touch them (1A, 1G, 2A) their room and no more.
 const BUDGETS: &[(&str, usize)] = &[
@@ -403,8 +403,8 @@ const BUDGETS: &[(&str, usize)] = &[
     ("src/gui/state_types.rs", 1_850),
     ("src/gui/loaders.rs", 1_650),
     ("src/relay/relay.rs", 6_400),
-    ("src/relay/media.rs", 1_650),
-    ("web/pages/media-app.js", 2_500),
+    ("src/relay/files.rs", 1_650),
+    ("web/pages/files-app.js", 2_500),
     ("src/relay/handlers/msg_handlers.rs", 4_660),
     ("src/relay/handlers/profile.rs", 650),
     ("src/relay/handlers/stream.rs", 550),

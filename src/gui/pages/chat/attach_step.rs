@@ -1,5 +1,5 @@
 //! The attach step: before a picked file leaves the device, what is hidden in it is shown, with one
-//! switch (docs/design/media-showcase.md, "Files on the sender's device and in messages, exact",
+//! switch (docs/design/files-showcase.md, "Files on the sender's device and in messages, exact",
 //! parts 1 to 3; the operator's answers 4, 5 and 6 of 2026-10-11).
 //!
 //! WHEN IT SHOWS (the web's rule too): only when it has something to say or decide. A worker looks
@@ -177,7 +177,7 @@ pub(crate) struct Step {
     /// When it was picked: the step shows "Checking..." only if the look takes a while.
     pub opened: std::time::Instant,
     /// Over the person's private file limit in a DM: it goes straight to the other person's device
-    /// instead (device-to-device big files, media-showcase.md answer 10), never to the server.
+    /// instead (device-to-device big files, files-showcase.md answer 10), never to the server.
     pub direct: Option<Direct>,
 }
 

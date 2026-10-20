@@ -1073,12 +1073,12 @@ fn draw_admin_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
         // ── The Files page (Media until 2026-10-19): one line pointing to its Admin tab (Media round 5, 2026-10-12) ──
         // Who sees it, its space, categories, suggestions and the meter moved there whole
-        // (pages/media/admin.rs); "Open them" lands on the Media page with Admin selected.
+        // (pages/files/admin.rs); "Open them" lands on the Media page with Admin selected.
         widgets::subsection_label(ui, theme, "Files page");
         ui.horizontal_wrapped(|ui| {
-            widgets::body_hint(ui, theme, crate::gui::pages::media::admin::POINTER_LINE);
+            widgets::body_hint(ui, theme, crate::gui::pages::files::admin::POINTER_LINE);
             if widgets::Button::secondary("Open them").tooltip("The Files page, on its Admin tab.").show(ui, theme) {
-                crate::gui::pages::media::open_admin_tab(state);
+                crate::gui::pages::files::open_admin_tab(state);
             }
         });
 
@@ -2870,7 +2870,7 @@ pub(crate) fn send_server_settings_update(
 }
 
 /// The `server_settings_update` frame for `draft`: every setting the Save buttons send, the
-/// four of the Media page's Admin tab included (pages/media/admin.rs).
+/// four of the Media page's Admin tab included (pages/files/admin.rs).
 pub(crate) fn settings_update_frame(draft: &crate::relay::storage::ServerSettings) -> serde_json::Value {
     serde_json::json!({
         "type": "server_settings_update",
@@ -2914,7 +2914,7 @@ pub(crate) fn settings_update_frame(draft: &crate::relay::storage::ServerSetting
         // Guaranteed local-only room toggle (v0.1132).
         "local_channel_enabled":           draft.local_channel_enabled,
         // The Media page (2026-10-11): who sees it, its space, each person's share, and
-        // whether the public gets previews only (pages/media/admin.rs).
+        // whether the public gets previews only (pages/files/admin.rs).
         "media_visibility":                draft.media_visibility,
         "media_budget_mb":                 draft.media_budget_mb,
         "media_per_person_mb":             draft.media_per_person_mb,

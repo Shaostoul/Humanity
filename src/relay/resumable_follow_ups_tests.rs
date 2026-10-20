@@ -1,5 +1,5 @@
 //! Resumable uploads: the increment 2 follow-ups and the review's fixes (2026-10-11;
-//! docs/design/media-showcase.md, "Increment 2 follow-ups, exact" and its "As built" note). A
+//! docs/design/files-showcase.md, "Increment 2 follow-ups, exact" and its "As built" note). A
 //! child of resumable_tests.rs, so its rig and its file makers are at hand. Each test names the
 //! break it was seen failing against ("Seen red"), with the words it failed with.
 

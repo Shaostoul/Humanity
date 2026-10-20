@@ -318,10 +318,10 @@ pub enum GuiPage {
     /// lists what is live from /api/live and plays a selected MJPEG stream.
     /// Mirrors the web `/watch` page.
     Watch,
-    /// The Files page, called "Media" until 2026-10-19 and still `media` in code (its module, its
-    /// state, its page id and the relay's /api/media routes; docs/design/media-showcase.md): what
-    /// people chose to show, every kind of file; pages/media.rs.
-    Media,
+    /// The Files page (called the Media page until 2026-10-19, when the developer's Files page joined
+    /// it as its places; docs/design/files-showcase.md): what people chose to show, the server's
+    /// shared files, the app's own folder and Your folders; pages/files.rs.
+    Files,
     /// Apps (2026-10-19): games, HumanityOS's own tools, other programs, help, services and what you added, one page; pages/apps.rs (was Games and Tools).
     Apps,
     Quests,
@@ -1151,8 +1151,9 @@ pub struct GuiState {
     pub watch_last_fetch: f64,
     /// Manual "watch by name" entry on the Watch page.
     pub watch_input: String,
-    /// The Media page (pages/media.rs) and its Server Settings section, for the server on screen.
-    pub media: crate::gui::pages::media::MediaState,
+    /// The Files page (pages/files.rs; the Media page until 2026-10-19) and its Server Settings
+    /// section, for the server on screen.
+    pub files: crate::gui::pages::files::FilesState,
     /// The Apps page (pages/apps.rs): the games read, the programs found, its details and its dialogs.
     pub apps: crate::gui::pages::apps::AppsState,
 
@@ -3486,7 +3487,7 @@ impl Default for GuiState {
             watch_streams_rx: None,
             watch_last_fetch: 0.0,
             watch_input: String::new(),
-            media: Default::default(),
+            files: Default::default(),
             apps: Default::default(),
             nav_display_mode: NavDisplayMode::default(),
             toasts: Vec::new(),
@@ -4591,11 +4592,11 @@ pub struct SettingsState {
     pub outside_help_country: String,
     /// Files in messages, the attach step's switch, the kept files cap (net/files_policy.rs).
     pub files_in_messages: crate::net::files_policy::FilesInMessages,
-    /// The Media page's Your folders (pages/media/your_folders.rs): folders on this computer the
+    /// The Media page's Your folders (pages/files/your_folders.rs): folders on this computer the
     /// person added to look through. Kept on this device only; never sent anywhere.
-    pub media_folders: Vec<std::path::PathBuf>,
-    /// The Media page's view and the split of its three panes (2026-10-19, pages/media/panes.rs).
-    pub media_layout: crate::gui::pages::media::panes::Layout,
+    pub files_folders: Vec<std::path::PathBuf>,
+    /// The Media page's view and the split of its three panes (2026-10-19, pages/files/panes.rs).
+    pub files_layout: crate::gui::pages::files::panes::Layout,
     /// The Apps page's Added by you (pages/apps/games.rs): each game or program's name and program. Kept on this device only.
     pub apps_added: Vec<crate::games::AddedApp>,
     /// The Apps page's view (2026-10-19): Grid or List, the order, the part and categories shown.
@@ -4710,8 +4711,8 @@ impl Default for SettingsState {
             warnings_on_messages: true,
             outside_help_country: String::new(),
             files_in_messages: Default::default(),
-            media_folders: Vec::new(),
-            media_layout: Default::default(),
+            files_folders: Vec::new(),
+            files_layout: Default::default(),
             apps_added: Vec::new(),
             apps_view: Default::default(),
             apps_epic_covers: false,

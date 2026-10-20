@@ -1,7 +1,7 @@
 # The 3D model viewer
 
 **Asked for:** 2026-10-16, by the operator, after adding a `.glb` to a Media item: "can you make it so
-people can view the 3D model in-app and web?" The Media design (media-showcase.md, "The page") had
+people can view the 3D model in-app and web?" The Media design (files-showcase.md, "The page") had
 promised "the model viewer"; until now a model offered only Download.
 
 Native first, the website mirrors it, both from this one spec: the same files, words, camera,

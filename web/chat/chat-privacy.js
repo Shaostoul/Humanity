@@ -941,7 +941,7 @@ function renderSafetyPanel() {
 }
 
 // ── Files in messages (2026-10-11) ───────────────────────────────────────
-// docs/design/media-showcase.md, "Files on the sender's device and in
+// docs/design/files-showcase.md, "Files on the sender's device and in
 // messages, exact", part 3: three settings for files sent in DMs and groups,
 // kept on this device (/shared/files-in-messages.js holds them, their words
 // and the rules; chat-dms.js applies them to every file received; the attach

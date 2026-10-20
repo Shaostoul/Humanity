@@ -55,10 +55,10 @@ impl ChatVideo {
     /// on a worker, then play it.
     pub(crate) fn start(card: &Card) -> ChatVideo {
         let mut view = crate::gui::widgets::video_view::VideoView::default();
-        let (url, copy) = (card.url.clone(), crate::gui::pages::media::open::play_name(&card.url, 0));
+        let (url, copy) = (card.url.clone(), crate::gui::pages::files::open::play_name(&card.url, 0));
         view.start(move || {
-            let agent = crate::gui::pages::media::open::transfer_agent(std::time::Duration::from_secs(60));
-            crate::gui::pages::media::open::fetch_to(&agent, &url, None, &crate::gui::pages::media::open::temp_dir(), &copy, MAX_PUBLIC_FILE)
+            let agent = crate::gui::pages::files::open::transfer_agent(std::time::Duration::from_secs(60));
+            crate::gui::pages::files::open::fetch_to(&agent, &url, None, &crate::gui::pages::files::open::temp_dir(), &copy, MAX_PUBLIC_FILE)
         });
         ChatVideo { name: card.name.clone(), view }
     }
@@ -73,7 +73,7 @@ pub(crate) fn plays_mp4_here() -> bool {
 }
 
 /// What a message links to that is drawn under it as cards: files posted into a public channel
-/// (`files_in`) and items on the Media page of the server on screen (media/chat_card.rs).
+/// (`files_in`) and items on the Media page of the server on screen (files/chat_card.rs).
 pub(crate) struct Posted {
     pub files: Vec<String>,
     pub items: Vec<i64>,
@@ -91,16 +91,16 @@ impl Posted {
         if skip {
             return Posted { files: Vec::new(), items: Vec::new(), server };
         }
-        let media_here = crate::gui::pages::chat::norm_server_url(&server) == state.media.server;
+        let media_here = crate::gui::pages::chat::norm_server_url(&server) == state.files.server;
         let held = crate::engine::warnings::links_held(state, msg);
-        let items = if media_here && !held { crate::gui::pages::media::chat_card::item_links(&msg.content, &server) } else { Vec::new() };
+        let items = if media_here && !held { crate::gui::pages::files::chat_card::item_links(&msg.content, &server) } else { Vec::new() };
         Posted { files: files_in(&msg.content), items, server }
     }
 
     /// `content` without what is drawn as cards.
     pub(crate) fn words_of(&self, content: &str) -> String {
         let text = if self.files.is_empty() { content.to_string() } else { crate::net::protected::strip_file_urls(content) };
-        crate::gui::pages::media::chat_card::without_links(&text, &self.server, &self.items)
+        crate::gui::pages::files::chat_card::without_links(&text, &self.server, &self.items)
     }
 }
 

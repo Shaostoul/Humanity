@@ -476,7 +476,7 @@ test("the words the reporter signs are the relay's, and the frame is 10e's", asy
   assert.deepEqual(specKeys, ["type", "target", "context", "reason", "note", "evidence", "ts", "sig"]);
   // The lists 10e names.
   const words = (re) => { const mm = TEN_E.match(re); assert.ok(mm, String(re)); return [...mm[1].matchAll(/`(\w+)`/g)].map((x) => x[1]); };
-  // The contexts: 10e's four, then the Media page's (2026-10-11, docs/design/media-showcase.md A5),
+  // The contexts: 10e's four, then the Media page's (2026-10-11, docs/design/files-showcase.md A5),
   // held to the relay's own list in src/relay/handlers/reports.rs, which refuses any other. Seen red
   // 2026-10-11 with 'media' left out of report.js: "the contexts are the relay's, media included".
   const tenE = words(/`context` one of ((?:`\w+`(?:, |,? or )?)+)/);

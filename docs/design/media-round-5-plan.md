@@ -1,6 +1,6 @@
 # Media, round 5: build plan
 
-Date: 2026-10-12. Read against main at 044987fd1 (the newest release is v0.1489.0). Sources: docs/design/media-showcase.md (the whole arc: increment 1 and its fixes F1 to F7, increment 2, the follow-ups A1 to A7 and B1 to B5, rounds 3 and 4, every As built, the operator's answers of 2026-10-10 and 2026-10-11), docs/design/ui-system.md, CLAUDE.md (Rust-first canonical UI, Dual-UI parity, GUI-first configurability, Infinite-of-X, the BUG-046 gotcha, no backwards-compatibility debt before launch, research a legal question), and the code cited below. Every line number was read today. Nothing was edited and nothing was booted.
+Date: 2026-10-12. Read against main at 044987fd1 (the newest release is v0.1489.0). Sources: docs/design/files-showcase.md (the whole arc: increment 1 and its fixes F1 to F7, increment 2, the follow-ups A1 to A7 and B1 to B5, rounds 3 and 4, every As built, the operator's answers of 2026-10-10 and 2026-10-11), docs/design/ui-system.md, CLAUDE.md (Rust-first canonical UI, Dual-UI parity, GUI-first configurability, Infinite-of-X, the BUG-046 gotcha, no backwards-compatibility debt before launch, research a legal question), and the code cited below. Every line number was read today. Nothing was edited and nothing was booted.
 
 The operator's asks of 2026-10-12 keep his numbers: (1) edit where it is, (2) several files, (3) descriptions shown, (4) which server, (5) admin on the Media page, (6) a page and link per item, (7) a cover picture, (8) download counts, (9) a licence, (10) featured per category, sorting, load more, (11, phase 2) "Also put this on...".
 
@@ -173,11 +173,11 @@ The operator's asks of 2026-10-12 keep his numbers: (1) edit where it is, (2) se
 | operator's ask (3) | descriptions "are saved and shown nowhere" | the web viewer shows an item's description (media-app.js:1165), and the desktop card does for everything but a public picture (open.rs:303). A category's description is shown nowhere: that part is true |
 | storage/media.rs:1-16 | "Four tables", "one row per upload" | six tables; an item has one main file and up to 19 more plus a cover |
 | storage/media.rs:322-323 | "Nothing counts views yet" | views and downloads are counted, once a person a day |
-| storage/media.rs:766, media-showcase.md:183-184, :269-270 | newest first, paged by `before` | three sorts, paged by `cursor`; loads more on scroll |
-| relay/media.rs:23-37, api.rs:8-12, media-app.js:53-57, media-showcase.md:196, :246-249 | `media_publish:<file name>`, `media_feature:<item id>` | `media_publish:<file>:<licence>:<0\|1>`, `media_feature:<id>:<main\|category\|none>`, plus the new purposes in 3.4 |
+| storage/media.rs:766, files-showcase.md:183-184, :269-270 | newest first, paged by `before` | three sorts, paged by `cursor`; loads more on scroll |
+| relay/media.rs:23-37, api.rs:8-12, media-app.js:53-57, files-showcase.md:196, :246-249 | `media_publish:<file name>`, `media_feature:<item id>` | `media_publish:<file>:<licence>:<0\|1>`, `media_feature:<id>:<main\|category\|none>`, plus the new purposes in 3.4 |
 | relay/media.rs:239-240 | the app calls the members' route "with `?token=`" | the header or a ticket (W3b, R3-8) |
-| media-showcase.md:267 | "A strip of featured items at the top" | the main shelf, or the picked category's |
-| media-showcase.md:124, :293; pages/media.rs:33-34, :687-694; media-admin.js:1-6; admin.html:288-297; docs/PAGES.md:59, :158 | the admins' Media section is in Server Settings, or on /admin | the Media page's Admin tab; Server Settings and /admin point there |
+| files-showcase.md:267 | "A strip of featured items at the top" | the main shelf, or the picked category's |
+| files-showcase.md:124, :293; pages/media.rs:33-34, :687-694; media-admin.js:1-6; admin.html:288-297; docs/PAGES.md:59, :158 | the admins' Media section is in Server Settings, or on /admin | the Media page's Admin tab; Server Settings and /admin point there |
 | docs/PAGES.md:162, report.js:101, media-app.js:45, :467, :2195, chat-reports.js:47 | `/media?id=<n>` | `/media/<n>` |
 | docs/FEATURES.md:283-284 | four tables; `server_settings/media.rs` | the new tables and files |
 | item_json, api.rs:69, media-app.js:954 | `featured` is a bool | `"main"`, `"category"` or `"none"` |
@@ -852,7 +852,7 @@ Size: the largest lane, about 1,300 lines with tests. If it runs long, the same 
   - src/gui/ui_snapshots.rs: `snapshot_media_item`, `snapshot_media_edit`, `snapshot_media_admin_tab`, `snapshot_server_strip_media`, with `snapshot_media_settings` renamed and moved to the Admin tab.
 
 **Documents (orchestrator, last):**
-- media-showcase.md: a "Round 5" section with As built; every row of section 2;
+- files-showcase.md: a "Round 5" section with As built; every row of section 2;
 - docs/PAGES.md :59, :158, :162; docs/FEATURES.md :283-284;
 - docs/design/ui-system.md: the strip in the component registry;
 - docs/design/in-app-ops.md: the nginx location is an operator step;

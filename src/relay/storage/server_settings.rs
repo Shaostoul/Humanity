@@ -161,14 +161,14 @@ pub struct ServerSettings {
     /// Settings > ADMIN > Fleet supply, live, no restart; a change never touches a ledger.
     #[serde(default = "default_fleet_supply_mode")]
     pub fleet_supply_mode: String,
-    /// Who sees the Media page (docs/design/media-showcase.md, 2026-10-11): "public", the
+    /// Who sees the Media page (docs/design/files-showcase.md, 2026-10-11): "public", the
     /// default, anyone (an item marked members-only still goes to members only); "members",
-    /// nothing to anyone but a signed request from a member of this server (relay/media.rs).
+    /// nothing to anyone but a signed request from a member of this server (relay/files.rs).
     #[serde(default = "default_media_visibility")]
     pub media_visibility: String,
     /// The Media page's own storage budget in MB (default 2,048), apart from
     /// `max_total_upload_mb`, which stays for chat files. Every published item and every Media
-    /// upload not yet published counts (storage/media.rs).
+    /// upload not yet published counts (storage/files.rs).
     #[serde(default = "default_media_budget_mb")]
     pub media_budget_mb: i64,
     /// Each person's share of the Media budget in MB (default 512).
@@ -807,7 +807,7 @@ mod tests {
         assert_eq!((back.erased_accounts_ttl_days, back.erased_accounts_cap), (30, 100_000));
     }
 
-    /// The four Media page settings (2026-10-11, docs/design/media-showcase.md) default to a
+    /// The four Media page settings (2026-10-11, docs/design/files-showcase.md) default to a
     /// public page, a 2,048 MB budget, a 512 MB share each and previews only for the public, the
     /// same in the schema and in `ServerSettings::default()`; they round-trip through the
     /// positional set/get SQL without bleeding into each other; a visibility that is neither

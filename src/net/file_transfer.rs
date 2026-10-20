@@ -1,4 +1,4 @@
-//! Device-to-device big files, what is said on the data channel (docs/design/media-showcase.md,
+//! Device-to-device big files, what is said on the data channel (docs/design/files-showcase.md,
 //! "Device-to-device big files: the shapes, exact", part 5). Both halves as plain state machines:
 //! [`Receiving`] and [`Sending`] take what arrived and say what to send, with the file behind a
 //! small trait, so each rule runs in a test against a stand-in peer and the real connection
@@ -28,7 +28,7 @@
 //! app that carries a full 64 KiB after its header, or any other split, is taken all the same: the
 //! receiver places each message by its own header and accepts up to 256 KiB per message.
 //!
-//! THE RULES SETTLED BY THE FIRST REVIEW (media-showcase.md, "Device-to-device big files: rules
+//! THE RULES SETTLED BY THE FIRST REVIEW (files-showcase.md, "Device-to-device big files: rules
 //! settled by the first review (2026-10-12)", rule 1), which the website follows too:
 //! - A `get` ADDS, it never replaces: pieces `from` to `from + count - 1` join what the sender owes.
 //!   The sender sends what it owes in ascending order, each piece once, from offset 0, and forgets

@@ -1,5 +1,5 @@
 //! What a file sent into the chat is made of on its way out, kept to ONE copy in memory (round 3
-//! of docs/design/media-showcase.md, the 2026-10-11 review's finding 8). Sending a 1 GB private file
+//! of docs/design/files-showcase.md, the 2026-10-11 review's finding 8). Sending a 1 GB private file
 //! used to read the whole file on the UI thread (the app stopped drawing until it was read), then
 //! hold the plaintext, the ciphertext and the upload's own copy (preamble + ciphertext + epilogue)
 //! at once: about 3 GB.

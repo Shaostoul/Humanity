@@ -9,7 +9,7 @@
 //!   - reports decided more than 90 days ago (storage/reports.rs; open reports are kept);
 //!   - the name, contact and statement of copyright reports decided more than 90 days ago,
 //!     blanked (storage/takedowns.rs, 2026-10-13); the row stays, as the public takedown log;
-//!   - Media uploads not published within a day, row and file (storage/media.rs; the Media
+//!   - Media uploads not published within a day, row and file (storage/files.rs; the Media
 //!     review's F1, 2026-10-11). Their files are in the relay's uploads folder, so this pass
 //!     takes the folders (`run_expiry_sweeps_in` names a test's own);
 //!   - resumable uploads with no piece for a day, row and pieces' file (storage/
@@ -27,12 +27,12 @@ impl Storage {
     /// Run every expiry with this server's current settings. Errors are logged, never fatal:
     /// one failing sweep must not stop the others.
     pub fn run_expiry_sweeps(&self) {
-        self.run_expiry_sweeps_in(super::media::Folders::live())
+        self.run_expiry_sweeps_in(super::files::Folders::live())
     }
 
     /// [`Self::run_expiry_sweeps`] with the Media folders named, so a test deletes files in
     /// folders of its own rather than in the checkout's data folder.
-    pub fn run_expiry_sweeps_in(&self, folders: super::media::Folders) {
+    pub fn run_expiry_sweeps_in(&self, folders: super::files::Folders) {
         let s = self.get_server_settings().unwrap_or_default();
         match self.mailbox_expire(s.dm_mailbox_ttl_days) {
             Ok(0) => {}
@@ -70,8 +70,8 @@ impl Storage {
         }
         match self.expire_unpublished_media_in(folders, super::now_millis() as i64) {
             Ok(0) => {}
-            Ok(n) => tracing::info!("Media: deleted {n} upload(s) not published within a day"),
-            Err(e) => tracing::error!("Unpublished Media sweep failed: {e}"),
+            Ok(n) => tracing::info!("Files: deleted {n} upload(s) not published within a day"),
+            Err(e) => tracing::error!("Unpublished Files sweep failed: {e}"),
         }
         match self.expire_upload_sessions_in(folders, super::now_millis() as i64) {
             Ok(0) => {}

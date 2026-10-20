@@ -34,7 +34,7 @@ pub mod dm_file_stream;
 #[cfg(feature = "native")]
 pub mod dm_store;
 
-/// Files in messages (2026-10-11, docs/design/media-showcase.md, the files section): who files are
+/// Files in messages (2026-10-11, docs/design/files-showcase.md, the files section): who files are
 /// taken from, whose pictures show, the attach button, the remembered switch and the words.
 #[cfg(feature = "native")]
 pub mod files_policy;
@@ -46,7 +46,7 @@ pub mod file_clean;
 #[cfg(feature = "native")]
 pub mod kept_files;
 
-/// Device-to-device big files (docs/design/media-showcase.md, answer 10, 2026-10-11): the file
+/// Device-to-device big files (docs/design/files-showcase.md, answer 10, 2026-10-11): the file
 /// pass, the offer and its answer and cancel notes, the receiver's question and each transfer's
 /// record.
 #[cfg(feature = "native")]

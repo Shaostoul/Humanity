@@ -51,7 +51,7 @@
   // The desktop app's words, exactly.
   const WORDS = Object.freeze({
     cannot: 'Files cannot be dropped here.',
-    uploadToMedia: 'Drop to upload to Files',
+    uploadToFiles: 'Drop to upload to Files',
     sharedFiles: 'Drop to upload to Shared Files',
   });
   /** "Drop to send in Ben": `name` is how the chat names the private conversation. */

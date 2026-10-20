@@ -1,4 +1,4 @@
-//! Resumable uploads, the relay half (2026-10-11; docs/design/media-showcase.md, "Resumable
+//! Resumable uploads, the relay half (2026-10-11; docs/design/files-showcase.md, "Resumable
 //! uploads, exact"). The operator asked "What if I want to upload a multi-GB file?" One request
 //! carries at most 1 GB, and a connection that drops at 900 MB loses all of it. So a Media file
 //! can instead be sent in pieces: each piece is written and counted before the next is sent, and
@@ -18,7 +18,7 @@
 //! - `PATCH /api/upload/resumable/{id}?token=&offset=<n>` with the next piece as the body:
 //!   `{offset, size}`, or for the last piece the finished upload, the same JSON as
 //!   `POST /api/upload` (`{url, filename, size, type}`), which the app then publishes with
-//!   `POST /api/media` as before. A PATCH on a finished upload answers that same JSON and does
+//!   `POST /api/files` as before. A PATCH on a finished upload answers that same JSON and does
 //!   nothing.
 //! - `DELETE /api/upload/resumable/{id}?token=` cancels, and nothing stays (R4-2): `{ok: true}`
 //!   for a session still arriving; `{ok: true, removed_stored: true}` for a finished one whose
@@ -74,10 +74,10 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 use std::sync::Arc;
 
-use crate::relay::media::{self, Folders, NewUpload, Reserved};
+use crate::relay::files::{self, Folders, NewUpload, Reserved};
 use crate::relay::relay::RelayState;
-use crate::relay::storage::media::{OwnedFolders, MEDIA_SHELF};
-use crate::relay::storage::media::{MediaError, Refusal};
+use crate::relay::storage::files::{OwnedFolders, MEDIA_SHELF};
+use crate::relay::storage::files::{FilesError, Refusal};
 use crate::relay::storage::upload_sessions::{part_path, remove_session_files, restore_staged_part, valid_id, UploadSession};
 use crate::relay::storage::{RoleDef, Storage};
 use crate::relay::upload_limits::{picture_too_large, UploadBody, PICTURE_MAX_BYTES};
@@ -207,7 +207,7 @@ pub struct SessionQuery {
 /// from `?token=` (R3-9, 2026-10-11: an app sends it in the header, so it is never in an address
 /// a proxy or a log keeps; the query still works).
 pub fn session_token(headers: &HeaderMap, q: &SessionQuery) -> Option<String> {
-    media::header_token(headers).or_else(|| q.token.clone())
+    files::header_token(headers).or_else(|| q.token.clone())
 }
 
 /// What the app says about the file it is about to send.
@@ -294,7 +294,7 @@ pub async fn start_core(state: &Arc<RelayState>, folders: Folders<'_>, token: Op
         let db = &state.db;
         // The room check and the new row under the room lock (media.rs), so two starts (or a
         // start and a single request's store) cannot both pass on the same room.
-        let _room = media::room_lock();
+        let _room = files::room_lock();
         // The hour's count of uploads, and a day's allowance already used up (B3), checked and
         // counted under the same lock at this time (R3-1), so starts sent at once cannot all pass:
         // answered in JSON with when it resets, so an app can wait and start then. A file bigger
@@ -312,7 +312,7 @@ pub async fn start_core(state: &Arc<RelayState>, folders: Folders<'_>, token: Op
             ));
         }
         let reserved = Reserved { all: all.iter().map(|s| s.size).sum(), mine: mine.iter().map(|s| s.size).sum() };
-        media::media_room(db, &settings, &key, size, reserved)?;
+        files::media_room(db, &settings, &key, size, reserved)?;
 
         let mut raw = [0u8; 16];
         getrandom::getrandom(&mut raw).map_err(|e| words(StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to name the upload: {e}")))?;
@@ -440,8 +440,8 @@ fn cancel_session(db: &Storage, folders: Folders, s: &UploadSession) -> Result<V
         return Ok(json!({ "ok": true }));
     }
     let answer: Value = serde_json::from_str(&s.done_answer).unwrap_or(Value::Null);
-    let name = answer["filename"].as_str().and_then(|n| media::stored_name(n).ok()).map(str::to_string);
-    let _room = media::room_lock();
+    let name = answer["filename"].as_str().and_then(|n| files::stored_name(n).ok()).map(str::to_string);
+    let _room = files::room_lock();
     let Some(name) = name else {
         // A finished row whose answer names no file (only a row written by hand): it goes.
         db.delete_upload_session(&s.id).map_err(db_err)?;
@@ -465,9 +465,9 @@ fn cancel_session(db: &Storage, folders: Folders, s: &UploadSession) -> Result<V
         }
     }
     match db.remove_unpublished_media(&name, &s.public_key, false) {
-        Ok(()) | Err(MediaError::Refused(Refusal::NotFound, _)) => {}
-        Err(MediaError::Db(e)) => return Err(db_err(e)),
-        Err(MediaError::Refused(_, w) | MediaError::Files(w)) => return Err(words(StatusCode::INTERNAL_SERVER_ERROR, w)),
+        Ok(()) | Err(FilesError::Refused(Refusal::NotFound, _)) => {}
+        Err(FilesError::Db(e)) => return Err(db_err(e)),
+        Err(FilesError::Refused(_, w) | FilesError::Files(w)) => return Err(words(StatusCode::INTERNAL_SERVER_ERROR, w)),
     }
     db.delete_upload_session(&s.id).map_err(db_err)?;
     Ok(json!({ "ok": true, "removed_stored": true }))
@@ -516,7 +516,7 @@ fn write_counted(state: &RelayState, path: &std::path::Path, s: &UploadSession, 
     let (db, id, key, at) = (&state.db, s.id.as_str(), s.public_key.as_str(), s.offset);
     let len = piece.len() as u64;
     let (now, counted) = {
-        let _room = media::room_lock();
+        let _room = files::room_lock();
         let now = state.upload_now_ms();
         if let Err(over) = allowance_for_piece(db, key, role, now, len) {
             let mut body = over.json();
@@ -546,7 +546,7 @@ fn write_counted(state: &RelayState, path: &std::path::Path, s: &UploadSession, 
     // A test can hold a piece here, its allowance decided and not yet written (R3-1), by the
     // name `piece:<file name>`, apart from the store's hold on the file name itself.
     #[cfg(test)]
-    media::hold::wait_at(&format!("piece:{}", s.filename));
+    files::hold::wait_at(&format!("piece:{}", s.filename));
     if let Err(e) = write_piece(path, at as u64, piece) {
         take_back();
         if e.kind() == std::io::ErrorKind::NotFound {
@@ -559,7 +559,7 @@ fn write_counted(state: &RelayState, path: &std::path::Path, s: &UploadSession, 
     // A test can stop here, as a relay that stops between the write and the offset does (R4-3),
     // by the name `written:<file name>`: nothing after this line runs.
     #[cfg(test)]
-    if media::hold::stops_at(&format!("written:{}", s.filename)) {
+    if files::hold::stops_at(&format!("written:{}", s.filename)) {
         return Err(words(StatusCode::INTERNAL_SERVER_ERROR, "A test stopped the relay here."));
     }
     match db.set_upload_session_offset(id, at + len as i64, now) {
@@ -775,9 +775,9 @@ fn finish(state: &RelayState, folders: Folders, s: &UploadSession) -> Result<Val
         allowance: None,
         session: Some(&s.id),
     };
-    match media::store_upload(db, &settings, folders, &new, |path| body.put(path), |path| body.unstage(path)) {
+    match files::store_upload(db, &settings, folders, &new, |path| body.put(path), |path| body.unstage(path)) {
         Ok(old_files) => {
-            media::delete_pruned(folders, &old_files);
+            files::delete_pruned(folders, &old_files);
             // A picture was stored from its stripped bytes, a copy from another disk left the
             // pieces' file behind: either way it is done with.
             let _ = std::fs::remove_file(&part);

@@ -1,4 +1,4 @@
-//! Upload allowances, the counting half (2026-10-11; docs/design/media-showcase.md, follow-up B3;
+//! Upload allowances, the counting half (2026-10-11; docs/design/files-showcase.md, follow-up B3;
 //! the operator's answers of 2026-10-11, number 3: "a limit of number of uploads per user and a max
 //! upload bandwidth per tier of user"). The rules that read these numbers are in
 //! relay/upload_rules.rs (`allowance`), shared by both upload routes.

@@ -1,4 +1,4 @@
-//! Resumable uploads, round 3 (2026-10-11; docs/design/media-showcase.md, "Round 3: fixes from
+//! Resumable uploads, round 3 (2026-10-11; docs/design/files-showcase.md, "Round 3: fixes from
 //! the round 2 review"): pieces checked and counted under the room lock (R3-1), the pieces file
 //! never lost on its way into place (R3-5), the allowance answer an app can act on (R3-6), and the
 //! token in a header (R3-9). A child of resumable_tests.rs, so its rig and its file makers are at
@@ -32,7 +32,7 @@ fn unfill(r: &Rig) {
 
 /// Run `send` while `control` waits for the store to reach `gate`, acts, and opens it: the store
 /// runs on a worker thread, so the two go on together.
-async fn with_gate<T>(gate: &media::hold::Gate, send: impl std::future::Future<Output = T>, control: impl FnOnce()) -> T {
+async fn with_gate<T>(gate: &files::hold::Gate, send: impl std::future::Future<Output = T>, control: impl FnOnce()) -> T {
     let watch = async {
         for _ in 0..400 {
             if gate.reached() {
@@ -67,7 +67,7 @@ async fn pieces_sent_at_once_cannot_both_pass_one_allowance() {
     verified_role(&r, |v| v.max_upload_mb_per_day = 1);
     let size = MIB * 6 / 10;
     let data = bytes(size as usize);
-    let gate = media::hold::gate("piece:held-r31-pieces.mp4");
+    let gate = files::hold::gate("piece:held-r31-pieces.mp4");
     let a = r.start("tok_ann", file("held-r31-pieces.mp4", size, "video/mp4")).await.unwrap();
     let b = r.start("tok_ann", file("held-r31-pieces.mp4", size, "video/mp4")).await.unwrap();
 
@@ -157,7 +157,7 @@ async fn a_finish_cut_off_waiting_for_the_room_lock_is_put_back_at_start() {
     let r = rig("resume_r35a");
     r.person("ann", "tok_ann").await;
     let data = bytes(2000);
-    let gate = media::hold::gate("held-r35a.mp4");
+    let gate = files::hold::gate("held-r35a.mp4");
     let id = r.start("tok_ann", file("held-r35a.mp4", 2000, "video/mp4")).await.unwrap();
     let staged = r.waiting.join(staged_part_name(&id));
     let mut seen = (false, false);
@@ -172,7 +172,7 @@ async fn a_finish_cut_off_waiting_for_the_room_lock_is_put_back_at_start() {
     std::fs::write(r.part(&id), &data).unwrap(); // the last piece written, the finish under way
     r.db().set_upload_session_offset(&id, 2000, crate::relay::storage::now_millis() as i64).unwrap();
     std::fs::rename(r.part(&id), r.waiting.join(staged_part_name(&id))).unwrap();
-    std::fs::write(r.waiting.join(format!("{}left", crate::relay::storage::media::STAGED_PREFIX)), b"half a copy").unwrap();
+    std::fs::write(r.waiting.join(format!("{}left", crate::relay::storage::files::STAGED_PREFIX)), b"half a copy").unwrap();
 
     let settled = r.db().settle_uploads_at_start(r.folders()).unwrap();
     assert!(r.session(&id).is_some() && r.part(&id).is_file(), "the session is kept with its file");
@@ -196,7 +196,7 @@ async fn a_pieces_file_that_cannot_go_back_after_a_refusal_is_kept() {
     let r = rig("resume_r35b");
     r.person("ann", "tok_ann").await;
     let data = bytes(3000);
-    let gate = media::hold::gate("held-r35b.mp4");
+    let gate = files::hold::gate("held-r35b.mp4");
     let id = r.start("tok_ann", file("held-r35b.mp4", 3000, "video/mp4")).await.unwrap();
     let staged = r.waiting.join(staged_part_name(&id));
     // The finish reads the settings when it begins, before the gate: the share is set first, and
@@ -232,7 +232,7 @@ async fn the_resumable_routes_take_the_token_in_a_header() {
     r.person("ann", "tok_ann").await;
     let id = r.start("tok_ann", file("clip.mp4", 100, "video/mp4")).await.unwrap();
     let mut headers = HeaderMap::new();
-    headers.insert(media::UPLOAD_TOKEN_HEADER, "tok_ann".parse().unwrap());
+    headers.insert(files::UPLOAD_TOKEN_HEADER, "tok_ann".parse().unwrap());
     let ask = |q: SessionQuery, h: HeaderMap| status(State(r.state.clone()), Path(id.clone()), Query(q), h);
 
     assert_eq!(ask(SessionQuery::default(), headers.clone()).await.status().as_u16(), 200, "the header alone reads the status");

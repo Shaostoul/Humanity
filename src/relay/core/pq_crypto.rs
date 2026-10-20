@@ -638,7 +638,7 @@ pub fn verify_plot_permit(
 }
 
 // ── File passes (device-to-device big files, 2026-10-11) ───────────────────
-// docs/design/media-showcase.md, "Device-to-device big files: the shapes, exact", part 1. A file
+// docs/design/files-showcase.md, "Device-to-device big files: the shapes, exact", part 1. A file
 // bigger than a person's private file limit goes from one device to the other, never to the
 // server's disk. The receiver, once it says yes, dials the sender over WebRTC, and by default the
 // packets go through the server's call forwarder so neither learns the other's address. The two
@@ -1459,7 +1459,7 @@ mod tests {
     }
 
     /// FILE PASS ROUND TRIP + A PINNED PREIMAGE (device-to-device big files,
-    /// docs/design/media-showcase.md, the shapes part 1). The signed words are frozen here
+    /// docs/design/files-showcase.md, the shapes part 1). The signed words are frozen here
     /// because both apps mint passes too and the relay checks them; the shared fixture
     /// (scripts/tests/fixtures/file-offer-v1.json) carries one minted pass's words for the apps'
     /// tests. A pass minted by the SHIPPED builder verifies, to its last second, and reads back

@@ -1,5 +1,5 @@
 // Cleaning a file on the sender's own device before it leaves, on the website (2026-10-11,
-// docs/design/media-showcase.md, "Files on the sender's device and in messages, exact", parts 1
+// docs/design/files-showcase.md, "Files on the sender's device and in messages, exact", parts 1
 // and 2): web/shared/upload-clean.js, around web/shared/strip-metadata.js.
 //
 // Run: node --test scripts/tests/upload-clean-web.test.js
@@ -37,7 +37,7 @@ const S = require(path.join(WEB, "shared", "strip-metadata.js"));
 const P = require(path.join(WEB, "shared", "protected.js"));
 const B = require("./file-bytes.js");
 
-const SPEC = fs.readFileSync(path.join(ROOT, "docs", "design", "media-showcase.md"), "utf8");
+const SPEC = fs.readFileSync(path.join(ROOT, "docs", "design", "files-showcase.md"), "utf8");
 // The section this builds, with its line wrapping undone.
 const SECTION = SPEC.slice(SPEC.indexOf("## Files on the sender's device and in messages, exact")).replace(/\s+/g, " ");
 

@@ -14,7 +14,7 @@
 // need the live relay show their empty/offline state, which is fine for layout checks. Static-content pages
 // (like the roadmap, which reads /data/roadmap.json) render fully. With a relay named, it also
 // sends what nginx sends the relay: /uploads/* (the files people put up) and one Media item's
-// own page, /media/<number> (2026-10-12, docs/design/media-round-5-plan.md 3.6), while /media
+// own page, /files/<number> (2026-10-12, docs/design/media-round-5-plan.md 3.6), while /files
 // itself stays the static page.
 //
 //   node scripts/preview-server.js [port]   (default 8099)
@@ -89,16 +89,16 @@ const API_TARGET = (() => {
 
 // What the relay answers rather than a file from disk, as nginx routes it
 // (scripts/nginx/humanity.conf): /health, everything under /api/ and /uploads/, and one Media
-// item's page, /media/<number> (a regular-expression location there; /media alone is a page).
+// item's page, /files/<number> (a regular-expression location there; /files alone is a page).
 function goesToRelay(url) {
   const p = url.split('?')[0];
-  return p === '/health' || p.startsWith('/api/') || p.startsWith('/uploads/') || /^\/media\/\d+$/.test(p);
+  return p === '/health' || p.startsWith('/api/') || p.startsWith('/uploads/') || /^\/files\/\d+$/.test(p);
 }
 
 function proxyToRelay(req, res) {
   // X-Real-IP is set from the connection, as nginx's `proxy_set_header X-Real-IP $remote_addr`
   // does, and whatever the browser sent in it is dropped: the relay's Media counts tell people
-  // apart by it (src/relay/media_counts.rs).
+  // apart by it (src/relay/files_counts.rs).
   const headers = { ...req.headers, host: API_TARGET.host };
   delete headers['x-real-ip'];
   if (req.socket.remoteAddress) headers['x-real-ip'] = req.socket.remoteAddress;
@@ -172,6 +172,6 @@ server.on('upgrade', (req, socket, head) => {
 // raises a firewall prompt once per program path (CLAUDE.md, "No Windows Firewall prompts").
 server.listen(PORT, '127.0.0.1', () => {
   console.log(`preview server on http://127.0.0.1:${PORT}  (root: ${ROOT})`);
-  if (API_TARGET) console.log(`  /api, /uploads, /media/<number>, /health and /ws proxied to ${API_TARGET.origin}`);
+  if (API_TARGET) console.log(`  /api, /uploads, /files/<number>, /health and /ws proxied to ${API_TARGET.origin}`);
   else console.log('  /api not proxied (pass --api http://127.0.0.1:PORT to reach a local relay)');
 });

@@ -1,6 +1,6 @@
 // ── kept-files.js ─────────────────────────────────────────────────────────
 // A copy, on this device, of every private file the person opened (2026-10-11,
-// docs/design/media-showcase.md, "Files on the sender's device and in
+// docs/design/files-showcase.md, "Files on the sender's device and in
 // messages, exact", part 4; the operator's answer 9). A file sent in a DM or a
 // group is removed from the server after the DM mailbox's lifetime (30 days
 // by default), so a picture already looked at, or a file already saved, is

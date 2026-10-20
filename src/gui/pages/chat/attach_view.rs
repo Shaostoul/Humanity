@@ -60,7 +60,7 @@ pub(crate) fn is_inline(att: &DmAttachment) -> bool {
 }
 
 /// Whether the file is drawn as a picture in place rather than a card with Save: a picture type,
-/// and no larger than the image cache shows (round 3 of docs/design/media-showcase.md, the
+/// and no larger than the image cache shows (round 3 of docs/design/files-showcase.md, the
 /// review's finding 4: a private picture over 16 MB went to the in-place path, whose fetch refused
 /// it, and showed only "This file could not be opened." with no Save, so it could be neither
 /// opened nor saved). Routed by the size the marker states: the sender's app writes the true size
@@ -84,7 +84,7 @@ pub(crate) enum Show {
     /// The protected setup leaves it out; the message row says so.
     Hidden,
     /// From someone this person does not accept files from (Settings > Privacy, "Accept files
-    /// from", the files section of docs/design/media-showcase.md): nothing is fetched, a picture
+    /// from", the files section of docs/design/files-showcase.md): nothing is fetched, a picture
     /// or not; the card asks (these words), and Accept fetches that one file.
     NotAccepted(String),
     /// A picture from someone who is not a friend: waits for a click.

@@ -494,7 +494,7 @@ impl GuiState {
     /// typed into a Server field (the Chat page's connect form and the main menu edit
     /// `server_url` letter by letter). With no connection this session, what the app would dial
     /// by itself (`dial_address`), which is never a draft either. Empty when there is none. The
-    /// Media page follows this (round 4 of docs/design/media-showcase.md, D4-3: one letter typed
+    /// Media page follows this (round 4 of docs/design/files-showcase.md, D4-3: one letter typed
     /// while uploads waited for sign-in took the page to "another server", abandoning them all).
     pub fn active_server(&self) -> String {
         let address = if self.connected_server_url.trim().is_empty() { self.dial_address().unwrap_or("") } else { self.connected_server_url.as_str() };

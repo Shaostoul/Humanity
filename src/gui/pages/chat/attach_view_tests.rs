@@ -306,7 +306,7 @@ fn a_file_is_a_card_whose_save_writes_the_decrypted_file() {
 }
 
 /// A PRIVATE PICTURE TOO LARGE TO SHOW IN PLACE IS A CARD WITH SAVE (round 3 of
-/// docs/design/media-showcase.md, the review's finding 4): routed by the size its marker states,
+/// docs/design/files-showcase.md, the review's finding 4): routed by the size its marker states,
 /// a picture over the image cache's 16 MB is never fetched into memory; its card offers Save,
 /// which streams it to disk. Before, it went to the in-place path, whose capped fetch failed, and
 /// the row said only "This file could not be opened.": no picture and no Save.

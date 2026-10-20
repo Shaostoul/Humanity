@@ -235,10 +235,10 @@ const ROUTE_FEATURES: &[(&str, Feature)] = &[
     ("/api/upload", Feature::Uploads),
     ("/api/uploads", Feature::Uploads),
     // The Media page (2026-10-11, media.rs): published uploads, so the same switch.
-    ("/api/media", Feature::Uploads),
-    // One Media item's own page (Media round 5, 2026-10-12, media_page.rs): `/media/<id>`. The
-    // static `/media` page is nginx's and never reaches the relay.
-    ("/media", Feature::Uploads),
+    ("/api/files", Feature::Uploads),
+    // One Media item's own page (Media round 5, 2026-10-12, media_page.rs): `/files/<id>`. The
+    // static `/files` page is nginx's and never reaches the relay.
+    ("/files", Feature::Uploads),
     ("/api/assets", Feature::Uploads),
     ("/uploads", Feature::Uploads),
     // ── Tasks + projects.
@@ -549,12 +549,12 @@ mod tests {
         assert_eq!(route_feature("/api/uploads/delete"), Some(Feature::Uploads));
         // The Media page (2026-10-11). Seen red 2026-10-11 with its row taken out of
         // ROUTE_FEATURES: "assertion `left == right` failed / left: None / right: Some(Uploads)".
-        assert_eq!(route_feature("/api/media"), Some(Feature::Uploads));
-        assert_eq!(route_feature("/api/media/suggestions/decide"), Some(Feature::Uploads));
+        assert_eq!(route_feature("/api/files"), Some(Feature::Uploads));
+        assert_eq!(route_feature("/api/files/suggestions/decide"), Some(Feature::Uploads));
         // An item's own page (Media round 5). Seen red 2026-10-12 with its row taken out:
         // "assertion `left == right` failed / left: None / right: Some(Uploads)".
-        assert_eq!(route_feature("/media/12"), Some(Feature::Uploads));
-        assert_eq!(route_feature("/mediaplayer"), None, "a path-segment match, never a bare prefix");
+        assert_eq!(route_feature("/files/12"), Some(Feature::Uploads));
+        assert_eq!(route_feature("/filesystem"), None, "a path-segment match, never a bare prefix");
         assert_eq!(route_feature("/api/assets/xyz"), Some(Feature::Uploads));
         assert_eq!(route_feature("/uploads/pic.png"), Some(Feature::Uploads));
         assert_eq!(route_feature("/api/turn-credentials"), Some(Feature::Voice));

@@ -8,7 +8,7 @@
    the type is not known.
 
    The badge itself is drawn by /shared/file-risk.js (HosFileRisk.badgeHtml) on the chat page and
-   the Shared Files page, and by /pages/media-edit.js (fileBadge, the same shape built with
+   the Shared Files page, and by /pages/files-edit.js (fileBadge, the same shape built with
    createElement) on the Media page. The desktop app's twin: src/gui/widgets/file_badge.rs.
    Theme tokens only (theme.css, generated from data/gui/theme.ron). */
 .file-badge {

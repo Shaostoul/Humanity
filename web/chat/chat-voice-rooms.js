@@ -28,7 +28,7 @@
 // signed-in chat socket, exactly as 10f fixes it:
 //   {"type":"call_credentials","room":"<voice room id>"}
 //   {"type":"call_credentials","call":"<the other person's key>"}
-// and, for a device-to-device file (2026-10-11, docs/design/media-showcase.md,
+// and, for a device-to-device file (2026-10-11, docs/design/files-showcase.md,
 // "Device-to-device big files: the shapes, exact", section 2;
 // chat-file-transfer.js), with the transfer's file pass:
 //   {"type":"call_credentials","file":"<id>","peer":"<key>","file_pass":{...}}

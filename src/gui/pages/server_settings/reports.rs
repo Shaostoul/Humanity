@@ -163,7 +163,7 @@ fn draw_report(
         }
     }
     if let Some(id) = open_media {
-        crate::gui::pages::media::open_item_by_number(state, id);
+        crate::gui::pages::files::open_item_by_number(state, id);
     }
 
     if r.is_decided() {
@@ -229,7 +229,7 @@ fn draw_evidence(ui: &mut egui::Ui, theme: &Theme, state: &GuiState, r: &ListedR
         );
         if let Some(m) = e.media.as_ref() {
             // Label ids by the names the Media page knows them by, when it has them.
-            let label_name = |id: &str| state.media.list.labels.iter().find(|l| l.id == id).map(|l| l.label.clone()).unwrap_or_else(|| id.to_string());
+            let label_name = |id: &str| state.files.list.labels.iter().find(|l| l.id == id).map(|l| l.label.clone()).unwrap_or_else(|| id.to_string());
             ui.label(RichText::new(media_words(m, label_name)).color(theme.text_primary()));
             if widgets::Button::secondary(OPEN_ITEM).tooltip("Show this item on the Files page, if it is still there.").show(ui, theme) {
                 open = Some(m.id);
@@ -258,7 +258,7 @@ pub(crate) fn media_words(m: &report::ListedMedia, label_name: impl Fn(&str) -> 
         words.push_str(&format!(": \"{}\"", m.title.trim()));
     }
     if !m.kind.is_empty() {
-        let kind = crate::gui::pages::media::kinds::one_name(&m.kind).to_lowercase();
+        let kind = crate::gui::pages::files::kinds::one_name(&m.kind).to_lowercase();
         let article = if kind.starts_with(['a', 'e', 'i', 'o', 'u']) { "an" } else { "a" };
         words.push_str(&format!(", {article} {kind}"));
     }
@@ -282,7 +282,7 @@ mod tests {
     /// A REPORTED MEDIA ITEM SHOWS WHAT THE SERVER KEPT OF IT, WITH AN OPEN THAT SHOWS IT (the
     /// relay's A5): its number, title, kind, labels and who may see it, the checked badge, and Open,
     /// which takes the admin to the Media page with that item's own page open, asked for by its
-    /// number (the list is not filtered down to it: media/item_tests.rs
+    /// number (the list is not filtered down to it: files/item_tests.rs
     /// `the_reports_open_opens_the_items_own_page` follows the answer onto the page).
     ///
     /// Seen red 2026-10-11 with media evidence drawn as text like any other: "the item is
@@ -319,12 +319,12 @@ mod tests {
         run(&mut state, vec![egui::Event::PointerMoved(open)]);
         run(&mut state, vec![egui::Event::PointerButton { pos: open, button: egui::PointerButton::Primary, pressed: true, modifiers: m }]);
         run(&mut state, vec![egui::Event::PointerButton { pos: open, button: egui::PointerButton::Primary, pressed: false, modifiers: m }]);
-        assert_eq!(state.active_page, crate::gui::GuiPage::Media, "Open goes to the Files page");
-        assert_eq!(state.media.item.as_ref().map(|p| p.id), Some(12), "Open opens item 12's own page");
+        assert_eq!(state.active_page, crate::gui::GuiPage::Files, "Open goes to the Files page");
+        assert_eq!(state.files.item.as_ref().map(|p| p.id), Some(12), "Open opens item 12's own page");
         assert!(
-            state.media.jobs.iter().any(|(j, _)| *j == crate::gui::pages::media::Job::Item { id: 12 }),
+            state.files.jobs.iter().any(|(j, _)| *j == crate::gui::pages::files::Job::Item { id: 12 }),
             "and asks for it by its number, since the list does not hold it"
         );
-        assert_eq!(state.media.filters.id, None, "the list is not filtered down to it");
+        assert_eq!(state.files.filters.id, None, "the list is not filtered down to it");
     }
 }

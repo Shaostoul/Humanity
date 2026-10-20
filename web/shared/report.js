@@ -23,7 +23,7 @@
 //   {"kind":"post","from","timestamp"}             a public post; the relay looks it up
 //   {"kind":"group_text","from","ts","text"}       from a P2P group; never proven
 //   {"kind":"media","id"}                         an item on the Media page (2026-10-11,
-//       docs/design/media-showcase.md A5); the relay looks it up and keeps a
+//       docs/design/files-showcase.md A5); the relay looks it up and keeps a
 //       pointer to it (its title, kind, labels and visibility), never the file
 // At most 20 items and 64 KB of evidence in all; a note of at most 500 characters.
 // Never a message with a file: its text carries the key that opens the file
@@ -93,15 +93,15 @@
     return 'Checked: posted by ' + name + ' on this server';
   }
   /** The badge on a Media item the server found, put there by the person reported. */
-  function reportMediaFoundBadge(name) {
+  function reportFilesFoundBadge(name) {
     return 'Checked: on the Files page, put there by ' + name;
   }
   /**
-   * Where the Reports view opens a reported Media item: its own page, /media/<n> (Media round 5,
+   * Where the Reports view opens a reported Media item: its own page, /files/<n> (Media round 5,
    * docs/design/media-round-5-plan.md 3.6), which the Media page opens by its number.
    */
-  function reportMediaHref(id) {
-    return '/media/' + encodeURIComponent(String(id));
+  function reportFilesHref(id) {
+    return '/files/' + encodeURIComponent(String(id));
   }
 
   // An identity key as the relay and both clients write it: lowercase hex.
@@ -326,7 +326,7 @@
   function reportEvidenceBadge(ev, name) {
     if (!ev || ev.checked !== true) return { checked: false, text: REPORT_NOT_PROVEN };
     if (ev.kind === 'post') return { checked: true, text: reportPostFoundBadge(name) };
-    if (ev.kind === 'media') return { checked: true, text: reportMediaFoundBadge(name) };
+    if (ev.kind === 'media') return { checked: true, text: reportFilesFoundBadge(name) };
     return { checked: true, text: reportCheckedBadge(name) };
   }
 
@@ -492,7 +492,7 @@
     REPORT_MAX_ITEMS, REPORT_MAX_EVIDENCE_BYTES, REPORT_NOTE_MAX, REPORT_REASONS_URL,
     REPORT_PRIVACY_SENTENCE, REPORT_RECEIVED_LINE, REPORT_SIGNATURE_LIMITS, REPORT_NOT_PROVEN,
     REPORT_GROUP_UNPROVEN, REPORT_DM_EVIDENCE_HELP, REPORT_FILE_MARKER_PREFIX, REPORT_NO_FILES,
-    reportTextHasFile, reportCheckedBadge, reportPostFoundBadge, reportMediaFoundBadge, reportMediaHref, reportKeyNorm,
+    reportTextHasFile, reportCheckedBadge, reportPostFoundBadge, reportFilesFoundBadge, reportFilesHref, reportKeyNorm,
     reportPreimage, reportEvidenceJson,
     reportNoteNorm, dmEvidenceItem, postEvidenceItem, groupEvidenceItem, mediaEvidenceItem, reportEvidenceProblem,
     buildReportFrame, reportReasonsFrom, reportItemView, reportEvidenceBadge, reportMs,

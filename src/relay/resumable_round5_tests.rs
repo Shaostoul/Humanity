@@ -4,7 +4,7 @@
 //! seen failing against ("Seen red").
 
 use super::*;
-use crate::relay::storage::media::ROLE_FILE;
+use crate::relay::storage::files::ROLE_FILE;
 
 /// AN ATTACHED FILE IS NEVER TAKEN AS WAITING: Ann uploads two videos in pieces, publishes one and
 /// adds the other to it. Two days on, the unpublished expiry leaves the added file and its row
@@ -26,8 +26,8 @@ async fn an_attached_file_is_never_taken_as_waiting() {
     let extra = r.send(&extra_id, "tok_ann", 0, &bytes(1200)).await.unwrap()["filename"].as_str().unwrap().to_string();
 
     let s = r.db().get_server_settings().unwrap();
-    let body = media::PublishBody { key: "ann".into(), filename: main.clone(), ..Default::default() };
-    let item = media::publish_core(r.db(), &s, &[], r.folders(), &body).expect("published").0;
+    let body = files::PublishBody { key: "ann".into(), filename: main.clone(), ..Default::default() };
+    let item = files::publish_core(r.db(), &s, &[], r.folders(), &body).expect("published").0;
     let id = item["item"]["id"].as_i64().unwrap();
     let f = r.folders();
     let added = r.db().attach_media_file("ann", id, &extra, ROLE_FILE, 0, |members| f.place(&extra, members)).expect("added");
@@ -40,7 +40,7 @@ async fn an_attached_file_is_never_taken_as_waiting() {
     assert_eq!(r.db().media_item(id).unwrap().unwrap().files.len(), 1, "and still on the item");
     assert!(r.db().media_waiting_of("ann").unwrap().is_empty(), "it is not one of her waiting uploads");
     assert!(r.db().media_usage().unwrap().waiting.is_empty(), "nor on the admins' waiting list");
-    let (code, _) = media::remove_core(r.db(), r.folders(), &media::RemoveTarget::Upload(extra.clone()), "ann").unwrap_err();
+    let (code, _) = files::remove_core(r.db(), r.folders(), &files::RemoveTarget::Upload(extra.clone()), "ann").unwrap_err();
     assert_eq!(code, StatusCode::NOT_FOUND, "it is not removed by its name as a waiting upload");
     assert!(r.uploads.join(&extra).is_file());
 

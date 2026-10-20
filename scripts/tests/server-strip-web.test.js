@@ -23,12 +23,12 @@
 //     shell.js sets --hos-nav-h on <html> to the nav's height (and again when the nav re-wraps).
 //     shell.js's round help button goes under the strip, not over its Switch.
 //  3. Switch links the same page on each linked server, https only: /chat on this server links
-//     https://<their host>/chat; an item's page /media/<n> links /media; an address that is not
+//     https://<their host>/chat; an item's page /files/<n> links /files; an address that is not
 //     https (javascript:, data:, http:), one carrying a user name, and this server itself are
 //     never links; the list is asked once.
 //  4. A server name of `<img src=x onerror=alert(1)>` is shown as the words it is, in the strip and
 //     in Switch's list.
-//  5. /admin's Media panel is one line linking /media#admin; /admin loads none of the Media
+//  5. /admin's Media panel is one line linking /files#admin; /admin loads none of the Media
 //     section's scripts or styles, and admin-app.js no longer starts the section.
 //  6. The strip's tag is on Watch, Chat (right after shell.js, the order CLAUDE.md lists) and Admin,
 //     and the script mounts itself in the browser.
@@ -49,7 +49,7 @@
 //     stand-in threw on innerHTML, the strip fell back to the host alone: "the name is shown as
 //     text" (1 and 6 red with it).
 //  5: admin.html and admin-app.js as they were before this lane (main at 60c9ae156): "the
-//     Media panel holds one link, to /media#admin" (6 red with it: no strip tag yet).
+//     Media panel holds one link, to /files#admin" (6 red with it: no strip tag yet).
 //  6: watch.html without the strip's tag: "Watch loads the strip after shell.js".
 //  7: server-strip.js hidesServers returning false: "no linked server is listed".
 
@@ -427,12 +427,12 @@ test("3. Switch links the same page on each linked server, https only", async ()
   assert.equal(menuOf(doc).hidden, true, "Escape closes the list");
 
   // An item's page links the Media page there: item numbers are each server's own.
-  const item = mount({ pathname: "/media/12", routes: { "/api/federation/servers": respond(200, LINKED) } });
+  const item = mount({ pathname: "/files/12", routes: { "/api/federation/servers": respond(200, LINKED) } });
   await item.handle.openMenu();
-  assert.equal(linksIn(item.doc)[0].getAttribute("href"), "https://public.guide/media");
+  assert.equal(linksIn(item.doc)[0].getAttribute("href"), "https://public.guide/files");
   // The pure rules.
   assert.equal(strip.samePagePath("//elsewhere.example/x"), "/elsewhere.example/x", "a path can never name another host");
-  assert.equal(strip.samePagePath("/media"), "/media");
+  assert.equal(strip.samePagePath("/files"), "/files");
   assert.equal(strip.linkedOrigin("javascript:alert(1)//"), null);
   assert.equal(strip.linkedOrigin("HTTPS://Public.Guide/x"), "https://public.guide");
 
@@ -464,22 +464,22 @@ test("4. a server name of <img src=x onerror=alert(1)> is shown as text", async 
 
 // ── 5. /admin points to the Media page ────────────────────────────────────
 
-test("5. /admin's Media panel is one line linking /media#admin", () => {
+test("5. /admin's Media panel is one line linking /files#admin", () => {
   const html = fs.readFileSync(path.join(WEB, "pages", "admin.html"), "utf8");
-  const at = html.indexOf('id="media-admin-panel"');
+  const at = html.indexOf('id="files-admin-panel"');
   assert.ok(at > 0, "the Media panel is still there");
   const end = html.indexOf("</div>", at);
   const panel = html.slice(at, end);
   const links = [...panel.matchAll(/<a\b[^>]*href="([^"]*)"/g)].map((m) => m[1]);
-  assert.deepEqual(links, ["/media#admin"], "the Media panel holds one link, to /media#admin");
+  assert.deepEqual(links, ["/files#admin"], "the Media panel holds one link, to /files#admin");
   assert.equal((panel.match(/<p\b/g) || []).length, 1, "one line");
   assert.ok(panel.includes("This server's Files page settings, categories and space are on the Files page, under Admin."), "the line's words");
-  assert.ok(!html.includes("media-admin-root"), "nothing is mounted there any more");
-  for (const gone of ["/pages/media-admin.js", "/pages/media-app.js", "/pages/media-upload.js", "/shared/relay-session.js", "/shared/media.css"]) {
+  assert.ok(!html.includes("files-admin-root"), "nothing is mounted there any more");
+  for (const gone of ["/pages/files-admin.js", "/pages/files-app.js", "/pages/files-upload.js", "/shared/relay-session.js", "/shared/files.css"]) {
     assert.ok(!html.includes(gone), "/admin no longer loads " + gone);
   }
   const app = fs.readFileSync(path.join(WEB, "pages", "admin-app.js"), "utf8");
-  assert.ok(!app.includes("startMediaAdmin"), "admin-app.js no longer starts the Media section");
+  assert.ok(!app.includes("startFilesAdmin"), "admin-app.js no longer starts the Media section");
 });
 
 // ── 6. The pages that carry it ────────────────────────────────────────────
@@ -511,7 +511,7 @@ test("6. Watch, Chat and Admin load the strip after shell.js, and it mounts itse
   assert.equal(labelText(doc), "United Humanity  " + HOST);
   // A page still loading, with the tag before the nav exists: it waits for the page.
   const early = fakePage({ withNav: false, readyState: "loading" });
-  const ctx2 = { document: early, location: { host: HOST, pathname: "/media" }, fetch: net.fetch, localStorage: { getItem: () => null }, URL, Set };
+  const ctx2 = { document: early, location: { host: HOST, pathname: "/files" }, fetch: net.fetch, localStorage: { getItem: () => null }, URL, Set };
   vm.createContext(ctx2);
   vm.runInContext(fs.readFileSync(STRIP_FILE, "utf8"), ctx2, { filename: "server-strip.js" });
   assert.equal(stripEl(early), null, "nothing yet");

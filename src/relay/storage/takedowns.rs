@@ -1,7 +1,7 @@
 //! Copyright reports about Media items (2026-10-13; the operator's answers of that day: "a simple
 //! form so it's easy... a dedicated button somewhere on the media page... We can log the reports
 //! publicly"): `takedown_requests`, one row per "Report a copyright problem" form, written by
-//! relay/media_takedown.rs, read by the admins who decide it and, once decided, by the public
+//! relay/files_takedown.rs, read by the admins who decide it and, once decided, by the public
 //! takedown log.
 //!
 //! WHO WROTE IT IS NOT KNOWN TO THE SERVER. The form needs no sign-in, so there is no key: only

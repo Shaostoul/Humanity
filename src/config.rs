@@ -444,27 +444,27 @@ pub struct AppConfig {
     #[serde(default)]
     pub outside_help_country: String,
     /// Settings > Privacy, Files in messages, with the attach step's remembered switch and the
-    /// kept files cap of Settings > Data (docs/design/media-showcase.md, the files section,
+    /// kept files cap of Settings > Data (docs/design/files-showcase.md, the files section,
     /// 2026-10-11). A config written before it existed reads as the defaults (Friends, Friends,
     /// the attach button on, details removed, 1 GB kept).
     #[serde(default)]
     pub files_in_messages: crate::net::files_policy::FilesInMessages,
-    /// The Add to Media uploads that did not finish (docs/design/media-showcase.md, resumable
+    /// The Add to Media uploads that did not finish (docs/design/files-showcase.md, resumable
     /// uploads and round 3, 2026-10-11): for each, the server's id, the file's path, size and
     /// modification time, and what its form said, so the Media page can offer to carry it on after
     /// a restart (only on the same server, by the same person, from the same file unchanged).
     #[serde(default)]
-    pub media_unfinished_uploads: Vec<crate::gui::pages::media::resumable::Unfinished>,
-    /// The Media page's Your folders (2026-10-18, pages/media/your_folders.rs): the folders on this
+    pub files_unfinished_uploads: Vec<crate::gui::pages::files::resumable::Unfinished>,
+    /// The Media page's Your folders (2026-10-18, pages/files/your_folders.rs): the folders on this
     /// computer the person added there to look through and pick from. Paths only, kept in this
     /// file on this device and never sent anywhere. A config written before it existed has none.
     #[serde(default)]
-    pub media_folders: Vec<std::path::PathBuf>,
+    pub files_folders: Vec<std::path::PathBuf>,
     /// The Media page's view (the three panes, or the gallery) and the split of its panes, side by
-    /// side and stacked (2026-10-19, pages/media/panes.rs). A config written before it existed
+    /// side and stacked (2026-10-19, pages/files/panes.rs). A config written before it existed
     /// shows the panes at their default split; a split that is not usable is the default too.
     #[serde(default)]
-    pub media_layout: crate::gui::pages::media::panes::Layout,
+    pub files_layout: crate::gui::pages::files::panes::Layout,
     /// The Apps page's Added by you (2026-10-19, pages/apps/games.rs): each game or program the
     /// person added, its name and its program. Kept in this file on this device and never sent
     /// anywhere. A config without it has none.
@@ -1532,9 +1532,9 @@ impl AppConfig {
             warnings_on_messages: state.settings.warnings_on_messages,
             outside_help_country: state.settings.outside_help_country.clone(),
             files_in_messages: state.settings.files_in_messages.clone(),
-            media_unfinished_uploads: state.media.unfinished.clone(),
-            media_folders: state.settings.media_folders.clone(),
-            media_layout: state.settings.media_layout.clone(),
+            files_unfinished_uploads: state.files.unfinished.clone(),
+            files_folders: state.settings.files_folders.clone(),
+            files_layout: state.settings.files_layout.clone(),
             apps_added: state.settings.apps_added.clone(),
             apps_view: state.settings.apps_view.clone(),
             apps_epic_covers: state.settings.apps_epic_covers,
@@ -1720,9 +1720,9 @@ impl AppConfig {
         state.settings.warnings_on_messages = self.warnings_on_messages;
         state.settings.outside_help_country = self.outside_help_country.clone();
         state.settings.files_in_messages = self.files_in_messages.clone();
-        state.media.unfinished = self.media_unfinished_uploads.clone();
-        state.settings.media_folders = self.media_folders.clone();
-        state.settings.media_layout = self.media_layout.checked();
+        state.files.unfinished = self.files_unfinished_uploads.clone();
+        state.settings.files_folders = self.files_folders.clone();
+        state.settings.files_layout = self.files_layout.checked();
         state.settings.apps_added = self.apps_added.clone();
         state.settings.apps_view = self.apps_view.clone();
         state.settings.apps_epic_covers = self.apps_epic_covers;
@@ -2383,7 +2383,7 @@ mod play_mode_tests {
         }
     }
 
-    /// Files in messages (docs/design/media-showcase.md, the files section): the defaults for a
+    /// Files in messages (docs/design/files-showcase.md, the files section): the defaults for a
     /// config written before it existed, and every choice survives a save and a load. Seen red
     /// 2026-10-11 with `apply_to_gui_state` not reading it: "the choices survive a restart".
     #[test]

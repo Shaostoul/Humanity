@@ -47,7 +47,7 @@ use crate::gui::{GuiPage, GuiState};
 pub(crate) const STRIP_ID: &str = "server_strip";
 
 /// The pages that show the strip: the ones whose content is one server's.
-pub(crate) const PAGES: [GuiPage; 4] = [GuiPage::Media, GuiPage::Watch, GuiPage::Chat, GuiPage::ServerSettings];
+pub(crate) const PAGES: [GuiPage; 4] = [GuiPage::Files, GuiPage::Watch, GuiPage::Chat, GuiPage::ServerSettings];
 
 /// Every word the strip puts on screen. The website's strip says the same where the two do the
 /// same thing (web/shared/server-strip.js `STRIP_WORDS`): Switch, Connected, and the label.
@@ -125,9 +125,9 @@ pub(crate) fn server_name(state: &GuiState, server: &str) -> String {
 /// waiting or reconnecting), not being cancelled. An upload that is up and being published, or
 /// that ended, is not stopped by a switch, so it is not counted.
 pub(crate) fn uploads_on_their_way(state: &GuiState) -> usize {
-    use crate::gui::pages::media::resumable::Phase;
+    use crate::gui::pages::files::resumable::Phase;
     state
-        .media
+        .files
         .uploads
         .iter()
         .filter(|e| !e.cancelling && !matches!(e.run.phase, Phase::Done { .. } | Phase::Failed { .. } | Phase::Cancelled))
@@ -394,7 +394,7 @@ fn draw_question(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     }
     asked.shown = pass;
     ctx.data_mut(|d| d.insert_temp(asked_id(), asked.clone()));
-    let host = host_of(&state.media.server);
+    let host = host_of(&state.files.server);
     let mut open = true;
     let mut answer: Option<bool> = None;
     let go = format!("Switch to {}", asked.label);

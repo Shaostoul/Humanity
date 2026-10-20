@@ -60,18 +60,18 @@ const SETTINGS_FILES: &[&str] = &[
     // attach step's remembered switch, all one `files_in_messages` setting. Without these two the
     // scan never saw it: with its save leg removed, it then failed "files_in_messages: never
     // written by from_gui_state".
-    "src/gui/pages/media/in_messages.rs",
+    "src/gui/pages/files/in_messages.rs",
     "src/gui/pages/chat/attach_step.rs",
     // The Media page's Your folders (2026-10-18): the folders added there are a setting kept in
-    // AppConfig like the others (`media_folders`), changed on that tab, not on the Settings page.
-    // Seen red 2026-10-18 with its load leg removed from config.rs: "media_folders: never read by
+    // AppConfig like the others (`files_folders`), changed on that tab, not on the Settings page.
+    // Seen red 2026-10-18 with its load leg removed from config.rs: "files_folders: never read by
     // apply_to_state".
-    "src/gui/pages/media/your_folders.rs",
+    "src/gui/pages/files/your_folders.rs",
     // The Media page's view (Panes or Gallery) and the split of its three panes (2026-10-19,
-    // pages/media/panes.rs), changed on the page, kept in AppConfig (`media_layout`). Seen red
-    // 2026-10-19 with its load leg removed from config.rs: "media_layout: never read by
+    // pages/files/panes.rs), changed on the page, kept in AppConfig (`files_layout`). Seen red
+    // 2026-10-19 with its load leg removed from config.rs: "files_layout: never read by
     // apply_to_state".
-    "src/gui/pages/media/panes.rs",
+    "src/gui/pages/files/panes.rs",
     // The Apps page (2026-10-19; the Games library and the Tools page made one), whose remembered
     // choices are AppConfig settings changed on the page, not on the Settings page:
     // - what was added by hand (`apps_added`): Add a program, Rename and Remove, in apps/games.rs.

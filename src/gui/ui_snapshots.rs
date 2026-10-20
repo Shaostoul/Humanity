@@ -1327,22 +1327,22 @@ fn snapshot_chat_public_files() {
     });
 }
 
-// Media items posted in chat (2026-10-17, media/chat_card.rs): one card as the line it starts as,
+// Media items posted in chat (2026-10-17, files/chat_card.rs): one card as the line it starts as,
 // one opened out to its by-line, description and every file with its type. The items are put in
 // place as if the server had answered; nothing is asked of any server.
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
 fn snapshot_chat_media_card() {
-    use crate::gui::pages::media::{api::ItemFile, chat_card};
+    use crate::gui::pages::files::{api::ItemFile, chat_card};
     render_page_png("chat_media_card", 1280, 720, |ctx, theme, state| {
-        if !state.media.cards.contains_key(&41) {
+        if !state.files.cards.contains_key(&41) {
             const SERVER: &str = "http://127.0.0.1:9";
             state.server_url = SERVER.into();
             state.connected_server_url = SERVER.into();
-            crate::gui::pages::media::sync_server(state);
-            state.media.requested = true;
+            crate::gui::pages::files::sync_server(state);
+            state.files.requested = true;
             let file = |n: i64, name: &str, size: i64| ItemFile { file: n, filename: format!("{n}_{name}"), original_name: name.into(), kind: "file".into(), size_bytes: size, url: format!("/uploads/{n}_{name}") };
-            let staff = crate::gui::pages::media::api::Item {
+            let staff = crate::gui::pages::files::api::Item {
                 id: 41,
                 url: "/uploads/41_dragonegg_staff_cap.blend".into(),
                 original_name: "dragonegg_staff_cap.blend".into(),
@@ -1359,16 +1359,16 @@ fn snapshot_chat_media_card() {
                 files: vec![file(0, "dragonegg_staff_cap.blend", 3_300_000), file(1, "dragonegg_staff_cap.stl", 5_900_000), file(2, "dragonegg_staff_cap.glb", 600_000)],
                 ..Default::default()
             };
-            let shaper = crate::gui::pages::media::api::Item { id: 42, title: "Recreator3D MK5 Filament Shaper".into(), original_name: "RecreatorFilamentShaper.blend".into(), file_count: 5, total_bytes: 2_200_000, ..staff.clone() };
-            state.media.cards.insert(41, chat_card::CardState::Ready(staff));
-            state.media.cards.insert(42, chat_card::CardState::Ready(shaper));
-            state.media.cards_open.insert(chat_card::key_of("shao", 2_000, 41));
+            let shaper = crate::gui::pages::files::api::Item { id: 42, title: "Recreator3D MK5 Filament Shaper".into(), original_name: "RecreatorFilamentShaper.blend".into(), file_count: 5, total_bytes: 2_200_000, ..staff.clone() };
+            state.files.cards.insert(41, chat_card::CardState::Ready(staff));
+            state.files.cards.insert(42, chat_card::CardState::Ready(shaper));
+            state.files.cards_open.insert(chat_card::key_of("shao", 2_000, 41));
             state.chat_messages.retain(|m| m.channel != "general");
             for (ts, id) in [(1_000u64, 42), (2_000, 41)] {
                 state.chat_messages.push(ChatMessage {
                     sender_name: "Shaostoul".into(),
                     sender_key: "shao".into(),
-                    content: format!("{SERVER}/media/{id}"),
+                    content: format!("{SERVER}/files/{id}"),
                     timestamp: "04:13".into(),
                     timestamp_ms: 1_792_000_000_000 + ts,
                     channel: "general".into(),
@@ -1376,8 +1376,8 @@ fn snapshot_chat_media_card() {
                     ..Default::default()
                 });
             }
-            state.media.cards_open.clear();
-            state.media.cards_open.insert(chat_card::key_of("shao", 1_792_000_000_000 + 2_000, 41));
+            state.files.cards_open.clear();
+            state.files.cards_open.insert(chat_card::key_of("shao", 1_792_000_000_000 + 2_000, 41));
             state.chat_active_channel = "general".into();
         }
         crate::gui::pages::chat::draw(ctx, theme, state);
@@ -1861,58 +1861,58 @@ fn snapshot_watch() {
 }
 
 /// A small made-up picture for the Media snapshot (a gradient; nothing recorded or downloaded).
-fn media_snapshot_png() -> Vec<u8> {
+fn files_snapshot_png() -> Vec<u8> {
     let img = image::RgbaImage::from_fn(320, 200, |x, y| image::Rgba([(x * 255 / 320) as u8, (y * 255 / 200) as u8, 160, 255]));
     let mut out = Vec::new();
     image::DynamicImage::ImageRgba8(img).write_to(&mut std::io::Cursor::new(&mut out), image::ImageFormat::Png).expect("encode");
     out
 }
 
-/// The Media page's Gallery (2026-10-11, pages/media.rs; the other view beside the three panes
+/// The Media page's Gallery (2026-10-11, pages/files.rs; the other view beside the three panes
 /// since 2026-10-19), signed in as a member: the featured strip, the filters, and four tiles: a
 /// video, a model, a picture labelled Spoiler (its label instead of its picture) and a picture of
 /// your own; a stranger's picture asks first.
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
-fn snapshot_media() {
-    use crate::gui::pages::media::{self as media, tests as fixture};
-    render_page_png("media", 1280, 900, |ctx, theme, state| {
-        if state.media.server.is_empty() {
+fn snapshot_files() {
+    use crate::gui::pages::files::{self as media, tests as fixture};
+    render_page_png("files", 1280, 900, |ctx, theme, state| {
+        if state.files.server.is_empty() {
             *state = fixture::page_state(fixture::demo_answer(), true);
             fixture::gallery(state);
             let own = media::api::Item { uploader_key: "me".into(), uploader_name: "You".into(), ..fixture::item(5, "Seedlings, day 12", "picture", ("me", "You")) };
-            state.media.list.items.insert(0, own);
+            state.files.list.items.insert(0, own);
         }
         let key = format!("{}/uploads/5_file", "http://127.0.0.1:9");
         if state.image_cache.get_texture(&key).is_none() {
-            state.image_cache.insert_for_test(ctx, &key, &media_snapshot_png()).expect("the picture decodes");
+            state.image_cache.insert_for_test(ctx, &key, &files_snapshot_png()).expect("the picture decodes");
         }
         media::draw(ctx, theme, state);
     });
 }
 
 /// The Media page's Admin tab (Media round 5: the admins' section moved here from Server Settings,
-/// pages/media/admin.rs; this snapshot was `media_settings`, drawn bare, until 2026-10-12). The
+/// pages/files/admin.rs; this snapshot was `media_settings`, drawn bare, until 2026-10-12). The
 /// whole page as an admin sees it on that tab: "Files on 127.0.0.1:9", the Media and Admin tabs with
 /// Admin picked, then who sees the page with the relay's line under it, the space and the share,
 /// the categories (General stays), a suggestion, and the meter with its prune lists.
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
-fn snapshot_media_admin_tab() {
-    use crate::gui::pages::media::{self as media, admin::tests as fixture};
-    render_page_png("media_admin_tab", 1100, 880, |ctx, theme, state| {
-        if state.media.server.is_empty() {
+fn snapshot_files_admin() {
+    use crate::gui::pages::files::{self as media, admin::tests as fixture};
+    render_page_png("files_admin", 1100, 880, |ctx, theme, state| {
+        if state.files.server.is_empty() {
             *state = fixture::admin_state();
             // The list counts as asked and answered, so the page asks nothing of the network.
-            state.media.requested = true;
-            state.media.answered = true;
-            state.media.place = media::Place::Admin;
+            state.files.requested = true;
+            state.files.answered = true;
+            state.files.place = media::Place::Admin;
         }
         media::draw(ctx, theme, state);
     });
 }
 
-/// The Media page's Your folders tab (2026-10-18, pages/media/your_folders.rs): two folders added,
+/// The Media page's Your folders tab (2026-10-18, pages/files/your_folders.rs): two folders added,
 /// "Media" open and one that is not there right now saying so; the open folder in the Pictures view
 /// six across (a sub-folder, a model, pictures with their own previews, a video and a document
 /// drawn as their types, every cell with its badge); two files ticked, "2 chosen" with Clear and
@@ -1920,8 +1920,8 @@ fn snapshot_media_admin_tab() {
 /// this morning". Built in memory and in a scratch folder; nothing is sent.
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
-fn snapshot_media_your_folders() {
-    use crate::gui::pages::media::{self as media, from_here, tests as fixture};
+fn snapshot_files_your_folders() {
+    use crate::gui::pages::files::{self as media, from_here, tests as fixture};
     use crate::gui::widgets::file_picker_memory as memory;
     let scratch = crate::test_temp::dir("snapshot_your_folders");
     let root = scratch.join("Media");
@@ -1937,16 +1937,16 @@ fn snapshot_media_your_folders() {
         m.view = memory::PickerView::Pictures;
         m.across = Some(6);
     });
-    render_page_png("media_your_folders", 1280, 860, |ctx, theme, state| {
-        if state.media.server.is_empty() {
+    render_page_png("files_your_folders", 1280, 860, |ctx, theme, state| {
+        if state.files.server.is_empty() {
             *state = fixture::page_state(fixture::demo_answer(), true);
-            state.media.place = media::Place::YourFolders;
-            state.settings.media_folders = vec![root.clone(), scratch.join("Old drive")];
+            state.files.place = media::Place::YourFolders;
+            state.settings.files_folders = vec![root.clone(), scratch.join("Old drive")];
             media::your_folders::add_folder(state, &root);
-            let server = state.media.server.clone();
+            let server = state.files.server.clone();
             from_here::with(|r| r.add(from_here::Sent { server, item: 1, title: "Garden this morning".into(), file: from_here::Local::of(&root.join("garden.png")), at_ms: 1 }));
             let listed = crate::gui::widgets::file_browser::list_dir(&root, &[]);
-            state.media.folders.chosen = listed.into_iter().filter(|e| e.name == "dawn.png" || e.name == "bracket.stl").collect();
+            state.files.folders.chosen = listed.into_iter().filter(|e| e.name == "dawn.png" || e.name == "bracket.stl").collect();
         }
         media::draw(ctx, theme, state);
         // The previews are read on workers: give them a moment between frames.
@@ -1954,20 +1954,20 @@ fn snapshot_media_your_folders() {
     });
 }
 
-/// The Files page's Shared files place (2026-10-19, pages/media/shared_files.rs; the top half of
+/// The Files page's Shared files place (2026-10-19, pages/files/shared_files.rs; the top half of
 /// the developer's Files page until then): the places at the top of the left pane with Shared
 /// files picked, the server's shared files under them with a model of your own chosen, its card in
 /// the middle (Download, View in 3D) and on the right what it is, with Remove and Put on the Files
 /// page. Built in memory; the list counts as answered, so nothing is asked of the network.
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
-fn snapshot_media_shared_files() {
-    use crate::gui::pages::media::{self as media, shared_files::SharedFileRow, tests as fixture};
-    render_page_png("media_shared_files", 1280, 820, |ctx, theme, state| {
-        if state.media.server.is_empty() {
+fn snapshot_files_shared_files() {
+    use crate::gui::pages::files::{self as media, shared_files::SharedFileRow, tests as fixture};
+    render_page_png("files_shared_files", 1280, 820, |ctx, theme, state| {
+        if state.files.server.is_empty() {
             *state = fixture::page_state(fixture::demo_answer(), true);
-            state.media.place = media::Place::SharedFiles;
-            let shared = &mut state.media.shared;
+            state.files.place = media::Place::SharedFiles;
+            let shared = &mut state.files.shared;
             shared.shared_server = crate::gui::pages::chat::norm_server_url(&state.server_url);
             shared.shared_loaded = true;
             shared.shared_status = "3 file(s) on the server".into();
@@ -1983,15 +1983,15 @@ fn snapshot_media_shared_files() {
     });
 }
 
-/// The Files page's HumanityOS folder place (2026-10-19, pages/media/app_folder.rs; the
+/// The Files page's HumanityOS folder place (2026-10-19, pages/files/app_folder.rs; the
 /// developer's Files page until then, which started at data/): the app's folder as a tree with
 /// data/, assets/ and mods/ at the top and data/ open, data/plants.csv chosen and its text in the
 /// middle with Save, and on the right where it is, its size, what editing it means and Put back
 /// (a previous version is beside it). Built in a scratch folder; nothing of the app's own is read.
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
-fn snapshot_media_app_folder() {
-    use crate::gui::pages::media::{self as media, app_folder, tests as fixture};
+fn snapshot_files_app_folder() {
+    use crate::gui::pages::files::{self as media, app_folder, tests as fixture};
     let scratch = crate::test_temp::dir("snapshot_app_folder");
     let root = scratch.join("HumanityOS");
     for d in ["data/quests", "assets/icons", "mods"] {
@@ -2001,11 +2001,11 @@ fn snapshot_media_app_folder() {
     std::fs::write(root.join("data/plants.csv.bak"), "id,name,days_to_harvest\nbean,Bush bean,55\n").unwrap();
     std::fs::write(root.join("data/glossary.json"), "{}").unwrap();
     std::fs::write(root.join("HumanityOS.exe"), vec![0u8; 4096]).unwrap();
-    render_page_png("media_app_folder", 1280, 820, |ctx, theme, state| {
-        if state.media.server.is_empty() {
+    render_page_png("files_app_folder", 1280, 820, |ctx, theme, state| {
+        if state.files.server.is_empty() {
             *state = fixture::page_state(fixture::demo_answer(), true);
-            state.media.place = media::Place::AppFolder;
-            let af = &mut state.media.app_folder;
+            state.files.place = media::Place::AppFolder;
+            let af = &mut state.files.app_folder;
             af.root = Some(root.clone());
             af.tree.expand(&root.to_string_lossy());
             af.tree.expand(&root.join("data").to_string_lossy());
@@ -2181,10 +2181,10 @@ fn snapshot_apps_help() {
 /// The item the item-page and Edit snapshots show, put there by `by` (key, name): a 1:1 model of a
 /// contact staff in Fire flow arts, with a description of two lines, an added file (its textures),
 /// a cover picture, counts, CC BY 4.0, offered for the game and featured in its category. Built on
-/// lane 1D's test fixture (media/item_tests.rs `rich_item`), whose licences are the shared fixture's.
-fn media_snapshot_item(by: (&str, &str)) -> crate::gui::pages::media::api::Item {
-    use crate::gui::pages::media::api::{Featured, Item, ItemFile};
-    use crate::gui::pages::media::item_view::item_tests::rich_item;
+/// lane 1D's test fixture (files/item_tests.rs `rich_item`), whose licences are the shared fixture's.
+fn media_snapshot_item(by: (&str, &str)) -> crate::gui::pages::files::api::Item {
+    use crate::gui::pages::files::api::{Featured, Item, ItemFile};
+    use crate::gui::pages::files::item_view::item_tests::rich_item;
     let own = ItemFile { file: 0, filename: "7_contact_staff.glb".into(), original_name: "contact_staff.glb".into(), kind: "model".into(), size_bytes: 2_400_000, url: "/uploads/7_contact_staff.glb".into() };
     let added = ItemFile { file: 1, filename: "8_staff_textures.zip".into(), original_name: "staff_textures.zip".into(), kind: "file".into(), size_bytes: 4_100_000, url: "/uploads/8_staff_textures.zip".into() };
     let cover = ItemFile { file: 2, filename: "9_cover.png".into(), original_name: "cover.png".into(), kind: "picture".into(), size_bytes: 180_000, url: "/uploads/9_cover.png".into() };
@@ -2209,9 +2209,9 @@ fn media_snapshot_item(by: (&str, &str)) -> crate::gui::pages::media::api::Item 
 /// licences, two categories and two content labels, signed in as "me" (an admin when `admin`), and
 /// `item`'s page open over the Media page. The cover picture is put in the image cache, so nothing
 /// is fetched; a cover from someone who is not a friend is shown as if its press was made.
-fn media_item_state(item: &crate::gui::pages::media::api::Item, admin: bool) -> GuiState {
-    use crate::gui::pages::media::{self as media, api, item_view, tests as fixture};
-    use crate::gui::pages::media::item_view::item_tests::{answer_of, page_on};
+fn media_item_state(item: &crate::gui::pages::files::api::Item, admin: bool) -> GuiState {
+    use crate::gui::pages::files::{self as media, api, item_view, tests as fixture};
+    use crate::gui::pages::files::item_view::item_tests::{answer_of, page_on};
     let mut items = vec![item.clone()];
     items.extend(fixture::demo_answer().items);
     let mut answer = answer_of(items);
@@ -2220,17 +2220,17 @@ fn media_item_state(item: &crate::gui::pages::media::api::Item, admin: bool) -> 
         api::Label { id: "spoiler".into(), label: "Spoiler".into(), desc: "Shows the ending".into() },
     ];
     let mut state = page_on(fixture::SERVER, answer, "tok");
-    state.media.featured = state.media.list.items.iter().filter(|i| i.featured == api::Featured::Main).cloned().collect();
+    state.files.featured = state.files.list.items.iter().filter(|i| i.featured == api::Featured::Main).cloned().collect();
     if admin {
         state.chat_users.push(crate::gui::ChatUser { name: "Me".into(), public_key: "me".into(), role: "admin".into(), status: String::new() });
     }
     let base = media::base_of(&state);
     state.image_cache.allow(&api::file_url(&base, item));
-    state.media.item = Some(item_view::ItemPage { id: item.id, item: Some(item.clone()), ..Default::default() });
+    state.files.item = Some(item_view::ItemPage { id: item.id, item: Some(item.clone()), ..Default::default() });
     state
 }
 
-/// An item shown in the panes (Media round 5, pages/media/item_view.rs; in the three panes since
+/// An item shown in the panes (Media round 5, pages/files/item_view.rs; in the three panes since
 /// 2026-10-19), as an admin sees someone else's item on an ordinary window: its cover in the middle
 /// with View in 3D and Download, and on the right the title, "by Ann in Fire flow arts" with
 /// "Featured in its category", the counts, Edit, Copy link, Pick, Keep, Report, Remove item and the
@@ -2239,22 +2239,22 @@ fn media_item_state(item: &crate::gui::pages::media::api::Item, admin: bool) -> 
 /// each with Download.
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
-fn snapshot_media_item() {
-    use crate::gui::pages::media as media;
+fn snapshot_files_item() {
+    use crate::gui::pages::files as media;
     let item = media_snapshot_item(("k2", "Ann"));
-    render_page_png("media_item", 1280, 1150, |ctx, theme, state| {
-        if state.media.server.is_empty() {
+    render_page_png("files_item", 1280, 1150, |ctx, theme, state| {
+        if state.files.server.is_empty() {
             *state = media_item_state(&item, true);
         }
         let key = format!("{}/uploads/9_cover.png", media::tests::SERVER);
         if state.image_cache.get_texture(&key).is_none() {
-            state.image_cache.insert_for_test(ctx, &key, &media_snapshot_png()).expect("the cover decodes");
+            state.image_cache.insert_for_test(ctx, &key, &files_snapshot_png()).expect("the cover decodes");
         }
         media::draw(ctx, theme, state);
     });
 }
 
-/// An item's edit form (Media round 5, pages/media/edit.rs; in place of its details since
+/// An item's edit form (Media round 5, pages/files/edit.rs; in place of its details since
 /// 2026-10-19), as its uploader sees it on an ordinary window: the title, the category with its
 /// description, the description, the two content labels, Public or Members only, the licence (CC BY
 /// 4.0) with the server's line for it, its warning that a Creative Commons licence cannot be taken
@@ -2264,22 +2264,22 @@ fn snapshot_media_item() {
 /// then Save and Cancel at the pane's foot.
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
-fn snapshot_media_edit() {
-    use crate::gui::pages::media::{self as media, edit::EditForm};
+fn snapshot_files_edit() {
+    use crate::gui::pages::files::{self as media, edit::EditForm};
     let mut item = media_snapshot_item(("me", "You"));
     // A photo added among its files, which can become the cover (2026-10-17).
-    item.files.push(crate::gui::pages::media::api::ItemFile { file: 3, filename: "10_grip.png".into(), original_name: "grip.png".into(), kind: "picture".into(), size_bytes: 412_000, url: "/uploads/10_grip.png".into() });
+    item.files.push(crate::gui::pages::files::api::ItemFile { file: 3, filename: "10_grip.png".into(), original_name: "grip.png".into(), kind: "picture".into(), size_bytes: 412_000, url: "/uploads/10_grip.png".into() });
     item.file_count = 3;
-    render_page_png("media_edit", 1280, 1120, |ctx, theme, state| {
-        if state.media.server.is_empty() {
+    render_page_png("files_edit", 1280, 1120, |ctx, theme, state| {
+        if state.files.server.is_empty() {
             *state = media_item_state(&item, false);
-            if let Some(page) = state.media.item.as_mut() {
+            if let Some(page) = state.files.item.as_mut() {
                 page.edit = Some(EditForm::of(&item));
             }
         }
         let key = format!("{}/uploads/9_cover.png", media::tests::SERVER);
         if state.image_cache.get_texture(&key).is_none() {
-            state.image_cache.insert_for_test(ctx, &key, &media_snapshot_png()).expect("the cover decodes");
+            state.image_cache.insert_for_test(ctx, &key, &files_snapshot_png()).expect("the cover decodes");
         }
         media::draw(ctx, theme, state);
     });
@@ -2346,9 +2346,9 @@ fn media_snapshot_song() -> crate::gui::widgets::waveform::Analysis {
 /// The Media page's items for the three-pane snapshots: a landscape of your own (its picture
 /// shows), the contact staff model with its cover, a song, and the demo page's items (a featured
 /// video, a model, a picture labelled Spoiler, a stranger's picture that waits for a press).
-fn media_snapshot_items() -> Vec<crate::gui::pages::media::api::Item> {
-    use crate::gui::pages::media::api::{Item, ItemFile};
-    use crate::gui::pages::media::tests as fixture;
+fn media_snapshot_items() -> Vec<crate::gui::pages::files::api::Item> {
+    use crate::gui::pages::files::api::{Item, ItemFile};
+    use crate::gui::pages::files::tests as fixture;
     let landscape = Item {
         id: 21,
         title: "Dusk over the homestead".into(),
@@ -2405,17 +2405,17 @@ fn media_snapshot_items() -> Vec<crate::gui::pages::media::api::Item> {
 /// An app on the test server showing the snapshot items, signed in as "me", with `selected` shown in
 /// the panes (by its number), its picture and the staff's cover in the image cache.
 fn media_panes_state(ctx: &egui::Context, selected: i64) -> GuiState {
-    use crate::gui::pages::media::{self as media, api, item_view};
-    use crate::gui::pages::media::item_view::item_tests::{answer_of, page_on};
+    use crate::gui::pages::files::{self as media, api, item_view};
+    use crate::gui::pages::files::item_view::item_tests::{answer_of, page_on};
     let mut answer = answer_of(media_snapshot_items());
     answer.labels = vec![api::Label { id: "spoiler".into(), label: "Spoiler".into(), desc: "Shows the ending".into() }];
     let mut state = page_on(media::tests::SERVER, answer, "tok");
-    state.media.featured = state.media.list.items.iter().filter(|i| i.featured == api::Featured::Main).cloned().collect();
+    state.files.featured = state.files.list.items.iter().filter(|i| i.featured == api::Featured::Main).cloned().collect();
     // The staff's maker is a friend's press away: shown as if pressed, so its cover shows.
-    let staff = state.media.list.items.iter().find(|i| i.id == 7).cloned().unwrap();
+    let staff = state.files.list.items.iter().find(|i| i.id == 7).cloned().unwrap();
     let base = media::base_of(&state);
     state.image_cache.allow(&api::file_url(&base, &staff));
-    let item = state.media.list.items.iter().find(|i| i.id == selected).cloned().unwrap();
+    let item = state.files.list.items.iter().find(|i| i.id == selected).cloned().unwrap();
     item_view::open(&mut state, &item);
     media_snapshot_pictures(ctx, &mut state);
     state
@@ -2423,7 +2423,7 @@ fn media_panes_state(ctx: &egui::Context, selected: i64) -> GuiState {
 
 /// The snapshot items' pictures, put in the image cache (nothing is fetched).
 fn media_snapshot_pictures(ctx: &egui::Context, state: &mut GuiState) {
-    let server = crate::gui::pages::media::tests::SERVER;
+    let server = crate::gui::pages::files::tests::SERVER;
     for (key, bytes) in [(format!("{server}/uploads/21_dusk.png"), media_snapshot_landscape(1600, 1000)), (format!("{server}/uploads/9_cover.png"), media_snapshot_landscape(900, 600))] {
         if state.image_cache.get_texture(&key).is_none() {
             state.image_cache.insert_for_test(ctx, &key, &bytes).expect("the picture decodes");
@@ -2431,17 +2431,17 @@ fn media_snapshot_pictures(ctx: &egui::Context, state: &mut GuiState) {
     }
 }
 
-/// THE MEDIA PAGE IN THREE PANES (2026-10-19, pages/media/panes.rs), on the operator's own monitor
+/// THE MEDIA PAGE IN THREE PANES (2026-10-19, pages/files/panes.rs), on the operator's own monitor
 /// (2560 by 1387): the list on the left (the featured shelf, the filters, every item as a row, the
 /// one shown highlighted), a landscape of your own fitted to the middle pane with View full size
 /// under it, and its details on the right (title, who and where, counts, the day, its buttons, the
 /// description, the licence and its file).
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
-fn snapshot_media_three_pane() {
-    use crate::gui::pages::media as media;
-    render_page_png("media_three_pane", 2560, 1387, |ctx, theme, state| {
-        if state.media.server.is_empty() {
+fn snapshot_files_three_pane() {
+    use crate::gui::pages::files as media;
+    render_page_png("files_three_pane", 2560, 1387, |ctx, theme, state| {
+        if state.files.server.is_empty() {
             *state = media_panes_state(ctx, 21);
         }
         media_snapshot_pictures(ctx, state);
@@ -2453,10 +2453,10 @@ fn snapshot_media_three_pane() {
 /// details stacked top, middle and bottom.
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
-fn snapshot_media_three_pane_tall() {
-    use crate::gui::pages::media as media;
-    render_page_png("media_three_pane_tall", 1100, 1500, |ctx, theme, state| {
-        if state.media.server.is_empty() {
+fn snapshot_files_three_pane_tall() {
+    use crate::gui::pages::files as media;
+    render_page_png("files_three_pane_tall", 1100, 1500, |ctx, theme, state| {
+        if state.files.server.is_empty() {
             *state = media_panes_state(ctx, 21);
         }
         media_snapshot_pictures(ctx, state);
@@ -2470,13 +2470,13 @@ fn snapshot_media_three_pane_tall() {
 /// details on the right.
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
-fn snapshot_media_sound() {
-    use crate::gui::pages::media as media;
+fn snapshot_files_sound() {
+    use crate::gui::pages::files as media;
     let song = media_snapshot_song();
-    render_page_png("media_sound", 1920, 1080, |ctx, theme, state| {
-        if state.media.server.is_empty() {
+    render_page_png("files_sound", 1920, 1080, |ctx, theme, state| {
+        if state.files.server.is_empty() {
             *state = media_panes_state(ctx, 22);
-            if let Some(opened) = state.media.open.as_mut() {
+            if let Some(opened) = state.files.open.as_mut() {
                 opened.sound = crate::gui::widgets::sound_view::SoundView::with_analysis(song.clone(), 15.2);
                 opened.sound.set_temp_for_test(std::env::temp_dir().join("HumanityOS-snapshot-not-a-real-copy.mp3"));
             }
@@ -2486,19 +2486,19 @@ fn snapshot_media_sound() {
     });
 }
 
-/// EDIT MODE IN PLACE (2026-10-19, pages/media/edit.rs `draw_in_place`), on the operator's monitor:
+/// EDIT MODE IN PLACE (2026-10-19, pages/files/edit.rs `draw_in_place`), on the operator's monitor:
 /// the right pane is the edit form, headed "Editing", its three parts in the chat sidebar's colours
 /// (About it red, Who can see it green, Files blue) with the pane's border in the nav bar's moving
 /// colours, Save and Cancel at its foot; the list and the item stay where they were.
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
-fn snapshot_media_edit_in_place() {
-    use crate::gui::pages::media::{self as media, edit::EditForm};
-    render_page_png("media_edit_in_place", 2560, 1387, |ctx, theme, state| {
-        if state.media.server.is_empty() {
+fn snapshot_files_edit_in_place() {
+    use crate::gui::pages::files::{self as media, edit::EditForm};
+    render_page_png("files_edit_in_place", 2560, 1387, |ctx, theme, state| {
+        if state.files.server.is_empty() {
             *state = media_panes_state(ctx, 21);
-            let item = state.media.list.items.iter().find(|i| i.id == 21).cloned().unwrap();
-            if let Some(page) = state.media.item.as_mut() {
+            let item = state.files.list.items.iter().find(|i| i.id == 21).cloned().unwrap();
+            if let Some(page) = state.files.item.as_mut() {
                 page.edit = Some(EditForm::of(&item));
             }
         }
@@ -2511,14 +2511,14 @@ fn snapshot_media_edit_in_place() {
 /// window over the chat holding the item to fit and its details side by side.
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
-fn snapshot_media_item_window() {
-    use crate::gui::pages::media::{self as media, item_view};
-    render_page_png("media_item_window", 1600, 1000, |ctx, theme, state| {
-        if state.media.server.is_empty() {
+fn snapshot_files_item_window() {
+    use crate::gui::pages::files::{self as media, item_view};
+    render_page_png("files_item_window", 1600, 1000, |ctx, theme, state| {
+        if state.files.server.is_empty() {
             *state = media_panes_state(ctx, 7);
-            state.media.item = None;
+            state.files.item = None;
             state.active_page = crate::gui::GuiPage::Chat;
-            let staff = state.media.list.items.iter().find(|i| i.id == 7).cloned().unwrap();
+            let staff = state.files.list.items.iter().find(|i| i.id == 7).cloned().unwrap();
             item_view::open_in_window(state, &staff);
         }
         media_snapshot_pictures(ctx, state);
@@ -2534,12 +2534,12 @@ fn snapshot_media_item_window() {
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
 fn snapshot_server_strip_media() {
-    use crate::gui::pages::media::tests as fixture;
+    use crate::gui::pages::files::tests as fixture;
     render_page_png("server_strip_media", 1280, 900, |ctx, theme, state| {
-        if state.media.server.is_empty() {
+        if state.files.server.is_empty() {
             *state = fixture::page_state(fixture::demo_answer(), true);
             state.private_key_bytes = Some(vec![7u8; 32]);
-            state.active_page = crate::gui::GuiPage::Media;
+            state.active_page = crate::gui::GuiPage::Files;
             let saved = |name: &str, url: &str| crate::gui::ChatServer {
                 name: name.to_string(),
                 channels: Vec::new(),
@@ -2553,7 +2553,7 @@ fn snapshot_server_strip_media() {
         // Switch's list, open (server_strip.rs keeps that in egui's memory under this id).
         ctx.data_mut(|d| d.insert_temp(egui::Id::new("server_strip_open"), true));
         crate::gui::pages::escape_menu::draw_nav_bar(ctx, theme, state);
-        crate::gui::dispatch::draw_tool_page(ctx, crate::gui::GuiPage::Media, theme, state);
+        crate::gui::dispatch::draw_tool_page(ctx, crate::gui::GuiPage::Files, theme, state);
     });
 }
 
@@ -2770,13 +2770,13 @@ fn snapshot_file_picker_pictures() {
 // border. Built in memory; nothing is sent.
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
-fn snapshot_media_upload_window() {
+fn snapshot_files_upload_window() {
     let dir = crate::test_temp::dir("snapshot_upload_window");
     let file = dir.join("bracket.stl");
     std::fs::write(&file, b"solid bracket
 endsolid bracket
 ").unwrap();
-    render_page_png("media_upload_window", 1100, 1000, |ctx, theme, state| {
+    render_page_png("files_upload_window", 1100, 1000, |ctx, theme, state| {
         if !state.chat_channels.iter().any(|c| c.id == "3d-printing") {
             state.chat_channels.clear();
             for id in ["general", "3d-printing", "random"] {
@@ -2784,18 +2784,18 @@ endsolid bracket
             }
             state.chat_active_channel = "general".into();
             // No list is asked of any server from a snapshot.
-            state.media.requested = true;
-            crate::gui::pages::media::sync_server(state);
-            state.media.requested = true;
+            state.files.requested = true;
+            crate::gui::pages::files::sync_server(state);
+            state.files.requested = true;
             let server = state.active_server();
-            crate::gui::widgets::file_picker_memory::with(|m| m.toggle_post_favorite(&crate::gui::pages::media::post_key(&server, "3d-printing")));
-            crate::gui::pages::media::upload_dropped(state, &[file.clone()], Some("general".into()));
-            if let Some(form) = state.media.form.as_mut() {
+            crate::gui::widgets::file_picker_memory::with(|m| m.toggle_post_favorite(&crate::gui::pages::files::post_key(&server, "3d-printing")));
+            crate::gui::pages::files::upload_dropped(state, &[file.clone()], Some("general".into()));
+            if let Some(form) = state.files.form.as_mut() {
                 form.title = "Bottle cutter bracket".into();
                 form.description = "Holds the cutter steady on the bench.".into();
             }
         }
-        crate::gui::pages::media::draw(ctx, theme, state);
+        crate::gui::pages::files::draw(ctx, theme, state);
     });
 }
 

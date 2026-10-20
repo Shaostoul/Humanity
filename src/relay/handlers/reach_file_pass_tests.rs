@@ -1,6 +1,6 @@
 // Child of reach_tests.rs (#[path], so `use super::*` reaches its helpers and, through them,
 // everything reach.rs has): a direct-connection offer let through by a FILE PASS (device-to-device
-// big files, 2026-10-11, docs/design/media-showcase.md, "Device-to-device big files: the shapes,
+// big files, 2026-10-11, docs/design/files-showcase.md, "Device-to-device big files: the shapes,
 // exact", part 2 and its Proof list). The receiver of a file dials its sender; the relay lets the
 // `dc_offer` through when the pass it carries checks with the sender (the offer's target) as
 // issuer and the receiver (the signed-in socket) as grantee, on this relay, now. A file of its own

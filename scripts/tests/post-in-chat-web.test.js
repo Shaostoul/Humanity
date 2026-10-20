@@ -1,6 +1,6 @@
 // "Also post in chat" and the upload window on the website (2026-10-17): the web half of what the
 // desktop app does since the operator redesigned a drop that day (src/gui/drop_files.rs,
-// src/gui/pages/media/add.rs: draw_post_row, post_choices, post_text, post_published, rgb_border),
+// src/gui/pages/files/add.rs: draw_post_row, post_choices, post_text, post_published, rgb_border),
 // in its words. The operator: "user drag and drops file onto HumanityOS. First window popups with
 // all the controls of what to do with the file. Upload button with the RGB border effect. If we're
 // also in a chat channel ... upon clicking upload it also posts the image with the title and
@@ -15,8 +15,8 @@
 //
 // Run: node --test scripts/tests/post-in-chat-web.test.js   (in `just rig-tests`)
 //
-// What runs: the Media page (web/pages/media-app.js, with Add to Media in web/pages/media-add.js) on the stand-ins of
-// scripts/tests/media-web-harness.js (a document holding only what the page built, a network that
+// What runs: the Media page (web/pages/files-app.js, with Add to Media in web/pages/files-add.js) on the stand-ins of
+// scripts/tests/files-web-harness.js (a document holding only what the page built, a network that
 // records every request, a session whose frames a test sends, timers that never run by themselves),
 // the upload window's two halves (web/shared/upload-window.js) between stand-in windows, and the
 // recovery-phrase guard (web/shared/pq-relay-auth.js pqRecoveryPhraseIn) in a node:vm context with
@@ -30,8 +30,8 @@
 //     ("⭐ #printing"), then the rest; a read-only channel only for an admin; favourites kept in
 //     this browser, by server and channel; with no channel, one line saying so; a form for a file
 //     already on the server has none.
-//  B. Once the item is published, its own address on this server's Media page ({origin}/media/{id},
-//     which the chat shows as the item's card, web/chat/chat-media-card.js) is posted in the
+//  B. Once the item is published, its own address on this server's Media page ({origin}/files/{id},
+//     which the chat shows as the item's card, web/chat/chat-files-card.js) is posted in the
 //     channel ticked, as a chat message signed over "content\ntimestamp" the way the chat signs one,
 //     and the line says "Posted in #general." once the server's echo came back. A members-only item
 //     posts the same: its page (since 2026-10-17, the desktop's add.rs post_text).
@@ -40,7 +40,7 @@
 //     guard unable to run, the tick off; and never into a direct message, even when one is asked for.
 //  D. The Upload button wears the nav bar's RGB border (its `channeling` animation, still under
 //     reduced motion) when it would upload a file picked here; its words are the desktop's.
-//  E. The upload window (/media?window=upload): Add to Media and its uploads alone; files handed
+//  E. The upload window (/files?window=upload): Add to Media and its uploads alone; files handed
 //     over wait until the page knows the person may upload, then open the same form as the Media
 //     page's own, posting ticked; it tells the page it is over what it says, whether something is
 //     going, and when it is cancelled; files dropped on the window itself post in the same channel.
@@ -58,14 +58,14 @@ const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
 
-const H = require("./media-web-harness.js");
+const H = require("./files-web-harness.js");
 const { ROOT, WEB, ME, ANN, MIB, ORIGIN, ROLES, byId, text, respond, at, fakeSession, fakeStorage, fakeDocument, settle, listAnswer, listRoutes, openPage, resumableRelay, aFile } = H;
 const M = H.media;
 const PW = M.POST_WORDS;
 const UW = require(path.join(WEB, "shared", "upload-window.js"));
 const WARN = require(path.join(WEB, "shared", "warnings.js"));
 // The server's licences (the relay's answer, as round 5's shared fixture has it).
-const LICENCES = JSON.parse(fs.readFileSync(path.join(ROOT, "scripts", "tests", "fixtures", "media-round5-v1.json"), "utf8")).licences;
+const LICENCES = JSON.parse(fs.readFileSync(path.join(ROOT, "scripts", "tests", "fixtures", "files-round5-v1.json"), "utf8")).licences;
 
 // This server's channels, as its channel_list names them (src/relay/relay.rs ChannelInfo).
 const CHANNELS = [
@@ -83,40 +83,40 @@ function storageWith(open) {
   return s;
 }
 async function pick(doc, files) {
-  const input = byId(doc, "media-file-input");
+  const input = byId(doc, "files-file-input");
   input.files = files;
   input.dispatch("change");
   await settle();
 }
 /** The post row and its parts, read off the page as a person sees them. */
 function postRow(doc) {
-  const box = byId(doc, "media-form-post");
-  const row = box && box.querySelector(".media-post-row");
+  const box = byId(doc, "files-form-post");
+  const row = box && box.querySelector(".files-post-row");
   if (!row) return null;
-  const tick = byId(doc, "media-form-post-on");
-  const select = byId(doc, "media-form-post-to");
-  const star = byId(doc, "media-form-post-favorite");
+  const tick = byId(doc, "files-form-post-on");
+  const select = byId(doc, "files-form-post-to");
+  const star = byId(doc, "files-form-post-favorite");
   return {
     row, tick, select, star,
     order: row.children.map((c) => c.tagName),
     options: select.querySelectorAll("option").map(text),
     chosen: select.value,
-    greyed: select.disabled === true && star.disabled === true && row.className.split(/\s+/).includes("media-post-off"),
+    greyed: select.disabled === true && star.disabled === true && row.className.split(/\s+/).includes("files-post-off"),
   };
 }
 const tickOn = async (doc, on) => {
-  const t = byId(doc, "media-form-post-on");
+  const t = byId(doc, "files-form-post-on");
   t.checked = on;
   t.dispatch("change");
   await settle();
 };
-const notice = (doc) => text(byId(doc, "media-notice").querySelector(".media-notice-text"));
+const notice = (doc) => text(byId(doc, "files-notice").querySelector(".files-notice-text"));
 /** The chat messages the page sent on its connection. */
 const chats = (session) => session.sent.filter((m) => m && m.type === "chat");
 
 // ── A. The post row ──────────────────────────────────────────────────────
 
-// Seen red 2026-10-17 in a copy of web/ through HOS_WEB_DIR, each break in web/pages/media-add.js:
+// Seen red 2026-10-17 in a copy of web/ through HOS_WEB_DIR, each break in web/pages/files-add.js:
 // with renderPostRow drawing the select first and the tick after it: "the tick on the left, then the
 // channel, then Add to favorites" (actual [ 'SELECT', 'LABEL', 'BUTTON' ]); with the select's
 // `disabled: !on` left out: "greyed while the tick is off" (actual false); with postChoices listing the
@@ -132,8 +132,8 @@ test("A. Also post in chat: the tick on the left, the channel and Add to favorit
   let r = postRow(p.doc);
   assert.ok(r, "Add to Files has the post row");
   // In the green "Who can see it" part, at its foot.
-  const green = byId(p.doc, "media-form").querySelectorAll(".tint-section").find((s) => s.className.split(/\s+/).includes("tint-green"));
-  assert.ok(green && green.children[green.children.length - 1] === byId(p.doc, "media-form-post"), "at the foot of Who can see it");
+  const green = byId(p.doc, "files-form").querySelectorAll(".tint-section").find((s) => s.className.split(/\s+/).includes("tint-green"));
+  assert.ok(green && green.children[green.children.length - 1] === byId(p.doc, "files-form-post"), "at the foot of Who can see it");
   assert.deepEqual(r.order, ["LABEL", "SELECT", "BUTTON"], "the tick on the left, then the channel, then Add to favorites");
   assert.equal(r.row.children[0].children[0], r.tick, "the tick is in the label");
   assert.equal(text(r.row.children[0]).trim(), "Also post in chat", "in the desktop's words");
@@ -148,7 +148,7 @@ test("A. Also post in chat: the tick on the left, the channel and Add to favorit
 
   await tickOn(p.doc, true);
   r = postRow(p.doc);
-  assert.ok(r.tick.checked && !r.select.disabled && !r.star.disabled && !r.row.className.includes("media-post-off"), "ticked: the channel and the star can be used");
+  assert.ok(r.tick.checked && !r.select.disabled && !r.star.disabled && !r.row.className.includes("files-post-off"), "ticked: the channel and the star can be used");
   r.select.value = "printing";
   r.select.dispatch("change");
   postRow(p.doc).star.click();
@@ -175,14 +175,14 @@ test("A. Also post in chat: the tick on the left, the channel and Add to favorit
   listChannels(none.session, []);
   await pick(none.doc, [aFile("dusk.mp4", MIB)]);
   assert.equal(postRow(none.doc), null);
-  assert.equal(text(byId(none.doc, "media-form-post-none")), "Also post in chat: this server has no channel to post in.");
+  assert.equal(text(byId(none.doc, "files-form-post-none")), "Also post in chat: this server has no channel to post in.");
 
   // A file already on the server (Put on Media) is not posted from here.
   const put = await openPage({ routes: listRoutes(listAnswer([])) });
   listChannels(put.session);
   put.page.openPutForm({ filename: "1700_part.stl", name: "bushing.stl" });
-  assert.ok(byId(put.doc, "media-form-public-only"), "test setup: Put on the Files page is open");
-  assert.equal(byId(put.doc, "media-form-post"), null, "no post row for a file already on the server");
+  assert.ok(byId(put.doc, "files-form-public-only"), "test setup: Put on the Files page is open");
+  assert.equal(byId(put.doc, "files-form-post"), null, "no post row for a file already on the server");
 });
 
 // ── B and C. The post once published ─────────────────────────────────────
@@ -200,7 +200,7 @@ async function readyToUpload(opts) {
     storage: storageWith("general"),
     phraseIn: o.phraseIn === undefined ? async () => false : o.phraseIn,
     routes: listRoutes(listAnswer([]), relay.routes.concat([
-      [at("/api/media", "POST"), (c) => {
+      [at("/api/files", "POST"), (c) => {
         published.push(c.body);
         if (o.publish) o.publish(c);
         return respond(200, { ok: true, item: H.item({ id: 7, url: "/uploads/" + c.body.filename, title: c.body.title, description: c.body.description, visibility: c.body.visibility, uploader_key: ME }) });
@@ -209,13 +209,13 @@ async function readyToUpload(opts) {
   }, o.page || {}));
   listChannels(p.session);
   await pick(p.doc, [aFile("dusk.mp4", 3 * MIB)]);
-  byId(p.doc, "media-form-title").value = o.title === undefined ? "Dusk" : o.title;
-  byId(p.doc, "media-form-description").value = o.description === undefined ? "At the beach, after the rain." : o.description;
-  if (o.members) byId(p.doc, "media-form-vis-members").checked = true;
+  byId(p.doc, "files-form-title").value = o.title === undefined ? "Dusk" : o.title;
+  byId(p.doc, "files-form-description").value = o.description === undefined ? "At the beach, after the rain." : o.description;
+  if (o.members) byId(p.doc, "files-form-vis-members").checked = true;
   return Object.assign(p, { relay, published });
 }
 async function upload(p) {
-  byId(p.doc, "media-form-go").click();
+  byId(p.doc, "files-form-go").click();
   for (let i = 0; i < 20 && !p.published.length; i++) await settle();
   await settle();
 }
@@ -223,7 +223,7 @@ async function upload(p) {
 const echo = (p, m) => p.session.emit({ type: "frame", msg: { type: "chat", from: ME, from_name: "Me", content: m.content, timestamp: m.timestamp, channel: m.channel, message_id: 41 } });
 const runTimer = (p, ms) => { for (const t of p.timers.filter((x) => x.ms === ms)) t.fn(); };
 
-// Seen red 2026-10-17 in a copy of web/ through HOS_WEB_DIR, each break in web/pages/media-add.js:
+// Seen red 2026-10-17 in a copy of web/ through HOS_WEB_DIR, each break in web/pages/files-add.js:
 // with postText back to the title, the description and the file, each on its own line: "its own
 // address on the Media page, nothing else" (actual 'Dusk\nAt the beach, after the rain.\n
 // /uploads/1760_dusk.mp4'); with postText giving a public item its file's address: the same assertion
@@ -243,15 +243,15 @@ test("B. once published, its own address on the Files page is posted in the chan
   assert.equal(m.channel, "general", "in the channel ticked");
   // The item's own page on this server, which both apps draw as its card: never its title,
   // description or file's address (the desktop's add.rs post_text, 2026-10-17).
-  assert.equal(m.content, ORIGIN + "/media/7", "its own address on the Files page, nothing else");
+  assert.equal(m.content, ORIGIN + "/files/7", "its own address on the Files page, nothing else");
   assert.equal(m.content, M.postText({ title: "Dusk", description: "At the beach, after the rain.", url: "/uploads/1760_dusk.mp4", visibility: "public", id: 7 }, ORIGIN + "/"));
   assert.equal(m.from, ME);
   assert.ok(Number.isInteger(m.timestamp) && m.timestamp > 0);
   assert.equal(Buffer.from(m.pq_signature, "hex").toString("utf8"), "sig:" + m.content + "\n" + m.timestamp, "signed over content\\ntimestamp, as the chat signs");
-  assert.equal(notice(p.doc), M.MEDIA_WORDS.published, "not before the server has it");
+  assert.equal(notice(p.doc), M.FILES_WORDS.published, "not before the server has it");
   echo(p, m);
   await settle();
-  assert.equal(notice(p.doc), M.MEDIA_WORDS.published + " Posted in #general.", "Posted in #general.");
+  assert.equal(notice(p.doc), M.FILES_WORDS.published + " Posted in #general.", "Posted in #general.");
 
   // A members-only item: the same, its page, which only members can open, never its file.
   const mem = await readyToUpload({ members: true, title: "", description: "" });
@@ -259,20 +259,20 @@ test("B. once published, its own address on the Files page is posted in the chan
   await upload(mem);
   assert.equal(mem.published[0].visibility, "members", "test setup: published as members only");
   const mm = chats(mem.session)[0];
-  assert.equal(mm.content, ORIGIN + "/media/7", "a members-only item: its page, never its file");
+  assert.equal(mm.content, ORIGIN + "/files/7", "a members-only item: its page, never its file");
   echo(mem, mm);
   await settle();
-  assert.equal(notice(mem.doc), M.MEDIA_WORDS.published + " Posted in #general.");
+  assert.equal(notice(mem.doc), M.FILES_WORDS.published + " Posted in #general.");
 });
 
-// Seen red 2026-10-17 in a copy of web/ through HOS_WEB_DIR, each break in web/pages/media-add.js:
+// Seen red 2026-10-17 in a copy of web/ through HOS_WEB_DIR, each break in web/pages/files-add.js:
 // with postPublished's bound() check taken out: "the connection gone: nothing sent" (actual 1); with
 // system lines never heard while waiting: "the server's refusal, in its words" (actual 'It is on the
 // Media page now.'); with a held phrase (`held === true`) let through: "the guard's own sentence:
 // nothing sent" (actual 1); with renderPostRow swapping an unknown channel for the first one and
 // keeping the tick: "a direct message asked for: the tick goes off" (actual true).
 test("C. where it is not posted the line says why and nothing goes: the connection, the server's refusal, no answer, the recovery phrase, the tick off, a direct message", async () => {
-  const published = M.MEDIA_WORDS.published;
+  const published = M.FILES_WORDS.published;
 
   // The connection gone by the time it is published.
   const gone = await readyToUpload({ publish: function () { gone.session.state.status = "closed"; gone.session.state.uploadToken = ""; } });
@@ -345,42 +345,42 @@ test("C. where it is not posted the line says why and nothing goes: the connecti
 
 // ── D. The Upload button ─────────────────────────────────────────────────
 
-// Seen red 2026-10-17 in a copy of web/ through HOS_WEB_DIR: with renderFormActions (media-add.js)
-// never adding media-btn-rgb: "ready, for a file picked here: the RGB border" (actual false); with the
+// Seen red 2026-10-17 in a copy of web/ through HOS_WEB_DIR: with renderFormActions (files-add.js)
+// never adding files-btn-rgb: "ready, for a file picked here: the RGB border" (actual false); with the
 // class added however the button stood: "not while it cannot be pressed" (actual false); with
-// media.css's rule naming another animation (`animation: media-rgb 3s ...`): "the nav bar's own
-// animation" (actual 'media-rgb 3s linear infinite'); with the [data-reduced-motion] ring taken out: "still, a
+// files.css's rule naming another animation (`animation: files-rgb 3s ...`): "the nav bar's own
+// animation" (actual 'files-rgb 3s linear infinite'); with the [data-reduced-motion] ring taken out: "still, a
 // ring in the accent colour, as the desktop holds one" (actual false).
 test("D. the Upload button wears the nav bar's RGB border when it would upload a file picked here, and stops moving under reduced motion", async () => {
   const p = await openPage({ routes: listRoutes(listAnswer([])) });
-  const input = byId(p.doc, "media-file-input");
+  const input = byId(p.doc, "files-file-input");
   input.files = [aFile("dusk.mp4", 3 * MIB)];
   input.dispatch("change");
   // While the share is being worked out the button cannot be pressed.
-  const checking = byId(p.doc, "media-form-go");
-  assert.ok(checking.disabled && !checking.className.split(/\s+/).includes("media-btn-rgb"), "not while it cannot be pressed");
+  const checking = byId(p.doc, "files-form-go");
+  assert.ok(checking.disabled && !checking.className.split(/\s+/).includes("files-btn-rgb"), "not while it cannot be pressed");
   await settle();
-  const go = byId(p.doc, "media-form-go");
+  const go = byId(p.doc, "files-form-go");
   assert.equal(text(go), "Upload and add to Files", "the desktop's words");
-  assert.ok(!go.disabled && go.className.split(/\s+/).includes("media-btn-rgb"), "ready, for a file picked here: the RGB border");
+  assert.ok(!go.disabled && go.className.split(/\s+/).includes("files-btn-rgb"), "ready, for a file picked here: the RGB border");
   const put = await openPage({ routes: listRoutes(listAnswer([])) });
   put.page.openPutForm({ filename: "1700_part.stl", name: "bushing.stl" });
-  assert.equal(text(byId(put.doc, "media-form-go")), "Put on the Files page");
-  assert.ok(!byId(put.doc, "media-form-go").className.includes("media-btn-rgb"), "Put on the Files page uploads nothing: no border");
+  assert.equal(text(byId(put.doc, "files-form-go")), "Put on the Files page");
+  assert.ok(!byId(put.doc, "files-form-go").className.includes("files-btn-rgb"), "Put on the Files page uploads nothing: no border");
 
-  const css = fs.readFileSync(path.join(WEB, "shared", "media.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+  const css = fs.readFileSync(path.join(WEB, "shared", "files.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
   const shell = fs.readFileSync(path.join(WEB, "shared", "shell.js"), "utf8");
   const theme = fs.readFileSync(path.join(WEB, "shared", "theme.css"), "utf8");
   const navAnim = /\.hub-nav \.tab\.active \{[^}]*animation:\s*([^;]+);/.exec(shell);
   assert.ok(navAnim, "test setup: the nav's current-page tab is animated");
-  const btnAnim = /\.media-btn-rgb \{[^}]*animation:\s*([^;]+);/.exec(css);
-  assert.ok(btnAnim, "media.css animates .media-btn-rgb");
+  const btnAnim = /\.files-btn-rgb \{[^}]*animation:\s*([^;]+);/.exec(css);
+  assert.ok(btnAnim, "files.css animates .files-btn-rgb");
   assert.equal(btnAnim[1].trim(), navAnim[1].trim(), "the nav bar's own animation");
   assert.ok(/@keyframes channeling\b/.test(shell), "whose keyframes the shell gives every page");
-  assert.ok(/@media \(prefers-reduced-motion: reduce\) \{\s*\.media-btn-rgb \{\s*animation: none;/.test(css), "the system's reduced motion stops it");
+  assert.ok(/@media \(prefers-reduced-motion: reduce\) \{\s*\.files-btn-rgb \{\s*animation: none;/.test(css), "the system's reduced motion stops it");
   assert.ok(/\[data-reduced-motion\] \* \{ animation: none !important;/.test(theme), "and so does the site's own setting, as for the nav");
-  assert.ok(/@media \(prefers-reduced-motion: reduce\) \{\s*\.media-btn-rgb \{[^}]*outline: 2px solid var\(--accent\)/.test(css) &&
-    /\[data-reduced-motion\] \.media-btn-rgb \{[^}]*outline: 2px solid var\(--accent\)/.test(css), "still, a ring in the accent colour, as the desktop holds one");
+  assert.ok(/@media \(prefers-reduced-motion: reduce\) \{\s*\.files-btn-rgb \{[^}]*outline: 2px solid var\(--accent\)/.test(css) &&
+    /\[data-reduced-motion\] \.files-btn-rgb \{[^}]*outline: 2px solid var\(--accent\)/.test(css), "still, a ring in the accent colour, as the desktop holds one");
 });
 
 // ── E. The upload window ─────────────────────────────────────────────────
@@ -398,14 +398,14 @@ function idsIn(el) {
   return out;
 }
 
-// Seen red 2026-10-17 in a copy of web/ through HOS_WEB_DIR: with media-app.js build() drawing the
+// Seen red 2026-10-17 in a copy of web/ through HOS_WEB_DIR: with files-app.js build() drawing the
 // whole page in the window: "Add to Media and its uploads alone, under the sign-in line and the
-// notices" (actual [ '', 'media-status', 'media-notice', 'media-tabs-wrap', 'media-main',
-// 'media-admin-wrap', 'media-viewer', 'media-report', 'media-takedown', 'media-file-input' ]); in
-// media-add.js, with takePending opening the form at once, before the page signed in: "they wait,
+// notices" (actual [ '', 'files-status', 'files-notice', 'files-tabs-wrap', 'files-main',
+// 'files-admin-wrap', 'files-viewer', 'files-report', 'files-takedown', 'files-file-input' ]); in
+// files-add.js, with takePending opening the form at once, before the page signed in: "they wait,
 // named, while the page signs in" (actual null); with openAddForm ignoring postTo: "posting ticked,
 // for #general" (actual false); with cancelForm not telling the page it is over: "Cancel closes the
-// window" (actual false); in media-app.js, with dropDecision saying Drop to upload to Media over the
+// window" (actual false); in files-app.js, with dropDecision saying Drop to upload to Media over the
 // window whatever channel it was opened for: "over the window: the chat's channel's words" (actual
 // 'Drop to upload to Media'); with dropped() not posting a drop on the window in that channel: "and
 // the drop opens Add to Media posting in #general" (actual false).
@@ -417,24 +417,24 @@ test("E. the upload window shows Add to Files alone, takes the files handed over
   const p = await openPage({
     session, storage: storageWith("general"), uploadWindow: win, phraseIn: async () => false, window: dropWin,
     routes: listRoutes(listAnswer([], { licences: LICENCES }), relay.routes.concat([
-      [at("/api/media", "POST"), (c) => respond(200, { ok: true, item: H.item({ id: 7, url: "/uploads/" + c.body.filename, title: c.body.title, visibility: c.body.visibility }) })],
+      [at("/api/files", "POST"), (c) => respond(200, { ok: true, item: H.item({ id: 7, url: "/uploads/" + c.body.filename, title: c.body.title, visibility: c.body.visibility }) })],
       // Its other file, added to the item once up (Edit's Add a file).
-      [at("/api/media/files/add", "POST"), () => respond(200, { ok: true, item: H.item({ id: 7 }) })],
+      [at("/api/files/item-files/add", "POST"), () => respond(200, { ok: true, item: H.item({ id: 7 }) })],
     ])),
   });
-  assert.deepEqual(p.root.children.map((c) => c.id), ["media-status", "media-notice", "media-main", "media-file-input"], "Add to Files and its uploads alone, under the sign-in line and the notices");
-  assert.deepEqual(idsIn(byId(p.doc, "media-main")), ["media-form", "media-uploads"]);
-  for (const id of ["media-title", "media-tabs-wrap", "media-grid", "media-featured", "media-actions", "media-foot"]) assert.equal(byId(p.doc, id), null, id + " is not in the window");
-  const lists = p.net.calls.filter((c) => c.url === "/api/media/list");
+  assert.deepEqual(p.root.children.map((c) => c.id), ["files-status", "files-notice", "files-main", "files-file-input"], "Add to Files and its uploads alone, under the sign-in line and the notices");
+  assert.deepEqual(idsIn(byId(p.doc, "files-main")), ["files-form", "files-uploads"]);
+  for (const id of ["files-title", "files-tabs-wrap", "files-grid", "files-featured", "files-actions", "files-foot"]) assert.equal(byId(p.doc, id), null, id + " is not in the window");
+  const lists = p.net.calls.filter((c) => c.url === "/api/files/list");
   assert.ok(lists.length >= 1 && lists.every((c) => c.body.limit === 1 && !c.body.featured), "the list read for its categories and licences only: one item, no shelf");
 
   const dusk = aFile("dusk.mp4", 3 * MIB);
   const dawn = aFile("dawn.mp4", 2 * MIB);
   p.page.takeFiles([dusk, dawn], "general");
   await settle();
-  const waiting = byId(p.doc, "media-form-pending");
+  const waiting = byId(p.doc, "files-form-pending");
   assert.ok(waiting && !p.page.state.form, "they wait, named, while the page signs in");
-  assert.deepEqual(waiting.querySelectorAll(".media-form-file-name").map(text), ["dusk.mp4 (" + M.sizeWords(3 * MIB) + ")", "dawn.mp4 (" + M.sizeWords(2 * MIB) + ")"]);
+  assert.deepEqual(waiting.querySelectorAll(".files-form-file-name").map(text), ["dusk.mp4 (" + M.sizeWords(3 * MIB) + ")", "dawn.mp4 (" + M.sizeWords(2 * MIB) + ")"]);
   assert.equal(win.last("busy").busy, true, "something is going: the window is kept");
 
   Object.assign(session.state, { status: "bound", role: "verified", roles: ROLES, uploadToken: "tok-1" });
@@ -453,11 +453,11 @@ test("E. the upload window shows Add to Files alone, takes the files handed over
   const plain = await openPage({ storage: storageWith("general"), routes: listRoutes(listAnswer([], { licences: LICENCES })) });
   listChannels(plain.session);
   await pick(plain.doc, [dusk, dawn]);
-  assert.deepEqual(idsIn(byId(p.doc, "media-form")), idsIn(byId(plain.doc, "media-form")), "the same form, part for part");
-  assert.ok(byId(p.doc, "media-share-line") && byId(p.doc, "media-form-licence") && byId(p.doc, "media-form-vis-members"), "with the share left, the licence and who can see it");
+  assert.deepEqual(idsIn(byId(p.doc, "files-form")), idsIn(byId(plain.doc, "files-form")), "the same form, part for part");
+  assert.ok(byId(p.doc, "files-share-line") && byId(p.doc, "files-form-licence") && byId(p.doc, "files-form-vis-members"), "with the share left, the licence and who can see it");
 
   // Upload: it says what it says to the page it is over too, and is going until published and posted.
-  byId(p.doc, "media-form-go").click();
+  byId(p.doc, "files-form-go").click();
   await settle();
   const sent = chats(session);
   assert.equal(sent.length, 1, "posted in #general once published");
@@ -466,7 +466,7 @@ test("E. the upload window shows Add to Files alone, takes the files handed over
   await settle();
   // Its line, as the desktop's says it: published, posted, then its other file going up to the item.
   const lines = win.told.filter((t) => t.event === "status").map((t) => t.text);
-  assert.ok(lines.includes(M.MEDIA_WORDS.published + " Posted in #general. Its other file is uploading under Uploads in progress, and added to it when up."), "its line, for the page it is over: " + JSON.stringify(lines));
+  assert.ok(lines.includes(M.FILES_WORDS.published + " Posted in #general. Its other file is uploading under Uploads in progress, and added to it when up."), "its line, for the page it is over: " + JSON.stringify(lines));
   assert.equal(lines[lines.length - 1], "Added to \"1760_dusk.mp4\".", "and the next, when its other file is in");
 
   // Files dropped on the window itself post in the same channel, as a drop on the chat under it does.
@@ -482,7 +482,7 @@ test("E. the upload window shows Add to Files alone, takes the files handed over
   // Cancel on a form with nothing going closes the window.
   p.page.takeFiles([aFile("other.mp4", MIB)], "");
   await settle();
-  byId(p.doc, "media-form-cancel").click();
+  byId(p.doc, "files-form-cancel").click();
   assert.ok(win.told.some((t) => t.event === "close"), "Cancel closes the window");
 });
 
@@ -532,7 +532,7 @@ test("F. the two halves: files wait until the frame is there; only its own messa
   assert.equal(el.getAttribute("role"), "dialog");
   const frame = w.frame();
   assert.equal(frame.tagName, "IFRAME");
-  assert.equal(frame.src, "/media?window=upload", "the Files page itself, in its upload-window form");
+  assert.equal(frame.src, "/files?window=upload", "the Files page itself, in its upload-window form");
   assert.equal(UW.isWindowAddress("?window=upload"), true);
   assert.equal(UW.isWindowAddress("?put=1"), false);
   const inside = fakeWindow(ORIGIN, host);
@@ -623,23 +623,23 @@ test("G. the guard finds four words of the recovery phrase in a row, as the chat
 
 // ── The pages load it ────────────────────────────────────────────────────
 
-// Seen red 2026-10-17 in a copy of web/ through HOS_WEB_DIR: with media.html's upload-window.js line
-// taken out: "pages/media.html loads the guard's parts and /shared/upload-window.js before
-// /pages/media-app.js: 3033,3336,3387,3435,-1,6400"; with a hand-written colour in
+// Seen red 2026-10-17 in a copy of web/ through HOS_WEB_DIR: with files.html's upload-window.js line
+// taken out: "pages/files.html loads the guard's parts and /shared/upload-window.js before
+// /pages/files-app.js: 3033,3336,3387,3435,-1,6400"; with a hand-written colour in
 // upload-window.css (`color: #000`): "theme variables only".
 test("the pages load the upload window and the guard, and its stylesheet uses the theme only", () => {
   const page = (rel) => fs.readFileSync(path.join(WEB, rel), "utf8");
   const order = (html, list) => list.map((s) => html.indexOf('src="' + s));
-  const media = page("pages/media.html");
-  const m = order(media, ["/chat/pq.js", "/chat/bip39-english.js", "/shared/warnings.js", "/shared/pq-relay-auth.js", "/shared/upload-window.js", "/pages/media-app.js"]);
-  assert.ok(m.every((i) => i > 0), "pages/media.html loads the guard's parts and /shared/upload-window.js before /pages/media-app.js: " + m);
+  const media = page("pages/files.html");
+  const m = order(media, ["/chat/pq.js", "/chat/bip39-english.js", "/shared/warnings.js", "/shared/pq-relay-auth.js", "/shared/upload-window.js", "/pages/files-app.js"]);
+  assert.ok(m.every((i) => i > 0), "pages/files.html loads the guard's parts and /shared/upload-window.js before /pages/files-app.js: " + m);
   assert.deepEqual(m.slice().sort((x, y) => x - y), m, "in order");
-  assert.ok(/data-media-window/.test(media) && /window\.self !== window\.top/.test(media), "the menu is left out only in a frame");
+  assert.ok(/data-files-window/.test(media) && /window\.self !== window\.top/.test(media), "the menu is left out only in a frame");
   // In a frame, everything but the page and what its own parts put on the body is left out (which
-  // parts: media-card-web.test.js, "8. the framed windows show the page's own dialogs").
-  const hide = /\[data-media-window\] body > ((?::not\([^)]*\))+) \{ display: none !important; \}/.exec(media);
+  // parts: files-card-web.test.js, "8. the framed windows show the page's own dialogs").
+  const hide = /\[data-files-window\] body > ((?::not\([^)]*\))+) \{ display: none !important; \}/.exec(media);
   const kept = hide ? hide[1].match(/:not\(([^)]*)\)/g).map((s) => s.slice(5, -1)) : [];
-  assert.ok(kept.includes("#media-root") && kept.includes(".hos-drop-overlay"), "everything but the page and the drop overlay is left out: " + kept);
+  assert.ok(kept.includes("#files-root") && kept.includes(".hos-drop-overlay"), "everything but the page and the drop overlay is left out: " + kept);
   const chat = page("chat/index.html");
   assert.ok(/<link rel="stylesheet" href="\/shared\/upload-window\.css\?v=\d+">/.test(chat), "the chat links /shared/upload-window.css");
   const c = order(chat, ["/shared/drop-overlay.js", "/shared/upload-window.js", "/chat/chat-messages.js"]);

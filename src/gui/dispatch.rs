@@ -22,7 +22,7 @@
 use super::pages::{
     apps, browser, bugs, calculator, calendar, chat, cosmos, crafting, donate, governance,
     guilds, homes, humanity, identity, inventory, laws, library, market, notes, platform, profile, quests,
-    media, real, recovery, relay_control, server_settings, settings, studio, tasks, testing,
+    files, real, recovery, relay_control, server_settings, settings, studio, tasks, testing,
     trade, wallet, watch,
 };
 use super::theme::Theme;
@@ -66,7 +66,7 @@ pub fn draw_tool_page(ctx: &egui::Context, page: GuiPage, theme: &mut Theme, sta
         GuiPage::Donate => donate::draw(ctx, theme, state),
         GuiPage::Studio => studio::draw(ctx, theme, state),
         GuiPage::Watch => watch::draw(ctx, theme, state),
-        GuiPage::Media => media::draw(ctx, theme, state),
+        GuiPage::Files => files::draw(ctx, theme, state),
         GuiPage::Apps => apps::draw(ctx, theme, state),
         GuiPage::Quests => quests::draw(ctx, theme, state),
         GuiPage::Homes => homes::draw(ctx, theme, state),
@@ -120,7 +120,7 @@ pub fn page_id(page: GuiPage) -> &'static str {
         GuiPage::Donate => "donate",
         GuiPage::Studio => "studio",
         GuiPage::Watch => "watch",
-        GuiPage::Media => "media",
+        GuiPage::Files => "files",
         GuiPage::Apps => "apps",
         GuiPage::Quests => "quests",
         GuiPage::Homes => "homes",
@@ -173,7 +173,7 @@ pub const ALL_PAGES: &[GuiPage] = &[
     GuiPage::Donate,
     GuiPage::Studio,
     GuiPage::Watch,
-    GuiPage::Media,
+    GuiPage::Files,
     GuiPage::Apps,
     GuiPage::Quests,
     GuiPage::Homes,

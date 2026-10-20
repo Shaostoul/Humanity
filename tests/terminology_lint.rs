@@ -17,12 +17,11 @@
 //!
 //! And one page name (operator, 2026-10-19: "What do you think about changing the name of media
 //! to files"): the page people put their pictures, videos, models, sounds and other files on is
-//! **Files**, no longer Media. Its old action words are retired as quoted text (right after a
-//! quote mark or a tag's `>`): "Add to Media", "Put on Media", "Remove from Media", "Media on
-//! <host>" and the like. Only quoted, because the code keeps its names (`media.rs`,
-//! `GuiPage::Media`, `/api/media`, the `/media` address) and comments may say how things were.
-//! The developer's data browser that was called Files is "Data files" since the same day.
-//! "Settings > Media" (video on in-world screens) is another thing and keeps its name.
+//! **Files**, no longer Media (the developer's data browser and Shared Files became its places the
+//! same day). Its old action words are retired as quoted text (right after a quote mark or a tag's
+//! `>`): "Add to Media", "Put on Media", "Remove from Media", "Media on <host>" and the like. Only
+//! quoted, so a comment may still say how things were. "Settings > Media" (video on in-world
+//! screens) and the playback engine `src/media/` are another thing and keep their name.
 //!
 //! Scans what people read: the native UI (`src/gui/`), the website (`web/`),
 //! the help, dictionary, onboarding and wallet data, the user, website,
@@ -201,7 +200,7 @@ fn the_media_page_matcher_reads_quoted_words_only() {
     assert_eq!(quotes_retired_media_words("<h2>Media on united-humanity.us</h2>"), Some(("Media on ", "Files on ")));
     assert_eq!(quotes_retired_media_words(r#"format!("Media on {host}")"#), Some(("Media on ", "Files on ")));
     assert_eq!(quotes_retired_media_words(r#""Add to Files""#), None, "the new words pass");
-    assert_eq!(quotes_retired_media_words("// media.rs draws the page; GuiPage::Media"), None, "code names pass");
+    assert_eq!(quotes_retired_media_words("// media.rs draws the page; GuiPage::Files"), None, "code names pass");
     assert_eq!(quotes_retired_media_words(r#"("Settings > Media", SettingsCategory::Media)"#), None, "Settings > Media is another thing");
 }
 

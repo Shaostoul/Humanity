@@ -240,7 +240,7 @@ pub struct UploadQuery {
     /// ciphertext is harmless: only the recipient holds the key.
     pub encrypted: Option<u8>,
     /// A Media upload (2026-10-11, media.rs `upload_shelf`): out of the FIFO, held to the Media
-    /// budget, and in no list until it is published with POST /api/media. Never with `encrypted`.
+    /// budget, and in no list until it is published with POST /api/files. Never with `encrypted`.
     pub media: Option<u8>,
     /// `?keep_metadata=1` (B4, 2026-10-11): the person chose to keep the file's hidden
     /// information, so the picture and video strip is skipped (upload_rules.rs
@@ -364,7 +364,7 @@ pub async fn upload_file(
     headers: axum::http::HeaderMap,
     multipart: axum::extract::Multipart,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    let folders = super::media::Folders::live();
+    let folders = super::files::Folders::live();
     upload_file_in(&state, folders, std::path::Path::new(UPLOAD_PART_DIR), query, headers, multipart).await
 }
 
@@ -372,7 +372,7 @@ pub async fn upload_file(
 /// files in folders of their own). `part_dir` is where the file streams to as it arrives.
 pub(crate) async fn upload_file_in(
     state: &Arc<RelayState>,
-    folders: super::media::Folders<'_>,
+    folders: super::files::Folders<'_>,
     part_dir: &std::path::Path,
     query: UploadQuery,
     headers: axum::http::HeaderMap,
@@ -385,7 +385,7 @@ pub(crate) async fn upload_file_in(
     // role is known (see below). Fall back to defaults if the row is
     // missing.
     let server_settings = state.db.get_server_settings().unwrap_or_default();
-    let shelf = super::media::upload_shelf(query.share, query.media, query.encrypted)?;
+    let shelf = super::files::upload_shelf(query.share, query.media, query.encrypted)?;
 
     // M-4: Resolve upload token to public key (the per-session token only, 2026-10-11).
     let public_key = token_key(state, query.token.as_deref()).await?;
@@ -513,7 +513,7 @@ pub(crate) async fn upload_file_in(
         let original_name_fs = filename.clone();
         let private_held_fs = if is_encrypted { super::upload_rules::private_held_limit(&uploader_rdef) } else { None };
         let (role_fs, arrived) = (uploader_rdef.clone(), part.len as u64);
-        let owned = crate::relay::storage::media::OwnedFolders::of(folders);
+        let owned = crate::relay::storage::files::OwnedFolders::of(folders);
         let fs_result = tokio::task::spawn_blocking(move || -> Result<(), (StatusCode, String)> {
             // Store in data/uploads/.
             let folders = owned.get();
@@ -531,7 +531,7 @@ pub(crate) async fn upload_file_in(
             // time, here in the blocking work, which runs whole even if the connection closes
             // (R3-1): the bytes that arrived against the day, the upload against the hour.
             let clock = || state_fs.upload_now_ms();
-            let new = super::media::NewUpload {
+            let new = super::files::NewUpload {
                 key: &public_key_fs,
                 shelf: shelf_fs,
                 name: &unique_name_fs,
@@ -539,14 +539,14 @@ pub(crate) async fn upload_file_in(
                 len: data_len as u64,
                 keep: max_uploads_per_user,
                 private_held_limit: private_held_fs,
-                allowance: Some(super::media::Allowance { role: &role_fs, bytes: arrived, clock: &clock }),
+                allowance: Some(super::files::Allowance { role: &role_fs, bytes: arrived, clock: &clock }),
                 session: None,
             };
-            let old_files = super::media::store_upload(&state_fs.db, &settings_fs, folders, &new, |path| body.put(path), |path| body.unstage(path))
+            let old_files = super::files::store_upload(&state_fs.db, &settings_fs, folders, &new, |path| body.put(path), |path| body.unstage(path))
                 .inspect_err(|_| body.discard())?;
             body.discard(); // a part file that was copied rather than moved (R5)
             // Delete the files the FIFO let go.
-            super::media::delete_pruned(folders, &old_files);
+            super::files::delete_pruned(folders, &old_files);
             Ok(())
         })
         .await
@@ -2438,20 +2438,20 @@ pub async fn get_signed_profile(
 
 // ── File browser API ───────────────────────────────────────────────────
 
-/// Query params for GET /api/files.
+/// Query params for GET /api/data-files.
 #[derive(Debug, Deserialize)]
 pub struct FilesListQuery {
     /// Directory path to list (must be within data/).
     pub path: Option<String>,
 }
 
-/// GET /api/files — list files in a directory within data/.
+/// GET /api/data-files — list files in a directory within data/.
 pub async fn list_files(
     Query(params): Query<FilesListQuery>,
 ) -> impl IntoResponse {
     let dir_path = params.path.as_deref().unwrap_or("data");
 
-    match crate::relay::storage::files::list_directory(dir_path) {
+    match crate::relay::storage::data_files::list_directory(dir_path) {
         Ok(entries) => (StatusCode::OK, Json(serde_json::json!({
             "path": dir_path,
             "entries": entries,
@@ -2462,20 +2462,20 @@ pub async fn list_files(
     }
 }
 
-/// Query params for GET /api/files/read.
+/// Query params for GET /api/data-files/read.
 #[derive(Debug, Deserialize)]
 pub struct FileReadQuery {
     /// File path to read (must be within data/).
     pub path: String,
 }
 
-/// GET /api/files/read — read a text file's contents.
+/// GET /api/data-files/read — read a text file's contents.
 pub async fn read_file(
     Query(params): Query<FileReadQuery>,
 ) -> impl IntoResponse {
-    match crate::relay::storage::files::read_file(&params.path) {
+    match crate::relay::storage::data_files::read_file(&params.path) {
         Ok(content) => {
-            let abs_path = crate::relay::storage::files::validate_path(&params.path);
+            let abs_path = crate::relay::storage::data_files::validate_path(&params.path);
             let (size, modified) = abs_path.ok()
                 .and_then(|p| std::fs::metadata(&p).ok())
                 .map(|m| {
@@ -2502,7 +2502,7 @@ pub async fn read_file(
     }
 }
 
-/// Request body for POST /api/files/write.
+/// Request body for POST /api/data-files/write.
 #[derive(Debug, Deserialize)]
 pub struct FileWriteRequest {
     /// File path to write (must be within data/).
@@ -2511,11 +2511,11 @@ pub struct FileWriteRequest {
     pub content: String,
 }
 
-/// POST /api/files/write — write/save a text file.
+/// POST /api/data-files/write — write/save a text file.
 pub async fn write_file(
     Json(req): Json<FileWriteRequest>,
 ) -> impl IntoResponse {
-    match crate::relay::storage::files::write_file(&req.path, &req.content) {
+    match crate::relay::storage::data_files::write_file(&req.path, &req.content) {
         Ok(()) => (StatusCode::OK, Json(serde_json::json!({
             "ok": true,
             "path": req.path,

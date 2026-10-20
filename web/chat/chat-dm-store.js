@@ -959,7 +959,7 @@ const hosDmStore = {
     return true;
   },
 
-  // ── Private files kept on this device (2026-10-11, docs/design/media-showcase.md,
+  // ── Private files kept on this device (2026-10-11, docs/design/files-showcase.md,
   // "Files on the sender's device and in messages, exact", part 4) ──
   // A file opened in a DM or a group is kept here, encrypted under this
   // store's own key (the seed-derived key of the DM history), in its own

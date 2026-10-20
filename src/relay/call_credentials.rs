@@ -1,5 +1,5 @@
 //! Credentials for the call forwarder (call_forwarder.rs), given out over the signed-in socket
-//! only (docs/design/blocking-and-safe-mode.md 10f; files: docs/design/media-showcase.md,
+//! only (docs/design/blocking-and-safe-mode.md 10f; files: docs/design/files-showcase.md,
 //! "Device-to-device big files: the shapes, exact", part 2).
 //!
 //! The request, from a signed-in socket:

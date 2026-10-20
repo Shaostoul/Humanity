@@ -1,4 +1,4 @@
-//! Resumable uploads, round 4 (2026-10-11; docs/design/media-showcase.md, "Round 4: fixes from the
+//! Resumable uploads, round 4 (2026-10-11; docs/design/files-showcase.md, "Round 4: fixes from the
 //! round 3 review"): a cancel leaves nothing stored (R4-2), a piece counted and never stored gives
 //! its bytes back at start (R4-3), moving a pieces file back never copies under the room lock
 //! (R4-4), and the expiry pass and the account erase remove a staged pieces file with its session
@@ -10,7 +10,7 @@ use crate::relay::storage::upload_counts::{Span, DAY_MS, HOUR_MS};
 use crate::relay::storage::upload_sessions::staged_part_name;
 
 /// Wait, a little at a time, until `gate` has been reached by the store it holds.
-async fn reached(gate: &media::hold::Gate) {
+async fn reached(gate: &files::hold::Gate) {
     for _ in 0..400 {
         if gate.reached() {
             return;
@@ -24,8 +24,8 @@ async fn reached(gate: &media::hold::Gate) {
 /// Ann publishes the stored upload `name` (from the waiting folder) as a public item.
 fn publish(r: &Rig, name: &str) {
     let s = r.db().get_server_settings().unwrap();
-    let body = media::PublishBody { key: "ann".into(), filename: name.into(), ..Default::default() };
-    media::publish_core(r.db(), &s, &[], r.folders(), &body).expect("published");
+    let body = files::PublishBody { key: "ann".into(), filename: name.into(), ..Default::default() };
+    files::publish_core(r.db(), &s, &[], r.folders(), &body).expect("published");
 }
 
 /// R4-2. A CANCEL MEANS NOTHING STAYS, EVEN WHEN IT RACES THE FINISH: Ann cancels while the last
@@ -45,7 +45,7 @@ async fn a_cancel_that_races_the_finish_leaves_nothing_stored() {
     r.person("ann", "tok_ann").await;
     r.db().join_server("ann", "Ann").unwrap();
     let data = bytes(2000);
-    let gate = media::hold::gate("held-r42.mp4");
+    let gate = files::hold::gate("held-r42.mp4");
     let id = r.start("tok_ann", file("held-r42.mp4", 2000, "video/mp4")).await.unwrap();
 
     let watch = async {
@@ -109,7 +109,7 @@ async fn a_piece_counted_and_cut_back_at_start_gives_its_bytes_back() {
     let id = r.start("tok_ann", file("stop-r43.mp4", 3000, "video/mp4")).await.unwrap();
     r.send(&id, "tok_ann", 0, &data[..1000]).await.unwrap();
 
-    media::hold::stop_at("written:stop-r43.mp4");
+    files::hold::stop_at("written:stop-r43.mp4");
     r.send(&id, "tok_ann", 1000, &data[1000..2000]).await.expect_err("the relay stops after the write");
     assert_eq!(std::fs::metadata(r.part(&id)).unwrap().len(), 2000, "test setup: written");
     assert_eq!(r.session(&id).unwrap().offset, 1000, "test setup: its offset not stored");
@@ -145,7 +145,7 @@ async fn a_pieces_file_that_cannot_be_renamed_back_is_never_copied() {
     let r = rig("resume_r44");
     r.person("ann", "tok_ann").await;
     let data = bytes(3000);
-    let gate = media::hold::gate("held-r44.mp4");
+    let gate = files::hold::gate("held-r44.mp4");
     let id = r.start("tok_ann", file("held-r44.mp4", 3000, "video/mp4")).await.unwrap();
     let staged = r.waiting.join(staged_part_name(&id));
     r.settings(|s| s.media_per_person_mb = 1);

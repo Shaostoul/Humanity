@@ -96,7 +96,7 @@ async fn a_media_file_in_one_request_is_held_to_the_roles_media_limit() {
     assert_eq!(FileLimit::for_request(&role, 0, false).bytes, 25 * MIB, "a chat file is not held to it");
     let mut none = role.clone();
     none.max_media_file_mb = 0;
-    assert_eq!(FileLimit::for_request(&none, crate::relay::storage::media::MEDIA_SHELF, false).bytes, 25 * MIB, "0: the role's own limit");
+    assert_eq!(FileLimit::for_request(&none, crate::relay::storage::files::MEDIA_SHELF, false).bytes, 25 * MIB, "0: the role's own limit");
 }
 
 /// B3. THE DAY'S AND THE HOUR'S ALLOWANCE IN ONE REQUEST: with 10 MB a day and 3 MB uploaded today,
@@ -275,7 +275,7 @@ fn finish_file_as_cleans_a_heic_and_refuses_what_it_cannot_read() {
 #[tokio::test]
 async fn a_heic_upload_is_stored_without_where_it_was_taken() {
     use crate::relay::resumable::{piece_core, start_core, StartBody};
-    use crate::relay::storage::media::Folders;
+    use crate::relay::storage::files::Folders;
     let state = relay("rules_heic_upload");
     uploader(&state, "ann", "tok", |_| {}).await;
     let (uploads, members, resume, waiting) = (

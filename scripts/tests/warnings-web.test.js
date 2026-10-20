@@ -46,7 +46,7 @@
 //  9. Every other send path awaits the guard before it sends, and index.html loads both scripts.
 // 10. Messages drawn before the warnings file arrived get their warnings when it does, and a file
 //     that cannot be read is not asked for again in a loop.
-// 11. A Media item's address in a direct message (2026-10-17, review; chat-media-card.js): only an
+// 11. A Media item's address in a direct message (2026-10-17, review; chat-files-card.js): only an
 //     exact address of this site comes out of the words, so a stranger's crafted words never become
 //     a live link; a stranger's message whose links are held shows no card, its address held in its
 //     words, the hold reading the words drawn as well as the text; Open on its line brings the card
@@ -150,7 +150,7 @@ function fakeDom(state) {
     own.remove = () => { own.removed = true; };
     own.focus = () => {};
     // What a script puts just after this element (a Media item's card under a message's words,
-    // chat-media-card.js mediaCardsPut), as private-files-web.test.js keeps it.
+    // chat-files-card.js filesCardsPut), as private-files-web.test.js keeps it.
     own.after = (...nodes) => { own.afterNodes = (own.afterNodes || []).concat(nodes); };
     const p = new Proxy(own, {
       get(t, prop) {
@@ -381,7 +381,7 @@ async function loadChat(opts = {}) {
   run("chat/chat-dm-store.js");
   run("chat/view/timestampPill.js");
   run("chat/view/messageRow.js");
-  run("chat/chat-media-card.js"); // a Media item's address in a message, as a card (2026-10-17)
+  run("chat/chat-files-card.js"); // a Media item's address in a message, as a card (2026-10-17)
   run("chat/app.js");
   run("chat/chat-messages.js");
   run("chat/chat-dms.js");
@@ -959,7 +959,7 @@ test("a numbered list of the recovery phrase is stopped", () => {
 // ── 11: a Media item's card in a direct message (2026-10-17, review) ─────
 
 // Seen red 2026-10-17, each break in a copy of web/ run with HOS_WEB_DIR:
-// in chat/chat-media-card.js, withoutLinks back to plain replacement of every address found (the
+// in chat/chat-files-card.js, withoutLinks back to plain replacement of every address found (the
 // review's version): "the words left exactly, the exact address out" (its words came out as "Look
 // https://evil.example/login", and the check on the words drawn, below, held the message, so
 // nothing opened); with that check taken out too, as the review found the page: "no link made out
@@ -972,38 +972,38 @@ test("a numbered list of the recovery phrase is stopped", () => {
 // (actual 0).
 test("11. a Media item's card in a DM: only an exact address comes out; a held stranger's message has no card until Open, which brings it at once", async () => {
   const chat = await loadChat();
-  const cardsOf = (row) => (row.querySelector(".body").afterNodes || []).filter((n) => n && n.className === "media-cards");
+  const cardsOf = (row) => (row.querySelector(".body").afterNodes || []).filter((n) => n && n.className === "files-cards");
 
-  // The crafted message: "/media/5" inside a word is no address, and taking the exact one out leaves
+  // The crafted message: "/files/5" inside a word is no address, and taking the exact one out leaves
   // every other word as it was, never "https://evil.example/login".
-  const crafted = await receiveDm(chat, BEN, "Look /media/5 htt/media/5ps://evil.example/login", 5000);
+  const crafted = await receiveDm(chat, BEN, "Look /files/5 htt/files/5ps://evil.example/login", 5000);
   assert.ok(!crafted.innerHTML.includes("https://evil.example"), "no link made out of the stranger's words: " + crafted.innerHTML);
-  assert.ok(crafted.innerHTML.includes("Look htt/media/5ps://evil.example/login"), "the words left exactly, the exact address out: " + crafted.innerHTML);
+  assert.ok(crafted.innerHTML.includes("Look htt/files/5ps://evil.example/login"), "the words left exactly, the exact address out: " + crafted.innerHTML);
   assert.equal(cardsOf(crafted).length, 1, "a card for the item (nothing in it is a link, so nothing is held)");
 
   // A stranger's message with a link: held; its Media address stays in the words, held like any
   // other link, and no card is drawn.
-  const held = await receiveDm(chat, BEN, "the item: https://localhost/media/7 and https://example.org/x", 5001);
-  assert.ok(held.innerHTML.includes('data-held-href="https://localhost/media/7"'), "the address stays in the words, held like any other link");
+  const held = await receiveDm(chat, BEN, "the item: https://localhost/files/7 and https://example.org/x", 5001);
+  assert.ok(held.innerHTML.includes('data-held-href="https://localhost/files/7"'), "the address stays in the words, held like any other link");
   assert.ok(!/\shref="https:\/\/localhost/.test(held.innerHTML), "and does not open");
   assert.equal(cardsOf(held).length, 0, "no card while its links are held");
   // Open on its line: the words without the card's address, the other link live, and the card at once.
   findAll(findAll(held, "msg-link-hold")[0], "msg-link-open")[0].onclick({ stopPropagation() {} });
   const body = held.querySelector(".body");
-  assert.ok(!body.innerHTML.includes("/media/7") && /<a href="https:\/\/example\.org\/x"/.test(body.innerHTML), "Open: the address out of the words, the other link live: " + body.innerHTML);
+  assert.ok(!body.innerHTML.includes("/files/7") && /<a href="https:\/\/example\.org\/x"/.test(body.innerHTML), "Open: the address out of the words, the other link live: " + body.innerHTML);
   assert.equal(cardsOf(held).length, 1, "and the card at once");
   // Drawn again, it stays opened: the card, the address out of the words.
   chat.appended.length = 0;
   chat.fn("renderDmConversationFromStore")(BEN);
   const again = chat.appended.find((e) => e && e.dataset && String(e.dataset.timestamp) === "5001");
-  assert.ok(again && !again.innerHTML.includes("/media/7") && cardsOf(again).length === 1, "drawn again: its card, the address out of the words");
+  assert.ok(again && !again.innerHTML.includes("/files/7") && cardsOf(again).length === 1, "drawn again: its card, the address out of the words");
 
   // Belt and braces: the hold reads the words drawn too. Were taking the addresses out ever to make
   // a link, the message is held (a stand-in plan that does exactly that).
-  const plan = chat.ctx.mediaCardsPlan;
-  chat.ctx.mediaCardsPlan = (text, from) => (String(text).includes("/media/9") ? { words: "see https://evil.example/x", ids: [9] } : plan(text, from));
-  const made = await receiveDm(chat, CY, "see /media/9", 5002);
-  chat.ctx.mediaCardsPlan = plan;
+  const plan = chat.ctx.filesCardsPlan;
+  chat.ctx.filesCardsPlan = (text, from) => (String(text).includes("/files/9") ? { words: "see https://evil.example/x", ids: [9] } : plan(text, from));
+  const made = await receiveDm(chat, CY, "see /files/9", 5002);
+  chat.ctx.filesCardsPlan = plan;
   assert.equal(findAll(made, "msg-link-hold").length, 1, "held, with its line");
   assert.ok(!/\shref="https:\/\/evil\.example/.test(made.innerHTML), "nothing it made opens");
   assert.equal(cardsOf(made).length, 0, "and no card until Open");

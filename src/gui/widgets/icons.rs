@@ -939,7 +939,7 @@ pub fn nav_icon(page: crate::gui::GuiPage) -> Option<fn(&egui::Painter, Rect, Co
         // icon-only bar and a gap before the label in the others (2026-09-27
         // snapshot review).
         P::Watch       => paint_watch,
-        P::Media       => paint_picture,
+        P::Files       => paint_picture,
         P::Apps        => paint_apps,
         // v0.415.0: Onboarding + Play variants removed with their pages.
         // v0.197.0: Agents + AiUsage variants removed. paint_robot and

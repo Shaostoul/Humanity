@@ -44,7 +44,7 @@
 // relay carries out through its moderation path and its rules. A reported Media
 // item (context `media`, 2026-10-11) shows its title, kind, labels and
 // visibility with an Open that loads it on the Media page by its number
-// (its own page, /media/<n>, which asks the list route for `id=<n>`). It lives here,
+// (its own page, /files/<n>, which asks the list route for `id=<n>`). It lives here,
 // in the chat app, and not on the Admin page (web/pages/admin.html): the Admin
 // page is open to admins only and signs its requests over HTTP, while the
 // report frames go over the signed-in chat socket, and moderators review
@@ -760,7 +760,7 @@ function reportsViewModel() {
         evidence: v.evidence.map((ev) => {
           const fromLabel = repSameKey(ev.from, v.target) ? targetLabel : (ev.from ? repName(ev.from) : targetLabel);
           const shown = { ...ev, fromLabel, badge: reportEvidenceBadge(ev, fromLabel), timeLabel: repWhen(ev.ts), textLabel: repTextLabel(ev.text) };
-          if (ev.kind === 'media') Object.assign(shown, reportMediaEvidenceView(ev));
+          if (ev.kind === 'media') Object.assign(shown, reportFilesEvidenceView(ev));
           return shown;
         }),
       };
@@ -768,15 +768,15 @@ function reportsViewModel() {
   };
 }
 
-// A Media item reported (2026-10-11, docs/design/media-showcase.md A5): the relay keeps a pointer
+// A Media item reported (2026-10-11, docs/design/files-showcase.md A5): the relay keeps a pointer
 // to it, its title, kind, labels and visibility, never the file. The kinds' and labels' names
-// are the Media page's data files' (data/media/kinds.json, data/media/labels.json), loaded when
+// are the Media page's data files' (data/files/kinds.json, data/files/labels.json), loaded when
 // the Reports view first shows such an item; until then, and for a word they do not list, the
 // relay's own word is shown.
-let reportMediaWords = null;          // {kinds: {id: name}, labels: {id: name}} once loaded
-let reportMediaWordsLoading = null;
-function loadReportMediaWords() {
-  if (reportMediaWords || reportMediaWordsLoading) return reportMediaWordsLoading || Promise.resolve(reportMediaWords);
+let reportFilesWords = null;          // {kinds: {id: name}, labels: {id: name}} once loaded
+let reportFilesWordsLoading = null;
+function loadReportFilesWords() {
+  if (reportFilesWords || reportFilesWordsLoading) return reportFilesWordsLoading || Promise.resolve(reportFilesWords);
   const read = (url, list, name) => Promise.resolve()
     .then(() => fetch(url, { cache: 'no-cache' }))
     .then((r) => (r && r.ok ? r.json() : null))
@@ -786,20 +786,20 @@ function loadReportMediaWords() {
       return out;
     })
     .catch(() => ({}));
-  reportMediaWordsLoading = Promise.all([read('/data/media/kinds.json', 'kinds', 'one'), read('/data/media/labels.json', 'labels', 'label')])
+  reportFilesWordsLoading = Promise.all([read('/data/files/kinds.json', 'kinds', 'one'), read('/data/files/labels.json', 'labels', 'label')])
     .then(([kinds, labels]) => {
-      reportMediaWordsLoading = null;
-      reportMediaWords = { kinds, labels };
+      reportFilesWordsLoading = null;
+      reportFilesWords = { kinds, labels };
       if (reportsView.open) renderReportsView();
-      return reportMediaWords;
+      return reportFilesWords;
     });
-  return reportMediaWordsLoading;
+  return reportFilesWordsLoading;
 }
 
 /** What the Reports view shows for one Media item of evidence (pure apart from the loaded names). */
-function reportMediaEvidenceView(ev) {
-  if (!reportMediaWords) loadReportMediaWords();
-  const w = reportMediaWords || { kinds: {}, labels: {} };
+function reportFilesEvidenceView(ev) {
+  if (!reportFilesWords) loadReportFilesWords();
+  const w = reportFilesWords || { kinds: {}, labels: {} };
   const visibility = ev.visibility === 'members' ? 'Members only' : ev.visibility === 'public' ? 'Public' : '';
   return {
     mediaTitle: ev.title || (ev.checked ? 'Untitled' : 'Item ' + (ev.mediaId == null ? '' : ev.mediaId + ' ') + 'on the Files page'),
@@ -808,7 +808,7 @@ function reportMediaEvidenceView(ev) {
       ev.labels.length ? 'Labels: ' + ev.labels.map((l) => w.labels[l] || l).join(', ') : '',
       visibility,
     ].filter(Boolean).join(' · '),
-    mediaHref: ev.mediaId == null ? '' : reportMediaHref(ev.mediaId),
+    mediaHref: ev.mediaId == null ? '' : reportFilesHref(ev.mediaId),
   };
 }
 
@@ -840,9 +840,9 @@ function reportsViewHtml(model) {
         + (ev.kind === 'media'
           // A Media item: its title, kind, labels and visibility, and Open, which loads it by its
           // number on the Media page (in a new tab, so this view stays as it is).
-          ? `<div class="report-media" style="margin-top:2px;"><div class="report-media-title" style="color:var(--text);font-weight:600;overflow-wrap:anywhere;">${repEsc(ev.mediaTitle)}</div>`
-            + (ev.mediaFacts ? `<div class="report-media-facts" style="color:var(--text-muted);font-size:var(--text-xs);">${repEsc(ev.mediaFacts)}</div>` : '')
-            + (ev.mediaHref ? `<a class="vr-btn report-media-open" data-report-media-open="${repEsc(String(ev.mediaId))}" href="${repEsc(ev.mediaHref)}" target="_blank" rel="noopener noreferrer" style="display:inline-block;margin-top:var(--space-xs);font-size:0.75rem;text-decoration:none;">Open</a>` : '')
+          ? `<div class="report-media" style="margin-top:2px;"><div class="report-files-title" style="color:var(--text);font-weight:600;overflow-wrap:anywhere;">${repEsc(ev.mediaTitle)}</div>`
+            + (ev.mediaFacts ? `<div class="report-files-facts" style="color:var(--text-muted);font-size:var(--text-xs);">${repEsc(ev.mediaFacts)}</div>` : '')
+            + (ev.mediaHref ? `<a class="vr-btn report-files-open" data-report-files-open="${repEsc(String(ev.mediaId))}" href="${repEsc(ev.mediaHref)}" target="_blank" rel="noopener noreferrer" style="display:inline-block;margin-top:var(--space-xs);font-size:0.75rem;text-decoration:none;">Open</a>` : '')
             + '</div></div>'
           : `<div style="color:var(--text);white-space:pre-wrap;overflow-wrap:anywhere;margin-top:2px;">${repEsc(ev.textLabel)}</div></div>`)).join('');
     } else {

@@ -129,7 +129,7 @@ pub(crate) fn open_for_dm(gs: &mut GuiState, peer: &str, pressed_ts: Option<u64>
 
 /// A Media tile's Report (2026-10-11, the relay's A5): about the person who put it there, with
 /// the item by its number as evidence, which the server looks up and keeps as a pointer.
-pub(crate) fn open_for_media(gs: &mut GuiState, item: &crate::gui::pages::media::api::Item) {
+pub(crate) fn open_for_media(gs: &mut GuiState, item: &crate::gui::pages::files::api::Item) {
     let target_name = if item.uploader_name.trim().is_empty() { crate::engine::dm::dm_display_name(gs, &item.uploader_key) } else { item.uploader_name.clone() };
     open(
         gs,

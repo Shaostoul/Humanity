@@ -204,13 +204,13 @@ pub struct RelayState {
     pub upload_tokens: RwLock<HashMap<String, String>>,
     /// Ten-minute tickets that each open one members-only Media file (R3-8, media_ticket.rs).
     /// In memory only.
-    pub media_tickets: crate::relay::media_ticket::Tickets,
+    pub media_tickets: crate::relay::files_ticket::Tickets,
     /// Who was counted today for each Media item's views and downloads, as keyed marks, in memory
     /// only (Media round 5, media_counts.rs).
-    pub media_marks: crate::relay::media_counts::Marks,
+    pub media_marks: crate::relay::files_counts::Marks,
     /// How many copyright reports came today from each address (as keyed marks) and from
     /// everyone, in memory only (media_takedown.rs).
-    pub media_takedowns: crate::relay::media_takedown::Limits,
+    pub media_takedowns: crate::relay::files_takedown::Limits,
     /// Tests only (R3-1): the Unix-ms clock the upload allowances read instead of the wall
     /// (`upload_now_ms`), so a test can carry an upload across midnight UTC. Never set in the product.
     #[cfg(test)]
@@ -1164,7 +1164,7 @@ pub enum RelayMessage {
         /// The fleet's supply, "unlimited" or "stocked" (2026-10-04, handlers/fleet_ledger.rs).
         #[serde(default)]
         fleet_supply_mode: Option<String>,
-        /// The Media page (2026-10-11, relay/media.rs): "public" or "members", its budget and
+        /// The Media page (2026-10-11, relay/files.rs): "public" or "members", its budget and
         /// each person's share in MB, and whether the public gets previews only.
         #[serde(default)]
         media_visibility: Option<String>,
@@ -1357,7 +1357,7 @@ pub enum RelayMessage {
         put_ref: Option<String>,
         /// A file pass the RECIPIENT gave the sender for a device-to-device transfer: lets the
         /// receiver's answer and cancel notes reach a sender who takes messages only from friends
-        /// (handlers/reach.rs `dm_gate`; media-showcase.md, the review's rule 4). Never stored.
+        /// (handlers/reach.rs `dm_gate`; files-showcase.md, the review's rule 4). Never stored.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         file_pass: Option<serde_json::Value>,
     },
@@ -1461,7 +1461,7 @@ pub enum RelayMessage {
         #[serde(default, skip_serializing_if = "Option::is_none")] friend_cert: Option<String>,
         /// On a `dc_offer`: the target's FILE PASS for the sender, the JSON object
         /// `{"v":1,"id","expiry","sig"}` (pq_crypto `verify_file_pass`; device-to-device big files,
-        /// docs/design/media-showcase.md): the receiver of a file dials its sender with it. Read by
+        /// docs/design/files-showcase.md): the receiver of a file dials its sender with it. Read by
         /// the relay (handlers/reach.rs `dc_offer_may_pass`), never forwarded.
         #[serde(default, skip_serializing_if = "Option::is_none")] file_pass: Option<serde_json::Value>,
         /// Relay to the target, on a `dc_offer` let through by a file pass: that transfer's id, so

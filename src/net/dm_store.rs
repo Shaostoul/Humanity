@@ -166,7 +166,7 @@ struct StoreBody {
     /// of the file's key (its `[[hum:file:v1]]` marker).
     #[serde(default)]
     scratchpad: Vec<ScratchNote>,
-    /// Device-to-device big files (docs/design/media-showcase.md, answer 10, 2026-10-11): every
+    /// Device-to-device big files (docs/design/files-showcase.md, answer 10, 2026-10-11): every
     /// transfer offered to or by this person on this server, oldest first, as this device knows it
     /// (net/file_offer.rs `OfferRecord`). The notes that bring them are read once from the mailbox,
     /// so this is the only copy: a transfer survives the app being closed as this record.

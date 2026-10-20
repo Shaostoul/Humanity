@@ -1,5 +1,5 @@
 // The web app removes hidden location and camera information from a file before it leaves the
-// device (web/shared/strip-metadata.js, 2026-10-11; docs/design/media-showcase.md, the
+// device (web/shared/strip-metadata.js, 2026-10-11; docs/design/files-showcase.md, the
 // operator's answers of 2026-10-11, answer 4), with the same rules and the same results as the
 // relay's own strips, which are the specification:
 //   src/relay/core/strip_metadata.rs        JPEG, PNG, WebP (GIF passed through)

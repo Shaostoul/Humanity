@@ -138,7 +138,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     }
     attach_step::draw(ctx, theme, state); // the picked file's attach step, until Send or Cancel
     attach_send::offer_drop(ctx, state); // files dropped on the window go here (gui/drop_files.rs)
-    crate::gui::pages::media::chat_card::apply(state); // what the Media cards asked last frame
+    crate::gui::pages::files::chat_card::apply(state); // what the Media cards asked last frame
     attach_send::next_queued(state); // then the next of several chosen together
 
     if std::mem::take(&mut state.pending_clipboard_paste) {
@@ -1436,11 +1436,11 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             }
                         }
                     }
-                    // Public files and Media items: a card each (chat/public_files.rs, media/chat_card.rs).
+                    // Public files and Media items: a card each (chat/public_files.rs, files/chat_card.rs).
                     public_files::draw_all(ui, theme, &mut state.image_cache, &mut state.chat_model_view, &mut state.chat_video, &posted.files, &msg.server, &state.server_url, row_bg);
-                    let (cards, needs) = crate::gui::pages::media::chat_card::views(state, &msg.sender_key, msg.timestamp_ms, &posted.items);
-                    state.media.card_acts.extend(needs);
-                    crate::gui::pages::media::chat_card::draw_all(ui, theme, &cards, row_bg, &mut state.media.card_acts);
+                    let (cards, needs) = crate::gui::pages::files::chat_card::views(state, &msg.sender_key, msg.timestamp_ms, &posted.items);
+                    state.files.card_acts.extend(needs);
+                    crate::gui::pages::files::chat_card::draw_all(ui, theme, &cards, row_bg, &mut state.files.card_acts);
                     // A private file (10k): its picture inline, or a card with Save.
                     if let Some(ref att) = enc_att {
                         let plan = attach_view::plan(state, msg, att);

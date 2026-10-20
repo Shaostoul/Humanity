@@ -113,7 +113,7 @@ pub(crate) fn rebuild_dm_sidebar(gui_state: &mut GuiState) {
             }
         })
         .collect();
-    // A file offered device to device by someone who never wrote a message here (media-showcase.md,
+    // A file offered device to device by someone who never wrote a message here (files-showcase.md,
     // answer 10): their conversation is listed too, since its top is where the question is asked.
     for r in store.file_offers().iter().filter(|r| !r.stage.ended()) {
         if rebuilt.iter().any(|d| d.user_key == r.peer) || crate::engine::block::is_blocked(gui_state, &r.peer) {
@@ -263,7 +263,7 @@ pub(crate) fn ingest_dm(gui_state: &mut GuiState, inner: &DmInner) -> bool {
     if crate::engine::reach::file_if_refused(gui_state, inner) {
         return false;
     }
-    // Device-to-device big files (media-showcase.md, answer 10): an offer, answer or cancel note is
+    // Device-to-device big files (files-showcase.md, answer 10): an offer, answer or cancel note is
     // applied and never shown. After the rule above, so an offer from someone our own message
     // setting refuses goes to Requests like any message from them.
     if crate::engine::file_transfer::screens_dm(gui_state, inner) {

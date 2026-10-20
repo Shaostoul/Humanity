@@ -284,7 +284,7 @@ impl Storage {
 
     /// The row number of `public_key`'s member row, if they are a member (R4-1, 2026-10-11): a
     /// ticket for a members-only Media file keeps this and a short fingerprint of the key, not the
-    /// key itself (relay/media_ticket.rs). The row is made once, by `INSERT OR IGNORE`, so its
+    /// key itself (relay/files_ticket.rs). The row is made once, by `INSERT OR IGNORE`, so its
     /// number lasts as long as the membership.
     pub fn member_row(&self, public_key: &str) -> Option<i64> {
         self.with_conn(|conn| {

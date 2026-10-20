@@ -253,7 +253,7 @@ pub fn encrypt_attachment(bytes: &[u8]) -> Result<(Vec<u8>, String, String), Str
 
 /// [`encrypt_attachment`] in the file's own buffer: `buf` holds the file and becomes its
 /// ciphertext (the same bytes [`encrypt_attachment`] makes), so a large file is never held twice
-/// (round 3 of docs/design/media-showcase.md, the review's finding 8: sending a 1 GB private file
+/// (round 3 of docs/design/files-showcase.md, the review's finding 8: sending a 1 GB private file
 /// held its plaintext, its ciphertext and the upload's copy, about 3 GB, at once). The 16 bytes of
 /// the tag are reserved first, so the buffer is not moved. Returns `(key_b64, nonce_b64)`.
 pub fn encrypt_attachment_in_place(buf: &mut Vec<u8>) -> Result<(String, String), String> {
@@ -297,7 +297,7 @@ pub fn parse_file_marker(text: &str) -> Option<DmAttachment> {
 }
 
 /// The FILE_MARKER for a file the sender's app could not check for hidden location and sent
-/// anyway (docs/design/media-showcase.md, the files section, part 2; the operator's answer 5): the
+/// anyway (docs/design/files-showcase.md, the files section, part 2; the operator's answer 5): the
 /// same fields in the same order, then `"unchecked": true`, which the recipient's app shows as one
 /// line under the file. Both apps write and read this field (the web's `pqBuildFileMarker`); the
 /// shared fixture is scripts/tests/fixtures/file-marker-unchecked.json. A marker without it (every marker

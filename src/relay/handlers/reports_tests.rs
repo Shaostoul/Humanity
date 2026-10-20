@@ -708,7 +708,7 @@ fn a_report_about_a_staff_member_never_reaches_them() {
 /// reported person's own item is checked / left: Some(false) / right: Some(true)".
 #[test]
 fn a_media_item_is_reported_as_a_pointer() {
-    use crate::relay::storage::media::{Publish, MEDIA_SHELF};
+    use crate::relay::storage::files::{Publish, MEDIA_SHELF};
     let st = fresh_state("media");
     let (rae, tom, xan, mo) = (person(1), person(2), person(3), person(4));
     st.db.set_role(&mo.key, "mod").unwrap();
@@ -738,7 +738,7 @@ fn a_media_item_is_reported_as_a_pointer() {
     assert_eq!(items[0]["labels"], serde_json::json!(["flashing"]));
     assert_eq!(items[0]["title"], "Look [a link to bad.example, not shown]");
     let kept = serde_json::to_string(&items[0]).unwrap();
-    assert!(!kept.contains("1_his.mp4") && !kept.contains("/uploads/") && !kept.contains("/api/media/file"), "never the file nor its address: {kept}");
+    assert!(!kept.contains("1_his.mp4") && !kept.contains("/uploads/") && !kept.contains("/api/files/file"), "never the file nor its address: {kept}");
     for (n, item) in items.iter().enumerate().skip(1) {
         assert_eq!(item["checked"].as_bool(), Some(false), "item {n}");
         assert!(item.get("title").is_none() && item.get("uploader").is_none(), "nothing about it: {item}");

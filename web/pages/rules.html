@@ -38,7 +38,7 @@
     .scroll-x { overflow-x: auto; }
     .updated { color: var(--text-muted); font-size: 0.85rem; }
     .rules-wrap a { color: var(--accent); }
-    /* The public takedown log (2026-10-13), drawn by /pages/media-takedown.js. */
+    /* The public takedown log (2026-10-13), drawn by /pages/files-takedown.js. */
     .takedown-log-list { list-style: none; padding-left: 0; }
     .takedown-log-row {
       border: 1px solid var(--border); border-radius: var(--radius, 8px); background: var(--bg-card);
@@ -82,7 +82,7 @@
   <div class="rule"><b>6. Build rather than burn.</b>
     <span>Constructive criticism is welcome and wanted. Wrecking things for its own sake is not.</span></div>
   <!-- Rule 7 is the hosting paragraph the operator approved on 2026-10-12
-       (docs/design/media-round-5-plan.md section 10). The same words are data/media/licences.json
+       (docs/design/media-round-5-plan.md section 10). The same words are data/files/licences.json
        `hosting`, which both apps show beside Add to Files; keep the two identical. -->
   <div class="rule" id="uploads"><b>7. Your uploads stay yours.</b>
     <span>When you put a file on this server, you keep every right you have in it. You give the people who run this server, and anyone who runs it after them, a free, non-exclusive permission to store your file, keep backup copies, make previews and smaller copies of it, and show it and offer it for download to the people you chose (everyone, or this server's members), on this server only, for as long as you leave it here. When you remove the file or your account, the permission ends, apart from backup copies, which age out on the server's own schedule. This permission lets no one else use your file: what others may do with it is set by the licence you chose. Only upload what you have the right to share.</span></div>
@@ -157,10 +157,10 @@
     was put here without your permission, tell us. An admin will look at it and can take it down.
   </p>
   <ul>
-    <li><strong>Anyone, signed in or not:</strong> open the item on the <a href="/media">Files page</a>
+    <li><strong>Anyone, signed in or not:</strong> open the item on the <a href="/files">Files page</a>
       and press <strong>Report a copyright problem</strong> (the same button is at the foot of the
       Files page, where you give the item's number or its address, which looks like
-      <code>united-humanity.us/media/12</code>). Say why the work is yours and tick the box. Your name
+      <code>united-humanity.us/files/12</code>). Say why the work is yours and tick the box. Your name
       and how to reach you are optional, and only this server's admins see them. The admins are told
       inside HumanityOS.</li>
     <li><strong>If you are a member here,</strong> you can also open the item and choose Report, with
@@ -262,8 +262,8 @@
   </p>
 
 </div>
-<!-- The public takedown log above (#takedown-log): read from GET /api/media/takedowns and drawn
+<!-- The public takedown log above (#takedown-log): read from GET /api/files/takedowns and drawn
      with textContent only. -->
-<script src="/pages/media-takedown.js?v=1"></script>
+<script src="/pages/files-takedown.js?v=1"></script>
 </body>
 </html>

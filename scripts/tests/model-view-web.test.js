@@ -36,7 +36,7 @@ const path = require("node:path");
 const ROOT = path.join(__dirname, "..", "..");
 const WEB = process.env.HOS_WEB_DIR || path.join(ROOT, "web");
 const MV = require(path.join(WEB, "shared", "model-view.js"));
-const { fakeDocument } = require("./media-web-harness.js");
+const { fakeDocument } = require("./files-web-harness.js");
 
 const FIX = path.join(ROOT, "scripts", "tests", "fixtures");
 /** A fixture's bytes as an ArrayBuffer of its own (what a fetch answers). */

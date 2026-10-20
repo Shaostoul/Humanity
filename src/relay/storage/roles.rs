@@ -69,7 +69,7 @@ pub struct RoleDef {
     #[serde(default)]
     pub can_edit_ship: bool,
     /// The largest single Media file this role may send, in MB, whichever way it is sent (one
-    /// request or a resumable upload; docs/design/media-showcase.md, follow-up B1, 2026-10-11).
+    /// request or a resumable upload; docs/design/files-showcase.md, follow-up B1, 2026-10-11).
     /// 0 means "up to the person's Media share", the default for every role. Kept between 0 and
     /// [`MEDIA_FILE_MB_MAX`] when saved.
     #[serde(default = "limit_not_sent")]
@@ -95,7 +95,7 @@ pub struct RoleDef {
     #[serde(default = "limit_not_sent")]
     pub max_private_held_mb: i64,
     /// How much this role's holder may send through the server's call forwarder in a day, in MB,
-    /// when a big file goes from one device to another (docs/design/media-showcase.md,
+    /// when a big file goes from one device to another (docs/design/files-showcase.md,
     /// "Device-to-device big files: the shapes, exact", part 2): counted by the forwarder over the
     /// UTC day, never stored. 0 means no limit, the built-in Admin role's default; every other
     /// built-in role starts at 2048. Kept between 0 and [`FORWARDED_MB_PER_DAY_MAX`] when saved.
@@ -857,7 +857,7 @@ mod tests {
     }
 
     /// THE FORWARDED DAY ROUND-TRIPS, IS HELD TO ITS RANGE, AND SURVIVES AN OLDER APP'S SAVE
-    /// (device-to-device big files, docs/design/media-showcase.md, the shapes part 2). A fresh
+    /// (device-to-device big files, docs/design/files-showcase.md, the shapes part 2). A fresh
     /// server seeds Admin 0 (no limit) and every other built-in 2048. A custom role's value is
     /// read back by `role_def` and `list_roles` (the appended ?22 and get(21)), and changed on the
     /// ON CONFLICT path; below 0 is held to 0, past the ceiling to the ceiling. An app from before

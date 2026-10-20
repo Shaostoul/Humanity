@@ -123,10 +123,10 @@ impl Storage {
             // kind of contact. A kind with no row is at its default, which is not stored.
             grab("reach_settings", "SELECT kind, audience FROM reach_settings WHERE public_key = ?1 ORDER BY kind ASC", &[&key]);
             // Their Media page items, their picks of other people's items, and the categories they
-            // suggested (2026-10-11, storage/media.rs). The files are in `uploads` above.
+            // suggested (2026-10-11, storage/files.rs). The files are in `uploads` above.
             grab("media_items", "SELECT id, upload_filename, title, description, category_id, kind, labels, visibility, featured, size_bytes, views, created_at, from_shelf, licence, project_use, downloads FROM media_items WHERE uploader_key = ?1 ORDER BY id ASC", &[&key]);
             // Their items' other files and covers, and every licence choice they signed, with the
-            // signature (Media round 5, 2026-10-12, storage/media_files.rs).
+            // signature (Media round 5, 2026-10-12, storage/files_items.rs).
             grab("media_item_files", "SELECT f.id, f.item_id, f.upload_filename, f.role, f.position, f.added_at FROM media_item_files f WHERE f.item_id IN (SELECT id FROM media_items WHERE uploader_key = ?1) ORDER BY f.id ASC", &[&key]);
             grab("media_licence_log", "SELECT item_id, licence, project_use, signed_purpose, signed_body, signed_ts, signature, set_at FROM media_licence_log WHERE set_by = ?1 ORDER BY id ASC", &[&key]);
             grab("media_picks", "SELECT item_id, picked_at FROM media_picks WHERE picker_key = ?1 ORDER BY picked_at ASC", &[&key]);
@@ -208,13 +208,13 @@ impl Storage {
     /// leaves is cut off from the key (`erase_left_rows`). The caller
     /// broadcasts roster updates + closes the socket afterwards.
     pub fn delete_account(&self, key: &str, name: &str) -> Vec<(String, usize)> {
-        self.delete_account_in(key, name, super::media::Folders::live())
+        self.delete_account_in(key, name, super::files::Folders::live())
     }
 
     /// [`Self::delete_account`] with the upload folders named (the public one and the Media
-    /// page's members-only one, storage/media.rs `Folders`), so a test can erase files in
+    /// page's members-only one, storage/files.rs `Folders`), so a test can erase files in
     /// folders of its own (2026-10-11) rather than in the checkout's data folder.
-    pub fn delete_account_in(&self, key: &str, name: &str, folders: super::media::Folders) -> Vec<(String, usize)> {
+    pub fn delete_account_in(&self, key: &str, name: &str, folders: super::files::Folders) -> Vec<(String, usize)> {
         // Upload files first (need the rows to find the paths).
         let upload_files: Vec<String> = self
             .with_read_conn(|conn| {
@@ -319,7 +319,7 @@ impl Storage {
             del("fleet_ledger", "DELETE FROM fleet_ledger WHERE public_key = ?1", &[&key]);
             // Who can reach them (2026-10-09, storage/reach.rs).
             del("reach_settings", "DELETE FROM reach_settings WHERE public_key = ?1", &[&key]);
-            // Their Media page items (2026-10-11, storage/media.rs): every pick of them first
+            // Their Media page items (2026-10-11, storage/files.rs): every pick of them first
             // (a pick is a reference, so it goes with the item), then the items, their own picks
             // and their suggestions. The items' files went with `uploads` above.
             del("media_picks_of_their_items", "DELETE FROM media_picks WHERE item_id IN (SELECT id FROM media_items WHERE uploader_key = ?1)", &[&key]);
@@ -802,7 +802,7 @@ mod tests {
     /// so it normalised nothing and, on a CRLF checkout (the operator's), panicked at its find of
     /// the closing brace: "called `Option::unwrap()` on a `None` value" (run 2026-10-04 on a CRLF
     /// copy of this file); this test passes on a CRLF copy.
-    /// THE MEDIA PAGE IN THE EXPORT AND THE ERASE (2026-10-11, storage/media.rs): the export
+    /// THE MEDIA PAGE IN THE EXPORT AND THE ERASE (2026-10-11, storage/files.rs): the export
     /// lists a person's items, their picks and their category suggestions; the erase takes them
     /// all, the items' files (a members-only item's from the members-only folder too), and other
     /// people's picks of their items (a pick is a reference), and leaves other people's items and
@@ -819,7 +819,7 @@ mod tests {
     /// left: 1 / right: 0".
     #[test]
     fn the_media_page_is_exported_and_erased_with_its_files() {
-        use crate::relay::storage::media::{Folders, Publish};
+        use crate::relay::storage::files::{Folders, Publish};
         let db = test_storage();
         let uploads = crate::test_temp::dir("account_media_uploads");
         let members = crate::test_temp::dir("account_media_members");
@@ -832,8 +832,8 @@ mod tests {
             let folder = if visibility == "public" { &uploads } else { &members };
             std::fs::write(folder.join(file), b"picture").unwrap();
             // A members-only item has to be uploaded for Media (shelf 2): a chat upload is already
-            // public, so it can go on Media as public only (storage::media::was_public).
-            let shelf = if visibility == "public" { 0i64 } else { crate::relay::storage::media::MEDIA_SHELF };
+            // public, so it can go on Media as public only (storage::files::was_public).
+            let shelf = if visibility == "public" { 0i64 } else { crate::relay::storage::files::MEDIA_SHELF };
             db.record_upload(key, file, 100, shelf, file, 7).unwrap();
             db.publish_media(key, &Publish { filename: file, visibility, ..Default::default() }, 1 << 40, 1 << 40, None).unwrap()
         };
@@ -845,11 +845,11 @@ mod tests {
         db.suggest_media_category("ann_key", "Fire flow arts", "").unwrap();
         // Round 5: a file added to her item, and a licence choice she signed.
         std::fs::write(waiting.join("4_ann_extra.zip"), b"extra").unwrap();
-        db.record_upload("ann_key", "4_ann_extra.zip", 100, crate::relay::storage::media::MEDIA_SHELF, "extra.zip", 5).unwrap();
-        db.attach_media_file("ann_key", ann_item.id, "4_ann_extra.zip", crate::relay::storage::media::ROLE_FILE, 0, |m| folders.place("4_ann_extra.zip", m))
+        db.record_upload("ann_key", "4_ann_extra.zip", 100, crate::relay::storage::files::MEDIA_SHELF, "extra.zip", 5).unwrap();
+        db.attach_media_file("ann_key", ann_item.id, "4_ann_extra.zip", crate::relay::storage::files::ROLE_FILE, 0, |m| folders.place("4_ann_extra.zip", m))
             .unwrap();
-        let edit = crate::relay::storage::media::Edit { title: "", description: "", category_id: 1, labels: "", licence: "cc0_1", project_use: true };
-        let signed = crate::relay::storage::media::Signed { key: "ann_key", purpose: "media_edit:1:00", body: "{}", ts: 1, sig: "sig" };
+        let edit = crate::relay::storage::files::Edit { title: "", description: "", category_id: 1, labels: "", licence: "cc0_1", project_use: true };
+        let signed = crate::relay::storage::files::Signed { key: "ann_key", purpose: "media_edit:1:00", body: "{}", ts: 1, sig: "sig" };
         db.edit_media("ann_key", false, ann_item.id, &edit, &signed).unwrap();
 
         let export = db.export_account("ann_key", "Ann");

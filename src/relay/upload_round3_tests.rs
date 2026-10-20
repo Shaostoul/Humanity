@@ -1,5 +1,5 @@
 //! A single request's day and hour allowances, round 3 (R3-1, 2026-10-11; docs/design/
-//! media-showcase.md, "Round 3: fixes from the round 2 review"). The allowances were checked when
+//! files-showcase.md, "Round 3: fixes from the round 2 review"). The allowances were checked when
 //! a request started and counted after its file was stored, back on the async side: requests sent
 //! at once all passed on one allowance, a connection closed during the store left its file stored
 //! and never counted, and an upload that crossed midnight UTC counted in the day it started. They
@@ -12,7 +12,7 @@
 
 use super::*;
 use crate::relay::api::{upload_file_in, UploadQuery};
-use crate::relay::media::{self, Folders};
+use crate::relay::files::{self, Folders};
 use crate::relay::storage::upload_counts::{Span, DAY_MS};
 use axum::extract::FromRequest;
 use std::sync::Arc;
@@ -131,7 +131,7 @@ async fn a_connection_closed_during_the_store_still_counts_its_file() {
     let state = relay("r31_drop");
     let d = dirs("r31_drop");
     uploader(&state, "ann", "tok_ann", |r| r.max_upload_mb_per_day = 100).await;
-    let gate = media::hold::gate("held-r31-drop.mp4");
+    let gate = files::hold::gate("held-r31-drop.mp4");
     {
         let mut request = Box::pin(send(&state, &d, "tok_ann", "held-r31-drop.mp4", MIB as usize));
         let mut held = false;

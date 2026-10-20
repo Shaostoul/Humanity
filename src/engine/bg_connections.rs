@@ -367,7 +367,7 @@ fn bg_screen(gs: &mut GuiState, store: &mut crate::net::dm_store::DmStore, inner
     if crate::engine::reach::file_if_refused_in(store, inner) {
         return true;
     }
-    // A file offer, answer or cancel (media-showcase.md, answer 10) goes into that server's records.
+    // A file offer, answer or cancel (files-showcase.md, answer 10) goes into that server's records.
     crate::engine::file_transfer::screens_dm_parked(gs, store, inner)
 }
 

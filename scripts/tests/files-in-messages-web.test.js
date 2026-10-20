@@ -1,4 +1,4 @@
-// Files in messages, the rules (2026-10-11, docs/design/media-showcase.md, "Files on the sender's
+// Files in messages, the rules (2026-10-11, docs/design/files-showcase.md, "Files on the sender's
 // device and in messages, exact", part 3; the operator's answer 6): web/shared/files-in-messages.js.
 // The chat's use of them (the cards, Accept, the Safety section, the attach button, the profile
 // field, the sender's line) is in private-files-web.test.js.
@@ -28,7 +28,7 @@ const ROOT = path.join(__dirname, "..", "..");
 const WEB = process.env.HOS_WEB_DIR || path.join(ROOT, "web");
 const F = require(path.join(WEB, "shared", "files-in-messages.js"));
 
-const SPEC = fs.readFileSync(path.join(ROOT, "docs", "design", "media-showcase.md"), "utf8");
+const SPEC = fs.readFileSync(path.join(ROOT, "docs", "design", "files-showcase.md"), "utf8");
 const SECTION = SPEC.slice(SPEC.indexOf("## Files on the sender's device and in messages, exact")).replace(/\s+/g, " ");
 
 function storage(init) {

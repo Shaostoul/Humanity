@@ -1,5 +1,5 @@
 // Child of chat/attach_view.rs (#[path]): the files section's receiving side (2026-10-11,
-// docs/design/media-showcase.md): the recipient's line under a file its sender could not check
+// docs/design/files-showcase.md): the recipient's line under a file its sender could not check
 // (part 2), and an opened private file kept on this device so it opens after the server's copy is
 // gone (part 4). The network is a function handing back the ciphertext, or failing as a server
 // that removed the file would.

@@ -441,7 +441,7 @@ fn dc_ice_from(from: &str, line: &str) -> Value {
     json!({ "type": "webrtc_signal", "from": from, "signal_type": "dc_ice", "data": json!({ "candidate": line, "sdpMid": "0", "sdpMLineIndex": 0 }).to_string() })
 }
 
-/// RULE 4 OF THE FIRST REVIEW (media-showcase.md): the receiver's answer (yes or no) and its cancel
+/// RULE 4 OF THE FIRST REVIEW (files-showcase.md): the receiver's answer (yes or no) and its cancel
 /// go with the offer's file pass on the `dm_put` to the sender (`file_pass`, the same object the
 /// offer carried), so the relay lets them through to a sender who takes messages only from
 /// friends; the self-copies carry none, and neither do the sender's own notes (the pass names the

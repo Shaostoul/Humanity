@@ -1,6 +1,6 @@
 //! The rules every upload is held to, in one place (2026-10-11). Two routes take files: the single
 //! request, `POST /api/upload` (api.rs `upload_file`), and the resumable upload, which sends a big
-//! Media file in pieces (relay/resumable.rs; docs/design/media-showcase.md, "Resumable uploads,
+//! Media file in pieces (relay/resumable.rs; docs/design/files-showcase.md, "Resumable uploads,
 //! exact"). Both call these functions, so a rule changed here changes for both, and a file one
 //! route refuses cannot be slipped in through the other.
 //!
@@ -349,7 +349,7 @@ pub(crate) fn picture_is_what_it_says(picture: &str, data: &[u8]) -> Result<(), 
 pub(crate) const VIDEO_UNREADABLE: &str = "This video could not be read all the way through, so where it was filmed could not be removed from it, and it was not stored. Save it again from your phone or video editor and send that copy.";
 
 /// The answer to a stored upload, from either route: `{url, filename, size, type}`. The apps
-/// publish a Media upload with `POST /api/media` from it, whichever way the file came. For a Media
+/// publish a Media upload with `POST /api/files` from it, whichever way the file came. For a Media
 /// upload the `url` is where the file will be once it is published as public: until then it
 /// waits in a folder nothing serves (R6).
 pub(crate) fn upload_answer(stored_name: &str, size: u64, file_type: &str) -> serde_json::Value {
@@ -504,7 +504,7 @@ impl FileLimit {
         }
         let general = FileLimit { bytes: super::upload_limits::role_upload_limit(role), refusal: None };
         match media_file_limit(role) {
-            Some(bytes) if shelf == crate::relay::storage::media::MEDIA_SHELF => {
+            Some(bytes) if shelf == crate::relay::storage::files::MEDIA_SHELF => {
                 general.tighter(FileLimit { bytes, refusal: Some(media_file_too_large(role)) })
             }
             _ => general,
@@ -609,7 +609,7 @@ fn over_the_day(role: &RoleDef, used: i64, now_ms: i64, adding: &str) -> OverAll
         words: format!(
             "Your role may upload {} MB a day on this server, and you have uploaded {} today{adding}. The allowance resets at midnight UTC, {}.",
             role.max_upload_mb_per_day,
-            crate::relay::storage::media::mb(used),
+            crate::relay::storage::files::mb(used),
             in_words(now_ms, resets_at)
         ),
         span: Span::Day,

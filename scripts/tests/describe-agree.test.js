@@ -1,5 +1,5 @@
 // The attach step's words about a file's hidden information must be the same in both apps
-// (docs/design/media-showcase.md, "Files on the sender's device and in messages, exact", part 1):
+// (docs/design/files-showcase.md, "Files on the sender's device and in messages, exact", part 1):
 // "This photo says where it was taken and which camera took it." The web says it with
 // `HosStrip.describe` (web/shared/strip-metadata.js); the desktop with the Rust port of it,
 // src/relay/core/describe_metadata.rs. This holds them together two ways:

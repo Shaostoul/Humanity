@@ -167,22 +167,22 @@ const PARITY_PAIRS: &[ParityPair] = &[
             ("web/pages/donate-app.js", "loadList('/data/donate/charities.json', 'charities')"),
         ],
     },
-    // Media: the kinds of item (pictures, videos, models, files), their names and marks. Both
-    // apps read data/media/kinds.json (2026-10-11, docs/design/media-showcase.md follow-up A6):
+    // Files (the Media page until 2026-10-19): the kinds of item (pictures, videos, models, files), their names and marks. Both
+    // apps read data/files/kinds.json (2026-10-11, docs/design/files-showcase.md follow-up A6):
     // the desktop through kinds.rs, the web page by fetching it. Until then the web page carried
     // its own word list. Seen red 2026-10-11 in a scratch copy with the web page's fetch line taken
     // out (the mention in its KINDS_URL constant stayed): "Media (kinds): web/pages/media-app.js no
     // longer reads `media/kinds.json` (expected a line with `const res = await env.fetch(KINDS_URL);`)".
     ParityPair {
-        page: "Media (kinds)",
-        native: &["src/gui/pages/media/kinds.rs"],
-        web: &["web/pages/media-app.js"],
-        data_file: "media/kinds.json",
+        page: "Files (kinds)",
+        native: &["src/gui/pages/files/kinds.rs"],
+        web: &["web/pages/files-app.js"],
+        data_file: "files/kinds.json",
         reads: &[
-            ("src/gui/pages/media/kinds.rs", "pub const KINDS_FILE: &str = \"media/kinds.json\";"),
-            ("src/gui/pages/media/kinds.rs", "crate::data_dir().join(KINDS_FILE)"),
-            ("web/pages/media-app.js", "const KINDS_URL = '/data/media/kinds.json';"),
-            ("web/pages/media-app.js", "const res = await env.fetch(KINDS_URL);"),
+            ("src/gui/pages/files/kinds.rs", "pub const KINDS_FILE: &str = \"files/kinds.json\";"),
+            ("src/gui/pages/files/kinds.rs", "crate::data_dir().join(KINDS_FILE)"),
+            ("web/pages/files-app.js", "const KINDS_URL = '/data/files/kinds.json';"),
+            ("web/pages/files-app.js", "const res = await env.fetch(KINDS_URL);"),
         ],
     },
     ParityPair {

@@ -842,7 +842,7 @@ impl Storage {
             "ALTER TABLE profiles ADD COLUMN website     TEXT NOT NULL DEFAULT ''",
             // privacy is a JSON map: {"location":"private", ...}  — default = all public.
             "ALTER TABLE profiles ADD COLUMN privacy     TEXT NOT NULL DEFAULT '{}'",
-            // Who the person accepts files in messages from (2026-10-11, media-showcase.md
+            // Who the person accepts files in messages from (2026-10-11, files-showcase.md
             // "Files on the sender's device and in messages"): "nobody", "friends" or "anyone",
             // published so a sender's app can say so first. Only ever ALTER-added (BUG-046);
             // storage/profile.rs `ACCEPTS_FILES_WORDS`.
@@ -1298,7 +1298,7 @@ impl Storage {
             info!("Migration: added fleet_supply_mode (server_settings)");
         }
 
-        // Guarded ALTERs (the Media page, 2026-10-11; docs/design/media-showcase.md): who sees it,
+        // Guarded ALTERs (the Media page, 2026-10-11; docs/design/files-showcase.md): who sees it,
         // its storage budget, each person's share of it, and whether the public gets previews
         // only. No index or trigger reads these columns (BUG-046); each DEFAULT is the CREATE
         // TABLE's, and `ServerSettings::default()` matches it (storage/server_settings.rs
@@ -1400,8 +1400,8 @@ impl Storage {
             CREATE INDEX IF NOT EXISTS idx_reports_v2_decided ON reports_v2(decided_at);"
         )?;
 
-        // The Media page (2026-10-11, storage/media.rs and relay/media.rs; docs/design/
-        // media-showcase.md "Increment 1, exact"): the items people published from their own
+        // The Media page (2026-10-11, storage/files.rs and relay/files.rs; docs/design/
+        // files-showcase.md "Increment 1, exact"): the items people published from their own
         // uploads, the server's categories (row 1 is General, never removed, because a removed
         // category's items move to it; seeded here, and put back if it is ever missing), the
         // categories members suggested, and each person's picks. New tables in a batch of their
@@ -1462,7 +1462,7 @@ impl Storage {
             CREATE INDEX IF NOT EXISTS idx_media_picks_item ON media_picks(item_id);"
         )?;
 
-        // Media round 5 (2026-10-12, storage/media_files.rs; docs/design/media-round-5-plan.md
+        // Media round 5 (2026-10-12, storage/files_items.rs; docs/design/media-round-5-plan.md
         // 3.1 and 10): an item's licence, whether its uploader offered it for the game
         // (`project_use`, off; only under CC0 or CC BY 4.0), and how many people downloaded it. `media_items` has shipped since
         // v0.1485.0, so live databases already hold it: these are guarded ALTERs, and they are
@@ -1549,7 +1549,7 @@ impl Storage {
         )?;
 
         // Resumable uploads (2026-10-11, storage/upload_sessions.rs and relay/resumable.rs; docs/
-        // design/media-showcase.md "Resumable uploads, exact"): one row per big Media file being
+        // design/files-showcase.md "Resumable uploads, exact"): one row per big Media file being
         // sent in pieces, until it is whole and stored (or cancelled, or idle for a day). `id` is
         // 32 random hex characters and names the pieces' file, `data/uploads-resume/<id>.part`;
         // `offset` is how many bytes of it are safely on disk; `size` what the file will be;
@@ -1782,7 +1782,7 @@ impl Storage {
             info!("Migration: added can_edit_ship (roles); the built-in Admin role has it");
         }
 
-        // ── 2026-10-11: four upload limits per role (docs/design/media-showcase.md, follow-ups
+        // ── 2026-10-11: four upload limits per role (docs/design/files-showcase.md, follow-ups
         // B1 to B3; storage/roles.rs) ──
         // `max_media_file_mb` (the largest Media file, 0 = up to the person's Media share),
         // `max_private_file_mb` (the largest file in a DM or a group, 6 as both apps used),
@@ -1812,7 +1812,7 @@ impl Storage {
         }
 
         // ── 2026-10-11: what each role may send through the call forwarder a day ──
-        // `max_forwarded_mb_per_day` (docs/design/media-showcase.md, "Device-to-device big files:
+        // `max_forwarded_mb_per_day` (docs/design/files-showcase.md, "Device-to-device big files:
         // the shapes, exact", part 2; storage/roles.rs): MB a day one person's big files sent
         // device to device may pass through the server's call forwarder, counted there in memory.
         // 0 = no limit. Given by tier once, with the column, in one transaction: Admin (and any
@@ -2900,7 +2900,9 @@ mod notification_prefs;
 mod trading;
 mod vault_sync;
 mod civilization;
-pub mod files;
+/// The data/ folder's text files for the data-file routes (/api/data-files: called /api/files and
+/// storage::files until 2026-10-19, when Files became the page people put their files on).
+pub mod data_files;
 mod bugs;
 mod guilds;
 mod reputation;
@@ -2921,8 +2923,8 @@ mod reach;
 pub mod reports;
 // Copyright reports about Media items and the public takedown log (2026-10-13).
 pub mod takedowns;
-// The Media page (2026-10-11, docs/design/media-showcase.md): items, categories, suggestions, picks.
-pub mod media;
+// The Media page (2026-10-11, docs/design/files-showcase.md): items, categories, suggestions, picks.
+pub mod files;
 /// Resumable uploads' sessions (2026-10-11): a big Media file sent in pieces. Routes in relay/resumable.rs.
 pub mod upload_sessions;
 /// Each person's upload allowance used in the current day and hour (B3, 2026-10-11).

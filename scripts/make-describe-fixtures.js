@@ -6,7 +6,7 @@
 // Both apps' tests read them: the desktop's Rust describe (src/relay/core/describe_metadata.rs,
 // its tests) must give these answers, and so must the web's (scripts/tests/describe-agree.test.js),
 // so the attach step says the same words about the same file in both apps
-// (docs/design/media-showcase.md, "Files on the sender's device and in messages, exact").
+// (docs/design/files-showcase.md, "Files on the sender's device and in messages, exact").
 //
 // Run it again only when the web's describe changes on purpose:  node scripts/make-describe-fixtures.js
 

@@ -403,7 +403,7 @@ impl Item {
 /// the file nor its address: the item's number, its uploader, its title (links and file
 /// addresses in it replaced by a note, as a post's text is), its kind (`media_kind`: picture,
 /// video, model or file), its labels and its visibility. A report hands the admins a pointer, not
-/// a copy; the Reports page opens the item by its number (`GET /api/media?id=`, the members' view
+/// a copy; the Reports page opens the item by its number (`GET /api/files?id=`, the members' view
 /// for a members-only one). An item that does not exist, or someone else's, is kept with
 /// `checked: false` and nothing about it. Nothing here names the reporter, so moderators are sent
 /// it as admins are. A members-only item is reportable by members, and every reporter is one:

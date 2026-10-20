@@ -1,5 +1,5 @@
 //! Resumable uploads (relay/resumable.rs, storage/upload_sessions.rs): the proof the design asks
-//! for (docs/design/media-showcase.md, "Resumable uploads, exact"). Each test names the break it
+//! for (docs/design/files-showcase.md, "Resumable uploads, exact"). Each test names the break it
 //! was seen failing against ("Seen red"), with the words it failed with.
 //!
 //! No socket and no relay process: the routes' `*_core` functions are called on a relay state
@@ -7,7 +7,7 @@
 //! checkout's data folder.
 
 use super::*;
-use crate::relay::storage::media::MEDIA_SHELF;
+use crate::relay::storage::files::MEDIA_SHELF;
 use crate::relay::storage::{ServerSettings, Storage};
 use crate::test_temp::TempPath;
 use std::path::PathBuf;
@@ -620,7 +620,7 @@ fn the_relay_wires_the_routes_the_start_up_check_and_the_piece_limit() {
     // files are put back (storage/upload_sessions.rs).
     let check = run.find("settle_uploads_at_start(").expect("the start-up check runs in run_relay");
     assert!(check > clear && check - clear < 1500, "the start-up check runs where the part files are cleared");
-    assert_ne!(crate::relay::upload_limits::UPLOAD_PART_DIR, crate::relay::storage::media::RESUME_DIR, "clearing the part files never touches the sessions' pieces");
+    assert_ne!(crate::relay::upload_limits::UPLOAD_PART_DIR, crate::relay::storage::files::RESUME_DIR, "clearing the part files never touches the sessions' pieces");
     assert!(PIECE_BODY_LIMIT > CHUNK_MAX && PIECE_BODY_LIMIT < 2 * CHUNK_MAX);
     use crate::relay::features::{route_feature, Feature};
     assert_eq!(route_feature("/api/upload/resumable"), Some(Feature::Uploads));

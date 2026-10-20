@@ -148,9 +148,9 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                 let studio_items = [
                     NavItem { label: "Studio", page: GuiPage::Studio, description: "" },
                     NavItem { label: "Watch", page: GuiPage::Watch, description: "" },
-                    // The Files page beside Watch (docs/design/media-showcase.md, increment 2; called
-                    // Media until 2026-10-19, still GuiPage::Media in code).
-                    NavItem { label: "Files", page: GuiPage::Media, description: "" },
+                    // The Files page beside Watch (docs/design/files-showcase.md, increment 2; called
+                    // Media until 2026-10-19, still GuiPage::Files in code).
+                    NavItem { label: "Files", page: GuiPage::Files, description: "" },
                 ];
                 nav_group(ui, &studio_items, theme.nav_legacy_red(), text_muted, theme, state);
 

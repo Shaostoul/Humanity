@@ -12,7 +12,7 @@ pub mod help_modal;
 pub mod passphrase_modal;
 pub mod image_cache;
 pub mod image_cache_view;
-/// Files written a piece at a time get their real name only when complete (media-showcase round 3).
+/// Files written a piece at a time get their real name only when complete (files-showcase round 3).
 pub mod part_file;
 pub mod form_row;
 pub mod alert;

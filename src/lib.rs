@@ -15203,7 +15203,7 @@ mod native_app {
                                 // Files dropped on the window this frame, held for whichever page or
                                 // window takes them (gui/drop_files.rs; routed at the frame's end).
                                 crate::gui::drop_files::begin_frame(ctx);
-                                crate::gui::pages::media::offer_drop_anywhere(ctx, &state.gui_state);
+                                crate::gui::pages::files::offer_drop_anywhere(ctx, &state.gui_state);
                                 // Show RGB nav bar on all pages except None and MainMenu
                                 match state.gui_state.active_page {
                                     GuiPage::None | GuiPage::MainMenu => {}
@@ -15235,7 +15235,7 @@ mod native_app {
                                 // Drain any freshly-decoded chat images into egui textures.
                                 state.gui_state.image_cache.poll(ctx);
                                 // An Add to Media upload carries on whatever page is open.
-                                crate::gui::pages::media::poll_upload(ctx, &mut state.gui_state);
+                                crate::gui::pages::files::poll_upload(ctx, &mut state.gui_state);
 
                                 // Universal help modal overlay — draws on top of any page
                                 // when state.gui_state.active_help_topic is Some.
@@ -15255,10 +15255,10 @@ mod native_app {
                                 // A 3D model posted in chat, in its own window (View in 3D on its card).
                                 crate::gui::pages::chat::draw_model_window(ctx, &state.theme, &mut state.gui_state.chat_model_view);
                                 crate::gui::pages::chat::draw_video_window(ctx, &state.theme, &mut state.gui_state.chat_video);
-                                // A Media item's window brought up from a chat card (media/chat_card.rs).
-                                crate::gui::pages::media::draw_item_window(ctx, &state.theme, &mut state.gui_state);
+                                // A Media item's window brought up from a chat card (files/chat_card.rs).
+                                crate::gui::pages::files::draw_item_window(ctx, &state.theme, &mut state.gui_state);
                                 // The upload window a drop opened from another page (Add to Media's form).
-                                crate::gui::pages::media::draw_upload_window(ctx, &state.theme, &mut state.gui_state);
+                                crate::gui::pages::files::draw_upload_window(ctx, &state.theme, &mut state.gui_state);
                                 // Dropped files go to the page or window that took them, and while
                                 // files are dragged over the window, it says where they will go.
                                 crate::gui::drop_files::finish(ctx, &state.theme, &mut state.gui_state);
@@ -15651,7 +15651,7 @@ mod native_app {
                             if let Some(audio) = state.audio.as_mut() {
                                 // The Media page's video (and its window over the chat) and a video posted
                                 // in chat play their sound here.
-                                crate::gui::pages::media::sync_sound(&mut state.gui_state, audio);
+                                crate::gui::pages::files::sync_sound(&mut state.gui_state, audio);
                                 crate::gui::pages::chat::sync_video_sound(&mut state.gui_state.chat_video, audio);
                                 // Honest volume sliders: push Settings values
                                 // into kira only when one actually moved. The

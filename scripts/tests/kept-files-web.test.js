@@ -1,5 +1,5 @@
 // A copy, on this device, of each private file the person opened (2026-10-11,
-// docs/design/media-showcase.md, "Files on the sender's device and in messages, exact", part 4):
+// docs/design/files-showcase.md, "Files on the sender's device and in messages, exact", part 4):
 // web/shared/kept-files.js, and the Settings page's controls it draws.
 //
 // Run: node --test scripts/tests/kept-files-web.test.js

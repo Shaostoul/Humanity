@@ -21,7 +21,7 @@
 //   - SWITCH lists the servers this one is linked with
 //     (GET /api/federation/servers, asked the first time the list is opened),
 //     each a link to the SAME page on that server (https://<their host>/chat
-//     and so on; an item's page /media/<n> goes to /media, because item
+//     and so on; an item's page /files/<n> goes to /files, because item
 //     numbers differ from server to server), with the line "You sign in on
 //     each server's website separately." A browser keeps nothing across sites,
 //     so unlike the desktop app (which lists your saved servers) the website
@@ -46,7 +46,7 @@
 // as the words it is. Colours are theme tokens (web/shared/theme.css) only.
 //
 // Pages that load it (each with ?v= so a change reaches browsers past the
-// service worker's cache-first rule): /media (web/pages/media.html), /watch,
+// service worker's cache-first rule): /files (web/pages/files.html), /watch,
 // /chat (web/chat/index.html, right after shell.js) and /admin.
 //
 // A classic script in the browser (it mounts itself), a CommonJS module under
@@ -143,14 +143,14 @@
 
   /**
    * The same page's path on another server: this page's path, except that an
-   * item's page (/media/<n>) becomes /media, because item numbers belong to
+   * item's page (/files/<n>) becomes /files, because item numbers belong to
    * each server. Leading slashes are folded to one, so the path can never be
    * read as another host (`//elsewhere`). The query and the hash are left
    * behind: they hold this server's own ids.
    */
   function samePagePath(pathname) {
     const p = '/' + String(pathname == null ? '' : pathname).replace(/^\/+/, '');
-    if (/^\/media\/\d+\/?$/.test(p)) return '/media';
+    if (/^\/files\/\d+\/?$/.test(p)) return '/files';
     return p;
   }
 

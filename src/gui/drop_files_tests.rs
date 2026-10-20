@@ -155,9 +155,9 @@ fn a_file_dropped_on_the_chat_goes_to_the_open_conversation() {
     let frame = |state: &mut GuiState, raw: egui::RawInput| {
         ctx.run(raw, |ctx| {
             begin_frame(ctx);
-            crate::gui::pages::media::offer_drop_anywhere(ctx, state);
+            crate::gui::pages::files::offer_drop_anywhere(ctx, state);
             crate::gui::pages::chat::draw(ctx, &theme, state);
-            crate::gui::pages::media::draw_upload_window(ctx, &theme, state);
+            crate::gui::pages::files::draw_upload_window(ctx, &theme, state);
             finish(ctx, &theme, state);
         })
     };
@@ -190,9 +190,9 @@ fn a_file_dropped_on_a_channel_opens_the_upload_window_posting_ticked() {
     let frame = |state: &mut GuiState, raw: egui::RawInput| {
         ctx.run(raw, |ctx| {
             begin_frame(ctx);
-            crate::gui::pages::media::offer_drop_anywhere(ctx, state);
+            crate::gui::pages::files::offer_drop_anywhere(ctx, state);
             crate::gui::pages::chat::draw(ctx, &theme, state);
-            crate::gui::pages::media::draw_upload_window(ctx, &theme, state);
+            crate::gui::pages::files::draw_upload_window(ctx, &theme, state);
             finish(ctx, &theme, state);
         })
     };
@@ -200,9 +200,9 @@ fn a_file_dropped_on_a_channel_opens_the_upload_window_posting_ticked() {
     let out = frame(&mut state, input(&[], &[a.clone()]));
     assert!(texts(&out).contains("Drop to upload to Files and post in #general"), "{}", texts(&out));
     let _ = frame(&mut state, input(&[a], &[]));
-    let form = state.media.form.as_ref().expect("the upload window opens");
+    let form = state.files.form.as_ref().expect("the upload window opens");
     assert!(form.post_on && form.post_to == "general", "posting in #general ticked");
-    assert!(state.files_flow.step.is_none() && state.media.uploads.is_empty(), "nothing goes until Upload");
+    assert!(state.files_flow.step.is_none() && state.files.uploads.is_empty(), "nothing goes until Upload");
 }
 
 /// A READ-ONLY CHANNEL DOES NOT OFFER TO POST IN ITSELF (2026-10-17, the website's rule): over
@@ -223,17 +223,17 @@ fn a_read_only_channel_does_not_offer_to_post_in_itself() {
     let frame = |state: &mut GuiState, raw: egui::RawInput| {
         ctx.run(raw, |ctx| {
             begin_frame(ctx);
-            crate::gui::pages::media::offer_drop_anywhere(ctx, state);
+            crate::gui::pages::files::offer_drop_anywhere(ctx, state);
             crate::gui::pages::chat::draw(ctx, &theme, state);
-            crate::gui::pages::media::draw_upload_window(ctx, &theme, state);
+            crate::gui::pages::files::draw_upload_window(ctx, &theme, state);
             finish(ctx, &theme, state);
         })
     };
     let _ = frame(&mut state, input(&[], &[a.clone()]));
     let out = frame(&mut state, input(&[], &[a.clone()]));
     let t = texts(&out);
-    assert!(t.contains(crate::gui::pages::media::DROP_TO_UPLOAD) && !t.contains("post in #announcements"), "{t}");
+    assert!(t.contains(crate::gui::pages::files::DROP_TO_UPLOAD) && !t.contains("post in #announcements"), "{t}");
     let _ = frame(&mut state, input(&[a], &[]));
-    let form = state.media.form.as_ref().expect("the upload window opens");
+    let form = state.files.form.as_ref().expect("the upload window opens");
     assert!(!form.post_on, "nothing ticked");
 }

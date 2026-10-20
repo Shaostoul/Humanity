@@ -279,7 +279,7 @@ fn each_file_gets_the_limit_for_where_it_is_going() {
     assert!(attach_job(&mut dm, "clip.mp4", ten_mb).is_some(), "and into a DM once the server allows 20 MB");
 }
 
-/// THE LIMITS BELONG TO ONE SERVER AND ONE IDENTITY (round 3 of docs/design/media-showcase.md, the
+/// THE LIMITS BELONG TO ONE SERVER AND ONE IDENTITY (round 3 of docs/design/files-showcase.md, the
 /// review's finding 10): a private-file limit one server told this person was kept after a switch
 /// to another server, or a restore from a recovery phrase, and let a file past what that server or
 /// person may send. Now they count only where they were told, the 6 MB fallback elsewhere, and a

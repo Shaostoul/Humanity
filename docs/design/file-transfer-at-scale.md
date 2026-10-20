@@ -7,7 +7,7 @@
 > a usage for DMs/Groups. How do we handle this eventuality?"
 >
 > Status: direction, not built. The pieces already built are listed under "What exists". The near
-> increments live in [media-showcase.md](media-showcase.md) (answers 9 and 10, resumable uploads);
+> increments live in [files-showcase.md](files-showcase.md) (answers 9 and 10, resumable uploads);
 > this document is the shape they grow into.
 
 ## Is it a torrent?
@@ -88,7 +88,7 @@ same "contribute what you can" rule as the rest of the project.
 
 ## Order of work
 
-1. The near increments in media-showcase.md: per-person caps, the 30-day expiry, the
+1. The near increments in files-showcase.md: per-person caps, the 30-day expiry, the
    device-to-device transfer with the receiver accepting (a swarm of two, through the forwarder
    between strangers).
 2. Pieces checked one by one (layer 1), so a transfer can resume from anyone.

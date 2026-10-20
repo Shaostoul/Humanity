@@ -14,7 +14,7 @@
 //! Where a drop goes (the operator, 2026-10-17: "user drag and drops file onto HumanityOS. First
 //! window popups with all the controls of what to do with the file ... If we're also in a chat
 //! channel ... it also posts the image with the title and description to the general chat"): by
-//! default the upload window, Add to Media with every control (`Level::App`, media/add.rs
+//! default the upload window, Add to Media with every control (`Level::App`, files/add.rs
 //! `upload_dropped`); over a channel of the chat the same window with "Also post in chat" ticked
 //! for that channel; over a private conversation (a direct message, a group, the scratch pad) the
 //! private, encrypted send that conversation's Attach uses, never a public upload; over Shared

@@ -1,4 +1,4 @@
-//! Cleaning a file on the sender's own device, before it leaves (docs/design/media-showcase.md,
+//! Cleaning a file on the sender's own device, before it leaves (docs/design/files-showcase.md,
 //! "Files on the sender's device and in messages, exact", parts 1 and 2; the operator's answers 4
 //! and 5 of 2026-10-11).
 //!

@@ -113,7 +113,7 @@ fn after_switch(s: &GuiState) -> String {
 #[test]
 fn the_strip_shows_on_the_four_pages_and_no_other() {
     crate::config::keep_saves_off_disk();
-    let four = [GuiPage::Media, GuiPage::Watch, GuiPage::Chat, GuiPage::ServerSettings];
+    let four = [GuiPage::Files, GuiPage::Watch, GuiPage::Chat, GuiPage::ServerSettings];
     for &page in crate::gui::dispatch::ALL_PAGES {
         let (ctx, mut theme) = ctx_and_theme();
         let mut state = GuiState::default();
@@ -192,10 +192,10 @@ fn switching_with_uploads_running_asks_first() {
     let mut state = two_servers();
     // The Media page on HOME, signed in, its list as good as loaded (nothing is asked for), and
     // an upload the server named that did not finish.
-    crate::gui::pages::media::sync_server(&mut state);
-    state.media.requested = true;
+    crate::gui::pages::files::sync_server(&mut state);
+    state.files.requested = true;
     state.upload_token = Some((HOME.to_string(), "tok".to_string()));
-    state.media.unfinished.push(crate::gui::pages::media::resumable::Unfinished {
+    state.files.unfinished.push(crate::gui::pages::files::resumable::Unfinished {
         server: HOME.into(),
         key: "me".into(),
         id: "up1".into(),
@@ -205,8 +205,8 @@ fn switching_with_uploads_running_asks_first() {
         ..Default::default()
     });
     let (ctx, mut theme) = ctx_and_theme();
-    click(&ctx, &mut theme, &mut state, GuiPage::Media, "Carry on");
-    assert_eq!(uploads_on_their_way(&state), 1, "Carry on did not start the upload: {}", state.media.status);
+    click(&ctx, &mut theme, &mut state, GuiPage::Files, "Carry on");
+    assert_eq!(uploads_on_their_way(&state), 1, "Carry on did not start the upload: {}", state.files.status);
 
     // Server Settings from here on: the Media page would read the upload's worker, which fails
     // against the closed port, and the upload would end before the question could be asked.
@@ -232,8 +232,8 @@ fn switching_with_uploads_running_asks_first() {
 
     // The Media page's own step when the server changed: the upload stops where it is, its
     // record kept for Carry on when the person comes back.
-    assert!(crate::gui::pages::media::sync_server(&mut state), "the Files page saw no change of server");
-    assert!(state.media.unfinished.iter().any(|u| u.id == "up1"), "the upload's record went with the switch");
+    assert!(crate::gui::pages::files::sync_server(&mut state), "the Files page saw no change of server");
+    assert!(state.files.unfinished.iter().any(|u| u.id == "up1"), "the upload's record went with the switch");
     // The plural, for two or more.
     assert_eq!(
         uploads_question(2, "united-humanity.us"),

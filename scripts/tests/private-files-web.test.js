@@ -13,7 +13,7 @@
 // chat-onboarding.js and chat-p2p.js, in index.html's order (with file-risk.js since 2026-10-17,
 // served the shipped data/safety/file_risks.json; the stand-in page finds the file cards app.js
 // draws, each with its data-* attributes and its player, as a browser's querySelectorAll would;
-// and chat-media-card.js, a Media item's card, since the same day).
+// and chat-files-card.js, a Media item's card, since the same day).
 //
 // What is REAL: the file encryption (WebCrypto AES-256-GCM, the page's own pqEncryptFile and
 // pqDecryptFile), the group's signed objects and its messages' encryption (pq-object.js and the
@@ -81,10 +81,10 @@
 //     files in private turned off, not signed in) "Files cannot be dropped here." and why, and
 //     nothing goes; a dragged link or text is left to the browser. The "drop:" tests.
 // 17. (2026-10-17) A Media item's address on this site in a message is a card just after its words
-//     (chat-media-card.js; the card itself is scripts/tests/media-card-web.test.js), the address out
+//     (chat-files-card.js; the card itself is scripts/tests/files-card-web.test.js), the address out
 //     of them; the item asked for once, signed with the chat's own identity over "media_list\n<ts>";
-//     its badge HosFileRisk.badgeHtml's; its Open the upload window's frame on /media/7?window=item;
-//     another website's /media/ page stays a plain link. The "media card:" test. And (the review,
+//     its badge HosFileRisk.badgeHtml's; its Open the upload window's frame on /files/7?window=item;
+//     another website's /files/ page stays a plain link. The "media card:" test. And (the review,
 //     the same day) a list at its bottom stays there as a card goes in and as it fills in, while one
 //     scrolled up is left where it is: "media card: the list stays at its bottom". (2026-10-18) The
 //     thread panel draws its parent's and its replies' cards by the same rules, mine included, each
@@ -107,7 +107,7 @@ const W = require(path.join(WEB, "shared", "warnings.js"));
 const report = require(path.join(WEB, "shared", "report.js"));
 // The upload window a drop on a channel opens (2026-10-17), and the Media page in it (its harness).
 const UW = require(path.join(WEB, "shared", "upload-window.js"));
-const MH = require("./media-web-harness.js");
+const MH = require("./files-web-harness.js");
 
 const SPEC = fs.readFileSync(path.join(ROOT, "docs", "design", "blocking-and-safe-mode.md"), "utf8");
 // 10k with its line wrapping undone (a sentence may wrap in the source).
@@ -707,7 +707,7 @@ async function loadChat(me, opts = {}) {
   run("chat/chat-dm-store.js");
   run("chat/view/timestampPill.js");
   run("chat/view/messageRow.js");
-  run("chat/chat-media-card.js"); // a Media item posted in chat, as a card (2026-10-17)
+  run("chat/chat-files-card.js"); // a Media item posted in chat, as a card (2026-10-17)
   run("chat/app.js");
   run("chat/chat-messages.js");
   run("chat/chat-dms.js");
@@ -1979,7 +1979,7 @@ test("a room takes a file up to my own limit on the server; with no limit said, 
 });
 
 // The largest file in a private conversation is my role's, as my own peer-list entry says
-// (`private_limit_mb`, docs/design/media-showcase.md follow-up B2, 2026-10-11): 6 MB only until
+// (`private_limit_mb`, docs/design/files-showcase.md follow-up B2, 2026-10-11): 6 MB only until
 // the server has said it, and my room limit never applies to it, since the server holds an
 // encrypted upload to the private limit instead. Seen red 2026-10-11 with attachmentLimit's
 // private branch capping the server's limit at 6 MB again, and (alone) with app.js not keeping
@@ -2033,7 +2033,7 @@ test("no upload goes without this session's token, and every one carries it", as
   assert.ok(/(^|&)token=tok-later(&|$)/.test(page.uploads[0].query) && !/(^|&)key=/.test(page.uploads[0].query), "carrying the token, never the key: " + page.uploads[0].query);
 });
 
-// ── Round 3, review 7: what a browser can hold (docs/design/media-showcase.md) ──
+// ── Round 3, review 7: what a browser can hold (docs/design/files-showcase.md) ──
 //
 // A private file is fetched whole and opened at once (WebCrypto's AES-GCM), so a browser holds it
 // about twice while it opens. Pictures are shown in place up to 16 MB, any file is saved up to
@@ -2148,7 +2148,7 @@ test("review 7: the sender lets the plain bytes go before the upload, and the ci
   assert.equal(page.sock.sent.filter((m) => m.type === "dm_put").length, 2, "and it is sent as ever");
 });
 
-// ── Round 4, W4-4: the opened-picture cache keeps its bound (docs/design/media-showcase.md) ──
+// ── Round 4, W4-4: the opened-picture cache keeps its bound (docs/design/files-showcase.md) ──
 //
 // An opened picture is kept for the page, at most 128 MB of them, the oldest let go first. Its
 // place in the cache was set when it was ASKED for (a placeholder while it opens), so a picture that
@@ -2191,7 +2191,7 @@ test("W4-4: pictures that finish opening out of order are still let go oldest fi
 });
 
 // ══ Files on the sender's device and in messages (2026-10-11) ══════════════════════════════
-// docs/design/media-showcase.md, "Files on the sender's device and in messages, exact", parts 1
+// docs/design/files-showcase.md, "Files on the sender's device and in messages, exact", parts 1
 // to 4, the chat page's side: every file is cleaned on this device before it is uploaded or
 // encrypted, with the attach step and its switch (part 1); a file that could not be checked
 // (part 2); Files in messages (part 3); a copy of each private file opened, kept here (part 4).
@@ -2845,7 +2845,7 @@ test("files: a private file opened is kept here, encrypted, and opens after a re
 // every test that pastes PNG failed on the attach step once the cleaning could not walk the old
 // stand-in PNG, so PNG is a real one now.
 //
-// Device-to-device big files (2026-10-11, docs/design/media-showcase.md, "As built (web,
+// Device-to-device big files (2026-10-11, docs/design/files-showcase.md, "As built (web,
 // device-to-device)"): the page now loads /shared/blake3.js, /shared/file-transfer.js and
 // /chat/chat-file-transfer.js, in index.html's order. A file over my private limit in a DM is
 // offered straight to the other person's device instead of being refused, so "a file named with my
@@ -3256,7 +3256,7 @@ function frameReady(page, w) {
 // #general" (actual { line: 'Drop to send in #general', ... }); with chatDropped sending a channel's
 // drop down the attach path (the window skipped): "nothing goes up until the window's Upload" (actual
 // 2); with chatDropped handing the window no channel (`host.show(files, '')`): "posting ticked for
-// #general" (actual ''); with media-add.js openAddForm ignoring postTo: "in the window: Also post in
+// #general" (actual ''); with files-add.js openAddForm ignoring postTo: "in the window: Also post in
 // chat ticked for #general" (actual false).
 test("drop: over #general it says the files go up to Files and are posted there; the drop opens the upload window, posting ticked, the Files page's own form", async () => {
   const fx = await fixture();
@@ -3282,14 +3282,14 @@ test("drop: over #general it says the files go up to Files and are posted there;
   assert.equal(page.sock.sent.filter((m) => m.type === "chat").length, 0, "and nothing is posted yet");
   const w = uploadWindowOf(page);
   assert.ok(w && w.el.hidden === false && page.ctx.document.body.children.includes(w.el), "the upload window opened over the chat");
-  assert.equal(w.frame.src, "/media?window=upload", "with the Files page in it, in its upload-window form");
+  assert.equal(w.frame.src, "/files?window=upload", "with the Files page in it, in its upload-window form");
   const handed = frameReady(page, w);
   assert.equal(handed.length, 1, "once the page in it is there, the files are handed over");
   assert.equal(handed[0].to, page.ctx.location.origin, "to this site only");
   assert.deepEqual([handed[0].data.event, handed[0].data.files], ["files", [png, notes]], "the files dropped, as they are");
   assert.equal(handed[0].data.postTo, "general", "posting ticked for #general");
 
-  // In the window: the Media page's own Add to Media (media-app.js, as /media?window=upload runs it),
+  // In the window: the Media page's own Add to Media (files-app.js, as /files?window=upload runs it),
   // the first file the item and the other added once it is up, posting ticked for #general.
   const storage = MH.fakeStorage();
   storage.setItem("humanity_channel", "general");
@@ -3300,10 +3300,10 @@ test("drop: over #general it says the files go up to Files and are posted there;
   const f = inWindow.page.state.form;
   assert.ok(f && f.mode === "add" && f.file === png, "Add to Files opened with the first file as the item");
   assert.deepEqual(f.more, [notes], "the other to be added once it is up");
-  const tick = MH.byId(inWindow.doc, "media-form-post-on");
+  const tick = MH.byId(inWindow.doc, "files-form-post-on");
   assert.ok(tick && tick.checked, "in the window: Also post in chat ticked for #general");
-  assert.equal(MH.byId(inWindow.doc, "media-form-post-to").value, "general");
-  assert.ok(MH.byId(inWindow.doc, "media-form-go").className.split(/\s+/).includes("media-btn-rgb"), "its Upload wearing the RGB border");
+  assert.equal(MH.byId(inWindow.doc, "files-form-post-to").value, "general");
+  assert.ok(MH.byId(inWindow.doc, "files-form-go").className.split(/\s+/).includes("files-btn-rgb"), "its Upload wearing the RGB border");
 
   // A second drop goes to the same window, at once.
   await dropFiles(page, [pdf("more.pdf")]);
@@ -3432,14 +3432,14 @@ test("drop: a dragged link or piece of text is left to the browser", async () =>
 // The operator: "when someone clicks on the file in chat it brings up the full popup window for that
 // item instead of just having truncated version ... I'd rather people know exactly what they're
 // downloading instead of guessing." Add to Media's "Also post in chat" posts the item's own address
-// (web/pages/media-add.js postText); the chat shows it as a card (web/chat/chat-media-card.js, whose
-// own test is scripts/tests/media-card-web.test.js). This test is the chat page's half: app.js
+// (web/pages/files-add.js postText); the chat shows it as a card (web/chat/chat-files-card.js, whose
+// own test is scripts/tests/files-card-web.test.js). This test is the chat page's half: app.js
 // takes the address out of the words and puts the card just after them.
 // Seen red 2026-10-17 in a copy of web/ through HOS_WEB_DIR, each break: in chat/app.js, the whole text
-// formatted: "the address is out of the words"; in chat/app.js, the mediaCardsPut call taken out: "the
-// cards, just after the words"; in chat/chat-media-card.js, the chat's sign answering null: the card asked
+// formatted: "the address is out of the words"; in chat/app.js, the filesCardsPut call taken out: "the
+// cards, just after the words"; in chat/chat-files-card.js, the chat's sign answering null: the card asked
 // the public list, which this stand-in server does not answer ("This Media item could not be loaded: no
-// network in tests: /api/media?id=7&limit=1"); the badge not drawn through fileBadgeFill: actual ''; every
+// network in tests: /api/files?id=7&limit=1"); the badge not drawn through fileBadgeFill: actual ''; every
 // host counted as this site: "a plain link"; Open not wired to the item window: "a window over the chat";
 // the signature made over "media_list_x": "a real signature over media_list\n<timestamp>".
 test("media card: a Media item's address on this site is a card just after the words, the address out of them; another website's stays a link", async () => {
@@ -3458,19 +3458,19 @@ test("media card: a Media item's address on this site is a card just after the w
   const page = await loadChat(fx.ann, {
     realChildren: true,
     fetch: (u, init) => {
-      if (u !== "/api/media/list") return null;
+      if (u !== "/api/files/list") return null;
       lists.push(JSON.parse(init.body));
       return ok({ items: [item], labels: [] });
     },
   });
-  const row = postInRoom(page, fx.ben, "Here it is: https://localhost/media/7.", T0 + 950);
+  const row = postInRoom(page, fx.ben, "Here it is: https://localhost/files/7.", T0 + 950);
   await settle();
-  assert.ok(!row.innerHTML.includes("/media/7"), "the address is out of the words");
+  assert.ok(!row.innerHTML.includes("/files/7"), "the address is out of the words");
   assert.ok(row.innerHTML.includes("Here it is: ."), "the rest of the words stay");
   const box = (row.querySelector(".body").afterNodes || [])[0];
-  assert.ok(box && box.className === "media-cards", "the cards, just after the words");
+  assert.ok(box && box.className === "files-cards", "the cards, just after the words");
   const card = box.children[0];
-  const line = card.children.find((c) => c.className === "media-card-line");
+  const line = card.children.find((c) => c.className === "files-card-line");
   assert.ok(line, "the item's card, as one line: " + card.children.map((c) => c.className + ":" + c.textContent).join(" | "));
   const [tri, badge, title, count, open] = line.children;
   assert.equal(tri.title, "Show more");
@@ -3484,13 +3484,13 @@ test("media card: a Media item's address on this site is a card just after the w
   const signed = new TextEncoder().encode("media_list\n" + lists[0].timestamp);
   assert.ok(fx.m.noble.ml_dsa65.verify(Buffer.from(lists[0].sig, "hex"), signed, fx.ann.pub), "a real signature over media_list\n<timestamp>");
   // The same item in another message: no second request.
-  postInRoom(page, fx.cy, "also https://localhost/media/7", T0 + 955);
+  postInRoom(page, fx.cy, "also https://localhost/files/7", T0 + 955);
   await settle();
   assert.equal(lists.length, 1, "asked for once for the page");
-  // Another website's /media/ page: a plain link, no card, nothing asked.
-  const other = postInRoom(page, fx.ben, "see https://other.example/media/9", T0 + 960);
+  // Another website's /files/ page: a plain link, no card, nothing asked.
+  const other = postInRoom(page, fx.ben, "see https://other.example/files/9", T0 + 960);
   await settle();
-  assert.ok(other.innerHTML.includes('href="https://other.example/media/9"'), "a plain link");
+  assert.ok(other.innerHTML.includes('href="https://other.example/files/9"'), "a plain link");
   assert.equal((other.querySelector(".body").afterNodes || []).length, 0, "no card");
   assert.equal(lists.length, 1, "nothing asked for it");
   // Open: the item's full window over the chat, the upload window's frame on its own page.
@@ -3498,41 +3498,41 @@ test("media card: a Media item's address on this site is a card just after the w
   const dialog = page.el("__body").children.find((c) => c.className === "hos-upload-window");
   assert.ok(dialog && dialog.hidden === false, "a window over the chat");
   const frame = dialog.children[0].children.find((c) => c.tag === "iframe");
-  assert.equal(frame.src, "/media/7?window=item", "the Files page's own item page, in its item-window form");
+  assert.equal(frame.src, "/files/7?window=item", "the Files page's own item page, in its item-window form");
 });
 
 // THE ITEM WINDOW'S PAGE HAD NO UPLOAD TOKEN (2026-10-18). A card's Open frames the Media page's item
 // page over the chat; with a passphrase-wrapped identity that page has no sign-in of its own, so no
-// upload token for a members-only item's files. The chat lends it its own (chat-media-card.js
-// chatToken, /shared/upload-window.js 'token'; the page's side is media-card-web.test.js 14): only
+// upload token for a members-only item's files. The chat lends it its own (chat-files-card.js
+// chatToken, /shared/upload-window.js 'token'; the page's side is files-card-web.test.js 14): only
 // while its connection is open and signed in, since a token ends with its socket and the one app.js
 // kept from before a reconnect is no longer known to the server.
-// Seen red 2026-10-18 in a copy of web/ through HOS_WEB_DIR, each break: in chat/chat-media-card.js, the
+// Seen red 2026-10-18 in a copy of web/ through HOS_WEB_DIR, each break: in chat/chat-files-card.js, the
 // opener not handed `token: chatToken`: "the chat's own token, to its frame, for this site only" (actual
 // { ..., refused: true }); in shared/upload-window.js, answerAsk's tokenShaped check taken out: "refused
-// when it holds no token" (actual token: ''); in chat/chat-media-card.js, chatToken without its
+// when it holds no token" (actual token: ''); in chat/chat-files-card.js, chatToken without its
 // open-connection check: "refused while its connection is down" (actual token: 'tok-test'); without its
 // signed-in check: "refused before it is signed in" (the same).
 test("media card: the item window's page is lent the chat's upload token while the chat is signed in, and refused it otherwise", async () => {
   const fx = await fixture();
   const item = {
-    id: 7, url: "/api/media/file/7", filename: "7_dusk.glb", original_name: "dusk.glb", title: "Dusk", description: "",
+    id: 7, url: "/api/files/file/7", filename: "7_dusk.glb", original_name: "dusk.glb", title: "Dusk", description: "",
     kind: "model", visibility: "members", labels: [], size_bytes: 4000, total_bytes: 4000, file_count: 1,
     uploader_key: fx.ben.key, uploader_name: "Ben", category: null, cover: null, files: [],
   };
-  const page = await loadChat(fx.ann, { realChildren: true, fetch: (u) => (u === "/api/media/list" ? ok({ items: [item], labels: [] }) : null) });
-  const row = postInRoom(page, fx.ben, "Here: https://localhost/media/7", T0 + 970);
+  const page = await loadChat(fx.ann, { realChildren: true, fetch: (u) => (u === "/api/files/list" ? ok({ items: [item], labels: [] }) : null) });
+  const row = postInRoom(page, fx.ben, "Here: https://localhost/files/7", T0 + 970);
   await settle();
   const card = (row.querySelector(".body").afterNodes || [])[0].children[0];
-  const open = card.children.find((c) => c.className === "media-card-line").children[4];
+  const open = card.children.find((c) => c.className === "files-card-line").children[4];
   assert.equal(open.textContent, "Open", "test setup: the card's Open");
   open.listeners.click[0]({ stopPropagation() {} });
   const dialog = page.el("__body").children.find((c) => c.className === "hos-upload-window");
   const frame = dialog.children[0].children.find((c) => c.tag === "iframe");
-  assert.equal(frame.src, "/media/7?window=item", "test setup: the item window");
+  assert.equal(frame.src, "/files/7?window=item", "test setup: the item window");
   // The page in the frame, on the address the chat gave it.
   const here = page.ctx.location.origin;
-  const inside = { location: { origin: here, pathname: "/media/7", search: "?window=item" }, posted: [], postMessage(data, to) { this.posted.push({ data, to }); } };
+  const inside = { location: { origin: here, pathname: "/files/7", search: "?window=item" }, posted: [], postMessage(data, to) { this.posted.push({ data, to }); } };
   frame.contentWindow = inside;
   const ask = async (n) => {
     for (const fn of (page.winListeners.message || []).slice()) fn({ source: inside, origin: here, data: { kind: UW.KIND, event: "token", ask: n } });
@@ -3552,15 +3552,15 @@ test("media card: the item window's page is lent the chat's upload token while t
   assert.deepEqual(await ask(4), refused(4), "refused before it is signed in");
 });
 
-// A NEW MESSAGE'S CARD LANDED BELOW THE FOLD (2026-10-17, review): mediaCardsPut ran after
+// A NEW MESSAGE'S CARD LANDED BELOW THE FOLD (2026-10-17, review): filesCardsPut ran after
 // appendMessage had scrolled the list to its bottom, and the card grew again when its item arrived.
-// Now a list at its bottom stays there as the card goes in and as it fills in (chat-media-card.js
-// keepAtBottom), the same for a direct message (chat-dms.js calls the same mediaCardsPut); someone
+// Now a list at its bottom stays there as the card goes in and as it fills in (chat-files-card.js
+// keepAtBottom), the same for a direct message (chat-dms.js calls the same filesCardsPut); someone
 // who has scrolled up is left where they are. The list here is a stand-in for the browser's layout:
 // each card is 40 px while it is drawn waiting for its item and 70 once it is drawn with it, and the scroll position is
 // clamped as a browser clamps it.
-// Seen red 2026-10-17 in a copy of web/ through HOS_WEB_DIR, each break in chat/chat-media-card.js:
-// with mediaCardsPut putting the card in without keepAtBottom: "at its bottom with the card in"
+// Seen red 2026-10-17 in a copy of web/ through HOS_WEB_DIR, each break in chat/chat-files-card.js:
+// with filesCardsPut putting the card in without keepAtBottom: "at its bottom with the card in"
 // (actual 600, the list's end 640); with render drawing the cards without keep: "and still there once
 // it fills in" (actual 640, the end 670); with atBottom answering true whatever the position: "scrolled
 // up: left where it is" (actual 740, the end).
@@ -3575,15 +3575,15 @@ test("media card: the list stays at its bottom as a card goes in and fills in; s
   const page = await loadChat(fx.ann, {
     realChildren: true,
     fetch: (u, init) => {
-      if (u !== "/api/media/list") return null;
+      if (u !== "/api/files/list") return null;
       const id = JSON.parse(init.body).id;
       return new Promise((r) => { waiting.set(id, () => r(ok({ items: [itemOf(id)], labels: [] }))); });
     },
   });
-  const mc = page.ctx.hosMediaCards;
+  const mc = page.ctx.hosFilesCards;
   const list = page.el("messages");
   const SEEN = 400;
-  const height = () => 1000 + [...mc.mounted.values()].reduce((n, set) => n + [...set].reduce((m, c) => m + (String(c.el.className).split(/\s+/).includes("media-card-wait") ? 40 : 70), 0), 0);
+  const height = () => 1000 + [...mc.mounted.values()].reduce((n, set) => n + [...set].reduce((m, c) => m + (String(c.el.className).split(/\s+/).includes("files-card-wait") ? 40 : 70), 0), 0);
   let top = 600;
   Object.defineProperty(list, "clientHeight", { value: SEEN, configurable: true, writable: true });
   Object.defineProperty(list, "scrollHeight", { get: height, configurable: true });
@@ -3593,7 +3593,7 @@ test("media card: the list stays at its bottom as a card goes in and fills in; s
 
   // At its bottom (appendMessage has just scrolled it there): it stays there with the card in, and
   // once the item comes and the card is drawn taller.
-  postInRoom(page, fx.ben, "Here it is: https://localhost/media/7", T0 + 1000);
+  postInRoom(page, fx.ben, "Here it is: https://localhost/files/7", T0 + 1000);
   assert.equal(height(), 1040, "test setup: the card is in, waiting for its item");
   assert.equal(top, end(), "at its bottom with the card in");
   await waitFor(() => waiting.has(7), "the item asked for");
@@ -3604,13 +3604,13 @@ test("media card: the list stays at its bottom as a card goes in and fills in; s
 
   // Scrolled up: a new message's card does not move the list.
   top = 200;
-  postInRoom(page, fx.cy, "again https://localhost/media/7", T0 + 1010);
+  postInRoom(page, fx.cy, "again https://localhost/files/7", T0 + 1010);
   assert.equal(height(), 1140, "test setup: its card is in");
   assert.equal(top, 200, "scrolled up: left where it is");
 
   // At its bottom when a card went in, then scrolled up before its item came: left where it is.
   top = end();
-  postInRoom(page, fx.ben, "and https://localhost/media/8", T0 + 1020);
+  postInRoom(page, fx.ben, "and https://localhost/files/8", T0 + 1020);
   assert.equal(top, end(), "at its bottom with the card in");
   top = 100;
   await waitFor(() => waiting.has(8), "the second item asked for");
@@ -3622,9 +3622,9 @@ test("media card: the list stays at its bottom as a card goes in and fills in; s
 
 // THE THREAD PANEL SHOWED A MEDIA ITEM'S ADDRESS AS A PLAIN LINK (2026-10-18, the orchestrator):
 // renderThreadMessages and sendThreadReply drew a message with formatBody and fillFileCards only, so a
-// reply holding https://localhost/media/7 showed the bare address where the list shows a card. Now each
+// reply holding https://localhost/files/7 showed the bare address where the list shows a card. Now each
 // thread message gets the list's own treatment (chat-messages.js putThreadMessage): the address out of
-// its words by the same exact-word rule (chat-media-card.js mediaCardsPlan), its card just after them,
+// its words by the same exact-word rule (chat-files-card.js filesCardsPlan), its card just after them,
 // none where the protected setup holds a non-friend's picture or file link back, whether it is open kept
 // under the list's key (sender, time, item). Each message is a row of its own, so a reply put in no
 // longer writes the panel's HTML again (which drew the cards already there dead). And a thread opened by
@@ -3634,11 +3634,11 @@ test("media card: the list stays at its bottom as a card goes in and fills in; s
 // putThreadMessage drawing the whole text with no card (the old way): "the address is out of the
 // parent's words"; renderThreadMessages writing the replies as HTML into the panel again: "a reply's
 // words, the address out of them" (no row of their own); sendThreadReply writing innerHTML += again:
-// "my reply is a row of its own" (actual 0: the rows already there were written over); threadMediaPlan
-// taking the item addresses alone, without mediaCardsPlan's protected-setup rule: "a non-friend's reply
+// "my reply is a row of its own" (actual 0: the rows already there were written over); threadFilesPlan
+// taking the item addresses alone, without filesCardsPlan's protected-setup rule: "a non-friend's reply
 // holding a picture link draws no card"; updateThreadBadge opening the thread with the row's text: "the
 // parent's card, from the words it was written with"; in chat/app.js, the rememberThreadParent call taken
-// out: the same; in chat/chat-media-card.js, mediaCardsPut looking for `.body` only: "the card, just after
+// out: the same; in chat/chat-files-card.js, filesCardsPut looking for `.body` only: "the card, just after
 // the words" (it went at the row's end).
 test("media card: the thread panel draws a message's card as the list does, the address out of its words; a reply's too, mine included; the protected setup's rule holds", async () => {
   const fx = await fixture();
@@ -3652,7 +3652,7 @@ test("media card: the thread panel draws a message's card as the list does, the 
   const page = await loadChat(fx.ann, {
     honest: true, realChildren: true, findRows: true,
     fetch: (u, init) => {
-      if (u !== "/api/media/list") return null;
+      if (u !== "/api/files/list") return null;
       lists.push(JSON.parse(init.body));
       return ok({ items: [item], labels: [] });
     },
@@ -3661,14 +3661,14 @@ test("media card: the thread panel draws a message's card as the list does, the 
   const cardOf = (row) => {
     const words = row.querySelector(".thread-msg-body");
     const after = words && Array.isArray(words.afterNodes) ? words.afterNodes : [];
-    const box = after.find((n) => n && n.className === "media-cards");
+    const box = after.find((n) => n && n.className === "files-cards");
     return box ? box.children[0] : null;
   };
-  const lineOf = (card) => card.children.find((c) => c.className === "media-card-line");
-  const cardsFor7 = () => (page.ctx.hosMediaCards.mounted.get(7) || new Set()).size;
+  const lineOf = (card) => card.children.find((c) => c.className === "files-card-line");
+  const cardsFor7 = () => (page.ctx.hosFilesCards.mounted.get(7) || new Set()).size;
 
   // Ben's post in the list, its card opened out there.
-  const POST = "Here it is: https://localhost/media/7.";
+  const POST = "Here it is: https://localhost/files/7.";
   const listRow = postInRoom(page, fx.ben, POST, T0 + 900);
   await settle();
   const listCard = (listRow.querySelector(".body").afterNodes || [])[0].children[0];
@@ -3681,7 +3681,7 @@ test("media card: the thread panel draws a message's card as the list does, the 
   await settle();
   const parent = panel.children[0];
   assert.equal(parent.className, "thread-msg thread-parent");
-  assert.ok(!parent.innerHTML.includes("/media/7"), "the address is out of the parent's words");
+  assert.ok(!parent.innerHTML.includes("/files/7"), "the address is out of the parent's words");
   assert.ok(parent.innerHTML.includes("Here it is: ."), "the rest of its words stay");
   const parentCard = cardOf(parent);
   assert.ok(parentCard, "the card, just after the words");
@@ -3689,38 +3689,38 @@ test("media card: the thread panel draws a message's card as the list does, the 
   assert.ok(String(parentCard.className).includes("open"), "open, as it is in the list: the same key");
   assert.equal(lists.length, 1, "the item asked for once for the page");
 
-  // The replies: Cy's holds the item, Ben's another website's /media/ page.
+  // The replies: Cy's holds the item, Ben's another website's /files/ page.
   page.fn("renderThreadMessages")([
-    { from: fx.cy.key, from_name: "Cy", content: "and again /media/7", timestamp: T0 + 910 },
-    { from: fx.ben.key, from_name: "Ben", content: "see https://other.example/media/9", timestamp: T0 + 920 },
+    { from: fx.cy.key, from_name: "Cy", content: "and again /files/7", timestamp: T0 + 910 },
+    { from: fx.ben.key, from_name: "Ben", content: "see https://other.example/files/9", timestamp: T0 + 920 },
   ]);
   await settle();
   const [, cyRow, benRow] = panel.children;
-  assert.ok(cyRow && !cyRow.innerHTML.includes("/media/7") && cyRow.innerHTML.includes("and again"), "a reply's words, the address out of them");
+  assert.ok(cyRow && !cyRow.innerHTML.includes("/files/7") && cyRow.innerHTML.includes("and again"), "a reply's words, the address out of them");
   const cyCard = cardOf(cyRow);
   assert.ok(cyCard, "the cards, just after a reply's words");
   assert.ok(!String(cyCard.className).includes("open"), "another message's card starts as one line");
-  assert.ok(benRow.innerHTML.includes('href="https://other.example/media/9"'), "another website's /media/ page stays a plain link");
+  assert.ok(benRow.innerHTML.includes('href="https://other.example/files/9"'), "another website's /files/ page stays a plain link");
   assert.equal(cardOf(benRow), null, "and gets no card");
   assert.equal(lists.length, 1, "nothing asked again");
   // Open on a thread card brings up the item's full window, as the list's does.
   lineOf(cyCard).children[4].listeners.click[0]({ stopPropagation() {} });
   const dialog = page.el("__body").children.find((c) => c.className === "hos-upload-window");
-  assert.ok(dialog && dialog.children[0].children.find((c) => c.tag === "iframe").src === "/media/7?window=item", "Open: the item's window");
+  assert.ok(dialog && dialog.children[0].children.find((c) => c.tag === "iframe").src === "/files/7?window=item", "Open: the item's window");
 
   // My own reply with the item: a row of its own with its card; the rows already there are the same
   // rows, their cards with them.
-  page.el("thread-input").value = "mine: https://localhost/media/7";
+  page.el("thread-input").value = "mine: https://localhost/files/7";
   await page.fn("sendThreadReply")();
   await settle();
   assert.equal(panel.children.length, 4, "my reply is a row of its own");
   assert.equal(panel.children[1], cyRow, "the rows already there stay as they are");
   assert.equal(cardOf(cyRow), cyCard, "and so do their cards");
   const mine = panel.children[3];
-  assert.ok(!mine.innerHTML.includes("/media/7") && mine.innerHTML.includes("mine:"), "my reply's words, the address out of them");
+  assert.ok(!mine.innerHTML.includes("/files/7") && mine.innerHTML.includes("mine:"), "my reply's words, the address out of them");
   assert.ok(cardOf(mine), "and its card");
   const sent = page.sock.sent.find((f) => f.type === "chat" && f.reply_to);
-  assert.equal(sent.content, "mine: https://localhost/media/7", "the reply itself goes as it was written");
+  assert.equal(sent.content, "mine: https://localhost/files/7", "the reply itself goes as it was written");
 
   // A thread opened by a reply count that came later: the parent as it was written, its card included.
   const later = postInRoom(page, fx.ben, POST, T0 + 930);
@@ -3732,14 +3732,14 @@ test("media card: the thread panel draws a message's card as the list does, the 
   await settle();
   const reopened = panel.children[0];
   assert.ok(cardOf(reopened), "the parent's card, from the words it was written with");
-  assert.ok(!reopened.innerHTML.includes("/media/7"), "its address out of the words");
+  assert.ok(!reopened.innerHTML.includes("/files/7"), "its address out of the words");
 
   // The protected setup on: a non-friend's reply holding a picture link draws no card (the list's
-  // rule, chat-media-card.js withheld).
+  // rule, chat-files-card.js withheld).
   await page.fn("loadProtectedPreset")();
   await turnOn(page);
   const before = cardsFor7();
-  page.fn("renderThreadMessages")([{ from: fx.cy.key, from_name: "Cy", content: "look https://localhost/uploads/x.png /media/7", timestamp: T0 + 940 }]);
+  page.fn("renderThreadMessages")([{ from: fx.cy.key, from_name: "Cy", content: "look https://localhost/uploads/x.png /files/7", timestamp: T0 + 940 }]);
   await settle();
   const held = panel.children[1];
   assert.ok(held && held.innerHTML.includes("look"), "test setup: the reply is drawn");
