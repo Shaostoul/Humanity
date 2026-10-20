@@ -472,7 +472,8 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
   on a planet Space is a climb at walking speed, so a 0.35 s tap lifts you about 2.6 m and the
   fall back sprains an ankle in Realistic (a real jump is about half a metre); (3)
   machine-guard.test.js "the real PowerShell lowers a real rustc" fails on a loaded machine (its
-  15 s helper exits first), the BUG-152 class. Found by it: the aboard walk can skip the stairs' 0.26 m top step at low frame rates
+  15 s helper exits first), the BUG-152 class (DONE 2026-10-20: the helper lives until the test
+  kills it, with a 10-minute ceiling). Found by it: the aboard walk can skip the stairs' 0.26 m top step at low frame rates
   (54 ms frames dropped 2.79 m instead of 3.00 m), so near a wound threshold the frame rate can
   decide which wound you get (DONE 2026-10-20, commit "A long frame walks every stair tread",
   BUG-207: a frame that would carry the body more than 0.20 m, shorter than any tread, is walked

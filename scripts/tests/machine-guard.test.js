@@ -550,9 +550,14 @@ test("on Windows, the real PowerShell lowers a real rustc this test started, and
   child.on("error", (e) => (failed = e));
   const priorityOf = (pid) =>
     execFileSync("powershell", ["-NoProfile", "-NonInteractive", "-Command", `[string](Get-Process -Id ${pid}).PriorityClass`], { encoding: "utf8", windowsHide: true }).trim();
-  // A second child that is NOT a build (node, waiting a few seconds), which the made-up list
-  // below calls cargo.exe: the script's own look at the process list must refuse it.
-  const notBuild = spawn(process.execPath, ["-e", "setTimeout(() => {}, 15000)"], { stdio: "ignore", windowsHide: true });
+  // A second child that is NOT a build (node, waiting), which the made-up list below calls
+  // cargo.exe: the script's own look at the process list must refuse it. It lives until the
+  // `finally` below kills it, with a 10-minute ceiling so a crashed run leaves no orphan for
+  // long. It used to live 15 s, and on a loaded machine (2026-10-20, a 4 GB rustc running) the
+  // six PowerShell calls below took longer than that, so it had exited before the last look and
+  // the test failed with "'' !== 'Normal'" after 32 s: a check that failed on a busy machine,
+  // not on the guard (the BUG-152 class).
+  const notBuild = spawn(process.execPath, ["-e", "setTimeout(() => {}, 600000)"], { stdio: "ignore", windowsHide: true });
   return new Promise((resolve) => setTimeout(resolve, 500)).then(() => {
     if (failed || !child.pid) {
       notBuild.kill();
