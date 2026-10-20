@@ -5401,4 +5401,49 @@ mod tests {
         assert_eq!(heard["signal_type"], "dc_ice");
         assert!(heard.get("file").is_none(), "a client's file is never passed on: {}", heard["file"]);
     }
+    /// THE SERVER'S DATA FILES ARE WRITTEN ONLY BY ITS ADMINS (2026-10-20). Until then
+    /// POST /api/data-files/write (then /api/files/write) took no signature, so anyone who could
+    /// reach a server could rewrite its text files under data/. Now: no signature, a signature over
+    /// other content, and a non-admin are all refused, and an admin's signed write lands.
+    ///
+    /// Seen red 2026-10-20 with all five checks switched off (the handler as it was): "no signature,
+    /// no write / left: 200 / right: 401", and the unsigned write had really landed: the run left its
+    /// scratch file in data/.
+    #[tokio::test]
+    async fn only_an_admin_with_a_signature_may_write_a_data_file() {
+        let (state, port) = spawn_relay("datawrite", Features::all_enabled()).await;
+        let client = reqwest::Client::new();
+        let url = format!("http://127.0.0.1:{port}/api/data-files/write");
+        // A scratch file of this test's own under the working folder's data/, removed at the end.
+        let rel = format!("data/_test_data_write_{}.txt", std::process::id());
+        let content = "written by the test";
+        let dil = crate::relay::core::pq_crypto::DilithiumKeypair::from_seed(&crate::relay::core::pq_crypto::derive_dilithium_seed(&[7u8; 32]));
+        let key = hex::encode(dil.public_key());
+        let now = || std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as u64;
+        let signed = |path: &str, signed_content: &str, ts: u64| {
+            let words = format!("{}\n{ts}", crate::relay::api::write_purpose(path, signed_content));
+            hex::encode(dil.sign(words.as_bytes()))
+        };
+        let post = |body: serde_json::Value| client.post(url.clone()).json(&body).send();
+
+        let unsigned = post(serde_json::json!({ "path": rel, "content": content })).await.unwrap();
+        assert_eq!(unsigned.status().as_u16(), 401, "no signature, no write");
+
+        let ts = now();
+        let other = post(serde_json::json!({ "path": rel, "content": content, "key": key, "timestamp": ts, "sig": signed(&rel, "something else", ts) })).await.unwrap();
+        assert_eq!(other.status().as_u16(), 401, "a signature over other content does not count");
+
+        let ts = now() + 1;
+        let member = post(serde_json::json!({ "path": rel, "content": content, "key": key, "timestamp": ts, "sig": signed(&rel, content, ts) })).await.unwrap();
+        assert_eq!(member.status().as_u16(), 403, "a signed write by someone who is not an admin is refused");
+        assert!(!std::path::Path::new(&rel).exists(), "nothing was written by the refused requests");
+
+        state.db.set_role(&key, "admin").unwrap();
+        let ts = now() + 2;
+        let admin = post(serde_json::json!({ "path": rel, "content": content, "key": key, "timestamp": ts, "sig": signed(&rel, content, ts) })).await.unwrap();
+        let written = std::fs::read_to_string(&rel);
+        let _ = std::fs::remove_file(&rel);
+        assert_eq!(admin.status().as_u16(), 200, "an admin's signed write lands");
+        assert_eq!(written.unwrap(), content);
+    }
 }

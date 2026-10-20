@@ -1,0 +1,65 @@
+/* The Files page's places (2026-10-19, /pages/files-places.js), the desktop's places.rs: at the top
+   of the left pane, a group heading then one row per place, the one shown filled in the accent, as
+   the desktop's section list draws them. Then the panes of a place that is not the page's own list
+   (Shared files, the HumanityOS folder), and the Shared files place's own parts (the Shared Files
+   page's styles until it became a place). Theme tokens only. */
+.files-places { display: flex; flex-direction: column; gap: 2px; margin: 0 0 var(--space-md); padding-bottom: var(--space-sm); border-bottom: 1px solid var(--border); }
+.files-places-group { margin: 0 0 var(--space-xs); font-size: var(--text-sm); font-weight: 700; color: var(--accent); }
+.files-place {
+  text-align: left; padding: var(--space-xs) var(--space-sm); border: 1px solid transparent; border-radius: var(--radius-sm);
+  background: transparent; color: var(--text-muted); font: inherit; cursor: pointer;
+}
+.files-place:hover { color: var(--text); background: var(--bg-hover); }
+.files-place-active { color: var(--text); background: var(--bg-hover); border-color: var(--accent); }
+/* Above the page (the Gallery, Admin): the same rows across. */
+#files-tabs-wrap > .files-places { flex-direction: row; flex-wrap: wrap; align-items: center; gap: var(--space-xs); }
+#files-tabs-wrap > .files-places .files-places-group { margin: 0 var(--space-sm) 0 0; }
+
+.files-place-area { margin-top: var(--space-sm); }
+.files-place-area .files-pane { overflow: auto; min-width: 0; }
+.files-place-columns { display: grid; grid-template-columns: minmax(0, 0.28fr) minmax(0, 0.42fr) minmax(0, 0.3fr); gap: var(--space-md); }
+.files-place-heading { margin: 0 0 var(--space-xs); font-size: var(--text-base); color: var(--text); }
+.files-pane-empty { margin-top: 30%; text-align: center; }
+
+/* Shared files (/pages/files-shared.js). */
+.files-shared-list .files-search { width: 100%; margin: var(--space-sm) 0; }
+.sf-list { display: flex; flex-direction: column; gap: var(--space-xs); }
+.sf-row {
+  display: flex; flex-direction: column; align-items: stretch; gap: 2px; width: 100%; text-align: left;
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-sm);
+  color: var(--text); font: inherit; cursor: pointer;
+}
+.sf-row:hover { border-color: var(--border-focus); }
+.sf-row-active { border-color: var(--accent); background: var(--bg-hover); }
+.sf-name { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-xs); font-weight: 700; color: var(--text); word-break: break-all; }
+.sf-sub { font-size: var(--text-sm); color: var(--text-muted); margin: 0; }
+.sf-empty { text-align: center; color: var(--text-muted); padding: var(--space-xl) 0; }
+.sf-file { margin-top: 30%; display: flex; flex-direction: column; align-items: center; gap: var(--space-md); }
+.sf-file-name { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-sm); font-size: var(--text-lg); font-weight: 700; color: var(--text); word-break: break-all; margin: 0; }
+.sf-actions { display: flex; flex-wrap: wrap; gap: var(--space-sm); }
+.sf-dl, .sf-put { text-decoration: none; }
+
+/* Upload a file (/pages/shared-files-upload.js): its button, status, why it is not offered, and the
+   step when a file has something hidden in it. */
+.sf-upload { margin: var(--space-sm) 0; }
+.sf-upload-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-sm); }
+.sf-upload-btn {
+  background: var(--accent); color: var(--text-on-accent); font-weight: 700; font-size: var(--text-sm);
+  padding: var(--space-xs) var(--space-md); border: none; border-radius: var(--radius); cursor: pointer;
+}
+.sf-upload-btn:hover { background: var(--accent-hover); }
+.sf-upload-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.sf-upload-btn[hidden] { display: none; }
+.sf-upload-status, .sf-upload-why { font-size: var(--text-sm); color: var(--text-muted); margin: 0; }
+.sf-upload-notice { font-size: var(--text-sm); color: var(--warning); margin: var(--space-xs) 0 0; }
+.sf-upload-why[hidden], .sf-upload-notice[hidden] { display: none; }
+.sf-step { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-sm); margin-top: var(--space-sm); }
+.sf-step-name { font-weight: 700; color: var(--text); word-break: break-all; margin: 0 0 var(--space-xs); }
+.sf-step-summary { margin: 0 0 var(--space-xs); color: var(--text); }
+.sf-step-details { margin: 0 0 var(--space-sm) var(--space-lg); color: var(--text-secondary); }
+.sf-step-protected, .sf-step-off { color: var(--text-muted); margin: var(--space-xs) 0 0; }
+.sf-step-off:empty, .sf-step-refused:empty { display: none; }
+.sf-step-refused { color: var(--danger); margin: var(--space-xs) 0 0; }
+.sf-step-switch { display: flex; align-items: center; gap: var(--space-xs); color: var(--text); }
+.sf-step-buttons { display: flex; gap: var(--space-sm); margin-top: var(--space-sm); }
+.sf-step-cancel { background: transparent; color: var(--text); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-xs) var(--space-md); cursor: pointer; }

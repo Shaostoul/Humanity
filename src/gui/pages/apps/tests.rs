@@ -348,7 +348,7 @@ fn humanityos_tools_open_their_pages() {
     state.settings.apps_view.section = Some(Section::Tools);
     read_in(&ctx, &theme, &mut state);
     let out = settled(&ctx, &theme, &mut state);
-    for t in ["Maps", "Tasks", "Crafting", "Library", "Studio", "Watch", "Media", "Inventory"] {
+    for t in ["Maps", "Tasks", "Crafting", "Library", "Studio", "Watch", "Files", "Inventory"] {
         assert!(exact(&out, t), "{t} is listed");
     }
     let open = on_tile(&out, "Maps", own_tools::OPEN).expect("Open on Maps' tile");

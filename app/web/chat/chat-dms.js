@@ -259,8 +259,8 @@ function addDmMessage(author, body, timestamp, fromKey, toKey, isEncrypted) {
   const fileMeta = (typeof pqParseFileMarker === 'function') ? pqParseFileMarker(body) : null;
 
   // A Media item's address on this site: its card under the words, the address out of them
-  // (chat-media-card.js).
-  const plan = (!fileMeta && typeof mediaCardsPlan === 'function') ? mediaCardsPlan(body, fromKey) : null;
+  // (chat-files-card.js).
+  const plan = (!fileMeta && typeof filesCardsPlan === 'function') ? filesCardsPlan(body, fromKey) : null;
   const media = plan && plan.ids.length ? plan : null;
   // Step F (2026-10-10, chat-warnings.js): a stranger's links are held until
   // the line under the message's Open is pressed, and the warnings the message
@@ -288,13 +288,13 @@ function addDmMessage(author, body, timestamp, fromKey, toKey, isEncrypted) {
     addMessageSafetyLines(el, {
       text: body, from: fromKey, ts: timestamp, context: 'dm', name: author, liveBodyHtml: holdLinks ? liveHtml : null,
       // Open on the held links: the words without the card's addresses (liveHtml), and the cards at once.
-      opened: holdLinks && media ? () => mediaCardsPut(el, media.ids, fromKey, timestamp) : null,
+      opened: holdLinks && media ? () => filesCardsPut(el, media.ids, fromKey, timestamp) : null,
     });
   }
   if (fileMeta) hydratePrivateFile(el, fileMeta, fromKey);
   // A file's address in the words: its card's size and what kind of file it is (app.js).
   else if (typeof fillFileCards === 'function') fillFileCards(el);
-  if (media && !holdLinks) mediaCardsPut(el, media.ids, fromKey, timestamp);
+  if (media && !holdLinks) filesCardsPut(el, media.ids, fromKey, timestamp);
   if (window.twemoji) twemoji.parse(el);
   return el;
 }
@@ -324,7 +324,7 @@ function addDmMessage(author, body, timestamp, fromKey, toKey, isEncrypted) {
 // encrypted upload answers): a marker naming any other address is not
 // followed, so a message cannot make this device reach another site.
 //
-// Files in messages (2026-10-11, docs/design/media-showcase.md, "Files on the
+// Files in messages (2026-10-11, docs/design/files-showcase.md, "Files on the
 // sender's device and in messages, exact", parts 2 to 4; the settings and
 // their words are /shared/files-in-messages.js, drawn in Safety by
 // chat-privacy.js). THIS app enforces them, never the server:
@@ -355,7 +355,7 @@ const PRIVATE_FILE_PICTURE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'ima
 // conversation drawn again (a group redraws on each new message) keeps them.
 const privateFilesLoaded = new Set();
 
-// What a browser can hold (docs/design/media-showcase.md round 3, review 7). A
+// What a browser can hold (docs/design/files-showcase.md round 3, review 7). A
 // private file is fetched whole and opened at once (WebCrypto's AES-GCM takes
 // the whole ciphertext and gives the whole file), so the page holds it about
 // twice while it opens: pictures are shown in place up to 16 MB, any file is

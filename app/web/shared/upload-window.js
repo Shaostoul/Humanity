@@ -4,7 +4,7 @@
 // any page when files are dropped (src/gui/drop_files.rs, media/add.rs
 // upload_dropped); the website's chat has no Add to Media of its own, so a
 // drop on one of this server's channels opens THIS window, and in it the Media
-// page itself (/media?window=upload, web/pages/media-app.js in its upload-window
+// page itself (/files?window=upload, web/pages/files-app.js in its upload-window
 // form): the same form with every check it makes (the person's share, what is
 // hidden in a picture and the switch, the licence), never a second copy of it.
 // The operator, 2026-10-17: "user drag and drops file onto HumanityOS. First
@@ -35,8 +35,8 @@
 // X-Frame-Options SAMEORIGIN and CSP frame-src 'self' allow exactly that).
 //
 // The item window (2026-10-17): the same window holding one Media item's own
-// page (/media/<id>?window=item, web/pages/media-app.js in its item-window form),
-// brought up over the chat by a Media card's Open (web/chat/chat-media-card.js;
+// page (/files/<id>?window=item, web/pages/files-app.js in its item-window form),
+// brought up over the chat by a Media card's Open (web/chat/chat-files-card.js;
 // the operator: "when someone clicks on the file in chat it brings up the full
 // popup window for that item"). The host is sent to it with showPage(page); the
 // page in the frame says busy while an Edit's file is uploading, and close when
@@ -50,7 +50,7 @@
 // browser keeps (/shared/pq-relay-auth.js); a passphrase-wrapped identity keeps
 // no such copy, so a members-only item opened from a chat card listed unsigned
 // and read "not there". So a host given `sign` (the chat's item windows,
-// chat-media-card.js) signs for the page in its frame: the page asks
+// chat-files-card.js) signs for the page in its frame: the page asks
 // {event: 'identity', ask} and {event: 'sign', ask, purpose}; the host answers
 // {event: 'identity', ask, key} and {event: 'signed', ask, key, timestamp, sig},
 // or {..., ask, refused: true} when the chat has no unlocked identity either (or
@@ -78,24 +78,24 @@
 //
 // A classic script in the browser (HosUploadWindow on window), a CommonJS module
 // under Node, where scripts/tests/post-in-chat-web.test.js drives both halves
-// with stand-in windows (and scripts/tests/media-card-web.test.js the item window).
+// with stand-in windows (and scripts/tests/files-card-web.test.js the item window).
 // ──────────────────────────────────────────────────────────────────────────
 (function (root) {
   'use strict';
 
   /** Every message between the two halves carries this. */
   const KIND = 'hos-upload-window';
-  /** The Media page in its upload-window form. */
-  const PAGE = '/media?window=upload';
+  /** The Files page (the Media page until 2026-10-19, still at /files) in its upload-window form. */
+  const PAGE = '/files?window=upload';
   const WORDS = Object.freeze({
-    title: 'Add to Media',
-    itemTitle: 'Media item',
+    title: 'Add to Files',
+    itemTitle: 'Item on the Files page',
     close: 'Close',
     closeTip: 'Close this window. An upload under way carries on, and what happens to it is said in the chat.',
   });
 
-  // What a host signs for the page in its frame: one of the Media page's purposes (media-app.js
-  // `purposes`, media-edit.js, media-upload.js attachPurpose): "media_<name>", then words after
+  // What a host signs for the page in its frame: one of the Media page's purposes (files-app.js
+  // `purposes`, files-edit.js, files-upload.js attachPurpose): "media_<name>", then words after
   // colons, none holding a space or a line break. Never a chat message's words.
   const SIGNABLE = /^media_[a-z_]+(?::[^\s:]+)*$/;
   const SIGNABLE_MAX = 512;
@@ -130,7 +130,7 @@
 
   /** Item `id`'s own page in its item-window form. */
   function itemPage(id) {
-    return '/media/' + encodeURIComponent(String(id)) + '?window=item';
+    return '/files/' + encodeURIComponent(String(id)) + '?window=item';
   }
 
   function originOf(win, given) {

@@ -11,13 +11,13 @@
 // file ... If we're also in a chat channel, we could upload the file to the active
 // chat channel"):
 //   - the chat, one of this server's channels open:
-//         "Drop to upload to Media and post in #general": the upload window (the
+//         "Drop to upload to Files and post in #general": the upload window (the
 //         Media page's own Add to Media in a window over the chat,
 //         /shared/upload-window.js) with "Also post in chat" ticked for it
 //   - the chat, a private conversation open (a direct message, a group, the
 //     scratch pad): "Drop to send in Ben" (the group's name in a group): the
 //         private, encrypted send its Attach uses, never a public upload
-//   - the Media page:                     "Drop to upload to Media"
+//   - the Media page:                     "Drop to upload to Files"
 //   - the Media item editor open:         "Drop to add to <the item's title>"
 //   - the Shared Files page:              "Drop to upload to Shared Files"
 // Nothing else is shown: a browser does not tell a page the dragged files'
@@ -51,7 +51,7 @@
   // The desktop app's words, exactly.
   const WORDS = Object.freeze({
     cannot: 'Files cannot be dropped here.',
-    uploadToMedia: 'Drop to upload to Media',
+    uploadToFiles: 'Drop to upload to Files',
     sharedFiles: 'Drop to upload to Shared Files',
   });
   /** "Drop to send in Ben": `name` is how the chat names the private conversation. */
@@ -59,11 +59,11 @@
     return 'Drop to send in ' + String(name == null ? '' : name);
   }
   /**
-   * "Drop to upload to Media and post in #general": a channel of the chat open (the desktop's
+   * "Drop to upload to Files and post in #general": a channel of the chat open (the desktop's
    * media/add.rs drop_and_post_words). `name` is how the chat names the channel.
    */
   function uploadAndPostIn(name) {
-    return 'Drop to upload to Media and post in ' + String(name == null ? '' : name);
+    return 'Drop to upload to Files and post in ' + String(name == null ? '' : name);
   }
   /** "Drop to add to Dusk on the beach": `title` is the item's title. */
   function addTo(title) {

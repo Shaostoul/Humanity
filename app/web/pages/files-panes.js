@@ -1,6 +1,6 @@
-// ── media-panes.js ────────────────────────────────────────────────────────
-// The Media page in three panes on the website (2026-10-19), the desktop's own layout mirrored:
-// src/gui/pages/media/panes.rs (the page's split, its words and its view switch) and
+// ── files-panes.js ────────────────────────────────────────────────────────
+// The Files page in three panes on the website (2026-10-19), the desktop's own layout mirrored:
+// src/gui/pages/files/panes.rs (the page's split, its words and its view switch) and
 // src/gui/widgets/panes.rs (panes that are cards, side by side or one above another, with a handle
 // between each two that a drag moves). The operator, 2026-10-19: "a left side card that is the list
 // of all the media and right side is like viewing the in-depth details of one media item. Maybe
@@ -20,12 +20,12 @@
 // - The panes are a CSS grid (`template`): each pane `minmax(<narrowest>px, <share>fr)` with the
 //   handle's track between, so a pane never goes below its narrowest however the window is sized;
 //   as tall as the window has room for below their top (`fill`), as the desktop's fill the page.
-// - THE LEFT PANE'S ROWS (`listRow`, the desktop's media/list.rs): each item its small picture,
+// - THE LEFT PANE'S ROWS (`listRow`, the desktop's files/list.rs): each item its small picture,
 //   title, by-line and a line of facts, the whole row one button, the item shown marked.
 //
-// A classic script in the browser (before media-item.js and media-app.js), a CommonJS module under
-// Node, where scripts/tests/media-web-panes.test.js runs it. Every element is built with
-// createElement and textContent; the styles are /shared/media.css, theme tokens only.
+// A classic script in the browser (before files-item.js and files-app.js), a CommonJS module under
+// Node, where scripts/tests/files-web-panes.test.js runs it. Every element is built with
+// createElement and textContent; the styles are /shared/files.css, theme tokens only.
 // ──────────────────────────────────────────────────────────────────────────
 (function (root) {
   'use strict';
@@ -53,7 +53,7 @@
     panesTip: 'The list, the item and its details side by side (one above another on a tall window).',
     gallery: 'Gallery',
     galleryTip: 'Every item as a tile across the page. Press one to see it in the panes.',
-    viewLabel: 'How the Media page is shown',
+    viewLabel: 'How the Files page is shown',
     choose: 'Choose something in the list to see it here.',
     details: 'Its details, licence and files show here, with Edit for your own.',
     handle: 'Drag to change the size of the panes beside it. Double-click to put them back.',
@@ -161,7 +161,7 @@
   function createPanes(o) {
     const h = o.h;
     const count = o.count || 3;
-    const el = h('div', { id: o.id || undefined, className: 'media-panes' + (o.className ? ' ' + o.className : '') });
+    const el = h('div', { id: o.id || undefined, className: 'files-panes' + (o.className ? ' ' + o.className : '') });
     let way = 'across';
     const minOf = () => (way === 'across' ? MIN_PANE : MIN_PANE_DOWN);
 
@@ -201,7 +201,7 @@
       const changed = next !== way || el.dataset.arrange !== next;
       way = next;
       el.dataset.arrange = way;
-      el.className = 'media-panes media-panes-' + way + (o.className ? ' ' + o.className : '');
+      el.className = 'files-panes files-panes-' + way + (o.className ? ' ' + o.className : '');
       if (changed) {
         for (const hd of el.querySelectorAll('[data-handle]')) hd.setAttribute('aria-orientation', way === 'across' ? 'vertical' : 'horizontal');
       }
@@ -225,22 +225,22 @@
     /** The handle between pane `i` and pane `i + 1`: dragged, double-clicked, or moved with the arrow keys. */
     function handle(i) {
       const hd = h('div', {
-        className: 'media-pane-handle', title: WORDS.handle, dataset: { handle: String(i) },
+        className: 'files-pane-handle', title: WORDS.handle, dataset: { handle: String(i) },
         attrs: { role: 'separator', tabindex: '0', 'aria-label': WORDS.handleLabel, 'aria-orientation': way === 'across' ? 'vertical' : 'horizontal' },
-      }, [h('span', { className: 'media-pane-grip', attrs: { 'aria-hidden': 'true' } })]);
+      }, [h('span', { className: 'files-pane-grip', attrs: { 'aria-hidden': 'true' } })]);
       let held = null; // {at, shares, len}
       const at = (e) => Number(way === 'across' ? e.clientX : e.clientY) || 0;
       const letGo = (e) => {
         if (!held) return;
         held = null;
-        hd.className = 'media-pane-handle';
+        hd.className = 'files-pane-handle';
         try { if (e && e.pointerId != null && typeof hd.releasePointerCapture === 'function') hd.releasePointerCapture(e.pointerId); } catch (err) { /* already released */ }
         set(o.shares(way), true);
       };
       hd.addEventListener('pointerdown', (e) => {
         if (e.button != null && e.button !== 0) return;
         held = { at: at(e), shares: checked(o.shares(way), o.defaults(way)), len: lengthAlong() };
-        hd.className = 'media-pane-handle media-pane-handle-held';
+        hd.className = 'files-pane-handle files-pane-handle-held';
         try { if (e.pointerId != null && typeof hd.setPointerCapture === 'function') hd.setPointerCapture(e.pointerId); } catch (err) { /* follows the pointer while over it */ }
         if (typeof e.preventDefault === 'function') e.preventDefault();
       });
@@ -269,7 +269,7 @@
     return { el, arrange: () => way, layout, apply, fill, handle };
   }
 
-  // ── The list pane's rows (the desktop's media/list.rs) ──
+  // ── The list pane's rows (the desktop's files/list.rs) ──
 
   /**
    * One item as a row of the list pane: its small picture, its title, "by Ann in Fire flow arts", and
@@ -278,7 +278,7 @@
    * right. It has no buttons of its own (they are on the right; the Gallery's tiles keep theirs).
    * `where`: 'featured' (the shelf) or 'list'. `c`: h, st (the page's state: viewer, kinds, labels,
    * revealed), lib {kindWords, labelsOf, itemName, downloadName, sizeWords, num, isFeatured}, MI
-   * (media-item.js: coverOf, byLine, plainName), FR (file-risk.js, or null), keptBadge (the words),
+   * (files-item.js: coverOf, byLine, plainName), FR (file-risk.js, or null), keptBadge (the words),
    * hiddenLine(item) (the protected setup's), pictureSource(pic) and open(item).
    */
   function listRow(c, item, where) {
@@ -290,15 +290,15 @@
     // The small picture under the tiles' rules (the protected setup hides it; a labelled item shows
     // its kind's word until it is shown in the middle pane; a members-only picture through its
     // object URL), else the kind's word.
-    const mark = () => h('span', { className: 'media-row-thumb media-row-mark media-mark-' + lib.kindWords(item.kind, st.kinds).mark, attrs: { 'aria-hidden': 'true' } }, [
-      h('span', { className: 'media-mark-word', text: kind }),
+    const mark = () => h('span', { className: 'files-row-thumb files-row-mark files-mark-' + lib.kindWords(item.kind, st.kinds).mark, attrs: { 'aria-hidden': 'true' } }, [
+      h('span', { className: 'files-mark-word', text: kind }),
     ]);
     let thumb = null;
     const pic = MI.coverOf(item) || (item.kind === 'picture' ? item : null);
     const veiled = lib.labelsOf(item, st.labels).length > 0 && !st.revealed.has(item.id);
     if (pic && c.hiddenLine(item) === null && !veiled) {
       const at = c.pictureSource(pic);
-      if (at.src) thumb = h('span', { className: 'media-row-thumb', attrs: { 'aria-hidden': 'true' } }, [h('img', { className: 'media-row-img', src: at.src, alt: '', loading: 'lazy' })]);
+      if (at.src) thumb = h('span', { className: 'files-row-thumb', attrs: { 'aria-hidden': 'true' } }, [h('img', { className: 'files-row-img', src: at.src, alt: '', loading: 'lazy' })]);
     }
     const chosen = !!st.viewer && st.viewer.id === item.id;
     const picks = Number(item.picks) || 0;
@@ -316,23 +316,23 @@
     // The site's hover hint (/shared/shell.js) names it in full (a long title is cut short in the
     // row) with its by-line, rather than guessing a description from the button's words.
     return h('button', {
-      type: 'button', className: 'media-row' + (chosen ? ' media-row-chosen' : ''), dataset: { id: item.id, row: where, tipTitle: title, tipDesc: MI.byLine(item) },
+      type: 'button', className: 'files-row' + (chosen ? ' files-row-chosen' : ''), dataset: { id: item.id, row: where, tipTitle: title, tipDesc: MI.byLine(item) },
       attrs: { 'aria-current': chosen ? 'true' : 'false' }, on: { click: () => c.open(item) },
     }, [
       thumb || mark(),
-      h('span', { className: 'media-row-text' }, [
-        h('span', { className: 'media-row-title', text: title }),
-        h('span', { className: 'media-row-by', text: MI.byLine(item) }),
-        h('span', { className: 'media-row-facts' + (labels.length ? ' media-row-labelled' : ''), text: facts.concat(labels).join(', ') }),
+      h('span', { className: 'files-row-text' }, [
+        h('span', { className: 'files-row-title', text: title }),
+        h('span', { className: 'files-row-by', text: MI.byLine(item) }),
+        h('span', { className: 'files-row-facts' + (labels.length ? ' files-row-labelled' : ''), text: facts.concat(labels).join(', ') }),
       ]),
     ]);
   }
 
   /** The rows of `root` marked for the item shown now (`id`, or null for none), without drawing them again. */
   function markChosen(root, id) {
-    for (const r of Array.from(root && typeof root.querySelectorAll === 'function' ? root.querySelectorAll('.media-row') : [])) {
+    for (const r of Array.from(root && typeof root.querySelectorAll === 'function' ? root.querySelectorAll('.files-row') : [])) {
       const chosen = id != null && String(id) === String(r.dataset.id);
-      r.className = 'media-row' + (chosen ? ' media-row-chosen' : '');
+      r.className = 'files-row' + (chosen ? ' files-row-chosen' : '');
       r.setAttribute('aria-current', chosen ? 'true' : 'false');
     }
   }
@@ -342,5 +342,5 @@
     arrangeFor, checked, drag, resetPair, template, defaultLayout, readLayout, saveLayout, createPanes, listRow, markChosen,
   };
   if (typeof module === 'object' && module && module.exports) module.exports = api;
-  else root.MediaPanes = api;
+  else root.FilesPanes = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

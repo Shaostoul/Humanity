@@ -1,9 +1,9 @@
-// ── media-item.js ─────────────────────────────────────────────────────────
+// ── files-item.js ─────────────────────────────────────────────────────────
 // An item's own page on the website (Media round 5, lane 2A, 2026-10-12;
-// docs/design/media-round-5-plan.md 3.5, 3.9 and 3.10). It is the Media page's
-// viewer grown: a tile's click opens it over the page and pushes /media/<id>
-// onto the history, closing goes back, and loading /media/<id> opens it. The
-// desktop app's item page is the original (src/gui/pages/media/item_view.rs);
+// docs/design/media-round-5-plan.md 3.5, 3.9 and 3.10). It is the Files page's
+// viewer grown: a tile's click opens it over the page and pushes /files/<id>
+// onto the history, closing goes back, and loading /files/<id> opens it. The
+// desktop app's item page is the original (src/gui/pages/files/item_view.rs);
 // this one copies its lines and words:
 //
 // - the picture, the video, or the cover (a labelled item keeps its label
@@ -15,18 +15,18 @@
 // - the licence by name, linked to its deed, with the server's own line for it,
 //   and "Offered for the game." when it is;
 // - its files, the item's own first, each with its type's badge (2026-10-17,
-//   media-edit.js fileBadge: the kind's word left the row then), its name,
+//   files-edit.js fileBadge: the kind's word left the row then), its name,
 //   size and Download. A Download goes through the relay's counting route,
-//   /api/media/download/<id>?file=<n>, never the file's own address, so it is
+//   /api/files/download/<id>?file=<n>, never the file's own address, so it is
 //   counted; a members-only file's through a ticket asked for that route and
 //   that file (`download: true`), which the browser then saves itself; under
 //   a file whose kind deserves a word (an archive, a Blender file, a program
 //   or a script), that word, by its name (2026-10-17, /shared/file-risk.js);
-// - Copy link (`https://<host>/media/<id>`, the page the relay serves with its
-//   preview for social sites), Edit (the uploader and admins: media-edit.js),
+// - Copy link (`https://<host>/files/<id>`, the page the relay serves with its
+//   preview for social sites), Edit (the uploader and admins: files-edit.js),
 //   and the tile's own actions (Pick, Remove, Feature, Keep, Report);
 // - "Report a copyright problem" (2026-10-13), for anyone, signed in or not:
-//   media-takedown.js's form, about this item;
+//   files-takedown.js's form, about this item;
 // - View in 3D (2026-10-16, docs/design/model-viewer.md) beside the Download of
 //   each .glb or .stl file: the 3D viewer (/shared/model-view.js) takes the
 //   place of the cover with Close the 3D view. Nothing is fetched before it is
@@ -34,35 +34,35 @@
 //   as a members-only picture is, never through the counting route, so looking
 //   at a model is not a download.
 //
-// Opening it counts a view (POST /api/media/viewed, unsigned; the session's
+// Opening it counts a view (POST /api/files/viewed, unsigned; the session's
 // upload token goes in its header only for a members-only item, which only a
 // member's view counts). An item that changed (an edit, a file added or taken
 // off) is changed wherever the page shows it (`takeItem`).
 //
 // IN TWO PANES SINCE 2026-10-19 (the desktop's three panes, src/gui/pages/
 // media/panes.rs, viewer.rs and item_view.rs draw_details; docs/design/
-// media-showcase.md "The three panes"). It is no longer a window over the page:
-// the item is drawn into the Media page's middle and right panes, beside the
-// list (/pages/media-panes.js), and in the item window over the chat into the
+// files-showcase.md "The three panes"). It is no longer a window over the page:
+// the item is drawn into the Files page's middle and right panes, beside the
+// list (/pages/files-panes.js), and in the item window over the chat into the
 // same two panes, side by side or one above the other:
-// - THE MIDDLE PANE (#media-face) shows the item to fit: a picture as large as
+// - THE MIDDLE PANE (#files-face) shows the item to fit: a picture as large as
 //   fits (with View full size), a video in the browser's player, a sound with
-//   Play here and then its waveform (/pages/media-sound.js: nothing is fetched
+//   Play here and then its waveform (/pages/files-sound.js: nothing is fetched
 //   before the press), a model's cover with View in 3D (the model fetched only
 //   when pressed) and Download, any other file as its type, name, size, word of
 //   caution and Download;
-// - THE RIGHT PANE (#media-details) holds everything about it, as above.
+// - THE RIGHT PANE (#files-details) holds everything about it, as above.
 // EDIT IS IN PLACE (the operator, 2026-10-19: "When clicking edit, instead of
 // popping up another window, just change the details panel on the right to
 // accept edits. Once done clicking save undoes the GUI changes for edit mode.
 // ... when we switch to edit mode, add the RGB boxed areas so edit mode stands
-// out."): Edit turns the right pane into the form (media-edit.js), in its three
+// out."): Edit turns the right pane into the form (files-edit.js), in its three
 // tinted parts, the pane edged in the nav bar's moving colours, Save and Cancel
 // always in view at its foot; Save sends it and the pane is the details again.
 // Cancel with changes asks first ("Discard the changes" or "Keep editing"), and
 // so does anything that would leave the form: another item pressed, Close,
 // Escape, Back or Forward, the Gallery; the browser asks itself before the page
-// is left (media-app.js beforeunload).
+// is left (files-app.js beforeunload).
 //
 // The page is drawn in two parts: the face (the picture or a playing video) is
 // drawn again only when what it shows changes, so a video keeps playing
@@ -70,14 +70,14 @@
 // again whenever the item changes. Everything the server sends goes in with
 // textContent; a picture or video loads only from this server's own addresses.
 //
-// A classic script in the browser (after media-edit.js, before media-app.js),
-// a CommonJS module under Node, where scripts/tests/media-web-item.test.js
+// A classic script in the browser (after files-edit.js, before files-app.js),
+// a CommonJS module under Node, where scripts/tests/files-web-item.test.js
 // runs the page with it.
 // ──────────────────────────────────────────────────────────────────────────
 (function (root) {
   'use strict';
 
-  const ED = typeof module === 'object' && module && module.exports ? require('./media-edit.js') : root.MediaEdit;
+  const ED = typeof module === 'object' && module && module.exports ? require('./files-edit.js') : root.FilesEdit;
   // The 3D viewer (/shared/model-view.js, loaded before this file). Without it, no View in 3D.
   const MV = typeof module === 'object' && module && module.exports ? require('../shared/model-view.js') : root.HosModelView;
   // The protected setup's state and pictures rule (/shared/protected.js, loaded before this file,
@@ -86,9 +86,9 @@
   // What kind of file each one is, when that deserves a word (/shared/file-risk.js, loaded before
   // this file, 2026-10-17): a program, a script, an archive, a Blender file. Without it, no line.
   const FR = typeof module === 'object' && module && module.exports ? require('../shared/file-risk.js') : root.HosFileRisk;
-  // A sound's view in the middle pane (/pages/media-sound.js), and the panes' words (/pages/media-panes.js).
-  const MS = typeof module === 'object' && module && module.exports ? require('./media-sound.js') : root.MediaSound;
-  const MP = typeof module === 'object' && module && module.exports ? require('./media-panes.js') : root.MediaPanes;
+  // A sound's view in the middle pane (/pages/files-sound.js), and the panes' words (/pages/files-panes.js).
+  const MS = typeof module === 'object' && module && module.exports ? require('./files-sound.js') : root.FilesSound;
+  const MP = typeof module === 'object' && module && module.exports ? require('./files-panes.js') : root.FilesPanes;
 
   // What an item hidden by the protected setup for its content label says (the desktop's
   // tiles.rs LABEL_HIDDEN_LINE). The pictures rule's own line is the preset's
@@ -98,7 +98,7 @@
   /**
    * Does the protected setup (`state`: protected.js's state, null when it is off) leave `item` out?
    * The line to show in its place, or null when it shows as usual. The desktop's rule
-   * (src/gui/pages/media/tiles.rs `show_of`, its Hidden branch), in its order: a non-friend's
+   * (src/gui/pages/files/tiles.rs `show_of`, its Hidden branch), in its order: a non-friend's
    * pictures and files under the pictures rule (`pictureLine`), then any labelled item that is not
    * your own. Your own items are never hidden. On this page nobody counts as a friend: the friend
    * list is in Chat's encrypted store, which this page cannot open, so another person's items stay
@@ -134,7 +134,7 @@
     // Plain status words only: what the offer allows is the licence's, in the server's own words.
     offeredForGame: 'Offered for the game.',
     removedFromItem: 'Removed from the item.',
-    // The copyright form's button (media-takedown.js holds the same words as WORDS.button).
+    // The copyright form's button (files-takedown.js holds the same words as WORDS.button).
     takedown: 'Report a copyright problem',
     takedownTip: 'Is this your work, put here without your permission? Tell the admins.',
     saved: 'Saved.',
@@ -156,14 +156,14 @@
     return 'Your changes to "' + title + '" are not saved.';
   }
 
-  /** "On Media since 9 October 2025" (UTC), from the server's time in milliseconds; '' when it gave none (the desktop's since_line). */
+  /** "On the Files page since 9 October 2025" (UTC), from the server's time in milliseconds; '' when it gave none (the desktop's since_line). */
   const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
   function sinceLine(item) {
     const ms = Number(item && item.published_at) > 0 ? Number(item.published_at) : Number(item && item.uploaded_at) || 0;
     if (!(ms > 0)) return '';
     const d = new Date(ms);
     if (Number.isNaN(d.getTime())) return '';
-    return 'On Media since ' + d.getUTCDate() + ' ' + MONTHS[d.getUTCMonth()] + ' ' + d.getUTCFullYear();
+    return 'On the Files page since ' + d.getUTCDate() + ' ' + MONTHS[d.getUTCMonth()] + ' ' + d.getUTCFullYear();
   }
 
   // ── What the item's page and its card say (the desktop's words) ──
@@ -204,13 +204,13 @@
     const n = Number(item && item.file_count) || 0;
     return n > 1 ? n + ' files' : '';
   }
-  /** The item's own page on the server at `origin`: what Copy link copies, never /media?id=. */
+  /** The item's own page on the server at `origin`: what Copy link copies, never /files?id=. */
   function itemLink(origin, id) {
-    return String(origin || '').replace(/\/+$/, '') + '/media/' + id;
+    return String(origin || '').replace(/\/+$/, '') + '/files/' + id;
   }
   /** The relay's counting route for file `file` of item `id`. */
   function downloadPath(id, file) {
-    return '/api/media/download/' + id + '?file=' + (Number(file) || 0);
+    return '/api/files/download/' + id + '?file=' + (Number(file) || 0);
   }
   /** The item's files, its own first: as the server lists them, or its own file alone. */
   function filesOf(item) {
@@ -231,10 +231,10 @@
    * of the chat's new one when `t` was lent, else null; optional), myKey,
    * isAdmin(), membersOnlyServer(), blobs, blobFor(item), sweepBlobs(), go(path, push), canPush,
    * back(), rerender() (the grid and the shelf), actions(item) (a tile's actions, for this page),
-   * attach(file, item, as) and uploadsFor(id) (media-app.js's resumable upload, attaching), and
+   * attach(file, item, as) and uploadsFor(id) (files-app.js's resumable upload, attaching), and
    * closed() (called once an open item is closed: the item window over the chat closes with it), or null.
    * Since the panes (2026-10-19): handle() (the handle between the middle and right panes, from
-   * media-panes.js), placeholders (draw the two panes' lines while nothing is chosen: the Media page,
+   * files-panes.js), placeholders (draw the two panes' lines while nothing is chosen: the Files page,
    * not the item window), selected() (the item shown changed: the list marks it) and editChanged()
    * (the Edit form opened, closed or was typed in: the item window tells the chat), each optional;
    * els.ask, where the question before letting changes go is drawn.
@@ -256,7 +256,7 @@
     const asking = new Set(); // "<id>:<file>" while a Download's ticket is on its way
     const downloadErrors = new Map(); // "<id>:<file>" -> the words of a Download that could not start
     // `model`: the open 3D view, {itemId, file, box, handle}, drawn in place of the cover.
-    // `sound`: a sound's view in the middle pane, {itemId, view} (media-sound.js).
+    // `sound`: a sound's view in the middle pane, {itemId, view} (files-sound.js).
     // `asking`: the question before an edit's changes are let go, {then, keep}, while it is open.
     const page = { status: '', copied: '', edit: null, editBox: null, infoBox: null, model: null, sound: null, asking: null, facePane: null, detailsPane: null };
     // What opens the 3D view: the page's own stand-in when it hands one in (the tests, which have no
@@ -379,7 +379,7 @@
       let u;
       try { u = new URL(url, env.origin); } catch (e) { return null; }
       if (u.origin !== new URL(env.origin).origin) return null;
-      if (u.pathname !== (download ? '/api/media/download/' : '/api/media/file/') + id || !u.searchParams.get('ticket')) return null;
+      if (u.pathname !== (download ? '/api/files/download/' : '/api/files/file/') + id || !u.searchParams.get('ticket')) return null;
       return u.pathname + u.search;
     }
     /** Ask for a ticket: {path, expiresIn} (seconds), or throws Error(the relay's words). A Download's names its file. */
@@ -387,7 +387,7 @@
       const filename = lib.itemFileName(item);
       if (!filename) throw new Error(W.noFileName);
       const download = file != null;
-      const a = await lib.answerOf(await env.fetch('/api/media/ticket', {
+      const a = await lib.answerOf(await env.fetch('/api/files/ticket', {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Upload-Token': t },
         body: JSON.stringify(download ? { id: item.id, filename, file: Number(file) || 0, download: true } : { id: item.id, filename }),
       }));
@@ -401,7 +401,7 @@
     }
     /**
      * A ticket asked for with token `t` (fetchTicket's arguments). When the server no longer knows `t`
-     * and it was one the chat lent this page (the item window over the chat, media-app.js fileToken:
+     * and it was one the chat lent this page (the item window over the chat, files-app.js fileToken:
      * the chat signed in again since), the chat is asked for its new one and the ticket asked for once
      * more with that. Answers {got, token (the one it was given with)}, or throws the relay's words.
      */
@@ -511,7 +511,7 @@
       const t = item.visibility === 'members' ? c.token() : '';
       if (t) headers['X-Upload-Token'] = t;
       try {
-        Promise.resolve(env.fetch('/api/media/viewed', { method: 'POST', headers, body: JSON.stringify({ id: item.id }) })).catch(() => {});
+        Promise.resolve(env.fetch('/api/files/viewed', { method: 'POST', headers, body: JSON.stringify({ id: item.id }) })).catch(() => {});
       } catch (e) { /* a view that is not counted is not worth a word */ }
     }
 
@@ -529,7 +529,7 @@
     /**
      * File `f`'s answer from the file's own address: a public file's /uploads/ one as it is, a
      * members-only one from the members' file route with this session's token in its header
-     * (exactly as a members-only picture is fetched, `fetchBlob` in media-app.js). Never the
+     * (exactly as a members-only picture is fetched, `fetchBlob` in files-app.js). Never the
      * counting route: looking at a model, or listening to a sound here, is not a download.
      */
     async function ownFileAnswer(f, signal) {
@@ -563,7 +563,7 @@
     async function modelBytes(f, signal) {
       return MV.readBody(await ownFileAnswer(f, signal));
     }
-    /** A sound's bytes for its view in the middle pane (media-sound.js), as a Blob: its own address, as a model's. */
+    /** A sound's bytes for its view in the middle pane (files-sound.js), as a Blob: its own address, as a model's. */
     async function soundBlob(f, signal) {
       const res = await ownFileAnswer(f, signal);
       let declared = NaN;
@@ -580,15 +580,15 @@
       if (m && m.itemId === item.id && m.file === f.file) { reveal(m.box); return; } // already open: nothing fetched again
       closeModel(true);
       const name = shownName(item, f);
-      const host = h('div', { id: 'media-model-view', className: 'media-model-view' });
+      const host = h('div', { id: 'files-model-view', className: 'files-model-view' });
       // In the middle pane, as wide as it is (2026-10-19; it was a window's width).
       const box = h('div', {
-        id: 'media-model', className: 'media-viewer-model', dataset: { modelFile: f.file },
+        id: 'files-model', className: 'files-viewer-model', dataset: { modelFile: f.file },
         attrs: { style: 'width:100%;max-width:100%;margin:0 auto' },
       }, [
-        h('div', { className: 'media-model-head', attrs: { style: 'display:flex;flex-wrap:wrap;gap:var(--space-sm);align-items:center;justify-content:space-between;margin-bottom:var(--space-sm)' } }, [
-          h('span', { className: 'media-viewer-name', text: name }),
-          h('button', { type: 'button', id: 'media-model-close', className: 'media-btn media-btn-small', text: MV.WORDS.close, on: { click: () => closeModel() } }),
+        h('div', { className: 'files-model-head', attrs: { style: 'display:flex;flex-wrap:wrap;gap:var(--space-sm);align-items:center;justify-content:space-between;margin-bottom:var(--space-sm)' } }, [
+          h('span', { className: 'files-viewer-name', text: name }),
+          h('button', { type: 'button', id: 'files-model-close', className: 'files-btn files-btn-small', text: MV.WORDS.close, on: { click: () => closeModel() } }),
         ]),
         host,
       ]);
@@ -648,10 +648,10 @@
      */
     function addressBack() {
       if (!st.viewer || !c.canPush) return;
-      c.go('/media/' + st.viewer.id, true);
+      c.go('/files/' + st.viewer.id, true);
       st.pushed = true;
     }
-    /** Open an item. `fromAddress`: the address names it already (a load of /media/<id>, Back, Forward). */
+    /** Open an item. `fromAddress`: the address names it already (a load of /files/<id>, Back, Forward). */
     function open(item, fromAddress) {
       // Another item while the Edit form holds changes: asked first (the desktop's Discard::Open).
       if (item && st.viewer && st.viewer.id !== item.id && unsaved()) {
@@ -665,7 +665,7 @@
       if (item && fromAddress !== true) {
         // Opened from the list: a new step in the history, so Back closes it.
         if (!st.viewer) st.pushed = !!c.canPush;
-        c.go('/media/' + item.id, !st.viewer);
+        c.go('/files/' + item.id, !st.viewer);
       }
       if (another) { page.status = ''; page.copied = ''; closeEdit(true); closeModel(true); closeSound(); }
       st.viewer = item;
@@ -674,7 +674,7 @@
       if (typeof c.selected === 'function') c.selected();
     }
     /**
-     * Close the item. Its address goes too: Back when it was pushed here, else replaced by /media.
+     * Close the item. Its address goes too: Back when it was pushed here, else replaced by /files.
      * With the Edit form holding changes it asks first, unless `force` (the item was removed).
      */
     function close(fromAddress, force) {
@@ -684,7 +684,7 @@
       }
       const was = !!st.viewer;
       if (st.viewer && fromAddress !== true) {
-        if (st.pushed) { st.pushed = false; c.back(); } else c.go('/media', false);
+        if (st.pushed) { st.pushed = false; c.back(); } else c.go('/files', false);
       }
       st.viewer = null;
       closeEdit(true);
@@ -720,21 +720,21 @@
       if (!page.asking) return;
       const now = st.viewer ? current(st.viewer.id) || st.viewer : null;
       const title = now ? lib.itemName(now, st.kinds) : '';
-      const keep = h('button', { type: 'button', id: 'media-discard-keep', className: 'media-btn', text: WORDS.keepEditing, on: { click: () => answer(false) } });
+      const keep = h('button', { type: 'button', id: 'files-discard-keep', className: 'files-btn', text: WORDS.keepEditing, on: { click: () => answer(false) } });
       const overlay = h('div', {
-        id: 'media-discard', className: 'media-viewer',
-        attrs: { role: 'alertdialog', 'aria-modal': 'true', 'aria-labelledby': 'media-discard-title', 'aria-describedby': 'media-discard-words' },
+        id: 'files-discard', className: 'files-viewer',
+        attrs: { role: 'alertdialog', 'aria-modal': 'true', 'aria-labelledby': 'files-discard-title', 'aria-describedby': 'files-discard-words' },
       }, [
-        h('div', { className: 'media-viewer-box media-ask-box' }, [
-          h('h2', { id: 'media-discard-title', className: 'media-ask-title', text: WORDS.discardTitle }),
-          h('p', { id: 'media-discard-words', className: 'media-ask-words', text: discardWords(title) }),
-          h('div', { className: 'media-form-buttons' }, [
-            h('button', { type: 'button', id: 'media-discard-yes', className: 'media-btn media-btn-danger', text: WORDS.discardThem, on: { click: () => answer(true) } }),
+        h('div', { className: 'files-viewer-box files-ask-box' }, [
+          h('h2', { id: 'files-discard-title', className: 'files-ask-title', text: WORDS.discardTitle }),
+          h('p', { id: 'files-discard-words', className: 'files-ask-words', text: discardWords(title) }),
+          h('div', { className: 'files-form-buttons' }, [
+            h('button', { type: 'button', id: 'files-discard-yes', className: 'files-btn files-btn-danger', text: WORDS.discardThem, on: { click: () => answer(true) } }),
             keep,
           ]),
         ]),
       ]);
-      // A click beside it keeps editing, as Escape does (media-app.js): nothing is lost by a slip.
+      // A click beside it keeps editing, as Escape does (files-app.js): nothing is lost by a slip.
       overlay.addEventListener('click', (e) => { if (e.target === overlay) answer(false); });
       box.appendChild(overlay);
       try { keep.focus(); } catch (e) { /* it can still be clicked */ }
@@ -787,7 +787,7 @@
     }
 
     // ── The middle pane: the item to fit (the desktop's viewer.rs) ──
-    /** A sound's view for `item` (media-sound.js): the same one while it is shown, so it plays on through a redraw. */
+    /** A sound's view for `item` (files-sound.js): the same one while it is shown, so it plays on through a redraw. */
     function soundFor(item) {
       if (page.sound && page.sound.itemId === item.id) return page.sound.view;
       closeSound();
@@ -819,22 +819,22 @@
       // Left out by the protected setup: its line instead, and nothing fetched (the desktop's
       // Show::Hidden). Checked before the 3D view, which a hidden item never shows.
       const hid = hiddenLine(item);
-      if (hid !== null) return [h('p', { className: 'media-hint media-viewer-hidden', id: 'media-viewer-hidden', text: hid })];
+      if (hid !== null) return [h('p', { className: 'files-hint files-viewer-hidden', id: 'files-viewer-hidden', text: hid })];
       // The 3D view, when one is open: the same element each time, so the model drawn in it (and
       // its WebGL context) stays while the rest of the page is drawn again around it.
       if (page.model && page.model.itemId === item.id) return [page.model.box];
       const name = lib.itemName(item, st.kinds);
       const route = lib.fileRoute(item, env.origin);
-      if (route.why) return [h('p', { className: 'media-warn', text: route.why })];
+      if (route.why) return [h('p', { className: 'files-warn', text: route.why })];
       if (veiled(item)) {
-        // The label cover, as on its tile (/media/<n> opens the page directly): nothing is fetched
+        // The label cover, as on its tile (/files/<n> opens the page directly): nothing is fetched
         // until it is clicked.
         return [h('button', {
-          type: 'button', id: 'media-viewer-veil', className: 'media-thumb media-veil media-viewer-veil', dataset: { veil: item.id },
+          type: 'button', id: 'files-viewer-veil', className: 'files-thumb files-veil files-viewer-veil', dataset: { veil: item.id },
           on: { click: () => { st.revealed.add(item.id); renderIfChanged(); renderInfo(); c.rerender(); } },
         }, [
-          h('span', { className: 'media-veil-labels', text: lib.labelsOf(item, st.labels).map((l) => l.label).join(', ') }),
-          h('span', { className: 'media-veil-show', text: W.clickToShow }),
+          h('span', { className: 'files-veil-labels', text: lib.labelsOf(item, st.labels).map((l) => l.label).join(', ') }),
+          h('span', { className: 'files-veil-show', text: W.clickToShow }),
         ])];
       }
       if (item.kind === 'picture' || item.kind === 'video') {
@@ -847,13 +847,13 @@
           if (e && e.state === 'ready') { src = e.url; ticketed = item.kind === 'video'; } else if (e && e.state === 'error') why = e.why;
           else why = c.token() ? W.loadingFile + ' ' + lib.sizeWords(item.size_bytes) : W.waitingToken;
         }
-        if (!src) return [h('p', { className: 'media-viewer-wait', id: 'media-viewer-wait', text: why })];
+        if (!src) return [h('p', { className: 'files-viewer-wait', id: 'files-viewer-wait', text: why })];
         if (item.kind === 'picture') {
           // As large as fits, its whole self; View full size opens it at its own size.
           return [
-            h('img', { className: 'media-viewer-img media-face-fit', src, alt: name }),
-            h('div', { className: 'media-face-buttons' }, [h('a', {
-              href: src, target: '_blank', rel: 'noopener', id: 'media-view-full', className: 'media-btn media-btn-small',
+            h('img', { className: 'files-viewer-img files-face-fit', src, alt: name }),
+            h('div', { className: 'files-face-buttons' }, [h('a', {
+              href: src, target: '_blank', rel: 'noopener', id: 'files-view-full', className: 'files-btn files-btn-small',
               text: WORDS.viewFull, title: WORDS.viewFullTip,
             })]),
           ];
@@ -861,16 +861,16 @@
         // A public cover is the video's poster.
         const cover = coverOf(item);
         const poster = cover && lib.fileRoute(cover, env.origin).public;
-        const video = h('video', { className: 'media-viewer-video media-face-fit', src, controls: true, preload: 'metadata', poster: poster || undefined });
+        const video = h('video', { className: 'files-viewer-video files-face-fit', src, controls: true, preload: 'metadata', poster: poster || undefined });
         if (ticketed) video.addEventListener('error', () => renewTicket(item, video));
         return [video];
       }
       const cover = coverOf(item);
       const where = cover ? c.pictureSource(cover) : null;
-      const coverImg = where && where.src ? h('img', { className: 'media-viewer-img media-face-fit', src: where.src, alt: name }) : null;
+      const coverImg = where && where.src ? h('img', { className: 'files-viewer-img files-face-fit', src: where.src, alt: name }) : null;
       // A sound or a song: its cover above, then Play here (and, once pressed, its waveform).
       if (isSound(item)) {
-        if (coverImg) coverImg.className = 'media-viewer-img media-face-cover';
+        if (coverImg) coverImg.className = 'files-viewer-img files-face-cover';
         return [coverImg, soundFor(item).el].filter(Boolean);
       }
       // A model or any other file: its cover (or its type, large), what it is, its name and size, its
@@ -885,21 +885,21 @@
       const buttons = [];
       if (as && !ownAt.why) {
         buttons.push(h('button', {
-          type: 'button', id: 'media-face-view3d', className: 'media-btn media-btn-primary',
+          type: 'button', id: 'files-face-view3d', className: 'files-btn files-btn-primary',
           title: MV.fill(MV.WORDS.viewTip, { size: lib.sizeWords(own.size_bytes) }), text: MV.WORDS.view,
           disabled: !!ownAt.members && !c.token(), on: { click: () => openModel(item, own, as) },
         }));
       }
       buttons.push(h('button', {
-        type: 'button', id: 'media-face-download', className: 'media-btn', title: WORDS.downloadTip, text: WORDS.download,
+        type: 'button', id: 'files-face-download', className: 'files-btn', title: WORDS.downloadTip, text: WORDS.download,
         disabled: !!route.members && !c.token(), on: { click: () => download(item, own) },
       }));
-      return [h('div', { className: 'media-viewer-file media-face-file' }, [
-        coverImg || h('div', { className: 'media-face-mark' }, [ED.fileBadge(h, env.document, ownName)]),
-        h('div', { className: 'media-face-kind', text: kind }),
-        h('div', { className: 'media-viewer-name', text: ownName + ', ' + lib.sizeWords(own.size_bytes || item.size_bytes) }),
-        risk ? h('p', { className: 'file-caution' + (risk.disguised ? ' disguised' : ''), id: 'media-face-caution', text: risk.words }) : null,
-        h('div', { className: 'media-form-buttons media-face-buttons' }, buttons),
+      return [h('div', { className: 'files-viewer-file files-face-file' }, [
+        coverImg || h('div', { className: 'files-face-mark' }, [ED.fileBadge(h, env.document, ownName)]),
+        h('div', { className: 'files-face-kind', text: kind }),
+        h('div', { className: 'files-viewer-name', text: ownName + ', ' + lib.sizeWords(own.size_bytes || item.size_bytes) }),
+        risk ? h('p', { className: 'file-caution' + (risk.disguised ? ' disguised' : ''), id: 'files-face-caution', text: risk.words }) : null,
+        h('div', { className: 'files-form-buttons files-face-buttons' }, buttons),
       ])];
     }
 
@@ -914,7 +914,7 @@
       if (page.infoBox) page.infoBox.hidden = editing;
       const pane = page.detailsPane;
       if (pane) {
-        pane.className = 'media-pane media-details-pane' + (editing ? ' media-pane-editing' : '');
+        pane.className = 'files-pane files-details-pane' + (editing ? ' files-pane-editing' : '');
         if (editing) pane.dataset.editing = '1'; else delete pane.dataset.editing;
       }
       if (typeof c.editChanged === 'function') c.editChanged();
@@ -929,34 +929,34 @@
       env.document.title = (st.viewer ? lib.itemName(st.viewer, st.kinds) + ', ' : '') + c.mediaOn;
       const item = st.viewer;
       if (!item) {
-        // Nothing chosen: the two panes say what they will hold (the Media page's; the item window
+        // Nothing chosen: the two panes say what they will hold (the Files page's; the item window
         // shows nothing then, and closes).
         if (c.placeholders) {
           els.viewer.append(...[
-            h('div', { id: 'media-choose', className: 'media-pane media-face-pane media-pane-empty', attrs: { role: 'region', 'aria-label': WORDS.faceLabel } }, [
-              h('p', { className: 'media-hint media-pane-line', text: MP ? MP.WORDS.choose : '' }),
+            h('div', { id: 'files-choose', className: 'files-pane files-face-pane files-pane-empty', attrs: { role: 'region', 'aria-label': WORDS.faceLabel } }, [
+              h('p', { className: 'files-hint files-pane-line', text: MP ? MP.WORDS.choose : '' }),
             ]),
             handle(),
-            h('div', { id: 'media-details-empty', className: 'media-pane media-details-pane media-pane-empty', attrs: { role: 'region', 'aria-label': WORDS.detailsLabel } }, [
-              h('p', { className: 'media-hint media-pane-line', text: MP ? MP.WORDS.details : '' }),
+            h('div', { id: 'files-details-empty', className: 'files-pane files-details-pane files-pane-empty', attrs: { role: 'region', 'aria-label': WORDS.detailsLabel } }, [
+              h('p', { className: 'files-hint files-pane-line', text: MP ? MP.WORDS.details : '' }),
             ]),
           ].filter(Boolean));
         }
         return;
       }
-      page.infoBox = h('div', { id: 'media-item-info', className: 'media-item-info' });
-      page.editBox = page.editBox || h('div', { id: 'media-item-edit', className: 'media-item-edit' });
+      page.infoBox = h('div', { id: 'files-item-info', className: 'files-item-info' });
+      page.editBox = page.editBox || h('div', { id: 'files-item-edit', className: 'files-item-edit' });
       // The middle pane: the item to fit.
-      page.facePane = h('div', { id: 'media-face', className: 'media-pane media-face-pane', attrs: { role: 'region', 'aria-label': WORDS.faceLabel } }, faceParts(item));
+      page.facePane = h('div', { id: 'files-face', className: 'files-pane files-face-pane', attrs: { role: 'region', 'aria-label': WORDS.faceLabel } }, faceParts(item));
       // The right pane: Close, then everything about it, or its Edit form in its place.
-      page.detailsPane = h('div', { id: 'media-details', className: 'media-pane media-details-pane', attrs: { role: 'region', 'aria-label': WORDS.detailsLabel } }, [
-        h('div', { className: 'media-details-head' }, [
-          h('button', { type: 'button', id: 'media-viewer-close', className: 'media-btn media-btn-small media-viewer-close', text: WORDS.close, title: WORDS.closeTip, on: { click: () => close() } }),
+      page.detailsPane = h('div', { id: 'files-details', className: 'files-pane files-details-pane', attrs: { role: 'region', 'aria-label': WORDS.detailsLabel } }, [
+        h('div', { className: 'files-details-head' }, [
+          h('button', { type: 'button', id: 'files-viewer-close', className: 'files-btn files-btn-small files-viewer-close', text: WORDS.close, title: WORDS.closeTip, on: { click: () => close() } }),
         ]),
         page.infoBox,
         page.editBox,
       ]);
-      els.viewer.appendChild(h('div', { id: 'media-viewer-open', className: 'media-item-panes', dataset: { item: item.id } },
+      els.viewer.appendChild(h('div', { id: 'files-viewer-open', className: 'files-item-panes', dataset: { item: item.id } },
         [page.facePane, handle(), page.detailsPane].filter(Boolean)));
       editMode();
       renderInfo();
@@ -973,38 +973,38 @@
       env.document.title = lib.itemName(item, st.kinds) + ', ' + c.mediaOn;
       const route = lib.fileRoute(item, env.origin);
       const L = st.licences || {};
-      const badges = lib.labelsOf(item, st.labels).map((l) => h('span', { className: 'media-badge media-badge-label', text: l.label }));
-      if (item.kept) badges.push(h('span', { className: 'media-badge media-badge-kept', text: W.keptBadge }));
-      if (item.visibility === 'members') badges.push(h('span', { className: 'media-badge', text: 'Members only' }));
-      if (item.featured === 'main' || item.featured === 'category') badges.push(h('span', { className: 'media-badge media-badge-kept', text: item.featured === 'main' ? 'Featured' : 'Featured in its category' }));
+      const badges = lib.labelsOf(item, st.labels).map((l) => h('span', { className: 'files-badge files-badge-label', text: l.label }));
+      if (item.kept) badges.push(h('span', { className: 'files-badge files-badge-kept', text: W.keptBadge }));
+      if (item.visibility === 'members') badges.push(h('span', { className: 'files-badge', text: 'Members only' }));
+      if (item.featured === 'main' || item.featured === 'category') badges.push(h('span', { className: 'files-badge files-badge-kept', text: item.featured === 'main' ? 'Featured' : 'Featured in its category' }));
       const kids = [
-        h('h2', { className: 'media-viewer-title', text: lib.itemName(item, st.kinds) }),
-        h('p', { className: 'media-viewer-meta', id: 'media-item-by', text: byLine(item) }),
-        badges.length ? h('div', { className: 'media-badges' }, badges) : null,
-        h('p', { className: 'media-viewer-meta', id: 'media-item-counts', text: countsLine(item) }),
+        h('h2', { className: 'files-viewer-title', text: lib.itemName(item, st.kinds) }),
+        h('p', { className: 'files-viewer-meta', id: 'files-item-by', text: byLine(item) }),
+        badges.length ? h('div', { className: 'files-badges' }, badges) : null,
+        h('p', { className: 'files-viewer-meta', id: 'files-item-counts', text: countsLine(item) }),
         // The day it was put on the page (the desktop's since_line), when the server said.
-        sinceLine(item) ? h('p', { className: 'media-viewer-meta', id: 'media-item-since', text: sinceLine(item) }) : null,
+        sinceLine(item) ? h('p', { className: 'files-viewer-meta', id: 'files-item-since', text: sinceLine(item) }) : null,
         // The whole description, as plain text: its own line breaks are kept (white-space: pre-wrap).
-        item.description && item.description.trim() ? h('p', { className: 'media-viewer-desc', id: 'media-item-description', text: item.description.trim() }) : null,
+        item.description && item.description.trim() ? h('p', { className: 'files-viewer-desc', id: 'files-item-description', text: item.description.trim() }) : null,
       ];
       // The licence by name (linked to its deed), the server's own line for it, and the game's line.
       const id = item.licence || L.default || 'all_rights_reserved';
       const known = ED.offeredLicence(L, id);
       const name = (known && known.name) || id;
-      kids.push(h('p', { className: 'media-licence-line', id: 'media-item-licence' }, [
+      kids.push(h('p', { className: 'files-licence-line', id: 'files-item-licence' }, [
         'Licence: ',
         known && /^https:\/\//.test(known.url || '')
           ? h('a', { href: known.url, target: '_blank', rel: 'noopener noreferrer', text: name })
           : h('span', { text: name }),
       ]));
-      if (known && known.line) kids.push(h('p', { className: 'media-hint', id: 'media-item-licence-words', text: known.line }));
+      if (known && known.line) kids.push(h('p', { className: 'files-hint', id: 'files-item-licence-words', text: known.line }));
       if (item.project_use) {
         const line = L.game_offer && L.game_offer.line ? L.game_offer.line : WORDS.offeredForGame;
-        kids.push(h('p', { className: 'media-hint media-item-game', id: 'media-item-game', text: line }));
+        kids.push(h('p', { className: 'files-hint files-item-game', id: 'files-item-game', text: line }));
       }
       // The files, the item's own first, then the cover, each with its counted Download.
       const files = filesOf(item);
-      const list = h('div', { id: 'media-item-files', className: 'media-item-files' }, [h('h3', { text: files.length === 1 ? 'File' : 'Files' })]);
+      const list = h('div', { id: 'files-item-files', className: 'files-item-files' }, [h('h3', { text: files.length === 1 ? 'File' : 'Files' })]);
       const rows = files.map((f) => [f, false]).concat(item.cover ? [[item.cover, true]] : []);
       const may = !route.why && !veiled(item);
       const hidden = hiddenLine(item);
@@ -1015,20 +1015,20 @@
         // Not where the protected setup leaves the item out: a model's textures are pictures too.
         const as = may && !cover && hidden === null ? modelName(f) : '';
         const fileAt = as ? lib.fileRoute(f, env.origin) : null;
-        // Its type first, always (2026-10-17, media-edit.js fileBadge): the badge says what kind of
+        // Its type first, always (2026-10-17, files-edit.js fileBadge): the badge says what kind of
         // file it is, so the row says only "name, size" ("name, cover picture, size" for the cover).
         // Both by its plain name (shownName): a name cannot hide its real ending.
         const named = shownName(item, f);
-        list.appendChild(h('div', { className: 'media-item-file-row', dataset: { file: f.file } }, [
+        list.appendChild(h('div', { className: 'files-item-file-row', dataset: { file: f.file } }, [
           ED.fileBadge(h, env.document, named),
-          h('span', { className: 'media-item-file-name', text: named + (cover ? ', cover picture, ' : ', ') + lib.sizeWords(f.size_bytes) }),
+          h('span', { className: 'files-item-file-name', text: named + (cover ? ', cover picture, ' : ', ') + lib.sizeWords(f.size_bytes) }),
           may ? h('button', {
-            type: 'button', className: 'media-btn media-btn-small media-btn-primary', id: f.file ? 'media-download-' + f.file : 'media-download',
+            type: 'button', className: 'files-btn files-btn-small files-btn-primary', id: f.file ? 'files-download-' + f.file : 'files-download',
             dataset: { download: f.file }, title: WORDS.downloadTip, text: busy ? W.loadingFile : WORDS.download,
             disabled: busy || (!!route.members && !c.token()), on: { click: () => download(item, f) },
           }) : null,
           fileAt && !fileAt.why ? h('button', {
-            type: 'button', className: 'media-btn media-btn-small', id: f.file ? 'media-view3d-' + f.file : 'media-view3d',
+            type: 'button', className: 'files-btn files-btn-small', id: f.file ? 'files-view3d-' + f.file : 'files-view3d',
             dataset: { view3d: f.file }, title: MV.fill(MV.WORDS.viewTip, { size: lib.sizeWords(f.size_bytes) }),
             text: MV.WORDS.view, disabled: !!fileAt.members && !c.token(), on: { click: () => openModel(item, f, as) },
           }) : null,
@@ -1037,31 +1037,31 @@
         const risk = riskOf(named);
         if (risk) {
           list.appendChild(h('p', {
-            className: 'file-caution' + (risk.disguised ? ' disguised' : ''), id: f.file ? 'media-file-caution-' + f.file : 'media-file-caution',
+            className: 'file-caution' + (risk.disguised ? ' disguised' : ''), id: f.file ? 'files-file-caution-' + f.file : 'files-file-caution',
             dataset: { fileRisk: risk.kind }, text: risk.words,
           }));
         }
-        if (downloadErrors.has(k)) list.appendChild(h('p', { className: 'media-warn', id: f.file ? 'media-download-error-' + f.file : 'media-download-error', text: downloadErrors.get(k) }));
+        if (downloadErrors.has(k)) list.appendChild(h('p', { className: 'files-warn', id: f.file ? 'files-download-error-' + f.file : 'files-download-error', text: downloadErrors.get(k) }));
       }
-      if (mayEdit(item) && (files.length > 1 || item.cover)) list.appendChild(h('p', { className: 'media-hint', text: WORDS.editHint }));
+      if (mayEdit(item) && (files.length > 1 || item.cover)) list.appendChild(h('p', { className: 'files-hint', text: WORDS.editHint }));
       kids.push(list);
       // Copy link and Edit, then the tile's own actions.
-      const buttons = [h('button', { type: 'button', id: 'media-copy-link', className: 'media-btn', text: WORDS.copyLink, title: WORDS.copyTip, on: { click: () => copyLink(item) } })];
-      if (mayEdit(item)) buttons.push(h('button', { type: 'button', id: 'media-item-edit-open', className: 'media-btn media-btn-primary', text: WORDS.edit, title: WORDS.editTip, on: { click: () => openEdit(item) } }));
-      kids.push(h('div', { className: 'media-form-buttons media-item-buttons' }, buttons.concat([c.actions(item)])));
-      // "Report a copyright problem" (2026-10-13, media-takedown.js): for anyone, signed in or not.
+      const buttons = [h('button', { type: 'button', id: 'files-copy-link', className: 'files-btn', text: WORDS.copyLink, title: WORDS.copyTip, on: { click: () => copyLink(item) } })];
+      if (mayEdit(item)) buttons.push(h('button', { type: 'button', id: 'files-item-edit-open', className: 'files-btn files-btn-primary', text: WORDS.edit, title: WORDS.editTip, on: { click: () => openEdit(item) } }));
+      kids.push(h('div', { className: 'files-form-buttons files-item-buttons' }, buttons.concat([c.actions(item)])));
+      // "Report a copyright problem" (2026-10-13, files-takedown.js): for anyone, signed in or not.
       if (typeof c.openTakedown === 'function') {
-        kids.push(h('p', { className: 'media-hint media-item-takedown' }, [h('button', {
-          type: 'button', id: 'media-item-takedown', className: 'media-btn media-btn-small', text: WORDS.takedown,
+        kids.push(h('p', { className: 'files-hint files-item-takedown' }, [h('button', {
+          type: 'button', id: 'files-item-takedown', className: 'files-btn files-btn-small', text: WORDS.takedown,
           title: WORDS.takedownTip, on: { click: () => c.openTakedown(item) },
         })]));
       }
-      if (page.copied) kids.push(h('p', { className: 'media-hint', id: 'media-copied', text: page.copied }));
-      if (page.status) kids.push(h('p', { className: 'media-hint', id: 'media-item-status', text: page.status }));
+      if (page.copied) kids.push(h('p', { className: 'files-hint', id: 'files-copied', text: page.copied }));
+      if (page.status) kids.push(h('p', { className: 'files-hint', id: 'files-item-status', text: page.status }));
       box.replaceChildren(...kids.filter(Boolean));
     }
 
-    /** Copy the item's own address (`https://<host>/media/<id>`) and say so under the button. */
+    /** Copy the item's own address (`https://<host>/files/<id>`) and say so under the button. */
     function copyLink(item) {
       const link = itemLink(env.origin, item.id);
       let copied = false;
@@ -1075,7 +1075,7 @@
       renderInfo();
     }
 
-    // ── Edit (media-edit.js), in place of the details (2026-10-19) ──
+    // ── Edit (files-edit.js), in place of the details (2026-10-19) ──
     /** Turn the right pane into `item`'s Edit form (the item shown first when another, or none, is). */
     function openEdit(item) {
       if (!st.viewer || st.viewer.id !== item.id) open(item);
@@ -1101,7 +1101,7 @@
       if (unsaved()) ask(null, null);
       else closeEdit();
     }
-    /** The form was typed in (media-edit.js): the item window tells the chat whether it holds changes. */
+    /** The form was typed in (files-edit.js): the item window tells the chat whether it holds changes. */
     function edited() {
       if (typeof c.editChanged === 'function') c.editChanged();
     }
@@ -1125,5 +1125,5 @@
 
   const api = { WORDS, LABEL_HIDDEN_LINE, hiddenBy, CARD_LINE_MAX, countsLine, byLine, plainName, firstLine, filesBadge, itemLink, downloadPath, filesOf, coverOf, createItemView, discardWords, sinceLine };
   if (typeof module === 'object' && module && module.exports) module.exports = api;
-  else root.MediaItem = api;
+  else root.FilesItem = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

@@ -1,47 +1,47 @@
-// ── media-takedown.js ─────────────────────────────────────────────────────
+// ── files-takedown.js ─────────────────────────────────────────────────────
 // "Report a copyright problem" and the public takedown log on the website
 // (2026-10-13; the operator's answers of that day: "a simple form so it's
 // easy... a dedicated button somewhere on the media page... We can log the
-// reports publicly"). The relay half is src/relay/media_takedown.rs, whose
+// reports publicly"). The relay half is src/relay/files_takedown.rs, whose
 // header holds the routes, bodies and answers this file builds to.
 //
 // It holds three things:
 // - The FORM (`createTakedownForm`): opened from an item's own page and from the
-//   foot of the Media page, in the page's dialog style. It works signed out: it
-//   sends POST /api/media/takedown with {item, name, contact, statement,
+//   foot of the Files page, in the page's dialog style. It works signed out: it
+//   sends POST /api/files/takedown with {item, name, contact, statement,
 //   good_faith}, unsigned, with no token, and says in one sentence what happens
 //   next. Send stays off until the box is ticked.
-// - The ADMINS' VIEW (`mountTakedownAdmin`): on the Media page's Admin tab, the
-//   reports still open (POST /api/media/takedowns/open, signed
+// - The ADMINS' VIEW (`mountTakedownAdmin`): on the Files page's Admin tab, the
+//   reports still open (POST /api/files/takedowns/open, signed
 //   `media_takedowns`), each with what the person wrote, a note for the public
-//   log, and Remove item or Keep (POST /api/media/takedown/decide, signed
+//   log, and Remove item or Keep (POST /api/files/takedown/decide, signed
 //   `media_takedown:<id>:<removed|kept>`).
 // - The PUBLIC LOG (`renderTakedownLog`, `loadTakedownLog`): GET
-//   /api/media/takedowns, shown on /rules (the element #takedown-log). It shows
+//   /api/files/takedowns, shown on /rules (the element #takedown-log). It shows
 //   the item, the dates, the outcome and the admin's note; the relay never sends
 //   who reported or how to reach them, and this file reads only the fields it
 //   shows, so nothing else could reach the page.
 //
 // Built with createElement and textContent only: nothing the server sends is
-// ever read as HTML. Colours come from the theme (classes in /shared/media.css
+// ever read as HTML. Colours come from the theme (classes in /shared/files.css
 // and the rules page's own styles, both theme tokens). A classic script in the
-// browser (before /pages/media-item.js and /pages/media-app.js on the Media
+// browser (before /pages/files-item.js and /pages/files-app.js on the Media
 // page; alone on /rules), a CommonJS module under Node, where
-// scripts/tests/media-takedown-web.test.js runs it.
+// scripts/tests/files-takedown-web.test.js runs it.
 // ──────────────────────────────────────────────────────────────────────────
 (function (root) {
   'use strict';
 
-  // The relay's limits (src/relay/media_takedown.rs NAME_MAX, CONTACT_MAX, STATEMENT_MAX, NOTE_MAX).
+  // The relay's limits (src/relay/files_takedown.rs NAME_MAX, CONTACT_MAX, STATEMENT_MAX, NOTE_MAX).
   const NAME_MAX = 200;
   const CONTACT_MAX = 300;
   const STATEMENT_MAX = 2000;
   const NOTE_MAX = 1000;
 
-  const TAKEDOWN_URL = '/api/media/takedown';
-  const LOG_URL = '/api/media/takedowns';
-  const OPEN_URL = '/api/media/takedowns/open';
-  const DECIDE_URL = '/api/media/takedown/decide';
+  const TAKEDOWN_URL = '/api/files/takedown';
+  const LOG_URL = '/api/files/takedowns';
+  const OPEN_URL = '/api/files/takedowns/open';
+  const DECIDE_URL = '/api/files/takedown/decide';
   // Where the public log is shown (web/pages/rules.html).
   const LOG_PAGE = '/rules#takedown-log';
 
@@ -49,11 +49,11 @@
     button: 'Report a copyright problem',
     buttonTip: 'Is this your work, put here without your permission? Tell the admins.',
     title: 'Report a copyright problem',
-    lead: "If something on this Media page is your work and it was put here without your permission, tell this server's admins. You do not need to be signed in.",
+    lead: "If something on this Files page is your work and it was put here without your permission, tell this server's admins. You do not need to be signed in.",
     // The one sentence on what happens next (the operator's design, 2026-10-13).
     next: 'An admin looks at it and removes the item or keeps it; the outcome appears in the public takedown log, without your name or contact.',
     itemLabel: "The item's number or address",
-    itemHint: 'For example 12, or united-humanity.us/media/12.',
+    itemHint: 'For example 12, or united-humanity.us/files/12.',
     nameLabel: 'Your name (optional)',
     contactLabel: 'How to reach you (optional; only the admins see it)',
     statementLabel: 'Why the work is yours',
@@ -80,8 +80,8 @@
     adminNotePlaceholder: 'A note for the public log (optional). Do not put the person\'s name or contact in it.',
     removeItem: 'Remove item',
     keep: 'Keep',
-    gone: '(no longer on the Media page)',
-    removeConfirm: 'Remove this item from the Media page? The decision and your note go into the public takedown log.',
+    gone: '(no longer on the Files page)',
+    removeConfirm: 'Remove this item from the Files page? The decision and your note go into the public takedown log.',
     cannotSign: 'This page could not sign the request with your identity. Open Chat in this browser first, then try again.',
   });
 
@@ -137,13 +137,13 @@
   }
 
   /**
-   * The item's number from what a person typed: "12", "#12", "/media/12" or a whole address
-   * ending in /media/12 (a query or a fragment after it is fine). Null when it names none.
+   * The item's number from what a person typed: "12", "#12", "/files/12" or a whole address
+   * ending in /files/12 (a query or a fragment after it is fine). Null when it names none.
    */
   function itemNumberFrom(text) {
     const t = String(text == null ? '' : text).trim();
     let m = /^#?(\d{1,15})$/.exec(t);
-    if (!m) m = /\/media\/(\d{1,15})\/?(?:[?#].*)?$/.exec(t);
+    if (!m) m = /\/files\/(\d{1,15})\/?(?:[?#].*)?$/.exec(t);
     if (!m) return null;
     const n = Number(m[1]);
     return Number.isSafeInteger(n) && n > 0 ? n : null;
@@ -207,54 +207,54 @@
       c.replaceChildren();
       if (!f) return;
       const kids = [
-        h('button', { type: 'button', id: 'media-takedown-close', className: 'media-btn media-viewer-close', text: WORDS.close, on: { click: close } }),
-        h('h2', { className: 'media-viewer-title', text: WORDS.title }),
+        h('button', { type: 'button', id: 'files-takedown-close', className: 'files-btn files-viewer-close', text: WORDS.close, on: { click: close } }),
+        h('h2', { className: 'files-viewer-title', text: WORDS.title }),
       ];
       if (f.done) {
-        kids.push(h('p', { className: 'media-hint', id: 'media-takedown-done', attrs: { role: 'status' }, text: f.done }));
-        kids.push(h('p', { className: 'media-hint' }, [h('a', { href: LOG_PAGE, id: 'media-takedown-log-link', text: WORDS.logLink })]));
-        kids.push(h('div', { className: 'media-form-buttons' }, [
-          h('button', { type: 'button', id: 'media-takedown-ok', className: 'media-btn media-btn-primary', text: WORDS.close, on: { click: close } }),
+        kids.push(h('p', { className: 'files-hint', id: 'files-takedown-done', attrs: { role: 'status' }, text: f.done }));
+        kids.push(h('p', { className: 'files-hint' }, [h('a', { href: LOG_PAGE, id: 'files-takedown-log-link', text: WORDS.logLink })]));
+        kids.push(h('div', { className: 'files-form-buttons' }, [
+          h('button', { type: 'button', id: 'files-takedown-ok', className: 'files-btn files-btn-primary', text: WORDS.close, on: { click: close } }),
         ]));
       } else {
-        kids.push(h('p', { className: 'media-hint', id: 'media-takedown-lead', text: WORDS.lead }));
-        kids.push(h('p', { className: 'media-hint', id: 'media-takedown-next', text: WORDS.next }));
+        kids.push(h('p', { className: 'files-hint', id: 'files-takedown-lead', text: WORDS.lead }));
+        kids.push(h('p', { className: 'files-hint', id: 'files-takedown-next', text: WORDS.next }));
         if (f.fixed) {
-          kids.push(h('p', { className: 'media-viewer-meta', id: 'media-takedown-item', text: 'About: ' + itemWords(f.item, f.title) }));
+          kids.push(h('p', { className: 'files-viewer-meta', id: 'files-takedown-item', text: 'About: ' + itemWords(f.item, f.title) }));
         } else {
-          const itemIn = h('input', { type: 'text', id: 'media-takedown-item-input', className: 'media-input', value: f.itemText, maxLength: 300, attrs: { 'aria-label': WORDS.itemLabel } });
+          const itemIn = h('input', { type: 'text', id: 'files-takedown-item-input', className: 'files-input', value: f.itemText, maxLength: 300, attrs: { 'aria-label': WORDS.itemLabel } });
           itemIn.addEventListener('input', () => { f.itemText = itemIn.value; f.item = itemNumberFrom(itemIn.value); });
-          kids.push(h('label', { className: 'media-field' }, [WORDS.itemLabel, itemIn]));
-          kids.push(h('p', { className: 'media-hint', text: WORDS.itemHint }));
+          kids.push(h('label', { className: 'files-field' }, [WORDS.itemLabel, itemIn]));
+          kids.push(h('p', { className: 'files-hint', text: WORDS.itemHint }));
         }
-        const name = h('input', { type: 'text', id: 'media-takedown-name', className: 'media-input', value: f.name, maxLength: NAME_MAX, attrs: { autocomplete: 'name' } });
+        const name = h('input', { type: 'text', id: 'files-takedown-name', className: 'files-input', value: f.name, maxLength: NAME_MAX, attrs: { autocomplete: 'name' } });
         name.addEventListener('input', () => { f.name = name.value; });
-        const contact = h('input', { type: 'text', id: 'media-takedown-contact', className: 'media-input', value: f.contact, maxLength: CONTACT_MAX, attrs: { autocomplete: 'email' } });
+        const contact = h('input', { type: 'text', id: 'files-takedown-contact', className: 'files-input', value: f.contact, maxLength: CONTACT_MAX, attrs: { autocomplete: 'email' } });
         contact.addEventListener('input', () => { f.contact = contact.value; });
-        const statement = h('textarea', { id: 'media-takedown-statement', className: 'media-input', value: f.statement, maxLength: STATEMENT_MAX, rows: 5, placeholder: WORDS.statementHint });
+        const statement = h('textarea', { id: 'files-takedown-statement', className: 'files-input', value: f.statement, maxLength: STATEMENT_MAX, rows: 5, placeholder: WORDS.statementHint });
         statement.addEventListener('input', () => { f.statement = statement.value; });
-        const tick = h('input', { type: 'checkbox', id: 'media-takedown-good-faith', checked: f.goodFaith });
+        const tick = h('input', { type: 'checkbox', id: 'files-takedown-good-faith', checked: f.goodFaith });
         const send = h('button', {
-          type: 'button', id: 'media-takedown-send', className: 'media-btn media-btn-danger', text: f.sending ? WORDS.sending : WORDS.send,
+          type: 'button', id: 'files-takedown-send', className: 'files-btn files-btn-danger', text: f.sending ? WORDS.sending : WORDS.send,
           disabled: f.sending || !f.goodFaith,
         });
         // Ticking the box turns Send on without drawing the form again (what was typed stays put).
         tick.addEventListener('change', () => { f.goodFaith = tick.checked === true; send.disabled = f.sending || !f.goodFaith; });
         send.addEventListener('click', submit);
         kids.push(
-          h('label', { className: 'media-field' }, [WORDS.nameLabel, name]),
-          h('label', { className: 'media-field' }, [WORDS.contactLabel, contact]),
-          h('label', { className: 'media-field' }, [WORDS.statementLabel, statement]),
-          h('label', { className: 'media-check media-takedown-check' }, [tick, ' ' + WORDS.goodFaith]),
+          h('label', { className: 'files-field' }, [WORDS.nameLabel, name]),
+          h('label', { className: 'files-field' }, [WORDS.contactLabel, contact]),
+          h('label', { className: 'files-field' }, [WORDS.statementLabel, statement]),
+          h('label', { className: 'files-check files-takedown-check' }, [tick, ' ' + WORDS.goodFaith]),
         );
-        if (f.error) kids.push(h('p', { className: 'media-warn', id: 'media-takedown-error', attrs: { role: 'alert' }, text: f.error }));
-        kids.push(h('div', { className: 'media-form-buttons' }, [
+        if (f.error) kids.push(h('p', { className: 'files-warn', id: 'files-takedown-error', attrs: { role: 'alert' }, text: f.error }));
+        kids.push(h('div', { className: 'files-form-buttons' }, [
           send,
-          h('button', { type: 'button', id: 'media-takedown-cancel', className: 'media-btn', text: WORDS.cancel, on: { click: close } }),
+          h('button', { type: 'button', id: 'files-takedown-cancel', className: 'files-btn', text: WORDS.cancel, on: { click: close } }),
         ]));
       }
-      const overlay = h('div', { id: 'media-takedown-open', className: 'media-viewer', attrs: { role: 'dialog', 'aria-label': WORDS.title } }, [
-        h('div', { className: 'media-viewer-box media-report-box media-takedown-box' }, kids),
+      const overlay = h('div', { id: 'files-takedown-open', className: 'files-viewer', attrs: { role: 'dialog', 'aria-label': WORDS.title } }, [
+        h('div', { className: 'files-viewer-box files-report-box files-takedown-box' }, kids),
       ]);
       overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
       c.appendChild(overlay);
@@ -381,29 +381,29 @@
     }
 
     function render() {
-      const kids = [h('p', { className: 'media-hint', id: 'media-takedowns-lead', text: WORDS.adminLead })];
-      if (st.requests === null) kids.push(h('p', { className: 'media-hint', text: 'Loading...' }));
-      else if (!st.requests.length) kids.push(h('p', { className: 'media-hint', id: 'media-takedowns-none', text: WORDS.adminNone }));
+      const kids = [h('p', { className: 'files-hint', id: 'files-takedowns-lead', text: WORDS.adminLead })];
+      if (st.requests === null) kids.push(h('p', { className: 'files-hint', text: 'Loading...' }));
+      else if (!st.requests.length) kids.push(h('p', { className: 'files-hint', id: 'files-takedowns-none', text: WORDS.adminNone }));
       for (const r of st.requests || []) {
         const busy = st.busy.has(r.id);
-        const note = h('textarea', { className: 'media-input', rows: 2, maxLength: NOTE_MAX, value: st.notes.get(r.id) || '', placeholder: WORDS.adminNotePlaceholder, dataset: { takedownNote: r.id } });
+        const note = h('textarea', { className: 'files-input', rows: 2, maxLength: NOTE_MAX, value: st.notes.get(r.id) || '', placeholder: WORDS.adminNotePlaceholder, dataset: { takedownNote: r.id } });
         note.addEventListener('input', () => { st.notes.set(r.id, note.value); });
-        const item = h('a', { href: '/media/' + (Number(r.item_id) || 0), text: itemWords(Number(r.item_id) || 0, r.item_title) });
-        kids.push(h('div', { className: 'media-admin-row media-takedown-row', dataset: { takedown: r.id } }, [
-          h('div', { className: 'media-admin-row-text' }, [
+        const item = h('a', { href: '/files/' + (Number(r.item_id) || 0), text: itemWords(Number(r.item_id) || 0, r.item_title) });
+        kids.push(h('div', { className: 'files-admin-row files-takedown-row', dataset: { takedown: r.id } }, [
+          h('div', { className: 'files-admin-row-text' }, [
             h('strong', {}, ['Report #' + r.id + ' about ', item, r.item_on_page === false ? ' ' + WORDS.gone : '']),
-            h('div', { className: 'media-hint', text: 'Received ' + (dayOf(r.created_at) || 'on an unknown day') }),
-            h('div', { className: 'media-hint', text: 'Name: ' + (String(r.name || '').trim() || 'not given') }),
-            h('div', { className: 'media-hint', text: 'Contact: ' + (String(r.contact || '').trim() || 'not given') }),
-            h('p', { className: 'media-viewer-desc', text: String(r.statement || '') }),
+            h('div', { className: 'files-hint', text: 'Received ' + (dayOf(r.created_at) || 'on an unknown day') }),
+            h('div', { className: 'files-hint', text: 'Name: ' + (String(r.name || '').trim() || 'not given') }),
+            h('div', { className: 'files-hint', text: 'Contact: ' + (String(r.contact || '').trim() || 'not given') }),
+            h('p', { className: 'files-viewer-desc', text: String(r.statement || '') }),
             note,
           ]),
-          h('button', { type: 'button', className: 'media-btn media-btn-small media-btn-danger', text: WORDS.removeItem, disabled: busy, dataset: { decide: 'removed' }, on: { click: () => decide(r, 'removed') } }),
-          h('button', { type: 'button', className: 'media-btn media-btn-small', text: WORDS.keep, disabled: busy, dataset: { decide: 'kept' }, on: { click: () => decide(r, 'kept') } }),
+          h('button', { type: 'button', className: 'files-btn files-btn-small files-btn-danger', text: WORDS.removeItem, disabled: busy, dataset: { decide: 'removed' }, on: { click: () => decide(r, 'removed') } }),
+          h('button', { type: 'button', className: 'files-btn files-btn-small', text: WORDS.keep, disabled: busy, dataset: { decide: 'kept' }, on: { click: () => decide(r, 'kept') } }),
         ]));
       }
-      if (st.msg) kids.push(h('p', { className: 'media-hint' + (st.warn ? ' media-warn' : ''), id: 'media-takedowns-msg', text: st.msg }));
-      kids.push(h('p', { className: 'media-hint' }, [h('a', { href: LOG_PAGE, text: WORDS.logLink })]));
+      if (st.msg) kids.push(h('p', { className: 'files-hint' + (st.warn ? ' files-warn' : ''), id: 'files-takedowns-msg', text: st.msg }));
+      kids.push(h('p', { className: 'files-hint' }, [h('a', { href: LOG_PAGE, text: WORDS.logLink })]));
       container.replaceChildren(...kids);
     }
 
@@ -427,7 +427,7 @@
   };
   if (typeof module === 'object' && module && module.exports) module.exports = api;
   else {
-    root.MediaTakedown = api;
+    root.FilesTakedown = api;
     const doc = root.document;
     if (doc && doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', bootLog);
     else bootLog();

@@ -474,7 +474,7 @@ pub(crate) fn day_words(unix: u64, short: bool) -> String {
 
 /// A size in the words the app uses elsewhere ("412 MB", "31.2 GB").
 pub(crate) fn size_words(bytes: u64) -> String {
-    crate::gui::pages::media::api::size_words(bytes.min(i64::MAX as u64) as i64)
+    crate::gui::pages::files::api::size_words(bytes.min(i64::MAX as u64) as i64)
 }
 
 /// "3 of 5 achievements", or "5 achievements" when which are unlocked is not known.

@@ -1,6 +1,6 @@
-// ── media-upload.js ───────────────────────────────────────────────────────
-// Add to Media's resumable upload on the website (2026-10-11,
-// docs/design/media-showcase.md "Resumable uploads, exact" and its As built
+// ── files-upload.js ───────────────────────────────────────────────────────
+// Add to Files's resumable upload on the website (2026-10-11,
+// docs/design/files-showcase.md "Resumable uploads, exact" and its As built
 // note, then "Round 3: fixes from the round 2 review"; the relay half is
 // src/relay/resumable.rs). A Media file goes up in pieces: start (POST
 // /api/upload/resumable, the answer says the largest piece, `chunk_max`), one
@@ -55,10 +55,10 @@
 // of starting over; the record is forgotten when the upload is done, fails or
 // is cancelled. Media round 5 (lane 2A): an upload started from an item's Edit
 // form is attached to that item once it is up (`attachUpload`, POST
-// /api/media/files/add) instead of published. Used by /pages/media-app.js. A classic script in the browser
-// (loaded before media-app.js), a CommonJS module under Node, where
-// scripts/tests/media-web-round2.test.js and media-web-round3.test.js drive
-// it against a stand-in server, and media-web-round4.test.js holds round 4.
+// /api/files/item-files/add) instead of published. Used by /pages/files-app.js. A classic script in the browser
+// (loaded before files-app.js), a CommonJS module under Node, where
+// scripts/tests/files-web-round2.test.js and files-web-round3.test.js drive
+// it against a stand-in server, and files-web-round4.test.js holds round 4.
 // ──────────────────────────────────────────────────────────────────────────
 (function (root) {
   'use strict';
@@ -194,7 +194,7 @@
 
   /**
    * Media round 5 (lane 2A): an upload made from an item's Edit form is ATTACHED once it is up,
-   * never published as an item of its own. POST /api/media/files/add with the item's number, its
+   * never published as an item of its own. POST /api/files/item-files/add with the item's number, its
    * own file name (W5), the upload's stored name and as what, signed over
    * `media_file_add:<id>:<upload>:<file|cover>`. `o`: fetch, sign(purpose), to ({id, filename,
    * as}), add (the stored name), cannotSign (the words when nothing could sign). Resolves to the
@@ -205,7 +205,7 @@
     const auth = await o.sign(attachPurpose(o.to.id, o.add, as));
     if (!auth) throw new Error(o.cannotSign || 'This page could not sign the request.');
     const body = Object.assign({ id: o.to.id, filename: o.to.filename, add: o.add, as }, auth);
-    const res = await o.fetch('/api/media/files/add', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const res = await o.fetch('/api/files/item-files/add', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     if (!res || !res.ok) throw new Error(res ? (await readAnswer(res)).words : 'The server could not be reached.');
     return res.json();
   }
@@ -215,7 +215,7 @@
    * X-Upload-Token. Round 4's cancel answer (a cancel means nothing stays): `{ok: true}`, with
    * `removed_stored: true` when the finish had stored the file already (the server deleted that
    * too, so nothing is removed by hand) or `published: true` when the file was already on the
-   * Media page (the person's own choice, which a cancel leaves). While a piece or the finish is
+   * Files page (the person's own choice, which a cancel leaves). While a piece or the finish is
    * being written the server answers 409 `{busy: true}`, and it is asked again after a growing
    * wait (2 s doubling to 30 s) for as long as it says so. A dropped connection, a server error,
    * no token yet, or a token from before the page signed in again is tried again, CANCEL_TRIES
@@ -659,5 +659,5 @@
     readAnswer, cancelSession, createUploader, attachPurpose, attachUpload,
   };
   if (typeof module === 'object' && module && module.exports) module.exports = api;
-  else Object.assign(root, { MediaUpload: api });
+  else Object.assign(root, { FilesUpload: api });
 })(typeof globalThis !== 'undefined' ? globalThis : this);

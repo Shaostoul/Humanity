@@ -1,0 +1,77 @@
+/* The Files page's HumanityOS folder place (2026-10-19, /pages/files-folder.js): the data browser's
+   own page styles until it became a place, scoped to its parts. The tree on the left, the file in the
+   middle (its bar above it), what it is on the right. */
+.files-folder.fd-tree { display: flex; flex-direction: column; min-height: 0; }
+.files-folder.fd-middle { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.files-folder.fd-middle .file-viewer { flex: 1; min-height: 0; }
+.files-folder.fd-details { display: flex; flex-direction: column; gap: var(--space-sm); }
+.files-folder .fd-topbar { display: flex; align-items: center; gap: var(--space-lg); padding: var(--space-md) var(--space-xl); background: var(--bg); border-bottom: 1px solid var(--bg-secondary); flex-shrink: 0; min-height: 42px; }
+.files-folder .breadcrumb { display: flex; align-items: center; gap: var(--space-xs); flex: 1; overflow-x: auto; }
+.files-folder .breadcrumb-seg { font-size: 0.82rem; color: var(--text-muted); cursor: pointer; background: none; border: none; padding: var(--space-xs) var(--space-sm); border-radius: var(--radius-sm); transition: color 0.12s; }
+.files-folder .breadcrumb-seg:hover { color: var(--text); }
+.files-folder .breadcrumb-seg.active { color: var(--text); cursor: default; }
+.files-folder .breadcrumb-sep { color: var(--text-dim); font-size: 0.75rem; }
+.files-folder .file-info { font-size: 0.72rem; color: var(--text-muted); white-space: nowrap; }
+.files-folder .btn-save { background: var(--accent); color: #000; border: none; border-radius: var(--radius-sm); padding: var(--space-sm) var(--space-xl); font-size: 0.78rem; font-weight: 700; cursor: pointer; transition: opacity 0.12s; display: none; }
+.files-folder .btn-save:hover { opacity: 0.85; }
+.files-folder .btn-save.visible { display: inline-block; }
+.files-folder .btn-wrap { background: var(--bg-secondary); color: var(--text-muted); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: var(--space-xs) var(--space-md); font-size: 0.72rem; cursor: pointer; display: none; white-space: nowrap; }
+.files-folder .btn-wrap:hover { color: var(--text); border-color: var(--text-muted); }
+.files-folder .btn-wrap.visible { display: inline-block; }
+.files-folder .unsaved-dot { color: var(--accent); font-weight: 700; display: none; margin-right: var(--space-xs); }
+.files-folder .unsaved-dot.visible { display: inline; }
+.files-folder .tree-header { padding: var(--space-lg) var(--space-xl); border-bottom: 1px solid var(--bg-secondary); display: flex; align-items: center; gap: var(--space-md); }
+.files-folder .tree-header h2 { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); flex: 1; margin: 0; }
+.files-folder .btn-refresh-tree { background: transparent; border: 1px solid var(--border); color: var(--text-muted); border-radius: var(--radius-sm); padding: var(--space-xs) var(--space-sm); font-size: 0.72rem; cursor: pointer; }
+.files-folder .btn-refresh-tree:hover { color: var(--text); border-color: var(--text-muted); }
+.files-folder .tree-list { flex: 1; overflow-y: auto; padding: var(--space-sm) 0; }
+.files-folder .tree-item { display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-xs) var(--space-lg); font-size: 0.82rem; color: var(--text-muted); cursor: pointer; transition: background 0.1s; border: none; background: none; width: 100%; text-align: left; }
+.files-folder .tree-item:hover { background: var(--bg-secondary); color: var(--text); }
+.files-folder .tree-item.active { background: var(--bg-hover); color: var(--text); }
+.files-folder .tree-item .icon { width: 16px; text-align: center; flex-shrink: 0; font-size: 0.75rem; }
+.files-folder .tree-item .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.files-folder .tree-item .size { font-size: 0.68rem; color: var(--text-dim); }
+.files-folder .tree-item.dir .icon { color: var(--accent); }
+.files-folder .tree-children { display: none; }
+.files-folder .tree-children.open { display: block; }
+.files-folder .file-viewer { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: var(--bg); }
+.files-folder .viewer-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-muted); gap: var(--space-lg); }
+.files-folder .viewer-empty .empty-icon { font-size: 3rem; opacity: 0.3; }
+.files-folder .viewer-empty p { font-size: 0.88rem; }
+.files-folder .editor-wrap { flex: 1; display: flex; overflow: hidden; position: relative; }
+.files-folder .line-numbers { background: var(--bg-panel, #0d0d0d); color: var(--text-dim); font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace; font-size: 0.82rem; line-height: 1.55; padding: var(--space-lg) var(--space-md); text-align: right; user-select: none; overflow: hidden; flex-shrink: 0; min-width: 48px; border-right: 1px solid var(--bg-secondary); }
+.files-folder .editor-textarea { flex: 1; background: transparent; color: var(--text); font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace; font-size: 0.82rem; line-height: 1.55; padding: var(--space-lg); border: none; outline: none; resize: none; overflow: auto; tab-size: 4; white-space: pre; }
+.files-folder .editor-textarea.wrap { white-space: pre-wrap; word-wrap: break-word; }
+.files-folder .json-viewer { flex: 1; overflow: auto; padding: var(--space-lg) var(--space-xl); font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 0.82rem; line-height: 1.55; }
+.files-folder .json-key { color: #7ec8e3; }
+.files-folder .json-str { color: #a8d89a; }
+.files-folder .json-num { color: #d4a0ff; }
+.files-folder .json-bool { color: #f0a500; }
+.files-folder .json-null { color: #888; }
+.files-folder .json-toggle { cursor: pointer; color: var(--text-dim); user-select: none; display: inline-block; width: 16px; text-align: center; }
+.files-folder .json-toggle:hover { color: var(--text); }
+.files-folder .json-collapsed { display: none; }
+.files-folder .csv-viewer { flex: 1; overflow: auto; padding: var(--space-lg); }
+.files-folder .csv-table { border-collapse: collapse; width: 100%; font-size: 0.8rem; }
+.files-folder .csv-table th { background: var(--bg-secondary); color: var(--text); padding: var(--space-sm) var(--space-lg); text-align: left; font-weight: 700; position: sticky; top: 0; border-bottom: 2px solid var(--accent); }
+.files-folder .csv-table td { padding: var(--space-sm) var(--space-lg); border-bottom: 1px solid var(--bg-secondary); color: var(--text-muted); }
+.files-folder .csv-table tr:hover td { background: var(--bg-secondary); color: var(--text); }
+.files-folder .md-viewer { flex: 1; overflow: auto; padding: var(--space-xl) var(--space-2xl); line-height: 1.7; color: var(--text-muted); max-width: 800px; }
+.files-folder .md-viewer h1 { font-size: 1.5rem; color: var(--text); margin: var(--space-xl) 0 var(--space-lg); border-bottom: 1px solid var(--bg-secondary); padding-bottom: var(--space-md); }
+.files-folder .md-viewer h2 { font-size: 1.2rem; color: var(--text); margin: var(--space-xl) 0 var(--space-md); }
+.files-folder .md-viewer h3 { font-size: 1rem; color: var(--text); margin: var(--space-lg) 0 var(--space-sm); }
+.files-folder .md-viewer p { margin: var(--space-md) 0; }
+.files-folder .md-viewer code { background: var(--bg-secondary); padding: 2px 6px; border-radius: 3px; font-family: 'JetBrains Mono', monospace; font-size: 0.85em; }
+.files-folder .md-viewer pre { background: var(--bg-secondary); padding: var(--space-lg); border-radius: var(--radius); overflow-x: auto; }
+.files-folder .md-viewer pre code { background: none; padding: 0; }
+.files-folder .md-viewer a { color: var(--accent); }
+.files-folder .md-viewer ul, .files-folder .md-viewer ol { padding-left: var(--space-2xl); }
+.files-folder .md-viewer li { margin: var(--space-xs) 0; }
+.files-folder .md-viewer strong { color: var(--text); }
+.files-folder .md-viewer blockquote { border-left: 3px solid var(--accent); padding-left: var(--space-lg); color: var(--text-dim); margin: var(--space-lg) 0; }
+.files-folder .unknown-viewer { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-xl); color: var(--text-muted); }
+.files-folder .unknown-viewer .file-icon { font-size: 4rem; opacity: 0.3; }
+.files-folder .unknown-viewer .file-name { font-size: 1.1rem; color: var(--text); }
+.files-folder .unknown-viewer .file-meta { font-size: 0.82rem; }
+.files-folder .unknown-viewer .note { font-size: 0.78rem; color: var(--text-dim); margin-top: var(--space-lg); }
+.files-folder .loading { color: var(--text-dim); font-size: 0.85rem; padding: var(--space-xl); text-align: center; }

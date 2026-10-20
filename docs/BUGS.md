@@ -5977,3 +5977,23 @@ Who it reaches: not the downloads (the Windows release bundles DXC: "Bundled DXC
 .../10.0.26100.0/x64" in the v0.1516.0 build log) and not the operator's taskbar exe (the repo root
 holds the pair). Anyone running a bare exe with no dlls beside it, including the raw binary the
 in-app updater fetches if it ever lands in a folder without them.
+
+## BUG-205: anyone could rewrite a server's text files under data/ (FIXED v0.1524.0, found 2026-10-20)
+
+`POST /api/files/write` (renamed `/api/data-files/write` the same night, when the Files pages were
+merged and the old name was needed for them) took no signature at all: anyone who could reach a
+server could overwrite its text files under `data/` (only the text file types the storage layer
+allows, within data/, no `..`). It served the old web data-file browser's Save button. Found by
+the builder who merged the developer Files page into the Files page and read the route while
+renaming it. On the live server since that route was added; the operator was asleep, so it was
+fixed the same night rather than waiting.
+
+Fixed: the handler (`src/relay/api.rs` `write_file`) now needs, like the admin stats, a fresh
+timestamp (5 minutes), a Dilithium3 signature from the sender's key over
+`data_files_write\n{path}\n{BLAKE3 of the content}\n{timestamp}` (`write_purpose`, so a signature
+cannot be reused for another file or other content), that timestamp unused by that key
+(`auth_nonce_fresh`), and the admin role. The website's HumanityOS folder (`files-folder.js`)
+signs through `getPqSignedAuth` and says plainly that only admins can save. Test:
+`relay::features::tests::only_an_admin_with_a_signature_may_write_a_data_file`, seen red with the
+checks off (the unsigned write answered 200 and really wrote the file). Reading (`/api/data-files`,
+`/api/data-files/read`) stays open: it serves the game data the website shows.

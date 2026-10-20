@@ -159,7 +159,7 @@
     chat: { href: '/chat', icon: 'chat' },
     studio: { href: null, icon: null },
     watch: { href: '/watch', icon: 'video' },
-    media: { href: '/media', icon: 'image' },
+    files: { href: '/files', icon: 'image' },
     market: { href: '/market', icon: 'market' },
     wallet: { href: '/wallet', icon: 'coin' },
     browser: { href: '/web', icon: 'globe' },

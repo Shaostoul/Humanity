@@ -712,7 +712,7 @@ function calculateStorage() {
   container.innerHTML = rows.join('');
 }
 
-// ── Files kept from messages (2026-10-11, docs/design/media-showcase.md, "Files on the sender's
+// ── Files kept from messages (2026-10-11, docs/design/files-showcase.md, "Files on the sender's
 // device and in messages, exact", part 4) ──
 // The chat keeps an encrypted copy of each private file opened (/shared/kept-files.js), so it
 // still opens after the server lets it go. Here: how much is kept, the cap, and Clear kept files.
@@ -753,7 +753,7 @@ savePref = function() { _origSavePref(); updateRangeLabels(); };
 // Version tag
 try {
   const vEl = document.getElementById('version-tag');
-  if (vEl) vEl.textContent = 'HumanityOS, v0.1523.1 · ' + new Date().getFullYear();
+  if (vEl) vEl.textContent = 'HumanityOS, v0.1524.0 · ' + new Date().getFullYear();
 } catch(e) {}
 
 // Inject hosIcon SVGs into action bar buttons

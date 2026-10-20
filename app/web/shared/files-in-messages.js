@@ -1,6 +1,6 @@
 // ── files-in-messages.js ──────────────────────────────────────────────────
 // "Files in messages": the person's own settings for files sent in direct
-// messages and groups (2026-10-11, docs/design/media-showcase.md, "Files on
+// messages and groups (2026-10-11, docs/design/files-showcase.md, "Files on
 // the sender's device and in messages, exact", part 3; the operator's
 // answer 6). Shared by the web chat (chat-privacy.js draws the settings in
 // Settings > Safety beside "Who can reach me", chat-dms.js applies them to

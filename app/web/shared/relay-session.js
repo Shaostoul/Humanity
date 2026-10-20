@@ -1,10 +1,10 @@
 // ── relay-session.js ──────────────────────────────────────────────────────
 // A standalone page's own signed-in connection to this server (2026-10-11,
-// docs/design/media-showcase.md "Increment 2, exact").
+// docs/design/files-showcase.md "Increment 2, exact").
 //
 // Why a page needs its own connection: the relay hands out a session's upload
 // token (what `POST /api/upload?token=` and the members-only Media file route
-// `GET /api/media/file/{id}?token=` take) only on a socket it has signed in, in
+// `GET /api/files/file/{id}?token=` take) only on a socket it has signed in, in
 // that socket's first `peer_list`; and the server's settings (Media's
 // visibility, budget and each person's share) come over the socket too
 // (`server_settings_request` answered with `server_settings_state`). A page
@@ -24,7 +24,7 @@
 // through getPqSignedAuth in the same file.
 //
 // A classic script in the browser (its names land on window), a CommonJS module
-// under Node, where scripts/tests/media-web.test.js drives it with a stand-in
+// under Node, where scripts/tests/files-web.test.js drives it with a stand-in
 // socket.
 // ──────────────────────────────────────────────────────────────────────────
 (function (root) {

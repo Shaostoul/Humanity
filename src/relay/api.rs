@@ -2502,19 +2502,63 @@ pub async fn read_file(
     }
 }
 
-/// Request body for POST /api/data-files/write.
+/// Request body for POST /api/data-files/write: the file, and an admin's signed say-so.
 #[derive(Debug, Deserialize)]
 pub struct FileWriteRequest {
     /// File path to write (must be within data/).
     pub path: String,
     /// File content to write.
     pub content: String,
+    /// The writer's Dilithium3 public key (hex): must belong to one of this server's admins.
+    #[serde(default)]
+    pub key: String,
+    /// Milliseconds since 1970 when signed: fresh (5 minutes) and used once.
+    #[serde(default)]
+    pub timestamp: u64,
+    /// Dilithium3 signature (hex) over `data_files_write\n{path}\n{blake3 of content, hex}\n{timestamp}`
+    /// (`write_purpose`), so a signature cannot be reused for another file or other content.
+    #[serde(default)]
+    pub sig: String,
 }
 
-/// POST /api/data-files/write — write/save a text file.
+/// The signed purpose for a write: the file and the BLAKE3 of the exact content, so the signature
+/// says what is written where (web/pages/files-folder.js builds the same words).
+pub fn write_purpose(path: &str, content: &str) -> String {
+    format!("data_files_write\n{path}\n{}", blake3::hash(content.as_bytes()).to_hex())
+}
+
+/// POST /api/data-files/write: write a text file under data/, for this server's admins only.
+///
+/// Until 2026-10-20 this route took no signature at all, so anyone who could reach the server
+/// could rewrite its text files under data/ (found while the Files pages were merged). Now it
+/// needs, like the admin stats: a fresh timestamp (5 minutes), a Dilithium3 signature from the
+/// sender's key over the path and the content's hash, that timestamp not used before by that key
+/// (`auth_nonce_fresh`), and the admin role for that key.
 pub async fn write_file(
+    State(state): State<Arc<RelayState>>,
     Json(req): Json<FileWriteRequest>,
 ) -> impl IntoResponse {
+    use crate::relay::handlers::broadcast::verify_dilithium_signature;
+    let refuse = |status: StatusCode, why: &str| (status, Json(serde_json::json!({ "error": why }))).into_response();
+    if req.key.is_empty() || req.sig.is_empty() {
+        return refuse(StatusCode::UNAUTHORIZED, "Only this server's admins can change its data files: sign in to the chat as an admin first.");
+    }
+    let now_ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
+    if now_ms.saturating_sub(req.timestamp) > 5 * 60 * 1000 || req.timestamp > now_ms + 60_000 {
+        return refuse(StatusCode::BAD_REQUEST, "The request is too old or from the future: check this computer's clock and try again.");
+    }
+    let (vk, vsig, vts, purpose) = (req.key.clone(), req.sig.clone(), req.timestamp, write_purpose(&req.path, &req.content));
+    // CPU-bound: off the async executor, failing closed if the check panics.
+    let sig_ok = tokio::task::spawn_blocking(move || verify_dilithium_signature(&vk, &purpose, vts, &vsig)).await.unwrap_or(false);
+    if !sig_ok {
+        return refuse(StatusCode::UNAUTHORIZED, "The signature does not match this file and content.");
+    }
+    if !state.auth_nonce_fresh(&req.key, "data_files_write", req.timestamp) {
+        return refuse(StatusCode::UNAUTHORIZED, "That request was already used: try again.");
+    }
+    if state.db.get_role(&req.key).unwrap_or_default() != "admin" {
+        return refuse(StatusCode::FORBIDDEN, "Only this server's admins can change its data files.");
+    }
     match crate::relay::storage::data_files::write_file(&req.path, &req.content) {
         Ok(()) => (StatusCode::OK, Json(serde_json::json!({
             "ok": true,

@@ -36,7 +36,7 @@
 - **Removing/renaming**: update the table, update `GuiPage`, update `src/gui/pages/escape_menu.rs::sub_pages_for()` if the page was nav-listed.
 - **Audit drift**: `tests/page_registry_lint.rs` (built 2026-07-02, runs in `just lints`) now mechanically enforces this file against the code: every `GuiPage` variant must be mentioned here, every referenced page file must exist, every `web/pages/*.html` must be listed, and the standalone count in the web-pages heading must equal the real file count. Prose accuracy (purpose text) still needs a human audit pass now and then.
 
-## Native pages (36 `GuiPage` variants, `src/gui/pages/`, plus the `None` in-game/no-menu state)
+## Native pages (35 `GuiPage` variants, `src/gui/pages/`, plus the `None` in-game/no-menu state)
 
 Source of truth: `GuiPage` enum in `src/gui/mod.rs`.
 

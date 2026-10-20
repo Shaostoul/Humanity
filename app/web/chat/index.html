@@ -721,7 +721,7 @@
        it, the name check, the frame, the receipt and the erased person's words, shared with Node
        tests. Before app.js (account_erased) and chat-ui.js (the member menu and its confirm). -->
   <script src="/shared/admin-erase.js?v=3"></script>
-  <!-- Files on the sender's device and in messages (2026-10-11, docs/design/media-showcase.md,
+  <!-- Files on the sender's device and in messages (2026-10-11, docs/design/files-showcase.md,
        parts 1 to 4), shared with Node tests. strip-metadata.js removes where a picture or a video
        was taken (the relay's Rust strips, ported); upload-clean.js runs it on every file before it
        is uploaded or encrypted, with the switch and the could-not-be-checked rules (after
@@ -739,7 +739,7 @@
        its name (2026-10-17, /shared/file-badge.css). Before app.js, chat-dms.js and
        chat-file-transfer.js, which use it (app.js fileCautionFill and fileBadgeFill). -->
   <script src="/shared/file-risk.js?v=2"></script>
-  <!-- Device-to-device big files (2026-10-11, docs/design/media-showcase.md, "Device-to-device big
+  <!-- Device-to-device big files (2026-10-11, docs/design/files-showcase.md, "Device-to-device big
        files: the shapes, exact"), shared with Node tests: blake3.js hashes a file a piece at a time
        (fast enough for gigabytes, which the noble bundle's is not); file-transfer.js holds the
        file pass, the offer notes and the channel protocol. Before chat-file-transfer.js. -->
@@ -753,9 +753,9 @@
        chat-profile.js, which signs it when the server asks. -->
   <script src="/shared/profile-copy.js?v=1"></script>
   <!-- drop-overlay.js: files dragged from the computer onto the page (2026-10-17), the desktop's
-       words while they are over it ("Drop to upload to Media and post in #general" over a channel,
+       words while they are over it ("Drop to upload to Files and post in #general" over a channel,
        "Drop to send in Ben" in a private conversation) and its drop. upload-window.js: the window a
-       drop on a channel opens, the Media page's own Add to Media in a frame over the chat. Both
+       drop on a channel opens, the Files page's own Add to Files in a frame over the chat. Both
        before chat-messages.js, which puts them on the page. -->
   <script src="/shared/drop-overlay.js?v=2"></script>
   <script src="/shared/upload-window.js?v=4"></script>
@@ -773,10 +773,10 @@
        Load before app.js so its renderers can call them. -->
   <script src="/chat/view/timestampPill.js?v=1"></script>
   <script src="/chat/view/messageRow.js?v=1"></script>
-  <!-- chat-media-card.js: a Media item posted in chat as a card under the words (2026-10-17), its
+  <!-- chat-files-card.js: a Media item posted in chat as a card under the words (2026-10-17), its
        Open bringing up the item's own page in the upload window's frame. Before app.js and
        chat-dms.js, which ask it while they draw a message. -->
-  <script src="/chat/chat-media-card.js?v=3"></script>
+  <script src="/chat/chat-files-card.js?v=3"></script>
   <script src="/chat/app.js?v=32"></script>
   <script src="/chat/chat-messages.js?v=23"></script>
   <script src="/chat/chat-dms.js?v=20"></script>

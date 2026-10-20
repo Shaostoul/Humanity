@@ -191,11 +191,11 @@ function startEditMode(msgEl, originalBody, fromKey, timestamp) {
         channel: activeChannel,
       }));
     }
-    // Apply locally immediately, its Media cards with it (chat-media-card.js).
-    const media = typeof mediaCardsPlan === 'function' ? mediaCardsPlan(newContent, fromKey) : null;
+    // Apply locally immediately, its Media cards with it (chat-files-card.js).
+    const media = typeof filesCardsPlan === 'function' ? filesCardsPlan(newContent, fromKey) : null;
     bodyEl.innerHTML = formatBody(media ? media.words : newContent);
     if (typeof fillFileCards === 'function') fillFileCards(bodyEl);
-    if (media) mediaCardsPut(msgEl, media.ids, fromKey, timestamp);
+    if (media) filesCardsPut(msgEl, media.ids, fromKey, timestamp);
     if (!bodyEl.querySelector('.edited-marker')) {
       const marker = document.createElement('span');
       marker.className = 'edited-marker';
@@ -235,11 +235,11 @@ function applyEditToDOM(fromKey, timestamp, newContent) {
   const bodyEl = msgEl.querySelector('.body');
   if (!bodyEl) return;
   // Who wrote it goes along, so an edit cannot bring back a picture the
-  // protected setup does not show (10h). Its Media cards follow it (chat-media-card.js).
-  const media = typeof mediaCardsPlan === 'function' ? mediaCardsPlan(newContent, fromKey) : null;
+  // protected setup does not show (10h). Its Media cards follow it (chat-files-card.js).
+  const media = typeof filesCardsPlan === 'function' ? filesCardsPlan(newContent, fromKey) : null;
   bodyEl.innerHTML = formatBody(media ? media.words : newContent, fromKey);
   if (typeof fillFileCards === 'function') fillFileCards(bodyEl);
-  if (media) mediaCardsPut(msgEl, media.ids, fromKey, timestamp);
+  if (media) filesCardsPut(msgEl, media.ids, fromKey, timestamp);
   // Add (edited) marker if not present.
   if (!bodyEl.querySelector('.edited-marker')) {
     const marker = document.createElement('span');
@@ -519,7 +519,7 @@ function attachmentTooLarge(file) {
 }
 
 // ── Files leave cleaned (2026-10-11) ──
-// docs/design/media-showcase.md, "Files on the sender's device and in
+// docs/design/files-showcase.md, "Files on the sender's device and in
 // messages, exact", parts 1 to 3. Every file picked, pasted or dropped here,
 // in a public room or a private conversation, is cleaned on this device before
 // it is uploaded or encrypted (/shared/upload-clean.js over
@@ -1020,13 +1020,13 @@ document.getElementById('msg-input').addEventListener('paste', async (e) => {
 // The desktop app's drag and drop, in its words (/shared/drop-overlay.js; the desktop's
 // src/gui/pages/chat/attach_send.rs offer_drop). While files are dragged over the page it is
 // dimmed with one line saying what a drop will do:
-//   - one of this server's channels open: "Drop to upload to Media and post in #general", and the
+//   - one of this server's channels open: "Drop to upload to Files and post in #general", and the
 //     drop opens the upload window (/shared/upload-window.js): the Media page's own Add to Media,
 //     every control and check, in a window over the chat, "Also post in chat" ticked for that
 //     channel; nothing goes until its Upload (the operator, 2026-10-17: "First window popups with
 //     all the controls of what to do with the file ... upon clicking upload it also posts the image
 //     with the title and description to the general chat"). A read-only channel the person cannot
-//     post in: "Drop to upload to Media", nothing ticked.
+//     post in: "Drop to upload to Files", nothing ticked.
 //   - a private conversation open (a direct message, a group, the scratch pad, or a room this
 //     server does not list): "Drop to send in Ben" (the group's name in a group), and the dropped
 //     files take the attach button's own path (sendChosenFiles): one at a time, each its own
@@ -1086,7 +1086,7 @@ function chatDropDecision() {
   if (channel && window.HosUploadWindow) {
     // The upload window signs in to this server itself; it needs the identity this browser keeps.
     if (!myKey) return { take: false, reason: DROP_NOT_SIGNED_IN };
-    return { take: true, line: channel.postable ? D.uploadAndPostIn(channel.name) : D.WORDS.uploadToMedia };
+    return { take: true, line: channel.postable ? D.uploadAndPostIn(channel.name) : D.WORDS.uploadToFiles };
   }
   const signedIn = identityConfirmed && !!myUploadToken && typeof ws !== 'undefined' && ws && ws.readyState === 1;
   if (!signedIn) return { take: false, reason: DROP_NOT_SIGNED_IN };
@@ -1132,16 +1132,16 @@ function rememberThreadParent(row, body) {
 
 /**
  * The Media cards a thread message's text gets (2026-10-18), by the message list's own rule
- * (app.js addChatMessage): chat-media-card.js mediaCardsPlan, which takes this site's item
+ * (app.js addChatMessage): chat-files-card.js filesCardsPlan, which takes this site's item
  * addresses out of the words and draws no card where the protected setup holds back a picture or
  * file link from someone who is not a friend; none for Heron's lists in #todo, which the list
  * draws as lists. Null when there is no card.
  */
-function threadMediaPlan(body, fromKey, author) {
-  if (typeof mediaCardsPlan !== 'function' || typeof mediaCardsPut !== 'function') return null;
+function threadFilesPlan(body, fromKey, author) {
+  if (typeof filesCardsPlan !== 'function' || typeof filesCardsPut !== 'function') return null;
   const heronList = activeChannel === 'todo' && !!fromKey && String(fromKey).startsWith('bot_') && (author === 'Heron 🪶' || author === 'Heron');
   if (heronList) return null;
-  const plan = mediaCardsPlan(body, fromKey);
+  const plan = filesCardsPlan(body, fromKey);
   return plan && plan.ids && plan.ids.length ? plan : null;
 }
 
@@ -1154,7 +1154,7 @@ function threadMediaPlan(body, fromKey, author) {
  * dead). `m`: {from, author, timestamp, body, parent}. Returns the row.
  */
 function putThreadMessage(panel, m) {
-  const media = threadMediaPlan(m.body, m.from, m.author);
+  const media = threadFilesPlan(m.body, m.from, m.author);
   const row = document.createElement('div');
   row.className = m.parent ? 'thread-msg thread-parent' : 'thread-msg';
   row.innerHTML = `<span class="thread-msg-author">${esc(m.author)}</span>
@@ -1162,7 +1162,7 @@ function putThreadMessage(panel, m) {
     <div class="thread-msg-body">${formatBody(media ? media.words : m.body, m.from)}</div>`;
   panel.appendChild(row);
   if (typeof fillFileCards === 'function') fillFileCards(row);
-  if (media) mediaCardsPut(row, media.ids, m.from, m.timestamp);
+  if (media) filesCardsPut(row, media.ids, m.from, m.timestamp);
   return row;
 }
 

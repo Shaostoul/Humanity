@@ -1,12 +1,12 @@
 // ── upload-clean.js ───────────────────────────────────────────────────────
 // Cleaning a file on the sender's own device before it leaves (2026-10-11,
-// docs/design/media-showcase.md, "Files on the sender's device and in
+// docs/design/files-showcase.md, "Files on the sender's device and in
 // messages, exact", parts 1 and 2; the operator's answers 4 and 5).
 //
 // Every upload path on the website runs a picked, pasted or dropped file
 // through cleanFile() before anything is uploaded or encrypted: the chat's
 // attach button, paste and drop, in public rooms and in private
-// conversations (chat-messages.js), and Add to Media (pages/media-app.js).
+// conversations (chat-messages.js), and Add to Media (pages/files-app.js).
 // The cleaning itself is /shared/strip-metadata.js (HosStrip, the port of the
 // relay's own Rust strips, held to them byte for byte by its test); this file
 // is what the pages need around it:

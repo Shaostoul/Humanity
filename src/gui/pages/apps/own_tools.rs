@@ -102,11 +102,11 @@ mod tests {
             assert!(page.is_some(), "{} opens a page (its id {:?})", t.name, t.page);
             let page = page.unwrap();
             assert!(!crate::gui::dispatch::ENGINE_BOUND_PAGES.contains(&page), "{} is a page, not the game", t.name);
-            assert!(![GuiPage::Apps, GuiPage::Testing, GuiPage::Files, GuiPage::Platform, GuiPage::Settings].contains(&page), "{} is not this page or a dev or settings page", t.name);
+            assert!(![GuiPage::Apps, GuiPage::Testing, GuiPage::Platform, GuiPage::Settings].contains(&page), "{} is not this page or a dev or settings page", t.name);
             assert!(!t.name.trim().is_empty() && !t.line.trim().is_empty(), "{} has a name and a line", t.page);
             assert!(seen.insert(t.page.clone()), "{} is listed once", t.page);
         }
-        for name in ["Maps", "Tasks", "Crafting", "Library", "Studio", "Watch", "Media", "Inventory"] {
+        for name in ["Maps", "Tasks", "Crafting", "Library", "Studio", "Watch", "Files", "Inventory"] {
             assert!(tools.iter().any(|t| t.name == name), "{name} is listed");
         }
     }

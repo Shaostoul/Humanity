@@ -403,9 +403,15 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
       with the name once, Steam links for programs installed through Steam, launch through the
       Start-menu shortcut when Windows records no program file (DaVinci Resolve, checked on his
       machine), and Epic covers on an opt-in switch (Epic's CDN only, never stored; the first
-      real fetch happens when he turns it on). Website mirror in progress. IN PROGRESS: **Media
-      renamed Files** on both apps, merged with the developer Files page (data, mods and assets
-      from the app's own folder), internal names too.
+      real fetch happens when he turns it on). Website mirror: DONE v0.1523.1. DONE v0.1524.0: **Media renamed Files** on both
+      apps and merged with the developer Files page: places On the server (Shared on <host>,
+      Shared files, Admin) and On this computer (HumanityOS folder: the app's own folder with data,
+      assets and mods, text files editable with a .bak kept; Your folders); internal names too
+      (GuiPage::Files, src/gui/pages/files*, src/relay/files*, /api/files/*, files.html,
+      data/files/, docs/design/files-showcase.md; the old data routes became /api/data-files). Kept
+      on purpose: src/media/ (the playback engine), the SQLite tables and signed purposes. The
+      website's old Shared Files page and data browser became places of its Files page. Found on
+      the way and fixed: BUG-205 (the data-file write route took no signature).
     - DONE v0.1521.0: **the Media page in three panes, editing in place** (operator: a
       list on the left, the item fitted to the middle (picture, 3D model, video, a sound
       visualiser), its details on the right; top, middle and bottom when the window is tall; Edit

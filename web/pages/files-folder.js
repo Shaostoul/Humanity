@@ -592,10 +592,18 @@ const FilesFolder = (function () {
     $('btn-save').disabled = true;
 
     try {
+      // Only this server's admins may change its data files (2026-10-20: the route took no
+      // signature before). The signature covers the path and the BLAKE3 of the exact content,
+      // the words the relay rebuilds in src/relay/api.rs `write_purpose`.
+      const hash = typeof window.pqBlake3 === 'function' ? await window.pqBlake3(new TextEncoder().encode(content)) : null;
+      const auth = hash && typeof window.getPqSignedAuth === 'function'
+        ? await window.getPqSignedAuth('data_files_write\n' + currentPath + '\n' + Array.from(hash, (b) => b.toString(16).padStart(2, '0')).join(''))
+        : null;
+      if (!auth) throw new Error('Only this server\'s admins can change its data files. Sign in via Chat first, as an admin.');
       const res = await fetch('/api/data-files/write', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path: currentPath, content }),
+        body: JSON.stringify({ path: currentPath, content, key: auth.key, timestamp: auth.timestamp, sig: auth.sig }),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);

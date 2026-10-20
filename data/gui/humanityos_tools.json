@@ -14,7 +14,7 @@
     { "name": "Chat", "page": "chat", "line": "Messages with people, groups and servers." },
     { "name": "Studio", "page": "studio", "line": "Stream live from this computer." },
     { "name": "Watch", "page": "watch", "line": "Watch the live streams on a server." },
-    { "name": "Media", "page": "media", "line": "The pictures, videos, sounds and models people chose to show." },
+    { "name": "Files", "page": "files", "line": "What people share on this server, the app's own folder, and your folders." },
     { "name": "Market", "page": "market", "line": "Offer things and find what others offer." },
     { "name": "Wallet", "page": "wallet", "line": "Your wallet: its balance, its address and sending." },
     { "name": "Browser", "page": "browser", "line": "Websites, read here or opened in your browser." }

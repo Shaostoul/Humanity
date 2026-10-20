@@ -1,4 +1,4 @@
-// ── chat-media-card.js ────────────────────────────────────────────────────
+// ── chat-files-card.js ────────────────────────────────────────────────────
 // A Media item posted in chat, shown as a card (2026-10-17). The operator: "can
 // we make it when someone clicks on the file in chat it brings up the full popup
 // window for that item instead of just having truncated version. I uploaded a
@@ -7,19 +7,19 @@
 // for the media thing(s). Like a simplified version of the full popup card. Card
 // could start as a collapsed line ... switchable between expanded and collapsed."
 //
-// The desktop app is the original (src/gui/pages/media/chat_card.rs); this file
+// The desktop app is the original (src/gui/pages/files/chat_card.rs); this file
 // copies its behaviour and words:
-// - A message holding the address of an item on THIS site's Media page
-//   (`https://<this origin>/media/<number>`, or `/media/<number>`; Add to Media's
-//   "Also post in chat" posts exactly that, web/pages/media-add.js postText) shows,
+// - A message holding the address of an item on THIS site's Files page
+//   (`https://<this origin>/files/<number>`, or `/files/<number>`; Add to Files's
+//   "Also post in chat" posts exactly that, web/pages/files-add.js postText) shows,
 //   under its words, a card for the item, and the address is taken out of the
-//   words. Another website's /media/ pages stay plain links; punctuation after an
+//   words. Another website's /files/ pages stay plain links; punctuation after an
 //   address is not part of it; each item once.
 // - Collapsed (how it starts): a triangle to open it out ("Show more" / "Show
 //   less"), the item's own file's type badge, its title (a click opens the item),
 //   "2 files, 2 MB", and Open.
 // - Expanded: also its cover picture (else its own picture when it is one) under
-//   the Media page's rules for pictures (the desktop's tiles.rs show_of): the
+//   the Files page's rules for pictures (the desktop's tiles.rs show_of): the
 //   protected setup leaves it out with its line; a labelled item says
 //   "Labelled: Spoiler." with Show the picture; a picture from someone who is not
 //   a friend says "Pictures from Ann show only when you choose." with Show the
@@ -27,7 +27,7 @@
 //   the item. Then "by Ann in Fire flow arts", its description, and every file it
 //   holds with its type badge and "name, size" ("name, cover picture, size").
 // - Open, the title and the picture bring up the item's FULL window over the
-//   chat: the Media page's own item page in a frame (/media/<id>?window=item,
+//   chat: the Files page's own item page in a frame (/files/<id>?window=item,
 //   /shared/upload-window.js), the same page with its Download for each file,
 //   never a copy of it. The chat signs for the page in that frame (2026-10-18):
 //   with a passphrase-wrapped identity the page has no key of its own, and a
@@ -36,15 +36,15 @@
 // - The thread panel draws its messages' cards by the same rules (2026-10-18,
 //   chat-messages.js putThreadMessage); the website's own place, the desktop has
 //   no thread panel. Cards no longer in the document are let go (prune).
-// - The item is asked for once per page (the same request the Media page opens an
-//   item by its number with: POST /api/media/list signed over "media_list\n<ts>"
+// - The item is asked for once per page (the same request the Files page opens an
+//   item by its number with: POST /api/files/list signed over "media_list\n<ts>"
 //   when the person has an identity here, so members see members-only items; else
-//   GET /api/media?id=<n>&limit=1). Whether a card is open is remembered per
+//   GET /api/files?id=<n>&limit=1). Whether a card is open is remembered per
 //   message and item for the page's life.
 // - Everything the server sends goes in with textContent. A picture loads only
 //   from this server's own addresses; a members-only one through the members'
 //   route with this session's upload token in a header, shown through an object
-//   URL (as the Media page does), so the token is never in an address.
+//   URL (as the Files page does), so the token is never in an address.
 //
 // A stricter rule than the desktop's, on purpose: with the protected setup on,
 // the picture is left out when EITHER the item's uploader or the message's
@@ -52,9 +52,9 @@
 // non-friend's message never shows a picture through a card.
 //
 // A classic script in the browser, loaded before app.js (which calls
-// mediaCardsPlan and mediaCardsPut while it draws a message), reading the chat's
+// filesCardsPlan and filesCardsPut while it draws a message), reading the chat's
 // own globals only when a card is drawn; a CommonJS module under Node, where
-// scripts/tests/media-card-web.test.js runs it against a stand-in document.
+// scripts/tests/files-card-web.test.js runs it against a stand-in document.
 // ──────────────────────────────────────────────────────────────────────────
 (function (root) {
   'use strict';
@@ -63,8 +63,8 @@
   // module; in the browser the page's HosFileRisk (index.html loads it first), looked up when used.
   const FR_MODULE = typeof module === 'object' && module && module.exports ? require('../shared/file-risk.js') : null;
   const MIB = 1024 * 1024;
-  // The kinds of item (the Media page's own file): the word a title without a name falls back to.
-  const KINDS_URL = '/data/media/kinds.json';
+  // The kinds of item (the Files page's own file): the word a title without a name falls back to.
+  const KINDS_URL = '/data/files/kinds.json';
   // How near its end a scrolled list still counts as at its bottom: a browser's scroll position can
   // stop a fraction of a pixel short of it (a zoomed page), never as far as a line of text.
   const BOTTOM_SLACK_PX = 4;
@@ -86,13 +86,13 @@
     openTip: 'See everything about it, with a Download for each file.',
     moreTip: 'Show more',
     lessTip: 'Show less',
-    loading: 'Loading the Media item...',
+    loading: 'Loading the item from the Files page...',
     loadingPicture: 'Loading the picture...',
-    notThere: 'That item is not on the Media page, or you may not see it.',
-    failed: 'This Media item could not be loaded: ',
+    notThere: 'That item is not on the Files page, or you may not see it.',
+    failed: 'This item from the Files page could not be loaded: ',
     showPicture: 'Show the picture',
     labelHidden: 'Hidden: the protected setup leaves out items with a content label.',
-    // The Media page's own words for a members-only picture (web/pages/media-app.js MEDIA_WORDS).
+    // The Files page's own words for a members-only picture (web/pages/files-app.js FILES_WORDS).
     waitingToken: 'This members-only file shows once this page is signed in to the server.',
     fileFailed: 'This file could not be loaded: ',
   });
@@ -118,7 +118,7 @@
       if (slash < 0) return null;
       path = rest.slice(slash);
     }
-    const m = /^\/media\/(\d{1,15})\/*$/.exec(path);
+    const m = /^\/files\/(\d{1,15})\/*$/.exec(path);
     return m ? Number(m[1]) : null;
   }
 
@@ -154,12 +154,12 @@
    * `text` without the addresses of items `ids` on this site (`origin`; their cards show them). ONLY
    * AN EXACT ADDRESS IS TAKEN OUT (2026-10-17, review): a word of the message whose address (its
    * trailing punctuation off) IS this site's address of one of those items, `http(s)://<this
-   * site>/media/<n>` or `/media/<n>`, and nothing inside another word, which once glued a
-   * stranger's `htt/media/5ps://evil.example/login` into a live https:// link; another website's
-   * /media/ page never, whatever its number. The punctuation after a taken address stays, as a word
+   * site>/files/<n>` or `/files/<n>`, and nothing inside another word, which once glued a
+   * stranger's `htt/files/5ps://evil.example/login` into a live https:// link; another website's
+   * /files/ page never, whatever its number. The punctuation after a taken address stays, as a word
    * of its own. A line with nothing taken out is kept exactly as it was; one with something taken
    * out is its own leading space and the words left, one space apart, and goes when none are left.
-   * The desktop's twin is src/gui/pages/media/chat_card.rs `without_links`.
+   * The desktop's twin is src/gui/pages/files/chat_card.rs `without_links`.
    */
   function withoutLinks(text, ids, origin) {
     const s = String(text == null ? '' : text);
@@ -191,7 +191,7 @@
   function oneDecimal(x) {
     return x.toFixed(1).replace(/\.0$/, '');
   }
-  /** Bytes as people read them, word for word the Media page's (media-app.js sizeWords). */
+  /** Bytes as people read them, word for word the Files page's (files-app.js sizeWords). */
   function sizeWords(bytes) {
     const b = Math.max(0, Number(bytes) || 0);
     if (b >= 1024 * MIB) return oneDecimal(b / (1024 * MIB)) + ' GB';
@@ -214,9 +214,9 @@
     return /^\/uploads\/[^/]+$/.test(s) ? s.slice('/uploads/'.length) : '';
   }
   /**
-   * The kinds file (/data/media/kinds.json, which the Media page and the desktop read) as the card
+   * The kinds file (/data/files/kinds.json, which the Files page and the desktop read) as the card
    * needs it: [{id, one}], `one` the name of one item of the kind (else its label). Entries without
-   * an id and a label are left out, as the Media page's parseKinds leaves them.
+   * an id and a label are left out, as the Files page's parseKinds leaves them.
    */
   function parseKinds(data) {
     const list = data && Array.isArray(data.kinds) ? data.kinds : [];
@@ -236,7 +236,7 @@
   /**
    * What the item is called: its title, else its file's own name, else its stored name, else the
    * word for one item of its kind (`kinds`, the kinds file; the desktop's display_title and the
-   * Media page's itemName say "3D model", never "model").
+   * Files page's itemName say "3D model", never "model").
    */
   function displayTitle(item, kinds) {
     return trimmed(item && item.title) || trimmed(item && item.original_name) || uploadName(item && item.url)
@@ -246,7 +246,7 @@
   function byName(item) {
     return trimmed(item && item.uploader_name) || 'someone';
   }
-  /** "by Ann in Fire flow arts" (the Media page's by-line, media-item.js byLine; the desktop's by_line). */
+  /** "by Ann in Fire flow arts" (the Files page's by-line, files-item.js byLine; the desktop's by_line). */
   function byLine(item) {
     const by = 'by ' + byName(item);
     const cat = item && item.category && typeof item.category.name === 'string' ? item.category.name.trim() : '';
@@ -262,21 +262,21 @@
     if (FR && typeof FR.plainName === 'function') return FR.plainName(name);
     return String(name == null ? '' : name).replace(/[\p{Cc}\p{Cf}]/gu, '').trim();
   }
-  /** The item's files, its own first (media-item.js filesOf). */
+  /** The item's files, its own first (files-item.js filesOf). */
   function filesOf(item) {
     if (item && Array.isArray(item.files) && item.files.length) return item.files;
     return [{ file: 0, filename: item ? item.filename || '' : '', original_name: item ? item.original_name || '' : '', kind: item ? item.kind : '', size_bytes: item ? item.size_bytes : 0, url: item ? item.url : '' }];
   }
-  /** The name its own file is downloaded under (media-app.js downloadName). */
+  /** The name its own file is downloaded under (files-app.js downloadName). */
   function ownName(item, kinds) {
     return trimmed(item && item.original_name) || (item && typeof item.filename === 'string' && item.filename.trim()) || uploadName(item && item.url) || displayTitle(item, kinds);
   }
-  /** The name file `f` is downloaded under (media-item.js fileName). */
+  /** The name file `f` is downloaded under (files-item.js fileName). */
   function fileName(item, f, kinds) {
     if (!f || !f.file) return ownName(item, kinds);
     return trimmed(f.original_name) || trimmed(f.filename) || displayTitle(item, kinds) + '-' + item.id + '-' + f.file;
   }
-  /** The name file `f` is shown by: plain (plainName), else the item's own name (media-item.js shownName). */
+  /** The name file `f` is shown by: plain (plainName), else the item's own name (files-item.js shownName). */
   function shownName(item, f, kinds) {
     return plainName(fileName(item, f, kinds)) || plainName(displayTitle(item, kinds)) || 'This item';
   }
@@ -291,7 +291,7 @@
 
   /**
    * The path of a file on this site's own addresses, or null: /uploads/<name> or the members'
-   * route /api/media/file/<id> (with `?file=<n>` for another of its files), as the Media page's
+   * route /api/files/file/<id> (with `?file=<n>` for another of its files), as the Files page's
    * ownFilePath. Nothing from anywhere else is ever loaded.
    */
   function ownPath(url, origin) {
@@ -301,7 +301,7 @@
     try { if (u.origin !== new URL(origin).origin) return null; } catch (e) { return null; }
     if (/^\/uploads\/[^/]+$/.test(u.pathname)) return u.pathname;
     const n = u.searchParams.get('file');
-    if (/^\/api\/media\/file\/\d+$/.test(u.pathname)) return u.pathname + (n && /^\d{1,6}$/.test(n) && n !== '0' ? '?file=' + n : '');
+    if (/^\/api\/files\/file\/\d+$/.test(u.pathname)) return u.pathname + (n && /^\d{1,6}$/.test(n) && n !== '0' ? '?file=' + n : '');
     return null;
   }
 
@@ -329,7 +329,7 @@
     if (pic.size > MAX_PICTURE_BYTES) return { show: 'none' };
     const path = ownPath(pic.url, f.origin);
     if (!path) return { show: 'none' };
-    return { show: 'load', path, members: path.startsWith('/api/media/file/') };
+    return { show: 'load', path, members: path.startsWith('/api/files/file/') };
   }
 
   /** The card's key for item `id` in the message sent by `from` at `ts` (the desktop's key_of). */
@@ -337,7 +337,7 @@
     return String(from || '') + ':' + String(ts == null ? '' : ts) + ':' + id;
   }
 
-  /** What a refusal says (media-app.js refusalOf): the relay's words, or its status. */
+  /** What a refusal says (files-app.js refusalOf): the relay's words, or its status. */
   async function refusalWords(res) {
     let text = '';
     try { text = String(await res.text()).trim(); } catch (e) { text = ''; }
@@ -362,10 +362,10 @@
    *   isFriend(key) (pictures from them show without a click),
    *   openItem(id, item, title) (brings up the item's full window, named `title`; see itemWindowOpener),
    *   keepBottom(change) (runs `change`, which makes cards taller, keeping the message list at
-   *   its bottom when it was there: chat-media-card.js keepAtBottom; optional).
+   *   its bottom when it was there: chat-files-card.js keepAtBottom; optional).
    * Returns {attach(ids, msg) -> element, cache, open, allowed, render(id), prune(), kinds()}.
    */
-  function createMediaCards(env) {
+  function createFilesCards(env) {
     const doc = env.document;
     const origin = () => (typeof env.origin === 'function' ? env.origin() : env.origin) || '';
     const cache = new Map();   // item id -> {state: 'loading'|'ready'|'missing'|'failed', item, labels, why}
@@ -411,7 +411,7 @@
       return b;
     }
     function badge(name) {
-      const slot = el('span', 'file-badge-slot media-card-badge');
+      const slot = el('span', 'file-badge-slot files-card-badge');
       if (typeof env.badge === 'function') env.badge(slot, name);
       return slot;
     }
@@ -439,13 +439,13 @@
         if (me && typeof env.sign === 'function') {
           const auth = await env.sign('media_list');
           if (auth) {
-            res = await env.fetch('/api/media/list', {
+            res = await env.fetch('/api/files/list', {
               method: 'POST', headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(Object.assign({ id: Number(id), limit: 1 }, auth)),
             });
           }
         }
-        if (!res) res = await env.fetch('/api/media?id=' + encodeURIComponent(String(id)) + '&limit=1');
+        if (!res) res = await env.fetch('/api/files?id=' + encodeURIComponent(String(id)) + '&limit=1');
         if (!res || !res.ok) {
           entry = { state: 'failed', why: res ? await refusalWords(res) : 'The server could not be reached.' };
         } else {
@@ -517,23 +517,23 @@
       };
       const d = pictureOf(item, facts);
       if (d.show === 'none') return null;
-      if (d.show === 'hidden') return d.line ? el('p', 'media-card-note media-card-hidden', d.line) : null;
+      if (d.show === 'hidden') return d.line ? el('p', 'files-card-note files-card-hidden', d.line) : null;
       if (d.show === 'ask') {
-        const row = el('div', 'media-card-ask');
-        row.appendChild(el('span', 'media-card-note', d.line));
-        row.appendChild(button('media-card-btn media-card-show', WORDS.showPicture, '', () => { allowed.add(item.id); render(item.id); }));
+        const row = el('div', 'files-card-ask');
+        row.appendChild(el('span', 'files-card-note', d.line));
+        row.appendChild(button('files-card-btn files-card-show', WORDS.showPicture, '', () => { allowed.add(item.id); render(item.id); }));
         return row;
       }
       let src = d.path;
       if (d.members) {
         const p = memberPicture(d.path, item.id);
-        if (p.state === 'waiting') return el('p', 'media-card-note', WORDS.waitingToken);
-        if (p.state === 'error') return el('p', 'media-card-note media-card-failed', WORDS.fileFailed + p.why);
-        if (p.state !== 'ready') return el('p', 'media-card-note', WORDS.loadingPicture);
+        if (p.state === 'waiting') return el('p', 'files-card-note', WORDS.waitingToken);
+        if (p.state === 'error') return el('p', 'files-card-note files-card-failed', WORDS.fileFailed + p.why);
+        if (p.state !== 'ready') return el('p', 'files-card-note', WORDS.loadingPicture);
         src = p.url;
       }
-      const pic = button('media-card-picture', null, WORDS.openTip, () => openItem(item));
-      const img = el('img', 'media-card-img');
+      const pic = button('files-card-picture', null, WORDS.openTip, () => openItem(item));
+      const img = el('img', 'files-card-img');
       img.src = src;
       img.alt = displayTitle(item, kinds);
       pic.appendChild(img);
@@ -551,48 +551,48 @@
       box.replaceChildren();
       box.dataset.mediaItem = String(card.id);
       if (entry.state !== 'ready') {
-        box.className = 'media-card media-card-wait';
+        box.className = 'files-card files-card-wait';
         const words = entry.state === 'missing' ? WORDS.notThere : entry.state === 'failed' ? WORDS.failed + entry.why : WORDS.loading;
-        box.appendChild(el('div', 'media-card-note' + (entry.state === 'failed' ? ' media-card-failed' : ''), words));
+        box.appendChild(el('div', 'files-card-note' + (entry.state === 'failed' ? ' files-card-failed' : ''), words));
         return;
       }
       const item = entry.item;
       const isOpen = open.has(card.key);
-      box.className = 'media-card' + (isOpen ? ' open' : '');
+      box.className = 'files-card' + (isOpen ? ' open' : '');
       // The line it starts as: the triangle, its type, its title, how many files and how much, Open.
-      const line = el('div', 'media-card-line');
-      const toggle = button('media-card-toggle', null, isOpen ? WORDS.lessTip : WORDS.moreTip, () => {
+      const line = el('div', 'files-card-line');
+      const toggle = button('files-card-toggle', null, isOpen ? WORDS.lessTip : WORDS.moreTip, () => {
         if (open.has(card.key)) open.delete(card.key); else open.add(card.key);
         draw(card);
         // The card was drawn afresh: the keyboard stays on its triangle.
-        const again = typeof card.el.querySelector === 'function' ? card.el.querySelector('.media-card-toggle') : null;
+        const again = typeof card.el.querySelector === 'function' ? card.el.querySelector('.files-card-toggle') : null;
         if (again && typeof again.focus === 'function') again.focus();
       });
       if (typeof toggle.setAttribute === 'function') {
         toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
         toggle.setAttribute('aria-label', isOpen ? WORDS.lessTip : WORDS.moreTip);
       }
-      toggle.appendChild(el('span', 'media-card-triangle'));
+      toggle.appendChild(el('span', 'files-card-triangle'));
       line.appendChild(toggle);
       // Its own file's type, judged by the name it is shown by (plainName).
       line.appendChild(badge(shownName(item, null, kinds)));
-      line.appendChild(button('media-card-title', displayTitle(item, kinds), WORDS.openTip, () => openItem(item)));
-      line.appendChild(el('span', 'media-card-count', countLine(item)));
-      line.appendChild(button('media-card-btn media-card-open', WORDS.open, WORDS.openTip, () => openItem(item)));
+      line.appendChild(button('files-card-title', displayTitle(item, kinds), WORDS.openTip, () => openItem(item)));
+      line.appendChild(el('span', 'files-card-count', countLine(item)));
+      line.appendChild(button('files-card-btn files-card-open', WORDS.open, WORDS.openTip, () => openItem(item)));
       box.appendChild(line);
       if (!isOpen) return;
       // Opened out: its picture, who put it there, its description, and every file it holds.
-      const more = el('div', 'media-card-more');
+      const more = el('div', 'files-card-more');
       const pic = picturePart(card, entry);
       if (pic) more.appendChild(pic);
-      more.appendChild(el('div', 'media-card-by', byLine(item)));
+      more.appendChild(el('div', 'files-card-by', byLine(item)));
       const desc = trimmed(item.description);
-      if (desc) more.appendChild(el('div', 'media-card-desc', desc));
-      const list = el('ul', 'media-card-files');
+      if (desc) more.appendChild(el('div', 'files-card-desc', desc));
+      const list = el('ul', 'files-card-files');
       for (const f of fileLines(item, kinds)) {
-        const row = el('li', 'media-card-file');
+        const row = el('li', 'files-card-file');
         row.appendChild(badge(f.name));
-        row.appendChild(el('span', 'media-card-file-name', f.line));
+        row.appendChild(el('span', 'files-card-file-name', f.line));
         list.appendChild(row);
       }
       more.appendChild(list);
@@ -605,9 +605,9 @@
      */
     function attach(ids, msg) {
       const m = msg || {};
-      const wrap = el('div', 'media-cards');
+      const wrap = el('div', 'files-cards');
       for (const id of ids || []) {
-        const card = { id, key: keyOf(m.from, m.timestamp, id), from: m.from || '', el: el('div', 'media-card'), shown: false };
+        const card = { id, key: keyOf(m.from, m.timestamp, id), from: m.from || '', el: el('div', 'files-card'), shown: false };
         if (!mounted.has(id)) mounted.set(id, new Set());
         mounted.get(id).add(card);
         wrap.appendChild(card.el);
@@ -622,8 +622,8 @@
   }
 
   /**
-   * Brings up item windows over the page (/shared/upload-window.js, `UW`): the Media page's own item
-   * page in a frame, /media/<id>?window=item. One window shown at a time; one with an Edit's file
+   * Brings up item windows over the page (/shared/upload-window.js, `UW`): the Files page's own item
+   * page in a frame, /files/<id>?window=item. One window shown at a time; one with an Edit's file
    * still uploading is kept (hidden, it carries on) and another item gets a window of its own.
    * Opening an item whose window is kept that way brings THAT window back (never a second frame on
    * the same item), and upload-window.js tells the page in it to open its item again (its own
@@ -656,11 +656,11 @@
 
   const api = {
     WORDS, MAX_PICTURE_BYTES, links, itemLinks, withoutLinks, sizeWords, countLine, displayTitle, byName, byLine,
-    filesOf, ownName, fileName, shownName, fileLines, ownPath, pictureOf, keyOf, createMediaCards, itemWindowOpener,
+    filesOf, ownName, fileName, shownName, fileLines, ownPath, pictureOf, keyOf, createFilesCards, itemWindowOpener,
     parseKinds, kindWord, plainName, KINDS_URL, BOTTOM_SLACK_PX, atBottom,
   };
   if (typeof module === 'object' && module && module.exports) { module.exports = api; return; }
-  root.HosMediaCard = api;
+  root.HosFilesCard = api;
 
   // ── In the chat (the browser) ──
   // The chat's own globals (app.js, chat-dms.js, chat-protected.js, crypto.js), read only when a card
@@ -668,10 +668,10 @@
   let lastSigned = 0;
   const chatKey = () => (typeof myKey === 'string' ? myKey : '');
   /**
-   * A signed read or write, as the Media page signs one ("media_list\n<timestamp>"), with the
+   * A signed read or write, as the Files page signs one ("media_list\n<timestamp>"), with the
    * chat's own identity, held unlocked in this page; never two with the same timestamp (the relay
    * refuses a repeat). The cards' item requests, and the item windows' pages (upload-window.js,
-   * which signs only the Media page's purposes for them).
+   * which signs only the Files page's purposes for them).
    */
   async function chatSign(purpose) {
     const key = chatKey();
@@ -700,8 +700,8 @@
       onStatus: (text) => { if (typeof addNotice === 'function') addNotice(text, 'green', 10); },
       sign: chatSign, myKey: chatKey, token: chatToken,
     })
-    : (id) => { try { root.open('/media/' + id, '_blank', 'noopener'); } catch (e) { /* no window */ } };
-  const cards = createMediaCards({
+    : (id) => { try { root.open('/files/' + id, '_blank', 'noopener'); } catch (e) { /* no window */ } };
+  const cards = createFilesCards({
     document: root.document,
     fetch: (u, i) => root.fetch(u, i),
     origin: () => (root.location && root.location.origin) || '',
@@ -719,7 +719,7 @@
     openItem: (id, item, title) => openItemWindow(id, item, title),
     keepBottom: (change) => keepAtBottom(change),
   });
-  root.hosMediaCards = cards;
+  root.hosFilesCards = cards;
 
   // The scrolled lists cards are drawn in: the messages, and the thread panel's (2026-10-18).
   const CARD_LISTS = ['messages', 'thread-panel-messages'];
@@ -751,7 +751,7 @@
    * For a message's text from `fromKey`: the words to draw ({words}) and the Media items its cards
    * show ({ids}); the words are the text itself when there are none.
    */
-  root.mediaCardsPlan = function mediaCardsPlan(text, fromKey) {
+  root.filesCardsPlan = function filesCardsPlan(text, fromKey) {
     const here = (root.location && root.location.origin) || '';
     const ids = withheld(text, fromKey) ? [] : itemLinks(text, here);
     return { words: ids.length ? withoutLinks(text, ids, here) : String(text == null ? '' : text), ids };
@@ -764,7 +764,7 @@
    * any it had: a row of the message list (its words `.body`) or of the thread panel (its words
    * `.thread-msg-body`, chat-messages.js putThreadMessage, 2026-10-18).
    */
-  root.mediaCardsPut = function mediaCardsPut(row, ids, fromKey, ts) {
+  root.filesCardsPut = function filesCardsPut(row, ids, fromKey, ts) {
     if (!row) return null;
     const old = boxes.get(row);
     if (old && typeof old.remove === 'function') old.remove();

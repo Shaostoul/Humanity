@@ -1,7 +1,7 @@
 // ── strip-metadata.js ─────────────────────────────────────────────────────
 // Removes hidden location and camera information from a picture or a video
 // IN THE BROWSER, before the file is uploaded or encrypted (2026-10-11,
-// docs/design/media-showcase.md, "The operator's answers (2026-10-11)",
+// docs/design/files-showcase.md, "The operator's answers (2026-10-11)",
 // answer 4). The sender's own app strips, so a photo sent in a DM or a group,
 // which the server only ever receives as a sealed blob it can never clean, no
 // longer carries where it was taken. The relay keeps stripping public uploads

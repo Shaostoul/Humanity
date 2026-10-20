@@ -1,5 +1,5 @@
-// ── media-sound.js ────────────────────────────────────────────────────────
-// A sound or a song shown in the Media page's middle pane on the website (2026-10-19), the desktop's
+// ── files-sound.js ────────────────────────────────────────────────────────
+// A sound or a song shown in the Files page's middle pane on the website (2026-10-19), the desktop's
 // mirrored: src/gui/widgets/sound_view.rs (Play here, then the sound played with its waveform) and
 // src/gui/widgets/waveform.rs (the waveform's peaks, the spectrum's bands, a press on it to go there).
 // The operator, 2026-10-19: "middle is the fit to area picture, 3D model, sound/music visualizer".
@@ -22,8 +22,8 @@
 // Every colour is the theme's, read from its CSS variables (--accent, --text-muted, --text, --border,
 // --bg-tertiary); the words are the desktop's, "in the app" made "here".
 //
-// A classic script in the browser (before media-item.js), a CommonJS module under Node, where
-// scripts/tests/media-web-panes.test.js runs it (with the fixture
+// A classic script in the browser (before files-item.js), a CommonJS module under Node, where
+// scripts/tests/files-web-panes.test.js runs it (with the fixture
 // tests/fixtures/media/two-tones-440-then-2000.wav, decoded by the test).
 // ──────────────────────────────────────────────────────────────────────────
 (function (root) {
@@ -185,7 +185,7 @@
     const decode = typeof o.decode === 'function' ? o.decode : decodeInBrowser;
     const AC = o.AudioContext !== undefined ? o.AudioContext : (root.AudioContext || root.webkitAudioContext || null);
     const state = { phase: 'idle', peaks: null, duration: 0, problem: '', note: '', fetches: 0, decodes: 0 };
-    const el = h('div', { id: 'media-sound', className: 'media-sound' });
+    const el = h('div', { id: 'files-sound', className: 'files-sound' });
     let ctl = null;       // the fetch's AbortController
     let url = '';         // the object URL the <audio> plays
     let audio = null;
@@ -202,11 +202,11 @@
 
     function drawIdle() {
       const play = h('button', {
-        type: 'button', id: 'media-sound-play', className: 'media-btn media-btn-primary', text: WORDS.playHere,
+        type: 'button', id: 'files-sound-play', className: 'files-btn files-btn-primary', text: WORDS.playHere,
         title: WORDS.playHereTip, on: { click: () => start() },
       });
       el.replaceChildren(
-        h('p', { className: 'media-sound-line', id: 'media-sound-line', text: o.name + ', ' + o.sizeWords(o.size) }),
+        h('p', { className: 'files-sound-line', id: 'files-sound-line', text: o.name + ', ' + o.sizeWords(o.size) }),
         play
       );
     }
@@ -215,7 +215,7 @@
       state.note = words || '';
       if (!noteEl) return;
       noteEl.textContent = state.note;
-      noteEl.className = 'media-sound-note' + (warn ? ' media-warn' : ' media-hint');
+      noteEl.className = 'files-sound-note' + (warn ? ' files-warn' : ' files-hint');
       noteEl.hidden = !state.note;
     }
 
@@ -223,7 +223,7 @@
       state.phase = 'failed';
       state.problem = cannotPlayWords(why);
       if (!audio) {
-        el.replaceChildren(h('p', { className: 'media-warn media-sound-note', id: 'media-sound-note', text: state.problem }));
+        el.replaceChildren(h('p', { className: 'files-warn files-sound-note', id: 'files-sound-note', text: state.problem }));
       } else {
         say(state.problem, true);
       }
@@ -237,7 +237,7 @@
       state.fetches++;
       // Made now, while the press is the reason (a browser lets sound start only after one).
       if (AC) { try { actx = new AC(); } catch (e) { actx = null; } }
-      el.replaceChildren(h('p', { className: 'media-hint media-sound-note', id: 'media-sound-note', text: WORDS.fetching }));
+      el.replaceChildren(h('p', { className: 'files-hint files-sound-note', id: 'files-sound-note', text: WORDS.fetching }));
       changed();
       const Abort = o.Abort || (typeof AbortController !== 'undefined' ? AbortController : null);
       ctl = Abort ? new Abort() : null;
@@ -254,7 +254,7 @@
       if (!blob || (typeof blob.size === 'number' && blob.size > MAX_SOUND_BYTES)) {
         state.phase = 'failed';
         state.problem = tooLargeWords(o.sizeWords(blob ? blob.size : o.size));
-        el.replaceChildren(h('p', { className: 'media-warn media-sound-note', id: 'media-sound-note', text: state.problem }));
+        el.replaceChildren(h('p', { className: 'files-warn files-sound-note', id: 'files-sound-note', text: state.problem }));
         changed();
         return;
       }
@@ -267,11 +267,11 @@
       try { url = URLs ? URLs.createObjectURL(blob) : ''; } catch (e) { url = ''; }
       // Its hover hint says what the colours mean (the site's hint would otherwise guess a line).
       canvas = h('canvas', {
-        id: 'media-sound-wave', className: 'media-sound-wave', title: WORDS.seekTip, dataset: { tipDesc: WORDS.playedTip },
+        id: 'files-sound-wave', className: 'files-sound-wave', title: WORDS.seekTip, dataset: { tipDesc: WORDS.playedTip },
         attrs: { role: 'img', 'aria-label': WORDS.waveLabel },
       });
-      audio = h('audio', { id: 'media-sound-audio', className: 'media-sound-audio', controls: true, preload: 'auto', src: url || undefined });
-      noteEl = h('p', { id: 'media-sound-note', className: 'media-sound-note media-hint', hidden: true });
+      audio = h('audio', { id: 'files-sound-audio', className: 'files-sound-audio', controls: true, preload: 'auto', src: url || undefined });
+      noteEl = h('p', { id: 'files-sound-note', className: 'files-sound-note files-hint', hidden: true });
       el.replaceChildren(canvas, audio, noteEl);
       audio.addEventListener('play', () => { listen(); loop(); });
       audio.addEventListener('pause', () => draw());
@@ -457,5 +457,5 @@
     cannotPlayWords, tooLargeWords, peaksOf, loudest, bandEdges, bandLevels, seekFraction, decodeInBrowser, createSoundView,
   };
   if (typeof module === 'object' && module && module.exports) module.exports = api;
-  else root.MediaSound = api;
+  else root.FilesSound = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

@@ -1,14 +1,14 @@
-// ── media-admin.js ────────────────────────────────────────────────────────
+// ── files-admin.js ────────────────────────────────────────────────────────
 // The admins' Media section on the website (2026-10-11; docs/design/
-// media-showcase.md, "Increment 2, exact", "Admins"). Since Media round 5
+// files-showcase.md, "Increment 2, exact", "Admins"). Since Media round 5
 // (2026-10-12, docs/design/media-round-5-plan.md 3.10) it lives in one place:
-// the Media page's Admin tab (/media#admin), mounted there by media-app.js
-// through `mountMediaAdmin`, as the desktop app's lives on its Media page's
+// the Files page's Admin tab (/files#admin), mounted there by files-app.js
+// through `mountFilesAdmin`, as the desktop app's lives on its Files page's
 // Admin tab. The Admin dashboard (/admin) keeps one line pointing there, so it
-// no longer starts a copy of its own (its `startMediaAdmin` is gone).
+// no longer starts a copy of its own (its `startFilesAdmin` is gone).
 //
 // It holds:
-// - Who sees the Media page (Public / Members only), with the relay's own
+// - Who sees the Files page (Public / Members only), with the relay's own
 //   sentence about what a member is under it (the settings' `media_members_note`);
 //   the Media budget and each person's share in MB; "Public visitors get
 //   previews only". These four are server settings: they are read from
@@ -22,7 +22,7 @@
 //   seconds. The answer to this page's own settings request (`target` set) is
 //   never taken as the answer to a save.
 // - The categories: add, rename, reorder, remove (General stays). Saved whole
-//   with POST /api/media/categories, signed over
+//   with POST /api/files/categories, signed over
 //   media_categories:<BLAKE3 hex of the category list's JSON text as sent>, so
 //   the request carries exactly that text (`categoriesBody`).
 // - Suggestions waiting: Accept or Decline, the suggester named.
@@ -34,16 +34,16 @@
 //   out of date is answered 409 and loaded again.
 //
 // Built with createElement and textContent only. A classic script in the
-// browser (after /pages/media-app.js, whose helpers it uses), a CommonJS module
-// under Node (scripts/tests/media-web.test.js).
+// browser (after /pages/files-app.js, whose helpers it uses), a CommonJS module
+// under Node (scripts/tests/files-web.test.js).
 // ──────────────────────────────────────────────────────────────────────────
 (function (root) {
   'use strict';
 
-  const M = typeof module === 'object' && module && module.exports ? require('./media-app.js') : root.MediaPage;
+  const M = typeof module === 'object' && module && module.exports ? require('./files-app.js') : root.FilesPage;
 
   // General: the relay refuses a category list without it ("General (category 1)
-  // cannot be removed", storage/media.rs GENERAL_CATEGORY_ID); it can be renamed.
+  // cannot be removed", storage/files.rs GENERAL_CATEGORY_ID); it can be renamed.
   const GENERAL_ID = 1;
 
   // How long a settings save waits for the relay's answer before saying none came.
@@ -130,10 +130,10 @@
   /**
    * Mount the section in `container`. `env`: document, fetch, sign(purpose),
    * blake3(bytes), session (a relay-session), confirm(words), onChange() (the
-   * Media page reloads its list after a change here; optional), setTimeout and
+   * Files page reloads its list after a change here; optional), setTimeout and
    * clearTimeout (optional).
    */
-  function mountMediaAdmin(container, env) {
+  function mountFilesAdmin(container, env) {
     const h = M.makeH(env.document);
     const session = env.session || null;
     const later = env.setTimeout || ((fn, ms) => setTimeout(fn, ms));
@@ -156,10 +156,10 @@
       usageMsg: '',
     };
     const els = {
-      settings: h('div', { id: 'media-admin-settings', className: 'media-admin-block' }),
-      categories: h('div', { id: 'media-admin-categories', className: 'media-admin-block' }),
-      suggestions: h('div', { id: 'media-admin-suggestions', className: 'media-admin-block' }),
-      usage: h('div', { id: 'media-admin-usage', className: 'media-admin-block' }),
+      settings: h('div', { id: 'files-admin-settings', className: 'files-admin-block' }),
+      categories: h('div', { id: 'files-admin-categories', className: 'files-admin-block' }),
+      suggestions: h('div', { id: 'files-admin-suggestions', className: 'files-admin-block' }),
+      usage: h('div', { id: 'files-admin-usage', className: 'files-admin-block' }),
     };
     container.replaceChildren(els.settings, els.categories, els.suggestions, els.usage);
 
@@ -169,12 +169,12 @@
 
     async function signedPost(url, purpose, body) {
       const auth = await env.sign(purpose);
-      if (!auth) throw new Error(M.MEDIA_WORDS.cannotSign);
+      if (!auth) throw new Error(M.FILES_WORDS.cannotSign);
       return M.answerOf(await env.fetch(url, M.jsonPost(Object.assign({}, body || {}, auth))));
     }
 
     function msg(id, text, warn) {
-      return text ? h('p', { id, className: 'media-hint' + (warn ? ' media-warn' : ''), text }) : null;
+      return text ? h('p', { id, className: 'files-hint' + (warn ? ' files-warn' : ''), text }) : null;
     }
 
     // ── The four settings ──
@@ -190,46 +190,46 @@
       };
     }
     function renderSettings() {
-      els.settings.replaceChildren(h('h3', { text: 'Who sees the Media page' }));
+      els.settings.replaceChildren(h('h3', { text: 'Who sees the Files page' }));
       const s = settingsNow();
       if (!session || !session.state || session.state.status !== 'bound') {
-        els.settings.appendChild(h('p', { className: 'media-hint', text: ADMIN_WORDS.noSession }));
+        els.settings.appendChild(h('p', { className: 'files-hint', text: ADMIN_WORDS.noSession }));
         if (!s) return;
       }
       if (!s) {
-        els.settings.appendChild(h('p', { className: 'media-hint', text: ADMIN_WORDS.waitingSettings }));
+        els.settings.appendChild(h('p', { className: 'files-hint', text: ADMIN_WORDS.waitingSettings }));
         return;
       }
       if (!st.settingsDirty || !st.settingsDraft) st.settingsDraft = draftFrom(s);
       const d = st.settingsDraft;
       const dirty = () => { st.settingsDirty = true; st.settingsMsg = ''; };
-      const pub = h('input', { type: 'radio', name: 'media-admin-visibility', value: 'public', id: 'media-admin-vis-public', checked: d.media_visibility === 'public' });
-      const mem = h('input', { type: 'radio', name: 'media-admin-visibility', value: 'members', id: 'media-admin-vis-members', checked: d.media_visibility === 'members' });
+      const pub = h('input', { type: 'radio', name: 'files-admin-visibility', value: 'public', id: 'files-admin-vis-public', checked: d.media_visibility === 'public' });
+      const mem = h('input', { type: 'radio', name: 'files-admin-visibility', value: 'members', id: 'files-admin-vis-members', checked: d.media_visibility === 'members' });
       pub.addEventListener('change', () => { if (pub.checked) { d.media_visibility = 'public'; dirty(); } });
       mem.addEventListener('change', () => { if (mem.checked) { d.media_visibility = 'members'; dirty(); } });
-      const budget = h('input', { type: 'number', id: 'media-admin-budget', className: 'media-input media-input-number', min: 1, value: String(d.media_budget_mb) });
+      const budget = h('input', { type: 'number', id: 'files-admin-budget', className: 'files-input files-input-number', min: 1, value: String(d.media_budget_mb) });
       budget.addEventListener('input', () => { d.media_budget_mb = Math.round(Number(budget.value)); dirty(); });
-      const share = h('input', { type: 'number', id: 'media-admin-share', className: 'media-input media-input-number', min: 1, value: String(d.media_per_person_mb) });
+      const share = h('input', { type: 'number', id: 'files-admin-share', className: 'files-input files-input-number', min: 1, value: String(d.media_per_person_mb) });
       share.addEventListener('input', () => { d.media_per_person_mb = Math.round(Number(share.value)); dirty(); });
-      const previews = h('input', { type: 'checkbox', id: 'media-admin-previews', checked: !!d.media_public_previews_only });
+      const previews = h('input', { type: 'checkbox', id: 'files-admin-previews', checked: !!d.media_public_previews_only });
       previews.addEventListener('change', () => { d.media_public_previews_only = !!previews.checked; dirty(); });
-      const save = h('button', { type: 'button', id: 'media-admin-save', className: 'media-btn media-btn-primary', text: st.saving ? 'Saving...' : 'Save', disabled: !!st.saving });
+      const save = h('button', { type: 'button', id: 'files-admin-save', className: 'files-btn files-btn-primary', text: st.saving ? 'Saving...' : 'Save', disabled: !!st.saving });
       save.addEventListener('click', saveSettings);
       // (A missing line is left out: append() would write a null as the word "null".)
       els.settings.append(...[
-        h('div', { className: 'media-field' }, [
-          h('label', { className: 'media-check' }, [pub, ' Public']),
-          h('label', { className: 'media-check' }, [mem, ' Members only']),
+        h('div', { className: 'files-field' }, [
+          h('label', { className: 'files-check' }, [pub, ' Public']),
+          h('label', { className: 'files-check' }, [mem, ' Members only']),
         ]),
         typeof s.media_members_note === 'string' && s.media_members_note
-          ? h('p', { id: 'media-admin-members-note', className: 'media-hint', text: s.media_members_note })
+          ? h('p', { id: 'files-admin-members-note', className: 'files-hint', text: s.media_members_note })
           : null,
-        h('label', { className: 'media-field' }, ['Media budget (MB)', budget]),
-        h('label', { className: 'media-field' }, ["Each person's share (MB)", share]),
-        h('label', { className: 'media-check' }, [previews, ' Public visitors get previews only']),
-        h('div', { className: 'media-form-buttons' }, [save]),
+        h('label', { className: 'files-field' }, ['File space (MB)', budget]),
+        h('label', { className: 'files-field' }, ["Each person's share (MB)", share]),
+        h('label', { className: 'files-check' }, [previews, ' Public visitors get previews only']),
+        h('div', { className: 'files-form-buttons' }, [save]),
       ].filter(Boolean));
-      const m = msg('media-admin-settings-msg', st.settingsMsg, st.settingsWarn);
+      const m = msg('files-admin-settings-msg', st.settingsMsg, st.settingsWarn);
       if (m) els.settings.appendChild(m);
     }
     function saveSettings() {
@@ -287,7 +287,7 @@
     // ── Categories ──
     async function loadCategories() {
       try {
-        const a = await signedPost('/api/media/list', M.purposes.list(), { limit: 1 });
+        const a = await signedPost('/api/files/list', M.purposes.list(), { limit: 1 });
         st.categories = Array.isArray(a.categories) ? a.categories : [];
         st.draft = st.categories.map((c) => ({ id: c.id, name: c.name, description: c.description || '' }));
       } catch (e) {
@@ -308,31 +308,31 @@
     function renderCategories() {
       els.categories.replaceChildren(h('h3', { text: 'Categories' }));
       if (!st.draft) {
-        els.categories.appendChild(msg('media-admin-cat-msg', st.catMsg || M.MEDIA_WORDS.loading, st.catWarn));
+        els.categories.appendChild(msg('files-admin-cat-msg', st.catMsg || M.FILES_WORDS.loading, st.catWarn));
         return;
       }
-      const list = h('div', { className: 'media-admin-rows', id: 'media-admin-cat-rows' });
+      const list = h('div', { className: 'files-admin-rows', id: 'files-admin-cat-rows' });
       st.draft.forEach((c, i) => {
-        const name = h('input', { type: 'text', className: 'media-input', maxLength: 60, value: c.name, dataset: { catName: i }, attrs: { 'aria-label': 'Category name' } });
+        const name = h('input', { type: 'text', className: 'files-input', maxLength: 60, value: c.name, dataset: { catName: i }, attrs: { 'aria-label': 'Category name' } });
         name.addEventListener('input', () => { c.name = name.value; });
-        const desc = h('input', { type: 'text', className: 'media-input', maxLength: 300, value: c.description || '', placeholder: 'Description (optional)', attrs: { 'aria-label': 'Category description' } });
+        const desc = h('input', { type: 'text', className: 'files-input', maxLength: 300, value: c.description || '', placeholder: 'Description (optional)', attrs: { 'aria-label': 'Category description' } });
         desc.addEventListener('input', () => { c.description = desc.value; });
         const general = c.id === GENERAL_ID;
-        list.appendChild(h('div', { className: 'media-admin-row', dataset: { catRow: i } }, [
+        list.appendChild(h('div', { className: 'files-admin-row', dataset: { catRow: i } }, [
           name, desc,
-          h('button', { type: 'button', className: 'media-btn media-btn-small', text: 'Up', disabled: i === 0, dataset: { catUp: i }, on: { click: () => move(i, -1) } }),
-          h('button', { type: 'button', className: 'media-btn media-btn-small', text: 'Down', disabled: i === st.draft.length - 1, dataset: { catDown: i }, on: { click: () => move(i, 1) } }),
+          h('button', { type: 'button', className: 'files-btn files-btn-small', text: 'Up', disabled: i === 0, dataset: { catUp: i }, on: { click: () => move(i, -1) } }),
+          h('button', { type: 'button', className: 'files-btn files-btn-small', text: 'Down', disabled: i === st.draft.length - 1, dataset: { catDown: i }, on: { click: () => move(i, 1) } }),
           general
-            ? h('span', { className: 'media-hint', text: ADMIN_WORDS.generalStays })
+            ? h('span', { className: 'files-hint', text: ADMIN_WORDS.generalStays })
             : h('button', {
-              type: 'button', className: 'media-btn media-btn-small media-btn-danger', text: 'Remove', dataset: { catRemove: i },
+              type: 'button', className: 'files-btn files-btn-small files-btn-danger', text: 'Remove', dataset: { catRemove: i },
               on: { click: () => { st.draft.splice(i, 1); st.catMsg = 'Its items move to General when you save.'; st.catWarn = false; renderCategories(); } },
             }),
         ]));
       });
-      const newName = h('input', { type: 'text', id: 'media-admin-cat-new-name', className: 'media-input', maxLength: 60, placeholder: 'New category' });
-      const newDesc = h('input', { type: 'text', id: 'media-admin-cat-new-desc', className: 'media-input', maxLength: 300, placeholder: 'Description (optional)' });
-      const add = h('button', { type: 'button', id: 'media-admin-cat-add', className: 'media-btn', text: 'Add' });
+      const newName = h('input', { type: 'text', id: 'files-admin-cat-new-name', className: 'files-input', maxLength: 60, placeholder: 'New category' });
+      const newDesc = h('input', { type: 'text', id: 'files-admin-cat-new-desc', className: 'files-input', maxLength: 300, placeholder: 'Description (optional)' });
+      const add = h('button', { type: 'button', id: 'files-admin-cat-add', className: 'files-btn', text: 'Add' });
       add.addEventListener('click', () => {
         const n = newName.value.trim();
         if (!n) return;
@@ -340,10 +340,10 @@
         st.catMsg = '';
         renderCategories();
       });
-      const save = h('button', { type: 'button', id: 'media-admin-cat-save', className: 'media-btn media-btn-primary', text: st.catBusy ? 'Saving...' : 'Save categories', disabled: st.catBusy });
+      const save = h('button', { type: 'button', id: 'files-admin-cat-save', className: 'files-btn files-btn-primary', text: st.catBusy ? 'Saving...' : 'Save categories', disabled: st.catBusy });
       save.addEventListener('click', saveCategories);
-      els.categories.append(list, h('div', { className: 'media-admin-row' }, [newName, newDesc, add]), h('div', { className: 'media-form-buttons' }, [save]));
-      const m = msg('media-admin-cat-msg', st.catMsg, st.catWarn);
+      els.categories.append(list, h('div', { className: 'files-admin-row' }, [newName, newDesc, add]), h('div', { className: 'files-form-buttons' }, [save]));
+      const m = msg('files-admin-cat-msg', st.catMsg, st.catWarn);
       if (m) els.categories.appendChild(m);
     }
     async function saveCategories() {
@@ -355,8 +355,8 @@
         const purpose = await categoriesPurpose(listText, env.blake3);
         if (!purpose) throw new Error('The category list could not be hashed for its signature. Reload the page and try again.');
         const auth = await env.sign(purpose);
-        if (!auth) throw new Error(M.MEDIA_WORDS.cannotSign);
-        const a = await M.answerOf(await env.fetch('/api/media/categories', M.jsonPost(categoriesBody(auth, listText))));
+        if (!auth) throw new Error(M.FILES_WORDS.cannotSign);
+        const a = await M.answerOf(await env.fetch('/api/files/categories', M.jsonPost(categoriesBody(auth, listText))));
         st.categories = a.categories || [];
         st.draft = st.categories.map((c) => ({ id: c.id, name: c.name, description: c.description || '' }));
         st.catMsg = ADMIN_WORDS.saved;
@@ -373,7 +373,7 @@
     // ── Suggestions ──
     async function loadSuggestions() {
       try {
-        const a = await signedPost('/api/media/suggestions', M.purposes.suggestions());
+        const a = await signedPost('/api/files/suggestions', M.purposes.suggestions());
         st.suggestions = (a.suggestions || []).filter((s) => s.state === 'open');
         st.sugMsg = '';
       } catch (e) {
@@ -384,7 +384,7 @@
     }
     async function decide(s, accept) {
       try {
-        await signedPost('/api/media/suggestions/decide', M.purposes.decide(s.id, accept), { id: s.id, accept });
+        await signedPost('/api/files/suggestions/decide', M.purposes.decide(s.id, accept), { id: s.id, accept });
         st.sugMsg = (accept ? 'Accepted: "' + s.name + '" is a category now.' : 'Declined.') + ' ' + (s.suggester_name || 'The suggester') + ' is told.';
         if (accept) { loadCategories(); changed(); }
       } catch (e) {
@@ -395,29 +395,29 @@
     function renderSuggestions() {
       els.suggestions.replaceChildren(h('h3', { text: 'Suggestions waiting' }));
       if (!st.suggestions) {
-        els.suggestions.appendChild(h('p', { className: 'media-hint', text: M.MEDIA_WORDS.loading }));
+        els.suggestions.appendChild(h('p', { className: 'files-hint', text: M.FILES_WORDS.loading }));
         return;
       }
-      if (!st.suggestions.length) els.suggestions.appendChild(h('p', { className: 'media-hint', id: 'media-admin-no-suggestions', text: ADMIN_WORDS.noSuggestions }));
+      if (!st.suggestions.length) els.suggestions.appendChild(h('p', { className: 'files-hint', id: 'files-admin-no-suggestions', text: ADMIN_WORDS.noSuggestions }));
       for (const s of st.suggestions) {
-        els.suggestions.appendChild(h('div', { className: 'media-admin-row', dataset: { suggestion: s.id } }, [
-          h('div', { className: 'media-admin-row-text' }, [
+        els.suggestions.appendChild(h('div', { className: 'files-admin-row', dataset: { suggestion: s.id } }, [
+          h('div', { className: 'files-admin-row-text' }, [
             h('strong', { text: s.name }),
-            h('div', { className: 'media-hint', text: 'Suggested by ' + (s.suggester_name || 'someone without a name') }),
-            s.note ? h('div', { className: 'media-hint', text: s.note }) : null,
+            h('div', { className: 'files-hint', text: 'Suggested by ' + (s.suggester_name || 'someone without a name') }),
+            s.note ? h('div', { className: 'files-hint', text: s.note }) : null,
           ]),
-          h('button', { type: 'button', className: 'media-btn media-btn-small', text: 'Accept', dataset: { decide: 'accept' }, on: { click: () => decide(s, true) } }),
-          h('button', { type: 'button', className: 'media-btn media-btn-small', text: 'Decline', dataset: { decide: 'decline' }, on: { click: () => decide(s, false) } }),
+          h('button', { type: 'button', className: 'files-btn files-btn-small', text: 'Accept', dataset: { decide: 'accept' }, on: { click: () => decide(s, true) } }),
+          h('button', { type: 'button', className: 'files-btn files-btn-small', text: 'Decline', dataset: { decide: 'decline' }, on: { click: () => decide(s, false) } }),
         ]));
       }
-      const m = msg('media-admin-sug-msg', st.sugMsg, false);
+      const m = msg('files-admin-sug-msg', st.sugMsg, false);
       if (m) els.suggestions.appendChild(m);
     }
 
     // ── The meter and the prune lists ──
     async function loadUsage() {
       try {
-        st.usage = await signedPost('/api/media/usage', M.purposes.usage());
+        st.usage = await signedPost('/api/files/usage', M.purposes.usage());
         st.usageMsg = st.usageMsg || '';
       } catch (e) {
         st.usageMsg = 'How the space is used could not be loaded: ' + e.message;
@@ -427,11 +427,11 @@
     /** A write on an item named by its number and its file (W5); a list out of date is loaded again. */
     async function itemWrite(url, purpose, item, body) {
       const filename = M.itemFileName(item);
-      if (!filename) throw new Error(M.MEDIA_WORDS.noFileName);
+      if (!filename) throw new Error(M.FILES_WORDS.noFileName);
       try {
         return await signedPost(url, purpose, Object.assign({ id: item.id, filename }, body || {}));
       } catch (e) {
-        if (e && e.status === 409 && /not the Media item you were looking at/i.test(e.message)) throw new Error(ADMIN_WORDS.outOfDate);
+        if (e && e.status === 409 && /not the item you were looking at/i.test(e.message)) throw new Error(ADMIN_WORDS.outOfDate);
         throw e;
       }
     }
@@ -441,8 +441,8 @@
       if (!await env.confirm('"' + name + '"\n\n' + words)) return;
       try {
         const a = target.item
-          ? await itemWrite('/api/media/remove', M.purposes.remove(target.item.id), target.item)
-          : await signedPost('/api/media/remove', M.purposes.remove(target.waiting.filename), { filename: target.waiting.filename });
+          ? await itemWrite('/api/files/remove', M.purposes.remove(target.item.id), target.item)
+          : await signedPost('/api/files/remove', M.purposes.remove(target.waiting.filename), { filename: target.waiting.filename });
         st.usageMsg = target.item ? M.removedWords(a) : 'Removed, and the file was deleted.';
         changed();
       } catch (e) {
@@ -453,8 +453,8 @@
     /** Keep an item on the server (admins and moderators, the relay's A7): out of its uploader's share and the prune lists. */
     async function keepFromPrune(item) {
       try {
-        await itemWrite('/api/media/keep', M.purposes.keep(item.id, true), item, { kept: true });
-        st.usageMsg = M.MEDIA_WORDS.keptNow;
+        await itemWrite('/api/files/keep', M.purposes.keep(item.id, true), item, { kept: true });
+        st.usageMsg = M.FILES_WORDS.keptNow;
         changed();
       } catch (e) {
         st.usageMsg = e.message;
@@ -462,49 +462,49 @@
       loadUsage();
     }
     function pruneList(title, id, rows) {
-      return h('div', { className: 'media-admin-prune', id }, [
+      return h('div', { className: 'files-admin-prune', id }, [
         h('h4', { text: title }),
-        rows.length ? h('div', { className: 'media-admin-rows' }, rows) : h('p', { className: 'media-hint', text: 'Nothing here.' }),
+        rows.length ? h('div', { className: 'files-admin-rows' }, rows) : h('p', { className: 'files-hint', text: 'Nothing here.' }),
       ]);
     }
     function renderUsage() {
       els.usage.replaceChildren(h('h3', { text: 'Space' }));
       const u = st.usage;
       if (!u) {
-        els.usage.appendChild(msg('media-admin-usage-msg', st.usageMsg || M.MEDIA_WORDS.loading, !!st.usageMsg));
+        els.usage.appendChild(msg('files-admin-usage-msg', st.usageMsg || M.FILES_WORDS.loading, !!st.usageMsg));
         return;
       }
       const used = Math.max(0, Number(u.used_bytes) || 0);
       const budget = Math.max(1, Number(u.budget_bytes) || 1);
       const pct = Math.min(100, Math.round((used / budget) * 1000) / 10);
-      const fill = h('div', { className: 'media-meter-fill' });
+      const fill = h('div', { className: 'files-meter-fill' });
       fill.style.width = pct + '%';
       const kept = Math.max(0, Number(u.kept_bytes) || 0);
       els.usage.append(...[
-        h('p', { id: 'media-admin-meter', className: 'media-meter-words', text: M.meterWords(used, budget) }),
-        h('div', { className: 'media-meter', id: 'media-admin-meter-bar', attrs: { role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': pct } }, [fill]),
+        h('p', { id: 'files-admin-meter', className: 'files-meter-words', text: M.meterWords(used, budget) }),
+        h('div', { className: 'files-meter', id: 'files-admin-meter-bar', attrs: { role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': pct } }, [fill]),
         // What the server keeps (A7): inside "used", in nobody's share, its own line.
-        kept ? h('p', { id: 'media-admin-kept', className: 'media-hint', text: M.keptMeterWords(kept) }) : null,
+        kept ? h('p', { id: 'files-admin-kept', className: 'files-hint', text: M.keptMeterWords(kept) }) : null,
       ].filter(Boolean));
-      const itemRow = (it) => h('div', { className: 'media-admin-row', dataset: { pruneItem: it.id } }, [
-        h('div', { className: 'media-admin-row-text', text: M.itemName(it) + ' · ' + M.sizeWords(it.size_bytes) + ' · by ' + (it.uploader_name || 'someone') }),
-        h('button', { type: 'button', className: 'media-btn media-btn-small', dataset: { pruneKeep: it.id }, text: M.MEDIA_WORDS.keep, on: { click: () => keepFromPrune(it) } }),
-        h('button', { type: 'button', className: 'media-btn media-btn-small media-btn-danger', dataset: { pruneRemove: it.id }, text: 'Remove', on: { click: () => removeFromPrune({ item: it }) } }),
+      const itemRow = (it) => h('div', { className: 'files-admin-row', dataset: { pruneItem: it.id } }, [
+        h('div', { className: 'files-admin-row-text', text: M.itemName(it) + ' · ' + M.sizeWords(it.size_bytes) + ' · by ' + (it.uploader_name || 'someone') }),
+        h('button', { type: 'button', className: 'files-btn files-btn-small', dataset: { pruneKeep: it.id }, text: M.FILES_WORDS.keep, on: { click: () => keepFromPrune(it) } }),
+        h('button', { type: 'button', className: 'files-btn files-btn-small files-btn-danger', dataset: { pruneRemove: it.id }, text: 'Remove', on: { click: () => removeFromPrune({ item: it }) } }),
       ]);
-      const waitingRow = (w) => h('div', { className: 'media-admin-row', dataset: { pruneWaiting: w.filename } }, [
-        h('div', { className: 'media-admin-row-text', text: [w.filename, M.sizeWords(w.size_bytes), 'by ' + (w.uploader_name || 'someone'), expiresWords(w.expires_at)].filter(Boolean).join(' · ') }),
-        h('button', { type: 'button', className: 'media-btn media-btn-small media-btn-danger', text: 'Remove', on: { click: () => removeFromPrune({ waiting: w }) } }),
+      const waitingRow = (w) => h('div', { className: 'files-admin-row', dataset: { pruneWaiting: w.filename } }, [
+        h('div', { className: 'files-admin-row-text', text: [w.filename, M.sizeWords(w.size_bytes), 'by ' + (w.uploader_name || 'someone'), expiresWords(w.expires_at)].filter(Boolean).join(' · ') }),
+        h('button', { type: 'button', className: 'files-btn files-btn-small files-btn-danger', text: 'Remove', on: { click: () => removeFromPrune({ waiting: w }) } }),
       ]);
       els.usage.append(
-        pruneList('Largest', 'media-admin-largest', (u.largest || []).map(itemRow)),
-        pruneList('Oldest', 'media-admin-oldest', (u.oldest || []).map(itemRow)),
-        pruneList('Least viewed', 'media-admin-least-viewed', (u.least_viewed || []).map(itemRow)),
-        pruneList('Waiting to be published', 'media-admin-waiting', (u.waiting || []).map(waitingRow)),
-        h('div', { className: 'media-form-buttons' }, [
-          h('button', { type: 'button', className: 'media-btn', id: 'media-admin-refresh', text: 'Refresh', on: { click: () => { st.usageMsg = ''; loadUsage(); loadSuggestions(); } } }),
+        pruneList('Largest', 'files-admin-largest', (u.largest || []).map(itemRow)),
+        pruneList('Oldest', 'files-admin-oldest', (u.oldest || []).map(itemRow)),
+        pruneList('Least viewed', 'files-admin-least-viewed', (u.least_viewed || []).map(itemRow)),
+        pruneList('Waiting to be published', 'files-admin-waiting', (u.waiting || []).map(waitingRow)),
+        h('div', { className: 'files-form-buttons' }, [
+          h('button', { type: 'button', className: 'files-btn', id: 'files-admin-refresh', text: 'Refresh', on: { click: () => { st.usageMsg = ''; loadUsage(); loadSuggestions(); } } }),
         ]),
       );
-      const m = msg('media-admin-usage-msg', st.usageMsg, false);
+      const m = msg('files-admin-usage-msg', st.usageMsg, false);
       if (m) els.usage.appendChild(m);
     }
 
@@ -517,7 +517,7 @@
     return { state: st, ready, reload: () => Promise.all([loadCategories(), loadSuggestions(), loadUsage()]) };
   }
 
-  const api = { GENERAL_ID, ADMIN_WORDS, SAVE_WAIT_MS, categoriesListText, categoriesBody, categoriesPurpose, expiresWords, storedAs, answersSave, mountMediaAdmin };
+  const api = { GENERAL_ID, ADMIN_WORDS, SAVE_WAIT_MS, categoriesListText, categoriesBody, categoriesPurpose, expiresWords, storedAs, answersSave, mountFilesAdmin };
   if (typeof module === 'object' && module && module.exports) module.exports = api;
-  else Object.assign(root, { mountMediaAdmin, MediaAdmin: api });
+  else Object.assign(root, { mountFilesAdmin, FilesAdmin: api });
 })(typeof globalThis !== 'undefined' ? globalThis : this);

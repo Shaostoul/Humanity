@@ -1,20 +1,20 @@
-// ── media-add.js ──────────────────────────────────────────────────────────
-// Add to Media on the website (moved out of web/pages/media-app.js 2026-10-17, verbatim, when the
+// ── files-add.js ──────────────────────────────────────────────────────────
+// Add to Files on the website (moved out of web/pages/files-app.js 2026-10-17, verbatim, when the
 // page passed its line budget in tests/file_size_ratchet.rs): the form for a picked file (Add to
-// Media), a Shared Files row (Put on Media) and an upload that waits (Publish an upload), in three
+// Media), a Shared Files row (Put on the Files page) and an upload that waits (Publish an upload), in three
 // tinted parts (Files, About it, Who can see it); each chosen file's row with its type's badge; what
 // is hidden in a picture and the switch; the person's share; the licence; the uploads in progress
 // with their bars, Pause, Resume and Cancel; publishing; a file picked in an item's Edit, added to
-// it instead; and "Also post in chat" (2026-10-17, the desktop's media/add.rs): the tick, the
+// it instead; and "Also post in chat" (2026-10-17, the desktop's files/add.rs): the tick, the
 // channel (the one open in the chat first, then favourites, then the rest), Add to favorites, and
 // the post once published, signed as the chat signs, the chat's recovery-phrase guard first. Also
 // the page's side of the upload window (/shared/upload-window.js): files handed over by the page
 // it is over, held until this page may upload, and what it tells that page.
 //
-// The Media page (media-app.js) makes it with createAddForm, handing it its state, its parts and
+// The Files page (files-app.js) makes it with createAddForm, handing it its state, its parts and
 // the functions it shares (signing in, the share, the status line); the form is the page's own,
-// in its own file. A classic script in the browser (MediaAdd on window), loaded before
-// media-app.js; a CommonJS module under Node, where media-app.js requires it.
+// in its own file. A classic script in the browser (FilesAdd on window), loaded before
+// files-app.js; a CommonJS module under Node, where files-app.js requires it.
 // ──────────────────────────────────────────────────────────────────────────
 (function (root) {
   'use strict';
@@ -24,7 +24,7 @@
   const WARN = typeof module === 'object' && module && module.exports ? require('../shared/warnings.js') : root;
   const PHRASE_HELD = (WARN && WARN.PHRASE_GUARD_SENTENCE) || 'it holds your recovery phrase.';
 
-  // ── "Also post in chat" (the operator, 2026-10-17; the desktop's media/add.rs draw_post_row,
+  // ── "Also post in chat" (the operator, 2026-10-17; the desktop's files/add.rs draw_post_row,
   // post_choices, post_text and post_published, in its words) ──
   // "If we're also in a chat channel ... upon clicking upload it also posts the image with the
   // title and description to the general chat. However we should add an ability to choose the
@@ -95,42 +95,42 @@
   }
   /**
    * What "Also post in chat" posts for a published item (the desktop's post_text, 2026-10-17): its
-   * own address on this server's Media page, `{origin}/media/{id}`, public and members-only alike.
-   * Both apps show it as the item's card (web/chat/chat-media-card.js): its title, how many files
+   * own address on this server's Files page, `{origin}/files/{id}`, public and members-only alike.
+   * Both apps show it as the item's card (web/chat/chat-files-card.js): its title, how many files
    * and how much, opening out to its picture, description and every file, and its full window on a
    * click. The operator: "I'd rather people know exactly what they're downloading instead of
    * guessing." A members-only item's page opens for members only.
    */
   function postText(item, origin) {
-    return String(origin || '').replace(/\/+$/, '') + '/media/' + (item ? item.id : '');
+    return String(origin || '').replace(/\/+$/, '') + '/files/' + (item ? item.id : '');
   }
   /** "Posted in #general." and "Not posted in #general: why" (the desktop's words). */
   const postedIn = (name) => 'Posted in ' + name + '.';
   const notPostedIn = (name, why) => 'Not posted in ' + name + ': ' + why;
 
   /**
-   * The form, made by the Media page (media-app.js createMediaPage) with `c`: its state `st`, its
+   * The form, made by the Files page (files-app.js createFilesPage) with `c`: its state `st`, its
    * parts `els`, `h` and `doc`, its `env`, `session`, `myKey`, `upWin` (the upload window's
    * connector, or null), `itemWin` (the item window's, or null: told only whether an upload is
    * going, so it stays while an Edit's file goes up), `cleaner`, `later`, `cancelLater`, `now`, `Abort`, `itemView`; the page's
    * own functions it shares (canUpload, bound, token, sessionState, knownCannotUpload, isAdmin,
    * membersOnlyServer, loadMine, load, say, renderWaiting, sayCancelled); and `lib`, the page's
-   * words and helpers (MEDIA_WORDS and the rest, named below).
+   * words and helpers (FILES_WORDS and the rest, named below).
    */
   function createAddForm(c) {
     const { st, els, h, doc, env, session, myKey, upWin, itemWin, cleaner, later, cancelLater, now, Abort, itemView } = c;
     const { canUpload, bound, token, sessionState, knownCannotUpload, isAdmin, membersOnlyServer, loadMine, load, say, renderWaiting, sayCancelled } = c;
-    const { MEDIA_WORDS, MORE_LEAD, ANSWER_WAIT_MS, DEFAULT_LICENCE, num, sizeWords, shareLeftWords, limitStop, shareStop, budgetStop,
+    const { FILES_WORDS, MORE_LEAD, ANSWER_WAIT_MS, DEFAULT_LICENCE, num, sizeWords, shareLeftWords, limitStop, shareStop, budgetStop,
       togetherStop, resetsWords, storedName, itemFileName, itemName, purposes, jsonPost, answerOf, findUpload, createUploader,
       fingerprint, U, ED } = c.lib;
     let tails = 0;              // published items whose post in chat and other files are still being started
     const postWaiters = new Set(); // what each of them waits for (the session's frames and state)
     let uploadSeq = 0;
 
-    // ── Add to Media, Put on Media, and publishing an upload that waits ──
+    // ── Add to Files, Put on the Files page, and publishing an upload that waits ──
     //
     // `st.form` is the one form not yet uploading. Pressing "Upload and add" moves that form,
-    // fields and all, into the uploads list (`st.uploads`, drawn in #media-uploads): there it
+    // fields and all, into the uploads list (`st.uploads`, drawn in #files-uploads): there it
     // shows its own bar, words, Pause, Resume and Cancel, and publishes ITSELF once its file is
     // up, with what was typed in it (round 3, review 2). So the form area is free again at once,
     // and opening another form never leaves an upload without the form that publishes it.
@@ -143,8 +143,8 @@
     const sameFile = (a, b) => !!(a && b && a.name === b.name && a.size === b.size && a.lastModified === b.lastModified);
 
     /**
-     * What goes up for an Add to Media form, as its switch stands (part 1): {file, keepMetadata,
-     * refused}. The Media page is public, so a file that could not be checked is never added unless
+     * What goes up for an Add to Files form, as its switch stands (part 1): {file, keepMetadata,
+     * refused}. The Files page is public, so a file that could not be checked is never added unless
      * the person keeps its details by choice; `refused` holds the words saying so.
      */
     function sendingOf(f) {
@@ -166,14 +166,14 @@
       const c = f.clean;
       const kids = [];
       if (c.summary) {
-        kids.push(h('p', { id: 'media-form-hidden', className: 'media-hint', text: c.summary }));
-        kids.push(h('ul', { className: 'media-hidden-details' }, (c.details || []).map((d) => h('li', { text: d.words }))));
+        kids.push(h('p', { id: 'files-form-hidden', className: 'files-hint', text: c.summary }));
+        kids.push(h('ul', { className: 'files-hidden-details' }, (c.details || []).map((d) => h('li', { text: d.words }))));
       }
       f.detailsSwitch = null;
       if (f.protectedOn) {
-        kids.push(h('p', { id: 'media-form-protected', className: 'media-hint', text: W.protectedLine }));
+        kids.push(h('p', { id: 'files-form-protected', className: 'files-hint', text: W.protectedLine }));
       } else {
-        const box = h('input', { type: 'checkbox', id: 'media-form-remove-details', checked: f.remove !== false, disabled: !!f.up });
+        const box = h('input', { type: 'checkbox', id: 'files-form-remove-details', checked: f.remove !== false, disabled: !!f.up });
         box.addEventListener('change', () => {
           if (f.up) return;
           f.remove = !!box.checked;
@@ -181,13 +181,13 @@
           renderFormActions(f);
         });
         f.detailsSwitch = box;
-        kids.push(h('label', { className: 'media-check' }, [box, ' ' + W.switchLabel]));
+        kids.push(h('label', { className: 'files-check' }, [box, ' ' + W.switchLabel]));
       }
-      f.offEl = h('p', { id: 'media-form-details-off', className: 'media-hint' });
-      f.refusedEl = h('p', { id: 'media-form-unchecked', className: 'media-warn' });
+      f.offEl = h('p', { id: 'files-form-details-off', className: 'files-hint' });
+      f.refusedEl = h('p', { id: 'files-form-unchecked', className: 'files-warn' });
       kids.push(f.offEl, f.refusedEl);
       drawDetailsWords(f);
-      return h('div', { id: 'media-form-details', className: 'media-field media-details' }, kids);
+      return h('div', { id: 'files-form-details', className: 'files-field files-details' }, kids);
     }
 
     function drawDetailsWords(f) {
@@ -197,7 +197,7 @@
     }
 
     /**
-     * Add to Media for `file` (and `more` with it). `postTo`: a channel to tick "Also post in chat"
+     * Add to Files for `file` (and `more` with it). `postTo`: a channel to tick "Also post in chat"
      * for (files dropped on that channel of the chat, handed to the upload window); '' for none.
      */
     async function openAddForm(file, more, postTo) {
@@ -208,21 +208,21 @@
       renderForm();
       if (!canUpload()) {
         f.checking = false;
-        f.stop = bound() ? MEDIA_WORDS.cannotUpload : MEDIA_WORDS.notSignedInUpload;
+        f.stop = bound() ? FILES_WORDS.cannotUpload : FILES_WORDS.notSignedInUpload;
         renderForm();
         return;
       }
       // The same file already going up on this page: never two uploads of it at once.
       if (st.uploads.some((u) => sameFile(u.file, file) && uploadLive(u))) {
         f.checking = false;
-        f.stop = '"' + file.name + '"' + MEDIA_WORDS.alreadyUploading;
+        f.stop = '"' + file.name + '"' + FILES_WORDS.alreadyUploading;
         renderForm();
         return;
       }
       // Cleaned on this device first (part 1): what it holds, for the form's words and switch.
       if (cleaner === false) {
         f.checking = false;
-        f.stop = MEDIA_WORDS.checkerMissing;
+        f.stop = FILES_WORDS.checkerMissing;
         renderForm();
         return;
       }
@@ -282,7 +282,7 @@
 
     // ── "Also post in chat" (2026-10-17) ──
 
-    /** Is this a form that may also post in chat: a file picked here for Add to Media, not yet going. */
+    /** Is this a form that may also post in chat: a file picked here for Add to Files, not yet going. */
     function postable(f) {
       return !!f && f.mode === 'add' && !f.attach && !f.up && !f.uploadedName;
     }
@@ -318,17 +318,17 @@
       f.postEls = null;
       if (!choices) return;
       if (!choices.length) {
-        box.appendChild(h('p', { id: 'media-form-post-none', className: 'media-hint', text: POST_WORDS.none }));
+        box.appendChild(h('p', { id: 'files-form-post-none', className: 'files-hint', text: POST_WORDS.none }));
         return;
       }
       const on = !!f.postOn;
-      const tick = h('input', { type: 'checkbox', id: 'media-form-post-on', checked: on });
+      const tick = h('input', { type: 'checkbox', id: 'files-form-post-on', checked: on });
       tick.addEventListener('change', () => { f.postOn = !!tick.checked; renderPostRow(f); });
-      const select = h('select', { id: 'media-form-post-to', className: 'media-select', disabled: !on, attrs: { 'aria-label': 'Channel' } },
+      const select = h('select', { id: 'files-form-post-to', className: 'files-select', disabled: !on, attrs: { 'aria-label': 'Channel' } },
         choices.map((c) => h('option', { value: c.id, text: c.words, selected: c.id === f.postTo })));
       select.addEventListener('change', () => { f.postTo = select.value; renderPostRow(f); });
       const star = h('button', {
-        type: 'button', id: 'media-form-post-favorite', className: 'media-btn media-btn-small', disabled: !on,
+        type: 'button', id: 'files-form-post-favorite', className: 'files-btn files-btn-small', disabled: !on,
         title: POST_WORDS.favoriteTip, text: fav ? POST_WORDS.removeFavorite : POST_WORDS.addFavorite,
       });
       star.addEventListener('click', () => {
@@ -337,8 +337,8 @@
         renderPostRow(f);
       });
       f.postEls = { tick, select, star };
-      box.appendChild(h('div', { className: 'media-post-row' + (on ? '' : ' media-post-off') }, [
-        h('label', { className: 'media-check', title: POST_WORDS.tickTip }, [tick, ' ' + POST_WORDS.tick]),
+      box.appendChild(h('div', { className: 'files-post-row' + (on ? '' : ' files-post-off') }, [
+        h('label', { className: 'files-check', title: POST_WORDS.tickTip }, [tick, ' ' + POST_WORDS.tick]),
         select,
         star,
       ]));
@@ -433,7 +433,7 @@
 
     /**
      * Files the page this window is over handed to it (dropped on a channel of the chat: `postTo`
-     * is that channel). They open Add to Media as chosen files do, "Also post in chat" ticked for
+     * is that channel). They open Add to Files as chosen files do, "Also post in chat" ticked for
      * the channel, once the page knows whether this person may upload here (it signs in first).
      */
     function takeFiles(files, postTo) {
@@ -441,14 +441,14 @@
       if (!list.length) return;
       st.pending = { files: list, postTo: typeof postTo === 'string' ? postTo : '' };
       // Files dropped on this window itself go the same way, posting in the same channel (the page
-      // it is over is still on that channel): media-app.js dropDecision.
+      // it is over is still on that channel): files-app.js dropDecision.
       st.windowPostTo = st.pending.postTo;
       if (st.viewer) itemView.close();
       renderForm();
       takePending();
       reportBusy();
     }
-    /** Does the page know yet what Add to Media would say for this person? */
+    /** Does the page know yet what Add to Files would say for this person? */
     function readyForFiles() {
       if (!myKey || !session) return true;
       const s = sessionState();
@@ -483,13 +483,13 @@
     }
 
     /**
-     * A chosen file's line in the form: its type's badge (media-edit.js fileBadge, 2026-10-17), then
+     * A chosen file's line in the form: its type's badge (files-edit.js fileBadge, 2026-10-17), then
      * "name (size)" (the name alone when its size is not known).
      */
     function fileLine(name, size, cls) {
       return h('div', { className: cls }, [
         ED.fileBadge(h, doc, name),
-        h('span', { className: 'media-form-file-name', text: size != null ? name + ' (' + sizeWords(size) + ')' : name }),
+        h('span', { className: 'files-form-file-name', text: size != null ? name + ' (' + sizeWords(size) + ')' : name }),
       ]);
     }
 
@@ -514,63 +514,63 @@
       if (!f) {
         // Files handed to the upload window while this page signs in: named, with why they wait.
         if (st.pending) {
-          els.form.appendChild(h('div', { id: 'media-form-pending', className: 'media-panel media-form' }, [h('h2', { text: 'Add to Media' })]
-            .concat(st.pending.files.map((x) => fileLine(x.name, x.size, 'media-form-file')))
-            .concat([h('p', { className: 'media-hint', text: MEDIA_WORDS.signingIn })])));
+          els.form.appendChild(h('div', { id: 'files-form-pending', className: 'files-panel files-form' }, [h('h2', { text: 'Add to Files' })]
+            .concat(st.pending.files.map((x) => fileLine(x.name, x.size, 'files-form-file')))
+            .concat([h('p', { className: 'files-hint', text: FILES_WORDS.signingIn })])));
         }
         return;
       }
       f.key = formKey();
       f.formId = f.formId || ++formSeq;
       const put = f.mode === 'put';
-      const kids = [h('h2', { text: put ? 'Put on Media' : f.mode === 'waiting' ? 'Publish an upload' : 'Add to Media' })];
-      // Three parts in the chat sidebar's colours, darker (2026-10-17, media-edit.js tintSection; the
-      // desktop's Add to Media): its files first (blue: each chosen file with its type's badge and
+      const kids = [h('h2', { text: put ? 'Put on the Files page' : f.mode === 'waiting' ? 'Publish an upload' : 'Add to Files' })];
+      // Three parts in the chat sidebar's colours, darker (2026-10-17, files-edit.js tintSection; the
+      // desktop's Add to Files): its files first (blue: each chosen file with its type's badge and
       // size, what is hidden in it and the switch, the share left), then what it is (red), then
       // who can see it (green). The buttons stay outside them, under them.
       const size = f.file ? f.file.size : f.size;
-      const fileParts = [fileLine(f.name, size, 'media-form-file')];
+      const fileParts = [fileLine(f.name, size, 'files-form-file')];
       if (f.more && f.more.length) {
-        fileParts.push(h('div', { id: 'media-form-more', className: 'media-form-more' },
-          [h('p', { className: 'media-hint', text: MORE_LEAD })].concat(f.more.map((m) => fileLine(m.name, m.size, 'media-form-file media-form-more-file')))));
+        fileParts.push(h('div', { id: 'files-form-more', className: 'files-form-more' },
+          [h('p', { className: 'files-hint', text: MORE_LEAD })].concat(f.more.map((m) => fileLine(m.name, m.size, 'files-form-file files-form-more-file')))));
       }
       // What the file holds and the switch (part 1), before anything else is asked.
       if (!f.stop && detailsShown(f)) fileParts.push(detailsBox(f));
-      if (f.shareLine) fileParts.push(h('p', { id: 'media-share-line', className: 'media-share-line', text: f.shareLine }));
+      if (f.shareLine) fileParts.push(h('p', { id: 'files-share-line', className: 'files-share-line', text: f.shareLine }));
       kids.push(ED.tintSection(h, 'blue', ED.WORDS.files, fileParts));
       askFileTypes();
-      f.actionsEl = h('div', { id: 'media-form-actions', className: 'media-form-actions' });
+      f.actionsEl = h('div', { id: 'files-form-actions', className: 'files-form-actions' });
       if (f.stop) {
-        kids.push(h('p', { id: 'media-form-stop', className: 'media-warn', text: f.stop }));
+        kids.push(h('p', { id: 'files-form-stop', className: 'files-warn', text: f.stop }));
         kids.push(f.actionsEl);
-        f.panel = h('div', { className: 'media-panel media-form' }, kids);
+        f.panel = h('div', { className: 'files-panel files-form' }, kids);
         els.form.appendChild(f.panel);
         renderFormActions(f);
         return;
       }
       const aboutParts = [];
       const whoParts = [];
-      const title = h('input', { type: 'text', id: 'media-form-title', className: 'media-input', maxLength: 120, value: f.title || '' });
-      const category = h('select', { id: 'media-form-category', className: 'media-select' },
+      const title = h('input', { type: 'text', id: 'files-form-title', className: 'files-input', maxLength: 120, value: f.title || '' });
+      const category = h('select', { id: 'files-form-category', className: 'files-select' },
         st.categories.map((c) => h('option', { value: String(c.id), text: c.name, selected: String(f.category || '') === String(c.id) })));
-      const description = h('textarea', { id: 'media-form-description', className: 'media-input', maxLength: 2000, rows: 3, value: f.description || '' });
+      const description = h('textarea', { id: 'files-form-description', className: 'files-input', maxLength: 2000, rows: 3, value: f.description || '' });
       // What is typed is kept as it is typed, so drawing the form again loses nothing, and an
       // upload publishes with what its form says when its file is up.
       title.addEventListener('input', () => { f.title = title.value; });
       category.addEventListener('change', () => { f.category = category.value; });
       description.addEventListener('input', () => { f.description = description.value; });
-      aboutParts.push(h('label', { className: 'media-field' }, ['Title (optional)', title]));
-      if (st.categories.length) aboutParts.push(h('label', { className: 'media-field' }, ['Category', category]));
-      aboutParts.push(h('label', { className: 'media-field' }, ['Description (optional)', description]));
+      aboutParts.push(h('label', { className: 'files-field' }, ['Title (optional)', title]));
+      if (st.categories.length) aboutParts.push(h('label', { className: 'files-field' }, ['Category', category]));
+      aboutParts.push(h('label', { className: 'files-field' }, ['Description (optional)', description]));
       f.ticks = [];
       if (st.labels.length) {
-        const box = h('fieldset', { className: 'media-field media-labels', id: 'media-form-labels' }, [h('legend', { text: 'Labels (the picture stays hidden until someone clicks it)' })]);
+        const box = h('fieldset', { className: 'files-field files-labels', id: 'files-form-labels' }, [h('legend', { text: 'Labels (the picture stays hidden until someone clicks it)' })]);
         for (const l of st.labels) {
           const tick = h('input', { type: 'checkbox', value: l.id, dataset: { label: l.id }, checked: !!(f.labels && f.labels.includes(l.id)) });
           tick.addEventListener('change', () => { f.labels = f.ticks.filter((t) => t.checked).map((t) => t.value); });
           f.ticks.push(tick);
-          box.appendChild(h('label', { className: 'media-check', title: l.desc || '' }, [tick, ' ' + l.label]));
-          if (l.desc) box.appendChild(h('div', { className: 'media-hint', text: l.desc }));
+          box.appendChild(h('label', { className: 'files-check', title: l.desc || '' }, [tick, ' ' + l.label]));
+          if (l.desc) box.appendChild(h('div', { className: 'files-hint', text: l.desc }));
         }
         aboutParts.push(box);
       }
@@ -579,40 +579,40 @@
       // own group (its own name), so another form open beside an upload never changes it.
       f.visibilityEls = null;
       if (put) {
-        whoParts.push(h('p', { id: 'media-form-public-only', className: 'media-hint', text: MEDIA_WORDS.alreadyPublic }));
+        whoParts.push(h('p', { id: 'files-form-public-only', className: 'files-hint', text: FILES_WORDS.alreadyPublic }));
       } else if (membersOnlyServer()) {
-        whoParts.push(h('p', { id: 'media-form-members-only', className: 'media-hint', text: MEDIA_WORDS.serverMembersOnly }));
+        whoParts.push(h('p', { id: 'files-form-members-only', className: 'files-hint', text: FILES_WORDS.serverMembersOnly }));
       } else {
-        const group = 'media-form-visibility-' + f.formId;
-        const pub = h('input', { type: 'radio', name: group, value: 'public', id: 'media-form-vis-public', checked: f.visibility !== 'members' });
-        const mem = h('input', { type: 'radio', name: group, value: 'members', id: 'media-form-vis-members', checked: f.visibility === 'members' });
+        const group = 'files-form-visibility-' + f.formId;
+        const pub = h('input', { type: 'radio', name: group, value: 'public', id: 'files-form-vis-public', checked: f.visibility !== 'members' });
+        const mem = h('input', { type: 'radio', name: group, value: 'members', id: 'files-form-vis-members', checked: f.visibility === 'members' });
         f.visibilityEls = { pub, mem };
         const picked = () => { f.visibility = mem.checked ? 'members' : 'public'; if (f.licencePicker) f.licencePicker.refresh(); };
         pub.addEventListener('change', picked);
         mem.addEventListener('change', picked);
-        whoParts.push(h('fieldset', { className: 'media-field', id: 'media-form-visibility' }, [
+        whoParts.push(h('fieldset', { className: 'files-field', id: 'files-form-visibility' }, [
           h('legend', { text: 'Who sees it' }),
-          h('label', { className: 'media-check' }, [pub, ' Public']),
-          h('label', { className: 'media-check' }, [mem, ' Members only']),
+          h('label', { className: 'files-check' }, [pub, ' Public']),
+          h('label', { className: 'files-check' }, [mem, ' Members only']),
         ]));
       }
       // The licence, "All rights reserved" preselected, and the hosting paragraph beside it (round 5,
-      // as the desktop's Add to Media has them): the server's own words (media-edit.js).
+      // as the desktop's Add to Files has them): the server's own words (files-edit.js).
       f.choice = f.choice || { licence: '', project_use: false };
-      f.licencePicker = ED.licenceChoice(h, { licences: st.licences, choice: f.choice, id: 'media-form-licence', members: () => membersOnlyServer() || f.visibility === 'members' });
+      f.licencePicker = ED.licenceChoice(h, { licences: st.licences, choice: f.choice, id: 'files-form-licence', members: () => membersOnlyServer() || f.visibility === 'members' });
       whoParts.push(f.licencePicker.el, ED.hostingBlock(h, st.licences));
       // "Also post in chat" (2026-10-17), at the foot of this part, for a file picked here only.
       f.postEl = null;
       f.postEls = null;
       f.postSig = null;
       if (postable(f)) {
-        f.postEl = h('div', { id: 'media-form-post', className: 'media-field media-post' });
+        f.postEl = h('div', { id: 'files-form-post', className: 'files-field files-post' });
         whoParts.push(f.postEl);
       }
       kids.push(ED.tintSection(h, 'red', ED.WORDS.aboutIt, aboutParts), ED.tintSection(h, 'green', ED.WORDS.whoCanSeeIt, whoParts));
       f.inputs = { title, category, description };
       kids.push(f.actionsEl);
-      f.panel = h('div', { className: 'media-panel media-form' }, kids);
+      f.panel = h('div', { className: 'files-panel files-form' }, kids);
       els.form.appendChild(f.panel);
       renderPostRow(f);
       renderFormActions(f);
@@ -633,21 +633,21 @@
       const seconds = (n) => (n || 1) + (n === 1 ? ' second.' : ' seconds.');
       switch (s.phase) {
         case 'idle':
-        case 'starting': return MEDIA_WORDS.uploadStarting;
-        case 'sending': return (s.resumed ? MEDIA_WORDS.uploadResumed + ' ' : '') + sent + '.';
-        case 'finishing': return MEDIA_WORDS.uploadFinishing;
-        case 'pausing': return sent + '. ' + MEDIA_WORDS.uploadPausing;
-        case 'paused': return sent + '. ' + MEDIA_WORDS.uploadPaused;
+        case 'starting': return FILES_WORDS.uploadStarting;
+        case 'sending': return (s.resumed ? FILES_WORDS.uploadResumed + ' ' : '') + sent + '.';
+        case 'finishing': return FILES_WORDS.uploadFinishing;
+        case 'pausing': return sent + '. ' + FILES_WORDS.uploadPausing;
+        case 'paused': return sent + '. ' + FILES_WORDS.uploadPaused;
         case 'reconnecting': return sent + '. The connection dropped. Trying again in ' + seconds(s.retryIn);
         case 'server_wait': return sent + '. ' + (s.error ? s.error + ' ' : '') + 'Trying again in ' + seconds(s.retryIn);
-        case 'waiting_connection': return sent + '. ' + MEDIA_WORDS.uploadWaitingConnection;
-        case 'allowance': return [s.error, resetsWords(s.resetsAt), MEDIA_WORDS.uploadAllowanceThen].filter(Boolean).join(' ');
-        case 'server_error': return s.error + MEDIA_WORDS.uploadServerErrorTail;
+        case 'waiting_connection': return sent + '. ' + FILES_WORDS.uploadWaitingConnection;
+        case 'allowance': return [s.error, resetsWords(s.resetsAt), FILES_WORDS.uploadAllowanceThen].filter(Boolean).join(' ');
+        case 'server_error': return s.error + FILES_WORDS.uploadServerErrorTail;
         case 'no_room': return s.error;
         case 'failed': return s.error;
-        case 'cancelling': return MEDIA_WORDS.uploadCancelling;
-        case 'cancelled': return MEDIA_WORDS.uploadCancelling;
-        case 'done': return MEDIA_WORDS.uploadPublishing;
+        case 'cancelling': return FILES_WORDS.uploadCancelling;
+        case 'cancelled': return FILES_WORDS.uploadCancelling;
+        case 'done': return FILES_WORDS.uploadPublishing;
         default: return sent + '.';
       }
     }
@@ -664,32 +664,32 @@
       box.replaceChildren();
       const listed = !!f.n;
       const button = (action, text, onClick, cls) => h('button', {
-        type: 'button', id: listed ? undefined : 'media-form-' + action, dataset: listed ? { uploadAction: action } : undefined,
-        className: 'media-btn' + (cls ? ' ' + cls : ''), text, on: { click: onClick },
+        type: 'button', id: listed ? undefined : 'files-form-' + action, dataset: listed ? { uploadAction: action } : undefined,
+        className: 'files-btn' + (cls ? ' ' + cls : ''), text, on: { click: onClick },
       });
       if (f.stop) {
-        box.appendChild(h('div', { className: 'media-form-buttons' }, [button('cancel', 'Close', cancelForm)]));
+        box.appendChild(h('div', { className: 'files-form-buttons' }, [button('cancel', 'Close', cancelForm)]));
         return;
       }
-      if (f.error) box.appendChild(h('p', { id: listed ? undefined : 'media-form-error', dataset: listed ? { uploadError: f.n } : undefined, className: 'media-warn', text: f.error }));
+      if (f.error) box.appendChild(h('p', { id: listed ? undefined : 'files-form-error', dataset: listed ? { uploadError: f.n } : undefined, className: 'files-warn', text: f.error }));
       const u = f.up;
       if (u) {
         const s = u.state;
         const pct = s.size > 0 ? Math.min(100, Math.round((s.offset / s.size) * 1000) / 10) : 0;
-        const fill = h('div', { className: 'media-meter-fill' });
+        const fill = h('div', { className: 'files-meter-fill' });
         fill.style.width = pct + '%';
-        box.appendChild(h('div', { className: 'media-meter', dataset: { uploadBar: f.n }, attrs: { role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': pct, 'aria-label': 'Upload of ' + f.name } }, [fill]));
+        box.appendChild(h('div', { className: 'files-meter', dataset: { uploadBar: f.n }, attrs: { role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': pct, 'aria-label': 'Upload of ' + f.name } }, [fill]));
         const warn = s.phase === 'allowance' || s.phase === 'no_room' || s.phase === 'failed' || s.phase === 'server_error';
-        box.appendChild(h('p', { dataset: { uploadWords: f.n }, className: warn ? 'media-warn' : 'media-hint', text: uploadWords(u) }));
+        box.appendChild(h('p', { dataset: { uploadWords: f.n }, className: warn ? 'files-warn' : 'files-hint', text: uploadWords(u) }));
         const buttons = [];
         const p = s.phase;
         if (p === 'starting' || p === 'sending' || p === 'finishing' || p === 'reconnecting' || p === 'server_wait' || p === 'waiting_connection' || p === 'allowance') {
           // Pause stops it in every phase: the request on its way and every wait.
           buttons.push(button('pause', 'Pause', () => u.pause()));
         } else if (p === 'paused') {
-          buttons.push(button('resume', 'Resume', () => u.resume(), 'media-btn-primary'));
+          buttons.push(button('resume', 'Resume', () => u.resume(), 'files-btn-primary'));
         } else if (p === 'no_room' || p === 'server_error') {
-          buttons.push(button('retry', 'Retry', () => u.resume(), 'media-btn-primary'));
+          buttons.push(button('retry', 'Retry', () => u.resume(), 'files-btn-primary'));
         }
         if (p === 'failed') {
           // Close ends it on the server too: nothing is left holding part of the person's share.
@@ -697,19 +697,19 @@
         } else if (p !== 'done' && p !== 'cancelling' && p !== 'cancelled') {
           buttons.push(button('cancel', 'Cancel', () => u.cancel()));
         }
-        box.appendChild(h('div', { className: 'media-form-buttons' }, buttons));
+        box.appendChild(h('div', { className: 'files-form-buttons' }, buttons));
         return;
       }
       const put = f.mode === 'put';
       const goOff = f.busy || !!f.checking || !!(f.mode === 'add' && !f.uploadedName && sendingOf(f).refused);
       // The Upload button wears the nav bar's current-page border, its RGB cycle (the operator,
-      // 2026-10-17: "Upload button with the RGB border effect"; /shared/media.css .media-btn-rgb), when
+      // 2026-10-17: "Upload button with the RGB border effect"; /shared/files.css .files-btn-rgb), when
       // it would upload a file picked here: the desktop's add.rs rgb_border, ready and picked.
       const rgb = !goOff && f.mode === 'add' && !f.attach && !f.uploadedName;
       const go = h('button', {
-        type: 'button', id: listed ? undefined : 'media-form-go', dataset: listed ? { uploadAction: 'go' } : undefined,
-        className: 'media-btn media-btn-primary' + (rgb ? ' media-btn-rgb' : ''), disabled: goOff,
-        text: f.checking ? 'Working out your share...' : f.busy ? 'Working...' : f.attach ? 'Add it to the item' : put || f.uploadedName ? 'Put on Media' : 'Upload and add to Media',
+        type: 'button', id: listed ? undefined : 'files-form-go', dataset: listed ? { uploadAction: 'go' } : undefined,
+        className: 'files-btn files-btn-primary' + (rgb ? ' files-btn-rgb' : ''), disabled: goOff,
+        text: f.checking ? 'Working out your share...' : f.busy ? 'Working...' : f.attach ? 'Add it to the item' : put || f.uploadedName ? 'Put on the Files page' : 'Upload and add to Files',
       });
       go.addEventListener('click', () => {
         // Keep what was typed for a second try.
@@ -725,7 +725,7 @@
       // A form in the list whose publish failed: Close leaves its upload waiting (listed below with
       // Publish and Remove); the form not yet uploading just closes.
       const close = listed ? button('close', 'Close', () => dropUpload(f)) : button('cancel', 'Cancel', cancelForm);
-      box.appendChild(h('div', { className: 'media-form-buttons' }, [go, close]));
+      box.appendChild(h('div', { className: 'files-form-buttons' }, [go, close]));
     }
 
     function submitForm(f) {
@@ -738,16 +738,16 @@
 
     /**
      * A file picked in an item's Edit form ("Add a file", or "Cover picture" as `as` "cover"):
-     * checked and cleaned like Add to Media's, then the same resumable upload, listed under Uploads
+     * checked and cleaned like Add to Files's, then the same resumable upload, listed under Uploads
      * in progress, and added to the item when it is up instead of published (`attachUp`). Resolves
      * to '' once it started, else the words saying why not (shown in the Edit form).
      */
     async function startAttach(file, item, as) {
       const filename = itemFileName(item);
-      if (!filename) return MEDIA_WORDS.noFileName;
-      if (!canUpload()) return bound() ? MEDIA_WORDS.cannotUpload : MEDIA_WORDS.notSignedInUpload;
-      if (st.uploads.some((u) => sameFile(u.file, file) && uploadLive(u))) return '"' + file.name + '"' + MEDIA_WORDS.alreadyUploading;
-      if (cleaner === false) return MEDIA_WORDS.checkerMissing;
+      if (!filename) return FILES_WORDS.noFileName;
+      if (!canUpload()) return bound() ? FILES_WORDS.cannotUpload : FILES_WORDS.notSignedInUpload;
+      if (st.uploads.some((u) => sameFile(u.file, file) && uploadLive(u))) return '"' + file.name + '"' + FILES_WORDS.alreadyUploading;
+      if (cleaner === false) return FILES_WORDS.checkerMissing;
       const title = itemName(item, st.kinds);
       const f = { mode: 'add', file, name: file.name, attach: { id: item.id, filename, as: as === 'cover' ? 'cover' : 'file', title }, busy: false, error: '', uploadedName: '', up: null, fp: '' };
       f.heading = file.name + ' (' + sizeWords(file.size) + '), to add to ' + title;
@@ -760,14 +760,14 @@
       if (!sending.file) return sending.refused || '';
       f.fpFile = sending.file;
       try { f.fp = fingerprint ? await fingerprint(f.fpFile, env.digest) : ''; } catch (e) { f.fp = ''; }
-      // The person's share and the role's largest Media file, as Add to Media checks them.
+      // The person's share and the role's largest Media file, as Add to Files checks them.
       const mine = await loadMine();
       if (mine) {
         const stop = limitStop(file, num(mine.file_limit_bytes)) || shareStop(file, num(mine.used_bytes) + num(mine.in_progress_bytes), num(mine.share_bytes));
         if (stop) return stop;
       }
-      f.actionsEl = h('div', { className: 'media-form-actions' });
-      f.panel = h('div', { className: 'media-panel media-form' }, [h('h2', { text: f.heading }), f.actionsEl]);
+      f.actionsEl = h('div', { className: 'files-form-actions' });
+      f.panel = h('div', { className: 'files-panel files-form' }, [h('h2', { text: f.heading }), f.actionsEl]);
       startUpload(f);
       return '';
     }
@@ -777,7 +777,7 @@
     async function attachMore(answer, more) {
       const item = answer && answer.item;
       // Said after what the line says already (published, and posted in chat), as the desktop's does.
-      const before = st.notice || MEDIA_WORDS.published;
+      const before = st.notice || FILES_WORDS.published;
       if (!item || !itemFileName(item)) {
         say(before + ' Its other files were not added: the server\'s answer did not say which item it made. Add them from the item\'s Edit window.');
         return;
@@ -794,13 +794,13 @@
       say(line);
     }
 
-    /** An attaching upload is up: add it to its item (media-upload.js attachUpload), never publish it. */
+    /** An attaching upload is up: add it to its item (files-upload.js attachUpload), never publish it. */
     async function attachUp(f) {
       if (f.busy) return;
       f.busy = true;
       renderFormActions(f);
       try {
-        const a = await U.attachUpload({ fetch: env.fetch, sign: env.sign, to: f.attach, add: f.uploadedName, cannotSign: MEDIA_WORDS.cannotSign });
+        const a = await U.attachUpload({ fetch: env.fetch, sign: env.sign, to: f.attach, add: f.uploadedName, cannotSign: FILES_WORDS.cannotSign });
         if (st.uploads.includes(f)) dropUpload(f);
         if (a && a.item) itemView.takeItem(a.item);
         say('Added to "' + f.attach.title + '".');
@@ -808,7 +808,7 @@
         loadMine();
         return;
       } catch (e) {
-        f.error = (e && e.message ? e.message : String(e)) + MEDIA_WORDS.uploadWaits;
+        f.error = (e && e.message ? e.message : String(e)) + FILES_WORDS.uploadWaits;
         f.up = null;
         loadMine();
       }
@@ -828,7 +828,7 @@
     /** Send the file in pieces (src/relay/resumable.rs), then publish it with its own form. */
     function startUpload(f) {
       if (!token()) {
-        f.error = MEDIA_WORDS.notSignedInUpload;
+        f.error = FILES_WORDS.notSignedInUpload;
         renderFormActions(f);
         return;
       }
@@ -894,7 +894,7 @@
         const licence = (f.choice && f.choice.licence) || DEFAULT_LICENCE;
         const forGame = !!(f.choice && f.choice.project_use);
         const auth = await env.sign(purposes.publish(filename, licence, forGame));
-        if (!auth) throw new Error(MEDIA_WORDS.cannotSign);
+        if (!auth) throw new Error(FILES_WORDS.cannotSign);
         const body = Object.assign({
           filename,
           title: (f.title || '').trim(),
@@ -904,14 +904,14 @@
           licence,
           project_use: forGame,
         }, f.category ? { category_id: Number(f.category) } : {}, auth);
-        const answer = await answerOf(await env.fetch('/api/media', jsonPost(body)));
+        const answer = await answerOf(await env.fetch('/api/files', jsonPost(body)));
         // What follows a publish (its post in chat, its other files) counts as going until it has
         // started, so an upload window closed meanwhile is kept for it (reportBusy).
         tails++;
         try {
           if (st.form === f) closeForm();
           if (st.uploads.includes(f)) dropUpload(f);
-          say(MEDIA_WORDS.published);
+          say(FILES_WORDS.published);
           // "Also post in chat" (2026-10-17): its own address on this page (its card), in the channel.
           if (f.postIn) {
             const words = await postPublished(answer, f.postIn);
@@ -926,7 +926,7 @@
         loadMine();
         return;
       } catch (e) {
-        f.error = (e && e.message ? e.message : String(e)) + (f.uploadedName && f.mode !== 'put' ? MEDIA_WORDS.uploadWaits : '');
+        f.error = (e && e.message ? e.message : String(e)) + (f.uploadedName && f.mode !== 'put' ? FILES_WORDS.uploadWaits : '');
         f.up = null;
         loadMine();
       }
@@ -953,5 +953,5 @@
     postChoices, postText, postedIn, notPostedIn, createAddForm,
   };
   if (typeof module === 'object' && module && module.exports) module.exports = api;
-  else root.MediaAdd = api;
+  else root.FilesAdd = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

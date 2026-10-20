@@ -301,15 +301,15 @@
     // exact mirror of the app header. Web-only pages still light up where sensible.
     if (p === '/') active = 'humanity';
     else if (p.startsWith('/chat'))      active = 'chat';
-    // Watch and Media have their own tabs beside Chat, as in the app (2026-10-12).
-    else if (p.startsWith('/media'))     active = 'media';
+    // Watch and Files have their own tabs beside Chat, as in the app (2026-10-12). Files was the
+    // Media page at /media until 2026-10-19, when the data browser and Shared Files joined it.
+    else if (p.startsWith('/files'))     active = 'files';
     else if (p.startsWith('/watch'))     active = 'watch';
     else if (p.startsWith('/studio'))    active = 'studio';
     else if (p.startsWith('/profile'))   active = 'profile';
     else if (p.startsWith('/identity'))   active = 'identity';
     else if (p.startsWith('/governance')) active = 'governance';
     else if (p.startsWith('/laws'))       active = 'laws';
-    else if (p.startsWith('/shared-files')) active = 'shared-files';
     else if (p.startsWith('/recovery'))   active = 'recovery';
     else if (p.startsWith('/agents'))     active = 'agents';
     else if (p.startsWith('/home'))      active = 'home';
@@ -945,10 +945,11 @@
 
       '<span class="nav-group-red">' +
         navTab('/chat',     'chat',  'Chat',   'chat') +
-        /* Watch and Media beside Chat, as in the desktop app's menu (2026-10-12: on a desktop
-         * browser the Media page had no link at all, only the phone menu listed it). */
+        /* Watch and Files beside Chat, as in the desktop app's menu (2026-10-12: on a desktop
+         * browser the page had no link at all, only the phone menu listed it). Files is the page
+         * people put their files on, called Media (at /media) until 2026-10-19. */
         navTab('/watch',    'video', 'Watch',  'watch') +
-        navTab('/media',    'image', 'Media',  'media') +
+        navTab('/files',    'image', 'Files',  'files') +
         /* Studio dropped from the web header (operator, 2026-08-17): it is
          * a native feature today, and two tabs opening /download read as a
          * bug. The streaming surface's future home is the Chat page (see
@@ -1109,9 +1110,11 @@
       // Live streams broadcast from the desktop app's Studio page, fanned out by our
       // own relay. No third-party platform, and no sign-up needed to watch. (v0.855)
       mobileLink('/watch',   'Watch') +
-      // The Media page (2026-10-11): pictures, videos, 3D models and files people
-      // on this server chose to share; beside Watch, as on the desktop app.
-      mobileLink('/media',   'Media') +
+      // The Files page (2026-10-11; the Media page at /media until 2026-10-19, when the data
+      // browser and Shared Files joined it as its places): pictures, videos, 3D models, sounds and
+      // any other files people on this server chose to share, the server's shared files and its
+      // data folder; beside Watch, as on the desktop app.
+      mobileLink('/files',   'Files') +
       mobileLink('/wallet',    'Wallet') +
       mobileLink('/market',    'Market') +
       mobileLink('/trade',     'Trade') +
@@ -1121,7 +1124,6 @@
       mobileLink('/governance', 'Governance') +
       mobileLink('/rules',     'Rules and appeals') +
       mobileLink('/laws',      'Laws') +
-      mobileLink('/shared-files', 'Shared Files') +
       mobileLink('/identity',  'Identity') +
       mobileLink('/recovery',  'Recovery') +
       mobileLink('/roadmap',   'Roadmap') +
@@ -1131,7 +1133,6 @@
       mobileLink('/calendar',  'Calendar') +
       mobileLink('/notes',     'Notes') +
       mobileLink('/web',       'Bookmarks') +
-      mobileLink('/files',     'Files') +
       mobileLink('/devlog',    'Devlog') +
     '</div>' +
     // Developer and operator surfaces: PERMANENT infrastructure (this project
@@ -1963,7 +1964,7 @@
   // WHY: Light up the download button with RGB when a new version is available
   // so the user knows at a glance. Checks GitHub releases once per session.
   (function updateChecker() {
-    var CURRENT_VERSION = '0.1523.1';
+    var CURRENT_VERSION = '0.1524.0';
     var CACHE_KEY = 'hos_latest_version';
     var CACHE_TS_KEY = 'hos_latest_version_ts';
     var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min

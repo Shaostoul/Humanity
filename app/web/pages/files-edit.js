@@ -1,15 +1,15 @@
-// ── media-edit.js ─────────────────────────────────────────────────────────
-// An item's Edit form on the website, and the licence picker that Add to Media
+// ── files-edit.js ─────────────────────────────────────────────────────────
+// An item's Edit form on the website, and the licence picker that Add to Files
 // shares with it (Media round 5, lane 2A, 2026-10-12; docs/design/
 // media-round-5-plan.md 3.4, 3.9, 3.10, with the orchestrator's decision 1 in
 // section 9 and the operator's answers in section 10). The desktop app's
-// Edit window is the original (src/gui/pages/media/edit.rs); this form copies
+// Edit window is the original (src/gui/pages/files/edit.rs); this form copies
 // its fields, rules and words:
 //
 // - the title, the description, the category (its description under it), the
 //   content labels;
-// - who can see it, under Add to Media's rules and words (a file already public
-//   where it was shared stays public; a members-only Media page makes
+// - who can see it, under Add to Files's rules and words (a file already public
+//   where it was shared stays public; a members-only Files page makes
 //   everything members only);
 // - the licence, with the server's own line for it and a link to its deed, and
 //   "Offer this for the game" only with a licence the server marks `game`
@@ -22,12 +22,12 @@
 //   (a licence is the rights holder's grant);
 // - the hosting paragraph ("Your uploads stay yours."), as the server words it;
 // - the files, each with its type's badge before its name (2026-10-17,
-//   `fileBadge`, which media-item.js and media-app.js draw with too): Remove
+//   `fileBadge`, which files-item.js and files-app.js draw with too): Remove
 //   on each added file and the cover (the uploader and
 //   admins), and, for the uploader, "Add a file" and "Cover picture". A picked
-//   file is the same resumable upload as Add to Media's, listed under Uploads
+//   file is the same resumable upload as Add to Files's, listed under Uploads
 //   in progress, and added to this item when it is up instead of published
-//   (media-app.js `startAttach`, media-upload.js `attachUpload`). Files
+//   (files-app.js `startAttach`, files-upload.js `attachUpload`). Files
 //   dragged from the computer onto the page while the form is open go the same
 //   way (`addFiles`, 2026-10-17); under an admin's Edit of someone else's item,
 //   "Only Ann can add files to this item." stands where Add a file would be.
@@ -35,41 +35,41 @@
 //   operator: "Can we allow renaming of files in the edit window?"): the row
 //   becomes a box holding the name without its ending, the ending after it,
 //   fixed, then "Save name" and "Cancel" (Enter saves too), one row at a time
-//   (POST /api/media/files/rename, signed over `media_file_rename:<id>:<file>:
+//   (POST /api/files/item-files/rename, signed over `media_file_rename:<id>:<file>:
 //   <BLAKE3 hex of the name exactly as sent>`; the relay keeps the ending). For
 //   the uploader, a picture already on the item has "Use as cover" (POST
-//   /api/media/files/cover, `media_file_cover:<id>:<file>`; the operator: "I
+//   /api/files/item-files/cover, `media_file_cover:<id>:<file>`; the operator: "I
 //   uploaded a png with the blend and STL files but, I can't seem to assign it
 //   as the preview photo"), never on the item's own file or the cover there now.
-//   The desktop's media/edit.rs draw_files is the original, words and all.
+//   The desktop's files/edit.rs draw_files is the original, words and all.
 //
 // The form is in three parts in the chat sidebar's colours, darker (2026-10-17,
 // `tintSection`, /shared/tint-section.css; the desktop's Edit window): "About
 // it" (red: the title, the category and its description, the description, the
 // content labels), "Who can see it" (green: who sees it, the licence and its
 // words, the hosting paragraph) and "Files" (blue). Save and Cancel stay under
-// them. Add to Media (media-app.js) uses the same three, its files first.
+// them. Add to Files (files-app.js) uses the same three, its files first.
 //
-// IN PLACE SINCE 2026-10-19 (the desktop's media/edit.rs draw_in_place): the
+// IN PLACE SINCE 2026-10-19 (the desktop's files/edit.rs draw_in_place): the
 // form takes the place of the item's details in the right pane, headed
 // "Editing "<title>"", the pane edged in the nav bar's moving colours
-// (media-item.js editMode), Save and Cancel in a foot that stays in view while
+// (files-item.js editMode), Save and Cancel in a foot that stays in view while
 // the parts scroll above it. Cancel with nothing changed goes straight back;
 // with changes it asks first (`changed`: what Save would send differs from the
-// item, or a file's new name is typed and not saved; media-item.js cancelEdit).
+// item, or a file's new name is typed and not saved; files-item.js cancelEdit).
 //
-// Save sends the edit (POST /api/media/edit, every field) signed over
+// Save sends the edit (POST /api/files/edit, every field) signed over
 // `media_edit:<id>:<BLAKE3 hex of the edit member's JSON text exactly as sent>`:
 // the text is made ONCE (`editText`), those exact bytes are hashed, and those
 // exact bytes are put in the body (`editBody`), never serialised again. The
 // visibility goes by its own signed route when it changed. Every word about a
-// licence comes from the server's answer (data/media/licences.json on the
+// licence comes from the server's answer (data/files/licences.json on the
 // relay), never from a copy here; everything the server sends goes in with
 // textContent.
 //
-// A classic script in the browser (loaded before media-item.js and
-// media-app.js; it needs /shared/blake3.js and /shared/file-risk.js), a CommonJS module under Node,
-// where scripts/tests/media-web-item.test.js runs it.
+// A classic script in the browser (loaded before files-item.js and
+// files-app.js; it needs /shared/blake3.js and /shared/file-risk.js), a CommonJS module under Node,
+// where scripts/tests/files-web-item.test.js runs it.
 // ──────────────────────────────────────────────────────────────────────────
 (function (root) {
   'use strict';
@@ -90,16 +90,16 @@
     replaceCover: 'Replace the cover picture',
     remove: 'Remove',
     removeTip: 'Take it off this item. It is deleted from the server.',
-    uploadsHint: 'Each goes up under Uploads in progress on the Media page and is added here when it is up.',
+    uploadsHint: 'Each goes up under Uploads in progress on the Files page and is added here when it is up.',
     labelsLegend: 'Content labels: a labelled item stays hidden until someone clicks it.',
     noHash: 'This page could not load its hashing code, so the edit was not sent. Reload the page and try again.',
-    // The three parts of Edit and of Add to Media (the desktop's media/edit.rs ABOUT_IT,
+    // The three parts of Edit and of Add to Files (the desktop's files/edit.rs ABOUT_IT,
     // WHO_CAN_SEE_IT and FILES), each in one of the chat sidebar's colours, darker.
     aboutIt: 'About it',
     whoCanSeeIt: 'Who can see it',
     files: 'Files',
     // A file row's buttons and what the page says once they are answered (2026-10-17; the
-    // desktop's media/edit.rs RENAME, RENAME_TIP, SAVE_NAME, USE_AS_COVER, USE_AS_COVER_TIP and
+    // desktop's files/edit.rs RENAME, RENAME_TIP, SAVE_NAME, USE_AS_COVER, USE_AS_COVER_TIP and
     // media/item_view.rs FILE_RENAMED, COVER_CHOSEN).
     rename: 'Rename',
     renameTip: 'Change the name people see and download it as. Its ending stays.',
@@ -109,11 +109,11 @@
     renamed: 'Renamed.',
     coverChosen: 'That picture is the cover now.',
     noHashName: 'This page could not load its hashing code, so the name was not sent. Reload the page and try again.',
-    // In place of the details (2026-10-19; the desktop's media/edit.rs CANCEL_TIP).
+    // In place of the details (2026-10-19; the desktop's files/edit.rs CANCEL_TIP).
     cancelTip: 'Go back to its details without changing anything (asks first when something was changed).',
   });
 
-  /** The words over the form (the desktop's media/edit.rs editing_words). */
+  /** The words over the form (the desktop's files/edit.rs editing_words). */
   function editingWords(title) {
     return 'Editing "' + title + '"';
   }
@@ -123,7 +123,7 @@
   // at ... protect people inexperienced with technology and possibly illiterate people." The badge
   // is HosFileRisk.badgeHtml's shape (/shared/file-risk.js; styled by /shared/file-badge.css; the
   // desktop app's gui/widgets/file_badge.rs), built here with createElement and textContent, as
-  // everything on the Media page is: a drawing, the type's word and the file's ending, coloured by
+  // everything on the Files page is: a drawing, the type's word and the file's ending, coloured by
   // how careful to be. Before the list of kinds is in it is a plain grey "File"; fillFileBadges
   // draws each one again once it is.
 
@@ -210,7 +210,7 @@
   function ownerOnlyWords(name) {
     return 'Only ' + name + ' can change these.';
   }
-  /** Under an admin's Edit of someone else's item, where Add a file would be (2026-10-17; the desktop's media/edit.rs words). */
+  /** Under an admin's Edit of someone else's item, where Add a file would be (2026-10-17; the desktop's files/edit.rs words). */
   function addFilesOwnerOnlyWords(name) {
     return 'Only ' + name + ' can add files to this item.';
   }
@@ -228,7 +228,7 @@
   const asciiLower = (s) => String(s).replace(/[A-Z]/g, (ch) => ch.toLowerCase());
   /**
    * A stored file's ending, as the relay keeps it on a rename (storage/media_files.rs
-   * `shown_name_for`; the desktop's media/edit.rs `stored_ending`): "tar.gz" for a tarball, else its
+   * `shown_name_for`; the desktop's files/edit.rs `stored_ending`): "tar.gz" for a tarball, else its
    * last, lower case; '' when it has none.
    */
   function storedEnding(stored) {
@@ -295,7 +295,7 @@
   }
 
   /**
-   * The licence picker, shared by Add to Media and Edit. `o`: `licences` (the server's answer),
+   * The licence picker, shared by Add to Files and Edit. `o`: `licences` (the server's answer),
    * `choice` ({licence, project_use}, changed in place as the person picks), `members()` (whether
    * the item is or will be members only), `was` (the licence the item has now, so leaving a Creative
    * Commons licence states the fact too), `ownerOnly` (the uploader's name when an admin edits
@@ -311,29 +311,29 @@
     // A licence the item carries that this server no longer offers is named by its id.
     const listed = offeredLicence(L, choice.licence) ? offered : offered.concat([{ id: choice.licence, name: choice.licence, line: '' }]);
     const nameOf = (id) => { const l = listed.find((x) => x.id === id); return (l && l.name) || id; };
-    const more = h('div', { className: 'media-licence-more' });
+    const more = h('div', { className: 'files-licence-more' });
     let control;
     if (o.ownerOnly) {
-      control = h('span', { className: 'media-licence-name', dataset: { licenceName: '' }, text: nameOf(choice.licence) });
+      control = h('span', { className: 'files-licence-name', dataset: { licenceName: '' }, text: nameOf(choice.licence) });
     } else {
-      control = h('select', { className: 'media-select', dataset: { licence: '' }, attrs: { 'aria-label': 'Licence' } },
+      control = h('select', { className: 'files-select', dataset: { licence: '' }, attrs: { 'aria-label': 'Licence' } },
         listed.map((l) => h('option', {
           value: l.id, text: l.name || l.id, selected: l.id === choice.licence,
           title: (l.official_name ? l.official_name + '. ' : '') + (l.line || ''),
         })));
       control.addEventListener('change', () => { choice.licence = control.value; draw(); });
     }
-    const el = h('div', { className: 'media-field media-licence', id: o.id || undefined }, [
-      h('label', { className: 'media-licence-row' }, ['Licence ', control]),
+    const el = h('div', { className: 'files-field files-licence', id: o.id || undefined }, [
+      h('label', { className: 'files-licence-row' }, ['Licence ', control]),
       more,
     ]);
     function draw() {
       more.replaceChildren();
       const l = offeredLicence(L, choice.licence);
-      if (l && l.line) more.appendChild(h('p', { className: 'media-hint', dataset: { licenceLine: '' }, text: l.line }));
+      if (l && l.line) more.appendChild(h('p', { className: 'files-hint', dataset: { licenceLine: '' }, text: l.line }));
       // Only a deed on https:// is linked; its words are the licence's name, as text.
       if (l && typeof l.url === 'string' && /^https:\/\//.test(l.url)) {
-        more.appendChild(h('a', { href: l.url, target: '_blank', rel: 'noopener noreferrer', className: 'media-licence-deed', text: 'Read ' + (l.name || l.id) + ' in full' }));
+        more.appendChild(h('a', { href: l.url, target: '_blank', rel: 'noopener noreferrer', className: 'files-licence-deed', text: 'Read ' + (l.name || l.id) + ' in full' }));
       }
       // The game tick: only with a licence the server marks `game`; any other turns it off.
       const game = !!(l && l.game);
@@ -342,19 +342,19 @@
       if (game && offer.label) {
         const tick = h('input', { type: 'checkbox', dataset: { gameOffer: '' }, checked: !!choice.project_use, disabled: !!o.ownerOnly });
         tick.addEventListener('change', () => { if (!o.ownerOnly) choice.project_use = !!tick.checked; });
-        more.appendChild(h('label', { className: 'media-check', title: offer.line || '' }, [tick, ' ' + offer.label]));
+        more.appendChild(h('label', { className: 'files-check', title: offer.line || '' }, [tick, ' ' + offer.label]));
       }
       if (o.ownerOnly) {
-        more.appendChild(h('p', { className: 'media-hint', dataset: { ownerOnly: '' }, text: ownerOnlyWords(o.ownerOnly) }));
+        more.appendChild(h('p', { className: 'files-hint', dataset: { ownerOnly: '' }, text: ownerOnlyWords(o.ownerOnly) }));
         return;
       }
       // The facts, stated plainly before Save (the operator's answer of 2026-10-12).
       const cc = !!(l && l.cc);
       const was = o.was ? offeredLicence(L, o.was) : null;
       const leaving = !!(was && was.cc && o.was !== choice.licence);
-      if ((cc || leaving) && L.cc_warning) more.appendChild(h('p', { className: 'media-warn media-cc-warning', dataset: { ccWarning: '' }, text: L.cc_warning }));
+      if ((cc || leaving) && L.cc_warning) more.appendChild(h('p', { className: 'files-warn files-cc-warning', dataset: { ccWarning: '' }, text: L.cc_warning }));
       if (cc && typeof o.members === 'function' && o.members() && L.cc_members_warning) {
-        more.appendChild(h('p', { className: 'media-warn media-cc-warning', dataset: { ccMembersWarning: '' }, text: L.cc_members_warning }));
+        more.appendChild(h('p', { className: 'files-warn files-cc-warning', dataset: { ccMembersWarning: '' }, text: L.cc_members_warning }));
       }
     }
     draw();
@@ -365,15 +365,15 @@
   function hostingBlock(h, licences) {
     const ho = licences && licences.hosting && typeof licences.hosting === 'object' ? licences.hosting : {};
     if (!ho.heading && !ho.text) return null;
-    return h('div', { className: 'media-hosting', dataset: { hosting: '' } }, [
-      ho.heading ? h('p', { className: 'media-hosting-heading', text: ho.heading }) : null,
-      ho.text ? h('p', { className: 'media-hint', text: ho.text }) : null,
+    return h('div', { className: 'files-hosting', dataset: { hosting: '' } }, [
+      ho.heading ? h('p', { className: 'files-hosting-heading', text: ho.heading }) : null,
+      ho.text ? h('p', { className: 'files-hint', text: ho.text }) : null,
     ]);
   }
 
   /**
    * The Edit form for `item`, drawn into `box` (inside the item's page). `c` is the page's context
-   * (media-item.js `createItemView`'s), `view` the item's page: `own(item)`, `takeItem(item)`,
+   * (files-item.js `createItemView`'s), `view` the item's page: `own(item)`, `takeItem(item)`,
    * `say(words)` (its status line), `closeEdit()`, `fileName(item, f)`, `shownName(item, f)` (the name a
    * file is shown by: plain, so it cannot hide its ending), `filesOf(item)`, `current(id)`
    * and `send(path, purpose, item, body)` (a signed write that throws the relay's own words).
@@ -406,11 +406,11 @@
 
     function draw() {
       const L = c.st.licences || {};
-      const title = h('input', { type: 'text', id: 'media-edit-title', className: 'media-input', maxLength: 120, value: f.title });
+      const title = h('input', { type: 'text', id: 'files-edit-title', className: 'files-input', maxLength: 120, value: f.title });
       title.addEventListener('input', () => { f.title = title.value; });
-      const category = h('select', { id: 'media-edit-category', className: 'media-select' },
+      const category = h('select', { id: 'files-edit-category', className: 'files-select' },
         c.st.categories.map((cat) => h('option', { value: String(cat.id), text: cat.name, selected: String(cat.id) === String(f.category) })));
-      const about = h('p', { id: 'media-edit-category-desc', className: 'media-hint' });
+      const about = h('p', { id: 'files-edit-category-desc', className: 'files-hint' });
       const drawAbout = () => {
         const cat = c.st.categories.find((x) => String(x.id) === String(f.category));
         about.textContent = cat && cat.description ? cat.description : '';
@@ -418,67 +418,67 @@
       };
       category.addEventListener('change', () => { f.category = Number(category.value); drawAbout(); });
       drawAbout();
-      const description = h('textarea', { id: 'media-edit-description', className: 'media-input', maxLength: 2000, rows: 4, value: f.description });
+      const description = h('textarea', { id: 'files-edit-description', className: 'files-input', maxLength: 2000, rows: 4, value: f.description });
       description.addEventListener('input', () => { f.description = description.value; });
       // Three parts in the chat sidebar's colours, darker (2026-10-17, tintSection; the desktop's
       // Edit window): what it is (red), who can see it (green), its files (blue). Save and Cancel
       // stay outside them, under them.
       const aboutParts = [
-        h('label', { className: 'media-field' }, ['Title', title]),
-        c.st.categories.length ? h('label', { className: 'media-field' }, ['Category', category]) : null,
+        h('label', { className: 'files-field' }, ['Title', title]),
+        c.st.categories.length ? h('label', { className: 'files-field' }, ['Category', category]) : null,
         about,
-        h('label', { className: 'media-field' }, ['Description', description]),
+        h('label', { className: 'files-field' }, ['Description', description]),
       ];
       if (c.st.labels.length) {
-        const ticks = h('fieldset', { className: 'media-field media-labels', id: 'media-edit-labels' }, [h('legend', { text: WORDS.labelsLegend })]);
+        const ticks = h('fieldset', { className: 'files-field files-labels', id: 'files-edit-labels' }, [h('legend', { text: WORDS.labelsLegend })]);
         for (const l of c.st.labels) {
           const tick = h('input', { type: 'checkbox', value: l.id, dataset: { label: l.id }, checked: f.labels.has(l.id) });
           tick.addEventListener('change', () => { if (tick.checked) f.labels.add(l.id); else f.labels.delete(l.id); });
-          ticks.appendChild(h('label', { className: 'media-check', title: l.desc || '' }, [tick, ' ' + l.label]));
+          ticks.appendChild(h('label', { className: 'files-check', title: l.desc || '' }, [tick, ' ' + l.label]));
         }
         aboutParts.push(ticks);
       }
-      // Who can see it: Add to Media's rules and words.
+      // Who can see it: Add to Files's rules and words.
       const who = [];
       let picker = null;
       if (item.keeps_file) {
-        who.push(h('p', { className: 'media-hint', text: W.alreadyPublic }));
+        who.push(h('p', { className: 'files-hint', text: W.alreadyPublic }));
       } else if (c.membersOnlyServer()) {
-        who.push(h('p', { className: 'media-hint', text: W.serverMembersOnly }));
+        who.push(h('p', { className: 'files-hint', text: W.serverMembersOnly }));
       } else {
-        const group = 'media-edit-visibility-' + item.id;
-        const pub = h('input', { type: 'radio', name: group, value: 'public', id: 'media-edit-vis-public', checked: !f.members });
-        const mem = h('input', { type: 'radio', name: group, value: 'members', id: 'media-edit-vis-members', checked: f.members });
+        const group = 'files-edit-visibility-' + item.id;
+        const pub = h('input', { type: 'radio', name: group, value: 'public', id: 'files-edit-vis-public', checked: !f.members });
+        const mem = h('input', { type: 'radio', name: group, value: 'members', id: 'files-edit-vis-members', checked: f.members });
         pub.addEventListener('change', () => { if (pub.checked) { f.members = false; if (picker) picker.refresh(); } });
         mem.addEventListener('change', () => { if (mem.checked) { f.members = true; if (picker) picker.refresh(); } });
-        who.push(h('fieldset', { className: 'media-field', id: 'media-edit-visibility' }, [
+        who.push(h('fieldset', { className: 'files-field', id: 'files-edit-visibility' }, [
           h('legend', { text: 'Who sees it' }),
-          h('label', { className: 'media-check' }, [pub, ' Public']),
-          h('label', { className: 'media-check' }, [mem, ' Members only']),
+          h('label', { className: 'files-check' }, [pub, ' Public']),
+          h('label', { className: 'files-check' }, [mem, ' Members only']),
         ]));
       }
       picker = licenceChoice(h, {
-        licences: L, choice: f.choice, id: 'media-edit-licence', was: item.licence || '',
+        licences: L, choice: f.choice, id: 'files-edit-licence', was: item.licence || '',
         members: () => c.membersOnlyServer() || f.members,
         ownerOnly: own ? null : ownerName,
       });
       who.push(picker.el, hostingBlock(h, L));
-      els.files = h('div', { id: 'media-edit-files', className: 'media-item-files' });
+      els.files = h('div', { id: 'files-edit-files', className: 'files-item-files' });
       const kids = [
-        h('h3', { className: 'media-edit-heading', text: editingWords(c.lib.itemName(item, c.st.kinds)) }),
+        h('h3', { className: 'files-edit-heading', text: editingWords(c.lib.itemName(item, c.st.kinds)) }),
         tintSection(h, 'red', WORDS.aboutIt, aboutParts),
         tintSection(h, 'green', WORDS.whoCanSeeIt, who),
         tintSection(h, 'blue', WORDS.files, [els.files]),
       ];
-      els.problem = h('p', { id: 'media-edit-problem', className: 'media-warn' });
-      els.save = h('button', { type: 'button', id: 'media-edit-save', className: 'media-btn media-btn-primary', text: WORDS.save, on: { click: save } });
+      els.problem = h('p', { id: 'files-edit-problem', className: 'files-warn' });
+      els.save = h('button', { type: 'button', id: 'files-edit-save', className: 'files-btn files-btn-primary', text: WORDS.save, on: { click: save } });
       // The foot: why the last Save did not go, then Save and Cancel, kept in view at the pane's foot
-      // while the parts scroll above it (media.css .media-edit-foot).
-      kids.push(h('div', { className: 'media-edit-foot' }, [els.problem, h('div', { className: 'media-form-buttons' }, [
+      // while the parts scroll above it (files.css .files-edit-foot).
+      kids.push(h('div', { className: 'files-edit-foot' }, [els.problem, h('div', { className: 'files-form-buttons' }, [
         els.save,
-        h('button', { type: 'button', id: 'media-edit-cancel', className: 'media-btn', text: WORDS.cancel, title: WORDS.cancelTip, on: { click: () => view.cancelEdit() } }),
+        h('button', { type: 'button', id: 'files-edit-cancel', className: 'files-btn', text: WORDS.cancel, title: WORDS.cancelTip, on: { click: () => view.cancelEdit() } }),
       ])]));
-      const form = h('div', { id: 'media-edit', className: 'media-panel media-edit' }, kids);
+      const form = h('div', { id: 'files-edit', className: 'files-panel files-edit' }, kids);
       // Typing anywhere in it: the item window tells the chat whether it holds changes (they bubble here).
       const typed = () => { if (typeof view.edited === 'function') view.edited(); };
       form.addEventListener('input', typed);
@@ -525,7 +525,7 @@
       const doc = c.env.document;
       const ending = storedEnding(storedOf(now, x));
       const box = h('input', {
-        type: 'text', className: 'media-input', maxLength: 120, value: f.renaming.typed,
+        type: 'text', className: 'files-input', maxLength: 120, value: f.renaming.typed,
         dataset: { renameInput: x.file }, attrs: { 'aria-label': 'New name for ' + name },
       });
       box.addEventListener('input', () => { if (f.renaming) f.renaming.typed = box.value; });
@@ -534,12 +534,12 @@
         if (typeof e.preventDefault === 'function') e.preventDefault();
         saveName(now, x);
       });
-      const row = h('div', { className: 'media-item-file-row' + (first ? ' media-edit-first-file' : ''), dataset: first ? { renaming: x.file } : { editFile: x.file, renaming: x.file } }, [
+      const row = h('div', { className: 'files-item-file-row' + (first ? ' files-edit-first-file' : ''), dataset: first ? { renaming: x.file } : { editFile: x.file, renaming: x.file } }, [
         fileBadge(h, doc, name),
         box,
-        ending ? h('span', { className: 'media-hint', dataset: { renameEnding: '' }, text: '.' + ending }) : null,
-        h('button', { type: 'button', className: 'media-btn media-btn-small media-btn-primary', dataset: { saveName: x.file }, text: WORDS.saveName, disabled: f.fileBusy, on: { click: () => saveName(now, x) } }),
-        h('button', { type: 'button', className: 'media-btn media-btn-small', dataset: { cancelRename: x.file }, text: WORDS.cancel, on: { click: () => { f.renaming = null; drawFiles(); } } }),
+        ending ? h('span', { className: 'files-hint', dataset: { renameEnding: '' }, text: '.' + ending }) : null,
+        h('button', { type: 'button', className: 'files-btn files-btn-small files-btn-primary', dataset: { saveName: x.file }, text: WORDS.saveName, disabled: f.fileBusy, on: { click: () => saveName(now, x) } }),
+        h('button', { type: 'button', className: 'files-btn files-btn-small', dataset: { cancelRename: x.file }, text: WORDS.cancel, on: { click: () => { f.renaming = null; drawFiles(); } } }),
       ]);
       return { row, box };
     }
@@ -563,7 +563,7 @@
         ? [els.renameBox.selectionStart, els.renameBox.selectionEnd] : null;
       els.renameBox = null;
       const renameButton = (x) => h('button', {
-        type: 'button', className: 'media-btn media-btn-small', dataset: { renameFile: x.file }, text: WORDS.rename, title: WORDS.renameTip,
+        type: 'button', className: 'files-btn files-btn-small', dataset: { renameFile: x.file }, text: WORDS.rename, title: WORDS.renameTip,
         on: { click: () => {
           const stem = stemOf(view.shownName(now, x), storedEnding(storedOf(now, x)));
           f.renaming = { file: x.file, typed: stem, fresh: true, was: stem };
@@ -582,28 +582,28 @@
           continue;
         }
         if (first) {
-          kids.push(h('div', { className: 'media-item-file-row media-edit-first-file' }, [
+          kids.push(h('div', { className: 'files-item-file-row files-edit-first-file' }, [
             fileBadge(h, doc, name),
-            h('span', { className: 'media-hint', text: firstFileWords(name) }),
+            h('span', { className: 'files-hint', text: firstFileWords(name) }),
             renameButton(x),
           ]));
           continue;
         }
-        kids.push(h('div', { className: 'media-item-file-row', dataset: { editFile: x.file } }, [
+        kids.push(h('div', { className: 'files-item-file-row', dataset: { editFile: x.file } }, [
           fileBadge(h, doc, name),
-          h('span', { className: 'media-item-file-name', text: name + (cover ? ', cover picture, ' : ', ') + c.lib.sizeWords(x.size_bytes) }),
+          h('span', { className: 'files-item-file-name', text: name + (cover ? ', cover picture, ' : ', ') + c.lib.sizeWords(x.size_bytes) }),
           renameButton(x),
           // A picture already on the item can be its cover: the uploader's, as adding a cover is.
           own && !cover && x.kind === 'picture'
-            ? h('button', { type: 'button', className: 'media-btn media-btn-small', dataset: { useAsCover: x.file }, text: WORDS.useAsCover, title: WORDS.useAsCoverTip, disabled: f.fileBusy, on: { click: () => useAsCover(now, x) } })
+            ? h('button', { type: 'button', className: 'files-btn files-btn-small', dataset: { useAsCover: x.file }, text: WORDS.useAsCover, title: WORDS.useAsCoverTip, disabled: f.fileBusy, on: { click: () => useAsCover(now, x) } })
             : null,
-          h('button', { type: 'button', className: 'media-btn media-btn-small media-btn-danger', dataset: { removeFile: x.file }, text: WORDS.remove, title: WORDS.removeTip, on: { click: () => removeFile(now, x) } }),
+          h('button', { type: 'button', className: 'files-btn files-btn-small files-btn-danger', dataset: { removeFile: x.file }, text: WORDS.remove, title: WORDS.removeTip, on: { click: () => removeFile(now, x) } }),
         ]));
       }
-      for (const u of c.uploadsFor(item.id)) kids.push(h('p', { className: 'media-hint', dataset: { attachRow: '' }, text: u.heading + ': ' + u.words }));
+      for (const u of c.uploadsFor(item.id)) kids.push(h('p', { className: 'files-hint', dataset: { attachRow: '' }, text: u.heading + ': ' + u.words }));
       if (!own) {
         // Only the uploader adds files (an admin edits the words, never the files' owner's set).
-        kids.push(h('p', { className: 'media-hint', id: 'media-edit-files-owner-only', text: addFilesOwnerOnlyWords(ownerName) }));
+        kids.push(h('p', { className: 'files-hint', id: 'files-edit-files-owner-only', text: addFilesOwnerOnlyWords(ownerName) }));
       }
       if (own) {
         const pick = (as) => {
@@ -618,12 +618,12 @@
         };
         const fileInput = pick('file');
         const coverInput = pick('cover');
-        kids.push(h('div', { className: 'media-form-buttons' }, [
-          h('button', { type: 'button', id: 'media-edit-add-file', className: 'media-btn', text: WORDS.addFile, title: 'Upload another file to go with this item.', on: { click: () => fileInput.click() } }),
-          h('button', { type: 'button', id: 'media-edit-cover', className: 'media-btn', text: now.cover ? WORDS.replaceCover : WORDS.coverPicture, title: 'A picture shown on its card and page: PNG, JPEG, GIF or WebP.', on: { click: () => coverInput.click() } }),
+        kids.push(h('div', { className: 'files-form-buttons' }, [
+          h('button', { type: 'button', id: 'files-edit-add-file', className: 'files-btn', text: WORDS.addFile, title: 'Upload another file to go with this item.', on: { click: () => fileInput.click() } }),
+          h('button', { type: 'button', id: 'files-edit-cover', className: 'files-btn', text: now.cover ? WORDS.replaceCover : WORDS.coverPicture, title: 'A picture shown on its card and page: PNG, JPEG, GIF or WebP.', on: { click: () => coverInput.click() } }),
           fileInput, coverInput,
         ]));
-        kids.push(h('p', { className: 'media-hint', text: WORDS.uploadsHint }));
+        kids.push(h('p', { className: 'files-hint', text: WORDS.uploadsHint }));
       }
       els.files.replaceChildren(...kids);
       const box = els.renameBox;
@@ -639,7 +639,7 @@
 
     /**
      * Save name: file `x` named the box's text with its ending put back (POST
-     * /api/media/files/rename, signed over the BLAKE3 of the name exactly as sent). Answered, the
+     * /api/files/item-files/rename, signed over the BLAKE3 of the name exactly as sent). Answered, the
      * item is the answer's and the page says "Renamed."; refused, the relay's words stand in the
      * problem line and the box stays open with what was typed.
      */
@@ -658,7 +658,7 @@
       drawFiles();
       let a;
       try {
-        a = await view.send('/api/media/files/rename', purpose, now, { file: x.file, file_name: storedOf(now, x), name });
+        a = await view.send('/api/files/item-files/rename', purpose, now, { file: x.file, file_name: storedOf(now, x), name });
       } catch (e) {
         f.fileBusy = false;
         f.problem = e && e.message ? e.message : String(e);
@@ -676,7 +676,7 @@
 
     /**
      * Use as cover: picture file `x`, already on the item, made its cover (POST
-     * /api/media/files/cover); the cover there now becomes one of its files. Answered, the page says
+     * /api/files/item-files/cover); the cover there now becomes one of its files. Answered, the page says
      * "That picture is the cover now."; refused, the relay's words stand in the problem line.
      */
     async function useAsCover(now, x) {
@@ -685,7 +685,7 @@
       drawFiles();
       let a;
       try {
-        a = await view.send('/api/media/files/cover', coverPurpose(now.id, x.file), now, { file: x.file, file_name: storedOf(now, x) });
+        a = await view.send('/api/files/item-files/cover', coverPurpose(now.id, x.file), now, { file: x.file, file_name: storedOf(now, x) });
       } catch (e) {
         f.fileBusy = false;
         f.problem = e && e.message ? e.message : String(e);
@@ -703,8 +703,8 @@
     /**
      * Add files to this item, as its Add a file (`as` 'file') or Cover picture ('cover') does: the
      * chosen ones, and files dropped on the page while this form is open (2026-10-17,
-     * media-app.js dropped). All of them against the share together first, so nothing starts that
-     * cannot finish; then each the same resumable upload as Add to Media's, attached when it is up.
+     * files-app.js dropped). All of them against the share together first, so nothing starts that
+     * cannot finish; then each the same resumable upload as Add to Files's, attached when it is up.
      */
     async function addFiles(files, as) {
       if (!own || !files || !files.length) return;
@@ -724,11 +724,11 @@
       drawFiles();
     }
 
-    /** Take file `x` off the item (POST /api/media/files/remove, by its number and its own stored name), once confirmed. */
+    /** Take file `x` off the item (POST /api/files/item-files/remove, by its number and its own stored name), once confirmed. */
     async function removeFile(now, x) {
       if (!(await c.env.confirm(removeFileWords(view.shownName(now, x))))) return;
       try {
-        const a = await view.send('/api/media/files/remove', 'media_file_remove:' + now.id + ':' + x.file, now, { file: x.file, file_name: x.filename });
+        const a = await view.send('/api/files/item-files/remove', 'media_file_remove:' + now.id + ':' + x.file, now, { file: x.file, file_name: x.filename });
         if (a && a.item) view.takeItem(a.item);
         view.say('Removed from the item.');
       } catch (e) {
@@ -761,12 +761,12 @@
       try {
         const auth = await c.env.sign(purpose);
         if (!auth) throw new Error(W.cannotSign);
-        const a = await c.lib.answerOf(await c.env.fetch('/api/media/edit', c.lib.jsonPost(editBody(auth, item.id, filename, text))));
+        const a = await c.lib.answerOf(await c.env.fetch('/api/files/edit', c.lib.jsonPost(editBody(auth, item.id, filename, text))));
         if (a && a.item) view.takeItem(a.item);
         // Who can see it goes by its own signed route, only when it changed and may change.
         const to = f.members ? 'members' : 'public';
         if (!item.keeps_file && !c.membersOnlyServer() && to !== (item.visibility === 'members' ? 'members' : 'public')) {
-          const v = await view.send('/api/media/visibility', 'media_visibility:' + item.id + ':' + to, item, { visibility: to });
+          const v = await view.send('/api/files/visibility', 'media_visibility:' + item.id + ':' + to, item, { visibility: to });
           if (v && v.item) view.takeItem(v.item);
         }
       } catch (e) {
@@ -795,5 +795,5 @@
     storedEnding, stemOf, nameWithEnding, renamePurpose, coverPurpose,
   };
   if (typeof module === 'object' && module && module.exports) module.exports = api;
-  else root.MediaEdit = api;
+  else root.FilesEdit = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

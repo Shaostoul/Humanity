@@ -1,5 +1,5 @@
 // ── chat-file-transfer.js ─────────────────────────────────────────────────
-// Device-to-device big files (2026-10-11, docs/design/media-showcase.md,
+// Device-to-device big files (2026-10-11, docs/design/files-showcase.md,
 // "Device-to-device big files, exact" and "...: the shapes, exact"; the
 // operator's answer 10). In a direct message, a file bigger than my private
 // file limit never goes to the server's disk: it goes from this device to the
@@ -1295,7 +1295,7 @@ function ftLinkUp(link) {
  * here), so the close is judged after FT_STOPPED_WAIT_MS:
  *  - the connection gone by then (a new dial from them replaced it, or the browser no longer says
  *    connected: a page that closed or reloaded stops answering ICE's checks, which the browser is
- *    expected to notice within the wait; not yet measured in a real browser, media-showcase.md):
+ *    expected to notice within the wait; not yet measured in a real browser, files-showcase.md):
  *    a drop, and the transfer waits for their next dial, as before;
  *  - still connected, and the transfer not back on a channel since: a stop, and it ends.
  * A connection already gone when the channel closes is a drop at once. The connection is kept open
