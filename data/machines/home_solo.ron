@@ -892,6 +892,44 @@
             stats: [(kind: "power", value: "1,500 W while it heats, none once its air is at 24 C", status: "warn"), (kind: "air", value: "warms the air it stands in, a grow room's or a tent's, else the whole home's, up to 24 C", status: "ok")],
             power: Some(Consumer(watts: 1500.0, priority: 4)),
         ),
+        "heat_pump": (
+            shape: "box", size: (0.925, 0.305, 0.234), color: (0.93, 0.93, 0.91),
+            label: "Heat pump",
+            category: "Life support",
+            // The same heat pump as home.ron's `heat_pump` (2026-10-20), whose comment quotes its
+            // submittal sheet: the Mitsubishi Electric MSZ-FS09NA / MUZ-FS09NA, "Rated Capacity"
+            // "9,600" BTU/H on "Rated Power Input" "620" at 47 F outdoors, "COP at 47°F" "4.54",
+            // and its lower COPs down to -13 F (`heat_cop`, in C). Its heat is its draw times the
+            // COP at the station's air around the home (about 20 C, above the sheet's warmest
+            // point, so 4.54). Not placed in the seed design: built at a workbench
+            // (build_heat_pump) and placed from the Construction page. Flat out it draws 14.9 kWh
+            // a day, about three times the 4.45 this home makes, and gives 1.9 times the space
+            // heater's heat on 41% of its power; charged as electricity like the heater, never its
+            // heat.
+            heats_w: 2814.8,
+            heat_setpoint_c: 24.0,
+            heat_cop: [(-25.0, 1.89), (-20.6, 2.2), (-15.0, 2.2), (-8.3, 2.63), (8.3, 4.54)],
+            stats: [(kind: "power", value: "620 W while it heats, none once its air is at 24 C", status: "warn"), (kind: "air", value: "moves heat in from the ship's air: 2,815 W of heat for its 620 W, up to 24 C", status: "ok")],
+            power: Some(Consumer(watts: 620.0, priority: 4)),
+        ),
+        "wood_stove": (
+            shape: "box", size: (0.664, 0.765, 0.657), color: (0.13, 0.13, 0.14),
+            label: "Wood stove",
+            category: "Life support",
+            // The same wood stove as home.ron's `wood_stove` (2026-10-20), whose comment quotes
+            // and works its figures: an EPA-certified Drolet Escape 1800, "Maximum overall heat
+            // output rate" "44,500 BTU/h (13.04 kW)" at "72 %" (HHV), so 4.07 kg an hour of
+            // air-dried Wood Log, burning 1.094 kg of the home's oxygen for each kilogram; its
+            // carbon dioxide, water and carbon monoxide go up its flue. Its 68 L firebox takes
+            // only Wood Logs, two to a load. Not placed in the seed design: built at a workbench
+            // (build_wood_stove) and placed from the Construction page. It draws no power; at full
+            // it burns about 98 kg of wood and 107 kg of the home's oxygen a day.
+            heats_w: 13040.0,
+            heat_setpoint_c: 24.0,
+            burns_fuel: Some((kg_per_h: 4.07, o2_kg_per_kg: 1.094, fuels: ["wood_log_0"])),
+            stats: [(kind: "fuel", value: "Wood Logs from its box, two to a load: 4.07 kg an hour at full", status: "ok"), (kind: "air", value: "13,040 W of heat into the air it stands in, up to 24 C; its fire burns the home's oxygen", status: "warn")],
+            container_type: Some("stove_firebox"),
+        ),
         "composter": (
             shape: "box", size: (0.7, 0.55, 0.7), color: (0.35, 0.25, 0.14),
             label: "Composter",

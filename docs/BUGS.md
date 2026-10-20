@@ -3987,8 +3987,14 @@ rooms with no grow machine share the home's one air, so a heater in a bedroom wa
 whole home by a few hundredths of a degree; a heater's radiant warmth on a body beside it
 is not modelled; the thermostat is set in data, not from a dial in the game
 (docs/design/in-app-ops.md); heaters can be placed only aboard, not in a shelter built on
-a planet (BUG-153's campfire is the planet side); and `data/hvac.ron`'s other heat makers
-(heat pump, wood stove) have no machine yet. The never-registered `HvacSystem`
+a planet (BUG-153's campfire is the planet side). `data/hvac.ron`'s other heat makers
+have had machines since 2026-10-20 (commit "A heat pump and a wood stove heat the home"):
+`heat_pump` (a Mitsubishi MSZ-FS09NA, 620 W for 2,815 W of heat, its COP off its sheet's
+table at the station air's temperature, charged only its draw) and `wood_stove` (an
+EPA-certified Drolet Escape 1800, 13,040 W on 4.07 kg of Wood Logs an hour from its own
+firebox, which takes only Wood Logs; its fire takes its oxygen from the home's air and its
+exhaust goes up a flue that is not itself modelled), both in both homes' catalogs, built at
+a workbench and placed from the Life support tab. The never-registered `HvacSystem`
 (`src/systems/hvac.rs`), superseded by this, was deleted the same day.
 
 **Review fixes (2026-10-05, the second seam review of the day's merges):**

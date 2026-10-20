@@ -24,6 +24,10 @@
             noise_level_db: 20,
             description: "Resistive ceramic element for small room heating",
         ),
+        // A reference row, not a machine. The heat pump a player builds and places is heat_pump
+        // in data/machines/home.ron and home_solo.ron (2026-10-20): a Mitsubishi Electric
+        // MSZ-FS09NA / MUZ-FS09NA ductless unit, 620 W for 2,815 W of heat (COP 4.54 at 47 F, and
+        // its sheet's lower COPs down to -13 F), its submittal sheet quoted there.
         (
             id: "heat_pump",
             name: "Heat Pump",
@@ -48,6 +52,11 @@
             area_coverage_m2: 30.0,
             description: "Electric or hydronic tubing embedded in floor slab for even heating",
         ),
+        // A reference row, not a machine. The wood stove a player builds and places is wood_stove
+        // in data/machines/home.ron and home_solo.ron (2026-10-20): an EPA-certified Drolet Escape
+        // 1800, 13,040 W of heat on 4.07 kg of Wood Logs an hour from its own firebox, its fire
+        // taking its oxygen from the home's air and its smoke up the flue; its maker's page quoted
+        // and its burn rate worked out there.
         (
             id: "wood_stove",
             name: "Wood Stove",

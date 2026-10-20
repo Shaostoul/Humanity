@@ -215,20 +215,45 @@ pub struct MachineDef {
     /// Spawns a `Co2Scrubber`; needs a `Consumer` role.
     #[serde(default)]
     pub scrubs_co2_kg_day: f32,
-    /// This machine is a space heater (2026-10-05, BUG-155): while it is
-    /// powered it puts up to this many watts of heat into the air it stands in
-    /// (a grow room's or a fruiting tent's, else the home's own air), as much
-    /// as its thermostat needs to hold that air at `heat_setpoint_c`
-    /// (farming::heat, data/garden/humidity.ron THE HEAT). An electric
-    /// resistance heater turns all it draws into heat, so this equals its
-    /// Consumer watts (a data test holds it). 0 = not a heater. Spawns a
-    /// `SpaceHeater`; needs a `Consumer` power role.
+    /// This machine is a space heater (2026-10-05, BUG-155): while it runs it
+    /// puts up to this many watts of heat into the air it stands in (a grow
+    /// room's or a fruiting tent's, else the home's own air), as much as its
+    /// thermostat needs to hold that air at `heat_setpoint_c` (farming::heat,
+    /// data/garden/humidity.ron THE HEAT). 0 = not a heater. Spawns a
+    /// `SpaceHeater`. Three kinds, each held by a data test
+    /// (farming::heat_tests):
+    /// - an electric resistance heater (a `Consumer` power role, no
+    ///   `heat_cop`, no `burns_fuel`) turns all it draws into heat, so this
+    ///   equals its Consumer watts;
+    /// - a heat pump (2026-10-20, `heat_cop`) moves heat in from the air
+    ///   outside the home, so its heat is its Consumer watts times its
+    ///   coefficient of performance; this is that heat at its spec sheet's
+    ///   rating point, and the air step works it out again from the
+    ///   temperature it draws from (`heat_cop`);
+    /// - a stove (2026-10-20, `burns_fuel`) draws no power and runs while its
+    ///   box holds fuel; this is its heat output while it burns at full.
     #[serde(default)]
     pub heats_w: f32,
     /// With `heats_w`: the temperature, C, its thermostat holds the air at;
     /// it does not run while the air is at or above it.
     #[serde(default)]
     pub heat_setpoint_c: f32,
+    /// With `heats_w`, a HEAT PUMP (2026-10-20): its coefficient of
+    /// performance (heat delivered per watt drawn) by the temperature of the
+    /// air it draws its heat from, as `(that air's C, COP)` points ascending,
+    /// from the unit's spec sheet. The air step reads it at the temperature of
+    /// the station's air around the home (`farming::heat`), straight lines
+    /// between the points and the end points' values beyond them. Empty = not
+    /// a heat pump. Spawns a `HeatPump`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub heat_cop: Vec<(f32, f32)>,
+    /// With `heats_w`, a STOVE (2026-10-20): what it burns from its own box
+    /// (`container_type`), how fast, and what the burning takes from the air
+    /// (`FuelBurn`). None = burns nothing. Spawns a `FuelStove` and the
+    /// `BurnsFuels` its box takes only those fuels by
+    /// (`containers::vessel_takes`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub burns_fuel: Option<FuelBurn>,
     /// Typed-container archetype id from `data/containers/types.csv` (v0.728,
     /// "containers show contents"): a grain silo IS a `grain_silo_bin`, the
     /// fuel refinery a `steel_fuel_drum`. Spawns a `Container` ECS component
@@ -281,6 +306,41 @@ pub struct MachineDef {
     /// picture up. Only read for a machine that has a `camera`.
     #[serde(default = "default_camera_px")]
     pub camera_px: (u32, u32),
+}
+
+/// What a stove burns (2026-10-20, `MachineDef::burns_fuel`): the fuel in
+/// its own box, at `kg_per_h` while it gives its full heat (`heats_w`) and in
+/// proportion to the share of the time its thermostat runs it
+/// (`farming::heat`). Each kilogram burned takes `o2_kg_per_kg` of oxygen out
+/// of the air it stands in (the home's, which keeps the oxygen); everything it
+/// burns into goes up its flue, out of the home. The data carries each
+/// figure's source.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct FuelBurn {
+    pub kg_per_h: f32,
+    pub o2_kg_per_kg: f32,
+    /// The item ids (`data/items.csv`) it burns; only these go into its box.
+    pub fuels: Vec<String>,
+}
+
+/// A heat pump's coefficient of performance at `source_c`, the temperature of
+/// the air it draws its heat from (2026-10-20, `MachineDef::heat_cop`): a
+/// straight line between the two points around it, the end point's value
+/// beyond either end (a spec sheet gives no figure past its last test
+/// temperature, so none is made up). None for an empty table.
+pub fn cop_at(table: &[(f32, f32)], source_c: f64) -> Option<f64> {
+    let first = table.first()?;
+    let last = table.last()?;
+    if !(source_c > f64::from(first.0)) {
+        return Some(f64::from(first.1));
+    }
+    if source_c >= f64::from(last.0) {
+        return Some(f64::from(last.1));
+    }
+    table.windows(2).find_map(|w| {
+        let ((ta, ca), (tb, cb)) = ((f64::from(w[0].0), f64::from(w[0].1)), (f64::from(w[1].0), f64::from(w[1].1)));
+        (source_c <= tb).then(|| ca + (cb - ca) * (source_c - ta) / (tb - ta).max(1e-9))
+    })
 }
 
 /// The default camera render size (see `MachineDef::camera_px`).
@@ -490,12 +550,14 @@ impl MachineDef {
         }
     }
 
-    /// The fuels this machine's engine is built to burn (BUG-154): a
-    /// generator's named `fuels`, item ids from `data/items.csv`. Empty for
-    /// anything that names none, which then burns nothing.
+    /// The fuels this machine is built to burn (BUG-154): a generator's named
+    /// `fuels`, or a stove's (`burns_fuel`, 2026-10-20), item ids from
+    /// `data/items.csv`. Empty for anything that names none, which then burns
+    /// nothing.
     pub fn fuels(&self) -> &[String] {
-        match &self.power {
-            Some(MachinePower::Generator { fuels, .. }) => fuels.as_slice(),
+        match (&self.power, &self.burns_fuel) {
+            (Some(MachinePower::Generator { fuels, .. }), _) => fuels.as_slice(),
+            (_, Some(b)) => b.fuels.as_slice(),
             _ => &[],
         }
     }
@@ -3107,6 +3169,8 @@ mod tests {
             scrubs_co2_kg_day: 0.0,
             heats_w: 0.0,
             heat_setpoint_c: 0.0,
+            heat_cop: Vec::new(),
+            burns_fuel: None,
             level_gauge: false,
             container_type: None,
             provides: None,

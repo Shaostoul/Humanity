@@ -355,6 +355,13 @@ wind_turbine_small_0,Small Wind Turbine,machine,power,aluminum,20.0,1,300,Roofto
 water_pump_0,Water Pump,machine,fluid,steel,8.0,1,200,Electric water extraction pump,solid,2.55
 air_filter_unit_0,Air Filter Unit,machine,climate,steel,5.0,1,150,Powered air purification system,solid,1.59
 heater_0,Heater,machine,climate,steel,10.0,1,200,Electric space heater,solid,3.18
+# The heat pump and the wood stove (2026-10-20), what places the heat_pump and wood_stove machines of
+# data/machines/home.ron, where their figures are quoted. heat_pump_0 is the Mitsubishi Electric MSZ-FS09NA
+# indoor unit and its MUZ-FS09NA outdoor unit, "29 [13.5]" and "82 [37]" lbs [kg] on its submittal sheet:
+# 50.5 kg. wood_stove_0 is the Drolet Escape 1800, "Shipping Weight" "368 lb (167 kg)" on Drolet's page.
+# volume_l at the 3.14 kg a litre the machines here carry.
+heat_pump_0,Heat Pump,machine,climate,steel,50.5,1,250,Ductless air-source heat pump: 2.8 kW of heat on 620 W,solid,16.08
+wood_stove_0,Wood Stove,machine,climate,steel,167.0,1,300,EPA-certified wood stove of 13 kW with a flue,solid,53.18
 cooler_0,Cooler,machine,climate,aluminum,8.0,1,200,Evaporative air cooler unit,solid,7.41
 stove_0,Stove,machine,cooking,steel,20.0,1,300,Four-burner cooking range,solid,6.37
 oven_0,Oven,machine,cooking,steel,30.0,1,350,Enclosed baking and roasting chamber,solid,9.55

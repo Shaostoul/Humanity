@@ -384,8 +384,8 @@ practice from the physics above:
 
 The game models one kind of heat in real detail: the heat of your own
 body, and what the weather, your clothes, a shelter and a campfire do to
-it. It models one more simply: a space heater's heat in the air it stands
-in aboard.
+it. It models one more simply: the heat a space heater, a heat pump or a
+wood stove puts into the air it stands in aboard.
 
 - **Your body's heat balance.** The body heat system is based on a
   published model of human temperature regulation, the two-node model
@@ -447,6 +447,17 @@ in aboard.
   flat out all the while. Your body feels the air of the grow room you
   stand in, or the home's own air everywhere else. [Heating a Home
   Safely](/library#heating-a-home-safely) has the numbers.
+- **A heat pump moves heat; a wood stove makes it.** Both warm the air
+  they stand in the same way, on the same thermostat. A heat pump you
+  build draws 620 W and puts 2,815 W of heat into that air: the rest it
+  moves in from the ship's air outside your home, which is what a heat
+  pump does, so it gives about four and a half times the heat it draws.
+  A wood stove draws no power at all. It burns the Wood Logs in its own
+  box, about 4 kg an hour at its full 13,040 W, and stops when the box is
+  empty. Its fire takes its oxygen from your home's sealed air, and its
+  smoke goes up the flue, out of the home
+  (`src/systems/farming/heat.rs`; the numbers and their sources are in
+  `data/machines/home.ron`).
 - **Two modes.** Settings > Gameplay > Body heat. Forgiving, the default,
   runs the same physics but your temperature swings half as far from
   normal, so harm waits until the real balance would have you below about

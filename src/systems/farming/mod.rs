@@ -2481,11 +2481,15 @@ impl System for FarmingSystem {
         air_step.water_ok = water_available && irrigation_on;
         air_step.hours = air_hours;
         air_step.breathed = breathed;
+        // What each stove's box holds (2026-10-20, heat.rs): the step burns it,
+        // and what burned leaves the boxes below.
+        air_step.stove_fuel_kg = heat::stove_fuel_kg(world, item_registry);
         let mut home_air = world
             .get::<&mut crate::ecs::components::SoilMemory>(memory)
             .map(|mut m| std::mem::take(&mut m.home_air))
             .unwrap_or_default();
         let air_out = humidity::step_rooms(world, air_data, life, pest_data, &air_map, &mut room_air, &mut home_air, &air_step);
+        heat::burn_stoves(world, item_registry, &air_out.stove_burned_kg);
         for n in air_out.notices {
             push_notice(data, n);
         }

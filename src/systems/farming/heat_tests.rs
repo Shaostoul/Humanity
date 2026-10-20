@@ -493,9 +493,13 @@ fn the_greenhouse_quests_heater_warms_a_grow_rooms_air() {
         let Some(crate::machines::MachinePower::Consumer { watts, .. }) = def.power else { panic!("{file}: the heater is a Consumer") };
         assert_eq!(def.heats_w, watts, "{file}: a resistance heater's heat is its draw");
         assert!(f64::from(def.heat_setpoint_c) > d.room_temp_c, "{file}: set above the rooms' own {} C", d.room_temp_c);
-        // Nothing else in the catalog heats.
+        // Nothing else in the catalog heats but the heat pump and the wood
+        // stove (2026-10-20), each the kind its data says it is.
         for (id, other) in &home.catalog {
-            assert_eq!(other.heats_w > 0.0, id == "heater", "{file}: `{id}` heats only if it is the heater");
+            let heater = ["heater", "heat_pump", "wood_stove"].contains(&id.as_str());
+            assert_eq!(other.heats_w > 0.0, heater, "{file}: `{id}` heats only if it is one of the three heaters");
+            assert_eq!(!other.heat_cop.is_empty(), id == "heat_pump", "{file}: `{id}`: only the heat pump has a COP");
+            assert_eq!(other.burns_fuel.is_some(), id == "wood_stove", "{file}: `{id}`: only the wood stove burns fuel");
         }
         // Spawned as the engine spawns it, in a powered grow room.
         let data = one_room("room-a", 2.0, 2.0);
@@ -521,4 +525,316 @@ fn the_greenhouse_quests_heater_warms_a_grow_rooms_air() {
             humidity::room_temp_at(&d, r.warmed_k)
         );
     }
+}
+
+// -- The heat pump and the wood stove (2026-10-20) ------------------------------
+
+/// The shipped catalog `file`'s machine `id`.
+fn shipped(file: &str, id: &str) -> crate::machines::MachineDef {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let home = crate::machines::MachineHome::load(&root.join("data/machines").join(file)).unwrap_or_else(|| panic!("{file} parses"));
+    home.catalog.get(id).unwrap_or_else(|| panic!("{file} catalogs `{id}`")).clone()
+}
+
+/// The shipped container registry, which gives the stove its box.
+fn shipped_containers() -> crate::systems::inventory::containers::ContainerRegistry {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+    let read = |rel: &str| std::fs::read(root.join(rel)).unwrap_or_else(|_| panic!("data/{rel}"));
+    crate::systems::inventory::containers::ContainerRegistry::from_bytes(&read("containers/types.csv"), &read("containers/content_classes.ron"))
+        .expect("container types")
+        .with_contact_rules(&read("containers/materials.csv"), &read("containers/content_traits.ron"), &read("food/item_profiles.ron"))
+        .expect("contact rules")
+}
+
+/// home.ron's `machine` placed at `at` and spawned the way the engine spawns
+/// it, a stove with its box.
+#[cfg(feature = "native")]
+fn spawn_shipped(world: &mut hecs::World, machine: &str, id: &str, at: [f32; 3]) -> hecs::Entity {
+    let def = shipped("home.ron", machine);
+    let inst = crate::machines::MachineInstance {
+        id: id.into(),
+        machine: machine.into(),
+        room: String::new(),
+        offset: (at[0], at[1], at[2]),
+        rotation: 0.0,
+        zone: "home".into(),
+        screen_source: None,
+    };
+    let empty = std::collections::HashMap::new();
+    let reg = shipped_containers();
+    crate::engine::home_spawn::spawn_home_machine_entity(world, &inst, &def, &empty, &empty, None, Some(&reg));
+    world
+        .query::<&crate::ecs::components::MachineInstanceId>()
+        .iter()
+        .find(|(_, m)| m.0 == id)
+        .map(|(e, _)| e)
+        .unwrap_or_else(|| panic!("{machine} spawned"))
+}
+
+/// Put `n` Wood Logs into the stove's box through the box's own Store rule.
+#[cfg(feature = "native")]
+fn load_logs(world: &mut hecs::World, data: &DataStore, stove: hecs::Entity, n: u32) {
+    use crate::systems::inventory::containers::{Container, StoreOutcome};
+    let items = data.get::<crate::systems::inventory::ItemRegistry>("item_registry").unwrap();
+    let reg = shipped_containers();
+    let mut c = world.get::<&mut Container>(stove).expect("the stove has its box");
+    let out = reg.try_store(&mut c, "wood_log_0", items.class_for("wood_log_0"), items.volume_for("wood_log_0"), n);
+    assert_eq!(out, StoreOutcome::Stored { quantity: n }, "the box takes {n} Wood Logs");
+}
+
+/// The wood still in a stove's box, kg: its logs less what has burned of the
+/// one at the front.
+fn wood_kg(world: &hecs::World, stove: hecs::Entity) -> f64 {
+    let c = world.get::<&crate::systems::inventory::containers::Container>(stove).unwrap();
+    let s = world.get::<&crate::ecs::components::FuelStove>(stove).unwrap();
+    let log = if c.current_content_item.as_deref() == Some("wood_log_0") { 8.0 } else { 0.0 };
+    f64::from(c.current_qty) * log - s.burned_kg
+}
+
+/// The family home's greenhouse, 45 x 3 x 22 m, with one grow bed: by hand
+/// (the second test above) it loses 1,392 m2 x 6.24 W/(m2 K) through its
+/// walls and ceiling and half its 2,970 m3 an hour, 9,187.5 W a degree, so
+/// even the wood stove's 13,040 W never brings it to 24 C and it burns flat
+/// out there.
+fn greenhouse_store() -> DataStore {
+    let greenhouse = GrowRoom { id: "room-greenhouse".into(), name: "Greenhouse".into(), min: [0.0, 0.0, 0.0], max: [45.0, 3.0, 22.0], ..Default::default() };
+    let bed = GrowPlot { id: "bed_a".into(), pos: [20.0, 0.0, 10.0], ..Default::default() };
+    store(vec![greenhouse], vec![bed])
+}
+
+fn greenhouse_w_k() -> f64 {
+    6.24 * (2.0 * (45.0 + 22.0) * 3.0 + 45.0 * 22.0) + air_j_m3_k(21.0) * 0.5 * 2970.0 / 3600.0
+}
+
+/// A HEAT PUMP PUTS ITS COP TIMES ITS DRAW INTO THE AIR, AND IS CHARGED ONLY
+/// ITS DRAW (2026-10-20). home.ron's heat pump (the Mitsubishi MSZ-FS09NA:
+/// 620 W, its sheet's COP 4.54 at 47 F, 8.3 C), spawned the way the engine
+/// spawns it in the 300 m3 grow room of the first test, with the station's
+/// air around the home at its own 19.85 C: warmer than the sheet's warmest
+/// point, so its COP is 4.54. By hand its heat is 620 x 4.54 = 2,814.8 W, and
+/// the room settles 2,814.8 / 1,423.45 = 1.977 C over its own 21 C, short of
+/// its 24 C, so flat out: it draws its 620 W, not the 2,814.8 W it gives.
+/// The COP follows the sheet's table as the air it draws from cools: 2.63 at
+/// -8.3 C (17 F), 3.585 at 0 C, its last point's 1.89 below -25 C. And the
+/// bill is its draw: the save keeps 620 W for it (`heater_draws`), and the
+/// family home with it placed is 620 W a day-average worse off, not 2,814.8,
+/// whether the time away charges its saved draw or, with none saved, the
+/// meter's full draw (`day_power_balance`, both Ship life support modes).
+///
+/// Seen red (2026-10-20), each mutation alone: with the COP left out
+/// (`heat::heaters` reading the heat pump as a resistance heater, its heat
+/// its draw): "the room warmed 0.43556229264768775 K, by hand
+/// 1.9774528086205028 K"; with the air step writing its heat as its draw
+/// (`pc.draw_watts` from `heat_w`, heat charged as electricity): "it draws
+/// its 620 W, not its heat: 2814.8"; and with the spawn giving it its heat
+/// as its draw (`SpaceHeater::watts` = `heats_w`, so 4.54 x 2,814.8 W, which
+/// holds the room at 24 C): "the room warmed 3 K, by hand 1.9774528086205028
+/// K".
+#[cfg(feature = "native")]
+#[test]
+fn a_heat_pump_delivers_its_cop_times_its_draw_and_is_charged_only_its_draw() {
+    let data = one_room("room-a", 10.0, 3.0);
+    let mut world = hecs::World::new();
+    let pump = spawn_shipped(&mut world, "heat_pump", "heat_pump_t", [5.0, 0.5, 5.0]);
+    let mut sys = FarmingSystem::new();
+    run(&mut sys, &mut world, &data, 30, 5.0);
+    let g = 6.24 * (2.0 * (10.0 + 10.0) * 3.0 + 10.0 * 10.0) + air_j_m3_k(21.0) * 0.5 * 300.0 / 3600.0;
+    let want = 620.0 * 4.54 / g;
+    let r = room(&world, "room-a");
+    assert!((r.warmed_k - want).abs() < 1e-6, "the room warmed {} K, by hand {want} K", r.warmed_k);
+    assert_eq!(r.heater, 1.0, "short of its 24 C, so flat out");
+    assert!((draw(&world, pump) - 620.0).abs() < 1e-3, "it draws its 620 W, not its heat: {}", draw(&world, pump));
+    // The Garden panel says both.
+    world.spawn((crop(&data, "lettuce", "bed_a", 0),));
+    let line = humidity::GuiView::new(&world, &data).areas.iter().find(|(a, _, _)| a == "bed_a").map(|l| l.1.clone()).unwrap();
+    assert!(line.contains("heat pump flat out, 2,815 W of heat on 620 W, the air at 23.0 °C"), "{line}");
+
+    // Its COP falls with the air it draws from, along the sheet's table.
+    let d = air();
+    let mut map = AirMap::new(&world, &data, &d);
+    for (source_c, cop) in [(19.85, 4.54), (8.3, 4.54), (0.0, 2.63 + (4.54 - 2.63) * 8.3 / 16.6), (-8.3, 2.63), (-15.0, 2.2), (-30.0, 1.89)] {
+        map.home_own_c = source_c;
+        let h = super::heat::heaters(&world, &map, &Default::default());
+        assert_eq!(h.len(), 1);
+        assert!((h[0].heat_w - 620.0 * cop).abs() < 1e-3, "drawing from {source_c} C: {} W of heat, by the sheet {} W", h[0].heat_w, 620.0 * cop);
+        assert_eq!((h[0].watts, h[0].kind), (620.0, super::heat::HeaterKind::HeatPump), "its draw stays 620 W");
+    }
+
+    // The bill is its draw, never its heat.
+    let saved = crate::systems::crafting::away::heater_draws(&world);
+    assert_eq!(saved.get("heat_pump_t").copied(), Some(620.0), "the save keeps its draw: {saved:?}");
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let mut home = crate::machines::MachineHome::load(&root.join("data/machines/home.ron")).expect("home.ron parses");
+    let without = crate::systems::crafting::away::day_power_balance(&home, &Default::default());
+    home.instances.push(crate::machines::MachineInstance {
+        id: "heat_pump_t".into(),
+        machine: "heat_pump".into(),
+        room: String::new(),
+        offset: (5.0, 0.5, 5.0),
+        rotation: 0.0,
+        zone: "home".into(),
+        screen_source: None,
+    });
+    let meter = crate::systems::crafting::away::day_power_balance(&home, &Default::default());
+    let away = crate::systems::crafting::away::day_power_balance(&home, &saved);
+    for i in 0..2 {
+        assert!((f64::from(without[i] - meter[i]) - 620.0).abs() < 0.05, "mode {i}: the meter charges it {} W", without[i] - meter[i]);
+        assert!((f64::from(without[i] - away[i]) - 620.0).abs() < 0.05, "mode {i}: the time away charges it {} W", without[i] - away[i]);
+    }
+    assert_eq!(home.catalog["heat_pump"].average_load_watts(crate::machines::MeterBasis::default(), false), 620.0);
+}
+
+/// A WOOD STOVE WARMS THE AIR WHILE IT HAS WOOD AND STOPS WHEN ITS BOX IS EMPTY
+/// (2026-10-20). home.ron's wood stove (the Drolet Escape 1800: 13,040 W of
+/// heat on 4.07 kg of wood an hour), spawned with its box the way the engine
+/// spawns it, one Wood Log (8 kg) stored in the box, in the family-sized
+/// greenhouse. It has no power and needs none. By hand: flat out (it cannot
+/// bring 9,187.5 W a degree to 24 C), the greenhouse settles 13,040 / 9,187.5
+/// = 1.419 C over within an hour, when 4.07 kg of the log has burned and the
+/// log is still in the box. The log is gone at 8 / 4.07 = 1.966 hours; by 3
+/// hours the box is empty, the stove has stopped, the air has cooled back to
+/// its own temperature, and the Garden panel says why.
+///
+/// Seen red (2026-10-20) with `heat::heaters` reading no fuel in any box (a
+/// stove never lit): "the greenhouse warmed 0 K, by hand 1.4193214327218364
+/// K"; and with the step's burn never taken out of the box
+/// (`heat::burn_stoves` not called, so it burned forever on one log): "an
+/// hour burned 4.07 kg: 8 kg left".
+#[cfg(feature = "native")]
+#[test]
+fn a_wood_stove_warms_the_air_while_it_has_wood_and_stops_when_its_box_is_empty() {
+    let data = greenhouse_store();
+    let mut world = hecs::World::new();
+    let stove = spawn_shipped(&mut world, "wood_stove", "wood_stove_t", [20.0, 0.5, 10.0]);
+    assert!(world.get::<&PowerConsumer>(stove).is_err(), "a wood stove draws no power");
+    load_logs(&mut world, &data, stove, 1);
+    let mut sys = FarmingSystem::new();
+    run(&mut sys, &mut world, &data, 10, 5.0);
+    let want = 13040.0 / greenhouse_w_k();
+    let r = room(&world, "room-greenhouse");
+    assert!((r.warmed_k - want).abs() < 1e-3, "the greenhouse warmed {} K, by hand {want} K", r.warmed_k);
+    assert_eq!(r.heater, 1.0, "flat out");
+    // 4.07 as the data's f32 carries it.
+    let rate = f64::from(4.07_f32);
+    assert!((wood_kg(&world, stove) - (8.0 - rate)).abs() < 1e-9, "an hour burned 4.07 kg: {} kg left", wood_kg(&world, stove));
+    assert_eq!(world.get::<&crate::systems::inventory::containers::Container>(stove).unwrap().current_qty, 1, "the log is still burning");
+    world.spawn((crop(&data, "lettuce", "bed_a", 0),));
+    let line = |world: &hecs::World| humidity::GuiView::new(world, &data).areas.iter().find(|(a, _, _)| a == "bed_a").map(|l| l.1.clone()).unwrap();
+    let burning = line(&world);
+    assert!(burning.contains("stove flat out, 13,040 W of heat from 4.1 kg of wood an hour"), "{burning}");
+
+    run(&mut sys, &mut world, &data, 20, 5.0);
+    {
+        let c = world.get::<&crate::systems::inventory::containers::Container>(stove).unwrap();
+        assert!(c.current_qty == 0 && c.current_content_item.is_none(), "after 3 hours the box still holds {:?} x {}", c.current_content_item, c.current_qty);
+    }
+    assert_eq!(wood_kg(&world, stove), 0.0);
+    let r = room(&world, "room-greenhouse");
+    assert!(r.warmed_k < 1e-3, "with no wood the greenhouse cools back: {} K over", r.warmed_k);
+    assert_eq!(r.heater, 0.0, "the stove is out");
+    let out = line(&world);
+    assert!(out.contains("stove off (no wood), the air at 21.0 °C"), "{out}");
+}
+
+/// A WOOD STOVE BURNS THE SAME WOOD AT 30 AND AT 240 FRAMES A SECOND
+/// (2026-10-20), the way a fire does (src/systems/fire.rs, BUG-164's note):
+/// the wood stove with two Wood Logs (16 kg) in the greenhouse, run three
+/// game hours at 30 frames a second and at 240, burns the same wood to a
+/// billionth of a kilogram, 3 x 4.07 = 12.21 kg by hand, and warms the air
+/// the same; run on to five hours, both boxes are empty.
+///
+/// Seen red (2026-10-20) with the box's partial log kept in f32
+/// (`FuelStove::burned_kg` added to as f32 in `heat::burn_stoves`, the way the
+/// generators' drum accumulator works): "30 fps left 3.7900547981262207 kg,
+/// 240 fps 3.7905921936035156 kg"; and with no fuel read from any box: "three
+/// hours burned 12.21 kg: 16 kg left".
+#[cfg(feature = "native")]
+#[test]
+fn a_wood_stove_burns_the_same_wood_at_30_and_240_frames_a_second() {
+    let mut ends = Vec::new();
+    for fps in [30.0_f32, 240.0] {
+        let data = greenhouse_store();
+        let mut world = hecs::World::new();
+        let stove = spawn_shipped(&mut world, "wood_stove", "wood_stove_t", [20.0, 0.5, 10.0]);
+        load_logs(&mut world, &data, stove, 2);
+        let mut sys = FarmingSystem::new();
+        // 72 game seconds a real second: three game hours are 150 real seconds.
+        let ticks = (150.0 * fps).round() as usize;
+        run(&mut sys, &mut world, &data, ticks, 1.0 / fps);
+        let at3 = (wood_kg(&world, stove), room(&world, "room-greenhouse").warmed_k);
+        run(&mut sys, &mut world, &data, ticks * 2 / 3, 1.0 / fps);
+        let c = world.get::<&crate::systems::inventory::containers::Container>(stove).unwrap();
+        ends.push((at3, c.current_qty, wood_kg(&world, stove)));
+    }
+    let ((wood30, warm30), qty30, end30) = ends[0];
+    let ((wood240, warm240), qty240, end240) = ends[1];
+    assert!((wood30 - wood240).abs() < 1e-9, "30 fps left {wood30} kg, 240 fps {wood240} kg");
+    assert!((wood30 - (16.0 - 3.0 * 4.07)).abs() < 1e-5, "three hours burned 12.21 kg: {wood30} kg left");
+    assert!((warm30 - warm240).abs() < 1e-6, "the air warmed {warm30} K at 30 fps, {warm240} K at 240");
+    assert_eq!((qty30, qty240, end30, end240), (0, 0, 0.0, 0.0), "five hours burn both boxes empty");
+}
+
+/// A STOVE BURNS THE HOME'S OXYGEN AND SENDS ITS CARBON DIOXIDE UP THE FLUE
+/// (2026-10-20). Two sealed 1,000 m3 homes with nobody breathing in them and
+/// the life-support data, one with the wood stove and a Wood Log in its own
+/// air: after an hour the stove's home has lost, beyond the other, exactly
+/// 1.094 kg of oxygen for each kilogram it burned (the oxygen dry wood's
+/// carbon and hydrogen take, at 20% moisture: data/machines/home.ron), and
+/// counts it in the day's oxygen used (flat out, 4.07 x 1.094 x 24 = 106.9 kg
+/// a day: it cannot warm 3,447 W a degree to 24 C); its carbon dioxide and
+/// water are not in the home's air, which differs from the other's only by
+/// the leak's share of a warmer air (under a millionth of a gram a cubic
+/// metre).
+///
+/// Seen red (2026-10-20) with the step's oxygen never taken from the home's
+/// air: "the stove's home lost 0.000002104627526477998 g/m3 more oxygen, by
+/// its burn 4.452580114049909 g/m3" (that 2.1 millionths is the leak's share
+/// of the warmer air); and with the fire's carbon dioxide put into the home's
+/// air (1.466 kg for each kilogram of wood): "no carbon dioxide in the home's
+/// air: 6.698622774424283 against 0.7320045079894062"; and with the stove's
+/// share not kept apart (`HomeAirState::stove_o2_kg_day` left 0), the Garden
+/// panel's day line credited the fire to breathing: "the crops give out 0.0
+/// kg of oxygen and 106.9 kg is breathed in, so the home's oxygen loses
+/// 106.86 kg a day". The Garden panel's own heater line reads, green: "Home
+/// air: stove flat out, 13,040 W of heat from 4.1 kg of wood an hour, the air
+/// at 23.6 °C, short of the 24 °C it is set to".
+#[cfg(feature = "native")]
+#[test]
+fn a_stove_burns_the_homes_oxygen_and_sends_its_carbon_dioxide_up_the_flue() {
+    use crate::systems::life_support::{LifeSupportData, DATA_KEY, LIFE_SUPPORT_RON};
+    let mut homes = Vec::new();
+    for with_stove in [false, true] {
+        let mut data = store(Vec::new(), Vec::new());
+        data.insert(DATA_KEY, LifeSupportData::parse(LIFE_SUPPORT_RON).expect("life_support.ron parses"));
+        let mut world = hecs::World::new();
+        world.spawn((HomeAir { metabolic_kcal_per_day: 0.0, ..Default::default() }, EnclosedSpace::new_sealed(1000.0)));
+        let stove = with_stove.then(|| {
+            let s = spawn_shipped(&mut world, "wood_stove", "wood_stove_t", [50.0, 0.5, 50.0]);
+            load_logs(&mut world, &data, s, 1);
+            s
+        });
+        let mut sys = FarmingSystem::new();
+        run(&mut sys, &mut world, &data, 10, 5.0);
+        let burned = stove.map_or(0.0, |s| 8.0 - wood_kg(&world, s));
+        let panel = humidity::GuiView::new(&world, &data).home.into_iter().map(|(l, _)| l).collect::<Vec<_>>().join(" / ");
+        homes.push((memory(&world).home_air, burned, panel));
+    }
+    let ((plain, _, plain_panel), (stoved, burned, panel)) = (homes[0].clone(), homes[1].clone());
+    // The Garden panel's day line says the fire burned it, not that it was breathed.
+    assert!(panel.contains("0.0 kg is breathed in and 106.9 kg burned by the stove"), "{panel}");
+    assert!(!plain_panel.contains("stove"), "{plain_panel}");
+    // The data's figures, as its f32 carries them.
+    let (rate, o2_per_kg) = (f64::from(4.07_f32), f64::from(1.094_f32));
+    assert!((burned - rate).abs() < 1e-9, "flat out, an hour burned {burned} kg");
+    let lost = plain.o2_g_m3 - stoved.o2_g_m3;
+    let by_burn = burned * o2_per_kg * 1000.0 / 1000.0;
+    assert!((lost - by_burn).abs() < 1e-3, "the stove's home lost {lost} g/m3 more oxygen, by its burn {by_burn} g/m3");
+    assert!(
+        (stoved.o2_used_kg_day - plain.o2_used_kg_day - rate * o2_per_kg * 24.0).abs() < 1e-6,
+        "the day's oxygen used counts the fire: {} kg a day more",
+        stoved.o2_used_kg_day - plain.o2_used_kg_day
+    );
+    assert!((stoved.co2_g_m3 - plain.co2_g_m3).abs() < 1e-6, "no carbon dioxide in the home's air: {} against {}", stoved.co2_g_m3, plain.co2_g_m3);
+    assert!((stoved.vapour_g_m3 - plain.vapour_g_m3).abs() < 1e-6, "nor the fire's water: {} against {}", stoved.vapour_g_m3, plain.vapour_g_m3);
+    assert!(stoved.warmed_k > 3.0, "and it warmed the home: {} K", stoved.warmed_k);
 }

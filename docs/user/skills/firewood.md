@@ -819,6 +819,38 @@ a bottom layer that has been wet for three years and is now half compost.
 - **A round will not split no matter how hard you hit it.** There is a
   knot in your line. Move the line rather than the effort.
 
+## How the game models it
+
+Firewood in the game is the Wood Log, an 8 kg pine round
+(`data/items.csv`). It burns in two places: a campfire on a planet's
+ground, and a wood stove you build and place in your home aboard
+([Heating a Home Safely](heating_a_home_safely.md) has the stove's
+recipe and what its heat does).
+
+- **Every log is air-dried firewood.** The game does not track how wet a
+  log is, its species or how long it has seasoned, so everything this
+  guide says about moisture and density has no effect in the game. The
+  stove burns each log as wood at the Fuel Value Calculator's 20 percent
+  moisture: 13.76 million Btu per ton gross, 16.0 MJ a kilogram.
+- **The stove's burn rate is worked from that.** At its full 13,040 W of
+  heat and its maker's 72 percent efficiency it needs 65.2 MJ an hour of
+  the wood's gross heat, which is 4.07 kg of it, 3.26 kg dry. Two logs
+  fill its firebox, about four hours at full; the firebox takes Wood Logs
+  and nothing else (`data/machines/home.ron`, `wood_stove`).
+- **Its fire takes oxygen, and its smoke goes up the flue.** The stove
+  takes the oxygen it burns out of your home's sealed air, about 1.1 kg
+  for each kilogram of wood, worked from dry wood's 50 percent carbon,
+  6 percent hydrogen and 44 percent oxygen (the Forest Products
+  Laboratory's "Cell wall chemistry", 2005). Its carbon dioxide, water,
+  smoke and carbon monoxide leave through the flue, so none of them reach
+  the home's air.
+- **Not in the game:** creosote and chimney fires, a flue that blocks or
+  backdrafts into the room, carbon monoxide from a starved fire, the
+  air a stove pulls from a tight house, wood smoke as a health problem,
+  burn bans, ash, and the work of cutting, splitting, stacking and
+  seasoning. Those are this guide's real lessons, and they are yours to
+  learn outside.
+
 ## You own this when
 
 - You can say how many cords your house needs for a winter, and you
@@ -1013,6 +1045,11 @@ our own words.
   and slightly less than fuel oil; heating stoves the most common main
   equipment and fireplaces the most common secondary; 2012 survey data).
   https://www.eia.gov/todayinenergy/detail.php?id=15431
+- USDA Forest Service, Forest Products Laboratory. Rowell, R. M., and
+  others, *Cell wall chemistry*, 2005 (dry wood's elemental composition,
+  about 50 percent carbon, 6 percent hydrogen and 44 percent oxygen, which
+  the game's stove uses for the oxygen its fire burns; read 20 October
+  2026). https://research.fs.usda.gov/treesearch/22043
 
 ### State agencies, cited as the authority and restated in our own words
 
@@ -1058,6 +1095,10 @@ or reproduced here.
   their uses and their status, and
   `data/locales/silverdale_wa/climate.json` for the monthly precipitation
   normals quoted here, which come from NOAA NCEI station USC00450872.
+- `wood_stove` in `data/machines/home.ron` for the game's wood stove: its
+  maker's figures, its burn rate and oxygen worked out, and what it leaves
+  out; `src/systems/farming/heat.rs` for the model, and
+  `src/systems/farming/heat_tests.rs` for the tests that measure it.
 
 ### Labelled in the text as rules of thumb or arithmetic, not as sourced values
 

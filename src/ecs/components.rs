@@ -752,6 +752,10 @@ pub struct HomeAirState {
     /// at the last step.
     #[serde(default)]
     pub heater: f64,
+    /// The oxygen the stoves' fires took out of it at the last step, kg a day
+    /// (2026-10-20, `farming::heat`), part of `o2_used_kg_day`.
+    #[serde(default)]
+    pub stove_o2_kg_day: f64,
 }
 
 /// One soil unit's pH (2026-09-26): what it is now, and what is still
@@ -1244,18 +1248,49 @@ pub struct Humidifier {
     pub watts: f32,
 }
 
-/// A space heater (2026-10-05, BUG-155, `MachineDef::heats_w`): while its
-/// `PowerConsumer` is enabled it puts up to `heat_w` watts of heat into the
-/// air its `Transform` stands in (a grow room's or a fruiting tent's, else the
-/// home's own air). Its thermostat runs it for the share of the time that
-/// holds that air at `setpoint_c`, and off above it (`farming::heat`); it
-/// draws `watts` for that share. An electric resistance heater turns every
-/// watt it draws into heat, so its `heat_w` is its `watts`.
+/// A space heater (2026-10-05, BUG-155, `MachineDef::heats_w`): while it
+/// runs it puts up to `heat_w` watts of heat into the air its `Transform`
+/// stands in (a grow room's or a fruiting tent's, else the home's own air).
+/// Its thermostat runs it for the share of the time that holds that air at
+/// `setpoint_c`, and off above it (`farming::heat`); it draws `watts` for that
+/// share. An electric resistance heater runs while its `PowerConsumer` is
+/// enabled and turns every watt it draws into heat, so its `heat_w` is its
+/// `watts`. With a `HeatPump` its heat is its watts times its coefficient of
+/// performance; with a `FuelStove` it draws no power (`watts` 0) and runs
+/// while its box holds fuel (2026-10-20).
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
 pub struct SpaceHeater {
     pub heat_w: f32,
     pub watts: f32,
     pub setpoint_c: f32,
+}
+
+/// A heat pump (2026-10-20, `MachineDef::heat_cop`), beside its
+/// `SpaceHeater`: the heat it puts into the air it stands in is the power it
+/// draws times its coefficient of performance, read from this table at the
+/// temperature of the air it takes the heat from (`machines::cop_at`,
+/// `farming::heat`). Its draw is charged as electricity, never its heat.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct HeatPump {
+    /// (source air C, COP), ascending.
+    pub cop_by_source_c: Vec<(f32, f32)>,
+}
+
+/// A stove (2026-10-20, `MachineDef::burns_fuel`), beside its `SpaceHeater`
+/// (which draws no power), its `Container` (its box) and the `BurnsFuels` its
+/// box takes only those fuels by. It runs while its box holds fuel, burning
+/// `kg_per_h` at its full heat and in proportion to the share of the time its
+/// thermostat runs it, and each kilogram takes `o2_kg_per_kg` of oxygen out of
+/// the home's air (`farming::heat`). `burned_kg` is how much of the piece at
+/// the front of its box has burned: a whole piece leaves the box as this
+/// passes its mass, so the box counts the pieces not yet burned through. It is
+/// kept in f64 and changed exactly, so the same game hours burn the same wood
+/// at any frame rate.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
+pub struct FuelStove {
+    pub kg_per_h: f32,
+    pub o2_kg_per_kg: f32,
+    pub burned_kg: f64,
 }
 
 /// An air handler (2026-09-26, `MachineDef::dehumidifies_m3_h`, ship life

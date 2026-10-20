@@ -438,7 +438,13 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
   gasoline, Refined Fuel retired); the refinery's drum accepts any liquid (DONE 2026-10-20,
   c4bb04a13: the drum is its crude-oil feed, takes only what its recipe runs on, and its
   card says why); campfire light (point lights in the celestial pass); heaters aboard only, and
-  data/hvac.ron's heat pump and wood stove have no machine; inside survey regions without
+  data/hvac.ron's heat pump and wood stove have no machine (DONE 2026-10-20, commit "A heat
+  pump and a wood stove heat the home": heat_pump, a Mitsubishi MSZ-FS09NA, 620 W for 2,815 W
+  of heat, its COP off its sheet's table, charged only its draw; wood_stove, an EPA-certified
+  Drolet Escape 1800, 13,040 W on 4.07 kg of Wood Logs an hour from a firebox that takes only
+  Wood Logs, its fire taking the home's oxygen and venting up an unmodelled flue; both built at
+  a workbench and placed from the Life support tab; heaters are still aboard only); inside
+  survey regions without
   terrain tiles the ground draws at 54 m triangles while buildings stand on the finest
   ground (BUG-156's note); far trees should re-ground on the patch drawn under them;
   src/systems/fire.rs takes fire damage per frame in f32 (BUG-164's note; DONE 2026-10-20,

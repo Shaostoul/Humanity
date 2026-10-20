@@ -930,6 +930,9 @@ pub struct AirStep {
     /// The home has water for the garden (the humidifiers may run).
     pub water_ok: bool,
     pub hours: f64,
+    /// The fuel in each stove's box at the step's start, kg, by entity
+    /// (2026-10-20, `heat::stove_fuel_kg`). A stove not listed has none.
+    pub stove_fuel_kg: HashMap<hecs::Entity, f64>,
 }
 
 /// What one air step did, for the caller to bill and to say.
@@ -943,6 +946,12 @@ pub struct AirOut {
     /// Litres a day each air handler's coil is condensing: handed back to the
     /// tanks through its plumbing island.
     pub condensate_by_entity: HashMap<hecs::Entity, f64>,
+    /// The fuel each stove burned over the step, kg, by entity (2026-10-20):
+    /// the caller takes it out of their boxes (`heat::burn_stoves`).
+    pub stove_burned_kg: HashMap<hecs::Entity, f64>,
+    /// The oxygen the stoves' fires took out of the home's air over the step,
+    /// g (taken there already; none when the step keeps no home air).
+    pub stove_o2_g: f64,
 }
 
 /// Step every air of the home `step.hours` game hours: each grow room's and
@@ -1017,8 +1026,11 @@ pub fn step_rooms(
     // The space heaters (2026-10-05, BUG-155, farming::heat), by the air they
     // stand in. Each room's temperature is its own (`room_temp_c`) plus what
     // they have warmed it by, read at each slice's start below: its humidity,
-    // its carbon dioxide and its coils all follow it.
-    let heaters = super::heat::heaters(world, map);
+    // its carbon dioxide and its coils all follow it. A stove's fuel is spent
+    // slice by slice (2026-10-20): `stoke` sets its heat for each slice from
+    // what its box still holds, and `burn` spends it once its air's
+    // thermostat has set the slice's share.
+    let mut heaters = super::heat::heaters(world, map, &step.stove_fuel_kg);
     // The home's own air: its live state when the model runs it, else the
     // map's (an Earth-like default without a home air space).
     let runs_home = life.is_some() && map.home_known;
@@ -1074,6 +1086,10 @@ pub fn step_rooms(
         // its room, a room's to the home's own air (farming::heat).
         let mut heat_in_j = vec![0.0f64; n_rooms];
         let mut home_heat_in_j = 0.0f64;
+        // Each stove's heat for this slice, from what its box still holds, and
+        // the oxygen the stoves burn over it, g (2026-10-20, farming::heat).
+        super::heat::stoke(&mut heaters, sh);
+        let mut stove_o2_g = 0.0f64;
         // The home's own air's warmth at the slice's start, what a room's warmth
         // relaxes toward (none without a home air space).
         let home_k = if map.home_known { home.warmed_k.max(0.0) } else { 0.0 };
@@ -1286,6 +1302,7 @@ pub fn step_rooms(
             st.heater = w.duty;
             heat_duty[i] = w.duty;
             heat_req[i] = w.duty_req;
+            stove_o2_g += super::heat::burn(&mut heaters, Some(i), w.duty, sh, &mut out.stove_burned_kg);
             match map.parent[i] {
                 Some(p) => heat_in_j[p] += w.passed_j,
                 None => home_heat_in_j += w.passed_j,
@@ -1357,6 +1374,25 @@ pub fn step_rooms(
             home.heater = w.duty;
             home_heat_duty = w.duty;
             home_heat_req = w.duty_req;
+            stove_o2_g += super::heat::burn(&mut heaters, None, w.duty, sh, &mut out.stove_burned_kg);
+        }
+        // The oxygen the stoves burned this slice comes out of the home's air,
+        // the one air that keeps oxygen (a grow room's stove draws on it through
+        // the room's exchange with the home), and counts in the day's oxygen
+        // used (2026-10-20). Their carbon dioxide and water go up the flue.
+        if runs_home {
+            let mut kg_day = 0.0;
+            if stove_o2_g > 0.0 {
+                let volume = map.home_volume_m3.max(1.0);
+                let taken = stove_o2_g.min(home.o2_g_m3.max(0.0) * volume);
+                home.o2_g_m3 = (home.o2_g_m3 - taken / volume).max(0.0);
+                if sh > 0.0 {
+                    kg_day = taken * 24.0 / sh / 1000.0;
+                }
+                out.stove_o2_g += taken;
+            }
+            home.o2_used_kg_day += kg_day;
+            home.stove_o2_kg_day = kg_day;
         }
     }
     // Each heater draws its watts for the share of the time its thermostat
@@ -1575,13 +1611,19 @@ fn home_lines(
         level,
     )];
     let net_o2 = h.o2_made_kg_day - h.o2_used_kg_day;
+    // What a stove's fire burns is not breathing (2026-10-20): say it apart.
+    let stove = h.stove_o2_kg_day.max(0.0);
+    let used = if stove >= 0.05 {
+        format!("{:.1} kg is breathed in and {:.1} kg burned by the stove", h.o2_used_kg_day - stove, stove)
+    } else {
+        format!("{:.1} kg is breathed in", h.o2_used_kg_day)
+    };
     lines.push((
         format!(
-            "A day: the household and the mushrooms breathe out {:.1} kg of CO2 and the crops take up {:.1} kg; the crops give out {:.1} kg of oxygen and {:.1} kg is breathed in, so the home's oxygen {} {:.2} kg a day",
+            "A day: the household and the mushrooms breathe out {:.1} kg of CO2 and the crops take up {:.1} kg; the crops give out {:.1} kg of oxygen and {used}, so the home's oxygen {} {:.2} kg a day",
             h.co2_out_kg_day,
             h.co2_uptake_kg_day,
             h.o2_made_kg_day,
-            h.o2_used_kg_day,
             if net_o2 >= 0.0 { "gains" } else { "loses" },
             net_o2.abs()
         ),
@@ -1609,23 +1651,55 @@ fn home_lines(
 /// `warmed_k` above its own). None where no heater stands and nothing has
 /// warmed the air: a room at its own temperature has nothing new to say.
 fn heater_part(heaters: &[super::heat::Heater], room: Option<usize>, duty: f64, temp_c: f64, warmed_k: f64) -> Option<String> {
+    use super::heat::HeaterKind;
     let here: Vec<&super::heat::Heater> = heaters.iter().filter(|h| h.room == room).collect();
     if here.is_empty() {
         return (warmed_k > 0.05).then(|| format!("the air warmed to {temp_c:.1} °C"));
     }
-    let name = if here.len() > 1 { "heaters" } else { "heater" };
+    // Named by kind (2026-10-20): "heater", "heat pump", "stove", or
+    // "heaters" for several of more than one kind.
+    let kind = here[0].kind;
+    let name = match (here.len() > 1, here.iter().all(|h| h.kind == kind)) {
+        (false, _) => kind.word().to_string(),
+        (true, true) => format!("{}s", kind.word()),
+        (true, false) => "heaters".to_string(),
+    };
     let set = here.iter().map(|h| h.setpoint_c).fold(f64::NEG_INFINITY, f64::max);
     if !here.iter().any(|h| h.powered) {
-        return Some(format!("{name} off (no power), the air at {temp_c:.1} °C"));
+        let stoves = here.iter().filter(|h| h.kind == HeaterKind::Stove).count();
+        let why = match stoves {
+            0 => "no power",
+            n if n == here.len() => "no wood",
+            _ => "no power or wood",
+        };
+        return Some(format!("{name} off ({why}), the air at {temp_c:.1} °C"));
     }
     if duty <= 0.0 {
         return Some(format!("{name} idle, the air at {temp_c:.1} °C (it heats below {set:.0} °C)"));
     }
-    let w: f64 = here.iter().filter(|h| h.powered).map(|h| h.watts * duty).sum();
-    Some(if duty >= 0.999 && temp_c < set - 0.05 {
-        format!("{name} flat out, {} W, the air at {temp_c:.1} °C, short of the {set:.0} °C it is set to", thousands(w))
+    // The heat they give and the power they draw (2026-10-20): the same for a
+    // resistance heater, so its line reads as it always has; a heat pump gives
+    // more heat than it draws, and a stove draws none and burns wood.
+    let on = || here.iter().filter(|h| h.powered);
+    let heat: f64 = on().map(|h| h.heat_w * duty).sum();
+    let drawn: f64 = on().map(|h| h.watts * duty).sum();
+    let wood: f64 = on().map(|h| h.kg_per_h * h.avail * duty).sum();
+    let w = if (heat - drawn).abs() < 0.5 {
+        format!("{} W", thousands(drawn))
     } else {
-        format!("{name} on {:.0}% of the time, {} W, holding the air at {set:.0} °C", duty * 100.0, thousands(w))
+        let mut s = format!("{} W of heat", thousands(heat));
+        if drawn >= 0.5 {
+            s.push_str(&format!(" on {} W", thousands(drawn)));
+        }
+        if wood > 0.0 {
+            s.push_str(&format!(" from {wood:.1} kg of wood an hour"));
+        }
+        s
+    };
+    Some(if duty >= 0.999 && temp_c < set - 0.05 {
+        format!("{name} flat out, {w}, the air at {temp_c:.1} °C, short of the {set:.0} °C it is set to")
+    } else {
+        format!("{name} on {:.0}% of the time, {w}, holding the air at {set:.0} °C", duty * 100.0)
     })
 }
 
@@ -1665,7 +1739,10 @@ impl GuiView {
         let hums = room_humidifiers(world, &map);
         let life = data.get::<LifeSupportData>(life_support::DATA_KEY);
         let (handlers, scrubbers) = life_units(world, &map);
-        let heaters = super::heat::heaters(world, &map);
+        // A stove can run while its box holds wood (2026-10-20).
+        let fuel = super::heat::stove_fuel_kg(world, data.get::<crate::systems::inventory::ItemRegistry>("item_registry"));
+        let mut heaters = super::heat::heaters(world, &map, &fuel);
+        super::heat::stoke(&mut heaters, 0.0);
         // Who powers the air machines (Settings: Ship life support).
         let watts_word = |w: f64| format!("{w:.0} W");
         let mut tags: Vec<String> = world

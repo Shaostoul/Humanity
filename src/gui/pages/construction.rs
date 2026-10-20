@@ -3944,6 +3944,8 @@ mod multi_select_tests {
             scrubs_co2_kg_day: 0.0,
             heats_w: 0.0,
             heat_setpoint_c: 0.0,
+            heat_cop: Vec::new(),
+            burns_fuel: None,
             level_gauge: false,
             container_type: None,
             provides: None,

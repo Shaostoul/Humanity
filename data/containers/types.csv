@@ -66,3 +66,8 @@ ibc_tote,IBC Tote (1000 L),hdpe,1000.0,1.0,60.0,-20.0,liquid|water|food|flammabl
 copper_pot,Copper Pot,copper,8.0,1.0,300.0,-20.0,liquid|water|food,"Unlined copper pot for water and non-acidic cooking; copper reacts with acidic foods, oils and milk",true,
 galvanized_bucket,Galvanised Bucket,galvanized_steel,12.0,1.0,60.0,-20.0,liquid|water|food|solid|dry_goods,"Zinc-coated steel pail for grain, feed and wash water; never acidic foods, and drinking water only with a liner",true,
 fermenting_crock,Fermenting Crock,glazed_ceramic,20.0,1.0,100.0,-5.0,liquid|water|food,"Lead-free glazed stoneware crock for sauerkraut, pickles and brines",true,
+# A wood stove's firebox (2026-10-20), the box of the wood_stove machine (data/machines/home.ron): the
+# Drolet Escape 1800's "Overall firebox volume" "2.4 ft³", 68 L, which takes two Wood Logs. It holds solids;
+# the stove's BurnsFuels narrows that to its fuel (containers::vessel_takes). max_temp_c 1000 is a game
+# figure for a firebrick-lined firebox that holds a fire; no rule reads it yet.
+stove_firebox,Stove Firebox,carbon_steel,68.0,1.0,1000.0,-40.0,solid,Firebrick-lined steel firebox of a wood stove: it holds the logs it burns,true,

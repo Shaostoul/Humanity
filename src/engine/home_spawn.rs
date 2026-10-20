@@ -341,6 +341,23 @@ pub(crate) fn spawn_home_machine_entity(
             e,
             crate::ecs::components::SpaceHeater { heat_w: def.heats_w, watts, setpoint_c: def.heat_setpoint_c },
         );
+        // A heat pump (2026-10-20): its heat is its draw times its coefficient of performance at
+        // the temperature of the air it draws from, which the air step reads off this table.
+        if !def.heat_cop.is_empty() {
+            let _ = world.insert_one(e, crate::ecs::components::HeatPump { cop_by_source_c: def.heat_cop.clone() });
+        }
+        // A stove (2026-10-20): it runs on the fuel in its own box (its Container, below), and the
+        // box takes and offers only the fuels it burns (`BurnsFuels`, containers::vessel_takes).
+        if let Some(b) = &def.burns_fuel {
+            if b.fuels.is_empty() {
+                log::warn!("machine {} ({}) is a stove that names no fuel, so it will never burn", inst.id, inst.machine);
+            }
+            let _ = world.insert_one(
+                e,
+                crate::ecs::components::FuelStove { kg_per_h: b.kg_per_h, o2_kg_per_kg: b.o2_kg_per_kg, burned_kg: 0.0 },
+            );
+            let _ = world.insert_one(e, crate::ecs::components::BurnsFuels(b.fuels.clone()));
+        }
     }
     // Economy automation (v0.663): a machine with an `auto_recipe` continuously
     // runs that recipe against the home inventory (CraftingSystem's AutoRefine
@@ -603,7 +620,9 @@ mod tests {
             let home = crate::machines::MachineHome::load(&data_dir.join("machines").join(file))
                 .unwrap_or_else(|| panic!("{file} parses"));
             for (id, def) in &home.catalog {
-                if def.backstop_watts().1 <= 0.0 {
+                // A backstop genset burns fuel, and since 2026-10-20 so does a
+                // stove (`burns_fuel`): both name it, from a box that takes it.
+                if def.backstop_watts().1 <= 0.0 && def.burns_fuel.is_none() {
                     assert!(def.fuels().is_empty(), "{file}: {id} burns nothing, so it names no fuel");
                     continue;
                 }
@@ -761,6 +780,139 @@ mod tests {
                 assert_eq!(g.active, runs, "{file}: {item} in its drum");
                 assert_eq!(g.output_watts, 6500.0, "{file}: it makes 6.5 kW while it runs");
             }
+        }
+    }
+
+    /// THE HEAT PUMP AND THE WOOD STOVE ARE BUILT AT A WORKBENCH AND PLACED IN
+    /// EITHER HOME, AND THE STOVE'S BOX TAKES ONLY WOOD (2026-10-20). For both
+    /// homes (home.ron, home_solo.ron): a workbench recipe makes each one's
+    /// item, which places it (`editor::machine_item`), in the space heater's
+    /// Construction tab ("Life support"); neither home places one by default.
+    /// The heat pump carries its sheet's 620 W and a heat of 620 x its rated
+    /// COP; the wood stove draws no power and its heat is its 4.07 kg an hour
+    /// of air-dried wood at its 72% (16.0 MJ/kg gross). Spawned the way the
+    /// game spawns them, the heat pump is a powered heater with its COP table,
+    /// and the stove a heater with no power, its fire and a 68 L box that
+    /// takes, offers and has room for Wood Logs only: two of them, and not
+    /// Wood Planks, Wood Slabs, Sawdust, Coal or Gasoline, its card saying why.
+    ///
+    /// Seen red (2026-10-20), each mutation alone: home.ron's entry renamed
+    /// away: "home.ron has no `heat_pump`"; the Build Heat Pump recipe taken
+    /// out: "a workbench recipe builds heat_pump_0"; the stove spawned without
+    /// its `BurnsFuels`: "home.ron: a stove"; and `vessel_takes` leaving a
+    /// stove's box to its class: "home.ron: its box takes only Wood Logs",
+    /// left: None, right: Some(Firewood(["wood_log_0"])).
+    #[test]
+    fn the_heat_pump_and_wood_stove_are_built_and_placed_and_the_stoves_box_takes_only_wood() {
+        use crate::ecs::components::{BurnsFuels, FuelStove, HeatPump, PowerConsumer, SpaceHeater};
+        use crate::systems::inventory::containers::{
+            refused_note, store_offers, vessel_takes, Container, ContainerRegistry, StoreOutcome, VesselTakes,
+        };
+        use crate::systems::inventory::ItemRegistry;
+        let data_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let read = |rel: &str| std::fs::read(data_dir.join(rel)).unwrap_or_else(|_| panic!("data/{rel}"));
+        let items = ItemRegistry::from_csv(&read("items.csv")).expect("items.csv");
+        let containers = ContainerRegistry::from_bytes(&read("containers/types.csv"), &read("containers/content_classes.ron"))
+            .expect("container types")
+            .with_contact_rules(
+                &read("containers/materials.csv"),
+                &read("containers/content_traits.ron"),
+                &read("food/item_profiles.ron"),
+            )
+            .expect("contact rules");
+        let recipes = crate::systems::crafting::RecipeRegistry::from_csv(&read("recipes.csv")).expect("recipes.csv");
+        for item in ["heat_pump_0", "wood_stove_0"] {
+            assert!(
+                recipes.recipes.values().any(|r| r.required_station.as_deref() == Some("workbench_0")
+                    && r.outputs.iter().any(|(id, n)| id == item && *n == 1)),
+                "a workbench recipe builds {item}"
+            );
+        }
+        for file in ["home.ron", "home_solo.ron"] {
+            let home = crate::machines::MachineHome::load(&data_dir.join("machines").join(file))
+                .unwrap_or_else(|| panic!("{file} parses"));
+            let tab = home.catalog["heater"].category.clone();
+            for machine in ["heat_pump", "wood_stove"] {
+                let def = home.catalog.get(machine).unwrap_or_else(|| panic!("{file} has no `{machine}`"));
+                assert_eq!(def.category, tab, "{file}: {machine} is placed from the space heater's tab");
+                assert!(crate::engine::editor::machine_item(machine, Some(&items)).is_some(), "{file}: {machine} is placed from an item");
+                assert!(home.all_instances().iter().all(|i| i.machine != machine), "{file}: no {machine} placed by default");
+                assert!(def.heats_w > 0.0 && def.heat_setpoint_c == 24.0, "{file}: {machine} heats on the heater's thermostat");
+            }
+            // The heat pump's data: its draw and its heat at its rated COP.
+            let pump = &home.catalog["heat_pump"];
+            let Some(crate::machines::MachinePower::Consumer { watts, .. }) = pump.power else {
+                panic!("{file}: the heat pump is a Consumer")
+            };
+            assert_eq!(watts, 620.0, "{file}: the sheet's rated power input");
+            let rated = crate::machines::cop_at(&pump.heat_cop, (47.0 - 32.0) / 1.8).expect("a COP table");
+            assert_eq!(rated, f64::from(4.54_f32), "{file}: the sheet's COP at 47 F");
+            assert!((f64::from(pump.heats_w) - 620.0 * rated).abs() < 0.01, "{file}: heats_w is 620 W x 4.54");
+            // The stove's: no power, and a heat its burn rate gives at its efficiency.
+            let stove = &home.catalog["wood_stove"];
+            let burn = stove.burns_fuel.as_ref().expect("the stove burns fuel");
+            assert!(stove.power.is_none(), "{file}: a wood stove draws no power");
+            assert_eq!(stove.fuels(), ["wood_log_0".to_string()], "{file}: it burns Wood Logs");
+            let from_wood_kw = f64::from(burn.kg_per_h) * 16.003 * 0.72 / 3.6;
+            assert!((from_wood_kw * 1000.0 / f64::from(stove.heats_w) - 1.0).abs() < 0.002, "{file}: {from_wood_kw} kW from its wood");
+
+            // Spawned the way the game spawns them.
+            let mut world = hecs::World::new();
+            let empty = std::collections::HashMap::new();
+            let spawn = |world: &mut hecs::World, machine: &str| {
+                let inst = crate::machines::MachineInstance {
+                    id: format!("{machine}_t"),
+                    machine: machine.to_string(),
+                    room: "room-plant".to_string(),
+                    offset: (0.0, 0.0, 0.0),
+                    rotation: 0.0,
+                    zone: "home".to_string(),
+                    screen_source: None,
+                };
+                spawn_home_machine_entity(world, &inst, &home.catalog[machine], &empty, &empty, None, Some(&containers));
+                world
+                    .query::<&crate::ecs::components::MachineInstanceId>()
+                    .iter()
+                    .find(|(_, m)| m.0 == inst.id)
+                    .map(|(e, _)| e)
+                    .unwrap()
+            };
+            let p = spawn(&mut world, "heat_pump");
+            assert!(world.get::<&HeatPump>(p).is_ok() && world.get::<&SpaceHeater>(p).is_ok(), "{file}: a heat pump");
+            assert_eq!(world.get::<&PowerConsumer>(p).map(|pc| pc.draw_watts).ok(), Some(620.0), "{file}: on the home's power");
+            let s = spawn(&mut world, "wood_stove");
+            assert!(world.get::<&FuelStove>(s).is_ok() && world.get::<&BurnsFuels>(s).is_ok(), "{file}: a stove");
+            assert_eq!(world.get::<&SpaceHeater>(s).map(|h| h.watts).ok(), Some(0.0), "{file}: it draws nothing");
+            assert!(world.get::<&PowerConsumer>(s).is_err(), "{file}: and is on no power island");
+            let data = crate::hot_reload::data_store::DataStore::new();
+            let takes = vessel_takes(&world, &data, s);
+            assert_eq!(takes, Some(VesselTakes::Firewood(vec!["wood_log_0".to_string()])), "{file}: its box takes only Wood Logs");
+            let pack: std::collections::HashMap<String, u32> = [
+                ("wood_log_0", 3),
+                ("wood_plank_0", 4),
+                ("wood_slab_0", 4),
+                ("sawdust_0", 2),
+                ("coal_0", 5),
+                ("gasoline_0", 2),
+            ]
+            .into_iter()
+            .map(|(id, n)| (id.to_string(), n))
+            .collect();
+            let mut boxed = world.get::<&mut Container>(s).expect("the stove's box");
+            assert_eq!((boxed.container_type_id.as_str(), boxed.capacity_liters), ("stove_firebox", 68.0), "{file}: its 68 L firebox");
+            let offered: Vec<String> =
+                store_offers(&containers, Some(&items), &*boxed, takes.as_ref(), &pack).into_iter().map(|(id, _, _)| id).collect();
+            assert_eq!(offered, vec!["wood_log_0".to_string()], "{file}: its box offers Wood Logs and nothing else");
+            // The card names the solids its class would hold (the rest it
+            // would never take anyway).
+            let why = refused_note(&containers, Some(&items), &*boxed, takes.as_ref(), &pack).unwrap_or_default();
+            assert_eq!(why, "Takes only Wood Log, the wood its fire burns: not Wood Plank or Wood Slab.", "{file}");
+            let log_l = items.volume_for("wood_log_0");
+            assert_eq!(
+                containers.try_store(&mut boxed, "wood_log_0", items.class_for("wood_log_0"), log_l, 3),
+                StoreOutcome::Stored { quantity: 2 },
+                "{file}: two 26.1 L logs fit its 68 L"
+            );
         }
     }
 }

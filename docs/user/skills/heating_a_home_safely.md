@@ -646,10 +646,11 @@ sources given with each.
 
 ## How the game models it
 
-The game models being cold, and two kinds of heating: the warmth of a
-campfire built outdoors, and an electric space heater warming the air of
-the room it stands in aboard. It does not model what heating can do to
-people, the house fires and the carbon monoxide this guide is about.
+The game models being cold, and four kinds of heating: the warmth of a
+campfire built outdoors, and, aboard, an electric space heater, a heat
+pump and a wood stove, each warming the air of the room it stands in. It
+does not model what heating can do to people, the house fires and the
+carbon monoxide this guide is about.
 
 - **The station holds the air at its own temperature.** Sessions start in
   the home aboard the station in orbit. With nothing of yours heating it,
@@ -695,6 +696,63 @@ people, the house fires and the carbon monoxide this guide is about.
   rest and the Home page meters it, and under Realistic a heater left
   running in a big room drains the batteries (Settings > Gameplay, Ship
   life support).
+- **A heat pump gives more heat than it draws.** The Crafting page's
+  Build Heat Pump recipe makes a "Heat Pump" (seven steel ingots, five
+  copper ingots, six aluminium ingots, six wire, two circuit boards, six
+  plastic sheets and a rubber sheet at a workbench, Engineering level 4;
+  `data/recipes.csv`). Placed from the Construction editor's Life support
+  tab, where the space heater is, it is a ductless air-source heat pump,
+  the game's copy of a real one, the Mitsubishi Electric MSZ-FS09NA, whose
+  spec sheet it follows (`data/machines/home.ron`, `heat_pump`). It draws
+  620 W from the home's power and puts 2,815 W of heat into the air it
+  stands in, on the same 24 C thermostat as the space heater. The other
+  2,195 W it moves in from the ship's air outside your home, where its
+  outdoor unit stands (the game does not draw that unit). How much heat it
+  moves for each watt it draws, its coefficient of performance, falls as
+  the air it takes the heat from gets colder: its sheet gives 4.54 at
+  8 C, 2.63 at minus 8 C and 1.89 at minus 25 C, and the game follows
+  that table. The ship holds its air at about 20 C, warmer than the
+  sheet's warmest figure, so aboard it is always 4.54, which if anything
+  understates it. The power meter and the time you are away charge it its
+  620 W, never its heat. Flat out it uses 14.9 kWh a day, 41% of the
+  space heater's 36, for 1.9 times the heat; that is the real case for a
+  heat pump, and the reason ENERGY STAR's advice above is about choosing
+  the right thermostat for one.
+- **A wood stove needs no power, only wood.** The Build Wood Stove recipe
+  makes a "Wood Stove" (40 steel ingots, five stone bricks for its
+  firebrick lining, three iron ingots, a glass pane and a box of bolts at
+  a workbench, Shelter Building level 3). Placed from the same tab, it is
+  an EPA-certified stove, the game's copy of the Drolet Escape 1800: while
+  it burns at full it gives 13,040 W of heat, the figure its maker
+  publishes, and burns about 4.1 kg of firewood an hour. That burn rate
+  is worked out, because the maker gives the heat and the efficiency (72%)
+  but not the kilograms: [Firewood](firewood.md) has the heat in a
+  kilogram of air-dried wood that the arithmetic uses. It runs only while
+  its firebox holds wood. The firebox takes Wood Logs and nothing else,
+  two at a time (16 kg, about four hours at full), and a log leaves it
+  once it has burned through; when the box is empty the stove goes out
+  and the air cools back within minutes. Its thermostat stands in for the
+  air control you would turn down on a real stove, and in a big room it
+  burns flat out. While you are away it burns nothing, the way a
+  generator's fuel drum is not burned while you are away. The Garden
+  panel says what it is doing, and "stove off (no wood)" when the box is
+  empty.
+- **A stove's fire breathes your home's air.** Fire needs oxygen, and in
+  a sealed home aboard a ship the only oxygen is the home's own air. The
+  stove takes about 1.1 kg of oxygen out of it for each kilogram of wood
+  it burns, about 107 kg a day at full, against the roughly 2,900 kg in
+  the home's air, and the Garden panel's day line for the home's air says
+  how much the stove burned beside what is breathed in. Its carbon
+  dioxide, water, smoke and carbon monoxide go up its flue, out of the
+  home: none of them enter the home's air. The game does not model the
+  flue itself (it never blocks, spills smoke back into the room or catches
+  fire), the extra air a real stove pulls through its fire and up the
+  chimney and the outside air that has to come in to replace it (why a
+  tight house may need a dedicated outside air supply for the stove, as
+  [Firewood](firewood.md) explains), or a fire burning lower as the air
+  thins. In life, a stove in a sealed space is the danger this guide is
+  about: it is safe only with a sound, drawing flue and air to replace
+  what it burns.
 - **What reads the warmer air.** A room's humidity: warmer air holds more
   water, so the same damp reads drier, and its fans, humidifiers and air
   handlers work to their setpoints at the new temperature
@@ -730,7 +788,8 @@ people, the house fires and the carbon monoxide this guide is about.
   (`data/status_effects.csv`).
 - **No carbon monoxide anywhere.** The air system can call air toxic when
   carbon monoxide passes 50 parts per million, but nothing in the game
-  makes any (`src/systems/atmosphere.rs`). The home's backup generator
+  puts any into a room's air: a wood stove's goes up its flue
+  (`src/systems/atmosphere.rs`). The home's backup generator
   sits inside, in the plant room, with its own 200 litre fuel drum
   (`data/machines/home.ron`); in real life a generator used indoors is
   one of the two things NOAA's record names in the carbon monoxide deaths
@@ -746,9 +805,10 @@ people, the house fires and the carbon monoxide this guide is about.
   no smoke or carbon monoxide (`src/systems/construction/fires.rs`,
   `src/engine/survival_env.rs`); [Making and Controlling
   Fire](making_and_controlling_fire.md) has the rest.
-- **No house fires, no alarms that do anything.** The only fire in the
-  game is a campfire built outdoors, and it spreads to nothing; no
-  heater, stove or candle burns, so none can start a fire. A Smoke
+- **No house fires, no alarms that do anything.** The only fires in the
+  game are a campfire built outdoors, which spreads to nothing, and the
+  fire inside a wood stove, which stays in its firebox; no heater, stove
+  or candle can start a fire. A Smoke
   Detector and a Fire Extinguisher can be crafted, but neither does
   anything once made.
 - **Starting from the default home.** Settings > Gameplay > "Start every
@@ -758,8 +818,9 @@ people, the house fires and the carbon monoxide this guide is about.
 
 What the game leaves out, so you do not learn it from the game: fuel
 bills, space heaters that start fires, ovens that poison, generators that
-must run outdoors, alarms that wake you, and a house that gets colder
-every hour the power is out. A heater in the game also warms only the air:
+must run outdoors, stoves whose blocked or backdrafting flue fills the
+room with smoke and carbon monoxide, chimney fires, alarms that wake you,
+and a house that gets colder every hour the power is out. A heater in the game also warms only the air:
 not you, by its glow, when you stand beside it, and not the walls,
 furniture and soil, which in a real room soak up heat for hours, so a
 heated room here warms and cools in minutes.
@@ -1051,6 +1112,23 @@ used here and the wording is not.
   THE HEAT in `data/garden/humidity.ron`), and the tests that measure the
   300 m3 room's 1 C, the greenhouse-sized room's 0.16 C and the thermostat
   (`src/systems/farming/heat_tests.rs`);
+  the heat pump and the wood stove (`heat_pump` and `wood_stove` in
+  `data/machines/home.ron`, where their sources are quoted and the stove's
+  burn rate and oxygen are worked out: the Mitsubishi Electric MSZ-FS09NA
+  / MUZ-FS09NA submittal sheet of March 2023, read 2026-10-20 at
+  https://gotductless.com/cdn/shop/files/MSZ-FS09NA_MUZ-FS09NA.pdf;
+  Drolet's page for the Escape 1800, read 2026-10-20 at
+  https://www.drolet.ca/us/en/wood-stoves/db03105; the EPA's Method 28
+  burn rate categories, read 2026-10-20 at
+  https://www.epa.gov/sites/default/files/2016-06/documents/m-28.pdf; and
+  the Forest Products Laboratory's "Cell wall chemistry", Rowell and
+  others, 2005, for dry wood's 50% carbon, 6% hydrogen and 44% oxygen,
+  read 2026-10-20 at https://research.fs.usda.gov/treesearch/22043), their
+  recipes, items and firebox (`data/recipes.csv`, `data/items.csv`,
+  `stove_firebox` in `data/containers/types.csv`), and the tests that
+  measure the heat pump's heat and bill, the stove's burn, its oxygen and
+  its box (`src/systems/farming/heat_tests.rs`,
+  `src/engine/home_spawn.rs`);
   what reads a warmed room (`src/systems/farming/humidity.rs`, the pests'
   temperature in `src/systems/farming/mod.rs`, `src/engine/survival_env.rs`,
   `src/systems/food.rs`); the Greenhouse Construction quest's heater step

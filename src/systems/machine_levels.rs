@@ -35,7 +35,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::ecs::components::{AutoRefine, Battery, MachineInstanceId, WaterTank};
+use crate::ecs::components::{AutoRefine, Battery, FuelStove, MachineInstanceId, WaterTank};
 use crate::systems::inventory::containers::Container;
 
 /// One home machine's stored levels. A field is None when the machine has no
@@ -61,11 +61,20 @@ pub struct MachineLevels {
     /// at every world entry and restart.
     #[serde(default)]
     pub recipe: Option<String>,
+    /// How much of the piece at the front of a stove's box has burned, kg
+    /// (2026-10-20, `FuelStove::burned_kg`), kept with the box's contents so a
+    /// half-burned log is still half burned after a restart or world entry.
+    #[serde(default)]
+    pub stove_burned_kg: Option<f64>,
 }
 
 impl MachineLevels {
     fn is_empty(&self) -> bool {
-        self.charge_wh.is_none() && self.water_l.is_none() && self.vessel.is_none() && self.recipe.is_none()
+        self.charge_wh.is_none()
+            && self.water_l.is_none()
+            && self.vessel.is_none()
+            && self.recipe.is_none()
+            && self.stove_burned_kg.is_none()
     }
 }
 
@@ -77,14 +86,16 @@ pub struct HeldMachineLevels(pub Vec<MachineLevels>);
 /// The levels the live machines hold now, sorted by id.
 fn live(world: &hecs::World) -> Vec<MachineLevels> {
     let mut out: Vec<MachineLevels> = world
-        .query::<(&MachineInstanceId, Option<&Battery>, Option<&WaterTank>, Option<&Container>, Option<&AutoRefine>)>()
+        .query::<(&MachineInstanceId, Option<&Battery>, Option<&WaterTank>, Option<&Container>, Option<&AutoRefine>, Option<&FuelStove>)>()
         .iter()
-        .map(|(_e, (id, b, t, c, a))| MachineLevels {
+        .map(|(_e, (id, b, t, c, a, s))| MachineLevels {
             id: id.0.clone(),
             charge_wh: b.map(|b| b.charge_wh),
             water_l: t.map(|t| t.liters),
             vessel: c.cloned(),
             recipe: a.map(|a| a.recipe_id.clone()),
+            // Only beside the box it belongs to.
+            stove_burned_kg: s.filter(|_| c.is_some()).map(|s| s.burned_kg).filter(|k| *k > 0.0),
         })
         .filter(|l| !l.is_empty())
         .collect();
@@ -108,6 +119,7 @@ fn merge(mut live: Vec<MachineLevels>, held: Vec<MachineLevels>) -> Vec<MachineL
                 l.water_l = l.water_l.or(h.water_l);
                 if l.vessel.is_none() {
                     l.vessel = h.vessel;
+                    l.stove_burned_kg = h.stove_burned_kg;
                 }
                 l.recipe = l.recipe.take().or(h.recipe);
             }
@@ -138,12 +150,13 @@ fn drop_held(world: &mut hecs::World) {
 /// may not belong in it; that is logged and dropped.
 pub fn apply(world: &mut hecs::World, saved: &[MachineLevels]) -> Vec<MachineLevels> {
     let mut left: Vec<MachineLevels> = saved.to_vec();
-    for (_e, (id, b, t, c, a)) in world.query_mut::<(
+    for (_e, (id, b, t, c, a, s)) in world.query_mut::<(
         &MachineInstanceId,
         Option<&mut Battery>,
         Option<&mut WaterTank>,
         Option<&mut Container>,
         Option<&mut AutoRefine>,
+        Option<&mut FuelStove>,
     )>() {
         let Some(rec) = left.iter_mut().find(|r| r.id == id.0) else { continue };
         // A machine that runs a recipe takes the one it ran; a record for a
@@ -169,12 +182,19 @@ pub fn apply(world: &mut hecs::World, saved: &[MachineLevels]) -> Vec<MachineLev
             if let Some(v) = rec.vessel.take() {
                 if v.container_type_id == c.container_type_id {
                     *c = Container { capacity_liters: c.capacity_liters, ..v };
+                    // A stove's half-burned piece lands with its box (2026-10-20).
+                    if let (Some(s), Some(k)) = (s, rec.stove_burned_kg) {
+                        if k.is_finite() {
+                            s.burned_kg = k.max(0.0);
+                        }
+                    }
                 } else {
                     log::warn!(
                         "machine {}: saved {} contents not restored into its {} (the vessel type changed)",
                         id.0, v.container_type_id, c.container_type_id
                     );
                 }
+                rec.stove_burned_kg = None;
             }
         }
     }
@@ -221,9 +241,13 @@ pub fn land_held(world: &mut hecs::World) {
 pub fn reset_all(world: &mut hecs::World) {
     drop_held(world);
     // The home machines only (an instance id, as `live` reads them), never another store.
-    for (_e, (_id, b, t, c)) in
-        world.query_mut::<(&MachineInstanceId, Option<&mut Battery>, Option<&mut WaterTank>, Option<&mut Container>)>()
-    {
+    for (_e, (_id, b, t, c, s)) in world.query_mut::<(
+        &MachineInstanceId,
+        Option<&mut Battery>,
+        Option<&mut WaterTank>,
+        Option<&mut Container>,
+        Option<&mut FuelStove>,
+    )>() {
         if let Some(b) = b {
             b.charge_wh = b.capacity_wh * SPAWN_SHARE;
         }
@@ -232,6 +256,9 @@ pub fn reset_all(world: &mut hecs::World) {
         }
         if let Some(c) = c {
             *c = Container::new(c.container_type_id.clone(), c.capacity_liters);
+        }
+        if let Some(s) = s {
+            s.burned_kg = 0.0;
         }
     }
 }
@@ -358,5 +385,46 @@ mod tests {
         assert!(apply(&mut world, &saved).is_empty(), "dropped, not held");
         let c = live(&world).remove(0).vessel.unwrap();
         assert!(c.is_empty(), "the silo stays empty: {c:?}");
+    }
+
+    /// A STOVE'S HALF-BURNED LOG IS STILL HALF BURNED AFTER A RESTART AND WORLD
+    /// ENTRY (2026-10-20). A wood stove with two logs in its box and 3.5 kg of
+    /// the front one burned is saved (through JSON); the next launch's
+    /// menu-mode stove has no box yet, so the save holds the box and the
+    /// burned 3.5 kg for it, and a save written then keeps them; world entry
+    /// respawns the stove with an empty box and nothing burned, and puts both
+    /// back. Reset to the spawn levels, it forgets the burned part with the
+    /// logs.
+    ///
+    /// Seen red (2026-10-20) with `apply` not landing the burned part: "after
+    /// world entry the front log has 0 kg burned".
+    #[test]
+    fn a_stoves_half_burned_log_survives_a_restart_and_world_entry() {
+        let stove = |burned_kg: f64| FuelStove { kg_per_h: 4.07, o2_kg_per_kg: 1.094, burned_kg };
+        let mut logs = Container::new("stove_firebox", 68.0);
+        logs.current_content_item = Some("wood_log_0".into());
+        logs.current_qty = 2;
+        logs.used_liters = 52.2;
+        logs.last_content = Some("wood_log_0".into());
+        let mut world = hecs::World::new();
+        world.spawn((MachineInstanceId("stove".into()), logs.clone(), stove(3.5)));
+        let saved: Vec<MachineLevels> = serde_json::from_str(&serde_json::to_string(&levels(&world)).unwrap()).unwrap();
+        assert_eq!(saved[0].stove_burned_kg, Some(3.5), "the save keeps it: {saved:?}");
+
+        let mut fresh = hecs::World::new();
+        fresh.spawn((MachineInstanceId("stove".into()), stove(0.0)));
+        restore(&mut fresh, &saved);
+        assert_eq!(levels(&fresh)[0].stove_burned_kg, Some(3.5), "held with the box until world entry");
+
+        let carried = take_all(&mut fresh);
+        let mut entered = hecs::World::new();
+        let e = entered.spawn((MachineInstanceId("stove".into()), Container::new("stove_firebox", 68.0), stove(0.0)));
+        assert!(apply(&mut entered, &carried).is_empty(), "everything landed");
+        let burned = entered.get::<&FuelStove>(e).unwrap().burned_kg;
+        assert_eq!(burned, 3.5, "after world entry the front log has {burned} kg burned");
+        assert_eq!(entered.get::<&Container>(e).unwrap().current_qty, 2);
+
+        reset_all(&mut entered);
+        assert_eq!(entered.get::<&FuelStove>(e).unwrap().burned_kg, 0.0, "reset with the box");
     }
 }

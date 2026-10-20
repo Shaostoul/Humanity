@@ -1,5 +1,5 @@
 {
-  "count": 384,
+  "count": 386,
   "categories": [
     "assembly",
     "chemistry",
@@ -6792,6 +6792,124 @@
       "skill": "Engineering",
       "skill_level": 2,
       "description": "Assemble an electric space heater",
+      "tools": [
+        {
+          "id": "wrench_adjustable_0",
+          "label": "Wrench Adjustable"
+        },
+        {
+          "id": "screwdriver_flat_0",
+          "label": "Screwdriver Flat"
+        }
+      ]
+    },
+    {
+      "id": "build_heat_pump",
+      "name": "Build Heat Pump",
+      "category": "assembly",
+      "inputs": [
+        {
+          "id": "steel_ingot_0",
+          "label": "Steel Ingot",
+          "qty": 7
+        },
+        {
+          "id": "copper_ingot_0",
+          "label": "Copper Ingot",
+          "qty": 5
+        },
+        {
+          "id": "aluminum_ingot_0",
+          "label": "Aluminum Ingot",
+          "qty": 6
+        },
+        {
+          "id": "wire_0",
+          "label": "Wire",
+          "qty": 6
+        },
+        {
+          "id": "circuit_board_0",
+          "label": "Circuit Board",
+          "qty": 2
+        },
+        {
+          "id": "plastic_sheet_0",
+          "label": "Plastic Sheet",
+          "qty": 6
+        },
+        {
+          "id": "rubber_sheet_0",
+          "label": "Rubber Sheet",
+          "qty": 1
+        }
+      ],
+      "outputs": [
+        {
+          "id": "heat_pump_0",
+          "label": "Heat Pump",
+          "qty": 1
+        }
+      ],
+      "craft_time_sec": 120,
+      "station": "Workbench",
+      "skill": "Engineering",
+      "skill_level": 4,
+      "description": "Assemble a ductless air-source heat pump",
+      "tools": [
+        {
+          "id": "wrench_adjustable_0",
+          "label": "Wrench Adjustable"
+        },
+        {
+          "id": "screwdriver_flat_0",
+          "label": "Screwdriver Flat"
+        }
+      ]
+    },
+    {
+      "id": "build_wood_stove",
+      "name": "Build Wood Stove",
+      "category": "assembly",
+      "inputs": [
+        {
+          "id": "steel_ingot_0",
+          "label": "Steel Ingot",
+          "qty": 40
+        },
+        {
+          "id": "stone_brick_0",
+          "label": "Stone Brick",
+          "qty": 5
+        },
+        {
+          "id": "iron_ingot_0",
+          "label": "Iron Ingot",
+          "qty": 3
+        },
+        {
+          "id": "glass_pane_0",
+          "label": "Glass Pane",
+          "qty": 1
+        },
+        {
+          "id": "bolt_box_0",
+          "label": "Bolt Box",
+          "qty": 1
+        }
+      ],
+      "outputs": [
+        {
+          "id": "wood_stove_0",
+          "label": "Wood Stove",
+          "qty": 1
+        }
+      ],
+      "craft_time_sec": 90,
+      "station": "Workbench",
+      "skill": "Shelter Building",
+      "skill_level": 3,
+      "description": "Build a steel wood stove with a firebrick lining",
       "tools": [
         {
           "id": "wrench_adjustable_0",

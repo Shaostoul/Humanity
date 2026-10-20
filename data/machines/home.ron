@@ -312,6 +312,164 @@
             container_type: None,
             model: None,
         ),
+        "heat_pump": (
+            shape: "box",
+            size: (0.925, 0.305, 0.234),
+            color: (0.93, 0.93, 0.91),
+            label: "Heat pump",
+            category: "Life support",
+            // A ductless air-source heat pump on a thermostat (2026-10-20; data/hvac.ron's
+            // heat_pump row had no machine, BUG-155): the Mitsubishi Electric MSZ-FS09NA indoor
+            // unit with its MUZ-FS09NA outdoor unit. Its submittal sheet ("FORM# MSZ-FS09NA &
+            // MUZ-FS09NA - 202303", "(c) 2023 Mitsubishi Electric Trane HVAC US LLC", read
+            // 2026-10-20 in the copy at https://gotductless.com/cdn/shop/files/MSZ-FS09NA_MUZ-FS09NA.pdf):
+            // "Heating at 47°F" "Rated Capacity" "9,600" BTU/H on "Rated Power Input" "620" (watts:
+            // 9,600 BTU/h is 2,813 W, and 2,813 / 620 is the sheet's own "COP at 47°F" "4.54"),
+            // rated at "70 DB, 60 WB // 47 DB, 43 WB" (indoor // outdoor, F), "(Rated data is
+            // determined at a fixed compressor speed)". Its other COPs: "COP at 17°F at Maximum
+            // Capacity" "2.63", "COP at 5°F at Maximum Capacity" "2.2", "COP at -5°F at Maximum
+            // Capacity" "2.2", "COP at -13°F at Maximum Capacity" "1.89"; it heats with outdoor air
+            // from "-13 DB" to "75 DB" F. Indoor unit "925 x 234 x 305 (+17)" mm (W x D x H: the
+            // box above), "29 [13.5]" lbs [kg]; outdoor unit "800 x 285 x 550" mm, "82 [37]" lbs
+            // [kg].
+            // THE MODEL (src/systems/farming/heat.rs): it runs at its rated point, drawing its
+            // 620 W for the share of the time its thermostat runs it, and puts that draw times its
+            // coefficient of performance into the air it stands in, a grow room's or a tent's, else
+            // the home's own. The COP is read off `heat_cop`, the sheet's five points in C (-13 F
+            // is -25.0, -5 F -20.6, 5 F -15.0, 17 F -8.3, 47 F 8.3), at the temperature of the air
+            // it draws its heat from: the station's air around the home, which the station holds
+            // at the home's own temperature, about 20 C. The sheet gives no COP warmer than 47 F,
+            // so above 8.3 C the game uses 4.54, which understates it (a heat pump drawing from
+            // warmer air does better). Below 47 F the sheet's COPs are at its maximum capacity,
+            // where it draws up to 1,580 W; the game keeps the 620 W draw and applies them to it,
+            // so a colder source shows as less heat rather than a bigger bill. heats_w is its heat
+            // at the rated point, 620 x 4.54 = 2,814.8 W. The outdoor unit is not placed: it
+            // stands in the ship's air outside the home, which gives up the heat it moves. Its
+            // refrigerant (the sheet's "2.0, 9.0" lbs, oz of R410A) is not modelled, and nothing
+            // aboard makes it (data/self_sufficiency/cannot_close.ron, raw chemistry). An inverter
+            // unit slows down rather than switching on and off; at one COP the heat for the power
+            // is the same, so the game's thermostat runs it for a share of the time like the
+            // heater. heat_setpoint_c 24: the heater's game choice (75 F, UGA Bulletin 792's 70 to
+            // 80 F days).
+            // Not placed in either home: built at a workbench (build_heat_pump, data/recipes.csv)
+            // and placed from the Construction page's Life support tab with one heat_pump_0.
+            // Charged as electricity, like the heater: the static meter its full 620 W (no
+            // average_watts), the time away the draw its thermostat was running it at when the
+            // game was saved (crafting::away::heater_draws), never its heat. Like the heater it is
+            // on the home's power in either Ship life support mode; the mode decides only whether
+            // the ship's reactor backs that power.
+            heats_w: 2814.8,
+            heat_setpoint_c: 24.0,
+            heat_cop: [(-25.0, 1.89), (-20.6, 2.2), (-15.0, 2.2), (-8.3, 2.63), (8.3, 4.54)],
+            stats: [
+                (
+                    kind: "power",
+                    value: "620 W while it heats, none once its air is at 24 C",
+                    status: "warn",
+                ),
+                (
+                    kind: "air",
+                    value: "moves heat in from the ship's air: 2,815 W of heat for its 620 W, up to 24 C",
+                    status: "ok",
+                ),
+            ],
+            power: Some(Consumer(
+                watts: 620.0,
+                priority: 4,
+            )),
+            ports: [],
+            storage: [],
+            auto_recipe: None,
+            container_type: None,
+            model: None,
+        ),
+        "wood_stove": (
+            shape: "box",
+            size: (0.664, 0.765, 0.657),
+            color: (0.13, 0.13, 0.14),
+            label: "Wood stove",
+            category: "Life support",
+            // A wood stove with a flue (2026-10-20; data/hvac.ron's wood_stove row had no machine,
+            // BUG-155): an EPA-certified non-catalytic steel stove, the Drolet Escape 1800. Drolet's
+            // page for it (https://www.drolet.ca/us/en/wood-stoves/db03105, read 2026-10-20, where
+            // it is marked "Discontinued"): "EPA 2020 approved", "Maximum overall heat output rate"
+            // "44,500 BTU/h (13.04 kW)" and "Minimum overall heat output rate" "14,200 BTU/h (4.16
+            // kW)", "As measured per CSA B415.1-10 stack loss method", "Average overall
+            // efficiency-dry cordwood (HHV)" "72 %", "Average CO" "69 g/h", "Average particulate
+            // emissions rate" "2.3 g/h", "Overall firebox volume" "2.4 ft³", "Maximum burn time"
+            // "8 h", "26 1/8" W X 25 7/8" D X 30 1/8" H" (the box above), "Shipping Weight" "368 lb
+            // (167 kg)", and "Approved for a mobile home installation: Yes, with fresh air intake".
+            // heats_w 13,040: its maximum overall heat output rate, the heat it gives while it
+            // burns at full.
+            // kg_per_h 4.07: ITS BURN RATE, WORKED OUT, because the page gives heat and efficiency
+            // but no kilograms. 13.04 kW is 46.9 MJ an hour of heat, which at 72% is 65.2 MJ an hour
+            // of the wood's gross heat; air-dried firewood (20% moisture) carries 13.76 million Btu
+            // per ton gross, 16.0 MJ/kg (the US Forest Service's Fuel Value Calculator, quoted in
+            // the Library's Firewood guide), so 4.07 kg of it an hour, 3.26 kg dry (at the
+            // calculator's 17.2 million Btu per ton ovendry, 20.0 MJ/kg). That is EPA Method 28's
+            // top burn rate category, "Maximum", above Category 3's "1.25 to 1.90" kg/hr dry
+            // (https://www.epa.gov/sites/default/files/2016-06/documents/m-28.pdf, read
+            // 2026-10-20). Taking its average efficiency at its top rate is our simplification. The
+            // game does not track how dry a log is: every Wood Log burns as air-dried firewood.
+            // o2_kg_per_kg 1.094: the oxygen a kilogram of that wood burns. "Overall, dry wood has
+            // an elemental composition of about 50% carbon, 6% hydrogen, 44% oxygen, and trace
+            // amounts of inorganics" (Rowell and others, "Cell wall chemistry", 2005, USDA Forest
+            // Service, Forest Products Laboratory, https://research.fs.usda.gov/treesearch/22043,
+            // read 2026-10-20). Burned through to carbon dioxide and water, a dry kilogram takes
+            // 0.50 x 32.00 / 12.01 = 1.332 kg of oxygen for its carbon and 0.06 x 32.00 / 4.032 =
+            // 0.476 kg for its hydrogen, less the 0.44 kg it carries: 1.368 kg. 80% of a kilogram
+            // at 20% moisture is dry, so 1.094 kg; 4.45 kg of oxygen an hour at full.
+            // THE FUEL: Wood Log (wood_log_0, data/items.csv, 8 kg), the campfire's fuel, and only
+            // it: its box takes and offers nothing else (BurnsFuels, containers::vessel_takes).
+            // Wood Slab is sawmill offcut firewood too, but a box holds one item at a time and
+            // keeps its last content until it is cleaned, so a box that took both would refuse
+            // slabs after logs. THE BOX: stove_firebox (data/containers/types.csv), its 2.4 ft³,
+            // 68 L: two Wood Logs, 16 kg, about four hours at full.
+            // THE MODEL (src/systems/farming/heat.rs): it runs while its box holds wood, on the
+            // heater's thermostat at 24 C (standing in for the air control a person turns down on
+            // a real stove), burning 4.07 kg an hour at its full heat and in proportion to the
+            // share of the time its thermostat runs it, into the air it stands in like the space
+            // heater. A log leaves the box once it has burned through. Its fire takes the oxygen
+            // it burns out of the home's air; its carbon dioxide, water, smoke and its 69 g of
+            // carbon monoxide an hour go up its flue, out of the home. NOT MODELLED: the flue
+            // itself (assumed sound and drawing: no blocked flue, no smoke or carbon monoxide
+            // spilling into the room, no chimney fire); the excess air a real stove pulls through
+            // its fire and up the flue, and the outside air that has to come in to replace it in a
+            // tight home (the home's air keeps no pressure, so it cannot lose or take in air as a
+            // whole); a fire dimming as the air thins (it burns on as if the air were fresh); its
+            // hot metal warming a body beside it; its ash. The air system's carbon monoxide line
+            // (src/systems/atmosphere.rs) reads nothing a stove makes.
+            // Not placed in either home: built at a workbench (build_wood_stove, data/recipes.csv)
+            // and placed from the Construction page's Life support tab with one wood_stove_0. It
+            // draws no power, so no power meter and neither Ship life support mode touches it (the
+            // air it burns is modelled the same in both); while the player is away it burns
+            // nothing, as a generator's drum is not burned then (src/systems/machine_levels.rs).
+            heats_w: 13040.0,
+            heat_setpoint_c: 24.0,
+            burns_fuel: Some((
+                kg_per_h: 4.07,
+                o2_kg_per_kg: 1.094,
+                fuels: ["wood_log_0"],
+            )),
+            stats: [
+                (
+                    kind: "fuel",
+                    value: "Wood Logs from its box, two to a load: 4.07 kg an hour at full",
+                    status: "ok",
+                ),
+                (
+                    kind: "air",
+                    value: "13,040 W of heat into the air it stands in, up to 24 C; its fire burns the home's oxygen",
+                    status: "warn",
+                ),
+            ],
+            power: None,
+            ports: [],
+            storage: [],
+            auto_recipe: None,
+            container_type: Some("stove_firebox"),
+            model: None,
+        ),
         "anvil_station": (
             shape: "box",
             size: (0.9, 0.8, 0.5),

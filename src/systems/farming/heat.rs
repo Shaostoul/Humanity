@@ -57,6 +57,26 @@
 //! (engine::survival_env, which reads a grow room's own air where the player
 //! stands in one) and the Air readout shows.
 //!
+//! THREE KINDS OF HEATER (2026-10-20). An electric resistance heater turns
+//! what it draws into the same watts of heat. A HEAT PUMP (`HeatPump`) moves
+//! heat in from the station's air around the home, which the station holds at
+//! the home's own temperature: its heat is its draw times its coefficient of
+//! performance at that temperature, read off its spec sheet's table
+//! (`machines::cop_at`), and only its draw is charged as electricity. A STOVE
+//! (`FuelStove`) draws no power and runs while its box holds fuel: it burns
+//! its kilograms an hour at its full heat, for the share of the time its
+//! thermostat runs it (`stoke`, `burn`), the box losing each piece once it has
+//! burned through (`burn_stoves`), all of it exact in f64 so the same game
+//! hours burn the same wood at any frame rate. Its fire takes the oxygen it
+//! burns out of the home's air (the one air that keeps oxygen), and its smoke,
+//! carbon dioxide, water and carbon monoxide go up its flue, out of the home.
+//! Not modelled: the excess air a real stove pulls through its fire and sends
+//! up the flue with the smoke, and the air that has to come in to replace it
+//! (the home's air keeps no pressure, so it cannot lose or take in air as a
+//! whole), a flue that blocks or spills back, and carbon monoxide in the
+//! home's air (nothing tracks it there). The thermostat stands in for the air
+//! control a person turns down on a real stove.
+//!
 //! WHAT IT LEAVES OUT: the heat stored in walls, benches, soil and crops (only
 //! the air's own heat capacity is counted, so a room warms in minutes where a
 //! real one takes longer; where it settles is the same); a room's real walls
@@ -67,15 +87,54 @@
 //! COST: per step, a few exp() for each air the home keeps, and nothing
 //! drawn or networked.
 
-use crate::ecs::components::{PowerConsumer, SpaceHeater, Transform};
+use std::collections::HashMap;
+
+use crate::ecs::components::{BurnsFuels, FuelStove, HeatPump, PowerConsumer, SpaceHeater, Transform};
+use crate::systems::inventory::containers::Container;
+use crate::systems::inventory::ItemRegistry;
 use crate::systems::life_support;
 
 use super::humidity::{AirMap, GrowRoom, HumidityData};
 
+/// What a heater runs on (2026-10-20), for its heat and the Garden panel's
+/// words.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum HeaterKind {
+    /// An electric resistance heater: power in, the same watts of heat out.
+    #[default]
+    Electric,
+    /// A heat pump (`HeatPump`): power in, that times its coefficient of
+    /// performance out, the rest moved in from the air outside the home.
+    HeatPump,
+    /// A stove (`FuelStove`): no power; it burns the fuel in its box.
+    Stove,
+}
+
+impl HeaterKind {
+    /// What the Garden panel calls one.
+    pub fn word(self) -> &'static str {
+        match self {
+            Self::Electric => "heater",
+            Self::HeatPump => "heat pump",
+            Self::Stove => "stove",
+        }
+    }
+}
+
 /// A placed space heater the air step drives: its entity, the air it stands in
 /// (a grow room or tent, an index into `AirMap::rooms`, or None for the home's
 /// own air), its heat at full output and its draw (W), its thermostat (C), and
-/// whether it has power.
+/// whether it can run (an electric heater or a heat pump: it has power; a
+/// stove: it has fuel in its box).
+///
+/// A STOVE (2026-10-20) also carries its heat while it burns at full
+/// (`full_heat_w`), the kilograms of fuel an hour that takes (`kg_per_h`), the
+/// oxygen each kilogram burns (`o2_kg_per_kg`), the fuel left in its box
+/// (`fuel_kg`, spent slice by slice through the step) and the share of the
+/// current slice that fuel lasts at full (`avail`, `stoke`): its `heat_w` for
+/// the slice is `full_heat_w` times that, so a box that runs out part-way
+/// through a slice gives exactly the heat and burns exactly the fuel it had,
+/// whatever the slice's length.
 #[derive(Debug, Clone, Copy)]
 pub struct Heater {
     pub entity: hecs::Entity,
@@ -84,27 +143,152 @@ pub struct Heater {
     pub watts: f64,
     pub setpoint_c: f64,
     pub powered: bool,
+    pub kind: HeaterKind,
+    pub full_heat_w: f64,
+    pub kg_per_h: f64,
+    pub o2_kg_per_kg: f64,
+    pub fuel_kg: f64,
+    pub avail: f64,
 }
 
-/// The placed heaters, by the air they stand in.
-pub fn heaters(world: &hecs::World, map: &AirMap) -> Vec<Heater> {
+/// The placed heaters, by the air they stand in. A heat pump's heat is its
+/// draw times its coefficient of performance at the temperature of the air it
+/// draws from: the station's air around the home, which the station holds at
+/// the home's own temperature (`AirMap::home_own_c`; it is also the air the
+/// home's heat is lost to, `step`). A stove's fuel is `fuel_kg` (by entity,
+/// `stove_fuel_kg`; none listed is an empty box).
+pub fn heaters(world: &hecs::World, map: &AirMap, fuel_kg: &HashMap<hecs::Entity, f64>) -> Vec<Heater> {
     world
-        .query::<(&SpaceHeater, &Transform, Option<&PowerConsumer>)>()
+        .query::<(&SpaceHeater, &Transform, Option<&PowerConsumer>, Option<&HeatPump>, Option<&FuelStove>)>()
         .iter()
-        .map(|(e, (h, t, pc))| Heater {
-            entity: e,
-            room: map.room_at(t.position.to_array()),
-            heat_w: f64::from(h.heat_w).max(0.0),
-            watts: f64::from(h.watts).max(0.0),
-            setpoint_c: f64::from(h.setpoint_c),
-            powered: pc.map_or(false, |p| p.enabled),
+        .map(|(e, (h, t, pc, pump, stove))| {
+            let watts = f64::from(h.watts).max(0.0);
+            let powered = pc.map_or(false, |p| p.enabled);
+            let mut out = Heater {
+                entity: e,
+                room: map.room_at(t.position.to_array()),
+                heat_w: f64::from(h.heat_w).max(0.0),
+                watts,
+                setpoint_c: f64::from(h.setpoint_c),
+                powered,
+                kind: HeaterKind::Electric,
+                full_heat_w: f64::from(h.heat_w).max(0.0),
+                kg_per_h: 0.0,
+                o2_kg_per_kg: 0.0,
+                fuel_kg: 0.0,
+                avail: 1.0,
+            };
+            if let Some(s) = stove {
+                out.kind = HeaterKind::Stove;
+                out.watts = 0.0;
+                out.kg_per_h = f64::from(s.kg_per_h).max(0.0);
+                out.o2_kg_per_kg = f64::from(s.o2_kg_per_kg).max(0.0);
+                out.fuel_kg = fuel_kg.get(&e).copied().filter(|f| f.is_finite()).unwrap_or(0.0).max(0.0);
+                out.powered = out.fuel_kg > 0.0;
+            } else if let Some(p) = pump {
+                out.kind = HeaterKind::HeatPump;
+                let cop = crate::machines::cop_at(&p.cop_by_source_c, map.home_own_c).unwrap_or(0.0).max(0.0);
+                out.heat_w = watts * cop;
+                out.full_heat_w = out.heat_w;
+            }
+            out
         })
         .collect()
 }
 
+/// Ready each stove for a slice of `hours` (2026-10-20): the share of the
+/// slice its fuel lasts at full (`Heater::avail`, at most 1), its heat for the
+/// slice (`full_heat_w` times that share), and whether it can run at all (it
+/// has fuel). Anything that is not a stove is left as it is.
+pub fn stoke(heaters: &mut [Heater], hours: f64) {
+    for h in heaters.iter_mut().filter(|h| h.kind == HeaterKind::Stove) {
+        h.avail = if !(h.fuel_kg > 0.0) {
+            0.0
+        } else if h.kg_per_h > 0.0 && hours > 0.0 {
+            (h.fuel_kg / (h.kg_per_h * hours)).min(1.0)
+        } else {
+            1.0
+        };
+        h.heat_w = h.full_heat_w * h.avail;
+        h.powered = h.avail > 0.0;
+    }
+}
+
+/// What the stoves of one air (`room`) burned over a slice of `hours` while
+/// their thermostat ran them `duty` of it (2026-10-20): each burns its
+/// `kg_per_h` for the share of the slice its fuel lasted at full and its
+/// thermostat ran it, never more than its box held; its box's fuel goes down
+/// by that and `burned` (kg, by entity) up. Returns the grams of oxygen they
+/// burned, all of it out of the air they stand in. What they burn into goes up
+/// the flue: none of it enters the home's air.
+pub fn burn(heaters: &mut [Heater], room: Option<usize>, duty: f64, hours: f64, burned: &mut HashMap<hecs::Entity, f64>) -> f64 {
+    let mut o2_g = 0.0;
+    for h in heaters.iter_mut().filter(|h| h.kind == HeaterKind::Stove && h.room == room && h.powered) {
+        let kg = (h.kg_per_h * h.avail * duty.clamp(0.0, 1.0) * hours.max(0.0)).min(h.fuel_kg).max(0.0);
+        h.fuel_kg -= kg;
+        *burned.entry(h.entity).or_insert(0.0) += kg;
+        o2_g += kg * h.o2_kg_per_kg * 1000.0;
+    }
+    o2_g
+}
+
+/// The fuel in each stove's box now, kg, by entity (2026-10-20): its pieces
+/// times each piece's mass (`data/items.csv`), less what has burned of the one
+/// at the front (`FuelStove::burned_kg`). A box holding nothing the stove
+/// burns (its `BurnsFuels`) holds no fuel. With no item registry nothing has a
+/// mass, so nothing burns.
+pub fn stove_fuel_kg(world: &hecs::World, items: Option<&ItemRegistry>) -> HashMap<hecs::Entity, f64> {
+    let Some(items) = items else { return HashMap::new() };
+    world
+        .query::<(&FuelStove, &Container, &BurnsFuels)>()
+        .iter()
+        .filter_map(|(e, (s, c, burns))| {
+            let item = c.current_content_item.as_deref().filter(|i| burns.burns(i))?;
+            let mass = f64::from(items.mass_for(item)).max(0.0);
+            let kg = (f64::from(c.current_qty) * mass - s.burned_kg.max(0.0)).max(0.0);
+            (kg > 0.0).then_some((e, kg))
+        })
+        .collect()
+}
+
+/// Take what the stoves burned (kg, by entity: `burn`) out of their boxes
+/// (2026-10-20): it goes onto the piece at the front (`FuelStove::burned_kg`),
+/// and each piece burned through leaves the box, its litres with it. A box
+/// burned empty forgets the partial piece and keeps its residue, as a drum run
+/// dry does. Exact in f64, so no frame's share is ever lost.
+pub fn burn_stoves(world: &mut hecs::World, items: Option<&ItemRegistry>, burned: &HashMap<hecs::Entity, f64>) {
+    let Some(items) = items else { return };
+    for (e, kg) in burned {
+        if !(*kg > 0.0) {
+            continue;
+        }
+        let Ok((s, c)) = world.query_one_mut::<(&mut FuelStove, &mut Container)>(*e) else { continue };
+        let Some(item) = c.current_content_item.clone() else { continue };
+        let mass = f64::from(items.mass_for(&item));
+        if !(mass > 0.0) {
+            continue;
+        }
+        s.burned_kg += kg;
+        // A piece is gone once all but a rounding's worth of it has burned.
+        while c.current_qty > 0 && s.burned_kg >= mass - 1e-9 {
+            let per_unit = c.used_liters / c.current_qty as f32;
+            c.current_qty -= 1;
+            c.used_liters = (c.used_liters - per_unit).max(0.0);
+            s.burned_kg = (s.burned_kg - mass).max(0.0);
+        }
+        if c.current_qty == 0 {
+            c.current_content_item = None;
+            c.used_liters = 0.0;
+            s.burned_kg = 0.0;
+        }
+    }
+}
+
 /// The heaters of one air (`room`, as in `Heater::room`): the full heat of the
-/// powered ones and of all of them (W, for a shed one's request), and their
-/// thermostat (the highest setpoint among them, C), None when there are none.
+/// ones that can run and of all of them (W, for a shed one's request; a stove
+/// with no fuel adds nothing to either, since no power would light it), and
+/// their thermostat (the highest setpoint among them, C), None when there are
+/// none.
 pub fn heat_in(heaters: &[Heater], room: Option<usize>) -> (f64, f64, Option<f64>) {
     let here = heaters.iter().filter(|h| h.room == room);
     let powered: f64 = here.clone().filter(|h| h.powered).map(|h| h.heat_w).sum();

@@ -293,6 +293,10 @@ pub enum VesselTakes {
     /// "flammable", a class the drum's whitelist accepts, and not one of them
     /// runs an engine built for gasoline.
     Fuels(Vec<String>),
+    /// A stove's box (2026-10-20, `FuelStove`): only the fuel its fire burns
+    /// (its `BurnsFuels`, Wood Log for the wood stove). Wood Planks, sawdust
+    /// and charcoal are solids its class would hold, and are not its fuel.
+    Firewood(Vec<String>),
     /// The vessel of a machine that runs a recipe by itself (2026-10-20, the
     /// fuel refinery's drum, which took any liquid): the feedstock it draws
     /// that recipe's inputs from, so only those of the recipe's inputs its
@@ -305,7 +309,7 @@ impl VesselTakes {
     /// The items it takes.
     pub fn items(&self) -> &[String] {
         match self {
-            Self::Fuels(items) | Self::Feed { items, .. } => items,
+            Self::Fuels(items) | Self::Firewood(items) | Self::Feed { items, .. } => items,
         }
     }
 
@@ -351,7 +355,12 @@ pub fn feed_items(
 /// whatever its class allows.
 pub fn vessel_takes(world: &hecs::World, data: &DataStore, machine: hecs::Entity) -> Option<VesselTakes> {
     if let Ok(f) = world.get::<&BurnsFuels>(machine) {
-        return Some(VesselTakes::Fuels(f.0.clone()));
+        // A stove's box (2026-10-20) or a generator's drum.
+        return Some(if world.get::<&crate::ecs::components::FuelStove>(machine).is_ok() {
+            VesselTakes::Firewood(f.0.clone())
+        } else {
+            VesselTakes::Fuels(f.0.clone())
+        });
     }
     let recipe_id = world.get::<&crate::ecs::components::AutoRefine>(machine).ok()?.recipe_id.clone();
     let vessel_type = world.get::<&Container>(machine).ok()?.container_type_id.clone();
@@ -441,6 +450,8 @@ pub fn refused_note(
     Some(match (takes, only) {
         (VesselTakes::Fuels(_), Some(only)) => format!("Takes only {only}, the fuel its engine burns: not {not}."),
         (VesselTakes::Fuels(_), None) => format!("Takes nothing: its engine names no fuel. Not {not}."),
+        (VesselTakes::Firewood(_), Some(only)) => format!("Takes only {only}, the wood its fire burns: not {not}."),
+        (VesselTakes::Firewood(_), None) => format!("Takes nothing: its fire names no fuel. Not {not}."),
         (VesselTakes::Feed { recipe, .. }, Some(only)) => format!("Takes only {only}, which {recipe} runs on: not {not}."),
         (VesselTakes::Feed { recipe, .. }, None) => format!("Takes nothing: none of what {recipe} runs on fits it. Not {not}."),
     })

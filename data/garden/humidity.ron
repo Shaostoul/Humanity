@@ -571,7 +571,12 @@
     // room's or a fruiting tent's own air, or, in any other room, the home's own
     // air, which is one air for the whole home, as its water and its gases are.
     // src/systems/farming/heat.rs is the model; src/systems/farming/heat_tests.rs
-    // measures what follows.
+    // measures what follows. Since 2026-10-20 two more machines heat an air the
+    // same way, on the same thermostat: a heat pump (`heat_cop`), whose heat is its
+    // draw times its coefficient of performance at the station air's temperature,
+    // and a wood stove (`burns_fuel`), which draws no power and runs on the Wood
+    // Logs in its own box, its fire taking its oxygen from the home's air. Their
+    // figures and sources are with them in data/machines/home.ron.
     //
     // THE BALANCE, per air, in theta: how far the heaters have warmed it above
     // its own temperature (K).

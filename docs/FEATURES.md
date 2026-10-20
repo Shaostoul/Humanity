@@ -2272,6 +2272,23 @@ their filter-patch bags (shiitake browning and fruiting bare), button as a cased
 bed across the shelf; the fruit follows the stage, pins then full flushes (oyster clusters
 from the bag's X cut, single shiitake caps, white buttons through the casing), drawn rigid
 so nothing sways in the tent (`engine/fungus_mesh.rs`, `data/plants_visual.ron` `fungi`).
+Heaters (2026-10-05, BUG-155; the heat pump and the wood stove 2026-10-20): three
+placeable machines warm the air they stand in (a grow room's or a tent's, else the
+home's own) on a 24 C thermostat (`farming/heat.rs`, THE HEAT in
+`data/garden/humidity.ron`). The space heater (`heater`, 1,500 W, its heat its draw);
+the heat pump (`heat_pump`, a Mitsubishi Electric MSZ-FS09NA: 620 W for 2,815 W of
+heat, its COP read off its spec sheet's table at the station air's temperature,
+`heat_cop` / `HeatPump`, charged only its draw by the meter and the time away); and
+the wood stove (`wood_stove`, an EPA-certified Drolet Escape 1800: 13,040 W, no power,
+4.07 kg of Wood Logs an hour from its own 68 L `stove_firebox`, which takes only Wood
+Logs, `VesselTakes::Firewood`; burned exactly in f64 at any frame rate; its fire takes
+1.094 kg of the home's oxygen per kilogram, its exhaust goes up the flue; a half-burned
+log is saved, `MachineLevels::stove_burned_kg`; `FuelStove`, `burns_fuel`). Each is
+built at a workbench (`build_heater`, `build_heat_pump`, `build_wood_stove`) and placed
+from the Construction page's Life support tab; neither home places one. The Garden panel
+names each kind ("heat pump flat out, 2,815 W of heat on 620 W", "stove off (no wood)")
+and keeps the stove's oxygen apart from breathing. Tests: `farming::heat_tests` and
+`engine::home_spawn::tests::the_heat_pump_and_wood_stove_are_built_and_placed_and_the_stoves_box_takes_only_wood`.
 Greenhouse air (v0.1370.0): each grow room gains the water its crops breathe out and
 loses it to leakage and an exhaust fan (`exhaust_fan_1`, humidity-triggered, cube-law
 power), relative humidity from the FAO-56 formula; gray mold, powdery mildew and downy
