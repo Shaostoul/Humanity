@@ -6,7 +6,7 @@
   <title>Trade, HumanityOS</title>
   <link rel="stylesheet" href="/shared/theme.css">
   <style>
-    :root { --bg-panel: #141414; --accent: #22aa66; }
+    :root { --bg-panel: #141414; }
     body{background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column}
     a{color:var(--accent)} button{cursor:pointer;font-family:inherit}
     input,select,textarea{font-family:inherit;color:var(--text);background:var(--bg-input);border:1px solid var(--border);border-radius:6px;padding:var(--space-sm) var(--space-lg);outline:none}
@@ -18,10 +18,10 @@
     .trade-card{background:var(--bg-panel);border:1px solid var(--border);border-radius:10px;padding:var(--space-xl);margin-bottom:var(--space-lg);cursor:pointer;transition:border-color .2s}
     .trade-card:hover{border-color:var(--accent)}
     .trade-card .status{display:inline-block;padding:2px 10px;border-radius:12px;font-size:.75rem;font-weight:600;text-transform:uppercase}
-    .status-pending{background:#553300;color:#ffaa33}
-    .status-active{background:#003344;color:#44bbff}
-    .status-completed{background:#003311;color:#44dd66}
-    .status-cancelled{background:#330011;color:#ff4466}
+    .status-pending{background:#553300;color:#ffaa33} /* theme-exempt: a solid badge, its colour and ink a pair that reads on either ground */
+    .status-active{background:#003344;color:#44bbff} /* theme-exempt: a solid badge, its colour and ink a pair that reads on either ground */
+    .status-completed{background:#003311;color:#44dd66} /* theme-exempt: a solid badge, its colour and ink a pair that reads on either ground */
+    .status-cancelled{background:#330011;color:#ff4466} /* theme-exempt: a solid badge, its colour and ink a pair that reads on either ground */
 
     .trade-view{display:grid;grid-template-columns:1fr auto 1fr;gap:var(--space-xl);align-items:start}
     .trade-column{background:var(--bg-panel);border:1px solid var(--border);border-radius:10px;padding:var(--space-xl);min-height:200px}
@@ -42,7 +42,7 @@
     .btn-primary{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:var(--space-md) var(--space-2xl);font-weight:600;font-size:.85rem}
     .btn-primary:hover{opacity:.9}
 
-    .confirmed-badge{display:inline-block;background:#003311;color:#44dd66;font-size:.7rem;padding:2px 8px;border-radius:10px;margin-left:var(--space-sm)}
+    .confirmed-badge{display:inline-block;background:#003311;color:#44dd66;font-size:.7rem;padding:2px 8px;border-radius:10px;margin-left:var(--space-sm)} /* theme-exempt: a solid badge, its colour and ink a pair that reads on either ground */
 
     .add-item-form{display:flex;gap:var(--space-sm);margin-top:var(--space-lg);flex-wrap:wrap}
     .add-item-form input,.add-item-form select{flex:1;min-width:80px;font-size:.8rem}

@@ -219,9 +219,129 @@ function buildCss(tokens) {
   lines.push(`  --server-row-bg: ${c('server_row_bg')};`);
   lines.push(`  --server-row-hover: ${c('server_row_hover')};`);
   lines.push('}');
+  lines.push('');
+  lines.push(...buildLight(lines));
   lines.push(END);
 
   return lines.join('\n');
+}
+
+// ── The website's light theme ────────────────────────────────────────────
+//
+// WEB-ONLY. The desktop app has no light theme (data/gui/theme.ron holds one
+// dark palette; docs/design/ui-system.md lists the light theme under
+// "Web-only"), so this palette has no theme.ron source to come from. It lives
+// HERE, in the generator, so that web/shared/theme.css is still never edited
+// by hand. If the desktop app gains a light theme, these values move into
+// theme.ron and this table goes.
+//
+// EVERY colour variable the :root block above defines must have an entry, or
+// the generator stops (see buildLight). That rule is the fix for half of the
+// 2026-10-19 report "the light theme recoloured only the top menu": the old
+// hand-written light block redefined 15 of the 45 colour variables, so every
+// surface painted with the other 30 (panels, sidebars, strong text, the chat
+// section tints) stayed dark. 'same' says on purpose that a colour reads the
+// same on light and dark (the nav category hues), so a new variable can never
+// be missed silently.
+//
+// Contrast (WCAG AA, 4.5:1 for body text), measured 2026-10-19 against the
+// three grounds text sits on, --bg-secondary (#e8e8e8, the darkest), --bg
+// (#f4f4f4) and --bg-card (#ffffff): --text 14.2:1 at worst, --text-secondary
+// 8.8:1, --text-muted 6.0:1, --accent 4.53:1, --success 5.2:1, --warning
+// 4.52:1, --danger 4.8:1, --info 5.0:1. White on --accent is 5.55:1 and on
+// every badge at least 4.59:1. The accent is a darker orange than the dark theme's on purpose:
+// #ed8c24 on a light page is 2.4:1, too faint for link text, and no orange can
+// carry BOTH dark text on it and itself as text on a light page, so in light
+// mode the ink on the accent turns white (--text-on-accent, 5.5:1).
+const LIGHT = {
+  // Backgrounds: page #f4f4f4, cards and panels white, inputs and wells grey.
+  '--bg': '#f4f4f4',
+  '--bg-secondary': '#e8e8e8',
+  '--bg-tertiary': '#e0e0e0',
+  '--bg-card': '#ffffff',
+  '--bg-card-hover': '#f0f0f0',
+  '--bg-input': '#ffffff',
+  '--bg-hover': '#e0e0e0',
+  '--bg-modal': 'rgba(0, 0, 0, 0.45)',
+  '--bg-panel': '#ffffff',
+  '--bg-sidebar': '#ebebeb',
+  '--bg-sidebar-dark': '#e2e2e2',
+  // Text
+  '--text': '#1a1a1a',
+  '--text-secondary': '#3d3d45',
+  '--text-muted': '#55555e',
+  '--text-on-accent': '#ffffff',
+  '--text-strong': '#000000',
+  // Accent
+  '--accent': '#a84f00',
+  '--accent-hover': '#8c4200',
+  '--accent-pressed': '#7a3900',
+  '--accent-dim': 'rgba(168, 79, 0, 0.12)',
+  // Semantic
+  '--success': '#1a6e2e',
+  '--warning': '#8a6100',
+  '--danger': '#c0281c',
+  '--info': '#1f5fbf',
+  '--border': '#c8c8d0',
+  '--border-focus': '#a84f00',
+  // Badges: the same hues, darkened so white text on them and the colour as
+  // text on a light page both read.
+  '--badge-admin': '#b85c0f',
+  '--badge-mod': '#1b7f46',
+  '--badge-verified': '#1f6fae',
+  '--badge-donor': '#7d3f98',
+  '--badge-live': '#c0322a',
+  // Nav category hues: identical in both themes (the pills tint and border
+  // with them at low alpha, which reads on either ground).
+  '--nav-red': 'same',
+  '--nav-green': 'same',
+  '--nav-blue': 'same',
+  '--nav-sim': 'same',
+  '--nav-settings': 'same',
+  // Chat section tints (DMs red, groups green, servers blue): pale washes of
+  // the same hues.
+  '--dm-bg': '#f6e6e6',
+  '--dm-row-bg': '#f0dada',
+  '--dm-row-hover': '#e8cccc',
+  '--group-bg': '#e4f2e4',
+  '--group-row-bg': '#d8ecd8',
+  '--group-row-hover': '#cae4ca',
+  '--server-bg': '#e6e6f6',
+  '--server-row-bg': '#dadaf0',
+  '--server-row-hover': '#ccccea',
+};
+
+/** Emit the light block, refusing to run if it does not cover every colour
+ *  variable the :root block defines (or names one that no longer exists). */
+function buildLight(rootLines, light = LIGHT) {
+  const colourVars = [];
+  for (const line of rootLines) {
+    const m = /^\s*(--[\w-]+):\s*(#[0-9a-fA-F]{3,8}|rgba?\([^)]*\));\s*$/.exec(line);
+    if (m) colourVars.push(m[1]);
+  }
+  const missing = colourVars.filter((v) => !(v in light));
+  const stale = Object.keys(light).filter((v) => !colourVars.includes(v));
+  if (missing.length || stale.length) {
+    throw new Error(
+      'gen-theme-css: the LIGHT palette must cover every colour variable exactly.\n' +
+      (missing.length ? `  no light value for: ${missing.join(', ')}\n` : '') +
+      (stale.length ? `  light value for a variable :root no longer defines: ${stale.join(', ')}\n` : '') +
+      "  Add a light colour (or 'same') to LIGHT in scripts/gen-theme-css.js."
+    );
+  }
+  const out = [];
+  out.push('/* The website\'s light theme (web-only: the desktop app has none). shell.js sets');
+  out.push('   data-theme="light" on <html> from the Settings choice. :root[data-theme] and');
+  out.push('   not a bare [data-theme], so it outranks a page <style> that sets its own');
+  out.push('   :root variables. Values: LIGHT in scripts/gen-theme-css.js. */');
+  out.push(':root[data-theme="light"] {');
+  out.push('  color-scheme: light;');
+  for (const v of colourVars) {
+    if (light[v] === 'same') continue;
+    out.push(`  ${v}: ${light[v]};`);
+  }
+  out.push('}');
+  return out;
 }
 
 function main() {
@@ -274,4 +394,7 @@ function main() {
   });
 }
 
-main();
+// Run when called as a script; scripts/tests/web-theme-light.test.js requires it
+// to check theme.css against it and to see the light-coverage rule refuse.
+if (require.main === module) main();
+module.exports = { parseTheme, buildCss, buildLight, LIGHT, BEGIN, END, RON_PATH, CSS_PATH };

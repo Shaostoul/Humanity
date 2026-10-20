@@ -380,6 +380,14 @@
     @media (max-width: 560px) { .cta-second { display: block; width: 100%; } .home-ctas { flex-direction: column; } }
     #s7 .donate-line { margin-top: 20px; color: var(--text-muted); font-size: 0.9rem; }
     #s7 .donate-line a { color: var(--accent); }
+
+    /* ── Light theme: no galaxy behind the page (shell.js hides it), so the
+       dark scrim and the dark glow behind the hero text have nothing to
+       separate the text from, and only grey the page. ── */
+    :root[data-theme="light"] #s1 { background: none; }
+    :root[data-theme="light"] .screen h1,
+    :root[data-theme="light"] #s1 .sub { text-shadow: none; }
+    :root[data-theme="light"] .proof .tile { background: var(--bg-card); }
   </style>
 </head>
 <body>

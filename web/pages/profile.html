@@ -6,6 +6,33 @@
   <title>Profile, HumanityOS</title>
   <link rel="stylesheet" href="/shared/theme.css">
   <style>
+    /* Colours this page uses that have no theme token. The dark values are
+       exactly the page's look before the light theme worked (2026-10-19);
+       the light ones serve the light theme. */
+    :root {
+      --pg-card-bg: #181818;
+      --pg-line: #2a2a2a;
+      --pg-card-ink: #e0e0e0;
+      --pg-dim-ink: #666;
+      --pg-quiet-line: #333;
+      --pg-quiet-ink: #888;
+      --pg-faint-ink: #555;
+      --pg-row-line: #1e1e1e;
+      --pg-chip-bg: #222;
+      --pg-gold-ink: #ffd700;
+    }
+    :root[data-theme="light"] {
+      --pg-card-bg: var(--bg-card);
+      --pg-line: var(--border);
+      --pg-card-ink: var(--text);
+      --pg-dim-ink: var(--text-muted);
+      --pg-quiet-line: var(--border);
+      --pg-quiet-ink: var(--text-muted);
+      --pg-faint-ink: var(--text-muted);
+      --pg-row-line: var(--border);
+      --pg-chip-bg: var(--bg-secondary);
+      --pg-gold-ink: #7a6000;
+    }
     /* ── Layout ── */
     /* shell.js nav is position:sticky so no padding-top needed on body */
     body { padding-top: 0; padding-bottom: var(--space-3xl); }
@@ -1596,7 +1623,7 @@
 
       var endorsement = skillEndorsements[skill.id.toLowerCase()];
       var endorseBadge = endorsement && endorsement.count > 0
-        ? '<span style="font-size:0.7rem;color:#ffd700;margin-top:var(--space-xs);display:block;" title="Endorsed by ' + (endorsement.last_endorser || 'a peer') + '">🏅 ' + endorsement.count + '</span>'
+        ? '<span style="font-size:0.7rem;color:var(--pg-gold-ink);margin-top:var(--space-xs);display:block;" title="Endorsed by ' + (endorsement.last_endorser || 'a peer') + '">🏅 ' + endorsement.count + '</span>'
         : '';
 
       return '<div class="skill-card" id="card-' + skill.id + '">' +
@@ -1663,12 +1690,12 @@
       var overlay = document.createElement('div');
       overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:9000;display:flex;align-items:center;justify-content:center;padding:var(--space-xl);';
       overlay.innerHTML =
-        '<div style="background:#181818;border:1px solid #2a2a2a;border-radius:12px;padding:var(--space-2xl);width:100%;max-width:420px;max-height:80vh;overflow-y:auto;font-family:\'Segoe UI\',system-ui,sans-serif;color:#e0e0e0;">' +
+        '<div style="background:var(--pg-card-bg);border:1px solid var(--pg-line);border-radius:12px;padding:var(--space-2xl);width:100%;max-width:420px;max-height:80vh;overflow-y:auto;font-family:\'Segoe UI\',system-ui,sans-serif;color:var(--pg-card-ink);">' +
           '<h2 style="font-size:0.95rem;font-weight:700;color:var(--accent);margin-bottom:var(--space-sm)">' + hosIcon('users', 16) + ' ' + skillName + '</h2>' +
-          '<p style="font-size:0.73rem;color:#666;margin-bottom:var(--space-xl)">Community members with this skill (from relay database):</p>' +
+          '<p style="font-size:0.73rem;color:var(--pg-dim-ink);margin-bottom:var(--space-xl)">Community members with this skill (from relay database):</p>' +
           '<div id="skill-find-results" style="font-size:0.82rem;">Loading…</div>' +
           '<div style="display:flex;justify-content:flex-end;margin-top:var(--space-xl);">' +
-            '<button onclick="this.closest(\'[style*=fixed]\').remove()" style="background:none;border:1px solid #333;color:#888;border-radius:7px;padding:var(--space-md) var(--space-xl);font-size:0.82rem;cursor:pointer;">Close</button>' +
+            '<button onclick="this.closest(\'[style*=fixed]\').remove()" style="background:none;border:1px solid var(--pg-quiet-line);color:var(--pg-quiet-ink);border-radius:7px;padding:var(--space-md) var(--space-xl);font-size:0.82rem;cursor:pointer;">Close</button>' +
           '</div>' +
         '</div>';
       document.body.appendChild(overlay);
@@ -1679,17 +1706,17 @@
         .then(function(res) { if (!res.ok) throw new Error('HTTP ' + res.status); return res.json(); })
         .then(function(users) {
           if (!users || users.length === 0) {
-            resultsEl.innerHTML = '<span style="color:#555">No community members found with this skill yet. Be the first to level it up!</span>';
+            resultsEl.innerHTML = '<span style="color:var(--pg-faint-ink)">No community members found with this skill yet. Be the first to level it up!</span>';
             return;
           }
           var lvColors = ['#555','#888','#aaa','#6ab0f5','#4ec87a','#f0c040','#f0a500','#e57c00','#e53935','#c62828','#9c27b0'];
           resultsEl.innerHTML = users.map(function(u) {
             var lv = u.level || 0;
             var c = lvColors[Math.min(lv, lvColors.length-1)];
-            return '<div style="display:flex;align-items:center;gap:var(--space-md);padding:var(--space-sm) 0;border-bottom:1px solid #1e1e1e;">' +
-              '<div style="width:28px;height:28px;border-radius:50%;background:#222;display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;flex-shrink:0;color:' + c + '">' + lv + '</div>' +
+            return '<div style="display:flex;align-items:center;gap:var(--space-md);padding:var(--space-sm) 0;border-bottom:1px solid var(--pg-row-line);">' +
+              '<div style="width:28px;height:28px;border-radius:50%;background:var(--pg-chip-bg);display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;flex-shrink:0;color:' + c + '">' + lv + '</div>' +
               '<span style="flex:1;font-weight:600">' + (u.display_name || u.public_key.slice(0,12) + '…') + '</span>' +
-              '<span style="font-size:0.68rem;color:#555">' + (u.reality_xp|0) + ' XP</span>' +
+              '<span style="font-size:0.68rem;color:var(--pg-faint-ink)">' + (u.reality_xp|0) + ' XP</span>' +
             '</div>';
           }).join('');
         })

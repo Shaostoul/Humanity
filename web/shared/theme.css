@@ -204,26 +204,55 @@
   --server-row-bg: #141437;
   --server-row-hover: #191946;
 }
-/* ======================== END AUTO-GENERATED ======================== */
 
-/* ── Light theme — toggled by adding data-theme="light" to <html> ── */
-[data-theme="light"] {
+/* The website's light theme (web-only: the desktop app has none). shell.js sets
+   data-theme="light" on <html> from the Settings choice. :root[data-theme] and
+   not a bare [data-theme], so it outranks a page <style> that sets its own
+   :root variables. Values: LIGHT in scripts/gen-theme-css.js. */
+:root[data-theme="light"] {
+  color-scheme: light;
   --bg: #f4f4f4;
   --bg-secondary: #e8e8e8;
+  --bg-tertiary: #e0e0e0;
   --bg-card: #ffffff;
   --bg-card-hover: #f0f0f0;
-  --bg-input: #e8e8e8;
+  --bg-input: #ffffff;
   --bg-hover: #e0e0e0;
+  --bg-modal: rgba(0, 0, 0, 0.45);
+  --bg-panel: #ffffff;
+  --bg-sidebar: #ebebeb;
+  --bg-sidebar-dark: #e2e2e2;
   --text: #1a1a1a;
-  --text-muted: #555;
-  --accent: #d06600;
-  --accent-hover: #b35500;
-  --accent-dim: rgba(208,102,0,0.12);
-  --border: #ccc;
-  --success: #2a7;
-  --danger: #c33;
-  --warning: #a83;
+  --text-secondary: #3d3d45;
+  --text-muted: #55555e;
+  --text-on-accent: #ffffff;
+  --text-strong: #000000;
+  --accent: #a84f00;
+  --accent-hover: #8c4200;
+  --accent-pressed: #7a3900;
+  --accent-dim: rgba(168, 79, 0, 0.12);
+  --success: #1a6e2e;
+  --warning: #8a6100;
+  --danger: #c0281c;
+  --info: #1f5fbf;
+  --border: #c8c8d0;
+  --border-focus: #a84f00;
+  --badge-admin: #b85c0f;
+  --badge-mod: #1b7f46;
+  --badge-verified: #1f6fae;
+  --badge-donor: #7d3f98;
+  --badge-live: #c0322a;
+  --dm-bg: #f6e6e6;
+  --dm-row-bg: #f0dada;
+  --dm-row-hover: #e8cccc;
+  --group-bg: #e4f2e4;
+  --group-row-bg: #d8ecd8;
+  --group-row-hover: #cae4ca;
+  --server-bg: #e6e6f6;
+  --server-row-bg: #dadaf0;
+  --server-row-hover: #ccccea;
 }
+/* ======================== END AUTO-GENERATED ======================== */
 
 /* Base Typography */
 html { scroll-behavior: smooth; }

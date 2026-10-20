@@ -7,6 +7,48 @@
      theme.css and shadow it, making the web a different orange than native.
      --bg-primary is a web-only alias for theme's --bg. */
   --bg-primary: var(--bg, #0d0d0d);
+
+  /* Chat-only colours with no theme token. The dark values are exactly the
+     chat's look before the light theme worked (2026-10-19); each has a light
+     value below, so the light theme reaches every surface that uses one. */
+  --chat-call-grad-a: #1a3a2a;
+  --chat-call-grad-b: #1a2a3a;
+  --chat-bot-ink: #7aa4d8;
+  --chat-notice-red: #ff6b6b;
+  --chat-notice-yellow: #e0c860;
+  --chat-notice-green: #60d080;
+  --chat-notice-blue: #60a0e0;
+  --chat-notice-cyan: #60e0e0;
+  --chat-notice-magenta: #d060e0;
+  --chat-todo-active-bg: #1a2a4a;
+  --chat-todo-active-line: #2a3a5a;
+  --chat-todo-active-ink: #6ab0ff;
+  --chat-todo-done-bg: #1a3a2a;
+  --chat-todo-done-line: #2a4a3a;
+  --chat-todo-done-ink: #6adb8a;
+  --chat-todo-off-bg: #3a1a1a;
+  --chat-todo-off-line: #4a2a2a;
+  --chat-todo-off-ink: #db6a6a;
+}
+:root[data-theme="light"] {
+  --chat-call-grad-a: #dcefe2;
+  --chat-call-grad-b: #dce6f2;
+  --chat-bot-ink: #2f5f9a;
+  --chat-notice-red: #b42318;
+  --chat-notice-yellow: #6f5300;
+  --chat-notice-green: #1a6e2e;
+  --chat-notice-blue: #1f5fbf;
+  --chat-notice-cyan: #0b6666;
+  --chat-notice-magenta: #8e2a9e;
+  --chat-todo-active-bg: #e2eaf8;
+  --chat-todo-active-line: #b9c9e6;
+  --chat-todo-active-ink: #1f5fbf;
+  --chat-todo-done-bg: #e2f2e6;
+  --chat-todo-done-line: #b9dcc4;
+  --chat-todo-done-ink: #1a6e2e;
+  --chat-todo-off-bg: #f6e2e2;
+  --chat-todo-off-line: #e6bcbc;
+  --chat-todo-off-ink: #a3282a;
 }
 
 /* Twemoji */

@@ -61,7 +61,7 @@
   font-size: var(--text-sm);
 }
 
-.message .author.bot { color: #7aa4d8; }
+.message .author.bot { color: var(--chat-bot-ink); }
 .message .author.you { color: var(--success); }
 
 .identicon {
@@ -160,12 +160,12 @@
   margin-left: var(--space-md);
   white-space: nowrap;
 }
-.notice.notice-red    { background: rgba(220,50,50,0.12); border-left: 3px solid #dc3232; color: #ff6b6b; }
-.notice.notice-yellow { background: rgba(220,180,50,0.10); border-left: 3px solid #dcb432; color: #e0c860; }
-.notice.notice-green  { background: rgba(50,180,80,0.10); border-left: 3px solid #32b450; color: #60d080; }
-.notice.notice-blue   { background: rgba(50,120,220,0.10); border-left: 3px solid #3278dc; color: #60a0e0; }
-.notice.notice-cyan   { background: rgba(50,200,200,0.10); border-left: 3px solid #32c8c8; color: #60e0e0; }
-.notice.notice-magenta { background: rgba(180,50,200,0.10); border-left: 3px solid #b432c8; color: #d060e0; }
+.notice.notice-red    { background: rgba(220,50,50,0.12); border-left: 3px solid #dc3232; color: var(--chat-notice-red); }
+.notice.notice-yellow { background: rgba(220,180,50,0.10); border-left: 3px solid #dcb432; color: var(--chat-notice-yellow); }
+.notice.notice-green  { background: rgba(50,180,80,0.10); border-left: 3px solid #32b450; color: var(--chat-notice-green); }
+.notice.notice-blue   { background: rgba(50,120,220,0.10); border-left: 3px solid #3278dc; color: var(--chat-notice-blue); }
+.notice.notice-cyan   { background: rgba(50,200,200,0.10); border-left: 3px solid #32c8c8; color: var(--chat-notice-cyan); }
+.notice.notice-magenta { background: rgba(180,50,200,0.10); border-left: 3px solid #b432c8; color: var(--chat-notice-magenta); }
 @keyframes noticeFadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
 .notice.fading { transition: opacity 0.5s ease; opacity: 0; }
 
@@ -390,7 +390,7 @@
   margin: var(--space-sm) 0;
 }
 .code-block-wrapper pre {
-  background: #1a1a1a;
+  background: #1a1a1a; /* theme-exempt: code blocks are dark in both themes; their inks are set for it */
   color: #e0e0e0;
   padding: var(--space-lg) var(--space-xl);
   border-radius: var(--radius);
@@ -414,7 +414,7 @@
   position: absolute;
   top: var(--space-xs);
   right: var(--space-sm);
-  background: #333;
+  background: #333; /* theme-exempt: sits on the always-dark code block */
   border: 1px solid #555;
   color: #aaa;
   font-size: var(--text-xs);
@@ -540,20 +540,20 @@
   white-space: pre-wrap;
 }
 .todo-section.todo-active {
-  background: #1a2a4a;
-  border: 1px solid #2a3a5a;
+  background: var(--chat-todo-active-bg);
+  border: 1px solid var(--chat-todo-active-line);
 }
-.todo-section.todo-active summary { color: #6ab0ff; }
+.todo-section.todo-active summary { color: var(--chat-todo-active-ink); }
 .todo-section.todo-completed {
-  background: #1a3a2a;
-  border: 1px solid #2a4a3a;
+  background: var(--chat-todo-done-bg);
+  border: 1px solid var(--chat-todo-done-line);
 }
-.todo-section.todo-completed summary { color: #6adb8a; }
+.todo-section.todo-completed summary { color: var(--chat-todo-done-ink); }
 .todo-section.todo-inactive {
-  background: #3a1a1a;
-  border: 1px solid #4a2a2a;
+  background: var(--chat-todo-off-bg);
+  border: 1px solid var(--chat-todo-off-line);
 }
-.todo-section.todo-inactive summary { color: #db6a6a; }
+.todo-section.todo-inactive summary { color: var(--chat-todo-off-ink); }
 
 /* ── Feature 4: Message Deletion (enhanced) ── */
 .message-deleted-placeholder {

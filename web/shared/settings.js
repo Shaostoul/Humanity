@@ -63,6 +63,12 @@
   // END AUTO-GENERATED.
   // END AUTO-GENERATED.
 
+  // Every variable a preset can paint inline, so switching away from one
+  // clears all of it (applySettings).
+  const PRESET_VARS = Array.from(new Set(
+    Object.values(THEMES).reduce((all, t) => all.concat(Object.keys(t)), [])
+  ));
+
   function load() {
     try { return Object.assign({}, DEFAULTS, JSON.parse(localStorage.getItem(STORAGE_KEY))); }
     catch { return Object.assign({}, DEFAULTS); }
@@ -88,12 +94,37 @@
   function applySettings(settings) {
     const doc = document.documentElement;
 
-    // Accent
+    // Theme. One choice, settings.theme: dark (the default), light, system,
+    // or the dark presets midnight and oled. shell.js owns light and dark
+    // (data-theme="light" on <html>, and theme.css's light palette); the
+    // presets are painted here as inline variables.
+    //
+    // NEVER write the base palette inline for dark or light. An inline
+    // variable on <html> outranks every stylesheet rule, and until 2026-10-19
+    // this function wrote the dark palette inline on every page load, so
+    // choosing the light theme recoloured only the top menu (whose light rules
+    // used literal colours) while every page stayed dark. Dark needs nothing
+    // inline: theme.css's :root already holds exactly these values.
+    const resolved = typeof window.hosApplyTheme === 'function'
+      ? window.hosApplyTheme(settings.theme)
+      : (settings.theme === 'light' ? 'light' : 'dark');
+    PRESET_VARS.forEach(k => doc.style.removeProperty(k));
+    if (settings.theme !== 'dark' && THEMES[settings.theme]) {
+      Object.entries(THEMES[settings.theme]).forEach(([k, v]) => doc.style.setProperty(k, v));
+    }
+
+    // Accent. The default accent in the light theme is left to theme.css,
+    // whose light palette darkens it so links read on a light page (#ed8c24
+    // there is 2.4:1). A chosen accent is the person's own and applies in both.
     const accent = settings.accent || DEFAULTS.accent;
-    const { r, g, b } = hexToRgb(accent);
-    doc.style.setProperty('--accent', accent);
-    doc.style.setProperty('--accent-hover', darken(accent, 0.15));
-    doc.style.setProperty('--accent-dim', `rgba(${r},${g},${b},0.15)`);
+    if (resolved === 'light' && String(accent).toLowerCase() === String(DEFAULTS.accent).toLowerCase()) {
+      ['--accent', '--accent-hover', '--accent-dim'].forEach(k => doc.style.removeProperty(k));
+    } else {
+      const { r, g, b } = hexToRgb(accent);
+      doc.style.setProperty('--accent', accent);
+      doc.style.setProperty('--accent-hover', darken(accent, 0.15));
+      doc.style.setProperty('--accent-dim', `rgba(${r},${g},${b},0.15)`);
+    }
 
     // Font size, prefer pixel slider value, fall back to named size
     if (settings.fontSizePx) {
@@ -103,10 +134,6 @@
       const fs = FONT_SIZES.find(f => f.value === settings.fontSize) || FONT_SIZES[1];
       doc.style.setProperty('font-size', fs.size);
     }
-
-    // Theme
-    const theme = THEMES[settings.theme] || THEMES.dark;
-    Object.entries(theme).forEach(([k, v]) => doc.style.setProperty(k, v));
 
     // Icon weight + size
     const iw = settings.iconWeight ?? DEFAULTS.iconWeight;
@@ -276,9 +303,10 @@
     // ── Theme ──
     const themeSection = section('🌙 Theme');
     const themeRow = document.createElement('div');
-    themeRow.style.cssText = 'display:flex;gap:var(--space-md);';
-    [['Dark', 'dark'], ['Midnight', 'midnight'], ['OLED Black', 'oled']].forEach(([label, val]) => {
-      const btn = pill(label, settings.theme === val);
+    themeRow.style.cssText = 'display:flex;flex-wrap:wrap;gap:var(--space-md);';
+    // The same choices as the Settings page's Color Scheme select.
+    [['Dark', 'dark'], ['Light', 'light'], ['Follow System', 'system'], ['Midnight', 'midnight'], ['OLED Black', 'oled']].forEach(([label, val]) => {
+      const btn = pill(label, (settings.theme || 'dark') === val);
       btn.onclick = () => {
         settings.theme = val;
         save(settings);
@@ -510,6 +538,8 @@
   })();
 
   // ── Init ──
+  // shell.js calls this when the theme changes in another tab or on the device.
+  window.hosApplySettings = () => applySettings(load());
   applySettings(load());
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => { injectGearButton(); observeChatSoundToggle(); });

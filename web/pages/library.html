@@ -60,6 +60,18 @@
       100% { color:#ff5c5c; }
     }
     .lib-doc.active { color:var(--accent); font-weight:600; box-shadow:inset 3px 0 0 currentColor; background:color-mix(in srgb, currentColor 12%, transparent); animation:lib-channeling-text 3s linear infinite; }
+    /* The same cycle in hues dark enough to read on a light page (the bright ones above,
+       yellow and green above all, all but vanish on white). */
+    @keyframes lib-channeling-text-light {
+      0%   { color:#b3261e; }
+      16%  { color:#a14d00; }
+      33%  { color:#7a6400; }
+      50%  { color:#1a7a3a; }
+      66%  { color:#1f5fbf; }
+      83%  { color:#6a2fc0; }
+      100% { color:#b3261e; }
+    }
+    :root[data-theme="light"] .lib-doc.active { animation-name:lib-channeling-text-light; }
     /* Light theme: bright yellow text is unreadable on a light background, so
        use the top bar's own treatment there instead: dark text, cycling border. */
     [data-theme="light"] .lib-doc.active { color:var(--text); background:none; animation:channeling 3s linear infinite; }

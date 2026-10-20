@@ -9,6 +9,14 @@
 :root {
   --bg-panel: #141414;
   --map-accent: #22aa66;
+  /* The zoom buttons and the hover label float over the map: dark glass in the
+     dark theme, light glass in the light one. */
+  --map-float-bg: rgba(20,20,20,0.9);
+  --map-tip-bg: rgba(15,15,20,0.95);
+}
+:root[data-theme="light"] {
+  --map-float-bg: rgba(255,255,255,0.92);
+  --map-tip-bg: rgba(255,255,255,0.96);
 }
 body {
   background: var(--bg);
@@ -102,7 +110,7 @@ button { font-family: inherit; cursor: pointer; }
 #map-canvas {
   flex: 1;
   display: block;
-  background: #060810;
+  background: #060810; /* theme-exempt: the map of space is dark in both themes */
   cursor: grab;
 }
 #map-canvas.dragging { cursor: grabbing; }
@@ -159,7 +167,7 @@ button { font-family: inherit; cursor: pointer; }
   height: 36px;
   border-radius: var(--radius);
   border: 1px solid var(--border);
-  background: rgba(20,20,20,0.9);
+  background: var(--map-float-bg);
   color: var(--text);
   font-size: 18px;
   display: flex;
@@ -190,7 +198,7 @@ button { font-family: inherit; cursor: pointer; }
 #hover-tooltip {
   position: absolute;
   padding: 5px 10px;
-  background: rgba(15,15,20,0.95);
+  background: var(--map-tip-bg);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   color: var(--text);

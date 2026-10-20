@@ -6,6 +6,43 @@
   <title>Inventory, HumanityOS</title>
   <link rel="stylesheet" href="/shared/theme.css">
   <style>
+    /* Colours this page uses that have no theme token. The dark values are
+       exactly the page's look before the light theme worked (2026-10-19);
+       the light ones serve the light theme. */
+    :root {
+      --pg-bright-ink: #eee;
+      --pg-green-ink: #4caf50;
+      --pg-slot-bg: #131313;
+      --pg-green-bg: #1a3a1a;
+      --pg-green-line: #2a5a2a;
+      --pg-green-hover: #1e481e;
+      --pg-red-bg: #2a1010;
+      --pg-red-line: #5a2a2a;
+      --pg-red-hover: #381010;
+      --pg-hover-ink: #bbb;
+      --pg-soft-ink: #ddd;
+      --pg-cond-excellent: #4d9;
+      --pg-cond-good: #4cf;
+      --pg-cond-fair: #fa4;
+      --pg-cond-poor: #f64;
+    }
+    :root[data-theme="light"] {
+      --pg-bright-ink: var(--text);
+      --pg-green-ink: #1a6e2e;
+      --pg-slot-bg: var(--bg-card);
+      --pg-green-bg: #e2f2e4;
+      --pg-green-line: #a9d4b1;
+      --pg-green-hover: #d2ead6;
+      --pg-red-bg: #f8e4e2;
+      --pg-red-line: #e2b0ac;
+      --pg-red-hover: #f0d2ce;
+      --pg-hover-ink: var(--text-secondary);
+      --pg-soft-ink: var(--text);
+      --pg-cond-excellent: #17734a;
+      --pg-cond-good: #0b6e99;
+      --pg-cond-fair: #8f5200;
+      --pg-cond-poor: #b0321a;
+    }
 
     body {
       min-height: 100vh;
@@ -31,7 +68,7 @@
       transition: color 0.15s, border-color 0.15s;
       user-select: none;
     }
-    .gear-tab:hover { color: #bbb; }
+    .gear-tab:hover { color: var(--pg-hover-ink); }
     .gear-tab.active { color: var(--text); border-bottom-color: var(--success); }
 
     /* ═══════════════════════════════════════════
@@ -105,7 +142,7 @@
       border-left: 2px solid transparent;
       transition: background 0.12s, border-color 0.12s, color 0.12s;
     }
-    .inv-cat:hover { background: var(--bg-card); color: #ddd; }
+    .inv-cat:hover { background: var(--bg-card); color: var(--pg-soft-ink); }
     .inv-cat.active { border-left-color: var(--section-color); color: var(--text); background: var(--bg-card); }
 
     .inv-cat .cat-icon { font-size: 0.9rem; width: 18px; text-align: center; }
@@ -150,12 +187,12 @@
       cursor: pointer;
       transition: all 0.15s;
     }
-    .view-btn.active, .view-btn:hover { background: var(--bg-hover); color: #eee; border-color: var(--text-muted); }
+    .view-btn.active, .view-btn:hover { background: var(--bg-hover); color: var(--pg-bright-ink); border-color: var(--text-muted); }
 
     #add-item-btn {
-      background: #1a3a1a;
-      border: 1px solid #2a5a2a;
-      color: #4caf50;
+      background: var(--pg-green-bg);
+      border: 1px solid var(--pg-green-line);
+      color: var(--pg-green-ink);
       border-radius: var(--radius-sm);
       padding: var(--space-sm) var(--space-xl);
       font-size: 0.8rem;
@@ -347,13 +384,13 @@
     }
     .modal-btn:hover { background: var(--bg-hover); color: var(--text); }
     .modal-btn.primary {
-      background: #1a3a1a;
-      border-color: #2a5a2a;
-      color: #4caf50;
+      background: var(--pg-green-bg);
+      border-color: var(--pg-green-line);
+      color: var(--pg-green-ink);
     }
-    .modal-btn.primary:hover { background: #1e481e; }
-    .modal-btn.danger { background: #2a1010; border-color: #5a2a2a; color: var(--danger); }
-    .modal-btn.danger:hover { background: #381010; }
+    .modal-btn.primary:hover { background: var(--pg-green-hover); }
+    .modal-btn.danger { background: var(--pg-red-bg); border-color: var(--pg-red-line); color: var(--danger); }
+    .modal-btn.danger:hover { background: var(--pg-red-hover); }
 
     /* ═══════════════════════════════════════════
        EQUIPMENT TAB STYLES
@@ -400,7 +437,7 @@
       border: 1px solid transparent;
       margin-bottom: var(--space-xs);
     }
-    .equip-cat:hover { background: var(--bg-secondary); color: #eee; }
+    .equip-cat:hover { background: var(--bg-secondary); color: var(--pg-bright-ink); }
     .equip-cat.active { background: var(--bg-secondary); color: var(--text); border-color: var(--success); }
     .equip-cat .eq-count {
       margin-left: auto;
@@ -465,7 +502,7 @@
       gap: var(--space-lg);
     }
     .loadout-slot {
-      background: #131313;
+      background: var(--pg-slot-bg);
       border: 1px solid var(--bg-input);
       border-radius: var(--radius);
       padding: var(--space-lg);
@@ -488,7 +525,7 @@
     }
     .loadout-slot .slot-item {
       font-size: 0.8rem;
-      color: #ddd;
+      color: var(--pg-soft-ink);
       font-weight: 600;
       text-align: center;
     }
@@ -511,7 +548,7 @@
     .equip-item:hover { border-color: var(--border); background: var(--bg-card); }
     .equip-item .item-icon { font-size: 1.3rem; width: 28px; text-align: center; flex-shrink: 0; }
     .equip-item .item-body { flex: 1; min-width: 0; }
-    .equip-item .item-name { font-size: 0.88rem; font-weight: 600; color: #eee; }
+    .equip-item .item-name { font-size: 0.88rem; font-weight: 600; color: var(--pg-bright-ink); }
     .equip-item .item-sub  { font-size: 0.76rem; color: var(--text-muted); margin-top: 2px; }
     .equip-item .item-cond {
       font-size: 0.72rem;
@@ -520,10 +557,10 @@
       border-radius: var(--radius-sm);
       flex-shrink: 0;
     }
-    .cond-excellent { color: #4d9; background: rgba(68,204,136,0.1); border: 1px solid rgba(68,204,136,0.25); }
-    .cond-good      { color: #4cf; background: rgba(68,204,255,0.1); border: 1px solid rgba(68,204,255,0.25); }
-    .cond-fair      { color: #fa4; background: rgba(255,170,68,0.1); border: 1px solid rgba(255,170,68,0.25); }
-    .cond-poor      { color: #f64; background: rgba(255,102,68,0.1); border: 1px solid rgba(255,102,68,0.25); }
+    .cond-excellent { color: var(--pg-cond-excellent); background: rgba(68,204,136,0.1); border: 1px solid rgba(68,204,136,0.25); }
+    .cond-good      { color: var(--pg-cond-good); background: rgba(68,204,255,0.1); border: 1px solid rgba(68,204,255,0.25); }
+    .cond-fair      { color: var(--pg-cond-fair); background: rgba(255,170,68,0.1); border: 1px solid rgba(255,170,68,0.25); }
+    .cond-poor      { color: var(--pg-cond-poor); background: rgba(255,102,68,0.1); border: 1px solid rgba(255,102,68,0.25); }
     .equip-item-delete {
       background: none; border: none; color: var(--border); cursor: pointer;
       font-size: 0.85rem; padding: var(--space-xs); border-radius: var(--radius-sm);
@@ -566,7 +603,7 @@
     .equip-modal label { font-size: 0.79rem; color: var(--text-muted); display: block; margin-bottom: var(--space-xs); }
     .equip-modal input, .equip-modal select, .equip-modal textarea {
       width: 100%; background: var(--bg-secondary); border: 1px solid var(--border);
-      border-radius: var(--radius); color: #ddd; padding: var(--space-md) var(--space-lg);
+      border-radius: var(--radius); color: var(--pg-soft-ink); padding: var(--space-md) var(--space-lg);
       font-size: 0.86rem; font-family: inherit; outline: none;
     }
     .equip-modal input:focus, .equip-modal select:focus, .equip-modal textarea:focus { border-color: var(--success); }

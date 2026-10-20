@@ -46,6 +46,10 @@ function savePref() {
     else prefs[k] = el.value;
   });
   localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
+  // Apply the colour scheme now, on this page (shell.js owns it; every other
+  // page reads the same stored choice when it opens).
+  if (typeof window.hosApplySettings === 'function') window.hosApplySettings();
+  else if (typeof window.hosApplyTheme === 'function') window.hosApplyTheme(prefs.theme);
   // Reflect debug-panel toggle: remove instantly; enable after brief delay (shell.js needs reload to inject)
   const dbgExisting = document.getElementById('hos-debug-overlay');
   if (!prefs['debug-panel'] && dbgExisting) dbgExisting.remove();
@@ -313,7 +317,7 @@ function showSaved() {
   const btn = document.getElementById('settings-save');
   var saveIcon = window.hosIcon ? hosIcon('check', 16) : '✓';
   btn.innerHTML = saveIcon + ' Saved!';
-  btn.style.background = '#1a5a3a';
+  btn.style.background = 'var(--set-saved-bg)';
   setTimeout(() => {
     var icon = window.hosIcon ? hosIcon('save', 16) : '';
     btn.innerHTML = icon + ' Save Settings';
@@ -497,9 +501,9 @@ function renderKeybinds() {
             <strong>${b.label}</strong>
           </div>
           <div style="display:flex;align-items:center;gap:var(--space-md);">
-            <kbd id="kb-${b.id}" style="background:#111;border:1px solid #46f;color:#aaf;padding:0.22rem var(--space-lg);border-radius:5px;font-family:monospace;font-size:0.82rem;min-width:60px;text-align:center;cursor:pointer;"
+            <kbd id="kb-${b.id}" style="background:var(--set-field-bg);border:1px solid var(--set-ops-border);color:var(--set-key-ink);padding:0.22rem var(--space-lg);border-radius:5px;font-family:monospace;font-size:0.82rem;min-width:60px;text-align:center;cursor:pointer;"
               onclick="captureKeybind('${b.id}')">${formatKey(val)}</kbd>
-            <button onclick="clearKeybind('${b.id}')" style="background:transparent;border:1px solid #555;color:#888;padding:var(--space-xs) var(--space-md);border-radius:4px;cursor:pointer;font-size:0.7rem;" title="Clear">✕</button>
+            <button onclick="clearKeybind('${b.id}')" style="background:transparent;border:1px solid var(--set-line-mid);color:var(--set-quiet-ink);padding:var(--space-xs) var(--space-md);border-radius:4px;cursor:pointer;font-size:0.7rem;" title="Clear">✕</button>
           </div>
         </div>`;
       }).join('')}
@@ -652,7 +656,7 @@ function checkKeyProtection() {
   if (!el) return;
   const hasProtected = !!localStorage.getItem('hos_key_protected');
   el.textContent = hasProtected ? '🟢 Protected' : '🔴 Not protected';
-  el.style.color = hasProtected ? '#4a9' : '#e44';
+  el.style.color = hasProtected ? 'var(--set-prot-ink)' : 'var(--set-err-ink-2)';
 }
 
 function checkBackupStatus() {
@@ -695,15 +699,15 @@ function calculateStorage() {
     const bytes = val ? new Blob([val]).size : 0;
     totalBytes += bytes;
     const sizeStr = bytes < 1024 ? bytes + ' B' : (bytes / 1024).toFixed(1) + ' KB';
-    return `<div style="display:flex;justify-content:space-between;padding:var(--space-sm) 0;border-bottom:1px solid #181818;font-size:0.82rem;">
-      <span style="color:#aaa">${m.label}</span>
-      <span style="color:#666;font-family:monospace;">${sizeStr}</span>
+    return `<div style="display:flex;justify-content:space-between;padding:var(--space-sm) 0;border-bottom:1px solid var(--set-divider);font-size:0.82rem;">
+      <span style="color:var(--set-soft-ink)">${m.label}</span>
+      <span style="color:var(--set-dim-ink-2);font-family:monospace;">${sizeStr}</span>
     </div>`;
   });
   const totalStr = totalBytes < 1024 ? totalBytes + ' B' : (totalBytes / 1024).toFixed(1) + ' KB';
   rows.push(`<div style="display:flex;justify-content:space-between;padding:var(--space-md) 0 0;font-size:0.85rem;font-weight:700;">
-    <span style="color:#ddd">Total</span>
-    <span style="color:#2a6;font-family:monospace;">${totalStr}</span>
+    <span style="color:var(--set-ink)">Total</span>
+    <span style="color:var(--set-good-ink);font-family:monospace;">${totalStr}</span>
   </div>`);
   container.innerHTML = rows.join('');
 }
@@ -1591,7 +1595,7 @@ document.querySelectorAll('#sec-server-info .info-section h2').forEach(h2 => {
     let html = '';
 
     if (tmpl.note) {
-      html += `<div style="background:#0a0a0a;border:1px solid #1a1a1a;border-radius:7px;padding:var(--space-lg) var(--space-xl);margin-bottom:var(--space-xl);font-size:.76rem;color:#666;line-height:1.5">${vault_esc(tmpl.note)}</div>`;
+      html += `<div style="background:var(--set-well-bg);border:1px solid var(--set-well-line);border-radius:7px;padding:var(--space-lg) var(--space-xl);margin-bottom:var(--space-xl);font-size:.76rem;color:var(--set-dim-ink-2);line-height:1.5">${vault_esc(tmpl.note)}</div>`;
     }
 
     tmpl.fields.forEach(f => {
@@ -1757,18 +1761,18 @@ document.querySelectorAll('#sec-server-info .info-section h2').forEach(h2 => {
     const msg       = document.getElementById('vault-sec-import-msg');
     const btn       = document.getElementById('vault-sec-import-btn');
 
-    if (!fileInput.files.length) { msg.innerHTML = '<span style="color:#e55">Select a backup file first.</span>'; return; }
-    if (!pass)                   { msg.innerHTML = '<span style="color:#e55">Enter the passphrase used when this backup was created.</span>'; return; }
+    if (!fileInput.files.length) { msg.innerHTML = '<span style="color:var(--set-err-ink)">Select a backup file first.</span>'; return; }
+    if (!pass)                   { msg.innerHTML = '<span style="color:var(--set-err-ink)">Enter the passphrase used when this backup was created.</span>'; return; }
 
     btn.disabled = true; btn.textContent = 'Importing…'; msg.textContent = '';
 
     try {
       await vault_importData(fileInput.files[0], pass);
-      msg.innerHTML = '<span style="color:#4ec87a">✓ Imported and merged. Entries are now in your vault.</span>';
+      msg.innerHTML = '<span style="color:var(--set-ok-ink)">✓ Imported and merged. Entries are now in your vault.</span>';
       btn.textContent = 'Done';
       setTimeout(() => { document.getElementById('vault-sec-import-overlay').style.display = 'none'; }, 2000);
     } catch(e) {
-      msg.innerHTML = `<span style="color:#e55">⚠ ${e.message}, wrong passphrase?</span>`;
+      msg.innerHTML = `<span style="color:var(--set-err-ink)">⚠ ${e.message}, wrong passphrase?</span>`;
       btn.disabled = false; btn.textContent = 'Import & Merge';
     }
   }
@@ -1791,7 +1795,7 @@ document.querySelectorAll('#sec-server-info .info-section h2').forEach(h2 => {
   function vault_showMsg(el, text, type) {
     if (!el) return;
     el.textContent = text;
-    el.style.color = type === 'red' ? '#e55' : type === 'green' ? '#4ec87a' : '#888';
+    el.style.color = type === 'red' ? 'var(--set-err-ink)' : type === 'green' ? 'var(--set-ok-ink)' : 'var(--set-quiet-ink)';
   }
 
   function vault_entryIcon(type) {
@@ -1986,7 +1990,7 @@ async function settingsRefusedWhileProtected() {
 
 function settingsAlert(msg, ms) {
   var d = document.createElement('div');
-  d.style.cssText = 'position:fixed;top:var(--space-xl);right:var(--space-xl);z-index:9999;background:#181818;border:1px solid #2a2a2a;border-radius:8px;padding:var(--space-lg) var(--space-2xl);color:#e0e0e0;font-size:0.85rem;max-width:400px;box-shadow:0 8px 24px rgba(0,0,0,0.5);';
+  d.style.cssText = 'position:fixed;top:var(--space-xl);right:var(--space-xl);z-index:9999;background:var(--set-card-bg);border:1px solid var(--set-line);border-radius:8px;padding:var(--space-lg) var(--space-2xl);color:var(--set-card-ink);font-size:0.85rem;max-width:400px;box-shadow:0 8px 24px rgba(0,0,0,0.5);';
   d.textContent = msg;
   document.body.appendChild(d);
   setTimeout(function() { d.remove(); }, ms || 5000);
@@ -1997,13 +2001,13 @@ async function settingsOpenBackup() {
   if (await settingsRefusedWhileProtected()) return;
   var overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:8000;display:flex;align-items:center;justify-content:center;padding:var(--space-xl);box-sizing:border-box;';
-  overlay.innerHTML = '<div style="background:#181818;border:1px solid #2a2a2a;border-radius:14px;padding:1.75rem;width:100%;max-width:480px;color:#e0e0e0;">' +
+  overlay.innerHTML = '<div style="background:var(--set-card-bg);border:1px solid var(--set-line);border-radius:14px;padding:1.75rem;width:100%;max-width:480px;color:var(--set-card-ink);">' +
     '<h2 style="font-size:1rem;font-weight:700;color:var(--accent);margin:0 0 var(--space-md)">🔐 Download Encrypted Backup</h2>' +
-    '<p style="font-size:.8rem;color:#888;line-height:1.5;margin:0 0 var(--space-xl)">Enter a passphrase to encrypt your private key. Store the file in your cloud, it\'s useless without the passphrase.</p>' +
-    '<input id="set-bkp-pass" type="password" placeholder="Passphrase (8+ characters)" autocomplete="new-password" style="width:100%;background:#111;border:1px solid #2a2a2a;border-radius:6px;padding:var(--space-md) var(--space-lg);color:#e0e0e0;font-size:.85rem;outline:none;box-sizing:border-box;margin-bottom:var(--space-md);">' +
+    '<p style="font-size:.8rem;color:var(--set-quiet-ink);line-height:1.5;margin:0 0 var(--space-xl)">Enter a passphrase to encrypt your private key. Store the file in your cloud, it\'s useless without the passphrase.</p>' +
+    '<input id="set-bkp-pass" type="password" placeholder="Passphrase (8+ characters)" autocomplete="new-password" style="width:100%;background:var(--set-field-bg);border:1px solid var(--set-line);border-radius:6px;padding:var(--space-md) var(--space-lg);color:var(--set-card-ink);font-size:.85rem;outline:none;box-sizing:border-box;margin-bottom:var(--space-md);">' +
     '<div style="display:flex;gap:var(--space-md);justify-content:flex-end;margin-top:var(--space-lg);">' +
-    '<button id="set-bkp-cancel" style="background:none;border:1px solid #333;color:#888;border-radius:7px;padding:var(--space-md) var(--space-xl);font-size:.82rem;cursor:pointer">Cancel</button>' +
-    '<button id="set-bkp-go" style="background:var(--accent);color:#000;border:none;border-radius:7px;padding:var(--space-md) 1.2rem;font-size:.82rem;font-weight:700;cursor:pointer">Download</button>' +
+    '<button id="set-bkp-cancel" style="background:none;border:1px solid var(--set-line-quiet);color:var(--set-quiet-ink);border-radius:7px;padding:var(--space-md) var(--space-xl);font-size:.82rem;cursor:pointer">Cancel</button>' +
+    '<button id="set-bkp-go" style="background:var(--accent);color:var(--set-on-accent);border:none;border-radius:7px;padding:var(--space-md) 1.2rem;font-size:.82rem;font-weight:700;cursor:pointer">Download</button>' +
     '</div>' +
     '<div id="set-bkp-msg" style="font-size:.75rem;margin-top:var(--space-md);min-height:1em;"></div>' +
     '</div>';
@@ -2013,16 +2017,16 @@ async function settingsOpenBackup() {
   overlay.querySelector('#set-bkp-go').addEventListener('click', async function() {
     var pass = overlay.querySelector('#set-bkp-pass').value.trim();
     var msg = overlay.querySelector('#set-bkp-msg');
-    if (pass.length < 8) { msg.innerHTML = '<span style="color:#e55">Passphrase must be at least 8 characters.</span>'; return; }
+    if (pass.length < 8) { msg.innerHTML = '<span style="color:var(--set-err-ink)">Passphrase must be at least 8 characters.</span>'; return; }
     this.disabled = true; this.textContent = 'Encrypting…';
     try {
       await exportEncryptedIdentityBackup(pass);
-      msg.innerHTML = '<span style="color:#4ec87a">✓ Backup downloaded.</span>';
+      msg.innerHTML = '<span style="color:var(--set-ok-ink)">✓ Backup downloaded.</span>';
       this.textContent = 'Done!';
       localStorage.setItem('hos_key_protected', '1');
       checkBackupStatus();
     } catch(e) {
-      msg.innerHTML = '<span style="color:#e55">' + e.message + '</span>';
+      msg.innerHTML = '<span style="color:var(--set-err-ink)">' + e.message + '</span>';
       this.disabled = false; this.textContent = 'Download';
     }
   });
@@ -2032,14 +2036,14 @@ async function settingsOpenBackup() {
 function settingsOpenRestore() {
   var overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:8000;display:flex;align-items:center;justify-content:center;padding:var(--space-xl);box-sizing:border-box;';
-  overlay.innerHTML = '<div style="background:#181818;border:1px solid #2a2a2a;border-radius:14px;padding:1.75rem;width:100%;max-width:480px;color:#e0e0e0;">' +
+  overlay.innerHTML = '<div style="background:var(--set-card-bg);border:1px solid var(--set-line);border-radius:14px;padding:1.75rem;width:100%;max-width:480px;color:var(--set-card-ink);">' +
     '<h2 style="font-size:1rem;font-weight:700;color:var(--accent);margin:0 0 var(--space-md)">📥 Restore from Backup File</h2>' +
-    '<p style="font-size:.8rem;color:#e55;line-height:1.5;margin:0 0 var(--space-md)"><strong>This will replace your current identity on this device.</strong></p>' +
-    '<p style="font-size:.8rem;color:#888;line-height:1.5;margin:0 0 var(--space-xl)">Select your encrypted backup file and enter the passphrase you used when creating it.</p>' +
-    '<input id="set-rst-file" type="file" accept=".json,.bak" style="margin-bottom:var(--space-md);font-size:.82rem;color:#888;">' +
-    '<input id="set-rst-pass" type="password" placeholder="Backup passphrase" style="width:100%;background:#111;border:1px solid #2a2a2a;border-radius:6px;padding:var(--space-md) var(--space-lg);color:#e0e0e0;font-size:.85rem;outline:none;box-sizing:border-box;margin-bottom:var(--space-md);">' +
+    '<p style="font-size:.8rem;color:var(--set-err-ink);line-height:1.5;margin:0 0 var(--space-md)"><strong>This will replace your current identity on this device.</strong></p>' +
+    '<p style="font-size:.8rem;color:var(--set-quiet-ink);line-height:1.5;margin:0 0 var(--space-xl)">Select your encrypted backup file and enter the passphrase you used when creating it.</p>' +
+    '<input id="set-rst-file" type="file" accept=".json,.bak" style="margin-bottom:var(--space-md);font-size:.82rem;color:var(--set-quiet-ink);">' +
+    '<input id="set-rst-pass" type="password" placeholder="Backup passphrase" style="width:100%;background:var(--set-field-bg);border:1px solid var(--set-line);border-radius:6px;padding:var(--space-md) var(--space-lg);color:var(--set-card-ink);font-size:.85rem;outline:none;box-sizing:border-box;margin-bottom:var(--space-md);">' +
     '<div style="display:flex;gap:var(--space-md);justify-content:flex-end;margin-top:var(--space-lg);">' +
-    '<button id="set-rst-cancel" style="background:none;border:1px solid #333;color:#888;border-radius:7px;padding:var(--space-md) var(--space-xl);font-size:.82rem;cursor:pointer">Cancel</button>' +
+    '<button id="set-rst-cancel" style="background:none;border:1px solid var(--set-line-quiet);color:var(--set-quiet-ink);border-radius:7px;padding:var(--space-md) var(--space-xl);font-size:.82rem;cursor:pointer">Cancel</button>' +
     '<button id="set-rst-go" style="background:#e55;color:#fff;border:none;border-radius:7px;padding:var(--space-md) 1.2rem;font-size:.82rem;font-weight:700;cursor:pointer">Restore</button>' +
     '</div>' +
     '<div id="set-rst-msg" style="font-size:.75rem;margin-top:var(--space-md);min-height:1em;"></div>' +
@@ -2051,24 +2055,24 @@ function settingsOpenRestore() {
     var file = overlay.querySelector('#set-rst-file').files[0];
     var pass = overlay.querySelector('#set-rst-pass').value.trim();
     var msg = overlay.querySelector('#set-rst-msg');
-    if (!file) { msg.innerHTML = '<span style="color:#e55">Select a backup file first.</span>'; return; }
+    if (!file) { msg.innerHTML = '<span style="color:var(--set-err-ink)">Select a backup file first.</span>'; return; }
     this.disabled = true; this.textContent = 'Restoring…';
     try {
       var text = await file.text();
       var data = JSON.parse(text);
-      if (data.encrypted && !pass) { msg.innerHTML = '<span style="color:#e55">This backup is encrypted. Enter the passphrase.</span>'; this.disabled = false; this.textContent = 'Restore'; return; }
+      if (data.encrypted && !pass) { msg.innerHTML = '<span style="color:var(--set-err-ink)">This backup is encrypted. Enter the passphrase.</span>'; this.disabled = false; this.textContent = 'Restore'; return; }
       if (typeof importIdentityBackup === 'function') {
         var result = await importIdentityBackup(data, pass || undefined);
         localStorage.setItem('humanity_name', result.name);
         localStorage.setItem('humanity_pubkey', result.publicKeyHex);
-        msg.innerHTML = '<span style="color:#4ec87a">✓ Identity restored for ' + result.name + '. Reloading…</span>';
+        msg.innerHTML = '<span style="color:var(--set-ok-ink)">✓ Identity restored for ' + result.name + '. Reloading…</span>';
         setTimeout(function() { location.reload(); }, 1500);
       } else {
-        msg.innerHTML = '<span style="color:#e55">Restore function not available. Try from the Network page.</span>';
+        msg.innerHTML = '<span style="color:var(--set-err-ink)">Restore function not available. Try from the Network page.</span>';
         this.disabled = false; this.textContent = 'Restore';
       }
     } catch(e) {
-      msg.innerHTML = '<span style="color:#e55">' + (e.message || 'Decryption failed, wrong passphrase?') + '</span>';
+      msg.innerHTML = '<span style="color:var(--set-err-ink)">' + (e.message || 'Decryption failed, wrong passphrase?') + '</span>';
       this.disabled = false; this.textContent = 'Restore';
     }
   });
@@ -2092,16 +2096,16 @@ async function settingsOpenSeed() {
   var words = mnemonic.trim().split(/\s+/);
   var overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:8000;display:flex;align-items:center;justify-content:center;padding:var(--space-xl);box-sizing:border-box;';
-  overlay.innerHTML = '<div style="background:#181818;border:1px solid #2a2a2a;border-radius:14px;padding:1.75rem;width:100%;max-width:600px;color:#e0e0e0;max-height:90vh;overflow-y:auto;">' +
+  overlay.innerHTML = '<div style="background:var(--set-card-bg);border:1px solid var(--set-line);border-radius:14px;padding:1.75rem;width:100%;max-width:600px;color:var(--set-card-ink);max-height:90vh;overflow-y:auto;">' +
     '<h2 style="font-size:1rem;font-weight:700;color:var(--accent);margin:0 0 var(--space-sm)">🔑 Your 24-Word Recovery Phrase</h2>' +
-    '<p style="font-size:.78rem;color:#e55;line-height:1.5;margin:0 0 var(--space-md)"><strong>Never screenshot this. Never share it. Anyone who has these words IS you.</strong></p>' +
+    '<p style="font-size:.78rem;color:var(--set-err-ink);line-height:1.5;margin:0 0 var(--space-md)"><strong>Never screenshot this. Never share it. Anyone who has these words IS you.</strong></p>' +
     // The words go here covered, until Show the words (/shared/phrase-cover.js, 2026-10-16).
     '<div id="set-seed-cover" style="margin-bottom:var(--space-xl)"></div>' +
     '<div style="display:flex;gap:var(--space-md);flex-wrap:wrap;margin-bottom:var(--space-xl);">' +
-    '<button id="set-seed-copy" style="background:none;border:1px solid #333;color:#aaa;border-radius:6px;padding:var(--space-sm) var(--space-xl);font-size:.75rem;cursor:pointer">📋 Copy to clipboard</button>' +
-    '<span id="set-seed-msg" style="font-size:.7rem;color:#4ec87a;align-self:center;"></span>' +
+    '<button id="set-seed-copy" style="background:none;border:1px solid var(--set-line-quiet);color:var(--set-soft-ink);border-radius:6px;padding:var(--space-sm) var(--space-xl);font-size:.75rem;cursor:pointer">📋 Copy to clipboard</button>' +
+    '<span id="set-seed-msg" style="font-size:.7rem;color:var(--set-ok-ink);align-self:center;"></span>' +
     '</div>' +
-    '<div style="display:flex;justify-content:flex-end"><button id="set-seed-done" style="background:var(--accent);color:#000;border:none;border-radius:7px;padding:var(--space-md) 1.4rem;font-size:.82rem;font-weight:700;cursor:pointer">Done</button></div>' +
+    '<div style="display:flex;justify-content:flex-end"><button id="set-seed-done" style="background:var(--accent);color:var(--set-on-accent);border:none;border-radius:7px;padding:var(--space-md) 1.4rem;font-size:.82rem;font-weight:700;cursor:pointer">Done</button></div>' +
     '</div>';
   document.body.appendChild(overlay);
   if (typeof HosPhraseCover !== 'undefined') HosPhraseCover.words(overlay.querySelector('#set-seed-cover'), words.join(' '));
@@ -2137,23 +2141,23 @@ function settingsShowPhraseUnavailable() {
     reason = 'This browser does not hold a recovery phrase for this identity.';
   }
 
-  var btnQuiet = 'background:none;border:1px solid #333;color:#888;border-radius:7px;padding:var(--space-md) var(--space-xl);font-size:.82rem;cursor:pointer';
-  var btnMain = 'background:var(--accent);color:#000;border:none;border-radius:7px;padding:var(--space-md) 1.4rem;font-size:.82rem;font-weight:700;cursor:pointer';
-  var btnRestore = 'background:#1a3a4a;border:1px solid #28f;color:#4af;border-radius:7px;padding:var(--space-md) var(--space-xl);font-size:.82rem;font-weight:600;cursor:pointer';
+  var btnQuiet = 'background:none;border:1px solid var(--set-line-quiet);color:var(--set-quiet-ink);border-radius:7px;padding:var(--space-md) var(--space-xl);font-size:.82rem;cursor:pointer';
+  var btnMain = 'background:var(--accent);color:var(--set-on-accent);border:none;border-radius:7px;padding:var(--space-md) 1.4rem;font-size:.82rem;font-weight:700;cursor:pointer';
+  var btnRestore = 'background:var(--set-info-bg);border:1px solid var(--set-info-border);color:var(--set-info-ink);border-radius:7px;padding:var(--space-md) var(--space-xl);font-size:.82rem;font-weight:600;cursor:pointer';
 
-  var body = '<p style="font-size:.85rem;color:#e0e0e0;line-height:1.6;margin:0 0 var(--space-md)">' + reason + '</p>' +
-    '<p style="font-size:.8rem;color:#888;line-height:1.6;margin:0 0 var(--space-xl)">Nothing on this device has been changed.</p>';
+  var body = '<p style="font-size:.85rem;color:var(--set-card-ink);line-height:1.6;margin:0 0 var(--space-md)">' + reason + '</p>' +
+    '<p style="font-size:.8rem;color:var(--set-quiet-ink);line-height:1.6;margin:0 0 var(--space-xl)">Nothing on this device has been changed.</p>';
   var buttons;
   if (pageDidNotLoad) {
     buttons = '<button id="pu-close" style="' + btnQuiet + '">Close</button>' +
       '<button id="pu-reload" style="' + btnMain + '">Reload page</button>';
   } else {
-    body += '<p style="font-size:.8rem;color:#ccc;line-height:1.6;margin:0 0 var(--space-md)">' +
+    body += '<p style="font-size:.8rem;color:var(--set-ink-2);line-height:1.6;margin:0 0 var(--space-md)">' +
         'If you have your 24 words or an encrypted backup file, you can bring your identity back on this device with ' +
         '<strong>Restore from Recovery Phrase</strong> or <strong>Restore from Backup File</strong>, ' +
         'both in Backup &amp; Recovery on this page.' +
       '</p>' +
-      '<p style="font-size:.8rem;color:#888;line-height:1.6;margin:0 0 var(--space-xl)">' +
+      '<p style="font-size:.8rem;color:var(--set-quiet-ink);line-height:1.6;margin:0 0 var(--space-xl)">' +
         'Each one replaces the identity on this device, so use the words or the file for the identity you want to keep.' +
       '</p>';
     buttons = '<button id="pu-close" style="' + btnQuiet + '">Close</button>' +
@@ -2163,7 +2167,7 @@ function settingsShowPhraseUnavailable() {
 
   var overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:8000;display:flex;align-items:center;justify-content:center;padding:var(--space-xl);box-sizing:border-box;';
-  overlay.innerHTML = '<div style="background:#181818;border:1px solid #2a2a2a;border-radius:14px;padding:1.75rem;width:100%;max-width:540px;color:#e0e0e0;max-height:90vh;overflow-y:auto;">' +
+  overlay.innerHTML = '<div style="background:var(--set-card-bg);border:1px solid var(--set-line);border-radius:14px;padding:1.75rem;width:100%;max-width:540px;color:var(--set-card-ink);max-height:90vh;overflow-y:auto;">' +
     '<h2 style="font-size:1rem;font-weight:700;color:var(--accent);margin:0 0 var(--space-md)">Recovery Phrase Unavailable</h2>' +
     body +
     '<div style="display:flex;gap:var(--space-md);justify-content:flex-end;flex-wrap:wrap">' + buttons + '</div>' +
@@ -2182,13 +2186,13 @@ function settingsShowPhraseUnavailable() {
 function settingsOpenRestoreSeed() {
   var overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:8000;display:flex;align-items:center;justify-content:center;padding:var(--space-xl);box-sizing:border-box;';
-  overlay.innerHTML = '<div style="background:#181818;border:1px solid #2a2a2a;border-radius:14px;padding:1.75rem;width:100%;max-width:540px;color:#e0e0e0;max-height:90vh;overflow-y:auto;">' +
+  overlay.innerHTML = '<div style="background:var(--set-card-bg);border:1px solid var(--set-line);border-radius:14px;padding:1.75rem;width:100%;max-width:540px;color:var(--set-card-ink);max-height:90vh;overflow-y:auto;">' +
     '<h2 style="font-size:1rem;font-weight:700;color:var(--accent);margin:0 0 var(--space-sm)">🔑 Restore from Recovery Phrase</h2>' +
-    '<p style="font-size:.8rem;color:#e55;line-height:1.5;margin:0 0 var(--space-md)"><strong>This will permanently replace your current identity on this device.</strong></p>' +
-    '<p style="font-size:.8rem;color:#888;line-height:1.5;margin:0 0 var(--space-xl)">Enter your 24 words separated by spaces:</p>' +
-    '<textarea id="set-rseed-words" rows="4" placeholder="word1 word2 word3 ... word24" style="width:100%;background:#111;border:1px solid #2a2a2a;border-radius:6px;padding:var(--space-md) var(--space-lg);color:#e0e0e0;font-size:.85rem;outline:none;box-sizing:border-box;resize:vertical;font-family:monospace;"></textarea>' +
+    '<p style="font-size:.8rem;color:var(--set-err-ink);line-height:1.5;margin:0 0 var(--space-md)"><strong>This will permanently replace your current identity on this device.</strong></p>' +
+    '<p style="font-size:.8rem;color:var(--set-quiet-ink);line-height:1.5;margin:0 0 var(--space-xl)">Enter your 24 words separated by spaces:</p>' +
+    '<textarea id="set-rseed-words" rows="4" placeholder="word1 word2 word3 ... word24" style="width:100%;background:var(--set-field-bg);border:1px solid var(--set-line);border-radius:6px;padding:var(--space-md) var(--space-lg);color:var(--set-card-ink);font-size:.85rem;outline:none;box-sizing:border-box;resize:vertical;font-family:monospace;"></textarea>' +
     '<div style="display:flex;gap:var(--space-md);justify-content:flex-end;margin-top:var(--space-lg);">' +
-    '<button id="set-rseed-cancel" style="background:none;border:1px solid #333;color:#888;border-radius:7px;padding:var(--space-md) var(--space-xl);font-size:.82rem;cursor:pointer">Cancel</button>' +
+    '<button id="set-rseed-cancel" style="background:none;border:1px solid var(--set-line-quiet);color:var(--set-quiet-ink);border-radius:7px;padding:var(--space-md) var(--space-xl);font-size:.82rem;cursor:pointer">Cancel</button>' +
     '<button id="set-rseed-go" style="background:#e55;color:#fff;border:none;border-radius:7px;padding:var(--space-md) 1.2rem;font-size:.82rem;font-weight:700;cursor:pointer">Restore Identity</button>' +
     '</div>' +
     '<div id="set-rseed-msg" style="font-size:.75rem;margin-top:var(--space-md);min-height:1em;"></div>' +
@@ -2199,21 +2203,21 @@ function settingsOpenRestoreSeed() {
   overlay.querySelector('#set-rseed-go').addEventListener('click', async function() {
     var words = overlay.querySelector('#set-rseed-words').value.trim();
     var msg = overlay.querySelector('#set-rseed-msg');
-    if (!words) { msg.innerHTML = '<span style="color:#e55">Enter your 24 words.</span>'; return; }
+    if (!words) { msg.innerHTML = '<span style="color:var(--set-err-ink)">Enter your 24 words.</span>'; return; }
     var arr = words.split(/\s+/);
-    if (arr.length !== 24) { msg.innerHTML = '<span style="color:#e55">Expected 24 words, got ' + arr.length + '.</span>'; return; }
+    if (arr.length !== 24) { msg.innerHTML = '<span style="color:var(--set-err-ink)">Expected 24 words, got ' + arr.length + '.</span>'; return; }
     this.disabled = true; this.textContent = 'Restoring…';
     try {
       if (typeof restoreIdentityFromMnemonic === 'function') {
         await restoreIdentityFromMnemonic(words);
-        msg.innerHTML = '<span style="color:#4ec87a">✓ Identity restored. Reloading…</span>';
+        msg.innerHTML = '<span style="color:var(--set-ok-ink)">✓ Identity restored. Reloading…</span>';
         setTimeout(function() { location.reload(); }, 1500);
       } else {
-        msg.innerHTML = '<span style="color:#e55">Restore function not available.</span>';
+        msg.innerHTML = '<span style="color:var(--set-err-ink)">Restore function not available.</span>';
         this.disabled = false; this.textContent = 'Restore Identity';
       }
     } catch(e) {
-      msg.innerHTML = '<span style="color:#e55">' + (e.message || 'Invalid recovery phrase.') + '</span>';
+      msg.innerHTML = '<span style="color:var(--set-err-ink)">' + (e.message || 'Invalid recovery phrase.') + '</span>';
       this.disabled = false; this.textContent = 'Restore Identity';
     }
   });

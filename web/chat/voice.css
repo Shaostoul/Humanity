@@ -3,7 +3,7 @@
 /* ── Voice Call UI ── */
 #call-bar {
   display: none;
-  background: linear-gradient(135deg, #1a3a2a, #1a2a3a);
+  background: linear-gradient(135deg, var(--chat-call-grad-a), var(--chat-call-grad-b));
   border-bottom: 1px solid var(--border);
   padding: var(--space-md) var(--space-xl);
   align-items: center;
@@ -127,7 +127,7 @@
 /* ── Voice Control Bar ── */
 #voice-control-bar {
   display: none;
-  background: linear-gradient(135deg, #1a3a2a, #1a2a3a);
+  background: linear-gradient(135deg, var(--chat-call-grad-a), var(--chat-call-grad-b));
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: var(--space-md);
@@ -188,7 +188,7 @@
   right: 20px;
   z-index: 1000;
   display: none;
-  background: #111;
+  background: #111; /* theme-exempt: a video surface is black in both themes */
   border-radius: var(--radius);
   overflow: hidden;
   max-width: 80vw;
@@ -217,7 +217,7 @@
   height: 150px;
   object-fit: cover;
   border-radius: var(--radius-sm);
-  background: #000;
+  background: #000; /* theme-exempt: a video surface is black in both themes */
 }
 #video-panel .video-label {
   position: absolute;
@@ -291,7 +291,7 @@
   width: 100%;
   height: 100%;
   object-fit: contain;
-  background: #000;
+  background: #000; /* theme-exempt: a video surface is black in both themes */
 }
 #video-panel .video-wrapper.studio-pip {
   position: absolute;
@@ -317,7 +317,7 @@
   max-width: 65%;
   z-index: 4003;
   border: 1px solid var(--accent);
-  background: rgba(8,8,10,0.84);
+  background: rgba(8,8,10,0.84); /* theme-exempt: laid over the video, dark in both themes */
   box-shadow: 0 8px 20px rgba(0,0,0,0.45);
   resize: both;
   overflow: hidden;
@@ -325,7 +325,7 @@
 #video-panel .stream-chat-overlay .stream-chat-overlay-body {
   padding: var(--space-sm) var(--space-md);
   font-size: var(--text-xs);
-  color: var(--text-muted);
+  color: #94949f; /* over the video: the dark theme's muted ink in both themes */
   line-height: 1.35;
 }
 /* Camera selector dropdown */
@@ -372,7 +372,7 @@
   width: 100%;
   min-height: 140px;
   max-height: 220px;
-  background: #000;
+  background: #000; /* theme-exempt: a video surface is black in both themes */
   border: 1px solid var(--border);
   border-radius: var(--radius);
   overflow: hidden;
@@ -394,7 +394,7 @@
   aspect-ratio: 4 / 3;
   border: 1px solid var(--accent);
   box-shadow: 0 4px 12px rgba(0,0,0,0.45);
-  background: #000;
+  background: #000; /* theme-exempt: a video surface is black in both themes */
 }
 .stream-studio-preview .studio-label {
   position: absolute;

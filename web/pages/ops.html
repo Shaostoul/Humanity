@@ -6,12 +6,21 @@
   <title>Ops, HumanityOS</title>
   <link rel="stylesheet" href="/shared/theme.css">
   <style>
-
+    /* Colours this page uses that have no theme token. The dark values are
+       exactly the page's look before the light theme worked (2026-10-19);
+       the light ones serve the light theme. */
     :root {
-  --bg: #0d0d0d;
+      --pg-cmd-ink: #4af;
+      --pg-key-ink: #fa0;
+    }
+    :root[data-theme="light"] {
+      --pg-cmd-ink: #1a56a8;
+      --pg-key-ink: #8a5a00;
+    }
+
+    /* Page-only variables; the theme's own come from theme.css. */
+    :root {
   --bg-panel: #141414;
-  --border: #222;
-  --accent: #22aa66;
   --error: var(--danger, #e55);
 }
     body { background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }
@@ -241,59 +250,59 @@
    <div>
     <div style="font-size:0.7rem;font-weight:700;letter-spacing:0.1em;color:var(--accent);text-transform:uppercase;margin-bottom:var(--space-md);">Daily workflow</div>
     <div style="font-family:monospace;font-size:0.82rem;line-height:1.9;color:var(--text-muted);">
-     <span style="color:#4af;">just ship "message"</span> &nbsp;- commit + push + sync VPS<br>
-     <span style="color:#4af;">just sync</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- force-sync VPS (no commit)<br>
-     <span style="color:#4af;">just sync-web</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- HTML/JS/CSS only (fast)<br>
-     <span style="color:#4af;">just deploy "msg"</span> &nbsp;&nbsp;- push only, wait for CI<br>
+     <span style="color:var(--pg-cmd-ink);">just ship "message"</span> &nbsp;- commit + push + sync VPS<br>
+     <span style="color:var(--pg-cmd-ink);">just sync</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- force-sync VPS (no commit)<br>
+     <span style="color:var(--pg-cmd-ink);">just sync-web</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- HTML/JS/CSS only (fast)<br>
+     <span style="color:var(--pg-cmd-ink);">just deploy "msg"</span> &nbsp;&nbsp;- push only, wait for CI<br>
     </div>
    </div>
 
    <div>
     <div style="font-size:0.7rem;font-weight:700;letter-spacing:0.1em;color:var(--accent);text-transform:uppercase;margin-bottom:var(--space-md);">Status &amp; monitoring</div>
     <div style="font-family:monospace;font-size:0.82rem;line-height:1.9;color:var(--text-muted);">
-     <span style="color:#4af;">just status</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- git + CI + API health<br>
-     <span style="color:#4af;">just ci</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- recent CI deploy runs<br>
-     <span style="color:#4af;">just ping</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- is the site alive?<br>
-     <span style="color:#4af;">just logs</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- tail live server logs<br>
+     <span style="color:var(--pg-cmd-ink);">just status</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- git + CI + API health<br>
+     <span style="color:var(--pg-cmd-ink);">just ci</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- recent CI deploy runs<br>
+     <span style="color:var(--pg-cmd-ink);">just ping</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- is the site alive?<br>
+     <span style="color:var(--pg-cmd-ink);">just logs</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- tail live server logs<br>
     </div>
    </div>
 
    <div>
     <div style="font-size:0.7rem;font-weight:700;letter-spacing:0.1em;color:var(--accent);text-transform:uppercase;margin-bottom:var(--space-md);">Server &amp; database</div>
     <div style="font-family:monospace;font-size:0.82rem;line-height:1.9;color:var(--text-muted);">
-     <span style="color:#4af;">just server</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- SSH into VPS<br>
-     <span style="color:#4af;">just restart</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- restart relay (instant)<br>
-     <span style="color:#4af;">just db</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- SQLite shell on live DB<br>
-     <span style="color:#4af;">just sql "SELECT…"</span>, run query on live DB<br>
+     <span style="color:var(--pg-cmd-ink);">just server</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- SSH into VPS<br>
+     <span style="color:var(--pg-cmd-ink);">just restart</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- restart relay (instant)<br>
+     <span style="color:var(--pg-cmd-ink);">just db</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- SQLite shell on live DB<br>
+     <span style="color:var(--pg-cmd-ink);">just sql "SELECT…"</span>, run query on live DB<br>
     </div>
    </div>
 
    <div>
     <div style="font-size:0.7rem;font-weight:700;letter-spacing:0.1em;color:var(--accent);text-transform:uppercase;margin-bottom:var(--space-md);">Rust &amp; desktop</div>
     <div style="font-family:monospace;font-size:0.82rem;line-height:1.9;color:var(--text-muted);">
-     <span style="color:#4af;">just check</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- catch Rust errors fast<br>
-     <span style="color:#4af;">just build</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- build relay binary<br>
-     <span style="color:#4af;">just dev-desktop</span> &nbsp;&nbsp;&nbsp;- run Tauri app (dev)<br>
-     <span style="color:#4af;">just build-desktop</span> &nbsp;- build .exe installer<br>
+     <span style="color:var(--pg-cmd-ink);">just check</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- catch Rust errors fast<br>
+     <span style="color:var(--pg-cmd-ink);">just build</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- build relay binary<br>
+     <span style="color:var(--pg-cmd-ink);">just dev-desktop</span> &nbsp;&nbsp;&nbsp;- run Tauri app (dev)<br>
+     <span style="color:var(--pg-cmd-ink);">just build-desktop</span> &nbsp;- build .exe installer<br>
     </div>
    </div>
 
    <div>
     <div style="font-size:0.7rem;font-weight:700;letter-spacing:0.1em;color:var(--accent);text-transform:uppercase;margin-bottom:var(--space-md);">Shortcuts</div>
     <div style="font-family:monospace;font-size:0.82rem;line-height:1.9;color:var(--text-muted);">
-     <span style="color:#4af;">just tasks</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- list tasks from API<br>
-     <span style="color:#4af;">just loc</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- lines of code breakdown<br>
-     <span style="color:#4af;">just grep "pattern"</span>- search all JS/RS/HTML<br>
-     <span style="color:#4af;">just open</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- open site in browser<br>
+     <span style="color:var(--pg-cmd-ink);">just tasks</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- list tasks from API<br>
+     <span style="color:var(--pg-cmd-ink);">just loc</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- lines of code breakdown<br>
+     <span style="color:var(--pg-cmd-ink);">just grep "pattern"</span>- search all JS/RS/HTML<br>
+     <span style="color:var(--pg-cmd-ink);">just open</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- open site in browser<br>
     </div>
    </div>
 
    <div>
     <div style="font-size:0.7rem;font-weight:700;letter-spacing:0.1em;color:var(--accent);text-transform:uppercase;margin-bottom:var(--space-md);">App cache (if UI looks wrong)</div>
     <div style="font-family:monospace;font-size:0.82rem;line-height:1.9;color:var(--text-muted);">
-     <span style="color:#fa0;">Ctrl+Shift+Delete</span>, clear cache &amp; reload<br>
-     <span style="color:#fa0;">F12</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- open DevTools<br>
-     <span style="color:#fa0;">Settings → Advanced</span>- Clear Cache button<br>
+     <span style="color:var(--pg-key-ink);">Ctrl+Shift+Delete</span>, clear cache &amp; reload<br>
+     <span style="color:var(--pg-key-ink);">F12</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- open DevTools<br>
+     <span style="color:var(--pg-key-ink);">Settings → Advanced</span>- Clear Cache button<br>
      Manual: delete <code style="font-size:0.75rem;background:var(--bg);padding:1px 4px;border-radius:3px;">%LOCALAPPDATA%\HumanityOS\EBWebView\Default\Cache</code><br>
     </div>
    </div>

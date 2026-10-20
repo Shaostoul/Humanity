@@ -9,6 +9,19 @@
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="stylesheet" href="/shared/theme.css">
   <style>
+    /* Colours this page uses that have no theme token. The dark values are
+       exactly the page's look before the light theme worked (2026-10-19);
+       the light ones serve the light theme. */
+    :root {
+      --pg-open-ink: #f5b83b;
+      --pg-ready-ink: #2ab870;
+      --pg-expired-ink: #ef4f4f;
+    }
+    :root[data-theme="light"] {
+      --pg-open-ink: #7a5200;
+      --pg-ready-ink: var(--success);
+      --pg-expired-ink: var(--danger);
+    }
     body { line-height: 1.6; min-height: 100vh; padding-bottom: 80px; }
     .container { max-width: 920px; margin: 0 auto; padding: 0 24px; }
 
@@ -61,9 +74,9 @@
       display: inline-block; padding: 2px 10px; border-radius: 12px;
       font-size: 0.75rem; font-weight: 700; margin-left: 6px;
     }
-    .status-badge.open { background: rgba(245,184,59,0.2); color: #f5b83b; }
-    .status-badge.ready { background: rgba(42,184,112,0.2); color: #2ab870; }
-    .status-badge.expired { background: rgba(239,79,79,0.2); color: #ef4f4f; }
+    .status-badge.open { background: rgba(245,184,59,0.2); color: var(--pg-open-ink); }
+    .status-badge.ready { background: rgba(42,184,112,0.2); color: var(--pg-ready-ink); }
+    .status-badge.expired { background: rgba(239,79,79,0.2); color: var(--pg-expired-ink); }
 
     .empty { color: var(--text-muted); text-align: center; padding: 16px; font-size: 0.88rem; }
   </style>

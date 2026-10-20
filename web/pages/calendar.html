@@ -6,6 +6,31 @@
   <title>Calendar, HumanityOS</title>
   <link rel="stylesheet" href="/shared/theme.css">
   <style>
+    /* Colours this page uses that have no theme token. The dark values are
+       exactly the page's look before the light theme worked (2026-10-19);
+       the light ones serve the light theme. */
+    :root {
+      --pg-accent-line: #553300;
+      --pg-accent-hover: #2a1d0a;
+      --pg-gutter: #0c0c0c;
+      --pg-green-bg: #1a3a1a;
+      --pg-green-line: #2a5a2a;
+      --pg-green-hover: #1e481e;
+      --pg-red-bg: #2a1010;
+      --pg-red-line: #5a2a2a;
+      --pg-red-hover: #381010;
+    }
+    :root[data-theme="light"] {
+      --pg-accent-line: #d9a97a;
+      --pg-accent-hover: rgba(168, 79, 0, 0.2);
+      --pg-gutter: var(--bg-secondary);
+      --pg-green-bg: #e2f2e4;
+      --pg-green-line: #a9d4b1;
+      --pg-green-hover: #d2ead6;
+      --pg-red-bg: #f8e4e2;
+      --pg-red-line: #e2b0ac;
+      --pg-red-hover: #f0d2ce;
+    }
 
 
     body {
@@ -47,8 +72,8 @@
     .nav-btn:hover { background: var(--bg-input); color: var(--text); }
     /* #553300 (border) and #2a1d0a (hover) are accent-tinted surfaces with no
        matching dim-accent-border / accent-hover token in theme.css; kept literal. */
-    .nav-btn.today { color: var(--accent); border-color: #553300; background: var(--accent-dim); }
-    .nav-btn.today:hover { background: #2a1d0a; }
+    .nav-btn.today { color: var(--accent); border-color: var(--pg-accent-line); background: var(--accent-dim); }
+    .nav-btn.today:hover { background: var(--pg-accent-hover); }
 
     #cal-title {
       font-size: 1.05rem;
@@ -67,14 +92,14 @@
       cursor: pointer;
       transition: all 0.15s;
     }
-    .view-tab.active { background: var(--accent-dim); border-color: #553300; color: var(--accent); } /* #553300: accent-tinted border, no token */
+    .view-tab.active { background: var(--accent-dim); border-color: var(--pg-accent-line); color: var(--accent); }
     .view-tab:hover:not(.active) { background: var(--bg-input); color: var(--border); }
 
     /* Green "add" button: text maps to --success; the dark-green surface tints
        (#1a3a1a bg, #2a5a2a border, #1e481e hover) have no green-surface token. */
     #add-event-btn {
-      background: #1a3a1a;
-      border: 1px solid #2a5a2a;
+      background: var(--pg-green-bg);
+      border: 1px solid var(--pg-green-line);
       color: var(--success);
       border-radius: var(--radius-sm);
       padding: var(--space-sm) var(--space-xl);
@@ -204,7 +229,7 @@
       width: 48px;
       flex-shrink: 0;
       border-right: 1px solid var(--bg-secondary);
-      background: #0c0c0c; /* slightly-lighter-than-black gutter; no matching token */
+      background: var(--pg-gutter);
     }
     .week-time-label {
       height: 48px;
@@ -262,7 +287,7 @@
       flex-shrink: 0;
     }
     .day-grid-wrap { flex: 1; overflow-y: auto; display: flex; }
-    .day-time-col { width: 56px; flex-shrink: 0; border-right: 1px solid var(--bg-secondary); background: #0c0c0c; } /* gutter tint: no matching token */
+    .day-time-col { width: 56px; flex-shrink: 0; border-right: 1px solid var(--bg-secondary); background: var(--pg-gutter); }
     .day-hour-label {
       height: 56px;
       display: flex;
@@ -377,10 +402,10 @@
     .ev-btn:hover { background: var(--bg-hover); color: var(--text); }
     /* Primary = green (text -> --success), Danger = red (text -> --danger). The
        dark tinted bg/border/hover surfaces have no green/red surface token. */
-    .ev-btn.primary { background: #1a3a1a; border-color: #2a5a2a; color: var(--success); }
-    .ev-btn.primary:hover { background: #1e481e; }
-    .ev-btn.danger { background: #2a1010; border-color: #5a2a2a; color: var(--danger); }
-    .ev-btn.danger:hover { background: #381010; }
+    .ev-btn.primary { background: var(--pg-green-bg); border-color: var(--pg-green-line); color: var(--success); }
+    .ev-btn.primary:hover { background: var(--pg-green-hover); }
+    .ev-btn.danger { background: var(--pg-red-bg); border-color: var(--pg-red-line); color: var(--danger); }
+    .ev-btn.danger:hover { background: var(--pg-red-hover); }
 
     ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
