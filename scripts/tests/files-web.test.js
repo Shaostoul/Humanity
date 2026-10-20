@@ -861,3 +861,25 @@ test("15. the badge and the tinted parts use theme tokens only, and every page t
   assert.ok(media.indexOf("/shared/file-risk.js") < media.indexOf("/pages/files-edit.js"), "file-risk.js before files-edit.js, which draws the badges");
   assert.ok(media.indexOf("/shared/file-risk.js") < media.indexOf("/pages/files-shared.js"), "and before Shared files, whose rows show them");
 });
+
+// ── 16. Every script files-app.js takes in is on the page, before it ─────
+
+// Under Node files-app.js `require`s each script it takes in, so every test here passes whether or
+// not files.html loads that script; in a browser it reads the same thing from `window`, and a
+// missing <script> is a page that does not start. Written 2026-10-20 when the size and space
+// words moved into /pages/files-space.js (the file size ratchet: files-app.js was over its
+// budget). Seen red the same day with files-space.js's <script> taken out of files.html:
+// "files.html loads /pages/files-space.js, which files-app.js takes in, before files-app.js".
+test("16. every script files-app.js takes in is loaded by files.html, before files-app.js", () => {
+  const app = fs.readFileSync(path.join(WEB, "pages", "files-app.js"), "utf8");
+  const html = fs.readFileSync(path.join(WEB, "pages", "files.html"), "utf8");
+  const appAt = html.indexOf('src="/pages/files-app.js');
+  assert.ok(appAt > 0, "files.html loads files-app.js");
+  const taken = [...new Set([...app.matchAll(/require\('(\.{1,2}\/[^']+\.js)'\)/g)].map((m) => m[1]))];
+  assert.ok(taken.includes("./files-space.js"), "the check reads files-app.js's requires: " + taken.join(", "));
+  for (const rel of taken) {
+    const src = "/" + path.posix.normalize(path.posix.join("pages", rel));
+    const at = html.indexOf('src="' + src + '?');
+    assert.ok(at > 0 && at < appAt, `files.html loads ${src}, which files-app.js takes in, before files-app.js`);
+  }
+});

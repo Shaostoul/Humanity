@@ -117,6 +117,9 @@
 <!-- Add to Files (the form, its uploads, publishing and "Also post in chat"), in its own file since
      2026-10-17; files-app.js makes it, so it loads first. -->
 <script src="/pages/files-add.js?v=3"></script>
+<!-- Sizes, a person's share and the server's file space in words, in its own file since 2026-10-20;
+     files-app.js reads them at once, so it loads first. -->
+<script src="/pages/files-space.js?v=1"></script>
 <!-- The places (2026-10-19): Shared on <server> is this page's own list; Shared files is the Shared
      Files page that was (its Upload a file, shared-files-upload.js, before files-shared.js); the
      server's data folder (admins only) is the data browser that was at /files (markdown.js draws its .md files). All
@@ -128,7 +131,7 @@
 <script src="/pages/files-places.js?v=4"></script>
 <!-- "How this page works" (2026-10-20): the toggle beside the heading and its fold; before files-app.js. -->
 <script src="/shared/how-it-works.js?v=1"></script>
-<script src="/pages/files-app.js?v=19"></script>
+<script src="/pages/files-app.js?v=20"></script>
 <!-- The admins' section (Files page settings): this page's Admin tab, for admins (/files#admin; /admin points here). -->
 <script src="/pages/files-admin.js?v=3"></script>
 </body>
