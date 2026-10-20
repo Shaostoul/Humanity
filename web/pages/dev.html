@@ -8,6 +8,17 @@
   <link rel="icon" type="image/png" href="/favicon.png">
   <link rel="stylesheet" href="/shared/theme.css">
   <style>
+    /* Colours this page uses that have no theme token. The dark values are
+       exactly the page's look before the light theme reached its text
+       (2026-10-20); the light ones read at 4.7:1 or more on their badge tints. */
+    :root {
+      --pg-game-ink: #48f;
+      --pg-integration-ink: #a6f;
+    }
+    :root[data-theme="light"] {
+      --pg-game-ink: var(--info);
+      --pg-integration-ink: #6a2fc0;
+    }
     body { line-height: 1.6; min-height: 100vh; padding-bottom: 80px; }
     .container { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
 
@@ -177,7 +188,7 @@
     .ext-badge {
       position: absolute; top: 4px; left: 4px; padding: 1px 6px;
       font-size: 0.55rem; font-weight: 700; text-transform: uppercase;
-      background: rgba(0,0,0,0.7); color: #fff; border-radius: var(--radius-sm);
+      background: rgba(0,0,0,0.7); color: #fff; border-radius: var(--radius-sm); /* theme-exempt: on its own 70% black chip over the preview, dark in both themes */
       letter-spacing: 0.5px;
     }
     .asset-info { padding: 6px 8px; font-size: 0.65rem; }
@@ -191,7 +202,7 @@
       width: 24px; height: 24px; border-radius: var(--radius-sm);
       border: none; cursor: pointer; display: flex; align-items: center; justify-content: center;
       font-size: 0.7rem; transition: all 0.15s; padding: 0;
-      background: rgba(0,0,0,0.7); color: #fff;
+      background: rgba(0,0,0,0.7); color: #fff; /* theme-exempt: on its own 70% black chip over the preview, dark in both themes */
     }
     .asset-act-btn:hover { background: var(--accent); color: var(--text-on-accent); }
     .asset-act-btn.del:hover { background: var(--danger); color: #fff; }
@@ -301,8 +312,8 @@
       border-radius: var(--radius-sm); cursor: default;
     }
     .badge.core { background: rgba(255,136,17,0.15); color: var(--accent); }
-    .badge.game { background: rgba(68,136,255,0.15); color: #48f; }
-    .badge.integration { background: rgba(136,0,255,0.15); color: #a6f; }
+    .badge.game { background: rgba(68,136,255,0.15); color: var(--pg-game-ink); }
+    .badge.integration { background: rgba(136,0,255,0.15); color: var(--pg-integration-ink); }
     .badge.installed { background: rgba(42,102,68,0.2); color: var(--success); }
     .badge.planned { background: var(--bg-card-hover); color: var(--text-muted); }
 

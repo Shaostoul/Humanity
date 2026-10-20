@@ -13,11 +13,19 @@
       --pg-raised: #1a1a1a;
       --pg-row-line: #1a1a1a;
       --pg-tip-bg: #222;
+      --pg-badge-admin: #e55;
+      --pg-badge-mod: #f80;
+      --pg-badge-verified: #22aa66;
     }
     :root[data-theme="light"] {
       --pg-raised: var(--bg-secondary);
       --pg-row-line: var(--border);
       --pg-tip-bg: var(--bg-card);
+      /* The badges' white labels read at 5:1 or more on these (the theme's light
+         danger, accent and moderator green). */
+      --pg-badge-admin: #c0281c;
+      --pg-badge-mod: #a84f00;
+      --pg-badge-verified: #1b7f46;
     }
     /* Page-only variables. The theme's own (--bg, --border, --accent, ...)
        come from theme.css and are not redefined here, so the light theme
@@ -102,9 +110,9 @@
     #auth-gate { text-align: center; padding: 80px 20px; }
     #auth-gate p { color: var(--text-muted); font-size: 0.9rem; margin-bottom: var(--space-xl); }
     .badge { display: inline-block; padding: var(--space-xs) var(--space-md); border-radius: var(--badge-radius); font-size: var(--text-xs); font-weight: 600; }
-    .badge-admin { background: #e55; color: #fff; }
-    .badge-mod { background: #f80; color: #fff; }
-    .badge-verified { background: #22aa66; color: #fff; }
+    .badge-admin { background: var(--pg-badge-admin); color: #fff; }
+    .badge-mod { background: var(--pg-badge-mod); color: #fff; }
+    .badge-verified { background: var(--pg-badge-verified); color: #fff; }
     .badge-member { background: #444; color: #ccc; }
 
     /* Game world panel */

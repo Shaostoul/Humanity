@@ -11,9 +11,11 @@
        the light ones serve the light theme. */
     :root {
       --pg-planned-ink: #8aa0d8;
+      --pg-blue-ink: #2196f3;
     }
     :root[data-theme="light"] {
       --pg-planned-ink: #3d4f8a;
+      --pg-blue-ink: var(--info);
     }
     body { background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }
     main { flex: 1; max-width: 960px; width: 100%; margin: 0 auto; padding: var(--space-xl) var(--space-xl) var(--space-3xl); }
@@ -84,7 +86,7 @@
     /* legacy aliases (kept so nothing breaks if an old status sneaks in) */
     .status-badge.in-progress { background: rgba(255,170,50,0.15); color: var(--warning); }
     .status-badge.backlog { background: rgba(136,136,136,0.15); color: var(--text-muted); }
-    .status-badge.testing { background: rgba(33,150,243,0.15); color: #2196f3; }
+    .status-badge.testing { background: rgba(33,150,243,0.15); color: var(--pg-blue-ink); }
 
     /* ── Right now queue ── */
     .now-section {
@@ -127,9 +129,9 @@
     .task-card-priority {
       font-size: var(--text-xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
     }
-    .task-card-priority.critical { color: #e53935; }
+    .task-card-priority.critical { color: var(--danger); }
     .task-card-priority.high { color: var(--accent); }
-    .task-card-priority.medium { color: #2196f3; }
+    .task-card-priority.medium { color: var(--pg-blue-ink); }
     .task-card-priority.low { color: var(--text-muted); }
 
     /* ── Expanded detail ── */

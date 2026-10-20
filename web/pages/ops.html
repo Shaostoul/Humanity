@@ -12,10 +12,12 @@
     :root {
       --pg-cmd-ink: #4af;
       --pg-key-ink: #fa0;
+      --pg-cooldown-ink: #c8a;
     }
     :root[data-theme="light"] {
       --pg-cmd-ink: #1a56a8;
       --pg-key-ink: #8a5a00;
+      --pg-cooldown-ink: #8a3a66;
     }
 
     /* Page-only variables; the theme's own come from theme.css. */
@@ -43,7 +45,7 @@
     .btn-activated  { border-color: #ee3333; border-width: 5px; }
     .btn-disabled   { border-color: var(--border); cursor: not-allowed; opacity: 0.5; }
     .btn-cooldown   { border-color: #8844cc; border-width: 7px; }
-    .btn-cooldown-timer { position: absolute; font-size: 0.65rem; font-weight: 700; color: #c8a; }
+    .btn-cooldown-timer { position: absolute; font-size: 0.65rem; font-weight: 700; color: var(--pg-cooldown-ink); }
     .btn-cooldown-timer.top { top: 2px; left: 50%; transform: translateX(-50%); }
     .btn-cooldown-timer.bottom { bottom: 2px; left: 50%; transform: translateX(-50%); }
     @keyframes rainbow-border { 0%{border-color:#f44}16%{border-color:#f80}33%{border-color:#ff0}50%{border-color:#0f4}66%{border-color:#08f}83%{border-color:#80f}100%{border-color:#f44} }

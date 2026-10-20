@@ -49,32 +49,30 @@
        on its left edge, so it is easy to spot in a long tree. The literal stops
        are inherent to the effect (theme tokens cannot express a colour cycle);
        purple is lightened from the top bar's #80f because it is text here, and
-       #80f on the dark background is too faint to read. */
+       #80f on the dark background is too faint to read. Each stop is a page
+       variable with a light value: the same cycle in hues dark enough to read
+       on a light page (the bright ones, yellow and green above all, all but
+       vanish on white), each 4.9:1 or more on the light page. */
+    :root {
+      --lib-cycle-red: #ff5c5c; --lib-cycle-orange: #ff9a33; --lib-cycle-yellow: #ffe94d;
+      --lib-cycle-green: #3dff7a; --lib-cycle-blue: #4aa8ff; --lib-cycle-purple: #b77bff;
+    }
+    :root[data-theme="light"] {
+      --lib-cycle-red: #b3261e; --lib-cycle-orange: #a14d00; --lib-cycle-yellow: #7a6400;
+      --lib-cycle-green: #1a7a3a; --lib-cycle-blue: #1f5fbf; --lib-cycle-purple: #6a2fc0;
+    }
     @keyframes lib-channeling-text {
-      0%   { color:#ff5c5c; }
-      16%  { color:#ff9a33; }
-      33%  { color:#ffe94d; }
-      50%  { color:#3dff7a; }
-      66%  { color:#4aa8ff; }
-      83%  { color:#b77bff; }
-      100% { color:#ff5c5c; }
+      0%   { color:var(--lib-cycle-red); }
+      16%  { color:var(--lib-cycle-orange); }
+      33%  { color:var(--lib-cycle-yellow); }
+      50%  { color:var(--lib-cycle-green); }
+      66%  { color:var(--lib-cycle-blue); }
+      83%  { color:var(--lib-cycle-purple); }
+      100% { color:var(--lib-cycle-red); }
     }
     .lib-doc.active { color:var(--accent); font-weight:600; box-shadow:inset 3px 0 0 currentColor; background:color-mix(in srgb, currentColor 12%, transparent); animation:lib-channeling-text 3s linear infinite; }
-    /* The same cycle in hues dark enough to read on a light page (the bright ones above,
-       yellow and green above all, all but vanish on white). */
-    @keyframes lib-channeling-text-light {
-      0%   { color:#b3261e; }
-      16%  { color:#a14d00; }
-      33%  { color:#7a6400; }
-      50%  { color:#1a7a3a; }
-      66%  { color:#1f5fbf; }
-      83%  { color:#6a2fc0; }
-      100% { color:#b3261e; }
-    }
-    :root[data-theme="light"] .lib-doc.active { animation-name:lib-channeling-text-light; }
-    /* Light theme: bright yellow text is unreadable on a light background, so
-       use the top bar's own treatment there instead: dark text, cycling border. */
-    [data-theme="light"] .lib-doc.active { color:var(--text); background:none; animation:channeling 3s linear infinite; }
+    /* Light theme: no tint behind the row, only the cycling text and its bar. */
+    [data-theme="light"] .lib-doc.active { background:none; }
     /* The site's own Reduced motion switch stops the cycling. The OS-level
        setting does not, matching the top bar's active tab: this is a slow
        colour change in place, not movement, and on the operator's machine the

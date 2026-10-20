@@ -415,13 +415,19 @@ test('every colour variable a page defines with a dark value has a light value',
 // high-contrast theme is not read. Same escape as 5: `theme-exempt: <reason>` on the line, for
 // text that sits on a surface dark in both themes.
 //
-// OLDER_TEXT holds the lines that were already there when this check came, as a count per file:
-// a file may not gain one, and a file that loses one must lower its count (so the list only
-// shrinks, as tests/theme_token_lint.rs's LEGACY_OFFENDERS does). Many are white text on a
-// surface the rule does not paint (a badge drawn by another rule, a video's dark overlay), which
-// a person must look at; none is new. Black text on the accent, the review's Save button, was on
-// seven more pages: those 13 lines moved to var(--text-on-accent) the same day (its dark value is
-// #0d0d0d, so the dark theme looks the same).
+// There is no allowance. Black text on the accent, the review's Save button, was on seven more
+// pages: those 13 lines moved to var(--text-on-accent) the same day (its dark value is #0d0d0d,
+// so the dark theme looks the same). The other 47 lines already there (4 chat stylesheets, 12
+// pages) were held in a per-file allowance for a few hours and fixed that day too, the dark theme
+// unchanged: a theme variable where its dark value is the literal's to within a delta E of about
+// 7 (7 lines: the role badges' fills, black on the warning and success buttons, two reds);
+// otherwise a page variable keeping the literal as its dark value with a light value (29 lines;
+// the chat's in web/chat/base.css, each page's in its own :root block); theme-exempt for the 10
+// that sit on a surface dark in both themes (labels on a video, the code block's copy button,
+// chips over a thumbnail); and the widgets page's white button ink moved onto the two filled
+// kinds that carry it (1). Note that a page variable defined in ANOTHER file (the chat's, in base.css) or
+// given a theme variable as its light value is not measured here: its light value was checked
+// by hand when it was written.
 //
 // Red first, 2026-10-20, against files-folder.css as the review found it: "no page stylesheet
 // colours text with a literal that is unreadable in the light theme" listed its six lines
@@ -532,14 +538,6 @@ function lowContrastByFile() {
   return out;
 }
 
-/** The lines that were there when check 7 came (2026-10-20), as a count per file: only shrinks. */
-const OLDER_TEXT = {
-  'chat/messages.css': 2, 'chat/modals.css': 1, 'chat/sidebar.css': 4, 'chat/voice.css': 8,
-  'pages/admin.html': 3, 'pages/bugs.html': 3, 'pages/dev.html': 4, 'pages/governance.html': 4,
-  'pages/guilds.html': 1, 'pages/home.html': 1, 'pages/inventory.html': 1, 'pages/library.html': 7,
-  'pages/ops.html': 1, 'pages/roadmap.html': 3, 'pages/watch.html': 2, 'pages/widgets.html': 2,
-};
-
 test('the text check catches what it is for (a check that cannot fail proves nothing)', () => {
   const css = [
     '.a { color: #7ec8e3; }',                                    // caught: pale ink on the light page
@@ -566,15 +564,7 @@ test('the text check catches what it is for (a check that cannot fail proves not
 });
 
 test('no page stylesheet colours text with a literal that is unreadable in the light theme', () => {
-  const byFile = lowContrastByFile();
-  const problems = [];
-  for (const [file, hits] of Object.entries(byFile)) {
-    if (hits.length > (OLDER_TEXT[file] || 0)) problems.push(...hits.map((h) => `${file}:${h}`));
-  }
-  for (const [file, count] of Object.entries(OLDER_TEXT)) {
-    const now = (byFile[file] || []).length;
-    if (now < count) problems.push(`${file}: ${now} of its ${count} older lines left: lower its count in OLDER_TEXT`);
-  }
+  const problems = Object.entries(lowContrastByFile()).flatMap(([file, hits]) => hits.map((h) => `${file}:${h}`));
   assert.deepStrictEqual(problems, [],
     'Text in a literal colour that is under 4.5:1 in the light theme (or a page variable whose ' +
     'light value is). Use a theme variable (var(--text), var(--text-muted), var(--text-on-accent), ' +

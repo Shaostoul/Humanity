@@ -14,9 +14,13 @@
        the light ones serve the light theme. */
     :root {
       --pg-yes-ink: #2ab870;
+      --pg-no-ink: #ef4f4f;
+      --pg-local-ink: #4a9eff;
     }
     :root[data-theme="light"] {
       --pg-yes-ink: var(--success);
+      --pg-no-ink: var(--danger);
+      --pg-local-ink: var(--info);
     }
     body { line-height: 1.6; min-height: 100vh; padding-bottom: 80px; }
     .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
@@ -58,7 +62,7 @@
       display: inline-block; padding: 2px 8px; border-radius: 4px;
       font-size: 0.72rem; font-weight: 600; margin-right: 6px;
     }
-    .scope-badge.local { background: rgba(74,158,255,0.15); color: #4a9eff; }
+    .scope-badge.local { background: rgba(74,158,255,0.15); color: var(--pg-local-ink); }
     .scope-badge.civilization { background: rgba(255,136,17,0.15); color: var(--accent); }
     .proposal-body { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
     .proposal-id { color: var(--text-muted); font-size: 0.75rem; opacity: 0.7; margin-bottom: 12px; }
@@ -76,7 +80,7 @@
       color: var(--text-muted); margin-bottom: 12px;
     }
     .tally-numbers .yes { color: var(--pg-yes-ink); }
-    .tally-numbers .no { color: #ef4f4f; }
+    .tally-numbers .no { color: var(--pg-no-ink); }
 
     .vote-actions { display: flex; gap: 8px; flex-wrap: wrap; }
     .btn-vote {
@@ -89,11 +93,11 @@
     .btn-vote:disabled { opacity: 0.55; cursor: default; }
     .btn-vote:disabled:hover { border-color: var(--border); }
     .btn-vote.voted-yes { background: rgba(42,184,112,0.2); border-color: var(--pg-yes-ink); color: var(--pg-yes-ink); opacity: 1; }
-    .btn-vote.voted-no { background: rgba(239,79,79,0.2); border-color: #ef4f4f; color: #ef4f4f; opacity: 1; }
+    .btn-vote.voted-no { background: rgba(239,79,79,0.2); border-color: var(--pg-no-ink); color: var(--pg-no-ink); opacity: 1; }
     .btn-vote.voted-abstain { background: rgba(160,160,160,0.15); border-color: var(--text-muted); color: var(--text); opacity: 1; }
 
     .vote-status { font-size: 0.8rem; margin-top: 8px; color: var(--text-muted); }
-    .vote-status.err { color: #ef4f4f; }
+    .vote-status.err { color: var(--pg-no-ink); }
     .vote-status.ok { color: var(--pg-yes-ink); }
 
     .empty-state {

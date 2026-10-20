@@ -492,10 +492,10 @@
   line-height: 1.4;
   letter-spacing: 0.02em;
 }
-.role-admin { background: #e67e22; color: #fff; }
-.role-mod { background: #27ae60; color: #fff; }
+.role-admin { background: var(--badge-admin); color: #fff; }
+.role-mod { background: var(--badge-mod); color: #fff; }
 .role-verified { background: var(--badge-verified); color: #fff; }
-.role-donor { background: #9b59b6; color: #fff; }
+.role-donor { background: var(--badge-donor); color: #fff; }
 .role-streaming { background: var(--badge-live); color: #fff; font-size: 0.55rem; }
 
 /* ── DM Section ── */
@@ -741,7 +741,7 @@
   margin-top: var(--space-xs);
 }
 .voice-room-item .vr-participant { padding: var(--space-xs) 0; transition: color 0.15s, font-weight 0.15s; }
-.voice-room-item .vr-participant.speaking { color: #4a4; font-weight: bold; }
+.voice-room-item .vr-participant.speaking { color: var(--chat-speaking-ink); font-weight: bold; }
 .voice-room-item .vr-participant.speaking::before { content: '🟢 '; }
 .voice-room-item.in-room { border-color: var(--success); background: rgba(68,170,153,0.08); }
 
@@ -798,7 +798,7 @@
   white-space: nowrap;
 }
 .cog-dropdown .cog-item:hover { background: var(--bg-hover); color: var(--accent); }
-.cog-dropdown .cog-item.danger { color: #e55; }
+.cog-dropdown .cog-item.danger { color: var(--chat-danger-ink); }
 .cog-dropdown .cog-item.danger:hover { background: rgba(220,50,50,0.15); }
 .voice-room-item.vc-empty { opacity: 0.55; }
 .voice-room-item.vc-empty:hover { opacity: 0.85; }
