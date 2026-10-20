@@ -122,6 +122,9 @@ pub mod tree_ground;
 /// The rig's held movement keys: arriving somewhere on foot the way a player
 /// does, instead of by teleport (BUG-156, 2026-10-05).
 pub mod rig_walk;
+/// What the dev IPC reports of the player's body: health, wounds and the landings the walk
+/// handed to it, and the showcase `illness` verb's words (2026-10-20, scripts/verify-falls.js).
+pub mod body_probe;
 /// A planet's cloud deck and atmosphere dome, plus the view-dependent order
 /// the two composite in (extracted from lib.rs, v0.1320).
 pub mod frame_shells;

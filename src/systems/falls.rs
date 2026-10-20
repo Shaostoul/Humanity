@@ -241,7 +241,14 @@ pub fn player_landed(world: &mut hecs::World, impact_m_s: f32) {
         .iter()
         .find(|(_, (_, _, _, dead))| dead.is_none())
         .map(|(e, _)| e);
-    if let Some(body) = body {
-        crate::systems::wounds::injure(world, body, crate::systems::wounds::Injury::Fall { impact_m_s });
+    // One line a landing (only landings that can hurt reach here, so a jump's is the most there is):
+    // what a rig reads to see a fall reached the body, and what anyone reading run.log after
+    // "my health dropped for no reason" needs (scripts/verify-falls.js).
+    match body {
+        Some(body) => {
+            log::info!("[Falls] the player landed at {impact_m_s:.2} m/s");
+            crate::systems::wounds::injure(world, body, crate::systems::wounds::Injury::Fall { impact_m_s });
+        }
+        None => log::info!("[Falls] a landing at {impact_m_s:.2} m/s found no living body to hurt"),
     }
 }

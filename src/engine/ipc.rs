@@ -504,6 +504,21 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
         state.controller.fly_mode = false;
         log::info!("Showcase: walk -> fly mode off, on foot");
     }
+    // {"illness":"realistic"} / {"illness":"forgiving"} (2026-10-20, falls): Settings > Gameplay >
+    // Illness and injury, set the way its radio sets it (the setting and the save mark), so a rig
+    // can judge a fall in both modes in one boot (scripts/verify-falls.js). Permanent dev tooling.
+    if let Some(raw) = grab("illness") {
+        match crate::engine::body_probe::parse_illness_mode(&raw) {
+            Some(realistic) => {
+                if state.gui_state.settings.illness_realistic != realistic {
+                    state.gui_state.settings.illness_realistic = realistic;
+                    state.gui_state.settings_dirty = true;
+                }
+                log::info!("Showcase: illness -> {}", if realistic { "Realistic" } else { "Forgiving" });
+            }
+            None => log::warn!("Showcase: illness wants realistic or forgiving, not {raw:?}"),
+        }
+    }
     // {"hold":"forward,sprint","hold_s":"40"} (BUG-156, 2026-10-05): press
     // those movement keys for that long, through the controller's own action
     // path, so a capture can ARRIVE somewhere on foot the way a player does
@@ -3826,6 +3841,9 @@ pub(crate) fn poll_remote_players_request(state: &mut EngineState, clock_dt: f32
             // Every piece the server keeps in this world this frame, its screen rect in the
             // window's pixels or null behind the camera (scripts/lib/shared-build-judge.js).
             "shared": shared,
+            // The player's health this frame, null with no living player (2026-10-20,
+            // engine/body_probe.rs): verify-falls sees it fall on the frame the camera lands.
+            "health": crate::engine::body_probe::health(&state.game_world.world).map(|h| h.0),
         }));
     } else {
         rec.truncated = true;
@@ -3894,6 +3912,10 @@ pub(crate) fn poll_remote_players_request(state: &mut EngineState, clock_dt: f32
         // hall's meter and counter, the server's `game_home` answer and the last home verb
         // (`home_session_json`): what verify-starts judges.
         "home_session": home_session_json(state),
+        // Falls (2026-10-20, engine/body_probe.rs `falls_json`): the landings the walk handed to
+        // the body so far and the last one's speed, the Illness and injury mode, the walk's
+        // gravity, dev flight, aboard. What verify-falls judges with the home session's vitals.
+        "falls": crate::engine::body_probe::falls_json(state),
         "screen_px": [screen_w, screen_h],
         "camera_start": rec.camera_start,
         "camera_end": camera_json(state),
@@ -4012,7 +4034,9 @@ pub(crate) fn home_session_core(
             "completed": quests.completed_quests,
         },
         "look": { "name": me.character_name, "appearance": me.appearance, "outfit": me.outfit },
-        "vitals": { "satiation": gs.vitals.satiation, "hydration": gs.vitals.hydration },
+        // Food and water as the HUD shows them, and the body's health and wounds from the ECS
+        // (2026-10-20, engine/body_probe.rs: what verify-falls judges).
+        "vitals": crate::engine::body_probe::vitals_json(gs.vitals.satiation, gs.vitals.hydration, world, data),
         "own_home": gs.own_home.is_some(),
         "meals_offline": crate::save_load::ship_meals(data),
         "counter": gs.fleet.counter_status,

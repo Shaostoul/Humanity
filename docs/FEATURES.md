@@ -3621,6 +3621,16 @@ holds on there (it used to drop you); stepping away from it is a fall.
 - Data: `data/medical/falls.ron` (speeds, harm, sources), the `sprained_ankle`,
   `broken_ankle` and `broken_leg` rows of `data/medical/wounds.ron` and
   `data/status_effects.csv` (which replaced the never-applied `broken_bone`)
+- Checked in the running game: `just verify-falls` (`scripts/verify-falls.js`, judged by
+  `scripts/lib/falls-judge.js`, 2026-10-20) walks up the homestead's stairs and off the
+  3 m top by holding forward, in Forgiving (a landing reaches the body and does nothing)
+  and Realistic (a Sprained Ankle, the health taken on the landing frame); climbs the
+  ladder, lets go at the top (the body holds on) and steps off (a Broken Ankle); drops
+  the player from a placement (no landing reaches the body); and checks world entry hands
+  the body no landing. The dev IPC's body probe (`src/engine/body_probe.rs`): health and
+  wounds in the recorder's home session vitals, health on every recorded frame, a `falls`
+  block (landings handed to the body, the last speed, the mode), the showcase `illness`
+  verb, and a `[Falls]` run.log line per landing
 
 ### Enchantments Database (v0.90.0)
 133 enchantments for equipment with tier scaling and compatibility rules.

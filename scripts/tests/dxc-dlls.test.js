@@ -169,6 +169,7 @@ const RIGS = {
   "photograph-home.js": "EXE",
   "boot-timing.js": "EXE_SRC",
   "make-clips.js": "EXE",
+  "verify-falls.js": "EXE",
 };
 const SCRIPTS = path.join(__dirname, "..");
 

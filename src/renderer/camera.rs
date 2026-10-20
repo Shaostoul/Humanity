@@ -793,6 +793,12 @@ pub struct CameraController {
     fall_top: Option<f32>,
     /// The same for the planet walk: the radius `radial_step` left the body at last frame.
     surface_r: Option<f64>,
+    /// How many landings `take_landing` has handed out since the game started, and the last
+    /// one's speed, m/s (2026-10-20). Read only by the dev IPC's recorder (`falls`), so a rig
+    /// can tell "the walk handed a landing to the body" from "nothing landed": both read the
+    /// same on the body when the landing is too soft to hurt (scripts/verify-falls.js).
+    landings_taken: u32,
+    last_landing_m_s: Option<f32>,
 }
 
 /// More than this between where the walk left the body and where it starts the next frame,
@@ -847,6 +853,8 @@ impl CameraController {
             body_y: None,
             fall_top: None,
             surface_r: None,
+            landings_taken: 0,
+            last_landing_m_s: None,
         }
     }
 
@@ -854,7 +862,18 @@ impl CameraController {
     /// takes it once a frame and hands it to `systems::falls::player_landed`. None when nothing
     /// landed hard enough to count, or the landing could not hurt (flight, a placement, water).
     pub fn take_landing(&mut self) -> Option<f32> {
-        self.falls.take()
+        let landing = self.falls.take();
+        if let Some(v) = landing {
+            self.landings_taken = self.landings_taken.saturating_add(1);
+            self.last_landing_m_s = Some(v);
+        }
+        landing
+    }
+
+    /// The landings handed out so far (`take_landing`) and the last one's speed, m/s: the dev
+    /// IPC's `falls` block (src/engine/body_probe.rs).
+    pub fn landings_taken(&self) -> (u32, Option<f32>) {
+        (self.landings_taken, self.last_landing_m_s)
     }
 
     /// The planet walk's half of the falls (2026-10-20): after `surface_move::radial_step`,
