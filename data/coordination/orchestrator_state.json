@@ -446,6 +446,11 @@
       "date": "2026-10-19",
       "decision": "v0.1521.1 and v0.1522.0: the website mirrors the new Tools page (tools-app.js) and the three-pane Media page (media-panes.js, media-sound.js), each from a web builder's worktree after review of desktop and phone screenshots; their tests are in just rig-tests (958 pass). The native widgets' web-mirror comments now name the mirrors.",
       "why": "CLAUDE.md: the web mirrors native; both pages changed on the desktop the same day."
+    },
+    {
+      "date": "2026-10-20",
+      "decision": "v0.1522.1: the website light theme fixed site-wide (settings.js painted dark onto the root on every load; two storage keys; 104 fixed dark backgrounds to variables; generator refuses an incomplete light palette). v0.1523.0: Games + Tools = one Apps page (GuiPage::Apps, page id apps, config apps_*), six coloured parts with names (RGB + CMY, the operator's idea; Help vs Services split by a section field per category in data/external/catalog.json; Added by you = hand-added games and programs), compact tiles, Steam links for Steam-installed programs, Start-menu shortcut launch via IShellLinkW (src/software/shortcuts.rs, Launch::Shortcut), Epic covers opt-in from catcache.bin addresses on cdn1.epicgames.com, memory only. The six new section colours got light values in gen-theme-css.js (the light generator refused to run without them, 4.8:1 or better).",
+      "why": "Operator 2026-10-19: merge Games and Tools into Apps, RGB then CMY sections, smaller tiles, Steam links for Blender, launch Resolve, Fortnite's cover. Overnight autonomous session (he is asleep until 7:30)."
     }
   ],
   "active_scopes_to_avoid": [
@@ -475,7 +480,7 @@
     "Trees have no materialised identity, so they cannot be felled. The key (cell_x, cell_y, item_index) already exists structurally; a sparse delta store is the shape."
   ],
   "how_to_resume": "1. `just brief` (version/CI/signing). 2. docs/PRIORITIES.md \"Active focus\" - the top item is fully specified, start implementing rather than investigating. 3. This file for WHY. Note the ONE-GPU rule: `tasklist //FI \"IMAGENAME eq HumanityOS.exe\"` before booting any rig, and never boot beside the operator instance.",
-  "last_updated": "2026-10-19",
+  "last_updated": "2026-10-20",
   "focus": "v0.1111.1 shipped (the 2026-08-03/04 vegetation marathon, v0.1109.4-v0.1111.1). Landed: leaf tufts stopped being cubes (golden-angle azimuths + solved per-card tilts, measured 100% parallel pairs on conifers and 67% perpendicular on broadleaves before); distant cards stopped out-shining mesh trees (4-8x, three multiplying causes, then the residual 28% conifer excess traced to the odd component of the shading normals and cancelled at source - all species now 1.00 flat across the sky); standing still stopped depending on the frame rate (the frame-lock sampled terrain one frame of planetary spin behind the player, 33,360 m/s of ground slip, so altitude read as a function of fps and flipped stand height by 2.45 m); the card-hide radius stopped promising models that never drew (BUG-068); forest density stopped being a process-global read separately by two streams (BUG-069); and the card cutoff is now clamped to the terrain reach that actually exists. Foliage-card arrangement extracted to renderer/tree_cards.rs under the size ratchet, and the ratchet budget came DOWN.",
   "overnight_plan_2026_08_01": {
     "directive": "Operator (heading to bed, full trust granted): PERMANENT versions only, no half fixes. Full PBR textures (not just diffuse). Real full canopies of leaves and flowers. Photorealism is the goal - screenshots good enough to land donations/grants; money is tight. 8-10 hours unattended.",

@@ -397,12 +397,15 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
       a tile for an installable program could offer Install directly (today it is in the
       details); the page's intro is five paragraphs and could fold behind a "How this page
       works"; the web Tools page should mirror the look (it cannot detect or launch).
-    - IN PROGRESS 2026-10-19 (operator): **Games and Tools merged into one Apps page** (red Games,
-      green HumanityOS tools, blue other programs, help services on their own tab), tiles a third
-      shorter with the name once, Steam links for programs installed through Steam, launch
-      through the Start-menu shortcut when Windows records no program file (DaVinci Resolve),
-      and Epic covers on an opt-in switch (fetched from Epic's servers, never stored); and
-      **Media renamed Files** on both apps (the developer Files page becomes Data files).
+    - DONE v0.1523.0 (operator, 2026-10-19): **Games and Tools merged into one Apps page** in six
+      coloured parts (red Games, green HumanityOS tools from data/gui/humanityos_tools.json, blue
+      Other programs, cyan Help, magenta Services, yellow Added by you), tiles a third shorter
+      with the name once, Steam links for programs installed through Steam, launch through the
+      Start-menu shortcut when Windows records no program file (DaVinci Resolve, checked on his
+      machine), and Epic covers on an opt-in switch (Epic's CDN only, never stored; the first
+      real fetch happens when he turns it on). Website mirror in progress. IN PROGRESS: **Media
+      renamed Files** on both apps, merged with the developer Files page (data, mods and assets
+      from the app's own folder), internal names too.
     - DONE v0.1521.0: **the Media page in three panes, editing in place** (operator: a
       list on the left, the item fitted to the middle (picture, 3D model, video, a sound
       visualiser), its details on the right; top, middle and bottom when the window is tall; Edit

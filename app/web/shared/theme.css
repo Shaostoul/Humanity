@@ -203,6 +203,15 @@
   --server-bg: #0f0f2d;
   --server-row-bg: #141437;
   --server-row-hover: #191946;
+
+  /* Section colours past red, green and blue (the Apps page, 2026-10-19): cyan, magenta,
+     yellow, each a dark fill and a bright edge: the native section_* tokens. */
+  --section-cyan-bg: #0c2a2d;
+  --section-cyan: #1ac2d4;
+  --section-magenta-bg: #2d0f2a;
+  --section-magenta: #d641c6;
+  --section-yellow-bg: #2d280a;
+  --section-yellow: #f1c40f;
 }
 
 /* The website's light theme (web-only: the desktop app has none). shell.js sets
@@ -251,6 +260,12 @@
   --server-bg: #e6e6f6;
   --server-row-bg: #dadaf0;
   --server-row-hover: #ccccea;
+  --section-cyan-bg: #e2f3f5;
+  --section-cyan: #0b7480;
+  --section-magenta-bg: #f5e3f3;
+  --section-magenta: #9c2c90;
+  --section-yellow-bg: #f6f0d6;
+  --section-yellow: #7f6200;
 }
 /* ======================== END AUTO-GENERATED ======================== */
 

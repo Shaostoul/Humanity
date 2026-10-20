@@ -260,6 +260,12 @@
   --server-bg: #e6e6f6;
   --server-row-bg: #dadaf0;
   --server-row-hover: #ccccea;
+  --section-cyan-bg: #e2f3f5;
+  --section-cyan: #0b7480;
+  --section-magenta-bg: #f5e3f3;
+  --section-magenta: #9c2c90;
+  --section-yellow-bg: #f6f0d6;
+  --section-yellow: #7f6200;
 }
 /* ======================== END AUTO-GENERATED ======================== */
 

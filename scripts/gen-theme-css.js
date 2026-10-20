@@ -318,6 +318,14 @@ const LIGHT = {
   '--server-bg': '#e6e6f6',
   '--server-row-bg': '#dadaf0',
   '--server-row-hover': '#ccccea',
+  // The Apps page's cyan, magenta and yellow sections (2026-10-20): pale washes for the grounds,
+  // and each hue darkened so its band name reads on a light page (4.5:1 or better on white).
+  '--section-cyan-bg': '#e2f3f5',
+  '--section-cyan': '#0b7480',
+  '--section-magenta-bg': '#f5e3f3',
+  '--section-magenta': '#9c2c90',
+  '--section-yellow-bg': '#f6f0d6',
+  '--section-yellow': '#7f6200',
 };
 
 /** Emit the light block, refusing to run if it does not cover every colour
