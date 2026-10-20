@@ -477,7 +477,8 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
   does not measure a page variable defined in another file, or one whose light value is itself a
   variable). Found with the heat pump and wood stove (v0.1528.0): the generators' fuel drum still
   accumulates in f32 (`ElectricalSystem::fuel_accum`, the frame-rate class fire.rs fixed on
-  2026-10-20); a wood stove does not balance in a sealed hull (about 107 kg of oxygen a day at
+  2026-10-20; DONE 2026-10-20: an f64 carry, where 240 fps had burned 0.4% less than the rate);
+  a wood stove does not balance in a sealed hull (about 107 kg of oxygen a day at
   full burn against about 2,900 kg in a home's air, and no makeup air in either life-support
   mode: a design question, whether a ship home's stove needs an outside air feed or should be a
   planet-only heater); data/hvac.ron's original heat pump and stove rows are unsourced.

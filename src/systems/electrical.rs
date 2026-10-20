@@ -121,7 +121,11 @@ pub struct ElectricalSystem {
     /// Fractional litres burned per fueled genset, carried between ticks so a
     /// slow burn (1.5 L/h at 60 fps) still consumes whole fuel UNITS from the
     /// drum once enough has accumulated. Keyed by the genset entity. (v0.733)
-    fuel_accum: std::collections::HashMap<hecs::Entity, f32>,
+    /// In f64 (2026-10-20): one tick at 240 frames a second is about 3
+    /// millionths of a litre, and an f32 carry rounded each of those to its own
+    /// last bit, so a fast machine burned 0.4% less than the rate said
+    /// (`a_generator_burns_the_same_fuel_at_30_and_240_frames_a_second`).
+    fuel_accum: std::collections::HashMap<hecs::Entity, f64>,
 }
 
 impl ElectricalSystem {
@@ -252,7 +256,7 @@ impl System for ElectricalSystem {
                         .map(|g| g.fuel_per_second)
                         .unwrap_or(0.0);
                     let accum = self.fuel_accum.entry(e).or_insert(0.0);
-                    *accum += rate * dt;
+                    *accum += rate as f64 * dt as f64;
                     if let Ok(mut c) = world
                         .get::<&mut crate::systems::inventory::containers::Container>(e)
                     {
@@ -261,10 +265,10 @@ impl System for ElectricalSystem {
                                 .map(|r| r.volume_for(&item))
                                 .unwrap_or(0.0)
                                 .max(0.01);
-                            while *accum >= unit_vol && c.current_qty > 0 {
+                            while *accum >= unit_vol as f64 && c.current_qty > 0 {
                                 c.current_qty -= 1;
                                 c.used_liters = (c.used_liters - unit_vol).max(0.0);
-                                *accum -= unit_vol;
+                                *accum -= unit_vol as f64;
                             }
                             if c.current_qty == 0 {
                                 c.current_content_item = None;
@@ -711,6 +715,41 @@ mod tests {
         assert!(running, "its own fuel runs it");
         assert_eq!(left, 1, "2 L at 1 L a second burns two of its three 1 L units");
         assert!((generation - 1800.0).abs() < 1e-3, "and the island gets its 1,800 W: {generation}");
+    }
+
+    /// A generator burns the same fuel whatever the frame rate (2026-10-20, the
+    /// class fire.rs's burn step was fixed for the same day). At the shipped
+    /// gasoline set's 2.6 L an hour, one tick at 240 frames a second is about
+    /// 3 millionths of a litre, added to a carry of up to a litre; in f32 every
+    /// one of those adds was rounded to the carry's last bit, the same way each
+    /// time, so a fast machine burned measurably more or less than a slow one.
+    /// Twenty game minutes at 30 and at 240 frames a second must burn the same
+    /// 0.8667 L. Seen red on the f32 carry, 2026-10-20: "30 fps burned
+    /// 0.8668531775474548 L, 240 fps 0.8632528185844421 L, the rate says
+    /// 0.8666666666666668 L".
+    #[test]
+    fn a_generator_burns_the_same_fuel_at_30_and_240_frames_a_second() {
+        use super::ElectricalSystem;
+        use crate::ecs::systems::System;
+        let rate = 2.6 / 3600.0; // L/s, the shipped gasoline set's 2.6 L an hour
+        let game_s = 1200.0_f64;
+        let burned = |fps: u32| -> f64 {
+            let (mut world, gen, data) = backstop_island("gasoline_0", 50, Some(vec!["gasoline_0"]));
+            world.get::<&mut crate::ecs::components::PowerGenerator>(gen).unwrap().fuel_per_second = rate as f32;
+            let mut sys = ElectricalSystem::new(std::path::Path::new("data"));
+            let dt = 1.0 / fps as f32;
+            for _ in 0..(game_s as u32 * fps) {
+                sys.tick(&mut world, dt, &data);
+            }
+            let units_gone = 50 - world.get::<&crate::systems::inventory::containers::Container>(gen).unwrap().current_qty;
+            units_gone as f64 + sys.fuel_accum.get(&gen).copied().unwrap_or(0.0)
+        };
+        let (slow, fast) = (burned(30), burned(240));
+        let want = rate * game_s;
+        assert!(
+            (slow - want).abs() < 1e-5 && (fast - want).abs() < 1e-5,
+            "30 fps burned {slow} L, 240 fps {fast} L, the rate says {want} L"
+        );
     }
 
     /// BUG-154: a fuelled generator whose data names no fuel burns nothing,
