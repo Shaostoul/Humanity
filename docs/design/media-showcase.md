@@ -3111,6 +3111,6 @@ boxed areas so edit mode stands out." His monitor is 2560 by 1387: three columns
 - A playing song or video plays on while the person looks at another page or the Gallery; pressing
   another item, or closing its window, stops it.
 
-**Not built.** The website's Media page (still one column with its item window): the same three
-panes there are the next increment for parity. Live spectrum from the mixer's own output (the
+**Built on the website in v0.1522.0** (web/pages/media-panes.js, media-sound.js): the same three
+panes, edit in place and the waveform, mirroring this. **Not built.** Live spectrum from the mixer's own output (the
 spectrum is the decoded file's, looked up by the play position).

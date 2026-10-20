@@ -17,8 +17,8 @@
 //! Every colour and size is the theme's: the card colour and border, the radius, the spacing
 //! between panes (which is where the handle is), and the accent on a handle being dragged.
 //!
-//! Web mirror: none yet. The website's Media page is one column (web/pages/media.html), and the
-//! web is not in this increment's scope.
+//! Web mirror: web/pages/media-panes.js (since v0.1522.0): the same three panes, side by side or
+//! stacked by the same rule, the split kept in localStorage `humanity_media_layout`.
 
 use egui::{CursorIcon, Id, Rect, Sense, Stroke, Ui, Vec2};
 

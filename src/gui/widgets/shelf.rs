@@ -13,8 +13,8 @@
 //!   their section headings, and their label-and-value rows.
 //!
 //! The covers and the small pieces (a cover slot, a thin bar, pills, a fixed table cell) are in
-//! cover_tile.rs. Every colour and size comes from the theme. Native only for now: the Games page
-//! is desktop-only, and the web Tools page is its own page (web/pages/tools.html).
+//! cover_tile.rs. Every colour and size comes from the theme. The Games page is desktop-only; the web
+//! Tools page mirrors this shelf in HTML (web/pages/tools-app.js, since v0.1521.1).
 
 use egui::{Rect, RichText, Sense, Stroke, Ui, Vec2};
 use serde::{Deserialize, Serialize};

@@ -441,6 +441,11 @@
       "date": "2026-10-19",
       "decision": "v0.1521.0: the Media page in three panes (list, viewer fitted to the item, details), stacked top/middle/bottom on a tall window, the split remembered; Edit in place in the details pane with the tinted RGB parts and an RGB border, Save returns to view, unsaved edits ask before leaving; a sound visualiser widget (waveform with seek, live spectrum, from symphonia, the decoders kira already carries); tiles kept as Gallery; the chat card opens one window with the same parts. Merged from a worktree builder after review of its snapshots.",
       "why": "The operator asked for a list/viewer/details layout like his three-monitor-wide screen and for editing without stacked windows ('we don't have to worry about layering so much'). Also in the session: the Library Genesis catalog entry removed in v0.1520.0 (Cengage v. LibGen, S.D.N.Y. 2024)."
+    },
+    {
+      "date": "2026-10-19",
+      "decision": "v0.1521.1 and v0.1522.0: the website mirrors the new Tools page (tools-app.js) and the three-pane Media page (media-panes.js, media-sound.js), each from a web builder's worktree after review of desktop and phone screenshots; their tests are in just rig-tests (958 pass). The native widgets' web-mirror comments now name the mirrors.",
+      "why": "CLAUDE.md: the web mirrors native; both pages changed on the desktop the same day."
     }
   ],
   "active_scopes_to_avoid": [

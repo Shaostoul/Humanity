@@ -17,7 +17,8 @@
 //! Every colour is the theme's: the accent for the played part, the spectrum and the line,
 //! text_muted for the part to come, bg_tertiary behind.
 //!
-//! Web mirror: none. The website plays a sound in the browser's own `<audio>` element.
+//! Web mirror: web/pages/media-sound.js (since v0.1522.0): 1024 peaks from decodeAudioData drawn
+//! on a canvas, press or drag to seek.
 
 use egui::{Color32, Rect, Sense, Ui, Vec2};
 

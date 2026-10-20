@@ -407,7 +407,7 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
       details. Open: a 3D model is fetched only on View in 3D (models can be 200 MB); nothing is
       selected until a row is pressed (a selection counts a view); Opus, M4A and AAC sounds say
       they cannot play here yet; leaving the page with unsaved edits asks on the next page (the
-      app changes page in about 50 places); the web Media page should mirror the panes.
+      app changes page in about 50 places). The website mirrors it since v0.1522.0 (web/pages/media-panes.js, media-sound.js).
     - DONE 2026-10-13 (v0.1495.1): **the project's history in the Library**, a "Project History"
       shelf with the 38 dated session histories and the 7 decision logs (catalog rows; re-run
       `node scripts/build-library.js` after a new history page).

@@ -14,7 +14,8 @@
 //! and a press anywhere on the waveform goes there. A file these decoders cannot read says so, and
 //! can still be downloaded. The temporary copy goes with the view.
 //!
-//! Web mirror: the browser's own `<audio>` element (web/pages/media-app.js plays a sound that way).
+//! Web mirror: web/pages/media-sound.js (since v0.1522.0): Play here, the waveform and a 24-band
+//! spectrum from an AnalyserNode, the sound played by the browser's own `<audio>`.
 
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::Receiver;

@@ -50,6 +50,14 @@
 // words, the hosting paragraph) and "Files" (blue). Save and Cancel stay under
 // them. Add to Media (media-app.js) uses the same three, its files first.
 //
+// IN PLACE SINCE 2026-10-19 (the desktop's media/edit.rs draw_in_place): the
+// form takes the place of the item's details in the right pane, headed
+// "Editing "<title>"", the pane edged in the nav bar's moving colours
+// (media-item.js editMode), Save and Cancel in a foot that stays in view while
+// the parts scroll above it. Cancel with nothing changed goes straight back;
+// with changes it asks first (`changed`: what Save would send differs from the
+// item, or a file's new name is typed and not saved; media-item.js cancelEdit).
+//
 // Save sends the edit (POST /api/media/edit, every field) signed over
 // `media_edit:<id>:<BLAKE3 hex of the edit member's JSON text exactly as sent>`:
 // the text is made ONCE (`editText`), those exact bytes are hashed, and those
@@ -101,7 +109,14 @@
     renamed: 'Renamed.',
     coverChosen: 'That picture is the cover now.',
     noHashName: 'This page could not load its hashing code, so the name was not sent. Reload the page and try again.',
+    // In place of the details (2026-10-19; the desktop's media/edit.rs CANCEL_TIP).
+    cancelTip: 'Go back to its details without changing anything (asks first when something was changed).',
   });
+
+  /** The words over the form (the desktop's media/edit.rs editing_words). */
+  function editingWords(title) {
+    return 'Editing "' + title + '"';
+  }
 
   // ── A file's type, always, just before its name (2026-10-17) ──
   // The operator: "highlight the file type so people ALWAYS know what file type they're looking
@@ -450,20 +465,43 @@
       who.push(picker.el, hostingBlock(h, L));
       els.files = h('div', { id: 'media-edit-files', className: 'media-item-files' });
       const kids = [
-        h('h3', { text: 'Edit ' + c.lib.itemName(item, c.st.kinds) }),
+        h('h3', { className: 'media-edit-heading', text: editingWords(c.lib.itemName(item, c.st.kinds)) }),
         tintSection(h, 'red', WORDS.aboutIt, aboutParts),
         tintSection(h, 'green', WORDS.whoCanSeeIt, who),
         tintSection(h, 'blue', WORDS.files, [els.files]),
       ];
       els.problem = h('p', { id: 'media-edit-problem', className: 'media-warn' });
       els.save = h('button', { type: 'button', id: 'media-edit-save', className: 'media-btn media-btn-primary', text: WORDS.save, on: { click: save } });
-      kids.push(els.problem, h('div', { className: 'media-form-buttons' }, [
+      // The foot: why the last Save did not go, then Save and Cancel, kept in view at the pane's foot
+      // while the parts scroll above it (media.css .media-edit-foot).
+      kids.push(h('div', { className: 'media-edit-foot' }, [els.problem, h('div', { className: 'media-form-buttons' }, [
         els.save,
-        h('button', { type: 'button', id: 'media-edit-cancel', className: 'media-btn', text: WORDS.cancel, title: 'Close this without changing anything.', on: { click: () => view.closeEdit() } }),
-      ]));
-      box.replaceChildren(h('div', { id: 'media-edit', className: 'media-panel media-edit' }, kids));
+        h('button', { type: 'button', id: 'media-edit-cancel', className: 'media-btn', text: WORDS.cancel, title: WORDS.cancelTip, on: { click: () => view.cancelEdit() } }),
+      ])]));
+      const form = h('div', { id: 'media-edit', className: 'media-panel media-edit' }, kids);
+      // Typing anywhere in it: the item window tells the chat whether it holds changes (they bubble here).
+      const typed = () => { if (typeof view.edited === 'function') view.edited(); };
+      form.addEventListener('input', typed);
+      form.addEventListener('change', typed);
+      box.replaceChildren(form);
       drawFiles();
       drawProblem();
+    }
+
+    /** What Save would send, as it stands: compared with how the form first showed it. */
+    function snapshot() {
+      return JSON.stringify([f.title, f.description, String(f.category), Array.from(f.labels).sort(), String(f.choice.licence || ''), !!f.choice.project_use, !!f.members]);
+    }
+    /**
+     * Does the form hold changes Save would send, or a file's new name typed and not saved? What
+     * Cancel, another item, Close and leaving the page ask about first (the desktop's EditForm::changed).
+     * Measured against the form as it first showed (the server's default licence put in for an item
+     * with none, the game tick taken off where the licence does not allow it), so a form nobody
+     * touched never asks.
+     */
+    function changed() {
+      if (snapshot() !== shown) return true;
+      return !!(f.renaming && f.renaming.typed !== f.renaming.was);
     }
 
     function drawProblem() {
@@ -526,7 +564,11 @@
       els.renameBox = null;
       const renameButton = (x) => h('button', {
         type: 'button', className: 'media-btn media-btn-small', dataset: { renameFile: x.file }, text: WORDS.rename, title: WORDS.renameTip,
-        on: { click: () => { f.renaming = { file: x.file, typed: stemOf(view.shownName(now, x), storedEnding(storedOf(now, x))), fresh: true }; drawFiles(); } },
+        on: { click: () => {
+          const stem = stemOf(view.shownName(now, x), storedEnding(storedOf(now, x)));
+          f.renaming = { file: x.file, typed: stem, fresh: true, was: stem };
+          drawFiles();
+        } },
       });
       const rows = (files[0] ? [[files[0], false]] : []).concat(files.slice(1).map((x) => [x, false]), now.cover ? [[now.cover, true]] : []);
       for (const [x, cover] of rows) {
@@ -739,13 +781,16 @@
     }
 
     draw();
+    // The form as it first showed (the licence picker puts in the server's default and takes the
+    // game tick off where the licence does not allow it as it draws): what `changed` compares with.
+    const shown = snapshot();
     // addFiles: what files dropped on the page do while this form is open (null when only the
-    // uploader could add them, with addFilesWhyNot saying so).
-    return { draw, drawFiles, state: f, addFiles: own ? addFiles : null, addFilesWhyNot: own ? '' : addFilesOwnerOnlyWords(ownerName) };
+    // uploader could add them, with addFilesWhyNot saying so). changed: whether it holds changes.
+    return { draw, drawFiles, changed, state: f, addFiles: own ? addFiles : null, addFilesWhyNot: own ? '' : addFilesOwnerOnlyWords(ownerName) };
   }
 
   const api = {
-    WORDS, COVER_ACCEPT, ownerOnlyWords, addFilesOwnerOnlyWords, removeFileWords, firstFileWords, editText, editPurpose, editBody, offeredLicence, licenceChoice, hostingBlock, createEditForm,
+    WORDS, COVER_ACCEPT, editingWords, ownerOnlyWords, addFilesOwnerOnlyWords, removeFileWords, firstFileWords, editText, editPurpose, editBody, offeredLicence, licenceChoice, hostingBlock, createEditForm,
     fileBadge, fillFileBadges, fileTypesKnown, loadFileTypes, tintSection,
     storedEnding, stemOf, nameWithEnding, renamePurpose, coverPurpose,
   };

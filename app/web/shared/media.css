@@ -1,7 +1,8 @@
 /* media.css: the Media page and the admins' Media section (2026-10-11,
    docs/design/media-showcase.md "Increment 2, exact"; round 5, docs/design/
    media-round-5-plan.md 3.10: the tabs, Sort, the category's description and
-   the sentinel). Used by /media (media.html), whose Admin tab holds the admins'
+   the sentinel; 2026-10-19: the three panes and the Edit in place, at the end).
+   Used by /media (media.html), whose Admin tab holds the admins'
    Media section. Theme tokens only: every colour and
    size here is a variable from theme.css, generated from data/gui/theme.ron,
    so the Settings theme editor restyles it. */
@@ -181,3 +182,110 @@
   .media-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
   .media-featured-row .media-tile { flex-basis: 170px; }
 }
+
+/* ── The three panes (2026-10-19, /pages/media-panes.js; the desktop's media/panes.rs) ──
+   The list on the left, the item to fit in the middle, its details on the right: a grid whose
+   tracks media-panes.js writes (each pane at least 280 px across or 170 px stacked, then its share,
+   with the handle's track between), side by side or one above another. The item's two panes come
+   from #media-viewer and #media-viewer-open, which take no box of their own (display: contents), so
+   they sit in the same grid. The panes view uses the window's whole width. */
+#media-root.media-root-panes { max-width: none; }
+.media-panes {
+  display: grid; gap: 0; margin-bottom: var(--space-lg);
+  height: max(480px, calc(100vh - var(--hos-nav-h, 48px) - var(--space-xl)));
+}
+.media-panes-down { height: max(560px, calc(100vh - var(--hos-nav-h, 48px) - var(--space-xl))); }
+.media-viewer-panes, .media-item-panes { display: contents; }
+.media-pane {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
+  padding: var(--space-md); overflow: auto; min-width: 0; min-height: 0; position: relative;
+}
+/* The handle between two panes: a short grip in the middle of the gap, the accent while held or pointed at. */
+.media-pane-handle { display: flex; align-items: center; justify-content: center; cursor: col-resize; touch-action: none; user-select: none; -webkit-user-select: none; }
+.media-panes-down .media-pane-handle { cursor: row-resize; }
+.media-pane-handle:focus { outline: none; }
+.media-pane-grip { display: block; width: 2px; height: calc(2 * var(--space-xl)); border-radius: var(--pill-radius); background: var(--border); }
+.media-panes-down .media-pane-grip { width: calc(2 * var(--space-xl)); height: 2px; }
+.media-pane-handle:hover .media-pane-grip, .media-pane-handle-held .media-pane-grip, .media-pane-handle:focus-visible .media-pane-grip { background: var(--accent); width: 3px; }
+.media-panes-down .media-pane-handle:hover .media-pane-grip, .media-panes-down .media-pane-handle-held .media-pane-grip,
+.media-panes-down .media-pane-handle:focus-visible .media-pane-grip { width: calc(2 * var(--space-xl)); height: 3px; }
+/* While nothing is chosen, the middle and right panes say what they will hold. */
+.media-pane-empty { display: flex; align-items: center; justify-content: center; text-align: center; }
+.media-pane-line { font-size: var(--text-sm); max-width: 28rem; margin: 0; }
+.media-view-switch { display: inline-flex; gap: var(--space-xs); align-items: center; }
+
+/* The left pane: the featured shelf, the filters, every item as a row, More and the page's foot. */
+.media-list-pane .media-featured { margin-bottom: var(--space-md); }
+.media-list-pane .media-featured h2 { font-size: var(--text-base); margin-bottom: var(--space-sm); }
+.media-list-pane .media-filters { gap: var(--space-sm); margin-bottom: var(--space-md); }
+.media-list-pane .media-filters .media-select { max-width: 100%; }
+.media-list-pane .media-search { min-width: 120px; }
+.media-list-pane .media-more-wrap { margin: var(--space-md) 0; }
+.media-list-pane .media-foot { margin-top: var(--space-lg); }
+.media-rows { display: flex; flex-direction: column; gap: var(--space-xs); }
+.media-row {
+  display: flex; gap: var(--space-sm); align-items: center; width: 100%; text-align: left; cursor: pointer;
+  font-family: inherit; color: var(--text); background: transparent; border: 1px solid transparent;
+  border-radius: var(--radius); padding: var(--space-xs);
+}
+.media-row:hover { background: var(--bg-tertiary); }
+.media-row:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 1px; }
+.media-row-chosen, .media-row-chosen:hover { background: color-mix(in srgb, var(--accent) 18%, transparent); border-color: var(--accent); }
+.media-row-thumb {
+  flex: 0 0 88px; width: 88px; height: 62px; border-radius: var(--radius); background: var(--bg-tertiary);
+  overflow: hidden; display: flex; align-items: center; justify-content: center;
+}
+.media-row-img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.media-row-mark .media-mark-word { font-size: var(--text-xs); color: var(--text-secondary); padding: 0 var(--space-xs); text-align: center; }
+.media-row-text { display: flex; flex-direction: column; min-width: 0; flex: 1; gap: 1px; }
+.media-row-title, .media-row-by, .media-row-facts { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.media-row-title { font-size: var(--text-sm); color: var(--text-strong); }
+.media-row-by { font-size: var(--text-xs); color: var(--text-secondary); }
+.media-row-facts { font-size: var(--text-xs); color: var(--text-muted); }
+.media-row-labelled { color: var(--warning); }
+
+/* The middle pane: the item to fit (the desktop's media/viewer.rs). */
+.media-face-pane { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-sm); }
+.media-face-pane .media-face-fit {
+  flex: 1 1 auto; min-height: 0; width: 100%; height: 100%; max-width: 100%; max-height: none;
+  object-fit: contain; margin: 0; display: block;
+}
+.media-face-pane .media-viewer-video.media-face-fit { background: var(--bg-tertiary); border-radius: var(--radius); }
+.media-face-buttons { display: flex; flex-wrap: wrap; gap: var(--space-sm); justify-content: center; margin-top: 0; }
+.media-face-file { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: var(--space-sm); width: 100%; height: 100%; min-height: 0; }
+.media-face-file .media-viewer-name { word-break: break-word; font-weight: 400; color: var(--text-secondary); font-size: var(--text-sm); }
+.media-face-kind { font-size: var(--text-lg); font-weight: 700; color: var(--text); }
+.media-face-mark { display: flex; align-items: center; justify-content: center; flex: 1 1 auto; min-height: 0; }
+.media-face-mark .file-badge { transform: scale(2); transform-origin: center; }
+.media-face-pane .media-face-cover { flex: 0 1 40%; min-height: 0; width: 100%; object-fit: contain; margin: 0; max-height: 40%; }
+.media-face-pane .media-viewer-model { align-self: stretch; }
+.media-face-pane .media-viewer-veil { width: min(640px, 100%); }
+/* A sound: Play here, then its waveform (and its spectrum while it plays) over the browser's player. */
+.media-sound { width: 100%; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: var(--space-sm); align-items: center; justify-content: center; }
+.media-sound-line { font-size: var(--text-sm); color: var(--text-secondary); margin: 0; text-align: center; word-break: break-word; }
+.media-sound-wave { width: 100%; flex: 1 1 auto; min-height: 120px; display: block; border-radius: var(--radius); cursor: pointer; touch-action: none; }
+.media-sound-audio { width: 100%; }
+.media-sound-note { margin: 0; }
+
+/* The right pane: Close, then the details, or the Edit form in their place. */
+.media-details-head { display: flex; justify-content: flex-end; margin-bottom: var(--space-xs); }
+.media-details-head .media-viewer-close { float: none; margin: 0; }
+.media-details-pane .media-edit { border: 0; border-radius: 0; background: transparent; padding: 0; margin: 0; }
+.media-edit-heading { font-size: var(--text-lg); }
+/* Save and Cancel stay in view at the pane's foot while the parts scroll above them. */
+.media-edit-foot { position: sticky; bottom: calc(-1 * var(--space-md)); z-index: 1; background: var(--bg-card); border-top: 1px solid var(--border); padding: var(--space-sm) 0; margin-top: var(--space-sm); }
+.media-edit-foot .media-form-buttons { margin-top: 0; }
+.media-edit-foot .media-warn:empty { display: none; }
+/* Edit mode stands out: the pane edged with the nav bar's active border in its moving colours (the
+   `channeling` cycle /shared/shell.js defines), still under reduced motion or with RGB effects off,
+   where it keeps a ring in the accent colour (the desktop's rgb_border does the same). */
+.media-pane-editing { animation: channeling 3s linear infinite; border-color: transparent; }
+@media (prefers-reduced-motion: reduce) { .media-pane-editing { animation: none; outline: 2px solid var(--accent); outline-offset: -2px; } }
+[data-reduced-motion] .media-pane-editing, [data-no-rgb] .media-pane-editing { animation: none !important; outline: 2px solid var(--accent); outline-offset: -2px; }
+/* The question before an edit's changes are let go. */
+.media-ask-box { max-width: min(480px, 100%); }
+.media-ask-title { font-size: var(--text-lg); margin-bottom: var(--space-sm); }
+.media-ask-words { margin-bottom: var(--space-sm); }
+/* The item window over the chat (/media/<id>?window=item): its two panes fill the frame. */
+.media-panes-window { height: calc(100vh - 2 * var(--space-sm)); margin: 0; }
+.media-panes-window.media-panes-down { height: max(400px, calc(100vh - 2 * var(--space-sm))); }

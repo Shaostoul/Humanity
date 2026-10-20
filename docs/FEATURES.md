@@ -279,6 +279,14 @@ own file; an admin can remove any (Dilithium-signed "delete_upload" request).
 - Native (v0.710): Files page "Shared files on the server" manager — list (auto-load + Refresh), Upload via the in-app file browser (share=1), per-row Remove (own files, or any as admin). `src/gui/pages/files.rs`
 
 ### Media Page (relay 2026-10-11, native page increment 2 and round 2 2026-10-11)
+**Website mirror (v0.1522.0):** `web/pages/media-panes.js` and `media-sound.js` give the website
+the same three panes (side by side or stacked by the same rule, the split in localStorage
+`humanity_media_layout`), edit in place with the coloured parts and border and the same
+leave-with-changes questions (plus the browser's own before-unload), a sound's waveform from
+decodeAudioData with seek and an AnalyserNode spectrum (nothing of a sound fetched before Play
+here), and the Gallery; chat's framed item window holds the item and its details. Tests:
+`scripts/tests/media-web-panes.test.js` (in `just rig-tests`).
+
 **Three panes, edit in place, sounds with a waveform (desktop, 2026-10-19; design
 `docs/design/media-showcase.md` "The three panes"):** the Media tab is a list, the item to fit and its
 details, side by side on a wide window and stacked top, middle, bottom on a tall or narrow one

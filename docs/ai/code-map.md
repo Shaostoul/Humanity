@@ -6,7 +6,7 @@
 > `grep -i <word> docs/ai/code-map.md` before searching the source. Features (what a person can do)
 > are in `docs/FEATURES.md`; pages in `docs/PAGES.md`.
 
-872 Rust files (567,149 lines) under `src/`; 101 JavaScript files (64,830 lines) under `web/`.
+872 Rust files (567,151 lines) under `src/`; 103 JavaScript files (66,605 lines) under `web/`.
 
 ## Folders
 
@@ -59,7 +59,7 @@
 - `src/web_reader/` (5 files): The readable web: fetch a real page over HTTPS and turn it into a document HumanityOS can draw itself, with no browser engine and no Java...
 - `web/chat/` (28 files)
 - `web/chat/view/` (2 files)
-- `web/pages/` (27 files)
+- `web/pages/` (29 files)
 - `web/shared/` (44 files)
 
 ## Files
@@ -419,12 +419,12 @@
 - `row.rs` (571): Universal message/item row widget. Main items: MessageRowResponse, DeferredAvatar, message_row, append_formatted, paint_avatar, rgb_from_time, INTERPUNCT.
 - `search_bar.rs` (96): Universal search bar with optional filter chips. Main items: FilterChip, search_bar.
 - `shelf.rs` (308): A library shelf (2026-10-19): the parts the Games page (pages/games.rs) and the Tools page (pages/tools.rs) both draw, so the two look and behave alike and a fix to one reaches both. Main items: Layout, Picked, Heading, toolbar, grid, tile_frame, list_headings, list_row (+6 more).
-- `sound_view.rs` (636): A sound or a song played in the app (2026-10-19, the Media page's middle pane), the way a video is (video_view.rs): fetched first to a temporary copy on a worker, then, on that same worker, Main items: SoundView, cannot_play_words, analyse, PLAY_HERE, PLAY_HERE_TIP, FETCHING, READING, WAITING_FOR_SOUND (+2 more).
+- `sound_view.rs` (637): A sound or a song played in the app (2026-10-19, the Media page's middle pane), the way a video is (video_view.rs): fetched first to a temporary copy on a worker, then, on that same worker, Main items: SoundView, cannot_play_words, analyse, PLAY_HERE, PLAY_HERE_TIP, FETCHING, READING, WAITING_FOR_SOUND (+2 more).
 - `thumbnails.rs` (257): Pictures on this computer shown small, for the file picker's Pictures view (2026-10-17), and videos by one of their frames where the computer's own decoders can give one (Windows, 2026-10-18, `medi... Main items: is_picture, is_previewable, size_for, get, failed, next_frame, WORKERS, KEPT (+1 more).
 - `tint_section.rs` (115): One part of a window on a darker shade of the chat sidebar's section colours (the DMs' red, the groups' green, the servers' blue), edged in the colour itself, with a small title, so a window's part... Main items: Tint, color, show, rgb_border, painted, texts_at, text_starts_at, SHADE.
 - `tree.rs` (227): Universal tree widget, themed expand/collapse rows with persistent state. Main items: TreeState, TreeNodeResponse, tree_node, tree_leaf, tree_leaf_colored.
 - `video_view.rs` (227): A video played in the app: fetched first to a temporary copy on a worker, then played by the app's own player (`crate::media::VideoPlayer`: WebM with AV1 video, and on Windows an ordinary MP4 throu... Main items: VideoView, sound_lost_words, cannot_play_words, clock, PLAY_HERE, PLAY_HERE_TIP, MUTE, UNMUTE (+3 more).
-- `waveform.rs` (358): A sound's picture (2026-10-19, the Media page's middle pane for a sound or a song): the whole track's waveform, the part already played in the accent colour and the rest muted, the play position as... Main items: Analysis, Builder, band_edges_hz, seek_fraction, show, BUCKETS, BANDS, FFT (+3 more).
+- `waveform.rs` (359): A sound's picture (2026-10-19, the Media page's middle pane for a sound or a song): the whole track's waveform, the part already played in the accent colour and the rest muted, the play position as... Main items: Analysis, Builder, band_edges_hz, seek_fraction, show, BUCKETS, BANDS, FFT (+3 more).
 - `web_view.rs` (857): The web view: draws a readable [`Page`] in egui with clickable links, back/forward history, an editable URL row, and an "open in system browser" escape hatch for pages the readable web cannot show. Main items: ViewStatus, WebViewResponse, WebViewState.
 - tests: `file_views_tests.rs`, `part_file_tests.rs`, `phrase_cover_tests.rs`
 
@@ -1002,11 +1002,13 @@
 - `library-app.js` (1151): Library page: the web mirror of the native Library (src/gui/pages/library.rs). Main items: setSuggestedOrder, currentCat, catIsOpen, secIsOpen, esc, md, contentEl, slugOf (+40 more).
 - `library-order.js` (97): Library shelf order: the web twin of rail_order() in src/gui/pages/library.rs. Main items: titleSortKey, cmp, orderByTitle, railOrder.
 - `market-app.js` (1245): The web Market page's script (pages/market.html): the signed Directory, the classified listings with reviews and ratings, and My Listings. Main items: categoryColor, fillCategorySelect, loadMarketCategories, escHtml, renderStars, renderStarSelector, setReviewRating, previewStars (+56 more).
-- `media-add.js` (955): ── media-add.js ────────────────────────────────────────────────────────── Main items: postFavoriteKey, postFavorites, togglePostFavorite, postChoices, postText, createAddForm.
+- `media-add.js` (958): ── media-add.js ────────────────────────────────────────────────────────── Main items: postFavoriteKey, postFavorites, togglePostFavorite, postChoices, postText, createAddForm.
 - `media-admin.js` (524): ── media-admin.js ──────────────────────────────────────────────────────── Main items: hex, categoriesListText, categoriesBody, categoriesPurpose, expiresWords, storedAs, answersSave, otherNotice (+1 more).
-- `media-app.js` (2264): ── media-app.js ────────────────────────────────────────────────────────── Main items: num, parseKinds, kindWords, oneDecimal, sizeWords, shareLeftWords, shareStop, limitStop (+31 more).
-- `media-edit.js` (755): ── media-edit.js ───────────────────────────────────────────────────────── Main items: badgeIcon, fileBadge, fillFileBadges, fileTypesKnown, loadFileTypes, tintSection, ownerOnlyWords, addFilesOwnerOnlyWords (+14 more).
-- `media-item.js` (843): ── media-item.js ───────────────────────────────────────────────────────── Main items: hiddenBy, counted, countsLine, byLine, firstLine, filesBadge, itemLink, downloadPath (+4 more).
+- `media-app.js` (2464): ── media-app.js ────────────────────────────────────────────────────────── Main items: num, parseKinds, kindWords, oneDecimal, sizeWords, shareLeftWords, shareStop, limitStop (+31 more).
+- `media-edit.js` (800): ── media-edit.js ───────────────────────────────────────────────────────── Main items: editingWords, badgeIcon, fileBadge, fillFileBadges, fileTypesKnown, loadFileTypes, tintSection, ownerOnlyWords (+15 more).
+- `media-item.js` (1130): ── media-item.js ───────────────────────────────────────────────────────── Main items: hiddenBy, discardWords, sinceLine, counted, countsLine, byLine, firstLine, filesBadge (+6 more).
+- `media-panes.js` (347): ── media-panes.js ──────────────────────────────────────────────────────── Main items: arrangeFor, checked, drag, resetPair, template, defaultLayout, readLayout, saveLayout (+3 more).
+- `media-sound.js` (462): ── media-sound.js ──────────────────────────────────────────────────────── Main items: cannotPlayWords, tooLargeWords, peaksOf, loudest, bandEdges, bandLevels, seekFraction, decodeInBrowser (+1 more).
 - `media-takedown.js` (436): ── media-takedown.js ───────────────────────────────────────────────────── Main items: makeH, jsonPost, refusalWords, answerOf, dayOf, itemNumberFrom, takedownBody, formProblem (+7 more).
 - `media-upload.js` (664): ── media-upload.js ─────────────────────────────────────────────────────── Main items: hex, readSlice, defaultDigest, fingerprint, readRemembered, writeRemembered, rememberUpload, touchUpload (+8 more).
 - `notes-app.js` (594): ══════════════════════════════════════════════ Main items: switchTab, aesEncrypt, aesDecrypt, loadNotes, saveNotes, uid, getNote, renderList (+29 more).
@@ -1014,7 +1016,7 @@
 - `settings-app.js` (2221): The web Settings page's script (pages/settings.html): preferences, theme, accessibility, keybinds, devices, notifications, wallet, Vault and backup. Main items: loadPrefs, saveEli5Pref, savePref, applyPrefs, showSection, applyA11yPrefs, reflectA11yPrefs, applyLanguagePref (+103 more).
 - `shared-files-upload.js` (385): ── shared-files-upload.js ──────────────────────────────────────────────── Main items: mbOf, overLimitWords, tooLargeWords, uploadingWords, uploadedWords, failedWords, refusalWords, createSharedFilesUpload (+1 more).
 - `tasks-app.js` (1402): ── Fibonacci scope definitions ── Main items: defaultScope, init, buildScopeTabs, buildScopeSelect, setScope, loadTasks, getTaskScope, getNonScopeLabels (+66 more).
-- `tools-app.js` (213): Tools page: the catalog of EXTERNAL things, mirroring the native Tools page Main items: esc, capitalize, kindLabel, matches, renderFilters, entryCard, render.
+- `tools-app.js` (644): Tools page (web): the catalog of EXTERNAL things as a library, the web mirror of the desktop Main items: entriesOf, hostOf, kindLabel, platformWords, thirdLine, mainLink, kindsOf, categoriesOf (+11 more).
 - `trade-app.js` (817): trade-app.js, Peer-to-peer trading UI Main items: escHtml, tradeIdentifyPreimage, tradeBytesToB64, tradeIdentifyResponse, loadTradeIdentity, tradeSignedIn, tradeSend, tradeSay (+34 more).
 - `wallet-app.js` (1007): Wallet Dashboard, page logic for wallet.html Main items: init, generateQR, getSOLPrice, loadBalances, renderBalances, loadTransactions, renderTransactionList, fetchSwapQuote (+19 more).
 - `wallet-guide-app.js` (104): Wallet Guide, renders step-by-step wallet education sections. Main items: esc, render, boot.

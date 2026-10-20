@@ -465,10 +465,13 @@
     /** Tell the page this window is over whether something is going in it (it keeps it then). */
     let busyTold = null;
     function reportBusy() {
-      // The item window too: an Edit's file uploading keeps it (hidden) until it is up.
+      // The item window too: an Edit's file uploading keeps it (hidden) until it is up; and, since
+      // the Edit is in place (2026-10-19), an Edit holding changes not saved, so closing the window
+      // over the chat never drops what was typed.
       const win = upWin || itemWin;
       if (!win) return;
-      const busy = !!st.pending || !!(st.form && st.form.busy) || tails > 0 || st.uploads.some((u) => u.busy || uploadLive(u));
+      const editing = !!(itemView && typeof itemView.unsaved === 'function' && itemView.unsaved());
+      const busy = !!st.pending || !!(st.form && st.form.busy) || tails > 0 || st.uploads.some((u) => u.busy || uploadLive(u)) || editing;
       if (busy === busyTold) return;
       busyTold = busy;
       win.send('busy', { busy });
