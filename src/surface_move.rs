@@ -954,6 +954,42 @@ mod tests {
         assert!(r > rest + 1.0, "Space no longer jumps (only {:.2} m up)", r - rest);
     }
 
+    /// A planet fall lands at its real speed at any frame rate (BUG-209,
+    /// 2026-10-20). `vertical_step`'s free fall was semi-implicit Euler (the
+    /// speed first, then the height from the new speed), which drops the body
+    /// further than the speed it has reached: after N frames of fall the landing
+    /// read sqrt(N/(N+1)) of the true speed, 0.979 over a 2.62 m drop at 30 fps
+    /// (`just verify-falls` measured 7.03 m/s where the drop gives 7.17), and
+    /// worse the longer the frames. A 2.62 m drop from rest must land at
+    /// sqrt(2 g h) within 0.1% at 4 ms, 33 ms and 100 ms frames. Seen red on the
+    /// Euler step, 2026-10-20, already at the fastest frames: "at 4 ms frames a
+    /// 2.62 m drop landed at 7.152 m/s, the drop gives 7.170".
+    #[test]
+    fn a_planet_fall_lands_at_its_real_speed_at_any_frame_rate() {
+        let rest = 6.371e6 + 1.75;
+        let drop = 2.62;
+        let want = (2.0 * G * drop).sqrt();
+        for dt in [0.004, 0.033, 0.1] {
+            let (mut r, mut v) = (rest + drop, 0.0);
+            let mut landed = None;
+            for _ in 0..2000 {
+                let s = radial_step(MoveMode::Walk, true, false, r, v, rest, G, SETTLE, dt, 0.0, 5.0 * dt);
+                r = s.r;
+                v = s.v_r;
+                if s.impact_m_s > 0.0 {
+                    landed = Some(s.impact_m_s);
+                    break;
+                }
+            }
+            let got = landed.expect("the fall never landed");
+            assert!(
+                (got - want).abs() < want * 1e-3,
+                "at {:.0} ms frames a {drop} m drop landed at {got:.3} m/s, the drop gives {want:.3}",
+                dt * 1000.0
+            );
+        }
+    }
+
     /// BUG-136 on a planet: an overloaded walker's Space does not leave the
     /// ground, a loaded one rises slower, and nothing that is not a jump is
     /// touched (Shift, the flight band, swimming, dev flight). Seen red with

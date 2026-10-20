@@ -304,6 +304,7 @@ pub fn vertical_step(
     let dt = dt.max(0.0);
     let g = g.max(0.0);
     let mut v = v_r;
+    let mut r_new;
     if thrust_mps.abs() > 1e-9 {
         // Powered: ramp toward the commanded rate from EITHER side (also
         // how an upward burn arrests a fall). The rate scales with the
@@ -318,12 +319,38 @@ pub fn vertical_step(
         } else {
             v = (v - dv).max(thrust_mps);
         }
+        r_new = r + v * dt;
     } else {
         // Free fall, terminal-velocity clamped. (An upward coast also
         // decays through zero into a fall - the ballistic arc.)
-        v = (v - g * dt).max(-terminal.abs());
+        //
+        // The EXACT parabola over the frame (BUG-209, 2026-10-20): height
+        // r + v dt - g dt^2 / 2 and speed v - g dt, entering the terminal clamp
+        // at the moment the speed reaches it. The step it replaces was
+        // semi-implicit Euler (the speed first, then the height from the new
+        // speed), which dropped the body further than the speed it had reached,
+        // so a landing read sqrt(N/(N+1)) of the true speed after N frames of
+        // fall: 2% low over a 2.6 m drop at 30 fps, and the frame rate picked
+        // the wound (`a_planet_fall_lands_at_its_real_speed_at_any_frame_rate`).
+        let vt = -terminal.abs();
+        if v <= vt {
+            // At or past terminal (a powered descent can exceed it): held there.
+            v = vt;
+            r_new = r + v * dt;
+        } else {
+            let v_free = v - g * dt;
+            if v_free >= vt {
+                r_new = r + v * dt - 0.5 * g * dt * dt;
+                v = v_free;
+            } else {
+                // Reaches terminal part way through the frame (g > 0 here,
+                // since v_free < v): the parabola to that moment, then steady.
+                let t1 = (v - vt) / g;
+                r_new = r + v * t1 - 0.5 * g * t1 * t1 + vt * (dt - t1);
+                v = vt;
+            }
+        }
     }
-    let mut r_new = r + v * dt;
     let mut grounded = false;
     if r_new <= rest {
         r_new = rest;

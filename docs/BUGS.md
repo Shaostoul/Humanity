@@ -6256,3 +6256,29 @@ and the other fall tests are unchanged and pass).
 
 Not covered here: the running game. `just verify-falls` walks up and off the stairs and lets go of
 the ladder, both unchanged by this; nothing there walks down the stairs yet.
+
+## BUG-209: a planet fall landed slower than its drop, by an amount the frame rate chose (FIXED 2026-10-20, found 2026-10-20)
+
+**Seen:** `just verify-falls`'s planet legs (Sahara ground, 9.81 m/s^2) measured a 2.62 m drop
+landing at 7.03 m/s where the drop gives 7.17: 2% low at 30 frames a second. The ratio, 0.979,
+was sqrt(20/21) for 20 frames of 33 ms.
+
+**Why it matters:** the landing speed is what picks the wound (data/medical/falls.ron), so near a
+threshold the frame rate decided whether a fall sprained an ankle; at about 54 ms frames the
+judge's 3% tolerance would also have gone red.
+
+**Cause:** `surface_walk::vertical_step`'s free fall was semi-implicit Euler: the speed first
+(`v -= g dt`), then the height from the new speed (`r += v dt`). That drops the body further than
+the speed it has reached, so after N frames the speed is g N dt while the drop is
+g dt^2 N(N+1)/2, and the landing (computed by energy from the start of the landing frame,
+`falls::landing_speed`) inherited the shortfall: sqrt(N/(N+1)) of the true speed.
+
+**Fix:** the exact parabola over each frame in free fall, height r + v dt - g dt^2 / 2 and speed
+v - g dt, entering the terminal-velocity clamp at the moment the speed reaches it (the parabola to
+that moment, then steady). Thrust (Space's climb, Shift's powered descent) is unchanged.
+
+**Test:** `surface_move::tests::a_planet_fall_lands_at_its_real_speed_at_any_frame_rate`: a 2.62 m
+drop from rest through the whole planet path (`radial_step`, settle glue included) lands at
+sqrt(2 g h) within 0.1% at 4, 33 and 100 ms frames. Seen red on the Euler step, already at the
+fastest frames: "at 4 ms frames a 2.62 m drop landed at 7.152 m/s, the drop gives 7.170". The
+planet walk's 50 tests, the falls tests (21) and the wounds tests (29) pass.
