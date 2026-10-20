@@ -61,6 +61,9 @@ pub mod treatment;
 /// itself, from data/medical/wounds.ron (first-hour audit S8, 2026-10-12). Applied by the
 /// food system, which owns the body; it replaced the never-run MedicalSystem.
 pub mod wounds;
+/// Falls: the speed a landing meets the floor at, and the injury it makes, from
+/// data/medical/falls.ron (2026-10-20). Given to the body as a wound (`wounds::Injury::Fall`).
+pub mod falls;
 /// Sleeping in a bed: the night runs fast and the body wakes rested (2026-09-27).
 pub mod sleep;
 /// What dying costs: Simplified loses nothing, Realistic leaves the backpack's contents in a

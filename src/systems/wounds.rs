@@ -11,6 +11,10 @@
 //!   follows how long you stood in it (red skin, blistered, deep). Each is a status effect of
 //!   type `wound` (data/status_effects.csv) with a row in data/medical/wounds.ron saying what
 //!   it does, how it passes, what helps, and what the player is told.
+//! - A fall (2026-10-20, `systems::falls`): a landing hard enough takes health by how fast the
+//!   floor stopped the body, and leaves a Sprained Ankle, a Broken Ankle or a Broken Leg, which
+//!   slow walking while they heal (their `speed` in status_effects.csv). The speeds are in
+//!   data/medical/falls.ron, the wounds' rows here.
 //! - Bleeding takes health for its few minutes and stops by itself, or at once with a Bandage
 //!   or a Medkit. A wound that can go bad (a bite, a blistered or deep burn) may turn into an
 //!   Infected Wound a day or two in, more often if nobody cleaned and covered it; Antibiotics
@@ -30,9 +34,10 @@
 //!
 //! HOW A WOUND ARRIVES. Whatever hurts a body pushes an `Injury` onto it (`injure`, which adds
 //! the body's `Injuries` component): the combat system for a creature's bite, the fire system
-//! for heat. The body pass takes them on its next tick (`Wounds::take_injuries`). The
-//! component is not saved: an injury waits a frame at most, and a fire's exposure counts
-//! seconds.
+//! for heat, and `falls::player_landed` for a landing (lib.rs takes it from the walking
+//! controller once a frame). The body pass takes them on its next tick
+//! (`Wounds::take_injuries`). The component is not saved: an injury waits a frame at most, and
+//! a fire's exposure counts seconds.
 //!
 //! THE CLOCK. A wound counts down, and does what it does, on the game clock, like an illness:
 //! the time-speed setting and a night asleep move it along (`StatusEffectDef::on_game_clock`).
@@ -40,7 +45,9 @@
 //! `change_exactly` (BUG-164).
 //!
 //! TWO MODES. The illness setting (`illness::Mode`, Settings > Gameplay > Illness and injury):
-//! Realistic uses the data's numbers, Forgiving its `forgiving` shares and faster healing.
+//! Realistic uses the data's numbers, Forgiving its `forgiving` shares and faster healing. A
+//! fall in Forgiving is read at falls.ron's `forgiving.speed_share` of its speed instead of
+//! taking a harm share: only bigger falls hurt, and less.
 //!
 //! Pure data and rules with no engine state, so it compiles in every feature set.
 
@@ -181,6 +188,9 @@ pub struct Wounds {
     pub burns: Burns,
     #[serde(default)]
     pub wounds: Vec<Wound>,
+    /// What a landing does (data/medical/falls.ron, its own file: `Wounds::load` reads both).
+    #[serde(skip)]
+    pub falls: crate::systems::falls::Falls,
 }
 
 impl Default for Wounds {
@@ -201,6 +211,7 @@ impl Default for Wounds {
             bite: Vec::new(),
             burns: Burns { health_per_s: 0.0, cause: String::new(), new_burn_after_s: 0.0, steps: Vec::new() },
             wounds: Vec::new(),
+            falls: crate::systems::falls::Falls::default(),
         }
     }
 }
@@ -212,6 +223,8 @@ pub enum Injury {
     Bite,
     /// Heat on the skin: seconds of fire at full intensity (the fire system).
     Heat { dose_s: f64 },
+    /// A landing: the speed the floor stopped the body at, m/s (`falls::player_landed`).
+    Fall { impact_m_s: f32 },
 }
 
 /// A body's injuries not yet taken, and the fire exposure it is in. Not saved (module doc).
@@ -251,12 +264,14 @@ impl Wounds {
 
     /// Disk first (modding), the copy built into the game when the disk copy is missing or this
     /// version cannot read it (BUG-163). With neither, no wounds and no healing: loud in the log,
-    /// never a crash.
+    /// never a crash. The falls (`falls::Falls::FILE`) are read beside it, the same way.
     pub fn load(data_dir: &Path) -> Self {
-        crate::embedded_data::load_text_or_embedded(data_dir, Self::FILE, Self::from_ron).unwrap_or_else(|e| {
+        let mut w = crate::embedded_data::load_text_or_embedded(data_dir, Self::FILE, Self::from_ron).unwrap_or_else(|e| {
             log::warn!("{e}; nothing leaves a wound and nothing heals by itself until it is fixed");
             Self::default()
-        })
+        });
+        w.falls = crate::systems::falls::Falls::load(data_dir);
+        w
     }
 
     /// Parse the file's text.
@@ -377,6 +392,24 @@ impl Wounds {
                             }
                             inj.burn = Some(depth);
                         }
+                    }
+                }
+                Injury::Fall { impact_m_s } => {
+                    // Read in this mode (Forgiving: at a share of its speed), then the health
+                    // the landing takes and the wound it leaves (falls.ron), named `cause` on the
+                    // death screen. A landing below every threshold says nothing.
+                    let v = self.falls.read_speed(impact_m_s, mode);
+                    let harm = self.falls.harm_at(v);
+                    if harm > 0.0 {
+                        out.harm.push((self.falls.cause.clone(), harm));
+                    }
+                    let told = self.falls.wound_at(v).and_then(|e| self.wound(effects, e, registry, mode));
+                    if harm > 0.0 || told.is_some() {
+                        let said = match told {
+                            Some(t) => format!("{} {t}", self.falls.landed),
+                            None => self.falls.landed.clone(),
+                        };
+                        out.notices.push(said.trim().to_string());
                     }
                 }
             }
@@ -652,7 +685,7 @@ fn hint_text(w: &Wounds, reg: Option<&StatusEffectRegistry>) -> String {
     }
     let course = |id: &str| reg.map_or(0.0, |r| f64::from(r.duration(id)));
     let bleed = w.bite.first().map_or(0.0, |id| course(id));
-    format!(
+    let mut hint = format!(
         "Injuries: a bite bleeds for about {} unless a Bandage or a Medkit stops it, and a burn \
          takes days or weeks to heal by its depth. A wound left uncleaned and uncovered can go \
          bad, and Antibiotics end an infected wound. A body that is fed, watered and unhurt heals \
@@ -666,7 +699,45 @@ fn hint_text(w: &Wounds, reg: Option<&StatusEffectRegistry>) -> String {
         w.forgiving.course_share * 100.0,
         w.forgiving.harm_share * 100.0,
         w.forgiving.goes_bad_share * 100.0,
-    )
+    );
+    if let Some(falls) = fall_hint(&w.falls, reg) {
+        hint.push(' ');
+        hint.push_str(&falls);
+    }
+    hint
+}
+
+/// The hint's sentence on falls, with falls.ron's speeds as the heights they come from in
+/// Earth's gravity. None without fall data.
+fn fall_hint(f: &crate::systems::falls::Falls, reg: Option<&StatusEffectRegistry>) -> Option<String> {
+    use crate::systems::falls::drop_height_m;
+    const EARTH_G: f32 = 9.81;
+    if f.steps.is_empty() {
+        return None;
+    }
+    let name = |id: &str| reg.and_then(|r| r.get(id)).map_or(id.to_string(), |d| d.name.clone());
+    let steps: Vec<String> = f
+        .steps
+        .iter()
+        .enumerate()
+        .map(|(i, s)| {
+            let verb = if i == 0 { "leaves " } else { "" };
+            format!("about {:.0} m {verb}a {}", drop_height_m(s.from_m_s, EARTH_G), name(&s.effect))
+        })
+        .collect();
+    let kills = f
+        .speed_taking(100.0)
+        .map(|v| format!(", and from full health about {:.0} m kills", drop_height_m(v, EARTH_G)))
+        .unwrap_or_default();
+    let share = f.forgiving.speed_share.clamp(0.0, 1.0);
+    Some(format!(
+        "Falls hurt by how fast you land, so a drop is gentler where gravity is weaker: in Earth's \
+         gravity a drop of {}{kills}. A broken bone or a sprain slows your walking while it heals. \
+         Forgiving reads every fall at {:.0}% of its speed, as if from {:.0}% of the height.",
+        steps.join(", "),
+        share * 100.0,
+        share * share * 100.0,
+    ))
 }
 
 // The tests drive the food system, which applies all of this, so they are a child of `food`:

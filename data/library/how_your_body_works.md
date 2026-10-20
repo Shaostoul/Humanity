@@ -704,13 +704,23 @@ timescales, and leaves out nearly everything that can go wrong inside one.
   illness and what helps (`data/medical/wounds.ron`,
   `src/systems/wounds.rs`; [Bleeding and Wounds](/library#bleeding-and-wounds)
   has the detail).
+- **Falls.** A landing hurts by how fast the ground stops you, so the
+  same drop is gentler where gravity is weaker. In the Realistic mode, on
+  Earth, about 2 m leaves a sprained ankle (two weeks), about 3 m a broken
+  ankle (six weeks) and about 6 m a broken leg (twelve weeks), each
+  slowing your walking while it heals, and from full health about 15 m
+  kills; Forgiving, the default, reads every fall at 70% of its speed, as
+  if from about half the height. Landing in water hurts nobody in the
+  game, though in life a high fall into water can kill too
+  (`data/medical/falls.ron`, with the sources for each height,
+  `src/systems/falls.rs`).
 - **Medical items.** In the Inventory, a medical item shows a Use
   button. A Bandage, a Medkit and an Advanced Medkit put back 5, 30 and
   50 health, stop Bleeding, and clean and cover your wounds, as
   Antiseptic does; Antibiotics end an Infected Wound, and the Antidote
   ends poisoning, though nothing in the game poisons you yet. An item that
   would do nothing for you, because you are not hurt or because the game
-  does not model what it is for (pain, broken bones, a stopped heart),
+  does not model what it is for (pain, setting a broken bone, a stopped heart),
   stays in your pack and the game says why (`data/medical/treatments.ron`,
   `src/systems/treatment.rs`). If you do die, the default Death setting,
   Simplified, takes nothing from you, and the Respawn button brings you
@@ -929,7 +939,9 @@ Grouped by what kind of authority each one is. Web pages were read on
   applied each tick in `src/systems/food.rs` through
   `src/systems/wounds.rs`, a bite's wounds given by
   `src/systems/combat/mod.rs` (Well Fed no longer heals, since 12 October
-  2026: `data/status_effects.csv`). The
+  2026: `data/status_effects.csv`). Falls: `data/medical/falls.ron`,
+  `src/systems/falls.rs`, the landing aboard in `src/renderer/camera.rs`
+  and on a planet in `src/surface_move.rs`. The
   medical items' Use button in `src/gui/pages/inventory.rs`, what each
   item does in `data/medical/treatments.ron`, applied by
   `src/systems/treatment.rs`. The Death setting (`death_realistic` in

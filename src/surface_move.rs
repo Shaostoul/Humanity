@@ -238,6 +238,11 @@ pub struct RadialStep {
     /// Standing on the ground this frame (the footstep gate). Never true in
     /// dev flight: a hovering camera makes no footsteps.
     pub grounded: bool,
+    /// The downward speed the ground stopped this frame, m/s: 0 unless a
+    /// falling walker landed (falls, 2026-10-20, `systems::falls`). Only the
+    /// walking branch lands: dev flight, the flight band and swimming have no
+    /// ground to meet.
+    pub impact_m_s: f64,
 }
 
 /// ONE FRAME OF RADIAL MOTION, for whichever model is running.
@@ -272,10 +277,18 @@ pub fn radial_step(
         // epsilon, a lerp toward a target height, a settle) would be the
         // "drift" and the "settle" the operator explicitly ruled out.
         let r = if radial_wish == 0.0 { r } else { r + step * radial_wish };
-        return RadialStep { r, v_r: 0.0, grounded: false };
+        return RadialStep { r, v_r: 0.0, grounded: false, impact_m_s: 0.0 };
     }
 
+    let (r_in, v_in) = (r, v_r);
     let (mut r, mut v_r) = (r, v_r);
+    // THE LANDING (falls, 2026-10-20): the speed the ground stops when a
+    // falling walker meets it, from the energy at the start of the frame
+    // (`falls::landing_speed`: v^2 = v0^2 + 2 g h to the floor), so it is the
+    // fall's real speed whatever the frame's length. Under thrust (Space
+    // braking a fall, Shift's powered descent) it is the speed the frame
+    // started at.
+    let mut impact_m_s = 0.0;
     if in_walk_band && !submerged {
         // ── WALKING ── Real ballistics (v0.1005) with a short-range settle
         // "glue" so strides track the terrain. `radial_wish` here is exactly
@@ -283,12 +296,20 @@ pub fn radial_step(
         // threshold: forward input CANNOT enter this branch as a climb.
         let thrusting = radial_wish != 0.0;
         if !thrusting && v_r <= 0.0 && (r - rest) < SETTLE_GLUE_M {
+            // The glue catches a fall within half a metre of the floor: a
+            // landing, with that last half metre still to fall.
+            if v_in < 0.0 {
+                impact_m_s = crate::systems::falls::landing_speed(v_in, r_in - rest, g_accel);
+            }
             v_r = 0.0;
             r = settle_radius(r, rest, dt, settle_rate);
         } else {
             let climb_rate = step / dt.max(1e-6);
             let thrust = if thrusting { climb_rate * radial_wish } else { 0.0 };
             let vs = vertical_step(r, v_r, rest, g_accel, dt, thrust, TERMINAL_FALL_MPS);
+            if vs.grounded && v_in < 0.0 {
+                impact_m_s = if thrusting { -v_in } else { crate::systems::falls::landing_speed(v_in, r_in - rest, g_accel) };
+            }
             r = vs.r;
             v_r = vs.v_r;
         }
@@ -306,7 +327,7 @@ pub fn radial_step(
     // The ground clamp, restored the moment dev flight is switched off.
     r = r.max(rest);
     let grounded = in_walk_band && !submerged && (r - rest).abs() < GROUNDED_REACH_M;
-    RadialStep { r, v_r, grounded }
+    RadialStep { r, v_r, grounded, impact_m_s }
 }
 
 /// The standing height for a sampled ground radius + its clearance. Thin

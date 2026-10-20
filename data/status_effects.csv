@@ -8,9 +8,11 @@
 #   type              - buff, debuff, condition, environmental, disease, wound, poison. A disease
 #                       is an illness: it runs on the game clock (src/systems/illness.rs), and what
 #                       it does to the body is in data/medical/illnesses.ron. A wound (a bite, a
-#                       burn, bleeding, an infected wound) runs on the game clock too, and what it
-#                       does is in data/medical/wounds.ron (src/systems/wounds.rs); its own
-#                       damage and healing columns stay 0
+#                       burn, bleeding, an infected wound, a sprain or a broken bone from a fall)
+#                       runs on the game clock too, and what it does is in data/medical/wounds.ron
+#                       (src/systems/wounds.rs; a fall's speeds in data/medical/falls.ron); its
+#                       own damage and healing columns stay 0, and its speed modifier slows
+#                       walking while it lasts
 #   duration_s        - Duration in seconds (0 = permanent until removed); a disease's or a
 #                       wound's is its Realistic course in game seconds
 #   stackable         - true/false. Read but not acted on yet: no effect stacks, and applying
@@ -66,6 +68,9 @@ bite_wound,Bite Wound,wound,864000,false,1,0,none:0:none,0,none,0,physical|wound
 burn_superficial,Burn (red skin),wound,518400,false,1,0,none:0:none,0,none,0,burn|wound,A first-degree burn: red skin and no blisters. It heals by itself in about six days
 burn_partial,Burn (blistered),wound,1209600,false,1,0,none:0:none,0,none,0,burn|wound,A second-degree burn that has blistered. It heals in about two weeks. Cleaned and covered it is unlikely to go bad
 burn_full,Deep Burn,wound,3628800,false,1,0,none:0:none,0,none,0,burn|wound,A burn through the whole skin. It heals only from its edges over about six weeks and goes bad easily unless cleaned and covered
+sprained_ankle,Sprained Ankle,wound,1209600,false,1,0,speed:0.75:multiply,0,none,0,injury|sprain|wound,An ankle twisted landing from a fall. You limp for about two weeks while it heals
+broken_ankle,Broken Ankle,wound,3628800,false,1,0,speed:0.4:multiply,0,none,0,injury|fracture|wound,An ankle broken landing from a fall of about 3 m or more. It heals in about six weeks and you hobble until it does
+broken_leg,Broken Leg,wound,7257600,false,1,0,speed:0.3:multiply,0,none,0,injury|fracture|wound,A leg broken landing from a fall of about two storeys or more. It heals in about twelve weeks and you hobble until it does
 wound_care,Wounds Cared For,condition,0,false,1,0,none:0:none,0,none,0,care|wound,Your wounds are cleaned and covered so they are unlikely to go bad. A new wound needs the same
 stunned,Stunned,debuff,5,false,1,0,speed:0:multiply,0,none,0,control|disabling,Completely prevents all actions for a short time
 disarmed,Disarmed,debuff,10,false,1,0,damage:0.3:multiply,0,none,0,combat|disabling,Forces weapon drop reducing damage to 30%
@@ -76,7 +81,6 @@ overheated,Overheated,condition,0,false,1,30,stamina_regen:0.5:multiply,3,heat,0
 hypothermia,Hypothermia,condition,0,false,1,0,speed:0.5:multiply,0,cold,0,temperature|cold,Core below 35 C: stumbling and fumbling halve your movement. Below 32 C the cold does lasting harm. Get out of the wind and the wet and into dry clothes
 oxygen_depleted,Oxygen Depleted,condition,0,false,1,5,none:0:none,15,suffocation,0,survival|critical,Rapidly drains health when no breathable air is available
 radiation_exposure,Radiation Exposure,condition,0,true,10,10,max_hp:-5:add,3,radiation,0,radiation|hazard,Reduces max HP by 5 per stack and deals radiation damage
-broken_bone,Broken Bone,condition,0,false,1,0,speed:0.4:multiply,0,none,0,injury|severe,Reduces speed by 60% and prevents sprinting until healed
 concussion,Concussion,condition,0,false,1,0,accuracy:0.6:multiply,0,none,0,injury|head,Reduces accuracy by 40% and causes periodic blurred vision
 infected_wound,Infected Wound,wound,864000,false,1,0,none:0:none,0,none,0,injury|infection|bacterial,A wound that has gone bad. It takes your health slowly and stops you healing until Antibiotics end it
 sleep_deprived,Sleep Deprived,condition,0,false,1,0,xp_gain:0.5:multiply,0,none,0,survival|fatigue,Halves experience gain and reduces accuracy by 20%

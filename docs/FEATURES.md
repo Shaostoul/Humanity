@@ -3578,6 +3578,33 @@ MedicalSystem, its `MedicalConditions` component and the never-read
 - Data: `data/medical/wounds.ron`, the `wound` rows of `data/status_effects.csv`,
   `cares` in `data/medical/treatments.ron`
 
+### Falls (2026-10-20)
+A landing hurts by how fast the floor stops you, so the same rule holds under the
+ship's spin gravity, on the Moon and on Earth (a 4 m drop on the Moon lands at 3.6
+m/s and does nothing; it takes about 24 m there to land as hard as 4 m on Earth).
+In Realistic, on Earth: about 2 m leaves a Sprained Ankle (two weeks, limping),
+about 3 m a Broken Ankle (six weeks), about 6 m a Broken Leg (twelve weeks), each
+slowing walking while it heals, and from full health about 15 m kills ("a fall" on
+the death screen). Every speed is a cited fall height through v = sqrt(2 g h): the
+field triage guideline's 10 ft and 20 ft, Warner and Demling's two and three
+storeys, Risser's five storeys, the NHS's healing times. Forgiving, the default
+(Settings > Gameplay > Illness and injury), reads a fall at 70% of its speed, so
+it needs about twice the height and hurts less. Landing in water, a fall that began
+in dev flight (fly mode, F9's hover, the flight band), and the landing after the
+body was placed (a teleport, driving, the rig's camera hold) hurt nobody; a step
+and the game's own jump are well under the first harm. The HUD row reads "Broken
+Ankle: from a fall; you hobble". Letting go of a ladder's keys part way up now
+holds on there (it used to drop you); stepping away from it is a fall.
+- Code: `src/systems/falls.rs` (data, `FallWatch`, `player_landed`); the landing
+  aboard in `CameraController::update_first_person` (`src/renderer/camera.rs`), on
+  a planet in `surface_move::radial_step` (`RadialStep::impact_m_s`) handed to
+  `CameraController::surface_step`; lib.rs takes it once a frame
+  (`take_landing`); the injury in `Wounds::take_injuries` (`src/systems/wounds.rs`);
+  tests in `src/systems/wounds_tests.rs`
+- Data: `data/medical/falls.ron` (speeds, harm, sources), the `sprained_ankle`,
+  `broken_ankle` and `broken_leg` rows of `data/medical/wounds.ron` and
+  `data/status_effects.csv` (which replaced the never-applied `broken_bone`)
+
 ### Enchantments Database (v0.90.0)
 133 enchantments for equipment with tier scaling and compatibility rules.
 - Data: `data/enchantments.csv`

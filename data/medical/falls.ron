@@ -1,0 +1,157 @@
+// Falls: how hard a landing hurts (2026-10-20). Read by src/systems/falls.rs
+// beside data/medical/wounds.ron (`Wounds::load` reads both); the food system,
+// which owns the body's meters, applies a landing in its body pass
+// (src/systems/food.rs, through `Wounds::take_injuries`). Disk first, with a
+// copy built into the game as the fallback.
+//
+// IMPACT SPEED, NOT HEIGHT. Every number below is the speed, in metres a
+// second, at which the floor stops a falling body, because that is what does
+// the harm, and it is the same rule aboard a ship (its spin gravity), on the
+// Moon and on Earth. Each comes from a fall HEIGHT a source gives, through
+// v = sqrt(2 g h) with Earth's standard gravity, g = 9.80665 m/s^2:
+//     0.6 m -> 3.43 m/s     2 m -> 6.26     10 ft (3.048 m) -> 7.73
+//     20 ft (6.096 m) -> 10.93     30 ft -> 13.39     50 ft -> 17.29
+//     60 ft -> 18.94
+// The same speeds on the Moon (1.62 m/s^2) need about six times the height:
+// 7.73 m/s is a 3 m drop on Earth and an 18 m one there.
+//
+// WHAT THE GAME LEAVES OUT. Real harm also depends on what you land on (soft
+// ground, snow or water against concrete), which part of you lands first,
+// your age and how you land (a trained roll spreads the blow). The game has
+// one kind of landing: an adult, feet first, onto a hard floor, so the numbers
+// are for that, the case the sources below mostly describe. A landing in water
+// hurts nobody here, though in life a high fall into water injures and kills
+// too (Warner and Demling: falls onto softer surfaces, "including water, are
+// better tolerated", not harmless). Dev flight never injures, nor does the
+// landing after a teleport (src/systems/falls.rs, `FallWatch`).
+//
+// TWO MODES, the Settings > Gameplay > Illness and injury setting
+// (`illness_realistic`, systems::illness::Mode), which wounds already follow.
+// Realistic reads a landing at its real speed. Forgiving, the default, reads
+// it at `forgiving.speed_share` of its speed, so a fall must be faster (from
+// higher) to hurt at all, and hurts less. The wound it leaves then lasts the
+// share of its course every wound does in Forgiving (wounds.ron `forgiving`).
+//
+// Sources, each read on 2026-10-20:
+//   Newgard CD, Fischer PE, Gestring M et al., "National guideline for the
+//     field triage of injured patients: Recommendations of the National Expert
+//     Panel on Field Triage, 2021", Journal of Trauma and Acute Care Surgery
+//     93(2):e49-e60 (August 2022), https://pmc.ncbi.nlm.nih.gov/articles/PMC9323557/
+//     (doi 10.1097/TA.0000000000003627). The criteria for taking an injured
+//     person to a trauma centre include "Fall from height >10 ft (all ages)".
+//     Its rationale: "The 2011 guideline specified falls >20 ft in adults and
+//     >10 ft in children", and "the >10 ft criterion has good predictive
+//     utility for children and adults". Its table of the 2011 guideline gives
+//     "Adults: >20 ft (one story is equal to 10 ft)".
+//   Warner KG, Demling RH, "The pathophysiology of free-fall injury", Annals
+//     of Emergency Medicine 15(9):1088-1093 (September 1986), PubMed 3740599,
+//     https://pubmed.ncbi.nlm.nih.gov/3740599/ (the abstract): "Orthopedic
+//     injuries frequently are encountered in falls from two stories and less,
+//     and are largely determined by the position at landing. Visceral trauma,
+//     produced by deceleration forces, frequently involves the liver, spleen,
+//     lung, heart and aorta, and must be suspected in falls from three stories
+//     and more regardless of the landing position. Mortality from a six-story
+//     fall onto a hard surface such as concrete is almost 100% for adults".
+//   Risser D, Bönsch A, Schneider B, Bauer G, "Risk of dying after a free fall
+//     from height", Forensic Science International 78(3):187-191 (April 1996),
+//     PubMed 8635762, https://pubmed.ncbi.nlm.nih.gov/8635762/ (the abstract;
+//     adults 20 to 50 landing on concrete or pavement): "The results of this
+//     analysis suggest that death usually occurs when distance is more than
+//     five storeys."
+//   Atanasijevic TC, Savic SN, Nikolic SD, Djoki VM, "Frequency and
+//     severity of injuries in correlation with the height of fall", Journal
+//     of Forensic Sciences 50(3):608-612 (May 2005), PubMed 15932094,
+//     https://pubmed.ncbi.nlm.nih.gov/15932094/ (the abstract; 660 fatal
+//     falls): "The height of fall over 15 m appears to be a reasonable
+//     boundary height beyond which the injuries of two or three body regions
+//     are generally associated."
+//   Lapostolle F, Gere C, Borron SW et al., "Prognostic factors in victims of
+//     falls from height", Critical Care Medicine 33(6):1239-1242 (June 2005),
+//     PubMed 15942337, https://pubmed.ncbi.nlm.nih.gov/15942337/ (the
+//     abstract; 287 falls of more than 3 m): "Ninety-seven patients (34%)
+//     ultimately died"; height of fall "median, 5.0; 3.8-8.0 vs. 2.0; 1.2-3.0
+//     floors" in those who died against those who lived.
+//   Knapik JJ, "United States Military Parachute Injuries: Part 2", Journal
+//     of Special Operations Medicine 19(4):109-113 (2019), PubMed 31910484,
+//     https://pubmed.ncbi.nlm.nih.gov/31910484/ (the abstract): injuries at the
+//     Airborne School fell in 1943 with, among other changes, the
+//     "elimination of dangerous and unnecessary training procedures (like
+//     practice jumps from 11-foot heights)".
+//   Bobbert MF, Huijing PA, van Ingen Schenau GJ, "Drop jumping. II. The
+//     influence of dropping height on the biomechanics of drop jumping",
+//     Medicine and Science in Sports and Exercise 19(4):339-346 (August
+//     1987), PubMed 3657482, https://pubmed.ncbi.nlm.nih.gov/3657482/ (the
+//     abstract): healthy subjects "executed bounce drop jumps from heights of
+//     20 cm ..., 40 cm ..., and 60 cm", a training exercise.
+//   NHS, "Sprains and strains", page last reviewed 23 April 2024,
+//     https://www.nhs.uk/conditions/sprains-and-strains/: sprains are "Most
+//     common in wrists, ankles, thumbs, knees"; "After 2 weeks, most sprains
+//     and strains will feel better."
+//   NHS, "Broken ankle", page last reviewed 5 November 2025,
+//     https://www.nhs.uk/conditions/broken-ankle/: "A broken ankle usually
+//     takes 6 to 8 weeks to heal, but it can take longer."
+//   NHS, "Broken leg", page last reviewed 11 June 2025,
+//     https://www.nhs.uk/conditions/broken-leg/: "A broken leg usually takes 6
+//     to 12 weeks to heal, but it can sometimes take longer."
+// (How long each wound lasts, and what it does meanwhile, is in wounds.ron and
+// status_effects.csv with the NHS figures above.)
+(
+    // The death screen's words when a fall is what killed the player.
+    cause: "a fall",
+    // Said first when a landing hurts; the wound's own words follow.
+    landed: "You land hard.",
+
+    // Forgiving reads a landing at this share of its speed: 0.7 of the speed
+    // is 0.49 of the height, so a fall must be about twice as high to do the
+    // same, and from full health it takes about 31 m instead of 15 m to kill.
+    // A GAME CHOICE, softer than the half the other modes take of a harm
+    // because a share of the speed also moves every threshold up.
+    forgiving: (speed_share: 0.7),
+
+    // HEALTH A LANDING TAKES, of the body's 100, by its speed (slowest
+    // first). None below the first point, straight lines between points, and
+    // past the last one its line carries on. The game's Health stands for every
+    // hurt at once, so these amounts are A GAME CHOICE, pinned to the sources at
+    // their heights:
+    harm: [
+        // 2 m: a sprain's worth, little.
+        (m_s: 6.26, health: 2.0),
+        // 10 ft: the height past which a fall goes to a trauma centre (Newgard
+        // et al.), with a broken ankle.
+        (m_s: 7.73, health: 10.0),
+        // 20 ft, two storeys: the top of Warner and Demling's band of mostly
+        // orthopaedic injuries, and the 2011 adult line (Newgard et al.).
+        (m_s: 10.93, health: 35.0),
+        // 30 ft, three storeys: from here injuries inside the body "must be
+        // suspected ... regardless of the landing position" (Warner and
+        // Demling), so more than half a body's health.
+        (m_s: 13.39, health: 60.0),
+        // 50 ft, five storeys (15.2 m): "death usually occurs when distance is
+        // more than five storeys" (Risser et al.), and past 15 m two or three
+        // body regions are hurt together (Atanasijevic et al.). All 100: a
+        // body at full health dies landing this hard, one already hurt
+        // sooner. Carried on, six storeys (18.94 m/s) takes about 117, past
+        // any body (Warner and Demling's "almost 100%").
+        (m_s: 17.29, health: 100.0),
+    ],
+
+    // THE WOUND A LANDING LEAVES: the last step its speed reaches (one wound
+    // a fall). Each is a wound row in wounds.ron and a `wound` status effect
+    // whose `speed` slows walking while it heals.
+    steps: [
+        // 2 m. A GAME CHOICE between what lands safely and the 10 ft line: drop
+        // jumps from 20 to 60 cm (3.43 m/s) are a training exercise (Bobbert
+        // et al.), and the game's own jump lands at 5 m/s (a 1.27 m drop,
+        // src/renderer/camera.rs JUMP_SPEED_MPS), which must never hurt. The
+        // ankle, because it is where sprains are most common (NHS).
+        (from_m_s: 6.26, effect: "sprained_ankle"),
+        // 10 ft: the trauma-centre line (Newgard et al.); the Airborne School
+        // dropped its 11-foot practice jumps as dangerous (Knapik). Below two
+        // storeys the injuries are mostly broken bones, set by how you land
+        // (Warner and Demling); feet first, the ankle.
+        (from_m_s: 7.73, effect: "broken_ankle"),
+        // 20 ft, two storeys: the 2011 adult line, the top of the orthopaedic
+        // band, and the leg.
+        (from_m_s: 10.93, effect: "broken_leg"),
+    ],
+)

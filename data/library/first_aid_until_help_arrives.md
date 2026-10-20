@@ -800,10 +800,16 @@ spot, and little else of what this guide is about.
   each wound and what helps, and the Inventory says how it passes
   (`data/medical/wounds.ron`, `src/systems/wounds.rs`; [Bleeding and
   Wounds](/library#bleeding-and-wounds) has the detail). A body that is fed,
-  watered and unhurt heals by itself, slowly, faster asleep. There are no
-  fractures, concussions or severe bleeding: the Broken Bone and
-  Concussion conditions in `data/status_effects.csv` are applied by
-  nothing.
+  watered and unhurt heals by itself, slowly, faster asleep. Since 20
+  October 2026 a fall hurts too, by how fast you land: in the Realistic
+  mode, on Earth, about 2 m leaves a sprained ankle, about 3 m a broken
+  ankle, about 6 m a broken leg, each slowing your walking for weeks, and
+  about 15 m kills; Forgiving, the default, needs about twice the height
+  (`data/medical/falls.ron`, `src/systems/falls.rs`). The game cannot
+  tell you to keep still or call for help, and there is no doctor to set a
+  bone, so a break heals by itself. There are no concussions or severe
+  bleeding: the Concussion condition in `data/status_effects.csv` is
+  applied by nothing.
 - **Medical items put health back, treat wounds, or say why not.** The
   item list includes a Bandage, a Medkit, a Splint, Antiseptic,
   Painkillers and a Defibrillator (`data/items.csv`), and the Crafting
@@ -812,8 +818,9 @@ spot, and little else of what this guide is about.
   Medkit 30 and an Advanced Medkit 50, up to full; each stops Bleeding and
   cleans and covers your wounds, and so does Antiseptic. Antibiotics end
   an Infected Wound. The rest do nothing yet, because nothing in the game
-  causes what they treat: pain, poisoning, venom, a broken bone or a
-  stopped heart. Pressing Use on one, or on a medkit when you are not
+  causes what they treat (pain, poisoning, venom, a stopped heart) or the
+  game does not model the treatment (a Splint, for a broken bone, which
+  heals by itself). Pressing Use on one, or on a medkit when you are not
   hurt, keeps it in your pack and tells you why in plain words. An item
   is used up only when it helps
   (`data/medical/treatments.ron`, `src/systems/treatment.rs`,
@@ -837,9 +844,9 @@ spot, and little else of what this guide is about.
   and clothes carry over.
 
 What the game leaves out, so you do not learn it from the game: there is
-no CPR and no defibrillator to use, nobody chokes, faints, has a seizure or
-falls off a ladder, there is no 911 to call, and there is no other person
-for you to help. Everything in this guide is practice you have to find
+no CPR and no defibrillator to use, nobody chokes, faints or has a seizure,
+a fall hurts only you, there is no 911 to call, and there is no other
+person for you to help. Everything in this guide is practice you have to find
 outside the game: a class, a manikin, and the neighbours you would be
 helping.
 
@@ -1092,8 +1099,10 @@ were read on 4 October 2026 and are cited with the date they carry.
   `src/gui/pages/profile.rs`, applied in `src/systems/skills/mod.rs`. The
   wounds and healing by itself: `data/medical/wounds.ron`, applied each
   tick by `src/systems/food.rs` through `src/systems/wounds.rs`, a bite's
-  wounds given by `src/systems/combat/mod.rs`; the Broken Bone and
-  Concussion conditions in `data/status_effects.csv`, applied by no code.
+  wounds given by `src/systems/combat/mod.rs`; a fall's, by its landing
+  speed, in `data/medical/falls.ron` (the sources for each height are in
+  the file) and `src/systems/falls.rs`; the Concussion condition in
+  `data/status_effects.csv`, applied by no code.
   (The old medical catalogue, `data/medical.ron`, and its never-run
   system were deleted on 12 October 2026.) The medical items in
   `data/items.csv`, the medical recipes in `data/recipes.csv`, the

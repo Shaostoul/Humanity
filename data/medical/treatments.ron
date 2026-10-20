@@ -101,7 +101,7 @@
         ),
         (
             item: "splint_0",
-            no_help: "A splint holds a broken bone still while it heals, and nothing in the game breaks bones yet, so you keep it. It also goes into a Medkit.",
+            no_help: "A splint holds a broken bone still until a doctor can set it. A bad fall can break a bone, but the game does not model splinting or a doctor yet, so a break heals by itself either way and you keep the splint. It also goes into a Medkit.",
         ),
         (
             item: "antiseptic_0",

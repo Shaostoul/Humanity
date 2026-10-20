@@ -19,9 +19,13 @@
 //   longer the exposure the deeper the burn (`burns`). Nothing in the game
 //   lights a fire you can stand in yet (the fire system is not running), so
 //   burns arrive with the fire props (docs/design/fire-props-and-combustion.md).
-// - The game has no falls that hurt, and starving, drying out, cold, heat,
-//   airlessness and a hard burn of the ship's drive take health without
-//   leaving a wound, as in life they hurt the whole body, not one place.
+// - A fall (2026-10-20, src/systems/falls.rs): a landing takes health by how
+//   fast the floor stopped you, and past a threshold leaves a Sprained Ankle,
+//   a Broken Ankle or a Broken Leg (below), by the speeds in
+//   data/medical/falls.ron.
+// - Starving, drying out, cold, heat, airlessness and a hard burn of the
+//   ship's drive take health without leaving a wound, as in life they hurt
+//   the whole body, not one place.
 //
 // TWO MODES (the house rule for deep systems, CLAUDE.md "Dual modes"), the
 // same Settings > Gameplay > Illness and injury setting as illness
@@ -254,6 +258,47 @@
             helps: "In life a deep burn bigger than a coin needs a burn surgeon; the game has none yet.",
             hud: "",
             healed: "The deep burn has closed.",
+        ),
+        // ── FALLS (2026-10-20). A landing hard enough leaves one of these,
+        // chosen by its speed in data/medical/falls.ron, which also takes the
+        // landing's health. None takes health while it lasts, none stops the
+        // body healing, and none is broken skin, so none goes bad. Each slows
+        // walking while it lasts: its `speed` in data/status_effects.csv, A
+        // GAME CHOICE in every case.
+        (
+            effect: "sprained_ankle",
+            // Its course: 1209600 s, two weeks: the NHS's "After 2 weeks, most
+            // sprains and strains will feel better." Its speed, 0.75, a limp.
+            severity: 1,
+            onset: "Your ankle turned under you as you landed: a sprain.",
+            course: "It heals by itself in about {time}, and you limp until then.",
+            helps: "In life, for the first 2 to 3 days: protect it, rest it, ice it wrapped in a towel for up to 20 minutes every 2 to 3 hours, wrap a bandage round it for support and keep it raised (the NHS's PRICE). The game does not model those yet.",
+            hud: "from a fall; you limp",
+            healed: "Your sprained ankle has healed.",
+        ),
+        (
+            effect: "broken_ankle",
+            // Its course: 3628800 s, six weeks: the short end of the NHS's "A
+            // broken ankle usually takes 6 to 8 weeks to heal, but it can take
+            // longer." Its speed, 0.4: in life you keep your weight off it.
+            severity: 2,
+            onset: "You landed hard enough to break your ankle.",
+            course: "It takes about {time} to heal, and you can barely walk on it until then.",
+            helps: "In life it needs a doctor: an X-ray, then a boot or a cast, with your weight kept off it (NHS). The game has no doctor yet, so it heals by itself.",
+            hud: "from a fall; you hobble",
+            healed: "Your broken ankle has healed.",
+        ),
+        (
+            effect: "broken_leg",
+            // Its course: 7257600 s, twelve weeks: the long end of the NHS's "A
+            // broken leg usually takes 6 to 12 weeks to heal", for the break a
+            // fall from two storeys gives. Its speed, 0.3.
+            severity: 2,
+            onset: "You landed hard enough to break your leg.",
+            course: "It takes about {time} to heal, and you can barely walk on it until then.",
+            helps: "In life, do not move it or stand on it: a doctor holds it in a cast, or for a bad break fixes it with surgery (NHS). The game has no doctor yet, so it heals by itself.",
+            hud: "from a fall; you hobble",
+            healed: "Your broken leg has healed.",
         ),
         (
             effect: "infected_wound",

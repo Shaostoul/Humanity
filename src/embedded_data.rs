@@ -161,6 +161,8 @@ pub const MEDICAL_TREATMENTS_RON: &str = include_str!("../data/medical/treatment
 /// What a bite or a burn leaves and how a body heals (first-hour audit S8, 2026-10-12:
 /// systems::wounds).
 pub const MEDICAL_WOUNDS_RON: &str = include_str!("../data/medical/wounds.ron");
+/// How hard a landing hurts (2026-10-20: systems::falls, read beside wounds.ron).
+pub const MEDICAL_FALLS_RON: &str = include_str!("../data/medical/falls.ron");
 pub const MACHINES_HOME_RON: &str = include_str!("../data/machines/home.ron");
 pub const MACHINES_HOME_SOLO_RON: &str = include_str!("../data/machines/home_solo.ron");
 /// The ship's own machines (the Commons), merged into a home file that names them (increment 1a).
@@ -432,6 +434,7 @@ pub fn get_embedded(path: &str) -> Option<&'static str> {
         "medical/illnesses.ron" => Some(MEDICAL_ILLNESSES_RON),
         "medical/treatments.ron" => Some(MEDICAL_TREATMENTS_RON),
         "medical/wounds.ron" => Some(MEDICAL_WOUNDS_RON),
+        "medical/falls.ron" => Some(MEDICAL_FALLS_RON),
         "machines/home.ron" => Some(MACHINES_HOME_RON),
         "machines/home_solo.ron" => Some(MACHINES_HOME_SOLO_RON),
         "machines/ship.ron" => Some(MACHINES_SHIP_RON),
@@ -714,6 +717,7 @@ pub const EMBEDDED_KEYS: &[&str] = &[
     "medical/illnesses.ron",
     "medical/treatments.ron",
     "medical/wounds.ron",
+    "medical/falls.ron",
     "machines/home.ron",
     "machines/home_solo.ron",
     "machines/ship.ron",

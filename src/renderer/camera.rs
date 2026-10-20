@@ -781,7 +781,29 @@ pub struct CameraController {
     /// else owns translation, so the local fly path must run (below the FTL
     /// cap it used to freeze entirely there).
     pub surface_translation_owned: bool,
+    /// The player's falls (2026-10-20, `systems::falls`): the landings both walks report,
+    /// and whether each can hurt. lib.rs takes one a frame (`take_landing`).
+    falls: crate::systems::falls::FallWatch,
+    /// Where this walk left the body's height last frame, to tell a fall from a placement:
+    /// anything else that moves the body (a teleport, driving, the rig's camera hold) makes
+    /// the landing after it hurt nobody.
+    body_y: Option<f32>,
+    /// The highest the body has been since it last stood, held on or was placed (falls): a
+    /// landing's speed is v = sqrt(2 g h) from here. None while standing.
+    fall_top: Option<f32>,
+    /// The same for the planet walk: the radius `radial_step` left the body at last frame.
+    surface_r: Option<f64>,
 }
+
+/// More than this between where the walk left the body and where it starts the next frame,
+/// metres, and something else moved it (`CameraController::body_y`).
+const PLACED_M: f32 = 0.01;
+/// The same on a planet, metres of radius. The frame lock re-derives the anchor from the
+/// camera each frame, and a step along the curved ground lifts it a hair; a teleport is km.
+const SURFACE_PLACED_M: f64 = 0.5;
+/// Hanging on a ladder (2026-10-20, falls): a body slower than this, m/s, holds on when the
+/// climb keys are let go; one falling past faster than that does not catch it.
+const LADDER_GRAB_M_S: f32 = 1.0;
 
 impl CameraController {
     pub fn new(speed: f32, sensitivity: f32) -> Self {
@@ -821,6 +843,37 @@ impl CameraController {
             roll_left: false,
             roll_right: false,
             surface_translation_owned: true,
+            falls: crate::systems::falls::FallWatch::default(),
+            body_y: None,
+            fall_top: None,
+            surface_r: None,
+        }
+    }
+
+    /// The landing waiting to be given to the player's body (falls, 2026-10-20), m/s: lib.rs
+    /// takes it once a frame and hands it to `systems::falls::player_landed`. None when nothing
+    /// landed hard enough to count, or the landing could not hurt (flight, a placement, water).
+    pub fn take_landing(&mut self) -> Option<f32> {
+        self.falls.take()
+    }
+
+    /// The planet walk's half of the falls (2026-10-20): after `surface_move::radial_step`,
+    /// lib.rs hands over the radius it started from (`r_before`) and what it did (`step`).
+    /// `flying`: dev flight, the F9 hover, the flight band (10-100 km) or a rig's camera hold;
+    /// a fall that began in any of them hurts nobody. `on_water`: the floor was the sea's
+    /// surface (or the walker is in the water), which hurts nobody here either.
+    pub fn surface_step(&mut self, r_before: f64, step: &crate::surface_move::RadialStep, flying: bool, on_water: bool) {
+        // Moved by something other than the walk since last frame (dev travel, a teleport).
+        let placed = self.surface_r.is_some_and(|r| (r_before - r).abs() > SURFACE_PLACED_M);
+        self.surface_r = Some(step.r);
+        if flying || placed {
+            self.falls.exempt();
+        }
+        // The ground stopped a fall, or the walker stands still on it. Not merely within a
+        // boot's reach of the floor (`grounded`) while still dropping: that frame comes before
+        // the one that lands, and must not end the fall's watch before its landing.
+        if step.impact_m_s > 0.0 || (step.grounded && step.v_r == 0.0) {
+            self.falls.landed(step.impact_m_s, on_water);
         }
     }
 
@@ -997,7 +1050,16 @@ impl CameraController {
 
         match camera.mode {
             CameraMode::FirstPerson => {
+                // Falls (2026-10-20): moved since this walk last left it (driving, a teleport,
+                // the rig's hold) is a placement, not a fall. On a planet the frame lock moves
+                // the body and `surface_step` keeps watch instead.
+                let surface_owned = camera.surface_mode && self.surface_translation_owned;
+                if !surface_owned && self.body_y.is_some_and(|y| (camera.position.y - y).abs() > PLACED_M) {
+                    self.falls.exempt();
+                    self.fall_top = None;
+                }
                 self.update_first_person(camera, dt, dx, dy);
+                self.body_y = Some(camera.position.y);
             }
             CameraMode::ThirdPerson => {
                 self.update_third_person(camera, dt, dx, dy, scroll);
@@ -1169,6 +1231,7 @@ impl CameraController {
         if camera.surface_mode && self.surface_translation_owned {
             self.vertical_velocity = 0.0;
             self.is_grounded = false;
+            self.fall_top = None; // the planet walk keeps its own watch (surface_step)
             return;
         }
 
@@ -1199,6 +1262,9 @@ impl CameraController {
             // Land cleanly when fly mode turns off: no stale fall velocity.
             self.vertical_velocity = 0.0;
             self.is_grounded = false;
+            // A fall that begins in dev flight (fly mode switched off in the air) hurts nobody.
+            self.falls.exempt();
+            self.fall_top = None;
             return;
         }
 
@@ -1228,7 +1294,8 @@ impl CameraController {
         // ── Ladder climb (v0.589) ──
         // At a ladder (climb_zone set) WITH an up/down input held, move vertically + suspend gravity,
         // clamped to the ladder span -- so you climb to an upper deck. Space = up, Shift = down. No
-        // input near a ladder falls through to normal gravity, so you can still walk past one.
+        // input at its foot is ordinary walking, so you can still walk past one; part way up, no
+        // input holds on (HANGING ON, below, 2026-10-20).
         if let Some((base, top)) = self.climb_zone {
             let lo = base + self.eye_height;
             let hi = top + self.eye_height + 0.2; // eye can reach just over the top rung
@@ -1247,7 +1314,24 @@ impl CameraController {
                 camera.position.y = camera.position.y.clamp(lo, hi);
                 self.vertical_velocity = 0.0;
                 self.is_grounded = false;
+                self.falls.supported();
+                self.fall_top = None;
                 return; // skip gravity this frame -- the ladder holds you
+            }
+            // HANGING ON (falls, 2026-10-20). Let go of the climb keys part way up and you hold
+            // on where you are, as on a real ladder, instead of dropping to the floor: since
+            // falls hurt, letting go of Space near the top of the homestead's 3 m ladder would
+            // otherwise break an ankle. Only off the floor (standing at its foot, or walking
+            // past at either deck, is ordinary walking) and only for a body not already
+            // falling (one dropping past the ladder does not catch it). Step away from the
+            // ladder and you fall from where you hung.
+            let off_floor = camera.position.y > self.ground_y + PLACED_M;
+            if near && off_floor && self.vertical_velocity.abs() < LADDER_GRAB_M_S {
+                self.vertical_velocity = 0.0;
+                self.is_grounded = false;
+                self.falls.supported();
+                self.fall_top = None;
+                return;
             }
         }
 
@@ -1259,14 +1343,33 @@ impl CameraController {
             self.vertical_velocity = self.jump_speed * self.jump_scale.min(1.0);
             self.is_grounded = false;
         }
-        // Apply gravity and integrate height.
+        // Apply gravity and integrate height. `top`: the highest the body has been since it
+        // last stood or held on (falls, 2026-10-20).
+        let top = self.fall_top.map_or(camera.position.y, |t| t.max(camera.position.y));
         self.vertical_velocity -= self.interior_gravity * dt;
         camera.position.y += self.vertical_velocity * dt;
+        let top = top.max(camera.position.y);
         // Land on the floor.
         if camera.position.y <= self.ground_y {
+            // The speed the floor stopped (falls, 2026-10-20): v = sqrt(2 g h) from the top of
+            // this time off the ground, where a body walking off an edge, letting go of a ladder
+            // or at the peak of a jump has no vertical speed. That is the real speed for the
+            // height fallen at any frame rate (the frame-by-frame velocity lags it by a few per
+            // cent at 30 frames a second), and a body standing still lands at 0 however long a
+            // frame lasts. Nothing aboard pushes a body up or down in the air but gravity: dev
+            // flight is exempt, and a ladder starts the count again (`systems::falls`).
+            let impact = crate::systems::falls::landing_speed(
+                0.0,
+                f64::from(top - self.ground_y),
+                f64::from(self.interior_gravity),
+            );
+            self.falls.landed(impact, false);
             camera.position.y = self.ground_y;
             self.vertical_velocity = 0.0;
             self.is_grounded = true;
+            self.fall_top = None;
+        } else {
+            self.fall_top = Some(top);
         }
     }
 
