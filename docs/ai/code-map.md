@@ -6,7 +6,7 @@
 > `grep -i <word> docs/ai/code-map.md` before searching the source. Features (what a person can do)
 > are in `docs/FEATURES.md`; pages in `docs/PAGES.md`.
 
-883 Rust files (571,390 lines) under `src/`; 105 JavaScript files (67,449 lines) under `web/`.
+883 Rust files (571,694 lines) under `src/`; 106 JavaScript files (67,707 lines) under `web/`.
 
 ## Folders
 
@@ -61,7 +61,7 @@
 - `web/chat/` (28 files)
 - `web/chat/view/` (2 files)
 - `web/pages/` (31 files)
-- `web/shared/` (44 files)
+- `web/shared/` (45 files)
 
 ## Files
 
@@ -149,7 +149,7 @@
 - `group_report.rs` (409): A report about a group reaches the group's creator (section 10j of docs/design/blocking-and-safe-mode.md, 2026-10-10): the desktop app's half that touches the app state, the socket and the server. Main items: Outgoing, target_for, start_finding, creator_found, creator_put, prepare, note_sent, refused (+10 more).
 - `home_meshes.rs` (2565): The 3D home's meshes, built and uploaded: homestead rooms, hull wrap, machines and their pipes, the garden's plants, door and window panels, and room lights. Main items: GardenDraw, PlantPass, apply_homestead_meshes, rebuild_hull, rebuild_homestead, auto_room_lights, open_plots_changed, machine_mesh (+15 more).
 - `home_plot.rs` (3398): Your home on the shared ship (increment 1b of docs/design/ship-homes-and-logistics.md). Main items: PlotBox, WelcomeHome, WelcomeContext, OtherKind, JoinGate, JoinStep, ServerFollow, HomeBoxChange (+69 more).
-- `home_spawn.rs` (671): The home's machines as ECS entities: each machine's power and water roles and islands, the feed taps tying the home's power to the ship's bus, and the home's sealed air space. Main items: spawn_home_power_entities, respawn_home_power_entities, spawn_home_power_entities_for, own_home_air_m3, spawn_home_feed_taps, home_metabolic_kcal, spawn_home_air_space, spawn_home_machine_entity.
+- `home_spawn.rs` (767): The home's machines as ECS entities: each machine's power and water roles and islands, the feed taps tying the home's power to the ship's bus, and the home's sealed air space. Main items: spawn_home_power_entities, respawn_home_power_entities, spawn_home_power_entities_for, own_home_air_m3, spawn_home_feed_taps, home_metabolic_kcal, spawn_home_air_space, spawn_home_machine_entity.
 - `household.rs` (1178): Household permits travel between devices (ship homes increment 5b, lane 1A, 2026-10-12; docs/design/ship-homes-increment-5b-plan.md sections 3.1 to 3.4 and 3.6, with the orchestrator's amendments i... Main items: Dropped, Arrived, Standing, FriendRow, HeldRow, PlotPermit, length_days, days_left (+39 more).
 - `input.rs` (365): Key rules for the F10 Cloud dev sidebar, extracted from lib.rs's raw winit keyboard arm (2026-09-18) so that the key, the headless tests and the dev IPC (`debug/ui_request.json`, see `engine::ipc`)... Main items: toggle_cloud_dev_panel, escape_closes_cloud_dev, cursor_want_free, cursor_free_for, mouse_look_allowed, cloud_dev_flag.
 - `ipc_parse.rs` (370): Parsers and formatters lifted out of the dev IPC and the socket pump so they can be tested alone: screenshot request and done file, screen status, notification prefs, planet tooltip. Main items: ScreenshotSize, NotifPrefsPayload, parse_screenshot_request, screenshot_output_path, screenshot_done_json, merge_provider_status, planet_tooltip_info, parse_notification_prefs (+1 more).
@@ -814,7 +814,7 @@
 - `fire.rs` (284): Fire system, fire ignition, intensity, spread, suppression. Main items: FireData, Burn, FireSystem, burn_step.
 - `flight.rs` (505): Fleet flight state and felt gravity. Main items: DriveDef, DampenerDef, GToleranceDef, FlightData, FlightState, FeltGravity, felt_gravity, harm_per_sec (+1 more).
 - `fluids.rs` (372): Fluids are litres (2026-09-26; the containers arc, increment 3d, docs/design/containers.md). Main items: Fillable, FluidTable, FluidAction, tank_litres, draw_from_tanks, tap_units, card_actions, apply_action.
-- `food.rs` (2631): Food system -- nutrition, spoilage, cooking, and meal quality. Main items: NutritionProfile, ItemProfiles, TemperatureZone, FoodData, UrineTank, FoodSystem, consume_kinds, urine_tank_level (+5 more).
+- `food.rs` (2825): Food system -- nutrition, spoilage, cooking, and meal quality. Main items: NutritionProfile, ItemProfiles, TemperatureZone, FoodData, UrineTank, FoodSystem, consume_kinds, urine_tank_level (+7 more).
 - `genetics.rs` (170): Genetics system, diploid trait inheritance with mutation chance. Main items: GeneticsData, GeneticsSystem.
 - `geology.rs` (111): Geology system, ore vein depletion tracking, soil fertility evolution, and tectonic event triggering. Main items: GeologyData, GeologySystem.
 - `governance.rs` (83): Governance system, resolves active votes when their deadlines expire. Main items: GovernanceData, GovernanceSystem.
@@ -877,7 +877,7 @@
 
 - `away.rs` (625): Automated machines through the time the player was away (offline progression, 2026-09-27; docs/design/offline-progression.md). Main items: AwayWork, AwayReport, day_power_balance, heater_draws, meter_away_reactor, hand_over, take, machines_present (+3 more).
 - `home_store.rs` (169): A hand craft draws on the home's storage too (BUG-147, 2026-10-04). Main items: Draw, HomeStore, register, not_here_reason, send_to_storage, HOME_STORAGE_HERE, HAND_MADE_TO_STORAGE.
-- `mod.rs` (3323): Crafting system, recipe validation, crafting queue, and output production. Main items: Recipe, RecipeRegistry, CraftSave, ActiveCraft, CraftRequest, CraftingSystem, register.
+- `mod.rs` (3337): Crafting system, recipe validation, crafting queue, and output production. Main items: Recipe, RecipeRegistry, CraftSave, ActiveCraft, CraftRequest, CraftingSystem, register.
 - `quality.rs` (202): Quality grades for crafted goods (2026-09-26; crafting depth, the last item of the gameplay arc's step 5, docs/design/gameplay-gaps-2026-09-25.md). Main items: QualityLevel, QualityLevels, skill_factor, score, load, BEGINNER_FACTOR.
 - `tools.rs` (198): Hand tools a craft needs (2026-09-26; crafting depth, rung 1 of the gameplay arc, docs/design/gameplay-gaps-2026-09-25.md). Main items: ToolRule, ToolRules, load.
 - `workstations.rs` (14): Crafting stations, each station type unlocks specific recipe categories. Main items: WorkstationDef.
@@ -1008,7 +1008,7 @@
 
 - `accord-app.js` (134): HumanityOS Humanity Accord document browser. Main items: escapeHtml, slugFor, loadNav, renderNav, openDoc.
 - `admin-app.js` (487): HumanityOS Admin Dashboard Main items: getSignedAuth, formatBytes, formatUptime, formatNumber, roleBadge, escapeHtml, fetchStats, showAuthGate (+12 more).
-- `apps-app.js` (948): Apps page (web): the web mirror of the desktop app's Apps page (src/gui/pages/apps.rs, its Main items: entriesOf, toolsOf, inPart, hostOf, platformWords, entryFact, mainLink, categoriesOf (+15 more).
+- `apps-app.js` (1021): Apps page (web): the web mirror of the desktop app's Apps page (src/gui/pages/apps.rs, its Main items: entriesOf, toolsOf, inPart, hostOf, platformWords, entryFact, mainLink, categoriesOf (+16 more).
 - `bugs-app.js` (246): HumanityOS Bug Reporter, Client logic Main items: getBrowserInfo, getVersion, getPublicKey, getDisplayName, showStatus, loadBugs, renderBugs, signVote (+2 more).
 - `calculator-app.js` (420): ══════════════════════════════════════════════ Main items: setMode, getExprEl, getResultEl, updateDisplay, inputNum, inputOp, inputFn, backspace (+20 more).
 - `civilization-app.js` (133): Civilization page logic, fetches /api/civilization stats and renders dashboards Main items: animateCounter, renderReal, civCard, fetchCivData, updateTimestamp.
@@ -1016,9 +1016,9 @@
 - `donate-app.js` (310): Donate page logic. Mirrors the desktop app's Donate page Main items: networkAbbrev, networkColor, fmtUSD, copyAddress, renderQR, escHtml, iconHtml, loadList (+7 more).
 - `files-add.js` (958): ── files-add.js ────────────────────────────────────────────────────────── Main items: postFavoriteKey, postFavorites, togglePostFavorite, postChoices, postText, createAddForm.
 - `files-admin.js` (524): ── files-admin.js ──────────────────────────────────────────────────────── Main items: hex, categoriesListText, categoriesBody, categoriesPurpose, expiresWords, storedAs, answersSave, otherNotice (+1 more).
-- `files-app.js` (2491): ── files-app.js ────────────────────────────────────────────────────────── Main items: num, parseKinds, kindWords, oneDecimal, sizeWords, shareLeftWords, shareStop, limitStop (+31 more).
+- `files-app.js` (2531): ── files-app.js ────────────────────────────────────────────────────────── Main items: num, parseKinds, kindWords, oneDecimal, sizeWords, shareLeftWords, shareStop, limitStop (+31 more).
 - `files-edit.js` (800): ── files-edit.js ───────────────────────────────────────────────────────── Main items: editingWords, badgeIcon, fileBadge, fillFileBadges, fileTypesKnown, loadFileTypes, tintSection, ownerOnlyWords (+15 more).
-- `files-folder.js` (702): ── files-folder.js ─────────────────────────────────────────────────────── Main items: formatSize, formatDate, getExtension, escapeHtml, updateBreadcrumb, fetchDir, fileIcon, renderTreeLevel (+20 more).
+- `files-folder.js` (706): ── files-folder.js ─────────────────────────────────────────────────────── Main items: formatSize, formatDate, getExtension, escapeHtml, updateBreadcrumb, fetchDir, fileIcon, renderTreeLevel (+20 more).
 - `files-item.js` (1130): ── files-item.js ───────────────────────────────────────────────────────── Main items: hiddenBy, discardWords, sinceLine, counted, countsLine, byLine, firstLine, filesBadge (+6 more).
 - `files-panes.js` (347): ── files-panes.js ──────────────────────────────────────────────────────── Main items: arrangeFor, checked, drag, resetPair, template, defaultLayout, readLayout, saveLayout (+3 more).
 - `files-places.js` (175): ── files-places.js ─────────────────────────────────────────────────────── Main items: listed, placeOf, addressOf, shownPlace, labelOf, createPlaces.
@@ -1056,6 +1056,7 @@
 - `glossary.js` (311): HumanityOS Glossary, Inline term definitions Main items: loadGlossary, define, getEntry, positionTooltip, show, hide, scanPage.
 - `group-report.js` (345): ── group-report.js ─────────────────────────────────────────────────────── Main items: groupReportFoundBadge, groupReportArrivedLine, groupReportCountTitle, groupReportRemoveConfirm, utf8Length, hasFile, keyNorm, idNorm (+13 more).
 - `hold-confirm.js` (168): hold-confirm.js, press-and-HOLD confirmation for destructive actions. Main items: holdToConfirm, holdConfirm, injectStyle.
+- `how-it-works.js` (144): ── how-it-works.js ─────────────────────────────────────────────────────── Main items: readOpen, writeOpen, createFold.
 - `i18n.js` (122): HumanityOS Internationalization (i18n) Module Main items: resolve, fetchLang.
 - `icons.js` (160): HumanityOS Shared Icon System
 - `kept-files.js` (364): ── kept-files.js ───────────────────────────────────────────────────────── Main items: cryptoOf, mbWords, sizeWords, capMb, capBytes, setCapMb, req, openDb (+15 more).
@@ -1077,7 +1078,7 @@
 - `report.js` (507): ── report.js ───────────────────────────────────────────────────────────── Main items: reportTextHasFile, reportCheckedBadge, reportPostFoundBadge, reportFilesFoundBadge, reportFilesHref, reportKeyNorm, reportPreimage, reportEvidenceJson (+21 more).
 - `server-strip.js` (413): ── server-strip.js ─────────────────────────────────────────────────────── Main items: stripLabel, linkedOrigin, samePagePath, switchLinks, protectedHidesServers, mountServerStrip.
 - `settings.js` (551): Humanity Settings Panel Main items: load, save, hexToRgb, darken, applySettings, isOnChat, injectGearButton, togglePanel (+5 more).
-- `shell.js` (2145): HumanityOS Shared Shell, Nav + Footer Main items: showErrorBanner, showHelp, loadSharedModule, cls, navTab, mobileLink, onMobileDrawerKey, closeMobileDrawer (+7 more).
+- `shell.js` (2142): HumanityOS Shared Shell, Nav + Footer Main items: showErrorBanner, showHelp, loadSharedModule, cls, navTab, mobileLink, onMobileDrawerKey, closeMobileDrawer (+7 more).
 - `strip-metadata.js` (1129): ── strip-metadata.js ───────────────────────────────────────────────────── Main items: asBytes, be16, be32, le32, is4, name4, startsWithAscii, sameBytes (+51 more).
 - `sw.js` (156): Bump version whenever cached assets change.
 - `upload-clean.js` (425): ── upload-clean.js ─────────────────────────────────────────────────────── Main items: removeDetailsChosen, rememberRemoveDetails, protectedSetupOn, readRange, be32, name4, asciiBytes, standIn (+5 more).

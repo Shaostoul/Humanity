@@ -466,6 +466,21 @@
       "date": "2026-10-20",
       "decision": "v0.1526.0: Apps/Files polish from a worktree builder: Library guides in Files open in the Library reader (files/app_folder.rs open_in_library, loaders::library_slug_of_file), Install on program tiles (opens the consent step; nothing runs before I agree, tested), a How this page works fold per page (widgets/how_it_works.rs; safety, not-affiliated and Help lines stay visible), Microsoft Store packages found read-only (src/software/store.rs, PackageManager, store_family data for 11 programs, Launch::StoreApp via shell:AppsFolder with a strict id check).",
       "why": "Follow-ups the operator raised or the earlier builders logged; the operator wanted the long intros condensed and the Library connected to Files while kept separate."
+    },
+    {
+      "date": "2026-10-20",
+      "decision": "v0.1526.1: scripts/sync-web-root.sh publishes ONLY git-tracked data JSON (git ls-files | rsync --files-from; refuses a non-git folder; safe.directory for a checkout owned by the relay user) and removes the retired tools/media/shared-files/agents pages, their scripts and shared/media.css. The mobile menu lost its link to the Agents page (deleted 2026-08-16, still live until tonight). scripts/tests/web-root-retired.test.js (rig-tests) reads every page ever removed from web/ out of git history and fails until the script removes it; red on the pre-fix script (21 files). Verified live: the retired pages 404, apps/files/catalog/library index 200, no console errors on Apps or Files.",
+      "why": "The night's seam review found the deploy copied every JSON under the server's data/ (the running relay's folder too) to the public site, and that retired pages stay live because the copy has no delete. Checked first that nothing private had been published. An exclude list (the seam builder's first BUG-206 draft) was dropped for the tracked-only rule, which cannot miss a folder added later."
+    },
+    {
+      "date": "2026-10-20",
+      "decision": "Merged the food builder: eating feeds and waters by the food's weight (items.csv weight less USDA refuse, item_profiles.ron portions for 163 foods), its kcal and USDA water_g (48 profiles); SATIATION_PER_KCAL so 2,000 kcal puts back a day of the 100-points-a-week bar; a diesel generator (Kubota GL-7000 class, 6.5 kW, 2.6 L/h) built at a workbench; refine_crude 10 crude (12.5 L) to 6 gasoline + 4 diesel by EIA shares; crude weighs 1.06 kg (1.25 L at GREET density).",
+      "why": "Follow-ups from v0.1525.0: food used flat amounts (a cucumber out-watered a jug, a loaf filled three days), nothing burned diesel, the split ignored the crude volume. Checked: a mess-hall meal (400 g ration, 800 kcal) three times a day gives 2,400 kcal against the 2,000 drain, so the crew stays fed."
+    },
+    {
+      "date": "2026-10-20",
+      "decision": "Dispatched overnight: BUG-161 (copresence steady-speed judges report contaminated, not FAIL, on a starved machine; builds held at BelowNormal during a capture), falls (Injury::Fall by impact speed, cited thresholds, two modes), heat pump + wood stove machines (data/hvac.ron rows had none). The seam builder (seam review findings 1, 2, 5, 7, 8, 9, the files-app.js ratchet and BUG-206) was told to drop its sync-web-root.sh edit.",
+      "why": "The next items on the follow-up list that touch disjoint files; at most two Rust builds at a time on this machine."
     }
   ],
   "active_scopes_to_avoid": [
@@ -495,7 +510,7 @@
     "Trees have no materialised identity, so they cannot be felled. The key (cell_x, cell_y, item_index) already exists structurally; a sparse delta store is the shape."
   ],
   "how_to_resume": "1. `just brief` (version/CI/signing). 2. docs/PRIORITIES.md \"Active focus\" - the top item is fully specified, start implementing rather than investigating. 3. This file for WHY. Note the ONE-GPU rule: `tasklist //FI \"IMAGENAME eq HumanityOS.exe\"` before booting any rig, and never boot beside the operator instance.",
-  "last_updated": "2026-10-20",
+  "last_updated": "2026-10-20T04:55-07:00",
   "focus": "v0.1111.1 shipped (the 2026-08-03/04 vegetation marathon, v0.1109.4-v0.1111.1). Landed: leaf tufts stopped being cubes (golden-angle azimuths + solved per-card tilts, measured 100% parallel pairs on conifers and 67% perpendicular on broadleaves before); distant cards stopped out-shining mesh trees (4-8x, three multiplying causes, then the residual 28% conifer excess traced to the odd component of the shading normals and cancelled at source - all species now 1.00 flat across the sky); standing still stopped depending on the frame rate (the frame-lock sampled terrain one frame of planetary spin behind the player, 33,360 m/s of ground slip, so altitude read as a function of fps and flipped stand height by 2.45 m); the card-hide radius stopped promising models that never drew (BUG-068); forest density stopped being a process-global read separately by two streams (BUG-069); and the card cutoff is now clamped to the terrain reach that actually exists. Foliage-card arrangement extracted to renderer/tree_cards.rs under the size ratchet, and the ratchet budget came DOWN.",
   "overnight_plan_2026_08_01": {
     "directive": "Operator (heading to bed, full trust granted): PERMANENT versions only, no half fixes. Full PBR textures (not just diffuse). Real full canopies of leaves and flowers. Photorealism is the goal - screenshots good enough to land donations/grants; money is tight. 8-10 hours unattended.",
