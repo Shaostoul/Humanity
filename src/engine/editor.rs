@@ -52,20 +52,6 @@ pub(crate) const CORRIDOR_MOUTH_HANDLE_LIFT: f32 = 0.3;
 
 pub(crate) const DRAG_THRESHOLD_PX: f32 = 6.0;
 
-/// Every unique wall CORNER (deduped by position) -- the node set the gizmos + dragging act on.
-/// (v0.541)
-pub(crate) fn unique_corners(hs: &crate::ship::home_structure::HomeStructure) -> Vec<(f32, f32)> {
-    let mut out: Vec<(f32, f32)> = Vec::new();
-    for wall in &hs.walls {
-        for c in [wall.a, wall.b] {
-            if !out.iter().any(|o| (o.0 - c.0).abs() < 0.05 && (o.1 - c.1).abs() < 0.05) {
-                out.push(c);
-            }
-        }
-    }
-    out
-}
-
 /// Snapshot the current editor state for undo/redo (v0.575). Structure + machines only -- not the
 /// selection (restoring a stale selection would yank the right panel).
 pub(crate) fn editor_snapshot(state: &EngineState) -> EditorSnapshot {

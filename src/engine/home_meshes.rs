@@ -266,7 +266,19 @@ pub(crate) fn rebuild_homestead(state: &mut EngineState) {
     // v0.534/v0.754: regenerate the WHOLE SHIP (every zone, offset by its origin) when present,
     // else the legacy AABB-room layout.
     let homestead = if let Some(ship) = state.gui_state.ship_structure.as_ref() {
-        ship.generate_meshes()
+        // The B editor's storey cut-away (ship homes increment 7, engine/editor_storeys.rs
+        // `editor_cut_away`): while it works on a storey with others above, the zone it edits is
+        // drawn with those storeys taken out, so the storey can be seen and edited from above. The
+        // rooms stay the whole ship's (the lights, room GI, the HUD, footing), so choosing a storey
+        // changes nothing but the picture. Two mesh builds while a cut is shown, editor only.
+        match crate::engine::editor::editor_cut_away(state) {
+            Some(cut) => {
+                let mut m = cut.generate_meshes();
+                m.room_info = ship.generate_meshes().room_info;
+                m
+            }
+            None => ship.generate_meshes(),
+        }
     } else if let Some(layout) = state.homestead_layout.clone() {
         crate::ship::fibonacci::generate_from_layout(&layout)
     } else {

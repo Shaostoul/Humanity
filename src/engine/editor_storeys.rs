@@ -300,7 +300,7 @@ fn same_corner(p: (f32, f32), q: (f32, f32)) -> bool {
 }
 
 /// Every corner of the walls on storey `k` (`wall_on`), each once: the corner orbs the editor
-/// shows and drags on that storey (`unique_corners`, one storey at a time).
+/// shows and drags on that storey (the editor kept every storey's corners as one set before storeys).
 pub(crate) fn storey_wall_corners(hs: &HomeStructure, k: usize) -> Vec<(f32, f32)> {
     let storeys = hs.storeys();
     let mut out: Vec<(f32, f32)> = Vec::new();
@@ -334,8 +334,6 @@ pub(crate) fn move_storey_corner(hs: &mut HomeStructure, k: usize, from: (f32, f
 }
 
 /// The first wall on storey `k` with an end at corner `c`: the wall a tap on that corner selects.
-// Its caller is in src/lib.rs, the tap on a corner (lane C2's wiring request, increment 7).
-#[allow(dead_code)]
 pub(crate) fn storey_wall_at_corner(hs: &HomeStructure, k: usize, c: (f32, f32)) -> Option<usize> {
     let storeys = hs.storeys();
     hs.walls.iter().position(|w| wall_on(&storeys, w, k) && (same_corner(w.a, c) || same_corner(w.b, c)))
@@ -352,8 +350,6 @@ pub(crate) fn opening_gizmos_on_storey(hs: &HomeStructure, zo: Vec3, k: usize) -
 }
 
 /// `opening_resize_handles` for the walls standing in storey `k`.
-// Its caller is in src/lib.rs, the opening resize handles (lane C2's wiring request, increment 7).
-#[allow(dead_code)]
 pub(crate) fn opening_resize_handles_on_storey(hs: &HomeStructure, zo: Vec3, k: usize) -> Vec<((usize, usize, u8), Vec3)> {
     let storeys = hs.storeys();
     super::opening_resize_handles(hs, zo)
@@ -518,8 +514,6 @@ pub(crate) fn storey_cut_key(state: &EngineState) -> Option<(usize, usize)> {
 
 /// The ship the editor should DRAW (engine/home_meshes.rs `rebuild_homestead` asks): the cut-away
 /// of the storey being edited, or None to draw the ship as it is.
-// Its caller is in src/engine/home_meshes.rs, rebuild_homestead (lane C2's wiring request, increment 7).
-#[allow(dead_code)]
 pub(crate) fn editor_cut_away(state: &EngineState) -> Option<ShipStructure> {
     let (zone, k) = storey_cut_key(state)?;
     cut_away_ship(state.gui_state.ship_structure.as_ref()?, zone, k)
@@ -766,8 +760,6 @@ pub(crate) fn apply_slab_corner_drag(state: &mut EngineState) -> bool {
 /// On a press: select the floor slab whose OUTLINE the cursor is on (within 0.3 m of it, on its
 /// top's plane), of the slabs drawn in the cut-away; nearest to the camera wins. Edges only, so a
 /// click on a floor still reaches the zone or the room it is in. True on a hit.
-// Its caller is in src/lib.rs, the click chain (lane C2's wiring request, increment 7).
-#[allow(dead_code)]
 pub(crate) fn try_pick_slab(state: &mut EngineState) -> bool {
     if slabs_blocked(&state.gui_state) {
         return false;
@@ -806,8 +798,6 @@ pub(crate) fn try_pick_slab(state: &mut EngineState) -> bool {
 
 /// The outline of every floor slab drawn in the cut-away (world corners round its top) and
 /// whether it is the selected one: for the view's helper lines.
-// Its caller is in src/lib.rs, the helper lines (lane C2's wiring request, increment 7).
-#[allow(dead_code)]
 pub(crate) fn slab_outlines(state: &EngineState) -> Vec<([Vec3; 4], bool)> {
     let g = &state.gui_state;
     let Some(hs) = zone_body(&g.ship_structure, g.construction_zone) else {
@@ -835,8 +825,6 @@ pub(crate) fn slab_outlines(state: &EngineState) -> Vec<([Vec3; 4], bool)> {
 /// The slab being drawn, for the view's preview: the rectangle from its first corner to the
 /// cursor on the storey's plan (world, round it), and the world height the slab will go at.
 /// None while no first corner is down.
-// Its caller is in src/lib.rs, the drawing tool's preview (lane C2's wiring request, increment 7).
-#[allow(dead_code)]
 pub(crate) fn slab_draw_preview(state: &EngineState) -> Option<([Vec3; 4], f32)> {
     let g = &state.gui_state;
     let (draw, start) = (g.construction_storeys.draw?, g.construction_storeys.draw_start?);
