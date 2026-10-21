@@ -276,6 +276,49 @@ seen failing first against a deliberate mutation, recorded in its comment):
   `RoomGi::set_budget` itself).
   `config::saved_servers_tests::every_offered_bounced_light_detail_survives_a_restart`.
 
+### Floors between storeys (ship homes increment 7, lane L, 2026-10-21)
+
+A solid floor slab stops lamp light and sunlight, in the lighting and in the room GI. One switch,
+`HAS_SLAB_OCCLUSION` (05-overrides), live in the Surface and Vegetation entries (the
+`HAS_ROOM_GI` set) and dead in the rest; it is the first operand of both of its guards, and
+`validate_wgsl` refuses a megashader without it. Glass slabs are never occluders.
+
+- **Data, no layout change.** The room table (group 0 binding 7) carries, after the rooms, the
+  sun's list of solid slabs (its count in `header.atlas.w`), then each light's RUN of slab rows,
+  which the light names in its unused `cone_inner.yzw` (first row, row count, and its one layer's
+  mid-plane height). `update_room_gi` writes the rows in render space every frame and rewrites
+  the scene light buffer only when slabs exist or existed last frame, so a one-storey home takes
+  exactly the old path. Runs carry any count: the light-budget analysis allowed 3 slabs a light,
+  but in the homestead 12 of its 49 lights reach more than 3 and the workshop's 15 m panels 11,
+  and an unlisted slab leaks.
+- **Lamps.** In frag_tail's light loop, after the range reject, a light with a run skips the
+  fragment when the line to it crosses a slab of the run.
+- **The sun.** `sun_shadow_offset` asks the floors first (then the map, now `sun_map_offset`),
+  ahead of the map's shadows-off return, so a floor stops the sun with sun shadows off; the tail's
+  sun term and the four in-entry `sun_shadow` sites all go through it (the BUG-060 rule by
+  construction). It runs only within 1 m of the rooms' box, so planet vegetation never walks the
+  list.
+- **Exact speed-ups, each measured:** rows nearest the eye or light first; slabs sharing an
+  underside and top grouped into one LAYER so the crossing is computed once per layer; a
+  one-layer plane shortcut; a 16 x 14 occupancy grid per layer row in its spare integer lanes.
+  The CPU twin (`OccluderSlab::blocks_segment`, `sun_blocked_by_slabs`) is the per-slab
+  reference; `run_blocks`, `segment_walk`, `sun_walk` and `layer_grid_holds` transcribe the
+  WGSL, and two tests hold the layered walks to the per-slab answer (69,540 sun cases, 6,007 lamp
+  points).
+- **Room boxes per storey** (`src/engine/room_gi.rs`): a room under a solid slab gets an opaque
+  lid at the slab's underside; under glass the lid passes the glass transmittance times what
+  reaches it from above; an upstairs room's floor reflects as its slab does; only walls standing
+  in a room's storey (2 m or more of overlap) face it. No room box holds a solid slab, so the
+  probe update tests none (a test pins that).
+- **Dev pin:** showcase `slab_occlusion` "0" off, "1" on, "sun" or "lamps" one half alone.
+- **Cost** (gpu.scene, 2560 x 1387, same-boot same-park pairs, DXC): nothing measurable with no
+  slabs; on the shipped homestead console-face-6 +0.14 ms, home-racks-noon +0.08, the upstairs
+  bedroom (vantage home-upstairs-bedroom-noon) +0.53 (sun +0.08, lamps +0.45; about 0.22 ms at
+  1600 x 900). Upstairs most lamps in range are ground-floor lamps lighting up through the glass
+  lids, which nothing blocks, so each pays its layer-row read (~8.5 ps a lamp). Next if it
+  matters: pack the layer rows (fewer loads a walk), cull runs per light tile, the near sun
+  cascades for walls.
+
 ## 4. Measured
 
 All same-boot A/B with the dev switch, 2026-09-27. Pictures at 1600x900

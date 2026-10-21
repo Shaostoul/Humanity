@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Recovery, HumanityOS</title>
-  <meta name="description" content="Set up Shamir-secret-shared key recovery via trusted guardians. Lose your phone, recover with M-of-N shares.">
+  <meta name="description" content="Recovery through trusted people: what it is, that it is not finished yet, and the two lookups that work today.">
   <link rel="manifest" href="/shared/manifest.json">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="stylesheet" href="/shared/theme.css">
@@ -79,6 +79,12 @@
     .status-badge.expired { background: rgba(239,79,79,0.2); color: var(--pg-expired-ink); }
 
     .empty { color: var(--text-muted); text-align: center; padding: 16px; font-size: 0.88rem; }
+    .not-finished {
+      border: 1px solid var(--warning); border-radius: var(--radius);
+      padding: 12px 16px; margin: 12px 0 0; color: var(--text);
+    }
+    .not-finished strong { color: var(--warning); }
+    .lookup-label { color: var(--text-muted); font-size: 0.88rem; margin: 0 0 8px; }
   </style>
 </head>
 <body>
@@ -86,34 +92,35 @@
   <script src="/shared/shell.js"></script>
   <script src="/shared/pq-identity.js"></script>
 
+  <!-- Web mirror of Settings > Account > "Recovery through trusted people" in the app
+       (src/gui/pages/settings/recovery.rs, 2026-10-20). Same words, same two lookups. The
+       website's Settings links here from its Security section. -->
   <div class="container">
     <header class="rec-hero">
-      <h1>Social Key <em>Recovery</em></h1>
-      <p style="color: var(--text-muted);">Lose your device, recover your identity. Your recovery phrase splits via Shamir secret sharing across trusted guardians, encrypted to each guardian's Kyber768 key. The relay stores only opaque ciphertext.</p>
+      <h1>Recovery through <em>trusted people</em></h1>
+      <p style="color: var(--text-muted);">Part of <a href="/settings">Settings</a>, beside your recovery phrase.</p>
     </header>
 
     <div class="explainer">
-      <h3>How it works</h3>
-      <ol>
-        <li>Pick <strong>N</strong> trusted guardians (friends, family, partner servers). Decide a threshold <strong>M</strong> (e.g., 3 of 5).</li>
-        <li>Your client splits your recovery phrase into N Shamir shares, encrypts each to a guardian's Kyber768 pubkey, and posts <code>recovery_share_v1</code> signed objects.</li>
-        <li>If you lose your device, generate a new Dilithium3 keypair and post a <code>recovery_request_v1</code> signed by the new key.</li>
-        <li>Guardians review the request and post <code>recovery_approval_v1</code>. When M approvals arrive, the request flips to <code>ready</code>.</li>
-        <li>Your client collects the M decrypted shares (out-of-band, e.g. via DM), reassembles the recovery phrase via Shamir, and posts a <code>key_rotation_v1</code>. Done.</li>
-      </ol>
+      <h3>What it is</h3>
+      <p style="color: var(--text-muted); font-size: 0.92rem;">If you ever lose this device and your recovery phrase too, people you trust could help you back into your account. You would pick a few of them as your guardians. Each would keep one piece of your recovery phrase, locked so that only that guardian can open it, and the server would hold the pieces without being able to read them. One piece alone is not enough: it takes as many of your guardians as you chose, together, to put the phrase back together, and with it you are back in the same account.</p>
+      <p class="not-finished"><strong>Not finished yet.</strong> Choosing your guardians and splitting your phrase into pieces has not been built, so nobody can set this up today. Until it is, your recovery phrase is the only way back into your account: keep it written down somewhere safe.</p>
+      <p style="color: var(--text-muted); font-size: 0.92rem; margin-top: 12px;">What works today is looking things up on this server: whether an account has guardians, and the pieces a guardian keeps for other people. An account ID starts with did:hum:; the desktop app shows yours in Settings &gt; Account.</p>
     </div>
 
+    <h2 style="font-size: 1.1rem; margin-top: 24px; color: var(--text);">Does an account have guardians?</h2>
     <div class="lookup-row">
-      <input type="text" id="did-input" placeholder="did:hum:... \u2014 your DID, or someone whose recovery you're checking" />
-      <button id="lookup-btn">Look up setup</button>
+      <input type="text" id="did-input" placeholder="Account ID (starts with did:hum:)" aria-label="Account ID" />
+      <button id="lookup-btn">Look up</button>
     </div>
 
     <div id="setup-area"></div>
 
     <h2 style="font-size: 1.1rem; margin-top: 32px; color: var(--text);">Are you a guardian?</h2>
+    <p class="lookup-label">See the pieces you keep for other people.</p>
     <div class="lookup-row">
-      <input type="text" id="guardian-input" placeholder="did:hum:... \u2014 enter your DID to see what shares you hold" />
-      <button id="guardian-btn">Show shares I hold</button>
+      <input type="text" id="guardian-input" placeholder="Your account ID (starts with did:hum:)" aria-label="Your account ID" />
+      <button id="guardian-btn">Show the pieces I keep</button>
     </div>
 
     <div id="guardian-area"></div>
@@ -124,31 +131,33 @@
     document.getElementById('lookup-btn').addEventListener('click', loadSetup);
     document.getElementById('guardian-btn').addEventListener('click', loadGuardianShares);
 
+    // The same rule as the app's: did:hum: and letters and numbers (the fingerprint is base58).
+    function isAccountId(s) { return /^did:hum:[A-Za-z0-9]+$/.test(s); }
+    var NOT_AN_ID = 'That is not an account ID. One starts with did:hum: followed by letters and numbers.';
+    function plural(n, one, many) { return n === 1 ? '1 ' + one : n + ' ' + many; }
+    function card(inner) { return '<div class="card">' + inner + '</div>'; }
+    function note(text) { return card('<div class="empty">' + escapeHtml(text) + '</div>'); }
+
     async function loadSetup() {
       var did = document.getElementById('did-input').value.trim();
       var area = document.getElementById('setup-area');
       if (!did) { area.innerHTML = ''; return; }
-      area.innerHTML = '<div class="empty">Loading\u2026</div>';
+      if (!isAccountId(did)) { area.innerHTML = note(NOT_AN_ID); return; }
+      area.innerHTML = '<div class="empty">Looking it up…</div>';
       try {
         var setup = await window.HumOS.pq.getRecoverySetup(did);
         if (!setup || setup.error) {
-          area.innerHTML = '<div class="card"><div class="empty">No recovery setup for this DID. Set one up by posting <code>recovery_share_v1</code> signed_objects, one per guardian.</div></div>';
+          area.innerHTML = note('This account has no guardians on this server.');
           return;
         }
-        area.innerHTML =
-          '<div class="card">' +
-            '<h3>Recovery Setup</h3>' +
-            '<div class="kv"><span class="k">Holder DID</span><span class="v">' + escapeHtml(setup.holder_did) + '</span></div>' +
-            '<div class="threshold-display">' + setup.threshold + ' of ' + setup.total_shares + ' shares required</div>' +
-            '<div style="margin-top:8px;">' +
-              '<div class="kv"><span class="k">Guardian count</span><span class="v">' + setup.guardians.length + '</span></div>' +
-              '<div class="guardian-list" style="margin-top:8px;">' +
-                setup.guardians.map(function(g){ return '<div class="guardian-row">' + escapeHtml(g) + '</div>'; }).join('') +
-              '</div>' +
-            '</div>' +
-          '</div>';
+        area.innerHTML = card(
+          '<div class="threshold-display">' + setup.threshold + ' of ' + plural(setup.total_shares, 'guardian', 'guardians') + '</div>' +
+          '<p class="lookup-label">This account has ' + plural(setup.total_shares, 'guardian', 'guardians') + ', and it takes ' + setup.threshold + ' of them to put its phrase back together:</p>' +
+          '<div class="guardian-list">' +
+            setup.guardians.map(function(g){ return '<div class="guardian-row">' + escapeHtml(g) + '</div>'; }).join('') +
+          '</div>');
       } catch (err) {
-        area.innerHTML = '<div class="card"><div class="empty">Lookup failed: ' + escapeHtml(String(err && err.message || err)) + '</div></div>';
+        area.innerHTML = note('Could not look it up: ' + String(err && err.message || err));
       }
     }
 
@@ -156,25 +165,24 @@
       var gid = document.getElementById('guardian-input').value.trim();
       var area = document.getElementById('guardian-area');
       if (!gid) { area.innerHTML = ''; return; }
-      area.innerHTML = '<div class="empty">Loading\u2026</div>';
+      if (!isAccountId(gid)) { area.innerHTML = note(NOT_AN_ID); return; }
+      area.innerHTML = '<div class="empty">Looking it up…</div>';
       try {
         var shares = await window.HumOS.pq.getSharesHeldBy(gid);
         if (!shares || !shares.length) {
-          area.innerHTML = '<div class="card"><div class="empty">You hold no recovery shares for any DID.</div></div>';
+          area.innerHTML = note('This account keeps no pieces for anyone on this server.');
           return;
         }
-        area.innerHTML =
-          '<div class="card">' +
-            '<h3>Shares You Hold (' + shares.length + ')</h3>' +
-            shares.map(function(s){
-              return '<div class="guardian-row" style="margin-bottom:6px;">' +
-                'Holder: ' + escapeHtml(s.holder_did) + '<br>' +
-                'Threshold: ' + s.threshold + ' of ' + s.total_shares +
-              '</div>';
-            }).join('') +
-          '</div>';
+        area.innerHTML = card(
+          '<h3>This account keeps ' + plural(shares.length, 'piece', 'pieces') + '</h3>' +
+          shares.map(function(s){
+            return '<div class="guardian-row" style="margin-bottom:6px;">' +
+              escapeHtml(s.holder_did) + '<br>' +
+              'It needs ' + s.threshold + ' of its ' + plural(s.total_shares, 'guardian', 'guardians') + ' together.' +
+            '</div>';
+          }).join(''));
       } catch (err) {
-        area.innerHTML = '<div class="card"><div class="empty">Lookup failed: ' + escapeHtml(String(err && err.message || err)) + '</div></div>';
+        area.innerHTML = note('Could not look it up: ' + String(err && err.message || err));
       }
     }
 

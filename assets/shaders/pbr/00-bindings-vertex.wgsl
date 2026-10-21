@@ -86,11 +86,13 @@ struct MaterialUniforms {
 };
 
 // One scene light in the UNCAPPED storage-buffer list (v0.782). Packing
-// matches Renderer::set_point_lights: pos_intensity = [pos.xyz, intensity],
+// matches light::gpu_packed_with_slabs: pos_intensity = [pos.xyz, intensity],
 // color_range = [rgb, range], spot = [aim.xyz, cos_outer (-1 = no cone)],
-// cone_inner = [cos_inner, 0, 0, 0]. The light0..7 fields above are legacy
-// (unused, kept so no uniform byte offset shifts); camera.light_count.x
-// bounds the loop over this buffer.
+// cone_inner = [cos_inner, first slab row, slab row count, its one layer's
+// plane height] (the light's run of floor slabs, ship homes increment 7; 0
+// rows for a light no floor is near; slab_blocks_light in 85-room-gi.wgsl).
+// The light0..7 fields above are legacy (unused, kept so no uniform byte
+// offset shifts); camera.light_count.x bounds the loop over this buffer.
 struct GpuLight {
     pos_intensity: vec4<f32>,
     color_range: vec4<f32>,
@@ -478,7 +480,10 @@ const SHADOW_TEXEL_M: f32 = 0.732421875;
 //
 // Pass vec3(0) for `n` to opt out (cards and blades, whose normals are not
 // the geometry the shadow map rasterised).
-fn sun_shadow_offset(world_pos: vec3<f32>, n_dot_l: f32, n: vec3<f32>) -> f32 {
+//
+// This is the MAP's half of the sun's visibility; every caller goes through
+// sun_shadow_offset below, which tests the floors between storeys first.
+fn sun_map_offset(world_pos: vec3<f32>, n_dot_l: f32, n: vec3<f32>) -> f32 {
     if (shadow_u.params.x < 0.5) {
         return 1.0;
     }
@@ -518,6 +523,32 @@ fn sun_shadow_offset(world_pos: vec3<f32>, n_dot_l: f32, n: vec3<f32>) -> f32 {
     }
     lit = lit / 9.0;
     return mix(mix(1.0 - shadow_u.params.y, 1.0, lit), 1.0, edge_fade);
+}
+
+// The sun's visibility from a world-space point: the FLOORS between a home's
+// storeys, then the shadow map. Every sun-derived term reaches the sun through
+// here (frag_tail's sun term with the normal offset, and through sun_shadow
+// the type-19 lobe, the cluster cards', leaves' and grass blades'
+// transmission, and the ocean's sun terms), so a floor blocks all of them: a
+// term that skipped it would glow under a solid floor (the BUG-060 lesson,
+// where one transmission term missed the shadow map and shaded crowns glowed).
+//
+// The floor test comes FIRST and does not look at the shadow map's switch:
+// the home never casts into the map (its texels are 0.73 m and its depth bias
+// metres), and a floor between you and the sun is not a quality option, so
+// it holds with sun shadows off. A floor is opaque, so a blocked point skips
+// the map and returns 0 (the map's shadow strength softens only ITS shade).
+// HAS_SLAB_OCCLUSION is live in the surface and vegetation PSOs (where a
+// home's inside is drawn) and folds this to the map alone everywhere else;
+// with no slab rows (a one-storey home) it is one compare. 85-room-gi.wgsl
+// holds the test, room_probes::sun_blocked_by_slabs its CPU twin.
+fn sun_shadow_offset(world_pos: vec3<f32>, n_dot_l: f32, n: vec3<f32>) -> f32 {
+    if (HAS_SLAB_OCCLUSION && room_gi.header.atlas.w > 0u) {
+        if (slab_sun_blocked(world_pos, camera.sun_direction.xyz)) {
+            return 0.0;
+        }
+    }
+    return sun_map_offset(world_pos, n_dot_l, n);
 }
 
 // Plain entry point: fragments outside the ortho box (or with shadows off)

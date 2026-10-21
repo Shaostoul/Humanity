@@ -252,12 +252,24 @@ pub(crate) fn seed_build_avatar(state: &mut EngineState) {
 /// storey. None leaves the spawn as it is: a Save without moving the avatar must not make wherever
 /// the player stood the home's door, and a spot upstairs is no ground spot (the spawn has no
 /// height; written as one, it would put the door under the upper floor, perhaps in a wall).
+///
+/// A PLACE TO STAND ON THE GROUND FLOOR (the seams review of 2026-10-21, finding 1): world entry
+/// stands the player on the ground floor at the spawn, and the footing steps a body up no more than
+/// a step from there, so a spot over a stair's flight where its steps are higher than that is a
+/// spawn inside the flight, from which every world entry after the Save was pushed out sideways
+/// through the wall beside it. The spawn written is the nearest place to stand on the ground storey
+/// with the flights kept out (ship/standing.rs `nearest_standing_clear_of`, `stair_keep_outs`); a
+/// spot that is one is written as it is.
 pub(crate) fn spawn_from_avatar(g: &GuiState) -> Option<(f32, f32)> {
+    use crate::ship::standing::{nearest_standing_clear_of, stair_keep_outs};
     let spot = g.build_char_pos?;
     let hs = zone_body(&g.ship_structure, g.construction_zone)?;
     let k = EditStorey::of(hs, g.construction_storeys.chosen).index;
     let moved = g.construction_storeys.avatar_seed != Some((g.construction_zone, spot, k));
-    (moved && k == 0).then_some(spot)
+    if !(moved && k == 0) {
+        return None;
+    }
+    nearest_standing_clear_of(hs, 0, spot.0, spot.1, &stair_keep_outs(hs, 0))
 }
 
 /// The ray distance at which wall `w` is hit (its zone's origin at world `zo`), or None. A wall is

@@ -262,6 +262,9 @@ and `src/engine/survival_env.rs`'s pinned top positions (both listed in the layo
   light it blocks; views with no slab are bit-identical. One switch, `HAS_SLAB_OCCLUSION`, in the
   Surface and Vegetation entries (the `HAS_ROOM_GI` set). No bind-group change. A per-light height
   band was rejected: wrong at the stairwell, exactly where the rig walks.
+  (As built, lane L 2026-10-21: each light carries a RUN of slab rows of any length, not 3
+  slots, because 12 of the homestead's 49 lights reach more than 3 slabs; docs/design/room-gi.md,
+  "Floors between storeys".)
 - **The sun through a floor:** the same slab rows and crossing test toward the sun, applied even
   with sun shadows off (a floor is not a quality option), at the sun term and the four in-entry
   `sun_shadow` sites (so leaf transmission is blocked too, the BUG-060 rule). About 0.02 to

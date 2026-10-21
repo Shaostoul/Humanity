@@ -2577,7 +2577,11 @@ impl Renderer {
             self.rebuild_camera_bind_groups();
         }
         // Pack ALL lights in the WGSL GpuLight layout (light::gpu_packed, which
-        // the room GI probe update packs with too).
+        // the room GI probe update packs with too). With no floor-slab run:
+        // when the home has floors between storeys, `update_room_gi`, later
+        // this frame and before the scene pass, rewrites this buffer with each
+        // light's run of slabs (light::gpu_packed_with_slabs), because only it
+        // has this frame's station offset for the slab rows the runs point at.
         if !lights.is_empty() {
             let packed: Vec<[f32; 16]> = lights.iter().map(light::gpu_packed).collect();
             self.queue

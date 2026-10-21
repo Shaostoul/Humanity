@@ -3088,12 +3088,15 @@ mod tests {
     /// corridor's cut only from its foot to its head, so the wall over each one is a segment of its
     /// own (a lintel, `wall_collision::SegmentKind::Lintel`: 45 in the home, over its doors and
     /// the plot door's cut, 65 in the ship before the split), and gave stairs-1 its collision (53 faces of its steps,
-    /// `SegmentKind::Step`); the home's 96 walls and 5 guards are as they were. The sight lines are
-    /// unchanged: they see through the upper floor's five balustrade guards (src/ship/
-    /// wall_collision.rs `sight_segments_with_shell_cuts`), open every doorway at every height and
-    /// hide nothing behind a stair, so a homestead's bare shell is 108 sight segments.
+    /// `SegmentKind::Step`); the home's 96 walls and 5 guards are as they were. The sight lines see
+    /// through the upper floor's five balustrade guards (src/ship/wall_collision.rs
+    /// `sight_segments_with_shell_cuts`) and hide nothing behind a stair; since the seams review of
+    /// 2026-10-21 (finding 3) they open each doorway, window and cut only from its foot to its head,
+    /// as the walk does, so the wall over every doorway and corridor cut and the wall under and over
+    /// every window stand in them with their heights: 274 sight segments before the split (169
+    /// while every opening was open at every height), and a homestead's bare shell 178 (108).
     const WALL_SEGMENTS_BEFORE: usize = 272;
-    const SIGHT_SEGMENTS_BEFORE: usize = 169;
+    const SIGHT_SEGMENTS_BEFORE: usize = 274;
     const HOME_SEGMENTS_BEFORE: usize = 199;
 
     /// Assembling at p1 reproduces today's ship. Everything that existed before the split (the

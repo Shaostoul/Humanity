@@ -22,13 +22,25 @@
 //! room the camera stands in first (every frame, so the light you are looking
 //! at answers immediately), then the rest of the ship round-robin. The default
 //! acre holds about 19k probes, so a far room is refreshed every few frames.
+//!
+//! THE FLOORS BETWEEN STOREYS (ship homes increment 7, lane L) ride in the same
+//! room table, after the rooms: every solid floor slab once, grouped into
+//! layers for the sun (`room_probes::layered_rows`), then each scene
+//! light's RUN of the slabs its range reaches, copied, which `update_room_gi`
+//! names in the light's record (`light::gpu_packed_with_slabs`) and rewrites
+//! the scene light buffer with. The fragments read them through
+//! `HAS_SLAB_OCCLUSION`'s two guards (85-room-gi.wgsl); the probe update reads
+//! none (`room_probes::light_irradiance` says why). A home with no upper floor
+//! writes no slab row and leaves the light buffer as `set_point_lights` wrote
+//! it, so nothing changes for it.
 
 use glam::Vec3;
 
-use super::light::gpu_packed;
+use super::light::{gpu_packed, gpu_packed_with_slabs};
 use super::room_probes::{
-    assign_lights, lattice_for, pack_room, pick_order, ray_rotation, AtlasLayout, GiHeaderGpu, GiParamsGpu, GiRoomGpu, RoomBox,
-    HEADER_BYTES, HYSTERESIS, NORMAL_BIAS_M, ROOM_BYTES, SKY_LIGHTING_EXPOSURE,
+    assign_lights, lattice_for, layered_rows, light_anchor, pack_room, pick_order, ray_rotation, run_plane, slabs_touched,
+    AtlasLayout, GiHeaderGpu, GiParamsGpu, GiRoomGpu, OccluderSlab, RoomBox, HEADER_BYTES, HYSTERESIS, NORMAL_BIAS_M,
+    ROOM_BYTES, SKY_LIGHTING_EXPOSURE,
 };
 use super::bounced_light_detail::{mb_words, probe_memory_bytes};
 use super::room_probes::{ProbeBudget, PROBE_SPACING_M};
@@ -36,6 +48,17 @@ use super::{pipeline, Renderer};
 
 /// Probes the update refreshes per frame, at most.
 pub const MAX_UPDATES_PER_FRAME: u32 = 4096;
+
+/// The most rows the lights' slab runs may take in one frame. The homestead's
+/// upper floor and its 49 lights (a strip counts once per segment) take 197
+/// (149 slab rows and 48 layer rows; 34 KB a frame with the sun's 14), the
+/// longest run 11 of its 13 merged slabs (counted by
+/// `engine::room_gi::tests::the_homestead_upper_floor_fits_the_light_runs`
+/// with `--nocapture`); this bounds the dev stress test
+/// (showcase `lights:N` puts up to 2048 lights round the camera) to 1.3 MB a
+/// frame. A light past the cap names no run, so a floor does not stop it, and
+/// the log says so once.
+pub const MAX_SLAB_RUN_ROWS: usize = 8192;
 /// Past this distance from the nearest room the update stops (the probes keep
 /// what they have): nobody on a planet's surface needs the station's rooms
 /// relit every frame.
@@ -120,6 +143,28 @@ pub struct RoomGi {
     pub last_updated: u32,
     /// The update's bind groups (`make_bind_groups`); None = build them.
     bind_groups: Option<(wgpu::BindGroup, wgpu::BindGroup)>,
+    /// Every SOLID floor slab of the ship in the HOME frame, adjacent ones
+    /// merged (`engine::room_gi::occluder_slabs`); empty for a one-storey home.
+    slabs: Vec<OccluderSlab>,
+    /// The dev switch (showcase `{"slab_occlusion":"0"}`): no slab rows and no
+    /// runs, so lamps and the sun pass every floor as they did before storeys.
+    /// The same-boot A/B of what the floors take away and what they cost.
+    pub slabs_off: bool,
+    /// Which half of the floors' test runs while they are on: the sun's
+    /// (`"sun"` writes no light runs) or the lamps' (`"lamps"` writes no sun
+    /// list), both by default. For attributing the floors' cost at runtime,
+    /// where a shader variant would change the code generation it measures.
+    pub slabs_sun: bool,
+    pub slabs_lamps: bool,
+    /// Some light in the scene light buffer names a run. A frame with none
+    /// must then rewrite the buffer once: a light `set_point_lights` did not
+    /// repack this frame would otherwise keep a run whose rows now hold
+    /// something else.
+    slab_runs_live: bool,
+    /// Rows written after the rooms in the last frame: the slabs (the sun's
+    /// list) and the lights' runs.
+    pub last_slab_rows: u32,
+    pub last_run_rows: u32,
 }
 
 fn atlas_texture(device: &wgpu::Device, layout: &AtlasLayout, label: &str) -> (wgpu::Texture, wgpu::TextureView) {
@@ -275,7 +320,19 @@ impl RoomGi {
             rebind: false,
             last_updated: 0,
             bind_groups: None,
+            slabs: Vec::new(),
+            slabs_off: false,
+            slabs_sun: true,
+            slabs_lamps: true,
+            slab_runs_live: false,
+            last_slab_rows: 0,
+            last_run_rows: 0,
         }
+    }
+
+    /// Solid floor slabs in the ship (home frame), for the dev switch's log.
+    pub fn slab_count(&self) -> usize {
+        self.slabs.len()
     }
 
     /// Probes in the ship.
@@ -474,6 +531,19 @@ impl Renderer {
         }
     }
 
+    /// Hand the renderer the ship's SOLID floor slabs (home frame), after
+    /// every home build or edit, beside the rooms (`engine::room_gi::
+    /// rooms_changed`). From the next frame they keep lamp light and sunlight
+    /// on their own storey (`update_room_gi` writes their rows). Kept apart
+    /// from the rooms' layout, so a Bounced light detail change, which lays
+    /// the rooms out again, leaves them as they are.
+    pub fn set_room_gi_slabs(&mut self, slabs: Vec<OccluderSlab>) {
+        if slabs != self.room_gi.slabs {
+            log::info!("[RoomGI] {} solid floor slabs keep lamp light and sunlight to their storey", slabs.len());
+            self.room_gi.slabs = slabs;
+        }
+    }
+
     /// The Bounced light detail level's budget, every frame and before every
     /// rooms hand-over (`engine::room_gi`). A no-op while it is unchanged; a
     /// change lays the rooms out again, remakes the atlas at the new size and
@@ -563,17 +633,105 @@ impl Renderer {
             let vis = gi.force_visibility;
             table.push(pack_room(&render_rooms[i], gi.counts[i], gi.first[i], first_light, owned[i].len() as u32, vis));
         }
+        // ── FLOORS BETWEEN STOREYS (ship homes increment 7, lane L) ──
+        // After the rooms: every solid floor slab once (the sun's list, its
+        // count in the header's atlas.w), then each scene light's RUN of the
+        // slabs its range reaches, copied, which the light's record names as
+        // (first, count) (light::gpu_packed_with_slabs). Render space: the
+        // same station offset as the rooms here and as the lights, which lib.rs
+        // offset by it before `set_point_lights` earlier this frame. Written
+        // whether or not room GI is on: a floor is lighting, not bounce.
+        let render_slabs: Vec<OccluderSlab> =
+            if gi.slabs_off { Vec::new() } else { gi.slabs.iter().map(|s| s.shifted(station_off)).collect() };
+        // The sun's list (`room_probes::layered_rows`): the slabs grouped into
+        // layers behind a layer row each, so a fragment crosses each layer's
+        // plane once and skips a layer its path misses (a low sun's), and
+        // NEAREST THE EYE FIRST, because the walk stops at the first slab that
+        // blocks and most of what is on screen stands under the nearest one.
+        // Measured 2026-10-21 with the upper-floor layout's slabs, floors on
+        // against off, same boot: in the merge order home-racks-noon read
+        // gpu.scene +1.25 ms (the mushroom room's slab was the 12th of 13);
+        // sorted, +0.0, while the dawn park console-face-6 still read +0.47
+        // (13 crossings, none blocking) until the layers. The runs below are
+        // copies, so any order serves them.
+        let sun_list =
+            if render_slabs.is_empty() || !gi.slabs_sun { Vec::new() } else { layered_rows(&render_slabs, eye) };
+        table.extend(sun_list.iter().copied());
+        // Per scene light: (first row, rows, the one layer's plane).
+        let mut runs: Vec<(u32, u32, f32)> = Vec::new();
+        if !render_slabs.is_empty() && gi.slabs_lamps {
+            let mut first = 0usize;
+            let mut capped = 0usize;
+            for l in &self.cur_lights {
+                let touched: Vec<OccluderSlab> = slabs_touched(l, &render_slabs).iter().map(|&k| render_slabs[k]).collect();
+                // Layered like the sun's list, nearest the light first, and the
+                // one layer's plane in the light's record (`run_plane`): a lamp
+                // on the fragment's own storey then reads no row at all.
+                let rows = if touched.is_empty() { Vec::new() } else { layered_rows(&touched, light_anchor(l)) };
+                if first + rows.len() > MAX_SLAB_RUN_ROWS {
+                    capped += 1;
+                    runs.push((0, 0, 0.0));
+                    continue;
+                }
+                runs.push((first as u32, rows.len() as u32, run_plane(&rows)));
+                first += rows.len();
+                table.extend(rows);
+            }
+            static CAPPED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+            if capped > 0 && !CAPPED.swap(true, std::sync::atomic::Ordering::Relaxed) {
+                log::warn!(
+                    "[RoomGI] {capped} lights name no floor slabs: their runs would pass {MAX_SLAB_RUN_ROWS} rows, so a floor does not stop them"
+                );
+            }
+        }
+        gi.last_slab_rows = sun_list.len() as u32;
+        gi.last_run_rows = (table.len() - render_rooms.len() - sun_list.len()) as u32;
         if table.is_empty() {
             table.push(GiRoomGpu::default());
         }
+        // The rows past the rooms can outgrow the table: grow it like
+        // `set_rooms` does, and rebuild the camera bind groups before anything
+        // draws with the old buffer.
+        let grew = table.len() > gi.rooms_cap;
+        if grew {
+            let mut cap = gi.rooms_cap.max(1);
+            while cap < table.len() {
+                cap *= 2;
+            }
+            gi.rooms_cap = cap;
+            gi.rooms_buf = rooms_buffer(&self.device, cap);
+            gi.rebind = true;
+            gi.bind_groups = None;
+        }
+        // The scene lights' runs: rewrite the buffer `set_point_lights` filled
+        // when any light names one, or when one did last frame (so no stale run
+        // survives). A home with no slabs never rewrites it.
+        let rewrite_lights = !runs.is_empty() || gi.slab_runs_live;
+        gi.slab_runs_live = runs.iter().any(|r| r.1 > 0);
         let header = GiHeaderGpu {
             gmin: [gmin.x, gmin.y, gmin.z, if on { 1.0 } else { 0.0 }],
             gmax: [gmax.x, gmax.y, gmax.z, 0.0],
             info: [render_rooms.len() as u32, gi.total, gi.layout.irr_per_row, gi.layout.depth_per_row],
-            atlas: [gi.layout.width, gi.layout.height, gi.layout.depth_y0, 0],
+            atlas: [gi.layout.width, gi.layout.height, gi.layout.depth_y0, sun_list.len() as u32],
         };
+        if grew {
+            self.rebuild_camera_bind_groups();
+        }
+        let gi = &mut self.room_gi;
         self.queue.write_buffer(&gi.rooms_buf, 0, bytemuck::bytes_of(&header));
         self.queue.write_buffer(&gi.rooms_buf, HEADER_BYTES, bytemuck::cast_slice(&table));
+        if rewrite_lights && !self.cur_lights.is_empty() {
+            let packed: Vec<[f32; 16]> = self
+                .cur_lights
+                .iter()
+                .enumerate()
+                .map(|(i, l)| {
+                    let (first, count, plane) = runs.get(i).copied().unwrap_or((0, 0, 0.0));
+                    gpu_packed_with_slabs(l, first, count, plane)
+                })
+                .collect();
+            self.queue.write_buffer(&self.lights_buffer, 0, bytemuck::cast_slice(&packed));
+        }
         let near = render_rooms.iter().any(|r| r.contains(eye, UPDATE_REACH_M));
         if !on || !near {
             gi.last_updated = 0;
@@ -710,6 +868,30 @@ mod tests {
             assert!(UPDATE_SHADER.contains(&irr), "85-room-gi.wgsl must declare {irr}");
             assert!(UPDATE_SHADER.contains(&depth), "85-room-gi.wgsl must declare {depth}");
         }
+    }
+
+    /// The floors' constants are the same number in the WGSL and the Rust twin
+    /// (85-room-gi.wgsl is the head of this shader, so UPDATE_SHADER holds
+    /// them): the edge tolerance, the sun's reach, and the many-layers
+    /// sentinel the light record carries. Seen red first (2026-10-21) with
+    /// SLAB_EDGE_TOL set to 0.02 in the WGSL: "left: 0.02, right: 0.01".
+    #[test]
+    fn the_floor_constants_match_the_cpu_twin() {
+        use super::super::room_probes::{RUN_MANY_LAYERS, SLAB_EDGE_TOL_M, SLAB_SUN_REACH_M};
+        let value = |name: &str| -> f32 {
+            let decl = format!("const {name}: f32 = ");
+            let at = UPDATE_SHADER.find(&decl).unwrap_or_else(|| panic!("85-room-gi.wgsl declares {decl}"));
+            let rest = &UPDATE_SHADER[at + decl.len()..];
+            rest[..rest.find(';').expect("the declaration ends")].trim().parse().expect("a number")
+        };
+        assert_eq!(value("SLAB_EDGE_TOL"), SLAB_EDGE_TOL_M);
+        assert_eq!(value("SLAB_SUN_REACH"), SLAB_SUN_REACH_M);
+        assert_eq!(value("SLAB_RUN_MANY_LAYERS"), RUN_MANY_LAYERS);
+        // And the layer occupancy grid's shape.
+        use super::super::room_probes::{LAYER_GRID_X, LAYER_GRID_Z};
+        assert!(UPDATE_SHADER.contains(&format!("const SLAB_GRID_X: u32 = {LAYER_GRID_X}u;")));
+        assert!(UPDATE_SHADER.contains(&format!("const SLAB_GRID_Z: u32 = {LAYER_GRID_Z}u;")));
+        assert!(LAYER_GRID_X * LAYER_GRID_Z <= 7 * 32, "the grid fits the layer row's seven spare lanes");
     }
 
     /// The scratch holds one update's worth of tiles, and fits the texture limit.

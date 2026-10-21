@@ -5526,7 +5526,7 @@ mod native_app {
                             state.camera.forward(),
                             state.gui_state.machine_labels.iter().map(|l| (l.pos + off, l.foot_y + off.y)),
                             &state.gui_state.sight_blockers,
-                            |p| ship.and_then(|s| crate::ship::sight::storey_floor(s, p - off)).map(|f| f + off.y),
+                            |p, foot| ship.and_then(|s| crate::ship::sight::storey_floor(s, p - off, foot)).map(|f| f + off.y),
                         );
                     }
 

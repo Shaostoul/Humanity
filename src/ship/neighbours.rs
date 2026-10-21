@@ -718,14 +718,18 @@ mod tests {
         assert!(door_actor_distance(d, None, &[beside], &[]) < 1.5, "the neighbour walking home does not open it");
         let ordinary = doors.iter().find(|p| !p.others_only && !p.is_window).unwrap();
         assert!(door_actor_distance(ordinary, Some(ordinary.center), &[], &[]) < 0.01, "an ordinary door opens for this player");
-        // Walking: the street's west wall is whole across the mouth. Sight: open there.
+        // Walking: the street's west wall is whole across the mouth. Sight: open there, under the
+        // wall over the hole (the sight test reads heights, ship/sight.rs; a level line at a
+        // standing eye's height, 1.7 m over the deck).
         let pack = |s: Vec<crate::ship::wall_collision::WallSegment>| s.into_iter().map(|w| [w.a.0, w.a.1, w.b.0, w.b.1]).collect::<Vec<_>>();
-        let (walk, sight) = (pack(ship_wall_segments(&ship)), pack(ship_sight_segments(&ship)));
+        let walk = pack(ship_wall_segments(&ship));
+        let sight = crate::ship::sight::SightBlockers { walls: ship_sight_segments(&ship), slabs: Vec::new() };
+        let eye = |p: (f32, f32)| Vec3::new(p.0, 1.7, p.1);
         let (street_eye, in_corridor) = ((70.0, 139.0), (60.0, 139.0));
         assert!(sight_blocked(street_eye, in_corridor, &walk), "the street's wall has a walking gap at p2's corridor");
-        assert!(!sight_blocked(street_eye, in_corridor, &sight), "the hole into p2's corridor hides a nameplate in it");
+        assert!(!sight.blocked(eye(street_eye), eye(in_corridor)), "the hole into p2's corridor hides a nameplate in it");
         // The neighbour's own walls block sight as they are drawn: from its corridor, through its
         // east wall (not its door), into the home.
-        assert!(sight_blocked(in_corridor, (40.0, 110.0), &sight), "a nameplate inside p2's home shows through its walls");
+        assert!(sight.blocked(eye(in_corridor), eye((40.0, 110.0))), "a nameplate inside p2's home shows through its walls");
     }
 }

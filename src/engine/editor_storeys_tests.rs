@@ -293,6 +293,42 @@ fn the_editors_save_writes_the_spawn_only_from_an_avatar_moved_onto_the_ground()
     assert_eq!(spawn_from_avatar(&g), Some((6.0, 8.0)), "seeded upstairs, then taken down to the ground floor");
 }
 
+/// THE EDITOR'S SAVE NEVER PUTS THE SPAWN INSIDE A STAIR (the seams review of 2026-10-21, finding
+/// 1). The spawn has no height: world entry stands the player on the ground floor at it, and the
+/// footing steps a body up no more than 0.6 m from there, so a spawn over a stair's flight where
+/// its steps are higher than that is a spawn inside the flight, and every world entry after the
+/// Save would start there, pushed out sideways through a wall. With the avatar dragged onto step 8
+/// of the shipped homestead's stairs-1 (1.5 m up) and Saved, the spawn written is off the flight,
+/// clear of it by a body's radius, and a place to stand on the ground storey; an avatar moved onto
+/// the first steps (no higher than a step up) is written where it is.
+///
+/// Seen red first (2026-10-21) with the Save writing the avatar's spot as it was: "the spawn
+/// written from step 8 of stairs-1 is (38.89, 38.65), on the flight".
+#[test]
+fn the_editors_save_never_puts_the_spawn_inside_a_stair() {
+    use crate::ship::ship_structure::ShipStructure;
+    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+    let ship = ShipStructure::load_and_assemble_shipped(&data, Some("p1")).expect("the shipped ship assembles");
+    let hz = ship.home_zone_index();
+    let mut g = crate::gui::GuiState::default();
+    g.ship_structure = Some(ship);
+    g.construction_zone = hz;
+    g.construction_storeys.chosen = 0;
+    g.construction_storeys.avatar_seed = Some((hz, (53.5, 40.5), 0));
+    // Where the steps more than a step up stand (x 36.5 to 40.16, z 38.05 to 39.25), and a body's
+    // radius round it.
+    let r = crate::ship::wall_collision::PLAYER_RADIUS;
+    let on_flight = |p: (f32, f32)| p.0 > 36.5 - r && p.0 < 40.16 + r && p.1 > 38.05 - r && p.1 < 39.25 + r;
+    g.build_char_pos = Some((38.89, 38.65));
+    let spawn = spawn_from_avatar(&g).expect("an avatar moved on the ground storey writes a spawn");
+    assert!(!on_flight(spawn), "the spawn written from step 8 of stairs-1 is ({:.2}, {:.2}), on the flight", spawn.0, spawn.1);
+    let hs = zone_body(&g.ship_structure, hz).expect("the home's body");
+    assert_eq!(crate::ship::standing::standing_on(hs, 0, spawn.0, spawn.1), Ok(()), "the spawn written from step 8, ({:.2}, {:.2})", spawn.0, spawn.1);
+    assert_eq!(crate::ship::standing::tread_at(hs, 0, spawn.0, spawn.1), None, "the spawn written from step 8 is over a tread");
+    g.build_char_pos = Some((40.6, 38.65));
+    assert_eq!(spawn_from_avatar(&g), Some((40.6, 38.65)), "step 2 of stairs-1, 0.375 m up, is stood on from the floor");
+}
+
 /// THE CUT-AWAY LEAVES OUT WHAT STANDS OVER IT, NOT ONLY WHAT IS IN THE BODY (ship homes increment
 /// 7 review, 2026-10-21). The machines, their screens (which share the machine's position), the
 /// door panels and the elevator cars are drawn from the whole ship, not the cut body, so `CutAway`

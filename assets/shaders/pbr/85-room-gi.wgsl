@@ -48,7 +48,10 @@ struct GiHeader {
     // x = room count, y = probe count, z = irradiance tiles per atlas row,
     // w = depth tiles per atlas row.
     info: vec4<u32>,
-    // x = atlas width, y = atlas height, z = first row of the depth region.
+    // x = atlas width, y = atlas height, z = first row of the depth region,
+    // w = how many rows the sun's list of FLOOR SLABS takes after the rooms,
+    // layer rows included (ship homes increment 7, the slab rows below; 0 for
+    // a one-storey home and with the dev switch {"slab_occlusion":"0"}).
     atlas: vec4<u32>,
 };
 
@@ -250,4 +253,162 @@ fn room_gi_irradiance(p: vec3<f32>, n: vec3<f32>) -> vec4<f32> {
         return vec4<f32>(0.0);
     }
     return vec4<f32>(gi_sample_room(u32(ri), p, n), 1.0);
+}
+
+// ── FLOORS BETWEEN STOREYS (ship homes increment 7, lane L) ──
+//
+// A solid floor slab keeps lamp light and sunlight on its own side. The slabs
+// ride in the room table AFTER the rooms, as GiRoom-sized rows of which only
+// bmin.xyz and bmax.xyz (the slab's box, render space) are read:
+//   rows [info.x, info.x + atlas.w)   the sun's list: every solid slab once,
+//     grouped into layers behind a layer row each (slab_sun_blocked);
+//   then, per scene light, the RUN of slabs its range reaches, copied and
+//     layered the same way (slab_blocks_light), which
+//   the light names as (first, count) in cone_inner.yz, first counted from
+//   info.x + atlas.w (light::gpu_packed_with_slabs, room_probes_gpu).
+// Glass slabs pass light and have no row. No layout change: the table is the
+// one every pipeline already binds at group 0 binding 7.
+//
+// The test, for a point q (a lamp) or the sun along d: the fragment and the
+// light on opposite sides of the slab's mid-plane, and the crossing inside the
+// slab's rectangle shrunk by SLAB_EDGE_TOL (so a fragment on the slab's own
+// edge face is not shadowed by its own slab).
+//
+// CPU TWIN: room_probes::run_blocks (the lamp's test: the one-layer
+// shortcut, then segment_walk) and room_probes::sun_walk (the sun's), both
+// over layered_rows' packing, whose answers equal the per-slab references
+// (OccluderSlab::blocks_segment, which light_irradiance uses, and
+// sun_blocked_by_slabs). LOCKSTEP with SLAB_EDGE_TOL_M, SLAB_SUN_REACH_M and
+// RUN_MANY_LAYERS there (room_probes_gpu::tests checks the three).
+//
+// Read only through the two guarded call sites (frag_tail's light loop and
+// sun_shadow_offset), both behind HAS_SLAB_OCCLUSION. The probe update shader
+// compiles these functions as part of this shared text and calls none of them:
+// a room box never holds a solid slab (room_probes::light_irradiance says why).
+const SLAB_EDGE_TOL: f32 = 0.01;
+const SLAB_SUN_REACH: f32 = 1.0;
+
+// A layer row's OCCUPANCY GRID (room_probes::layered_rows): SLAB_GRID_X by
+// SLAB_GRID_Z cells over the layer's union box, one bit a cell in the row's
+// spare integer lanes (counts.yzw, then lights.xyzw), set where any slab of
+// the layer touches the cell. A crossing in an empty cell misses every slab,
+// so the walk skips the slab tests: the usual miss of a path from upstairs to
+// a lamp under glass or a gap, which cost the shipped homestead's upstairs
+// bedroom gpu.scene +0.59 ms when every slab was tested. CPU twin:
+// room_probes::layer_grid_holds.
+const SLAB_GRID_X: u32 = 16u;
+const SLAB_GRID_Z: u32 = 14u;
+fn slab_layer_may_hold(lr: u32, c: vec3<f32>, lmin: vec3<f32>, lmax: vec3<f32>) -> bool {
+    let dx = max((lmax.x - lmin.x) / f32(SLAB_GRID_X), 1.0e-6);
+    let dz = max((lmax.z - lmin.z) / f32(SLAB_GRID_Z), 1.0e-6);
+    let ix = u32(clamp(floor((c.x - lmin.x) / dx), 0.0, f32(SLAB_GRID_X - 1u)));
+    let iz = u32(clamp(floor((c.z - lmin.z) / dz), 0.0, f32(SLAB_GRID_Z - 1u)));
+    let bit = iz * SLAB_GRID_X + ix;
+    let w = bit / 32u;
+    var word = 0u;
+    if (w < 3u) {
+        word = room_gi.rooms[lr].counts[w + 1u];
+    } else {
+        word = room_gi.rooms[lr].lights[w - 3u];
+    }
+    return ((word >> (bit % 32u)) & 1u) != 0u;
+}
+
+// The crossing point c lies inside row r's rectangle, shrunk by the tolerance.
+fn slab_rect_holds(r: u32, c: vec3<f32>) -> bool {
+    let bmin = room_gi.rooms[r].bmin.xyz;
+    let bmax = room_gi.rooms[r].bmax.xyz;
+    return c.x > bmin.x + SLAB_EDGE_TOL && c.x < bmax.x - SLAB_EDGE_TOL
+        && c.z > bmin.z + SLAB_EDGE_TOL && c.z < bmax.z - SLAB_EDGE_TOL;
+}
+
+// The light loop's test: does any slab of the light's run stand between p and
+// the light at q? `run` is the light's cone_inner: y = the run's first row,
+// z = how many rows, w = the mid-plane height of the run's one layer, or
+// SLAB_RUN_MANY_LAYERS when it has several (light::gpu_packed_with_slabs,
+// room_probes::run_plane). A lamp on the fragment's own side of a one-layer
+// run's plane (a lamp on its own storey, the usual case) is settled by that
+// height without reading a row (measured 2026-10-21 on the shipped
+// homestead: reading the layer row for every in-range lamp cost the upstairs
+// bedroom gpu.scene +0.59 ms). Otherwise the run is walked, LAYERED like the
+// sun's list (room_probes::layered_rows): a layer row (the union box of its
+// slabs, counts.x = how many slab rows follow), then its slabs, nearest the
+// light first. CPU twin: room_probes::run_blocks.
+const SLAB_RUN_MANY_LAYERS: f32 = -3.0e38;
+fn slab_blocks_light(p: vec3<f32>, q: vec3<f32>, run: vec4<f32>) -> bool {
+    let plane = run.w;
+    if (plane > -1.0e38 && (p.y - plane) * (q.y - plane) >= 0.0) {
+        return false;
+    }
+    let count = u32(run.z);
+    let base = room_gi.header.info.x + room_gi.header.atlas.w + u32(run.y);
+    var k = 0u;
+    loop {
+        if (k >= count) {
+            break;
+        }
+        let lr = base + k;
+        let n = room_gi.rooms[lr].counts.x;
+        let lmin = room_gi.rooms[lr].bmin.xyz;
+        let lmax = room_gi.rooms[lr].bmax.xyz;
+        let m = (lmin.y + lmax.y) * 0.5;
+        let dp = p.y - m;
+        let dq = q.y - m;
+        if (dp * dq < 0.0) {
+            // Opposite sides, so dp - dq is never 0.
+            let c = p + (q - p) * (dp / (dp - dq));
+            if (c.x > lmin.x && c.x < lmax.x && c.z > lmin.z && c.z < lmax.z && slab_layer_may_hold(lr, c, lmin, lmax)) {
+                for (var j = 1u; j <= n; j = j + 1u) {
+                    if (slab_rect_holds(lr + j, c)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        k = k + 1u + n;
+    }
+    return false;
+}
+
+// The sun's test: does any solid slab stand between p and the sun along d
+// (any length)? Only within SLAB_SUN_REACH of the box around every room (the
+// header's gmin and gmax, written whether or not room GI is on), so a planet's
+// trees, seen from orbit, never walk the list.
+//
+// The sun's list is grouped into LAYERS (room_probes::layered_rows): a layer row
+// (bmin/bmax = the union box of its slabs, counts.x = how many slab rows
+// follow), then its slabs. Every slab of a layer has the same mid-plane, so
+// the path crosses them all at one point c, computed once; a c outside the
+// layer's union box skips the whole layer, which is where a low sun's path
+// goes. Exactly the per-slab answer. CPU twin: room_probes::sun_walk.
+fn slab_sun_blocked(p: vec3<f32>, d: vec3<f32>) -> bool {
+    let h = room_gi.header;
+    let reach = vec3<f32>(SLAB_SUN_REACH);
+    if (any(p < h.gmin.xyz - reach) || any(p > h.gmax.xyz + reach)) {
+        return false;
+    }
+    var k = 0u;
+    loop {
+        if (k >= h.atlas.w) {
+            break;
+        }
+        let lr = h.info.x + k;
+        let n = room_gi.rooms[lr].counts.x;
+        let lmin = room_gi.rooms[lr].bmin.xyz;
+        let lmax = room_gi.rooms[lr].bmax.xyz;
+        let dp = p.y - (lmin.y + lmax.y) * 0.5;
+        if (dp * d.y < 0.0) {
+            // Opposite sides of the layer's plane, so d.y is not 0.
+            let c = p + d * (-dp / d.y);
+            if (c.x > lmin.x && c.x < lmax.x && c.z > lmin.z && c.z < lmax.z && slab_layer_may_hold(lr, c, lmin, lmax)) {
+                for (var j = 1u; j <= n; j = j + 1u) {
+                    if (slab_rect_holds(lr + j, c)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        k = k + 1u + n;
+    }
+    return false;
 }

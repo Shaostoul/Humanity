@@ -1568,7 +1568,7 @@
     <!-- Security -->
     <section class="settings-section" id="sec-security">
       <h1>Security</h1>
-      <p class="section-desc">Protect your identity and manage your devices. Your Dilithium3 key (post-quantum) is your passport, keep its 24-word recovery phrase safe and consider setting up social key recovery via guardians at /recovery.</p>
+      <p class="section-desc">Protect your identity and manage your devices. Your key is your passport: keep its 24-word recovery phrase safe, because it is the way back into your account.</p>
 
       <div id="backup-warning" class="settings-group" style="background:rgba(229,85,85,0.08);border:1px solid rgba(229,85,85,0.3);border-radius:10px;padding:var(--space-xl) var(--space-2xl);margin-bottom:var(--space-2xl);">
         <div style="display:flex;align-items:flex-start;gap:var(--space-lg);">
@@ -1663,6 +1663,17 @@
             <span>Rebuild your identity from the 24-word phrase (replaces current identity)</span>
           </div>
           <button onclick="settingsOpenRestoreSeed()" style="background:var(--set-info-bg);border:1px solid var(--set-info-border);color:var(--set-info-ink);padding:var(--space-sm) var(--space-lg);border-radius:6px;font-size:0.84rem;font-weight:600;cursor:pointer;">🔤 Restore from Words</button>
+        </div>
+      </div>
+      <!-- Mirrors the app's Settings > Account > "Recovery through trusted people" (2026-10-20). -->
+      <div class="settings-group">
+        <div class="settings-group-title">Recovery through trusted people</div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Guardians (not finished yet)</strong>
+            <span>People you trust could each keep a piece of your recovery phrase and together help you back in. Choosing guardians is not built yet; what works today is looking up an account's guardians and the pieces a guardian keeps.</span>
+          </div>
+          <a href="/recovery" style="background:var(--set-info-bg);border:1px solid var(--set-info-border);color:var(--set-info-ink);padding:var(--space-sm) var(--space-lg);border-radius:6px;text-decoration:none;font-size:0.84rem;font-weight:600;">Recovery →</a>
         </div>
       </div>
     </section>

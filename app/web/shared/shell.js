@@ -309,7 +309,8 @@
     else if (p.startsWith('/identity'))   active = 'identity';
     else if (p.startsWith('/governance')) active = 'governance';
     else if (p.startsWith('/laws'))       active = 'laws';
-    else if (p.startsWith('/recovery'))   active = 'recovery';
+    // Recovery through trusted people is a part of Settings in the app (2026-10-20).
+    else if (p.startsWith('/recovery'))   active = 'settings';
     else if (p.startsWith('/home'))      active = 'home';
     else if (p.startsWith('/inventory')) active = 'gear';
     else if (p.startsWith('/onboarding')) active = 'quests';
@@ -320,7 +321,6 @@
     else if (p.startsWith('/maps'))      active = 'map';
     else if (p.startsWith('/market'))    active = 'market';
     else if (p.startsWith('/wallet'))    active = 'wallet';
-    else if (p.startsWith('/platform'))  active = 'platform';
     // Apps (2026-10-20): HumanityOS's own tools, the external catalog's free programs and
     // real-world help, the website's mirror of the app's Apps page (was the Tools tab).
     else if (p.startsWith('/apps'))      active = 'apps';
@@ -338,7 +338,8 @@
     // up the Library tab.
     else if (p.startsWith('/library'))   active = 'library';
     else if (p.startsWith('/accord'))    active = 'library';
-    else if (p.startsWith('/bugs'))     active = 'bugs';
+    // Bugs is a section of the Dev tab in the app (2026-10-20), so its page lights up Dev.
+    else if (p.startsWith('/bugs'))     active = 'dev';
     else active = '';
   }
 
@@ -843,7 +844,7 @@
        native nav_group() categories (escape_menu.rs): red = platform entry
        (Humanity, Chat, Studio, Library), green = you (Profile, Home),
        sim purple = the game (Play, Quests, Tasks, Inventory, Crafting, Map),
-       blue = tools (Platform), gray = Settings. */
+       blue = tools (Dev), gray = Settings. */
     .hub-nav .nav-group-red,
     .hub-nav .nav-group-green,
     .hub-nav .nav-group-blue,
@@ -901,16 +902,17 @@
     '<nav class="hub-nav">' +
       /* ── Web header = EXACT MIRROR of the native app's top nav (v0.469.3). Order:
          Play, Humanity, Chat, Studio, Profile, Home, Quests, Tasks, Inventory,
-         Crafting, Map, Platform, Library, Settings. The app has NO separate logo, so
+         Crafting, Map, Dev, Library, Settings. The app has NO separate logo, so
          neither do we -- the leading "Humanity" tab (with an H mark, like the app) is
          the single home/Humanity button (this removes the old duplicate "H" brand).
          App-only desktop features map to their nearest web target (Play/Studio ->
-         Download, Platform -> Tools, Library -> Resources); the former web-only utility
+         Download, Library -> Resources; Dev, which replaced Platform on 2026-10-20, ->
+         the Dev Workbench); the former web-only utility
          tabs (Wallet, Market, Donate, Ops, Bugs, Dev, Audit, ...) stay reachable via
          the mobile drawer + URL. Category colors mirror the native nav_group()
          calls in escape_menu.rs: SIM PURPLE = the game (Play, Quests, Tasks,
          Inventory, Crafting, Map), RED = platform entry (Humanity, Chat, Studio,
-         Library), GREEN = you (Profile, Home), BLUE = tools (Platform), GRAY =
+         Library), GREEN = you (Profile, Home), BLUE = tools (Dev), GRAY =
          Settings. Tabs render as category-bordered pills like the app. ── */
       /* Front door: with the Humanity tab now opening /humanity (v0.1147),
        * this is the one reliable way back to the node's own homepage. Icon
@@ -977,7 +979,7 @@
       '<div class="nav-divider"></div>' +
 
       '<span class="nav-group-blue">' +
-        navTab('/platform',  'grid',     'Platform', 'platform') +
+        navTab('/dev',       'tool',     'Dev',      'dev') +
       '</span>' +
 
       '<div class="nav-divider"></div>' +
@@ -1099,7 +1101,7 @@
       mobileLink('/inventory', 'Inventory') +
       mobileLink('/crafting',  'Crafting') +
       mobileLink('/maps',      'Maps') +
-      mobileLink('/platform',  'Platform') +
+      mobileLink('/dev',       'Dev') +
       mobileLink('/library',   'Library') +
       mobileLink('/accord',    'Humanity Accord') +
       mobileLink('/settings',  'Settings') +
@@ -1123,7 +1125,6 @@
       mobileLink('/rules',     'Rules and appeals') +
       mobileLink('/laws',      'Laws') +
       mobileLink('/identity',  'Identity') +
-      mobileLink('/recovery',  'Recovery') +
       mobileLink('/roadmap',   'Roadmap') +
     '</div>' +
     '<div class="mobile-hub-group group-blue"><h4>Tools and system</h4>' +
@@ -1961,7 +1962,7 @@
   // WHY: Light up the download button with RGB when a new version is available
   // so the user knows at a glance. Checks GitHub releases once per session.
   (function updateChecker() {
-    var CURRENT_VERSION = '0.1528.0';
+    var CURRENT_VERSION = '0.1534.0';
     var CACHE_KEY = 'hos_latest_version';
     var CACHE_TS_KEY = 'hos_latest_version_ts';
     var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min
