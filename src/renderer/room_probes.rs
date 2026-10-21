@@ -797,15 +797,69 @@ pub fn layered_rows(slabs: &[OccluderSlab], near: Vec3) -> Vec<GiRoomGpu> {
     for (_, _, members) in &layers {
         let (lo, hi) =
             members.iter().fold((Vec3::splat(f32::MAX), Vec3::splat(f32::MIN)), |(a, b), s| (a.min(s.min), b.max(s.max)));
+        // The layer's OCCUPANCY GRID: a bit per cell of a LAYER_GRID_X by
+        // LAYER_GRID_Z grid over the union box, set where any slab touches
+        // the cell (its range widened by a thousandth of a cell, so a crossing
+        // inside a slab always lands in a set cell whatever the rounding).
+        let (dx, dz) = layer_cell_size(lo, hi);
+        let mut words = [0u32; LAYER_GRID_WORDS];
+        for s in members {
+            let span = |a: f32, b: f32, o: f32, d: f32, n: u32| {
+                let i0 = ((a - o) / d - 1e-3).floor().clamp(0.0, (n - 1) as f32) as u32;
+                let i1 = ((b - o) / d + 1e-3).floor().clamp(0.0, (n - 1) as f32) as u32;
+                (i0, i1)
+            };
+            let (x0, x1) = span(s.min.x, s.max.x, lo.x, dx, LAYER_GRID_X);
+            let (z0, z1) = span(s.min.z, s.max.z, lo.z, dz, LAYER_GRID_Z);
+            for iz in z0..=z1 {
+                for ix in x0..=x1 {
+                    let bit = iz * LAYER_GRID_X + ix;
+                    words[(bit / 32) as usize] |= 1 << (bit % 32);
+                }
+            }
+        }
         rows.push(GiRoomGpu {
             bmin: [lo.x, lo.y, lo.z, 0.0],
             bmax: [hi.x, hi.y, hi.z, 0.0],
-            counts: [members.len() as u32, 0, 0, 0],
+            counts: [members.len() as u32, words[0], words[1], words[2]],
+            lights: [words[3], words[4], words[5], words[6]],
             ..GiRoomGpu::default()
         });
         rows.extend(members.iter().map(pack_slab));
     }
     rows
+}
+
+/// A layer row's occupancy grid (`layered_rows`): LAYER_GRID_X columns along
+/// x by LAYER_GRID_Z rows along z over the layer's union box, one bit a cell,
+/// held in the row's seven spare integer lanes (`counts.yzw`, then
+/// `lights.xyzw`). A crossing in a cell no slab touches misses every slab of
+/// the layer, so the walk skips the slab tests: the common miss of a path
+/// from upstairs to a lamp under glass or a gap (measured 2026-10-21 on the
+/// shipped homestead: the upstairs bedroom read gpu.scene +0.59 ms with the
+/// floors on, the walks of the downstairs lamps in its range testing every
+/// slab of their runs and finding none). WGSL `SLAB_GRID_X` / `SLAB_GRID_Z`.
+pub const LAYER_GRID_X: u32 = 16;
+pub const LAYER_GRID_Z: u32 = 14;
+const LAYER_GRID_WORDS: usize = 7;
+
+/// The size of one grid cell over a union box, exactly as the shader computes
+/// it.
+fn layer_cell_size(lo: Vec3, hi: Vec3) -> (f32, f32) {
+    (((hi.x - lo.x) / LAYER_GRID_X as f32).max(1e-6), ((hi.z - lo.z) / LAYER_GRID_Z as f32).max(1e-6))
+}
+
+/// Whether the cell of layer row `l`'s grid holding the crossing `c` has a
+/// slab in it (WGSL `slab_layer_may_hold`).
+pub fn layer_grid_holds(l: &GiRoomGpu, c: Vec3) -> bool {
+    let (lo, hi) = (Vec3::new(l.bmin[0], l.bmin[1], l.bmin[2]), Vec3::new(l.bmax[0], l.bmax[1], l.bmax[2]));
+    let (dx, dz) = layer_cell_size(lo, hi);
+    let ix = ((c.x - lo.x) / dx).floor().clamp(0.0, (LAYER_GRID_X - 1) as f32) as u32;
+    let iz = ((c.z - lo.z) / dz).floor().clamp(0.0, (LAYER_GRID_Z - 1) as f32) as u32;
+    let bit = iz * LAYER_GRID_X + ix;
+    let w = (bit / 32) as usize;
+    let word = if w < 3 { l.counts[w + 1] } else { l.lights[w - 3] };
+    (word >> (bit % 32)) & 1 != 0
 }
 
 /// A run's `cone_inner.w` when it has more than one layer: below every real
@@ -853,7 +907,7 @@ pub fn segment_walk(rows: &[GiRoomGpu], p: Vec3, q: Vec3) -> (bool, u32) {
         let (dp, dq) = (p.y - m, q.y - m);
         if dp * dq < 0.0 {
             let c = p + (q - p) * (dp / (dp - dq));
-            if c.x > lmin.x && c.x < lmax.x && c.z > lmin.z && c.z < lmax.z {
+            if c.x > lmin.x && c.x < lmax.x && c.z > lmin.z && c.z < lmax.z && layer_grid_holds(l, c) {
                 for j in 1..=n {
                     read += 1;
                     let s = &rows[k + j];
@@ -890,7 +944,7 @@ pub fn sun_walk(rows: &[GiRoomGpu], rooms_box: (Vec3, Vec3), p: Vec3, d: Vec3) -
         let dp = p.y - (lmin.y + lmax.y) * 0.5;
         if dp * d.y < 0.0 {
             let c = p + d * (-dp / d.y);
-            if c.x > lmin.x && c.x < lmax.x && c.z > lmin.z && c.z < lmax.z {
+            if c.x > lmin.x && c.x < lmax.x && c.z > lmin.z && c.z < lmax.z && layer_grid_holds(l, c) {
                 for j in 1..=n {
                     read += 1;
                     let s = &rows[k + j];
@@ -2064,6 +2118,35 @@ mod tests {
         // Different thicknesses never merge.
         let thin = OccluderSlab { min: Vec3::new(10.0, 2.9, 0.0), max: Vec3::new(20.0, 3.0, 10.0) };
         assert_eq!(merge_slabs(vec![floor_slab(0.0, 0.0, 10.0, 10.0), thin]).len(), 2);
+    }
+
+    /// A CROSSING IN AN EMPTY CELL READS NO SLAB. Two slabs with a 10 m gap
+    /// between them in one layer: a lamp under the gap and a fragment over it
+    /// (and the sun straight down onto a point under it) cross the floor's
+    /// plane in the gap, inside the layer's union box, in a cell of its
+    /// occupancy grid no slab touches: the walk reads the layer row and no slab
+    /// row, and answers as every slab would (no block). A crossing over a slab
+    /// still reads its slab and blocks. Seen red first (2026-10-21) with
+    /// `layer_grid_holds` answering yes everywhere: "the gap: the layer row
+    /// only, left: (false, 3), right: (false, 1)".
+    #[test]
+    fn a_crossing_in_an_empty_cell_reads_no_slab() {
+        let slabs = [floor_slab(0.0, 0.0, 10.0, 10.0), floor_slab(20.0, 0.0, 30.0, 10.0)];
+        // A floor lamp, so a path from a point over the first slab crosses the
+        // plane over that slab (at x 8.2), not in the gap beside the lamp.
+        let lamp = RoomLight::point(Vec3::new(15.0, 0.5, 5.0), [1.0; 3], 6.0, 20.0);
+        let run = layered_rows(&slabs, lamp.pos);
+        assert_eq!(run.len(), 3, "one layer row and its two slabs");
+        let up = Vec3::new(15.0, 4.0, 5.0);
+        assert_eq!(segment_walk(&run, up, lamp.pos), (false, 1), "the gap: the layer row only");
+        assert!(!slabs.iter().any(|s| s.blocks_segment(up, lamp.pos)));
+        let over = Vec3::new(5.0, 4.0, 5.0);
+        let (blocked, read) = segment_walk(&run, over, lamp.pos);
+        assert!(blocked && read >= 2, "over a slab: blocked after reading it ({read} rows)");
+        let rooms_box = (Vec3::ZERO, Vec3::new(30.0, 6.0, 10.0));
+        let sun = Vec3::new(0.0, 1.0, 0.0);
+        assert_eq!(sun_walk(&run, rooms_box, Vec3::new(15.0, 0.5, 5.0), sun), (false, 1), "the sun through the gap");
+        assert_eq!(sun_walk(&run, rooms_box, Vec3::new(25.0, 0.5, 5.0), sun).0, true, "the sun onto a slab");
     }
 
     /// The homestead upper floor's 16 solid slabs (homestead-upper-floor.md

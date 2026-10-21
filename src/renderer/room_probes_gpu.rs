@@ -878,6 +878,11 @@ mod tests {
         assert_eq!(value("SLAB_EDGE_TOL"), SLAB_EDGE_TOL_M);
         assert_eq!(value("SLAB_SUN_REACH"), SLAB_SUN_REACH_M);
         assert_eq!(value("SLAB_RUN_MANY_LAYERS"), RUN_MANY_LAYERS);
+        // And the layer occupancy grid's shape.
+        use super::super::room_probes::{LAYER_GRID_X, LAYER_GRID_Z};
+        assert!(UPDATE_SHADER.contains(&format!("const SLAB_GRID_X: u32 = {LAYER_GRID_X}u;")));
+        assert!(UPDATE_SHADER.contains(&format!("const SLAB_GRID_Z: u32 = {LAYER_GRID_Z}u;")));
+        assert!(LAYER_GRID_X * LAYER_GRID_Z <= 7 * 32, "the grid fits the layer row's seven spare lanes");
     }
 
     /// The scratch holds one update's worth of tiles, and fits the texture limit.

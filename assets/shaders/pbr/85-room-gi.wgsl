@@ -288,6 +288,32 @@ fn room_gi_irradiance(p: vec3<f32>, n: vec3<f32>) -> vec4<f32> {
 const SLAB_EDGE_TOL: f32 = 0.01;
 const SLAB_SUN_REACH: f32 = 1.0;
 
+// A layer row's OCCUPANCY GRID (room_probes::layered_rows): SLAB_GRID_X by
+// SLAB_GRID_Z cells over the layer's union box, one bit a cell in the row's
+// spare integer lanes (counts.yzw, then lights.xyzw), set where any slab of
+// the layer touches the cell. A crossing in an empty cell misses every slab,
+// so the walk skips the slab tests: the usual miss of a path from upstairs to
+// a lamp under glass or a gap, which cost the shipped homestead's upstairs
+// bedroom gpu.scene +0.59 ms when every slab was tested. CPU twin:
+// room_probes::layer_grid_holds.
+const SLAB_GRID_X: u32 = 16u;
+const SLAB_GRID_Z: u32 = 14u;
+fn slab_layer_may_hold(lr: u32, c: vec3<f32>, lmin: vec3<f32>, lmax: vec3<f32>) -> bool {
+    let dx = max((lmax.x - lmin.x) / f32(SLAB_GRID_X), 1.0e-6);
+    let dz = max((lmax.z - lmin.z) / f32(SLAB_GRID_Z), 1.0e-6);
+    let ix = u32(clamp(floor((c.x - lmin.x) / dx), 0.0, f32(SLAB_GRID_X - 1u)));
+    let iz = u32(clamp(floor((c.z - lmin.z) / dz), 0.0, f32(SLAB_GRID_Z - 1u)));
+    let bit = iz * SLAB_GRID_X + ix;
+    let w = bit / 32u;
+    var word = 0u;
+    if (w < 3u) {
+        word = room_gi.rooms[lr].counts[w + 1u];
+    } else {
+        word = room_gi.rooms[lr].lights[w - 3u];
+    }
+    return ((word >> (bit % 32u)) & 1u) != 0u;
+}
+
 // The crossing point c lies inside row r's rectangle, shrunk by the tolerance.
 fn slab_rect_holds(r: u32, c: vec3<f32>) -> bool {
     let bmin = room_gi.rooms[r].bmin.xyz;
@@ -331,7 +357,7 @@ fn slab_blocks_light(p: vec3<f32>, q: vec3<f32>, run: vec4<f32>) -> bool {
         if (dp * dq < 0.0) {
             // Opposite sides, so dp - dq is never 0.
             let c = p + (q - p) * (dp / (dp - dq));
-            if (c.x > lmin.x && c.x < lmax.x && c.z > lmin.z && c.z < lmax.z) {
+            if (c.x > lmin.x && c.x < lmax.x && c.z > lmin.z && c.z < lmax.z && slab_layer_may_hold(lr, c, lmin, lmax)) {
                 for (var j = 1u; j <= n; j = j + 1u) {
                     if (slab_rect_holds(lr + j, c)) {
                         return true;
@@ -374,7 +400,7 @@ fn slab_sun_blocked(p: vec3<f32>, d: vec3<f32>) -> bool {
         if (dp * d.y < 0.0) {
             // Opposite sides of the layer's plane, so d.y is not 0.
             let c = p + d * (-dp / d.y);
-            if (c.x > lmin.x && c.x < lmax.x && c.z > lmin.z && c.z < lmax.z) {
+            if (c.x > lmin.x && c.x < lmax.x && c.z > lmin.z && c.z < lmax.z && slab_layer_may_hold(lr, c, lmin, lmax)) {
                 for (var j = 1u; j <= n; j = j + 1u) {
                     if (slab_rect_holds(lr + j, c)) {
                         return true;
