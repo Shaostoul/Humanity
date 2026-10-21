@@ -1323,9 +1323,9 @@
     },
     {
       "path": "/download.html",
-      "hash": "sha256:a02f8dfd88cf3b4c9ec5708f0f83764bf02ae06d2d7071d9982bd162b666aa2b",
+      "hash": "sha256:102cd651a746afc2e509574238c4b0caa792c85c7715114348934a67dfe94aad",
       "size": 47712,
-      "modified": 1792607475
+      "modified": 1792608603
     },
     {
       "path": "/files.html",
@@ -1371,9 +1371,9 @@
     },
     {
       "path": "/index.html",
-      "hash": "sha256:46fe10772269e4bf0685121bbf5d44d3abbacecd4523f7bea9e428f96fd99839",
+      "hash": "sha256:11228845a268a99d66b0184a17c32a1aabddc8d0b2ea1eeed47a6bc053f93794",
       "size": 40672,
-      "modified": 1792607475
+      "modified": 1792608603
     },
     {
       "path": "/inventory.html",
@@ -1425,9 +1425,9 @@
     },
     {
       "path": "/ops.html",
-      "hash": "sha256:4a0307021bc60c5922ad226d8b6f35b1aaa16b986da8fe858da320f24b6ce239",
+      "hash": "sha256:b90cd50055cee4a10fd106b13f7470663d0e6e40f33c03f162a9c9d1bf4dc06b",
       "size": 22846,
-      "modified": 1792607475
+      "modified": 1792608603
     },
     {
       "path": "/pages/accord-app.js",
@@ -1587,9 +1587,9 @@
     },
     {
       "path": "/pages/settings-app.js",
-      "hash": "sha256:3c69e544812f91cf12de0954935194a8420b1ac53bc1d00f5a1e0bb6030a73c3",
+      "hash": "sha256:89665bf7f719f24097bdb08153d0b49c99dded36b42f4c5325fb9f257916bad0",
       "size": 107138,
-      "modified": 1792607475
+      "modified": 1792608603
     },
     {
       "path": "/pages/shared-files-upload.js",
@@ -1977,9 +1977,9 @@
     },
     {
       "path": "/shared/shell.js",
-      "hash": "sha256:a35e97152363819c69d31b126b6ed5c033f94fa3c7328e0cfdef6f194317c6e4",
+      "hash": "sha256:a8e4b236e16478646128308d7193ffb20be02f764ae8b126b074198a226f49ac",
       "size": 102389,
-      "modified": 1792607475
+      "modified": 1792608603
     },
     {
       "path": "/shared/strip-metadata.js",
@@ -1989,9 +1989,9 @@
     },
     {
       "path": "/shared/sw.js",
-      "hash": "sha256:51d2bb3f6c20d347ec517075826d26c244606eb616a7dcf2e57a7833111e8fc4",
+      "hash": "sha256:02ce821f96900975cfbfa2d40d1671b52ee0cff574d1820437bdf7320f27a798",
       "size": 5824,
-      "modified": 1792607475
+      "modified": 1792608603
     },
     {
       "path": "/shared/theme.css",
@@ -2081,7 +2081,7 @@
       "path": "/index.html",
       "hash": "sha256:807ef9ccfde6574793792f240c8ca2fbab9472f7b7c766a7804bff183fa12a23",
       "size": 208,
-      "modified": 1792608551
+      "modified": 1792610103
     }
   ],
   "total_size": 16815902,
