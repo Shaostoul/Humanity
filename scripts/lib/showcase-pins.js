@@ -25,6 +25,10 @@ const STICKY_PIN_RESETS = Object.freeze({
   // The hull, as the H key toggles it (2026-10-05, the ship-first-street vantage hides it to see
   // the homes along First Street): "1" shows it again. Not a setting, so no "auto".
   hull: "1",
+  // Settings > Graphics > Bounced light detail (2026-10-20): the pin sets the setting itself, so
+  // the release is the default level. A change relays the probes out, so allow the light a few
+  // seconds to settle after it.
+  bounced_light_detail: "high",
 });
 
 // Diagnostic channels, also sticky, reset at the start of every vantage.

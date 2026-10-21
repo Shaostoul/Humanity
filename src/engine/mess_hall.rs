@@ -17,7 +17,9 @@
 //! the same online and offline, and counts the litres on the same meter.
 //!
 //! Both are done at the counter: within the reach of every interaction (5 m, the walk-up
-//! card's own reach) of a serving counter. In the shared world the server checks its own reach
+//! card's own reach) of a serving counter ON YOUR FLOOR (ship homes increment 7: a counter on the
+//! floor above, right over your head, is not in reach; src/ship/moves.rs `on_my_storey`, the one
+//! storey rule the server applies too). In the shared world the server checks its own reach
 //! from the store, which stands just in front of the counter.
 //!
 //! The card's buttons (gui/pages/hud.rs) only ask (`FleetView::counter_ask`); `frame`, called
@@ -27,7 +29,8 @@
 use std::path::Path;
 
 use crate::engine::state::EngineState;
-use crate::gui::pages::fleet_ledger::{self, CounterAsk, STORE_REACH_M};
+use crate::gui::pages::fleet_ledger::{self, CounterAsk};
+use crate::ship::moves::INTERACT_REACH_M;
 use crate::gui::GuiState;
 use crate::hot_reload::data_store::DataStore;
 use crate::systems::ship_meals::{self, MealRules, Served};
@@ -45,13 +48,17 @@ pub fn card_offers_meal(machines: Option<&crate::machines::MachineHome>, selecte
     m.instances.iter().any(|i| i.id == id && i.machine == COUNTER_TYPE)
 }
 
-/// How far `from` is from the nearest serving counter's walk-up label, metres; None with no
-/// counter in this home's machines.
+/// How far `from` (the player's eyes) is from the nearest serving counter's walk-up label ON
+/// THEIR FLOOR, metres; None with no counter on it in this home's machines. A counter on another
+/// storey is no counter of theirs, however near it is through the slab (ship homes increment 7;
+/// the shared storey rule, src/ship/moves.rs `on_my_storey`: the label floats 0.4 m over the 0.9 m
+/// counter, 1.3 m over its floor, inside the 2.5 m a person's storey reaches over their feet).
 pub fn nearest_counter_m(machines: Option<&crate::machines::MachineHome>, labels: &[crate::gui::MachineLabel], from: glam::Vec3) -> Option<f32> {
     let m = machines?;
     labels
         .iter()
         .filter(|l| m.instances.iter().any(|i| i.id == l.machine_id && i.machine == COUNTER_TYPE))
+        .filter(|l| crate::ship::moves::on_my_storey(from.y, l.pos.y))
         .map(|l| l.pos.distance(from))
         .min_by(|a, b| a.total_cmp(b))
 }
@@ -75,7 +82,7 @@ impl<'a> Counter<'a> {
     }
 
     fn at_counter(&self) -> bool {
-        self.counter_m.is_some_and(|d| d <= STORE_REACH_M)
+        self.counter_m.is_some_and(|d| d <= INTERACT_REACH_M)
     }
 }
 

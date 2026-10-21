@@ -291,7 +291,7 @@ impl Game {
     fn volume_of(&self, id: &str) -> Option<ShipVolume> {
         let dests = self.data.get::<DestinationList>("quest_destinations").expect("the destinations are loaded");
         let dest = dests.destinations.iter().find(|d| d.id == id).unwrap_or_else(|| panic!("no destination {id}"));
-        let at = self.data.get::<Vec3>("camera_position").map_or((0.0, 0.0), |p| (p.x, p.z));
+        let at = self.data.get::<Vec3>("camera_position").copied().unwrap_or(Vec3::new(0.0, 1.7, 0.0));
         dest.volume(Aboard::of(&self.data), at).cloned()
     }
 
@@ -1035,7 +1035,7 @@ fn the_mess_hall_is_the_nearest_one() {
         let mut data = DataStore::new();
         publish_front_door(&mut data, Some(&ship_on(&plot.id)));
         let door = data.get::<FrontDoor>(FRONT_DOOR_KEY).unwrap_or_else(|| panic!("{} has a front door", plot.id)).door;
-        let got = mess_hall.volume(Aboard::of(&data), (0.0, 0.0)).unwrap_or_else(|| panic!("a mess hall resolves from {}'s door", plot.id));
+        let got = mess_hall.volume(Aboard::of(&data), Vec3::new(0.0, 1.7, 0.0)).unwrap_or_else(|| panic!("a mess hall resolves from {}'s door", plot.id));
         let want = halls.iter().min_by(|a, b| far(a, door).total_cmp(&far(b, door))).unwrap();
         assert_eq!(
             got.id, want.0,
@@ -1175,7 +1175,7 @@ fn every_step_of_the_opening_names_what_the_game_shows() {
             plots
                 .iter()
                 .map(|(plot, data)| {
-                    let v = dest.volume(Aboard::of(data), (0.0, 0.0)).unwrap_or_else(|| panic!("{destination} resolves from {plot}'s door"));
+                    let v = dest.volume(Aboard::of(data), Vec3::new(0.0, 1.7, 0.0)).unwrap_or_else(|| panic!("{destination} resolves from {plot}'s door"));
                     (plot.clone(), v.clone())
                 })
                 .collect()

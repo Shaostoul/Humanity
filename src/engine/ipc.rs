@@ -1477,6 +1477,23 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
             state.gui_state.settings.cloud_quality
         );
     }
+    // {"bounced_light_detail":"low"} sets Settings > Graphics > Bounced light
+    // detail (2026-10-20, docs/design/room-gi.md): a level id from
+    // data/gui/bounced_light_detail.json. `engine::room_gi` lays the probes and
+    // their atlas out again the next frame, so a rig can photograph and time
+    // each level in one boot (allow a few seconds for the light to settle).
+    // "high" is the default and what the rigs reset it to between vantages
+    // (scripts/lib/showcase-pins.js). An id the file does not list is refused.
+    if let Some(d) = grab("bounced_light_detail") {
+        let id = d.to_ascii_lowercase();
+        if crate::renderer::bounced_light_detail::is_detail_level(&id) {
+            state.gui_state.settings.bounced_light_detail = id;
+            log::info!("Showcase: bounced_light_detail -> {}", state.gui_state.settings.bounced_light_detail);
+        } else {
+            let known: Vec<&str> = crate::renderer::bounced_light_detail::detail_levels().iter().map(|l| l.id.as_str()).collect();
+            log::warn!("Showcase: bounced_light_detail {id:?} is not a level ({})", known.join(", "));
+        }
+    }
     // Optional "bake":"trees" runs the automated billboard sprite baker
     // (v0.959) over EVERY species in data/vegetation/trees.ron (v0.1083, was
     // the six hardcoded conifers): each tile renders side-on into

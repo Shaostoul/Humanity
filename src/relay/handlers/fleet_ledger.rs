@@ -67,7 +67,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use super::game_state::GameWorld;
-use super::ship_stores::{distance, FleetSupply, STORE_REACH_M};
+use super::ship_stores::{store_out_of_reach, FleetSupply};
 use crate::relay::relay::RelayState;
 use crate::relay::storage::{Adjusted, NewFleetEntry, Recorded, Storage};
 
@@ -330,7 +330,7 @@ pub fn take_meal_and_record(world: &mut GameWorld, db: &Storage, key: &str, enti
 /// A player's give to the fleet (`game_fleet_give`): the reply, a `game_fleet_give_result`.
 /// Success writes exactly one line (or finds the one an earlier send of the same give wrote);
 /// every refusal writes nothing: `bad_give_id`, `bad_home`, `not_in_game`, `entity_not_found`,
-/// `not_a_store`, `too_far` (with `distance`), `bad_item`, `bad_quantity` (with `max`),
+/// `not_a_store`, `too_far` (with `distance` and `same_floor`), `bad_item`, `bad_quantity` (with `max`),
 /// `no_price` (the fleet has no price for it), `too_many` (the day's cap of gives is reached),
 /// `failed` (the database said no). A give from a game in Creative mode (`creative: true`) is
 /// written as `item_creative`, worth nothing.
@@ -371,10 +371,11 @@ pub fn give(world: &GameWorld, db: &Storage, key: &str, raw: &serde_json::Value)
     if !is_fleet_store(store) {
         return fail("not_a_store");
     }
-    let dist = distance(world.entities[&player].position, store.position);
-    if dist > STORE_REACH_M {
+    // Within 5 m of the store and on its floor (ship homes increment 7), the take-meal rule.
+    if let Some(why) = store_out_of_reach(world.entities[&player].position, store.position) {
         let mut r = fail("too_far");
-        r["distance"] = serde_json::json!(dist);
+        r["distance"] = why["distance"].clone();
+        r["same_floor"] = why["same_floor"].clone();
         return r;
     }
     if item_id.is_empty() || item_id.len() > 64 {

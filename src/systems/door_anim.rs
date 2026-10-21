@@ -94,9 +94,26 @@ pub fn is_operable(style: &str) -> bool {
 /// open/shut every frame as float noise crosses the line.
 pub const AUTO_CLOSE_HYSTERESIS: f32 = 0.8;
 
+/// How far a body's feet may stand outside a door's own height band, metres, and the door still
+/// counts it (`feet_reach_door`): 0.6, the step up a body takes onto a raised floor
+/// (engine/footing.rs `STEP_UP_M`, which a test in engine/home_meshes_tests.rs holds this to). So a
+/// body on a stair's last three risers, or on a low deck, opens the door at the landing, and one a
+/// storey below or above (3 m) never does.
+pub const DOOR_STOREY_TOLERANCE_M: f32 = 0.6;
+
+/// True when a body whose feet are at `feet_y` is on the storey of a door whose opening runs from
+/// its sill at `sill_y` up to `top_y` (world metres): feet between the two, give or take
+/// `DOOR_STOREY_TOLERANCE_M` (ship homes increment 7, plan section 3: a door auto-opens only for a
+/// body on its storey). Before storeys every body counted at any height, so a door upstairs would
+/// have opened for anyone walking under it.
+pub fn feet_reach_door(feet_y: f32, sill_y: f32, top_y: f32) -> bool {
+    feet_y >= sill_y - DOOR_STOREY_TOLERANCE_M && feet_y <= top_y + DOOR_STOREY_TOLERANCE_M
+}
+
 /// Target open fraction for an AUTO door: `dist` is the nearest actor's HORIZONTAL distance to
 /// the door (eye height must not count -- a tall camera would otherwise never trigger a short
-/// door), `open_now` the door's current fraction. Closed doors open inside `open_dist`; open
+/// door; an actor on another storey is not counted at all, `feet_reach_door`), `open_now` the
+/// door's current fraction. Closed doors open inside `open_dist`; open
 /// doors stay open until the nearest actor backs past `open_dist + AUTO_CLOSE_HYSTERESIS`.
 /// Pure (v0.795, extracted from the render loop) so proximity logic is testable without a GPU.
 pub fn auto_open_target(dist: f32, open_dist: f32, open_now: f32) -> f32 {
@@ -202,6 +219,20 @@ mod tests {
         // Closing converges the same way.
         let closed = (0..24).fold(1.0f32, |o, _| ease_open(o, 0.0, 1.0 / 60.0));
         assert!(closed < 0.1, "closes in ~0.4 s too, got {closed}");
+    }
+
+    /// FEET REACH A DOOR ON THEIR OWN STOREY ONLY (ship homes increment 7). A door from 3.0 to 5.1:
+    /// feet on its floor, on a raised step 0.5 m above it, or 0.4 m below its sill on a stair's last
+    /// risers reach it; feet on the floor under it (0) or the floor over it (6) do not.
+    /// Seen red 2026-10-20 with the band ignored (`feet_reach_door` returning true): "feet on the
+    /// floor under the door reach it".
+    #[test]
+    fn feet_reach_a_door_on_their_own_storey_only() {
+        for (feet, why) in [(3.0, "on its floor"), (3.5, "on a step"), (2.6, "on the stair below its landing")] {
+            assert!(feet_reach_door(feet, 3.0, 5.1), "feet {why} do not reach the door");
+        }
+        assert!(!feet_reach_door(0.0, 3.0, 5.1), "feet on the floor under the door reach it");
+        assert!(!feet_reach_door(6.0, 3.0, 5.1), "feet on the floor over the door reach it");
     }
 
     #[test]

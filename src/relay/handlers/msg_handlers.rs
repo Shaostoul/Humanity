@@ -3480,8 +3480,12 @@ pub async fn handle_game_perceive(
     send_game_private(state, my_key, &response).await;
 }
 
-/// Handle an interaction with a game entity. Validates distance and returns
-/// entity component data as the interaction result.
+/// How far away a player may ask for an entity's details (`game_query_entity`), metres: 20, and
+/// only on their own storey.
+const ENTITY_DETAIL_RANGE_M: f32 = 20.0;
+
+/// Handle an interaction with a game entity. Validates distance (within 5 m and on the player's
+/// storey, the shared reach rule) and returns entity component data as the interaction result.
 pub async fn handle_game_interact(
     state: &Arc<RelayState>,
     my_key: &str,
@@ -3530,12 +3534,13 @@ pub async fn handle_game_interact(
         }
     };
 
-    let dx = target.position[0] - player_pos[0];
-    let dy = target.position[1] - player_pos[1];
-    let dz = target.position[2] - player_pos[2];
-    let dist = (dx * dx + dy * dy + dz * dz).sqrt();
-
-    if dist > 5.0 {
+    // Within the reach of every interaction (5 m) and on the player's storey: the shared reach
+    // rule (src/ship/moves.rs `in_reach`, ship homes increment 7), so nothing on the floor above
+    // or below is in reach through the slab between.
+    let (eye, at) = (glam::Vec3::from(player_pos), glam::Vec3::from(target.position));
+    if !crate::ship::moves::in_reach(eye, at, crate::ship::moves::INTERACT_REACH_M) {
+        let dist = eye.distance(at);
+        let same_floor = crate::ship::moves::on_my_storey(eye.y, at.y);
         drop(world);
         send_game_private(state, my_key, &serde_json::json!({
             "type": "game_interact_result",
@@ -3544,6 +3549,7 @@ pub async fn handle_game_interact(
             "success": false,
             "error": "too_far",
             "distance": dist,
+            "same_floor": same_floor,
         })).await;
         return;
     }
@@ -3767,12 +3773,10 @@ pub async fn handle_game_query_entity(
         }
     };
 
-    let dx = target.position[0] - player_pos[0];
-    let dy = target.position[1] - player_pos[1];
-    let dz = target.position[2] - player_pos[2];
-    let dist = (dx * dx + dy * dy + dz * dz).sqrt();
-
-    if dist > 20.0 {
+    // Within 20 m and on the player's storey (the shared reach rule, src/ship/moves.rs
+    // `in_reach`, ship homes increment 7): what stands on another floor is out of range.
+    let (eye, at) = (glam::Vec3::from(player_pos), glam::Vec3::from(target.position));
+    if !crate::ship::moves::in_reach(eye, at, ENTITY_DETAIL_RANGE_M) {
         drop(world);
         send_game_private(state, my_key, &serde_json::json!({
             "type": "game_entity_detail",
@@ -3790,7 +3794,7 @@ pub async fn handle_game_query_entity(
         "entity_type": target.entity_type,
         "position": target.position,
         "rotation": target.rotation,
-        "distance": dist,
+        "distance": eye.distance(at),
         "components": super::game_interest::components_seen_by_others(target),
         "owner": target.owner,
     });

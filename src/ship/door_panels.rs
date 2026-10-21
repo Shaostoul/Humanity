@@ -127,8 +127,20 @@ pub fn neighbour_panel_placements(ship: &crate::ship::ship_structure::ShipStruct
 /// (`others`) and the animals; a neighbour's door (`others_only`) for the other players only.
 /// `f32::MAX` with nobody to count. Pure (engine/home_meshes.rs `render_door_panels` gathers the
 /// actors once per frame).
+///
+/// Every actor is given by its FEET, and only one whose feet are on the door's storey counts (ship
+/// homes increment 7, `door_anim::feet_reach_door`: between the door's sill and its head, give or
+/// take a step), so a door upstairs does not open for a body walking under it, nor a ground door
+/// for one on the floor over it. The horizontal reach is the same as ever.
 pub fn door_actor_distance(p: &PanelPlacement, camera: Option<Vec3>, others: &[Vec3], animals: &[Vec3]) -> f32 {
-    let across = |a: &Vec3| ((a.x - p.center.x).powi(2) + (a.z - p.center.z).powi(2)).sqrt();
+    let (sill, head) = (p.center.y, p.center.y + p.size.y);
+    let across = |a: &Vec3| {
+        if crate::systems::door_anim::feet_reach_door(a.y, sill, head) {
+            ((a.x - p.center.x).powi(2) + (a.z - p.center.z).powi(2)).sqrt()
+        } else {
+            f32::MAX
+        }
+    };
     let nearest_other = others.iter().map(across).fold(f32::MAX, f32::min);
     if p.others_only {
         return nearest_other;
@@ -233,8 +245,9 @@ pub fn panel_placements(home: &HomeStructure) -> Vec<PanelPlacement> {
             let s_a = op.at.clamp(0.0, len);
             // box_xyz is y-bottom-origin (spans [0, h]), so anchor the panel at the SILL; it extends
             // up by `height` to fill [sill, sill+height]. (v0.540 -- fixes the panel floating ~h/2
-            // too high and clipping the roof.)
-            let cy = op.sill;
+            // too high and clipping the roof.) The sill is measured from the wall's base, the floor
+            // it stands on (ship homes increment 7), so a door upstairs hangs on the upper floor.
+            let cy = wall.base + op.sill;
             let c_xz = a + dir * s_center;
             let h_xz = a + dir * s_a;
             // A WINDOW's glass pane is INSET (v0.564) so its edges don't sit exactly on the wall frame
@@ -255,7 +268,7 @@ pub fn panel_placements(home: &HomeStructure) -> Vec<PanelPlacement> {
                 (far + near) * 0.5
             };
             let cp_xz = a + dir * s_cp;
-            let control_panel_pos = Vec3::new(cp_xz.x, 1.2, cp_xz.y);
+            let control_panel_pos = Vec3::new(cp_xz.x, wall.base + 1.2, cp_xz.y);
             // Resolve each lock to a world mount on the door face (v0.570): along the wall at the
             // door centre + the lock's offset, stacked UP by index so multiple locks form a column.
             let locks: Vec<ResolvedLock> = op
@@ -268,7 +281,7 @@ pub fn panel_placements(home: &HomeStructure) -> Vec<PanelPlacement> {
                     ResolvedLock {
                         type_id: lock.type_id.clone(),
                         state: lock.state,
-                        pos: Vec3::new(m.x, 1.0 + 0.28 * li as f32, m.y),
+                        pos: Vec3::new(m.x, wall.base + (1.0 + 0.28 * li as f32), m.y),
                     }
                 })
                 .collect();
@@ -423,6 +436,52 @@ mod tests {
         assert!(!p[0].control_panel, "no panel unless requested");
     }
 
+    /// A DOOR UPSTAIRS OPENS ONLY FOR A BODY ON ITS STOREY (ship homes increment 7, plan section 3:
+    /// door panels, the control panel and the locks from the wall's base; a door auto-opens for a
+    /// body on its storey). A door in a wall standing on the upper floor (base 3.0) hangs from 3.0,
+    /// its control panel at 4.2 and its lock at 4.0. A body standing right under it on the ground
+    /// (feet at 0) does not open it, nor does another player or an animal there; one beside it
+    /// upstairs (feet at 3.0) does, and so does one a step below the landing (feet at 2.6, on the
+    /// stair's last risers). On the ground floor the same door opens for the body at 0 and not for
+    /// one upstairs, over it.
+    ///
+    /// Seen red 2026-10-20 with main's doors put back (every door hung from the floor, any actor counted): "the upstairs door hangs from
+    /// y 0".
+    #[test]
+    fn a_door_upstairs_opens_only_for_a_body_on_its_storey() {
+        use crate::ship::home_structure::LockInstance;
+        let mut home = home_with(vec![Opening {
+            kind: OpeningKind::Door,
+            at: 4.0,
+            width: 1.0,
+            sill: 0.0,
+            height: 2.1,
+            style: "swing".into(),
+            open_dist: 2.6,
+            locked: false,
+            auto_open: true,
+            control_panel: true,
+            locks: vec![LockInstance { type_id: "metal_key".into(), state: Default::default(), secret: None, offset: 0.0 }],
+        }]);
+        home.height = 6.0;
+        home.walls[0].base = 3.0;
+        let p = panel_placements(&home).remove(0);
+        assert!((p.center.y - 3.0).abs() < 1e-5, "the upstairs door hangs from y {}", p.center.y);
+        assert!((p.hinge.y - 3.0).abs() < 1e-5, "its hinge at y {}", p.hinge.y);
+        assert!((p.control_panel_pos.y - 4.2).abs() < 1e-5, "its control panel at y {}", p.control_panel_pos.y);
+        assert!((p.locks[0].pos.y - 4.0).abs() < 1e-5, "its lock at y {}", p.locks[0].pos.y);
+        // Feet half a metre off the door's centre, across the floor.
+        let feet = |y: f32| Vec3::new(4.5, y, 0.5);
+        assert_eq!(door_actor_distance(&p, Some(feet(0.0)), &[], &[]), f32::MAX, "a body under the upstairs door opens it");
+        assert_eq!(door_actor_distance(&p, None, &[feet(0.0)], &[feet(0.0)]), f32::MAX, "another player or an animal under it opens it");
+        assert!(door_actor_distance(&p, Some(feet(3.0)), &[], &[]) < 1.0, "a body beside it upstairs does not open it");
+        assert!(door_actor_distance(&p, Some(feet(2.6)), &[], &[]) < 1.0, "a body a step below its landing does not open it");
+        home.walls[0].base = 0.0;
+        let p = panel_placements(&home).remove(0);
+        assert!(door_actor_distance(&p, Some(feet(0.0)), &[], &[]) < 1.0, "a body beside a ground door does not open it");
+        assert_eq!(door_actor_distance(&p, Some(feet(3.0)), &[], &[]), f32::MAX, "a body upstairs opens the door under it");
+    }
+
     #[test]
     fn no_walls_no_panels() {
         let home = HomeStructure { width: 10.0, depth: 10.0, height: 3.0, shell_material: 1, roof_material: 4, walls: vec![], shell_thickness: None, floors: Vec::new(), lights: Vec::new(), spawn: None, structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(), zones: Vec::new(), rail_nodes: Vec::new(), rail_edges: Vec::new() };
@@ -568,8 +627,8 @@ mod tests {
         for d in &flipped {
             let at_p1 = (d.center.z - 40.0).abs() < 1.0 && ((d.center.x - 55.0).abs() < 0.01 || (d.center.x - 65.0).abs() < 0.01);
             assert!(at_p1 && !d.others_only, "a door that flipped is not p1's, or shut to this player: {:?}", d.center);
-            // This player opens it now, as they open their own.
-            let beside = d.center + Vec3::new(1.0, 1.7, 0.0);
+            // This player opens it now, as they open their own (feet on the door's floor).
+            let beside = d.center + Vec3::new(1.0, 0.0, 0.0);
             assert!(door_actor_distance(d, Some(beside), &[], &[]) < 1.5, "p1's open door does not open for this player");
         }
         // Every other neighbour's doors are still the others' only.

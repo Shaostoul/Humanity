@@ -352,6 +352,27 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
     other way?"): only rooms near the player hold probes, so the ship's size stops mattering and
     the shared Commons need not drop to 2.5 m to keep the home at 1 m. Hardware ray-traced GI on
     cards that support it is the later upgrade, with probes kept as the fallback.
+  - **Retire the Platform tab (operator, 2026-10-20: "I feel like the platform page we had before
+    is redundant now"), right after increment 7's lanes merge.** Its Calculator, Notes, Calendar and
+    Browser are already on Apps' HumanityOS tools and open their own pages; its Bugs, Testing,
+    Performance, Dev and Planet Tuner (developer tools, kept per the forever-development rule) move
+    under one Dev tab with the same side list; Recovery moves to Settings > Security, in plain words.
+    Names sync in code, routes and files (web/pages/platform.html too). Files: src/gui/pages/
+    platform.rs, src/gui/dispatch.rs, escape_menu.rs, onboarding.rs, web/shared/shell.js, PAGES.md,
+    the Apps own-tools test's excluded list.
+  - **Recovery through trusted people is half built (found 2026-10-20 from the operator's
+    screenshot of the Recovery page):** the relay has only lookups (`/api/v2/recovery/setup`,
+    `shares-held-by`, `request`, GET); there is no screen to choose guardians or split the phrase,
+    and the page's step 5 posts a `key_rotation_v1` the relay no longer has (the key-rotation route
+    was deleted in Inc5b). Finishing it needs no key rotation: guardians return shares of the
+    recovery phrase, and restoring from the reassembled phrase gives back the same account. Until
+    it is finished the page must say so in plain words.
+  - **A "per-room ambient" lowest level for Bounced light detail** (promised to the operator,
+    2026-10-20, after he asked why not just brighten textures): one ambient colour per room from
+    that room's own lamps and windows, no probe lattice, about a tenth of the probes' memory; it
+    follows lamps and keeps rooms apart but is flat within a room. A shader change (the room GI
+    sample), so it follows lane L's merge; the live setting being built now has probe-spacing
+    levels only.
   - **Media round 5: Waves 0, 1 and 2 are DONE** (released through v0.1494.0): the desktop and
     website item pages and editors, counts, the item page for social sites, the strips, the
     Admin tab, the snapshots, the Reports page's Open. Not built: the browser proof rig

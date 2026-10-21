@@ -4919,7 +4919,7 @@ const STARTS_WALKER_ADDR = "10.78.0.1";
 /** The game's own names, as the autopilot signs it in. */
 const STARTS_GAME_NAME = "CopresenceStarts";
 /** How far east of the game's place at the counter the walker stands, metres: beside it, both in
- *  reach of the food store (second-player.js STORE_REACH_M). */
+ *  reach of the food store (second-player.js INTERACT_REACH_M). */
 const STARTS_WALKER_EAST_M = 1.2;
 /** The game's walking pace through the cabin's 0.9 m door, the hall and the corridors, metres a
  *  second: a brisk walk, so each frame's stride (at most 0.1 s of it, engine/move_check.rs) stays

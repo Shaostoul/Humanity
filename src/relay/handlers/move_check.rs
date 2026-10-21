@@ -114,6 +114,24 @@ const EDITOR_EYE_M: f32 = crate::surface_walk::EYE_HEIGHT_M as f32;
 /// How far from that height an editor close may be, metres: rounding, never a deck or a flight.
 const EDITOR_FLOOR_TOLERANCE_M: f32 = 0.25;
 
+/// True when an editor close at eye height `eye_y` stands a person on a floor of the plot box `b`
+/// (ship homes increment 7): their feet anywhere from the plot's floor up to its top less one
+/// storey (`STOREY_M`), give or take `EDITOR_FLOOR_TOLERANCE_M`. A 3 m plot (a cabin's) has one
+/// storey, so only its floor; a 6 m homestead plot has the ground floor and the upper floor at 3.0,
+/// and every height between them.
+///
+/// It cannot be tighter today because the relay holds no copy of anyone's home: the floor slabs are
+/// in the player's own home design, and the relay knows only the plot's box from the ship file. So
+/// it cannot tell an upper floor at 3.0 m from mid-air at 1.5 m over a stairwell. The box is what
+/// bounds the jump: never under the plot's floor, never over the floor of its top storey, and the
+/// up-and-down allowance still applies (M5). A close mid-air would only drop the person to the floor
+/// under them, which a jump off the stair reaches anyway.
+fn on_a_floor_of(b: &Aabb, eye_y: f32) -> bool {
+    let feet = eye_y - EDITOR_EYE_M;
+    let top_floor = (b.1.y - crate::ship::moves::STOREY_M).max(b.0.y);
+    feet >= b.0.y - EDITOR_FLOOR_TOLERANCE_M && feet <= top_floor + EDITOR_FLOOR_TOLERANCE_M
+}
+
 /// How far from a transit pad's middle someone standing in it can be (a teleporter's footprint),
 /// for a link in a home, which the relay has no copy of.
 fn pad_reach_m() -> f32 {
@@ -123,6 +141,23 @@ fn pad_reach_m() -> f32 {
 /// True when `p` stands on the box across the floor (x and z, 10 cm of slack).
 fn on_plot(b: &Aabb, p: Vec3) -> bool {
     p.x >= b.0.x - 0.1 && p.x <= b.1.x + 0.1 && p.z >= b.0.z - 0.1 && p.z <= b.1.z + 0.1
+}
+
+/// True when the floor point `p` (a transit pad's, `MoveDecl::Link`'s `from_at` / `to_at`) lies in
+/// the plot box `b`: over it across the floor (`on_plot`) and from its floor up to its top, with the
+/// same 10 cm (ship homes increment 7: a 6 m homestead plot holds pads on both of its floors, and a
+/// pad over the top of the box is on nobody's plot).
+fn pad_on_plot(b: &Aabb, p: Vec3) -> bool {
+    on_plot(b, p) && p.y >= b.0.y - 0.1 && p.y <= b.1.y + 0.1
+}
+
+/// True when a person whose eyes are at `eye` stands on the storey of the transit pad whose floor
+/// point is `pad` (ship homes increment 7): a link's ends are matched by height as well as across
+/// the floor, so standing on the floor over a pad (or under it) is not standing in it. The shared
+/// storey rule (`moves::on_my_storey`): the pad's floor is from half a metre under the feet to 2.5 m
+/// over them.
+fn at_pad_height(eye: Vec3, pad: Vec3) -> bool {
+    crate::ship::moves::on_my_storey(eye.y, pad.y)
 }
 
 impl MoveState {
@@ -192,9 +227,9 @@ impl MoveState {
             Some(MoveDecl::Link { zone, from, to, from_at, to_at }) => {
                 let ends = if zone == crate::ship::ship_structure::HOME_ZONE_ID {
                     // The player's own home: the relay has no copy of it, so both ends must be on
-                    // their own plot.
+                    // their own plot, inside its box (a pad on either floor of a two-storey plot).
                     match &ctx.own_plot {
-                        Some(b) if on_plot(b, *from_at) && on_plot(b, *to_at) => Some((*from_at, *to_at, pad_reach_m())),
+                        Some(b) if pad_on_plot(b, *from_at) && pad_on_plot(b, *to_at) => Some((*from_at, *to_at, pad_reach_m())),
                         _ => return self.correct(now_s, r.correction_gap_s, "link_off_plot"),
                     }
                 } else {
@@ -211,21 +246,34 @@ impl MoveState {
                 // review of increment 4, M3: the game keeps one declaration for its next update,
                 // so a player who bounced B to A to B while a page was open declared A to B with
                 // the relay holding them at B, and was corrected though they never moved).
-                let through = (floor_distance(ctx.held, a) + floor_distance(b, ctx.to) - 2.0 * reach).max(0.0);
+                //
+                // The ends keep their height (ship homes increment 7): the way through the link is
+                // there only when the relay holds the player on the entry pad's storey and the
+                // update lands them on the exit pad's (`at_pad_height`). Standing on the floor over
+                // a pad, 0 m from it across the floor, is not standing in it; such a move is judged
+                // as the walk straight across. A teleport between storeys is a link whose pads are
+                // on two floors, and passes as any link does (the up-and-down allowance covers the
+                // 3 m between them).
+                let through = if at_pad_height(ctx.held, a) && at_pad_height(ctx.to, b) {
+                    (floor_distance(ctx.held, a) + floor_distance(b, ctx.to) - 2.0 * reach).max(0.0)
+                } else {
+                    f32::INFINITY
+                };
                 through.min(floor_distance(ctx.held, ctx.to))
             }
             Some(MoveDecl::Editor) => {
                 // The build spot: on the player's own plot, at most `FAR_FROM_HELD_M` from where
-                // the relay holds them, and at standing height on the plot's floor, where the
-                // editor's close stands a person (lib.rs: the floor plus the eye height). The
-                // jump itself is free; the up-and-down check below still applies (M5: the
-                // editor's declaration used to skip it, and a close 500 m up was taken).
+                // the relay holds them, and at standing height on a floor of the plot, where the
+                // editor's close stands a person (lib.rs: the storey's floor plus the eye height;
+                // since increment 7 any floor inside the plot's box, `on_a_floor_of`). The jump
+                // itself is free; the up-and-down check below still applies (M5: the editor's
+                // declaration used to skip it, and a close 500 m up was taken).
                 let far = floor_distance(ctx.held, ctx.to);
                 match &ctx.own_plot {
                     Some(b) if !on_plot(b, ctx.to) => return self.correct(now_s, r.correction_gap_s, "editor_off_plot"),
                     None => return self.correct(now_s, r.correction_gap_s, "editor_off_plot"),
                     Some(_) if far > FAR_FROM_HELD_M + r.slack_m => return self.correct(now_s, r.correction_gap_s, "editor_too_far"),
-                    Some(b) if (ctx.to.y - (b.0.y + EDITOR_EYE_M)).abs() > EDITOR_FLOOR_TOLERANCE_M => return self.correct(now_s, r.correction_gap_s, "editor_off_floor"),
+                    Some(b) if !on_a_floor_of(b, ctx.to.y) => return self.correct(now_s, r.correction_gap_s, "editor_off_floor"),
                     Some(_) => 0.0,
                 }
             }
@@ -273,7 +321,7 @@ pub fn correction_sentence(reason: &str) -> &'static str {
         "link_off_plot" => "The server put you back where it last saw you: a teleporter in your home has to stand on your own plot.",
         "editor_off_plot" => "The server put you back where it last saw you: your build spot is not on your own plot, so walk there.",
         "editor_too_far" => "The server put you back where it last saw you: your build spot is more than 90 m away, so walk there.",
-        "editor_off_floor" => "The server put you back where it last saw you: shutting the build editor stands you on your plot's floor.",
+        "editor_off_floor" => "The server put you back where it last saw you: shutting the build editor stands you on a floor of your plot.",
         "jumps_too_often" => "The server put you back where it last saw you: nobody can take teleporters or shut the build editor that often.",
         _ => "The server put you back where it last saw you: that move was faster than anyone can go aboard.",
     }
@@ -424,9 +472,15 @@ mod tests {
         (out, held)
     }
 
-    /// The box of plot p1 (data/blueprints/ship_structure.ron).
+    /// The box of a plot of the ship file (data/blueprints/ship_structure.ron): p1, a homestead
+    /// plot, is 55 x 6 x 89 since ship homes increment 7 (two storeys); c1, a cabin's, 3 m tall.
+    fn plot_box(id: &str) -> Aabb {
+        let ship = crate::ship::ship_structure::ShipStructure::load_ship_file(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").as_path()).expect("the ship file");
+        ship.plots.iter().find(|p| p.id == id).unwrap_or_else(|| panic!("plot {id} in the ship file")).aabb()
+    }
+
     fn p1() -> Aabb {
-        (Vec3::ZERO, Vec3::new(55.0, 3.0, 89.0))
+        plot_box("p1")
     }
 
     /// EVERY HONEST WALK IS TAKEN: a sprint at 15 updates a second for 20 s, the fastest walk the
@@ -758,5 +812,75 @@ mod tests {
         assert_eq!(world.judge_move(id, [53.5, 1.7, 140.0], &serde_json::json!({})).0, Verdict::Accept);
         world.update_position(id, [53.5, 1.7, 140.0], [0.0, 0.0, 0.0, 1.0]);
         assert!(matches!(world.judge_move(id, [53.5, 1.7, 40.0], &serde_json::json!({})).0, Verdict::Correct { .. }));
+    }
+
+    /// SHUTTING THE EDITOR ON THE UPPER FLOOR IS TAKEN (ship homes increment 7): on p1, a 6 m
+    /// homestead plot, an editor close standing a person on the upper floor (feet 3.0 m, eyes 4.7)
+    /// is accepted like one on the ground floor; one over the plot's top (feet 6.0) is refused, and
+    /// so is one between the top storey's floor and the top (feet 3.3, past the 0.25 m of
+    /// rounding); on c1, a 3 m cabin plot, only its floor. The relay has no copy of the home, so it
+    /// cannot tell the upper floor from mid-air: any height from the floor to the top storey's floor
+    /// is taken (`on_a_floor_of`).
+    ///
+    /// Seen red 2026-10-20 on the rule before storeys (the plot's floor only): "an editor close on
+    /// the upper floor of p1 was Correct { reason: \"editor_off_floor\" }".
+    #[test]
+    fn shutting_the_editor_on_the_upper_floor_is_taken() {
+        let r = rules();
+        let judge = |plot: Aabb, to: Vec3| {
+            let mut s = MoveState::fresh(0.0, &r);
+            s.check(0.0, &MoveContext { rules: &r, held: Vec3::new(plot.1.x - 1.5, 1.7, plot.0.z + 40.5), to, declared: Some(&MoveDecl::Editor), applied: 0, own_plot: Some(plot), links: &[], vehicle_mps: None })
+        };
+        let p1 = p1();
+        assert_eq!(p1.1.y - p1.0.y, 6.0, "p1 is a two-storey plot");
+        let at = |feet: f32| Vec3::new(40.0, feet + 1.7, 30.0);
+        let v = judge(p1, at(3.0));
+        assert_eq!(v, Verdict::Accept, "an editor close on the upper floor of p1 was {v:?}");
+        assert_eq!(judge(p1, at(0.0)), Verdict::Accept, "on the ground floor");
+        assert_eq!(judge(p1, at(3.2)), Verdict::Accept, "within the 0.25 m of rounding of the upper floor");
+        assert_eq!(judge(p1, at(6.0)), Verdict::Correct { reason: "editor_off_floor" }, "over the plot's top");
+        assert_eq!(judge(p1, at(3.3)), Verdict::Correct { reason: "editor_off_floor" }, "past the top storey's floor");
+        assert_eq!(judge(p1, at(-0.5)), Verdict::Correct { reason: "editor_off_floor" }, "under the plot's floor");
+        let c1 = plot_box("c1");
+        assert_eq!(c1.1.y - c1.0.y, 3.0, "a cabin plot is one storey");
+        let cabin = |feet: f32| Vec3::new(c1.0.x + 1.5, feet + 1.7, c1.0.z + 1.2);
+        assert_eq!(judge(c1, cabin(0.0)), Verdict::Accept, "a cabin's floor");
+        assert_eq!(judge(c1, cabin(3.0)), Verdict::Correct { reason: "editor_off_floor" }, "a cabin has no upper floor");
+    }
+
+    /// A TELEPORT BETWEEN STOREYS PASSES, AND A LINK'S ENDS ARE MATCHED BY HEIGHT (ship homes
+    /// increment 7). A teleporter pair in the player's home, one pad on the ground floor of p1 and
+    /// one on its upper floor 60 m away, jumps them with no allowance left: the 3 m up is within the
+    /// up-and-down allowance, as it was before storeys. But standing on the upper floor RIGHT OVER
+    /// the ground pad is not standing in it: a declared jump from there is judged as the 60 m walk
+    /// it would be, and so is one that lands a storey over the exit pad. A pad over the plot's top
+    /// is on nobody's plot. The same for a link in a shared zone, by the relay's own pads.
+    ///
+    /// Seen red 2026-10-20 on the link check before storeys (both ends across the floor only): "a
+    /// jump declared from the floor over the ground pad was Accept".
+    #[test]
+    fn a_teleport_between_storeys_passes_and_link_ends_match_by_height() {
+        let r = rules();
+        let judge = |held: Vec3, to: Vec3, d: &MoveDecl, links: &[TransitLink]| {
+            let mut s = MoveState::fresh(0.0, &r);
+            s.bank_h = 0.0;
+            s.check(0.0, &MoveContext { rules: &r, held, to, declared: Some(d), applied: 0, own_plot: Some(p1()), links, vehicle_mps: None })
+        };
+        let link = |from_at: Vec3, to_at: Vec3| MoveDecl::Link { zone: "home".into(), from: "teleporter-1".into(), to: "teleporter-2".into(), from_at, to_at };
+        let (ground, upper) = (Vec3::new(22.5, 0.0, 20.0), Vec3::new(31.0, 3.0, 80.0));
+        let eye = |pad: Vec3| pad + Vec3::new(0.0, 1.7, 0.1);
+        assert_eq!(judge(eye(ground), eye(upper), &link(ground, upper), &[]), Verdict::Accept, "up a storey through the link");
+        assert_eq!(judge(eye(upper), eye(ground), &link(upper, ground), &[]), Verdict::Accept, "and down");
+        let over_ground = eye(ground) + Vec3::new(0.0, 3.0, 0.0);
+        let flat = link(ground, Vec3::new(31.0, 0.0, 80.0));
+        let v = judge(over_ground, eye(Vec3::new(31.0, 0.0, 80.0)), &flat, &[]);
+        assert_eq!(v, Verdict::Correct { reason: "too_fast" }, "a jump declared from the floor over the ground pad was {v:?}");
+        assert_eq!(judge(eye(ground), eye(Vec3::new(31.0, 3.0, 80.0)), &flat, &[]), Verdict::Correct { reason: "too_fast" }, "landing a storey over the exit pad");
+        assert_eq!(judge(eye(ground), eye(Vec3::new(31.0, 6.5, 80.0)), &link(ground, Vec3::new(31.0, 6.5, 80.0)), &[]), Verdict::Correct { reason: "link_off_plot" }, "a pad over the plot's top");
+        // A shared zone's link, by its ids: the relay's own pads, their height too.
+        let commons = TransitLink { zone: "commons".into(), from: "teleporter-1".into(), to: "teleporter-2".into(), from_at: Vec3::new(70.0, 0.0, 30.0), to_at: Vec3::new(90.0, 0.0, 70.0), from_yaw: 0.0, reach_m: 0.75 };
+        let links = [commons.clone()];
+        assert_eq!(judge(eye(commons.from_at), eye(commons.to_at), &commons.declaration(), &links), Verdict::Accept, "the Commons' pair");
+        assert_eq!(judge(eye(commons.from_at) + Vec3::new(0.0, 3.0, 0.0), eye(commons.to_at), &commons.declaration(), &links), Verdict::Correct { reason: "too_fast" }, "from over the Commons' pad");
     }
 }

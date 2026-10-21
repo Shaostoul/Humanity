@@ -42,3 +42,11 @@ test("the hull pin is released, and hiding the hull marks the pins as held", () 
   assert.strictEqual(holdsStickyPin({ hull: "0" }), true, "a vantage hiding the hull holds a sticky pin");
   assert.strictEqual(holdsStickyPin({ hull: "1" }), false, "1 is the release, not a pin");
 });
+// The Bounced light detail pin (2026-10-20): {"bounced_light_detail":"low"} sets the setting, so a
+// vantage photographing one level would leave every vantage after it on that level. "high" is the
+// default, and the release.
+test("the bounced light detail pin is released to High", () => {
+  assert.strictEqual(STICKY_PIN_RESETS.bounced_light_detail, "high", `bounced_light_detail resets to high: ${STICKY_PIN_RESETS.bounced_light_detail}`);
+  assert.strictEqual(holdsStickyPin({ bounced_light_detail: "low" }), true, "a vantage on Low holds a sticky pin");
+  assert.strictEqual(holdsStickyPin({ bounced_light_detail: "high" }), false, "high is the release, not a pin");
+});

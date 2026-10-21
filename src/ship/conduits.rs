@@ -12,7 +12,7 @@
 //! Mesh generation (copper cylinders, sagging hoses, bracket shapes) is a render step that consumes
 //! this. Keeping it GPU-free makes it unit-testable and lets it compile in the headless relay.
 
-use crate::ship::home_structure::InteriorWall;
+use crate::ship::home_structure::{FloorSlab, InteriorWall};
 use glam::Vec3;
 
 /// What a conduit physically is. The kind fixes how the run behaves (rigid with elbows, or
@@ -170,10 +170,43 @@ pub fn route_conduit(
     ConduitRoute { kind, points, fittings }
 }
 
-/// If conduit leg a->b crosses interior `wall` in plan (XZ), return the crossing point (at the leg's
-/// height) + the wall material. Only meaningful for the horizontal legs (vertical legs share a single
-/// XZ point and never "cross").
+/// Add a gasketed passthrough (a floor sleeve) wherever a vertical leg of `route` crosses one of
+/// `slabs` (ship homes increment 7: a riser from a machine downstairs to one upstairs goes up
+/// through the floor between them, as a real one does, sleeved). `origin` is where the slabs' body
+/// stands in the world (they are in its own metres). The sleeve sits at the slab's mid-plane and
+/// carries the slab's material as the fittings know it: 2 (concrete, the structural slab the room
+/// below sees) for a solid slab, 4 (glass) for a glass one.
+pub fn add_slab_passthroughs(route: &mut ConduitRoute, slabs: &[FloorSlab], origin: Vec3) {
+    let mut sleeves = Vec::new();
+    for w in route.points.windows(2) {
+        let (a, b) = (w[0], w[1]);
+        if (a.x - b.x).abs() > 1e-3 || (a.z - b.z).abs() > 1e-3 {
+            continue; // only a vertical leg rises through a floor
+        }
+        let (lo, hi) = (a.y.min(b.y), a.y.max(b.y));
+        for s in slabs {
+            let mid = origin.y + (s.underside() + s.top) * 0.5;
+            if mid > lo && mid < hi && s.contains(a.x - origin.x, a.z - origin.z) {
+                let material = if s.passes_light() { 4 } else { 2 };
+                sleeves.push(ConduitFitting { at: Vec3::new(a.x, mid, a.z), kind: FittingKind::Passthrough, material });
+            }
+        }
+    }
+    route.fittings.extend(sleeves);
+}
+
+/// If conduit leg a->b crosses interior `wall` in plan (XZ) AT A HEIGHT THE WALL STANDS AT, return
+/// the crossing point (at the leg's height) + the wall material. Only meaningful for the horizontal
+/// legs (vertical legs share a single XZ point and never "cross"). The height test (ship homes
+/// increment 7) keeps a run under the ground floor's ceiling from gasketing through the walls of the
+/// storey above it, and through a half wall it passes over; the wall's base and top are in the
+/// run's own frame (the caller moves a body's walls to the world, heights included).
 fn leg_crosses_wall(a: Vec3, b: Vec3, wall: &InteriorWall) -> Option<(Vec3, u32)> {
+    let (base, top) = wall.y_range();
+    let y = (a.y + b.y) * 0.5;
+    if y < base - 0.01 || y > top + 0.01 {
+        return None;
+    }
     let p = (a.x, a.z);
     let r = (b.x - a.x, b.z - a.z);
     let q = (wall.a.0, wall.a.1);
@@ -255,5 +288,48 @@ mod tests {
         assert_eq!(pass.len(), 1, "one passthrough where the run crosses the wall");
         assert_eq!(pass[0].material, 3, "the passthrough carries the WALL's material (wood)");
         assert!((pass[0].at.x - 5.0).abs() < 1e-3, "crossing is at the wall, x=5");
+    }
+
+    /// A RUN PASSES THROUGH ONLY THE WALLS AT ITS HEIGHT (ship homes increment 7, plan section 3:
+    /// conduits per storey). A run under the ground floor's ceiling, at 2.45 m, crosses the plan line
+    /// of a wall upstairs (base 3.0) and of a 2.0 m half wall without passing through either, so
+    /// neither gets a gasket; it does pass through a ground wall of 3.0 m, which gets one.
+    ///
+    /// Seen red 2026-10-20 with main's crossing test put back (a crossing in plan was one at any height): "3
+    /// passthroughs, want 1, the ground wall's".
+    #[test]
+    fn a_run_passes_through_only_the_walls_at_its_height() {
+        let mut upstairs = wall((3.0, -2.0), (3.0, 2.0), 2);
+        upstairs.base = 3.0;
+        let mut half = wall((5.0, -2.0), (5.0, 2.0), 2);
+        half.height = 2.0;
+        let ground = wall((7.0, -2.0), (7.0, 2.0), 3);
+        let r = route_conduit(Vec3::new(0.0, 2.45, 0.0), Vec3::new(10.0, 2.45, 0.0), ConduitKind::FlexibleHose, 2.45, 1, &[upstairs, half, ground]);
+        let pass: Vec<_> = r.fittings.iter().filter(|f| f.kind == FittingKind::Passthrough).collect();
+        assert_eq!(pass.len(), 1, "{} passthroughs, want 1, the ground wall's", pass.len());
+        assert!((pass[0].at.x - 7.0).abs() < 1e-3);
+    }
+
+    /// A RISER THROUGH A FLOOR GETS A SLEEVE (plan section 3: conduits per storey). A pipe from a
+    /// machine downstairs to one standing on the floor slab above runs under the upstairs ceiling
+    /// (5.7 m), so it rises through the slab once, at the machine downstairs, and gets a
+    /// passthrough there, at the slab's mid-plane, in the slab's material (2, the concrete the room
+    /// below sees); its drop to the machine upstairs stays above the slab. A pipe beside the slab,
+    /// rising past its edge, gets none.
+    ///
+    /// Seen red 2026-10-20 with the sleeves left out (main added none): "0 sleeves where the riser goes through
+    /// the floor".
+    #[test]
+    fn a_riser_through_a_floor_gets_a_sleeve() {
+        let floor: FloorSlab = ron::from_str("(a: (0.0, 0.0), b: (10.0, 10.0), top: 3.0)").expect("a slab parses");
+        let mut r = route_conduit(Vec3::new(2.0, 0.35, 2.0), Vec3::new(6.0, 3.35, 2.0), ConduitKind::RigidCopper, 5.7, 1, &[]);
+        add_slab_passthroughs(&mut r, std::slice::from_ref(&floor), Vec3::ZERO);
+        let sleeves: Vec<_> = r.fittings.iter().filter(|f| f.kind == FittingKind::Passthrough).collect();
+        assert_eq!(sleeves.len(), 1, "{} sleeves where the riser goes through the floor", sleeves.len());
+        let s = sleeves[0];
+        assert!((s.at - Vec3::new(2.0, 2.875, 2.0)).length() < 1e-4 && s.material == 2, "a sleeve at {:?}, material {}", s.at, s.material);
+        let mut beside = route_conduit(Vec3::new(12.0, 0.35, 2.0), Vec3::new(14.0, 0.35, 2.0), ConduitKind::RigidCopper, 5.7, 1, &[]);
+        add_slab_passthroughs(&mut beside, std::slice::from_ref(&floor), Vec3::ZERO);
+        assert!(beside.fittings.iter().all(|f| f.kind != FittingKind::Passthrough), "a sleeve on a pipe beside the floor");
     }
 }

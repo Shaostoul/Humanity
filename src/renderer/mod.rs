@@ -104,6 +104,7 @@ pub mod pipeline;
 /// the math and the CPU twin, then the atlas, the room table and the update.
 pub mod room_probes;
 pub mod room_probes_gpu;
+pub mod bounced_light_detail;
 /// The near-world draw loops: opaque, transparent, overlay, god rays, SSAO,
 /// and the whole-frame wrappers around them. Extracted from mod.rs in
 /// v0.1319 - see the file's header for why this cluster.
@@ -1068,6 +1069,8 @@ impl Renderer {
             .await
             .expect("No suitable GPU adapter found");
         log::info!("[BootPhase] adapter_request: {:.0} ms", t_phase.elapsed().as_secs_f32() * 1000.0);
+        // The card and its own memory, for Settings > Bounced light detail's warning.
+        bounced_light_detail::note_adapter(&adapter.get_info());
 
         // ── The background bakes start HERE, and not one line earlier ──
         // They used to spawn in `new_native`, before the instance existed,

@@ -712,7 +712,8 @@ mod tests {
         assert!(own.len() == 4 && own.iter().all(|p| !p.others_only), "p1's own corridor doors: {own:?}");
         // Who opens it: the neighbour walking home, never this player (nor an animal).
         let d = street[0];
-        let beside = d.center + Vec3::new(1.0, 1.7, 0.0);
+        // Feet on the door's floor, a metre off it (`door_actor_distance` takes feet).
+        let beside = d.center + Vec3::new(1.0, 0.0, 0.0);
         assert_eq!(door_actor_distance(d, Some(beside), &[], &[beside]), f32::MAX, "this player opens a neighbour's door");
         assert!(door_actor_distance(d, None, &[beside], &[]) < 1.5, "the neighbour walking home does not open it");
         let ordinary = doors.iter().find(|p| !p.others_only && !p.is_window).unwrap();

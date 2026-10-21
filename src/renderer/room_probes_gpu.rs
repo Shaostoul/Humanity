@@ -41,6 +41,8 @@ use super::room_probes::{
     GiParamsGpu, GiRoomGpu, OccluderSlab, RoomBox, HEADER_BYTES, HYSTERESIS, NORMAL_BIAS_M, ROOM_BYTES,
     SKY_LIGHTING_EXPOSURE,
 };
+use super::bounced_light_detail::{mb_words, probe_memory_bytes};
+use super::room_probes::{ProbeBudget, PROBE_SPACING_M};
 use super::{pipeline, Renderer};
 
 /// Probes the update refreshes per frame, at most.
@@ -67,7 +69,20 @@ pub const UPDATE_SHADER: &str = concat!(
     include_str!("../../assets/shaders/room_probes_update.wgsl"),
 );
 
-const ATLAS_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float;
+pub(super) const ATLAS_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float;
+
+/// The probes the atlas must be laid out for after the lattice was worked
+/// out again, or None to keep the atlas it has (`current` probes).
+/// - The lattice no longer fits: grow, with a quarter of headroom so dragging
+///   a wall in the construction editor does not reallocate every frame, never
+///   past the level's cap.
+/// - The level changed: lay it out for what the new level wants, SMALLER
+///   too, because a lower level is chosen to give the memory back.
+pub fn atlas_probes_after(current: u32, total: u32, max_probes: u32, budget_changed: bool) -> Option<u32> {
+    let want = (total + total / 4).min(max_probes).max(total);
+    let resized = AtlasLayout::for_probes(want).probes != current;
+    (total > current || (budget_changed && resized)).then_some(want)
+}
 
 pub struct RoomGi {
     /// The dev switch (showcase `{"room_gi":"0"}`): the room table says "off",
@@ -89,6 +104,8 @@ pub struct RoomGi {
     /// ship's when no room is the home's): 1 m unless the home alone outgrew
     /// the cap (`room_probes::lattice_for`).
     pub spacing: f32,
+    /// The Bounced light detail level's spacing and cap (`set_budget`).
+    budget: ProbeBudget,
     layout: AtlasLayout,
     _atlas: wgpu::Texture,
     pub(super) atlas_view: wgpu::TextureView,
@@ -268,7 +285,8 @@ impl RoomGi {
             counts: Vec::new(),
             first: Vec::new(),
             total: 0,
-            spacing: super::room_probes::PROBE_SPACING_M,
+            spacing: PROBE_SPACING_M,
+            budget: ProbeBudget::default(),
             layout,
             _atlas: atlas,
             atlas_view,
@@ -322,6 +340,11 @@ impl RoomGi {
             + self.params_buf.size()
     }
 
+    /// The Bounced light detail level's budget, as last set.
+    pub fn budget(&self) -> ProbeBudget {
+        self.budget
+    }
+
     /// New rooms (home frame). Recomputes the lattice, grows the atlas and the
     /// room table if they no longer fit (flagging `rebind`), and schedules the
     /// atlas clear. Unchanged rooms are a no-op, which matters because the
@@ -330,7 +353,28 @@ impl RoomGi {
         if rooms == self.rooms {
             return;
         }
-        let lattice = lattice_for(&rooms);
+        self.relayout(device, rooms, false);
+    }
+
+    /// A new Bounced light detail level (Settings, or the dev request
+    /// `{"bounced_light_detail":"low"}`). The same rooms are laid out again at
+    /// the new spacing and cap, and the atlas is made again at the new size
+    /// (smaller too) and cleared, so every probe starts over and the light
+    /// settles again over the next updates. False when nothing changed.
+    fn set_budget(&mut self, device: &wgpu::Device, budget: ProbeBudget) -> bool {
+        if budget == self.budget {
+            return false;
+        }
+        self.budget = budget;
+        let rooms = std::mem::take(&mut self.rooms);
+        self.relayout(device, rooms, true);
+        true
+    }
+
+    /// Lay `rooms` out at the current budget: the lattice, the atlas (see
+    /// `atlas_probes_after`), the room table, and the clear.
+    fn relayout(&mut self, device: &wgpu::Device, rooms: Vec<RoomBox>, budget_changed: bool) {
+        let lattice = lattice_for(&rooms, self.budget);
         let counts = lattice.counts.clone();
         let mut first = Vec::with_capacity(rooms.len());
         let mut total = 0u32;
@@ -338,10 +382,7 @@ impl RoomGi {
             first.push(total);
             total += c[0] * c[1] * c[2];
         }
-        if total > self.layout.probes {
-            // A quarter of headroom, so dragging a wall does not reallocate
-            // the atlas every frame.
-            let cap = (total + total / 4).min(super::room_probes::MAX_TOTAL_PROBES).max(total);
+        if let Some(cap) = atlas_probes_after(self.layout.probes, total, self.budget.max_probes, budget_changed) {
             self.layout = AtlasLayout::for_probes(cap);
             let (tex, view) = atlas_texture(device, &self.layout, "Room GI Atlas");
             self._atlas = tex;
@@ -374,10 +415,11 @@ impl RoomGi {
         };
         let home_rooms = rooms.iter().filter(|r| r.home).count();
         log::info!(
-            "[RoomGI] {} rooms, {} probes of {}: home {}, others {}{}",
+            "[RoomGI] {} rooms, {} probes of {} (detail {:.2} m): home {}, others {}{}",
             rooms.len(),
             total,
-            super::room_probes::MAX_TOTAL_PROBES,
+            self.budget.max_probes,
+            self.budget.spacing_m,
             group(home_rooms, lattice.total_where(&rooms, true), lattice.home_spacing),
             group(rooms.len() - home_rooms, lattice.total_where(&rooms, false), lattice.other_spacing),
             if lattice.home_coarsened {
@@ -390,7 +432,7 @@ impl RoomGi {
         self.counts = counts;
         self.first = first;
         self.total = total;
-        self.spacing = lattice.home_spacing.or(lattice.other_spacing).unwrap_or(super::room_probes::PROBE_SPACING_M);
+        self.spacing = lattice.home_spacing.or(lattice.other_spacing).unwrap_or(self.budget.spacing_m);
         self.cursor = 0;
         self.cam_cursor = 0;
         self.needs_clear = true;
@@ -482,11 +524,31 @@ impl Renderer {
     /// Hand the renderer the ship's SOLID floor slabs (home frame), after
     /// every home build or edit, beside the rooms (`engine::room_gi::
     /// rooms_changed`). From the next frame they keep lamp light and sunlight
-    /// on their own storey (`update_room_gi` writes their rows).
+    /// on their own storey (`update_room_gi` writes their rows). Kept apart
+    /// from the rooms' layout, so a Bounced light detail change, which lays
+    /// the rooms out again, leaves them as they are.
     pub fn set_room_gi_slabs(&mut self, slabs: Vec<OccluderSlab>) {
         if slabs != self.room_gi.slabs {
             log::info!("[RoomGI] {} solid floor slabs keep lamp light and sunlight to their storey", slabs.len());
             self.room_gi.slabs = slabs;
+        }
+    }
+
+    /// The Bounced light detail level's budget, every frame and before every
+    /// rooms hand-over (`engine::room_gi`). A no-op while it is unchanged; a
+    /// change lays the rooms out again, remakes the atlas at the new size and
+    /// rebinds it, before this frame's update.
+    pub fn set_room_gi_budget(&mut self, budget: ProbeBudget) {
+        if self.room_gi.set_budget(&self.device, budget) {
+            log::info!(
+                "[RoomGI] bounced light detail: {:.2} m spacing, up to {} probes ({})",
+                budget.spacing_m,
+                budget.max_probes,
+                mb_words(probe_memory_bytes(budget.max_probes))
+            );
+            if self.room_gi.rebind {
+                self.rebuild_camera_bind_groups();
+            }
         }
     }
 
@@ -785,5 +847,77 @@ mod tests {
     fn the_scratch_holds_a_full_update() {
         let s = AtlasLayout::for_probes(MAX_UPDATES_PER_FRAME);
         assert!(s.probes >= MAX_UPDATES_PER_FRAME && s.height <= 8192);
+    }
+
+    // ── Bounced light detail (2026-10-20): the atlas half; the levels and their
+    //    words are tested in `bounced_light_detail` ──
+
+    use super::super::bounced_light_detail::tests::home_and_ship;
+    use super::super::bounced_light_detail::{detail_level, DetailLevel};
+
+    /// Changing the level marks the atlas for rebuild, at the new level's
+    /// size, smaller as well as bigger; the same level again, or rooms that
+    /// still fit, keep the atlas. (The device half, `RoomGi::set_budget`
+    /// itself, is `a_level_change_remakes_the_atlas_on_a_real_device`.)
+    ///
+    /// Seen red 2026-10-20 with the rebuild only on growth (`total > current`
+    /// alone, the rule before levels): "High to Low keeps a 32768-probe atlas: None".
+    #[test]
+    fn changing_the_level_marks_the_atlas_for_rebuild() {
+        let rooms = home_and_ship();
+        let total = |l: &DetailLevel| lattice_for(&rooms, l.budget()).total() as u32;
+        let (low, high, ultra) = (detail_level("low"), detail_level("high"), detail_level("ultra"));
+        // Boot at High: the first rooms grow the 1-probe atlas.
+        let first = atlas_probes_after(1, total(high), high.max_probes, false).expect("the first rooms grow the atlas");
+        let current = AtlasLayout::for_probes(first).probes;
+        assert!(current <= high.max_probes && current >= total(high));
+        // The same rooms at the same level: nothing to do.
+        assert_eq!(atlas_probes_after(current, total(high), high.max_probes, false), None);
+        assert_eq!(atlas_probes_after(current, total(high), high.max_probes, true), None, "a level change to the same size keeps it");
+        // High to Low gives the memory back.
+        let to_low = atlas_probes_after(current, total(low), low.max_probes, true);
+        assert!(to_low.is_some_and(|p| p <= low.max_probes && p < current), "High to Low keeps a {current}-probe atlas: {to_low:?}");
+        // High to Ultra grows it, within Ultra's cap.
+        let to_ultra = atlas_probes_after(current, total(ultra), ultra.max_probes, true);
+        assert!(to_ultra.is_some_and(|p| p > current && p <= ultra.max_probes), "{to_ultra:?}");
+        // Rooms that outgrow the atlas grow it whatever the level did.
+        assert_eq!(atlas_probes_after(100, 200, 32_768, false), Some(250));
+    }
+
+    /// The device half of a level change, on a real adapter: `set_budget`
+    /// remakes the atlas at the new level's size (smaller for Low), flags the
+    /// camera bind groups for the rebind and the atlas for its clear, and the
+    /// same level again does nothing.
+    ///
+    /// Ignored because it needs a real adapter (CI has none). Run it deliberately:
+    ///   node scripts/lib-tests.js a_level_change_remakes_the_atlas --ignored --nocapture
+    #[cfg(feature = "native")]
+    #[test]
+    #[ignore = "needs a GPU adapter; run explicitly (see the doc comment)"]
+    fn a_level_change_remakes_the_atlas_on_a_real_device() {
+        let instance = wgpu::Instance::default();
+        let Some(adapter) = pollster::block_on(instance.request_adapter(&Default::default())) else {
+            println!("no GPU adapter; skipping");
+            return;
+        };
+        let (device, _queue) =
+            pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor::default(), None)).expect("a device");
+        device.on_uncaptured_error(Box::new(|e| panic!("wgpu validation error: {e}")));
+        let mut gi = RoomGi::new(&device);
+        gi.set_rooms(&device, home_and_ship());
+        let at_high = gi.layout.probes;
+        println!("High: {} probes, atlas for {at_high}", gi.total);
+        assert!(at_high <= super::super::room_probes::MAX_TOTAL_PROBES && gi.total <= at_high);
+        gi.rebind = false;
+        gi.needs_clear = false;
+        let low = detail_level("low").budget();
+        assert!(gi.set_budget(&device, low), "a new level is a change");
+        println!("Low: {} probes, atlas for {}", gi.total, gi.layout.probes);
+        assert!(gi.layout.probes < at_high && gi.layout.probes <= low.max_probes, "the atlas gave its memory back");
+        assert!(gi.rebind && gi.needs_clear && gi.bind_groups.is_none(), "rebind and clear are flagged");
+        assert!(gi.total <= low.max_probes && gi.rooms.len() == home_and_ship().len());
+        gi.rebind = false;
+        assert!(!gi.set_budget(&device, low), "the same level again is not");
+        assert!(!gi.rebind);
     }
 }
