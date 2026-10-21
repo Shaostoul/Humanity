@@ -118,6 +118,27 @@ pub(crate) fn parse_take_down(raw: &str) -> Option<u64> {
     raw.trim().parse::<u64>().ok()
 }
 
+/// The showcase `console` verb (2026-10-21, verify-falls' deck aboard): one line of the build
+/// editor's console (gui/pages/construction.rs `exec_construction_command`, the verbs its `help`
+/// lists: `add_structure deck 32.5 2.8 62 0`, `rm_structure 8`, `add_slab ...`) run on the live
+/// home FOR THIS SESSION ONLY. Returns what the console said, and whether the home must be rebuilt
+/// (the caller rebuilds it, engine/home_meshes.rs `rebuild_homestead`).
+///
+/// WHY NOT KEPT. The console marks its edits for the editor's live rebuild
+/// (`construction_structure_dirty`), and that same mark arms the 60 s autosave, which in the Dev
+/// mode writes the home into the data files (engine/own_home.rs `keep_edits_now`). Every rig is a
+/// Dev sandbox whose data folder IS the tree's (a junction, scripts/lib/rig-gameplay.js), so a
+/// rig's deck would have been written into data/homes/homestead.ron a minute after it was placed.
+/// This takes the mark back and the caller rebuilds directly, the way an undo restores without
+/// looking like an edit (engine/editor.rs `editor_restore`): the change is in the running game and
+/// nowhere on disk. A later edit in the editor that IS kept saves the whole home as it stands,
+/// this line's change included, so a change meant to be kept is made in the editor itself.
+pub(crate) fn console_this_session(gui: &mut crate::gui::GuiState, line: &str) -> (String, bool) {
+    let said = crate::gui::pages::construction::exec_construction_command(gui, line);
+    let rebuild = std::mem::take(&mut gui.construction_structure_dirty);
+    (said, rebuild)
+}
+
 /// Read a `page` verb's value (ship homes 5b): a page by the id the data files name it with
 /// (`homes`, `inventory`; gui/dispatch.rs `page_from_id`). None for an id no page has, so a typo
 /// opens nothing.
@@ -788,6 +809,18 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
             }
             None => log::warn!("Showcase: take_down wants the id of a piece the server keeps, not {spec:?}"),
         }
+    }
+    // {"console":"add_structure deck 32.5 2.8 62 0"} (2026-10-21, verify-falls): one line of the
+    // build editor's console on the live home, for this session only (`console_this_session`:
+    // never written to the data files or a save). verify-falls places the deck its walks aboard
+    // step off this way (docs/design/ship-homes-increment-7-plan.md, decision 10), and takes it
+    // away after. The console's answer is this log line. Permanent dev tooling.
+    if let Some(line) = grab("console") {
+        let (said, rebuild) = console_this_session(&mut state.gui_state, &line);
+        if rebuild {
+            crate::engine::home_meshes::rebuild_homestead(state);
+        }
+        log::info!("Showcase: console {line} -> {}", said.trim_end().replace('\n', " | "));
     }
     // {"page":"homes"} (ship homes 5b, 2026-10-12): open that page, as its nav item does (the
     // back stack cleared: the nav's clicks are lateral). verify-copresence --household opens the
@@ -4954,6 +4987,70 @@ mod showcase_gate_tests {
             growing_seconds: 0.0,
         },));
         assert_eq!(showcase_gate(&growing, PlayMode::Dev, true), Err("crops already present"));
+    }
+}
+
+#[cfg(test)]
+mod console_verb_tests {
+    //! The showcase `console` verb (2026-10-21): the build editor's console on the live home, for
+    //! this session only (`console_this_session`).
+    use super::*;
+    use crate::config::PlayMode;
+    use crate::ship::ship_structure::ShipStructure;
+
+    /// A Dev session, the rigs' play mode, on the shipped ship from p1, the editor's zone the home.
+    fn dev_session() -> crate::gui::GuiState {
+        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let mut gui = crate::gui::GuiState::default();
+        gui.settings.play_mode = PlayMode::Dev;
+        let ship = ShipStructure::load_and_assemble_shipped(&data, Some("p1")).expect("the shipped ship assembles");
+        gui.construction_zone = ship.home_zone_index();
+        gui.ship_structure = Some(ship);
+        gui
+    }
+
+    /// A CONSOLE LINE THROUGH THE DEV VERB CHANGES THE LIVE HOME AND ARMS NO AUTOSAVE. verify-falls
+    /// places a deck with `add_structure deck ...`: the deck is in the home's pieces, the console's
+    /// answer says so, the caller is told to rebuild, and the mark that arms the 60 s autosave
+    /// (which in the Dev mode, every rig's, writes the data files, the tree's own through the rig's
+    /// junction) is not left set. A line that edits nothing (`help`) asks for no rebuild.
+    ///
+    /// Seen red 2026-10-21 with the mark left as the console set it: "the console verb armed the
+    /// autosave".
+    #[test]
+    fn a_console_line_changes_the_live_home_and_arms_no_autosave() {
+        let mut gui = dev_session();
+        let pieces = |g: &crate::gui::GuiState| {
+            let ship = g.ship_structure.as_ref().unwrap();
+            ship.zones[ship.home_zone_index()].body.structures.clone()
+        };
+        let before = pieces(&gui).len();
+        let (said, rebuild) = console_this_session(&mut gui, "add_structure deck 32.5 2.8 62 0");
+        assert!(said.starts_with(&format!("added structure #{} (deck)", before + 1)), "the console said {said:?}");
+        let after = pieces(&gui);
+        assert_eq!(after.len(), before + 1, "the deck is in the home's pieces");
+        let deck = after.last().unwrap();
+        assert_eq!((deck.type_id.as_str(), deck.pos, deck.rot_deg), ("deck", (32.5, 2.8, 62.0), 0.0));
+        assert!(rebuild, "the caller was not told to rebuild the home");
+        let armed = crate::engine::editor::arms_autosave(gui.construction_structure_dirty || gui.construction_machines_dirty, false);
+        assert!(!armed, "the console verb armed the autosave");
+        let (_, rebuild) = console_this_session(&mut gui, "help");
+        assert!(!rebuild, "a line that edits nothing asked for a rebuild");
+        // And it comes away again the same way.
+        let (said, _) = console_this_session(&mut gui, &format!("rm_structure {}", before + 1));
+        assert_eq!(said, format!("removed structure #{}", before + 1));
+        assert_eq!(pieces(&gui).len(), before);
+        assert!(!gui.construction_structure_dirty, "the console verb armed the autosave");
+    }
+
+    /// The showcase poll reads the verb by its key and rebuilds the home when told to.
+    #[test]
+    fn the_showcase_poll_reads_the_console_verb() {
+        let src = include_str!("ipc.rs").replace("\r\n", "\n");
+        let start = src.find("pub(crate) fn poll_showcase_request(").expect("the showcase poll");
+        let body = &src[start..start + src[start..].find("\n}\n").expect("its end")];
+        assert!(body.contains("grab(\"console\")"), "the showcase poll never reads grab(\"console\")");
+        assert!(body.contains("console_this_session(") && body.contains("rebuild_homestead(state)"));
     }
 }
 

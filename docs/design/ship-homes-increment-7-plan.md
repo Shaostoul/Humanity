@@ -160,6 +160,15 @@ that walks up the stairs into the upstairs bedroom.
    ladder hatch has a self-closing gate: otherwise each is a walk-in 3 m drop (lane M).
 10. The falls rig's aboard walk-off-the-top leg moves to a deck the rig places for itself: the
     stairs now lead to a floor, and no unguarded 3 m edge remains in the home by design.
+    **As built (2026-10-21):** the rig places a `deck` piece with its top at the upper floor's
+    height in the middle of the largest room open to the roof (the greenhouse), through the build
+    editor's console line `add_structure deck ...` sent by a new showcase verb, `console`, which
+    keeps the change to that session (it never arms the Dev mode's autosave into the data files),
+    and both walk legs step off it. The ladder leg now climbs through the hatch and steps onto the
+    upper floor across the gate (no fall, no wound); the stairs-down leg walks the 16 risers.
+    scripts/verify-falls.js's header holds the red and green runs. The rig's door points report
+    the walls by storey too (src/ship/door_points.rs `StoreyWalls`), so the upper hall's south wall
+    no longer crosses the ground hall in verify-copresence's map.
 
 ## 7. The layout and the finding (C1, 2026-10-20)
 
