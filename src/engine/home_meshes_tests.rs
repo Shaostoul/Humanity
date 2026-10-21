@@ -153,12 +153,12 @@ fn a_machines_pipes_and_a_rooms_light_keep_to_their_storey() {
 
 /// The shipped homestead's elevator (elevator-1, at (31, 0, 26) of the home zone): its key in
 /// `ElevatorCars`.
-fn homestead_lift(ship: &ShipStructure) -> (usize, usize) {
+fn homestead_lift(ship: &ShipStructure) -> crate::engine::footing::LiftKey {
     let hz = ship.home_zone_index();
     let at = ship.zones[hz].origin_vec() + Vec3::new(31.0, 0.0, 26.0);
     crate::engine::footing::lifts(ship)
         .into_iter()
-        .find(|l| l.key.0 == hz && (l.base - at).length() < 0.01)
+        .find(|l| l.key.0 == ship.zones[hz].id && (l.base - at).length() < 0.01)
         .expect("the homestead's elevator-1 at (31, 0, 26)")
         .key
 }
@@ -243,7 +243,7 @@ fn an_elevators_landing_door_opens_only_with_the_car_there() {
         .expect("U11, the lift lobby's door onto the shaft, its bottom middle at (31, 3, 26.9)");
     let key = homestead_lift(&ship);
     let mut cars = ElevatorCars::new();
-    cars.insert(key, (0.0, 0.0, false));
+    cars.insert(key.clone(), (0.0, 0.0, false));
     let at_door = 0.3; // a body 0.3 m from the door, well inside any door's opening distance
     let landing = lift_landing_open(&ship, &cars, u11.center);
     assert_eq!(landing, Some(false), "U11 is elevator-1's upper landing door, the car at the bottom");
@@ -299,7 +299,7 @@ fn the_elevator_car_is_drawn_to_its_footprint() {
     let cut = crate::engine::editor::cut_away_of(&ship, hz, 0);
     assert!(cut.is_some(), "the homestead's ground storey has the upper floor over it");
     let key = homestead_lift(&ship);
-    cars.insert(key, (3.0, 3.0, false));
+    cars.insert(key.clone(), (3.0, 3.0, false));
     assert_eq!(elevator_car_poses(&ship, &cars, cut).len(), lifts.len() - 1, "the cut-away leaves out the car at the top");
     cars.insert(key, (0.0, 0.0, false));
     assert_eq!(elevator_car_poses(&ship, &cars, cut).len(), lifts.len(), "the cut-away draws the car at the bottom");

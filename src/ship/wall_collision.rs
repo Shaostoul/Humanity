@@ -23,7 +23,9 @@
 //! storey up walks into the wall over a door below it, and a body passing through the doorway
 //! ducks under it (a jump through a 2.2 m door is not shoved sideways). A stair's STEP stops a body
 //! whose feet are lower than its top less the step up, the footing's own rule, so a flight is
-//! climbed from its foot and walked into from its side, its back and under its high end. A GUARD (a
+//! climbed from its foot and walked into from its side, its back and under its high end; a placed
+//! solid box (a platform, a road, a deck, the wall piece) is walked into by the same rule and stood
+//! on from within a step of its top (`box_faces`, 2026-10-21). A GUARD (a
 //! balustrade) stops any body whose feet are under its rail plus `GUARD_CLEAR_M`, so a jump does
 //! not carry a body over it.
 //!
@@ -112,7 +114,9 @@ pub enum SegmentKind {
     /// top: it stops a body whose feet are lower than that top less `STEP_UP_M`, the step the
     /// footing will not stand it on. Each step a riser above the last is stood on, so a flight is
     /// climbed from its foot; its side, its back and the solid under its high end stop a body that
-    /// cannot step onto them.
+    /// cannot step onto them. A SOLID BOX piece (a platform, a road, a deck, the wall piece) is
+    /// made of these too, from its foot to its top (`box_faces`, the increment 7 follow-ups of
+    /// 2026-10-21): a box is a step as tall as it is, stood on from within a step of its top.
     Step,
     /// A guard (a balustrade): it stops any body whose feet are under its rail plus
     /// `GUARD_CLEAR_M` and whose eye is over its foot, so a jump does not clear it, and a body on
@@ -197,7 +201,8 @@ pub fn door_panel_segment(center: Vec3, rotation: Quat, size: Vec3) -> WallSegme
 }
 
 /// Build the STATIC blocking segments from a home (and every guard piece placed in it on its own,
-/// ship homes increment 7, and every stair): the 4 perimeter walls + each interior wall's SOLID
+/// ship homes increment 7, every stair, and every solid box piece, `box_faces`): the 4 perimeter
+/// walls + each interior wall's SOLID
 /// pier spans. DOOR apertures are cut out from their foot to their head (so a doorway is a
 /// walk-through gap, with the wall over it a lintel); WINDOW spans stay solid (you can't walk
 /// through glass -- the pane + the sill wall block the whole width). Doors get a separate LIVE
@@ -296,18 +301,79 @@ fn segments_impl(home: &HomeStructure, shell_cuts: &[ShellCut], sight: bool) -> 
         wall_run(&mut segs, wall.a, wall.b, len, ht, (wy0, wy1), kind, &openings);
     }
     // The pieces a walk is stopped by (not sight blockers: a balustrade is see-through, and a stair
-    // hides no nameplate on the floor plan): a GUARD placed on its own, and every STAIR.
+    // or a box hides no nameplate on the floor plan): a GUARD placed on its own, every STAIR, and
+    // every SOLID BOX (the increment 7 follow-ups, 2026-10-21: a placed wall piece, a train
+    // platform, a road or a deck was walked through).
     if !sight {
         for ps in &home.structures {
             let Some(ty) = structure::structure_type(&ps.type_id) else { continue };
             match ty.kind {
                 StructureKind::Guard => segs.push(guard_piece_segment(ps, ty)),
                 StructureKind::Stairs => stair_faces(&mut segs, ps, ty),
-                _ => {}
+                _ => {
+                    if let Some(top) = structure::solid_box_height(ty) {
+                        box_faces(&mut segs, ps.pos, ps.rot_deg, (ty.size.0, ty.size.2), top);
+                    }
+                }
             }
         }
     }
     segs
+}
+
+/// How far in from each of its sides a solid box's corner cores stand at most, metres
+/// (`box_faces`): a circle this big in each corner reaches the corner with a body's radius to
+/// spare (0.6 x (sqrt 2 - 1) = 0.25, under `PLAYER_RADIUS`).
+const BOX_CORNER_M: f32 = 0.6;
+
+/// A SOLID BOX PIECE (a row of the Box or the Slab shape, `structure::solid_box_height`: the wall
+/// piece, a train platform, a road, a deck; the increment 7 follow-ups, 2026-10-21) as the walk is
+/// stopped by it, placed at `pos` (its foot) turned `rot_deg`, `size` (width, depth) across, `top`
+/// tall. Its segments are `SegmentKind::Step`s standing from its foot to its top, the stair's rule
+/// and the footing's: a body whose feet are more than a step (`STEP_UP_M`) under the top and whose
+/// eye is over the foot is stopped as by a wall; a body within a step of the top steps onto it
+/// (`engine::footing::Footing::floor_under` stands it there); a body under a deck overhead walks
+/// under it (and a jump there stops with the head at its underside, `Footing::ceiling_over`).
+///
+/// Its four SIDES, with no thickness, so a body is held its radius off the box. Then a CORE that
+/// settles a body that came to be inside the box (a jump that carried the feet over the edge of a
+/// box too tall to step onto, a placement) out to its nearest side, instead of leaving it held
+/// among the sides: the stadium inscribed along the box's longer axis, its half width the box's
+/// half width, and for a box more than a metre across a circle in each corner, `BOX_CORNER_M` in
+/// from both sides, where the stadium's round ends do not reach. Every part of the core lies inside
+/// the box, so it stops nobody outside it that the sides do not; and it comes after the sides, so
+/// the core's push out is the last of each pass of the sweep's settle. That holds every point of a
+/// box up to about 5 m across (`a_body_inside_a_solid_piece_is_settled_out_of_it` checks every
+/// shipped row, the widest 4 m): a wider row needs more circles along its ends.
+fn box_faces(segs: &mut Vec<WallSegment>, pos: (f32, f32, f32), rot_deg: f32, size: (f32, f32), top: f32) {
+    let (hw, hd) = (size.0 * 0.5, size.1 * 0.5);
+    if hw <= 0.0 || hd <= 0.0 || top <= 0.0 {
+        return;
+    }
+    let (s, c) = rot_deg.to_radians().sin_cos();
+    // A piece's local (x, z) at world (pos.x + x cos + z sin, pos.z - x sin + z cos)
+    // (`structure::structure_mesh`'s turn).
+    let world = |l: (f32, f32)| (pos.0 + l.0 * c + l.1 * s, pos.2 - l.0 * s + l.1 * c);
+    let part = |from: (f32, f32), to: (f32, f32), half_thickness: f32| WallSegment {
+        a: world(from),
+        b: world(to),
+        half_thickness,
+        y0: pos.1,
+        y1: pos.1 + top,
+        kind: SegmentKind::Step,
+    };
+    for (a, b) in [((-hw, -hd), (hw, -hd)), ((hw, -hd), (hw, hd)), ((hw, hd), (-hw, hd)), ((-hw, hd), (-hw, -hd))] {
+        segs.push(part(a, b, 0.0));
+    }
+    segs.push(if hd >= hw { part((0.0, -(hd - hw)), (0.0, hd - hw), hw) } else { part((-(hw - hd), 0.0), (hw - hd, 0.0), hd) });
+    let short = hw.min(hd);
+    if short > 0.5 {
+        let k = BOX_CORNER_M.min(short);
+        for (sx, sz) in [(-1.0f32, -1.0f32), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)] {
+            let at = (sx * (hw - k), sz * (hd - k));
+            segs.push(part(at, at, k));
+        }
+    }
 }
 
 /// A straight run of wall from `a` to `b` (`len` long, `ht` half thick, standing from `heights.0`
@@ -766,8 +832,13 @@ pub fn resolve(prev: Vec3, pos: Vec3, radius: f32, walls: &[WallSegment], doors:
     let placed = dx * dx + dz * dz > PLACEMENT_M * PLACEMENT_M;
     let (start, d) = if placed { ((pos.x, pos.z), (0.0, 0.0)) } else { ((prev.x, prev.z), (dx, dz)) };
     // Only the segments that stop a body at this height and stand within reach of the move (its
-    // box, a metre wider each way than the body and the thickest thing a settle can push it by).
-    let (lo, hi) = ((start.0.min(start.0 + d.0) - 1.0, start.1.min(start.1 + d.1) - 1.0), (start.0.max(start.0 + d.0) + 1.0, start.1.max(start.1 + d.1) + 1.0));
+    // box, wider each way than the body by a metre and by the thickest thing a settle can push it
+    // out of: a solid box's core is half the box thick, 2 m for a 4 m deck, so a body settled out
+    // of it lands up to that far from where it began, by the box's far side; the increment 7
+    // follow-ups, 2026-10-21).
+    let thickest = walls.iter().chain(doors.iter()).filter(|s| s.stops_body(pos.y)).map(|s| s.half_thickness).fold(0.0f32, f32::max);
+    let m = 1.0 + thickest;
+    let (lo, hi) = ((start.0.min(start.0 + d.0) - m, start.1.min(start.1 + d.1) - m), (start.0.max(start.0 + d.0) + m, start.1.max(start.1 + d.1) + m));
     let near: Vec<Reach> = walls
         .iter()
         .chain(doors.iter())
@@ -1480,6 +1551,107 @@ mod homestead_walk_tests {
     }
 }
 
+/// Placed solid pieces walked with the whole frame (the increment 7 follow-ups, 2026-10-21): the
+/// footing, the walk's substeps and the sweep, in lib.rs's order (`engine::footing::test_aboard`).
+#[cfg(all(test, feature = "native"))]
+mod placed_piece_walk_tests {
+    use super::*;
+    use crate::engine::footing::test_aboard::{body_at, live_frame, Aboard, EAST, NORTH};
+    use crate::input::bindings::GameAction as A;
+    use crate::renderer::camera::HEAD_ABOVE_EYE_M;
+    use crate::ship::ship_structure::{ShipStructure, ShipZone};
+
+    const EYE: f32 = EYE_HEIGHT_M;
+
+    /// A 12 x 12 x 6 m home with the placed pieces `structures` (RON), the only zone of a ship.
+    fn aboard(structures: &str) -> Aboard {
+        let zone: ShipZone = ron::from_str(&format!(
+            "(id: \"home\", purpose: \"residence\", body: (width: 12.0, depth: 12.0, height: 6.0, structures: [{structures}]))"
+        ))
+        .expect("the test zone parses");
+        Aboard::of(ShipStructure { zones: vec![zone], ..Default::default() })
+    }
+
+    /// A STAIR LEADS ONTO A DECK AT ITS TOP. A stair climbing east from x 2.75 to 7.25 (its sides z
+    /// 5.4 and 6.6) and a deck at its top, at 3.0 (x 7.25 to 11.25, z 4 to 8, its top 3.2): walking
+    /// east from the stair's foot, the body climbs the flight and steps onto the deck, 0.2 m up
+    /// from the top step; the deck's edge, a step up from there, does not stop it.
+    ///
+    /// Passes before the deck had walls and after (it guards the step onto a deck against them).
+    #[test]
+    fn a_stair_leads_onto_a_deck_at_its_top() {
+        let mut w = aboard(
+            "(id: \"stairs-1\", type_id: \"stairs\", pos: (5.0, 0.0, 6.0), rot_deg: 90.0), \
+             (id: \"deck-1\", type_id: \"deck\", pos: (9.25, 3.0, 6.0))",
+        );
+        let (mut ctl, mut cam) = body_at(Vec3::new(2.0, EYE, 6.0));
+        cam.yaw = EAST;
+        ctl.apply_action(A::MoveForward, true);
+        for _ in 0..90 {
+            live_frame(&mut ctl, &mut cam, 1.0 / 60.0, &mut w);
+            if cam.position.x > 9.0 {
+                break;
+            }
+        }
+        let feet = cam.position.y - ctl.eye_height();
+        assert!(cam.position.x > 9.0 && (feet - 3.2).abs() < 1e-3, "the walk up the stair ended at {:?}, feet {feet}, not on the deck at its top", cam.position);
+    }
+
+    /// A JUMP UNDER A RAISED DECK BUMPS ITS HEAD AND COMES DOWN UNDER IT. A deck at 2.0 (x 4 to 8,
+    /// z 4 to 8, its underside 2.0): a body standing under it walks there (its eye, 1.7, is under
+    /// the deck), and a jump stops with the head at the deck's underside, as under a floor slab
+    /// (`engine::footing::Footing::ceiling_over`), then lands where it jumped, not shoved out from
+    /// under the deck by its sides nor up through it.
+    ///
+    /// Seen red first (2026-10-21) with no placed piece a ceiling or a wall: "frame 2: the jump
+    /// under the deck put the head at 2.054 m, through its underside at 2.0, the body at
+    /// Vec3(6.0, 1.9336501, 6.0)".
+    #[test]
+    fn a_jump_under_a_raised_deck_bumps_its_head_and_comes_down_under_it() {
+        let mut w = aboard("(id: \"deck-1\", type_id: \"deck\", pos: (6.0, 2.0, 6.0))");
+        let (mut ctl, mut cam) = body_at(Vec3::new(6.0, EYE, 6.0));
+        ctl.apply_action(A::Jump, true);
+        for k in 0..90 {
+            live_frame(&mut ctl, &mut cam, 1.0 / 60.0, &mut w);
+            ctl.apply_action(A::Jump, false);
+            let head = cam.position.y + HEAD_ABOVE_EYE_M;
+            assert!(head < 2.0 + 1e-3, "frame {k}: the jump under the deck put the head at {head:.3} m, through its underside at 2.0, the body at {:?}", cam.position);
+            assert!((cam.position.x - 6.0).abs() < 1e-3 && (cam.position.z - 6.0).abs() < 1e-3, "frame {k}: the jump under the deck moved the body to {:?}", cam.position);
+        }
+        let feet = cam.position.y - ctl.eye_height();
+        assert!(feet.abs() < 1e-3, "after the jump under the deck the feet are at {feet}");
+    }
+
+    /// A RUNNING JUMP ONTO A PLATFORM TOO HIGH TO STEP ONTO LANDS BESIDE IT. A train platform
+    /// raised to 0.6 (3 x 8 m, x 4.5 to 7.5, z 1 to 9, its top 1.0, more than a step over the
+    /// floor): running north at its end and jumping, the feet clear its edge (a jump lifts them
+    /// 1.27 m), but the footing does not stand a body on a top more than a step over the floor it
+    /// jumped from, so it comes down inside the platform's footprint; there the platform's core
+    /// settles it out of its nearest side, and it ends on the floor beside it, not inside it.
+    ///
+    /// Seen red first (2026-10-21) with only stairs, ramps and guards in the walls: "after the
+    /// running jump at the platform the body is at Vec3(6.0, 1.7, 6.166671), feet 0.00, inside
+    /// it".
+    #[test]
+    fn a_running_jump_onto_a_platform_too_high_to_step_onto_lands_beside_it() {
+        let mut w = aboard("(id: \"train-1\", type_id: \"train\", pos: (6.0, 0.6, 5.0))");
+        let (mut ctl, mut cam) = body_at(Vec3::new(6.0, EYE, 10.0));
+        cam.yaw = NORTH;
+        ctl.apply_action(A::MoveForward, true);
+        ctl.apply_action(A::Jump, true);
+        let inside = |p: Vec3| p.x > 4.5 - PLAYER_RADIUS + 0.01 && p.x < 7.5 + PLAYER_RADIUS - 0.01 && p.z > 1.0 - PLAYER_RADIUS + 0.01 && p.z < 9.0 + PLAYER_RADIUS - 0.01;
+        for k in 0..120 {
+            live_frame(&mut ctl, &mut cam, 1.0 / 60.0, &mut w);
+            ctl.apply_action(A::Jump, false);
+            if k == 45 {
+                ctl.apply_action(A::MoveForward, false);
+            }
+        }
+        let feet = cam.position.y - ctl.eye_height();
+        assert!(!inside(cam.position) && feet.abs() < 1e-3, "after the running jump at the platform the body is at {:?}, feet {feet:.2}, inside it", cam.position);
+    }
+}
+
 /// Ship homes increment 7, Wave 0 (docs/design/ship-homes-increment-7-plan.md section 2): every
 /// blocking segment knows the world heights it stands between, which the sweep reads since lane M
 /// (`WallSegment::stops_body`, `storey_walk_tests` below).
@@ -1709,6 +1881,93 @@ mod storey_walk_tests {
         assert!(e.x > 7.25 + PLAYER_RADIUS - 0.05, "on the floor, the walk west into the stair's high end went into it to {e:?}");
         let e = walk(Vec3::new(4.0, UP, 8.0), Vec3::new(4.0, UP, 3.0), &walls, &[]);
         assert!((e.z - 3.0).abs() < 1e-3, "level with its top, the stair stopped the walk at {e:?}");
+    }
+
+    /// A PLACED BOX PIECE STOPS A WALK BY ITS BOX AND ITS HEIGHT (the increment 7 follow-ups,
+    /// 2026-10-21). In a 12 x 12 x 6 m body: a "wall" piece standing on the floor (0.15 x 3.0 x 1.0
+    /// at (3, 0, 9): x 2.925 to 3.075, z 8.5 to 9.5), a deck raised to chest height (4 x 0.2 x 4 at
+    /// (9, 1.0, 3): x 7 to 11, z 1 to 5, from 1.0 to 1.2 m), a deck overhead (at (9, 3.0, 9)) and
+    /// a deck lying on the floor (at (3, 0, 3), 0.2 m, a step up). Walking east across the wall
+    /// piece and north into the raised deck, the body on the floor is held at each, a body's radius
+    /// off it; it walks on under the deck overhead and over the deck on the floor (which the
+    /// footing stands it on, `engine::footing`). A body standing on the raised deck (its feet at
+    /// 1.2) walks across it.
+    ///
+    /// Seen red first (2026-10-21) with only stairs, ramps and guards in the walls: "the walk east
+    /// went through the wall piece to Vec3(4.9999976, 1.7, 9.0)".
+    #[test]
+    fn a_placed_box_piece_stops_a_walk_by_its_box_and_height() {
+        let body: HomeStructure = ron::from_str(
+            "(width: 12.0, depth: 12.0, height: 6.0, structures: [ \
+               (id: \"wall-1\", type_id: \"wall\", pos: (3.0, 0.0, 9.0)), \
+               (id: \"deck-1\", type_id: \"deck\", pos: (9.0, 1.0, 3.0)), \
+               (id: \"deck-2\", type_id: \"deck\", pos: (9.0, 3.0, 9.0)), \
+               (id: \"deck-3\", type_id: \"deck\", pos: (3.0, 0.0, 3.0))])",
+        )
+        .expect("the test body parses");
+        let walls = wall_segments(&body);
+        let e = walk(Vec3::new(1.0, DOWN, 9.0), Vec3::new(5.0, DOWN, 9.0), &walls, &[]);
+        assert!(e.x < 2.925 - PLAYER_RADIUS + 0.01, "the walk east went through the wall piece to {e:?}");
+        let e = walk(Vec3::new(9.0, DOWN, 8.0), Vec3::new(9.0, DOWN, 3.0), &walls, &[]);
+        assert!(e.z > 5.0 + PLAYER_RADIUS - 0.01, "the walk north went into the deck at chest height to {e:?}");
+        let e = walk(Vec3::new(6.0, DOWN, 9.5), Vec3::new(11.0, DOWN, 10.5), &walls, &[]);
+        assert!((e - Vec3::new(11.0, DOWN, 10.5)).length() < 1e-3, "the deck overhead stopped the walk under it at {e:?}");
+        let e = walk(Vec3::new(3.0, DOWN, 7.0), Vec3::new(3.0, DOWN, 2.0), &walls, &[]);
+        assert!((e.z - 2.0).abs() < 1e-3, "the deck on the floor, a step up, stopped the walk at {e:?}");
+        let on_deck = 1.2 + EYE_HEIGHT_M;
+        let e = walk(Vec3::new(7.5, on_deck, 3.0), Vec3::new(10.5, on_deck, 3.0), &walls, &[]);
+        assert!((e.x - 10.5).abs() < 1e-3, "standing on the raised deck, the walk across it stopped at {e:?}");
+    }
+
+    /// A BODY THAT COMES TO BE INSIDE A SOLID PIECE IS SETTLED OUT OF IT (the increment 7
+    /// follow-ups, 2026-10-21). A jump carries the feet over the edge of a box more than a step up
+    /// that the footing will not stand them on (a jump measures its step up from the floor it left,
+    /// `engine::footing::STEP_UP_M`), so a body can come down inside one, and so can a placement.
+    /// For every shipped row that is a solid box (`structure::solid_box_height`: the wall piece,
+    /// the train platform, the road, the deck), raised so its top is more than a step over the
+    /// floor and its foot under the eye, turned 0 and 30 degrees: from every point of a grid inside
+    /// its footprint, the body settled where it stands (`resolve` with no move) ends outside the
+    /// footprint by a body's radius, never held inside it.
+    ///
+    /// Seen red first (2026-10-21) with only stairs, ramps and guards in the walls: "wall turned
+    /// 0 degrees: the body at Vec3(14.92875, 1.7, 14.525) inside it stayed at Vec3(14.92875, 1.7,
+    /// 14.525), 0.000 m outside its footprint".
+    #[test]
+    fn a_body_inside_a_solid_piece_is_settled_out_of_it() {
+        use crate::ship::home_structure::PlacedStructure;
+        let rows: Vec<&StructureType> = structure::structure_types().iter().filter(|t| structure::solid_box_height(t).is_some()).collect();
+        assert!(rows.len() >= 4, "the wall piece, the train platform, the road and the deck: {}", rows.len());
+        for ty in rows {
+            let top = structure::solid_box_height(ty).expect("a solid box");
+            // Its top 1.2 m over the floor (more than a step), its foot under the eye.
+            let y0 = (1.2 - top).max(0.0);
+            for rot in [0.0f32, 30.0] {
+                let mut body: HomeStructure = ron::from_str("(width: 30.0, depth: 30.0, height: 6.0)").expect("the test body parses");
+                body.structures.push(PlacedStructure { id: format!("{}-1", ty.id), type_id: ty.id.clone(), pos: (15.0, y0, 15.0), rot_deg: rot, pair: None });
+                let walls = wall_segments(&body);
+                let (s, c) = rot.to_radians().sin_cos();
+                let (hw, hd) = (ty.size.0 * 0.5, ty.size.2 * 0.5);
+                // Outside the footprint by how much (0 inside), in the piece's own frame.
+                let outside = |p: Vec3| {
+                    let (dx, dz) = (p.x - 15.0, p.z - 15.0);
+                    let (lx, lz) = (dx * c - dz * s, dx * s + dz * c);
+                    ((lx.abs() - hw).max(0.0)).hypot((lz.abs() - hd).max(0.0))
+                };
+                for i in 0..=20 {
+                    for j in 0..=20 {
+                        let (lx, lz) = (hw * 0.95 * (i as f32 / 10.0 - 1.0), hd * 0.95 * (j as f32 / 10.0 - 1.0));
+                        let p = Vec3::new(15.0 + lx * c + lz * s, EYE_HEIGHT_M, 15.0 - lx * s + lz * c);
+                        let e = resolve(p, p, PLAYER_RADIUS, &walls, &[]);
+                        assert!(
+                            outside(e) > PLAYER_RADIUS - 2e-3,
+                            "{} turned {rot} degrees: the body at {p:?} inside it stayed at {e:?}, {:.3} m outside its footprint",
+                            ty.id,
+                            outside(e)
+                        );
+                    }
+                }
+            }
+        }
     }
 
     /// The band itself: a segment stops a body only across its knee (`KNEE_M` over the feet) to

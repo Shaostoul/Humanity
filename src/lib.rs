@@ -1935,6 +1935,7 @@ mod native_app {
                 machine_pick: Vec::new(),
                 port_pick: Vec::new(),
                 wall_colliders: Vec::new(),
+                shut_doors: Vec::new(),
                 pending_sfx: Vec::new(),
                 sight_colliders: Vec::new(),
                 connection_objects: Vec::new(),
@@ -3626,7 +3627,7 @@ mod native_app {
                     // are the storey floors its shaft spans. A rider sends it up a stop with Space
                     // and down one with Shift (and Space does not jump while riding), and a body at
                     // any landing calls it there. Runtime state lives in `elevator_state` keyed by
-                    // (zone index, structure index) (not saved). First person, not build. Every
+                    // (zone id, elevator id) (not saved). First person, not build. Every
                     // ZONE's elevators run, at world positions (v0.754). The footing sampler below
                     // reads the updated car height so the rider rides.
                     let lift_press = state.controller.take_lift_press();
@@ -5246,6 +5247,9 @@ mod native_app {
                     // are open + unlocked are gaps; closed or locked doors block; windows are part of
                     // their wall span. Skipped in the build editor (orbit cam) + when there are no
                     // home walls (legacy layout / showroom -> wall_colliders empty).
+                    // The doors shut this frame, the one list the walk sweeps against and E and F's
+                    // reach reads (engine/built_uses.rs `refresh_shut_doors`, `reach_blockers`).
+                    crate::engine::built_uses::refresh_shut_doors(state);
                     if state.camera.mode == crate::renderer::camera::CameraMode::FirstPerson
                         && !state.gui_state.construction_active
                         // Dev fly mode is noclip (v0.791.x): walls must not pin
@@ -5255,8 +5259,10 @@ mod native_app {
                         // v0.881: the walls are wherever the home is.
                         && state.aboard_station
                     {
-                        let door_locks = state.door_locks.clone();
-                        // LIVE door segments, rebuilt per frame from the animated open fractions.
+                        // LIVE door segments, rebuilt per frame from the animated open fractions
+                        // (`state.shut_doors`, refreshed above: a door blocks only when closed or
+                        // locked, v0.570; windows are handled by their uncut wall span; each from
+                        // its sill to its head, so a door shut on one storey is no wall on another).
                         // This deliberately stays SEPARATE from `state.wall_colliders` (which only
                         // rebuilds on structure edits): a door's blocking state changes every frame
                         // as it animates, and rebuilding the whole ship's static segment list per
@@ -5266,22 +5272,7 @@ mod native_app {
                         // together span the full aperture (each contributes its own half-width
                         // segment), so a shut corridor door is impassable; open, both drop out and
                         // the mouth is the walk-through gap the shell cut left.
-                        let mut doors: Vec<crate::ship::wall_collision::WallSegment> = state
-                            .door_panels
-                            .iter()
-                            .enumerate()
-                            .filter_map(|(i, (p, open))| {
-                                // Windows are handled by their (uncut) wall span; a door blocks only
-                                // when closed or locked (v0.570: lock-list aware).
-                                let locked = door_locked_now(p, door_locks.get(i));
-                                if p.is_window || (*open >= 0.5 && !locked) {
-                                    return None;
-                                }
-                                // From its sill to its head, so a door shut on one storey is no
-                                // wall on another (ship homes increment 7).
-                                Some(crate::ship::wall_collision::door_panel_segment(p.center, p.rotation, p.size))
-                            })
-                            .collect();
+                        let mut doors = state.shut_doors.clone();
                         // The elevators' landing doors and the ladder hatches' gates (ship homes
                         // increment 7, engine/footing.rs `shut_gates`).
                         doors.extend(crate::engine::footing::shut_gates(

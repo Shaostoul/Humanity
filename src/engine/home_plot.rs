@@ -1497,11 +1497,14 @@ pub(crate) enum EditorPick {
 ///
 /// NOT INSIDE A SOLID PIECE (the seams review of 2026-10-21, findings 1 and 5). A spot over a
 /// stair's flight where its steps are more than a step over the storey's floor stands the player on
-/// the TREAD there when that is a place to stand (`standing::tread_at`, measured up from the tread
+/// the TREAD there when that is a place to stand (`standing::top_at`, measured up from the tread
 /// by the footing), the way a player who pressed B on step 8 of stairs-1 stood: the close used to
 /// stand them on the floor inside the flight, and the stair's sides pushed them out through the
 /// wall beside it. Where the tread is none (on another storey, too little room over it) the spot is
-/// moved off the flight like a spot on a glass lid. And an elevator's SHAFT is no place to stand
+/// moved off the flight like a spot on a glass lid. A placed BOX taller than a step (a platform, a
+/// deck, the wall piece) is the same since the increment 7 follow-ups of 2026-10-21: on its top
+/// when that is a floor with room over it, else the nearest place outside it, reached without
+/// crossing a wall (`NoStanding::InPiece`). And an elevator's SHAFT is no place to stand
 /// while its car is on another floor (the zone's cars in `footing`, by `zone`, the zone's index in
 /// the ship): a rider whose car was paused part way up used to be stood on the ground in the shaft,
 /// under the car; they are stood at the nearest place outside it. With the car at the storey's
@@ -1518,7 +1521,7 @@ pub(crate) fn editor_pick_at(
     body: &crate::ship::home_structure::HomeStructure,
     eye_height: f32,
 ) -> EditorPick {
-    use crate::ship::standing::{nearest_standing_clear_of, standing_on_clear_of, tread_at};
+    use crate::ship::standing::{nearest_standing_clear_of, standing_on_clear_of, top_at};
     let storeys = body.storeys();
     let k = storey.min(storeys.len() - 1);
     let storey_floor = zone_origin.y + storeys[k].floor;
@@ -1532,8 +1535,9 @@ pub(crate) fn editor_pick_at(
             None => return EditorPick::Refused(editor_spot_note(&why, k, false).unwrap_or_default()),
         },
     };
-    // Measured up from the tread where the spot is over one, else from the storey's floor.
-    let base = if on_car { None } else { tread_at(body, k, spot.0, spot.1) }.map_or(storey_floor, |t| zone_origin.y + t);
+    // Measured up from the tread or the box's top where the spot is over one, else from the
+    // storey's floor.
+    let base = if on_car { None } else { top_at(body, k, spot.0, spot.1) }.map_or(storey_floor, |t| zone_origin.y + t);
     let at = Vec3::new(spot.0 + zone_origin.x, base + eye_height, spot.1 + zone_origin.z);
     let floor = footing.floor_under(at, base).unwrap_or(base);
     let at = Vec3::new(at.x, floor + eye_height, at.z);
@@ -1561,14 +1565,16 @@ fn editor_shafts(
     use crate::ship::structure::{structure_type, StructureKind};
     let mut on_car = false;
     let mut shafts = Vec::new();
-    for (i, ps) in body.structures.iter().enumerate() {
+    // The cars are keyed by the zone's id and the elevator's own (`footing::LiftKey`).
+    let zone_id = footing.ship.and_then(|s| s.zones.get(zone)).map_or("", |z| z.id.as_str());
+    for ps in &body.structures {
         let Some(ty) = structure_type(&ps.type_id).filter(|t| t.kind == StructureKind::Elevator) else { continue };
         let (base, top) = (ps.pos.1, ps.pos.1 + ty.size.1);
         if floor < base - STOREY_EPS || floor > top + STOREY_EPS {
             continue; // its shaft does not reach this floor
         }
         let shaft = KeepOut::of_piece((ps.pos.0, ps.pos.2), ps.rot_deg.to_radians(), ty.size.0 * 0.5, -ty.size.2 * 0.5, ty.size.2 * 0.5, NoStanding::InShaft);
-        let car = base + footing.cars.get(&(zone, i)).map_or(0.0, |e| e.0);
+        let car = base + crate::engine::footing::car_of(footing.cars, zone_id, &ps.id).map_or(0.0, |e| e.0);
         if (car - floor).abs() <= crate::engine::footing::CAR_AT_STOP_M {
             on_car |= shaft.holds(xz.0, xz.1);
         } else {
@@ -1590,6 +1596,7 @@ fn editor_spot_note(why: &crate::ship::standing::NoStanding, k: usize, moved: bo
         NoStanding::Opening => "over an opening in the floor (a stairwell, a shaft or a room open to the roof)".to_string(),
         NoStanding::OutsideRooms => "on a roof, outside the rooms of that storey".to_string(),
         NoStanding::InStair => "inside the flight of a stair, under steps too high to stand on there".to_string(),
+        NoStanding::InPiece => "inside a solid piece (a platform, a deck or a wall piece) too high to step onto, with no room to stand on top of it".to_string(),
         NoStanding::InShaft => "in an elevator's shaft, with its car on another floor".to_string(),
         NoStanding::Low => "where there is not room to stand up".to_string(),
         NoStanding::NoStorey => "on a storey the home does not have".to_string(),
@@ -3821,6 +3828,47 @@ mod storey_tests {
         );
     }
 
+    /// CLOSING THE EDITOR INSIDE A BUILT BOX STANDS YOU OUTSIDE IT, NOT THROUGH A WALL; ON ITS TOP
+    /// WHEN THAT IS A FLOOR WITH ROOM OVER IT (the increment 7 follow-ups, 2026-10-21). A train
+    /// platform raised to 0.8 (x 1 to 9, z 3.5 to 6.5, its top 1.2) walled along both long sides
+    /// (ship/standing.rs `walled_platform`). Under a floor at 3.0 its top has too little room over
+    /// it: the close with the avatar on it at (4, 5) stands the player off its west end, and a
+    /// second of the walk (`live_frame`: the footing, the sweep against the platform's box and the
+    /// walls) leaves them there, on the floor, not in the platform and not beyond the walls. Open to
+    /// the roof, the close stands them on the platform's top, and the walk keeps them there.
+    ///
+    /// Seen red first (2026-10-21) with only stairs solid to the close: "closing inside the
+    /// platform stood the player at [4, 1.7, 5]; a second later they are at [4, 1.7, 5], feet 0.00,
+    /// in the platform's box: true, beyond the walls: false".
+    #[test]
+    fn closing_the_editor_inside_a_built_box_stands_you_outside_it_or_on_its_top() {
+        use crate::ship::ship_structure::ShipZone;
+        for roofed in [true, false] {
+            let body = crate::ship::standing::tests::walled_platform(roofed);
+            let zone = ShipZone { id: "home".into(), label: String::new(), purpose: "residence".into(), origin: (0.0, 0.0, 0.0), body: body.clone() };
+            let mut w = Aboard::of(ShipStructure { zones: vec![zone], ..Default::default() });
+            let pick = editor_pick_at(&w.footing(), (4.0, 5.0), 0, 0, Vec3::ZERO, &body, EYE);
+            let at = stood_at(&pick).unwrap_or_else(|| panic!("closing inside the platform stood nobody anywhere: {pick:?}"));
+            let (mut ctl, mut cam) = body_at(at);
+            place(&mut ctl, &mut cam, &w, at);
+            for _ in 0..60 {
+                live_frame(&mut ctl, &mut cam, 1.0 / 60.0, &mut w);
+            }
+            let p = cam.position;
+            let feet = p.y - EYE;
+            let in_box = p.x > 1.0 - 0.3 && p.x < 9.0 + 0.3 && p.z > 3.5 - 0.3 && p.z < 6.5 + 0.3 && feet < 1.2 - 1e-3;
+            let beyond_walls = p.x > 1.0 && p.x < 9.0 && (p.z < 3.4 || p.z > 6.6);
+            if roofed {
+                assert!(
+                    !in_box && !beyond_walls && feet.abs() < 1e-3 && (p - at).length() < 1e-3,
+                    "closing inside the platform stood the player at {at}; a second later they are at {p}, feet {feet:.2}, in the platform's box: {in_box}, beyond the walls: {beyond_walls}"
+                );
+            } else {
+                assert!((feet - 1.2).abs() < 1e-3 && (p - at).length() < 1e-3, "open to the roof, closing on the platform stood the player at {at}; a second later they are at {p}, feet {feet:.2}");
+            }
+        }
+    }
+
     /// CLOSING THE EDITOR IN AN ELEVATOR'S SHAFT STANDS YOU OUTSIDE IT, OR ON ITS CAR WHEN THE CAR IS
     /// AT YOUR FLOOR (the seams review of 2026-10-21, finding 5). In the test home (elevator-1 at
     /// (10, 0, 2), its shaft x 9.1 to 10.9 and z 1.1 to 2.9, its stops 0 and 3): a rider whose car
@@ -3840,7 +3888,7 @@ mod storey_tests {
         let in_shaft = |p: Vec3| p.x > 9.1 - 0.3 && p.x < 10.9 + 0.3 && p.z > 1.1 - 0.3 && p.z < 2.9 + 0.3;
         // The car part way up: outside the shaft, on the ground floor.
         let mut w = Aboard::two_storeys();
-        w.cars.insert((0, 0), (1.5, 3.0, false));
+        w.cars.insert(elevator_1(), (1.5, 3.0, false));
         let body = w.ship.zones[0].body.clone();
         let pick = editor_pick_at(&w.footing(), (10.0, 2.0), 0, 0, Vec3::ZERO, &body, EYE);
         let at = stood_at(&pick).unwrap_or_else(|| panic!("with the car at 1.5 m the close stood nobody anywhere: {pick:?}"));
@@ -3854,10 +3902,10 @@ mod storey_tests {
         assert!(!in_shaft(cam.position) && feet.abs() < 1e-3, "a second after the close beside the shaft the rider is at {}, feet {feet:.2}", cam.position);
         // The car at the ground floor: on it, as before.
         let mut w = Aboard::two_storeys();
-        w.cars.insert((0, 0), (0.0, 0.0, false));
+        w.cars.insert(elevator_1(), (0.0, 0.0, false));
         assert_eq!(editor_pick_at(&w.footing(), (10.0, 2.0), 0, 0, Vec3::ZERO, &body, EYE), EditorPick::Stand(Vec3::new(10.0, EYE, 2.0)), "the car at the ground floor");
         // The car at the top, the editor upstairs: on the car up there.
-        w.cars.insert((0, 0), (3.0, 3.0, false));
+        w.cars.insert(elevator_1(), (3.0, 3.0, false));
         assert_eq!(editor_pick_at(&w.footing(), (10.0, 2.0), 1, 0, Vec3::ZERO, &body, EYE), EditorPick::Stand(Vec3::new(10.0, 3.0 + EYE, 2.0)), "the car at the top, upstairs");
         // The car at the top, the editor on the ground storey: outside the shaft down there.
         let pick = editor_pick_at(&w.footing(), (10.0, 2.0), 0, 0, Vec3::ZERO, &body, EYE);

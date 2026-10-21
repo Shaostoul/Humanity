@@ -38,17 +38,17 @@ pub(crate) fn room_json(room: Option<&RoomBounds>) -> serde_json::Value {
 }
 
 /// Every elevator aboard, bottom stop first, as the probe's done block lists it: its piece id, its
-/// key in `ElevatorCars`, its base (world metres), its stops (metres over the base), and its car
+/// key in `ElevatorCars` (its zone's id and its own, `footing::LiftKey`), its base (world metres),
+/// its stops (metres over the base), and its car
 /// now (its height over the base, the stop it is heading for, whether someone rides it; a car
 /// nobody has moved yet stands at its base, as `elevator_tick` starts it).
 pub(crate) fn lifts_json(ship: &ShipStructure, cars: &ElevatorCars) -> Vec<serde_json::Value> {
     lifts(ship)
         .into_iter()
         .map(|l| {
-            let id = ship.zones.get(l.key.0).and_then(|z| z.body.structures.get(l.key.1)).map(|p| p.id.clone());
             let (car, target, riding) = cars.get(&l.key).copied().unwrap_or((0.0, 0.0, false));
             serde_json::json!({
-                "id": id,
+                "id": l.key.1,
                 "key": [l.key.0, l.key.1],
                 "base": [l.base.x, l.base.y, l.base.z],
                 "stops": l.stops,
@@ -117,7 +117,7 @@ pub(crate) fn parse_face(raw: &str) -> Option<(f32, f32)> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::engine::footing::test_aboard::Aboard;
+    use crate::engine::footing::test_aboard::{elevator_1, Aboard};
     use glam::Vec3;
 
     fn room(id: &str, name: &str, min: Vec3, max: Vec3) -> RoomBounds {
@@ -172,7 +172,7 @@ mod tests {
         assert_eq!(v[0]["stops"], serde_json::json!([0.0, 3.0]));
         assert_eq!((v[0]["car_m"].as_f64(), v[0]["riding"].as_bool()), (Some(0.0), Some(false)));
         assert_eq!(cars_now(Some(&w.ship), &w.cars), vec![[0.0, 0.0]]);
-        w.cars.insert((0, 0), (1.25, 3.0, true));
+        w.cars.insert(elevator_1(), (1.25, 3.0, true));
         let v = lifts_json(&w.ship, &w.cars);
         assert_eq!((v[0]["car_m"].as_f64(), v[0]["target_m"].as_f64(), v[0]["riding"].as_bool()), (Some(1.25), Some(3.0), Some(true)));
         assert_eq!(cars_now(Some(&w.ship), &w.cars), vec![[1.25, 3.0]]);

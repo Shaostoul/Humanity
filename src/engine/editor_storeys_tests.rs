@@ -324,9 +324,36 @@ fn the_editors_save_never_puts_the_spawn_inside_a_stair() {
     assert!(!on_flight(spawn), "the spawn written from step 8 of stairs-1 is ({:.2}, {:.2}), on the flight", spawn.0, spawn.1);
     let hs = zone_body(&g.ship_structure, hz).expect("the home's body");
     assert_eq!(crate::ship::standing::standing_on(hs, 0, spawn.0, spawn.1), Ok(()), "the spawn written from step 8, ({:.2}, {:.2})", spawn.0, spawn.1);
-    assert_eq!(crate::ship::standing::tread_at(hs, 0, spawn.0, spawn.1), None, "the spawn written from step 8 is over a tread");
+    assert_eq!(crate::ship::standing::top_at(hs, 0, spawn.0, spawn.1), None, "the spawn written from step 8 is over a tread");
     g.build_char_pos = Some((40.6, 38.65));
     assert_eq!(spawn_from_avatar(&g), Some((40.6, 38.65)), "step 2 of stairs-1, 0.375 m up, is stood on from the floor");
+}
+
+/// THE EDITOR'S SAVE NEVER PUTS THE SPAWN INSIDE A BUILT BOX (the increment 7 follow-ups,
+/// 2026-10-21). World entry stands the player on the ground floor at the spawn, so a spawn on a
+/// piece more than a step over the floor is a spawn inside it, whose sides push every entry out,
+/// perhaps through a wall: the walled platform raised to 0.8 (ship/standing.rs
+/// `walled_platform`, its top 1.2, x 1 to 9, z 3.5 to 6.5). With the avatar dragged onto it at
+/// (4, 5) and Saved, the spawn written is off it, past its west end (x 0.5), not through the wall
+/// beside it; with no floor over it too, though its top is then a place to stand, since the
+/// spawn is on the floor.
+///
+/// Seen red first (2026-10-21) with only the stairs kept out of the spawn: "under a floor: the
+/// spawn written from the platform / left: Some((4.0, 5.0)) / right: Some((0.5, 5.0))".
+#[test]
+fn the_editors_save_never_puts_the_spawn_inside_a_built_box() {
+    for (roofed, what) in [(true, "under a floor"), (false, "open to the roof")] {
+        let body = crate::ship::standing::tests::walled_platform(roofed);
+        let zone = crate::ship::ship_structure::ShipZone { id: "home".into(), label: String::new(), purpose: "residence".into(), origin: (0.0, 0.0, 0.0), body };
+        let mut g = crate::gui::GuiState::default();
+        g.ship_structure = Some(crate::ship::ship_structure::ShipStructure { zones: vec![zone], ..Default::default() });
+        g.construction_zone = 0;
+        g.construction_storeys.chosen = 0;
+        g.construction_storeys.avatar_seed = Some((0, (8.0, 8.0), 0));
+        g.build_char_pos = Some((4.0, 5.0));
+        let spawn = spawn_from_avatar(&g).map(|(a, b)| ((a * 100.0).round() / 100.0, (b * 100.0).round() / 100.0));
+        assert_eq!(spawn, Some((0.5, 5.0)), "{what}: the spawn written from the platform");
+    }
 }
 
 /// THE CUT-AWAY LEAVES OUT WHAT STANDS OVER IT, NOT ONLY WHAT IS IN THE BODY (ship homes increment

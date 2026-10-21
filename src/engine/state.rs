@@ -504,6 +504,11 @@ pub(crate) struct EngineState {
     /// is pushed out of these in first person so you can no longer walk through walls. Rebuilt
     /// from the home_structure on every structural edit + on world load. Doors collide live.
     pub(crate) wall_colliders: Vec<crate::ship::wall_collision::WallSegment>,
+    /// The home's doors shut THIS FRAME, each from its sill to its head (the increment 7 follow-ups,
+    /// 2026-10-21): refilled once a frame before the walk (`built_uses::refresh_shut_doors`), and
+    /// read by the walk's sweep and by the hand's reach (`built_uses::reach_blockers`: E at a built
+    /// piece, F's take-down), so a shut door stops both.
+    pub(crate) shut_doors: Vec<crate::ship::wall_collision::WallSegment>,
     /// One-shot SFX queue (v0.983): gameplay sites push (catalog id, fallback
     /// path) pairs; the audio frame-sync block drains and plays them through
     /// the kira sfx bus. Keeps action code free of audio borrows and gives
@@ -694,13 +699,14 @@ pub(crate) struct EngineState {
     /// Teleporter re-fire cooldown in seconds (v0.584): set when the player jumps through a
     /// teleport pad; counts down each frame so standing on the destination pad doesn't ping-pong.
     pub(crate) teleport_cooldown: f32,
-    /// ELEVATOR runtime state (v0.590), keyed by (ship-zone index, placed-structure index)
-    /// (v0.754 -- every zone's elevators run): (the car's height over the shaft's base in
+    /// ELEVATOR runtime state (v0.590), keyed by the zone's id and the elevator's own
+    /// (`footing::LiftKey`, since the increment 7 follow-ups of 2026-10-21; list indexes before,
+    /// which an edit shifted) (v0.754 -- every zone's elevators run): (the car's height over the shaft's base in
     /// metres, the target stop's height in metres, someone riding). Pure runtime -- not saved
     /// with the home; resynced each frame during play. Since ship homes increment 7 the stops
     /// are the storey floors the shaft spans (`footing::lifts`): anyone at any landing calls the
     /// car, and while riding Space goes up a stop and Shift down (`footing::elevator_tick`).
-    pub(crate) elevator_state: std::collections::HashMap<(usize, usize), (f32, f32, bool)>,
+    pub(crate) elevator_state: crate::engine::footing::ElevatorCars,
     /// Cached unit-box mesh + material for the moving elevator CAR slab (v0.590), scaled + posed
     /// per elevator per frame so the moving floor never leaks a mesh.
     pub(crate) elevator_car_mesh: Option<usize>,

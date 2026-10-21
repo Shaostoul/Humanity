@@ -26,7 +26,8 @@
 //! roof, belongs to the floor under it).
 //!
 //! E at a built piece and F's take-down ask the same question of what a HAND cannot pass
-//! (`ReachBlockers`): the walls as the walk meets them, by height, and every floor slab.
+//! (`ReachBlockers`): the walls as the walk meets them, by height, the doors shut now, and every
+//! floor slab.
 
 use crate::ship::home_structure::{FloorSlab, HomeStructure, SlabMaterial};
 use crate::ship::ship_structure::ShipStructure;
@@ -169,7 +170,12 @@ pub fn ship_solid_slabs(ship: &ShipStructure) -> impl Iterator<Item = SlabBox> +
 ///   foot to its head with the wall over it standing as its own segment (a lintel), so a piece seen
 ///   through a door is reached and one beyond the wall over it, or beside it, is not;
 /// - EVERY floor slab, glass as well as solid: a glass floor is seen through but not reached
-///   through.
+///   through;
+/// - the DOORS SHUT NOW (the increment 7 follow-ups, 2026-10-21), each from its sill to its head,
+///   the same segments the walk sweeps against (`engine::built_uses::shut_door_segments`, kept by
+///   lib.rs as `EngineState::shut_doors`): a hand does not reach through a shut door any more than
+///   a body walks through it. They were local to lib.rs's collision block, so E and F reached
+///   through every shut door.
 ///
 /// It used to be the walls in plan alone (`ray_crosses_walls`, which read no heights), which took
 /// the lintel over every door for a wall across the doorway at every height (23 of the homestead's
@@ -178,13 +184,14 @@ pub fn ship_solid_slabs(ship: &ShipStructure) -> impl Iterator<Item = SlabBox> +
 #[derive(Clone, Copy, Default)]
 pub struct ReachBlockers<'a> {
     pub walls: &'a [WallSegment],
+    pub doors: &'a [WallSegment],
     pub ship: Option<&'a ShipStructure>,
 }
 
 impl ReachBlockers<'_> {
     /// True when something stands between `eye` and `target` that a hand does not reach through.
     pub fn blocked(&self, eye: Vec3, target: Vec3) -> bool {
-        self.walls.iter().any(|w| wall_blocks(w, eye, target)) || self.ship.is_some_and(|s| ship_slabs(s).any(|b| b.blocks(eye, target)))
+        self.walls.iter().chain(self.doors).any(|w| wall_blocks(w, eye, target)) || self.ship.is_some_and(|s| ship_slabs(s).any(|b| b.blocks(eye, target)))
     }
 }
 

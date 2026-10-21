@@ -77,12 +77,28 @@ const SLAB_EDGE_HEAD_M: f32 = 0.02;
 /// not, and hanging at the top (0.2 m over it) still is.
 const LADDER_SPAN_MARGIN_M: f32 = 0.5;
 
-/// Each elevator's runtime state, by (zone index, structure index): (the car's height over the
-/// elevator's base, metres; the height it is heading for, metres, one of its stops
-/// (`Lift::stops`); whether someone rides it). `EngineState::elevator_state`. Since ship homes
-/// increment 7 the heights are metres, not v0.590's share of one 3 m travel, because an
-/// elevator's stops are now the storeys its shaft spans.
-pub type ElevatorCars = HashMap<(usize, usize), (f32, f32, bool)>;
+/// An elevator's key in `ElevatorCars`: its zone's id (`ShipZone::id`) and its own id
+/// (`PlacedStructure::id`, unique in its body and never empty: `settle_structures` gives every
+/// piece read one, and the editor every piece it places). Neither changes when the build editor
+/// adds or takes out a piece (the increment 7 follow-ups, 2026-10-21): the cars were keyed by
+/// (zone index, structure index), and since a car's state survives the editor
+/// (`pause_elevators`), taking out a piece listed before an elevator handed its car to the next
+/// one down the list.
+pub type LiftKey = (String, String);
+
+/// Each elevator's runtime state, by its `LiftKey`: (the car's height over the elevator's base,
+/// metres; the height it is heading for, metres, one of its stops (`Lift::stops`); whether someone
+/// rides it). `EngineState::elevator_state`. Since ship homes increment 7 the heights are metres,
+/// not v0.590's share of one 3 m travel, because an elevator's stops are now the storeys its shaft
+/// spans.
+pub type ElevatorCars = HashMap<LiftKey, (f32, f32, bool)>;
+
+/// The car of the elevator `piece` (its id) in the zone `zone` (its id), once it has run
+/// (`elevator_tick` adds it): looked up without building a key, so the footing, asked between a
+/// long frame's substeps, makes no strings. There are a handful of elevators at most.
+pub fn car_of<'c>(cars: &'c ElevatorCars, zone: &str, piece: &str) -> Option<&'c (f32, f32, bool)> {
+    cars.iter().find(|(k, _)| k.0 == zone && k.1 == piece).map(|(_, car)| car)
+}
 
 /// Everything the floor under a body aboard is read from, gathered once a frame (lib.rs):
 /// the rooms (`GuiState::room_bounds`), the ship (its zones' floor slabs and placed structures),
@@ -147,12 +163,12 @@ impl<'a> Footing<'a> {
                         raise(o.1 + slab.top);
                     }
                 }
-                for (i, ps) in zone.body.structures.iter().enumerate() {
+                for ps in &zone.body.structures {
                     let Some(ty) = structure::structure_type(&ps.type_id) else { continue };
                     let wpos = (ps.pos.0 + o.0, ps.pos.1 + o.1, ps.pos.2 + o.2);
                     let yaw = ps.rot_deg.to_radians();
                     let surf = if ty.kind == StructureKind::Elevator {
-                        structure::in_footprint(ty, wpos, yaw, at.x, at.z).then(|| wpos.1 + self.cars.get(&(zi, i)).map_or(0.0, |e| e.0))
+                        structure::in_footprint(ty, wpos, yaw, at.x, at.z).then(|| wpos.1 + car_of(self.cars, &zone.id, &ps.id).map_or(0.0, |e| e.0))
                     } else {
                         structure::walk_surface(ty, wpos, yaw, at.x, at.z)
                     };
@@ -198,23 +214,46 @@ impl<'a> Footing<'a> {
         self.floor_under(at, at.y - EYE_HEIGHT_M)
     }
 
-    /// The underside of the lowest floor slab over a body whose eye is at `at` (world metres), if
-    /// there is one: the ceiling a jump stops under (`CameraController::set_ceiling`). A slab over
-    /// the point counts only while the eye is under its underside: a body already beside it with
-    /// its head through its level (climbing past its edge) is not under it, and the slab's edge
-    /// keeps such a body from moving under it (`slab_edges`, in the sweep's gates).
+    /// The underside of the lowest floor slab, or solid box piece, over a body whose eye is at `at`
+    /// (world metres), if there is one: the ceiling a jump stops under
+    /// (`CameraController::set_ceiling`). A slab over the point counts only while the eye is under
+    /// its underside: a body already beside it with its head through its level (climbing past its
+    /// edge) is not under it, and the slab's edge keeps such a body from moving under it
+    /// (`slab_edges`, in the sweep's gates).
+    ///
+    /// A SOLID BOX PIECE placed over the floor (a deck raised on "Place at height", a platform: a
+    /// Box or Slab row, `structure::solid_box_height`; the increment 7 follow-ups, 2026-10-21) is a
+    /// ceiling the same way, from its foot: a body walks under a deck whose foot is over its eye,
+    /// and a jump there bumps its head on the deck instead of rising into it, where the deck's sides
+    /// (`wall_collision`, which stop a body whose eye is over the deck's foot) would shove it out
+    /// from under. A body beside the piece with its eye over the foot is held off it by those sides.
     pub fn ceiling_over(&self, at: Vec3) -> Option<f32> {
         let ship = self.ship?;
         let mut best: Option<f32> = None;
+        let mut lower = |under: f32| {
+            if under > at.y && best.is_none_or(|b| under < b) {
+                best = Some(under);
+            }
+        };
         for (zi, zone) in ship.zones.iter().enumerate() {
             if ship.is_away_home(zi) {
                 continue;
             }
             let o = zone.origin;
             for slab in &zone.body.floors {
-                let under = o.1 + slab.underside();
-                if under > at.y && slab.contains(at.x - o.0, at.z - o.2) && best.is_none_or(|b| under < b) {
-                    best = Some(under);
+                if slab.contains(at.x - o.0, at.z - o.2) {
+                    lower(o.1 + slab.underside());
+                }
+            }
+            for ps in &zone.body.structures {
+                let Some(ty) = structure::structure_type(&ps.type_id) else { continue };
+                if structure::solid_box_height(ty).is_none() {
+                    continue;
+                }
+                let foot = Vec3::new(ps.pos.0 + o.0, ps.pos.1 + o.1, ps.pos.2 + o.2);
+                let (lx, lz) = to_local(foot, ps.rot_deg.to_radians(), at.x, at.z);
+                if lx.abs() <= ty.size.0 * 0.5 && lz.abs() <= ty.size.2 * 0.5 {
+                    lower(foot.y);
                 }
             }
         }
@@ -248,7 +287,7 @@ impl<'a> Footing<'a> {
 /// One elevator aboard (`lifts`): its key in `ElevatorCars`, its base (world metres, the floor it
 /// stands on), its yaw (radians), its type, and its STOPS.
 pub struct Lift {
-    pub key: (usize, usize),
+    pub key: LiftKey,
     pub base: Vec3,
     pub yaw: f32,
     pub ty: &'static StructureType,
@@ -304,13 +343,13 @@ pub fn lifts(ship: &ShipStructure) -> Vec<Lift> {
             continue;
         }
         let o = zone.origin_vec();
-        for (i, ps) in zone.body.structures.iter().enumerate() {
+        for ps in &zone.body.structures {
             let Some(ty) = structure::structure_type(&ps.type_id) else { continue };
             if ty.kind != StructureKind::Elevator {
                 continue;
             }
             out.push(Lift {
-                key: (zi, i),
+                key: (zone.id.clone(), ps.id.clone()),
                 base: Vec3::new(ps.pos.0, ps.pos.1, ps.pos.2) + o,
                 yaw: ps.rot_deg.to_radians(),
                 ty,
@@ -340,7 +379,7 @@ pub fn elevator_tick(ship: &ShipStructure, cars: &mut ElevatorCars, feet: Vec3, 
     cars.retain(|k, _| lifts.iter().any(|l| l.key == *k));
     let mut rides = false;
     for lift in &lifts {
-        let e = cars.entry(lift.key).or_insert((0.0, 0.0, false));
+        let e = cars.entry(lift.key.clone()).or_insert((0.0, 0.0, false));
         let (y, mut target, _) = *e;
         let inside = structure::in_footprint(lift.ty, (lift.base.x, lift.base.y, lift.base.z), lift.yaw, feet.x, feet.z);
         let riding = inside && (feet.y - (lift.base.y + y)).abs() < LANDING_M;
@@ -1128,8 +1167,14 @@ pub(crate) mod test_aboard {
 
         /// elevator-1's car's height over its base, metres.
         pub(crate) fn car(&self) -> f32 {
-            self.cars.get(&(0, 0)).map_or(0.0, |e| e.0)
+            car_of(&self.cars, "home", "elevator-1").map_or(0.0, |e| e.0)
         }
+    }
+
+    /// The test home's elevator-1, as its car is keyed (`LiftKey`): the zone "home", the piece
+    /// "elevator-1".
+    pub(crate) fn elevator_1() -> LiftKey {
+        ("home".to_string(), "elevator-1".to_string())
     }
 
     /// A body standing with its eye at `eye`, on the floor `EYE_HEIGHT_M` under it, facing
@@ -1370,7 +1415,7 @@ mod storey_tests {
     fn a_landing_with_the_car_away_does_not_let_a_body_into_the_shaft() {
         for (storey, car_at) in [(3.0, 0.0), (0.0, 3.0)] {
             let mut w = Aboard::two_storeys();
-            w.cars.insert((0, 0), (car_at, car_at, false));
+            w.cars.insert(elevator_1(), (car_at, car_at, false));
             let (mut ctl, mut cam) = body_at(Vec3::new(7.5, storey + EYE, 2.0));
             cam.yaw = EAST;
             ctl.apply_action(A::MoveForward, true);
@@ -1397,7 +1442,7 @@ mod storey_tests {
         let door = |storey: f32| Vec3::new(9.1, storey, 2.0);
         assert_eq!(lift_landing_open(&w.ship, &w.cars, door(0.0)), Some(true), "the ground landing's door, the car there");
         assert_eq!(lift_landing_open(&w.ship, &w.cars, door(3.0)), Some(false), "the upper landing's door, the car below");
-        w.cars.insert((0, 0), (3.0, 3.0, false));
+        w.cars.insert(elevator_1(), (3.0, 3.0, false));
         assert_eq!(lift_landing_open(&w.ship, &w.cars, door(3.0)), Some(true), "the upper landing's door, the car there");
         assert_eq!(lift_landing_open(&w.ship, &w.cars, door(0.0)), Some(false), "the ground landing's door, the car above");
         assert_eq!(lift_landing_open(&w.ship, &w.cars, Vec3::new(6.0, 3.0, 4.0)), None, "a door at no landing");
@@ -1885,6 +1930,47 @@ mod storey_tests {
         }
         ctl.set_ceiling(footing.ceiling_over(p));
         ctl.set_climb_zone(None);
+    }
+
+    /// AN EDIT THAT REMOVES AN EARLIER PIECE LEAVES EACH ELEVATOR ITS OWN CAR (the increment 7
+    /// follow-ups, 2026-10-21). The cars survive the build editor (`pause_elevators`), so they must
+    /// be known by something an edit does not change. In the test home with a handrail placed
+    /// first and a second elevator (elevator-2 at (6, 0, 9)) right after elevator-1, elevator-1's
+    /// car at the top and elevator-2's at the bottom: taking the handrail out
+    /// (`HomeStructure::remove_structure`, what the editor's delete does) shifts every piece after
+    /// it down the list, and each car is still its own elevator's, through a frame of the
+    /// elevators (`elevator_tick`, the body away from both) and under a body upstairs in
+    /// elevator-1's shaft (`Footing::floor_under`: on its car).
+    ///
+    /// Seen red first (2026-10-21) with the cars keyed by (zone index, structure index): "after
+    /// taking the handrail out the cars are (elevator-1, elevator-2) [0.0, 3.0], not [3.0, 0.0]"
+    /// (elevator-2 took elevator-1's car at the top, and elevator-1 lost it).
+    #[test]
+    fn an_edit_that_removes_an_earlier_piece_leaves_each_elevator_its_own_car() {
+        use crate::ship::home_structure::PlacedStructure;
+        let mut w = Aboard::two_storeys();
+        let body = &mut w.ship.zones[0].body;
+        body.structures.insert(0, PlacedStructure { id: "handrail-1".into(), type_id: "handrail".into(), pos: (11.0, 0.0, 11.0), rot_deg: 0.0, pair: None });
+        body.structures.insert(2, PlacedStructure { id: "elevator-2".into(), type_id: "elevator".into(), pos: (6.0, 0.0, 9.0), rot_deg: 0.0, pair: None });
+        let e1 = Vec3::new(10.0, 0.0, 2.0);
+        for l in lifts(&w.ship) {
+            let up = if (l.base - e1).length() < 1e-3 { 3.0 } else { 0.0 };
+            w.cars.insert(l.key.clone(), (up, up, false));
+        }
+        let heights = |w: &Aboard| -> Vec<f32> {
+            let mut by_base: Vec<(f32, f32)> = lifts(&w.ship).iter().map(|l| (l.base.x, w.cars.get(&l.key).map_or(0.0, |e| e.0))).collect();
+            // elevator-1 (x 10) first, then elevator-2 (x 6).
+            by_base.sort_by(|a, b| b.0.total_cmp(&a.0));
+            by_base.into_iter().map(|(_, y)| y).collect()
+        };
+        assert_eq!(heights(&w), vec![3.0, 0.0], "before the edit");
+        let removed = w.ship.zones[0].body.remove_structure(0).expect("the handrail is the first piece");
+        assert_eq!(removed.id, "handrail-1");
+        assert_eq!(heights(&w), vec![3.0, 0.0], "after taking the handrail out the cars are (elevator-1, elevator-2) {:?}, not [3.0, 0.0]", heights(&w));
+        elevator_tick(&w.ship, &mut w.cars, Vec3::new(2.0, 0.0, 10.0), 0, DT);
+        assert_eq!(heights(&w), vec![3.0, 0.0], "after a frame of the elevators the cars are (elevator-1, elevator-2) {:?}", heights(&w));
+        let upstairs_in_shaft = w.footing().floor_under(Vec3::new(10.0, 3.0 + EYE, 2.0), 3.0);
+        assert_eq!(upstairs_in_shaft, Some(3.0), "upstairs in elevator-1's shaft the body stands on its car");
     }
 
     /// LEAVING FIRST PERSON ON THE ELEVATOR KEEPS THE CAR WHERE IT IS (ship homes increment 7

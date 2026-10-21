@@ -354,12 +354,9 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
     Lane L, slabs stopping lamps and sun in the room GI, and a seam critic's six findings (the editor's
     close on a stair or in the shaft, E and Take down through doorways, sight by height, a hung
     unit's storey) followed in v0.1535.0. Increment 7 is DONE apart from the follow-ups below.)
-  - **Increment 7 follow-ups (found by the 2026-10-21 fixers, not fixed):** a shut home door does
-    not stop E or Take down (the live door list is local to lib.rs's collision block); a built box
-    taller than a step is not solid to the editor's close (its walls push a body out, possibly
-    through a wall); upstairs, slab occlusion costs +0.53 ms at 2560x1387 (pack the layer rows, cull
-    runs per light tile: docs/design/room-gi.md, Floors between storeys); placed box pieces (the
-    "wall" piece, raised decks, slabs) still do not collide; the HUD's labels float over upstairs
+  - **Increment 7 follow-ups (found by the 2026-10-21 fixers, not fixed):** upstairs, slab
+    occlusion costs +0.53 ms at 2560x1387 (pack the layer rows, cull
+    runs per light tile: docs/design/room-gi.md, Floors between storeys); the HUD's labels float over upstairs
     machines the editor's cut-away hides; plants and grow tents ignore the cut-away; the HUD's room
     card is blank in the elevator above 3 m (the shaft has no upstairs room box); `moves::on_my_storey`
     and `stands_in_storey_of` (relay reach, quests) still assume 3 m storeys; the build editor's close
@@ -368,7 +365,7 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
     world load until the storey changes; air handlers c1 and h1 to h4 top out 1 cm under the slab, so
     their port gizmos draw above the upper floor when selected; the study's uplink and router ports
     sit outside the east wall; service levels are per home, not per room (hangers stop mid-air in
-    the greenhouse); elevator cars are keyed by structure index, which an edit can shift; a jump
+    the greenhouse); a jump
     from the stair's seventh step can slip past a slab edge (walled by G1 in the homestead); the
     family mushroom tents settle at 68 to 82% humidity, under the oyster's 85% (known); docs:
     `homestead_layout_tests.rs` ~483 still says a 0.6 m gap, `wall_collision.rs` ~117-125 and
@@ -376,6 +373,11 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
     Also: `verify-runtime` boots rigs together when the machine's builds end and its gate clock
     includes waiting for them (BUG-140's fixer saw an out-of-VRAM boot and a stalled frame loop
     that passed on a lone rerun): toolsmith work.
+  - **DONE 2026-10-21: increment 7's movement and editor follow-ups** (the last list of
+    docs/design/homestead-upper-floor.md section 12): placed box pieces collide by their box and
+    height (a raised deck is a ceiling too), a built box is solid to the editor's close and to the
+    spawn a Save writes, a shut door stops E and Take down, elevator cars are keyed by ids, and a
+    spot on a wall's centre line is no longer moved through that wall.
   - **Next for bounced light: probe streaming** (operator's question, 2026-10-20, "is there any
     other way?"): only rooms near the player hold probes, so the ship's size stops mattering and
     the shared Commons need not drop to 2.5 m to keep the home at 1 m. Hardware ray-traced GI on

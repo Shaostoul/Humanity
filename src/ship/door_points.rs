@@ -353,8 +353,9 @@ mod tests {
     /// a wall of the upper storey and not of the ground's; the stair's enclosure is the ground's
     /// alone and the stairwell's guard the upper storey's alone. And the ground storey's walls are
     /// exactly those that stop a body standing on the deck (the game's own rule), every wall
-    /// standing on the deck among them, so a ground route is judged as it was before the upper
-    /// floor, less the walls overhead.
+    /// standing on the deck taller than a step among them, so a ground route is judged as it was
+    /// before the upper floor, less the walls overhead. (A piece no taller than a step, train-1's
+    /// 0.4 m platform since placed boxes collide, 2026-10-21, is stepped onto, not walked into.)
     ///
     /// Seen red 2026-10-21 with every storey given every wall (the report flattened, as before):
     /// "the upper hall's south wall is a wall of the ground storey".
@@ -374,7 +375,7 @@ mod tests {
         let everyone = crate::ship::wall_collision::everyones_walls(&ship);
         let at_ground = everyone.iter().filter(|w| w.stops_body(EYE_HEIGHT_M)).count();
         assert_eq!(ground.walls.len(), at_ground, "the ground storey's walls are those that stop a body on the deck");
-        for w in everyone.iter().filter(|w| w.y0 <= 1e-3) {
+        for w in everyone.iter().filter(|w| w.y0 <= 1e-3 && w.y1 > crate::ship::wall_collision::STEP_UP_M) {
             let w = [w.a.0, w.a.1, w.b.0, w.b.1];
             assert!(has(ground, w), "the wall {w:?}, standing on the deck, is missing from the ground storey");
         }
