@@ -231,3 +231,93 @@ fn track_survives_the_frame_it_is_pressed() {
     super::controls::advance(&mut state);
     assert_eq!(state.maps.tracked_body, None, "with no flight under way and the camera elsewhere, tracking ends");
 }
+
+/// The page with no feed opens on the overview LOOKING DOWN FROM ECLIPTIC
+/// NORTH, and from there the planets go round the Sun counter-clockwise, as
+/// they really do seen from the north (BUG-140 made the model's orbits turn
+/// that way). Before Maps increment 1 the default camera sat about 56 AU BELOW
+/// the ecliptic looking up (pitch -1.2 with `y = distance * sin(pitch)`), where
+/// the same orbits look clockwise; found by BUG-140's fixer, 2026-10-21.
+///
+/// Seen red 2026-10-21 with the overview pitched up instead of down
+/// (OVERVIEW_PITCH_RAD +70 degrees): "mercury goes round the Sun clockwise on
+/// the overview (a x b = 15.3)"; with the eye check first, "the overview's eye
+/// is 56.4 AU BELOW the ecliptic".
+#[test]
+fn the_overview_looks_down_from_ecliptic_north_and_orbits_turn_counter_clockwise() {
+    use super::camera::{MapCamera, MapProjector, MapScene};
+    let t0 = 843_782_400.0;
+    let scene = MapScene::new(None, t0, false);
+    let cam = MapCamera::default();
+    let pose = cam.pose(&scene);
+    let sun0 = scene.body_m("sun").expect("the Sun");
+    let rect = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(1400.0, 900.0));
+    let proj = MapProjector::new(pose, rect);
+    let (sun_px, _) = proj.project(sun0).expect("the Sun is in view");
+    for id in ["mercury", "venus", "earth", "mars", "jupiter"] {
+        // Each body's place round the Sun at t0 and 10 days on, drawn from the
+        // t0 camera (heliocentric, so Earth's own motion does not move the frame).
+        let at = |t: f64| {
+            let s = MapScene::new(None, t, false);
+            let helio = s.body_m(id).unwrap() - s.body_m("sun").unwrap();
+            let (p, _) = proj.project(sun0 + helio).expect("in view");
+            p - sun_px
+        };
+        let (a, b) = (at(t0), at(t0 + 10.0 * 86_400.0));
+        // Screen y points down, so counter-clockwise on screen is a NEGATIVE
+        // a x b in screen coordinates.
+        let cross = a.x * b.y - a.y * b.x;
+        assert!(cross < 0.0, "{id} goes round the Sun clockwise on the overview (a x b = {cross:.1})");
+    }
+    let above = (pose.eye - sun0).y / crate::cosmos::M_PER_AU;
+    assert!(above > 0.0, "the overview's eye is {:.1} AU BELOW the ecliptic", -above);
+}
+
+/// The reference rings (LEO, GEO...) lie in the body's equatorial plane, the
+/// world's XZ plane (the game has no axial tilt), at their radius. Until Maps
+/// increment 1 they were drawn in the XY plane, standing on edge to the orbits
+/// they name; found again by BUG-140's fixer, 2026-10-21.
+///
+/// Seen red 2026-10-21 with the ring built in the XY plane as before:
+/// "a reference ring leaves the equatorial plane by 42164.0 km".
+#[test]
+fn reference_rings_lie_in_the_equatorial_plane() {
+    let centre = glam::DVec3::new(1.0e7, -3.0e6, 2.0e7);
+    let r = 42_164_000.0;
+    let ring = super::system_view::reference_ring_points(centre, r, 96);
+    assert_eq!(ring.len(), 96);
+    let off = ring.iter().map(|p| (p.y - centre.y).abs()).fold(0.0, f64::max);
+    assert!(off < 1e-6, "a reference ring leaves the equatorial plane by {:.1} km", off / 1000.0);
+    for p in &ring {
+        assert!(((*p - centre).length() / r - 1.0).abs() < 1e-12, "a ring point is off its radius");
+    }
+}
+
+/// L4 leads the smaller body round its orbit by 60 degrees and L5 trails it,
+/// on every date, and all five points are real numbers. The overlay used
+/// "ecliptic up = +Z", which lies IN the ecliptic of the engine's frame (Y up):
+/// its orbit normal came out as -sign(cos a) Y, so L4 and L5 swapped every half
+/// orbit, and NaN when the body crossed the Z axis. Found by BUG-140's fixer,
+/// 2026-10-21; the normal is now the child's own motion round its parent.
+///
+/// Seen red 2026-10-21 on the old normal: "sun-earth on day 0: L4 trails the
+/// child (along its motion -0.874)".
+#[test]
+fn lagrange_l4_leads_and_l5_trails_on_every_date() {
+    use crate::cosmos::{body_world_position_3d_au, find_body};
+    for (parent, child) in [("sun", "earth"), ("earth", "moon"), ("sun", "jupiter")] {
+        let (p, c) = (find_body(parent).unwrap(), find_body(child).unwrap());
+        for day in (0..360).step_by(15) {
+            let t = 843_782_400.0 + day as f64 * 86_400.0;
+            let pts = super::system_view::compute_lagrange_points(p, c, t).expect("five points");
+            assert!(pts.iter().all(|q| q.is_finite()), "{parent}-{child} on day {day}: a point is not a number");
+            let pp = body_world_position_3d_au(p, t);
+            let sep = body_world_position_3d_au(c, t) - pp;
+            let sep2 = body_world_position_3d_au(c, t + 3600.0) - body_world_position_3d_au(p, t + 3600.0);
+            let motion = (sep2 - sep).normalize();
+            let lead = |q: glam::DVec3| (q - pp).normalize().dot(motion);
+            assert!(lead(pts[3]) > 0.5, "{parent}-{child} on day {day}: L4 trails the child (along its motion {:.3})", lead(pts[3]));
+            assert!(lead(pts[4]) < -0.5, "{parent}-{child} on day {day}: L5 leads the child (along its motion {:.3})", lead(pts[4]));
+        }
+    }
+}

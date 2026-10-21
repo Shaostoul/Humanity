@@ -918,13 +918,10 @@ fn draw_reference_orbits(
     // project each through the map's camera.
     for ring in rings {
         let r_m = body_radius_m + ring.altitude_km * 1000.0;
-        let n = 96;
         let mut prev: Option<Pos2> = None;
         let mut first: Option<Pos2> = None;
         let mut closest_to_hover: Option<(Pos2, f32)> = None;
-        for i in 0..n {
-            let theta = (i as f64) * std::f64::consts::TAU / (n as f64);
-            let world = body_world_m + glam::DVec3::new(r_m * theta.cos(), 0.0, r_m * theta.sin());
+        for world in reference_ring_points(body_world_m, r_m, 96) {
             if let Some((p, _)) = proj.project(world) {
                 if let Some(prev_p) = prev {
                     paint.line_segment([prev_p, p], Stroke::new(0.6, theme.info()));
@@ -964,6 +961,17 @@ fn draw_reference_orbits(
         }
     }
     hovered_info
+}
+
+/// A reference ring of radius `r_m` round `centre`, `n` points in the
+/// body's equatorial plane: the world's XZ plane (the game has no axial tilt).
+pub(super) fn reference_ring_points(centre: glam::DVec3, r_m: f64, n: usize) -> Vec<glam::DVec3> {
+    (0..n)
+        .map(|i| {
+            let theta = i as f64 * std::f64::consts::TAU / n as f64;
+            centre + glam::DVec3::new(r_m * theta.cos(), 0.0, r_m * theta.sin())
+        })
+        .collect()
 }
 
 // ─────────────────────── Lagrange points (Phase 4d-soi, v0.211.0) ──────────
@@ -1032,7 +1040,7 @@ const LAGRANGE_PAIRS: &[LagrangePair] = &[
 /// (good to ~1% for μ < 0.01, which covers all our pairs since even
 /// Jupiter/Sun is ~0.001). L4 and L5 are the exact 60°-ahead/behind
 /// equilateral triangles in the child's orbit plane.
-fn compute_lagrange_points(
+pub(super) fn compute_lagrange_points(
     parent: &SolBody,
     child: &SolBody,
     sim_time_seconds: f64,
@@ -1057,17 +1065,18 @@ fn compute_lagrange_points(
     let l2 = parent_pos + to_child * l2_dist;
     let l3 = parent_pos - to_child * l3_dist;
 
-    // L4 / L5 = 60° rotation in the child's orbit plane.
-    // Approximate orbit-plane normal as: cross of to_child with reference up.
-    // For most of our pairs the orbit normal is ~+Z (ecliptic-aligned), so
-    // we can use to_child × Z as a starting tangent and reconstruct.
-    let ecliptic_up = glam::DVec3::new(0.0, 0.0, 1.0);
-    let normal = to_child.cross(ecliptic_up).cross(to_child).normalize();
-    // Actually we want the orbit normal (perpendicular to orbit plane):
-    // for an orbit roughly in the ecliptic, that IS +Z. But Earth-Moon's
-    // orbit is tilted ~5° — the eclipsing math elsewhere handles this; for
-    // a Lagrange overlay this approximation is fine (sub-arcminute error).
-    let orbit_normal = to_child.cross(normal).normalize();
+    // L4 / L5 = 60° rotation in the child's orbit plane, about its orbit
+    // normal r x v, so a positive turn goes the way the child moves: L4
+    // leads, L5 trails. The velocity is the child's own motion round the
+    // parent over an hour. (Until Maps increment 1 this used "ecliptic up =
+    // +Z", which lies IN the ecliptic of the engine's Y-up frame: L4 and L5
+    // swapped every half orbit and went NaN on the Z axis.)
+    let later = body_world_position_3d_au(child, sim_time_seconds + 3600.0)
+        - body_world_position_3d_au(parent, sim_time_seconds + 3600.0);
+    let orbit_normal = separation.cross(later - separation).normalize_or_zero();
+    if orbit_normal == glam::DVec3::ZERO {
+        return None;
+    }
 
     // Rotate `separation` by +60° and -60° about orbit_normal.
     let angle_rad = 60.0_f64.to_radians();
