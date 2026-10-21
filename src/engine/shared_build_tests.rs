@@ -551,7 +551,7 @@ fn our_take_down_gives_the_materials_back_once_and_what_the_pack_cannot_hold_lan
     // F at the foundation, as F finds what it looks at and asks.
     let reg = registry();
     let eye = Vec3::new(20.0, 1.7, 23.0);
-    let (seven, name, materials) = build_place::take_down_plan(&g.world, &g.gui.placed_items, Some(&reg), eye, Vec3::new(0.0, -1.6, -3.0).normalize(), None, &[]).expect("F finds the foundation");
+    let (seven, name, materials) = build_place::take_down_plan(&g.world, &g.gui.placed_items, Some(&reg), eye, Vec3::new(0.0, -1.6, -3.0).normalize(), None, Default::default()).expect("F finds the foundation");
     assert_eq!((seven, name.as_str()), (g.entity(7), "Wood Foundation"));
     assert_eq!(materials, vec![("wood_plank_0".to_string(), 8)], "F gives back a finished foundation's whole price");
     assert_eq!(build_place::take_down_entity_on(&mut g.sb, &mut g.world, &g.data, &g.gui, seven, &name, &materials), None);
