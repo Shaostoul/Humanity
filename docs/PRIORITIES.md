@@ -354,28 +354,22 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
     Lane L, slabs stopping lamps and sun in the room GI, and a seam critic's six findings (the editor's
     close on a stair or in the shaft, E and Take down through doorways, sight by height, a hung
     unit's storey) followed in v0.1535.0. Increment 7 is DONE apart from the follow-ups below.)
-  - **Increment 7 follow-ups (found by the 2026-10-21 fixers, not fixed):** a shut home door does
-    not stop E or Take down (the live door list is local to lib.rs's collision block); a built box
-    taller than a step is not solid to the editor's close (its walls push a body out, possibly
-    through a wall); upstairs, slab occlusion costs +0.53 ms at 2560x1387 (pack the layer rows, cull
-    runs per light tile: docs/design/room-gi.md, Floors between storeys); placed box pieces (the
-    "wall" piece, raised decks, slabs) still do not collide; the HUD's labels float over upstairs
-    machines the editor's cut-away hides; plants and grow tents ignore the cut-away; the HUD's room
-    card is blank in the elevator above 3 m (the shaft has no upstairs room box); `moves::on_my_storey`
-    and `stands_in_storey_of` (relay reach, quests) still assume 3 m storeys; the build editor's close
-    can step onto a piece 0.6 m up; world_load orphans every machine's mesh slot each world entry
-    (the shell families are pooled now, machines not); the editor's cut-away is not redrawn after a
-    world load until the storey changes; air handlers c1 and h1 to h4 top out 1 cm under the slab, so
-    their port gizmos draw above the upper floor when selected; the study's uplink and router ports
-    sit outside the east wall; service levels are per home, not per room (hangers stop mid-air in
-    the greenhouse); elevator cars are keyed by structure index, which an edit can shift; a jump
-    from the stair's seventh step can slip past a slab edge (walled by G1 in the homestead); the
-    family mushroom tents settle at 68 to 82% humidity, under the oyster's 85% (known); docs:
-    `homestead_layout_tests.rs` ~483 still says a 0.6 m gap, `wall_collision.rs` ~117-125 and
-    `moves.rs` ~225 comments are stale, player-home.md's plan table and walkthrough are single-storey.
-    Also: `verify-runtime` boots rigs together when the machine's builds end and its gate clock
-    includes waiting for them (BUG-140's fixer saw an out-of-VRAM boot and a stalled frame loop
-    that passed on a lone rerun): toolsmith work.
+  - **Increment 7 follow-ups (found by the 2026-10-21 fixers).** Fixed the same day (merged
+    680525ccf, next release): the HUD's labels, the dimension overlay and the 3-D helpers follow the
+    editor's cut-away; plants and tents follow it; the room card names the elevator for the whole
+    ride; machine mesh slots are pooled across world entries; the cut-away is redrawn after a world
+    load; port gizmos stay under their ceiling and inside the shell; hangers reach the real ceiling
+    (the greenhouse roof); stale comments and player-home.md's plan and walkthrough. In flight (the
+    movement fixer): placed box pieces colliding, a built box solid to the editor's close, a shut
+    door stopping E and Take down, elevator cars keyed by a stable id, the close's strict wall
+    crossing. Still open:  and  (relay reach, quests)
+    assume 3 m storeys (the relay holds no slabs); upstairs, slab occlusion costs +0.53 ms at
+    2560x1387 (pack the layer rows, cull runs per light tile: docs/design/room-gi.md, Floors between
+    storeys); a jump from the stair's seventh step can slip past a slab edge (walled by G1 in the
+    homestead); runs to the greenhouse's g1 and g2 end at 2.70 m (the per-storey end clamp); a
+    machine selection survives a storey change (its handles hidden); the family mushroom tents
+    settle at 68 to 82% humidity, under the oyster's 85% (known);  and hand-typed
+    boots skip the rigs' boot lock.
   - **Next for bounced light: probe streaming** (operator's question, 2026-10-20, "is there any
     other way?"): only rooms near the player hold probes, so the ship's size stops mattering and
     the shared Commons need not drop to 2.5 m to keep the home at 1 m. Hardware ray-traced GI on
