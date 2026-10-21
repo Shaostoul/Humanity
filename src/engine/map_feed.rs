@@ -29,9 +29,9 @@
 use glam::{DQuat, DVec3, Vec3};
 
 use crate::engine::state::EngineState;
-use crate::gui::pages::maps::camera::{MapScene, MAX_DISTANCE_M, MIN_DISTANCE_M};
+// (The rig's requests are applied by `map_rig::apply_verb`, Maps increment 2.)
 use crate::gui::pages::maps::MapView;
-use crate::gui::{MapSelf, MapVerb, MapsState};
+use crate::gui::{MapSelf, MapsState};
 use crate::gui::GuiPage;
 
 /// What the frame already computed, as the feed reads it. A plain struct so
@@ -141,53 +141,14 @@ pub(crate) fn frame_update(maps: &mut MapsState, me: MapSelf, open: bool, open_w
     }
     maps.me = Some(me);
     for verb in std::mem::take(&mut maps.pending) {
-        apply_verb(maps, &verb);
-    }
-}
-
-/// One rig request (`MapVerb`), applied to the page's state.
-pub(crate) fn apply_verb(maps: &mut MapsState, verb: &MapVerb) {
-    let scene_me = maps.me.clone();
-    let scene = MapScene::new(scene_me.as_ref(), maps.sim_time_seconds, maps.live);
-    if verb.home {
-        // A fresh start on you, the dev switches included: the page can stay
-        // open from an earlier request (a rig vantage), so the reset on
-        // opening never ran (the turning vantage's 20 degrees a second turned
-        // the next vantage's camera between its two captures, 2026-10-21).
-        maps.view = MapView::System;
-        maps.live = true;
-        maps.turn_dps = 0.0;
-        maps.draw_ship = true;
-        maps.camera.open_on_me(scene_me.as_ref());
-    }
-    match verb.follow {
-        Some(true) if !maps.camera.follows_me() => {
-            let (d, yaw, pitch) = (maps.camera.distance(), maps.camera.yaw, maps.camera.pitch);
-            maps.camera.open_on_me(scene_me.as_ref());
-            maps.camera.set_distance(d);
-            maps.camera.yaw = yaw;
-            maps.camera.pitch = pitch;
-        }
-        Some(false) => maps.camera.unfollow(&scene),
-        _ => {}
-    }
-    if let Some(d) = verb.distance_m {
-        maps.camera.set_distance(d.clamp(MIN_DISTANCE_M, MAX_DISTANCE_M));
-    }
-    if let Some(ship) = verb.ship {
-        maps.draw_ship = ship;
-    }
-    if verb.report {
-        maps.report_after_seq = Some(maps.frame_seq);
-    }
-    if let Some(t) = verb.turn_dps {
-        maps.turn_dps = t;
+        crate::engine::map_rig::apply_verb(maps, &verb);
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::gui::MapVerb;
     use crate::station::orbit;
 
     fn inputs(pos: DVec3, vel: DVec3, rot: DQuat) -> FeedInputs<'static> {

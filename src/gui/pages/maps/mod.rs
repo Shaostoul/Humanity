@@ -38,20 +38,29 @@ use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use crate::gui::GuiState;
 
+mod belts;
+mod bodies;
 mod body_list;
 pub mod camera;
 mod controls;
+mod diagram;
 mod galaxy_view;
+mod labels;
 mod night_sky;
+mod orbits;
+pub mod overlays;
 mod planet_view;
+mod scene;
 mod sky_events;
 mod stations;
 mod system_view;
 mod time_bar;
+pub mod world_layer;
 pub mod you_layer;
 #[cfg(test)]
 mod tests;
 
+pub use belts::BeltCache;
 pub use sky_events::UpcomingSkyEvent;
 pub use camera::MapCamera;
 pub use stations::{parent_constants, StationRow};
@@ -88,24 +97,10 @@ fn spectral_color(class: &str) -> Color32 {
     }
 }
 
-/// Map a Sol body name to its display color. Approximations of real
-/// imagery (Mars red, Jupiter banded, Earth blue, etc.). Domain data,
-/// not theme tokens — the Sun stays yellow regardless of UI theme.
-fn body_color(name: &str) -> Color32 {
-    match name.to_lowercase().as_str() {
-        "sun" => Color32::from_rgb(255, 220, 100),     // theme-exempt: real Sun color — astrophysics, not theme
-        "mercury" => Color32::from_rgb(160, 130, 100), // theme-exempt: real Mercury color — astrophysics, not theme
-        "venus" => Color32::from_rgb(225, 200, 140),   // theme-exempt: real Venus color — astrophysics, not theme
-        "earth" => Color32::from_rgb(80, 140, 220),    // theme-exempt: real Earth color — astrophysics, not theme
-        "mars" => Color32::from_rgb(200, 90, 60),      // theme-exempt: real Mars color — astrophysics, not theme
-        "jupiter" => Color32::from_rgb(220, 180, 140), // theme-exempt: real Jupiter color — astrophysics, not theme
-        "saturn" => Color32::from_rgb(220, 200, 150),  // theme-exempt: real Saturn color — astrophysics, not theme
-        "uranus" => Color32::from_rgb(170, 220, 230),  // theme-exempt: real Uranus color — astrophysics, not theme
-        "neptune" => Color32::from_rgb(80, 130, 220),  // theme-exempt: real Neptune color — astrophysics, not theme
-        "pluto" => Color32::from_rgb(180, 160, 140),   // theme-exempt: real Pluto color — astrophysics, not theme
-        _ => Color32::from_rgb(180, 180, 200),         // theme-exempt: unknown body color fallback — astrophysics, not theme
-    }
-}
+// The body colours that stood here (`body_color`, a hard-coded match on ten
+// names, every other body grey) went in Maps increment 2: a body's colour is
+// DATA now, `SolBody::map_color` from sol.json (`scripts/build-body-colors.js`),
+// painted through `bodies::map_color32`.
 
 // ─────────────────────── Page entry point ───────────────────────────────────
 

@@ -10,7 +10,7 @@ use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use crate::gui::GuiState;
 
-use super::{body_color, format_km, titlecase};
+use super::{bodies, format_km, titlecase};
 
 // ─────────────────────── Body browser (left sidebar) ────────────────────────
 
@@ -156,7 +156,7 @@ fn draw_browser_row(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, body
         }
         // Color dot matching the body's display color.
         let (rect, _r) = ui.allocate_exact_size(Vec2::splat(8.0), Sense::hover());
-        ui.painter().circle_filled(rect.center(), 4.0, body_color(&body.name));
+        ui.painter().circle_filled(rect.center(), 4.0, bodies::map_color32(body.map_color));
         // Name — clickable to select.
         let selected = state.maps.selected_body.as_deref() == Some(body.id.as_str());
         let label_color = if selected { theme.accent() } else { theme.text_primary() };

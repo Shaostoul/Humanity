@@ -43,6 +43,18 @@ pub const GLOSSARY_JSON: &str = include_str!("../data/glossary.json");
 // fallback that keeps a bare portable exe working.
 pub const SOLAR_SYSTEM_JSON: &str = include_str!("../data/star_systems/sol.json");
 pub const STAR_SYSTEMS_INDEX_JSON: &str = include_str!("../data/star_systems/index.json");
+// ── The Maps page's overlays and belts (Maps increment 2; the native page only, so the
+// relay build does not carry them) ──
+#[cfg(feature = "native")]
+pub const MAPS_LAYERS_RON: &str = include_str!("../data/maps/layers.ron");
+#[cfg(feature = "native")]
+pub const MAPS_REFERENCE_ORBITS_RON: &str = include_str!("../data/maps/reference_orbits.ron");
+#[cfg(feature = "native")]
+pub const MAPS_LAGRANGE_PAIRS_RON: &str = include_str!("../data/maps/lagrange_pairs.ron");
+/// 20,000 real minor-planet orbits from the Minor Planet Center's MPCORB
+/// (scripts/build-belts.js; its terms: docs/reference/findings/2026-10-21-mpc-orbit-data.md).
+#[cfg(feature = "native")]
+pub const MAPS_BELTS_JSON: &str = include_str!("../data/maps/belts.json");
 pub const SOLAR_SYSTEM_LEGACY_JSON: &str = include_str!("../data/solar-system.json");
 pub const EXTERNAL_CATALOG_JSON: &str = include_str!("../data/external/catalog.json");
 pub const CITIES_JSON: &str = include_str!("../data/cities.json");
@@ -334,6 +346,14 @@ pub fn get_embedded(path: &str) -> Option<&'static str> {
         "solar_system/bodies.json" => Some(SOLAR_SYSTEM_JSON),
         "star_systems/sol.json" => Some(SOLAR_SYSTEM_JSON),
         "star_systems/index.json" => Some(STAR_SYSTEMS_INDEX_JSON),
+        #[cfg(feature = "native")]
+        "maps/layers.ron" => Some(MAPS_LAYERS_RON),
+        #[cfg(feature = "native")]
+        "maps/reference_orbits.ron" => Some(MAPS_REFERENCE_ORBITS_RON),
+        #[cfg(feature = "native")]
+        "maps/lagrange_pairs.ron" => Some(MAPS_LAGRANGE_PAIRS_RON),
+        #[cfg(feature = "native")]
+        "maps/belts.json" => Some(MAPS_BELTS_JSON),
         "solar-system.json" => Some(SOLAR_SYSTEM_LEGACY_JSON),
         "planets/tooltips.json" => Some(PLANET_TOOLTIPS_JSON),
         "media/ingest.json" => Some(MEDIA_INGEST_JSON),

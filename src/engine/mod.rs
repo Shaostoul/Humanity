@@ -86,6 +86,8 @@ pub mod launch_focus;
 /// (`MapSelf`), and renders the page's world layer (your ship from its meshes).
 pub mod map_feed;
 pub mod map_view;
+/// The Maps page's dev verbs and the rig's report (Maps increments 1 and 2).
+pub mod map_rig;
 /// Movie mode: record the live view to video, frame-exact, for the clip
 /// maker (scripts/make-clips.js, 2026-09-30).
 pub mod movie;

@@ -225,6 +225,21 @@
         note: "Telling the Maps page where your ship and you are this frame.",
     ),
     (
+        id: "cpu_maps_symbology",
+        display: "Maps: symbols",
+        category: "cpu",
+        // Maps increment 2 (gui/pages/maps/system_view.rs): building the Solar
+        // System view's symbols each frame the page is open, the Sun's glare,
+        // the belts' 20,000 points of dust, the orbit trails, the phase-lit
+        // bodies and the names. Its budget is 1 ms at the overview (the design's
+        // section 5.11); egui's own tessellation of what it builds is not in it.
+        sources: ["cpu.maps_symbology"],
+        locked: false,
+        base_frac: 0.01,
+        color: "nav_tools",
+        note: "Drawing the Maps page's orbits, bodies, belts and names this frame.",
+    ),
+    (
         id: "cpu_screens",
         display: "In-world screens",
         category: "cpu",

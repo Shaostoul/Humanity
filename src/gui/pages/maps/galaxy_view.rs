@@ -10,7 +10,7 @@ use crate::gui::theme::Theme;
 use crate::gui::widgets::label_placer::{self, LabelPlacer};
 use crate::gui::GuiState;
 
-use super::{allocate_canvas, body_color, catalog_text, spectral_color, MapFooter};
+use super::{allocate_canvas, bodies, catalog_text, spectral_color, MapFooter};
 
 // ─────────────────────── Data layer (lazy-loaded caches) ────────────────────
 
@@ -188,7 +188,7 @@ pub(super) fn draw_galactic_view(ui: &mut egui::Ui, theme: &Theme, state: &mut G
 
     // Sol at center — the universal anchor.
     let sol_r = 4.0_f32.max(2.0 * zoom.min(2.0));
-    paint.circle_filled(center, sol_r, body_color("sun"));
+    paint.circle_filled(center, sol_r, crate::cosmos::find_body("sun").map(|s| bodies::map_color32(s.map_color)).unwrap_or(egui::Color32::WHITE));
     labels.reserve_exact(Rect::from_center_size(center, Vec2::splat(2.0 * sol_r)));
     let sol_label = paint.text(
         center + Vec2::new(8.0, 0.0),

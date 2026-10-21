@@ -13,95 +13,23 @@
 //! same pose the world layer was rendered from (`engine/map_view.rs`
 //! `render_camera`), so a symbol lands on the thing it names.
 
-use egui::{Align2, Color32, FontId, Pos2, Rect, Stroke, Vec2};
+use egui::{Align2, FontId, Pos2, Stroke, Vec2};
 use glam::DVec3;
 
-use crate::gui::state_types::{MapSelf, MapsState};
+use crate::gui::state_types::MapSelf;
 use crate::gui::theme::Theme;
+use crate::gui::widgets::label_placer::LabelPlacer;
 use crate::gui::GuiState;
 
-use super::camera::{MapProjector, MapScene, WORLD_LAYER_MAX_M};
-use super::{format_with_commas, MapView};
+use super::camera::{MapProjector, MapScene};
+use super::format_with_commas;
 
 /// Under this many pixels across, a body or the ship is an ICON of a minimum
 /// size; over it the world layer's real thing takes over (design 5.3).
 pub const ICON_FLOOR_PX: f32 = 6.0;
 
-/// Whether the world layer is drawn, and if not, why not. One function for
-/// the engine (which renders it) and the page (which draws it and says why
-/// it is missing), so they never disagree.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum WorldLayerWant {
-    Draw,
-    /// Not the Solar System view.
-    OtherView,
-    /// Nothing says where you are (a snapshot, or before the engine has run).
-    NoFeed,
-    /// The 3D world is not loaded yet.
-    NotLoaded,
-    /// You are not aboard your ship.
-    NotAboard,
-    /// The clock is off Live.
-    NotLive,
-    /// The camera is beyond the ship band (your ship is an icon there).
-    TooFar,
-}
-
-impl WorldLayerWant {
-    /// What the page says when the world layer is missing at ship scale.
-    pub fn reason(self) -> Option<&'static str> {
-        match self {
-            WorldLayerWant::NotLoaded => Some("Enter your home to see your ship up close."),
-            WorldLayerWant::NotAboard => Some("Your ship is drawn from its real meshes while you are aboard it."),
-            WorldLayerWant::NotLive => {
-                Some("Off the live clock the ship and Earth are drawn as symbols. Press Live to see them for real.")
-            }
-            WorldLayerWant::NoFeed => Some("The ship is shown as an outline here; in the game it is drawn for real."),
-            _ => None,
-        }
-    }
-}
-
-/// Decide the world layer for this frame from the page's own state.
-pub fn world_layer_want(maps: &MapsState) -> WorldLayerWant {
-    if maps.view != MapView::System {
-        return WorldLayerWant::OtherView;
-    }
-    let Some(me) = maps.me.as_ref() else { return WorldLayerWant::NoFeed };
-    let scene = MapScene::new(Some(me), maps.sim_time_seconds, maps.live);
-    let near = (maps.camera.pose(&scene).eye - me.ship_centre_m()).length() <= WORLD_LAYER_MAX_M;
-    if !me.world_loaded {
-        WorldLayerWant::NotLoaded
-    } else if !me.aboard {
-        WorldLayerWant::NotAboard
-    } else if !maps.live {
-        WorldLayerWant::NotLive
-    } else if !near {
-        WorldLayerWant::TooFar
-    } else {
-        WorldLayerWant::Draw
-    }
-}
-
-/// Whether the camera is close enough to the ship that the world layer
-/// would show it (the band the reasons above are worth saying in).
-pub fn near_the_ship(maps: &MapsState) -> bool {
-    let Some(me) = maps.me.as_ref() else { return false };
-    let scene = MapScene::new(Some(me), maps.sim_time_seconds, maps.live);
-    (maps.camera.pose(&scene).eye - me.ship_centre_m()).length() <= WORLD_LAYER_MAX_M
-}
-
-/// Draw the world layer as the canvas backdrop when it is wanted and has
-/// been rendered. Returns whether it was drawn.
-pub(super) fn draw_world_backdrop(paint: &egui::Painter, rect: Rect, maps: &MapsState) -> bool {
-    if world_layer_want(maps) != WorldLayerWant::Draw || maps.world.renders == 0 {
-        return false;
-    }
-    let Some(tex) = maps.world.texture else { return false };
-    let uv = Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0));
-    paint.image(tex, rect, uv, Color32::WHITE);
-    true
-}
+/// The world layer's want and backdrop live in `world_layer.rs` (increment 2).
+pub use super::world_layer::{draw_world_backdrop, near_the_ship, world_layer_want, WorldDrawn, WorldLayerWant};
 
 /// The orbit through `pos` moving at `vel` around a body of gravitational
 /// parameter `mu` at the origin, as `n` points with `pos` itself one of them
@@ -179,30 +107,37 @@ pub fn ship_label(me: &MapSelf, parent_radius_m: f64) -> (String, String) {
 }
 
 /// Everything about you and your ship. Returns the asteroid markers (id,
-/// canvas point) so a click on one can open its mining card.
+/// canvas point) so a click on one can open its mining card. The ship's name
+/// is the first offered to the label placer (design 5.5: "you" first), and
+/// is drawn at its first choice even when no spot is clear: you are never
+/// dropped. On the Diagram the ship and its ring stand round Earth's
+/// enlarged disc (`MapScene::ship_place`) and the close-up symbols are left out.
 pub(super) fn draw_you(
     paint: &egui::Painter,
     theme: &Theme,
     proj: &MapProjector,
     scene: &MapScene,
     state: &mut GuiState,
-    world_drawn: bool,
+    world: WorldDrawn,
+    labels: &mut LabelPlacer,
 ) -> Vec<(String, Pos2)> {
     let mut markers = Vec::new();
     state.maps.ship_px = None;
     let Some(me) = scene.me else { return markers };
     let accent = theme.accent();
+    // The ship's own meshes are in the world layer only in the ship band.
+    let world_drawn = world == WorldDrawn::Everything && near_the_ship(&state.maps);
 
     // The ship's orbit, from its own state vector.
-    let ring = orbit_ring(me.ship_pos_m, me.ship_vel_mps, me.parent_mu, 192);
+    let ring: Vec<DVec3> = orbit_ring(me.ship_pos_m, me.ship_vel_mps, me.parent_mu, 192).into_iter().map(|p| scene.ship_place(p)).collect();
     stroke_ring(paint, proj, &ring, Stroke::new(1.2, accent.gamma_multiply(0.7)));
 
-    let centre = me.ship_centre_m();
+    let centre = scene.ship_place(me.ship_centre_m());
     let Some((at, depth)) = proj.project(centre) else { return markers };
     let ppp = state.maps.pixels_per_point.max(0.1);
     state.maps.ship_px = Some([at.x * ppp, at.y * ppp]);
     let length_px = proj.radius_px(me.ship_length_m() * 0.5, depth) * 2.0;
-    let big = length_px > 40.0;
+    let big = length_px > 40.0 && !scene.diagram;
 
     // The ship itself: the world layer draws it when it is there; otherwise
     // its outline when it is big on screen and an icon of a minimum size.
@@ -220,9 +155,19 @@ pub(super) fn draw_you(
     let radius = crate::cosmos::find_body(&me.parent).map(|b| b.radius_km * 1000.0).unwrap_or(0.0);
     let (name, line2) = ship_label(me, radius);
     let lift = if big { (length_px * 0.5).min(proj.rect.height() * 0.4) + 6.0 } else { 14.0 };
-    let label_at = at - Vec2::new(0.0, lift);
-    paint.text(label_at - Vec2::new(0.0, 13.0), Align2::CENTER_BOTTOM, name, FontId::proportional(13.0), accent);
-    paint.text(label_at, Align2::CENTER_BOTTOM, line2, FontId::proportional(10.5), theme.text_secondary());
+    let g1 = paint.layout_no_wrap(name.clone(), FontId::proportional(13.0), accent);
+    let g2 = paint.layout_no_wrap(line2.clone(), FontId::proportional(10.5), theme.text_secondary());
+    let block = Vec2::new(g1.size().x.max(g2.size().x), g1.size().y + g2.size().y);
+    let above = Align2::CENTER_BOTTOM.anchor_size(at - Vec2::new(0.0, lift), block);
+    let r_icon = if big { lift } else { 9.0 };
+    let [right, left, _, below] = crate::gui::widgets::label_placer::point_candidates(at, r_icon, block, 4.0);
+    let spot = labels.place([above, right, left, below]).unwrap_or_else(|| {
+        labels.reserve(above);
+        above
+    });
+    let line = |g: &std::sync::Arc<egui::Galley>, y: f32| Pos2::new(spot.center().x - g.size().x * 0.5, y);
+    super::labels::paint_with_halo(paint, theme, line(&g1, spot.top()), name, 13.0, accent);
+    super::labels::paint_with_halo(paint, theme, line(&g2, spot.top() + g1.size().y), line2, 10.5, theme.text_secondary());
 
     // You, where you are aboard, once the ship is big enough to tell.
     if big {
@@ -235,21 +180,24 @@ pub(super) fn draw_you(
 
     // The mining asteroids where the data puts them: km from the ship's
     // frame origin, in the ship's own axes (they keep station with it).
+    // Not on the Diagram, where 70 km has no place.
+    if scene.diagram {
+        return markers;
+    }
     let mut placed: std::collections::HashMap<String, Pos2> = std::collections::HashMap::new();
     for ast in &state.asteroids {
         let local = DVec3::new(ast.position[0] as f64, ast.position[1] as f64, ast.position[2] as f64) * 1000.0;
         let Some((p, _)) = proj.project(me.ship_to_world(local)) else { continue };
-        if !proj.rect.expand(40.0).contains(p) {
+        // Off the canvas, or on top of the ship from far out (seventy km is a
+        // pixel from a million km away): not drawn.
+        if !proj.rect.expand(40.0).contains(p) || (p - at).length() < 10.0 {
             continue;
         }
         paint.circle_filled(p, 3.0, crate::gui::widgets::swatch_color(&ast.classification));
-        paint.text(
-            p + Vec2::new(6.0, 0.0),
-            Align2::LEFT_CENTER,
-            format!("{} · {:.0} km", ast.name, ast.distance),
-            FontId::proportional(9.5),
-            theme.text_secondary(),
-        );
+        let galley = paint.layout_no_wrap(format!("{} · {:.0} km", ast.name, ast.distance), FontId::proportional(9.5), theme.text_secondary());
+        if let Some(spot) = labels.place(crate::gui::widgets::label_placer::point_candidates(p, 3.0, galley.size(), 3.0)) {
+            paint.galley(spot.min, galley, theme.text_secondary());
+        }
         placed.insert(ast.id.clone(), p);
         markers.push((ast.id.clone(), p));
     }

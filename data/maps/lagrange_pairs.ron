@@ -1,0 +1,59 @@
+// The Lagrange-point pairs the Maps page marks (Maps increment 2; until then
+// the `LAGRANGE_PAIRS` list in the page's code, whose comment said "Could move
+// to data/ later"). A pair is a heavier `parent` and the `child` going round it,
+// by sol.json id; `notable` says what is parked at a point, shown on hover.
+// `points` is what each of the five points is, for the same hover.
+// Read by src/gui/pages/maps/overlays.rs.
+(
+    pairs: [
+        (
+            parent: "sun",
+            child: "earth",
+            label: "Sun-Earth",
+            notable: [
+                ("L1", "SOHO solar observatory"),
+                ("L2", "JWST + Gaia + Euclid + Planck"),
+                ("L4", "Trojan asteroid 2010 TK7"),
+            ],
+        ),
+        (
+            parent: "earth",
+            child: "moon",
+            label: "Earth-Moon",
+            notable: [
+                ("L1", "Future lunar gateway candidate"),
+                ("L2", "Lunar far-side relay (Queqiao)"),
+                ("L4", "Future lunar gateway candidate"),
+                ("L5", "Future lunar gateway candidate"),
+            ],
+        ),
+        (
+            parent: "sun",
+            child: "mars",
+            label: "Sun-Mars",
+            notable: [("L4", "Eureka Trojan asteroid")],
+        ),
+        (
+            parent: "sun",
+            child: "jupiter",
+            label: "Sun-Jupiter",
+            notable: [
+                ("L4", "Greek Trojan asteroids (~10,000 known)"),
+                ("L5", "Trojan asteroids (Patroclus, Hektor)"),
+            ],
+        ),
+        (
+            parent: "sun",
+            child: "saturn",
+            label: "Sun-Saturn",
+            notable: [],
+        ),
+    ],
+    points: [
+        ("L1", "Between the two bodies, unstable, needs station-keeping. Good for solar wind observatories looking 'between' the parent and child."),
+        ("L2", "Past the child along the parent-child line, unstable but a low-station-keeping shadow zone. Telescope heaven."),
+        ("L3", "On the opposite side of the parent from the child, too far + occluded to be very useful."),
+        ("L4", "60° ahead of the child in its orbit, stable for μ < 0.0385. Trojan asteroids accumulate here."),
+        ("L5", "60° behind the child in its orbit, stable for μ < 0.0385. Mirror of L4."),
+    ],
+)

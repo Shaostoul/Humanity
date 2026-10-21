@@ -1,6 +1,6 @@
 {
  "id": "sol",
- "catalog_version": 6,
+ "catalog_version": 7,
  "name": "Solar System",
  "primary_star": "sun",
  "galaxy_position_ly": [
@@ -75,7 +75,9 @@
    "rings": false,
    "moons": [],
    "discovery": null,
-   "description": "The star at the center of the solar system. A G-type main-sequence star containing 99.86% of the system's mass."
+   "description": "The star at the center of the solar system. A G-type main-sequence star containing 99.86% of the system's mass.",
+   "map_color": "#fff4ea",
+   "map_color_source": "the Sun as a G2V star (the Maps page spectral-class colour, Mitchell Charity blackbody table)"
   },
   {
    "id": "mercury",
@@ -174,7 +176,9 @@
    "rings": false,
    "moons": [],
    "discovery": null,
-   "description": "The smallest planet and closest to the Sun. Has extreme temperature swings from -180 to 430 C due to virtually no atmosphere."
+   "description": "The smallest planet and closest to the Sun. Has extreme temperature swings from -180 to 430 C due to virtually no atmosphere.",
+   "map_color": "#a08264",
+   "map_color_source": "hand palette carried from the page (no colour map in data/planets yet)"
   },
   {
    "id": "venus",
@@ -228,7 +232,9 @@
    "rings": false,
    "moons": [],
    "discovery": null,
-   "description": "Second planet from the Sun. Hottest planet due to extreme greenhouse effect. Rotates retrograde (clockwise when viewed from north)."
+   "description": "Second planet from the Sun. Hottest planet due to extreme greenhouse effect. Rotates retrograde (clockwise when viewed from north).",
+   "map_color": "#e1c88c",
+   "map_color_source": "hand palette carried from the page (no colour map in data/planets yet)"
   },
   {
    "id": "earth",
@@ -269,7 +275,9 @@
     "moon"
    ],
    "discovery": null,
-   "description": "Third planet from the Sun. Only known planet with liquid surface water and life."
+   "description": "Third planet from the Sun. Only known planet with liquid surface water and life.",
+   "map_color": "#46474e",
+   "map_color_source": "mean of data/planets/earth_albedo.bin (area-weighted, linear light)"
   },
   {
    "id": "moon",
@@ -445,7 +453,9 @@
    "rings": false,
    "moons": [],
    "discovery": null,
-   "description": "Earth's only natural satellite. Tidally locked, showing the same face to Earth. Fifth largest moon in the solar system."
+   "description": "Earth's only natural satellite. Tidally locked, showing the same face to Earth. Fifth largest moon in the solar system.",
+   "map_color": "#9c9998",
+   "map_color_source": "mean of data/planets/moon_albedo.bin (area-weighted, linear light)"
   },
   {
    "id": "mars",
@@ -635,7 +645,9 @@
     "deimos"
    ],
    "discovery": null,
-   "description": "Fourth planet from the Sun. Known as the Red Planet due to iron oxide on its surface. Home to Olympus Mons, the tallest volcano in the solar system."
+   "description": "Fourth planet from the Sun. Known as the Red Planet due to iron oxide on its surface. Home to Olympus Mons, the tallest volcano in the solar system.",
+   "map_color": "#b85d41",
+   "map_color_source": "mean of data/planets/mars_albedo.bin (area-weighted, linear light)"
   },
   {
    "id": "phobos",
@@ -663,7 +675,9 @@
     "year": 1877,
     "discoverer": "Asaph Hall"
    },
-   "description": "Larger and innermost moon of Mars. Irregularly shaped, heavily cratered. Orbiting closer to Mars over time and expected to be destroyed in 50 million years."
+   "description": "Larger and innermost moon of Mars. Irregularly shaped, heavily cratered. Orbiting closer to Mars over time and expected to be destroyed in 50 million years.",
+   "map_color": "#4b4b4b",
+   "map_color_source": "grey at the body's albedo 0.071 (no colour map yet)"
   },
   {
    "id": "deimos",
@@ -691,7 +705,9 @@
     "year": 1877,
     "discoverer": "Asaph Hall"
    },
-   "description": "Smaller and outermost moon of Mars. Smoother than Phobos due to regolith filling craters."
+   "description": "Smaller and outermost moon of Mars. Smoother than Phobos due to regolith filling craters.",
+   "map_color": "#4a4a4a",
+   "map_color_source": "grey at the body's albedo 0.068 (no colour map yet)"
   },
   {
    "id": "jupiter",
@@ -803,7 +819,9 @@
     "adrastea"
    ],
    "discovery": null,
-   "description": "Largest planet in the solar system. A gas giant with a mass more than twice that of all other planets combined. Famous for the Great Red Spot storm."
+   "description": "Largest planet in the solar system. A gas giant with a mass more than twice that of all other planets combined. Famous for the Great Red Spot storm.",
+   "map_color": "#dcb48c",
+   "map_color_source": "hand palette carried from the page (no colour map in data/planets yet)"
   },
   {
    "id": "io",
@@ -836,7 +854,9 @@
     "year": 1610,
     "discoverer": "Galileo Galilei"
    },
-   "description": "Innermost Galilean moon of Jupiter. Most volcanically active body in the solar system, with over 400 active volcanoes driven by tidal heating."
+   "description": "Innermost Galilean moon of Jupiter. Most volcanically active body in the solar system, with over 400 active volcanoes driven by tidal heating.",
+   "map_color": "#d0d0d0",
+   "map_color_source": "grey at the body's albedo 0.63 (no colour map yet)"
   },
   {
    "id": "europa",
@@ -869,7 +889,9 @@
     "year": 1610,
     "discoverer": "Galileo Galilei"
    },
-   "description": "Second Galilean moon. Has a smooth ice shell covering a global subsurface ocean, making it a prime candidate for extraterrestrial life."
+   "description": "Second Galilean moon. Has a smooth ice shell covering a global subsurface ocean, making it a prime candidate for extraterrestrial life.",
+   "map_color": "#d6d6d6",
+   "map_color_source": "grey at the body's albedo 0.67 (no colour map yet)"
   },
   {
    "id": "ganymede",
@@ -902,7 +924,9 @@
     "year": 1610,
     "discoverer": "Galileo Galilei"
    },
-   "description": "Largest moon in the solar system, bigger than Mercury. Only moon known to have its own magnetic field. Likely has a subsurface ocean."
+   "description": "Largest moon in the solar system, bigger than Mercury. Only moon known to have its own magnetic field. Likely has a subsurface ocean.",
+   "map_color": "#afafaf",
+   "map_color_source": "grey at the body's albedo 0.43 (no colour map yet)"
   },
   {
    "id": "callisto",
@@ -935,7 +959,9 @@
     "year": 1610,
     "discoverer": "Galileo Galilei"
    },
-   "description": "Outermost Galilean moon. Most heavily cratered object in the solar system. May have a subsurface ocean."
+   "description": "Outermost Galilean moon. Most heavily cratered object in the solar system. May have a subsurface ocean.",
+   "map_color": "#818181",
+   "map_color_source": "grey at the body's albedo 0.22 (no colour map yet)"
   },
   {
    "id": "amalthea",
@@ -963,7 +989,9 @@
     "year": 1892,
     "discoverer": "Edward Emerson Barnard"
    },
-   "description": "Fifth largest moon of Jupiter. Irregularly shaped and reddish, the reddest object in the solar system."
+   "description": "Fifth largest moon of Jupiter. Irregularly shaped and reddish, the reddest object in the solar system.",
+   "map_color": "#555555",
+   "map_color_source": "grey at the body's albedo 0.09 (no colour map yet)"
   },
   {
    "id": "himalia",
@@ -991,7 +1019,9 @@
     "year": 1904,
     "discoverer": "Charles Dillon Perrine"
    },
-   "description": "Largest irregular moon of Jupiter. Leads the Himalia group of prograde irregular satellites."
+   "description": "Largest irregular moon of Jupiter. Leads the Himalia group of prograde irregular satellites.",
+   "map_color": "#383838",
+   "map_color_source": "grey at the body's albedo 0.04 (no colour map yet)"
   },
   {
    "id": "thebe",
@@ -1018,7 +1048,9 @@
     "year": 1979,
     "discoverer": "Stephen Synnott (Voyager 1)"
    },
-   "description": "Inner moon of Jupiter. Irregularly shaped, tidally locked, and a source of material for Jupiter's gossamer ring."
+   "description": "Inner moon of Jupiter. Irregularly shaped, tidally locked, and a source of material for Jupiter's gossamer ring.",
+   "map_color": "#3d3d3d",
+   "map_color_source": "grey at the body's albedo 0.047 (no colour map yet)"
   },
   {
    "id": "elara",
@@ -1045,7 +1077,9 @@
     "year": 1905,
     "discoverer": "Charles Dillon Perrine"
    },
-   "description": "Prograde irregular moon of Jupiter, part of the Himalia group."
+   "description": "Prograde irregular moon of Jupiter, part of the Himalia group.",
+   "map_color": "#383838",
+   "map_color_source": "grey at the body's albedo 0.04 (no colour map yet)"
   },
   {
    "id": "metis",
@@ -1072,7 +1106,9 @@
     "year": 1979,
     "discoverer": "Stephen Synnott (Voyager 1)"
    },
-   "description": "Innermost known moon of Jupiter. Orbits within Jupiter's main ring."
+   "description": "Innermost known moon of Jupiter. Orbits within Jupiter's main ring.",
+   "map_color": "#464646",
+   "map_color_source": "grey at the body's albedo 0.061 (no colour map yet)"
   },
   {
    "id": "adrastea",
@@ -1099,7 +1135,9 @@
     "year": 1979,
     "discoverer": "David Jewitt & G. Edward Danielson (Voyager 2)"
    },
-   "description": "Second innermost moon of Jupiter. One of the smallest moons in the solar system."
+   "description": "Second innermost moon of Jupiter. One of the smallest moons in the solar system.",
+   "map_color": "#595959",
+   "map_color_source": "grey at the body's albedo 0.1 (no colour map yet)"
   },
   {
    "id": "saturn",
@@ -1166,7 +1204,9 @@
     "phoebe"
    ],
    "discovery": null,
-   "description": "Sixth planet from the Sun. Famous for its extensive ring system. Least dense planet, would float in water if a body of water large enough existed."
+   "description": "Sixth planet from the Sun. Famous for its extensive ring system. Least dense planet, would float in water if a body of water large enough existed.",
+   "map_color": "#dcc896",
+   "map_color_source": "hand palette carried from the page (no colour map in data/planets yet)"
   },
   {
    "id": "titan",
@@ -1200,7 +1240,9 @@
     "year": 1655,
     "discoverer": "Christiaan Huygens"
    },
-   "description": "Largest moon of Saturn, second largest in the solar system. Only moon with a dense atmosphere. Has liquid methane/ethane lakes on its surface."
+   "description": "Largest moon of Saturn, second largest in the solar system. Only moon with a dense atmosphere. Has liquid methane/ethane lakes on its surface.",
+   "map_color": "#818181",
+   "map_color_source": "grey at the body's albedo 0.22 (no colour map yet)"
   },
   {
    "id": "enceladus",
@@ -1236,7 +1278,9 @@
     "year": 1789,
     "discoverer": "William Herschel"
    },
-   "description": "Sixth-largest moon of Saturn. Has active water geysers at its south pole erupting from a global subsurface ocean. Highest albedo of any body in the solar system."
+   "description": "Sixth-largest moon of Saturn. Has active water geysers at its south pole erupting from a global subsurface ocean. Highest albedo of any body in the solar system.",
+   "map_color": "#fefefe",
+   "map_color_source": "grey at the body's albedo 0.99 (no colour map yet)"
   },
   {
    "id": "mimas",
@@ -1264,7 +1308,9 @@
     "year": 1789,
     "discoverer": "William Herschel"
    },
-   "description": "Smallest astronomical body known to be in hydrostatic equilibrium. Famous for the Herschel crater giving it a resemblance to the Death Star."
+   "description": "Smallest astronomical body known to be in hydrostatic equilibrium. Famous for the Herschel crater giving it a resemblance to the Death Star.",
+   "map_color": "#fbfbfb",
+   "map_color_source": "grey at the body's albedo 0.962 (no colour map yet)"
   },
   {
    "id": "tethys",
@@ -1292,7 +1338,9 @@
     "year": 1684,
     "discoverer": "Giovanni Cassini"
    },
-   "description": "Fifth-largest moon of Saturn. Composed almost entirely of water ice. Features a massive canyon system (Ithaca Chasma) spanning 2,000 km."
+   "description": "Fifth-largest moon of Saturn. Composed almost entirely of water ice. Features a massive canyon system (Ithaca Chasma) spanning 2,000 km.",
+   "map_color": "#e7e7e7",
+   "map_color_source": "grey at the body's albedo 0.8 (no colour map yet)"
   },
   {
    "id": "dione",
@@ -1325,7 +1373,9 @@
     "year": 1684,
     "discoverer": "Giovanni Cassini"
    },
-   "description": "Fourth-largest moon of Saturn. Has a tenuous oxygen atmosphere and may have a subsurface liquid water ocean."
+   "description": "Fourth-largest moon of Saturn. Has a tenuous oxygen atmosphere and may have a subsurface liquid water ocean.",
+   "map_color": "#ffffff",
+   "map_color_source": "grey at the body's albedo 0.998 (no colour map yet)"
   },
   {
    "id": "rhea",
@@ -1359,7 +1409,9 @@
     "year": 1672,
     "discoverer": "Giovanni Cassini"
    },
-   "description": "Second-largest moon of Saturn. Heavily cratered and composed primarily of water ice. Has a very thin atmosphere of oxygen and carbon dioxide."
+   "description": "Second-largest moon of Saturn. Heavily cratered and composed primarily of water ice. Has a very thin atmosphere of oxygen and carbon dioxide.",
+   "map_color": "#f9f9f9",
+   "map_color_source": "grey at the body's albedo 0.949 (no colour map yet)"
   },
   {
    "id": "hyperion",
@@ -1387,7 +1439,9 @@
     "year": 1848,
     "discoverer": "William Cranch Bond, George Phillips Bond, William Lassell"
    },
-   "description": "Irregularly shaped moon of Saturn with a sponge-like appearance. Has chaotic rotation with no fixed rotational period."
+   "description": "Irregularly shaped moon of Saturn with a sponge-like appearance. Has chaotic rotation with no fixed rotational period.",
+   "map_color": "#959595",
+   "map_color_source": "grey at the body's albedo 0.3 (no colour map yet)"
   },
   {
    "id": "iapetus",
@@ -1415,7 +1469,9 @@
     "year": 1671,
     "discoverer": "Giovanni Cassini"
    },
-   "description": "Third-largest moon of Saturn. Famous for its two-toned coloring: one hemisphere is dark as coal, the other bright as snow. Has a prominent equatorial ridge."
+   "description": "Third-largest moon of Saturn. Famous for its two-toned coloring: one hemisphere is dark as coal, the other bright as snow. Has a prominent equatorial ridge.",
+   "map_color": "#3f3f3f",
+   "map_color_source": "grey at the body's albedo 0.05 (no colour map yet)"
   },
   {
    "id": "phoebe",
@@ -1443,7 +1499,9 @@
     "year": 1899,
     "discoverer": "William Henry Pickering"
    },
-   "description": "Retrograde irregular moon of Saturn, likely a captured Kuiper Belt object. Has a heavily cratered, dark surface."
+   "description": "Retrograde irregular moon of Saturn, likely a captured Kuiper Belt object. Has a heavily cratered, dark surface.",
+   "map_color": "#454545",
+   "map_color_source": "grey at the body's albedo 0.06 (no colour map yet)"
   },
   {
    "id": "uranus",
@@ -1510,7 +1568,9 @@
     "year": 1781,
     "discoverer": "William Herschel"
    },
-   "description": "Seventh planet from the Sun. Rotates nearly on its side with an axial tilt of 98 degrees. Coldest planetary atmosphere in the solar system."
+   "description": "Seventh planet from the Sun. Rotates nearly on its side with an axial tilt of 98 degrees. Coldest planetary atmosphere in the solar system.",
+   "map_color": "#aadce6",
+   "map_color_source": "hand palette carried from the page (no colour map in data/planets yet)"
   },
   {
    "id": "miranda",
@@ -1538,7 +1598,9 @@
     "year": 1948,
     "discoverer": "Gerard Kuiper"
    },
-   "description": "Smallest and innermost of Uranus's five major moons. Has one of the most extreme and varied topographies in the solar system, including Verona Rupes, the tallest cliff."
+   "description": "Smallest and innermost of Uranus's five major moons. Has one of the most extreme and varied topographies in the solar system, including Verona Rupes, the tallest cliff.",
+   "map_color": "#999999",
+   "map_color_source": "grey at the body's albedo 0.32 (no colour map yet)"
   },
   {
    "id": "ariel",
@@ -1566,7 +1628,9 @@
     "year": 1851,
     "discoverer": "William Lassell"
    },
-   "description": "Fourth-largest moon of Uranus. Brightest of the Uranian moons with the youngest and most geologically active surface."
+   "description": "Fourth-largest moon of Uranus. Brightest of the Uranian moons with the youngest and most geologically active surface.",
+   "map_color": "#a8a8a8",
+   "map_color_source": "grey at the body's albedo 0.39 (no colour map yet)"
   },
   {
    "id": "umbriel",
@@ -1594,7 +1658,9 @@
     "year": 1851,
     "discoverer": "William Lassell"
    },
-   "description": "Third-largest moon of Uranus. Darkest of the major Uranian moons, with a heavily cratered ancient surface."
+   "description": "Third-largest moon of Uranus. Darkest of the major Uranian moons, with a heavily cratered ancient surface.",
+   "map_color": "#7e7e7e",
+   "map_color_source": "grey at the body's albedo 0.21 (no colour map yet)"
   },
   {
    "id": "titania",
@@ -1622,7 +1688,9 @@
     "year": 1787,
     "discoverer": "William Herschel"
    },
-   "description": "Largest moon of Uranus and eighth largest in the solar system. Surface features include canyons, scarps, and impact craters."
+   "description": "Largest moon of Uranus and eighth largest in the solar system. Surface features include canyons, scarps, and impact craters.",
+   "map_color": "#8e8e8e",
+   "map_color_source": "grey at the body's albedo 0.27 (no colour map yet)"
   },
   {
    "id": "oberon",
@@ -1650,7 +1718,9 @@
     "year": 1787,
     "discoverer": "William Herschel"
    },
-   "description": "Second-largest moon of Uranus. Outermost of the five major moons. Has a heavily cratered, old surface with some large fault structures."
+   "description": "Second-largest moon of Uranus. Outermost of the five major moons. Has a heavily cratered, old surface with some large fault structures.",
+   "map_color": "#848484",
+   "map_color_source": "grey at the body's albedo 0.23 (no colour map yet)"
   },
   {
    "id": "neptune",
@@ -1727,7 +1797,9 @@
     "year": 1846,
     "discoverer": "Johann Galle, Urbain Le Verrier, John Couch Adams"
    },
-   "description": "Eighth and farthest planet from the Sun. Has the strongest winds in the solar system, reaching 2,100 km/h."
+   "description": "Eighth and farthest planet from the Sun. Has the strongest winds in the solar system, reaching 2,100 km/h.",
+   "map_color": "#5082dc",
+   "map_color_source": "hand palette carried from the page (no colour map in data/planets yet)"
   },
   {
    "id": "triton",
@@ -1761,7 +1833,9 @@
     "year": 1846,
     "discoverer": "William Lassell"
    },
-   "description": "Largest moon of Neptune. Only large moon with a retrograde orbit, suggesting it was captured from the Kuiper Belt. Has nitrogen geysers."
+   "description": "Largest moon of Neptune. Only large moon with a retrograde orbit, suggesting it was captured from the Kuiper Belt. Has nitrogen geysers.",
+   "map_color": "#e2e2e2",
+   "map_color_source": "grey at the body's albedo 0.76 (no colour map yet)"
   },
   {
    "id": "nereid",
@@ -1789,7 +1863,9 @@
     "year": 1949,
     "discoverer": "Gerard Kuiper"
    },
-   "description": "Third-largest moon of Neptune. Has one of the most eccentric orbits of any known moon in the solar system."
+   "description": "Third-largest moon of Neptune. Has one of the most eccentric orbits of any known moon in the solar system.",
+   "map_color": "#6e6e6e",
+   "map_color_source": "grey at the body's albedo 0.155 (no colour map yet)"
   },
   {
    "id": "proteus",
@@ -1817,7 +1893,9 @@
     "year": 1989,
     "discoverer": "Voyager 2 (Stephen Synnott)"
    },
-   "description": "Second-largest moon of Neptune. Nearly as large as Mimas but irregularly shaped, the largest irregularly shaped body in the solar system."
+   "description": "Second-largest moon of Neptune. Nearly as large as Mimas but irregularly shaped, the largest irregularly shaped body in the solar system.",
+   "map_color": "#575757",
+   "map_color_source": "grey at the body's albedo 0.096 (no colour map yet)"
   },
   {
    "id": "pluto",
@@ -1879,7 +1957,9 @@
     "year": 1930,
     "discoverer": "Clyde Tombaugh"
    },
-   "description": "Largest known dwarf planet in the Kuiper Belt. Has a heart-shaped nitrogen ice plain (Sputnik Planitia). Reclassified from planet to dwarf planet in 2006."
+   "description": "Largest known dwarf planet in the Kuiper Belt. Has a heart-shaped nitrogen ice plain (Sputnik Planitia). Reclassified from planet to dwarf planet in 2006.",
+   "map_color": "#826e67",
+   "map_color_source": "mean of data/planets/pluto_albedo.bin (area-weighted, linear light)"
   },
   {
    "id": "charon",
@@ -1907,7 +1987,9 @@
     "year": 1978,
     "discoverer": "James Christy"
    },
-   "description": "Largest moon of Pluto. So large relative to Pluto that they are sometimes considered a binary system, orbiting a barycenter outside Pluto."
+   "description": "Largest moon of Pluto. So large relative to Pluto that they are sometimes considered a binary system, orbiting a barycenter outside Pluto.",
+   "map_color": "#7c7c7c",
+   "map_color_source": "grey at the body's albedo 0.2 (no colour map yet)"
   },
   {
    "id": "nix",
@@ -1934,7 +2016,9 @@
     "year": 2005,
     "discoverer": "Hubble Space Telescope team"
    },
-   "description": "Third moon of Pluto. Irregularly shaped and has a chaotic rotation."
+   "description": "Third moon of Pluto. Irregularly shaped and has a chaotic rotation.",
+   "map_color": "#c5c5c5",
+   "map_color_source": "grey at the body's albedo 0.56 (no colour map yet)"
   },
   {
    "id": "hydra",
@@ -1961,7 +2045,9 @@
     "year": 2005,
     "discoverer": "Hubble Space Telescope team"
    },
-   "description": "Outermost known moon of Pluto. Irregularly shaped with a highly reflective surface."
+   "description": "Outermost known moon of Pluto. Irregularly shaped with a highly reflective surface.",
+   "map_color": "#ebebeb",
+   "map_color_source": "grey at the body's albedo 0.83 (no colour map yet)"
   },
   {
    "id": "kerberos",
@@ -1988,7 +2074,9 @@
     "year": 2011,
     "discoverer": "Hubble Space Telescope team (Mark Showalter)"
    },
-   "description": "Fourth moon of Pluto. Has a double-lobed shape suggesting it may be two objects that merged."
+   "description": "Fourth moon of Pluto. Has a double-lobed shape suggesting it may be two objects that merged.",
+   "map_color": "#c5c5c5",
+   "map_color_source": "grey at the body's albedo 0.56 (no colour map yet)"
   },
   {
    "id": "styx",
@@ -2015,7 +2103,9 @@
     "year": 2012,
     "discoverer": "Hubble Space Telescope team (Mark Showalter)"
    },
-   "description": "Smallest known moon of Pluto. Discovered during a search for potential hazards for the New Horizons mission."
+   "description": "Smallest known moon of Pluto. Discovered during a search for potential hazards for the New Horizons mission.",
+   "map_color": "#d3d3d3",
+   "map_color_source": "grey at the body's albedo 0.65 (no colour map yet)"
   },
   {
    "id": "eris",
@@ -2047,7 +2137,9 @@
     "year": 2005,
     "discoverer": "Mike Brown, Chad Trujillo, David Rabinowitz"
    },
-   "description": "Most massive known dwarf planet, 27% more massive than Pluto. Its discovery was a key factor in the reclassification of Pluto."
+   "description": "Most massive known dwarf planet, 27% more massive than Pluto. Its discovery was a key factor in the reclassification of Pluto.",
+   "map_color": "#fafafa",
+   "map_color_source": "grey at the body's albedo 0.96 (no colour map yet)"
   },
   {
    "id": "dysnomia",
@@ -2073,7 +2165,9 @@
     "year": 2005,
     "discoverer": "Mike Brown, M.A. van Dam"
    },
-   "description": "Only known moon of Eris. Much darker than Eris itself."
+   "description": "Only known moon of Eris. Much darker than Eris itself.",
+   "map_color": "#383838",
+   "map_color_source": "grey at the body's albedo 0.04 (no colour map yet)"
   },
   {
    "id": "haumea",
@@ -2106,7 +2200,9 @@
     "year": 2004,
     "discoverer": "Mike Brown, Chad Trujillo, David Rabinowitz"
    },
-   "description": "Elongated dwarf planet in the Kuiper Belt. Fastest known rotation of any large body in the solar system (under 4 hours). Has two moons and a ring system."
+   "description": "Elongated dwarf planet in the Kuiper Belt. Fastest known rotation of any large body in the solar system (under 4 hours). Has two moons and a ring system.",
+   "map_color": "#bdbdbd",
+   "map_color_source": "grey at the body's albedo 0.51 (no colour map yet)"
   },
   {
    "id": "hiiaka",
@@ -2132,7 +2228,9 @@
     "year": 2005,
     "discoverer": "Mike Brown, A.H. Bouchez, et al."
    },
-   "description": "Larger outer moon of Haumea. Surface covered in water ice."
+   "description": "Larger outer moon of Haumea. Surface covered in water ice.",
+   "map_color": "#dadada",
+   "map_color_source": "grey at the body's albedo 0.7 (no colour map yet)"
   },
   {
    "id": "namaka",
@@ -2158,7 +2256,9 @@
     "year": 2005,
     "discoverer": "Mike Brown, A.H. Bouchez, et al."
    },
-   "description": "Smaller inner moon of Haumea. About one-tenth the mass of Hi'iaka."
+   "description": "Smaller inner moon of Haumea. About one-tenth the mass of Hi'iaka.",
+   "map_color": "#dadada",
+   "map_color_source": "grey at the body's albedo 0.7 (no colour map yet)"
   },
   {
    "id": "makemake",
@@ -2190,7 +2290,9 @@
     "year": 2005,
     "discoverer": "Mike Brown, Chad Trujillo, David Rabinowitz"
    },
-   "description": "Second-largest known Kuiper Belt object after Pluto. Extremely cold surface covered in methane and ethane ices."
+   "description": "Second-largest known Kuiper Belt object after Pluto. Extremely cold surface covered in methane and ethane ices.",
+   "map_color": "#e8e8e8",
+   "map_color_source": "grey at the body's albedo 0.81 (no colour map yet)"
   },
   {
    "id": "s2015_136472_1",
@@ -2213,7 +2315,9 @@
     "year": 2015,
     "discoverer": "Alex Parker (Hubble Space Telescope)"
    },
-   "description": "Only known moon of Makemake. Very dark compared to Makemake itself."
+   "description": "Only known moon of Makemake. Very dark compared to Makemake itself.",
+   "map_color": "#272727",
+   "map_color_source": "grey at the body's albedo 0.02 (no colour map yet)"
   },
   {
    "id": "ceres",
@@ -2265,7 +2369,9 @@
     "year": 1801,
     "discoverer": "Giuseppe Piazzi"
    },
-   "description": "Largest object in the asteroid belt and the only dwarf planet in the inner solar system. Has bright salt deposits in Occator crater suggesting recent geological activity."
+   "description": "Largest object in the asteroid belt and the only dwarf planet in the inner solar system. Has bright salt deposits in Occator crater suggesting recent geological activity.",
+   "map_color": "#555555",
+   "map_color_source": "grey at the body's albedo 0.09 (no colour map yet)"
   },
   {
    "id": "vesta",
@@ -2293,7 +2399,9 @@
     "year": 1807,
     "discoverer": "Heinrich Wilhelm Olbers"
    },
-   "description": "Second-largest object in the asteroid belt. Has a differentiated interior with an iron core. Visited by NASA's Dawn spacecraft."
+   "description": "Second-largest object in the asteroid belt. Has a differentiated interior with an iron core. Visited by NASA's Dawn spacecraft.",
+   "map_color": "#aeaeae",
+   "map_color_source": "grey at the body's albedo 0.4228 (no colour map yet)"
   },
   {
    "id": "pallas",
@@ -2321,7 +2429,9 @@
     "year": 1802,
     "discoverer": "Heinrich Wilhelm Olbers"
    },
-   "description": "Third-largest object in the asteroid belt. Has a highly inclined and eccentric orbit, making it difficult to visit with spacecraft."
+   "description": "Third-largest object in the asteroid belt. Has a highly inclined and eccentric orbit, making it difficult to visit with spacecraft.",
+   "map_color": "#595959",
+   "map_color_source": "grey at the body's albedo 0.101 (no colour map yet)"
   },
   {
    "id": "hygiea",
@@ -2348,7 +2458,9 @@
     "year": 1849,
     "discoverer": "Annibale de Gasparis"
    },
-   "description": "Fourth-largest object in the asteroid belt. Nearly spherical, potentially qualifying as a dwarf planet. Largest member of the Hygiea asteroid family."
+   "description": "Fourth-largest object in the asteroid belt. Nearly spherical, potentially qualifying as a dwarf planet. Largest member of the Hygiea asteroid family.",
+   "map_color": "#4c4c4c",
+   "map_color_source": "grey at the body's albedo 0.0717 (no colour map yet)"
   },
   {
    "id": "juno",
@@ -2375,7 +2487,9 @@
     "year": 1804,
     "discoverer": "Karl Ludwig Harding"
    },
-   "description": "One of the larger asteroids in the main belt. An S-type (stony) asteroid with a silicate composition."
+   "description": "One of the larger asteroids in the main belt. An S-type (stony) asteroid with a silicate composition.",
+   "map_color": "#868686",
+   "map_color_source": "grey at the body's albedo 0.238 (no colour map yet)"
   },
   {
    "id": "eros",
@@ -2402,7 +2516,9 @@
     "year": 1898,
     "discoverer": "Carl Gustav Witt, Auguste Charlois"
    },
-   "description": "Second-largest near-Earth asteroid. First asteroid to be orbited and landed upon by a spacecraft (NEAR Shoemaker, 2001)."
+   "description": "Second-largest near-Earth asteroid. First asteroid to be orbited and landed upon by a spacecraft (NEAR Shoemaker, 2001).",
+   "map_color": "#898989",
+   "map_color_source": "grey at the body's albedo 0.25 (no colour map yet)"
   },
   {
    "id": "bennu",
@@ -2429,7 +2545,9 @@
     "year": 1999,
     "discoverer": "LINEAR project"
    },
-   "description": "Carbonaceous near-Earth asteroid. Target of NASA's OSIRIS-REx mission, which successfully collected and returned a sample to Earth in 2023."
+   "description": "Carbonaceous near-Earth asteroid. Target of NASA's OSIRIS-REx mission, which successfully collected and returned a sample to Earth in 2023.",
+   "map_color": "#3d3d3d",
+   "map_color_source": "grey at the body's albedo 0.046 (no colour map yet)"
   },
   {
    "id": "ryugu",
@@ -2456,7 +2574,9 @@
     "year": 1999,
     "discoverer": "LINEAR project"
    },
-   "description": "Diamond-shaped carbonaceous near-Earth asteroid. Target of JAXA's Hayabusa2 mission, which returned samples to Earth in 2020."
+   "description": "Diamond-shaped carbonaceous near-Earth asteroid. Target of JAXA's Hayabusa2 mission, which returned samples to Earth in 2020.",
+   "map_color": "#3c3c3c",
+   "map_color_source": "grey at the body's albedo 0.045 (no colour map yet)"
   },
   {
    "id": "itokawa",
@@ -2483,7 +2603,9 @@
     "year": 1998,
     "discoverer": "LINEAR project"
    },
-   "description": "Small peanut-shaped near-Earth asteroid. First asteroid from which samples were returned to Earth (Hayabusa, 2010)."
+   "description": "Small peanut-shaped near-Earth asteroid. First asteroid from which samples were returned to Earth (Hayabusa, 2010).",
+   "map_color": "#c0c0c0",
+   "map_color_source": "grey at the body's albedo 0.53 (no colour map yet)"
   },
   {
    "id": "psyche",
@@ -2510,7 +2632,9 @@
     "year": 1852,
     "discoverer": "Annibale de Gasparis"
    },
-   "description": "Metal-rich asteroid thought to be the exposed core of a protoplanet. Target of NASA's Psyche mission (launched 2023)."
+   "description": "Metal-rich asteroid thought to be the exposed core of a protoplanet. Target of NASA's Psyche mission (launched 2023).",
+   "map_color": "#616161",
+   "map_color_source": "grey at the body's albedo 0.12 (no colour map yet)"
   },
   {
    "id": "ida",
@@ -2539,7 +2663,9 @@
     "year": 1884,
     "discoverer": "Johann Palisa"
    },
-   "description": "Main belt asteroid and member of the Koronis family. First asteroid confirmed to have a natural satellite (Dactyl)."
+   "description": "Main belt asteroid and member of the Koronis family. First asteroid confirmed to have a natural satellite (Dactyl).",
+   "map_color": "#868686",
+   "map_color_source": "grey at the body's albedo 0.2383 (no colour map yet)"
   },
   {
    "id": "dactyl",
@@ -2563,7 +2689,9 @@
     "year": 1993,
     "discoverer": "Galileo spacecraft (Ann Harch)"
    },
-   "description": "Tiny moon of asteroid Ida. First asteroid moon ever discovered, found in images from the Galileo spacecraft flyby."
+   "description": "Tiny moon of asteroid Ida. First asteroid moon ever discovered, found in images from the Galileo spacecraft flyby.",
+   "map_color": "#7e7e7e",
+   "map_color_source": "grey at the body's albedo 0.21 (no colour map yet)"
   },
   {
    "id": "agartha",
@@ -2604,7 +2732,9 @@
     "year": 0,
     "discoverer": ""
    },
-   "description": "A world twice the diameter of Earth with exactly Earth surface gravity. The arithmetic refuses rock: four Earth masses at half Earth density, an axial tilt of precisely zero, a 24 hour day, and breathable air. Every measurable property is a message. Whoever built it wanted it noticed. (Dev placement in Sol; the story arc moves it to its own system.)"
+   "description": "A world twice the diameter of Earth with exactly Earth surface gravity. The arithmetic refuses rock: four Earth masses at half Earth density, an axial tilt of precisely zero, a 24 hour day, and breathable air. Every measurable property is a message. Whoever built it wanted it noticed. (Dev placement in Sol; the story arc moves it to its own system.)",
+   "map_color": "#a0a0a0",
+   "map_color_source": "grey at the body's albedo 0.35 (no colour map yet)"
   },
   {
    "id": "halley",
@@ -2633,7 +2763,9 @@
    "rings": false,
    "moons": [],
    "discovery": null,
-   "description": "The most famous periodic comet, returning every ~76 years. Retrograde orbit."
+   "description": "The most famous periodic comet, returning every ~76 years. Retrograde orbit.",
+   "map_color": "#383838",
+   "map_color_source": "grey at the body's albedo 0.04 (no colour map yet)"
   },
   {
    "id": "churyumov",
@@ -2662,7 +2794,9 @@
    "rings": false,
    "moons": [],
    "discovery": null,
-   "description": "The duck-shaped comet visited by ESA Rosetta and the Philae lander."
+   "description": "The duck-shaped comet visited by ESA Rosetta and the Philae lander.",
+   "map_color": "#383838",
+   "map_color_source": "grey at the body's albedo 0.04 (no colour map yet)"
   },
   {
    "id": "hale_bopp",
@@ -2691,7 +2825,9 @@
    "rings": false,
    "moons": [],
    "discovery": null,
-   "description": "The Great Comet of 1997, visible to the naked eye for a record 18 months."
+   "description": "The Great Comet of 1997, visible to the naked eye for a record 18 months.",
+   "map_color": "#383838",
+   "map_color_source": "grey at the body's albedo 0.04 (no colour map yet)"
   },
   {
    "id": "encke",
@@ -2720,7 +2856,9 @@
    "rings": false,
    "moons": [],
    "discovery": null,
-   "description": "The shortest-period named comet, source of the Taurid meteor showers."
+   "description": "The shortest-period named comet, source of the Taurid meteor showers.",
+   "map_color": "#383838",
+   "map_color_source": "grey at the body's albedo 0.04 (no colour map yet)"
   },
   {
    "id": "neowise",
@@ -2749,7 +2887,9 @@
    "rings": false,
    "moons": [],
    "discovery": null,
-   "description": "The bright naked-eye comet of July 2020."
+   "description": "The bright naked-eye comet of July 2020.",
+   "map_color": "#383838",
+   "map_color_source": "grey at the body's albedo 0.04 (no colour map yet)"
   }
  ]
 }

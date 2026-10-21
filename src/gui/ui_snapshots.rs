@@ -3194,6 +3194,54 @@ fn snapshot_maps_follow_home() {
     });
     crate::gui::pages::maps::set_clock_for_snapshot(None);
 }
+/// Maps increment 2, "a solar system that looks real": the overview the rig's
+/// `maps-system-overview` vantage opens (11 AU above the Sun, tilted 15
+/// degrees off straight down), with no engine, so no world layer: the Sun's
+/// glare, every body a phase-lit disc of its real colour, orbit trails fading
+/// behind their bodies, the main belt, the Hildas' triangle and Jupiter's two
+/// trojan swarms from 20,000 real orbits, the names placed without overlap,
+/// the layer switches from data/maps/layers.ron. Pinned to 2026-09-27 12:00 UTC.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_maps_system_overview() {
+    crate::gui::pages::maps::set_clock_for_snapshot(Some(843_782_400.0));
+    render_page_png("maps_system_overview", 1280, 900, |ctx, theme, state| {
+        if state.maps.layers_on.is_empty() {
+            state.maps.camera = crate::gui::pages::maps::MapCamera::overview(11.0 * crate::cosmos::M_PER_AU);
+            // The Sun-Jupiter L4 and L5 markers, to show the trojans are there.
+            state.maps.layers_on.insert("lagrange".into(), true);
+        }
+        crate::gui::pages::maps::draw(ctx, theme, state);
+    });
+    crate::gui::pages::maps::set_clock_for_snapshot(None);
+}
+/// Maps increment 2 in near space: the camera on Earth 1.1 million km out with
+/// the ship's feed (as `maps_follow_home`), the reference orbits and the
+/// Lagrange points switched on: Earth and the Moon as phase-lit discs of their
+/// map colours, the Moon's orbit trail, the ship's synchronous ring and name,
+/// GEO and the rest round Earth, Earth-Moon L1 to L5.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_maps_earth_moon() {
+    crate::gui::pages::maps::set_clock_for_snapshot(Some(843_782_400.0));
+    render_page_png("maps_earth_moon", 1280, 900, |ctx, theme, state| {
+        if state.maps.me.is_none() {
+            let mut me = crate::gui::pages::maps::camera::tests::feed_at(3600.0, glam::DVec3::ZERO);
+            me.world_loaded = false;
+            crate::engine::map_feed::frame_update(&mut state.maps, me, true, false);
+            let mut cam = crate::gui::pages::maps::MapCamera::default();
+            cam.anchor = crate::gui::pages::maps::camera::MapAnchor::Body("earth".into());
+            cam.set_distance(1.1e9);
+            cam.pitch = -50.0_f64.to_radians();
+            cam.yaw = 0.6;
+            state.maps.camera = cam;
+            state.maps.layers_on.insert("reference_orbits".into(), true);
+            state.maps.layers_on.insert("lagrange".into(), true);
+        }
+        crate::gui::pages::maps::draw(ctx, theme, state);
+    });
+    crate::gui::pages::maps::set_clock_for_snapshot(None);
+}
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
 fn snapshot_inventory() {

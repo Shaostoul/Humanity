@@ -120,6 +120,9 @@ pub struct MapWorldLayer {
     pub ship_drawn: bool,
     /// The frame (`MapsState::frame_seq`) the last render happened in.
     pub rendered_seq: u64,
+    /// The last render was the star sky only (Maps increment 2: the
+    /// solar-system band, the Diagram, away from the ship), not the world.
+    pub sky_only: bool,
 }
 
 /// One dev request for the map, from the rig (`engine/ipc.rs` showcase
@@ -143,6 +146,36 @@ pub struct MapVerb {
     /// way a drag does ("map_turn"; 0 stops): the rig measures the world
     /// layer while the camera moves with it.
     pub turn_dps: Option<f64>,
+    /// The solar-system overview: the camera on the Sun, looking down from
+    /// ecliptic north ("map":"overview"; `map_distance` sets how far).
+    pub overview: bool,
+    /// Overlay layers switched on or off by id ("map_layer":"belts=0,names=1").
+    pub layers: Vec<(String, bool)>,
+    /// Diagram mode on or off ("map_diagram":"1" / "0").
+    pub diagram: Option<bool>,
+}
+
+/// What one draw of the Solar System view put on the map (Maps increment 2):
+/// the rig's overview check reads it from `debug/map_done.json`, so a map
+/// that lost its belts or its names fails there, not only in a picture.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct MapSymbology {
+    /// Bodies drawn (an icon, a disc or the Sun).
+    pub bodies: u32,
+    /// Orbit lines drawn, and the vertices of all of them.
+    pub orbits: u32,
+    pub orbit_vertices: u32,
+    /// Names placed, and offered but dropped for want of a clear spot.
+    pub labels_placed: u32,
+    pub labels_dropped: u32,
+    /// Belt dust points drawn this frame.
+    pub belt_points: u32,
+    /// The layer ids drawn this frame (on, and in their band).
+    pub layers: Vec<String>,
+    /// The band the camera is in ("Ship", "NearSpace", "SolarSystem").
+    pub band: String,
+    /// The time the view's symbols took to build, milliseconds.
+    pub ms: f32,
 }
 
 /// Everything the Maps page keeps between frames (`GuiState::maps`).
@@ -205,16 +238,19 @@ pub struct MapsState {
     /// pill collapses it. Independent of `selected_body` which
     /// drives the right-side details panel. v0.209.0.
     pub expanded_body: Option<String>,
-    /// Whether to render Lagrange-point overlay markers (L1-L5 for
-    /// Sun-Earth, Earth-Moon, Sun-Mars, Sun-Jupiter, Sun-Saturn pairs).
-    /// Off by default to keep the wide view clean. Toggled from the
-    /// System view's overlay button. v0.211.0.
-    pub show_lagrange: bool,
-    /// Whether to render reference-orbit rings (LEO/MEO/GEO/etc) around
-    /// supported planets when zoomed close enough. Off by default —
-    /// rings only appear when the user explicitly enables AND the camera
-    /// is close enough that they're not microscopic on screen. v0.212.0.
-    pub show_reference_orbits: bool,
+    /// The overlay switches a person has flipped, by layer id (Maps
+    /// increment 2: every overlay is a row of `data/maps/layers.ron`, the
+    /// Lagrange points and the reference orbits among them, which were two
+    /// `show_*` fields until then). A layer not in here is at its default.
+    pub layers_on: std::collections::HashMap<String, bool>,
+    /// Diagram mode (decision 5, Maps increment 2): log-spaced orbits and
+    /// enlarged bodies, labelled not to scale; true scale is the default.
+    pub diagram: bool,
+    /// What the last draw of the Solar System view put on the map, for the
+    /// rig's report (`debug/map_done.json`).
+    pub symbology: MapSymbology,
+    /// The belts' dust where the last propagation put it (`maps/belts.rs`).
+    pub belts: crate::gui::pages::maps::BeltCache,
     /// Cached forward Sky-Events scan (Phase 4d-quad, v0.248). The scan
     /// is O(days × bodies²) so it must NOT run every frame like the
     /// instant detector — it's recomputed lazily when sim_time drifts
@@ -267,6 +303,21 @@ pub struct MapsState {
     pub stations: Option<Vec<StationRow>>,
 }
 
+impl MapsState {
+    /// The scene this frame draws: the feed, the page's clock and Diagram,
+    /// one builder so the camera, the page and the world layer never
+    /// disagree about where things are.
+    pub fn scene(&self) -> crate::gui::pages::maps::camera::MapScene<'_> {
+        crate::gui::pages::maps::camera::MapScene::new(self.me.as_ref(), self.sim_time_seconds, self.live).with_diagram(self.diagram)
+    }
+
+    /// Whether an overlay layer is switched on (its row's default until a
+    /// person flips it).
+    pub fn layer_on(&self, id: &str) -> bool {
+        self.layers_on.get(id).copied().unwrap_or_else(|| crate::gui::pages::maps::overlays::layer_default(id))
+    }
+}
+
 impl Default for MapsState {
     fn default() -> Self {
         Self {
@@ -287,8 +338,10 @@ impl Default for MapsState {
             upcoming_scan_origin: f64::NAN, // forces first scan
             upcoming_last_scan: None,
             expanded_body: None,
-            show_lagrange: false,
-            show_reference_orbits: false,
+            layers_on: std::collections::HashMap::new(),
+            diagram: false,
+            symbology: MapSymbology::default(),
+            belts: Default::default(),
             me: None,
             was_open: false,
             frame_seq: 0,

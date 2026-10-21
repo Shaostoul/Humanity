@@ -273,6 +273,44 @@ fn the_overview_looks_down_from_ecliptic_north_and_orbits_turn_counter_clockwise
     assert!(above > 0.0, "the overview's eye is {:.1} AU BELOW the ecliptic", -above);
 }
 
+/// Maps increment 2's overview, drawn as a person sees it (no feed, the
+/// rig's overview camera 11 AU above the Sun): the belts' dust from the real
+/// orbits, every planet's orbit trail, the bodies, and the names placed with
+/// none dropped among the planets; the symbols' own count and time are in
+/// the stats the rig reads.
+///
+/// Seen red 2026-10-21 with the belts left out of the view's draw: "the
+/// overview drew 0 belt points".
+#[test]
+fn the_overview_draws_the_belts_the_trails_the_bodies_and_the_names() {
+    super::set_clock_for_snapshot(Some(843_782_400.0));
+    let ctx = egui::Context::default();
+    crate::gui::fonts::install_font_fallbacks(&ctx);
+    let theme = crate::gui::theme::load_theme();
+    theme.apply_to_egui(&ctx);
+    let mut state = crate::gui::GuiState::default();
+    state.maps.camera = super::MapCamera::overview(11.0 * crate::cosmos::M_PER_AU);
+    let input = || egui::RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(1280.0, 900.0))),
+        ..Default::default()
+    };
+    // Two frames: the side panels settle their widths on the first.
+    let _ = ctx.run(input(), |ctx| super::draw(ctx, &theme, &mut state));
+    let out = ctx.run(input(), |ctx| super::draw(ctx, &theme, &mut state));
+    super::set_clock_for_snapshot(None);
+    let s = state.maps.symbology.clone();
+    assert!(s.belt_points > 12_000, "the overview drew {} belt points", s.belt_points);
+    assert!(s.orbits >= 8, "only {} orbits drawn", s.orbits);
+    assert!(s.bodies >= 12, "only {} bodies drawn", s.bodies);
+    assert!(s.labels_placed >= 6, "only {} names placed", s.labels_placed);
+    assert_eq!(s.band, "SolarSystem");
+    let texts = drawn_texts(&out);
+    for planet in ["Sun", "Mercury", "Venus", "Earth", "Mars", "Jupiter"] {
+        assert!(texts.iter().any(|t| t == planet), "the overview does not name {planet}: {texts:?}");
+    }
+    assert!(texts.iter().any(|t| t.contains("Minor Planet Center")), "the belts are drawn without their credit");
+}
+
 /// The reference rings (LEO, GEO...) lie in the body's equatorial plane, the
 /// world's XZ plane (the game has no axial tilt), at their radius. Until Maps
 /// increment 1 they were drawn in the XY plane, standing on edge to the orbits
@@ -284,7 +322,7 @@ fn the_overview_looks_down_from_ecliptic_north_and_orbits_turn_counter_clockwise
 fn reference_rings_lie_in_the_equatorial_plane() {
     let centre = glam::DVec3::new(1.0e7, -3.0e6, 2.0e7);
     let r = 42_164_000.0;
-    let ring = super::system_view::reference_ring_points(centre, r, 96);
+    let ring = super::overlays::reference_ring_points(centre, r, 96);
     assert_eq!(ring.len(), 96);
     let off = ring.iter().map(|p| (p.y - centre.y).abs()).fold(0.0, f64::max);
     assert!(off < 1e-6, "a reference ring leaves the equatorial plane by {:.1} km", off / 1000.0);
@@ -309,7 +347,7 @@ fn lagrange_l4_leads_and_l5_trails_on_every_date() {
         let (p, c) = (find_body(parent).unwrap(), find_body(child).unwrap());
         for day in (0..360).step_by(15) {
             let t = 843_782_400.0 + day as f64 * 86_400.0;
-            let pts = super::system_view::compute_lagrange_points(p, c, t).expect("five points");
+            let pts = super::overlays::compute_lagrange_points(p, c, t).expect("five points");
             assert!(pts.iter().all(|q| q.is_finite()), "{parent}-{child} on day {day}: a point is not a number");
             let pp = body_world_position_3d_au(p, t);
             let sep = body_world_position_3d_au(c, t) - pp;

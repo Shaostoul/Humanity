@@ -1355,6 +1355,34 @@ orbits, v0.647.0).
   `map_distance`, `map_ship`, `map_turn`, `map_report` (`debug/map_done.json`);
   vantages `maps-follow-home*` with the pixel-judged "ship centred" check
   (`scripts/lib/map-centre-check.js`) and its control; snapshot `maps_follow_home`.
+- **A solar system that looks real (Maps increment 2, 2026-10-21).** Every body is
+  a disc of its REAL colour (`map_color` in `data/star_systems/sol.json`, the mean
+  of its albedo map where it has one, `scripts/build-body-colors.js`) lit on the
+  side facing the Sun, so the phase shows (`maps/bodies.rs`), at true size with an
+  icon floor, giving way to the real globe where the world layer draws one. The
+  Sun is limb-darkened with an eye's point-spread glare round it. Orbit lines fade
+  behind their bodies, the body is an exact vertex, sampling adapts to the view,
+  and an orbit too small or far too big on screen fades out; asteroids' and
+  comets' orbits show only near or selected (`maps/orbits.rs`). The belts are
+  20,000 REAL minor planets from the Minor Planet Center's MPCORB
+  (`data/maps/belts.json` + `data/maps/MPCORB-header.txt`, `scripts/build-belts.js`,
+  terms in `docs/reference/findings/2026-10-21-mpc-orbit-data.md`): the main belt,
+  the Hildas, Jupiter's two trojan swarms, the Kuiper belt (`maps/belts.rs`).
+  Names go through the label placer, none overlapping (`maps/labels.rs`). The
+  overlays are data: `data/maps/layers.ron` (the switches), `reference_orbits.ron`,
+  `lagrange_pairs.ron` (`maps/overlays.rs`). The world layer draws the real star
+  sky behind the solar system (`ViewPasses::SkyOnly`, `engine/map_view.rs`) and
+  the whole world out to the edge of near space. A Diagram switch (log-spaced
+  orbits, enlarged bodies, labelled not to scale, `maps/diagram.rs`). Theme tokens
+  `map_*` (Settings > Appearance "Maps colors", Widgets "Maps: ..."). Cost stage
+  `cpu.maps_symbology`. Rig verbs `map: overview`, `map_layer`, `map_diagram`
+  (`engine/map_rig.rs`); vantages `maps-system-overview` and its control with the
+  `map_overview` check (`scripts/lib/map-overview-check.js`); snapshots
+  `maps_system_overview`, `maps_earth_moon`. Web: `web/pages/maps.html` places the
+  planets at their real positions from the same sol.json, in their map colours,
+  lit toward the Sun, with fading orbit trails, the real belts from the same
+  belts.json and the names through `web/shared/label-placer.js`
+  (`web/shared/sol-orbits.js`, the web twin of the orbit model).
 
 ### Profile Page
 User profile view/edit.

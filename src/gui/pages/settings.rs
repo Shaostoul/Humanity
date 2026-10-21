@@ -1361,6 +1361,51 @@ pub(crate) fn draw_appearance_content(ui: &mut egui::Ui, theme: &mut Theme, stat
             ui.separator();
             ui.add_space(theme.spacing_sm);
             ui.label(
+                RichText::new("Maps colors")
+                    .size(theme.font_size_body)
+                    .color(theme.text_primary())
+                    .strong(),
+            );
+            ui.label(
+                RichText::new("The Maps page's space, orbit lines, names, belts and overlays. The bodies keep their own real colours.")
+                    .size(theme.font_size_small)
+                    .color(theme.text_muted()),
+            );
+            ui.add_space(theme.spacing_sm);
+            ui.columns(2, |cols| {
+                let labels_left = [
+                    ("Maps: space", &mut theme.map_space as *mut _),
+                    ("Maps: planet orbits", &mut theme.map_orbit_planet as *mut _),
+                    ("Maps: moon orbits", &mut theme.map_orbit_moon as *mut _),
+                    ("Maps: minor-body orbits", &mut theme.map_orbit_minor as *mut _),
+                    ("Maps: reference rings and Lagrange points", &mut theme.map_reference as *mut _),
+                ];
+                for (label, ptr) in labels_left {
+                    // SAFETY: as above, we hold &mut theme and each pointer is a distinct field.
+                    let color_tuple = unsafe { &mut *ptr };
+                    if color_row(&mut cols[0], label, color_tuple, label_color) {
+                        any_color_changed = true;
+                    }
+                }
+                let labels_right = [
+                    ("Maps: names", &mut theme.map_label as *mut _),
+                    ("Maps: moon and minor names", &mut theme.map_label_minor as *mut _),
+                    ("Maps: name edge", &mut theme.map_label_halo as *mut _),
+                    ("Maps: belt dust (rock)", &mut theme.map_belt as *mut _),
+                    ("Maps: belt dust (ice)", &mut theme.map_belt_outer as *mut _),
+                ];
+                for (label, ptr) in labels_right {
+                    let color_tuple = unsafe { &mut *ptr };
+                    if color_row(&mut cols[1], label, color_tuple, label_color) {
+                        any_color_changed = true;
+                    }
+                }
+            });
+
+            ui.add_space(theme.spacing_md);
+            ui.separator();
+            ui.add_space(theme.spacing_sm);
+            ui.label(
                 RichText::new("Panel & chat-section colors")
                     .size(theme.font_size_body)
                     .color(theme.text_primary())
@@ -1851,6 +1896,8 @@ pub(crate) fn draw_widgets_content(ui: &mut egui::Ui, theme: &mut Theme, state: 
             any_changed |= styled_slider(ui, &ss, "Status Bar Width", &mut theme.status_bar_width, 80.0..=400.0, label_color);
             any_changed |= styled_slider(ui, &ss, "Status Bar Height", &mut theme.status_bar_height, 2.0..=20.0, label_color);
             any_changed |= styled_slider(ui, &ss, "Compact Button Height", &mut theme.compact_button_height, 12.0..=36.0, label_color);
+            any_changed |= styled_slider(ui, &ss, "Maps: Orbit Line Width", &mut theme.map_orbit_width, 0.5..=4.0, label_color);
+            any_changed |= styled_slider(ui, &ss, "Maps: Name Size", &mut theme.map_label_size, 8.0..=24.0, label_color);
             any_changed |= styled_slider(ui, &ss, "Cell Narrow Width", &mut theme.cell_narrow_width, 30.0..=120.0, label_color);
             any_changed |= styled_slider(ui, &ss, "Cell Short Width", &mut theme.cell_short_width, 40.0..=180.0, label_color);
             any_changed |= styled_slider(ui, &ss, "Cell Name Width", &mut theme.cell_name_width, 80.0..=300.0, label_color);

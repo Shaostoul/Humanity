@@ -1,0 +1,24 @@
+// Named reference orbits the Maps page can ring a body with (Maps increment 2;
+// until then `reference_orbits_for` in the page's code, whose own comment said
+// "Could move to data/ later"). One row per orbit, any body by its sol.json id:
+// a new ring round any world is a new row. Read by src/gui/pages/maps/overlays.rs.
+//
+// `altitude_km` is above the body's surface (its sol.json radius); the ring is
+// drawn in the body's equatorial plane, which in the game is the world's XZ
+// plane (the game has no axial tilt, src/renderer/sky_frame.rs).
+(
+    orbits: [
+        (body: "earth", name: "LEO (low)", altitude_km: 400.0, about: "ISS altitude, 90 min period"),
+        (body: "earth", name: "LEO (high)", altitude_km: 2000.0, about: "Top of LEO band, 130 min period"),
+        (body: "earth", name: "MEO", altitude_km: 20200.0, about: "GPS / GNSS satellite belt, 12 h period"),
+        (body: "earth", name: "GEO", altitude_km: 35786.0, about: "Geostationary, 24 h period, fixed over equator"),
+        (body: "earth", name: "HEO", altitude_km: 50000.0, about: "High Earth orbit, >24 h period"),
+        (body: "earth", name: "Lunar TLI", altitude_km: 384400.0, about: "Trans-lunar injection apoapsis (Moon's orbit)"),
+        (body: "mars", name: "LMO (low)", altitude_km: 200.0, about: "Low Mars orbit (Mars Reconnaissance Orbiter, etc.)"),
+        (body: "mars", name: "areostationary", altitude_km: 17032.0, about: "Mars-stationary, 24.6 h period (sol)"),
+        (body: "jupiter", name: "Low Jovian orbit", altitude_km: 5000.0, about: "Inside the radiation belts, punishing"),
+        (body: "jupiter", name: "Jovo-stationary", altitude_km: 88500.0, about: "Jupiter-stationary, 9.93 h period"),
+        (body: "moon", name: "Low lunar orbit", altitude_km: 100.0, about: "100 km, Apollo command module altitude"),
+        (body: "moon", name: "NRHO apoapsis", altitude_km: 70000.0, about: "Near-rectilinear halo orbit, Gateway target"),
+    ],
+)
