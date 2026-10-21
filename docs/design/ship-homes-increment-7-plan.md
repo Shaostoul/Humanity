@@ -142,6 +142,35 @@ that walks up the stairs into the upstairs bedroom.
 4. The upper floor's layout is player-home.md's target plan; the greenhouse mezzanine and the
    vehicle-bay gantry come after this increment.
 5. In the elevator, Space and Shift choose the floor while riding.
+6. Every ground-floor room except the greenhouse keeps a 3 m room under a slab at 3.0 (a slab
+   nobody walks on is that room's ceiling); only the greenhouse rises to 6 m. Lidding them adds
+   about 830 bounced-light probes; 6 m rooms everywhere would add about 16,700 (the light-budget
+   analysis, below).
+
+## 6. The light-budget analysis (perf-expert, 2026-10-20, read-only)
+
+- **Lamps through a floor:** each slab is an exact occluder of the line from a fragment to a lamp.
+  Slab boxes go in the room GI table every pipeline already binds (group 0 binding 7) as rows after
+  the rooms; each light lists up to 3 slabs its range sphere touches (computed on the CPU, packed in
+  the unused `cone_inner.yzw`); frag_tail tests the mid-plane crossing and the rectangle after the
+  range reject. About +2 to +4 ps per in-range light with a slab listed, and a saving for every
+  light it blocks; views with no slab are bit-identical. One switch, `HAS_SLAB_OCCLUSION`, in the
+  Surface and Vegetation entries (the `HAS_ROOM_GI` set). No bind-group change. A per-light height
+  band was rejected: wrong at the stairwell, exactly where the rig walks.
+- **The sun through a floor:** the same slab rows and crossing test toward the sun, applied even
+  with sun shadows off (a floor is not a quality option), at the sun term and the four in-entry
+  `sun_shadow` sites (so leaf transmission is blocked too, the BUG-060 rule). About 0.02 to
+  0.05 ms at 1600x900 on the RTX 4070. The far shadow map cannot do it (1.9 to 8 m bias, 0.73 m
+  texels); the near cascades are not built yet and stay the plan for walls.
+- **The probe budget premise was stale:** the ship already holds 41 rooms and 26,804 probes at
+  1.33 m (coarsened since 2026-10-05; the 31,874 figure is from 2026-10-03). Fix, first: priority
+  in `lattice_for`, the player's own home zone keeps 1 m and other zones coarsen first (free).
+  Later: the depth moments in their own Rg16Float texture (-38% memory, a layout change and a
+  boot verify), and the nearest rooms updated first.
+- **Measurements still owed** (one rig at a time): a frame-cost baseline
+  (`HUMANITY_FRAME_COSTS=1 node scripts/probe-sweep.js --only
+  console-face-6,console-face-6-room-gi-off,home-overview-noon,home-racks-noon`) before and after
+  lane L, and a same-boot A/B of the slab term once a `{"slab_occlusion":"0"}` showcase pin exists.
 
 ## 5. Waves
 
