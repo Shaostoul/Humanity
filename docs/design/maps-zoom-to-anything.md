@@ -596,6 +596,9 @@ The web cannot run the engine, so its "world layer" is the model viewer's render
 
 ## 7. Decisions for the operator
 
+**All eight recommendations ACCEPTED by the operator, 2026-10-20 ("I like your
+recommendations, let's keep going").** Build to them as written below.
+
 1. **One continuous map, or the four tabs?** Recommend one map, with Ship, Earth orbit,
    Solar system and Galaxy as shortcuts on a breadcrumb; Night Sky stays its own mode.
    The web page already zooms continuously; native would catch up and lead.
