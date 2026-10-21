@@ -125,12 +125,16 @@ pub(crate) fn load_world(state: &mut EngineState) {
         Ok(ship) => {
             let meshes = ship.generate_meshes();
             let info = meshes.room_info.clone();
-            // Start editing the HOME zone; restore its persisted build-mode spawn point (v0.582).
+            // Start editing the HOME zone, with no build spot yet: the build editor's first open
+            // puts the build-mode avatar where the player stands, on their storey
+            // (engine/editor_storeys.rs `seed_build_avatar`, ship homes increment 7). It used to be
+            // put at the home's saved spawn here (v0.582), which the first close then stood the
+            // player at, on the storey they had left from: upstairs, on a wall over a glass roof.
+            // The spawn is still what the editor's Save writes when the avatar is moved.
             let home_idx = ship.home_zone_index();
             state.gui_state.construction_zone = home_idx;
-            if let Some(sp) = ship.zones[home_idx].body.spawn {
-                state.gui_state.build_char_pos = Some(sp);
-            }
+            state.gui_state.build_char_pos = None;
+            state.gui_state.construction_storeys.avatar_seed = None;
             authored_spawn = ship.home_spawn_world();
             state.gui_state.ship_structure = Some(ship);
             (meshes, info)

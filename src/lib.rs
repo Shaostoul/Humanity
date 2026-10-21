@@ -6948,18 +6948,9 @@ mod native_app {
                         state.construction_cam_active = true;
                         state.controller.showroom_lock = false; // full orbit controls, not the fixed showroom orbit
                         state.construction_return_pos = state.camera.position;
-                        // Seed the build-mode avatar at the player's CURRENT spot the first time
-                        // (v0.557), converted into the ACTIVE zone's local coords (v0.754) and
-                        // clamped into its box, so toggling build mode without moving it keeps
-                        // you put; it then persists where you leave it and spawns you there on close.
-                        if state.gui_state.build_char_pos.is_none() {
-                            let zo = active_zone_origin(state);
-                            if let Some(hs) = zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone) {
-                                let p = state.construction_return_pos - zo;
-                                state.gui_state.build_char_pos =
-                                    Some((p.x.clamp(0.3, hs.width - 0.3), p.z.clamp(0.3, hs.depth - 0.3)));
-                            }
-                        }
+                        // The first time, the build-mode avatar goes where the player stands, on
+                        // their storey, and the storey selector opens there (v0.557, increment 7).
+                        crate::engine::editor::seed_build_avatar(state);
                         let (_center, size) = state.homestead_bounds
                             .map(|(mn, mx)| ((mn + mx) * 0.5, (mx - mn).length()))
                             .unwrap_or((Vec3::new(0.0, 1.5, 0.0), 20.0));
@@ -6985,39 +6976,10 @@ mod native_app {
                         // editor was open), or off their own plot, leaves them there instead
                         // (home_plot.rs `editor_close_spot`, ship homes 1b and 4); a pick it takes is
                         // declared as the editor's in the next update, so the relay passes the jump.
-                        // The build-mode avatar stands on the storey the player left from (ship
-                        // homes increment 7, home_plot.rs `editor_pick_at`); the home's spawn is
-                        // on its ground floor.
-                        let zo = active_zone_origin(state);
-                        let built = crate::engine::build_place::built_piece_boxes(
-                            &state.game_world.world,
-                            state.data_store.get::<crate::systems::construction::BlueprintRegistry>("blueprint_registry"),
-                            None,
-                        );
-                        let footing = crate::engine::footing::Footing {
-                            rooms: &state.gui_state.room_bounds,
-                            ship: state.gui_state.ship_structure.as_ref(),
-                            cars: &state.elevator_state,
-                            built: &built,
-                        };
-                        let pick = state.gui_state.build_char_pos.zip(zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone));
-                        let chosen = match pick {
-                            Some((xz, body)) => Some(crate::engine::home_plot::editor_pick_at(
-                                &footing,
-                                xz,
-                                zo,
-                                body,
-                                state.construction_return_pos,
-                                state.controller.eye_height(),
-                            )),
-                            None => state.gui_state.ship_structure.as_ref().and_then(|s| {
-                                let home = &s.zones[s.home_zone_index()];
-                                home.body.spawn.map(|(x, z)| {
-                                    let o = home.origin_vec();
-                                    Vec3::new(x + o.x, o.y + 1.7, z + o.z)
-                                })
-                            }),
-                        };
+                        // The avatar stands on the chosen storey, and only where a person can stand
+                        // (no glass lid, no opening): else the nearest place that is, or where they
+                        // stood, said in a notice (ship homes increment 7, `editor_close_pick`).
+                        let (chosen, pick_note) = crate::engine::home_plot::editor_close_pick(state);
                         let close = crate::engine::home_plot::editor_close_spot(
                             chosen,
                             state.construction_return_pos,
@@ -7034,6 +6996,8 @@ mod native_app {
                             state.gui_state.pending_notices.push(
                                 crate::engine::home_plot::EDITOR_HELD_BACK.to_string(),
                             );
+                        } else if let Some(note) = pick_note {
+                            state.gui_state.pending_notices.push(note);
                         }
                         state.gui_state.construction_selected_room = None;
                         state.construction_grab = None;
@@ -7246,9 +7210,10 @@ mod native_app {
                                 // Persist the build-mode SPAWN point with the EDITED zone (v0.582) so
                                 // the moved avatar survives the save (was lost -- spawn lived only in
                                 // GuiState). build_char_pos is zone-local, exactly what body.spawn holds.
-                                let spawn = state.gui_state.build_char_pos;
-                                if let Some(hs) = zone_body_mut(&mut state.gui_state.ship_structure, state.gui_state.construction_zone) {
-                                    hs.spawn = spawn;
+                                // Only an avatar moved onto the ground floor (`spawn_from_avatar`).
+                                let spawn = crate::engine::editor::spawn_from_avatar(&state.gui_state);
+                                if let (Some(spawn), Some(hs)) = (spawn, zone_body_mut(&mut state.gui_state.ship_structure, state.gui_state.construction_zone)) {
+                                    hs.spawn = Some(spawn);
                                 }
                                 let ship = state.gui_state.ship_structure.as_mut().unwrap();
                                 // Drop corridor rows that no longer resolve (a referenced door/zone was
@@ -9058,8 +9023,10 @@ mod native_app {
                             // Player-sized avatar STANDING on the floor (v0.560): body box ~1.55 m + a
                             // head, so the marker reads as the player's height/width. Overlay pass ->
                             // visible through walls. The avatar stands in the ACTIVE zone, so its
-                            // zone-local (cx, cz) shifts to world by the zone origin (v0.754).
-                            let zo = active_zone_origin(state);
+                            // zone-local (cx, cz) shifts to world by the zone origin (v0.754). It
+                            // stands on the chosen storey's floor, where it is grabbed and dragged
+                            // (ship homes increment 7, `build_avatar_floor_y`).
+                            let zo = active_zone_origin(state).with_y(crate::engine::editor::build_avatar_floor_y(state));
                             let (cx, cz) = (cx + zo.x, cz + zo.z);
                             overlay_objects.push(RenderObject { fade: 0.0,
                                 position: Vec3::new(cx, zo.y, cz),

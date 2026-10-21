@@ -35,6 +35,9 @@ pub mod ship_space;
 pub mod transit;
 pub mod rooms;
 pub mod ship_structure;
+/// Where on a storey of a home a person can stand: a floor with room over it, inside the rooms,
+/// never a glass lid or an opening (ship homes increment 7; the build editor's close).
+pub mod standing;
 /// The starts as data (increment 6, data/homes/starts.ron): Cabin, Apartment, Homestead, what
 /// each builds, who lives there and what a new character carries; and the `game_home` wire.
 pub mod starts;

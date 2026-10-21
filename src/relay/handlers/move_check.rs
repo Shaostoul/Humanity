@@ -115,20 +115,33 @@ const EDITOR_EYE_M: f32 = crate::surface_walk::EYE_HEIGHT_M as f32;
 const EDITOR_FLOOR_TOLERANCE_M: f32 = 0.25;
 
 /// True when an editor close at eye height `eye_y` stands a person on a floor of the plot box `b`
-/// (ship homes increment 7): their feet anywhere from the plot's floor up to its top less one
-/// storey (`STOREY_M`), give or take `EDITOR_FLOOR_TOLERANCE_M`. A 3 m plot (a cabin's) has one
-/// storey, so only its floor; a 6 m homestead plot has the ground floor and the upper floor at 3.0,
-/// and every height between them.
+/// (ship homes increment 7): their feet anywhere from the plot's floor up to the highest floor a
+/// home in that box can stand anyone on, its top less the room a person needs to stand
+/// (`moves::STANDING_ROOM_M`, 2.0 m), give or take `EDITOR_FLOOR_TOLERANCE_M`. A 6 m homestead
+/// plot: feet up to 4.0 m, so the upper floor at 3.0 and any other floor its owner draws; a 3 m
+/// cabin plot: up to 1.0 m.
 ///
-/// It cannot be tighter today because the relay holds no copy of anyone's home: the floor slabs are
-/// in the player's own home design, and the relay knows only the plot's box from the ship file. So
-/// it cannot tell an upper floor at 3.0 m from mid-air at 1.5 m over a stairwell. The box is what
-/// bounds the jump: never under the plot's floor, never over the floor of its top storey, and the
-/// up-and-down allowance still applies (M5). A close mid-air would only drop the person to the floor
-/// under them, which a jump off the stair reaches anyway.
-fn on_a_floor_of(b: &Aabb, eye_y: f32) -> bool {
+/// It used to be the top less one 3.0 m storey (`STOREY_M`), which refused an honest close onto a
+/// floor at 3.5 m (a 2.5 m storey under the roof of a 6 m home) though the editor draws slabs at
+/// any height from 0.5 m to the home's height less 0.5 m. The game stands a person only where a
+/// floor has `STANDING_ROOM_M` over it (ship/standing.rs, engine/home_plot.rs `editor_pick_at`),
+/// and a home is never taller than its plot (`design_fits_plot`), so every close the game makes
+/// passes this.
+///
+/// It cannot be tighter, and in particular it cannot refuse a close onto a GLASS LID, because the
+/// relay holds no copy of anyone's home. It knows the plot's box (the entity's `home_plot`, from the
+/// ship file) and the plot's kind, so it could read the SHIPPED design of that kind
+/// (`HomeDesign::built_in_ref`); but in Normal and Creative a player's own home is edited and kept
+/// in their save, never sent to the relay (`game_join` carries only `home_spawn` and `start`), so
+/// the shipped slabs would refuse honest closes onto a floor the player drew and pass ones onto a
+/// lid they made of glass. What the relay would need is in docs/design/ship-homes-increment-7-plan.md
+/// ("The relay and the home's floors"). It gains no security from it either way: the relay judges
+/// walking by speed alone, so a modified game could walk onto a lid without closing any editor.
+/// The game's own rule is what keeps an honest player off one. The box bounds the jump: never under
+/// the plot's floor, never over its highest floor, and the up-and-down allowance still applies (M5).
+pub(crate) fn on_a_floor_of(b: &Aabb, eye_y: f32) -> bool {
     let feet = eye_y - EDITOR_EYE_M;
-    let top_floor = (b.1.y - crate::ship::moves::STOREY_M).max(b.0.y);
+    let top_floor = (b.1.y - crate::ship::moves::STANDING_ROOM_M).max(b.0.y);
     feet >= b.0.y - EDITOR_FLOOR_TOLERANCE_M && feet <= top_floor + EDITOR_FLOOR_TOLERANCE_M
 }
 
@@ -265,7 +278,8 @@ impl MoveState {
                 // The build spot: on the player's own plot, at most `FAR_FROM_HELD_M` from where
                 // the relay holds them, and at standing height on a floor of the plot, where the
                 // editor's close stands a person (lib.rs: the storey's floor plus the eye height;
-                // since increment 7 any floor inside the plot's box, `on_a_floor_of`). The jump
+                // since increment 7 any floor inside the plot's box with room to stand over it,
+                // `on_a_floor_of`). The jump
                 // itself is free; the up-and-down check below still applies (M5: the editor's
                 // declaration used to skip it, and a close 500 m up was taken).
                 let far = floor_distance(ctx.held, ctx.to);
@@ -817,13 +831,15 @@ mod tests {
     /// SHUTTING THE EDITOR ON THE UPPER FLOOR IS TAKEN (ship homes increment 7): on p1, a 6 m
     /// homestead plot, an editor close standing a person on the upper floor (feet 3.0 m, eyes 4.7)
     /// is accepted like one on the ground floor; one over the plot's top (feet 6.0) is refused, and
-    /// so is one between the top storey's floor and the top (feet 3.3, past the 0.25 m of
-    /// rounding); on c1, a 3 m cabin plot, only its floor. The relay has no copy of the home, so it
-    /// cannot tell the upper floor from mid-air: any height from the floor to the top storey's floor
-    /// is taken (`on_a_floor_of`).
+    /// so is one over the highest floor a 6 m home can stand anyone on (feet 4.3: the top less the
+    /// 2.0 m a person stands in, past the 0.25 m of rounding); on c1, a 3 m cabin plot, nothing
+    /// higher than 1.0 m. The relay has no copy of the home, so it cannot tell the upper floor from
+    /// mid-air: any height from the floor to that highest floor is taken (`on_a_floor_of`).
     ///
     /// Seen red 2026-10-20 on the rule before storeys (the plot's floor only): "an editor close on
-    /// the upper floor of p1 was Correct { reason: \"editor_off_floor\" }".
+    /// the upper floor of p1 was Correct { reason: \"editor_off_floor\" }". Its 3.3 m case ("past
+    /// the top storey's floor", refused) became 4.3 m on 2026-10-21, when the rule stopped assuming
+    /// 3.0 m storeys (`a_floor_at_any_height_the_editor_draws_is_taken`).
     #[test]
     fn shutting_the_editor_on_the_upper_floor_is_taken() {
         let r = rules();
@@ -839,13 +855,45 @@ mod tests {
         assert_eq!(judge(p1, at(0.0)), Verdict::Accept, "on the ground floor");
         assert_eq!(judge(p1, at(3.2)), Verdict::Accept, "within the 0.25 m of rounding of the upper floor");
         assert_eq!(judge(p1, at(6.0)), Verdict::Correct { reason: "editor_off_floor" }, "over the plot's top");
-        assert_eq!(judge(p1, at(3.3)), Verdict::Correct { reason: "editor_off_floor" }, "past the top storey's floor");
+        assert_eq!(judge(p1, at(4.3)), Verdict::Correct { reason: "editor_off_floor" }, "past the highest floor a 6 m home can stand anyone on");
         assert_eq!(judge(p1, at(-0.5)), Verdict::Correct { reason: "editor_off_floor" }, "under the plot's floor");
         let c1 = plot_box("c1");
         assert_eq!(c1.1.y - c1.0.y, 3.0, "a cabin plot is one storey");
         let cabin = |feet: f32| Vec3::new(c1.0.x + 1.5, feet + 1.7, c1.0.z + 1.2);
         assert_eq!(judge(c1, cabin(0.0)), Verdict::Accept, "a cabin's floor");
         assert_eq!(judge(c1, cabin(3.0)), Verdict::Correct { reason: "editor_off_floor" }, "a cabin has no upper floor");
+        assert_eq!(judge(c1, cabin(1.5)), Verdict::Correct { reason: "editor_off_floor" }, "nor a floor with less than 2.0 m under its roof");
+    }
+
+    /// A FLOOR AT ANY HEIGHT THE EDITOR DRAWS IS TAKEN, NOT ONLY EVERY 3.0 M (ship homes increment
+    /// 7, the review of 2026-10-21). The B editor puts a slab's top anywhere from 0.5 m to the
+    /// home's height less 0.5 m, so a home's storeys need not be 3.0 m: in a 5.0 m home of two
+    /// 2.5 m storeys, a close onto the upper floor (feet 2.5 m) is taken; so is one on p1 onto a
+    /// floor at 3.5 m (the 2.5 m top storey of a 6 m home whose owner raised the slab), and one onto
+    /// the glass lids' height over the homestead's ground rooms, 3.0 m, which the relay cannot tell
+    /// from the upper floor beside them (the game is what refuses a close onto a lid:
+    /// engine/home_plot.rs `no_editor_close_lands_on_a_glass_lid_and_the_relay_takes_every_one`).
+    /// Still refused: a 5.0 m home's 1.0 m under its roof (feet 3.5, more than its top less 2.0 m).
+    ///
+    /// Seen red first (2026-10-21) on the rule that took the top less one 3.0 m storey (`STOREY_M`)
+    /// as the highest floor: "a close onto the upper floor of a home of two 2.5 m storeys / left:
+    /// Correct { reason: \"editor_off_floor\" } / right: Accept".
+    #[test]
+    fn a_floor_at_any_height_the_editor_draws_is_taken() {
+        let r = rules();
+        let judge = |plot: Aabb, to: Vec3| {
+            let mut s = MoveState::fresh(0.0, &r);
+            s.check(0.0, &MoveContext { rules: &r, held: Vec3::new(plot.0.x + 5.0, plot.0.y + 1.7, plot.0.z + 5.0), to, declared: Some(&MoveDecl::Editor), applied: 0, own_plot: Some(plot), links: &[], vehicle_mps: None })
+        };
+        // A plot 5.0 m tall: a home of two storeys of 2.5 m.
+        let short: Aabb = (Vec3::new(100.0, 0.0, 0.0), Vec3::new(120.0, 5.0, 20.0));
+        let on = |plot: Aabb, feet: f32| Vec3::new(plot.0.x + 6.0, plot.0.y + feet + 1.7, plot.0.z + 6.0);
+        assert_eq!(judge(short, on(short, 2.5)), Verdict::Accept, "a close onto the upper floor of a home of two 2.5 m storeys");
+        assert_eq!(judge(short, on(short, 0.0)), Verdict::Accept, "its ground floor");
+        assert_eq!(judge(short, on(short, 3.5)), Verdict::Correct { reason: "editor_off_floor" }, "1.5 m under its roof");
+        let p1 = p1();
+        assert_eq!(judge(p1, Vec3::new(40.0, 3.5 + 1.7, 30.0)), Verdict::Accept, "a floor at 3.5 m on p1, a 2.5 m top storey");
+        assert_eq!(judge(p1, Vec3::new(45.0, 3.0 + 1.7, 45.0)), Verdict::Accept, "the height of the glass lid over the kitchen");
     }
 
     /// A TELEPORT BETWEEN STOREYS PASSES, AND A LINK'S ENDS ARE MATCHED BY HEIGHT (ship homes

@@ -241,3 +241,54 @@ fn the_palette_guard_draws_a_guard_wall_on_the_chosen_storey() {
     assert_eq!(mat, Some("Steel balustrade"));
     assert!(g.guard().is_some(), "it draws as a guard (posts, balusters and a rail)");
 }
+
+/// THE EDITOR OPENS ON YOUR STOREY WITH THE AVATAR AT YOUR FEET (the review of 2026-10-21, finding
+/// 2). The build-mode avatar is seeded where the player stands, on the storey their feet are on,
+/// and the storey selector opens there: upstairs over the slab of the two-storey box (eye 4.7 m),
+/// storey index 1; on the ground under the slab, 0; from outside the body, its nearest spot 0.3 m
+/// inside, on the storey of the height the feet are at.
+///
+/// Seen red first (2026-10-21) with the seed on the ground storey, where the selector opened before
+/// this fix (its default, 0) whatever storey the player was on: "upstairs / left: ((2.0, 2.0), 0) /
+/// right: ((2.0, 2.0), 1)".
+#[test]
+fn the_editor_opens_on_your_storey_with_the_avatar_at_your_feet() {
+    let b = two_storeys();
+    let eye = 1.7;
+    let o = Vec3::new(100.0, 0.0, 50.0);
+    assert_eq!(avatar_seed(&b, o, o + Vec3::new(2.0, 3.0 + eye, 2.0), eye), ((2.0, 2.0), 1), "upstairs");
+    assert_eq!(avatar_seed(&b, o, o + Vec3::new(2.0, eye, 2.0), eye), ((2.0, 2.0), 0), "on the ground under the slab");
+    assert_eq!(avatar_seed(&b, o, o + Vec3::new(-4.0, eye, 20.0), eye), ((0.3, 9.7), 0), "from outside the body");
+    assert_eq!(avatar_seed(&tall_box(), o, o + Vec3::new(5.0, 3.0 + eye, 5.0), eye), ((5.0, 5.0), 0), "one storey: always the ground's");
+}
+
+/// THE EDITOR'S SAVE WRITES THE HOME'S SPAWN ONLY FROM AN AVATAR MOVED ONTO THE GROUND FLOOR. The
+/// avatar now opens at the player's feet (`seed_build_avatar`), so a Save without moving it must
+/// leave the spawn (where the player enters the world) as it was, and an avatar moved upstairs is
+/// no ground spot for it. Moved on the ground storey, it is the new spawn, as v0.582 made it.
+///
+/// Seen red first (2026-10-21) with the Save writing the avatar's spot whatever it was (the code
+/// before this fix): "not moved since it was put at the player's feet / left: Some((2.0, 2.0)) /
+/// right: None".
+#[test]
+fn the_editors_save_writes_the_spawn_only_from_an_avatar_moved_onto_the_ground() {
+    let zone: crate::ship::ship_structure::ShipZone = ron::from_str(
+        "(id: \"home\", purpose: \"residence\", body: (width: 10.0, depth: 10.0, height: 6.0, \
+         floors: [(a: (0.0, 0.0), b: (10.0, 5.0), top: 3.0)]))",
+    )
+    .expect("the test zone parses");
+    let mut g = crate::gui::GuiState::default();
+    g.ship_structure = Some(crate::ship::ship_structure::ShipStructure { zones: vec![zone], ..Default::default() });
+    g.construction_zone = 0;
+    g.build_char_pos = Some((2.0, 2.0));
+    g.construction_storeys.chosen = 0;
+    g.construction_storeys.avatar_seed = Some((0, (2.0, 2.0), 0));
+    assert_eq!(spawn_from_avatar(&g), None, "not moved since it was put at the player's feet");
+    g.build_char_pos = Some((6.0, 8.0));
+    assert_eq!(spawn_from_avatar(&g), Some((6.0, 8.0)), "moved on the ground floor");
+    g.construction_storeys.chosen = 1;
+    assert_eq!(spawn_from_avatar(&g), None, "moved upstairs: no ground spot");
+    g.construction_storeys.avatar_seed = Some((0, (6.0, 8.0), 1));
+    g.construction_storeys.chosen = 0;
+    assert_eq!(spawn_from_avatar(&g), Some((6.0, 8.0)), "seeded upstairs, then taken down to the ground floor");
+}
