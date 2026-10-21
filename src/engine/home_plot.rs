@@ -1409,8 +1409,12 @@ fn carry_with_home(state: &mut EngineState, old_home: PlotBox, delta: Vec3) {
 }
 
 /// Stand the player at `at` (ship metres, eye height): the walking body and the camera
-/// (`stand_player_at`). Also what a relay's correction does (engine/move_check.rs).
+/// (`stand_player_at`), standing on the floor under where it put them (`reseat_floor`, ship homes
+/// increment 7), so a welcome or a correction onto an upper floor stands there and one onto the
+/// ground floor under a slab stands on the ground floor. Also what a relay's correction does
+/// (engine/move_check.rs).
 pub(crate) fn put_player_at(state: &mut EngineState, at: Vec3) {
+    let camera_moves = !state.gui_state.showroom_active && !state.construction_cam_active;
     let standing = Standing {
         camera: &mut state.camera.position,
         showroom_open: state.gui_state.showroom_active,
@@ -1423,6 +1427,69 @@ pub(crate) fn put_player_at(state: &mut EngineState, at: Vec3) {
         following: &mut state.follow_vehicle,
     };
     stand_player_at(&mut state.game_world.world, standing, at);
+    if camera_moves {
+        reseat_floor(state);
+    }
+}
+
+/// The floor under a body whose eye was just PUT at `at` aboard (a welcome, a correction,
+/// Respawn, a teleporter, the build editor's close): `footing::Footing::reseat`, measured from
+/// the feet where it was put, over everything the walk stands on this frame (the rooms, the
+/// ship's slabs and pieces, the elevator cars, the finished pieces built aboard). None when
+/// nothing is there to stand on.
+pub(crate) fn floor_for_placement(state: &EngineState, at: Vec3) -> Option<f32> {
+    let built = crate::engine::build_place::built_piece_boxes(
+        &state.game_world.world,
+        state.data_store.get::<crate::systems::construction::BlueprintRegistry>("blueprint_registry"),
+        None,
+    );
+    let footing = crate::engine::footing::Footing {
+        rooms: &state.gui_state.room_bounds,
+        ship: state.gui_state.ship_structure.as_ref(),
+        cars: &state.elevator_state,
+        built: &built,
+    };
+    footing.reseat(at)
+}
+
+/// Stand the walking body on the floor under where a placement just put the camera (ship homes
+/// increment 7, plan section 3): every placement re-seats the floor from where it put the feet.
+/// Before storeys the walk kept the floor it stood on before and the next frame's footing
+/// measured its step up from there, so a placement onto the ground floor from upstairs was lifted
+/// back onto the slab over it (the floor it had stood on was within a step), and one onto an
+/// upper floor from the ground sank to the ground floor. Aboard only: on a planet the surface
+/// walk keeps its own floor.
+pub(crate) fn reseat_floor(state: &mut EngineState) {
+    if !state.aboard_station {
+        return;
+    }
+    if let Some(floor) = floor_for_placement(state, state.camera.position) {
+        state.controller.set_ground_floor(floor);
+    }
+}
+
+/// Where closing the build editor stands the player when its build-mode avatar is at `xz` (zone-
+/// local metres) in the zone whose body is `body` at `zone_origin` (ship homes increment 7): ON
+/// THE STOREY THEY LEFT FROM. `left_from` is where their eye was when the editor opened
+/// (`EngineState::construction_return_pos`), `eye_height` the eye's height over the feet. The
+/// storey their feet were on (`HomeStructure::storeys`) gives the floor to stand on at the
+/// avatar's spot, and where that storey has no floor there (over a stairwell, the greenhouse) the
+/// floor under it (`footing`), so the close never stands anyone in the air. It used to stand
+/// everyone on the zone's ground floor, under the upper floor they had left from.
+pub(crate) fn editor_pick_at(
+    footing: &crate::engine::footing::Footing,
+    xz: (f32, f32),
+    zone_origin: Vec3,
+    body: &crate::ship::home_structure::HomeStructure,
+    left_from: Vec3,
+    eye_height: f32,
+) -> Vec3 {
+    let storeys = body.storeys();
+    let k = crate::ship::home_structure::storey_index(&storeys, left_from.y - eye_height - zone_origin.y);
+    let storey_floor = zone_origin.y + storeys[k].floor;
+    let at = Vec3::new(xz.0 + zone_origin.x, storey_floor + eye_height, xz.1 + zone_origin.z);
+    let floor = footing.floor_under(at, storey_floor).unwrap_or(storey_floor);
+    Vec3::new(at.x, floor + eye_height, at.z)
 }
 
 /// The notice when closing the build editor leaves the player where they stood
@@ -3393,5 +3460,37 @@ mod tests {
         // A restored save that records no box: the saves after it record none either.
         carry_loaded_save(&mut w, &mut data, None, None);
         assert_eq!(crate::save_load::frame_for_save(&data), None);
+    }
+}
+
+/// The build editor's close between storeys (ship homes increment 7, lane M), in the two-storey
+/// test home of engine/footing.rs (`test_aboard::TWO_STOREYS`: slabs at 3.0 over the north half,
+/// z 0 to 6, a ladder hatch at x 1.5 to 2.5 and z 0.9 to 2.1, the south half open to the roof).
+#[cfg(test)]
+mod storey_tests {
+    use super::*;
+    use crate::engine::footing::test_aboard::*;
+    use crate::ship::wall_collision::EYE_HEIGHT_M as EYE;
+
+    /// CLOSING THE EDITOR STANDS YOU ON THE STOREY YOU LEFT FROM. Opened upstairs, the build-mode
+    /// avatar's spot on the upper floor is where the close stands the player, upstairs (it used to
+    /// stand everyone on the zone's ground floor, under the slab); a spot upstairs over the hatch,
+    /// where that storey has no floor, stands them on the ground floor under it, not in the air.
+    /// Opened downstairs, a spot under the slab stands them on the ground floor, not on the slab.
+    ///
+    /// Seen red 2026-10-20 with `editor_pick_at` standing everyone on the zone's floor (its eye at
+    /// the zone's origin y plus the eye height, the close before this lane): <<RED>>.
+    #[test]
+    fn the_editor_close_stands_you_on_the_storey_you_left_from() {
+        let w = Aboard::two_storeys();
+        let footing = w.footing();
+        let body = &w.ship.zones[0].body;
+        let pick = |xz: (f32, f32), left_from: Vec3| editor_pick_at(&footing, xz, Vec3::ZERO, body, left_from, EYE);
+        let upstairs = Vec3::new(6.0, 3.0 + EYE, 4.0);
+        let downstairs = Vec3::new(6.0, EYE, 9.0);
+        assert_eq!(pick((8.0, 4.0), upstairs), Vec3::new(8.0, 3.0 + EYE, 4.0), "left from upstairs, a spot on the upper floor");
+        assert_eq!(pick((2.0, 1.5), upstairs), Vec3::new(2.0, EYE, 1.5), "left from upstairs, a spot over the hatch");
+        assert_eq!(pick((8.0, 4.0), downstairs), Vec3::new(8.0, EYE, 4.0), "left from downstairs, a spot under the slab");
+        assert_eq!(pick((8.0, 9.0), upstairs), Vec3::new(8.0, EYE, 9.0), "left from upstairs, a spot in the half open to the roof");
     }
 }

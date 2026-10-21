@@ -9,12 +9,28 @@
 //!
 //! Doorways (open, unlocked doors) are gaps you walk through; windows and closed/locked doors block
 //! (you cannot walk through glass, and a shut door is a wall). Y is never touched.
+//!
+//! BY HEIGHT (ship homes increment 7, docs/design/ship-homes-increment-7-plan.md, lane M): a segment
+//! stops a body only where it stands across the body's knee-to-eye band (`WallSegment::stops_body`),
+//! the rule built pieces already followed. So a wall upstairs stops a body upstairs and lets the one
+//! downstairs walk under it, a ground wall rising through the slab stops both, and a door shut on one
+//! storey is no wall on the other.
 
 use crate::ship::home_structure::{HomeStructure, OpeningKind, ShellCut};
-use glam::Vec3;
+use glam::{Quat, Vec3};
 
 /// Player capsule radius (metres) for the horizontal push-out.
 pub const PLAYER_RADIUS: f32 = 0.3;
+
+/// How high a standing body's eye is over its feet, metres: the walking camera's
+/// (`renderer::camera::CameraController::eye_height`, held to this by a test in engine/footing.rs).
+/// Every point the sweep is given is that eye, so the feet are this far under it.
+pub const EYE_HEIGHT_M: f32 = 1.7;
+
+/// The knee, metres over the feet: a blocker whose top is no higher than this is stepped over, not
+/// walked into (a foundation, a floor tile, the slab a body stands on). The built pieces' rule
+/// (`engine::build_place::built_piece_segments`) from before storeys, now every segment's.
+pub const KNEE_M: f32 = 0.4;
 
 /// A blocking wall segment in the XZ plane (a..b), inflated by `half_thickness`, standing between
 /// the world heights `y0` and `y1`.
@@ -27,15 +43,25 @@ pub struct WallSegment {
     /// Wave 0 of docs/design/ship-homes-increment-7-plan.md). Every builder fills them: a home's
     /// wall from its base to its top, the perimeter from the floor to the roof, a corridor's sides
     /// from its deck to its lid, a door panel from its sill to its head, a built piece its box.
-    /// NOTHING READS THEM YET: `resolve` still pushes out in x and z at every height, until the
-    /// movement lane makes a wall stop only a body whose knee-to-eye band it overlaps (the rule the
-    /// built pieces already follow). A blocker whose heights are not known stands at every height
+    /// The sweep reads them (`stops_body`): a segment stops only a body whose knee-to-eye band it
+    /// stands across. A blocker whose heights are not known stands at every height
     /// (`WallSegment::at_every_height`), which is what every segment did before it had them.
     pub y0: f32,
     pub y1: f32,
 }
 
 impl WallSegment {
+    /// True when this segment stops a body whose eye is at world height `eye_y`: it stands
+    /// somewhere across that body's knee-to-eye band, from `KNEE_M` over its feet (`EYE_HEIGHT_M`
+    /// under the eye) up to the eye. A wall upstairs (3..6) is over the head of a body on the
+    /// ground floor (band 0.4..1.7) and a ground wall (0..3) under the knees of one upstairs (band
+    /// 3.4..4.7); a wall from the ground to the roof stops both. A segment at every height stops
+    /// every body.
+    pub fn stops_body(&self, eye_y: f32) -> bool {
+        let knee = eye_y - EYE_HEIGHT_M + KNEE_M;
+        self.y0 < eye_y && self.y1 > knee
+    }
+
     /// A segment standing at every height (`y0` minus infinity, `y1` plus infinity): for a blocker
     /// whose heights are not known, which then stops a body at any height.
     pub fn at_every_height(a: (f32, f32), b: (f32, f32), half_thickness: f32) -> Self {
@@ -51,6 +77,23 @@ impl WallSegment {
             y0: self.y0 + by.y,
             y1: self.y1 + by.y,
         }
+    }
+}
+
+/// The blocking segment of a shut door panel (`ship::door_panels::PanelPlacement`'s closed pose):
+/// along the wall through the panel's centre, its width long, at least 0.05 m either side of the
+/// wall line, standing from the panel's bottom (`center.y`, the sill on the wall's base) to its
+/// head. The one conversion the walk (lib.rs, the live door list) and the tests use, so a door
+/// shut on one storey is no wall on another (`WallSegment::stops_body`).
+pub fn door_panel_segment(center: Vec3, rotation: Quat, size: Vec3) -> WallSegment {
+    let half_w = size.x * 0.5;
+    let dir = rotation * Vec3::X;
+    WallSegment {
+        a: (center.x - dir.x * half_w, center.z - dir.z * half_w),
+        b: (center.x + dir.x * half_w, center.z + dir.z * half_w),
+        half_thickness: (size.z * 0.5).max(0.05),
+        y0: center.y,
+        y1: center.y + size.y,
     }
 }
 
@@ -161,11 +204,10 @@ fn segments_impl(home: &HomeStructure, shell_cuts: &[ShellCut], see_through_wind
 
 /// Build the blocking segments for the WHOLE SHIP (v0.754, ship-superstructure increment A): each
 /// zone's segments (from the unchanged per-body `wall_segments`) translated by that zone's world
-/// origin, all concatenated. Collision stays a 2D XZ push-out (Y is never touched), so zones at a
-/// different deck height share the same segment plane -- honest for the single-deck v1; multi-deck
-/// stacking is explicitly out of scope (design doc section E). Since ship homes increment 7 each
-/// segment carries its world heights (`y0`, `y1`, the zone's origin y added), ready for the
-/// movement lane to make collision storey-aware; until then nothing reads them.
+/// origin, all concatenated. The push-out is in x and z (Y is never touched), but since ship homes
+/// increment 7 each segment carries its world heights (`y0`, `y1`, the zone's origin y added) and
+/// stops only a body whose knee-to-eye band it stands across (`WallSegment::stops_body`), so the
+/// walls of a storey, or of a zone on another deck, stop only the bodies at their height.
 ///
 /// Increment B adds corridors: each zone's perimeter gets a door-width GAP where a corridor tube
 /// meets it (`ShipStructure::shell_cuts_for_zone`), and each valid corridor contributes its two
@@ -296,12 +338,16 @@ fn closest_on_seg(px: f32, pz: f32, a: (f32, f32), b: (f32, f32)) -> (f32, f32, 
 
 /// One push-out pass: shove the point out of every penetrated segment, iterated a few times so
 /// inside-corners settle. Y is preserved. A cheap per-segment range reject bounds the cost. Used per
-/// substep by `resolve`.
+/// substep by `resolve`. `pos` is the body's eye: a segment that does not stand across its
+/// knee-to-eye band (`WallSegment::stops_body`) is not in its way at all.
 fn resolve_once(pos: Vec3, radius: f32, walls: &[WallSegment], doors: &[WallSegment]) -> Vec3 {
     let mut px = pos.x;
     let mut pz = pos.z;
     for _ in 0..3 {
         for seg in walls.iter().chain(doors.iter()) {
+            if !seg.stops_body(pos.y) {
+                continue;
+            }
             let push = radius + seg.half_thickness;
             // Range reject: skip segments whose inflated AABB doesn't contain the player point.
             let (minx, maxx) = (seg.a.0.min(seg.b.0) - push, seg.a.0.max(seg.b.0) + push);
@@ -333,7 +379,9 @@ fn resolve_once(pos: Vec3, radius: f32, walls: &[WallSegment], doors: &[WallSegm
 /// to 0.1 s) can't TUNNEL through a thin wall or a closed door in one frame: each substep advances
 /// less than the thinnest collision corridor (~radius + a door's 0.05 m), so a wall in the path is
 /// always penetrated and pushed out of. The push-out from each substep carries into the next, so the
-/// player slides instead of snapping back onto the raw path. Y is taken from `pos`.
+/// player slides instead of snapping back onto the raw path. Y is taken from `pos`, which is the
+/// body's EYE (`EYE_HEIGHT_M` over its feet): only the segments standing across the body's
+/// knee-to-eye band there stop it (`WallSegment::stops_body`, ship homes increment 7).
 pub fn resolve(prev: Vec3, pos: Vec3, radius: f32, walls: &[WallSegment], doors: &[WallSegment]) -> Vec3 {
     let (dx, dz) = (pos.x - prev.x, pos.z - prev.z);
     let dist = (dx * dx + dz * dz).sqrt();
@@ -639,17 +687,7 @@ mod tests {
         // The same placement-to-segment conversion the engine's per-frame door path performs.
         let door_segs: Vec<WallSegment> = crate::ship::door_panels::corridor_panel_placements(&ship)
             .iter()
-            .map(|p| {
-                let half_w = p.size.x * 0.5;
-                let dir = p.rotation * Vec3::new(1.0, 0.0, 0.0);
-                WallSegment {
-                    a: (p.center.x - dir.x * half_w, p.center.z - dir.z * half_w),
-                    b: (p.center.x + dir.x * half_w, p.center.z + dir.z * half_w),
-                    half_thickness: (p.size.z * 0.5).max(0.05),
-                    y0: p.center.y,
-                    y1: p.center.y + p.size.y,
-                }
-            })
+            .map(|p| door_panel_segment(p.center, p.rotation, p.size))
             .collect();
         assert_eq!(door_segs.len(), 4, "two mouths x two halves");
         // CLOSED: walking at the home mouth (x 9.5 -> 10.5 through the 1 m aperture at z = 5) is
@@ -773,5 +811,111 @@ mod storey_height_tests {
         let anywhere = WallSegment::at_every_height((0.0, 0.0), (1.0, 0.0), 0.1);
         assert!(anywhere.y0 == f32::NEG_INFINITY && anywhere.y1 == f32::INFINITY);
         assert_eq!(anywhere.moved(Vec3::new(1.0, 5.0, 2.0)).y1, f32::INFINITY, "an unknown height stays every height when moved");
+    }
+}
+
+/// Ship homes increment 7, lane M (docs/design/ship-homes-increment-7-plan.md section 3): the sweep
+/// reads the heights Wave 0 gave every segment, so a wall stops only the bodies at its height.
+#[cfg(test)]
+mod storey_walk_tests {
+    use super::*;
+
+    /// A two-storey 10 x 10 x 6 m body, one slab over all of it at 3.0: a wall UPSTAIRS only
+    /// (x = 5, base 3.0), a wall DOWNSTAIRS only (z = 3, the ground to 3.0), and a wall from the
+    /// ground to the roof RISING THROUGH THE SLAB (z = 7). No doors.
+    fn two_storeys() -> Vec<WallSegment> {
+        let body: HomeStructure = ron::from_str(
+            "(width: 10.0, depth: 10.0, height: 6.0, \
+             walls: [(a: (5.0, 0.0), b: (5.0, 10.0), base: 3.0, height: 3.0), \
+                     (a: (0.0, 3.0), b: (10.0, 3.0), height: 3.0), \
+                     (a: (0.0, 7.0), b: (10.0, 7.0), height: 6.0)], \
+             floors: [(a: (0.0, 0.0), b: (10.0, 10.0), top: 3.0)])",
+        )
+        .expect("the test body parses");
+        wall_segments(&body)
+    }
+
+    /// Walk from `from` toward `to` 0.1 m a frame (each frame's step swept against `walls` and the
+    /// shut `doors`), the eye's height held: where the walk ends.
+    fn walk(from: Vec3, to: Vec3, walls: &[WallSegment], doors: &[WallSegment]) -> Vec3 {
+        let mut p = from;
+        for _ in 0..400 {
+            let left = Vec3::new(to.x - p.x, 0.0, to.z - p.z);
+            if left.length() < 1e-3 {
+                break;
+            }
+            p = resolve(p, p + left.normalize() * left.length().min(0.1), PLAYER_RADIUS, walls, doors);
+        }
+        p
+    }
+
+    /// The eye of a body standing on the ground floor, and of one standing on the slab.
+    const DOWN: f32 = EYE_HEIGHT_M;
+    const UP: f32 = 3.0 + EYE_HEIGHT_M;
+
+    /// A WALL UPSTAIRS DOES NOT STOP A BODY DOWNSTAIRS, AND A WALL DOWNSTAIRS DOES NOT STOP ONE
+    /// UPSTAIRS; A GROUND WALL RISING THROUGH THE SLAB STOPS BOTH. Each walk crosses one wall's
+    /// line: across the upstairs wall (x 5) the body downstairs walks on to x 8 and the one
+    /// upstairs stops short of it; across the downstairs wall (z 3) the other way about; across the
+    /// wall through the slab (z 7) both stop.
+    ///
+    /// Seen red 2026-10-20 with the height test taken out of `resolve_once` (every segment
+    /// stopping every body, the sweep before this lane): <<RED>>.
+    #[test]
+    fn a_wall_stops_only_the_storey_it_stands_on() {
+        let walls = two_storeys();
+        let ends = |y: f32, from: (f32, f32), to: (f32, f32)| walk(Vec3::new(from.0, y, from.1), Vec3::new(to.0, y, to.1), &walls, &[]);
+        let across_upstairs = ((3.0, 5.0), (8.0, 5.0));
+        let across_downstairs = ((2.0, 1.0), (2.0, 5.0));
+        let through_the_slab = ((2.0, 5.0), (2.0, 9.0));
+
+        let e = ends(DOWN, across_upstairs.0, across_upstairs.1);
+        assert!((e.x - 8.0).abs() < 1e-3, "downstairs, the wall upstairs (x 5) stopped the walk at {e:?}");
+        let e = ends(UP, across_upstairs.0, across_upstairs.1);
+        assert!(e.x < 5.0 - PLAYER_RADIUS + 0.05, "upstairs, the wall upstairs (x 5) let the walk through to {e:?}");
+
+        let e = ends(UP, across_downstairs.0, across_downstairs.1);
+        assert!((e.z - 5.0).abs() < 1e-3, "upstairs, the wall downstairs (z 3) stopped the walk at {e:?}");
+        let e = ends(DOWN, across_downstairs.0, across_downstairs.1);
+        assert!(e.z < 3.0 - PLAYER_RADIUS + 0.05, "downstairs, the wall downstairs (z 3) let the walk through to {e:?}");
+
+        for (y, storey) in [(DOWN, "downstairs"), (UP, "upstairs")] {
+            let e = ends(y, through_the_slab.0, through_the_slab.1);
+            assert!(e.z < 7.0 - PLAYER_RADIUS + 0.05, "{storey}, the wall rising through the slab (z 7) let the walk through to {e:?}");
+        }
+    }
+
+    /// A DOOR SHUT ON ONE STOREY IS NO WALL ON THE OTHER. A shut 2.1 m door panel in a doorway on
+    /// the ground floor (its bottom at 0) and one upstairs (its bottom on the slab, 3.0), each the
+    /// segment the walk makes of it (`door_panel_segment`): each stops the body on its own storey
+    /// and lets the body on the other walk through its doorway's line.
+    ///
+    /// Seen red 2026-10-20 with the height test taken out of `resolve_once`: <<RED>>.
+    #[test]
+    fn a_shut_door_stops_only_its_own_storey() {
+        let door_at = |sill: f32| door_panel_segment(Vec3::new(5.0, sill, 5.0), Quat::IDENTITY, Vec3::new(2.0, 2.1, 0.05));
+        let (ground, upstairs) = (door_at(0.0), door_at(3.0));
+        let through = |y: f32, door: WallSegment| walk(Vec3::new(5.0, y, 3.0), Vec3::new(5.0, y, 7.0), &[], &[door]);
+        let e = through(DOWN, upstairs);
+        assert!((e.z - 7.0).abs() < 1e-3, "the shut door upstairs stopped the walk downstairs at {e:?}");
+        let e = through(UP, ground);
+        assert!((e.z - 7.0).abs() < 1e-3, "the shut door downstairs stopped the walk upstairs at {e:?}");
+        let e = through(DOWN, ground);
+        assert!(e.z < 5.0 - PLAYER_RADIUS + 0.06, "the shut door downstairs let the walk downstairs through to {e:?}");
+        let e = through(UP, upstairs);
+        assert!(e.z < 5.0 - PLAYER_RADIUS + 0.06, "the shut door upstairs let the walk upstairs through to {e:?}");
+    }
+
+    /// The band itself: a segment stops a body only across its knee (`KNEE_M` over the feet) to
+    /// its eye, so a 0.3 m kerb is stepped over, a 2.2 m-high lintel over the head lets it pass,
+    /// and a segment of unknown height stops everything.
+    #[test]
+    fn the_band_runs_from_the_knee_to_the_eye() {
+        let seg = |y0: f32, y1: f32| WallSegment { a: (0.0, 0.0), b: (1.0, 0.0), half_thickness: 0.05, y0, y1 };
+        assert!(!seg(0.0, 0.3).stops_body(DOWN), "a kerb under the knee stops the walk");
+        assert!(seg(0.0, 0.5).stops_body(DOWN), "a 0.5 m box over the knee does not stop the walk");
+        assert!(!seg(2.2, 3.0).stops_body(DOWN), "a lintel over the head stops the walk");
+        assert!(seg(1.0, 1.2).stops_body(DOWN), "a rail at the chest does not stop the walk");
+        assert!(WallSegment::at_every_height((0.0, 0.0), (1.0, 0.0), 0.05).stops_body(UP), "a segment of unknown height lets a body by");
     }
 }

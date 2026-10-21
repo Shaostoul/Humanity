@@ -20,6 +20,10 @@ use crate::ship::ship_structure::ShipStructure;
 use crate::ship::structure::{in_footprint, structure_type, StructureKind};
 use glam::Vec3;
 
+/// How far under a teleporter's floor a person's feet may be and still stand in it, metres
+/// (`ShipStructure::transit_link_at`): a step down onto it, not a storey.
+const PAD_BELOW_M: f32 = 0.5;
+
 /// One way through a transit link: from the pad `from` to the pad `to`, both in zone `zone`
 /// (ship metres; `*_at` is the pad's floor point, its placed position plus the zone's origin).
 #[derive(Debug, Clone, PartialEq)]
@@ -80,11 +84,20 @@ impl ShipStructure {
         out
     }
 
-    /// The link whose entry pad the point stands in (across the floor), if any: where a person
-    /// walking there is jumped to.
+    /// The link whose entry pad a person with their eye at `p` stands in, if any: where a person
+    /// walking there is jumped to. In the pad's footprint across the floor AND on its storey (ship
+    /// homes increment 7): their feet (`wall_collision::EYE_HEIGHT_M` under the eye) no more than
+    /// `PAD_BELOW_M` under the pad's floor and under the top of its arch, so a pad upstairs does
+    /// not jump someone walking under it, nor one downstairs someone walking over it. A jump on the
+    /// pad (the feet up to 1.3 m over it) is still on it.
     pub fn transit_link_at(&self, p: Vec3) -> Option<TransitLink> {
+        let feet = p.y - crate::ship::wall_collision::EYE_HEIGHT_M;
         self.transit_links().into_iter().find(|l| {
-            structure_type("teleporter").is_some_and(|ty| in_footprint(ty, (l.from_at.x, l.from_at.y, l.from_at.z), l.from_yaw, p.x, p.z))
+            structure_type("teleporter").is_some_and(|ty| {
+                feet >= l.from_at.y - PAD_BELOW_M
+                    && feet < l.from_at.y + ty.size.1
+                    && in_footprint(ty, (l.from_at.x, l.from_at.y, l.from_at.z), l.from_yaw, p.x, p.z)
+            })
         })
     }
 

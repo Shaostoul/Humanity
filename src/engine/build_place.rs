@@ -755,28 +755,38 @@ pub(crate) fn built_piece_segments(
     eye_height: f32,
 ) -> Vec<WallSegment> {
     let feet_y = eye.y - eye_height;
+    built_piece_boxes(world, registry, frame)
+        .into_iter()
+        .filter(|(lo, hi)| lo.y < eye.y && hi.y > feet_y + STEP_OVER_M)
+        .map(|(lo, hi)| segment_of_box(lo, hi))
+        .collect()
+}
+
+/// Every finished piece in `frame` (the home aboard, `None`; a planet build site on the ground)
+/// as world boxes (lo, hi) in that frame's metres: a wall with a door or a window as its parts
+/// (`doorway::piece_parts`, the door while it is shut), anything else its one box. What blocks
+/// the walk (`built_piece_segments`) and, aboard, what it stands on: every box's top is a floor
+/// within a step up (`engine::footing::Footing`'s `built`, ship homes increment 7, the aboard twin
+/// of `planet_build::built_floor_radius`), so a doorway has no floor in it and its lintel does.
+pub(crate) fn built_piece_boxes(world: &hecs::World, registry: Option<&BlueprintRegistry>, frame: Option<&PlanetSite>) -> Vec<(Vec3, Vec3)> {
     let mut out = Vec::new();
     for (_e, (s, tf, site, open)) in world.query::<(&Structure, &Transform, Option<&PlanetSite>, Option<&DoorOpen>)>().iter() {
         if !crate::systems::construction::site::in_frame(site, frame) {
             continue;
         }
         let parts = registry.and_then(|r| r.get(&s.blueprint_id)).and_then(|bp| doorway::piece_parts(bp, tf, open.is_some()));
-        let boxes: Vec<(Vec3, Vec3)> = match parts {
-            Some(parts) => parts.iter().map(|(p, _)| placement::world_aabb(p)).collect(),
-            None => vec![placement::world_aabb(tf)],
-        };
-        for (lo, hi) in boxes {
-            if lo.y < eye.y && hi.y > feet_y + STEP_OVER_M {
-                out.push(segment_of_box(lo, hi));
-            }
+        match parts {
+            Some(parts) => out.extend(parts.iter().map(|(p, _)| placement::world_aabb(p))),
+            None => out.push(placement::world_aabb(tf)),
         }
     }
     out
 }
 
 /// A piece lower than this (m above the feet) is stepped over, not walked into:
-/// a foundation or a floor tile.
-const STEP_OVER_M: f32 = 0.4;
+/// a foundation or a floor tile. The sweep's knee (`wall_collision::KNEE_M`), which
+/// every segment follows since ship homes increment 7.
+const STEP_OVER_M: f32 = crate::ship::wall_collision::KNEE_M;
 
 /// The blocking segment for a box on the ground: along its longer side, inset
 /// by half its thickness at each end, with that half thickness as the radius,
@@ -1200,6 +1210,47 @@ mod collision_tests {
         assert!(walk(&glazed, 0.0).x < -0.25, "a window stops you");
         let segs = built_piece_segments(&glazed, Some(&reg), None, Vec3::new(-2.0, eye_h, 0.0), eye_h);
         assert_eq!(segs.len(), 4, "the sides, the wall under the sill and the pane");
+    }
+
+    /// A FINISHED PIECE ABOARD IS A FLOOR WITHIN A STEP (ship homes increment 7, the aboard twin
+    /// of `planet_build::built_floor_radius`). A wood foundation and a storage chest built in a
+    /// room: a body walking onto the foundation (0.2 m) stands on its top; the chest's top is out
+    /// of a step's reach from the floor (you do not walk up onto a chest), and a body standing on
+    /// it stands on it; past the pieces the floor is the room's.
+    ///
+    /// Seen red 2026-10-20 with the built pieces' tops not counted in `Footing::floor_under`:
+    /// <<RED>>.
+    #[test]
+    fn a_finished_piece_aboard_is_a_floor_within_a_step() {
+        use crate::engine::footing::{ElevatorCars, Footing};
+        let reg = BlueprintRegistry::from_ron(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/blueprints/basic.ron"))).unwrap();
+        let mut world = hecs::World::new();
+        place(&mut world, &reg, "wood_foundation", 0.0, 0.0, 0);
+        place(&mut world, &reg, "storage_chest", 6.0, 0.0, 0);
+        let boxes = built_piece_boxes(&world, Some(&reg), None);
+        assert_eq!(boxes.len(), 2, "two finished pieces, one box each");
+        let top_at = |x: f32| boxes.iter().find(|(lo, hi)| lo.x <= x && hi.x >= x).map(|(_, hi)| hi.y).expect("a piece there");
+        let (foundation, chest) = (top_at(0.0), top_at(6.0));
+        assert!(foundation > 0.0 && foundation <= crate::engine::footing::STEP_UP_M, "the foundation's top is {foundation}");
+        assert!(chest > crate::engine::footing::STEP_UP_M, "the chest's top is {chest}");
+        let room = crate::gui::RoomBounds {
+            id: "room".into(),
+            min: Vec3::new(-10.0, 0.0, -10.0),
+            max: Vec3::new(10.0, 3.0, 10.0),
+            display_name: String::new(),
+            purpose: String::new(),
+            actions: Vec::new(),
+            action_pages: Vec::new(),
+            access: String::new(),
+        };
+        let rooms = [room];
+        let cars = ElevatorCars::new();
+        let f = Footing { rooms: &rooms, ship: None, cars: &cars, built: &boxes };
+        let eye = crate::ship::wall_collision::EYE_HEIGHT_M;
+        assert_eq!(f.floor_under(Vec3::new(1.0, eye, 1.0), 0.0), Some(foundation), "walking onto the foundation");
+        assert_eq!(f.floor_under(Vec3::new(6.0, eye, 0.0), 0.0), Some(0.0), "from the floor, the chest's top");
+        assert_eq!(f.floor_under(Vec3::new(6.0, chest + eye, 0.0), chest), Some(chest), "standing on the chest");
+        assert_eq!(f.floor_under(Vec3::new(8.0, eye, 8.0), 0.0), Some(0.0), "past the pieces");
     }
 
     /// The segment stays inside the box's footprint: a long thin box runs
