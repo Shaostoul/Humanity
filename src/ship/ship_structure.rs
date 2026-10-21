@@ -3082,16 +3082,18 @@ mod tests {
         ("room-wetroom", [47.5, 4.5, 36.0], [4.0, 3.0, 3.0]),
         ("room-workshop", [27.0, 1.5, 40.5], [13.0, 3.0, 20.0]),
     ];
-    /// Whole-ship wall segments before the split (collision 154, sight 174), and the home's
-    /// own share (101). Before the homestead's upper floor (2026-10-20): 122, 135 and 69.
+    /// Whole-ship wall segments before the split (collision 154, sight 169), and the home's
+    /// own share (101). Before the homestead's upper floor (2026-10-20): 122, 135 and 69. The
+    /// sight lines see through the upper floor's five balustrade guards (src/ship/wall_collision.rs
+    /// `sight_segments_with_shell_cuts`), so a homestead's bare shell is 108 sight segments.
     const WALL_SEGMENTS_BEFORE: usize = 154;
-    const SIGHT_SEGMENTS_BEFORE: usize = 174;
+    const SIGHT_SEGMENTS_BEFORE: usize = 169;
     const HOME_SEGMENTS_BEFORE: usize = 101;
 
     /// Assembling at p1 reproduces today's ship. Everything that existed before the split (the
     /// assembled ship without street-1 and its corridor, both new in 1a, and without the cabin
     /// block, the South Commons and the recreation room of increment 6) has the same 41 rooms,
-    /// each with the same id, centre and size, and the same 154 collision and 174 sight
+    /// each with the same id, centre and size, and the same 154 collision and 169 sight
     /// segments; the home alone keeps its 30 rooms and 101 segments (23 and 69, and 34, 122 and
     /// 135 for the ship, before the homestead's upper floor of 2026-10-20). Then the whole assembled ship
     /// is pinned too: street-1 adds one room (its open box) and its corridor a walkable bound

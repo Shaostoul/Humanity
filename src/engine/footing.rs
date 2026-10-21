@@ -666,7 +666,8 @@ mod tests {
 
     /// A SLOW FRAME WALKS UP EVERY STAIR TREAD (BUG-207). Walking up the 3.0 m stairs at 54 ms
     /// frames (walking and sprinting) and at 100 ms frames, from every starting point, the body
-    /// stands on each of the 14 treads, the top one included, as it does at a high frame rate.
+    /// stands on each of its treads (14 when this was written, 16 since ship homes increment 7),
+    /// the top one included, as it does at a high frame rate.
     ///
     /// Seen red 2026-10-20 on the walk before the fix: "43 slow walks up the stairs skipped a
     /// tread: [\"walking at 54 ms from z = 2.000: never stood on [\\\"0.857\\\"]\", ... (7 of the
