@@ -16,8 +16,20 @@
 //! everyones_walls`). A route the rig plans through the doors goes straight across each place, so
 //! scripts/lib/copresence-judge.js `routeWalls` checks no leg of it crosses one: a Dev edit that
 //! moves an interior wall across a scripted walk fails the rig instead of walking through it.
+//!
+//! BY STOREY (ship homes increment 7, 2026-10-21). A home can have an upper floor, and a wall up
+//! there stands over the heads of the people below it: the homestead's upper hall's south wall runs
+//! along z 40.5, straight across the ground hall a player walks in from the door. Flattened into one
+//! plan, as this report did until then, the rig's map put that wall across the ground hall, so a
+//! ground route that crossed it was "through a wall" that is not there at the height of the walk.
+//! The walls are now reported by storey (`StoreyWalls`): for each floor a person can stand on, the
+//! walls that stop a body standing there, by the game's own rule (`WallSegment::stops_body`, the
+//! knee-to-eye band the sweep uses), so the rig never re-implements it. A ground route reads the
+//! ground storey's (scripts/lib/copresence-judge.js `groundWalls`).
 
+use crate::ship::home_structure::STOREY_EPS;
 use crate::ship::ship_structure::{CorridorAxis, CorridorGeom, HomeDesign, ShipStructure, HOME_ZONE_ID, SPAWN_EYE_HEIGHT_M};
+use crate::ship::wall_collision::EYE_HEIGHT_M;
 use glam::Vec3;
 use serde::Serialize;
 
@@ -63,14 +75,27 @@ pub struct RouteDoor {
     pub tube: [[f32; 3]; 2],
 }
 
+/// One storey's walls (ship homes increment 7): a floor a person stands on, and every wall that
+/// stops a body standing on it.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct StoreyWalls {
+    /// The floor, ship metres: the deck (0 on the shipped ship) for the ground storey, else the top
+    /// of an upper floor's slabs (a zone's or a plot's origin height plus its body's storey floor).
+    pub floor: f32,
+    /// Every wall that stops a body standing on that floor (`WallSegment::stops_body` at the floor
+    /// plus the eye height): [ax, az, bx, bz], ship metres across the floor. A wall from the ground
+    /// to the roof is in every storey's list; a wall upstairs only in its own.
+    pub walls: Vec<[f32; 4]>,
+}
+
 /// The whole report.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct DoorPoints {
     pub ship_hash: String,
     pub places: Vec<RoutePlace>,
     pub doors: Vec<RouteDoor>,
-    /// Every wall a person walks against: [ax, az, bx, bz], ship metres across the floor.
-    pub walls: Vec<[f32; 4]>,
+    /// Every wall a person walks against, by storey, lowest floor first (see the top of the file).
+    pub storeys: Vec<StoreyWalls>,
 }
 
 fn door_of(from: String, to: String, g: &CorridorGeom) -> RouteDoor {
@@ -115,6 +140,13 @@ pub fn door_points(ship: &ShipStructure) -> DoorPoints {
             doors.push(door_of(format!("zone:{}", c.from_zone), format!("zone:{}", c.to_zone), &g));
         }
     }
+    // The floors a person stands on: every storey of every zone's body and of every plot's home.
+    let mut floors: Vec<f32> = Vec::new();
+    for (zi, z) in ship.zones.iter().enumerate() {
+        if !ship.is_away_home(zi) {
+            floors.extend(z.body.storeys().iter().map(|s| z.origin.1 + s.floor));
+        }
+    }
     let own_plot = ship.home_plot().map(|p| p.id.clone());
     for p in &ship.plots {
         let own = own_plot.as_deref() == Some(p.id.as_str());
@@ -122,6 +154,9 @@ pub fn door_points(ship: &ShipStructure) -> DoorPoints {
         let design: Option<HomeDesign> = if own { ship.home_design() } else { HomeDesign::built_in(&p.kind) };
         let (lo, hi) = p.aabb();
         let door = design.as_ref().map(|d| ShipStructure::plot_spawn(p, d));
+        if let Some(d) = design.as_ref() {
+            floors.extend(d.body.storeys().iter().map(|s| p.origin.1 + s.floor));
+        }
         places.push(RoutePlace {
             id: format!("plot:{}", p.id),
             kind: "plot",
@@ -136,8 +171,18 @@ pub fn door_points(ship: &ShipStructure) -> DoorPoints {
             doors.push(door_of(format!("plot:{}", p.id), format!("zone:{}", p.door.zone), &g));
         }
     }
-    let walls = crate::ship::wall_collision::everyones_walls(ship).into_iter().map(|w| [w.a.0, w.a.1, w.b.0, w.b.1]).collect();
-    DoorPoints { ship_hash: ship.ship_hash(), places, doors, walls }
+    floors.sort_by(f32::total_cmp);
+    floors.dedup_by(|later, kept| (*later - *kept).abs() < STOREY_EPS);
+    let walls = crate::ship::wall_collision::everyones_walls(ship);
+    let storeys = floors
+        .into_iter()
+        .map(|floor| StoreyWalls {
+            floor,
+            // The walls that stop a body standing on this floor: the game's own rule.
+            walls: walls.iter().filter(|w| w.stops_body(floor + EYE_HEIGHT_M)).map(|w| [w.a.0, w.a.1, w.b.0, w.b.1]).collect(),
+        })
+        .collect();
+    DoorPoints { ship_hash: ship.ship_hash(), places, doors, storeys }
 }
 
 #[cfg(test)]
@@ -249,17 +294,29 @@ mod tests {
 
     /// Rewrite the rig's fixture from what the game reports (dev tooling: run with `--ignored`
     /// after a ship file change, when `the_rigs_fixture_is_what_the_game_reports` fails). One
-    /// place, door or wall per line, numbers to 4 decimals, the hash a placeholder.
+    /// place, door or wall per line, numbers to 4 decimals, the hash a placeholder. Run it with
+    /// `node scripts/lib-tests.js write_the_rigs_fixture --ignored`.
     #[test]
     #[ignore]
     fn write_the_rigs_fixture() {
         let v = round_floats(&serde_json::from_str(&serde_json::to_value(door_points(&on("p1"))).unwrap().to_string()).unwrap());
-        let rows = |key: &str| v[key].as_array().unwrap().iter().map(|x| format!("    {}", serde_json::to_string(x).unwrap())).collect::<Vec<_>>().join(",\n");
+        let line = |x: &serde_json::Value, indent: &str| format!("{indent}{}", serde_json::to_string(x).unwrap());
+        let rows = |key: &str| v[key].as_array().unwrap().iter().map(|x| line(x, "    ")).collect::<Vec<_>>().join(",\n");
+        // Each storey: its floor, then its walls one a line.
+        let storeys = v["storeys"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|s| {
+                let walls = s["walls"].as_array().unwrap().iter().map(|w| line(w, "        ")).collect::<Vec<_>>().join(",\n");
+                format!("    {{\n      \"floor\": {},\n      \"walls\": [\n{walls}\n      ]\n    }}", s["floor"])
+            })
+            .collect::<Vec<_>>()
+            .join(",\n");
         let text = format!(
-            "{{\n  \"ship_hash\": \"PLACEHOLDER\",\n  \"places\": [\n{}\n  ],\n  \"doors\": [\n{}\n  ],\n  \"walls\": [\n{}\n  ]\n}}\n",
+            "{{\n  \"ship_hash\": \"PLACEHOLDER\",\n  \"places\": [\n{}\n  ],\n  \"doors\": [\n{}\n  ],\n  \"storeys\": [\n{storeys}\n  ]\n}}\n",
             rows("places"),
             rows("doors"),
-            rows("walls")
         );
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("scripts/tests/fixtures/door-points-p1.json");
         std::fs::write(&path, text).unwrap();
@@ -274,6 +331,52 @@ mod tests {
             serde_json::Value::Array(a) => serde_json::Value::Array(a.iter().map(round_floats).collect()),
             serde_json::Value::Object(o) => serde_json::Value::Object(o.iter().map(|(k, x)| (k.clone(), round_floats(x))).collect()),
             other => other.clone(),
+        }
+    }
+
+    /// Three walls of the homestead on p1, whose home stands at the ship's origin (so its home
+    /// metres are ship metres), as [ax, az, bx, bz]: docs/design/homestead-upper-floor.md.
+    /// U3, the upper hall's south wall (base 3.0): along z 40.5, over the ground hall's middle.
+    const UPPER_HALL_SOUTH: [f32; 4] = [32.0, 40.5, 55.0, 40.5];
+    /// Wall A, the stair's enclosure on the ground (base 0).
+    const STAIR_ENCLOSURE: [f32; 4] = [36.5, 39.3, 41.0, 39.3];
+    /// G1, the stairwell's 1.0 m guard on the gallery upstairs (base 3.0).
+    const STAIRWELL_GUARD: [f32; 4] = [36.5, 39.3, 40.5, 39.3];
+
+    fn has(s: &StoreyWalls, w: [f32; 4]) -> bool {
+        s.walls.iter().any(|x| x.iter().zip(w).all(|(a, b)| (a - b).abs() < 1e-3))
+    }
+
+    /// THE WALLS COME BY STOREY (ship homes increment 7, 2026-10-21). The shipped ship from p1 has
+    /// two floors a person stands on: the deck, and the homesteads' upper floor at 3.0. The upper
+    /// hall's south wall, which runs across the ground hall over the heads of the people in it, is
+    /// a wall of the upper storey and not of the ground's; the stair's enclosure is the ground's
+    /// alone and the stairwell's guard the upper storey's alone. And the ground storey's walls are
+    /// exactly those that stop a body standing on the deck (the game's own rule), every wall
+    /// standing on the deck among them, so a ground route is judged as it was before the upper
+    /// floor, less the walls overhead.
+    ///
+    /// Seen red 2026-10-21 with every storey given every wall (the report flattened, as before):
+    /// "the upper hall's south wall is a wall of the ground storey".
+    #[test]
+    fn the_walls_come_by_storey() {
+        let ship = on("p1");
+        let d = door_points(&ship);
+        let floors: Vec<f32> = d.storeys.iter().map(|s| s.floor).collect();
+        assert_eq!(floors, vec![0.0, 3.0], "the floors a person stands on");
+        let (ground, upper) = (&d.storeys[0], &d.storeys[1]);
+        assert!(!has(ground, UPPER_HALL_SOUTH), "the upper hall's south wall is a wall of the ground storey");
+        assert!(has(upper, UPPER_HALL_SOUTH), "the upper hall's south wall is no wall of the upper storey");
+        assert!(has(ground, STAIR_ENCLOSURE), "the stair's enclosure is no wall of the ground storey");
+        assert!(!has(upper, STAIR_ENCLOSURE), "the stair's enclosure is a wall of the upper storey");
+        assert!(has(upper, STAIRWELL_GUARD), "the stairwell's guard is no wall of the upper storey");
+        assert!(!has(ground, STAIRWELL_GUARD), "the stairwell's guard is a wall of the ground storey");
+        let everyone = crate::ship::wall_collision::everyones_walls(&ship);
+        let at_ground = everyone.iter().filter(|w| w.stops_body(EYE_HEIGHT_M)).count();
+        assert_eq!(ground.walls.len(), at_ground, "the ground storey's walls are those that stop a body on the deck");
+        for w in everyone.iter().filter(|w| w.y0 <= 1e-3) {
+            let w = [w.a.0, w.a.1, w.b.0, w.b.1];
+            assert!(has(ground, w), "the wall {w:?}, standing on the deck, is missing from the ground storey");
         }
     }
 

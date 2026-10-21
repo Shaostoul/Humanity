@@ -4193,8 +4193,9 @@ pub(crate) fn home_session_core(
 //
 // Drop `debug/door_points_request.json` (any content) while the game runs. The same frame
 // writes `debug/door_points_done.json`: `{"ok": true, "ship_hash", "places": [...], "doors":
-// [...]}` (src/ship/door_points.rs), the ship's places (each shared zone, each plot with its
-// door) and every corridor's door points, from the Rust corridor geometry. A rig
+// [...], "storeys": [{"floor", "walls"}, ...]}` (src/ship/door_points.rs), the ship's places (each
+// shared zone, each plot with its door), every corridor's door points, from the Rust corridor
+// geometry, and every wall a person walks against, by the storey whose floor it stands on. A rig
 // (scripts/verify-copresence.js, scripts/lib/copresence-judge.js `doorRoute`) walks the game and
 // its scripted player from a home's door into the Commons through them, so it never
 // re-implements the corridor maths. `{"ok": false, "error"}` while no ship has assembled (the

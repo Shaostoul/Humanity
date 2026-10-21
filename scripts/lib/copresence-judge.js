@@ -867,7 +867,8 @@ function stepsAlong(from, points, maxStep) {
  *   doors      "from->to" for each door crossed
  *   error      why there is no route (an unknown place, no doors between)
  * Inside a place each leg is a straight line. When the report carries its
- * walls (`walls`, every wall a person walks against) a leg that would cross one
+ * walls (`storeys`, every wall a person walks against, by storey: a route walks
+ * the deck, so the ground storey's, `groundWalls`) a leg that would cross one
  * goes round by one corner instead, along x then z or along z then x, whichever
  * is clear (`detourRound`): the game's way in from p1 went straight through the
  * Commons' room block (increment 2 review, finding 14; found by `routeWalls`).
@@ -895,9 +896,10 @@ function doorRoute(report, from, to, maxStep = 40) {
   for (let id = b.id; prev.get(id); id = prev.get(id).from) crossings.unshift(prev.get(id));
   const straight = [...crossings.flatMap((c) => c.steps.map((s) => s.slice())), to.slice()];
   const waypoints = [];
+  const walls = groundWalls(report);
   let at = from;
   for (const p of straight) {
-    waypoints.push(...detourRound(at, p, report.walls, report));
+    waypoints.push(...detourRound(at, p, walls, report));
     at = p;
   }
   return { waypoints, points: stepsAlong(from, waypoints, maxStep), doors: crossings.map((c) => `${c.door.from}->${c.door.to}`), error: null };
@@ -1012,8 +1014,9 @@ function routeClear(points, line, limits = LIMITS) {
   return true;
 }
 
-/** The first wall of `walls` (the door points' `walls`: [ax, az, bx, bz] each, ship metres
- *  across the floor) that the walk `points` crosses, as { leg, from, to, wall }, or null.
+/** The first wall of `walls` (one storey's walls from the door points, `storeyWalls`: [ax, az,
+ *  bx, bz] each, ship metres across the floor) that the walk `points` crosses, as { leg, from,
+ *  to, wall }, or null.
  *  A proper crossing only: touching a wall's end, or running along one, does not count, which
  *  errs toward passing a route that grazes a doorway's edge. Inside a place a route is a
  *  straight line between its steps (doorRoute), so this is what says it does not walk through
@@ -1031,6 +1034,39 @@ function routeWalls(points, walls) {
     }
   }
   return null;
+}
+
+/** How far under a storey's floor a body's floor may sit and still be on that storey, metres: a
+ *  floor read off a camera (eye minus 1.7) carries a few centimetres of float and settle. */
+const STOREY_SLACK_M = 0.05;
+
+/**
+ * The door points' walls ([ax, az, bx, bz] each) for a person standing on the floor at height
+ * `floorY`, ship metres: the walls of the highest storey whose floor is at or under it (the lowest
+ * storey for anything under the deck), or null for a report that carries none.
+ *
+ * WHY BY STOREY (ship homes increment 7, 2026-10-21). The homestead has an upper floor, and a wall
+ * up there stands over the heads of the people below: its upper hall's south wall runs along z 40.5,
+ * across the middle of the ground hall. The door points flattened every storey's walls into one
+ * plan, so the rig's map put that wall across the ground hall. The game now reports the walls by
+ * storey (src/ship/door_points.rs `StoreyWalls`), each list the walls that stop a body standing on
+ * that floor by the game's own knee-to-eye rule, so the rig never re-derives it. Pure.
+ */
+function storeyWalls(report, floorY = 0) {
+  const storeys = report && Array.isArray(report.storeys) ? report.storeys.filter((s) => s && Array.isArray(s.walls) && Number.isFinite(Number(s.floor))) : [];
+  if (!storeys.length) return null;
+  const sorted = storeys.slice().sort((a, b) => Number(a.floor) - Number(b.floor));
+  const y = Number(floorY);
+  let at = sorted[0];
+  for (const s of sorted) if (Number.isFinite(y) && Number(s.floor) <= y + STOREY_SLACK_M) at = s;
+  return at.walls;
+}
+
+/** The ground storey's walls (`storeyWalls` at the lowest floor): what every route through the
+ *  door points walks against, since every door, every shared zone and every plot's door is on the
+ *  deck. null for a report with none. Pure. */
+function groundWalls(report) {
+  return storeyWalls(report, -Infinity);
 }
 
 /** Places on the floor of every shared zone of the report: each zone's four
@@ -1181,7 +1217,8 @@ function judgeMeet(meet) {
     `the relay last passed the game on at ${fmt3(m.gameHeld)}, ${Number.isFinite(held) ? held.toFixed(2) : "?"} m from its camera (at most 0.5: a move refused leaves it behind)`,
   );
   // Nothing crosses a wall (finding 14): the game's way in, the walker's way out, and the camera's
-  // view of the line, against every wall a person walks against (the door points' `walls`).
+  // view of the line, against every wall a person walks against on the deck (the door points'
+  // ground storey, `groundWalls`, which verify-copresence.js hands in as `walls`).
   const walls = Array.isArray(m.walls) ? m.walls : null;
   const line = m.line || null;
   const mid = line ? line.start.map((v, k) => (Number(v) + Number(line.end[k])) / 2) : null;
@@ -2043,7 +2080,8 @@ function padApproach(padAt, walls, stepM = 1.5, eye = 1.7) {
 function editorJumpTarget(report, door, allowanceM, { aimM = 60, maxM = 80, clearM = 1.0, grid = 1 } = {}) {
   const lo = Number(allowanceM) + 6;
   if (!Number.isFinite(lo) || !Array.isArray(door)) return { error: "no allowance or no build spot" };
-  const walls = Array.isArray(report.walls) ? report.walls : [];
+  // The shared zones' floors are the deck: the ground storey's walls.
+  const walls = groundWalls(report) || [];
   const zones = (report.places || []).filter((pl) => pl.kind === "zone");
   const cands = [];
   for (const z of zones) {
@@ -2219,6 +2257,8 @@ module.exports = {
   doorRoute,
   routeClear,
   routeWalls,
+  storeyWalls,
+  groundWalls,
   farPlaces,
   farthestFrom,
   inViewM,
