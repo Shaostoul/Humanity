@@ -348,11 +348,13 @@ fn sky_and_lens_call_sites_use_their_shared_rules() {
         gate.lines().next().unwrap_or("")
     );
 
-    // 4. The sun over the turned ground.
+    // 4. The sun over the turned ground: the locked body's own turn
+    // (planet_build::frame_body_rot; Earth's spin, state.current_spin, until
+    // every body got its own on 2026-10-21).
     for f in ["sky_daylight", "star_fades"] {
         assert!(
-            fn_body(&ipc, f).contains("state.current_spin"),
-            "{f} does not read the sun over the turned ground (state.current_spin)"
+            fn_body(&ipc, f).contains("planet_build::frame_body_rot(state)"),
+            "{f} does not read the sun over the turned ground (planet_build::frame_body_rot)"
         );
     }
 

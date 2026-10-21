@@ -50,3 +50,12 @@ test("the bounced light detail pin is released to High", () => {
   assert.strictEqual(holdsStickyPin({ bounced_light_detail: "low" }), true, "a vantage on Low holds a sticky pin");
   assert.strictEqual(holdsStickyPin({ bounced_light_detail: "high" }), false, "high is the release, not a pin");
 });
+// The HUD pin (2026-10-21): {"hud":"0"} hides the HUD and its crosshair dot for a sky capture
+// (the dot sat on the Moon in BUG-212's night frame and read as a point drawn on its face).
+// Unreleased, every vantage after it in a sweep would be captured with no HUD. Seen red
+// 2026-10-21 before the list had it: "hud resets to 1 (the HUD shown again): undefined".
+test("the hud pin is released, and hiding the HUD marks the pins as held", () => {
+  assert.strictEqual(STICKY_PIN_RESETS.hud, "1", `hud resets to 1 (the HUD shown again): ${STICKY_PIN_RESETS.hud}`);
+  assert.strictEqual(holdsStickyPin({ hud: "0" }), true, "a vantage hiding the HUD holds a sticky pin");
+  assert.strictEqual(holdsStickyPin({ hud: "1" }), false, "1 is the release, not a pin");
+});

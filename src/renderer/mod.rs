@@ -908,6 +908,24 @@ pub struct Renderer {
     pub water_lut_gate: f32,
     /// Camera's radial up (world), for the slant path bound.
     pub aerial_up: [f32; 3],
+    /// The body seen THROUGH the camera's air this frame (2026-10-21,
+    /// `key_lights::sky_disc`): xyz the unit direction from the camera to its
+    /// centre in the render frame, w its drawn angular radius in radians, 0 =
+    /// none. The atmosphere dome lets it show with the air's own transmittance
+    /// instead of hiding it like the stars (30-atmosphere.wgsl
+    /// `sky_disc_cover`). Poked at camera offset 336 (light0_spot, a legacy pad
+    /// no shader reads otherwise); light1_spot.x (352) carries one pixel's
+    /// angle, the width of the disc's edge.
+    pub sky_disc: [f32; 4],
+    /// The WEATHER's share of the aerial layer's optical depth this frame,
+    /// 0..1 (0 in clear air): the part of it that hides the stars and the
+    /// Moon (2026-10-21, 30-atmosphere.wgsl, `key_lights::fog_passes`).
+    /// light1_spot.y (356).
+    pub aerial_fog_share: f32,
+    /// The frame body this frame, for the shells' sun (`layer_sun`,
+    /// 80-fragment-shared.wgsl): xyz its centre in the render frame, w its
+    /// radius in metres, 0 = no frame body. Offset 368 (light2_spot).
+    pub frame_body_sphere: [f32; 4],
     /// GPU pass timing (resource budgets increment 1). `None` when the adapter
     /// has no TIMESTAMP_QUERY feature, in which case the Performance page shows
     /// CPU-side pass times and says so.
@@ -2114,6 +2132,9 @@ impl Renderer {
             aerial_sky: [0.0, 0.0, 0.0],
             water_lut_gate: 0.0,
             aerial_up: [0.0, 1.0, 0.0],
+            sky_disc: [0.0; 4],
+            aerial_fog_share: 0.0,
+            frame_body_sphere: [0.0; 4],
             gpu_timers,
             inventory_sampled: std::sync::Mutex::new(None),
             bloom_intensity: 0.0, // Off by default; set > 0 to enable

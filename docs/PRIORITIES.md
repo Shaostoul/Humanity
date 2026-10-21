@@ -425,16 +425,18 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
     ground at night the Moon is drawn black (FIXED 2026-10-21 as BUG-212: a body in the sky takes
     its own sun, the ground keeps the camera's; BUG-211 the same day, Earth's pole toward the
     ship, both in v0.1538.0); the Moon's node and perigee (FIXED v0.1536.0, JPL's rates).
-  - **Sky bodies, left by BUG-211 and BUG-212 (2026-10-21, recorded under BUG-212):** every body is
-    turned by Earth's spin (one rotation for all), so the Moon is not tidally locked and the face it
-    shows turns with Earth's day; the atmosphere dome hides the daytime and twilight Moon as it hides
-    stars (its alpha reaches 0.985 by day); weather fog colours the dome but not its alpha, so stars
-    and now the Moon show through fog at night; another body's cloud deck and air still use the
-    camera's day factor; from low orbit over the night side the frame body may draw its day side dark
-    (read, not seen); aboard, the HUD compass N follows the home's axes, apparently along the orbit
-    rather than Earth's north. Seen in the fix's own night capture
-    (scratchpad skybodies/after/zoom_moon_tele.png): a bright white point drawn ON the Moon's face,
-    probably a star or planet billboard not hidden behind the Moon.
+  - **DONE 2026-10-21: the sky bodies BUG-211 and BUG-212 left (recorded under BUG-212, "The
+    follow-up")**: every body turns by its own IAU rotation from sol.json (the Moon keeps its real
+    near side to Earth, with its optical libration), the frame lock rides that turn; the daytime
+    and twilight Moon shows through the air while the stars stay hidden; weather fog hides the
+    Moon and the stars by its depth; another body's clouds and air take the Sun before any air;
+    the frame body is lit from low orbit over the night side (it was dark whole, seen in the rig);
+    the white point on the Moon was the HUD crosshair (a showcase `hud` verb hides it for sky
+    captures); the compass aboard points to Earth's north. Left: the Moon's face is turned by the
+    real clock while Earth's spin follows the game clock, which is right while the game day is
+    real time and leaves the Moon's phase-to-hour relation off on a faster day; the game has no
+    axial tilt, so the Moon's north stands near the zenith-pole of the game sky rather than tilted
+    as in life; walking on the Moon takes "north" from world +Y, 1.5 degrees off the Moon's pole.
   - **Recovery through trusted people is half built (found 2026-10-20 from the operator's
     screenshot of the Recovery page):** the relay has only lookups (`/api/v2/recovery/setup`,
     `shares-held-by`, `request`, GET); there is no screen to choose guardians or split the phrase,

@@ -1,6 +1,6 @@
 {
  "id": "sol",
- "catalog_version": 5,
+ "catalog_version": 6,
  "name": "Solar System",
  "primary_star": "sun",
  "galaxy_position_ly": [
@@ -21,7 +21,8 @@
    "orbital_period": "days (sidereal: the mean longitude's period)",
    "precession": "Julian years per turn, signed, in orbit.longitude_ascending_node_precession_years and orbit.argument_perihelion_precession_years: + the angle grows, - it shrinks, absent = held at epoch",
    "pressure": "atm in atmosphere.surface_pressure_atm, Pa in physical.surface_pressure_pa",
-   "magnetic_field": "T (tesla) in physical.magnetic_field_t, equatorial surface or cloud-top field; 0 = no significant global field or not yet sourced"
+   "magnetic_field": "T (tesla) in physical.magnetic_field_t, equatorial surface or cloud-top field; 0 = no significant global field or not yet sourced",
+   "rotation_elements": "rotation: the IAU WGCCRE rotational elements, pole right ascension and declination in the ICRF (degrees, a + b T, T in Julian centuries from J2000 TDB), prime meridian W (degrees, W0 + Wd d + Wdd d^2, d in days from J2000), and periodic terms (angle a + b d or a + b T as `per` says; ra_sin, dec_cos, w_sin their amplitudes in degrees); pole 'north' (the invariable-plane north) or 'positive' (the right-hand pole of dwarf planets). Earth has none: its turn is the game clock (dev_travel::planet_spin_from_time). A body without them turns at physical.rotation_period_hours about its orbit's pole (cosmos::body_orientation)."
   }
  },
  "bodies": [
@@ -42,6 +43,23 @@
     "spectral_type": "G2V",
     "luminosity_watts": 3.828e+26,
     "age_billion_years": 4.6
+   },
+   "rotation": {
+    "pole_ra_deg": [
+     286.13,
+     0
+    ],
+    "pole_dec_deg": [
+     63.87,
+     0
+    ],
+    "prime_meridian_deg": [
+     84.176,
+     14.1844,
+     0
+    ],
+    "pole": "north",
+    "source": "NAIF pck00011.tpc (By: Nat Bachman (NAIF), 2022 December 27; https://naif.jpl.nasa.gov/pub/naif/generic_kernels/pck/pck00011.tpc, read 2026-10-21), whose data section transcribes the IAU WGCCRE 2015 report (Archinal et al. 2018, Celest. Mech. Dyn. Astr. 130:22, doi 10.1007/s10569-017-9805-5) and keeps the 2009 values for the Moon: \"BODY10_POLE_RA = ( 286.13 0. 0. )\", \"BODY10_POLE_DEC = ( 63.87 0. 0. )\", \"BODY10_PM = ( 84.176 14.18440 0. )\"."
    },
    "atmosphere": {
     "composition": {
@@ -84,6 +102,65 @@
     "magnetic_field_t": 1.9e-7,
     "surface_pressure_pa": 5e-10
    },
+   "rotation": {
+    "pole_ra_deg": [
+     281.0103,
+     -0.0328
+    ],
+    "pole_dec_deg": [
+     61.4155,
+     -0.0049
+    ],
+    "prime_meridian_deg": [
+     329.5988,
+     6.1385108,
+     0
+    ],
+    "pole": "north",
+    "periodic": [
+     {
+      "angle_deg": [
+       174.7910857,
+       4.092335
+      ],
+      "per": "day",
+      "w_sin": 0.01067257
+     },
+     {
+      "angle_deg": [
+       349.5821714,
+       8.18467
+      ],
+      "per": "day",
+      "w_sin": -0.00112309
+     },
+     {
+      "angle_deg": [
+       164.3732571,
+       12.277005
+      ],
+      "per": "day",
+      "w_sin": -0.0001104
+     },
+     {
+      "angle_deg": [
+       339.1643429,
+       16.36934
+      ],
+      "per": "day",
+      "w_sin": -0.00002539
+     },
+     {
+      "angle_deg": [
+       153.9554286,
+       20.461675
+      ],
+      "per": "day",
+      "w_sin": -0.00000571
+     }
+    ],
+    "source": "NAIF pck00011.tpc (By: Nat Bachman (NAIF), 2022 December 27; https://naif.jpl.nasa.gov/pub/naif/generic_kernels/pck/pck00011.tpc, read 2026-10-21), whose data section transcribes the IAU WGCCRE 2015 report (Archinal et al. 2018, Celest. Mech. Dyn. Astr. 130:22, doi 10.1007/s10569-017-9805-5) and keeps the 2009 values for the Moon: \"BODY199_POLE_RA = ( 281.0103 -0.0328 0. )\", \"BODY199_POLE_DEC = ( 61.4155 -0.0049 0. )\", \"BODY199_PM = ( 329.5988 6.1385108 0. )\", \"BODY199_NUT_PREC_PM = ( 0.01067257 -0.00112309 -0.00011040 -0.00002539 -0.00000571 )\" on the angles M1..M5 = 174.7910857 + 4.092335 d, 349.5821714 + 8.184670 d, 164.3732571 + 12.277005 d, 339.1643429 + 16.369340 d, 153.9554286 + 20.461675 d (the kernel's original constants, degrees and degrees per day)."
+   },
    "atmosphere": {
     "composition": {
      "O2": 42,
@@ -123,6 +200,23 @@
     "albedo": 0.77,
     "magnetic_field_t": 0,
     "surface_pressure_pa": 9200000
+   },
+   "rotation": {
+    "pole_ra_deg": [
+     272.76,
+     0
+    ],
+    "pole_dec_deg": [
+     67.16,
+     0
+    ],
+    "prime_meridian_deg": [
+     160.2,
+     -1.4813688,
+     0
+    ],
+    "pole": "north",
+    "source": "NAIF pck00011.tpc (By: Nat Bachman (NAIF), 2022 December 27; https://naif.jpl.nasa.gov/pub/naif/generic_kernels/pck/pck00011.tpc, read 2026-10-21), whose data section transcribes the IAU WGCCRE 2015 report (Archinal et al. 2018, Celest. Mech. Dyn. Astr. 130:22, doi 10.1007/s10569-017-9805-5) and keeps the 2009 values for the Moon: \"BODY299_POLE_RA = ( 272.76 0. 0. )\", \"BODY299_POLE_DEC = ( 67.16 0. 0. )\", \"BODY299_PM = ( 160.20 -1.4813688 0. )\" (retrograde: W falls)."
    },
    "atmosphere": {
     "composition": {
@@ -206,6 +300,144 @@
     "magnetic_field_t": 0,
     "surface_pressure_pa": 3e-10
    },
+   "rotation": {
+    "pole_ra_deg": [
+     269.9949,
+     0.0031
+    ],
+    "pole_dec_deg": [
+     66.5392,
+     0.013
+    ],
+    "prime_meridian_deg": [
+     38.3213,
+     13.17635815,
+     -1.4e-12
+    ],
+    "pole": "north",
+    "periodic": [
+     {
+      "angle_deg": [
+       125.045,
+       -0.0529921
+      ],
+      "per": "day",
+      "ra_sin": -3.8787,
+      "dec_cos": 1.5419,
+      "w_sin": 3.561
+     },
+     {
+      "angle_deg": [
+       250.089,
+       -0.1059842
+      ],
+      "per": "day",
+      "ra_sin": -0.1204,
+      "dec_cos": 0.0239,
+      "w_sin": 0.1208
+     },
+     {
+      "angle_deg": [
+       260.008,
+       13.0120009
+      ],
+      "per": "day",
+      "ra_sin": 0.07,
+      "dec_cos": -0.0278,
+      "w_sin": -0.0642
+     },
+     {
+      "angle_deg": [
+       176.625,
+       13.3407154
+      ],
+      "per": "day",
+      "ra_sin": -0.0172,
+      "dec_cos": 0.0068,
+      "w_sin": 0.0158
+     },
+     {
+      "angle_deg": [
+       357.529,
+       0.9856003
+      ],
+      "per": "day",
+      "w_sin": 0.0252
+     },
+     {
+      "angle_deg": [
+       311.589,
+       26.4057084
+      ],
+      "per": "day",
+      "ra_sin": 0.0072,
+      "dec_cos": -0.0029,
+      "w_sin": -0.0066
+     },
+     {
+      "angle_deg": [
+       134.963,
+       13.064993
+      ],
+      "per": "day",
+      "dec_cos": 0.0009,
+      "w_sin": -0.0047
+     },
+     {
+      "angle_deg": [
+       276.617,
+       0.3287146
+      ],
+      "per": "day",
+      "w_sin": -0.0046
+     },
+     {
+      "angle_deg": [
+       34.226,
+       1.7484877
+      ],
+      "per": "day",
+      "w_sin": 0.0028
+     },
+     {
+      "angle_deg": [
+       15.134,
+       -0.1589763
+      ],
+      "per": "day",
+      "ra_sin": -0.0052,
+      "dec_cos": 0.0008,
+      "w_sin": 0.0052
+     },
+     {
+      "angle_deg": [
+       119.743,
+       0.0036096
+      ],
+      "per": "day",
+      "w_sin": 0.004
+     },
+     {
+      "angle_deg": [
+       239.961,
+       0.1643573
+      ],
+      "per": "day",
+      "w_sin": 0.0019
+     },
+     {
+      "angle_deg": [
+       25.053,
+       12.9590088
+      ],
+      "per": "day",
+      "ra_sin": 0.0043,
+      "dec_cos": -0.0009,
+      "w_sin": -0.0044
+     }
+    ],
+    "source": "NAIF pck00011.tpc (By: Nat Bachman (NAIF), 2022 December 27; https://naif.jpl.nasa.gov/pub/naif/generic_kernels/pck/pck00011.tpc, read 2026-10-21), whose data section transcribes the IAU WGCCRE 2015 report (Archinal et al. 2018, Celest. Mech. Dyn. Astr. 130:22, doi 10.1007/s10569-017-9805-5) and keeps the 2009 values for the Moon: \"BODY301_POLE_RA = ( 269.9949 0.0031 0. )\", \"BODY301_POLE_DEC = ( 66.5392 0.0130 0. )\", \"BODY301_PM = ( 38.3213 13.17635815 -1.4D-12 )\", the mean Earth/polar axis frame (its prime meridian faces the mean direction of Earth). The periodic terms on E1..E13 are the IAU WGCCRE 2006 report's Table 2 (Seidelmann et al. 2007, Celest. Mech. Dyn. Astr. 98:155-180, doi 10.1007/s10569-007-9072-y, open access, read 2026-10-21): \"alpha0 = 269.9949 + 0.0031T - 3.8787 sin E1 - 0.1204 sin E2 + 0.0700 sin E3 - 0.0172 sin E4 + 0.0072 sin E6 - 0.0052 sin E10 + 0.0043 sin E13\", \"delta0 = 66.5392 + 0.0130T + 1.5419 cos E1 + 0.0239 cos E2 - 0.0278 cos E3 + 0.0068 cos E4 - 0.0029 cos E6 + 0.0009 cos E7 + 0.0008 cos E10 - 0.0009 cos E13\", \"W = 38.3213 + 13.17635815d - 1.4 x 10^-12 d^2 + 3.5610 sin E1 + 0.1208 sin E2 - 0.0642 sin E3 + 0.0158 sin E4 + 0.0252 sin E5 - 0.0066 sin E6 - 0.0047 sin E7 - 0.0046 sin E8 + 0.0028 sin E9 + 0.0052 sin E10 + 0.0040 sin E11 + 0.0019 sin E12 - 0.0044 sin E13\" (the PDF prints \"+00031T\" for 0.0031T and \"El3\" for E13; the kernel has both right), E1 = 125.045 - 0.0529921d ... E13 = 25.053 + 12.9590088d. The kernel's NUT_PREC arrays match term for term. The report gives the series as good to about 150 m."
+   },
    "atmosphere": {
     "composition": {},
     "surface_pressure_atm": 3e-15
@@ -239,6 +471,153 @@
     "albedo": 0.25,
     "magnetic_field_t": 0,
     "surface_pressure_pa": 610
+   },
+   "rotation": {
+    "pole_ra_deg": [
+     317.269202,
+     -0.10927547
+    ],
+    "pole_dec_deg": [
+     54.432516,
+     -0.05827105
+    ],
+    "prime_meridian_deg": [
+     176.049863,
+     350.891982443297,
+     0
+    ],
+    "pole": "north",
+    "periodic": [
+     {
+      "angle_deg": [
+       198.991226,
+       19139.4819985
+      ],
+      "per": "century",
+      "ra_sin": 0.000068
+     },
+     {
+      "angle_deg": [
+       226.292679,
+       38280.8511281
+      ],
+      "per": "century",
+      "ra_sin": 0.000238
+     },
+     {
+      "angle_deg": [
+       249.663391,
+       57420.7251593
+      ],
+      "per": "century",
+      "ra_sin": 0.000052
+     },
+     {
+      "angle_deg": [
+       266.18351,
+       76560.636795
+      ],
+      "per": "century",
+      "ra_sin": 0.000009
+     },
+     {
+      "angle_deg": [
+       79.398797,
+       0.5042615
+      ],
+      "per": "century",
+      "ra_sin": 0.419057
+     },
+     {
+      "angle_deg": [
+       122.433576,
+       19139.9407476
+      ],
+      "per": "century",
+      "dec_cos": 0.000051
+     },
+     {
+      "angle_deg": [
+       43.058401,
+       38280.8753272
+      ],
+      "per": "century",
+      "dec_cos": 0.000141
+     },
+     {
+      "angle_deg": [
+       57.663379,
+       57420.7517205
+      ],
+      "per": "century",
+      "dec_cos": 0.000031
+     },
+     {
+      "angle_deg": [
+       79.476401,
+       76560.6495004
+      ],
+      "per": "century",
+      "dec_cos": 0.000005
+     },
+     {
+      "angle_deg": [
+       166.325722,
+       0.5042615
+      ],
+      "per": "century",
+      "dec_cos": 1.591274
+     },
+     {
+      "angle_deg": [
+       129.071773,
+       19140.0328244
+      ],
+      "per": "century",
+      "w_sin": 0.000145
+     },
+     {
+      "angle_deg": [
+       36.352167,
+       38281.0473591
+      ],
+      "per": "century",
+      "w_sin": 0.000157
+     },
+     {
+      "angle_deg": [
+       56.668646,
+       57420.929536
+      ],
+      "per": "century",
+      "w_sin": 0.00004
+     },
+     {
+      "angle_deg": [
+       67.364003,
+       76560.2552215
+      ],
+      "per": "century",
+      "w_sin": 0.000001
+     },
+     {
+      "angle_deg": [
+       104.79268,
+       95700.4387578
+      ],
+      "per": "century",
+      "w_sin": 0.000001
+     },
+     {
+      "angle_deg": [
+       95.391654,
+       0.5042615
+      ],
+      "per": "century",
+      "w_sin": 0.584542
+     }
+    ],
+    "source": "NAIF pck00011.tpc (By: Nat Bachman (NAIF), 2022 December 27; https://naif.jpl.nasa.gov/pub/naif/generic_kernels/pck/pck00011.tpc, read 2026-10-21), whose data section transcribes the IAU WGCCRE 2015 report (Archinal et al. 2018, Celest. Mech. Dyn. Astr. 130:22, doi 10.1007/s10569-017-9805-5) and keeps the 2009 values for the Moon: \"BODY499_POLE_RA = ( 317.269202 -0.10927547 0. )\", \"BODY499_POLE_DEC = ( 54.432516 -0.05827105 0. )\", \"BODY499_PM = ( 176.049863 +350.891982443297 0. )\", with the periodic terms of its NUT_PREC arrays decoded per angle (alpha0 + 0.419057 sin(79.398797 + 0.5042615 T), delta0 + 1.591274 cos(166.325722 + 0.5042615 T), W + 0.584542 sin(95.391654 + 0.5042615 T) and the small terms listed here); Orekit's PredefinedIAUPoles.java carries the same numbers. Airy-0 defines the 0 degree meridian."
    },
    "atmosphere": {
     "composition": {
@@ -338,6 +717,70 @@
     "albedo": 0.503,
     "magnetic_field_t": 0.000428,
     "surface_pressure_pa": 0
+   },
+   "rotation": {
+    "pole_ra_deg": [
+     268.056595,
+     -0.006499
+    ],
+    "pole_dec_deg": [
+     64.495303,
+     0.002413
+    ],
+    "prime_meridian_deg": [
+     284.95,
+     870.536,
+     0
+    ],
+    "pole": "north",
+    "periodic": [
+     {
+      "angle_deg": [
+       99.360714,
+       4850.4046
+      ],
+      "per": "century",
+      "ra_sin": 0.000117,
+      "dec_cos": 0.00005
+     },
+     {
+      "angle_deg": [
+       175.895369,
+       1191.9605
+      ],
+      "per": "century",
+      "ra_sin": 0.000938,
+      "dec_cos": 0.000404
+     },
+     {
+      "angle_deg": [
+       300.323162,
+       262.5475
+      ],
+      "per": "century",
+      "ra_sin": 0.001432,
+      "dec_cos": 0.000617
+     },
+     {
+      "angle_deg": [
+       114.012305,
+       6070.2476
+      ],
+      "per": "century",
+      "ra_sin": 0.00003,
+      "dec_cos": -0.000013
+     },
+     {
+      "angle_deg": [
+       49.511251,
+       64.3
+      ],
+      "per": "century",
+      "ra_sin": 0.00215,
+      "dec_cos": 0.000926
+     }
+    ],
+    "source": "NAIF pck00011.tpc (By: Nat Bachman (NAIF), 2022 December 27; https://naif.jpl.nasa.gov/pub/naif/generic_kernels/pck/pck00011.tpc, read 2026-10-21), whose data section transcribes the IAU WGCCRE 2015 report (Archinal et al. 2018, Celest. Mech. Dyn. Astr. 130:22, doi 10.1007/s10569-017-9805-5) and keeps the 2009 values for the Moon: \"BODY599_POLE_RA = ( 268.056595 -0.006499 0. )\", \"BODY599_POLE_DEC = ( 64.495303 0.002413 0. )\", \"BODY599_PM = ( 284.95 870.5360000 0. )\" (System III), periodic terms on Ja..Je = 99.360714 + 4850.4046 T, 175.895369 + 1191.9605 T, 300.323162 + 262.5475 T, 114.012305 + 6070.2476 T, 49.511251 + 64.3000 T."
    },
    "atmosphere": {
     "composition": {
@@ -681,6 +1124,23 @@
     "mean_temperature_k": 134,
     "albedo": 0.342
    },
+   "rotation": {
+    "pole_ra_deg": [
+     40.589,
+     -0.036
+    ],
+    "pole_dec_deg": [
+     83.537,
+     -0.004
+    ],
+    "prime_meridian_deg": [
+     38.9,
+     810.7939024,
+     0
+    ],
+    "pole": "north",
+    "source": "NAIF pck00011.tpc (By: Nat Bachman (NAIF), 2022 December 27; https://naif.jpl.nasa.gov/pub/naif/generic_kernels/pck/pck00011.tpc, read 2026-10-21), whose data section transcribes the IAU WGCCRE 2015 report (Archinal et al. 2018, Celest. Mech. Dyn. Astr. 130:22, doi 10.1007/s10569-017-9805-5) and keeps the 2009 values for the Moon: \"BODY699_POLE_RA = ( 40.589 -0.036 0. )\", \"BODY699_POLE_DEC = ( 83.537 -0.004 0. )\", \"BODY699_PM = ( 38.90 810.7939024 0. )\" (System III)."
+   },
    "atmosphere": {
     "composition": {
      "H2": 96.3,
@@ -1008,6 +1468,23 @@
     "mean_temperature_k": 76,
     "albedo": 0.3
    },
+   "rotation": {
+    "pole_ra_deg": [
+     257.311,
+     0
+    ],
+    "pole_dec_deg": [
+     -15.175,
+     0
+    ],
+    "prime_meridian_deg": [
+     203.81,
+     -501.1600928,
+     0
+    ],
+    "pole": "north",
+    "source": "NAIF pck00011.tpc (By: Nat Bachman (NAIF), 2022 December 27; https://naif.jpl.nasa.gov/pub/naif/generic_kernels/pck/pck00011.tpc, read 2026-10-21), whose data section transcribes the IAU WGCCRE 2015 report (Archinal et al. 2018, Celest. Mech. Dyn. Astr. 130:22, doi 10.1007/s10569-017-9805-5) and keeps the 2009 values for the Moon: \"BODY799_POLE_RA = ( 257.311 0. 0. )\", \"BODY799_POLE_DEC = ( -15.175 0. 0. )\", \"BODY799_PM = ( 203.81 -501.1600928 0. )\" (north by the invariable plane, so the turn is retrograde)."
+   },
    "atmosphere": {
     "composition": {
      "H2": 82.5,
@@ -1198,6 +1675,35 @@
     "mean_temperature_k": 72,
     "albedo": 0.29
    },
+   "rotation": {
+    "pole_ra_deg": [
+     299.36,
+     0
+    ],
+    "pole_dec_deg": [
+     43.46,
+     0
+    ],
+    "prime_meridian_deg": [
+     249.978,
+     541.1397757,
+     0
+    ],
+    "pole": "north",
+    "periodic": [
+     {
+      "angle_deg": [
+       357.85,
+       52.316
+      ],
+      "per": "century",
+      "ra_sin": 0.7,
+      "dec_cos": -0.51,
+      "w_sin": -0.48
+     }
+    ],
+    "source": "NAIF pck00011.tpc (By: Nat Bachman (NAIF), 2022 December 27; https://naif.jpl.nasa.gov/pub/naif/generic_kernels/pck/pck00011.tpc, read 2026-10-21), whose data section transcribes the IAU WGCCRE 2015 report (Archinal et al. 2018, Celest. Mech. Dyn. Astr. 130:22, doi 10.1007/s10569-017-9805-5) and keeps the 2009 values for the Moon: \"BODY899_POLE_RA = ( 299.36 0. 0. )\", \"BODY899_POLE_DEC = ( 43.46 0. 0. )\", \"BODY899_PM = ( 249.978 541.1397757 0. )\", NUT_PREC RA, DEC, PM 0.70, -0.51, -0.48 on N = 357.85 + 52.316 T."
+   },
    "atmosphere": {
     "composition": {
      "H2": 80,
@@ -1335,6 +1841,23 @@
     "axial_tilt_deg": 122.53,
     "mean_temperature_k": 44,
     "albedo": 0.49
+   },
+   "rotation": {
+    "pole_ra_deg": [
+     132.993,
+     0
+    ],
+    "pole_dec_deg": [
+     -6.163,
+     0
+    ],
+    "prime_meridian_deg": [
+     302.695,
+     56.3625225,
+     0
+    ],
+    "pole": "positive",
+    "source": "NAIF pck00011.tpc (By: Nat Bachman (NAIF), 2022 December 27; https://naif.jpl.nasa.gov/pub/naif/generic_kernels/pck/pck00011.tpc, read 2026-10-21), whose data section transcribes the IAU WGCCRE 2015 report (Archinal et al. 2018, Celest. Mech. Dyn. Astr. 130:22, doi 10.1007/s10569-017-9805-5) and keeps the 2009 values for the Moon: \"BODY999_POLE_RA = ( 132.993 0. 0. )\", \"BODY999_POLE_DEC = ( -6.163 0. 0. )\", \"BODY999_PM = ( 302.695 56.3625225 0. )\". A dwarf planet: the pole is the POSITIVE one, about which it turns counter-clockwise (the 2009 report's convention; NAIF notes the pole was inverted from the 2006 one). NAIF says Pluto is unchanged in the 2015 report, whose abstract lists Pluto's orientation as updated; unresolved, the report body was not open to read."
    },
    "atmosphere": {
     "composition": {
@@ -1714,6 +2237,23 @@
     "axial_tilt_deg": 4,
     "mean_temperature_k": 168,
     "albedo": 0.09
+   },
+   "rotation": {
+    "pole_ra_deg": [
+     291.418,
+     0
+    ],
+    "pole_dec_deg": [
+     66.764,
+     0
+    ],
+    "prime_meridian_deg": [
+     170.65,
+     952.1532,
+     0
+    ],
+    "pole": "positive",
+    "source": "NAIF pck00011.tpc (By: Nat Bachman (NAIF), 2022 December 27; https://naif.jpl.nasa.gov/pub/naif/generic_kernels/pck/pck00011.tpc, read 2026-10-21), whose data section transcribes the IAU WGCCRE 2015 report (Archinal et al. 2018, Celest. Mech. Dyn. Astr. 130:22, doi 10.1007/s10569-017-9805-5) and keeps the 2009 values for the Moon: \"BODY2000001_POLE_RA = ( 291.418 0. 0. )\", \"BODY2000001_POLE_DEC = ( 66.764 0. 0. )\", \"BODY2000001_PM = ( 170.650 952.1532 0. )\". A dwarf planet: the positive pole."
    },
    "atmosphere": {
     "composition": {},

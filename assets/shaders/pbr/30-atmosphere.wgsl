@@ -885,7 +885,11 @@ fn atmosphere_scattering(world_position: vec3<f32>, front_facing: bool, pix: vec
     // exposure blend uses drives the haze-alpha scale (1.0 for limb/sky/far).
     let near_surf = edge_surf;
     let haze_scale = mix(1.0, ATMO_NEAR_HAZE, near_surf);
-    let sun_radiance = camera.sun_color.rgb * camera.sun_direction.w * exposure;
+    // Another body's air takes the Sun before any air, this one's the camera's
+    // (layer_sun, 80-fragment-shared.wgsl, 2026-10-21): Earth's limb seen from
+    // the Moon's night side was drawn unlit.
+    let lsun = layer_sun();
+    let sun_radiance = lsun.rgb * lsun.w * exposure;
     // Isotropic multiple-scatter bounce (see ATMO_MS_ISO): gated by the same
     // weight that lowers the dome, so every unchanged-exposure view (400 km
     // limb, 12,000 km blue marble) stays bit-identical.
@@ -956,6 +960,12 @@ fn atmosphere_scattering(world_position: vec3<f32>, front_facing: bool, pix: vec
     // left after the ground-layer extinction over one slant cap - the same
     // numbers the surface path uses, so sky and ground agree by construction.
     var radiance_fog = radiance_sky;
+    // The layer's slant optical depth (2026-10-21): it colours the dome below
+    // AND, for the WEATHER's share of it, covers the stars and the Moon behind
+    // it (the coverage at the end). The clear-air share is the dome's own
+    // extinction already, so it hides nothing more.
+    var w_fog = 0.0;
+    var tau_fog = 0.0;
     let fog_sigma = camera.light1_cone_inner.y;
     if (fog_sigma > 1.0e-4) {
         let fog_rgb = vec3<f32>(
@@ -979,7 +989,8 @@ fn atmosphere_scattering(world_position: vec3<f32>, front_facing: bool, pix: vec
             camera.light3_cone_inner.w,
         ));
         let sky_updot = abs(dot(rd, sky_up));
-        let w_fog = clamp(1.0 - exp(-fog_sigma * (layer / max(sky_updot, 0.035))), 0.0, 1.0);
+        tau_fog = fog_sigma * (layer / max(sky_updot, 0.035));
+        w_fog = clamp(1.0 - exp(-tau_fog), 0.0, 1.0);
         radiance_fog = mix(radiance_sky, fog_rgb, w_fog);
     }
     let aces_a = 2.51;
@@ -1052,6 +1063,31 @@ fn atmosphere_scattering(world_position: vec3<f32>, front_facing: bool, pix: vec
         alpha_occ = max(alpha, max(clamp(sky_lum * 4.5, 0.0, 1.0), day * 0.985));
     }
     alpha_occ = mix(alpha_occ, alpha, toward_sun);
+    // ── A BODY IN THE SKY IS SEEN THROUGH THE AIR (2026-10-21) ──
+    // The rule above hides the stars by day because the sky outshines them,
+    // and it hid the Moon with them (0.985 of it gone at noon, most of it at
+    // twilight), when a daytime Moon is plainly visible in life: the air in
+    // front of it adds its own light and passes the Moon's at its
+    // transmittance, so the Moon shows with less contrast, never not at all
+    // (a gibbous Moon 110 degrees from a Sun 30 degrees up stands about 1.4
+    // times as bright as the blue sky beside it, key_lights' dome_tests). The
+    // body's disc (camera.light0_spot, key_lights::sky_disc) takes the plain
+    // transmittance coverage; everything else keeps the rule. Only for the
+    // air the camera stands in, on rays that leave the planet.
+    let alpha_sky = alpha_occ;
+    let alpha_body = mix(alpha_sky, alpha, sky_disc_cover(rd, cam_inside && !hits_surface));
+    // ── FOG HIDES WHAT IS BEHIND IT (2026-10-21) ──
+    // Weather fog coloured the dome and left its coverage alone, so the stars
+    // and the Moon showed through a fog that should hide them. The weather's
+    // share of the layer's optical depth (camera.light1_spot.y, lib.rs:
+    // 1 - clear sigma * cap / weather sigma * cap, 0 in clear air) passes
+    // exp(-tau * share) of what is behind; the clear-air haze is already in the
+    // dome's own extinction. Only on rays that leave the planet: the ground
+    // behind a ray that strikes it is fogged by its own aerial_apply already.
+    // Rust twin: key_lights::fog_passes.
+    let fog_pass = select(1.0, exp(-tau_fog * clamp(camera.light1_spot.y, 0.0, 1.0)), !hits_surface);
+    let alpha_sky_f = 1.0 - (1.0 - alpha_sky) * fog_pass;
+    let alpha_body_f = 1.0 - (1.0 - alpha_body) * fog_pass;
     // ALPHA_BLENDING computes src.rgb * src.a + dst * (1 - src.a); divide
     // the radiance back out of the alpha so exactly `mapped` lands on
     // screen. Both terms go to zero together for thin air, so the ratio
@@ -1077,11 +1113,38 @@ fn atmosphere_scattering(world_position: vec3<f32>, front_facing: bool, pix: vec
     // applies to `mapped` alone, and the aurora is delivered whole.
     //
     // Reduces to the old expression exactly when aurora == 0.
-    let haze_occ = alpha_occ * haze_scale;
-    let alpha_a = max(haze_occ, aurora_lum);
+    //
+    // PREMULTIPLIED since 2026-10-21 (the Shell pipeline blends One,
+    // OneMinusSrcAlpha, pipeline.rs SHELL_TRANSPARENT_STATE): the old straight
+    // blend divided the radiance back out of the alpha and clamped, so a
+    // pixel could never deliver more light than its own coverage, and the
+    // Moon's disc, whose coverage is now the low transmittance one, would have
+    // lost the sky's light in front of it and shown as a dark-blue hole. The
+    // light delivered is capped by the SKY's coverage, which is exactly what
+    // the old divide-and-clamp delivered, so every pixel outside the body's
+    // disc (where the two coverages are one) is what it was.
+    let haze_occ = alpha_sky_f * haze_scale;
+    let alpha_a = max(alpha_body_f * haze_scale, aurora_lum);
     let delivered = mapped * haze_scale + aurora;
-    let rgb = clamp(delivered / max(alpha_a, 1.0e-3), vec3<f32>(0.0), vec3<f32>(1.0));
-    return vec4<f32>(rgb, alpha_a);
+    let cap = max(haze_occ, aurora_lum);
+    let rgb = clamp(delivered / max(cap, 1.0e-3), vec3<f32>(0.0), vec3<f32>(1.0));
+    return vec4<f32>(rgb * cap, alpha_a);
+}
+
+// How much of a ray is the disc of the body seen through the camera's air
+// (camera.light0_spot: xyz the unit direction to its centre, w its drawn
+// angular radius in radians, <= 0 none; key_lights::sky_disc), 0..1 across
+// one pixel's angle at its edge (camera.light1_spot.x). `applies` is false
+// for another body's air and for rays that strike the ground. Rust twin:
+// key_lights::sky_disc_cover.
+fn sky_disc_cover(rd: vec3<f32>, applies: bool) -> f32 {
+    let disc = camera.light0_spot;
+    if (!applies || disc.w <= 0.0) {
+        return 0.0;
+    }
+    let ang = 2.0 * asin(clamp(0.5 * length(rd - disc.xyz), 0.0, 1.0));
+    let px = max(camera.light1_spot.x, 1.0e-6);
+    return 1.0 - smoothstep(disc.w - px, disc.w + px, ang);
 }
 
 

@@ -269,7 +269,13 @@ pub(crate) struct EngineState {
     /// post-tick hour - a one-tick ground offset (~0.7 m per frame,
     /// dt-jittered) that read as constant world flicker + swimming
     /// shorelines (operator report). One cached value, zero straddle.
+    /// EARTH's turn: every other body turns by its own catalog rotation
+    /// (`planet_build::body_world_rot`, 2026-10-21).
     pub(crate) current_spin: f64,
+    /// THIS frame's sim time, seconds since J2000 on the real clock (what
+    /// places and turns every body but Earth), read once beside `current_spin`
+    /// so a frame-lock capture and its ride agree to the bit.
+    pub(crate) current_sim_t: f64,
     /// True while the player is in the surface WALK band (< 10 km): edge-
     /// detects touchdown for the gear reset (v0.872 band split).
     pub(crate) surface_walk_band: bool,
@@ -897,7 +903,7 @@ pub(crate) struct EngineState {
     /// surface spin (and any orbital drift) sweeping it past. Set by the
     /// dev Travel teleport + `camera_request`; cleared by Return home.
     /// `frame_lock_anchor` is the camera's position in the body's UNROTATED
-    /// local frame; `frame_lock_last_spin` tracks the spin for the view
+    /// local frame; `frame_lock_last_rot` tracks the body's turn for the view
     /// co-rotation. See `dev_travel::frame_lock_*`.
     pub(crate) frame_lock_body: Option<String>,
     /// PROBE HOLD (environment program increment 2, operator suggestion:
@@ -1053,7 +1059,11 @@ pub(crate) struct EngineState {
     /// current_spin and the frame-lock state are fresh.
     pub(crate) bookmark_save_requested: bool,
     pub(crate) frame_lock_anchor: glam::DVec3,
-    pub(crate) frame_lock_last_spin: f64,
+    /// The locked body's turn when the anchor was last captured or ridden
+    /// (`planet_build::frame_body_rot`): the frame's turn since is what the
+    /// camera rides and its look co-rotates by. It was Earth's spin angle
+    /// until every body got its own turn (2026-10-21).
+    pub(crate) frame_lock_last_rot: glam::DQuat,
     pub(crate) start_time: Instant,
     pub(crate) last_frame: Instant,
     /// Whether the OS window currently has focus (v0.1016): drives the

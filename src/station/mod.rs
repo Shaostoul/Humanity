@@ -59,6 +59,35 @@ pub fn to_hull(riding: bool, station_rot: glam::DQuat, v: glam::DVec3) -> glam::
     }
 }
 
+/// The camera yaw at which true north lies, for the HUD compass, or None when
+/// no north lies on the camera's horizon (2026-10-21).
+///
+/// North is Earth's spin axis (world +Y; the engine has no axial tilt) laid
+/// flat on the plane the player stands in, which is what north means on the
+/// ground. On a planet's surface the camera's yaw is already measured from that
+/// north (`surface_walk::tangent_basis`), so the answer is 0. Aboard, the
+/// render frame is the hull's ([`hull_frame_rot`]) and the camera's yaw turns
+/// about hull +Y from hull -Z, which under the LVLH attitude is WEST along the
+/// orbit: until 2026-10-21 the compass drew N there and printed E over the real
+/// north (hull +X, the orbit's normal for the equatorial home). Free in space
+/// the camera's up is the pole itself, so there is no north on its horizon.
+pub fn compass_north_yaw(surface_mode: bool, riding: bool, station_rot: glam::DQuat) -> Option<f32> {
+    if surface_mode {
+        return Some(0.0);
+    }
+    if !riding {
+        return None;
+    }
+    let n = hull_frame_rot(true, station_rot) * glam::DVec3::Y;
+    // Within about 6 degrees of the deck's up (a polar orbit over a pole) the
+    // flattened axis is too short to name a direction.
+    if n.x * n.x + n.z * n.z < 0.01 {
+        return None;
+    }
+    // The camera's world-basis yaw convention: forward = (sin yaw, 0, -cos yaw).
+    Some(n.x.atan2(-n.z) as f32)
+}
+
 /// Load every `data/stations/*.ron`.
 ///
 /// A missing or unreadable directory is not fatal: the caller falls back to the
@@ -147,5 +176,39 @@ mod tests {
             matches!(def.attitude, AttitudeMode::Lvlh { .. }),
             "the home must fly nadir-pointing, or its lighting stops tracking the clock"
         );
+    }
+
+    /// ABOARD, THE COMPASS POINTS TO EARTH'S NORTH (2026-10-21, BUG-212's
+    /// list). The camera's yaw aboard is in the hull's frame, so a compass that
+    /// drew N at yaw 0 drew it at hull -Z, west along the orbit under LVLH, and
+    /// printed E over the real north. Driven through the engine's chain: the
+    /// shipped home's orbit re-phased by the sun's azimuth, its LVLH attitude,
+    /// then the look at the compass's north turned back out of the hull frame
+    /// must be the world's north (+Y, Earth's axis) at every date and hour. On
+    /// a planet's ground the compass is unchanged (yaw 0 is north there), and
+    /// free in space there is no north on the horizon to draw.
+    ///
+    /// Seen red 2026-10-21 with the function answering 0 aboard (the old
+    /// compass): "aboard at sun azimuth 0, hour 0: the compass N points 90.0
+    /// degrees from Earth's north".
+    #[test]
+    fn aboard_the_compass_points_to_earths_north_not_along_the_orbit() {
+        let p = Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("stations").join("home.ron");
+        let def: StationDef = ron::from_str(&std::fs::read_to_string(&p).expect("home.ron")).expect("home.ron parses");
+        let day = crate::systems::time::EARTH_DAY_S;
+        for sun_az_deg in [0.0_f64, 90.0, 200.0] {
+            let o = orbit::over_its_longitude(&def.orbit, sun_az_deg.to_radians());
+            for hour in [0.0_f64, 6.0, 13.5] {
+                let t = orbit::sim_seconds(hour * 3600.0, day);
+                let (pos, vel) = orbit::propagate(&o, orbit::MU_EARTH, orbit::REAL_SECONDS_PER_DAY, t, day);
+                let rot = orbit::attitude(&def.attitude, pos, vel);
+                let yaw = compass_north_yaw(false, true, rot).expect("aboard an equatorial home there is a north");
+                let look = render_to_world_rot(true, rot) * crate::dev_travel::look_dir(yaw, 0.0);
+                let off = look.dot(glam::DVec3::Y).clamp(-1.0, 1.0).acos().to_degrees();
+                assert!(off < 0.1, "aboard at sun azimuth {sun_az_deg}, hour {hour}: the compass N points {off:.1} degrees from Earth's north");
+            }
+        }
+        assert_eq!(compass_north_yaw(true, false, glam::DQuat::IDENTITY), Some(0.0), "on the ground north is yaw 0, as it always was");
+        assert_eq!(compass_north_yaw(false, false, glam::DQuat::IDENTITY), None, "free in space there is no north on the horizon");
     }
 }

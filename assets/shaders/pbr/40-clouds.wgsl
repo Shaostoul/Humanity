@@ -1710,7 +1710,7 @@ fn cloud_layer_flat_profile(
 
     // Sun energy matches the celestial pass's directional light so the deck
     // sits in the same exposure regime as the surface below it.
-    let sun_energy = camera.sun_color.rgb * camera.sun_direction.w;
+    let sun_energy = layer_sun_energy();
     let lit = clamp(ndl, 0.0, 1.0);
     var radiance = material.base_color.rgb
         * (sun_energy * (CLOUD_AMBIENT + lit * shade) * day
@@ -1856,7 +1856,7 @@ fn cloud_layer_flat(world_position: vec3<f32>, front_facing: bool) -> vec4<f32> 
 
     // Sun energy matches the celestial pass's directional light so the deck
     // sits in the same exposure regime as the surface below it.
-    let sun_energy = camera.sun_color.rgb * camera.sun_direction.w;
+    let sun_energy = layer_sun_energy();
     let lit = clamp(ndl, 0.0, 1.0);
     var radiance = material.base_color.rgb
         * (sun_energy * (CLOUD_AMBIENT + lit * shade) * day
@@ -1996,7 +1996,7 @@ fn cloud_layer_march(world_position: vec3<f32>, front_facing: bool) -> vec4<f32>
 
     let sun = normalize(camera.sun_direction.xyz);
     let sun_local = normalize((inv_model * vec4<f32>(sun, 0.0)).xyz);
-    let sun_energy = camera.sun_color.rgb * camera.sun_direction.w;
+    let sun_energy = layer_sun_energy();
 
     // Stratified jitter from the planet-fixed fragment direction: one sample
     // offset shared by the whole ray de-bands the thin slab at grazing
@@ -2437,6 +2437,16 @@ fn cloud_env_resolve(ground_dir: vec3<f32>) {
     }
     g_env_cover = clamp(cover, 0.0, 1.0);
     g_env_place = clamp(place, 0.0, 1.0);
+}
+
+// The deck's sun energy, rgb times strength: the camera's for the frame
+// body's own deck, the Sun before any air for another body's (layer_sun,
+// 80-fragment-shared.wgsl, 2026-10-21: Earth's clouds seen from the Moon's
+// night side were drawn unlit). The deck's own day and night come from each
+// sample's geometry, as they always did.
+fn layer_sun_energy() -> vec3<f32> {
+    let ls = layer_sun();
+    return ls.rgb * ls.w;
 }
 
 fn cloud_pin_base() -> f32 {
@@ -5360,7 +5370,7 @@ fn cloud_march_core(
 
     let sun = normalize(camera.sun_direction.xyz);
     let sun_local = normalize((inv_model * vec4<f32>(sun, 0.0)).xyz);
-    let sun_energy = camera.sun_color.rgb * camera.sun_direction.w;
+    let sun_energy = layer_sun_energy();
 
     // Powder gate is per-RAY (cos view-sun is constant along it). The
     // phase itself is evaluated per octave inside cloud_scatter_energy

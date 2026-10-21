@@ -25,6 +25,9 @@ const STICKY_PIN_RESETS = Object.freeze({
   // The hull, as the H key toggles it (2026-10-05, the ship-first-street vantage hides it to see
   // the homes along First Street): "1" shows it again. Not a setting, so no "auto".
   hull: "1",
+  // The HUD (2026-10-21): a sky vantage hides it ({"hud":"0"}) so the crosshair dot in the middle
+  // of the screen does not sit on the body it aims at. "1" shows it again.
+  hud: "1",
   // Settings > Graphics > Bounced light detail (2026-10-20): the pin sets the setting itself, so
   // the release is the default level. A change relays the probes out, so allow the light a few
   // seconds to settle after it.

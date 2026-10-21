@@ -282,7 +282,7 @@ pub(crate) fn sun_disc_clear(state: &EngineState) -> f32 {
         .and_then(|b| state.planet_defs.get(b))
         .map(|d| {
             disc_clear_of_body(
-                glam::DQuat::from_rotation_y(state.current_spin) * state.frame_lock_anchor,
+                crate::engine::planet_build::frame_body_rot(state) * state.frame_lock_anchor,
                 d.radius,
                 state.sun_world_pos - state.ship_world_pos,
             )
@@ -598,7 +598,6 @@ pub(crate) fn save_location_bookmark(state: &mut EngineState) {
     let vantage = state.ship_world_pos + cam_local;
     let f = state.camera.forward();
     let fwd_world = glam::DVec3::new(f.x as f64, f.y as f64, f.z as f64);
-    let spin = state.current_spin;
     let sim_t = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs_f64())
@@ -617,8 +616,10 @@ pub(crate) fn save_location_bookmark(state: &mut EngineState) {
         let body_rel_earth = (crate::cosmos::body_world_position_3d_au(body, sim_t)
             - earth_helio_au)
             * crate::cosmos::M_PER_AU;
-        let anchor = crate::dev_travel::frame_lock_capture(body_rel_earth, spin, vantage);
-        let fwd_local = glam::DQuat::from_rotation_y(spin).inverse() * fwd_world;
+        // The body's own turn: the pose is stored on ITS ground (2026-10-21).
+        let rot = crate::engine::planet_build::body_world_rot(&body.id, state.current_spin, sim_t);
+        let anchor = crate::dev_travel::frame_lock_capture(body_rel_earth, rot, vantage);
+        let fwd_local = rot.inverse() * fwd_world;
         (serde_json::json!(body.id.clone()), anchor, fwd_local)
     } else {
         (serde_json::Value::Null, vantage, fwd_world)
@@ -721,7 +722,6 @@ pub(crate) fn restore_location_bookmark(state: &mut EngineState, v: &serde_json:
         fail(format!("bookmark {want} has malformed anchor/fwd"));
         return true;
     };
-    let spin = state.current_spin;
     let sim_t = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs_f64())
@@ -740,11 +740,11 @@ pub(crate) fn restore_location_bookmark(state: &mut EngineState, v: &serde_json:
         let body_rel_earth = (crate::cosmos::body_world_position_3d_au(body, sim_t)
             - earth_helio_au)
             * crate::cosmos::M_PER_AU;
-        let rot = glam::DQuat::from_rotation_y(spin);
+        let rot = crate::engine::planet_build::body_world_rot(bid, state.current_spin, sim_t);
         (
             body_rel_earth + rot * anchor,
             rot * fwd_store,
-            Some((bid.to_string(), body_rel_earth)),
+            Some((bid.to_string(), body_rel_earth, rot)),
         )
     } else {
         (anchor, fwd_store, None)
@@ -780,10 +780,10 @@ pub(crate) fn restore_location_bookmark(state: &mut EngineState, v: &serde_json:
     state.gui_state.dev_fly_mode = true;
     state.controller.fly_mode = true;
     state.gui_state.dev_travel_away = true;
-    if let Some((bid, body_rel_earth)) = lock {
+    if let Some((bid, body_rel_earth, rot)) = lock {
         state.frame_lock_anchor =
-            crate::dev_travel::frame_lock_capture(body_rel_earth, spin, vantage);
-        state.frame_lock_last_spin = spin;
+            crate::dev_travel::frame_lock_capture(body_rel_earth, rot, vantage);
+        state.frame_lock_last_rot = rot;
         state.frame_lock_body = Some(bid);
     } else {
         state.frame_lock_body = None;

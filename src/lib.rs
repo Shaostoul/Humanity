@@ -1874,6 +1874,7 @@ mod native_app {
                     None
                 },
                 current_spin: 0.0,
+                current_sim_t: 0.0,
                 station_world_pos: glam::DVec3::ZERO,
                 station_world_rot: glam::DQuat::IDENTITY,
                 station_def: crate::station::default_home(),
@@ -2099,7 +2100,7 @@ mod native_app {
                 ocean_fft_rebuild_cooldown: 0.0,
                 bookmark_save_requested: false,
                 frame_lock_anchor: glam::DVec3::ZERO,
-                frame_lock_last_spin: 0.0,
+                frame_lock_last_rot: glam::DQuat::IDENTITY,
                 start_time: Instant::now(),
                 last_frame: Instant::now(),
                 window_focused: true,
@@ -3318,6 +3319,12 @@ mod native_app {
                     state.last_frame = now;
                     // ONE spin for the whole frame (see the field docs).
                     state.current_spin = current_planet_spin(state);
+                    // And the real clock every other body is placed and turned by.
+                    state.current_sim_t = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|d| d.as_secs_f64())
+                        .unwrap_or(0.0)
+                        - 946_728_000.0;
                     // -- Orbital home station (v0.881; put on the GAME clock and
                     // given an attitude v0.1225) --
                     //
@@ -3760,6 +3767,8 @@ mod native_app {
                     // ride still moves the frame itself, so the ground
                     // does not slide underneath. Any movement input
                     // clears the hold (see the keyboard handler).
+                    // The locked body's turn, read before the hold is borrowed.
+                    let probe_body_rot = crate::engine::planet_build::frame_body_rot(state);
                     if let Some((pos, at)) = state.probe_hold.as_mut() {
                         if at.elapsed().as_secs_f32() < 1.5 {
                             // Grace: track through the park's basis and
@@ -3779,9 +3788,7 @@ mod native_app {
                             if state.probe_descend_mps > 0.0 {
                                 let a = state.frame_lock_anchor;
                                 if a.length_squared() > 0.5 {
-                                    let down_w = glam::DQuat::from_rotation_y(
-                                        state.current_spin,
-                                    ) * (-a.normalize());
+                                    let down_w = probe_body_rot * (-a.normalize());
                                     let dm = state.probe_descend_mps * dt;
                                     *pos += Vec3::new(
                                         (down_w.x as f32) * dm,
@@ -4411,11 +4418,12 @@ mod native_app {
                             (cur, Some((cand, ratio, center)))
                                 if *ratio < 0.9 && cur.as_deref() != Some(cand.as_str()) =>
                             {
-                                let spin = state.current_spin;
+                                // The new body's own turn, never Earth's (2026-10-21).
+                                let rot = crate::engine::planet_build::body_world_rot(cand, state.current_spin, state.current_sim_t);
                                 state.frame_lock_anchor = crate::dev_travel::frame_lock_capture(
-                                    *center, spin, cam_world,
+                                    *center, rot, cam_world,
                                 );
-                                state.frame_lock_last_spin = spin;
+                                state.frame_lock_last_rot = rot;
                                 state.frame_lock_body = Some(cand.clone());
                                 log::info!(
                                     "[FrameLock] switched to {cand} by proximity (envelope {:.2})",
@@ -4435,7 +4443,9 @@ mod native_app {
                         }
                     }
                     if let Some(lock_body) = state.frame_lock_body.clone() {
-                        let spin = state.current_spin;
+                        // The locked body's own turn (2026-10-21; it was Earth's spin for every
+                        // body, so the Moon turned with Earth's day).
+                        let rot = crate::engine::planet_build::frame_body_rot(state);
                         // Body centre in the celestial frame (0 for Earth, the
                         // frame origin; real orbital position otherwise).
                         let body_center = if lock_body == "earth" {
@@ -4486,7 +4496,7 @@ mod native_app {
                             glam::Vec3::Y
                         };
                         let anchor_pre =
-                            crate::dev_travel::frame_lock_capture(body_center, spin, cam_world);
+                            crate::dev_travel::frame_lock_capture(body_center, rot, cam_world);
                         let def = state.planet_defs.get(&lock_body);
                         let hm = state.planet_heightmaps.get(&lock_body).map(|a| a.as_ref());
                         // ── WHERE THE ALTITUDE IS MEASURED (v0.1109.4) ──
@@ -4625,11 +4635,10 @@ mod native_app {
                             // planet-fixed like everything else down here. The
                             // 0.01 rad guard skips stale spins (teleports).
                             if !just_engaged {
-                                let d_spin = spin - state.frame_lock_last_spin;
-                                if d_spin.abs() > 1e-12 && d_spin.abs() < 0.01 {
-                                    state
-                                        .camera
-                                        .co_rotate_look(glam::Quat::from_rotation_y(d_spin as f32));
+                                let d_rot = rot * state.frame_lock_last_rot.inverse();
+                                let d_ang = crate::engine::planet_build::turn_angle(d_rot);
+                                if d_ang > 1e-12 && d_ang < 0.01 {
+                                    state.camera.co_rotate_look(d_rot.as_quat());
                                 }
                             }
                             // Radial "up" so "down" points at the body centre and
@@ -4701,13 +4710,13 @@ mod native_app {
                                 // seem to decouple") - world +Y is TANGENTIAL
                                 // at the equator, so the old fixed axis slid
                                 // you along the surface instead of lifting.
-                                let up_w = glam::DQuat::from_rotation_y(spin) * dir0;
+                                let up_w = rot * dir0;
                                 state.controller.fly_wish_dir_up(
                                     &state.camera,
                                     Vec3::new(up_w.x as f32, up_w.y as f32, up_w.z as f32),
                                 )
                             };
-                            let wish_unrot = glam::DQuat::from_rotation_y(-spin)
+                            let wish_unrot = rot.inverse()
                                 * glam::DVec3::new(wish.x as f64, wish.y as f64, wish.z as f64);
                             // WALK quantises the radial share to exactly
                             // {-1, 0, +1} so forward input can NEVER lift
@@ -5070,7 +5079,7 @@ mod native_app {
                             state.surface_vr = vs.v_r;
                             anchor = dir1 * r;
                             state.frame_lock_anchor = anchor;
-                            state.frame_lock_last_spin = spin;
+                            state.frame_lock_last_rot = rot;
                             // Grounded = standing within a boot's reach of the
                             // rest height (v0.996): the footstep gate. Airborne
                             // (jump thrust, falling, swimming, hovering in dev
@@ -5136,7 +5145,7 @@ mod native_app {
                             }
                             state.ship_world_pos = crate::dev_travel::frame_lock_ship_pos(
                                 body_center,
-                                spin,
+                                rot,
                                 anchor,
                                 cam_local,
                             );
@@ -5168,13 +5177,14 @@ mod native_app {
                             // stays ground-stable low in the band and hands
                             // over to the fixed-starfield ISS regime at the top.
                             if state.camera.surface_mode {
-                                let d_spin = spin - state.frame_lock_last_spin;
-                                if d_spin.abs() > 1e-12 && d_spin.abs() < 0.01 {
+                                let d_rot = rot * state.frame_lock_last_rot.inverse();
+                                let d_ang = crate::engine::planet_build::turn_angle(d_rot);
+                                if d_ang > 1e-12 && d_ang < 0.01 {
                                     let shed = ((t - 0.8) / 0.2).clamp(0.0, 1.0);
                                     let keep = 1.0 - shed * shed * (3.0 - 2.0 * shed);
-                                    state.camera.co_rotate_look(glam::Quat::from_rotation_y(
-                                        (d_spin * keep) as f32,
-                                    ));
+                                    state.camera.co_rotate_look(
+                                        crate::engine::planet_build::turn_part(d_rot, keep).as_quat(),
+                                    );
                                 }
                             }
                             state.camera.set_surface_up(up);
@@ -5199,12 +5209,11 @@ mod native_app {
                             // guard skips stale anchors (e.g. the first
                             // frame after a teleport wrote a fresh
                             // last_spin far in the past).
-                            let d_spin = spin - state.frame_lock_last_spin;
+                            let d_ang = crate::engine::planet_build::turn_angle(rot * state.frame_lock_last_rot.inverse());
                             let mut cam_world_now = cam_world;
-                            if d_spin.abs() > 1e-12 && d_spin.abs() < 0.01 {
-                                let rot_new = glam::DQuat::from_rotation_y(spin);
-                                let rot_old =
-                                    glam::DQuat::from_rotation_y(state.frame_lock_last_spin);
+                            if d_ang > 1e-12 && d_ang < 0.01 {
+                                let rot_new = rot;
+                                let rot_old = state.frame_lock_last_rot;
                                 let shed = ((t - 0.8) / 0.2).clamp(0.0, 1.0);
                                 let keep = 1.0 - shed * shed * (3.0 - 2.0 * shed);
                                 let ride = (rot_new * state.frame_lock_anchor
@@ -5215,10 +5224,10 @@ mod native_app {
                             }
                             state.frame_lock_anchor = crate::dev_travel::frame_lock_capture(
                                 body_center,
-                                spin,
+                                rot,
                                 cam_world_now,
                             );
-                            state.frame_lock_last_spin = spin;
+                            state.frame_lock_last_rot = rot;
                         } else {
                             // ── Inertial orbit (the ISS view) ── Beyond the
                             // blend band we do NOT co-rotate: the position is
@@ -5231,8 +5240,8 @@ mod native_app {
                             state.surface_walk_band = false;
                             state.camera.clear_surface();
                             state.frame_lock_anchor =
-                                crate::dev_travel::frame_lock_capture(body_center, spin, cam_world);
-                            state.frame_lock_last_spin = spin;
+                                crate::dev_travel::frame_lock_capture(body_center, rot, cam_world);
+                            state.frame_lock_last_rot = rot;
                         }
                     } else {
                         state.surface_owns_translation = false;
@@ -5981,7 +5990,7 @@ mod native_app {
                             // Frame-lock onto the target so its surface holds
                             // still (see the field docs + dev_travel::frame_lock_*).
                             {
-                                let spin = state.current_spin;
+                                let rot = crate::engine::planet_build::body_world_rot(&target, state.current_spin, state.current_sim_t);
                                 let cam_local = glam::DVec3::new(
                                     state.camera.position.x as f64,
                                     state.camera.position.y as f64,
@@ -5989,10 +5998,10 @@ mod native_app {
                                 );
                                 state.frame_lock_anchor = crate::dev_travel::frame_lock_capture(
                                     body_rel_earth,
-                                    spin,
+                                    rot,
                                     vantage + cam_local,
                                 );
-                                state.frame_lock_last_spin = spin;
+                                state.frame_lock_last_rot = rot;
                                 state.frame_lock_body = Some(target.clone());
                             }
                             log::info!(
@@ -6044,9 +6053,10 @@ mod native_app {
                                 (0.0_f32, 0.0_f32)
                             };
                             let altitude_km = 1.5_f64;
-                            let spin = state.current_spin;
+                            // The target body's own turn (its lat/lon are on ITS ground).
+                            let rot = crate::engine::planet_build::body_world_rot(&target, state.current_spin, state.current_sim_t);
                             let unit = crate::terrain::planet_heightmap::latlon_to_dir(lat, lon);
-                            let world_dir = glam::DQuat::from_rotation_y(spin)
+                            let world_dir = rot
                                 * glam::DVec3::new(unit.x as f64, unit.y as f64, unit.z as f64);
                             let dir_out = world_dir.normalize_or_zero();
                             let surface_radius = ground_radius_m(
@@ -6102,10 +6112,10 @@ mod native_app {
                             );
                             state.frame_lock_anchor = crate::dev_travel::frame_lock_capture(
                                 body_rel_earth,
-                                spin,
+                                rot,
                                 vantage + cam_local,
                             );
-                            state.frame_lock_last_spin = spin;
+                            state.frame_lock_last_rot = rot;
                             state.frame_lock_body = Some(target.clone());
                             log::info!(
                                 "Dev travel: landed on {} surface at ({:.1}, {:.1}), {:.1} km alt (surface mode engages next frame)",
@@ -9382,12 +9392,6 @@ mod native_app {
                             as u32;
                         let viewport_h = state.renderer.surface_size().1 as f32;
                         let fov_deg = state.camera.fov_degrees;
-                        // Every body's draws carry this one rotation (the uniform sphere,
-                        // the patches, the shells, the trees and buildings on it), and
-                        // `rot_d` below is the same in f64. Aboard it includes the hull
-                        // frame: the spin alone turned Earth's north pole toward the ship
-                        // (2026-10-21, `body_rot_tests` in engine/planet_build.rs).
-                        let rotation = crate::engine::planet_build::body_model_rot(state.station_ride, state.station_world_rot, spin_f64);
                         // Chunked-LOD patch builds are budgeted PER FRAME
                         // across all bodies (in practice at most one body
                         // is ever close enough to be chunk-active).
@@ -9395,6 +9399,11 @@ mod native_app {
                         // Every body surface drawn this frame, for the sun each one is lit
                         // by (renderer::key_lights::sky_body_params, after the light block).
                         let mut body_draws: Vec<crate::renderer::key_lights::BodyDraw> = Vec::new();
+                        // Every drawn body as a candidate for the disc the camera's air lets
+                        // show through (key_lights::sky_disc, the daytime Moon, 2026-10-21),
+                        // and the frame body's sphere for the shells' sun (layer_sun).
+                        let mut disc_cands: Vec<crate::renderer::key_lights::DiscCandidate> = Vec::new();
+                        state.renderer.frame_body_sphere = [0.0; 4];
 
                         // Temporal clouds (phase 4): cleared each frame; the
                         // cloud branch below re-arms it for the (single)
@@ -9452,13 +9461,20 @@ mod native_app {
                                 state.station_world_rot,
                                 rel_earth_m - state.ship_world_pos,
                             );
-                            // Planet model rotation this frame: the spin composed in f64
-                            // with the hull frame (v0.1225): a point at planet-local p
-                            // renders at render_off + R_hull * R_spin * p. ONE binding: the
-                            // terrain, the near trees, the OSM buildings and the pieces
-                            // built on the planet all use it, and `rotation` above (every
-                            // draw's orientation) is the same formula narrowed to f32.
-                            let rot_d = crate::engine::planet_build::body_render_rot(state.station_ride, state.station_world_rot, spin_f64);
+                            // Planet model rotation this frame: THIS body's own turn
+                            // (Earth's spin from the game clock, every other body's from
+                            // its catalog on the clock that places it: until 2026-10-21 every
+                            // body took Earth's spin, so the Moon showed a face that went round
+                            // once a day) composed in f64 with the hull frame (v0.1225): a point
+                            // at planet-local p renders at render_off + R_hull * R_body * p. ONE
+                            // binding: the terrain, the near trees, the OSM buildings and the
+                            // pieces built on the planet all use it, and `rotation` (every
+                            // draw's orientation: the uniform sphere, the patches, the shells)
+                            // is the same narrowed to f32. Aboard it includes the hull frame: the
+                            // spin alone turned Earth's north pole toward the ship (2026-10-21,
+                            // `body_rot_tests` in engine/planet_build.rs).
+                            let rot_d = crate::engine::planet_build::body_render_rot(state.station_ride, state.station_world_rot, crate::engine::planet_build::body_world_rot(&b.id, spin_f64, sim_t));
+                            let rotation = rot_d.as_quat();
                             crate::engine::planet_build::note_body(state, &b.id, render_off, rot_d); // pieces built on it draw here
                             // Distance from the CAMERA, not the frame origin
                             // (v0.1238 starburst-far forensics). This was
@@ -9516,6 +9532,19 @@ mod native_app {
                                 px_per_level,
                                 max_level,
                             );
+                            // The disc the camera's air may let show through (key_lights::sky_disc,
+                            // the daytime Moon) and the frame body's sphere (the shells' sun),
+                            // 2026-10-21. A disc drawn larger than the body is a floored point.
+                            disc_cands.push(crate::renderer::key_lights::DiscCandidate {
+                                dir: body_dir,
+                                ang_radius: (visual_scale as f64 / dist).min(1.0).asin(),
+                                floored: visual_scale as f64 > radius_m * 1.0001,
+                                excluded: is_sun || frame_body,
+                            });
+                            if frame_body {
+                                state.renderer.frame_body_sphere =
+                                    [render_off.x as f32, render_off.y as f32, render_off.z as f32, radius_m as f32];
+                            }
 
                             // Procedural fractal surface when a def exists in
                             // data/planets/<id>.ron and the master toggle is
@@ -11328,7 +11357,7 @@ mod native_app {
                                 / shell_r_m.max(1.0))
                                 as f32)
                                 .clamp(rp, 1.0);
-                            let up_world = glam::DQuat::from_rotation_y(state.current_spin)
+                            let up_world = crate::engine::planet_build::frame_body_rot(state)
                                 * state.frame_lock_anchor.normalize_or_zero();
                             let mu_s = up_world.dot(sun_dir) as f32;
                             state.renderer.sky_view_uniform =
@@ -11370,6 +11399,33 @@ mod native_app {
                         // white. Only when standing at a planet with an
                         // atmosphere; the construction-editor override keeps
                         // its hand-picked color.
+                        //
+                        // ── THE CAMERA'S SUN LETS GO ABOVE THE AIR (2026-10-21) ──
+                        // The tint here and the day factor below are the sun AT THE
+                        // CAMERA, shut after sunset there. From low orbit over the night
+                        // side that shut the whole frame body, the day side past the
+                        // terminator and its lit limb included, though nothing near the
+                        // camera is left that needs the gate: the ground, sea, clouds and
+                        // air each have their own terminator. Above the frame lock's
+                        // co-rotation ceiling (the air's top, 100 km for Earth) both ease
+                        // to the plain Sun (key_lights::camera_sun_release, release_tests).
+                        let sun_release = state
+                            .frame_lock_body
+                            .as_deref()
+                            .map(|b| {
+                                let radius = state
+                                    .planet_defs
+                                    .get(b)
+                                    .map(|d| d.radius)
+                                    .or_else(|| crate::cosmos::find_body(b).map(|cb| cb.radius_km * 1000.0))
+                                    .unwrap_or(6_371_000.0);
+                                let band_k = (radius / 6_371_000.0).clamp(0.001, 4.0);
+                                crate::renderer::key_lights::camera_sun_release(
+                                    state.frame_lock_anchor.length() - radius,
+                                    (CO_ROTATE_MAX_ALT * band_k).max(2_000.0),
+                                )
+                            })
+                            .unwrap_or(0.0);
                         let light_color = if !(state.gui_state.construction_active
                             && state.gui_state.construction_sun_override)
                         {
@@ -11407,15 +11463,14 @@ mod native_app {
                                         / shell_r_m.max(1.0))
                                         as f32)
                                         .clamp(rp, 1.0);
-                                    let up_world = glam::DQuat::from_rotation_y(
-                                        state.current_spin,
-                                    ) * state.frame_lock_anchor.normalize_or_zero();
+                                    let up_world = crate::engine::planet_build::frame_body_rot(state) * state.frame_lock_anchor.normalize_or_zero();
                                     let mu = up_world.dot(sun_dir) as f32;
                                     crate::renderer::atmosphere::sun_transmittance(
                                         cam_r, mu, rp, h, ac,
                                     )
                                 })
                                 .unwrap_or([1.0, 1.0, 1.0]);
+                            let tint = crate::renderer::key_lights::released_camera_sun(tint, 1.0, sun_release).0;
                             [
                                 light_color[0] * tint[0],
                                 light_color[1] * tint[1],
@@ -11441,13 +11496,16 @@ mod native_app {
                                     // The same camera radius as the sun's tint above.
                                     let shell_r_m = d.radius * (1.0 + d.atmosphere_scale.max(0.005) as f64 * 2.0);
                                     let cam_r = ((state.frame_lock_anchor.length() / shell_r_m.max(1.0)) as f32).clamp(rp, 1.0);
-                                    let up_w = glam::DQuat::from_rotation_y(state.current_spin) * state.frame_lock_anchor.normalize_or_zero();
+                                    let up_w = crate::engine::planet_build::frame_body_rot(state) * state.frame_lock_anchor.normalize_or_zero();
                                     let up = crate::station::to_hull(state.station_ride, state.station_world_rot, up_w);
                                     crate::renderer::key_lights::CameraAir { cam_r, rp, h, color: ac, up }
                                 });
                             for (m, p2) in crate::renderer::key_lights::sky_body_params(&body_draws, air.as_ref()) {
                                 state.renderer.update_material_params2(m, p2);
                             }
+                            // The body the camera's air lets show through by day (the Moon):
+                            // the dome takes its disc from here (30-atmosphere.wgsl).
+                            state.renderer.sky_disc = crate::renderer::key_lights::sky_disc(&disc_cands);
                         }
                         if light_dir != Vec3::ZERO {
                             state.renderer.set_sun_light(
@@ -11475,13 +11533,17 @@ mod native_app {
                             // space).
                             state.renderer.celestial_sun_day = 1.0;
                             if state.frame_lock_body.is_some() {
-                                let up_w = glam::DQuat::from_rotation_y(state.current_spin)
+                                let up_w = crate::engine::planet_build::frame_body_rot(state)
                                     * state.frame_lock_anchor.normalize_or_zero();
                                 let mu = up_w.dot(sun_dir) as f32;
                                 // The ground's gate; a body in the sky ignores it
                                 // (its own sun, the block before set_sun_light).
-                                state.renderer.celestial_sun_day =
-                                    crate::renderer::key_lights::camera_day_factor(mu);
+                                state.renderer.celestial_sun_day = crate::renderer::key_lights::released_camera_sun(
+                                    [1.0; 3],
+                                    crate::renderer::key_lights::camera_day_factor(mu),
+                                    sun_release,
+                                )
+                                .1;
                             }
                             crate::terrain::planet_chunks::GRASS_DENSITY_BITS.store(
                                 state.gui_state.settings.grass_density.to_bits(),
@@ -11499,13 +11561,17 @@ mod native_app {
                             let mut sigma = 0.0f32;
                             let mut cap = 25_000.0f32;
                             let mut sky = [0.0f32; 3];
+                            // The weather's share of the layer's optical depth (0 in clear
+                            // air): what hides the stars and the Moon behind the fog
+                            // (2026-10-21, key_lights::fog_share).
+                            let mut fog_share = 0.0f32;
                             // Local radial up, published for EVERY frame-locked
                             // draw as of v0.1104 (was set only inside the aerial
                             // branch below, so a zero haze slider left it at a
                             // world-fixed [0,1,0]). The megashader's sky_ambient
                             // reads this same pad as the local up of every
                             // non-planet surface.
-                            let up_w = glam::DQuat::from_rotation_y(state.current_spin)
+                            let up_w = crate::engine::planet_build::frame_body_rot(state)
                                 * state.frame_lock_anchor.normalize_or_zero();
                             let mut up = [0.0f32, 1.0, 0.0];
                             if state.station_ride {
@@ -11658,12 +11724,14 @@ mod native_app {
                                         sky[1] * (1.0 - t) + tint[1] * lum * t,
                                         sky[2] * (1.0 - t) + tint[2] * lum * t,
                                     ];
+                                    fog_share = crate::renderer::key_lights::fog_share(sigma, cap, sigma_w, cap_w);
                                     sigma = sigma_w;
                                     cap = cap_w;
                                     sky = sky_w;
                                 }
                             }
                             state.renderer.aerial_sigma = sigma;
+                            state.renderer.aerial_fog_share = fog_share;
                             state.renderer.aerial_slant_cap = cap;
                             state.renderer.aerial_sky = sky;
                             state.renderer.aerial_up = up;
@@ -11708,7 +11776,7 @@ mod native_app {
                         // both the sunset and the moonrise test are meaningless
                         // and night never triggers at all).
                         let fill = crate::renderer::key_lights::moon_fill(
-                            (glam::DQuat::from_rotation_y(state.current_spin)
+                            (crate::engine::planet_build::frame_body_rot(state)
                                 * state.frame_lock_anchor.normalize_or_zero())
                             .normalize_or_zero(),
                             (moon_rel_earth_m - state.ship_world_pos).normalize_or_zero(),
@@ -15338,6 +15406,12 @@ mod native_app {
                                 // scene pass applies to home content (v0.911: the
                                 // ghost-markers half of the vanishing-home bug).
                                 state.gui_state.station_off = state.station_off;
+                                // Where the compass's N goes: true north, aboard too.
+                                state.gui_state.compass_north_yaw = crate::station::compass_north_yaw(
+                                    state.camera.surface_mode,
+                                    state.station_ride,
+                                    state.station_world_rot,
+                                );
                                 // The crew's and other players' names
                                 // (engine::net_route::nameplate_labels).
                                 state.gui_state.crew_labels = crate::engine::net_route::nameplate_labels(

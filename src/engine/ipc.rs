@@ -203,6 +203,18 @@ pub(crate) fn hull_pin(raw: &str) -> Option<bool> {
     }
 }
 
+/// What a showcase `hud` verb asks for: "0" hides the HUD and its crosshair
+/// dot (`GuiState::show_hud`, the same switch the movie mode's `hide_hud`
+/// turns), "1" shows them. None for anything else, so a typo leaves the HUD as
+/// it is.
+pub(crate) fn showcase_hud(raw: &str) -> Option<bool> {
+    match raw.trim() {
+        "0" => Some(false),
+        "1" => Some(true),
+        _ => None,
+    }
+}
+
 /// Parse one pin value. `None` for anything unparseable, so a typo leaves the
 /// existing state alone instead of silently resetting it to a default.
 pub(crate) fn parse_showcase_pin(raw: &str) -> Option<ShowcasePin> {
@@ -935,6 +947,18 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     // (time::request_speed_hold); the TimeSystem's accumulator is authoritative.
     if let Some(sc) = grab("time_scale").and_then(|t| t.parse::<f32>().ok()) {
         crate::systems::time::request_speed_hold(&state.data_store, Some(sc.max(0.0)));
+    }
+    // Optional "hud":"0" hides the HUD, the crosshair dot with it
+    // (hud::crosshair_visible); "hud":"1" shows it again, and the rigs send
+    // that between vantages (scripts/lib/showcase-pins.js). A sky vantage aims
+    // at what it studies, and the aim is the middle of the screen, so in
+    // BUG-212's night capture the dot sat on the Moon and read as a white
+    // point drawn on its face (2026-10-21).
+    if let Some(h) = grab("hud") {
+        match showcase_hud(&h) {
+            Some(on) => state.gui_state.show_hud = on,
+            None => log::warn!("Showcase: hud \"{h}\" is not 0 or 1 - HUD unchanged"),
+        }
     }
     // Optional "fov":"40" sets the camera's vertical field of view in degrees;
     // "fov":"auto" puts the Settings value back (2026-10-04, the clip maker's
@@ -2004,7 +2028,7 @@ pub(crate) fn sky_daylight(state: &EngineState) -> bool {
         .map(|d| {
             daylight_over_anchor(
                 state.frame_lock_anchor,
-                state.current_spin,
+                crate::engine::planet_build::frame_body_rot(state),
                 d.radius,
                 state.sun_world_pos - state.ship_world_pos,
             )
@@ -2014,25 +2038,25 @@ pub(crate) fn sky_daylight(state: &EngineState) -> bool {
 
 /// The daylight gate's own arithmetic, in pure form. `anchor_local` is the
 /// frame lock's anchor, in the locked body's UNROTATED frame
-/// (`dev_travel::frame_lock_capture`); `spin` is the body's turn
-/// (`state.current_spin`, the same one the frame lock rides);
+/// (`dev_travel::frame_lock_capture`); `rot` is the body's turn
+/// (`planet_build::frame_body_rot`, the same one the frame lock rides);
 /// `to_sun_world` points from the camera to the sun in the WORLD frame.
-pub(crate) fn daylight_over_anchor(anchor_local: glam::DVec3, spin: f64, radius: f64, to_sun_world: glam::DVec3) -> bool {
-    let (sun_up, alt) = sun_over_anchor(anchor_local, spin, radius, to_sun_world);
+pub(crate) fn daylight_over_anchor(anchor_local: glam::DVec3, rot: glam::DQuat, radius: f64, to_sun_world: glam::DVec3) -> bool {
+    let (sun_up, alt) = sun_over_anchor(anchor_local, rot, radius, to_sun_world);
     alt < 120_000.0 && sun_up > 0.10
 }
 
 /// The sine of the sun's elevation over the frame lock's ground point, and the
 /// camera's height over the body's sphere: the numbers both the daylight gate
 /// and the twilight fades read.
-pub(crate) fn sun_over_anchor(anchor_local: glam::DVec3, spin: f64, radius: f64, to_sun_world: glam::DVec3) -> (f64, f64) {
+pub(crate) fn sun_over_anchor(anchor_local: glam::DVec3, rot: glam::DQuat, radius: f64, to_sun_world: glam::DVec3) -> (f64, f64) {
     let alt = anchor_local.length() - radius;
     // The ground's up in the WORLD frame, where the sun is: the anchor turned
     // by the spin, exactly as frame_lock_ship_pos places the camera. Using
     // the unturned anchor judged the sun over another longitude, the same
     // one at every hour, so at Silverdale on 2026-10-04 the star pass was
     // skipped all night (BUG-138, daylight_gate_tests).
-    let up = (glam::DQuat::from_rotation_y(spin) * anchor_local).normalize_or_zero();
+    let up = (rot * anchor_local).normalize_or_zero();
     (up.dot(to_sun_world.normalize_or_zero()), alt)
 }
 
@@ -2049,7 +2073,7 @@ pub(crate) fn star_fades(state: &EngineState) -> crate::renderer::sky_frame::Sky
         .map(|d| {
             let (sun_up, alt) = sun_over_anchor(
                 state.frame_lock_anchor,
-                state.current_spin,
+                crate::engine::planet_build::frame_body_rot(state),
                 d.radius,
                 state.sun_world_pos - state.ship_world_pos,
             );
@@ -3562,9 +3586,9 @@ pub(crate) fn poll_camera_request(state: &mut EngineState) {
     // the world frame by the planet's current spin so it lands on the real
     // ground feature. Otherwise the sunlit-heuristic Travel vantage.
     let dir_out = if let Some((lat, lon)) = latlon {
-        let spin = state.current_spin;
+        // The body's own turn (2026-10-21): a lat/lon is on THAT body's ground.
         let d = crate::terrain::planet_heightmap::latlon_to_dir(lat as f32, lon as f32);
-        let world = glam::DQuat::from_rotation_y(spin)
+        let world = crate::engine::planet_build::body_world_rot(&body_id, state.current_spin, sim_t)
             * glam::DVec3::new(d.x as f64, d.y as f64, d.z as f64);
         world.normalize_or_zero()
     } else {
@@ -3656,8 +3680,24 @@ pub(crate) fn poll_camera_request(state: &mut EngineState) {
     // the vantage - the staged-capture rig for sunsets, god rays, and any
     // shot that needs the disc in frame (the default nadir-relative aim
     // plus the fast staged clock made sun-in-frame shots pure luck).
-    if v.get("aim").and_then(|a| a.as_str()) == Some("sun") {
-        let aim = (state.sun_world_pos - vantage).normalize_or_zero();
+    // {"aim":"<body id>"} (2026-10-21) faces that body's centre the same way:
+    // the Moon by day, which look_offset_deg cannot reach (it only tilts the
+    // aim along the meridian, and a daytime Moon is never on it), or Earth
+    // from the Moon's night side.
+    let aim_name = v.get("aim").and_then(|a| a.as_str());
+    let aim_at = match aim_name {
+        None => None,
+        Some("sun") => Some(state.sun_world_pos),
+        Some(id) => match crate::cosmos::find_body(id) {
+            Some(target) => Some((crate::cosmos::body_world_position_3d_au(target, sim_t) - earth_helio_au) * crate::cosmos::M_PER_AU),
+            None => {
+                fail(format!("aim: unknown body id {id}"));
+                return;
+            }
+        },
+    };
+    if let Some(target) = aim_at {
+        let aim = (target - vantage).normalize_or_zero();
         state.ship_world_pos = vantage;
         if state.camera.mode != crate::renderer::camera::CameraMode::FirstPerson {
             state
@@ -3684,7 +3724,7 @@ pub(crate) fn poll_camera_request(state: &mut EngineState) {
         state.surface_vr = 0.0;
         state.gui_state.dev_travel_away = true;
         {
-            let spin = state.current_spin;
+            let rot = crate::engine::planet_build::body_world_rot(&body_id, state.current_spin, sim_t);
             let cam_local = glam::DVec3::new(
                 state.camera.position.x as f64,
                 state.camera.position.y as f64,
@@ -3692,10 +3732,10 @@ pub(crate) fn poll_camera_request(state: &mut EngineState) {
             );
             state.frame_lock_anchor = crate::dev_travel::frame_lock_capture(
                 body_rel_earth,
-                spin,
+                rot,
                 vantage + cam_local,
             );
-            state.frame_lock_last_spin = spin;
+            state.frame_lock_last_rot = rot;
             state.frame_lock_body = Some(body_id.clone());
             // Dev teleport: re-place the weather system here. The anchor is sticky by
             // design so a storm stays put as you fly through it (BUG-080), but a teleport
@@ -3712,9 +3752,9 @@ pub(crate) fn poll_camera_request(state: &mut EngineState) {
         let _ = std::fs::create_dir_all("debug");
         let _ = std::fs::write(
             DONE_PATH,
-            serde_json::json!({"ok": true, "body": body_id, "aim": "sun"}).to_string(),
+            serde_json::json!({"ok": true, "body": body_id, "aim": aim_name}).to_string(),
         );
-        log::info!("Camera request: parked at {altitude_km:.1} km, aimed at the sun");
+        log::info!("Camera request: parked at {altitude_km:.1} km, aimed at {}", aim_name.unwrap_or("?"));
         return;
     }
     let fwd = (body_rel_earth - vantage).normalize_or_zero();
@@ -3756,15 +3796,15 @@ pub(crate) fn poll_camera_request(state: &mut EngineState) {
     // surface holds still instead of spinning past at tens of km/s. Capture
     // the anchor at the current spin from where the camera ends up.
     {
-        let spin = state.current_spin;
+        let rot = crate::engine::planet_build::body_world_rot(&body_id, state.current_spin, sim_t);
         let cam_local = glam::DVec3::new(
             state.camera.position.x as f64,
             state.camera.position.y as f64,
             state.camera.position.z as f64,
         );
         state.frame_lock_anchor =
-            crate::dev_travel::frame_lock_capture(body_rel_earth, spin, vantage + cam_local);
-        state.frame_lock_last_spin = spin;
+            crate::dev_travel::frame_lock_capture(body_rel_earth, rot, vantage + cam_local);
+        state.frame_lock_last_rot = rot;
         state.frame_lock_body = Some(body_id.clone());
         // Dev teleport: re-place the weather system here. The anchor is sticky by
         // design so a storm stays put as you fly through it (BUG-080), but a teleport
@@ -5022,19 +5062,19 @@ mod daylight_gate_tests {
         let anchor = DVec3::new(R + 2.0, 0.0, 0.0);
         // Half a turn: the ground now faces world -X, toward the sun.
         assert!(
-            daylight_over_anchor(anchor, std::f64::consts::PI, R, to_sun()),
+            daylight_over_anchor(anchor, DQuat::from_rotation_y(std::f64::consts::PI), R, to_sun()),
             "a point turned to face the sun is in daylight, whatever its unturned direction says"
         );
         // No turn: it faces away, which is night.
-        assert!(!daylight_over_anchor(anchor, 0.0, R, to_sun()), "a point facing away from the sun is at night");
+        assert!(!daylight_over_anchor(anchor, DQuat::IDENTITY, R, to_sun()), "a point facing away from the sun is at night");
         // A quarter turn the other way round: the turn the frame lock applies
         // (`DQuat::from_rotation_y(spin)`, dev_travel::frame_lock_ship_pos),
         // not its inverse. Ry(+90 deg) takes +X to -Z, so a sun along -Z is up.
         let quarter = std::f64::consts::FRAC_PI_2;
         let turned = DQuat::from_rotation_y(quarter) * DVec3::X;
         assert!((turned - DVec3::new(0.0, 0.0, -1.0)).length() < 1e-12, "Ry(+90 deg) * X = {turned:?}");
-        assert!(daylight_over_anchor(anchor, quarter, R, DVec3::new(0.0, 0.0, -1.5e11)));
-        assert!(!daylight_over_anchor(anchor, -quarter, R, DVec3::new(0.0, 0.0, -1.5e11)));
+        assert!(daylight_over_anchor(anchor, DQuat::from_rotation_y(quarter), R, DVec3::new(0.0, 0.0, -1.5e11)));
+        assert!(!daylight_over_anchor(anchor, DQuat::from_rotation_y(-quarter), R, DVec3::new(0.0, 0.0, -1.5e11)));
     }
 
     /// Above 120 km the gate never reads day: space has no sky to hide the
@@ -5042,7 +5082,7 @@ mod daylight_gate_tests {
     #[test]
     fn the_gate_is_off_above_the_air() {
         let anchor = DVec3::new(R + 200_000.0, 0.0, 0.0);
-        assert!(!daylight_over_anchor(anchor, std::f64::consts::PI, R, to_sun()));
+        assert!(!daylight_over_anchor(anchor, DQuat::from_rotation_y(std::f64::consts::PI), R, to_sun()));
     }
 }
 
@@ -5173,6 +5213,25 @@ mod console_verb_tests {
         let body = &src[start..start + src[start..].find("\n}\n").expect("its end")];
         assert!(body.contains("grab(\"console\")"), "the showcase poll never reads grab(\"console\")");
         assert!(body.contains("console_this_session(") && body.contains("rebuild_homestead(state)"));
+    }
+
+    /// A SKY CAPTURE CAN HIDE THE HUD (2026-10-21). The crosshair dot sits in
+    /// the middle of the screen, which is where a sky vantage aims at what it
+    /// studies, so BUG-212's night Moon showed a white disc on its face that
+    /// was the dot, not anything in the sky.
+    ///
+    /// Seen red 2026-10-21 with the helper and no verb in the poll: "the
+    /// showcase poll never reads grab(\"hud\")".
+    #[test]
+    fn a_sky_capture_can_hide_the_hud() {
+        let src = include_str!("ipc.rs").replace("\r\n", "\n");
+        let start = src.find("pub(crate) fn poll_showcase_request(").expect("the showcase poll");
+        let body = &src[start..start + src[start..].find("\n}\n").expect("its end")];
+        assert!(body.contains("grab(\"hud\")"), "the showcase poll never reads grab(\"hud\")");
+        assert!(body.contains("state.gui_state.show_hud = on"), "the hud verb does not set show_hud");
+        assert_eq!(showcase_hud("0"), Some(false));
+        assert_eq!(showcase_hud(" 1 "), Some(true));
+        assert_eq!(showcase_hud("maybe"), None);
     }
 }
 

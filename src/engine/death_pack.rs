@@ -225,7 +225,7 @@ fn target(state: &EngineState) -> Option<(hecs::Entity, u32)> {
     let (eye, look) = (state.camera.position.as_dvec3(), state.camera.forward().as_dvec3());
     // On a planet the camera stays put while the frame moves under it, so the eye there is the
     // frame lock's anchor in the body's frame, and the look turned into it (planet_build.rs).
-    let rot = crate::engine::planet_build::body_render_rot(state.station_ride, state.station_world_rot, state.current_spin);
+    let rot = crate::engine::planet_build::body_render_rot(state.station_ride, state.station_world_rot, crate::engine::planet_build::frame_body_rot(state));
     let off = state.station_off.as_dvec3();
     let mut best: Option<(hecs::Entity, f64, u32)> = None;
     for (e, p) in state.game_world.world.query::<&LeftPack>().iter() {

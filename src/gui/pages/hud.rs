@@ -402,9 +402,10 @@ pub fn draw(
                 );
             }
 
-            // ── Crosshair (center) ──
+            // The crosshair dot is drawn once, by lib.rs (hud::crosshair_visible),
+            // which also turns it blue over a targeted planet. A second white one
+            // here stacked over it (2026-10-21).
             let center = screen.center();
-            painter.circle_filled(center, 3.0, Color32::from_white_alpha(180));
 
             // ── Compass (top-center) ──
             let compass_y = 20.0;
@@ -415,8 +416,12 @@ pub fn draw(
                 (-std::f32::consts::FRAC_PI_2, "W"),
             ];
             let compass_width = 200.0;
-            for (angle, label) in &directions {
-                let diff = normalize_angle(*angle - camera_yaw);
+            // Measured from TRUE north, not from the camera's own axes: aboard
+            // they are the hull's, and yaw 0 there is west along the orbit
+            // (station::compass_north_yaw, 2026-10-21). No north, no letters.
+            let north = state.compass_north_yaw;
+            for (angle, label) in directions.iter().filter(|_| north.is_some()) {
+                let diff = normalize_angle(*angle + north.unwrap_or(0.0) - camera_yaw);
                 if diff.abs() < std::f32::consts::FRAC_PI_2 {
                     let x = center.x + diff / std::f32::consts::FRAC_PI_2 * (compass_width / 2.0);
                     let color = if *label == "N" { theme.danger() } else { theme.text_secondary() };

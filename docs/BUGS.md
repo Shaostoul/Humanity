@@ -6672,3 +6672,53 @@ The planets in the evening sky, black dots before, are lit too.
   while the frame lock holds it (below its blend altitude) over its night side, takes the
   camera's day factor across its whole disc, so the day side past the terminator would be drawn
   dark too.
+
+**The follow-up, 2026-10-21 (all five, and two more seen on the way):**
+
+- **Every body turns by its own rotation.** `cosmos::body_orientation` reads the IAU WGCCRE
+  rotational elements now in `data/star_systems/sol.json` (`rotation` on the Sun, the eight
+  planets but Earth, Pluto, Ceres and the Moon: the pole's right ascension and declination, the
+  prime meridian W and the periodic terms, each body's source quoted with its date: NAIF
+  pck00011.tpc of 2022-12-27, the transcription of the 2015 report, and for the Moon the 2006
+  report's Table 2, read 2026-10-21), through the obliquity of J2000 (IERS 2010) into the ecliptic
+  the orbits are in. A body with none turns at its catalog period about its orbit's pole. Earth
+  keeps its game-clock spin. `planet_build::body_world_rot` is the one place a body's turn is
+  read; the celestial loop gives every body its own `rot_d` and `rotation`, and the frame lock
+  rides the locked body's turn (`frame_body_rot`, `EngineState::frame_lock_last_rot`, was the
+  spin angle), so walking on the Moon holds its ground. The Moon's sub-Earth point now stays
+  within its real optical libration (the model gives +-6.5 degrees in longitude, +-6.7 in
+  latitude, unasked, from its eccentric orbit and tilted pole); physical libration is in the IAU
+  terms too. The Moon's real near side (its albedo map is NASA-based) now faces Earth.
+  Tests: `planet_build::body_rot_tests::the_moon_keeps_one_face_to_earth_whatever_the_hour`,
+  `cosmos::orientation_tests` (3).
+- **The daytime and twilight Moon shows.** The dome keeps its star rule everywhere but on the disc
+  of the body seen through the camera's air (`key_lights::sky_disc`: the largest true-size,
+  unfloored, non-frame body, the Moon; camera pad light0_spot), where its coverage is the plain
+  transmittance, so the sky's light is added over the Moon and the Moon passes at its
+  transmittance. The Shell pipeline blends premultiplied (`SHELL_TRANSPARENT_STATE`) so a disc
+  pixel can carry the sky's light at the lower coverage; everywhere else the output is what the
+  old divide-and-clamp delivered. Planets stay hidden by day like the stars (their discs are
+  floored points). Test: `key_lights::sky_dome_tests::a_daytime_moon_shows_through_the_blue_sky`.
+- **Fog hides the Moon and the stars.** The weather's share of the aerial layer's optical depth
+  (`key_lights::fog_share`, camera pad light1_spot.y) covers what is behind the dome by
+  exp(-tau * share); clear air adds nothing (its haze is the dome's own extinction). Test:
+  `fog_hides_the_moon_and_the_stars_by_its_depth`.
+- **Another body's clouds and air take the Sun.** `layer_sun()` (80-fragment-shared.wgsl, twin
+  `key_lights::layer_sun_for`): a shell whose centre is the frame body's (camera pad light2_spot)
+  keeps the camera's sun, any other takes the Sun before any air (light3_spot). The dome's
+  in-scatter and the deck's four sun sites read it. Test:
+  `another_bodys_clouds_and_air_take_the_sun_before_any_air`.
+- **The frame body from low orbit.** Real, seen in the rig. Above the frame lock's co-rotation
+  ceiling (the air's top, 100 km for Earth) the camera's sun eases to the plain Sun
+  (`key_lights::camera_sun_release`, lib.rs beside the sun's tint), since the ground, sea, clouds
+  and air each carry their own terminator. Test:
+  `from_low_orbit_over_the_night_side_the_frame_body_is_lit_by_the_sun`.
+- **The white point on the Moon's face was the HUD's crosshair**, not the sky: it sits in the
+  middle of the screen, where a sky vantage aims. A showcase `hud` verb hides the HUD for a
+  capture (`ipc::showcase_hud`, a sticky pin the rigs release), and the second white dot
+  `hud::draw` painted over lib.rs's own is gone. Tests: `a_sky_capture_can_hide_the_hud`,
+  showcase-pins.test.js.
+- **The compass aboard** measured N from the camera's yaw, which aboard is in the hull's frame,
+  so N sat at hull -Z, west along the orbit, and the real north read E. It now measures from
+  `station::compass_north_yaw` (Earth's axis laid on the deck); on the ground nothing changes;
+  in free space it draws no letters. Test: `station::tests::aboard_the_compass_points_to_earths_north_not_along_the_orbit`.

@@ -2233,7 +2233,11 @@ fn fs_shell(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loc
     s.screen_emitter = screen_emitter;
     s.out_alpha = out_alpha;
     s.emissive_strength = emissive_strength;
-    return frag_tail(in, s);
+    // The Shell pipeline blends PREMULTIPLIED since 2026-10-21 (pipeline.rs
+    // SHELL_TRANSPARENT_STATE, for the type-14 air, which lets the Moon show
+    // through it): the shared tail returns straight alpha, so premultiply here.
+    let c = frag_tail(in, s);
+    return vec4<f32>(c.rgb * c.a, c.a);
 }
 
 @fragment

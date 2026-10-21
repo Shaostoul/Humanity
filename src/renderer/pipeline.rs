@@ -1770,7 +1770,7 @@ impl Pipeline {
             let water_overlay =
                 spawn_compile(s, "PBR-lite Water Overlay Pipeline", || timed("PBR-lite Water Overlay Pipeline", |l| pbr(l, OVERLAY_STATE)));
             let shell_transparent = spawn_compile(s, "PBR-lite Shell Transparent Pipeline", || {
-                timed("PBR-lite Shell Transparent Pipeline", |l| pbr(l, TRANSPARENT_STATE))
+                timed("PBR-lite Shell Transparent Pipeline", |l| pbr(l, SHELL_TRANSPARENT_STATE))
             });
             // The cloud pair, when it is built inline (hot reload, or no
             // threads to spare): one worker that compiles the two side by
@@ -2116,6 +2116,14 @@ const OPAQUE_STATE: PsoState = (wgpu::BlendState::REPLACE, Some(wgpu::Face::Back
 const TRANSPARENT_STATE: PsoState = (wgpu::BlendState::ALPHA_BLENDING, None, false);
 /// Alpha blend, double-sided, depth WRITE.
 const OVERLAY_STATE: PsoState = (wgpu::BlendState::ALPHA_BLENDING, None, true);
+/// The atmosphere shells' state (2026-10-21): PREMULTIPLIED alpha blend,
+/// double-sided, depth test, no write. The air lets the Moon show through it
+/// with its own transmittance while still hiding the stars, so a pixel on the
+/// Moon's disc delivers the sky's light in front of it at a LOWER coverage
+/// than the sky beside it; the straight blend's divide-and-clamp could not
+/// carry that (30-atmosphere.wgsl, the end of atmosphere_scattering; fs_shell
+/// premultiplies the fallback dome).
+const SHELL_TRANSPARENT_STATE: PsoState = (wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING, None, false);
 
 // ── SHADER PERMUTATIONS (increment P1 of the frame-cost arc,
 //    docs/design/frame-cost-arc.md section 1) ──

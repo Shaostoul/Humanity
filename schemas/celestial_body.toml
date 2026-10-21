@@ -162,6 +162,14 @@ description = "Axial tilt in degrees relative to the orbital plane. Drives seaso
 constraints = "Range: 0 to 180. Values > 90 indicate retrograde rotation direction."
 
 [[fields]]
+name = "rotation"
+type = "object"
+required = false
+default = ""
+description = "The IAU WGCCRE rotational elements, in sol.json a body's `rotation` object (2026-10-21): pole_ra_deg and pole_dec_deg [a, b] (degrees in the ICRF, a + b T, T in Julian centuries from J2000), prime_meridian_deg [W0, Wd, Wdd] (W0 + Wd d + Wdd d^2, d in days), periodic terms {angle_deg [a, b], per 'day' or 'century', ra_sin, dec_cos, w_sin}, pole 'north' or 'positive', and the quoted source. What the body really turns with (cosmos::body_orientation): the Moon keeps one face to Earth by them. Without them a body turns at rotation_period about its orbit's pole leaned by axial_tilt_deg. Earth carries none: its turn is the game clock."
+constraints = "Angles in degrees. The pole must be the one the IAU names: north of the invariable plane for planets and satellites, the positive (right-hand) pole for dwarf planets and small bodies."
+
+[[fields]]
 name = "atmosphere_composition"
 type = "string"
 required = false

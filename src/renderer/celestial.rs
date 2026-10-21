@@ -505,6 +505,25 @@ impl Renderer {
             .write_buffer(&self.camera_buffer, 500, bytemuck::cast_slice(&self.aerial_sky));
         self.queue
             .write_buffer(&self.camera_buffer, 516, bytemuck::cast_slice(&self.aerial_up));
+        // Sky bodies (2026-10-21), in legacy spot pads no shader read before
+        // (the full write above stamps them [0, -1, 0, -1], which every reader
+        // takes as "none"): 336 the body seen through the camera's air (the
+        // dome lets it show, 30-atmosphere.wgsl sky_disc_cover), 352.x one
+        // pixel's angle for its edge, 356 (.y) the weather's share of the fog
+        // that hides the stars and the Moon, 368 the frame body's sphere and 384 the
+        // Sun before any air (another body's air and clouds take that sun,
+        // 80-fragment-shared.wgsl layer_sun).
+        let px_angle = (camera.fov_degrees.max(1.0).to_radians() / self.config.height.max(1) as f32).max(1.0e-6);
+        let sun_bare = [
+            super::key_lights::SUN_RGB[0],
+            super::key_lights::SUN_RGB[1],
+            super::key_lights::SUN_RGB[2],
+            super::key_lights::CELESTIAL_SUN_I,
+        ];
+        self.queue.write_buffer(&self.camera_buffer, 336, bytemuck::cast_slice(&self.sky_disc));
+        self.queue.write_buffer(&self.camera_buffer, 352, bytemuck::cast_slice(&[px_angle, self.aerial_fog_share, 0.0, 0.0]));
+        self.queue.write_buffer(&self.camera_buffer, 368, bytemuck::cast_slice(&self.frame_body_sphere));
+        self.queue.write_buffer(&self.camera_buffer, 384, bytemuck::cast_slice(&sun_bare));
         // Light the bodies by the REAL Sun (v0.451): the full-uniform write above
         // stamps the default fake sun [0.3,1,0.5] at offset 608 (v0.639: shifted from 352 by
         // the +256-byte light_spot/light_cone_inner insertion), so re-poke it with the true

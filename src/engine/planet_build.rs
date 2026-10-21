@@ -87,11 +87,12 @@ pub(crate) fn note_body(state: &mut EngineState, body: &str, render_off: DVec3, 
 }
 
 /// THE rotation taking a direction in a body's unrotated frame to render
-/// space: the planet's spin, composed with the hull frame when riding the
-/// station. The celestial loop places the terrain with this (lib.rs
-/// `rot_d`), and the look conversions below use it, so there is one formula.
-pub(crate) fn body_render_rot(station_ride: bool, station_world_rot: DQuat, spin: f64) -> DQuat {
-    crate::station::hull_frame_rot(station_ride, station_world_rot) * DQuat::from_rotation_y(spin)
+/// space: the body's own turn ([`body_world_rot`]), composed with the hull
+/// frame when riding the station. The celestial loop places the terrain with
+/// this (lib.rs `rot_d`), and the look conversions below use it, so there is
+/// one formula.
+pub(crate) fn body_render_rot(station_ride: bool, station_world_rot: DQuat, body_rot: DQuat) -> DQuat {
+    crate::station::hull_frame_rot(station_ride, station_world_rot) * body_rot
 }
 
 /// The f32 rotation every draw of a body carries (its uniform sphere, its
@@ -105,8 +106,45 @@ pub(crate) fn body_render_rot(station_ride: bool, station_world_rot: DQuat, spin
 /// reads a fragment's lat/lon through the inverse model matrix) drew world +Y,
 /// Earth's north pole, along the hull's up: straight at the ship, where the
 /// equator at -122.3 belongs (`body_rot_tests`).
-pub(crate) fn body_model_rot(station_ride: bool, station_world_rot: DQuat, spin: f64) -> glam::Quat {
-    body_render_rot(station_ride, station_world_rot, spin).as_quat()
+pub(crate) fn body_model_rot(station_ride: bool, station_world_rot: DQuat, body_rot: DQuat) -> glam::Quat {
+    body_render_rot(station_ride, station_world_rot, body_rot).as_quat()
+}
+
+/// A body's own turn this frame, its unrotated frame to the WORLD: Earth's is
+/// the game clock's spin (`EngineState::current_spin`, so the day the player
+/// sets is the day they see), every other body's is its catalog's
+/// (`cosmos::body_orientation`, on the same real clock that places it, so the
+/// Moon keeps one face to Earth whatever hour the slider shows).
+///
+/// Until 2026-10-21 every body was turned by Earth's spin, so the Moon showed
+/// a face that went round once a day (BUG-212's list, `orientation_tests` in
+/// cosmos.rs and `body_rot_tests` here).
+pub(crate) fn body_world_rot(body_id: &str, earth_spin: f64, sim_t: f64) -> DQuat {
+    if body_id == "earth" {
+        return DQuat::from_rotation_y(earth_spin);
+    }
+    crate::cosmos::find_body(body_id)
+        .map(|b| crate::cosmos::body_orientation(b, sim_t))
+        .unwrap_or(DQuat::IDENTITY)
+}
+
+/// The turn of the body the frame lock holds this frame ([`body_world_rot`];
+/// Earth's when none is held): what every frame-lock capture, ride and up
+/// vector reads, so the camera rides the same turn its ground is drawn with.
+pub(crate) fn frame_body_rot(state: &EngineState) -> DQuat {
+    body_world_rot(state.frame_lock_body.as_deref().unwrap_or("earth"), state.current_spin, state.current_sim_t)
+}
+
+/// The angle of a rotation, radians in 0..pi, robust near zero (one frame of
+/// a planet's turn is a microradian, where `acos(w)` has lost its digits).
+pub(crate) fn turn_angle(q: DQuat) -> f64 {
+    2.0 * DVec3::new(q.x, q.y, q.z).length().atan2(q.w.abs())
+}
+
+/// `q` scaled to `k` of its angle about the same axis (k in 0..1): the share
+/// of a frame's turn the camera keeps through the co-rotation fade.
+pub(crate) fn turn_part(q: DQuat, k: f64) -> DQuat {
+    DQuat::IDENTITY.slerp(q, k)
 }
 
 /// What the frame needs to know about the player, read from the engine in
@@ -138,7 +176,7 @@ impl PlayerView {
             eye_height: state.controller.eye_height(),
             body: state.frame_lock_body.clone(),
             anchor: state.frame_lock_anchor,
-            rot: body_render_rot(state.station_ride, state.station_world_rot, state.current_spin),
+            rot: body_render_rot(state.station_ride, state.station_world_rot, frame_body_rot(state)),
         }
     }
 
@@ -678,7 +716,7 @@ pub(crate) fn dev_stand(state: &mut EngineState, spec: &str, at: Option<&str>) -
     // with the anchor whichever way the frame lock reads it next frame (it
     // re-captures the anchor from the camera on the frame surface mode
     // engages, and keeps the stored one after).
-    let step = DQuat::from_rotation_y(state.current_spin) * (eye - state.frame_lock_anchor);
+    let step = frame_body_rot(state) * (eye - state.frame_lock_anchor);
     state.ship_world_pos += step;
     state.frame_lock_anchor = eye;
     // The look in the camera's CURRENT basis, the surface one when engaged
@@ -864,8 +902,8 @@ mod tests {
             let spin = 0.4 + 0.35 * k as f64;
             // The player walks 3 m east and 2 m north each frame.
             let eye = site.to_body(Vec3::new(3.0 * k as f32, 1.7, -2.0 * k as f32));
-            let ship = crate::dev_travel::frame_lock_ship_pos(body_center, spin, eye, cam_local);
-            let rot = body_render_rot(false, DQuat::IDENTITY, spin);
+            let ship = crate::dev_travel::frame_lock_ship_pos(body_center, DQuat::from_rotation_y(spin), eye, cam_local);
+            let rot = body_render_rot(false, DQuat::IDENTITY, DQuat::from_rotation_y(spin));
             let (p, r) = site.render_pose(&wall, body_center - ship, rot);
             let world = ship + p.as_dvec3();
             let back = rot.inverse() * (world - body_center);
@@ -911,7 +949,7 @@ mod tests {
     /// in `site`, looking along the site's -Z (north), with the parked camera
     /// at `camera_pos` in the home frame.
     fn on_planet(site: &PlanetSite, local: Vec3, camera_pos: Vec3, spin: f64) -> PlayerView {
-        let rot = body_render_rot(false, DQuat::IDENTITY, spin);
+        let rot = body_render_rot(false, DQuat::IDENTITY, DQuat::from_rotation_y(spin));
         PlayerView {
             aboard: false,
             camera_pos,
@@ -991,7 +1029,7 @@ mod tests {
         assert!(!body.contains("spin") && !body.contains("body_render_rot"), "note_body recomputes nothing: {body}");
         // What it stores draws a piece exactly where the terrain puts the point.
         let site = site_at(47.645, -122.6925);
-        let rot_d = body_render_rot(true, DQuat::from_rotation_z(0.3), 1.234);
+        let rot_d = body_render_rot(true, DQuat::from_rotation_z(0.3), DQuat::from_rotation_y(1.234));
         let render_off = DVec3::new(-120.0, -6_371_010.0, 35.0);
         let base = Transform { position: Vec3::new(3.0, 0.2, -1.0), ..Transform::default() };
         let (p, _) = site.render_pose(&base, render_off, rot_d);
@@ -1025,7 +1063,7 @@ mod tests {
             &[("wood_wall", 0.0, -2.0, 0), ("wood_wall", -2.0, 0.0, 1), ("wood_wall", 2.0, 0.0, 1), ("roof", 0.0, 0.0, 0), ("storage_chest", 0.0, -1.0, 0)],
         );
         let spin = 0.9;
-        let rot = body_render_rot(false, DQuat::IDENTITY, spin);
+        let rot = body_render_rot(false, DQuat::IDENTITY, DQuat::from_rotation_y(spin));
         let eye = site.to_body(Vec3::new(0.0, 1.7, 1.5));
         let render_off = -(rot * eye); // the eye at the render origin
         let bf = BodyFrame { body: "earth".into(), render_off, rot };
@@ -1096,7 +1134,7 @@ mod body_rot_tests {
                 let spin = crate::dev_travel::planet_spin_from_time(hour, sun_az);
                 // Earth's centre in the render frame, exactly as site 1 places it.
                 let centre = crate::station::to_hull(true, ship_rot, DVec3::ZERO - ship);
-                let m = body_model_rot(true, ship_rot, spin);
+                let m = body_model_rot(true, ship_rot, body_world_rot("earth", spin, t));
                 // The fragment nearest the ship, read the way the type-12 shader reads it.
                 let toward_ship = (-centre).normalize().as_vec3();
                 let local = m.inverse() * toward_ship;
@@ -1112,12 +1150,66 @@ mod body_rot_tests {
                     "sun azimuth {sun_az_deg}, hour {hour}: Earth's north pole is drawn toward {pole:?}, the world's north is {north:?} in the hull's axes"
                 );
                 // Off the station the draws keep the world's axes: the plain spin.
-                let off = body_model_rot(false, ship_rot, spin);
+                let off = body_model_rot(false, ship_rot, body_world_rot("earth", spin, t));
                 let plain = glam::Quat::from_rotation_y(spin as f32);
                 for v in [Vec3::X, Vec3::Y, Vec3::Z] {
                     assert!((off * v - plain * v).length() < 1.0e-5, "off the station the rotation is the spin");
                 }
             }
+        }
+    }
+    /// THE MOON KEEPS ONE FACE TO EARTH (2026-10-21, BUG-212's list). Every
+    /// body used to be turned by Earth's spin, so the Moon showed a face that
+    /// went round once a game day. Now it turns by its IAU rotation on the real
+    /// clock that also places it (`body_world_rot`), whatever the game clock
+    /// does to Earth. Every 6 hours for a lunar month from 2026-10-21, with the
+    /// game hour set to something unrelated each time, the point of the Moon
+    /// under Earth (its sub-Earth point, read through the Moon's draw rotation)
+    /// stays within its optical libration of longitude 0, latitude 0: about 8
+    /// degrees in longitude from its eccentric orbit and 7 in latitude from its
+    /// tilted pole, both real, both coming out of the model unasked; its mean
+    /// over the month sits on the prime meridian. Earth's own turn is the spin,
+    /// unchanged (the BUG-211 test above drives it through the same function).
+    ///
+    /// Seen red 2026-10-21 with `body_world_rot` turning every body by Earth's
+    /// spin (the old rule): "0 h in, game hour 0.0: the Moon turns latitude
+    /// 0.3, longitude -99.7 toward Earth, not its near side: its face turns
+    /// with Earth's day".
+    #[test]
+    fn the_moon_keeps_one_face_to_earth_whatever_the_hour() {
+        let moon = crate::cosmos::find_body("moon").expect("moon in sol.json");
+        let earth = crate::cosmos::find_body("earth").expect("earth in sol.json");
+        // 2026-10-21 00:00 UTC, seconds from J2000.
+        let t0 = 1_792_540_800.0 - 946_728_000.0;
+        let wrap = |d: f64| (d + 180.0).rem_euclid(360.0) - 180.0;
+        let mut lon_sum = 0.0;
+        let mut n = 0.0;
+        for k in 0..=120 {
+            let t = t0 + k as f64 * 6.0 * 3600.0;
+            // A game hour that has nothing to do with the real clock.
+            let hour = (k as f64 * 7.3).rem_euclid(24.0);
+            let spin = crate::dev_travel::planet_spin_from_time(hour, 1.1 + 0.017 * k as f64);
+            let to_earth = ((crate::cosmos::body_world_position_3d_au(earth, t)
+                - crate::cosmos::body_world_position_3d_au(moon, t))
+                * crate::cosmos::M_PER_AU)
+                .normalize();
+            let local = body_world_rot("moon", spin, t).inverse() * to_earth;
+            let (lat, lon) = crate::terrain::planet_heightmap::dir_to_latlon_deg_f64(local);
+            let lon = wrap(lon);
+            assert!(
+                lon.abs() < 8.5 && lat.abs() < 7.5,
+                "{} h in, game hour {hour:.1}: the Moon turns latitude {lat:.1}, longitude {lon:.1} toward Earth, not its near side: its face turns with Earth's day",
+                k * 6
+            );
+            lon_sum += lon;
+            n += 1.0;
+        }
+        let mean = lon_sum / n;
+        assert!(mean.abs() < 1.5, "over the month the sub-Earth longitude averages {mean:.2}, not the prime meridian");
+        // Earth's own turn is its spin, whatever the sim time.
+        for spin in [0.0_f64, 1.0, 4.0] {
+            let r = body_world_rot("earth", spin, t0 + 12_345.0);
+            assert!((r * DVec3::X - DQuat::from_rotation_y(spin) * DVec3::X).length() < 1e-12, "Earth turns by its spin");
         }
     }
 }

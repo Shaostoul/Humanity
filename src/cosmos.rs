@@ -111,6 +111,172 @@ pub struct SolBody {
     pub discoverer: String,
     /// IDs of bodies orbiting this one (e.g. moons of a planet).
     pub children: Vec<String>,
+    /// Sidereal rotation period in hours, negative when the body turns
+    /// backwards (Venus, Uranus, Pluto). 0 when the catalog has none. Used
+    /// only by a body with no `rotation` elements (`body_orientation`).
+    pub rotation_period_hours: f64,
+    /// Obliquity: the tilt of the spin axis from the orbit's pole, degrees.
+    pub axial_tilt_deg: f64,
+    /// The IAU rotational elements (sol.json `rotation`), where the catalog
+    /// has them: the pole and prime meridian the body really turns with.
+    pub rotation: Option<RotationElements>,
+}
+
+/// A body's rotation as the IAU Working Group on Cartographic Coordinates and
+/// Rotational Elements (WGCCRE) gives it: the pole's right ascension and
+/// declination in the ICRF, and the prime meridian's angle W along the body's
+/// equator from the node of that equator on the ICRF equator, all in degrees.
+/// sol.json carries them per body with the quoted source (2026-10-21).
+#[derive(Debug, Clone, PartialEq)]
+pub struct RotationElements {
+    /// Pole right ascension, `a + b T` (T in Julian centuries from J2000).
+    pub pole_ra_deg: [f64; 2],
+    /// Pole declination, `a + b T`.
+    pub pole_dec_deg: [f64; 2],
+    /// Prime meridian, `W0 + Wd d + Wdd d^2` (d in days from J2000).
+    pub prime_meridian_deg: [f64; 3],
+    /// The periodic terms (the Moon's E1..E13, Mars's, Jupiter's, Neptune's).
+    pub periodic: Vec<RotationTerm>,
+}
+
+/// One periodic term of [`RotationElements`]: an angle running linearly in
+/// time, and what it adds, in degrees, to the pole's right ascension (times
+/// its sine), to its declination (times its cosine) and to W (times its sine).
+#[derive(Debug, Clone, PartialEq)]
+pub struct RotationTerm {
+    pub angle0_deg: f64,
+    /// Degrees per day (sol.json may give it per Julian century, `per`).
+    pub angle_deg_per_day: f64,
+    pub ra_sin: f64,
+    pub dec_cos: f64,
+    pub w_sin: f64,
+}
+
+/// The obliquity of the ecliptic at J2000, IAU 2006: 84381.406 arcseconds
+/// (IERS Conventions 2010, chapter 5, epsilon_0). It turns the ICRF poles of
+/// [`RotationElements`] into the ecliptic frame the orbits are in.
+pub const OBLIQUITY_J2000_DEG: f64 = 84_381.406 / 3600.0;
+
+/// The pole's right ascension and declination and the prime meridian W, in
+/// degrees, at `sim_time_seconds` after J2000 (the elements are in TDB; the
+/// 69 seconds between TDB and the UTC the sim clock counts move the Moon's
+/// face by 0.01 degree, so they are not told apart).
+pub fn rotation_angles_deg(rot: &RotationElements, sim_time_seconds: f64) -> (f64, f64, f64) {
+    let d = sim_time_seconds / 86_400.0;
+    let t = d / 36_525.0;
+    let mut ra = rot.pole_ra_deg[0] + rot.pole_ra_deg[1] * t;
+    let mut dec = rot.pole_dec_deg[0] + rot.pole_dec_deg[1] * t;
+    // W runs to hundreds of thousands of degrees; wrap the linear part first
+    // so the f64 keeps its precision in the angle that matters.
+    let mut w = (rot.prime_meridian_deg[0] + rot.prime_meridian_deg[1] * d).rem_euclid(360.0)
+        + rot.prime_meridian_deg[2] * d * d;
+    for term in &rot.periodic {
+        let e = (term.angle0_deg + term.angle_deg_per_day * d).rem_euclid(360.0).to_radians();
+        ra += term.ra_sin * e.sin();
+        dec += term.dec_cos * e.cos();
+        w += term.w_sin * e.sin();
+    }
+    (ra, dec, w)
+}
+
+/// The rotation taking a direction in a body's own frame (the engine's
+/// body-local convention: +Y its north or positive pole, longitude
+/// `atan2(-z, x)`, so east is -Z) to the world frame (`world_from_ecliptic`).
+///
+/// IAU: body-fixed to ICRF is `Rz(90 + ra) Rx(90 - dec) Rz(W)`. Then ICRF to
+/// the ecliptic of J2000 is `Rx(-obliquity)`, and the engine's two frames sit
+/// on the IAU ones by the same quarter turn about X both ways (body-local
+/// (x, y, z) is IAU body-fixed (x, -z, y), and ecliptic (x, y, z) is world
+/// (x, z, -y)), so the whole is
+/// `Rx(-90 - obliquity) Rz(90 + ra) Rx(90 - dec) Rz(W) Rx(90)`.
+pub fn iau_orientation(rot: &RotationElements, sim_time_seconds: f64) -> glam::DQuat {
+    use glam::DQuat;
+    let (ra, dec, w) = rotation_angles_deg(rot, sim_time_seconds);
+    DQuat::from_rotation_x((-90.0 - OBLIQUITY_J2000_DEG).to_radians())
+        * DQuat::from_rotation_z((90.0 + ra).to_radians())
+        * DQuat::from_rotation_x((90.0 - dec).to_radians())
+        * DQuat::from_rotation_z(w.rem_euclid(360.0).to_radians())
+        * DQuat::from_rotation_x(std::f64::consts::FRAC_PI_2)
+}
+
+/// How a body is turned at `sim_time_seconds`: its own frame to the world
+/// (see [`iau_orientation`] for the frames). A body with IAU elements turns
+/// with them, so the Moon keeps one face to Earth, and shows its optical
+/// libration by itself, because its spin is uniform while its orbit is
+/// eccentric and tilted (2026-10-21, `orientation_tests`). A body without
+/// them turns at its catalog sidereal period about its orbit's pole, leaned
+/// by its axial tilt toward the orbit's ascending node, with its prime
+/// meridian at the node at J2000: a stand-in with the right day and an
+/// honest pole for a body nobody has measured (an asteroid, a comet,
+/// Agartha). No period at all: not turned.
+///
+/// Earth is the exception the engine makes, not this function: its turn is
+/// the game clock (`dev_travel::planet_spin_from_time`, through
+/// `engine::planet_build::body_world_rot`), so the day the player sets is the
+/// day they see. What this returns for Earth is never drawn.
+pub fn body_orientation(body: &SolBody, sim_time_seconds: f64) -> glam::DQuat {
+    use glam::DQuat;
+    if let Some(rot) = &body.rotation {
+        return iau_orientation(rot, sim_time_seconds);
+    }
+    if body.rotation_period_hours == 0.0 {
+        return DQuat::IDENTITY;
+    }
+    let (node_deg, _) = orbit_angles_deg_at(body, sim_time_seconds);
+    let w_deg = (360.0 * sim_time_seconds / (body.rotation_period_hours * 3600.0)).rem_euclid(360.0);
+    // Body-fixed (IAU axes) to ecliptic: the orbit's pole Rz(node) Rx(i) z,
+    // leaned on by the tilt about the same node line.
+    DQuat::from_rotation_x(-std::f64::consts::FRAC_PI_2)
+        * DQuat::from_rotation_z(node_deg.to_radians())
+        * DQuat::from_rotation_x((body.inclination_deg + body.axial_tilt_deg).to_radians())
+        * DQuat::from_rotation_z(w_deg.to_radians())
+        * DQuat::from_rotation_x(std::f64::consts::FRAC_PI_2)
+}
+
+/// Parse sol.json's `rotation` object. Periodic angle rates given per Julian
+/// century (`"per": "century"`) are turned into degrees per day.
+fn parse_rotation(v: &serde_json::Value) -> Option<RotationElements> {
+    let pair = |key: &str| -> Option<[f64; 2]> {
+        let a = v.get(key)?.as_array()?;
+        Some([a.first()?.as_f64()?, a.get(1).and_then(|x| x.as_f64()).unwrap_or(0.0)])
+    };
+    let pm = v.get("prime_meridian_deg")?.as_array()?;
+    let prime_meridian_deg = [
+        pm.first()?.as_f64()?,
+        pm.get(1).and_then(|x| x.as_f64()).unwrap_or(0.0),
+        pm.get(2).and_then(|x| x.as_f64()).unwrap_or(0.0),
+    ];
+    let periodic = v
+        .get("periodic")
+        .and_then(|p| p.as_array())
+        .map(|terms| {
+            terms
+                .iter()
+                .filter_map(|t| {
+                    let a = t.get("angle_deg")?.as_array()?;
+                    let rate = a.get(1).and_then(|x| x.as_f64()).unwrap_or(0.0);
+                    let per_day = match t.get("per").and_then(|p| p.as_str()) {
+                        Some("century") => rate / 36_525.0,
+                        _ => rate,
+                    };
+                    let amp = |k: &str| t.get(k).and_then(|x| x.as_f64()).unwrap_or(0.0);
+                    Some(RotationTerm {
+                        angle0_deg: a.first()?.as_f64()?,
+                        angle_deg_per_day: per_day,
+                        ra_sin: amp("ra_sin"),
+                        dec_cos: amp("dec_cos"),
+                        w_sin: amp("w_sin"),
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    Some(RotationElements {
+        pole_ra_deg: pair("pole_ra_deg")?,
+        pole_dec_deg: pair("pole_dec_deg")?,
+        prime_meridian_deg,
+        periodic,
+    })
 }
 
 static SOL_BODIES: OnceLock<Vec<SolBody>> = OnceLock::new();
@@ -273,6 +439,9 @@ fn parse_sol_bodies(json: &str) -> Vec<SolBody> {
             // absent for most minor bodies, so they default to 0.0 the
             // same way the other physical params do.
             let magnetic_field_t = physical.and_then(|p| p.get("magnetic_field_t")).and_then(|v| v.as_f64()).unwrap_or(0.0);
+            let rotation_period_hours = physical.and_then(|p| p.get("rotation_period_hours")).and_then(|v| v.as_f64()).unwrap_or(0.0);
+            let axial_tilt_deg = physical.and_then(|p| p.get("axial_tilt_deg")).and_then(|v| v.as_f64()).unwrap_or(0.0);
+            let rotation = body.get("rotation").and_then(parse_rotation);
             // Surface pressure lives in the catalog TWICE: the new sparse
             // physical.surface_pressure_pa (pascals, only the majors carry
             // it so far) and the older atmosphere.surface_pressure_atm
@@ -325,6 +494,7 @@ fn parse_sol_bodies(json: &str) -> Vec<SolBody> {
                 magnetic_field_t, surface_pressure_pa,
                 atmosphere_summary, description, discovery_year, discoverer,
                 children: Vec::new(), // populated in second pass below
+                rotation_period_hours, axial_tilt_deg, rotation,
             });
         }
     }
@@ -1243,5 +1413,102 @@ mod tests {
             let hours = (tm - nasa_t) / 3600.0;
             assert!(hours.abs() < 5.0 && kind == nasa_kind, "NASA {nasa_kind} {when}: the model's is {kind}, {hours:+.1} h ({shown:?})");
         }
+    }
+}
+
+#[cfg(test)]
+mod orientation_tests {
+    //! The bodies' own turns (2026-10-21, BUG-212's list): sol.json's IAU
+    //! rotational elements and the frames they are read into.
+    use super::*;
+    use glam::{DQuat, DVec3};
+
+    /// A unit vector in the ICRF from right ascension and declination, degrees.
+    fn icrf(ra_deg: f64, dec_deg: f64) -> DVec3 {
+        let (a, d) = (ra_deg.to_radians(), dec_deg.to_radians());
+        DVec3::new(d.cos() * a.cos(), d.cos() * a.sin(), d.sin())
+    }
+
+    /// The ICRF into the world, the long way round: the obliquity about x,
+    /// then `world_from_ecliptic`. An independent check of the composed
+    /// quaternion in `iau_orientation`.
+    fn world_from_icrf(v: DVec3) -> DVec3 {
+        let e = OBLIQUITY_J2000_DEG.to_radians();
+        world_from_ecliptic(DVec3::new(v.x, v.y * e.cos() + v.z * e.sin(), -v.y * e.sin() + v.z * e.cos()))
+    }
+
+    /// Every body that carries IAU elements parses them whole, and the
+    /// periodic angles given per Julian century become degrees per day.
+    ///
+    /// Seen red 2026-10-21 against the catalog before the elements (given a
+    /// newer catalog_version so the disk copy wins the loader's version gate):
+    /// "sun has no rotation elements".
+    #[test]
+    fn the_catalog_carries_the_iau_rotations() {
+        for id in ["sun", "mercury", "venus", "mars", "jupiter", "saturn", "uranus", "neptune", "pluto", "ceres", "moon"] {
+            let b = find_body(id).unwrap_or_else(|| panic!("{id} in sol.json"));
+            assert!(b.rotation.is_some(), "{id} has no rotation elements");
+        }
+        assert!(find_body("earth").unwrap().rotation.is_none(), "Earth's turn is the game clock's, never the catalog's");
+        let moon = find_body("moon").unwrap().rotation.clone().unwrap();
+        assert_eq!(moon.periodic.len(), 13, "the Moon's E1..E13");
+        assert!((moon.periodic[0].angle_deg_per_day - -0.0529921).abs() < 1e-12);
+        let mars = find_body("mars").unwrap().rotation.clone().unwrap();
+        let slow = mars.periodic.iter().find(|t| (t.ra_sin - 0.419057).abs() < 1e-9).expect("Mars's 0.419 term");
+        assert!((slow.angle_deg_per_day - 0.5042615 / 36_525.0).abs() < 1e-15, "per century made per day");
+    }
+
+    /// The composed rotation puts the body's +Y on its IAU pole and its prime
+    /// meridian at the node plus W, with east at W + 90, turning east (W
+    /// grows) for a prograde body and west for Venus.
+    ///
+    /// Seen red 2026-10-21 with the obliquity left out (the ICRF poles read as
+    /// if they were ecliptic ones): "mars at 0: +Y is not the pole".
+    #[test]
+    fn the_rotation_puts_the_pole_and_the_prime_meridian_where_the_iau_says() {
+        for (id, sense) in [("mars", 1.0), ("venus", -1.0), ("moon", 1.0)] {
+            let b = find_body(id).unwrap();
+            let rot = b.rotation.as_ref().unwrap();
+            for t in [0.0, 86_400.0, 8.0e8] {
+                let (ra, dec, w) = rotation_angles_deg(rot, t);
+                let q = iau_orientation(rot, t);
+                let pole = world_from_icrf(icrf(ra, dec));
+                assert!((q * DVec3::Y - pole).length() < 1e-9, "{id} at {t}: +Y is not the pole");
+                // The prime meridian on the equator: the node Q (RA ra + 90 on
+                // the ICRF equator) turned east about the pole by W.
+                let node = world_from_icrf(icrf(ra + 90.0, 0.0));
+                let meridian = DQuat::from_axis_angle(pole, w.to_radians()) * node;
+                assert!((q * DVec3::X - meridian).length() < 1e-9, "{id} at {t}: lon 0 is not at the node plus W");
+                // East (-Z in the body's frame) is W + 90.
+                let east = DQuat::from_axis_angle(pole, (w + 90.0).to_radians()) * node;
+                assert!((q * DVec3::NEG_Z - east).length() < 1e-9, "{id} at {t}: east is not east");
+            }
+            // The sense of the turn over an hour.
+            let q0 = iau_orientation(rot, 0.0);
+            let q1 = iau_orientation(rot, 3600.0);
+            let pole = q0 * DVec3::Y;
+            let turned = (q0 * DVec3::X).cross(q1 * DVec3::X).dot(pole);
+            assert!(turned * sense > 0.0, "{id} turns the wrong way");
+        }
+    }
+
+    /// A body with no elements turns at its catalog period about its orbit's
+    /// pole: Agartha (24 h, no tilt) goes once round in a sidereal day.
+    ///
+    /// Seen red 2026-10-21 with a body without elements held still: "a
+    /// quarter turn in 6 h".
+    #[test]
+    fn a_body_without_elements_turns_at_its_period_about_its_orbit_pole() {
+        let b = find_body("agartha").expect("agartha in sol.json");
+        assert!(b.rotation.is_none());
+        let q0 = body_orientation(b, 1.0e8);
+        let q1 = body_orientation(b, 1.0e8 + 24.0 * 3600.0);
+        assert!((q0 * DVec3::X - q1 * DVec3::X).length() < 1e-9, "a whole turn in 24 h");
+        let q6 = body_orientation(b, 1.0e8 + 6.0 * 3600.0);
+        assert!(((q0 * DVec3::X).dot(q6 * DVec3::X)).abs() < 1e-9, "a quarter turn in 6 h");
+        // Its pole is its orbit's normal (no tilt).
+        let (p, q) = perifocal_axes_ecliptic(b, 1.0e8);
+        let normal = world_from_ecliptic(p.cross(q)).normalize();
+        assert!((q0 * DVec3::Y - normal).length() < 1e-9, "the pole is the orbit's normal");
     }
 }

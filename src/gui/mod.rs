@@ -1188,6 +1188,10 @@ pub struct GuiState {
     /// the SAME offset or they float where the home used to be (v0.911,
     /// the ghost-markers half of the vanishing-home bug).
     pub station_off: glam::Vec3,
+    /// The camera yaw at which true north lies, set each frame before the HUD
+    /// draws (`station::compass_north_yaw`, 2026-10-21): 0 on a planet's
+    /// ground, the hull's turn aboard, None in free space (no letters).
+    pub compass_north_yaw: Option<f32>,
     /// Metres below the sea surface while underwater (drives the tint's
     /// depth grading + the HUD depth readout; 0 when surfaced).
     pub underwater_depth_m: f32,
@@ -3425,6 +3429,7 @@ impl Default for GuiState {
             underwater: false,
             underwater_depth_m: 0.0,
             station_off: glam::Vec3::ZERO,
+            compass_north_yaw: Some(0.0),
             location_bookmarks: Vec::new(),
             location_bookmarks_dirty: true,
             pending_bookmark_teleport: None,

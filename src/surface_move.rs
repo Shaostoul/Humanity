@@ -507,7 +507,7 @@ mod stand_still_tests {
             // put it (lib.rs 4538 `frame_lock_ship_pos`, read back at 3975).
             let cam_world = DQuat::from_rotation_y(self.last_spin) * self.anchor;
             // lib.rs 3998: express it back in the planet's unrotated frame.
-            let anchor_pre = frame_lock_capture(DVec3::ZERO, self.spin, cam_world);
+            let anchor_pre = frame_lock_capture(DVec3::ZERO, DQuat::from_rotation_y(self.spin), cam_world);
             // lib.rs 4002-4032: the ground under the player, and the altitude
             // every band test + the HUD reads. Both halves of the fix are
             // here: the SAMPLE POINT (the shipped chooser) and the ground
@@ -797,7 +797,7 @@ mod stand_still_tests {
         let carried = dir_of(35.0, 139.0) * r;
         // One frame of spin at 7 fps: the worst realistic lag, 4.7 km of arc.
         let lag = std::f64::consts::TAU / DAY_S / 7.0;
-        let pre = frame_lock_capture(DVec3::ZERO, lag, DQuat::from_rotation_y(0.0) * carried);
+        let pre = frame_lock_capture(DVec3::ZERO, DQuat::from_rotation_y(lag), DQuat::from_rotation_y(0.0) * carried);
         let arc = (pre.normalize() - carried.normalize()).length() * r;
         assert!(
             (3_000.0..6_000.0).contains(&arc),

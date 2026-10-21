@@ -112,28 +112,29 @@ pub fn planet_spin_from_time(hour: f64, sun_azimuth_rad: f64) -> f64 {
 /// world position back in the body's UNROTATED local frame, so a later
 /// `frame_lock_ship_pos` can re-place it as the body spins/orbits. Inverse of
 /// `frame_lock_ship_pos`. `body_center_m` is the body's current Earth-relative
-/// centre (DVec3::ZERO for Earth, the frame origin); `spin` is the body's
-/// current rotation angle in radians (`planet_spin_from_time`, v0.878).
-pub fn frame_lock_capture(body_center_m: DVec3, spin: f64, cam_world_m: DVec3) -> DVec3 {
-    let rot = glam::DQuat::from_rotation_y(spin);
+/// centre (DVec3::ZERO for Earth, the frame origin); `rot` is the body's
+/// current turn, its unrotated frame to the world: Earth's spin
+/// (`planet_spin_from_time`, v0.878) or another body's own
+/// (`engine::planet_build::body_world_rot`, 2026-10-21; it was Earth's spin
+/// angle for every body until then).
+pub fn frame_lock_capture(body_center_m: DVec3, rot: glam::DQuat, cam_world_m: DVec3) -> DVec3 {
     rot.inverse() * (cam_world_m - body_center_m)
 }
 
 /// Frame-lock apply (v0.819): the `ship_world_pos` that keeps the camera parked
-/// at the co-rotating anchor point, i.e. `body_center + Ry(spin) * anchor_local`
-/// minus the camera's small local offset. Feeding successive `spin` values each
+/// at the co-rotating anchor point, i.e. `body_center + rot * anchor_local`
+/// minus the camera's small local offset. Feeding successive turns each
 /// frame carries the local scene along with the planet's rotation AND orbital
 /// motion, so the surface sits still relative to the viewer (KSP-style surface
-/// reference frame). The matching view co-rotation is a yaw delta of
-/// `spin - last_spin` applied by the caller (planet spins about Y, camera yaw is
-/// about world Y, so they compose exactly in this Y-axis-spin model).
+/// reference frame). The matching view co-rotation is this frame's turn,
+/// `rot * last_rot^-1`, applied by the caller (`Camera::co_rotate_look`; for
+/// Earth it is a yaw of the spin's delta about world Y).
 pub fn frame_lock_ship_pos(
     body_center_m: DVec3,
-    spin: f64,
+    rot: glam::DQuat,
     anchor_local: DVec3,
     cam_local: DVec3,
 ) -> DVec3 {
-    let rot = glam::DQuat::from_rotation_y(spin);
     body_center_m + rot * anchor_local - cam_local
 }
 
@@ -355,8 +356,8 @@ mod tests {
         let spin = 1.234;
         let cam_local = DVec3::new(5.0, 27.0, -3.0);
         let cam_world = DVec3::new(6.371e6, 1.2e5, -8.0e5);
-        let anchor = frame_lock_capture(body_center, spin, cam_world);
-        let ship = frame_lock_ship_pos(body_center, spin, anchor, cam_local);
+        let anchor = frame_lock_capture(body_center, glam::DQuat::from_rotation_y(spin), cam_world);
+        let ship = frame_lock_ship_pos(body_center, glam::DQuat::from_rotation_y(spin), anchor, cam_local);
         let reproduced = ship + cam_local;
         assert!((reproduced - cam_world).length() < 1e-3, "round trip drifted: {reproduced} vs {cam_world}");
     }
@@ -372,10 +373,10 @@ mod tests {
         let cam_local = DVec3::ZERO; // camera == frame origin for this test
         // Camera hovering 100 km above a point on the equator (+X face).
         let cam_world0 = DVec3::new(6.471e6, 0.0, 0.0);
-        let anchor = frame_lock_capture(body_center, spin0, cam_world0);
+        let anchor = frame_lock_capture(body_center, glam::DQuat::from_rotation_y(spin0), cam_world0);
         // Advance a quarter turn.
         let spin1 = std::f64::consts::FRAC_PI_2;
-        let ship1 = frame_lock_ship_pos(body_center, spin1, anchor, cam_local);
+        let ship1 = frame_lock_ship_pos(body_center, glam::DQuat::from_rotation_y(spin1), anchor, cam_local);
         let cam_world1 = ship1 + cam_local;
         // The camera should now sit above the same surface point after it
         // rotated 90 degrees about Y: +X maps to -Z (Ry convention).
@@ -413,10 +414,10 @@ mod tests {
         let spin = 0.5;
         let cam_local = DVec3::new(0.0, 20.0, 0.0);
         let cam_world = center_a + DVec3::new(0.0, 0.0, 1.0e7); // 10,000 km out
-        let anchor = frame_lock_capture(center_a, spin, cam_world);
+        let anchor = frame_lock_capture(center_a, glam::DQuat::from_rotation_y(spin), cam_world);
         // Body has drifted 500,000 km along its orbit; same spin.
         let center_b = center_a + DVec3::new(5.0e8, 0.0, 0.0);
-        let ship = frame_lock_ship_pos(center_b, spin, anchor, cam_local);
+        let ship = frame_lock_ship_pos(center_b, glam::DQuat::from_rotation_y(spin), anchor, cam_local);
         let cam_world_b = ship + cam_local;
         // Camera keeps the SAME offset relative to the (moved) body centre.
         let off_a = cam_world - center_a;

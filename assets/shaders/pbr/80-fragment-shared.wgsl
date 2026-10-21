@@ -223,6 +223,35 @@ fn body_sun() -> vec4<f32> {
     return vec4<f32>(camera.sun_color.rgb, camera.sun_direction.w);
 }
 
+// ── THE SUN ANOTHER BODY'S AIR AND CLOUDS ARE LIT BY (2026-10-21) ──
+// The same miss as body_sun() above, for the shells: an atmosphere (type 14)
+// and a cloud deck (type 15) were lit by the camera's sun, so from the Moon's
+// night side Earth's clouds and its blue limb were drawn unlit over a lit
+// ground. A shell is the frame body's when its centre (the object's
+// translation, the planet centre for both shells) is the frame body's centre:
+// camera.light2_spot carries that sphere (xyz the centre in the render frame,
+// w the radius in metres; w <= 0 when there is no frame body, and then every
+// shell keeps the camera's sun, which in space is the plain Sun anyway).
+// Any other shell takes the Sun before any air, camera.light3_spot (rgb, w the
+// strength), its day and night coming from its own per-sample geometry. The
+// cloud deck needs this route because its params2 carries the slab. Rust twin:
+// key_lights::layer_sun_for.
+fn is_frame_layer() -> bool {
+    let frame = camera.light2_spot;
+    if (frame.w <= 0.0) {
+        return true;
+    }
+    return distance(obj_model()[3].xyz, frame.xyz) < 0.01 * frame.w;
+}
+
+// A shell's sun: rgb, w = strength.
+fn layer_sun() -> vec4<f32> {
+    if (is_frame_layer() || camera.light3_spot.w <= 0.0) {
+        return vec4<f32>(camera.sun_color.rgb, camera.sun_direction.w);
+    }
+    return camera.light3_spot;
+}
+
 // The shared PBR lighting tail every surface class ends with. Reads the
 // setup as the class entry left it and returns the final tone-mapped colour
 // with the output alpha. The locals below carry the fs_main names so the
