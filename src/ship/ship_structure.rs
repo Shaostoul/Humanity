@@ -150,8 +150,9 @@ pub struct CorridorGeom {
     pub lat: f32,
     /// World floor (deck) height: the zones' shared origin y (v1 corridors are level).
     pub floor_y: f32,
-    /// Interior tube height: the SHORTER zone's box height, so the lid never rises above either
-    /// roofline and the door mouth (clamped to this) always fits.
+    /// Interior tube height: the SHORTER end's ground storey (a zone's first storey, a plot's box
+    /// height), so the lid never rises above either roofline or past a ground floor's ceiling, and
+    /// the door mouth (clamped to this) always fits.
     pub height: f32,
     pub width: f32,
     pub glass_top: bool,
@@ -285,6 +286,7 @@ impl Plot {
             w: self.size.0,
             d: self.size.2,
             h: self.size.1,
+            deck_h: self.size.1,
         }
     }
 }
@@ -427,11 +429,23 @@ struct EndBox {
     w: f32,
     d: f32,
     h: f32,
+    /// How tall a corridor arriving here may be: the box's GROUND storey (ship homes increment 7).
+    /// A corridor meets a zone at its deck, so a two-storey homestead (6.0 m) still caps its
+    /// corridor at its ground floor's 3.0 m, not at its roof. A plot, which does not know the
+    /// storeys of the home it will hold, offers its whole box height.
+    deck_h: f32,
 }
 
 impl EndBox {
     fn of_zone(z: &ShipZone) -> EndBox {
-        EndBox { origin: z.origin_vec(), w: z.body.width, d: z.body.depth, h: z.body.height }
+        EndBox::of_body(z.origin_vec(), &z.body)
+    }
+
+    /// The box a home or zone body makes standing at `origin`, its corridors capped at its ground
+    /// storey (`deck_h`).
+    fn of_body(origin: Vec3, body: &HomeStructure) -> EndBox {
+        let deck_h = body.storeys().first().map_or(body.height, |s| s.top);
+        EndBox { origin, w: body.width, d: body.depth, h: body.height, deck_h }
     }
 
     fn aabb(&self) -> (Vec3, Vec3) {
@@ -1050,7 +1064,7 @@ fn tube_between(
             ));
         }
         let floor_y = of.y;
-        let height = from.h.min(to.h).max(1.0);
+        let height = from.deck_h.min(to.deck_h).max(1.0);
         // Both mouths are the corridor's OWN door, clamped so the header never pokes above the lid.
         let door = (c.door_width, c.door_height.min(height));
         let (fa, ta) = if from_at_start { (start, end) } else { (end, start) };
@@ -1640,12 +1654,7 @@ impl ShipStructure {
         // room is there, while the real door opens onto nothing (the critic's review of 1a).
         // So the tube's home-end mouth must be the door point itself, in ship metres.
         if let Some(to_idx) = self.zone_index(&plot.door.zone) {
-            let home_box = EndBox {
-                origin: Vec3::new(plot.origin.0, plot.origin.1, plot.origin.2),
-                w: b.width,
-                d: b.depth,
-                h: b.height,
-            };
+            let home_box = EndBox::of_body(Vec3::new(plot.origin.0, plot.origin.1, plot.origin.2), b);
             let row = plot.door.corridor_from(HOME_ZONE_ID);
             if let Ok(g) = tube_between(home_box, EndBox::of_zone(&self.zones[to_idx]), &row, 0, to_idx) {
                 let door = (plot.origin.0 + design.door.0, plot.origin.2 + design.door.1);
@@ -1730,12 +1739,7 @@ impl ShipStructure {
     pub fn plot_door_tube(&self, plot: &Plot, design: Option<&HomeDesign>) -> Result<CorridorGeom, String> {
         let to_idx = self.zone_index(&plot.door.zone).ok_or_else(|| format!("unknown zone '{}'", plot.door.zone))?;
         let from = match design {
-            Some(d) => EndBox {
-                origin: Vec3::new(plot.origin.0, plot.origin.1, plot.origin.2),
-                w: d.body.width,
-                d: d.body.depth,
-                h: d.body.height,
-            },
+            Some(d) => EndBox::of_body(Vec3::new(plot.origin.0, plot.origin.1, plot.origin.2), &d.body),
             None => plot.end_box(),
         };
         tube_between(from, EndBox::of_zone(&self.zones[to_idx]), &plot.door.corridor_from(&plot.id), usize::MAX, to_idx)
@@ -3019,7 +3023,9 @@ mod tests {
     #[test]
     fn moving_the_plot_moves_everything_in_the_home() {
         let before = home_parts(&shipped_ship());
-        assert_eq!(before.machines.len(), 259, "every home machine is placed");
+        // 282 since the homestead's upper floor (2026-10-20): 23 more for the dining room, the
+        // second bedroom, the boot room and the shower room.
+        assert_eq!(before.machines.len(), 282, "every home machine is placed");
         let p2 = ShipStructure::load_and_assemble_shipped(&data_dir(), Some("p2")).expect("the homestead assembles at p2");
         let mut failures = not_moved_by(&before, &home_parts(&p2), 0.0, 99.0);
         failures.extend(not_moved_by(&before, &home_parts(&assembled_on_p1_moved_by(-100.0, 0.0)), -100.0, 0.0));
@@ -3027,11 +3033,15 @@ mod tests {
     }
 
     /// Today's ship, pinned from the shipped data BEFORE the split (2026-10-03): every room the
-    /// whole ship detected, as (id, centre, size). 23 are the home's, 10 the Commons', 1 the
-    /// home's corridor. The wall-segment counts are below.
+    /// whole ship detected, as (id, centre, size). 30 are the home's, 10 the Commons', 1 the
+    /// home's corridor. The wall-segment counts are below. Re-pinned 2026-10-20 when the homestead
+    /// gained its upper floor (ship homes increment 7): its 23 rooms became 30 (the quiet wing's
+    /// five at y 4.5 upstairs with the upper hall, the back corridor and the lift lobby; a dining
+    /// room, a second bedroom, a shower room and a boot room downstairs; the greenhouse 6 m tall),
+    /// and the Commons' rooms and the corridor did not move.
     const ROOMS_BEFORE_THE_SPLIT: &[(&str, [f32; 3], [f32; 3])] = &[
-        ("commons:room_10", [71.0, 4.0, 46.0], [3.0, 8.0, 5.0]),
         ("commons:room_1", [82.0, 4.0, 47.5], [34.0, 8.0, 55.0]),
+        ("commons:room_10", [71.0, 4.0, 46.0], [3.0, 8.0, 5.0]),
         ("commons:room_2", [71.5, 4.0, 31.0], [4.0, 8.0, 3.0]),
         ("commons:room_3", [71.5, 4.0, 36.0], [4.0, 8.0, 5.0]),
         ("commons:room_4", [75.5, 4.0, 34.5], [2.0, 8.0, 2.0]),
@@ -3043,39 +3053,47 @@ mod tests {
         ("console-room", [53.75, 1.5, 47.0], [2.5, 3.0, 7.0]),
         ("corridor_0", [60.0, 1.5, 40.0], [10.0, 3.0, 3.0]),
         ("room-aquaponics", [4.75, 1.5, 67.0], [9.5, 3.0, 11.0]),
+        ("room-back-corridor", [33.0, 4.5, 35.25], [1.0, 3.0, 9.5]),
         ("room-barn", [47.75, 1.5, 81.25], [14.5, 3.0, 15.5]),
-        ("room-bathroom", [47.5, 1.5, 32.0], [4.0, 3.0, 3.0]),
-        ("room-bedroom", [38.0, 1.5, 34.0], [7.0, 3.0, 7.0]),
+        ("room-bathroom", [47.5, 4.5, 32.0], [4.0, 3.0, 3.0]),
+        ("room-bedroom", [38.0, 4.5, 34.0], [7.0, 3.0, 7.0]),
+        ("room-bedroom-2", [46.0, 1.5, 34.0], [7.0, 3.0, 7.0]),
+        ("room-boot", [52.75, 1.5, 36.0], [4.5, 3.0, 3.0]),
         ("room-common", [47.0, 1.5, 47.0], [9.0, 3.0, 7.0]),
         ("room-court", [44.75, 1.5, 26.0], [20.5, 3.0, 7.0]),
-        ("room-dressing", [43.5, 1.5, 34.0], [2.0, 3.0, 7.0]),
+        ("room-dining", [38.0, 1.5, 34.0], [7.0, 3.0, 7.0]),
+        ("room-dressing", [43.5, 4.5, 34.0], [2.0, 3.0, 7.0]),
         ("room-entry", [53.75, 1.5, 40.5], [2.5, 3.0, 4.0]),
         ("room-fields", [19.75, 1.5, 81.25], [39.5, 3.0, 15.5]),
         ("room-forge", [16.0, 1.5, 40.5], [7.0, 3.0, 20.0]),
-        ("room-greenhouse", [32.75, 1.5, 62.0], [44.5, 3.0, 21.0]),
+        ("room-greenhouse", [32.75, 3.0, 62.0], [44.5, 6.0, 21.0]),
         ("room-hall", [43.0, 1.5, 40.5], [17.0, 3.0, 4.0]),
         ("room-kitchen", [38.0, 1.5, 48.5], [7.0, 3.0, 4.0]),
+        ("room-lift-lobby", [32.0, 4.5, 28.25], [3.0, 3.0, 2.5]),
         ("room-mushroom", [4.75, 1.5, 56.0], [9.5, 3.0, 9.0]),
         ("room-pantry", [38.0, 1.5, 44.5], [7.0, 3.0, 2.0]),
         ("room-plant", [5.75, 1.5, 40.5], [11.5, 3.0, 20.0]),
         ("room-power", [9.75, 1.5, 10.75], [19.5, 3.0, 21.5]),
         ("room-serviceway", [16.75, 1.5, 26.0], [33.5, 3.0, 7.0]),
-        ("room-study", [52.75, 1.5, 34.0], [4.5, 3.0, 7.0]),
+        ("room-shower", [52.75, 1.5, 32.0], [4.5, 3.0, 3.0]),
+        ("room-study", [52.75, 4.5, 34.0], [4.5, 3.0, 7.0]),
+        ("room-upper-hall", [44.75, 4.5, 39.25], [20.5, 3.0, 1.5]),
         ("room-vehicle", [37.75, 1.5, 10.75], [34.5, 3.0, 21.5]),
-        ("room-wetroom", [47.5, 1.5, 36.0], [4.0, 3.0, 3.0]),
+        ("room-wetroom", [47.5, 4.5, 36.0], [4.0, 3.0, 3.0]),
         ("room-workshop", [27.0, 1.5, 40.5], [13.0, 3.0, 20.0]),
     ];
-    /// Whole-ship wall segments before the split (collision 122, sight 135), and the home's
-    /// own share (69).
-    const WALL_SEGMENTS_BEFORE: usize = 122;
-    const SIGHT_SEGMENTS_BEFORE: usize = 135;
-    const HOME_SEGMENTS_BEFORE: usize = 69;
+    /// Whole-ship wall segments before the split (collision 154, sight 174), and the home's
+    /// own share (101). Before the homestead's upper floor (2026-10-20): 122, 135 and 69.
+    const WALL_SEGMENTS_BEFORE: usize = 154;
+    const SIGHT_SEGMENTS_BEFORE: usize = 174;
+    const HOME_SEGMENTS_BEFORE: usize = 101;
 
     /// Assembling at p1 reproduces today's ship. Everything that existed before the split (the
     /// assembled ship without street-1 and its corridor, both new in 1a, and without the cabin
-    /// block, the South Commons and the recreation room of increment 6) has the same 34 rooms,
-    /// each with the same id, centre and size, and the same 122 collision and 135 sight
-    /// segments; the home alone keeps its 23 rooms and 69 segments. Then the whole assembled ship
+    /// block, the South Commons and the recreation room of increment 6) has the same 41 rooms,
+    /// each with the same id, centre and size, and the same 154 collision and 174 sight
+    /// segments; the home alone keeps its 30 rooms and 101 segments (23 and 69, and 34, 122 and
+    /// 135 for the ship, before the homestead's upper floor of 2026-10-20). Then the whole assembled ship
     /// is pinned too: street-1 adds one room (its open box) and its corridor a walkable bound
     /// (36 rooms); its four walls, the cut its corridor makes in the street's north wall and in
     /// the Commons' south wall, and the corridor's two side rails add 8 segments (130).
@@ -3084,7 +3102,10 @@ mod tests {
         use crate::ship::wall_collision::{ship_sight_segments, ship_wall_segments};
         let ship = shipped_ship();
         let home = home_parts(&ship);
-        assert_eq!(home.rooms.len(), 23, "the home's own rooms");
+        // 30 since the homestead's upper floor (2026-10-20): the ground floor's 22 (the quiet wing
+        // went up, a dining room, a second bedroom, a shower room and a boot room came) and the
+        // upper floor's 8.
+        assert_eq!(home.rooms.len(), 30, "the home's own rooms");
         assert_eq!(home.segments.len(), HOME_SEGMENTS_BEFORE, "the home's own collision segments");
 
         // The ship before the split: without street-1 and its corridors (1a), and without what
@@ -3141,9 +3162,10 @@ mod tests {
         // Commons' walls, the washroom's wall either side of its door, the cuts the two
         // corridors make in their walls and in First Street's east wall, and their rails (148).
         let all = ship.generate_meshes().room_info;
-        assert_eq!(all.len(), 41, "the whole ship's rooms");
+        assert_eq!(all.len(), 48, "the whole ship's rooms");
         assert!(all.iter().any(|r| r.id == "cabins-1:washroom-1"), "the cabin block's washroom is a room");
-        assert_eq!(ship_wall_segments(&ship).len(), 148, "the whole ship's collision segments");
+        // 48 rooms and 180 segments since the homestead's upper floor (2026-10-20); 41 and 148 before.
+        assert_eq!(ship_wall_segments(&ship).len(), 180, "the whole ship's collision segments");
         // The home's corridor keeps its id in the whole ship too: assembly puts it first.
         let c0 = all.iter().find(|r| r.id == "corridor_0").expect("corridor_0");
         assert!((c0.center - Vec3::new(60.0, 1.5, 40.0)).abs().max_element() < 1e-3, "corridor_0 is the home's corridor, got {:?}", c0.center);
@@ -4073,8 +4095,8 @@ mod storey_fields_tests {
             "f25a9d8398e84427",
             // The homestead's upper floor (increment 7, lane C1, 2026-10-20) moved these two on
             // purpose; before it they were 7f2c00ab2c30e0ce and d015569462471165.
-            "f157103c47ff3d8f",
-            "8027554eda990922",
+            "069cc7d553362752",
+            "6d0d37b140c4343b",
             "da22405ff5cb9a36",
             "ffb704a6e5cf699b",
         ];

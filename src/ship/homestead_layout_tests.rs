@@ -127,9 +127,11 @@ fn ceiling_over(h: &HomeDesign, x: f32, z: f32, y: f32) -> f32 {
 
 /// THE HOMESTEAD HAS TWO STOREYS AND NO TWO ROOMS OVERLAP. The storeys are 0 to 3.0 and 3.0 to
 /// 6.0; on each, no two room zones overlap; the ground rooms tile the 55 x 89 m acre; each zone
-/// stands on its storey's floor and reaches the ceiling over it (the greenhouse, under no slab,
-/// the roof); upstairs are the plan's eight rooms; and the flood fill finds exactly one room per
-/// zone and no room without one.
+/// spans its storey, floor to top; upstairs are the plan's eight rooms; and the flood fill finds
+/// exactly one room per zone and no room without one. The greenhouse's room rises to the roof,
+/// but its zone stays a storey tall: the zone is also its grow room's air box in the life-support
+/// model, and a 6 m box doubles the humid air it leaks into the house (homestead-upper-floor.md
+/// section 12).
 ///
 /// Seen red 2026-10-20 on the single-storey homestead: "the homestead's storeys are [Storey {
 /// floor: 0.0, top: 3.0 }]".
@@ -155,8 +157,7 @@ fn the_homestead_has_two_storeys_and_no_two_rooms_overlap() {
             let r = zone_rect(a);
             assert!(r.0 >= -EPS && r.1 >= -EPS && r.2 <= b.width + EPS && r.3 <= b.depth + EPS, "{} leaves the acre: {r:?}", a.id);
             assert!((a.origin.1 - storeys[k].floor).abs() < EPS, "{} stands at {}, not on storey {k}'s floor", a.id, a.origin.1);
-            let lid = b.floors.iter().filter(|s| s.top > a.origin.1 + EPS && overlap(s.rect(), r) > EPS).map(|s| s.top).fold(b.height, f32::min);
-            assert!((a.origin.1 + a.size.1 - lid).abs() < EPS, "{} reaches {}, its storey's ceiling is at {lid}", a.id, a.origin.1 + a.size.1);
+            assert!((a.origin.1 + a.size.1 - storeys[k].top).abs() < EPS, "{} reaches {}, its storey's top is {}", a.id, a.origin.1 + a.size.1, storeys[k].top);
         }
     }
     let ground: f32 = zones_on(&h, &storeys, 0).iter().map(|z| area(zone_rect(z))).sum();

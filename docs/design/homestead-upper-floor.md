@@ -158,21 +158,25 @@ the court is a roof), and U2, U3 and U10 to U13 are new.
 
 | id | a | b | material | what it guards |
 |---|---|---|---|---|
-| G1 | (36.5, 39.3) | (40.5, 39.3) | glass | the stairwell's long edge, along the gallery: up to 2.6 m down to the treads |
-| G2 | (40.5, 38.0) | (40.5, 39.3) | glass | the stairwell's east end, over the flight's foot |
-| G3 | (32.5, 26.9) | (32.5, 28.1) | steel | the ladder hatch's west side, 3.0 m down to the service way |
-| G4 | (32.5, 28.1) | (32.7, 28.1) | steel | the hatch's south side, west of the ladder |
-| G5 | (33.3, 28.1) | (34.0, 28.1) | steel | the hatch's south side, east of the ladder |
+| G1 | (36.5, 39.3) | (40.5, 39.3) | oak balustrade (10) | the stairwell's long edge, along the gallery: up to 2.6 m down to the treads |
+| G2 | (40.5, 38.0) | (40.5, 39.3) | oak balustrade (10) | the stairwell's east end, over the flight's foot |
+| G3 | (32.5, 26.9) | (32.5, 28.1) | steel balustrade (9) | the ladder hatch's west side, 3.0 m down to the service way |
+| G4 | (32.5, 28.1) | (32.7, 28.1) | steel balustrade (9) | the hatch's south side, west of the ladder |
+| G5 | (33.3, 28.1) | (34.0, 28.1) | steel balustrade (9) | the hatch's south side, east of the ladder |
 
-**Which piece draws a guard: none does yet.** Nothing in
-`data/blueprints/structure_types.ron` or `src/ship/home_structure.rs` is a rail,
-guard or balustrade (searched 2026-10-20). A guard here is therefore an interior wall
-with `base: 3.0` and `height: 1.0`: AD K 3.2(b) accepts "any wall, parapet,
-balustrade or similar obstruction as guarding", a solid glass panel has no opening
-for any sphere to pass, and the movement lane's banded collision (a wall stops a
-body where its y0 to y1 overlaps the knee-to-eye band) makes a 1.0 m wall stop a
-walker on the floor it stands on. The room flood fill must not split a room at a
-guard, or the stairwell would become its own room: see section 9, request 3.
+**Which piece draws a guard: a balustrade wall** (lane G, merged 2026-10-20). A guard
+is an interior wall with `base: 3.0` and `height: 1.0` whose material is a
+balustrade (data/blueprints/wall_materials.ron: 9 "Steel balustrade", 10 "Oak
+balustrade", `form: Some("guard")`): it draws posts, upright balusters closer than
+the 100 mm sphere and a top rail at the wall's top (the `guard` row of
+data/blueprints/structure_types.ron), and collides as the wall it is, so the
+movement lane's banded collision (a wall stops a body where its y0 to y1 overlaps
+the knee-to-eye band) stops a walker on the floor it stands on. AD K 3.2(b) accepts
+"any wall, parapet, balustrade or similar obstruction as guarding". G1 and G2 are
+oak, like the upper hall's walls; G3 to G5 are steel, like the lift lobby's. (When
+this draft was written no piece drew a guard, and they were to be plain 1.0 m
+walls.) The room flood fill does not split a room at a guard (Wave 0's
+`ROOM_DIVIDER_MIN_M`), so the stairwell stays part of the upper hall.
 
 Everything else upstairs is enclosed by walls, so no other edge is open. The roof
 (section 6) is unreachable, so its edges need no guards.
@@ -244,9 +248,10 @@ d = 0.5 the stairwell is open to the shell roof at 6.0 m, so the least headroom
 there is 6.0 - 3.0 = 3.0 m at the top step. Under the hall's slab at the foot:
 2.75 m. The ground hall's ceiling (2.75 m) passes the IRC's 7 ft by 616 mm (24 in).
 
-**Handrails need code.** Both codes require them and nothing draws one (section 9,
-request 2). Until then the stair is compliant in everything but its handrails, and
-that should be said in the stair type's note.
+**Handrails.** Both codes require them, and since lane G (2026-10-20) every stair
+carries them: the `handrail` row of data/blueprints/structure_types.ron puts a round
+rail on both sides of a stair 1.0 m or wider, its top 0.93 m over the line of the
+tread edges. (When this draft was written nothing drew one.)
 
 ## 4. The ground floor's freed band (z 30 to 38)
 
@@ -464,10 +469,10 @@ pieces and the swing of every new door.
    budget is unchanged (the rooms stay 3 m) and the sun still reaches them through
    the shell. Without it, the honest alternatives are moving the panels onto a
    reachable roof or the crops under lamps, and both change the loops.
-2. **Handrails, and any sloped stair guard, need a piece (code).** Both codes require
-   handrails on this stair (both sides at 1.2 m wide, 0.93 m above the nosing line in
-   this draft). Nothing draws one. Smallest change: the Steps shape gains optional
-   rails (which sides, height above the nosing line) in `StructureType`.
+2. **Handrails, and any sloped stair guard, need a piece (code).** Done by lane G
+   (2026-10-20): every stair carries handrails (the `handrail` row), and a guard is a
+   balustrade wall (wall materials 9 and 10). A sloped stair guard is still not
+   needed: the flight runs between two walls.
 3. **Two room-detection rules for the contract (Wave 0).** (a) A wall shorter than
    its band (a 1.0 m guard) should not split a room in the flood fill, or the
    stairwell becomes its own room. (b) The space above the lids outside the upper
@@ -538,3 +543,44 @@ every new door's swing, and the stair's foot landing is clear.
   single-storey home and should point here once the data lands.
 - Both copies, `data/homes/homestead.ron` and `data/homes/shipped/homestead.ron`, get
   every change (they differ only in how a teleporter names its pair).
+
+## 12. As built (2026-10-20, Wave 1 lane C1)
+
+The data follows this draft, with these differences, each decided or found while building it:
+
+- **The lids are glass wherever no one lives above them** (the orchestrator's revision of
+  decision 6). Solid slabs lie exactly under the upstairs rooms: the quiet wing, the upper hall
+  (three slabs round the stairwell), the back corridor and the lift lobby (two slabs round the
+  hatch). Every other ground room keeps today's daylight under a glass slab. That re-tiles
+  section 1 into 23 slabs: the workshop's roof is split so the back corridor's 2 m strip
+  (x 32 to 34, z 30 to 40.5) is solid, the house's south roof starts at z 40.5 (the upper
+  hall's south wall), and the service way's roof is cut round the lift lobby and the shaft.
+  The four openings are unchanged, and slabs and openings still add up to the acre.
+- **The elevator shaft is enclosed upstairs** on its north, east and west sides (three
+  3.0 m steel walls, base 3.0). Without them a rider at the top could step off the car onto
+  the lids, and section 6's rule is that a reachable lid makes every lid a roof.
+- **The greenhouse's zone stays 3.0 m tall** though its room rises to the 6.0 m roof (its walls
+  rise with it, base 3.0). The zone is also the greenhouse's air box in the life-support model,
+  and a 6.0 m box doubled the humid air it leaks into the house at the model's 0.5 air changes
+  an hour: the house's four air handlers then held 53% instead of their 50%
+  (`the_shipped_homes_hold_their_air_and_return_their_water`, 2026-10-20). Raising the zone is
+  the Air loop's call: more handling for the house's air, or a tighter greenhouse.
+- **The guards are balustrades** (lane G's guard piece, merged the same day): G1 and G2 oak
+  (wall material 10), G3 to G5 steel (9), base 3.0, 1.0 m tall, at the positions in the table
+  of section 2. Each draws posts, balusters and a top rail and collides as the wall it is.
+- **New furniture ids**: chair_13 to chair_15, rug_10, shelf_20, shelf_21 and desk_4 were
+  already in use (the workshop's desk, the greenhouse's seats), so the dining chairs are
+  chair_16 to chair_21, the second bedroom's desk chair chair_22, the rugs rug_11 to rug_13,
+  the sideboard shelf_23, the boot room's bench shelf_24 and the desk desk_5. The shower
+  room's fixtures are placed in both machine files, the solo home's too, because the water is
+  now shared (below) and the entrance floor needs its WC either way.
+- **The water is shared** (decision 7): a fixture's daily figure is the household's use of that
+  kind of fixture, and every fixture of the kind shares it (`household_use` in
+  data/machines/home.ron and home_solo.ron; `MachineHome::household_share` and the plumbing
+  tick's `HouseholdUse`). Section 9 item 5 is closed: the shower room adds no water.
+- **ramp-1 is not moved and the `ramp` row is unchanged** (the lane touched only the stairs
+  row of structure_types.ron, beside lane G's guard rows). Section 7's change stands as the
+  plan: the ramp row to `size: (1.8, 0.4, 6.8)` and ramp-1 to `(48.0, 0.0, 17.4)` at 180
+  degrees. Until it lands, ramp-1's 1.2 m top in the vehicle bay has 1.55 m to the bay's lid.
+- **The checks of section 10 are tests now**: src/ship/homestead_layout_tests.rs, run with
+  `node scripts/lib-tests.js homestead_layout_tests`.
