@@ -65,6 +65,22 @@ test("cloud noise under the threshold is not ship", () => {
   assert.strictEqual(m.count, 0);
 });
 
+test("a twinkling star field is not ship, however it is spread", () => {
+  // Single bright pixels changing all over the canvas, the way the star field
+  // differs between two renders: their centroid is the canvas centre, which
+  // passed the near control on twinkle alone before the solid-patch rule.
+  // Seen red 2026-10-21 with the rule off (solid = 1): the twinkle passed as
+  // a centred ship (`v.ok` true).
+  const a = image(400, 300);
+  const b = image(400, 300);
+  for (let y = CANVAS[1] + 1; y < CANVAS[3] - 1; y += 4) {
+    for (let x = CANVAS[0] + 1; x < CANVAS[2] - 1; x += 4) b.rgba.set([230, 230, 230, 255], (y * 400 + x) * 4);
+  }
+  const v = judgeShipCentred({ withShip: a, withoutShip: b, canvas: CANVAS });
+  assert.strictEqual(v.ok, false);
+  assert.match(v.message, /no ship in the map/, "twinkle counted as ship");
+});
+
 test("only the canvas is read, never the bars around it", () => {
   // A change in the 40 px bar above the canvas (the clock ticking) and in the
   // left panel: outside the canvas, so no ship.

@@ -6282,3 +6282,37 @@ drop from rest through the whole planet path (`radial_step`, settle glue include
 sqrt(2 g h) within 0.1% at 4, 33 and 100 ms frames. Seen red on the Euler step, already at the
 fastest frames: "at 4 ms frames a 2.62 m drop landed at 7.152 m/s, the drop gives 7.170". The
 planet walk's 50 tests, the falls tests (21) and the wounds tests (29) pass.
+
+## BUG-210: aboard the home station, Earth and the planets were lit by a Sun turned by the station's attitude (FIXED 2026-10-21, found 2026-10-21)
+
+**Seen:** the first rig capture of the Maps page's world layer (Maps increment 1, vantage
+`maps-follow-home`, game clock 20.15 = local noon under the ship): Earth behind the ship was half
+lit, its terminator straight through the middle, when the Sun stood directly above the ship and
+the whole day side should have faced it.
+
+**Why it matters:** every view of Earth or a planet from aboard the home (the deck, the windows,
+the hi-res screenshot, the camera screens' sky, now the Maps page) showed day and night in the
+wrong place, by the station's attitude: with the LVLH attitude that turns once a day, the error
+swept round the whole planet over a game day. The god rays aimed at the same wrong Sun.
+
+**Cause:** aboard, the render frame is the hull's body frame (v0.1225): every body is placed and
+turned by `station::to_hull` (lib.rs, "HULL FRAME, site 1 of 3") and the scene's sun light is
+turned too (site 2). The direction handed to the CELESTIAL pass and the god rays,
+`sun_dir_f = (sun_world_pos - ship_world_pos).normalize()`, was never turned: world axes against
+hull-frame geometry. At local noon the world-axes Sun is horizontal (the orbit lies in the
+equatorial plane), so read as a hull-frame vector it sat on the ship's horizon. It predates the
+hull frame (v0.451's "light the bodies by the real Sun"), and the hull-frame change listed three
+sites and missed this fourth. Off the station `to_hull` is the identity, which is why every
+planet-surface and dev-travel vantage was right.
+
+**Fix:** one function, `engine::ipc::celestial_sun_dir` (`celestial_sun_dir_from` in pure form),
+turns the direction into the render frame; the live frame (lib.rs) and every off-screen view
+(`render_view_onto`) call it.
+
+**Test:** `engine::ipc::celestial_sun_tests::aboard_the_celestial_sun_is_in_the_hull_frame`: aboard
+at local noon at three times of day the celestial Sun is the hull's up within 0.001; off the
+station it keeps the world's axes. The red message is in the test's comment. The rig's
+`maps-follow-home` and `maps-follow-home-later` captures show the result.
+
+**Lanes:** the renderer's lighting lane (2026-10-21) owns `renderer/light.rs` and the room GI, not
+this call; the change is the direction's frame at the two call sites, nothing in the renderer.

@@ -1095,6 +1095,10 @@ async function main() {
         // they must sit in the middle. `map_centre.expect: "fail"` marks a
         // control, which passes only by failing the check.
         if (v.map_centre) {
+          // The costs as they stood at the capture, before the ship-less
+          // renders below fold into them (the map at rest, for the cost table).
+          const fcAt = path.join(RIG, "debug", "frame_costs.json");
+          if (fs.existsSync(fcAt)) fs.copyFileSync(fcAt, path.join(OUT, `${v.id}-costs-at-capture.json`));
           clearDone("map_done.json");
           req("showcase_request.json", { map: "report" });
           const withShip = await waitFile("map_done.json", 20000);
@@ -1226,6 +1230,17 @@ async function main() {
         if (rec.ok && rec.map_centre && !rec.map_centre.ok) {
           rec.ok = false;
           rec.error = `MAP CENTRE: ${rec.map_centre.message}`;
+        }
+        // A page a final_showcase opened stays open into the next vantage,
+        // which would then capture the page instead of the world (and the
+        // Maps page carried its dev turn into the next map vantage,
+        // 2026-10-21). Close it once this vantage's captures, gates and costs
+        // file are done.
+        const steps = v.final_showcase ? (Array.isArray(v.final_showcase) ? v.final_showcase : [v.final_showcase]) : [];
+        const pagesOpened = steps.map((s) => s.page).filter(Boolean);
+        if (pagesOpened.length && pagesOpened[pagesOpened.length - 1] !== "none") {
+          req("showcase_request.json", { page: "none" });
+          await sleep(1000);
         }
       } catch (e) {
         rec.error = String(e.message || e);

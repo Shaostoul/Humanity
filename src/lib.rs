@@ -15017,11 +15017,7 @@ mod native_app {
                                 // jump the un-shifted vector would light the destination
                                 // planet's wrong hemisphere. At home the correction is
                                 // ~3e-7 rad (GEO vs 1 AU) -- invisible.
-                                let sun_dir_f = {
-                                    let d = (state.sun_world_pos - state.ship_world_pos)
-                                        .normalize_or_zero();
-                                    Vec3::new(d.x as f32, d.y as f32, d.z as f32)
-                                };
+                                let sun_dir_f = crate::engine::ipc::celestial_sun_dir(state); // render frame: the hull's axes aboard (BUG-210)
                                 // The elapsed-seconds arg is the cloud-deck clock
                                 // (shader type 15 animation); app-start-relative so
                                 // f32 stays precise for days of uptime.

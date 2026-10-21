@@ -440,6 +440,14 @@ pub(super) fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut Gui
         let is_forced = is_hovered || is_selected || is_expanded;
         let should_show = priority <= 2 || is_forced;
         if !should_show { continue; }
+        // Over the world layer's real globe a pill would paint its dark cap
+        // onto the globe (a black disc in the middle of Earth in the first
+        // rig capture, 2026-10-21): the globe is the body, so it gets a plain
+        // label instead.
+        if disc_radii_px[i] == 0.0 {
+            paint.text(pb.screen, Align2::CENTER_CENTER, &pb.body.name, egui::FontId::proportional(13.0), theme.text_primary());
+            continue;
+        }
         pills.push(BodyPill {
             id: pb.body.id.as_str(),
             name: pb.body.name.as_str(),

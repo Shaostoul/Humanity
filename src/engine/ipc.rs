@@ -2002,6 +2002,60 @@ pub(crate) fn sky_rotation(state: &EngineState) -> glam::Quat {
     (to_catalogue * crate::station::render_to_world_rot(state.station_ride, state.station_world_rot)).as_quat()
 }
 
+/// The Sun's direction for the CELESTIAL pass and the god rays, in the
+/// RENDER frame: from the camera's frame origin toward the Sun, and, while
+/// riding the home station, turned into the hull's own axes
+/// (`station::to_hull`), the frame every body is placed and turned in aboard
+/// (lib.rs, "HULL FRAME (v0.1225), site 1 of 3"). One function for the live
+/// frame and every off-screen view.
+///
+/// BUG-210 (found 2026-10-21 by the Maps world layer): this was the world-axes
+/// direction, so aboard the bodies were lit by a Sun turned by the station's
+/// attitude. At local noon over the ship, Earth below it showed its terminator
+/// through the middle instead of its whole day side.
+pub(crate) fn celestial_sun_dir(state: &EngineState) -> Vec3 {
+    celestial_sun_dir_from(state.station_ride, state.station_world_rot, state.sun_world_pos, state.ship_world_pos)
+}
+
+/// `celestial_sun_dir`'s arithmetic, in pure form.
+pub(crate) fn celestial_sun_dir_from(riding: bool, station_rot: glam::DQuat, sun_world: glam::DVec3, origin_world: glam::DVec3) -> Vec3 {
+    let d = crate::station::to_hull(riding, station_rot, (sun_world - origin_world).normalize_or_zero()).normalize_or_zero();
+    Vec3::new(d.x as f32, d.y as f32, d.z as f32)
+}
+
+#[cfg(test)]
+mod celestial_sun_tests {
+    use super::*;
+    use crate::station::orbit;
+
+    /// Aboard at local noon over the ship (the Sun straight above it), the
+    /// celestial pass's Sun is the hull's own up, +Y, so the Earth under the
+    /// ship shows its whole day side; off the station it is the world's
+    /// direction, unchanged.
+    ///
+    /// Seen red 2026-10-21 on the old world-axes direction: "aboard at local
+    /// noon the celestial Sun is (-0.534, -0.000, 0.845), not the hull's up"
+    /// (on the hull's horizon: Earth's terminator through the middle).
+    #[test]
+    fn aboard_the_celestial_sun_is_in_the_hull_frame() {
+        let def = crate::station::default_home();
+        for t in [0.0, 6.0 * 3600.0, 14.5 * 3600.0] {
+            let (pos, vel) = orbit::propagate(&def.orbit, orbit::MU_EARTH, orbit::REAL_SECONDS_PER_DAY, t, 86_400.0);
+            let rot = orbit::attitude(&def.attitude, pos, vel);
+            let sun = pos.normalize() * 1.496e11; // straight above the ship
+            let d = celestial_sun_dir_from(true, rot, sun, pos);
+            assert!(
+                d.y > 0.999,
+                "aboard at local noon the celestial Sun is ({:.3}, {:.3}, {:.3}), not the hull's up",
+                d.x, d.y, d.z
+            );
+            let w = celestial_sun_dir_from(false, rot, sun, pos);
+            let want = (sun - pos).normalize();
+            assert!((w.as_dvec3() - want).length() < 1e-6, "off the station the Sun keeps the world's axes");
+        }
+    }
+}
+
 /// Render ONE view of the world from `camera` into `target` at `size`
 /// pixels: the passes `passes` names, in the live frame's order, against
 /// the draw lists `lists` (this frame's, borrowed) and the same world state
@@ -2125,12 +2179,9 @@ pub(crate) fn render_view_onto_kept(
     if passes == ViewPasses::Everything {
         // Passes 1.5 .. 2.7: identical order + inputs to the live frame
         // render (see the in-game branch above `match scene_result`). The
-        // sun direction is recomputed from the same state fields the live
-        // path uses.
-        let sun_dir_f = {
-            let d = (state.sun_world_pos - state.ship_world_pos).normalize_or_zero();
-            Vec3::new(d.x as f32, d.y as f32, d.z as f32)
-        };
+        // sun direction is the live path's, from one function (BUG-210:
+        // in the render frame, the hull's axes aboard).
+        let sun_dir_f = celestial_sun_dir(state);
         state.renderer.render_celestial_onto(
             camera,
             lists.celestial,

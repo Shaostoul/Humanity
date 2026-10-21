@@ -150,8 +150,14 @@ pub(crate) fn apply_verb(maps: &mut MapsState, verb: &MapVerb) {
     let scene_me = maps.me.clone();
     let scene = MapScene::new(scene_me.as_ref(), maps.sim_time_seconds, maps.live);
     if verb.home {
+        // A fresh start on you, the dev switches included: the page can stay
+        // open from an earlier request (a rig vantage), so the reset on
+        // opening never ran (the turning vantage's 20 degrees a second turned
+        // the next vantage's camera between its two captures, 2026-10-21).
         maps.view = MapView::System;
         maps.live = true;
+        maps.turn_dps = 0.0;
+        maps.draw_ship = true;
         maps.camera.open_on_me(scene_me.as_ref());
     }
     match verb.follow {

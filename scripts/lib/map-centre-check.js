@@ -20,8 +20,13 @@
 const PNG = require("./png.js");
 
 /** The ship's pixels: where `a` and `b` differ by more than `threshold` in any
- * channel, inside `rect` ([left, top, right, bottom], pixels). */
-function shipMask(a, b, rect, threshold = 40) {
+ * channel, inside `rect` ([left, top, right, bottom], pixels), and in a SOLID
+ * patch: a changed pixel counts only when at least `solid` of the 9 pixels of
+ * its 3x3 neighbourhood changed too. A ship is one connected shape; the star
+ * field twinkles between two renders a pixel or two at a time, all over the
+ * canvas, and scattered noise has its centroid at the canvas centre (the near
+ * control passed the check on star twinkle alone before this, 2026-10-21). */
+function shipMask(a, b, rect, threshold = 40, solid = 6) {
   if (a.width !== b.width || a.height !== b.height) {
     throw new Error(`the two captures differ in size: ${a.width}x${a.height} and ${b.width}x${b.height}`);
   }
@@ -29,9 +34,9 @@ function shipMask(a, b, rect, threshold = 40) {
   const t = Math.max(0, Math.floor(rect[1]));
   const r = Math.min(a.width, Math.ceil(rect[2]));
   const btm = Math.min(a.height, Math.ceil(rect[3]));
-  let count = 0;
-  let sx = 0;
-  let sy = 0;
+  const w = Math.max(0, r - l);
+  const h = Math.max(0, btm - t);
+  const changed = new Uint8Array(w * h);
   for (let y = t; y < btm; y++) {
     for (let x = l; x < r; x++) {
       const i = (y * a.width + x) * 4;
@@ -40,10 +45,27 @@ function shipMask(a, b, rect, threshold = 40) {
         Math.abs(a.rgba[i + 1] - b.rgba[i + 1]),
         Math.abs(a.rgba[i + 2] - b.rgba[i + 2]),
       );
-      if (d > threshold) {
+      if (d > threshold) changed[(y - t) * w + (x - l)] = 1;
+    }
+  }
+  let count = 0;
+  let sx = 0;
+  let sy = 0;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (!changed[y * w + x]) continue;
+      let n = 0;
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const yy = y + dy;
+          const xx = x + dx;
+          if (yy >= 0 && yy < h && xx >= 0 && xx < w) n += changed[yy * w + xx];
+        }
+      }
+      if (n >= solid) {
         count++;
-        sx += x;
-        sy += y;
+        sx += x + l;
+        sy += y + t;
       }
     }
   }
